@@ -53,7 +53,7 @@ foreach (@DenDipFiles2) {
 }
 
 foreach (@ExtraFiles) {
-  `cp ENV{'OCEAN_BIN'}/$_ .` == 0 or die;
+  `cp $ENV{'OCEAN_BIN'}/$_ .` == 0 or die;
 }
 
 open LISTW, "listwfile" or die "Failed to open listwfile\n";
