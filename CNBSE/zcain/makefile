@@ -31,7 +31,7 @@ zobj/limel.o: zf90/limel.f90
 	$(COMP) -c $(OPTS) -o zobj/limel.o zf90/limel.f90
 zobj/sdjtv.o: zf90/sdjtv.f90
 	$(COMP) -c $(OPTS) -o zobj/sdjtv.o zf90/sdjtv.f90
-zobj/sphidriver.o: zf90/sphidriver.f90 sphsetnx.h.f90 sphsetx.h.f90
+zobj/sphidriver.o: zf90/sphidriver.f90 zf90/sphsetnx.h.f90 zf90/sphsetx.h.f90
 	$(COMP) -c $(OPTS) -o zobj/sphidriver.o zf90/sphidriver.f90
 #
 zobj/nbseprjprep.o: zf90/nbseprjprep.f90

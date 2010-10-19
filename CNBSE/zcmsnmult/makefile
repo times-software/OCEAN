@@ -16,9 +16,9 @@ zexe/cainmultip.x: $(CAINM)
 #
 zobj/cainchact.o: zf90/cainchact.f90
 	$(COMP) -c zf90/cainchact.f90 -o zobj/cainchact.o
-zobj/cainmhsetup.o: zf90/cainmhsetup.f90 sphsetnx.h.f90 sphsetx.h.f90
+zobj/cainmhsetup.o: zf90/cainmhsetup.f90 zf90/sphsetnx.h.f90 zf90/sphsetx.h.f90
 	$(COMP) -c zf90/cainmhsetup.f90 -o zobj/cainmhsetup.o
-zobj/cainmultip.o: zf90/cainmultip.f90 cainmusetupx.h nbsemusetupnx.h
+zobj/cainmultip.o: zf90/cainmultip.f90 zf90/cainmusetupx.h zf90/nbsemusetupnx.h
 	$(COMP) $(OPTS) -c zf90/cainmultip.f90 -o zobj/cainmultip.o
 zobj/cainnqtoxr.o: zf90/cainnqtoxr.f90
 	$(COMP) $(OPTS) -c zf90/cainnqtoxr.f90 -o zobj/cainnqtoxr.o
