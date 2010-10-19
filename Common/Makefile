@@ -1,6 +1,6 @@
 FILES   =
 SCRIPTS = ocean.pl par_ocean.pl parse 
-AUX = parse.h Pquadrature specpnt sphpts
+AUX = oparse.h Pquadrature specpnt sphpts
 
 .SUFFIXES: .f .x
 

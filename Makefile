@@ -32,7 +32,7 @@ install:
 	cd SCREEN;        make "INSTDIR = $(INSTDIR)" install
 	cd PAW;          make "INSTDIR = $(INSTDIR)" install
 	cd CNBSE;        make "INSTDIR = $(INSTDIR)" install
-	chmod u+x $(INSTDIR)/*.script
+#	chmod u+x $(INSTDIR)/*.script
 	chmod u+x $(INSTDIR)/*.pl
 
 instdev:
@@ -42,5 +42,5 @@ instdev:
 	cd PREP;      make "INSTDEVDIR = $(INSTDEVDIR)" instdev
 	cd CNBSE;         make "INSTDEVDIR = $(INSTDEVDIR)" instdev
 	cd SCREEN;       make "INSTDEVDIR = $(INSTDEVDIR)" instdev
-	chmod u+x $(INSTDEVDIR)/*.script
+#	chmod u+x $(INSTDEVDIR)/*.script
 	chmod u+x $(INSTDEVDIR)/*.pl

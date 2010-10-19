@@ -38,6 +38,10 @@ SEOBJS = zobj/kbbessel.o zobj/besjl.o zobj/eispack.o zobj/gro.o
 VSOBJS = zobj/vsubtract.o zobj/elserf.o
 VTOBJS = zobj/vtransf.o
 #
+install:
+	cp zexe/hfk.x $(INSTDIR)
+
+
 all: zexe/ftrns.x zexe/hfk.x zexe/kbft.x zexe/separate.x zexe/ffiler.x \
      zexe/analyze.x zexe/vsubtract.x zexe/vtransf.x zexe/llscreen.x \
      zexe/backtran.x zexe/rtabber.x zexe/mason.x zexe/rtab2.x zexe/vamend.x zexe/hartpart.x

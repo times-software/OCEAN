@@ -1,5 +1,5 @@
 FILES   = avec.x 
-SCRIPTS = AbinitDriver.pl NewAbinitDriver.pl pp.pl p
+SCRIPTS = AbinitDriver.pl NewAbinitDriver.pl pp.pl 
 
 
 .SUFFIXES: .f .x
@@ -11,7 +11,7 @@ clean:
 	rm -f kgen.x
 
 install:
-	cp $(SCRIPTS) $(FILES) $(AUX) kgen.x $(INSTDIR)
+	cp $(SCRIPTS) $(FILES) $(AUX) kgen2.x $(INSTDIR)
 
 instdev:
 	for F in $(SCRIPTS); do ln -fs $(PWD)/$$F $(INSTDEVDIR); done;
