@@ -1,0 +1,263 @@
+#!/bin/csh
+
+# Script to parse arbitrary input files
+###############################################################################
+# Grammar rules:
+#  1) Lines are read from top to bottom
+#  2) Each line is processed left to right
+#  3) Any tokens to the right of the "#", "!" and "*" characters will be
+#     ignored
+#  4) Tokens are case-insensitive
+#  5) Repeated tokens are not permitted
+#  6) A file must contain only tokens and directives
+#  7) A directive indicates an action to be taken
+#  8) An input line has the format:
+#
+#       token { value } Optional_Qualifier
+#
+#  9) If "value" is a scalar, the {} are optional
+# 10) If the {} are not present, then "value" must be in the same line
+#     as "token"
+# 11) If the {} are present the following formats are all valid:
+#
+#       token { value } Optional_Qualifier
+#
+#       token
+#         { value } Optional_Qualifier
+#
+#       token {
+#               value } Optional_Qualifier
+#
+#       token {
+#               value
+#              } Optional_Qualifier
+#
+#       token {
+#               value
+#              } Optional_Qualifier
+#     etc..
+# 12) If present, the qualifier must appear next to the }
+# 13) if no "{}" are present, the qualifier must appear next to "value"
+# 14) The following directives are recognized:
+#    a) %begin and %end (NOT YET INPLEMENTED)
+#       These directives signal the beginning and ending of an input section.
+#    b) %include file (NOT YET IMPLEMENTED)
+#       The content of "file" will be included at the %include location
+###############################################################################
+
+# This is a bad hack to solve the problem of the $ sign inside "" in csh
+# A better long term solution would be to rewrite this in bash
+set Endl = '$'
+
+# For now we use a configuration file to know where to store the
+# information we are parsing. This is specifically geared towards ai2nbse
+set Option = $1
+
+# Set the input file
+set Input = $2
+if !( -f $Input ) then
+  echo "Can't find input file ($Input)"
+  exit 1
+endif
+
+set Token_Info = $3
+if !( -f $Token_Info ) then
+  echo "Can't find parser configuration file ($Token_Info)"
+  exit 1
+endif
+
+# Remove all comments,
+# Move "{" into new line
+# Move "}" into new line
+# Remove all blank lines,
+# Remove all leading and trailing blanks and tabs,
+# Remove repeated blanks and tabs,
+# Convert everything to lowercase
+# Keep only stuff between "%begin" and "%end"
+# Remove "%begin" and "%end"
+# Tag everything between "{" and "}" with a "#" in the first character
+# Convert scalar values (with qualifier) into "{value}" format
+# Tag everything between "{" and "}" with a "#" in the first character
+# Convert scalar values (without qualifier) into "{value}" format
+# Untag line starting with "#"
+# Remove all leading and trailing blanks and tabs,
+# Remove repeated blanks and tabs,
+# Join all lines that start with "{" to the previous line
+# Add "{\n}" (empty value) to every token that doesn't have a value
+# Drop all "{" to the next line again
+sed 's/[#*\!].*$//g' $Input     | \
+sed 's/{/\n{\n/g'               | \
+sed 's/}/\n}/g'                 | \
+sed '/^[ \t]*$/d'               | \
+sed 's/^[ \t]*//;s/[ \t]*$//'   | \
+sed 's/[ \t][ \t]*/ /g'         | \
+sed 'y/ABCDEFGHIJKLMNOPQRSTUVWXYZ/abcdefghijklmnopqrstuvwxyz/' | \
+#sed '/%begin/,/%end/\!d'        | \
+#sed 's/%begin//;s/%end//'       | \
+sed '/{/,/}/s/^/#/'             | \
+sed '/^[^#]/s/ .* /\n{\n&\n} /' | \
+sed '/^{/,/^}/s/^/#/'           | \
+sed '/^[^#]/s/ .*$/\n{\n&\n} /' | \
+sed '/^#/s/#//'                 | \
+sed 's/^[ \t]*//;s/[ \t]*$//'   | \
+sed 's/[ \t][ \t]*/ /g'         | \
+sed -e :a -e '$\!N;s/\n{/{/;ta' -e 'P;D' | \
+sed '/{/,/}/\!s/$/{\n}/'                 | \
+sed 's/{/\n{/g'                 | \
+sed ''     > Inp_Clean
+
+# Debug
+#cat Inp_Clean
+#exit
+
+# Enforce single instance per token: 
+# Get everything that is not between "{" and "}"
+# Sort
+# Delete everything except duplicate lines
+set Dupl=`sed '/{/,/}/d' Inp_Clean | \
+          sort                     | \
+          sed '$\\!N; s/^\(.*\)\n\1$/\1/; t; D'`
+if ( "$Dupl" != "" ) then
+  echo 'Error: Duplicate token(s):'
+  echo $Dupl
+  exit 1
+endif
+
+# Debug
+#exit
+
+# Parse the input file:
+# Make a list of all the tokens in the input file
+set Token_Inp_List = `sed '/{/,/}/d' Inp_Clean`
+
+# Debug
+#echo $Token_Inp_List
+#exit
+
+# Loop over the input tokens
+foreach Token_Inp ( $Token_Inp_List )
+
+# Look for the input token in the reference
+  set Token_Found=`sed "/^$Token_Inp$Endl/\\!d" $Token_Info`
+
+# Debug
+#echo $Token_Found
+
+# If not found, then exit
+  if ( "$Token_Found" == "" ) then
+    echo "Unrecognized option: $Token_Inp"
+    exit 1
+  endif
+
+end
+
+# Debug
+#exit
+
+# Make a list of reference tokens
+switch ( $Option )
+  case "--all":
+    set Token_Ref_List = `sed '/{/,/}/d' $Token_Info`
+    breaksw
+  case "--nbse":
+    set Token_Ref_List = `sed '/{/,/}/d' $Token_Info | \
+                          sed '/^nbse/\\!d'`
+    set Token_Ref_List = ( 'control' $Token_Ref_List )
+    breaksw
+  default:
+    echo "Unrecognized option for 'parse' value: $Option"
+    exit 2
+endsw
+
+# Debug
+#echo $Token_Ref_List
+#exit 2
+
+# Loop over the reference tokens
+foreach Token_Ref ( $Token_Ref_List )
+
+# Find if the token has a default value (if none, the token is required)
+  set Token_Ref_Has_Value=`sed "/^$Token_Ref$Endl/,/}/\\!d" $Token_Info | \
+                           sed '1,2d;$d'`
+
+# Debug
+# echo $Token_Ref_Has_Value
+
+# Find to which file should we redirect the values
+  set Token_Ref_File=`sed "/^$Token_Ref$Endl/,/}/\\!d" $Token_Info | \
+                      sed '$\\!d;s/} //'`
+
+# Debug
+# echo "Option $Token_Ref file is $Token_Ref_File"
+
+# Look for the reference token in the input
+  set Token_Found=`sed "/^$Token_Ref$Endl/\\!d" Inp_Clean`
+
+# Debug
+# echo $Token_Found
+
+# Check if we have a mandatory token and if it is present in the input
+# Yes inp value => Print inp value
+# No inp value
+#   Yes ref value  => print ref value
+#   No ref value   => exit
+  if ( "$Token_Found" != "" ) then
+
+# Debug
+#   echo "Option $Token_Ref found"
+
+# Find the token value (if none, exit, values are required in the input)
+    set Token_Inp_Has_Value=`sed "/^$Token_Ref$Endl/,/}/\\!d" Inp_Clean | \
+                             sed '1,2d;$d'`
+
+# Debug
+#   echo $Token_Inp_Has_Value
+
+# Check it has a value
+    if ( "$Token_Inp_Has_Value" == "" ) then
+      echo "Option $Token_Ref must have a value"
+      exit 1
+    endif
+
+# Find the optional qualifier, if any
+# NOTE: Won't do anything with it for now
+    set Token_Inp_Qual=`sed "/^$Token_Ref$Endl/,/}/\\!d" Inp_Clean | \
+                        sed '$\\!d;s/}//'`
+
+# Put the value in the required file
+    sed "/^$Token_Ref$Endl/,/}/\!d" Inp_Clean | \
+    sed '1,2d;$d'                       > $Token_Ref_File
+
+# Debug
+#   echo ${Token_Inp_Qual}
+
+# Debug
+#   echo "Option: $Token_Ref"
+#   echo "Value:  $Token_Inp_Has_Value"
+#   echo "Qual:   $Token_Inp_Qual"
+
+  else
+
+    if ( "$Token_Ref_Has_Value" != "" ) then
+
+# Put the value in the required file
+      sed "/^$Token_Ref$Endl/,/}/\!d" $Token_Info | \
+      sed '1,2d;$d'                         > $Token_Ref_File
+
+    else
+
+      echo "Required option $Token_Ref not found"
+      exit 1
+
+    endif
+
+  endif
+
+end
+
+# Debug
+#exit
+
+# Cleanup
+#rm Inp_Clean
+

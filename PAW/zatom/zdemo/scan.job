@@ -1,0 +1,11 @@
+#!/bin/csh
+foreach elem ( H_ C_ N_ O_ Ti )
+   ${elem}ppgen.job
+   mv real0 ${elem}.sppot
+   mv real1 ${elem}.pppot
+   mv real2 ${elem}.dppot
+   mv ppgopt ppgopt.${elem}
+end
+rm -f H_.pppot H_.dppot
+rm -f aprog config chgsum caution hapot hfpot radpot skip tmp
+rm -f aex corcon atmf99 psld real3 recp? rslt valcon
