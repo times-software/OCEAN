@@ -180,7 +180,7 @@ while ($hfinline = <HFINLIST>) {
       `cp ipt ipt1`;
       `echo .false. >> ipt1`;
       `echo 0.1 100 >> ipt1`;
-      `time $ENV{'OCEAN_BIN'}/rscombine2.x < ipt1 > ./${edgename}/zRXF${fullrad}/ropt`;
+      `time $ENV{'OCEAN_BIN'}/rscombine.x < ipt1 > ./${edgename}/zRXF${fullrad}/ropt`;
       `mv {rpot,rpothires} ${edgename}/zRXF${fullrad}/`;
 
       `cp ipt ipt1`;
@@ -190,7 +190,7 @@ while ($hfinline = <HFINLIST>) {
       `wc zpawinfo/vvallel${edgename2} >> ipt1`;
       `cat zpawinfo/vvallel${edgename2} >> ipt1`;
       `echo 0.1 100 >> ipt1`;
-      `time $ENV{'OCEAN_BIN'}/rscombine2.x < ipt1 > ./${edgename}/zRXT${fullrad}/ropt`;
+      `time $ENV{'OCEAN_BIN'}/rscombine.x < ipt1 > ./${edgename}/zRXT${fullrad}/ropt`;
       `mv {rpot,rpothires,rom,nin} ${edgename}/zRXT${fullrad}/`;
   }
 }
