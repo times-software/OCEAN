@@ -1,5 +1,4 @@
       program avec
-      include 'license.h'
       double precision ascale(3),bvec(3,3),pi
       character*5 gtxt
       integer :: i,j

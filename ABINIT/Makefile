@@ -4,7 +4,7 @@ SCRIPTS = AbinitDriver.pl NewAbinitDriver.pl pp.pl p
 
 .SUFFIXES: .f .x
 
-all: $(FILES) kgen.x
+all: $(FILES) kgen2.x
 
 clean:
 	rm -f $(FILES)
@@ -22,5 +22,5 @@ instdev:
 .f.x:
 	$(FC) $(OPTIONS) -o $*.x $*.f
 
-kgen.x: kgen.f90
-	$(FC) $(OPTIONS) kgen.f90 -o kgen.x
+kgen2.x: kgen2.f90
+	$(FC) $(OPTIONS) kgen2.f90 -o kgen2.x
