@@ -1,0 +1,93 @@
+\documentclass[12pt]{revtex4}
+
+\usepackage[pdftex]{color}
+
+\begin{document}
+
+\title{OCEAN Doc}
+
+\author{J. Vinson}
+\affiliation{Dept.\ of Physics, Univ.\ of Washington, Seattle, WA 98195}
+\date{\today}
+
+\maketitle
+
+\section{Overview}
+
+OCEAN provides a package to numerically solve the Bethe-Salpeter equation for core-level excitations. There are several steps in the process.
+\begin{enumerate}
+\item Calculate wave-functions of the ground state Hamiltonian with DFT
+\item Calculate atomic orbitals for the core
+\item Calculate PAW projectors and functions to transform between the pseudo and all-electron bases
+\item Construct an effective Hamiltonian for the BSE, including screening the core-hole
+\item Calculate the spectra
+\end{enumerate}
+
+The guide is broken up into sections to follow the path the code will take.
+
+\section{Ground State Wavefunctions}
+In principle any pseudo-potential DFT code can be used. In our implementation we have an interface for using ABINIT\cite{abinit}. To run with a custom format see the specs listed in appendix \ref{WF_format}.
+
+In principle these wave-functions should include self-consistent self-energy corrections, eg. GW, but in practice it has been found that for many systems 
+self-energy corrections only affect the energies and not the wave-functions. Even single-shot self-energy calculations can be computationally expensive 
+and we provide several methods to approximate the GW correction; ad-hoc band stretching and the many-pole self-energy which are both presented 
+later.
+
+
+\section{Atomic}
+
+The transition matrix elements between core and pseudized conduction or valence states are calculated 
+using the projector augmented wave (PAW) formalism developed by Bl\"{o}chl \cite{Bloechl}. In OCEAN
+the construction of all-electron and pseudized atomic states is taken care of by the program \emph{hfk.x}. 
+The inputs and outputs of this section are unique for each pseudopotential, but not for each system, ie. 
+a library of pseudopotentials and atomic info files can be collected and reused.
+
+\subsection{scfac}
+The SCaling FACtor is a real number that modifies the calculated Slater-Condon parameters for the atomic case. For 2nd row elements this should be 1.d0 while for transition metals a factor of 0.8d0 is more appropriate. See DeGroot, some others probably.
+
+\subsection{fill}
+The \emph{fill} file determines the numerical parameters used for the PAW construction. Including the energy range to construct waves over, the maximum number of waves per angular momenta, the cut-off radius to use, and the momentum grid for evaluating the Fourier transform of the projectors. 
+
+\begin{center}
+\begin{tabular}{| l | c l |}
+\hline
+2						& &  pow \\
+-1.30 2.00 0.0001 0.01 6		& & Emin, Emax, prec1, prec2, max number of PAW \\
+3.5 1e6					& & PAW radius, prec \\
+0.05 20					& & q step, q max \\
+\hline
+\end{tabular}
+\end{center}
+
+The matrix elements are calculated up to $\langle \phi_i \vert n^{pow} \vert \phi_j \rangle$. The PAW reconstruction starts at energy Emin and attempts to span the space to Emax (both in Ha.). The precision factors should be left alone, but the number of PAW functions to include depends on the system being investigated and convergence should be checked. The PAW radius is in Bohr and convergence should be checked. The overlaps between the states and the projectors is done in reciprocal space on a grid which is controlled by q step and q max, but there parameters should be sufficient for a range of systems.
+
+
+\subsection{opts}
+The \emph{opts} file contains information about the pseudopotential such as z, core-valence partitioning, and reference configuration. This information should match that used to construct the pseudopotential. In the case of pseudopotentials 
+whose origin is unknown a reasonable guess must be made.
+
+\begin{center}
+\begin{tabular}{| l | c l |}
+\hline
+008				& &  Z\\
+1 0 0 0			& & core states; s p d f \\
+scalar rel			& & \\
+lda				& & functional \\
+2.0 3.5 0.0 0.0		& & valence occupation; s p d f \\
+2.0 3.5 0.0 0.0		& & repeat of above \\
+\hline
+\end{tabular}
+\end{center}
+
+For the opt file one specifies the number of levels not included in the pseudo-potential, ie 1s for Oxygen as well as the number of electrons included in the reference configuration of the pseudo-potential, ie 2.0 2s and 3.5 2p for oxygen. For functionals the choice is lda or hf. 
+
+\section{Screening Calculation}
+
+The screening of the core-hole interaction is done in real space using the random phase approximation up to some radius around the core, 2-5 bohrs, and then using an analytic function of the local density, distance, and static dielectric constant outside of this radius. Convergence with respect to this radius should be checked and will change based on both the core and system of interest. The screening is only exact for an infinite number of bands, but should smoothly converge w.r.t. number of bands included. For the average system a 2$^3$ k-point grid is sufficient for convergence, while a very small system might require a slightly higher sampling and a large unit cell might be ok with just the gamma point.
+
+
+\appendix
+\section{WF format}\label{WF_format}
+
+
+\end{document}
