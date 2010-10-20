@@ -14,6 +14,7 @@ all:
 	cd PAW;          make "COMP = $(FC)" "OPTS = $(OPTIONS)"
 	cd SCREEN;       make "COMP = $(FC)" "OPTS = $(OPTIONS)"
 	cd CNBSE;        make "COMP = $(FC)" "OPTS = $(OPTIONS)"
+	cd zbridge;      make "COMP = $(FC)" "OPTS = $(OPTIONS)"
 
 clean:
 #	rm -f $(INSTDIR)/*.x $(INSTDIR)/*.script
@@ -23,7 +24,7 @@ clean:
 	cd SCREEN;       make clean
 	cd PAW;   make clean
 	cd CNBSE  make clean 
-
+	cd zbridge;  make clean
 install:
 	cp $(SCRIPTS) $(AUX) $(INSTDIR)
 	cd Common;       make "INSTDIR = $(INSTDIR)" install
@@ -32,6 +33,7 @@ install:
 	cd SCREEN;        make "INSTDIR = $(INSTDIR)" install
 	cd PAW;          make "INSTDIR = $(INSTDIR)" install
 	cd CNBSE;        make "INSTDIR = $(INSTDIR)" install
+	cd zbridge;      make "INSTDIR = $(INSTDIR)" install
 #	chmod u+x $(INSTDIR)/*.script
 	chmod u+x $(INSTDIR)/*.pl
 

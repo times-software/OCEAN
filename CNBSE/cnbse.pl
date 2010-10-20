@@ -35,14 +35,14 @@ foreach (@DenDipFiles) {
   `cp ../DenDip/BSE/$_ .` == 0 or die "Failed to get DenDip/BSE/$_\n" ;
 }
 foreach (@ExtraFiles) {
-  `cp$ENV{'OCEAN_BIN'}/$_ .` == 0 or die "Failed to get ../$_\n";
+  `cp $ENV{'OCEAN_BIN'}/$_ .` == 0 or die "Failed to get ../$_\n";
 }
 foreach (@jtv) {
   `cp ../$_ .` == 0 or die "Failed to get ../$_\n";
 }
 
 foreach (@PawFiles) {
-  `cp ../PAW/$_ .` == 0 or die "Failed to get ../PAW/$_\n";
+  `cp ../SCREEN/$_ .` == 0 or die "Failed to get ../SCREEN/$_\n";
 }
 
 ##### misc other setup
@@ -145,8 +145,8 @@ while (<EDGE>) {
   close ZNL;
   $zstring = sprintf("z%03un%02ul%02u", $znum, $nnum, $lnum);
   $zstring = sprintf("z%2s%02i_n%02il%02i", $elname, $elnum, $nnum, $lnum);
-  system("cp ../PAW/${zstring}/zR${pawrad}/rpot ./rpotfull") == 0 
-    or die "Failed to grab rpot\n../PAW/${zstring}/zR${pawrad}/rpot ./rpotfull\n";
+  system("cp ../SCREEN/${zstring}/zR${pawrad}/rpot ./rpotfull") == 0 
+    or die "Failed to grab rpot\n../SCREEN/${zstring}/zR${pawrad}/rpot ./rpotfull\n";
 #
 #
   foreach my $way (1 ) {
