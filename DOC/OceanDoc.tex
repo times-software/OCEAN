@@ -34,7 +34,13 @@ and we provide several methods to approximate the GW correction; ad-hoc band str
 later.
 
 
-\section{Atomic}
+\section{PAW and Atomic}
+
+The PAW/Atomic section of the code is material independent. In principle this section can be run once
+for a given pseudopotential and reused. The important outputs of this section are a collection of 
+all-electron and pseudo projector augmented waves. The all-electron core wavefunction is expressed
+as coefficients of the all-electron PAW. The psuedo PAW will be used later to express the valence/conduction
+electron wavefunctions.
 
 The transition matrix elements between core and pseudized conduction or valence states are calculated 
 using the projector augmented wave (PAW) formalism developed by Bl\"{o}chl \cite{Bloechl}. In OCEAN
@@ -42,8 +48,9 @@ the construction of all-electron and pseudized atomic states is taken care of by
 The inputs and outputs of this section are unique for each pseudopotential, but not for each system, ie. 
 a library of pseudopotentials and atomic info files can be collected and reused.
 
+
 \subsection{scfac}
-The SCaling FACtor is a real number that modifies the calculated Slater-Condon parameters for the atomic case. For 2nd row elements this should be 1.d0 while for transition metals a factor of 0.8d0 is more appropriate. See DeGroot, some others probably.
+The SCaling FACtor is a real number that modifies the calculated Slater-Condon parameters for the atomic case. For 2nd row elements this should be 1.d0 while for transition metals a factor of 0.8d0 is more appropriate. See DeGroot, some others probably \cite{SCFAR}.
 
 \subsection{fill}
 The \emph{fill} file determines the numerical parameters used for the PAW construction. Including the energy range to construct waves over, the maximum number of waves per angular momenta, the cut-off radius to use, and the momentum grid for evaluating the Fourier transform of the projectors. 
@@ -79,12 +86,283 @@ lda				& & functional \\
 \end{tabular}
 \end{center}
 
-For the opt file one specifies the number of levels not included in the pseudo-potential, ie 1s for Oxygen as well as the number of electrons included in the reference configuration of the pseudo-potential, ie 2.0 2s and 3.5 2p for oxygen. For functionals the choice is lda or hf. 
+For the opt file one specifies the number of levels not included in the pseudo-potential, ie 1s for Oxygen as well as the number of electrons included in the reference configuration of the pseudo-potential, ie 2.0 2s and 3.5 2p for oxygen. For functionals the choice is lda or hf. Options for treatments of spin-orbit are 
+scalar or dirac and rel[ativistic] nonrel[ativistic] and should of course match the psuedopotential 
+construction. 
 
 \section{Screening Calculation}
 
-The screening of the core-hole interaction is done in real space using the random phase approximation up to some radius around the core, 2-5 bohrs, and then using an analytic function of the local density, distance, and static dielectric constant outside of this radius. Convergence with respect to this radius should be checked and will change based on both the core and system of interest. The screening is only exact for an infinite number of bands, but should smoothly converge w.r.t. number of bands included. For the average system a 2$^3$ k-point grid is sufficient for convergence, while a very small system might require a slightly higher sampling and a large unit cell might be ok with just the gamma point.
+The screening of the core-hole interaction is done in real space using the random phase approximation up to 
+some radius around the core, 2-5 bohrs, and then using an analytic function of the local density, distance, 
+and static dielectric constant outside of this radius \cite{screening}. Convergence with respect to this radius should be 
+checked and will change based on both the core and system of interest. The screening is only exact for an 
+infinite number of bands, but should smoothly converge w.r.t. number of bands included. For the average 
+system a 2$^3$ k-point grid is sufficient for convergence, while a very small system might require a 
+slightly higher sampling and a large unit cell might be ok with just the gamma point.
 
+\section{ CNBSE }
+The CNBSE section solves for the spectra. The important output file is absspct; column 1 is the energy, 
+column 2 the spectra using a plamon-pole boradening model and column 3 the plain spectra.
+
+\section{Input File}
+\label{sec:Control-Items}
+The input file is order and case independent. No more than one parameter per line is allowed, though parameters can span several lines. Following a \# all remaining text on that line is ignored by the parser. See the examples included in the Examples/ directory.  
+
+Input parameters that have a * are required, all others have some default, though specifying their value is recommended.
+
+\subsection{CONTROL}
+Type: integer \\
+Values: 0, 1 \\
+Default: 0
+\begin{itemize}
+\item The value 0 performs all stages of the calculation and must be run at least once. 
+
+\item The value 1 only runs the \textsc{NBSE} section and can be used after successfully running with control = 0. With the control flag set to 1 any of the flags that start with NBSE can be changed.
+\end{itemize}
+\subsection{*NKPT}
+Type: integer list (3) \\
+Range: Positive \\
+
+These three parameters specify the k-space grid points used to cover the Brillouin Zone for the final
+states.  The spectrum should be convergent with respect to these parameters. The larger the number of 
+grid points the longer the calculation will take. 
+
+\subsection{PAW.NKPT}
+Type: integer list (3) \\
+Range: Positive \\
+Default: \{ 2 2 2 \} \\
+
+This sets the kpt-grid for the screening calculation. Here 2x2x2 is often going to be sufficient.
+
+%\subsection{PHOTON\_Q}
+%Type: double list (3) \\
+%Range: 0-? \\
+%Default: \{ 0.001 0.001 0.001\} \\
+
+%These three give the photon momentum q in units of reciprocal lattice vectors. The reciprocal lattice vectors are calculated from the direct lattice vectors given in input by ACELL and RPRIM as noted below. The photon momentum should be in the optical limit as $q \rightarrow 0$.
+
+%For non-isotropic materials the optical constants can vary with q direction and it is informative to run with several different orientations of the photon momentum.
+
+\subsection{NGKPT}
+Type: integer list (3) \\
+Range: Positive \\
+Default: \{ 4 4 4 \} \\
+
+The sets the k-point grid used by ABINIT for the self-consistent density calculation.
+
+
+\subsection{*NBANDS}
+Type: integer \\
+Range: Positive \\
+
+The total number of bands to be used in the calculation, both occupied and unoccupied.
+Absorption is calculated in terms of transitions between occupied and 
+unoccupied bands. Thus, the total number of bands determines the highest 
+possible frequency for which a spectrum can be calculated reliably. We can
+estimate this frequency in terms of a typical band width multiplied by the number of
+unoccupied bands plus the gap energy, accounting for degeneracy. If the code runs above this energy it 
+will begin to miss certain interband transitions and thus the calculation
+may be unreliable.
+
+\subsection{*NBANDS.PAW}
+Type: integer \\
+Range: Positive \\
+
+Same as above, but for the screening calculation. The screening calculation requires a large number of 
+bands for convergence. 
+
+\subsection{*ACELL}
+Type: double list (3) \\
+Range: 0 - ? \\
+
+Overall scale factors of RPRIM in units of Bohr. \\
+Eg. If our primitive lattice vectors were (in Bohr)
+\begin{verbatim}
+( 10.2,   0,  0  )     
+(    0, 9.3,  0  )       
+(    0,   0,  7.5) 
+\end{verbatim}
+
+Then ACELL would read \{ 10.2, 9.3, 7.5 \} \\
+and RPRIM would read
+\begin{verbatim}
+{    1,   0,   0      
+     0,   1,   0        
+     0,   0,   1 } 
+\end{verbatim}
+
+\subsection{*RPRIM}
+Type: double array (3,3)\\
+Range: 0 - ? \\
+
+The cartesian components of the lattice vectors which are scaled by ACELL.
+
+In order to obtain the crystal structure one may search the web. For example,
+a database of crystal structure can be found by pointing your web-browser at
+ \verb|http://cst-www.nrl.navy.mil/lattice/struk/b_k.html|.
+
+\subsection{*NTYPAT}
+Type: integer \\
+Range: 1 - ? \\
+
+This is the number of different types of atoms in the cell.
+
+\subsection{*ZNUCL}
+Type: integer list (NTYPAT) \\
+Range: 1- ?
+
+This is a list of the atoms in the cell the length of which should match NTYPAT. 
+\subsection{PP\_LIST}
+Type: string list (NTYPAT) \\
+
+This is a list of psuedo-potential files. The files specified here must be in the same order as the ZNUCL list and must be in either the run directory or in the PsuedoPots directory. If PP\_LIST is not specified than \textsc{AI2NBSE} will look for any pseudo-potentail files with the correct Z number.
+
+
+\subsection{*NATOM}
+Type: integer \\
+Range: 1- ? \\
+
+The total number of atoms in the unit cell (NOT the number of unique types).
+
+\subsection{*TYPAT}
+Type: integer list (NATOM) \\
+Range: 1 - NTYPAT \\
+
+This list assigns each of the atoms in the unit cell a type based on the ZNUCL list. The positions of each atom in the list corresponds to XRED below.
+
+\subsection{*XRED}
+Type: double array (3,NATOM) \\
+Range: 0 - ? \\
+
+This gives the locations of each of the atoms in terms of lattice vectors.
+
+\subsection{*ECUT}
+Type: double \\
+Range: 0 - ? \\
+
+This is the kinetic energy cuttoff for the plane-wave basis in units of Hartree. This depends entirely on
+the pseudopotentials being used.
+
+\subsection{TOLDFE}
+Type: double \\
+Range: 0 - ? \\
+Default: 1.0d-6\\
+
+This is a parameter used by \textsc{ABINIT} to specify when 
+self-consistancy is reached for the density calculation.
+
+Within \textsc{ABINIT} the parameter is named \verb|toldfe|.
+More information can be found at 
+\\
+\verb|http://www.abinit.org/Infos_v5.3/input_variables/varbas.html#toldfe|
+
+\subsection{TOLWFR}
+Type: double \\
+Range: 0 - ? \\
+Default: 1.0d-16 \\
+
+This is a parameter used by \textsc{ABINIT} to specify when 
+self-consistancy is reached. 
+
+Within \textsc{ABINIT} the parameter is named \verb|tolwfr|.
+More information can be found at 
+\\ 
+\verb|http://www.abinit.org/Infos_v5.3/input_variables/varbas.html#tolwfr|
+
+\subsection{*DIEMAC}
+Type: double \\
+Range: 0 - ? \\
+
+Static dielectric constant of the material. The \textsc{ABINIT} stage uses this value to aid with convergence and its value will only change the time taken for the calculation and not the results. The BSE section of 
+the calculation uses the static dielectric constant for the screening and this will change results.
+
+\subsection{NSTEP}
+Type: integer \\
+Range: 1 - ? \\
+Default: 20  \\
+
+This is a parameter used by \textsc{ABINIT} to specify when 
+self-consistancy is reached. 
+
+Within \textsc{ABINIT} the parameter is named \verb|nstep|.
+More information can be found at 
+\\ 
+\verb|http://www.abinit.org/Infos_v5.3/input_variables/varbas.html#nstep|
+
+\subsection{*NEDGES}
+Type: integer
+Range: Positive
+
+The number of edges to run calculations for. Currently multiple edges per run is not well supported, and 
+the user should limit this to running multiple sites of the same element.
+
+\subsection{*EDGES}
+Type: integer triplets
+
+For each edge in NEDGES a triplet specifies information about the edge. The first number is the atom of
+ interest as specified in the XRED list. The second and third numbers are the principle (n) and angular (l)
+quantum numbers of the edge respectively. 
+
+\subsection{SCFAC}
+Type: real \\
+Range: 0 - 1 \\
+Default: 1.0 \\
+
+The scaling factor used in the atomic calculation (see PAW section).
+
+\subsection{PAW.SHELLS}
+Type: reals \\
+Range: Positive \\
+Default: 1.5 \\
+
+A list of radii at which to calculate the screening. 
+
+\subsection{*PAW.FILL}
+Type: integer, string
+
+The number specifies the Z of the element in question. The string specifies a file located in the 
+work directory. See the PAW section for details.
+
+\subsection{*PAW.OPTS}
+Type: integer, string
+
+The number specifies the Z of the element in question. The string specifies a file located in the      
+work directory. See the PAW section for details.
+
+
+\subsection{CNBSE.XMESH}
+Type inetger list (3) \\
+Range: Positive \\
+Default: \{ 6 6 6 \} \\
+
+These three parameters specify the number of real-space grid points 
+in the unit cell. Wavefunctions are stored on a real-space mesh according to 
+$\psi_{n,\mathbf{k}}(\mathbf{r}) = \sum_{\mathbf{r}}C^{n,\mathbf{k}}_{\mathbf{r}} e^{i \mathbf{k} \cdot \mathbf{r}}$. 
+
+\subsection{CNBSE.BROADEN}
+Type: double \\
+Range : 0 - ? \\
+Default 0.007 \\
+
+The amount of broadening used in the calculation in units of Hartree.(gamma)
+
+\subsection{CNBSE.SPECT\_RANGE}
+Type: integer, real, real
+Default: 1200 -1.5 2.5
+
+This controls the output spectra. The first number is the number of energy grid points, the second two
+numbers control the range of the output in Hartree with the non-interacting conduction band minimum
+set to 0. This means that the output energy range does not include the core-hole binding energy.
+
+
+\subsection{CNBSE.MODE}
+Type: real, integer
+Default: 1.0 100 \\
+
+The first number determines the a prefactor for the interactions in the BSE, ie. 0.0 turns off the 
+electron-hole interactions. 
+
+The second number determines the number of iterations used in the BSE solver.
 
 \appendix
 \section{WF format}\label{WF_format}
