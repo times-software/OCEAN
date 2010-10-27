@@ -4,7 +4,7 @@ use Getopt::Long;
 use strict;
 
 
-my @OceanFolders = ("Common", "ABINIT", "DenDip", "PAW", "CNBSE");
+my @OceanFolders = ("Common", "ABINIT", "PREP", "PAW", "SCREEN", "CNBSE");
 
 print "Welcome to OCEAN\n";
 
@@ -130,12 +130,12 @@ system("$OCEAN_BIN/AbinitDriver.pl") == 0 or die "Abinit Stage Failed\n";
 chdir "../";
 ##########################################
 #
-# DenDip stage
+# Prep stage
 ##########################################
 print "$Separator\n";
-print "Entering DenDip stage\n";
-chdir "DenDip" or die "$!\n";
-system("$OCEAN_BIN/dendip.pl") == 0 or die "DenDip Stage Failed\n";
+print "Entering PREP stage\n";
+chdir "PREP" or die "$!\n";
+system("$OCEAN_BIN/prep.pl") == 0 or die "PREP Stage Failed\n";
 ##########################################
 #
 # PAW stage
@@ -143,7 +143,15 @@ system("$OCEAN_BIN/dendip.pl") == 0 or die "DenDip Stage Failed\n";
 print "$Separator\n";
 print "Entering PAW stage\n";
 chdir "../PAW";
-system("$OCEAN_BIN/paw2.pl") == 0 or die "PAW stage failed\n";
+system("$OCEAN_BIN/paw.pl") == 0 or die "PAW stage failed\n";
+##########################################
+#
+# SCRENing stage
+##########################################
+print "$Separator\n";
+print "Entering SCREENing stage\n";
+chdir "../SCREEN";
+system("$OCEAN_BIN/dendip.pl") == 0 or die "SCREEN stage failed\n";
 ##########################################
 #
 # CNBSE stage

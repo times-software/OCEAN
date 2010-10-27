@@ -4,7 +4,7 @@ use Getopt::Long;
 use strict;
 
 
-my @OceanFolders = ("Common", "ABINIT", "DenDip", "PAW", "CNBSE");
+my @OceanFolders = ("Common", "ABINIT", "PREP", "PAW", "SCREEN", "CNBSE");
 
 print "Welcome to OCEAN\n";
 
