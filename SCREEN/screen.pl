@@ -88,7 +88,7 @@ print "Running PAW Setup\n";
 system("$ENV{'OCEAN_BIN'}/pawsetup.x") == 0 or die "Failed to run pawsetup.x\n";
 
 #`mkdir -p zdiag/ zpawinfo/`;
-`ln -s ../PAW/zpawinfo zpawinfo`;
+`ln -sf ../PAW/zpawinfo zpawinfo`;
 ###################################
 
 
