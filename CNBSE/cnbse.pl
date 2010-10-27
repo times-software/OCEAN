@@ -32,7 +32,7 @@ foreach (@AbinitFiles) {
   `cp ../ABINIT/$_ .` == 0 or die "Failed to get ABINIT/$_\n";
 }
 foreach (@DenDipFiles) {
-  `cp ../DenDip/BSE/$_ .` == 0 or die "Failed to get DenDip/BSE/$_\n" ;
+  `cp ../PREP/BSE/$_ .` == 0 or die "Failed to get PREP/BSE/$_\n" ;
 }
 foreach (@ExtraFiles) {
   `cp $ENV{'OCEAN_BIN'}/$_ .` == 0 or die "Failed to get ../$_\n";
@@ -56,7 +56,7 @@ system("rm .Psi*");
 open LISTW, "listwfile" or die "Failed to open listwfile\n";
 while (<LISTW>) {
   $_ =~ m/(\d+)\s+(\S+)/ or die "Failed to parse listwfile\n";
-  system("ln -sf ../DenDip/BSE/$2 .") == 0 or die "Failed to link $2\n";
+  system("ln -sf ../PREP/BSE/$2 .") == 0 or die "Failed to link $2\n";
 }
 
 system("$ENV{'OCEAN_BIN'}/getnval.x") == 0 or die "Failed to get nval\n";
@@ -97,9 +97,9 @@ system("$ENV{'OCEAN_BIN'}/setup2.x > setup.log") == 0 or die "Setup failed\n";
 `touch cbinf0001`;
 `ln -sf cbinf0001 ufmi` == 0 or die;
 
-if (-e "../DenDip/BSE/u2.dat") 
+if (-e "..//BSE/u2.dat") 
 {
-  `ln -s ../DenDip/BSE/u2.dat`;
+  `ln -s ../PREP/BSE/u2.dat`;
 }
 else
 {

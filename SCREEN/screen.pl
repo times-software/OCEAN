@@ -22,7 +22,7 @@ my @DenDipFiles2 = ( "masterwfile", "listwfile", "enkfile", "kmesh.ipt", "brange
 my @ExtraFiles = ("specpnt", "Pquadrature" );
 
 my $runPAW = 1;
-if (-e "../DenDip/PAW/old" && -e "done" ) {
+if (-e "../PREP/PAW/old" && -e "done" ) {
   $runPAW = 0;
   foreach (@CommonFiles) {
     if (`diff -q $_ ../Common/$_`) {
@@ -46,10 +46,10 @@ foreach (@AbinitFiles) {
   `cp ../ABINIT/$_ .` == 0 or die "Failed to get $_ from ABINIT/\n";
 }
 foreach (@DenDipFiles) {
-  `cp ../DenDip/$_ .` == 0 or die "Failed to get $_ from DenDip/\n";
+  `cp ../PREP/$_ .` == 0 or die "Failed to get $_ from PREP/\n";
 }
 foreach (@DenDipFiles2) {
-  `cp ../DenDip/PAW/$_ .` == 0 or die "Failed to get $_ from DenDip/PAW/\n";
+  `cp ../PREP/PAW/$_ .` == 0 or die "Failed to get $_ from PREP/PAW/\n";
 }
 
 foreach (@ExtraFiles) {
@@ -59,7 +59,7 @@ foreach (@ExtraFiles) {
 open LISTW, "listwfile" or die "Failed to open listwfile\n";
 while (<LISTW> ) {
   m/(\d+)\s+(\S+)/ or die "Malformed listwfile\n";
-  `ln -sf ../DenDip/PAW/$2 $2`;
+  `ln -sf ../PREP/PAW/$2 $2`;
 }
 
 #open PPLIST, "pplist" or die "Failed to open pplist\n";

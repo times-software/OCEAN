@@ -292,30 +292,28 @@ my $AbinitType = "seq";
 
 if ($RunABINIT) {
   `echo symmorphi 0 > abfile`;
-  `echo -n 'acell ' >> abfile`;
+  `echo 'acell ' >> abfile`;
   `cat rscale >> abfile`;
   `echo rprim >> abfile`;
   `cat rprim >> abfile`;
-  `echo -n 'ntypat ' >> abfile`;
+  `echo 'ntypat ' >> abfile`;
   `cat ntype >> abfile`;
-  `echo -n 'znucl ' >> abfile`;
+  `echo 'znucl ' >> abfile`;
   `cat znucl >> abfile`;
-  `echo -n 'natom ' >> abfile`;
+  `echo 'natom ' >> abfile`;
   `cat natoms >> abfile`;
-  `echo -n 'typat ' >> abfile`;
+  `echo 'typat ' >> abfile`;
   `cat typat >> abfile`;
   `cat coord >> abfile`;
   `cat taulist >> abfile`;
-  `echo -n 'ecut ' >> abfile`;
+  `echo 'ecut ' >> abfile`;
   `cat ecut >> abfile`;
-  `echo -n 'toldfe ' >> abfile`;
-  `cat etol >> abfile`;
-  `echo -n 'nstep ' >> abfile`;
+  `echo 'nstep ' >> abfile`;
   `cat nrun >> abfile`;
-  `echo -n 'diemac ' >> abfile`;
+  `echo 'diemac ' >> abfile`;
   `cat epsilon >> abfile`;
   `cat verbatim >> abfile`;
-  `echo -n 'occopt ' >> abfile`;
+  `echo 'occopt ' >> abfile`;
   `cat occopt >> abfile`;
 
 #if ($AbinitType eq "par" ) {
@@ -344,12 +342,14 @@ if ($RunABINIT) {
   `cat finalpplist >> denout.files`;
   
   `cat abfile > inai.denout`;
-  `echo -n 'fband ' >> inai.denout`;
+  `echo 'fband ' >> inai.denout`;
   `cat fband >> inai.denout`;
   `echo prtden 1 >> inai.denout`;
   `echo kptopt 1 >> inai.denout`;
-  `echo -n 'ngkpt ' >> inai.denout`;
+  `echo 'ngkpt ' >> inai.denout`;
   `cat ngkpt >> inai.denout`;
+  `echo 'toldfe ' >> inai.denout`;
+  `cat etol >> inai.denout`;
 #  `echo prtdos 3 >> inai.denout`;
 #  `echo prtdosm 1 >> inai.denout`;
 
@@ -366,7 +366,7 @@ if ($RunABINIT) {
 #  else {
   print "Density Run\n";
   system("$ENV{'OCEAN_BIN'}/abinit < denout.files >& density.log") == 0
-    or die "Failed to run initial density stage\n";
+    or die "Failed to run initial density stage\n$ENV{'OCEAN_BIN'}/abinit\n";
 #  }
   `echo 1 > den.stat`;
 
@@ -419,7 +419,7 @@ if ( $pawRUN ) {
   
   `echo "nband $pawnbands" >> abfile`;
   `echo 'iscf -2' >> abfile`;
-  `echo -n 'tolwfr ' >> abfile`;
+  `echo 'tolwfr ' >> abfile`;
   `cat wftol >> abfile`;
   `echo getden 1 >> abfile`;
   `echo kptopt 0 >> abfile`;
@@ -449,7 +449,7 @@ if ( $pawRUN ) {
   }
 
 
-  system("$ENV{'OCEAN_BIN'}/par_ab2.pl") == 0 or die "Failed to run Abinit\n";
+  system("$ENV{'OCEAN_BIN'}/par_ab2.pl") == 0 or die "Failed to run Abinit: $!\n";
 
   my $natoms = `cat natoms`;
   my $fband = `cat fband`;
@@ -497,7 +497,7 @@ if ( $bseRUN ) {
   
   `echo "nband $nbands" >> abfile`;
   `echo 'iscf -2' >> abfile`;
-  `echo -n 'tolwfr ' >> abfile`;
+  `echo 'tolwfr ' >> abfile`;
   `cat wftol >> abfile`;
   `echo getden 1 >> abfile`;
   `echo kptopt 0 >> abfile`;
