@@ -111,9 +111,9 @@ if( $ndtset == 3 && $paw_kpt_tot > $core && ( ( $paw_kpt_tot % $core ) != 0 ) ) 
 }
 
 
-if( $paral_kgb == 0 ) {
+#if( $paral_kgb == 0 ) {
   `echo "$ndtset" > ndtset`;
-}
+#}
 
   `echo symmorphi 0 > abfile`;
   `echo -n 'acell ' >> abfile`;
