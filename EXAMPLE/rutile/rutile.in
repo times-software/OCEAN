@@ -1,7 +1,8 @@
 # Control
 control 0
 
-core 48
+#assumes you want to try and run abinit on 4 cores
+core 4
 
 # Kpt mesh for final states
 nkpt { 4 4 2 }
