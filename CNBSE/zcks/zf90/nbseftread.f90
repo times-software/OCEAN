@@ -11,7 +11,7 @@ subroutine nbseftread( nqproj, npmax, nproj, lmin, lmax, fttab, addz )
   character * 7 :: nam
   !
   do l = lmin, lmax
-     write ( unit=nam, '(1a2,1i1,1a4)' ) 'ft', l, addz
+     write ( nam, '(1a2, 1i1, 1a4)' ) 'ft', l, addz
      open( unit=99, file=nam, form='formatted', status='unknown' )
      rewind 99
      do i = 1, nqproj
