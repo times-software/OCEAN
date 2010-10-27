@@ -161,8 +161,8 @@ for (my $i = 1; $i <= $Nfiles; $i++) {
 system("$ENV{'OCEAN_BIN'}/wfconvert.x") == 0 
   or die "Failed to run wfconvert.x\n";
 
-system("$ENV{'OCEAN_BIN'}/fermi.pl") == 0
-  or die "Failed to run fermi.pl\n";
+system("$ENV{'OCEAN_BIN'}/ofermi.pl") == 0
+  or die "Failed to run ofermi.pl\n";
 `cp eshift.ipt ../`;
 system("cp efermiinrydberg.ipt ../") == 0 
   or die "Failed to copy efermiinrydberg.ipt\n";

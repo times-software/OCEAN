@@ -2,9 +2,6 @@ SCRIPTS = dendip.pl par_dendip.pl bvecs.pl gvecs2.pl ofermi.pl
 FILESF90 = wfconvert.x nelectron.x rhoofg.x
 WFCONVERT_OBJS = wfconvert.o headpar.o grabwf.o wfsubs.o
 
-FFTWI = -I/home/jtv3/fftw-3.2.2/api/
-FFTWL = -L/home/jtv3/fftw-3.2.2/libs_pgf90/ -lfftw3
-
 
 .SUFFIXES: .f .x .f90
 
@@ -21,7 +18,7 @@ instdev:
 	$(FC) $(OPTIONS) -o $*.x $*.f
 
 rhoofg.x: rho2.f90
-	$(FC) $(OPTIONS) rho2.f90 $(FFTWI) $(FFTWL) -lfftw3 -o rhoofg.x
+	$(FC) $(OPTIONS) rho2.f90 $(FFTWI) $(FFTWL) -o rhoofg.x
 
 nelectron.x: nelectron.f90
 	$(FC) $(OPTIONS) nelectron.f90 -o nelectron.x

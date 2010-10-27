@@ -420,13 +420,12 @@
 !      enddo
 !      deallocate(istwfk,nband,npwarr,so_typat,symafm,symrel,typat)
 !      deallocate(kpt,occ,tnons,znucltypat,xred)
-      if (.not. noshift) deallocate(kg_shift,eigen_sh,cg_sh,occ_sh)
+      if (.not. noshift) deallocate(kg_shift,eigen_sh)
       deallocate(kg_unshift,eigen_un)      
-      deallocate(cg_un)
-      deallocate(occ_un)
+      deallocate(cg_un, cg_sh)
+      deallocate(occ_un, occ_sh)
 
       close(wfkinfile)
-
 
 
 !      close(32)
