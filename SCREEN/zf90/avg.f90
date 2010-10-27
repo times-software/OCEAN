@@ -120,7 +120,7 @@ program avg
 
 
           enddo !ng
-          write(97,"(a2x1i2.2x1e17.11x1e17.11x1e17.11)")elname,elnum,radius,denr,deni
+          write(97,"(a2, 1x, i2.2, 1x, e17.11, 1x, e17.11, 1x, e17.11)")elname,elnum,radius,denr,deni
         enddo !radius
         close( 97 )
       enddo !numsites
