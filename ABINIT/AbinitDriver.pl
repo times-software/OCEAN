@@ -402,7 +402,7 @@ if ( $pawRUN ) {
   `cp paw.nkpt nkpt`;
   `cp paw.nbands nbands`;
  # run KGEN
-  print "Running kgen.x\n";
+  print "Running kgen2.x\n";
   `cp paw.nkpt kmesh.ipt`;
   `echo 0.0 0.0 0.0 > qinunitsofbvectors.ipt`;
   system("$ENV{'OCEAN_BIN'}/kgen2.x") == 0 or die "KGEN.X Failed\n";
@@ -481,7 +481,7 @@ if ( $bseRUN ) {
     system("cp ../$_ .") == 0 or die "Failed to copy $_\n";
   }
  # run KGEN
-  print "Running kgen.x\n";
+  print "Running kgen2.x\n";
   `cp nkpt kmesh.ipt`;
   system("$ENV{'OCEAN_BIN'}/kgen2.x") == 0 or die "KGEN.X Failed\n";
   `echo "1" > kgen.stat`;
