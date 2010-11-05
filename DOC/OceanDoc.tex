@@ -1,4 +1,5 @@
-\documentclass[12pt]{revtex4}
+%\documentclass[12pt,preprint]{revtex4}
+\documentclass[12pt]{article}
 
 \usepackage[pdftex]{color}
 
@@ -7,7 +8,7 @@
 \title{OCEAN Doc}
 
 \author{J. Vinson}
-\affiliation{Dept.\ of Physics, Univ.\ of Washington, Seattle, WA 98195}
+%\affiliation{Dept.\ of Physics, Univ.\ of Washington, Seattle, WA 98195}
 \date{\today}
 
 \maketitle
@@ -24,6 +25,11 @@ OCEAN provides a package to numerically solve the Bethe-Salpeter equation for co
 \end{enumerate}
 
 The guide is broken up into sections to follow the path the code will take.
+
+\section{What is being calculated?}
+
+
+
 
 \section{Ground State Wavefunctions}
 In principle any pseudo-potential DFT code can be used. In our implementation we have an interface for using ABINIT\cite{abinit}. To run with a custom format see the specs listed in appendix \ref{WF_format}.

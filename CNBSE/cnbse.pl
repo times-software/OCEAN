@@ -97,7 +97,7 @@ system("$ENV{'OCEAN_BIN'}/setup2.x > setup.log") == 0 or die "Setup failed\n";
 `touch cbinf0001`;
 `ln -sf cbinf0001 ufmi` == 0 or die;
 
-if (-e "..//BSE/u2.dat") 
+if (-e "../PREP/BSE/u2.dat") 
 {
   `ln -s ../PREP/BSE/u2.dat`;
 }

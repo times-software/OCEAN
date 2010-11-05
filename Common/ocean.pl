@@ -135,7 +135,7 @@ chdir "../";
 print "$Separator\n";
 print "Entering PREP stage\n";
 chdir "PREP" or die "$!\n";
-system("$OCEAN_BIN/prep.pl") == 0 or die "PREP Stage Failed\n";
+system("$OCEAN_BIN/dendip.pl") == 0 or die "PREP Stage Failed\n";
 ##########################################
 #
 # PAW stage
@@ -151,7 +151,7 @@ system("$OCEAN_BIN/paw.pl") == 0 or die "PAW stage failed\n";
 print "$Separator\n";
 print "Entering SCREENing stage\n";
 chdir "../SCREEN";
-system("$OCEAN_BIN/dendip.pl") == 0 or die "SCREEN stage failed\n";
+system("$OCEAN_BIN/screen.pl") == 0 or die "SCREEN stage failed\n";
 ##########################################
 #
 # CNBSE stage
