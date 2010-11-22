@@ -7,7 +7,7 @@ subroutine loadux( nx, ny, nz, nbd, nq, zn, ur, ui )
   real( kind = kind( 1.0d0 ) ), dimension( nx, ny, nz, nbd, nq ) :: ur, ui
   !
   integer :: iq, ibd, ig, idum( 3 ), ix, iy, iz, ivl, ivh, icl, ich
-  integer :: iq1, iq2, iq3, dumint, ivh2
+  integer :: iq1, iq2, iq3, dumint, icl2, ich2, ivh2
   real( kind = kind( 1.0d0 ) ) :: phsx, phsy, phsz, cphs, sphs, psir, psii, pi
   real( kind = kind( 1.0d0 ) ) :: su, sul, suh
   logical :: metal
@@ -18,13 +18,15 @@ subroutine loadux( nx, ny, nz, nbd, nq, zn, ur, ui )
   rewind 99
   read ( 99, * ) ivl, ivh, icl, ich
   close( unit=99 )
-!  ivh2 = ivh
-!  open( unit=99, file='metal', form='formatted', status='old')
-!  read( 99, * ) metal
-!  close( 99 )
-!  if( metal ) then
-!    open( unit=36, file='ibeg.h', form='formatted', status='old' )
-!  endif
+  ivh2 = ivh
+!  icl2 = icl
+  open( unit=99, file='metal', form='formatted', status='old')
+  read( 99, * ) metal
+  close( 99 )
+  if( metal ) then
+    open( unit=36, file='ibeg.h', form='formatted', status='old' )
+  endif
+  !
   if ( nbd .gt. 1 + ( ich - icl ) ) stop 'loadux ... nbd mismatch -- cf brange.ipt...'
   open( unit=u2dat, file='u2.dat', form='unformatted', status='unknown' )
   rewind u2dat
@@ -33,15 +35,25 @@ subroutine loadux( nx, ny, nz, nbd, nq, zn, ur, ui )
      rewind 99
      write ( 99, '(2i8)' ) iq, nq
      close( unit=99 )
-!     if( metal ) then
-!       read( 36, * ) dumint, ivh2
-!       ivh2 = ivh2 - 1
-!     endif
-     do ibd = ivl, ivh
+     if( metal ) then
+       read( 36, * ) dumint, ivh2
+       ivh2 = ivh2 - 1
+     endif
+
+!  Skip all of the occupied bands (and for metals)
+     do ibd = ivl, ivh2
         do ig = 1, nx * ny * nz
            read ( u2dat )
         end do
      end do
+
+!!  Skip bands below the fermi level (for metals)
+!     do ibd = icl, icl2 - 1
+!        do ig = 1, nx * ny * nz
+!           read ( u2dat )
+!        end do
+!     enddo
+!
      do ibd = 1, nbd 
         do ix = 1, nx
            do iy = 1, ny
@@ -54,10 +66,16 @@ subroutine loadux( nx, ny, nz, nbd, nq, zn, ur, ui )
         sul = min( su, sul )
         suh = max( su, suh )
      end do
+! Adding 22 nov 2010 get rid of the un-used wfns at the top
+     do ibd = ivh2 + nbd + 1, ivh - ivl + ich - icl + 2
+        do ig = 1, nx * ny * nz
+           read ( u2dat )
+        end do
+     enddo
   end do
-!  if( metal ) then
-!    close( 36 )
-!  endif
+  if( metal ) then
+    close( 36 )
+  endif
   close( unit=u2dat )
   write ( 6, '(1a16,2f20.15)' ) 'norm bounds ... ', sul, suh
   !
