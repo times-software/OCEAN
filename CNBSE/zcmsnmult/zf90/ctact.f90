@@ -32,8 +32,10 @@ subroutine ctact( nc, n, nq, nbd, celvol, inter, v, hv, lmin, lmax, npmax, nproj
            hampr( : ) = hampr( : ) * mul
            hampi( : ) = hampi( : ) * mul
            do nu = 1, nproj( l )
-              hv( :, ic, 1 ) = hv( :, ic, 1 ) + mpcr( :, nu, m, l ) * hampr( nu ) + mpci( :, nu, m, l ) * hampi( nu )
-              hv( :, ic, 2 ) = hv( :, ic, 2 ) + mpcr( :, nu, m, l ) * hampi( nu ) - mpci( :, nu, m, l ) * hampr( nu )
+              hv( :, ic, 1 ) = hv( :, ic, 1 ) &
+                             + mpcr( :, nu, m, l ) * hampr( nu ) + mpci( :, nu, m, l ) * hampi( nu )
+              hv( :, ic, 2 ) = hv( :, ic, 2 ) &
+                             + mpcr( :, nu, m, l ) * hampi( nu ) - mpci( :, nu, m, l ) * hampr( nu )
            end do
         end do
      end do
