@@ -13,7 +13,27 @@
 
 \maketitle
 
-\section{Overview}
+\section{Installation}
+\begin{itemize}
+\item The code has been tested with both pgi and intel fortran compilers. Would love to hear people's problems/successes using other vendors. 
+\item Requires fftw3 currently. Look in the makefiles for helpful ``\$FFTWI" and ``\$FFTWL" variables that set the include and library paths respectively. Setting these as environmental variables should work.
+\item The code requires perl
+\end{itemize}
+
+The bare bones installation instructions are as follows.
+
+\begin{enumerate}
+\item{ Run `make install FC=ifort FLAGS=-O2'}
+\item{ If this doesn't fail, type `make install INSTDIR=\textasciitilde/OCEAN\_BIN/' or wherever you want the installation to go.}
+\item{ Created links to abinit and cut3d within the OCEAN\_BIN diretory, ie. `ln -s ~/bin/abinit abinit'}
+\end{enumerate}
+
+Assuming success so far you can now go to the EXAMPLE/rutile directory. Here you will find what you need to do a preliminary 
+calculation of the Ti L$_{2,3}$ edge in rutile. To run OCEAN run the command `\textasciitilde/OCEAN\_BIN/ocean.pl rutile.in' 
+and wait for the code to finish. The code will create several directories and the end results are in the file CNBSE/absspct which can 
+be compared to the absspct file that is distributed in the rutile directory.
+
+\section{Package Overview}
 
 OCEAN provides a package to numerically solve the Bethe-Salpeter equation for core-level excitations. There are several steps in the process.
 \begin{enumerate}
