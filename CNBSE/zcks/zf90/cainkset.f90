@@ -25,7 +25,7 @@ subroutine cainkset( avec, bvec, bmet, prefs )
   !
   integer :: iproj, indx
   logical :: metal, conduct
-  real( kind = kind( 1.0d0 ) ) :: efermi
+  real( kind = kind( 1.0d0 ) ) :: efermi, temperature
   !
   character * 2 :: element
   character * 4 :: add04
@@ -50,6 +50,7 @@ subroutine cainkset( avec, bvec, bmet, prefs )
   integer :: j
   real( kind = kind( 1.0d0 ) ) :: su, qsqd, betot( 3 ), nrm
   integer :: OMP_GET_THREAD_NUM, fh
+  logical :: temp_exist
   !
   write ( stdout, * ) 'warning: this assumes one-component system'
   !
@@ -101,6 +102,16 @@ subroutine cainkset( avec, bvec, bmet, prefs )
   rewind 99
   read ( 99, * ) efermi
   close( unit=99 )
+  !
+  inquire( file='temperature.ipt', exist = temp_exist )
+  if( temp_exist ) then
+    open( unit=99, file='temperature.ipt', form=f9, status='old' )
+    read( 99, * ) temperature
+    close( 99 )
+  else
+    temperature = 0.d0
+  endif
+  !
   open( unit=99, file='brange.ipt', form=f9, status='old' )
   rewind 99
   read ( 99, * ) ivl, ivh, icl, ich
@@ -231,12 +242,17 @@ subroutine cainkset( avec, bvec, bmet, prefs )
            !
            if ( conduct ) then
              if ( metal ) then
+               if( temperature .gt. 0.000001 ) then
+                 write(6,*) temperature, ivh - ivl + 2
+                 ibeg = ivh -ivl + 2
+               else
                 ! ww is stored with first the valence bands ( ivh -ivl + 1 of them), then the conduction
                 do i = nbtot, 2 + ivh - ivl, -1 ! Changed 7 Aug to 2
 !!                do i = nbtot, icl, -1 ! Changed 7 Aug to 2
                    if ( ww( i, nq ) .gt. efermi ) ibeg = i
                 end do      
-                write(20,*) nq, ibeg
+               endif
+               write(20,*) nq, ibeg
              else
                 ibeg = 1 + ( 1 + ivh - ivl )
             end if
@@ -265,7 +281,7 @@ subroutine cainkset( avec, bvec, bmet, prefs )
            allocate( ck( ng, 1 : nbd ) )
            ck( :, 1 : nbd ) = zzr( :, 1 : nbd ) + rm1 * zzi( :, 1 : nbd )
            call nbsecoeffs( ng, kvc, bmet, bvec, ck, 1, nbd, qraw, ntau, tau, lmin, lmax, nproj, npmax, &
-                nqproj, dqproj, fttab, coeff, prefs )
+                nqproj, dqproj, fttab, coeff, prefs, temperature, efermi, w )
            !
            ! on LHS, w is in Hartree
            ! on RHS, sc is unitless, edge & cs are in eV, w is in Rydberg

@@ -7,7 +7,7 @@
 ! ibl = start band
 ! ibh = stop band
 subroutine nbsecoeffs( ng, kvc, bmet, bvec, ck, ibl, ibh, q, ntau, tau, lmin, lmax, nproj, npmax, nqproj, dqproj, fttab, coeff, &
-     prefs )
+     prefs, temperature, efermi, ww )
   implicit none
   !
   integer :: ng, ibl, ibh, ntau 
@@ -18,6 +18,7 @@ subroutine nbsecoeffs( ng, kvc, bmet, bvec, ck, ibl, ibh, q, ntau, tau, lmin, lm
   double precision :: tau( 3, ntau )
   double precision :: fttab( nqproj, npmax, lmin : lmax )
   double complex :: coeff( -lmax:lmax, ibl:ibh, npmax, lmin:lmax, ntau )
+  double precision :: temperature, efermi, ww( 1 + ibh - ibl )
   !
   integer itau, l
   complex( kind = kind( 1.0d0 ) ) :: ck( ng, ibl : ibh )
@@ -39,7 +40,7 @@ subroutine nbsecoeffs( ng, kvc, bmet, bvec, ck, ibl, ibh, q, ntau, tau, lmin, lm
   do itau = 1, ntau
      do l = lmin, lmax
         call getcoeff( l, ng, 1 + ibh - ibl, ck, tauphs( 1, itau ), ylmfac( 1, l ), coeff( -lmax, ibl, 1, l, itau ), lmax, &
-             npmax, sfq( 1, 1, l ), nproj( l ) )
+             npmax, sfq( 1, 1, l ), nproj( l ), temperature, efermi, ww )
      end do
   end do
   !
