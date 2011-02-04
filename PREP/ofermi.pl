@@ -31,7 +31,8 @@ close NKPT;
 
 $ne *= $nkpt;
 
-open ENK, "enkfile" or die;
+#open ENK, "enkfile" or die;
+open ENK, "enk_un" or die;
 my $line;
 my @energy;
 my @Cenergy;
