@@ -20,11 +20,56 @@ $oldden = 1 if (-e "../ABINIT/old");
 
 
 my @AbFiles = ( "nkpt", "paw.nkpt",
-                "avecsinbohr.ipt", "qinunitsofbvectors.ipt", "nbands", "paw.nbands", "ndtset");
+                "avecsinbohr.ipt", "qinunitsofbvectors.ipt", "nbands", "paw.nbands", "ndtset", "gs.out");
+
+my @CommonFiles = ( "occopt", "xmesh.ipt", "natoms", "fband", "metal" )
 
 foreach (@AbFiles) {
-  system("cp ../ABINIT/$_ .") == 0 or die "Failed to copy $_\n";
+  system("cp ../ABINIT/$_ .") == 0 or die "Failed to copy $_\n$!\n";
 }
+
+foreach (@CommonFile) {
+  system("cp ../Common/$_ .") == 0 or die "Failed to copy $_\n$!\n";
+}
+
+
+my $occopt = `cat occopt`;
+chomp($occopt);
+my $metal; = `cat metal`;
+if( $occopt == 1 ){
+  if( $metal eq ".true." ) 
+  {
+    print "Metal set to true, occopt set to insulator. Changing metal to false\n";
+    `echo .false. > metal`;
+  }
+}
+else
+{
+  if( $metal != 1 ) 
+  {
+    print "Metal set to false, occopt set to metallic. Changin mertal to true\n";
+    `echo .true. > metal`;
+  }
+}
+
+
+open LOG, "gs.out";
+my $vb;
+while (<LOG>) {
+  if ($_ =~ m/mband\s+(\d+)/) {
+    $vb = $1;
+    last;
+  }
+}
+close LOG;
+my $natoms = `cat natoms`;
+my $fband = `cat fband`;
+$pawnbands = `cat paw.nbands`;
+my $cb = sprintf("%.0f", $vb - 2*$natoms*$fband);
+$cb = 1 if ($cb < 1);
+
+
+
 #print "$stat  $oldden\n";
 unless ($stat && $oldden) {
 #-e "../ABINIT/RUN0001_DS1_DEN" or die "SCx_DEN not found\n";
@@ -65,29 +110,27 @@ print NKPT $nkpt[0]*$nkpt[1]*$nkpt[2] . "\n";
 close NKPT;
 
 
-#foreach ("Nfiles", "kmesh.ipt", "brange.ipt" ) {
-#  system("cp ../${rundir}/$_ .") == 0 or die "Failed to copy $_\n";
-#}
 `cp ../qinunitsofbvectors.ipt .`;
 `cp ../bvecs .`;
 `cp ../paw.nbands .`;
 `cp ../paw.nkpt .`;
 `cp paw.nkpt kmesh.ipt`;
-#open BRANGE, "brange.ipt";
-#my @brange;
-#<BRANGE> =~ m/(\d+)\s+(\d+)/;
-#$brange[0] = $1;
-#$brange[1] = $2;
-#<BRANGE> =~ m/(\d+)\s+(\d+)/;
-#$brange[2] = $1;
-#$brange[3] = $2;
+
+
 my $bandmax = `cat paw.nbands`;
 chomp($bandmax);
-#close BRANGE;
 my $nelectron = `cat ../nelectron`;
+
 open BRANGE, ">brange.ipt";
-print BRANGE "1  " . $nelectron/2 . "\n";
-print BRANGE $nelectron/2+1 . "    $bandmax\n";
+
+if( $occopt == 1 ) {
+  print BRANGE "1  " . $nelectron/2 . "\n";
+  print BRANGE $nelectron/2+1 . "    $bandmax\n";
+}
+else {
+  print BRANGE "1  $vb\n$cb  $bandmax\n";
+}
+  
 close BRANGE;
 
 #my $Nfiles = `cat Nfiles`;
