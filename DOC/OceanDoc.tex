@@ -1,39 +1,52 @@
-%\documentclass[12pt,preprint]{revtex4}
-\documentclass[12pt]{article}
-
+\documentclass[11pt]{report}
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%% uncomment these two lines when running pdflatex (i.e. pdf output)
 \usepackage[pdftex]{color}
-
+\usepackage[pdftex,colorlinks,breaklinks,backref]{hyperref}
+%%
+%% uncomment this line when running normal latex (i.e. dvi output)
+%\usepackage{hyperref}
+%%
+%% comment all three of the above lines for latex2html output
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%% Using an adapted version of the FEFF doc
+%% all the rest of the feffdoc stuff:
+\usepackage{feffdoc}
+%\usepackage{html} % put after hyperref to avoid conflict in pdf mode
+\usepackage{graphicx}
+\usepackage{float}
+\usepackage{amsmath}
+\newcommand{\norm}[1]{\left\Vert#1\right\Vert}
+\newcommand{\abs}[1]{\left\vert#1\right\vert}
+\newcommand{\bra}[1]{\left<#1\right\vert}
+\newcommand{\ket}[1]{\left\vert#1\right>}
+\newcommand{\braket}[2]{\left<#1\vert#2\right>}
+%
 \begin{document}
 
-\title{OCEAN Doc}
+\pagenumbering{roman}
+\MakeTitle
 
-\author{J. Vinson}
-%\affiliation{Dept.\ of Physics, Univ.\ of Washington, Seattle, WA 98195}
-\date{\today}
+\newchapter{}
+\begin{abstract}
+There is currently no abstract.
 
-\maketitle
 
-\section{Installation}
-\begin{itemize}
-\item The code has been tested with both pgi and intel fortran compilers. Would love to hear people's problems/successes using other vendors. 
-\item Requires fftw3 currently. Look in the makefiles for helpful ``\$FFTWI" and ``\$FFTWL" variables that set the include and library paths respectively. Setting these as environmental variables should work.
-\item The code requires perl
-\end{itemize}
+\vspace*{\stretch{1}}
 
-The bare bones installation instructions are as follows.
+ \noindent This document is copyright \copyright\ 2010-2011 by J. Vinson. Following conventions of the FEFF documentation
 
-\begin{enumerate}
-\item{ Run `make install FC=ifort FLAGS=-O2'}
-\item{ If this doesn't fail, type `make install INSTDIR=\textasciitilde/OCEAN\_BIN/' or wherever you want the installation to go.}
-\item{ Created links to abinit and cut3d within the OCEAN\_BIN diretory, ie. `ln -s ~/bin/abinit abinit'}
-\end{enumerate}
+\end{abstract}
 
-Assuming success so far you can now go to the EXAMPLE/rutile directory. Here you will find what you need to do a preliminary 
-calculation of the Ti L$_{2,3}$ edge in rutile. To run OCEAN run the command `\textasciitilde/OCEAN\_BIN/ocean.pl rutile.in' 
-and wait for the code to finish. The code will create several directories and the end results are in the file CNBSE/absspct which can 
-be compared to the absspct file that is distributed in the rutile directory.
+\newchapter{}
+\tableofcontents
+\newchapter{}
 
-\section{Package Overview}
+\setcounter{page}{1}
+\pagenumbering{arabic}
+
+
+\chapter{Package Overview}
 
 OCEAN provides a package to numerically solve the Bethe-Salpeter equation for core-level excitations. There are several steps in the process.
 \begin{enumerate}
@@ -46,13 +59,37 @@ OCEAN provides a package to numerically solve the Bethe-Salpeter equation for co
 
 The guide is broken up into sections to follow the path the code will take.
 
-\section{What is being calculated?}
+
+\vspace*{\stretch{1}}
+\begin{table}[htbp]
+  \caption{Typographic conventions in this document}
+  \label{tab:typographic}
+  \begin{center}
+    \begin{tabular}[h]{ll}
+      \hline\hline
+      \quad font & \quad denotes \\
+      \hline
+      \program{small caps} & names of programs\\
+      \texttt{typewriter font} &  contents of files\\
+      \file{quoted typewriter font} & file names\\
+      ROMAN CAPITALS & names of cards in the \file{input} file\\
+      \texttt{\textsl{slanted typewriter font}} &
+      commands executed at a command line \\
+      \hline\hline
+    \end{tabular}
+  \end{center}
+\end{table}
+\vspace*{\stretch{1}}
 
 
+\chapter{Tutorial}
 
+The purpose of this chapter is to work through a sample \OCEAN\, calculation. Go to the \file{EXAMPLES/rutile} directory and look at the file \file{rutile.in}. This is the main input file. For this example let \file{\$OCEAN\_DIR} be the location of the installed \OCEAN\, package. Running the command \texttt{\textsl{\$OCEAN\_DIR/ocean.pl rutile.in}} will run ocean. Run this now. If everything runs correctly the main output will be the file \file{CNBSE/absspct} which can be plotted against the included \file{absspct} file to check that the calculation worked.
 
-\section{Ground State Wavefunctions}
-In principle any pseudo-potential DFT code can be used. In our implementation we have an interface for using ABINIT\cite{abinit}. To run with a custom format see the specs listed in appendix \ref{WF_format}.
+The main input file, \file{rutile.in}, contains most of the information about the run such as unit cell parameters and numerical parameters. Other important files are the \file{*.fhi} files which contain the pseudo-potentials, the \file{*.fill} and \file{*.opts} files which contain information about the PAW reconstruction, and the \file{jtv1} file which determines information about the probe photon.
+
+\chapter{Ground State Wavefunctions}
+In principle any pseudo-potential DFT code can be used. In our implementation we have an interface \footnote{¥}or using ABINIT\cite{abinit}. To run with a custom format see the specs listed in appendix \ref{WF_format}.
 
 In principle these wave-functions should include self-consistent self-energy corrections, eg. GW, but in practice it has been found that for many systems 
 self-energy corrections only affect the energies and not the wave-functions. Even single-shot self-energy calculations can be computationally expensive 
@@ -60,7 +97,7 @@ and we provide several methods to approximate the GW correction; ad-hoc band str
 later.
 
 
-\section{PAW and Atomic}
+\chapter{PAW and Atomic}
 
 The PAW/Atomic section of the code is material independent. In principle this section can be run once
 for a given pseudopotential and reused. The important outputs of this section are a collection of 
@@ -116,7 +153,7 @@ For the opt file one specifies the number of levels not included in the pseudo-p
 scalar or dirac and rel[ativistic] nonrel[ativistic] and should of course match the psuedopotential 
 construction. 
 
-\section{Screening Calculation}
+\chapter{Screening Calculation}
 
 The screening of the core-hole interaction is done in real space using the random phase approximation up to 
 some radius around the core, 2-5 bohrs, and then using an analytic function of the local density, distance, 
@@ -126,11 +163,11 @@ infinite number of bands, but should smoothly converge w.r.t. number of bands in
 system a 2$^3$ k-point grid is sufficient for convergence, while a very small system might require a 
 slightly higher sampling and a large unit cell might be ok with just the gamma point.
 
-\section{ CNBSE }
+\chapter{ CNBSE }
 The CNBSE section solves for the spectra. The important output file is absspct; column 1 is the energy, 
 column 2 the spectra using a plamon-pole boradening model and column 3 the plain spectra.
 
-\section{Input File}
+\chapter{Input File}
 \label{sec:Control-Items}
 The input file is order and case independent. No more than one parameter per line is allowed, though parameters can span several lines. Following a \# all remaining text on that line is ignored by the parser. See the examples included in the Examples/ directory.  
 
@@ -391,7 +428,28 @@ electron-hole interactions.
 The second number determines the number of iterations used in the BSE solver.
 
 \appendix
-\section{WF format}\label{WF_format}
+\chapter{Installation}
+\begin{itemize}
+\item The code has been tested with both pgi and intel fortran compilers. Would love to hear people's problems/successes using other vendors. 
+\item Requires fftw3 currently. Look in the makefiles for helpful ``\$FFTWI" and ``\$FFTWL" variables that set the include and library paths respectively. Setting these as environmental variables should work.
+\item The code requires perl
+\end{itemize}
+
+The bare bones installation instructions are as follows.
+
+\begin{enumerate}
+\item{ Run `make FC=ifort OPTIONS=-O2'}
+\item{ If this doesn't fail, type `make install INSTDIR=\textasciitilde/OCEAN\_BIN/' or wherever you want the installation to go.}
+\item{ Create links to abinit and cut3d within the OCEAN\_BIN diretory, ie. `ln -s ~/bin/abinit abinit'}
+\end{enumerate}
+
+Assuming success so far you can now go to the EXAMPLE/rutile directory. Here you will find what you need to do a preliminary 
+calculation of the Ti L$_{2,3}$ edge in rutile. To run OCEAN run the command `\textasciitilde/OCEAN\_BIN/ocean.pl rutile.in' 
+and wait for the code to finish. The code will create several directories and the end results are in the file CNBSE/absspct which can 
+be compared to the absspct file that is distributed in the rutile directory.
+
+
+\chapter{WF format}\label{WF_format}
 
 
 \end{document}
