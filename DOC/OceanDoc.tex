@@ -84,9 +84,356 @@ The guide is broken up into sections to follow the path the code will take.
 
 \chapter{Tutorial}
 
-The purpose of this chapter is to work through a sample \OCEAN\, calculation. Go to the \file{EXAMPLES/rutile} directory and look at the file \file{rutile.in}. This is the main input file. For this example let \file{\$OCEAN\_DIR} be the location of the installed \OCEAN\, package. Running the command \texttt{\textsl{\$OCEAN\_DIR/ocean.pl rutile.in}} will run ocean. Run this now. If everything runs correctly the main output will be the file \file{CNBSE/absspct} which can be plotted against the included \file{absspct} file to check that the calculation worked.
+The purpose of this chapter is to work through a sample \OCEAN{} calculation. Go to the \file{EXAMPLES/rutile} directory and look at the file \file{rutile.in}. This is the main input file. For this example let \file{\$OCEAN\_DIR} be the location of the installed \OCEAN{} package. Running the command \texttt{\textsl{\$OCEAN\_DIR/ocean.pl rutile.in}} will run ocean. Run this now. If everything runs correctly the main output will be the file \file{CNBSE/absspct} which can be plotted against the included \file{absspct} file to check that the calculation worked.
 
 The main input file, \file{rutile.in}, contains most of the information about the run such as unit cell parameters and numerical parameters. Other important files are the \file{*.fhi} files which contain the pseudo-potentials, the \file{*.fill} and \file{*.opts} files which contain information about the PAW reconstruction, and the \file{jtv1} file which determines information about the probe photon.
+
+\chapter{Input}
+\section{Running \OCEAN}
+
+The \OCEAN{} package is run using the \program{perl} script \program{ocean.pl} which takes care of reading in the input file and then running the various executables. This chapter will introduce the various control files and explain their formatting and use.
+
+Eventually there will be sample input files describing various calculations and calculation strategies in Chapter \ref{Samples}.
+
+The input parser for \OCEAN{} is relatively basic. Any text following a comment character, `\#,' is ignored up to the line return. If a file has been switching around operating systems it may have non-unix line returns which can cause problems. If the parser returns odd errors try running \program{dos2unix}. The parser is case ignoring and converts all inputs to lower case, requiring any filenames in the input file to be lower case. Each card must be on its own line followed by the value or values to be assigned it. All card values can be surrounded by braces (\{\}) and multi-value cards must be surrounded by braces. For example, the NKPT card must be a list of 3 integers and so must have the following form: ``NKPT \{ 2 2 2 \}" whereas the OCCOPT card takes only one integer and may therefore be listed: ``OCCOPT 1" or ``OCCOPT \{ 1 \}". Line returns may be present within an input. 
+
+After parsing the cards are all stored as small, fortran formatted files in the \file{Common} directory. The package then goes through the following steps:
+\begin{enumerate}
+\item \program{ABINIT} input files are prepared
+\item \program{ABINIT} is run to get DFT valence density and wavefunctions. This requires usually 3 runs. One self-consistent run to get the converged density and two additional runs to calculate wavefunctions for the screening calculation and for the final states.
+\item The wavefunctions and density are converted from \program{ABINIT} output to the form expected by \OCEAN{}.
+\item An atomic calculation is done to create projectors following the PAW method.
+\item The core electrons are screened self-consistently in the presence of the core-hole in the atomic system
+\item Slater F and G integrals are computed at the atomic level
+\item The spherical part of the direct interaction is screened using RPA. $\chi^0$ is calculated using real-space integration around the site of interest. The RPA is coupled with a form of the Levine-Louie-Hybersten screening model.
+\item The overlap is calculated between the core wavefunction and the conduction band using the specified photon operator, XAS or RXIS.
+\item The Bethe-Salpeter equation (BSE) is iteratively solved using a form of the Haydock recursion algorithm.
+\end{enumerate}
+
+
+\section{Complete list of \OCEAN{} inputs}
+
+The input of \OCEAN{} can be divided into several sections
+
+\begin{itemize}
+\item structural information of the material
+\item non-structural DFT parameters, eg. convergence
+\item atomic and screening info
+\item BSE parameters
+\item spectrum information
+\end{itemize}
+
+
+\begin{description}
+
+  %%
+  %% STRUCTURAL INFORMATION
+\item[\large\textbf{Structural information}]\dotfill\
+  \begin{description}
+  \item[\textbf{Purpose:}] Specify the structure
+  \item[\textbf{Required Cards:}] 
+    \htmlref{ACELL}{card:acell},
+    \htmlref{RPRIM}{card:rprim},
+    \htmlref{NTYPAT}{card:ntypat},
+    \htmlref{ZNUCL}{card:znucl},
+    \htmlref{NATOM}{card:natom},
+    \htmlref{TYPAT}{card:typat},
+    \htmlref{XRED}{card:xred},
+    and \htmlref{DIEMAC}{card:diemac}
+  \end{description}
+\item[\large\textbf{Non-Structural DFT parameters}]\dotfill\
+  \begin{description}
+  \item[\textbf{Purpose:}] Control convergence of the calculation
+  \item[\textbf{Required Cards:}] 
+    \htmlref{PP\_LIST}{card:pp-list},
+    \htmlref{ECUT}{card:ecut},
+    \htmlref{NKPT}{card:nkpt},
+    \htmlref{NBAND}{card:nband},
+    and \htmlref{PAW.NBAND}{card:paw.nband}
+  \item[\textbf{Recommended Cards:}] 
+    \htmlref{NGKPT}{card:ngkpt},
+    \htmlref{OCCOPT}{card:occopt},
+    and \htmlref{FBAND}{card:fband}
+  \item[\textbf{Optional Cards:}] 
+    \htmlref{TOLDFE}{card:toldfe},
+    \htmlref{TOLWFR}{card:tolwfr},
+    \htmlref{PAW.NKPT}{card:paw.nkpt},
+    and ]htmlref{SCRATCH}{card:scratch}
+  \end{description}
+\item[\large\textbf{Atomic and Screening Info}]\dotfill\
+  \begin{description}
+  \item[\textbf{Purpose:}] Controls the PAW and screening sections of the calculation
+  \item[\textbf{Required Cards:}] 
+    \htmlref{PAW.FILL}{card:paw.fill},
+    \htmlref{PAW.OPTS}{card:paw.opts},
+    \htmlref{NEDGES}{card:nedges},
+    and \htmlref{EDGES}{card:edges}
+  \item[\textbf{Recommended Cards:}] 
+      \htmlref{PAW.SHELLS}{card:paw.shells},
+      \htmlref{CNBSE.RAD}{card:cnbse.rad},
+      and \htmlref{SCFAC}{card:scfac}
+  \end{description}
+\item[\large\textbf{BSE Parameters}]\dotfill\
+  \begin{description}
+  \item[\textbf{Purpose:}] Parameters used in the BSE calculation
+  \item[\textbf{Optional Cards:}]   
+    \htmlref{CNBSE.XMESH}{card:cnbse.xmesh},
+    \htmlref{METAL}{card:metal},
+    \htmlref{CKSSTRETCH}{card:stretch},
+    and \htmlref{CNBSE.MODE}{card:cnbse.mode}
+  \end{description}
+\item[\large\textbf{Spectrum Information}]\dotfill\
+  \begin{description}
+  \item[\textbf{Purpose:}] Controls the spectrum that is written out, not any aspect of the actual calculation
+  \item[\textbf{Recommended Cards:}]   
+    \htmlref{CNBSE.BROADENING}{card:broaden}  
+   \item[\textbf{Optional Cards:}]   
+    \htmlref{CNBSE.SPECT\_RANGE}{card:spect-range},
+    and \htmlref{CNBSE.NITER}{card:niter}
+  \end{description}   
+\end{description}
+
+These CARDS are listed below in (almost) the same order as in the table above.
+Each CARD description is of this form:
+
+\begin{Card}{CARD}{required arguments}{type}{}
+\end{Card}
+or \\
+\begin{Card}{CARD}{required argument list[ length of list ]}{type}{}
+  The type is one of \textsl{Required}, \textsl{Recommended}, or
+  \textsl{Optional}. The argument list is a brief statement of the
+  valid arguments to the card. Arguments in square brackets are 
+  optional. The text description explains the arguments and 
+  their uses more fully. Example uses of the card look like this:
+\begin{verbatim}
+  * brief description of the example
+  CARD  arguments
+\end{verbatim}
+
+For arguments that are 2-D arrays the ordering is in normal math / C ordering.
+\end{Card}
+
+
+
+\section{Structural Information}
+\label{sec:Structural-Information}
+
+
+
+\begin{Card}{ACELL}{acell[ 3 ]}{Required}{acell}
+  ACELL sets the scaling (in Bohr) for the primitive vectors of the unit cell which are in turn set by \htmlref{RPRIM}{card:rprim}.
+
+\begin{verbatim}
+  * For Li metal: BCC structure, a = b = c = 6.595 Bohrs
+  ACELL { 6.595  6.595  6.595 }
+  
+  \end{verbatim}
+\end{Card}
+
+\begin{Card}{RPRIM}{rprim[ 3 ][ 3 ] }{Required}{rprim}
+  RPRIM sets the primitive vectors for defining the unit cell. 
+  
+  \begin{verbatim}
+  * For a BCC
+  RPRIM{ 1.0  0.0  0.0
+         0.0  1.0  0.0
+         0.5  0.5  0.5  }
+  
+  * or the more symmetric
+  RPRIM{ -0.5  0.5  0.5
+          0.5 -0.5  0.5
+          0.5  0.5 -0.5  }
+         
+  \end{verbatim}
+\end{Card}
+
+\begin{Card}{NTYPAT}{ntypat}{Required}{ntypat}
+The card NTYPAT gives the number of different types of atoms in the cell. 
+\end{Card}
+
+\begin{Card}{ZNUCL}{znucl[ntypat]}{Required}{znucl}
+\texttt{znucl}[] is a list of length \texttt{ntypat} that gives the atomic numbers of the types of atoms that are in the cell.
+\end{Card}
+
+\begin{Card}{NATOM}{natom}{Required}{natom}
+The card NATOM gives the number of total atoms in the cell.
+\end{Card}
+
+\begin{Card}{TYPAT}{typat[natom]}{Required}{typat}
+The card TYPAT lists each atom by the rank it has in the \htmlref{ZNUCL}{card:znucl} list. The order they are listed in will correspond to \htmlref{XRED}{card:xred}. (This may be fixed soon to be less idiosyncratic.)
+\end{Card}
+
+\begin{Card}{XRED}{xred[natom,3]}{Required}{xred}
+The XRED card lists the reduced coordinates, ( x, y, z ), of the all \texttt{natom} atoms in the cell.
+  \begin{verbatim}
+  * For a diamond-like structure with 2 atoms per unit cell
+  XRED{ 0.0  0.0  0.0    # atom 1
+        0.25 0.25 0.25 } # atom 2
+  \end{verbatim}
+\end{Card}
+
+\begin{Card}{DIEMAC}{diemac}{Required}{diemac}
+The MACropscopic DIElectric constant \texttt{diemac} is required for both the DFT stage and also as a parameter in the screening calculations. It is included here as a physical property of the system of interest.
+\end{Card}
+
+%%%%%%
+\section{DFT Parameters}
+\label{sec:DFT-Parameters}
+
+\begin{Card}{PP\_LIST}{files[ntypat]}{Required}{pp_list}
+The names of the pseudo-potential files need to be listed here in the same order as \htmlref{znucl}. Currently all these files need to be all lower case.
+\end{Card}
+
+\begin{Card}{NGKPT}{ngkpt[3]}{Recommended}{ngkpt}
+DFT calculations require a self-consistently determined ground state density for the Kohn-Sham Hamiltonian. As such, in \OCEAN{}, first a ground state calculation is done using only the occupied states and a few unoccupied states for convergence. This density is then used as input to the other DFT calculations to get wavefunctions. NGKPT determines the k-point sampling for this ground state calculation. Care should be taken to ensure enough k-points are used to give a converged density.
+\end{Card}
+
+\begin{Card}{OCCOPT}{occopt}{Recommended}{occopt}
+OCCOPT controls how \program{ABINIT} determines occupation. The allowed values of \texttt{occopt} are listed in the \program{ABINIT} documentation, but the two most important are 1 and 3 as spin-dependent DFT is not yet compatible with \OCEAN{}.
+\begin{description}
+\item[\texttt{occopt} = 1]\hfill\\ States are all doubly degenerate and either occupied or empty depending on band. Suitable for insulators.
+\item[\texttt{occopt} = 3]\hfill\\ States are all doubly degenerate but can have fractional occupations depending on fermi level. Suitable for metals.
+\end{description}
+\end{Card}
+
+\begin{Card}{FBAND}{fband}{Recommended}{fband}
+FBAND determines the number of unoccupied bands to be included in the SCF calculation of the density. For insulators the default (\texttt{fband} = 0.125) is fine, but for metals care must be made to ensure that the highest band in the density calculation has no occupation weight. The number of extra bands is determined by the formula n = \texttt{natom} * \texttt{fband}.
+\end{Card}
+
+\begin{Card}{ECUT}{ecut}{Required}{ecut}
+The plane-wave basis is truncated according to \texttt{ecut} measured in Hartree. The plane-wave cut-off is determined mostly from the pseudo-potentials being used and convergence should be checked with respect to ground state energy.
+\end{Card}
+
+\begin{Card}{TOLDFE}{toldfe}{Optional}{toldfe}
+TOLDFE sets the convergence parameter for the density. When the total energy changes by less than \texttt{toldfe} in two consecutive SCF runs the density is assumed to be converged. The default (\texttt{toldfe} = $10^{-6}$) might be a little too permissive, but is adequate for many systems.
+\end{Card}
+
+
+\begin{Card}{NKPT}{nkpt[3]}{Required}{nkpt}
+NKPT sets the number of k-points used to sample the cell for calculation of the final states. The required number of k-points will vary based on system size (inversely with unit cell volume), and in general metals will require larger grids than insulators. Convergence should always be checked against the k-point sampling.
+\end{Card}
+
+\begin{Card}{NBAND}{nband}{Required}{nband}
+The number of total bands for the final-state wave-functions is set by NBAND. This includes all valence states but not core states.
+\begin{verbatim}
+  * In diamond there are two C atoms each with 4 valence electrons.
+  * To include only the bottom 4 conduction bands
+  nband 8
+\end{verbatim}
+\end{Card}
+
+\begin{Card}{TOLWFR}{tolwfr}{Optional}{tolwfr}
+The convergence criterium for the wave-function calculations is set by TOLWFR. The default (\texttt{tolwfr} = $10^{-16}$) should be sufficient. 
+\end{Card}
+
+\begin{Card}{PAW.NKPT}{paw.nkpt[3]}{Optional}{paw.nkpt}
+The screening calculation is less sensitive to k-point sampling than the final states and is therefore calculated on a smaller grid which is set by PAW.NKPT. The default setting ( PAW.NKPT = 2 2 2 ) is sufficient for a wide variety of systems though very small or very large unit cells may require more or only the gamma point respectively. 
+\end{Card}
+
+\begin{Card}{PAW.NBAND}{paw.nband}{Required}{paw.nband}
+PAW.NBAND sets the number of bands to be calculated for the screening wave-functions. The screening calculation requires a large number of bands as the screened potential only converges in the \texttt{paw.nbands} $\rightarrow \infty$ limit. In practice including bands around 100~eV above the fermi level should be sufficient, but convergence should be checked. 
+\end{Card}
+
+\begin{Card}{SCRATCH}{scratch}{Optional}{scratch}
+Recommended for compute clusters with local scratch space so that \program{ABINIT} will write its scratch files somewhere reasonable. The file \file{scratch} should include an absolute path and file name root, otherwise the default \file{scratchXX} will be used, writing scratch files to the \file{ABINIT} directory.
+\end{Card}
+
+
+%%%%%%
+\section{Atomic and Screening Info}
+\label{sec:AS-Info}
+
+\begin{Card}{PAW.FILL}{z z.fill}{Required}{paw.fill}
+Each type of atom you want spectra of requires a \file{*.fill} file which is explained in \ref{fill}. Eventually the code will handle doing an arbitrary set of edges for a given system so this input could have as many (\texttt{z} \texttt{z.fill}) pairs as you have types of atoms, \texttt{ntypat}. Right now you MUST only put one type here due to bugs. The file \file{z.fill} can in principle have any name, but it is recommended a reasonable naming scheme is kept that associates it with a specific pseudo-potential file. The number \texttt{z} is the atomic number of the site of interest.
+
+\begin{verbatim}
+  * Looking at Oxygen K-edge
+  8  o.fill
+\end{verbatim}
+\end{Card}
+
+\begin{Card}{PAW.OPTS}{z z.opts}{Required}{paw.opts}
+Each type of atom you want spectra of requires a \file{*.opts} file which is explained in \ref{fill}. Eventually the code will handle doing an arbitrary set of edges for a given system so this input could have as many (\texttt{z} \texttt{z.opts}) pairs as you have types of atoms, \texttt{ntypat}. Right now you MUST only put one type here due to bugs. The file \file{z.opts} can in principle have any name, but it is recommended a reasonable naming scheme is kept that associates it with a specific pseudo-potential file. The number \texttt{z} is the atomic number of the site of interest.
+
+\begin{verbatim}
+  * Looking at Oxygen K-edge
+  8  o.opts
+\end{verbatim}
+\end{Card}
+
+\begin{Card}{NEDGES}{nedges}{Required}{nedges}
+The number of edges to run is set by NEDGES. Each site and edge is counted separately. So for a 64 atom amorphous carbon cell you would want \texttt{nedges} = 64 for a complete sample. To run the K and L edges Titanium edges in TiS$_2$ you would need \texttt{nedges} = 3. See also \htmlref{EDGES}{card:edges}.
+\end{Card}
+
+\begin{Card}{EDGES}{edges[nedges,3]}{Required}{edges}
+Each edges being run is defined by 3 integers that set which atom in the same order as \htmlref{XRED}{card:xred}, and which initial state by $n$ and $l$. Note, spin-orbit split edges are calculated together as is necessary to include multiplet terms.
+
+For example, running TiS$_2$ where Ti was listed as the first atom and looking at the K, L$_1$, and L$_{2,3}$ edges respectively.
+\begin{verbatim}
+  * atom, n, l
+    Ti    1  0
+    Ti    2  0
+    Ti    2  1
+\end{verbatim}
+\end{Card}
+
+\begin{Card}{PAW.SHELLS}{shells[]}{Recommended}{paw.shells}
+The screening calculation is a hybrid of RPA and a model based off of Levine-Louie-Hybersten see section \ref{screening}. The corss-over between these two regimes is set by \texttt{shells} in Bohr and several different radii can be chosen to look at the convergence. In the \texttt{shells} $\rightarrow \infty$ limit the RPA is being used for the entire calculation, but convergence is usually reached around 3 - 4 Bohr. If a large radius is being used than the supercell defined by \htmlref{PAW.NKPT}{card:paw.nkpt} must have dimensions larger than the radius chosen or the math could be odd. The default \texttt{shells} = 1.5 Bohr is not recommended.
+\end{Card}
+
+\begin{Card}{CNBSE.RAD}{cnbse.rad}{Recommended}{cnbse.rad}
+One screening radius as defined by \htmlref{PAW.SHELLS}{card:paw.shells} is used in the BSE calculation and is specified by CNBSE.RAD. 
+\end{Card}
+
+\begin{Card}{SCFAC}{scfac}{Recommended}{scfac}
+The Slater integrals are calculated in an atomic program and are generally scaled by some factor before use. For 3d transition metals a value of $0.8$ is often used, while for $f$-electron atoms a value of $0.6$ may be more appropriate. The value is more or less taken to be independent of the chemical environment and only a function of the element in question.
+\end{Card}
+
+
+%%%%%%
+\section{BSE Parameters}
+\label{sec:BSE-Parameters}
+
+\begin{Card}{CNBSE.XMESH}{xmesh[3]}{Optional}{cnbse.xmesh}
+When the wave-functions are converted into the NIST BSE format they are condensed onto a grid controlled by CNBSE.XMESH. The states are then projected onto a localized basis set, using the PAW formalism. The default(\texttt{xmesh} = 6 6 6) might be insufficient for large unit cells.
+\end{Card}
+
+\begin{Card}{METAL}{metal}{Optional}{metal}
+The METAL card determines wether the code expects to determine occupation by band or by energy with respect to the fermi energy. The parameter \texttt{metal} can be set to either $.true.$ or $.false.$ (default). If \texttt{metal} is set to $.true.$ the code will complain unless \htmlref{OCCOPT}{card:occopt} is 3 and similarly for \texttt{metal} = $.false.$ and \texttt{occopt} = 1.
+\end{Card}
+
+\begin{Card}{CKSSTRETCH}{stretch}{Optional}{cksstretch}
+An approximation to some kind of self-energy is allowed through the use of CKSSTRETCH. All conduction band energies with respect to the fermi level are multiplied by \texttt{stretch}. By default \texttt{stretch} = $1.0$. 
+\end{Card}
+
+\begin{Card}{CNBSE.MODE}{interactions iterations}{Optional}{cnbse.mode}
+\begin{description}
+\item[\texttt{interactions}]\hfill\\ The interaction terms of the BSE Hamiltonian can be scaled (or increased) by an arbitrary factor. By default \texttt{interactions} = 1.
+\item[\texttt{iterations}]\hfill\\ The number of iterations in the Haydock recursion (default is 100). This parameter should scale with the size of the BSE Hamiltonian which is controlled by the number of states, ie. bands and k-points.
+\end{description}
+\end{Card}
+
+%%%%%%
+\section{Spectrum Information}
+\label{sec:Spectrum-Information}
+
+\begin{Card}{CNBSE.SPECT\_RANGE}{emin emax}{Optional}{spect-range}
+The energy of the resulting spectra is set by setting the conduction band minimum plus the core-hole binding energy in the absence of spin-orbit splitting to 0. All systems will include a small amount of excitonic binding (depending on $l$ selection rules) and spin-orbit splitting can lower the first peak significantly, eg. L$_{2,3}$ splitting in 4d transition metals. This does not change the BSE calculation, only the output of the spectra at the end. The energy range is given in Hartree and by default \texttt{emin} = $-1.5$ and \texttt{emax} = $2.5$.
+\end{Card}
+
+\begin{Card}{CNBSE.NITER}{niter}{Optional}{niter}
+The card is a mis-nomer, don't use and I'll probably change it.
+
+CNBSE.NITER sets the number of energy points to use when plotting the final spectra. The default is 1200 and should be good for most uses.
+\end{Card}
+
+\begin{Card}{CNBSE.BROADEN}{broadening}{Recommended}{broaden}
+The amount of Lorentzian broadening included in the spectra is set by CNBSE.BROADEN. This is a required convergence parameter for the continued fraction that is our Haydock approximation to the BSE, but setting it to the core-hole intrinsic broadening is recommended since features sharper than that won't be observable. Given in Hartree the default is \texttt{broadening} = $0.007$~Ha. or about $0.1$~eV.
+\end{Card}
+
+%%%%%%%%%%%%%%%%%%
+
+
 
 \chapter{Ground State Wavefunctions}
 In principle any pseudo-potential DFT code can be used. In our implementation we have an interface \footnote{¥}or using ABINIT\cite{abinit}. To run with a custom format see the specs listed in appendix \ref{WF_format}.
@@ -116,6 +463,7 @@ a library of pseudopotentials and atomic info files can be collected and reused.
 The SCaling FACtor is a real number that modifies the calculated Slater-Condon parameters for the atomic case. For 2nd row elements this should be 1.d0 while for transition metals a factor of 0.8d0 is more appropriate. See DeGroot, some others probably \cite{SCFAR}.
 
 \subsection{fill}
+\label{fill}
 The \emph{fill} file determines the numerical parameters used for the PAW construction. Including the energy range to construct waves over, the maximum number of waves per angular momenta, the cut-off radius to use, and the momentum grid for evaluating the Fourier transform of the projectors. 
 
 \begin{center}
@@ -154,6 +502,7 @@ scalar or dirac and rel[ativistic] nonrel[ativistic] and should of course match 
 construction. 
 
 \chapter{Screening Calculation}
+\label{screening}
 
 The screening of the core-hole interaction is done in real space using the random phase approximation up to 
 some radius around the core, 2-5 bohrs, and then using an analytic function of the local density, distance, 
