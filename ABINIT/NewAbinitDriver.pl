@@ -9,7 +9,7 @@ if (! $ENV{"OCEAN_BIN"} ) {
 }
 if (! $ENV{"OCEAN_WORKDIR"}){ $ENV{"OCEAN_WORKDIR"} = `pwd` . "../" ; }
 #if (!$ENV{"OCEAN_VERSION"}) {$ENV{"OCEAN_VERSION"} = `cat $ENV{"OCEAN_BIN"}/Version`; }
-if (! $ENV{"OCEAN_ABINIT"} ) {$ENV{"OCEAN_ABINIT"} = $ENV{"OCEAN_BIN"} . "/abinis"; }
+if (! $ENV{"OCEAN_ABINIT"} ) {$ENV{"OCEAN_ABINIT"} = $ENV{"OCEAN_BIN"} . "/abinit"; }
 
 my @GeneralFiles = ("core", "scratch" );#, "getden");
 
@@ -170,7 +170,7 @@ if( $ndtset == 3 && $paw_kpt_tot > $core && ( ( $paw_kpt_tot % $core ) != 0 ) ) 
   `echo 'istwfk *1' >> test_par`;
    
   print "Testing par options\n";
-  system("$ENV{'OCEAN_BIN'}/abinis < par.files >& par.log");
+  system("$ENV{'OCEAN_BIN'}/abinit < par.files >& par.log");
 
   open LOG, "par.log" or die;
   my $logline;
@@ -227,7 +227,7 @@ if( $ndtset == 3 && $paw_kpt_tot > $core && ( ( $paw_kpt_tot % $core ) != 0 ) ) 
   `echo 'fft_opt_lob 2' >> test_par`;
   `echo 'istwfk *1' >> test_par`;
 
-  system("$ENV{'OCEAN_BIN'}/abinis < par.files >& par3.log");
+  system("$ENV{'OCEAN_BIN'}/abinit < par.files >& par3.log");
   open LOG, "par3.log" or die;
 #  my @paw_procs;
   $trigger = 0;
@@ -271,7 +271,7 @@ if( $ndtset == 3 && $paw_kpt_tot > $core && ( ( $paw_kpt_tot % $core ) != 0 ) ) 
   `echo 'fft_opt_lob 2' >> test_par`;
   `echo 'istwfk *1' >> test_par`;
 
-  system("$ENV{'OCEAN_BIN'}/abinis < par.files >& par2.log");
+  system("$ENV{'OCEAN_BIN'}/abinit < par.files >& par2.log");
   open LOG, "par2.log" or die;
 #  my @bse_procs;
   $trigger = 0;
@@ -527,14 +527,14 @@ if( $ndtset == 3 ) {
 }
 
 open RUNFILE, ">ab_runfile" or die;
-  print RUNFILE "mpirun -np $gs_procs[$iter][0] --hostfile hf " 
-              . "$ENV{'OCEAN_BIN'}/abinis < gs.files >& gs.log\n";
+  print RUNFILE "mpirun -np $gs_procs[$iter][0] " 
+              . "$ENV{'OCEAN_BIN'}/abinit < gs.files >& gs.log\n";
 if( $ndtset == 3 ) {
-  print RUNFILE "mpirun -np $paw_procs[$iter3][0] --hostfile hf " 
-              . "$ENV{'OCEAN_BIN'}/abinis < paw.files >& paw.log\n";
+  print RUNFILE "mpirun -np $paw_procs[$iter3][0] " 
+              . "$ENV{'OCEAN_BIN'}/abinit < paw.files >& paw.log\n";
 }
-  print RUNFILE "mpirun -np $bse_procs[$iter2][0] --hostfile hf " 
-              . "$ENV{'OCEAN_BIN'}/abinis < bse.files >& bse.log\n";
+  print RUNFILE "mpirun -np $bse_procs[$iter2][0] " 
+              . "$ENV{'OCEAN_BIN'}/abinit < bse.files >& bse.log\n";
 close RUNFILE;
 
 ######
