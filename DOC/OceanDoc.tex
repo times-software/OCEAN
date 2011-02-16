@@ -29,7 +29,9 @@
 
 \newchapter{}
 \begin{abstract}
-There is currently no abstract.
+\OCEAN{} is an {\it ab initio} Density Functional Theory (DFT) + Bethe-Salpete Equation (BSE) code for calculations of core-level spectra. Currently the code allows for the calculations of x-ray absorption spectra (XAS) and non-resonant x-ray inelastic x-ray spectra (NRIXS) of periodic systems. The code is written in Fortran 90 with associated shell and Perl scripting.
+
+This work has been supported by \$\$\$.
 
 
 \vspace*{\stretch{1}}
@@ -47,6 +49,8 @@ There is currently no abstract.
 
 
 \chapter{Package Overview}
+
+
 
 OCEAN provides a package to numerically solve the Bethe-Salpeter equation for core-level excitations. There are several steps in the process.
 \begin{enumerate}
@@ -80,6 +84,9 @@ The guide is broken up into sections to follow the path the code will take.
   \end{center}
 \end{table}
 \vspace*{\stretch{1}}
+
+\section{Acknowledgments and history}
+
 
 
 \chapter{Tutorial}
@@ -119,8 +126,8 @@ The input of \OCEAN{} can be divided into several sections
 \item structural information of the material
 \item non-structural DFT parameters, eg. convergence
 \item atomic and screening info
-\item BSE parameters
-\item spectrum information
+\item parameters that control the BSE section, convergence
+\item parameters that only affect the output spectrum
 \end{itemize}
 
 
@@ -435,13 +442,34 @@ The amount of Lorentzian broadening included in the spectra is set by CNBSE.BROA
 
 
 
-\chapter{Ground State Wavefunctions}
-In principle any pseudo-potential DFT code can be used. In our implementation we have an interface \footnote{¥}or using ABINIT\cite{abinit}. To run with a custom format see the specs listed in appendix \ref{WF_format}.
+\chapter{Ground-State Wavefunctions}
+In principle any pseudo-potential DFT code can be used. In our implementation we have an interface for using ABINIT\cite{abinit}. To run with a custom format see the specs listed in Appendix~\ref{WF_format}.
+
+There are two important differences between what is required for a good core-level calculation with \OCEAN{} and more traditional ground-state DFT calculations. The first is that the wave-functions are projected into a real-space basis around an atomic site, which can lead to faster convergence with respect to k-point sampling. Also, a psuedo-potential that is suitable for ground-state calculations may have poor scattering characteristics at higher energies that will make up the spectrum being calculated. With these brief warnings the rest of this chapter will be spent going over various aspects of the calculation and mention briefly strategies for ensuring accuracy and convergence.
+
+The user is assumed to be familiar with DFT calculations, ie. converging the total energy or unit cell volume. 
+
+\section{Pseudo-potentials}
+
+Pseudo-potentials must be carefully constructed to ensure that they adequately mimic the all-electron system being investigated. For general purpose pseudo-potentials this means having good transferability so they can be used in a variety of chemical environments. A large body of literature exists on the topic and the reader is invited to read up on it.\cite{Psp}
+
+As mentioned above for excited state calculations states as high as 50-100~eV above the fermi level must be adequately represented by the pseudo-potentials used. This often requires a harder pseudo-potential than might otherwise be necessary for 
+other calculations. Additionally the way in which chemical bonding affects the valence and low-lying conduction bands is often influenced by the inclusion of semi-core states in the calculation. Better agreement is often seen with the inclusion of semi-core states, eg. 2s and 2p states in a 3d transition metal. This coincidently has been seen to improve the high-energy scattering. 
+
+\section{K-point sampling}
+
+A sum over a few wavefunctions $\psi_k$ is substituted for a integral over the entire Brillouin zone. In principle knowledge of the crystal symmetry of the unit cell could allow for intelligent choices of  points to sample at with non-equal weight, but that is not the approach here. Instead a regular mesh of points in reciprocal space is used and the mesh must be dense enough to ensure that the sampling is sufficient. 
+
+In practice the required k-point grid scales inversely with unit cell size, but testing runs at different sizes and checking that the spectrum is unchanged should be done for each calculation.
+
+\section{Beyond DFT}
 
 In principle these wave-functions should include self-consistent self-energy corrections, eg. GW, but in practice it has been found that for many systems 
 self-energy corrections only affect the energies and not the wave-functions. Even single-shot self-energy calculations can be computationally expensive 
 and we provide several methods to approximate the GW correction; ad-hoc band stretching and the many-pole self-energy which are both presented 
 later.
+
+LDA+U should work? The author hasn't thought of any reasons why it wouldn't, but \program{ABINIT} doesn't currently write out usable wavefunctions when using LDA+U .
 
 
 \chapter{PAW and Atomic}
@@ -460,7 +488,7 @@ a library of pseudopotentials and atomic info files can be collected and reused.
 
 
 \subsection{scfac}
-The SCaling FACtor is a real number that modifies the calculated Slater-Condon parameters for the atomic case. For 2nd row elements this should be 1.d0 while for transition metals a factor of 0.8d0 is more appropriate. See DeGroot, some others probably \cite{SCFAR}.
+The SCaling FACtor is a real number that modifies the calculated Slater-Condon parameters for the atomic case. For 2nd row elements this should be 1.d0 while for transition metals a factor of 0.8d0 is more appropriate. See DeGroot, some others probably \cite{SCFAC}.
 
 \subsection{fill}
 \label{fill}
@@ -516,271 +544,12 @@ slightly higher sampling and a large unit cell might be ok with just the gamma p
 The CNBSE section solves for the spectra. The important output file is absspct; column 1 is the energy, 
 column 2 the spectra using a plamon-pole boradening model and column 3 the plain spectra.
 
-\chapter{Input File}
-\label{sec:Control-Items}
-The input file is order and case independent. No more than one parameter per line is allowed, though parameters can span several lines. Following a \# all remaining text on that line is ignored by the parser. See the examples included in the Examples/ directory.  
-
-Input parameters that have a * are required, all others have some default, though specifying their value is recommended.
-
-\subsection{CONTROL}
-Type: integer \\
-Values: 0, 1 \\
-Default: 0
-\begin{itemize}
-\item The value 0 performs all stages of the calculation and must be run at least once. 
-
-\item The value 1 only runs the \textsc{NBSE} section and can be used after successfully running with control = 0. With the control flag set to 1 any of the flags that start with NBSE can be changed.
-\end{itemize}
-\subsection{*NKPT}
-Type: integer list (3) \\
-Range: Positive \\
-
-These three parameters specify the k-space grid points used to cover the Brillouin Zone for the final
-states.  The spectrum should be convergent with respect to these parameters. The larger the number of 
-grid points the longer the calculation will take. 
-
-\subsection{PAW.NKPT}
-Type: integer list (3) \\
-Range: Positive \\
-Default: \{ 2 2 2 \} \\
-
-This sets the kpt-grid for the screening calculation. Here 2x2x2 is often going to be sufficient.
-
-%\subsection{PHOTON\_Q}
-%Type: double list (3) \\
-%Range: 0-? \\
-%Default: \{ 0.001 0.001 0.001\} \\
-
-%These three give the photon momentum q in units of reciprocal lattice vectors. The reciprocal lattice vectors are calculated from the direct lattice vectors given in input by ACELL and RPRIM as noted below. The photon momentum should be in the optical limit as $q \rightarrow 0$.
-
-%For non-isotropic materials the optical constants can vary with q direction and it is informative to run with several different orientations of the photon momentum.
-
-\subsection{NGKPT}
-Type: integer list (3) \\
-Range: Positive \\
-Default: \{ 4 4 4 \} \\
-
-The sets the k-point grid used by ABINIT for the self-consistent density calculation.
-
-
-\subsection{*NBANDS}
-Type: integer \\
-Range: Positive \\
-
-The total number of bands to be used in the calculation, both occupied and unoccupied.
-Absorption is calculated in terms of transitions between occupied and 
-unoccupied bands. Thus, the total number of bands determines the highest 
-possible frequency for which a spectrum can be calculated reliably. We can
-estimate this frequency in terms of a typical band width multiplied by the number of
-unoccupied bands plus the gap energy, accounting for degeneracy. If the code runs above this energy it 
-will begin to miss certain interband transitions and thus the calculation
-may be unreliable.
-
-\subsection{*NBANDS.PAW}
-Type: integer \\
-Range: Positive \\
-
-Same as above, but for the screening calculation. The screening calculation requires a large number of 
-bands for convergence. 
-
-\subsection{*ACELL}
-Type: double list (3) \\
-Range: 0 - ? \\
-
-Overall scale factors of RPRIM in units of Bohr. \\
-Eg. If our primitive lattice vectors were (in Bohr)
-\begin{verbatim}
-( 10.2,   0,  0  )     
-(    0, 9.3,  0  )       
-(    0,   0,  7.5) 
-\end{verbatim}
-
-Then ACELL would read \{ 10.2, 9.3, 7.5 \} \\
-and RPRIM would read
-\begin{verbatim}
-{    1,   0,   0      
-     0,   1,   0        
-     0,   0,   1 } 
-\end{verbatim}
-
-\subsection{*RPRIM}
-Type: double array (3,3)\\
-Range: 0 - ? \\
-
-The cartesian components of the lattice vectors which are scaled by ACELL.
-
-In order to obtain the crystal structure one may search the web. For example,
-a database of crystal structure can be found by pointing your web-browser at
- \verb|http://cst-www.nrl.navy.mil/lattice/struk/b_k.html|.
-
-\subsection{*NTYPAT}
-Type: integer \\
-Range: 1 - ? \\
-
-This is the number of different types of atoms in the cell.
-
-\subsection{*ZNUCL}
-Type: integer list (NTYPAT) \\
-Range: 1- ?
-
-This is a list of the atoms in the cell the length of which should match NTYPAT. 
-\subsection{PP\_LIST}
-Type: string list (NTYPAT) \\
-
-This is a list of psuedo-potential files. The files specified here must be in the same order as the ZNUCL list and must be in either the run directory or in the PsuedoPots directory. If PP\_LIST is not specified than \textsc{AI2NBSE} will look for any pseudo-potentail files with the correct Z number.
-
-
-\subsection{*NATOM}
-Type: integer \\
-Range: 1- ? \\
-
-The total number of atoms in the unit cell (NOT the number of unique types).
-
-\subsection{*TYPAT}
-Type: integer list (NATOM) \\
-Range: 1 - NTYPAT \\
-
-This list assigns each of the atoms in the unit cell a type based on the ZNUCL list. The positions of each atom in the list corresponds to XRED below.
-
-\subsection{*XRED}
-Type: double array (3,NATOM) \\
-Range: 0 - ? \\
-
-This gives the locations of each of the atoms in terms of lattice vectors.
-
-\subsection{*ECUT}
-Type: double \\
-Range: 0 - ? \\
-
-This is the kinetic energy cuttoff for the plane-wave basis in units of Hartree. This depends entirely on
-the pseudopotentials being used.
-
-\subsection{TOLDFE}
-Type: double \\
-Range: 0 - ? \\
-Default: 1.0d-6\\
-
-This is a parameter used by \textsc{ABINIT} to specify when 
-self-consistancy is reached for the density calculation.
-
-Within \textsc{ABINIT} the parameter is named \verb|toldfe|.
-More information can be found at 
-\\
-\verb|http://www.abinit.org/Infos_v5.3/input_variables/varbas.html#toldfe|
-
-\subsection{TOLWFR}
-Type: double \\
-Range: 0 - ? \\
-Default: 1.0d-16 \\
-
-This is a parameter used by \textsc{ABINIT} to specify when 
-self-consistancy is reached. 
-
-Within \textsc{ABINIT} the parameter is named \verb|tolwfr|.
-More information can be found at 
-\\ 
-\verb|http://www.abinit.org/Infos_v5.3/input_variables/varbas.html#tolwfr|
-
-\subsection{*DIEMAC}
-Type: double \\
-Range: 0 - ? \\
-
-Static dielectric constant of the material. The \textsc{ABINIT} stage uses this value to aid with convergence and its value will only change the time taken for the calculation and not the results. The BSE section of 
-the calculation uses the static dielectric constant for the screening and this will change results.
-
-\subsection{NSTEP}
-Type: integer \\
-Range: 1 - ? \\
-Default: 20  \\
-
-This is a parameter used by \textsc{ABINIT} to specify when 
-self-consistancy is reached. 
-
-Within \textsc{ABINIT} the parameter is named \verb|nstep|.
-More information can be found at 
-\\ 
-\verb|http://www.abinit.org/Infos_v5.3/input_variables/varbas.html#nstep|
-
-\subsection{*NEDGES}
-Type: integer
-Range: Positive
-
-The number of edges to run calculations for. Currently multiple edges per run is not well supported, and 
-the user should limit this to running multiple sites of the same element.
-
-\subsection{*EDGES}
-Type: integer triplets
-
-For each edge in NEDGES a triplet specifies information about the edge. The first number is the atom of
- interest as specified in the XRED list. The second and third numbers are the principle (n) and angular (l)
-quantum numbers of the edge respectively. 
-
-\subsection{SCFAC}
-Type: real \\
-Range: 0 - 1 \\
-Default: 1.0 \\
-
-The scaling factor used in the atomic calculation (see PAW section).
-
-\subsection{PAW.SHELLS}
-Type: reals \\
-Range: Positive \\
-Default: 1.5 \\
-
-A list of radii at which to calculate the screening. 
-
-\subsection{*PAW.FILL}
-Type: integer, string
-
-The number specifies the Z of the element in question. The string specifies a file located in the 
-work directory. See the PAW section for details.
-
-\subsection{*PAW.OPTS}
-Type: integer, string
-
-The number specifies the Z of the element in question. The string specifies a file located in the      
-work directory. See the PAW section for details.
-
-
-\subsection{CNBSE.XMESH}
-Type inetger list (3) \\
-Range: Positive \\
-Default: \{ 6 6 6 \} \\
-
-These three parameters specify the number of real-space grid points 
-in the unit cell. Wavefunctions are stored on a real-space mesh according to 
-$\psi_{n,\mathbf{k}}(\mathbf{r}) = \sum_{\mathbf{r}}C^{n,\mathbf{k}}_{\mathbf{r}} e^{i \mathbf{k} \cdot \mathbf{r}}$. 
-
-\subsection{CNBSE.BROADEN}
-Type: double \\
-Range : 0 - ? \\
-Default 0.007 \\
-
-The amount of broadening used in the calculation in units of Hartree.(gamma)
-
-\subsection{CNBSE.SPECT\_RANGE}
-Type: integer, real, real
-Default: 1200 -1.5 2.5
-
-This controls the output spectra. The first number is the number of energy grid points, the second two
-numbers control the range of the output in Hartree with the non-interacting conduction band minimum
-set to 0. This means that the output energy range does not include the core-hole binding energy.
-
-
-\subsection{CNBSE.MODE}
-Type: real, integer
-Default: 1.0 100 \\
-
-The first number determines the a prefactor for the interactions in the BSE, ie. 0.0 turns off the 
-electron-hole interactions. 
-
-The second number determines the number of iterations used in the BSE solver.
-
 \appendix
 \chapter{Installation}
 \begin{itemize}
-\item The code has been tested with both pgi and intel fortran compilers. Would love to hear people's problems/successes using other vendors. 
-\item Requires fftw3 currently. Look in the makefiles for helpful ``\$FFTWI" and ``\$FFTWL" variables that set the include and library paths respectively. Setting these as environmental variables should work.
+\item The code has been tested with both pgi and intel fortran compilers. Would love to hear people's problems/successes using other vendors. Especially want to add some free (as in \$) compiler to the works list.
+\item Requires fftw3 currently. If you are running on a managed cluster that has nice MODULE support (like NERSC) simply loading the fftw3 module may work fine. Otherwise set the environmental variables FFTWL and FFTWI. For BASH `export FFTWL=``-L/myfftw3/lib -lfftw3''' and `export FFTWL=``-I/myfftw3/include''' and for CSH `setenv FFTWL ``-L/myfftw3/lib -lfftw3''' and `setenv FFTWL ``-I/myfftw3/include'''  (I believe).
+%Look in the makefiles for helpful ``\$FFTWI" and ``\$FFTWL" variables that set the include and library paths respectively. Setting these as environmental variables should work.
 \item The code requires perl
 \end{itemize}
 
@@ -795,10 +564,10 @@ The bare bones installation instructions are as follows.
 Assuming success so far you can now go to the EXAMPLE/rutile directory. Here you will find what you need to do a preliminary 
 calculation of the Ti L$_{2,3}$ edge in rutile. To run OCEAN run the command `\textasciitilde/OCEAN\_BIN/ocean.pl rutile.in' 
 and wait for the code to finish. The code will create several directories and the end results are in the file CNBSE/absspct which can 
-be compared to the absspct file that is distributed in the rutile directory.
+be compared to the absspct file that is distributed in the rutile directory.  
 
 
-\chapter{WF format}\label{WF_format}
+%\chapter{WF format}\label{WF_format}
 
 
 \end{document}
