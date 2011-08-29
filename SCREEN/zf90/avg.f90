@@ -6,7 +6,7 @@ program avg
             tau(3),radius,gr,greal(3), magi
   real(kind=kind(1.d0)), allocatable :: rhogr(:),rhogi(:),modrealgvec(:)
   real(kind=kind(1.d0)), allocatable :: modrealgvec2(:)
-  integer :: gmax( 3 ), ngmax
+  integer :: gmax( 3 ), ngmax, iter, rad_int
   real(kind=kind(1.d0)) :: gmodmax( 3 ), sgmodmax
   character*2 elname
   character*7 avgname
@@ -76,7 +76,7 @@ program avg
         modrealgvec(i) = dsqrt(mag)
         write(70,*) modrealgvec(i), dsqrt(modrealgvec2(i))
       enddo !ng
-      modrealgvec( : ) = dsqrt( modrealgvec2( : ) )
+      modrealgvec( 1 : ng ) = dsqrt( modrealgvec2( 1 : ng ) )
       
       open(unit=98,file='sitelist',form='formatted',status='old')
       read(98,*)numsites
@@ -84,11 +84,13 @@ program avg
       do i=1,numsites
 
         read(98,*)elname,elnum
-        write(avgname,"(a3a2i2.2)")"avg",elname,elnum
+        write(avgname,"(a3,a2,i2.2)")"avg",elname,elnum
         open(unit=97,file=avgname,form='formatted',status='unknown')
         call snatch(elname,elnum,tau)
 
-        do radius=0.00001d0,40.0,0.1d0
+!        do radius=0.00001d0,40.0,0.1d0
+        do rad_int = 0, 400
+          radius = 0.00001d0 + dble( rad_int ) / 10.d0
           denr = 0.d0
           deni = 0.d0
           do j=1,ng
