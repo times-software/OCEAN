@@ -498,14 +498,16 @@ The \emph{fill} file determines the numerical parameters used for the PAW constr
 \begin{tabular}{| l | c l |}
 \hline
 2						& &  pow \\
--1.30 2.00 0.0001 0.01 6		& & Emin, Emax, prec1, prec2, max number of PAW \\
+-1.30 2.00 0.0001 0.01 6		& & Emin, Emax, prec1, prec2, tfac \\
 3.5 1e6					& & PAW radius, prec \\
 0.05 20					& & q step, q max \\
 \hline
 \end{tabular}
 \end{center}
 
-The matrix elements are calculated up to $\langle \phi_i \vert n^{pow} \vert \phi_j \rangle$. The PAW reconstruction starts at energy Emin and attempts to span the space to Emax (both in Ha.). The precision factors should be left alone, but the number of PAW functions to include depends on the system being investigated and convergence should be checked. The PAW radius is in Bohr and convergence should be checked. The overlaps between the states and the projectors is done in reciprocal space on a grid which is controlled by q step and q max, but there parameters should be sufficient for a range of systems.
+The matrix elements are calculated up to $\langle \phi_i \vert n^{pow} \vert \phi_j \rangle$. The PAW reconstruction starts at energy Emin and attempts to span the space to Emax (both in Ha.). 
+%The precision factors should be left alone, but the number of PAW functions to include depends on the system being investigated and convergence should be checked. 
+The PAW radius is in Bohr and convergence should be checked. The overlaps between the states and the projectors is done in reciprocal space on a grid which is controlled by q step and q max, but there parameters should be sufficient for a range of systems.
 
 
 \subsection{opts}
@@ -529,6 +531,31 @@ For the opt file one specifies the number of levels not included in the pseudo-p
 scalar or dirac and rel[ativistic] nonrel[ativistic] and should of course match the psuedopotential 
 construction. 
 
+\section{Diagnostics from the PAW and atomic program}
+There are a number of output files created by the PAW and atomic program, both inputs for later parts of the code as well as diagnostic files. The diagnostic files are placed in the subdirectory \emph{zdiag\_Z\_N\_L}. 
+
+\subsection{Matrix elements}
+The \emph{mt\#\#} files contain a comparison of the overlap matrix elements using the all-electron projector augmented waves versus the pseudized partial waves. The first number in the 
+file name is the power of $r$ and the second is the angular momentum quantum number $l$ used. Plotting columns 3 versus 4 should give a straight line for perfect 
+agreement.
+
+\section{Outputs from the PAW and atomic program}
+
+\subsection{Fourier Coefficients}
+The \emph{aeft\#} and \emph{psft\#} files contain the Fourier transform of the projector augmented waves. They are kept in the \emph{zdiag} directory.
+
+\subsection{Projectors}
+The \emph{pr\#} files contain the projectors on a real-space grid by $l$. The projectors are, by definition, 0 outside of the PAW cut-off radius. They are kept in the \emph{zdiag} directory.
+
+\subsection{Info files}
+The \emph{prjfilez\#\#\#} file, where \# is the three digit Z value, contains info about the Fourier grid and angular momentum range of the projector augmented waves. The first line specifies the minimum angular momentum, maximum angular momentum, number of fourier grid points, and the spacing of the fourier grid. Each following line specifies the number of PAWs for each angular momentum channel. 
+
+the \emph{radfilez\#\#\#} files, where \# is the three digit Z value, contains info about the real-space grid. The first line is cut-off radius, rounded from the input cut-off to the nearest grid point. The second is the number of real-space grid points, and the last is the index of the cut-off.
+
+\subsection{Matrix Elements}
+
+The \emph{melfilez\#\#\#n\#\#l\#\#} file contains the matrix elements between the specified core-hole and the different PAW functions. The first line specifies the maximum $x$ for the operator $r^x$, always starting at 0. Starting with the fast index the file is then the value of the matrix elements looped over projectors, powers of $x$, and finally angular momentum.
+
 \chapter{Screening Calculation}
 \label{screening}
 
@@ -542,7 +569,7 @@ slightly higher sampling and a large unit cell might be ok with just the gamma p
 
 \chapter{ CNBSE }
 The CNBSE section solves for the spectra. The important output file is absspct; column 1 is the energy, 
-column 2 the spectra using a plamon-pole boradening model and column 3 the plain spectra.
+column 2 the spectra using a plamon-pole broadening model and column 3 the plain spectra.
 
 \appendix
 \chapter{Installation}
