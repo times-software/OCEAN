@@ -14,6 +14,9 @@ instdev:
 	for F in $(SCRIPTS); do ln -fs $(PWD)/$$F $(INSTDEVDIR); done;
 	for F in $(FILESF90); do ln -fs $(PWD)/$$F $(INSTDEVDIR); done;
 
+clean:
+	rm -f *.o *.x
+
 .f.x:
 	$(FC) $(OPTIONS) -o $*.x $*.f
 
