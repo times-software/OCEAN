@@ -245,7 +245,7 @@ zobj/mkcorcon.o: zf90/mkcorcon.f90
 zobj/intval.o: zstd/intval.f90
 	$(COMP) $(OPTS) -c zstd/intval.f90 -o zobj/intval.o
 zobj/mwreduce.o: zf90/mwreduce.f90
-	$(COMP) -Rb -c zf90/mwreduce.f90 -o zobj/mwreduce.o
+	$(COMP) -c zf90/mwreduce.f90 -o zobj/mwreduce.o
 zobj/freshen.o: zf90/freshen.f90
 	$(COMP) $(OPTS) -c zf90/freshen.f90 -o zobj/freshen.o
 zobj/rpower.o: zf90/rpower.f90
@@ -261,12 +261,12 @@ zobj/geticore.o: zf90/geticore.f90
 zobj/getfgnew.o: zf90/getfgnew.f90
 	$(COMP) $(OPTS) -c zf90/getfgnew.f90 -o zobj/getfgnew.o
 zobj/getmeznl.o: zf90/getmeznl.f90
-	$(COMP) -Rb -c zf90/getmeznl.f90 -o zobj/getmeznl.o
+	$(COMP) -c zf90/getmeznl.f90 -o zobj/getmeznl.o
 zobj/orbmom.o: zf90/orbmom.f90
-	$(COMP) -Rb -c zf90/orbmom.f90 -o zobj/orbmom.o
+	$(COMP)  -c zf90/orbmom.f90 -o zobj/orbmom.o
 zobj/pseff.o: zf90/pseff.f90
-	$(COMP) -Rb -c zf90/pseff.f90 -o zobj/pseff.o
+	$(COMP)  -c zf90/pseff.f90 -o zobj/pseff.o
 zobj/orbcont.o: zf90/orbcont.f90
-	$(COMP) -Rb -c zf90/orbcont.f90 -o zobj/orbcont.o
+	$(COMP) -c zf90/orbcont.f90 -o zobj/orbcont.o
 zobj/addpot.o: zf90/addpot.f90
-	$(COMP) -Rb -c zf90/addpot.f90 -o zobj/addpot.o
+	$(COMP)  -c zf90/addpot.f90 -o zobj/addpot.o
