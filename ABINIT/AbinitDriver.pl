@@ -292,6 +292,7 @@ my $AbinitType = "seq";
 
 if ($RunABINIT) {
   `echo symmorphi 0 > abfile`;
+  `echo chksymbreak 0 >> abfile`;
   `echo 'acell ' >> abfile`;
   `cat rscale >> abfile`;
   `echo rprim >> abfile`;
