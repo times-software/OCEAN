@@ -575,7 +575,7 @@ column 2 the spectra using a plamon-pole broadening model and column 3 the plain
 \chapter{Installation}
 \begin{itemize}
 \item The code has been tested with both pgi and intel fortran compilers. Would love to hear people's problems/successes using other vendors. Especially want to add some free (as in \$) compiler to the works list.
-\item Requires fftw3 currently. If you are running on a managed cluster that has nice MODULE support (like NERSC) simply loading the fftw3 module may work fine. Otherwise set the environmental variables FFTWL and FFTWI. For BASH `export FFTWL=``-L/myfftw3/lib -lfftw3''' and `export FFTWL=``-I/myfftw3/include''' and for CSH `setenv FFTWL ``-L/myfftw3/lib -lfftw3''' and `setenv FFTWL ``-I/myfftw3/include'''  (I believe).
+\item Requires fftw3 currently. If you are running on a managed cluster that has nice MODULE support (like NERSC) simply loading the fftw3 module may work fine. Otherwise set the environmental variables FFTWL and FFTWI. For BASH `export FFTWL=``-L/myfftw3/lib -lfftw3''' and `export FFTWI=``-I/myfftw3/include''' and for CSH `setenv FFTWL ``-L/myfftw3/lib -lfftw3''' and `setenv FFTWI ``-I/myfftw3/include'''.
 %Look in the makefiles for helpful ``\$FFTWI" and ``\$FFTWL" variables that set the include and library paths respectively. Setting these as environmental variables should work.
 \item The code requires perl
 \end{itemize}
@@ -584,7 +584,7 @@ The bare bones installation instructions are as follows.
 
 \begin{enumerate}
 \item{ Run `make FC=ifort OPTIONS=-O2'}
-\item{ If this doesn't fail, type `make install INSTDIR=\textasciitilde/OCEAN\_BIN/' or wherever you want the installation to go.}
+\item{ If this doesn't fail, type `make install INSTDIR=`` \textasciitilde/OCEAN\_BIN/"' or wherever you want the installation to go.}
 \item{ Create links to abinit and cut3d within the OCEAN\_BIN diretory, ie. `ln -s ~/bin/abinit abinit'}
 \end{enumerate}
 
