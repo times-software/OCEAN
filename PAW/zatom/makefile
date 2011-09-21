@@ -46,6 +46,8 @@ all: zexe/ftrns.x zexe/hfk.x zexe/kbft.x zexe/separate.x zexe/ffiler.x \
 install:
 	cp zexe/hfk.x $(INSTDIR)
 
+clean:
+	rm -f zobj/*.o zexe/*.x
 
 zexe/hartpart.x: zobj/hartpart.o
 	$(COMP) -o zexe/hartpart.x zobj/hartpart.o
@@ -268,6 +270,3 @@ zobj/orbcont.o: zf90/orbcont.f90
 	$(COMP) -Rb -c zf90/orbcont.f90 -o zobj/orbcont.o
 zobj/addpot.o: zf90/addpot.f90
 	$(COMP) -Rb -c zf90/addpot.f90 -o zobj/addpot.o
-
-install:
-	cp zexe/hfk.x $(INSTDIR)
