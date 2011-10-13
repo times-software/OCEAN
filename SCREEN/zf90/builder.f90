@@ -29,7 +29,7 @@ program builder
   !
   real( kind = kind( 1.0d0 ) ) :: celvol, pi, fr, fi, phse, su, pref, su2
   real( kind = kind( 1.0d0 ) ) :: denr, deni, iden2, mu, x, s, qcart( 3 ), qin( 3 ), qout( 3 )
-  real( kind = kind( 1.0d0 ) ) :: gr, gi, su0, rmax
+  real( kind = kind( 1.0d0 ) ) :: gr, gi, su0, rmax, absdiff, newdiff
   real( kind = kind( 1.0d0 ) ) :: vlev, vhev, clev, chev, muev, sev, mindif, maxdif, vec( 3 )
   !
   real( kind = kind( 1.0d0 ) ), allocatable :: zr( :, : ), zi( :, : ), w( : ), w2( : )
@@ -41,11 +41,12 @@ program builder
   real( kind = kind( 1.0d0 ) ), allocatable :: cosqr( : ), sinqr( : )
   real( kind = kind( 1.0d0 ) ), allocatable :: ure( :, : ), uim( :, : )
   real( kind = kind( 1.0d0 ) ), allocatable :: gre( :, :, : ), gim( :, :, : )
+  real( kind = kind( 1.0d0 ) ), allocatable :: gre_small( :, :, : ), gim_small( :, :, : )
   real( kind = kind( 1.0d0 ) ), allocatable :: vind( : ), nind( : ), xirow( : )
   !
   real( kind = kind( 1.0d0 ) ) :: term1, term2, rscal, dsqdmod1, dsqdmod2, dsqdmod3, exppref, nav
   real( kind = kind( 1.0d0 ) ) :: efermi
-  integer :: dumint, gtot,bandtot,brange(4), nang, nr, indx
+  integer :: dumint, gtot,bandtot,brange(4), nang, nr, indx, small_band
   integer, allocatable :: gvec( : , : )
   character*12 :: wfname
   character*2 :: element
@@ -97,6 +98,9 @@ program builder
   if (overlap .lt. 0) stop "!!!"
   !! ibh = ibh + overlap
 !!!!
+  !
+  small_band = aint( dble( ibh + overlap - brange( 2 ) ) * 0.8 ) + brange( 2 )
+  write( 6, * ) brange( 1 : 3 ), small_band
   !
   open( unit=99, file='rbfile.bin', form=u11, status=u7 )
   rewind 99
@@ -156,6 +160,8 @@ program builder
   allocate( ure( npt, ibl : ibh + overlap ), uim( npt, ibl : ibh + overlap ) )
   allocate( gre( npt, npt, 2 * nt ), gim( npt, npt, 2 * nt ) )
   gre = 0; gim = 0; dmat = 0
+  allocate( gre_small( npt, npt, 2 * nt ), gim_small( npt, npt, 2 * nt ) )
+  gre_small= 0; gim_small = 0
   allocate( wfr( npt ), wfi( npt ), cosqr( npt ), sinqr( npt ) )
   pref = 1 / ( nk1 * nk2 * nk3 * celvol )
   ! 
@@ -254,11 +260,18 @@ program builder
                 do it = 1, nt
                    x = 1.0d0 / ( 1.0d0 - t( it ) )
                    deni = s * t( it ) * x
-                   denr = mu - w( j )
+                   ! We want there to be a floor on the smallest value of denr, otherwise could get an 
+                   !   instability in metals as w( j ) -> mu
+                   absdiff = abs( mu - w( j ) )
+                   newdiff = sqrt( absdiff**2 + 1.d0*10**(-6) )
+                   ! denr is at least 10^-6 and has the correct sign
+                   denr = sign( newdiff, mu - w( j ) )
                    iden2 = 1.0d0 / ( denr ** 2 + deni ** 2 )
                    fr = iden2 * denr; fi = - iden2 * deni
                    gre( :, :, it ) = gre( :, :, it ) + fr * wfp( :, : )
-                  gim( :, :, it ) = gim( :, :, it ) + fi * wfp( :, : )
+                   gim( :, :, it ) = gim( :, :, it ) + fi * wfp( :, : )
+                   gre_small( :, :, it ) = gre_small( :, :, it ) + fr * wfp( :, : )
+                   gim_small( :, :, it ) = gim_small( :, :, it ) + fi * wfp( :, : )
                 end do
               endif
            end do
@@ -282,11 +295,18 @@ program builder
                 do it = 1, nt
                    x = 1.0d0 / ( 1.0d0 - t( it ) )
                    deni = s * t( it ) * x
-                   denr = mu - w( j )
+                   absdiff = abs( mu - w( j ) )
+                   newdiff = sqrt( absdiff**2 + 1.d0*10**(-6) )
+                   ! denr is at least 10^-6 and has the correct sign
+                   denr = sign( newdiff, mu - w( j ) )
                    iden2 = 1.0d0 / ( denr ** 2 + deni ** 2 )
                    fr = iden2 * denr; fi = - iden2 * deni
                    gre( :, :, it ) = gre( :, :, it ) + fr * wfp( :, : )
                    gim( :, :, it ) = gim( :, :, it ) + fi * wfp( :, : )
+                   if( j .le. small_band ) then
+                     gre_small( :, :, it ) = gre_small( :, :, it ) + fr * wfp( :, : )
+                     gim_small( :, :, it ) = gim_small( :, :, it ) + fi * wfp( :, : )
+                   endif
                 end do
               endif
            end do
@@ -332,6 +352,39 @@ program builder
   end do
   close( unit=99 )
   !
-  !  return
+  !
+  write(6,*)"starting ximat"
+  open( unit=99, file='ximat_small', form='unformatted', status='unknown' )
+  rewind 99
+  vind = 0
+  do i = 1, npt
+     su2 = 0
+     do j = 1, npt
+        su = 0
+        do it = 1, nt
+           su = su + ( gre_small( i, j, it ) ** 2 - gim_small( i, j, it ) ** 2 ) * newwgt( it )
+        end do
+        su = 4 * su * s / pi     ! 2 for spin, 2 for Ry
+        xirow( j ) = su
+        su2 = su2 + vipt( j ) * su * wpt( j )
+     end do
+     write ( 99 ) xirow
+
+     do j = 1, npt
+        vind( j ) = vind( j ) + wpt( i ) * su2 / max( drel( j ), drel( i ) )
+     end do
+     nind( i ) = su2
+  end do
+  close( unit=99 )
+  !
+  write(6,*)"starting nopt"
+  open( unit=99, file='nopt_small', form='formatted', status='unknown' )
+  rewind 99
+  do i = 1, npt
+     write ( 99, '(4(1x,1e15.8))' ) drel( i ), vipt( i ), nind( i ), vind( i )
+  end do
+  close( unit=99 )
+  !
+  !  
   !
 end program builder
