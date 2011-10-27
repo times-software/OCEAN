@@ -93,7 +93,50 @@ The guide is broken up into sections to follow the path the code will take.
 
 The purpose of this chapter is to work through a sample \OCEAN{} calculation. Go to the \file{EXAMPLES/rutile} directory and look at the file \file{rutile.in}. This is the main input file. For this example let \file{\$OCEAN\_DIR} be the location of the installed \OCEAN{} package. Running the command \texttt{\textsl{\$OCEAN\_DIR/ocean.pl rutile.in}} will run ocean. Run this now. If everything runs correctly the main output will be the file \file{CNBSE/absspct} which can be plotted against the included \file{absspct} file to check that the calculation worked.
 
-The main input file, \file{rutile.in}, contains most of the information about the run such as unit cell parameters and numerical parameters. Other important files are the \file{*.fhi} files which contain the pseudo-potentials, the \file{*.fill} and \file{*.opts} files which contain information about the PAW reconstruction, and the \file{jtv1} file which determines information about the probe photon.
+\section{Rutile}
+
+The main input file, \file{rutile.in}, contains most of the information about the run such as unit cell parameters and numerical parameters. Other important files are the \file{*.fhi} files which contain the pseudo-potentials, the \file{*.fill} and \file{*.opts} files which contain information about the PAW reconstruction, and the \file{jtv1} file which determines information about the probe photon. 
+
+This calculation is definitely not converged, and should not be compared to experiment, any agreement would be fortuitous. Since this is our first time running with either the oxygen or titanium pseudo-potentials we should really check how well the PAW stage performed, but that will be left to a later tutorial. Instead we will start with the screening calculation and work from there. Left out of this tutorial is any investigation of the parameters that determine the quality of the initial DFT runs. For now it is suggested that the user look to ABINIT's provided tutorials to ensure that the calculated DFT wavefunctions are good. The values used in this tutorial are a too stingy for a publication quality run.
+
+\subsection{Screening}
+
+\begin{figure}
+\includegraphics[scale=0.3]{titanium_screen_radius.pdf}
+\label{titanium_screen_radius}
+\end{figure}
+
+
+From the rutile working directory drop into the \file{SCREEN/zTi\_01\_n02l01/} directory. This contains the screening information for our run; our atom is titanium (Ti), we are using the first titanium in the cell, and the edge of interest is $n=2;l=1$. In here we see a collection of directories, each corresponding to a different screening calculation. Our first interest is in the behavior of the screening with respect to the cut-off radius for our RPA calculation. Using your favorite plot compare the different \file{ropt} files in the directories \file{zRXT2.00/}, \file{zRXT3.00/}, and \file{zRXT4.00/}. We are interested in comparing columns 1 versus 4, which is the response of the valence electrons to the core-hole potential as a function of radius, all in atomic units. Physically the radius should be taken out to infinity, but we see that the calculation converges relatively quickly. As a note, the radius can not exceed 8 Bohr, and should always be in the vicinity of 2-5~Bohr. Looking at the plot of the three different radii (Fig.\ \ref{rutile_screen_radius}) you will see a large jump between 2 and 3~Bohr but a much smaller jump going to 4. Therefore, by 4~Bohr it appears that the screening calculation is converged, and if you were to compare 3.5 and 4 the difference would be quite small. The parameter CNBSE.RAD sets which screening radius is used by the BSE calculation, and you should set to match the converged radius.
+
+
+The second thing to check is the number of unoccupied bands used in the screening calculation. Automatically the code will calculate the dielectric function for two different numbers of bands, the number you asked for and a smaller number (some 80\% the size). This smaller calculation is done for each of the radii asked for and is stored in the subdirectory \file{zRXT2.00\_small/}. Having chosen your radius of choice above (4~Bohr) you can check the convergence of the bands by plotting the small and full \file{ropt} files against each other, once again column 1 versus column 4. As you can see in Fig.\ \ref{rutile_screen_bands} there is only a small change going from 75 unoccupied bands down to 60, and so we can consider the calculation to be converged.
+
+\begin{figure}
+\includegraphics[scale=0.3]{titanium_screen_bands.pdf}
+\label{titanium_screen_bands}
+\end{figure}
+
+
+\subsection{CNBSE stage}
+
+At this point we will move to the \file{CNBSE} directory and consider the effect of three parameters; NBUSE, CNBSE.XMESH, and NKPT. You might think you missed the parameter NBUSE in \file{rutile.in}, but it is in fact not there. For insulators like rutile it can be determined automatically as the code runs. The BSE section requires that every k-point have the same number of conduction bands in the calculation, but in metals a band can be above or below the Fermi level depending on the k-point. If you look at \file{nbuse.ipt} you will see that it is set to 26. Create a new directory in the run directory called \file{CNBSE\_20/} and edit \file{Common/nbuse.ipt}, changing it to 20. You might notice that it said 0 which tells the code to automatically determine the maximum number of bands available. Here we calculated 50 bands total bands 24 of which are occupied leaving 26. Now go into \file{CNBSE\_20} and run the script \program{cnbse.pl}. This will recalculate the spectra using only 20 bands in the BSE. You can now compare the two spectra files. You'll see that the one with fewer bands falls off at a much lower energy, as is expected. Additionally, it is impossible to tell if 26 bands is enough for convergence, since there are differences between the two spectra. We will have to re-run part of the ABINIT stage, increasing the value of NBAND. Since the convergence with bands should be the same independent of k-point sampling, this step should be done before checking on NKPT.
+
+Another important consideration is the size of CNBSE.XMESH. This determines the number of real-space points in the unit cell that the spherical ($l=0$) part of the direct interaction is calculated at. Said another way, each DFT wavefunction is truncated down to a small set of Fourier coefficients, and the long-range, spherical direct term is evaluated for each point. This part of the direct term is only a function of the distance between the core hole and the electron position coordinates, $V(|\mathbf{r-r'}|)$. The default should be sufficient for small unit cells, but larger cells will require a bigger mesh. Changing this parameter, by editing its value in the Common directory requires re-running the PREP stage as well as the CNBSE stage. If you edit it in the input file and re-run the whole calculation it might work, but there may also be bugs either causing too much or too little to be re-run. Indeed, if you check, you will see that a $4\times4\times4$ grid is insufficient, and there are large deviations if you increase to a $6\times6\times6$ grid. But increasing it further will change little, showing that 216 x-points are sufficient. 
+
+\begin{figure}
+\includegraphics[scale=0.5]{titanium_xmesh.pdf} \\
+The convergence of the spectra with respect to the number of x-points, ie. cnbse.xmesh.
+\label{titanium_xmesh}
+\end{figure}
+
+The parameter NKPT determines the number of k-points used in the BSE. \OCEAN uses, by default, a very asymmetric shift to ensure that the k-points sampled are fairly unique. The number of k-points varies widely from system to system, with metals or small unit cells using 4096 or more points, while large systems might need only 8-64. The mesh does not need to use the same number for each element, and for oblong unit cells should not, but all the meshes in \OCEAN should be factorable into small primes; 2, 3, or 5. The default tutorial mesh was $4\times4\times2$ which is too small, but faster to run [ALSO THIS SHOULD BE 224]. Try increasing the number of k-points, but try and match your grid to the ratio of reciprocal lattice vectors, about 1.5:1. 
+
+This concludes the tutorial on rutile TiO$_2$.
+
+
+
+
 
 \chapter{Input}
 \section{Running \OCEAN}
@@ -165,7 +208,7 @@ The input of \OCEAN{} can be divided into several sections
     \htmlref{TOLDFE}{card:toldfe},
     \htmlref{TOLWFR}{card:tolwfr},
     \htmlref{PAW.NKPT}{card:paw.nkpt},
-    and ]htmlref{SCRATCH}{card:scratch}
+    and \htmlref{SCRATCH}{card:scratch}
   \end{description}
 \item[\large\textbf{Atomic and Screening Info}]\dotfill\
   \begin{description}
@@ -193,7 +236,7 @@ The input of \OCEAN{} can be divided into several sections
   \begin{description}
   \item[\textbf{Purpose:}] Controls the spectrum that is written out, not any aspect of the actual calculation
   \item[\textbf{Recommended Cards:}]   
-    \htmlref{CNBSE.BROADENING}{card:broaden}  
+    \htmlref{CNBSE.BROADEN}{card:broaden}  
    \item[\textbf{Optional Cards:}]   
     \htmlref{CNBSE.SPECT\_RANGE}{card:spect-range},
     and \htmlref{CNBSE.NITER}{card:niter}
@@ -341,6 +384,10 @@ The screening calculation is less sensitive to k-point sampling than the final s
 PAW.NBAND sets the number of bands to be calculated for the screening wave-functions. The screening calculation requires a large number of bands as the screened potential only converges in the \texttt{paw.nbands} $\rightarrow \infty$ limit. In practice including bands around 100~eV above the fermi level should be sufficient, but convergence should be checked. 
 \end{Card}
 
+\begin{Card}{ABPAD}{abpad}{Optional}{abpad}
+During the non-self-consistent calculation of the wavefunctions, the convergence of the highest bands can be very slow. The calculation speed can be increased by adding some throw-away bands to the top. These bands are not considered when checking for convergence and should also not be used in the subsequent steps of the calculation. The parameter abpad adds bands to the calculation and tells ABINIT to ignore them using ABINIT's nbdbuf setting.
+\end{Card}
+
 \begin{Card}{SCRATCH}{scratch}{Optional}{scratch}
 Recommended for compute clusters with local scratch space so that \program{ABINIT} will write its scratch files somewhere reasonable. The file \file{scratch} should include an absolute path and file name root, otherwise the default \file{scratchXX} will be used, writing scratch files to the \file{ABINIT} directory.
 \end{Card}
@@ -396,6 +443,10 @@ One screening radius as defined by \htmlref{PAW.SHELLS}{card:paw.shells} is used
 The Slater integrals are calculated in an atomic program and are generally scaled by some factor before use. For 3d transition metals a value of $0.8$ is often used, while for $f$-electron atoms a value of $0.6$ may be more appropriate. The value is more or less taken to be independent of the chemical environment and only a function of the element in question.
 \end{Card}
 
+\begin{Card}{PAW.HFKGRID}{paw.hfkgrid}{Optional}{paw.hfkgrid}
+This sets two parameters for the program \program{hfk.x}. The first is a grid and should be left at the default value of 2000. The second determines the maximum number of projectors per angular momentum channel that can be created. In the future this should dynamically resize, but in the present the default of 8 will work for many calculations. If the program \program{hfk.x} fails it may be solved by increasing this number. It will say something about `ne' being too small. For 3d transition metals it is suggested that an increased value of 12 or so be used as a precaution.  
+\end{Card}
+
 
 %%%%%%
 \section{BSE Parameters}
@@ -447,20 +498,39 @@ In principle any pseudo-potential DFT code can be used. In our implementation we
 
 There are two important differences between what is required for a good core-level calculation with \OCEAN{} and more traditional ground-state DFT calculations. The first is that the wave-functions are projected into a real-space basis around an atomic site, which can lead to faster convergence with respect to k-point sampling. Also, a psuedo-potential that is suitable for ground-state calculations may have poor scattering characteristics at higher energies that will make up the spectrum being calculated. With these brief warnings the rest of this chapter will be spent going over various aspects of the calculation and mention briefly strategies for ensuring accuracy and convergence.
 
-The user is assumed to be familiar with DFT calculations, ie. converging the total energy or unit cell volume. 
+%The user is assumed to be familiar with DFT calculations, ie. converging the total energy or unit cell volume. 
+You need a structure and a set of pseudo-potentials to begin a calculation. From there, you must check convergence with respect to all of the adjustable parameters of the calculation. Not to worry, there are not really that many. In this section we will focus on just a few.
 
 \section{Pseudo-potentials}
 
-Pseudo-potentials must be carefully constructed to ensure that they adequately mimic the all-electron system being investigated. For general purpose pseudo-potentials this means having good transferability so they can be used in a variety of chemical environments. A large body of literature exists on the topic and the reader is invited to read up on it.\cite{Psp}
+Pseudo-potentials must be carefully constructed to ensure that they adequately mimic the all-electron system being investigated. For general purpose pseudo-potentials this means having good transferability so they can be used in a variety of chemical environments. A large body of literature exists on the topic, and the reader is invited to read up on it.\cite{Psp} 
 
 As mentioned above for excited state calculations states as high as 50-100~eV above the fermi level must be adequately represented by the pseudo-potentials used. This often requires a harder pseudo-potential than might otherwise be necessary for 
-other calculations. Additionally the way in which chemical bonding affects the valence and low-lying conduction bands is often influenced by the inclusion of semi-core states in the calculation. Better agreement is often seen with the inclusion of semi-core states, eg. 2s and 2p states in a 3d transition metal. This coincidently has been seen to improve the high-energy scattering. 
+other calculations. Additionally the way in which chemical bonding affects the valence and low-lying conduction bands is often influenced by the inclusion of semi-core states in the calculation. Better agreement is often seen with the inclusion of semi-core states, eg. 2s and 2p states in a 3d transition metal. This has been seen to also improve the high-energy scattering.\cite{}
+
+In the future the author hopes to collect a database of pseduo-potentials to add to the ease of using \OCEAN and all users will be invited to contribute their carefully tested ones as well.
+
+\section{Self-consistent Density Calculation}
+A DFT calculation requires, as one might expect, a density. In the self-consistent loop, wavefunctions are converged in an inner loop, and the density is updated from there to form an outer loop. Once the density has been converged, in this usage it changes less than the parameter TOLDFE over the course of two successive updates, this calculation is complete. The density, $n(\mathbf{r})$, depends on two (2) major convergence factors; ECUT and NGKPT. What follows is a brief discussion of these and other parts of the density calculation.
+
+ABINIT is a plane-wave based code, and the basis size is truncated according to the ECUT parameter, specifying the largest energy plane-wave. This cut-off energy is largely dominated by the pseudo-potentials, the harder the pseudo-potential the higher the cut-off energy needs to be. It should be noted that the scaling of the DFT section with respect to the number of planewaves is no better than N*LOG(N), and the number of planewaves goes as the cut-off to the 3/2. When the total energy no longer changes as a function of an increasing energy cut-off the calculation is converged. A reasonable value would be 1meV per atom or less.
+
+The second important factor is the k-space sampling used for the self-consistent calculation. As in all numerical work, integrations are replaced by finite sums. The required k-space sampling is highly material dependent. A material with a small unit cell or a metal will both tend to require a larger number of k-points. This can be guided by experience, but should always be checked by increasing the sampling and looking at the total energy or perhaps the pressure. 
+
+The last consideration is the treatment of electron occupancies. For insulators this is straightforward, fill all the lowest bands, but for metal the situation requires more care. Choosing a value of OCCOPT that is greater than 1 will cause ABINIT to smear the occupation levels near the fermi energy. This helps lead to faster convergence by better sampling the fermi surface. Along with metallic occupations comes the need to include enough extra bands in the density calculation to hold the smeared out electrons. The parameter FBAND determines how many extra bands are added. These two parameters follow directly from their ABINIT definitions and more can be found in ABINIT's help.
+
+
+
 
 \section{K-point sampling}
 
 A sum over a few wavefunctions $\psi_k$ is substituted for a integral over the entire Brillouin zone. In principle knowledge of the crystal symmetry of the unit cell could allow for intelligent choices of  points to sample at with non-equal weight, but that is not the approach here. Instead a regular mesh of points in reciprocal space is used and the mesh must be dense enough to ensure that the sampling is sufficient. 
 
-In practice the required k-point grid scales inversely with unit cell size, but testing runs at different sizes and checking that the spectrum is unchanged should be done for each calculation.
+In practice the required k-point grid scales inversely with unit cell size, but testing runs at different sizes and checking that the spectrum is unchanged should be done for each calculation. Unit cells that are oblong may benefit from k-point meshes that have a larger number of k-points along the dimensions with longer reciprocal lattice vectors. The only way to ensure convergence w.r.t. k-point sampling is to increase or decrease the number of k-points and make sure that the results are not changing. For metals a large number of k-points may be required in order to get a good sampling of the Fermi surface.
+
+\section{Number of Bands}
+
+The excited state (excitonic) wave-function at any given energy may include contributions from much higher energy DFT wave-functions. Additionally the attractive core-hole potential will pull some states down in energy. If one is interested in spectra up to 20~eV above the edge, the number of bands needed in the calculation will be larger than if one is only interested in the DOS up to 20~eV. This convergence should be tested explicitly by rerunning the last stage of the calculation, but limiting the number of bands using the NBUSE parameter.
 
 \section{Beyond DFT}
 
@@ -499,7 +569,7 @@ The \emph{fill} file determines the numerical parameters used for the PAW constr
 \hline
 2						& &  pow \\
 -1.30 2.00 0.0001 0.01 6		& & Emin, Emax, prec1, prec2, tfac \\
-3.5 1e6					& & PAW radius, prec \\
+3.5 1e8					& & PAW radius, prec \\
 0.05 20					& & q step, q max \\
 \hline
 \end{tabular}
@@ -507,7 +577,7 @@ The \emph{fill} file determines the numerical parameters used for the PAW constr
 
 The matrix elements are calculated up to $\langle \phi_i \vert n^{pow} \vert \phi_j \rangle$. The PAW reconstruction starts at energy Emin and attempts to span the space to Emax (both in Ha.). 
 %The precision factors should be left alone, but the number of PAW functions to include depends on the system being investigated and convergence should be checked. 
-The PAW radius is in Bohr and convergence should be checked. The overlaps between the states and the projectors is done in reciprocal space on a grid which is controlled by q step and q max, but there parameters should be sufficient for a range of systems.
+The PAW radius is in Bohr and convergence should be checked. The overlaps between the states and the projectors is done in reciprocal space on a grid which is controlled by q step and q max, but there parameters should be sufficient for a range of systems. The precision factors should be left as is. The parameter tfac determines the number of test functions for determining the quality of the PAW step (see diagnostics section below).
 
 
 \subsection{opts}
@@ -535,9 +605,9 @@ construction.
 There are a number of output files created by the PAW and atomic program, both inputs for later parts of the code as well as diagnostic files. The diagnostic files are placed in the subdirectory \emph{zdiag\_Z\_N\_L}. 
 
 \subsection{Matrix elements}
-The \emph{mt\#\#} files contain a comparison of the overlap matrix elements using the all-electron projector augmented waves versus the pseudized partial waves. The first number in the 
+The \file{mt\#\#} files contain a comparison of the overlap matrix elements using the all-electron projector augmented waves versus the pseudized partial waves. The first number in the 
 file name is the power of $r$ and the second is the angular momentum quantum number $l$ used. Plotting columns 3 versus 4 should give a straight line for perfect 
-agreement.
+agreement. Depending on which core level you are interested in only a couple of these files need to be checked. For dipole limited $s$-type initial states you should only check the the file \file{mt11} and for L$_{23}$ edges the files \file{mt12} and \file{mt10} are most important. For most users this is the only check that needs to be performed for the PAW section.
 
 \section{Outputs from the PAW and atomic program}
 
@@ -566,6 +636,14 @@ checked and will change based on both the core and system of interest. The scree
 infinite number of bands, but should smoothly converge w.r.t. number of bands included. For the average 
 system a 2$^3$ k-point grid is sufficient for convergence, while a very small system might require a 
 slightly higher sampling and a large unit cell might be ok with just the gamma point.
+
+Converging the screening calculation requires only checking four parameters; PAW.NKPT, PAW.NBANDS, PAW.SHELLS and DIEMAC. To check the convergence of the screening calculation you should graph the file \file{ropt} using columns 1 and 4. This gives you calculated valence response to the core-hole potential. The file \file{rpot} can also be graphed using column 2 versus column 1, and it shows the (negative) total screened core-hole potential. Both files give the radius in Bohr and potential in Hartree as well as assuming a spherical potential. The screening info for each atomic site will be stored in a directory labeled by the atomic symbol, the index of that atom, and the core level $n$ and $l$.
+
+The macroscopic dielectric constant, $\epsilon_\infty$, is normally taken from experiment, and so it is not really a free parameter. The number of k-points needed for the screening is small and most calculations should be fine with the default grid of $2\times2\times2$, possible exceptions are very tiny unit cells which may need more points and very large cells or supercells which may only require the gamma point. 
+
+Several different values of the screening cut-off radius can be chosen by listing them in the input PAW.SHELLS. For a calculation several different radii should be tried, for example, 3.5 and 4.0 Bohr. The calculation for each radius is stored in a subdirectory labeled with the radius, \file{zRXT\#.\#\#/}. The directories labeled \file{zRXF\#.\#\#/} should be ignored at present. 
+
+Lastly the number of bands included in the truncated sum for calculating the RPA dielectric function also requires checking. The code automatically computes two screening functions per screening calculation. One contains all of the bands in PAW.NBAND, while the second reduces the number of unoccupied bands included by about 80\%. This allows a quick check of the convergence with bands and the results of the smaller calculation are stored in the subdirectory \file{zRXT\#.\#\#\_small/}.
 
 \chapter{ CNBSE }
 The CNBSE section solves for the spectra. The important output file is absspct; column 1 is the energy, 
