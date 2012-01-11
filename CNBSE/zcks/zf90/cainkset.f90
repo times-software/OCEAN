@@ -44,7 +44,7 @@ subroutine cainkset( avec, bvec, bmet, prefs )
   !
   integer :: l, m, lmin, lmax, npmax, nqproj, nptot, nlm, ilm
   complex( kind = kind( 1.0d0 ) ) :: rm1
-  integer, allocatable :: lml( : ), lmm( : )
+  integer, allocatable :: lml( : ), lmm( : ), ibeg_array( : )
   real( kind = kind( 1.0d0 ) ), allocatable :: pcoefr( :, :, : ), pcoefi( :, :, : )  
   !
   integer :: j
@@ -185,7 +185,7 @@ subroutine cainkset( avec, bvec, bmet, prefs )
      nprj = nprj + nproj( l ) * ( 2 * l + 1 )
   end do
   allocate( prj( ntot, nprj, ntau ) )
-  allocate( coeff( -lmax : lmax, 1 : nbd, npmax, lmin : lmax, ntau ) )
+!  allocate( coeff( -lmax : lmax, 1 : nbd, npmax, lmin : lmax, ntau ) )
   allocate( cwgt( -lmax : lmax, npmax, lmin : lmax, ntau ) )
   allocate( fttab( nqproj, npmax, lmin : lmax ) )
   call nbseftread( nqproj, npmax, nproj, lmin, lmax, fttab, add04 )
@@ -193,7 +193,7 @@ subroutine cainkset( avec, bvec, bmet, prefs )
   allocate( lml( nlm ), lmm( nlm ) )
   call setlm( nlm, lml, lmm, lmin, lmax, nproj, nptot )
   allocate( pcoefr( nptot, ntot, ntau ), pcoefi( nptot, ntot, ntau ) )
-  allocate( wnam( nktot ) , w( nbd ) )
+  allocate( wnam( nktot ) ) !, w( nbd ) )
   open( unit=99, file='listwfile', form=f9, status='old' )
   rewind 99
   do i = 1, nktot
@@ -206,35 +206,46 @@ subroutine cainkset( avec, bvec, bmet, prefs )
   nq = 0
   if( metal ) then
     open(unit=20,file='ibeg.h')
+    allocate( ibeg_array( nktot ) )
   endif
+!!  do nq = 1, nktot
+!!    ik3 = mod( (nq - 1 ), zn( 3 ) )
+!!    ik2 = mod( floor( dble(nq - 1 )/ dble(zn( 3 ) )), zn( 2 ) )
+!!    ik1 = floor( dble( nq - 1 ) / dble( zn(3 ) * zn( 2 ) ) )
+!!    write(6,*) nq, ik3, ik2, ik1
+!!  enddo
+!
 !$OMP PARALLEL DO  &
 !$OMP& SCHEDULE( STATIC  ) &
 !$OMP& PRIVATE(ik1, ik2, ik3, qraw, nq, i, ng, g, zzr, zzi, ibeg, w, nrm, su, j, betot, qsqd, kvc, &
-!$OMP&         ck, ii, ibd, itau, ip, ilm, l, m, iproj, fh) &
-!$OMP& SHARED(zn, qbase, dbeta, wnam, u11, u7, nbtot, metal, ww, efermi, ivh, ivl, bmet, rm1, &
-!$OMP&        ntau, tau, lmin, lmax, nproj, npmax, nqproj, dqproj, fttab, coeff, prefs, edge, sc, &
-!$OMP&        eshift, nbd, nlm, lml, lmm, pcoefr, pcoefi, e0)   
-  do ik1 = 0, zn( 1 ) - 1
-     do ik2 = 0, zn( 2 ) - 1
-        do ik3 = 0, zn( 3 ) - 1
+!$OMP&         ck, ii, ibd, itau, ip, ilm, l, m, iproj, fh, coeff ) &
+!$OMP& SHARED(zn, qbase, dbeta, wnam, nbtot, metal, ww, efermi, ivh, ivl, bmet, rm1, &
+!$OMP&        ntau, tau, lmin, lmax, nproj, npmax, nqproj, dqproj, fttab, prefs, edge, sc, &
+!$OMP&        eshift, nbd, nlm, lml, lmm, pcoefr, pcoefi, e0, temperature, conduct, bvec, ibeg_array )   
+!  do ik1 = 0, zn( 1 ) - 1
+!     do ik2 = 0, zn( 2 ) - 1
+!        do ik3 = 0, zn( 3 ) - 1
+  do nq = 1, nktot
+    ik3 = mod( (nq - 1 ), zn( 3 ) ) 
+    ik2 = mod( floor( dble(nq - 1 )/ dble(zn( 3 ) )), zn( 2 ) )
+    ik1 = floor( dble( nq - 1 ) / dble( zn(3 ) * zn( 2 ) ) )
 !           open( unit=99, file='kdpprog', form=f9, status=u7 )
 !           rewind 99
 !           write ( 99, '(2x,3i5,5x,3i5)' ) ik1, ik2, ik3, zn( : )
-!           close( unit=99 )
+!           close( unit=99 )              
            !
            qraw( 1 ) = ( qbase( 1 ) + dble( ik1 ) ) / dble( zn( 1 ) ) + dbeta( 1 )
            qraw( 2 ) = ( qbase( 2 ) + dble( ik2 ) ) / dble( zn( 2 ) ) + dbeta( 2 )
            qraw( 3 ) = ( qbase( 3 ) + dble( ik3 ) ) / dble( zn( 3 ) ) + dbeta( 3 )
            !
-           nq = nq + 1
-!           nq = 1 + ik3 + zn(3)*ik2 + zn(3)*zn(2)*ik1
-!           write(6, *) nq
+!           nq = nq + 1
+!!           nq = 1 + ik3 + zn(3)*ik2 + zn(3)*zn(2)*ik1
            !
-           fh = 10 !+ OMP_GET_THREAD_NUM()
-           open( unit=fh, file=wnam( nq ), form=u11, status='old' )
+           fh = 1000 + OMP_GET_THREAD_NUM()
+           open( unit=fh, file=wnam( nq ), form='unformatted', status='old' )
            rewind fh
            read ( fh ) ng
-           allocate( g( ng, 3 ), zzr( ng, nbtot ), zzi( ng, nbtot ))!, w(nbd) )
+           allocate( g( ng, 3 ), zzr( ng, nbtot ), zzi( ng, nbtot ), w(nbd) )
            read ( fh ) g  
            read ( fh ) zzr  
            read ( fh ) zzi  
@@ -243,7 +254,7 @@ subroutine cainkset( avec, bvec, bmet, prefs )
            if ( conduct ) then
              if ( metal ) then
                if( temperature .gt. 0.000001 ) then
-                 write(6,*) temperature, ivh - ivl + 2
+!                 write(6,*) temperature, ivh - ivl + 2
                  ibeg = ivh -ivl + 2
                else
                 ! ww is stored with first the valence bands ( ivh -ivl + 1 of them), then the conduction
@@ -252,7 +263,8 @@ subroutine cainkset( avec, bvec, bmet, prefs )
                    if ( ww( i, nq ) .gt. efermi ) ibeg = i
                 end do      
                endif
-               write(20,*) nq, ibeg
+!               write(20,*) nq, ibeg
+                ibeg_array( nq ) = ibeg
              else
                 ibeg = 1 + ( 1 + ivh - ivl )
             end if
@@ -263,6 +275,7 @@ subroutine cainkset( avec, bvec, bmet, prefs )
            endif
            if ( nbtot .lt. ibeg + nbd - 1 ) stop 'not enough bands...'
            do i = 1, nbd
+!              write(6,*) nq, ibeg, nbtot, nbd
               w( i ) = ww( ibeg + i - 1, nq )
               zzr( :, i ) = zzr( :, ibeg + i - 1 )
               zzi( :, i ) = zzi( :, ibeg + i - 1 )
@@ -280,6 +293,7 @@ subroutine cainkset( avec, bvec, bmet, prefs )
            end do
            allocate( ck( ng, 1 : nbd ) )
            ck( :, 1 : nbd ) = zzr( :, 1 : nbd ) + rm1 * zzi( :, 1 : nbd )
+           allocate( coeff( -lmax : lmax, 1 : nbd, npmax, lmin : lmax, ntau ) )
            call nbsecoeffs( ng, kvc, bmet, bvec, ck, 1, nbd, qraw, ntau, tau, lmin, lmax, nproj, npmax, &
                 nqproj, dqproj, fttab, coeff, prefs, temperature, efermi, w )
            !
@@ -288,6 +302,8 @@ subroutine cainkset( avec, bvec, bmet, prefs )
            w( : ) = ( edge + sc * ( w( : ) * 13.6057d0 + eshift - edge ) ) / 27.2114d0
            !
            ! tabulate coeffs for OBFs and projector per Bloch state
+           ii = ( nq - 1 ) * nbd
+!           write(6, *) nq, ii
            do ibd = 1, nbd
               ii = ii + 1
            !   if (nq .eq. 1) then
@@ -308,13 +324,16 @@ subroutine cainkset( avec, bvec, bmet, prefs )
               end do
            end do
            !
-           deallocate( g, zzr, zzi, ck, kvc)!, w )
+           deallocate( g, zzr, zzi, ck, kvc, w, coeff )
            !  
-        end do
-     end do
+!        end do
+!     end do
   end do
 !$OMP END PARALLEL DO 
   if( metal ) then
+    do nq = 1, nktot
+      write(20,*) nq, ibeg_array( nq )
+    enddo
     close(20)
   endif
   write ( 6, * ) 'band states are solved'
@@ -327,7 +346,7 @@ subroutine cainkset( avec, bvec, bmet, prefs )
   endif
   open( unit=99, file=infoname, form=u11, status=u7 )
   rewind 99
-  write ( 99 ) nbd, nq !zn(1)*zn(2)*zn(3)
+  write ( 99 ) nbd, zn(1)*zn(2)*zn(3)
   write ( 99 ) e0( : )
   close( unit=99 )
   if (conduct) then
