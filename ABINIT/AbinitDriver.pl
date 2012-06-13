@@ -366,8 +366,8 @@ if ($RunABINIT) {
 #  }
 #  else {
   print "Density Run\n";
-  system("$ENV{'OCEAN_BIN'}/abinit < denout.files >& density.log") == 0
-    or die "Failed to run initial density stage\n$ENV{'OCEAN_BIN'}/abinit\n";
+  system("$ENV{'OCEAN_ABINIT'} < denout.files >& density.log") == 0
+    or die "Failed to run initial density stage\n$ENV{'OCEAN_ABINIT'}\n";
 #  }
   `echo 1 > den.stat`;
 
