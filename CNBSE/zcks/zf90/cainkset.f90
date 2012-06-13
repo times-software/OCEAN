@@ -241,7 +241,8 @@ subroutine cainkset( avec, bvec, bmet, prefs )
 !           nq = nq + 1
 !!           nq = 1 + ik3 + zn(3)*ik2 + zn(3)*zn(2)*ik1
            !
-           fh = 1000 + OMP_GET_THREAD_NUM()
+           fh = 1000 !+ OMP_GET_THREAD_NUM()
+!$         fh = fh + OMP_GET_THREAD_NUM()
            open( unit=fh, file=wnam( nq ), form='unformatted', status='old' )
            rewind fh
            read ( fh ) ng
