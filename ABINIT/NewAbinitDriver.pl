@@ -101,6 +101,7 @@ if ( $nkpt[0] == $pawnkpt[0] && $nkpt[1] == $pawnkpt[1] && $nkpt[2] == $pawnkpt[
 }
 
 my $kpt_tot = $nkpt[0] * $nkpt[1] * $nkpt[2];
+print "NKPT: $kpt_tot\n";
 if( $kpt_tot > $core && ( ( $kpt_tot % $core ) != 0 ) ) {
   
   print "$core is not a multiple of nkpts ($kpt_tot)\n";
@@ -170,7 +171,7 @@ if( $ndtset == 3 && $paw_kpt_tot > $core && ( ( $paw_kpt_tot % $core ) != 0 ) ) 
   `echo 'istwfk *1' >> test_par`;
    
   print "Testing par options\n";
-  system("$ENV{'OCEAN_BIN'}/abinit < par.files >& par.log");
+  system("$ENV{'OCEAN_ABINIT'} < par.files >& par.log");
 
   open LOG, "par.log" or die;
   my $logline;
@@ -184,13 +185,13 @@ if( $ndtset == 3 && $paw_kpt_tot > $core && ( ( $paw_kpt_tot % $core ) != 0 ) ) 
   my @temp;
   LOG: while ($logline = <LOG>) {
     if ($trigger == 0 ) {
-      if( $logline =~ m/nproc\s+npkpt\s+npband\s+npfft\s+bandpp/ ) {
+      if( $logline =~ m/nproc\s+npkpt\s+npspinor\s+npband\s+npfft\s+bandpp/ ) {
         $trigger = 1;
       }
     }
     else {
       if ( $logline =~ m/(\d+)\s+(\d+)\s+(\d+)\s+(\d+)\s+(\d+)/ ) {
-        @temp = ("$1","$2","$3","$4","$5");
+        @temp = ("$1","$2","$4","$5","$6");
         push @gs_procs, [@temp];
         print "$temp[0]\n";
 #        next LOG if( $1 < $nproc );
@@ -227,19 +228,19 @@ if( $ndtset == 3 && $paw_kpt_tot > $core && ( ( $paw_kpt_tot % $core ) != 0 ) ) 
   `echo 'fft_opt_lob 2' >> test_par`;
   `echo 'istwfk *1' >> test_par`;
 
-  system("$ENV{'OCEAN_BIN'}/abinit < par.files >& par3.log");
+  system("$ENV{'OCEAN_ABINIT'} < par.files >& par3.log");
   open LOG, "par3.log" or die;
 #  my @paw_procs;
   $trigger = 0;
   LOG: while ($logline = <LOG>) {
     if ($trigger == 0 ) {
-      if( $logline =~ m/nproc\s+npkpt\s+npband\s+npfft\s+bandpp/ ) {
+      if( $logline =~ m/nproc\s+npkpt\s+npspinor\s+npband\s+npfft\s+bandpp/ ) {
         $trigger = 1;
       }
     }
     else {
       if ( $logline =~ m/(\d+)\s+(\d+)\s+(\d+)\s+(\d+)\s+(\d+)/ ) {
-        push @paw_procs, [($1,$2,$3,$4,$5)];
+        push @paw_procs, [($1,$2,$4,$5,$6)];
 #        print "$1,$2,$3,$4,$5\n";
       }
       else {
@@ -271,19 +272,20 @@ if( $ndtset == 3 && $paw_kpt_tot > $core && ( ( $paw_kpt_tot % $core ) != 0 ) ) 
   `echo 'fft_opt_lob 2' >> test_par`;
   `echo 'istwfk *1' >> test_par`;
 
-  system("$ENV{'OCEAN_BIN'}/abinit < par.files >& par2.log");
+  system("$ENV{'OCEAN_ABINIT'} < par.files >& par2.log");
   open LOG, "par2.log" or die;
 #  my @bse_procs;
   $trigger = 0;
   LOG: while ($logline = <LOG>) {
     if ($trigger == 0 ) {
-      if( $logline =~ m/nproc\s+npkpt\s+npband\s+npfft\s+bandpp/ ) {
+      if( $logline =~ m/nproc\s+npkpt\s+npspinor\s+npband\s+npfft\s+bandpp/ ) {
         $trigger = 1;
+	print $logline;
       }
     }
     else {
-      if ( $logline =~ m/(\d+)\s+(\d+)\s+(\d+)\s+(\d+)\s+(\d+)/ ) {
-        push @bse_procs, [($1,$2,$3,$4,$5)];
+      if ( $logline =~ m/(\d+)\s+(\d+)\s+(\d+)\s+(\d+)\s+(\d+)\s+(\d+)/ ) {
+        push @bse_procs, [($1,$2,$4,$5,$6)];
       }
       else {
         last LOG;
@@ -294,15 +296,15 @@ if( $ndtset == 3 && $paw_kpt_tot > $core && ( ( $paw_kpt_tot % $core ) != 0 ) ) 
   }
   else {
     my $new_core = $core;
-    my $cur_try = int( $kpt_tot / $core ) + 1;
-    $cur_try = 2 if( $kpt_tot / $core < 2 );
-    $cur_try = 1 if( $kpt_tot / $core < 1 ); 
-#    my $cur_try = int( $kpt_tot / $core );
-    for( ; $cur_try < sqrt($kpt_tot+1); $cur_try ++ ) {
-      last if( ( $kpt_tot % $cur_try ) == 0 );
-    }
-    $new_core = $kpt_tot / $cur_try;
-    print "Greatest multiple less than core: $new_core\n";
+#    my $cur_try = int( $kpt_tot / $core ) + 1;
+#    $cur_try = 2 if( $kpt_tot / $core < 2 );
+#    $cur_try = 1 if( $kpt_tot / $core < 1 ); 
+##    my $cur_try = int( $kpt_tot / $core );
+#    for( ; $cur_try < sqrt($kpt_tot+1); $cur_try ++ ) {
+#      last if( ( $kpt_tot % $cur_try ) == 0 );
+#    }
+#    $new_core = $kpt_tot / $cur_try;
+#    print "Greatest multiple less than core: $new_core\n";
     push @bse_procs, [( $new_core,$new_core,1,1,1 )];
   }
 
@@ -528,13 +530,13 @@ if( $ndtset == 3 ) {
 
 open RUNFILE, ">ab_runfile" or die;
   print RUNFILE "mpirun -np $gs_procs[$iter][0] " 
-              . "$ENV{'OCEAN_BIN'}/abinit < gs.files >& gs.log\n";
+              . "$ENV{'OCEAN_ABINIT'} < gs.files >& gs.log\n";
 if( $ndtset == 3 ) {
   print RUNFILE "mpirun -np $paw_procs[$iter3][0] " 
-              . "$ENV{'OCEAN_BIN'}/abinit < paw.files >& paw.log\n";
+              . "$ENV{'OCEAN_ABINIT'} < paw.files >& paw.log\n";
 }
   print RUNFILE "mpirun -np $bse_procs[$iter2][0] " 
-              . "$ENV{'OCEAN_BIN'}/abinit < bse.files >& bse.log\n";
+              . "$ENV{'OCEAN_ABINIT'} < bse.files >& bse.log\n";
 close RUNFILE;
 
 ######
