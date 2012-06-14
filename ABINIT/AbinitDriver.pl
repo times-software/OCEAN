@@ -10,6 +10,8 @@ if (! $ENV{"OCEAN_BIN"} ) {
 if (! $ENV{"OCEAN_WORKDIR"}){ $ENV{"OCEAN_WORKDIR"} = `pwd` . "../" ; }
 if (!$ENV{"OCEAN_VERSION"}) {$ENV{"OCEAN_VERSION"} = `cat $ENV{"OCEAN_BIN"}/Version`; }
 if (! $ENV{"OCEAN_ABINIT"} ) {$ENV{"OCEAN_ABINIT"} = $ENV{"OCEAN_BIN"} . "/abinit"; }
+if (! $ENV{"OCEAN_CUT3D"} ) {$ENV{"OCEAN_CU3D"} = $ENV{"OCEAN_BIN"} . "/cut3d"; }
+
 ####################################
 # Executables to be run
 # kgen.x
@@ -371,7 +373,7 @@ if ($RunABINIT) {
 #  }
   `echo 1 > den.stat`;
 
-  system("echo 'SCx_DEN\n1\n6\nrhoofr\n0' | $ENV{'OCEAN_BIN'}/cut3d > cut3d.log") == 0
+  system("echo 'SCx_DEN\n1\n6\nrhoofr\n0' | $ENV{'OCEAN_CUT3D'} > cut3d.log") == 0
       or die "Failed to run cut3d\n";
   
   `echo "1" > abinit.stat`;
