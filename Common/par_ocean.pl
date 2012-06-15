@@ -112,7 +112,7 @@ print "Setup complete, parsing ...\n";
 
 chdir "Common";
 `cp ../$InputFile .`;
-system("$ENV{'OCEAN_BIN'}/parse --all $InputFile $ENV{'OCEAN_BIN'}/oparse.h") == 0 or die;
+#system("$ENV{'OCEAN_BIN'}/parse --all $InputFile $ENV{'OCEAN_BIN'}/oparse.h") == 0 or die;
 #if ($? != 0 ) {
 #  print "Error parsing $InputFile: $?\n";
 #}
@@ -126,17 +126,18 @@ print "Done with parsing\n";
 print "$Separator\n";
 print "Entering ABINIT stage\n";
 chdir "ABINIT";
-system("$OCEAN_BIN/NewAbinitDriver.pl") == 0 or die "Abinit Stage Failed\n";
+#system("$OCEAN_BIN/NewAbinitDriver.pl") == 0 or die "Abinit Stage Failed\n";
+#system("csh ab_runfile") == 0 or die "Failed to run abinit\n";
 chdir "../";
-exit;
+#exit;
 ##########################################
 #
 # DenDip stage
 ##########################################
 print "$Separator\n";
 print "Entering DenDip stage\n";
-chdir "DenDip" or die "$!\n";
-system("$OCEAN_BIN/dendip.pl") == 0 or die "DenDip Stage Failed\n";
+chdir "PREP" or die "$!\n";
+#system("$OCEAN_BIN/par_dendip.pl") == 0 or die "DenDip Stage Failed\n";
 ##########################################
 #
 # PAW stage
@@ -144,7 +145,15 @@ system("$OCEAN_BIN/dendip.pl") == 0 or die "DenDip Stage Failed\n";
 print "$Separator\n";
 print "Entering PAW stage\n";
 chdir "../PAW";
-system("$OCEAN_BIN/paw2.pl") == 0 or die "PAW stage failed\n";
+system("$OCEAN_BIN/paw.pl") == 0 or die "PAW stage failed\n";
+##########################################
+#
+# SCREEN stage
+##########################################
+print "$Separator\n";
+print "Entering SCREEN stage\n";
+chdir "../SCREEN";
+system("$OCEAN_BIN/screen.pl") == 0 or die "SCREEN stage failed\n";
 ##########################################
 #
 # CNBSE stage
