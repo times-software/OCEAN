@@ -45,7 +45,7 @@ program builder
   real( kind = kind( 1.0d0 ) ), allocatable :: vind( : ), nind( : ), xirow( : )
   !
   real( kind = kind( 1.0d0 ) ) :: term1, term2, rscal, dsqdmod1, dsqdmod2, dsqdmod3, exppref, nav
-  real( kind = kind( 1.0d0 ) ) :: efermi
+  real( kind = kind( 1.0d0 ) ) :: efermi, newdif, absdif
   integer :: dumint, gtot,bandtot,brange(4), nang, nr, indx, small_band
   integer, allocatable :: gvec( : , : )
   character*12 :: wfname
@@ -177,6 +177,8 @@ program builder
   rewind(listwfile)
   ! need to make sure kpt naming scheme and enkfile reflect this kpoint order
   ! otherwise might need to interchange loop order, won't change anything else
+!
+
   do ik1=1,nk1
      qin(1) = ( kshift(1) + dble( ik1 - 1 )) / dble( nk1 )
      do ik2=1,nk2
@@ -274,6 +276,12 @@ program builder
                    gim_small( :, :, it ) = gim_small( :, :, it ) + fi * wfp( :, : )
                 end do
               endif
+! 
+!              ! Trying to look at EET of Reining and friends
+!              do i = ibl, ibh
+!                
+!              
+!              enddo
            end do
            !
            do j = brange( 2 ) + 1, ibh + overlap
@@ -295,10 +303,15 @@ program builder
                 do it = 1, nt
                    x = 1.0d0 / ( 1.0d0 - t( it ) )
                    deni = s * t( it ) * x
+!                   !denr = mu - w( j )
+!                   absdif = abs( mu - w( j ) ) !denr = mu - w( j )
+!                   newdif = sqrt( absdif**2 + 1.d0*10**(-3) )
+!                   denr = ( mu - w( j ) ) * newdif / absdif                   
                    absdiff = abs( mu - w( j ) )
                    newdiff = sqrt( absdiff**2 + 1.d0*10**(-6) )
                    ! denr is at least 10^-6 and has the correct sign
                    denr = sign( newdiff, mu - w( j ) )
+
                    iden2 = 1.0d0 / ( denr ** 2 + deni ** 2 )
                    fr = iden2 * denr; fi = - iden2 * deni
                    gre( :, :, it ) = gre( :, :, it ) + fr * wfp( :, : )
