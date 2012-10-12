@@ -1,0 +1,6 @@
+dipole
+cartesian  0 0 1
+end
+cartesian  1 -1 0 
+end
+284
