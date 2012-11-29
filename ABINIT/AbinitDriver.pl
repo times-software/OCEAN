@@ -9,7 +9,7 @@ if (! $ENV{"OCEAN_BIN"} ) {
 }
 if (! $ENV{"OCEAN_WORKDIR"}){ $ENV{"OCEAN_WORKDIR"} = `pwd` . "../" ; }
 if (!$ENV{"OCEAN_VERSION"}) {$ENV{"OCEAN_VERSION"} = `cat $ENV{"OCEAN_BIN"}/Version`; }
-if (! $ENV{"OCEAN_ABINIT"} ) {$ENV{"OCEAN_ABINIT"} = $ENV{"OCEAN_BIN"} . "/abinit"; }
+if (! $ENV{"OCEAN_ABINIT"} ) {$ENV{"OCEAN_ABINIT"} = "mpirun -n 4 " . $ENV{"OCEAN_BIN"} . "/abinit"; }
 if (! $ENV{"OCEAN_CUT3D"} ) {$ENV{"OCEAN_CU3D"} = $ENV{"OCEAN_BIN"} . "/cut3d"; }
 
 ####################################
@@ -373,8 +373,17 @@ if ($RunABINIT) {
 #  }
   `echo 1 > den.stat`;
 
-  system("echo 'SCx_DEN\n1\n6\nrhoofr\n0' | $ENV{'OCEAN_CUT3D'} > cut3d.log") == 0
+  open CUTIN, ">cut3d.in" or die "Failed to open cut3d.in for writing.\n$!\n";
+  print CUTIN "SCx_DEN\n1\n6\nrhoofr\n0\n";
+  close CUTIN;
+
+#  print "echo 'SCx_DEN\n1\n6\nrhoofr\n0' | $ENV{'OCEAN_CUT3D'} >& cut3d.log\n";
+#  system("echo 'SCx_DEN\n1\n6\nrhoofr\n0' | $ENV{'OCEAN_CUT3D'} >& cut3d.log") == 0
+#      or die "Failed to run cut3d\n";
+#  system("$ENV{'OCEAN_CUT3D'} < cut3d.in >& cut3d.log" ) == 0
+  system("$ENV{'OCEAN_BIN'}/cut3d < cut3d.in >& cut3d.log") == 0
       or die "Failed to run cut3d\n";
+
   
   `echo "1" > abinit.stat`;
 
@@ -421,6 +430,7 @@ if ( $pawRUN ) {
   $pawnbands += $abpad; 
   
   `echo "nband $pawnbands" >> abfile`;
+  `echo "nbdbuf $abpad" >> abfile`;
   `echo 'iscf -2' >> abfile`;
   `echo 'tolwfr ' >> abfile`;
   `cat wftol >> abfile`;
@@ -499,6 +509,7 @@ if ( $bseRUN ) {
   $nbands += $abpad; 
   
   `echo "nband $nbands" >> abfile`;
+  `echo "nbdbuf $abpad" >> abfile`;
   `echo 'iscf -2' >> abfile`;
   `echo 'tolwfr ' >> abfile`;
   `cat wftol >> abfile`;
