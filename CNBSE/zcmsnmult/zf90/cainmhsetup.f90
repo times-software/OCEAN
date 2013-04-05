@@ -21,6 +21,7 @@ subroutine nbsemhsetup( lc, lv, np, mham, cms, cml, vms, vml, vnu, mhr, mhi, add
   real( kind = kind( 1.0d0 ) ) :: ggk, ffk
   complex( kind = kind( 1.0d0 ) ) :: f1, f2, ctmp
   logical, parameter :: no = .false., yes = .true.
+  logical :: tdlda
   !
   character * 10 :: add10
   character * 15 :: filnam
@@ -29,6 +30,7 @@ subroutine nbsemhsetup( lc, lv, np, mham, cms, cml, vms, vml, vnu, mhr, mhi, add
   !
   include 'sphsetx.h.f90'
   !
+   write(6,*) 'nbsemhsetup', lv
   call newgetprefs( yp, max( lc, lv ), nsphpt, wsph, xsph, ysph, zsph )
   rm1 = -1
   rm1 = sqrt( rm1 )
@@ -50,8 +52,29 @@ subroutine nbsemhsetup( lc, lv, np, mham, cms, cml, vms, vml, vnu, mhr, mhi, add
   if ( lv .gt. 9 ) stop 'lv must be single digit'
   if ( lc .gt. 9 ) stop 'lc must be single digit'
   !
+  ! TDLDA
+  inquire( file='tdlda', exist=tdlda )
+  if( tdlda ) then
+    open(unit=99, file='tdlda', form='formatted', status='old' )
+    read( 99, * ) tdlda
+    close( 99 )
+  endif
   kfh = min( 2 * lc, 2 * lv )
   kfl = 2
+  if( tdlda ) then
+     kfl = 0
+     kfh = 0
+     allocate( fk( np, np, kfl : kfh ), scfk( kfl : kfh ) )
+     fk = 0; scfk = 0
+     do k = kfl, kfh, 2
+        write ( filnam, '(1a2,3i1,1a10)' ) 'kk', lc, lv, k, add10
+        write( 6, * ) filnam
+        open( unit=99, file=filnam, form='formatted', status='unknown' )
+        rewind 99
+        read ( 99, * ) fk( :, :, k ), scfk( k )
+        close( unit=99 )
+     end do
+  else
   if ( kfh .ge. kfl ) then
      allocate( fk( np, np, kfl : kfh ), scfk( kfl : kfh ) )
      fk = 0; scfk = 0
@@ -62,6 +85,7 @@ subroutine nbsemhsetup( lc, lv, np, mham, cms, cml, vms, vml, vnu, mhr, mhi, add
         read ( 99, * ) fk( :, :, k ), scfk( k )
         close( unit=99 )
      end do
+  end if
   end if
   !
   kgh = lc + lv
