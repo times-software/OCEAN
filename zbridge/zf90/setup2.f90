@@ -169,7 +169,7 @@ program setup1
      if ( new ) write ( 6, '(2x,2i5,1f10.5)' ) i, irgth, wc( irgth )
      ! 
      ! read and change format of matrix elements
-     call melread( melu, i, ilftl, ilfth, irgtl, irgth, pdota )
+!     call melread( melu, i, ilftl, ilfth, irgtl, irgth, pdota )
      do j = 0, 3
         do il= ilftl, ilfth
            do ir = irgtl, irgth
