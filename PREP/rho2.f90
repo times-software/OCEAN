@@ -3,34 +3,70 @@
 !
       include 'fftw3.f'
       complex(kind=kind(1.d0)), allocatable :: rhoofr(:,:,:)
-      complex(kind=kind(1.d0)), allocatable ::  rhoofg(:,:,:)
+      complex(kind=kind(1.d0)), allocatable ::  rhoofg(:,:,:), trhoofg(:,:,:)
       integer*8 :: plan
-      integer :: dims(3), counter1, counter2, counter3, dumint, cter1, cter2, cter3
+      integer :: dims(3), counter1, counter2, counter3, dumint, cter1, cter2, cter3, natom
       character*50 :: lineburn
       real(kind=kind(1.d0)) :: norm, modG, bv1(3), bv2(3), bv3(3), b(3),&
      &      dumf, avecs(3,3)
+      logical :: qestyle
 !
-      open(unit=99,file='nfft',form='formatted',status='old')
-      read(99,*) dims(:)
-      close(99)
-!
-      allocate(rhoofr(dims(1),dims(2),dims(3)),rhoofg(dims(1),          &
+      inquire( file="system.rho.dat", exist=qestyle )
+      
+      if( qestyle ) then
+        write(6,*) 'Using system.rho.dat'
+        open(unit=99,file='system.rho.dat',form='formatted',status='old')
+        read(99,*) lineburn
+        read(99,*) lineburn
+        read(99,*) natom
+        read(99,*) dims(1)
+        read(99,*) dims(2)
+        read(99,*) dims(3)
+        do counter1 = 1, natom
+          read(99,*) lineburn      
+        enddo
+
+        allocate(rhoofr(dims(1),dims(2),dims(3)),rhoofg(dims(1),          &
      &          dims(2),dims(3)))
-      call dfftw_plan_dft_3d(plan, dims(1),dims(2),dims(3), rhoofg,     &
+        call dfftw_plan_dft_3d(plan, dims(1),dims(2),dims(3), rhoofg,     &
      &      rhoofg,FFTW_FORWARD,FFTW_ESTIMATE)
-!
-      open(unit=99,file='rhoofr',form='formatted',status='old')
-      read(99,*) lineburn
-      do counter3=1,dims(3)
-        do counter2=1,dims(2)
-          do counter1=1,dims(1)
-            read(99,*) dumint, dumint, dumint, dumf
-            rhoofg(counter1,counter2,counter3) = dumf
+        allocate(trhoofg(dims(3),dims(2),dims(1)))
+        read(99,*) trhoofg
+        close(99)
+        do counter3=1,dims(3)
+          do counter2=1,dims(2)
+            do counter1=1,dims(1)
+              rhoofg(counter1,counter2,counter3) =  &
+     &               trhoofg(counter3,counter2,counter1)
+            enddo
           enddo
         enddo
-      enddo
-      close(99)
+
+      else
+        open(unit=99,file='nfft',form='formatted',status='old')
+        read(99,*) dims(:)
+        close(99)
 !
+        allocate(rhoofr(dims(1),dims(2),dims(3)),rhoofg(dims(1),          &
+     &          dims(2),dims(3)))
+        call dfftw_plan_dft_3d(plan, dims(1),dims(2),dims(3), rhoofg,     &
+     &      rhoofg,FFTW_FORWARD,FFTW_ESTIMATE)
+!
+
+        open(unit=99,file='rhoofr',form='formatted',status='old')
+        read(99,*) lineburn
+        do counter3=1,dims(3)
+          do counter2=1,dims(2)
+            do counter1=1,dims(1)
+              read(99,*) dumint, dumint, dumint, dumf
+              rhoofg(counter1,counter2,counter3) = dumf
+            enddo
+          enddo
+        enddo
+        close(99)
+!
+      endif
+
       call dfftw_execute_dft(plan, rhoofg, rhoofg)
       call dfftw_destroy_plan(plan)
 !      open(unit=99,file='omega.h',form='formatted',status='old')
