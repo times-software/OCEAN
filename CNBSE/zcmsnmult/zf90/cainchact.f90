@@ -1,29 +1,44 @@
-subroutine cainchact( vr, vi, n, e0, hvr, hvi, nq, nbd, zn, inter, amet, nx, ny, nz, ur, ui, tau, rcut, rzero, ptab )
+subroutine cainchact( vr, vi, n, e0, se, hvr, hvi, nq, nbd, zn, inter, amet, nx, ny, nz, ur, ui, & 
+                      tau, rcut, rzero, ptab, eps, core_offset )
   implicit none
   !
   integer :: nbd, nq, n, nx, ny, nz, zn( 3 )
   real( kind = kind( 1.0d0 ) ) :: inter, amet( 3, 3 ), tau( 3 )
   real( kind = kind( 1.0d0 ) ) :: vr( n ), vi( n ), e0( n ), hvr( n ), hvi( n )
+  complex( kind = kind( 1.0d0 ) ) :: se( n )
   real( kind = kind( 1.0d0 ) ) :: ur( nx * ny * nz, nbd, nq ), ui( nx * ny * nz, nbd, nq )
   real( kind = kind( 1.0d0 ) ) :: rcut, rzero, ptab( 100 )
+  real( kind = kind( 1.0d0 ) ), intent( in ) :: core_offset
   !
   integer :: nn1, nfft, jfft
   real( kind = kind( 1.0d0 ) ) :: eps, epsi
   real( kind = kind( 1.0d0 ) ), dimension( n ) :: hvcr, hvci 
   real( kind = kind( 1.0d0 ) ), allocatable :: xwrkr( :, : ), xwrki( :, : ), wrk( : )
   real( kind = kind( 1.0d0 ) ), external :: wav
+  logical :: tdlda
   !
   ! diagonal part of channel hamiltonian ...
-  hvr( : ) = e0( : ) * vr( : )
-  hvi( : ) = e0( : ) * vi( : )
+  hvr( : ) = ( e0( : ) + core_offset ) * vr( : ) + real( se( : ) ) * vr( : ) - aimag( se( : ) ) * vi( : ) 
+  hvi( : ) = ( e0( : ) + core_offset ) * vi( : ) + aimag( se( : ) ) * vr( : ) + real( se( : ) ) * vi( : )
+!  write(6,*) maxval( real( se ) ), maxval( e0 )
+!  write(6,*) minval( aimag( se ) ) , maxval( aimag( se ) )
+
 ! if ( 1 .lt. 2 ) return 
   if ( inter .le. 0.01d0 ) return
+
+  inquire( file='tdlda', exist=tdlda )
+!  if( tdlda ) then
+!    open(unit=99, file='tdlda', form='formatted', status='old' )
+!    read( 99, * ) tdlda
+!    close( 99 )
+!  endif
+  if ( tdlda ) return
   !
   ! interaction part of channel hamiltonian ... set up ...
-  open( unit=99, file='epsilon', form='formatted', status='unknown' )
-  rewind 99
-  read ( 99, * ) eps
-  close( unit=99 )
+!  open( unit=99, file='epsilon', form='formatted', status='unknown' )
+!  rewind 99
+!  read ( 99, * ) eps
+!  close( unit=99 )
   epsi = 1.d0 / eps
   !
   ! ground work for fft to real space ...
