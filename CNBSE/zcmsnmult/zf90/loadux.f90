@@ -1,16 +1,16 @@
-subroutine loadux( nx, ny, nz, nbd, nq, zn, ur, ui )
+subroutine loadux( nx, ny, nz, nbd, nq, nspn, zn, ur, ui )
   implicit none
   !
   integer, parameter :: u2dat = 35
   !
-  integer :: nx, ny, nz, nbd, nq, zn( 3 )
-  real( kind = kind( 1.0d0 ) ), dimension( nx, ny, nz, nbd, nq ) :: ur, ui
+  integer :: nx, ny, nz, nbd, nq, zn( 3 ), nspn
+  real( kind = kind( 1.0d0 ) ), dimension( nx, ny, nz, nbd, nq, nspn ) :: ur, ui
   !
-  integer :: iq, ibd, ig, idum( 3 ), ix, iy, iz, ivl, ivh, icl, ich
+  integer :: iq, ibd, ig, idum( 3 ), ix, iy, iz, ivl, ivh, icl, ich, ispn
   integer :: iq1, iq2, iq3, dumint, icl2, ich2, ivh2
   real( kind = kind( 1.0d0 ) ) :: phsx, phsy, phsz, cphs, sphs, psir, psii, pi
   real( kind = kind( 1.0d0 ) ) :: su, sul, suh
-  logical :: metal
+  logical :: metal, normal
   !
   sul = 1.0d0
   suh = 1.0d0
@@ -27,25 +27,38 @@ subroutine loadux( nx, ny, nz, nbd, nq, zn, ur, ui )
     open( unit=36, file='ibeg.h', form='formatted', status='old' )
   endif
   !
+  open(unit=99,file='cks.normal',form='formatted',status='old' )
+  read(99,*) normal
+  close( 99 )
+
+  if (.not. normal ) then
+   write(6,*) 'XES'
+   ur = 0.0d0
+   ui = 0.0d0
+   return
+  endif
+
   if ( nbd .gt. 1 + ( ich - icl ) ) stop 'loadux ... nbd mismatch -- cf brange.ipt...'
   open( unit=u2dat, file='u2.dat', form='unformatted', status='unknown' )
   rewind u2dat
-  do iq = 1, nq
-     open( unit=99, file='gumatprog', form='formatted', status='unknown' )
-     rewind 99
-     write ( 99, '(2i8)' ) iq, nq
-     close( unit=99 )
-     if( metal ) then
-       read( 36, * ) dumint, ivh2
-       ivh2 = ivh2 - 1
-     endif
+  write(6,*) 'nspn: ', nspn
+  do ispn = 1, nspn
+    do iq = 1, nq
+      open( unit=99, file='gumatprog', form='formatted', status='unknown' )
+      rewind 99
+      write ( 99, '(2i8)' ) iq, nq
+      close( unit=99 )
+      if( metal ) then
+        read( 36, * ) dumint, ivh2
+        ivh2 = ivh2 - 1
+      endif
 
 !  Skip all of the occupied bands (and for metals)
-     do ibd = ivl, ivh2
+      do ibd = ivl, ivh2
         do ig = 1, nx * ny * nz
            read ( u2dat )
         end do
-     end do
+      end do
 
 !!  Skip bands below the fermi level (for metals)
 !     do ibd = icl, icl2 - 1
@@ -54,24 +67,25 @@ subroutine loadux( nx, ny, nz, nbd, nq, zn, ur, ui )
 !        end do
 !     enddo
 !
-     do ibd = 1, nbd 
+      do ibd = 1, nbd 
         do ix = 1, nx
            do iy = 1, ny
               do iz = 1, nz
-                 read ( u2dat ) idum( 1 : 3 ), ur( ix, iy, iz, ibd, iq ), ui( ix, iy, iz, ibd, iq ) 
+                 read ( u2dat ) idum( 1 : 3 ), ur( ix, iy, iz, ibd, iq, ispn ), ui( ix, iy, iz, ibd, iq, ispn ) 
               end do
            end do
         end do
-        su = sum( ur( :, :, :, ibd, iq ) ** 2 + ui( :, :, :, ibd, iq ) ** 2 )
+        su = sum( ur( :, :, :, ibd, iq, ispn ) ** 2 + ui( :, :, :, ibd, iq, ispn ) ** 2 )
         sul = min( su, sul )
         suh = max( su, suh )
-     end do
+      end do
 ! Adding 22 nov 2010 get rid of the un-used wfns at the top
-     do ibd = ivh2 + nbd + 1, ivh - ivl + ich - icl + 2
+      do ibd = ivh2 + nbd + 1, ivh - ivl + ich - icl + 2
         do ig = 1, nx * ny * nz
            read ( u2dat )
         end do
-     enddo
+      enddo
+    enddo
   end do
   if( metal ) then
     close( 36 )
@@ -81,6 +95,7 @@ subroutine loadux( nx, ny, nz, nbd, nq, zn, ur, ui )
   !
   pi = 4.0d0 * atan( 1.0d0 )
   !
+  do ispn = 1, nspn
   iq = 0
   do iq1 = 1, zn( 1 )
      do iq2 = 1, zn( 2 )
@@ -95,16 +110,17 @@ subroutine loadux( nx, ny, nz, nbd, nq, zn, ur, ui )
                     cphs = cos( phsx + phsy + phsz )
                     sphs = sin( phsx + phsy + phsz )
                     do ibd = 1, nbd
-                       psir = cphs * ur( ix, iy, iz, ibd, iq ) - sphs * ui( ix, iy, iz, ibd, iq )
-                       psii = cphs * ui( ix, iy, iz, ibd, iq ) + sphs * ur( ix, iy, iz, ibd, iq )
-                       ur( ix, iy, iz, ibd, iq ) = psir
-                       ui( ix, iy, iz, ibd, iq ) = psii
+                       psir = cphs * ur( ix, iy, iz, ibd, iq, ispn ) - sphs * ui( ix, iy, iz, ibd, iq, ispn )
+                       psii = cphs * ui( ix, iy, iz, ibd, iq, ispn ) + sphs * ur( ix, iy, iz, ibd, iq, ispn )
+                       ur( ix, iy, iz, ibd, iq, ispn ) = psir
+                       ui( ix, iy, iz, ibd, iq, ispn ) = psii
                     end do
                  end do
               end do
            end do
         end do
      end do
+  end do
   end do
   !
   return
