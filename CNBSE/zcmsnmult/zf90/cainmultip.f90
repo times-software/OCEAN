@@ -14,14 +14,16 @@ program cainmultip
   character * 9 :: ct
   character * 10:: infoname
   ! 
-  logical :: conduct
-  integer :: jmin, jmax, ne, nloop, iwrk, i1, i2, need
-  real( kind = kind( 1.0d0 ) ) :: val, ar, ai, el, eh, ebase, gam0, renorm, kpref, tmp, ener, f( 2 ), gprc, gres
+  logical :: conduct, nspn_exist, exst
+  integer :: jmin, jmax, ne, nloop, iwrk, i1, i2, need, nspn, iter, inv_loop, ispn
+  real( kind = kind( 1.0d0 ) ) :: val, ar, ai, el, eh, ebase, gam0, renorm, kpref, tmp, ener, f( 2 ), gprc, gres, e_step, e_start, e_stop, core_offset
+  real( kind = kind( 1.0d0 ) ) :: relative_error
   complex( kind = kind( 1.0d0 ) ) :: rm1
   !
-  real( kind = kind( 1.0d0 ) ), allocatable :: a( : ), b( : )
+  real( kind = kind( 1.0d0 ) ), allocatable :: a( : ), b( : ) !, br( : ), bi( : )
   real( kind = kind( 1.0d0 ) ), allocatable :: hv( :, :, : ), newv( :, :, : ), oldv( :, :, : ), rex( :, : )
   complex( kind = kind( 1.0d0 ) ), allocatable :: v1( : ), v2( : ), cwrk( : ), rhs( : ), bra( : ), pcdiv( : ), x( : )
+  complex( kind = kind( 1.0d0 ) ), allocatable :: self_energy( :, : )
   !
   call getabb( avec, bvec, bmet )
   open( unit=99, file='xmesh.ipt', form='formatted', status='unknown' )
@@ -46,6 +48,14 @@ program cainmultip
   include 'cainmusetupx.f90'
   rm1 = -1; rm1 = sqrt( rm1 )
   call soprep( nc, vms, cml, cms, lc, xi, somel )
+  somel( :, :, 2 ) = -1.d0 * somel( :, :, 2 )
+
+  !
+  allocate( self_energy( n, nspn ) )
+  self_energy( :, : ) = 0
+  call seprep( n, nspn, e0, self_energy )
+  self_energy( :, : ) = conjg( self_energy( :, : ) )
+
   !
   val = 0
   do ic = 1, nc
@@ -88,9 +98,9 @@ program cainmultip
      b = 0
      renorm = 1.0d0
      do while( j .lt. jmax )
-        call cainxact( n, nc, lc, nq, nbd, e0, v, hv, pref, &
+        call cainxact( n, nspn, nc, lc, nq, nbd, e0, self_energy, v, hv, pref, &
              iq, qphys, zn, inter, bvec, celvol, amet, nx, ny, nz, ur, ui, tau, rcut, rzero, renorm, ptab, &
-             vms, cml, cms, xi, lmin, lmax, npmax, nproj, mpcr, mpci, mpm, lvl, lvh, jbeg, mham, itot, jtot, mhr, mhi, somel )
+             vms, cml, cms, xi, lmin, lmax, npmax, nproj, mpcr, mpci, mpm, lvl, lvh, jbeg, mham, itot, jtot, mhr, mhi, somel, core_offset )
         ar = 0
         ai = 0
         do ic = 1, nc
@@ -114,6 +124,11 @@ program cainmultip
      end do
   case( 'inv' )
      !
+     open( unit=99, file='loopit', form='formatted', status='old' )
+     read( 99, * ) e_start, e_stop, e_step
+     close( 99 )
+     inv_loop = aint( ( e_stop - e_start ) / e_step )
+     if (inv_loop .lt. 1 ) inv_loop = 1
      open( unit=99, file='mode', form='formatted', status='unknown' )
      rewind 99
      read ( 99, * ) inter, jmax
@@ -143,14 +158,22 @@ program cainmultip
      write ( 99, '(2(1x,1e15.8))' ) rhs
      close( unit=99 )
      bra( : ) = rhs( : )
+
+    ener = e_start / 27.2114d0
+    e_step = e_step / 27.2114d0
+  do iter = 1, inv_loop
+  write( 6, * ) ener * 27.2114d0
+    
+     rhs( : ) = bra( : )
      v( :, :, 1 ) = 1
      v( :, :, 2 ) = 0
 !    call newxact( n, nc, lc, nq, nbd, e0, v, hv, cor, coi, pref, &
 !         iq, qphys, nv, zn, 0.0d0, bvec, celvol, amet, nx, ny, nz, ur, ui, tau, rcut, rzero, renorm, ptab, &
 !         vms, cml, cms, 0.0d0, lmin, lmax, npmax, nproj, mpcr, mpci, mpm, lvl, lvh, jbeg, mham, itot, jtot, mhr, mhi, somel )
-     call cainxact( n, nc, lc, nq, nbd, e0, v, hv, pref, &
+!     call cainxact( n, nc, lc, nq, nbd, e0, v, hv, pref, &
+     call cainxact( n, nspn, nc, lc, nq, nbd, e0, self_energy, v, hv, pref, &
              iq, qphys, zn, inter, bvec, celvol, amet, nx, ny, nz, ur, ui, tau, rcut, rzero, renorm, ptab, & 
-             vms, cml, cms, xi, lmin, lmax, npmax, nproj, mpcr, mpci, mpm, lvl, lvh, jbeg, mham, itot, jtot, mhr, mhi, somel )
+             vms, cml, cms, xi, lmin, lmax, npmax, nproj, mpcr, mpci, mpm, lvl, lvh, jbeg, mham, itot, jtot, mhr, mhi, somel, core_offset )
 
      call vtor( n * nc, hv, v1 )
      write ( 6, * ) 'got to here'
@@ -172,9 +195,10 @@ program cainmultip
 !          call newxact( n, nc, lc, nq, nbd, e0, v, hv, cor, coi, pref, &
 !               iq, qphys, nv, zn, inter, bvec, celvol, amet, nx, ny, nz, ur, ui, tau, rcut, rzero, renorm, ptab, &
 !               vms, cml, cms, xi, lmin, lmax, npmax, nproj, mpcr, mpci, mpm, lvl, lvh, jbeg, mham, itot, jtot, mhr, mhi, somel )
-           call cainxact( n, nc, lc, nq, nbd, e0, v, hv, pref, &
+!           call cainxact( n, nc, lc, nq, nbd, e0, v, hv, pref, &
+           call cainxact( n, nspn, nc, lc, nq, nbd, e0, self_energy, v, hv, pref, &
              iq, qphys, zn, inter, bvec, celvol, amet, nx, ny, nz, ur, ui, tau, rcut, rzero, renorm, ptab, & 
-             vms, cml, cms, xi, lmin, lmax, npmax, nproj, mpcr, mpci, mpm, lvl, lvh, jbeg, mham, itot, jtot, mhr, mhi, somel )
+             vms, cml, cms, xi, lmin, lmax, npmax, nproj, mpcr, mpci, mpm, lvl, lvh, jbeg, mham, itot, jtot, mhr, mhi, somel, core_offset )
 
            ! v2 = hv
            call vtor( n * nc, hv, v2 )
@@ -186,8 +210,12 @@ program cainmultip
         end select
      end do
      write ( 66, * )
-     write ( 76, '(1p,1i5,3(1x,1e15.8))' ) i1, ener, 1.0d0 - dot_product( bra, x )
+     relative_error = f( 2 ) / ( dimag( dot_product( bra, x ) ) * kpref )
+     write ( 76, '(1p,1i5,4(1x,1e15.8))' ) i1, ener, ( 1.0d0 - dot_product( bra, x ) ) * kpref, relative_error
      !
+     ener = ener + e_step
+   enddo
+
      call rtov( n * nc, rex, x )
      ! write out electron-core hole amplitudes per channel.
      open( unit=99, file='echamp', form='unformatted', status='unknown' )
