@@ -17,7 +17,6 @@ all:
 	cd zbridge;      make "COMP = $(FC)" "OPTS = $(OPTIONS)"
 
 clean:
-#	rm -f $(INSTDIR)/*.x $(INSTDIR)/*.script
 	cd Common;       make clean
 	cd ABINIT;       make clean
 	cd PREP;      make clean
@@ -26,7 +25,7 @@ clean:
 	cd CNBSE  make clean 
 	cd zbridge;  make clean
 install:
-	mkdir $(INSTDIR)
+	mkdir -p $(INSTDIR)
 	cp $(SCRIPTS) $(AUX) $(INSTDIR)
 	cd Common;       make "INSTDIR = $(INSTDIR)" install
 	cd ABINIT;       make "INSTDIR = $(INSTDIR)" install
@@ -35,7 +34,6 @@ install:
 	cd PAW;          make "INSTDIR = $(INSTDIR)" install
 	cd CNBSE;        make "INSTDIR = $(INSTDIR)" install
 	cd zbridge;      make "INSTDIR = $(INSTDIR)" install
-#	chmod u+x $(INSTDIR)/*.script
 	chmod u+x $(INSTDIR)/*.pl
 
 instdev:
@@ -45,5 +43,4 @@ instdev:
 	cd PREP;      make "INSTDEVDIR = $(INSTDEVDIR)" instdev
 	cd CNBSE;         make "INSTDEVDIR = $(INSTDEVDIR)" instdev
 	cd SCREEN;       make "INSTDEVDIR = $(INSTDEVDIR)" instdev
-#	chmod u+x $(INSTDEVDIR)/*.script
 	chmod u+x $(INSTDEVDIR)/*.pl
