@@ -1,24 +1,31 @@
-OPTS = -O2   #-YDEALLOC=ALL
+#OPTS = -openmp -openmp-report2 -opt-mem-bandwidth1  -traceback -static-intel
+OPTS = -fopenmp -m64 -ffree-line-length-none -O3 -mtune=corei7
+#-YDEALLOC=ALL
 #COMP = /usr/local/usr/absoft32/bin/f90
-COMP = ifort
+COMP = gfortran
 #
 CAINM = zobj/cainmultip.o zobj/cainxact.o zobj/getabb.o zobj/haydump.o zobj/fgact.o zobj/ctact.o zobj/soact.o \
         zobj/invdrv.o zobj/rtov.o zobj/vtor.o zobj/sizereport.o \
         zobj/nbsemkcmel.o zobj/newsoact.o zobj/soprep.o zobj/limel.o zobj/jimel.o \
         zobj/newgetylm.o zobj/newgetprefs.o zobj/cainmhsetup.o zobj/newthreey.o zobj/intval.o zobj/redtrid.o \
         zobj/getomega.o zobj/elsdch.o zobj/gamfcn.o zobj/cinv.o zobj/cainchact.o zobj/cainxrvmult.o zobj/loadux.o \
-        zobj/cainnqtoxr.o zobj/cainxrtonq.o zobj/jlmfft.o
+        zobj/cainnqtoxr.o zobj/cainxrtonq.o zobj/jlmfft.o zobj/seprep.o zobj/loaduxzerotau.o 
+#zobj/radialcorehole.o
 #
 all: zexe/cainmultip.x
 #
 zexe/cainmultip.x: $(CAINM)
 	$(COMP) $(OPTS) $(CAINM) -o zexe/cainmultip.x
 #
+zobj/radialcorehole.o: zf90/radialcorehole.f90
+	$(COMP) $(OPTS) -c zf90/radialcorehole.f90 -o zobj/radialcorehole.o
+zobj/seprep.o: zf90/seprep.f90
+	$(COMP) $(OPTS) -c zf90/seprep.f90 -o zobj/seprep.o
 zobj/cainchact.o: zf90/cainchact.f90
-	$(COMP) -c zf90/cainchact.f90 -o zobj/cainchact.o
+	$(COMP) $(OPTS) -c zf90/cainchact.f90 -o zobj/cainchact.o
 zobj/cainmhsetup.o: zf90/cainmhsetup.f90 zf90/sphsetnx.h.f90 zf90/sphsetx.h.f90
-	$(COMP) -c zf90/cainmhsetup.f90 -o zobj/cainmhsetup.o
-zobj/cainmultip.o: zf90/cainmultip.f90 zf90/cainmusetupx.h zf90/nbsemusetupnx.h
+	$(COMP) $(OPTS)  -c zf90/cainmhsetup.f90 -o zobj/cainmhsetup.o
+zobj/cainmultip.o: zf90/cainmultip.f90 zf90/cainmusetupx.f90 zf90/nbsemusetupnx.h
 	$(COMP) $(OPTS) -c zf90/cainmultip.f90 -o zobj/cainmultip.o
 zobj/cainnqtoxr.o: zf90/cainnqtoxr.f90
 	$(COMP) $(OPTS) -c zf90/cainnqtoxr.f90 -o zobj/cainnqtoxr.o
@@ -60,6 +67,8 @@ zobj/limel.o: zf90/limel.f90
 	$(COMP) $(OPTS) -c zf90/limel.f90 -o zobj/limel.o
 zobj/loadux.o: zf90/loadux.f90
 	$(COMP) $(OPTS) -c zf90/loadux.f90 -o zobj/loadux.o
+zobj/loaduxzerotau.o: zf90/loaduxzerotau.f90
+	$(COMP) $(OPTS) -c zf90/loaduxzerotau.f90  -o zobj/loaduxzerotau.o
 zobj/mktmel.o: zf90/mktmel.f90
 	$(COMP) $(OPTS) -c zf90/mktmel.f90 -o zobj/mktmel.o
 zobj/nbsemkcmel.o: zf90/nbsemkcmel.f90
