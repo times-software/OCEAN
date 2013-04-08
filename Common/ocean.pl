@@ -4,7 +4,7 @@ use Getopt::Long;
 use strict;
 
 
-my @OceanFolders = ("Common", "ABINIT", "PREP", "PAW", "SCREEN", "CNBSE");
+my @OceanFolders = ("Common", "DFT", "zWFN", "PAW", "SCREEN", "CNBSE", "ABINIT", "PREP");
 
 print "Welcome to OCEAN\n";
 
@@ -112,46 +112,116 @@ print "Setup complete, parsing ...\n";
 
 chdir "Common";
 `cp ../$InputFile .`;
-system("$ENV{'OCEAN_BIN'}/parse --all $InputFile $ENV{'OCEAN_BIN'}/oparse.h") == 0 or die;
+system("$ENV{'OCEAN_BIN'}/parse --all $InputFile $ENV{'OCEAN_BIN'}/oparse.h") == 0 
+  or die "Failed to parse the input file\n$!";
 #if ($? != 0 ) {
 #  print "Error parsing $InputFile: $?\n";
 #}
+open DFT_TYPE, "dft";
+<DFT_TYPE> =~ m/(\w+)/ or die;
+my $dft_type = $1;
+close DTF_TYPE;
+my $script_pre;
+if( $dft_type =~ m/abinit/i )
+{
+  $script_pre = 'abi';
+} 
+elsif( $dft_type =~ m/qe/i )
+{
+  $script_pre = 'qe';
+} 
+elsif( $dft_type =~ m/obf/i )
+{
+  $script_pre = 'OBF';
+}
+else
+{
+  print "WARNING!!! DFT helper program unspecified. Using ABINIT\n";
+  $script_pre = 'abi';
+}
+
+system("$ENV{'OCEAN_BIN'}/defaults.pl") == 0 or die "Failed to run defaults.pl\n$!";
+
 
 chdir "../";
 print "Done with parsing\n";
-##########################################
-#
-# Abinit stage
-##########################################
-print "$Separator\n";
-print "Entering ABINIT stage\n";
-chdir "ABINIT";
-system("$OCEAN_BIN/AbinitDriver.pl") == 0 or die "Abinit Stage Failed\n";
-chdir "../";
-##########################################
-#
-# Prep stage
-##########################################
-print "$Separator\n";
-print "Entering PREP stage\n";
-chdir "PREP" or die "$!\n";
-system("$OCEAN_BIN/dendip.pl") == 0 or die "PREP Stage Failed\n";
 ##########################################
 #
 # PAW stage
 ##########################################
 print "$Separator\n";
 print "Entering PAW stage\n";
-chdir "../PAW";
-system("$OCEAN_BIN/paw.pl") == 0 or die "PAW stage failed\n";
+chdir "PAW";
+system("$OCEAN_BIN/paw.pl >& paw.log") == 0 or die "PAW stage failed\n";
+chdir "../";
 ##########################################
 #
-# SCRENing stage
+# DFT stage
+##########################################
+if( $script_pre eq 'OBF' ) 
+{
+	print "$Separator\n";
+	print "Entering DFT stage\n";
+	chdir "DFT";
+	system("$OCEAN_BIN/${script_pre}_dft.pl >& dft.log") == 0 or die "DFT Stage Failed\n$!";
+	chdir "../";
+} 
+elsif( $script_pre eq 'qe' )
+{
+	print "$Separator\n";
+  print "Entering QESPRESSO stage\n";
+  chdir "QESPRESSO";
+  system("$OCEAN_BIN/QespressoDriver.pl") == 0 or die "Qespresso Stage Failed\n";
+  chdir "../";
+}
+else
+{
+	print "$Separator\n";
+	print "Entering ABINIT stage\n";
+	chdir "ABINIT";
+	system("$OCEAN_BIN/AbinitDriver.pl") == 0 or die "Abinit Stage Failed\n";
+  chdir "../";
+}
+##########################################
+#
+# zWFN stage
+##########################################
+if( $script_pre eq 'OBF' ) 
+{
+	print "$Separator\n";
+	print "Entering zWFN stage\n";
+	chdir "zWFN" or die "$!\n";
+	system("$OCEAN_BIN/${script_pre}_wfn.pl >& wfn.log") == 0 or die "zWFN Stage Failed\n$!";
+}
+else
+{
+	print "$Separator\n";
+	print "Entering PREP stage\n";
+	chdir "PREP" or die "$!\n";
+	if( $script_pre eq 'qe' )
+	{
+  		system("$OCEAN_BIN/qe_dendip.pl >& prep.log ") == 0 or die "PREP Stage Failed\n$!";
+	}
+	else
+	{
+		system("$OCEAN_BIN/dendip.pl >& prep.log ") == 0 or die "PREP Stage Failed\n$!";
+	}
+}
+##########################################
+#
+# SCREENing stage
 ##########################################
 print "$Separator\n";
 print "Entering SCREENing stage\n";
 chdir "../SCREEN";
-system("$OCEAN_BIN/screen.pl") == 0 or die "SCREEN stage failed\n";
+if( $script_pre eq 'abi' )
+{
+	system("$OCEAN_BIN/screen.pl >& screen.log") == 0 or die "SCREEN stage failed\n$!";
+}
+else
+{
+	system("$OCEAN_BIN/${script_pre}_screen.pl >& screen.log") == 0 or die "SCREEN stage failed\n$!";
+}
 ##########################################
 #
 # CNBSE stage
@@ -159,8 +229,14 @@ system("$OCEAN_BIN/screen.pl") == 0 or die "SCREEN stage failed\n";
 print "$Separator\n";
 print "Entering CNBSE stage\n";
 chdir "../CNBSE";
-system("$OCEAN_BIN/cnbse.pl") == 0 or die "CNBSE stage failed\n";
-
+if( $script_pre eq 'OBF' )
+{
+	system("$OCEAN_BIN/${script_pre}_cnbse.pl >& cnbse.log") == 0 or die "CNBSE stage failed\n$!";
+}
+else
+{
+	system("$OCEAN_BIN/cnbse.pl >& cnbse.log") == 0 or die "CNBSE stage failed\n$!";
+}
 ##########################################
 print "$Separator\n";
 print "Ocean is done\n";

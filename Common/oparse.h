@@ -2,13 +2,25 @@ control
 {
 0
 } control
+dft
+{
+abinit
+} dft
+paral_kgb
+{
+1
+} paral_kgb
 nkpt
 {
-2 2 2
+-1
 } nkpt
+npkpt
+{ 
+1
+} npkpt
 ngkpt
 {
-4 4 4
+-1
 } ngkpt
 photon_q
 {
@@ -17,6 +29,34 @@ photon_q
 nbands
 {
 } nbands
+dft_energy_range
+{
+-1
+} dft_energy_range.ipt
+obf_energy_range
+{
+-1
+} obf_energy_range
+obkpt
+{
+-1
+} obkpt.ipt
+obf.nbands
+{
+-1
+} obf.nbands
+trace_tol
+{
+5.0d-14
+} trace_tol
+acc_level
+{
+1
+} acc_level.ipt
+npband
+{
+10
+} npband
 k0
 {
 0.125 0.250 0.375
@@ -37,6 +77,10 @@ unocc_start
 {
 0
 } unocc_start
+mixing
+{
+0.3
+} mixing
 acell
 {
 } rscale
@@ -59,6 +103,10 @@ NULL
 natom
 {
 } natoms
+charge
+{
+0
+} charge
 coord
 {
 xred
@@ -88,6 +136,10 @@ verbatim
 {
 #
 } verbatim
+para_prefix
+{
+# 
+} para_prefix
 core
 {
 1
@@ -106,7 +158,7 @@ paw.shells
 } paw.shells
 paw.hfkgrid
 {
-2000  8
+2000  20
 } paw.hfkgrid
 paw.fill
 {
@@ -143,7 +195,7 @@ cnbse.nbuse
 } nbuse.ipt
 cnbse.xmesh
 {
-6 6 6
+-1
 } xmesh.ipt
 cnbse.rad
 {
@@ -183,7 +235,7 @@ cnbse.spect_range
 } cnbse.spect_range
 cnbse.broaden
 {
-0.007
+0.001
 } cnbse.broaden
 cnbse.mode
 {
@@ -193,3 +245,52 @@ scratch
 {
 scratchXX
 } scratch
+
+degauss
+{
+0.002
+} degauss
+ibrav
+{
+0
+} ibrav
+isolated
+{
+'mp'
+} isolated
+noncolin
+{
+.false.
+} noncolin
+occtype
+{
+'smearing'
+} occtype
+prefix
+{
+system
+} prefix
+ppdir
+{
+'~/PseudoPots/All'
+} ppdir
+smearing
+{
+'methfessel-paxton'
+} smearing
+spinorb
+{
+.false.
+} spinorb
+work_dir
+{
+'./Out'
+} work_dir
+den.kshift
+{
+0 0 0
+} den.kshift
+core_offset
+{
+.false.
+} core_offset
