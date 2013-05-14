@@ -15,6 +15,7 @@ print `pwd`;
 
 
 # We can't currently default a blank in the input so fake it.
+my $ncpus = 1;
 open PARA_PREFIX, "para_prefix" or die "$!";
 my $para_prefix = <PARA_PREFIX>;
 if( $para_prefix =~ m/\#/ )
@@ -23,7 +24,24 @@ if( $para_prefix =~ m/\#/ )
   open PARA_PREFIX, ">para_prefix" or die "$!";
   print PARA_PREFIX "";
 }
+elsif ( $para_prefix =~ m/^\D*(\d+)/ )
+{
+  $ncpus = $1;
+  print "GRABBED $ncpus as the number of cpus to run with!\n";
+}
 close PARA_PREFIX;
+
+my @cpu_factors;
+for( my $i =1; $i <= $ncpus; $i++ )
+{
+  push( @cpu_factors, $i ) unless ( $ncpus % $i );
+}
+print "$ncpus has ", $#cpu_factors + 1, " factors\n";
+foreach (@cpu_factors)
+{ print "$_\n"; }
+
+open QE_POOL, ">pool_control" or die "Failed to open qe_pool_control for writing\n$!\n";
+
 
 open RSCALE, "rscale" or die;
 open RPRIM, "rprim" or die;
@@ -103,6 +121,7 @@ while (<INPUT>)
   }
 $input_content =~ s/\n/ /g;
 close INPUT;
+my $kpt_tot;
 if( $input_content =~ m/^\s*-1/ )
 {
   my @output;
@@ -118,7 +137,47 @@ if( $input_content =~ m/^\s*-1/ )
   print INPUT "$output[0]\t$output[1]\t$output[2]\n";
   close INPUT;
   print "Defaults chosen for kmesh.ipt:\t$output[0]\t$output[1]\t$output[2]\n";
+  $kpt_tot = $output[0]*$output[1]*$output[2];
+} 
+elsif ( $input_content =~ m/^\s*(\d+)\s+(\d+)\s+(\d+)/ )
+{
+  $kpt_tot = $1*$2*$3;
 }
+else
+{
+  die "FAILED TO CORRECTLY PARSE nkpt\n";
+}
+
+my $ideal_npools = 1;
+foreach (@cpu_factors)
+{
+  $ideal_npools = $_ unless( $kpt_tot % $_ );
+}
+print "NKPTS: $kpt_tot, ideal pools: $ideal_npools\n";
+print QE_POOL "nscf\t$ideal_npools\n";
+# Not integrated cleanly right now
+# Need to control pools for the interpolation routines
+my $min_interp_pool_size = int( $volume / 1200 );
+print "Minimum size for interpolation pools $min_interp_pool_size\n";
+
+my $pool_size = -1;
+foreach( @cpu_factors )
+{
+  if( $_ >= $min_interp_pool_size && ($ncpus/$_) <= $kpt_tot )
+  {
+     $pool_size = $_;
+     last;
+  }
+}
+if( $pool_size == -1 )
+{
+  print "Might not be enough memory to run interpolation scheme\n";
+  $pool_size = $ncpus;
+}
+print "KPTS: $kpt_tot, obf pool size: $pool_size\n";
+print QE_POOL "interpolate kpt\t$pool_size\n";
+
+
   
 $input_content = '';
 open INPUT, "xmesh.ipt" or die "Failed to open xmesh.ipt\n$!\n";
@@ -168,7 +227,25 @@ if( $input_content =~ m/^\s*-1/ )
   print INPUT "$output[0]\t$output[1]\t$output[2]\n";
   close INPUT;
   print "Defaults chosen for ngkpt:\t$output[0]\t$output[1]\t$output[2]\n";
+  $kpt_tot = $output[0]*$output[1]*$output[2];
 }
+elsif ( $input_content =~ m/^\s*(\d+)\s+(\d+)\s+(\d+)/ )
+{
+  $kpt_tot = $1*$2*$3;
+}
+else
+{
+  die "FAILED TO CORRECTLY PARSE ngkpt\n";
+}
+
+my $ideal_npools = 1;
+foreach (@cpu_factors)
+{
+  $ideal_npools = $_ unless( $kpt_tot % $_ );
+}
+print "NGKPTS: $kpt_tot, ideal pools: $ideal_npools\n";
+print QE_POOL "scf\t$ideal_npools\n";
+
 
 $input_content = '';
 open INPUT, "obkpt.ipt" or die "Failed to open obkpt.ipt\n$!\n";
@@ -193,7 +270,25 @@ if( $input_content =~ m/^\s*-1/ )
   print INPUT "$output[0]\t$output[1]\t$output[2]\n";
   close INPUT;
   print "Defaults chosen for obkpt:\t$output[0]\t$output[1]\t$output[2]\n";
+  $kpt_tot = $output[0]*$output[1]*$output[2];
 }
+elsif ( $input_content =~ m/^\s*(\d+)\s+(\d+)\s+(\d+)/ )
+{
+  $kpt_tot = $1*$2*$3;
+}
+else
+{
+  die "FAILED TO CORRECTLY PARSE obkpt\n";
+}
+ 
+my $ideal_npools = 1;
+foreach (@cpu_factors)
+{
+  $ideal_npools = $_ unless( $kpt_tot % $_ );
+}
+print "OBKPTS: $kpt_tot, ideal pools: $ideal_npools\n";
+print QE_POOL "obf\t$ideal_npools\n";
+
 
 
 open ERANGE, "dft_energy_range.ipt" or die "Failed to open dft_energy_range.ipt\n$!";
@@ -246,8 +341,100 @@ elsif( $obf_nbands <= 0 )
   close NBANDS;
 }
 
+$input_content = '';
+open INPUT, "ham_kpoints" or die "Failed to open ham_kpoints\n$!\n";
+while (<INPUT>)
+  {
+    $input_content .= $_;
+  }
+$input_content =~ s/\n/ /g;
+close INPUT;
+if( $input_content =~ m/^\s*-1/ )
+{
+  my @output;
+  print "Defaults requested for ham_kpoints\n";
+#  for( my $i = 0; $i < 3; $i++ )
+#  {
+#    $target = $defaults{'ham_kpoints'}[$acc_level];
+#    $target = $target / $alength[$i];
+#    $output[$i] = findval($target);
+#    if( $output[$i] == 1000 ) { die "ham_kpoints too large\n"; }
+#  }
+  $output[0] = 4; $output[1] = 4; $output[2] = 4;
+  open INPUT, ">ham_kpoints" or die "$!\n";
+  print INPUT "$output[0]\t$output[1]\t$output[2]\n";
+  close INPUT;
+  print "Defaults chosen for ham_kpoints:\t$output[0]\t$output[1]\t$output[2]\n";
+}
+
+$input_content = '';
+open INPUT, "paw.nkpt" or die "Failed to open paw.nkpt\n$!\n";
+while (<INPUT>)
+  {
+    $input_content .= $_;
+  }
+$input_content =~ s/\n/ /g;
+close INPUT;
+if( $input_content =~ m/^\s*-1/ )
+{
+  my @output;
+  print "Defaults requested for paw.nkpt\n";
+  for( my $i = 0; $i < 3; $i++ )
+  {
+    $target = $defaults{'paw'}[$acc_level];
+    $target = $target / $alength[$i];
+    $output[$i] = findval($target);
+    if( $output[$i] == 1000 ) { die "paw.nkpt too large\n"; }
+  }
+  open INPUT, ">paw.nkpt" or die "$!\n";
+  print INPUT "$output[0]\t$output[1]\t$output[2]\n";
+  close INPUT;
+  print "Defaults chosen for paw.nkpt:\t$output[0]\t$output[1]\t$output[2]\n";
+  $kpt_tot = $output[0]*$output[1]*$output[2];
+}
+elsif ( $input_content =~ m/^\s*(\d+)\s+(\d+)\s+(\d+)/ )
+{
+  $kpt_tot = $1*$2*$3;
+}
+else
+{
+  die "FAILED TO CORRECTLY PARSE paw.nkpt\n";
+}
+
+my $ideal_npools = 1;
+foreach (@cpu_factors)
+{
+  $ideal_npools = $_ unless( $kpt_tot %  $_ );
+}
+print "PAW: $kpt_tot, ideal pools: $ideal_npools\n";
+print QE_POOL "paw\t$ideal_npools\n";
+
+# Not integrated cleanly right now
+# Need to control pools for the interpolation routines
+$min_interp_pool_size = int( $volume / 1200 );
+print "Minimum size for interpolation pools $min_interp_pool_size\n";
+
+$pool_size = -1;
+foreach( @cpu_factors )
+{
+  if( $_ >= $min_interp_pool_size && ( $kpt_tot % ($ncpus/$_) == 0 ) ) 
+#($ncpus/$_) <= $kpt_tot ) )
+  {
+     print "$ncpus\t$_\t$kpt_tot\n";
+     $pool_size = $_;
+     last;
+  }
+}
+if( $pool_size == -1 ) 
+{
+  print "Might not be enough memory to run interpolation scheme\n";
+  $pool_size = $ncpus;
+}
+print "PAW: $kpt_tot, obf pool size: $pool_size\n";
+print QE_POOL "interpolate paw\t$pool_size\n";
 
 
+close QE_POOL;
 exit;
 
 sub findval
