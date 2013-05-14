@@ -370,8 +370,8 @@ else
 # sleep( 30 );
 
  print "Density PP Run\n";
-#  system("$ENV{'OCEAN_ESPRESSO_PP'} < pp.in > pp.out 2>&1") == 0
-  system("~/espresso-5.0.1/bin/pp.x < pp.in >& pp.out") == 0 
+  system("$ENV{'OCEAN_ESPRESSO_PP'} < pp.in > pp.out 2>&1") == 0
+#  system("~/espresso-5.0.1/bin/pp.x < pp.in >& pp.out") == 0 
      or die "Failed to run density stage for PAW\n";
  `echo 1 > den.stat`;
 # sleep( 30 );
