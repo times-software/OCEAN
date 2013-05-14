@@ -32,9 +32,9 @@ my @EspressoFiles = ( "coord", "degauss", "ecut", "etol", "fband", "ibrav",
     "isolated", "mixing", "natoms", "ngkpt", "noncolin", "nrun", "ntype", 
     "occopt", "occtype", "prefix", "ppdir", "rprim", "rscale", "smearing", 
     "spinorb", "taulist", "typat", "verbatim", "work_dir", "wftol", 
-    "den.kshift", "obkpt.ipt", "trace_tol");
+    "den.kshift", "obkpt.ipt", "trace_tol", "ham_kpoints");
 my @PPFiles = ("pplist", "znucl");
-my @OtherFiles = ("epsilon");
+my @OtherFiles = ("epsilon", "pool_control");
 
 
 foreach (@PPFiles) {
@@ -149,6 +149,9 @@ if( open PARA_PREFIX, "para_prefix" )
   print "Failed to open para_prefix. Error: $!\nRunning serially\n";
 }
 #`echo 1 > core`;
+
+my $coord_type = `cat coord`;
+chomp($coord_type);
 
 
 
@@ -270,8 +273,14 @@ if ($RunESPRESSO) {
  }
 
 #test 2013-4-5
-# `echo "ATOMIC_POSITIONS angstrom" >> qefile`;
-`echo "ATOMIC_POSITIONS crystal" >> qefile`;
+if( $coord_type =~ m/angst/ )
+{
+	`echo "ATOMIC_POSITIONS angstrom" >> qefile`;
+} 
+else
+{
+	`echo "ATOMIC_POSITIONS crystal" >> qefile`;
+}
  `cat coords >> qefile`;
 
 
@@ -332,6 +341,19 @@ if ($RunESPRESSO) {
 # `echo NodeFile`;
 # `echo $PBS_NODEFILE`;
 
+  my $npool = 1;
+  open INPUT, "pool_control" or die;
+  while (<INPUT>)
+  {
+    if( $_ =~ m/^scf\s+(\d+)/ )
+    {
+      $npool = $1;
+      last;
+    }
+  }
+  close INPUT;
+
+
  ### the SCF run for initial density
  ##
  print "Density SCF Run\n";
@@ -340,14 +362,19 @@ if ($RunESPRESSO) {
 #  system("mpirun -np $nc /global/home/users/kgilmore/Code/QEspresso-4.2.1/bin/pw.x < scf.in > scf.out 2>&1") == 0
 #      or die "Failed to run scf stage for Density\n";
 #  system("mpirun -np $nc $ENV{'OCEAN_ESPRESSO_PW'}  < scf.in > scf.out 2>&1") == 0
-  system("$para_prefix $ENV{'OCEAN_ESPRESSO_PW'}  < scf.in > scf.out 2>&1") == 0
+  print "$para_prefix $ENV{'OCEAN_ESPRESSO_PW'}  -npool $npool < scf.in > scf.out 2>&1\n";
+  system("$para_prefix $ENV{'OCEAN_ESPRESSO_PW'}  -npool $npool < scf.in > scf.out 2>&1") == 0
       or die "Failed to run scf stage for Density\n";
  `echo 1 > scf.stat`;
+ print "SCF complete\n";
+# sleep( 30 );
 
  print "Density PP Run\n";
-  system("$para_prefix $ENV{'OCEAN_ESPRESSO_PP'} < pp.in > pp.out 2>&1") == 0
+#  system("$ENV{'OCEAN_ESPRESSO_PP'} < pp.in > pp.out 2>&1") == 0
+  system("~/espresso-5.0.1/bin/pp.x < pp.in >& pp.out") == 0 
      or die "Failed to run density stage for PAW\n";
  `echo 1 > den.stat`;
+# sleep( 30 );
 
  ## convert the density file to proper format
  print "Density conversion\n";
@@ -394,7 +421,7 @@ if ($RunESPRESSO) {
   open SCF, "scf.out" or die "$!";
   while( my $line = <SCF> )
   {
-    if( $line  =~  m/the Fermi energy is\s+([+-]?\d?\.?\d+)/ )
+    if( $line  =~  m/the Fermi energy is\s+([+-]?\d+\.?\d+)/ )
     {
       $fermi = $1;
       print "Fermi level found at $fermi eV\n";
@@ -524,7 +551,17 @@ if ( $nscfRUN ) {
      `cat acell >> qefile`;
   }
 
-  `echo "ATOMIC_POSITIONS angstrom" >> qefile`;
+# `echo "ATOMIC_POSITIONS angstrom" >> qefile`;
+#  `echo "ATOMIC_POSITIONS crystal" >> qefile`;
+if( $coord_type =~ m/angst/ )
+{
+        `echo "ATOMIC_POSITIONS angstrom" >> qefile`;
+}
+else
+{
+        `echo "ATOMIC_POSITIONS crystal" >> qefile`;
+}
+
   `cat coords >> qefile`;
 
   #`echo "K_POINTS automatic" >> qefile`;
@@ -538,12 +575,26 @@ if ( $nscfRUN ) {
  # mv qefile to appropriate location
   `mv qefile nscf.in`;
    
+  my $npool = 1;
+  open INPUT, "pool_control" or die;
+  while (<INPUT>)
+  {
+    if( $_ =~ m/obf\s+(\d+)/ )
+    {
+      $npool = $1;
+      last;
+    }
+  }
+  close INPUT;
 
 
 ### the PAW NSCF run
 #
-  system("$para_prefix $ENV{'OCEAN_ESPRESSO_PW'} < nscf.in > nscf.out 2>&1") == 0
+  print "$para_prefix $ENV{'OCEAN_ESPRESSO_PW'} -npool $npool < nscf.in > nscf.out 2>&1\n";
+  system("$para_prefix $ENV{'OCEAN_ESPRESSO_PW'} -npool $npool < nscf.in > nscf.out 2>&1") == 0
      or die "Failed to run nscf stage for PAW\n";
+  print "NSCF complete\n";
+# sleep( 30 );
 
   `echo 1 > nscf.stat`;
 } # end NSCF for PAW run
@@ -582,6 +633,9 @@ print "Create Basis\n";
 system("time $para_prefix $ENV{'OCEAN_BIN'}/shirley_basis.x  < basis.in > basis.out 2>&1") == 0
       or die "Failed to run shirley_basis.x\n$!";
 
+my $ham_kpoints = `cat ham_kpoints`;
+chomp $ham_kpoints;
+
 print "Create Shirley Hamiltonian\n";
 `echo "&input" > ham.in`;
 `echo "   prefix = 'system_opt'" >> ham.in`;
@@ -591,7 +645,7 @@ print "Create Shirley Hamiltonian\n";
 `echo "   ncpp = .true." >> ham.in`;
 `echo "/" >> ham.in`;
 `echo " K_POINTS" >> ham.in`;
-`echo "4 4 4 0 0 0" >> ham.in`;
+`echo "$ham_kpoints 0 0 0" >> ham.in`;
 
 
 system("time $para_prefix $ENV{'OCEAN_BIN'}/shirley_ham_o.x  < ham.in > ham.out 2>&1") == 0

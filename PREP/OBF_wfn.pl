@@ -19,7 +19,7 @@ my $ham_kpoints = "4 4 4 ";
 
 
 # Step 1: Create support files
-my @CommonFiles = ("nkpt", "k0.ipt", "qinunitsofbvectors.ipt", "nbands", "xmesh.ipt", "para_prefix");
+my @CommonFiles = ("nkpt", "k0.ipt", "qinunitsofbvectors.ipt", "nbands", "xmesh.ipt", "para_prefix", "pool_control");
 my @ExtraFiles = ("specpnt", "Pquadrature", "sphpts" );
 my @DFTFiles = ("rhoofr", "avecsinbohr.ipt", "efermiinrydberg.ipt", "nelectron");
 my @PawFiles = ("hfinlist", "xyz.wyck");
@@ -51,6 +51,20 @@ foreach(@PawFiles)
 
 
 ### load up the para_prefix
+
+my $pool_size = 1;
+open INPUT, "pool_control" or die;
+while (<INPUT>)
+{
+  if( $_ =~ m/interpolate kpt\s+(\d+)/ )
+  {
+    $pool_size = $1;
+    last;
+  }
+}
+close INPUT;
+
+
 my $para_prefix = "";
 if( open PARA_PREFIX, "para_prefix" )
 {
@@ -158,7 +172,7 @@ system("time $para_prefix $ENV{'OCEAN_BIN'}/shirley_ham_o.x < obf2loc.in >& obf2
   or die "Failed to run obf2loc\n$!";
 
 print "\nRunning QDIAG";
-system("time $para_prefix $ENV{'OCEAN_BIN'}/ocean_qdiagp.x < q.in >& q.out") == 0
+system("time $para_prefix -loadbalance $ENV{'OCEAN_BIN'}/ocean_qdiagp.x $pool_size < q.in >& q.out") == 0
   or die "Failed to run qdiag\n$!";
 
 `touch done`;
