@@ -294,3 +294,7 @@ core_offset
 {
 .false.
 } core_offset
+ham_kpoints
+{
+4 4 4 
+} ham_kpoints
