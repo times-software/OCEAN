@@ -194,7 +194,7 @@ while (<EDGE>) {
 
   if( -e "../SCREEN/core_shift.txt" )
   {
-    `head -n $elnum ../core_shift.txt | tail -n 1 > core_offset `;
+    `head -n $elnum ../SCREEN/core_shift.txt | tail -n 1 > core_offset `;
   } else
   {
      `rm -f core_offset`;

@@ -27,9 +27,12 @@ my $screen_nkpt = "2 2 2";
 
 
 # Step 1: Create support files
-my @CommonFiles = ("znucl", "paw.hfkgrid", "paw.fill", "paw.opts", "pplist", "paw.shells", "ntype", "natoms", "typat", "taulist", "nedges", "edges", "caution", "epsilon", "k0.ipt", "ibase", "scfac", "rscale", "rprim", "para_prefix", "paw.nbands", "core_offset" );
+my @CommonFiles = ("znucl", "paw.hfkgrid", "paw.fill", "paw.opts", "pplist", "paw.shells", "ntype",
+                   "natoms", "typat", "taulist", "nedges", "edges", "caution", "epsilon", "k0.ipt", 
+                   "ibase", "scfac", "rscale", "rprim", "para_prefix", "paw.nbands", "core_offset",
+                   "paw.nkpt", "pool_control");
 my @ExtraFiles = ("specpnt", "Pquadrature" );
-my @DFTFiles = ("rhoofr", "nscf.out");
+my @DFTFiles = ("rhoofr", "nscf.out", "system.rho.dat");
 
 foreach(@ExtraFiles)
 {
@@ -44,6 +47,19 @@ foreach (@DFTFiles)
 foreach (@CommonFiles) {
   `cp ../Common/$_ .` == 0 or die "Failed to get $_ from Common/\n";
 }
+
+my $pool_size = 1;
+open INPUT, "pool_control" or die;
+while (<INPUT>)
+{
+  if( $_ =~ m/interpolate paw\s+(\d+)/ )
+  {
+    $pool_size = $1;
+    last;
+  }
+}
+close INPUT;
+
 my $para_prefix = "";
 if( open PARA_PREFIX, "para_prefix" )
 {
@@ -53,6 +69,7 @@ if( open PARA_PREFIX, "para_prefix" )
 } else
 {
   print "Failed to open para_prefix. Error: $!\nRunning serially\n";
+  $pool_size = 1;
 }
 
 if( -e "../DFT/ham_kpoints" )
@@ -62,6 +79,9 @@ if( -e "../DFT/ham_kpoints" )
 	chomp($ham_kpoints);
 }
 
+$screen_nkpt = `cat paw.nkpt`;
+chomp($screen_nkpt);
+
 
 `ln -s ../DFT/Out .`;
 
@@ -69,7 +89,7 @@ my $fermi = 0;
 open SCF, "nscf.out" or die "$!";
 while( my $line = <SCF> )
 {
-  if( $line  =~  m/the Fermi energy is\s+([+-]?\d?\.?\d+)/ )
+  if( $line  =~  m/the Fermi energy is\s+([+-]?\d\S+)/ )
   {
     $fermi = $1;
     print "Fermi level found at $fermi eV\n";
@@ -231,7 +251,7 @@ while ($hfinline = <HFINLIST>) {
   # Step 4.2: Project the basis functions onto this radial grid
 #  system("time $para_prefix ~/shirley_QE4.3/SHIRLEY/shirley_ham.x < bofr.in >& bofr.out") == 0 
 # BUG! Must run as a single process. Not all that important right now
-  system("$ENV{'OCEAN_BIN'}/shirley_ham_o.x < bofr.in >& bofr.out") == 0 
+  system("$para_prefix $ENV{'OCEAN_BIN'}/shirley_ham_o.x < bofr.in >& bofr.out") == 0 
           or die "$!\nFailed to run shirley_ham from bofr.in\n";
 
 # Step 5: For each core site, loop over radius
@@ -249,9 +269,11 @@ while ($hfinline = <HFINLIST>) {
     `wc tmp > vpert`;
     `cat tmp >> vpert`;
 
+#    $screen_nkpt =~ m/(\d+)\s+(\d+)\s+(\d+)/;
+#    my $np_builder = $1*$2*$3;
 ##      system("builder.x < builder.in") == 0 or die;
 ##      system("$ENV{'OCEAN_BIN'}/builder.x") == 0 or die;
-    system("time mpirun -n 8 $ENV{'OCEAN_BIN'}/ocean_builder.x < builder.in >& builder.out ") == 0
+    system("time $para_prefix $ENV{'OCEAN_BIN'}/ocean_builder.x  $pool_size < builder.in >& builder.out ") == 0
         or die "$!\nFailed to run ocean_builder.x\n";
     `echo 24 > ipt`;
     `time $ENV{'OCEAN_BIN'}/xipps.x < ipt`;

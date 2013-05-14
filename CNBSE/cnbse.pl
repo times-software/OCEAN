@@ -199,6 +199,14 @@ while (<EDGE>) {
   print INFILE "$niter  $spectrange  $gamma0  0.000\n";
   close INFILE;
 
+  if( -e "../SCREEN/core_shift.txt" )
+  {
+    `head -n $elnum ../SCREEN/core_shift.txt | tail -n 1 > core_offset `;
+  } else
+  {
+     `rm -f core_offset`;
+  }
+
 #  system("../swbsys3.job") == 0 or die;
   system("$ENV{'OCEAN_BIN'}/cainmultip.x < bse.in >& cm.log") == 0 or die "Failed to finish\n"; 
 #  my $absspct = sprintf("absspct_%2s.%u_%2s", $elname

@@ -12,7 +12,7 @@ if (! $ENV{"OCEAN_WORKDIR"}){ $ENV{"OCEAN_WORKDIR"} = `pwd` . "../" ; }
 ###########################
 
 
-my @CommonFiles = ("znucl", "paw.hfkgrid", "paw.fill", "paw.opts", "pplist", "paw.shells", "ntype", "natoms", "typat", "taulist", "nedges", "edges", "caution", "epsilon", "k0.ipt", "ibase", "scfac" );
+my @CommonFiles = ("znucl", "paw.hfkgrid", "paw.fill", "paw.opts", "pplist", "paw.shells", "ntype", "natoms", "typat", "taulist", "nedges", "edges", "caution", "epsilon", "k0.ipt", "ibase", "scfac", "core_offset", "dft" );
 
 my @AbinitFiles = ("avecsinbohr.ipt");
 
@@ -195,6 +195,23 @@ while ($hfinline = <HFINLIST>) {
   }
 }
 close HFINLIST;
+
+# core offsets for QE
+my $dft = `cat dft`;
+if( $dft =~ m/qe/i )
+{
+	`ln -s ../QE/Out .`;
+	my $core_offset = `cat core_offset`;
+	chomp $core_offset;
+	if( $core_offset =~ m/false/i )
+	{
+	        print "No core shift\n";
+		`rm core_shift.txt` if( -e "core_shift.txt" );
+	} else
+	{
+	        `time perl $ENV{'OCEAN_BIN'}/core_shift.pl >& core_shift.log`;
+	}
+}
 
 `touch done`;
 
