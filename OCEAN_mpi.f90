@@ -10,6 +10,7 @@ module OCEAN_mpi
   integer( S_INT ) :: myid
   integer( S_INT ) :: nproc
   integer( S_INT ) :: comm
+  integer( S_INT ) :: root = 0
 
 
 

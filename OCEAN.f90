@@ -12,6 +12,14 @@ program ocean
 
   write(6,*) 'init: ', myid, nproc, comm
 
+
+  call ocean_load_input( ierr )
+  call ocean_load_data( ierr )
+
+
+
+
+
   call ocean_mpi_finalize( ierr )
   if( ierr .ne. 0 ) write(6,*) '!!', ierr
 
