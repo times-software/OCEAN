@@ -4,12 +4,13 @@ module OCEAN_psi
   implicit none
   save
 
+  COMPLEX(DP), ALLOCATABLE, TARGET :: psi(:,:,:)
+!DEC$ ATTRIBUTES ALIGN: 32 :: psi
+
   INTEGER :: psi_bands_pad
   INTEGER :: psi_kpts_pad
   REAL(DP) :: kpref
 
-  COMPLEX(DP), ALLOCATABLE, TARGET :: psi(:,:,:)
-!DEC$ ATTRIBUTES ALIGN: 32 :: psi
 
 
   contains
@@ -60,13 +61,61 @@ module OCEAN_psi
     type(OCEAN_system), intent( in ) :: sys
     integer, intent( inout ) :: ierr
 
-    integer :: ialpha
-    real(DP) :: val, nrm
+    integer :: ialpha, icms, icml, ivms, ikpt, iband
+    real(DP) :: val, nrm, tmpr, tmpi
+    real(DP) :: tau( 3 )
 
     if( myid .eq. root ) then
       write(6,*) 'Reading in projector coefficients'
 
-      
+      ialpha = 0
+      if( sys%nspn == 1 ) then
+        do icms = -1, 1, 2
+          do icml = -lc, lc
+            write ( str, '(1a4,1i2.2)' ) 'beff', 1 + icml + lc
+            open( unit=99, file=str, form='unformatted', status='old' )
+            rewind 99
+            read ( 99 ) tau( : )
+            do ivms = -1, 1, 2 
+              ialpha = ialpha + 1
+              write ( 6, '(1a6,3f10.5)' ) 'tau = ', tau
+              if ( icms .eq. ivms ) then
+                do ikpt = 1, sys%nkpts
+                  do iband = 1, sys%num_bands
+                    read ( 99 ) tmpr, tmpi
+                    psi( iband, ikpt, ialpha ) = cmplx( tmpr, tmpi )
+                  enddo
+                end do  
+              end if
+            end do
+            close( unit=99 )
+          end do
+        end do
+      else
+        do icms = 1, 2
+          do icml = -lc, lc
+            ivms = 1, 2
+              write ( str, '(1a4,1i2.2,1a1,1i1.1)' ) 'beff', 1 + icml + lc, '.', ivms
+              open( unit=99, file=str, form='unformatted', status='old' )
+              rewind 99
+              read ( 99 ) tau( : )
+              ialpha = ialpha + 1
+              write ( 6, '(1a6,3f10.5)' ) 'tau = ', tau
+              if ( icms .eq. ivms ) then
+                do ikpt = 1, sys%nkpts
+                  do iband = 1, sys%num_bands
+                    read ( 99 ) tmpr, tmpi
+                    psi( iband, ikpt, ialpha ) = cmplx( tmpr, tmpi )
+                  enddo 
+                end do  
+              end if
+              close( unit=99 )
+            end do
+          end do
+        end do
+      endif
+
+      write (6,*) 'band states have been read in'
 
 
       val = 0_DP
@@ -97,12 +146,9 @@ module OCEAN_psi
     call MPI_BCAST( kpref, 1, MPI_DOUBLE_PRECISION, root, comm, ierr )
     if( ierr .ne. MPI_SUCCESS ) goto 111
 
-    
-
+    call MPI_BCAST( psi, psi_bands_pad*psi_kpts_pad*sys%nalpha, MPI_DOUBLE_COMPLEX, root, comm, ierr )
+    if( ierr .ne. MPI_SUCCESS ) goto 111
 #endif
-
-
-
 
 
 
