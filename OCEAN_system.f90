@@ -5,6 +5,10 @@ module OCEAN_system
 
 
   type, public :: ocean_system
+    real(DP)         :: celvol
+    real(DP)         :: avec(3,3)
+    real(DP)         :: bvec(3,3)
+    real(DP)         :: bmet(3,3)
     integer( S_INT ) :: nkpts
     integer( S_INT ) :: nxpts
     integer( S_INT ) :: nalpha
@@ -58,10 +62,21 @@ module OCEAN_system
       rewind(99)
       read(99,*) sys%num_bands
       close(99)
+
+      call getabb( sys%avec, sys%bvec, sys%bmet )
+      call getomega( sys%avec, sys%celvol )     
       
     endif
 #ifdef MPI
 ! Could create an mpi_datatype, but probably not worth it
+    call MPI_BCAST( celvol, 1, MPI_DOUBLE_PRECISION, root, comm, ierr )
+    if( ierr .ne. MPI_SUCCESS ) goto 111
+    call MPI_BCAST( avec, 9, MPI_DOUBLE_PRECISION, root, comm, ierr )
+    if( ierr .ne. MPI_SUCCESS ) goto 111
+    call MPI_BCAST( bvec, 9, MPI_DOUBLE_PRECISION, root, comm, ierr )
+    if( ierr .ne. MPI_SUCCESS ) goto 111
+    call MPI_BCAST( bmet, 9, MPI_DOUBLE_PRECISION, root, comm, ierr )
+    if( ierr .ne. MPI_SUCCESS ) goto 111
     call MPI_BCAST( nkpts, 1, MPI_INTEGER, root, comm, ierr )
     if( ierr .ne. MPI_SUCCESS ) goto 111
     call MPI_BCAST( nxpts, 1, MPI_INTEGER, root, comm, ierr )
