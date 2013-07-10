@@ -11,8 +11,10 @@ BLACS =  -L/home/jtv1/ATLAS/ATLAS_sandy/lib  -lscalapack -llapack -lf77blas -lcb
 
 all: ocean.x
 
-ocean.x: OCEAN_mpi.o OCEAN.o AI_kinds.o
-	$(FC) $(LDFLAGS) -o ocean.x OCEAN_mpi.o OCEAN.o $(BLACS)
+OCEANOBJS = OCEAN.o AI_kinds.o OCEAN_mpi.o OCEAN_load_data.o OCEAN_psi.o OCEAN_energies.o OCEAN_haydock.o
+
+ocean.x: $(OCEANOBJS)
+	$(FC) $(LDFLAGS) -o ocean.x $(OCEANOBJS) $(BLACS)
 
 OCEAN_mpi.o: OCEAN_mpi.f90 AI_kinds.o
 	$(FC) $(FLAGS) -c -o OCEAN_mpi.o OCEAN_mpi.f90 
@@ -23,3 +25,18 @@ OCEAN.o: OCEAN.f90 AI_kinds.o
 AI_kinds.o: AI_kinds.f90
 	$(FC) $(FLAGS) -c -o AI_kinds.o AI_kinds.f90
 
+OCEAN_load_data.o: OCEAN_load_data.f90
+	$(FC) $(FLAGS) -c -o OCEAN_load_data.o OCEAN_load_data.f90
+
+OCEAN_psi.o: OCEAN_psi.f90
+	$(FC) $(FLAGS) -c -o OCEAN_psi.o OCEAN_psi.f90
+
+OCEAN_energies.o: OCEAN_energies.f90
+	$(FC) $(FLAGS) -c -o OCEAN_energies.o OCEAN_energies.f90
+
+OCEAN_haydock.o: OCEAN_haydock.f90
+	$(FC) $(FLAGS) -c -o  OCEAN_haydock.o OCEAN_haydock.f90
+
+
+clean:
+	rm *.o *.mod
