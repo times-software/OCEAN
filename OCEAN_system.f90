@@ -17,6 +17,11 @@ module OCEAN_system
     integer( S_INT ) :: kmesh( 3 )
     integer( S_INT ) :: ZNL(3)
 
+    logical          :: e0
+    logical          :: mult
+    logical          :: long_range
+    character, len=5 :: calc_type
+
   end type ocean_system
 
 

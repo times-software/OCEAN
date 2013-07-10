@@ -1,10 +1,12 @@
 program ocean
   use AI_kinds
   use OCEAN_mpi
+  use OCEAN_system
 
   implicit none
 
   integer :: ierr
+  type( ocean_system ) :: sys
 
 
   call ocean_mpi_init( ierr )
@@ -13,8 +15,11 @@ program ocean
   write(6,*) 'init: ', myid, nproc, comm
 
 
-  call ocean_load_input( ierr )
-  call ocean_load_data( ierr )
+  call ocean_sys_init( sys, ierr )
+
+  call ocean_load_data( sys, ierr )
+
+  
 
 
 
