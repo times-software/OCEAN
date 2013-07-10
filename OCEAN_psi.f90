@@ -31,7 +31,7 @@ module OCEAN_psi
       psi_bands_pad =  cacheline_by_Z * ( sys%num_bands / cache_line_by_Z + 1 )
     endif
 
-    if( mod( sys%nkpts, cacheline_by_Z ) == 0 ) then
+    if( mod( sys%nkpts, cacheline_by_Z ) == 0 .or. ( sys%nkpts .eq. 1 ) ) then
       psi_kpts_pad = sys%nkpts
     else 
       psi_kpts_pad =  cacheline_by_Z * ( sys%nkpts / cache_line_by_Z + 1 )
