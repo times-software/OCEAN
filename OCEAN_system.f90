@@ -20,6 +20,7 @@ module OCEAN_system
     logical          :: e0
     logical          :: mult
     logical          :: long_range
+    logical          :: obf
     character, len=5 :: calc_type
 
   end type ocean_system
@@ -70,6 +71,12 @@ module OCEAN_system
 
       call getabb( sys%avec, sys%bvec, sys%bmet )
       call getomega( sys%avec, sys%celvol )     
+
+      sys%e0 = .true.
+      sys%mult = .false.
+      sys%long_range = .false.
+      sys%obf = .false.
+      sys%calc_type = 'XES'
       
     endif
 #ifdef MPI

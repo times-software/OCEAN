@@ -3,17 +3,88 @@ module OCEAN_psi
 
   implicit none
   save
+  private
 
   COMPLEX(DP), ALLOCATABLE, TARGET :: psi(:,:,:)
 !DEC$ ATTRIBUTES ALIGN: 32 :: psi
 
+  COMPLEX(DP), ALLOCATABLE, TARGET :: old_psi(:,:,:)
+!DEC$ ATTRIBUTES ALIGN: 32 :: old_psi
+  COMPLEX(DP), ALLOCATABLE, TARGET :: new_psi(:,:,:)
+!DEC$ ATTRIBUTES ALIGN: 32 :: new_psi
+
+  COMPLEX(DP), ALLOCATABLE, TARGET :: lr_psi(:,:,:)
+!DEC$ ATTRIBUTES ALIGN: 32 :: lr_psi
+  COMPLEX(DP), ALLOCATABLE, TARGET :: mult_psi(:,:,:)
+!DEC$ ATTRIBUTES ALIGN: 32 :: mult_psi
+
+  COMPLEX(DP), ALLOCATABLE, TARGET :: hpsi(:,:,:)
+!DEC$ ATTRIBUTES ALIGN: 32 :: hpsi
+
+
+  REAL(DP) :: kpref
   INTEGER :: psi_bands_pad
   INTEGER :: psi_kpts_pad
-  REAL(DP) :: kpref
 
 
-
+  public :: OCEAN_psi_init, OCEAN_psi_kill, OCEAN_psi_load, OCEAN_psi_sum_lr,  &
+            OCEAN_psi_sum, OCEAN_psi_ab
   contains
+
+  subroutine OCEAN_psi_ab( sys, a, b1, b2, ierr )
+    use OCEAN_system
+    implicit none
+    integer, intent(inout) :: ierr
+    type(OCEAN_system), intent( in ) :: sys
+    complex(DP), intent( out ) :: a 
+    real( DP ), intent( in ) :: b1
+    real(DP), intent( out ) :: b2
+
+    a = dot_product( hpsi(:,:,:), psi(:,:,:) )
+
+    new_psi( :, :, : ) = hpsi( :, :, : ) - real(a) * psi( :, :, : ) - b1 * old_psi( :, :, : )
+    b2 = DZNRM2( psi_bands_pad * psi_kpts_pad * sys%nalpha, new_psi, 1 )
+    new_psi( :, :, : ) = new_psi( :, :, : ) / b2
+
+
+    !JTV Need to figure out fortran pointers instead of mem copies, mem copies are dumb
+    old_psi( :, :, : ) = psi( :, :, : )
+    psi( :, :, : ) = new_psi( :, :, : )
+
+  end subroutine OCEAN_psi_ab
+
+  subroutine OCEAN_psi_sum_lr( sys, ierr )
+    use mpi
+    use OCEAN_system
+    use OCEAN_mpi
+    implicit none
+    integer, intent(inout) :: ierr
+    type(OCEAN_system), intent( in ) :: sys
+
+#ifdef MPI
+! Doing all_reduce here so that the multiplet part can hide the latency maybe
+    call MPI_ALLREDUCE( MPI_IN_PLACE, lr_psi, psi_bands_pad * psi_kpts_pad * sys%nalpha, &
+                        MPI_DOUBLE_COMLPEX, MPI_SUM, comm, ierr )
+#endif
+
+  end subroutine OCEAN_psi_sum_lr
+
+
+  subroutine OCEAN_psi_sum( sys, ierr )
+    use OCEAN_system
+    implicit none
+    integer, intent(inout) :: ierr
+    type(OCEAN_system), intent( in ) :: sys
+
+    if( sys%long_range .and. sys%mult ) then
+      hpsi(:,:,:) = hpsi(:,:,:) + lr_psi(:,:,:) + mult_psi(:,:,:)
+    elseif( sys%long_range ) 
+      hpsi(:,:,:) = hpsi(:,:,:) + lr_psi(:,:,:)
+    elseif( sys%mult )
+      hpsi(:,:,:) = hpsi(:,:,:) + mult_psi(:,:,:)
+    endif
+
+  end subroutine OCEAN_psi_sum
 
 
   subroutine OCEAN_psi_init( sys, ierr )
@@ -38,7 +109,14 @@ module OCEAN_psi
     endif
 
 
-    allocate( psi( psi_bands_pad, psi_kpts_pad, sys%nalpha ), STAT=ierr )
+    allocate( psi( psi_bands_pad, psi_kpts_pad, sys%nalpha ),  &
+              old_psi( psi_bands_pad, psi_kpts_pad, sys%nalpha ),  &
+              new_psi( psi_bands_pad, psi_kpts_pad, sys%nalpha ),  &
+              hpsi( psi_bands_pad, psi_kpts_pad, sys%nalpha ),  &
+              STAT=ierr )
+    if(sys%lr) allocate( lr_psi( psi_bands_pad, psi_kpts_pad, sys%nalpha ) )
+    if(sys%mult) allocate( mult_psi( psi_bands_pad, psi_kpts_pad, sys%nalpha ) )
+
     psi = 0_DP
 
   end subroutine OCEAN_psi_init

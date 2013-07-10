@@ -3,7 +3,7 @@ module ocean_long_range
   use AI_kinds
 
   implicit none
- 
+  save
   private
 
   type, public :: long_range

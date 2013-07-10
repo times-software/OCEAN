@@ -19,9 +19,11 @@ program ocean
 
   call ocean_load_data( sys, ierr )
 
+
+  call ocean_hayinit( ierr )
+  call ocean_haydock( sys, ierr )
+
   
-
-
 
 
 
