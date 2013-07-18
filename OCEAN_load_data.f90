@@ -1,18 +1,24 @@
-subroutine OCEAN_load_data( sys, ierr )
+subroutine OCEAN_load_data( sys, hay_vec, lr, ierr )
   use OCEAN_system
+  use OCEAN_psi
+  use OCEAN_energies
   use OCEAN_mpi
+  use OCEAN_multiplet
+  use OCEAN_long_range
 
   implicit none
   integer, intent( inout ) :: ierr
-  type( ocean_system ), intent( in ) :: sys
+  type( o_system ), intent( in ) :: sys
+  type(ocean_vector), intent( inout ) :: hay_vec
+  type( long_range ), intent(out) :: lr
 
 
   if( myid .eq. root ) write(6,*) 'Calc Type = ', sys%calc_type
 
   if( myid .eq. root ) write(6,*) 'Init matrix elements'
-  call ocean_psi_init( sys, ierr )
+  call ocean_psi_init( sys, hay_vec, ierr )
   if( myid .eq. root ) write(6,*) 'Load matrix elements'
-  call ocean_psi_load( sys, ierr )
+  call ocean_psi_load( sys, hay_vec, ierr )
   if( myid .eq. root ) write(6,*) 'Matrix elements loaded'
 
   if( sys%e0 ) then
@@ -25,14 +31,17 @@ subroutine OCEAN_load_data( sys, ierr )
 
   if( sys%mult ) then
     if( myid .eq. root ) write(6,*) 'Init mult'
-    if( myid .eq. root ) write(6,*) 'Load mult'
+    call OCEAN_create_central( sys, ierr )
+!    call OCEAN_soprep( sys, ierr )
+!    if( myid .eq. root ) write(6,*) 'Load mult'   
     if( myid .eq. root ) write(6,*) 'Mult loaded'
     
   endif
 
   if( sys%long_range ) then
     if( myid .eq. root ) write(6,*) 'Init long_range'
-    if( myid .eq. root ) write(6,*) 'Load long_range'
+    call create_lr(sys, lr, ierr )
+!    if( myid .eq. root ) write(6,*) 'Load long_range'
     if( myid .eq. root ) write(6,*) 'Long_range loaded'
   endif
 

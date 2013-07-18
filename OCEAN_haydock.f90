@@ -11,15 +11,15 @@ module OCEAN_action
   REAL(DP) :: inter_scale_threshold = 0.00001
   REAL(DP) :: inter_scale
 
-  REAL(DP) :: el, eh, gam0, eps, nval, eps, ebase
-  REAL(DP) :: gres, gprc, fff, ener
+  REAL(DP) :: el, eh, gam0, eps, nval,  ebase
+  REAL(DP) :: gres, gprc, ffff, ener
   
   INTEGER  :: haydock_niter = 0
   INTEGER  :: ne
   INTEGER  :: nloop
   
 
-  CHARACTER, LEN=3 :: calc_type
+  CHARACTER(LEN=3) :: calc_type
 
   public :: OCEAN_haydock, OCEAN_hayinit
 
@@ -31,21 +31,33 @@ module OCEAN_action
 
 
 
-  subroutine OCEAN_haydock( sys, ierr )
+  subroutine OCEAN_haydock( sys, hay_vec, lr, ierr )
     use AI_kinds
     use OCEAN_mpi
     use OCEAN_system
     use OCEAN_energies
+    use OCEAN_psi
+    use OCEAN_multiplet
     use OCEAN_long_range
     
 
 
     implicit none
     integer, intent( inout ) :: ierr
-    type( ocean_system ), intent( in ) :: sys
+    type( o_system ), intent( in ) :: sys
+    type( ocean_vector ), intent( inout ) :: hay_vec
+    type(long_range), intent( inout ) :: lr
 
+    real(DP) :: imag_a
     integer :: iter
     integer :: num_threads
+
+
+    type( ocean_vector ) :: old_psi
+    type( ocean_vector ) :: long_range_psi
+    type( ocean_vector ) :: multiplet_psi
+    type( ocean_vector ) :: hpsi
+    type( ocean_vector ) :: new_psi
 
 !$    integer, external :: omp_get_num_threads
 
@@ -54,46 +66,56 @@ module OCEAN_action
     num_threads = min( 2, num_threads )
     
 
+    call ocean_psi_init( sys, old_psi, ierr )
+    call ocean_psi_init( sys, long_range_psi, ierr )
+    call ocean_psi_init( sys, multiplet_psi, ierr )
+    call ocean_psi_init( sys, hpsi, ierr )
+    call ocean_psi_init( sys, new_psi, ierr )
+
+    
+    write ( 6, '(2x,1a8,1e15.8)' ) ' mult = ', kpref
+    write(6,*) inter_scale, haydock_niter
     do iter = 1, haydock_niter
 
       if( sys%long_range ) then
 
         if( sys%obf ) then
-          call lr_act_obf( sys, ierr )
+!          call lr_act_obf( sys, ierr )
         else
-          call lr_act( sys, ierr )
+          call lr_act( sys, hay_vec, long_range_psi, lr, ierr )
         endif
 
         if( nproc .gt. 1 ) then
-!$OMP PARALLEL DEFAULT(SHARED) NUM_THREADS num_threads
+! !$OMP PARALLEL DEFAULT(SHARED) NUM_THREADS num_threads
 
-!$OMP SECTIONS
+! !$OMP SECTIONS
 
-!$OMP SECTION
-          call ocean_psi_sum_lr( sys, ierr )
+! !$OMP SECTION
+          call ocean_psi_sum_lr( sys, long_range_psi, ierr )
 
-!$OMP SECTION
-          if( sys%mult ) call mult_act( sys, ierr )
+! !$OMP SECTION
+          if( sys%mult ) call OCEAN_mult_act( sys, inter_scale, hay_vec, multiplet_psi )
 
 
-!$OMP END SECTIONS
+! !$OMP END SECTIONS
 
-!$OMP END PARALLEL
+! !$OMP END PARALLEL
         else
-          if( sys%mult ) call mult_act( sys, ierr )
+          if( sys%mult ) call OCEAN_mult_act( sys, inter_scale, hay_vec, multiplet_psi )
         endif
       else
-        if( sys%mult ) call mult_act( sys, ierr )
+        if( sys%mult ) call OCEAN_mult_act( sys, inter_scale, hay_vec, multiplet_psi )
       endif
 
-      if( sys%e0 ) call energies_act( sys, ierr )
+      if( sys%e0 ) call ocean_energies_act( sys, hay_vec, hpsi, ierr )
 
-      call ocean_psi_sum( sys, ierr )
+      call ocean_psi_sum( sys, hpsi, multiplet_psi, long_range_psi, ierr )
 
-      call ocean_psi_ab( sys, a(iter-1), b(iter-1), b(iter), ierr )
+      call ocean_psi_ab( sys, a(iter-1), b(iter-1), b(iter), imag_a, hay_vec, hpsi, old_psi, &
+                         ierr )
 !      call ocean_psi_dump( sys, ierr )
       if( myid .eq. 0 ) then
-        write ( 6, '(2x,2f10.6,10x,1e11.4)' ) real(a(iter-1)), b(iter), aimag(a(iter-1))
+        write ( 6, '(2x,2f10.6,10x,1e11.4)' ) a(iter-1), b(iter), imag_a
         call haydump( iter, ierr )
       endif
 
@@ -102,7 +124,7 @@ module OCEAN_action
   end subroutine OCEAN_haydock
 
   subroutine haydump( iter, ierr )
-    use module psi,  only : kpref
+    use OCEAN_psi,  only : kpref
     implicit none
     integer, intent( inout ) :: ierr
     integer, intent( in ) :: iter
@@ -120,7 +142,7 @@ module OCEAN_action
        do jdamp = 0, 1
           gam= gam0 + gamfcn( e, nval, eps ) * dble( jdamp )
           ctmp = e - a( iter - 1 ) + rm1 * gam
-          disc = sqrt( ctmp ** 2 - 4 * b( iter + 1 ) ** 2 )
+          disc = sqrt( ctmp ** 2 - 4 * b( iter ) ** 2 )
           di= -rm1 * disc
           if ( di .gt. 0.0d0 ) then
              delta = ( ctmp + disc ) / 2
@@ -128,7 +150,7 @@ module OCEAN_action
              delta = ( ctmp - disc ) / 2
           end if
           do jj = iter - 1, 0, -1
-             delta = e - a( jj ) + rm1 * gam - b( jj + 1 + 1 ) ** 2 / delta
+             delta = e - a( jj ) + rm1 * gam - b( jj + 1 ) ** 2 / delta
           end do
           dr = delta
           di = -rm1 * delta
@@ -137,7 +159,7 @@ module OCEAN_action
           spct( jdamp ) = kpref * di / ( dr ** 2 + di ** 2 )
        end do
        spkk = kpref * dr / ( dr ** 2 + di ** 2 )
-       write ( 99, '(4(1e15.8,1x),1i5,1x,2(1e15.8,1x),1i5)' ) ener, spct( 1 ), spct( 0 ), spkk, j, gam, kpref, ne
+       write ( 99, '(4(1e15.8,1x),1i5,1x,2(1e15.8,1x),1i5)' ) ener, spct( 1 ), spct( 0 ), spkk, iter, gam, kpref, ne
     end do
     close(unit=99)
     !
@@ -150,14 +172,20 @@ module OCEAN_action
 
     integer, intent( inout ) :: ierr
 
+    integer :: dumi
+    real :: dumf
+
     if( myid .eq. root ) then
       open(unit=99,file='mode',form='formatted',status='old')
       rewind(99)
       read(99,*) inter_scale, haydock_niter
       close(99)
 
-      open(unit=99,file='calc_control',form='formatted',status='old')
+!      open(unit=99,file='calc_control',form='formatted',status='old')
+      open(unit=99,file='bse.in',form='formatted',status='old')
       rewind(99)
+      read(99,*) dumi
+      read(99,*) dumf
       read(99,*) calc_type
       select case ( calc_type )
         case('hay')
@@ -169,6 +197,16 @@ module OCEAN_action
       end select
       close(99)
 
+
+      open(unit=99,file='epsilon',form='formatted',status='old')
+      rewind 99
+      read(99,*) eps
+      close(99)
+
+      open( unit=99, file='nval.h', form='formatted', status='unknown' )
+      rewind 99
+      read ( 99, * ) nval
+      close( unit=99 )
     endif
 
 #ifdef MPI
@@ -181,6 +219,8 @@ module OCEAN_action
     call MPI_BCAST( gprc, 1, MPI_DOUBLE_PRECISION, root, comm, ierr )
     call MPI_BCAST( ffff, 1, MPI_DOUBLE_PRECISION, root, comm, ierr )
     call MPI_BCAST( ener, 1, MPI_DOUBLE_PRECISION, root, comm, ierr )
+    call MPI_BCAST( eps, 1, MPI_DOUBLE_PRECISION, root, comm, ierr )
+    call MPI_BCAST( nval, 1, MPI_DOUBLE_PRECISION, root, comm, ierr )
 #endif
 
     if( haydock_niter .gt. 0 ) then
@@ -195,4 +235,4 @@ module OCEAN_action
   end subroutine OCEAN_hayinit
 
 
-end OCEAN_action
+end module OCEAN_action
