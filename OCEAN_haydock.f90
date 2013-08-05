@@ -21,6 +21,9 @@ module OCEAN_action
 
   CHARACTER(LEN=3) :: calc_type
 
+
+!  REAL(DP), POINTER, CONTIGUOUS :: psi_r(:,:,:)
+
   public :: OCEAN_haydock, OCEAN_hayinit
 
   contains
@@ -39,10 +42,12 @@ module OCEAN_action
     use OCEAN_psi
     use OCEAN_multiplet
     use OCEAN_long_range
+!    use iso_c_binding
     
 
 
     implicit none
+!    include 'fftw3.f03'
     integer, intent( inout ) :: ierr
     type( o_system ), intent( in ) :: sys
     type( ocean_vector ), intent( inout ) :: hay_vec
@@ -59,6 +64,8 @@ module OCEAN_action
     type( ocean_vector ) :: hpsi
     type( ocean_vector ) :: new_psi
 
+!    type(C_PTR) :: cptr
+
 !$    integer, external :: omp_get_num_threads
 
     num_threads = 1
@@ -71,6 +78,12 @@ module OCEAN_action
     call ocean_psi_init( sys, multiplet_psi, ierr )
     call ocean_psi_init( sys, hpsi, ierr )
     call ocean_psi_init( sys, new_psi, ierr )
+
+
+!    cptr = fftw_alloc_real( int(hay_vec%bands_pad * hay_vec%kpts_pad * sys%nalpha, C_SIZE_T) )
+!    call c_f_pointer( cptr, psi_r, [hay_vec%bands_pad, hay_vec%kpts_pad, sys%nalpha ] )
+
+!    new_psi%r => psi_r
 
     
     write ( 6, '(2x,1a8,1e15.8)' ) ' mult = ', kpref
@@ -117,9 +130,15 @@ module OCEAN_action
       if( myid .eq. 0 ) then
         write ( 6, '(2x,2f10.6,10x,1e11.4)' ) a(iter-1), b(iter), imag_a
         call haydump( iter, ierr )
+
+!        call redtrid( iter-1, a(0), b(1) )
       endif
 
     enddo
+
+    if( myid .eq. 0 ) then
+      call redtrid( haydock_niter-1, a(0), b(1) )
+    endif
     
   end subroutine OCEAN_haydock
 

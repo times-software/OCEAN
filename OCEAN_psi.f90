@@ -150,7 +150,7 @@ module OCEAN_psi
     type(O_system), intent( in ) :: sys
     type(OCEAN_vector), intent( out ) :: p
   
-    integer, parameter :: cacheline_by_Z = 4
+    integer, parameter :: cacheline_by_Z = 1
     type(C_PTR) :: cptr
     
     if( mod( sys%num_bands, cacheline_by_Z ) == 0 ) then

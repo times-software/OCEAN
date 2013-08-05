@@ -526,7 +526,9 @@ module ocean_long_range
       goto 111
     endif
 
+#ifdef MPI
     call MPI_BARRIER( comm, ierr )
+#endif
     if( myid .eq. root ) write(6,*) 'populate bloch'
 
 
@@ -536,7 +538,9 @@ module ocean_long_range
       goto 111
     endif
 
+#ifdef MPI
     call MPI_BARRIER( comm, ierr )
+#endif
     if( myid .eq. root ) write(6,*) 'populate W'
     call lr_populate_W( lr, sys, ierr )
     if( ierr /= 0 ) then
@@ -870,8 +874,8 @@ module ocean_long_range
                   phsx = 2.0d0 * pi * dble( ( xph + ix - 1 ) * ( iq1 - 1 ) ) / dble( nx * sys%kmesh( 1 ) )
                   phsy = 2.0d0 * pi * dble( ( yph + iy - 1 ) * ( iq2 - 1 ) ) / dble( ny * sys%kmesh( 2 ) )
                   phsz = 2.0d0 * pi * dble( ( zph + iz - 1 ) * ( iq3 - 1 ) ) / dble( nz * sys%kmesh( 3 ) )
-                  cphs = cos( phsx + phsy + phsz )
-                  sphs = sin( phsx + phsy + phsz )
+                  cphs = dcos( phsx + phsy + phsz )
+                  sphs = dsin( phsx + phsy + phsz )
                   do ibd = 1, nbd
                      psir = cphs * ur( ix, iy, iz, ibd ) - sphs * ui( ix, iy, iz, ibd )
                      psii = cphs * ui( ix, iy, iz, ibd ) + sphs * ur( ix, iy, iz, ibd )

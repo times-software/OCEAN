@@ -25,7 +25,7 @@ module OCEAN_energies
     integer, intent(inout) :: ierr
     type(O_system), intent( in ) :: sys
 
-    integer, parameter :: cacheline_by_Z = 4
+    integer, parameter :: cacheline_by_Z = 1
 
     if( mod( sys%num_bands, cacheline_by_Z ) == 0 ) then
       energy_bands_pad = sys%num_bands

@@ -1,5 +1,5 @@
 FC = mpif90
-FLAGS = -O3 -ffree-line-length-none -x f95-cpp-input -m64 -DHAVE_FLUSH -DBLAS  -Wall  -g -ffree-line-length-none  -funroll-loops -ftree-vectorizer-verbose=1 -ffast-math -ftree-vectorize -fopenmp -DMPI
+FLAGS = -O3 -ffree-line-length-none -x f95-cpp-input -m64 -DHAVE_FLUSH -DBLAS  -Wall  -g -ffree-line-length-none  -funroll-loops -ftree-vectorizer-verbose=1 -ffast-math -ftree-vectorize -DMPI
 LDFLAGS = -m64  -Wall  -g -fopenmp
 
 FFTWI = -I/home/jtv1/bin/gnu/include
@@ -13,7 +13,7 @@ all: ocean.x
 
 OCEANOBJS = AI_kinds.o OCEAN_mpi.o OCEAN_system.o OCEAN_multiplet.o long_range.o OCEAN_load_data.o OCEAN_psi.o \
             OCEAN_energies.o OCEAN_haydock.o OCEAN.o getabb.o getomega.o gamfcn.o jlmfft.o limel.o jimel.o \
-            nbsemkcmel.o intval.o newgetylm.o  newgetprefs.o newthreey.o cainmhsetup.o
+            nbsemkcmel.o intval.o newgetylm.o  newgetprefs.o newthreey.o cainmhsetup.o redtrid.o elsdch.o
 
 ocean.x: $(OCEANOBJS)
 	$(FC) $(LDFLAGS) -o ocean.x $(OCEANOBJS) $(BLACS) $(FFTWL)
@@ -40,7 +40,7 @@ OCEAN_energies.o: OCEAN_energies.f90
 	$(FC) $(FLAGS) -c -o OCEAN_energies.o OCEAN_energies.f90
 
 OCEAN_haydock.o: OCEAN_haydock.f90 
-	$(FC) $(FLAGS) -c -o  OCEAN_haydock.o OCEAN_haydock.f90 
+	$(FC) $(FLAGS) -c -o  OCEAN_haydock.o OCEAN_haydock.f90 $(FFTWI)
 
 
 getabb.o: getabb.f90
