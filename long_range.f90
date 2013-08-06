@@ -124,6 +124,7 @@ module ocean_long_range
 
   end subroutine lr_init
 
+
   subroutine lr_act_obf( sys, psi, hpsi, lr, obf, ierr )
     use OCEAN_system
     
