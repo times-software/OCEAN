@@ -26,9 +26,38 @@ module OCEAN_system
     logical          :: conduct
     character(len=5) :: calc_type
 
+    type(o_run), pointer :: cur_run => null()
+
   end type o_system
 
 
+  type :: o_run
+    real(DP) :: tau(3)
+    integer( S_INT ) :: nalpha
+    integer( S_INT ) :: ZNL(3)
+    
+    integer :: indx
+    integer :: photon
+    character(len=2) :: elname
+    character(len=2) :: corelevel
+    character(len=255) :: basename
+    character(len=255) :: filename
+
+    character(len=5) :: calc_type
+
+    logical          :: e0
+    logical          :: mult
+    logical          :: long_range
+    logical          :: obf
+    logical          :: conduct
+    
+    type(o_run), pointer :: prev_run => null()
+    type(o_run), pointer :: next_run => null()
+
+  end type o_run
+
+
+  
 
   contains 
 
@@ -100,6 +129,8 @@ module OCEAN_system
       sys%obf = .false.
       sys%calc_type = 'NaN'
 !      sys%conduct = .true.
+
+      
       
     endif
 #ifdef MPI
@@ -145,6 +176,21 @@ module OCEAN_system
 111 continue
 
 #endif
+    allocate( sys%cur_run, STAT=ierr )
+    if( ierr .ne. 0 ) return
+
+    sys%cur_run%nalpha = sys%nalpha
+    sys%cur_run%ZNL(:) = sys%ZNL(:)
+    sys%cur_run%indx = 1
+    sys%cur_run%photon = 1
+    sys%cur_run%elname = 'F_'
+    sys%cur_run%corelevel = '1s'
+    sys%cur_run%basename = 'xas'
+!    write(sys%cur_run%filename,'(A,A,A,I2.2,A,A,A,I2.2)') sys%cur_run%basename, &
+!          '_', sys%cur_run%elname, '.', sys%cur_run%indx, '_', sys%cur_run%corelevel, &
+!          '_', sys%cur_run%photon
+    sys%cur_run%tau(:) = 0.0_DP
+
 
   end subroutine OCEAN_sys_init
     

@@ -1,5 +1,5 @@
 FC = mpif90
-FLAGS = -O3 -ffree-line-length-none -x f95-cpp-input -m64 -DHAVE_FLUSH -DBLAS  -Wall  -g -ffree-line-length-none  -funroll-loops -ftree-vectorizer-verbose=1 -ffast-math -ftree-vectorize -DMPI
+FLAGS = -O3 -ffree-line-length-none -x f95-cpp-input -m64 -DHAVE_FLUSH -DBLAS  -Wall  -g -ffree-line-length-none  -funroll-loops -ftree-vectorizer-verbose=0 -ffast-math -ftree-vectorize -DMPI -fopenmp
 LDFLAGS = -m64  -Wall  -g -fopenmp
 
 FFTWI = -I/home/jtv1/bin/gnu/include
@@ -11,9 +11,9 @@ BLACS =  -L/home/jtv1/ATLAS/ATLAS_sandy/lib  -lscalapack -llapack -lf77blas -lcb
 
 all: ocean.x
 
-OCEANOBJS = AI_kinds.o OCEAN_mpi.o OCEAN_system.o OCEAN_multiplet.o long_range.o OCEAN_load_data.o OCEAN_psi.o \
+OCEANOBJS = AI_kinds.o OCEAN_mpi.o OCEAN_system.o OCEAN_bloch.o OCEAN_multiplet.o long_range.o OCEAN_load_data.o OCEAN_psi.o \
             OCEAN_energies.o OCEAN_haydock.o OCEAN.o getabb.o getomega.o gamfcn.o jlmfft.o limel.o jimel.o \
-            nbsemkcmel.o intval.o newgetylm.o  newgetprefs.o newthreey.o cainmhsetup.o redtrid.o elsdch.o
+            nbsemkcmel.o intval.o newgetylm.o  newgetprefs.o newthreey.o cainmhsetup.o redtrid.o elsdch.o 
 
 ocean.x: $(OCEANOBJS)
 	$(FC) $(LDFLAGS) -o ocean.x $(OCEANOBJS) $(BLACS) $(FFTWL)
@@ -60,6 +60,40 @@ jlmfft.o: jlmfft.f
 
 OCEAN_multiplet.o: OCEAN_multiplet.f90
 	$(FC) $(FLAGS) -c -o OCEAN_multiplet.o OCEAN_multiplet.f90
+
+
+limel.o: limel.f90
+	$(FC) $(FLAGS) -c -o limel.o limel.f90
+
+jimel.o: jimel.f90
+	$(FC) $(FLAGS) -c -o jimel.o jimel.f90
+
+nbsemkcmel.o: nbsemkcmel.f90
+	$(FC) $(FLAGS) -c -o nbsemkcmel.o nbsemkcmel.f90
+
+intval.o: intval.f90
+	$(FC) $(FLAGS) -c -o intval.o intval.f90
+
+newgetylm.o: newgetylm.f90
+	$(FC) $(FLAGS) -c -o newgetylm.o newgetylm.f90
+
+newgetprefs.o: newgetprefs.f90
+	$(FC) $(FLAGS) -c -o newgetprefs.o newgetprefs.f90
+
+newthreey.o: newthreey.f90
+	$(FC) $(FLAGS) -c -o newthreey.o newthreey.f90
+
+cainmhsetup.o: cainmhsetup.f90
+	$(FC) $(FLAGS) -c -o cainmhsetup.o cainmhsetup.f90
+
+redtrid.o: redtrid.f
+	$(FC) $(FLAGS) -c -o redtrid.o redtrid.f
+
+elsdch.o: elsdch.f
+	$(FC) $(FLAGS) -c -o elsdch.o elsdch.f
+
+OCEAN_bloch.o: OCEAN_bloch.f90 OCEAN_system.o AI_kinds.o OCEAN_mpi.o
+	$(FC) $(FLAGS) -c -o OCEAN_bloch.o OCEAN_bloch.f90 $(FFTWI)
 
 clean:
 	rm *.o *.mod

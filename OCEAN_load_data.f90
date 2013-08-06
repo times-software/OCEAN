@@ -40,7 +40,8 @@ subroutine OCEAN_load_data( sys, hay_vec, lr, ierr )
 
   if( sys%long_range ) then
     if( myid .eq. root ) write(6,*) 'Init long_range'
-    call create_lr(sys, lr, ierr )
+!    call create_lr(sys, lr, ierr )
+    call lr_init( sys, lr, ierr )
 !    if( myid .eq. root ) write(6,*) 'Load long_range'
     if( myid .eq. root ) write(6,*) 'Long_range loaded'
   endif
