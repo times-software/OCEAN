@@ -50,6 +50,8 @@ module OCEAN_psi
     real( DP ), intent( in ) :: b1
     real(DP), intent( out ) :: b2
     type(OCEAN_vector), intent(inout) :: psi, hpsi, old_psi
+    
+    type(OCEAN_vector) :: temp_psi
 
     complex(DP) :: temp_a
     real(DP), external :: DZNRM2
@@ -91,6 +93,14 @@ module OCEAN_psi
 
 
     !JTV Need to figure out fortran pointers instead of mem copies, mem copies are dumb
+!    temp_psi%r => old_psi%r
+!    temp_psi%i => old_psi%i
+!    old_psi%r => psi%r
+!    old_psi%i => psi%i
+!    psi%r => hpsi%r
+!    psi%i => hpsi%i
+!    hpsi%r => temp_psi%r
+!    hpsi%i => temp_psi%i
     old_psi%r( :, :, : ) = psi%r( :, :, : )
     old_psi%i( :, :, : ) = psi%i( :, :, : )
     psi%r( :, :, : ) = hpsi%r( :, :, : )
