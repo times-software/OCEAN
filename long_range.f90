@@ -124,6 +124,27 @@ module ocean_long_range
 
   end subroutine lr_init
 
+!  subroutine lr_act_obf2( sys, ierr )
+!    use OCEAN_system
+
+
+!    type( o_system ), intent( in ) :: sys
+!    integer, intent( inout ) :: ierr
+    
+!    allocate( beta( num_obf, sys%nkpts, sys%nalpha ) )
+!    do ikpt = 1, sys%nkpts
+!      do iobf = 1, num_obf, cache_obf
+!        obf_width = min( iobf + cache_obf - 1, sys%nobf )
+!        obf_width = obf_width - iobf + 1
+!        do ialpha = 1, sys%nalpha
+!          call DGEMV( 'T', sys%num_bands, obf_width, one, re_obf2u(1,iobf,ikpt), sys%num_bands, &
+!                      psri%r(1, ikpt, ialpha), 1, zero, re_beta(iobf,ikpt,ialpha), 1 )
+!          call DGEMV( 'T', sys%num_bands, obf_width, one, im_obf2u(1,iobf,ikpt), sys%num_bands, &
+!                      psri%i(1, ikpt, ialpha), 1, one, re_beta(iobf,ikpt,ialpha), 1 )
+!          
+        
+
+!  end subroutine
 
   subroutine lr_act_obf( sys, psi, hpsi, lr, obf, ierr )
     use OCEAN_system
