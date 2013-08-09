@@ -43,6 +43,8 @@ module ocean_long_range
   logical :: use_fake_obf = .false.
   real( DP ) :: timer = 0.0_DP
   real( DP ) :: timer1 = 0.0_DP
+
+  logical :: first_time = .true.
   
 
   public :: create_lr, lr_populate_W, lr_populate_bloch, lr_act, lr_populate_W2, lr_fill_values, lr_init, lr_timer
@@ -203,6 +205,7 @@ module ocean_long_range
   subroutine lr_act_obf2( sys, p, hp, ierr )
     use OCEAN_system
     use OCEAN_psi
+    use OCEAN_mpi, only : myid, root
     use OCEAN_obf, only : num_obf, re_obf2u, im_obf2u, re_obf, im_obf, re_obf_phs, im_obf_phs
 
 
@@ -218,7 +221,7 @@ module ocean_long_range
     real( DP ), parameter :: pi = 3.141592653589793238462643383279502884197_DP
     real( DP ) :: phs
 
-    integer :: ikpt, iobf, ibd, ialpha, obf_width, cache_obf
+    integer :: ikpt, iobf, ibd, ialpha, obf_width, cache_obf, iialpha
     integer :: ix, iy, iz, xph, yph, zph, iq, iq1, iq2, iq3, ii, xactual
     integer :: jfft, xxph, yyph, zzph, ixpt
     integer :: xstop, xwidth, ix2
@@ -231,33 +234,59 @@ module ocean_long_range
     real(DP) :: time1, time2
     
     real(DP), external :: DDOT
+!$    integer, external :: OMP_GET_MAX_THREADS
+    integer :: num_threads, cache_size, xchunk
+
+
 
     call cpu_time( time1 )
 
+    num_threads = 1
     jfft = 2 * max( sys%kmesh( 1 ) * ( sys%kmesh( 1 ) + 1 ), sys%kmesh( 2 ) * ( sys%kmesh( 2 ) + 1 ), &
                     sys%kmesh( 3 ) * ( sys%kmesh( 3 ) + 1 ) )
+
+!$    num_threads = OMP_GET_MAX_THREADS()
+    cache_size = num_threads * 2 * 1024 * 64  ! 64 = ( 1024 / 16 )
+    cache_size = cache_size - (num_obf * sys%nkpts ) 
+    xchunk = floor( dble( cache_size ) / ( dble( num_obf ) + 5.5_DP * dble( sys%nkpts ) ) )
+    xchunk = ceiling( dble( my_xpts ) / dble( num_threads ) )
+!    xchunk = 512
+    if( myid .eq. root .and. first_time ) write( 6, * ) cache_size, xchunk, num_threads
+    if( xchunk .lt. 1 .or. (xchunk * num_threads) .gt. my_xpts ) then
+      xchunk = ceiling( real(my_xpts) / real( num_threads ) )
+      if( myid .eq. root .and. first_time ) write( 6, * ) cache_size, xchunk
+    endif 
+    first_time = .false.
     
 
     allocate( re_beta( num_obf, sys%nkpts, sys%nalpha ), im_beta( num_obf, sys%nkpts, sys%nalpha ) )
-    allocate( re_beta2( num_obf, sys%nkpts, sys%nalpha ), im_beta2( num_obf, sys%nkpts, sys%nalpha ) )
-    allocate( rphi( my_kpts, my_xpts, sys%nalpha ), iphi( my_kpts, my_xpts, sys%nalpha ) )
-    allocate( rtphi( my_xpts, my_kpts, sys%nalpha ), itphi( my_xpts, my_kpts, sys%nalpha ) )
-
-    allocate( xwrkr( sys%nkpts, sys%nalpha ), xwrki( sys%nkpts, sys%nalpha ), wrk( jfft ) )
+    allocate( re_beta2( num_obf, sys%nkpts, 1 ), im_beta2( num_obf, sys%nkpts, 1 ) )
 !    allocate( cphs( sys%nkpts ), sphs( sys%nkpts ) )
 
     re_beta2(:,:,:) = 0.0_DP
     im_beta2(:,:,:) = 0.0_DP
 
 !    cache_obf = num_obf
-    obf_width = num_obf
-    iobf = 1
+!    obf_width = num_obf
+!    iobf = 1
+!$OMP PARALLEL DEFAULT(NONE) &
+!$OMP& SHARED( sys, num_obf, p, hp, re_obf2u, im_obf2u, re_obf, im_obf, re_obf_phs, im_obf_phs, w ) &
+!$OMP& SHARED( re_beta, im_beta, re_beta2, im_beta2 ) &
+!$OMP& FIRSTPRIVATE( jfft, num_threads, xchunk, my_xpts, my_kpts ) &
+!$OMP& PRIVATE( ikpt, iobf, ialpha, ix2, ixpt, xstop, xwidth ) &
+!$OMP& PRIVATE( rphi, iphi, rtphi, itphi, xwrkr, xwrki, wrk )
+
+    allocate( rphi( my_kpts, my_xpts, sys%nalpha ), iphi( my_kpts, my_xpts, sys%nalpha ) )
+    allocate( rtphi( my_xpts, my_kpts, sys%nalpha ), itphi( my_xpts, my_kpts, sys%nalpha ) )
+
+    allocate( xwrkr( sys%nkpts, sys%nalpha ), xwrki( sys%nkpts, sys%nalpha ), wrk( jfft ) )
+
+!$OMP DO SCHEDULE( STATIC )
     do ikpt = 1, sys%nkpts
-!      do iobf = 1, num_obf, cache_obf
-!        obf_width = min( iobf + cache_obf - 1, sys%nobf )
-!        obf_width = obf_width - iobf + 1
+      do ialpha = 1, sys%nalpha
       do iobf =1, num_obf
-        do ialpha = 1, sys%nalpha
+!        do iialpha = 1, sys%nalpha, 4
+!        do ialpha = iialpha, iialpha+3
 ! Bug in DGEMV??
 !          call DGEMV( 'T', sys%num_bands, obf_width, one, re_obf2u(1,iobf,ikpt), sys%num_bands, &
 !                      p%r(1, ikpt, ialpha), 1, zero, re_beta(iobf,ikpt,ialpha), 1 )
@@ -267,20 +296,23 @@ module ocean_long_range
 !                      p%r(1, ikpt, ialpha), 1, zero, im_beta(iobf,ikpt,ialpha), 1 )
 !          call DGEMV( 'T', sys%num_bands, obf_width, one, re_obf2u(1,iobf,ikpt), sys%num_bands, &
 !                      p%i(1, ikpt, ialpha), 1, one, im_beta(iobf,ikpt,ialpha), 1 )
+
           re_beta(iobf,ikpt,ialpha) = DDOT( sys%num_bands, re_obf2u(1,iobf,ikpt), 1, p%r(1, ikpt, ialpha), 1 ) &
                                     - DDOT( sys%num_bands, im_obf2u(1,iobf,ikpt), 1, p%i(1, ikpt, ialpha), 1 ) 
           im_beta(iobf,ikpt,ialpha) = DDOT( sys%num_bands, re_obf2u(1,iobf,ikpt), 1, p%i(1, ikpt, ialpha), 1 ) &
                                     + DDOT( sys%num_bands, im_obf2u(1,iobf,ikpt), 1, p%r(1, ikpt, ialpha), 1 ) 
-
         enddo
       enddo
     enddo
+!$OMP END DO
 
     do ialpha = 1, sys%nalpha
-!  77.51-77.59
+    im_beta2 = 0.0_DP
+    re_beta2 = 0.0_DP
 
-      do ix2 = 1, my_xpts, 64
-        xstop = min(ix2+64-1,my_xpts)
+!$OMP DO SCHEDULE( STATIC ) REDUCTION(+:im_beta2,re_beta2)
+      do ix2 = 1, my_xpts, xchunk
+        xstop = min(ix2+xchunk-1,my_xpts)
         xwidth = xstop - ix2 + 1
 
       call DGEMM( 'T', 'N', sys%nkpts, xwidth, num_obf, one, re_beta(1,1,ialpha), num_obf, &
@@ -297,55 +329,23 @@ module ocean_long_range
 
       do ixpt = ix2, xstop
 
-
-!      iq = 0
-!      do iq1 = 0, sys%kmesh(1) - 1
-!        do iq2 = 0, sys%kmesh(2) - 1
-!          do iq3 = 0, sys%kmesh(3) - 1
-!            iq = iq + 1
-!!?            ii = iq
-!!            ii = 1 + ( iq1 ) + sys%kmesh( 1 ) * ( ( iq2 ) + sys%kmesh( 2 ) * ( iq3 ) )
-!              xwrkr( ii, ialpha ) = rphi( iq, ixpt, ialpha ) * re_obf_phs( iq, ixpt ) &
-!                                  - iphi( iq, ixpt, ialpha ) * im_obf_phs( iq, ixpt )
-!              xwrki( ii, ialpha ) = iphi( iq, ixpt, ialpha ) * re_obf_phs( iq, ixpt ) &
-!                                  + rphi( iq, ixpt, ialpha ) * im_obf_phs( iq, ixpt )
-!          enddo
-!        enddo 
-!      enddo
       xwrkr( :, ialpha ) = rphi( :, ixpt, ialpha ) * re_obf_phs( :, ixpt ) &
                          - iphi( :, ixpt, ialpha ) * im_obf_phs( :, ixpt )
       xwrki( :, ialpha ) = iphi( :, ixpt, ialpha ) * re_obf_phs( :, ixpt ) &
                          + rphi( :, ixpt, ialpha ) * im_obf_phs( :, ixpt ) 
 
-
       call cfft( xwrkr(1,ialpha), xwrki(1,ialpha), sys%kmesh(3), sys%kmesh(3), sys%kmesh(2), sys%kmesh(1), -1, wrk, jfft )
-!      call cfft( xwrkr(1,ialpha), xwrki(1,ialpha), sys%kmesh(1), sys%kmesh(1), sys%kmesh(2), sys%kmesh(3), -1, wrk, jfft )
 
       xwrkr( :, ialpha ) = xwrkr( :, ialpha ) * W( :, ixpt )
       xwrki( :, ialpha ) = xwrki( :, ialpha ) * W( :, ixpt )
 
       call cfft( xwrkr(1,ialpha), xwrki(1,ialpha), sys%kmesh(3), sys%kmesh(3), sys%kmesh(2), sys%kmesh(1), +1, wrk, jfft )
-!      call cfft( xwrkr(1,ialpha), xwrki(1,ialpha), sys%kmesh(1), sys%kmesh(1), sys%kmesh(2), sys%kmesh(3), +1, wrk, jfft )
 
       rtphi( ixpt, :, ialpha ) = xwrkr( :, ialpha ) * re_obf_phs( :, ixpt ) &
                                + xwrki( :, ialpha ) * im_obf_phs( :, ixpt )
       itphi( ixpt, :, ialpha ) = xwrki( :, ialpha ) * re_obf_phs( :, ixpt ) &
                                - xwrkr( :, ialpha ) * im_obf_phs( :, ixpt )
 
-!      iq = 0
-!      do iq1 = 1, sys%kmesh(1)
-!        do iq2 = 1, sys%kmesh(2) 
-!          do iq3 = 1, sys%kmesh(3)
-!            iq = iq + 1
-!!            ii = 1 + ( iq1 - 1 ) + sys%kmesh( 1 ) * ( ( iq2 - 1 ) + sys%kmesh( 2 ) * ( iq3 - 1 ) )
-!            ii = iq
-!              rtphi( ixpt, iq, ialpha ) = xwrkr( ii, ialpha ) * re_obf_phs( iq, ixpt ) &
-!                                        + xwrki( ii, ialpha ) * im_obf_phs( iq, ixpt )
-!              itphi( ixpt, iq, ialpha ) = xwrki( ii, ialpha ) * re_obf_phs( iq, ixpt ) &
-!                                        - xwrkr( ii, ialpha ) * im_obf_phs( iq, ixpt )
-!            enddo
-!          enddo
-!        enddo
 
       enddo ! ixpt
 
@@ -353,19 +353,20 @@ module ocean_long_range
 ! now obf*
 !    do ialpha = 1, sys%nalpha
       call DGEMM( 'N','N', num_obf, sys%nkpts, xwidth, one, re_obf(1,ix2), num_obf, & 
-                  rtphi(ix2,1,ialpha), my_xpts, one, re_beta2(1,1,ialpha), num_obf )
+                  rtphi(ix2,1,ialpha), my_xpts, one, re_beta2(1,1,1), num_obf )
       call DGEMM( 'N','N', num_obf, sys%nkpts, xwidth, one, im_obf(1,ix2), num_obf, & 
-                  itphi(ix2,1,ialpha), my_xpts, one, re_beta2(1,1,ialpha), num_obf )
+                  itphi(ix2,1,ialpha), my_xpts, one, re_beta2(1,1,1), num_obf )
       call DGEMM( 'N','N', num_obf, sys%nkpts, xwidth, minusone, im_obf(1,ix2), num_obf, & 
-                  rtphi(ix2,1,ialpha), my_xpts, one, im_beta2(1,1,ialpha), num_obf )
+                  rtphi(ix2,1,ialpha), my_xpts, one, im_beta2(1,1,1), num_obf )
       call DGEMM( 'N','N', num_obf, sys%nkpts, xwidth, one, re_obf(1,ix2), num_obf, & 
-                  itphi(ix2,1,ialpha), my_xpts, one, im_beta2(1,1,ialpha), num_obf )
+                  itphi(ix2,1,ialpha), my_xpts, one, im_beta2(1,1,1), num_obf )
     enddo
-    enddo
+!$OMP END DO
+!  enddo
 
-!    call cpu_time( time1 )
 ! now obf2u *
-    do ialpha = 1, sys%nalpha
+!    do ialpha = 1, sys%nalpha
+!$OMP DO SCHEDULE( STATIC )
       do ikpt = 1, sys%nkpts
 ! 49.070
 !        call DGEMV( 'N', sys%num_bands, num_obf, one, re_obf2u(1,1,ikpt), sys%num_bands, &
@@ -376,30 +377,35 @@ module ocean_long_range
 !                    im_beta(1,ikpt,ialpha), 1, zero, hp%i(1,ikpt,ialpha), 1 )
 !        call DGEMV( 'N', sys%num_bands, num_obf, minusone, im_obf2u(1,1,ikpt), sys%num_bands, &
 !                    re_beta(1,ikpt,ialpha), 1, one, hp%i(1,ikpt,ialpha), 1 )
-! 275.362!!
-!        do ibd = 1, sys%num_bands
-!          hp%r(ibd,ikpt,ialpha) = DDOT( num_obf, re_obf2u(ibd,1,ikpt), sys%num_bands, re_beta(1,ikpt,ialpha), 1 ) &
-!                                + DDOT( num_obf, im_obf2u(ibd,1,ikpt), sys%num_bands, im_beta(1,ikpt,ialpha), 1 )
-!          hp%i(ibd,ikpt,ialpha) = DDOT( num_obf, re_obf2u(ibd,1,ikpt), sys%num_bands, im_beta(1,ikpt,ialpha), 1 ) &
-!                                - DDOT( num_obf, im_obf2u(ibd,1,ikpt), sys%num_bands, re_beta(1,ikpt,ialpha), 1 )
-!        enddo
 ! 30.353
+!        hp%r(:,ikpt,ialpha) =  re_obf2u(:,1,ikpt)*re_beta2(1,ikpt,1) &
+!                              + im_obf2u(:,1,ikpt)*im_beta2(1,ikpt,1)
+!        hp%i(:,ikpt,ialpha) = re_obf2u(:,1,ikpt)*im_beta2(1,ikpt,1) &
+!                              - im_obf2u(:,1,ikpt)*re_beta2(1,ikpt,1)
+        
         hp%r(:,ikpt,ialpha) = 0.0_DP
         hp%i(:,ikpt,ialpha) = 0.0_DP
         do iobf = 1, num_obf
-          hp%r(:,ikpt,ialpha) = hp%r(:,ikpt,ialpha) &
-                              + re_obf2u(:,iobf,ikpt)*re_beta2(iobf,ikpt,ialpha) &
-                              + im_obf2u(:,iobf,ikpt)*im_beta2(iobf,ikpt,ialpha)
-          hp%i(:,ikpt,ialpha) = hp%i(:,ikpt,ialpha) &
-                              + re_obf2u(:,iobf,ikpt)*im_beta2(iobf,ikpt,ialpha) &
-                              - im_obf2u(:,iobf,ikpt)*re_beta2(iobf,ikpt,ialpha)
+          call DAXPY( sys%num_bands, re_beta2(iobf,ikpt,1), re_obf2u(1,iobf,ikpt), 1, hp%r(1,ikpt,ialpha), 1 )
+          call DAXPY( sys%num_bands, -re_beta2(iobf,ikpt,1), im_obf2u(1,iobf,ikpt), 1, hp%i(1,ikpt,ialpha), 1 )
+          call DAXPY( sys%num_bands, im_beta2(iobf,ikpt,1), im_obf2u(1,iobf,ikpt), 1, hp%r(1,ikpt,ialpha), 1 )
+          call DAXPY( sys%num_bands, im_beta2(iobf,ikpt,1), re_obf2u(1,iobf,ikpt), 1, hp%i(1,ikpt,ialpha), 1 )
+!          hp%r(:,ikpt,ialpha) = hp%r(:,ikpt,ialpha) &
+!                              + re_obf2u(:,iobf,ikpt)*re_beta2(iobf,ikpt,1) &
+!                              + im_obf2u(:,iobf,ikpt)*im_beta2(iobf,ikpt,1)
+!          hp%i(:,ikpt,ialpha) = hp%i(:,ikpt,ialpha) &
+!                              + re_obf2u(:,iobf,ikpt)*im_beta2(iobf,ikpt,1) &
+!                              - im_obf2u(:,iobf,ikpt)*re_beta2(iobf,ikpt,1)
         enddo
       enddo
+!$OMP END DO 
     enddo
 
 
     deallocate( xwrkr, xwrki, wrk )
     deallocate( rphi, iphi, rtphi, itphi )
+
+!$OMP END PARALLEL
     deallocate( re_beta, im_beta ) !, cphs, sphs )
     deallocate( re_beta2, im_beta2 )
 
