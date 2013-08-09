@@ -1,6 +1,6 @@
 FC = mpif90
-FLAGS = -O3 -ffree-line-length-none -x f95-cpp-input -m64 -DHAVE_FLUSH -DBLAS  -Wall  -g -ffree-line-length-none  -funroll-loops -ftree-vectorizer-verbose=0 -ffast-math -ftree-vectorize -DMPI -fopenmp
-LDFLAGS = -m64  -Wall  -g -fopenmp
+FLAGS = -O3 -ffree-line-length-none -x f95-cpp-input -m64 -DHAVE_FLUSH -DBLAS  -Wall  -g -ffree-line-length-none  -funroll-loops -ftree-vectorizer-verbose=0 -ffast-math -ftree-vectorize -DMPI -fopenmp  -march=corei7 
+LDFLAGS = -m64  -Wall  -g -fopenmp -march=corei7
 
 FFTWI = -I/home/jtv1/bin/gnu/include
 FFTWL = /home/jtv1/bin/gnu/lib/libfftw3.a
