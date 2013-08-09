@@ -39,11 +39,40 @@ module ocean_long_range
   logical :: is_init = .false.
   logical :: is_loaded = .false.
 
+  logical :: use_obf = .true.
+  logical :: use_fake_obf = .false.
+  real( DP ) :: timer = 0.0_DP
+  real( DP ) :: timer1 = 0.0_DP
   
 
-  public :: create_lr, lr_populate_W, lr_populate_bloch, lr_act, lr_populate_W2, lr_fill_values, lr_init
+  public :: create_lr, lr_populate_W, lr_populate_bloch, lr_act, lr_populate_W2, lr_fill_values, lr_init, lr_timer
 
   contains
+
+  real(DP) function lr_timer()
+    lr_timer = timer1
+    return
+  end function
+
+  subroutine lr_act( sys, p, hp, lr, ierr )
+    use OCEAN_system
+    use OCEAN_psi
+
+    type( o_system ), intent( in ) :: sys
+    type(OCEAN_vector), intent( in ) :: p
+    type(OCEAN_vector), intent(inout) :: hp
+    type(long_range), intent(inout) :: lr
+    integer, intent( inout ) :: ierr
+
+    if( use_obf ) then
+      call lr_act_obf2( sys, p, hp, ierr )
+    else
+      call lr_act_traditional( sys, p, hp, lr, ierr )
+    endif
+  end subroutine lr_act
+
+    
+
 
 
 ! **** subroutine lr_init( sys, ierr ) ****
@@ -56,7 +85,11 @@ module ocean_long_range
     
     use OCEAN_system
     use OCEAN_bloch
+!    use OCEAN_obf, only : OCEAN_obf_is_loaded, OCEAN_obf_load, OCEAN_obf_lrLOAD
+    use OCEAN_obf
     use iso_c_binding
+    use OCEAN_mpi
+    use mpi
     implicit none
     include 'fftw3.f03'
 
@@ -67,15 +100,40 @@ module ocean_long_range
 
     type(C_PTR) :: cptr
 
+    if( myid .eq. root ) then
+      open(unit=99,file='bloch_control',form='formatted',status='old')
+      rewind(99)
+      read(99,*) use_obf
+      read(99,*) use_fake_obf
+    endif
+#ifdef MPI
+    call MPI_BCAST( use_obf, 1, MPI_LOGICAL, root, comm, ierr )
+    call MPI_BCAST( use_fake_obf, 1, MPI_LOGICAL, root, comm, ierr )
+#endif
 
     !!! (1)
-    if( OCEAN_bloch_is_loaded() .eqv. .false. ) call OCEAN_bloch_load( sys, ierr )
-    if( ierr .ne. 0 ) return
+    if( use_obf ) then
+      if( OCEAN_obf_is_loaded()  .eqv. .false. ) call OCEAN_obf_load( sys, ierr )
+      if( ierr .ne. 0 ) then
+         write(6,*) 'obf loaded failed'
+         return
+       endif
+    else
+      if( OCEAN_bloch_is_loaded() .eqv. .false. ) call OCEAN_bloch_load( sys, ierr )
+      if( ierr .ne. 0 ) then
+         write(6,*) 'is loaded'
+         return
+       endif
+    endif
 
     !!! (2)
     if( is_init .eqv. .false. ) then 
+      if( myid .eq. root ) write(6,*) 'filling values'
       call lr_fill_values( ierr )
-      if( ierr .ne. 0 ) return
+      if( ierr .ne. 0 ) then
+        write(6,*) 'lr_fill_values'
+        return
+      endif
 
       cptr = fftw_alloc_real( int(my_num_bands * my_kpts * my_xpts, C_SIZE_T) )
       call c_f_pointer( cptr, re_bloch_state, [my_num_bands, my_kpts, my_xpts] )
@@ -86,6 +144,7 @@ module ocean_long_range
       call c_f_pointer( cptr, W, [ my_kpts, my_xpts ] )
       
       is_init = .true.
+    if( myid .eq. root ) write(6,*) 'Done filling values'
     endif
 
     
@@ -102,11 +161,28 @@ module ocean_long_range
     !!! (4)
     if( is_loaded .eqv. .false. ) then
       my_tau( : ) = sys%cur_run%tau( : )
+      
+      if( use_obf ) then
+!JTV for now populate lr from obf
+        if( use_fake_obf ) then
+          if( myid .eq. root ) write( 6,*) 'Calling obf_lrLOAD'
+          call OCEAN_obf_lrLOAD( sys, my_tau, my_xshift, re_bloch_state, im_bloch_state, ierr )
+          if( myid .eq. root ) write( 6,*) 'Done calling obf_lrLOAD'
+          use_obf = .false.
+        else
+          call OCEAN_obf_make_phase( sys, my_tau, my_xshift, ierr )
+        endif
+!       call OCEAN_obf_lrLOAD( sys, my_tau, my_xshift, ierr )
+!      if( use_obf .eqv. .false. ) then
+      else
+        call OCEAN_bloch_lrLOAD( sys, my_tau, my_xshift, re_bloch_state, im_bloch_state, ierr )
+        if( ierr .ne. 0 ) return
+      endif
 
-      call OCEAN_bloch_lrLOAD( sys, my_tau, my_xshift, re_bloch_state, im_bloch_state, ierr )
-      if( ierr .ne. 0 ) return
+
 
       call lr_populate_W2( sys, ierr )
+      if( myid .eq. root ) write(6,*) 'W2 loaded'
       if( ierr .ne. 0 ) return
     endif
 
@@ -124,27 +200,213 @@ module ocean_long_range
 
   end subroutine lr_init
 
-!  subroutine lr_act_obf2( sys, ierr )
-!    use OCEAN_system
+  subroutine lr_act_obf2( sys, p, hp, ierr )
+    use OCEAN_system
+    use OCEAN_psi
+    use OCEAN_obf, only : num_obf, re_obf2u, im_obf2u, re_obf, im_obf, re_obf_phs, im_obf_phs
 
 
-!    type( o_system ), intent( in ) :: sys
-!    integer, intent( inout ) :: ierr
+    type( o_system ), intent( in ) :: sys
+    type(OCEAN_vector), intent( in ) :: p
+    type(OCEAN_vector), intent(inout) :: hp
+    integer, intent( inout ) :: ierr
+
     
-!    allocate( beta( num_obf, sys%nkpts, sys%nalpha ) )
-!    do ikpt = 1, sys%nkpts
+    real( DP ), parameter :: one = 1.0_DP
+    real( DP ), parameter :: minusone = -1.0_DP
+    real( DP ), parameter :: zero = 0.0_DP
+    real( DP ), parameter :: pi = 3.141592653589793238462643383279502884197_DP
+    real( DP ) :: phs
+
+    integer :: ikpt, iobf, ibd, ialpha, obf_width, cache_obf
+    integer :: ix, iy, iz, xph, yph, zph, iq, iq1, iq2, iq3, ii, xactual
+    integer :: jfft, xxph, yyph, zzph, ixpt
+    integer :: xstop, xwidth, ix2
+
+    real( DP ), allocatable :: re_beta( :, :, : ), im_beta( :, :, : )
+    real( DP ), allocatable :: re_beta2( :, :, : ), im_beta2( :, :, : )
+    real(DP), allocatable :: rphi(:,:,:), iphi(:,:,:), rtphi(:,:,:), itphi(:,:,:)
+    real( DP ), allocatable :: xwrkr( :, : ), xwrki( :, : ), wrk( : ), cphs(:), sphs(:)
+
+    real(DP) :: time1, time2
+    
+    real(DP), external :: DDOT
+
+    call cpu_time( time1 )
+
+    jfft = 2 * max( sys%kmesh( 1 ) * ( sys%kmesh( 1 ) + 1 ), sys%kmesh( 2 ) * ( sys%kmesh( 2 ) + 1 ), &
+                    sys%kmesh( 3 ) * ( sys%kmesh( 3 ) + 1 ) )
+    
+
+    allocate( re_beta( num_obf, sys%nkpts, sys%nalpha ), im_beta( num_obf, sys%nkpts, sys%nalpha ) )
+    allocate( re_beta2( num_obf, sys%nkpts, sys%nalpha ), im_beta2( num_obf, sys%nkpts, sys%nalpha ) )
+    allocate( rphi( my_kpts, my_xpts, sys%nalpha ), iphi( my_kpts, my_xpts, sys%nalpha ) )
+    allocate( rtphi( my_xpts, my_kpts, sys%nalpha ), itphi( my_xpts, my_kpts, sys%nalpha ) )
+
+    allocate( xwrkr( sys%nkpts, sys%nalpha ), xwrki( sys%nkpts, sys%nalpha ), wrk( jfft ) )
+!    allocate( cphs( sys%nkpts ), sphs( sys%nkpts ) )
+
+    re_beta2(:,:,:) = 0.0_DP
+    im_beta2(:,:,:) = 0.0_DP
+
+!    cache_obf = num_obf
+    obf_width = num_obf
+    iobf = 1
+    do ikpt = 1, sys%nkpts
 !      do iobf = 1, num_obf, cache_obf
 !        obf_width = min( iobf + cache_obf - 1, sys%nobf )
 !        obf_width = obf_width - iobf + 1
-!        do ialpha = 1, sys%nalpha
+      do iobf =1, num_obf
+        do ialpha = 1, sys%nalpha
+! Bug in DGEMV??
 !          call DGEMV( 'T', sys%num_bands, obf_width, one, re_obf2u(1,iobf,ikpt), sys%num_bands, &
-!                      psri%r(1, ikpt, ialpha), 1, zero, re_beta(iobf,ikpt,ialpha), 1 )
+!                      p%r(1, ikpt, ialpha), 1, zero, re_beta(iobf,ikpt,ialpha), 1 )
+!          call DGEMV( 'T', sys%num_bands, obf_width, minusone, im_obf2u(1,iobf,ikpt), sys%num_bands, &
+!                      p%i(1, ikpt, ialpha), 1, one, re_beta(iobf,ikpt,ialpha), 1 )
 !          call DGEMV( 'T', sys%num_bands, obf_width, one, im_obf2u(1,iobf,ikpt), sys%num_bands, &
-!                      psri%i(1, ikpt, ialpha), 1, one, re_beta(iobf,ikpt,ialpha), 1 )
-!          
-        
+!                      p%r(1, ikpt, ialpha), 1, zero, im_beta(iobf,ikpt,ialpha), 1 )
+!          call DGEMV( 'T', sys%num_bands, obf_width, one, re_obf2u(1,iobf,ikpt), sys%num_bands, &
+!                      p%i(1, ikpt, ialpha), 1, one, im_beta(iobf,ikpt,ialpha), 1 )
+          re_beta(iobf,ikpt,ialpha) = DDOT( sys%num_bands, re_obf2u(1,iobf,ikpt), 1, p%r(1, ikpt, ialpha), 1 ) &
+                                    - DDOT( sys%num_bands, im_obf2u(1,iobf,ikpt), 1, p%i(1, ikpt, ialpha), 1 ) 
+          im_beta(iobf,ikpt,ialpha) = DDOT( sys%num_bands, re_obf2u(1,iobf,ikpt), 1, p%i(1, ikpt, ialpha), 1 ) &
+                                    + DDOT( sys%num_bands, im_obf2u(1,iobf,ikpt), 1, p%r(1, ikpt, ialpha), 1 ) 
 
-!  end subroutine
+        enddo
+      enddo
+    enddo
+
+    do ialpha = 1, sys%nalpha
+!  77.51-77.59
+
+      do ix2 = 1, my_xpts, 64
+        xstop = min(ix2+64-1,my_xpts)
+        xwidth = xstop - ix2 + 1
+
+      call DGEMM( 'T', 'N', sys%nkpts, xwidth, num_obf, one, re_beta(1,1,ialpha), num_obf, &
+                  re_obf(1,ix2), num_obf, zero, rphi(1,ix2,ialpha), sys%nkpts )
+      call DGEMM( 'T', 'N', sys%nkpts, xwidth, num_obf, minusone, im_beta(1,1,ialpha), num_obf, &
+                  im_obf(1,ix2), num_obf, one, rphi(1,ix2,ialpha), sys%nkpts )
+      call DGEMM( 'T', 'N', sys%nkpts, xwidth, num_obf, one, re_beta(1,1,ialpha), num_obf, &
+                  im_obf(1,ix2), num_obf, zero, iphi(1,ix2,ialpha), sys%nkpts )
+      call DGEMM( 'T', 'N', sys%nkpts, xwidth, num_obf, one, im_beta(1,1,ialpha), num_obf, &
+                  re_obf(1,ix2), num_obf, one, iphi(1,ix2,ialpha), sys%nkpts )
+!    enddo
+
+!    do ixpt = 1, my_xpts
+
+      do ixpt = ix2, xstop
+
+
+!      iq = 0
+!      do iq1 = 0, sys%kmesh(1) - 1
+!        do iq2 = 0, sys%kmesh(2) - 1
+!          do iq3 = 0, sys%kmesh(3) - 1
+!            iq = iq + 1
+!!?            ii = iq
+!!            ii = 1 + ( iq1 ) + sys%kmesh( 1 ) * ( ( iq2 ) + sys%kmesh( 2 ) * ( iq3 ) )
+!              xwrkr( ii, ialpha ) = rphi( iq, ixpt, ialpha ) * re_obf_phs( iq, ixpt ) &
+!                                  - iphi( iq, ixpt, ialpha ) * im_obf_phs( iq, ixpt )
+!              xwrki( ii, ialpha ) = iphi( iq, ixpt, ialpha ) * re_obf_phs( iq, ixpt ) &
+!                                  + rphi( iq, ixpt, ialpha ) * im_obf_phs( iq, ixpt )
+!          enddo
+!        enddo 
+!      enddo
+      xwrkr( :, ialpha ) = rphi( :, ixpt, ialpha ) * re_obf_phs( :, ixpt ) &
+                         - iphi( :, ixpt, ialpha ) * im_obf_phs( :, ixpt )
+      xwrki( :, ialpha ) = iphi( :, ixpt, ialpha ) * re_obf_phs( :, ixpt ) &
+                         + rphi( :, ixpt, ialpha ) * im_obf_phs( :, ixpt ) 
+
+
+      call cfft( xwrkr(1,ialpha), xwrki(1,ialpha), sys%kmesh(3), sys%kmesh(3), sys%kmesh(2), sys%kmesh(1), -1, wrk, jfft )
+!      call cfft( xwrkr(1,ialpha), xwrki(1,ialpha), sys%kmesh(1), sys%kmesh(1), sys%kmesh(2), sys%kmesh(3), -1, wrk, jfft )
+
+      xwrkr( :, ialpha ) = xwrkr( :, ialpha ) * W( :, ixpt )
+      xwrki( :, ialpha ) = xwrki( :, ialpha ) * W( :, ixpt )
+
+      call cfft( xwrkr(1,ialpha), xwrki(1,ialpha), sys%kmesh(3), sys%kmesh(3), sys%kmesh(2), sys%kmesh(1), +1, wrk, jfft )
+!      call cfft( xwrkr(1,ialpha), xwrki(1,ialpha), sys%kmesh(1), sys%kmesh(1), sys%kmesh(2), sys%kmesh(3), +1, wrk, jfft )
+
+      rtphi( ixpt, :, ialpha ) = xwrkr( :, ialpha ) * re_obf_phs( :, ixpt ) &
+                               + xwrki( :, ialpha ) * im_obf_phs( :, ixpt )
+      itphi( ixpt, :, ialpha ) = xwrki( :, ialpha ) * re_obf_phs( :, ixpt ) &
+                               - xwrkr( :, ialpha ) * im_obf_phs( :, ixpt )
+
+!      iq = 0
+!      do iq1 = 1, sys%kmesh(1)
+!        do iq2 = 1, sys%kmesh(2) 
+!          do iq3 = 1, sys%kmesh(3)
+!            iq = iq + 1
+!!            ii = 1 + ( iq1 - 1 ) + sys%kmesh( 1 ) * ( ( iq2 - 1 ) + sys%kmesh( 2 ) * ( iq3 - 1 ) )
+!            ii = iq
+!              rtphi( ixpt, iq, ialpha ) = xwrkr( ii, ialpha ) * re_obf_phs( iq, ixpt ) &
+!                                        + xwrki( ii, ialpha ) * im_obf_phs( iq, ixpt )
+!              itphi( ixpt, iq, ialpha ) = xwrki( ii, ialpha ) * re_obf_phs( iq, ixpt ) &
+!                                        - xwrkr( ii, ialpha ) * im_obf_phs( iq, ixpt )
+!            enddo
+!          enddo
+!        enddo
+
+      enddo ! ixpt
+
+
+! now obf*
+!    do ialpha = 1, sys%nalpha
+      call DGEMM( 'N','N', num_obf, sys%nkpts, xwidth, one, re_obf(1,ix2), num_obf, & 
+                  rtphi(ix2,1,ialpha), my_xpts, one, re_beta2(1,1,ialpha), num_obf )
+      call DGEMM( 'N','N', num_obf, sys%nkpts, xwidth, one, im_obf(1,ix2), num_obf, & 
+                  itphi(ix2,1,ialpha), my_xpts, one, re_beta2(1,1,ialpha), num_obf )
+      call DGEMM( 'N','N', num_obf, sys%nkpts, xwidth, minusone, im_obf(1,ix2), num_obf, & 
+                  rtphi(ix2,1,ialpha), my_xpts, one, im_beta2(1,1,ialpha), num_obf )
+      call DGEMM( 'N','N', num_obf, sys%nkpts, xwidth, one, re_obf(1,ix2), num_obf, & 
+                  itphi(ix2,1,ialpha), my_xpts, one, im_beta2(1,1,ialpha), num_obf )
+    enddo
+    enddo
+
+!    call cpu_time( time1 )
+! now obf2u *
+    do ialpha = 1, sys%nalpha
+      do ikpt = 1, sys%nkpts
+! 49.070
+!        call DGEMV( 'N', sys%num_bands, num_obf, one, re_obf2u(1,1,ikpt), sys%num_bands, &
+!                    re_beta(1,ikpt,ialpha), 1, zero, hp%r(1,ikpt,ialpha), 1 )
+!        call DGEMV( 'N', sys%num_bands, num_obf, one, im_obf2u(1,1,ikpt), sys%num_bands, &
+!                    im_beta(1,ikpt,ialpha), 1, one, hp%r(1,ikpt,ialpha), 1 )
+!        call DGEMV( 'N', sys%num_bands, num_obf, one, re_obf2u(1,1,ikpt), sys%num_bands, &
+!                    im_beta(1,ikpt,ialpha), 1, zero, hp%i(1,ikpt,ialpha), 1 )
+!        call DGEMV( 'N', sys%num_bands, num_obf, minusone, im_obf2u(1,1,ikpt), sys%num_bands, &
+!                    re_beta(1,ikpt,ialpha), 1, one, hp%i(1,ikpt,ialpha), 1 )
+! 275.362!!
+!        do ibd = 1, sys%num_bands
+!          hp%r(ibd,ikpt,ialpha) = DDOT( num_obf, re_obf2u(ibd,1,ikpt), sys%num_bands, re_beta(1,ikpt,ialpha), 1 ) &
+!                                + DDOT( num_obf, im_obf2u(ibd,1,ikpt), sys%num_bands, im_beta(1,ikpt,ialpha), 1 )
+!          hp%i(ibd,ikpt,ialpha) = DDOT( num_obf, re_obf2u(ibd,1,ikpt), sys%num_bands, im_beta(1,ikpt,ialpha), 1 ) &
+!                                - DDOT( num_obf, im_obf2u(ibd,1,ikpt), sys%num_bands, re_beta(1,ikpt,ialpha), 1 )
+!        enddo
+! 30.353
+        hp%r(:,ikpt,ialpha) = 0.0_DP
+        hp%i(:,ikpt,ialpha) = 0.0_DP
+        do iobf = 1, num_obf
+          hp%r(:,ikpt,ialpha) = hp%r(:,ikpt,ialpha) &
+                              + re_obf2u(:,iobf,ikpt)*re_beta2(iobf,ikpt,ialpha) &
+                              + im_obf2u(:,iobf,ikpt)*im_beta2(iobf,ikpt,ialpha)
+          hp%i(:,ikpt,ialpha) = hp%i(:,ikpt,ialpha) &
+                              + re_obf2u(:,iobf,ikpt)*im_beta2(iobf,ikpt,ialpha) &
+                              - im_obf2u(:,iobf,ikpt)*re_beta2(iobf,ikpt,ialpha)
+        enddo
+      enddo
+    enddo
+
+
+    deallocate( xwrkr, xwrki, wrk )
+    deallocate( rphi, iphi, rtphi, itphi )
+    deallocate( re_beta, im_beta ) !, cphs, sphs )
+    deallocate( re_beta2, im_beta2 )
+
+    call cpu_time( time2 )
+    timer1 = timer1 + time2-time1
+
+  end subroutine
 
   subroutine lr_act_obf( sys, psi, hpsi, lr, obf, ierr )
     use OCEAN_system
@@ -435,7 +697,7 @@ module ocean_long_range
 
 
 
-  subroutine lr_act( sys, p, hp, lr, ierr )
+  subroutine lr_act_traditional( sys, p, hp, lr, ierr )
     use OCEAN_system
     use OCEAN_psi
     implicit none    
@@ -513,40 +775,46 @@ module ocean_long_range
 
     ! If there is some k-point division among procs this would be a problem here
         
-        iq = 0
-        do iq1 = 1, sys%kmesh(1)
-          do iq2 = 1, sys%kmesh(2)
-            do iq3 = 1, sys%kmesh(3)
-              iq = iq + 1
-              ii = 1 + ( iq1 - 1 ) + sys%kmesh( 1 ) * ( ( iq2 - 1 ) + sys%kmesh( 2 ) * ( iq3 - 1 ) )
-              xwrkr( ii ) = rphi( iq, ixpt, ialpha )
-              xwrki( ii ) = iphi( iq, ixpt, ialpha )
-            enddo
-          enddo
-        enddo
+!        iq = 0
+!        do iq1 = 1, sys%kmesh(1)
+!          do iq2 = 1, sys%kmesh(2)
+!            do iq3 = 1, sys%kmesh(3)
+!              iq = iq + 1
+!              ii = 1 + ( iq1 - 1 ) + sys%kmesh( 1 ) * ( ( iq2 - 1 ) + sys%kmesh( 2 ) * ( iq3 - 1 ) )
+!              xwrkr( ii ) = rphi( iq, ixpt, ialpha )
+!              xwrki( ii ) = iphi( iq, ixpt, ialpha )
+!            enddo
+!          enddo
+!        enddo
+        xwrkr( : ) = rphi( :, ixpt, ialpha )
+        xwrki( : ) = iphi( :, ixpt, ialpha )
 
-        call cfft( xwrkr, xwrki, sys%kmesh(1), sys%kmesh(1), sys%kmesh(2), sys%kmesh(3), -1, wrk, jfft )
+        call cfft( xwrkr, xwrki, sys%kmesh(3), sys%kmesh(3), sys%kmesh(2), sys%kmesh(1), -1, wrk, jfft )
+!        call cfft( xwrkr, xwrki, sys%kmesh(1), sys%kmesh(1), sys%kmesh(2), sys%kmesh(3), -1, wrk, jfft )
 
         xwrkr( : ) = xwrkr( : ) * W( :, ixpt )
         xwrki( : ) = xwrki( : ) * W( :, ixpt )
 
-        call cfft( xwrkr, xwrki, sys%kmesh(1), sys%kmesh(1), sys%kmesh(2), sys%kmesh(3), +1, wrk, jfft )
+        call cfft( xwrkr, xwrki, sys%kmesh(3), sys%kmesh(3), sys%kmesh(2), sys%kmesh(1), +1, wrk, jfft )
+!        call cfft( xwrkr, xwrki, sys%kmesh(1), sys%kmesh(1), sys%kmesh(2), sys%kmesh(3), +1, wrk, jfft )
+        rtphi( ixpt, :, ialpha ) = xwrkr( : )
+        itphi( ixpt, :, ialpha ) = xwrki( : )
 
-        iq = 0
-        do iq1 = 1, sys%kmesh(1)
-          do iq2 = 1, sys%kmesh(2)
-            do iq3 = 1, sys%kmesh(3)
-              iq = iq + 1
-              ii = 1 + ( iq1 - 1 ) + sys%kmesh( 1 ) * ( ( iq2 - 1 ) + sys%kmesh( 2 ) * ( iq3 - 1 ) )
-              rphi( iq, ixpt, ialpha ) = xwrkr( ii )
-              iphi( iq, ixpt, ialpha ) = xwrki( ii )
-!              rtphi( ixpt, iq, ialpha ) = xwrkr( ii )
-!              itphi( ixpt, iq, ialpha ) = xwrki( ii )
-            enddo
-          enddo
-        enddo
-        rtphi( ixpt, :, ialpha ) = rphi( :, ixpt, ialpha )
-        itphi( ixpt, :, ialpha ) = iphi( :, ixpt, ialpha )
+!        iq = 0
+!        do iq1 = 1, sys%kmesh(1)
+!          do iq2 = 1, sys%kmesh(2)
+!            do iq3 = 1, sys%kmesh(3)
+!              iq = iq + 1
+!              ii = 1 + ( iq1 - 1 ) + sys%kmesh( 1 ) * ( ( iq2 - 1 ) + sys%kmesh( 2 ) * ( iq3 - 1 ) )
+!              rphi( iq, ixpt, ialpha ) = xwrkr( ii )
+!              iphi( iq, ixpt, ialpha ) = xwrki( ii )
+!!              rtphi( ixpt, iq, ialpha ) = xwrkr( ii )
+!!              itphi( ixpt, iq, ialpha ) = xwrki( ii )
+!            enddo
+!          enddo
+!        enddo
+!        rtphi( ixpt, :, ialpha ) = rphi( :, ixpt, ialpha )
+!        itphi( ixpt, :, ialpha ) = iphi( :, ixpt, ialpha )
 
       
      enddo
@@ -732,11 +1000,11 @@ module ocean_long_range
     endif
 
 #ifdef MPI    
-    call MPI_BCAST( epsi, 1, MPI_DOUBLE, 0, comm, ierr ) 
+    call MPI_BCAST( epsi, 1, MPI_DOUBLE_PRECISION, 0, comm, ierr ) 
     if( ierr /= 0 ) goto 111
-    call MPI_BCAST( ptab, 100, MPI_DOUBLE, 0, comm, ierr )
+    call MPI_BCAST( ptab, 100, MPI_DOUBLE_PRECISION, 0, comm, ierr )
     if( ierr /= 0 ) goto 111
-    call MPI_BCAST( amet, 9, MPI_DOUBLE, 0, comm, ierr )
+    call MPI_BCAST( amet, 9, MPI_DOUBLE_PRECISION, 0, comm, ierr )
     if( ierr /= 0 ) goto 111
 #endif
 
@@ -877,18 +1145,22 @@ module ocean_long_range
           xiter = xiter + 1
           if( ( xiter .ge. my_start_nx ) .and. ( xiter .lt. my_start_nx + my_xpts ) ) then
           kiter = 0
-          do k3 = 1, sys%kmesh( 3 )
-            kk3 = k3 - 1
-            if ( kk3 .ge. sys%kmesh( 3 ) / 2 ) kk3 = kk3 - sys%kmesh( 3 )
-            xk( 3 ) = kk3
-              do k2 = 1, sys%kmesh( 2 )
-                kk2 = k2 - 1
-                if ( kk2 .ge. sys%kmesh( 2 ) / 2 ) kk2 = kk2 - sys%kmesh( 2 )
-                xk( 2 ) = kk2
+
                 do k1 = 1, sys%kmesh( 1 )
                   kk1 = k1 - 1
                   if ( kk1 .ge. sys%kmesh( 1 ) / 2 ) kk1 = kk1 - sys%kmesh( 1 )
                   xk( 1 ) = kk1
+
+              do k2 = 1, sys%kmesh( 2 )
+                kk2 = k2 - 1
+                if ( kk2 .ge. sys%kmesh( 2 ) / 2 ) kk2 = kk2 - sys%kmesh( 2 )
+                xk( 2 ) = kk2
+
+          do k3 = 1, sys%kmesh( 3 )
+            kk3 = k3 - 1
+            if ( kk3 .ge. sys%kmesh( 3 ) / 2 ) kk3 = kk3 - sys%kmesh( 3 )
+            xk( 3 ) = kk3
+
                   kiter = kiter + 1
                   alf( : ) = xk( : ) + fr( : ) - my_tau( : )
                   r = sqrt( dot_product( alf, matmul( amet, alf ) ) )
@@ -1222,10 +1494,20 @@ module ocean_long_range
   subroutine lr_fill_values( ierr )
     use OCEAN_system
     use OCEAN_bloch
+    use OCEAN_obf
+    use OCEAN_mpi, only : myid, root
     implicit none
     integer, intent(inout) :: ierr
 
-    call OCEAN_bloch_lrINIT( my_xpts, my_kpts, my_num_bands, my_start_nx, ierr )
+    if( use_obf ) then
+      call OCEAN_obf_lrINIT( my_xpts, my_kpts, my_num_bands, my_start_nx, ierr )
+    else
+      call OCEAN_bloch_lrINIT( my_xpts, my_kpts, my_num_bands, my_start_nx, ierr )
+    endif
+    if(myid .eq. root ) then
+      write(6,*) 'MY_XPTS  MY_KPTS  MY_NUM_BANDS  MY_START_NX'
+      write(6,*) my_xpts, my_kpts, my_num_bands, my_start_nx
+    endif
 
   end subroutine
 
