@@ -23,6 +23,7 @@ program ocean
   call ocean_sys_init( sys, ierr )
 
   call ocean_load_data( sys, hay_vec, lr, ierr )
+  if( ierr .ne. 0 ) goto 111
 
 
   call ocean_hayinit( ierr )
@@ -33,6 +34,10 @@ program ocean
 
 
   call ocean_mpi_finalize( ierr )
+
+111 continue
   if( ierr .ne. 0 ) write(6,*) '!!', ierr
+
+  if( myid .eq. 0 ) write(6,*) lr%timer, lr_timer()
 
 end program ocean
