@@ -11,7 +11,7 @@ BLACS =  -L/home/jtv1/ATLAS/ATLAS_sandy/lib  -lscalapack -llapack -lf77blas -lcb
 
 all: ocean.x
 
-OCEANOBJS = AI_kinds.o OCEAN_mpi.o OCEAN_system.o OCEAN_bloch.o OCEAN_multiplet.o long_range.o OCEAN_load_data.o OCEAN_psi.o \
+OCEANOBJS = AI_kinds.o OCEAN_mpi.o OCEAN_system.o OCEAN_bloch.o OCEAN_obf.o OCEAN_multiplet.o long_range.o OCEAN_load_data.o OCEAN_psi.o \
             OCEAN_energies.o OCEAN_haydock.o OCEAN.o getabb.o getomega.o gamfcn.o jlmfft.o limel.o jimel.o \
             nbsemkcmel.o intval.o newgetylm.o  newgetprefs.o newthreey.o cainmhsetup.o redtrid.o elsdch.o 
 
@@ -30,7 +30,7 @@ AI_kinds.o: AI_kinds.f90
 OCEAN_system.o: OCEAN_system.f90
 	$(FC) $(FLAGS) -c -o  OCEAN_system.o OCEAN_system.f90
 
-OCEAN_load_data.o: OCEAN_load_data.f90
+OCEAN_load_data.o: OCEAN_load_data.f90 OCEAN_energies.o
 	$(FC) $(FLAGS) -c -o OCEAN_load_data.o OCEAN_load_data.f90
 
 OCEAN_psi.o: OCEAN_psi.f90
@@ -58,7 +58,7 @@ long_range.o: long_range.f90
 jlmfft.o: jlmfft.f
 	 $(FC) $(FLAGS) -c -o jlmfft.o jlmfft.f
 
-OCEAN_multiplet.o: OCEAN_multiplet.f90
+OCEAN_multiplet.o: OCEAN_multiplet.f90 OCEAN_psi.o
 	$(FC) $(FLAGS) -c -o OCEAN_multiplet.o OCEAN_multiplet.f90
 
 
@@ -94,6 +94,9 @@ elsdch.o: elsdch.f
 
 OCEAN_bloch.o: OCEAN_bloch.f90 OCEAN_system.o AI_kinds.o OCEAN_mpi.o
 	$(FC) $(FLAGS) -c -o OCEAN_bloch.o OCEAN_bloch.f90 $(FFTWI)
+
+OCEAN_obf.o: OCEAN_obf.f90 OCEAN_system.o AI_kinds.o OCEAN_mpi.o
+	$(FC) $(FLAGS) -c -o OCEAN_obf.o OCEAN_obf.f90 $(FFTWI)
 
 clean:
 	rm *.o *.mod
