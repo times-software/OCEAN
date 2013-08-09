@@ -319,6 +319,9 @@ module OCEAN_psi
     endif
         
 #ifdef MPI
+    if( myid .eq. root ) write(6,*) p%bands_pad, p%kpts_pad, sys%nalpha
+    write(6,*) myid, root
+    call MPI_BARRIER( comm, ierr )
     call MPI_BCAST( kpref, 1, MPI_DOUBLE_PRECISION, root, comm, ierr )
     if( ierr .ne. MPI_SUCCESS ) goto 111
 
