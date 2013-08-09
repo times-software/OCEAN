@@ -170,13 +170,13 @@ module OCEAN_system
     if( ierr .ne. MPI_SUCCESS ) goto 111
     call MPI_BCAST( sys%conduct, 1, MPI_LOGICAL, root, comm, ierr )
     if( ierr .ne. MPI_SUCCESS ) goto 111
-    call MPI_BCAST( sys%calc_type, 5, MPI_CHAR, root, comm, ierr )
+    call MPI_BCAST( sys%calc_type, 5, MPI_CHARACTER, root, comm, ierr )
     if( ierr .ne. MPI_SUCCESS ) goto 111
 
 
-111 continue
 
 #endif
+111 continue
 !    allocate( sys%cur_run, STAT=ierr )
 !    if( ierr .ne. 0 ) return
 !
@@ -210,7 +210,7 @@ module OCEAN_system
     character(len=5) :: calc_type
     type(o_run), pointer :: temp_prev_run, temp_cur_run
 
-    integer :: ntot, nmatch, iter
+    integer :: ntot, nmatch, iter, i
     logical :: found
     real(DP) :: tmp(3)
 
@@ -219,12 +219,18 @@ module OCEAN_system
     temp_prev_run => sys%cur_run
 
     if( myid .eq. root ) then
+      write(6,*) 'Runlist init'
       open(unit=99,file='runlist',form='formatted',status='old')
       rewind(99)
+      read(99,*) running_total
     endif
 
-    do
-      if( myid .eq. root ) read(99,*,END=111)  ZNL(1), ZNL(2), ZNL(3), elname, corelevel, indx, photon, calc_type
+#ifdef MPI
+    call MPI_BCAST( running_total, 1, MPI_INTEGER, root, comm, ierr )
+#endif
+
+    do i = 1, running_total
+      if( myid .eq. root ) read(99,*)  ZNL(1), ZNL(2), ZNL(3), elname, corelevel, indx, photon, calc_type
 
       if( myid .eq. root ) then
         open(unit=98,file='xyz.wyck',form='formatted',status='old')
@@ -258,15 +264,15 @@ module OCEAN_system
       if( ierr .ne. MPI_SUCCESS ) goto 111
       call MPI_BCAST( ZNL, 3, MPI_INTEGER, root, comm, ierr )
       if( ierr .ne. MPI_SUCCESS ) goto 111
-      call MPI_BCAST( elname, 2, MPI_CHAR, root, comm, ierr )
+      call MPI_BCAST( elname, 2, MPI_CHARACTER, root, comm, ierr )
       if( ierr .ne. MPI_SUCCESS ) goto 111
-      call MPI_BCAST( corelevel, 2, MPI_CHAR, root, comm, ierr )
+      call MPI_BCAST( corelevel, 2, MPI_CHARACTER, root, comm, ierr )
       if( ierr .ne. MPI_SUCCESS ) goto 111
       call MPI_BCAST( indx, 1, MPI_INTEGER, root, comm, ierr )
       if( ierr .ne. MPI_SUCCESS ) goto 111
       call MPI_BCAST( photon, 1, MPI_INTEGER, root, comm, ierr )
       if( ierr .ne. MPI_SUCCESS ) goto 111
-      call MPI_BCAST( calc_type, 5, MPI_CHAR, root, comm, ierr )
+      call MPI_BCAST( calc_type, 5, MPI_CHARACTER, root, comm, ierr )
       if( ierr .ne. MPI_SUCCESS ) goto 111
 #endif
 
@@ -275,7 +281,7 @@ module OCEAN_system
 
       allocate( temp_cur_run, STAT=ierr )
       if( ierr .ne. 0 ) return
-      if( running_total .eq. 0 ) then
+      if( running_total .eq. 1 ) then
         sys%cur_run => temp_cur_run
       else
         temp_cur_run%prev_run => temp_prev_run
@@ -294,19 +300,20 @@ module OCEAN_system
             '.', temp_cur_run%indx, '_', temp_cur_run%corelevel, '_', temp_cur_run%photon
 
       temp_prev_run => temp_cur_run
-      running_total = running_total + 1
+!      running_total = running_total + 1
     enddo
 
-111 continue
 
     if( running_total .lt. 1 ) then
       ierr = -1
       if(myid .eq. root ) write(6,*) 'Failed to read in any runs'
     endif
+    call MPI_BARRIER( comm, ierr )
     if( myid .eq. root ) then
       close( 99 )
       write(6,*) 'Number of calcs to complete: ', running_total
     endif
+111 continue
 
     
   end subroutine OCEAN_runlist_init
