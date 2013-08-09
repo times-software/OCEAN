@@ -179,9 +179,10 @@ module OCEAN_action
     call ocean_hay_alloc( sys, hay_vec, psi, hpsi, old_psi, new_psi, multiplet_psi, long_range_psi, ierr )
 
 
-    
-    write ( 6, '(2x,1a8,1e15.8)' ) ' mult = ', kpref
-    write(6,*) inter_scale, haydock_niter
+    if( myid .eq. root ) then 
+      write ( 6, '(2x,1a8,1e15.8)' ) ' mult = ', kpref
+      write(6,*) inter_scale, haydock_niter
+    endif
     do iter = 1, haydock_niter
 
       if( sys%long_range ) then
