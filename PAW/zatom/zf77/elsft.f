@@ -570,7 +570,7 @@ c
       end                                              
 c                                                                       
 c                                                                       
-      function gbslve(shift, n, a, b)            
+      double precision function gbslve(shift, n, a, b)            
 c                                                                      
 c       this procedure performs elimination to solve for the            
 c       n-th component of the solution delta to the equation            
