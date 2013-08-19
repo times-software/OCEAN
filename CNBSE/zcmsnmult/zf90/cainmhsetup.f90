@@ -1,3 +1,4 @@
+! Compiled with gfortran 4.7.2 and -O3 this gives a NaN for the rutile test
 subroutine nbsemhsetup( lc, lv, np, mham, cms, cml, vms, vml, vnu, mhr, mhi, add10 )
   implicit none
   !
@@ -123,8 +124,9 @@ subroutine nbsemhsetup( lc, lv, np, mham, cms, cml, vms, vml, vnu, mhr, mhi, add
                        call threey( l1, m1, k, mk, l3, m3, no, npt, x, w, yp, f1 )
                        call threey( l2, m2, k, mk, l4, m4, yes, npt, x, w, yp, f2 )
                        ctmp = - ffk * f1 * f2 * ( 4 * pi / ( 2 * k + 1 ) )
-                       mhr( i1, i2 ) = mhr( i1, i2 ) + ctmp
-                       mhi( i1, i2 ) = mhi( i1, i2 ) - ctmp * rm1
+                       mhr( i1, i2 ) = mhr( i1, i2 ) + dble(ctmp)
+!                       mhi( i1, i2 ) = mhi( i1, i2 ) - ctmp * rm1
+                       mhi( i1, i2 ) = mhi( i1, i2 ) + aimag( ctmp )
                     end if
                  end do
               end if
@@ -145,14 +147,16 @@ subroutine nbsemhsetup( lc, lv, np, mham, cms, cml, vms, vml, vnu, mhr, mhi, add
                        call threey( l1, m1, k, mk, l3, m3, no, npt, x, w, yp, f1 )
                        call threey( l2, m2, k, mk, l4, m4, yes, npt, x, w, yp, f2 )
                        ctmp = ggk * f1 * f2 * ( 4 * pi / ( 2 * k + 1 ) )
-                       mhr( i1, i2 ) = mhr( i1, i2 ) + ctmp
-                       mhi( i1, i2 ) = mhi( i1, i2 ) - ctmp * rm1
+                       mhr( i1, i2 ) = mhr( i1, i2 ) + dble(ctmp)
+                       mhi( i1, i2 ) = mhi( i1, i2 ) + aimag(ctmp)
+!                       mhi( i1, i2 ) = mhi( i1, i2 ) - ctmp * rm1
                     end if
                  end do
               end if
            end if
         end if
         !
+        write(22,*) i2, i1, mhr(i2,i1), mhi(i2,i1)
      end do
   end do
   !
