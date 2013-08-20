@@ -6,7 +6,7 @@ WFCONVERTGW_OBJS = wfconvert_gw.o headpar.o grabwf.o wfsubs.o
 
 .SUFFIXES: .f .x .f90
 
-all: wfconvert.x nelectron.x rhoofg.x wfconvert_gw.x
+all: wfconvert.x nelectron.x rhoofg.x 
 
 install:
 	cp $(SCRIPTS) $(FILESF90) $(INSTDIR)
