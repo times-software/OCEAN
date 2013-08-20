@@ -156,7 +156,6 @@ subroutine nbsemhsetup( lc, lv, np, mham, cms, cml, vms, vml, vnu, mhr, mhi, add
            end if
         end if
         !
-        write(22,*) i2, i1, mhr(i2,i1), mhi(i2,i1)
      end do
   end do
   !
