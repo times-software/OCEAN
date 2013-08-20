@@ -1,5 +1,5 @@
 #OPTS = -openmp -openmp-report2 -opt-mem-bandwidth1  -traceback -static-intel
-OPTS = -fopenmp -m64 -ffree-line-length-none -O3 -mtune=corei7
+OPTS = -fopenmp -m64 -ffree-line-length-none -O2 -mtune=corei7 
 #-YDEALLOC=ALL
 #COMP = /usr/local/usr/absoft32/bin/f90
 COMP = gfortran
