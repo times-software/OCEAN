@@ -9,7 +9,7 @@ if (! $ENV{"OCEAN_BIN"} ) {
 }
 if (! $ENV{"OCEAN_WORKDIR"}){ $ENV{"OCEAN_WORKDIR"} = `pwd` . "../" ; }
 if (!$ENV{"OCEAN_VERSION"}) {$ENV{"OCEAN_VERSION"} = `cat $ENV{"OCEAN_BIN"}/Version`; }
-if (! $ENV{"OCEAN_ABINIT"} ) {$ENV{"OCEAN_ABINIT"} = "mpirun -n 4 " . $ENV{"OCEAN_BIN"} . "/abinit"; }
+if (! $ENV{"OCEAN_ABINIT"} ) {$ENV{"OCEAN_ABINIT"} = $ENV{"OCEAN_BIN"} . "/abinit"; }
 if (! $ENV{"OCEAN_CUT3D"} ) {$ENV{"OCEAN_CU3D"} = $ENV{"OCEAN_BIN"} . "/cut3d"; }
 
 ####################################
@@ -25,7 +25,7 @@ my $RunABINIT = 0;
 my $pawRUN = 0;
 my $bseRUN = 0;
 
-my @GeneralFiles = ("core" );#, "getden");
+my @GeneralFiles = ("core", "para_prefix" );#, "getden");
 
 my @KgenFiles = ("nkpt", "k0.ipt", "qinunitsofbvectors.ipt", "paw.nkpt");
 my @BandFiles = ("nbands", "paw.nbands");
@@ -147,6 +147,11 @@ foreach (@KgenFiles) {
 foreach (@BandFiles) {
   system("cp ../Common/$_ .") == 0 or die;
 }
+
+open PARA, "para_prefix" or die "$!";
+my $para_prefix = <PARA>;
+chomp($para_prefix);
+close PARA;
 
 #if  ($RunKGen) {
 #  foreach (@KgenFiles) {
@@ -368,8 +373,8 @@ if ($RunABINIT) {
 #  }
 #  else {
   print "Density Run\n";
-  system("$ENV{'OCEAN_ABINIT'} < denout.files >& density.log") == 0
-    or die "Failed to run initial density stage\n$ENV{'OCEAN_ABINIT'}\n";
+  system("$para_prefix $ENV{'OCEAN_ABINIT'} < denout.files >& density.log") == 0
+    or die "Failed to run initial density stage\n$para_prefix $ENV{'OCEAN_ABINIT'}\n";
 #  }
   `echo 1 > den.stat`;
 
@@ -459,10 +464,22 @@ if ( $pawRUN ) {
               . "SCxx" . $runcount . "\n";
     close FILES;
     `cat finalpplist >> $deninFiles`;
+
+    my $denin = sprintf("denin.files.%04i", $runcount);
+    print "$para_prefix $ENV{'OCEAN_ABINIT'} < $denin >& ABINIT.$runcount.log";
+    system("$para_prefix $ENV{'OCEAN_ABINIT'} < $denin >& ABINIT.$runcount.log") == 0 or
+      die "$!\n";
+    print "\n";
   }
 
 
-  system("$ENV{'OCEAN_BIN'}/par_ab2.pl") == 0 or die "Failed to run Abinit: $!\n";
+#  system("$ENV{'OCEAN_BIN'}/par_ab2.pl") == 0 or die "Failed to run Abinit: $!\n";
+
+#  if (system("$OCEAN_ABINIT < $denin >& ABINIT.$file_counter.log") != 0 ) {
+#    print STDERR  "Failed to run Abinit $file_counter\n";
+#    exit 1;
+#  }
+
 
   my $natoms = `cat natoms`;
   my $fband = `cat fband`;
@@ -538,10 +555,16 @@ if ( $bseRUN ) {
               . "SCxx" . $runcount . "\n";
     close FILES;
     `cat finalpplist >> $deninFiles`;
+
+    my $denin = sprintf("denin.files.%04i", $runcount);
+    print "$para_prefix $ENV{'OCEAN_ABINIT'} < $denin >& ABINIT.$runcount.log";
+    system("$para_prefix $ENV{'OCEAN_ABINIT'} < $denin >& ABINIT.$runcount.log") == 0 or
+      die "$!\n";
+    print "\n";
   }
 
 
-  system("$ENV{'OCEAN_BIN'}/par_ab2.pl") == 0 or die "Failed to run Abinit\n";
+#  system("$ENV{'OCEAN_BIN'}/par_ab2.pl") == 0 or die "Failed to run Abinit\n";
 
   my $natoms = `cat natoms`;
   my $fband = `cat fband`;
