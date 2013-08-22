@@ -12,9 +12,10 @@ if (! $ENV{"OCEAN_WORKDIR"}){ $ENV{"OCEAN_WORKDIR"} = `pwd` . "../" ; }
 ###########################
 
 
-my @CommonFiles = ("znucl", "paw.hfkgrid", "paw.fill", "paw.opts", "pplist", "paw.shells", "ntype", "natoms", "typat", "taulist", "nedges", "edges", "caution", "epsilon", "k0.ipt", "ibase", "scfac", "core_offset", "dft" );
+my @CommonFiles = ("avecsinbohr.ipt", "znucl", "paw.hfkgrid", "paw.fill", "paw.opts", "pplist", "paw.shells", "ntype", "natoms", "typat", "taulist", "nedges", "edges", "caution", "epsilon", "k0.ipt", "ibase", "scfac", "core_offset", "dft" );
 
-my @AbinitFiles = ("avecsinbohr.ipt");
+my @AbinitFiles = ("");
+#my @AbinitFiles = ("avecsinbohr.ipt");
 
 my @DenDipFiles = ("rhoofg", "bvecs", "efermiinrydberg.ipt");
 my @DenDipFiles2 = ( "masterwfile", "listwfile", "enkfile", "kmesh.ipt", "brange.ipt" );

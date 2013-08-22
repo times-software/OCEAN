@@ -1,10 +1,11 @@
 #!/usr/bin/perl
 
 use Getopt::Long;
+use Switch;
 use strict;
 
 
-my @OceanFolders = ("Common", "DFT", "zWFN", "PAW", "SCREEN", "CNBSE", "ABINIT", "PREP");
+my @OceanFolders = ("Common", "DFT", "zWFN", "PAW", "SCREEN", "CNBSE", "ABINIT", "QESPRESSO", "PREP");
 
 print "Welcome to OCEAN\n";
 
@@ -143,58 +144,105 @@ else
 system("$ENV{'OCEAN_BIN'}/defaults.pl") == 0 or die "Failed to run defaults.pl\n$!";
 
 
+### remove print statments in this section after testing
+##
+print "Opening Stages\n";
+
+open(STAGES, "<stages");
+my $tmp;
+my @stages;
+while(<STAGES>)
+{
+  chomp;
+  $tmp = $_;
+  @stages = split(/ /,$tmp);
+}
+
+print "@stages\n";
+print scalar @stages;
+print "\n";
+
+my $runstage = "00000\n";
+print $runstage;
+
+foreach my $stage (@stages) {
+  print "$stage\n";
+  switch ($stage) {
+    case "paw" {substr($runstage,0,1) = "1";}
+    case "dft" {substr($runstage,1,1) = "1";}
+    case "prep" {substr($runstage,2,1) = "1";}
+    case "screen" {substr($runstage,3,1) = "1";}
+    case "bse" {substr($runstage,4,1) = "1\n";}
+    case "all" {$runstage = "11111\n";}
+  }
+  print "$runstage";
+}
+
+print "Closing Stages\n";
+##
+###
+
+
 chdir "../";
 print "Done with parsing\n";
 ##########################################
 #
 # PAW stage
 ##########################################
-print "$Separator\n";
-print "Entering PAW stage\n";
-chdir "PAW";
-system("$OCEAN_BIN/paw.pl >& paw.log") == 0 or die "PAW stage failed\n";
-chdir "../";
+if (substr($runstage,0,1) eq "1") {
+  print "$Separator\n";
+  print "Entering PAW stage\n";
+  chdir "PAW";
+  system("$OCEAN_BIN/paw.pl >& paw.log") == 0 or die "PAW stage failed\n";
+  chdir "../";
+}
 ##########################################
 #
 # DFT stage
 ##########################################
-if( $script_pre eq 'OBF' ) 
-{
+if (substr($runstage,1,1) eq "1") {
+
+  if( $script_pre eq 'OBF' ) 
+  {
 	print "$Separator\n";
 	print "Entering DFT stage\n";
 	chdir "DFT";
 	system("$OCEAN_BIN/${script_pre}_dft.pl >& dft.log") == 0 or die "DFT Stage Failed\n$!";
 	chdir "../";
-} 
-elsif( $script_pre eq 'qe' )
-{
+  } 
+  elsif( $script_pre eq 'qe' )
+  {
 	print "$Separator\n";
-  print "Entering QESPRESSO stage\n";
-  chdir "QESPRESSO";
-  system("$OCEAN_BIN/QespressoDriver.pl") == 0 or die "Qespresso Stage Failed\n";
-  chdir "../";
-}
-else
-{
+        print "Entering QESPRESSO stage\n";
+        chdir "QESPRESSO";
+        system("$OCEAN_BIN/QespressoDriver.pl") == 0 or die "Qespresso Stage Failed\n";
+        chdir "../";
+  }
+  else
+  {
 	print "$Separator\n";
 	print "Entering ABINIT stage\n";
 	chdir "ABINIT";
 	system("$OCEAN_BIN/AbinitDriver.pl") == 0 or die "Abinit Stage Failed\n";
-  chdir "../";
+        chdir "../";
+  }
+
 }
 ##########################################
 #
 # zWFN stage
 ##########################################
-if( $script_pre eq 'OBF' ) 
-{
+if (substr($runstage,2,1) eq "1") {
+
+  if( $script_pre eq 'OBF' ) 
+  {
 	print "$Separator\n";
 	print "Entering zWFN stage\n";
 	chdir "zWFN" or die "$!\n";
 	system("$OCEAN_BIN/${script_pre}_wfn.pl >& wfn.log") == 0 or die "zWFN Stage Failed\n$!";
-}
-else
-{
+  }
+  else
+  {
 	print "$Separator\n";
 	print "Entering PREP stage\n";
 	chdir "PREP" or die "$!\n";
@@ -206,36 +254,49 @@ else
 	{
 		system("$OCEAN_BIN/dendip.pl >& prep.log ") == 0 or die "PREP Stage Failed\n$!";
 	}
+  }
+
 }
 ##########################################
 #
 # SCREENing stage
 ##########################################
-print "$Separator\n";
-print "Entering SCREENing stage\n";
-chdir "../SCREEN";
-if( $script_pre eq 'abi' )
-{
+if (substr($runstage,3,1) eq "1") {
+
+  print "$Separator\n";
+  print "Entering SCREENing stage\n";
+  chdir "../SCREEN";
+
+  if( $script_pre eq 'abi' )
+  {
 	system("$OCEAN_BIN/screen.pl >& screen.log") == 0 or die "SCREEN stage failed\n$!";
-}
-else
-{
-	system("$OCEAN_BIN/${script_pre}_screen.pl >& screen.log") == 0 or die "SCREEN stage failed\n$!";
+  }
+  else
+  {
+        system("$OCEAN_BIN/screen.pl >& screen.log") == 0 or die "SCREEN stage failed\n$!";
+#	system("$OCEAN_BIN/${script_pre}_screen.pl >& screen.log") == 0 or die "SCREEN stage failed\n$!";
+  }
+
 }
 ##########################################
 #
 # CNBSE stage
 ##########################################
-print "$Separator\n";
-print "Entering CNBSE stage\n";
-chdir "../CNBSE";
-if( $script_pre eq 'OBF' )
-{
-	system("$OCEAN_BIN/${script_pre}_cnbse.pl >& cnbse.log") == 0 or die "CNBSE stage failed\n$!";
-}
-else
-{
+if (substr($runstage,4,1) eq "1") {
+
+  print "$Separator\n";
+  print "Entering CNBSE stage\n";
+  chdir "../CNBSE";
+  if( $script_pre eq 'OBF' )
+  {
+        system("$OCEAN_BIN/cnbse.pl >& cnbse.log") == 0 or die "CNBSE stage failed\n$!";
+#	system("$OCEAN_BIN/${script_pre}_cnbse.pl >& cnbse.log") == 0 or die "CNBSE stage failed\n$!";
+  }
+  else
+  {
 	system("$OCEAN_BIN/cnbse.pl >& cnbse.log") == 0 or die "CNBSE stage failed\n$!";
+  }
+
 }
 ##########################################
 print "$Separator\n";

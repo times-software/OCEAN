@@ -11,11 +11,12 @@ if (! $ENV{"OCEAN_WORKDIR"}){ $ENV{"OCEAN_WORKDIR"} = `pwd` . "../" ; }
 
 my %alphal = ( "0" => "s", "1" => "p", "2" => "d", "3" => "f" );
 
-my @CommonFiles = ("epsilon", "xmesh.ipt", "nedges", "k0.ipt", "nbuse.ipt", 
+my @CommonFiles = ("avecsinbohr.ipt", "epsilon", "xmesh.ipt", "nedges", "k0.ipt", "nbuse.ipt", 
   "cnbse.rad", "cnbse.ways", "metal", "cksshift", "cksstretch", "cksdq", "cks.normal",
   "cnbse.niter", "cnbse.spect_range", "cnbse.broaden", "cnbse.mode");
 
-my @AbinitFiles = ("avecsinbohr.ipt");
+my @AbinitFiles = ("");
+#my @AbinitFiles = ("avecsinbohr.ipt");
 
 my @DenDipFiles = ("kmesh.ipt", "masterwfile", "listwfile", "efermiinrydberg.ipt", "qinunitsofbvectors.ipt", "brange.ipt", "enkfile", "tmels", "nelectron", "eshift.ipt" );
 

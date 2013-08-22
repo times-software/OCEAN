@@ -4,7 +4,8 @@
   real(kind=kind(1.d0)) :: k0(3), qvec(3), ikpt, jkpt, kkpt, qpoint(3)
   integer :: core, kpttotal, coreiter, kptiter, nkpt(3), kptiter2(3), Nfiles, umklapp(3), iter
   logical :: change
-  character*9 :: kptfile
+  character*9  :: kptfile
+  character*12 :: qekptfile
 !
   open(unit=99,file='k0.ipt',form='formatted',status='old')
   read(99,*) k0(:)
@@ -42,11 +43,15 @@
 !
 
 !    core = core * ceiling(real(kpttotal)/real(50*core) )
+
+    core = 1  !KG! - we want all the kpoints in 1 file not N files
     Nfiles = core
 !
     do coreiter=1,core
       write(kptfile,'(A5,I4.4)') 'kpts.', coreiter
       open(unit=99,file=kptfile,form='formatted',status='unknown')
+      write(qekptfile,'(A8,I4.4)') 'kpts4qe.', coreiter
+      open(unit=97,file=qekptfile,form='formatted',status='unknown')
       write(99,*) 'nkpt', int(ceiling(real(kpttotal)/real(core)))
       write(99,*) 'kpt'
 !
@@ -62,6 +67,7 @@
         if ( ikpt .gt. 1 ) ikpt = ikpt - 1.d0
 !
         write(99,*) ikpt, jkpt, kkpt
+        write(97,'(e17.8,e17.8,e17.8,f12.8)') ikpt, jkpt, kkpt, ( 1.0 / (ceiling(real(kpttotal)/real(core)))  )
 
         if ( kptiter2(3) .lt. nkpt(3) ) then
           kkpt = kkpt + 1.d0/dble(nkpt(3))
@@ -81,6 +87,7 @@
         endif
       enddo
       close(99)
+      close(97)
       kpttotal = kpttotal - int(ceiling(real(kpttotal)/real(core)))
       core = core - 1
     enddo
