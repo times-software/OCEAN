@@ -31,6 +31,7 @@ module OCEAN_multiplet
   integer :: jtot
   integer :: itot
 
+  logical :: is_init = .false.
 
   public OCEAN_create_central, OCEAN_soprep, OCEAN_mult_act
 
@@ -51,12 +52,34 @@ module OCEAN_multiplet
     
     character(len=4) :: add04
     character(len=10) :: add10
+    character(len=12) :: add12
     character(len=11) :: s11
     character(len=5) :: s5
 
+    character(len=11) :: cks_filename
+    character(len=5) :: cks_prefix
+
     ierr = 0
+    if( is_init .and. associated( sys%cur_run%prev_run ) ) then
+      if( sys%cur_run%ZNL(1) .ne. sys%cur_run%prev_run%ZNL(1) ) is_init = .false.
+      if( sys%cur_run%ZNL(1) .ne. sys%cur_run%prev_run%ZNL(1) ) is_init = .false. 
+      if( sys%cur_run%ZNL(1) .ne. sys%cur_run%prev_run%ZNL(1) ) is_init = .false. 
+      if( sys%cur_run%indx .ne. sys%cur_run%prev_run%indx ) is_init = .false.
+!      if( ( myid .eq. root ) .and. ( .not. is_init ) ) then
+      if( .not. is_init )  then
+        if( myid .eq. root ) write(6,*) 'Multiplets are reloading'
+        deallocate( mpcr, mpci, mpm, mhr, mhi, cms, cml, vms, hcml, hvml, hcms, hvms, somelr, someli )
+        deallocate( nproj, hvnu, ibeg, jbeg, mham )
+      endif
+    endif
+
+    if( is_init ) return
+
+    write(add12 , '(A2,I2.2,A1,A1,I2.2,A1,I2.2)' ) sys%cur_run%elname, sys%cur_run%indx, &
+            '_', 'n', sys%cur_run%ZNL(2), 'l', sys%cur_run%ZNL(3)
+
     if( myid .eq. root ) then
-!      write(deflinz,'(a6,a1,i2.2,a1,i2.2,a1,i2.2)') 'deflin', 'z', sys%ZNL(1), 'n', sys%ZNL(2), 'l', sys%ZNL(3)
+!      write(deflinz,'(a6,a1,i2.2,a1,i2.2,a1,i2.2)') 'deflin', 'z', sys%cur_run%ZNL(1), 'n', sys%cur_run%ZNL(2), 'l', sys%cur_run%ZNL(3)
 !      open(unit=99,file=deflinz,form='formatted',status='old')
 !      open(unit=99,file='derp_control',form='formatted', status='old' )
       open(unit=99,file='bse.in',form='formatted', status='old')
@@ -66,8 +89,9 @@ module OCEAN_multiplet
       close( 99 )
       xi = xi / 27.2114d0
 
-      write( add04, '(1a1,1i3.3)' ) 'z', sys%ZNL(1)
-      write( add10, '(1a1,1i3.3,1a1,1i2.2,1a1,1i2.2)' ) 'z', sys%ZNL(1), 'n', sys%ZNL(2), 'l', sys%ZNL(3)
+      write( add04, '(1a1,1i3.3)' ) 'z', sys%cur_run%ZNL(1)
+      write( add10, '(1a1,1i3.3,1a1,1i2.2,1a1,1i2.2)' ) 'z', sys%cur_run%ZNL(1), &
+                  'n', sys%cur_run%ZNL(2), 'l', sys%cur_run%ZNL(3)
       write ( s11, '(1a7,1a4)' ) 'prjfile', add04
       write(6,*) s11
       open( unit=99, file=s11, form='formatted', status='old' )
@@ -84,12 +108,12 @@ module OCEAN_multiplet
       do lv = lvl, lvh
          ibeg( lv ) = itot + 1
          jbeg( lv ) = jtot + 1
-         mham( lv ) = 4 * ( 2 * sys%ZNL(3) + 1 ) * ( 2 * lv + 1 ) * nproj( lv )
+         mham( lv ) = 4 * ( 2 * sys%cur_run%ZNL(3) + 1 ) * ( 2 * lv + 1 ) * nproj( lv )
          itot = itot + mham( lv )
          jtot = jtot + mham( lv ) ** 2
       end do
 
-      allocate( cml( sys%nalpha ), cms( sys%nalpha ), vms( sys%nalpha ) )
+      allocate( cml( sys%cur_run%nalpha ), cms( sys%cur_run%nalpha ), vms( sys%cur_run%nalpha ) )
       allocate( hcml( itot ), hcms( itot ) )
       allocate( hvml( itot ), hvms( itot ) )
       allocate( hvnu( itot ) )
@@ -101,20 +125,20 @@ module OCEAN_multiplet
       rewind 99
       ic = 0
       do icms = -1, 1, 2
-         do icml = -sys%ZNL(3), sys%ZNL(3)
+         do icml = -sys%cur_run%ZNL(3), sys%cur_run%ZNL(3)
             do ivms = -1, 1, 2
                ic = ic + 1
                cms( ic ) = 0.5d0 * icms
                cml( ic ) = icml
                vms( ic ) = 0.5d0 * ivms
-               write ( 99, '(3f8.2,2i5,1a11)' ) cms( ic ), cml( ic ), vms( ic ), ic, sys%nalpha, 'cms cml vms'
+               write ( 99, '(3f8.2,2i5,1a11)' ) cms( ic ), cml( ic ), vms( ic ), ic, sys%cur_run%nalpha, 'cms cml vms'
             end do
          end do
       end do
       !
       ii = 0
       do lv = lvl, lvh
-         do ic = 1, 4 * ( 2 * sys%ZNL(3) + 1 )
+         do ic = 1, 4 * ( 2 * sys%cur_run%ZNL(3) + 1 )
             do ivml = -lv, lv
                do nu = 1, nproj( lv )
                   ii = ii + 1
@@ -128,21 +152,21 @@ module OCEAN_multiplet
          end do
       end do
       !
-      call nbsemkcmel( add04 )
+      call nbsemkcmel( add04, add12 )
       do lv = lvl, lvh
          ii = ibeg( lv )
          jj = jbeg( lv )
-!         call nbsemhsetup( sys%ZNL(3), lv, nproj( lv ), mham( lv ), hcms( ii:ii+mham( lv )-1 ) , &
+!         call nbsemhsetup( sys%cur_run%ZNL(3), lv, nproj( lv ), mham( lv ), hcms( ii:ii+mham( lv )-1 ) , &
 !              hcml( ii:ii+mham( lv )-1 ), hvms( ii:ii+mham( lv )-1 ), hvml( ii:ii+mham( lv )-1 ), hvnu( ii:ii+mham( lv )-1 ), &
 !              mhr( jj:jj+mham( lv )*mham( lv )-1 ), mhi( jj:jj+mham( lv )*mham( lv )-1 ), add10 )
-          call nbsemhsetup( sys%ZNL(3), lv, nproj( lv ), mham( lv ), hcms( ii ) , hcml( ii ), hvms( ii ), hvml( ii ), hvnu( ii ), &
+          call nbsemhsetup( sys%cur_run%ZNL(3), lv, nproj( lv ), mham( lv ), hcms( ii ) , hcml( ii ), hvms( ii ), hvml( ii ), hvnu( ii ), &
           mhr( jj ), mhi( jj ), add10 )
       end do
       mhr = mhr / 27.2114d0
       mhi = mhi / 27.2114d0
       write ( 6, * ) 'multiplet hamiltonian set up'
       write(6,*) 'Number of spins = ', sys%nspn
-      write ( 6, * ) 'n, nc, nspn', sys%num_bands*sys%nkpts, sys%nalpha, sys%nspn
+      write ( 6, * ) 'n, nc, nspn', sys%num_bands*sys%nkpts, sys%cur_run%nalpha, sys%nspn
 
 
       npmax = maxval( nproj( lmin : lmax ) )
@@ -161,7 +185,18 @@ module OCEAN_multiplet
       nptot = ip
     ! Spin needed here too!
       allocate( pcr( nptot, sys%num_bands, sys%nkpts, sys%nspn ), pci( nptot, sys%num_bands, sys%nkpts, sys%nspn ) )
-      open( unit=99, file='ufmi', form='unformatted', status='old' )
+!JTV
+      select case ( sys%cur_run%calc_type)
+      case( 'XES' )
+        cks_prefix = 'cksv.'
+      case( 'XAS' )
+        cks_prefix = 'cksc.'
+      case default
+        cks_prefix = 'cksc.'
+      end select
+      write(cks_filename,'(A5,A2,I4.4)' ) cks_prefix, sys%cur_run%elname, sys%cur_run%indx
+      open(unit=99,file=cks_filename,form='unformatted', status='old' )
+!      open( unit=99, file='ufmi', form='unformatted', status='old' )
       rewind 99
       read ( 99 )
       read ( 99 )
@@ -223,7 +258,7 @@ module OCEAN_multiplet
 
 
     if( myid .ne. root ) then
-      allocate( cml( sys%nalpha ), cms( sys%nalpha ), vms( sys%nalpha ) )
+      allocate( cml( sys%cur_run%nalpha ), cms( sys%cur_run%nalpha ), vms( sys%cur_run%nalpha ) )
       allocate( hcml( itot ), hcms( itot ) )
       allocate( hvml( itot ), hvms( itot ) )
       allocate( hvnu( itot ) )
@@ -237,9 +272,9 @@ module OCEAN_multiplet
     call MPI_BARRIER( comm, ierr )
     if( myid .eq. root ) write(6,*) 'HERE'
     call MPI_BARRIER( comm, ierr )
-    call MPI_BCAST( cml, sys%nalpha, MPI_DOUBLE_PRECISION, root, comm, ierr )
-    call MPI_BCAST( cms, sys%nalpha, MPI_DOUBLE_PRECISION, root, comm, ierr )
-    call MPI_BCAST( vms, sys%nalpha, MPI_DOUBLE_PRECISION, root, comm, ierr )
+    call MPI_BCAST( cml, sys%cur_run%nalpha, MPI_DOUBLE_PRECISION, root, comm, ierr )
+    call MPI_BCAST( cms, sys%cur_run%nalpha, MPI_DOUBLE_PRECISION, root, comm, ierr )
+    call MPI_BCAST( vms, sys%cur_run%nalpha, MPI_DOUBLE_PRECISION, root, comm, ierr )
     call MPI_BCAST( hcml, itot, MPI_DOUBLE_PRECISION, root, comm, ierr )
     call MPI_BCAST( hcms, itot, MPI_DOUBLE_PRECISION, root, comm, ierr )
     call MPI_BCAST( hvml, itot, MPI_DOUBLE_PRECISION, root, comm, ierr )
@@ -261,6 +296,8 @@ module OCEAN_multiplet
 #endif
   
     call OCEAN_soprep( sys, ierr )
+
+    is_init = .true.
 
   end subroutine OCEAN_create_central
 
@@ -284,7 +321,7 @@ module OCEAN_multiplet
     real( kind = kind( 1.0d0 ) ), allocatable, dimension( : ) :: xsph, ysph, zsph, wsph
 
     ierr = 0
-    allocate( somelr( sys%nalpha, sys%nalpha), someli( sys%nalpha, sys%nalpha) )
+    allocate( somelr( sys%cur_run%nalpha, sys%cur_run%nalpha), someli( sys%cur_run%nalpha, sys%cur_run%nalpha) )
 
     if( myid .eq. root ) then
 
@@ -308,10 +345,10 @@ module OCEAN_multiplet
         close( 99 )
         life_time( : ) = life_time( : ) / 27.2114d0
 
-        delta_so( 1 ) = 0.5d0 * ( ( real( sys%ZNL(3) ) + 0.5 ) * ( real( sys%ZNL(3) ) + 1.5 ) - & 
-                                    real( sys%ZNL(3) ) * real( sys%ZNL(3) + 1 ) - 0.75d0 )
-        delta_so( 2 ) = 0.5d0 * ( ( real( sys%ZNL(3) ) - 0.5 ) * ( real( sys%ZNL(3) ) + 0.5 ) - &
-                                    real( sys%ZNL(3) ) * real( sys%ZNL(3) + 1 ) - 0.75d0 )
+        delta_so( 1 ) = 0.5d0 * ( ( real( sys%cur_run%ZNL(3) ) + 0.5 ) * ( real( sys%cur_run%ZNL(3) ) + 1.5 ) - & 
+                                    real( sys%cur_run%ZNL(3) ) * real( sys%cur_run%ZNL(3) + 1 ) - 0.75d0 )
+        delta_so( 2 ) = 0.5d0 * ( ( real( sys%cur_run%ZNL(3) ) - 0.5 ) * ( real( sys%cur_run%ZNL(3) ) + 0.5 ) - &
+                                    real( sys%cur_run%ZNL(3) ) * real( sys%cur_run%ZNL(3) + 1 ) - 0.75d0 )
         !
         l_alpha = ( life_time( 2 ) - life_time( 1 ) ) / ( - xi * ( delta_so( 2 ) - delta_so( 1 ) ) )
         l_beta = ( life_time( 2 ) * delta_so( 1 ) - life_time( 1 ) * delta_so( 2 ) ) / ( delta_so( 1 ) - delta_so( 2 ) )
@@ -323,10 +360,10 @@ module OCEAN_multiplet
       somelr( :, : ) = 0.0_DP
       someli( :, : ) = 0.0_DP
       rm1 = -1; rm1 = sqrt( rm1 )
-      do ic = 1, sys%nalpha
-         do jc = 1, sys%nalpha
+      do ic = 1, sys%cur_run%nalpha
+         do jc = 1, sys%cur_run%nalpha
             if ( vms( ic ) .eq. vms( jc ) ) then
-               call limel( sys%ZNL(3), nint( cml( jc ) ), nint( cml( ic ) ), vrslt, nsphpt, xsph, ysph, zsph, wsph, prefs )
+               call limel( sys%cur_run%ZNL(3), nint( cml( jc ) ), nint( cml( ic ) ), vrslt, nsphpt, xsph, ysph, zsph, wsph, prefs )
                ctmp = 0
                do i = 1, 3
                   ctmp = ctmp + vrslt( i ) * jimel( 0.5d0, cms( jc ), cms( ic ), i )
@@ -346,8 +383,8 @@ module OCEAN_multiplet
 
 #ifdef MPI
     if( nproc .gt. 1 ) then
-      call MPI_BCAST( someli, sys%nalpha*sys%nalpha, MPI_DOUBLE_PRECISION, root, comm, ierr )
-      call MPI_BCAST( somelr, sys%nalpha*sys%nalpha, MPI_DOUBLE_PRECISION, root, comm, ierr )
+      call MPI_BCAST( someli, sys%cur_run%nalpha*sys%cur_run%nalpha, MPI_DOUBLE_PRECISION, root, comm, ierr )
+      call MPI_BCAST( somelr, sys%cur_run%nalpha*sys%cur_run%nalpha, MPI_DOUBLE_PRECISION, root, comm, ierr )
     endif
 #endif
 
@@ -386,7 +423,7 @@ module OCEAN_multiplet
     type( ocean_vector ), intent( in ) :: in_vec
     type( ocean_vector ), intent( inout ) :: out_vec
     !
-!    integer :: sys%nalpha, n, nq, nbd, nspn, lmin, lmax, npmax
+!    integer :: sys%cur_run%nalpha, n, nq, nbd, nspn, lmin, lmax, npmax
 !    real( DP ) :: celvol, inter
 !    integer :: nproj( lmin : lmax )
 !    real( DP ) :: mpcr( nq * nbd, npmax, -lmax : lmax, lmin : lmax, nspn )
@@ -410,7 +447,7 @@ module OCEAN_multiplet
 !$OMP PRIVATE( ialpha, l, nu, m, ampr, ampi, hampr, hampi, ispn ) &
 !$OMP SHARED( mul, sys, lmin, lmax, nproj ) &
 !$OMP SHARED( mpcr, mpci, mpm, in_vec, out_vec )
-    do ialpha = 1, sys%nalpha
+    do ialpha = 1, sys%cur_run%nalpha
       ispn = 2 - mod( ialpha, 2 )
       if( sys%nspn .eq. 1 ) then
         ispn = 1
@@ -496,7 +533,7 @@ module OCEAN_multiplet
 !$OMP DEFAULT( NONE )
 
 !$OMP DO 
-      do ic = 1, sys%nalpha
+      do ic = 1, sys%cur_run%nalpha
         ispn = 2 - mod( ic, 2 )
   !       ispn = 1 + mod( ic, 2 )
         if( sys%nspn .eq. 1 ) then
@@ -535,7 +572,7 @@ module OCEAN_multiplet
 
 
 !$OMP DO
-      do ic = 1, sys%nalpha
+      do ic = 1, sys%cur_run%nalpha
         ispn = 2 - mod( ic, 2 )
   !       ispn = 1 + mod( ic, 2 )
         if( sys%nspn .eq. 1 ) then
@@ -578,8 +615,8 @@ module OCEAN_multiplet
 ! !$OMP DEFAULT( NONE ) &
 ! !$OMP PRIVATE( ic, jc, ikpt ) &
 ! !$OMP SHARED( sys, in_vec, out_vec, somelr, someli )
-    do ic = 1, sys%nalpha
-      do jc = 1, sys%nalpha
+    do ic = 1, sys%cur_run%nalpha
+      do jc = 1, sys%cur_run%nalpha
         do ikpt = 1, sys%nkpts
           out_vec%r( 1:sys%num_bands, ikpt, ic ) = out_vec%r( 1:sys%num_bands, ikpt, ic )  & 
                                    + somelr( ic, jc ) * in_vec%r( 1:sys%num_bands, ikpt, jc ) &

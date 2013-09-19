@@ -39,6 +39,8 @@ module OCEAN_system
     
     integer :: indx
     integer :: photon
+    integer :: num_bands
+    integer :: start_band
     character(len=2) :: elname
     character(len=2) :: corelevel
     character(len=255) :: basename
@@ -61,6 +63,20 @@ module OCEAN_system
   
 
   contains 
+
+  subroutine OCEAN_sys_update( sys, ierr )
+    implicit none
+
+    type( o_system ), intent( inout ) :: sys
+    integer, intent( inout ) :: ierr
+
+
+    if( associated(sys%cur_run%next_run ) ) then
+      sys%cur_run => sys%cur_run%next_run
+    else
+      ! deal with it
+    endif
+  end subroutine OCEAN_sys_update
 
   subroutine OCEAN_sys_init( sys, ierr )
     use OCEAN_mpi, ONLY : myid, comm, root
@@ -210,7 +226,7 @@ module OCEAN_system
     character(len=5) :: calc_type
     type(o_run), pointer :: temp_prev_run, temp_cur_run
 
-    integer :: ntot, nmatch, iter, i
+    integer :: ntot, nmatch, iter, i, idum, start_band
     logical :: found
     real(DP) :: tmp(3)
 
@@ -256,6 +272,21 @@ module OCEAN_system
 112     continue 
         write ( 6, '(1a15,3f10.5)' ) 'snatched alpha=', tau( : )
         close(98)
+
+        open(unit=98,file='brange.ipt',form='formatted',status='old')
+        rewind(98)
+        select case( calc_type )
+        case( 'XAS' )
+          read(98,*) idum
+          read(98,*) start_band
+        case( 'XES' )
+          read(98,*) start_band
+        case default
+          read(98,*) idum
+          read(98,*) start_band
+        end select 
+        close( 98 )
+
       endif
 
 
@@ -274,6 +305,8 @@ module OCEAN_system
       if( ierr .ne. MPI_SUCCESS ) goto 111
       call MPI_BCAST( calc_type, 5, MPI_CHARACTER, root, comm, ierr )
       if( ierr .ne. MPI_SUCCESS ) goto 111
+      call MPI_BCAST( start_band, 1, MPI_INTEGER, root, comm, ierr )
+      if( ierr .ne. MPI_SUCCESS ) goto 111
 #endif
 
       
@@ -281,7 +314,7 @@ module OCEAN_system
 
       allocate( temp_cur_run, STAT=ierr )
       if( ierr .ne. 0 ) return
-      if( running_total .eq. 1 ) then
+      if( i .eq. 1 ) then
         sys%cur_run => temp_cur_run
       else
         temp_cur_run%prev_run => temp_prev_run
@@ -289,11 +322,14 @@ module OCEAN_system
       endif
       temp_cur_run%tau(:) = tau(:)
       temp_cur_run%ZNL(:) = ZNL(:)
+      temp_cur_run%nalpha = 4 * ( 2 * temp_cur_run%ZNL(3) + 1 )
       temp_cur_run%elname = elname
       temp_cur_run%indx = indx
       temp_cur_run%corelevel = corelevel
       temp_cur_run%calc_type = calc_type
       temp_cur_run%photon = photon
+      temp_cur_run%start_band = start_band
+      temp_cur_run%num_bands = sys%num_bands
       
       temp_cur_run%basename = 'abs'
       write(temp_cur_run%filename,'(A3,A1,A2,A1,I2.2,A1,A2,A1,I2.2)' ) temp_cur_run%basename, '_', temp_cur_run%elname, &

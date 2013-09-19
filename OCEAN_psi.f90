@@ -28,8 +28,11 @@ module OCEAN_psi
 
 
   type OCEAN_vector
-    REAL(DP), POINTER, CONTIGUOUS :: r(:,:,:)
-    REAL(DP), POINTER, CONTIGUOUS :: i(:,:,:)
+    REAL(DP), POINTER, CONTIGUOUS :: r(:,:,:) => null()
+    REAL(DP), POINTER, CONTIGUOUS :: i(:,:,:) => null()
+
+    TYPE(C_PTR) :: rcptr
+    TYPE(C_PTR) :: icptr
     
     INTEGER :: bands_pad
     INTEGER :: kpts_pad
@@ -153,6 +156,7 @@ module OCEAN_psi
 
   subroutine OCEAN_psi_init( sys, p, ierr )
     use OCEAN_system
+!    use OCEAN_mpi, only : myid, root
     implicit none
     include 'fftw3.f03'
     
@@ -161,7 +165,16 @@ module OCEAN_psi
     type(OCEAN_vector), intent( out ) :: p
   
     integer, parameter :: cacheline_by_Z = 1
-    type(C_PTR) :: cptr
+!    type(C_PTR) :: cptr
+
+    if( associated( p%r ) ) then
+      call fftw_free( p%rcptr )
+      p%r => null()
+    endif
+    if( associated( p%i ) ) then
+      call fftw_free( p%icptr )
+      p%i => null()
+    endif
     
     if( mod( sys%num_bands, cacheline_by_Z ) == 0 ) then
       p%bands_pad = sys%num_bands
@@ -178,10 +191,10 @@ module OCEAN_psi
     
 
 
-    cptr = fftw_alloc_real( int(p%bands_pad * p%kpts_pad * sys%nalpha, C_SIZE_T) )
-    call c_f_pointer( cptr, p%r, [p%bands_pad, p%kpts_pad, sys%nalpha ] )
-    cptr = fftw_alloc_real( int(p%bands_pad * p%kpts_pad * sys%nalpha, C_SIZE_T) )
-    call c_f_pointer( cptr, p%i, [p%bands_pad, p%kpts_pad, sys%nalpha ] )
+    p%rcptr = fftw_alloc_real( int(p%bands_pad * p%kpts_pad * sys%nalpha, C_SIZE_T) )
+    call c_f_pointer( p%rcptr, p%r, [p%bands_pad, p%kpts_pad, sys%nalpha ] )
+    p%icptr = fftw_alloc_real( int(p%bands_pad * p%kpts_pad * sys%nalpha, C_SIZE_T) )
+    call c_f_pointer( p%icptr, p%i, [p%bands_pad, p%kpts_pad, sys%nalpha ] )
 !    allocate( p%r(p%bands_pad, p%kpts_pad, sys%nalpha), &
 !              p%i(p%bands_pad, p%kpts_pad, sys%nalpha ) )
 
@@ -198,6 +211,7 @@ module OCEAN_psi
 !    if(sys%mult) allocate( mult_psi( psi_bands_pad, psi_kpts_pad, sys%nalpha ) )
 
 !    psi = 0_DP
+!    if( myid .eq. root ) write(6,*) associated( p%r ), associated( p%i )
 
   end subroutine OCEAN_psi_init
 
@@ -211,7 +225,7 @@ module OCEAN_psi
   end subroutine OCEAN_psi_kill
 
 
-  subroutine OCEAN_psi_load( sys, p, ierr )
+  subroutine OCEAN_psi_load_old( sys, p, ierr )
     use OCEAN_mpi 
     use OCEAN_system
     use mpi
@@ -220,7 +234,7 @@ module OCEAN_psi
     implicit none
 
     type(O_system), intent( in ) :: sys
-    type(OCEAN_vector), intent( in ) :: p
+    type(OCEAN_vector), intent( inout ) :: p
     integer, intent( inout ) :: ierr
 
     integer :: ialpha, icms, icml, ivms, ikpt, iband, lc
@@ -336,5 +350,162 @@ module OCEAN_psi
 
   111 continue
 
+  end subroutine OCEAN_psi_load_old
+
+
+  subroutine OCEAN_psi_load( sys, p, ierr )
+    use OCEAN_mpi
+    use OCEAN_system
+    use mpi
+    use AI_kinds
+
+    implicit none
+
+    type(O_system), intent( in ) :: sys
+    type(OCEAN_vector), intent( inout ) :: p
+    integer, intent( inout ) :: ierr
+
+    integer :: ialpha, icms, icml, ivms, ikpt, iband, lc
+    real(DP) :: val, nrm, tmpr, tmpi, pi
+    real(DP) :: tau( 3 )
+    character(LEN=8) :: str
+    real(DP), external :: DZNRM2
+    lc = sys%ZNL(3)
+    pi = 4.0_DP * ATAN( 1.0_DP )
+
+    if( myid .eq. root ) then
+
+      write(6,*) 'Reading in projector coefficients'
+      call OCEAN_psi_dotter( sys, p, ierr )
+      if( ierr .ne. 0 ) goto 111
+      write (6,*) 'band states have been read in'
+
+    
+      val = 0.0_DP
+      do ialpha = 1, sys%nalpha
+        nrm = 0.0_DP
+        do ikpt = 1, sys%nkpts 
+          nrm = nrm + sum(p%r(:,ikpt,ialpha)**2 + p%i(:,ikpt,ialpha)**2)
+        enddo
+        write( 6, '(1a12,1i4,1x,1e15.8)' ) 'channel dot', ialpha, nrm
+        val = val +  nrm
+      enddo
+      val = sqrt(val)
+      kpref = 4.0d0 * pi * val ** 2 / (dble(sys%nkpts) * sys%celvol ** 2 )
+      val = 1.0_DP / val
+      p%r = p%r * val
+      p%i = p%i * val 
+      write(6,*) pi, dble(sys%nkpts), sys%celvol, sys%nalpha
+      write ( 6, '(2x,1a8,1e15.8)' ) ' mult = ', kpref
+      open( unit=99, file='mulfile', form='formatted', status='unknown' )
+      rewind 99
+      write ( 99, '(1x,1e15.8)' ) kpref
+      close( unit=99 )
+    endif
+        
+#ifdef MPI
+    if( myid .eq. root ) write(6,*) p%bands_pad, p%kpts_pad, sys%nalpha
+    write(6,*) myid, root
+    call MPI_BARRIER( comm, ierr )
+    call MPI_BCAST( kpref, 1, MPI_DOUBLE_PRECISION, root, comm, ierr )
+    if( ierr .ne. MPI_SUCCESS ) goto 111
+
+    call MPI_BCAST( p%r, p%bands_pad*p%kpts_pad*sys%nalpha, MPI_DOUBLE_PRECISION, root, comm, ierr )
+    if( ierr .ne. MPI_SUCCESS ) goto 111
+
+    call MPI_BCAST( p%i, p%bands_pad*p%kpts_pad*sys%nalpha, MPI_DOUBLE_PRECISION, root, comm, ierr )
+    if( ierr .ne. MPI_SUCCESS ) goto 111
+#endif
+
+  111 continue
+
   end subroutine OCEAN_psi_load
+
+
+  subroutine OCEAN_psi_dotter( sys, p, ierr )
+    use OCEAN_system
+ 
+    implicit none
+ 
+    type(O_system), intent( in ) :: sys
+    type(OCEAN_vector), intent( inout ) :: p
+    integer, intent( inout ) :: ierr
+
+    real(DP) :: tau( 3 ), rr, ri, ir, ii
+    real(DP), allocatable, dimension(:,:) :: pcr, pci
+    real(DP), allocatable, dimension(:,:) :: mer, mei
+    integer :: nptot, ntot, ialpha, icms, ivms, icml, ikpt, iband, iter
+
+    character (LEN=127) :: cks_filename
+    character (LEN=5) :: cks_prefix
+    character (LEN=18) :: mel_filename
+
+    !select case (runtype)
+    select case ( sys%cur_run%calc_type)
+    case( 'XES' )
+      cks_prefix = 'cksv.'
+    case( 'XAS' )
+      cks_prefix = 'cksc.'
+    case default
+      cks_prefix = 'cksc.'
+    end select
+    write(cks_filename,'(A5,A2,I4.4)' ) cks_prefix, sys%cur_run%elname, sys%cur_run%indx
+
+    open(unit=99,file=cks_filename,form='unformatted',status='old')
+    rewind( 99 )
+    read ( 99 ) nptot, ntot
+    read ( 99 ) tau( : )
+    allocate( pcr( nptot, ntot ), pci( nptot, ntot ) )
+    read ( 99 ) pcr
+    read ( 99 ) pci
+    close( unit=99 )
+
+
+
+    allocate( mer( nptot, -sys%cur_run%ZNL(3): sys%cur_run%ZNL(3) ),  &
+              mei( nptot, -sys%cur_run%ZNL(3): sys%cur_run%ZNL(3) ) )
+
+    write(mel_filename,'(A5,A1,I3.3,A1,I2.2,A1,I2.2,A1,I2.2)' ) 'mels.', 'z', sys%cur_run%ZNL(1), &
+            'n', sys%cur_run%ZNL(2), 'l', sys%cur_run%ZNL(3), 'p', sys%cur_run%photon
+    open( unit=99, file=mel_filename, form='formatted', status='old' )
+    rewind( 99 )
+    do icml = -sys%cur_run%ZNL(3), sys%cur_run%ZNL(3)
+      do iter = 1, nptot
+        read( 99, * ) mer( iter, icml ), mei( iter, icml )
+      enddo
+    enddo 
+    close( 99 )
+
+    ialpha = 0
+    if( sys%nspn == 1 ) then
+      do icms = -1, 1, 2
+        do icml = -sys%cur_run%ZNL(3), sys%cur_run%ZNL(3)
+          do ivms = -1, 1, 2
+            ialpha = ialpha + 1
+            if( icms .eq. ivms ) then
+              iter = 0
+              do ikpt = 1, sys%nkpts
+                do iband = 1, sys%num_bands
+                  iter = iter + 1
+                  rr = dot_product( mer( :, icml ), pcr( :, iter ) )
+                  ri = dot_product( mer( :, icml ), pci( :, iter ) )
+                  ir = dot_product( mei( :, icml ), pcr( :, iter ) )
+                  ii = dot_product( mei( :, icml ), pci( :, iter ) )
+                  p%r(iband,ikpt,ialpha) = rr - ii
+                  p%i(iband,ikpt,ialpha) = -ri - ir
+                enddo
+              enddo
+            endif
+          enddo
+        enddo
+      enddo
+    else
+      ierr = -1
+      return
+    endif
+
+    deallocate( pcr, pci, mer, mei )
+    
+
+  end subroutine OCEAN_psi_dotter
 end module OCEAN_psi

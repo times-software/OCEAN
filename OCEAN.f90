@@ -13,6 +13,8 @@ program ocean
   type(ocean_vector) :: hay_vec
   type(long_Range) :: lr
 
+  integer :: iter
+
 
   call ocean_mpi_init( ierr )
 
@@ -22,14 +24,22 @@ program ocean
 
   call ocean_sys_init( sys, ierr )
 
-  call ocean_load_data( sys, hay_vec, lr, ierr )
-  if( ierr .ne. 0 ) goto 111
+!  call ocean_init_data( sys, hay_vec, lr, ierr )
+!  if( ierr .ne. 0 ) goto 111
+
+  do iter = 1, sys%nruns
+
+    call ocean_hayinit( ierr )
 
 
-  call ocean_hayinit( ierr )
-  call ocean_haydock( sys, hay_vec, lr, ierr )
+    call ocean_load_data( sys, hay_vec, lr, ierr )
+    if( ierr .ne. 0 ) goto 111
 
-  
+
+    call ocean_haydock( sys, hay_vec, lr, ierr )
+    call ocean_sys_update( sys, ierr )
+
+  enddo
 
 
 

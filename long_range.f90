@@ -1,3 +1,5 @@
+! We can decouple reloading the bloch states from re-factoring W
+!   probably not worth it right now
 module ocean_long_range
 
   use AI_kinds
@@ -101,12 +103,20 @@ module ocean_long_range
     integer, intent( inout ) :: ierr
 
     type(C_PTR) :: cptr
+    logical :: bc_exist
 
     if( myid .eq. root ) then
-      open(unit=99,file='bloch_control',form='formatted',status='old')
-      rewind(99)
-      read(99,*) use_obf
-      read(99,*) use_fake_obf
+      inquire(file='bloch_control',exist=bc_exist)
+      if( bc_exist ) then
+        open(unit=99,file='bloch_control',form='formatted',status='old')
+        rewind(99)
+        read(99,*) use_obf
+        read(99,*) use_fake_obf
+        close(99)
+      else
+        use_obf = .false.
+        use_fake_obf = .false.
+      endif
     endif
 #ifdef MPI
     call MPI_BCAST( use_obf, 1, MPI_LOGICAL, root, comm, ierr )
@@ -155,9 +165,15 @@ module ocean_long_range
     if( is_loaded .and. associated( sys%cur_run%prev_run ) ) then
       ! Same type of atom
       if( sys%cur_run%ZNL(1) .ne. sys%cur_run%prev_run%ZNL(1) ) is_loaded = .false.
+      ! same rpot requires same n and l
+      if( sys%cur_run%ZNL(2) .ne. sys%cur_run%prev_run%ZNL(2) ) is_loaded = .false.
+      if( sys%cur_run%ZNL(3) .ne. sys%cur_run%prev_run%ZNL(3) ) is_loaded = .false.
       ! Same index 
       if( sys%cur_run%indx .ne. sys%cur_run%prev_run%indx ) is_loaded = .false.
+      if( ( myid .eq. root ) .and. ( .not. is_loaded ) ) write(6,*) 'Re-loading long-range'
     endif
+
+    if( is_loaded .and. ( myid .eq. root ) ) write(6,*) 'Re-using long-range'
 
 
     !!! (4)
@@ -180,7 +196,6 @@ module ocean_long_range
         call OCEAN_bloch_lrLOAD( sys, my_tau, my_xshift, re_bloch_state, im_bloch_state, ierr )
         if( ierr .ne. 0 ) return
       endif
-
 
 
       call lr_populate_W2( sys, ierr )

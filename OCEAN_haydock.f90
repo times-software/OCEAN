@@ -1,5 +1,6 @@
 module OCEAN_action
   use AI_kinds
+  use iso_c_binding
   implicit none
   private
   save  
@@ -22,10 +23,10 @@ module OCEAN_action
   CHARACTER(LEN=3) :: calc_type
 
 
-  REAL(DP), POINTER, CONTIGUOUS :: mem_psi_r(:,:,:)
-  REAL(DP), POINTER, CONTIGUOUS :: mem_psi_i(:,:,:)
-  REAL(DP), POINTER, CONTIGUOUS :: mem_hpsi_r(:,:,:)
-  REAL(DP), POINTER, CONTIGUOUS :: mem_hpsi_i(:,:,:)
+  REAL(DP), POINTER, CONTIGUOUS :: mem_psi_r(:,:,:) 
+  REAL(DP), POINTER, CONTIGUOUS :: mem_psi_i(:,:,:) 
+  REAL(DP), POINTER, CONTIGUOUS :: mem_hpsi_r(:,:,:) 
+  REAL(DP), POINTER, CONTIGUOUS :: mem_hpsi_i(:,:,:) 
   REAL(DP), POINTER, CONTIGUOUS :: mem_oldpsi_r(:,:,:)
   REAL(DP), POINTER, CONTIGUOUS :: mem_oldpsi_i(:,:,:)
   REAL(DP), POINTER, CONTIGUOUS :: mem_newpsi_r(:,:,:)
@@ -35,15 +36,83 @@ module OCEAN_action
   REAL(DP), POINTER, CONTIGUOUS :: mem_lrpsi_r(:,:,:)
   REAL(DP), POINTER, CONTIGUOUS :: mem_lrpsi_i(:,:,:)
 
+
+  TYPE( C_PTR ) :: cp_psi_r, cp_psi_i 
+  TYPE( C_PTR ) :: cp_hpsi_r, cp_hpsi_i 
+  TYPE( C_PTR ) :: cp_oldpsi_r, cp_oldpsi_i 
+  TYPE( C_PTR ) :: cp_newpsi_r, cp_newpsi_i 
+  TYPE( C_PTR ) :: cp_mulpsi_r, cp_mulpsi_i 
+  TYPE( C_PTR ) :: cp_lrpsi_r, cp_lrpsi_i 
+
   public :: OCEAN_haydock, OCEAN_hayinit
 
   contains
+
+  subroutine OCEAN_hay_dealloc( ierr )
+    implicit none
+    include 'fftw3.f03'
+    integer, intent( inout ) :: ierr
+
+    if( associated( mem_psi_r ) ) then
+      call fftw_free( cp_psi_r )
+      mem_psi_r => null()
+    endif
+    if( associated( mem_psi_i ) ) then
+      call fftw_free( cp_psi_i )
+      mem_psi_i => null()
+    endif
+
+    if( associated( mem_hpsi_r ) ) then
+      call fftw_free( cp_hpsi_r )
+      mem_hpsi_r => null()
+    endif
+    if( associated( mem_hpsi_i ) ) then
+      call fftw_free( cp_hpsi_i )
+      mem_hpsi_i => null()
+    endif
+ 
+    if( associated( mem_oldpsi_r ) ) then
+      call fftw_free( cp_oldpsi_r )
+      mem_oldpsi_r => null()
+    endif 
+    if( associated( mem_oldpsi_i ) ) then
+      call fftw_free( cp_oldpsi_i )
+      mem_oldpsi_i => null() 
+    endif
+
+    if( associated( mem_newpsi_r ) ) then
+      call fftw_free( cp_newpsi_r )
+      mem_newpsi_r => null()
+    endif 
+    if( associated( mem_newpsi_i ) ) then
+      call fftw_free( cp_newpsi_i )
+      mem_newpsi_i => null()
+    endif
+
+    if( associated( mem_mulpsi_r ) ) then
+      call fftw_free( cp_mulpsi_r )
+      mem_mulpsi_r => null()
+    endif 
+    if( associated( mem_mulpsi_i ) ) then
+      call fftw_free( cp_mulpsi_i )
+      mem_mulpsi_i => null()
+    endif
+
+    if( associated( mem_lrpsi_r ) ) then
+      call fftw_free( cp_lrpsi_r )
+      mem_lrpsi_r => null()
+    endif 
+    if( associated( mem_lrpsi_i ) ) then
+      call fftw_free( cp_lrpsi_i )
+      mem_lrpsi_i => null()
+    endif
+
+  end subroutine OCEAN_hay_dealloc
 
 
   subroutine OCEAN_hay_alloc( sys, hay_vec, psi, hpsi, old_psi, new_psi, mul_psi, lr_psi, ierr )
     use OCEAN_system
     use OCEAN_psi
-    use iso_c_binding
 
     implicit none
     include 'fftw3.f03'
@@ -52,13 +121,13 @@ module OCEAN_action
     type( ocean_vector ), intent( in ) :: hay_vec
     type( ocean_vector ), intent( out ) :: psi, hpsi, old_psi, new_psi, mul_psi, lr_psi
 
-    type(C_PTR) :: cptr
+!    type(C_PTR) :: cptr
 
 
-    cptr = fftw_alloc_real( int(hay_vec%bands_pad * hay_vec%kpts_pad * sys%nalpha, C_SIZE_T) )
-    call c_f_pointer( cptr, mem_psi_r, [hay_vec%bands_pad, hay_vec%kpts_pad, sys%nalpha ] )
-    cptr = fftw_alloc_real( int(hay_vec%bands_pad * hay_vec%kpts_pad * sys%nalpha, C_SIZE_T) )
-    call c_f_pointer( cptr, mem_psi_i, [hay_vec%bands_pad, hay_vec%kpts_pad, sys%nalpha ] )
+    cp_psi_r = fftw_alloc_real( int(hay_vec%bands_pad * hay_vec%kpts_pad * sys%nalpha, C_SIZE_T) )
+    call c_f_pointer( cp_psi_r, mem_psi_r, [hay_vec%bands_pad, hay_vec%kpts_pad, sys%nalpha ] )
+    cp_psi_i = fftw_alloc_real( int(hay_vec%bands_pad * hay_vec%kpts_pad * sys%nalpha, C_SIZE_T) )
+    call c_f_pointer( cp_psi_i, mem_psi_i, [hay_vec%bands_pad, hay_vec%kpts_pad, sys%nalpha ] )
   
 
     psi%r => mem_psi_r
@@ -71,10 +140,10 @@ module OCEAN_action
 
 
 
-    cptr = fftw_alloc_real( int(hay_vec%bands_pad * hay_vec%kpts_pad * sys%nalpha, C_SIZE_T) )
-    call c_f_pointer( cptr, mem_hpsi_r, [hay_vec%bands_pad, hay_vec%kpts_pad, sys%nalpha ] )
-    cptr = fftw_alloc_real( int(hay_vec%bands_pad * hay_vec%kpts_pad * sys%nalpha, C_SIZE_T) )
-    call c_f_pointer( cptr, mem_hpsi_i, [hay_vec%bands_pad, hay_vec%kpts_pad, sys%nalpha ] )
+    cp_hpsi_r = fftw_alloc_real( int(hay_vec%bands_pad * hay_vec%kpts_pad * sys%nalpha, C_SIZE_T) )
+    call c_f_pointer( cp_hpsi_r, mem_hpsi_r, [hay_vec%bands_pad, hay_vec%kpts_pad, sys%nalpha ] )
+    cp_hpsi_i = fftw_alloc_real( int(hay_vec%bands_pad * hay_vec%kpts_pad * sys%nalpha, C_SIZE_T) )
+    call c_f_pointer( cp_hpsi_i, mem_hpsi_i, [hay_vec%bands_pad, hay_vec%kpts_pad, sys%nalpha ] )
 
     hpsi%r => mem_hpsi_r
     hpsi%i => mem_hpsi_i
@@ -84,10 +153,10 @@ module OCEAN_action
     hpsi%kpts_pad  = hay_vec%kpts_pad
 
 
-    cptr = fftw_alloc_real( int(hay_vec%bands_pad * hay_vec%kpts_pad * sys%nalpha, C_SIZE_T) )
-    call c_f_pointer( cptr, mem_oldpsi_r, [hay_vec%bands_pad, hay_vec%kpts_pad, sys%nalpha ] )
-    cptr = fftw_alloc_real( int(hay_vec%bands_pad * hay_vec%kpts_pad * sys%nalpha, C_SIZE_T) )
-    call c_f_pointer( cptr, mem_oldpsi_i, [hay_vec%bands_pad, hay_vec%kpts_pad, sys%nalpha ] )
+    cp_oldpsi_r = fftw_alloc_real( int(hay_vec%bands_pad * hay_vec%kpts_pad * sys%nalpha, C_SIZE_T) )
+    call c_f_pointer( cp_oldpsi_r, mem_oldpsi_r, [hay_vec%bands_pad, hay_vec%kpts_pad, sys%nalpha ] )
+    cp_oldpsi_i = fftw_alloc_real( int(hay_vec%bands_pad * hay_vec%kpts_pad * sys%nalpha, C_SIZE_T) )
+    call c_f_pointer( cp_oldpsi_i, mem_oldpsi_i, [hay_vec%bands_pad, hay_vec%kpts_pad, sys%nalpha ] )
   
     old_psi%r => mem_oldpsi_r
     old_psi%i => mem_oldpsi_i
@@ -97,10 +166,10 @@ module OCEAN_action
     old_psi%kpts_pad  = hay_vec%kpts_pad
 
 
-    cptr = fftw_alloc_real( int(hay_vec%bands_pad * hay_vec%kpts_pad * sys%nalpha, C_SIZE_T) )
-    call c_f_pointer( cptr, mem_newpsi_r, [hay_vec%bands_pad, hay_vec%kpts_pad, sys%nalpha ] )
-    cptr = fftw_alloc_real( int(hay_vec%bands_pad * hay_vec%kpts_pad * sys%nalpha, C_SIZE_T) )
-    call c_f_pointer( cptr, mem_newpsi_i, [hay_vec%bands_pad, hay_vec%kpts_pad, sys%nalpha ] )
+    cp_newpsi_r = fftw_alloc_real( int(hay_vec%bands_pad * hay_vec%kpts_pad * sys%nalpha, C_SIZE_T) )
+    call c_f_pointer( cp_newpsi_r, mem_newpsi_r, [hay_vec%bands_pad, hay_vec%kpts_pad, sys%nalpha ] )
+    cp_newpsi_i = fftw_alloc_real( int(hay_vec%bands_pad * hay_vec%kpts_pad * sys%nalpha, C_SIZE_T) )
+    call c_f_pointer( cp_newpsi_i, mem_newpsi_i, [hay_vec%bands_pad, hay_vec%kpts_pad, sys%nalpha ] )
 
     new_psi%r => mem_newpsi_r
     new_psi%i => mem_newpsi_i
@@ -110,10 +179,10 @@ module OCEAN_action
     new_psi%kpts_pad  = hay_vec%kpts_pad
 
 
-    cptr = fftw_alloc_real( int(hay_vec%bands_pad * hay_vec%kpts_pad * sys%nalpha, C_SIZE_T) )
-    call c_f_pointer( cptr, mem_mulpsi_r, [hay_vec%bands_pad, hay_vec%kpts_pad, sys%nalpha ] )
-    cptr = fftw_alloc_real( int(hay_vec%bands_pad * hay_vec%kpts_pad * sys%nalpha, C_SIZE_T) )
-    call c_f_pointer( cptr, mem_mulpsi_i, [hay_vec%bands_pad, hay_vec%kpts_pad, sys%nalpha ] )
+    cp_mulpsi_r = fftw_alloc_real( int(hay_vec%bands_pad * hay_vec%kpts_pad * sys%nalpha, C_SIZE_T) )
+    call c_f_pointer( cp_mulpsi_r, mem_mulpsi_r, [hay_vec%bands_pad, hay_vec%kpts_pad, sys%nalpha ] )
+    cp_mulpsi_i = fftw_alloc_real( int(hay_vec%bands_pad * hay_vec%kpts_pad * sys%nalpha, C_SIZE_T) )
+    call c_f_pointer( cp_mulpsi_i, mem_mulpsi_i, [hay_vec%bands_pad, hay_vec%kpts_pad, sys%nalpha ] )
  
     mul_psi%r => mem_mulpsi_r
     mul_psi%i => mem_mulpsi_i
@@ -123,10 +192,10 @@ module OCEAN_action
     mul_psi%kpts_pad  = hay_vec%kpts_pad
 
 
-    cptr = fftw_alloc_real( int(hay_vec%bands_pad * hay_vec%kpts_pad * sys%nalpha, C_SIZE_T) )
-    call c_f_pointer( cptr, mem_lrpsi_r, [hay_vec%bands_pad, hay_vec%kpts_pad, sys%nalpha ] )
-    cptr = fftw_alloc_real( int(hay_vec%bands_pad * hay_vec%kpts_pad * sys%nalpha, C_SIZE_T) )
-    call c_f_pointer( cptr, mem_lrpsi_i, [hay_vec%bands_pad, hay_vec%kpts_pad, sys%nalpha ] )
+    cp_lrpsi_r = fftw_alloc_real( int(hay_vec%bands_pad * hay_vec%kpts_pad * sys%nalpha, C_SIZE_T) )
+    call c_f_pointer( cp_lrpsi_r, mem_lrpsi_r, [hay_vec%bands_pad, hay_vec%kpts_pad, sys%nalpha ] )
+    cp_lrpsi_i = fftw_alloc_real( int(hay_vec%bands_pad * hay_vec%kpts_pad * sys%nalpha, C_SIZE_T) )
+    call c_f_pointer( cp_lrpsi_i, mem_lrpsi_i, [hay_vec%bands_pad, hay_vec%kpts_pad, sys%nalpha ] )
  
     lr_psi%r => mem_lrpsi_r
     lr_psi%i => mem_lrpsi_i
@@ -168,6 +237,9 @@ module OCEAN_action
     type( ocean_vector ) :: hpsi
     type( ocean_vector ) :: new_psi
     type( ocean_vector ) :: psi
+
+
+    character( LEN=21 ) :: lanc_filename
 
 
 !$    integer, external :: omp_get_num_threads
@@ -233,8 +305,14 @@ module OCEAN_action
     enddo
 
     if( myid .eq. 0 ) then
-      call redtrid( haydock_niter-1, a(0), b(1) )
+      write(lanc_filename, '(A8,A2,A1,I4.4,A1,A2,A1,I2.2)' ) 'lanceig_', sys%cur_run%elname, &
+        '.', sys%cur_run%indx, '_', '1s', '_', sys%cur_run%photon
+      call haydump( haydock_niter, sys, ierr )
+      call redtrid( haydock_niter, lanc_filename )
+!      call redtrid( haydock_niter-1, a(0), b(1), lanc_filename )
     endif
+
+    call OCEAN_hay_dealloc( ierr )
     
   end subroutine OCEAN_haydock
 
@@ -255,7 +333,7 @@ module OCEAN_action
     integer :: ialpha, ikpt
     
     imag_a = 0.0_DP  
-    call cpu_time( time1 )
+!    call cpu_time( time1 )
 
     do ialpha = 1, sys%nalpha
       do ikpt = 1, sys%nkpts
@@ -293,31 +371,50 @@ module OCEAN_action
     hpsi%r => temp_psi%r
     hpsi%i => temp_psi%i
 
-    call cpu_time( time2 )
+!    call cpu_time( time2 )
 
 
     if( myid .eq. 0 ) then
-      write ( 6, '(2x,2f10.6,10x,1e11.4,x,f6.3)' ) a(iter-1), b(iter), imag_a, time2-time1
-      call haydump( iter, ierr )
+!      write ( 6, '(2x,2f10.6,10x,1e11.4,x,f6.3)' ) a(iter-1), b(iter), imag_a, time2-time1
+      write ( 6, '(2x,2f10.6,10x,1e11.4,8x,i6)' ) a(iter-1), b(iter), imag_a, iter
+      if( mod( iter, 10 ) .eq. 0 ) call haydump( iter, sys, ierr )
+!      call haydump( iter, sys, ierr )
     endif
 
 
   end subroutine OCEAN_hay_ab
 
 
-  subroutine haydump( iter, ierr )
+  subroutine haydump( iter, sys, ierr )
     use OCEAN_psi,  only : kpref
+    use OCEAN_system
     implicit none
     integer, intent( inout ) :: ierr
+    type( o_system ), intent( in ) :: sys
     integer, intent( in ) :: iter
 
     integer :: ie, jdamp, jj
     real(DP), external :: gamfcn
     real(DP) :: e, gam, dr, di, ener, spct( 0 : 1 ), spkk, pi
     complex(DP) :: rm1, ctmp, disc, delta
+
+    character( LEN=21 ) :: abs_filename
+    
+    select case ( sys%cur_run%calc_type)
+    case( 'XES' )
+      write(abs_filename,'(A8,A2,A1,I4.4,A1,A2,A1,I2.2)' ) 'xesspct_', sys%cur_run%elname, &
+          '.', sys%cur_run%indx, '_', '1s', '_', sys%cur_run%photon
+    case( 'XAS' )
+      write(abs_filename,'(A8,A2,A1,I4.4,A1,A2,A1,I2.2)' ) 'absspct_', sys%cur_run%elname, &
+          '.', sys%cur_run%indx, '_', '1s', '_', sys%cur_run%photon
+    case default
+      write(abs_filename,'(A8,A2,A1,I4.4,A1,A2,A1,I2.2)' ) 'absspct_', sys%cur_run%elname, &
+          '.', sys%cur_run%indx, '_', '1s', '_', sys%cur_run%photon
+    end select
     
     rm1 = -1; rm1 = sqrt( rm1 ); pi = 4.0d0 * atan( 1.0d0 )
-    open( unit=99, file='absspct', form='formatted', status='unknown' )
+!    open( unit=99, file='absspct', form='formatted', status='unknown' )
+    open( unit=99, file=abs_filename, form='formatted', status='unknown' )
     rewind 99
     do ie = 1, 2 * ne, 2
        e = el + ( eh - el ) * dble( ie ) / dble( 2 * ne )
@@ -405,6 +502,8 @@ module OCEAN_action
     call MPI_BCAST( nval, 1, MPI_DOUBLE_PRECISION, root, comm, ierr )
 #endif
 
+    if( allocated( a ) ) deallocate( a )
+    if( allocated( b ) ) deallocate( b )
     if( haydock_niter .gt. 0 ) then
       allocate( a( 0 : haydock_niter ) )
       allocate( b( 0 : haydock_niter ) )
@@ -415,6 +514,53 @@ module OCEAN_action
     endif
 
   end subroutine OCEAN_hayinit
+
+  subroutine redtrid(n,lanc_filename)
+    implicit none
+    integer, intent( in ) ::  n
+!    real( DP ), intent( in ) :: a( 0 : n ), b( n )
+    character( LEN=21 ), intent( in ) :: lanc_filename
+    double precision, allocatable :: ar(:,:),ai(:,:)
+    double precision, allocatable :: w(:),zr(:,:),zi(:,:)
+    double precision, allocatable :: fv1(:),fv2(:),fm1(:)
+    integer :: ierr,matz,nm,i,j,nn
+    nn=n+1
+    nm=nn+10
+    allocate(ar(nm,nm),ai(nm,nm),w(nm),zr(nm,nm),zi(nm,nm))
+    allocate(fv1(nm),fv2(nm),fm1(2*nm))
+    do i=1,n+1
+      do j=1,n+1
+        ar(j,i)=0.d0
+        ai(j,i)=0.d0
+      end do
+    end do
+    do i=1,n+1
+      ar(i,i)=a(i-1)
+      if (i.le.n) then
+        ar(i+1,i)=b(i)
+        ar(i,i+1)=b(i)
+      end if
+    end do
+    matz=0
+    call elsch(nm,nn,ar,ai,w,matz,zr,zi,fv1,fv2,fm1,ierr)
+!    open(unit=99,file='lanceigs',form='formatted',status='unknown')
+    open(unit=99,file=lanc_filename,form='formatted',status='unknown')
+    rewind 99
+    write ( 99, '(1i5)' ) n
+    do i = 0, n
+      if ( i .eq. 0 ) then
+        write ( 99, '(2x,1f20.10)' ) a( i )
+      else
+        write ( 99, '(2x,2f20.10)' ) a( i ), b( i )
+      end if
+    end do
+    write (99,'(2x,2i5,1f20.10)') (i,nn,w(i),i=1,nn)
+    close(unit=99)
+    deallocate(ar,ai,w,zr,zi,fv1,fv2,fm1)
+    return
+  end subroutine redtrid
+
+
 
 
 end module OCEAN_action

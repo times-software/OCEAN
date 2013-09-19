@@ -47,7 +47,8 @@ module OCEAN_bloch
 
 
     ! Change phase as if things were flipped around. Don't actually re-distribute
-    
+    rbs_out = 0.0_dp
+    ibs_out = 0.0_dp
     pi = 4.0d0 * atan( 1.0d0 )
     !
     ! Reasoning for the below;
@@ -122,7 +123,7 @@ module OCEAN_bloch
           xiter = xiter + 1
           if( xiter .lt. my_start_nx ) cycle
 !JTV ???
-          if( xiter .gt. my_start_nx + my_xpts ) goto 111
+          if( xiter .gt. my_start_nx + my_xpts - 1 ) goto 111
           xtarg = ix - xshift( 1 )
           if( xtarg .gt. sys%xmesh(1) ) then
             xtarg = xtarg - sys%xmesh(1)
