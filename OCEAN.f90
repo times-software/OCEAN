@@ -36,7 +36,8 @@ program ocean
     if( ierr .ne. 0 ) goto 111
 
 
-    call ocean_haydock( sys, hay_vec, lr, ierr )
+!    call ocean_haydock( sys, hay_vec, lr, ierr )
+    call OCEAN_action_run( sys, hay_vec, lr, ierr )
     call ocean_sys_update( sys, ierr )
 
   enddo
