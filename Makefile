@@ -1,5 +1,6 @@
 FC = mpif90
-FLAGS = -O3 -ffree-line-length-none -x f95-cpp-input -m64 -DHAVE_FLUSH -DBLAS  -Wall  -g -ffree-line-length-none  -funroll-loops -ftree-vectorizer-verbose=0 -ffast-math -ftree-vectorize -DMPI -fopenmp  -march=corei7  -fbacktrace -fbounds-check
+FLAGS = -O3 -ffree-line-length-none -x f95-cpp-input -m64 -DHAVE_FLUSH -DBLAS  -Wall  -g -ffree-line-length-none  -funroll-loops -ftree-vectorizer-verbose=0 -ffast-math -ftree-vectorize -DMPI -fopenmp  -march=corei7  
+#-fbacktrace -fbounds-check
 LDFLAGS = -m64  -Wall  -g -fopenmp -march=corei7
 
 FFTWI = -I/home/jtv1/bin/gnu/include
@@ -13,7 +14,7 @@ all: ocean.x
 
 OCEANOBJS = AI_kinds.o OCEAN_mpi.o OCEAN_system.o OCEAN_bloch.o OCEAN_obf.o OCEAN_multiplet.o long_range.o OCEAN_load_data.o OCEAN_psi.o \
             OCEAN_energies.o OCEAN_haydock.o OCEAN.o getabb.o getomega.o gamfcn.o jlmfft.o limel.o jimel.o \
-            nbsemkcmel.o intval.o newgetylm.o  newgetprefs.o newthreey.o cainmhsetup.o elsdch.o 
+            nbsemkcmel.o intval.o newgetylm.o  newgetprefs.o newthreey.o cainmhsetup.o elsdch.o invdrv.o cinv.o
 
 ocean.x: $(OCEANOBJS)
 	$(FC) $(LDFLAGS) -o ocean.x $(OCEANOBJS) $(BLACS) $(FFTWL)
