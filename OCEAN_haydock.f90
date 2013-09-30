@@ -8,16 +8,23 @@ module OCEAN_action
 
   REAL(DP), ALLOCATABLE :: a( : )
   REAL(DP), ALLOCATABLE :: b( : )
+  REAL(DP), ALLOCATABLE :: real_a( : )
+  REAL(DP), ALLOCATABLE :: imag_a( : )
+  REAL(DP), ALLOCATABLE :: real_b( : )
+  REAL(DP), ALLOCATABLE :: imag_b( : )
  
   REAL(DP) :: inter_scale_threshold = 0.00001
   REAL(DP) :: inter_scale
 
   REAL(DP) :: el, eh, gam0, eps, nval,  ebase
   REAL(DP) :: gres, gprc, ffff, ener
+  REAL(DP) :: e_start, e_stop, e_step
+
   
   INTEGER  :: haydock_niter = 0
   INTEGER  :: ne
   INTEGER  :: nloop
+  INTEGER  :: inv_loop
   
 
   CHARACTER(LEN=3) :: calc_type
@@ -44,7 +51,7 @@ module OCEAN_action
   TYPE( C_PTR ) :: cp_mulpsi_r, cp_mulpsi_i 
   TYPE( C_PTR ) :: cp_lrpsi_r, cp_lrpsi_i 
 
-  public :: OCEAN_haydock, OCEAN_hayinit
+  public :: OCEAN_haydock, OCEAN_hayinit, OCEAN_action_run
 
   contains
 
@@ -207,6 +214,24 @@ module OCEAN_action
 
   end subroutine OCEAN_hay_alloc
 
+  subroutine OCEAN_action_run( sys, hay_vec, lr, ierr )
+    use OCEAN_system
+    use OCEAN_psi
+    use OCEAN_long_range
+    implicit none
+    integer, intent( inout ) :: ierr
+    type( o_system ), intent( in ) :: sys
+    type( ocean_vector ), intent( in ) :: hay_vec
+    type(long_range), intent( inout ) :: lr
+
+
+    select case ( calc_type )
+      case('hay')
+        call OCEAN_haydock( sys, hay_vec, lr, ierr )
+      case('inv')
+        call OCEAN_GMRES( sys, hay_vec, lr, ierr )
+    end select
+  end subroutine OCEAN_action_run
 
 
   subroutine OCEAN_haydock( sys, hay_vec, lr, ierr )
@@ -255,6 +280,9 @@ module OCEAN_action
       write ( 6, '(2x,1a8,1e15.8)' ) ' mult = ', kpref
       write(6,*) inter_scale, haydock_niter
     endif
+
+
+
     do iter = 1, haydock_niter
 
       if( sys%long_range ) then
@@ -308,7 +336,7 @@ module OCEAN_action
       write(lanc_filename, '(A8,A2,A1,I4.4,A1,A2,A1,I2.2)' ) 'lanceig_', sys%cur_run%elname, &
         '.', sys%cur_run%indx, '_', '1s', '_', sys%cur_run%photon
       call haydump( haydock_niter, sys, ierr )
-      call redtrid( haydock_niter, lanc_filename )
+!      call redtrid( haydock_niter, lanc_filename )
 !      call redtrid( haydock_niter-1, a(0), b(1), lanc_filename )
     endif
 
@@ -316,6 +344,228 @@ module OCEAN_action
     
   end subroutine OCEAN_haydock
 
+
+  subroutine OCEAN_GMRES( sys, hay_vec, lr, ierr )
+    use AI_kinds
+    use OCEAN_mpi
+    use OCEAN_system
+    use OCEAN_energies
+    use OCEAN_psi
+    use OCEAN_multiplet
+    use OCEAN_long_range
+
+
+    implicit none
+    integer, intent( inout ) :: ierr
+    type( o_system ), intent( in ) :: sys
+    type( ocean_vector ), intent( in ) :: hay_vec
+    type(long_range), intent( inout ) :: lr
+
+
+    type( ocean_vector ) :: old_psi
+    type( ocean_vector ) :: long_range_psi
+    type( ocean_vector ) :: multiplet_psi
+    type( ocean_vector ) :: hpsi
+    type( ocean_vector ) :: new_psi
+    type( ocean_vector ) :: psi
+
+!    type( ocean_vector ) :: prec_psi
+
+    character( LEN=21 ) :: lanc_filename
+    character( LEN=3 ) :: technique, req, bs, as
+    character( LEN = 9 ) :: ct
+    character( LEN=5) :: eval
+
+    character( LEN = 21 ) :: abs_filename
+
+    complex( DP ), allocatable, dimension ( : ) :: x, rhs, v1, v2, pcdiv, cwrk
+
+    integer :: i, ntot, iter, iwrk, need, int1, int2
+    real( DP ) :: relative_error, f( 2 ), ener
+    complex( DP ) :: rm1
+
+    rm1 = -1
+    rm1 = sqrt( rm1 )
+    
+
+    iwrk = 1
+    eval = 'zerox'
+    f( 1 ) = ffff
+
+    call ocean_hay_alloc( sys, hay_vec, psi, hpsi, old_psi, new_psi, multiplet_psi, long_range_psi, ierr )
+
+
+    if( myid .eq. root ) then
+      write ( 6, '(2x,1a8,1e15.8)' ) ' mult = ', kpref
+      write(6,*) inter_scale, haydock_niter
+
+
+      select case ( sys%cur_run%calc_type)
+      case( 'XES' )
+        write(abs_filename,'(A8,A2,A1,I4.4,A1,A2,A1,I2.2)' ) 'xesspct_', sys%cur_run%elname, &
+            '.', sys%cur_run%indx, '_', '1s', '_', sys%cur_run%photon
+      case( 'XAS' )
+        write(abs_filename,'(A8,A2,A1,I4.4,A1,A2,A1,I2.2)' ) 'absspct_', sys%cur_run%elname, &
+            '.', sys%cur_run%indx, '_', '1s', '_', sys%cur_run%photon
+      case default
+        write(abs_filename,'(A8,A2,A1,I4.4,A1,A2,A1,I2.2)' ) 'absspct_', sys%cur_run%elname, &
+            '.', sys%cur_run%indx, '_', '1s', '_', sys%cur_run%photon
+      end select
+
+      open( unit=76,file=abs_filename,form='formatted',status='unknown' )
+      rewind( 76 )
+    endif
+
+
+    ntot = sys%nalpha * sys%nkpts * sys%num_bands
+    allocate( rhs( ntot ), v1( ntot ), v2( ntot ), pcdiv( ntot ), x( ntot ) )
+
+    call vtor( sys, hay_vec, rhs )
+
+    do iter = 1, inv_loop
+      ener = ( e_start + ( iter - 1 ) * e_step ) / 27.2114_DP
+      if( myid .eq. root ) write(6,*) ener * 27.2114_DP
+
+!      call OCEAN_action_set_psi( psi )      
+
+
+      psi%r( :, :, : ) = 1.0_DP
+      psi%i( :, :, : ) = 0.0_DP
+      call OCEAN_xact( sys, psi, hpsi, multiplet_psi, long_range_psi, lr, ierr )
+
+!      call OCEAN_psi_set_prec( sys, ener, gprc, hpsi, prec_psi )
+      call vtor( sys, hpsi, v1 )
+      do i = 1, ntot
+        pcdiv( i ) = ( ener - v1( i ) - rm1 * gprc ) / ( ( ener - v1( i ) ) ** 2 + gprc ** 2 )
+      end do
+      ct = 'beginning'
+      req = '---'
+
+      do while ( req .ne. 'end' )
+        call invdrv( x, rhs, ntot, int1, int2, nloop, need, iwrk, cwrk, v1, v2, bs, as, req, ct, eval, f )
+        select case( req )
+        case( 'all ' )
+          if( allocated( cwrk ) ) deallocate( cwrk )
+          iwrk = need
+          allocate( cwrk( need ) )
+        case( 'act' ) ! E - S H ... in what follows, v1 must be untouched
+          ! v = v1
+          call rtov( sys, psi, v1 )
+          call OCEAN_xact( sys, psi, hpsi, multiplet_psi, long_range_psi, lr, ierr )
+          call vtor( sys, hpsi, v2 )
+          v2( : ) = ( ener + rm1 * gres ) * v1( : ) - v2( : )
+        case( 'prc' )  ! meaning, divide by S(E-H0) ... in what follows, v1 must be untouched
+          v2( : ) = v1 ( : ) * pcdiv( : )
+          if( myid .eq. root ) then
+!            write ( 6, '(1p,2x,3i5,5(1x,1e15.8))' ) int1, int2, nloop, f( 2 ), f( 1 ), ener, 1.0d0 - dot_product( rhs, x )
+!             write ( 66, '(1p,2x,3i5,5(1x,1e15.8))' ) int1, int2, nloop, f( 2 ), f( 1 ), ener, 1.0d0 - dot_product( rhs, x )
+          endif
+        end select
+      enddo
+
+
+
+    if( myid .eq. 0 ) then
+      relative_error = f( 2 ) / ( dimag( dot_product( rhs, x ) ) * kpref )
+      write ( 76, '(1p,1i5,4(1x,1e15.8))' ) int1, ener*27.2114_DP, ( 1.0d0 - dot_product( rhs, x ) ) * kpref, relative_error
+    endif
+    enddo
+
+    deallocate( rhs, v1, v2, pcdiv, x )
+
+    if( myid .eq. root ) close( 76 )
+
+    call OCEAN_hay_dealloc( ierr )
+
+  end subroutine OCEAN_GMRES
+
+  subroutine vtor( sys, psi, vec )
+    use OCEAN_system
+    use OCEAN_psi
+    implicit none
+    type(O_system), intent( in ) :: sys
+    type(OCEAN_vector), intent(in) :: psi
+    complex( DP ), intent ( out ) :: vec( sys%nalpha * sys%nkpts * sys%num_bands )
+    !
+    integer :: ia, ik, ib, ii
+    complex(DP) :: rm1
+
+    rm1 = -1
+    rm1 = sqrt(rm1)
+    ii = 0 
+    do ia = 1, sys%nalpha
+      do ik = 1, sys%nkpts
+        do ib = 1, sys%num_bands
+          ii = ii + 1
+!          vec( ii ) = cmplx( psi%r( ib, ik ,ia ), psi%i( ib, ik ,ia ) )
+          vec( ii ) = psi%r( ib, ik ,ia ) + rm1 * psi%i( ib, ik ,ia )
+        enddo
+      enddo
+    enddo
+  end subroutine vtor
+        
+
+  subroutine rtov( sys, psi, vec )
+    use OCEAN_system
+    use OCEAN_psi
+    implicit none
+    type(O_system), intent( in ) :: sys
+    type(OCEAN_vector), intent(inout) :: psi
+    complex( DP ), intent ( in ) :: vec( sys%nalpha * sys%nkpts * sys%num_bands )
+    ! 
+    integer :: ia, ik, ib, ii
+    complex(DP) :: rm1
+
+    rm1 = -1
+    rm1 = sqrt(rm1)
+
+    ii = 0
+    do ia = 1, sys%nalpha
+      do ik = 1, sys%nkpts
+        do ib = 1, sys%num_bands
+          ii = ii + 1
+          psi%r( ib, ik, ia ) = vec( ii )
+          psi%i( ib, ik, ia ) = -rm1 * vec( ii )
+!          psi%r( ib, ik ,ia ) = real( vec( ii ) )
+!          psi%i( ib, ik ,ia ) = aimag( vec( ii ) )
+        enddo
+      enddo
+    enddo
+  end subroutine rtov
+
+
+
+
+
+  subroutine OCEAN_xact( sys, psi, hpsi, multiplet_psi, long_range_psi, lr, ierr )
+    use AI_kinds 
+    use OCEAN_mpi
+    use OCEAN_system
+    use OCEAN_energies
+    use OCEAN_psi
+    use OCEAN_multiplet
+    use OCEAN_long_range
+
+    implicit none
+    integer, intent(inout) :: ierr
+    type(O_system), intent( in ) :: sys
+    type(OCEAN_vector), intent(inout) :: hpsi,  multiplet_psi, long_range_psi
+    type(OCEAN_vector), intent( in ) :: psi
+    type(long_range), intent( inout ) :: lr
+
+    !
+!    if( sys%long_range ) then
+!      call lr_act( sys, psi, long_range_psi, lr, ierr )
+!      if( nproc .gt. 1 ) then
+!        call ocean_psi_sum_lr( sys, long_range_psi, ierr )
+!      endif
+!    endif
+
+!    if( sys%mult ) call OCEAN_mult_act( sys, inter_scale, psi, multiplet_psi )
+    if( sys%e0 ) call ocean_energies_act( sys, psi, hpsi, ierr )
+!    call ocean_psi_sum( sys, hpsi, multiplet_psi, long_range_psi, ierr )
+
+  end subroutine
 
   subroutine OCEAN_hay_ab( sys, psi, hpsi, old_psi, iter, ierr )
     use OCEAN_system
@@ -328,24 +578,33 @@ module OCEAN_action
     type(OCEAN_vector), intent(inout) :: psi, hpsi, old_psi
 
     type(OCEAN_vector) :: temp_psi
-    real(DP) :: imag_a
+!    real(DP) :: imag_a, temp_a
     real(DP) :: time1, time2
     integer :: ialpha, ikpt
     
-    imag_a = 0.0_DP  
+!    imag_a = 0.0_DP  
 !    call cpu_time( time1 )
 
     do ialpha = 1, sys%nalpha
       do ikpt = 1, sys%nkpts
-        a(iter-1) = a(iter-1) + dot_product( hpsi%r(:,ikpt,ialpha), psi%r(:,ikpt,ialpha) )&
-                              + dot_product( hpsi%i(:,ikpt,ialpha), psi%i(:,ikpt,ialpha) )
-        imag_a = imag_a + dot_product( hpsi%i(:,ikpt,ialpha), psi%r(:,ikpt,ialpha) )&
+!        a(iter-1) = a(iter-1) + dot_product( hpsi%r(:,ikpt,ialpha), psi%r(:,ikpt,ialpha) )&
+!                              + dot_product( hpsi%i(:,ikpt,ialpha), psi%i(:,ikpt,ialpha) )
+!JTV right now we are doing dagger not transpose ...
+        real_a(iter-1) = real_a(iter-1) + dot_product( hpsi%r(:,ikpt,ialpha), psi%r(:,ikpt,ialpha) )&
+                        + dot_product( hpsi%i(:,ikpt,ialpha), psi%i(:,ikpt,ialpha) )
+        imag_a(iter-1) = imag_a(iter-1) + dot_product( hpsi%i(:,ikpt,ialpha), psi%r(:,ikpt,ialpha) )&
                         - dot_product( hpsi%r(:,ikpt,ialpha), psi%i(:,ikpt,ialpha) )
       enddo
     enddo
 
-    hpsi%r( :, :, : ) = hpsi%r( :, :, : ) - a(iter-1) * psi%r( :, :, : ) - b(iter-1) * old_psi%r( :, :, : )
-    hpsi%i( :, :, : ) = hpsi%i( :, :, : ) - a(iter-1) * psi%i( :, :, : ) - b(iter-1) * old_psi%i( :, :, : )
+!    hpsi%r( :, :, : ) = hpsi%r( :, :, : ) - a(iter-1) * psi%r( :, :, : ) - b(iter-1) * old_psi%r( :, :, : )
+!    hpsi%i( :, :, : ) = hpsi%i( :, :, : ) - a(iter-1) * psi%i( :, :, : ) - b(iter-1) * old_psi%i( :, :, : )
+    hpsi%r( :, :, : ) = hpsi%r( :, :, : ) - real_a(iter-1) * psi%r( :, :, : ) &
+                      + imag_a(iter-1) * psi%i( :, :, : )  &
+                      - b(iter-1) * old_psi%r( :, :, : )
+    hpsi%i( :, :, : ) = hpsi%i( :, :, : ) - real_a(iter-1) * psi%i( :, :, : ) &
+                      - imag_a(iter-1) * psi%r( :, :, : ) &
+                      - b(iter-1) * old_psi%i( :, :, : )
 
     do ialpha = 1, sys%nalpha
       do ikpt = 1, sys%nkpts
@@ -376,7 +635,8 @@ module OCEAN_action
 
     if( myid .eq. 0 ) then
 !      write ( 6, '(2x,2f10.6,10x,1e11.4,x,f6.3)' ) a(iter-1), b(iter), imag_a, time2-time1
-      write ( 6, '(2x,2f10.6,10x,1e11.4,8x,i6)' ) a(iter-1), b(iter), imag_a, iter
+!      write ( 6, '(2x,2f10.6,10x,1e11.4,8x,i6)' ) a(iter-1), b(iter), imag_a, iter
+      write ( 6, '(2x,2f10.6,10x,1e11.4,8x,i6)' ) real_a(iter-1), b(iter), imag_a(iter-1), iter
       if( mod( iter, 10 ) .eq. 0 ) call haydump( iter, sys, ierr )
 !      call haydump( iter, sys, ierr )
     endif
@@ -420,7 +680,8 @@ module OCEAN_action
        e = el + ( eh - el ) * dble( ie ) / dble( 2 * ne )
        do jdamp = 0, 1
           gam= gam0 + gamfcn( e, nval, eps ) * dble( jdamp )
-          ctmp = e - a( iter - 1 ) + rm1 * gam
+!          ctmp = e - a( iter - 1 ) + rm1 * gam
+          ctmp = e - real_a( iter - 1 ) + rm1 * ( gam + imag_a( iter - 1 ) )
           disc = sqrt( ctmp ** 2 - 4 * b( iter ) ** 2 )
           di= -rm1 * disc
           if ( di .gt. 0.0d0 ) then
@@ -429,7 +690,8 @@ module OCEAN_action
              delta = ( ctmp - disc ) / 2
           end if
           do jj = iter - 1, 0, -1
-             delta = e - a( jj ) + rm1 * gam - b( jj + 1 ) ** 2 / delta
+!             delta = e - a( jj ) + rm1 * gam - b( jj + 1 ) ** 2 / delta
+             delta = e - real_a( jj ) + rm1 * (gam + imag_a( jj ) ) - b( jj + 1 ) ** 2 / delta
           end do
           dr = delta
           di = -rm1 * delta
@@ -471,6 +733,9 @@ module OCEAN_action
           read(99,*) ne, el, eh, gam0, ebase
         case('inv')
           read(99,*) nloop, gres, gprc, ffff, ener
+          read(99,*) e_start, e_stop, e_step
+          inv_loop = aint( ( e_stop - e_start ) / e_step )
+          if (inv_loop .lt. 1 ) inv_loop = 1
         case default
           ierr = -1
       end select
@@ -500,15 +765,33 @@ module OCEAN_action
     call MPI_BCAST( ener, 1, MPI_DOUBLE_PRECISION, root, comm, ierr )
     call MPI_BCAST( eps, 1, MPI_DOUBLE_PRECISION, root, comm, ierr )
     call MPI_BCAST( nval, 1, MPI_DOUBLE_PRECISION, root, comm, ierr )
+
+
+    call MPI_BCAST( e_start, 1, MPI_DOUBLE_PRECISION, root, comm, ierr )
+    call MPI_BCAST( e_stop, 1, MPI_DOUBLE_PRECISION, root, comm, ierr )
+    call MPI_BCAST( e_step, 1, MPI_DOUBLE_PRECISION, root, comm, ierr )
+    call MPI_BCAST( inv_loop, 1, MPI_INTEGER, root, comm, ierr )
 #endif
 
     if( allocated( a ) ) deallocate( a )
     if( allocated( b ) ) deallocate( b )
+    if( allocated( real_a ) ) deallocate( real_a )
+    if( allocated( imag_a ) ) deallocate( imag_a )
+    if( allocated( real_b ) ) deallocate( real_b )
+    if( allocated( imag_b ) ) deallocate( imag_b )
     if( haydock_niter .gt. 0 ) then
       allocate( a( 0 : haydock_niter ) )
       allocate( b( 0 : haydock_niter ) )
-      a(:) = 0_DP
-      b(:) = 0_DP
+      allocate( real_a( 0 : haydock_niter ) )
+      allocate( imag_a( 0 : haydock_niter ) )
+      allocate( real_b( 0 : haydock_niter ) )
+      allocate( imag_b( 0 : haydock_niter ) )
+      a(:) = 0.0_DP
+      b(:) = 0.0_DP
+      real_a(:) = 0.0_DP
+      imag_a(:) = 0.0_DP
+      real_b(:) = 0.0_DP
+      imag_b(:) = 0.0_DP
     else
       allocate( a(1), b(1) )
     endif
