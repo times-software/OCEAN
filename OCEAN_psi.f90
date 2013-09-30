@@ -40,8 +40,34 @@ module OCEAN_psi
 
 
   public :: OCEAN_psi_init, OCEAN_psi_kill, OCEAN_psi_load, OCEAN_psi_sum_lr,  &
-            OCEAN_psi_sum, OCEAN_psi_ab
+            OCEAN_psi_sum, OCEAN_psi_ab, OCEAN_psi_set_prec
   contains
+
+  subroutine OCEAN_psi_set_prec( sys, energy, gprc, psi_in, psi_out )
+    use OCEAN_system
+    implicit none
+    type(O_system), intent( in ) :: sys
+    real( DP ), intent( in ) :: energy, gprc
+    type(OCEAN_vector), intent(in) :: psi_in
+    type(OCEAN_vector), intent(inout) :: psi_out
+    !
+    real( DP ) :: gprc_sqd, denom
+    integer :: ialpha, ikpt, ibnd
+
+    gprc_sqd = gprc * gprc
+!        pcdiv( i ) = ( ener - v1( i ) - rm1 * gprc ) / ( ( ener - v1( i ) ) ** 2 + gprc ** 2 )
+    do ialpha = 1, sys%nalpha
+      do ikpt = 1, sys%nkpts
+        do ibnd = 1, sys%num_bands
+          denom = ( energy - psi_in%r( ibnd, ikpt, ialpha ) ) ** 2 & 
+                + gprc_sqd + psi_in%i( ibnd, ikpt, ialpha ) ** 2
+          psi_out%r( ibnd, ikpt, ialpha ) = ( energy - psi_in%r( ibnd, ikpt, ialpha ) ) / denom
+          psi_out%i( ibnd, ikpt, ialpha ) = -( psi_in%i( ibnd, ikpt, ialpha ) + gprc ) / denom
+        enddo
+      enddo
+    enddo
+
+  end subroutine OCEAN_psi_set_prec
 
   subroutine OCEAN_psi_ab( sys, a, b1, b2, imag_a, psi, hpsi, old_psi, ierr )
     use OCEAN_system
