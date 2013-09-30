@@ -156,6 +156,27 @@ module OCEAN_energies
       enddo
       close(99)
 
+      inquire(file='gw_control',exist=have_gw)
+      if( have_gw ) then
+        open(unit=99,file='gw_control',form='formatted',status='old')
+        rewind(99)
+        read(99,*) gw_control
+        close(99)
+        select case (gw_control)
+        case ('full')
+          if( myid .eq. root ) write(6,*) 'full'
+          call OCEAN_abinit_fullgw( sys, ierr, .true. )
+        case ('real')
+          call OCEAN_abinit_fullgw( sys, ierr, .false. )
+        case( 'band' )
+          call OCEAN_gw_by_band( sys, ierr, .false. )
+        case( 'ibnd' )
+          call OCEAN_gw_by_band( sys, ierr, .true. )
+        case default
+          write(6,*) 'Unrecognized gw_control'
+        end select
+      endif
+
       if( sys%nruns .gt. 1 ) then
         inquire(file='core_shift.txt',exist=file_exists)
         core_offset = 0.0_DP
@@ -182,31 +203,15 @@ module OCEAN_energies
         endif
       endif
 
-      inquire(file='gw_control',exist=have_gw)
-      if( have_gw ) then
-        open(unit=99,file='gw_control',form='formatted',status='old')
-        rewind(99)
-        read(99,*) gw_control
-        close(99)
-        select case (gw_control)
-        case ('full')
-          call OCEAN_abinit_fullgw( sys, ierr, .true. )
-        case ('real')
-          call OCEAN_abinit_fullgw( sys, ierr, .false. )
-        case( 'band' )
-          call OCEAN_gw_by_band( sys, ierr )
-        case default
-          write(6,*) 'Unrecognized gw_control'
-        end select
-      endif
-      endif
+
+    endif
   ! Need to sychronize to test for ierr from above?
 #ifdef MPI
 
-      if( myid .eq. root ) write(6,*) energy_bands_pad,energy_kpts_pad,sys%nspn
-      call MPI_BARRIER( comm, ierr )
+    if( myid .eq. root ) write(6,*) energy_bands_pad,energy_kpts_pad,sys%nspn
+    call MPI_BARRIER( comm, ierr )
 
-      call MPI_BCAST( energies, energy_bands_pad*energy_kpts_pad*sys%nspn, MPI_DOUBLE, root, comm, ierr )
+    call MPI_BCAST( energies, energy_bands_pad*energy_kpts_pad*sys%nspn, MPI_DOUBLE, root, comm, ierr )
     if( ierr .ne. MPI_SUCCESS ) goto 111
 #endif
 
@@ -228,19 +233,22 @@ module OCEAN_energies
     if( sys%nspn .ne. 1 ) ierr = -1 
 
     do ialpha = 1, sys%nalpha
-      hpsi%r( :, :, ialpha ) = energies( :, :, 1 ) * psi%r( :, :, ialpha )
-      hpsi%i( :, :, ialpha ) = energies( :, :, 1 ) * psi%i( :, :, ialpha )
+      hpsi%r( :, :, ialpha ) = energies( :, :, 1 ) * psi%r( :, :, ialpha ) &
+                             - imag_selfenergy( :, :, 1 ) * psi%i( :, :, ialpha )
+      hpsi%i( :, :, ialpha ) = energies( :, :, 1 ) * psi%i( :, :, ialpha ) &
+                             + imag_selfenergy( :, :, 1 ) * psi%r( :, :, ialpha )
     enddo
 
   end subroutine OCEAN_energies_act
 
-  subroutine OCEAN_gw_by_band( sys, ierr )
+  subroutine OCEAN_gw_by_band( sys, ierr, keep_imag )
     use OCEAN_system
     use OCEAN_mpi, only : myid, root
 
     implicit none
     integer, intent(inout) :: ierr
     type(O_system), intent( in ) :: sys
+    logical, intent( in ) :: keep_imag
 
     integer :: iter, ispn, kiter
     real( DP ), allocatable :: re_se( : ), im_se( : )
@@ -258,18 +266,26 @@ module OCEAN_energies
     allocate( re_se( sys%num_bands ), im_se( sys%num_bands ) )
     open(unit=99,file='GW_band.in',form='formatted',status='old')
     rewind(99)
-    do iter = 1, sys%num_bands
-      read(99,*) re_se( iter )!, im_se( iter )
-    enddo
+
+    if( keep_imag ) then
+      do iter = 1, sys%num_bands
+        read(99,*) re_se( iter ), im_se( iter )
+      enddo
+    else
+      do iter = 1, sys%num_bands
+        read(99,*) re_se( iter )
+      enddo
+      im_se( : ) = 0.0_DP
+    endif
     close( 99 )
     re_se( : ) = re_se( : ) / 27.21138506_DP
-    im_se( : ) = im_se( : ) / 27.21138506_DP
+    im_se( : ) = -im_se( : ) / ( 27.21138506_DP ) 
 
 
     do ispn = 1, sys%nspn
       do kiter = 1, sys%nkpts
         energies( :, kiter, ispn ) = energies( :, kiter, ispn ) + re_se( : )
-!        imag_selfenergy( :, kiter, ispn ) = im_se( : )
+        imag_selfenergy( :, kiter, ispn ) = im_se( : )
       enddo
     enddo
 
@@ -329,17 +345,30 @@ module OCEAN_energies
 !JTV Part of this is dumb because ABINIT won't warn us in the GW file if there is an extra element 
 !    at some of the k-points
     do iter = 1, gw_nkpt
-      read(99,*) kpt(:)
+      read(99,*) kpt(1)
       read(99,*) num_band
       allocate( re_se( num_band ), im_se( num_band ) )
+!JTV
       read(99,*) start_band, e0, re_se( 1 ), im_se( 1 )
+! Format is band GW_energy, some_measure_of_conv, imaginary part
+!      read(99,*) start_band, re_se( 1 ), e0, im_se( 1 )
       stop_band = start_band + num_band - 1
 
       do biter = 2, num_band
         read(99,*) ibd, e0, re_se( biter ), im_se( biter )
+!        read(99,*) ibd, re_se( biter ), e0, im_se( biter )
       enddo
       re_se( : ) = re_se( : ) / 27.21138506_DP
-      im_se( : ) = im_se( : ) / 27.21138506_DP
+!JTV
+      im_se( : ) = - im_se( : ) / 27.21138506_DP
+!      im_se( : ) = -( 2.0_DP * im_se( : ) ) / 27.21138506_DP
+!      im_se( : ) = abs( im_se( : ) ) / ( 27.21138506_DP * 2.0_DP )
+!      im_se( 1 ) = 0.0
+!      im_se( 2 ) = 0.0
+
+!JTV TEST
+!      re_se( : ) = 0.0_DP
+!      im_se( : ) = 0.1_DP / 27.21138506_DP
       
       skip_band = sys%cur_run%start_band - 1
       kiter = 0
@@ -350,23 +379,43 @@ module OCEAN_energies
             r_kiter = ix + (iy-1) * sys%kmesh(1) + (iz-1)*sys%kmesh(1)*sys%kmesh(2)
 
             if( kpt_map( r_kiter ) .eq. iter ) then
-              im_min = im_min + im_se( 1 )
-              re_min = re_min + re_se( 1 )
+!JTV need some spin fixing 
+!              im_min = im_min + im_se( 1 ) 
+!              re_min = re_min + ( re_se( 1 ) - energies( 1, kiter, 1 ) )
               im_max = im_max + im_se( num_band )
+!              re_max = re_max + ( re_se( num_band ) - energies( stop_band - sys%cur_run%start_band + 1 , kiter, 1 ) )
               re_max = re_max + re_se( num_band )
 
               start_b( kiter ) = start_band
               stop_b( kiter ) = stop_band
 
-              do biter = 2 + skip_band - start_band, min( num_band, sys%num_bands )
-!               if( biter + start_band - 1 .lt. 
+
+! biter is actual counter of bands
+! se_re/se_im goes from 1 to num_bands
+              do biter = max( start_band, sys%cur_run%start_band ), &
+                         min( stop_band, sys%cur_run%start_band + sys%num_bands - 1 )
                 do ispn = 1, sys%nspn
-                  if( biter == 1+ skip_band ) write(6,*) re_se(biter) * 27.21138506_DP
-                  energies( biter + start_band - 1 - skip_band, kiter, ispn ) = re_se( biter ) &
-                      + energies( biter + start_band - 1 - skip_band, kiter, ispn )
-                  imag_selfenergy( biter + start_band - 1 - skip_band, kiter, ispn ) = im_se( biter )
+!                  energies( biter - sys%cur_run%start_band + 1, kiter, ispn ) = re_se( biter - start_band + 1 )
+                  energies( biter - sys%cur_run%start_band + 1, kiter, ispn ) =  &
+                      energies( biter - sys%cur_run%start_band + 1, kiter, ispn ) + re_se( biter - start_band + 1 )
+                  imag_selfenergy( biter - sys%cur_run%start_band + 1, kiter, ispn ) =  &
+                        im_se( biter - start_band + 1 )
+                  if( kiter .eq. 1 ) then
+                    write(6,*) biter, biter - sys%cur_run%start_band + 1, biter - start_band + 1, im_se(  biter - start_band + 1 ) * 27.2114_DP
+                  endif
                 enddo
               enddo
+
+
+!              do biter = 2 + skip_band - start_band, min( num_band, sys%num_bands )
+!!!               if( biter + start_band - 1 .lt. 
+!                do ispn = 1, sys%nspn
+!                  if( biter == 1+ skip_band ) write(6,*) re_se(biter) * 27.21138506_DP
+!                  energies( biter + start_band - 1 - skip_band, kiter, ispn ) = re_se( biter ) &
+!                      + energies( biter + start_band - 1 - skip_band, kiter, ispn )
+!                  imag_selfenergy( biter + start_band - 1 - skip_band, kiter, ispn ) = im_se( biter )
+!                enddo
+!              enddo
               
             endif
 
@@ -384,13 +433,15 @@ module OCEAN_energies
     
     do ispn = 1, sys%nspn
       do kiter = 1, sys%nkpts
-        do biter = 1, start_b( kiter ) - sys%cur_run%start_band - 1
-!          write(6,*) kiter, start_b( kiter ), sys%cur_run%start_band
-          energies( biter, kiter, ispn ) = energies( biter, kiter, ispn ) + re_min
-          imag_selfenergy( biter, kiter, ispn ) = im_min
-        enddo
-        do biter = stop_b( kiter ) + 1, sys%num_bands
-!          write(6,*) kiter, stop_b( kiter ), sys%num_bands
+!        do biter = 1, start_b( kiter ) - sys%cur_run%start_band - 1
+!!          write(6,*) kiter, start_b( kiter ), sys%cur_run%start_band
+!          energies( biter, kiter, ispn ) = energies( biter, kiter, ispn ) + re_min
+!          imag_selfenergy( biter, kiter, ispn ) = im_min
+!        enddo
+        do biter = stop_b( kiter ) + 1 - sys%cur_run%start_band, sys%num_bands
+          if( kiter == 1 ) then
+            write(6,*) kiter, stop_b( kiter ), sys%num_bands, biter, re_max * 27.2114_DP
+          endif
           energies( biter, kiter, ispn ) = energies( biter, kiter, ispn ) + re_max
           imag_selfenergy( biter, kiter, ispn ) = im_max
         enddo
@@ -402,8 +453,9 @@ module OCEAN_energies
     if( .not. keep_imag ) then
       imag_selfenergy(:,:,:) = 0.0_DP
     endif 
+!    imag_selfenergy(:,:,:) = -0.014_DP
 
-  end subroutine
+  end subroutine OCEAN_abinit_fullgw
   
 
 end module OCEAN_energies
