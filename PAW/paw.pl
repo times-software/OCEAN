@@ -14,7 +14,6 @@ if (! $ENV{"OCEAN_WORKDIR"}){ $ENV{"OCEAN_WORKDIR"} = `pwd` . "../" ; }
 
 my @CommonFiles = ("znucl", "paw.hfkgrid", "paw.fill", "paw.opts", "pplist", "paw.shells", "ntype", "natoms", "typat", "taulist", "nedges", "edges", "caution", "epsilon", "k0.ipt", "ibase", "scfac" );
 
-my @AbinitFiles = ("avecsinbohr.ipt");
 
 my @DenDipFiles = ("rhoofg", "bvecs", "efermiinrydberg.ipt");
 my @DenDipFiles2 = ( "masterwfile", "listwfile", "enkfile", "kmesh.ipt", "brange.ipt" );
@@ -41,9 +40,6 @@ if ($runPAW == 0 ) {
 
 foreach (@CommonFiles) {
   `cp ../Common/$_ .` == 0 or die "Failed to get $_ from Common/\n";
-}
-foreach (@AbinitFiles) {
-  `cp ../ABINIT/$_ .` == 0 or die "Failed to get $_ from ABINIT/\n";
 }
 
 foreach (@ExtraFiles) {
