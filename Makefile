@@ -10,13 +10,18 @@ AUX = Version Header
 all:
 	cd Common;       make "FC = $(FC)" "OPTIONS = $(OPTIONS)"
 	cd ABINIT;       make "FC = $(FC)" "OPTIONS = $(OPTIONS)"
-	cd ESPRESSO;     make pp
+	cd ESPRESSO;     ./configure
+	cd ESPRESSO;     make pw pp
 	cd PREP;         make "FC = $(FC)" "OPTIONS = $(OPTIONS)" "FFTWI = $(FFTWI)" "FFTWL = $(FFTWL)"
 	cd QEPREP;       make "FC = $(FC)" "OPTIONS = $(OPTIONS)"
 	cd PAW;          make "COMP = $(FC)" "OPTS = $(OPTIONS)"
 	cd SCREEN;       make "COMP = $(FC)" "OPTS = $(OPTIONS)"
 	cd CNBSE;        make "COMP = $(FC)" "OPTS = $(OPTIONS)"
 	cd zbridge;      make "COMP = $(FC)" "OPTS = $(OPTIONS)"
+
+espresso:
+	cd ESPRESSO      ./configure
+	cd ESPRESSO      make pw pp
 
 prep:
 	cd PREP;         make "FC = $(FC)" "OPTIONS = $(OPTIONS)" "FFTWI = $(FFTWI)" "FFTWL = $(FFTWL)"
@@ -34,7 +39,7 @@ cnbse:
 	cd CNBSE;        make "COMP = $(FC)" "OPTS = $(OPTIONS)"
 
 clean:
-#	rm -f $(INSTDIR)/*.x $(INSTDIR)/*.script
+	rm -f $(INSTDIR)/*.x $(INSTDIR)/*.script
 	rm -r $(INSTDIR)
 	mkdir $(INSTDIR)
 	cd Common;       make clean
@@ -48,6 +53,7 @@ clean:
 	cd zbridge;      make clean
 
 install:
+	mkdir $(INSTDIR)
 	cp $(SCRIPTS) $(AUX) $(INSTDIR)
 	cd Common;       make "INSTDIR = $(INSTDIR)" install
 	cd ABINIT;       make "INSTDIR = $(INSTDIR)" install
