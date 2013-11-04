@@ -53,7 +53,6 @@ clean:
 	cd zbridge;      make clean
 
 install:
-	mkdir $(INSTDIR)
 	cp $(SCRIPTS) $(AUX) $(INSTDIR)
 	cd Common;       make "INSTDIR = $(INSTDIR)" install
 	cd ABINIT;       make "INSTDIR = $(INSTDIR)" install
