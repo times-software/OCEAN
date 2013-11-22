@@ -1,4 +1,4 @@
-SCRIPTS = dendip.pl par_dendip.pl bvecs.pl gvecs2.pl ofermi.pl
+SCRIPTS = dendip.pl par_dendip.pl bvecs.pl gvecs2.pl ofermi.pl OBF_wfn.pl
 FILESF90 = wfconvert.x nelectron.x rhoofg.x
 WFCONVERT_OBJS = wfconvert.o headpar.o grabwf.o wfsubs.o
 WFCONVERTGW_OBJS = wfconvert_gw.o headpar.o grabwf.o wfsubs.o
