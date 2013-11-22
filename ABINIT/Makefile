@@ -1,5 +1,5 @@
 FILES   = avec.x 
-SCRIPTS = AbinitDriver.pl NewAbinitDriver.pl pp.pl par_ab2.pl
+SCRIPTS = AbinitDriver.pl NewAbinitDriver.pl pp.pl par_ab2.pl OBF_dft.pl converter.py
 
 
 .SUFFIXES: .f .x
