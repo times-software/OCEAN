@@ -19,7 +19,7 @@ my $ham_kpoints = "4 4 4 ";
 
 
 # Step 1: Create support files
-my @CommonFiles = ("nkpt", "k0.ipt", "qinunitsofbvectors.ipt", "nbands", "xmesh.ipt", "para_prefix", "pool_control");
+my @CommonFiles = ("nkpt", "k0.ipt", "qinunitsofbvectors.ipt", "nbands", "xmesh.ipt", "para_prefix", "pool_control", "ham_kpoints");
 my @ExtraFiles = ("specpnt", "Pquadrature", "sphpts" );
 my @DFTFiles = ("rhoofr", "avecsinbohr.ipt", "efermiinrydberg.ipt", "nelectron");
 my @PawFiles = ("hfinlist", "xyz.wyck");
@@ -63,6 +63,9 @@ while (<INPUT>)
   }
 }
 close INPUT;
+
+$ham_kpoints = `cat ham_kpoints`;
+chomp($ham_kpoints);
 
 
 my $para_prefix = "";
@@ -164,15 +167,15 @@ while (<EDGE>) {
 
 
 print "Running BOFX";
-system("time $para_prefix $ENV{'OCEAN_BIN'}/shirley_ham_o.x < bofx.in >& bofx.out") == 0
+system("time $para_prefix $ENV{'OCEAN_BIN'}/shirley_ham_o.x < bofx.in > bofx.out") == 0
   or die "Failed to run bofx\n$!";
 
 print "\nRunning OBF2LOC";
-system("time $para_prefix $ENV{'OCEAN_BIN'}/shirley_ham_o.x < obf2loc.in >& obf2loc.out") == 0
+system("time $para_prefix $ENV{'OCEAN_BIN'}/shirley_ham_o.x < obf2loc.in > obf2loc.out") == 0
   or die "Failed to run obf2loc\n$!";
 
 print "\nRunning QDIAG";
-system("time $para_prefix -loadbalance $ENV{'OCEAN_BIN'}/ocean_qdiagp.x $pool_size < q.in >& q.out") == 0
+system("time $para_prefix -loadbalance $ENV{'OCEAN_BIN'}/ocean_qdiagp.x $pool_size < q.in > q.out") == 0
   or die "Failed to run qdiag\n$!";
 
 `touch done`;
