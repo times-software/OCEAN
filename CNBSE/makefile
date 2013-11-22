@@ -9,7 +9,7 @@ install:
 	cd zcks; make install "INSTDIR = $(INSTDIR)" 
 	cd zcmsnmult; make install "INSTDIR = $(INSTDIR)"
 	cd zf90; make install "INSTDIR = $(INSTDIR)"
-	cp cnbse.pl $(INSTDIR)/
+	cp cnbse.pl OBF_cnbse.pl $(INSTDIR)/
 
 clean:
 	cd zcain; make clean
