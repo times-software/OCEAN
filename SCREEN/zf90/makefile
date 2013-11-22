@@ -1,12 +1,15 @@
 COMP=pgf90
 OPTS=-O3
 
-all: zexe/avg.x zexe/builder.x zexe/pawsetup.x zexe/mkrbfile.x
+all: zexe/avg.x zexe/builder.x zexe/pawsetup.x zexe/mkrbfile.x zexe/mkrbfile_mult.x
 
 BUILDER = zobj/builder.o zobj/realu2.o zobj/vcbder2.o zobj/getomega.o zobj/mkvipt.o zobj/rdp.o \
           zobj/intval.o
 
 AVG = zobj/avg.o zobj/snatch.o zobj/getomega.o
+
+zexe/mkrbfile_mult.x: zobj/mkrbfile_mult.o zobj/mkcmesh.o zobj/snatch.o
+	$(COMP) $(OPTS) zobj/mkrbfile_mult.o zobj/mkcmesh.o zobj/snatch.o -o zexe/mkrbfile_mult.x
 
 zexe/mkrbfile.x: zobj/mkrbfile.o zobj/mkcmesh.o zobj/snatch.o
 	$(COMP) $(OPTS) zobj/mkrbfile.o zobj/mkcmesh.o zobj/snatch.o -o zexe/mkrbfile.x
@@ -37,6 +40,9 @@ zobj/mkcmesh.o: mkcmesh.f90
 
 zobj/mkrbfile.o: mkrbfile.f90
 	$(COMP) $(OPTS) -c mkrbfile.f90 -o zobj/mkrbfile.o
+
+zobj/mkrbfile_mult.o: mkrbfile_mult.f90
+	$(COMP) $(OPTS) -c mkrbfile_mult.f90 -o zobj/mkrbfile_mult.o
 
 zobj/mkvipt.o: mkvipt.f90
 	$(COMP) $(OPTS) -c mkvipt.f90 -o zobj/mkvipt.o
