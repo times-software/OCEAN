@@ -251,7 +251,7 @@ while ($hfinline = <HFINLIST>) {
   # Step 4.2: Project the basis functions onto this radial grid
 #  system("time $para_prefix ~/shirley_QE4.3/SHIRLEY/shirley_ham.x < bofr.in >& bofr.out") == 0 
 # BUG! Must run as a single process. Not all that important right now
-  system("$para_prefix $ENV{'OCEAN_BIN'}/shirley_ham_o.x < bofr.in >& bofr.out") == 0 
+  system("$para_prefix $ENV{'OCEAN_BIN'}/shirley_ham_o.x < bofr.in > bofr.out 2> bofr.err") == 0 
           or die "$!\nFailed to run shirley_ham from bofr.in\n";
 
 # Step 5: For each core site, loop over radius
@@ -273,14 +273,14 @@ while ($hfinline = <HFINLIST>) {
 #    my $np_builder = $1*$2*$3;
 ##      system("builder.x < builder.in") == 0 or die;
 ##      system("$ENV{'OCEAN_BIN'}/builder.x") == 0 or die;
-    system("time $para_prefix $ENV{'OCEAN_BIN'}/ocean_builder.x  $pool_size < builder.in >& builder.out ") == 0
+    system("$para_prefix $ENV{'OCEAN_BIN'}/ocean_builder.x  $pool_size < builder.in > builder.out 2> builder.err") == 0
         or die "$!\nFailed to run ocean_builder.x\n";
     `echo 24 > ipt`;
-    `time $ENV{'OCEAN_BIN'}/xipps.x < ipt`;
+    `$ENV{'OCEAN_BIN'}/xipps.x < ipt`;
     `mv ninduced nin`;
     `echo $fullrad > ipt`;
     `cat ibase epsilon >> ipt`;
-    `time $ENV{'OCEAN_BIN'}/vhommod.x < ipt`;
+    `$ENV{'OCEAN_BIN'}/vhommod.x < ipt`;
     `mv reopt rom`;
     `echo 1 3 > ipt`;
     `wc rom >> ipt`;
@@ -295,7 +295,7 @@ while ($hfinline = <HFINLIST>) {
     `cp ipt ipt1`;
     `echo .false. >> ipt1`;
     `echo 0.1 100 >> ipt1`;
-    `time $ENV{'OCEAN_BIN'}/rscombine.x < ipt1 > ./${edgename}/zRXF${fullrad}/ropt`;
+    `$ENV{'OCEAN_BIN'}/rscombine.x < ipt1 > ./${edgename}/zRXF${fullrad}/ropt`;
     `mv {rpot,rpothires} ${edgename}/zRXF${fullrad}/`;
 
     `cp ipt ipt1`;
@@ -305,17 +305,17 @@ while ($hfinline = <HFINLIST>) {
     `wc zpawinfo/vvallel${edgename2} >> ipt1`;
     `cat zpawinfo/vvallel${edgename2} >> ipt1`;
     `echo 0.1 100 >> ipt1`;
-    `time $ENV{'OCEAN_BIN'}/rscombine.x < ipt1 > ./${edgename}/zRXT${fullrad}/ropt`;
+    `$ENV{'OCEAN_BIN'}/rscombine.x < ipt1 > ./${edgename}/zRXT${fullrad}/ropt`;
     `mv {rpot,rpothires,rom,nin} ${edgename}/zRXT${fullrad}/`;
 
     `mv ximat ximat_full`;
     `cp ximat_small ximat`;
     `echo 24 > ipt`;
-    `time $ENV{'OCEAN_BIN'}/xipps.x < ipt`;
+    `$ENV{'OCEAN_BIN'}/xipps.x < ipt`;
     `mv ninduced nin`;
     `echo $fullrad > ipt`;
     `cat ibase epsilon >> ipt`;
-    `time $ENV{'OCEAN_BIN'}/vhommod.x < ipt`;
+    `$ENV{'OCEAN_BIN'}/vhommod.x < ipt`;
     `mv reopt rom`;
     `echo 1 3 > ipt`;
     `wc rom >> ipt`;
@@ -333,7 +333,7 @@ while ($hfinline = <HFINLIST>) {
     `wc zpawinfo/vvallel${edgename2} >> ipt1`;
     `cat zpawinfo/vvallel${edgename2} >> ipt1`;
     `echo 0.1 100 >> ipt1`;
-    `time $ENV{'OCEAN_BIN'}/rscombine.x < ipt1 > ./${edgename}/zRXS${fullrad}/ropt`;
+    `$ENV{'OCEAN_BIN'}/rscombine.x < ipt1 > ./${edgename}/zRXS${fullrad}/ropt`;
     `mv {rpot,rpothires,rom,nin} ${edgename}/zRXS${fullrad}/`;
 
   }
@@ -350,7 +350,7 @@ if( $core_offset =~ m/false/i )
 	`rm core_shift.txt` if( -e "core_shift.txt" );
 } else
 {
-	`time perl $ENV{'OCEAN_BIN'}/core_shift.pl >& core_shift.log`;
+	`$ENV{'OCEAN_BIN'}/core_shift.pl > core_shift.log`;
 }
 
 exit 0;
