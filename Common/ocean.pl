@@ -236,7 +236,7 @@ if( $script_pre eq 'abi' )
 }
 else
 {
-	system("$OCEAN_BIN/${script_pre}_screen.pl") == 0 or die "SCREEN stage failed\n$!";
+	system("$OCEAN_BIN/${script_pre}_screen_multi.pl") == 0 or die "SCREEN stage failed\n$!";
 }
 ##########################################
 #
