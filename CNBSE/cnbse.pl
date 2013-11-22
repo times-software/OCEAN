@@ -208,10 +208,11 @@ while (<EDGE>) {
   }
 
 #  system("../swbsys3.job") == 0 or die;
-  system("$ENV{'OCEAN_BIN'}/cainmultip.x < bse.in >& cm.log") == 0 or die "Failed to finish\n"; 
+  system("$ENV{'OCEAN_BIN'}/cainmultip.x < bse.in > cm.log") == 0 or die "Failed to finish\n"; 
 #  my $absspct = sprintf("absspct_%2s.%u_%2s", $elname
   `mkdir -p ${zstring}/`;
-  `cp {absspct,lanceigs,mulfile} ${zstring}/`;
+#  `cp {absspct,lanceigs,mulfile} ${zstring}/`;
+  `cp absspct lanceigs mulfile  ${zstring}/`;
   `cp absspct "absspct_${elname}.${elnum}_${lookup}"`;
 }
 
