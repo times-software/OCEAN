@@ -167,15 +167,15 @@ while (<EDGE>) {
 
 
 print "Running BOFX";
-system("time $para_prefix $ENV{'OCEAN_BIN'}/shirley_ham_o.x < bofx.in > bofx.out") == 0
+system("$para_prefix $ENV{'OCEAN_BIN'}/shirley_ham_o.x < bofx.in > bofx.out") == 0
   or die "Failed to run bofx\n$!";
 
 print "\nRunning OBF2LOC";
-system("time $para_prefix $ENV{'OCEAN_BIN'}/shirley_ham_o.x < obf2loc.in > obf2loc.out") == 0
+system("$para_prefix $ENV{'OCEAN_BIN'}/shirley_ham_o.x < obf2loc.in > obf2loc.out") == 0
   or die "Failed to run obf2loc\n$!";
 
 print "\nRunning QDIAG";
-system("time $para_prefix $ENV{'OCEAN_BIN'}/ocean_qdiagp.x $pool_size < q.in > q.out") == 0
+system("$para_prefix $ENV{'OCEAN_BIN'}/ocean_qdiagp.x $pool_size < q.in > q.out") == 0
   or die "Failed to run qdiag\n$!";
 
 `touch done`;
