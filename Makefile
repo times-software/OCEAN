@@ -2,7 +2,7 @@
 # ai2nbse. Please, don't change anything here, add all definitions to the
 # Makefile.arch file
 
-#include Makefile.arch
+include Makefile.arch
 
 SCRIPTS = 
 AUX = Version Header
