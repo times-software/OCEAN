@@ -10,7 +10,7 @@ AUX = Version Header
 all:
 	cd Common;       make "FC = $(FC)" "OPTIONS = $(OPTIONS)"
 	cd ABINIT;       make "FC = $(FC)" "OPTIONS = $(OPTIONS)"
-	cd PREP;       make "FC = $(FC)" "OPTIONS = $(OPTIONS)"
+	cd PREP;       make "FC = $(FC)" "OPTIONS = $(OPTIONS)" "FFTWI=$(FFTWI)" "FFTWL=$(FFTWL)"
 	cd PAW;          make "COMP = $(FC)" "OPTS = $(OPTIONS)"
 	cd SCREEN;       make "COMP = $(FC)" "OPTS = $(OPTIONS)"
 	cd CNBSE;        make "COMP = $(FC)" "OPTS = $(OPTIONS)"
