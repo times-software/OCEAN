@@ -68,8 +68,10 @@ subroutine fgact( lvl, lvh, lmin, lmax, lc, nc, npmax, nproj, jbeg, mham, nq, it
         do ivml = -lv, lv
            do nu = 1, nproj( lv )
               ii = nu + ( ivml + lv ) * nproj( lv ) + ( ic - 1 ) * ( 2 * lv + 1 ) * nproj( lv )
-              hv( :, ic, 1 ) = hv( :, ic, 1 ) + hpwr( ii ) * mpcr( :, nu, ivml, lv, ispn ) + hpwi( ii ) * mpci( :, nu, ivml, lv, ispn )
-              hv( :, ic, 2 ) = hv( :, ic, 2 ) + hpwi( ii ) * mpcr( :, nu, ivml, lv, ispn ) - hpwr( ii ) * mpci( :, nu, ivml, lv, ispn )
+              hv( :, ic, 1 ) = hv( :, ic, 1 ) + hpwr( ii ) * mpcr( :, nu, ivml, lv, ispn ) &
+                                              + hpwi( ii ) * mpci( :, nu, ivml, lv, ispn )
+              hv( :, ic, 2 ) = hv( :, ic, 2 ) + hpwi( ii ) * mpcr( :, nu, ivml, lv, ispn ) &
+                                              - hpwr( ii ) * mpci( :, nu, ivml, lv, ispn )
            end do
         end do
      end do
