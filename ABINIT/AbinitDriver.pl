@@ -423,7 +423,7 @@ if ( $pawRUN ) {
 
     my $denin = sprintf("denin.files.%04i", $runcount);
     print "$para_prefix $ENV{'OCEAN_ABINIT'} < $denin > ABINIT.$runcount.log";
-    system("$para_prefix $ENV{'OCEAN_ABINIT'} < $denin > ABINIT.$runcount.log 2> BINIT.$runcount.err") == 0 or
+    system("$para_prefix $ENV{'OCEAN_ABINIT'} < $denin > ABINIT.$runcount.log 2> ABINIT.$runcount.err") == 0 or
       die "$!\n";
     print "\n";
   }
