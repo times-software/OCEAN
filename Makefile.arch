@@ -1,0 +1,5 @@
+FC=gfortran
+OPTIONS=-O2 -Wall -march=native
+FFTWI=-I/Users/john/fftw-3.3.3/api
+FFTWL="-L /Users/john/fftw-3.3.3/.libs -lfftw3"
+
