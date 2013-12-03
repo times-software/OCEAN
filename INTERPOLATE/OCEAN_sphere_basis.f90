@@ -38,7 +38,7 @@
 
   implicit none
 
-  integer,external :: freeunit
+  integer,external :: freeunit, INDXL2G
 
   REAL(DP), PARAMETER :: rytoev=13.6058d0
   complex(dp),parameter :: ONE=(1.d0,0.d0)
@@ -73,7 +73,7 @@
 
   complex(dp),allocatable :: bofr( :, : ), eikr( : ), single_bofr(:,:)
   complex(dp),allocatable :: phased_bofr(:,:), uofrandb(:,:), &
-                             local_uofrandb(:,:), uofrandb2( :, : )
+                             local_uofrandb(:,:), uofrandb2( :, : ), store_uofrandb( :, :, : )
   real(dp),allocatable :: posn( :, : ), wpt( : ), drel( : ), wpt_in(:), &
          xirow(:), vind(:),vipt(:),phase(:)
   real(dp),allocatable :: wgt(:)
@@ -82,19 +82,25 @@
 
   complex(DP), allocatable :: S_l(:,:), B_l(:,:), work(:)
   real(DP), allocatable :: eigU(:), rwork(:)
-  real(DP) :: pctrc, trace, trace_tol
+  real(DP) :: pctrc, trace, trace_tol, epsilon_inv, rad, rmax, blend_radius, frac
   complex(DP), external :: PZLATRA
   integer :: big_nbasis, bnr_l, bnc_l, nblock,  lwork, lrwork, liwork, nbasis_trunc
   integer, allocatable :: irev(:), iwork(:)
 
 
+  complex(DP),allocatable :: Bink(:,:), basis_r(:,:), basis_r2(:,:), Wij(:,:)
+
   integer :: ntau, ntau_offset, fh_rad
   integer :: nb, nb2, local_npt, local_npt2
   integer :: nprow, npcol, myrow, mycol
   integer, dimension( DLEN_ ) :: desc_bofr_in, desc_bofr, &
-                                 desc_local_uofrandb, desc_S, desc_wpt, desc_wpt_in
+                                 desc_local_uofrandb, desc_S, desc_wpt, desc_wpt_in, &
+                                 desc_B, desc_Bink, desc_W
 
-  integer :: npt, iunbofr, nbnd_small
+  integer :: npt, iunbofr, nbnd_small, b2nc_l, Bink_lc, Bink_lr, ii, ipt, store_kpt
+
+  integer :: big_nk
+  real(DP), allocatable :: big_kpt( :, : ), W_r(:), W_local(:)
 
   integer, external :: numroc
   integer :: iuninf
@@ -188,8 +194,17 @@
 
 
   if( ionode ) then
-    iuntmp=freeunit()
     
+    iuntmp=freeunit()
+    open(unit=iuntmp,file='kpts.0001',form='formatted',status='old')
+    read(iuntmp,*)
+    read(iuntmp,*) big_nk
+    allocate( big_kpt( 3, big_nk ) )
+    do ik = 1, big_nk
+      read(iuntmp,*) big_kpt( :, ik )
+    enddo
+    close(iuntmp)
+
 !    open(unit=iuntmp,file='bofr_tau_control',form='formatted',status='old')
 !    read(iuntmp,*) ntau, ntau_offset
 !    close(iuntmp)
@@ -214,6 +229,7 @@
 
 
 
+    iuntmp=freeunit()
     open( unit=iuntmp, file='avecsinbohr.ipt',form='formatted',status='old')
     read(iuntmp,*) avec(:,:)
     close(iuntmp)
@@ -236,6 +252,10 @@
 
   call mp_bcast( ntau, ionode_id )
 
+  call mp_bcast( big_nk, ionode_id )
+  if( .not. ionode ) allocate( big_kpt( 3, big_nk ) )
+  call mp_bcast( big_kpt, ionode_id )
+
 
 !  call mp_bcast( nt, ionode_id )
 !  if( .not. ionode ) allocate( t( nt ) )
@@ -255,6 +275,17 @@
 
   call mp_barrier
   write(stdout,*) npt, nbasis, nb, local_npt, desc_cyclic(NB_)
+
+! MB per kpt
+!  store_kpt = local_npt * nbasis_subset / ( 1024 * 64 )
+! kpts per GB
+  store_kpt = floor( (1024.0_DP * 1024.0_DP * 64.0_DP ) &
+                   / ( dble( local_npt ) * dble( nbasis_subset ) ) )
+!
+  if( store_kpt .gt. kpt%list%nk ) store_kpt = kpt%list%nk
+  write(stdout,*) 'Store_kpt ', store_kpt
+
+
 
   allocate( wpt( local_npt ) )
 
@@ -329,9 +360,9 @@
 !  if( ( .not. ionode ) .and. ( mypoolid .eq. 0 ) ) allocate( posn(3,npt), wpt_in( npt ) )
   if( .not. ionode ) then
     if( mypoolid .eq. 0 ) then
-      allocate( posn(3,npt), wpt_in( npt ) )
+      allocate( posn(3,npt), wpt_in( npt ), drel( npt ) )
     else
-      allocate( posn(1,1), wpt_in(npt) )
+      allocate( posn(1,1), wpt_in(npt), drel( npt ) )
     endif
   endif
   
@@ -393,6 +424,7 @@
     endif
     if( mypoolid .eq. 0 ) then
       call mp_bcast( posn, ionode_id, cross_pool_comm )
+      call mp_bcast( drel, ionode_id, cross_pool_comm )
 !      call mp_bcast( wpt_in, ionode_id, cross_pool_comm )
     endif
     if( ionode ) call mkvipt( npt, drel, vipt )
@@ -428,10 +460,12 @@
 ! ======================================================================
   do ispin=1,nspin
 
+!    allocate( store_uofrandb( local_npt, desc_cyclic(N_), store_kpt ) )
     do ik=1,kpt%list%nk
 ! ======================================================================
 
   !    if( mod(ik-1,npool)/=mypool ) cycle
+
 
       write(stdout,'(a,3f12.5,i6,a,i6,a,i3)') ' k-point ', &
         kpt%list%kvec(1:3,ik), ik, ' of ', kpt%list%nk, &
@@ -631,6 +665,7 @@
       deallocate( uofrandb, bofr, uofrandb2 )
 
     enddo ! ik
+!    deallocate( store_uofrandb )
 
     write(6,*) 'Done with loop over k-points'
     write(stdout,'(a,i20)') ' construct_overlap: true trace         (nbnd*nkpt) = ', big_nbasis
@@ -690,7 +725,7 @@
 
     b2nc_l = numroc( nbasis_trunc, nblock, mycol, 0, npcol )
     allocate( basis_r( local_npt, b2nc_l ) )
-    call descinit( desc_B, npt, nbasis_trunk, nb, nblock, 0, 0, &
+    call descinit( desc_B, npt, nbasis_trunc, nb, nblock, 0, 0, &
                    context_cyclic, local_npt, ierr )
 
     basis_r = 0.0_DP
@@ -781,6 +816,8 @@
                    one, uofrandb, 1, 1, desc_bofr, B_l, bi, bj, desc_S, &
                    one, basis_r, 1, 1, desc_B )
 
+
+      deallocate( bofr, uofrandb )
     enddo ! ik              
 
     ! Need to dump to file here
@@ -792,25 +829,210 @@
 
 
     !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+    allocate( W_r( 100 ) )
     ! Now construct W(i,j) using these basis functions
     if( mypoolid .eq. mypoolroot ) then
       ! Open up W( r )
+      ! Is this actually MPI safe? 
+      iuntmp=freeunit()
+      open(iuntmp, file='rpottrim', form='formatted', status='old' )
+      read(iuntmp,*) W_r
+      close( iuntmp )
+  
+      open(iuntmp, file='epsilon', form='formatted', status='old' )
+      read( iuntmp, * ) epsilon_inv
+      close( iuntmp )
+      epsilon_inv = 1.0_DP / epsilon_inv
+      
+      blend_radius = 2.0_DP
+!      rmax = drel( npt )
+      open( iuntmp, file='mkrb_control', form='formatted', status='old')
+      rewind(iuntmp)
+      read(iuntmp,*) rmax
+      close(iuntmp)
+
+      write(stdout,*) rmax, blend_radius
     endif
     ! share with the pool
     call mp_bcast( W_r, mypoolroot, intra_pool_comm )
+    call mp_bcast( drel, mypoolroot, intra_pool_comm )
+    call mp_bcast( rmax, mypoolroot, intra_pool_comm )
+    call mp_bcast( blend_radius, mypoolroot, intra_pool_comm )
+    call mp_bcast( epsilon_inv, mypoolroot, intra_pool_comm )
     !
+    !
+    allocate( W_local( local_npt ) )
+    ipt = 1
+    write(stdout,*) ipt, npt, nb, myrow, 0, nprow
     do ipt = 1, local_npt
-      
-    enddo
-    allocate( Wij( nbasis_trunc, nbasis_trunc ) )
-    
-    
+      ii = INDXL2G( ipt, nb, myrow, 0, nprow )
+      rad = drel( ii )
+!      rad = drel( INDXL2G( ipt, npt, nb, myrow, 0, nprow ) )
+      if( rad .ge. 9.9_DP ) then
+        W_local( ipt ) = epsilon_inv / rad
+      else
+        ii = 1.0d0 + 10.0d0 * rad
+        frac = 10.d0 * ( rad - 0.1d0 * dble( ii - 1 ) )
+        W_local( ipt ) = W_r( ii ) + frac * ( W_r( ii + 1 ) - W_r( ii ) )
+      endif
 
+      if( rad .ge. ( rmax - 2.0_DP * blend_radius ) ) then
+        if( rad .ge. ( rmax - blend_radius ) ) then
+          W_local( ipt ) = W_local( ipt ) &
+                         * ( 1.0_DP - ( 0.5_DP / blend_radius ** 2 ) &
+                                    * ( rad - rmax ) ** 2 )
+        else
+          W_local( ipt ) = W_local( ipt ) &
+                         * ( 0.5_DP / blend_radius ** 2 ) &
+                         * ( rmax - rad - 2.0_DP * blend_radius ) ** 2
+        endif
+      endif
+    enddo
+
+!    W_local( : ) = W_local( : ) * wpt( : )
+    allocate( basis_r2( local_npt, b2nc_l ) )
+
+    do ibd = 1, b2nc_l
+      basis_r2( :, b2nc_l ) = W_local( : ) * wpt( : ) * basis_r( :, b2nc_l )
+    enddo
+
+
+    allocate( Wij( nbasis_trunc, nbasis_trunc ) )
+
+    call DESCINIT( desc_W, nbasis_trunc, nbasis_trunc, nbasis_trunc, nbasis_trunc, &
+                   0, 0, context_cyclic, nbasis_trunc, ierr )  
+    if( ierr .ne. 0 ) stop
+
+
+    call PZGEMM( 'C', 'N', nbasis_trunc, nbasis_trunc, npt, one, &
+                 basis_r, 1, 1, desc_B, basis_r2, 1, 1, desc_B, &
+                 zero, Wij, 1, 1, desc_W )
+    if( mypoolid .eq. mypoolroot ) then
+      iuntmp=freeunit()
+      open(unit=iuntmp,file='Wij.dat',form='unformatted',status='unknown')
+      rewind(iuntmp)
+      write(iuntmp) nbasis_trunc
+      write(iuntmp) Wij
+      close(iuntmp)
+    endif
+      
+    deallocate( W_local, Wij )
 
     !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
     ! Now create B_i^{nk} for use in BSE
+      allocate( bofr( local_npt, desc_cyclic(N_) ) )
+      allocate( uofrandb( local_npt, desc_cyclic(N_) ) )
+
+    do ibd = 1, b2nc_l
+      basis_r2( :, b2nc_l ) = wpt( : ) * CONJG(basis_r( :, b2nc_l ))
+    enddo
+
+    Bink_lr = max( NUMROC( big_nk * nbasis_subset, 32, myrow, 0, nprow ), 1 )
+    Bink_lc = max( NUMROC( nbasis_trunc, 32, mycol, 0, npcol ), 1 )
+
+    allocate( Bink( Bink_lr, Bink_lc ) )
+    call DESCINIT( desc_Bink, big_nk * nbasis_subset, nbasis_trunc, 32, 32, &
+                    0, 0, context_cyclic, Bink_lr, ierr )
+    if( ierr .ne. 0 ) stop
 
 
+
+    do ik=1,big_nk
+! ======================================================================
+
+  !    if( mod(ik-1,npool)/=mypool ) cycle
+
+!      write(stdout,'(a,3f12.5,i6,a,i6,a,i3)') ' k-point ', &
+!        kpt%list%kvec(1:3,ik), ik, ' of ', kpt%list%nk, &
+!                                    ' on node ', mpime
+      write(stdout,'(a,3f12.5,i6,a,i6,a,i3)') ' k-point ', &
+        big_kpt(1:3,ik), ik, ' of ', big_nk, &
+                                    ' on node ', mpime
+
+      ! build the Hamiltonian for this q-point
+      call diag_build_hamk( big_kpt(1:3,ik), .false., ispin )
+
+      if( kinetic_only ) then
+        allocate( ztmp(nbasis,nbasis) )
+        call diag_build_kink( big_kpt(1:3,ik), .false., ztmp )
+        forall( i=1:nbasis ) eigval(i)=real(ztmp(i,i))
+        deallocate( ztmp )
+      else if( local_only ) then
+        allocate( ztmp(nbasis,nbasis) )
+        call diag_build_vlock( big_kpt(1:3,ik), .false., ispin, ztmp )
+        forall( i=1:nbasis ) eigval(i)=real(ztmp(i,i))
+        deallocate( ztmp )
+      else if( nonlocal_only ) then
+        allocate( ztmp(nbasis,nbasis) )
+        call diag_build_vnlk( big_kpt(1:3,ik), .false., ispin, ztmp )
+        forall( i=1:nbasis ) eigval(i)=real(ztmp(i,i))
+        deallocate( ztmp )
+      else if( smatrix_only ) then
+        allocate( ztmp(nbasis,nbasis) )
+        call diag_build_sk( big_kpt(1:3,ik), .false., ztmp )
+        forall( i=1:nbasis ) eigval(i)=real(ztmp(i,i))
+        deallocate( ztmp )
+      else
+
+  !    call diagx_ham
+        call diag_ham
+
+      endif
+
+      write(stdout,*) ik, eigval(band_subset(1))*rytoev, eigval(band_subset(2))*rytoev
+      qin( : ) =  big_kpt( 1 : 3, ik )
+      qcart(:) = 0.d0
+!      if( kpt%param%cartesian ) then
+!        qcart(:) = qin(:)*tpiba
+!      else
+        do i=1,3
+          qcart(:) = qcart(:) + bvec(:,i)*qin(i)
+        enddo
+!      endif
+      write(stdout,*) qin(:)
+      write(stdout,*) qcart(:)
+!      write(stdout,*) kpt%list%kvec( 1 : 3, ik ) * tpiba
+
+
+
+! This is probably sub-optimal, but requires the least thinking, I think.
+! Delay bofr distribution
+! Add in phase for the k-point we are at
+      if( mypoolid .eq. 0 ) then
+        call DGEMV( 'T', 3, npt, real_one, posn(1,1), 3, qcart, 1, real_zero, phase, 1 )
+        eikr( : ) = exp( iota * phase( : ) )
+        do ibd = 1, nbasis
+          phased_bofr( :, ibd ) = single_bofr( :, ibd ) * eikr( : )
+        enddo
+      endif
+! Now distribute bofr, or don't
+!      write(stdout,*) 'Distribute bofr'
+      call PZGEMR2D( npt, nbasis, phased_bofr, 1, 1, desc_bofr_in, bofr, 1, 1, desc_bofr, context_cyclic )
+!      call mp_barrier
+!      write(stdout,*) 'bofr distributed'
+
+      ! can probably change to nbasis_subset
+      call PZGEMM( 'N', 'N', npt, nbasis, nbasis, &
+                   one, bofr, 1, 1, desc_bofr, eigvec, 1, 1, desc_cyclic, &
+                   zero, uofrandb, 1, 1, desc_bofr )
+
+      
+      ! project < B(i) | u_nk > in radial basis
+      write(stdout,*) 'Project B_ink'
+      call PZGEMM( 'T', 'N', nbasis_subset, nbasis_trunc, npt, &
+                   one, uofrandb, 1, 1, desc_bofr, basis_r2, 1, 1, desc_B, &
+                   zero, Bink, 1+(ik-1)*nbasis_subset, 1, desc_Bink )
+
+
+
+!      do ibd = 1, nbasis_subset
+!        su = REAL( SUM( CONJG( uofrandb( :, ibd ) ) * wpt( : ) * uofrandb( :, ibd ) ) )
+!        su = sqrt( 1.0_DP / su )
+!        uofrandb( :, ibd ) = uofrandb( :, ibd ) * su * wpt( : )
+!      enddo
+
+
+    enddo ! ik
 
   enddo ! ispin
 
