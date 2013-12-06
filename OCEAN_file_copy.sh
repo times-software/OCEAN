@@ -9,7 +9,6 @@ cp ../OCEAN/CNBSE/zcmsnmult/zf90/getomega.f90 .
 cp ../OCEAN/CNBSE/zcmsnmult/zf90/gamfcn.f90 .
 cp ../OCEAN/CNBSE/zcmsnmult/zf90/limel.f90 .
 cp ../OCEAN/CNBSE/zcmsnmult/zf90/jimel.f90 .
-cp ../OCEAN/CNBSE/zcmsnmult/zf90/nbsemkcmel.f90 .
 cp ../OCEAN/CNBSE/zcmsnmult/zf90/intval.f90 .
 cp ../OCEAN/CNBSE/zcmsnmult/zf90/newgetylm.f90 .
 cp ../OCEAN/CNBSE/zcmsnmult/zf90/newgetprefs.f90 .

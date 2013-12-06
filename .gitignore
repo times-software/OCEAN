@@ -13,7 +13,6 @@ getomega.f90
 gamfcn.f90
 limel.f90
 jimel.f90
-nbsemkcmel.f90
 intval.f90
 newgetylm.f90
 newgetprefs.f90
