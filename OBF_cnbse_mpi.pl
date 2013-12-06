@@ -265,8 +265,8 @@ while ( my ($key, $value ) = each(%unique_znl) )
 #  print "time mpirun -n 64 $ENV{'OCEAN_BIN'}/ocean.x >& cm.log";
 #  system("time mpirun -n 64 $ENV{'OCEAN_BIN'}/ocean.x >& cm.log") == 0 or die "Failed to finish\n"; 
 
-  print "time $para_prefix $ENV{'OCEAN_BIN'}/ocean.x >& cm.log";
-  system("time $para_prefix $ENV{'OCEAN_BIN'}/ocean.x >& cm.log") == 0 or die "Failed to finish\n"; 
+  print "time $para_prefix $ENV{'OCEAN_BIN'}/ocean.x > cm.log";
+  system("time $para_prefix $ENV{'OCEAN_BIN'}/ocean.x > cm.log") == 0 or die "Failed to finish\n"; 
 
 exit 0;
 
