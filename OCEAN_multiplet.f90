@@ -33,7 +33,7 @@ module OCEAN_multiplet
 
   logical :: is_init = .false.
 
-  public OCEAN_create_central, OCEAN_soprep, OCEAN_mult_act
+  public OCEAN_create_central, OCEAN_soprep, OCEAN_mult_act, OCEAN_mult_single
 
   contains
 
@@ -423,25 +423,14 @@ module OCEAN_multiplet
     type( ocean_vector ), intent( in ) :: in_vec
     type( ocean_vector ), intent( inout ) :: out_vec
     !
-!    integer :: sys%cur_run%nalpha, n, nq, nbd, nspn, lmin, lmax, npmax
-!    real( DP ) :: celvol, inter
-!    integer :: nproj( lmin : lmax )
-!    real( DP ) :: mpcr( nq * nbd, npmax, -lmax : lmax, lmin : lmax, nspn )
-!    real( DP ) :: mpci( nq * nbd, npmax, -lmax : lmax, lmin : lmax, nspn )
-!    real( DP ) :: mpm( npmax, npmax, lmin : lmax )
     !
     integer :: ialpha, l, m, nu, ispn, ikpt, ibnd
     real( DP ) :: mul
     real( DP ), dimension( npmax ) :: ampr, ampi, hampr, hampi
   !
 
-
-!    write(103,*) mpm(:,1,0)
-!    write(104,*) mpcr(:,1,1,0,0,1)
-
     
     mul = inter / ( dble( sys%nkpts ) * sys%celvol )
-!    mul = 1.0_DP / ( dble( sys%nkpts ) * sys%celvol )
 !$OMP PARALLEL DO &
 !$OMP DEFAULT( NONE ) &
 !$OMP PRIVATE( ialpha, l, nu, m, ampr, ampi, hampr, hampi, ispn ) &
@@ -792,4 +781,160 @@ module OCEAN_multiplet
     !
     return
   end subroutine nbsemhsetup2
+
+
+  subroutine OCEAN_mult_single( sys, bse_me, inter, ib, ik, ia, jb, jk, ja )
+    use OCEAN_system
+    implicit none
+    !
+    type(O_system), intent( in ) :: sys
+    real(DP), intent( in ) :: inter
+    integer, intent( in ) :: ib, ik, ia, jb, jk, ja
+    complex(DP), intent( inout ) :: bse_me
+
+    call OCEAN_ct_single( sys, bse_me, inter, ib, ik, ia, jb, jk, ja )
+    call OCEAN_fg_single( sys, bse_me, inter, ib, ik, ia, jb, jk, ja )
+
+!    call OCEAN_soact( sys, in_vec, out_vec )
+
+
+  end subroutine OCEAN_mult_single
+
+  subroutine OCEAN_ct_single( sys, bse_me, inter, ib, ik, ia, jb, jk, ja )
+    use OCEAN_system
+    implicit none
+    !
+    type(O_system), intent( in ) :: sys
+    real(DP), intent( in ) :: inter
+    integer, intent( in ) :: ib, ik, ia, jb, jk, ja
+    complex(DP), intent( inout ) :: bsE_me
+    !
+    !
+    integer :: l, m, nu, ispn
+    real( DP ) :: mul, outr, outi
+    real( DP ), dimension( npmax ) :: ampr, ampi, hampr, hampi
+  !
+
+!   CT is diagonal in alpha
+    if( ia .ne. ja ) return
+
+    mul = inter / ( dble( sys%nkpts ) * sys%celvol )
+
+    ispn = 2 - mod( ia, 2 )
+    if( sys%nspn .eq. 1 ) then
+      ispn = 1
+    endif
+!JTV clean this up
+    do l = lmin, lmax
+      do m = -l, l
+        ampr( : ) = 0
+        ampi( : ) = 0
+!             do i = 1, n
+        do nu = 1, nproj( l )
+          ampr( nu ) = mpcr( ib, ik, nu, m, l, ispn ) 
+          ampi( nu ) = mpci( ib, ik, nu, m, l, ispn )
+        enddo
+
+        hampr( : ) = 0
+        hampi( : ) = 0
+        do nu = 1, nproj( l )
+          hampr( : ) = hampr( : ) - mpm( :, nu, l ) * ampr( nu )
+          hampi( : ) = hampi( : ) - mpm( :, nu, l ) * ampi( nu )
+        enddo
+        hampr( : ) = hampr( : ) * mul
+        hampi( : ) = hampi( : ) * mul
+        do nu = 1, nproj( l )
+          outr = outr + mpcr( jb, jk, nu, m, l, ispn ) * hampr( nu ) &
+                      + mpci( jb, jk, nu, m, l, ispn ) * hampi( nu )
+          outi = outi + mpcr( jb, jk, nu, m, l, ispn ) * hampi( nu ) &
+                      - mpci( jb, jk, nu, m, l, ispn ) * hampr( nu )
+
+        enddo
+      enddo
+    enddo
+
+    bse_me = bse_me + CMPLX( outr, outi, DP )
+
+  end subroutine OCEAN_ct_single
+
+  subroutine OCEAN_fg_single( sys, bse_me, inter, ib, ik, ia, jb, jk, ja )
+    use OCEAN_system
+    implicit none
+    !
+    type(O_system), intent( in ) :: sys
+    real(DP), intent( in ) :: inter
+    integer, intent( in ) :: ib, ik, ia, jb, jk, ja
+    complex(DP), intent( inout ) :: bse_me
+    !
+    !
+    integer :: lv, ii, ivml, nu, j1, jj, ispn
+    real( DP ) :: mul, outr, outi
+    real( DP ), allocatable, dimension( : ) :: pwr, pwi, hpwr, hpwi
+    !
+    allocate( pwr(itot), pwi( itot), hpwr(itot), hpwi(itot) )
+    ! lvl, lvh is not enough for omp
+    ! should probably pull thread spawning out of the do loop though
+
+!JTV clean this up too
+    outr = 0.0_DP
+    outi = 0.0_DP
+
+    mul = inter / ( dble( sys%nkpts ) * sys%celvol )
+!    write(6,*) mul
+    do lv = lvl, lvh
+       pwr( : ) = 0
+       pwi( : ) = 0
+       hpwr( : ) = 0
+       hpwi( : ) = 0
+
+      
+      ispn = 2 - mod( ia, 2 )
+!       ispn = 1 + mod( ia, 2 )
+      if( sys%nspn .eq. 1 ) then
+        ispn = 1
+      endif
+      do ivml = -lv, lv
+        do nu = 1, nproj( lv )
+          ii = nu + ( ivml + lv ) * nproj( lv ) + ( ia - 1 ) * ( 2 * lv + 1 ) * nproj( lv )
+
+          pwr( ii ) = pwr( ii ) + mpcr( ib, ik, nu, ivml, lv, ispn )
+          pwi( ii ) = pwi( ii ) + mpci( ib, ik, nu, ivml, lv, ispn )
+
+         enddo
+       enddo
+
+      do ii = 1, mham( lv )
+        do jj = 1, mham( lv )
+          j1 = jbeg( lv ) + ( jj -1 ) + ( ii - 1 ) * mham( lv )
+          hpwr( ii ) = hpwr( ii ) + mhr( j1 ) * pwr( jj ) - mhi( j1 ) * pwi( jj )
+          hpwi( ii ) = hpwi( ii ) + mhr( j1 ) * pwi( jj ) + mhi( j1 ) * pwr( jj )
+        end do
+        hpwr( ii ) = hpwr( ii ) * mul
+        hpwi( ii ) = hpwi( ii ) * mul
+      end do
+
+
+      ispn = 2 - mod( ja, 2 )
+!       ispn = 1 + mod( ja, 2 )
+      if( sys%nspn .eq. 1 ) then
+        ispn = 1
+      endif
+      do ivml = -lv, lv
+        do nu = 1, nproj( lv )
+          ii = nu + ( ivml + lv ) * nproj( lv ) + ( ja - 1 ) * ( 2 * lv + 1 ) * nproj( lv )
+          outr = outr + hpwr( ii ) * mpcr( jb, jk, nu, ivml, lv, ispn ) &
+                      + hpwi( ii ) * mpci( jb, jk, nu, ivml, lv, ispn )
+          outi = outi + hpwi( ii ) * mpcr( jb, jk, nu, ivml, lv, ispn ) &
+                      - hpwr( ii ) * mpci( jb, jk, nu, ivml, lv, ispn )
+        enddo
+      enddo
+
+    enddo
+    !
+
+    bse_me = bse_me + CMPLX( outr, outi, DP )
+
+  end subroutine OCEAN_fg_single
+
+
 end module OCEAN_multiplet

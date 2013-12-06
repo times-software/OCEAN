@@ -1,5 +1,5 @@
 FC = mpif90
-FLAGS = -O3 -ffree-line-length-none -x f95-cpp-input -m64 -DHAVE_FLUSH -DBLAS  -Wall  -g -ffree-line-length-none  -funroll-loops -ftree-vectorizer-verbose=0 -ffast-math -ftree-vectorize -DMPI -fopenmp  -march=corei7-avx 
+FLAGS = -O3 -ffree-line-length-none -x f95-cpp-input -m64 -DHAVE_FLUSH -DBLAS  -Wall  -g -ffree-line-length-none  -funroll-loops -ftree-vectorizer-verbose=0 -ffast-math -ftree-vectorize -DMPI -fopenmp  -march=corei7-avx -DHAVE_CONTIGUOUS
 #-fbacktrace -fbounds-check
 LDFLAGS = -m64  -Wall  -g -fopenmp -march=corei7-avx
 
@@ -18,7 +18,7 @@ OCEANOBJS = AI_kinds.o OCEAN_mpi.o OCEAN_system.o OCEAN_bloch.o OCEAN_obf.o OCEA
             long_range.o OCEAN_load_data.o OCEAN_psi.o OCEAN_energies.o OCEAN_haydock.o OCEAN.o \
             getabb.o getomega.o gamfcn.o jlmfft.o limel.o jimel.o nbsemkcmel.o intval.o \
             newgetylm.o  newgetprefs.o newthreey.o cainmhsetup.o elsdch.o invdrv.o cinv.o \
-            sizereport.o
+            sizereport.o OCEAN_exact.o
 
 ocean.x: $(OCEANOBJS)
 	$(FC) $(LDFLAGS) -o ocean.x $(OCEANOBJS) $(BLACS) $(FFTWL)
@@ -47,6 +47,8 @@ OCEAN_energies.o: OCEAN_energies.f90
 OCEAN_haydock.o: OCEAN_haydock.f90 
 	$(FC) $(FLAGS) -c -o  OCEAN_haydock.o OCEAN_haydock.f90 $(FFTWI)
 
+OCEAN_exact.o: OCEAN_exact.f90
+	$(FC) $(FLAGS) -c -o  OCEAN_exact.o OCEAN_exact.f90
 
 getabb.o: getabb.f90
 	$(FC) $(FLAGS) -c -o  getabb.o getabb.f90

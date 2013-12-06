@@ -241,6 +241,16 @@ module OCEAN_energies
 
   end subroutine OCEAN_energies_act
 
+
+  complex(DP) function OCEAN_energies_single( ib, ik, ia )
+    use OCEAN_system
+    implicit none
+    integer, intent( in ) :: ib, ik, ia
+
+    OCEAN_energies_single = CMPLX( energies( ib, ik, 1 ), imag_selfenergy( ib, ik, 1 ), DP )
+  end function
+
+
   subroutine OCEAN_gw_by_band( sys, ierr, keep_imag )
     use OCEAN_system
     use OCEAN_mpi, only : myid, root
