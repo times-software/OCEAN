@@ -30,18 +30,23 @@ module OCEAN_action
   CHARACTER(LEN=3) :: calc_type
 
 
-  REAL(DP), POINTER, CONTIGUOUS :: mem_psi_r(:,:,:) 
-  REAL(DP), POINTER, CONTIGUOUS :: mem_psi_i(:,:,:) 
-  REAL(DP), POINTER, CONTIGUOUS :: mem_hpsi_r(:,:,:) 
-  REAL(DP), POINTER, CONTIGUOUS :: mem_hpsi_i(:,:,:) 
-  REAL(DP), POINTER, CONTIGUOUS :: mem_oldpsi_r(:,:,:)
-  REAL(DP), POINTER, CONTIGUOUS :: mem_oldpsi_i(:,:,:)
-  REAL(DP), POINTER, CONTIGUOUS :: mem_newpsi_r(:,:,:)
-  REAL(DP), POINTER, CONTIGUOUS :: mem_newpsi_i(:,:,:)
-  REAL(DP), POINTER, CONTIGUOUS :: mem_mulpsi_r(:,:,:)
-  REAL(DP), POINTER, CONTIGUOUS :: mem_mulpsi_i(:,:,:)
-  REAL(DP), POINTER, CONTIGUOUS :: mem_lrpsi_r(:,:,:)
-  REAL(DP), POINTER, CONTIGUOUS :: mem_lrpsi_i(:,:,:)
+  REAL(DP), POINTER :: mem_psi_r(:,:,:) 
+  REAL(DP), POINTER :: mem_psi_i(:,:,:) 
+  REAL(DP), POINTER :: mem_hpsi_r(:,:,:) 
+  REAL(DP), POINTER :: mem_hpsi_i(:,:,:) 
+  REAL(DP), POINTER :: mem_oldpsi_r(:,:,:)
+  REAL(DP), POINTER :: mem_oldpsi_i(:,:,:)
+  REAL(DP), POINTER :: mem_newpsi_r(:,:,:)
+  REAL(DP), POINTER :: mem_newpsi_i(:,:,:)
+  REAL(DP), POINTER :: mem_mulpsi_r(:,:,:)
+  REAL(DP), POINTER :: mem_mulpsi_i(:,:,:)
+  REAL(DP), POINTER :: mem_lrpsi_r(:,:,:)
+  REAL(DP), POINTER :: mem_lrpsi_i(:,:,:)
+
+#ifdef HAVE_CONTIGUOUS
+  CONTIGUOUS :: mem_psi_r, mem_psi_i, mem_hpsi_r, mem_hpsi_i, mem_oldpsi_r, mem_oldpsi_i
+  CONTIGUOUS :: mem_newpsi_r, mem_newpsi_i, mem_mulpsi_r, mem_mulpsi_i, mem_lrpsi_r, mem_lrpsi_i
+#endif
 
 
   TYPE( C_PTR ) :: cp_psi_r, cp_psi_i 
