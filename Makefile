@@ -1,20 +1,24 @@
 FC = mpif90
-FLAGS = -O3 -ffree-line-length-none -x f95-cpp-input -m64 -DHAVE_FLUSH -DBLAS  -Wall  -g -ffree-line-length-none  -funroll-loops -ftree-vectorizer-verbose=0 -ffast-math -ftree-vectorize -DMPI -fopenmp  -march=corei7  
+FLAGS = -O3 -ffree-line-length-none -x f95-cpp-input -m64 -DHAVE_FLUSH -DBLAS  -Wall  -g -ffree-line-length-none  -funroll-loops -ftree-vectorizer-verbose=0 -ffast-math -ftree-vectorize -DMPI -fopenmp  -march=corei7-avx 
 #-fbacktrace -fbounds-check
-LDFLAGS = -m64  -Wall  -g -fopenmp -march=corei7
+LDFLAGS = -m64  -Wall  -g -fopenmp -march=corei7-avx
 
-FFTWI = -I/home/jtv1/bin/gnu/include
-FFTWL = /home/jtv1/bin/gnu/lib/libfftw3.a
+#FFTWI = -I/home/jtv1/bin/gnu/include
+#FFTWL = /home/jtv1/bin/gnu/lib/libfftw3.a
+FFTWI = -I/users/jtv1/local/fftw-3.3.3/api
+FFTWL =  -L/users/jtv1/local/.libs -lfftw3
 
-
-BLACS =  -L/home/jtv1/ATLAS/ATLAS_sandy/lib  -lscalapack -llapack -lf77blas -lcblas -latlas
+BLACS = -lscalapack -llapack -lf77blas -lcblas -latlas
+# -L/home/jtv1/ATLAS/ATLAS_sandy/lib  -lscalapack -llapack -lf77blas -lcblas -latlas
 
 
 all: ocean.x
 
-OCEANOBJS = AI_kinds.o OCEAN_mpi.o OCEAN_system.o OCEAN_bloch.o OCEAN_obf.o OCEAN_multiplet.o long_range.o OCEAN_load_data.o OCEAN_psi.o \
-            OCEAN_energies.o OCEAN_haydock.o OCEAN.o getabb.o getomega.o gamfcn.o jlmfft.o limel.o jimel.o \
-            nbsemkcmel.o intval.o newgetylm.o  newgetprefs.o newthreey.o cainmhsetup.o elsdch.o invdrv.o cinv.o
+OCEANOBJS = AI_kinds.o OCEAN_mpi.o OCEAN_system.o OCEAN_bloch.o OCEAN_obf.o OCEAN_multiplet.o  \
+            long_range.o OCEAN_load_data.o OCEAN_psi.o OCEAN_energies.o OCEAN_haydock.o OCEAN.o \
+            getabb.o getomega.o gamfcn.o jlmfft.o limel.o jimel.o nbsemkcmel.o intval.o \
+            newgetylm.o  newgetprefs.o newthreey.o cainmhsetup.o elsdch.o invdrv.o cinv.o \
+            sizereport.o
 
 ocean.x: $(OCEANOBJS)
 	$(FC) $(LDFLAGS) -o ocean.x $(OCEANOBJS) $(BLACS) $(FFTWL)
@@ -93,11 +97,19 @@ redtrid.o: redtrid.f
 elsdch.o: elsdch.f
 	$(FC) $(FLAGS) -c -o elsdch.o elsdch.f
 
+invdrv.o: invdrv.f90
+	$(FC) $(FLAGS) -c -o invdrv.o invdrv.f90
+
+sizereport.o: sizereport.f90
+	$(FC) $(FLAGS) -c -o sizereport.o sizereport.f90
+
 OCEAN_bloch.o: OCEAN_bloch.f90 OCEAN_system.o AI_kinds.o OCEAN_mpi.o
 	$(FC) $(FLAGS) -c -o OCEAN_bloch.o OCEAN_bloch.f90 $(FFTWI)
 
 OCEAN_obf.o: OCEAN_obf.f90 OCEAN_system.o AI_kinds.o OCEAN_mpi.o
 	$(FC) $(FLAGS) -c -o OCEAN_obf.o OCEAN_obf.f90 $(FFTWI)
+
+
 
 clean:
 	rm *.o *.mod
