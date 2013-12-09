@@ -80,6 +80,7 @@ install:
 	cp zexe/builder.x $(INSTDIR)/
 	cp zexe/pawsetup.x $(INSTDIR)/
 	cp zexe/mkrbfile.x $(INSTDIR)/
+	cp zexe/mkrbfile_mult.x $(INSTDIR)/
 
 clean:
 	rm -f zobj/*.o
