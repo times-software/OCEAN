@@ -1,7 +1,7 @@
 FC = mpif90
-FLAGS = -O3 -ffree-line-length-none -x f95-cpp-input -m64 -DHAVE_FLUSH -DBLAS  -Wall  -g -ffree-line-length-none  -funroll-loops -ftree-vectorizer-verbose=0 -ffast-math -ftree-vectorize -DMPI -fopenmp  -march=corei7-avx -DHAVE_CONTIGUOUS
+FLAGS = -O3 -ffree-line-length-none -x f95-cpp-input -m64 -DHAVE_FLUSH -DBLAS  -Wall  -g -ffree-line-length-none  -funroll-loops -ftree-vectorizer-verbose=0 -ffast-math -ftree-vectorize -DMPI -march=corei7-avx -DHAVE_CONTIGUOUS -fbacktrace -fbounds-check
 #-fbacktrace -fbounds-check
-LDFLAGS = -m64  -Wall  -g -fopenmp -march=corei7-avx
+LDFLAGS = -m64  -Wall  -g -march=corei7-avx
 
 #FFTWI = -I/home/jtv1/bin/gnu/include
 #FFTWL = /home/jtv1/bin/gnu/lib/libfftw3.a
@@ -26,7 +26,7 @@ ocean.x: $(OCEANOBJS)
 OCEAN_mpi.o: OCEAN_mpi.f90 AI_kinds.o
 	$(FC) $(FLAGS) -c -o OCEAN_mpi.o OCEAN_mpi.f90 
 
-OCEAN.o: OCEAN.f90 AI_kinds.o
+OCEAN.o: OCEAN.f90 AI_kinds.o OCEAN_exact.o
 	$(FC) $(FLAGS) -c -o OCEAN.o OCEAN.f90
 
 AI_kinds.o: AI_kinds.f90

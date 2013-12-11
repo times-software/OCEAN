@@ -449,10 +449,12 @@ module OCEAN_multiplet
           do nu = 1, nproj( l )
             do ikpt = 1, sys%nkpts
               do ibnd = 1, sys%num_bands
-                ampr( nu ) = ampr( nu ) + in_vec%r( ibnd, ikpt, ialpha ) * mpcr( ibnd, ikpt, nu, m, l, ispn ) & 
-                                        - in_vec%i( ibnd, ikpt, ialpha ) * mpci( ibnd, ikpt, nu, m, l, ispn )
-                ampi( nu ) = ampi( nu ) + in_vec%r( ibnd, ikpt, ialpha ) * mpci( ibnd, ikpt, nu, m, l, ispn ) & 
-                                        + in_vec%i( ibnd, ikpt, ialpha ) * mpcr( ibnd, ikpt, nu, m, l, ispn )
+                ampr( nu ) = ampr( nu ) &
+                           + in_vec%r( ibnd, ikpt, ialpha ) * mpcr( ibnd, ikpt, nu, m, l, ispn ) &
+                           - in_vec%i( ibnd, ikpt, ialpha ) * mpci( ibnd, ikpt, nu, m, l, ispn )
+                ampi( nu ) = ampi( nu ) &
+                           + in_vec%r( ibnd, ikpt, ialpha ) * mpci( ibnd, ikpt, nu, m, l, ispn ) &
+                           + in_vec%i( ibnd, ikpt, ialpha ) * mpcr( ibnd, ikpt, nu, m, l, ispn )
                enddo
             enddo
           enddo
@@ -807,7 +809,7 @@ module OCEAN_multiplet
     type(O_system), intent( in ) :: sys
     real(DP), intent( in ) :: inter
     integer, intent( in ) :: ib, ik, ia, jb, jk, ja
-    complex(DP), intent( inout ) :: bsE_me
+    complex(DP), intent( inout ) :: bse_me
     !
     !
     integer :: l, m, nu, ispn
@@ -818,6 +820,9 @@ module OCEAN_multiplet
 !   CT is diagonal in alpha
     if( ia .ne. ja ) return
 
+    outr = 0.0_DP
+    outi = 0.0_DP
+
     mul = inter / ( dble( sys%nkpts ) * sys%celvol )
 
     ispn = 2 - mod( ia, 2 )
@@ -827,22 +832,23 @@ module OCEAN_multiplet
 !JTV clean this up
     do l = lmin, lmax
       do m = -l, l
-        ampr( : ) = 0
-        ampi( : ) = 0
+!        ampr( : ) = 0
+!        ampi( : ) = 0
+        hampr( : ) = 0
+        hampi( : ) = 0
 !             do i = 1, n
         do nu = 1, nproj( l )
           ampr( nu ) = mpcr( ib, ik, nu, m, l, ispn ) 
           ampi( nu ) = mpci( ib, ik, nu, m, l, ispn )
         enddo
 
-        hampr( : ) = 0
-        hampi( : ) = 0
         do nu = 1, nproj( l )
           hampr( : ) = hampr( : ) - mpm( :, nu, l ) * ampr( nu )
           hampi( : ) = hampi( : ) - mpm( :, nu, l ) * ampi( nu )
         enddo
         hampr( : ) = hampr( : ) * mul
         hampi( : ) = hampi( : ) * mul
+
         do nu = 1, nproj( l )
           outr = outr + mpcr( jb, jk, nu, m, l, ispn ) * hampr( nu ) &
                       + mpci( jb, jk, nu, m, l, ispn ) * hampi( nu )
@@ -853,7 +859,7 @@ module OCEAN_multiplet
       enddo
     enddo
 
-    bse_me = bse_me + CMPLX( outr, outi, DP )
+    bse_me = bse_me + CMPLX( outr, -outi, DP )
 
   end subroutine OCEAN_ct_single
 
@@ -879,20 +885,23 @@ module OCEAN_multiplet
     outr = 0.0_DP
     outi = 0.0_DP
 
-    mul = inter / ( dble( sys%nkpts ) * sys%celvol )
-!    write(6,*) mul
-    do lv = lvl, lvh
-       pwr( : ) = 0
-       pwi( : ) = 0
-       hpwr( : ) = 0
-       hpwi( : ) = 0
+!    if( ik .eq. jk ) return
 
-      
+
+    mul = inter / ( dble( sys%nkpts ) * sys%celvol )
+
+    do lv = lvl, lvh
+      pwr( : ) = 0.0_DP
+      pwi( : ) = 0.0_DP
+      hpwr( : ) = 0.0_DP
+      hpwi( : ) = 0.0_DP
+
       ispn = 2 - mod( ia, 2 )
-!       ispn = 1 + mod( ia, 2 )
       if( sys%nspn .eq. 1 ) then
         ispn = 1
       endif
+
+      
       do ivml = -lv, lv
         do nu = 1, nproj( lv )
           ii = nu + ( ivml + lv ) * nproj( lv ) + ( ia - 1 ) * ( 2 * lv + 1 ) * nproj( lv )
@@ -932,7 +941,7 @@ module OCEAN_multiplet
     enddo
     !
 
-    bse_me = bse_me + CMPLX( outr, outi, DP )
+    bse_me = bse_me + CMPLX( outr,-outi, DP ) !stupid* 2.0_DP
 
   end subroutine OCEAN_fg_single
 

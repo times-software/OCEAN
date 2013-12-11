@@ -54,7 +54,7 @@ module ocean_long_range
   logical :: first_time = .true.
   
 
-  public :: create_lr, lr_populate_W, lr_populate_bloch, lr_act, lr_populate_W2, lr_fill_values, lr_init, lr_timer
+  public :: create_lr, lr_populate_W, lr_populate_bloch, lr_act, lr_populate_W2, lr_fill_values, lr_init, lr_timer, lr_slice
 
   contains
 
@@ -79,6 +79,8 @@ module ocean_long_range
       call lr_act_traditional( sys, p, hp, lr, ierr )
     endif
   end subroutine lr_act
+
+
 
     
 
@@ -1537,6 +1539,100 @@ module ocean_long_range
 
   end subroutine
 
+  subroutine lr_slice( sys, outr, outi, iband, ikpt, ialpha )
+    use OCEAN_system
+    implicit none
+
+    type( o_system ), intent( in ) :: sys
+    real( dp ), intent( out ), dimension(sys%num_bands, sys%nkpts ) :: outr, outi
+    integer, intent( in ) :: iband, ikpt, ialpha
+
+
+    integer :: jband, jkpt, jalpha
+    integer :: ixpt, jfft
+    real(dp), allocatable :: xwrkr(:), xwrki(:), wrk(:), rtphi(:,:), itphi(:,:)
+    
+
+    outr = 0.0_DP
+    outi = 0.0_DP
+
+    ! prep info for fft
+    jfft = 2 * max( sys%kmesh( 1 ) * ( sys%kmesh( 1 ) + 1 ), &
+                    sys%kmesh( 2 ) * ( sys%kmesh( 2 ) + 1 ), &
+                    sys%kmesh( 3 ) * ( sys%kmesh( 3 ) + 1 ) )
+    !
+    allocate( rtphi( my_xpts, my_kpts ), &
+              itphi( my_xpts, my_kpts ) )
+
+
+    allocate( xwrkr( sys%nkpts ), xwrki( sys%nkpts ), wrk( jfft ) )
+
+    
+    rtphi = 0.0_DP
+    itphi = 0.0_DP
+    
+    do ixpt = 1, my_xpts
+!      rphi( ikpt, ixpt ) = re_bloch_state( iband, ikpt, ixpt )
+!      iphi( ikpt, ixpt ) = im_bloch_state( iband, ikpt, ixpt )
+!    enddo
+
+    ! If there is some k-point division among procs this would be a problem here
+
+!        xwrkr( : ) = rphi( :, ixpt )
+!        xwrki( : ) = iphi( :, ixpt )
+
+      xwrkr( : ) = 0.0_DP
+      xwrki( : ) = 0.0_DP
+
+      xwrkr( ikpt ) = re_bloch_state( iband, ikpt, ixpt )
+      xwrki( ikpt ) = im_bloch_state( iband, ikpt, ixpt )
+
+      call cfft( xwrkr, xwrki, sys%kmesh(3), sys%kmesh(3), sys%kmesh(2), sys%kmesh(1), -1, wrk, jfft )
+
+      xwrkr( : ) = xwrkr( : ) * W( :, ixpt )
+      xwrki( : ) = xwrki( : ) * W( :, ixpt )
+
+      call cfft( xwrkr, xwrki, sys%kmesh(3), sys%kmesh(3), sys%kmesh(2), sys%kmesh(1), +1, wrk, jfft )
+      rtphi( ixpt, : ) = xwrkr( : )
+      itphi( ixpt, : ) = xwrki( : )
+
+!      outr = re_bloch_state( jband, jkpt, ixpt ) * xwrkr( jkpt ) &
+!           + im_bloch_state( jband, jkpt, ixpt ) * xwrki( jkpt )
+!      outi = re_bloch_state( jband, jkpt, ixpt ) * iwrkr( jkpt ) &
+!           - im_bloch_state( jband, jkpt, ixpt ) * iwrki( jkpt )
+
+
+    enddo
+
+    
+
+    
+    do jkpt = ikpt, my_kpts 
+      do ixpt = 1, my_xpts
+#ifdef BLAS
+        call DAXPY( sys%num_bands, rtphi(ixpt,jkpt), re_bloch_state(1,jkpt,ixpt), 1, &
+                    outr(1,jkpt), 1 )
+        call DAXPY( sys%num_bands, itphi(ixpt,jkpt), im_bloch_state(1,jkpt,ixpt), 1, &
+                    outr(1,jkpt), 1 )
+        call DAXPY( sys%num_bands, itphi(ixpt,jkpt), re_bloch_state(1,jkpt,ixpt), 1, &
+                    outi(1,jkpt), 1 )
+        call DAXPY( sys%num_bands, -rtphi(ixpt,jkpt), im_bloch_state(1,jkpt,ixpt), 1, &
+                    outi(1,jkpt), 1 )
+#else
+!        hp%r(:,ikpt,ialpha) = hp%r(:,ikpt,ialpha) &
+!                            + re_bloch_state(:,ikpt,ixpt) * rphi(ikpt,ixpt,ialpha ) &
+!                            + im_bloch_state(:,ikpt,ixpt) * iphi(ikpt,ixpt,ialpha )
+!        hp%i(:,ikpt,ialpha) = hp%i(:,ikpt,ialpha) &
+!                            + re_bloch_state(:,ikpt,ixpt) * iphi(ikpt,ixpt,ialpha ) &
+!                            - im_bloch_state(:,ikpt,ixpt) * rphi(ikpt,ixpt,ialpha )
+        stop
+#endif
+      enddo
+    enddo
+
+    deallocate( rtphi, itphi, xwrkr, xwrki, wrk )
+
+  end subroutine lr_slice
 
 end module ocean_long_range
 
