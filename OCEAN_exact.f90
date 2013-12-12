@@ -37,7 +37,7 @@ module OCEAN_exact
   INTEGER :: myrow
   INTEGER :: mycol
 
-  INTEGER :: block_fac = 32
+  INTEGER :: block_fac = 64
 
 
   public :: OCEAN_exact_diagonalize
@@ -58,7 +58,8 @@ module OCEAN_exact
     call OCEAN_initialize_bse( sys, ierr )
     if( ierr .ne. 0 ) goto 111
 
-    call OCEAN_populate_bse( sys, ierr )
+!    call OCEAN_populate_bse( sys, ierr )
+    call OCEAN_pb_slices( sys, hay_vec, ierr )
     if( ierr .ne. 0 ) goto 111
 
     call OCEAN_diagonalize( ierr )
@@ -142,6 +143,244 @@ module OCEAN_exact
  
 111 continue
   end subroutine OCEAN_initialize_bse
+
+
+  subroutine OCEAN_pb_slices( sys, hay_vec, ierr )
+    use AI_kinds
+    use OCEAN_mpi
+    use OCEAN_system
+    use OCEAN_energies
+    use OCEAN_psi
+    use OCEAN_multiplet
+    use OCEAN_long_range
+
+    implicit none
+    type( o_system ), intent( in ) :: sys
+    type( ocean_vector ), intent( in ) :: hay_vec
+    integer, intent( inout ) :: ierr
+
+    type( ocean_vector ) :: bse_vec
+    real(DP), allocatable, target :: bse_vec_re(:,:,:), bse_vec_im(:,:,:)
+
+    complex(DP) :: bse_ij
+
+    real(DP) :: inter = 1.0_DP
+
+    complex(EDP), allocatable :: c_slice(:), bse_matrix_buffer(:)
+    real(DP), allocatable :: re_slice(:), im_slice(:)
+
+    complex(EDP), allocatable :: distributed_slices( :, : )
+
+    integer :: ibasis, jbasis
+    integer :: lrindx, lcindx, rsrc, csrc
+    integer :: ialpha, ikpt, iband, jalpha, jkpt, jband
+
+    integer :: slice_start, slice_size
+    integer :: buf_pointer, i, tot_buf_size
+
+    integer :: comm_tag_index, my_tag_index, buf_size, source_proc, dest_proc
+    integer,allocatable :: request_list( : ), status_list(:,:)
+
+#ifdef sp
+    integer, parameter :: mpi_ct = MPI_COMPLEX
+#else
+    integer, parameter :: mpi_ct = MPI_DOUBLE_COMPLEX
+#endif
+
+
+    bse_vec%bands_pad = hay_vec%bands_pad
+    bse_vec%kpts_pad  = hay_vec%kpts_pad
+    allocate( bse_vec_re( bse_vec%bands_pad, bse_vec%kpts_pad, sys%nalpha ), &
+              bse_vec_im( bse_vec%bands_pad, bse_vec%kpts_pad, sys%nalpha ) )
+    bse_vec%r => bse_vec_re
+    bse_vec%i => bse_vec_im
+
+    
+
+    comm_tag_index = 0
+    my_tag_index = 0
+    tot_buf_size = 0
+
+    allocate( request_list( ceiling( dble(bse_dim) / dble(block_fac) ) * ((bse_dim+nproc-1)/nproc) ) )
+    write(6,*) ceiling( dble(bse_dim) / dble(block_fac) ) * ((bse_dim+nproc-1)/nproc) 
+
+
+    do jbasis = 1, bse_dim
+!      if( jbasis .le. bse_dim/2 ) then
+        source_proc = mod( (jbasis - 1 ), nproc )
+!      else
+!JTV add later to pair jbasis =1 1 & jbasis = bse_dim for better load matching        
+!      endif
+
+
+!      do ibasis = 1, bse_dim, block_fac
+      do ibasis = 1, jbasis, block_fac
+        comm_tag_index = comm_tag_index + 1
+
+!JTV ??
+        buf_size = min( block_fac, jbasis - ibasis + 1 )
+        if( source_proc .eq. myid ) tot_buf_size = tot_buf_size + buf_size
+
+        call INFOG2L( ibasis, jbasis, bse_desc, nprow, npcol, myrow, mycol, &
+                      lrindx, lcindx, rsrc, csrc )
+        if( myrow .ne. rsrc .or. mycol .ne. csrc ) cycle
+
+        my_tag_index = my_tag_index + 1
+        call MPI_IRECV( bse_matrix( lrindx, lcindx ), buf_size, MPI_CT, source_proc, &
+                        comm_tag_index, comm, request_list( my_tag_index), ierr )
+      enddo
+    enddo
+
+
+    allocate(bse_matrix_buffer( tot_buf_size ) )!, stat=ierr )
+
+!   Right now assume Hermetian
+    jalpha = 1
+    jkpt = 1
+    jband = 0
+    buf_pointer = 1
+
+    if( myid .eq. root ) write(6,*) sys%nkpts, sys%num_bands
+
+    comm_tag_index = 0
+
+    do jbasis = 1, bse_dim
+
+      jband = jband + 1
+      if( jband .gt. sys%num_bands ) then
+        jband = 1
+        jkpt = jkpt + 1
+        if( jkpt .gt. sys%nkpts ) then
+          jkpt = 1
+          jalpha = jalpha + 1
+        endif
+        if( myid .eq. root ) write(6,*) 'jk = ', jkpt, 'jalpha =', jalpha, jbasis
+      endif
+
+      if( mod( jbasis - 1, nproc ) .ne. myid ) then 
+        do ibasis = 1, jbasis, block_fac 
+          comm_tag_index = comm_tag_index + 1 
+        enddo
+        cycle
+      endif
+
+
+      bse_vec%r(:,:,:) = 0.0_DP
+      bse_vec%i(:,:,:) = 0.0_DP
+
+      if( sys%e0 ) bse_ij = ocean_energies_single( jband, jkpt, jalpha )
+      bse_vec%r( jband, jkpt, jalpha ) = real( real(bse_ij ) )
+!      bse_vec%i( jband, jkpt, jalpha ) = aimag( bse_ij )
+
+      if( sys%mult ) &
+        call OCEAN_mult_slice( sys, bse_vec, inter, jband, jkpt, jalpha )
+
+
+      ialpha = 1
+      ikpt = 1
+      iband = 0
+
+      do ibasis = 1, jbasis, block_fac
+        comm_tag_index = comm_tag_index + 1
+
+        buf_size = min( block_fac, jbasis - ibasis + 1 )
+
+        do i = 0, buf_size-1
+          iband = iband + 1
+          if( iband .gt. sys%num_bands ) then
+            iband = 1
+            ikpt = ikpt + 1
+          endif
+          if( ikpt .gt. sys%nkpts ) then
+            ikpt = 1
+            ialpha = ialpha + 1
+          endif
+
+          bse_matrix_buffer( buf_pointer+i ) = CMPLX( bse_vec%r( iband, ikpt, ialpha ), &
+                      bse_vec%i( iband, ikpt, ialpha ), EDP )
+
+!          if( (myid .eq. root) .and. (iband .eq. jband ) .and. (ikpt .eq. jkpt) & 
+!                             .and. (ialpha .eq. jalpha ) ) then
+!            write(6,*) jbasis, (ibasis + i), jband, iband, real(bse_matrix_buffer( buf_pointer+i ))
+!            write(6,*) i, ibasis, buf_size, iband, ikpt, ialpha
+!          endif
+        enddo
+
+        call INFOG2L( ibasis, jbasis, bse_desc, nprow, npcol, myrow, mycol, &
+                      lrindx, lcindx, rsrc, csrc )
+
+        dest_proc = rsrc + csrc*nprow
+
+        
+        call MPI_ISEND( bse_matrix_buffer( buf_pointer ), buf_size, MPI_CT, dest_proc, &
+                        comm_tag_index, MPI_REQUEST_NULL, ierr )
+
+        buf_pointer = buf_pointer + buf_size
+      enddo
+    enddo
+
+    call blacs_barrier( context, 'A' )
+    if( myid .eq. root ) write(6,*) 'Finished populating'
+
+    allocate( status_list( MPI_STATUS_SIZE, my_tag_index ) )
+    call MPI_WAITALL( my_tag_index, request_list, status_list, ierr )
+    deallocate( request_list, status_list )
+
+    deallocate( bse_matrix_buffer, bse_vec_re, bse_vec_im )
+
+    call blacs_barrier( context, 'A' )
+    if( myid .eq. root ) write(6,*) 'Finished comm'
+
+
+
+    if( sys%long_range ) then
+
+      if( myid .eq. root ) write(6,*) 'Adding in long range'
+      allocate( re_slice( sys%nkpts * sys%num_bands ), &
+                im_slice( sys%nkpts * sys%num_bands ), &
+                 c_slice( sys%nkpts * sys%num_bands ) )
+      ibasis = 0
+      do ialpha = 1, sys%nalpha
+        do ikpt = 1, sys%nkpts
+          if( myid .eq. root ) write(6,*) ikpt, sys%nkpts, ialpha
+          slice_size = bse_dim - ( ikpt - 1 )*sys%num_bands
+          slice_start = 1 + ( ikpt - 1 )*sys%num_bands
+          do iband = 1, sys%num_bands
+            ibasis = ibasis + 1
+
+            call lr_slice( sys, re_slice, im_slice, iband, ikpt, 1 )
+            call MPI_ALLREDUCE( MPI_IN_PLACE, re_slice, sys%nkpts * sys%num_bands, &
+                                MPI_DOUBLE_PRECISION, MPI_SUM, comm, ierr )
+            call MPI_ALLREDUCE( MPI_IN_PLACE, im_slice, sys%nkpts * sys%num_bands, &
+                                MPI_DOUBLE_PRECISION, MPI_SUM, comm, ierr )
+            c_slice(:) = CMPLX( -re_slice(:), im_slice(:), EDP )
+
+            ! only for alpha are the same
+            do jbasis = ibasis, sys%nkpts * sys%num_bands * ialpha
+  !            if( ibasis .eq. jbasis .and. myid .eq. root ) &
+  !              write(6,*) re_slice(ibasis), im_slice( ibasis )
+              call INFOG2L( ibasis, jbasis, bse_desc, nprow, npcol, myrow, mycol, &
+                        lrindx, lcindx, rsrc, csrc )
+
+              if( ( myrow .ne. rsrc ) .or. ( mycol .ne. csrc ) ) cycle
+
+!              if( ibasis .eq. jbasis ) write(6,*) ibasis, bse_matrix(ibasis, ibasis )
+                bse_matrix( lrindx, lcindx ) = bse_matrix( lrindx, lcindx ) &
+                            + c_slice( jbasis - (ialpha - 1)*sys%nkpts * sys%num_bands )
+            enddo
+
+          enddo
+        enddo
+      enddo
+
+      deallocate( re_slice, im_slice, c_slice )
+    endif
+
+    if( myid .eq. root ) write(6,*) 'Finished populating bse matrix'
+
+  end subroutine OCEAN_pb_slices
+
+
 
 
 
@@ -328,6 +567,9 @@ module OCEAN_exact
     integer,allocatable :: iwork(:)
     integer :: lwork, lrwork, liwork
 
+    integer :: np, nq, min_dim
+    integer, external :: numroc
+
     allocate( bse_evalues( bse_dim ), &
               bse_evectors( bse_lr, bse_lc ), stat=ierr )
     if( ierr .ne. 0 ) then
@@ -352,9 +594,34 @@ module OCEAN_exact
       if( myid .eq. root ) write(6,*) 'Failed to run pzheevd setup'
       goto 111
     endif
-    lwork = ceiling( dble( work(1) ) )
-    lrwork = ceiling( rwork(1) )
+
+!    lwork = ceiling( dble( work(1) ) )
+!    lrwork = ceiling( rwork(1) )
+    np = NUMROC( bse_dim, block_fac, 0, 0, nprow )
+    nq = NUMROC( bse_dim, block_fac, 0, 0, npcol )
+    lwork = NINT( REAL( work(1), EDP ) )
+    min_dim = bse_dim + ( np + nq + block_fac ) * block_fac
+    if( lwork .lt. min_dim ) then
+      write(6,*) myid, 'lwork', lwork, min_dim
+      lwork = min_dim
+    endif
+
+    np = NUMROC( bse_dim, block_fac, myrow, 0, nprow )
+    nq = NUMROC( bse_dim, block_fac, mycol, 0, npcol )
+    lrwork = NINT( rwork(1) )
+    min_dim = 1 + 9*bse_dim + 3*np*nq
+    if( lrwork .lt. min_dim ) then
+      write(6,*) myid, 'lrwork', lrwork, min_dim
+      lrwork = min_dim
+    endif
+
     liwork = iwork(1)
+    min_dim = 7*bse_dim + 8*npcol + 2
+    if( liwork .lt. min_dim ) then
+      write(6,*) myid, 'liwork', liwork, min_dim
+      liwork = min_dim
+    endif
+    write(6,*) myid, lwork, lrwork, liwork
     deallocate( work, rwork, iwork )
     allocate( work(lwork), rwork(lrwork), iwork(liwork), stat=ierr )
     if( ierr .ne. 0 ) then
