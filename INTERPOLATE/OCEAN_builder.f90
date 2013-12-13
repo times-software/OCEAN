@@ -1,4 +1,4 @@
-  program OCEAN_builder_multi
+  program OCEAN_builder
 
   ! stand-alone utility to read in the Hamiltonian in the
   ! optimal Shirley basis and solve it for a given input
@@ -20,21 +20,19 @@
   use corerepair_module
   use shirley_input_module 
   use diag_module
-  USE wavefunctions_module, ONLY: evc
-  USE io_files, ONLY: nwordwfc, iunwfc, prefix_io=>prefix, &
+!  USE wavefunctions_module, ONLY: evc
+  USE io_files, ONLY: nwordwfc, prefix_io=>prefix, &
                                   tmpdir_io=>tmp_dir, nd_nmbr, diropn
   USE control_flags,        ONLY : lscf
   USE basis,                ONLY : starting_pot, starting_wfc
   USE gvect
-  USE wvfct, only : npwx, npw
+!  USE wvfct, only : npwx, npw
   use constants, only : pi
   use hamq_pool, only : nproc_per_pool, npool, &
                         mypool, rootpool, mypoolid, mypoolroot, &
                         cross_pool_comm, intra_pool_comm, &
-                        desc_cyclic, desc_striped, context_cyclic, &
+                        desc_cyclic, context_cyclic, &
                         local_striped_dim, cyclic_localindex
-!                        context_global
-!  use hamq_pool, only : nbasis_global
 
   implicit none
 
@@ -51,43 +49,34 @@
   character(255) :: info_file
 
   integer(kind=MPI_OFFSET_KIND) :: offset
-  integer :: fheigval, fheigvec, fhenk, fhpsi
   integer :: status(MPI_STATUS_SIZE)
   integer :: ierr
 
-  character(255) :: fmtstr
-  character(20 ) :: filnam, xiname, ximat_name, nopt_name
+  character(20 ) :: ximat_name, nopt_name
 
-  real(dp) :: lambda
-  character(len=6) :: nd_nmbr_tmp
+!  character(len=6) :: nd_nmbr_tmp
 
-
-  real(dp) :: kvec(3)
-  real(dp) :: qpathlen
-  character(255) :: ic
 
   integer :: ik
-  integer :: i,j,k, ig
+  integer :: i,j
   integer :: nbasis_subset
 
-  integer :: nk, nbnd, ispin, itau, ip, ibnd
+  integer :: nk, nbnd, ispin, itau
   real(dp) :: nelec_, alat, volume, at(3,3), bg(3,3), tpiba
-  integer :: nspin, ix, nxpts, xmesh( 3 )
+  integer :: nspin
   real(dp) :: fermi_energy
-  real(dp),allocatable :: kr( :, : )
   complex(dp),allocatable :: ztmp(:,:)
 
-  integer :: nwordo2l, iuntmp, ntot,nptot, ibd, ibp, n_se, iunrbf
-  complex(dp),allocatable :: o2l(:,:,:,:)
+  integer :: iuntmp, nptot, ibd, n_se, iunrbf
   real(dp),allocatable :: tau(:,:), se_list(:)
   logical :: se_exist
 
-  complex(dp),allocatable :: wfp(:,:), gre(:,:,:), uofr(:), bofr( :, : ), eikr( : ), gre_small(:,:,:), single_bofr(:,:)
-  complex(dp),allocatable :: full_xi(:,:), xiofb(:,:), gre_local(:,:,:), phased_bofr(:,:), uofrandb(:,:)
+  complex(dp),allocatable :: gre(:,:,:), bofr( :, : ), eikr( : ), gre_small(:,:,:), single_bofr(:,:)
+  complex(dp),allocatable :: full_xi(:,:), gre_local(:,:,:), phased_bofr(:,:), uofrandb(:,:)
   real(dp),allocatable :: posn( :, : ), wpt( : ), drel( : ), t(:), xirow(:), nind(:), vind(:),vipt(:),phase(:)
   real(dp),allocatable :: wgt(:), newwgt(:)
-  real(dp) :: pref, spinfac, x, fr, fi, denr, deni, iden2, s, su, su2, omega, avec(3,3), bvec(3,3), qin(3),qcart(3)
-  real(dp) :: vlev, vhev, clev, chev, muev, sev, mindif, maxdif, absdiff, newdiff, ktmp( 3 ), maxdiff, eshift, shifted_eig
+  real(dp) :: pref, spinfac, denr, deni, s, su, su2, omega, avec(3,3), bvec(3,3), qin(3),qcart(3)
+  real(dp) :: vlev, vhev, clev, chev, mindif, maxdif, absdiff, newdiff, ktmp( 3 ), eshift, shifted_eig
   complex(dp) :: scalar 
 
   integer :: ntau, ntau_offset
@@ -95,8 +84,8 @@
   integer :: nprow, npcol, myrow, mycol
   integer, dimension( DLEN_ ) :: desc_bofr_in, desc_bofr, desc_gre, desc_gre_local
 
-  integer :: npt, it, nt, iunbofr, ibasis, nbnd_small
-  integer :: num_threads, my_thread, npt_start, npt_left, npt_chunk
+  integer :: npt, it, nt, iunbofr, nbnd_small
+!  integer :: num_threads, npt_start, npt_left, npt_chunk
   integer, external :: OMP_GET_NUM_THREADS, OMP_GET_THREAD_NUM, numroc
   integer :: iuninf
   namelist /info/ nk, nbnd, nelec, alat, volume, &
@@ -630,7 +619,10 @@
   if( ionode ) then
     allocate( xirow( npt ), vind(npt), nind(npt) )
     allocate( full_xi(npt,npt) )
+  else
+    allocate( xirow(1),vind(1),nind(1),full_xi(1,1))
   endif
+
 
     do it = 1, nt
       call PZGEMR2D( npt, npt, gre( 1, 1, it ), 1, 1, desc_gre, & 
@@ -751,9 +743,9 @@
 !      deallocate( xirow )
     endif
 
-    if( ionode ) then
+!    if( ionode ) then
       deallocate(vind,nind,xirow,full_xi)
-    endif
+!    endif
   
   deallocate(gre_local)
   enddo ! itau
@@ -764,4 +756,4 @@
   call mp_end
 !  stop
   
-end program OCEAN_builder_multi
+end program OCEAN_builder

@@ -4,6 +4,8 @@ DEBUG =
 
 include $(ESPRESSO_DIR)/make.sys
 
+FFLAGS+= -Wall
+
 #.f90.o:
 #	$(MPIF90) $(F90FLAGS) -I$(ESPRESSO_DIR)/include -c $<
 
