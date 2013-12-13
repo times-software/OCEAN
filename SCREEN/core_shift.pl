@@ -36,6 +36,38 @@ my $zderp = 1;   #0.860222;
 
 open CORESHIFT, ">core_shift.txt";
 
+`cp ../DFT/scf.out .`;
+
+my $natom = `cat natoms`;
+chomp($natom);
+#`grep -A $natom "site" scf.out | tail -n $natom | awk '{print \$2, \$7, \$8, \$9}'   > xyz.alat`;
+open SCF, "scf.out" or die "$!\n";
+while (<SCF>)
+{
+  last if ($_ =~ m/site/ );
+}
+open ALAT, ">xyz.alat" or die "$_\n";
+for( my $i=0; $i < $natom; $i++ )
+{
+  my $line = <SCF>;
+  $line =~ m/\d+\s+(\w+)\s+tau\(\s*\d+\)\s+=\s+\(\s+(\S+)\s+(\S+)\s+(\S+)/;
+  print "$1\t$2\t$3\t$4\n";
+  print  ALAT "$1\t$2\t$3\t$4\n";
+}
+close ALAT;
+close SCF;
+
+print "Pre-comp\n";
+open OUT, ">pot_prep.in";
+print OUT "&inputpp\n"
+   .  "  prefix = 'system'\n"
+   .  "  outdir = './Out'\n"
+   .  "  filplot = 'system.pot'\n"
+   .  "  plot_num = 1\n"
+   .  "/\n";
+close OUT;
+system("mpirun -n 8 $ENV{'OCEAN_BIN'}/pp.x < pot_prep.in >& pot_prep.out");
+
 while ( my $line = <HFIN>) 
 {
 # 07-n.lda.fhi                                         7   1   0 N_   1
@@ -45,8 +77,11 @@ while ( my $line = <HFIN>)
   my $el = $3;
   my $el_rank = $4;
 
-  my $taustring = `grep $el xyz.wyck | head -n $el_rank | tail -n 1`;
-  print "$el_rank, $taustring";
+#  my $taustring = `grep $el xyz.wyck | head -n $el_rank | tail -n 1`;
+  my $small_el = $el;
+  $small_el =~ s/_//;
+  my $taustring = `grep $small_el xyz.alat |  head -n $el_rank | tail -n 1`;
+  print "$el_rank, $small_el, $taustring\n";
    $taustring =~ m/\S+\s+(\S+)\s+(\S+)\s+(\S+)/;
   my $x = $1;
   my $y = $2;
@@ -56,13 +91,14 @@ while ( my $line = <HFIN>)
   $z *= $zderp;
 
   open OUT, ">pot.in" ;
-  print OUT "&inputpp\n"
-   .  "  prefix = 'system'\n"
-   .  "  outdir = './Out'\n"
-   .  "  filplot = 'system.pot'\n"
-   .  "  plot_num = 1\n"
-   .  "/\n"
-   .  "&plot\n"
+  print OUT   "&inputpp\n/\n&plot\n"
+#"&inputpp\n"
+#   .  "  prefix = 'system'\n"
+#   .  "  outdir = './Out'\n"
+#   .  "  filplot = 'system.pot'\n"
+#   .  "  plot_num = 1\n"
+#   .  "/\n"
+#   .  "&plot\n"
    .  "  nfile = 1\n"
    .  "  filepp(1) = 'system.pot', weight(1) = 1\n"
    .  "  iflag = 1\n"
@@ -78,7 +114,8 @@ while ( my $line = <HFIN>)
  
 #  system("$para_prefix ~/bin/gnu/OCEAN_atlas/par_pp.x < pot.in >& pot.out.$el_rank"); 
 #  system("~/bin/gnu/OCEAN_atlas/pp.x < pot.in >& pot.out.$el_rank");
-  system("$ENV{'OCEAN_BIN'}/pp.x < pot.in >& pot.out.$el_rank");
+  `cp pot.in pot.in.$el_rank`;
+  system("mpirun -n 8 $ENV{'OCEAN_BIN'}/pp.x < pot.in >& pot.out.$el_rank");
 
 # Vshift here is in Rydberg
   my $Vshift = `head -n 1 system.pot.$el_rank | awk '{print \$2}'`;
@@ -96,6 +133,7 @@ while ( my $line = <HFIN>)
 #	$offset = -$shift;
 #  }
   $shift += $offset;
+  $shift *= -1;
   print "$el_rank\t$Vshift\t$Wshift\t$shift\n";
 
   print CORESHIFT "$shift\n";

@@ -1,6 +1,8 @@
 #!/usr/bin/perl
 
 use Getopt::Long;
+use Cwd;
+use File::Copy;
 use strict;
 
 
@@ -9,8 +11,10 @@ my @OceanFolders = ("Common", "DFT", "zWFN", "PAW", "SCREEN", "CNBSE", "ABINIT",
 print "Welcome to OCEAN\n";
 
 ##########################################
-my $ColWidth = `tput cols`;
+#???
+my $ColWidth = sprintf('%i',`tput cols` );
 if ($ColWidth < 0 ) { $ColWidth=10; }
+if ($ColWidth > 100 ) { $ColWidth=100; }
 my $Separator =  "";
 for (my $i = 0; $i < $ColWidth; $i++ ) {
   $Separator  .= "#";
@@ -35,8 +39,20 @@ if (! $ENV{"OCEAN_BIN"} ) {
 }
 my $OCEAN_BIN = $ENV{"OCEAN_BIN"};
 
-$ENV{"OCEAN_WORKDIR"} = `pwd`;
-$ENV{"OCEAN_VERSION"} = `cat $ENV{"OCEAN_BIN"}/Version`;
+$ENV{"OCEAN_WORKDIR"} = getcwd();
+if ( open VERSION, "$ENV{'OCEAN_BIN'}/Version" )
+{
+  my $version = <VERSION>;
+  chomp( $version );
+  $ENV{"OCEAN_VERSION"} = $version;
+}
+else
+{
+  print "Version file not found\n";
+  $ENV{"OCEAN_VERSION"} = "NaN";
+}
+close VERSION;
+
 ##########################################
 #print ', version "$ENV{OCEAN_VERSION}"\n';
 
@@ -111,12 +127,12 @@ print "Setup complete, parsing ...\n";
 ##########################################
 
 chdir "Common";
-`cp ../$InputFile .`;
-system("$ENV{'OCEAN_BIN'}/parse --all $InputFile $ENV{'OCEAN_BIN'}/oparse.h") == 0 
+#`cp ../$InputFile .`;
+copy("../$InputFile","$InputFile");
+
+system("$ENV{'OCEAN_BIN'}/parse.pl --all $InputFile $ENV{'OCEAN_BIN'}/oparse.h") == 0 
   or die "Failed to parse the input file\n$!";
-#if ($? != 0 ) {
-#  print "Error parsing $InputFile: $?\n";
-#}
+
 open DFT_TYPE, "dft";
 <DFT_TYPE> =~ m/(\w+)/ or die;
 my $dft_type = $1;
@@ -152,7 +168,7 @@ print "Done with parsing\n";
 print "$Separator\n";
 print "Entering PAW stage\n";
 chdir "PAW";
-system("$OCEAN_BIN/paw.pl >& paw.log") == 0 or die "PAW stage failed\n";
+system("$OCEAN_BIN/paw.pl") == 0 or die "PAW stage failed\n";
 chdir "../";
 ##########################################
 #
@@ -163,7 +179,7 @@ if( $script_pre eq 'OBF' )
 	print "$Separator\n";
 	print "Entering DFT stage\n";
 	chdir "DFT";
-	system("$OCEAN_BIN/${script_pre}_dft.pl >& dft.log") == 0 or die "DFT Stage Failed\n$!";
+	system("$OCEAN_BIN/${script_pre}_dft.pl") == 0 or die "DFT Stage Failed\n$!";
 	chdir "../";
 } 
 elsif( $script_pre eq 'qe' )
@@ -191,7 +207,7 @@ if( $script_pre eq 'OBF' )
 	print "$Separator\n";
 	print "Entering zWFN stage\n";
 	chdir "zWFN" or die "$!\n";
-	system("$OCEAN_BIN/${script_pre}_wfn.pl >& wfn.log") == 0 or die "zWFN Stage Failed\n$!";
+	system("$OCEAN_BIN/${script_pre}_wfn.pl") == 0 or die "zWFN Stage Failed\n$!";
 }
 else
 {
@@ -200,11 +216,11 @@ else
 	chdir "PREP" or die "$!\n";
 	if( $script_pre eq 'qe' )
 	{
-  		system("$OCEAN_BIN/qe_dendip.pl >& prep.log ") == 0 or die "PREP Stage Failed\n$!";
+  		system("$OCEAN_BIN/qe_dendip.pl") == 0 or die "PREP Stage Failed\n$!";
 	}
 	else
 	{
-		system("$OCEAN_BIN/dendip.pl >& prep.log ") == 0 or die "PREP Stage Failed\n$!";
+		system("$OCEAN_BIN/dendip.pl") == 0 or die "PREP Stage Failed\n$!";
 	}
 }
 ##########################################
@@ -216,11 +232,11 @@ print "Entering SCREENing stage\n";
 chdir "../SCREEN";
 if( $script_pre eq 'abi' )
 {
-	system("$OCEAN_BIN/screen.pl >& screen.log") == 0 or die "SCREEN stage failed\n$!";
+	system("$OCEAN_BIN/screen.pl") == 0 or die "SCREEN stage failed\n$!";
 }
 else
 {
-	system("$OCEAN_BIN/${script_pre}_screen.pl >& screen.log") == 0 or die "SCREEN stage failed\n$!";
+	system("$OCEAN_BIN/${script_pre}_screen_multi.pl") == 0 or die "SCREEN stage failed\n$!";
 }
 ##########################################
 #
@@ -231,11 +247,11 @@ print "Entering CNBSE stage\n";
 chdir "../CNBSE";
 if( $script_pre eq 'OBF' )
 {
-	system("$OCEAN_BIN/${script_pre}_cnbse.pl >& cnbse.log") == 0 or die "CNBSE stage failed\n$!";
+	system("$OCEAN_BIN/${script_pre}_cnbse.pl") == 0 or die "CNBSE stage failed\n$!";
 }
 else
 {
-	system("$OCEAN_BIN/cnbse.pl >& cnbse.log") == 0 or die "CNBSE stage failed\n$!";
+	system("$OCEAN_BIN/cnbse.pl") == 0 or die "CNBSE stage failed\n$!";
 }
 ##########################################
 print "$Separator\n";

@@ -16,7 +16,8 @@ program cainmultip
   ! 
   logical :: conduct, nspn_exist, exst
   integer :: jmin, jmax, ne, nloop, iwrk, i1, i2, need, nspn, iter, inv_loop, ispn
-  real( kind = kind( 1.0d0 ) ) :: val, ar, ai, el, eh, ebase, gam0, renorm, kpref, tmp, ener, f( 2 ), gprc, gres, e_step, e_start, e_stop, core_offset
+  real( kind = kind( 1.0d0 ) ) :: val, ar, ai, el, eh, ebase, gam0, renorm, kpref, tmp, ener, &
+                               f( 2 ), gprc, gres, e_step, e_start, e_stop, core_offset
   real( kind = kind( 1.0d0 ) ) :: relative_error
   complex( kind = kind( 1.0d0 ) ) :: rm1
   !
@@ -100,7 +101,8 @@ program cainmultip
      do while( j .lt. jmax )
         call cainxact( n, nspn, nc, lc, nq, nbd, e0, self_energy, v, hv, pref, &
              iq, qphys, zn, inter, bvec, celvol, amet, nx, ny, nz, ur, ui, tau, rcut, rzero, renorm, ptab, &
-             vms, cml, cms, xi, lmin, lmax, npmax, nproj, mpcr, mpci, mpm, lvl, lvh, jbeg, mham, itot, jtot, mhr, mhi, somel, core_offset )
+             vms, cml, cms, xi, lmin, lmax, npmax, nproj, mpcr, mpci, mpm, lvl, lvh, jbeg, mham, itot, jtot, &
+             mhr, mhi, somel, core_offset )
         ar = 0
         ai = 0
         do ic = 1, nc
@@ -173,7 +175,8 @@ program cainmultip
 !     call cainxact( n, nc, lc, nq, nbd, e0, v, hv, pref, &
      call cainxact( n, nspn, nc, lc, nq, nbd, e0, self_energy, v, hv, pref, &
              iq, qphys, zn, inter, bvec, celvol, amet, nx, ny, nz, ur, ui, tau, rcut, rzero, renorm, ptab, & 
-             vms, cml, cms, xi, lmin, lmax, npmax, nproj, mpcr, mpci, mpm, lvl, lvh, jbeg, mham, itot, jtot, mhr, mhi, somel, core_offset )
+             vms, cml, cms, xi, lmin, lmax, npmax, nproj, mpcr, mpci, mpm, lvl, lvh, jbeg, mham, itot, jtot, &
+             mhr, mhi, somel, core_offset )
 
      call vtor( n * nc, hv, v1 )
      write ( 6, * ) 'got to here'
@@ -198,7 +201,8 @@ program cainmultip
 !           call cainxact( n, nc, lc, nq, nbd, e0, v, hv, pref, &
            call cainxact( n, nspn, nc, lc, nq, nbd, e0, self_energy, v, hv, pref, &
              iq, qphys, zn, inter, bvec, celvol, amet, nx, ny, nz, ur, ui, tau, rcut, rzero, renorm, ptab, & 
-             vms, cml, cms, xi, lmin, lmax, npmax, nproj, mpcr, mpci, mpm, lvl, lvh, jbeg, mham, itot, jtot, mhr, mhi, somel, core_offset )
+             vms, cml, cms, xi, lmin, lmax, npmax, nproj, mpcr, mpci, mpm, lvl, lvh, jbeg, mham, itot, jtot, &
+             mhr, mhi, somel, core_offset )
 
            ! v2 = hv
            call vtor( n * nc, hv, v2 )

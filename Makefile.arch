@@ -1,0 +1,9 @@
+# Fortran compiler
+FC = gfortran
+
+# Flags
+OPTIONS = -O2 -Wall
+
+# FFTW path
+FFTWI = -I/users/jtv1/local/fftw-3.3.3/api
+FFTWL = -L/users/jtv1/local/.libs -lfftw3

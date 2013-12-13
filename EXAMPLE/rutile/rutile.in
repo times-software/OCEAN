@@ -59,7 +59,7 @@ toldfe 1.1d-6
 tolwfr 1.1d-16
 
 # iterations
-nstep 25
+nstep 50
 
 # Static dielectric const
 diemac 6
@@ -82,3 +82,4 @@ cnbse.rad{ 4.0 }
 
 #Scaling Factor
 scfac 0.80
+cnbse.broaden 0.007
