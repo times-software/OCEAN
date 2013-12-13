@@ -557,6 +557,22 @@
     call mp_sum( gre, cross_pool_comm )
     call OCEAN_t_printtime( 'GRE share', stdout )
 
+
+    if( npool .gt. 1 ) then
+    if( ( mypool .eq. 0 ) ) then
+      allocate( gre_buf( local_npt, local_npt2, nt, npool-1 ), request_list( nt, npool-1 ) )
+      do ipool = 1, npool - 1
+        do it = 1, nt
+!JTV tag is only unique w/i cross_pool_comm
+          call MPI_IRECV( gre_buff(1,1,it,ipool), local_npt*local_npt2, MPI_DOUBLE_COMPLEX, &
+                          ipool*nproc_per_pool+mypoolid, it+(ipool-1)*nt, cross_pool_comm, &
+                          request_list( it, ipool ) )
+        enddo
+      enddo
+    else
+      
+
+
     ! later have each pool work on subset of i ?
     if( mypool .eq. 0 ) then
       do it = 1, nt
