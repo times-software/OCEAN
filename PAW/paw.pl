@@ -1,6 +1,8 @@
 #!/usr/bin/perl
 
 use strict;
+use File::Copy;
+use Cwd;
 
 ###########################
 if (! $ENV{"OCEAN_BIN"} ) {
@@ -8,13 +10,14 @@ if (! $ENV{"OCEAN_BIN"} ) {
   $ENV{"OCEAN_BIN"} = $1;
   print "OCEAN_BIN not set. Setting it to $1\n";
 }
+
+my $dir = getcwd;
 if (! $ENV{"OCEAN_WORKDIR"}){ $ENV{"OCEAN_WORKDIR"} = `pwd` . "../" ; }
 ###########################
 
 
 my @CommonFiles = ("znucl", "paw.hfkgrid", "paw.fill", "paw.opts", "pplist", "paw.shells", "ntype", "natoms", "typat", "taulist", "nedges", "edges", "caution", "epsilon", "k0.ipt", "ibase", "scfac" );
 
-my @AbinitFiles = ("avecsinbohr.ipt");
 
 my @DenDipFiles = ("rhoofg", "bvecs", "efermiinrydberg.ipt");
 my @DenDipFiles2 = ( "masterwfile", "listwfile", "enkfile", "kmesh.ipt", "brange.ipt" );
@@ -42,9 +45,6 @@ if ($runPAW == 0 ) {
 foreach (@CommonFiles) {
   `cp ../Common/$_ .` == 0 or die "Failed to get $_ from Common/\n";
 }
-foreach (@AbinitFiles) {
-  `cp ../ABINIT/$_ .` == 0 or die "Failed to get $_ from ABINIT/\n";
-}
 
 foreach (@ExtraFiles) {
   `cp $ENV{'OCEAN_BIN'}/$_ .` == 0 or die;
@@ -63,7 +63,11 @@ while (<PPLIST>) {
 print "Running PAW Setup\n";
 system("$ENV{'OCEAN_BIN'}/pawsetup.x") == 0 or die "Failed to run pawsetup.x\n";
 
-`mkdir -p zdiag/ zpawinfo/`;
+#`mkdir -p zdiag/ zpawinfo/`;
+unless( -d "zpawinfo" )
+{
+  mkdir "zpawinfo" or die "$!";
+}
 ###################################
 
 
@@ -165,13 +169,47 @@ while ( $hfinline = <HFINLIST> ) {
   print "Running hfk.x\n";
   system("$ENV{'OCEAN_BIN'}/hfk.x < HFIN > hfk.${znucl}_${nnum}_${lnum}.log") == 0 or die;
   my $corezfile = sprintf("corezetaz%03i",$znucl);
-  `mv xifile $corezfile`;
-  `mv {f,g}k* shellR* {ae,ft,ps}?z* {deflin,melfile}z*n*l* {rad,prj}filez* corez* zpawinfo/`;
-  # vcsz*
-  `mkdir -p zdiag_${znucl}_${nnum}_${lnum}`;
-  `mv melfilez??? mt?? {sm,am,di,pr}? dif?? map* ex* {ps,ae}ft? zdiag_${znucl}_${nnum}_${lnum}/`;
-  `mv vcallel* vvallel* vc_bare* vcxxxxx* vvpseud* zpawinfo/`;
-  `rm -f radpot hapot hfpot config corcon valcon chgsum atmf99 skip psld rslt tmp aprog vxcofr`;
+
+# Clean-up time
+  move("xifile","$corezfile");
+#  `mv xifile $corezfile`;
+  unless( -d "zdiag_${znucl}_${nnum}_${lnum}" )
+  {
+    ( mkdir "zdiag_${znucl}_${nnum}_${lnum}" ) or die "$!";
+  }
+
+# Wander through the directory making some changes
+  opendir DIR, $dir;
+  while( my $file = readdir(DIR) )
+  {
+    if( ( $file =~ m/^[fg]k/ ) or ( $file =~ m/^(ae|ft|ps).z/ ) or
+        ( $file =~ m/^(deflin|melfile|corez)/ ) or ( $file =~ m/^(rad|prj)filez/ ) or
+        ( $file =~ m/^(vcallel|vvallel|vc_bare|vcxxxxx|vvpseud)/ ) )
+    {
+      move( $file, "zpawinfo" );
+    }
+    elsif( ( $file =~ m/^melfilez\w$/ ) or ( $file =~ m/^(sm|am|di|pr|psft|aeft)\w$/ ) or
+           ( $file =~ m/^(mt|dif)\w\w$/ ) or ( $file =~ m/^(map|ex)/ ) )
+    {
+      move( $file, "zdiag_${znucl}_${nnum}_${lnum}" );
+    }
+  }
+
+  my @paw_files_to_kill = ( 'radpot', 'hapot', 'hfpot', 'config', 'corcon', 'valcon', 'chgsum',
+                            'atmf99', 'skip', 'psld', 'rslt', 'tmp', 'aprog', 'vxcofr' );
+  foreach (@paw_files_to_kill)
+  {
+    unlink $_;
+  }
+
+
+
+#  `mv {f,g}k* shellR* {ae,ft,ps}?z* {deflin,melfile}z*n*l* {rad,prj}filez* corez* zpawinfo/`;
+#  # vcsz*
+#  `mkdir -p zdiag_${znucl}_${nnum}_${lnum}`;
+#  `mv melfilez??? mt?? {sm,am,di,pr}? dif?? map* ex* {ps,ae}ft? zdiag_${znucl}_${nnum}_${lnum}/`;
+#  `mv vcallel* vvallel* vc_bare* vcxxxxx* vvpseud* zpawinfo/`;
+#  `rm -f radpot hapot hfpot config corcon valcon chgsum atmf99 skip psld rslt tmp aprog vxcofr`;
   last;
 }
 close HFINLIST;
