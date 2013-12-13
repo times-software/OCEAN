@@ -1,10 +1,11 @@
 #!/usr/bin/perl
 
 use strict;
+use File::Copy;
 
 ###########################
 if (! $ENV{"OCEAN_BIN"} ) {
-  $0 =~ m/(.*)\/OBF_screen\.pl/;
+  $0 =~ m/(.*)\/OBF_screen_multi\.pl/;
   $ENV{"OCEAN_BIN"} = $1;
   print "OCEAN_BIN not set. Setting it to $1\n";
 }
@@ -47,6 +48,15 @@ foreach (@DFTFiles)
 foreach (@CommonFiles) {
   `cp ../Common/$_ .` == 0 or die "Failed to get $_ from Common/\n";
 }
+
+open IN, "epsilon" or die "Failed to open epsilon\n$!";
+my $epsilon = <IN>;
+chomp $epsilon;
+close IN;
+
+open IN, "ibase" or die "Failed to open ibase\n$!";
+my $ibase;
+while( <IN> ) { $ibase .= $_; }
 
 my $pool_size = 1;
 open INPUT, "pool_control" or die;
@@ -158,42 +168,6 @@ if( <NBAND> =~ m/(\d+)/ )
 }
 close( NBAND );
 
-##goto SKIP;
-## Step 2: Build the basis
-#
-#open BASIS, ">basis.in" or die "$!\nFailed op open basis.in for writing\n";
-#print BASIS "&input\n" .
-##            "  prefix = 'system'\n" .
-#            "  outdir = './Out'\n" .
-#            "  trace_tol = $trace_tolerance\n" .
-##            "  band_subset = 1 40\n" .
-#            "/\n";
-#close BASES;
-#
-#
-#print " Find the basis\n";
-#system("time $para_prefix $ENV{'OCEAN_BIN'}/shirley_basis.x < basis.in >& basis.out")
-#  == 0 or die "$!\nFailed to run shirley_basis.x\n";
-#
-#
-## Step 3: Build the Hamiltonian
-#open HAM, ">ham.in" or die "$!\nFailed to open ham.in for writing\n";
-#print HAM "&input\n" . 
-#          "  prefix = 'system_opt'\n" .
-#          "  outdir = './Out'\n" .
-#          "  updatepp = .false.\n" .
-#          "  ncpp = .true.\n" .
-#          "/\n" .
-#          " K_POINTS\n" .
-#          "$ham_kpoints 0 0 0\n";
-#close HAM;
-#
-#print " Find the ham\n";
-#system("time $para_prefix $ENV{'OCEAN_BIN'}/shirley_ham.x < ham.in >& ham.out")
-#  == 0 or die "$!\nFailed to run shirley_ham.x\n";
-#
-#SKIP:
-
 # Step 4: Loop over every core site, building W(r)
 
 # Prep input file
@@ -203,7 +177,7 @@ print BOFR "&input\n" .
           "  outdir = './Out'\n" .
           "  updatepp = .false.\n" .
           "  ncpp = .true.\n" .
-          "  calculation = 'ocean_bofr'\n" .
+          "  calculation = 'ocean_bofr_multi'\n" .
           "/\n" .
           " K_POINTS\n" .
           "$ham_kpoints 0 0 0\n";
@@ -224,10 +198,22 @@ open HFINLIST, "hfinlist" or die "Failed to open hfinlist\n";
 my $rad;
 my $edgename;
 my $hfinline; my $ppfilename; my $znucl; my $nnum; my $lnum; my $elname; my $elnum;
+
+my $nedges = `cat nedges`;
+chomp($nedges);
+open MKRB_CONTROL, ">mkrb_control" or die "Failed to open mkrb_control\n$!\n";
+print MKRB_CONTROL "8 25\n";
+print MKRB_CONTROL "$nedges\n";
+
+
+my $temp_edgename;
+my $temp_rad = sprintf("%03.2f",$rads[0]);
+
 while ($hfinline = <HFINLIST>) {
-#  print $hfinline;
+  chomp $hfinline;
   print $hfinline . "\n";
-  ($hfinline =~ m/(\S+)\s+(\d+)\s+(\d+)\s+(\d+)\s+(\w+)\s+(\d+)/) or die "Malformed hfinlist\t$1 $2 $3 $4 $5 $6\n";
+  ($hfinline =~ m/(\S+)\s+(\d+)\s+(\d+)\s+(\d+)\s+(\w+)\s+(\d+)/) 
+                  or die "Malformed hfinlist\t$1 $2 $3 $4 $5 $6\n";
   $ppfilename = $1;
   $znucl = $2;
   $nnum = $3;
@@ -235,53 +221,140 @@ while ($hfinline = <HFINLIST>) {
   $elname = $5;
   $elnum = $6;
 
-  $edgename = sprintf("z%2s%02i_n%02il%02i", $elname, $elnum, $nnum, $lnum);
-  print "$edgename\n";
-  `mkdir -p $edgename` == 0 or die "Failed to make dir $edgename\n";
+  print MKRB_CONTROL "$elname $elnum\n";
+  $temp_edgename = sprintf("z%03in%02il%02i",$znucl, $nnum, $lnum);
 
-  my $avden =  sprintf("avg%2s%02i",$elname,$elnum);
-  system("cp $avden avden") == 0 or die "Failed to copy density $avden\n";
+}
+close MKRB_CONTROL;
 
+open BOFR_CONTROL, ">bofr_tau_control" or die "Failed to open bofr_tau_control\n$!\n";
+print BOFR_CONTROL "$nedges 0\n";
+close BOFR_CONTROL;
 
-  my $edgename2 = sprintf("z%03in%02il%02i",$znucl, $nnum, $lnum);
-#  `mkdir -p $edgename` == 0 or die "Failed to make dir $edgename\n";
+seek(HFINLIST,0,0);
 
   # Step 4.1: Build the radial grid for this element
-  `echo "8 25 $elname $elnum" | $ENV{'OCEAN_BIN'}/mkrbfile.x`;
+print "mkrbfile.x\n";
+system("$ENV{'OCEAN_BIN'}/mkrbfile_mult.x") == 0 
+  or die "Failed to run mkrbfile_mult.x\n$!\n";
+
   # Step 4.2: Project the basis functions onto this radial grid
-#  system("time $para_prefix ~/shirley_QE4.3/SHIRLEY/shirley_ham.x < bofr.in >& bofr.out") == 0 
-# BUG! Must run as a single process. Not all that important right now
-  system("$para_prefix $ENV{'OCEAN_BIN'}/shirley_ham_o.x < bofr.in > bofr.out 2> bofr.err") == 0 
-          or die "$!\nFailed to run shirley_ham from bofr.in\n";
+print "bofr\n";
+system("$para_prefix $ENV{'OCEAN_BIN'}/shirley_ham_o.x < bofr.in > bofr.out") == 0 
+        or die "$!\nFailed to run shirley_ham from bofr.in\n";
+#JTV only works for all the same core hole potential right now
+#JTV and all the same radius too
+
+open VCx, "zpawinfo/vcxxxxx${temp_edgename}R${temp_rad}" or die "Failed to open vcxxxxxx\n$!";
+open VPERT, ">vpert" or die;
+while (<VCx>){}
+my $vpert_length = $.;
+seek(VCx,0,0);
+print VPERT "$vpert_length\n";
+while (<VCx>)
+{
+  print VPERT $_;
+}
+close VCx;
+close VPERT;
+#`cp zpawinfo/vcxxxxx${temp_edgename}R${temp_rad} ./tmp`;
+#`wc tmp > vpert`;
+#`cat tmp >> vpert`;
+
+print "ocean_builder.x\n";
+system("$para_prefix $ENV{'OCEAN_BIN'}/ocean_builder_mult.x  $pool_size  < builder.in 1> builder.out 2> builder.err") == 0
+        or die "$!\nFailed to run ocean_builder.x\n";
+
+my $itau = 0;
+
+while ($hfinline = <HFINLIST>) {
+
+  $itau++;
+  chomp $hfinline;
+  print $hfinline . "\n";
+  $hfinline =~ m/(\S+)\s+(\d+)\s+(\d+)\s+(\d+)\s+(\w+)\s+(\d+)/ 
+        or die "Malformed hfinlist\t$1 $2 $3 $4 $5 $6\n";
+  $ppfilename = $1;
+  $znucl = $2;
+  $nnum = $3;
+  $lnum = $4;
+  $elname = $5;
+  $elnum = $6;
+
+
+  $edgename = sprintf("z%2s%02i_n%02il%02i", $elname, $elnum, $nnum, $lnum);
+  print "$edgename\n";
+  unless( -d $edgename )
+  {
+    mkdir $edgename or die "Failed to make dir $edgename\n";
+  }
+
+  my $avden =  sprintf("avg%2s%02i",$elname,$elnum);
+  copy( $avden, "avden" ) or die "Failed to copy density $avden\n$!";
+
+  my $edgename2 = sprintf("z%03in%02il%02i",$znucl, $nnum, $lnum);
+
 
 # Step 5: For each core site, loop over radius
 #           This radius is for the neutralizing charge
   foreach $rad (@rads) {
     my $fullrad = sprintf("%03.2f",$rad);
 
-    `mkdir -p ${edgename}/zRXT${fullrad}`;
-    `mkdir -p ${edgename}/zRXF${fullrad}`;
-    `mkdir -p ${edgename}/zRXS${fullrad}`;
-    chdir "$edgename";
-    `ln -s -f zRXT${fullrad} zR${fullrad}`;
+    chdir "$edgename" or die "$!";
+    foreach my $t_dir ( "zRXT${fullrad}", "zRXF${fullrad}", "zRXS${fullrad}" )
+    {
+      unless( -d $t_dir )
+      {
+        mkdir "$t_dir" or die "$!";
+      }
+    }
+    unlink "zR${fullrad}" if ( -e "zR${fullrad}" );
+    symlink "zRXT${fullrad}",  "zR${fullrad}" ;
     chdir "../";
-    `cp zpawinfo/vcxxxxx${edgename2}R${fullrad} ./tmp`;
-    `wc tmp > vpert`;
-    `cat tmp >> vpert`;
+    
+#    `mkdir -p ${edgename}/zRXT${fullrad}`;
+#    `mkdir -p ${edgename}/zRXF${fullrad}`;
+#    `mkdir -p ${edgename}/zRXS${fullrad}`;
+#    chdir "$edgename";
+#    `ln -s -f zRXT${fullrad} zR${fullrad}`;
+#    chdir "../";
 
 #    $screen_nkpt =~ m/(\d+)\s+(\d+)\s+(\d+)/;
 #    my $np_builder = $1*$2*$3;
 ##      system("builder.x < builder.in") == 0 or die;
 ##      system("$ENV{'OCEAN_BIN'}/builder.x") == 0 or die;
-    system("$para_prefix $ENV{'OCEAN_BIN'}/ocean_builder.x  $pool_size < builder.in > builder.out 2> builder.err") == 0
-        or die "$!\nFailed to run ocean_builder.x\n";
-    `echo 24 > ipt`;
+#    system("$para_prefix $ENV{'OCEAN_BIN'}/ocean_builder.x  $pool_size < builder.in >& builder.out ") == 0
+#        or die "$!\nFailed to run ocean_builder.x\n";
+
+
+    my $ximat_name = sprintf("ximat%04i",$itau);
+    unlink "ximat" if ( -e "ximat" );
+    symlink $ximat_name, "ximat";
+#    `ln -sf $ximat_name ximat`;
+    
+    open IPT, ">ipt" or die "Failed to open ipt\n$!";
+    # Number of basis functions for chi
+#    `echo 24 > ipt`;
+    print IPT "24\n";
+    close IPT;
     `$ENV{'OCEAN_BIN'}/xipps.x < ipt`;
-    `mv ninduced nin`;
-    `echo $fullrad > ipt`;
-    `cat ibase epsilon >> ipt`;
+    move( "ninduced", "nin" );
+#    `mv ninduced nin`;
+
+    open IPT, ">ipt" or die "Failed to open ipt\n$!";
+    print IPT "$fullrad\n";
+#    `echo $fullrad > ipt`;
+#    `cat ibase epsilon >> ipt`;
+    print IPT $ibase;
+    print IPT "$epsilon\n";
+    close IPT;
     `$ENV{'OCEAN_BIN'}/vhommod.x < ipt`;
-    `mv reopt rom`;
+    move( "reopt", "rom" );
+#    `mv reopt rom`;
+
+#    open IPT, ">ipt" or die "Failed to open ipt\n$!";
+#    print IPT "1 3\n";
+    
     `echo 1 3 > ipt`;
     `wc rom >> ipt`;
     `cat rom >> ipt`;
@@ -296,7 +369,9 @@ while ($hfinline = <HFINLIST>) {
     `echo .false. >> ipt1`;
     `echo 0.1 100 >> ipt1`;
     `$ENV{'OCEAN_BIN'}/rscombine.x < ipt1 > ./${edgename}/zRXF${fullrad}/ropt`;
-    `mv {rpot,rpothires} ${edgename}/zRXF${fullrad}/`;
+    move( "rpot", "${edgename}/zRXF${fullrad}/" );
+    move( "rpothires", "${edgename}/zRXF${fullrad}/" );
+#    `mv {rpot,rpothires} ${edgename}/zRXF${fullrad}/`;
 
     `cp ipt ipt1`;
     `echo .true. >> ipt1`;
@@ -306,10 +381,18 @@ while ($hfinline = <HFINLIST>) {
     `cat zpawinfo/vvallel${edgename2} >> ipt1`;
     `echo 0.1 100 >> ipt1`;
     `$ENV{'OCEAN_BIN'}/rscombine.x < ipt1 > ./${edgename}/zRXT${fullrad}/ropt`;
-    `mv {rpot,rpothires,rom,nin} ${edgename}/zRXT${fullrad}/`;
 
-    `mv ximat ximat_full`;
-    `cp ximat_small ximat`;
+    foreach( "rpot","rpothires","rom","nin")
+      { move( $_ , "${edgename}/zRXT${fullrad}/"); }
+    
+#    `mv {rpot,rpothires,rom,nin} ${edgename}/zRXT${fullrad}/`;
+
+
+
+#    `mv ximat ximat_full`;
+#    `cp ximat_small ximat`;
+     my $ximat_name = sprintf("ximat_small%04i",$itau);
+    `ln -sf $ximat_name ximat`;
     `echo 24 > ipt`;
     `$ENV{'OCEAN_BIN'}/xipps.x < ipt`;
     `mv ninduced nin`;
@@ -334,7 +417,9 @@ while ($hfinline = <HFINLIST>) {
     `cat zpawinfo/vvallel${edgename2} >> ipt1`;
     `echo 0.1 100 >> ipt1`;
     `$ENV{'OCEAN_BIN'}/rscombine.x < ipt1 > ./${edgename}/zRXS${fullrad}/ropt`;
-    `mv {rpot,rpothires,rom,nin} ${edgename}/zRXS${fullrad}/`;
+#    `mv {rpot,rpothires,rom,nin} ${edgename}/zRXS${fullrad}/`;
+    foreach( "rpot","rpothires","rom","nin")
+      { move( $_ , "${edgename}/zRXT${fullrad}/"); }
 
   }
 }
@@ -347,10 +432,10 @@ chomp $core_offset;
 if( $core_offset =~ m/false/i )
 {
 	print "No core shift\n";
-	`rm core_shift.txt` if( -e "core_shift.txt" );
+	unlink "core_shift.txt" if( -e "core_shift.txt" );
 } else
 {
-	`$ENV{'OCEAN_BIN'}/core_shift.pl > core_shift.log`;
+	`perl $ENV{'OCEAN_BIN'}/core_shift.pl > core_shift.log 2> core_shift.err`;
 }
 
 exit 0;

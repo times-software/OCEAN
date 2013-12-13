@@ -209,7 +209,7 @@ if( $dft =~ m/qe/i )
 		`rm core_shift.txt` if( -e "core_shift.txt" );
 	} else
 	{
-	        `time perl $ENV{'OCEAN_BIN'}/core_shift.pl >& core_shift.log`;
+	        `time perl $ENV{'OCEAN_BIN'}/core_shift.pl > core_shift.log`;
 	}
 }
 

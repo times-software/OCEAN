@@ -25,7 +25,7 @@ my $RunABINIT = 0;
 my $pawRUN = 0;
 my $bseRUN = 0;
 
-my @GeneralFiles = ("core", "para_prefix" );#, "getden");
+my @GeneralFiles = ("core", "para_prefix" );
 
 my @KgenFiles = ("nkpt", "k0.ipt", "qinunitsofbvectors.ipt", "paw.nkpt");
 my @BandFiles = ("nbands", "paw.nbands");
@@ -35,32 +35,6 @@ my @AbinitFiles = ( "rscale", "rprim", "ntype", "natoms", "typat",
 my @PPFiles = ("pplist", "znucl");
 my @OtherFiles = ("epsilon");
 
-
-#foreach (@KgenFiles) {
-#  if ( -e $_ ) {
-#    if ( `diff -q $_ ../Common/$_` ) {
-#      print "$_ differs\n";
-#      $RunKGen = 1;
-#      last;
-#    }
-#  }
-#  else {
-#    print "$_ differs\n";
-#    $RunKGen = 1;
-#    last;
-#  }
-#}
-#unless ($RunKGen) {
-#  $RunKGen = 1;
-#  if (open STATUS, "kgen.stat" ) {
-#    <STATUS> =~ m/(\d)/;
-#    if ($1 == 1 ) { $RunKGen = 0; }
-#  }
-#  close STATUS;
-#}  
-#if ($RunKGen != 0 ) {
-#  `rm -f kgen.stat`;
-#}
 
 foreach (@PPFiles) {
   if ( -e $_ ) {
@@ -362,31 +336,16 @@ if ($RunABINIT) {
 #  `echo prtdosm 1 >> inai.denout`;
 
 
-#  open GETDEN, "getden" or die;
-#  my $getden = <GETDEN>;
-#  close GETDEN;
-#  if  ($getden == 1) {
-#    print  "$getden\n";
-#    system("cp ../SCx_DEN .") == 0 or die;
-#    system("cp ../density.log .") ==0 or die;
-#    print "Old den found\n";
-#  }
-#  else {
-  print "Density Run\n";
-  system("$para_prefix $ENV{'OCEAN_ABINIT'} < denout.files >& density.log") == 0
+  print "Self-Consisten Density Run\n";
+  system("$para_prefix $ENV{'OCEAN_ABINIT'} < denout.files > density.log 2> density.err") == 0
     or die "Failed to run initial density stage\n$para_prefix $ENV{'OCEAN_ABINIT'}\n";
-#  }
   `echo 1 > den.stat`;
 
   open CUTIN, ">cut3d.in" or die "Failed to open cut3d.in for writing.\n$!\n";
   print CUTIN "SCx_DEN\n1\n6\nrhoofr\n0\n";
   close CUTIN;
 
-#  print "echo 'SCx_DEN\n1\n6\nrhoofr\n0' | $ENV{'OCEAN_CUT3D'} >& cut3d.log\n";
-#  system("echo 'SCx_DEN\n1\n6\nrhoofr\n0' | $ENV{'OCEAN_CUT3D'} >& cut3d.log") == 0
-#      or die "Failed to run cut3d\n";
-#  system("$ENV{'OCEAN_CUT3D'} < cut3d.in >& cut3d.log" ) == 0
-  system("$ENV{'OCEAN_BIN'}/cut3d < cut3d.in >& cut3d.log") == 0
+  system("$ENV{'OCEAN_BIN'}/cut3d < cut3d.in > cut3d.log 2> cut3d.err") == 0
       or die "Failed to run cut3d\n";
 
   
@@ -426,9 +385,6 @@ if ( $pawRUN ) {
   `echo "1" > kgen.stat`;
 
  
-#  open BANDS, "nbands" or die;
-#  my $nbands = <BANDS>;
-#  close BANDS;
   open ABPAD, "abpad" or die;
   my $abpad = <ABPAD>;
   close ABPAD;
@@ -466,19 +422,12 @@ if ( $pawRUN ) {
     `cat finalpplist >> $deninFiles`;
 
     my $denin = sprintf("denin.files.%04i", $runcount);
-    print "$para_prefix $ENV{'OCEAN_ABINIT'} < $denin >& ABINIT.$runcount.log";
-    system("$para_prefix $ENV{'OCEAN_ABINIT'} < $denin >& ABINIT.$runcount.log") == 0 or
+    print "$para_prefix $ENV{'OCEAN_ABINIT'} < $denin > ABINIT.$runcount.log";
+    system("$para_prefix $ENV{'OCEAN_ABINIT'} < $denin > ABINIT.$runcount.log 2> ABINIT.$runcount.err") == 0 or
       die "$!\n";
     print "\n";
   }
 
-
-#  system("$ENV{'OCEAN_BIN'}/par_ab2.pl") == 0 or die "Failed to run Abinit: $!\n";
-
-#  if (system("$OCEAN_ABINIT < $denin >& ABINIT.$file_counter.log") != 0 ) {
-#    print STDERR  "Failed to run Abinit $file_counter\n";
-#    exit 1;
-#  }
 
 
   my $natoms = `cat natoms`;
@@ -517,9 +466,6 @@ if ( $bseRUN ) {
   `echo "1" > kgen.stat`;
 
  
-#  open BANDS, "nbands" or die;
-#  my $nbands = <BANDS>;
-#  close BANDS;
   open ABPAD, "abpad" or die;
   my $abpad = <ABPAD>;
   close ABPAD;
@@ -557,14 +503,13 @@ if ( $bseRUN ) {
     `cat finalpplist >> $deninFiles`;
 
     my $denin = sprintf("denin.files.%04i", $runcount);
-    print "$para_prefix $ENV{'OCEAN_ABINIT'} < $denin >& ABINIT.$runcount.log";
-    system("$para_prefix $ENV{'OCEAN_ABINIT'} < $denin >& ABINIT.$runcount.log") == 0 or
+    print "$para_prefix $ENV{'OCEAN_ABINIT'} < $denin > ABINIT.$runcount.log";
+    system("$para_prefix $ENV{'OCEAN_ABINIT'} < $denin > ABINIT.$runcount.log 2> ABINIT.$runcount.err") == 0 or
       die "$!\n";
     print "\n";
   }
 
 
-#  system("$ENV{'OCEAN_BIN'}/par_ab2.pl") == 0 or die "Failed to run Abinit\n";
 
   my $natoms = `cat natoms`;
   my $fband = `cat fband`;
@@ -585,13 +530,6 @@ if ( $bseRUN ) {
   chdir "../";
 }
 
-#  system("$ENV{'OCEAN_BIN'}/avec.x") == 0 or die "Failed to run avec.x\n";
-#  
-#  system("echo 'SCx_DEN\n1\n6\nrhoofr\n0' | $ENV{'OCEAN_BIN'}/cut3d > cut3d.log") == 0
-#      or die "Failed to run cut3d\n";
-#
-#  `echo "1" > abinit.stat`;
-#
 print `pwd`;
 open RSCALE, "rscale" or die;
 open RPRIM, "rprim" or die;
@@ -609,30 +547,9 @@ for (my $i = 0; $i < 3; $i++ ) {
 close RPRIM;
 close AVECS;
 
-#open LOG, "density.log";
-#my $vb;
-#while (<LOG>) {
-#  if ($_ =~ m/nband\s+(\d+)/) {
-#    $vb = $1;
-#    last;
-#  }
-#}
-#close LOG;
-
-#  my $vb = `"grep -aP '^\s+nband\s+(\d+)' density.log" | "sed 's/ /\n/g'" | grep '^[0-9]' -m 1`;
-#my $natoms = `cat natoms`;
-#my $fband = `cat fband`; 
-#my $bands = `cat nbands`;
-#my $cb = sprintf("%.0f", $vb - 2*$natoms*$fband);
-#$cb = 1 if ($cb < 1);
-#open BRANGE, ">brange.ipt" or die;
-#print BRANGE "1  $vb\n"
-#             . "$cb $bands\n";
-#close BRANGE;
 
 print "Abinit stage complete\n";
 
 
 exit 0;
-
 
