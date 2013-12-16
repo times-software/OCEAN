@@ -62,7 +62,7 @@
   integer :: i,j
   integer :: nbasis_subset
 
-  integer :: nk, nbnd, ispin, itau
+  integer :: nk, nbnd, ispin, itau, ipt
   real(dp) :: nelec_, alat, volume, at(3,3), bg(3,3), tpiba
   integer :: nspin
   real(dp) :: fermi_energy
@@ -72,12 +72,15 @@
   real(dp),allocatable :: tau(:,:), se_list(:)
   logical :: se_exist
 
-  complex(dp),allocatable :: gre(:,:,:), bofr( :, : ), eikr( : ), gre_small(:,:,:), single_bofr(:,:)
-  complex(dp),allocatable :: gre_local(:,:,:), phased_bofr(:,:), uofrandb(:,:)
-  real(dp),allocatable :: posn( :, : ), wpt( : ), drel( : ), t(:), xirow(:), nind(:), vind(:),vipt(:),phase(:)
+  complex(dp),allocatable :: gre(:,:,:), bofr( :, : ), eikr( : ), gre_small(:,:,:), &
+                             single_bofr(:,:), gre_local(:,:,:), phased_bofr(:,:), uofrandb(:,:)
+  real(dp),allocatable :: posn( :, : ), wpt( : ), drel( : ), t(:), xirow(:), nind(:), &
+                          vind(:),vipt(:)
   real(dp),allocatable :: wgt(:), newwgt(:), full_xi(:,:), xi_local(:,:)
-  real(dp) :: pref, spinfac, denr, deni, sigma, su, su2, omega, avec(3,3), bvec(3,3), qin(3),qcart(3)
-  real(dp) :: vlev, vhev, clev, chev, mindif, maxdif, absdiff, newdiff, ktmp( 3 ), eshift, shifted_eig
+  real(dp) :: pref, spinfac, denr, deni, sigma, su, su2, omega, phase, &
+              avec(3,3), bvec(3,3), qin(3),qcart(3)
+  real(dp) :: vlev, vhev, clev, chev, mindif, maxdif, absdiff, newdiff, ktmp( 3 ), &
+              eshift, shifted_eig
   complex(dp) :: scalar 
 
   integer :: ntau, ntau_offset
@@ -87,7 +90,7 @@
 
   integer :: npt, it, nt, iunbofr, nbnd_small
 !  integer :: num_threads, npt_start, npt_left, npt_chunk
-  integer, external :: OMP_GET_NUM_THREADS, OMP_GET_THREAD_NUM, numroc
+  integer, external :: OMP_GET_NUM_THREADS, OMP_GET_THREAD_NUM, numroc, INDXL2G
   integer :: iuninf
   namelist /info/ nk, nbnd, nelec, alat, volume, &
                   at, bg, tpiba, fermi_energy, nspin, lda_plus_u
@@ -306,9 +309,9 @@
     write(stdout,*) ' npt, nbasis: ', npt, nbasis
   endif
   if( mypoolid .eq. 0 ) then
-    allocate( single_bofr( npt, nbasis ), phased_bofr( npt, nbasis ) )
+    allocate( single_bofr( npt, nbasis ) ) !, phased_bofr( npt, nbasis ) )
   else
-    allocate( single_bofr( 1, 1 ), phased_bofr( 1, 1 ) )
+    allocate( single_bofr( 1, 1 ) ) !, phased_bofr( 1, 1 ) )
   endif
     
 
@@ -316,7 +319,7 @@
 
 !!!!!!!!!!!!!!!!!!!!!!!!!
 
-  if( ( .not. ionode ) .and. ( mypoolid .eq. 0 ) ) allocate( posn(3,npt) )
+  if( .not. ionode ) allocate( posn( 3, npt ) )
 
 
   
@@ -343,7 +346,6 @@
     spinfac = 2.d0 
   endif
 
-  allocate( phase( npt ), eikr( npt ) )
 
 ! ======================================================================
 ! Need to set up geometric mean thingy for energy integral
@@ -375,6 +377,10 @@
   write(stdout,*) nbasis_subset , nbnd_small
 
 
+  allocate( bofr( local_npt, desc_cyclic(N_) ), phased_bofr( local_npt, desc_cyclic(N_) ) )
+  allocate( uofrandb( local_npt, desc_cyclic(N_) ), eikr( local_npt ) )
+
+
 ! =====================================================================
 
   do itau = 1, ntau
@@ -387,9 +393,9 @@
       read(iunrbf) wpt
       read(iunrbf) drel
     endif
-    if( mypoolid .eq. 0 ) then
-      call mp_bcast( posn, ionode_id, cross_pool_comm )
-    endif
+    call mp_bcast( posn, ionode_id )
+
+
     if( ionode ) call mkvipt( npt, drel, vipt )
 
     ! read in bofr
@@ -399,9 +405,14 @@
       enddo
     endif
 
+    ! Share bofr across all pools
     if( mypoolid .eq. 0 ) then
       call mp_bcast( single_bofr, ionode_id, cross_pool_comm )
     endif
+    ! Redistribute bofr within pool
+    call PZGEMR2D( npt, nbasis, single_bofr, 1, 1, desc_bofr_in, &
+                     bofr, 1, 1, desc_bofr, context_cyclic )
+    
     
 
     call OCEAN_t_reset 
@@ -463,48 +474,57 @@
   !    write(stdout,*) kpt%list%kvec( 1 : 3, ik ) * tpiba
 
 
-      allocate( bofr( local_npt, desc_cyclic(N_) ) )
-      allocate( uofrandb( local_npt, desc_cyclic(N_) ) )
 
 
 
-  ! This is probably sub-optimal, but requires the least thinking, I think.
-  ! Delay bofr distribution
-  ! Add in phase for the k-point we are at
-      if( mypoolid .eq. 0 ) then
-        call DGEMV( 'T', 3, npt, real_one, posn(1,1), 3, qcart, 1, real_zero, phase, 1 )
-        eikr( : ) = exp( iota * phase( : ) )
-        do ibd = 1, nbasis
-          phased_bofr( :, ibd ) = single_bofr( :, ibd ) * eikr( : )
-        enddo
-      endif
-  ! Now distribute bofr, or don't
-      call PZGEMR2D( npt, nbasis, phased_bofr, 1, 1, desc_bofr_in, &
-                     bofr, 1, 1, desc_bofr, context_cyclic )
+!  ! This is probably sub-optimal, but requires the least thinking, I think.
+!  ! Delay bofr distribution
+!  ! Add in phase for the k-point we are at
+!      if( mypoolid .eq. 0 ) then
+!        call DGEMV( 'T', 3, npt, real_one, posn(1,1), 3, qcart, 1, real_zero, phase, 1 )
+!        eikr( : ) = exp( iota * phase( : ) )
+!        do ibd = 1, nbasis
+!          phased_bofr( :, ibd ) = single_bofr( :, ibd ) * eikr( : )
+!        enddo
+!      endif
+!  ! Now distribute bofr, or don't
+!      call PZGEMR2D( npt, nbasis, phased_bofr, 1, 1, desc_bofr_in, &
+!                     bofr, 1, 1, desc_bofr, context_cyclic )
+
+      do ipt = 1, local_npt
+        it = INDXL2G( ipt, nb, myrow, 0, nprow )
+        phase = dot_product( posn(:,it), qcart(:) )
+        eikr( ipt ) = exp( iota * phase )
+      enddo
+      do ibd = 1, desc_cyclic(N_)
+        phased_bofr( :, ibd ) = bofr( :, ibd ) * eikr(:) !eikr( 1:local_npt )
+      enddo
+
       
-
+      call OCEAN_t_reset
       call PZGEMM( 'N', 'N', npt, nbasis, nbasis, &
-                   one, bofr, 1, 1, desc_bofr, eigvec, 1, 1, desc_cyclic, &
+                   one, phased_bofr, 1, 1, desc_bofr, eigvec, 1, 1, desc_cyclic, &
                    zero, uofrandb, 1, 1, desc_bofr )
 
 
-      do ibd = band_subset(1),band_subset(2)
+!      call OCEAN_t_reset
+      do it = 1, nt
+        deni = sigma * t( it ) / ( 1.0_dp - t( it ) )
+        do ibd = band_subset(1),band_subset(2)
 
-        ! We shift conduction up AND valence down to get away from eFermi
-        if( eigval( ibd ) .gt. fermi_energy ) then
-          shifted_eig = eigval( ibd ) + eshift
-          absdiff = shifted_eig - fermi_energy
-          denr = -sqrt( absdiff**2 + 1.0d-12 )
-        else
-          shifted_eig = eigval( ibd ) - eshift
-          absdiff = shifted_eig - fermi_energy
-          denr = sqrt( absdiff**2 + 1.0d-12 )
-        endif
+          ! We shift conduction up AND valence down to get away from eFermi
+          if( eigval( ibd ) .gt. fermi_energy ) then
+            shifted_eig = eigval( ibd ) + eshift
+            absdiff = shifted_eig - fermi_energy
+            denr = -sqrt( absdiff**2 + 1.0d-12 )
+          else
+            shifted_eig = eigval( ibd ) - eshift
+            absdiff = shifted_eig - fermi_energy
+            denr = sqrt( absdiff**2 + 1.0d-12 )
+          endif
 
 
       ! I think we may be bandwidth limited
-        do it = 1, nt
-          deni = sigma * t( it ) / ( 1.0_dp - t( it ) )
 
   !          absdiff = abs( fermi_energy - shifted_eig )
   !          newdiff = sqrt( absdiff**2 + 1.d0*10**(-12) )
@@ -516,24 +536,41 @@
                                          uofrandb, 1, ibd, desc_bofr, 1,  &
                                          gre(1,1,it), 1, 1, desc_gre )
 
-          if( ibd .lt.  nbnd_small + band_subset(1)-1 ) then 
-            call PZGERC( npt, npt, scalar, uofrandb, 1, ibd, desc_bofr, 1, &
-                                           uofrandb, 1, ibd, desc_bofr, 1, &
-                                           gre_small(1,1,it), 1, 1, desc_gre )
-          endif
+!          if( ibd .lt.  nbnd_small + band_subset(1)-1 ) then 
+!            call PZGERC( npt, npt, scalar, uofrandb, 1, ibd, desc_bofr, 1, &
+!                                           uofrandb, 1, ibd, desc_bofr, 1, &
+!                                           gre_small(1,1,it), 1, 1, desc_gre )
+!          endif
         enddo
+        
+        do ibd = band_subset(1), nbnd_small + band_subset(1)-1
+          if( eigval( ibd ) .gt. fermi_energy ) then
+            shifted_eig = eigval( ibd ) + eshift
+            absdiff = shifted_eig - fermi_energy
+            denr = -sqrt( absdiff**2 + 1.0d-12 )
+          else
+            shifted_eig = eigval( ibd ) - eshift
+            absdiff = shifted_eig - fermi_energy
+            denr = sqrt( absdiff**2 + 1.0d-12 )
+          endif
+          scalar = pref / cmplx( denr, deni )
+          call PZGERC( npt, npt, scalar, uofrandb, 1, ibd, desc_bofr, 1, &
+                                         uofrandb, 1, ibd, desc_bofr, 1, &
+                                         gre_small(1,1,it), 1, 1, desc_gre )
 
+        enddo
       enddo ! ibd
 
+      call OCEAN_t_printtime( 'Build gre', stdout )
 
-      deallocate( uofrandb, bofr )
+
 
     enddo ! ik
 
     enddo ! ispin
 
     call mp_barrier
-    call OCEAN_t_printtime( 'K-point loop', stdout )
+!    call OCEAN_t_printtime( 'K-point loop', stdout )
     write(stdout,*) 'Loop over k-points and bands complete.'
     write(stdout,*) 'Gather chi to ionode'
  
@@ -558,18 +595,18 @@
     call OCEAN_t_printtime( 'GRE share', stdout )
 
 
-    if( npool .gt. 1 ) then
-    if( ( mypool .eq. 0 ) ) then
-      allocate( gre_buf( local_npt, local_npt2, nt, npool-1 ), request_list( nt, npool-1 ) )
-      do ipool = 1, npool - 1
-        do it = 1, nt
-!JTV tag is only unique w/i cross_pool_comm
-          call MPI_IRECV( gre_buff(1,1,it,ipool), local_npt*local_npt2, MPI_DOUBLE_COMPLEX, &
-                          ipool*nproc_per_pool+mypoolid, it+(ipool-1)*nt, cross_pool_comm, &
-                          request_list( it, ipool ) )
-        enddo
-      enddo
-    else
+!    if( npool .gt. 1 ) then
+!    if( ( mypool .eq. 0 ) ) then
+!      allocate( gre_buf( local_npt, local_npt2, nt, npool-1 ), request_list( nt, npool-1 ) )
+!      do ipool = 1, npool - 1
+!        do it = 1, nt
+!!JTV tag is only unique w/i cross_pool_comm
+!          call MPI_IRECV( gre_buff(1,1,it,ipool), local_npt*local_npt2, MPI_DOUBLE_COMPLEX, &
+!                          ipool*nproc_per_pool+mypoolid, it+(ipool-1)*nt, cross_pool_comm, &
+!                          request_list( it, ipool ) )
+!        enddo
+!      enddo
+!    else
       
 
 
@@ -597,7 +634,12 @@
         vind = 0.0_DP
         do i = 1, npt
           su2 = 0
-          do j = 1, npt
+!          do j = 1, npt
+          do j = 1, i
+            xirow( j ) = xi_local( i, j )
+            su2 = su2 + vipt( j ) * wpt( j )
+          enddo
+          do j = i + 1, npt
             xirow( j ) = xi_local( i, j )
             su2 = su2 + vipt( j ) * wpt( j )
           enddo
@@ -674,6 +716,7 @@
     deallocate( full_xi, vind, nind, xirow, xi_local )
 
   enddo ! itau
+      deallocate( uofrandb, bofr )
 
   111 continue 
   write(stdout,*) ' end OCEAN_builder'
