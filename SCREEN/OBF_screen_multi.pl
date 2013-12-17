@@ -419,7 +419,7 @@ while ($hfinline = <HFINLIST>) {
     `$ENV{'OCEAN_BIN'}/rscombine.x < ipt1 > ./${edgename}/zRXS${fullrad}/ropt`;
 #    `mv {rpot,rpothires,rom,nin} ${edgename}/zRXS${fullrad}/`;
     foreach( "rpot","rpothires","rom","nin")
-      { move( $_ , "${edgename}/zRXT${fullrad}/"); }
+      { move( $_ , "${edgename}/zRXS${fullrad}/"); }
 
   }
 }
