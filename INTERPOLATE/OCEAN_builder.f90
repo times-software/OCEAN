@@ -68,11 +68,11 @@
   real(dp) :: fermi_energy
   complex(dp),allocatable :: ztmp(:,:)
 
-  integer :: iuntmp, nptot, ibd, n_se, iunrbf
+  integer :: iuntmp, nptot, ibd, n_se, iunrbf, i_se
   real(dp),allocatable :: tau(:,:), se_list(:)
   logical :: se_exist
 
-  complex(dp),allocatable :: gre(:,:,:), bofr( :, : ), eikr( : ), gre_small(:,:,:), &
+  complex(dp),allocatable :: gre(:,:,:,:), bofr( :, : ), eikr( : ), gre_small(:,:,:), &
                              single_bofr(:,:), gre_local(:,:,:), phased_bofr(:,:), uofrandb(:,:)
   real(dp),allocatable :: posn( :, : ), wpt( : ), drel( : ), t(:), xirow(:), nind(:), &
                           vind(:),vipt(:)
@@ -221,7 +221,7 @@
 
     n_se = 0
     inquire(file='screeningenergies.ipt',exist=se_exist)
-    if( se_exist ) then
+    if( se_exist .and. .false. ) then
       open( unit=iuntmp,file='screeningenergies.ipt',form='formatted',status='old')
       read( iuntmp, * ) n_se
       allocate( se_list( n_se ) )
@@ -331,7 +331,7 @@
 
   call descinit( desc_gre, npt, npt, nb, nb2, 0, 0, context_cyclic, local_npt, ierr )
   if( ierr .ne. 0 ) stop
-  allocate(gre(local_npt,local_npt2, nt), gre_small(local_npt,local_npt2, nt) )
+  allocate(gre(local_npt,local_npt2, nt, 0:n_se), gre_small(local_npt,local_npt2, nt) )
   gre = 0.d0
   gre_small = 0.d0
 
@@ -508,18 +508,28 @@
 
 
 !      call OCEAN_t_reset
+!      do i_se = 0, n_se
+      i_se = 0
       do it = 1, nt
         deni = sigma * t( it ) / ( 1.0_dp - t( it ) )
+!        if( i_se .gt. 0 ) deni = -deni
+
         do ibd = band_subset(1),band_subset(2)
 
           ! We shift conduction up AND valence down to get away from eFermi
           if( eigval( ibd ) .gt. fermi_energy ) then
             shifted_eig = eigval( ibd ) + eshift
             absdiff = shifted_eig - fermi_energy
+            !if( i_se .gt. 0 ) then
+            !  absdiff = absdiff + se_list( i_se )
+            !endif
             denr = -sqrt( absdiff**2 + 1.0d-12 )
           else
             shifted_eig = eigval( ibd ) - eshift
             absdiff = shifted_eig - fermi_energy
+            !if( i_se .gt. 0 ) then
+            !  absdiff = absdiff + se_list( i_se )
+            !endif
             denr = sqrt( absdiff**2 + 1.0d-12 )
           endif
 
@@ -534,15 +544,16 @@
 
           call PZGERC( npt, npt, scalar, uofrandb, 1, ibd, desc_bofr, 1,  &
                                          uofrandb, 1, ibd, desc_bofr, 1,  &
-                                         gre(1,1,it), 1, 1, desc_gre )
+                                         gre(1,1,it,i_se), 1, 1, desc_gre )
 
 !          if( ibd .lt.  nbnd_small + band_subset(1)-1 ) then 
 !            call PZGERC( npt, npt, scalar, uofrandb, 1, ibd, desc_bofr, 1, &
 !                                           uofrandb, 1, ibd, desc_bofr, 1, &
 !                                           gre_small(1,1,it), 1, 1, desc_gre )
 !          endif
-        enddo
+        enddo !ibd
         
+        !if( i_se .eq. 0 ) then
         do ibd = band_subset(1), nbnd_small + band_subset(1)-1
           if( eigval( ibd ) .gt. fermi_energy ) then
             shifted_eig = eigval( ibd ) + eshift
@@ -557,9 +568,12 @@
           call PZGERC( npt, npt, scalar, uofrandb, 1, ibd, desc_bofr, 1, &
                                          uofrandb, 1, ibd, desc_bofr, 1, &
                                          gre_small(1,1,it), 1, 1, desc_gre )
+        enddo !ibd
+        !endif
 
-        enddo
-      enddo ! ibd
+      enddo ! it
+
+      !enddo
 
       call OCEAN_t_printtime( 'Build gre', stdout )
 
@@ -611,13 +625,16 @@
 
 
     ! later have each pool work on subset of i ?
+
     if( mypool .eq. 0 ) then
       do it = 1, nt
         su = newwgt( it ) * 4.0_DP * sigma / pi ! 2 for spin 2 for Ry
         do j = 1, local_npt2
           do i = 1, local_npt
             full_xi( i, j ) = full_xi( i, j ) &
-                            + su * (real(gre( i, j, it )) ** 2 - aimag( gre( i, j, it ) )**2 )
+!                            + su * (real(gre( i, j, it,0 )) ** 2 - aimag( gre( i, j, it,0 ) )**2)
+                      + su * ( real(gre( i, j, it,0 )) * real(gre(i,j,it,0) ) &
+                             -aimag(gre( i, j, it,0 )) *aimag(gre(i,j,it,0) ) )
           enddo
         enddo
       enddo
@@ -703,7 +720,7 @@
         close( unit=99 )
         !
         write(6,*)"starting nopt"
-        write(nopt_name,'(a11,i4.4)') 'nopt_small', itau+ntau_offset
+        write(nopt_name,'(a10,i4.4)') 'nopt_small', itau+ntau_offset
         open( unit=99, file=nopt_name, form='formatted', status='unknown' )
         rewind 99
         do i = 1, npt
