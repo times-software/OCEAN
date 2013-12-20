@@ -271,7 +271,7 @@ $(ESPRESSO_DIR)/Modules/xml_io_base.o \
 $(ESPRESSO_DIR)/Modules/zhpev_drv.o
 
 
-OCEAN_BUILDER = OCEAN_builder.o mkvipt.o intval.o getomega.o OCEAN_timer.o $(NEWDIAGOBJ)
+OCEAN_BUILDER = OCEAN_builder.o mkvipt.o intval.o getomega.o OCEAN_timer.o realspace_paw.o getprefs.o getylm.o OCEAN_build_chi.o $(NEWDIAGOBJ)
 
 $(OCEAN_BUILDER_EXE) :  $(OCEAN_BUILDER) $(PPOBJS) $(PW_QDIAGP) $(MODULES) $(LIBOBJS)
 	$(MPIF90) $(LDFLAGS) -o $@ \
