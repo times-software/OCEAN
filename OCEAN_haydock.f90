@@ -1,5 +1,6 @@
 module OCEAN_action
   use AI_kinds
+  use OCEAN_timekeeper
   use iso_c_binding
   implicit none
   private
@@ -429,6 +430,8 @@ module OCEAN_action
 
     call vtor( sys, hay_vec, rhs )
 
+
+    call OCEAN_tk_init()
     do iter = 1, inv_loop
       ener = ( e_start + ( iter - 1 ) * e_step ) / 27.2114_DP
       if( myid .eq. root ) write(6,*) ener * 27.2114_DP
@@ -441,6 +444,7 @@ module OCEAN_action
       call OCEAN_xact( sys, psi, hpsi, multiplet_psi, long_range_psi, lr, ierr )
 
 !      call OCEAN_psi_set_prec( sys, ener, gprc, hpsi, prec_psi )
+      call OCEAN_tk_start( tk_inv )
       call vtor( sys, hpsi, v1 )
       do i = 1, ntot
         pcdiv( i ) = ( ener - v1( i ) - rm1 * gprc ) / ( ( ener - v1( i ) ) ** 2 + gprc ** 2 )
@@ -470,6 +474,7 @@ module OCEAN_action
           endif
         end select
       enddo
+      call OCEAN_tk_stop( tk_inv )
 
 
 
@@ -493,6 +498,8 @@ module OCEAN_action
     if( myid .eq. root ) close( 76 )
 
     call OCEAN_hay_dealloc( ierr )
+
+    if( myid .eq. root ) call OCEAN_tk_printtimes
 
   end subroutine OCEAN_GMRES
 
@@ -572,15 +579,27 @@ module OCEAN_action
 
     !
     if( sys%long_range ) then
+      call OCEAN_tk_start( tk_lr )
       call lr_act( sys, psi, long_range_psi, lr, ierr )
       if( nproc .gt. 1 ) then
         call ocean_psi_sum_lr( sys, long_range_psi, ierr )
       endif
+      call OCEAN_tk_stop( tk_lr )
     endif
 
-    if( sys%mult ) call OCEAN_mult_act( sys, inter_scale, psi, multiplet_psi )
-    if( sys%e0 ) call ocean_energies_act( sys, psi, hpsi, ierr )
+    if( sys%mult ) then
+      call OCEAN_tk_start( tk_mult )
+      call OCEAN_mult_act( sys, inter_scale, psi, multiplet_psi )
+      call OCEAN_tk_stop( tk_mult )
+    endif
+    if( sys%e0 ) then 
+      call OCEAN_tk_start( tk_e0 )
+      call ocean_energies_act( sys, psi, hpsi, ierr )
+      call OCEAN_tk_stop( tk_e0 )
+    endif
+    call OCEAN_tk_start( tk_psisum )
     call ocean_psi_sum( sys, hpsi, multiplet_psi, long_range_psi, ierr )
+    call OCEAN_tk_stop( tk_psisum )
 
   end subroutine
 
