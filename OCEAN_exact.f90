@@ -11,6 +11,8 @@ module OCEAN_exact
   INTEGER, PARAMETER :: EDP = DP
 #endif
 
+! # !define UL 1
+
   COMPLEX(EDP), ALLOCATABLE :: bse_matrix( :, : )
 ! Right now to improve load have one matrix distributed by 1x1 blocks
 !  In the future use non-blocking point to point comms to build it up
@@ -37,7 +39,7 @@ module OCEAN_exact
   INTEGER :: myrow
   INTEGER :: mycol
 
-  INTEGER :: block_fac = 64
+  INTEGER :: block_fac = 32
 
 
   public :: OCEAN_exact_diagonalize
@@ -176,7 +178,7 @@ module OCEAN_exact
     integer :: ialpha, ikpt, iband, jalpha, jkpt, jband
 
     integer :: slice_start, slice_size
-    integer :: buf_pointer, i, tot_buf_size
+    integer :: buf_pointer, i, tot_buf_size, ib_start
 
     integer :: comm_tag_index, my_tag_index, buf_size, source_proc, dest_proc
     integer,allocatable :: request_list( : ), status_list(:,:)
@@ -213,12 +215,20 @@ module OCEAN_exact
 !      endif
 
 
-!      do ibasis = 1, bse_dim, block_fac
-      do ibasis = 1, jbasis, block_fac
+
+
+!      do ibasis = 1, jbasis, block_fac
+      ib_start = block_fac*((jbasis-1)/block_fac) + 1
+#ifdef UL
+      ib_start = 1
+#endif
+      do ibasis = ib_start, bse_dim, block_fac
         comm_tag_index = comm_tag_index + 1
 
 !JTV ??
-        buf_size = min( block_fac, jbasis - ibasis + 1 )
+!        buf_size = min( block_fac, jbasis - ibasis + 1 )
+
+        buf_size = min( block_fac, bse_dim - ibasis + 1 )
         if( source_proc .eq. myid ) tot_buf_size = tot_buf_size + buf_size
 
         call INFOG2L( ibasis, jbasis, bse_desc, nprow, npcol, myrow, mycol, &
@@ -233,6 +243,10 @@ module OCEAN_exact
 
 
     allocate(bse_matrix_buffer( tot_buf_size ) )!, stat=ierr )
+
+    bse_matrix_buffer = 0
+
+    if( myid .eq. root ) write(6,*) 'Buffer length: ', tot_buf_size
 
 !   Right now assume Hermetian
     jalpha = 1
@@ -258,7 +272,13 @@ module OCEAN_exact
       endif
 
       if( mod( jbasis - 1, nproc ) .ne. myid ) then 
-        do ibasis = 1, jbasis, block_fac 
+!        do ibasis = 1, jbasis, block_fac 
+!        do ibasis = 1, bse_dim, block_fac
+        ib_start = block_fac*((jbasis-1)/block_fac) + 1
+#ifdef UL
+        ib_start = 1
+#endif
+        do ibasis = ib_start, bse_dim, block_fac
           comm_tag_index = comm_tag_index + 1 
         enddo
         cycle
@@ -268,6 +288,7 @@ module OCEAN_exact
       bse_vec%r(:,:,:) = 0.0_DP
       bse_vec%i(:,:,:) = 0.0_DP
 
+      bse_ij = 0
       if( sys%e0 ) bse_ij = ocean_energies_single( jband, jkpt, jalpha )
       bse_vec%r( jband, jkpt, jalpha ) = real( real(bse_ij ) )
 !      bse_vec%i( jband, jkpt, jalpha ) = aimag( bse_ij )
@@ -276,14 +297,37 @@ module OCEAN_exact
         call OCEAN_mult_slice( sys, bse_vec, inter, jband, jkpt, jalpha )
 
 
-      ialpha = 1
-      ikpt = 1
-      iband = 0
+!!?      ialpha = jalpha
+!!?      ikpt = jkpt
+!!?      iband = jband - 1
 
-      do ibasis = 1, jbasis, block_fac
+
+      ib_start = block_fac*((jbasis-1)/block_fac) + 1
+#ifdef UL
+      ib_start = 1
+#endif
+
+      ialpha = ( ib_start - 1 ) / ( sys%nkpts * sys%num_bands ) + 1
+      ikpt = ib_start - ( ialpha - 1 ) * ( sys%nkpts * sys%num_bands )
+      ikpt = ( ikpt - 1 ) / sys%num_bands + 1
+      iband = ib_start - ( ialpha - 1 ) * ( sys%nkpts * sys%num_bands ) &
+            - ( ikpt - 1 ) * sys%num_bands - 1
+
+
+!      ib_start = 1
+!      ialpha = 1
+!      ikpt = 1
+!      iband = 0
+
+
+!      do ibasis = 1, jbasis, block_fac
+!      do ibasis = 1, bse_dim, block_fac
+      do ibasis = ib_start, bse_dim, block_fac
+
         comm_tag_index = comm_tag_index + 1
 
-        buf_size = min( block_fac, jbasis - ibasis + 1 )
+!        buf_size = min( block_fac, jbasis - ibasis + 1 )
+        buf_size = min( block_fac, bse_dim - ibasis + 1 )
 
         do i = 0, buf_size-1
           iband = iband + 1
@@ -299,11 +343,6 @@ module OCEAN_exact
           bse_matrix_buffer( buf_pointer+i ) = CMPLX( bse_vec%r( iband, ikpt, ialpha ), &
                       bse_vec%i( iband, ikpt, ialpha ), EDP )
 
-!          if( (myid .eq. root) .and. (iband .eq. jband ) .and. (ikpt .eq. jkpt) & 
-!                             .and. (ialpha .eq. jalpha ) ) then
-!            write(6,*) jbasis, (ibasis + i), jband, iband, real(bse_matrix_buffer( buf_pointer+i ))
-!            write(6,*) i, ibasis, buf_size, iband, ikpt, ialpha
-!          endif
         enddo
 
         call INFOG2L( ibasis, jbasis, bse_desc, nprow, npcol, myrow, mycol, &
@@ -356,7 +395,8 @@ module OCEAN_exact
             c_slice(:) = CMPLX( -re_slice(:), im_slice(:), EDP )
 
             ! only for alpha are the same
-            do jbasis = ibasis, sys%nkpts * sys%num_bands * ialpha
+!            do jbasis = ibasis, sys%nkpts * sys%num_bands * ialpha
+            do jbasis = 1 + sys%nkpts * sys%num_bands * (ialpha-1), sys%nkpts * sys%num_bands * ialpha
   !            if( ibasis .eq. jbasis .and. myid .eq. root ) &
   !              write(6,*) re_slice(ibasis), im_slice( ibasis )
               call INFOG2L( ibasis, jbasis, bse_desc, nprow, npcol, myrow, mycol, &
@@ -377,6 +417,7 @@ module OCEAN_exact
     endif
 
     if( myid .eq. root ) write(6,*) 'Finished populating bse matrix'
+
 
   end subroutine OCEAN_pb_slices
 
@@ -568,6 +609,7 @@ module OCEAN_exact
     integer :: lwork, lrwork, liwork
 
     integer :: np, nq, min_dim
+    integer(8) :: cl_count, cl_count_rate, cl_count_max, cl_count2
     integer, external :: numroc
 
     allocate( bse_evalues( bse_dim ), &
@@ -582,14 +624,14 @@ module OCEAN_exact
     liwork = -1
     allocate( work(1), rwork(1), iwork(1) )
 #ifdef exact_sp
-    call pcheevd( 'V', 'U', bse_dim, bse_matrix, 1, 1, bse_desc, bse_evalues, &
+    call pcheevd( 'V', 'L', bse_dim, bse_matrix, 1, 1, bse_desc, bse_evalues, &
                   bse_evectors, 1, 1, bse_desc, work, lwork, rwork, lrwork, iwork, liwork, ierr )
 #else
-    call pzheevd( 'V', 'U', bse_dim, bse_matrix, 1, 1, bse_desc, bse_evalues, &
+    call pzheevd( 'V', 'L', bse_dim, bse_matrix, 1, 1, bse_desc, bse_evalues, &
                   bse_evectors, 1, 1, bse_desc, work, lwork, rwork, lrwork, iwork, liwork, ierr )
 #endif
 !   Change from A to some range
-!    call PZHEEVX( 'V', 'A', 'U', bse_dim, bse_matrix, 
+!    call PZHEEVX( 'V', 'A', 'L', bse_dim, bse_matrix, 
     if( ierr .ne. 0 ) then
       if( myid .eq. root ) write(6,*) 'Failed to run pzheevd setup'
       goto 111
@@ -629,16 +671,26 @@ module OCEAN_exact
       goto 111
     endif
 
+    if( myid .eq. root ) write(6,*) 'Diagonalizing BSE matrix'
+    call blacs_barrier( context, 'A' )
+    if( myid .eq. root ) call SYSTEM_CLOCK( cl_count, cl_count_rate, cl_count_max )
+
 #ifdef exact_sp
-    call pcheevd( 'V', 'U', bse_dim, bse_matrix, 1, 1, bse_desc, bse_evalues, &
+    call pcheevd( 'V', 'L', bse_dim, bse_matrix, 1, 1, bse_desc, bse_evalues, &
                   bse_evectors, 1, 1, bse_desc, work, lwork, rwork, lrwork, iwork, liwork, ierr )
 #else
-    call pzheevd( 'V', 'U', bse_dim, bse_matrix, 1, 1, bse_desc, bse_evalues, &
+    call pzheevd( 'V', 'L', bse_dim, bse_matrix, 1, 1, bse_desc, bse_evalues, &
                   bse_evectors, 1, 1, bse_desc, work, lwork, rwork, lrwork, iwork, liwork, ierr )
 #endif
-!    call pzheevd( 'V', 'U', bse_dim, bse_matrix, 1, 1, bse_desc, bse_evalues, &
+!    call pzheevd( 'V', 'L', bse_dim, bse_matrix, 1, 1, bse_desc, bse_evalues, &
 !                  bse_evectors, 1, 1, bse_desc, work, lwork, rwork, lrwork, iwork, liwork, ierr )
     
+    if( myid .eq. root ) then 
+      call SYSTEM_CLOCK( cl_count2 )
+      cl_count = cl_count2 - cl_count 
+      write(6,*) cl_count, ' tics', (dble( cl_count )/dble(cl_count_rate)), 'secs'
+    endif
+    if( myid .eq. root ) write(6,*) 'Finished diagonalizing BSE matrix'
     deallocate( work, rwork, iwork )
 
 111 continue
