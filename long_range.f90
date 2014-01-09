@@ -1607,7 +1607,8 @@ module ocean_long_range
     
 
     
-    do jkpt = ikpt, my_kpts 
+!    do jkpt = ikpt, my_kpts 
+    do jkpt = 1, my_kpts
       do ixpt = 1, my_xpts
 #ifdef BLAS
         call DAXPY( sys%num_bands, rtphi(ixpt,jkpt), re_bloch_state(1,jkpt,ixpt), 1, &
