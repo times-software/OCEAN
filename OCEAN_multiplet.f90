@@ -872,7 +872,7 @@ module OCEAN_multiplet
         hpwi( ii ) = hpwi( ii ) * mul
       end do
 
-      do ia = 1, ja-1
+      do ia = 1, sys%nalpha !ja-1
         ispn = 2 - mod( ia, 2 )
         if( sys%nspn .eq. 1 ) then
           ispn = 1
@@ -894,37 +894,37 @@ module OCEAN_multiplet
         enddo
       enddo
 
-      ia = ja
-      ispn = 2 - mod( ia, 2 )
-      if( sys%nspn .eq. 1 ) then
-        ispn = 1
-      endif
-      do ivml = -lv, lv
-        do nu = 1, nproj( lv )
-        ii = nu + ( ivml + lv ) * nproj( lv ) + ( ia - 1 ) * ( 2 * lv + 1 ) * nproj( lv )
-          do ikpt = 1, jk-1
-            do ibnd = 1, sys%num_bands
-              out_vec%r( ibnd, ikpt, ia ) = out_vec%r( ibnd, ikpt, ia )  &
-                                          + hpwr( ii ) * mpcr( ibnd, ikpt, nu, ivml, lv, ispn ) &
-                                          + hpwi( ii ) * mpci( ibnd, ikpt, nu, ivml, lv, ispn )
-              out_vec%i( ibnd, ikpt, ia ) = out_vec%i( ibnd, ikpt, ia )  &
-                                          + hpwi( ii ) * mpcr( ibnd, ikpt, nu, ivml, lv, ispn ) &
-                                          - hpwr( ii ) * mpci( ibnd, ikpt, nu, ivml, lv, ispn )
-            enddo
-          enddo
-
-          ikpt = jk
-            do ibnd = 1, jb
-              out_vec%r( ibnd, ikpt, ia ) = out_vec%r( ibnd, ikpt, ia )  & 
-                                          + hpwr( ii ) * mpcr( ibnd, ikpt, nu, ivml, lv, ispn ) & 
-                                          + hpwi( ii ) * mpci( ibnd, ikpt, nu, ivml, lv, ispn ) 
-              out_vec%i( ibnd, ikpt, ia ) = out_vec%i( ibnd, ikpt, ia )  & 
-                                          + hpwi( ii ) * mpcr( ibnd, ikpt, nu, ivml, lv, ispn ) & 
-                                          - hpwr( ii ) * mpci( ibnd, ikpt, nu, ivml, lv, ispn ) 
-            enddo
-
-        enddo
-      enddo
+!      ia = ja
+!      ispn = 2 - mod( ia, 2 )
+!      if( sys%nspn .eq. 1 ) then
+!        ispn = 1
+!      endif
+!      do ivml = -lv, lv
+!        do nu = 1, nproj( lv )
+!        ii = nu + ( ivml + lv ) * nproj( lv ) + ( ia - 1 ) * ( 2 * lv + 1 ) * nproj( lv )
+!          do ikpt = 1, jk-1
+!            do ibnd = 1, sys%num_bands
+!              out_vec%r( ibnd, ikpt, ia ) = out_vec%r( ibnd, ikpt, ia )  &
+!                                          + hpwr( ii ) * mpcr( ibnd, ikpt, nu, ivml, lv, ispn ) &
+!                                          + hpwi( ii ) * mpci( ibnd, ikpt, nu, ivml, lv, ispn )
+!              out_vec%i( ibnd, ikpt, ia ) = out_vec%i( ibnd, ikpt, ia )  &
+!                                          + hpwi( ii ) * mpcr( ibnd, ikpt, nu, ivml, lv, ispn ) &
+!                                          - hpwr( ii ) * mpci( ibnd, ikpt, nu, ivml, lv, ispn )
+!            enddo
+!          enddo
+!
+!          ikpt = jk
+!            do ibnd = 1, jb
+!              out_vec%r( ibnd, ikpt, ia ) = out_vec%r( ibnd, ikpt, ia )  & 
+!                                          + hpwr( ii ) * mpcr( ibnd, ikpt, nu, ivml, lv, ispn ) & 
+!                                          + hpwi( ii ) * mpci( ibnd, ikpt, nu, ivml, lv, ispn ) 
+!              out_vec%i( ibnd, ikpt, ia ) = out_vec%i( ibnd, ikpt, ia )  & 
+!                                          + hpwi( ii ) * mpcr( ibnd, ikpt, nu, ivml, lv, ispn ) & 
+!                                          - hpwr( ii ) * mpci( ibnd, ikpt, nu, ivml, lv, ispn ) 
+!            enddo
+!
+!        enddo
+!      enddo
 
 
     enddo
@@ -979,7 +979,7 @@ module OCEAN_multiplet
 
         do nu = 1, nproj( l )
           ! only need upper triangle and ialpha = jalpha
-          do ikpt = 1, jk-1
+          do ikpt = 1, sys%nkpts !jk-1
             do ibnd = 1, sys%num_bands
               out_vec%r( ibnd, ikpt, ja ) = out_vec%r( ibnd, ikpt, ja ) &
                                           + mpcr( ibnd, ikpt, nu, m, l, ispn ) * hampr( nu )  &
@@ -989,16 +989,15 @@ module OCEAN_multiplet
                                           - mpci( ibnd, ikpt, nu, m, l, ispn ) * hampr( nu )
             enddo
           enddo
-          ikpt = jk
-          do ibnd = 1, jb
-            out_vec%r( ibnd, ikpt, ja ) = out_vec%r( ibnd, ikpt, ja ) &
-                                        + mpcr( ibnd, ikpt, nu, m, l, ispn ) * hampr( nu )  & 
-                                        + mpci( ibnd, ikpt, nu, m, l, ispn ) * hampi( nu ) 
-            out_vec%i( ibnd, ikpt, ja ) = out_vec%i( ibnd, ikpt, ja ) &
-                                        + mpcr( ibnd, ikpt, nu, m, l, ispn ) * hampi( nu ) &
-                                        - mpci( ibnd, ikpt, nu, m, l, ispn ) * hampr( nu )
-
-          enddo
+!          ikpt = jk
+!          do ibnd = 1, jb
+!            out_vec%r( ibnd, ikpt, ja ) = out_vec%r( ibnd, ikpt, ja ) &
+!                                        + mpcr( ibnd, ikpt, nu, m, l, ispn ) * hampr( nu )  & 
+!                                        + mpci( ibnd, ikpt, nu, m, l, ispn ) * hampi( nu ) 
+!            out_vec%i( ibnd, ikpt, ja ) = out_vec%i( ibnd, ikpt, ja ) &
+!                                        + mpcr( ibnd, ikpt, nu, m, l, ispn ) * hampi( nu ) &
+!                                        - mpci( ibnd, ikpt, nu, m, l, ispn ) * hampr( nu )
+!          enddo
         enddo
       enddo
     enddo
