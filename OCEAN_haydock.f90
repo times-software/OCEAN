@@ -382,6 +382,7 @@ module OCEAN_action
     character( LEN=5) :: eval
 
     character( LEN = 21 ) :: abs_filename
+    character( LEN = 25 ) :: e_filename
 
     complex( DP ), allocatable, dimension ( : ) :: x, rhs, v1, v2, pcdiv, cwrk
 
@@ -397,7 +398,8 @@ module OCEAN_action
     eval = 'zerox'
     f( 1 ) = ffff
 
-    call ocean_hay_alloc( sys, hay_vec, psi, hpsi, old_psi, new_psi, multiplet_psi, long_range_psi, ierr )
+    call ocean_hay_alloc( sys, hay_vec, psi, hpsi, old_psi, new_psi, multiplet_psi, &
+                          long_range_psi, ierr )
 
 
     if( myid .eq. root ) then
@@ -447,7 +449,8 @@ module OCEAN_action
       req = '---'
 
       do while ( req .ne. 'end' )
-        call invdrv( x, rhs, ntot, int1, int2, nloop, need, iwrk, cwrk, v1, v2, bs, as, req, ct, eval, f )
+        call invdrv( x, rhs, ntot, int1, int2, nloop, need, iwrk, cwrk, v1, v2, bs, as, &
+                     req, ct, eval, f )
         select case( req )
         case( 'all ' )
           if( allocated( cwrk ) ) deallocate( cwrk )
@@ -462,7 +465,7 @@ module OCEAN_action
         case( 'prc' )  ! meaning, divide by S(E-H0) ... in what follows, v1 must be untouched
           v2( : ) = v1 ( : ) * pcdiv( : )
           if( myid .eq. root ) then
-!            write ( 6, '(1p,2x,3i5,5(1x,1e15.8))' ) int1, int2, nloop, f( 2 ), f( 1 ), ener, 1.0d0 - dot_product( rhs, x )
+            write ( 6, '(1p,2x,3i5,5(1x,1e15.8))' ) int1, int2, nloop, f( 2 ), f( 1 ), ener, 1.0d0 - dot_product( rhs, x )
 !             write ( 66, '(1p,2x,3i5,5(1x,1e15.8))' ) int1, int2, nloop, f( 2 ), f( 1 ), ener, 1.0d0 - dot_product( rhs, x )
           endif
         end select
@@ -470,10 +473,19 @@ module OCEAN_action
 
 
 
-    if( myid .eq. 0 ) then
-      relative_error = f( 2 ) / ( dimag( dot_product( rhs, x ) ) * kpref )
-      write ( 76, '(1p,1i5,4(1x,1e15.8))' ) int1, ener*27.2114_DP, ( 1.0d0 - dot_product( rhs, x ) ) * kpref, relative_error
-    endif
+      if( myid .eq. 0 ) then
+        relative_error = f( 2 ) / ( dimag( dot_product( rhs, x ) ) * kpref )
+        write ( 76, '(1p,1i5,4(1x,1e15.8))' ) int1, ener*27.2114_DP, &
+                  ( 1.0d0 - dot_product( rhs, x ) ) * kpref, relative_error
+        call flush(76)
+
+        write(e_filename,'(A7,A2,A1,I4.4,A1,A2,A1,I2.2,A1,I4.4)' ) 'echamp_', sys%cur_run%elname, &
+            '.', sys%cur_run%indx, '_', '1s', '_', sys%cur_run%photon, '.', iter
+        open(unit=99,file=e_filename,form='unformatted',status='unknown')
+        rewind( 99 )
+        write( 99 ) x
+        close( 99 )
+      endif
     enddo
 
     deallocate( rhs, v1, v2, pcdiv, x )
@@ -559,16 +571,16 @@ module OCEAN_action
     type(long_range), intent( inout ) :: lr
 
     !
-!    if( sys%long_range ) then
-!      call lr_act( sys, psi, long_range_psi, lr, ierr )
-!      if( nproc .gt. 1 ) then
-!        call ocean_psi_sum_lr( sys, long_range_psi, ierr )
-!      endif
-!    endif
+    if( sys%long_range ) then
+      call lr_act( sys, psi, long_range_psi, lr, ierr )
+      if( nproc .gt. 1 ) then
+        call ocean_psi_sum_lr( sys, long_range_psi, ierr )
+      endif
+    endif
 
-!    if( sys%mult ) call OCEAN_mult_act( sys, inter_scale, psi, multiplet_psi )
+    if( sys%mult ) call OCEAN_mult_act( sys, inter_scale, psi, multiplet_psi )
     if( sys%e0 ) call ocean_energies_act( sys, psi, hpsi, ierr )
-!    call ocean_psi_sum( sys, hpsi, multiplet_psi, long_range_psi, ierr )
+    call ocean_psi_sum( sys, hpsi, multiplet_psi, long_range_psi, ierr )
 
   end subroutine
 
