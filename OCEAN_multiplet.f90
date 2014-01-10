@@ -1,5 +1,6 @@
 module OCEAN_multiplet
   use AI_kinds
+!  use OCEAN_constants, only : eVtoHartree
 
   private
   save
@@ -32,10 +33,193 @@ module OCEAN_multiplet
   integer :: itot
 
   logical :: is_init = .false.
+  logical :: do_staggered_sum 
+
+
+
+  integer :: push_psi_sum
+  integer :: pull_psi_sum
+  integer :: share_psi_sum
+
+  integer :: ct_n
+  integer :: fg_n
+  integer :: so_n
+
+  integer, allocatable :: ct_list( :, : )
+  integer, allocatable :: fg_list( : )
+  integer, allocatable :: so_list( :, : )
 
   public OCEAN_create_central, OCEAN_soprep, OCEAN_mult_act, OCEAN_mult_single, OCEAN_mult_slice
 
   contains
+
+  subroutine OCEAN_mult_create_par( sys, ierr )
+    use OCEAN_mpi
+    use OCEAN_system
+    implicit none
+
+    type(O_system), intent( in ) :: sys
+    integer, intent( inout ) :: ierr
+
+    integer(8), allocatable :: proc_load( : )
+    integer, allocatable :: proc_list(:)
+    integer, allocatable :: ct_list_temp( :, : ), fg_list_temp( : ), so_list_temp( :, : )
+
+
+    integer( 8 ) :: total, temp_load
+    integer :: ia, ja, il, im, dumi, ip, jp, least_proc
+
+    ct_n = 0
+    fg_n = 0
+    so_n = 0
+
+
+    total = 0
+    allocate( proc_load( 0:nproc-1 ) )
+    proc_load( : ) = 0
+
+    allocate( ct_list( 3, sys%nalpha * ( 2 * ( lvh - lvl + 1 ) + 1 ) ), &
+              fg_list( lvh - lvl + 1 ), so_list( 2, sys%nalpha**2 ) )
+
+    do ia = 1, sys%nalpha
+      do il = lvl, lvh
+        do im = -il, il
+          
+          least_proc = 0
+          do ip = 1, nproc-1
+            if( proc_load( ip ) < proc_load( least_proc ) ) least_proc = ip
+          enddo
+          
+          dumi = 2 * nproj( il ) * sys%nkpts * sys%num_bands + nproj( il ) + nproj( il )**2
+          
+          proc_load( least_proc ) = proc_load( least_proc ) + dumi
+          total = total + dumi
+
+          if( least_proc .eq. myid ) then
+            ct_n = ct_n + 1
+            ct_list_temp( :, ct_n ) = (/ ia, il, im /)
+          endif
+
+        enddo
+      enddo
+    enddo
+
+    do il = lvl, lvh
+
+      least_proc = 0
+      do ip = 1, nproc-1
+        if( proc_load( ip ) < proc_load( least_proc ) ) least_proc = ip
+      enddo
+      
+      dumi = 2 * sys%nalpha * ( 2 * il + 1 ) * nproj( il ) * sys%nkpts * sys%num_bands &
+           + ( 4 * ( 2 * sys%cur_run%ZNL(3) + 1 ) * ( 2 * il + 1 ) * nproj( il ) )**2
+      proc_load( least_proc ) = proc_load( least_proc ) + dumi
+      total = total + dumi
+
+      if( least_proc .eq. myid ) then
+        fg_n = fg_n + 1
+        fg_list_temp( fg_n ) = il
+      endif
+
+    enddo
+
+! s-o
+    if( sys%cur_run%ZNL(3) > 0 ) then
+      do ia = 1, sys%nalpha
+        do ja = 1, sys%nalpha
+
+          least_proc = 0
+          do ip = 1, nproc-1
+            if( proc_load( ip ) < proc_load( least_proc ) ) least_proc = ip
+          enddo
+
+          dumi = sys%nkpts * sys%num_bands
+          proc_load( least_proc ) = proc_load( least_proc ) + dumi
+          total = total + dumi
+
+          if( least_proc .eq. myid ) then
+            so_n = so_n + 1
+            so_list_temp( :, so_n ) = (/ ia, ja /)
+          endif
+
+        enddo
+      enddo
+    endif
+
+    allocate( proc_list( 0:nproc-1 ) )
+    do ip = 0, nproc - 1
+      proc_list(ip) = ip
+    enddo
+
+    do ip = 0, nproc-1
+      jp = ip
+      do while( ( jp > 0 ) .and. ( proc_load( jp-1 ) > proc_load( jp ) ) )
+        temp_load = proc_load( jp )
+        proc_load( jp ) = proc_load( jp-1 )
+        proc_load( jp-1 ) = temp_load
+
+        dumi = proc_list( jp )
+        proc_list( jp ) = proc_list( jp - 1 )
+        proc_list( jp-1 ) = dumi
+
+        jp = jp - 1
+      enddo
+    enddo
+    
+    if( myid .eq. 0 ) then
+      do ip = 0, nproc-1
+        write(6,*) proc_list( ip ), proc_load( ip ), dble(proc_load( ip ))/dble(total)
+      enddo
+    endif
+
+    dumi = -1
+    do ip = 0, nproc-1
+      if( proc_list( ip ) .eq. myid ) then
+        dumi = ip
+      endif
+    enddo
+
+    if( dumi .gt. 0 ) then
+      pull_psi_sum = proc_list( dumi - 1 )
+    else
+      pull_psi_sum = -1
+    endif
+
+    if( dumi .lt. nproc - 1 ) then
+      push_psi_sum = proc_list( dumi + 1 )
+    else
+      push_psi_sum = -1
+    endif
+
+    share_psi_sum = proc_list( nproc-1 )
+
+
+    if( ct_n .gt. 0 ) then
+      allocate( ct_list( 3, ct_n ) )
+      ct_list( :, 1:ct_n ) = ct_list_temp( :, 1:ct_n )
+    else
+      allocate( ct_list(1,1) )
+    endif
+
+    if( fg_n .gt. 0 ) then
+      allocate( fg_list( fg_n ) )
+      fg_list( 1:fg_n ) = fg_list_temp( 1:fg_n )
+    else
+      allocate( fg_list( 1 ) )
+    endif
+
+    if( so_n .gt. 0 ) then
+      allocate( so_list( 2, so_n ) )
+      so_list( :, 1:so_n ) = so_list_temp( :, 1:so_n )
+    else
+      allocate( so_list( 1, 1 ) )
+    endif
+    
+    deallocate( so_list_temp, fg_list_temp, ct_list_temp, proc_load, proc_list )    
+
+    do_staggered_sum = .true.
+
+  end subroutine OCEAN_mult_create_par
 
 
   subroutine OCEAN_create_central( sys, ierr )

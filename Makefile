@@ -1,7 +1,7 @@
 FC = mpif90
-FLAGS = -O3 -ffree-line-length-none -x f95-cpp-input -m64 -DHAVE_FLUSH -DBLAS  -Wall  -g -ffree-line-length-none  -funroll-loops -ftree-vectorizer-verbose=0 -ffast-math -ftree-vectorize -DMPI -march=corei7-avx -DHAVE_CONTIGUOUS -fbacktrace -fbounds-check
+FLAGS = -O3 -ffree-line-length-none -x f95-cpp-input -m64 -DHAVE_FLUSH -DBLAS  -Wall  -g -ffree-line-length-none  -funroll-loops -ftree-vectorizer-verbose=0 -ffast-math -ftree-vectorize -DMPI -march=corei7-avx -DHAVE_CONTIGUOUS -fbacktrace -fbounds-check -fopenmp
 #-fbacktrace -fbounds-check
-LDFLAGS = -m64  -Wall  -g -march=corei7-avx
+LDFLAGS = -m64  -Wall  -g -march=corei7-avx -fopenmp
 
 #FFTWI = -I/home/jtv1/bin/gnu/include
 #FFTWL = /home/jtv1/bin/gnu/lib/libfftw3.a
@@ -18,7 +18,7 @@ OCEANOBJS = AI_kinds.o OCEAN_mpi.o OCEAN_system.o OCEAN_bloch.o OCEAN_obf.o OCEA
             long_range.o OCEAN_load_data.o OCEAN_psi.o OCEAN_energies.o OCEAN_haydock.o OCEAN.o \
             getabb.o getomega.o gamfcn.o jlmfft.o limel.o jimel.o nbsemkcmel.o intval.o \
             newgetylm.o  newgetprefs.o newthreey.o cainmhsetup.o elsdch.o invdrv.o cinv.o \
-            sizereport.o OCEAN_exact.o
+            sizereport.o OCEAN_exact.o OCEAN_timekeeper.o
 
 ocean.x: $(OCEANOBJS)
 	$(FC) $(LDFLAGS) -o ocean.x $(OCEANOBJS) $(BLACS) $(FFTWL)
@@ -31,6 +31,9 @@ OCEAN.o: OCEAN.f90 AI_kinds.o OCEAN_exact.o
 
 AI_kinds.o: AI_kinds.f90
 	$(FC) $(FLAGS) -c -o AI_kinds.o AI_kinds.f90
+
+OCEAN_timekeeper.o: OCEAN_timekeeper.f90
+	$(FC) $(FLAGS) -c -o OCEAN_timekeeper.o OCEAN_timekeeper.f90
 
 OCEAN_system.o: OCEAN_system.f90
 	$(FC) $(FLAGS) -c -o  OCEAN_system.o OCEAN_system.f90
@@ -101,6 +104,9 @@ elsdch.o: elsdch.f
 
 invdrv.o: invdrv.f90
 	$(FC) $(FLAGS) -c -o invdrv.o invdrv.f90
+
+cinv.o: cinv.f
+	$(FC) $(FLAGS) -c -o cinv.o cinv.f
 
 sizereport.o: sizereport.f90
 	$(FC) $(FLAGS) -c -o sizereport.o sizereport.f90
