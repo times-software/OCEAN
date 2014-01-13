@@ -80,6 +80,26 @@ module OCEAN_multiplet
 
     allocate( ct_list( 3, sys%nalpha * ( 2 * ( lvh - lvl + 1 ) + 1 ) ), &
               fg_list( lvh - lvl + 1 ), so_list( 2, sys%nalpha**2 ) )
+!fg
+    do il = lvl, lvh
+
+      least_proc = 0
+      do ip = 1, nproc-1
+        if( proc_load( ip ) < proc_load( least_proc ) ) least_proc = ip
+      enddo
+      
+      dumi = 2 * sys%nalpha * ( 2 * il + 1 ) * nproj( il ) * sys%nkpts * sys%num_bands &
+           + ( 4 * ( 2 * sys%cur_run%ZNL(3) + 1 ) * ( 2 * il + 1 ) * nproj( il ) )**2
+      proc_load( least_proc ) = proc_load( least_proc ) + dumi
+      total = total + dumi
+
+      if( least_proc .eq. myid ) then
+        fg_n = fg_n + 1
+        fg_list_temp( fg_n ) = il
+      endif
+
+    enddo
+! ct
 
     do ia = 1, sys%nalpha
       do il = lvl, lvh
@@ -104,24 +124,6 @@ module OCEAN_multiplet
       enddo
     enddo
 
-    do il = lvl, lvh
-
-      least_proc = 0
-      do ip = 1, nproc-1
-        if( proc_load( ip ) < proc_load( least_proc ) ) least_proc = ip
-      enddo
-      
-      dumi = 2 * sys%nalpha * ( 2 * il + 1 ) * nproj( il ) * sys%nkpts * sys%num_bands &
-           + ( 4 * ( 2 * sys%cur_run%ZNL(3) + 1 ) * ( 2 * il + 1 ) * nproj( il ) )**2
-      proc_load( least_proc ) = proc_load( least_proc ) + dumi
-      total = total + dumi
-
-      if( least_proc .eq. myid ) then
-        fg_n = fg_n + 1
-        fg_list_temp( fg_n ) = il
-      endif
-
-    enddo
 
 ! s-o
     if( sys%cur_run%ZNL(3) > 0 ) then
@@ -629,7 +631,6 @@ module OCEAN_multiplet
         do m = -l, l
           ampr( : ) = 0
           ampi( : ) = 0
-!             do i = 1, n
           do nu = 1, nproj( l )
             do ikpt = 1, sys%nkpts
               do ibnd = 1, sys%num_bands
@@ -670,6 +671,89 @@ module OCEAN_multiplet
 !$OMP END PARALLEL DO
 
   end subroutine OCEAN_ctact
+
+  subroutine OCEAN_ctact_dist( sys, inter, in_vec, out_vec )
+    use OCEAN_system
+    use OCEAN_psi
+    implicit none
+    !
+    type(O_system), intent( in ) :: sys
+    real( DP ), intent( in ) :: inter
+    type( ocean_vector ), intent( in ) :: in_vec
+    type( ocean_vector ), intent( inout ) :: out_vec
+    !
+    !
+    integer :: ialpha, l, m, nu, ispn, ikpt, ibnd, i
+    real( DP ) :: mul
+    real( DP ), dimension( npmax ) :: ampr, ampi, hampr, hampi
+  !
+    if( ct_n .lt. 1 ) return
+
+    mul = inter / ( dble( sys%nkpts ) * sys%celvol )
+
+    do i = 1, ct_n
+ ! $OMP PARALLEL DO &
+ ! $OMP DEFAULT( NONE ) &
+ ! $OMP PRIVATE( ialpha, l, nu, m, ampr, ampi, hampr, hampi, ispn ) &
+ ! $OMP SHARED( mul, sys, lmin, lmax, nproj ) &
+ ! $OMP SHARED( mpcr, mpci, mpm, in_vec, out_vec )
+
+    ialpha = ct_list( 1, i )
+    l = ct_list( 2, i )
+    m = ct_list( 3, i )
+    ispn = 2 - mod( ialpha, 2 )
+    if( sys%nspn .eq. 1 ) then
+      ispn = 1
+    endif
+
+    ampr( : ) = 0
+    ampi( : ) = 0
+    do nu = 1, nproj( l )
+! $OMP PARALLEL DO COLLAPSE( 2 ) &
+! $OMP DEFAULT( NONE ) &
+! $OMP PRIVATE( ikpt, ibnd ) &
+! $OMP COPYIN( ialpha, l, m, nu, ispn ) &
+! $OMP SHARED( in_vec, mpcr, mpci ) &
+! $OMP REDUCTION(+:ampr,ampi)
+            do ikpt = 1, sys%nkpts
+              do ibnd = 1, sys%num_bands
+                ampr( nu ) = ampr( nu ) &
+                           + in_vec%r( ibnd, ikpt, ialpha ) * mpcr( ibnd, ikpt, nu, m, l, ispn ) &
+                           - in_vec%i( ibnd, ikpt, ialpha ) * mpci( ibnd, ikpt, nu, m, l, ispn )
+                ampi( nu ) = ampi( nu ) &
+                           + in_vec%r( ibnd, ikpt, ialpha ) * mpci( ibnd, ikpt, nu, m, l, ispn ) &
+                           + in_vec%i( ibnd, ikpt, ialpha ) * mpcr( ibnd, ikpt, nu, m, l, ispn )
+               enddo
+            enddo
+! $OMP END PARALLEL DO
+          enddo
+
+
+          hampr( : ) = 0
+          hampi( : ) = 0
+          do nu = 1, nproj( l )
+            hampr( : ) = hampr( : ) - mpm( :, nu, l ) * ampr( nu )
+            hampi( : ) = hampi( : ) - mpm( :, nu, l ) * ampi( nu )
+          enddo
+          hampr( : ) = hampr( : ) * mul
+          hampi( : ) = hampi( : ) * mul
+          do nu = 1, nproj( l )
+            do ikpt = 1, sys%nkpts
+              do ibnd = 1, sys%num_bands
+                out_vec%r( ibnd, ikpt, ialpha ) = out_vec%r( ibnd, ikpt, ialpha ) &
+                                                + mpcr( ibnd, ikpt, nu, m, l, ispn ) * hampr( nu )  &
+                                                + mpci( ibnd, ikpt, nu, m, l, ispn ) * hampi( nu )
+                out_vec%i( ibnd, ikpt, ialpha ) = out_vec%i( ibnd, ikpt, ialpha ) &
+                                                + mpcr( ibnd, ikpt, nu, m, l, ispn ) * hampi( nu ) &
+                                                - mpci( ibnd, ikpt, nu, m, l, ispn ) * hampr( nu )
+              enddo
+            enddo
+          enddo
+        enddo
+! $OMP END PARALLEL DO
+
+  end subroutine OCEAN_ctact_dist
+
 
 
 
@@ -775,6 +859,117 @@ module OCEAN_multiplet
     !
 
   end subroutine fgact
+
+
+  subroutine fgact_dist( sys, inter, in_vec, out_vec )
+    use OCEAN_system
+    use OCEAN_psi
+    implicit none
+    !
+    type(O_system), intent( in ) :: sys
+    real( DP ), intent( in ) :: inter
+    type( ocean_vector ), intent( in ) :: in_vec
+    type( ocean_vector ), intent( inout ) :: out_vec
+    !
+!    real( DP ), dimension( n, nc, 2 ) :: v, hv
+!    real( DP ), dimension( n, npmax, -lmax : lmax, lmin : lmax, nspn ) :: mpcr, mpci
+!    real( DP ), dimension( jtot ) :: mhr, mhi
+    !
+    integer :: lv, ii, ic, ivml, nu, j1, jj, ispn, ikpt, ibnd, i
+    real( DP ) :: mul
+    real( DP ), allocatable, dimension( : ) :: pwr, pwi, hpwr, hpwi
+    !
+
+    if( fg_n .lt. 1 ) return
+    
+    allocate( pwr(itot), pwi( itot), hpwr(itot), hpwi(itot) )
+    ! lvl, lvh is not enough for omp
+    ! should probably pull thread spawning out of the do loop though
+
+    mul = inter / ( dble( sys%nkpts ) * sys%celvol )
+!    write(6,*) mul
+!    do lv = lvl, lvh
+    do i = 1, fg_n
+      lv = fg_list( i )
+      pwr( : ) = 0
+      pwi( : ) = 0
+      hpwr( : ) = 0
+      hpwi( : ) = 0
+!$OMP PARALLEL &
+!$OMP PRIVATE( ic, ivml, nu, ii, jj, j1, ispn ) &
+!$OMP SHARED( mul, nproj, lv, mham, jbeg, pwr, pwi, mhr, mhi, mpcr, mpci, hpwr, hpwi, in_vec, out_vec, sys ) &
+!$OMP DEFAULT( NONE )
+
+!$OMP DO 
+      do ic = 1, sys%cur_run%nalpha
+        ispn = 2 - mod( ic, 2 )
+  !       ispn = 1 + mod( ic, 2 )
+        if( sys%nspn .eq. 1 ) then
+          ispn = 1
+        endif
+        do ivml = -lv, lv
+          do nu = 1, nproj( lv )
+            ii = nu + ( ivml + lv ) * nproj( lv ) + ( ic - 1 ) * ( 2 * lv + 1 ) * nproj( lv )
+            do ikpt = 1, sys%nkpts
+              do ibnd = 1, sys%num_bands
+                pwr( ii ) = pwr( ii ) &
+                          + in_vec%r( ibnd, ikpt, ic ) * mpcr( ibnd, ikpt, nu, ivml, lv, ispn ) &
+                          - in_vec%i( ibnd, ikpt, ic ) * mpci( ibnd, ikpt, nu, ivml, lv, ispn )
+                pwi( ii ) = pwi( ii ) &
+                          + in_vec%r( ibnd, ikpt, ic ) * mpci( ibnd, ikpt, nu, ivml, lv, ispn ) &
+                          + in_vec%i( ibnd, ikpt, ic ) * mpcr( ibnd, ikpt, nu, ivml, lv, ispn )
+              enddo
+             enddo
+           enddo
+         enddo
+       enddo
+!$OMP END DO
+
+
+!$OMP DO
+      do ii = 1, mham( lv )
+        do jj = 1, mham( lv )
+          j1 = jbeg( lv ) + ( jj -1 ) + ( ii - 1 ) * mham( lv )
+          hpwr( ii ) = hpwr( ii ) + mhr( j1 ) * pwr( jj ) - mhi( j1 ) * pwi( jj )
+          hpwi( ii ) = hpwi( ii ) + mhr( j1 ) * pwi( jj ) + mhi( j1 ) * pwr( jj )
+        end do
+        hpwr( ii ) = hpwr( ii ) * mul
+        hpwi( ii ) = hpwi( ii ) * mul
+      end do
+!$OMP END DO
+
+
+!$OMP DO
+      do ic = 1, sys%cur_run%nalpha
+        ispn = 2 - mod( ic, 2 )
+  !       ispn = 1 + mod( ic, 2 )
+        if( sys%nspn .eq. 1 ) then
+          ispn = 1
+        endif
+        do ivml = -lv, lv
+          do nu = 1, nproj( lv )
+            ii = nu + ( ivml + lv ) * nproj( lv ) + ( ic - 1 ) * ( 2 * lv + 1 ) * nproj( lv )
+            do ikpt = 1, sys%nkpts
+              do ibnd = 1, sys%num_bands
+                out_vec%r( ibnd, ikpt, ic ) = out_vec%r( ibnd, ikpt, ic )  &
+                                            + hpwr( ii ) * mpcr( ibnd, ikpt, nu, ivml, lv, ispn ) &
+                                            + hpwi( ii ) * mpci( ibnd, ikpt, nu, ivml, lv, ispn )
+                out_vec%i( ibnd, ikpt, ic ) = out_vec%i( ibnd, ikpt, ic )  &
+                                            + hpwi( ii ) * mpcr( ibnd, ikpt, nu, ivml, lv, ispn ) &
+                                            - hpwr( ii ) * mpci( ibnd, ikpt, nu, ivml, lv, ispn )
+              enddo
+            enddo
+          enddo
+        enddo
+      enddo
+!$OMP END DO
+!$OMP END PARALLEL 
+    end do
+    !
+
+  end subroutine fgact_dist
+
+
 
   subroutine OCEAN_soact( sys, in_vec, out_vec )
     use OCEAN_system
