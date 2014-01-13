@@ -1,17 +1,18 @@
 program xes_spaghetti
+  implicit none
 
 
   character (LEN=127) :: filename
 
 
-  integer :: ZNL(3), nalpha, nb, kmesh(3), nkpts, qpt(3)
-  real(kind=kind(1.d0)) :: k0(3), tau(3), rr, ri, ir, ii
+  integer :: ZNL(3), nalpha, nb, kmesh(3), nkpts, steps
+  real(kind=kind(1.d0)) :: k0(3), tau(3), rr, ri, ir, ii, qpt(3), start_coord(3), stop_coord(3)
 
   integer :: nptot, ntot
   real(kind=kind(1.d0)), allocatable :: pcr(:,:),pci(:,:),mer(:,:),mei(:,:), &
-      re_psi(:,:),im_psi(:,:)
+      re_psi(:,:),im_psi(:,:), energies(:,:)
 
-  integer :: iter, icml, ialpha, ikpt, iband, ivms
+  integer :: iter, icml, ialpha, ikpt, iband, ivms, xk, yk, zk, nbd, nq
 
   open(unit=99,file='ZNL',form='formatted',status='old')
   read(99,*) ZNL(:)
@@ -34,7 +35,7 @@ program xes_spaghetti
 
   read(5,*) filename
 
-  open(unit=99,file=cks_filename,form='unformatted',status='old')
+  open(unit=99,file=filename,form='unformatted',status='old')
   rewind( 99 )
   read ( 99 ) nptot, ntot
   read ( 99 ) tau( : )
@@ -83,6 +84,8 @@ program xes_spaghetti
 
   open(unit=99,file='wvfvainfo',form='unformatted', status='old' )
   rewind(99)
+  read ( 99 ) nbd, nq
+  write(6,*) nbd, nb, nq, nkpts
   read(99) energies
   close(99)
 
@@ -90,21 +93,37 @@ program xes_spaghetti
   open(unit=99,file='enk.txt',form='formatted',status='unknown')
   rewind(99)
 
+  open(unit=98,file='mag.txt',form='formatted',status='unknown')
+  rewind(98)
+
   ikpt = 0
   do xk = 0, kmesh(1)-1
     qpt(1) = k0(1) + dble(xk)/dble(kmesh(1))
-    write(99,*) '{'
     do yk = 0, kmesh(2)-1
       qpt(2) = k0(2) + dble(yk)/dble(kmesh(2))
-      write(99,*) '{'
       do zk = 0, kmesh(3)-1
         qpt(3) = k0(3) + dble(zk)/dble(kmesh(3))
 
         ikpt = ikpt + 1
+
+        write(99,*) energies(8,ikpt)!, qpt(:)
+        write(98,*) re_psi(8,ikpt)**2+im_psi(8,ikpt)**2
+      enddo
+    enddo
+  enddo
           
         
+  close(99)
+  close(98)
         
     
+
+
+  read(5,*) start_coord(:)
+  read(5,*) stop_coord(:)
+  read(5,*) steps
+
+  
     
 
 
