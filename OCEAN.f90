@@ -6,6 +6,7 @@ program ocean
   use OCEAN_psi
   use OCEAN_long_range
   use OCEAN_exact
+  use OCEAN_timekeeper
 
   implicit none
 
@@ -24,6 +25,8 @@ program ocean
 
 
   call ocean_sys_init( sys, ierr )
+
+  call OCEAN_tk_init()
 
 !  call ocean_init_data( sys, hay_vec, lr, ierr )
 !  if( ierr .ne. 0 ) goto 111
@@ -46,6 +49,7 @@ program ocean
     call ocean_sys_update( sys, ierr )
   enddo
 
+  call OCEAN_tk_printtimes( myid )
 
   call ocean_mpi_finalize( ierr )
 

@@ -47,7 +47,7 @@ OCEAN_psi.o: OCEAN_psi.f90
 OCEAN_energies.o: OCEAN_energies.f90
 	$(FC) $(FLAGS) -c -o OCEAN_energies.o OCEAN_energies.f90 $(FFTWI)
 
-OCEAN_haydock.o: OCEAN_haydock.f90 
+OCEAN_haydock.o: OCEAN_haydock.f90 OCEAN_timekeeper.o
 	$(FC) $(FLAGS) -c -o  OCEAN_haydock.o OCEAN_haydock.f90 $(FFTWI)
 
 OCEAN_exact.o: OCEAN_exact.f90
@@ -66,7 +66,7 @@ long_range.o: long_range.f90
 	$(FC) $(FLAGS) -c -o long_range.o long_range.f90 $(FFTWI)
 
 jlmfft.o: jlmfft.f
-	 $(FC) $(FLAGS) -c -o jlmfft.o jlmfft.f
+	 $(FC) -c -o jlmfft.o jlmfft.f
 
 OCEAN_multiplet.o: OCEAN_multiplet.f90 OCEAN_psi.o
 	$(FC) $(FLAGS) -c -o OCEAN_multiplet.o OCEAN_multiplet.f90

@@ -47,15 +47,26 @@ module OCEAN_timekeeper
   end subroutine OCEAN_tk_stop
 
 
-  subroutine OCEAN_tk_printtimes
+  subroutine OCEAN_tk_printtimes( myid )
     implicit none
+    integer, intent( in ) :: myid
 
+    character(LEN=16) :: filnam
     integer :: iter
 
+!   This can be changed if for some reason we run on all the computers
+    if( myid .gt. 999999 ) return 
+
+    write(filnam,'(A6,I6.6,A4)' ) 'timing', myid, '.txt'
+    open(unit=100+myid,file=filnam,form='formatted',status='unknown')
+    rewind(100+myid)
+
     do iter = 1, ndivs
-      write(6,*) tk_label( iter ), total( iter ), ' tics', &
+      write(100+myid,*) tk_label( iter ), total( iter ), ' tics', &
                 (dble( total( iter ) )/dble(count_rate)), 'secs'
     enddo
+
+    close(100+myid)
 
   end subroutine OCEAN_tk_printtimes
 

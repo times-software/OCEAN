@@ -292,12 +292,12 @@ module OCEAN_action
     do iter = 1, haydock_niter
 
       if( sys%long_range ) then
-
-        if( sys%obf ) then
+        call OCEAN_tk_start( tk_lr )
+!        if( sys%obf ) then
 !          call lr_act_obf( sys, ierr )
-        else
+!        else
           call lr_act( sys, psi, long_range_psi, lr, ierr )
-        endif
+!        endif
 
         if( nproc .gt. 1 ) then
 ! !$OMP PARALLEL DEFAULT(SHARED) NUM_THREADS num_threads
@@ -306,24 +306,44 @@ module OCEAN_action
 
 ! !$OMP SECTION
           call ocean_psi_sum_lr( sys, long_range_psi, ierr )
+          call OCEAN_tk_stop( tk_lr )
 
 ! !$OMP SECTION
-          if( sys%mult ) call OCEAN_mult_act( sys, inter_scale, psi, multiplet_psi )
+          if( sys%mult ) then 
+            call OCEAN_tk_start( tk_mult )
+            call OCEAN_mult_act( sys, inter_scale, psi, multiplet_psi )
+            call OCEAN_tk_stop( tk_mult )
+          endif
 
 
 ! !$OMP END SECTIONS
 
 ! !$OMP END PARALLEL
         else
-          if( sys%mult ) call OCEAN_mult_act( sys, inter_scale, psi, multiplet_psi )
+          call OCEAN_tk_stop( tk_lr )
+          if( sys%mult ) then 
+            call OCEAN_tk_start( tk_mult )
+            call OCEAN_mult_act( sys, inter_scale, psi, multiplet_psi )
+            call OCEAN_tk_stop( tk_mult )
+          endif
         endif
       else
-        if( sys%mult ) call OCEAN_mult_act( sys, inter_scale, psi, multiplet_psi )
+        if( sys%mult ) then 
+          call OCEAN_tk_start( tk_mult )
+          call OCEAN_mult_act( sys, inter_scale, psi, multiplet_psi )
+          call OCEAN_tk_stop( tk_mult )
+        endif
       endif
 
-      if( sys%e0 ) call ocean_energies_act( sys, psi, hpsi, ierr )
+      if( sys%e0 ) then 
+        call OCEAN_tk_start( tk_e0 )
+        call ocean_energies_act( sys, psi, hpsi, ierr )
+        call OCEAN_tk_stop( tk_e0 )
+      endif
 
+      call OCEAN_tk_start( tk_psisum )
       call ocean_psi_sum( sys, hpsi, multiplet_psi, long_range_psi, ierr )
+      call OCEAN_tk_stop( tk_psisum )
 
       call ocean_hay_ab( sys, psi, hpsi, old_psi, iter, ierr )
 !      call ocean_psi_ab( sys, a(iter-1), b(iter-1), b(iter), imag_a, psi, hpsi, old_psi, &
@@ -431,7 +451,7 @@ module OCEAN_action
     call vtor( sys, hay_vec, rhs )
 
 
-    call OCEAN_tk_init()
+!    call OCEAN_tk_init()
     do iter = 1, inv_loop
       ener = ( e_start + ( iter - 1 ) * e_step ) / 27.2114_DP
       if( myid .eq. root ) write(6,*) ener * 27.2114_DP
@@ -499,7 +519,7 @@ module OCEAN_action
 
     call OCEAN_hay_dealloc( ierr )
 
-    if( myid .eq. root ) call OCEAN_tk_printtimes
+!    if( myid .eq. root ) call OCEAN_tk_printtimes
 
   end subroutine OCEAN_GMRES
 
