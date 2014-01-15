@@ -298,3 +298,75 @@ ham_kpoints
 {
 4 4 4 
 } ham_kpoints
+nbse.gwgap
+{
+0
+} gwgap
+nbse.abs_gap
+{
+0
+} abs_gap
+nbse.niter
+{
+100
+} niter
+nbse.backf
+{
+0
+} backf
+nbse.aldaf
+{
+0
+} aldaf
+nbse.qpflg
+{
+1
+} qpflg
+nbse.bwflg
+{
+0
+} bwflg
+nbse.bande
+{
+1
+} bande
+nbse.bflag
+{
+1
+} bflag
+nbse.lflag
+{
+1
+} lflag
+nbse.convergence
+{
+0
+} convergence
+nbse.decut
+{
+10 2
+} decut
+nbse.gwvstr
+{
+0.0
+} gwvstr
+nbse.gwcstr
+{
+0.0
+} gwcstr
+nbse.se_rs
+{
+-1
+} se_rs
+nbse.se_metal
+{
+0
+} se_metal
+nbse.se_niter
+{
+1
+} se_niter
+nbse.spect_range
+{
+0 100 1000
+} spect.h
