@@ -161,6 +161,8 @@ module OCEAN_psi
 
   subroutine OCEAN_psi_sum( sys, hpsi, p, q, ierr )
     use OCEAN_system
+    use ocean_mpi
+    use mpi
     implicit none
     integer, intent(inout) :: ierr
     type(O_system), intent( in ) :: sys
@@ -174,8 +176,24 @@ module OCEAN_psi
 !    elseif( sys%mult ) then
 !      hpsi(:,:,:) = hpsi(:,:,:) + mult_psi(:,:,:)
 !    endif
-    hpsi%r(:,:,:) = hpsi%r(:,:,:) + p%r(:,:,:) - q%r(:,:,:)
-    hpsi%i(:,:,:) = hpsi%i(:,:,:) + p%i(:,:,:) - q%i(:,:,:)
+
+!    hpsi%r(:,:,:) = hpsi%r(:,:,:) + p%r(:,:,:) - q%r(:,:,:)
+!    hpsi%i(:,:,:) = hpsi%i(:,:,:) + p%i(:,:,:) - q%i(:,:,:)
+
+! OMP?
+    p%r(:,:,:) = p%r(:,:,:) - q%r(:,:,:)
+    p%i(:,:,:) = p%i(:,:,:) - q%i(:,:,:)
+
+#ifdef MPI
+    call MPI_ALLREDUCE( MPI_IN_PLACE, p%r, p%bands_pad*p%kpts_pad*sys%nalpha, &
+                        MPI_DOUBLE_PRECISION, MPI_SUM, comm, ierr )
+    call MPI_ALLREDUCE( MPI_IN_PLACE, p%i, p%bands_pad*p%kpts_pad*sys%nalpha, &
+                        MPI_DOUBLE_PRECISION, MPI_SUM, comm, ierr )
+#endif
+
+    hpsi%r(:,:,:) = hpsi%r(:,:,:) + p%r(:,:,:)
+    hpsi%i(:,:,:) = hpsi%i(:,:,:) + p%i(:,:,:)
+
 
   end subroutine OCEAN_psi_sum
 

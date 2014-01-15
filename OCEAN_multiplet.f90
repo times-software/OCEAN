@@ -75,11 +75,17 @@ module OCEAN_multiplet
 
 
     total = 0
-    allocate( proc_load( 0:nproc-1 ) )
+    allocate( proc_load( -1:nproc-1 ) )
     proc_load( : ) = 0
 
-    allocate( ct_list( 3, sys%nalpha * ( 2 * ( lvh - lvl + 1 ) + 1 ) ), &
-              fg_list( lvh - lvl + 1 ), so_list( 2, sys%nalpha**2 ) )
+    dumi = 0
+    do il = lvl, lvh
+      dumi = dumi + ( 2 * il + 1 )
+    enddo
+
+!    allocate( ct_list_temp( 3, sys%nalpha * ( 2 * ( lvh - lvl + 1 ) + 1 ) ), &
+    allocate( ct_list_temp( 3, sys%nalpha * dumi ), &
+              fg_list_temp( lvh - lvl + 1 ), so_list_temp( 2, sys%nalpha**2 ) )
 !fg
     do il = lvl, lvh
 
@@ -153,7 +159,7 @@ module OCEAN_multiplet
       proc_list(ip) = ip
     enddo
 
-    do ip = 0, nproc-1
+    do ip = 1, nproc-1
       jp = ip
       do while( ( jp > 0 ) .and. ( proc_load( jp-1 ) > proc_load( jp ) ) )
         temp_load = proc_load( jp )
@@ -482,6 +488,10 @@ module OCEAN_multiplet
 #endif
   
     call OCEAN_soprep( sys, ierr )
+    if( ierr .ne. 0 ) return
+
+    call OCEAN_mult_create_par( sys, ierr )
+    if( ierr .ne. 0 ) return
 
     is_init = .true.
 
@@ -589,10 +599,14 @@ module OCEAN_multiplet
 
     out_vec%r(:,:,:) = 0.0_DP
     out_vec%i(:,:,:) = 0.0_DP
-! !$OMP PARALLEL DEFAULT( PRIVATE ) SHARED( sys, inter, in_vec, out_vec )
-    call OCEAN_ctact( sys, inter, in_vec, out_vec )
-! !$OMP END PARALLEL
-    call fgact( sys, inter, in_vec, out_vec )
+
+    if( do_staggered_sum ) then
+      call OCEAN_ctact_dist( sys, inter, in_vec, out_vec )
+      call fgact_dist( sys, inter, in_vec, out_vec )
+    else
+      call OCEAN_ctact( sys, inter, in_vec, out_vec )
+      call fgact( sys, inter, in_vec, out_vec )
+    endif
 !    call OCEAN_soact( sys, in_vec, out_vec )
 
 
@@ -709,12 +723,12 @@ module OCEAN_multiplet
     ampr( : ) = 0
     ampi( : ) = 0
     do nu = 1, nproj( l )
-! $OMP PARALLEL DO COLLAPSE( 2 ) &
-! $OMP DEFAULT( NONE ) &
-! $OMP PRIVATE( ikpt, ibnd ) &
-! $OMP COPYIN( ialpha, l, m, nu, ispn ) &
-! $OMP SHARED( in_vec, mpcr, mpci ) &
-! $OMP REDUCTION(+:ampr,ampi)
+!$OMP PARALLEL DO COLLAPSE( 2 ) &
+!$OMP DEFAULT( NONE ) &
+!$OMP PRIVATE( ikpt, ibnd ) &
+!$OMP FIRSTPRIVATE( ialpha, l, m, nu, ispn ) &
+!$OMP SHARED( in_vec, mpcr, mpci, sys ) &
+!$OMP REDUCTION(+:ampr,ampi)
             do ikpt = 1, sys%nkpts
               do ibnd = 1, sys%num_bands
                 ampr( nu ) = ampr( nu ) &
@@ -725,7 +739,7 @@ module OCEAN_multiplet
                            + in_vec%i( ibnd, ikpt, ialpha ) * mpcr( ibnd, ikpt, nu, m, l, ispn )
                enddo
             enddo
-! $OMP END PARALLEL DO
+!$OMP END PARALLEL DO
           enddo
 
 
@@ -737,17 +751,25 @@ module OCEAN_multiplet
           enddo
           hampr( : ) = hampr( : ) * mul
           hampi( : ) = hampi( : ) * mul
+
+
           do nu = 1, nproj( l )
+!$OMP PARALLEL DO COLLAPSE( 2 ) &
+!$OMP DEFAULT( NONE ) &
+!$OMP PRIVATE( ikpt, ibnd ) &
+!$OMP FIRSTPRIVATE( ialpha, l, m, nu, ispn, hampr, hampi ) &
+!$OMP SHARED( out_vec, mpcr, mpci )
             do ikpt = 1, sys%nkpts
               do ibnd = 1, sys%num_bands
                 out_vec%r( ibnd, ikpt, ialpha ) = out_vec%r( ibnd, ikpt, ialpha ) &
-                                                + mpcr( ibnd, ikpt, nu, m, l, ispn ) * hampr( nu )  &
-                                                + mpci( ibnd, ikpt, nu, m, l, ispn ) * hampi( nu )
+                                           + mpcr( ibnd, ikpt, nu, m, l, ispn ) * hampr( nu )  &
+                                           + mpci( ibnd, ikpt, nu, m, l, ispn ) * hampi( nu )
                 out_vec%i( ibnd, ikpt, ialpha ) = out_vec%i( ibnd, ikpt, ialpha ) &
-                                                + mpcr( ibnd, ikpt, nu, m, l, ispn ) * hampi( nu ) &
-                                                - mpci( ibnd, ikpt, nu, m, l, ispn ) * hampr( nu )
+                                           + mpcr( ibnd, ikpt, nu, m, l, ispn ) * hampi( nu ) &
+                                           - mpci( ibnd, ikpt, nu, m, l, ispn ) * hampr( nu )
               enddo
             enddo
+!$OMP END PARALLEL DO
           enddo
         enddo
 ! $OMP END PARALLEL DO
@@ -788,7 +810,8 @@ module OCEAN_multiplet
        hpwi( : ) = 0
 !$OMP PARALLEL &
 !$OMP PRIVATE( ic, ivml, nu, ii, jj, j1, ispn ) &
-!$OMP SHARED( mul, nproj, lv, mham, jbeg, pwr, pwi, mhr, mhi, mpcr, mpci, hpwr, hpwi, in_vec, out_vec, sys ) &
+!$OMP FIRSTPRIVATE( lv, jbeg, mham, nproj, mul ) &
+!$OMP SHARED( pwr, pwi, mhr, mhi, mpcr, mpci, hpwr, hpwi, in_vec, out_vec, sys ) &
 !$OMP DEFAULT( NONE )
 
 !$OMP DO 

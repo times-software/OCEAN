@@ -755,7 +755,7 @@ module ocean_long_range
     !   Calculate W(x,k) x \phi(x,k)
     !   Do FFT back to k-points
 
-    call cpu_time( time1 )
+!    call cpu_time( time1 )
 
     hp%r(:,:,:) = zero
     hp%i(:,:,:) = zero
@@ -892,8 +892,8 @@ module ocean_long_range
     deallocate( rphi, iphi, rtphi, itphi ) 
 
 
-    call cpu_time( time2 )
-    lr%timer= lr%timer + time2-time1
+!    call cpu_time( time2 )
+!    lr%timer= lr%timer + time2-time1
   end subroutine
 
   subroutine create_lr( sys, lr, ierr )

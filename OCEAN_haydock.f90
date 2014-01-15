@@ -273,11 +273,7 @@ module OCEAN_action
     character( LEN=21 ) :: lanc_filename
 
 
-!$    integer, external :: omp_get_num_threads
-
-    num_threads = 1
-!$  num_threads = omp_get_num_threads()
-    num_threads = min( 2, num_threads )
+!  !$    integer, external :: omp_get_num_threads
     
     call ocean_hay_alloc( sys, hay_vec, psi, hpsi, old_psi, new_psi, multiplet_psi, long_range_psi, ierr )
 
@@ -296,43 +292,15 @@ module OCEAN_action
 !        if( sys%obf ) then
 !          call lr_act_obf( sys, ierr )
 !        else
-          call lr_act( sys, psi, long_range_psi, lr, ierr )
+        call lr_act( sys, psi, long_range_psi, lr, ierr )
 !        endif
+        call OCEAN_tk_stop( tk_lr )
+      endif
 
-        if( nproc .gt. 1 ) then
-! !$OMP PARALLEL DEFAULT(SHARED) NUM_THREADS num_threads
-
-! !$OMP SECTIONS
-
-! !$OMP SECTION
-          call ocean_psi_sum_lr( sys, long_range_psi, ierr )
-          call OCEAN_tk_stop( tk_lr )
-
-! !$OMP SECTION
-          if( sys%mult ) then 
-            call OCEAN_tk_start( tk_mult )
-            call OCEAN_mult_act( sys, inter_scale, psi, multiplet_psi )
-            call OCEAN_tk_stop( tk_mult )
-          endif
-
-
-! !$OMP END SECTIONS
-
-! !$OMP END PARALLEL
-        else
-          call OCEAN_tk_stop( tk_lr )
-          if( sys%mult ) then 
-            call OCEAN_tk_start( tk_mult )
-            call OCEAN_mult_act( sys, inter_scale, psi, multiplet_psi )
-            call OCEAN_tk_stop( tk_mult )
-          endif
-        endif
-      else
-        if( sys%mult ) then 
-          call OCEAN_tk_start( tk_mult )
-          call OCEAN_mult_act( sys, inter_scale, psi, multiplet_psi )
-          call OCEAN_tk_stop( tk_mult )
-        endif
+      if( sys%mult ) then 
+        call OCEAN_tk_start( tk_mult )
+        call OCEAN_mult_act( sys, inter_scale, psi, multiplet_psi )
+        call OCEAN_tk_stop( tk_mult )
       endif
 
       if( sys%e0 ) then 
@@ -346,15 +314,6 @@ module OCEAN_action
       call OCEAN_tk_stop( tk_psisum )
 
       call ocean_hay_ab( sys, psi, hpsi, old_psi, iter, ierr )
-!      call ocean_psi_ab( sys, a(iter-1), b(iter-1), b(iter), imag_a, psi, hpsi, old_psi, &
-!                         ierr )
-!!      call ocean_psi_dump( sys, ierr )
-!      if( myid .eq. 0 ) then
-!        write ( 6, '(2x,2f10.6,10x,1e11.4)' ) a(iter-1), b(iter), imag_a
-!        call haydump( iter, ierr )
-!
-!!        call redtrid( iter-1, a(0), b(1) )
-!      endif
 
     enddo
 
@@ -362,8 +321,6 @@ module OCEAN_action
       write(lanc_filename, '(A8,A2,A1,I4.4,A1,A2,A1,I2.2)' ) 'lanceig_', sys%cur_run%elname, &
         '.', sys%cur_run%indx, '_', '1s', '_', sys%cur_run%photon
       call haydump( haydock_niter, sys, ierr )
-!      call redtrid( haydock_niter, lanc_filename )
-!      call redtrid( haydock_niter-1, a(0), b(1), lanc_filename )
     endif
 
     call OCEAN_hay_dealloc( ierr )
