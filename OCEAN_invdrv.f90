@@ -1,5 +1,5 @@
-subroutine invdrv( x, b, n, i1, i2, n2, need, iwrk, w, bv, av, bs, as, req, ct, ev, f )
-  use AI_kinds
+subroutine OCEAN_invdrv( x, b, n, i1, i2, n2, need, iwrk, w, bv, av, bs, as, req, ct, ev, f )
+  use AI_kinds, only : DP
   implicit none
   !
   integer :: n, i1, i2, n2, need, iwrk
@@ -33,9 +33,10 @@ subroutine invdrv( x, b, n, i1, i2, n2, need, iwrk, w, bv, av, bs, as, req, ct, 
                 w( c ), n, i1, i2, n2, ev, ct, req, f )
   !
   return
-end subroutine invdrv
+end subroutine OCEAN_invdrv
 !
-subroutine backend( aftvec, as, befvec, bs, x, b, ax, g, pg, apg, u, au, c, n, i1, i2, n2, ev, ct, req, f )
+subroutine backend( aftvec, as, befvec, bs, x, b, ax, g, pg, apg, u, au, c, n, i1, i2, n2, &
+ev, ct, req, f )
   implicit none
   !
   integer n, i1, i2, n2
@@ -97,7 +98,7 @@ subroutine backend( aftvec, as, befvec, bs, x, b, ax, g, pg, apg, u, au, c, n, i
         ct = 'runupdate' 
      case ( 'runupdate' )
         call update( x, ax, g, pg, apg, u, au, c, n, i1, i2, n2 )
-        call savex( n, x )
+!        call savex( n, x )
         if ( i2 .eq. n2 ) then
            ct = 'newi2loop'
         else
@@ -128,44 +129,78 @@ subroutine update( x, ax, g, pg, apg, u, au, c, n, i1, i2, n2 )
   double complex :: u( n, n2 ), au( n, n2 )
   double complex :: c( n2, n2 )
   !
-  integer :: i, ip
-  double complex :: coeff
+  integer :: i, ip, nstart, nstop
+  double complex :: coeff(i2+1)
   double complex, allocatable :: c2( : , : ), cinv( : , : ), r( : )
+  double complex :: dumc(i2+1)
   double complex, external :: hilbcd
   !
-  call sizereport( 16 * n2 ** 2, 'c2........' ); allocate( c2( n2, n2 ) )
-  call sizereport( 16 * n2 ** 2, 'cinv......' ); allocate( cinv( n2, n2 ) )
-  call sizereport( 16 * n2, 'r.........' ); allocate( r( n2 ) )
+!  call sizereport( 16 * n2 ** 2, 'c2........' ); allocate( c2( n2, n2 ) )
+!  call sizereport( 16 * n2 ** 2, 'cinv......' ); allocate( cinv( n2, n2 ) )
+!  call sizereport( 16 * n2, 'r.........' ); allocate( r( n2 ) )
+  allocate( c2( n2, n2 ), cinv( n2, n2 ), r( n2 ) )
   i1 = i1 + 1
   i2 = i2 + 1
   u( : , i2 ) = pg
   au( : , i2 ) = apg
   r = 0
-  do i = 1, i2
-     r( i ) = - hilbcd( n, au( 1, i ), g )
-     do ip = 1, i2 
-        if ( ( i .eq. i2 ) .or. ( ip .eq. i2 ) ) then
-           c( i, ip ) = hilbcd( n, au( 1, i ), au( 1, ip ) )
-        end if
-     end do
-  end do
+  dumc=0
+
+!$OMP PARALLEL DO &
+!$OMP DEFAULT( NONE ) &
+!$OMP SCHEDULE( STATIC ) &
+!$OMP FIRSTPRIVATE( g, i2, n ) &
+!$OMP PRIVATE( ip, nstart, nstop ) &
+!$OMP SHARED( au, c ) &
+!$OMP REDUCTION(+:r,dumc)
+do nstart = 1, n, 256
+  nstop = min( nstart+255,n)
+
+  do ip = 1, i2
+    r( ip ) = r( ip ) - dot_product( au( nstart:nstop, ip ), g(nstart:nstop) )
+    dumc(ip) = dumc(ip) + dot_product( au(nstart:nstop, i2), au( nstart:nstop, ip ) )
+  enddo
+enddo
+!$OMP END PARALLEL DO
+
+  c( 1:i2, i2 ) = conjg( dumc(:) )
+  c( i2, 1:i2 ) = dumc(:)
+
   call invert( i2, n2, c, c2, cinv )
-  do i = 1, i2
-     coeff = sum( cinv( i, : ) * r( : ) )
-     x = x + coeff * u( : , i )
-     ax = ax + coeff * au( : , i )
-  end do
-  call sizereport( 0, 'c2........' ); deallocate( c2 ) 
-  call sizereport( 0, 'cinv......' ); deallocate( cinv ) 
-  call sizereport( 0, 'r.........' ); deallocate( r ) 
+
+  coeff(1:i2) = matmul( cinv(1:i2,1:i2), r(1:i2) )
+
+!$OMP PARALLEL DO &
+!$OMP DEFAULT( NONE ) &
+!$OMP SCHEDULE( STATIC ) &
+!$OMP FIRSTPRIVATE( coeff, n, i2 ) &
+!$OMP PRIVATE( nstart, nstop, i ) &
+!$OMP SHARED( x, ax, u, au )
+  do nstart = 1, n, 256
+    nstop = min( nstart+255,n)
+    do i = 1, i2
+       x(nstart:nstop) = x(nstart:nstop) + coeff(i) * u( nstart:nstop , i )
+       ax(nstart:nstop) = ax(nstart:nstop) + coeff(i) * au( nstart:nstop , i )
+    end do
+  enddo
+!$OMP END PARALLEL DO
+
+
+!  call sizereport( 0, 'c2........' ); deallocate( c2 ) 
+!  call sizereport( 0, 'cinv......' ); deallocate( cinv ) 
+!  call sizereport( 0, 'r.........' ); deallocate( r ) 
+  deallocate( c2, cinv, r )
   return
 end subroutine update
 !
 function hilbcd( n, l, r )
+  use AI_kinds, only : DP
   implicit none
   !
-  integer n !, i
-  complex(DP) ::  hilbcd, l( n ), r( n )
+  integer, intent(in) :: n 
+!, i
+  complex(DP), intent(in) ::  l( n ), r( n )
+  complex(DP) :: hilbcd
   !
 !  hilbcd = 0
 !  do i = 1, n
