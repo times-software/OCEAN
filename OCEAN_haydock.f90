@@ -430,7 +430,7 @@ module OCEAN_action
       req = '---'
 
       do while ( req .ne. 'end' )
-        call invdrv( x, rhs, ntot, int1, int2, nloop, need, iwrk, cwrk, v1, v2, bs, as, &
+        call OCEAN_invdrv( x, rhs, ntot, int1, int2, nloop, need, iwrk, cwrk, v1, v2, bs, as, &
                      req, ct, eval, f )
         select case( req )
         case( 'all ' )
@@ -440,7 +440,9 @@ module OCEAN_action
         case( 'act' ) ! E - S H ... in what follows, v1 must be untouched
           ! v = v1
           call rtov( sys, psi, v1 )
+          call OCEAN_tk_stop( tk_inv )
           call OCEAN_xact( sys, psi, hpsi, multiplet_psi, long_range_psi, lr, ierr )
+          call OCEAN_tk_start( tk_inv )
           call vtor( sys, hpsi, v2 )
           v2( : ) = ( ener + rm1 * gres ) * v1( : ) - v2( : )
         case( 'prc' )  ! meaning, divide by S(E-H0) ... in what follows, v1 must be untouched
@@ -558,9 +560,9 @@ module OCEAN_action
     if( sys%long_range ) then
       call OCEAN_tk_start( tk_lr )
       call lr_act( sys, psi, long_range_psi, lr, ierr )
-      if( nproc .gt. 1 ) then
-        call ocean_psi_sum_lr( sys, long_range_psi, ierr )
-      endif
+!      if( nproc .gt. 1 ) then
+!        call ocean_psi_sum_lr( sys, long_range_psi, ierr )
+!      endif
       call OCEAN_tk_stop( tk_lr )
     endif
 

@@ -262,6 +262,7 @@ module OCEAN_multiplet
         if( myid .eq. root ) write(6,*) 'Multiplets are reloading'
         deallocate( mpcr, mpci, mpm, mhr, mhi, cms, cml, vms, hcml, hvml, hcms, hvms, somelr, someli )
         deallocate( nproj, hvnu, ibeg, jbeg, mham )
+        deallocate( ct_list, fg_list, so_list )
       endif
     endif
 
