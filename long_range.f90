@@ -743,11 +743,12 @@ module ocean_long_range
     !
     !
     real(DP), allocatable :: rphi(:,:,:), iphi(:,:,:), rtphi(:,:,:), itphi(:,:,:)
-    real( DP ), allocatable :: xwrkr( : ), xwrki( : ), wrk( : )
-    integer :: jfft, ialpha, ixpt, ikpt, ibd, iq, iq1, iq2, iq3, ii
+    real( DP ), allocatable :: xwrkr( :,: ), xwrki( :,: ), wrk( : )
+    integer :: jfft, ialpha, ixpt, ikpt, ibd, iq, iq1, iq2, iq3, ii, iixpt, xiter, xstop
 
-    real(DP) :: time1, time2
+!    real(DP) :: time1, time2
     real(DP), external :: DDOT
+! !$  integer, external :: omp_get_num_threads
 
     ! For each x-point in the unit cell
     !   Populate \phi(x,k) = \sum_n u(x,k) \psi_n(x,k)
@@ -755,104 +756,97 @@ module ocean_long_range
     !   Calculate W(x,k) x \phi(x,k)
     !   Do FFT back to k-points
 
-!    call cpu_time( time1 )
 
-    hp%r(:,:,:) = zero
-    hp%i(:,:,:) = zero
+!    nthreads = 1
+! !$  nthreads = omp_get_num_threads()
+
 
 
     ! prep info for fft
     jfft = 2 * max( sys%kmesh( 1 ) * ( sys%kmesh( 1 ) + 1 ), sys%kmesh( 2 ) * ( sys%kmesh( 2 ) + 1 ), &
                     sys%kmesh( 3 ) * ( sys%kmesh( 3 ) + 1 ) )
     !
-    allocate( rphi( lr%my_nkpts, lr%my_nxpts, sys%nalpha ), &
-              iphi( lr%my_nkpts, lr%my_nxpts, sys%nalpha ), &
+    allocate( &!rphi( lr%my_nkpts, lr%my_nxpts, sys%nalpha ), &
+               !iphi( lr%my_nkpts, lr%my_nxpts, sys%nalpha ), &
               rtphi( lr%my_nxpts, lr%my_nkpts, sys%nalpha ), &
               itphi( lr%my_nxpts, lr%my_nkpts, sys%nalpha ) )
 
 !$OMP PARALLEL DEFAULT( NONE ) &
-!$OMP& SHARED( rphi, iphi, lr, W, hp, p, re_bloch_state, im_bloch_state, rtphi, itphi ) &
-!$OMP& PRIVATE( xwrkr, xwrki, wrk, ikpt, ibd, ialpha, ixpt, iq, iq1, iq2, iq3, ii ) &
-!$OMP& FIRSTPRIVATE( sys, jfft ) 
+!$OMP& SHARED( rphi, iphi, lr, W, hp, re_bloch_state, im_bloch_state, rtphi, itphi ) &
+!$OMP& PRIVATE( xwrkr, xwrki, wrk, ikpt, ibd, ialpha, ixpt, iq, iq1, iq2, iq3, ii, iixpt, xstop, xiter ) &
+!$OMP& FIRSTPRIVATE( sys, jfft, p ) 
 
-    allocate( xwrkr( sys%nkpts ), xwrki( sys%nkpts ), wrk( jfft ) )
+!$OMP WORKSHARE
+    hp%r(:,:,:) = zero
+    hp%i(:,:,:) = zero
+!$OMP END WORKSHARE
+
+    allocate( xwrkr( sys%nkpts, 4 ), xwrki( sys%nkpts, 4 ), wrk( jfft ) )
 
 !$OMP DO COLLAPSE( 2 )
-    do ialpha = 1, sys%nalpha 
-      do ixpt = 1, lr%my_nxpts
+    do iixpt = 1, lr%my_nxpts, 4
+      do ialpha = 1, sys%nalpha 
+
+        xstop = min( lr%my_nxpts, iixpt+3)
+        xiter = 0
+        do ixpt = iixpt, xstop
+        xiter = xiter + 1
 
     ! Populate phi
 #ifdef BLAS
         do ikpt = 1, lr%my_nkpts
-          rphi(ikpt,ixpt,ialpha) = DDOT( sys%num_bands, p%r(1,ikpt,ialpha), 1, re_bloch_state(1,ikpt,ixpt), 1 ) &
+!          rphi(ikpt,ixpt,ialpha) = DDOT( sys%num_bands, p%r(1,ikpt,ialpha), 1, re_bloch_state(1,ikpt,ixpt), 1 ) &
+          xwrkr( ikpt, xiter )  = DDOT( sys%num_bands, p%r(1,ikpt,ialpha), 1, re_bloch_state(1,ikpt,ixpt), 1 ) &
                                  - DDOT( sys%num_bands, p%i(1,ikpt,ialpha), 1, im_bloch_state(1,ikpt,ixpt), 1 )
-          iphi(ikpt,ixpt,ialpha) = DDOT( sys%num_bands, p%r(1,ikpt,ialpha), 1, im_bloch_state(1,ikpt,ixpt), 1 ) &
+!          iphi(ikpt,ixpt,ialpha) = DDOT( sys%num_bands, p%r(1,ikpt,ialpha), 1, im_bloch_state(1,ikpt,ixpt), 1 ) &
+          xwrki( ikpt, xiter ) = DDOT( sys%num_bands, p%r(1,ikpt,ialpha), 1, im_bloch_state(1,ikpt,ixpt), 1 ) &
                                  + DDOT( sys%num_bands, p%i(1,ikpt,ialpha), 1, re_bloch_state(1,ikpt,ixpt), 1 )
         enddo
 
 #else
         do ikpt = 1, lr%my_nkpts
-          rphi(ikpt,ixpt,ialpha) = & 
+!          rphi(ikpt,ixpt,ialpha) = & 
+          xwrkr( ikpt, xiter ) = &
                                    dot_product(p%r(:,ikpt,ialpha),re_bloch_state(:,ikpt,ixpt)) &
                                  - dot_product(p%i(:,ikpt,ialpha),im_bloch_state(:,ikpt,ixpt))
-          iphi(ikpt,ixpt,ialpha) = & 
+!          iphi(ikpt,ixpt,ialpha) = & 
+          xwrki( ikpt, xiter ) = &
                                    dot_product(p%r(:,ikpt,ialpha),im_bloch_state(:,ikpt,ixpt)) &
                                  + dot_product(p%i(:,ikpt,ialpha),re_bloch_state(:,ikpt,ixpt)) 
         enddo
 #endif          
 
-    ! If there is some k-point division among procs this would be a problem here
-        
-!        iq = 0
-!        do iq1 = 1, sys%kmesh(1)
-!          do iq2 = 1, sys%kmesh(2)
-!            do iq3 = 1, sys%kmesh(3)
-!              iq = iq + 1
-!              ii = 1 + ( iq1 - 1 ) + sys%kmesh( 1 ) * ( ( iq2 - 1 ) + sys%kmesh( 2 ) * ( iq3 - 1 ) )
-!              xwrkr( ii ) = rphi( iq, ixpt, ialpha )
-!              xwrki( ii ) = iphi( iq, ixpt, ialpha )
-!            enddo
-!          enddo
-!        enddo
-        xwrkr( : ) = rphi( :, ixpt, ialpha )
-        xwrki( : ) = iphi( :, ixpt, ialpha )
+!        xwrkr( : ) = rphi( :, ixpt, ialpha )
+!        xwrki( : ) = iphi( :, ixpt, ialpha )
 
-        call cfft( xwrkr, xwrki, sys%kmesh(3), sys%kmesh(3), sys%kmesh(2), sys%kmesh(1), -1, wrk, jfft )
+        call cfft( xwrkr(1,xiter), xwrki(1,xiter), sys%kmesh(3), sys%kmesh(3), sys%kmesh(2), sys%kmesh(1), -1, wrk, jfft )
 !        call cfft( xwrkr, xwrki, sys%kmesh(1), sys%kmesh(1), sys%kmesh(2), sys%kmesh(3), -1, wrk, jfft )
 
-        xwrkr( : ) = xwrkr( : ) * W( :, ixpt )
-        xwrki( : ) = xwrki( : ) * W( :, ixpt )
+        xwrkr( :, xiter ) = xwrkr( :, xiter ) * W( :, ixpt )
+        xwrki( :, xiter ) = xwrki( :, xiter ) * W( :, ixpt )
 
-        call cfft( xwrkr, xwrki, sys%kmesh(3), sys%kmesh(3), sys%kmesh(2), sys%kmesh(1), +1, wrk, jfft )
+        call cfft( xwrkr(1,xiter), xwrki(1,xiter), sys%kmesh(3), sys%kmesh(3), sys%kmesh(2), sys%kmesh(1), +1, wrk, jfft )
 !        call cfft( xwrkr, xwrki, sys%kmesh(1), sys%kmesh(1), sys%kmesh(2), sys%kmesh(3), +1, wrk, jfft )
-        rtphi( ixpt, :, ialpha ) = xwrkr( : )
-        itphi( ixpt, :, ialpha ) = xwrki( : )
+        
+        enddo
+!        rtphi( ixpt, :, ialpha ) = xwrkr( : )
+!        itphi( ixpt, :, ialpha ) = xwrki( : )
 
-!        iq = 0
-!        do iq1 = 1, sys%kmesh(1)
-!          do iq2 = 1, sys%kmesh(2)
-!            do iq3 = 1, sys%kmesh(3)
-!              iq = iq + 1
-!              ii = 1 + ( iq1 - 1 ) + sys%kmesh( 1 ) * ( ( iq2 - 1 ) + sys%kmesh( 2 ) * ( iq3 - 1 ) )
-!              rphi( iq, ixpt, ialpha ) = xwrkr( ii )
-!              iphi( iq, ixpt, ialpha ) = xwrki( ii )
-!!              rtphi( ixpt, iq, ialpha ) = xwrkr( ii )
-!!              itphi( ixpt, iq, ialpha ) = xwrki( ii )
-!            enddo
-!          enddo
-!        enddo
-!        rtphi( ixpt, :, ialpha ) = rphi( :, ixpt, ialpha )
-!        itphi( ixpt, :, ialpha ) = iphi( :, ixpt, ialpha )
 
-      
+        xiter = xstop - iixpt + 1
+        do ikpt = 1, lr%my_nkpts
+          rtphi( iixpt:xstop, ikpt, ialpha ) = xwrkr( ikpt, 1:xiter )
+          itphi( iixpt:xstop, ikpt, ialpha ) = xwrki( ikpt, 1:xiter )
+        enddo
+
      enddo
    enddo
 !$OMP END DO
 
 
 !$OMP DO COLLAPSE( 2 )
+    do ikpt = 1, lr%my_nkpts  ! swap k and and alpha to reduce dependencies
       do ialpha = 1, sys%nalpha
-        do ikpt = 1, lr%my_nkpts  ! swap k and and alpha to reduce dependencies
           do ixpt = 1, lr%my_nxpts
 #ifdef BLAS
 !            call DAXPY( sys%num_bands, rphi(ikpt,ixpt,ialpha), re_bloch_state(1,ikpt,ixpt), 1, &
@@ -873,11 +867,17 @@ module ocean_long_range
                         hp%i(1,ikpt,ialpha), 1 )
 #else
             hp%r(:,ikpt,ialpha) = hp%r(:,ikpt,ialpha) &
-                                + re_bloch_state(:,ikpt,ixpt) * rphi(ikpt,ixpt,ialpha ) &
-                                + im_bloch_state(:,ikpt,ixpt) * iphi(ikpt,ixpt,ialpha )
+                                + re_bloch_state(:,ikpt,ixpt) * rtphi(ixpt,ikpt,ialpha ) &
+                                + im_bloch_state(:,ikpt,ixpt) * itphi(ixpt,ikpt,ialpha )
             hp%i(:,ikpt,ialpha) = hp%i(:,ikpt,ialpha) &
-                                + re_bloch_state(:,ikpt,ixpt) * iphi(ikpt,ixpt,ialpha ) &
-                                - im_bloch_state(:,ikpt,ixpt) * rphi(ikpt,ixpt,ialpha )
+                                + re_bloch_state(:,ikpt,ixpt) * itphi(ixpt,ikpt,ialpha ) &
+                                - im_bloch_state(:,ikpt,ixpt) * rtphi(ixpt,ikpt,ialpha )
+!            hp%r(:,ikpt,ialpha) = hp%r(:,ikpt,ialpha) &
+!                                + re_bloch_state(:,ikpt,ixpt) * rphi(ikpt,ixpt,ialpha ) &
+!                                + im_bloch_state(:,ikpt,ixpt) * iphi(ikpt,ixpt,ialpha )
+!            hp%i(:,ikpt,ialpha) = hp%i(:,ikpt,ialpha) &
+!                                + re_bloch_state(:,ikpt,ixpt) * iphi(ikpt,ixpt,ialpha ) &
+!                                - im_bloch_state(:,ikpt,ixpt) * rphi(ikpt,ixpt,ialpha )
 #endif
           enddo
         enddo
@@ -889,7 +889,8 @@ module ocean_long_range
 !$OMP END PARALLEL
 ! Possibly use reduction or something to take care of hpsi
 
-    deallocate( rphi, iphi, rtphi, itphi ) 
+!    deallocate( rphi, iphi, rtphi, itphi ) 
+    deallocate( rtphi, itphi ) 
 
 
 !    call cpu_time( time2 )
