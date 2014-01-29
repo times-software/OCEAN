@@ -352,8 +352,10 @@ module OCEAN_multiplet
 !         call nbsemhsetup( sys%cur_run%ZNL(3), lv, nproj( lv ), mham( lv ), hcms( ii:ii+mham( lv )-1 ) , &
 !              hcml( ii:ii+mham( lv )-1 ), hvms( ii:ii+mham( lv )-1 ), hvml( ii:ii+mham( lv )-1 ), hvnu( ii:ii+mham( lv )-1 ), &
 !              mhr( jj:jj+mham( lv )*mham( lv )-1 ), mhi( jj:jj+mham( lv )*mham( lv )-1 ), add10 )
-          call nbsemhsetup( sys%cur_run%ZNL(3), lv, nproj( lv ), mham( lv ), hcms( ii ) , hcml( ii ), hvms( ii ), hvml( ii ), hvnu( ii ), &
-          mhr( jj ), mhi( jj ), add10 )
+          call nbsemhsetup2( sys%cur_run%ZNL(3), lv, nproj( lv ), mham( lv ), & 
+              hcms( ii:ii+mham(lv)-1 ) , hcml( ii:ii+mham(lv)-1 ), hvms( ii:ii+mham(lv)-1 ), &
+              hvml( ii:ii+mham(lv)-1 ), hvnu( ii:ii+mham(lv)-1 ), &
+              mhr( jj:jj-1+mham(lv)*mham(lv) ), mhi( jj:jj-1+mham(lv)*mham(lv) ), add10 )
       end do
       mhr = mhr / 27.2114d0
       mhi = mhi / 27.2114d0
@@ -706,12 +708,13 @@ module OCEAN_multiplet
 
     mul = inter / ( dble( sys%nkpts ) * sys%celvol )
 
+!$OMP PARALLEL &
+!$OMP DEFAULT( NONE ) &
+!$OMP PRIVATE( i, ialpha, l, m, ispn, nu, ikpt, ibnd ) &
+!$OMP SHARED( ampr, ampi, in_vec, mpcr, mpci, sys, out_vec, mpm, hampi, hampr, ct_n, ct_list, mul, nproj )
+
+
     do i = 1, ct_n
- ! $OMP PARALLEL DO &
- ! $OMP DEFAULT( NONE ) &
- ! $OMP PRIVATE( ialpha, l, nu, m, ampr, ampi, hampr, hampi, ispn ) &
- ! $OMP SHARED( mul, sys, lmin, lmax, nproj ) &
- ! $OMP SHARED( mpcr, mpci, mpm, in_vec, out_vec )
 
     ialpha = ct_list( 1, i )
     l = ct_list( 2, i )
@@ -724,11 +727,8 @@ module OCEAN_multiplet
     ampr( : ) = 0
     ampi( : ) = 0
     do nu = 1, nproj( l )
-!$OMP PARALLEL DO COLLAPSE( 2 ) &
-!$OMP DEFAULT( NONE ) &
-!$OMP PRIVATE( ikpt, ibnd ) &
-!$OMP FIRSTPRIVATE( ialpha, l, m, nu, ispn ) &
-!$OMP SHARED( in_vec, mpcr, mpci, sys ) &
+
+!$OMP DO COLLAPSE( 1 ) &
 !$OMP REDUCTION(+:ampr,ampi)
             do ikpt = 1, sys%nkpts
               do ibnd = 1, sys%num_bands
@@ -740,10 +740,10 @@ module OCEAN_multiplet
                            + in_vec%i( ibnd, ikpt, ialpha ) * mpcr( ibnd, ikpt, nu, m, l, ispn )
                enddo
             enddo
-!$OMP END PARALLEL DO
+!$OMP END DO
           enddo
 
-
+!$OMP SINGLE
           hampr( : ) = 0
           hampi( : ) = 0
           do nu = 1, nproj( l )
@@ -752,14 +752,12 @@ module OCEAN_multiplet
           enddo
           hampr( : ) = hampr( : ) * mul
           hampi( : ) = hampi( : ) * mul
+!$OMP END SINGLE
 
 
           do nu = 1, nproj( l )
-!$OMP PARALLEL DO COLLAPSE( 2 ) &
-!$OMP DEFAULT( NONE ) &
-!$OMP PRIVATE( ikpt, ibnd ) &
-!$OMP FIRSTPRIVATE( ialpha, l, m, nu, ispn, hampr, hampi ) &
-!$OMP SHARED( out_vec, mpcr, mpci )
+
+!$OMP DO COLLAPSE( 1 ) 
             do ikpt = 1, sys%nkpts
               do ibnd = 1, sys%num_bands
                 out_vec%r( ibnd, ikpt, ialpha ) = out_vec%r( ibnd, ikpt, ialpha ) &
@@ -770,10 +768,10 @@ module OCEAN_multiplet
                                            - mpci( ibnd, ikpt, nu, m, l, ispn ) * hampr( nu )
               enddo
             enddo
-!$OMP END PARALLEL DO
+!$OMP END DO
           enddo
         enddo
-! $OMP END PARALLEL DO
+!$OMP END PARALLEL 
 
   end subroutine OCEAN_ctact_dist
 
@@ -913,16 +911,18 @@ module OCEAN_multiplet
     mul = inter / ( dble( sys%nkpts ) * sys%celvol )
 !    write(6,*) mul
 !    do lv = lvl, lvh
+
+
+!$OMP PARALLEL &
+!$OMP PRIVATE( ic, ivml, nu, ii, jj, j1, ispn, i, lv ) &
+!$OMP SHARED( mul, nproj, mham, jbeg, pwr, pwi, mhr, mhi, mpcr, mpci, hpwr, hpwi, in_vec, out_vec, sys, fg_n, fg_list ) &
+!$OMP DEFAULT( NONE )
     do i = 1, fg_n
       lv = fg_list( i )
       pwr( : ) = 0
       pwi( : ) = 0
       hpwr( : ) = 0
       hpwi( : ) = 0
-!$OMP PARALLEL &
-!$OMP PRIVATE( ic, ivml, nu, ii, jj, j1, ispn ) &
-!$OMP SHARED( mul, nproj, lv, mham, jbeg, pwr, pwi, mhr, mhi, mpcr, mpci, hpwr, hpwi, in_vec, out_vec, sys ) &
-!$OMP DEFAULT( NONE )
 
 !$OMP DO 
       do ic = 1, sys%cur_run%nalpha
@@ -987,8 +987,8 @@ module OCEAN_multiplet
         enddo
       enddo
 !$OMP END DO
-!$OMP END PARALLEL 
     end do
+!$OMP END PARALLEL 
     !
 
   end subroutine fgact_dist

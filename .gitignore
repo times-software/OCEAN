@@ -1,5 +1,6 @@
 *.mod
 *.o
+*__genmod.f90
 ocean.x
 
 jlmfft.f
