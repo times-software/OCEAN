@@ -79,11 +79,11 @@ module OCEAN_system
   end subroutine OCEAN_sys_update
 
   subroutine OCEAN_sys_init( sys, ierr )
-    use OCEAN_mpi, ONLY : myid, comm, root
+    use OCEAN_mpi, ONLY : myid, comm, root, nproc
     implicit none
      
 
-    type( o_system ), intent( out ) :: sys
+    type( o_system ), intent( inout ) :: sys
     integer, intent( inout ) :: ierr
 
     real( DP ) :: inter
@@ -107,9 +107,11 @@ module OCEAN_system
       open(unit=99,file='ZNL',form='formatted',status='old')
       rewind(99) 
       read(99,*) sys%ZNL(:)
+      write(6,*) sys%ZNL(:)
       close(99) 
       ! nalpha is ( nspin valence ) * ( nspin core ) * ( 2 * l_core + 1 )
       sys%nalpha = 4 * ( 2 * sys%ZNL(3) + 1 )
+      write(6,*) sys%nalpha
 
       open(unit=99,file='nbuse.ipt',form='formatted',status='old')
       rewind(99)
@@ -152,6 +154,9 @@ module OCEAN_system
     endif
 #ifdef MPI
 ! Could create an mpi_datatype, but probably not worth it
+
+    if( nproc .gt. 1 ) then
+
     call MPI_BCAST( sys%celvol, 1, MPI_DOUBLE_PRECISION, root, comm, ierr )
     if( ierr .ne. MPI_SUCCESS ) goto 111
     call MPI_BCAST( sys%avec, 9, MPI_DOUBLE_PRECISION, root, comm, ierr )
@@ -190,6 +195,8 @@ module OCEAN_system
     if( ierr .ne. MPI_SUCCESS ) goto 111
 
 
+    endif
+
 
 #endif
 111 continue
@@ -216,7 +223,7 @@ module OCEAN_system
     use OCEAN_mpi, ONLY : myid, comm, root
     implicit none
 
-    type( o_system ), intent( out ) :: sys
+    type( o_system ), intent( inout ) :: sys
     integer, intent( out ) :: running_total
     integer, intent( inout ) :: ierr
 
