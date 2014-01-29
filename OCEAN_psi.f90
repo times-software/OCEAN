@@ -6,20 +6,20 @@ module OCEAN_psi
   save
 
 !  COMPLEX(DP),  POINTER :: psi(:,:,:)
-!DEC$ ATTRIBUTES ALIGN: 32 :: psi
+!!DEC$ ATTRIBUTES ALIGN: 32 :: psi
 
 !  COMPLEX(DP), ALLOCATABLE, TARGET :: old_psi(:,:,:)
-!DEC$ ATTRIBUTES ALIGN: 32 :: old_psi
+!!DEC$ ATTRIBUTES ALIGN: 32 :: old_psi
 !  COMPLEX(DP), ALLOCATABLE, TARGET :: new_psi(:,:,:)
-!DEC$ ATTRIBUTES ALIGN: 32 :: new_psi
+!!DEC$ ATTRIBUTES ALIGN: 32 :: new_psi
 
 !  COMPLEX(DP), ALLOCATABLE, TARGET :: lr_psi(:,:,:)
-!DEC$ ATTRIBUTES ALIGN: 32 :: lr_psi
+!!DEC$ ATTRIBUTES ALIGN: 32 :: lr_psi
 !  COMPLEX(DP), ALLOCATABLE, TARGET :: mult_psi(:,:,:)
-!DEC$ ATTRIBUTES ALIGN: 32 :: mult_psi
+!!DEC$ ATTRIBUTES ALIGN: 32 :: mult_psi
 
 !  COMPLEX(DP), ALLOCATABLE, TARGET :: hpsi(:,:,:)
-!DEC$ ATTRIBUTES ALIGN: 32 :: hpsi
+!!DEC$ ATTRIBUTES ALIGN: 32 :: hpsi
 
 
   REAL(DP), public :: kpref
@@ -40,7 +40,7 @@ module OCEAN_psi
 
 
   public :: OCEAN_psi_init, OCEAN_psi_kill, OCEAN_psi_load, OCEAN_psi_sum_lr,  &
-            OCEAN_psi_sum, OCEAN_psi_ab, OCEAN_psi_set_prec
+            OCEAN_psi_sum, OCEAN_psi_ab, OCEAN_psi_set_prec, OCEAN_psi_write
   contains
 
   subroutine OCEAN_psi_set_prec( sys, energy, gprc, psi_in, psi_out )
@@ -348,11 +348,11 @@ module OCEAN_psi
 
       val = 0.0_DP
       do ialpha = 1, sys%nalpha
-!#ifdef BLAS2
+! !#ifdef BLAS2
 !        nrm = DZNRM2( psi(1,1,ialpha), psi_bands_pad*psi_kpts_pad, 1 )
 !        write( 6, '(1a12,1i4,1x,1e15.8)' ) 'channel dot', ialpha, nrm**2
 !        val = val + nrm
-!#else
+! !#else
         nrm = 0.0_DP
         do ikpt = 1, sys%nkpts
 !          nrm = nrm + dot_product( psi( 1 : sys%num_bands, ikpt, ialpha ), psi( 1 : sys%num_bands, ikpt, ialpha ) )
@@ -360,7 +360,7 @@ module OCEAN_psi
         enddo
         write( 6, '(1a12,1i4,1x,1e15.8)' ) 'channel dot', ialpha, nrm
         val = val +  nrm 
-!#endif
+! !#endif
       enddo
       val = sqrt(val)
       kpref = 4.0d0 * pi * val ** 2 / (dble(sys%nkpts) * sys%celvol ** 2 ) 
@@ -422,7 +422,7 @@ module OCEAN_psi
       write(6,*) 'Reading in projector coefficients'
       call OCEAN_psi_dotter( sys, p, ierr )
       if( ierr .ne. 0 ) goto 111
-      write (6,*) 'band states have been read in'
+      write (6,*) 'band states have been read in',  sys%nalpha
 
     
       val = 0.0_DP
@@ -464,6 +464,40 @@ module OCEAN_psi
   111 continue
 
   end subroutine OCEAN_psi_load
+
+  subroutine OCEAN_psi_write( sys, p, ierr )
+    use OCEAN_mpi
+    use OCEAN_system
+    use mpi
+    use AI_kinds
+    
+    implicit none
+
+    type(O_system), intent( in ) :: sys
+    type(OCEAN_vector), intent( in ) :: p
+    integer, intent( inout ) :: ierr
+
+    character( LEN = 17 ) :: rhs_filename
+
+    complex(DP), allocatable :: out_vec(:,:,:)
+
+
+    if( myid .ne. root ) return
+
+    allocate( out_vec(sys%num_bands, sys%nkpts, sys%nalpha ) )
+    out_vec(:,:,:) = cmplx( p%r(1:sys%num_bands,1:sys%nkpts,:), p%i(1:sys%num_bands,1:sys%nkpts,:) )
+
+    write(rhs_filename,'(A4,A2,A1,I4.4,A1,A2,A1,I2.2)' ) 'rhs_', sys%cur_run%elname, &
+            '.', sys%cur_run%indx, '_', '1s', '_', sys%cur_run%photon
+    open(unit=99,file=rhs_filename,form='unformatted',status='unknown')
+    rewind( 99 )
+    write( 99 ) out_vec
+    close( 99 )
+
+    deallocate(out_vec) 
+
+  end subroutine OCEAN_psi_write
+
 
 
   subroutine OCEAN_psi_dotter( sys, p, ierr )

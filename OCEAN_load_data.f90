@@ -20,6 +20,7 @@ subroutine OCEAN_load_data( sys, hay_vec, lr, ierr )
   if( myid .eq. root ) write(6,*) 'Load matrix elements'
   call ocean_psi_load( sys, hay_vec, ierr )
   if( myid .eq. root ) write(6,*) 'Matrix elements loaded'
+  call ocean_psi_write( sys, hay_vec, ierr )
 
   if( sys%e0 ) then
     if( myid .eq. root ) write(6,*) 'Init energies'
