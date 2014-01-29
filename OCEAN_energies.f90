@@ -147,14 +147,6 @@ module OCEAN_energies
 
       close( 99 )
 
-      open(unit=99,file='energies.txt',form='formatted')
-      rewind(99)
-      do i = 1, sys%nkpts
-        do j = 1, sys%num_bands
-          write(99,*) j, energies(j,i,1)
-        enddo
-      enddo
-      close(99)
 
       inquire(file='gw_control',exist=have_gw)
       if( have_gw ) then
@@ -203,6 +195,14 @@ module OCEAN_energies
         endif
       endif
 
+!      open(unit=99,file='energies.txt',form='formatted')
+!      rewind(99)
+!      do i = 1, sys%nkpts
+!        do j = 1, sys%num_bands
+!          write(99,*) j, energies(j,i,1)
+!        enddo
+!      enddo
+!      close(99)
 
     endif
   ! Need to sychronize to test for ierr from above?

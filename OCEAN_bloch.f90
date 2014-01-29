@@ -27,7 +27,7 @@ module OCEAN_bloch
   logical function OCEAN_bloch_is_loaded()
     OCEAN_bloch_is_loaded = is_loaded
     return
-  end 
+  end function OCEAN_bloch_is_loaded
 
   subroutine OCEAN_bloch_lrLOAD( sys, tau, xshift, rbs_out, ibs_out, ierr )
     use OCEAN_mpi
