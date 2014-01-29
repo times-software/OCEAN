@@ -20,6 +20,7 @@ module OCEAN_action
   REAL(DP) :: el, eh, gam0, eps, nval,  ebase
   REAL(DP) :: gres, gprc, ffff, ener
   REAL(DP) :: e_start, e_stop, e_step
+  REAL(DP), ALLOCATABLE :: e_list( : )
 
   
   INTEGER  :: haydock_niter = 0
@@ -119,6 +120,8 @@ module OCEAN_action
       call fftw_free( cp_lrpsi_i )
       mem_lrpsi_i => null()
     endif
+
+    if( allocated( e_list ) ) deallocate( e_list )
 
   end subroutine OCEAN_hay_dealloc
 
@@ -360,6 +363,7 @@ module OCEAN_action
     character( LEN=5) :: eval
 
     character( LEN = 21 ) :: abs_filename
+!    character( LEN = 17 ) :: rhs_filename
     character( LEN = 25 ) :: e_filename
 
     complex( DP ), allocatable, dimension ( : ) :: x, rhs, v1, v2, pcdiv, cwrk
@@ -406,11 +410,18 @@ module OCEAN_action
     allocate( rhs( ntot ), v1( ntot ), v2( ntot ), pcdiv( ntot ), x( ntot ) )
 
     call vtor( sys, hay_vec, rhs )
+!    write(rhs_filename,'(A4,A2,A1,I4.4,A1,A2,A1,I2.2)' ) 'rhs_', sys%cur_run%elname, &
+!            '.', sys%cur_run%indx, '_', '1s', '_', sys%cur_run%photon
+!    open(unit=99,file=rhs_filename,form='unformatted',status='unknown')
+!    rewind( 99 )
+!    write( 99 ) rhs
+!    close( 99 )
 
 
 !    call OCEAN_tk_init()
     do iter = 1, inv_loop
-      ener = ( e_start + ( iter - 1 ) * e_step ) / 27.2114_DP
+!      ener = ( e_start + ( iter - 1 ) * e_step ) / 27.2114_DP
+      ener = e_list( iter ) / 27.2114_DP
       if( myid .eq. root ) write(6,*) ener * 27.2114_DP
 
 !      call OCEAN_action_set_psi( psi )      
@@ -458,7 +469,7 @@ module OCEAN_action
 
 
       if( myid .eq. 0 ) then
-        relative_error = f( 2 ) / ( dimag( dot_product( rhs, x ) ) * kpref )
+        relative_error = f( 2 ) / ( dimag( - dot_product( rhs, x ) ) ) !* kpref )
         write ( 76, '(1p,1i5,4(1x,1e15.8))' ) int1, ener*27.2114_DP, &
                   ( 1.0d0 - dot_product( rhs, x ) ) * kpref, relative_error
         call flush(76)
@@ -728,7 +739,8 @@ module OCEAN_action
 
     integer, intent( inout ) :: ierr
 
-    integer :: dumi
+    integer :: dumi, iter
+    character(len=4) :: inv_style
     real :: dumf
 
     if( myid .eq. root ) then
@@ -748,9 +760,23 @@ module OCEAN_action
           read(99,*) ne, el, eh, gam0, ebase
         case('inv')
           read(99,*) nloop, gres, gprc, ffff, ener
-          read(99,*) e_start, e_stop, e_step
-          inv_loop = aint( ( e_stop - e_start ) / e_step )
-          if (inv_loop .lt. 1 ) inv_loop = 1
+          read(99,*) inv_style
+          select case( inv_style )
+            case('list')
+              read(99,*) inv_loop
+              allocate( e_list( inv_loop ) )
+              do iter = 1, inv_loop
+                read(99,*) e_list(iter)
+              enddo
+            case('loop')
+              read(99,*) e_start, e_stop, e_step
+              inv_loop = floor( ( e_stop - e_start + e_step*.9) / e_step )
+              if (inv_loop .lt. 1 ) inv_loop = 1
+              allocate( e_list( inv_loop ) )
+              do iter = 1, inv_loop
+                e_list( iter ) = e_start + ( iter - 1 ) * e_step
+              enddo
+            end select          
         case default
           ierr = -1
       end select
@@ -786,6 +812,8 @@ module OCEAN_action
     call MPI_BCAST( e_stop, 1, MPI_DOUBLE_PRECISION, root, comm, ierr )
     call MPI_BCAST( e_step, 1, MPI_DOUBLE_PRECISION, root, comm, ierr )
     call MPI_BCAST( inv_loop, 1, MPI_INTEGER, root, comm, ierr )
+    if( myid .ne. root ) allocate( e_list( inv_loop ) )
+    call MPI_BCAST( e_list, inv_loop, MPI_DOUBLE_PRECISION, root, comm, ierr )
 #endif
 
     if( allocated( a ) ) deallocate( a )
