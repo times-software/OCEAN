@@ -121,6 +121,7 @@ module OCEAN_action
       mem_lrpsi_i => null()
     endif
 
+
     if( allocated( e_list ) ) deallocate( e_list )
 
   end subroutine OCEAN_hay_dealloc
@@ -219,6 +220,8 @@ module OCEAN_action
     lr_psi%i = 0.0_DP
     lr_psi%bands_pad = hay_vec%bands_pad
     lr_psi%kpts_pad  = hay_vec%kpts_pad
+
+
 
 
   end subroutine OCEAN_hay_alloc
@@ -380,6 +383,9 @@ module OCEAN_action
     eval = 'zerox'
     f( 1 ) = ffff
 
+    ! for error checking
+    allocate( cwrk( 1 ) )
+
     call ocean_hay_alloc( sys, hay_vec, psi, hpsi, old_psi, new_psi, multiplet_psi, &
                           long_range_psi, ierr )
 
@@ -409,6 +415,8 @@ module OCEAN_action
     ntot = sys%nalpha * sys%nkpts * sys%num_bands
     allocate( rhs( ntot ), v1( ntot ), v2( ntot ), pcdiv( ntot ), x( ntot ) )
 
+    !
+
     call vtor( sys, hay_vec, rhs )
 !    write(rhs_filename,'(A4,A2,A1,I4.4,A1,A2,A1,I2.2)' ) 'rhs_', sys%cur_run%elname, &
 !            '.', sys%cur_run%indx, '_', '1s', '_', sys%cur_run%photon
@@ -430,9 +438,12 @@ module OCEAN_action
       psi%r( :, :, : ) = 1.0_DP
       psi%i( :, :, : ) = 0.0_DP
       call OCEAN_xact( sys, psi, hpsi, multiplet_psi, long_range_psi, lr, ierr )
+      ! After OCEAN_xact every proc has the same copy of hpsi (and should still have the same psi)
+
+      call OCEAN_tk_start( tk_inv )
+
 
 !      call OCEAN_psi_set_prec( sys, ener, gprc, hpsi, prec_psi )
-      call OCEAN_tk_start( tk_inv )
       call vtor( sys, hpsi, v1 )
       do i = 1, ntot
         pcdiv( i ) = ( ener - v1( i ) - rm1 * gprc ) / ( ( ener - v1( i ) ) ** 2 + gprc ** 2 )
@@ -490,6 +501,11 @@ module OCEAN_action
     call OCEAN_hay_dealloc( ierr )
 
 !    if( myid .eq. root ) call OCEAN_tk_printtimes
+#ifdef MPI
+    write(6,*) 'OCEAN_GMRES:', myid, root
+    call MPI_BARRIER( comm, ierr )
+#endif
+
 
   end subroutine OCEAN_GMRES
 

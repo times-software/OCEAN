@@ -12,9 +12,12 @@ subroutine OCEAN_load_data( sys, hay_vec, lr, ierr )
   type(ocean_vector), intent( inout ) :: hay_vec
   type( long_range ), intent(out) :: lr
 
+#ifdef MPI
+    write(6,*) myid, root
+    call MPI_BARRIER( comm, ierr )
+#endif
 
   if( myid .eq. root ) write(6,*) 'Calc Type = ', sys%calc_type
-
   if( myid .eq. root ) write(6,*) 'Init matrix elements'
   call ocean_psi_init( sys, hay_vec, ierr )
   if( myid .eq. root ) write(6,*) 'Load matrix elements'

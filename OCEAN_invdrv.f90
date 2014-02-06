@@ -146,13 +146,13 @@ subroutine update( x, ax, g, pg, apg, u, au, c, n, i1, i2, n2 )
   r = 0
   dumc=0
 
-!$OMP PARALLEL DO &
-!$OMP DEFAULT( NONE ) &
-!$OMP SCHEDULE( STATIC ) &
-!$OMP FIRSTPRIVATE( g, i2, n ) &
-!$OMP PRIVATE( ip, nstart, nstop ) &
-!$OMP SHARED( au, c ) &
-!$OMP REDUCTION(+:r,dumc)
+!!$OMP PARALLEL DO &
+!!$OMP DEFAULT( NONE ) &
+!!$OMP SCHEDULE( STATIC ) &
+!!$OMP FIRSTPRIVATE( g, i2, n ) &
+!!$OMP PRIVATE( ip, nstart, nstop ) &
+!!$OMP SHARED( au, c ) &
+!!$OMP REDUCTION(+:r,dumc)
 do nstart = 1, n, 256
   nstop = min( nstart+255,n)
 
@@ -161,7 +161,7 @@ do nstart = 1, n, 256
     dumc(ip) = dumc(ip) + dot_product( au(nstart:nstop, i2), au( nstart:nstop, ip ) )
   enddo
 enddo
-!$OMP END PARALLEL DO
+!!$OMP END PARALLEL DO
 
   c( 1:i2, i2 ) = conjg( dumc(:) )
   c( i2, 1:i2 ) = dumc(:)
@@ -170,12 +170,12 @@ enddo
 
   coeff(1:i2) = matmul( cinv(1:i2,1:i2), r(1:i2) )
 
-!$OMP PARALLEL DO &
-!$OMP DEFAULT( NONE ) &
-!$OMP SCHEDULE( STATIC ) &
-!$OMP FIRSTPRIVATE( coeff, n, i2 ) &
-!$OMP PRIVATE( nstart, nstop, i ) &
-!$OMP SHARED( x, ax, u, au )
+!!$OMP PARALLEL DO &
+!!$OMP DEFAULT( NONE ) &
+!!$OMP SCHEDULE( STATIC ) &
+!!$OMP FIRSTPRIVATE( coeff, n, i2 ) &
+!!$OMP PRIVATE( nstart, nstop, i ) &
+!!$OMP SHARED( x, ax, u, au )
   do nstart = 1, n, 256
     nstop = min( nstart+255,n)
     do i = 1, i2
@@ -183,7 +183,7 @@ enddo
        ax(nstart:nstop) = ax(nstart:nstop) + coeff(i) * au( nstart:nstop , i )
     end do
   enddo
-!$OMP END PARALLEL DO
+!!$OMP END PARALLEL DO
 
 
 !  call sizereport( 0, 'c2........' ); deallocate( c2 ) 
