@@ -363,12 +363,33 @@
   gre_dim = npt !+ nptot  
 
   gre_mb = gre_dim / nprow 
-  gre_mb = min( gre_mb, 90 )
+!  gre_mb = min( gre_mb, 80 )
+  if( gre_mb .gt. 90 ) then
+    do it = 48, 90
+      if( mod( ( gre_dim / nprow ), it ) .eq. 0 ) gre_mb = it
+    enddo
+  endif
   gre_mloc = numroc( gre_dim, gre_mb, myrow, 0, nprow )
 
   gre_nb = gre_dim / npcol
-  gre_nb = min( gre_nb, 90 )
+!  gre_nb = min( gre_nb, 80 )
+  if( gre_nb .gt. 90 ) then
+    do it = 48, 90
+      if( mod( ( gre_dim / nprow ), it ) .eq. 0 ) gre_nb = it
+    enddo
+  endif
   gre_nloc = numroc( gre_dim, gre_nb, mycol, 0, npcol )
+
+
+  if( ionode ) write(stdout,*) 'GRE blocking: ', gre_mb, gre_nb
+
+
+
+  
+
+
+  
+
 
 !  nb2 = 900 /npcol
 !  nb2 = min( nb2, 32 )
@@ -801,11 +822,12 @@
       call OCEAN_t_printtime( "Uofrandb", stdout )
       call OCEAN_t_reset
 
-      if( .true. ) then
+!JTV right now this needs to be square, fixable
+      if( .true. .and. nprow .eq. npcol ) then
         call OCEAN_build_chi(myrow, mycol,nprow,npcol,context_cyclic,band_subset,gre_nb,gre_mb,&
                              desc_cyclic(NB_),desc_bofr2,sigma,t,nt,eshift,fermi_energy,eigval,&
                              uofrandb,gre_mloc,gre_nloc,desc_cyclic(N_),gre,gre_small,gre_dim,&
-                             pref,npt,nbnd_small)
+                             pref,npt,nbnd_small,desc_gre)
       else
 !      call OCEAN_t_reset
 !      do i_se = 0, n_se
@@ -975,7 +997,7 @@
           su2 = 0
           do j = 1, gre_dim !npt
             xirow( j ) = xi_local( i, j )
-            su2 = su2 + vipt( j ) * wpt( j )
+            su2 = su2 + vipt( j ) * wpt( j ) * xi_local( i, j )
           enddo
           write(99) xirow
 
@@ -998,7 +1020,10 @@
     endif
     !
     ! this is slow
+    call OCEAN_t_reset
     call mp_sum( gre_small, cross_pool_comm )
+    call OCEAN_t_printtime( 'GRE share', stdout )
+
     full_xi = 0.0_DP
     ! later have each pool work on subset of i ?
     if( mypool .eq. 0 ) then
@@ -1025,7 +1050,7 @@
           su2 = 0
           do j = 1, gre_dim
             xirow( j ) = xi_local( i, j )
-            su2 = su2 + vipt( j ) * wpt( j )
+            su2 = su2 + vipt( j ) * wpt( j ) * xi_local( i, j )
           enddo
           write(99) xirow
 
@@ -1050,7 +1075,7 @@
     deallocate( full_xi, vind, nind, xirow, xi_local )
 
   enddo ! itau
-      deallocate( uofrandb, bofr )
+  deallocate( uofrandb, bofr )
 
   111 continue 
   write(stdout,*) ' end OCEAN_builder'

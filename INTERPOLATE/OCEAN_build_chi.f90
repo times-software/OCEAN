@@ -1,10 +1,10 @@
 subroutine OCEAN_build_chi( myrow, mycol, nprow, npcol, context, band_subset, gre_nb, gre_mb, &
       band_nb, desc_bofr2, sigma, t, nt, eshift, fermi_energy, eigval, uofrandb, gre_mloc, gre_nloc, u_m, &
-      gre, gre_small, gre_dim, pref, npt, nbnd_small )
+      gre, gre_small, gre_dim, pref, npt, nbnd_small, desc_gre )
   implicit none
   integer, parameter :: dp = kind(1.d0)
   integer, intent( in ) :: myrow, mycol, nprow, npcol, context, band_subset(2), gre_nb, gre_mb, &
-      band_nb, desc_bofr2(9), nt, gre_mloc, gre_nloc, u_m, gre_dim, npt, nbnd_small
+      band_nb, desc_bofr2(9), nt, gre_mloc, gre_nloc, u_m, gre_dim, npt, nbnd_small, desc_gre(9)
   real(dp), intent( in ) :: sigma, t(nt), eigval(band_subset(1):band_subset(2)), eshift, &
        fermi_energy, pref
   complex(dp), intent( in ) :: uofrandb( gre_mloc, u_m )
@@ -13,7 +13,9 @@ subroutine OCEAN_build_chi( myrow, mycol, nprow, npcol, context, band_subset, gr
 
   real(dp) :: deni, denr, absdiff, shifted_eig
   integer :: jblock, iblock, nband, nblocks_band, nblocks_npt, ii, jj, it, ibd,  &
-             npt_buf, nband_buf, rsrc, csrc, lrindx, lcindx, ipt
+             npt_buf, nband_buf, rsrc, csrc, lrindx, lcindx, ipt, iii, jjj, &
+             t_gre_mb, t_gre_nb
+
   integer, external :: INDXG2L
   complex(dp), allocatable :: local_uofr(:,:,:), tmp(:,:)
   complex(dp) :: scalar
@@ -27,7 +29,10 @@ subroutine OCEAN_build_chi( myrow, mycol, nprow, npcol, context, band_subset, gr
   nblocks_npt = 1 + ( npt - 1 )/gre_mb
   allocate( local_uofr( gre_mb, nband, nblocks_npt ), tmp(gre_mb,band_nb) )
   
+! This takes the wave functions which are fully distributed, and makes sure that each proc 
+!   has them
 
+! The wave functions are stored according to desc_bofr2
   do ibd = 1, nband, band_nb
     nband_buf = min( band_nb, nband - ibd + 1 )
     iblock = 0
@@ -56,12 +61,19 @@ subroutine OCEAN_build_chi( myrow, mycol, nprow, npcol, context, band_subset, gr
   do jblock = 1, nblocks_npt
     do iblock = 1, nblocks_npt
 
-      call INFOG2L( 1+(iblock-1)*gre_mb, 1+(jblock-1)*gre_nb, desc_bofr2, &
+      call INFOG2L( 1+(iblock-1)*gre_mb, 1+(jblock-1)*gre_nb, desc_gre, &
                     nprow, npcol, myrow, mycol, lrindx, lcindx, rsrc, csrc )
       if( myrow .ne. rsrc .or. mycol .ne. csrc ) cycle
 
       ii = INDXG2L( 1+(iblock-1)*gre_mb, gre_mb, myrow, 0, nprow )
       jj = INDXG2L( 1+(jblock-1)*gre_nb, gre_nb, mycol, 0, npcol )
+
+!      iii = min( ii+gre_mb-1, gre_dim )
+!      jjj = min( jj+gre_nb-1, gre_dim )
+!
+!      t_gre_mb = iii - ii + 1
+!      t_gre_nb = jjj - jj + 1
+
 
       do it = 1, nt
 
@@ -92,7 +104,8 @@ subroutine OCEAN_build_chi( myrow, mycol, nprow, npcol, context, band_subset, gr
 !                                         gre(1,1,it,i_se), 1, 1, desc_gre )
 
           if( ibd .eq. nbnd_small + band_subset(1)-1 ) then
-            gre_small(ii:ii+gre_mb-1, jj:jj+gre_nb-1,it) = gre_small(ii:ii+gre_mb-1, jj:jj+gre_nb-1,it) + tmp(:,:)
+            gre_small(ii:ii+gre_mb-1, jj:jj+gre_nb-1,it) = &
+                gre_small(ii:ii+gre_mb-1, jj:jj+gre_nb-1,it) + tmp(:,:)
           endif
 
         enddo
