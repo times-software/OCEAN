@@ -207,7 +207,6 @@ print MKRB_CONTROL "$nedges\n";
 
 
 my $temp_edgename;
-my $temp_rad = sprintf("%03.2f",$rads[0]);
 
 while ($hfinline = <HFINLIST>) {
   chomp $hfinline;
@@ -244,25 +243,34 @@ system("$para_prefix $ENV{'OCEAN_BIN'}/shirley_ham_o.x < bofr.in > bofr.out") ==
         or die "$!\nFailed to run shirley_ham from bofr.in\n";
 #JTV only works for all the same core hole potential right now
 #JTV and all the same radius too
-
-open VCx, "zpawinfo/vcxxxxx${temp_edgename}R${temp_rad}" or die "Failed to open vcxxxxxx\n$!";
-open VPERT, ">vpert" or die;
-while (<VCx>){}
-my $vpert_length = $.;
-seek(VCx,0,0);
-print VPERT "$vpert_length\n";
-while (<VCx>)
+foreach $rad (@rads)
 {
-  print VPERT $_;
+#  my $temp_rad = sprintf("%03.2f",$rads[0]);
+  my $temp_rad = sprintf("%03.2f",$rad);
+  open VCx, "zpawinfo/vcxxxxx${temp_edgename}R${temp_rad}" or die "Failed to open vcxxxxxx\n$!";
+  open VPERT, ">vpert.$rad" or die;
+  while (<VCx>){}
+  my $vpert_length = $.;
+  seek(VCx,0,0);
+  print VPERT "$vpert_length\n";
+  while (<VCx>)
+  {
+    print VPERT $_;
+  }
+  close VCx;
+  close VPERT;
+
+
 }
-close VCx;
-close VPERT;
+unlink "vpert" if (-e "vpert");
+symlink "vpert.$rads[0]", "vpert";
+
 #`cp zpawinfo/vcxxxxx${temp_edgename}R${temp_rad} ./tmp`;
 #`wc tmp > vpert`;
 #`cat tmp >> vpert`;
 
 print "ocean_builder.x\n";
-system("$para_prefix $ENV{'OCEAN_BIN'}/ocean_builder_mult.x  $pool_size  < builder.in 1> builder.out 2> builder.err") == 0
+system("$para_prefix $ENV{'OCEAN_BIN'}/ocean_builder.x  $pool_size  < builder.in 1> builder.out 2> builder.err") == 0
         or die "$!\nFailed to run ocean_builder.x\n";
 
 my $itau = 0;
@@ -337,6 +345,10 @@ while ($hfinline = <HFINLIST>) {
 #    `echo 24 > ipt`;
     print IPT "24\n";
     close IPT;
+
+
+    unlink "vpert" if( -e "vpert");
+    symlink "vpert.$rad", "vpert";
     `$ENV{'OCEAN_BIN'}/xipps.x < ipt`;
     move( "ninduced", "nin" );
 #    `mv ninduced nin`;
