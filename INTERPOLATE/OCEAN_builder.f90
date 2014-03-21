@@ -349,8 +349,6 @@ call descinit( desc_uofrandb, npt, nbasis_subset, nb, desc_cyclic(NB_), 0, 0, co
 !  endif
 
 
-  
-
 
   call mp_bcast( omega, ionode_id )
   pref = 1.d0 / ( kpt%list%nk * omega )
@@ -649,6 +647,7 @@ call descinit( desc_uofrandb, npt, nbasis_subset, nb, desc_cyclic(NB_), 0, 0, co
     endif
     !
     ! this is slow
+    call OCEAN_t_reset
     call mp_sum( gre_small, cross_pool_comm )
     real_full_xi = 0.0_DP
     ! later have each pool work on subset of i ?
@@ -676,7 +675,7 @@ call descinit( desc_uofrandb, npt, nbasis_subset, nb, desc_cyclic(NB_), 0, 0, co
           su2 = 0
           do j = 1, npt
             xirow( j ) = xi_local( i, j )
-            su2 = su2 + vipt( j ) * wpt( j )
+            su2 = su2 + vipt( j ) * wpt( j ) * xi_local( i, j )
           enddo
           write(99) xirow
 

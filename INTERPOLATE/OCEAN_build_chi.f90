@@ -31,7 +31,10 @@ subroutine OCEAN_build_chi( myrow, mycol, nprow, npcol, context, band_subset, gr
   allocate( local_uofr( gre_mb, nband, nblocks_npt ), tmp(gre_mb,band_nb) )
   
 !  write(6,*) gre_mb, gre_nb, gre_mloc, gre_nloc, nblocks_npt
+! This takes the wave functions which are fully distributed, and makes sure that each proc 
+!   has them
 
+! The wave functions are stored according to desc_bofr2
   do ibd = 1, nband, band_nb
     nband_buf = min( band_nb, nband - ibd + 1 )
     iblock = 0
@@ -66,6 +69,13 @@ subroutine OCEAN_build_chi( myrow, mycol, nprow, npcol, context, band_subset, gr
       if( myrow .ne. rsrc .or. mycol .ne. csrc ) cycle
 
       ii = INDXG2L( 1+(iblock-1)*gre_mb, gre_mb, myrow, 0, nprow )
+
+!      iii = min( ii+gre_mb-1, gre_dim )
+!      jjj = min( jj+gre_nb-1, gre_dim )
+!
+!      t_gre_mb = iii - ii + 1
+!      t_gre_nb = jjj - jj + 1
+
 
       do it = 1, nt
 
