@@ -13,6 +13,8 @@
   use mp_global, only : intra_pool_comm
   use shirley_ham_input, only : band_subset
 
+  use OCEAN_timer
+
   implicit none
 
   integer,external :: freeunit
@@ -35,6 +37,7 @@
   character(6), allocatable :: fntau( : )
 
 
+  call OCEAN_t_reset
 
   WRITE( stdout, '(/5x,"Calling obf2localbyk .... ",/)')
   write(stdout,*) ' npwx  = ', npwx
@@ -260,7 +263,9 @@
   enddo
   if( ionode ) then
     open(unit=99,form='formatted')
-      write( 99,*) sub_mill( :, : ) 
+      do ig = 1, npw
+        write( 99,*) sub_mill( :, : ) 
+      enddo
     close( 99 )
   endif
 
@@ -272,6 +277,8 @@
       bmet( i, j ) =dot_product( bvec( :, i ), bvec( :, j ) )
     end do
   end do
+
+  call OCEAN_t_printtime( "Stupid prep", stdout )
 
   nshift = 1
   if( have_kshift ) nshift = 2
@@ -287,39 +294,40 @@
           i = i + 1
           write(stdout,*) i
           
-  !JTV will need to fix this for dealing with the small shift for RIXS at some point
           qraw( 1 ) = ( qbase( 1 ) + dble( ik1 ) ) / dble( zn( 1 ) )
           qraw( 2 ) = ( qbase( 2 ) + dble( ik2 ) ) / dble( zn( 2 ) )
           qraw( 3 ) = ( qbase( 3 ) + dble( ik3 ) ) / dble( zn( 3 ) )
-!JTV double shifted? see qbase += below
-!          if( ishift .eq. 2 ) then
-!            qraw( : ) = qraw( : ) + kshift( : )
-!          endif
-          ! Now qraw is in crystal coords, need to put in in atomic units
-          !qphys( : ) = matmul( bg( :, 1 : 3 ), qraw( 1 : 3 ) )
            
+          call OCEAN_t_reset
           call nbsecoeffs( npw, mill, myg, bmet, bvec, evc, 1, nbnd, qraw, ntau, tau, lmin, &
-                           lmax, nproj, npmax, nqproj, dqproj, fttab, coeff, prefs )
+                           lmax, nproj, npmax, nqproj, dqproj, fttab, o2l, prefs, lml, lmm, numlm, nptot )
+          call OCEAN_t_printtime( "nbsecoeffs", stdout )
 
   !JTV I'm assuming here that the basis functions will be distributed by G
   !      such that every proc has every B_i but only B_i( local G )
-          call mp_sum( coeff )!, intra_pool_comm )
-          do itau = 1, ntau
-            do ibnd=1,nbnd
-            ip = 0
-              do ilm = 1, numlm
-                l = lml( ilm )
-                m = lmm( ilm )
-                do iproj = 1, nproj( l )
-                  ip = ip + 1
-                  ! interleavig here for later
-                  o2l( ibnd, ip, itau ) = coeff( m, ibnd, iproj, l, itau )
-                end do
-              end do
-             end do
-          enddo
+          call OCEAN_t_reset
+!          call mp_sum( coeff )!, intra_pool_comm )
+          call mp_sum( o2l )
+          call OCEAN_t_printtime( "mp_sum", stdout )
+
+          call OCEAN_t_reset
+!          do itau = 1, ntau
+!            do ibnd=1,nbnd
+!            ip = 0
+!              do ilm = 1, numlm
+!                l = lml( ilm )
+!                m = lmm( ilm )
+!                do iproj = 1, nproj( l )
+!                  ip = ip + 1
+!                  ! interleavig here for later
+!                  o2l( ibnd, ip, itau ) = coeff( m, ibnd, iproj, l, itau )
+!                end do
+!              end do
+!             end do
+!          enddo
           if( ionode ) call davcio( o2l, nwordo2l, iunout, i, +1 )
                   if( ionode ) write(iuntxt,*)  o2l(  1, 1, 1 )
+          call OCEAN_t_printtime( "Reorder & write", stdout )
 
         enddo
       enddo
@@ -361,22 +369,24 @@
 ! ibl = start band
 ! ibh = stop band
   subroutine nbsecoeffs( ng, kvc, gvecs, bmet, bvec, ck, ibl, ibh, q, ntau, tau,  &
-                         lmin, lmax, nproj, npmax, nqproj, dqproj, fttab, coeff, prefs )
+                         lmin, lmax, nproj, npmax, nqproj, dqproj, fttab, o2l, prefs, & 
+                         lml, lmm, numlm, nptot )
 !    use constants, ONLY : tpi
     use kinds, only : dp
     implicit none
     !
-    integer, intent( in ) :: ng, ibl, ibh, ntau 
+    integer, intent( in ) :: ng, ibl, ibh, ntau, numlm, nptot
     integer, intent( in ) :: lmin, lmax, npmax, nqproj
-    integer, intent( in ) :: kvc( 3, ng ), nproj( lmin : lmax )
+    integer, intent( in ) :: kvc( 3, ng ), nproj( lmin : lmax ), lml( numlm ), lmm( numlm )
     real(dp), intent( in ) :: dqproj, bvec( 3, 3 ), bmet( 3, 3 ), q( 3 ), prefs( 0 : 1000 )
     real(dp), intent( in ) :: tau( 3, ntau ), gvecs( 3, ng )
     real(dp), intent( in ) :: fttab( nqproj, npmax, lmin : lmax )
     complex(dp), intent( in ) :: ck( ng, ibl : ibh )
-    complex(dp), intent( out ) :: coeff( -lmax:lmax, ibl:ibh, npmax, lmin:lmax, ntau )
+!    complex(dp), intent( out ) :: coeff( -lmax:lmax, ibl:ibh, npmax, lmin:lmax, ntau )
+    complex(dp), intent( out ) :: o2l( nbnd, nptot, ntau )
     
     !
-    integer itau, l, ig
+    integer itau, l, ig, ip
     real(dp) :: qphase, phase
     complex(dp), allocatable :: tauphs( : , : )
     complex(dp), allocatable :: ylmfac( : , : )
@@ -389,7 +399,8 @@
     rm1 = sqrt( rm1 )
     allocate( tauphs( ng, ntau ) )
     allocate( sfq( ng, npmax, lmin : lmax ) )
-    allocate( ylmfac( ng * ( 2 * lmax + 1 ), lmin : lmax ) )
+!    allocate( ylmfac( ng * ( 2 * lmax + 1 ), lmin : lmax ) )
+    allocate( ylmfac( ng, numlm ) )
     !
     do itau = 1, ntau
 !       call getphase( ng, kvc, q, tau( 1, itau ), tauphs( 1, itau ) )
@@ -399,18 +410,33 @@
         tauphs( ig, itau ) = cos( phase ) + rm1 * sin( phase ) !cmplx( cos(phase), sin(phase) )
       enddo
     end do
+    call OCEAN_t_printtime( "Phase", stdout )
+    call OCEAN_t_reset
+
     do l = lmin, lmax
        call seanitup( ng, q, kvc, bmet, l, nproj( l ), sfq( 1, 1, l ), &
                       npmax, nqproj, dqproj, fttab( 1, 1, l ) )
-       call getylmfac( ng, kvc, q, bvec, l, ylmfac( 1, l ), prefs )
+!       call getylmfac( ng, kvc, q, bvec, l, ylmfac( 1, l ), prefs )
     end do
+    call newgetylmfac( ng, kvc, q, bvec, numlm, lml, lmm, ylmfac, prefs )
+    call OCEAN_t_printtime( "Seanitup", stdout )
+    call OCEAN_t_reset
+
+    if( .false. ) then
     do itau = 1, ntau
+       ip = 0
        do l = lmin, lmax
-          call getcoeff( l, ng, 1 + ibh - ibl, ck, tauphs( 1, itau ), ylmfac( 1, l ),  &
-                         coeff( -lmax, ibl, 1, l, itau ), lmax, npmax, sfq( 1, 1, l ), &
-                         nproj( l ) )
+          call getcoeff( l, ng, 1 + ibh - ibl, ck, tauphs( 1, itau ), ylmfac,  &
+!                         coeff( -lmax, ibl, 1, l, itau ), lmax, npmax, sfq( 1, 1, l ), &
+                         o2l( 1, 1, itau ), lmax, npmax, sfq( 1, 1, l ), &
+                         nproj( l ), lml, lmm, numlm, nptot, ip )
        end do
     end do
+    else
+      call fullgetcoeff( ng, 1 + ibh - ibl, ntau, lmin, lmax, npmax, nproj, ck, tauphs, ylmfac, &
+                           o2l, sfq, lml, lmm, numlm, nptot )
+    endif
+    call OCEAN_t_printtime( "Get Coeff", stdout )
     !
     deallocate( tauphs, ylmfac, sfq )
     !
@@ -502,33 +528,150 @@
     return
   end subroutine getylmfac
 
-  subroutine getcoeff( l, ng, nbd, ck, tauphs, ylmfac, coeff, lmax, npmax, seanfq, nproj )
+  subroutine newgetylmfac(ng, gvec, q, bvec, numlm, lml, lmm, ylmfac, prefs )
     use kinds, only : dp
     implicit none
     !
-    integer, intent( in ) :: l, ng, nbd, nproj, lmax, npmax
+    integer, intent( in ) :: ng, numlm
+    integer, intent( in ) :: gvec( 3, ng ), lml( numlm ), lmm( numlm )
+    real(dp), intent( in ) :: q( 3 ), bvec( 3, 3 ), prefs( 0 : 1000 ) 
+    complex(dp), intent( out ) :: ylmfac( ng, numlm )
+    !
+    integer :: jj, ig, m, l
+    real(dp) :: x( 3 ), pi
+    complex(dp) :: pref, ylm, rm1
+    !
+    rm1 = -1
+    rm1 = sqrt( rm1 )
+    pi = 4.0d0 * atan( 1.0d0 )
+    pref = 4.0d0 * pi * rm1 ** l
+    !
+    do ilm = 1, numlm
+      l = lml( ilm )
+      m = lmm( ilm )
+      do ig = 1, ng
+        x = 0
+        do jj = 1, 3
+          x( : ) = x( : ) + bvec( :, jj ) * ( q( jj ) + gvec( jj, ig ) )
+        enddo
+        call getylm( l, m, x( 1 ), x( 2 ), x( 3 ), ylm, prefs )
+        ylmfac( ig, ilm ) = pref * conjg( ylm )
+      enddo
+    enddo
+
+
+  end subroutine newgetylmfac
+
+  subroutine getcoeff( l, ng, nbd, ck, tauphs, ylmfac, o2l, lmax, npmax, seanfq, nproj, &
+                       lml, lmm, numlm, nptot, ip )
+    use kinds, only : dp
+    implicit none
+    !
+    integer, intent( in ) :: l, ng, nbd, nproj, lmax, npmax, numlm, nptot
+    integer, intent( in ) :: lml(numlm), lmm(numlm)
     real(dp), intent( in ) :: seanfq( ng, nproj )
     complex(dp), intent( in ) :: ck( ng, nbd )
-    complex(dp), intent( in ) :: tauphs( ng ), ylmfac( -l : l, ng )
-    complex(dp), intent( out ) :: coeff( -lmax : lmax, nbd, npmax )
+    complex(dp), intent( in ) :: tauphs( ng )!, ylmfac( -l : l, ng )
+    complex(dp), intent( in ) :: ylmfac( ng, numlm )
+!    complex(dp), intent( out ) :: coeff( -lmax : lmax, nbd, npmax )
+    complex(dp), intent( inout ) :: o2l( nbd, nptot )
+    integer, intent(inout) :: ip
     !
     integer :: m, ig, ibd, iproj
     complex(dp) :: su
     !
-    do ibd = 1, nbd
-       do iproj = 1, nproj
-          do m = -l, l
+    do ilm = 1, numlm
+      if( lml( ilm ) .eq. l ) then
+        goto 111
+      endif
+    enddo
+111 continue
+    ilm = ilm - 1
+
+      do m = -l, l
+        ilm = ilm + 1
+        do iproj = 1, nproj
+          ip = ip + 1
+            do ibd = 1, nbd
              su = 0
              do ig = 1, ng
-                su = su + ylmfac( m, ig ) * tauphs( ig ) * ck( ig, ibd ) * seanfq( ig, iproj )
+                su = su + ylmfac( ig, ilm ) * tauphs( ig ) * ck( ig, ibd ) * seanfq( ig, iproj )
              end do
-             coeff( m, ibd, iproj ) = su
+!             coeff( m, ibd, iproj ) = su
+             o2l( ibd, ip ) = su
+            end do
           end do
        end do
-    end do
     !
     return
   end subroutine getcoeff
+
+  subroutine fullgetcoeff( ng, nbd, ntau, lmin, lmax, npmax, nproj, ck, tauphs, ylmfac, & 
+                           o2l, seanfq, lml, lmm, numlm, nptot )
+    use kinds, only : DP
+    implicit none
+    integer, intent( in ) :: ng, nbd, lmin, lmax, nproj( lmin:lmax ), npmax, lml(numlm), lmm(numlm), numlm, nptot, ntau
+    real(dp), intent( in ) :: seanfq( ng, npmax, lmin : lmax )
+    complex(dp), intent( in ) :: ck( ng, nbd )
+    complex(DP), intent( in ) :: tauphs( ng, ntau ), ylmfac( ng, numlm )
+    complex(dp), intent( out ) :: o2l( nbd, nptot, ntau )
+
+    integer :: itau, ibd, ip, ilm, l, iproj, ig, ig_big, ig_by64
+    complex(dp) :: su
+
+
+    ig_by64 = (ng/64) * 64
+    
+    do ig_big = 1, ig_by64, 64
+    do itau = 1, ntau
+        ip = 0
+        do ilm = 1, numlm
+          l = lml( ilm )
+!          m = lmm( ilm )
+          do iproj = 1, nproj( l )
+            ip = ip + 1
+            do ibd = 1, nbd
+            su = 0.0_dp
+!            do ig = 1, ng
+            do ig = ig_big, ig_big+64
+!              o2l( ibd, ip, itau ) = o2l( ibd, ip, itau ) &
+              su = su &
+          + ylmfac( ig, ilm ) * tauphs( ig, itau ) * ck( ig, ibd ) * seanfq( ig, iproj, l )
+            enddo
+            o2l( ibd, ip, itau ) = o2l( ibd, ip, itau ) + su
+          enddo
+        enddo
+      enddo
+    enddo
+    enddo
+
+    if( ig_by64 .eq. ng ) return
+
+    do itau = 1, ntau
+        ip = 0 
+        do ilm = 1, numlm
+          l = lml( ilm )
+!          m = lmm( ilm )
+          do iproj = 1, nproj( l )
+            ip = ip + 1
+            do ibd = 1, nbd
+            su = 0.0_dp
+!            do ig = 1, ng
+            do ig = ig_by64 + 1, ng
+!              o2l( ibd, ip, itau ) = o2l( ibd, ip, itau ) &
+              su = su &
+          + ylmfac( ig, ilm ) * tauphs( ig, itau ) * ck( ig, ibd ) * seanfq( ig, iproj, l )
+            enddo
+            o2l( ibd, ip, itau ) = o2l( ibd, ip, itau ) + su
+          enddo
+        enddo
+      enddo
+    enddo
+
+!
+!
+  end subroutine fullgetcoeff
+
 
   subroutine make_prefs( prefs, lmax )
     use kinds, only : dp
