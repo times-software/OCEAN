@@ -1,4 +1,4 @@
-ESPRESSO_DIR = /users/jtv1/local/shirley_QE4.3-gnu-atlas
+ESPRESSO_DIR = /home/jtv1/shirley_QE4.3-gnu-atlas
 SHIRLEY_DIR = $(ESPRESSO_DIR)/SHIRLEY
 DEBUG =
 
@@ -17,9 +17,74 @@ LIBOBJS = $(ESPRESSO_DIR)/flib/ptools.a $(ESPRESSO_DIR)/flib/flib.a $(ESPRESSO_D
 
 
 OCEAN_BUILDER_EXE=ocean_builder$(DEBUG).x
+SHIRLEY_HAM_EXE=shirley_ham_o$(DEBUG).x
 
-all: $(OCEAN_BUILDER_EXE)
+all: $(OCEAN_BUILDER_EXE) $(SHIRLEY_HAM_EXE)
 
+OCEAN_O2L = \
+$(ESPRESSO_DIR)/OCEAN/getprefs.o \
+$(ESPRESSO_DIR)/OCEAN/snatch.o \
+$(ESPRESSO_DIR)/OCEAN/nbseprjprep.o \
+$(ESPRESSO_DIR)/OCEAN/nbseprjnproj.o \
+$(ESPRESSO_DIR)/OCEAN/nbseftread.o \
+$(ESPRESSO_DIR)/OCEAN/setlm.o \
+$(ESPRESSO_DIR)/OCEAN/getylm.o
+
+
+SHIRLEY_HAM_O = \
+$(ESPRESSO_DIR)/OCEAN/shirley_ham_o.o \
+$(ESPRESSO_DIR)/OCEAN/OCEAN_bofx.o \
+$(ESPRESSO_DIR)/OCEAN/OCEAN_bofr.o \
+$(ESPRESSO_DIR)/OCEAN/OCEAN_bofr_multi.o \
+$(ESPRESSO_DIR)/OCEAN/OCEAN_bigbofr.o \
+$(ESPRESSO_DIR)/OCEAN/OCEAN_bradial.o \
+$(ESPRESSO_DIR)/OCEAN/OCEAN_bofj.o \
+OCEAN_obf2localbyk.o \
+$(ESPRESSO_DIR)/OCEAN/chkfftreal.o \
+$(ESPRESSO_DIR)/OCEAN/chkfftrecp.o \
+$(ESPRESSO_DIR)/OCEAN/facpowfind.o \
+$(ESPRESSO_DIR)/OCEAN/optim.o \
+$(ESPRESSO_DIR)/OCEAN/jlmfft.o \
+$(ESPRESSO_DIR)/OCEAN/OCEAN_2bphase.o\
+OCEAN_timer.o
+
+SHIRLEY_HAM = \
+$(ESPRESSO_DIR)/SHIRLEY/append_missing_slash.o \
+$(ESPRESSO_DIR)/SHIRLEY/atomic_wfc_shirley.o \
+$(ESPRESSO_DIR)/SHIRLEY/B0.o \
+$(ESPRESSO_DIR)/SHIRLEY/bspline90_22.o \
+$(ESPRESSO_DIR)/SHIRLEY/elph_shirley.o \
+$(ESPRESSO_DIR)/SHIRLEY/freeunit.o \
+$(ESPRESSO_DIR)/SHIRLEY/get_dnl.o \
+$(ESPRESSO_DIR)/SHIRLEY/get_proj_ham.o \
+$(ESPRESSO_DIR)/SHIRLEY/gk_l2gmap.o \
+$(ESPRESSO_DIR)/SHIRLEY/hamq.o \
+$(ESPRESSO_DIR)/SHIRLEY/hamq_pool.o \
+$(ESPRESSO_DIR)/SHIRLEY/hamq_shirley.o \
+$(ESPRESSO_DIR)/SHIRLEY/init_us_2_shirley.o \
+$(ESPRESSO_DIR)/SHIRLEY/interaction.o \
+$(ESPRESSO_DIR)/SHIRLEY/interaction_test.o \
+$(ESPRESSO_DIR)/SHIRLEY/kpt.o \
+$(ESPRESSO_DIR)/SHIRLEY/mpio.o \
+$(ESPRESSO_DIR)/SHIRLEY/orthoatwfc_shirley.o \
+$(ESPRESSO_DIR)/SHIRLEY/qinteraction.o \
+$(ESPRESSO_DIR)/SHIRLEY/plot.o \
+$(ESPRESSO_DIR)/SHIRLEY/plot_basis.o \
+$(ESPRESSO_DIR)/SHIRLEY/pole_strength.o \
+$(ESPRESSO_DIR)/SHIRLEY/proj_shirley.o \
+$(ESPRESSO_DIR)/SHIRLEY/print_clock_shirley.o \
+$(ESPRESSO_DIR)/SHIRLEY/pwmat.o \
+$(ESPRESSO_DIR)/SHIRLEY/read_file_shirley.o \
+$(ESPRESSO_DIR)/SHIRLEY/reallocate_nlpot.o \
+$(ESPRESSO_DIR)/SHIRLEY/rgrid.o \
+$(ESPRESSO_DIR)/SHIRLEY/scalapack_module.o \
+$(ESPRESSO_DIR)/SHIRLEY/shirley_ham_input.o \
+$(ESPRESSO_DIR)/SHIRLEY/splines.o \
+$(ESPRESSO_DIR)/SHIRLEY/start_shirley.o \
+$(ESPRESSO_DIR)/SHIRLEY/stop_shirley.o \
+$(ESPRESSO_DIR)/SHIRLEY/triples.o \
+$(ESPRESSO_DIR)/SHIRLEY/trnvect_wrapper.o \
+$(ESPRESSO_DIR)/SHIRLEY/update_pseudo.o
 
 PWOBJS = \
 $(ESPRESSO_DIR)/PW/a2fmod.o \
@@ -277,6 +342,10 @@ $(OCEAN_BUILDER_EXE) :  $(OCEAN_BUILDER) $(PPOBJS) $(PW_QDIAGP) $(MODULES) $(LIB
 	$(MPIF90) $(LDFLAGS) -o $@ \
 	$(OCEAN_BUILDER) $(PPOBJS) $(PWOBJS) $(ESPRESSO_DIR)/SHIRLEY/read_file_shirley.o \
 	$(PW_QDIAGP) $(MODULES) $(LIBOBJS) $(LIBS) 
+
+$(SHIRLEY_HAM_EXE) : $(SHIRLEY_HAM) $(SHIRLEY_HAM_O) $(PPOBJS) $(PWOBJS) $(MODULES) $(LIBOBJS) $(OCEAN_O2L)
+	$(MPIF90) $(LDFLAGS) -o $@ \
+	$(SHIRLEY_HAM) $(SHIRLEY_HAM_O) $(PPOBJS) $(PWOBJS) $(MODULES) $(LIBOBJS) $(OCEAN_O2L) $(LIBS)
 
 
 clean : 
