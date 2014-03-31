@@ -1538,7 +1538,7 @@ module ocean_long_range
       write(6,*) my_xpts, my_kpts, my_num_bands, my_start_nx
     endif
 
-  end subroutine
+  end subroutine lr_fill_values
 
   subroutine lr_slice( sys, outr, outi, iband, ikpt, ialpha )
     use OCEAN_system
