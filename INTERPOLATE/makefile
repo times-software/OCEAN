@@ -1,4 +1,5 @@
-ESPRESSO_DIR = /home/jtv1/shirley_QE4.3-gnu-atlas
+#ESPRESSO_DIR = /home/jtv1/shirley_QE4.3-gnu-atlas
+ESPRESSO_DIR = /home/jtv1/shirley_QE4.3-intel
 SHIRLEY_DIR = $(ESPRESSO_DIR)/SHIRLEY
 DEBUG =
 
@@ -33,9 +34,9 @@ $(ESPRESSO_DIR)/OCEAN/getylm.o
 
 SHIRLEY_HAM_O = \
 $(ESPRESSO_DIR)/OCEAN/shirley_ham_o.o \
-$(ESPRESSO_DIR)/OCEAN/OCEAN_bofx.o \
+OCEAN_bofx.o \
 $(ESPRESSO_DIR)/OCEAN/OCEAN_bofr.o \
-$(ESPRESSO_DIR)/OCEAN/OCEAN_bofr_multi.o \
+OCEAN_bofr_multi.o \
 $(ESPRESSO_DIR)/OCEAN/OCEAN_bigbofr.o \
 $(ESPRESSO_DIR)/OCEAN/OCEAN_bradial.o \
 $(ESPRESSO_DIR)/OCEAN/OCEAN_bofj.o \
