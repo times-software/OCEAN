@@ -261,9 +261,17 @@ module OCEAN_bloch
     real( kind = kind( 1.0d0 ) ) :: su, sul, suh
     real( kind = kind( 1.0d0 ) ), allocatable, dimension( :, :, :, : ) :: tmp_ur, tmp_ui, ur, ui
     real( DP ), allocatable :: re_transpose( :, : ), im_transpose( :, : )
+    complex( DP ), allocatable :: u2_buf( :, :, :, : )
 !    complex( kind = kind( 1.0d0 ) ), allocatable, dimension( :, : ) :: tmp_bloch
-    logical :: metal, normal
-    integer :: nx_left, nx_start, nx_tmp, xiter, ii
+    logical :: metal, normal, ex
+    integer :: nx_left, nx_start, nx_tmp, xiter, ii, width(3)
+    character(len=3) :: bloch_type
+    logical :: invert_xmesh
+
+    !
+    integer :: fmode, fhu2
+    integer(kind=MPI_OFFSET_KIND) :: offset
+    integer(8) :: time1, time2, tics_per
 
     if( is_loaded ) return
 
@@ -278,18 +286,7 @@ module OCEAN_bloch
       return
     endif
 
-    nx = sys%xmesh(1)
-    ny = sys%xmesh(2)
-    nz = sys%xmesh(3)
-    nbd = sys%num_bands 
-    !  tmp_bloch( nbd, nx*ny*nz )
-    allocate( ur(sys%xmesh(1),sys%xmesh(2),sys%xmesh(3),sys%num_bands), &
-              ui(sys%xmesh(1),sys%xmesh(2),sys%xmesh(3),sys%num_bands) )
-    ! As per usual, do this the dumbest way first, 
-    ! 1) generic copy of original serial method 
-    ! 2) MPI
-
-      
+    
 
     if( myid .eq. 0 ) then
       sul = 1.0d0
@@ -305,11 +302,25 @@ module OCEAN_bloch
       close( 99 )
       if( metal ) then
         open( unit=36, file='ibeg.h', form='formatted', status='old' )
+        rewind( 36 )
       endif
 
+
+      inquire(file="bloch_type",exist=ex)
+      if( ex ) then
+        open(unit=99,file="bloch_type", form='formatted', status='old' )
+        read(99,*) bloch_type
+!        read(99,*) invert_xmesh
+        invert_xmesh = .true.
+        close(99)
+      else
+        bloch_type = 'old'
+        invert_xmesh = .true.
+      endif
+
+      nbd = sys%num_bands 
       if ( nbd .gt. 1 + ( ich - icl ) ) stop 'loadux ... nbd mismatch -- cf brange.ipt...'
-      open( unit=u2dat, file='u2.dat', form='unformatted', status='unknown' )
-      rewind u2dat 
+
       write(6,*) 'nspn: ', sys%nspn
       if( sys%nspn .ne. 1 ) then
         write(6,*) 'No spin yet'
@@ -317,14 +328,38 @@ module OCEAN_bloch
         goto 111 
       endif
 
-      allocate( tmp_ur( nx, ny, nz, nbd ), tmp_ui( nz, ny, nz, nbd ), &
-                re_transpose( sys%num_bands, sys%nxpts ), im_transpose( sys%num_bands, sys%nxpts ) )
-    
-
     endif
 
+#ifdef MPI
+    call MPI_BCAST( bloch_type, 3, MPI_CHARACTER, root, comm, ierr )
+    call MPI_BCAST( invert_xmesh, 1, MPI_LOGICAL, root, comm, ierr )
+    if( ierr .ne. 0 ) return
+#endif
+
+
+    select case( bloch_type )
+      case('old')
+
+112 continue
+
+    nx = sys%xmesh(1)
+    ny = sys%xmesh(2)
+    nz = sys%xmesh(3)
+    allocate( ur(sys%xmesh(1),sys%xmesh(2),sys%xmesh(3),sys%num_bands), &
+              ui(sys%xmesh(1),sys%xmesh(2),sys%xmesh(3),sys%num_bands) )
+    ! As per usual, do this the dumbest way first, 
+    ! 1) generic copy of original serial method 
+    ! 2) MPI
+
       
-    if( myid .eq. 0 ) write(6,*) size(re_bloch_state,1), size(re_bloch_state,2),size(re_bloch_state,3)
+    if( myid .eq. 0 ) then 
+      write(6,*) size(re_bloch_state,1), size(re_bloch_state,2),size(re_bloch_state,3)
+      allocate( tmp_ur( nx, ny, nz, nbd ), tmp_ui( nz, ny, nz, nbd ), &
+                re_transpose( sys%num_bands, sys%nxpts ), &
+                im_transpose( sys%num_bands, sys%nxpts ) )
+      open( unit=u2dat, file='u2.dat', form='unformatted', status='unknown' )
+      rewind u2dat 
+    endif
 
     iq = 0
     do iq1 = 1, sys%kmesh( 1 )
@@ -373,40 +408,13 @@ module OCEAN_bloch
             do iy = 1, ny
                do ix = 1, nx
                   xiter = xiter + 1
-!                  phsx = 2.0d0 * pi * dble( ( ix - 1 ) * ( iq1 - 1 ) ) / dble( nx * sys%kmesh( 1 ) )
-!                  phsy = 2.0d0 * pi * dble( ( iy - 1 ) * ( iq2 - 1 ) ) / dble( ny * sys%kmesh( 2 ) )
-!                  phsz = 2.0d0 * pi * dble( ( iz - 1 ) * ( iq3 - 1 ) ) / dble( nz * sys%kmesh( 3 ) )
-!                  cphs = dcos( phsx + phsy + phsz )
-!                  sphs = dsin( phsx + phsy + phsz )
                   do ibd = 1, nbd
-!                     psir = cphs * ur( ix, iy, iz, ibd ) - sphs * ui( ix, iy, iz, ibd )
-!                     psii = cphs * ui( ix, iy, iz, ibd ) + sphs * ur( ix, iy, iz, ibd )
-!!                     tmp_ur( xtarg, ytarg, ztarg, ibd ) = psir
-!!                     tmp_ui( xtarg, ytarg, ztarg, ibd ) = psii
-!                    re_transpose( ibd, xiter ) = psir
-!                    im_transpose( ibd, xiter ) = psii
                     re_transpose( ibd, xiter ) = ur( ix, iy, iz, ibd )
                     im_transpose( ibd, xiter ) = ui( ix, iy, iz, ibd )
                   end do
                end do
             end do
          end do
-!!         ur( :, :, :, : ) = tmp_ur( :, :, :, : )
-!!         ui( :, :, :, : ) = tmp_ui( :, :, :, : )
-!         xiter = 0
-!         do iz = 1, nz
-!           do iy = 1, ny
-!             do ix = 1, nx
-!               xiter = xiter + 1
-!!               tmp_bloch( :, xiter ) = cmplx( ur( ix, iy, iz, : ), ui( ix, iy, iz, : ) )
-!!                write(6,*) ix, iy, iz, iq, xiter
-!!                re_bloch_state( :, iq, xiter ) = ur( ix, iy, iz, : )
-!!                im_bloch_state( :, iq, xiter ) = ui( ix, iy, iz, : )
-!                re_transpose( :, xiter ) = tmp_ur( ix, iy, iz, : )
-!                im_transpose( :, xiter ) = tmp_ui( ix, iy, iz, : )
-!             enddo
-!           enddo
-!         enddo
        endif
        if( myid .eq. root .and. mod(iq,10) .eq. 0 ) write(6,*) iq
 
@@ -445,15 +453,176 @@ module OCEAN_bloch
      enddo
     enddo
 
+    if( myid .eq. 0 ) close(u2dat)
+
+    deallocate( re_transpose, im_transpose, ur, ui )
+    if( myid .eq. 0 ) deallocate( tmp_ur, tmp_ui )
+
+!!!!!!!!!!!!!!!!!!!!
+    case( 'new' )
+
+#ifndef MPI
+      if( myid .eq. 0 ) write(6,*) "New requires MPI. Attempting old"
+      bloch_type = 'old'
+      goto 112
+#else
+
+      if( myid .eq. root ) then
+        write(6,*) 'New U2 format'
+
+        open(unit=99,file='obf_control',form='formatted',status='old')
+        rewind(99)
+        read(99,*) width(1)
+        read(99,*) width(2)
+        read(99,*) width(3)
+        close(99)
+
+
+        write(6,*) my_start_nx, my_xpts
+
+
+      endif
+
+      call MPI_BCAST( width, 3, MPI_INTEGER, root, comm, ierr )
+      if( ierr .ne. 0 ) return
+
+      call MPI_BARRIER( comm, ierr )
+
+      if( myid .eq. root ) then
+        write(6,*) width(:)
+      endif
+        
+
+      fmode = MPI_MODE_RDONLY
+      call MPI_FILE_OPEN( comm, 'u2par.dat', fmode, MPI_INFO_NULL, fhu2, ierr )
+      if( ierr/=0 ) then
+        goto 111
+      endif
+      offset=0
+      !JTV At this point it would be good to create a custom MPI_DATATYPE
+      !  so that we can get optimized file writing
+      call MPI_FILE_SET_VIEW( fhu2, offset, MPI_DOUBLE_COMPLEX, &
+                            MPI_DOUBLE_COMPLEX, 'native', MPI_INFO_NULL, ierr )
+      if( ierr/=0 ) then
+        goto 111
+      endif
+
+      allocate( u2_buf( sys%xmesh(3), sys%xmesh(2), sys%xmesh(1), sys%num_bands ) )
+
+!      allocate( re_transpose( sys%num_bands, sys%nxpts ), &
+!                im_transpose( sys%num_bands, sys%nxpts ) )
+
+!JTV change up for valence/conduction choice
+
+      call system_clock( time1, tics_per, time2 )
+      do iq = 1, sys%nkpts
+
+        if( myid .eq. root ) then
+!          open( unit=99, file='gumatprog', form='formatted', status='unknown' )
+!          rewind 99
+!          write ( 99, '(2i8)' ) iq, sys%nkpts
+!          close( unit=99 )
+          if( mod(iq,10) .eq. 0 ) write(6,*) iq
+          if( metal ) then
+            read( 36, * ) dumint, ivh2
+            ivh2 = ivh2 - 1
+          endif
+        endif
+
+
+        call MPI_BCAST( ivh2, 1, MPI_INTEGER, root, comm, ierr )
+
+        ! skipping the occupied bands
+        offset = offset + ivh2 * sys%nxpts
+
+!        offset =  (iq-1) * width(3) * sys%nxpts + ivh2 * sys%nxpts
+        call mpi_file_read_at_all( fhu2, offset, u2_buf, sys%nxpts * sys%num_bands, &
+                                   MPI_DOUBLE_COMPLEX, MPI_STATUS_IGNORE, ierr )
+        if( ierr .ne. 0 ) then
+          write(6,*) 'u2 failed'
+          return
+        endif
+        ! backtrack the occupied and skip over the full k-point
+        offset = offset + ( width(3) - ivh2 ) * sys%nxpts
+
+
+!JTV if we didn't need the transpose we could map the u2par file and do a read-in directly
+!        xiter = 0
+        xiter = 1 - my_start_nx
+
+        do iz = 1, sys%xmesh(3)
+          do iy = 1, sys%xmesh(2)
+            do ix = 1, sys%xmesh(1)
+              xiter = xiter + 1
+!              if( xiter .lt. my_start_nx ) cycle
+              if( xiter .lt. 1 ) cycle
+              if( xiter .gt. my_xpts ) goto 113
+!              if( xiter .ge. my_start_nx + my_xpts ) goto 113
+!          re_bloch_state( :, iq, xiter - my_start_nx + 1 ) = real(u2_buf( iz, iy, ix, : ))
+!          im_bloch_state( :, iq, xiter - my_start_nx + 1 ) = aimag(u2_buf( iz, iy, ix, : ))
+              re_bloch_state( :, iq, xiter ) = real(u2_buf( iz, iy, ix, : ))
+              im_bloch_state( :, iq, xiter ) = aimag(u2_buf( iz, iy, ix, : ))
+            enddo
+          enddo
+        enddo
+
+113 continue
+
+      enddo
+      call system_clock( time2 )
+
+      call MPI_FILE_CLOSE( fhu2, ierr )
+
+
+      deallocate( u2_buf )
+
+      if( myid .eq. root ) write(6,*) 'Read-in took ', dble( time2-time1 ) / dble( tics_per )
+
+
+#endif
+    case( 'obf' )
+
+#ifndef MPI
+      if( myid .eq. root ) write(6,*) 'OBF requires MPI'
+      ierr = -1
+      return
+#else
+
+! Called by obf_load
+!      call OCEAN_obf_init( sys, ierr )
+!      if( ierr .ne. 0 ) return
+
+
+! Want to change to have dynamic FFT here I think, or at least the option
+!      call OCEAN_obf_load( sys, ierr )
+!      if( ierr .ne. 0 ) return
+!
+!      call OCEAN_obf_obf2bloch( sys, re_bloch_state, im_bloch_state, &
+!                                my_num_bands, my_kpts, my_xpts, ierr )
+      
+
+#endif
+
+!!!!!!!!!!!!!!!
+    case default
+      if( myid .eq. 0 ) write(6,*) 'Unrecognized BLOCH type. Attempting type = old'
+      bloch_type = 'old'
+      goto 112
+
+    end select
+      
+
+
+
+
+
+
 111 continue
 
 
     if( myid .eq. 0 ) write ( 6, '(1a16,2f20.15)' ) 'norm bounds ... ', sul, suh
 
-    if( myid .eq. 0 ) close(u2dat)
-
-    deallocate( re_transpose, im_transpose, ur, ui )
-    if( myid .eq. 0 ) deallocate( tmp_ur, tmp_ui )
+    if( myid .eq. 0 .and. metal ) close( 36 )
 
     is_loaded = .true.
 
