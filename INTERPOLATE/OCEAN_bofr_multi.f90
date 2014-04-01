@@ -1,4 +1,4 @@
-subroutine OCEAN_bofr_mulit( )
+subroutine OCEAN_bofr_multi( )
 ! the idea here is to project the basis functions onti our wonky OCEAN chi real-space grid
 !    The grid is defined by the file rbfile.bin
   use constants, only : tpi
