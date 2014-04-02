@@ -678,7 +678,7 @@ module OCEAN_action
     if( myid .eq. 0 ) then
 !      write ( 6, '(2x,2f10.6,10x,1e11.4,x,f6.3)' ) a(iter-1), b(iter), imag_a, time2-time1
 !      write ( 6, '(2x,2f10.6,10x,1e11.4,8x,i6)' ) a(iter-1), b(iter), imag_a, iter
-      write ( 6, '(2x,2f10.6,10x,1e11.4,8x,i6)' ) real_a(iter-1), b(iter), imag_a(iter-1), iter
+      write ( 6, '(2x,2f20.6,10x,1e11.4,8x,i6)' ) real_a(iter-1), b(iter), imag_a(iter-1), iter
       if( mod( iter, 10 ) .eq. 0 ) call haydump( iter, sys, ierr )
 !      call haydump( iter, sys, ierr )
     endif
