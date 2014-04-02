@@ -336,15 +336,15 @@ module OCEAN_bloch
     if( ierr .ne. 0 ) return
 #endif
 
+    nx = sys%xmesh(1)
+    ny = sys%xmesh(2)
+    nz = sys%xmesh(3)
 
     select case( bloch_type )
       case('old')
 
 112 continue
 
-    nx = sys%xmesh(1)
-    ny = sys%xmesh(2)
-    nz = sys%xmesh(3)
     allocate( ur(sys%xmesh(1),sys%xmesh(2),sys%xmesh(3),sys%num_bands), &
               ui(sys%xmesh(1),sys%xmesh(2),sys%xmesh(3),sys%num_bands) )
     ! As per usual, do this the dumbest way first, 
@@ -509,12 +509,12 @@ module OCEAN_bloch
 
       allocate( u2_buf( sys%xmesh(3), sys%xmesh(2), sys%xmesh(1), sys%num_bands ) )
 
-!      allocate( re_transpose( sys%num_bands, sys%nxpts ), &
-!                im_transpose( sys%num_bands, sys%nxpts ) )
 
 !JTV change up for valence/conduction choice
 
       call system_clock( time1, tics_per, time2 )
+
+      if( .false. ) then
       do iq = 1, sys%nkpts
 
         if( myid .eq. root ) then
@@ -547,19 +547,14 @@ module OCEAN_bloch
 
 
 !JTV if we didn't need the transpose we could map the u2par file and do a read-in directly
-!        xiter = 0
         xiter = 1 - my_start_nx
 
         do iz = 1, sys%xmesh(3)
           do iy = 1, sys%xmesh(2)
             do ix = 1, sys%xmesh(1)
               xiter = xiter + 1
-!              if( xiter .lt. my_start_nx ) cycle
               if( xiter .lt. 1 ) cycle
               if( xiter .gt. my_xpts ) goto 113
-!              if( xiter .ge. my_start_nx + my_xpts ) goto 113
-!          re_bloch_state( :, iq, xiter - my_start_nx + 1 ) = real(u2_buf( iz, iy, ix, : ))
-!          im_bloch_state( :, iq, xiter - my_start_nx + 1 ) = aimag(u2_buf( iz, iy, ix, : ))
               re_bloch_state( :, iq, xiter ) = real(u2_buf( iz, iy, ix, : ))
               im_bloch_state( :, iq, xiter ) = aimag(u2_buf( iz, iy, ix, : ))
             enddo
@@ -569,6 +564,81 @@ module OCEAN_bloch
 113 continue
 
       enddo
+
+      else
+        if( myid .eq. root ) then
+          allocate( re_transpose( sys%num_bands, sys%nxpts ), &
+                    im_transpose( sys%num_bands, sys%nxpts ) )
+        endif
+
+
+        do iq = 1, sys%nkpts
+
+          if( myid .eq. root ) then
+            if( mod(iq,10) .eq. 0 ) write(6,*) iq
+            if( metal ) then
+              read( 36, * ) dumint, ivh2
+              ivh2 = ivh2 - 1
+            endif
+
+          ! skipping the occupied bands
+            offset = offset + ivh2 * sys%nxpts
+            call mpi_file_read_at( fhu2, offset, u2_buf, sys%nxpts * sys%num_bands, &
+                                   MPI_DOUBLE_COMPLEX, MPI_STATUS_IGNORE, ierr )
+            if( ierr .ne. 0 ) then
+              write(6,*) 'u2 failed'
+              return
+            endif
+            ! backtrack the occupied and skip over the full k-point
+            offset = offset + ( width(3) - ivh2 ) * sys%nxpts
+            xiter = 0
+            do iz = 1, nz
+              do iy = 1, ny
+                do ix = 1, nx
+                  xiter = xiter + 1
+                  do ibd = 1, nbd
+                    re_transpose( ibd, xiter ) = real(u2_buf( iz, iy, ix, ibd ))
+                    im_transpose( ibd, xiter ) = aimag(u2_buf( iz, iy, ix, ibd ))
+                  end do
+                end do
+              end do
+            end do
+          endif
+
+         nx_left = sys%nxpts
+         nx_start = 1 
+         do i = 0, nproc - 1
+           nx_tmp = nx_left / ( nproc - i )
+           nx_left = nx_left - nx_tmp
+           if( myid .eq. root .and. iq .eq. 1 ) write(6,*) i, nx_start, nx_tmp
+           if( i .eq. root .and. myid .eq. root ) then
+             re_bloch_state( :, iq, : ) = re_transpose( :, nx_start : nx_start + nx_tmp - 1 )
+             im_bloch_state( :, iq, : ) = im_transpose( :, nx_start : nx_start + nx_tmp - 1 )
+#ifdef MPI
+           elseif( myid .eq. root ) then
+             call MPI_SEND( re_transpose(1,nx_start), my_num_bands*nx_tmp, MPI_DOUBLE_PRECISION, i, i, comm, ierr )
+             call MPI_SEND( im_transpose(1,nx_start), my_num_bands*nx_tmp, MPI_DOUBLE_PRECISION, i, i+nproc, comm, ierr )
+           elseif( myid .eq. i ) then
+             if( iq .eq. 1 ) then
+               allocate( re_transpose( my_num_bands, nx_tmp ), im_transpose( my_num_bands, nx_tmp ) )
+             endif
+
+             call MPI_RECV( re_transpose, my_num_bands*nx_tmp, MPI_DOUBLE_PRECISION, 0, &
+                            i, comm, MPI_STATUS_IGNORE, ierr )
+             call MPI_RECV( im_transpose, my_num_bands*nx_tmp, MPI_DOUBLE_PRECISION, 0, &
+                            i+nproc, comm, MPI_STATUS_IGNORE, ierr )
+             re_bloch_state( :, iq, : ) = re_transpose( :, : )
+             im_bloch_state( :, iq, : ) = im_transpose( :, : )
+#endif
+           endif
+           nx_start = nx_start + nx_tmp
+          enddo
+        enddo
+         
+
+        deallocate( re_transpose, im_transpose )
+
+      endif
       call system_clock( time2 )
 
       call MPI_FILE_CLOSE( fhu2, ierr )
