@@ -226,6 +226,7 @@ module OCEAN_multiplet
     deallocate( so_list_temp, fg_list_temp, ct_list_temp, proc_load, proc_list )    
 
     do_staggered_sum = .true.
+!    do_staggered_sum = .false.
 
   end subroutine OCEAN_mult_create_par
 
@@ -524,6 +525,8 @@ module OCEAN_multiplet
 
     if( myid .eq. root ) then
 
+      write(6,*) 'SO PREP', xi
+
       open( unit=99, file='sphpts', form='formatted', status='old' )
       rewind 99
       read ( 99, * ) nsphpt
@@ -544,10 +547,10 @@ module OCEAN_multiplet
         close( 99 )
         life_time( : ) = life_time( : ) / 27.2114d0
 
-        delta_so( 1 ) = 0.5d0 * ( ( real( sys%cur_run%ZNL(3) ) + 0.5 ) * ( real( sys%cur_run%ZNL(3) ) + 1.5 ) - & 
-                                    real( sys%cur_run%ZNL(3) ) * real( sys%cur_run%ZNL(3) + 1 ) - 0.75d0 )
-        delta_so( 2 ) = 0.5d0 * ( ( real( sys%cur_run%ZNL(3) ) - 0.5 ) * ( real( sys%cur_run%ZNL(3) ) + 0.5 ) - &
-                                    real( sys%cur_run%ZNL(3) ) * real( sys%cur_run%ZNL(3) + 1 ) - 0.75d0 )
+        delta_so( 1 ) = 0.5d0 * ( ( dble( sys%cur_run%ZNL(3) ) + 0.5 ) * ( dble( sys%cur_run%ZNL(3) ) + 1.5 ) - & 
+                                    dble( sys%cur_run%ZNL(3) ) * dble( sys%cur_run%ZNL(3) + 1 ) - 0.75d0 )
+        delta_so( 2 ) = 0.5d0 * ( ( dble( sys%cur_run%ZNL(3) ) - 0.5 ) * ( dble( sys%cur_run%ZNL(3) ) + 0.5 ) - &
+                                    dble( sys%cur_run%ZNL(3) ) * dble( sys%cur_run%ZNL(3) + 1 ) - 0.75d0 )
         !
         l_alpha = ( life_time( 2 ) - life_time( 1 ) ) / ( - xi * ( delta_so( 2 ) - delta_so( 1 ) ) )
         l_beta = ( life_time( 2 ) * delta_so( 1 ) - life_time( 1 ) * delta_so( 2 ) ) / ( delta_so( 1 ) - delta_so( 2 ) )
@@ -562,19 +565,27 @@ module OCEAN_multiplet
       do ic = 1, sys%cur_run%nalpha
          do jc = 1, sys%cur_run%nalpha
             if ( vms( ic ) .eq. vms( jc ) ) then
-               call limel( sys%cur_run%ZNL(3), nint( cml( jc ) ), nint( cml( ic ) ), vrslt, nsphpt, xsph, ysph, zsph, wsph, prefs )
-               ctmp = 0
+!????
+!               call limel( sys%cur_run%ZNL(3), nint( cml( jc ) ), nint( cml( ic ) ), & 
+!                           vrslt, nsphpt, xsph, ysph, zsph, wsph, prefs )
+!????
+               ctmp = 0.0_DP
                do i = 1, 3
-                  ctmp = ctmp + vrslt( i ) * jimel( 0.5d0, cms( jc ), cms( ic ), i )
+!????                  ctmp = ctmp + vrslt( i ) * jimel( 0.5d0, cms( jc ), cms( ic ), i )
+                 ctmp = ctmp + jimel( dble( sys%cur_run%ZNL(3) ), cml( jc ), cml( ic ), i ) & 
+                             * jimel( 0.5d0, cms( jc ), cms( ic ), i )
                end do
-               write(20,*) ic, jc, real( ctmp )
-               write(21,*)
-               ctmp = -xi * ctmp
-               somelr( ic, jc ) = real( ctmp ) - aimag( ctmp ) * l_alpha
-               someli( ic, jc ) = -aimag( ctmp ) - real( ctmp ) * l_alpha
-               if( ic .eq. jc ) then
-                 someli( ic, jc ) = someli( ic, jc ) - l_beta !* real( ctmp )
-               endif
+               write(20,*) ic, jc, real( ctmp ) !, aimag( ctmp )
+               write(21,*) jimel( dble( sys%cur_run%ZNL(3) ), cml( jc ), cml( ic ), 1 ), &
+                  sys%cur_run%ZNL(3), nint( cml( jc ) ), nint( cml( ic ) )
+!               flush(20)
+!               write(21,*) vrslt( : ), jimel( 0.5d0, cms( jc ), cms( ic ), 1 )
+!               ctmp = -xi * ctmp
+               somelr( ic, jc ) = -xi * real( ctmp ) !- aimag( ctmp ) * l_alpha
+               someli( ic, jc ) = xi * aimag( ctmp ) !- real( ctmp ) * l_alpha
+!               if( ic .eq. jc ) then
+!                 someli( ic, jc ) = someli( ic, jc ) - l_beta !* real( ctmp )
+!               endif
              end if
          end do
       end do
@@ -606,9 +617,15 @@ module OCEAN_multiplet
     if( do_staggered_sum ) then
       call OCEAN_ctact_dist( sys, inter, in_vec, out_vec )
       call fgact_dist( sys, inter, in_vec, out_vec )
+      if( sys%ZNL(2) .gt. 0 ) then
+        call OCEAN_soact_dist( sys, in_vec, out_vec )
+      endif
     else
       call OCEAN_ctact( sys, inter, in_vec, out_vec )
       call fgact( sys, inter, in_vec, out_vec )
+      if( sys%ZNL(2) .gt. 0 ) then
+        call OCEAN_soact( sys, in_vec, out_vec )
+      endif
     endif
 !    call OCEAN_soact( sys, in_vec, out_vec )
 
@@ -993,6 +1010,52 @@ module OCEAN_multiplet
 
   end subroutine fgact_dist
 
+  subroutine OCEAN_soact_dist( sys, in_vec, out_vec )
+    use OCEAN_system
+    use OCEAN_psi
+    implicit none
+
+    type( O_system ), intent( in ) :: sys
+    type( OCEAN_vector ), intent( in ) :: in_vec
+    type( OCEAN_vector ), intent( inout ) :: out_vec
+
+    integer :: ic, jc, ikpt, iter
+    real( DP ) :: melr, meli
+
+    if( so_n .lt. 1 ) return
+
+!JTV Maybe want to consider blocking this routine for cache reuse
+
+!$OMP PARALLEL &
+!$OMP DEFAULT( NONE ) &
+!$OMP PRIVATE( iter, ic, jc, ikpt, melr, meli ) &
+!$OMP SHARED( sys, in_vec, out_vec, somelr, someli, so_n, so_list )
+    do iter = 1, so_n
+      ic = so_list( 1, iter )
+      jc = so_list( 2, iter )
+      melr = somelr( ic, jc )
+      meli = someli( ic, jc )
+!$OMP DO 
+        do ikpt = 1, sys%nkpts
+          out_vec%r( 1:sys%num_bands, ikpt, ic ) = out_vec%r( 1:sys%num_bands, ikpt, ic )  &
+                                   + melr * in_vec%r( 1:sys%num_bands, ikpt, jc ) &
+                                   - meli * in_vec%i( 1:sys%num_bands, ikpt, jc )
+!                                   + somelr( ic, jc ) * in_vec%r( 1:sys%num_bands, ikpt, jc ) &
+!                                   - someli( ic, jc ) * in_vec%i( 1:sys%num_bands, ikpt, jc )
+          out_vec%i( 1:sys%num_bands, ikpt, ic ) = out_vec%i( 1:sys%num_bands, ikpt, ic )  &
+                                   + melr * in_vec%i( 1:sys%num_bands, ikpt, jc ) &
+                                   + meli * in_vec%r( 1:sys%num_bands, ikpt, jc )
+!                                   + somelr( ic, jc ) * in_vec%i( 1:sys%num_bands, ikpt, jc ) &
+!                                   + someli( ic, jc ) * in_vec%r( 1:sys%num_bands, ikpt, jc )
+        enddo
+!$OMP END DO
+    enddo
+!$OMP END PARALLEL
+
+
+  end subroutine OCEAN_soact_dist
+
+
 
 
   subroutine OCEAN_soact( sys, in_vec, out_vec )
@@ -1005,6 +1068,9 @@ module OCEAN_multiplet
     type( OCEAN_vector ), intent( inout ) :: out_vec
 
     integer :: ic, jc, ikpt
+!    complex( DP ) :: ctmp
+!    real( DP ) :: melr, meli
+
 ! !$OMP PARALLEL DO &
 ! !$OMP DEFAULT( NONE ) &
 ! !$OMP PRIVATE( ic, jc, ikpt ) &
@@ -1022,6 +1088,21 @@ module OCEAN_multiplet
       enddo
     enddo
 ! !$OMP END PARALLEL DO
+!    do ic = 1, sys%cur_run%nalpha
+!      do jc = 1, sys%cur_run%nalpha
+!        if( vms( ic ) .eq. vms( jc ) ) then
+!          ctmp = 0.0_DP
+!          do i = 1, 3
+!            ctmp = ctmp + jimel( dble( lc ), cml( jc ), cml( ic ), i ) &
+!                        * jimel( 0.5_DP, cms( jc ), cms( ic ), i )
+!          enddo
+!          melr = real(ctmp * -xi)
+!          meli = aimag( ctmp * -xi )
+!          do ikpt = 1, sys%nkpts
+!            out_vec%r( 1:sys%num_bands, ikpt, ic ) = out_vec%r( 1:sys%num_bands, ikpt, ic ) &
+!                                                   + melr( 
+
+
 
   end subroutine OCEAN_soact
 
@@ -1544,6 +1625,52 @@ module OCEAN_multiplet
     bse_me = bse_me + CMPLX( outr,-outi, DP ) 
 
   end subroutine OCEAN_fg_single
+
+
+subroutine limel( l, m, mp, vrslt, nsphpt, xsph, ysph, zsph, wsph, prefs )
+  implicit none
+  !
+  integer :: nsphpt, l, m, mp
+  real( kind = kind( 1.0d0 ) ) :: prefs( 0 : 1000 )
+  real( kind = kind( 1.0d0 ) ), dimension( nsphpt ) :: xsph, ysph, zsph, wsph
+  complex( kind = kind( 1.0d0 ) ) :: vrslt( 3 )
+  !
+  integer :: i, j, mrun
+  real( kind = kind( 1.0d0 ) ) :: xx, yy, zz, xarg, yarg, zarg
+  complex( kind = kind( 1.0d0 ) ) :: su1( -l : l, 3 ), su2( -l : l, 3 ), ylm, ylmp, yrun
+  !
+  su1( :, : ) = 0.0d0
+  su2( :, : ) = 0.0d0
+  do j = 1, nsphpt
+     xx = xsph( j ); yy = ysph( j ); zz = zsph( j )
+     call newgetylm( l, m, xx, yy, zz, ylm, prefs )
+     call newgetylm( l, mp, xx, yy, zz, ylmp, prefs )
+     do i = 1, 3
+        select case( i )
+        case( 1 )
+           zarg = xx; xarg = yy; yarg = zz
+        case( 2 )
+           zarg = yy; xarg = zz; yarg = xx
+        case( 3 )
+           zarg = zz; xarg = xx; yarg = yy
+        end select
+        do mrun = -l, l
+           call newgetylm( l, mrun, xarg, yarg, zarg, yrun, prefs )
+           su1( mrun, i ) = su1( mrun, i ) + wsph( j ) * conjg( yrun ) * ylm
+           su2( mrun, i ) = su2( mrun, i ) + wsph( j ) * conjg( yrun ) * ylmp
+        end do
+     end do
+  end do
+  vrslt( : ) = 0.0d0
+  do i = 1, 3
+     do mrun = -l, l
+        vrslt( i ) = vrslt( i ) + mrun * conjg( su1( mrun, i ) ) * su2( mrun, i )
+     end do
+  end do
+  !
+  return
+end subroutine limel
+
 
 
 end module OCEAN_multiplet
