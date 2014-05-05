@@ -1,4 +1,4 @@
-SCRIPTS = dendip.pl par_dendip.pl bvecs.pl gvecs2.pl ofermi.pl
+SCRIPTS = dendip.pl par_dendip.pl bvecs.pl gvecs2.pl ofermi.pl OBF_wfn.pl
 FILESF90 = wfconvert.x nelectron.x rhoofg.x
 WFCONVERT_OBJS = wfconvert.o headpar.o grabwf.o wfsubs.o
 WFCONVERTGW_OBJS = wfconvert_gw.o headpar.o grabwf.o wfsubs.o
@@ -6,7 +6,7 @@ WFCONVERTGW_OBJS = wfconvert_gw.o headpar.o grabwf.o wfsubs.o
 
 .SUFFIXES: .f .x .f90
 
-all: wfconvert.x nelectron.x rhoofg.x wfconvert_gw.x
+all: wfconvert.x nelectron.x rhoofg.x 
 
 install:
 	cp $(SCRIPTS) $(FILESF90) $(INSTDIR)
@@ -14,6 +14,9 @@ install:
 instdev:
 	for F in $(SCRIPTS); do ln -fs $(PWD)/$$F $(INSTDEVDIR); done;
 	for F in $(FILESF90); do ln -fs $(PWD)/$$F $(INSTDEVDIR); done;
+
+clean: 
+	rm -f *.o *.x
 
 .f.x:
 	$(FC) $(OPTIONS) -o $*.x $*.f

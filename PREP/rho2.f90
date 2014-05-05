@@ -3,7 +3,8 @@
 !
       include 'fftw3.f'
       complex(kind=kind(1.d0)), allocatable :: rhoofr(:,:,:)
-      complex(kind=kind(1.d0)), allocatable ::  rhoofg(:,:,:), trhoofg(:,:,:)
+      complex(kind=kind(1.d0)), allocatable ::  rhoofg(:,:,:)
+      real( kind=kind(1.d0)), allocatable ::  trhoofg(:,:,:)
       integer*8 :: plan
       integer :: dims(3), counter1, counter2, counter3, dumint, cter1, cter2, cter3, natom
       character*50 :: lineburn

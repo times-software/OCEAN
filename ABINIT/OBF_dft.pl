@@ -1,6 +1,7 @@
 #!/usr/bin/perl
 
 use strict;
+use File::Copy;
 
 if (! $ENV{"OCEAN_BIN"} ) {
   $0 =~ m/(.*)\/OBF_dft\.pl/;
@@ -32,7 +33,7 @@ my @EspressoFiles = ( "coord", "degauss", "ecut", "etol", "fband", "ibrav",
     "isolated", "mixing", "natoms", "ngkpt", "noncolin", "nrun", "ntype", 
     "occopt", "occtype", "prefix", "ppdir", "rprim", "rscale", "smearing", 
     "spinorb", "taulist", "typat", "verbatim", "work_dir", "wftol", 
-    "den.kshift", "obkpt.ipt", "trace_tol", "ham_kpoints");
+    "den.kshift", "obkpt.ipt", "trace_tol", "ham_kpoints", "obf.nbands" );
 my @PPFiles = ("pplist", "znucl");
 my @OtherFiles = ("epsilon", "pool_control");
 
@@ -170,6 +171,22 @@ print "making atompp";
 system("$ENV{'OCEAN_BIN'}/makeatompp.x") == 0
     or die "Failed to make acell\n";
 
+  my @qe_data_files = ('prefix', 'ppdir', 'work_dir', 'ibrav', 'natoms', 'ntype', 'noncolin',
+                       'spinorb', 'ecut', 'occtype', 'degauss', 'etol', 'mixing', 'nrun', 'trace_tol' );
+  my %qe_data_files = {};
+  foreach my $file_name (@qe_data_files)
+  {
+    open IN, $file_name or die "$file_name:  $!";
+    my $string = <IN>;
+    chomp $string;
+    # Trim ', " and also leading or trailing spaces
+    $string =~ s/\'//g;
+    $string =~ s/\"//g;
+    $string =~ s/^\s+//g;
+    $string =~ s/\s+$//g;
+    close IN;
+    $qe_data_files{ "$file_name" } = $string;
+  }
 
 if ($RunESPRESSO) {
 
@@ -201,98 +218,74 @@ if ($RunESPRESSO) {
 
  ### write SCF input card for initial density
 
- `echo "&control" > qefile`;
- `echo "   calculation = 'scf'" >> qefile`;
- `echo -n "   prefix = '" >> qefile`;
- `head -c -1 prefix >> qefile`;
- `echo "'" >> qefile`;
- `echo -n "   pseudo_dir = " >> qefile`;
- `cat ppdir >> qefile`;
- `echo -n "   outdir = " >> qefile`;
- `cat work_dir >> qefile`;
- `echo "   tstress = .true." >> qefile`;
- `echo "   tprnfor = .true." >> qefile`;
- `echo "   wf_collect = .true." >> qefile`;
- `echo "/" >> qefile`;
+  my $string;
+  open QE, ">scf.in" or die "Failed to open scf.in.\n$!";
+  print QE "&control\n" 
+        .  "  calculation = 'scf'\n"
+        .  "  prefix = \'$qe_data_files{'prefix'}\'\n"
+        .  "  pseudo_dir = \'$qe_data_files{'ppdir'}\'\n"
+        .  "  outdir = \'$qe_data_files{'work_dir'}\'\n"
+        .  "  tstress = .true.\n"
+        .  "  tprnfor = .true.\n"
+        .  "  wf_collect = .true.\n"
+        .  "/\n";
+  print QE "&system\n"
+        .  "  ibrav = $qe_data_files{'ibrav'}\n"
+        .  "  nat = $qe_data_files{'natoms'}\n"
+        .  "  ntyp = $qe_data_files{'ntype'}\n"
+        .  "  noncolin = $qe_data_files{'noncolin'}\n"
+        .  "  lspinorb = $qe_data_files{'spinorb'}\n"
+        .  "  ecutwfc = $qe_data_files{'ecut'}\n"
+        .  "  occupations = '$qe_data_files{'occtype'}'\n"
+        .  "  degauss = $qe_data_files{'degauss'}\n"
+        .  "  nosym = .true.\n"
+        .  "  noinv = .true.\n";
+  if( $qe_data_files{'ibrav'} != 0 ) 
+  {
+    print QE "  celldim(1) = ${celldm1}\n";
+  }
+  print QE "/\n"
+        .  "&electrons\n"
+        .  "  conv_thr = $qe_data_files{'etol'}\n"
+        .  "  mixing_beta = $qe_data_files{'mixing'}\n"
+        .  "  electron_maxstep = $qe_data_files{'nrun'}\n"
+        .  "/\n"
+        .  "&ions\n"
+        .  "/\n";
 
- `echo "&system" >> qefile`;
- `echo -n "   ibrav = " >> qefile`;    
- `cat ibrav >> qefile`;                
- if ($ibrav != 0) {
-   `echo -n "   celldm(1) = " >> qefile`;
-   `echo ${celldm1} >> qefile`;
- }
-# `echo -n "   celldm(2) = " >> qefile`;
-# `echo ${celldm2} >> qefile`;
-# `echo -n "   celldm(3) = " >> qefile`;
-# `echo ${celldm3} >> qefile`;
- `echo -n "   nat = " >> qefile`;
- `cat natoms >> qefile`;
- `echo -n "   ntyp = " >> qefile`;
- `cat ntype >> qefile`;
-# `echo -n "   nbnd = " >> qefile`;
-# `cat paw.nbands >> qefile`;
- `echo -n "   noncolin = " >> qefile`;
- `cat noncolin >> qefile`;
- `echo -n "   lspinorb = " >> qefile`;
- `cat spinorb >> qefile`;
- `echo -n "   ecutwfc = " >> qefile`;
- `cat ecut >> qefile`;
- #`echo "   ecutrho = " >> qefile`;
- #`cat ecutrho >> qefile`;
- `echo -n "   occupations = " >> qefile`;
- `cat occtype >> qefile`;
- `echo -n "   smearing = " >> qefile`;
- `cat smearing >> qefile`;
- `echo -n "   degauss = " >> qefile`;
- `cat degauss >> qefile`;
- `echo "   nosym = .true." >> qefile`;
- `echo "   noinv = .true." >> qefile`;
-# `echo -n "   assume_isolated = " >> qefile`;
-# `cat isolated >> qefile`;
- `echo "/" >> qefile`;
+  open IN, "atompp" or die "$!";
+  my $atompp;
+  while (<IN>) { $atompp .= $_; }
+  close IN;
+  chomp $atompp;
+  print QE "ATOMIC_SPECIES\n" . $atompp . "\n";
 
- `echo "&electrons" >> qefile`;
- `echo -n "   conv_thr    = " >> qefile`;
- `cat etol >> qefile`;
- `echo -n "   mixing_beta = " >> qefile`;
- `cat mixing >> qefile`;
- `echo -n "   electron_maxstep = " >> qefile`;
- `cat nrun >> qefile`;
- `echo "/" >> qefile`;
+  if ($ibrav == 0) {
+    open IN, "acell" or die "$!";
+    my $acell;
+    while (<IN>) { $acell .= $_; }
+    close IN;
+    chomp $acell;
+    print QE "CELL_PARAMETERS cubic\n" . $acell . "\n";
+  }
 
- `echo "&ions" >> qefile`;
- `echo "/" >> qefile`;
+  if( $coord_type =~ m/angst/ )
+  {
+    print QE "ATOMIC_POSITIONS angstrom\n";
+  }
+  else
+  {
+    print QE "ATOMIC_POSITIONS crystal\n";
+  }
+  open IN, "coords" or die;
+  while (<IN>) { print QE $_;}
+  close IN;
 
- `echo "ATOMIC_SPECIES" >> qefile`;
- `cat atompp >> qefile`;
+  print QE "K_POINTS automatic\n$ngkpt $kshift\n";
 
- if ($ibrav == 0) {
-    `echo "CELL_PARAMETERS cubic" >> qefile`;
-   `cat acell >> qefile`;
- }
+  close QE;
 
-#test 2013-4-5
-if( $coord_type =~ m/angst/ )
-{
-	`echo "ATOMIC_POSITIONS angstrom" >> qefile`;
-} 
-else
-{
-	`echo "ATOMIC_POSITIONS crystal" >> qefile`;
-}
- `cat coords >> qefile`;
-
-
- `echo "K_POINTS automatic" >> qefile`;
- #`tr '\n' ' ' < paw.nkpt >> qefile`;
- #`cat kshift >> qefile`;
-# `echo "2 2 1 1 1 0" >> qefile`;
-  `echo "$ngkpt $kshift" >> qefile`;
- #KG#
-
- # mv qefile to appropriate location
- `mv qefile scf.in`;
+#  copy( "qefile", "scf.in");
 
 
 
@@ -313,28 +306,43 @@ else
  
  
  ### write PP input card for density
- 
- `echo "&inputpp" > ppfile`;
- `echo -n "   prefix = '" >> ppfile`;
- `head -c -1 prefix >> ppfile`;
- `echo "'" >> ppfile`;
+  open PP, ">pp.in";
+  print PP "&inputpp\n"
+          . "  prefix = \'$qe_data_files{'prefix'}\'\n" 
+          . "  outdir = \'$qe_data_files{'work_dir'}\'\n"
+          . "  filplot= 'system.rho'\n"
+          . "  plot_num = 0\n"
+          . "/\n"
+          . "&plot\n"
+          . "  nfile = 1\n"
+          . "  filepp(1) = 'system.rho', weight(1) = 1\n"
+          . "  iflag = 3\n"
+          . "  output_format = 6\n"
+          . "  fileout = 'system.rho.dat'\n"
+          . "  /\n";
+  close PP;
+
+# `echo "&inputpp" > ppfile`;
+# `echo -n "   prefix = '" >> ppfile`;
+# `head -c -1 prefix >> ppfile`;
+# `echo "'" >> ppfile`;
 # `echo -n "   prefix = " >> ppfile`;
 # `cat prefix >> ppfile`;
- `echo -n "   outdir = " >> ppfile`;
- `cat work_dir >> ppfile`;
- `echo "   filplot = 'system.rho'" >> ppfile`;
- `echo "   plot_num = 0" >> ppfile`;
- `echo "/" >> ppfile`;
+# `echo -n "   outdir = " >> ppfile`;
+# `cat work_dir >> ppfile`;
+# `echo "   filplot = 'system.rho'" >> ppfile`;
+# `echo "   plot_num = 0" >> ppfile`;
+# `echo "/" >> ppfile`;
  
- `echo "&plot" >> ppfile`;
- `echo "   nfile = 1" >> ppfile`;
- `echo "   filepp(1) = 'system.rho', weight(1) = 1" >> ppfile`;
- `echo "   iflag = 3" >> ppfile`;
- `echo "   output_format = 6" >> ppfile`;
- `echo "   fileout = 'system.rho.dat'" >> ppfile`;
- `echo "/" >> ppfile`;
+# `echo "&plot" >> ppfile`;
+# `echo "   nfile = 1" >> ppfile`;
+# `echo "   filepp(1) = 'system.rho', weight(1) = 1" >> ppfile`;
+# `echo "   iflag = 3" >> ppfile`;
+# `echo "   output_format = 6" >> ppfile`;
+# `echo "   fileout = 'system.rho.dat'" >> ppfile`;
+# `echo "/" >> ppfile`;
  
- `mv ppfile pp.in`;
+# `mv ppfile pp.in`;
  
 
           
@@ -477,103 +485,184 @@ if ( $nscfRUN ) {
   chomp($obfkpt);
   close(OBFKPT);
 
-
+  my $nbands = `cat obf.nbands`;
+  chomp($nbands);
+  if( $nbands < 0 ) 
+  {
+    $nbands = `cat nbands`;
+    chomp( $nbands );
+  }
  ### PAW NSCF write input card
   
-  `echo "&control" > qefile`;
-  `echo "   calculation = 'nscf'" >> qefile`;
-  `echo -n "   prefix = '" >> qefile`;
-  `head -c -1 prefix >> qefile`;
-  `echo "'" >> qefile`;
-  `echo -n "   pseudo_dir = " >> qefile`;
-  `cat ppdir >> qefile`;
-  `echo -n "   outdir = " >> qefile`;
-  `cat work_dir >> qefile`;
-  `echo "   tstress = .true." >> qefile`;
-  `echo "   tprnfor = .true." >> qefile`;
-  `echo "   wf_collect = .true." >> qefile`;
-  `echo "/" >> qefile`;
-
-  `echo "&system" >> qefile`;
-  `echo -n "   ibrav = " >> qefile`;
-  `cat ibrav >> qefile`;
-  if ($ibrav != 0) {
-    `echo -n "   celldm(1) = " >> qefile`;
-    `echo ${celldm1} >> qefile`;
+  open QE, ">nscf.in" or die "Failed to open nscf.in\n$!";
+  print QE "&control\n"
+        .  "  calculation = 'nscf'\n"
+        .  "  prefix = \'$qe_data_files{'prefix'}\'\n"
+        .  "  pseudo_dir = \'$qe_data_files{'ppdir'}\'\n"
+        .  "  outdir = \'$qe_data_files{'work_dir'}\'\n"
+        .  "  tstress = .true.\n"
+        .  "  tprnfor = .true.\n"
+        .  "  wf_collect = .true.\n"
+        .  "/\n";
+  print QE "&system\n"
+        .  "  ibrav = $qe_data_files{'ibrav'}\n"
+        .  "  nat = $qe_data_files{'natoms'}\n"
+        .  "  ntyp = $qe_data_files{'ntype'}\n"
+        .  "  noncolin = $qe_data_files{'noncolin'}\n"
+        .  "  lspinorb = $qe_data_files{'spinorb'}\n"
+        .  "  ecutwfc = $qe_data_files{'ecut'}\n"
+        .  "  occupations = '$qe_data_files{'occtype'}'\n"
+        .  "  degauss = $qe_data_files{'degauss'}\n"
+        .  "  nosym = .true.\n"
+        .  "  noinv = .true.\n"
+        .  "  nbnd = $nbands\n";
+  if( $qe_data_files{'ibrav'} != 0 )
+  {
+    print QE "  celldim(1) = ${celldm1}\n";
   }
- # `echo -n "   celldm(2) = " >> qefile`;
- # `echo ${celldm2} >> qefile`;
- # `echo -n "   celldm(3) = " >> qefile`;
- # `echo ${celldm3} >> qefile`;
-  `echo -n "   nat = " >> qefile`;
-  `cat natoms >> qefile`;
-  `echo -n "   ntyp = " >> qefile`;
-  `cat ntype >> qefile`;
-  `echo -n "   nbnd = " >> qefile`;
-  `cat nbands >> qefile`;
-  `echo -n "   noncolin = " >> qefile`;
-  `cat noncolin >> qefile`;
-  `echo -n "   lspinorb = " >> qefile`;
-  `cat spinorb >> qefile`;
-  `echo -n "   ecutwfc = " >> qefile`;
-  `cat ecut >> qefile`;
-  #`echo "   ecutrho = " >> qefile`;
-  #`cat ecutrho >> qefile`;
-  `echo -n "   occupations = " >> qefile`;
-  `cat occtype >> qefile`;
-  `echo -n "   smearing = " >> qefile`;
-  `cat smearing >> qefile`;
-  `echo -n "   degauss = " >> qefile`;
-  `cat degauss >> qefile`;
-  `echo "   nosym = .true." >> qefile`;
-  `echo "   noinv = .true." >> qefile`;
- # `echo -n "   assume_isolated = " >> qefile`;
- # `cat isolated >> qefile`;
-  `echo "/" >> qefile`;
+  print QE "/\n"
+        .  "&electrons\n"
+        .  "  conv_thr = $qe_data_files{'etol'}\n"
+        .  "  mixing_beta = $qe_data_files{'mixing'}\n"
+        .  "  electron_maxstep = $qe_data_files{'nrun'}\n"
+        .  "/\n"
+        .  "&ions\n"
+        .  "/\n";
 
-  `echo "&electrons" >> qefile`;
-  `echo -n "   conv_thr    = " >> qefile`;
-  `cat etol >> qefile`;
-  `echo -n "   mixing_beta = " >> qefile`;
-  `cat mixing >> qefile`;
-  `echo -n "   electron_maxstep = " >> qefile`;
-  `cat nrun >> qefile`;
-  `echo "/" >> qefile`;
-
-  `echo "&ions" >> qefile`;
-  `echo "/" >> qefile`;
-
-  `echo "ATOMIC_SPECIES" >> qefile`;
-  `cat atompp >> qefile`;
+  open IN, "atompp" or die "$!";
+  my $atompp;
+  while (<IN>) { $atompp .= $_; }
+  close IN;
+  chomp $atompp;
+  print QE "ATOMIC_SPECIES\n" . $atompp . "\n";
 
   if ($ibrav == 0) {
-     `echo "CELL_PARAMETERS cubic" >> qefile`;
-     `cat acell >> qefile`;
+    open IN, "acell" or die "$!";
+    my $acell;
+    while (<IN>) { $acell .= $_; }
+    close IN;
+    chomp $acell;
+    print QE "CELL_PARAMETERS cubic\n" . $acell . "\n";
   }
+
+  if( $coord_type =~ m/angst/ )
+  {
+    print QE "ATOMIC_POSITIONS angstrom\n";
+  }
+  else
+  {
+    print QE "ATOMIC_POSITIONS crystal\n";
+  }
+  open IN, "coords" or die;
+  while (<IN>) { print QE $_;}
+  close IN;
+
+  print QE  "K_POINTS automatic\n"
+          . "$obfkpt 0 0 0\n";
+
+#  `echo "&control" > qefile`;
+#  `echo "   calculation = 'nscf'" >> qefile`;
+#  `echo -n "   prefix = '" >> qefile`;
+#  `head -c -1 prefix >> qefile`;
+#  `echo "'" >> qefile`;
+#  `echo -n "   pseudo_dir = " >> qefile`;
+#  `cat ppdir >> qefile`;
+#  `echo -n "   outdir = " >> qefile`;
+#  `cat work_dir >> qefile`;
+#  `echo "   tstress = .true." >> qefile`;
+#  `echo "   tprnfor = .true." >> qefile`;
+#  `echo "   wf_collect = .true." >> qefile`;
+#  `echo "/" >> qefile`;
+#
+#  `echo "&system" >> qefile`;
+#  `echo -n "   ibrav = " >> qefile`;
+#  `cat ibrav >> qefile`;
+#  if ($ibrav != 0) {
+#    `echo -n "   celldm(1) = " >> qefile`;
+#    `echo ${celldm1} >> qefile`;
+#  }
+# # `echo -n "   celldm(2) = " >> qefile`;
+# # `echo ${celldm2} >> qefile`;
+# # `echo -n "   celldm(3) = " >> qefile`;
+# # `echo ${celldm3} >> qefile`;
+#  `echo -n "   nat = " >> qefile`;
+#  `cat natoms >> qefile`;
+#  `echo -n "   ntyp = " >> qefile`;
+#  `cat ntype >> qefile`;
+#  `echo -n "   nbnd = " >> qefile`;
+#  my $nbands = `cat obf.nbands`;
+#  chomp($nbands);
+#  if( $nbands < 0 ) 
+#  {
+#  	`cat nbands >> qefile`;
+#  }
+#  else
+#  {
+#	`cat obf.nbands >> qefile`;
+#  }
+#  `echo -n "   noncolin = " >> qefile`;
+#  `cat noncolin >> qefile`;
+#  `echo -n "   lspinorb = " >> qefile`;
+#  `cat spinorb >> qefile`;
+#  `echo -n "   ecutwfc = " >> qefile`;
+#  `cat ecut >> qefile`;
+#  #`echo "   ecutrho = " >> qefile`;
+#  #`cat ecutrho >> qefile`;
+#  `echo -n "   occupations = " >> qefile`;
+#  `cat occtype >> qefile`;
+#  `echo -n "   smearing = " >> qefile`;
+#  `cat smearing >> qefile`;
+#  `echo -n "   degauss = " >> qefile`;
+#  `cat degauss >> qefile`;
+#  `echo "   nosym = .true." >> qefile`;
+#  `echo "   noinv = .true." >> qefile`;
+# # `echo -n "   assume_isolated = " >> qefile`;
+# # `cat isolated >> qefile`;
+#  `echo "/" >> qefile`;
+
+#  `echo "&electrons" >> qefile`;
+#  `echo -n "   conv_thr    = " >> qefile`;
+#  `cat etol >> qefile`;
+#  `echo -n "   mixing_beta = " >> qefile`;
+#  `cat mixing >> qefile`;
+#  `echo -n "   electron_maxstep = " >> qefile`;
+#  `cat nrun >> qefile`;
+#  `echo "/" >> qefile`;
+#
+#  `echo "&ions" >> qefile`;
+#  `echo "/" >> qefile`;
+
+#  `echo "ATOMIC_SPECIES" >> qefile`;
+#  `cat atompp >> qefile`;
+#
+#  if ($ibrav == 0) {
+#     `echo "CELL_PARAMETERS cubic" >> qefile`;
+#     `cat acell >> qefile`;
+#  }
 
 # `echo "ATOMIC_POSITIONS angstrom" >> qefile`;
 #  `echo "ATOMIC_POSITIONS crystal" >> qefile`;
-if( $coord_type =~ m/angst/ )
-{
-        `echo "ATOMIC_POSITIONS angstrom" >> qefile`;
-}
-else
-{
-        `echo "ATOMIC_POSITIONS crystal" >> qefile`;
-}
-
-  `cat coords >> qefile`;
+#if( $coord_type =~ m/angst/ )
+#{
+#        `echo "ATOMIC_POSITIONS angstrom" >> qefile`;
+#}
+#else
+#{
+#        `echo "ATOMIC_POSITIONS crystal" >> qefile`;
+#}
+#
+#  `cat coords >> qefile`;
 
   #`echo "K_POINTS automatic" >> qefile`;
   #`tr '\n' ' ' < paw.nkpt >> qefile`;
   #`cat kshift >> qefile`;
 
  # paste k-point list onto end of scf.in file
-  `echo "K_POINTS automatic" >> qefile`;
-  `echo "$obfkpt 0 0 0 " >> qefile`;
+#  `echo "K_POINTS automatic" >> qefile`;
+#  `echo "$obfkpt 0 0 0 " >> qefile`;
 
  # mv qefile to appropriate location
-  `mv qefile nscf.in`;
+#  `mv qefile nscf.in`;
    
   my $npool = 1;
   open INPUT, "pool_control" or die;
@@ -620,35 +709,54 @@ close AVECS;
 
 
 print "Create Basis\n";
-`echo "&input" > basis.in`;
-`echo -n "   prefix = '" >> basis.in`;
-`head -c -1 prefix >> basis.in`;
-`echo "'" >> basis.in`;
-`echo -n "   outdir = " >> basis.in`;
-`cat work_dir >> basis.in`;
-`echo -n "   trace_tol = " >> basis.in`;
-`cat trace_tol >> basis.in`;
-`echo "/" >> basis.in`;
+open BASIS, ">basis.in" or die "Failed top open basis.in\n$!";
+print BASIS "&input\n"
+        .  "  prefix = \'$qe_data_files{'prefix'}\'\n"
+        .  "  outdir = \'$qe_data_files{'work_dir'}\'\n"
+        .  "  trace_tol = $qe_data_files{'trace_tol'}\n"
+        .  "/\n";
+close BASIS;
 
-system("time $para_prefix $ENV{'OCEAN_BIN'}/shirley_basis.x  < basis.in > basis.out 2>&1") == 0
+#`echo "&input" > basis.in`;
+#`echo -n "   prefix = '" >> basis.in`;
+#`head -c -1 prefix >> basis.in`;
+#`echo "'" >> basis.in`;
+#`echo -n "   outdir = " >> basis.in`;
+#`cat work_dir >> basis.in`;
+#`echo -n "   trace_tol = " >> basis.in`;
+#`cat trace_tol >> basis.in`;
+#`echo "/" >> basis.in`;
+
+system("$para_prefix $ENV{'OCEAN_BIN'}/shirley_basis.x  < basis.in > basis.out 2>&1") == 0
       or die "Failed to run shirley_basis.x\n$!";
 
 my $ham_kpoints = `cat ham_kpoints`;
 chomp $ham_kpoints;
 
 print "Create Shirley Hamiltonian\n";
-`echo "&input" > ham.in`;
-`echo "   prefix = 'system_opt'" >> ham.in`;
-`echo -n "   outdir = " >> ham.in`;
-`cat work_dir >> ham.in`;
-`echo "   updatepp = .false." >> ham.in`;
-`echo "   ncpp = .true." >> ham.in`;
-`echo "/" >> ham.in`;
-`echo " K_POINTS" >> ham.in`;
-`echo "$ham_kpoints 0 0 0" >> ham.in`;
+open HAM, ">ham.in" or die "Failed to open ham.in\n$!";
+print HAM "&input\n"
+        . "  prefix = 'system_opt'\n"
+        . "  outdir = \'$qe_data_files{'work_dir'}\'\n"
+        . "  updatepp = .false.\n"
+        . "  ncpp = .true.\n"
+        . "/\n"
+        . "K_POINTS\n"
+        . "$ham_kpoints 0 0 0\n";
+close HAM;
+
+#`echo "&input" > ham.in`;
+#`echo "   prefix = 'system_opt'" >> ham.in`;
+#`echo -n "   outdir = " >> ham.in`;
+#`cat work_dir >> ham.in`;
+#`echo "   updatepp = .false." >> ham.in`;
+#`echo "   ncpp = .true." >> ham.in`;
+#`echo "/" >> ham.in`;
+#`echo " K_POINTS" >> ham.in`;
+#`echo "$ham_kpoints 0 0 0" >> ham.in`;
 
 
-system("time $para_prefix $ENV{'OCEAN_BIN'}/shirley_ham_o.x  < ham.in > ham.out 2>&1") == 0
+system("$para_prefix $ENV{'OCEAN_BIN'}/shirley_ham_o.x  < ham.in > ham.out 2>&1") == 0
       or die "Failed to run shirley_ham_o.x\n$!";
 
 print "Espresso stage complete\n";

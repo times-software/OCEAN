@@ -134,7 +134,7 @@ if( $input_content =~ m/^\s*-1/ )
     if( $output[$i] == 1000 ) { die "kmesh too large\n"; }
   }
   open INPUT, ">kmesh.ipt" or die "$!\n";
-  print INPUT "$output[0]\t$output[1]\t$output[2]\n";
+  print INPUT "$output[0]  $output[1]  $output[2]\n";
   close INPUT;
   print "Defaults chosen for kmesh.ipt:\t$output[0]\t$output[1]\t$output[2]\n";
   $kpt_tot = $output[0]*$output[1]*$output[2];
@@ -199,7 +199,7 @@ if( $input_content =~ m/^\s*-1/ )
     if( $output[$i] == 1000 ) { die "kmesh too large\n"; }
   }
   open INPUT, ">xmesh.ipt" or die "$!\n";
-  print INPUT "$output[0]\t$output[1]\t$output[2]\n";
+  print INPUT "$output[0]  $output[1]  $output[2]\n";
   close INPUT;
   print "Defaults chosen for xmesh.ipt:\t$output[0]\t$output[1]\t$output[2]\n";
 }
@@ -224,7 +224,7 @@ if( $input_content =~ m/^\s*-1/ )
     if( $output[$i] == 1000 ) { die "ngkpt too large\n"; }
   }
   open INPUT, ">ngkpt" or die "$!\n";
-  print INPUT "$output[0]\t$output[1]\t$output[2]\n";
+  print INPUT "$output[0]  $output[1]  $output[2]\n";
   close INPUT;
   print "Defaults chosen for ngkpt:\t$output[0]\t$output[1]\t$output[2]\n";
   $kpt_tot = $output[0]*$output[1]*$output[2];
@@ -267,7 +267,7 @@ if( $input_content =~ m/^\s*-1/ )
     if( $output[$i] == 1000 ) { die "obkpt too large\n"; }
   }
   open INPUT, ">obkpt.ipt" or die "$!\n";
-  print INPUT "$output[0]\t$output[1]\t$output[2]\n";
+  print INPUT "$output[0]  $output[1]  $output[2]\n";
   close INPUT;
   print "Defaults chosen for obkpt:\t$output[0]\t$output[1]\t$output[2]\n";
   $kpt_tot = $output[0]*$output[1]*$output[2];
@@ -362,7 +362,7 @@ if( $input_content =~ m/^\s*-1/ )
 #  }
   $output[0] = 4; $output[1] = 4; $output[2] = 4;
   open INPUT, ">ham_kpoints" or die "$!\n";
-  print INPUT "$output[0]\t$output[1]\t$output[2]\n";
+  print INPUT "$output[0]  $output[1]  $output[2]\n";
   close INPUT;
   print "Defaults chosen for ham_kpoints:\t$output[0]\t$output[1]\t$output[2]\n";
 }
@@ -387,7 +387,7 @@ if( $input_content =~ m/^\s*-1/ )
     if( $output[$i] == 1000 ) { die "paw.nkpt too large\n"; }
   }
   open INPUT, ">paw.nkpt" or die "$!\n";
-  print INPUT "$output[0]\t$output[1]\t$output[2]\n";
+  print INPUT "$output[0]  $output[1]  $output[2]\n";
   close INPUT;
   print "Defaults chosen for paw.nkpt:\t$output[0]\t$output[1]\t$output[2]\n";
   $kpt_tot = $output[0]*$output[1]*$output[2];
