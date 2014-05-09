@@ -15,6 +15,10 @@ module OCEAN_multiplet
   real( DP ), allocatable :: somelr( :, : )
   real( DP ), allocatable :: someli( :, : )
 
+#ifdef __INTEL_COMPILER
+!DIR$ attributes align: 64 :: mpcr, mpci, mpm, mhr, mhi, somelr, someli
+#endif
+
 
   integer, allocatable :: nproj( : ), hvnu(:)
   integer, allocatable :: ibeg( : )
@@ -717,35 +721,52 @@ module OCEAN_multiplet
     type( ocean_vector ), intent( inout ) :: out_vec
     !
     !
-    integer :: ialpha, l, m, nu, ispn, ikpt, ibnd, i
+    integer :: ialpha, l, m, nu, ispn, ikpt, ibnd, i, n_threads, chunk
     real( DP ) :: mul
     real( DP ), dimension( npmax ) :: ampr, ampi, hampr, hampi
+
+    integer, external :: omp_get_num_threads
+
+#ifdef __INTEL_COMPILER
+!DIR$ attributes align: 64 :: ampr, ampi, hampr, hampi
+! ! !DIR$ assume aligned: 
+#endif
   !
     if( ct_n .lt. 1 ) return
 
     mul = inter / ( dble( sys%nkpts ) * sys%celvol )
 
+
+  n_threads = 1
+!$  n_threads = max( 1, omp_get_num_threads() )
+!!!  chunk = max( 1, sys%num_bands / ( 4 * n_threads ) )
+  chunk = sys%num_bands 
+  chunk = sys%num_bands * sys%nkpts / ( n_threads * 4 )
+  chunk = chunk * 4
+
 !$OMP PARALLEL &
 !$OMP DEFAULT( NONE ) &
 !$OMP PRIVATE( i, ialpha, l, m, ispn, nu, ikpt, ibnd ) &
-!$OMP SHARED( ampr, ampi, in_vec, mpcr, mpci, sys, out_vec, mpm, hampi, hampr, ct_n, ct_list, mul, nproj )
+!$OMP SHARED( ampr, ampi, in_vec, mpcr, mpci, sys, out_vec, mpm, hampi, hampr ) &
+!$OMP SHARED( ct_n, ct_list, mul, nproj, chunk )
 
 
-    do i = 1, ct_n
+      do i = 1, ct_n
 
-    ialpha = ct_list( 1, i )
-    l = ct_list( 2, i )
-    m = ct_list( 3, i )
-    ispn = 2 - mod( ialpha, 2 )
-    if( sys%nspn .eq. 1 ) then
-      ispn = 1
-    endif
+      ialpha = ct_list( 1, i )
+      l = ct_list( 2, i )
+      m = ct_list( 3, i )
+      ispn = 2 - mod( ialpha, 2 )
+      if( sys%nspn .eq. 1 ) then
+        ispn = 1
+      endif
 
-    ampr( : ) = 0
-    ampi( : ) = 0
-    do nu = 1, nproj( l )
+      ampr( : ) = 0
+      ampi( : ) = 0
+      do nu = 1, nproj( l )
 
 !$OMP DO COLLAPSE( 1 ) &
+!$OMP SCHEDULE( STATIC ) &
 !$OMP REDUCTION(+:ampr,ampi)
             do ikpt = 1, sys%nkpts
               do ibnd = 1, sys%num_bands
@@ -774,7 +795,8 @@ module OCEAN_multiplet
 
           do nu = 1, nproj( l )
 
-!$OMP DO COLLAPSE( 1 ) 
+!$OMP DO COLLAPSE( 1 ) &
+!$OMP SCHEDULE( STATIC )
             do ikpt = 1, sys%nkpts
               do ibnd = 1, sys%num_bands
                 out_vec%r( ibnd, ikpt, ialpha ) = out_vec%r( ibnd, ikpt, ialpha ) &
@@ -932,7 +954,8 @@ module OCEAN_multiplet
 
 !$OMP PARALLEL &
 !$OMP PRIVATE( ic, ivml, nu, ii, jj, j1, ispn, i, lv ) &
-!$OMP SHARED( mul, nproj, mham, jbeg, pwr, pwi, mhr, mhi, mpcr, mpci, hpwr, hpwi, in_vec, out_vec, sys, fg_n, fg_list ) &
+!$OMP SHARED( mul, nproj, mham, jbeg, pwr, pwi, mhr, mhi, mpcr, mpci, hpwr, hpwi ) &
+!$OMP SHARED( in_vec, out_vec, sys, fg_n, fg_list ) &
 !$OMP DEFAULT( NONE )
     do i = 1, fg_n
       lv = fg_list( i )
