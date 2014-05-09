@@ -5,11 +5,15 @@ module OCEAN_energies
   implicit none
   save
 
-  REAL(DP), ALLOCATABLE, TARGET :: energies(:,:,:)
-!DEC$ ATTRIBUTES ALIGN: 32 :: energies
+  REAL(DP), ALLOCATABLE :: energies(:,:,:)
+! ! DEC$ ATTRIBUTES ALIGN: 32 :: energies
 
-  real(DP), ALLOCATABLE, TARGET :: imag_selfenergy(:,:,:)
-!DEC$ ATTRIBUTES ALIGN: 32 :: imag_selfenergy
+  real(DP), ALLOCATABLE :: imag_selfenergy(:,:,:)
+! ! DEC$ ATTRIBUTES ALIGN: 32 :: imag_selfenergy
+
+#ifdef __INTEL_COMPILER
+!DIR$ attributes align: 64 :: energies, imag_selfenergy
+#endif
 
 !  REAL(DP), POINTER, CONTIGUOUS :: energies(:,:,:) => null()
 !  REAL(DP), POINTER, CONTIGUOUS :: imag_selfenergy(:,:,:) => null()
@@ -228,18 +232,31 @@ module OCEAN_energies
     type(OCEAN_vector), intent( in ) :: psi
     type(OCEAN_vector), intent( inout ) :: hpsi
 
-    integer :: ialpha
+    integer :: ialpha, ikpt, ibd
 
     if( sys%nspn .ne. 1 ) ierr = -1 
 
     do ialpha = 1, sys%nalpha
-      hpsi%r( :, :, ialpha ) = energies( :, :, 1 ) * psi%r( :, :, ialpha ) &
-                             - imag_selfenergy( :, :, 1 ) * psi%i( :, :, ialpha )
-      hpsi%i( :, :, ialpha ) = energies( :, :, 1 ) * psi%i( :, :, ialpha ) &
-                             + imag_selfenergy( :, :, 1 ) * psi%r( :, :, ialpha )
+!      hpsi%r( :, :, ialpha ) = energies( :, :, 1 ) * psi%r( :, :, ialpha ) &
+!                             - imag_selfenergy( :, :, 1 ) * psi%i( :, :, ialpha )
+!      hpsi%i( :, :, ialpha ) = energies( :, :, 1 ) * psi%i( :, :, ialpha ) &
+!                             + imag_selfenergy( :, :, 1 ) * psi%r( :, :, ialpha )
+      do ikpt = 1, sys%nkpts
+        do ibd = 1, sys%num_bands
+          hpsi%r( ibd, ikpt, ialpha ) = energies( ibd, ikpt, 1 ) * psi%r( ibd, ikpt, ialpha ) &
+                               - imag_selfenergy( ibd, ikpt, 1 ) * psi%i( ibd, ikpt, ialpha )
+        enddo
+        do ibd = 1, sys%num_bands
+          hpsi%i( ibd, ikpt, ialpha ) = energies( ibd, ikpt, 1 ) * psi%i( ibd, ikpt, ialpha ) &
+                               + imag_selfenergy( ibd, ikpt, 1 ) * psi%r( ibd, ikpt, ialpha )
+
+        enddo
+      enddo 
     enddo
 
   end subroutine OCEAN_energies_act
+
+
 
 
   complex(DP) function OCEAN_energies_single( ib, ik, ia )
@@ -467,5 +484,31 @@ module OCEAN_energies
 
   end subroutine OCEAN_abinit_fullgw
   
+  subroutine OCEAN_energies_act_derp( sys, pi, pr, hpi, hpr, ener, se, ierr )
+    use OCEAN_system
+    use OCEAN_psi 
+
+    implicit none
+    integer, intent(inout) :: ierr
+    type(O_system), intent( in ) :: sys
+    real(DP), intent(in), dimension(sys%num_bands,sys%nkpts,sys%nalpha) :: pi, pr
+    real(DP), intent(in), dimension(energy_bands_pad,energy_kpts_pad,1) :: ener, se
+    real(DP), intent(inout), dimension(sys%num_bands,sys%nkpts,sys%nalpha) :: hpi, hpr
+
+    integer :: ialpha, ikpt, ibd
+
+    if( sys%nspn .ne. 1 ) ierr = -1 
+
+    do ialpha = 1, sys%nalpha
+      do ikpt = 1, sys%nkpts
+        do ibd = 1, sys%num_bands
+          hpr( ibd, ikpt, ialpha  ) = ener( ibd, ikpt, 1 ) * pr( ibd, ikpt, ialpha ) &
+                                    - se(   ibd, ikpt, 1 ) * pi( ibd, ikpt, ialpha )
+
+        enddo
+      enddo 
+    enddo
+
+  end subroutine OCEAN_energies_act_derp
 
 end module OCEAN_energies
