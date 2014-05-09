@@ -325,8 +325,9 @@ module OCEAN_action
 
     if( myid .eq. 0 ) then
       write(lanc_filename, '(A8,A2,A1,I4.4,A1,A2,A1,I2.2)' ) 'lanceig_', sys%cur_run%elname, &
-        '.', sys%cur_run%indx, '_', '1s', '_', sys%cur_run%photon
+        '.', sys%cur_run%indx, '_', sys%cur_run%corelevel, '_', sys%cur_run%photon
       call haydump( haydock_niter, sys, ierr )
+      call redtrid(  haydock_niter, sys, ierr )
     endif
 
     call OCEAN_hay_dealloc( ierr )
@@ -398,13 +399,13 @@ module OCEAN_action
       select case ( sys%cur_run%calc_type)
       case( 'XES' )
         write(abs_filename,'(A8,A2,A1,I4.4,A1,A2,A1,I2.2)' ) 'xesspct_', sys%cur_run%elname, &
-            '.', sys%cur_run%indx, '_', '1s', '_', sys%cur_run%photon
+            '.', sys%cur_run%indx, '_', sys%cur_run%corelevel, '_', sys%cur_run%photon
       case( 'XAS' )
         write(abs_filename,'(A8,A2,A1,I4.4,A1,A2,A1,I2.2)' ) 'absspct_', sys%cur_run%elname, &
-            '.', sys%cur_run%indx, '_', '1s', '_', sys%cur_run%photon
+            '.', sys%cur_run%indx, '_', sys%cur_run%corelevel, '_', sys%cur_run%photon
       case default
         write(abs_filename,'(A8,A2,A1,I4.4,A1,A2,A1,I2.2)' ) 'absspct_', sys%cur_run%elname, &
-            '.', sys%cur_run%indx, '_', '1s', '_', sys%cur_run%photon
+            '.', sys%cur_run%indx, '_', sys%cur_run%corelevel, '_', sys%cur_run%photon
       end select
 
       open( unit=76,file=abs_filename,form='formatted',status='unknown' )
@@ -486,7 +487,7 @@ module OCEAN_action
         call flush(76)
 
         write(e_filename,'(A7,A2,A1,I4.4,A1,A2,A1,I2.2,A1,I4.4)' ) 'echamp_', sys%cur_run%elname, &
-            '.', sys%cur_run%indx, '_', '1s', '_', sys%cur_run%photon, '.', iter
+            '.', sys%cur_run%indx, '_', sys%cur_run%corelevel, '_', sys%cur_run%photon, '.', iter
         open(unit=99,file=e_filename,form='unformatted',status='unknown')
         rewind( 99 )
         write( 99 ) x
@@ -705,13 +706,13 @@ module OCEAN_action
     select case ( sys%cur_run%calc_type)
     case( 'XES' )
       write(abs_filename,'(A8,A2,A1,I4.4,A1,A2,A1,I2.2)' ) 'xesspct_', sys%cur_run%elname, &
-          '.', sys%cur_run%indx, '_', '1s', '_', sys%cur_run%photon
+          '.', sys%cur_run%indx, '_', sys%cur_run%corelevel, '_', sys%cur_run%photon
     case( 'XAS' )
       write(abs_filename,'(A8,A2,A1,I4.4,A1,A2,A1,I2.2)' ) 'absspct_', sys%cur_run%elname, &
-          '.', sys%cur_run%indx, '_', '1s', '_', sys%cur_run%photon
+          '.', sys%cur_run%indx, '_', sys%cur_run%corelevel, '_', sys%cur_run%photon
     case default
       write(abs_filename,'(A8,A2,A1,I4.4,A1,A2,A1,I2.2)' ) 'absspct_', sys%cur_run%elname, &
-          '.', sys%cur_run%indx, '_', '1s', '_', sys%cur_run%photon
+          '.', sys%cur_run%indx, '_', sys%cur_run%corelevel, '_', sys%cur_run%photon
     end select
     
     rm1 = -1; rm1 = sqrt( rm1 ); pi = 4.0d0 * atan( 1.0d0 )
@@ -723,7 +724,7 @@ module OCEAN_action
        do jdamp = 0, 1
           gam= gam0 + gamfcn( e, nval, eps ) * dble( jdamp )
 !          ctmp = e - a( iter - 1 ) + rm1 * gam
-          ctmp = e - real_a( iter - 1 ) + rm1 * ( gam + imag_a( iter - 1 ) )
+          ctmp = e - real_a( iter - 1 ) + rm1 * gam 
           disc = sqrt( ctmp ** 2 - 4 * b( iter ) ** 2 )
           di= -rm1 * disc
           if ( di .gt. 0.0d0 ) then
@@ -733,7 +734,7 @@ module OCEAN_action
           end if
           do jj = iter - 1, 0, -1
 !             delta = e - a( jj ) + rm1 * gam - b( jj + 1 ) ** 2 / delta
-             delta = e - real_a( jj ) + rm1 * (gam + imag_a( jj ) ) - b( jj + 1 ) ** 2 / delta
+             delta = e - real_a( jj ) + rm1 * gam - b( jj + 1 ) ** 2 / delta
           end do
           dr = delta
           di = -rm1 * delta
@@ -857,15 +858,37 @@ module OCEAN_action
 
   end subroutine OCEAN_hayinit
 
-  subroutine redtrid(n,lanc_filename)
+  subroutine redtrid(n,sys, ierr)
+    use OCEAN_psi,  only : kpref
+    use OCEAN_system
     implicit none
+    integer, intent( inout ) :: ierr
+    type( o_system ), intent( in ) :: sys
     integer, intent( in ) ::  n
 !    real( DP ), intent( in ) :: a( 0 : n ), b( n )
-    character( LEN=21 ), intent( in ) :: lanc_filename
+!    character( LEN=21 ), intent( in ) :: lanc_filename
     double precision, allocatable :: ar(:,:),ai(:,:)
     double precision, allocatable :: w(:),zr(:,:),zi(:,:)
     double precision, allocatable :: fv1(:),fv2(:),fm1(:)
-    integer :: ierr,matz,nm,i,j,nn
+    integer :: matz,nm,i,j,nn
+
+
+    character( LEN=21 ) :: lanc_filename
+
+    select case ( sys%cur_run%calc_type)
+    case( 'XES' )
+      write(lanc_filename,'(A8,A2,A1,I4.4,A1,A2,A1,I2.2)' ) 'xeslanc_', sys%cur_run%elname, &
+          '.', sys%cur_run%indx, '_', sys%cur_run%corelevel, '_', sys%cur_run%photon
+    case( 'XAS' )
+      write(lanc_filename,'(A8,A2,A1,I4.4,A1,A2,A1,I2.2)' ) 'abslanc_', sys%cur_run%elname, &
+          '.', sys%cur_run%indx, '_', sys%cur_run%corelevel, '_', sys%cur_run%photon
+    case default
+      write(lanc_filename,'(A8,A2,A1,I4.4,A1,A2,A1,I2.2)' ) 'abslanc_', sys%cur_run%elname, &
+          '.', sys%cur_run%indx, '_', sys%cur_run%corelevel, '_', sys%cur_run%photon
+    end select
+
+
+
     nn=n+1
     nm=nn+10
     allocate(ar(nm,nm),ai(nm,nm),w(nm),zr(nm,nm),zi(nm,nm))
@@ -877,7 +900,7 @@ module OCEAN_action
       end do
     end do
     do i=1,n+1
-      ar(i,i)=a(i-1)
+      ar(i,i)=real_a(i-1)
       if (i.le.n) then
         ar(i+1,i)=b(i)
         ar(i,i+1)=b(i)
@@ -888,12 +911,12 @@ module OCEAN_action
 !    open(unit=99,file='lanceigs',form='formatted',status='unknown')
     open(unit=99,file=lanc_filename,form='formatted',status='unknown')
     rewind 99
-    write ( 99, '(1i5)' ) n
+    write ( 99, '(1i5,1e26.15)' ) n, kpref
     do i = 0, n
       if ( i .eq. 0 ) then
-        write ( 99, '(2x,1f20.10)' ) a( i )
+        write ( 99, '(2x,1f20.10)' ) real_a( i )
       else
-        write ( 99, '(2x,2f20.10)' ) a( i ), b( i )
+        write ( 99, '(2x,2f20.10)' ) real_a( i ), b( i )
       end if
     end do
     write (99,'(2x,2i5,1f20.10)') (i,nn,w(i),i=1,nn)
