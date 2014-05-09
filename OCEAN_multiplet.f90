@@ -5,21 +5,21 @@ module OCEAN_multiplet
   private
   save
 
-  real( DP ), pointer, contiguous :: mpcr( :, :, :, :, :, : )
-  real( DP ), pointer, contiguous :: mpci( :, :, :, :, :, : )
-  real( DP ), pointer, contiguous :: mpm( :, :, : )
-  real( DP ), pointer, contiguous :: mhr( : )
-  real( DP ), pointer, contiguous :: mhi( : )
-  real( DP ), pointer :: cms( : ), cml( : ), vms( : )
-  real( DP ), pointer :: hcml( : ), hvml( : ), hcms( : ), hvms( : )
-  real( DP ), pointer, contiguous :: somelr( :, : )
-  real( DP ), pointer, contiguous :: someli( :, : )
+  real( DP ), allocatable :: mpcr( :, :, :, :, :, : )
+  real( DP ), allocatable :: mpci( :, :, :, :, :, : )
+  real( DP ), allocatable :: mpm( :, :, : )
+  real( DP ), allocatable :: mhr( : )
+  real( DP ), allocatable :: mhi( : )
+  real( DP ), allocatable :: cms( : ), cml( : ), vms( : )
+  real( DP ), allocatable :: hcml( : ), hvml( : ), hcms( : ), hvms( : )
+  real( DP ), allocatable :: somelr( :, : )
+  real( DP ), allocatable :: someli( :, : )
 
 
-  integer, pointer :: nproj( : ), hvnu(:)
-  integer, pointer :: ibeg( : )
-  integer, pointer :: jbeg( : )
-  integer, pointer :: mham( : )
+  integer, allocatable :: nproj( : ), hvnu(:)
+  integer, allocatable :: ibeg( : )
+  integer, allocatable :: jbeg( : )
+  integer, allocatable :: mham( : )
 
   real(DP ) :: xi
 
