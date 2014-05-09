@@ -27,7 +27,8 @@ module OCEAN_obf
   LOGICAL :: is_loaded = .false.
 
 
-  public :: OCEAN_obf_init, OCEAN_obf_load, OCEAN_obf_is_loaded, OCEAN_obf_lrINIT, OCEAN_obf_lrLOAD, OCEAN_obf_make_phase
+  public :: OCEAN_obf_init, OCEAN_obf_load, OCEAN_obf_is_loaded, OCEAN_obf_lrINIT, &
+            OCEAN_obf_lrLOAD, OCEAN_obf_make_phase, OCEAN_obf_obf2bloch
 
   contains
 
@@ -42,10 +43,11 @@ module OCEAN_obf
     real(DP), intent(inout) :: tau(3)
     integer, intent( out ) :: xshift( 3 )
 
-    real(DP) :: cphs, sphs, pi, phsx, phsy, phsz
+    real(DP) :: cphs, sphs, pi, phsx, phsy, phsz, su2, su3
+!    complex(DP) :: su2
     integer :: iq, iq1, iq2, iq3, iobf
     integer :: ix, iy, iz, xtarg, ytarg, ztarg, xph, yph, zph
-    integer :: xiter, ibd
+    integer :: xiter, ibd, ibd2
     real(DP), allocatable :: re_bloch_state( :, :, : ), im_bloch_state( :,:,:), su(:,:)
 
 
@@ -65,7 +67,7 @@ module OCEAN_obf
         su(iobf,1) = su(iobf,1) + re_obf(iobf,xiter)**2 + im_obf(iobf,xiter)**2
       enddo
     enddo
-    if( myid .eq. 0 ) write(6,*) 'Orthog test: ', MINVAL(su), MAXVAL(su)
+    if( myid .eq. 0 ) write(6,*) 'Orthog test obf: ', MINVAL(su), MAXVAL(su)
     deallocate(su)
 
     allocate( su( sys%num_bands, sys%nkpts ) )
@@ -88,10 +90,54 @@ module OCEAN_obf
         enddo
       enddo
     enddo
+#ifdef MPI
+    call MPI_ALLREDUCE( MPI_IN_PLACE, su, sys%nkpts*sys%num_bands, MPI_DOUBLE_PRECISION, &
+                     MPI_SUM, comm, ierr )
+#endif
     if( myid .eq. root ) then 
       write(6,*) 'bloch created'
       write(6,*) 'Orthog test: ', MINVAL(su), MAXVAL(su)
     endif
+
+    su(:,:) = 1.0_DP / sqrt(su(:,:))
+    do xiter = 1, my_xpts
+      do iq = 1, sys%nkpts
+        do ibd = 1, sys%num_bands
+          re_bloch_state(ibd,iq,xiter) = re_bloch_state(ibd,iq,xiter) * su(ibd,iq)
+          im_bloch_state(ibd,iq,xiter) = im_bloch_state(ibd,iq,xiter) * su(ibd,iq)
+        enddo
+      enddo
+    enddo
+
+
+!    do iq = 1, sys%nkpts
+!      do ibd = 1, sys%num_bands
+!        do ibd2 = 1, ibd - 1
+!          su2 = sum( re_bloch_state(ibd,iq,:) * re_bloch_state(ibd2,iq,:) &
+!                   + im_bloch_state(ibd,iq,:) * im_bloch_state(ibd2,iq,:) )
+!          su3 = sum( - re_bloch_state(ibd,iq,:) * im_bloch_state(ibd2,iq,:) &
+!                     + im_bloch_state(ibd,iq,:) * re_bloch_state(ibd2,iq,:) )
+!          if( iq .eq. 1 ) then
+!            write(6,*) ibd, ibd2, su2, su3
+!
+!          endif
+!          re_bloch_state(ibd,iq,:) = re_bloch_state(ibd,iq,:) - su2 * re_bloch_state(ibd2,iq,:) + su3 * im_bloch_state(ibd2,iq,:)
+!          im_bloch_state(ibd,iq,:) = im_bloch_state(ibd,iq,:) - su2 * im_bloch_state(ibd2,iq,:) + su3 * re_bloch_state(ibd2,iq,:)
+!        enddo
+!        su2 = sum( re_bloch_state(ibd,iq,:)**2+im_bloch_state(ibd,iq,:)**2)
+!        re_bloch_state(ibd,iq,:) = re_bloch_state(ibd,iq,:) / sqrt(su2)
+!        im_bloch_state(ibd,iq,:) = im_bloch_state(ibd,iq,:) / sqrt(su2)
+!      enddo
+!    enddo
+
+!    re_bloch_state = 0.0_DP
+!    im_bloch_state = 0.0_DP
+    
+
+
+
+
+    
     deallocate(su)
 
 
@@ -529,6 +575,7 @@ module OCEAN_obf
             allocate( re_temp_obf( nx_tmp + 1), im_temp_obf( nx_tmp + 1) )
           endif
 
+!JTV probably want to restructure to call all the recieves earlier on
           call MPI_RECV( re_temp_obf, nx_tmp, MPI_DOUBLE_PRECISION, 0, &
                         i, comm, MPI_STATUS_IGNORE, ierr )
           call MPI_RECV( im_temp_obf, nx_tmp, MPI_DOUBLE_PRECISION, 0, &
@@ -539,10 +586,13 @@ module OCEAN_obf
         endif
         nx_start = nx_start + nx_tmp
       enddo
+#ifdef MPI
+      call MPI_BARRIER( comm, ierr )
+#endif
     enddo
 
-    re_obf(:,:) = re_obf(:,:) / sqrt( real( sys%nxpts, DP ) )
-    im_obf(:,:) = im_obf(:,:) / sqrt( real( sys%nxpts, DP ) )
+!    re_obf(:,:) = re_obf(:,:) / sqrt( real( sys%nxpts, DP ) )
+!    im_obf(:,:) = im_obf(:,:) / sqrt( real( sys%nxpts, DP ) )
 
     deallocate( re_temp_obf, im_temp_obf )
 
@@ -640,8 +690,9 @@ module OCEAN_obf
     ! obf_width is the number of bands in total stored per k
     ! need to offset by an additional num_obf * (valence bands )
       offset = (iq-1)*num_obf*obf_width + num_obf*ivh2
-      call MPI_FILE_READ_AT_ALL( fheig, offset, tmp_eigvec, num_obf*sys%num_bands, MPI_DOUBLE_COMPLEX, &
-                             MPI_STATUS_IGNORE, ierr )
+      call MPI_FILE_READ_AT_ALL( fheig, offset, tmp_eigvec, num_obf*sys%num_bands, &
+                                 MPI_DOUBLE_COMPLEX, &
+                                 MPI_STATUS_IGNORE, ierr )
 #endif
       do ibd = 1, sys%num_bands
         re_obf2u( ibd, :, iq ) = real( tmp_eigvec( :, ibd ) )
@@ -666,5 +717,23 @@ module OCEAN_obf
   end subroutine OCEAN_obf_load
 
 
+  subroutine OCEAN_obf_obf2bloch( sys, rbs, ibs, nbands, nkpts, nxpts, ierr )
+    use OCEAN_mpi, only : myid, nproc, root, comm
+    use OCEAN_system
+    use mpi
+    implicit none
+    !
+    type( o_system ), intent( in ) :: sys
+    integer, intent( inout ) :: ierr
+    integer, intent( in ) :: nbands, nkpts, nxpts
+    real(DP), intent( out ), dimension(nbands, nkpts, nxpts) :: rbs, ibs
+    !
+    ! 
+    
+
+    
+
+
+  end subroutine OCEAN_obf_obf2bloch
 
 end module OCEAN_obf
