@@ -343,8 +343,6 @@ module OCEAN_bloch
     select case( bloch_type )
       case('old')
 
-112 continue
-
     allocate( ur(sys%xmesh(1),sys%xmesh(2),sys%xmesh(3),sys%num_bands), &
               ui(sys%xmesh(1),sys%xmesh(2),sys%xmesh(3),sys%num_bands) )
     ! As per usual, do this the dumbest way first, 
@@ -677,7 +675,6 @@ module OCEAN_bloch
     case default
       if( myid .eq. 0 ) write(6,*) 'Unrecognized BLOCH type. Attempting type = old'
       bloch_type = 'old'
-      goto 112
 
     end select
       
