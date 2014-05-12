@@ -615,12 +615,17 @@ module OCEAN_multiplet
     type( ocean_vector ), intent( in ) :: in_vec
     type( ocean_vector ), intent( inout ) :: out_vec
 
+    integer :: take_longer
+
+    do take_longer = 1, 10
+
     out_vec%r(:,:,:) = 0.0_DP
     out_vec%i(:,:,:) = 0.0_DP
 
     if( do_staggered_sum ) then
-      call OCEAN_ctact_dist( sys, inter, in_vec, out_vec )
-      call fgact_dist( sys, inter, in_vec, out_vec )
+!      call OCEAN_ctact_dist( sys, inter, in_vec, out_vec )
+      call OCEAN_ctact_dist( sys, inter, in_vec%r, in_vec%i, out_vec%r, out_vec%i )
+!      call fgact_dist( sys, inter, in_vec, out_vec )
       if( sys%ZNL(2) .gt. 0 ) then
         call OCEAN_soact_dist( sys, in_vec, out_vec )
       endif
@@ -633,6 +638,7 @@ module OCEAN_multiplet
     endif
 !    call OCEAN_soact( sys, in_vec, out_vec )
 
+  enddo
 
   end subroutine OCEAN_mult_act
 
@@ -710,26 +716,31 @@ module OCEAN_multiplet
 
   end subroutine OCEAN_ctact
 
-  subroutine OCEAN_ctact_dist( sys, inter, in_vec, out_vec )
+  subroutine OCEAN_ctact_dist( sys, inter, in_vec_r, in_vec_i, out_vec_r, out_vec_i )
     use OCEAN_system
     use OCEAN_psi
     implicit none
     !
     type(O_system), intent( in ) :: sys
     real( DP ), intent( in ) :: inter
-    type( ocean_vector ), intent( in ) :: in_vec
-    type( ocean_vector ), intent( inout ) :: out_vec
+!    type( ocean_vector ), intent( in ) :: in_vec
+!    type( ocean_vector ), intent( inout ) :: out_vec
+    real( DP ), dimension( sys%num_bands, sys%nkpts, sys%nalpha ), intent( in ) :: &
+      in_vec_r, in_vec_i
+    real( DP ), dimension( sys%num_bands, sys%nkpts, sys%nalpha ), intent( inout ) :: &
+      out_vec_r, out_vec_i
+
     !
     !
     integer :: ialpha, l, m, nu, ispn, ikpt, ibnd, i, n_threads, chunk
-    real( DP ) :: mul
+    real( DP ) :: mul, l_hampr, l_hampi
     real( DP ), dimension( npmax ) :: ampr, ampi, hampr, hampi
 
     integer, external :: omp_get_num_threads
 
 #ifdef __INTEL_COMPILER
 !DIR$ attributes align: 64 :: ampr, ampi, hampr, hampi
-! ! !DIR$ assume aligned: 
+! ! !DIR$ assume_aligned: 16 :: in_vec_r, in_vec_i, out_vec_r, out_vec_i
 #endif
   !
     if( ct_n .lt. 1 ) return
@@ -737,18 +748,19 @@ module OCEAN_multiplet
     mul = inter / ( dble( sys%nkpts ) * sys%celvol )
 
 
-  n_threads = 1
-!$  n_threads = max( 1, omp_get_num_threads() )
+!  n_threads = 1
+! !$  n_threads = max( 1, omp_get_num_threads() )
 !!!  chunk = max( 1, sys%num_bands / ( 4 * n_threads ) )
-  chunk = sys%num_bands 
-  chunk = sys%num_bands * sys%nkpts / ( n_threads * 4 )
-  chunk = chunk * 4
+!  chunk = sys%num_bands 
+!  chunk = sys%num_bands * sys%nkpts / ( n_threads * 4 )
+!  chunk = chunk * 4
+!    call OMP_SET_NUM_THREADS( 4 )
 
 !$OMP PARALLEL &
 !$OMP DEFAULT( NONE ) &
-!$OMP PRIVATE( i, ialpha, l, m, ispn, nu, ikpt, ibnd ) &
-!$OMP SHARED( ampr, ampi, in_vec, mpcr, mpci, sys, out_vec, mpm, hampi, hampr ) &
-!$OMP SHARED( ct_n, ct_list, mul, nproj, chunk )
+!$OMP PRIVATE( i, ialpha, l, m, ispn, nu, ikpt, ibnd, l_hampr, l_hampi ) &
+!$OMP SHARED( ampr, ampi, in_vec_r, in_vec_i, mpcr, mpci, sys, out_vec_r, out_vec_i ) &
+!$OMP SHARED( ct_n, ct_list, mul, nproj, chunk, mpm, hampi, hampr ) 
 
 
       do i = 1, ct_n
@@ -765,56 +777,115 @@ module OCEAN_multiplet
       ampi( : ) = 0
       do nu = 1, nproj( l )
 
-!$OMP DO COLLAPSE( 1 ) &
-!$OMP SCHEDULE( STATIC ) &
-!$OMP REDUCTION(+:ampr,ampi)
-            do ikpt = 1, sys%nkpts
-              do ibnd = 1, sys%num_bands
-                ampr( nu ) = ampr( nu ) &
-                           + in_vec%r( ibnd, ikpt, ialpha ) * mpcr( ibnd, ikpt, nu, m, l, ispn ) &
-                           - in_vec%i( ibnd, ikpt, ialpha ) * mpci( ibnd, ikpt, nu, m, l, ispn )
-                ampi( nu ) = ampi( nu ) &
-                           + in_vec%r( ibnd, ikpt, ialpha ) * mpci( ibnd, ikpt, nu, m, l, ispn ) &
-                           + in_vec%i( ibnd, ikpt, ialpha ) * mpcr( ibnd, ikpt, nu, m, l, ispn )
-               enddo
-            enddo
-!$OMP END DO
-          enddo
+! !$OMP DO SIMD COLLAPSE( 1 ) &
+! !$OMP SCHEDULE( STATIC ) &
+! !$OMP ALIGNED(in_vec_r,in_vec_i,out_vec_r,out_vec_i:32 ) &
+! !$OMP ALIGNED(mpcr,mpci : 64 ) &
+! !$OMP REDUCTION(+:ampr,ampi)
+!        do ikpt = 1, sys%nkpts
+!          do ibnd = 1, sys%num_bands
+!            ampr( nu ) = ampr( nu ) &
+!                       + in_vec_r( ibnd, ikpt, ialpha ) * mpcr( ibnd, ikpt, nu, m, l, ispn ) &
+!                       - in_vec_i( ibnd, ikpt, ialpha ) * mpci( ibnd, ikpt, nu, m, l, ispn )
+!            ampi( nu ) = ampi( nu ) &
+!                       + in_vec_r( ibnd, ikpt, ialpha ) * mpci( ibnd, ikpt, nu, m, l, ispn ) &
+!                       + in_vec_i( ibnd, ikpt, ialpha ) * mpcr( ibnd, ikpt, nu, m, l, ispn )
+!           enddo
+!        enddo
+! !$OMP END DO SIMD
+        call ctact_dist_in( sys%nkpts, sys%num_bands, ampr( nu ), ampi( nu ), &
+                            in_vec_r( :, :, ialpha ), in_vec_i( :, :, ialpha ), &
+                            mpcr( :, :, nu, m, l, ispn ), mpci( :, :, nu, m, l, ispn ) )
+      enddo
 
 !$OMP SINGLE
-          hampr( : ) = 0
-          hampi( : ) = 0
-          do nu = 1, nproj( l )
-            hampr( : ) = hampr( : ) - mpm( :, nu, l ) * ampr( nu )
-            hampi( : ) = hampi( : ) - mpm( :, nu, l ) * ampi( nu )
-          enddo
-          hampr( : ) = hampr( : ) * mul
-          hampi( : ) = hampi( : ) * mul
+      hampr( : ) = 0
+      hampi( : ) = 0
+      do nu = 1, nproj( l )
+        hampr( : ) = hampr( : ) - mpm( :, nu, l ) * ampr( nu )
+        hampi( : ) = hampi( : ) - mpm( :, nu, l ) * ampi( nu )
+      enddo
+      hampr( : ) = hampr( : ) * mul
+      hampi( : ) = hampi( : ) * mul
 !$OMP END SINGLE
 
 
-          do nu = 1, nproj( l )
+      do nu = 1, nproj( l )
 
-!$OMP DO COLLAPSE( 1 ) &
-!$OMP SCHEDULE( STATIC )
-            do ikpt = 1, sys%nkpts
-              do ibnd = 1, sys%num_bands
-                out_vec%r( ibnd, ikpt, ialpha ) = out_vec%r( ibnd, ikpt, ialpha ) &
-                                           + mpcr( ibnd, ikpt, nu, m, l, ispn ) * hampr( nu )  &
-                                           + mpci( ibnd, ikpt, nu, m, l, ispn ) * hampi( nu )
-                out_vec%i( ibnd, ikpt, ialpha ) = out_vec%i( ibnd, ikpt, ialpha ) &
-                                           + mpcr( ibnd, ikpt, nu, m, l, ispn ) * hampi( nu ) &
-                                           - mpci( ibnd, ikpt, nu, m, l, ispn ) * hampr( nu )
-              enddo
-            enddo
-!$OMP END DO
-          enddo
-        enddo
+! !$OMP DO COLLAPSE( 1 ) &
+! !$OMP SCHEDULE( STATIC )
+!            do ikpt = 1, sys%nkpts
+!              do ibnd = 1, sys%num_bands
+!                out_vec_r( ibnd, ikpt, ialpha ) = out_vec_r( ibnd, ikpt, ialpha ) &
+!                                           + mpcr( ibnd, ikpt, nu, m, l, ispn ) * hampr( nu )  &
+!                                           + mpci( ibnd, ikpt, nu, m, l, ispn ) * hampi( nu )
+!                out_vec_i( ibnd, ikpt, ialpha ) = out_vec_i( ibnd, ikpt, ialpha ) &
+!                                           + mpcr( ibnd, ikpt, nu, m, l, ispn ) * hampi( nu ) &
+!                                           - mpci( ibnd, ikpt, nu, m, l, ispn ) * hampr( nu )
+!              enddo
+!            enddo
+!!$OMP END DO
+
+!!        l_hampr = hampr( nu )
+!!        l_hampi = hampi( nu )
+        call ctact_dist_out( sys%nkpts, sys%num_bands, hampr(nu), hampi( nu ), &
+                             out_vec_r( :, :, ialpha ), out_vec_i( :, :, ialpha ), &
+                             mpcr( :, :, nu, m, l, ispn ), mpci( :, :, nu, m, l, ispn ) )
+      enddo
+    enddo
+
 !$OMP END PARALLEL 
 
   end subroutine OCEAN_ctact_dist
 
+  pure subroutine ctact_dist_in( nkpts, num_bands, ampr, ampi, in_vec_r, in_vec_i, sm_mpcr, sm_mpci )
+    implicit none
+    !
+    integer, intent( in ) :: nkpts, num_bands
+    real(DP), intent( out ) :: ampr, ampi
+    real(DP), dimension(nkpts*num_bands), intent( in ) :: in_vec_r, in_vec_i, sm_mpcr, sm_mpci
+    !
+    integer :: iter
+    !
 
+!$OMP DO SIMD &
+!$OMP SCHEDULE( STATIC ) &
+!$OMP ALIGNED(in_vec_r,in_vec_i,sm_mpcr,sm_mpci: 32 ) &
+!$OMP REDUCTION(+:ampr,ampi)
+    do iter = 1, num_bands * nkpts
+      ampr = ampr + in_vec_r( iter ) * sm_mpcr( iter )  &
+           - in_vec_i( iter ) * sm_mpci( iter )
+      ampi = ampi + in_vec_r( iter ) * sm_mpci( iter ) &
+           + in_vec_i( iter ) * sm_mpcr( iter )
+    enddo
+!$OMP END DO SIMD
+
+  end subroutine ctact_dist_in
+
+  pure subroutine ctact_dist_out( nkpts, num_bands, hampr, hampi, out_vec_r, out_vec_i, &
+                                  sm_mpcr, sm_mpci )
+    implicit none
+    !
+    integer, intent( in ) :: nkpts, num_bands
+    real(DP), intent( in ) :: hampr, hampi
+    real(DP), dimension( nkpts * num_bands ), intent( in ) :: sm_mpcr, sm_mpci
+    real(DP), dimension( nkpts * num_bands ), intent(inout) :: out_vec_r, out_vec_i
+    !
+    integer :: iter
+    
+!$OMP DO SIMD &
+!$OMP SCHEDULE( STATIC ) &
+!$OMP ALIGNED(out_vec_r,out_vec_i,sm_mpcr,sm_mpci: 32 ) 
+      do iter = 1, nkpts * num_bands
+        out_vec_r( iter ) = out_vec_r( iter ) + sm_mpcr( iter ) * hampr &
+                          + sm_mpci( iter ) * hampi
+        out_vec_i( iter ) = out_vec_i( iter ) + sm_mpcr( iter ) * hampi &
+                          - sm_mpci( iter ) * hampr
+      enddo
+!$OMP END DO SIMD
+
+  
+  end subroutine ctact_dist_out
 
 
   subroutine fgact( sys, inter, in_vec, out_vec )
