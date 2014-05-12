@@ -615,9 +615,9 @@ module OCEAN_multiplet
     type( ocean_vector ), intent( in ) :: in_vec
     type( ocean_vector ), intent( inout ) :: out_vec
 
-    integer :: take_longer
+!    integer :: take_longer
 
-    do take_longer = 1, 10
+!    do take_longer = 1, 10
 
     out_vec%r(:,:,:) = 0.0_DP
     out_vec%i(:,:,:) = 0.0_DP
@@ -625,7 +625,7 @@ module OCEAN_multiplet
     if( do_staggered_sum ) then
 !      call OCEAN_ctact_dist( sys, inter, in_vec, out_vec )
       call OCEAN_ctact_dist( sys, inter, in_vec%r, in_vec%i, out_vec%r, out_vec%i )
-!      call fgact_dist( sys, inter, in_vec, out_vec )
+      call fgact_dist( sys, inter, in_vec, out_vec )
       if( sys%ZNL(2) .gt. 0 ) then
         call OCEAN_soact_dist( sys, in_vec, out_vec )
       endif
@@ -638,7 +638,7 @@ module OCEAN_multiplet
     endif
 !    call OCEAN_soact( sys, in_vec, out_vec )
 
-  enddo
+!  enddo
 
   end subroutine OCEAN_mult_act
 
@@ -733,7 +733,7 @@ module OCEAN_multiplet
     !
     !
     integer :: ialpha, l, m, nu, ispn, ikpt, ibnd, i, n_threads, chunk
-    real( DP ) :: mul, l_hampr, l_hampi
+    real( DP ) :: mul
     real( DP ), dimension( npmax ) :: ampr, ampi, hampr, hampi
 
     integer, external :: omp_get_num_threads
@@ -748,17 +748,9 @@ module OCEAN_multiplet
     mul = inter / ( dble( sys%nkpts ) * sys%celvol )
 
 
-!  n_threads = 1
-! !$  n_threads = max( 1, omp_get_num_threads() )
-!!!  chunk = max( 1, sys%num_bands / ( 4 * n_threads ) )
-!  chunk = sys%num_bands 
-!  chunk = sys%num_bands * sys%nkpts / ( n_threads * 4 )
-!  chunk = chunk * 4
-!    call OMP_SET_NUM_THREADS( 4 )
-
 !$OMP PARALLEL &
 !$OMP DEFAULT( NONE ) &
-!$OMP PRIVATE( i, ialpha, l, m, ispn, nu, ikpt, ibnd, l_hampr, l_hampi ) &
+!$OMP PRIVATE( i, ialpha, l, m, ispn, nu, ikpt, ibnd ) &
 !$OMP SHARED( ampr, ampi, in_vec_r, in_vec_i, mpcr, mpci, sys, out_vec_r, out_vec_i ) &
 !$OMP SHARED( ct_n, ct_list, mul, nproj, chunk, mpm, hampi, hampr ) 
 
@@ -776,23 +768,6 @@ module OCEAN_multiplet
       ampr( : ) = 0
       ampi( : ) = 0
       do nu = 1, nproj( l )
-
-! !$OMP DO SIMD COLLAPSE( 1 ) &
-! !$OMP SCHEDULE( STATIC ) &
-! !$OMP ALIGNED(in_vec_r,in_vec_i,out_vec_r,out_vec_i:32 ) &
-! !$OMP ALIGNED(mpcr,mpci : 64 ) &
-! !$OMP REDUCTION(+:ampr,ampi)
-!        do ikpt = 1, sys%nkpts
-!          do ibnd = 1, sys%num_bands
-!            ampr( nu ) = ampr( nu ) &
-!                       + in_vec_r( ibnd, ikpt, ialpha ) * mpcr( ibnd, ikpt, nu, m, l, ispn ) &
-!                       - in_vec_i( ibnd, ikpt, ialpha ) * mpci( ibnd, ikpt, nu, m, l, ispn )
-!            ampi( nu ) = ampi( nu ) &
-!                       + in_vec_r( ibnd, ikpt, ialpha ) * mpci( ibnd, ikpt, nu, m, l, ispn ) &
-!                       + in_vec_i( ibnd, ikpt, ialpha ) * mpcr( ibnd, ikpt, nu, m, l, ispn )
-!           enddo
-!        enddo
-! !$OMP END DO SIMD
         call ctact_dist_in( sys%nkpts, sys%num_bands, ampr( nu ), ampi( nu ), &
                             in_vec_r( :, :, ialpha ), in_vec_i( :, :, ialpha ), &
                             mpcr( :, :, nu, m, l, ispn ), mpci( :, :, nu, m, l, ispn ) )
@@ -811,27 +786,13 @@ module OCEAN_multiplet
 
 
       do nu = 1, nproj( l )
-
-! !$OMP DO COLLAPSE( 1 ) &
-! !$OMP SCHEDULE( STATIC )
-!            do ikpt = 1, sys%nkpts
-!              do ibnd = 1, sys%num_bands
-!                out_vec_r( ibnd, ikpt, ialpha ) = out_vec_r( ibnd, ikpt, ialpha ) &
-!                                           + mpcr( ibnd, ikpt, nu, m, l, ispn ) * hampr( nu )  &
-!                                           + mpci( ibnd, ikpt, nu, m, l, ispn ) * hampi( nu )
-!                out_vec_i( ibnd, ikpt, ialpha ) = out_vec_i( ibnd, ikpt, ialpha ) &
-!                                           + mpcr( ibnd, ikpt, nu, m, l, ispn ) * hampi( nu ) &
-!                                           - mpci( ibnd, ikpt, nu, m, l, ispn ) * hampr( nu )
-!              enddo
-!            enddo
-!!$OMP END DO
-
-!!        l_hampr = hampr( nu )
-!!        l_hampi = hampi( nu )
-        call ctact_dist_out( sys%nkpts, sys%num_bands, hampr(nu), hampi( nu ), &
+        call ctact_dist_out( sys%nkpts, sys%num_bands, hampr(nu), hampi(nu), &
                              out_vec_r( :, :, ialpha ), out_vec_i( :, :, ialpha ), &
                              mpcr( :, :, nu, m, l, ispn ), mpci( :, :, nu, m, l, ispn ) )
       enddo
+
+
+
     enddo
 
 !$OMP END PARALLEL 
@@ -1035,7 +996,7 @@ module OCEAN_multiplet
       hpwr( : ) = 0
       hpwi( : ) = 0
 
-!$OMP DO 
+! !$OMP DO 
       do ic = 1, sys%cur_run%nalpha
         ispn = 2 - mod( ic, 2 )
   !       ispn = 1 + mod( ic, 2 )
@@ -1045,20 +1006,24 @@ module OCEAN_multiplet
         do ivml = -lv, lv
           do nu = 1, nproj( lv )
             ii = nu + ( ivml + lv ) * nproj( lv ) + ( ic - 1 ) * ( 2 * lv + 1 ) * nproj( lv )
-            do ikpt = 1, sys%nkpts
-              do ibnd = 1, sys%num_bands
-                pwr( ii ) = pwr( ii ) &
-                          + in_vec%r( ibnd, ikpt, ic ) * mpcr( ibnd, ikpt, nu, ivml, lv, ispn ) &
-                          - in_vec%i( ibnd, ikpt, ic ) * mpci( ibnd, ikpt, nu, ivml, lv, ispn )
-                pwi( ii ) = pwi( ii ) &
-                          + in_vec%r( ibnd, ikpt, ic ) * mpci( ibnd, ikpt, nu, ivml, lv, ispn ) &
-                          + in_vec%i( ibnd, ikpt, ic ) * mpcr( ibnd, ikpt, nu, ivml, lv, ispn )
-              enddo
-             enddo
+    
+            call ctact_dist_in( sys%nkpts, sys%num_bands, pwr( ii ), pwi( ii ), &
+                                in_vec%r( :, :, ic ), in_vec%i( :, :, ic ), &
+                              mpcr( :, :, nu, ivml, lv, ispn ), mpci( :, :, nu, ivml, lv, ispn ) )
+!            do ikpt = 1, sys%nkpts
+!              do ibnd = 1, sys%num_bands
+!                pwr( ii ) = pwr( ii ) &
+!                          + in_vec%r( ibnd, ikpt, ic ) * mpcr( ibnd, ikpt, nu, ivml, lv, ispn ) &
+!                          - in_vec%i( ibnd, ikpt, ic ) * mpci( ibnd, ikpt, nu, ivml, lv, ispn )
+!                pwi( ii ) = pwi( ii ) &
+!                          + in_vec%r( ibnd, ikpt, ic ) * mpci( ibnd, ikpt, nu, ivml, lv, ispn ) &
+!                          + in_vec%i( ibnd, ikpt, ic ) * mpcr( ibnd, ikpt, nu, ivml, lv, ispn )
+!              enddo
+!             enddo
            enddo
          enddo
        enddo
-!$OMP END DO
+! !$OMP END DO
 
 
 !$OMP DO
@@ -1074,7 +1039,7 @@ module OCEAN_multiplet
 !$OMP END DO
 
 
-!$OMP DO
+! !$OMP DO
       do ic = 1, sys%cur_run%nalpha
         ispn = 2 - mod( ic, 2 )
   !       ispn = 1 + mod( ic, 2 )
@@ -1084,20 +1049,23 @@ module OCEAN_multiplet
         do ivml = -lv, lv
           do nu = 1, nproj( lv )
             ii = nu + ( ivml + lv ) * nproj( lv ) + ( ic - 1 ) * ( 2 * lv + 1 ) * nproj( lv )
-            do ikpt = 1, sys%nkpts
-              do ibnd = 1, sys%num_bands
-                out_vec%r( ibnd, ikpt, ic ) = out_vec%r( ibnd, ikpt, ic )  &
-                                            + hpwr( ii ) * mpcr( ibnd, ikpt, nu, ivml, lv, ispn ) &
-                                            + hpwi( ii ) * mpci( ibnd, ikpt, nu, ivml, lv, ispn )
-                out_vec%i( ibnd, ikpt, ic ) = out_vec%i( ibnd, ikpt, ic )  &
-                                            + hpwi( ii ) * mpcr( ibnd, ikpt, nu, ivml, lv, ispn ) &
-                                            - hpwr( ii ) * mpci( ibnd, ikpt, nu, ivml, lv, ispn )
-              enddo
-            enddo
+            call ctact_dist_out( sys%nkpts, sys%num_bands, hpwr( ii ), hpwi( ii ), &
+                                 out_vec%r( :, :, ic ), out_vec%i( :, :, ic ), &
+                               mpcr( :, :, nu, ivml, lv, ispn ), mpci( :, :, nu, ivml, lv, ispn ) )
+!            do ikpt = 1, sys%nkpts
+!              do ibnd = 1, sys%num_bands
+!                out_vec%r( ibnd, ikpt, ic ) = out_vec%r( ibnd, ikpt, ic )  &
+!                                            + hpwr( ii ) * mpcr( ibnd, ikpt, nu, ivml, lv, ispn ) &
+!                                            + hpwi( ii ) * mpci( ibnd, ikpt, nu, ivml, lv, ispn )
+!                out_vec%i( ibnd, ikpt, ic ) = out_vec%i( ibnd, ikpt, ic )  &
+!                                            + hpwi( ii ) * mpcr( ibnd, ikpt, nu, ivml, lv, ispn ) &
+!                                            - hpwr( ii ) * mpci( ibnd, ikpt, nu, ivml, lv, ispn )
+!              enddo
+!            enddo
           enddo
         enddo
       enddo
-!$OMP END DO
+! !$OMP END DO
     end do
 !$OMP END PARALLEL 
     !
