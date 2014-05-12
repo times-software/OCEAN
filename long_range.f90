@@ -30,7 +30,6 @@ module ocean_long_range
   real( DP ), pointer :: re_bloch_state( :, :, : )
   real( DP ), pointer :: im_bloch_state( :, :, : )
   real( DP ), pointer :: W( :, : )
-
 ! Need to check for CONTIGUOUS
 #ifdef HAVE_CONTIGUOUS
   CONTIGUOUS :: re_bloch_state, im_bloch_state, W
@@ -76,7 +75,8 @@ module ocean_long_range
     if( use_obf ) then
       call lr_act_obf2( sys, p, hp, ierr )
     else
-      call lr_act_traditional( sys, p, hp, lr, ierr )
+!      call lr_act_traditional( sys, p, hp, lr, ierr )
+      call lr_act_traditional_x( sys, p, hp%r, hp%i, lr, ierr )
     endif
   end subroutine lr_act
 
@@ -719,9 +719,130 @@ module ocean_long_range
 
 
 
+  subroutine lr_act_traditional_x( sys, p, hpr, hpi, lr, ierr )
+    use OCEAN_system
+    use OCEAN_psi
+    implicit none
+
+    type( o_system ), intent( in ) :: sys
+    type( long_range ), intent( inout ) :: lr
+    type(OCEAN_vector), intent( in ) :: p
+!    type(OCEAN_vector), intent(inout) :: hp
+    real(DP), dimension(sys%num_bands, sys%nkpts, sys%nalpha ), intent( out ) :: hpr, hpi
+    integer, intent( inout ) :: ierr
+
+    !
+    real( DP ), parameter :: one = 1.0_DP
+    real( DP ), parameter :: minusone = -1.0_DP
+    real( DP ), parameter :: zero = 0.0_DP
+    !
+    !
+    real( DP ), allocatable :: xwrkr( : ), xwrki( : ), wrk( : )
+    integer :: jfft, ialpha, ikpt, xiter
+    !
+    real(DP), external :: DDOT
+
+#ifdef __INTEL_COMPILER
+!DIR$ attributes align: 64 :: xwrkr, xwrki, wrk
+#endif
+
+
+    ! For each x-point in the unit cell
+    !   Populate \phi(x,k) = \sum_n u(x,k) \psi_n(x,k)
+    !   Do FFT for k-points
+    !   Calculate W(x,k) x \phi(x,k)
+    !   Do FFT back to k-points
 
 
 
+
+
+    ! prep info for fft
+    jfft = 2 * max( sys%kmesh( 1 ) * ( sys%kmesh( 1 ) + 1 ), &
+                    sys%kmesh( 2 ) * ( sys%kmesh( 2 ) + 1 ), &
+                    sys%kmesh( 3 ) * ( sys%kmesh( 3 ) + 1 ) )
+    !
+
+!$OMP PARALLEL DEFAULT( NONE ) &
+!$OMP& SHARED( lr, W, hpr, hpi, re_bloch_state, im_bloch_state, p, sys ) &
+!$OMP& PRIVATE( xwrkr, xwrki, wrk, ikpt, ialpha, xiter ) &
+!$OMP& FIRSTPRIVATE( jfft ) 
+
+!$OMP WORKSHARE
+   hpr(:,:,:) = zero
+   hpi(:,:,:) = zero
+!$OMP END WORKSHARE
+
+    allocate( xwrkr( sys%nkpts ), xwrki( sys%nkpts ), &
+              wrk( jfft ) )
+
+!$OMP DO COLLAPSE( 2 ) REDUCTION(+:hpr,hpi)
+    do ialpha = 1, sys%nalpha
+      do xiter = 1, lr%my_nxpts
+
+    ! Populate phi
+#ifdef BLAS
+        do ikpt = 1, lr%my_nkpts
+          xwrkr( ikpt )  = DDOT( sys%num_bands, p%r(1,ikpt,ialpha), 1, &
+                                        re_bloch_state(1,ikpt,xiter), 1 ) &
+                                - DDOT( sys%num_bands, p%i(1,ikpt,ialpha), 1, &
+                                        im_bloch_state(1,ikpt,xiter), 1 )
+          xwrki( ikpt ) = DDOT( sys%num_bands, p%r(1,ikpt,ialpha), 1, &
+                                       im_bloch_state(1,ikpt,xiter), 1 ) &
+                               + DDOT( sys%num_bands, p%i(1,ikpt,ialpha), 1, &
+                                       re_bloch_state(1,ikpt,xiter), 1 )
+        enddo
+
+#else
+        do ikpt = 1, lr%my_nkpts
+          xwrkr( ikpt ) = &
+                                   dot_product(p%r(:,ikpt,ialpha),re_bloch_state(:,ikpt,xiter)) &
+                                 - dot_product(p%i(:,ikpt,ialpha),im_bloch_state(:,ikpt,xiter))
+          xwrki( ikpt ) = &
+                                   dot_product(p%r(:,ikpt,ialpha),im_bloch_state(:,ikpt,xiter)) &
+                                 + dot_product(p%i(:,ikpt,ialpha),re_bloch_state(:,ikpt,xiter))
+        enddo
+#endif          
+
+
+        call cfft( xwrkr, xwrki, sys%kmesh(3), sys%kmesh(3), sys%kmesh(2), & 
+                   sys%kmesh(1), -1, wrk, jfft )
+
+        xwrkr( : ) = xwrkr( : ) * W( :, xiter )
+        xwrki( : ) = xwrki( : ) * W( :, xiter )
+
+        call cfft( xwrkr, xwrki, sys%kmesh(3), sys%kmesh(3), sys%kmesh(2), &
+                   sys%kmesh(1), +1, wrk, jfft )
+
+#ifdef BLAS
+        do ikpt = 1, lr%my_nkpts
+          call DAXPY( sys%num_bands, xwrkr(ikpt), re_bloch_state(1,ikpt,xiter), 1, &
+                      hpr(1,ikpt,ialpha), 1 )
+          call DAXPY( sys%num_bands, xwrki(ikpt), im_bloch_state(1,ikpt,xiter), 1, &
+                      hpr(1,ikpt,ialpha), 1 )
+          call DAXPY( sys%num_bands, xwrki(ikpt), re_bloch_state(1,ikpt,xiter), 1, &
+                      hpi(1,ikpt,ialpha), 1 )
+          call DAXPY( sys%num_bands, -xwrkr(ikpt), im_bloch_state(1,ikpt,xiter), 1, &
+                      hpi(1,ikpt,ialpha), 1 )
+#else
+            hpr(:,ikpt,ialpha) = hpr(:,ikpt,ialpha) &
+                                + re_bloch_state(:,ikpt,xiter) * xwrkr(ikpt) &
+                                + im_bloch_state(:,ikpt,xiter) * xwrki(ikpt)
+            hpi(:,ikpt,ialpha) = hpi(:,ikpt,ialpha) &
+                                + re_bloch_state(:,ikpt,xiter) * xwrki(ikpt) &
+                                - im_bloch_state(:,ikpt,xiter) * xwrkr(ikpt)
+#endif
+          enddo
+        enddo
+      enddo
+!$OMP END DO
+
+    deallocate( xwrkr, xwrki, wrk )
+
+!$OMP END PARALLEL
+
+
+  end subroutine lr_act_traditional_x
 
 
 
@@ -746,8 +867,15 @@ module ocean_long_range
     real( DP ), allocatable :: xwrkr( :,: ), xwrki( :,: ), wrk( : )
     integer :: jfft, ialpha, ixpt, ikpt, ibd, iq, iq1, iq2, iq3, ii, iixpt, xiter, xstop
 
+    ! 64 byte cache line & 8 byte real
+    integer, parameter :: xiter_cache_line = 8
+
 !    real(DP) :: time1, time2
     real(DP), external :: DDOT
+#ifdef __INTEL_COMPILER
+!DIR$ attributes align: 64 :: rphi, iphi, rtphi, itphi, xwrkr, xwrki, wrk
+#endif
+
 ! !$  integer, external :: omp_get_num_threads
 
     ! For each x-point in the unit cell
@@ -763,7 +891,8 @@ module ocean_long_range
 
 
     ! prep info for fft
-    jfft = 2 * max( sys%kmesh( 1 ) * ( sys%kmesh( 1 ) + 1 ), sys%kmesh( 2 ) * ( sys%kmesh( 2 ) + 1 ), &
+    jfft = 2 * max( sys%kmesh( 1 ) * ( sys%kmesh( 1 ) + 1 ), &
+                    sys%kmesh( 2 ) * ( sys%kmesh( 2 ) + 1 ), &
                     sys%kmesh( 3 ) * ( sys%kmesh( 3 ) + 1 ) )
     !
     allocate( &!rphi( lr%my_nkpts, lr%my_nxpts, sys%nalpha ), &
@@ -773,7 +902,8 @@ module ocean_long_range
 
 !$OMP PARALLEL DEFAULT( NONE ) &
 !$OMP& SHARED( rphi, iphi, lr, W, hp, re_bloch_state, im_bloch_state, rtphi, itphi ) &
-!$OMP& PRIVATE( xwrkr, xwrki, wrk, ikpt, ibd, ialpha, ixpt, iq, iq1, iq2, iq3, ii, iixpt, xstop, xiter ) &
+!$OMP& PRIVATE( xwrkr, xwrki, wrk, ikpt, ibd, ialpha, ixpt, iq) &
+!$OMP& PRIVATE( iq1, iq2, iq3, ii, iixpt, xstop, xiter ) &
 !$OMP& FIRSTPRIVATE( sys, jfft, p ) 
 
 !$OMP WORKSHARE
@@ -781,14 +911,17 @@ module ocean_long_range
     hp%i(:,:,:) = zero
 !$OMP END WORKSHARE
 
-    allocate( xwrkr( sys%nkpts, 4 ), xwrki( sys%nkpts, 4 ), wrk( jfft ) )
+    allocate( xwrkr( sys%nkpts, xiter_cache_line ), xwrki( sys%nkpts, xiter_cache_line ), & 
+              wrk( jfft ) )
 
 !$OMP DO COLLAPSE( 2 )
-    do iixpt = 1, lr%my_nxpts, 4
+    do iixpt = 1, lr%my_nxpts, xiter_cache_line
       do ialpha = 1, sys%nalpha 
 
-        xstop = min( lr%my_nxpts, iixpt+3)
+        xstop = min( lr%my_nxpts, iixpt+xiter_cache_line-1)
         xiter = 0
+
+
         do ixpt = iixpt, xstop
         xiter = xiter + 1
 
@@ -796,11 +929,15 @@ module ocean_long_range
 #ifdef BLAS
         do ikpt = 1, lr%my_nkpts
 !          rphi(ikpt,ixpt,ialpha) = DDOT( sys%num_bands, p%r(1,ikpt,ialpha), 1, re_bloch_state(1,ikpt,ixpt), 1 ) &
-          xwrkr( ikpt, xiter )  = DDOT( sys%num_bands, p%r(1,ikpt,ialpha), 1, re_bloch_state(1,ikpt,ixpt), 1 ) &
-                                 - DDOT( sys%num_bands, p%i(1,ikpt,ialpha), 1, im_bloch_state(1,ikpt,ixpt), 1 )
+          xwrkr( ikpt, xiter )  = DDOT( sys%num_bands, p%r(1,ikpt,ialpha), 1, &
+                                        re_bloch_state(1,ikpt,ixpt), 1 ) &
+                                - DDOT( sys%num_bands, p%i(1,ikpt,ialpha), 1, &
+                                        im_bloch_state(1,ikpt,ixpt), 1 )
 !          iphi(ikpt,ixpt,ialpha) = DDOT( sys%num_bands, p%r(1,ikpt,ialpha), 1, im_bloch_state(1,ikpt,ixpt), 1 ) &
-          xwrki( ikpt, xiter ) = DDOT( sys%num_bands, p%r(1,ikpt,ialpha), 1, im_bloch_state(1,ikpt,ixpt), 1 ) &
-                                 + DDOT( sys%num_bands, p%i(1,ikpt,ialpha), 1, re_bloch_state(1,ikpt,ixpt), 1 )
+          xwrki( ikpt, xiter ) = DDOT( sys%num_bands, p%r(1,ikpt,ialpha), 1, &
+                                       im_bloch_state(1,ikpt,ixpt), 1 ) &
+                               + DDOT( sys%num_bands, p%i(1,ikpt,ialpha), 1, &
+                                       re_bloch_state(1,ikpt,ixpt), 1 )
         enddo
 
 #else
