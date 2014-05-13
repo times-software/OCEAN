@@ -13,7 +13,7 @@ subroutine OCEAN_load_data( sys, hay_vec, lr, ierr )
   type( long_range ), intent(out) :: lr
 
 #ifdef MPI
-    write(6,*) myid, root
+!    write(6,*) myid, root
     call MPI_BARRIER( comm, ierr )
 #endif
 
@@ -36,8 +36,6 @@ subroutine OCEAN_load_data( sys, hay_vec, lr, ierr )
   if( sys%mult ) then
     if( myid .eq. root ) write(6,*) 'Init mult'
     call OCEAN_create_central( sys, ierr )
-!    call OCEAN_soprep( sys, ierr )
-!    if( myid .eq. root ) write(6,*) 'Load mult'   
     if( myid .eq. root ) write(6,*) 'Mult loaded'
     
   endif
