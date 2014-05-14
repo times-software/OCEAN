@@ -262,10 +262,23 @@ module OCEAN_psi
 
   subroutine OCEAN_psi_kill( p, ierr )
     implicit none 
+    include 'fftw3.f03'
     integer, intent(inout) :: ierr
     type(OCEAN_vector), intent(inout ) :: p
 
 !    deallocate( psi )
+    if( associated( p%r ) ) then
+      call fftw_free( p%rcptr )
+      p%r => null()
+    endif 
+    if( associated( p%i ) ) then
+      call fftw_free( p%icptr )
+      p%i => null()
+    endif
+
+    p%bands_pad = 0
+    p%kpts_pad = 0
+    
   end subroutine OCEAN_psi_kill
 
 
