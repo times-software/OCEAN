@@ -5,6 +5,8 @@ subroutine OCEAN_bofx( )
 ! Here we project the Basis functions onto a grid specified by xmesh.ipt 
 ! This is done through fft, currently using the old ai2nbse/ocean coding
 !
+! Now with option to have normal ordering of x,y,z elements, default is legacy ordering
+!
 ! Output: u1.dat
 !
 ! Aux input: xmesh.ipt
@@ -39,7 +41,8 @@ subroutine OCEAN_bofx( )
   integer,allocatable :: igk_l2g(:,:), sub_mill(:,:)
 
   integer :: xmesh( 3 )
-
+  logical :: bt_logical, invert_xmesh
+  character(len=3) :: dum_c
 
   integer :: iuntmp, iunout
 
@@ -136,11 +139,22 @@ subroutine OCEAN_bofx( )
     read(iuntmp,*) xmesh( : )
     close(iuntmp)
 
+    inquire(file="bloch_type",exist=bt_logical)
+    if( bt_logical ) then
+      open(iuntmp,file="bloch_type",form='formatted',status='old')
+      read(iuntmp,*) dum_c
+      read(iuntmp,*) invert_xmesh
+      close(iuntmp)
+    else
+      invert_xmesh = .true.
+    endif
+
     iunout = freeunit()
     open(iunout,file='u1.dat', form='unformatted', status='unknown' )
     rewind iunout
   endif
   call mp_bcast( xmesh, ionode_id )
+  call mp_bcast( invert_xmesh, ionode_id )
 
   write(stdout,*) nbnd, band_subset(1), band_subset(2)
   allocate( sub_mill( 3, npw ) )
@@ -149,7 +163,7 @@ subroutine OCEAN_bofx( )
     sub_mill( :, ig ) = matmul( g( :, igk( ig ) ), bg( :, : ) )
   enddo
 
-  call gentoreal( xmesh, nbnd, evc, npw, mill, iunout )
+  call gentoreal( xmesh, nbnd, evc, npw, mill, iunout, invert_xmesh )
 
   if( ionode ) close( iunout )
   deallocate( sub_mill )
@@ -160,7 +174,7 @@ subroutine OCEAN_bofx( )
   contains
 
 
-  subroutine gentoreal( nx, nfcn, fcn, ng, gvec, iu )
+  subroutine gentoreal( nx, nfcn, fcn, ng, gvec, iu, invert_xmesh )
     use kinds, only : dp
     USE io_global,  ONLY : stdout, ionode
     USE mp, ONLY : mp_sum, mp_max, mp_min
@@ -169,6 +183,7 @@ subroutine OCEAN_bofx( )
     integer, intent( in ) :: nx( 3 ), nfcn, ng, iu
     integer, intent( in ) :: gvec( 3, ng )
     complex(dp), intent( in ) :: fcn( ng, nfcn )
+    logical, intent( in ) :: invert_xmesh
     logical, parameter :: loud = .true.
     !
     integer :: ix, iy, iz, i1, i2, i3, nfft( 3 ), idwrk, igl, igh, nmin, ii
@@ -217,8 +232,12 @@ subroutine OCEAN_bofx( )
     allocate( wrk( idwrk ) )
     nftot = nfft( 1 ) * nfft( 2 ) * nfft( 3 ) 
     !
-    ! the indices only of the output are reversed here.
-    allocate( cres( nx( 3 ), nx( 2 ), nx( 1 ) ) )
+    if( invert_xmesh ) then
+      ! the indices only of the output are reversed here.
+      allocate( cres( nx( 3 ), nx( 2 ), nx( 1 ) ) )
+    else
+      allocate( cres( nx( 1 ), nx( 2 ), nx( 3 ) ) )
+    endif
     call chkfftreal( toreal, normreal, loud )
     call chkfftrecp( torecp, normrecp, loud )
     !
@@ -261,7 +280,11 @@ subroutine OCEAN_bofx( )
                                             'cell ind.', ix, iy, iz,  &
                                             'value = ', zr( i1, i2, i3 ), zi( i1, i2, i3 )
                   end if
-                  cres( iz, iy, ix ) = zr( i1, i2, i3 ) + rm1 * zi( i1, i2, i3 )
+                  if( invert_xmesh ) then
+                    cres( iz, iy, ix ) = zr( i1, i2, i3 ) + rm1 * zi( i1, i2, i3 )
+                  else
+                    cres( ix, iy, iz ) = zr( i1, i2, i3 ) + rm1 * zi( i1, i2, i3 )
+                  endif
                end do
             end do
          end do 
