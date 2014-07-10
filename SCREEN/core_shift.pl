@@ -66,7 +66,7 @@ print OUT "&inputpp\n"
    .  "  plot_num = 1\n"
    .  "/\n";
 close OUT;
-system("mpirun -n 8 $ENV{'OCEAN_BIN'}/pp.x < pot_prep.in >& pot_prep.out");
+system("mpirun -n 8 $ENV{'OCEAN_BIN'}/pp.x < pot_prep.in > pot_prep.out");
 
 while ( my $line = <HFIN>) 
 {
@@ -115,7 +115,7 @@ while ( my $line = <HFIN>)
 #  system("$para_prefix ~/bin/gnu/OCEAN_atlas/par_pp.x < pot.in >& pot.out.$el_rank"); 
 #  system("~/bin/gnu/OCEAN_atlas/pp.x < pot.in >& pot.out.$el_rank");
   `cp pot.in pot.in.$el_rank`;
-  system("mpirun -n 8 $ENV{'OCEAN_BIN'}/pp.x < pot.in >& pot.out.$el_rank");
+  system("mpirun -n 8 $ENV{'OCEAN_BIN'}/pp.x < pot.in > pot.out.$el_rank");
 
 # Vshift here is in Rydberg
   my $Vshift = `head -n 1 system.pot.$el_rank | awk '{print \$2}'`;
