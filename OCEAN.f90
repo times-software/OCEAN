@@ -43,7 +43,7 @@ program ocean
 !!!!!    call ocean_haydock( sys, hay_vec, lr, ierr )
     call OCEAN_action_run( sys, hay_vec, lr, ierr )
 
-!!!!!    call OCEAN_exact_diagonalize( sys, hay_vec, ierr )
+!    call OCEAN_exact_diagonalize( sys, hay_vec, ierr )
     if( ierr .ne. 0 ) goto 111
 
     call ocean_sys_update( sys, ierr )
