@@ -270,7 +270,7 @@ module OCEAN_bloch
 
     !
     integer :: fmode, fhu2
-    integer(kind=MPI_OFFSET_KIND) :: offset
+    integer(kind=MPI_OFFSET_KIND) :: offset, offset_extra, offset_nx, offset_start
     integer(8) :: time1, time2, tics_per
 
     if( is_loaded ) return
@@ -478,6 +478,10 @@ module OCEAN_bloch
 
         write(6,*) my_start_nx, my_xpts
 
+        if( sys%kshift ) then
+          write(6,*) 'Two k-grids in u2'
+        endif
+
 
       endif
 
@@ -569,6 +573,34 @@ module OCEAN_bloch
                     im_transpose( sys%num_bands, sys%nxpts ) )
         endif
 
+!  u2 is stored by k-point. If there is a shift then
+!    we store bands 1 - max_val :/ unshifted
+!             bands 1 - max :/ shifted
+!    
+        if( sys%kshift ) then
+          if( sys%conduct ) then
+            offset_start = width(2)
+            offset_extra = 0
+          else 
+            offset_start = 0
+            offset_extra = width(2)
+          endif
+!            offset_extra = width(2)
+!          else
+!            offset_extra = width3
+!          endif
+        else
+          offset_extra = 0
+          offset_start = 0
+        endif
+
+        if( myid .eq. root ) then
+          write(6,*) offset_start, offset_extra
+        endif
+
+!       Upcast nxpts to avoid possible overflow
+        offset_nx = sys%nxpts
+
 
         do iq = 1, sys%nkpts
 
@@ -580,7 +612,8 @@ module OCEAN_bloch
             endif
 
           ! skipping the occupied bands
-            offset = offset + ivh2 * sys%nxpts
+!            offset = offset + ivh2 * sys%nxpts
+            offset = offset + (ivh2+offset_start) * offset_nx
             call mpi_file_read_at( fhu2, offset, u2_buf, sys%nxpts * sys%num_bands, &
                                    MPI_DOUBLE_COMPLEX, MPI_STATUS_IGNORE, ierr )
             if( ierr .ne. 0 ) then
@@ -588,7 +621,8 @@ module OCEAN_bloch
               return
             endif
             ! backtrack the occupied and skip over the full k-point
-            offset = offset + ( width(3) - ivh2 ) * sys%nxpts
+            offset = offset + ( width(3) - ivh2 + offset_extra ) * sys%nxpts
+!            offset = offset + ( width(3) - ivh2 ) * offset_nx
             xiter = 0
             do iz = 1, nz
               do iy = 1, ny

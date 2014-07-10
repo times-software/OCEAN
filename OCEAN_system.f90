@@ -9,6 +9,7 @@ module OCEAN_system
     real(DP)         :: avec(3,3)
     real(DP)         :: bvec(3,3)
     real(DP)         :: bmet(3,3)
+    real(DP)         :: qinunitsofbvectors(3)
     integer( S_INT ) :: nkpts
     integer( S_INT ) :: nxpts
     integer( S_INT ) :: nalpha
@@ -25,6 +26,7 @@ module OCEAN_system
     logical          :: long_range
     logical          :: obf
     logical          :: conduct
+    logical          :: kshift
     character(len=5) :: calc_type
 
     type(o_run), pointer :: cur_run => null()
@@ -118,6 +120,18 @@ module OCEAN_system
       read(99,*) sys%num_bands
       close(99)
 
+      open(unit=99,file='qinunitsofbvectors.ipt',form='formatted',status='old')
+      rewind(99)
+      read(99,*) sys%qinunitsofbvectors(:)
+      close(99)
+
+      if( sum( abs( sys%qinunitsofbvectors(:) ) ) .gt. 1.0d-14 ) then
+        sys%kshift = .true.
+      else
+        sys%kshift = .false.
+      endif
+
+
       call getabb( sys%avec, sys%bvec, sys%bmet )
       call getomega( sys%avec, sys%celvol )     
 
@@ -165,6 +179,8 @@ module OCEAN_system
     if( ierr .ne. MPI_SUCCESS ) goto 111
     call MPI_BCAST( sys%bmet, 9, MPI_DOUBLE_PRECISION, root, comm, ierr )
     if( ierr .ne. MPI_SUCCESS ) goto 111
+    call MPI_BCAST( sys%qinunitsofbvectors, 3, MPI_DOUBLE_PRECISION, root, comm, ierr )
+    if( ierr .ne. MPI_SUCCESS ) goto 111
     call MPI_BCAST( sys%nkpts, 1, MPI_INTEGER, root, comm, ierr )
     if( ierr .ne. MPI_SUCCESS ) goto 111
     call MPI_BCAST( sys%nxpts, 1, MPI_INTEGER, root, comm, ierr )
@@ -190,6 +206,8 @@ module OCEAN_system
     call MPI_BCAST( sys%obf, 1, MPI_LOGICAL, root, comm, ierr )
     if( ierr .ne. MPI_SUCCESS ) goto 111
     call MPI_BCAST( sys%conduct, 1, MPI_LOGICAL, root, comm, ierr )
+    if( ierr .ne. MPI_SUCCESS ) goto 111
+    call MPI_BCAST( sys%kshift, 1, MPI_LOGICAL, root, comm, ierr )
     if( ierr .ne. MPI_SUCCESS ) goto 111
     call MPI_BCAST( sys%calc_type, 5, MPI_CHARACTER, root, comm, ierr )
     if( ierr .ne. MPI_SUCCESS ) goto 111
