@@ -364,15 +364,6 @@
     
   endif
 
-!  call read_file_shirley( 1 )
-!  call openfil
-!
-!  write(stdout,*)
-!  write(stdout,*) ' load wave function'
-!  CALL davcio( evc, 2*nwordwfc, iunwfc, 1, - 1 )
-!
-!  write(stdout,*) sizeof(evc)
-!  write(stdout,*) evc(1,1)\
 
   if( ionode ) then
     iuntmp = freeunit()
@@ -404,91 +395,8 @@
 !    allocate( o2l( nbasis, nptot, ntau, 1, 1 ) )
 
 
-!test
-!    iuntmp = freeunit()
-!    ! since only the ionode is going to write to this file
-!    ! there is no need for the nd_nmbr suffix
-!    nd_nmbr_tmp = nd_nmbr
-!    nd_nmbr=''
-!    call diropn( iuntmp, 'o2l', nwordo2l, exst )
-!    ! restore in case needed again
-!    nd_nmbr = nd_nmbr_tmp
-!    write(stdout,*) ' reading from file: ', trim(tmpdir_io)//trim(prefix)//'.o2l'
-!    if( .not. exst ) write(stdout,*) exst
-!    do ishift = 1, nshift
-!      do ik = 1,kpt%list%nk
-!        call davcio( o2l( 1, 1, 1, ik, ishift ), nwordo2l, iuntmp, ik + (ishift-1)*kpt%list%nk, -1 )
-!      enddo
-!    enddo
-!    close( iuntmp )
-
     nang = 0
     nr = 0
-!    iuntmp = freeunit()
-!    inquire(file='rad.dat', exist=radial_ufunc )
-!    if( radial_ufunc ) then
-!      open( iuntmp, file='radial.txt', form='unformatted', status='old' )
-!      read( iuntmp ) nang, nr
-!      allocate( rpts( 3, nang, nr ) )
-!      read( iuntmp ) rpts(:,:,:)
-!      close( iuntmp )
-!
-!      open( iuntmp, file='rgrid.txt', form='unformatted', status='old' )
-!      rewind( iuntmp )
-!      read( iuntmp )  nr2, rmin, rmax, deltaL
-!      if( nr .ne. nr2 )  call errore('ocean', 'Mismatch between rgrid and radial')
-!      allocate( rad_grid( nr ) )
-!      read( iuntmp ) rad_grid(:)
-!      close( iuntmp )
-!
-!      open( iuntmp, file='agrid.txt', form='unformatted', status='old' )
-!      rewind( iuntmp )
-!      read( iuntmp ) nang2, lmax
-!      if( nang .ne. nang2 )  call errore('ocean', 'Mismatch between agrid and radial')
-!      allocate( angular_grid( 4, nang ) )
-!      read( iuntmp ) angular_grid(:,:)
-!      close( iuntmp )
-!
-!      allocate( BofRad( nbasis, nang, nr ) )
-!      open( iuntmp, file='rad.dat', form='unformatted', status='old' )
-!      rewind( iuntmp )
-!      do ir = 1, nr
-!        do iang = 1, nang
-!          read( iuntmp ) BofRad( :, nang, nr )
-!        enddo
-!      enddo
-!      close( iuntmp )
-! 
-!    endif
-
-    inquire(file='grid_settings.txt',exist=radial_ufunc)
-    if( radial_ufunc ) then
-      iuntmp = freeunit()
-      open(iuntmp,file='grid_settings.txt',form='formatted',status='old')
-      read(iuntmp,*)
-      read(iuntmp,*) nang
-      read(iuntmp,*) nr, rmax
-      close(iuntmp)
-      open(iuntmp,file='bigrbfile.bin',form='unformatted',status='old')
-      read(iuntmp) npt, nr, nang
-      write(stdout,*) npt, nr, nang
-      allocate(posn(3,npt), wpt(npt) )
-      read(iuntmp) posn
-      read(iuntmp)wpt
-      close(iuntmp)
-      iunbofr = freeunit()
-      open(iunbofr,file=trim(prefix)//'.bigbofr',form='unformatted')
-!      read(iunbofr) npt
-      allocate(bofr( npt, nbasis ) )
-      do i = 1,nbasis
-        read(iunbofr) bofr(:,i)
-      enddo
-      close(iunbofr)
-     
-    endif
-
-     
-
 
     iuntmp = freeunit()
     open(unit=iuntmp,file='xmesh.ipt',form='formatted',status='old')
@@ -536,22 +444,6 @@
   call mp_bcast( nang, ionode_id )
   call mp_bcast( nr, ionode_id )
   radial_ufunc = .false. 
-  if( nang * nr .ne. 0 ) then
-    radial_ufunc = .true.
-!    if( .not. ionode ) allocate(  rpts( 3, nang, nr ), BofRad( nbasis, nang, nr ), rad_grid( nr ), angular_grid( 4, nang ) )
-!    call mp_bcast( rpts, ionode_id )
-!    call mp_bcast( BofRad, ionode_id )
-!    call mp_bcast( rad_grid, ionode_id )
-!    call mp_bcast( angular_grid, ionode_id )
-     call mp_bcast( npt, ionode_id )
-     write(stdout,*) npt, nr, nang, nbasis
-     if( .not. ionode ) allocate( posn( 3, npt ), wpt(npt), bofr( npt, nbasis ) )
-     call mp_bcast( posn, ionode_id )
-     call mp_bcast( wpt, ionode_id )
-     call mp_bcast( bofr, ionode_id )
-     call mp_bcast( rmax, ionode_id )
-     allocate( phased_bofr( npt, nbasis ) )
-  endif
   
   call mp_bcast( kshift, ionode_id )
   call mp_bcast( have_kshift, ionode_id )
@@ -694,10 +586,6 @@
   u2 = 0.d0
   call descinit( desc_u2, nxpts, nband, nxpts, nband, 0, 0, context_cyclic, nxpts, ierr )
 
-  if( radial_ufunc ) then
-    allocate( u_radial( npt, 1 : band_subset(2), kpt%list%nk, nshift ) )
-    u_radial = 0_dp
-  endif
 
   allocate(e0( band_subset(1):band_subset(2), kpt%list%nk, nshift) )
   e0 = 0.d0
@@ -791,71 +679,6 @@
 
 
 
-    if( radial_ufunc ) then
-      stop
-      qin( : ) =  kpt%list%kvec( 1 : 3, ik )
-      qcart(:) = 0.d0
-      if( kpt%param%cartesian ) then
-        qcart(:) = qin(:)*tpiba
-      else
-        do i=1,3
-          qcart(:) = qcart(:) + bvec(:,i)*qin(i)
-        enddo
-      endif
-      write(stdout,*) qin(:), qcart(:)
-      allocate( eikr( npt ), phase( npt ) )
- 
-!      do ir = 1, npt
-!        phase = sum( qcart( 1 : 3 ) * posn( 1 : 3,  ir ) )
-!        eikr( ir ) = cmplx( cos( phase ), sin( phase ) )
-!      enddo
-      call DGEMV( 'T', 3, npt, real_one, posn, 3, qcart, 1, real_zero, phase, 1 )
-      eikr( : ) = exp( iota * phase( : ) )
-
-      do ibd = 1, nbasis
-        phased_bofr( :, ibd ) = bofr( :, ibd ) * eikr( : )
-      enddo
-
-!      do ibd = band_subset(1),  band_subset(2)
-!        do ir = 1, npt
-!          u_radial( ir, ibd, ik, 1 ) = sum( bofr( :, iang, ir ) * eigvec( :, ibd ) ) * eikr( iang, ir )
-!        enddo
-!      enddo
-
-      nband = band_subset(2) - band_subset(1) + 1
-      call ZGEMM( 'N', 'N', npt, nband, nbasis, one, phased_bofr, npt, eigvec(1,band_subset(1)), nbasis, &
-                  zero, u_radial( 1, band_subset(1), ik, 1 ), npt )
-
-
-      deallocate( eikr, phase )
-   
-      
-      do ibd = band_subset(1), band_subset( 2 )
-        u_radial( :, ibd, ik, 1 ) = u_radial( :, ibd, ik, 1 ) * sqrt( wpt( : ) )
-        norm = DZNRM2( npt, u_radial( 1, ibd, ik, 1 ), 1 )
-        write( stdout, * ) ik, ibd, norm!, 4_dp/3_dp * rmax**3 * 3.14159_dp
-        norm = 1_dp / norm
-        call ZDSCAL( npt, norm, u_radial( 1, ibd, ik, 1 ), 1 )
-!        do ir = 1, npt
-!          norm = norm + ( u_radial( ir, ibd, ik, 1 ) * conjg( u_radial( ir, ibd, ik, 1 ) ) ) & 
-!            * wpt( ir )
-!        enddo
-        do ibp = band_subset(1), ibd-1
-          w = -ZDOTC( npt,  u_radial( 1, ibd, ik, 1 ), 1, u_radial( 1, ibp, ik, 1 ), 1 )
-          CALL ZAXPY( npt, w, u_radial(1, ibp, ik, 1 ), 1, u_radial( 1, ibd, ik, 1 ), 1 )
-        enddo
-        norm = DZNRM2( npt, u_radial( 1, ibd, ik, 1 ), 1 )
-        write( stdout, * ) ik, ibd, norm!, 4_dp/3_dp * rmax**3 * 3.14159_dp
-        norm = 1_dp / norm
-        call ZDSCAL( npt, norm, u_radial( 1, ibd, ik, 1 ), 1 )
-
-!        u_radial( :, ibd, ik, 1 ) = u_radial( :, ibd, ik, 1 ) / sqrt(w)
-      enddo
-      do ibd = band_subset(1), band_subset( 2 )
-        u_radial( :, ibd, ik, 1 ) = u_radial( :, ibd, ik, 1 ) / sqrt( wpt( : ) )
-      enddo
-      
-    endif
 
 
 ! Calculate u2, the U functions on the xmesh grid
@@ -977,49 +800,6 @@
 11    continue
   !    write(stdout,*) ik, start_band(ik)
     
-      if( radial_ufunc ) then
-        qin( : ) =  kpt%list%kvec( 1 : 3, ik )
-        qcart(:) = 0.d0 
-        if( kpt%param%cartesian ) then
-          qcart(:) = qin(:)*tpiba
-        else 
-          do i=1,3
-            qcart(:) = qcart(:) + bvec(:,i)*qin(i)
-          enddo
-        endif
-        write(stdout,*) qin(:), qcart(:)
-        allocate( eikr( npt ) )
-    
-!        do ir = 1, nr
-!          do iang = 1, nang
-!            phase = sum( qcart( 1 : 3 ) * rpts( 1 : 3, iang, ir ) )
-!            eikr( iang, ir ) = cmplx( cos( phase ), sin( phase ) )
-!          enddo
-!        enddo
-
-!        do ibd = band_subset(1),  band_subset(2)
-!          do ir = 1, nr
-!            do iang = 1, nang
-!              u_radial( iang, ir, ibd, ik, 2 ) = sum( BofRad( :, iang, ir ) * eigvec( :, ibd ) ) * eikr( iang, ir )
-!            enddo
-!          enddo 
-!        enddo
-        deallocate( eikr )
-     
-!        do ibd = band_subset(1), band_subset( 2 )
-!          x = 0_dp
-!          do ir = 1, nr
-!            do iang = 1, nang
-!              x = x + u_radial( iang, ir, ibd, ik, 2 ) * conjg( u_radial( iang, ir, ibd, ik, 2 ) ) &
-!                * ( rad_grid( ir ) ** 2 ) * angular_grid( 4, iang ) * deltaL
-!            enddo
-!          enddo
-!          write( stdout, * ) ik, ibd, x
-!          u_radial( :,:, ibd, ik, 2 ) = u_radial( :,:, ibd, ik, 2 ) / sqrt(x)
-!        enddo
-
-      endif   
-
 
     
 !      u2( :, band_subset(1) : band_subset(2), ik, 2 ) = matmul( u1, eigvec( :, band_subset(1) : band_subset(2) ) )
@@ -1394,46 +1174,7 @@
   endif
   endif
 
-  if( radial_ufunc ) then 
-    call mp_sum( u_radial )
-    if( ionode ) then
-      open(unit=iuntmp,file='u2_radial.dat',form='unformatted',status='unknown')
-      rewind(iuntmp)
-      do ik=1,kpt%list%nk
-        do ibd = brange( 1 ), brange( 2 )
-          write(iuntmp) u_radial(:,ibd,ik,1)
-        enddo
-        do ibd = brange( 3 ), brange( 4 )
-          write(iuntmp) u_radial(:,ibd,ik,nshift)  
-        enddo
-      enddo
-      close(iuntmp)
-    endif
-!    deallocate( u_radial, rpts, rad_grid, angular_grid )
-  endif
 
-!  if( ionode ) allocate( u2_buf( nxpts, 1 : band_subset(2) ) )
-!
-!  k_counter = 0
-!  do ik=1,kpt%list%nk
-!    if( mod(ik-1,npool) .eq. mypool ) then
-!      k_counter = k_counter + 1
-!      if( ionode ) then
-!        u2_buf( :, : ) = u2( :, :, k_counter )
-!      else
-!        call mp_send( u2( :, :, k_counter ), ionode_id )
-!      endif
-!    elseif( ionode )
-!      call mp_recv( u2( :, :, k_counter ) )
-!    endif
-!    if( ionode ) then
-!      do ibd = brange( 3 ), brange( 4 )
-!        do ix = 1, nxpts
-!          write ( iuntmp ) ibd, ik, ix, u2( ix, ibd, ik )
-!        end do
-!      end do
-!    endif
-!  enddo
     
 
 ! Downsize e0
