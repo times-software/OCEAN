@@ -334,6 +334,7 @@ $(ESPRESSO_DIR)/Modules/wrappers.o \
 $(ESPRESSO_DIR)/Modules/write_upf_v2.o \
 $(ESPRESSO_DIR)/Modules/ws_base.o \
 $(ESPRESSO_DIR)/Modules/xml_io_base.o \
+$(ESPRESSO_DIR)/Modules/netcdf_io.o \
 $(ESPRESSO_DIR)/Modules/zhpev_drv.o
 
 
