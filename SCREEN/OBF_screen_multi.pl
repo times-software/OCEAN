@@ -15,23 +15,25 @@ if (! $ENV{"OCEAN_WORKDIR"}){ $ENV{"OCEAN_WORKDIR"} = `pwd` . "../" ; }
 #FAKE INPUTS FOR NOW
 
 #my $para_prefix = "mpirun -n 16 ";
-my $trace_tolerance = "5.0d-15";
+#my $trace_tolerance = "5.0d-15";
 
 # Spline for Hamiltonian
-my $ham_kpoints = "4 4 4";
+#my $ham_kpoints = "4 4 4";
 
 my $band_start = 1;
-my $band_stop  = 800;
+# A value of minus one should cause the max number to be used
+# (ie. band max = number of OBFs )
+my $band_stop  = -1; #800;
 
-my $screen_nkpt = "2 2 2";
+#my $screen_nkpt = "2 2 2";
 
 
 
 # Step 1: Create support files
-my @CommonFiles = ("znucl", "paw.hfkgrid", "paw.fill", "paw.opts", "pplist", "paw.shells", "ntype",
-                   "natoms", "typat", "taulist", "nedges", "edges", "caution", "epsilon", "k0.ipt", 
-                   "ibase", "scfac", "rscale", "rprim", "para_prefix", "paw.nbands", "core_offset",
-                   "paw.nkpt", "pool_control");
+my @CommonFiles = ("znucl", "paw.hfkgrid", "paw.fill", "paw.opts", "pplist", "paw.shells", 
+                   "ntype", "natoms", "typat", "taulist", "nedges", "edges", "caution", 
+                   "epsilon", "k0.ipt", "ibase", "scfac", "rscale", "rprim", "para_prefix", 
+                   "paw.nbands", "core_offset", "paw.nkpt", "pool_control", "ham_kpoints");
 my @ExtraFiles = ("specpnt", "Pquadrature" );
 my @DFTFiles = ("rhoofr", "nscf.out", "system.rho.dat");
 
@@ -82,14 +84,19 @@ if( open PARA_PREFIX, "para_prefix" )
   $pool_size = 1;
 }
 
-if( -e "../DFT/ham_kpoints" )
-{
-	`cp ../DFT/ham_kpoints .`;
-	$ham_kpoints = `cat ham_kpoints`;
-	chomp($ham_kpoints);
-}
+#if( -e "../DFT/ham_kpoints" )
+#{
+#	`cp ../DFT/ham_kpoints .`;
+#	$ham_kpoints = `cat ham_kpoints`;
+#	chomp($ham_kpoints);
+#}
+open IN, "ham_kpoints" or die;
+<IN> =~ m/(\d+)\s+(\d+)\s+(\d+)/ or die "Failed to parse ham_kpoints\n$_";
+my $ham_kpoints = "$1  $2  $3";
 
-$screen_nkpt = `cat paw.nkpt`;
+
+
+my $screen_nkpt = `cat paw.nkpt`;
 chomp($screen_nkpt);
 
 
