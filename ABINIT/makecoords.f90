@@ -137,6 +137,10 @@ subroutine getsymbol(zatom,satom)
         satom = "Zn"
       case (38)
         satom = "Sr"
+      case (74)
+        satom = "W "
+      case (78)
+        satom = "Pt"
 
     end select
 

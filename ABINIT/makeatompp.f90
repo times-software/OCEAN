@@ -119,6 +119,13 @@ subroutine getsymbol(zatom,satom)
         satom = "Zn"
       case (38)
         satom = "Sr"
+      case (74)
+        satom = "W "
+      case (78)
+        satom = "Pt"
+
+      case default
+        satom = "--"
 
     end select
 
@@ -194,6 +201,10 @@ subroutine getmass(zatom,mass)
         mass = "65.3800"
       case (38)
         mass = "87.6200"
+      case (74) 
+        mass = "183.84"
+      case(78)
+        mass = "195.084"
 
     end select
 
