@@ -5,13 +5,12 @@
       implicit none
       character*2, allocatable :: satom(:)
       integer :: i
+      integer :: ibrav
       integer :: natoms, numtyp
       integer, allocatable    :: typat(:), znum(:), zatom(:)
       real(kind=kind(1.d0))              :: rscale(3)
       real(kind=kind(1.d0)), allocatable :: pos(:,:)
 !
-!
-      write(6,*) " in makecoords"
 !
       open(unit=99,file='natoms',form='formatted',status='old')
       read(99,*) natoms
@@ -21,12 +20,21 @@
       read(99,*) rscale(:)
       close(99)
 !
+      open(unit=99,file='ibrav',form='formatted',status='old')
+      read(99,*) ibrav
+      close(99)
+!
       allocate( pos(3,natoms) )
       open(unit=99,file='taulist',form='formatted',status='old')
-      do i = 1, natoms
-         read(99,*) pos(:,i)
-!         pos(:,i) = pos(:,i) * rscale(:) * 0.529177249
-      end do
+      if ( ibrav .eq. 0 ) then
+         do i = 1, natoms
+            read(99,*) pos(:,i)
+         end do
+      else
+         do i = 1, natoms
+            read(99,*) pos(:,i)
+         end do
+      endif
       close(99)
 !
 !
@@ -43,10 +51,6 @@
       allocate( znum(numtyp) )
       open(unit=99,file='znucl',form='formatted',status='old')
       read(99,*) znum(:)
-!      do i = 1, numtyp
-!         read(99,*) znum(i)
-!         write(6,*) i, znum(i)
-!      end do
       close(99)
 !
       allocate( zatom(natoms), satom(natoms) )
@@ -58,7 +62,7 @@
       open(unit=98,file='coords',form='formatted',status='unknown')
       do i = 1, natoms
          call getsymbol( zatom(i), satom(i) )
-         write( 98, '(a,x,f16.10,x,f16.10,x,f16.10)') satom(i), pos(:,i)
+         write( 98, *) satom(i), pos(:,i)
       enddo
       close(98)
 
@@ -68,6 +72,8 @@
 
       end program makecoords
 
+
+!!! move this to a header file
 
 subroutine getsymbol(zatom,satom)
   integer, intent(in) :: zatom
@@ -135,13 +141,46 @@ subroutine getsymbol(zatom,satom)
         satom = "Cu"
       case (30)
         satom = "Zn"
+      case (31)
+        satom = "Ga"
+      case (32)
+        satom = "Ge"
+      case (33)
+        satom = "As"
+      case (34)
+        satom = "Se"
+      case (35)
+        satom = "Br"
+      case (36)
+        satom = "Kr"
+      case (37)
+        satom = "Rb"
       case (38)
         satom = "Sr"
+      case (39)
+        satom = "Y "
+      case (40)
+        satom = "Zr"
+      case (41)
+        satom = "Nb"
+      case (42)
+        satom = "Mo"
+      case (43)
+        satom = "Tc"
+      case (44)
+        satom = "Ru"
+      case (45)
+        satom = "Rh"
+      case (46)
+        satom = "Pd"
+      case (47)
+        satom = "Ag"
+      case (48)
+        satom = "Cd"
+      case (82)
+        satom = "Pb"
 
     end select
 
 
 end subroutine getsymbol
-
-
-

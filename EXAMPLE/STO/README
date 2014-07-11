@@ -1,0 +1,5 @@
+This example calculates the Ti 2p absorption spectrum of SrTiO3.
+
+usage:  ${OCEAN_DIR}/BIN/ocean.pl sto.in
+
+Compare the reference spectrum './absspct' to the result in 'CNBSE/absspct'.

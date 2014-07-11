@@ -11,8 +11,6 @@
       integer, allocatable    :: znucl(:)
 !
 !
-      write(6,*) " in makeatompp"
-!
       open(unit=99,file='ntype',form='formatted',status='old')
       read(99,*) ntype
       close(99)
@@ -50,6 +48,8 @@
 !
       end program makeatompp
 
+
+!!! we should move this to a periodic table header file
 
 subroutine getsymbol(zatom,satom)
   integer, intent(in) :: zatom
@@ -117,8 +117,44 @@ subroutine getsymbol(zatom,satom)
         satom = "Cu"
       case (30)
         satom = "Zn"
+      case (31)
+        satom = "Ga"
+      case (32)
+        satom = "Ge"
+      case (33)
+        satom = "As"
+      case (34)
+        satom = "Se"
+      case (35)
+        satom = "Br"
+      case (36)
+        satom = "Kr"
+      case (37)
+        satom = "Rb"
       case (38)
         satom = "Sr"
+      case (39)
+        satom = "Y "
+      case (40)
+        satom = "Zr"
+      case (41)
+        satom = "Nb"
+      case (42)
+        satom = "Mo"
+      case (43)
+        satom = "Tc"
+      case (44)
+        satom = "Ru"
+      case (45)
+        satom = "Rh"
+      case (46)
+        satom = "Pd"
+      case (47)
+        satom = "Ag"
+      case (48)
+        satom = "Cd"
+      case (82)
+        satom = "Pb"
 
     end select
 
@@ -192,8 +228,44 @@ subroutine getmass(zatom,mass)
         mass = "63.5460"
       case (30)
         mass = "65.3800"
+      case (31)
+        mass = "69.7230"
+      case (32)
+        mass = "72.6300"
+      case (33)
+        mass = "74.9220"
+      case (34)
+        mass = "78.9600"
+      case (35)
+        mass = "79.9040"
+      case (36)
+        mass = "83.7980"
+      case (37)
+        mass = "85.4680"
       case (38)
         mass = "87.6200"
+      case (39)
+        mass = "88.9060"
+      case (40)
+        mass = "91.2240"
+      case (41)
+        mass = "92.906"
+      case (42)
+        mass = "95.96"
+      case (43)
+        mass = "97.91"
+      case (44)
+        mass = "101.07"
+      case (45)
+        mass = "102.91"
+      case (46)
+        mass = "106.42"
+      case (47)
+        mass = "107.87"
+      case (48)
+        mass = "112.41"
+      case (82)
+        mass = "207.2"
 
     end select
 
