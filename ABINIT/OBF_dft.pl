@@ -228,6 +228,7 @@ if ($RunESPRESSO) {
         .  "  tstress = .true.\n"
         .  "  tprnfor = .true.\n"
         .  "  wf_collect = .true.\n"
+        .  "  disk_io = 'low'\n"
         .  "/\n";
   print QE "&system\n"
         .  "  ibrav = $qe_data_files{'ibrav'}\n"
@@ -503,6 +504,7 @@ if ( $nscfRUN ) {
         .  "  tstress = .true.\n"
         .  "  tprnfor = .true.\n"
         .  "  wf_collect = .true.\n"
+        .  "  disk_io = 'low'\n"
         .  "/\n";
   print QE "&system\n"
         .  "  ibrav = $qe_data_files{'ibrav'}\n"
