@@ -1,9 +1,7 @@
-# Fortran compiler
-FC = gfortran
-
-# Flags
-OPTIONS = -O2 -Wall
-
-# FFTW path
-FFTWI = -I/users/jtv1/local/fftw-3.3.3/api
-FFTWL = -L/users/jtv1/local/.libs -lfftw3
+FC=ifort
+OPTIONS=-O3
+INSTDIR=${PWD}/BIN
+ABINIT=/path/to/abinip
+CUT3D=/path/to/cut3d
+FFTWI=-I/path/to/fftw/include
+FFTWL=-L/path/to/fftw/lib -lfftw3

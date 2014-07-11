@@ -6,6 +6,10 @@ dft
 {
 abinit
 } dft
+stages
+{
+all
+} stages
 paral_kgb
 {
 1
