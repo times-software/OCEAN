@@ -50,8 +50,9 @@
 
   character(255) :: eigval_file, eigvec_file, info_file, filout
   logical :: ex
+  logical :: legacy_zero_lumo
 
-  integer(kind=MPI_OFFSET_KIND) :: offset
+  integer(kind=MPI_OFFSET_KIND) :: offset, off1, off2, off3, off4
   integer :: fheigval, fheigvec, fhenk, fhpsi
   integer :: status(MPI_STATUS_SIZE)
   integer :: ierr
@@ -91,7 +92,7 @@
   integer,allocatable :: start_band(:),stop_band(:)
   real(dp),allocatable :: lumo(:), homo(:)
   integer :: nbuse, brange( 4 ), nelectron, nbuse_xes, max_val, ishift
-  real(dp) :: lumo_point, homo_point,dft_energy_range, cs, vs, newgap, sef, egw, elda, eshift, kshift( 3 ), kplusq(3)
+  real(dp) :: lumo_point, homo_point,dft_energy_range, cs, vs, newgap, sef, egw, elda, eshift, kshift( 3 ), kplusq(3), lumo_shift
   logical :: have_gwipt, have_kshift, radial_ufunc
 
   integer :: iuninf, fhu2, finfo, errorcode, fmode, resultlen, nshift, fhtmels, fh_val_energies, fh_con_energies, fho2l
@@ -367,6 +368,17 @@
 
   if( ionode ) then
     iuntmp = freeunit()
+
+    inquire(file='noshift_lumo',exist=ex)
+    if( ex ) then
+      open(unit=iuntmp,file='noshift_lumo',form='formatted',status='old')
+      read(iuntmp,*) legacy_zero_lumo
+      close(iuntmp)
+    else
+      legacy_zero_lumo = .true.
+    endif
+      
+
     kshift = 0.0d0
     inquire(file='qinunitsofbvectors.ipt',exist=have_kshift)
     if( have_kshift) then
@@ -445,6 +457,7 @@
   call mp_bcast( nr, ionode_id )
   radial_ufunc = .false. 
   
+  call mp_bcast( legacy_zero_lumo, ionode_id )
   call mp_bcast( kshift, ionode_id )
   call mp_bcast( have_kshift, ionode_id )
   call mp_bcast( nshift, ionode_id )
@@ -883,7 +896,12 @@
 !                                (band_subset(2) - band_subset(1) + 1 ) * nxpts, &
                                 MPI_DOUBLE_COMPLEX, status, ierr )
       else
-        offset =  ((ispin-1)*kpt%list%nk + ik-1)*( nbasis_subset + max_val ) * nxpts
+        off1 = ((ispin-1)*kpt%list%nk + ik-1)
+        off2 = ( nbasis_subset + max_val )
+        off3 = nxpts
+        offset = off1 * off2 * off3
+!        offset =  ((ispin-1)*kpt%list%nk + ik-1)*( nbasis_subset + max_val ) * nxpts
+        
 !????? ik -> 1
         call mpi_file_write_at( fhu2, offset, u2(1,1,1,1), &
                                 max_val * nxpts, &
@@ -1181,14 +1199,23 @@
   ! lumo to Ha
   lumo_point = 0.5d0 * lumo_point
   homo_point = 0.5d0 * homo_point
+
+  if( legacy_zero_lumo ) then
+    lumo_shift = lumo_point
+  else
+    lumo_shift = 0.0_DP
+  endif
+
   allocate( e0_small( nbuse, kpt%list%nk ) )
   if( have_kshift ) then
     do ik=1,kpt%list%nk
-      e0_small( 1 : nbuse, ik ) = e0( start_band(ik) : start_band(ik) + nbuse - 1, ik, 2 ) !- lumo_point
+      e0_small( 1 : nbuse, ik ) = e0( start_band(ik) : start_band(ik) + nbuse - 1, ik, 2 ) &
+                                - lumo_shift
     enddo
   else
     do ik=1,kpt%list%nk
-      e0_small( 1 : nbuse, ik ) = e0( start_band(ik) : start_band(ik) + nbuse - 1, ik, 1 ) !- lumo_point
+      e0_small( 1 : nbuse, ik ) = e0( start_band(ik) : start_band(ik) + nbuse - 1, ik, 1 ) &
+                                - lumo_shift
     enddo
   endif
 
@@ -1215,7 +1242,7 @@
   allocate( e0_small( nbuse_xes, kpt%list%nk ) )
   e0_small = 0.0d0
   do ik=1,kpt%list%nk
-    e0_small( 1 : start_band(ik) - 1, ik ) = e0( 1 : start_band(ik) - 1, ik, 1 ) !- lumo_point
+    e0_small( 1 : start_band(ik) - 1, ik ) = e0( 1 : start_band(ik) - 1, ik, 1 ) - lumo_shift
   enddo
   if( ionode ) then
     open(unit=iuntmp,file='wvfvainfo',form='unformatted',status='unknown')
