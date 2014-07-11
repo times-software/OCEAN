@@ -229,7 +229,7 @@ c
 c
       integer idoflag,nn,ief,ii
       double precision vl,vh,dum1,dum2,xactual,xla,xerror,dxdla
-      double precision vmaybe,tmp
+      double precision vmaybe,tmp,dum3(nr,7)
 c
 c
       double precision hb
@@ -240,7 +240,7 @@ c
       vh=+1000000.d0
  115  idoflag=2
       call setqmm(i,orb,l,xj,idoflag,v,zeff,
-     &            dum1,rel,nr,r,r2,dl,xm1,xm2,njrc,dum2,.true.)
+     &            dum1,rel,nr,r,r2,dl,xm1,xm2,njrc,dum3,.true.)
       call getplead(l,xj,rel,xkappa,plead,zeff)
       call integ(e,l,xkappa,n,nn,jrt,ief,xactual,phi,zeff,v,
      &           xm1,xm2,nr,r,dr,r2,dl,rel,plead)

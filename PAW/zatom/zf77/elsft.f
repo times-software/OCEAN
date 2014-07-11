@@ -571,6 +571,9 @@ c
 c                                                                       
 c                                                                       
       double precision function gbslve(shift, n, a, b)            
+      
+      double precision :: a, b, alpha, shift
+      integer :: n, i, nm1
 c                                                                      
 c       this procedure performs elimination to solve for the            
 c       n-th component of the solution delta to the equation            
