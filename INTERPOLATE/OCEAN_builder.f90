@@ -433,6 +433,9 @@ call descinit( desc_uofrandb, npt, nbasis_subset, nb, desc_cyclic(NB_), 0, 0, co
 
       if( mod(ik-1,npool)/=mypool ) cycle
 
+      call OCEAN_t_reset
+
+
       write(stdout,'(a,3f12.5,i6,a,i6,a,i3)') ' k-point ', &
         kpt%list%kvec(1:3,ik), ik, ' of ', kpt%list%nk, &
                                     ' on node ', mpime
@@ -469,6 +472,10 @@ call descinit( desc_uofrandb, npt, nbasis_subset, nb, desc_cyclic(NB_), 0, 0, co
       write(stdout,'(i10,x,f10.3,x,f10.3,x,f10.3)') ik, eigval(band_subset(1))*rytoev, &
                               eigval(band_subset(2))*rytoev, eigval(nbnd_small)*rytoev
 
+      call OCEAN_t_printtime( "Diag", stdout )
+      call OCEAN_t_reset
+
+
       qin( : ) =  kpt%list%kvec( 1 : 3, ik ) 
       qcart(:) = 0.d0
       if( kpt%param%cartesian ) then
@@ -504,6 +511,8 @@ call descinit( desc_uofrandb, npt, nbasis_subset, nb, desc_cyclic(NB_), 0, 0, co
         call mp_barrier
         write(stdout,*) 'bofr distributed'
   !  deallocate( single_bofr )
+
+        call OCEAN_t_printtime( "Distrib", stdout )
         
 
 
