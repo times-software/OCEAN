@@ -81,7 +81,7 @@
   integer,allocatable :: gflip( :, : )
   complex(dp),allocatable :: ztmp(:,:)
 
-  integer :: nwordo2l, iuntmp, ntot,nptot, ntau, ibd, ibp, iunbofr
+  integer :: nwordo2l, iuntmp, ntot,nptot, ntau, ibd, ibp, iunbofr, tmp_eig_m, tmp_eig_n 
   complex(dp),allocatable :: o2l(:,:,:,:,:), coeff( :, :, :, :, :, : ), coeff_small( :, :, :, :, : )
   real(dp),allocatable :: tau(:,:),e0(:,:,:), e0_small(:,:)
   logical :: exst
@@ -110,7 +110,7 @@
   integer(8) :: long_nbasis, long_nx
   integer(8) :: long_2g = 2147483648
 
-  integer, dimension( DLEN_ ) :: desc_coeff, desc_o2l, desc_u1, desc_u2, desc_tmels, single_desc_u1, desc_eigvec_single
+  integer, dimension( DLEN_ ) :: desc_coeff, desc_o2l, desc_u1, desc_u2, desc_tmels, single_desc_u1, desc_eigvec_single, desc_tmpeig
 
   integer, external :: OMP_GET_NUM_THREADS, NUMROC
   complex(dp), external :: ZDOTC
@@ -126,9 +126,12 @@
 
 ! Still need to read in the actual OBFs. We will be 
 !   calculating overlaps and matrix elements and stuff
-  wfc_dir = wfcdir
-  prefix_io = prefix
+
+! for right now we don't though, everything is taken care of earlier
   tmpdir_io = outdir
+  prefix_io = prefix
+  wfc_dir = wfcdir
+  if( .true. ) then
   lscf = .false.
   starting_pot = 'file'
   starting_wfc = 'file'
@@ -142,19 +145,20 @@
     goto 111
   endif
 
-  write(stdout,*) 'npw: ', npw, npwx
-  call read_file_shirley( nspin )
-  write(stdout,*) 'npw: ', npw, npwx
-  call openfil
+!  write(stdout,*) 'npw: ', npw, npwx
+!  call read_file_shirley( nspin )
+!  write(stdout,*) 'npw: ', npw, npwx
+!  call openfil
 
-  call summary
+!  call summary
 
-  write(stdout,*)
-  write(stdout,*) ' load wave function'
+!  write(stdout,*)
+!  write(stdout,*) ' load wave function'
   !switch to !JTV
   !call get_buffer( evc, nwordwfc, iunwfc, 1 )
-  CALL davcio( evc, 2*nwordwfc, iunwfc, 1, - 1 )
+!  CALL davcio( evc, 2*nwordwfc, iunwfc, 1, - 1 )
 ! Finished reading in the OBFs
+  endif
 
 
 ! At this point we can run the OBF2cks
@@ -520,6 +524,8 @@
   u1_NB = desc_cyclic( NB_ )
   u1_N = desc_cyclic( N_ )
 
+  if( u1_N .lt. 1 ) u1_N = 1
+
 
   write(stdout,*) u1_M, u1_N, u1_MB, u1_NB, nxpts, nbasis
  
@@ -592,12 +598,16 @@
     allocate( u2( nxpts, band_subset(1) : band_subset(2), 1, nshift ) )
     allocate( eigvec_single( nbasis, nbasis ) )
   else  ! For error checking nonsense
-!    allocate( u2( 1, band_subset(1), kpt%list%nk, nshift ) )
-    allocate( u2( 1, band_subset(1), 1, nshift ) )
+!!!!    allocate( u2( 1, band_subset(1), kpt%list%nk, nshift ) )
+     ! JTV memleak 29 July
+!    allocate( u2( 1, band_subset(1), 1, nshift ) )
+    allocate( u2( nxpts, band_subset(1) : band_subset(2), 1, nshift ) )
     allocate( eigvec_single( 1, 1:band_subset(1) ) )
   endif
   u2 = 0.d0
   call descinit( desc_u2, nxpts, nband, nxpts, nband, 0, 0, context_cyclic, nxpts, ierr )
+
+  if( ionode ) write(6,*) 'nshift =', nshift
 
 
   allocate(e0( band_subset(1):band_subset(2), kpt%list%nk, nshift) )
@@ -615,7 +625,20 @@
     call descinit( desc_tmels,  max_val, band_subset( 2 )-band_subset( 1 )+1, &
                                 max_val, band_subset( 2 )-band_subset( 1 )+1, &
                    0, 0, context_cyclic, max_val, ierr )
-    allocate( tmp_eigvec( nbasis, max_val ) )
+
+
+    tmp_eig_n = numroc( max_val, desc_cyclic(NB_), mycol, 0, npcol )
+    tmp_eig_m = numroc( nbasis, desc_cyclic(MB_), myrow, 0, nprow )
+    call descinit( desc_tmpeig, nbasis, max_val, desc_cyclic(MB_), desc_cyclic(NB_), 0, 0, context_cyclic, tmp_eig_m, ierr )
+    if( ierr .ne. 0 ) then
+      write(stdout,*) desc_tmpeig(:)
+      stop
+    endif
+
+
+    allocate( tmp_eigvec(  tmp_eig_m, tmp_eig_n ) )
+
+!    allocate( tmp_eigvec( nbasis, max_val ) )
   endif
 
 
@@ -763,11 +786,16 @@
       endif
 
 !      tmp_eigvec( :, 1 : max_val ) = conjg( eigvec( :, band_subset( 1 ) : band_subset( 1 ) + max_val - 1) )
-      tmp_eigvec( :, 1 : max_val ) = eigvec( :, band_subset( 1 ) : band_subset( 1 ) + max_val - 1)
+!      tmp_eigvec( :, 1 : max_val ) = eigvec( :, band_subset( 1 ) : band_subset( 1 ) + max_val - 1)
 
 !JTV
 ! Can probably be done with PZGEMR2D
 !      tmp_eigvec( :, : ) = eigvec( :, : )
+       call PZGEMR2D( nbasis, max_val, eigvec, 1, 1, desc_cyclic, &
+                      tmp_eigvec, 1, 1, desc_tmpeig, context_cyclic, ierr )
+
+
+
       ! build the Hamiltonian for this q-point !!! k + q
       kplusq(:) = kpt%list%kvec(1:3,ik) + kshift(:)
  
@@ -839,6 +867,8 @@
         enddo
       endif
 
+      call BLACS_BARRIER( context_cyclic, 'A')
+
       do itau=1,ntau
         call PZGEMM( 'T', 'N', nptot, nband, nbasis, &
                    one, o2l(1,1,itau,1,1), 1, 1, desc_o2l, &
@@ -846,6 +876,7 @@
                    zero, coeff(1,band_subset(1),ik,ispin,itau,2), 1, 1, desc_coeff )
       enddo
 
+      call BLACS_BARRIER( context_cyclic, 'A')
 !      do itau=1,ntau
 !        do ibnd=band_subset(1),band_subset(2)
 !          do ip=1,nptot
@@ -861,15 +892,16 @@
 !                   eigvec, 1, 1, desc_cyclic, &
 !                   zero, tmels, 1, 1, desc_tmels )
 
-      do ibd = band_subset(1), band_subset( 2 )
-        do i = 1, max_val
-        tmels( i, ibd, ik ) = dot_product( eigvec( :, ibd ), tmp_eigvec( :, i ) ) 
-        enddo
-      enddo
+!      do ibd = band_subset(1), band_subset( 2 )
+!        do i = 1, max_val
+!          tmels( i, ibd, ik ) = dot_product( eigvec( :, ibd ), tmp_eigvec( :, i ) ) 
+!        enddo
+!      enddo
 
       call PZGEMR2D( nbasis, nbasis, eigvec, 1, 1, desc_cyclic, eigvec_single, 1, 1, &
                      desc_eigvec_single, context_cyclic, ierr )
       
+      call BLACS_BARRIER( context_cyclic, 'A')
 
     endif 
     ! write con energies (if shift has new eigenvalues, otherwise it doesn't )
