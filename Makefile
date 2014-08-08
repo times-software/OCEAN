@@ -9,7 +9,7 @@ AUX = Version Header
 
 all:
 	cd Common;       make "FC = $(FC)" "OPTIONS = $(OPTIONS)"
-	cd ABINIT;       make "FC = $(FC)" "OPTIONS = $(OPTIONS)"
+	cd DFT;       make "FC = $(FC)" "OPTIONS = $(OPTIONS)"
 	cd PREP;       make "FC = $(FC)" "OPTIONS = $(OPTIONS)" "FFTWI=$(FFTWI)" "FFTWL=$(FFTWL)"
 	cd PAW;          make "COMP = $(FC)" "OPTS = $(OPTIONS)"
 	cd SCREEN;       make "COMP = $(FC)" "OPTS = $(OPTIONS)"
@@ -18,7 +18,7 @@ all:
 
 clean:
 	cd Common;       make clean
-	cd ABINIT;       make clean
+	cd DFT;       make clean
 	cd PREP;      make clean
 	cd SCREEN;       make clean
 	cd PAW;   make clean
@@ -28,7 +28,7 @@ install:
 	mkdir -p $(INSTDIR)
 	cp $(SCRIPTS) $(AUX) $(INSTDIR)
 	cd Common;       make "INSTDIR = $(INSTDIR)" install
-	cd ABINIT;       make "INSTDIR = $(INSTDIR)" install
+	cd DFT;       make "INSTDIR = $(INSTDIR)" install
 	cd PREP;       make "INSTDIR = $(INSTDIR)" install
 	cd SCREEN;        make "INSTDIR = $(INSTDIR)" install
 	cd PAW;          make "INSTDIR = $(INSTDIR)" install
@@ -39,7 +39,7 @@ install:
 instdev:
 	for F in $(SCRIPTS) $(AUX); do ln -fs $(PWD)/$$F $(INSTDEVDIR); done;
 	cd Common;       make "INSTDEVDIR = $(INSTDEVDIR)" instdev
-	cd ABINIT;       make "INSTDEVDIR = $(INSTDEVDIR)" instdev
+	cd DFT;       make "INSTDEVDIR = $(INSTDEVDIR)" instdev
 	cd PREP;      make "INSTDEVDIR = $(INSTDEVDIR)" instdev
 	cd CNBSE;         make "INSTDEVDIR = $(INSTDEVDIR)" instdev
 	cd SCREEN;       make "INSTDEVDIR = $(INSTDEVDIR)" instdev
