@@ -10,10 +10,13 @@ subroutine loaduxzerotau( nx, ny, nz, nbd, nq, nspn, zn, tau, ur, ui )
   integer :: iq, ibd, ig, idum( 3 ), ix, iy, iz, ivl, ivh, icl, ich, ispn
   integer :: iq1, iq2, iq3, dumint, icl2, ich2, ivh2, xshift(3)
   integer :: xtarg, ytarg, ztarg, xph, yph, zph
+  integer(kind=8) :: pos
   real( kind = kind( 1.0d0 ) ) :: phsx, phsy, phsz, cphs, sphs, psir, psii, pi
   real( kind = kind( 1.0d0 ) ) :: su, sul, suh
+  complex( kind = kind( 1.0d0 ) ) :: tmp_cmplx
   real( kind = kind( 1.0d0 ) ), allocatable, dimension( :, :, :, : ) :: tmp_ur, tmp_ui
-  logical :: metal, normal
+  logical :: metal, normal, dft_type_is_obf
+  character(len=3) :: dft_string
   !
   sul = 1.0d0
   suh = 1.0d0
@@ -34,6 +37,19 @@ subroutine loaduxzerotau( nx, ny, nz, nbd, nq, nspn, zn, tau, ur, ui )
   read(99,*) normal
   close( 99 )
 
+  inquire(file='dft',exist=dft_type_is_obf)
+  if( dft_type_is_obf ) then
+    open(unit=99,file='dft',form='formatted',status='old' )
+    read(99,*) dft_string
+    close( 99 )
+    if( dft_string .eq. 'OBF' ) then
+      dft_type_is_obf = .true.
+    else
+      dft_type_is_obf = .false.
+    endif
+  endif
+
+
   if (.not. normal ) then
    write(6,*) 'XES'
    ur = 0.0d0
@@ -42,8 +58,14 @@ subroutine loaduxzerotau( nx, ny, nz, nbd, nq, nspn, zn, tau, ur, ui )
   endif
 
   if ( nbd .gt. 1 + ( ich - icl ) ) stop 'loadux ... nbd mismatch -- cf brange.ipt...'
-  open( unit=u2dat, file='u2.dat', form='unformatted', status='unknown' )
-  rewind u2dat
+
+  if( dft_type_is_obf ) then
+    open(unit=u2dat,file='u2par.dat',access='stream',status='old',form='binary' )
+    pos = 0
+  else
+    open( unit=u2dat, file='u2.dat', form='unformatted', status='unknown' )
+    rewind u2dat
+  endif
   write(6,*) 'nspn: ', nspn
   do ispn = 1, nspn
     do iq = 1, nq
@@ -59,7 +81,12 @@ subroutine loaduxzerotau( nx, ny, nz, nbd, nq, nspn, zn, tau, ur, ui )
 !  Skip all of the occupied bands (and for metals)
       do ibd = ivl, ivh2
         do ig = 1, nx * ny * nz
+          if( .not. dft_type_is_obf ) then
            read ( u2dat )
+          else
+            pos = pos + 1
+            read( u2dat ) tmp_cmplx
+          endif
         end do
       end do
 
@@ -74,7 +101,15 @@ subroutine loaduxzerotau( nx, ny, nz, nbd, nq, nspn, zn, tau, ur, ui )
         do ix = 1, nx
            do iy = 1, ny
               do iz = 1, nz
+                if( .not. dft_type_is_obf ) then
                  read ( u2dat ) idum( 1 : 3 ), ur( ix, iy, iz, ibd, iq, ispn ), ui( ix, iy, iz, ibd, iq, ispn ) 
+                else
+                  pos = pos + 1
+!                  read( u2dat, POS=pos ) tmp_cmplx
+                  read( u2dat ) tmp_cmplx
+                  ur( ix, iy, iz, ibd, iq, ispn ) = real( tmp_cmplx )
+                  ui( ix, iy, iz, ibd, iq, ispn ) = aimag( tmp_cmplx )
+                endif
               end do
            end do
         end do
@@ -85,7 +120,12 @@ subroutine loaduxzerotau( nx, ny, nz, nbd, nq, nspn, zn, tau, ur, ui )
 ! Adding 22 nov 2010 get rid of the un-used wfns at the top
       do ibd = ivh2 + nbd + 1, ivh - ivl + ich - icl + 2
         do ig = 1, nx * ny * nz
+                    if( .not. dft_type_is_obf ) then
            read ( u2dat )
+          else
+            read( u2dat ) tmp_cmplx
+            pos = pos + 1
+          endif
         end do
       enddo
     enddo
