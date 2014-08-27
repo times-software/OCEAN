@@ -30,6 +30,7 @@ module OCEAN_action
   
 
   CHARACTER(LEN=3) :: calc_type
+  LOGICAL  :: echamp
 
 
   REAL(DP), POINTER :: mem_psi_r(:,:,:) 
@@ -486,12 +487,14 @@ module OCEAN_action
                   ( 1.0d0 - dot_product( rhs, x ) ) * kpref, relative_error
         call flush(76)
 
-        write(e_filename,'(A7,A2,A1,I4.4,A1,A2,A1,I2.2,A1,I4.4)' ) 'echamp_', sys%cur_run%elname, &
-            '.', sys%cur_run%indx, '_', sys%cur_run%corelevel, '_', sys%cur_run%photon, '.', iter
-        open(unit=99,file=e_filename,form='unformatted',status='unknown')
-        rewind( 99 )
-        write( 99 ) x
-        close( 99 )
+        if( echamp ) then
+          write(e_filename,'(A7,A2,A1,I4.4,A1,A2,A1,I2.2,A1,I4.4)' ) 'echamp_', sys%cur_run%elname, &
+              '.', sys%cur_run%indx, '_', sys%cur_run%corelevel, '_', sys%cur_run%photon, '.', iter
+          open(unit=99,file=e_filename,form='unformatted',status='unknown')
+          rewind( 99 )
+          write( 99 ) x
+          close( 99 )
+        endif
       endif
     enddo
 
@@ -793,7 +796,14 @@ module OCEAN_action
               do iter = 1, inv_loop
                 e_list( iter ) = e_start + ( iter - 1 ) * e_step
               enddo
-            end select          
+          end select          
+
+          inquire(file='echamp.inp',exist=echamp)
+          if( echamp ) then
+            open(98,file='echamp.inp',form='formatted',status='old')
+            read(98,*) echamp
+            close(98)
+          endif
         case default
           ierr = -1
       end select
