@@ -44,6 +44,7 @@ subroutine loaduxzerotau( nx, ny, nz, nbd, nq, nspn, zn, tau, ur, ui )
     close( 99 )
     if( dft_string .eq. 'OBF' ) then
       dft_type_is_obf = .true.
+      write(6,*) 'Loading u2par.dat for OBF calculation'
     else
       dft_type_is_obf = .false.
     endif
