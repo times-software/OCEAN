@@ -21,10 +21,18 @@ OCEAN_BUILDER_EXE=ocean_builder$(DEBUG).x
 SHIRLEY_HAM_EXE=shirley_ham_o$(DEBUG).x
 OCEAN_QDIAGP_EXE=ocean_qdiagp$(DEBUG).x
 
-all: $(OCEAN_BUILDER_EXE) $(SHIRLEY_HAM_EXE) $(OCEAN_QDIAGP_EXE)
+all: OCEAN_timer.o $(OCEAN_BUILDER_EXE) $(SHIRLEY_HAM_EXE) $(OCEAN_QDIAGP_EXE)
 
 OCEAN_O2L = \
-$(ESPRESSO_DIR)/OCEAN/getprefs.o \
+../CNBSE/zcks/zobj/getprefs.o \
+../CNBSE/zcks/zobj/snatch.o \
+../CNBSE/zcks/zobj/nbseprjprep.o \
+../CNBSE/zcks/zobj/nbseprjnproj.o \
+../CNBSE/zcks/zobj/nbseftread.o \
+../CNBSE/zcks/zobj/setlm.o  \
+../CNBSE/zcks/zobj/getylm.o 
+
+#$(ESPRESSO_DIR)/OCEAN/getprefs.o \
 $(ESPRESSO_DIR)/OCEAN/snatch.o \
 $(ESPRESSO_DIR)/OCEAN/nbseprjprep.o \
 $(ESPRESSO_DIR)/OCEAN/nbseprjnproj.o \
@@ -52,21 +60,27 @@ OCEAN_QDIAGP = OCEAN_qdiagp.o $(NEWDIAGOBJ)
 
 
 SHIRLEY_HAM_O = \
-$(ESPRESSO_DIR)/OCEAN/shirley_ham_o.o \
+shirley_ham_o.o \
 OCEAN_bofx.o \
-$(ESPRESSO_DIR)/OCEAN/OCEAN_bofr.o \
 OCEAN_bofr_multi.o \
-$(ESPRESSO_DIR)/OCEAN/OCEAN_bigbofr.o \
-$(ESPRESSO_DIR)/OCEAN/OCEAN_bradial.o \
-$(ESPRESSO_DIR)/OCEAN/OCEAN_bofj.o \
 OCEAN_obf2localbyk.o \
+../zbridge/zobj/chkfftreal.o \
+../zbridge/zobj/chkfftrecp.o \
+../zbridge/zobj/facpowfind.o \
+../zbridge/zobj/optim.o \
+../CNBSE/zcmsnmult/zobj/jlmfft.o \
+OCEAN_timer.o
+
+#$(ESPRESSO_DIR)/OCEAN/jlmfft.o \
+#$(ESPRESSO_DIR)/OCEAN/OCEAN_2bphase.o\
+#$(ESPRESSO_DIR)/OCEAN/OCEAN_bigbofr.o \
+#$(ESPRESSO_DIR)/OCEAN/OCEAN_bradial.o \
+#$(ESPRESSO_DIR)/OCEAN/OCEAN_bofj.o \
 $(ESPRESSO_DIR)/OCEAN/chkfftreal.o \
 $(ESPRESSO_DIR)/OCEAN/chkfftrecp.o \
 $(ESPRESSO_DIR)/OCEAN/facpowfind.o \
 $(ESPRESSO_DIR)/OCEAN/optim.o \
-$(ESPRESSO_DIR)/OCEAN/jlmfft.o \
-$(ESPRESSO_DIR)/OCEAN/OCEAN_2bphase.o\
-OCEAN_timer.o
+$(ESPRESSO_DIR)/OCEAN/OCEAN_bofr.o \
 
 SHIRLEY_HAM = \
 $(ESPRESSO_DIR)/SHIRLEY/append_missing_slash.o \
