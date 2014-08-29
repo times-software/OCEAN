@@ -1037,6 +1037,28 @@
     call mp_sum( start_band, cross_pool_comm )
 
     call mp_sum( e0, cross_pool_comm )
+
+    ! Sort energies to determine true Fermi, homo, lumo
+!    fermi_energy = fermi_energy / 2.0_DP
+    call fix_fermi( nbasis_subset, kpt%list%nk, nspin, nshift, max_val, nelectron, 0, &
+                    e0, homo_point, lumo_point, fermi_energy )
+    
+    do ispin = 1, nspin
+      do ik = 1, kpt%list%nk
+        do ibd = band_subset(1), band_subset( 2 )
+        if( 2.0_DP * e0( ibd, ik, nshift ) .gt. fermi_energy ) then
+          start_band( ik ) = ibd
+          lumo( ik ) = 2.0_DP * e0( ibd, ik, nshift )
+          goto 21
+        endif
+        enddo
+21    continue
+      enddo
+    enddo
+
+    !
+
+
 !  endif
 !  call mp_bcast( homo, ionode_id )
 !  call mp_bcast( lumo, ionode_id )
