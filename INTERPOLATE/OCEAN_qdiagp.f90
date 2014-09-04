@@ -130,7 +130,9 @@
 ! for right now we don't though, everything is taken care of earlier
   tmpdir_io = outdir
   prefix_io = prefix
+#ifdef __NIST
   wfc_dir = wfcdir
+#endif
   if( .true. ) then
   lscf = .false.
   starting_pot = 'file'
