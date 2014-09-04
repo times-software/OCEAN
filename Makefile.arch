@@ -1,7 +1,0 @@
-FC=mpif90
-OPTIONS=-O3
-INSTDIR=${PWD}/BIN
-ABINIT=
-CUT3D=
-FFTWI="-I/global/software/sl-6.x86_64/modules/intel/2011.11.339/fftw/3.3.2-intel/include"
-FFTWL="/global/software/sl-6.x86_64/modules/intel/2011.11.339/fftw/3.3.2-intel/lib/libfftw3.a"

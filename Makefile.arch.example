@@ -1,0 +1,20 @@
+# Change these settings for your install
+
+# Fortran compiler
+FC = ifort
+
+# Flags
+OPTIONS = -O2 
+
+# FFTW path
+FFTWI = -I/home/jtv1/bin/intel/include/
+FFTWL = -L/home/jtv1/bin/intel/libs/ -lfftw3
+
+# Install Directory
+#INSTDIR = "/home/jtv1/bin/intel/OCEAN"
+
+
+# OBF Flags
+# Only set these if you have the OBF extension
+ESPRESSO_DIR = /home/jtv1/shirley_QE4.3-intel
+

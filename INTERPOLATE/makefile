@@ -1,4 +1,4 @@
-#ESPRESSO_DIR = /home/jtv1/shirley_QE4.3-gnu-atlas
+include ../Makefile.arch
 ESPRESSO_DIR = /global/lr3/dasc/Projects/Builds/shirley_QE4.3
 SHIRLEY_DIR = $(ESPRESSO_DIR)/SHIRLEY
 DEBUG =
@@ -368,6 +368,10 @@ $(ESPRESSO_DIR)/Modules/write_upf_v2.o \
 $(ESPRESSO_DIR)/Modules/ws_base.o \
 $(ESPRESSO_DIR)/Modules/xml_io_base.o \
 $(ESPRESSO_DIR)/Modules/zhpev_drv.o
+
+ifdef NIST
+MODULES += $(ESPRESSO_DIR)/Modules/netcdf_io.o 
+endif
 
 
 OCEAN_BUILDER = OCEAN_builder.o mkvipt.o intval.o getomega.o OCEAN_timer.o realspace_paw.o getprefs.o getylm.o OCEAN_build_chi.o $(NEWDIAGOBJ) 
