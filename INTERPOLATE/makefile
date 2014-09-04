@@ -1,5 +1,7 @@
 include ../Makefile.arch
 
+ifdef ESPRESSO_DIR
+
 #ESPRESSO_DIR = /home/jtv1/shirley_QE4.3-intel
 SHIRLEY_DIR = $(ESPRESSO_DIR)/SHIRLEY
 DEBUG =
@@ -23,6 +25,12 @@ SHIRLEY_HAM_EXE=shirley_ham_o$(DEBUG).x
 OCEAN_QDIAGP_EXE=ocean_qdiagp$(DEBUG).x
 
 all: OCEAN_timer.o $(OCEAN_BUILDER_EXE) $(SHIRLEY_HAM_EXE) $(OCEAN_QDIAGP_EXE)
+
+install:
+	cp $(OCEAN_BUILDER_EXE) $(INSTDIR)/ 
+	cp $(SHIRLEY_HAM_EXE)   $(INSTDIR)/ 
+	cp $(OCEAN_QDIAGP_EXE)  $(INSTDIR)/
+
 
 OCEAN_O2L = \
 ../CNBSE/zcks/zobj/getprefs.o \
@@ -390,7 +398,17 @@ $(OCEAN_QDIAGP_EXE) : $(OCEAN_QDIAGP) $(PPOBJS) $(PW_QDIAGP) $(MODULES) $(LIBOBJ
 	$(MPIF90) $(LDFLAGS) -o $@ \
 	$(OCEAN_QDIAGP) $(PPOBJS) $(PWOBJS) $(ESPRESSO_DIR)/SHIRLEY/read_file_shirley.o $(PW_QDIAGP) $(MODULES) $(LIBOBJS) $(LIBS)
 
+else
+all :
+	@echo "Your build does not have OBF support."
+
+install:
+	@echo "Your build does not have OBF support."
+  
+endif
 
 clean : 
 	- /bin/rm -f *.x *.o *~ *.F90 *.d *.mod *.i work.pc *__genmod.f90
+
+
 
