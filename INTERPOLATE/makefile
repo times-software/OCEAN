@@ -1,5 +1,5 @@
 #ESPRESSO_DIR = /home/jtv1/shirley_QE4.3-gnu-atlas
-ESPRESSO_DIR = /home/jtv1/shirley_QE4.3-intel
+ESPRESSO_DIR = /global/lr3/dasc/Projects/Builds/shirley_QE4.3
 SHIRLEY_DIR = $(ESPRESSO_DIR)/SHIRLEY
 DEBUG =
 
@@ -367,7 +367,6 @@ $(ESPRESSO_DIR)/Modules/wrappers.o \
 $(ESPRESSO_DIR)/Modules/write_upf_v2.o \
 $(ESPRESSO_DIR)/Modules/ws_base.o \
 $(ESPRESSO_DIR)/Modules/xml_io_base.o \
-$(ESPRESSO_DIR)/Modules/netcdf_io.o \
 $(ESPRESSO_DIR)/Modules/zhpev_drv.o
 
 

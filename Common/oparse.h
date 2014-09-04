@@ -96,6 +96,10 @@ typat
 znucl
 {
 } znucl
+zsymb
+{
+ 
+} zsymb
 pp_list
 {
 NULL
@@ -370,3 +374,14 @@ nbse.spect_range
 {
 0 100 1000
 } spect.h
+tot_charge
+{
+0.0
+} tot_charge
+nspin
+{
+1
+} nspin
+smag
+{
+} smag

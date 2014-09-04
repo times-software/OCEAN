@@ -83,7 +83,7 @@
 
   integer :: nwordo2l, iuntmp, ntot,nptot, ntau, ibd, ibp, iunbofr, tmp_eig_m, tmp_eig_n 
   complex(dp),allocatable :: o2l(:,:,:,:,:), coeff( :, :, :, :, :, : ), coeff_small( :, :, :, :, : )
-  real(dp),allocatable :: tau(:,:),e0(:,:,:), e0_small(:,:)
+  real(dp),allocatable :: tau(:,:),e0(:,:,:,:), e0_small(:,:,:)
   logical :: exst
 
   complex(dp),allocatable :: u1(:,:), u2(:,:,:,:), tmp_eigvec(:,:), tmels(:,:,: ), u1_single(:,:)
@@ -130,7 +130,7 @@
 ! for right now we don't though, everything is taken care of earlier
   tmpdir_io = outdir
   prefix_io = prefix
-  wfc_dir = wfcdir
+!  wfc_dir = wfcdir
   if( .true. ) then
   lscf = .false.
   starting_pot = 'file'
@@ -139,11 +139,11 @@
   write(stdout,*) ' nspin = ', nspin
   write(stdout,*) ' lda_plus_u = ', lda_plus_u
 
-  if( nspin .ne. 1 ) then
-    write(stdout,*) 'nspin: ', nspin
-    write(stdout,*) 'Spin ne 1 is not yet implemented. Trying to quit ... '
-    goto 111
-  endif
+!!$  if( nspin .ne. 1 ) then
+!!$    write(stdout,*) 'nspin: ', nspin
+!!$    write(stdout,*) 'Spin ne 1 is not yet implemented. Trying to quit ... '
+!!$    goto 111
+!!$  endif
 
 !  write(stdout,*) 'npw: ', npw, npwx
 !  call read_file_shirley( nspin )
@@ -610,7 +610,7 @@
   if( ionode ) write(6,*) 'nshift =', nshift
 
 
-  allocate(e0( band_subset(1):band_subset(2), kpt%list%nk, nshift) )
+  allocate(e0( band_subset(1):band_subset(2), kpt%list%nk, nspin, nshift) )
   e0 = 0.d0
 
   allocate( lumo(kpt%list%nk), start_band(kpt%list%nk), homo(kpt%list%nk) )
@@ -696,7 +696,7 @@
 
 !    write(stdout,*) ik, eigval(band_subset(1):band_subset(2))*rytoev
     write(stdout,*) ik,  eigval(band_subset(1))*rytoev, eigval(band_subset(2))*rytoev
-    e0( :, ik, 1 ) = 0.5d0 * eigval(band_subset(1):band_subset(2))
+    e0( :, ik, ispin, 1 ) = 0.5d0 * eigval(band_subset(1):band_subset(2))
 ! Find the start_band
     do ibd = band_subset(1), band_subset( 2 )
       if( eigval( ibd ) .gt. fermi_energy ) then
@@ -829,7 +829,7 @@
       endif
       
       write(stdout,*) ik, eigval(band_subset(1):band_subset(2))*rytoev
-      e0( :, ik, 2 ) = 0.5d0 * eigval(band_subset(1):band_subset(2))
+      e0( :, ik, ispin, 2 ) = 0.5d0 * eigval(band_subset(1):band_subset(2))
   ! Find the start_band
       do ibd = band_subset(1), band_subset( 2 )
         if( eigval( ibd ) .gt. fermi_energy ) then
@@ -1046,9 +1046,9 @@
     do ispin = 1, nspin
       do ik = 1, kpt%list%nk
         do ibd = band_subset(1), band_subset( 2 )
-        if( 2.0_DP * e0( ibd, ik, nshift ) .gt. fermi_energy ) then
+        if( 2.0_DP * e0( ibd, ik, ispin, nshift ) .gt. fermi_energy ) then
           start_band( ik ) = ibd
-          lumo( ik ) = 2.0_DP * e0( ibd, ik, nshift )
+          lumo( ik ) = 2.0_DP * e0( ibd, ik, ispin, nshift )
           goto 21
         endif
         enddo
@@ -1075,29 +1075,33 @@
     enddo
   else
     nbuse = 0
-    do ik = 1,kpt%list%nk
-      do ibd = band_subset( 2 ) - 1, start_band( ik ), -1
-        if( 2.0d0* e0( ibd, ik,1 ) .le. dft_energy_range + lumo_point ) then
-          stop_band( ik ) = ibd + 1
-          goto 12
-        endif
-      enddo
-12    continue
+    do ispin=1,nspin
+       do ik = 1,kpt%list%nk
+          do ibd = band_subset( 2 ) - 1, start_band( ik ), -1
+             if( 2.0d0* e0( ibd, ik, ispin, 1 ) .le. dft_energy_range + lumo_point ) then
+                stop_band( ik ) = ibd + 1
+                goto 12
+             endif
+          enddo
+12        continue
 !      if( stop_band( ik ) .eq. band_subset( 2 ) ) call errore('OCEAN', 'DFT_ENERGY_RANGE too large' )
-      if( stop_band( ik ) .eq. band_subset( 2 ) ) then 
-        write(stdout,*) 'DFT_ENERGY_RANGE too large: ', dft_energy_range*rytoev
-        dft_energy_range = 2.0d0* e0(  band_subset( 2 ) - 1, ik,1 ) - lumo_point
-        write(stdout,*) 'New energy range: ', dft_energy_range*rytoev
-      endif
-      nbuse = max( nbuse, stop_band( ik ) - start_band( ik ) + 1 )
+          if( stop_band( ik ) .eq. band_subset( 2 ) ) then 
+             write(stdout,*) 'DFT_ENERGY_RANGE too large: ', dft_energy_range*rytoev
+             dft_energy_range = 2.0d0* e0(  band_subset( 2 ) - 1, ik, ispin, 1 ) - lumo_point
+             write(stdout,*) 'New energy range: ', dft_energy_range*rytoev
+          endif
+          nbuse = max( nbuse, stop_band( ik ) - start_band( ik ) + 1 )
+       enddo
     enddo
-    do ik = 1,kpt%list%nk
-      if( nbuse + start_band(ik) .gt. band_subset( 2 ) ) then
-        write(stdout,*) 'Reducing range to fit', ik, start_band(ik)
-        nbuse = band_subset( 2 ) - start_band(ik)
-!        write(stdout,*) 'New energy range: ', dft_energy_range*rytoev
-      endif
-      dft_energy_range = min(dft_energy_range, 2.0d0 * e0( nbuse + start_band( ik ), ik,1 ) -lumo_point )
+    do ispin=1,nspin
+       do ik = 1,kpt%list%nk
+          if( nbuse + start_band(ik) .gt. band_subset( 2 ) ) then
+             write(stdout,*) 'Reducing range to fit', ik, start_band(ik)
+             nbuse = band_subset( 2 ) - start_band(ik)
+             !        write(stdout,*) 'New energy range: ', dft_energy_range*rytoev
+          endif
+          dft_energy_range = min(dft_energy_range, 2.0d0 * e0( nbuse + start_band( ik ), ik, ispin, 1 ) -lumo_point )
+       enddo
     enddo
     write(stdout,*) 'Final energy range: ', dft_energy_range * rytoev
   endif
@@ -1207,8 +1211,6 @@
 
 !?????  Would have to go back and fix u2
   if( mypoolid == mypoolroot .and. .false. ) then
-
-
     call mp_sum( u2, cross_pool_comm )
 !  endif
 !    do ik = 1, kpt%list%nk
@@ -1260,18 +1262,20 @@
     lumo_shift = 0.0_DP
   endif
 
-  allocate( e0_small( nbuse, kpt%list%nk ) )
-  if( have_kshift ) then
-    do ik=1,kpt%list%nk
-      e0_small( 1 : nbuse, ik ) = e0( start_band(ik) : start_band(ik) + nbuse - 1, ik, 2 ) &
-                                - lumo_shift
-    enddo
-  else
-    do ik=1,kpt%list%nk
-      e0_small( 1 : nbuse, ik ) = e0( start_band(ik) : start_band(ik) + nbuse - 1, ik, 1 ) &
-                                - lumo_shift
-    enddo
-  endif
+  allocate( e0_small( nbuse, kpt%list%nk, nspin ) )
+  do ispin=1,nspin
+     if( have_kshift ) then
+        do ik=1,kpt%list%nk
+           e0_small( 1 : nbuse, ik, ispin ) = e0( start_band(ik) : start_band(ik) + nbuse - 1, ik, ispin, 2 ) &
+                - lumo_shift
+        enddo
+     else
+        do ik=1,kpt%list%nk
+           e0_small( 1 : nbuse, ik, ispin ) = e0( start_band(ik) : start_band(ik) + nbuse - 1, ik, ispin, 1 ) &
+                - lumo_shift
+        enddo
+     endif
+  enddo
 
 
 !  call mp_sum( e0_small )
@@ -1282,7 +1286,7 @@
     rewind(iuntmp)
 !    write(iuntmp) nbasis_subset,kpt%list%nk,nspin
     write(iuntmp) nbuse,kpt%list%nk,nspin
-    write(iuntmp) e0_small(:,:)
+    write(iuntmp) e0_small(:,:,:)
     close(iuntmp)
   endif
 
@@ -1293,17 +1297,19 @@
     close(iuntmp)
   endif
 
-  allocate( e0_small( nbuse_xes, kpt%list%nk ) )
+  allocate( e0_small( nbuse_xes, kpt%list%nk, nspin ) )
   e0_small = 0.0d0
-  do ik=1,kpt%list%nk
-    e0_small( 1 : start_band(ik) - 1, ik ) = e0( 1 : start_band(ik) - 1, ik, 1 ) - lumo_shift
+  do ispin=1,nspin
+     do ik=1,kpt%list%nk
+        e0_small( 1 : start_band(ik) - 1, ik, ispin ) = e0( 1 : start_band(ik) - 1, ik, ispin, 1 ) - lumo_shift
+     enddo
   enddo
   if( ionode ) then
     open(unit=iuntmp,file='wvfvainfo',form='unformatted',status='unknown')
     rewind(iuntmp)
 !    write(iuntmp) nbasis_subset,kpt%list%nk,nspin
     write(iuntmp) nbuse_xes,kpt%list%nk,nspin
-    write(iuntmp) e0_small(:,:)
+    write(iuntmp) e0_small(:,:,:)
     close(iuntmp)
   endif
 
@@ -1319,7 +1325,7 @@
   ! Legacy AI2NBSE energy file
   ! indicies are reversed for no reason
   if( ionode .and. have_kshift) then
-    e0( :,:,: ) = e0( :, :,: ) - homo_point
+    e0( :,:,:,: ) = e0( :, :,:,: ) - homo_point
     sef = efermi - homo_point
     inquire( file='gwipt', exist=have_gwipt)
     if( have_gwipt ) then
@@ -1335,24 +1341,26 @@
     endif
     open(unit=iuntmp,file='ebdat',form='formatted',status='unknown')
     rewind(iuntmp)
-    do ibd = brange(1),brange(2)
-      do ik=1,kpt%list%nk
-        if( e0( ibd, ik,1 ) .lt. sef ) then
-          write(iuntmp,*) (e0( ibd, ik,1 ) * (1.d0 + vs ) ),  e0( ibd, ik,1 ) + homo_point
-        else
-          write(iuntmp,*) (newgap + (1.d0 + cs) * (e0( ibd, ik,1 ) - newgap ) ),  e0( ibd, ik,1 ) + homo_point
-        endif
-      enddo
-    enddo
-    do ibd = brange(3),brange(4)
-      do ik=1,kpt%list%nk
-        if( e0( ibd, ik,2 ) .lt. sef ) then
-          write(iuntmp,*) (e0( ibd, ik,2 ) * (1.d0 + vs ) ),  e0( ibd, ik,2 ) + homo_point
-        else
-          write(iuntmp,*) (newgap + (1.d0 + cs) * (e0( ibd, ik,2 ) - newgap ) ),  e0( ibd, ik,2 ) + homo_point
-        endif
-      enddo
-    enddo
+    do ispin=1, nspin
+       do ibd = brange(1),brange(2)
+          do ik=1,kpt%list%nk
+             if( e0( ibd, ik, ispin, 1 ) .lt. sef ) then
+                write(iuntmp,*) (e0( ibd, ik, ispin, 1 ) * (1.d0 + vs ) ),  e0( ibd, ik, ispin, 1 ) + homo_point
+             else
+                write(iuntmp,*) (newgap + (1.d0 + cs) * (e0( ibd, ik, ispin, 1 ) - newgap ) ),  e0( ibd, ik, ispin, 1 ) + homo_point
+             endif
+          enddo
+       enddo
+       do ibd = brange(3),brange(4)
+          do ik=1,kpt%list%nk
+             if( e0( ibd, ik, ispin, 2 ) .lt. sef ) then
+                write(iuntmp,*) (e0( ibd, ik, ispin, 2 ) * (1.d0 + vs ) ),  e0( ibd, ik, ispin, 2 ) + homo_point
+             else
+                write(iuntmp,*) (newgap + (1.d0 + cs) * (e0( ibd, ik, ispin, 2 ) - newgap ) ),  e0( ibd, ik, ispin, 2 ) + homo_point
+             endif
+          enddo
+       enddo
+    enddo ! ispin
     close(iuntmp)
   endif
 

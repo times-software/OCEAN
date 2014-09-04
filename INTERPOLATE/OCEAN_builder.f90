@@ -85,7 +85,7 @@
 
   complex(dp),allocatable :: wfp(:,:), gre(:,:,:), uofr(:), bofr( :, : ), eikr( : ), gre_small(:,:,:), single_bofr(:,:)
   complex(dp),allocatable :: full_xi(:,:), xiofb(:,:), gre_local(:,:,:), phased_bofr(:,:), uofrandb(:,:)
-  real(dp),allocatable :: posn( :, : ), wpt( : ), drel( : ), t(:), xirow(:), nind(:), vind(:),vipt(:),phase(:), xi_local(:,:), real_full_xi(:,:)
+  real(dp),allocatable :: posn( :, : ), wpt( : ), drel( : ), t(:), xirow(:), nind(:), vind(:),vipt(:),phase(:), xi_local(:,:), real_full_xi(:,:), real_full_xi_small(:,:)
   real(dp),allocatable :: wgt(:), newwgt(:)
   real(dp) :: pref, spinfac, x, fr, fi, denr, deni, iden2, sigma, su, su2, omega, avec(3,3), bvec(3,3), qin(3),qcart(3)
   real(dp) :: vlev, vhev, clev, chev, muev, sev, mindif, maxdif, absdiff, newdiff, ktmp( 3 ), maxdiff, eshift, shifted_eig
@@ -121,11 +121,11 @@
   write(stdout,*) ' nspin = ', nspin
   write(stdout,*) ' lda_plus_u = ', lda_plus_u
 
-  if( nspin .ne. 1 ) then
-    write(stdout,*) 'nspin: ', nspin
-    write(stdout,*) 'Spin ne 1 is not yet implemented. Trying to quit ... '
-    goto 111
-  endif
+!!$  if( nspin .ne. 1 ) then
+!!$    write(stdout,*) 'nspin: ', nspin
+!!$    write(stdout,*) 'Spin ne 1 is not yet implemented. Trying to quit ... '
+!!$    goto 111
+!!$  endif
     write(6,*) 'Here'
 
 
@@ -397,8 +397,8 @@ call descinit( desc_uofrandb, npt, nbasis_subset, nb, desc_cyclic(NB_), 0, 0, co
 ! =====================================================================
 
   do itau = 1, ntau
-    gre = 0.d0
-    gre_small = 0.d0
+!!$    gre = 0.d0
+!!$    gre_small = 0.d0
     write(stdout,*) 'Now treating core :', itau, ' of ', ntau
     ! read in posn
     if( ionode ) then
@@ -423,10 +423,17 @@ call descinit( desc_uofrandb, npt, nbasis_subset, nb, desc_cyclic(NB_), 0, 0, co
     endif
     
 
+    allocate( real_full_xi( local_npt, local_npt2 ) )
+    real_full_xi = 0.0_DP
+    allocate( real_full_xi_small( local_npt, local_npt2 ) )
+    real_full_xi_small = 0.0_DP
     
 
 ! ======================================================================
     do ispin=1,nspin
+
+    gre = 0.d0
+    gre_small = 0.d0
 
     do ik=1,kpt%list%nk
   ! ======================================================================
@@ -570,22 +577,67 @@ call descinit( desc_uofrandb, npt, nbasis_subset, nb, desc_cyclic(NB_), 0, 0, co
       deallocate( uofrandb, bofr )
 ! ======================================================================
     enddo ! ik
+
+    call mp_barrier
+    write(stdout,*) 'Loop over k-points and bands complete.'
+    write(stdout,*) 'Gather chi to ionode for ispin=',ispin
+
+    if( .true. ) then
+
+       call OCEAN_t_reset
+       call mp_sum( gre, cross_pool_comm )
+       call mp_barrier
+       call OCEAN_t_printtime( 'GRE share', stdout )
+       if( mypool .eq. 0 ) then
+          do it = 1, nt
+             su = newwgt( it ) !* 4.0_DP * sigma / pi ! 2 for spin 2 for Ry
+             do j = 1, local_npt2
+                do i = 1, local_npt
+                   real_full_xi( i, j ) = real_full_xi( i, j ) &
+                        + su * ( real(gre( i, j, it )) * real(gre(i,j,it) ) &
+                        -aimag(gre( i, j, it )) *aimag(gre(i,j,it) ) )
+                enddo
+             enddo
+          enddo
+       endif
+
+       call OCEAN_t_reset
+       call mp_sum( gre_small, cross_pool_comm )
+       call mp_barrier
+       call OCEAN_t_printtime( 'GRE_small share', stdout )
+       if( mypool .eq. 0 ) then
+          do it = 1, nt
+             su = newwgt( it ) * 4.0_DP * sigma / pi ! 2 for spin 2 for Ry
+             do j = 1, local_npt2
+                do i = 1, local_npt
+                   real_full_xi_small( i, j ) = real_full_xi_small( i, j ) &
+                        + su * (real(gre_small( i, j, it )) ** 2 - aimag( gre_small( i, j, it ) )**2 )
+                enddo
+             enddo
+          enddo
+       endif
+
+
+
+    else
+    endif
+
     enddo ! ispin
+!scale real_full_xi to account for sum over spin
+
+    real_full_xi = real_full_xi/nspin
+    real_full_xi_small = real_full_xi_small/nspin
+
 ! ======================================================================
 
-  call OCEAN_t_reset
-
-  call mp_barrier
-  write(stdout,*) 'Loop over k-points and bands complete.'
-  write(stdout,*) 'Gather chi to ionode'
- 
+    call OCEAN_t_reset
 
   if( .true. ) then
 
     call descinit( desc_gre_local, npt, npt, npt, npt, 0, 0, &
                    context_cyclic, npt, ierr )
 
-    allocate( real_full_xi( local_npt, local_npt2 ) )
+!!$    allocate( real_full_xi( local_npt, local_npt2 ) )
 !    allocate( vind( npt ), nind( npt ), xirow( npt ) )
     allocate( vind( npt ), nind( npt ), xirow( npt ) )
     if( mypoolid .eq. 0 ) then
@@ -594,29 +646,30 @@ call descinit( desc_uofrandb, npt, nbasis_subset, nb, desc_cyclic(NB_), 0, 0, co
     else
       allocate( xi_local( 1, 1 ) )
     endif
-    real_full_xi = 0.0_DP
+!!$    real_full_xi = 0.0_DP
 
     ! now each pool has gre( npt_local, npt_local, nt )
     ! better feature is non-blocking MPI calls
     ! then in the loop below check for the finished call before each loop?
     ! Almost certqainly not worth it, but, would be good to call non-blocking to share
     !  gre_small
-    call OCEAN_t_reset
-    call mp_sum( gre, cross_pool_comm )
-    call mp_barrier
-    call OCEAN_t_printtime( 'GRE share', stdout )
+!!$    call OCEAN_t_reset
+!!$    call mp_sum( gre, cross_pool_comm )
+!!$    call mp_barrier
+!!$    call OCEAN_t_printtime( 'GRE share', stdout )
 
     if( mypool .eq. 0 ) then
-      do it = 1, nt
-        su = newwgt( it ) !* 4.0_DP * sigma / pi ! 2 for spin 2 for Ry
-        do j = 1, local_npt2
-          do i = 1, local_npt
-            real_full_xi( i, j ) = real_full_xi( i, j ) &
-                      + su * ( real(gre( i, j, it )) * real(gre(i,j,it) ) &
-                             -aimag(gre( i, j, it )) *aimag(gre(i,j,it) ) )
-          enddo
-        enddo
-      enddo
+
+!!$      do it = 1, nt
+!!$        su = newwgt( it ) !* 4.0_DP * sigma / pi ! 2 for spin 2 for Ry
+!!$        do j = 1, local_npt2
+!!$          do i = 1, local_npt
+!!$            real_full_xi( i, j ) = real_full_xi( i, j ) &
+!!$                      + su * ( real(gre( i, j, it )) * real(gre(i,j,it) ) &
+!!$                             -aimag(gre( i, j, it )) *aimag(gre(i,j,it) ) )
+!!$          enddo
+!!$        enddo
+!!$      enddo
 
 
       call PDGEMR2D( npt, npt, real_full_xi, 1, 1, desc_gre, &
@@ -656,22 +709,22 @@ call descinit( desc_uofrandb, npt, nbasis_subset, nb, desc_cyclic(NB_), 0, 0, co
     endif
     !
     ! this is slow
-    call OCEAN_t_reset
-    call mp_sum( gre_small, cross_pool_comm )
-    real_full_xi = 0.0_DP
+!!$    call OCEAN_t_reset
+!!$    call mp_sum( gre_small, cross_pool_comm )
+!!$    real_full_xi = 0.0_DP
     ! later have each pool work on subset of i ?
     if( mypool .eq. 0 ) then
-      do it = 1, nt
-        su = newwgt( it ) * 4.0_DP * sigma / pi ! 2 for spin 2 for Ry
-        do j = 1, local_npt2
-          do i = 1, local_npt
-            real_full_xi( i, j ) = real_full_xi( i, j ) &
-                  + su * (real(gre_small( i, j, it )) ** 2 - aimag( gre_small( i, j, it ) )**2 )
-          enddo
-        enddo
-      enddo
+!!$      do it = 1, nt
+!!$        su = newwgt( it ) * 4.0_DP * sigma / pi ! 2 for spin 2 for Ry
+!!$        do j = 1, local_npt2
+!!$          do i = 1, local_npt
+!!$            real_full_xi( i, j ) = real_full_xi( i, j ) &
+!!$                  + su * (real(gre_small( i, j, it )) ** 2 - aimag( gre_small( i, j, it ) )**2 )
+!!$          enddo
+!!$        enddo
+!!$      enddo
 
-      call PDGEMR2D( npt, npt, real_full_xi, 1, 1, desc_gre, &
+      call PDGEMR2D( npt, npt, real_full_xi_small, 1, 1, desc_gre, &
                      xi_local, 1, 1, desc_gre_local, desc_gre_local(CTXT_) )
 
       if( mypoolid .eq. 0 ) then
@@ -706,7 +759,7 @@ call descinit( desc_uofrandb, npt, nbasis_subset, nb, desc_cyclic(NB_), 0, 0, co
       endif
     endif
 
-    deallocate( real_full_xi, vind, nind, xirow, xi_local )
+    deallocate( real_full_xi,real_full_xi_small, vind, nind, xirow, xi_local )
 
 
   else
