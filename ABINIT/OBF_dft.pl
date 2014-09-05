@@ -33,7 +33,7 @@ my @EspressoFiles = ( "coord", "degauss", "ecut", "etol", "fband", "ibrav",
     "isolated", "mixing", "natoms", "ngkpt", "noncolin", "nrun", "ntype", 
     "occopt", "occtype", "prefix", "ppdir", "rprim", "rscale", "smearing", 
     "spinorb", "taulist", "typat", "verbatim", "work_dir", "wftol", 
-    "den.kshift", "obkpt.ipt", "trace_tol", "ham_kpoints", "obf.nbands" );
+    "den.kshift", "obkpt.ipt", "trace_tol", "ham_kpoints", "obf.nbands","tot_charge", "nspin", "smag", "zsymb");
 my @PPFiles = ("pplist", "znucl");
 my @OtherFiles = ("epsilon", "pool_control");
 
@@ -172,7 +172,7 @@ system("$ENV{'OCEAN_BIN'}/makeatompp.x") == 0
     or die "Failed to make acell\n";
 
   my @qe_data_files = ('prefix', 'ppdir', 'work_dir', 'ibrav', 'natoms', 'ntype', 'noncolin',
-                       'spinorb', 'ecut', 'occtype', 'degauss', 'etol', 'mixing', 'nrun', 'trace_tol' );
+                       'spinorb', 'ecut', 'occtype', 'degauss', 'etol', 'mixing', 'nrun', 'trace_tol', 'tot_charge', 'nspin', 'smag' );
   my %qe_data_files = {};
   foreach my $file_name (@qe_data_files)
   {
@@ -228,7 +228,7 @@ if ($RunESPRESSO) {
         .  "  tstress = .true.\n"
         .  "  tprnfor = .true.\n"
         .  "  wf_collect = .true.\n"
-        .  "  disk_io = 'low'\n"
+#        .  "  disk_io = 'low'\n"
         .  "/\n";
   print QE "&system\n"
         .  "  ibrav = $qe_data_files{'ibrav'}\n"
@@ -239,8 +239,14 @@ if ($RunESPRESSO) {
         .  "  ecutwfc = $qe_data_files{'ecut'}\n"
         .  "  occupations = '$qe_data_files{'occtype'}'\n"
         .  "  degauss = $qe_data_files{'degauss'}\n"
+        .  "  nspin  = $qe_data_files{'nspin'}\n"
+        .  "  tot_charge  = $qe_data_files{'tot_charge'}\n"
         .  "  nosym = .true.\n"
         .  "  noinv = .true.\n";
+  if( $qe_data_files{'smag'}  ne "" )
+  {
+    print QE "$qe_data_files{'smag'}\n";
+  }
   if( $qe_data_files{'ibrav'} != 0 ) 
   {
     print QE "  celldim(1) = ${celldm1}\n";
@@ -379,7 +385,8 @@ if ($RunESPRESSO) {
 # sleep( 30 );
 
  print "Density PP Run\n";
-  system("$ENV{'OCEAN_ESPRESSO_PP'} < pp.in > pp.out 2>&1") == 0
+  print "$para_prefix $ENV{'OCEAN_ESPRESSO_PP'}  -npool $npool < pp.in > pp.out 2>&1\n";
+  system("$para_prefix $ENV{'OCEAN_ESPRESSO_PP'} -npool $npool < pp.in > pp.out 2>&1") == 0
 #  system("~/espresso-5.0.1/bin/pp.x < pp.in >& pp.out") == 0 
      or die "Failed to run density stage for PAW\n";
  `echo 1 > den.stat`;
@@ -515,9 +522,15 @@ if ( $nscfRUN ) {
         .  "  ecutwfc = $qe_data_files{'ecut'}\n"
         .  "  occupations = '$qe_data_files{'occtype'}'\n"
         .  "  degauss = $qe_data_files{'degauss'}\n"
+        .  "  nspin  = $qe_data_files{'nspin'}\n"
+        .  "  tot_charge  = $qe_data_files{'tot_charge'}\n"
         .  "  nosym = .true.\n"
         .  "  noinv = .true.\n"
         .  "  nbnd = $nbands\n";
+  if( $qe_data_files{'smag'}  ne "" )
+  {
+    print QE "$qe_data_files{'smag'}\n";
+  }
   if( $qe_data_files{'ibrav'} != 0 )
   {
     print QE "  celldim(1) = ${celldm1}\n";
@@ -742,6 +755,7 @@ print HAM "&input\n"
         . "  outdir = \'$qe_data_files{'work_dir'}\'\n"
         . "  updatepp = .false.\n"
         . "  ncpp = .true.\n"
+        . "  nspin_ham = $qe_data_files{'nspin'}\n"
         . "/\n"
         . "K_POINTS\n"
         . "$ham_kpoints 0 0 0\n";

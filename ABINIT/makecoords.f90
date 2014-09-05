@@ -3,8 +3,8 @@
       program makecoords
 !
       implicit none
-      character*2, allocatable :: satom(:)
-      integer :: i
+      character*3, allocatable :: satom(:),zsymb(:)
+      integer :: i,ityp
       integer :: natoms, numtyp
       integer, allocatable    :: typat(:), znum(:), zatom(:)
       real(kind=kind(1.d0))              :: rscale(3)
@@ -54,16 +54,23 @@
          zatom(i) = znum( typat(i) )
       end do
 !
+      allocate( zsymb(numtyp) )
+      open(unit=99,file='zsymb',form='formatted',status='old')
+      read(99,*) zsymb(:)
+      close(99)
+!
 !
       open(unit=98,file='coords',form='formatted',status='unknown')
       do i = 1, natoms
          call getsymbol( zatom(i), satom(i) )
+         ityp=typat(i)
+         if(trim(zsymb(ityp)) .ne. '') satom(i)=trim(zsymb(ityp))
          write( 98, '(a,x,f16.10,x,f16.10,x,f16.10)') satom(i), pos(:,i)
       enddo
       close(98)
 
       deallocate( satom )
-      deallocate( typat, zatom, znum )
+      deallocate( typat, zatom, znum, zsymb )
       deallocate( pos )
 
       end program makecoords

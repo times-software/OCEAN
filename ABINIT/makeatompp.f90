@@ -3,7 +3,7 @@
       program makeatompp
 !
       implicit none
-      character*2 , allocatable :: satom(:)
+      character*3 , allocatable :: satom(:),zsymb(:)
       character*7 , allocatable :: mass(:)
       character*99, allocatable :: ppname(:), ppline(:)
       integer :: i
@@ -22,6 +22,11 @@
       read(99,*) znucl(:)
       close(99)
 !
+      allocate( zsymb(ntype) )
+      open(unit=99,file='zsymb',form='formatted',status='old')
+      read(99,*) zsymb(:)
+      close(99)
+!
       allocate( ppname(ntype) )
       open(unit=99,file='pplist',form='formatted',status='old')
       do i = 1, ntype
@@ -34,6 +39,7 @@
       allocate( satom(ntype), mass(ntype), ppline(ntype) )
       do i = 1, ntype
          call getsymbol( znucl(i), satom(i) )
+         if(trim(zsymb(i)) .ne. '') satom(i)=trim(zsymb(i))
          call getmass  ( znucl(i), mass (i) )
          ppline(i) = satom(i) // '   ' // mass(i) // '   ' // trim(ppname(i)) &
             &        // '.UPF'

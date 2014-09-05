@@ -2,7 +2,6 @@ include ../Makefile.arch
 
 ifdef ESPRESSO_DIR
 
-#ESPRESSO_DIR = /home/jtv1/shirley_QE4.3-intel
 SHIRLEY_DIR = $(ESPRESSO_DIR)/SHIRLEY
 DEBUG =
 

@@ -17,7 +17,7 @@ my @CommonFiles = ("epsilon", "xmesh.ipt", "nedges", "k0.ipt", #"nbuse.ipt",
 
 my @AbinitFiles = ("avecsinbohr.ipt");
 
-my @DFTFiles = ("nelectron");
+my @DFTFiles = ("nelectron","nspin");
 
 my @DenDipFiles = ("kmesh.ipt", "masterwfile", "listwfile", "efermiinrydberg.ipt", "qinunitsofbvectors.ipt", "brange.ipt", "enkfile", "tmels", "nelectron", "eshift.ipt" );
 
@@ -58,6 +58,7 @@ foreach (@PawFiles) {
 
 ##### misc other setup
 #`echo gmanner > format65`;
+`cp nspin nspn.ipt`;
 `cp kmesh.ipt kgrid`;
 `cp k0.ipt scaledkzero.ipt`;
 `mv cnbse.mode mode`;
