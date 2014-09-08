@@ -51,6 +51,9 @@ module ocean_long_range
   real( DP ) :: timer1 = 0.0_DP
 
   logical :: first_time = .true.
+
+  real( DP ) :: iso_cut = 0.0_DP
+  logical :: isolated = .false.
   
 
   public :: create_lr, lr_populate_W, lr_populate_bloch, lr_act, lr_populate_W2, lr_fill_values, lr_init, lr_timer, lr_slice
@@ -1162,6 +1165,16 @@ module ocean_long_range
          amet( i , j ) = dot_product( avec( :, i ), avec( :, j ) )
         enddo
       enddo
+
+
+      inquire(file='isolated.inp',exist=isolated)
+      if( isolated ) then
+        open(unit=99,file='isolated.inp',form='formatted',status='old' )
+        rewind(99)
+        read(99,*) iso_cut
+        close(99)
+        write(6,*) 'Isolated system with cutoff (Bohr):', iso_cut
+      endif
       
     endif
 
@@ -1171,6 +1184,10 @@ module ocean_long_range
     call MPI_BCAST( ptab, 100, MPI_DOUBLE_PRECISION, 0, comm, ierr )
     if( ierr /= 0 ) goto 111
     call MPI_BCAST( amet, 9, MPI_DOUBLE_PRECISION, 0, comm, ierr )
+    if( ierr /= 0 ) goto 111
+    call MPI_BCAST( iso_cut, 1, MPI_DOUBLE_PRECISION, 0, comm, ierr )
+    if( ierr /= 0 ) goto 111
+    call MPI_BCAST( isolated, 1, MPI_LOGICAL, 0, comm, ierr )
     if( ierr /= 0 ) goto 111
 #endif
 
@@ -1202,7 +1219,9 @@ module ocean_long_range
                   kiter = kiter + 1
                   alf( : ) = xk( : ) + fr( : ) - lr%tau( : )
                   r = sqrt( dot_product( alf, matmul( amet, alf ) ) )
-                  if ( r .ge. 9.9d0 ) then
+                  if( isolated .and. r .gt. iso_cut ) then
+                    potn = 0.0_DP
+                  elseif ( r .ge. 9.9d0 ) then
                      potn = epsi / r
                   else
                      ii = 1.0d0 + 10.0d0 * r
@@ -1217,6 +1236,7 @@ module ocean_long_range
         enddo
       enddo
     enddo
+
 
 !    do xiter = 1, sys%nxpts
 !      write(1000,*) W(1:4,xiter)
@@ -1268,6 +1288,17 @@ module ocean_long_range
         enddo
       enddo
 
+
+      inquire(file='isolated.inp',exist=isolated)
+      if( isolated ) then
+        open(unit=99,file='isolated.inp',form='formatted',status='old' )
+        rewind(99)
+        read(99,*) iso_cut
+        close(99)
+        write(6,*) 'Isolated system with cutoff (Bohr):', iso_cut
+      endif
+
+
     endif
 
 #ifdef MPI    
@@ -1276,6 +1307,10 @@ module ocean_long_range
     call MPI_BCAST( ptab, 100, MPI_DOUBLE, 0, comm, ierr )
     if( ierr /= 0 ) goto 111
     call MPI_BCAST( amet, 9, MPI_DOUBLE, 0, comm, ierr )
+    if( ierr /= 0 ) goto 111
+    call MPI_BCAST( iso_cut, 1, MPI_DOUBLE_PRECISION, 0, comm, ierr )
+    if( ierr /= 0 ) goto 111
+    call MPI_BCAST( isolated, 1, MPI_LOGICAL, 0, comm, ierr )
     if( ierr /= 0 ) goto 111
 #endif
 
@@ -1330,7 +1365,9 @@ module ocean_long_range
                   kiter = kiter + 1
                   alf( : ) = xk( : ) + fr( : ) - my_tau( : )
                   r = sqrt( dot_product( alf, matmul( amet, alf ) ) )
-                  if ( r .ge. 9.9d0 ) then
+                  if( isolated .and. r .gt. iso_cut ) then
+                    potn = 0.0_DP
+                  elseif ( r .ge. 9.9d0 ) then
                      potn = epsi / r
                   else
                      ii = 1.0d0 + 10.0d0 * r
