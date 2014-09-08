@@ -384,4 +384,5 @@ nspin
 } nspin
 smag
 {
+
 } smag
