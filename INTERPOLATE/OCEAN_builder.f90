@@ -1,10 +1,14 @@
   program OCEAN_builder_multi
 
-  ! stand-alone utility to read in the Hamiltonian in the
-  ! optimal Shirley basis and solve it for a given input
-  ! q-point list
-
+  ! Modified starting from shirley_qdiagp.x
   ! David Prendergast, UCB, Nov 2007
+
+  ! JTV, UW 2012
+  ! Original modification for calculation of RPA screening (response)
+
+  ! Further edits -- see git
+  ! JTV, NIST, 2014
+  ! Das, LBNL, 2014
 
   ! now parallelized
 #include "f_defs.h"
@@ -386,6 +390,7 @@ call descinit( desc_uofrandb, npt, nbasis_subset, nb, desc_cyclic(NB_), 0, 0, co
   mindif = min( fermi_energy - vhev, clev - fermi_energy )
   maxdif = max( fermi_energy - vlev, chev - fermi_energy )
   sigma = sqrt( mindif * maxdif )
+  spinfac = spinfac * 2.0_DP * sigma / pi
   write (stdout, '(4(1x,1e15.8))' ) fermi_energy*rytoev, mindif*rytoev, maxdif*rytoev, sigma*rytoev
 
   nbnd_small = floor( dble(nbasis_subset) * 0.75 )
@@ -590,7 +595,7 @@ call descinit( desc_uofrandb, npt, nbasis_subset, nb, desc_cyclic(NB_), 0, 0, co
        call OCEAN_t_printtime( 'GRE share', stdout )
        if( mypool .eq. 0 ) then
           do it = 1, nt
-             su = newwgt( it ) !* 4.0_DP * sigma / pi ! 2 for spin 2 for Ry
+             su = newwgt( it ) * spinfac !4.0_DP * sigma / pi ! 2 for spin 2 for Ry
              do j = 1, local_npt2
                 do i = 1, local_npt
                    real_full_xi( i, j ) = real_full_xi( i, j ) &
@@ -607,7 +612,7 @@ call descinit( desc_uofrandb, npt, nbasis_subset, nb, desc_cyclic(NB_), 0, 0, co
        call OCEAN_t_printtime( 'GRE_small share', stdout )
        if( mypool .eq. 0 ) then
           do it = 1, nt
-             su = newwgt( it ) * 4.0_DP * sigma / pi ! 2 for spin 2 for Ry
+             su = newwgt( it ) * spinfac !4.0_DP * sigma / pi ! 2 for spin 2 for Ry
              do j = 1, local_npt2
                 do i = 1, local_npt
                    real_full_xi_small( i, j ) = real_full_xi_small( i, j ) &
@@ -625,8 +630,8 @@ call descinit( desc_uofrandb, npt, nbasis_subset, nb, desc_cyclic(NB_), 0, 0, co
     enddo ! ispin
 !scale real_full_xi to account for sum over spin
 
-    real_full_xi = real_full_xi/nspin
-    real_full_xi_small = real_full_xi_small/nspin
+!    real_full_xi = real_full_xi/nspin
+!    real_full_xi_small = real_full_xi_small/nspin
 
 ! ======================================================================
 
@@ -684,8 +689,8 @@ call descinit( desc_uofrandb, npt, nbasis_subset, nb, desc_cyclic(NB_), 0, 0, co
         do i = 1, npt !npt
           su2 = 0
           do j = 1, npt !npt
-            xirow( j ) = xi_local( i, j ) * 4.0_DP * sigma / pi ! 2 for spin 2 for Ry
-            su2 = su2 + vipt( j ) * wpt( j ) * xi_local( i, j ) * 4.0_DP * sigma / pi
+            xirow( j ) = xi_local( i, j ) !* 4.0_DP * sigma / pi ! 2 for spin 2 for Ry
+            su2 = su2 + vipt( j ) * wpt( j ) * xi_local( i, j ) !* 4.0_DP * sigma / pi
           enddo
           write(99) xirow
 
