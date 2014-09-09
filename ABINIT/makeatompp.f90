@@ -8,9 +8,10 @@
       character*2 , allocatable :: satom(:),zsymb(:)
       character*7 , allocatable :: mass(:)
       character*99, allocatable :: ppname(:), ppline(:)
-      integer :: i
+      integer :: i, iostatus
       integer :: ntype
       integer, allocatable    :: znucl(:)
+      logical :: have_zsymb = .false.
 !
 !
       write(6,*) " in makeatompp"
@@ -24,10 +25,10 @@
       read(99,*) znucl(:)
       close(99)
 !
-!      allocate( zsymb(ntype) )
-!      open(unit=99,file='zsymb',form='formatted',status='old')
-!      read(99,*) zsymb(:)
-!      close(99)
+      allocate( zsymb(ntype) )
+      open(unit=99,file='zsymb',form='formatted',status='old')
+      read(99,*,IOSTAT=iostatus) zsymb(:)
+      close(99)
 !
       allocate( ppname(ntype) )
       open(unit=99,file='pplist',form='formatted',status='old')
@@ -35,12 +36,14 @@
          read(99,*) ppname(i)
       end do
       close(99)
+      if( iostatus .eq. 0 ) have_zsymb = .true.
 !
 ! get symbol & mass, concatenate
 !
       allocate( satom(ntype), mass(ntype), ppline(ntype) )
       do i = 1, ntype
          call getsymbol( znucl(i), satom(i) )
+         if( have_zsymb ) satom(i)=trim(zsymb(i))
 !         if(trim(zsymb(i)) .ne. '') satom(i)=trim(zsymb(i))
          call getmass  ( znucl(i), mass (i) )
          ppline(i) = satom(i) // '   ' // mass(i) // '   ' // trim(ppname(i)) &
