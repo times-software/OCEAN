@@ -8,10 +8,10 @@ OPTIONS = -O2
 
 # FFTW path
 FFTWI = -I/home/jtv1/bin/intel/include/
-FFTWL = -L/home/jtv1/bin/intel/libs/ -lfftw3
+FFTWL = -L/home/jtv1/bin/intel/lib/ -lfftw3
 
 # Install Directory
-#INSTDIR = "/home/jtv1/bin/intel/OCEAN"
+INSTDIR = "/home/jtv1/bin/intel/OCEAN"
 
 
 # OBF Flags
