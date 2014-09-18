@@ -29,6 +29,9 @@ install:
 	cp $(OCEAN_BUILDER_EXE) $(INSTDIR)/ 
 	cp $(SHIRLEY_HAM_EXE)   $(INSTDIR)/ 
 	cp $(OCEAN_QDIAGP_EXE)  $(INSTDIR)/
+	cp $(ESPRESSO_DIR)/bin/pw.x $(INSTDIR)/
+	cp $(ESPRESSO_DIR)/bin/pp.x $(INSTDIR)/
+	cp $(ESPRESSO_DIR)/bin/shirley_basis.x $(INSTDIR)/
 
 
 OCEAN_O2L = \

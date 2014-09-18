@@ -42,7 +42,10 @@ subroutine loaduxzerotau( nx, ny, nz, nbd, nq, nspn, zn, tau, ur, ui )
     open(unit=99,file='dft',form='formatted',status='old' )
     read(99,*) dft_string
     close( 99 )
-    if( dft_string .eq. 'OBF' ) then
+!    if( dft_string .eq. 'OBF' ) then
+    if( ( ( dft_string(1:1) .eq. 'o' ) .or. ( dft_string(1:1) .eq. 'O' ) ) .and.  &
+        ( ( dft_string(2:2) .eq. 'b' ) .or. ( dft_string(2:2) .eq. 'B' ) ) .and.  &
+        ( ( dft_string(3:3) .eq. 'f' ) .or. ( dft_string(3:3) .eq. 'F' ) ) ) then
       dft_type_is_obf = .true.
       write(6,*) 'Loading u2par.dat for OBF calculation'
     else
