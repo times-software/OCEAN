@@ -1,9 +1,11 @@
 ! program makecoords
 !
       program makecoords
+
+      use periodic
 !
       implicit none
-      character*3, allocatable :: satom(:),zsymb(:)
+      character*2, allocatable :: satom(:),zsymb(:)
       integer :: i,ityp
       integer :: natoms, numtyp
       integer, allocatable    :: typat(:), znum(:), zatom(:)
@@ -54,29 +56,29 @@
          zatom(i) = znum( typat(i) )
       end do
 !
-      allocate( zsymb(numtyp) )
-      open(unit=99,file='zsymb',form='formatted',status='old')
-      read(99,*) zsymb(:)
-      close(99)
+!      allocate( zsymb(numtyp) )
+!      open(unit=99,file='zsymb',form='formatted',status='old')
+!      read(99,*) zsymb(:)
+!      close(99)
 !
 !
       open(unit=98,file='coords',form='formatted',status='unknown')
       do i = 1, natoms
          call getsymbol( zatom(i), satom(i) )
          ityp=typat(i)
-         if(trim(zsymb(ityp)) .ne. '') satom(i)=trim(zsymb(ityp))
+!         if(trim(zsymb(ityp)) .ne. '') satom(i)=trim(zsymb(ityp))
          write( 98, '(a,x,f16.10,x,f16.10,x,f16.10)') satom(i), pos(:,i)
       enddo
       close(98)
 
       deallocate( satom )
-      deallocate( typat, zatom, znum, zsymb )
+      deallocate( typat, zatom, znum ) !, zsymb )
       deallocate( pos )
 
       end program makecoords
 
 
-subroutine getsymbol(zatom,satom)
+subroutine getsymbol_old(zatom,satom)
   integer, intent(in) :: zatom
   character*2, intent(out) :: satom
 
@@ -148,7 +150,7 @@ subroutine getsymbol(zatom,satom)
     end select
 
 
-end subroutine getsymbol
+end subroutine getsymbol_old
 
 
 

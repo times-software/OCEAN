@@ -15,6 +15,7 @@ all:
 	cd SCREEN;       make "COMP = $(FC)" "OPTS = $(OPTIONS)"
 	cd CNBSE;        make "COMP = $(FC)" "OPTS = $(OPTIONS)"
 	cd zbridge;      make "COMP = $(FC)" "OPTS = $(OPTIONS)"
+	cd INTERPOLATE;  make
 
 clean:
 	cd Common;       make clean
@@ -24,6 +25,7 @@ clean:
 	cd PAW;   make clean
 	cd CNBSE  make clean 
 	cd zbridge;  make clean
+	cd INTERPOLATE; make clean
 install:
 	mkdir -p $(INSTDIR)
 	cp $(SCRIPTS) $(AUX) $(INSTDIR)
@@ -34,6 +36,7 @@ install:
 	cd PAW;          make "INSTDIR = $(INSTDIR)" install
 	cd CNBSE;        make "INSTDIR = $(INSTDIR)" install
 	cd zbridge;      make "INSTDIR = $(INSTDIR)" install
+	cd INTERPOLATE;  make "INSTDIR = $(INSTDIR)" install
 	chmod u+x $(INSTDIR)/*.pl
 
 instdev:
