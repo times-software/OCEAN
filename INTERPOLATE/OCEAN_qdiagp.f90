@@ -96,7 +96,7 @@
   logical :: have_gwipt, have_kshift, radial_ufunc
 
   integer :: iuninf, fhu2, finfo, errorcode, fmode, resultlen, nshift, fhtmels, fh_val_energies, fh_con_energies, fho2l
-  integer :: fh_val_eigvecs, fh_con_eigvecs
+  integer :: fh_val_eigvecs, fh_con_eigvecs, ibeg_unit
 
   integer :: nr, nr2, ir, nang, nang2, iang, lmax, nthreads, nband, npt
   real(dp) :: qin(3), qcart(3), deltaL, rmax, rmin, bvec(3,3), norm
@@ -1044,6 +1044,10 @@
 !    fermi_energy = fermi_energy / 2.0_DP
     call fix_fermi( nbasis_subset, kpt%list%nk, nspin, nshift, max_val, nelectron, 0, &
                     e0, homo_point, lumo_point, fermi_energy )
+
+    ibeg_unit = freeunit()
+    open(unit=ibeg_unit,file='ibeg.h',form='formatted',status='unknown')
+    rewind(ibeg_unit)
     
     do ispin = 1, nspin
       do ik = 1, kpt%list%nk
@@ -1055,9 +1059,11 @@
         endif
         enddo
 21    continue
+        write(ibeg_unit,*) start_band( ik )
       enddo
     enddo
 
+    close(ibeg_unit)
     !
 
 
