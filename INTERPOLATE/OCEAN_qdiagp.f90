@@ -1059,7 +1059,7 @@
         endif
         enddo
 21    continue
-        write(ibeg_unit,*) start_band( ik )
+        write(ibeg_unit,*) ik, start_band( ik )
       enddo
     enddo
 
