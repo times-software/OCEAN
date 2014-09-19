@@ -5,7 +5,7 @@
       use periodic
 !
       implicit none
-      character*2 , allocatable :: satom(:),zsymb(:)
+      character*3 , allocatable :: satom(:),zsymb(:)
       character*7 , allocatable :: mass(:)
       character*99, allocatable :: ppname(:), ppline(:)
       integer :: i, iostatus
@@ -37,6 +37,7 @@
       end do
       close(99)
       if( iostatus .eq. 0 ) have_zsymb = .true.
+      write(*,*) have_zsymb, zsymb
 !
 ! get symbol & mass, concatenate
 !
@@ -46,7 +47,7 @@
          if( have_zsymb ) satom(i)=trim(zsymb(i))
 !         if(trim(zsymb(i)) .ne. '') satom(i)=trim(zsymb(i))
          call getmass  ( znucl(i), mass (i) )
-         ppline(i) = satom(i) // '   ' // mass(i) // '   ' // trim(ppname(i)) &
+         ppline(i) = trim(satom(i)) // '   ' // mass(i) // '   ' // trim(ppname(i)) &
             &        // '.UPF'
       enddo
 !

@@ -5,7 +5,7 @@
       use periodic
 !
       implicit none
-      character*2, allocatable :: satom(:),zsymb(:)
+      character*3, allocatable :: satom(:),zsymb(:)
       integer :: i,ityp
       integer :: natoms, numtyp,iostatus
       integer, allocatable    :: typat(:), znum(:), zatom(:)
@@ -77,7 +77,7 @@
          ityp=typat(i)
 !         if(trim(zsymb(ityp)) .ne. '') satom(i)=trim(zsymb(ityp))
           if( have_zsymb ) satom(i)=trim(zsymb(ityp))
-         write( 98, '(a,x,f16.10,x,f16.10,x,f16.10)') satom(i), pos(:,i)
+         write( 98, '(a,x,f16.10,x,f16.10,x,f16.10)') trim(satom(i)), pos(:,i)
       enddo
       close(98)
 
