@@ -8,11 +8,18 @@ program dotter
   character * 8 :: str
   character * 9 :: str2
   character * 9 :: filnam
+  logical :: have_spin
   !
   read ( 5, * ) filnam
+  inquire(file='nspn.ipt',exist=have_spin)
   open( unit=99, file=filnam, form='unformatted', status='unknown' )
   rewind 99
-  read ( 99 ) nptot, ntot, nspn
+  if( have_spin ) then
+    read ( 99 ) nptot, ntot, nspn
+  else
+    read ( 99 ) nptot, ntot
+    nspn = 1
+  endif
   read ( 99 ) tau( : )
   allocate( pcr( nptot, ntot, nspn ), pci( nptot, ntot, nspn ) )
   read ( 99 ) pcr
