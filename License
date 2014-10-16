@@ -1,1 +1,45 @@
-0.1
+
+END-USER LICENSE
+
+The assembled package of OCEAN is referred to below as "the System." 
+The contributing authors and the institutions for whom they have worked shall be referred to below simply as "authors."
+
+The use of any part of the OCEAN code constitutes acceptance of this license in its entirety. If any part of this conflicts 
+with applicable law or ordinance the end-user does not have permission to use any part of the System. 
+
+USE RESTRICTIONS:
+1. The End-user agrees that neither the System, nor any of its components shall be used
+as the basis of a commercial product, and that the System shall not be rewritten or otherwise
+adapted to circumvent the need for obtaining additional license rights. Components of the
+System subject to other license agreements are excluded from this restriction.
+2. Modification of the System is permitted, e.g., to facilitate its performance by the End-user.
+Use of the System or any of its components for any purpose other than that specified in
+this Agreement requires prior approval in writing.
+3. The license granted hereunder and the licensed System may not be assigned, sublicensed,
+or otherwise transferred by the End-user.
+4. The End-user shall take reasonable precautions to ensure that neither the System nor
+its components are copied, or transferred out side of his/her current academic or government
+afiliated laboratory or disclosed to parties other than the End-user.
+5. In no event shall the End-user install or provide this System on any computer system
+on which the End-user purchases or sells computer-related services.
+6. Nothing in this agreement shall be construed as conferring rights to use in advertising,
+publicity, or otherwise any trademark or the names of the System or the contributing institutions. The End-user
+will not make any claim to the name OCEAN.
+In published accounts of the use or application of OCEAN the System should be referred to by this name,
+with an appropriate literature reference:
+Bethe-Salpeter equation calculations of core excitation spectra
+J. Vinson, J. J. Rehr, J. J. Kas, and E. L. Shirley
+Phys. Rev. B 83, 115106 – Published 3 March 2011
+
+LIMITATION OF LIABILITY:
+1. THE AUTHORS AND INSTITUTIONS MAKES NO WARRANTIES , EITHER EXPRESSED OR IMPLIED, AS TO
+THE CONDITION OF THE SYSTEM, ITS MERCHANTABILITY, OR ITS FITNESS FOR
+ANY PARTICULAR PURPOSE. THE END-USER AGREES TO ACCEPT THE SYSTEM
+'AS IS' AND IT IS UNDERSTOOD THAT THE AUTHORS ARE NOT OBLIGATED TO PROVIDE
+MAINTENANCE, IMPROVEMENTS, DEBUGGING OR SUPPORT OF ANY KIND.
+2. THE AUTHORS SHALL NOT BE LIABLE FOR ANY DIRECT, INDIRECT, SPECIAL,
+INCIDENTAL OR CONSEQUENTIAL DAMAGES SUFFERED BY THE END-USER OR
+ANY OTHER PARTIES FROM THE USE OF THE SYSTEM.
+3. The End-user agrees to indemnify the authors for liability resulting from the use of the System by End-user. 
+The End-user agrees to hold the authors harmless for their own negligence.
+
