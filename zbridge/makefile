@@ -1,3 +1,9 @@
+include ../Makefile.arch
+
+COMP = $(FC)
+OPTS = $(OPTIONS)
+
+
 .SUFFIXES: .f90 .o .x
 
 CONDENSLIST = zobj/condens.o zobj/chkfftreal.o zobj/chkfftrecp.o zobj/jlmfft.o zobj/facpowfind.o \

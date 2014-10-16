@@ -1,5 +1,5 @@
 # Master Makefile to compile and install all the programs required to run
-# ai2nbse. Please, don't change anything here, add all definitions to the
+# OCEAN. Please, don't change anything here, add all definitions to the
 # Makefile.arch file
 
 include Makefile.arch
@@ -8,32 +8,32 @@ SCRIPTS =
 AUX = Version Header
 
 all:
-	cd Common;       make "FC = $(FC)" "OPTIONS = $(OPTIONS)"
-	cd DFT;       make "FC = $(FC)" "OPTIONS = $(OPTIONS)"
-	cd PREP;       make "FC = $(FC)" "OPTIONS = $(OPTIONS)" "FFTWI=$(FFTWI)" "FFTWL=$(FFTWL)"
-	cd PAW;          make "COMP = $(FC)" "OPTS = $(OPTIONS)"
-	cd SCREEN;       make "COMP = $(FC)" "OPTS = $(OPTIONS)"
-	cd CNBSE;        make "COMP = $(FC)" "OPTS = $(OPTIONS)"
-	cd zbridge;      make "COMP = $(FC)" "OPTS = $(OPTIONS)"
+	cd Common;       make 
+	cd DFT;          make 
+	cd PREP;         make 
+	cd PAW;          make 
+	cd SCREEN;       make 
+	cd CNBSE;        make 
+	cd zbridge;      make 
 
 clean:
 	cd Common;       make clean
-	cd DFT;       make clean
-	cd PREP;      make clean
+	cd DFT;          make clean
+	cd PREP;         make clean
 	cd SCREEN;       make clean
-	cd PAW;   make clean
-	cd CNBSE  make clean 
-	cd zbridge;  make clean
+	cd PAW;          make clean
+	cd CNBSE         make clean 
+	cd zbridge;      make clean
 install:
 	mkdir -p $(INSTDIR)
 	cp $(SCRIPTS) $(AUX) $(INSTDIR)
-	cd Common;       make "INSTDIR = $(INSTDIR)" install
-	cd DFT;       make "INSTDIR = $(INSTDIR)" install
-	cd PREP;       make "INSTDIR = $(INSTDIR)" install
-	cd SCREEN;        make "INSTDIR = $(INSTDIR)" install
-	cd PAW;          make "INSTDIR = $(INSTDIR)" install
-	cd CNBSE;        make "INSTDIR = $(INSTDIR)" install
-	cd zbridge;      make "INSTDIR = $(INSTDIR)" install
+	cd Common;       make install
+	cd DFT;          make install
+	cd PREP;         make install
+	cd SCREEN;       make install
+	cd PAW;          make install
+	cd CNBSE;        make install
+	cd zbridge;      make install
 	chmod u+x $(INSTDIR)/*.pl
 
 instdev:

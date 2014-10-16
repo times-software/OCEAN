@@ -1,0 +1,5 @@
+You will need to set up Makefile.arch to match your system. 
+Please see the annotated Makefile.arch.system for help.
+
+
+After setting up Makefile.arch you will be able to make and then make install.
