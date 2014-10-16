@@ -297,6 +297,7 @@ if ($RunABINIT) {
   `cat verbatim >> abfile`;
   `echo 'occopt ' >> abfile`;
   `cat occopt >> abfile`;
+  `echo 'npfft 1' >> abfile`;
 
 #if ($AbinitType eq "par" ) {
 #  die "not an option\n";
@@ -340,6 +341,8 @@ if ($RunABINIT) {
   system("$para_prefix $ENV{'OCEAN_ABINIT'} < denout.files > density.log 2> density.err") == 0
     or die "Failed to run initial density stage\n$para_prefix $ENV{'OCEAN_ABINIT'}\n";
   `echo 1 > den.stat`;
+
+  `ln -s SCx_DEN SCx_DS0_DEN`;
 
   open CUTIN, ">cut3d.in" or die "Failed to open cut3d.in for writing.\n$!\n";
   print CUTIN "SCx_DEN\n1\n6\nrhoofr\n0\n";
@@ -395,7 +398,7 @@ if ( $pawRUN ) {
   `echo 'iscf -2' >> abfile`;
   `echo 'tolwfr ' >> abfile`;
   `cat wftol >> abfile`;
-  `echo getden 1 >> abfile`;
+  `echo getden -1 >> abfile`;
   `echo kptopt 0 >> abfile`;
   `echo "istwfk *1" >> abfile`;
   
@@ -476,7 +479,7 @@ if ( $bseRUN ) {
   `echo 'iscf -2' >> abfile`;
   `echo 'tolwfr ' >> abfile`;
   `cat wftol >> abfile`;
-  `echo getden 1 >> abfile`;
+  `echo getden -1 >> abfile`;
   `echo kptopt 0 >> abfile`;
   `echo "istwfk *1" >> abfile`;
 

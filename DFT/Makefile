@@ -1,17 +1,19 @@
-FILES   = avec.x 
+include ../Makefile.arch
+
+FILES   = avec.x kgen2.x makecoords.x makeatompp.x makeacell.x kgen_qe.x
 SCRIPTS = AbinitDriver.pl NewAbinitDriver.pl pp.pl par_ab2.pl OBF_dft.pl converter.py
+AUX = $(ABINIT_EXE) $(CUT3D_EXE) $(PW_EXE) $(PP_EXE)
 
 
 .SUFFIXES: .f .x
 
-all: $(FILES) kgen2.x makecoords.x makeatompp.x makeacell.x kgen_qe.x
+all: $(FILES) 
 
 clean:
 	rm -f $(FILES)
-	rm -f kgen.x
 
 install:
-	cp $(SCRIPTS) $(FILES) $(AUX) kgen2.x $(INSTDIR)
+	cp $(SCRIPTS) $(FILES) $(AUX) $(INSTDIR)
 
 instdev:
 	for F in $(SCRIPTS); do ln -fs $(PWD)/$$F $(INSTDEVDIR); done;

@@ -1,3 +1,8 @@
+include ../Makefile.arch
+
+COMP = $(FC)
+OPTS = $(OPTIONS)
+
 all:
 	cd zcain; make "COMP = $(COMP)" "OPTS = $(OPTS)"
 	cd zcks;  make "COMP = $(COMP)" "OPTS = $(OPTS)"
