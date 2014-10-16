@@ -49,7 +49,7 @@ subroutine soprep( nc, vms, cml, cms, lc, xi, somel )
               ctmp = ctmp + vrslt( i ) * jimel( 0.5d0, cms( jc ), cms( ic ), i )
            end do
            write(20,*) ic, jc, real( ctmp )
-           write(21,*) 
+!           write(21,*) 
            ctmp = -xi * ctmp
 !           somel( ic, jc, 1 ) = ctmp 
            somel( ic, jc, 1 ) = real( ctmp ) - aimag( ctmp ) * l_alpha
