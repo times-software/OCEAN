@@ -321,6 +321,7 @@ if ($RunESPRESSO) {
           . "  plot_num = 0\n"
           . "/\n"
           . "&plot\n"
+          . "  plot_center_atom = -1\n"
           . "  nfile = 1\n"
           . "  filepp(1) = 'system.rho', weight(1) = 1\n"
           . "  iflag = 3\n"
