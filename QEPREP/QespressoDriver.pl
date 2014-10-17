@@ -410,7 +410,7 @@ if ($RunESPRESSO) {
 
  ## SCF Post-Processing initialize and set defaults
  
- my $outdir = "'./Out'\n";
+ my $outdir = "'./Out/'\n";
  
  my $filplot = "'system.rho'\n";
  my $plotnum = "0\n";
@@ -473,10 +473,12 @@ if ($RunESPRESSO) {
 #     or die "Failed to run post-process for density stage\n";
 #  system("mpirun -np $nc $ENV{'OCEAN_BIN'}/pp.x < pp.in >& pp.out 2>&1") == 0
 #     or die "Failed to run post-process for density stage\n";
-  system("mpirun -np $nc $ENV{'OCEAN_BIN'}/pp.x < pp.in > pp.out 2>&1") == 0
+  print "mpirun -np 1 $ENV{'OCEAN_BIN'}/pp.x < pp.in > pp.out 2>&1\n";
+  system("mpirun -np 1 $ENV{'OCEAN_BIN'}/pp.x < pp.in > pp.out 2>&1"); # == 0
 #  system("mpirun -np $nc pp.x < pp.in > pp.out 2>&1") == 0
-     or die "Failed to run post-process for density stage\n";
+#     or die "Failed to run post-process for density stage\n";
  `echo 1 > den.stat`;
+#  `cp ../system.rho.dat .`;
 
  ## convert the density file to proper format
  print "Density conversion\n";

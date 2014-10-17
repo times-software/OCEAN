@@ -3,7 +3,7 @@ include ../Makefile.arch
 include $(ESPRESSO_DIR)/make.sys
 
 
-PP = $(ESPRESSO_DIR)/PP
+PP = $(ESPRESSO_DIR)/PP/src
 LIBOBJS = $(ESPRESSO_DIR)/flib/ptools.a $(ESPRESSO_DIR)/flib/flib.a $(ESPRESSO_DIR)/clib/clib.a \
 					$(ESPRESSO_DIR)/iotk/src/libiotk.a 
 
@@ -51,11 +51,11 @@ nelectron.x: nelectron.f90
 headpar.o: ../PREP/headpar.f90
 	 $(FC) $(OPTIONS) -c ../PREP/headpar.f90 -o headpar.o
 
-grabwf.o: ../PREP/grabwf.f90
-	$(FC) $(OPTIONS) -c ../PREP/grabwf.f90 -o grabwf.o
+grabwf.o: grabwf.f90
+	$(FC) $(OPTIONS) -c grabwf.f90 -o grabwf.o -I$(PP)
 
-wfsubs.o: ../PREP/wfsubs.f90
-	$(FC) $(OPTIONS) -c ../PREP/wfsubs.f90 -o wfsubs.o
+wfsubs.o: wfsubs.f90
+	$(FC) $(OPTIONS) -c wfsubs.f90 -o wfsubs.o
 
 wfconvert.o: wfconvert.f90
 	$(FC) $(OPTIONS) -c wfconvert.f90 -o wfconvert.o
