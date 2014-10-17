@@ -16,14 +16,14 @@ my $stat = 0;
 $stat = 1 if (-e "done");
 `rm -f done`;
 my $oldden = 0;
-$oldden = 1 if (-e "../QESPRESSO/old");
+$oldden = 1 if (-e "../DFT/old");
 
 
 my @QEFiles     = ( "rhoofr", "density.out", "avecsinbohr.ipt");
 my @CommonFiles = ( "paw.nkpt", "nkpt", "qinunitsofbvectors.ipt");
 
 foreach (@QEFiles) {
-  system("cp ../QESPRESSO/$_ .") == 0 or die "Failed to copy $_\n";
+  system("cp ../DFT/$_ .") == 0 or die "Failed to copy $_\n";
 }
 foreach (@CommonFiles) {
   system("cp ../Common/$_ .") == 0 or die "Failed to copy $_\n";
@@ -53,7 +53,7 @@ open NKPT, "paw.nkpt" or die "Failed to open paw.nkpt";
 <NKPT> =~ m/(\d+)\s+(\d+)\s+(\d+)/ or die "Failed to parse paw.nkpt\n";
 my @nkpt = ($1, $2, $3);
 close NKPT;
-$rundir = sprintf("../QESPRESSO/%03u%03u%03u", $nkpt[0], $nkpt[1], $nkpt[2]);
+$rundir = sprintf("../DFT/%03u%03u%03u", $nkpt[0], $nkpt[1], $nkpt[2]);
 
 unless( -e "PAW/done" && -e "${rundir}/old" ) {
 `rm -r PAW` if (-e "PAW");
@@ -148,7 +148,7 @@ open NKPT, "bse.nkpt" or die "Failed to open nkpt";
 @nkpt = ($1, $2, $3);
 close NKPT;
 
-$rundir = sprintf("../QESPRESSO/%03u%03u%03u", $nkpt[0], $nkpt[1], $nkpt[2]);
+$rundir = sprintf("../DFT/%03u%03u%03u", $nkpt[0], $nkpt[1], $nkpt[2]);
 
 unless( -e "BSE/done" && -e "${rundir}/old" ) {
 
