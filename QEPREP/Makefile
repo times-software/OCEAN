@@ -1,4 +1,6 @@
-SCRIPTS = dendip.pl par_dendip.pl bvecs.pl gvecs2.pl ofermi.pl QespressoDriver.pl \
+include ../Makefile.arch
+
+SCRIPTS = QespressoDriver.pl \
           celldm.py converter.py qe_dendip.pl 
 FILESF90 = makecoords.x makeatompp.x makeacell.x nelectron.x
 # we also want rhoofg.x, but are having trouble linking the FFTW libraries
