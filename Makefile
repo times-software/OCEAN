@@ -10,16 +10,13 @@ AUX = Version Header
 all:
 	cd Common;       make "FC = $(FC)" "OPTIONS = $(OPTIONS)"
 	cd ABINIT;       make "FC = $(FC)" "OPTIONS = $(OPTIONS)"
-	cd PREP;       make "FC = $(FC)" "OPTIONS = $(OPTIONS)" "FFTWI=$(FFTWI)" "FFTWL=$(FFTWL)"
+	cd PREP;         make "FC = $(FC)" "OPTIONS = $(OPTIONS)" "FFTWI = $(FFTWI)" "FFTWL = $(FFTWL)"
 	cd QEPREP;       make "FC = $(FC)" "OPTIONS = $(OPTIONS)"
 	cd PAW;          make "COMP = $(FC)" "OPTS = $(OPTIONS)"
 	cd SCREEN;       make "COMP = $(FC)" "OPTS = $(OPTIONS)"
 	cd CNBSE;        make "COMP = $(FC)" "OPTS = $(OPTIONS)"
 	cd zbridge;      make "COMP = $(FC)" "OPTS = $(OPTIONS)"
 
-espresso:
-	cd ESPRESSO      ./configure
-	cd ESPRESSO      make pw pp
 
 prep:
 	cd PREP;         make "FC = $(FC)" "OPTIONS = $(OPTIONS)" "FFTWI = $(FFTWI)" "FFTWL = $(FFTWL)"
@@ -42,7 +39,6 @@ clean:
 	mkdir $(INSTDIR)
 	cd Common;       make clean
 	cd ABINIT;       make clean
-	cd ESPRESSO;     make clean
 	cd PREP;         make clean
 	cd QEPREP;       make clean
 	cd SCREEN;       make clean
@@ -66,9 +62,6 @@ install:
 #	ln -sf $(CUT3D) $(INSTDIR)/cut3d
 #	cp ESPRESSO/PW/pw.x $(INSTDIR)
 #	cp ESPRESSO/PP/pp.x $(INSTDIR)
-	cp ESPRESSO/PP/qeband.x $(INSTDIR)
-	cp ESPRESSO/PP/qebocc.x $(INSTDIR)
-	cp ESPRESSO/PP/wfconvert.x $(INSTDIR)
 
 instdev:
 	for F in $(SCRIPTS) $(AUX); do ln -fs $(PWD)/$$F $(INSTDEVDIR); done;

@@ -1,7 +1,11 @@
 FC=ifort
-OPTIONS=-O3
+OPTIONS=-O2 -g -traceback
 INSTDIR=${PWD}/BIN
-ABINIT=/path/to/abinip
-CUT3D=/path/to/cut3d
-FFTWI=-I/path/to/fftw/include
-FFTWL=-L/path/to/fftw/lib -lfftw3
+ABINIT=/home/jtv1/abinit-7.8.2/src/98_main/abinit
+CUT3D=/home/jtv1/abinit-7.8.2/src/98_main/cut3d
+
+FFTWI=-I/home/jtv1/bin/intel/include/
+FFTWL=-L/home/jtv1/bin/intel/lib/ -lfftw3
+
+#ESPRESSO_DIR = /home/jtv1/shirley_QE4.3
+ESPRESSO_DIR = /home/jtv1/espresso-5.0.2-intel
