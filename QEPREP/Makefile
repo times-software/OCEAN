@@ -2,7 +2,7 @@ include ../Makefile.arch
 
 SCRIPTS = QespressoDriver.pl \
           celldm.py converter.py qe_dendip.pl 
-FILESF90 = makecoords.x makeatompp.x makeacell.x nelectron.x
+FILESF90 = makecoords.x makeatompp.x makeacell.x 
 # we also want rhoofg.x, but are having trouble linking the FFTW libraries
 #FILESF90 = makecoords.x makeatompp.x makeacell.x nelectron.x rhoofg.x
 #FILESF90 = makecoords.x makeatompp.x makeacell.x wfconvert.x nelectron.x rhoofg.x
@@ -11,7 +11,7 @@ WFCONVERT_OBJS = wfconvert.o headpar.o grabwf.o wfsubs.o
 
 .SUFFIXES: .f .x .f90
 
-all: makecoords.x makeatompp.x makeacell.x nelectron.x
+all: makecoords.x makeatompp.x makeacell.x 
 # find the FFTW libraries so that you can also build rhoofg.x
 #all: makecoords.x makeatompp.x makeacell.x nelectron.x rhoofg.x
 #all: makecoords.x makeatompp.x makeacell.x wfconvert.x nelectron.x rhoofg.x
@@ -40,9 +40,6 @@ makeacell.x: makeacell.f90
 
 rhoofg.x: rho2.f90
 	$(FC) $(OPTIONS) rho2.f90 $(FFTWI) $(FFTWL) -o rhoofg.x
-
-nelectron.x: nelectron.f90
-	$(FC) $(OPTIONS) nelectron.f90 -o nelectron.x
 
 headpar.o: headpar.f90
 	 $(FC) $(OPTIONS) -c headpar.f90 -o headpar.o
