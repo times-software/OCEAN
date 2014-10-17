@@ -245,6 +245,14 @@ if ($RunPP) {
   `echo "1" > pp.stat`;
 }
 
+open PPLIST, "pplist" or die "Failed to open pplist\n";
+while (<PPLIST>) {
+  chomp;
+  `cp "../$_.UPF" .`;
+}
+close PPLIST;
+
+
 #############################################
 # Run espresso
 # Determine what type of run is being done, par or seq
@@ -451,14 +459,26 @@ if ($RunESPRESSO) {
  ### the SCF run for initial density
  ##
  print "Density SCF Run\n";
+# system("mpiexec $ENV{'OCEAN_BIN'}/pw.x < scf.in >& scf.out") == 0
+#     or die "Failed to run scf stage for Density\n";
+#  system("mpirun -np $nc $ENV{'OCEAN_BIN'}/pw.x < scf.in >& scf.out 2>&1") == 0
+#      or die "Failed to run scf stage for Density\n";
   system("mpirun -np $nc $ENV{'OCEAN_BIN'}/pw.x < scf.in > scf.out 2>&1") == 0
+#  system("mpirun -np $nc pw.x < scf.in > scf.out 2>&1") == 0
       or die "Failed to run scf stage for Density\n";
  `echo 1 > scf.stat`;
 
  print "Density PP Run\n";
-  system("mpirun -np $nc $ENV{'OCEAN_BIN'}/pp.x < pp.in > pp.out 2>&1") == 0
-     or die "Failed to run post-process for density stage\n";
+# system("mpiexec $ENV{'OCEAN_BIN'}/pp.x < pp.in >& pp.out") == 0
+#     or die "Failed to run post-process for density stage\n";
+#  system("mpirun -np $nc $ENV{'OCEAN_BIN'}/pp.x < pp.in >& pp.out 2>&1") == 0
+#     or die "Failed to run post-process for density stage\n";
+  print "mpirun -np 1 $ENV{'OCEAN_BIN'}/pp.x < pp.in > pp.out 2>&1\n";
+  system("mpirun -np 1 $ENV{'OCEAN_BIN'}/pp.x < pp.in > pp.out 2>&1"); # == 0
+#  system("mpirun -np $nc pp.x < pp.in > pp.out 2>&1") == 0
+#     or die "Failed to run post-process for density stage\n";
  `echo 1 > den.stat`;
+#  `cp ../system.rho.dat .`;
 
  ## convert the density file to proper format
  print "Density conversion\n";
@@ -513,6 +533,15 @@ if ($RunESPRESSO) {
 if ( $pawRUN ) {
   print "PAW run\n";
   chdir $pawDIR;   
+
+  open PPLIST, "../pplist" or die "Failed to open pplist\n";
+  while (<PPLIST>) {
+    chomp;
+    `cp "../$_.UPF" .`;
+  }
+  close PPLIST;
+
+
 # `cp ../paw.scf.in scf.in`;
 # `cp ../paw.pp.in pp.in`;
  # copy all files over
@@ -666,9 +695,16 @@ if ( $pawRUN ) {
 ### the PAW NSCF run
 #
   print "PAW NSCF Run\n";
+#  system("mpiexec $ENV{'OCEAN_BIN'}/pw.x < nscf.in >& nscf.out") == 0
+#    or die "Failed to run scf stage for PAW\n";
+#  system("mpirun -np $nc $ENV{'OCEAN_BIN'}/pw.x < nscf.in > nscf.out 2>&1") == 0
+#      or die "Failed to run nscf for PAW\n";
   system("mpirun -np $nc $ENV{'OCEAN_BIN'}/pw.x < nscf.in > nscf.out 2>&1") == 0
+#  system("mpirun -np $nc pw.x < nscf.in > nscf.out 2>&1") == 0
       or die "Failed to run nscf for PAW\n";
 
+#  system("mpiexec $ENV{'OCEAN_BIN'}/pw.x < scf.in > scf.out") == 0
+#    or die "Failed to run scf stage for PAW\n";
   `echo 1 > scf.stat`;
 
 
@@ -856,7 +892,12 @@ if ( $bseRUN ) {
 ### running NSCF for the BSE stage
   print "BSE NSCF Run\n";
 
+# system("mpiexec $ENV{'OCEAN_BIN'}/pw.x < nscf.in >& nscf.out") == 0
+#   or die "Failed to run nscf stage for BSE\n";
+#  system("mpirun -np $nc $ENV{'OCEAN_BIN'}/pw.x < nscf.in > nscf.out 2>&1") == 0
+#      or die "Failed to run nscf for BSE\n";
   system("mpirun -np $nc $ENV{'OCEAN_BIN'}/pw.x < nscf.in > nscf.out 2>&1") == 0
+#  system("mpirun -np $nc pw.x < nscf.in > nscf.out 2>&1") == 0
       or die "Failed to run nscf for BSE\n";
   `echo 1 > nscf.stat`;
 
