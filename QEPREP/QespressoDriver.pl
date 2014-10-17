@@ -1,6 +1,7 @@
 #!/usr/bin/perl
 
 use strict;
+use Cwd 'abs_path';
 
 if (! $ENV{"OCEAN_BIN"} ) {
   $0 =~ m/(.*)\/QespressoDriver\.pl/;
@@ -248,6 +249,7 @@ if ($RunPP) {
 open PPLIST, "pplist" or die "Failed to open pplist\n";
 while (<PPLIST>) {
   chomp;
+  s/\s+//;
   `cp "../$_.UPF" .`;
 }
 close PPLIST;
@@ -424,6 +426,17 @@ if ($RunESPRESSO) {
  
  
  ### write Post-Processing input card for density
+
+  #JTV this isn't permanent
+#  my $full_out = `cat work_dir`;
+#  chomp($full_out);
+#  $full_out =~ s/'//g;
+#  $full_out =~ s/^\.//g;
+#  $full_out =~ s/\s+//g;
+#  
+#  print "$full_out\n";
+#  my $abs_full_out = abs_path("./") . $full_out;
+#  print "$abs_full_out\t$full_out\n";
  
  `echo "&inputpp" > ppfile`;
  `echo -n "   prefix = " >> ppfile`;
@@ -473,10 +486,23 @@ if ($RunESPRESSO) {
 #     or die "Failed to run post-process for density stage\n";
 #  system("mpirun -np $nc $ENV{'OCEAN_BIN'}/pp.x < pp.in >& pp.out 2>&1") == 0
 #     or die "Failed to run post-process for density stage\n";
-  print "mpirun -np 1 $ENV{'OCEAN_BIN'}/pp.x < pp.in > pp.out 2>&1\n";
-  system("mpirun -np 1 $ENV{'OCEAN_BIN'}/pp.x < pp.in > pp.out 2>&1"); # == 0
-#  system("mpirun -np $nc pp.x < pp.in > pp.out 2>&1") == 0
-#     or die "Failed to run post-process for density stage\n";
+#  my $pwd = `pwd`;
+#  chomp($pwd);
+#  print "$pwd\n";
+#  print "mpirun -np 1 -wdir $pwd $ENV{'OCEAN_BIN'}/pp.x < pp.in > pp.out 2>&1\n";
+
+
+#JTV workaround for pp.x strangeness
+#  link "$ENV{'OCEAN_BIN'}/pp.x", "pp.x";
+#  `./pp.x < pp.in > pp.out 2>&1`;
+#  system("./pp.x < pp.in > pp.out 2>&1") == 0
+#    or die "Failed to run post-process for density stage\n";
+#  unlink "pp.x";
+
+
+#  system("mpirun -np 1 $ENV{'OCEAN_BIN'}/pp.x < pp.in > pp.out 2>&1"); # == 0
+  system("mpirun -np $nc pp.x < pp.in > pp.out 2>&1") == 0
+     or die "Failed to run post-process for density stage\n";
  `echo 1 > den.stat`;
 #  `cp ../system.rho.dat .`;
 
@@ -537,6 +563,7 @@ if ( $pawRUN ) {
   open PPLIST, "../pplist" or die "Failed to open pplist\n";
   while (<PPLIST>) {
     chomp;
+    s/\s+//;
     `cp "../$_.UPF" .`;
   }
   close PPLIST;
