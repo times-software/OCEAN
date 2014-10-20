@@ -53,6 +53,7 @@ foreach (@ExtraFiles) {
 open PPLIST, "pplist" or die "Failed to open pplist\n";
 while (<PPLIST>) {
   chomp;
+  s/\s+//;
   `cp "../$_" .`;
 }
 
