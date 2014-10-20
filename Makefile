@@ -6,10 +6,12 @@ include Makefile.arch
 
 SCRIPTS = 
 AUX = Version Header
+AUX_EXE = $(ABINIT_EXE) $(CUT3D_EXE) $(PW_EXE) $(PP_EXE)
 
 all:
 	cd Common;       make 
 	cd DFT;          make 
+	cd QEPREP;       make
 	cd PREP;         make 
 	cd PAW;          make 
 	cd SCREEN;       make 
@@ -19,6 +21,7 @@ all:
 clean:
 	cd Common;       make clean
 	cd DFT;          make clean
+	cd QEPREP;       make clean
 	cd PREP;         make clean
 	cd SCREEN;       make clean
 	cd PAW;          make clean
@@ -27,8 +30,10 @@ clean:
 install:
 	mkdir -p $(INSTDIR)
 	cp $(SCRIPTS) $(AUX) $(INSTDIR)
+	cp $(AUX_EXE) $(INSTDIR)
 	cd Common;       make install
 	cd DFT;          make install
+	cd QEPREP;       make install
 	cd PREP;         make install
 	cd SCREEN;       make install
 	cd PAW;          make install

@@ -3,14 +3,14 @@
 # Fortran compiler
 FC = ifort
 
-# Flags
+# Flags for the fortran compiler
 OPTIONS = -O2 
 
-# FFTW path
+# FFTW path. FFTW is required for several programs. Find it at fftw.org
 FFTWI = -I/home/jtv1/bin/intel/include/
 FFTWL = -L/home/jtv1/bin/intel/lib/ -lfftw3
 
-# Install Directory
+# Install Directory. 
 INSTDIR = /home/jtv1/bin/intel/master
 
 # ABINIT Flags
@@ -19,12 +19,13 @@ ABINIT_EXE = /home/jtv1/abinit-7.8.2/src/98_main/abinit
 CUT3D_EXE = /home/jtv1/abinit-7.8.2/src/98_main/cut3d
 
 # ESPRESSO Flags
+ESPRESSO_DIR = /home/jtv1/espresso-5.0.2-intel/
 PW_EXE = /home/jtv1/espresso-5.0.2-intel/bin/pw.x
 PP_EXE = /home/jtv1/espresso-5.0.2-intel/bin/pp.x
 
 
 
 # OBF Flags
-# Only set these if you have the OBF extension
-OBF_DIR = /home/jtv1/shirley_QE4.3-intel
-NIST=true
+# Only set these if you have the OBF extension. 
+#OBF_DIR = /home/jtv1/shirley_QE4.3-intel
+#NIST=true
