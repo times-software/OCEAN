@@ -6,6 +6,7 @@ include Makefile.arch
 
 SCRIPTS = 
 AUX = Version Header
+AUX_EXE = $(ABINIT_EXE) $(CUT3D_EXE) $(PW_EXE) $(PP_EXE)
 
 all:
 	cd Common;       make 
@@ -29,6 +30,7 @@ clean:
 install:
 	mkdir -p $(INSTDIR)
 	cp $(SCRIPTS) $(AUX) $(INSTDIR)
+	cp $(AUX_EXE) $(INSTDIR)
 	cd Common;       make install
 	cd DFT;          make install
 	cd QEPREP;       make install

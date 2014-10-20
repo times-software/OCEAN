@@ -492,16 +492,8 @@ if ($RunESPRESSO) {
 #  print "mpirun -np 1 -wdir $pwd $ENV{'OCEAN_BIN'}/pp.x < pp.in > pp.out 2>&1\n";
 
 
-#JTV workaround for pp.x strangeness
-#  link "$ENV{'OCEAN_BIN'}/pp.x", "pp.x";
-#  `./pp.x < pp.in > pp.out 2>&1`;
-#  system("./pp.x < pp.in > pp.out 2>&1") == 0
-#    or die "Failed to run post-process for density stage\n";
-#  unlink "pp.x";
 
-
-#  system("mpirun -np 1 $ENV{'OCEAN_BIN'}/pp.x < pp.in > pp.out 2>&1"); # == 0
-  system("mpirun -np $nc pp.x < pp.in > pp.out 2>&1") == 0
+  system("mpirun -np $nc $ENV{'OCEAN_BIN'}/pp.x < pp.in > pp.out 2>&1") == 0
      or die "Failed to run post-process for density stage\n";
  `echo 1 > den.stat`;
 #  `cp ../system.rho.dat .`;
