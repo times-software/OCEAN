@@ -125,7 +125,7 @@ print PREP  "/\n";
 close PREP;
 
 
-system("$ENV{'OCEAN_BIN'}/wfconvert.x ${prefix}") == 0 
+system("$ENV{'OCEAN_BIN'}/qe_wfconvert.x ${prefix}") == 0 
   or die "Failed to run wfconvert.x\n";
 
 
@@ -216,7 +216,7 @@ unless( -e "BSE/done" && -e "${rundir}/old" ) {
   system("$ENV{'OCEAN_BIN'}/qeband.x") == 0
     or die "Failed to run qeband.x\n";
 
-  system("$ENV{'OCEAN_BIN'}/wfconvert.x system") == 0 
+  system("$ENV{'OCEAN_BIN'}/qe_wfconvert.x system") == 0 
     or die "Failed to run wfconvert.x\n";
 
 #KG#  system("$ENV{'OCEAN_BIN'}/ofermi.pl") == 0
