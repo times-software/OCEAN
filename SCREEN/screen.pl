@@ -43,7 +43,7 @@ foreach (@CommonFiles) {
   `cp ../Common/$_ .` == 0 or die "Failed to get $_ from Common/\n";
 }
 foreach (@AbinitFiles) {
-  `cp ../ABINIT/$_ .` == 0 or die "Failed to get $_ from ABINIT/\n";
+  `cp ../DFT/$_ .` == 0 or die "Failed to get $_ from DFT/\n";
 }
 foreach (@DenDipFiles) {
   `cp ../PREP/$_ .` == 0 or die "Failed to get $_ from PREP/\n";

@@ -6,7 +6,7 @@ use File::Copy;
 use strict;
 
 
-my @OceanFolders = ("Common", "DFT", "zWFN", "PAW", "SCREEN", "CNBSE", "ABINIT", "PREP");
+my @OceanFolders = ("Common", "DFT", "zWFN", "PAW", "SCREEN", "CNBSE", "PREP");
 
 print "Welcome to OCEAN\n";
 
@@ -194,7 +194,7 @@ else
 {
 	print "$Separator\n";
 	print "Entering ABINIT stage\n";
-	chdir "ABINIT";
+	chdir "DFT";
 	system("$OCEAN_BIN/AbinitDriver.pl") == 0 or die "Abinit Stage Failed\n";
   chdir "../";
 }
@@ -230,13 +230,13 @@ else
 print "$Separator\n";
 print "Entering SCREENing stage\n";
 chdir "../SCREEN";
-if( $script_pre eq 'abi' )
+if( $script_pre eq 'OBF' )
 {
-	system("$OCEAN_BIN/screen.pl") == 0 or die "SCREEN stage failed\n$!";
+	system("$OCEAN_BIN/${script_pre}_screen_multi.pl") == 0 or die "SCREEN stage failed\n$!";
 }
 else
 {
-	system("$OCEAN_BIN/${script_pre}_screen_multi.pl") == 0 or die "SCREEN stage failed\n$!";
+	system("$OCEAN_BIN/screen.pl") == 0 or die "SCREEN stage failed\n$!";
 }
 ##########################################
 #

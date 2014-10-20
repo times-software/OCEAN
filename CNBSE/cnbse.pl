@@ -29,7 +29,7 @@ foreach (@CommonFiles) {
   `cp ../Common/$_ .` == 0 or die "Failed to get Common/$_\n";
 }
 foreach (@AbinitFiles) {
-  `cp ../ABINIT/$_ .` == 0 or die "Failed to get ABINIT/$_\n";
+  `cp ../DFT/$_ .` == 0 or die "Failed to get DFT/$_\n";
 }
 foreach (@DenDipFiles) {
   `cp ../PREP/BSE/$_ .` == 0 or die "Failed to get PREP/BSE/$_\n" ;
