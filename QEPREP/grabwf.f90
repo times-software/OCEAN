@@ -127,10 +127,12 @@
   INTEGER         :: nk1, nk2, nk3, k1, k2, k3
 
   CHARACTER(13)            :: frmt
-  REAL(DP), ALLOCATABLE    :: eig(:), occ(:)
+  REAL(DP), ALLOCATABLE    :: eig(:), occ(:), temp_eigen_un(:,:), temp_occ_un(:,:)
 
   COMPLEX(DP)     :: cg_un_tmp(maxnpw,maxband), cg_sh_tmp(maxnpw,maxband)
   INTEGER         :: npwx, ngm, ngms, npol, nbnd, nkpts, nspin
+
+  LOGICAL         :: lsda, lpoint_dir
 
 
 !
@@ -263,7 +265,7 @@
   write(6,*) ":Reading occupancies"
   !
   CALL qexml_read_occ( NSTATES_UP=nband(1), IERR=ierr )
-  IF ( ierr/=0 ) CALL errore(subname,'QEXML reading ',ABS(ierr))
+  IF ( ierr/=0 ) CALL errore(subname,'QEXML reading ', ABS(ierr))
   !
 !  write(6,*) ' nband  = ', nband(1)
 
@@ -280,8 +282,23 @@
   !
   write(6,*) ":Reading the bands"
   !
+#ifdef __QE51
+  !=======================
+  ! This is the worst way to do this, but should work for now
+  CALL qexml_read_bands_info( NUM_K_POINTS=nkpts, IERR=ierr )
+  IF ( ierr/=0 ) CALL errore(subname,'QEXML read info ',ABS(ierr))
+
+  allocate( temp_eigen_un( maxband, nkpts ), temp_occ_un( maxband, nkpts ) )
+  
+  CALL qexml_read_bands_pw( nkpts, maxband, nkpts, .false., .true., filename, ET=temp_eigen_un, WG=temp_occ_un, IERR=ierr )
+  IF ( ierr/=0 ) CALL errore(subname,'QEXML reading ',ABS(ierr))
+  eigen_un(:) = temp_eigen_un( :, ik )
+  occ_un(:)   = temp_occ_un( :, ik )
+  deallocate( temp_eigen_un, temp_occ_un )
+#else
   CALL qexml_read_bands( IK=ik, EIG=eigen_un, OCC=occ_un, IERR=ierr )
   IF ( ierr/=0 ) CALL errore(subname,'QEXML reading ',ABS(ierr))
+#endif
   !
 !  write(6,*) ' eigen_un = ', eigen_un
 !  write(6,*) ' occ_un   = ', occ_un
