@@ -53,7 +53,7 @@
   INTEGER      :: nbnd, ib, nkpts, ik, nval
   INTEGER      :: ierr
   !
-  REAL(DP), ALLOCATABLE    :: occ(:)
+  REAL(DP), ALLOCATABLE    :: occ(:,:)
   !
 
 
@@ -101,15 +101,20 @@
   CALL qexml_read_bands_info( NBND=nbnd, IERR=ierr )
   IF ( ierr/=0 ) CALL errore(subname,'QEXML reading ',ABS(ierr))
   !
-  allocate( occ(nbnd) )
+  allocate( occ(nbnd,1) )
   !
-  CALL qexml_read_bands( IK=1, OCC=occ, IERR=ierr )
+#ifdef __QE51
+  CALL qexml_read_bands_pw(nkpts, nbnd, 1, .false., .true., filename, WG=occ, IERR=ierr )
   IF ( ierr/=0 ) CALL errore(subname,'QEXML reading ',ABS(ierr))
+#else
+  CALL qexml_read_bands( IK=1, OCC=occ(:,1), IERR=ierr )
+  IF ( ierr/=0 ) CALL errore(subname,'QEXML reading ',ABS(ierr))
+#endif
   !
   !
   open( unit=91, file='bands.out',form='formatted',status='unknown')
   do ib = 1, nbnd
-    write(91,*) occ(ib)
+    write(91,*) occ(ib,1)
   end do
   close( 91 )
 

@@ -124,10 +124,16 @@
   !
 !  write(6,*) ":Reading the band info"
   !
+#ifdef __QE51 
+  write(6,*) 'QE 5.1!!'
+  CALL qexml_read_bands_pw( nkpts, nbnd, nkpts, .false., .true., filename, ET=enk, WG=occ, IERR=ierr )
+  IF ( ierr/=0 ) CALL errore(subname,'QEXML reading ',ABS(ierr))
+#else
   do ik = 1, nkpts
      CALL qexml_read_bands( IK=ik, EIG=enk(:,ik), OCC=occ(:,ik), ENERGY_UNITS=units, IERR=ierr )
      IF ( ierr/=0 ) CALL errore(subname,'QEXML reading ',ABS(ierr))
   end do
+#endif
   !
 !  write(6,*) " BAND ENERGIES ARE IN ", trim( units ), " !!!"
   !
@@ -158,7 +164,7 @@
   close( 91 )
   !
   open( unit=91, file='eshift.ipt',form='formatted',status='unknown')
-  write(91,*) sorted_e(ivbm) * ha2ev   ! in eV
+  write(91,*) -sorted_e(icbm) * ha2ev   ! in eV
   close( 91 )
   !
 !  call getclips( sorted_o, ivbm, icbm )

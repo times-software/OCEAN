@@ -1,17 +1,21 @@
-# This makefile is for QE v. 5.0.X
+#### Select your QE version here
+
+#### QE 5.1 
+#QEXML = $(ESPRESSO_DIR)/Modules/qexml.o
+#QEMOD = $(ESPRESSO_DIR)/Modules/
+#OPTIONS += -D__QE51
+#### QE 5.0 or earlier?
+QEXML = $(ESPRESSO_DIR)/PP/src/qexml.o
+QEMOD = $(ESPRESSO_DIR)/PP/src
+
+
+
 
 include ../Makefile.arch
 
 include $(ESPRESSO_DIR)/make.sys
 .SUFFIXES :
 
-# QE 5.1 won't currently work
-#QEXML = $(ESPRESSO_DIR)/Modules/qexml.o
-#QEMOD = $(ESPRESSO_DIR)/Modules/
-#OPTIONS += -D__QE51
-# QE 5.0
-QEXML = $(ESPRESSO_DIR)/PP/src/qexml.o
-QEMOD = $(ESPRESSO_DIR)/PP/src
 
 # QE 5.X
 #../flib/ptools.a ../flib/flib.a ../clib/clib.a ../iotk/src/libiotk.a
@@ -83,10 +87,10 @@ qenpw2.o : qenpw2.f90
 	$(FC) $(OPTIONS) -c qenpw2.f90 -o qenpw2.o -I$(QEMOD)
 
 qebocc.o: qebocc.f90
-	$(FC) $(OPTIONS) -c qebocc.f90 -o qebocc.o -I$(QEMOD)
+	$(FC) $(OPTIONS) -cpp -c qebocc.f90 -o qebocc.o -I$(QEMOD)
 
 qeband.o: qeband.f90
-	$(FC) $(OPTIONS) -c qeband.f90 -o qeband.o -I$(QEMOD)
+	$(FC) $(OPTIONS) -cpp -c qeband.f90 -o qeband.o -I$(QEMOD)
 
 qe_wfconvert.x: $(QEOBJS) wfconvert.o qehead2.o grabwf.o qenpw2.o wfsubs.o 
 	$(LD) $(LDFLAGS) -o $@ wfconvert.o qehead2.o grabwf.o qenpw2.o wfsubs.o $(QEOBJS) -I$(QEMOD) $(LIBOBJS)
