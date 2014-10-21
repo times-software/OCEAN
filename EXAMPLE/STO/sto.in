@@ -63,7 +63,7 @@ xred {
      0.4907821884149611 -0.0113161866710717  0.4862530314327125
      0.4915748997335849  0.4915748997335849 -0.0167085603988046 }
 
-# Kinetic Energy cutoff
+# Kinetic Energy cutoff (in Ry for QE)
 ecut 80
 
 # SCF Energy tolerance
