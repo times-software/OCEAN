@@ -33,7 +33,7 @@ my @EspressoFiles = ( "coord", "degauss", "ecut", "etol", "fband", "ibrav",
     "isolated", "mixing", "natoms", "ngkpt", "noncolin", "nrun", "ntype", 
     "occopt", "occtype", "prefix", "ppdir", "rprim", "rscale", "smearing", 
     "spinorb", "taulist", "typat", "verbatim", "work_dir", "wftol", 
-    "den.kshift", "obkpt.ipt", "trace_tol", "ham_kpoints", "obf.nbands","tot_charge", "nspin", "smag", "zsymb");
+    "den.kshift", "obkpt.ipt", "trace_tol", "ham_kpoints", "obf.nbands","tot_charge", "nspin", "smag", "ldau", "zsymb");
 my @PPFiles = ("pplist", "znucl");
 my @OtherFiles = ("epsilon", "pool_control");
 
@@ -172,7 +172,7 @@ system("$ENV{'OCEAN_BIN'}/makeatompp.x") == 0
     or die "Failed to make acell\n";
 
   my @qe_data_files = ('prefix', 'ppdir', 'work_dir', 'ibrav', 'natoms', 'ntype', 'noncolin',
-                       'spinorb', 'ecut', 'occtype', 'degauss', 'etol', 'mixing', 'nrun', 'trace_tol', 'tot_charge', 'nspin', 'smag' );
+                       'spinorb', 'ecut', 'occtype', 'degauss', 'etol', 'mixing', 'nrun', 'trace_tol', 'tot_charge', 'nspin', 'smag', 'ldau' );
   my %qe_data_files = {};
   foreach my $file_name (@qe_data_files)
   {
@@ -246,6 +246,10 @@ if ($RunESPRESSO) {
   if( $qe_data_files{'smag'}  ne "" )
   {
     print QE "$qe_data_files{'smag'}\n";
+  }
+  if( $qe_data_files{'ldau'}  ne "" )
+  {
+    print QE "$qe_data_files{'ldau'}\n";
   }
   if( $qe_data_files{'ibrav'} != 0 ) 
   {
@@ -531,6 +535,10 @@ if ( $nscfRUN ) {
   if( $qe_data_files{'smag'}  ne "" )
   {
     print QE "$qe_data_files{'smag'}\n";
+  }
+  if( $qe_data_files{'ldau'}  ne "" )
+  {
+    print QE "$qe_data_files{'ldau'}\n";
   }
   if( $qe_data_files{'ibrav'} != 0 )
   {

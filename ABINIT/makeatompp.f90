@@ -206,6 +206,8 @@ subroutine getmass(zatom,mass)
         mass = "65.3800"
       case (38)
         mass = "87.6200"
+      case (48)
+        mass = "112.414"
 
     end select
 
