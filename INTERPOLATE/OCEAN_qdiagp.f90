@@ -1208,7 +1208,8 @@
     brange( 2 ) = maxval( start_band( : ) ) - 1
     brange( 3 ) = minval( start_band( : ) )
 !JTV
-    brange( 4 ) = brange( 3 ) + nbuse - 1
+!    brange( 4 ) = brange( 3 ) + nbuse - 1
+    brange( 4 ) = nbasis_subset
     iuntmp = freeunit()
     open(unit=iuntmp,file='brange.ipt',form='formatted',status='unknown')
     rewind(iuntmp)
