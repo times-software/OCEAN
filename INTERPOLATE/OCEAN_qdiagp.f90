@@ -32,7 +32,8 @@
                         cross_pool_comm, intra_pool_comm, &
                         desc_cyclic, desc_striped, context_cyclic, &
                         local_striped_dim, cyclic_localindex, &
-                        context_global
+                        context_global, local_cyclic_dims
+ use OCEAN_timer
 !  use hamq_pool, only : nbasis_global
 
   implicit none
@@ -53,7 +54,7 @@
   logical :: legacy_zero_lumo
 
   integer(kind=MPI_OFFSET_KIND) :: offset, off1, off2, off3, off4
-  integer :: fheigval, fheigvec, fhenk, fhpsi
+  integer :: fheigval, fheigvec, fhenk, fhpsi, fheig
   integer :: status(MPI_STATUS_SIZE)
   integer :: ierr
 
@@ -68,6 +69,7 @@
   real(dp) :: qpathlen, cqvec(3), dqvec(3)
   character(255) :: ic
   character(6), allocatable :: fntau(:)
+  character (len=7) :: band_style = 'default'
 
   integer :: ik
   integer :: i,j,k, ig
@@ -106,6 +108,9 @@
   integer :: u1_MB, u1_M, u1_NB, u1_N
   integer :: nprow, npcol, myrow, mycol
 
+
+  integer :: nr_eigvec, nc_eigvec, pool_tot_k, pool_ik
+
   integer :: block_start, block_stop, block_width, block, niter, iter
   integer(8) :: long_nbasis, long_nx
   integer(8) :: long_2g = 2147483648
@@ -115,6 +120,12 @@
   integer, external :: OMP_GET_NUM_THREADS, NUMROC
   complex(dp), external :: ZDOTC
   real(dp), external :: DZNRM2
+
+
+  integer :: dims(2), ndims, array_of_gsizes(2), array_of_distribs(2), array_of_dargs(2), file_type, nelements, mpistatus, &
+             locsize, i_energy_request, n_energy_request
+  integer, allocatable :: energy_request(:), pool_root_map(:)
+  complex(dp), allocatable :: store_eigvec(:,:,:), out_eigvec(:,:,:)
  
   namelist /info/ nk, nbnd, nelec, alat, volume, &
                   at, bg, tpiba, fermi_energy, nspin, lda_plus_u
@@ -124,8 +135,6 @@
 !  is needed for the interpolation
   call shirley_input
 
-! Still need to read in the actual OBFs. We will be 
-!   calculating overlaps and matrix elements and stuff
 
 ! for right now we don't though, everything is taken care of earlier
   tmpdir_io = outdir
@@ -141,25 +150,6 @@
   write(stdout,*) ' nspin = ', nspin
   write(stdout,*) ' lda_plus_u = ', lda_plus_u
 
-!!$  if( nspin .ne. 1 ) then
-!!$    write(stdout,*) 'nspin: ', nspin
-!!$    write(stdout,*) 'Spin ne 1 is not yet implemented. Trying to quit ... '
-!!$    goto 111
-!!$  endif
-
-!  write(stdout,*) 'npw: ', npw, npwx
-!  call read_file_shirley( nspin )
-!  write(stdout,*) 'npw: ', npw, npwx
-!  call openfil
-
-!  call summary
-
-!  write(stdout,*)
-!  write(stdout,*) ' load wave function'
-  !switch to !JTV
-  !call get_buffer( evc, nwordwfc, iunwfc, 1 )
-!  CALL davcio( evc, 2*nwordwfc, iunwfc, 1, - 1 )
-! Finished reading in the OBFs
   endif
 
 
@@ -168,7 +158,6 @@
 
 
   if( band_subset(1) < 1 ) band_subset(1)=1
-!  if( band_subset(2) < band_subset(1) .or. band_subset(2) > nbasis ) band_subset(2)=nbasis_global
   if( band_subset(2) < band_subset(1) .or. band_subset(2) > nbasis ) band_subset(2)=nbasis
   nbasis_subset = band_subset(2)-band_subset(1)+1
   write(stdout,*) ' band_subset = ', band_subset
@@ -176,10 +165,6 @@
 !  call diagx_init( band_subset(1), band_subset(2) )
   call diag_init
 
-! moved earlier
-!  call dump_system( nelec_, alat, volume, at, bg, tpiba, nspin, lda_plus_u )
-!  write(stdout,*) ' nspin = ', nspin
-!  write(stdout,*) ' lda_plus_u = ', lda_plus_u
 
   ! band structure is given in units of tpiba
   if( trim(kpt%param%grid_type) == 'bandstructure' ) then
@@ -382,6 +367,15 @@
       close(iuntmp)
     else
       legacy_zero_lumo = .true.
+    endif
+
+    inquire(file='band_style.inp',exist=ex)
+    if( ex ) then
+      open(unit=iuntmp,file='band_style.inp',form='formatted',status='old')
+      read(iuntmp,*) band_style
+      close(iuntmp)
+    else
+      band_style = 'default'
     endif
       
 
@@ -619,7 +613,15 @@
   lumo = 0.d0
   start_band = 0
 
-  max_val = nelectron / 2 + 10
+  ! Set up different options for valence/conduction split
+  select case (band_style)
+    case( 'metal' )
+      max_val = nelectron / 2 + 10
+    case( 'band' )
+      max_val = nelectron / 2
+    case default
+      max_val = nelectron / 2 + 10
+  end select
   if( have_kshift ) then
     allocate( tmels( max_val, band_subset( 1 ) : band_subset( 2 ), kpt%list%nk ) )
     tmels = 0.0d0
@@ -645,74 +647,290 @@
 
 
 
+  ! ========= pre-fetch all of the energies? =========== !
+  ! Determine number of k-points each processor's pool will do
+  ! Get an array of the ids for each pool head
+  ! Energy_request is sequential for ionode and by kpt/spin for everyone else
+  allocate( energy_request( kpt%list%nk * nspin ), pool_root_map( 0:npool-1 ) )
 
+  pool_root_map(:) = 0
+  if( mypoolid .eq. mypoolroot ) then
+    pool_root_map(mypool) = mpime
+    call MPI_ALLREDUCE( MPI_IN_PLACE, pool_root_map, npool, MPI_INTEGER, MPI_SUM, cross_pool_comm, ierr )
+  endif
+
+  if( have_kshift ) then
+    nband = max_val
+  else
+    nband = band_subset(2) - band_subset(1) + 1
+  endif
+
+  pool_ik = 0
+  i_energy_request = 0
   do ispin=1,nspin
+    do ik=1,kpt%list%nk
+      if( ionode .and. (mod((ik-1)+(ispin-1)*kpt%list%nk,npool) .ne. mypool ) ) then
+        i_energy_request = i_energy_request + 1
+        call MPI_IRECV( e0( 1, ik, ispin, 1 ), nband, MPI_DOUBLE_PRECISION,  &
+                        pool_root_map(mod((ik-1)+(ispin-1)*kpt%list%nk,npool)), ik+(ispin-1)*kpt%list%nk, &
+                        cross_pool_comm, energy_request( i_energy_request ), ierr )
+!        write(stdout,*) pool_root_map(mod((ik-1)+(ispin-1)*kpt%list%nk,npool)), ik+(ispin-1)*kpt%list%nk
+      endif
+      if( mod((ik-1)+(ispin-1)*kpt%list%nk,npool)/=mypool ) cycle
+      pool_ik = pool_ik + 1
+    enddo
+  enddo
+  pool_tot_k = max( pool_ik, 1 )
+  n_energy_request = i_energy_request
 
-  do ik=1,kpt%list%nk
+
+  ! Allocate storage for eigenvectors
+  ! Create descriptors  
+  ! For laziness start by copying *all* of eigvector which is way larger than we need 
+  call local_cyclic_dims( nr_eigvec, nc_eigvec )
+  allocate( store_eigvec( nr_eigvec, nc_eigvec, pool_tot_k ) )
+  
+
+
+
+  pool_ik = 0
+  do ispin=1,nspin
+    do ik=1,kpt%list%nk
 ! ======================================================================
 
-    if( mod(ik-1,npool)/=mypool ) cycle
+      ! (ik-1)+(ispin-1)*kpt%list%nk
+      if( mod((ik-1)+(ispin-1)*kpt%list%nk,npool)/=mypool ) cycle
+
+      pool_ik = pool_ik + 1
+
+  
+      write(stdout,'(a,3f12.5,i6,a,i6,a,i3)') ' k-point ', &
+        kpt%list%kvec(1:3,ik), ik, ' of ', kpt%list%nk, &
+                                    ' on node ', mpime
+
+      ! build the Hamiltonian for this q-point
+      call diag_build_hamk( kpt%list%kvec(1:3,ik), kpt%param%cartesian, ispin )
+
+      if( kinetic_only ) then
+        allocate( ztmp(nbasis,nbasis) )
+        call diag_build_kink( kpt%list%kvec(1:3,ik), kpt%param%cartesian, ztmp )
+        forall( i=1:nbasis ) eigval(i)=ztmp(i,i)
+        deallocate( ztmp )
+      else if( local_only ) then
+        allocate( ztmp(nbasis,nbasis) )
+        call diag_build_vlock( kpt%list%kvec(1:3,ik), kpt%param%cartesian, ispin, ztmp )
+        forall( i=1:nbasis ) eigval(i)=ztmp(i,i)
+        deallocate( ztmp )
+      else if( nonlocal_only ) then
+        allocate( ztmp(nbasis,nbasis) )
+        call diag_build_vnlk( kpt%list%kvec(1:3,ik), kpt%param%cartesian, ispin, ztmp )
+        forall( i=1:nbasis ) eigval(i)=ztmp(i,i)
+        deallocate( ztmp )
+      else if( smatrix_only ) then
+        allocate( ztmp(nbasis,nbasis) )
+        call diag_build_sk( kpt%list%kvec(1:3,ik), kpt%param%cartesian, ztmp )
+        forall( i=1:nbasis ) eigval(i)=ztmp(i,i)
+        deallocate( ztmp )
+      else
+
+  !    call diagx_ham
+        call diag_ham
+
+      endif
+
+
+      write(stdout,*) ik,  eigval(band_subset(1))*rytoev, eigval(band_subset(2))*rytoev
+      e0( :, ik, ispin, 1 ) = 0.5d0 * eigval(band_subset(1):band_subset(2))
+
+
+      ! Send energies to ionode
+      if( .not. ionode .and. mypoolid .eq. 0 ) then
+        if( have_kshift ) then 
+          nband = max_val
+        else
+          nband = band_subset(2) - band_subset(1) + 1
+        endif
+   
+        write(stdout,*) 
+        call MPI_ISEND( e0( :, ik, ispin, 1 ), nband, MPI_DOUBLE_PRECISION, ionode_id, ik+(ispin-1)*kpt%list%nk, &
+                        cross_pool_comm, energy_request( ik+(ispin-1)*kpt%list%nk ), ierr )
+      endif
 
 
 
-    write(stdout,'(a,3f12.5,i6,a,i6,a,i3)') ' k-point ', &
-      kpt%list%kvec(1:3,ik), ik, ' of ', kpt%list%nk, &
-                                  ' on node ', mpime
+      !!!!!!! store away eigenvectors
+      store_eigvec( :, :, pool_ik ) = eigvec( :, : )
 
-    if( mypoolid == mypoolroot ) then
-      call davcio( o2l, nwordo2l, fho2l, ik, -1 )
-    endif
+    enddo ! ik
+  enddo ! ispin
+  ! done with interpolation here
+
+!#ifdef __NIST
+!  call diag_free
+!#endif
+
+
+
+  ! Clean up energy communications and find fermi, lumo, homo 
+
+  ! Find start bands and save out energyfile
+
+  if( ionode ) then
+    write(stdout,*) 'Sharing energies'
+
+    call MPI_WAITALL( n_energy_request, energy_request, MPI_STATUSES_IGNORE, ierr )
+
+    call fix_fermi( nbasis_subset, kpt%list%nk, nspin, nshift, max_val, nelectron, 0, &
+                    e0, homo_point, lumo_point, fermi_energy )
+
+    
     
 
-    ! build the Hamiltonian for this q-point
-    call diag_build_hamk( kpt%list%kvec(1:3,ik), kpt%param%cartesian, ispin )
+  ! all of the energy stuff goes in here
 
-    if( kinetic_only ) then
-      allocate( ztmp(nbasis,nbasis) )
-      call diag_build_kink( kpt%list%kvec(1:3,ik), kpt%param%cartesian, ztmp )
-      forall( i=1:nbasis ) eigval(i)=ztmp(i,i)
-      deallocate( ztmp )
-    else if( local_only ) then
-      allocate( ztmp(nbasis,nbasis) )
-      call diag_build_vlock( kpt%list%kvec(1:3,ik), kpt%param%cartesian, ispin, ztmp )
-      forall( i=1:nbasis ) eigval(i)=ztmp(i,i)
-      deallocate( ztmp )
-    else if( nonlocal_only ) then
-      allocate( ztmp(nbasis,nbasis) )
-      call diag_build_vnlk( kpt%list%kvec(1:3,ik), kpt%param%cartesian, ispin, ztmp )
-      forall( i=1:nbasis ) eigval(i)=ztmp(i,i)
-      deallocate( ztmp )
-    else if( smatrix_only ) then
-      allocate( ztmp(nbasis,nbasis) )
-      call diag_build_sk( kpt%list%kvec(1:3,ik), kpt%param%cartesian, ztmp )
-      forall( i=1:nbasis ) eigval(i)=ztmp(i,i)
-      deallocate( ztmp )
-    else
+  endif
 
-!    call diagx_ham
-      call diag_ham
+  if( mypoolid .eq. 0 ) then
+    if( .not. ionode ) then
+      do ispin=1,nspin
+        do ik=1,kpt%list%nk
+          if( mod((ik-1)+(ispin-1)*kpt%list%nk,npool)/=mypool ) cycle
+!          write(stdout,*)  pool_root_map(mod((ik-1)+(ispin-1)*kpt%list%nk,npool)), ik+(ispin-1)*kpt%list%nk, mpime 
+!          flush(stdout)
+          call MPI_WAIT( energy_request( ik+(ispin-1)*kpt%list%nk ), MPI_STATUS_IGNORE, ierr )
+        enddo
+      enddo
+    endif
+    call MPI_BCAST( fermi_energy, 1, MPI_DOUBLE_PRECISION, ionode_id, cross_pool_comm, ierr )
+  endif
+  call MPI_BCAST( fermi_energy, 1, MPI_DOUBLE_PRECISION, mypoolroot, intra_pool_comm, ierr )
 
+  deallocate( energy_request )
+  write(stdout,*) 'Done sharing energies'
+
+!! Everything needs to be C ordering
+!  ndims = 3
+!  dims = ( npool, nprow, npcol )
+!  array_of_gsizes = (/ kpt%list%nk, nbasis, nbasis /)
+!  array_of_distribs = (/ MPI_DISTRIBUTE_CYCLIC, MPI_DISTRIBUTE_CYCLIC MPI_DISTRIBUTE_CYCLIC /)
+!  array_of_dargs = (/ 1, desc_cyclic[MB_], desc_cyclic[NB_] /)
+!  periods = (/.false.,.false.,.false./)
+!  reorder=.false.
+ ! call MPI_CART_CREATE( mpi_comm_world, ndims, dims, periods, reorder, file_comm, ierr )
+!  CALL MPI_TYPE_CREATE_DARRAY( nproc, mpime, ndims, array_of_gsizes, array_of_distribs, array_of_dargs, &
+!                               dims, MPI_ORDER_C, MPI_DOUBLE_COMPLEX, file_type )
+
+
+  nband = band_subset(2) - band_subset(1) + 1
+  if( mypoolid .eq. mypoolroot ) then
+    allocate( out_eigvec( nbasis, nband, pool_tot_k ) )
+  else
+    allocate( out_eigvec( 1, 1, pool_tot_k ) )
+  endif
+
+  pool_ik = 0
+  do ispin=1,nspin
+    do ik=1,kpt%list%nk
+! ======================================================================
+
+      ! (ik-1)+(ispin-1)*kpt%list%nk
+      if( mod((ik-1)+(ispin-1)*kpt%list%nk,npool)/=mypool ) cycle
+
+      pool_ik = pool_ik + 1
+
+
+      call PZGEMR2D( nbasis, nband, store_eigvec( 1, 1, pool_ik ), 1, 1, desc_cyclic, &
+                                      out_eigvec( 1, 1, pool_ik ), 1, 1, desc_eigvec_single, &
+                     context_cyclic, ierr )
+    enddo
+  enddo
+
+  if( mypoolid .eq. mypoolroot ) then 
+  
+    ndims = 2
+    dims = (/ 1, npool /)
+    array_of_gsizes = (/ nbasis * nband, nspin * kpt%list%nk /)
+    array_of_distribs = (/ MPI_DISTRIBUTE_CYCLIC, MPI_DISTRIBUTE_CYCLIC /)
+    array_of_dargs = (/ nbasis * nband, 1 /)
+    CALL MPI_TYPE_CREATE_DARRAY( npool, mypool, ndims, array_of_gsizes, array_of_distribs, array_of_dargs, &
+                                 dims, MPI_ORDER_FORTRAN, MPI_DOUBLE_COMPLEX, file_type, ierr )
+    CALL MPI_TYPE_COMMIT( file_type, ierr )
+
+    fmode = IOR(MPI_MODE_CREATE,MPI_MODE_WRONLY)
+    call MPI_FILE_OPEN( cross_pool_comm, 'eigvecs.dat', fmode, MPI_INFO_NULL, fheig, ierr )
+    if( ierr/=0 ) then
+      errorcode=ierr
+      call MPI_ERROR_STRING( errorcode, string, resultlen, ierr )
+      call errore(string,errorcode)
+    endif
+    offset=0
+    !JTV At this point it would be good to create a custom MPI_DATATYPE
+    !  so that we can get optimized file writing
+    call MPI_FILE_SET_VIEW( fheig, offset, MPI_DOUBLE_COMPLEX, &
+                            file_type, 'native', MPI_INFO_NULL, ierr )
+    if( ierr/=0 ) then
+      errorcode=ierr
+      call MPI_ERROR_STRING( errorcode, string, resultlen, ierr )
+      call errore(string,errorcode)
+    endif
+
+    call MPI_TYPE_SIZE( file_type, locsize, ierr )
+    nelements = locsize / 16
+!    if( nelements .ne.  nbasis * nband * pool_tot_k ) then
+!    endif
+    call MPI_BARRIER( cross_pool_comm, ierr )
+    call OCEAN_t_reset
+    call MPI_FILE_WRITE_ALL( fheig, out_eigvec, nelements, MPI_DOUBLE_COMPLEX, mpistatus, ierr )
+    call OCEAN_t_printtime( "File out", stdout)
+    write(6,*) nbasis * nband * nspin * kpt%list%nk / 64
+    
+    call MPI_FILE_CLOSE( fheig, ierr )
+
+
+  endif
+
+
+
+! # ifdef FALSE
+
+  if( mypoolid .eq. mypoolroot ) then
+
+    call MPI_FILE_OPEN( cross_pool_comm, 'eigvecs.dat', MPI_MODE_RDONLY, MPI_INFO_NULL, fheig, ierr )
+    if( ierr/=0 ) then
+      errorcode=ierr
+      call MPI_ERROR_STRING( errorcode, string, resultlen, ierr )
+      call errore(string,errorcode)
+    endif
+    offset=0
+    call MPI_FILE_SET_VIEW( fheig, offset, MPI_DOUBLE_COMPLEX, &
+                            MPI_DOUBLE_COMPLEX, 'native', MPI_INFO_NULL, ierr )
+    if( ierr/=0 ) then
+      errorcode=ierr
+      call MPI_ERROR_STRING( errorcode, string, resultlen, ierr )
+      call errore(string,errorcode)
     endif
 
 
+  endif
+  
+  pool_ik = 0
+  do ispin=1,nspin
+    do ik=1,kpt%list%nk
+! ======================================================================
 
-!    write(stdout,*) ik, eigval(band_subset(1):band_subset(2))*rytoev
-    write(stdout,*) ik,  eigval(band_subset(1))*rytoev, eigval(band_subset(2))*rytoev
-    e0( :, ik, ispin, 1 ) = 0.5d0 * eigval(band_subset(1):band_subset(2))
-! Find the start_band
-    do ibd = band_subset(1), band_subset( 2 )
-      if( eigval( ibd ) .gt. fermi_energy ) then
-        if( .not. have_kshift ) then
-          start_band( ik ) = ibd
-          lumo( ik ) = eigval( ibd )
-        endif
-        homo( ik ) = eigval( ibd - 1 )
-        goto 10
+      ! (ik-1)+(ispin-1)*kpt%list%nk
+      if( mod((ik-1)+(ispin-1)*kpt%list%nk,npool)/=mypool ) cycle
+
+      pool_ik = pool_ik + 1
+
+      if( mypoolid .eq. mypoolroot ) then
+        offset =  ((ispin-1)*kpt%list%nk + ik-1) * nband * nbasis
+        call mpi_file_read_at( fheig, offset, out_eigvec( 1, 1, 1 ), &
+                                nband * nbasis, &
+                                MPI_DOUBLE_COMPLEX, status, ierr )
       endif
-    enddo
-10  continue
-!    write(stdout,*) ik, start_band(ik)
-
+      call PZGEMR2D( nbasis, nband, out_eigvec( 1, 1, 1 ), 1, 1, desc_eigvec_single, &
+                     eigvec, 1, 1, desc_cyclic, context_cyclic, ierr )
 
 
 
@@ -956,78 +1174,22 @@
       endif
 
 
-      goto 112
-      ! write eigenvalues
-      offset = ((ispin-1)*kpt%list%nk + ik-1)*nbasis_subset
-      call mpi_file_write_at( fheigval, offset, &
-                              eigval(band_subset(1):band_subset(2)), nbasis_subset, &
-                              MPI_DOUBLE_PRECISION, status, ierr )
 
-      if( eigvec_output ) then
-        ! write eigenvectors
-        offset = ((ispin-1)*kpt%list%nk + ik-1)*(nbasis*nbasis)*2
-        call mpi_file_write_at( fheigvec, offset, &
-                                eigvec, (nbasis*nbasis)*2, &
-                                MPI_DOUBLE_PRECISION, status, ierr )
-      endif
-
-!      fhenk=freeunit()
-!      write(filnam, '(a8,i4.4)' ) 'enkfile.', ik
-!      open(unit=fhenk,file=filnam,form='formatted',status='unknown')
-!      rewind(fhenk)
-!      write(fhenk,*) eigval(band_subset(1):4) 
-!      write(fhenk,*) eigval(5:band_subset(2))
-!!      write(fhenk,*) eigval(band_subset(1):band_subset(2))
-!      close(fhenk)
-
-!    endif
-
-  ! JTV
-  ! purposely not-parallel
-  ! sill waste of time with real/imag
-      goto 112
-      write(filnam, '(a8,i4.4)' ) 'Psihead.', ik
-      fhpsi=freeunit()
-      open(unit=fhpsi, file=filnam, form='formatted', status='unknown' )
-      rewind(fhpsi)
-      write(fhpsi,*) npwx
-      write(fhpsi,*) nbasis, band_subset(1), band_subset(2)
-      close(fhpsi)
-
-      write(filnam, '(a8,i4.4)' ) '.Psi001.', ik
-      fhpsi=freeunit()
-      open(unit=fhpsi, file=filnam, form='unformatted', status='unknown' )
-      rewind(fhpsi)
-      write(fhpsi) npwx
-      allocate( gflip( npwx, 3 ) )
-      do ig = 1, npwx
-        gflip( ig, : ) = mill( :, ig )
-      enddo
-      write(fhpsi) gflip
-      allocate( kr( npwx, band_subset(1):band_subset(2)  ) )
-      kr = 0.d0
-      kr( :, : ) = real( matmul( evc, eigvec( 1 : nbasis, band_subset(1):band_subset(2) ) ) )
-      write( fhpsi ) kr
-      kr = 0.d0
-      kr( :, : ) = aimag( matmul( evc, eigvec( 1 : nbasis, band_subset(1):band_subset(2) ) ) )
-      write( fhpsi ) kr
-      close( fhpsi )
-
-  !    write(filnam, '(a4,i5.5)' ) 'gvec', ik
-  !    iuninf=freeunit()
-  !    open(unit=iuninf, file=filnam, form='formatted', status='unknown' )
-  !    write(iuninf, *) npwx
-  !    write(iuninf, * ) gflip
-  !    close( iuninf )
-      deallocate( kr )
-      deallocate( gflip )
- 112  continue
     endif
       
 
   enddo ! ik
 
   enddo ! ispin
+
+  if( mypoolid .eq. mypoolroot ) then
+    
+    call MPI_FILE_CLOSE( fheig, ierr )
+  endif
+
+#ifdef FALSE
+
+
 
   deallocate( u1, o2l )
 
@@ -1040,29 +1202,48 @@
 
     call mp_sum( e0, cross_pool_comm )
 
-    ! Sort energies to determine true Fermi, homo, lumo
-!    fermi_energy = fermi_energy / 2.0_DP
-    call fix_fermi( nbasis_subset, kpt%list%nk, nspin, nshift, max_val, nelectron, 0, &
-                    e0, homo_point, lumo_point, fermi_energy )
-
     ibeg_unit = freeunit()
     open(unit=ibeg_unit,file='ibeg.h',form='formatted',status='unknown')
     rewind(ibeg_unit)
-    
-    do ispin = 1, nspin
-      do ik = 1, kpt%list%nk
-        do ibd = band_subset(1), band_subset( 2 )
-        if( 2.0_DP * e0( ibd, ik, ispin, nshift ) .gt. fermi_energy ) then
-          start_band( ik ) = ibd
-          lumo( ik ) = 2.0_DP * e0( ibd, ik, ispin, nshift )
-          goto 21
-        endif
-        enddo
-21    continue
-        write(ibeg_unit,*) ik, start_band( ik )
-      enddo
-    enddo
 
+!    select case (band_style)
+!    if( band_style .eq. 'band' ) then
+!      case( 'band' )
+!        start_band(:) = nelectron / 2 + 1
+        do ispin = 1, nspin
+          do ik = 1, kpt%list%nk
+            start_band( ik ) = nelectron / 2 + 1
+            write(ibeg_unit,*) ik, start_band( ik )
+          enddo
+        enddo
+
+!      case default
+    else
+    
+    ! Sort energies to determine true Fermi, homo, lumo
+!    fermi_energy = fermi_energy / 2.0_DP
+
+
+
+!    call fix_fermi( nbasis_subset, kpt%list%nk, nspin, nshift, max_val, nelectron, 0, &
+!                    e0, homo_point, lumo_point, fermi_energy )
+!    
+!    do ispin = 1, nspin
+!      do ik = 1, kpt%list%nk
+!        do ibd = band_subset(1), band_subset( 2 )
+!        if( 2.0_DP * e0( ibd, ik, ispin, nshift ) .gt. fermi_energy ) then
+!          start_band( ik ) = ibd
+!          lumo( ik ) = 2.0_DP * e0( ibd, ik, ispin, nshift )
+!          goto 21
+!        endif
+!        enddo
+!21    continue
+!        write(ibeg_unit,*) ik, start_band( ik ), -1
+!      enddo
+!    enddo
+!
+!    endif
+!    end select
     close(ibeg_unit)
     !
 
@@ -1076,10 +1257,11 @@
 
   allocate(stop_band(kpt%list%nk))
 !  goto 13
-  if( dft_energy_range .le. 0 ) then
+  if( dft_energy_range .le. 0.0 ) then
     nbuse = band_subset( 2 )
     do ik = 1,kpt%list%nk
       nbuse = min( nbuse, band_subset( 2 ) - start_band( ik ) + 1 )
+      write(6,*) ik, nbuse
     enddo
   else
     nbuse = 0
@@ -1412,6 +1594,8 @@
     write(iuntmp,*) max_val
     write(iuntmp,*) nbasis_subset
   endif
+
+#endif
 
   if( mypoolid==mypoolroot ) then
     call MPI_FILE_CLOSE( fhu2, ierr )

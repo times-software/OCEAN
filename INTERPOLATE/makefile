@@ -65,9 +65,9 @@ $(ESPRESSO_DIR)/SHIRLEY/pwmat_module.o \
 $(ESPRESSO_DIR)/SHIRLEY/scalapack_module.o \
 $(ESPRESSO_DIR)/SHIRLEY/shirley_constants.o \
 $(ESPRESSO_DIR)/SHIRLEY/shirley_input.o \
-$(ESPRESSO_DIR)/SHIRLEY/start_shirley.o
+$(ESPRESSO_DIR)/SHIRLEY/start_shirley.o 
 
-OCEAN_QDIAGP = OCEAN_qdiagp.o $(NEWDIAGOBJ) fix_fermi.o
+OCEAN_QDIAGP = OCEAN_qdiagp.o $(NEWDIAGOBJ) fix_fermi.o OCEAN_timer.o
 
 
 SHIRLEY_HAM_O = \
