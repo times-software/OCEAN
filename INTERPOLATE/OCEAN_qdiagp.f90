@@ -69,7 +69,7 @@
   real(dp) :: qpathlen, cqvec(3), dqvec(3)
   character(255) :: ic
   character(6), allocatable :: fntau(:)
-  character (len=7) :: band_style = 'default'
+  character (len=5) :: band_style = 'defau'
 
   integer :: ik
   integer :: i,j,k, ig
@@ -91,7 +91,7 @@
   complex(dp),allocatable :: u1(:,:), u2(:,:,:,:), tmp_eigvec(:,:), tmels(:,:,: ), u1_single(:,:)
   complex(dp) :: x, w
 
-  integer,allocatable :: start_band(:),stop_band(:)
+  integer,allocatable :: start_band(:),stop_band(:), new_start_band(:,:,:)
   real(dp),allocatable :: lumo(:), homo(:)
   integer :: nbuse, brange( 4 ), nelectron, nbuse_xes, max_val, ishift
   real(dp) :: lumo_point, homo_point,dft_energy_range, cs, vs, newgap, sef, egw, elda, eshift, kshift( 3 ), kplusq(3), lumo_shift
@@ -109,7 +109,7 @@
   integer :: nprow, npcol, myrow, mycol
 
 
-  integer :: nr_eigvec, nc_eigvec, pool_tot_k, pool_ik
+  integer :: nr_eigvec, nc_eigvec, pool_tot_k, pool_ik, eigvec_info
 
   integer :: block_start, block_stop, block_width, block, niter, iter
   integer(8) :: long_nbasis, long_nx
@@ -375,7 +375,7 @@
       read(iuntmp,*) band_style
       close(iuntmp)
     else
-      band_style = 'default'
+      band_style = 'defau'
     endif
       
 
@@ -617,7 +617,7 @@
   select case (band_style)
     case( 'metal' )
       max_val = nelectron / 2 + 10
-    case( 'band' )
+    case( 'bands' )
       max_val = nelectron / 2
     case default
       max_val = nelectron / 2 + 10
@@ -659,11 +659,11 @@
     call MPI_ALLREDUCE( MPI_IN_PLACE, pool_root_map, npool, MPI_INTEGER, MPI_SUM, cross_pool_comm, ierr )
   endif
 
-  if( have_kshift ) then
-    nband = max_val
-  else
+!  if( have_kshift ) then
+!    nband = max_val
+!  else
     nband = band_subset(2) - band_subset(1) + 1
-  endif
+!  endif
 
   pool_ik = 0
   i_energy_request = 0
@@ -674,7 +674,7 @@
         call MPI_IRECV( e0( 1, ik, ispin, 1 ), nband, MPI_DOUBLE_PRECISION,  &
                         pool_root_map(mod((ik-1)+(ispin-1)*kpt%list%nk,npool)), ik+(ispin-1)*kpt%list%nk, &
                         cross_pool_comm, energy_request( i_energy_request ), ierr )
-!        write(stdout,*) pool_root_map(mod((ik-1)+(ispin-1)*kpt%list%nk,npool)), ik+(ispin-1)*kpt%list%nk
+        write(stdout,*) pool_root_map(mod((ik-1)+(ispin-1)*kpt%list%nk,npool)), ik+(ispin-1)*kpt%list%nk
       endif
       if( mod((ik-1)+(ispin-1)*kpt%list%nk,npool)/=mypool ) cycle
       pool_ik = pool_ik + 1
@@ -780,13 +780,26 @@
 
     call MPI_WAITALL( n_energy_request, energy_request, MPI_STATUSES_IGNORE, ierr )
 
-    call fix_fermi( nbasis_subset, kpt%list%nk, nspin, nshift, max_val, nelectron, 0, &
+    call fix_fermi( nband, kpt%list%nk, nspin, nshift, max_val, nelectron, 0, &
                     e0, homo_point, lumo_point, fermi_energy )
 
     
-    
+    allocate( new_start_band( kpt%list%nk, nspin, nshift ) )
+    call find_startband( nband, kpt%list%nk, nspin, nshift, nelectron, fermi_energy, &
+                         band_style, e0, new_start_band )
 
-  ! all of the energy stuff goes in here
+
+    if( legacy_zero_lumo ) then
+      lumo_shift = lumo_point * 0.5_DP
+    else
+      lumo_shift = 0.0_DP
+    endif
+
+    
+    call dump_energies( band_subset, nband, kpt%list%nk, nspin, nshift, e0, lumo_shift, new_start_band, ierr )
+
+    write(stdout,*) 'Sharing energies'
+
 
   endif
 
@@ -856,8 +869,39 @@
                                  dims, MPI_ORDER_FORTRAN, MPI_DOUBLE_COMPLEX, file_type, ierr )
     CALL MPI_TYPE_COMMIT( file_type, ierr )
 
+    ! clear out existing
+!    fmode = IOR(MPI_MODE_CREATE,MPI_MODE_DELETE_ON_CLOSE)
+!    fmode = MPI_MODE_CREATE
+!    call MPI_FILE_OPEN( cross_pool_comm, 'eigvecs.dat', fmode, MPI_INFO_NULL, fheig, ierr )
+!    if( ierr/=0 ) then
+!      errorcode=ierr
+!      call MPI_ERROR_STRING( errorcode, string, resultlen, ierr )
+!      write(6,*) string
+!      call errore(string,errorcode)
+!    endif
+!    call MPI_FILE_CLOSE( fheig, ierr )
+    if( ionode .and. .false. ) then
+      inquire(file='eigvec.dat',exist=ex)
+      if( ex ) then
+        fheigval=freeunit()
+        open(fheigval,file='eigvec.dat',form='unformatted')
+        close(fheigval,status='delete')
+      endif
+    endif
+    call MPI_BARRIER( cross_pool_comm, ierr )
+
+
+
     fmode = IOR(MPI_MODE_CREATE,MPI_MODE_WRONLY)
-    call MPI_FILE_OPEN( cross_pool_comm, 'eigvecs.dat', fmode, MPI_INFO_NULL, fheig, ierr )
+    fmode = IOR(fmode, MPI_MODE_UNIQUE_OPEN)
+
+    call MPI_INFO_CREATE( eigvec_info, ierr )
+!    call MPI_INFO_SET( eigvec_info, 'key', 'value', ierr )
+    call MPI_INFO_SET( eigvec_info, 'access_style', 'write_once', ierr )
+!    call MPI_INFO_SET( eigvec_info, 'cb_nodes', '4', ierr )
+!    call MPI_INFO_SET( eigvec_info, 'striping_factor', '4', ierr )
+
+    call MPI_FILE_OPEN( cross_pool_comm, 'eigvecs.dat', fmode, eigvec_info, fheig, ierr )
     if( ierr/=0 ) then
       errorcode=ierr
       call MPI_ERROR_STRING( errorcode, string, resultlen, ierr )
