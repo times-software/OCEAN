@@ -53,7 +53,7 @@ subroutine dump_energies( band_subset, nbands, nkpts, nspin, nshift, e0, lumo_sh
   close(fh)
 
 
-  nbuse = brange( 2 ) - brange( 1 )
+  nbuse = brange( 2 ) - brange( 1 ) + 1
   open(unit=fh,file='nbuse_xes.ipt',form='formatted',status='unknown')
   write(fh,*) nbuse
   close(fh) 
