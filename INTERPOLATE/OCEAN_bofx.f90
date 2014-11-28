@@ -19,10 +19,12 @@ subroutine OCEAN_bofx( )
   USE wvfct
   USE io_files, ONLY: prefix, nwordwfc, iunwfc
   USE wavefunctions_module, ONLY: evc
-  USE mp, ONLY : mp_sum, mp_bcast
-  USE mp_global, ONLY : me_pool, nproc_pool, intra_pool_comm, root_pool
+  USE mp, ONLY : mp_sum, mp_bcast,  mp_max, mp_min
+  USE mp_global, ONLY : me_pool, nproc_pool, root_pool, mpime
   use hamq_shirley
   use shirley_ham_input, only : debug, band_subset
+  use hamq_pool, only : mypool, mypoolid, mypoolroot, cross_pool_comm, intra_pool_comm
+  use mpi
 
   implicit none
 
@@ -32,6 +34,8 @@ subroutine OCEAN_bofx( )
   complex(dp),parameter :: iota=cmplx(0.d0,1.d0)
   complex(dp),parameter :: one =cmplx(1.d0,0.d0)
 
+  character(255) :: string
+  logical :: loud
 
   integer :: ibnd  
   integer,allocatable :: ibnd_indx(:)
@@ -45,6 +49,16 @@ subroutine OCEAN_bofx( )
   character(len=3) :: dum_c
 
   integer :: iuntmp, iunout
+
+  integer :: min_mill(3), uni_min_mill(3), max_mill(3), uni_max_mill(3), igl, igh
+
+  integer :: nshift, nspin, nkpt, ishift, ispin, ikpt
+  integer :: nbasis_, nband, ierr, errorcode, fmode, resultlen
+
+  complex(dp), allocatable :: eigvec(:,:), unk(:,:)
+
+  integer :: fheig, fhu2
+  integer(kind=MPI_OFFSET_KIND) :: offset
 
   integer,external :: freeunit
 
@@ -149,24 +163,135 @@ subroutine OCEAN_bofx( )
       invert_xmesh = .true.
     endif
 
-    iunout = freeunit()
-    open(iunout,file='u1.dat', form='unformatted', status='unknown' )
-    rewind iunout
+    open(iuntmp,file='qdiag.info',form='formatted',status='old')
+    read(iuntmp,*),  nbasis_, nband, nkpt, nspin, nshift
+
   endif
   call mp_bcast( xmesh, ionode_id )
   call mp_bcast( invert_xmesh, ionode_id )
+  call mp_bcast( nbasis_, ionode_id )
+  call mp_bcast( nband,  ionode_id )
+  call mp_bcast( nkpt,   ionode_id )
+  call mp_bcast( nspin,  ionode_id )
+  call mp_bcast( nshift, ionode_id )
 
   write(stdout,*) nbnd, band_subset(1), band_subset(2)
-  allocate( sub_mill( 3, npw ) )
-  sub_mill = 0
-  do ig = 1, npw
-    sub_mill( :, ig ) = matmul( g( :, igk( ig ) ), bg( :, : ) )
+!  allocate( sub_mill( 3, npw ) )
+!  sub_mill = 0
+!  do ig = 1, npw
+!    sub_mill( :, ig ) = matmul( g( :, igk( ig ) ), bg( :, : ) )
+!  enddo
+
+
+  !!!!!!!!!
+  ! Find maximum extent of mill
+  do i = 1, 3
+    igl = mill( i, 1 )
+    igh = mill( i, 1 )
+    do ig = 2, npw
+      igl = min( igl, mill( i, ig ) )
+      igh = max( igh, mill( i, ig ) )
+    end do
+
+    min_mill( i ) = igl !minval( mill( i, : ) )
+    max_mill( i ) = igh !maxval( mill( i, : ) )
+
+    uni_min_mill(i) = min_mill(i)
+    uni_max_mill(i) = max_mill(i)
+
+    call mp_min( uni_min_mill(i) )
+    call mp_max( uni_max_mill(i) )
+
   enddo
 
-  call gentoreal( xmesh, nbnd, evc, npw, mill, iunout, invert_xmesh )
+  write(stdout,*) 'loc min:', min_mill(:)
+  write(stdout,*) 'loc max:', max_mill(:)
 
-  if( ionode ) close( iunout )
-  deallocate( sub_mill )
+  write(stdout,*) 'uni min:', uni_min_mill(:)
+  write(stdout,*) 'uni max:', uni_max_mill(:)
+
+  do i = 0, nproc_pool-1
+    if( i .eq. mpime ) then
+      write(1000+mpime,*) mpime, npw
+    endif
+  enddo
+
+
+  !!!!!!!!!  Eigvecs !!!!!!!!!!!
+  CALL MPI_FILE_OPEN( intra_pool_comm, 'eigvecs.dat', MPI_MODE_RDONLY, MPI_INFO_NULL, fheig, ierr )
+  if( ierr/=0 ) then
+    errorcode=ierr
+    call MPI_ERROR_STRING( errorcode, string, resultlen, ierr )
+    call errore(string,errorcode)
+  endif
+  offset=0
+
+  call MPI_FILE_SET_VIEW( fheig, offset, MPI_DOUBLE_COMPLEX, MPI_DOUBLE_COMPLEX, 'native', & 
+                          MPI_INFO_NULL, ierr )
+  if( ierr/=0 ) then
+    errorcode=ierr
+    call MPI_ERROR_STRING( errorcode, string, resultlen, ierr ) 
+    call errore(string,errorcode)
+  endif
+  !!!!!!!!!  Eigvecs !!!!!!!!!!!
+
+
+  !!!!!!!!!  u2par.dat !!!!!!!!!
+  if( mypoolid .eq. mypoolroot ) then
+    fmode = IOR(MPI_MODE_CREATE,MPI_MODE_WRONLY)
+    call MPI_FILE_OPEN( cross_pool_comm, 'u2par.dat', fmode, MPI_INFO_NULL, fhu2, ierr )
+    if( ierr/=0 ) then
+      errorcode=ierr
+      call MPI_ERROR_STRING( errorcode, string, resultlen, ierr )
+      call errore(string,errorcode)
+    endif
+    offset=0
+    call MPI_FILE_SET_VIEW( fhu2, offset, MPI_DOUBLE_COMPLEX, &
+                          MPI_DOUBLE_COMPLEX, 'native', MPI_INFO_NULL, ierr )
+    if( ierr/=0 ) then
+      errorcode=ierr
+      call MPI_ERROR_STRING( errorcode, string, resultlen, ierr )
+      call errore(string,errorcode)
+    endif
+  else
+  endif
+
+
+  allocate( eigvec( nbasis_, nband ), unk( npw, nband ) )
+
+  loud = .true.
+  do ispin = 1 , nspin
+    do ikpt = 1, nkpt
+
+      offset = ( ispin - 1 ) * nkpt + (ikpt - 1 )
+      offset = offset * nbasis_
+      offset = offset * nband
+      call MPI_FILE_READ_AT_ALL( fheig, offset, eigvec, nband*nbasis_, MPI_DOUBLE_COMPLEX, &
+                                 MPI_STATUS_IGNORE, ierr )
+      
+
+      call ZGEMM( 'N', 'N', npw, nband, nbasis_, one, evc, npw, eigvec, nbasis_, zero, &
+                   unk, npw )
+
+
+      offset = ( ispin - 1 ) * nkpt + (ikpt - 1 )
+      offset = offset * product( xmesh )
+      offset = offset * nband
+      call gentoreal( xmesh, nband, unk, npw, mill, fhu2, offset, invert_xmesh, loud )  
+      loud = .false.
+      write(stdout,*) ikpt, offset
+  
+
+    enddo
+  enddo
+
+
+  call MPI_FILE_CLOSE( fheig, ierr )
+  if(  mypoolid .eq. mypoolroot ) then
+    call MPI_FILE_CLOSE( fhu2, ierr )
+  endif
+
+  deallocate( eigvec, unk )
 
 
   return
@@ -174,7 +299,7 @@ subroutine OCEAN_bofx( )
   contains
 
 
-  subroutine gentoreal( nx, nfcn, fcn, ng, gvec, iu, invert_xmesh )
+  subroutine gentoreal( nx, nfcn, fcn, ng, gvec, iu, offset, invert_xmesh, loud )
     use kinds, only : dp
     USE io_global,  ONLY : stdout, ionode
     USE mp, ONLY : mp_sum, mp_max, mp_min
@@ -184,18 +309,22 @@ subroutine OCEAN_bofx( )
     integer, intent( in ) :: gvec( 3, ng )
     complex(dp), intent( in ) :: fcn( ng, nfcn )
     logical, intent( in ) :: invert_xmesh
-    logical, parameter :: loud = .true.
+    integer(kind=MPI_OFFSET_KIND), intent(inout) :: offset
+    logical, intent( in ) :: loud
+!    logical, parameter :: loud = .true.
     !
     integer :: ix, iy, iz, i1, i2, i3, nfft( 3 ), idwrk, igl, igh, nmin, ii
     integer :: fac( 3 ), j, ig, i, locap( 3 ), hicap( 3 ), toreal, torecp, nftot
     real(dp) :: normreal, normrecp
-    complex(dp) :: rm1
+    complex(dp) :: rm1, w
     character * 80 :: fstr
     !
     integer, parameter :: nfac = 3
     integer, allocatable :: ilist( :, : )
     real(dp), allocatable :: zr( :, :, : ), zi( :, :, : ), wrk( : )
-    complex(dp), allocatable :: cres( :, :, : )
+    complex(dp), allocatable :: cres( :, :, :, : )
+    real(dp), external :: DZNRM2
+    complex(dp), external :: ZDOTC
     integer, external :: optim
     !
     rm1 = -1
@@ -234,9 +363,9 @@ subroutine OCEAN_bofx( )
     !
     if( invert_xmesh ) then
       ! the indices only of the output are reversed here.
-      allocate( cres( nx( 3 ), nx( 2 ), nx( 1 ) ) )
+      allocate( cres( nx( 3 ), nx( 2 ), nx( 1 ), nfcn ) )
     else
-      allocate( cres( nx( 1 ), nx( 2 ), nx( 3 ) ) )
+      allocate( cres( nx( 1 ), nx( 2 ), nx( 3 ), nfcn ) )
     endif
     call chkfftreal( toreal, normreal, loud )
     call chkfftrecp( torecp, normrecp, loud )
@@ -262,7 +391,7 @@ subroutine OCEAN_bofx( )
 !       call mp_root_sum( zi, zi, ionode_id, intra_pool_comm )
        call mp_sum( zr, intra_pool_comm )
        call mp_sum( zi, intra_pool_comm )
-       if( ionode ) then
+       if( mypoolid .eq. mypoolroot ) then
          call cfft( zr, zi, nfft( 1 ), nfft( 1 ), nfft( 2 ), nfft( 3 ), toreal, wrk, idwrk )
          zr = zr / dble( nftot ) ** normreal
          zi = zi / dble( nftot ) ** normreal
@@ -281,16 +410,40 @@ subroutine OCEAN_bofx( )
                                             'value = ', zr( i1, i2, i3 ), zi( i1, i2, i3 )
                   end if
                   if( invert_xmesh ) then
-                    cres( iz, iy, ix ) = zr( i1, i2, i3 ) + rm1 * zi( i1, i2, i3 )
+                    cres( iz, iy, ix, i ) = zr( i1, i2, i3 ) + rm1 * zi( i1, i2, i3 )
                   else
-                    cres( ix, iy, iz ) = zr( i1, i2, i3 ) + rm1 * zi( i1, i2, i3 )
+                    cres( ix, iy, iz, i ) = zr( i1, i2, i3 ) + rm1 * zi( i1, i2, i3 )
                   endif
                end do
             end do
          end do 
-         write ( iu ) cres
+!         write ( iu ) cres
+!         if( mypoolid .eq. mypoolroot ) then
+!           call MPI_FILE_WRITE_AT( iu, offset, cres, product(nx), MPI_DOUBLE_COMPLEX, MPI_STATUS_IGNORE, ierr )
+!           offset = offset + product(nx)
+!         endif
        endif
     end do
+
+    if( mypoolid == mypoolroot ) then
+      do i = 1, nfcn
+        normreal =  DZNRM2( product(nx), cres( 1, 1, 1,i ), 1 )
+        normreal = 1.0_dp / normreal
+        call ZDSCAL( product(nx), normreal, cres( 1, 1, 1, i ), 1 )
+
+        do j = 1, i-1
+           w = -ZDOTC( product(nx), cres( 1, 1, 1, i ), 1, cres( 1, 1, 1, j ), 1 )
+           CALL ZAXPY( product(nx), w, cres(1, 1, 1, j ), 1, cres( 1, 1, 1, i ), 1 )
+        enddo
+        normreal =  DZNRM2( product(nx), cres( 1, 1, 1, 1 ), 1 )
+        normreal = 1.0_dp / normreal
+        call ZDSCAL( product(nx), normreal, cres( 1, 1, 1, i ), 1 )
+      enddo
+
+      call MPI_FILE_WRITE_AT( iu, offset, cres, product(nx)*nfcn, MPI_DOUBLE_COMPLEX, MPI_STATUS_IGNORE, ierr )
+    endif
+
+
     deallocate( zr, zi, wrk, cres, ilist )
     !
     return

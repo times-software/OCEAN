@@ -438,13 +438,13 @@
     
     allocate( u1_single( nxpts, nbasis ) )
     iuntmp = freeunit()
-    open(unit=iuntmp,file='u1.dat',form='unformatted', status='old')
-    rewind(iuntmp)
-    do i = 1, nbasis
-      read(iuntmp) u1_single( :, i )
-    enddo
-    close(iuntmp)
-!    u1( :, : ) = conjg( u1( :,: ) )
+!    open(unit=iuntmp,file='u1.dat',form='unformatted', status='old')
+!    rewind(iuntmp)
+!    do i = 1, nbasis
+!      read(iuntmp) u1_single( :, i )
+!    enddo
+!    close(iuntmp)
+!!    u1( :, : ) = conjg( u1( :,: ) )
 
 
     open(unit=iuntmp,file='nelectron',form='formatted',status='old')
@@ -473,6 +473,7 @@
   call mp_barrier
   write(stdout,*) ' shared o2l array'
   
+
 !test
   nwordo2l = 2 * nbasis * nptot * ntau
   if( mypoolid == mypoolroot ) then
@@ -501,6 +502,7 @@
   call descinit( desc_o2l, nbasis, nptot, nbasis, nptot, 0, 0, context_cyclic, nbasis, ierr )
 
   call mp_bcast(nxpts, ionode_id )
+
   if( mypoolid .eq. mypoolroot ) then
     if( .not. ionode ) allocate( u1_single( nxpts, nbasis ) )
     call mp_bcast( u1_single, ionode_id, cross_pool_comm )
@@ -933,9 +935,16 @@
 
   endif
 
+  if( ionode ) then
+    iuntmp = freeunit()
+    open(iuntmp,file='qdiag.info',form='formatted',status='unknown')
+    write(iuntmp,*) nbasis, nband, kpt%list%nk, nspin, nshift
+    close(iuntmp)
+  endif
 
 
-! # ifdef FALSE
+
+# ifdef FALSE
 
   if( mypoolid .eq. mypoolroot ) then
 
@@ -1231,7 +1240,7 @@
     call MPI_FILE_CLOSE( fheig, ierr )
   endif
 
-#ifdef FALSE
+!# ifdef FALSE
 
 
 
