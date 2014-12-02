@@ -12,15 +12,18 @@
   use mp, only : mp_sum, mp_bcast, mp_barrier
   use mp_global, only : intra_pool_comm
   use shirley_ham_input, only : band_subset
+  use mpi, only : MPI_OFFSET_KIND, MPI_DOUBLE_COMPLEX, MPI_INFO_NULL, MPI_STATUS_IGNORE, MPI_MODE_RDONLY
 
   use OCEAN_timer
 
   implicit none
 
   integer,external :: freeunit
-  complex(dp), parameter :: zero = ( 0.d0, 0.d0 )
+  complex(dp), parameter :: zero = ( 0.0_dp, 0.0_dp )
+  complex(dp), parameter :: one =   ( 1.0_dp, 0.0_dp )
 
   integer :: i, j, itau, ik1, ik2, ik3, l, ibnd, ip, m, iproj, ilm, k, ii, jj, kk
+  integer :: nspin, ispin, nkpt
   integer :: iuntmp, nwordo2l, iunout, iuntxt
   character(len=6) :: nd_nmbr_tmp
   logical :: exst, have_kshift
@@ -28,14 +31,21 @@
   real(dp) :: qbase( 3 ), dqproj, bvec( 3, 3 ), bmet( 3, 3 ), qraw( 3 ), prefs(0 : 1000 ), avec( 3, 3 ), kshift( 3 )
 
   integer :: atno, nc, lc, ntau, lmin, lmax, npmax, nqproj, nptot, zn( 3 ), indx, nprj, numlm, ig
-  integer :: nshift, ishift
+  integer :: nshift, ishift, dumint, ikpt, errorcode, ierr, nbuse, nbuse_xes
   real(dp), allocatable :: tau( :, : ), fttab( :, :, : ), myg( :, : )
-  integer, allocatable :: nproj( : ), lml( : ), lmm( : ), ibnd_indx( : ), sub_mill( :, : )
+  integer, allocatable :: nproj( : ), lml( : ), lmm( : ), ibnd_indx( : ), sub_mill( :, : ), ibeg( :, : )
   complex(dp), allocatable :: o2l( :, :, : ), coeff( :, :, :, :, : )
+
+  complex(dp), allocatable :: eigvec(:,:), unk(:,:), val_coeff(:,:,:,:,:), con_coeff(:,:,:,:,:)
+  integer :: fheig, nband_, nbasis_, resultlen
+  integer(kind=MPI_OFFSET_KIND) :: offset
 
   character(25) :: element, fnroot, add04, add10
   character(6), allocatable :: fntau( : )
+  character(len=255) :: string, filout
 
+!  complex(dp) :: w
+!  complex(dp), external :: ZDOTC
 
   call OCEAN_t_reset
 
@@ -193,11 +203,44 @@
     numlm = nint( ( 1 + lmin + lmax ) * dble( 1 + lmax - lmin ) )
     allocate( lml( numlm ), lmm( numlm ) )
     call setlm( numlm, lml, lmm, lmin, lmax, nproj, nptot )
+
+
+    open(iuntmp,file='qdiag.info',form='formatted',status='old')
+    read(iuntmp,*),  nbasis_, nband_, nkpt, nspin, nshift
+    close(iuntmp)
+
+    open(unit=iuntmp,file='ibeg.h',form='formatted',status='old')
+    allocate( ibeg(nkpt,nspin) )
+    do ispin = 1, nspin
+      do ikpt = 1, nkpt
+        read(iuntmp,*) dumint, ibeg(ikpt,ispin)
+      enddo
+    enddo
+    close(iuntmp)
+
+
+    open(unit=iuntmp,file='nbuse.ipt',form='formatted',status='old')
+    read(iuntmp,*) nbuse
+    close(iuntmp)
+
+    open(unit=iuntmp,file='nbuse_xes.ipt',form='formatted',status='old')
+    read(iuntmp,*) nbuse_xes
+    close(iuntmp)
+
   endif
 
   write(stdout,*) ' Read in little data files'
   call mp_barrier
   write(stdout,*) ' Preparing to share little data files'
+
+  call mp_bcast( nbasis_, ionode_id )
+  call mp_bcast( nband_,  ionode_id )
+  call mp_bcast( nkpt,   ionode_id )
+  call mp_bcast( nspin,  ionode_id )
+  call mp_bcast( nshift, ionode_id )
+  call mp_bcast( nbuse, ionode_id )
+  call mp_bcast( nbuse_xes, ionode_id )
+
 
 !  mp_bcast( nspn, ionode_id )
   call mp_bcast( qbase, ionode_id )
@@ -218,12 +261,16 @@
     allocate( nproj( lmin : lmax ) )
     allocate( fttab( nqproj, npmax, lmin : lmax ) )
     allocate( lml( numlm ), lmm( numlm ) )
+    allocate( ibeg( nkpt, nspin ) )
   endif
   call mp_bcast( tau, ionode_id )
   call mp_bcast( nproj, ionode_id )
   call mp_bcast( fttab, ionode_id )
   call mp_bcast( lml, ionode_id )
   call mp_bcast( lmm, ionode_id )
+  call mp_bcast( ibeg, ionode_id )
+
+
   call mp_barrier
   write(stdout,*) ' Done sharing little data files'
   call mp_bcast( bvec, ionode_id )
@@ -232,7 +279,7 @@
   ! ======================================================================
   ! Now we are ready to allocate the output and prep the output file
   ! ======================================================================
-  if( ionode ) then
+  if( ionode .and. .false.) then
     nwordo2l = 2 * nbnd * nptot * ntau
     iunout = freeunit()
     open( unit=iunout, form='formatted')
@@ -250,7 +297,8 @@
     write(stdout,*) ' will be saved to file: ', trim(tmp_dir)//trim(prefix)//'.o2l'
   endif
 
-  allocate( o2l( nbnd, nptot, ntau ) )
+!  allocate( o2l( nbnd, nptot, ntau ) )
+  allocate( o2l( nband_, nptot, ntau ) )
 
 
 ! ! for simplicity right now 
@@ -261,13 +309,13 @@
     myg( :, ig ) = tpiba * g( :, igk( ig ) )
     sub_mill( :, ig ) = matmul( g( :, igk( ig ) ), bg( :, : ) )
   enddo
-  if( ionode ) then
-    open(unit=99,form='formatted')
-      do ig = 1, npw
-        write( 99,*) sub_mill( :, : ) 
-      enddo
-    close( 99 )
-  endif
+!  if( ionode ) then
+!    open(unit=99,form='formatted')
+!      do ig = 1, npw
+!        write( 99,*) sub_mill( :, : ) 
+!      enddo
+!    close( 99 )
+!  endif
 
 
 !JTV not sure about these guys
@@ -278,28 +326,78 @@
     end do
   end do
 
+
   call OCEAN_t_printtime( "Stupid prep", stdout )
 
-  nshift = 1
-  if( have_kshift ) nshift = 2
-  allocate( coeff( -lmax : lmax, 1 : nbnd, npmax, lmin : lmax, ntau ) )
+
+  call OCEAN_t_reset
+  
+  !!!!!!!!!  Eigvecs !!!!!!!!!!!
+  CALL MPI_FILE_OPEN( intra_pool_comm, 'eigvecs.dat', MPI_MODE_RDONLY, MPI_INFO_NULL, fheig, ierr )
+  if( ierr/=0 ) then
+    errorcode=ierr
+    call MPI_ERROR_STRING( errorcode, string, resultlen, ierr )
+    call errore(string,errorcode)
+  endif
+  offset=0
+
+  call MPI_FILE_SET_VIEW( fheig, offset, MPI_DOUBLE_COMPLEX, MPI_DOUBLE_COMPLEX, 'native', &
+                          MPI_INFO_NULL, ierr )
+  if( ierr/=0 ) then
+    errorcode=ierr
+    call MPI_ERROR_STRING( errorcode, string, resultlen, ierr )
+    call errore(string,errorcode)
+  endif
+  !!!!!!!!!  Eigvecs !!!!!!!!!!!
+
+
+  if( ionode ) then
+    allocate( con_coeff( nptot, nbuse, nkpt, nspin, ntau ), &
+              val_coeff( nptot, nbuse_xes, nkpt, nspin, ntau ) )
+  endif
+  allocate( eigvec( nbasis_, nband_ ), unk( npw, nband_ ) )
+  
+    
+
+
+!  nshift = 1
+!  if( have_kshift ) nshift = 2
+!  allocate( coeff( -lmax : lmax, 1 : nbnd, npmax, lmin : lmax, ntau ) )
   ! loop over all kpts
-  i = 0
   do ishift = 1, nshift
+  do ispin = 1, nspin
+    i = 0
     do ik1 = 0, zn( 1 ) - 1
       do ik2 = 0, zn( 2 ) - 1
          do ik3 = 0, zn( 3 ) - 1
           o2l = zero
-          coeff = zero
+!          coeff = zero
           i = i + 1
-          write(stdout,*) i
+          write(stdout,*) i, ispin, ishift
+
+          ! Load up eigvecs
+          offset = ( ispin - 1 ) * nkpt + (i - 1 )
+          offset = offset * nbasis_
+          offset = offset * nband_
+          call MPI_FILE_READ_AT_ALL( fheig, offset, eigvec, nband_*nbasis_, MPI_DOUBLE_COMPLEX, &
+                                     MPI_STATUS_IGNORE, ierr )
+
+          ! get band states
+          call ZGEMM( 'N', 'N', npw, nband_, nbasis_, one, evc, npw, eigvec, nbasis_, zero, &
+                       unk, npw )
+
+!          W = ZDOTC( npw, unk(1,1), 1, unk(1,1), 1 )
+!          call mp_sum( W )
+!          write(stdout,*) sqrt(W)
+
+          
           
           qraw( 1 ) = ( qbase( 1 ) + dble( ik1 ) ) / dble( zn( 1 ) )
           qraw( 2 ) = ( qbase( 2 ) + dble( ik2 ) ) / dble( zn( 2 ) )
           qraw( 3 ) = ( qbase( 3 ) + dble( ik3 ) ) / dble( zn( 3 ) )
            
           call OCEAN_t_reset
-          call nbsecoeffs( npw, mill, myg, bmet, bvec, evc, 1, nbnd, qraw, ntau, tau, lmin, &
+          call nbsecoeffs( npw, mill, myg, bmet, bvec, unk, 1, nband_, qraw, ntau, tau, lmin, &
                            lmax, nproj, npmax, nqproj, dqproj, fttab, o2l, prefs, lml, lmm, numlm, nptot )
           call OCEAN_t_printtime( "nbsecoeffs", stdout )
 
@@ -311,49 +409,94 @@
           call OCEAN_t_printtime( "mp_sum", stdout )
 
           call OCEAN_t_reset
-!          do itau = 1, ntau
-!            do ibnd=1,nbnd
-!            ip = 0
-!              do ilm = 1, numlm
-!                l = lml( ilm )
-!                m = lmm( ilm )
-!                do iproj = 1, nproj( l )
-!                  ip = ip + 1
-!                  ! interleavig here for later
-!                  o2l( ibnd, ip, itau ) = coeff( m, ibnd, iproj, l, itau )
-!                end do
-!              end do
-!             end do
-!          enddo
-          if( ionode ) call davcio( o2l, nwordo2l, iunout, i, +1 )
-                  if( ionode ) write(iuntxt,*)  o2l(  1, 1, 1 )
-          call OCEAN_t_printtime( "Reorder & write", stdout )
+
+
+!          if( ionode ) call davcio( o2l, nwordo2l, iunout, i, +1 )
+!                  if( ionode ) write(iuntxt,*)  o2l(  1, 1, 1 )
+          if( ionode ) then
+            if( ishift .eq. 1 ) then
+              do itau = 1, ntau
+                val_coeff( :, 1:ibeg(i,ispin)-1, i, ispin, itau ) = transpose( o2l( 1:ibeg(i,ispin)-1, :, itau ) )
+              enddo
+            endif
+
+!            if( ishift .eq. nshift ) then
+              do itau = 1, ntau
+                do j = 1, nbuse
+                  do k = 1, nptot
+                    con_coeff( k, j, i, ispin, itau ) = o2l( ibeg(i,ispin)-1+j, k, itau )
+!                con_coeff( 1:nptot, 1:nbuse, i, ispin, itau ) = &
+!                           transpose( o2l( ibeg(i,ispin):ibeg(i,ispin)+nbuse-1, 1:nptot, itau ) )
+                  enddo
+                enddo
+              enddo
+!            endif
+
+          endif
+  
+          call OCEAN_t_printtime( "Reorder", stdout )
 
         enddo
       enddo
     enddo
+  enddo ! ispin
     qbase( : ) = qbase( : ) + kshift( : )
   enddo
 
   if( ionode ) then 
-    close(iunout )
-    iunout = freeunit()
-    ! Unformatted so we don't round tau at all
-    call seqopn(iuntmp, 'o2li', 'unformatted', exst)
-    if( exst ) rewind(iuntmp)
-    write(iunout) nptot, ntau 
-    write(iunout) tau( :, : )
-    write(iunout) fntau( : )
-    close(iunout)
+    iuntmp = freeunit()
+
+    call OCEAN_t_reset
+    ! Write out coeffs
+    write(stdout,*) nptot, nbuse*nkpt, nspin, ntau
+    do itau = 1, ntau
+      write( filout, '(1a5,1a6)' ) 'cksc.', fntau( itau )
+      open(unit=iuntmp,file=filout,form='unformatted',status='unknown')!,buffered='yes',blocksize=1048576,buffercount=128)
+      rewind(iuntmp)
+      write(iuntmp) nptot, nbuse*nkpt, nspin
+      write(iuntmp) tau( :, itau )
+      write(iuntmp) real(con_coeff(:,:,:,:,itau))
+      write(iuntmp) aimag(con_coeff(:,:,:,:,itau))
+      close(iuntmp)
+    enddo
+
+    do itau = 1, ntau
+      write( filout, '(1a5,1a6)' ) 'cksv.', fntau( itau )
+      open(unit=iuntmp,file=filout,form='unformatted',status='unknown')!,buffered='yes',blocksize=1048576,buffercount=128)
+      rewind(iuntmp)
+      write(iuntmp) nptot, nbuse_xes*nkpt, nspin
+      write(iuntmp) tau( :, itau )
+      write(iuntmp) real(val_coeff(:,:,:,:,itau))
+      write(iuntmp) aimag(val_coeff(:,:,:,:,itau))
+      close(iuntmp)
+    enddo
+
+
+    call OCEAN_t_printtime( "Write", stdout )
+
+!    ! Unformatted so we don't round tau at all
+!    call seqopn(iuntmp, 'o2li', 'unformatted', exst)
+!    if( exst ) rewind(iuntmp)
+!    write(iuntmp) nptot, ntau 
+!    write(iuntmp) tau( :, : )
+!    write(iuntmp) fntau( : )
+!    close(iuntmp)
+
+    deallocate( val_coeff, con_coeff )
   endif
 
+
+!  call mp_barrier
+
   deallocate( o2l )
+  deallocate( unk, eigvec)
 
 
   deallocate( tau )
   deallocate( nproj )
   deallocate( fttab )
   deallocate( lml, lmm )
+
 
   return
 
@@ -383,7 +526,7 @@
     real(dp), intent( in ) :: fttab( nqproj, npmax, lmin : lmax )
     complex(dp), intent( in ) :: ck( ng, ibl : ibh )
 !    complex(dp), intent( out ) :: coeff( -lmax:lmax, ibl:ibh, npmax, lmin:lmax, ntau )
-    complex(dp), intent( out ) :: o2l( nbnd, nptot, ntau )
+    complex(dp), intent( out ) :: o2l( ibl:ibh, nptot, ntau )
     
     !
     integer itau, l, ig, ip
@@ -422,13 +565,13 @@
     call OCEAN_t_printtime( "Seanitup", stdout )
     call OCEAN_t_reset
 
-    if( .false. ) then
+    if( .true. ) then
     do itau = 1, ntau
        ip = 0
        do l = lmin, lmax
           call getcoeff( l, ng, 1 + ibh - ibl, ck, tauphs( 1, itau ), ylmfac,  &
 !                         coeff( -lmax, ibl, 1, l, itau ), lmax, npmax, sfq( 1, 1, l ), &
-                         o2l( 1, 1, itau ), lmax, npmax, sfq( 1, 1, l ), &
+                         o2l( ibl, 1, itau ), lmax, npmax, sfq( 1, 1, l ), &
                          nproj( l ), lml, lmm, numlm, nptot, ip )
        end do
     end do
@@ -544,11 +687,11 @@
     rm1 = -1
     rm1 = sqrt( rm1 )
     pi = 4.0d0 * atan( 1.0d0 )
-    pref = 4.0d0 * pi * rm1 ** l
     !
     do ilm = 1, numlm
       l = lml( ilm )
       m = lmm( ilm )
+      pref = 4.0d0 * pi * rm1 ** l
       do ig = 1, ng
         x = 0
         do jj = 1, 3
