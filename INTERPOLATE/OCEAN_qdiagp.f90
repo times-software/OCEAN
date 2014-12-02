@@ -438,13 +438,13 @@
     
     allocate( u1_single( nxpts, nbasis ) )
     iuntmp = freeunit()
-!    open(unit=iuntmp,file='u1.dat',form='unformatted', status='old')
-!    rewind(iuntmp)
-!    do i = 1, nbasis
-!      read(iuntmp) u1_single( :, i )
-!    enddo
-!    close(iuntmp)
-!!    u1( :, : ) = conjg( u1( :,: ) )
+    open(unit=iuntmp,file='u1.dat',form='unformatted', status='old')
+    rewind(iuntmp)
+    do i = 1, nbasis
+      read(iuntmp) u1_single( :, i )
+    enddo
+    close(iuntmp)
+!    u1( :, : ) = conjg( u1( :,: ) )
 
 
     open(unit=iuntmp,file='nelectron',form='formatted',status='old')
@@ -944,7 +944,7 @@
 
 
 
-# ifdef FALSE
+#ifdef FALSE
 
   if( mypoolid .eq. mypoolroot ) then
 
@@ -1240,7 +1240,7 @@
     call MPI_FILE_CLOSE( fheig, ierr )
   endif
 
-!# ifdef FALSE
+!#ifdef FALSE
 
 
 
