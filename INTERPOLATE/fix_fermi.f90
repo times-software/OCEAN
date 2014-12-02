@@ -16,7 +16,7 @@ subroutine dump_energies( band_subset, nbands, nkpts, nspin, nshift, e0, lumo_sh
   open(unit=fh,file='ibeg.h',form='formatted',status='unknown',buffered='yes')
   do ishift = 1, nshift
     do ispin = 1, nspin
-      write(fh,'(I8)') (start_band(ik,ispin,ishift), ik=1,nkpts)
+      write(fh,'(2I8)') (ik,start_band(ik,ispin,ishift), ik=1,nkpts)
     enddo
   enddo
   close(fh)
@@ -210,7 +210,7 @@ subroutine sort_energies( n, energies )
        node2 = iter
         do
           if ( node .gt. top ) goto 10
-          if ( (node .lt. top) .and. (energies( node ) .lt. energies( node + 1 ) ) ) node = node + 1
+          if ( (node .lt. top) .and. (energies( node ) .lt. energies( min(node + 1,top) ) ) ) node = node + 1
           if ( temp .lt. energies( node ) ) then
             energies( node2 ) = energies( node )
             energies( node ) = temp
