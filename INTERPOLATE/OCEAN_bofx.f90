@@ -41,14 +41,14 @@ subroutine OCEAN_bofx( )
   integer,allocatable :: ibnd_indx(:)
   real(dp),allocatable :: norm(:)
   
-  integer :: i, ig
-  integer,allocatable :: igk_l2g(:,:)
+  integer :: i, ig, dumi
+  integer,allocatable :: igk_l2g(:,:), ibeg(:,:)
 
   integer :: xmesh( 3 )
   logical :: bt_logical, invert_xmesh
   character(len=3) :: dum_c
 
-  integer :: iuntmp
+  integer :: iuntmp, iobegin
 
   integer :: min_mill(3), uni_min_mill(3), max_mill(3), uni_max_mill(3), igl, igh
 
@@ -167,6 +167,16 @@ subroutine OCEAN_bofx( )
     read(iuntmp,*),  nbasis_, nband, nkpt, nspin, nshift
     close(iuntmp)
 
+    iobegin = freeunit()
+    open(iobegin,file='ibeg.h',form='formatted',status='old')
+    allocate(ibeg(nkpt,nspin) )
+    do ispin = 1, nspin
+      do ikpt = 1, nkpt
+        read(iobegin,*) dumi, ibeg( ikpt, ispin )
+      enddo
+    enddo
+    close(iobegin)
+
   endif
   call mp_bcast( xmesh, ionode_id )
   call mp_bcast( invert_xmesh, ionode_id )
@@ -175,6 +185,9 @@ subroutine OCEAN_bofx( )
   call mp_bcast( nkpt,   ionode_id )
   call mp_bcast( nspin,  ionode_id )
   call mp_bcast( nshift, ionode_id )
+
+  if( .not. ionode ) allocate(ibeg(nkpt,nspin) )
+  call mp_bcast( ibeg, ionode_id )
 
   write(stdout,*) nbnd, band_subset(1), band_subset(2)
 !  allocate( sub_mill( 3, npw ) )
@@ -278,7 +291,7 @@ subroutine OCEAN_bofx( )
       offset = ( ispin - 1 ) * nkpt + (ikpt - 1 )
       offset = offset * product( xmesh )
       offset = offset * nband
-      call gentoreal( xmesh, nband, unk, npw, mill, fhu2, offset, invert_xmesh, loud )  
+      call gentoreal( xmesh, nband, unk, npw, mill, fhu2, offset, invert_xmesh, loud, ibeg(ikpt,ispin) )  
       loud = .false.
       write(stdout,*) ikpt, offset
   
@@ -300,7 +313,7 @@ subroutine OCEAN_bofx( )
   contains
 
 
-  subroutine gentoreal( nx, nfcn, fcn, ng, gvec, iu, offset, invert_xmesh, loud )
+  subroutine gentoreal( nx, nfcn, fcn, ng, gvec, iu, offset, invert_xmesh, loud, ibeg)
     use kinds, only : dp
     USE io_global,  ONLY : stdout, ionode
     USE mp, ONLY : mp_sum, mp_max, mp_min
@@ -312,11 +325,12 @@ subroutine OCEAN_bofx( )
     logical, intent( in ) :: invert_xmesh
     integer(kind=MPI_OFFSET_KIND), intent(inout) :: offset
     logical, intent( in ) :: loud
+    integer, intent( in ) :: ibeg
 !    logical, parameter :: loud = .true.
     !
     integer :: ix, iy, iz, i1, i2, i3, nfft( 3 ), idwrk, igl, igh, nmin, ii
     integer :: fac( 3 ), j, ig, i, locap( 3 ), hicap( 3 ), toreal, torecp, nftot
-    real(dp) :: normreal, normrecp, wreal
+    real(dp) :: normreal, normrecp
     complex(dp) :: rm1, w
     character * 80 :: fstr
     !
@@ -327,6 +341,7 @@ subroutine OCEAN_bofx( )
     real(dp), external :: DZNRM2
     complex(dp), external :: ZDOTC
     integer, external :: optim
+    integer :: start_band
     !
     rm1 = -1
     rm1 = sqrt( rm1 )
@@ -427,19 +442,33 @@ subroutine OCEAN_bofx( )
     end do
 
     if( mypoolid == mypoolroot ) then
+
+!      write(stdout,*) ibeg
+      ! This now mimics orthog better. 
       do i = 1, nfcn
         normreal =  DZNRM2( product(nx), cres( 1, 1, 1, i ), 1 )
         normreal = 1.0_dp / normreal
         call ZDSCAL( product(nx), normreal, cres( 1, 1, 1, i ), 1 )
 
-        do j = 1, i-1
-          w = -ZDOTC( product(nx), cres( 1, 1, 1, i ), 1, cres( 1, 1, 1, j ), 1 )
+        if( i .lt. ibeg ) then
+          start_band = 1
+        else
+          start_band = ibeg
+        endif
+
+        do j = start_band, i-1
+          w = -ZDOTC( product(nx), cres( 1, 1, 1, j ), 1, cres( 1, 1, 1, i ), 1 )
+! Added to better mimic orthog.f90
+          normreal = DZNRM2( product(nx), cres( 1, 1, 1, j ), 1 )
+          w = w / normreal
+!\\
           CALL ZAXPY( product(nx), w, cres(1, 1, 1, j ), 1, cres( 1, 1, 1, i ), 1 )
         enddo
         normreal =  DZNRM2( product(nx), cres( 1, 1, 1, i ), 1 )
         normreal = 1.0_dp / normreal
         call ZDSCAL( product(nx), normreal, cres( 1, 1, 1, i ), 1 )
       enddo
+
 
       call MPI_FILE_WRITE_AT( iu, offset, cres, product(nx)*nfcn, MPI_DOUBLE_COMPLEX, MPI_STATUS_IGNORE, ierr )
     endif
