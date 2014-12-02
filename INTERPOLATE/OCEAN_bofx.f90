@@ -41,18 +41,18 @@ subroutine OCEAN_bofx( )
   integer,allocatable :: ibnd_indx(:)
   real(dp),allocatable :: norm(:)
   
-  integer :: i, ipt, ig
-  integer,allocatable :: igk_l2g(:,:), sub_mill(:,:)
+  integer :: i, ig
+  integer,allocatable :: igk_l2g(:,:)
 
   integer :: xmesh( 3 )
   logical :: bt_logical, invert_xmesh
   character(len=3) :: dum_c
 
-  integer :: iuntmp, iunout
+  integer :: iuntmp
 
   integer :: min_mill(3), uni_min_mill(3), max_mill(3), uni_max_mill(3), igl, igh
 
-  integer :: nshift, nspin, nkpt, ishift, ispin, ikpt
+  integer :: nshift, nspin, nkpt, ispin, ikpt
   integer :: nbasis_, nband, ierr, errorcode, fmode, resultlen
 
   complex(dp), allocatable :: eigvec(:,:), unk(:,:)
@@ -165,6 +165,7 @@ subroutine OCEAN_bofx( )
 
     open(iuntmp,file='qdiag.info',form='formatted',status='old')
     read(iuntmp,*),  nbasis_, nband, nkpt, nspin, nshift
+    close(iuntmp)
 
   endif
   call mp_bcast( xmesh, ionode_id )
@@ -315,7 +316,7 @@ subroutine OCEAN_bofx( )
     !
     integer :: ix, iy, iz, i1, i2, i3, nfft( 3 ), idwrk, igl, igh, nmin, ii
     integer :: fac( 3 ), j, ig, i, locap( 3 ), hicap( 3 ), toreal, torecp, nftot
-    real(dp) :: normreal, normrecp
+    real(dp) :: normreal, normrecp, wreal
     complex(dp) :: rm1, w
     character * 80 :: fstr
     !
@@ -427,15 +428,15 @@ subroutine OCEAN_bofx( )
 
     if( mypoolid == mypoolroot ) then
       do i = 1, nfcn
-        normreal =  DZNRM2( product(nx), cres( 1, 1, 1,i ), 1 )
+        normreal =  DZNRM2( product(nx), cres( 1, 1, 1, i ), 1 )
         normreal = 1.0_dp / normreal
         call ZDSCAL( product(nx), normreal, cres( 1, 1, 1, i ), 1 )
 
         do j = 1, i-1
-           w = -ZDOTC( product(nx), cres( 1, 1, 1, i ), 1, cres( 1, 1, 1, j ), 1 )
-           CALL ZAXPY( product(nx), w, cres(1, 1, 1, j ), 1, cres( 1, 1, 1, i ), 1 )
+          w = -ZDOTC( product(nx), cres( 1, 1, 1, i ), 1, cres( 1, 1, 1, j ), 1 )
+          CALL ZAXPY( product(nx), w, cres(1, 1, 1, j ), 1, cres( 1, 1, 1, i ), 1 )
         enddo
-        normreal =  DZNRM2( product(nx), cres( 1, 1, 1, 1 ), 1 )
+        normreal =  DZNRM2( product(nx), cres( 1, 1, 1, i ), 1 )
         normreal = 1.0_dp / normreal
         call ZDSCAL( product(nx), normreal, cres( 1, 1, 1, i ), 1 )
       enddo
