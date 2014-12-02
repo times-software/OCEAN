@@ -153,16 +153,11 @@
   endif
 
 
-! At this point we can run the OBF2cks
-
-
-
   if( band_subset(1) < 1 ) band_subset(1)=1
   if( band_subset(2) < band_subset(1) .or. band_subset(2) > nbasis ) band_subset(2)=nbasis
   nbasis_subset = band_subset(2)-band_subset(1)+1
   write(stdout,*) ' band_subset = ', band_subset
 
-!  call diagx_init( band_subset(1), band_subset(2) )
   call diag_init
 
 
@@ -209,6 +204,7 @@
     
   endif
 
+#ifdef FALSE
   ! MPI-IO
   if( mypoolid==mypoolroot ) then
     eigval_file=trim(outfile)//'.eigval'
@@ -355,6 +351,7 @@
 
     
   endif
+#endif
 
 
   if( ionode ) then
@@ -392,6 +389,8 @@
     if( have_kshift ) nshift = 2
 
 
+#ifdef FALSE
+
     call seqopn(iuntmp, 'o2li', 'unformatted', exst)
     if( .not. exst ) call errore('ocean', 'file does not exist', 'o2li')
     read(iuntmp) nptot, ntau
@@ -406,6 +405,7 @@
 !test    allocate( o2l( nbasis, nptot, ntau, kpt%list%nk, nshift ) )
 !    allocate( o2l( nbasis, nptot, ntau, 1, 1 ) )
 
+#endif
 
     nang = 0
     nr = 0
@@ -435,7 +435,8 @@
     else
       dft_energy_range = -1
     endif
-    
+
+#ifdef FALSE    
     allocate( u1_single( nxpts, nbasis ) )
     iuntmp = freeunit()
     open(unit=iuntmp,file='u1.dat',form='unformatted', status='old')
@@ -445,6 +446,7 @@
     enddo
     close(iuntmp)
 !    u1( :, : ) = conjg( u1( :,: ) )
+#endif
 
 
     open(unit=iuntmp,file='nelectron',form='formatted',status='old')
@@ -471,9 +473,10 @@
 !  if( .not. ionode ) allocate( o2l( nbasis, nptot, ntau, kpt%list%nk, nshift ) )
 !  call mp_bcast( o2l, ionode_id )
   call mp_barrier
-  write(stdout,*) ' shared o2l array'
+!  write(stdout,*) ' shared o2l array'
   
 
+#ifdef FALSE
 !test
   nwordo2l = 2 * nbasis * nptot * ntau
   if( mypoolid == mypoolroot ) then
@@ -572,6 +575,7 @@
 
   deallocate( u1_single )
 
+#endif
 
   call mp_bcast( nelectron, ionode_id )
 
@@ -579,6 +583,8 @@
   ntot = nbasis_subset * kpt%list%nk
 
   nband = band_subset(2) - band_subset(1) + 1
+
+#ifdef FALSE
   if( mypoolid .eq. mypoolroot ) then
     allocate( coeff( nptot, band_subset(1):band_subset(2), kpt%list%nk, nspin, ntau, nshift ) )
   else ! for error checking nonsense
@@ -589,21 +595,23 @@
   if( ierr .ne. 0 ) then
     stop
   endif
-
+#endif
   call descinit( desc_eigvec_single, nbasis, nbasis, nbasis, nbasis, 0, 0, context_cyclic, nbasis, ierr )
+
   if( mypoolid .eq. mypoolroot ) then
-!???    allocate( u2( nxpts, band_subset(1) : band_subset(2), kpt%list%nk, nshift ) )
-    allocate( u2( nxpts, band_subset(1) : band_subset(2), 1, nshift ) )
+!!???    allocate( u2( nxpts, band_subset(1) : band_subset(2), kpt%list%nk, nshift ) )
+!    allocate( u2( nxpts, band_subset(1) : band_subset(2), 1, nshift ) )
     allocate( eigvec_single( nbasis, nbasis ) )
   else  ! For error checking nonsense
 !!!!    allocate( u2( 1, band_subset(1), kpt%list%nk, nshift ) )
-     ! JTV memleak 29 July
-!    allocate( u2( 1, band_subset(1), 1, nshift ) )
-    allocate( u2( nxpts, band_subset(1) : band_subset(2), 1, nshift ) )
+!     ! JTV memleak 29 July
+!!    allocate( u2( 1, band_subset(1), 1, nshift ) )
+!    allocate( u2( nxpts, band_subset(1) : band_subset(2), 1, nshift ) )
     allocate( eigvec_single( 1, 1:band_subset(1) ) )
   endif
-  u2 = 0.d0
-  call descinit( desc_u2, nxpts, nband, nxpts, nband, 0, 0, context_cyclic, nxpts, ierr )
+!  u2 = 0.d0
+!  call descinit( desc_u2, nxpts, nband, nxpts, nband, 0, 0, context_cyclic, nxpts, ierr )
+
 
   if( ionode ) write(6,*) 'nshift =', nshift
 
@@ -676,7 +684,7 @@
         call MPI_IRECV( e0( 1, ik, ispin, 1 ), nband, MPI_DOUBLE_PRECISION,  &
                         pool_root_map(mod((ik-1)+(ispin-1)*kpt%list%nk,npool)), ik+(ispin-1)*kpt%list%nk, &
                         cross_pool_comm, energy_request( i_energy_request ), ierr )
-        write(stdout,*) pool_root_map(mod((ik-1)+(ispin-1)*kpt%list%nk,npool)), ik+(ispin-1)*kpt%list%nk
+!        write(stdout,*) pool_root_map(mod((ik-1)+(ispin-1)*kpt%list%nk,npool)), ik+(ispin-1)*kpt%list%nk
       endif
       if( mod((ik-1)+(ispin-1)*kpt%list%nk,npool)/=mypool ) cycle
       pool_ik = pool_ik + 1
@@ -734,10 +742,7 @@
         forall( i=1:nbasis ) eigval(i)=ztmp(i,i)
         deallocate( ztmp )
       else
-
-  !    call diagx_ham
         call diag_ham
-
       endif
 
 
@@ -766,10 +771,6 @@
     enddo ! ik
   enddo ! ispin
   ! done with interpolation here
-
-!#ifdef __NIST
-!  call diag_free
-!#endif
 
 
 
@@ -810,8 +811,6 @@
       do ispin=1,nspin
         do ik=1,kpt%list%nk
           if( mod((ik-1)+(ispin-1)*kpt%list%nk,npool)/=mypool ) cycle
-!          write(stdout,*)  pool_root_map(mod((ik-1)+(ispin-1)*kpt%list%nk,npool)), ik+(ispin-1)*kpt%list%nk, mpime 
-!          flush(stdout)
           call MPI_WAIT( energy_request( ik+(ispin-1)*kpt%list%nk ), MPI_STATUS_IGNORE, ierr )
         enddo
       enddo

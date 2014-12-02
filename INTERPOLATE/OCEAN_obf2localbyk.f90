@@ -565,7 +565,7 @@
     call OCEAN_t_printtime( "Seanitup", stdout )
     call OCEAN_t_reset
 
-    if( .true. ) then
+    if( .false. ) then
     do itau = 1, ntau
        ip = 0
        do l = lmin, lmax
