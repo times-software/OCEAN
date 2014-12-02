@@ -188,7 +188,7 @@ print "\nRunning QDIAG\n$para_prefix $ENV{'OCEAN_BIN'}/ocean_qdiagp.x $pool_size
 system("$para_prefix $ENV{'OCEAN_BIN'}/ocean_qdiagp.x $pool_size < q.in > q.out") == 0
   or die "Failed to run qdiag\n$!";
 
-print "Running BOFX";
+print "\nRunning BOFX";
 system("$para_prefix $ENV{'OCEAN_BIN'}/shirley_ham_o.x < bofx.in > bofx.out") == 0
   or die "Failed to run bofx\n$!";
 
