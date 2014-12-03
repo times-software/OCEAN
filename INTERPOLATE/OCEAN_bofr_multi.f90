@@ -13,6 +13,7 @@ subroutine OCEAN_bofr_multi( )
   USE mp_global, ONLY : me_pool, nproc_pool, intra_pool_comm, root_pool
   use hamq_shirley
   use shirley_ham_input, only : debug, band_subset
+  use OCEAN_timer
 
   implicit none
 
@@ -35,7 +36,7 @@ subroutine OCEAN_bofr_multi( )
   integer :: npt, ntau, ntau_offset, itau
   real(dp),allocatable :: posn( :, :, : ), drel( :, : ), wpt( :, : )
 
-  complex(dp),allocatable :: expiGr( :, : ), bofr( : ), bofr_out( : )
+  complex(dp),allocatable :: expiGr( :, : ), bofr( :, : ), bofr_out( : )
   real(dp) :: gcart( 3 ), bvec(3,3), phase
 
   integer,external :: freeunit
@@ -178,7 +179,7 @@ subroutine OCEAN_bofr_multi( )
 
 
   !!!!!!
-  allocate( expiGr( npw, npt ), bofr( npt ), bofr_out( npt ) )
+  allocate( expiGr( npw, npt ), bofr( npt, nbnd ), bofr_out( npt ) )
 
 
   do itau = 1, ntau
@@ -207,19 +208,34 @@ subroutine OCEAN_bofr_multi( )
     write(stdout,*) nbnd, npw, npt
   !  write(stdout,*) expiGr( 1:3, 1 )
 
+    call OCEAN_t_reset
+
+    if( .true. ) then
     do ibnd=1,nbnd
-      bofr( : ) = 0.0d0
+      bofr( :,1 ) = 0.0d0
       do ipt = 1, npt
-        bofr( ipt ) = sum( evc( :, ibnd_indx(ibnd) ) * expiGr( :, ipt ) )
+        bofr( ipt,1 ) = sum( evc( :, ibnd_indx(ibnd) ) * expiGr( :, ipt ) )
   !      bofr( ipt ) = dot_product( evc( :, ibnd_indx(ibnd) ), expiGr( :, ipt ) )
       enddo
   !JTV should only end up on ionode
       call mp_sum( bofr, intra_pool_comm )
   !    call mp_root_sum( bofr, bofr_out, ionode_id )
-      if( ionode ) write(iunbofr) bofr
+      if( ionode ) write(iunbofr) bofr(:,1)
 !      if( mod( ibnd, 20 ) .eq. 0 ) &
 !      write(stdout,*) ibnd, nbnd
     enddo
+
+    else
+    
+    call ZGEMM( 'T', 'N', npt, nbnd, npw, one, evc, npw, expiGr, npw, zero, bofr, npt )
+    do ibnd = 1, nbnd
+      call mp_sum( bofr, intra_pool_comm)
+      if( ionode ) write(iunbofr) bofr(:,ibnd)
+    enddo
+
+
+    endif
+    call OCEAN_t_printtime( "matmul", stdout )
   enddo
 
 !  write(stdout,*) '======================================'

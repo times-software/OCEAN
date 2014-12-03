@@ -252,9 +252,10 @@ subroutine getmass(zatom,mass)
         mass = "126.900"
       case (54)
         mass = "131.293"
+      case default
+        mass = "120"
 
     end select
-
 
 end subroutine getmass
 

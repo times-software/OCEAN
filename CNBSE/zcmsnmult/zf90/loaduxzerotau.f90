@@ -122,7 +122,8 @@ subroutine loaduxzerotau( nx, ny, nz, nbd, nq, nspn, zn, tau, ur, ui )
         suh = max( su, suh )
       end do
 ! Adding 22 nov 2010 get rid of the un-used wfns at the top
-      do ibd = ivh2 + nbd + 1, ivh - ivl + ich - icl + 2
+!      do ibd = ivh2 + nbd + 1, ivh - ivl + ich - icl + 2
+      do ibd = ivh2 + nbd + 1, ich
         do ig = 1, nx * ny * nz
                     if( .not. dft_type_is_obf ) then
            read ( u2dat )

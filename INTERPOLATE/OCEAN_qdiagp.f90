@@ -24,15 +24,16 @@
                                   tmpdir_io=>tmp_dir, nd_nmbr, diropn, wfc_dir
   USE control_flags,        ONLY : lscf
   USE basis,                ONLY : starting_pot, starting_wfc
-  USE gvect
-  USE wvfct, only : npwx, npw
-  use scalapack_module, only : DLEN_, M_, N_, MB_, NB_
+!  USE gvect
+!  USE wvfct, only : npwx, npw
+  use scalapack_module, only : DLEN_!, M_, N_, MB_, NB_
   use hamq_pool, only : nproc_per_pool, npool, &
                         mypool, rootpool, mypoolid, mypoolroot, &
                         cross_pool_comm, intra_pool_comm, &
                         desc_cyclic, desc_striped, context_cyclic, &
                         local_striped_dim, cyclic_localindex, &
-                        context_global
+                        context_global, local_cyclic_dims
+ use OCEAN_timer
 !  use hamq_pool, only : nbasis_global
 
   implicit none
@@ -53,7 +54,7 @@
   logical :: legacy_zero_lumo
 
   integer(kind=MPI_OFFSET_KIND) :: offset, off1, off2, off3, off4
-  integer :: fheigval, fheigvec, fhenk, fhpsi
+  integer :: fheigval, fheigvec, fhenk, fhpsi, fheig
   integer :: status(MPI_STATUS_SIZE)
   integer :: ierr
 
@@ -68,6 +69,7 @@
   real(dp) :: qpathlen, cqvec(3), dqvec(3)
   character(255) :: ic
   character(6), allocatable :: fntau(:)
+  character (len=5) :: band_style = 'defau'
 
   integer :: ik
   integer :: i,j,k, ig
@@ -89,7 +91,7 @@
   complex(dp),allocatable :: u1(:,:), u2(:,:,:,:), tmp_eigvec(:,:), tmels(:,:,: ), u1_single(:,:)
   complex(dp) :: x, w
 
-  integer,allocatable :: start_band(:),stop_band(:)
+  integer,allocatable :: start_band(:),stop_band(:), new_start_band(:,:,:)
   real(dp),allocatable :: lumo(:), homo(:)
   integer :: nbuse, brange( 4 ), nelectron, nbuse_xes, max_val, ishift
   real(dp) :: lumo_point, homo_point,dft_energy_range, cs, vs, newgap, sef, egw, elda, eshift, kshift( 3 ), kplusq(3), lumo_shift
@@ -106,7 +108,10 @@
   integer :: u1_MB, u1_M, u1_NB, u1_N
   integer :: nprow, npcol, myrow, mycol
 
-  integer :: block_start, block_stop, block_width, block, niter, iter
+
+  integer :: nr_eigvec, nc_eigvec, pool_tot_k, pool_ik, eigvec_info
+
+  integer :: block_start, block_stop, block_width, block, niter, iter, pool_rank
   integer(8) :: long_nbasis, long_nx
   integer(8) :: long_2g = 2147483648
 
@@ -115,6 +120,13 @@
   integer, external :: OMP_GET_NUM_THREADS, NUMROC
   complex(dp), external :: ZDOTC
   real(dp), external :: DZNRM2
+
+
+  integer :: dims(2), ndims, array_of_gsizes(2), array_of_distribs(2), array_of_dargs(2), file_type, nelements, mpistatus, &
+             locsize, i_energy_request, n_energy_request
+  integer, allocatable :: energy_request(:), pool_root_map(:)
+  complex(dp), allocatable :: store_eigvec(:,:,:), out_eigvec(:,:,:)
+  real(dp), allocatable :: store_energy(:,:)
  
   namelist /info/ nk, nbnd, nelec, alat, volume, &
                   at, bg, tpiba, fermi_energy, nspin, lda_plus_u
@@ -124,9 +136,7 @@
 !  is needed for the interpolation
   call shirley_input
 
-! Still need to read in the actual OBFs. We will be 
-!   calculating overlaps and matrix elements and stuff
-
+#ifdef FALSE
 ! for right now we don't though, everything is taken care of earlier
   tmpdir_io = outdir
   prefix_io = prefix
@@ -141,45 +151,22 @@
   write(stdout,*) ' nspin = ', nspin
   write(stdout,*) ' lda_plus_u = ', lda_plus_u
 
-!!$  if( nspin .ne. 1 ) then
-!!$    write(stdout,*) 'nspin: ', nspin
-!!$    write(stdout,*) 'Spin ne 1 is not yet implemented. Trying to quit ... '
-!!$    goto 111
-!!$  endif
-
-!  write(stdout,*) 'npw: ', npw, npwx
-!  call read_file_shirley( nspin )
-!  write(stdout,*) 'npw: ', npw, npwx
-!  call openfil
-
-!  call summary
-
-!  write(stdout,*)
-!  write(stdout,*) ' load wave function'
-  !switch to !JTV
-  !call get_buffer( evc, nwordwfc, iunwfc, 1 )
-!  CALL davcio( evc, 2*nwordwfc, iunwfc, 1, - 1 )
-! Finished reading in the OBFs
   endif
-
-
-! At this point we can run the OBF2cks
-
+#endif
 
 
   if( band_subset(1) < 1 ) band_subset(1)=1
-!  if( band_subset(2) < band_subset(1) .or. band_subset(2) > nbasis ) band_subset(2)=nbasis_global
   if( band_subset(2) < band_subset(1) .or. band_subset(2) > nbasis ) band_subset(2)=nbasis
   nbasis_subset = band_subset(2)-band_subset(1)+1
   write(stdout,*) ' band_subset = ', band_subset
 
-!  call diagx_init( band_subset(1), band_subset(2) )
   call diag_init
 
-! moved earlier
-!  call dump_system( nelec_, alat, volume, at, bg, tpiba, nspin, lda_plus_u )
-!  write(stdout,*) ' nspin = ', nspin
-!  write(stdout,*) ' lda_plus_u = ', lda_plus_u
+  call dump_system( nelec_, alat, volume, at, bg, tpiba, nspin, lda_plus_u )
+  write(stdout,*) ' nspin = ', nspin
+  write(stdout,*) ' lda_plus_u = ', lda_plus_u
+
+
 
   ! band structure is given in units of tpiba
   if( trim(kpt%param%grid_type) == 'bandstructure' ) then
@@ -224,15 +211,16 @@
     
   endif
 
+#ifdef FALSE
   ! MPI-IO
   if( mypoolid==mypoolroot ) then
     eigval_file=trim(outfile)//'.eigval'
     inquire(file=trim(eigval_file),exist=ex)
     if( ex ) then
       ! delete pre-existing files
- !     fheigval=freeunit()
- !     open(fheigval,file=trim(eigval_file),form='unformatted')
-!      close(fheigval,status='delete')
+      fheigval=freeunit()
+      open(fheigval,file=trim(eigval_file),form='unformatted')
+      close(fheigval,status='delete')
     endif
 
     call mp_file_open_dp( eigval_file, fheigval, rootpool, cross_pool_comm )
@@ -242,134 +230,8 @@
       call mp_file_open_dp( eigvec_file, fheigvec, rootpool, cross_pool_comm )
     endif
 
-
-    call MPI_INFO_CREATE( finfo, ierr )
-    if( ierr/=0 ) then
-      errorcode=ierr
-      call MPI_ERROR_STRING( errorcode, string, resultlen, ierr )
-      call errore(string,errorcode)
-    endif
-
-    fmode = IOR(MPI_MODE_CREATE,MPI_MODE_WRONLY)
-    call MPI_FILE_OPEN( cross_pool_comm, 'u2par.dat', fmode, MPI_INFO_NULL, fhu2, ierr )
-    if( ierr/=0 ) then
-      errorcode=ierr
-      call MPI_ERROR_STRING( errorcode, string, resultlen, ierr )
-      call errore(string,errorcode)
-    endif
-    offset=0
-    !JTV At this point it would be good to create a custom MPI_DATATYPE
-    !  so that we can get optimized file writing
-    call MPI_FILE_SET_VIEW( fhu2, offset, MPI_DOUBLE_COMPLEX, &
-                          MPI_DOUBLE_COMPLEX, 'native', MPI_INFO_NULL, ierr )
-    if( ierr/=0 ) then
-      errorcode=ierr
-      call MPI_ERROR_STRING( errorcode, string, resultlen, ierr )
-      call errore(string,errorcode)
-    endif
-
-    call MPI_FILE_OPEN( cross_pool_comm, 'val_energies.dat', fmode, finfo, fh_val_energies, ierr )
-    if( ierr/=0 ) then
-      errorcode=ierr
-      call MPI_ERROR_STRING( errorcode, string, resultlen, ierr )
-      call errore(string,errorcode)
-    endif
-    offset=0
-    call MPI_FILE_SET_VIEW( fh_val_energies, offset, MPI_DOUBLE_PRECISION, &
-                          MPI_DOUBLE_PRECISION, 'native', finfo, ierr )
-    if( ierr/=0 ) then
-      errorcode=ierr
-      call MPI_ERROR_STRING( errorcode, string, resultlen, ierr )
-      call errore(string,errorcode)
-    endif
-
-    call MPI_FILE_OPEN( cross_pool_comm, 'con_energies.dat', fmode, finfo, fh_con_energies, ierr )
-    if( ierr/=0 ) then
-      errorcode=ierr
-      call MPI_ERROR_STRING( errorcode, string, resultlen, ierr )
-      call errore(string,errorcode)
-    endif
-    offset=0
-    call MPI_FILE_SET_VIEW( fh_con_energies, offset, MPI_DOUBLE_PRECISION, &
-                          MPI_DOUBLE_PRECISION, 'native', finfo, ierr )
-    if( ierr/=0 ) then
-      errorcode=ierr
-      call MPI_ERROR_STRING( errorcode, string, resultlen, ierr )
-      call errore(string,errorcode)
-    endif
-
-    call MPI_FILE_OPEN( cross_pool_comm, 'val_eigvecs.dat', fmode, finfo, fh_val_eigvecs, ierr )
-    if( ierr/=0 ) then
-      errorcode=ierr
-      call MPI_ERROR_STRING( errorcode, string, resultlen, ierr )
-      call errore(string,errorcode)
-    endif
-    offset=0
-    call MPI_FILE_SET_VIEW( fh_val_eigvecs, offset, MPI_DOUBLE_COMPLEX, &
-                          MPI_DOUBLE_COMPLEX, 'native', finfo, ierr )
-    if( ierr/=0 ) then
-      errorcode=ierr
-      call MPI_ERROR_STRING( errorcode, string, resultlen, ierr )
-      call errore(string,errorcode)
-    endif
-
-    call MPI_FILE_OPEN( cross_pool_comm, 'con_eigvecs.dat', fmode, finfo, fh_con_eigvecs, ierr )
-    if( ierr/=0 ) then
-      errorcode=ierr
-      call MPI_ERROR_STRING( errorcode, string, resultlen, ierr )
-      call errore(string,errorcode)
-    endif
-    offset=0
-    call MPI_FILE_SET_VIEW( fh_con_eigvecs, offset, MPI_DOUBLE_COMPLEX, &
-                          MPI_DOUBLE_COMPLEX, 'native', finfo, ierr )
-    if( ierr/=0 ) then
-      errorcode=ierr
-      call MPI_ERROR_STRING( errorcode, string, resultlen, ierr )
-      call errore(string,errorcode)
-    endif
-
-
-
-
-    call MPI_INFO_CREATE( finfo, ierr )
-    if( ierr/=0 ) then
-      errorcode=ierr
-      call MPI_ERROR_STRING( errorcode, string, resultlen, ierr )
-      call errore(string,errorcode)
-    endif
-
-    call MPI_FILE_OPEN( cross_pool_comm, 'ptmels.dat', fmode, finfo, fhtmels, ierr )
-    if( ierr/=0 ) then
-      errorcode=ierr
-      call MPI_ERROR_STRING( errorcode, string, resultlen, ierr )
-      call errore(string,errorcode)
-    endif
-    offset = 0
-    call MPI_FILE_SET_VIEW( fhtmels, offset, MPI_DOUBLE_COMPLEX, &
-                          MPI_DOUBLE_COMPLEX, 'native', finfo, ierr )
-    if( ierr/=0 ) then
-      errorcode=ierr
-      call MPI_ERROR_STRING( errorcode, string, resultlen, ierr )
-      call errore(string,errorcode)
-    endif
-
-
-!    ! Need to add in UW-BSE type files
-!    inquire(file='enkfile',exist=ex)
-!    if(ex) then
-!      ! delete pre-existing file
-!      fhenk=freeunit()
-!      open(fhenk,file='enkfile')
-!      close(fhenk,status='delete')
-!    endif
-
-    ! Open enkfile as native, formatted file    
-!!    fhenk=freeunit()
-!!    open(unit=fhenk,file='enkfile',form='formatted',status='unknown')
-!!    rewind(fhenk)
-
-    
   endif
+#endif
 
 
   if( ionode ) then
@@ -382,6 +244,15 @@
       close(iuntmp)
     else
       legacy_zero_lumo = .true.
+    endif
+
+    inquire(file='band_style.inp',exist=ex)
+    if( ex ) then
+      open(unit=iuntmp,file='band_style.inp',form='formatted',status='old')
+      read(iuntmp,*) band_style
+      close(iuntmp)
+    else
+      band_style = 'defau'
     endif
       
 
@@ -397,24 +268,6 @@
     nshift = 1
     if( have_kshift ) nshift = 2
 
-
-    call seqopn(iuntmp, 'o2li', 'unformatted', exst)
-    if( .not. exst ) call errore('ocean', 'file does not exist', 'o2li')
-    read(iuntmp) nptot, ntau
-    allocate( tau( 3, ntau ) )
-    allocate( fntau( ntau ) )
-    read(iuntmp) tau( :, : )
-    read(iuntmp) fntau( : )
-    close(iuntmp)
-!test
-!    nwordo2l = 2 * nbasis * nptot * ntau
-    write(stdout,*) nbasis, nptot, ntau
-!test    allocate( o2l( nbasis, nptot, ntau, kpt%list%nk, nshift ) )
-!    allocate( o2l( nbasis, nptot, ntau, 1, 1 ) )
-
-
-    nang = 0
-    nr = 0
 
     iuntmp = freeunit()
     open(unit=iuntmp,file='xmesh.ipt',form='formatted',status='old')
@@ -441,17 +294,6 @@
     else
       dft_energy_range = -1
     endif
-    
-    allocate( u1_single( nxpts, nbasis ) )
-    iuntmp = freeunit()
-    open(unit=iuntmp,file='u1.dat',form='unformatted', status='old')
-    rewind(iuntmp)
-    do i = 1, nbasis
-      read(iuntmp) u1_single( :, i )
-    enddo
-    close(iuntmp)
-!    u1( :, : ) = conjg( u1( :,: ) )
-
 
     open(unit=iuntmp,file='nelectron',form='formatted',status='old')
     read(iuntmp,*) nelectron
@@ -459,9 +301,6 @@
 
   endif
 
-  call mp_bcast( nang, ionode_id )
-  call mp_bcast( nr, ionode_id )
-  radial_ufunc = .false. 
   
   call mp_bcast( legacy_zero_lumo, ionode_id )
   call mp_bcast( kshift, ionode_id )
@@ -470,144 +309,30 @@
 
   call mp_bcast( fermi_energy, ionode_id )
   call mp_bcast( dft_energy_range, ionode_id)
-
-  call mp_bcast( nptot, ionode_id )
-  call mp_bcast( ntau, ionode_id )
-!test
-!  if( .not. ionode ) allocate( o2l( nbasis, nptot, ntau, kpt%list%nk, nshift ) )
-!  call mp_bcast( o2l, ionode_id )
-  call mp_barrier
-  write(stdout,*) ' shared o2l array'
   
-!test
-  nwordo2l = 2 * nbasis * nptot * ntau
-  if( mypoolid == mypoolroot ) then
-    allocate( o2l(  nbasis, nptot, ntau, 1, 1 ) )
-  else
-    allocate( o2l( 1, 1, ntau, 1, 1 ) )
-  endif
-  fho2l = freeunit()
-  ! since only the ionode is going to write to this file
-  ! there is no need for the nd_nmbr suffix
-  nd_nmbr_tmp = nd_nmbr
-  nd_nmbr=''
-  call diropn( fho2l, 'o2l', nwordo2l, exst )
-  ! restore in case needed again
-  nd_nmbr = nd_nmbr_tmp
-  write(stdout,*) ' reading from file: ', trim(tmpdir_io)//trim(prefix)//'.o2l'
-  if( .not. exst ) write(stdout,*) exst
-!  do ishift = 1, nshift
-!    do ik = 1,kpt%list%nk
-!      call davcio( o2l( 1, 1, 1, ik, ishift ), nwordo2l, fho2l, ik + (ishift-1)*kpt%list%nk, -1 )
-!    enddo
-!  enddo
-!  close( iuntmp )
-
-
-  call descinit( desc_o2l, nbasis, nptot, nbasis, nptot, 0, 0, context_cyclic, nbasis, ierr )
-
-  call mp_bcast(nxpts, ionode_id )
-  if( mypoolid .eq. mypoolroot ) then
-    if( .not. ionode ) allocate( u1_single( nxpts, nbasis ) )
-    call mp_bcast( u1_single, ionode_id, cross_pool_comm )
-  else
-    allocate( u1_single( 1, 1 ) )
-  endif
-
-  call BLACS_GRIDINFO( context_cyclic, nprow, npcol, myrow, mycol )
-  u1_MB = min( 32, nxpts / nprow )
-  if( u1_MB .lt. 1 ) u1_MB = 1
-  u1_M = numroc( nxpts, u1_MB, myrow, 0, nprow )
-
-
-!  u1_NB = min( 32, nbasis / npcol )
-!  if( u1_NB .lt. 1 ) u1_NB = 1
-!  u1_N = numroc( nbasis, u1_NB, mycol, 0, npcol )
-  u1_NB = desc_cyclic( NB_ )
-  u1_N = desc_cyclic( N_ )
-
-  if( u1_N .lt. 1 ) u1_N = 1
-
-
-  write(stdout,*) u1_M, u1_N, u1_MB, u1_NB, nxpts, nbasis
- 
-
-  call descinit( single_desc_u1, nxpts, nbasis, nxpts, nbasis, 0, 0, context_cyclic, nxpts, ierr )
-  call descinit( desc_u1, nxpts, nbasis, u1_MB, u1_NB, 0, 0, context_cyclic, nxpts, ierr )
-
-  allocate( u1( u1_M, u1_N ) )
-
-
-! !!!!!!!
-! Currently there is a bug in SCALAPACK
-! This matrix cannot be > 2GB
-
-! No idea why, but I'm crashing WAY short of this limit
-  long_nx = nxpts
-  long_nbasis = nbasis
-  long_nx = long_nx * long_nbasis
-
-  long_2g = long_2g / 64
-
-  if( long_nx .ge. long_2g ) then
-    niter = 1 + ( long_nx/long_2g )
-    block = nbasis / niter
-    
-
-    write(stdout,*) 'Breaking share into sections', niter
-    do iter = 1, niter
-      write(stdout,*) iter
-      block_start = 1 + (iter-1) * block
-      block_stop = min( block_start + block - 1, nbasis )
-      block_width = block_stop - block_start + 1
-      call mkl_free_buffers()
-      write(stdout,*) nxpts, block_width, nxpts * block_width * 16
-
-      call PZGEMR2D( nxpts, block_width, u1_single, 1, block_start, single_desc_u1, u1, 1, &
-                     block_start, desc_u1, context_cyclic, ierr )
-    enddo
-  
-  else 
-  
-    call mkl_free_buffers()
-    call PZGEMR2D( nxpts, nbasis, u1_single, 1, 1, single_desc_u1, u1, 1, 1, desc_u1, context_cyclic, ierr )
-
-  endif
-
-  deallocate( u1_single )
-
-
   call mp_bcast( nelectron, ionode_id )
 
 
   ntot = nbasis_subset * kpt%list%nk
 
   nband = band_subset(2) - band_subset(1) + 1
-  if( mypoolid .eq. mypoolroot ) then
-    allocate( coeff( nptot, band_subset(1):band_subset(2), kpt%list%nk, nspin, ntau, nshift ) )
-  else ! for error checking nonsense
-    allocate( coeff( 1, band_subset(1), kpt%list%nk, nspin, ntau, nshift ) )
-  endif
-  coeff = 0.d0
-  call descinit( desc_coeff, nptot, nband, nptot, nband, 0, 0, context_cyclic, nptot, ierr )
-  if( ierr .ne. 0 ) then
-    stop
-  endif
 
   call descinit( desc_eigvec_single, nbasis, nbasis, nbasis, nbasis, 0, 0, context_cyclic, nbasis, ierr )
+
   if( mypoolid .eq. mypoolroot ) then
-!???    allocate( u2( nxpts, band_subset(1) : band_subset(2), kpt%list%nk, nshift ) )
-    allocate( u2( nxpts, band_subset(1) : band_subset(2), 1, nshift ) )
+!!???    allocate( u2( nxpts, band_subset(1) : band_subset(2), kpt%list%nk, nshift ) )
+!    allocate( u2( nxpts, band_subset(1) : band_subset(2), 1, nshift ) )
     allocate( eigvec_single( nbasis, nbasis ) )
   else  ! For error checking nonsense
 !!!!    allocate( u2( 1, band_subset(1), kpt%list%nk, nshift ) )
-     ! JTV memleak 29 July
-!    allocate( u2( 1, band_subset(1), 1, nshift ) )
-    allocate( u2( nxpts, band_subset(1) : band_subset(2), 1, nshift ) )
+!     ! JTV memleak 29 July
+!!    allocate( u2( 1, band_subset(1), 1, nshift ) )
+!    allocate( u2( nxpts, band_subset(1) : band_subset(2), 1, nshift ) )
     allocate( eigvec_single( 1, 1:band_subset(1) ) )
   endif
-  u2 = 0.d0
-  call descinit( desc_u2, nxpts, nband, nxpts, nband, 0, 0, context_cyclic, nxpts, ierr )
+!  u2 = 0.d0
+!  call descinit( desc_u2, nxpts, nband, nxpts, nband, 0, 0, context_cyclic, nxpts, ierr )
+
 
   if( ionode ) write(6,*) 'nshift =', nshift
 
@@ -619,7 +344,15 @@
   lumo = 0.d0
   start_band = 0
 
-  max_val = nelectron / 2 + 10
+  ! Set up different options for valence/conduction split
+  select case (band_style)
+    case( 'metal' )
+      max_val = nelectron / 2 + 10
+    case( 'bands' )
+      max_val = nelectron / 2
+    case default
+      max_val = nelectron / 2 + 10
+  end select
   if( have_kshift ) then
     allocate( tmels( max_val, band_subset( 1 ) : band_subset( 2 ), kpt%list%nk ) )
     tmels = 0.0d0
@@ -628,91 +361,398 @@
                                 max_val, band_subset( 2 )-band_subset( 1 )+1, &
                    0, 0, context_cyclic, max_val, ierr )
 
-
-    tmp_eig_n = numroc( max_val, desc_cyclic(NB_), mycol, 0, npcol )
-    tmp_eig_m = numroc( nbasis, desc_cyclic(MB_), myrow, 0, nprow )
-    call descinit( desc_tmpeig, nbasis, max_val, desc_cyclic(MB_), desc_cyclic(NB_), 0, 0, context_cyclic, tmp_eig_m, ierr )
-    if( ierr .ne. 0 ) then
-      write(stdout,*) desc_tmpeig(:)
-      stop
-    endif
-
-
-    allocate( tmp_eigvec(  tmp_eig_m, tmp_eig_n ) )
+! dec 3
+!    tmp_eig_n = numroc( max_val, desc_cyclic(NB_), mycol, 0, npcol )
+!    tmp_eig_m = numroc( nbasis, desc_cyclic(MB_), myrow, 0, nprow )
+!    call descinit( desc_tmpeig, nbasis, max_val, desc_cyclic(MB_), desc_cyclic(NB_), 0, 0, context_cyclic, tmp_eig_m, ierr )
+!    if( ierr .ne. 0 ) then
+!      write(stdout,*) desc_tmpeig(:)
+!      stop
+!    endif
+!
+!
+!    allocate( tmp_eigvec(  tmp_eig_m, tmp_eig_n ) )
 
 !    allocate( tmp_eigvec( nbasis, max_val ) )
   endif
 
 
 
+  ! ========= pre-fetch all of the energies? =========== !
+  ! Determine number of k-points each processor's pool will do
+  ! Get an array of the ids for each pool head
+  ! Energy_request is sequential for ionode and by kpt/spin for everyone else
+  allocate( energy_request( kpt%list%nk * nspin ), pool_root_map( 0:npool-1 ) )
 
+  pool_root_map(:) = 0
+  if( mypoolid .eq. mypoolroot ) then
+    ! mpime is wrong!
+!    pool_root_map(mypool) = mpime
+    call MPI_COMM_SIZE( cross_pool_comm, i, ierr )
+    write(stdout,*) 'Cross pool size:', i
+    call MPI_COMM_RANK( cross_pool_comm, pool_rank, ierr )
+    write(stdout,*) 'Cross pool id:', pool_rank, ionode_id
+    pool_root_map(mypool) = pool_rank
+    call MPI_ALLREDUCE( MPI_IN_PLACE, pool_root_map, npool, MPI_INTEGER, MPI_SUM, cross_pool_comm, ierr )
+  endif
+
+  do i = 0, npool - 1 
+    write(stdout,*) i, pool_root_map( i )
+  enddo
+
+!  if( have_kshift ) then
+!    nband = max_val
+!  else
+    nband = band_subset(2) - band_subset(1) + 1
+!  endif
+
+  pool_ik = 0
+
+!  i_energy_request = 0
   do ispin=1,nspin
+    do ik=1,kpt%list%nk
+!      if( ionode .and. (mod((ik-1)+(ispin-1)*kpt%list%nk,npool) .ne. mypool ) ) then
+!        i_energy_request = i_energy_request + 1
+!        call MPI_IRECV( e0( 1, ik, ispin, 1 ), nband, MPI_DOUBLE_PRECISION,  &
+!                        pool_root_map(mod((ik-1)+(ispin-1)*kpt%list%nk,npool)), ik+(ispin-1)*kpt%list%nk, &
+!                        cross_pool_comm, energy_request( i_energy_request ), ierr )
+        write(stdout,*) pool_root_map(mod((ik-1)+(ispin-1)*kpt%list%nk,npool)), ik+(ispin-1)*kpt%list%nk
+!      endif
+      if( mod((ik-1)+(ispin-1)*kpt%list%nk,npool)/=mypool ) cycle
+      pool_ik = pool_ik + 1
+    enddo
+  enddo
+  pool_tot_k = max( pool_ik, 1 )
+!  n_energy_request = i_energy_request
 
-  do ik=1,kpt%list%nk
+
+  ! Allocate storage for eigenvectors
+  ! Create descriptors  
+  ! For laziness start by copying *all* of eigvector which is way larger than we need 
+  call local_cyclic_dims( nr_eigvec, nc_eigvec )
+  allocate( store_eigvec( nr_eigvec, nc_eigvec, pool_tot_k ) ) !, &
+!            store_energy( nband, pool_tot_k ) )
+  
+
+
+
+  pool_ik = 0
+  do ispin=1,nspin
+    do ik=1,kpt%list%nk
 ! ======================================================================
 
-    if( mod(ik-1,npool)/=mypool ) cycle
+      ! (ik-1)+(ispin-1)*kpt%list%nk
+      if( mod((ik-1)+(ispin-1)*kpt%list%nk,npool)/=mypool ) cycle
 
 
+      pool_ik = pool_ik + 1
 
-    write(stdout,'(a,3f12.5,i6,a,i6,a,i3)') ' k-point ', &
-      kpt%list%kvec(1:3,ik), ik, ' of ', kpt%list%nk, &
-                                  ' on node ', mpime
+  
+      write(stdout,'(a,3f12.5,i6,a,i6,a,i3)') ' k-point ', &
+        kpt%list%kvec(1:3,ik), ik, ' of ', kpt%list%nk, &
+                                    ' on node ', mpime
 
-    if( mypoolid == mypoolroot ) then
-      call davcio( o2l, nwordo2l, fho2l, ik, -1 )
-    endif
-    
+      ! build the Hamiltonian for this q-point
+      call diag_build_hamk( kpt%list%kvec(1:3,ik), kpt%param%cartesian, ispin )
 
-    ! build the Hamiltonian for this q-point
-    call diag_build_hamk( kpt%list%kvec(1:3,ik), kpt%param%cartesian, ispin )
-
-    if( kinetic_only ) then
-      allocate( ztmp(nbasis,nbasis) )
-      call diag_build_kink( kpt%list%kvec(1:3,ik), kpt%param%cartesian, ztmp )
-      forall( i=1:nbasis ) eigval(i)=ztmp(i,i)
-      deallocate( ztmp )
-    else if( local_only ) then
-      allocate( ztmp(nbasis,nbasis) )
-      call diag_build_vlock( kpt%list%kvec(1:3,ik), kpt%param%cartesian, ispin, ztmp )
-      forall( i=1:nbasis ) eigval(i)=ztmp(i,i)
-      deallocate( ztmp )
-    else if( nonlocal_only ) then
-      allocate( ztmp(nbasis,nbasis) )
-      call diag_build_vnlk( kpt%list%kvec(1:3,ik), kpt%param%cartesian, ispin, ztmp )
-      forall( i=1:nbasis ) eigval(i)=ztmp(i,i)
-      deallocate( ztmp )
-    else if( smatrix_only ) then
-      allocate( ztmp(nbasis,nbasis) )
-      call diag_build_sk( kpt%list%kvec(1:3,ik), kpt%param%cartesian, ztmp )
-      forall( i=1:nbasis ) eigval(i)=ztmp(i,i)
-      deallocate( ztmp )
-    else
-
-!    call diagx_ham
-      call diag_ham
-
-    endif
-
-
-
-!    write(stdout,*) ik, eigval(band_subset(1):band_subset(2))*rytoev
-    write(stdout,*) ik,  eigval(band_subset(1))*rytoev, eigval(band_subset(2))*rytoev
-    e0( :, ik, ispin, 1 ) = 0.5d0 * eigval(band_subset(1):band_subset(2))
-! Find the start_band
-    do ibd = band_subset(1), band_subset( 2 )
-      if( eigval( ibd ) .gt. fermi_energy ) then
-        if( .not. have_kshift ) then
-          start_band( ik ) = ibd
-          lumo( ik ) = eigval( ibd )
-        endif
-        homo( ik ) = eigval( ibd - 1 )
-        goto 10
+      if( kinetic_only ) then
+        allocate( ztmp(nbasis,nbasis) )
+        call diag_build_kink( kpt%list%kvec(1:3,ik), kpt%param%cartesian, ztmp )
+        forall( i=1:nbasis ) eigval(i)=ztmp(i,i)
+        deallocate( ztmp )
+      else if( local_only ) then
+        allocate( ztmp(nbasis,nbasis) )
+        call diag_build_vlock( kpt%list%kvec(1:3,ik), kpt%param%cartesian, ispin, ztmp )
+        forall( i=1:nbasis ) eigval(i)=ztmp(i,i)
+        deallocate( ztmp )
+      else if( nonlocal_only ) then
+        allocate( ztmp(nbasis,nbasis) )
+        call diag_build_vnlk( kpt%list%kvec(1:3,ik), kpt%param%cartesian, ispin, ztmp )
+        forall( i=1:nbasis ) eigval(i)=ztmp(i,i)
+        deallocate( ztmp )
+      else if( smatrix_only ) then
+        allocate( ztmp(nbasis,nbasis) )
+        call diag_build_sk( kpt%list%kvec(1:3,ik), kpt%param%cartesian, ztmp )
+        forall( i=1:nbasis ) eigval(i)=ztmp(i,i)
+        deallocate( ztmp )
+      else
+        call diag_ham
       endif
-    enddo
-10  continue
-!    write(stdout,*) ik, start_band(ik)
 
+
+      write(stdout,*) ik,  eigval(band_subset(1))*rytoev, eigval(band_subset(2))*rytoev
+      e0( :, ik, ispin, 1 ) = 0.5d0 * eigval(band_subset(1):band_subset(2))
+
+
+      ! Send energies to ionode
+!      if( .not. ionode .and. mypoolid .eq. 0 ) then
+!        if( have_kshift ) then 
+!          nband = max_val
+!        else
+!          nband = band_subset(2) - band_subset(1) + 1
+!        endif
+!   
+!        write(stdout,*) 
+!        call MPI_ISEND( e0( :, ik, ispin, 1 ), nband, MPI_DOUBLE_PRECISION, ionode_id, ik+(ispin-1)*kpt%list%nk, &
+!                        cross_pool_comm, energy_request( ik+(ispin-1)*kpt%list%nk ), ierr )
+!      endif
+
+
+
+      !!!!!!! store away eigenvectors
+      store_eigvec( :, :, pool_ik ) = eigvec( :, : )
+
+    enddo ! ik
+  enddo ! ispin
+  ! done with interpolation here
+
+  call mp_barrier
+  write(stdout,*) 'Done with diag'
+
+
+
+  ! Clean up energy communications and find fermi, lumo, homo 
+
+  ! Find start bands and save out energyfile
+  
+  ! Possibly having problems with the non-blocking
+  if( mypoolid .eq. mypoolroot ) then
+    call mp_sum( e0, cross_pool_comm )
+  endif
+  
+#ifdef FALSE
+  if( ionode ) then
+    do ispin = 1, nspin
+      do ik = 1, kpt%list%nk
+        if( mod((ik-1)+(ispin-1)*kpt%list%nk,npool)==mypool ) cycle
+        call MPI_RECV( e0( :, ik, ispin, 1 ), nband, MPI_DOUBLE_PRECISION, &
+!                       pool_root_map(mod((ik-1)+(ispin-1)*kpt%list%nk,npool)), ik+(ispin-1)*kpt%list%nk, &
+                       MPI_ANY_SOURCE, ik+(ispin-1)*kpt%list%nk, &
+                       cross_pool_comm, MPI_STATUS_IGNORE, ierr )
+      enddo
+    enddo
+  elseif( mypoolid .eq. mypoolroot ) then
+    do ispin = 1, nspin
+      do ik = 1, kpt%list%nk
+        if( mod((ik-1)+(ispin-1)*kpt%list%nk,npool)/=mypool ) cycle
+        call MPI_SEND( e0( :, ik, ispin, 1 ), nband, MPI_DOUBLE_PRECISION, &
+                       ionode_id, ik+(ispin-1)*kpt%list%nk, &
+                       cross_pool_comm, MPI_STATUS_IGNORE, ierr )
+      enddo
+    enddo
+  endif
+#endif
+
+  if( ionode ) then
+    write(stdout,*) 'Sharing energies'
+
+!    call MPI_WAITALL( n_energy_request, energy_request, MPI_STATUSES_IGNORE, ierr )
+
+    call fix_fermi( nband, kpt%list%nk, nspin, nshift, max_val, nelectron, 0, &
+                    e0, homo_point, lumo_point, fermi_energy )
+
+    
+    allocate( new_start_band( kpt%list%nk, nspin, nshift ) )
+    call find_startband( nband, kpt%list%nk, nspin, nshift, nelectron, fermi_energy, &
+                         band_style, e0, new_start_band )
+
+
+    if( legacy_zero_lumo ) then
+      lumo_shift = lumo_point * 0.5_DP
+    else
+      lumo_shift = 0.0_DP
+    endif
+
+    
+    call dump_energies( band_subset, nband, kpt%list%nk, nspin, nshift, e0, lumo_shift, new_start_band, ierr )
+
+    write(stdout,*) 'Sharing energies'
+
+
+  endif
+
+!  if( mypoolid .eq. 0 ) then
+!    if( .not. ionode ) then
+!      do ispin=1,nspin
+!        do ik=1,kpt%list%nk
+!          if( mod((ik-1)+(ispin-1)*kpt%list%nk,npool)/=mypool ) cycle
+!          call MPI_WAIT( energy_request( ik+(ispin-1)*kpt%list%nk ), MPI_STATUS_IGNORE, ierr )
+!        enddo
+!      enddo
+!    endif
+!    call MPI_BCAST( fermi_energy, 1, MPI_DOUBLE_PRECISION, ionode_id, cross_pool_comm, ierr )
+!  endif
+!  call MPI_BCAST( fermi_energy, 1, MPI_DOUBLE_PRECISION, mypoolroot, intra_pool_comm, ierr )
+
+  deallocate( energy_request )
+  write(stdout,*) 'Done sharing energies'
+
+!! Everything needs to be C ordering
+!  ndims = 3
+!  dims = ( npool, nprow, npcol )
+!  array_of_gsizes = (/ kpt%list%nk, nbasis, nbasis /)
+!  array_of_distribs = (/ MPI_DISTRIBUTE_CYCLIC, MPI_DISTRIBUTE_CYCLIC MPI_DISTRIBUTE_CYCLIC /)
+!  array_of_dargs = (/ 1, desc_cyclic[MB_], desc_cyclic[NB_] /)
+!  periods = (/.false.,.false.,.false./)
+!  reorder=.false.
+ ! call MPI_CART_CREATE( mpi_comm_world, ndims, dims, periods, reorder, file_comm, ierr )
+!  CALL MPI_TYPE_CREATE_DARRAY( nproc, mpime, ndims, array_of_gsizes, array_of_distribs, array_of_dargs, &
+!                               dims, MPI_ORDER_C, MPI_DOUBLE_COMPLEX, file_type )
+
+
+  nband = band_subset(2) - band_subset(1) + 1
+  if( mypoolid .eq. mypoolroot ) then
+    allocate( out_eigvec( nbasis, nband, pool_tot_k ) )
+  else
+    allocate( out_eigvec( 1, 1, pool_tot_k ) )
+  endif
+
+  pool_ik = 0
+  do ispin=1,nspin
+    do ik=1,kpt%list%nk
+! ======================================================================
+
+      ! (ik-1)+(ispin-1)*kpt%list%nk
+      if( mod((ik-1)+(ispin-1)*kpt%list%nk,npool)/=mypool ) cycle
+
+      pool_ik = pool_ik + 1
+
+
+      call PZGEMR2D( nbasis, nband, store_eigvec( 1, 1, pool_ik ), 1, 1, desc_cyclic, &
+                                      out_eigvec( 1, 1, pool_ik ), 1, 1, desc_eigvec_single, &
+                     context_cyclic, ierr )
+    enddo
+  enddo
+
+  call mp_barrier
+  write(stdout,*) 'Writing out eigvecs'
+
+  if( mypoolid .eq. mypoolroot ) then 
+  
+    ndims = 2
+    dims = (/ 1, npool /)
+    array_of_gsizes = (/ nbasis * nband, nspin * kpt%list%nk /)
+    array_of_distribs = (/ MPI_DISTRIBUTE_CYCLIC, MPI_DISTRIBUTE_CYCLIC /)
+    array_of_dargs = (/ nbasis * nband, 1 /)
+    !
+    !CALL MPI_TYPE_CREATE_DARRAY( npool, mypool, ndims, array_of_gsizes, array_of_distribs, array_of_dargs, &
+    CALL MPI_TYPE_CREATE_DARRAY( npool, pool_rank, ndims, array_of_gsizes, array_of_distribs, array_of_dargs, &
+                                 dims, MPI_ORDER_FORTRAN, MPI_DOUBLE_COMPLEX, file_type, ierr )
+    CALL MPI_TYPE_COMMIT( file_type, ierr )
+
+    ! clear out existing
+!    fmode = IOR(MPI_MODE_CREATE,MPI_MODE_DELETE_ON_CLOSE)
+!    fmode = MPI_MODE_CREATE
+!    call MPI_FILE_OPEN( cross_pool_comm, 'eigvecs.dat', fmode, MPI_INFO_NULL, fheig, ierr )
+!    if( ierr/=0 ) then
+!      errorcode=ierr
+!      call MPI_ERROR_STRING( errorcode, string, resultlen, ierr )
+!      write(6,*) string
+!      call errore(string,errorcode)
+!    endif
+!    call MPI_FILE_CLOSE( fheig, ierr )
+    if( ionode .and. .false. ) then
+      inquire(file='eigvec.dat',exist=ex)
+      if( ex ) then
+        fheigval=freeunit()
+        open(fheigval,file='eigvec.dat',form='unformatted')
+        close(fheigval,status='delete')
+      endif
+    endif
+    call MPI_BARRIER( cross_pool_comm, ierr )
+
+
+
+    fmode = IOR(MPI_MODE_CREATE,MPI_MODE_WRONLY)
+    fmode = IOR(fmode, MPI_MODE_UNIQUE_OPEN)
+
+    call MPI_INFO_CREATE( eigvec_info, ierr )
+!    call MPI_INFO_SET( eigvec_info, 'key', 'value', ierr )
+    call MPI_INFO_SET( eigvec_info, 'access_style', 'write_once', ierr )
+!    call MPI_INFO_SET( eigvec_info, 'cb_nodes', '4', ierr )
+!    call MPI_INFO_SET( eigvec_info, 'striping_factor', '4', ierr )
+
+    call MPI_FILE_OPEN( cross_pool_comm, 'eigvecs.dat', fmode, eigvec_info, fheig, ierr )
+    if( ierr/=0 ) then
+      errorcode=ierr
+      call MPI_ERROR_STRING( errorcode, string, resultlen, ierr )
+      call errore(string,errorcode)
+    endif
+    offset=0
+    !JTV At this point it would be good to create a custom MPI_DATATYPE
+    !  so that we can get optimized file writing
+    call MPI_FILE_SET_VIEW( fheig, offset, MPI_DOUBLE_COMPLEX, &
+                            file_type, 'native', MPI_INFO_NULL, ierr )
+    if( ierr/=0 ) then
+      errorcode=ierr
+      call MPI_ERROR_STRING( errorcode, string, resultlen, ierr )
+      call errore(string,errorcode)
+    endif
+
+    call MPI_TYPE_SIZE( file_type, locsize, ierr )
+    nelements = locsize / 16
+!    if( nelements .ne.  nbasis * nband * pool_tot_k ) then
+!    endif
+    call MPI_BARRIER( cross_pool_comm, ierr )
+    call OCEAN_t_reset
+    call MPI_FILE_WRITE_ALL( fheig, out_eigvec, nelements, MPI_DOUBLE_COMPLEX, mpistatus, ierr )
+    call OCEAN_t_printtime( "File out", stdout)
+    write(6,*) nbasis * nband * nspin * kpt%list%nk / 64
+    
+    call MPI_FILE_CLOSE( fheig, ierr )
+
+
+  endif
+
+  if( ionode ) then
+    iuntmp = freeunit()
+    open(iuntmp,file='qdiag.info',form='formatted',status='unknown')
+    write(iuntmp,*) nbasis, nband, kpt%list%nk, nspin, nshift
+    close(iuntmp)
+  endif
+
+
+
+#ifdef FALSE
+
+  if( mypoolid .eq. mypoolroot ) then
+
+    call MPI_FILE_OPEN( cross_pool_comm, 'eigvecs.dat', MPI_MODE_RDONLY, MPI_INFO_NULL, fheig, ierr )
+    if( ierr/=0 ) then
+      errorcode=ierr
+      call MPI_ERROR_STRING( errorcode, string, resultlen, ierr )
+      call errore(string,errorcode)
+    endif
+    offset=0
+    call MPI_FILE_SET_VIEW( fheig, offset, MPI_DOUBLE_COMPLEX, &
+                            MPI_DOUBLE_COMPLEX, 'native', MPI_INFO_NULL, ierr )
+    if( ierr/=0 ) then
+      errorcode=ierr
+      call MPI_ERROR_STRING( errorcode, string, resultlen, ierr )
+      call errore(string,errorcode)
+    endif
+
+
+  endif
+  
+  pool_ik = 0
+  do ispin=1,nspin
+    do ik=1,kpt%list%nk
+! ======================================================================
+
+      ! (ik-1)+(ispin-1)*kpt%list%nk
+      if( mod((ik-1)+(ispin-1)*kpt%list%nk,npool)/=mypool ) cycle
+
+      pool_ik = pool_ik + 1
+
+      if( mypoolid .eq. mypoolroot ) then
+        offset =  ((ispin-1)*kpt%list%nk + ik-1) * nband * nbasis
+        call mpi_file_read_at( fheig, offset, out_eigvec( 1, 1, 1 ), &
+                                nband * nbasis, &
+                                MPI_DOUBLE_COMPLEX, status, ierr )
+      endif
+      call PZGEMR2D( nbasis, nband, out_eigvec( 1, 1, 1 ), 1, 1, desc_eigvec_single, &
+                     eigvec, 1, 1, desc_cyclic, context_cyclic, ierr )
 
 
 
@@ -956,78 +996,22 @@
       endif
 
 
-      goto 112
-      ! write eigenvalues
-      offset = ((ispin-1)*kpt%list%nk + ik-1)*nbasis_subset
-      call mpi_file_write_at( fheigval, offset, &
-                              eigval(band_subset(1):band_subset(2)), nbasis_subset, &
-                              MPI_DOUBLE_PRECISION, status, ierr )
 
-      if( eigvec_output ) then
-        ! write eigenvectors
-        offset = ((ispin-1)*kpt%list%nk + ik-1)*(nbasis*nbasis)*2
-        call mpi_file_write_at( fheigvec, offset, &
-                                eigvec, (nbasis*nbasis)*2, &
-                                MPI_DOUBLE_PRECISION, status, ierr )
-      endif
-
-!      fhenk=freeunit()
-!      write(filnam, '(a8,i4.4)' ) 'enkfile.', ik
-!      open(unit=fhenk,file=filnam,form='formatted',status='unknown')
-!      rewind(fhenk)
-!      write(fhenk,*) eigval(band_subset(1):4) 
-!      write(fhenk,*) eigval(5:band_subset(2))
-!!      write(fhenk,*) eigval(band_subset(1):band_subset(2))
-!      close(fhenk)
-
-!    endif
-
-  ! JTV
-  ! purposely not-parallel
-  ! sill waste of time with real/imag
-      goto 112
-      write(filnam, '(a8,i4.4)' ) 'Psihead.', ik
-      fhpsi=freeunit()
-      open(unit=fhpsi, file=filnam, form='formatted', status='unknown' )
-      rewind(fhpsi)
-      write(fhpsi,*) npwx
-      write(fhpsi,*) nbasis, band_subset(1), band_subset(2)
-      close(fhpsi)
-
-      write(filnam, '(a8,i4.4)' ) '.Psi001.', ik
-      fhpsi=freeunit()
-      open(unit=fhpsi, file=filnam, form='unformatted', status='unknown' )
-      rewind(fhpsi)
-      write(fhpsi) npwx
-      allocate( gflip( npwx, 3 ) )
-      do ig = 1, npwx
-        gflip( ig, : ) = mill( :, ig )
-      enddo
-      write(fhpsi) gflip
-      allocate( kr( npwx, band_subset(1):band_subset(2)  ) )
-      kr = 0.d0
-      kr( :, : ) = real( matmul( evc, eigvec( 1 : nbasis, band_subset(1):band_subset(2) ) ) )
-      write( fhpsi ) kr
-      kr = 0.d0
-      kr( :, : ) = aimag( matmul( evc, eigvec( 1 : nbasis, band_subset(1):band_subset(2) ) ) )
-      write( fhpsi ) kr
-      close( fhpsi )
-
-  !    write(filnam, '(a4,i5.5)' ) 'gvec', ik
-  !    iuninf=freeunit()
-  !    open(unit=iuninf, file=filnam, form='formatted', status='unknown' )
-  !    write(iuninf, *) npwx
-  !    write(iuninf, * ) gflip
-  !    close( iuninf )
-      deallocate( kr )
-      deallocate( gflip )
- 112  continue
     endif
       
 
   enddo ! ik
 
   enddo ! ispin
+
+  if( mypoolid .eq. mypoolroot ) then
+    
+    call MPI_FILE_CLOSE( fheig, ierr )
+  endif
+
+!#ifdef FALSE
+
+
 
   deallocate( u1, o2l )
 
@@ -1040,29 +1024,48 @@
 
     call mp_sum( e0, cross_pool_comm )
 
-    ! Sort energies to determine true Fermi, homo, lumo
-!    fermi_energy = fermi_energy / 2.0_DP
-    call fix_fermi( nbasis_subset, kpt%list%nk, nspin, nshift, max_val, nelectron, 0, &
-                    e0, homo_point, lumo_point, fermi_energy )
-
     ibeg_unit = freeunit()
     open(unit=ibeg_unit,file='ibeg.h',form='formatted',status='unknown')
     rewind(ibeg_unit)
-    
-    do ispin = 1, nspin
-      do ik = 1, kpt%list%nk
-        do ibd = band_subset(1), band_subset( 2 )
-        if( 2.0_DP * e0( ibd, ik, ispin, nshift ) .gt. fermi_energy ) then
-          start_band( ik ) = ibd
-          lumo( ik ) = 2.0_DP * e0( ibd, ik, ispin, nshift )
-          goto 21
-        endif
-        enddo
-21    continue
-        write(ibeg_unit,*) ik, start_band( ik )
-      enddo
-    enddo
 
+!    select case (band_style)
+!    if( band_style .eq. 'band' ) then
+!      case( 'band' )
+!        start_band(:) = nelectron / 2 + 1
+        do ispin = 1, nspin
+          do ik = 1, kpt%list%nk
+            start_band( ik ) = nelectron / 2 + 1
+            write(ibeg_unit,*) ik, start_band( ik )
+          enddo
+        enddo
+
+!      case default
+    else
+    
+    ! Sort energies to determine true Fermi, homo, lumo
+!    fermi_energy = fermi_energy / 2.0_DP
+
+
+
+!    call fix_fermi( nbasis_subset, kpt%list%nk, nspin, nshift, max_val, nelectron, 0, &
+!                    e0, homo_point, lumo_point, fermi_energy )
+!    
+!    do ispin = 1, nspin
+!      do ik = 1, kpt%list%nk
+!        do ibd = band_subset(1), band_subset( 2 )
+!        if( 2.0_DP * e0( ibd, ik, ispin, nshift ) .gt. fermi_energy ) then
+!          start_band( ik ) = ibd
+!          lumo( ik ) = 2.0_DP * e0( ibd, ik, ispin, nshift )
+!          goto 21
+!        endif
+!        enddo
+!21    continue
+!        write(ibeg_unit,*) ik, start_band( ik ), -1
+!      enddo
+!    enddo
+!
+!    endif
+!    end select
     close(ibeg_unit)
     !
 
@@ -1076,10 +1079,11 @@
 
   allocate(stop_band(kpt%list%nk))
 !  goto 13
-  if( dft_energy_range .le. 0 ) then
+  if( dft_energy_range .le. 0.0 ) then
     nbuse = band_subset( 2 )
     do ik = 1,kpt%list%nk
       nbuse = min( nbuse, band_subset( 2 ) - start_band( ik ) + 1 )
+      write(6,*) ik, nbuse
     enddo
   else
     nbuse = 0
@@ -1208,7 +1212,8 @@
     brange( 2 ) = maxval( start_band( : ) ) - 1
     brange( 3 ) = minval( start_band( : ) )
 !JTV
-    brange( 4 ) = brange( 3 ) + nbuse - 1
+!    brange( 4 ) = brange( 3 ) + nbuse - 1
+    brange( 4 ) = nbasis_subset
     iuntmp = freeunit()
     open(unit=iuntmp,file='brange.ipt',form='formatted',status='unknown')
     rewind(iuntmp)
@@ -1411,6 +1416,8 @@
     write(iuntmp,*) max_val
     write(iuntmp,*) nbasis_subset
   endif
+
+#endif
 
   if( mypoolid==mypoolroot ) then
     call MPI_FILE_CLOSE( fhu2, ierr )
