@@ -51,7 +51,7 @@
 
   character(255) :: eigval_file, eigvec_file, info_file, filout
   logical :: ex
-  logical :: legacy_zero_lumo
+  logical :: legacy_zero_lumo, noshiftlumo
 
   integer(kind=MPI_OFFSET_KIND) :: offset, off1, off2, off3, off4
   integer :: fheigval, fheigvec, fhenk, fhpsi, fheig
@@ -237,13 +237,13 @@
   if( ionode ) then
     iuntmp = freeunit()
 
+    legacy_zero_lumo = .true.
     inquire(file='noshift_lumo',exist=ex)
     if( ex ) then
       open(unit=iuntmp,file='noshift_lumo',form='formatted',status='old')
-      read(iuntmp,*) legacy_zero_lumo
+      read(iuntmp,*) noshiftlumo
       close(iuntmp)
-    else
-      legacy_zero_lumo = .true.
+      if( noshiftlumo ) legacy_zero_lumo = .false.
     endif
 
     inquire(file='band_style.inp',exist=ex)
