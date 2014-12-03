@@ -7,7 +7,7 @@ DEBUG =
 
 include $(ESPRESSO_DIR)/make.sys
 
-FFLAGS+= -Wall
+FFLAGS+=
 
 #.f90.o:
 #	$(MPIF90) $(F90FLAGS) -I$(ESPRESSO_DIR)/include -c $<
@@ -80,6 +80,7 @@ OCEAN_obf2localbyk.o \
 ../zbridge/zobj/facpowfind.o \
 ../zbridge/zobj/optim.o \
 ../CNBSE/zcmsnmult/zobj/jlmfft.o \
+OCEAN_par_gentoreal.o \
 OCEAN_timer.o
 
 #$(ESPRESSO_DIR)/OCEAN/jlmfft.o \
