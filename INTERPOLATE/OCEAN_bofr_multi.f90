@@ -218,7 +218,7 @@ subroutine OCEAN_bofr_multi( )
   !      bofr( ipt ) = dot_product( evc( :, ibnd_indx(ibnd) ), expiGr( :, ipt ) )
       enddo
   !JTV should only end up on ionode
-      call mp_sum( bofr, intra_pool_comm )
+      call mp_sum( bofr(:,1), intra_pool_comm )
   !    call mp_root_sum( bofr, bofr_out, ionode_id )
       if( ionode ) write(iunbofr) bofr(:,1)
 !      if( mod( ibnd, 20 ) .eq. 0 ) &
@@ -229,7 +229,7 @@ subroutine OCEAN_bofr_multi( )
     
     call ZGEMM( 'T', 'N', npt, nbnd, npw, one, evc, npw, expiGr, npw, zero, bofr, npt )
     do ibnd = 1, nbnd
-      call mp_sum( bofr, intra_pool_comm)
+      call mp_sum( bofr(:,ibnd), intra_pool_comm)
       if( ionode ) write(iunbofr) bofr(:,ibnd)
     enddo
 
