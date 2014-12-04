@@ -80,7 +80,9 @@ OCEAN_obf2localbyk.o \
 ../zbridge/zobj/facpowfind.o \
 ../zbridge/zobj/optim.o \
 ../CNBSE/zcmsnmult/zobj/jlmfft.o \
-OCEAN_timer.o
+OCEAN_timer.o \
+OCEAN_par_gentoreal.o
+
 
 #$(ESPRESSO_DIR)/OCEAN/jlmfft.o \
 #$(ESPRESSO_DIR)/OCEAN/OCEAN_2bphase.o\
