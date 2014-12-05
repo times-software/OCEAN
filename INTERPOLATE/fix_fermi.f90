@@ -12,6 +12,9 @@ subroutine dump_energies( band_subset, nbands, nkpts, nspin, nshift, e0, lumo_sh
   integer :: fh, ispin, ik, ibd, ishift, brange(4), nbuse
   real(dp), allocatable :: temp_energy(:,:,:)
 
+
+  write(6,*) lumo_shift
+
   fh = freeunit()
   open(unit=fh,file='ibeg.h',form='formatted',status='unknown',buffered='yes')
   do ishift = 1, nshift
@@ -182,11 +185,11 @@ subroutine fix_fermi( nbands, nkpts, nspin, nshift, max_val, nelect, ndope, e0, 
 !  write(6,*) lumo, 2.0*energy_list( tot_electrons + 1 )
 !  write(6,*) fermi
   fermi = ( energy_list( tot_electrons ) + energy_list( tot_electrons + 1 ) ) / 2.0_DP
-  write(6,*) fermi
 
 
-  homo = 2.0 * energy_list( tot_electrons ) 
-  lumo = 2.0 * energy_list( tot_electrons + 1 )
+  homo = 2.0_dp * energy_list( tot_electrons ) 
+  lumo = 2.0_dp * energy_list( tot_electrons + 1 )
+  write(6,*) fermi, lumo*0.5_dp
   
 
 
