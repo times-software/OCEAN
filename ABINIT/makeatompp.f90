@@ -204,13 +204,58 @@ subroutine getmass(zatom,mass)
         mass = "63.5460"
       case (30)
         mass = "65.3800"
+      case (31)
+        mass = "69.7230"
+      case (32)
+        mass = "72.6300"
+      case (33)
+        mass = "74.9210"
+      case (34)
+        mass = "78.9710"
+      case (35)
+        mass = "79.9040"
+      case (36)
+        mass = "83.7980"
+      case (37)
+        mass = "85.4678"
       case (38)
         mass = "87.6200"
+      case (39)
+        mass = "88.9058"
+      case (40)
+        mass = "91.2240"
+      case (41)
+        mass = "92.9064"
+      case (42)
+        mass = "95.9500"
+      case (43)
+        mass = "98.0000"
+      case (44)
+        mass = "101.070"
+      case (45)
+        mass = "102.900"
+      case (46)
+        mass = "106.420"
+      case (47)
+        mass = "107.868"
+      case (48)
+        mass = "112.414"
+      case (49)
+        mass = "114.818"
+      case (50)
+        mass = "118.710"
+      case (51)
+        mass = "121.760"
+      case (52)
+        mass = "127.600"
+      case (53)
+        mass = "126.900"
+      case (54)
+        mass = "131.293"
       case default
         mass = "120"
 
     end select
-
 
 end subroutine getmass
 
