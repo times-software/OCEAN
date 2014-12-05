@@ -58,7 +58,8 @@ subroutine OCEAN_bofx( )
   complex(dp), allocatable :: eigvec(:,:), unk(:,:)
 
   integer :: fheig, fhu2
-  integer(kind=MPI_OFFSET_KIND) :: offset
+  integer :: u2_type
+  integer(kind=MPI_OFFSET_KIND) :: offset, long_s, long_k, long_x, long_b
 
   integer,external :: freeunit
 
@@ -252,6 +253,9 @@ subroutine OCEAN_bofx( )
 
   !!!!!!!!!  u2par.dat !!!!!!!!!
   if( mypoolid .eq. mypoolroot ) then
+    call MPI_TYPE_CONTIGUOUS( product(xmesh), MPI_DOUBLE_COMPLEX, u2_type, ierr )
+    call MPI_TYPE_COMMIT( u2_type, ierr )
+
     fmode = IOR(MPI_MODE_CREATE,MPI_MODE_WRONLY)
     call MPI_FILE_OPEN( cross_pool_comm, 'u2par.dat', fmode, MPI_INFO_NULL, fhu2, ierr )
     if( ierr/=0 ) then
@@ -260,8 +264,10 @@ subroutine OCEAN_bofx( )
       call errore(string,errorcode)
     endif
     offset=0
-    call MPI_FILE_SET_VIEW( fhu2, offset, MPI_DOUBLE_COMPLEX, &
-                          MPI_DOUBLE_COMPLEX, 'native', MPI_INFO_NULL, ierr )
+    call MPI_FILE_SET_VIEW( fhu2, offset, u2_type, &
+                            u2_type, 'native', MPI_INFO_NULL, ierr )
+!    call MPI_FILE_SET_VIEW( fhu2, offset, MPI_DOUBLE_COMPLEX, &
+!                          MPI_DOUBLE_COMPLEX, 'native', MPI_INFO_NULL, ierr )
     if( ierr/=0 ) then
       errorcode=ierr
       call MPI_ERROR_STRING( errorcode, string, resultlen, ierr )
@@ -272,6 +278,9 @@ subroutine OCEAN_bofx( )
 
 
   allocate( eigvec( nbasis_, nband ), unk( npw, nband ) )
+
+  long_b = nband
+  long_x = product(xmesh)
 
   loud = .true.
   do ispin = 1 , nspin
@@ -289,9 +298,11 @@ subroutine OCEAN_bofx( )
 
 
       offset = ( ispin - 1 ) * nkpt + (ikpt - 1 )
-      offset = offset * product( xmesh )
-      offset = offset * nband
-      call par_gentoreal( xmesh, nband, unk, npw, mill, fhu2, offset, invert_xmesh, loud, ibeg(ikpt,ispin) )  
+!      offset = offset * product( xmesh )
+!      offset = offset * nband
+      offset = offset * long_b
+!      offset = offset * long_x
+      call par_gentoreal( xmesh, nband, unk, npw, mill, fhu2, offset, invert_xmesh, loud, ibeg(ikpt,ispin), u2_type )  
       loud = .false.
       write(stdout,*) ikpt, offset
   
