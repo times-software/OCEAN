@@ -711,6 +711,14 @@
     close(iuntmp)
   endif
 
+  if( ionode ) then
+    open(unit=iuntmp,file='obf_control',form='formatted',status='unknown')
+    rewind(iuntmp)
+    write(iuntmp,*) nbasis
+    write(iuntmp,*) max_val
+    write(iuntmp,*) nbasis_subset
+  endif
+
 
 
 #ifdef FALSE
