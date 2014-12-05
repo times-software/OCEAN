@@ -273,6 +273,8 @@ module OCEAN_bloch
     integer(kind=MPI_OFFSET_KIND) :: offset, offset_extra, offset_nx, offset_start
     integer(8) :: time1, time2, tics_per
 
+    integer :: ncount, u2_status(MPI_STATUS_SIZE), u2_type
+
     if( is_loaded ) return
 
     if( is_init .eqv. .false. ) then 
@@ -494,22 +496,31 @@ module OCEAN_bloch
         write(6,*) width(:)
       endif
         
+!      if( myid .eq. root ) then
+        fmode = MPI_MODE_RDONLY
+        call MPI_FILE_OPEN( comm, 'u2par.dat', fmode, MPI_INFO_NULL, fhu2, ierr )
+        if( ierr/=0 ) then
+          goto 111
+        endif
+        offset=0
+        !JTV At this point it would be good to create a custom MPI_DATATYPE
+        !  so that we can get optimized file writing
+        call MPI_TYPE_CONTIGUOUS( sys%nxpts, MPI_DOUBLE_COMPLEX, u2_type, ierr )
+        if( ierr/=0 ) then
+          goto 111
+        endif
+        call MPI_TYPE_COMMIT( u2_type, ierr )
+        if( ierr/=0 ) then
+          goto 111
+        endif
 
-      fmode = MPI_MODE_RDONLY
-      call MPI_FILE_OPEN( comm, 'u2par.dat', fmode, MPI_INFO_NULL, fhu2, ierr )
-      if( ierr/=0 ) then
-        goto 111
-      endif
-      offset=0
-      !JTV At this point it would be good to create a custom MPI_DATATYPE
-      !  so that we can get optimized file writing
-      call MPI_FILE_SET_VIEW( fhu2, offset, MPI_DOUBLE_COMPLEX, &
-                            MPI_DOUBLE_COMPLEX, 'native', MPI_INFO_NULL, ierr )
-      if( ierr/=0 ) then
-        goto 111
-      endif
+        call MPI_FILE_SET_VIEW( fhu2, offset, u2_type, u2_type, 'native', MPI_INFO_NULL, ierr )
+        if( ierr/=0 ) then
+          goto 111
+        endif
+!      endif
 
-      allocate( u2_buf( sys%xmesh(3), sys%xmesh(2), sys%xmesh(1), sys%num_bands ) )
+!      allocate( u2_buf( sys%xmesh(3), sys%xmesh(2), sys%xmesh(1), sys%num_bands ) )
 
 
 !JTV change up for valence/conduction choice
@@ -571,6 +582,7 @@ module OCEAN_bloch
         if( myid .eq. root ) then
           allocate( re_transpose( sys%num_bands, sys%nxpts ), &
                     im_transpose( sys%num_bands, sys%nxpts ) )
+          allocate( u2_buf( sys%xmesh(3), sys%xmesh(2), sys%xmesh(1), sys%num_bands ) )
         endif
 
 !  u2 is stored by k-point. If there is a shift then
@@ -605,24 +617,40 @@ module OCEAN_bloch
         do iq = 1, sys%nkpts
 
           if( myid .eq. root ) then
-            if( mod(iq,10) .eq. 0 ) write(6,*) iq
             if( metal ) then
               read( 36, * ) dumint, ivh2
               ivh2 = ivh2 - 1
             endif
+            if( mod(iq,10) .eq. 0 ) write(6,*) iq, ivh2
 
           ! skipping the occupied bands
 !            offset = offset + ivh2 * sys%nxpts
-            offset = offset + (ivh2+offset_start) * offset_nx
-            call mpi_file_read_at( fhu2, offset, u2_buf, sys%nxpts * sys%num_bands, &
-                                   MPI_DOUBLE_COMPLEX, MPI_STATUS_IGNORE, ierr )
-            if( ierr .ne. 0 ) then
-              write(6,*) 'u2 failed'
-              return
-            endif
-            ! backtrack the occupied and skip over the full k-point
-            offset = offset + ( width(3) - ivh2 + offset_extra ) * sys%nxpts
+!!!            offset = offset + (ivh2+offset_start) * offset_nx
+!            call mpi_file_read_at( fhu2, offset, u2_buf, sys%nxpts * sys%num_bands, &
+!                                   MPI_DOUBLE_COMPLEX, MPI_STATUS_IGNORE, ierr )
+
+            offset = offset + ivh2
+
+            do ibd = 1, nbd
+              call mpi_file_read_at( fhu2, offset, u2_buf(1,1,1,ibd), 1, u2_type, u2_status, ierr )
+              if( ierr .ne. 0 ) then
+                write(6,*) 'u2 failed', ierr, iq
+                return
+              endif
+              call MPI_GET_COUNT( u2_status, u2_type, ncount, ierr )
+!              if( ncount .ne. sys%num_bands ) then
+              if( ncount .ne. 1 ) then
+                write(6,*) 'u2 read failed.', ncount, sys%num_bands, iq
+                ierr = -100
+                return
+              endif
+              offset = offset + 1
+            enddo
+
+!            ! backtrack the occupied and skip over the full k-point
+!!            offset = offset + ( width(3) - ivh2 + offset_extra ) * offset_nx !sys%nxpts
 !            offset = offset + ( width(3) - ivh2 ) * offset_nx
+            offset = offset + ( width(3) - ivh2 - nbd) !* offset_nx
             xiter = 0
             do iz = 1, nz
               do iy = 1, ny
@@ -676,7 +704,7 @@ module OCEAN_bloch
       call MPI_FILE_CLOSE( fhu2, ierr )
 
 
-      deallocate( u2_buf )
+      if( myid .eq. root ) deallocate( u2_buf )
 
       if( myid .eq. root ) write(6,*) 'Read-in took ', dble( time2-time1 ) / dble( tics_per )
 
