@@ -178,7 +178,7 @@ subroutine loaduxzerotau( nx, ny, nz, nbd, nq, nspn, zn, tau, ur, ui )
   tau( 3 ) = tau(3) - real(xshift(3), kind( 1.0d0 ))/real(nz, kind( 1.0d0 ))
   write(6,*) 'New tau      ', tau(:)
 
-  allocate( tmp_ur( nx, ny, nz, nbd ), tmp_ui( nz, ny, nz, nbd ) )
+  allocate( tmp_ur( nx, ny, nz, nbd ), tmp_ui( nx, ny, nz, nbd ) )
   
 
   do ispn = 1, nspn
