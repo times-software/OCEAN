@@ -496,6 +496,13 @@ module OCEAN_action
           close( 99 )
         endif
       endif
+
+      write(e_filename,'(A7,A2,A1,I4.4,A1,A2,A1,I2.2,A1,I4.4)' ) 'exciton', sys%cur_run%elname, &
+              '.', sys%cur_run%indx, '_', sys%cur_run%corelevel, '_', sys%cur_run%photon, '.', iter
+!      call rtov( sys, psi, v1 )
+!      call rtov( sys, psi, x )
+!      call dump_exciton( sys, psi, e_filename, ierr )
+
     enddo
 
     deallocate( rhs, v1, v2, pcdiv, x )
