@@ -14,6 +14,7 @@ module OCEAN_system
     integer( S_INT ) :: nxpts
     integer( S_INT ) :: nalpha
     integer( S_INT ) :: num_bands
+    integer( S_INT ) :: val_bands
     integer( S_INT ) :: xmesh( 3 )
     integer( S_INT ) :: kmesh( 3 )
     integer( S_INT ) :: ZNL(3)
@@ -26,6 +27,7 @@ module OCEAN_system
     logical          :: long_range
     logical          :: obf
     logical          :: conduct
+    logical          :: valence =.false.
     logical          :: kshift
     character(len=5) :: calc_type
 
@@ -42,6 +44,7 @@ module OCEAN_system
     integer :: indx
     integer :: photon
     integer :: num_bands
+    integer :: val_bands
     integer :: start_band
     character(len=2) :: elname
     character(len=2) :: corelevel
@@ -55,6 +58,7 @@ module OCEAN_system
     logical          :: long_range
     logical          :: obf
     logical          :: conduct
+    logical          :: valence = .false.
     
     type(o_run), pointer :: prev_run => null()
     type(o_run), pointer :: next_run => null()

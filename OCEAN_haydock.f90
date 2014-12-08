@@ -633,55 +633,69 @@ module OCEAN_action
     type(OCEAN_vector) :: temp_psi
 !    real(DP) :: imag_a, temp_a
     real(DP) :: time1, time2
+    complex(DP) :: ctmp
+    real(dp) :: rtmp
     integer :: ialpha, ikpt
     
 !    imag_a = 0.0_DP  
 !    call cpu_time( time1 )
 
-    do ialpha = 1, sys%nalpha
-      do ikpt = 1, sys%nkpts
-!        a(iter-1) = a(iter-1) + dot_product( hpsi%r(:,ikpt,ialpha), psi%r(:,ikpt,ialpha) )&
-!                              + dot_product( hpsi%i(:,ikpt,ialpha), psi%i(:,ikpt,ialpha) )
-!JTV right now we are doing dagger not transpose ...
-        real_a(iter-1) = real_a(iter-1) + dot_product( hpsi%r(:,ikpt,ialpha), psi%r(:,ikpt,ialpha) )&
-                        + dot_product( hpsi%i(:,ikpt,ialpha), psi%i(:,ikpt,ialpha) )
-        imag_a(iter-1) = imag_a(iter-1) + dot_product( hpsi%i(:,ikpt,ialpha), psi%r(:,ikpt,ialpha) )&
-                        - dot_product( hpsi%r(:,ikpt,ialpha), psi%i(:,ikpt,ialpha) )
-      enddo
-    enddo
+!    do ialpha = 1, sys%nalpha
+!      do ikpt = 1, sys%nkpts
+!!        a(iter-1) = a(iter-1) + dot_product( hpsi%r(:,ikpt,ialpha), psi%r(:,ikpt,ialpha) )&
+!!                              + dot_product( hpsi%i(:,ikpt,ialpha), psi%i(:,ikpt,ialpha) )
+!!JTV right now we are doing dagger not transpose ...
+!        real_a(iter-1) = real_a(iter-1) + dot_product( hpsi%r(:,ikpt,ialpha), psi%r(:,ikpt,ialpha) )&
+!                        + dot_product( hpsi%i(:,ikpt,ialpha), psi%i(:,ikpt,ialpha) )
+!        imag_a(iter-1) = imag_a(iter-1) + dot_product( hpsi%i(:,ikpt,ialpha), psi%r(:,ikpt,ialpha) )&
+!                        - dot_product( hpsi%r(:,ikpt,ialpha), psi%i(:,ikpt,ialpha) )
+!      enddo
+!    enddo
+    ctmp = OCEAN_psi_dot( hpsi, psi )
+    real_a(iter-1) = dble( ctmp )
+    imag_a(iter-1) = aimag( ctmp )
 
-!    hpsi%r( :, :, : ) = hpsi%r( :, :, : ) - a(iter-1) * psi%r( :, :, : ) - b(iter-1) * old_psi%r( :, :, : )
-!    hpsi%i( :, :, : ) = hpsi%i( :, :, : ) - a(iter-1) * psi%i( :, :, : ) - b(iter-1) * old_psi%i( :, :, : )
-    hpsi%r( :, :, : ) = hpsi%r( :, :, : ) - real_a(iter-1) * psi%r( :, :, : ) &
-                      + imag_a(iter-1) * psi%i( :, :, : )  &
-                      - b(iter-1) * old_psi%r( :, :, : )
-    hpsi%i( :, :, : ) = hpsi%i( :, :, : ) - real_a(iter-1) * psi%i( :, :, : ) &
-                      - imag_a(iter-1) * psi%r( :, :, : ) &
-                      - b(iter-1) * old_psi%i( :, :, : )
+!!    hpsi%r( :, :, : ) = hpsi%r( :, :, : ) - a(iter-1) * psi%r( :, :, : ) - b(iter-1) * old_psi%r( :, :, : )
+!!    hpsi%i( :, :, : ) = hpsi%i( :, :, : ) - a(iter-1) * psi%i( :, :, : ) - b(iter-1) * old_psi%i( :, :, : )
 
-    do ialpha = 1, sys%nalpha
-      do ikpt = 1, sys%nkpts
-        b(iter) = b(iter) + sum( hpsi%r( :, ikpt, ialpha )**2 + hpsi%i( :, ikpt, ialpha )**2 )
-      enddo
-    enddo
-    b(iter) = sqrt( b(iter) )
-
-    hpsi%r( :, :, : ) = hpsi%r( :, :, : ) / b(iter)
-    hpsi%i( :, :, : ) = hpsi%i( :, :, : ) / b(iter)
+!    hpsi%r( :, :, : ) = hpsi%r( :, :, : ) - real_a(iter-1) * psi%r( :, :, : ) &
+!                      + imag_a(iter-1) * psi%i( :, :, : )  &
+!                      - b(iter-1) * old_psi%r( :, :, : )
+!    hpsi%i( :, :, : ) = hpsi%i( :, :, : ) - real_a(iter-1) * psi%i( :, :, : ) &
+!                      - imag_a(iter-1) * psi%r( :, :, : ) &
+!                      - b(iter-1) * old_psi%i( :, :, : )
+    rtmp = -real_a( iter - 1 )
+    call OCEAN_psi_axpy( rtmp, psi, hpsi )
+    rtmp = -b(iter-1)
+    call OCEAN_psi_axpy( rtmp, old_psi, hpsi )
 
 
-!    old_psi%r( :, :, : ) = psi%r( :, :, : )
-!    old_psi%i( :, :, : ) = psi%i( :, :, : )
-!    psi%r( :, :, : ) = hpsi%r( :, :, : )
-!    psi%i( :, :, : ) = hpsi%i( :, :, : )
-    temp_psi%r => old_psi%r
-    temp_psi%i => old_psi%i
-    old_psi%r => psi%r
-    old_psi%i => psi%i
-    psi%r => hpsi%r
-    psi%i => hpsi%i
-    hpsi%r => temp_psi%r
-    hpsi%i => temp_psi%i
+!    do ialpha = 1, sys%nalpha
+!      do ikpt = 1, sys%nkpts
+!        b(iter) = b(iter) + sum( hpsi%r( :, ikpt, ialpha )**2 + hpsi%i( :, ikpt, ialpha )**2 )
+!      enddo
+!    enddo
+!    b(iter) = sqrt( b(iter) )
+    b(iter) = OCEAN_psi_nrm( hpsi )
+
+    rtmp = 1.0_dp / b(iter)
+!    hpsi%r( :, :, : ) = hpsi%r( :, :, : ) / b(iter)
+!    hpsi%i( :, :, : ) = hpsi%i( :, :, : ) / b(iter)
+    call OCEAN_psi_scal( rtmp, hpsi )
+
+    call OCEAN_psi_swap( old_psi, psi, hpsi )
+!!    old_psi%r( :, :, : ) = psi%r( :, :, : )
+!!    old_psi%i( :, :, : ) = psi%i( :, :, : )
+!!    psi%r( :, :, : ) = hpsi%r( :, :, : )
+!!    psi%i( :, :, : ) = hpsi%i( :, :, : )
+!    temp_psi%r => old_psi%r
+!    temp_psi%i => old_psi%i
+!    old_psi%r => psi%r
+!    old_psi%i => psi%i
+!    psi%r => hpsi%r
+!    psi%i => hpsi%i
+!    hpsi%r => temp_psi%r
+!    hpsi%i => temp_psi%i
 
 !    call cpu_time( time2 )
 
@@ -785,6 +799,7 @@ module OCEAN_action
       select case ( calc_type )
         case('hay')
           read(99,*) ne, el, eh, gam0, ebase
+          inv_loop = -1
         case('inv')
           read(99,*) nloop, gres, gprc, ffff, ener
           read(99,*) inv_style
@@ -846,8 +861,10 @@ module OCEAN_action
     call MPI_BCAST( e_stop, 1, MPI_DOUBLE_PRECISION, root, comm, ierr )
     call MPI_BCAST( e_step, 1, MPI_DOUBLE_PRECISION, root, comm, ierr )
     call MPI_BCAST( inv_loop, 1, MPI_INTEGER, root, comm, ierr )
-    if( myid .ne. root ) allocate( e_list( inv_loop ) )
-    call MPI_BCAST( e_list, inv_loop, MPI_DOUBLE_PRECISION, root, comm, ierr )
+    if( inv_loop .gt. 0 ) then
+      if( myid .ne. root ) allocate( e_list( inv_loop ) )
+      call MPI_BCAST( e_list, inv_loop, MPI_DOUBLE_PRECISION, root, comm, ierr )
+    endif
 #endif
 
     if( allocated( a ) ) deallocate( a )

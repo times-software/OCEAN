@@ -56,7 +56,8 @@ module ocean_long_range
   logical :: isolated = .false.
   
 
-  public :: create_lr, lr_populate_W, lr_populate_bloch, lr_act, lr_populate_W2, lr_fill_values, lr_init, lr_timer, lr_slice, dump_exciton
+  public :: create_lr, lr_populate_W, lr_populate_bloch, lr_act, lr_populate_W2, lr_fill_values, & 
+            lr_init, lr_timer, lr_slice, dump_exciton
 
   contains
 

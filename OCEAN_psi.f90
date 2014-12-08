@@ -4,6 +4,7 @@ module OCEAN_psi
 
   implicit none
   save
+  private
 
 !  COMPLEX(DP),  POINTER :: psi(:,:,:)
 !!DEC$ ATTRIBUTES ALIGN: 32 :: psi
@@ -25,11 +26,28 @@ module OCEAN_psi
   REAL(DP), public :: kpref
   INTEGER :: psi_bands_pad
   INTEGER :: psi_kpts_pad
+  INTEGER :: psi_length
+  INTEGER :: psi_val_bands
+  INTEGER :: psi_con_bands
+  INTEGER :: psi_val_length
+
+  LOGICAL :: core = .true.
+  LOGICAL :: valence = .false.
 
 
   type OCEAN_vector
-    REAL(DP), POINTER, CONTIGUOUS :: r(:,:,:) => null()
-    REAL(DP), POINTER, CONTIGUOUS :: i(:,:,:) => null()
+    REAL(DP), POINTER :: r(:,:,:) => null()
+    REAL(DP), POINTER :: i(:,:,:) => null()
+
+    COMPLEX(DP), POINTER :: val(:,:,:) => null()
+
+#ifdef CONTIGUOUS
+    CONTIGUOUS :: r, i, val
+#endif
+
+#ifdef __INTEL
+!dir$ attributes align:64 :: r, i, val
+#endif
 
     TYPE(C_PTR) :: rcptr
     TYPE(C_PTR) :: icptr
@@ -40,8 +58,122 @@ module OCEAN_psi
 
 
   public :: OCEAN_psi_init, OCEAN_psi_kill, OCEAN_psi_load, OCEAN_psi_sum_lr,  &
-            OCEAN_psi_sum, OCEAN_psi_ab, OCEAN_psi_set_prec, OCEAN_psi_write
+            OCEAN_psi_sum, OCEAN_psi_ab, OCEAN_psi_set_prec, OCEAN_psi_write, &
+            OCEAN_psi_swap, OCEAN_psi_dot, OCEAN_psi_nrm, OCEAN_psi_scal, &
+            OCEAN_psi_axpy
+
+  public :: OCEAN_vector
   contains
+
+  subroutine OCEAN_psi_swap( a, b, c )
+    implicit none
+    type( OCEAN_vector ), intent( inout ) :: a, b, c
+    type( OCEAN_vector ) :: d
+
+    call OCEAN_psi_assign( a, d )
+    call OCEAN_psi_assign( b, a )
+    call OCEAN_psi_assign( c, b )
+    call OCEAN_psi_assign( d, c )
+
+  end subroutine
+
+  subroutine OCEAN_psi_assign( a, b )
+    implicit none
+    type( OCEAN_vector ), intent( inout ) :: a, b
+
+    b%r => a%r
+    b%i => a%i
+    
+    b%bands_pad = a%bands_pad
+    b%kpts_pad = b%kpts_pad
+
+  end subroutine OCEAN_psi_assign
+
+  real(dp) function OCEAN_psi_nrm( a )
+    implicit none
+    type( OCEAN_vector ), intent( in ) :: a
+    real(dp) :: val
+    real(dp), external :: DDOT, DZNRM2
+
+    if( core ) then
+      OCEAN_psi_nrm = DDOT( psi_length, a%r, 1, a%r, 1 )
+      OCEAN_psi_nrm = DDOT( psi_length, a%i, 1, a%i, 1 ) + OCEAN_psi_nrm
+    else
+      OCEAN_psi_nrm = 0.0_dp
+    endif
+
+    if( valence ) then
+      val = DZNRM2( psi_val_length, a%val, 1 )
+      OCEAN_psi_nrm = OCEAN_psi_nrm + val * val
+    endif
+
+    OCEAN_psi_nrm = sqrt( OCEAN_psi_nrm )
+
+  end function OCEAN_psi_nrm
+
+  complex(dp) function OCEAN_psi_dot( a, b )
+    implicit none
+    type( OCEAN_vector ), intent( in ) :: a, b
+    real(dp) :: r, i
+    real(dp), external :: DDOT
+    compleX(dp), external :: ZDOTC
+
+    if( core ) then
+      r = DDOT( psi_length, a%r, 1, b%r, 1 ) &
+        + DDOT( psi_length, a%i, 1, b%i, 1 )
+      i = DDOT( psi_length, a%r, 1, b%i, 1 ) &
+        - DDOT( psi_length, a%i, 1, b%r, 1 )
+    else
+      r = 0.0_dp
+      i = 0.0_dp
+    endif
+
+    if( valence ) then
+      OCEAN_psi_dot = ZDOTC( psi_val_length, a%val, 1, b%val, 1 ) + cmplx( r, i )
+    else
+      OCEAN_psi_dot = cmplx( r, i )
+    endif
+
+  end function OCEAN_psi_dot
+
+  subroutine OCEAN_psi_scal( a, x )
+    implicit none
+    real(dp), intent( in ) :: a
+    type( OCEAN_vector ), intent( inout ) :: x
+
+
+    if( core ) then
+      call DSCAL( psi_length, a, x%r, 1 )
+      call DSCAL( psi_length, a, x%i, 1 )
+    endif
+
+    if( valence ) then
+      call ZDSCAL( psi_val_length, a, x%val, 1 )
+    endif
+
+  end subroutine OCEAN_psi_scal
+
+  subroutine OCEAN_psi_axpy( a, x, y )
+    implicit none
+    real(dp), intent( in ) :: a
+    type( OCEAN_vector ), intent( in ) :: x
+    type( OCEAN_vector ), intent( inout ) :: y
+    !
+    complex(dp) :: za
+
+    if( core ) then
+      call DAXPY( psi_length, a, x%r, 1, y%r, 1 )
+      call DAXPY( psi_length, a, x%i, 1, y%i, 1 )
+    endif
+
+    if( valence ) then
+      za = a
+      call ZAXPY( psi_val_length, za, x%val, 1, y%val )
+    endif
+
+
+  end subroutine OCEAN_psi_axpy
+  
 
   subroutine OCEAN_psi_set_prec( sys, energy, gprc, psi_in, psi_out )
     use OCEAN_system
@@ -256,6 +388,18 @@ module OCEAN_psi
 
 !    psi = 0_DP
 !    if( myid .eq. root ) write(6,*) associated( p%r ), associated( p%i )
+
+
+
+    psi_bands_pad = p%bands_pad
+    psi_kpts_pad = p%kpts_pad
+    psi_length = psi_bands_pad * psi_kpts_pad * sys%nalpha
+    psi_val_bands = sys%val_bands
+    psi_con_bands = sys%num_bands
+    psi_val_length = sys%val_bands * sys%num_bands * sys%nkpts
+    core = .true.
+    valence = .false.
+
 
   end subroutine OCEAN_psi_init
 
