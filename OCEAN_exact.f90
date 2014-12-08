@@ -39,7 +39,7 @@ module OCEAN_exact
   INTEGER :: myrow
   INTEGER :: mycol
 
-  INTEGER :: block_fac = 32
+  INTEGER :: block_fac = 64
 
 
   public :: OCEAN_exact_diagonalize
@@ -60,8 +60,8 @@ module OCEAN_exact
     call OCEAN_initialize_bse( sys, ierr )
     if( ierr .ne. 0 ) goto 111
 
-!    call OCEAN_populate_bse( sys, ierr )
-    call OCEAN_pb_slices( sys, hay_vec, ierr )
+    call OCEAN_populate_bse( sys, ierr )
+!    call OCEAN_pb_slices( sys, hay_vec, ierr )
     if( ierr .ne. 0 ) goto 111
 
     call OCEAN_diagonalize( ierr )
@@ -350,7 +350,7 @@ module OCEAN_exact
 
         dest_proc = rsrc + csrc*nprow
 
-        
+        !!!!?? JTV
         call MPI_ISEND( bse_matrix_buffer( buf_pointer ), buf_size, MPI_CT, dest_proc, &
                         comm_tag_index, MPI_REQUEST_NULL, ierr )
 
