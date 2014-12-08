@@ -56,7 +56,7 @@ module ocean_long_range
   logical :: isolated = .false.
   
 
-  public :: create_lr, lr_populate_W, lr_populate_bloch, lr_act, lr_populate_W2, lr_fill_values, lr_init, lr_timer, lr_slice
+  public :: create_lr, lr_populate_W, lr_populate_bloch, lr_act, lr_populate_W2, lr_fill_values, lr_init, lr_timer, lr_slice, dump_exciton
 
   contains
 
@@ -1809,6 +1809,196 @@ module ocean_long_range
     deallocate( rtphi, itphi, xwrkr, xwrki, wrk )
 
   end subroutine lr_slice
+
+
+
+  subroutine dump_exciton( sys, p, filnam, ierr )
+    use OCEAN_system
+    use OCEAN_psi
+    use OCEAN_mpi, ONLY : myid, comm, root, nproc
+    implicit none
+
+    type( o_system ), intent( in ) :: sys
+    type(OCEAN_vector), intent( in ) :: p
+    character(len=25 ), intent(in) :: filnam
+    integer, intent( inout ) :: ierr
+
+    !
+    real( DP ), parameter :: one = 1.0_DP
+    real( DP ), parameter :: minusone = -1.0_DP
+    real( DP ), parameter :: zero = 0.0_DP
+    !
+    !
+    real( DP ), allocatable :: xwrkr( : ), xwrki( : ), wrk( : )
+    integer :: jfft, ialpha, ikpt, xiter, curx, xbuf, iter, ix, iy , iz, x_start, x_stop
+    !
+    real(DP), external :: DDOT
+
+    real( DP ) :: su
+    real( DP ), allocatable :: re_exciton(:,:,:), im_exciton(:,:,:), exciton_buf(:), exciton_out(:), exciton_transpose( :, :, : ) 
+
+#ifdef __INTEL_COMPILER
+!DIR$ attributes align: 64 :: xwrkr, xwrki, wrk
+#endif
+
+
+    ! For each x-point in the unit cell
+    !   Populate \phi(x,k) = \sum_n u(x,k) \psi_n(x,k)
+    !   Do FFT for k-points
+    !   Calculate W(x,k) x \phi(x,k)
+    !   Do FFT back to k-points
+    
+
+
+
+
+    ! prep info for fft
+    jfft = 2 * max( sys%kmesh( 1 ) * ( sys%kmesh( 1 ) + 1 ), &
+                    sys%kmesh( 2 ) * ( sys%kmesh( 2 ) + 1 ), &
+                    sys%kmesh( 3 ) * ( sys%kmesh( 3 ) + 1 ) )
+    !
+    
+! !$OMP PARALLEL DEFAULT( NONE ) &
+! !$OMP& SHARED( W, hpr, hpi, re_bloch_state, im_bloch_state, p, sys ) &
+! !$OMP& PRIVATE( xwrkr, xwrki, wrk, ikpt, ialpha, xiter ) &
+! !$OMP& FIRSTPRIVATE( jfft ) 
+
+
+    allocate( xwrkr( sys%nkpts ), xwrki( sys%nkpts ), &
+              wrk( jfft ) )
+
+    allocate( re_exciton( my_xpts, 1, sys%nalpha ), im_exciton( my_xpts, 1, sys%nalpha ) )
+
+! !$OMP DO COLLAPSE( 2 ) REDUCTION(+:hpr,hpi)
+    do ialpha = 1, sys%nalpha
+      do xiter = 1, my_xpts
+
+    ! Populate phi
+#ifdef BLAS
+        do ikpt = 1, my_kpts
+          xwrkr( ikpt )  = DDOT( sys%num_bands, p%r(1,ikpt,ialpha), 1, &
+                                        re_bloch_state(1,ikpt,xiter), 1 ) &
+                                - DDOT( sys%num_bands, p%i(1,ikpt,ialpha), 1, &
+                                        im_bloch_state(1,ikpt,xiter), 1 )
+          xwrki( ikpt ) = DDOT( sys%num_bands, p%r(1,ikpt,ialpha), 1, & 
+                                       im_bloch_state(1,ikpt,xiter), 1 ) &
+                               + DDOT( sys%num_bands, p%i(1,ikpt,ialpha), 1, &
+                                       re_bloch_state(1,ikpt,xiter), 1 )
+        enddo
+
+
+#else
+        do ikpt = 1, my_kpts
+          xwrkr( ikpt ) = &
+                                   dot_product(p%r(:,ikpt,ialpha),re_bloch_state(:,ikpt,xiter)) &
+                                 - dot_product(p%i(:,ikpt,ialpha),im_bloch_state(:,ikpt,xiter))
+          xwrki( ikpt ) = &
+                                   dot_product(p%r(:,ikpt,ialpha),im_bloch_state(:,ikpt,xiter)) &
+                                 + dot_product(p%i(:,ikpt,ialpha),re_bloch_state(:,ikpt,xiter))
+        enddo
+#endif          
+
+
+        call cfft( xwrkr, xwrki, sys%kmesh(3), sys%kmesh(3), sys%kmesh(2), &
+                   sys%kmesh(1), -1, wrk, jfft )
+
+
+        re_exciton( xiter, 1, ialpha ) = xwrkr( 1 ) * dble(sys%nkpts)
+        im_exciton( xiter, 1, ialpha ) = xwrki( 1 ) * dble(sys%nkpts)
+  
+        enddo
+      enddo
+! !$OMP END DO
+
+    deallocate( xwrkr, xwrki, wrk )
+
+! !$OMP END PARALLEL
+
+
+
+  xbuf = my_xpts
+  curx = my_xpts
+  allocate( exciton_buf( xbuf ) )
+  exciton_buf = 0.0_DP
+  do ialpha = 1, 1 !sys%nalpha
+    do xiter = 1, curx
+      exciton_buf(xiter) = exciton_buf(xiter) + sqrt( re_exciton( xiter, 1, ialpha ) ** 2 & 
+                                              + im_exciton( xiter, 1, ialpha ) ** 2 )
+    enddo
+  enddo
+
+  if( myid .eq. root ) then 
+    open(unit=99,file=filnam,form='formatted',status='unknown')
+!    write(99,*) exciton_buf(1:curx)
+
+
+    allocate( exciton_out( sys%nxpts ) )
+    x_start = 1
+    x_stop = x_start + curx - 1
+    exciton_out( x_start : x_stop ) = exciton_buf( 1 : curx )
+    x_start = x_stop
+
+  endif
+
+  do iter = 1, nproc - 1
+    if( myid .eq. root ) then
+      call MPI_RECV( curx, 1, MPI_INTEGER, iter, iter, comm, MPI_STATUS_IGNORE, ierr )
+      if( curx .gt. xbuf ) then
+        xbuf = curx
+        deallocate( exciton_buf )
+        allocate( exciton_buf( xbuf ) )
+      endif
+      call MPI_RECV( exciton_buf, curx, MPI_DOUBLE_PRECISION, iter, iter, comm, MPI_STATUS_IGNORE, ierr )
+!      write(99,*) exciton_buf(1:curx)
+      x_stop = x_start + curx - 1
+      exciton_out( x_start : x_stop ) = exciton_buf( 1 : curx )
+      x_start = x_stop
+    elseif( myid .eq. iter ) then
+      call MPI_SEND( curx, 1, MPI_INTEGER, root, iter, comm, ierr )
+      call MPI_SEND( exciton_buf, curx, MPI_DOUBLE_PRECISION, root, iter, comm, ierr )
+    endif
+  enddo
+
+
+  deallocate( exciton_buf, re_exciton, im_exciton )
+
+
+  if( myid .eq. root ) then
+    allocate( exciton_transpose( sys%xmesh(3), sys%xmesh(2), sys%xmesh(1) ) )
+!    do ix = 1, sys%xmesh(1)
+!      do iy = 1, sys%xmesh(2)
+!        do iz = 1, sys%xmesh(3)
+!! Need to invert x,y,z to z,y,x
+!          xiter = ( iz - 1 ) * sys%xmesh(1) * sys%xmesh(2) + ( iy - 1 ) * sys%xmesh(1) + ix
+!          write(99,*) exciton_out( xiter )
+!
+!        enddo
+!      enddo
+!    enddo
+
+    xiter = 0
+    su = 0.0_DP
+    do iz = 1, sys%xmesh(3)
+      do iy = 1, sys%xmesh(2)
+        do ix = 1, sys%xmesh(1)
+          xiter = xiter + 1
+          exciton_transpose( iz, iy, ix ) = exciton_out( xiter )
+          su = su + exciton_out( xiter )
+        enddo
+      enddo
+    enddo
+    su = 1.0_DP / su
+!    write(99,*) exciton_out(:) * su !exciton_transpose( :, :, : ) 
+    write(99,*) exciton_transpose( :, :, : ) * su
+
+    close(99)
+
+    deallocate( exciton_out, exciton_transpose )
+  endif
+
+
+
+  end subroutine dump_exciton
 
 end module ocean_long_range
 
