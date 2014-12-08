@@ -229,8 +229,8 @@ module OCEAN_multiplet
     
     deallocate( so_list_temp, fg_list_temp, ct_list_temp, proc_load, proc_list )    
 
-    do_staggered_sum = .true.
-!    do_staggered_sum = .false.
+!    do_staggered_sum = .true.
+    do_staggered_sum = .false.
 
   end subroutine OCEAN_mult_create_par
 
@@ -572,7 +572,7 @@ module OCEAN_multiplet
 !               call limel( sys%cur_run%ZNL(3), nint( cml( jc ) ), nint( cml( ic ) ), & 
 !                           vrslt, nsphpt, xsph, ysph, zsph, wsph, prefs )
 !????
-               ctmp = 0.0_DP
+               ctmp = 0
                do i = 1, 3
 !????                  ctmp = ctmp + vrslt( i ) * jimel( 0.5d0, cms( jc ), cms( ic ), i )
                  ctmp = ctmp + jimel( dble( sys%cur_run%ZNL(3) ), cml( jc ), cml( ic ), i ) & 
@@ -607,6 +607,7 @@ module OCEAN_multiplet
   subroutine OCEAN_mult_act( sys, inter, in_vec, out_vec )
     use OCEAN_system
     use OCEAN_psi
+    use OCEAN_mpi
     implicit none
     !
     type(O_system), intent( in ) :: sys
@@ -628,7 +629,7 @@ module OCEAN_multiplet
       if( sys%ZNL(2) .gt. 0 ) then
         call OCEAN_soact_dist( sys, in_vec, out_vec )
       endif
-    else
+    elseif (myid .eq. 0 ) then
       call OCEAN_ctact( sys, inter, in_vec, out_vec )
       call fgact( sys, inter, in_vec, out_vec )
       if( sys%ZNL(2) .gt. 0 ) then
@@ -1059,16 +1060,17 @@ module OCEAN_multiplet
 
 !JTV Maybe want to consider blocking this routine for cache reuse
 
-!$OMP PARALLEL &
-!$OMP DEFAULT( NONE ) &
-!$OMP PRIVATE( iter, ic, jc, ikpt, melr, meli ) &
-!$OMP SHARED( sys, in_vec, out_vec, somelr, someli, so_n, so_list )
+! !$OMP PARALLEL &
+! !$OMP DEFAULT( NONE ) &
+! !$OMP PRIVATE( iter, ic, jc, ikpt, melr, meli ) &
+! !$OMP SHARED( sys, in_vec, out_vec, somelr, someli, so_n, so_list, vms )
     do iter = 1, so_n
       ic = so_list( 1, iter )
       jc = so_list( 2, iter )
       melr = somelr( ic, jc )
       meli = someli( ic, jc )
-!$OMP DO 
+      if ( vms( ic ) .eq. vms( jc ) ) then
+! !$OMP DO 
         do ikpt = 1, sys%nkpts
           out_vec%r( 1:sys%num_bands, ikpt, ic ) = out_vec%r( 1:sys%num_bands, ikpt, ic )  &
                                    + melr * in_vec%r( 1:sys%num_bands, ikpt, jc ) &
@@ -1081,9 +1083,10 @@ module OCEAN_multiplet
 !                                   + somelr( ic, jc ) * in_vec%i( 1:sys%num_bands, ikpt, jc ) &
 !                                   + someli( ic, jc ) * in_vec%r( 1:sys%num_bands, ikpt, jc )
         enddo
-!$OMP END DO
+! !$OMP END DO
+      endif
     enddo
-!$OMP END PARALLEL
+! !$OMP END PARALLEL
 
 
   end subroutine OCEAN_soact_dist
