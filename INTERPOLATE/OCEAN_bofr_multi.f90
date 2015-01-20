@@ -9,7 +9,7 @@ subroutine OCEAN_bofr_multi( )
   USE wvfct
   USE io_files, ONLY: prefix, nwordwfc, iunwfc
   USE wavefunctions_module, ONLY: evc
-  USE mp, ONLY : mp_sum, mp_bcast, mp_root_sum
+  USE mp, ONLY : mp_sum, mp_bcast, mp_root_sum, mp_barrier
   USE mp_global, ONLY : me_pool, nproc_pool, intra_pool_comm, root_pool
   use hamq_shirley
   use shirley_ham_input, only : debug, band_subset
@@ -42,6 +42,8 @@ subroutine OCEAN_bofr_multi( )
   integer,external :: freeunit
 
   write(stdout,*) 'BOFR_MULTI'
+  call OCEAN_t_reset
+
 
   WRITE( stdout, '(/5x,"Calling realspacebasis .... ",/)')
   write(stdout,*) ' npwx  = ', npwx
@@ -160,7 +162,7 @@ subroutine OCEAN_bofr_multi( )
   ! Prep output file
   if( ionode ) then
     iunbofr = freeunit()
-    open(iunbofr,file=trim(prefix)//'.bofr',form='unformatted')
+    open(iunbofr,file=trim(prefix)//'.bofr',form='unformatted',buffered='yes')
     write(stdout,*) ' will be saved to file: ', trim(prefix)//'.bofr' 
 
     open(unit=99,file='bvecs',form='formatted',status='old')
@@ -181,6 +183,9 @@ subroutine OCEAN_bofr_multi( )
   !!!!!!
   allocate( expiGr( npw, npt ), bofr( npt, nbnd ), bofr_out( npt ) )
 
+
+  call mp_barrier
+  call OCEAN_t_printtime( "Init", stdout )
 
   do itau = 1, ntau
     write(stdout,*) 'Site: ', itau, ntau
