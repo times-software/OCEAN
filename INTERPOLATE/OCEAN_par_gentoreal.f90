@@ -150,7 +150,7 @@ subroutine par_gentoreal( nx, nfcn, fcn, ng, gvec, iu, offset, invert_xmesh, lou
         if( j .eq. me_pool ) cycle
         if( band_block(j) .lt. 1 ) cycle
         call MPI_SEND( fcn( 1, band_start(j) ), npw_map( i ) * band_block( j ), MPI_DOUBLE_COMPLEX, j, &
-                       i*nproc_pool+j+1, intra_pool_comm, MPI_STATUS_IGNORE, ierr )
+                       i*nproc_pool+j+1, intra_pool_comm, ierr )
       enddo
     else
       j = me_pool
@@ -558,7 +558,7 @@ subroutine par_gentoreal( nx, nfcn, fcn, ng, gvec, iu, offset, invert_xmesh, lou
     do j = 0, nproc_pool - 1
       if( me_pool .eq. j .and. ( band_block(j) .ge. 1 ) ) then
         call MPI_SEND( cres(1,1,1,1), product(nx)*band_block(j), MPI_DOUBLE_COMPLEX, root_pool, j, &
-                       intra_pool_comm, MPI_STATUS_IGNORE, ierr )
+                       intra_pool_comm, ierr )
       endif
     enddo
 
