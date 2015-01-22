@@ -17,7 +17,7 @@ subroutine par_gentoreal( nx, nfcn, fcn, ng, gvec, iu, offset, invert_xmesh, lou
   integer, intent( in ) :: ibeg
   integer, intent( in ) :: u2_type
   !
-  integer :: ix, iy, iz, i1, i2, i3, nfft( 3 ), idwrk, igl, igh, nmin, ii, jj
+  integer :: ix, iy, iz, i1, i2, i3, nfft( 3 ), idwrk, igl, igh, nmin, ii, jj, nxpts
   integer :: fac( 3 ), j, ig, i, locap( 3 ), hicap( 3 ), toreal, torecp, nftot
   real(dp) :: normreal, normrecp
   complex(dp) :: rm1, w
@@ -32,13 +32,15 @@ subroutine par_gentoreal( nx, nfcn, fcn, ng, gvec, iu, offset, invert_xmesh, lou
   complex(dp), external :: ZDOTC
   integer, external :: optim 
 
-  integer :: ierr, ncount, out_status(MPI_STATUS_SIZE), max_bands, stop_band, extra_counter, iii
+  integer :: ierr, ncount, out_status(MPI_STATUS_SIZE), max_bands, stop_band, extra_counter, iii, nelement
+  integer :: bband
   integer :: bands_left, test_block, npw_max, start_band, ig_full, send_counter, recv_counter, u2_send_count, u2_recv_count
   integer, allocatable :: band_block(:), npw_map(:), tags(:), gvecs_global(:,:,:), band_start(:), &
                           my_send_request(:), my_recv_request(:), u2_recv(:), u2_send(:)
   complex(dp), allocatable :: fcn_buffer(:,:)
 
   logical, parameter :: try_nonblock = .true.
+  integer(kind=MPI_OFFSET_KIND), parameter :: oneGBinComplex = 67108864
   !
   !
   rm1 = -1
@@ -617,13 +619,44 @@ subroutine par_gentoreal( nx, nfcn, fcn, ng, gvec, iu, offset, invert_xmesh, lou
 !    call MPI_FILE_WRITE_AT( iu, offset, cres, ncount, MPI_DOUBLE_COMPLEX, out_status, ierr )
 !    call MPI_GET_COUNT( out_status, MPI_DOUBLE_COMPLEX, ncount, ierr )
 !    ncount = nfcn
-    do i = 1, nfcn
-      call MPI_FILE_WRITE_AT( iu, offset, cres(1,1,1,i), 1, u2_type, out_status, ierr )
+    nxpts = product(nx)
+
+
+    ! limit writes to 1GB at a time. This is to try and avoid problems in openmpi/romio
+    ! At some point in time we will be able to get rid of this. Maybe
+    if( int( nfcn, MPI_OFFSET_KIND ) * int( nxpts, MPI_OFFSET_KIND ) > oneGBinComplex ) then
+      if( int( nxpts, MPI_OFFSET_KIND ) > ( oneGBinComplex / 2 ) ) then
+        bband = 1
+      elseif( nxpts > 8388608 ) then
+        bband = min( 4, nfcn )
+      elseif( nxpts > 2097152 ) then
+        bband = min( 16, nfcn ) 
+      elseif( nxpts > 524288 ) then
+        bband = min( 64, nfcn )
+      elseif( nxpts > 131072 ) then
+        bband = min( 256, nfcn ) 
+      elseif( nxpts > 32768 ) then
+        bband = min( 1024, nfcn )
+      else
+        bband = min( 4096, nfcn )
+      endif
+    else
+      bband = nfcn
+    endif
+      
+
+    bband = 1
+      
+
+    do i = 1, nfcn, bband
+      nelement = min( bband, nfcn-i+1)
+
+      call MPI_FILE_WRITE_AT( iu, offset, cres(1,1,1,i), nelement, u2_type, out_status, ierr )
       if( i .eq. 1 ) then
         call MPI_GET_COUNT( out_status, u2_type, ncount, ierr )
         write( stdout, * ) 'MPI_FILE', ncount, 1
       endif
-      offset = offset + 1
+      offset = offset + nelement
     enddo
 
     if( loud ) then
