@@ -25,6 +25,8 @@ subroutine OCEAN_bofx( )
   use shirley_ham_input, only : debug, band_subset
   use hamq_pool, only : mypool, mypoolid, mypoolroot, cross_pool_comm, intra_pool_comm
   use mpi
+  use OCEAN_bofx_mod
+  use OCEAN_timer
 
   implicit none
 
@@ -33,6 +35,8 @@ subroutine OCEAN_bofx( )
   complex(dp),parameter :: zero=cmplx(0.d0,0.d0)
   complex(dp),parameter :: iota=cmplx(0.d0,1.d0)
   complex(dp),parameter :: one =cmplx(1.d0,0.d0)
+
+  integer(kind=MPI_OFFSET_KIND), parameter :: oneGBinComplex = 67108864
 
   character(255) :: string
   logical :: loud
@@ -50,13 +54,14 @@ subroutine OCEAN_bofx( )
 
   integer :: iuntmp, iobegin
 
-  integer :: min_mill(3), uni_min_mill(3), max_mill(3), uni_max_mill(3), igl, igh
+  integer :: min_mill(3), uni_min_mill(3), max_mill(3), uni_max_mill(3), igl, igh, nfft(3)
 
   integer :: nshift, nspin, nkpt, ispin, ikpt
-  integer :: nbasis_, nband, ierr, errorcode, fmode, resultlen
+  integer :: nbasis_, nband, ierr, errorcode, fmode, resultlen, band_block, band_length
 
   complex(dp), allocatable :: eigvec(:,:), unk(:,:)
 
+  integer :: ibd, nelement
   integer :: fheig, fhu2
   integer :: u2_type
   integer(kind=MPI_OFFSET_KIND) :: offset, long_s, long_k, long_x, long_b
@@ -252,12 +257,12 @@ subroutine OCEAN_bofx( )
 
 
   !!!!!!!!!  u2par.dat !!!!!!!!!
-  if( mypoolid .eq. mypoolroot ) then
+!  if( mypoolid .eq. mypoolroot ) then
     call MPI_TYPE_CONTIGUOUS( product(xmesh), MPI_DOUBLE_COMPLEX, u2_type, ierr )
     call MPI_TYPE_COMMIT( u2_type, ierr )
 
     fmode = IOR(MPI_MODE_CREATE,MPI_MODE_WRONLY)
-    call MPI_FILE_OPEN( cross_pool_comm, 'u2par.dat', fmode, MPI_INFO_NULL, fhu2, ierr )
+    call MPI_FILE_OPEN( intra_pool_comm, 'u2par.dat', fmode, MPI_INFO_NULL, fhu2, ierr )
     if( ierr/=0 ) then
       errorcode=ierr
       call MPI_ERROR_STRING( errorcode, string, resultlen, ierr )
@@ -273,29 +278,67 @@ subroutine OCEAN_bofx( )
       call MPI_ERROR_STRING( errorcode, string, resultlen, ierr )
       call errore(string,errorcode)
     endif
-  else
-  endif
+!  else
+!  endif
 
 
-  allocate( eigvec( nbasis_, nband ), unk( npw, nband ) )
+
+  allocate( unk( npw, nband ) )
 
   long_b = nband
   long_x = product(xmesh)
 
+
+  ! Block nband for large systems
+  if( int(nband,MPI_OFFSET_KIND) * int( nbasis_, MPI_OFFSET_KIND ) > oneGBinComplex ) then
+    if( nbasis_ > oneGBinComplex ) then
+      band_block = min( 1, nband )
+    elseif( nbasis_ > 65536 ) then
+      band_block = min( 256, nband )
+    elseif( nbasis_ > 16382 ) then
+      band_block = min( 1024, nband )
+    else
+      band_block = min( 4096, nband ) 
+    endif
+  else
+    band_block = nband
+  endif
+  !
+  write(stdout,*) 'Blocking eigvec:', band_block, nband
+  
+  
+
   loud = .true.
+
+! Set up the fft grid
+  call par_gen_setup( xmesh, npw, mill, loud )
+
+
   do ispin = 1 , nspin
     do ikpt = 1, nkpt
 
+      allocate( eigvec( nbasis_, band_block ) )
+
+
       offset = ( ispin - 1 ) * nkpt + (ikpt - 1 )
-      offset = offset * nbasis_
-      offset = offset * nband
-      call MPI_FILE_READ_AT_ALL( fheig, offset, eigvec, nband*nbasis_, MPI_DOUBLE_COMPLEX, &
-                                 MPI_STATUS_IGNORE, ierr )
+      offset = offset * int(nbasis_, kind( offset ) )
+      offset = offset * int(nband, kind( offset ) )
+
+      call OCEAN_t_reset
+      do ibd = 1, nband, band_block
+        nelement = min( band_block, nband - ibd + 1 )
+
+        call MPI_FILE_READ_AT_ALL( fheig, offset, eigvec, nelement*nbasis_, MPI_DOUBLE_COMPLEX, &
+                                   MPI_STATUS_IGNORE, ierr )
       
-
-      call ZGEMM( 'N', 'N', npw, nband, nbasis_, one, evc, npw, eigvec, nbasis_, zero, &
-                   unk, npw )
-
+        ! still zero because we are doing a complete chunk in bands
+        call ZGEMM( 'N', 'N', npw, nelement, nbasis_, one, evc, npw, eigvec, nbasis_, zero, &
+                     unk(1,ibd), npw )
+        offset = offset + int( nelement, MPI_OFFSET_KIND ) * int( nbasis_, MPI_OFFSET_KIND )
+      enddo
+      call OCEAN_t_printtime( "Read eigvec", stdout )
+  
+      deallocate( eigvec )
 
       offset = ( ispin - 1 ) * nkpt + (ikpt - 1 )
 !      offset = offset * product( xmesh )
@@ -303,7 +346,7 @@ subroutine OCEAN_bofx( )
       offset = offset * long_b
 !      offset = offset * long_x
       call par_gentoreal( xmesh, nband, unk, npw, mill, fhu2, offset, invert_xmesh, loud, ibeg(ikpt,ispin), u2_type )  
-      loud = .false.
+    !  loud = .false.
       write(stdout,*) ikpt, offset
   
 
@@ -312,11 +355,11 @@ subroutine OCEAN_bofx( )
 
 
   call MPI_FILE_CLOSE( fheig, ierr )
-  if(  mypoolid .eq. mypoolroot ) then
-    call MPI_FILE_CLOSE( fhu2, ierr )
-  endif
+!  if(  mypoolid .eq. mypoolroot ) then
+  call MPI_FILE_CLOSE( fhu2, ierr )
+!  endif
 
-  deallocate( eigvec, unk )
+  deallocate( unk )
 
 
   return

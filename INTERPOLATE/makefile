@@ -7,7 +7,7 @@ DEBUG =
 
 include $(ESPRESSO_DIR)/make.sys
 
-FFLAGS+=
+FFLAGS+= -check all
 
 #.f90.o:
 #	$(MPIF90) $(F90FLAGS) -I$(ESPRESSO_DIR)/include -c $<
@@ -72,7 +72,6 @@ OCEAN_QDIAGP = OCEAN_qdiagp.o $(NEWDIAGOBJ) fix_fermi.o OCEAN_timer.o
 
 SHIRLEY_HAM_O = \
 shirley_ham_o.o \
-OCEAN_bofx.o \
 OCEAN_bofr_multi.o \
 OCEAN_obf2localbyk.o \
 ../zbridge/zobj/chkfftreal.o \
@@ -80,8 +79,11 @@ OCEAN_obf2localbyk.o \
 ../zbridge/zobj/facpowfind.o \
 ../zbridge/zobj/optim.o \
 ../CNBSE/zcmsnmult/zobj/jlmfft.o \
-OCEAN_par_gentoreal.o \
+OCEAN_mod_bofx.o \
+OCEAN_bofx.o \
 OCEAN_timer.o
+#OCEAN_par_gentoreal.o \
+OCEAN_par_gen_setup.o \
 
 #$(ESPRESSO_DIR)/OCEAN/jlmfft.o \
 #$(ESPRESSO_DIR)/OCEAN/OCEAN_2bphase.o\

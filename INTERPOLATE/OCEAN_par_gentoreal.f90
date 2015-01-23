@@ -1,4 +1,4 @@
-subroutine par_gentoreal( nx, nfcn, fcn, ng, gvec, iu, offset, invert_xmesh, loud, ibeg, u2_type)
+subroutine par_gentoreal( nx, nfcn, fcn, ng, gvec, iu, offset, invert_xmesh, loud, ibeg, u2_type, nfft)
   use kinds, only : dp
   USE io_global,  ONLY : stdout, ionode
   USE mp_global, ONLY : nproc_pool, me_pool, intra_pool_comm, root_pool
@@ -16,8 +16,9 @@ subroutine par_gentoreal( nx, nfcn, fcn, ng, gvec, iu, offset, invert_xmesh, lou
   logical, intent( in ) :: loud
   integer, intent( in ) :: ibeg
   integer, intent( in ) :: u2_type
+  integer, intent( in ) :: nfft(3)
   !
-  integer :: ix, iy, iz, i1, i2, i3, nfft( 3 ), idwrk, igl, igh, nmin, ii, jj, nxpts
+  integer :: ix, iy, iz, i1, i2, i3, idwrk, igl, igh, nmin, ii, jj, nxpts
   integer :: fac( 3 ), j, ig, i, locap( 3 ), hicap( 3 ), toreal, torecp, nftot
   real(dp) :: normreal, normrecp
   complex(dp) :: rm1, w
@@ -34,12 +35,14 @@ subroutine par_gentoreal( nx, nfcn, fcn, ng, gvec, iu, offset, invert_xmesh, lou
 
   integer :: ierr, ncount, out_status(MPI_STATUS_SIZE), max_bands, stop_band, extra_counter, iii, nelement
   integer :: bband
+  integer(kind=MPI_OFFSET_KIND) :: my_offset
   integer :: bands_left, test_block, npw_max, start_band, ig_full, send_counter, recv_counter, u2_send_count, u2_recv_count
   integer, allocatable :: band_block(:), npw_map(:), tags(:), gvecs_global(:,:,:), band_start(:), &
                           my_send_request(:), my_recv_request(:), u2_recv(:), u2_send(:)
   complex(dp), allocatable :: fcn_buffer(:,:)
 
   logical, parameter :: try_nonblock = .true.
+  logical, parameter :: single_io = .false.
   integer(kind=MPI_OFFSET_KIND), parameter :: oneGBinComplex = 67108864
   !
   !
@@ -49,26 +52,35 @@ subroutine par_gentoreal( nx, nfcn, fcn, ng, gvec, iu, offset, invert_xmesh, lou
   hicap( 1 ) = 20; hicap( 2 ) = 3; hicap( 3 ) = 1
   !
   allocate( ilist( max( nx( 1 ), nx( 2 ), nx( 3 ) ), 3 ) )
-  do j = 1, 3
-     igl = gvec( j, 1 )
-     igh = gvec( j, 1 )
-     do ig = 2, ng
-        igl = min( igl, gvec( j, ig ) )
-        igh = max( igh, gvec( j, ig ) )
-     end do
-     call mp_max( igh )
-     call mp_min( igl )
-     nmin = 1 + igh - igl
-     call facpowfind( nx( j ), nfac, fac, locap )
-     nfft( j ) = optim( nmin, nfac, fac, locap, hicap )
-     fstr = '(1i1,1a1,5x,1a4,1i4,5x,1a4,1i4,5x,1a3,1i4,5x,1a5,1i4)'
-     if ( loud ) write ( stdout, fstr ) j, ':', 'igl=', igl, 'igh=', igh, 'nx=', nx( j ), 'nfft=', nfft( j )
-     if ( igl * igh .ge. 0 ) stop 'zero not included!'
-     do i = 1, nx( j )
+
+  if( .false. ) then
+    do j = 1, 3
+       igl = gvec( j, 1 )
+       igh = gvec( j, 1 )
+       do ig = 2, ng
+          igl = min( igl, gvec( j, ig ) )
+          igh = max( igh, gvec( j, ig ) )
+       end do
+       call mp_max( igh )
+       call mp_min( igl )
+       nmin = 1 + igh - igl
+       call facpowfind( nx( j ), nfac, fac, locap )
+       !nfft( j ) = optim( nmin, nfac, fac, locap, hicap )
+       fstr = '(1i1,1a1,5x,1a4,1i4,5x,1a4,1i4,5x,1a3,1i4,5x,1a5,1i4)'
+  !     if ( loud ) write ( stdout, fstr ) j, ':', 'igl=', igl, 'igh=', igh, 'nx=', nx( j ), 'nfft=', nfft( j )
+       if ( igl * igh .ge. 0 ) stop 'zero not included!'
+       do i = 1, nx( j )
+          ilist( i, j ) = 1 + ( i - 1 ) * nfft( j ) / nx( j )
+       end do
+  !     if ( loud ) write ( stdout, '(15i5)' ) ilist( 1 : nx( j ), j )
+    end do
+  else
+    do j = 1, 3
+      do i = 1, nx( j )
         ilist( i, j ) = 1 + ( i - 1 ) * nfft( j ) / nx( j )
-     end do
-     if ( loud ) write ( stdout, '(15i5)' ) ilist( 1 : nx( j ), j )
-  end do
+      end do
+    enddo
+  endif
   ! 
   i = max( nfft( 1 ), nfft( 2 ), nfft( 3 ) )
   idwrk = 2 * i * ( i + 1 )
@@ -89,8 +101,8 @@ subroutine par_gentoreal( nx, nfcn, fcn, ng, gvec, iu, offset, invert_xmesh, lou
   else
     allocate( cres( nx( 1 ), nx( 2 ), nx( 3 ), ii ) )
   endif
-  call chkfftreal( toreal, normreal, loud )
-  call chkfftrecp( torecp, normrecp, loud )
+  call chkfftreal( toreal, normreal, .false. )
+  call chkfftrecp( torecp, normrecp, .false. )
   !
   
   ! Prep share
@@ -146,22 +158,22 @@ subroutine par_gentoreal( nx, nfcn, fcn, ng, gvec, iu, offset, invert_xmesh, lou
   if( loud ) call OCEAN_t_reset
 
   if( .not. try_nonblock ) then
-  do i = 0, nproc_pool - 1
-    if( i .eq. me_pool ) then
-      do j = 0, nproc_pool - 1
-        if( j .eq. me_pool ) cycle
-        if( band_block(j) .lt. 1 ) cycle
-        call MPI_SEND( fcn( 1, band_start(j) ), npw_map( i ) * band_block( j ), MPI_DOUBLE_COMPLEX, j, &
-                       i*nproc_pool+j+1, intra_pool_comm, ierr )
-      enddo
-    else
-      j = me_pool
-      if( band_block(j) .ge. 1 ) then
-        call MPI_RECV( fcn_buffer( 1, i ), npw_map( i ) * band_block( j ), MPI_DOUBLE_COMPLEX, i, &
-                       i*nproc_pool+j+1, intra_pool_comm, MPI_STATUS_IGNORE, ierr )
+    do i = 0, nproc_pool - 1
+      if( i .eq. me_pool ) then
+        do j = 0, nproc_pool - 1
+          if( j .eq. me_pool ) cycle
+          if( band_block(j) .lt. 1 ) cycle
+          call MPI_SEND( fcn( 1, band_start(j) ), npw_map( i ) * band_block( j ), MPI_DOUBLE_COMPLEX, j, &
+                         i*nproc_pool+j+1, intra_pool_comm, ierr )
+        enddo
+      else
+        j = me_pool
+        if( band_block(j) .ge. 1 ) then
+          call MPI_RECV( fcn_buffer( 1, i ), npw_map( i ) * band_block( j ), MPI_DOUBLE_COMPLEX, i, &
+                         i*nproc_pool+j+1, intra_pool_comm, MPI_STATUS_IGNORE, ierr )
+        endif
       endif
-    endif
-  enddo
+    enddo
 
   else
     send_counter = 0
@@ -302,7 +314,8 @@ subroutine par_gentoreal( nx, nfcn, fcn, ng, gvec, iu, offset, invert_xmesh, lou
   enddo
 
 
-  call mp_barrier
+!  call mp_barrier
+  call MPI_BARRIER( intra_pool_comm, ierr )
   if( loud ) then
     call OCEAN_t_printtime( "Band block", stdout )
     call OCEAN_t_reset
@@ -314,10 +327,8 @@ subroutine par_gentoreal( nx, nfcn, fcn, ng, gvec, iu, offset, invert_xmesh, lou
 
     if( invert_xmesh ) then
       allocate( newcres( nx( 3 ), nx( 2 ), nx( 1 ), max_bands + 1 ) )
-!                spr_cres( nx( 3 ), nx( 2 ), nx( 1 ), max_bands ) )
     else
       allocate( newcres( nx( 1 ), nx( 2 ), nx( 3 ), max_bands + 1 ) )
-!                spr_cres( nx( 1 ), nx( 2 ), nx( 3 ), max_bands ) )
     endif
     newcres = 0.0_dp
 
@@ -353,109 +364,97 @@ subroutine par_gentoreal( nx, nfcn, fcn, ng, gvec, iu, offset, invert_xmesh, lou
     endif
 
     extra_counter = 0
-!    do j = 0, nproc_pool - 1
+
+
+
     do i = 1, nfcn - 1
-!      do i = band_start(j), band_start(j)+band_block(j) - 1 
-!        if( i .ge. nfcn ) cycle
       j = mod((i-1),nproc_pool)
         
 
-        if( j .eq. me_pool ) then
-          extra_counter = extra_counter + 1
-          newcres(:,:,:,max_bands+1) = newcres(:,:,:,extra_counter)
-!          newcres(:,:,:,max_bands+1) = newcres(:,:,:,(i/nproc_pool)+1)
-!!  !        newcres(:,:,:,max_bands+1) = cres(:,:,:,i+1-band_start(me_pool))
-        endif
-      
-        call MPI_BCAST(newcres(1,1,1,max_bands+1),product(nx),MPI_DOUBLE_COMPLEX,j,intra_pool_comm, ierr )
+      if( j .eq. me_pool ) then
+        extra_counter = extra_counter + 1
+        newcres(:,:,:,max_bands+1) = newcres(:,:,:,extra_counter)
+      endif
+    
+      call MPI_BCAST(newcres(1,1,1,max_bands+1),product(nx),MPI_DOUBLE_COMPLEX,j,intra_pool_comm, ierr )
 
-        if( i .lt. ibeg ) then
-          stop_band = ibeg - 1
-        else
-          stop_band = nfcn
-        endif
-
-        iii = 0
-        do ii = 1, i
-          if( mod((ii-1),nproc_pool) .ne. me_pool ) cycle
-          iii = iii + 1
-        enddo
-
-        ! The i + 1 wvfcn needs to be normalized
-        ii = i + 1
-        if( mod((ii-1),nproc_pool) .eq. me_pool ) then
-          iii = iii + 1
-          if( ii .le. stop_band ) then
-            w = -ZDOTC( product(nx), newcres( 1, 1, 1, max_bands+1 ), 1, newcres( 1, 1, 1, iii ), 1 )
-            CALL ZAXPY( product(nx), w, newcres( 1, 1, 1, max_bands+1 ), 1, newcres( 1, 1, 1, iii ), 1 )
-          endif
-          normreal =  DZNRM2( product(nx), newcres( 1, 1, 1, iii ), 1 )
-          normreal = 1.0_dp / normreal
-          call ZDSCAL( product(nx), normreal, newcres( 1, 1, 1, iii ), 1 )
-        endif
-
-
-        do ii = i + 2, stop_band
-          if( mod((ii-1),nproc_pool) .ne. me_pool ) cycle
-          iii = iii + 1
-          w = -ZDOTC( product(nx), newcres( 1, 1, 1, max_bands+1 ), 1, newcres( 1, 1, 1, iii ), 1 )
-          CALL ZAXPY( product(nx), w, newcres( 1, 1, 1, max_bands+1 ), 1, newcres( 1, 1, 1, iii ), 1 )
-!          if( loud ) write(stdout,*) i, ii
-
-!          w = -ZDOTC( product(nx), newcres( 1, 1, 1, max_bands+1 ), 1, newcres( 1, 1, 1, (ii/nproc_pool)+1 ), 1 )
-!          CALL ZAXPY( product(nx), w, newcres( 1, 1, 1, max_bands+1 ), 1, newcres( 1, 1, 1, (ii/nproc_pool)+1 ), 1 )
-        enddo
-
-!        if( mod((i),nproc_pool) .eq. me_pool ) then
-!          normreal =  DZNRM2( product(nx), newcres( 1, 1, 1, (i+1)/nproc_pool+1 ), 1 )
-!          normreal = 1.0_dp / normreal
-!          call ZDSCAL( product(nx), normreal, newcres( 1, 1, 1, (i+1)/nproc_pool+1 ), 1 )
-!        endif
-          
-
-      enddo
-!    enddo
-
-    if( me_pool == root_pool ) then
-      allocate( u2_recv( nfcn ) )
-      u2_recv_count = 0
-      do i = 1, nfcn
-        if( mod((i-1),nproc_pool) == me_pool ) cycle
-        u2_recv_count = u2_recv_count + 1
-        call MPI_IRECV( cres(1,1,1,i), product(nx), MPI_DOUBLE_COMPLEX, mod((i-1),nproc_pool), i, &
-                        intra_pool_comm, u2_recv( u2_recv_count ), ierr )
-      enddo
-    else
-      allocate( u2_send( nfcn ) )
-      u2_send_count = 0
-    endif
-
-
-    j = 0
-    do i = 1, nfcn
-      if( mod((i-1),nproc_pool) .ne. me_pool ) cycle
-      j = j + 1
-!      normreal =  DZNRM2( product(nx), newcres( 1, 1, 1, j ), 1 )
-!      normreal = 1.0_dp / normreal
-!      call ZDSCAL( product(nx), normreal, newcres( 1, 1, 1, j ), 1 )
-
-      if( me_pool .eq. root_pool ) then
-        cres(:,:,:,i) = newcres(:,:,:,j)
+      if( i .lt. ibeg ) then
+        stop_band = ibeg - 1
       else
-        u2_send_count = u2_send_count + 1
-        call MPI_ISEND( newcres(1,1,1,j),product(nx), MPI_DOUBLE_COMPLEX,root_pool, i, &
-                        intra_pool_comm, u2_send( u2_send_count ), ierr )
+        stop_band = nfcn
       endif
 
+      iii = 0
+      do ii = 1, i
+        if( mod((ii-1),nproc_pool) .ne. me_pool ) cycle
+        iii = iii + 1
+      enddo
+
+      ! The i + 1 wvfcn needs to be normalized
+      ii = i + 1
+      if( mod((ii-1),nproc_pool) .eq. me_pool ) then
+        iii = iii + 1
+        if( ii .le. stop_band ) then
+          w = -ZDOTC( product(nx), newcres( 1, 1, 1, max_bands+1 ), 1, newcres( 1, 1, 1, iii ), 1 )
+          CALL ZAXPY( product(nx), w, newcres( 1, 1, 1, max_bands+1 ), 1, newcres( 1, 1, 1, iii ), 1 )
+        endif
+        normreal =  DZNRM2( product(nx), newcres( 1, 1, 1, iii ), 1 )
+        normreal = 1.0_dp / normreal
+        call ZDSCAL( product(nx), normreal, newcres( 1, 1, 1, iii ), 1 )
+      endif
+
+
+      do ii = i + 2, stop_band
+        if( mod((ii-1),nproc_pool) .ne. me_pool ) cycle
+        iii = iii + 1
+        w = -ZDOTC( product(nx), newcres( 1, 1, 1, max_bands+1 ), 1, newcres( 1, 1, 1, iii ), 1 )
+        CALL ZAXPY( product(nx), w, newcres( 1, 1, 1, max_bands+1 ), 1, newcres( 1, 1, 1, iii ), 1 )
+      enddo
     enddo
 
-    if( me_pool == root_pool ) then
-      call MPI_WAITALL( u2_recv_count, u2_recv, MPI_STATUSES_IGNORE, ierr )
-      deallocate( u2_recv )
-    else
-      call MPI_WAITALL( u2_send_count, u2_send, MPI_STATUSES_IGNORE, ierr )
-      deallocate( u2_send )
+    if( single_io ) then
+      if( me_pool == root_pool ) then
+        allocate( u2_recv( nfcn ) )
+        u2_recv_count = 0
+        do i = 1, nfcn
+          if( mod((i-1),nproc_pool) == me_pool ) cycle
+          u2_recv_count = u2_recv_count + 1
+          call MPI_IRECV( cres(1,1,1,i), product(nx), MPI_DOUBLE_COMPLEX, mod((i-1),nproc_pool), i, &
+                          intra_pool_comm, u2_recv( u2_recv_count ), ierr )
+        enddo
+      else
+        allocate( u2_send( nfcn ) )
+        u2_send_count = 0
+      endif
+
+
+      j = 0
+      do i = 1, nfcn
+        if( mod((i-1),nproc_pool) .ne. me_pool ) cycle
+        j = j + 1
+
+        if( me_pool .eq. root_pool ) then
+          cres(:,:,:,i) = newcres(:,:,:,j)
+        else
+          u2_send_count = u2_send_count + 1
+          call MPI_ISEND( newcres(1,1,1,j),product(nx), MPI_DOUBLE_COMPLEX,root_pool, i, &
+                          intra_pool_comm, u2_send( u2_send_count ), ierr )
+        endif
+
+      enddo
+
+      if( me_pool == root_pool ) then
+        call MPI_WAITALL( u2_recv_count, u2_recv, MPI_STATUSES_IGNORE, ierr )
+        deallocate( u2_recv )
+      else
+        call MPI_WAITALL( u2_send_count, u2_send, MPI_STATUSES_IGNORE, ierr )
+        deallocate( u2_send )
+      endif
+
+      deallocate( newcres )
+
     endif
+      
     call mp_barrier
 
     if( loud ) then
@@ -463,7 +462,6 @@ subroutine par_gentoreal( nx, nfcn, fcn, ng, gvec, iu, offset, invert_xmesh, lou
       call OCEAN_t_reset
     endif
 
-    deallocate( newcres )
 
 
   ! New strategy
@@ -547,74 +545,73 @@ subroutine par_gentoreal( nx, nfcn, fcn, ng, gvec, iu, offset, invert_xmesh, lou
 
   else
 
-  if( me_pool .eq. root_pool ) then
-    ! call all the RECVs
-    do j = 0, nproc_pool - 1
-      if( j .ne. root_pool .and. ( band_block(j) .ge. 1 ) ) then
-        call MPI_RECV( cres(1,1,1,band_start(j)),product(nx)* band_block(j), MPI_DOUBLE_COMPLEX, j, j, &
-                       intra_pool_comm, MPI_STATUS_IGNORE, ierr )
-      endif
-    enddo
-  else
-    ! call all the sends
-    do j = 0, nproc_pool - 1
-      if( me_pool .eq. j .and. ( band_block(j) .ge. 1 ) ) then
-        call MPI_SEND( cres(1,1,1,1), product(nx)*band_block(j), MPI_DOUBLE_COMPLEX, root_pool, j, &
-                       intra_pool_comm, ierr )
-      endif
-    enddo
-
-  endif
-
-  call mp_barrier
-  if( loud ) then
-    call OCEAN_t_printtime( "Share bands", stdout )
-    call OCEAN_t_reset
-  endif
-
-
-!  call mp_barrier
-!  write(stdout,*) 'Done sharing cres'
-
-  if( me_pool == root_pool ) then
-
-!      write(stdout,*) ibeg
-    ! This now mimics orthog better. 
-    do i = 1, nfcn
-!      normreal =  DZNRM2( product(nx), cres( 1, 1, 1, i ), 1 )
-!      normreal = 1.0_dp / normreal
-!      call ZDSCAL( product(nx), normreal, cres( 1, 1, 1, i ), 1 )
-
-      if( i .lt. ibeg ) then
-        start_band = 1
-      else
-        start_band = ibeg
-      endif
-
-      do j = start_band, i-1
-        w = -ZDOTC( product(nx), cres( 1, 1, 1, j ), 1, cres( 1, 1, 1, i ), 1 )
-
-!JTV This is completely superfluous! 
-!! Added to better mimic orthog.f90 
-!        normreal = DZNRM2( product(nx), cres( 1, 1, 1, j ), 1 )
-!        w = w / normreal
-!\\
-        CALL ZAXPY( product(nx), w, cres(1, 1, 1, j ), 1, cres( 1, 1, 1, i ), 1 )
+    if( me_pool .eq. root_pool ) then
+      ! call all the RECVs
+      do j = 0, nproc_pool - 1
+        if( j .ne. root_pool .and. ( band_block(j) .ge. 1 ) ) then
+          call MPI_RECV( cres(1,1,1,band_start(j)),product(nx)* band_block(j), MPI_DOUBLE_COMPLEX, j, j, &
+                         intra_pool_comm, MPI_STATUS_IGNORE, ierr )
+        endif
       enddo
-      normreal =  DZNRM2( product(nx), cres( 1, 1, 1, i ), 1 )
-      normreal = 1.0_dp / normreal
-      call ZDSCAL( product(nx), normreal, cres( 1, 1, 1, i ), 1 )
-    enddo
+    else
+      ! call all the sends
+      do j = 0, nproc_pool - 1
+        if( me_pool .eq. j .and. ( band_block(j) .ge. 1 ) ) then
+          call MPI_SEND( cres(1,1,1,1), product(nx)*band_block(j), MPI_DOUBLE_COMPLEX, root_pool, j, &
+                         intra_pool_comm, ierr )
+        endif
+      enddo
+    endif
+
+      call mp_barrier
+      if( loud ) then
+        call OCEAN_t_printtime( "Share bands", stdout )
+        call OCEAN_t_reset
+      endif
 
 
-    if( loud ) then
-      call OCEAN_t_printtime( "Orthog bands", stdout )
-      call OCEAN_t_reset
+  !  call mp_barrier
+  !  write(stdout,*) 'Done sharing cres'
+
+    if( me_pool == root_pool ) then
+
+  !      write(stdout,*) ibeg
+      ! This now mimics orthog better. 
+      do i = 1, nfcn
+  !      normreal =  DZNRM2( product(nx), cres( 1, 1, 1, i ), 1 )
+  !      normreal = 1.0_dp / normreal
+  !      call ZDSCAL( product(nx), normreal, cres( 1, 1, 1, i ), 1 )
+
+        if( i .lt. ibeg ) then
+          start_band = 1
+        else
+          start_band = ibeg
+        endif
+
+        do j = start_band, i-1
+          w = -ZDOTC( product(nx), cres( 1, 1, 1, j ), 1, cres( 1, 1, 1, i ), 1 )
+
+  !JTV This is completely superfluous! 
+  !! Added to better mimic orthog.f90 
+  !        normreal = DZNRM2( product(nx), cres( 1, 1, 1, j ), 1 )
+  !        w = w / normreal
+  !\\
+          CALL ZAXPY( product(nx), w, cres(1, 1, 1, j ), 1, cres( 1, 1, 1, i ), 1 )
+        enddo
+        normreal =  DZNRM2( product(nx), cres( 1, 1, 1, i ), 1 )
+        normreal = 1.0_dp / normreal
+        call ZDSCAL( product(nx), normreal, cres( 1, 1, 1, i ), 1 )
+      enddo
+
+
+      if( loud ) then
+        call OCEAN_t_printtime( "Orthog bands", stdout )
+        call OCEAN_t_reset
+      endif
     endif
   endif
-  endif
 
-  if( me_pool == root_pool ) then
+  if( me_pool == root_pool .and. single_io ) then
 !    ncount = product(nx)*nfcn
 !    call MPI_FILE_WRITE_AT( iu, offset, cres, ncount, MPI_DOUBLE_COMPLEX, out_status, ierr )
 !    call MPI_GET_COUNT( out_status, MPI_DOUBLE_COMPLEX, ncount, ierr )
@@ -663,6 +660,38 @@ subroutine par_gentoreal( nx, nfcn, fcn, ng, gvec, iu, offset, invert_xmesh, lou
       call OCEAN_t_printtime( "Write file", stdout )
       call OCEAN_t_reset
     endif
+    
+  endif
+
+  if( .not. single_io ) then
+
+    ! default value in case not every proc writes even once?
+
+    my_offset = offset
+    j = 0
+    do i = 1, nfcn, nproc_pool 
+      if( i + me_pool .le. nfcn ) then
+        j = j + 1
+        nelement = 1
+        my_offset = offset + int( i + me_pool - 1, MPI_OFFSET_KIND )
+      else
+        ! To avoid lengthening the file or any such nonsense
+        nelement = 0
+      endif
+
+      call MPI_FILE_WRITE_AT_ALL( iu, my_offset, newcres(1,1,1,j), nelement, u2_type, out_status, ierr )
+      if( i .eq. 1 ) then
+        call MPI_GET_COUNT( out_status, u2_type, ncount, ierr )
+        write( stdout, * ) 'MPI_FILE', ncount, 1
+      endif 
+    enddo
+
+    if( loud ) then
+      call OCEAN_t_printtime( "Write file", stdout )
+      call OCEAN_t_reset
+    endif
+
+    deallocate( newcres )
     
   endif
 
