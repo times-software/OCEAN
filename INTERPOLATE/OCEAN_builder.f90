@@ -538,7 +538,7 @@ call descinit( desc_uofrandb, npt, nbasis_subset, nb, desc_cyclic(NB_), 0, 0, co
 
 
 
-        if( .true. .and. ( nprow .eq. npcol ) .and. (nb .eq. nb2)) then
+        if( .true. .and. ( nprow .eq. npcol ) .and. (nb .eq. nb2) .and. ( nb *nprow .eq. npt ) .and. ( nb2 * npcol .eq. npt ) ) then
           call OCEAN_build_chi(myrow, mycol,nprow,npcol,context_cyclic,band_subset,nb,nb2,&
                              desc_cyclic(NB_),desc_gre,sigma,t,nt,eshift,fermi_energy,eigval,&
                              uofrandb,local_npt,local_npt2,nbasis_subset,gre,gre_small,npt,&
