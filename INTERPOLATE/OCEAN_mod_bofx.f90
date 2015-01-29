@@ -13,7 +13,9 @@ module OCEAN_bofx_mod
   integer, allocatable :: gvecs_global(:,:,:)
 
 
-  public :: par_gen_setup, par_gentoreal
+  public :: par_gen_setup, par_gentoreal, par_gen_shutdown
+
+  public :: OCEAN_bofx_open_file, OCEAN_bofx_close_file
 
   contains
 
@@ -140,7 +142,7 @@ module OCEAN_bofx_mod
     ierr = 0
   end subroutine par_gen_shutdown
 
-  subroutine par_gentoreal( nx, nfcn, fcn, ng, gvec, iu, offset, invert_xmesh, loud, ibeg, u2_type )
+  subroutine par_gentoreal( nx, nfcn, fcn, ng, gvec,  offset, invert_xmesh, loud, ibeg )
     use kinds, only : dp
     USE io_global,  ONLY : stdout, ionode
     USE mp_global, ONLY : nproc_pool, me_pool, intra_pool_comm, root_pool
@@ -150,14 +152,13 @@ module OCEAN_bofx_mod
     use OCEAN_timer
     implicit none
     !
-    integer, intent( in ) :: nx( 3 ), nfcn, ng, iu
+    integer, intent( in ) :: nx( 3 ), nfcn, ng
     integer, intent( in ) :: gvec( 3, ng )
     complex(dp), intent( in ) :: fcn( ng, nfcn )
     logical, intent( in ) :: invert_xmesh
     integer(kind=MPI_OFFSET_KIND), intent(inout) :: offset
     logical, intent( in ) :: loud
     integer, intent( in ) :: ibeg
-    integer, intent( in ) :: u2_type
     !
     integer :: ix, iy, iz, i1, i2, i3, idwrk, igl, igh, nmin, ii, jj, nxpts
     integer :: fac( 3 ), j, ig, i, locap( 3 ), hicap( 3 ), toreal, torecp, nftot
@@ -211,7 +212,7 @@ module OCEAN_bofx_mod
     max_bands = ceiling( dble( max_bands ) / dble( nproc_pool ) )
     write(stdout,*) max_bands
     ii = max_bands
-    if( me_pool == root_pool ) ii = nfcn
+!    if( me_pool == root_pool ) ii = nfcn
     !
     if( invert_xmesh ) then
       ! the indices only of the output are reversed here.
@@ -709,7 +710,7 @@ module OCEAN_bofx_mod
 
     if( me_pool == root_pool .and. single_io ) then
   !    ncount = product(nx)*nfcn
-  !    call MPI_FILE_WRITE_AT( iu, offset, cres, ncount, MPI_DOUBLE_COMPLEX, out_status, ierr )
+  !    call MPI_FILE_WRITE_AT( fh_u2, offset, cres, ncount, MPI_DOUBLE_COMPLEX, out_status, ierr )
   !    call MPI_GET_COUNT( out_status, MPI_DOUBLE_COMPLEX, ncount, ierr )
   !    ncount = nfcn
       nxpts = product(nx)
@@ -744,9 +745,9 @@ module OCEAN_bofx_mod
       do i = 1, nfcn, bband
         nelement = min( bband, nfcn-i+1)
 
-        call MPI_FILE_WRITE_AT( iu, offset, cres(1,1,1,i), nelement, u2_type, out_status, ierr )
+        call MPI_FILE_WRITE_AT( fh_u2, offset, cres(1,1,1,i), nelement, x_type, out_status, ierr )
         if( i .eq. 1 ) then
-          call MPI_GET_COUNT( out_status, u2_type, ncount, ierr )
+          call MPI_GET_COUNT( out_status, x_type, ncount, ierr )
           write( stdout, * ) 'MPI_FILE', ncount, 1
         endif
         offset = offset + nelement
@@ -773,9 +774,9 @@ module OCEAN_bofx_mod
           my_offset = offset + int( nfcn + 1, MPI_OFFSET_KIND )
         endif
 
-        call MPI_FILE_WRITE_AT_ALL( iu, my_offset, newcres(1,1,1,j), nelement, u2_type, out_status, ierr )
+        call MPI_FILE_WRITE_AT_ALL( fh_u2, my_offset, newcres(1,1,1,j), nelement, x_type, out_status, ierr )
         if( i .eq. 1 ) then
-          call MPI_GET_COUNT( out_status, u2_type, ncount, ierr )
+          call MPI_GET_COUNT( out_status, x_type, ncount, ierr )
           write( stdout, * ) 'MPI_FILE', ncount, 1
         endif 
       enddo
