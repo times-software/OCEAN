@@ -208,7 +208,7 @@
 
 
     open(iuntmp,file='qdiag.info',form='formatted',status='old')
-    read(iuntmp,*)  nbasis_, nband_, nkpt, nspin, nshift
+    read(iuntmp,*),  nbasis_, nband_, nkpt, nspin, nshift
     close(iuntmp)
 
     open(unit=iuntmp,file='ibeg.h',form='formatted',status='old')
@@ -328,9 +328,6 @@
     end do
   end do
 
-  write(stdout,*) bmet(:,1)
-  write(stdout,*) bmet(:,2)
-  write(stdout,*) bmet(:,3)
 
   call OCEAN_t_printtime( "Stupid prep", stdout )
 
@@ -533,7 +530,6 @@
 
   return
 
-#ifdef FALSE
 
   contains
 
@@ -951,5 +947,5 @@
     wsph( : ) = wsph( : ) * ( 4.0d0 * 4.0d0 * atan( 1.0d0 ) / sphsu )
     call getprefs( prefs, lmax, nsphpt, wsph, xsph, ysph, zsph )    
   end subroutine make_prefs
-#endif
+
   end subroutine OCEAN_obf2localbyk
