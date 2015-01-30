@@ -4,7 +4,7 @@ subroutine getylm( l, m, x, y, z, ylm, prefs )
   integer :: l, m
   !
   double precision :: x, y, z
-  double complex :: ylm
+  complex( kind = kind( 1.0d0 ) ) :: ylm
   double precision :: prefs( 0 : 1000 )
   !
   integer :: lam, j, mm

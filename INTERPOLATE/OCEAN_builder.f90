@@ -89,7 +89,8 @@
 
   complex(dp),allocatable :: wfp(:,:), gre(:,:,:), uofr(:), bofr( :, : ), eikr( : ), gre_small(:,:,:), single_bofr(:,:)
   complex(dp),allocatable :: full_xi(:,:), xiofb(:,:), gre_local(:,:,:), phased_bofr(:,:), uofrandb(:,:)
-  real(dp),allocatable :: posn( :, : ), wpt( : ), drel( : ), t(:), xirow(:), nind(:), vind(:),vipt(:),phase(:), xi_local(:,:), real_full_xi(:,:), real_full_xi_small(:,:)
+  real(dp),allocatable :: posn( :, : ), wpt( : ), drel( : ), t(:), xirow(:), nind(:), vind(:),vipt(:),phase(:)
+  real(dp),allocatable :: xi_local(:,:), real_full_xi(:,:), real_full_xi_small(:,:)
   real(dp),allocatable :: wgt(:), newwgt(:)
   real(dp) :: pref, spinfac, x, fr, fi, denr, deni, iden2, sigma, su, su2, omega, avec(3,3), bvec(3,3), qin(3),qcart(3)
   real(dp) :: vlev, vhev, clev, chev, muev, sev, mindif, maxdif, absdiff, newdiff, ktmp( 3 ), maxdiff, eshift, shifted_eig
@@ -480,8 +481,8 @@ call descinit( desc_uofrandb, npt, nbasis_subset, nb, desc_cyclic(NB_), 0, 0, co
       endif
 
 
-      write(stdout,'(a10,x,a10,x,a10,x,a10)') 'K-point', 'Min (eV)', 'Max (eV)', 'Small (eV)'
-      write(stdout,'(i10,x,f10.3,x,f10.3,x,f10.3)') ik, eigval(band_subset(1))*rytoev, &
+      write(stdout,'(a10,1x,a10,1x,a10,1x,a10)') 'K-point', 'Min (eV)', 'Max (eV)', 'Small (eV)'
+      write(stdout,'(i10,1x,f10.3,1x,f10.3,1x,f10.3)') ik, eigval(band_subset(1))*rytoev, &
                               eigval(band_subset(2))*rytoev, eigval(nbnd_small)*rytoev
 
       call OCEAN_t_printtime( "Diag", stdout )

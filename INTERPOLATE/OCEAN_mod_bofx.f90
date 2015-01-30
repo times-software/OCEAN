@@ -164,7 +164,7 @@ module OCEAN_bofx_mod
     integer :: fac( 3 ), j, ig, i, locap( 3 ), hicap( 3 ), toreal, torecp, nftot
     real(dp) :: normreal, normrecp
     complex(dp) :: rm1, w
-    character * 80 :: fstr
+    character(len=80) :: fstr
     !
     integer, parameter :: nfac = 3
     integer, allocatable :: ilist( :, : )

@@ -162,7 +162,7 @@ subroutine OCEAN_bofr_multi( )
   ! Prep output file
   if( ionode ) then
     iunbofr = freeunit()
-    open(iunbofr,file=trim(prefix)//'.bofr',form='unformatted',buffered='yes')
+    open(iunbofr,file=trim(prefix)//'.bofr',form='unformatted') !,buffered='yes')
     write(stdout,*) ' will be saved to file: ', trim(prefix)//'.bofr' 
 
     open(unit=99,file='bvecs',form='formatted',status='old')
