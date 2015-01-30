@@ -235,11 +235,12 @@ module OCEAN_bofx_mod
               band_start( 0 : nproc_pool - 1 ) )
     start_band = 1
     do i = 0, nproc_pool-1
+      test_block = ceiling( dble(bands_left) / dble(nproc_pool-i) )
       band_block( i ) = min( bands_left, test_block )
       band_start( i ) = start_band
       start_band = start_band + band_block(i)
       bands_left = bands_left - test_block
-      test_block = ceiling( dble(bands_left) / dble(nproc_pool-i-1) )
+!!!      test_block = ceiling( dble(bands_left) / dble(nproc_pool-i-1) )
   !    write(stdout,*) i, band_block( i ), band_start( i )
     enddo
     
