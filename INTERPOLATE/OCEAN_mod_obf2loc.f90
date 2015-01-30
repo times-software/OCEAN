@@ -401,7 +401,7 @@ module OCEAN_obf2loc
 !       call getphase( ng, kvc, q, tau( 1, itau ), tauphs( 1, itau ) )
       qphase = 2.0d0 * pi * sum( tau( :, itau ) * q( : ) )
       do ig = 1, ng
-        phase = qphase + 2.0d0 * pi * sum( tau( :, itau ) * kvc( :, ig ) )
+        phase = qphase + 2.0d0 * pi * sum( tau( :, itau ) * real( kvc( :, ig ), dp ) )
         tauphs( ig, itau ) = cos( phase ) + rm1 * sin( phase ) !cmplx( cos(phase), sin(phase) )
       enddo
     end do
@@ -479,7 +479,7 @@ module OCEAN_obf2loc
 
 
     do j = 1, ng
-       gc( : ) = q( : ) + dble(gvec( :, j ))
+       gc( : ) = q( : ) + real(gvec( :, j ), dp)
        qbar = 0.d0
        do i1 = 1, 3
           do i2 = 1, 3
@@ -563,7 +563,7 @@ module OCEAN_obf2loc
       do ig = 1, ng
         x = 0
         do jj = 1, 3
-          x( : ) = x( : ) + bvec( :, jj ) * ( q( jj ) + gvec( jj, ig ) )
+          x( : ) = x( : ) + bvec( :, jj ) * ( q( jj ) + real(gvec( jj, ig ), dp ) )
         enddo
         call getylm( l, m, x( 1 ), x( 2 ), x( 3 ), ylm, prefs )
         ylmfac( ig, ilm ) = pref * conjg( ylm )
