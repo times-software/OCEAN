@@ -627,14 +627,21 @@
   call mp_barrier
   write(stdout,*) 'Writing out eigvecs'
 
-  if( nbasis > 32000 .or. nbasis * nband > 2**27/npool )  then
+!  if( nbasis > 32000 .or. nbasis * nband > 2**27/npool )  then
+
+  ! If each k-point takes up less than 256MB maybe try and use good mpi mapping
+  if( int( nbasis, MPI_OFFSET_KIND ) * int( nband, MPI_OFFSET_KIND ) < 16777216_MPI_OFFSET_KIND ) then
+    mpiio_workaround = .false.
+  else
+
     mpiio_workaround = .true.
     write(stdout,*) 'Using mpi/io workaround for eigvecs.dat'
     write(stdout,*) '   nbasis =', nbasis
     write(stdout,*) '   ', nbasis * nband, 2**27/npool
-  else
-    mpiio_workaround = .false.
   endif
+!  else
+!    mpiio_workaround = .false.
+!  endif
 
   if( mypoolid .eq. mypoolroot ) then 
     if( .not. mpiio_workaround ) then
@@ -907,6 +914,7 @@
   endif
 
 
+  write(stdout,*) 'qdiag.info'
   if( ionode ) then
     iuntmp = freeunit()
     open(iuntmp,file='qdiag.info',form='formatted',status='unknown')
@@ -914,6 +922,7 @@
     close(iuntmp)
   endif
 
+  write(stdout,*) 'obf_control'
   if( ionode ) then
     open(unit=iuntmp,file='obf_control',form='formatted',status='unknown')
     rewind(iuntmp)
