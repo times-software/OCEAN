@@ -291,11 +291,15 @@
   nb = npt / nprow
   nb = min( nb, 90 )
   if( nb .lt. 1 ) nb = 1
-  local_npt = numroc( npt, nb, myrow, 0, nprow )
 
   nb2 = npt /npcol
   nb2 = min( nb2, 90 )
   if( nb2 .lt. 1 ) nb2 = 1
+
+  nb = min( nb, nb2 )
+  nb2 = nb
+
+  local_npt = numroc( npt, nb, myrow, 0, nprow )
   local_npt2 =  numroc( npt, nb2, mycol, 0, npcol )
   
   call descinit( desc_gre, npt, npt, nb, nb2, 0, 0, context_cyclic, local_npt, ierr )
@@ -538,8 +542,10 @@ call descinit( desc_uofrandb, npt, nbasis_subset, nb, desc_cyclic(NB_), 0, 0, co
         call OCEAN_t_reset
 
 
+        write(stdout,*) nprow, npcol, nb, nb2
 
-        if( .true. .and. ( nprow .eq. npcol ) .and. (nb .eq. nb2) .and. ( nb *nprow .eq. npt ) .and. ( nb2 * npcol .eq. npt ) ) then
+        if( .true. ) then !.and. ( nprow .eq. npcol ) .and. (nb .eq. nb2) ) then !.and. ( nb *nprow .eq. npt ) .and. ( nb2 * npcol .eq. npt ) ) then
+          write(stdout,*) 'Fast chi'
           call OCEAN_build_chi(myrow, mycol,nprow,npcol,context_cyclic,band_subset,nb,nb2,&
                              desc_cyclic(NB_),desc_gre,sigma,t,nt,eshift,fermi_energy,eigval,&
                              uofrandb,local_npt,local_npt2,nbasis_subset,gre,gre_small,npt,&
