@@ -7,7 +7,7 @@ DEBUG =
 
 include $(ESPRESSO_DIR)/make.sys
 
-FFLAGS+= -check all
+FFLAGS+= -g -traceback -warn all #-check all -init=snan -e03
 
 #.f90.o:
 #	$(MPIF90) $(F90FLAGS) -I$(ESPRESSO_DIR)/include -c $<
@@ -74,14 +74,16 @@ SHIRLEY_HAM_O = \
 shirley_ham_o.o \
 OCEAN_bofr_multi.o \
 OCEAN_obf2localbyk.o \
+OCEAN_obf2localbyk_subs.o \
 ../zbridge/zobj/chkfftreal.o \
 ../zbridge/zobj/chkfftrecp.o \
 ../zbridge/zobj/facpowfind.o \
 ../zbridge/zobj/optim.o \
 ../CNBSE/zcmsnmult/zobj/jlmfft.o \
 OCEAN_mod_bofx.o \
-OCEAN_bofx.o \
-OCEAN_timer.o
+OCEAN_timer.o \
+OCEAN_mod_obf2loc.o \
+OCEAN_bofx.o 
 #OCEAN_par_gentoreal.o \
 OCEAN_par_gen_setup.o \
 

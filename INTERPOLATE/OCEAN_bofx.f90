@@ -21,6 +21,7 @@ subroutine OCEAN_bofx( )
   USE wavefunctions_module, ONLY: evc
   USE mp, ONLY : mp_sum, mp_bcast,  mp_max, mp_min
   USE mp_global, ONLY : me_pool, nproc_pool, root_pool, mpime
+  USE buffers, ONLY : get_buffer
   use hamq_shirley
   use shirley_ham_input, only : debug, band_subset
   use hamq_pool, only : mypool, mypoolid, mypoolroot, cross_pool_comm, intra_pool_comm
@@ -138,7 +139,13 @@ subroutine OCEAN_bofx( )
   ! load basis functions
   write(stdout,*)
   write(stdout,*) ' load wave function'
+#ifdef __NIST
+  CALL get_buffer( evc, nwordwfc, iunwfc, 1 )
+#else
   CALL davcio( evc, 2*nwordwfc, iunwfc, 1, - 1 )
+#endif
+
+!  CALL davcio( evc, 2*nwordwfc, iunwfc, 1, - 1 )
 
   ! report norms
   allocate( norm(nbnd) )
