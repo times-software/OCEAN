@@ -452,6 +452,7 @@ call descinit( desc_uofrandb, npt, nbasis_subset, nb, desc_cyclic(NB_), 0, 0, co
 
       call OCEAN_t_reset
 
+      if( ( kpt%list%nk .gt. 1 ) .or. ( itau .eq. 1 ) ) then
 
       write(stdout,'(a,3f12.5,i6,a,i6,a,i3)') ' k-point ', &
         kpt%list%kvec(1:3,ik), ik, ' of ', kpt%list%nk, &
@@ -484,6 +485,7 @@ call descinit( desc_uofrandb, npt, nbasis_subset, nb, desc_cyclic(NB_), 0, 0, co
         call diag_ham
       endif
 
+      endif
 
       write(stdout,'(a10,1x,a10,1x,a10,1x,a10)') 'K-point', 'Min (eV)', 'Max (eV)', 'Small (eV)'
       write(stdout,'(i10,1x,f10.3,1x,f10.3,1x,f10.3)') ik, eigval(band_subset(1))*rytoev, &
