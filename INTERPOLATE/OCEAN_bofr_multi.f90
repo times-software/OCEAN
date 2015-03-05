@@ -115,7 +115,7 @@ subroutine OCEAN_bofr_multi( )
   ! load basis functions
   write(stdout,*)
   write(stdout,*) ' load wave function'
-#ifdef __NIST
+#if defined( __NIST ) && defined( __BUFFER )
   CALL get_buffer( evc, nwordwfc, iunwfc, 1 )
 #else
   CALL davcio( evc, 2*nwordwfc, iunwfc, 1, - 1 )
@@ -196,6 +196,7 @@ subroutine OCEAN_bofr_multi( )
 
   do itau = 1, ntau
     write(stdout,*) 'Site: ', itau, ntau
+    call OCEAN_t_reset
 
     
   !  expiGr = 0.d0
@@ -246,6 +247,8 @@ subroutine OCEAN_bofr_multi( )
     else
     
     call ZGEMM( 'T', 'N', npt, nbnd, npw, one, expiGr, npw, evc, npw, zero, bofr, npt )
+    call OCEAN_t_printtime( "matmul", stdout )
+    call OCEAN_t_reset
 
     if( .false. ) then
     do ibnd = 1, nbnd
@@ -272,10 +275,9 @@ subroutine OCEAN_bofr_multi( )
         enddo
       endif
     endif
-
+    call OCEAN_t_printtime( "collect and write", stdout )
 
     endif
-    call OCEAN_t_printtime( "matmul", stdout )
   enddo
 
 !  write(stdout,*) '======================================'
