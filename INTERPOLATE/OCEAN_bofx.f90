@@ -139,7 +139,7 @@ subroutine OCEAN_bofx( )
   ! load basis functions
   write(stdout,*)
   write(stdout,*) ' load wave function'
-#ifdef __NIST
+#if defined( __NIST ) && defined( __BUFFER )
   CALL get_buffer( evc, nwordwfc, iunwfc, 1 )
 #else
   CALL davcio( evc, 2*nwordwfc, iunwfc, 1, - 1 )
