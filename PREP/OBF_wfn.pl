@@ -19,7 +19,7 @@ my $ham_kpoints = "4 4 4 ";
 
 
 # Step 1: Create support files
-my @CommonFiles = ("nkpt", "k0.ipt", "qinunitsofbvectors.ipt", "nbands", "xmesh.ipt", "para_prefix", "pool_control", "ham_kpoints");
+my @CommonFiles = ("nkpt", "k0.ipt", "qinunitsofbvectors.ipt", "nbands", "xmesh.ipt", "para_prefix", "pool_control", "ham_kpoints", "core_offset");
 my @ExtraFiles = ("specpnt", "Pquadrature", "sphpts" );
 my @DFTFiles = ("rhoofr", "avecsinbohr.ipt", "efermiinrydberg.ipt", "nelectron");
 my @PawFiles = ("hfinlist", "xyz.wyck");
@@ -192,9 +192,10 @@ print "\nRunning BOFX";
 system("$para_prefix $ENV{'OCEAN_BIN'}/shirley_ham_o.x < bofx.in > bofx.out") == 0
   or die "Failed to run bofx\n$!";
 
-print "\nRunning OBF2LOC";
-system("$para_prefix $ENV{'OCEAN_BIN'}/shirley_ham_o.x < obf2loc.in > obf2loc.out") == 0
-  or die "Failed to run obf2loc\n$!";
+print "\nSkipping OBF2LOC";
+#print "\nRunning OBF2LOC";
+#system("$para_prefix $ENV{'OCEAN_BIN'}/shirley_ham_o.x < obf2loc.in > obf2loc.out") == 0
+#  or die "Failed to run obf2loc\n$!";
 
 
 print "\n";
