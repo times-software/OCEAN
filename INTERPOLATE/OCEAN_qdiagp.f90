@@ -61,7 +61,7 @@
   character(255) :: fmtstr, string
   character(20 ) :: filnam
 
-  real(dp) :: lambda
+  real(dp) :: lambda, dumf
   character(len=6) :: nd_nmbr_tmp
 
 
@@ -237,13 +237,34 @@
   if( ionode ) then
     iuntmp = freeunit()
 
+! OCEAN energy offset. See tutorial on alignment for more complete thoughts !
+! The legacy scheme sets the LUMO to be 0    
     legacy_zero_lumo = .true.
+
+! If we have core_offset then we (almost certainly) want to not touch the LUMO energy
+! core_offset either contains .false. or a number
+    inquire(file='core_offset',exist=ex)
+    if( ex ) then
+      open(iuntmp,file='core_offset',form='formatted',status='old')
+      read(iuntmp,*,err=1001) dumf
+      legacy_zero_lumo = .false.
+1001 continue
+      close(iuntmp) 
+      write(stdout,*) 'LUMO shift from core_offset:', legacy_zero_lumo
+    endif
+
+! But if you want to override then allow noshift_lumo to be set
     inquire(file='noshift_lumo',exist=ex)
     if( ex ) then
       open(unit=iuntmp,file='noshift_lumo',form='formatted',status='old')
       read(iuntmp,*) noshiftlumo
       close(iuntmp)
-      if( noshiftlumo ) legacy_zero_lumo = .false.
+      if( noshiftlumo ) then
+        legacy_zero_lumo = .false.
+      else
+        legacy_zero_lumo = .true.
+      endif
+      write(stdout,*) 'LUMO shift from no_lumoshiftt:', legacy_zero_lumo
     endif
 
     inquire(file='band_style.inp',exist=ex)

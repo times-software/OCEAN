@@ -189,7 +189,8 @@ subroutine fix_fermi( nbands, nkpts, nspin, nshift, max_val, nelect, ndope, e0, 
 
   homo = 2.0_dp * energy_list( tot_electrons ) 
   lumo = 2.0_dp * energy_list( tot_electrons + 1 )
-  write(6,*) fermi, lumo*0.5_dp
+  write(6,*) fermi, lumo*0.5_dp, homo*0.5_dp
+  write(6,*) 'Band gap (eV):', (lumo-homo)*13.60569d0
   
 
 
