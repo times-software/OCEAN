@@ -33,7 +33,8 @@ my $band_stop  = -1; #800;
 my @CommonFiles = ("znucl", "paw.hfkgrid", "paw.fill", "paw.opts", "pplist", "paw.shells", 
                    "ntype", "natoms", "typat", "taulist", "nedges", "edges", "caution", 
                    "epsilon", "k0.ipt", "ibase", "scfac", "rscale", "rprim", "para_prefix", 
-                   "paw.nbands", "core_offset", "paw.nkpt", "pool_control", "ham_kpoints");
+                   "paw.nbands", "core_offset", "paw.nkpt", "pool_control", "ham_kpoints", 
+                   "cnbse.rad" );
 my @ExtraFiles = ("specpnt", "Pquadrature" );
 my @DFTFiles = ("rhoofr", "nscf.out", "system.rho.dat");
 
