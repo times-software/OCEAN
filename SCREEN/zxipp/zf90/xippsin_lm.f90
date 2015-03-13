@@ -98,25 +98,6 @@ program xipostproc
     end do
   enddo    
 
-  
-  if ( lmax .ge. 1 ) then
-    do i = 1, nbasis
-      q = tanqr( i ) / rmax 
-      pref( i ) = q / ( root2piR * SIN( tanqr( i ) ) )
-      qtab( i ) = q
-      coul = 4.0_DP * pi / q ** 2
-    ! l = 1
-      ! sin( q R ) / ( r R )
-      cterm = sin( tanqr( i ) ) / ( 3.0_DP * rmax )
-      do j = 1, npt
-        arg = q * drel( j )
-        basfcn( j, i, 1 ) = pref( i ) * ( sin( arg ) / arg ** 2 - cos( arg ) / arg )
-!        potfcn( j, i, 1 ) = coul * ( - basfcn( j, i, 1 ) + drel( j ) * cterm )
-        potfcn( j, i, 1 ) = pref( i ) * coul * ( - sin( arg ) / arg ** 2 + cos( arg ) / arg - drel( j ) * cterm )
-      enddo
-    end do
-  endif
-
 ! coulmat is block diagonal
   coulmat = 0.0d0
   do i = 1, nbasis
@@ -125,10 +106,24 @@ program xipostproc
      end do
      coulmat( i, i ) = coulmat( i, i ) + 4.0d0 * pi / ( qtab( i ) ** 2 )
   end do
+  
 
-! l = 1
-! m + m' = 0
-  if( lmax .ge. 1 ) then
+  if ( lmax .ge. 1 ) then
+  if( .false. ) then
+    do i = 1, nbasis
+      q = tanqr( i ) / rmax 
+      pref( i ) = q / ( root2piR * SIN( tanqr( i ) ) )
+      qtab( i ) = q
+      coul = 4.0_DP * pi / q ** 2
+      cterm = sin( tanqr( i ) ) / ( 3.0_DP * rmax )
+      do j = 1, npt
+        arg = q * drel( j )
+        basfcn( j, i, 1 ) = pref( i ) * ( sin( arg ) / arg ** 2 - cos( arg ) / arg )
+        potfcn( j, i, 1 ) = pref( i ) * coul * ( - sin( arg ) / arg ** 2 + cos( arg ) / arg - drel( j ) * cterm )
+      enddo
+    end do
+
+
     offset = 0
     do m = -1, 1
       offset = offset + nbasis
@@ -140,18 +135,35 @@ program xipostproc
         enddo
         coulmat( i + offset, i + offset ) = 20.0d0 * pi / (  qtab( i ) ** 2 * 3.0d0 )
       enddo
-
-!      offsetj = ( -m  ) * 2 * nbasis + offset
-!      do i = 1, nbasis
-!        do j = 1, nbasis
-!          ! I was missing the 3 here and below?
-!          coulmat( i + offset, j + offsetj ) = coulmat( i + offset, j + offsetj ) & 
-!                                             + 4.0d0 * pi / ( qtab( i ) * qtab( j ) * 3.0d0 )
-!        enddo
-!        coulmat( i + offset, i + offset ) = 20 * pi / (  qtab( i ) ** 2 * 3.0d0 )
-!      enddo
-
     enddo
+  else
+    do i = 1, nbasis
+      q = pi * dble( i ) / rmax
+      pref( i ) = q / ( root2piR ) 
+      qtab( i ) = q
+      coul = 4.0_DP * pi / q ** 2
+      do j = 1, npt
+        arg = q * drel( j )
+        basfcn( j, i, 1 ) = pref( i ) * ( sin( arg ) / arg ** 2 - cos( arg ) / arg )
+        potfcn( j, i, 1 ) = pref( i ) * coul * ( sin( arg ) / arg ** 2 + cos( arg ) / arg )
+      enddo
+    end do
+
+
+    offset = 0
+    do m = -1, 1
+      offset = offset + nbasis
+      offsetj = offset
+      do i = 1, nbasis
+        do j = 1, nbasis
+          ! I was missing the 3 here and below?
+!          coulmat( i + offset, j + offsetj ) = 8.0d0 * pi / ( qtab( i ) * qtab( j ) * 3.0d0)
+        enddo
+        coulmat( i + offset, i + offset ) = 4.0d0 * pi / (  qtab( i ) ** 2 )
+      enddo
+    enddo
+
+  endif
   endif
 
 
