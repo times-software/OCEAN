@@ -1,3 +1,4 @@
+include ../Makefile.arch
 #### Select your QE version here
 
 #### QE 5.1 
@@ -11,7 +12,6 @@ QEMOD = $(ESPRESSO_DIR)/PP/src
 
 
 
-include ../Makefile.arch
 
 include $(ESPRESSO_DIR)/make.sys
 .SUFFIXES :
