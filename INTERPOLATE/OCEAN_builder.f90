@@ -89,7 +89,8 @@
 
   complex(dp),allocatable :: wfp(:,:), gre(:,:,:), uofr(:), bofr( :, : ), eikr( : ), gre_small(:,:,:), single_bofr(:,:)
   complex(dp),allocatable :: full_xi(:,:), xiofb(:,:), gre_local(:,:,:), phased_bofr(:,:), uofrandb(:,:)
-  real(dp),allocatable :: posn( :, : ), wpt( : ), drel( : ), t(:), xirow(:), nind(:), vind(:),vipt(:),phase(:), xi_local(:,:), real_full_xi(:,:), real_full_xi_small(:,:)
+  real(dp),allocatable :: posn( :, : ), wpt( : ), drel( : ), t(:), xirow(:), nind(:), vind(:),vipt(:),phase(:)
+  real(dp),allocatable :: xi_local(:,:), real_full_xi(:,:), real_full_xi_small(:,:)
   real(dp),allocatable :: wgt(:), newwgt(:)
   real(dp) :: pref, spinfac, x, fr, fi, denr, deni, iden2, sigma, su, su2, omega, avec(3,3), bvec(3,3), qin(3),qcart(3)
   real(dp) :: vlev, vhev, clev, chev, muev, sev, mindif, maxdif, absdiff, newdiff, ktmp( 3 ), maxdiff, eshift, shifted_eig
@@ -290,11 +291,15 @@
   nb = npt / nprow
   nb = min( nb, 90 )
   if( nb .lt. 1 ) nb = 1
-  local_npt = numroc( npt, nb, myrow, 0, nprow )
 
   nb2 = npt /npcol
   nb2 = min( nb2, 90 )
   if( nb2 .lt. 1 ) nb2 = 1
+
+  nb = min( nb, nb2 )
+  nb2 = nb
+
+  local_npt = numroc( npt, nb, myrow, 0, nprow )
   local_npt2 =  numroc( npt, nb2, mycol, 0, npcol )
   
   call descinit( desc_gre, npt, npt, nb, nb2, 0, 0, context_cyclic, local_npt, ierr )
@@ -447,6 +452,7 @@ call descinit( desc_uofrandb, npt, nbasis_subset, nb, desc_cyclic(NB_), 0, 0, co
 
       call OCEAN_t_reset
 
+      if( ( kpt%list%nk .gt. 1 ) .or. ( itau .eq. 1 ) ) then
 
       write(stdout,'(a,3f12.5,i6,a,i6,a,i3)') ' k-point ', &
         kpt%list%kvec(1:3,ik), ik, ' of ', kpt%list%nk, &
@@ -479,9 +485,10 @@ call descinit( desc_uofrandb, npt, nbasis_subset, nb, desc_cyclic(NB_), 0, 0, co
         call diag_ham
       endif
 
+      endif
 
-      write(stdout,'(a10,x,a10,x,a10,x,a10)') 'K-point', 'Min (eV)', 'Max (eV)', 'Small (eV)'
-      write(stdout,'(i10,x,f10.3,x,f10.3,x,f10.3)') ik, eigval(band_subset(1))*rytoev, &
+      write(stdout,'(a10,1x,a10,1x,a10,1x,a10)') 'K-point', 'Min (eV)', 'Max (eV)', 'Small (eV)'
+      write(stdout,'(i10,1x,f10.3,1x,f10.3,1x,f10.3)') ik, eigval(band_subset(1))*rytoev, &
                               eigval(band_subset(2))*rytoev, eigval(nbnd_small)*rytoev
 
       call OCEAN_t_printtime( "Diag", stdout )
@@ -537,8 +544,10 @@ call descinit( desc_uofrandb, npt, nbasis_subset, nb, desc_cyclic(NB_), 0, 0, co
         call OCEAN_t_reset
 
 
+        write(stdout,*) nprow, npcol, nb, nb2
 
-        if( .true. .and. ( nprow .eq. npcol ) .and. (nb .eq. nb2)) then
+        if( .true. ) then !.and. ( nprow .eq. npcol ) .and. (nb .eq. nb2) ) then !.and. ( nb *nprow .eq. npt ) .and. ( nb2 * npcol .eq. npt ) ) then
+          write(stdout,*) 'Fast chi'
           call OCEAN_build_chi(myrow, mycol,nprow,npcol,context_cyclic,band_subset,nb,nb2,&
                              desc_cyclic(NB_),desc_gre,sigma,t,nt,eshift,fermi_energy,eigval,&
                              uofrandb,local_npt,local_npt2,nbasis_subset,gre,gre_small,npt,&

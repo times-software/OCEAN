@@ -50,10 +50,10 @@
 
 
   character(255) :: eigval_file, eigvec_file, info_file, filout
-  logical :: ex
+  logical :: ex, mpiio_workaround
   logical :: legacy_zero_lumo, noshiftlumo
 
-  integer(kind=MPI_OFFSET_KIND) :: offset, off1, off2, off3, off4
+  integer(kind=MPI_OFFSET_KIND) :: offset, off1, off2, off3, off4, locsize_x, basis_vector_size_x
   integer :: fheigval, fheigvec, fhenk, fhpsi, fheig
   integer :: status(MPI_STATUS_SIZE)
   integer :: ierr
@@ -61,7 +61,7 @@
   character(255) :: fmtstr, string
   character(20 ) :: filnam
 
-  real(dp) :: lambda
+  real(dp) :: lambda, dumf
   character(len=6) :: nd_nmbr_tmp
 
 
@@ -123,7 +123,7 @@
 
 
   integer :: dims(2), ndims, array_of_gsizes(2), array_of_distribs(2), array_of_dargs(2), file_type, nelements, mpistatus, &
-             locsize, i_energy_request, n_energy_request
+             locsize, i_energy_request, n_energy_request, basis_vector_size, basis_vector_type
   integer, allocatable :: energy_request(:), pool_root_map(:)
   complex(dp), allocatable :: store_eigvec(:,:,:), out_eigvec(:,:,:)
   real(dp), allocatable :: store_energy(:,:)
@@ -237,13 +237,34 @@
   if( ionode ) then
     iuntmp = freeunit()
 
+! OCEAN energy offset. See tutorial on alignment for more complete thoughts !
+! The legacy scheme sets the LUMO to be 0    
     legacy_zero_lumo = .true.
+
+! If we have core_offset then we (almost certainly) want to not touch the LUMO energy
+! core_offset either contains .false. or a number
+    inquire(file='core_offset',exist=ex)
+    if( ex ) then
+      open(iuntmp,file='core_offset',form='formatted',status='old')
+      read(iuntmp,*,err=1001) dumf
+      legacy_zero_lumo = .false.
+1001 continue
+      close(iuntmp) 
+      write(stdout,*) 'LUMO shift from core_offset:', legacy_zero_lumo
+    endif
+
+! But if you want to override then allow noshift_lumo to be set
     inquire(file='noshift_lumo',exist=ex)
     if( ex ) then
       open(unit=iuntmp,file='noshift_lumo',form='formatted',status='old')
       read(iuntmp,*) noshiftlumo
       close(iuntmp)
-      if( noshiftlumo ) legacy_zero_lumo = .false.
+      if( noshiftlumo ) then
+        legacy_zero_lumo = .false.
+      else
+        legacy_zero_lumo = .true.
+      endif
+      write(stdout,*) 'LUMO shift from no_lumoshiftt:', legacy_zero_lumo
     endif
 
     inquire(file='band_style.inp',exist=ex)
@@ -627,8 +648,25 @@
   call mp_barrier
   write(stdout,*) 'Writing out eigvecs'
 
+!  if( nbasis > 32000 .or. nbasis * nband > 2**27/npool )  then
+
+  ! If each k-point takes up less than 256MB maybe try and use good mpi mapping
+  if( int( nbasis, MPI_OFFSET_KIND ) * int( nband, MPI_OFFSET_KIND ) < 16777216_MPI_OFFSET_KIND ) then
+    mpiio_workaround = .false.
+  else
+
+    mpiio_workaround = .true.
+    write(stdout,*) 'Using mpi/io workaround for eigvecs.dat'
+    write(stdout,*) '   nbasis =', nbasis
+    write(stdout,*) '   ', nbasis * nband, 2**27/npool
+  endif
+!  else
+!    mpiio_workaround = .false.
+!  endif
+
   if( mypoolid .eq. mypoolroot ) then 
-  
+    if( .not. mpiio_workaround ) then
+
     ndims = 2
     dims = (/ 1, npool /)
     array_of_gsizes = (/ nbasis * nband, nspin * kpt%list%nk /)
@@ -638,7 +676,18 @@
     !CALL MPI_TYPE_CREATE_DARRAY( npool, mypool, ndims, array_of_gsizes, array_of_distribs, array_of_dargs, &
     CALL MPI_TYPE_CREATE_DARRAY( npool, pool_rank, ndims, array_of_gsizes, array_of_distribs, array_of_dargs, &
                                  dims, MPI_ORDER_FORTRAN, MPI_DOUBLE_COMPLEX, file_type, ierr )
+    if( ierr/=0 ) then
+      errorcode=ierr
+      call MPI_ERROR_STRING( errorcode, string, resultlen, ierr )
+      call errore("Create DARRAY",string,errorcode)
+    endif
+
     CALL MPI_TYPE_COMMIT( file_type, ierr )
+    if( ierr/=0 ) then
+      errorcode=ierr
+      call MPI_ERROR_STRING( errorcode, string, resultlen, ierr )
+      call errore("Commit filetype",string,errorcode)
+    endif
 
     ! clear out existing
 !    fmode = IOR(MPI_MODE_CREATE,MPI_MODE_DELETE_ON_CLOSE)
@@ -676,7 +725,7 @@
     if( ierr/=0 ) then
       errorcode=ierr
       call MPI_ERROR_STRING( errorcode, string, resultlen, ierr )
-      call errore(string,errorcode)
+      call errore("Open eigvecs.dat",string,errorcode)
     endif
     offset=0
     !JTV At this point it would be good to create a custom MPI_DATATYPE
@@ -686,7 +735,7 @@
     if( ierr/=0 ) then
       errorcode=ierr
       call MPI_ERROR_STRING( errorcode, string, resultlen, ierr )
-      call errore(string,errorcode)
+      call errore("Set view fheig",string,errorcode)
     endif
 
     call MPI_TYPE_SIZE( file_type, locsize, ierr )
@@ -702,8 +751,191 @@
     call MPI_FILE_CLOSE( fheig, ierr )
 
 
+  elseif( .true. ) then
+
+    ! This shouldn't break until either nbasis * 16 > 2GB or nband > 2GB
+
+    CALL MPI_TYPE_CONTIGUOUS( nbasis, MPI_DOUBLE_COMPLEX, file_type, ierr )
+    if( ierr/=0 ) then
+      errorcode=ierr
+      call MPI_ERROR_STRING( errorcode, string, resultlen, ierr )
+      call errore("Create DARRAY",string,errorcode)
+    endif
+
+    CALL MPI_TYPE_COMMIT( file_type, ierr )
+    if( ierr/=0 ) then
+      errorcode=ierr
+      call MPI_ERROR_STRING( errorcode, string, resultlen, ierr )
+      call errore("Commit filetype",string,errorcode)
+    endif
+
+
+    fmode = IOR(MPI_MODE_CREATE,MPI_MODE_WRONLY)
+!    fmode = IOR(fmode, MPI_MODE_UNIQUE_OPEN)
+
+!    call MPI_INFO_CREATE( eigvec_info, ierr )
+!    call MPI_INFO_SET( eigvec_info, 'access_style', 'write_once', ierr )
+  
+!    call MPI_FILE_OPEN( cross_pool_comm, 'eigvecs.dat', fmode, eigvec_info, fheig, ierr )
+    call MPI_FILE_OPEN( cross_pool_comm, 'eigvecs.dat', fmode, MPI_INFO_NULL, fheig, ierr )
+    if( ierr/=0 ) then
+      errorcode=ierr 
+      call MPI_ERROR_STRING( errorcode, string, resultlen, ierr )
+      call errore("Open eigvecs.dat",string,errorcode)
+    endif
+    offset=0
+    !JTV At this point it would be good to create a custom MPI_DATATYPE
+    !  so that we can get optimized file writing
+!    call MPI_FILE_SET_VIEW( fheig, offset, MPI_DOUBLE_COMPLEX, &
+!                            file_type, 'native', MPI_INFO_NULL, ierr )
+    call MPI_FILE_SET_VIEW( fheig, offset, file_type, &
+                            file_type, 'native', MPI_INFO_NULL, ierr )
+    if( ierr/=0 ) then
+      errorcode=ierr
+      call MPI_ERROR_STRING( errorcode, string, resultlen, ierr )
+      call errore("Set view fheig",string,errorcode)
+    endif
+
+    call MPI_TYPE_SIZE( file_type, locsize, ierr )
+    nelements = locsize / 16
+    if( nelements .ne.  nbasis ) then
+      write(stdout,*) 'Something is wrong'
+    endif
+    nelements = nband
+    call MPI_BARRIER( cross_pool_comm, ierr )
+    call OCEAN_t_reset
+
+    pool_ik = 0
+    if( .false. ) then
+      do ik = 0, nspin * kpt%list%nk - 1, npool
+        offset = ik + mypool
+        pool_ik = pool_ik + 1
+
+        if( pool_ik .gt. pool_tot_k ) then 
+          nelements = 0                ! write nothing
+          offset = nspin * kpt%list%nk ! do it at the end of the file
+          pool_ik = pool_tot_k         ! avoid bounds fails
+        endif
+
+        offset = offset * int(nband,MPI_OFFSET_KIND)
+
+        call MPI_FILE_WRITE_AT_ALL( fheig, offset, out_eigvec(1,1,pool_ik), nelements, file_type, mpistatus, ierr )
+      enddo
+    else
+
+      do ispin = 1, nspin
+      do ik = 1, kpt%list%nk
+
+        if( mod((ik-1)+(ispin-1)*kpt%list%nk,npool)/=mypool ) cycle
+
+        offset = int( ik-1 + (ispin-1)*kpt%list%nk, MPI_OFFSET_KIND ) * int( nband, MPI_OFFSET_KIND )
+        pool_ik = pool_ik + 1
+    
+        call MPI_FILE_WRITE_AT( fheig, offset, out_eigvec(1,1,pool_ik), nelements, file_type, mpistatus, ierr )
+
+      enddo
+      enddo
+    endif
+
+    call OCEAN_t_printtime( "File out", stdout)
+    write(stdout,*) int(nbasis,MPI_OFFSET_KIND) * int(nband,MPI_OFFSET_KIND) * (nspin * kpt%list%nk)
+
+    call MPI_FILE_CLOSE( fheig, ierr )
+
+  else  ! Trying a completely different method here
+
+    write(stdout,*) 'Using new approach for eigvecs'
+  
+    CALL MPI_TYPE_CONTIGUOUS( nbasis, MPI_DOUBLE_COMPLEX, basis_vector_type, ierr )
+    if( ierr/=0 ) then
+      errorcode=ierr
+      call MPI_ERROR_STRING( errorcode, string, resultlen, ierr )
+      call errore("Create CONTIGUOUS",string,errorcode)
+    endif
+
+    CALL MPI_TYPE_COMMIT( basis_vector_type, ierr )
+    if( ierr/=0 ) then
+      errorcode=ierr
+      call MPI_ERROR_STRING( errorcode, string, resultlen, ierr )
+      call errore("Commit basis_vector_type",string,errorcode)
+    endif
+
+
+    ndims = 2
+    dims = (/ 1, npool /)
+    array_of_gsizes = (/ nband, nspin * kpt%list%nk /)
+    array_of_distribs = (/ MPI_DISTRIBUTE_CYCLIC, MPI_DISTRIBUTE_CYCLIC /)
+    array_of_dargs = (/ nband, 1 /)
+    !
+    !CALL MPI_TYPE_CREATE_DARRAY( npool, mypool, ndims, array_of_gsizes, array_of_distribs, array_of_dargs, &
+    CALL MPI_TYPE_CREATE_DARRAY( npool, pool_rank, ndims, array_of_gsizes, array_of_distribs, array_of_dargs, &
+                                 dims, MPI_ORDER_FORTRAN, basis_vector_type, file_type, ierr )
+    if( ierr/=0 ) then
+      errorcode=ierr
+      call MPI_ERROR_STRING( errorcode, string, resultlen, ierr )
+      call errore("Create DARRAY",string,errorcode)
+    endif
+
+    CALL MPI_TYPE_COMMIT( file_type, ierr )
+    if( ierr/=0 ) then
+      errorcode=ierr
+      call MPI_ERROR_STRING( errorcode, string, resultlen, ierr )
+      call errore("Commit filetype",string,errorcode)
+    endif
+
+    fmode = IOR(MPI_MODE_CREATE,MPI_MODE_WRONLY)
+    fmode = IOR(fmode, MPI_MODE_UNIQUE_OPEN)
+
+    call MPI_INFO_CREATE( eigvec_info, ierr )
+    call MPI_INFO_SET( eigvec_info, 'access_style', 'write_once', ierr )
+
+    call MPI_FILE_OPEN( cross_pool_comm, 'eigvecs.dat', fmode, eigvec_info, fheig, ierr )
+    if( ierr/=0 ) then
+      errorcode=ierr
+      call MPI_ERROR_STRING( errorcode, string, resultlen, ierr )
+      call errore("Open eigvecs.dat",string,errorcode)
+    endif
+    offset=0
+    !JTV At this point it would be good to create a custom MPI_DATATYPE
+    !  so that we can get optimized file writing
+    call MPI_FILE_SET_VIEW( fheig, offset, basis_vector_type, &
+                            file_type, 'native', MPI_INFO_NULL, ierr )
+    if( ierr/=0 ) then
+      errorcode=ierr
+      call MPI_ERROR_STRING( errorcode, string, resultlen, ierr )
+      call errore("Set view fheig",string,errorcode)
+    endif
+
+!    call MPI_TYPE_SIZE( file_type, locsize, ierr )
+!    nelements = locsize / 16
+!    call MPI_TYPE_SIZE( basis_vector_type, basis_vector_size, ierr )
+
+    call MPI_TYPE_SIZE_X( file_type, locsize_x, ierr )
+    call MPI_TYPE_SIZE_X( basis_vector_type, basis_vector_size_x, ierr )
+
+    offset = locsize_x / basis_vector_size_x
+    nelements = offset
+
+!    nelements = locsize / basis_vector_size
+    write(stdout,*) nelements, locsize_x, basis_vector_size_x
+!    if( nelements .ne.  nbasis * nband * pool_tot_k ) then
+!    endif
+    call MPI_BARRIER( cross_pool_comm, ierr )
+    call OCEAN_t_reset
+    call MPI_FILE_WRITE_ALL( fheig, out_eigvec, nelements, basis_vector_type, mpistatus, ierr )
+    call OCEAN_t_printtime( "File out", stdout)
+    call MPI_GET_COUNT( mpistatus, basis_vector_type, nelements, ierr )
+    write(stdout,*) nelements
+
+    call MPI_FILE_CLOSE( fheig, ierr )
+
+
+
+  endif
   endif
 
+
+  write(stdout,*) 'qdiag.info'
   if( ionode ) then
     iuntmp = freeunit()
     open(iuntmp,file='qdiag.info',form='formatted',status='unknown')
@@ -711,6 +943,7 @@
     close(iuntmp)
   endif
 
+  write(stdout,*) 'obf_control'
   if( ionode ) then
     open(unit=iuntmp,file='obf_control',form='formatted',status='unknown')
     rewind(iuntmp)

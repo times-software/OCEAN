@@ -21,10 +21,14 @@ subroutine OCEAN_bofx( )
   USE wavefunctions_module, ONLY: evc
   USE mp, ONLY : mp_sum, mp_bcast,  mp_max, mp_min
   USE mp_global, ONLY : me_pool, nproc_pool, root_pool, mpime
+  USE buffers, ONLY : get_buffer
   use hamq_shirley
   use shirley_ham_input, only : debug, band_subset
   use hamq_pool, only : mypool, mypoolid, mypoolroot, cross_pool_comm, intra_pool_comm
   use mpi
+  use OCEAN_bofx_mod
+  use OCEAN_obf2loc
+  use OCEAN_timer
 
   implicit none
 
@@ -33,6 +37,8 @@ subroutine OCEAN_bofx( )
   complex(dp),parameter :: zero=cmplx(0.d0,0.d0)
   complex(dp),parameter :: iota=cmplx(0.d0,1.d0)
   complex(dp),parameter :: one =cmplx(1.d0,0.d0)
+
+  integer(kind=MPI_OFFSET_KIND), parameter :: oneGBinComplex = 67108864
 
   character(255) :: string
   logical :: loud
@@ -48,15 +54,16 @@ subroutine OCEAN_bofx( )
   logical :: bt_logical, invert_xmesh
   character(len=3) :: dum_c
 
-  integer :: iuntmp, iobegin
+  integer :: iuntmp, iobegin, tick, tock, ishift
 
-  integer :: min_mill(3), uni_min_mill(3), max_mill(3), uni_max_mill(3), igl, igh
+  integer :: min_mill(3), uni_min_mill(3), max_mill(3), uni_max_mill(3), igl, igh, nfft(3)
 
-  integer :: nshift, nspin, nkpt, ispin, ikpt
-  integer :: nbasis_, nband, ierr, errorcode, fmode, resultlen
+  integer :: nshift, nspin, nkpt, ispin, ikpt, kpts(3)
+  integer :: nbasis_, nband, ierr, errorcode, fmode, resultlen, band_block, band_length
 
   complex(dp), allocatable :: eigvec(:,:), unk(:,:)
 
+  integer :: ibd, nelement
   integer :: fheig, fhu2
   integer :: u2_type
   integer(kind=MPI_OFFSET_KIND) :: offset, long_s, long_k, long_x, long_b
@@ -132,7 +139,13 @@ subroutine OCEAN_bofx( )
   ! load basis functions
   write(stdout,*)
   write(stdout,*) ' load wave function'
+#if defined( __NIST ) && defined( __BUFFER )
+  CALL get_buffer( evc, nwordwfc, iunwfc, 1 )
+#else
   CALL davcio( evc, 2*nwordwfc, iunwfc, 1, - 1 )
+#endif
+
+!  CALL davcio( evc, 2*nwordwfc, iunwfc, 1, - 1 )
 
   ! report norms
   allocate( norm(nbnd) )
@@ -165,7 +178,11 @@ subroutine OCEAN_bofx( )
     endif
 
     open(iuntmp,file='qdiag.info',form='formatted',status='old')
-    read(iuntmp,*),  nbasis_, nband, nkpt, nspin, nshift
+    read(iuntmp,*)  nbasis_, nband, nkpt, nspin, nshift
+    close(iuntmp)
+
+    open(iuntmp,file='kmesh.ipt',form='formatted',status='old')
+    read(iuntmp,*) kpts(:)
     close(iuntmp)
 
     iobegin = freeunit()
@@ -186,6 +203,7 @@ subroutine OCEAN_bofx( )
   call mp_bcast( nkpt,   ionode_id )
   call mp_bcast( nspin,  ionode_id )
   call mp_bcast( nshift, ionode_id )
+  call mp_bcast( kpts, ionode_id )
 
   if( .not. ionode ) allocate(ibeg(nkpt,nspin) )
   call mp_bcast( ibeg, ionode_id )
@@ -198,6 +216,7 @@ subroutine OCEAN_bofx( )
 !  enddo
 
 
+  if( .false. ) then
   !!!!!!!!!
   ! Find maximum extent of mill
   do i = 1, 3
@@ -231,6 +250,8 @@ subroutine OCEAN_bofx( )
     endif
   enddo
 
+  endif
+
 
   !!!!!!!!!  Eigvecs !!!!!!!!!!!
   CALL MPI_FILE_OPEN( intra_pool_comm, 'eigvecs.dat', MPI_MODE_RDONLY, MPI_INFO_NULL, fheig, ierr )
@@ -252,12 +273,13 @@ subroutine OCEAN_bofx( )
 
 
   !!!!!!!!!  u2par.dat !!!!!!!!!
-  if( mypoolid .eq. mypoolroot ) then
+!  if( mypoolid .eq. mypoolroot ) then
+  if( .false. ) then
     call MPI_TYPE_CONTIGUOUS( product(xmesh), MPI_DOUBLE_COMPLEX, u2_type, ierr )
     call MPI_TYPE_COMMIT( u2_type, ierr )
 
     fmode = IOR(MPI_MODE_CREATE,MPI_MODE_WRONLY)
-    call MPI_FILE_OPEN( cross_pool_comm, 'u2par.dat', fmode, MPI_INFO_NULL, fhu2, ierr )
+    call MPI_FILE_OPEN( intra_pool_comm, 'u2par.dat', fmode, MPI_INFO_NULL, fhu2, ierr )
     if( ierr/=0 ) then
       errorcode=ierr
       call MPI_ERROR_STRING( errorcode, string, resultlen, ierr )
@@ -274,50 +296,145 @@ subroutine OCEAN_bofx( )
       call errore(string,errorcode)
     endif
   else
+
+
+  call OCEAN_bofx_open_file( product(xmesh), ierr )
+  if( ierr .ne. 0 ) then
+    write(stdout,*) 'Failed calling OCEAN_bofx_open_file', ierr
+  endif
+
   endif
 
 
-  allocate( eigvec( nbasis_, nband ), unk( npw, nband ) )
+#define OBF
+#ifdef OBF
+!!!! obf?
+  call OCEAN_obf2loc_init( nband, kpts, nspin, nshift, ierr )
+  if( ierr .ne. 0 ) then
+    write(stdout,*) 'Failed to run OCEAN_obf2loc_init'
+  endif
+
+  call OCEAN_obf2loc_alloc( ierr )
+  if( ierr .ne. 0 ) then
+    write(stdout,*) 'Failed to run OCEAN_obf2loc_alloc'
+  endif
+
+!!!!
+#endif
+
+
+  allocate( unk( npw, nband ) )
 
   long_b = nband
   long_x = product(xmesh)
 
+
+  ! Block nband for large systems
+  if( int(nband,MPI_OFFSET_KIND) * int( nbasis_, MPI_OFFSET_KIND ) > oneGBinComplex ) then
+    if( nbasis_ > oneGBinComplex ) then
+      band_block = min( 1, nband )
+    elseif( nbasis_ > 65536 ) then
+      band_block = min( 128, nband )
+    elseif( nbasis_ > 16382 ) then
+      band_block = min( 512, nband )
+    else
+      band_block = min( 2048, nband ) 
+    endif
+  else
+    band_block = nband
+  endif
+  !
+  write(stdout,*) 'Blocking eigvec:', band_block, nband
+  
+  
+
   loud = .true.
+
+! Set up the fft grid
+  call par_gen_setup( xmesh, npw, mill, loud )
+
+
+  ishift = 1
+
   do ispin = 1 , nspin
     do ikpt = 1, nkpt
 
+      allocate( eigvec( nbasis_, band_block ) )
+
+
       offset = ( ispin - 1 ) * nkpt + (ikpt - 1 )
-      offset = offset * nbasis_
-      offset = offset * nband
-      call MPI_FILE_READ_AT_ALL( fheig, offset, eigvec, nband*nbasis_, MPI_DOUBLE_COMPLEX, &
-                                 MPI_STATUS_IGNORE, ierr )
+      offset = offset * int(nbasis_, kind( offset ) )
+      offset = offset * int(nband, kind( offset ) )
+
+      call OCEAN_t_reset
+
+      do ibd = 1, nband, band_block
+        nelement = min( band_block, nband - ibd + 1 )
+
+        call MPI_FILE_READ_AT_ALL( fheig, offset, eigvec, nelement*nbasis_, MPI_DOUBLE_COMPLEX, &
+                                   MPI_STATUS_IGNORE, ierr )
+
       
+        ! still zero because we are doing a complete chunk in bands
+        call ZGEMM( 'N', 'N', npw, nelement, nbasis_, one, evc, npw, eigvec, nbasis_, zero, &
+                     unk(1,ibd), npw )
+        offset = offset + int( nelement, MPI_OFFSET_KIND ) * int( nbasis_, MPI_OFFSET_KIND )
 
-      call ZGEMM( 'N', 'N', npw, nband, nbasis_, one, evc, npw, eigvec, nbasis_, zero, &
-                   unk, npw )
+      enddo
+      call OCEAN_t_printtime( "Read eigvec", stdout )
 
+      deallocate( eigvec )
 
       offset = ( ispin - 1 ) * nkpt + (ikpt - 1 )
 !      offset = offset * product( xmesh )
 !      offset = offset * nband
       offset = offset * long_b
 !      offset = offset * long_x
-      call par_gentoreal( xmesh, nband, unk, npw, mill, fhu2, offset, invert_xmesh, loud, ibeg(ikpt,ispin), u2_type )  
-      loud = .false.
+      call par_gentoreal( xmesh, nband, unk, npw, mill, offset, invert_xmesh, loud, ibeg(ikpt,ispin) )  
+    !  loud = .false.
       write(stdout,*) ikpt, offset
   
+
+#ifdef OBF
+!!!!!!
+      call OCEAN_obf2loc_coeffs( npw, mill, unk, ikpt, ispin, ishift, ibeg )
+
+!      call OCEAN_t_reset
+!      call OCEAN_obf2loc_sumO2L()
+!      call OCEAN_t_printtime( "Sum O2L", stdout )
+
+!      call OCEAN_t_reset
+!      call OCEAN_obf2loc_reorder( ionode, ispin, ishift, ikpt, ibeg(ikpt,ispin) )
+!      call OCEAN_t_printtime( "Reorder O2L", stdout )
+!!!!!!
+#endif
 
     enddo
   enddo
 
+#ifdef OBF
+!!!!
+  call OCEAN_obf2loc_write( ierr )
+  if( ierr .ne. 0 ) then
+    write(stdout,*) 'Failed obf2loc_write'
+  endif
+!!!!
+#endif
+  
 
   call MPI_FILE_CLOSE( fheig, ierr )
-  if(  mypoolid .eq. mypoolroot ) then
-    call MPI_FILE_CLOSE( fhu2, ierr )
-  endif
+!  if(  mypoolid .eq. mypoolroot ) then
+!  call MPI_FILE_CLOSE( fhu2, ierr )
 
-  deallocate( eigvec, unk )
 
+  call par_gen_shutdown( ierr )
+  call OCEAN_bofx_close_file( ierr )
+!  endif
+
+  deallocate( unk )
+
+
+  call MPI_BARRIER( intra_pool_comm, ierr )
 
   return
 
@@ -343,7 +460,7 @@ subroutine OCEAN_bofx( )
     integer :: fac( 3 ), j, ig, i, locap( 3 ), hicap( 3 ), toreal, torecp, nftot
     real(dp) :: normreal, normrecp
     complex(dp) :: rm1, w
-    character * 80 :: fstr
+    character (len=80) :: fstr
     !
     integer, parameter :: nfac = 3
     integer, allocatable :: ilist( :, : )

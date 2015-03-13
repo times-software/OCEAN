@@ -22,6 +22,8 @@
   complex(dp), parameter :: zero = ( 0.0_dp, 0.0_dp )
   complex(dp), parameter :: one =   ( 1.0_dp, 0.0_dp )
 
+  integer(kind=MPI_OFFSET_KIND), parameter :: oneGBinComplex = 67108864
+
   integer :: i, j, itau, ik1, ik2, ik3, l, ibnd, ip, m, iproj, ilm, k, ii, jj, kk
   integer :: nspin, ispin, nkpt
   integer :: iuntmp, nwordo2l, iunout, iuntxt
@@ -37,7 +39,7 @@
   complex(dp), allocatable :: o2l( :, :, : ), coeff( :, :, :, :, : )
 
   complex(dp), allocatable :: eigvec(:,:), unk(:,:), val_coeff(:,:,:,:,:), con_coeff(:,:,:,:,:)
-  integer :: fheig, nband_, nbasis_, resultlen
+  integer :: fheig, nband_, nbasis_, resultlen, band_block, band_length, ibd, nelement
   integer(kind=MPI_OFFSET_KIND) :: offset
 
   character(25) :: element, fnroot, add04, add10
@@ -206,7 +208,7 @@
 
 
     open(iuntmp,file='qdiag.info',form='formatted',status='old')
-    read(iuntmp,*),  nbasis_, nband_, nkpt, nspin, nshift
+    read(iuntmp,*)  nbasis_, nband_, nkpt, nspin, nshift
     close(iuntmp)
 
     open(unit=iuntmp,file='ibeg.h',form='formatted',status='old')
@@ -326,6 +328,9 @@
     end do
   end do
 
+  write(stdout,*) bmet(:,1)
+  write(stdout,*) bmet(:,2)
+  write(stdout,*) bmet(:,3)
 
   call OCEAN_t_printtime( "Stupid prep", stdout )
 
@@ -355,8 +360,26 @@
     allocate( con_coeff( nptot, nbuse, nkpt, nspin, ntau ), &
               val_coeff( nptot, nbuse_xes, nkpt, nspin, ntau ) )
   endif
-  allocate( eigvec( nbasis_, nband_ ), unk( npw, nband_ ) )
+  allocate( unk( npw, nband_ ) )
   
+
+  ! Block nband for large systems
+  if( int(nband_,MPI_OFFSET_KIND) * int( nbasis_, MPI_OFFSET_KIND ) > oneGBinComplex ) then
+    if( nbasis_ > oneGBinComplex ) then
+      band_block = min( 1, nband_ )
+    elseif( nbasis_ > 65536 ) then
+      band_block = min( 256, nband_ )
+    elseif( nbasis_ > 16382 ) then
+      band_block = min( 1024, nband_ )
+    else
+      band_block = min( 4096, nband_ )
+    endif
+  else
+    band_block = nband_
+  endif
+  !
+  write(stdout,*) 'Blocking eigvec:', band_block, nband_
+
     
 
 
@@ -374,17 +397,27 @@
 !          coeff = zero
           i = i + 1
           write(stdout,*) i, ispin, ishift
+          allocate( eigvec( nbasis_, band_block ) )
 
           ! Load up eigvecs
           offset = ( ispin - 1 ) * nkpt + (i - 1 )
           offset = offset * nbasis_
           offset = offset * nband_
-          call MPI_FILE_READ_AT_ALL( fheig, offset, eigvec, nband_*nbasis_, MPI_DOUBLE_COMPLEX, &
-                                     MPI_STATUS_IGNORE, ierr )
 
-          ! get band states
-          call ZGEMM( 'N', 'N', npw, nband_, nbasis_, one, evc, npw, eigvec, nbasis_, zero, &
-                       unk, npw )
+          do ibd = 1, nband_, band_block
+            nelement = min( band_block, nband_ - ibd + 1 )
+
+
+            call MPI_FILE_READ_AT_ALL( fheig, offset, eigvec, nelement*nbasis_, MPI_DOUBLE_COMPLEX, &
+                                       MPI_STATUS_IGNORE, ierr )
+
+            ! get band states
+            call ZGEMM( 'N', 'N', npw, nelement, nbasis_, one, evc, npw, eigvec, nbasis_, zero, &
+                         unk(1,ibd), npw )
+            offset = offset + int( nelement, MPI_OFFSET_KIND ) * int( nbasis_, MPI_OFFSET_KIND )
+          enddo
+
+          deallocate( eigvec )
 
 !          W = ZDOTC( npw, unk(1,1), 1, unk(1,1), 1 )
 !          call mp_sum( W )
@@ -489,7 +522,7 @@
 !  call mp_barrier
 
   deallocate( o2l )
-  deallocate( unk, eigvec)
+  deallocate( unk )
 
 
   deallocate( tau )
@@ -500,6 +533,7 @@
 
   return
 
+#ifdef FALSE
 
   contains
 
@@ -917,5 +951,5 @@
     wsph( : ) = wsph( : ) * ( 4.0d0 * 4.0d0 * atan( 1.0d0 ) / sphsu )
     call getprefs( prefs, lmax, nsphpt, wsph, xsph, ysph, zsph )    
   end subroutine make_prefs
-
+#endif
   end subroutine OCEAN_obf2localbyk

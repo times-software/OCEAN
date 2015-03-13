@@ -20,7 +20,9 @@ subroutine OCEAN_build_chi( myrow, mycol, nprow, npcol, context, band_subset, gr
   complex(dp), allocatable :: local_uofr(:,:,:), tmp(:,:)
   complex(dp) :: scalar
 
+  integer :: temp_gre_mb, temp_gre_nb
 
+  
 
 
   nband = band_subset(2) - band_subset(1) + 1
@@ -62,6 +64,9 @@ subroutine OCEAN_build_chi( myrow, mycol, nprow, npcol, context, band_subset, gr
 
   do jblock = 1, nblocks_npt
     jj = INDXG2L( 1+(jblock-1)*gre_nb, gre_nb, mycol, 0, npcol )
+
+    temp_gre_nb = min( gre_nb, gre_nloc - jj + 1 )
+
     do iblock = 1, nblocks_npt
 
       call INFOG2L( 1+(iblock-1)*gre_mb, 1+(jblock-1)*gre_nb, desc_gre, &
@@ -69,6 +74,9 @@ subroutine OCEAN_build_chi( myrow, mycol, nprow, npcol, context, band_subset, gr
       if( myrow .ne. rsrc .or. mycol .ne. csrc ) cycle
 
       ii = INDXG2L( 1+(iblock-1)*gre_mb, gre_mb, myrow, 0, nprow )
+
+      temp_gre_mb = min( gre_mb, gre_mloc - ii + 1 )
+
 
 !      iii = min( ii+gre_mb-1, gre_dim )
 !      jjj = min( jj+gre_nb-1, gre_dim )
@@ -98,17 +106,23 @@ subroutine OCEAN_build_chi( myrow, mycol, nprow, npcol, context, band_subset, gr
 
           scalar = pref / cmplx( denr, deni )
 
-          call ZGERC( gre_mb, gre_nb, scalar, local_uofr(1,ibd,iblock), 1, &
+!          call ZGERC( gre_mb, gre_nb, scalar, local_uofr(1,ibd,iblock), 1, &
+!                      local_uofr(1,ibd,jblock), 1, tmp, gre_mb )
+          call ZGERC( temp_gre_mb, temp_gre_nb, scalar, local_uofr(1,ibd,iblock), 1, &
                       local_uofr(1,ibd,jblock), 1, tmp, gre_mb )
 
           if( ibd .eq. nbnd_small + band_subset(1)-1 ) then
-            gre_small(ii:ii+gre_mb-1, jj:jj+gre_nb-1,it) =  &
-                        gre_small(ii:ii+gre_mb-1, jj:jj+gre_nb-1,it) + tmp(1:gre_mb,1:gre_nb)
+!            gre_small(ii:ii+gre_mb-1, jj:jj+gre_nb-1,it) =  &
+!                        gre_small(ii:ii+gre_mb-1, jj:jj+gre_nb-1,it) + tmp(1:gre_mb,1:gre_nb)
+            gre_small(ii:ii+temp_gre_mb-1, jj:jj+temp_gre_nb-1,it) =  &
+                        gre_small(ii:ii+temp_gre_mb-1, jj:jj+temp_gre_nb-1,it) + tmp(1:temp_gre_mb,1:temp_gre_nb)
           endif
         enddo
         
-        gre(ii:ii+gre_mb-1, jj:jj+gre_nb-1,it) = gre(ii:ii+gre_mb-1, jj:jj+gre_nb-1,it) &
-                                               + tmp(1:gre_mb,1:gre_nb)
+!        gre(ii:ii+gre_mb-1, jj:jj+gre_nb-1,it) = gre(ii:ii+gre_mb-1, jj:jj+gre_nb-1,it) &
+!                                               + tmp(1:gre_mb,1:gre_nb)
+        gre(ii:ii+temp_gre_mb-1, jj:jj+temp_gre_nb-1,it) = gre(ii:ii+temp_gre_mb-1, jj:jj+temp_gre_nb-1,it) &
+                                               + tmp(1:temp_gre_mb,1:temp_gre_nb)
 
 
       enddo ! it

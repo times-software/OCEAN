@@ -16,7 +16,7 @@ subroutine dump_energies( band_subset, nbands, nkpts, nspin, nshift, e0, lumo_sh
   write(6,*) lumo_shift
 
   fh = freeunit()
-  open(unit=fh,file='ibeg.h',form='formatted',status='unknown',buffered='yes')
+  open(unit=fh,file='ibeg.h',form='formatted',status='unknown')!,buffered='yes')
   do ishift = 1, nshift
     do ispin = 1, nspin
       write(fh,'(2I8)') (ik,start_band(ik,ispin,ishift), ik=1,nkpts)
@@ -32,7 +32,7 @@ subroutine dump_energies( band_subset, nbands, nkpts, nspin, nshift, e0, lumo_sh
 
   write(6,*) maxval( start_band ), minval( start_band )
 
-  open(unit=fh,file='brange.ipt',form='formatted',status='unknown',buffered='yes')
+  open(unit=fh,file='brange.ipt',form='formatted',status='unknown')!,buffered='yes')
   write(fh,*) brange(1), brange(2)
   write(fh,*) brange(3), brange(4)
   close(fh)
@@ -50,7 +50,7 @@ subroutine dump_energies( band_subset, nbands, nkpts, nspin, nshift, e0, lumo_sh
               ik, ispin, nshift ) - lumo_shift
     enddo
   enddo
-  open(unit=fh,file='wvfcninfo',form='unformatted',status='unknown',buffered='yes')
+  open(unit=fh,file='wvfcninfo',form='unformatted',status='unknown')!,buffered='yes')
   write(fh) nbuse, nkpts, nspin
   write(fh) temp_energy
   close(fh)
@@ -69,7 +69,7 @@ subroutine dump_energies( band_subset, nbands, nkpts, nspin, nshift, e0, lumo_sh
       temp_energy( :, ik, ispin ) = e0( 1 : start_band( ik, ispin, 1 ) -1, ik, ispin, 1 ) - lumo_shift
     enddo
   enddo
-  open(unit=fh,file='wvfvainfo',form='unformatted',status='unknown',buffered='yes')
+  open(unit=fh,file='wvfvainfo',form='unformatted',status='unknown')!,buffered='yes')
   write(fh) nbuse, nkpts, nspin
   write(fh) temp_energy
   close(fh)
@@ -189,7 +189,8 @@ subroutine fix_fermi( nbands, nkpts, nspin, nshift, max_val, nelect, ndope, e0, 
 
   homo = 2.0_dp * energy_list( tot_electrons ) 
   lumo = 2.0_dp * energy_list( tot_electrons + 1 )
-  write(6,*) fermi, lumo*0.5_dp
+  write(6,*) fermi, lumo*0.5_dp, homo*0.5_dp
+  write(6,*) 'Band gap (eV):', (lumo-homo)*13.60569d0
   
 
 
