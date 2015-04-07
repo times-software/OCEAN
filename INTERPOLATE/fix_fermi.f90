@@ -1,15 +1,16 @@
 ! sorts energies
 
-subroutine dump_energies( band_subset, nbands, nkpts, nspin, nshift, e0, lumo_shift, start_band, ierr )
+subroutine dump_energies( band_subset, nbands, nkpts, nspin, nshift, e0, lumo_shift, start_band, brange, ierr )
   use kinds, only : dp
   implicit none
 
   integer, intent( in ) :: band_subset(2), nbands, nkpts, nspin, nshift, start_band( nkpts, nspin, nshift )
   real(dp), intent( in ) :: e0( nbands, nkpts, nspin, nshift ), lumo_shift
+  integer, intent( out ) :: brange( 4 )
   integer, intent( inout ) :: ierr
   integer, external :: freeunit
   !
-  integer :: fh, ispin, ik, ibd, ishift, brange(4), nbuse
+  integer :: fh, ispin, ik, ibd, ishift, nbuse
   real(dp), allocatable :: temp_energy(:,:,:)
 
 
