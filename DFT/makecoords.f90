@@ -3,7 +3,7 @@
       program makecoords
 !
       implicit none
-      character*2, allocatable :: satom(:)
+      character(len=2), allocatable :: satom(:)
       integer :: i
       integer :: natoms, numtyp
       integer, allocatable    :: typat(:), znum(:), zatom(:)
@@ -58,7 +58,7 @@
       open(unit=98,file='coords',form='formatted',status='unknown')
       do i = 1, natoms
          call getsymbol( zatom(i), satom(i) )
-         write( 98, '(a,x,f16.10,x,f16.10,x,f16.10)') satom(i), pos(:,i)
+         write( 98, '(a,1x,f16.10,1x,f16.10,1x,f16.10)') satom(i), pos(:,i)
       enddo
       close(98)
 
@@ -71,7 +71,7 @@
 
 subroutine getsymbol(zatom,satom)
   integer, intent(in) :: zatom
-  character*2, intent(out) :: satom
+  character(len=2), intent(out) :: satom
 
     select case( zatom )
 

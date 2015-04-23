@@ -38,3 +38,6 @@ makeacell.x: makeacell.f90
 
 kgen_qe.x: kgen_qe.f90
 	$(FC) $(OPTIONS) kgen_qe.f90 -o kgen_qe.x
+
+avec.x: avec.f90
+	$(FC) $(OPTIONS) avec.f90 -o avec.x
