@@ -2,7 +2,7 @@
       subroutine getwfkin( wfkin, files_iter, handle)
       implicit none
 !
-      character*11, intent(out) :: wfkin
+      character(len=11), intent(out) :: wfkin
       integer, intent(in) :: files_iter, handle
 !
       write(wfkin(1:11),'(A3,I4.4,A4)') 'RUN', files_iter, '_WFK'
@@ -18,11 +18,11 @@
       subroutine getwfkout( wfkout, files_iter, kptnum, handle)
       implicit none
 !
-      character*12, intent(out) :: wfkout
+      character(len=12), intent(out) :: wfkout
       integer, intent(in) :: kptnum, handle, files_iter
 !
-      character*15 :: wfkout15
-      character*17 :: wfkout17
+      character(len=15) :: wfkout15
+      character(len=17) :: wfkout17
 !
       !KG! was unformatted
       write(wfkout,'(A4,I3.3,A1,I4.4)') '.Psi', files_iter, '.', kptnum
