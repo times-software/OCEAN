@@ -78,7 +78,7 @@ wfsubs.o: wfsubs.f90
 	$(FC) $(OPTIONS) -c wfsubs.f90 -o wfsubs.o
 
 wfconvert.o: wfconvert.f90
-	$(FC) $(OPTIONS) -c wfconvert.f90 -o wfconvert.o
+	$(FC) $(OPTIONS) -cpp -c wfconvert.f90 -o wfconvert.o
 
 qehead2.o: qehead2.f90
 	$(FC) $(OPTIONS) -c qehead2.f90 -o qehead2.o -I$(QEMOD)
