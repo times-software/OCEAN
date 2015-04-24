@@ -14,13 +14,12 @@
       REAL(kind=kind(1.d0)), PARAMETER :: ev2ha  = 0.036749309
       REAL(kind=kind(1.d0)), PARAMETER :: ha2ev  = 27.211396132
 
-      integer :: nkpt,nspinor,nsppol,isppol,kout
+      integer :: nkpt,nspinor,nsppol,isppol
       integer :: nband(2)
-      double precision :: fermie,dummy
       integer :: iband,ikpt,maxnpw,un_npw,sh_npw 
       double precision, allocatable :: eigen_un(:),eigen_sh(:),         &
      &  cg_un(:,:),cg_sh(:,:), cg(:,:,:),cg_imag(:,:,:),kr(:,:),ki(:,:),&
-     &  occ_sh(:),occ_un(:),kptlist(:,:)
+     &  occ_sh(:),occ_un(:)
       integer, allocatable :: kg_shift(:,:),kg_unshift(:,:),            &
      &   g_occ(:,:,:),gordered(:,:)
       integer :: brange(4),bandtot,maxband
@@ -29,17 +28,15 @@
       integer :: g_un_min(3),g_un_max(3),g_sh_min(3),g_sh_max(3), umk(3)
       integer ::i,j,k,hkpt,gtot,kr_iter,ki_iter,nfiles
       integer :: files_iter,master_iter,g_iter,nkpts,kpt_counter
-      character*11 :: wfkin
-      character*12 :: wfkout
-      character*4 :: wfknum
-      character*3 :: kptnum
+      character(len=11) :: wfkin
+      character(len=12) :: wfkout
       double precision, allocatable :: enklisto(:,:),enklistu(:,:)
-      double precision :: lda_low, lda_high, ldagap,qval
+      double precision :: lda_low, lda_high,qval
       double precision :: orthcr,orthci,q1,q2,q3,bv1(3),bv2(3),bv3(3)
       logical :: noshift
-      character*9, parameter :: f9 = 'formatted'
+      character(len=9), parameter :: f9 = 'formatted'
       !
-      character*19 :: prefix, outdir
+      character(len=256) :: prefix, outdir
       !
       integer, parameter :: enkfile =   40
       integer, parameter :: tmels   =   41
@@ -51,7 +48,11 @@
       integer, parameter :: wfkoutfile= 48
       integer, parameter :: umklapp =   49
       !
+#ifdef __HAVE_F03 
+      call get_command_argument(1,VALUE=prefix)
+#else
       call getarg(1,prefix)
+#endif
       !
       open(unit=umklapp,file='umklapp', form=f9,status='unknown')
 
@@ -128,7 +129,8 @@
         write(6,*) " PREFIX = ", prefix
 
         outdir = "./Out"
-        call qehead2("system", outdir, maxband, nsppol, nspinor, nkpt)
+        call qehead2(prefix, outdir, maxband, nsppol, nspinor, nkpt)
+!        call qehead2("system", outdir, maxband, nsppol, nspinor, nkpt)
 
         if (nsppol .ne. 1) then
          write(6,*) "Spin stuff is currently not supported by AI2NBSE"
@@ -160,13 +162,13 @@
 
           kpt_counter = kpt_counter + 1
 
-          call qenpw2("system", outdir, ikpt, maxnpw )
+          call qenpw2(prefix, outdir, ikpt, maxnpw )
 
           ! get the number of pw used for the current k-point
 
           allocate(cg_un(maxband,2*maxnpw),cg_sh(maxband,2*maxnpw))
           allocate(kg_unshift(3,maxnpw), eigen_un(maxband) )
-          if ( .not. noshift ) allocate(kg_shift(3,maxnpw), eigen_sh(maxband) )
+          allocate(kg_shift(3,maxnpw), eigen_sh(maxband) )
 
           !if (.not. noshift) read(umklapp, * ) umk(:)
 
@@ -449,6 +451,7 @@
          deallocate(cg_un, cg_sh)
          deallocate(eigen_un)
          deallocate(kg_unshift)
+         deallocate(kg_shift,eigen_sh)
          close(wfkoutfile)
          close(61)
          close(62)
@@ -458,7 +461,6 @@
        enddo  ! end ink 
 
 
-      if (.not. noshift) deallocate(kg_shift,eigen_sh)
       deallocate(occ_un, occ_sh)
 
 
