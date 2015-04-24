@@ -18,7 +18,7 @@ my $RunESPRESSO = 0;
 my $pawRUN = 0;
 my $bseRUN = 0;
 
-my @GeneralFiles = ("core" );
+my @GeneralFiles = ("core", "para_prefix" );
 
 my @KgenFiles = ("k0.ipt", "qinunitsofbvectors.ipt", "paw.nkpt", "nkpt");
 #my @KgenFiles = ("k0.ipt", "qinunitsofbvectors.ipt", "scf.nkpt", "paw.nkpt", "bse.nkpt");
@@ -33,7 +33,7 @@ my @EspressoFiles = ( "coord", "degauss", "ecut", "etol", "fband", "ibrav",
 #    "occopt", "occtype", "prefix", "ppdir", "rprim", "rscale", "scf.kshift", "smearing", 
 #    "spinorb", "taulist", "typat", "verbatim", "work_dir", "wftol");
 my @PPFiles = ("pplist", "znucl");
-my @OtherFiles = ("epsilon");
+my @OtherFiles = ("epsilon", "pool_control");
 
 
 foreach (@PPFiles) {
@@ -263,6 +263,42 @@ close PPLIST;
 # remove this switch
 my $EspressoType = "seq"; 
 
+### load up the para_prefix
+my $para_prefix = "";
+if( open PARA_PREFIX, "para_prefix" )
+{
+  $para_prefix = <PARA_PREFIX>;
+  chomp($para_prefix);
+  close( PARA_PREFIX);
+} else
+{
+  print "Failed to open para_prefix. Error: $!\nRunning serially\n";
+}
+
+#load up pool controls
+my $scf_npool = 1;
+my $nscf_npool = 1;
+my $paw_npool = 1;
+if( -e "pool_control")
+{
+  open INPUT, "pool_control" or die;
+  while (<INPUT>)
+  {
+    if( $_ =~ m/^scf\s+(\d+)/ )
+    {
+      $scf_npool = $1;
+    }
+    elsif( $_ =~ m/^nscf\s+(\d+)/ )
+    {
+      $nscf_npool = $1;
+    }
+    elsif( $_ =~ m/^paw\s+(\d+)/ )
+    {
+      $paw_npool = $1;
+    }
+  }
+  close INPUT;
+}
 
 
 # make additional files for QE input card
@@ -439,8 +475,9 @@ if ($RunESPRESSO) {
 #  print "$abs_full_out\t$full_out\n";
  
  `echo "&inputpp" > ppfile`;
- `echo -n "   prefix = " >> ppfile`;
- `cat prefix >> ppfile`;
+ `echo -n "   prefix = '" >> ppfile`;
+ `head -c -1 prefix >> ppfile`;
+ `echo "'" >> ppfile`;
  `echo -n "   outdir = " >> ppfile`;
  `cat work_dir >> ppfile`;
  `echo "   filplot = 'system.rho'" >> ppfile`;
@@ -458,42 +495,20 @@ if ($RunESPRESSO) {
  `mv ppfile pp.in`;
  
 
-### get the number of cores we are going to run on
-#
- my $nc=0;
- open CORES, "core";
- $nc = int(<CORES>);
- `echo $nc >> testlog`;
- close CORES;
+
           
-# `echo NodeFile`;
-# `echo $PBS_NODEFILE`;
 
  ### the SCF run for initial density
  ##
  print "Density SCF Run\n";
-# system("mpiexec $ENV{'OCEAN_BIN'}/pw.x < scf.in >& scf.out") == 0
-#     or die "Failed to run scf stage for Density\n";
-#  system("mpirun -np $nc $ENV{'OCEAN_BIN'}/pw.x < scf.in >& scf.out 2>&1") == 0
-#      or die "Failed to run scf stage for Density\n";
-  system("mpirun -np $nc $ENV{'OCEAN_BIN'}/pw.x < scf.in > scf.out 2>&1") == 0
-#  system("mpirun -np $nc pw.x < scf.in > scf.out 2>&1") == 0
+  system("$para_prefix $ENV{'OCEAN_BIN'}/pw.x -npool $scf_npool < scf.in > scf.out 2>&1") == 0
       or die "Failed to run scf stage for Density\n";
  `echo 1 > scf.stat`;
 
  print "Density PP Run\n";
-# system("mpiexec $ENV{'OCEAN_BIN'}/pp.x < pp.in >& pp.out") == 0
-#     or die "Failed to run post-process for density stage\n";
-#  system("mpirun -np $nc $ENV{'OCEAN_BIN'}/pp.x < pp.in >& pp.out 2>&1") == 0
-#     or die "Failed to run post-process for density stage\n";
-#  my $pwd = `pwd`;
-#  chomp($pwd);
-#  print "$pwd\n";
-#  print "mpirun -np 1 -wdir $pwd $ENV{'OCEAN_BIN'}/pp.x < pp.in > pp.out 2>&1\n";
 
 
-
-  system("mpirun -np $nc $ENV{'OCEAN_BIN'}/pp.x < pp.in > pp.out 2>&1") == 0
+  system("$para_prefix $ENV{'OCEAN_BIN'}/pp.x < pp.in > pp.out 2>&1") == 0
      or die "Failed to run post-process for density stage\n";
  `echo 1 > den.stat`;
 #  `cp ../system.rho.dat .`;
@@ -714,16 +729,9 @@ if ( $pawRUN ) {
 ### the PAW NSCF run
 #
   print "PAW NSCF Run\n";
-#  system("mpiexec $ENV{'OCEAN_BIN'}/pw.x < nscf.in >& nscf.out") == 0
-#    or die "Failed to run scf stage for PAW\n";
-#  system("mpirun -np $nc $ENV{'OCEAN_BIN'}/pw.x < nscf.in > nscf.out 2>&1") == 0
-#      or die "Failed to run nscf for PAW\n";
-  system("mpirun -np $nc $ENV{'OCEAN_BIN'}/pw.x < nscf.in > nscf.out 2>&1") == 0
-#  system("mpirun -np $nc pw.x < nscf.in > nscf.out 2>&1") == 0
+  system("$para_prefix $ENV{'OCEAN_BIN'}/pw.x -npool $paw_npool < nscf.in > nscf.out 2>&1") == 0
       or die "Failed to run nscf for PAW\n";
 
-#  system("mpiexec $ENV{'OCEAN_BIN'}/pw.x < scf.in > scf.out") == 0
-#    or die "Failed to run scf stage for PAW\n";
   `echo 1 > scf.stat`;
 
 
@@ -911,12 +919,7 @@ if ( $bseRUN ) {
 ### running NSCF for the BSE stage
   print "BSE NSCF Run\n";
 
-# system("mpiexec $ENV{'OCEAN_BIN'}/pw.x < nscf.in >& nscf.out") == 0
-#   or die "Failed to run nscf stage for BSE\n";
-#  system("mpirun -np $nc $ENV{'OCEAN_BIN'}/pw.x < nscf.in > nscf.out 2>&1") == 0
-#      or die "Failed to run nscf for BSE\n";
-  system("mpirun -np $nc $ENV{'OCEAN_BIN'}/pw.x < nscf.in > nscf.out 2>&1") == 0
-#  system("mpirun -np $nc pw.x < nscf.in > nscf.out 2>&1") == 0
+  system("$para_prefix $ENV{'OCEAN_BIN'}/pw.x -npool $nscf_npool < nscf.in > nscf.out 2>&1") == 0
       or die "Failed to run nscf for BSE\n";
   `echo 1 > nscf.stat`;
 
