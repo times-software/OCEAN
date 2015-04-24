@@ -1,3 +1,2 @@
-*.mod
-*.o
 *__genmod.f90
+*__genmod.mod
