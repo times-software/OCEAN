@@ -98,13 +98,18 @@
   !
 !  write(6,*) ":Reading the band info"
   !
+#ifdef __QE51
+  CALL qexml_read_bands_info( NUM_K_POINTS=nkpts, NBND=nbnd, IERR=ierr )
+#else
   CALL qexml_read_bands_info( NBND=nbnd, IERR=ierr )
+#endif
   IF ( ierr/=0 ) CALL errore(subname,'QEXML reading ',ABS(ierr))
   !
-  allocate( occ(nbnd,1) )
+  allocate( occ(nbnd,nkpts) )
   !
 #ifdef __QE51
-  CALL qexml_read_bands_pw(nkpts, nbnd, 1, .false., .true., filename, WG=occ, IERR=ierr )
+! num_k_points and nkstot actually need to be the same
+  CALL qexml_read_bands_pw( nkpts, nbnd, nkpts, .false., .true., filename, WG=occ, IERR=ierr )
   IF ( ierr/=0 ) CALL errore(subname,'QEXML reading ',ABS(ierr))
 #else
   CALL qexml_read_bands( IK=1, OCC=occ(:,1), IERR=ierr )
