@@ -5,9 +5,9 @@
       complex(kind=kind(1.d0)), allocatable :: rhoofr(:,:,:)
       complex(kind=kind(1.d0)), allocatable ::  rhoofg(:,:,:)
       real( kind=kind(1.d0)), allocatable ::  trhoofg(:,:,:)
-      integer*8 :: plan
+      integer(kind=8) :: plan
       integer :: dims(3), counter1, counter2, counter3, dumint, cter1, cter2, cter3, natom
-      character*50 :: lineburn
+      character(len=50) :: lineburn
       real(kind=kind(1.d0)) :: norm, modG, bv1(3), bv2(3), bv3(3), b(3),&
      &      dumf, avecs(3,3)
       logical :: qestyle
@@ -102,10 +102,10 @@
             modG =  (bv1(1)*b(1) + bv2(1)*b(2) + bv3(1)*b(3))**2 +      &
      &          (bv1(2)*b(1) + bv2(2)*b(2) + bv3(2)*b(3))**2 +          &
      &          (bv1(3)*b(1) + bv2(3)*b(2) + bv3(3)*b(3))**2
-            write(99,'(3(I5,X),X,2(E19.12,2X),F25.10)') counter1-1,     &
+            write(99,'(3(I5,1X),1X,2(E19.12,2X),F25.10)') counter1-1,     &
      &        counter2-1, counter3-1,                                   &
-     &        real(rhoofg(cter1,cter2,cter3))* norm,                    &
-     &        dimag(rhoofg(cter1,cter2,cter3))* norm,modG
+     &        real(rhoofg(cter1,cter2,cter3),kind(1.d0))* norm,                    &
+     &        aimag(rhoofg(cter1,cter2,cter3))* norm,modG
           enddo
         enddo
       enddo
