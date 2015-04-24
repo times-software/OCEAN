@@ -4,7 +4,7 @@
       program nelectron
 !
       implicit none
-      character*20 :: lineburn
+      character(len=20) :: lineburn
       integer :: xpnt(3), counter
       real(kind=kind(1.d0)) :: rho, nelect, avecs(3,3), vol
 !

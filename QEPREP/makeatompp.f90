@@ -3,9 +3,9 @@
       program makeatompp
 !
       implicit none
-      character*2 , allocatable :: satom(:)
-      character*7 , allocatable :: mass(:)
-      character*99, allocatable :: ppname(:), ppline(:)
+      character(len=2) , allocatable :: satom(:)
+      character(len=7) , allocatable :: mass(:)
+      character(len=99), allocatable :: ppname(:), ppline(:)
       integer :: i
       integer :: ntype
       integer, allocatable    :: znucl(:)
@@ -53,7 +53,7 @@
 
 subroutine getsymbol(zatom,satom)
   integer, intent(in) :: zatom
-  character*2, intent(out) :: satom
+  character(len=2), intent(out) :: satom
 
     select case( zatom )
 
@@ -164,7 +164,7 @@ end subroutine getsymbol
 
 subroutine getmass(zatom,mass)
   integer, intent(in) :: zatom
-  character*7, intent(out) :: mass
+  character(len=7), intent(out) :: mass
 
     select case( zatom )
 
