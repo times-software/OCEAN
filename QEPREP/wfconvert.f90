@@ -453,10 +453,10 @@
          deallocate(kg_unshift)
          deallocate(kg_shift,eigen_sh)
          close(wfkoutfile)
-         close(61)
-         close(62)
-         close(63)
-         close(64)
+!         close(61)
+!         close(62)
+!         close(63)
+!         close(64)
 !         close(31)
        enddo  ! end ink 
 

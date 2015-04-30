@@ -29,25 +29,25 @@
       open(unit=handle,file=wfkout,form='unformatted',status='unknown')  
       rewind(handle)
 !
-      write(wfkout17,'(A4,I3.3,A1,I4.4,A5)') '.Psi', files_iter, '.',   &
-           &   kptnum, '.gtot'
-      open(unit=61,file=wfkout17,form='formatted',status='unknown')
-      rewind(61)
+!      write(wfkout17,'(A4,I3.3,A1,I4.4,A5)') '.Psi', files_iter, '.',   &
+!           &   kptnum, '.gtot'
+!      open(unit=61,file=wfkout17,form='formatted',status='unknown')
+!      rewind(61)
 !
-      write(wfkout17,'(A4,I3.3,A1,I4.4,A5)') '.Psi', files_iter, '.', &
-           &   kptnum, '.gord'
-      open(unit=62,file=wfkout17,form='formatted',status='unknown')
-      rewind(62)
+!      write(wfkout17,'(A4,I3.3,A1,I4.4,A5)') '.Psi', files_iter, '.', &
+!           &   kptnum, '.gord'
+!      open(unit=62,file=wfkout17,form='formatted',status='unknown')
+!      rewind(62)
 !
-      write(wfkout15,'(A4,I3.3,A1,I4.4,A3)') '.Psi', files_iter, '.', &
-           &   kptnum, '.kr'
-      open(unit=63,file=wfkout15,form='formatted',status='unknown')
-      rewind(63)
+!      write(wfkout15,'(A4,I3.3,A1,I4.4,A3)') '.Psi', files_iter, '.', &
+!           &   kptnum, '.kr'
+!      open(unit=63,file=wfkout15,form='formatted',status='unknown')
+!      rewind(63)
 !
-      write(wfkout15,'(A4,I3.3,A1,I4.4,A3)') '.Psi', files_iter, '.', &
-           &   kptnum, '.ki'
-      open(unit=64,file=wfkout15,form='formatted',status='unknown')
-      rewind(64)
+!      write(wfkout15,'(A4,I3.3,A1,I4.4,A3)') '.Psi', files_iter, '.', &
+!           &   kptnum, '.ki'
+!      open(unit=64,file=wfkout15,form='formatted',status='unknown')
+!      rewind(64)
 !
 
       end subroutine getwfkout
