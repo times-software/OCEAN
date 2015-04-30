@@ -78,7 +78,7 @@ if( $nphoton > 0 )
 }
 else
 {
-  print "Looking for available photon files\n";
+  print "Looking for available photon files:\n";
   opendir DIR, "../" or die $!;
   while( my $file = readdir( DIR ) )
   {
@@ -105,7 +105,7 @@ else
 
 if( $#photon_files == -1 )
 {
-  print "Could not find any photon files!\nWill have to quit :(\n";
+  print "!!!  Could not find any photon files  !!!\n  Will have to quit :(\n";
   exit 1;
 }
 else
@@ -113,15 +113,15 @@ else
   $nphoton = $#photon_files+1;
   if( $nphoton > 1 ) 
   {
-    print "\nRunning with $nphoton photon files\n";
+    print "    Running with $nphoton photon files\n";
   }
   else
   {
-    print "\nRunning with $nphoton photon file\n";
+    print "    Running with $nphoton photon file\n";
   }
   foreach( @photon_files )
   {
-    print "$_\n";
+    print "        $_\n";
     `cp ../$_ .`;
   }
 }
