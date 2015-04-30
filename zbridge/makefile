@@ -129,6 +129,7 @@ clean:
               zexe/ll.x zexe/spect.x zobj/bridgegw.o $(CONDENSLIST) \
               $(BRDGLIST) $(BRLADRLIST) $(BWAYLIST) $(GWAYLIST) $(ORTHLIST) \
               $(SETUP2LIST) $(LLOBJS) $(XEQYOBJS) $(SPECTOBJS) $(CONDENS2LIST)
+	rm -f *__genmod.???
 
 install:
 	cp zexe/*.x $(INSTDIR)

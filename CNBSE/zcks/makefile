@@ -54,3 +54,4 @@ install:
 clean:
 	rm -f zobj/*.o
 	rm -f zobj/*.x
+	rm -f *__genmod.???
