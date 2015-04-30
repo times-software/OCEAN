@@ -112,7 +112,6 @@ foreach (@GeneralFiles) {
 foreach (@KgenFiles) {
   system("cp ../Common/$_ .") == 0 or die;
 }
-system("cp paw.nkpt scf.nkpt");
 system("mv nkpt bse.nkpt");
 foreach (@BandFiles) {
   system("cp ../Common/$_ .") == 0 or die;
@@ -438,7 +437,7 @@ if ($RunESPRESSO) {
  `cat coords >> qefile`;
 
  `echo "K_POINTS automatic" >> qefile`;
- `tr '\n' ' ' < scf.nkpt >> qefile`;
+ `tr '\n' ' ' < ngkpt >> qefile`;
  `cat scf.kshift >> qefile`;
 
  # mv qefile to appropriate location
