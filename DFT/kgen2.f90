@@ -6,6 +6,8 @@
   logical :: change
   character(len=9)  :: kptfile
   character(len=12) :: qekptfile
+  real(kind=kind(1.d0)), parameter :: small = 10.0d0 * EPSILON(1.d0)
+
 !
   open(unit=99,file='k0.ipt',form='formatted',status='old')
   read(99,*) k0(:)
@@ -24,7 +26,7 @@
   close(99)
 !
   open(unit=99,file='nkpts',form='formatted',status='unknown')
-  if ( (abs(qvec(1)) + abs(qvec(2)) + abs(qvec(3)) ) .eq. 0) then
+  if ( (abs(qvec(1)) + abs(qvec(2)) + abs(qvec(3)) ) .lt. small ) then
     write(99,*)nkpt(1)*nkpt(2)*nkpt(3)
   else
     write(99,*)nkpt(1)*nkpt(2)*nkpt(3)*2.d0
@@ -38,7 +40,7 @@
   kkpt = k0(3)/dble(nkpt(3))
 !
   kptiter2(:) = 1
-  if ( (abs(qvec(1)) + abs(qvec(2)) + abs(qvec(3)) ) .eq. 0 ) then 
+  if ( (abs(qvec(1)) + abs(qvec(2)) + abs(qvec(3)) ) .lt. small ) then 
     kpttotal = nkpt(1) * nkpt(2) * nkpt(3)
 !
 
@@ -67,7 +69,7 @@
         if ( ikpt .gt. 1 ) ikpt = ikpt - 1.d0
 !
         write(99,*) ikpt, jkpt, kkpt
-        write(97,'(e17.8,e17.8,e17.8,f12.8)') ikpt, jkpt, kkpt, ( 1.0 / (ceiling(real(kpttotal)/real(core)))  )
+        write(97,'(e17.8,e17.8,e17.8,f12.8)') ikpt, jkpt, kkpt, ( 1.0 / dble(ceiling(real(kpttotal)/real(core)))  )
 
         if ( kptiter2(3) .lt. nkpt(3) ) then
           kkpt = kkpt + 1.d0/dble(nkpt(3))
