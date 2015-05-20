@@ -6,106 +6,82 @@ module OCEAN_psi
   save
   private
 
-!  COMPLEX(DP),  POINTER :: psi(:,:,:)
-!!DEC$ ATTRIBUTES ALIGN: 32 :: psi
-
-!  COMPLEX(DP), ALLOCATABLE, TARGET :: old_psi(:,:,:)
-!!DEC$ ATTRIBUTES ALIGN: 32 :: old_psi
-!  COMPLEX(DP), ALLOCATABLE, TARGET :: new_psi(:,:,:)
-!!DEC$ ATTRIBUTES ALIGN: 32 :: new_psi
-
-!  COMPLEX(DP), ALLOCATABLE, TARGET :: lr_psi(:,:,:)
-!!DEC$ ATTRIBUTES ALIGN: 32 :: lr_psi
-!  COMPLEX(DP), ALLOCATABLE, TARGET :: mult_psi(:,:,:)
-!!DEC$ ATTRIBUTES ALIGN: 32 :: mult_psi
-
-!  COMPLEX(DP), ALLOCATABLE, TARGET :: hpsi(:,:,:)
-!!DEC$ ATTRIBUTES ALIGN: 32 :: hpsi
-
-
   REAL(DP), public :: kpref
+
   INTEGER :: psi_bands_pad
   INTEGER :: psi_kpts_pad
-  INTEGER :: psi_length
+  INTEGER :: psi_core_alpha
+  INTEGER :: psi_core_beta
+  INTEGER :: psi_val_alpha
+  INTEGER :: psi_val_beta
   INTEGER :: psi_val_bands
-  INTEGER :: psi_con_bands
-  INTEGER :: psi_val_length
 
-  LOGICAL :: core = .true.
-  LOGICAL :: valence = .false.
+  INTEGER :: CACHE_DOUBLE = 8
 
+  LOGICAL :: is_init = .false.
+
+  INTEGER, PARAMETER, PUBLIC :: core_vector = 1
+  INTEGER, PARAMETER, PUBLIC :: val_vector = 2
 
   type OCEAN_vector
-    REAL(DP), POINTER :: r(:,:,:) => null()
-    REAL(DP), POINTER :: i(:,:,:) => null()
-
-    COMPLEX(DP), POINTER :: val(:,:,:) => null()
+    REAL(DP), ALLOCATABLE :: r(:,:,:,:,:) 
+    REAL(DP), ALLOCATABLE :: i(:,:,:,:,:) 
 
 #ifdef CONTIGUOUS
-    CONTIGUOUS :: r, i, val
+    CONTIGUOUS :: r, i
 #endif
 
 #ifdef __INTEL
 !dir$ attributes align:64 :: r, i, val
 #endif
 
-    TYPE(C_PTR) :: rcptr
-    TYPE(C_PTR) :: icptr
-    
-    INTEGER :: bands_pad
-    INTEGER :: kpts_pad
+    INTEGER :: nband
+    INTEGER :: vband ! valence or 1
+    INTEGER :: nkpts
+    INTEGER :: alpha
+    INTEGER :: beta  ! always 1 for right now
+    INTEGER :: full_size
+    INTEGER :: async_size
+    INTEGER :: my_type
+
+    ! MPI requests for sharing OCEAN_vector
+    INTEGER, ALLOCATABLE :: r_requests(:)
+    INTEGER, ALLOCATABLE :: i_requests(:)
+
   end type
+
+  type OCEAN_pvector
+    TYPE(OCEAN_vector), POINTER :: p => null
+  end type OCEAN_pvector
 
 
   public :: OCEAN_psi_init, OCEAN_psi_kill, OCEAN_psi_load, OCEAN_psi_sum_lr,  &
-            OCEAN_psi_sum, OCEAN_psi_ab, OCEAN_psi_set_prec, OCEAN_psi_write, &
+            OCEAN_psi_sum, OCEAN_psi_set_prec, OCEAN_psi_write, &
             OCEAN_psi_swap, OCEAN_psi_dot, OCEAN_psi_nrm, OCEAN_psi_scal, &
-            OCEAN_psi_axpy
+            OCEAN_psi_axpy, OCEAN_psi_new
 
-  public :: OCEAN_vector
+  public :: OCEAN_vector, OCEAN_pvector
   contains
 
   subroutine OCEAN_psi_swap( a, b, c )
     implicit none
-    type( OCEAN_vector ), intent( inout ) :: a, b, c
-    type( OCEAN_vector ) :: d
+    type( OCEAN_pvector ), intent( inout ) :: a, b, c
+    type( OCEAN_pvector ) :: d
 
-    call OCEAN_psi_assign( a, d )
-    call OCEAN_psi_assign( b, a )
-    call OCEAN_psi_assign( c, b )
-    call OCEAN_psi_assign( d, c )
+    d%p => a%p
+    a%p => b%p
+    b%p => c%p
+    c%p => d%p
 
   end subroutine
-
-  subroutine OCEAN_psi_assign( a, b )
-    implicit none
-    type( OCEAN_vector ), intent( inout ) :: a, b
-
-    b%r => a%r
-    b%i => a%i
-    
-    b%bands_pad = a%bands_pad
-    b%kpts_pad = b%kpts_pad
-
-  end subroutine OCEAN_psi_assign
 
   real(dp) function OCEAN_psi_nrm( a )
     implicit none
     type( OCEAN_vector ), intent( in ) :: a
-    real(dp) :: val
-    real(dp), external :: DDOT, DZNRM2
+    real(dp), external :: DDOT
 
-    if( core ) then
-      OCEAN_psi_nrm = DDOT( psi_length, a%r, 1, a%r, 1 )
-      OCEAN_psi_nrm = DDOT( psi_length, a%i, 1, a%i, 1 ) + OCEAN_psi_nrm
-    else
-      OCEAN_psi_nrm = 0.0_dp
-    endif
-
-    if( valence ) then
-      val = DZNRM2( psi_val_length, a%val, 1 )
-      OCEAN_psi_nrm = OCEAN_psi_nrm + val * val
-    endif
+    OCEAN_psi_nrm = DDOT( psi_length, a%r, 1, a%r, 1 )
+    OCEAN_psi_nrm = DDOT( psi_length, a%i, 1, a%i, 1 ) + OCEAN_psi_nrm
 
     OCEAN_psi_nrm = sqrt( OCEAN_psi_nrm )
 
@@ -116,23 +92,18 @@ module OCEAN_psi
     type( OCEAN_vector ), intent( in ) :: a, b
     real(dp) :: r, i
     real(dp), external :: DDOT
-    compleX(dp), external :: ZDOTC
 
-    if( core ) then
-      r = DDOT( psi_length, a%r, 1, b%r, 1 ) &
-        + DDOT( psi_length, a%i, 1, b%i, 1 )
-      i = DDOT( psi_length, a%r, 1, b%i, 1 ) &
-        - DDOT( psi_length, a%i, 1, b%r, 1 )
-    else
-      r = 0.0_dp
-      i = 0.0_dp
+    if( a%my_type .ne. b%my_type ) then
+      OCEAN_psi_dot = cmplx( 0.0_dp )
+      return
     endif
 
-    if( valence ) then
-      OCEAN_psi_dot = ZDOTC( psi_val_length, a%val, 1, b%val, 1 ) + cmplx( r, i )
-    else
-      OCEAN_psi_dot = cmplx( r, i )
-    endif
+    r = DDOT( a%full_size, a%, a%r, 1, b%r, 1 ) &
+      + DDOT( a%full_size, a%i, 1, b%i, 1 )
+    i = DDOT( a%full_size, a%r, 1, b%i, 1 ) &
+      - DDOT( a%full_size, a%i, 1, b%r, 1 )
+
+    OCEAN_psi_dot = cmplx( r, i )
 
   end function OCEAN_psi_dot
 
@@ -142,14 +113,8 @@ module OCEAN_psi
     type( OCEAN_vector ), intent( inout ) :: x
 
 
-    if( core ) then
-      call DSCAL( psi_length, a, x%r, 1 )
-      call DSCAL( psi_length, a, x%i, 1 )
-    endif
-
-    if( valence ) then
-      call ZDSCAL( psi_val_length, a, x%val, 1 )
-    endif
+    call DSCAL( x%full_size, a, x%r, 1 )
+    call DSCAL( x%full_size, a, x%i, 1 )
 
   end subroutine OCEAN_psi_scal
 
@@ -158,49 +123,53 @@ module OCEAN_psi
     real(dp), intent( in ) :: a
     type( OCEAN_vector ), intent( in ) :: x
     type( OCEAN_vector ), intent( inout ) :: y
-    !
-    complex(dp) :: za
 
-    if( core ) then
-      call DAXPY( psi_length, a, x%r, 1, y%r, 1 )
-      call DAXPY( psi_length, a, x%i, 1, y%i, 1 )
+    if( x%my_type .ne. y%my_type ) then
+!      ierr = -1
+      return
     endif
 
-    if( valence ) then
-      za = a
-      call ZAXPY( psi_val_length, za, x%val, 1, y%val )
-    endif
-
+    call DAXPY( x%full_size, a, x%r, 1, y%r, 1 )
+    call DAXPY( x%full_size, a, x%i, 1, y%i, 1 )
 
   end subroutine OCEAN_psi_axpy
   
 
-  subroutine OCEAN_psi_set_prec( sys, energy, gprc, psi_in, psi_out )
-    use OCEAN_system
+  subroutine OCEAN_psi_set_prec( energy, gprc, psi_in, psi_out )
     implicit none
-    type(O_system), intent( in ) :: sys
     real( DP ), intent( in ) :: energy, gprc
     type(OCEAN_vector), intent(in) :: psi_in
     type(OCEAN_vector), intent(inout) :: psi_out
     !
     real( DP ) :: gprc_sqd, denom
-    integer :: ialpha, ikpt, ibnd
+    integer :: ibeta, ialpha, ikpt, ibnd1, ibnd2
+
+!        pcdiv( i ) = ( ener - v1( i ) - rm1 * gprc ) / ( ( ener - v1( i ) ) ** 2 + gprc ** 2 )
+    if( psi_in%my_type .ne. psi_out%my_type ) then
+      ierr = -1
+      return
+    endif
 
     gprc_sqd = gprc * gprc
-!        pcdiv( i ) = ( ener - v1( i ) - rm1 * gprc ) / ( ( ener - v1( i ) ) ** 2 + gprc ** 2 )
-    do ialpha = 1, sys%nalpha
-      do ikpt = 1, sys%nkpts
-        do ibnd = 1, sys%num_bands
-          denom = ( energy - psi_in%r( ibnd, ikpt, ialpha ) ) ** 2 & 
-                + gprc_sqd + psi_in%i( ibnd, ikpt, ialpha ) ** 2
-          psi_out%r( ibnd, ikpt, ialpha ) = ( energy - psi_in%r( ibnd, ikpt, ialpha ) ) / denom
-          psi_out%i( ibnd, ikpt, ialpha ) = -( psi_in%i( ibnd, ikpt, ialpha ) + gprc ) / denom
+
+    do ibeta = 1, psi_in%nbeta
+      do ialpha = 1, psi_in%nalpha
+        do ikpt = 1, psi_in%nkpts
+          do ibnd2 = 1, psi_in%vband
+            do ibnd1 = 1, psi_in%nband
+              denom = ( energy - psi_in%r( ibnd1, ibnd2, ikpt, ialpha, ibeta ) ) ** 2 & 
+                    + gprc_sqd + psi_in%i( ibnd1, ibnd2, ikpt, ialpha, ibeta ) ** 2
+              psi_out%r( ibnd1, ibnd2, ikpt, ialpha, ibeta ) = ( energy - psi_in%r(ibnd1,ibnd2,ikpt,ialpha,ibeta) ) / denom
+              psi_out%i( ibnd1, ibnd2, ikpt, ialpha, ibeta ) = -( psi_in%i(ibnd1,ibnd2,ikpt,ialpha,ibeta) + gprc ) / denom
+            enddo
+          enddo
         enddo
       enddo
     enddo
 
   end subroutine OCEAN_psi_set_prec
 
+#ifdef FALSE
   subroutine OCEAN_psi_ab( sys, a, b1, b2, imag_a, psi, hpsi, old_psi, ierr )
     use OCEAN_system
     implicit none
@@ -268,6 +237,7 @@ module OCEAN_psi
     psi%i( :, :, : ) = hpsi%i( :, :, : )
 
   end subroutine OCEAN_psi_ab
+#endif
 
   subroutine OCEAN_psi_sum_lr( sys, p, ierr ) 
     use mpi
@@ -291,137 +261,165 @@ module OCEAN_psi
   end subroutine OCEAN_psi_sum_lr
 
 
-  subroutine OCEAN_psi_sum( sys, hpsi, p, q, ierr )
-    use OCEAN_system
+  subroutine OCEAN_psi_sum( hpsi, p, q, ierr )
     use ocean_mpi
     use mpi
     implicit none
     integer, intent(inout) :: ierr
-    type(O_system), intent( in ) :: sys
+    type(OCEAN_vector), intent(in) :: q
+    type(OCEAN_vector), intent(inout) :: p, hpsi
 
-    type(OCEAN_vector), intent(inout) :: p, q, hpsi
+    integer :: ialpha, ibeta, ireq
 
-!    if( sys%long_range .and. sys%mult ) then
-!      hpsi(:,:,:) = hpsi(:,:,:) + lr_psi(:,:,:) + mult_psi(:,:,:)
-!    elseif( sys%long_range ) then
-!      hpsi(:,:,:) = hpsi(:,:,:) + lr_psi(:,:,:)
-!    elseif( sys%mult ) then
-!      hpsi(:,:,:) = hpsi(:,:,:) + mult_psi(:,:,:)
-!    endif
+    if( hpsi%my_type .ne. p%my_type .or. hpsi%my_type .ne. q%my_type ) then
+      ierr = -1
+      return
+    endif
 
-!    hpsi%r(:,:,:) = hpsi%r(:,:,:) + p%r(:,:,:) - q%r(:,:,:)
-!    hpsi%i(:,:,:) = hpsi%i(:,:,:) + p%i(:,:,:) - q%i(:,:,:)
-
-! OMP?
-    p%r(:,:,:) = p%r(:,:,:) - q%r(:,:,:)
-    p%i(:,:,:) = p%i(:,:,:) - q%i(:,:,:)
+    ireq = 0
+    do ibeta = 1, q%nbeta
+      do ialpha = 1, q%nalpha
+        ireq = ireq + 1
+        p%r(:,:,:,ialpha,ibeta) = p%r(:,:,:,ialpha,ibeta) - q%r(:,:,:,ialpha,ibeta)
+        p%i(:,:,:,ialpha,ibeta) = p%i(:,:,:,ialpha,ibeta) - q%i(:,:,:,ialpha,ibeta)
 
 #ifdef MPI
-    call MPI_ALLREDUCE( MPI_IN_PLACE, p%r, p%bands_pad*p%kpts_pad*sys%nalpha, &
-                        MPI_DOUBLE_PRECISION, MPI_SUM, comm, ierr )
-    call MPI_ALLREDUCE( MPI_IN_PLACE, p%i, p%bands_pad*p%kpts_pad*sys%nalpha, &
-                        MPI_DOUBLE_PRECISION, MPI_SUM, comm, ierr )
+        call MPI_IALLREDUCE( MPI_IN_PLACE, p%r, p%bands_pad*p%kpts_pad*sys%nalpha, &
+                             MPI_DOUBLE_PRECISION, MPI_SUM, comm, p%r_request(ireq), ierr )
+        call MPI_IALLREDUCE( MPI_IN_PLACE, p%i, p%bands_pad*p%kpts_pad*sys%nalpha, &
+                             MPI_DOUBLE_PRECISION, MPI_SUM, comm, p%i_request(ireq), ierr )
 #endif
+      enddo
+    enddo
 
-    hpsi%r(:,:,:) = hpsi%r(:,:,:) + p%r(:,:,:)
-    hpsi%i(:,:,:) = hpsi%i(:,:,:) + p%i(:,:,:)
-
+    ireq = 0
+    do ibeta = 1, q%nbeta
+      do ialpha = 1, q%nalpha
+        ireq = ireq + 1
+#ifdef MPI
+        call MPI_WAIT( p%r_request( ireq ), MPI_STATUS_IGNORE, ierr )
+#endif
+        hpsi%r(:,:,:,ialpha,ibeta) = hpsi%r(:,:,:,ialpha,ibeta) + p%r(:,:,:,ialpha,ibeta)
+#ifdef MPI
+        call MPI_WAIT( p%i_request( ireq ), MPI_STATUS_IGNORE, ierr )
+#endif
+        hpsi%i(:,:,:,ialpha,ibeta) = hpsi%i(:,:,:,ialpha,ibeta) + p%i(:,:,:,ialpha,ibeta)
+      enddo
+    enddo
 
   end subroutine OCEAN_psi_sum
 
 
-  subroutine OCEAN_psi_init( sys, p, ierr )
+  subroutine OCEAN_psi_init( sys, ierr )
     use OCEAN_system
-!    use OCEAN_mpi, only : myid, root
     implicit none
-    include 'fftw3.f03'
-    
-    integer, intent(inout) :: ierr
+
     type(O_system), intent( in ) :: sys
-    type(OCEAN_vector), intent( out ) :: p
-  
-    integer, parameter :: cacheline_by_Z = 1
-!    type(C_PTR) :: cptr
+    integer, intent( inout ) :: ierr
 
-    if( associated( p%r ) ) then
-      call fftw_free( p%rcptr )
-      p%r => null()
-    endif
-    if( associated( p%i ) ) then
-      call fftw_free( p%icptr )
-      p%i => null()
-    endif
-    
-    if( mod( sys%num_bands, cacheline_by_Z ) == 0 ) then
-      p%bands_pad = sys%num_bands
+    if( mod( sys%num_bands, CACHE_DOUBLE ) == 0 ) then
+      psi_bands_pad = sys%num_bands
     else
-      p%bands_pad =  cacheline_by_Z * ( sys%num_bands / cacheline_by_Z + 1 )
+      psi_bands_pad = CACHE_DOUBLE * ( sys_num_bands / CACHE_DOUBLE + 1 )
     endif
 
-    if( mod( sys%nkpts, cacheline_by_Z ) == 0 .or. ( sys%nkpts .eq. 1 ) ) then
-      p%kpts_pad = sys%nkpts
-    else 
-      p%kpts_pad =  cacheline_by_Z * ( sys%nkpts / cacheline_by_Z + 1 )
+    if( sys%val_bands .le. 1 ) then
+      psi_val_bands = 1
+    elseif( mod( sys%val_bands, CACHE_DOUBLE ) == 0 ) then
+      psi_val_bands = sys%val_bands
+    else
+      psi_val_bands = CACHE_DOUBLE * ( sys%val_bands / CACHE_DOUBLE + 1 )
     endif
 
-    
+    if( mod( sys%nkpts, CACHE_DOUBLE ) == 0 .or. ( sys%nkpts .eq. 1 ) ) then
+      psi_kpts_pad = sys%nkpts
+    else
+      psi_kpts_pad =  CACHE_DOUBLE * ( sys%nkpts / CACHE_DOUBLE + 1 )
+    endif
 
+    psi_core_alpha = sys%nalpha
+    psi_core_beta = 1
+ 
+    psi_val_alpha = sys%nspn ** 2
+    psi_val_beta = 1
 
-    p%rcptr = fftw_alloc_real( int(p%bands_pad * p%kpts_pad * sys%nalpha, C_SIZE_T) )
-    call c_f_pointer( p%rcptr, p%r, [p%bands_pad, p%kpts_pad, sys%nalpha ] )
-    p%icptr = fftw_alloc_real( int(p%bands_pad * p%kpts_pad * sys%nalpha, C_SIZE_T) )
-    call c_f_pointer( p%icptr, p%i, [p%bands_pad, p%kpts_pad, sys%nalpha ] )
-!    allocate( p%r(p%bands_pad, p%kpts_pad, sys%nalpha), &
-!              p%i(p%bands_pad, p%kpts_pad, sys%nalpha ) )
-
-    p%r(:,:,:) = 0.0_DP
-    p%i(:,:,:) = 0.0_DP
-
-    
-!    allocate(  & !psi( psi_bands_pad, psi_kpts_pad, sys%nalpha ),  &
-!              old_psi( psi_bands_pad, psi_kpts_pad, sys%nalpha ),  &
-!              new_psi( psi_bands_pad, psi_kpts_pad, sys%nalpha ),  &
-!              hpsi( psi_bands_pad, psi_kpts_pad, sys%nalpha ),  &
-!              STAT=ierr )
-!    if(sys%long_range) allocate( lr_psi( psi_bands_pad, psi_kpts_pad, sys%nalpha ) )
-!    if(sys%mult) allocate( mult_psi( psi_bands_pad, psi_kpts_pad, sys%nalpha ) )
-
-!    psi = 0_DP
-!    if( myid .eq. root ) write(6,*) associated( p%r ), associated( p%i )
-
-
-
-    psi_bands_pad = p%bands_pad
-    psi_kpts_pad = p%kpts_pad
-    psi_length = psi_bands_pad * psi_kpts_pad * sys%nalpha
-    psi_val_bands = sys%val_bands
-    psi_con_bands = sys%num_bands
-    psi_val_length = sys%val_bands * sys%num_bands * sys%nkpts
-    core = .true.
-    valence = .false.
-
+    is_init = .true.
 
   end subroutine OCEAN_psi_init
+
+  subroutine OCEAN_psi_new( p, mytype, ierr, q )
+    use OCEAN_system
+    implicit none
+    
+    integer, intent(inout) :: ierr
+    integer, intent( in ) :: my_type
+    type(OCEAN_vector), intent( out ) :: p
+    type(OCEAN_vector), intent(in), optional :: q
+
+    if( .not. is_init ) then
+      ierr = -1
+      return
+    endif
+  
+    p%my_type = mytype
+    
+    select case( p%my_type )
+
+    case( core_vector )
+      p%nband = psi_bands_pad
+      p%vband = 1
+      p%nkpts = psi_kpts_pad
+      p%alpha = psi_core_alpha
+      p%beta  = psi_core_beta
+    case( val_vector )
+      p%nband = psi_bands_pad
+      p%vband = psi_val_bands
+      p%nkpts = psi_kpts_pad
+      p%alpha = psi_val_alpha
+      p%beta  = psi_val_beta
+    case default
+      ierr = -1
+      return
+    end select
+
+
+    p%full_size = p%nband*p%vband*p%nkpts*p%alpha*p%beta
+    p%async_size = p%nband*p%vband*p%nkpts
+
+    allocate( p%r(p%nband,p%vband,p%nkpts,p%alpha,p%beta), &
+              p%i(p%nband,p%vband,p%nkpts,p%alpha,p%beta), &
+              p%r_request(p%alpha*p%beta), p%i_request(p%alpha*p%beta), STAT=ierr )
+
+    ! initialize
+    if( present( q ) ) then
+      if( q%my_type .ne. p%my_type ) then
+        ierr = -2
+        return
+      endif
+      p%r = q%r
+      p%i = q%i
+    else
+      p%r = 0.0_DP
+      p%i = 0.0_DP
+    endif
+
+  end subroutine OCEAN_psi_new
+
 
 
   subroutine OCEAN_psi_kill( p, ierr )
     implicit none 
-    include 'fftw3.f03'
     integer, intent(inout) :: ierr
-    type(OCEAN_vector), intent(inout ) :: p
+    type(OCEAN_vector), intent( inout ) :: p
 
 !    deallocate( psi )
-    if( associated( p%r ) ) then
-      call fftw_free( p%rcptr )
-      p%r => null()
-    endif 
-    if( associated( p%i ) ) then
-      call fftw_free( p%icptr )
-      p%i => null()
-    endif
-
-    p%bands_pad = 0
-    p%kpts_pad = 0
+    if( allocated( p%r ) deallocate( p%r, STAT=ierr )
+    if( ierr .ne. 0 ) return
+    if( allocated( p%i ) deallocate( p%i, STAT=ierr )
+    if( ierr .ne. 0 ) return
+    if( allocated( p%r_requests ) deallocate( p%r_requests, STAT=ierr )
+    if( ierr .ne. 0 ) return
+    if( allocated( p%i_requests ) deallocate( p%i_requests, STAT=ierr )
     
   end subroutine OCEAN_psi_kill
 
@@ -465,7 +463,7 @@ module OCEAN_psi
               if ( icms .eq. ivms ) then
                 do ikpt = 1, sys%nkpts
                   do iband = 1, sys%num_bands
-                    read( 99 ) p%r(iband,ikpt,ialpha), p%i(iband,ikpt,ialpha)
+                    read( 99 ) p%r(iband,1,ikpt,ialpha,1), p%i(iband,1,ikpt,ialpha,1)
 !                    read ( 99 ) tmpr, tmpi
 !                    psi( iband, ikpt, ialpha ) = cmplx( tmpr, tmpi )
                   enddo
@@ -488,7 +486,7 @@ module OCEAN_psi
               if ( icms .eq. ivms ) then
                 do ikpt = 1, sys%nkpts
                   do iband = 1, sys%num_bands
-                    read( 99 ) p%r(iband,ikpt,ialpha), p%i(iband,ikpt,ialpha)
+                    read( 99 ) p%r(iband,1,ikpt,ialpha,1), p%i(iband,1,ikpt,ialpha,1)
 !                    read ( 99 ) tmpr, tmpi
 !                    psi( iband, ikpt, ialpha ) = cmplx( tmpr, tmpi )
                   enddo 
@@ -513,7 +511,7 @@ module OCEAN_psi
         nrm = 0.0_DP
         do ikpt = 1, sys%nkpts
 !          nrm = nrm + dot_product( psi( 1 : sys%num_bands, ikpt, ialpha ), psi( 1 : sys%num_bands, ikpt, ialpha ) )
-          nrm = nrm + sum(p%r(:,ikpt,ialpha)**2 + p%i(:,ikpt,ialpha)**2)
+          nrm = nrm + sum(p%r(:,1,ikpt,ialpha,1)**2 + p%i(:,1,ikpt,ialpha,1)**2)
         enddo
         write( 6, '(1a12,1i4,1x,1e15.8)' ) 'channel dot', ialpha, nrm
         val = val +  nrm 
@@ -540,10 +538,10 @@ module OCEAN_psi
     call MPI_BCAST( kpref, 1, MPI_DOUBLE_PRECISION, root, comm, ierr )
     if( ierr .ne. MPI_SUCCESS ) goto 111
 
-    call MPI_BCAST( p%r, p%bands_pad*p%kpts_pad*sys%nalpha, MPI_DOUBLE_PRECISION, root, comm, ierr )
+    call MPI_BCAST( p%r, p%full_size, MPI_DOUBLE_PRECISION, root, comm, ierr )
     if( ierr .ne. MPI_SUCCESS ) goto 111
 
-    call MPI_BCAST( p%i, p%bands_pad*p%kpts_pad*sys%nalpha, MPI_DOUBLE_PRECISION, root, comm, ierr )
+    call MPI_BCAST( p%i, p%full_size, MPI_DOUBLE_PRECISION, root, comm, ierr )
     if( ierr .ne. MPI_SUCCESS ) goto 111
 #endif
 
@@ -586,7 +584,7 @@ module OCEAN_psi
       do ialpha = 1, sys%nalpha
         nrm = 0.0_DP
         do ikpt = 1, sys%nkpts 
-          nrm = nrm + sum(p%r(:,ikpt,ialpha)**2 + p%i(:,ikpt,ialpha)**2)
+          nrm = nrm + sum(p%r(:,1,ikpt,ialpha,1)**2 + p%i(:,1,ikpt,ialpha,1)**2)
         enddo
         write( 6, '(1a12,1i4,1x,1e15.8)' ) 'channel dot', ialpha, nrm
         val = val +  nrm
@@ -611,10 +609,10 @@ module OCEAN_psi
     call MPI_BCAST( kpref, 1, MPI_DOUBLE_PRECISION, root, comm, ierr )
     if( ierr .ne. MPI_SUCCESS ) goto 111
 
-    call MPI_BCAST( p%r, p%bands_pad*p%kpts_pad*sys%nalpha, MPI_DOUBLE_PRECISION, root, comm, ierr )
+    call MPI_BCAST( p%r, p%full_size, MPI_DOUBLE_PRECISION, root, comm, ierr )
     if( ierr .ne. MPI_SUCCESS ) goto 111
 
-    call MPI_BCAST( p%i, p%bands_pad*p%kpts_pad*sys%nalpha, MPI_DOUBLE_PRECISION, root, comm, ierr )
+    call MPI_BCAST( p%i, p%full_size, MPI_DOUBLE_PRECISION, root, comm, ierr )
     if( ierr .ne. MPI_SUCCESS ) goto 111
 #endif
 
@@ -642,7 +640,7 @@ module OCEAN_psi
     if( myid .ne. root ) return
 
     allocate( out_vec(sys%num_bands, sys%nkpts, sys%nalpha ) )
-    out_vec(:,:,:) = cmplx( p%r(1:sys%num_bands,1:sys%nkpts,:), p%i(1:sys%num_bands,1:sys%nkpts,:) )
+    out_vec(:,:,:) = cmplx( p%r(1:sys%num_bands,1,1:sys%nkpts,:,1), p%i(1:sys%num_bands,1,1:sys%nkpts,:,1) )
 
     write(rhs_filename,'(A4,A2,A1,I4.4,A1,A2,A1,I2.2)' ) 'rhs_', sys%cur_run%elname, &
             '.', sys%cur_run%indx, '_', '1s', '_', sys%cur_run%photon
@@ -668,8 +666,8 @@ module OCEAN_psi
 
     real(DP) :: tau( 3 ), rr, ri, ir, ii
     real(DP), allocatable, dimension(:,:) :: pcr, pci
-    real(DP), allocatable, dimension(:,:) :: mer, mei
-    integer :: nptot, ntot, ialpha, icms, ivms, icml, ikpt, iband, iter
+    real(DP), allocatable, dimension(:,:,:) :: mer, mei
+    integer :: nptot, ntot, ialpha, icms, ivms, icml, ikpt, iband, iter, is
 
     character (LEN=127) :: cks_filename
     character (LEN=5) :: cks_prefix
@@ -697,23 +695,28 @@ module OCEAN_psi
 
 
 
-    allocate( mer( nptot, -sys%cur_run%ZNL(3): sys%cur_run%ZNL(3) ),  &
-              mei( nptot, -sys%cur_run%ZNL(3): sys%cur_run%ZNL(3) ) )
+    allocate( mer( nptot, -sys%cur_run%ZNL(3): sys%cur_run%ZNL(3), 2 ),  &
+              mei( nptot, -sys%cur_run%ZNL(3): sys%cur_run%ZNL(3), 2 ) )
 
     write(mel_filename,'(A5,A1,I3.3,A1,I2.2,A1,I2.2,A1,I2.2)' ) 'mels.', 'z', sys%cur_run%ZNL(1), &
             'n', sys%cur_run%ZNL(2), 'l', sys%cur_run%ZNL(3), 'p', sys%cur_run%photon
     open( unit=99, file=mel_filename, form='formatted', status='old' )
     rewind( 99 )
-    do icml = -sys%cur_run%ZNL(3), sys%cur_run%ZNL(3)
-      do iter = 1, nptot
-        read( 99, * ) mer( iter, icml ), mei( iter, icml )
-      enddo
-    enddo 
+!    do is = 1, 2
+      do icml = -sys%cur_run%ZNL(3), sys%cur_run%ZNL(3)
+        do iter = 1, nptot
+          read( 99, * ) mer( iter, icml, 1 ), mei( iter, icml, 1 )
+        enddo
+      enddo 
+!    enddo
     close( 99 )
 
     ialpha = 0
+    is = 0
+    is = 1
     if( sys%nspn == 1 ) then
       do icms = -1, 1, 2
+!        is = is + 1
         do icml = -sys%cur_run%ZNL(3), sys%cur_run%ZNL(3)
           do ivms = -1, 1, 2
             ialpha = ialpha + 1
@@ -722,12 +725,12 @@ module OCEAN_psi
               do ikpt = 1, sys%nkpts
                 do iband = 1, sys%num_bands
                   iter = iter + 1
-                  rr = dot_product( mer( :, icml ), pcr( :, iter ) )
-                  ri = dot_product( mer( :, icml ), pci( :, iter ) )
-                  ir = dot_product( mei( :, icml ), pcr( :, iter ) )
-                  ii = dot_product( mei( :, icml ), pci( :, iter ) )
-                  p%r(iband,ikpt,ialpha) = rr - ii
-                  p%i(iband,ikpt,ialpha) = -ri - ir
+                  rr = dot_product( mer( :, icml, is ), pcr( :, iter ) )
+                  ri = dot_product( mer( :, icml, is ), pci( :, iter ) )
+                  ir = dot_product( mei( :, icml, is ), pcr( :, iter ) )
+                  ii = dot_product( mei( :, icml, is ), pci( :, iter ) )
+                  p%r(iband,1,ikpt,ialpha,1) = rr - ii
+                  p%i(iband,1,ikpt,ialpha,1) = -ri - ir
                 enddo
               enddo
             endif
