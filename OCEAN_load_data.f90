@@ -19,7 +19,8 @@ subroutine OCEAN_load_data( sys, hay_vec, lr, ierr )
 
   if( myid .eq. root ) write(6,*) 'Calc Type = ', sys%calc_type
   if( myid .eq. root ) write(6,*) 'Init matrix elements'
-  call ocean_psi_init( sys, hay_vec, ierr )
+  call ocean_psi_init( sys, ierr )
+  call ocean_psi_new( hay_vec, ierr )
   if( myid .eq. root ) write(6,*) 'Load matrix elements'
   call ocean_psi_load( sys, hay_vec, ierr )
   if( myid .eq. root ) write(6,*) 'Matrix elements loaded'

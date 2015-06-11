@@ -639,15 +639,19 @@ module OCEAN_bloch
     
     integer :: ix, iy, iz, nx_left, nx_start, nx_tmp, xiter, iq, ibd, i
 
-    integer :: width(3)
-    integer :: fmode, fhu2, u2_type, u2_status(MPI_STATUS_SIZE), ncount, io_comm
+    integer :: width(3), iq_ten
+    integer :: fmode, fhu2, u2_type, u2_status(MPI_STATUS_SIZE), ncount, io_comm, nelement
     integer(kind=MPI_OFFSET_KIND) :: offset, offset_extra, offset_nx, offset_start
     integer(8) :: time1, time2, tics_per
     
     logical :: io_group = .false.
 
+    logical :: io_style = .false.
+
     
     call MPI_BARRIER( comm, ierr )
+
+    iq_ten = max(1,sys%nkpts/10)
 
     
     if( myid .eq. root ) then
@@ -708,7 +712,11 @@ module OCEAN_bloch
         return
       endif
 
-      call MPI_FILE_SET_VIEW( fhu2, offset, u2_type, u2_type, 'native', MPI_INFO_NULL, ierr )
+      if( io_style) then
+        call MPI_FILE_SET_VIEW( fhu2, offset, u2_type, u2_type, 'native', MPI_INFO_NULL, ierr )
+      else
+        call MPI_FILE_SET_VIEW( fhu2, offset, MPI_DOUBLE_COMPLEX, MPI_DOUBLE_COMPLEX, 'native', MPI_INFO_NULL, ierr )
+      endif
       if( ierr/=0 ) then
         return
       endif
@@ -761,15 +769,20 @@ module OCEAN_bloch
 !          ivh2 = ibeg( iq, 1 ) - 1
           ivh2 = ivh2 - 1
         endif
-        if( mod(iq,10) .eq. 0 ) write(6,*) iq, ivh2
+!        if( mod(iq,10) .eq. 0 ) write(6,*) iq, ivh2
+        if( mod(iq,iq_ten) .eq. 0 ) write(6,*) iq, ivh2
 
 
-        offset = ( iq - 1 ) * width( 3 )
+        offset = int( ( iq - 1 ), MPI_OFFSET_KIND ) * int( width( 3 ), MPI_OFFSET_KIND ) 
+        if( .not. io_style ) then
+          offset = offset * int( sys%nxpts, MPI_OFFSET_KIND )
+        endif
 
         if( sys%valence ) then
+          exit ! I need to fix
 
           do ibd = 1, ivh2
-            call mpi_file_read_at( fhu2, offset, u2_buf(1,1,1,ibd), 1, u2_type, u2_status, ierr )
+            call MPI_FILE_READ_AT( fhu2, offset, u2_buf(1,1,1,ibd), 1, u2_type, u2_status, ierr )
             if( ierr .ne. 0 ) then
               write(6,*) 'u2 failed', ierr, iq
               return
@@ -789,11 +802,24 @@ module OCEAN_bloch
           enddo
 
         else
-          offset = offset + ivh2
+          if( io_style ) then
+            offset = offset + int(ivh2,MPI_OFFSET_KIND)
+          else
+            offset = offset + int(ivh2,MPI_OFFSET_KIND) * int(sys%nxpts, MPI_OFFSET_KIND )
+          endif
         endif
 
-
-        
+      if( io_style .and. .true. ) then
+        call mpi_file_read_at( fhu2, offset, u2_buf, sys%num_bands, u2_type, u2_status, ierr )
+        if( ierr .ne. 0 ) then
+          write(6,*) 'u2 failed', ierr, iq
+          return
+        endif
+        call MPI_GET_COUNT( u2_status, u2_type, ncount, ierr )
+        if( ncount .ne. sys%num_bands ) then
+          write(6,*) 'u2 read failed.', ncount, sys%num_bands, iq
+        endif
+      elseif( io_style ) then
         do ibd = 1, sys%num_bands
           call mpi_file_read_at( fhu2, offset, u2_buf(1,1,1,ibd), 1, u2_type, u2_status, ierr )
           if( ierr .ne. 0 ) then
@@ -808,6 +834,29 @@ module OCEAN_bloch
           endif
           offset = offset + 1
         enddo
+      else
+        do ibd = 1, sys%num_bands, 512
+          nelement = min( sys%num_bands - ibd + 1, 512 )
+          nelement = nelement * sys%nxpts
+
+          call MPI_FILE_READ_AT( fhu2, offset, u2_buf(1,1,1,ibd), nelement, MPI_DOUBLE_COMPLEX, &
+                                 u2_status, ierr )
+          if( ierr .ne. 0 ) then
+            write(6,*) 'u2 failed', ierr, iq
+            return
+          endif
+          call MPI_GET_COUNT( u2_status, MPI_DOUBLE_COMPLEX, ncount, ierr )
+          if( ncount .ne. nelement) then
+            write(6,*) 'u2 read failed.', ncount, nelement, iq
+  !          ierr = -100
+  !          return
+          endif
+
+          offset = offset + nelement
+
+        enddo
+
+      endif
 
         offset = offset + ( width(3) - ivh2 - sys%num_bands) 
         xiter = 0

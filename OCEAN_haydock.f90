@@ -302,10 +302,10 @@ module OCEAN_action
     type( ocean_vector ), target :: psi1
     type( ocean_vector ), target :: psi2
     type( ocean_vector ), target :: psi3
-    type( ocean_vector ), pointer :: hpsi => null
-    type( ocean_vector ), pointer :: psi => null
-    type( ocean_vector ), pointer :: old_psi => null
-    type( ocean_vector ), pointer :: temp_psi => null
+    type( ocean_vector ), pointer :: hpsi => null()
+    type( ocean_vector ), pointer :: psi => null()
+    type( ocean_vector ), pointer :: old_psi => null()
+    type( ocean_vector ), pointer :: temp_psi => null()
 
     character( LEN=21 ) :: lanc_filename
 
@@ -331,7 +331,6 @@ module OCEAN_action
         call OCEAN_tk_start( tk_lr )
         call lr_act( sys, psi, long_range_psi, lr, ierr )
         call OCEAN_tk_stop( tk_lr )
-!        if( myid .eq. root )  write(6,*) 'long_range'
       endif
 
       if( sys%mult ) then 
@@ -347,7 +346,7 @@ module OCEAN_action
       endif
 
       call OCEAN_tk_start( tk_psisum )
-      call ocean_psi_sum( sys, hpsi, multiplet_psi, long_range_psi, ierr )
+      call ocean_psi_sum( hpsi, multiplet_psi, long_range_psi, ierr )
       call OCEAN_tk_stop( tk_psisum )
 
       call ocean_hay_ab( sys, psi, hpsi, old_psi, iter, ierr )
@@ -395,10 +394,10 @@ module OCEAN_action
     type( ocean_vector ) :: psi2
     type( ocean_vector ) :: psi3
 
-    type( ocean_vector ), pointer :: hpsi => null
-    type( ocean_vector ), pointer :: psi => null
-    type( ocean_vector ), pointer :: old_psi => null
-    type( ocean_vector ), pointer :: temp_psi => null
+    type( ocean_vector ), pointer :: hpsi => null()
+    type( ocean_vector ), pointer :: psi => null()
+    type( ocean_vector ), pointer :: old_psi => null()
+    type( ocean_vector ), pointer :: temp_psi => null()
 
 !    type( ocean_vector ) :: prec_psi
 
@@ -658,7 +657,7 @@ module OCEAN_action
       call OCEAN_tk_stop( tk_e0 )
     endif
     call OCEAN_tk_start( tk_psisum )
-    call ocean_psi_sum( sys, hpsi, multiplet_psi, long_range_psi, ierr )
+    call ocean_psi_sum( hpsi, multiplet_psi, long_range_psi, ierr )
     call OCEAN_tk_stop( tk_psisum )
 
   end subroutine

@@ -29,6 +29,8 @@ module OCEAN_system
     logical          :: conduct
     logical          :: valence =.false.
     logical          :: kshift
+    logical          :: have_core = .true.
+    logical          :: have_val = .false.
     character(len=5) :: calc_type
 
     type(o_run), pointer :: cur_run => null()
@@ -59,6 +61,8 @@ module OCEAN_system
     logical          :: obf
     logical          :: conduct
     logical          :: valence = .false.
+    logical          :: have_core = .true.
+    logical          :: have_val  = .false.
     
     type(o_run), pointer :: prev_run => null()
     type(o_run), pointer :: next_run => null()

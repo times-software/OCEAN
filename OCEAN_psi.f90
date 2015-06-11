@@ -85,10 +85,6 @@ module OCEAN_psi
     real(dp) :: r, i
     real(dp), external :: DDOT
 
-    if( a%my_type .ne. b%my_type ) then
-      OCEAN_psi_dot = cmplx( 0.0_dp )
-      return
-    endif
 
     r = DDOT( a%core_full_size, a%r, 1, b%r, 1 ) &
       + DDOT( a%core_full_size, a%i, 1, b%i, 1 )
@@ -147,7 +143,7 @@ module OCEAN_psi
     gprc_sqd = gprc * gprc
 
     ! core
-    if( core_full_size .gt. 1 ) then
+    if( psi_in%core_full_size .gt. 1 ) then
       do ialpha = 1, psi_in%nalpha
         do ikpt = 1, psi_in%nkpts
           do ibnd1 = 1, psi_in%nband
@@ -161,7 +157,7 @@ module OCEAN_psi
     endif
 
     ! val
-    if( val_full_size .gt. 1 ) then
+    if( psi_in%val_full_size .gt. 1 ) then
       do ibeta = 1, psi_in%nbeta
         do ikpt = 1, psi_in%nkpts
           do ibnd2 = 1, psi_in%vband
@@ -193,9 +189,9 @@ module OCEAN_psi
 ! Doing all_reduce here so that the multiplet part can hide the latency maybe
 !    call MPI_ALLREDUCE( MPI_IN_PLACE, lr_psi, psi_bands_pad * psi_kpts_pad * sys%nalpha, &
 !                        MPI_DOUBLE_COMLPEX, MPI_SUM, comm, ierr )
-      call MPI_ALLREDUCE( MPI_IN_PLACE, p%r, p%full_size, &
+      call MPI_ALLREDUCE( MPI_IN_PLACE, p%r, p%core_full_size, &
                           MPI_DOUBLE_PRECISION, MPI_SUM, comm, ierr )
-      call MPI_ALLREDUCE( MPI_IN_PLACE, p%i, p%full_size, &
+      call MPI_ALLREDUCE( MPI_IN_PLACE, p%i, p%core_full_size, &
                           MPI_DOUBLE_PRECISION, MPI_SUM, comm, ierr )
 #endif
 
@@ -214,7 +210,7 @@ module OCEAN_psi
 
 
     ! core
-    if( core_full_size .gt. 1 ) then
+    if( q%core_full_size .gt. 1 ) then
       ireq = 0
       do ialpha = 1, q%nalpha
         ireq = ireq + 1
@@ -244,12 +240,12 @@ module OCEAN_psi
     endif
 
     ! val
-    if( val_full_size .gt. 1 ) then
+    if( q%val_full_size .gt. 1 ) then
       ireq = 0
       do ibeta = 1, q%nbeta
-        ireq = ireqe + 1
-        p%valr(:,:,:,ibeta) = p%valr(:,:,:,ibeta) - q%r(:,:,:,ibeta)
-        p%vali(:,:,:,ibeta) = p%vali(:,:,:,ibeta) - q%i(:,:,:,ibeta)
+        ireq = ireq + 1
+        p%valr(:,:,:,ibeta) = p%valr(:,:,:,ibeta) - q%valr(:,:,:,ibeta)
+        p%vali(:,:,:,ibeta) = p%vali(:,:,:,ibeta) - q%vali(:,:,:,ibeta)
 
 #ifdef MPI
         call MPI_IALLREDUCE( MPI_IN_PLACE, p%valr(:,:,:,ibeta), p%val_async_size, &
@@ -512,10 +508,10 @@ module OCEAN_psi
     call MPI_BCAST( kpref, 1, MPI_DOUBLE_PRECISION, root, comm, ierr )
     if( ierr .ne. MPI_SUCCESS ) goto 111
 
-    call MPI_BCAST( p%r, p%full_size, MPI_DOUBLE_PRECISION, root, comm, ierr )
+    call MPI_BCAST( p%r, p%core_full_size, MPI_DOUBLE_PRECISION, root, comm, ierr )
     if( ierr .ne. MPI_SUCCESS ) goto 111
 
-    call MPI_BCAST( p%i, p%full_size, MPI_DOUBLE_PRECISION, root, comm, ierr )
+    call MPI_BCAST( p%i, p%core_full_size, MPI_DOUBLE_PRECISION, root, comm, ierr )
     if( ierr .ne. MPI_SUCCESS ) goto 111
 #endif
 
@@ -583,10 +579,10 @@ module OCEAN_psi
     call MPI_BCAST( kpref, 1, MPI_DOUBLE_PRECISION, root, comm, ierr )
     if( ierr .ne. MPI_SUCCESS ) goto 111
 
-    call MPI_BCAST( p%r, p%full_size, MPI_DOUBLE_PRECISION, root, comm, ierr )
+    call MPI_BCAST( p%r, p%core_full_size, MPI_DOUBLE_PRECISION, root, comm, ierr )
     if( ierr .ne. MPI_SUCCESS ) goto 111
 
-    call MPI_BCAST( p%i, p%full_size, MPI_DOUBLE_PRECISION, root, comm, ierr )
+    call MPI_BCAST( p%i, p%core_full_size, MPI_DOUBLE_PRECISION, root, comm, ierr )
     if( ierr .ne. MPI_SUCCESS ) goto 111
 #endif
 
