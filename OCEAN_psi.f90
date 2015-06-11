@@ -11,14 +11,14 @@ module OCEAN_psi
   INTEGER :: psi_bands_pad
   INTEGER :: psi_kpts_pad
   INTEGER :: psi_core_alpha
-  INTEGER :: psi_core_beta
-  INTEGER :: psi_val_alpha
   INTEGER :: psi_val_beta
   INTEGER :: psi_val_bands
 
   INTEGER :: CACHE_DOUBLE = 8
 
   LOGICAL :: is_init = .false.
+  LOGICAL :: have_core 
+  LOGICAL :: have_val 
 
   INTEGER, PARAMETER, PUBLIC :: core_vector = 1
   INTEGER, PARAMETER, PUBLIC :: val_vector = 2
@@ -27,32 +27,33 @@ module OCEAN_psi
     REAL(DP), ALLOCATABLE :: r(:,:,:) 
     REAL(DP), ALLOCATABLE :: i(:,:,:) 
 
+    REAL(DP), ALLOCATABLE :: valr(:,:,:,:)
+    REAL(DP), ALLOCATABLE :: vali(:,:,:,:)
+
 #ifdef CONTIGUOUS
-    CONTIGUOUS :: r, i
+    CONTIGUOUS :: r, i, valr, vali
 #endif
 
 #ifdef __INTEL
-!dir$ attributes align:64 :: r, i, val
+!dir$ attributes align:64 :: r, i, valr, vali
 #endif
 
-    INTEGER :: nband
-    INTEGER :: vband ! valence or 1
-    INTEGER :: nkpts
-    INTEGER :: nalpha
-    INTEGER :: nbeta  ! always 1 for right now
-    INTEGER :: full_size
-    INTEGER :: async_size
-    INTEGER :: my_type
+    INTEGER :: nband = 1
+    INTEGER :: vband = 1 ! valence or 1
+    INTEGER :: cband = 1 ! equal to nband or 1
+    INTEGER :: nkpts = 1
+    INTEGER :: nalpha = 1
+    INTEGER :: nbeta = 1 ! always 1 for right now
+    INTEGER :: core_full_size = 1
+    INTEGER :: core_async_size = 1
+    INTEGER :: val_full_size = 1
+    INTEGER :: val_async_size = 1
 
     ! MPI requests for sharing OCEAN_vector
     INTEGER, ALLOCATABLE :: r_request(:)
     INTEGER, ALLOCATABLE :: i_request(:)
 
   end type
-
-!  type OCEAN_pvector
-!    TYPE(OCEAN_vector), POINTER :: p => null
-!  end type OCEAN_pvector
 
 
   public :: OCEAN_psi_init, OCEAN_psi_kill, OCEAN_psi_load, OCEAN_psi_sum_lr,  &
@@ -63,25 +64,16 @@ module OCEAN_psi
   public :: OCEAN_vector
   contains
 
-!  subroutine OCEAN_psi_swap( a, b, c )
-!    implicit none
-!    type( OCEAN_pvector ), intent( inout ) :: a, b, c
-!    type( OCEAN_pvector ) :: d
-!
-!    d%p => a%p
-!    a%p => b%p
-!    b%p => c%p
-!    c%p => d%p
-!
-!  end subroutine
-
   real(dp) function OCEAN_psi_nrm( a )
     implicit none
     type( OCEAN_vector ), intent( in ) :: a
     real(dp), external :: DDOT
 
-    OCEAN_psi_nrm = DDOT( a%full_size, a%r, 1, a%r, 1 )
-    OCEAN_psi_nrm = DDOT( a%full_size, a%i, 1, a%i, 1 ) + OCEAN_psi_nrm
+    OCEAN_psi_nrm = DDOT( a%core_full_size, a%r, 1, a%r, 1 )
+    OCEAN_psi_nrm = DDOT( a%core_full_size, a%i, 1, a%i, 1 ) + OCEAN_psi_nrm
+
+    OCEAN_psi_nrm = DDOT( a%val_full_size, a%valr, 1, a%valr, 1 ) + OCEAN_psi_nrm
+    OCEAN_psi_nrm = DDOT( a%val_full_size, a%vali, 1, a%vali, 1 ) + OCEAN_psi_nrm
 
     OCEAN_psi_nrm = sqrt( OCEAN_psi_nrm )
 
@@ -98,10 +90,15 @@ module OCEAN_psi
       return
     endif
 
-    r = DDOT( a%full_size, a%r, 1, b%r, 1 ) &
-      + DDOT( a%full_size, a%i, 1, b%i, 1 )
-    i = DDOT( a%full_size, a%r, 1, b%i, 1 ) &
-      - DDOT( a%full_size, a%i, 1, b%r, 1 )
+    r = DDOT( a%core_full_size, a%r, 1, b%r, 1 ) &
+      + DDOT( a%core_full_size, a%i, 1, b%i, 1 )
+    i = DDOT( a%core_full_size, a%r, 1, b%i, 1 ) &
+      - DDOT( a%core_full_size, a%i, 1, b%r, 1 )
+
+    r = r + DDOT( a%val_full_size, a%valr, 1, b%valr, 1 ) &
+          + DDOT( a%val_full_size, a%vali, 1, b%vali, 1 )
+    i = i + DDOT( a%val_full_size, a%valr, 1, b%vali, 1 ) &
+          - DDOT( a%val_full_size, a%vali, 1, b%valr, 1 )
 
     OCEAN_psi_dot = cmplx( r, i )
 
@@ -113,8 +110,11 @@ module OCEAN_psi
     type( OCEAN_vector ), intent( inout ) :: x
 
 
-    call DSCAL( x%full_size, a, x%r, 1 )
-    call DSCAL( x%full_size, a, x%i, 1 )
+    call DSCAL( x%core_full_size, a, x%r, 1 )
+    call DSCAL( x%core_full_size, a, x%i, 1 )
+
+    call DSCAL( x%val_full_size, a, x%valr, 1 )
+    call DSCAL( x%val_full_size, a, x%vali, 1 )
 
   end subroutine OCEAN_psi_scal
 
@@ -124,13 +124,11 @@ module OCEAN_psi
     type( OCEAN_vector ), intent( in ) :: x
     type( OCEAN_vector ), intent( inout ) :: y
 
-    if( x%my_type .ne. y%my_type ) then
-!      ierr = -1
-      return
-    endif
+    call DAXPY( x%core_full_size, a, x%r, 1, y%r, 1 )
+    call DAXPY( x%core_full_size, a, x%i, 1, y%i, 1 )
 
-    call DAXPY( x%full_size, a, x%r, 1, y%r, 1 )
-    call DAXPY( x%full_size, a, x%i, 1, y%i, 1 )
+    call DAXPY( x%val_full_size, a, x%valr, 1, y%valr, 1 )
+    call DAXPY( x%val_full_size, a, x%vali, 1, y%vali, 1 )
 
   end subroutine OCEAN_psi_axpy
   
@@ -145,99 +143,41 @@ module OCEAN_psi
     integer :: ibeta, ialpha, ikpt, ibnd1, ibnd2
 
 !        pcdiv( i ) = ( ener - v1( i ) - rm1 * gprc ) / ( ( ener - v1( i ) ) ** 2 + gprc ** 2 )
-    if( psi_in%my_type .ne. psi_out%my_type ) then
-!      ierr = -1
-      return
-    endif
 
     gprc_sqd = gprc * gprc
 
-!    do ibeta = 1, psi_in%nbeta
+    ! core
+    if( core_full_size .gt. 1 ) then
       do ialpha = 1, psi_in%nalpha
         do ikpt = 1, psi_in%nkpts
-!          do ibnd2 = 1, psi_in%vband
-            do ibnd1 = 1, psi_in%nband
-              denom = ( energy - psi_in%r( ibnd1, ikpt, ialpha ) ) ** 2 & 
-                    + gprc_sqd + psi_in%i( ibnd1, ikpt, ialpha ) ** 2
-              psi_out%r( ibnd1, ikpt, ialpha ) = ( energy - psi_in%r(ibnd1,ikpt,ialpha) ) / denom
-              psi_out%i( ibnd1, ikpt, ialpha ) = -( psi_in%i(ibnd1,ikpt,ialpha) + gprc ) / denom
-            enddo
-!          enddo
+          do ibnd1 = 1, psi_in%nband
+            denom = ( energy - psi_in%r( ibnd1, ikpt, ialpha ) ) ** 2 & 
+                  + gprc_sqd + psi_in%i( ibnd1, ikpt, ialpha ) ** 2
+            psi_out%r( ibnd1, ikpt, ialpha ) = ( energy - psi_in%r(ibnd1,ikpt,ialpha) ) / denom
+            psi_out%i( ibnd1, ikpt, ialpha ) = -( psi_in%i(ibnd1,ikpt,ialpha) + gprc ) / denom
+          enddo
         enddo
       enddo
-!    enddo
+    endif
+
+    ! val
+    if( val_full_size .gt. 1 ) then
+      do ibeta = 1, psi_in%nbeta
+        do ikpt = 1, psi_in%nkpts
+          do ibnd2 = 1, psi_in%vband
+            do ibnd1 = 1, psi_in%cband
+              denom = ( energy - psi_in%valr( ibnd1, ibnd2, ikpt, ibeta ) ) ** 2 &
+                    + gprc_sqd + psi_in%vali( ibnd1, ibnd2, ikpt, ibeta ) ** 2
+              psi_out%valr( ibnd1, ibnd2, ikpt, ibeta ) = ( energy - psi_in%valr(ibnd1,ibnd2,ikpt,ibeta) ) / denom
+              psi_out%vali( ibnd1, ibnd2, ikpt, ibeta ) = -( psi_in%vali(ibnd1,ibnd2,ikpt,ibeta) + gprc ) / denom
+            enddo
+          enddo
+        enddo
+      enddo
+    endif
+
 
   end subroutine OCEAN_psi_set_prec
-
-#ifdef FALSE
-  subroutine OCEAN_psi_ab( sys, a, b1, b2, imag_a, psi, hpsi, old_psi, ierr )
-    use OCEAN_system
-    implicit none
-    integer, intent(inout) :: ierr
-    type(O_system), intent( in ) :: sys
-    real(DP), intent( out ) :: a 
-    real(DP), intent( out ) :: imag_a 
-    real( DP ), intent( in ) :: b1
-    real(DP), intent( out ) :: b2
-    type(OCEAN_vector), intent(inout) :: psi, hpsi, old_psi
-    
-    type(OCEAN_vector) :: temp_psi
-
-    complex(DP) :: temp_a
-    real(DP), external :: DZNRM2
-    complex(DP), external :: ZDOTC
-
-    integer :: ialpha, ikpt
-
-    temp_a = cmplx( 0.0_DP )
-    a = 0.0_DP
-    imag_a = 0.0_DP
-    do ialpha = 1, sys%nalpha
-      do ikpt = 1, sys%nkpts
-!        temp_a = temp_a + dot_product( hpsi(:,ikpt,ialpha), psi(:,ikpt,ialpha) )
-        a = a + sum( hpsi%r(:,ikpt,ialpha) * psi%r(:,ikpt,ialpha) ) &
-                   + sum(hpsi%i(:,ikpt,ialpha) * psi%i(:,ikpt,ialpha) )
-        imag_a = imag_a - sum( hpsi%r(:,ikpt,ialpha) * psi%i(:,ikpt,ialpha) &
-                          - hpsi%i(:,ikpt,ialpha) * psi%r(:,ikpt,ialpha ) )
-      enddo
-    enddo
-!    temp_a = ZDOTC( psi_bands_pad * psi_kpts_pad * sys%nalpha, psi, 1, hpsi, 1 )
-!    a = real(temp_a)
-!    imag_a = aimag(temp_a)
-
-    hpsi%r( :, :, : ) = hpsi%r( :, :, : ) - a * psi%r( :, :, : ) - b1 * old_psi%r( :, :, : )
-    hpsi%i( :, :, : ) = hpsi%i( :, :, : ) - a * psi%i( :, :, : ) - b1 * old_psi%i( :, :, : )
-!#ifdef BLAS2
-!    b2 = DZNRM2( psi_bands_pad * psi_kpts_pad * sys%nalpha, new_psi, 1 )
-!#else
-    b2 = 0.0_DP
-    do ialpha = 1, sys%nalpha
-      do ikpt = 1, sys%nkpts
-        b2 = b2 + sum( hpsi%r( :, ikpt, ialpha )**2 + hpsi%i( :, ikpt, ialpha )**2 )
-      enddo
-    enddo
-    b2 = sqrt( b2 )
-!#endif
-    hpsi%r( :, :, : ) = hpsi%r( :, :, : ) / b2
-    hpsi%i( :, :, : ) = hpsi%i( :, :, : ) / b2
-
-
-    !JTV Need to figure out fortran pointers instead of mem copies, mem copies are dumb
-!    temp_psi%r => old_psi%r
-!    temp_psi%i => old_psi%i
-!    old_psi%r => psi%r
-!    old_psi%i => psi%i
-!    psi%r => hpsi%r
-!    psi%i => hpsi%i
-!    hpsi%r => temp_psi%r
-!    hpsi%i => temp_psi%i
-    old_psi%r( :, :, : ) = psi%r( :, :, : )
-    old_psi%i( :, :, : ) = psi%i( :, :, : )
-    psi%r( :, :, : ) = hpsi%r( :, :, : )
-    psi%i( :, :, : ) = hpsi%i( :, :, : )
-
-  end subroutine OCEAN_psi_ab
-#endif
 
 
   subroutine OCEAN_psi_sum_lr( sys, p, ierr ) 
@@ -272,29 +212,24 @@ module OCEAN_psi
 
     integer :: ialpha, ibeta, ireq
 
-    if( hpsi%my_type .ne. p%my_type .or. hpsi%my_type .ne. q%my_type ) then
-      ierr = -1
-      return
-    endif
 
-    ireq = 0
-    do ibeta = 1, q%nbeta
+    ! core
+    if( core_full_size .gt. 1 ) then
+      ireq = 0
       do ialpha = 1, q%nalpha
         ireq = ireq + 1
         p%r(:,:,ialpha) = p%r(:,:,ialpha) - q%r(:,:,ialpha)
         p%i(:,:,ialpha) = p%i(:,:,ialpha) - q%i(:,:,ialpha)
 
 #ifdef MPI
-        call MPI_IALLREDUCE( MPI_IN_PLACE, p%r(:,:,ialpha), p%async_size, &
+        call MPI_IALLREDUCE( MPI_IN_PLACE, p%r(:,:,ialpha), p%core_async_size, &
                              MPI_DOUBLE_PRECISION, MPI_SUM, comm, p%r_request(ireq), ierr )
-        call MPI_IALLREDUCE( MPI_IN_PLACE, p%i(:,:,ialpha), p%async_size, &
+        call MPI_IALLREDUCE( MPI_IN_PLACE, p%i(:,:,ialpha), p%core_async_size, &
                              MPI_DOUBLE_PRECISION, MPI_SUM, comm, p%i_request(ireq), ierr )
 #endif
       enddo
-    enddo
 
-    ireq = 0
-    do ibeta = 1, q%nbeta
+      ireq = 0
       do ialpha = 1, q%nalpha
         ireq = ireq + 1
 #ifdef MPI
@@ -306,7 +241,38 @@ module OCEAN_psi
 #endif
         hpsi%i(:,:,ialpha) = hpsi%i(:,:,ialpha) + p%i(:,:,ialpha)
       enddo
-    enddo
+    endif
+
+    ! val
+    if( val_full_size .gt. 1 ) then
+      ireq = 0
+      do ibeta = 1, q%nbeta
+        ireq = ireqe + 1
+        p%valr(:,:,:,ibeta) = p%valr(:,:,:,ibeta) - q%r(:,:,:,ibeta)
+        p%vali(:,:,:,ibeta) = p%vali(:,:,:,ibeta) - q%i(:,:,:,ibeta)
+
+#ifdef MPI
+        call MPI_IALLREDUCE( MPI_IN_PLACE, p%valr(:,:,:,ibeta), p%val_async_size, &
+                             MPI_DOUBLE_PRECISION, MPI_SUM, comm, p%r_request(ireq), ierr )
+        call MPI_IALLREDUCE( MPI_IN_PLACE, p%vali(:,:,:,ibeta), p%val_async_size, &
+                             MPI_DOUBLE_PRECISION, MPI_SUM, comm, p%i_request(ireq), ierr )
+#endif
+      enddo
+
+      ireq = 0
+      do ibeta = 1, q%nbeta
+        ireq = ireq + 1
+#ifdef MPI
+        call MPI_WAIT( p%r_request( ireq ), MPI_STATUS_IGNORE, ierr )
+#endif
+        hpsi%valr(:,:,:,ibeta) = hpsi%valr(:,:,:,ibeta) + p%valr(:,:,:,ibeta)
+#ifdef MPI
+        call MPI_WAIT( p%i_request( ireq ), MPI_STATUS_IGNORE, ierr )
+#endif
+        hpsi%vali(:,:,:,ibeta) = hpsi%vali(:,:,:,ibeta) + p%vali(:,:,:,ibeta)
+      enddo
+    endif
+
 
   end subroutine OCEAN_psi_sum
 
@@ -339,21 +305,22 @@ module OCEAN_psi
     endif
 
     psi_core_alpha = sys%nalpha
-    psi_core_beta = 1
  
-    psi_val_alpha = sys%nspn ** 2
-    psi_val_beta = 1
+    psi_val_beta = sys%nspn ** 2
 
     is_init = .true.
+    have_core = sys%have_core
+    have_val  = sys%have_val
 
   end subroutine OCEAN_psi_init
 
-  subroutine OCEAN_psi_new( p, mytype, ierr, q )
+
+  ! Pass in true/false for core/valence
+  subroutine OCEAN_psi_new( p, ierr, q )
     use OCEAN_system
     implicit none
     
     integer, intent(inout) :: ierr
-    integer, intent( in ) :: mytype
     type(OCEAN_vector), intent( out ) :: p
     type(OCEAN_vector), intent(in), optional :: q
 
@@ -362,46 +329,48 @@ module OCEAN_psi
       return
     endif
   
-    p%my_type = mytype
+    if( ( .not. have_core ) .and. ( .not. have_val ) ) then
+      ierr = -2
+      return
+    endif
     
-    select case( p%my_type )
-
-    case( core_vector )
+    if( have_core ) then
       p%nband = psi_bands_pad
-      p%vband = 1
       p%nkpts = psi_kpts_pad
       p%nalpha = psi_core_alpha
-      p%nbeta  = psi_core_beta
-    case( val_vector )
-      p%nband = psi_bands_pad
+
+      p%core_full_size = p%nband*p%nkpts*p%nalpha
+      p%core_async_size = p%nband*p%nkpts
+    endif
+
+    if( have_val ) then
+      p%cband = psi_bands_pad
       p%vband = psi_val_bands
       p%nkpts = psi_kpts_pad
-      p%nalpha = psi_val_alpha
       p%nbeta  = psi_val_beta
-    case default
-      ierr = -1
-      return
-    end select
 
+      p%val_full_size = p%nband*p%vband*p%nkpts*p%nbeta
+      p%val_async_size = p%nband*p%vband*p%nkpts
+    endif
 
-    p%full_size = p%nband*p%vband*p%nkpts*p%nalpha*p%nbeta
-    p%async_size = p%nband*p%vband*p%nkpts
 
     allocate( p%r(p%nband,p%nkpts,p%nalpha), &
               p%i(p%nband,p%nkpts,p%nalpha), &
-              p%r_request(p%nalpha*p%nbeta), p%i_request(p%nalpha*p%nbeta), STAT=ierr )
+              p%valr(p%cband,p%vband,p%nkpts,p%nbeta), &
+              p%vali(p%cband,p%vband,p%nkpts,p%nbeta), &
+              p%r_request(max(p%nalpha,p%nbeta)), p%i_request(max(p%nalpha,p%nbeta)), STAT=ierr )
 
     ! initialize
     if( present( q ) ) then
-      if( q%my_type .ne. p%my_type ) then
-        ierr = -2
-        return
-      endif
       p%r = q%r
       p%i = q%i
+      p%valr = q%valr
+      p%vali = q%vali
     else
       p%r = 0.0_DP
       p%i = 0.0_DP
+      p%valr = 0.0_DP
+      p%vali = 0.0_DP
     endif
 
   end subroutine OCEAN_psi_new
@@ -417,6 +386,10 @@ module OCEAN_psi
     if( allocated( p%r ) ) deallocate( p%r, STAT=ierr )
     if( ierr .ne. 0 ) return
     if( allocated( p%i ) ) deallocate( p%i, STAT=ierr )
+    if( ierr .ne. 0 ) return
+    if( allocated( p%valr ) ) deallocate( p%valr, STAT=ierr )
+    if( ierr .ne. 0 ) return
+    if( allocated( p%vali ) ) deallocate( p%vali, STAT=ierr )
     if( ierr .ne. 0 ) return
     if( allocated( p%r_request ) ) deallocate( p%r_request, STAT=ierr )
     if( ierr .ne. 0 ) return
