@@ -10,6 +10,7 @@ module OCEAN_system
     real(DP)         :: bvec(3,3)
     real(DP)         :: bmet(3,3)
     real(DP)         :: qinunitsofbvectors(3)
+    real(DP)         :: epsilon0
     integer( S_INT ) :: nkpts
     integer( S_INT ) :: nxpts
     integer( S_INT ) :: nalpha
