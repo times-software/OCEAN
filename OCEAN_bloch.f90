@@ -8,6 +8,9 @@ module OCEAN_bloch
   ! these guys have no position phasing
   real(DP), pointer :: re_bloch_state( :, :, : )
   real(DP), pointer :: im_bloch_state( :, :, : )
+
+
+  ! these guys do. There is no reason for them not to
   real(DP), pointer :: re_v_bloch_state( :, :, : )
   real(DP), pointer :: im_v_bloch_state( :, :, : )
 

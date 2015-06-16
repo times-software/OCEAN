@@ -19,7 +19,7 @@ module OCEAN_hyb_louie_levine
 
   contains
 
-  subroutine OS_hyb_louie_levin( sys, nkpts_pad, nxpts_pad, nypts, ladder, nx, nx_start, nkret, kret, ierr )
+  subroutine OS_hyb_louie_levin( sys, nkpts_pad, nxpts_pad, nypts, ladder, nx, nx_start, nkret, kret, ierr, ladcap, kk )
     use OCEAN_system
     use OCEAN_mpi
     implicit none
@@ -29,6 +29,8 @@ module OCEAN_hyb_louie_levine
     real(dp), intent( out ) :: ladder( nkpts_pad, nxpts_pad, nypts )
     integer, intent( out ) :: nkret, kret( sys%nkpts )
     integer, intent( inout ) :: ierr
+    integer, intent( out ) :: ladcap(2,3)
+    integer, intent( out ) :: kk( sys%nkpts, 3 )
     !
     real(dp), allocatable :: rho(:)
 
@@ -39,8 +41,9 @@ module OCEAN_hyb_louie_levine
               wy, gx, ww, fcn, qde, dspc, avec( 3, 3 ), vtest( 3 ), gap( 3 ), mds, rmag, maxxy
     
     integer :: num_kpoints, num_xpoints, iter1, iter2, rad_floor, rad_ceil, clip, rs_floor, rs_ceil, &
-              rs_cur, rad_cur, ix, iy, iz, iyr, ixr, irad0, jd, irtab( sys%nxpts ), i, j, k, ladcap(2,3)
+              rs_cur, rad_cur, ix, iy, iz, iyr, ixr, irad0, jd, irtab( sys%nxpts ), i, j, k
     integer :: err
+    real(dp) :: xk( sys%nkpts, 3 )
     
     real(kind=kind(1.d0)), external :: AI_max_length
 
@@ -95,7 +98,8 @@ module OCEAN_hyb_louie_levine
     ! convert avecs to angstroms
     call AI_ladder_formx( sys%xmesh(1), sys%xmesh(2), sys%xmesh(3), x_array )
     call AI_ladder_formr( sys%kmesh(1), sys%kmesh(2), sys%kmesh(3), r_array, ladcap )
-    !
+    call AI_kmapr( sys%kmesh, xk, kk, ladcap )
+   !
     avec( :, : ) = sys%avec( :, : ) * 0.529177d0
     !
     ! find largest distance between any two x-points
