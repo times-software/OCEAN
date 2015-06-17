@@ -56,6 +56,11 @@ subroutine OCEAN_load_data( sys, hay_vec, lr, ierr )
     if( myid .eq. root ) write(6,*) 'OBFs loaded'
   endif
 
+  if( sys%have_val) then
+    call OCEAN_energies_val_load( sys, ierr )
+    if( ierr .ne. 0 ) return
+  endif 
+
 
   if( myid .eq. root ) write(6,*) 'Initialization complete'
 

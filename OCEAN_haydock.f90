@@ -327,22 +327,29 @@ module OCEAN_action
 
     do iter = 1, haydock_niter
 
-      if( sys%long_range ) then
+      if( sys%long_range .and. sys%cur_run%have_core ) then
         call OCEAN_tk_start( tk_lr )
         call lr_act( sys, psi, long_range_psi, lr, ierr )
         call OCEAN_tk_stop( tk_lr )
       endif
 
-      if( sys%mult ) then 
+      if( sys%mult sys%cur_run%have_core ) then 
         call OCEAN_tk_start( tk_mult )
         call OCEAN_mult_act( sys, inter_scale, psi, multiplet_psi )
         call OCEAN_tk_stop( tk_mult )
       endif
 
-      if( sys%e0 ) then 
+      if( sys%e0 .and. sys%cur_run%have_core) then 
         call OCEAN_tk_start( tk_e0 )
         call ocean_energies_act( sys, psi, hpsi, ierr )
         call OCEAN_tk_stop( tk_e0 )
+      endif
+
+      if( sys%cur_run%have_val ) then
+        call OCEAN_energies_val_allow( sys, psi, ierr )
+        call OCEAN_energies_val_act( sys, psi, hpsi, ierr )
+!        call OCEAN_psi_zero( multiplet_psi )
+!        call OCEAN_psi_zero( long_range_psi )
       endif
 
       call OCEAN_tk_start( tk_psisum )

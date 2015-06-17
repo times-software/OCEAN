@@ -59,10 +59,59 @@ module OCEAN_psi
   public :: OCEAN_psi_init, OCEAN_psi_kill, OCEAN_psi_load, OCEAN_psi_sum_lr,  &
             OCEAN_psi_sum, OCEAN_psi_set_prec, OCEAN_psi_write, &
             OCEAN_psi_dot, OCEAN_psi_nrm, OCEAN_psi_scal, &
-            OCEAN_psi_axpy, OCEAN_psi_new
+            OCEAN_psi_axpy, OCEAN_psi_new, OCEAN_psi_mult, OCEAN_psi_cmult, OCEAN_psi_zero
 
   public :: OCEAN_vector
   contains
+
+  subroutine OCEAN_psi_zero( a )
+    implicit none
+    type( OCEAN_vector ), intent( inout ) :: a
+
+    if( have_val )
+      a%valr = 0.0_dp
+      a%vali = 0.0_dp
+    endif
+    if( have_con )
+      a%r = 0.0_dp
+      a%i = 0.0_dp
+    endif
+  end subroutine OCEAN_psi_zero
+
+
+  subroutine OCEAN_psi_cmult( a, b, e, have_gw )
+    implicit none
+    type( OCEAN_vector ), intent( in ) :: a, e
+    type( OCEAN_vector ), intent( inout ) :: b
+    logical, intent( in ) :: have_gw
+
+    if( have_val ) then
+      b%valr(:,:,:,:) = a%valr(:,:,:,:) * e%valr(:,:,:,:)
+      b%vali(:,:,:,:) = a%vali(:,:,:,:) * e%valr(:,:,:,:)
+    endif
+    
+  end subroutine
+
+
+  subroutine OCEAN_psi_mult( a, b, use_real )
+    implicit none
+    type( OCEAN_vector ), intent( in ) :: a
+    type( OCEAN_vector ), intent( inout ) :: b
+    logical, intent( in ) :: use_real
+
+    if( use_real ) then
+      if( have_val ) then
+        a%valr(:,:,:,:) = a%valr(:,:,:,:) * b%valr(:,:,:,:)
+        a%vali(:,:,:,:) = a%vali(:,:,:,:) * b%valr(:,:,:,:)
+      endif
+    else
+      if( have_val ) then
+        a%valr(:,:,:,:) = a%valr(:,:,:,:) * b%vali(:,:,:,:)
+        a%vali(:,:,:,:) = a%vali(:,:,:,:) * b%vali(:,:,:,:)
+      endif
+    endif
+  end subroutine
+
 
   real(dp) function OCEAN_psi_nrm( a )
     implicit none
@@ -521,12 +570,48 @@ module OCEAN_psi
 
   end subroutine OCEAN_psi_load_old
 
-
   subroutine OCEAN_psi_load( sys, p, ierr )
+    use OCEAN_system
+    implicit none
+    type(O_system), intent( in ) :: sys
+    type(OCEAN_vector), intent( inout ) :: p
+    integer, intent( inout ) :: ierr
+
+    if( sys%have_core ) call OCEAN_psi_load_core( sys, p, ierr )
+    if( ierr .ne. 0 ) return
+
+    if( sys%have_val ) call OCEAN_psi_load_val( sys, p, ierr )
+!    if( ierr .ne. 0 ) return
+
+  end subroutine OCEAN_psi_load
+
+  subroutine OCEAN_psi_load_val( sys, p, ierr )
     use OCEAN_mpi
     use OCEAN_system
-    use mpi
-    use AI_kinds
+
+    implicit none
+
+    type(O_system), intent( in ) :: sys
+    type(OCEAN_vector), intent( inout ) :: p
+    integer, intent( inout ) :: ierr
+
+    integer :: file_selector
+
+    if( .not. sys%have_val ) return
+
+    if( .true. ) then
+      file_selector = 1
+      call OCEAN_read_tmels( sys, p, file_selector, ierr )
+    else
+      file_selector = 0
+      call OCEAN_read_tmels( sys, p, file_selector, ierr )
+    endif
+  end subroutine OCEAN_psi_load_val
+
+
+  subroutine OCEAN_psi_load_core( sys, p, ierr )
+    use OCEAN_mpi
+    use OCEAN_system
 
     implicit none
 
@@ -539,6 +624,9 @@ module OCEAN_psi
     real(DP) :: tau( 3 )
     character(LEN=8) :: str
     real(DP), external :: DZNRM2
+
+    if( .not. sys%have_core ) return
+
     lc = sys%ZNL(3)
     pi = 4.0_DP * ATAN( 1.0_DP )
 
