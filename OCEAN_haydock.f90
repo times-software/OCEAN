@@ -137,19 +137,16 @@ module OCEAN_action
     type( ocean_vector ), intent( in ) :: hay_vec
     type( ocean_vector ), intent( out ) :: psi, old_psi, new_psi, mul_psi, lr_psi
 
-    integer :: psi_type
 
-    psi_type = core_vector
-
-    call OCEAN_psi_new( psi, psi_type, ierr, hay_vec )
+    call OCEAN_psi_new( psi, ierr, hay_vec )
     if( ierr .ne. 0 ) return
-    call OCEAN_psi_new( old_psi, psi_type, ierr )
+    call OCEAN_psi_new( old_psi, ierr )
     if( ierr .ne. 0 ) return
-    call OCEAN_psi_new( new_psi, psi_type, ierr )
+    call OCEAN_psi_new( new_psi, ierr )
     if( ierr .ne. 0 ) return
-    call OCEAN_psi_new( mul_psi, psi_type, ierr )
+    call OCEAN_psi_new( mul_psi, ierr )
     if( ierr .ne. 0 ) return
-    call OCEAN_psi_new( lr_psi, psi_type, ierr )
+    call OCEAN_psi_new( lr_psi, ierr )
     if( ierr .ne. 0 ) return
 
   end subroutine OCEAN_hay_alloc
@@ -333,7 +330,7 @@ module OCEAN_action
         call OCEAN_tk_stop( tk_lr )
       endif
 
-      if( sys%mult sys%cur_run%have_core ) then 
+      if( sys%mult .and. sys%cur_run%have_core ) then 
         call OCEAN_tk_start( tk_mult )
         call OCEAN_mult_act( sys, inter_scale, psi, multiplet_psi )
         call OCEAN_tk_stop( tk_mult )

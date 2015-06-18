@@ -1,10 +1,10 @@
 FC = mpif90
-#FLAGS = -O3 -ffree-line-length-none -x f95-cpp-input -m64 -DHAVE_FLUSH -DBLAS  -Wall  -g -ffree-line-length-none  -funroll-loops -ftree-vectorizer-verbose=0 -ffast-math -ftree-vectorize -DMPI -march=corei7 -DHAVE_CONTIGUOUS -fbacktrace -fopenmp #-fbounds-check -fopenmp
+#FLAGS = -O3 -ffree-line-length-none -x f95-cpp-input -m64 -DHAVE_FLUSH -DBLAS  -Wall  -g -ffree-line-length-none  -funroll-loops -ftree-vectorizer-verbose=0 -ffast-math -ftree-vectorize -DMPI -march=corei7 -DHAVE_CONTIGUOUS -fbacktrace  #-fbounds-check -fopenmp
 #-fbacktrace -fbounds-check
 #LDFLAGS = -m64  -Wall  -g -march=corei7 -fopenmp
-FLAGS = -O2 -DHAVE_FLUSH -DBLAS -DMPI -DHAVE_CONTIGUOUS -cpp -warn all  -march=corei7 -fopenmp -openmp-report2 -g -traceback
+FLAGS = -O2 -DHAVE_FLUSH -DBLAS -DMPI -DHAVE_CONTIGUOUS -cpp -march=corei7  -traceback  -warn all #-fopenmp
 #-align array64byte
-LDFLAGS = -fopenmp -traceback
+LDFLAGS =  -static-intel -traceback #-fopenmp
 
 #FFTWI = -I/home/jtv1/bin/gnu/include
 #FFTWL = /home/jtv1/bin/gnu/lib/libfftw3.a
@@ -18,16 +18,18 @@ FFTWL = /home/jtv1/bin/intel/lib/libfftw3.a
 FFTWI = -I/home/jtv1/bin/intel/include
 
 
-all: ocean.x
+all: ocean2.x
 
 OCEANOBJS = AI_kinds.o OCEAN_mpi.o OCEAN_system.o OCEAN_bloch.o OCEAN_obf.o OCEAN_multiplet.o  \
             long_range.o OCEAN_load_data.o OCEAN_psi.o OCEAN_energies.o OCEAN_haydock.o OCEAN.o \
             getabb.o getomega.o gamfcn.o jlmfft.o jimel.o nbsemkcmel.o intval.o \
             newgetylm.o  newgetprefs.o newthreey.o cainmhsetup.o elsdch.o cinv.o \
-            sizereport.o OCEAN_exact.o OCEAN_timekeeper.o OCEAN_invdrv.o
+            sizereport.o OCEAN_exact.o OCEAN_timekeeper.o OCEAN_invdrv.o \
+            OCEAN_val_states.o OCEAN_ladder.o OCEAN_bubble.o OCEAN_val_energy.o \
+            OCEAN_read_tmels.o OCEAN_hyb_louie_levine.o OCEAN_get_rho.o
 
-ocean.x: $(OCEANOBJS)
-	$(FC) $(LDFLAGS) -o ocean.x $(OCEANOBJS) $(FFTWL) $(BLACS) 
+ocean2.x: $(OCEANOBJS)
+	$(FC) $(LDFLAGS) -o ocean2.x $(OCEANOBJS) $(FFTWL) $(BLACS) 
 
 OCEAN_mpi.o: OCEAN_mpi.f90 AI_kinds.o
 	$(FC) $(FLAGS) -c -o OCEAN_mpi.o OCEAN_mpi.f90 
@@ -125,6 +127,27 @@ OCEAN_obf.o: OCEAN_obf.f90 OCEAN_system.o AI_kinds.o OCEAN_mpi.o
 
 OCEAN_invdrv.o: OCEAN_invdrv.f90
 	$(FC) $(FLAGS) -c -o OCEAN_invdrv.o OCEAN_invdrv.f90
+
+OCEAN_val_states.o: OCEAN_val_states.f90
+	$(FC) $(FLAGS) -c -o OCEAN_val_states.o OCEAN_val_states.f90
+
+OCEAN_ladder.o : OCEAN_ladder.f90
+	$(FC) $(FLAGS) -c -o OCEAN_ladder.o OCEAN_ladder.f90
+
+OCEAN_bubble.o : OCEAN_bubble.f90
+	$(FC) $(FLAGS) -c -o OCEAN_bubble.o OCEAN_bubble.f90
+
+OCEAN_val_energy.o: OCEAN_val_energy.f90
+	$(FC) $(FLAGS) -c -o OCEAN_val_energy.o OCEAN_val_energy.f90
+
+OCEAN_read_tmels.o: OCEAN_read_tmels.f90
+	$(FC) $(FLAGS) -c -o OCEAN_read_tmels.o OCEAN_read_tmels.f90
+
+OCEAN_hyb_louie_levine.o: OCEAN_hyb_louie_levine.f90
+	$(FC) $(FLAGS) -c -o OCEAN_hyb_louie_levine.o OCEAN_hyb_louie_levine.f90
+
+OCEAN_get_rho.o: OCEAN_get_rho.f90
+	$(FC) $(FLAGS) -c -o OCEAN_get_rho.o OCEAN_get_rho.f90
 
 
 clean:

@@ -19,6 +19,7 @@ module OCEAN_val_states
   integer :: con_pad
 
   integer :: max_nxpts
+  integer :: startx
 
   integer, allocatable :: nxpts_by_mpiID( : )
 
@@ -39,8 +40,10 @@ module OCEAN_val_states
 
   contains
 
-  subroutine OCEAN_val_states_load( ierr )
+  subroutine OCEAN_val_states_load( sys, ierr )
+    use OCEAN_system
     implicit none
+    type(O_system), intent( in ) :: sys
     integer, intent( inout ) :: ierr
 
     if( .not. is_init ) then
@@ -57,8 +60,8 @@ module OCEAN_val_states
               im_con( nxpts_pad, con_pad, nkpts, nspn ), STAT=ierr )
     if( ierr .ne. 0 ) return
 
-    call OCEAN_val_states_read( ierr )
-  end subroutine OCEAN_val_states_load( ierr )
+    call OCEAN_val_states_read( sys, ierr )
+  end subroutine OCEAN_val_states_load
 
   subroutine OCEAN_val_states_init( sys, ierr )
     use OCEAN_system
@@ -96,7 +99,19 @@ module OCEAN_val_states
       nxpts_by_mpiID( i ) = nxpts
     enddo
 
+    do i = myid + 1, nproc - 1
+      nxpts_by_mpiID( i ) = nx_remain / ( nproc - i )
+      nx_remain = nx_remain - nxpts_by_mpiID( i )
+    enddo
+
+
     max_nxpts = maxval( nxpts_by_mpiID )
+    if( nxpts .lt. cache_double ) then
+      nxpts_pad = cache_double
+      max_nxpts = max( max_nxpts, cache_double ) 
+    else
+      nxpts_pad = nxpts
+    endif
 
     if( nxpts .lt. 1 ) then
       ierr = -1
@@ -111,15 +126,21 @@ module OCEAN_val_states
   end subroutine
   
 
-  subroutine OCEAN_val_states_read( ierr )
+  subroutine OCEAN_val_states_read( sys, ierr )
+    use OCEAN_system
     use OCEAN_mpi, only : myid, nproc, root, comm
     implicit none
 
+    type(O_system), intent( in ) :: sys
     integer, intent( inout ) :: ierr
     !
-    logical :: want_val = .true.
-    logical :: want_con = .true.
-    logical :: want_core = .false.
+!    logical :: want_val = .true.
+!    logical :: want_con = .true.
+!    logical :: want_core = .false.
+    logical :: invert_xmesh, ex
+    character(len=3) :: bloch_type
+
+    integer :: brange(4), err
 
     if( myid .eq. root ) then
       open( unit=99, file='brange.ipt', form='formatted', status='unknown' )
@@ -166,19 +187,32 @@ module OCEAN_val_states
 
     select case( bloch_type )
       case( 'new' ) 
-        call load_new_u2( brange, ierr )
+        call load_new_u2( sys, brange, ierr )
       case default
         return
     end select 
 
   end subroutine OCEAN_val_states_read
 
-  subroutine load_new_u2( brange, ierr )
+  subroutine load_new_u2( sys, brange, ierr )
+    use OCEAN_system
     use OCEAN_mpi
     implicit none
       
+    type(O_system), intent( in ) :: sys
     integer, intent( in ) :: brange( 4 )
     integer, intent( inout ) :: ierr
+
+    complex(dp), allocatable :: u2_buf(:,:,:,:)
+    real(dp), allocatable :: re_share_buffer(:,:,:), im_share_buffer(:,:,:)
+
+    logical :: io_group = .false.
+    integer :: width(3), io_comm, fmode, fhu2
+    integer :: iq, nelement, ibd, ncount, iproc, xiter, iz, iy, ix
+#ifdef MPI
+    integer(MPI_OFFSET_KIND) :: offset
+    integer :: u2_status(MPI_STATUS_SIZE)
+#endif
 
     if( myid .eq. root ) then
       write(6,*) 'New U2 format'
@@ -272,7 +306,7 @@ module OCEAN_val_states
             do iy = 1, sys%xmesh(2)
               do ix = 1, sys%xmesh(1)
                 xiter = xiter + 1
-                if( xiter .gt. xpts_by_mpiID( iproc ) ) then
+                if( xiter .gt. nxpts_by_mpiID( iproc ) ) then
                   iproc = iproc + 1
                   xiter = 1
                 endif
@@ -290,8 +324,8 @@ module OCEAN_val_states
           call MPI_SEND( re_share_buffer(:,:,iproc), max_nxpts*nbv, MPI_DOUBLE_PRECISION, iproc, iproc, comm, ierr )
           call MPI_SEND( im_share_buffer(:,:,iproc), max_nxpts*nbv, MPI_DOUBLE_PRECISION, iproc, iproc+nproc, comm, ierr )
         elseif( myid .eq. iproc ) then
-          call MPI_RECV( re_share_buffer, max_nxpts*nbv, MPI_DOUBLE_PRECISION, root, iproc, comm, ierr ) 
-          call MPI_SEND( im_share_buffer, max_nxpts*nbv, MPI_DOUBLE_PRECISION, root, iproc+nproc, comm, ierr )
+          call MPI_RECV( re_share_buffer, max_nxpts*nbv, MPI_DOUBLE_PRECISION, root, iproc, comm, MPI_STATUS_IGNORE, ierr ) 
+          call MPI_RECV( im_share_buffer, max_nxpts*nbv, MPI_DOUBLE_PRECISION, root, iproc+nproc, comm, MPI_STATUS_IGNORE, ierr )
         endif
       enddo
 #endif
@@ -304,12 +338,13 @@ module OCEAN_val_states
 
 
 
+      if( myid .eq. root ) then
       ! read conduction
       
 #ifdef MPI
         !JTV need to do some 2GB chunking at some point. Blerg.
         nelement = nbc * sys%nxpts
-        call MPI_FILE_READ_AT( fhu2, offset, u2_buf(), nelement, MPI_DOUBLE_COMPLEX, &
+        call MPI_FILE_READ_AT( fhu2, offset, u2_buf, nelement, MPI_DOUBLE_COMPLEX, &
                                  u2_status, ierr )
         if( ierr .ne. 0 ) then
           write(6,*) 'u2 failed', ierr, iq
@@ -330,7 +365,7 @@ module OCEAN_val_states
             do iy = 1, sys%xmesh(2)
               do ix = 1, sys%xmesh(1)
                 xiter = xiter + 1
-                if( xiter .gt. xpts_by_mpiID( iproc ) ) then
+                if( xiter .gt. nxpts_by_mpiID( iproc ) ) then
                   iproc = iproc + 1
                   xiter = 1
                 endif
@@ -348,8 +383,8 @@ module OCEAN_val_states
           call MPI_SEND( re_share_buffer(:,:,iproc), max_nxpts*nbv, MPI_DOUBLE_PRECISION, iproc, iproc, comm, ierr )
           call MPI_SEND( im_share_buffer(:,:,iproc), max_nxpts*nbv, MPI_DOUBLE_PRECISION, iproc, iproc+nproc, comm, ierr )
         elseif( myid .eq. iproc ) then
-          call MPI_RECV( re_share_buffer, max_nxpts*nbv, MPI_DOUBLE_PRECISION, root, iproc, comm, ierr )
-          call MPI_SEND( im_share_buffer, max_nxpts*nbv, MPI_DOUBLE_PRECISION, root, iproc+nproc, comm, ierr )
+          call MPI_RECV( re_share_buffer, max_nxpts*nbv, MPI_DOUBLE_PRECISION, root, iproc, comm, MPI_STATUS_IGNORE, ierr )
+          call MPI_RECV( im_share_buffer, max_nxpts*nbv, MPI_DOUBLE_PRECISION, root, iproc+nproc, comm, MPI_STATUS_IGNORE, ierr )
         endif
       enddo
 #endif
@@ -370,7 +405,7 @@ module OCEAN_val_states
 #endif
     endif
 
-    deallocate( re_share_buffer, im_share_buffer, u2buf )
+    deallocate( re_share_buffer, im_share_buffer, u2_buf )
 
   end subroutine load_new_u2
 

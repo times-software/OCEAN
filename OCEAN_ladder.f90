@@ -16,7 +16,7 @@ module OCEAN_ladder
 
 !  integer :: nkpts
 !  integer :: nxpts
-!  integer :: nypts
+  integer :: nypts
 !  integer :: startx
 !  integer :: nbv, nbc
 
@@ -33,11 +33,14 @@ module OCEAN_ladder
   logical :: is_loaded = .false.
 
 
-  integer :: max_nxpts
+!  integer :: max_nxpts
   integer :: c_send_request(2,2)
   integer :: c_recv_request(2,2)
   integer :: c_send_tag(2,2)
   integer :: c_recv_tag(2,2)
+
+  integer*8 :: fplan
+  integer*8 :: bplan
 
 
 !JTV legacy, to be removed
@@ -59,16 +62,18 @@ module OCEAN_ladder
   subroutine OCEAN_ladder_act( psi, ierr, ispn )
     use OCEAN_psi
     use OCEAN_mpi
+    use iso_c_binding
     
     implicit none
     include 'fftw3.f03'
 
     type(OCEAN_vector), intent( inout ) :: psi
     integer, intent( in ) :: ispn
-    integer :: intent( inout ) :: ierr
+    integer, intent( inout ) :: ierr
 
     real(dp), allocatable :: re_a_mat(:,:,:), im_a_mat(:,:,:)
     real(dp), allocatable :: re_b_mat(:,:,:), im_b_mat(:,:,:)
+    real(dp), allocatable :: re_tphi_mat(:,:,:), im_tphi_mat(:,:,:)
     real(dp), allocatable :: fr(:,:,:), fi(:,:,:), vv(:)
     complex(dp), allocatable :: scratch(:)
 
@@ -80,20 +85,22 @@ module OCEAN_ladder
 
     integer :: ik, ib, ix, iy
     integer :: ibc, x_block, y_block, nbv_block, nbc_block
-    integer :: i, j, k, id, nthread, block_temp
+    integer :: i, j, k, id, nthread, block_temp, y_offset
+    integer :: joint_request(4)
 !$  integer, external :: omp_get_num_threads
 
 #ifdef CONTIGUOUS
-  CONTIGUOUS :: re_a_mat, im_a_mat, re_b_mat, im_b_mat
+  CONTIGUOUS :: re_a_mat, im_a_mat, re_b_mat, im_b_mat, re_tphi_mat, im_tphi_mat
 #endif
 
 #ifdef __INTEL
-!dir$ attributes align:64 :: re_a_mat, im_a_mat, re_b_mat, im_b_mat
+!dir$ attributes align:64 :: re_a_mat, im_a_mat, re_b_mat, im_b_mat, re_tphi_mat, im_tphi_mat, scratch
 #endif
 
 
     allocate( re_a_mat( nxpts_pad, val_pad, nkpts ), im_a_mat( nxpts_pad, val_pad, nkpts ), &
-              re_b_mat( nxpts_pad, val_pad, nkpts ), im_b_mat( nxpts_pad, val_pad, nkpts ), STAT=ierr )
+              re_b_mat( nxpts_pad, val_pad, nkpts ), im_b_mat( nxpts_pad, val_pad, nkpts ), &
+              re_tphi_mat( nxpts_pad, max_nxpts, nkpts ), im_tphi_mat( nxpts_pad, max_nxpts, nkpts ), STAT=ierr )
 
 
     re_bstate(:,:,:,1) = re_val(:,:,:,ispn)
@@ -104,11 +111,11 @@ module OCEAN_ladder
 !$OMP PRIVATE( ik, ib, ix, iy, ibc, i, j, k, id, x_block, y_block, beta ) &
 !$OMP PRIVATE( scratch, fr, fi, vv, nthread, block_temp ) &
 !$OMP SHARED( nkpts, nbv_block, nxpts_pad, nproc, joint_request, c_recv_request, c_send_request ) &
-!$OMP SHARED( nkret, kret, ladcap, kk, nxpts_by_mpiID ) &
+!$OMP SHARED( nkret, kret, ladcap, kk, nxpts_by_mpiID, re_tphi_mat, im_tphi_mat ) &
 !$OMP SHARED( re_a_mat, im_a_mat, re_b_mat, im_b_mat, ispn, ierr ) 
 
-    allocate( fr( ladcap(1,1):ladcap(2,1), ladcap(1,2):ladcap(2,2), ladcap(1,3):ladcap(2,3) )
-              fr( ladcap(1,1):ladcap(2,1), ladcap(1,2):ladcap(2,2), ladcap(1,3):ladcap(2,3) )
+    allocate( fr( ladcap(1,1):ladcap(2,1), ladcap(1,2):ladcap(2,2), ladcap(1,3):ladcap(2,3) ), &
+              fi( ladcap(1,1):ladcap(2,1), ladcap(1,2):ladcap(2,2), ladcap(1,3):ladcap(2,3) ), &
               scratch( nkpts ), vv( nkret ) )
 
     nthread = 1
@@ -120,7 +127,7 @@ module OCEAN_ladder
     else
       block_temp = nkpts * (val_pad/cache_double )*(nxpts_pad/cache_double)
       block_temp = block_temp/nthread
-      nbv_block = floor(sqrt(block_temp))
+      nbv_block = floor(sqrt(dble(block_temp)))
       x_block = block_temp / nbv_block
       nbv_block = nbv_block * cache_double
       x_block = x_block * cache_double
@@ -155,7 +162,7 @@ module OCEAN_ladder
     else
       block_temp = nkpts * (max_nxpts/cache_double )*(nxpts_pad/cache_double)
       block_temp = block_temp/nthread
-      y_block = floor(sqrt(block_temp))
+      y_block = floor(sqrt(dble(block_temp)))
       x_block = block_temp / y_block
       y_block = y_block * cache_double
       x_block = x_block * cache_double
@@ -187,7 +194,7 @@ module OCEAN_ladder
 
 !$OMP MASTER
       ! Unless it is the last loop
-      if( i .lt. nproc - 1 )
+      if( i .lt. nproc - 1 ) then
         call MPI_START( c_recv_request(j,1), ierr )
         call MPI_START( c_recv_request(j,2), ierr )
       endif
@@ -204,7 +211,7 @@ module OCEAN_ladder
             call DGEMM( 'N', 'T', x_block, y_block, nbv, one, re_a_mat( ix, 1, ik ), nxpts_pad, &
                         re_bstate( iy, 1, ik, k ), max_nxpts, zero, re_tphi_mat( ix, iy, ik ), nxpts_pad )
             call DGEMM( 'N', 'T', x_block, y_block, nbv, minusone, im_a_mat( ix, 1, ik ), nxpts_pad, &
-                        im_bstate( im, 1, ik, k ), max_nxpts, one, re_tphi_mat( ix, iy, ik ), nxpts_pad )
+                        im_bstate( iy, 1, ik, k ), max_nxpts, one, re_tphi_mat( ix, iy, ik ), nxpts_pad )
             call DGEMM( 'N', 'T', x_block, y_block, nbv, one, im_a_mat( ix, 1, ik ), nxpts_pad, &
                         re_bstate( iy, 1, ik, k ), max_nxpts, zero, im_tphi_mat( ix, iy, ik ), nxpts_pad )
             call DGEMM( 'N', 'T', x_block, y_block, nbv, one, re_a_mat( ix, 1, ik ), nxpts_pad, &
@@ -222,24 +229,31 @@ module OCEAN_ladder
       endif
 !$OMP END MASTER
 
+      y_offset = 0
+      do ik = 0, id - 1
+        y_offset = y_offset + nxpts_by_mpiID( ik )
+      enddo
+
 
 !$OMP DO COLLAPSE( 2 ) SCHEDULE( STATIC)
       do iy = 1, nxpts_by_mpiID( id )
-        do ix = 1, x_width
+        do ix = 1, nxpts
           scratch( : ) = dcmplx(re_tphi_mat( ix, iy, : ), im_tphi_mat( ix, iy, : ) )
-          call dfftw_execute_dft( ladder%fplan, scratch, scratch )
-          do ik = 1, wfinfo%nkpts
+          call dfftw_execute_dft( fplan, scratch, scratch )
+          do ik = 1, nkpts
               fr( kk( ik, 1 ), kk( ik, 2 ), kk( ik, 3 ) ) = real( scratch( ik ) )
               fi( kk( ik, 1 ), kk( ik, 2 ), kk( ik, 3 ) ) = aimag( scratch( ik ) )
           enddo
-          call velmuls( fr, vv, ladder%ladder( :, ix, iy + y_offset ), wfinfo%nkpts, ladder%nkret, ladder%kret )
-          call velmuls( fi, vv, ladder%ladder( :, ix, iy + y_offset ), wfinfo%nkpts, ladder%nkret, ladder%kret )
-          do ik = 1, wfinfo%nkpts
+          call velmuls( fr, vv, ladder( :, ix, iy + y_offset ), nkpts, nkret, kret )
+          call velmuls( fi, vv, ladder( :, ix, iy + y_offset ), nkpts, nkret, kret )
+          do ik = 1, nkpts
             scratch( ik ) = dcmplx( fr( kk( ik, 1 ), kk( ik, 2 ), kk( ik, 3 ) ), &
                                           fi( kk( ik, 1 ), kk( ik, 2 ), kk( ik, 3 ) ) )
           end do
-          call dfftw_execute_dft( ladder%bplan, scratch, scratch )
-          tphi_mat( ix, iy, : ) = scratch( : ) / dble( wfinfo%nkpts )
+          call dfftw_execute_dft( bplan, scratch, scratch )
+          re_tphi_mat( ix, iy, : ) = real(scratch( : )) / dble( nkpts )
+          im_tphi_mat( ix, iy, : ) = aimag(scratch( : )) / dble( nkpts )
+
         enddo
       enddo
 !$OMP END DO
@@ -275,7 +289,7 @@ module OCEAN_ladder
     else
       block_temp = nkpts * (val_pad/cache_double )*(con_pad/cache_double)
       block_temp = block_temp/nthread
-      nbv_block = floor(sqrt(block_temp))
+      nbv_block = floor(sqrt(real(block_temp)))
       nbc_block = block_temp / nbv_block
       nbv_block = nbv_block * cache_double
       nbc_block = nbc_block * cache_double
@@ -287,13 +301,13 @@ module OCEAN_ladder
         do ibc = 1, nbc, nbc_block
 
           call DGEMM( 'T', 'N', nbc_block, nbv_block, nxpts, one, re_con( 1, ibc, ik, ispn ), nxpts_pad, &
-                      re_b_mat( 1, ib, ik ), nxpts_pad, zero, psi%valr( ibc, ib, ik ), psi%cband )
+                      re_b_mat( 1, ib, ik ), nxpts_pad, zero, psi%valr( ibc, ib, ik, 1 ), psi%cband )
           call DGEMM( 'T', 'N', nbc_block, nbv_block, nxpts, one, im_con( 1, ibc, ik, ispn ), nxpts_pad, &
-                      im_b_mat( 1, ib, ik ), nxpts_pad, one, psi%valr( ibc, ib, ik ), psi%cband )
+                      im_b_mat( 1, ib, ik ), nxpts_pad, one, psi%vali( ibc, ib, ik, 1 ), psi%cband )
           call DGEMM( 'T', 'N', nbc_block, nbv_block, nxpts, one, re_con( 1, ibc, ik, ispn ), nxpts_pad, &
-                      im_b_mat( 1, ib, ik ), nxpts_pad, zero, psi%valr( ibc, ib, ik ), psi%cband )
+                      im_b_mat( 1, ib, ik ), nxpts_pad, zero, psi%vali( ibc, ib, ik, 1 ), psi%cband )
           call DGEMM( 'T', 'N', nbc_block, nbv_block, nxpts, minusone, im_con( 1, ibc, ik, ispn ), nxpts_pad, &
-                      re_b_mat( 1, ib, ik ), nxpts_pad, one, psi%valr( ibc, ib, ik ), psi%cband )
+                      re_b_mat( 1, ib, ik ), nxpts_pad, one, psi%valr( ibc, ib, ik, 1 ), psi%cband )
 
         enddo
       enddo
@@ -315,11 +329,14 @@ module OCEAN_ladder
 
   subroutine OCEAN_ladder_new( sys, ierr )
     use OCEAN_system
+    use OCEAN_val_states
     use OCEAN_mpi
     implicit none
 
     type(O_system), intent(in) :: sys
     integer, intent( inout ) :: ierr
+
+    integer :: c_dest, c_sour, c_size
 
     if( is_loaded ) return
 
@@ -334,7 +351,7 @@ module OCEAN_ladder
     allocate( kret( nkpts ), STAT=ierr )
     if( ierr .ne. 0 ) return
 
-    allocate( kk( sys%nkpts, STAT=ierr ) )
+    allocate( kk( sys%nkpts, 3 ), STAT=ierr ) 
     if( ierr .ne. 0 ) return
 
     select case( screening_method )
@@ -358,7 +375,7 @@ module OCEAN_ladder
 ! JTV At some point we will instead want to create new comms for each NN pair
 !    and make all this private nonsense
 
-  csize = max_nxpts * sys%val_bands * sys%nkpts
+  c_size = max_nxpts * sys%val_bands * sys%nkpts
   c_dest = myid + 1
   if( c_dest .ge. nproc ) c_dest = 0
   c_sour = myid - 1
@@ -412,7 +429,7 @@ module OCEAN_ladder
     call MPI_REQUEST_FREE( c_send_request(2,2), ierr )
     call MPI_REQUEST_FREE( c_recv_request(1,2), ierr )
     call MPI_REQUEST_FREE( c_recv_request(2,2), ierr )
-#enfif
+#endif
 
   
   end subroutine OCEAN_ladder_kill
@@ -420,12 +437,21 @@ module OCEAN_ladder
   subroutine OCEAN_ladder_init( sys, ierr )
     use OCEAN_system
     use OCEAN_mpi, only : myid, nproc
+    use iso_c_binding
     implicit none
+
+    include 'fftw3.f03'
 
     type(O_system), intent( in ) :: sys
     integer, intent( inout ) :: ierr
     ! 
+    complex(dp), allocatable :: scratch(:)
     integer :: nx_remain, i
+
+#ifdef  __INTEL
+!dir$ attributes align:64 :: scratch
+#endif
+
 
     if( is_init ) then
       if( is_loaded ) then
@@ -434,6 +460,15 @@ module OCEAN_ladder
     endif
 
     nypts = sys%nxpts
+
+    allocate( scratch( sys%nkpts ) )
+    call dfftw_plan_with_nthreads( 1 )
+    call dfftw_plan_dft_3d( fplan, sys%kmesh(3), sys%kmesh(2), sys%kmesh(1), &
+                            scratch, scratch, FFTW_FORWARD, FFTW_PATIENT )
+    call dfftw_plan_dft_3d( bplan, sys%kmesh(3), sys%kmesh(2), sys%kmesh(1), &
+                            scratch, scratch, FFTW_BACKWARD, FFTW_PATIENT )
+
+    
 !    nkpts = sys%nkpts
     
 !    nxpts = 0
