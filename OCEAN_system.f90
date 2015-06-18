@@ -305,20 +305,20 @@ module OCEAN_system
 
         select case( calc_type )
         case( 'XAS' )
-          start_band = brange(3)
+          start_band = sys%brange(3)
           num_bands = sys%num_bands
           have_core = .true.
         case( 'XES' )
-          start_band = brange(1)
+          start_band = sys%brange(1)
           num_bands = sys%num_bands
           have_core = .true.
         case( 'VAL' )
-          num_bands = brange(4)-brange(3)+1
-          val_bands = brange(2)-brange(2)+1
+          num_bands = sys%brange(4)-sys%brange(3)+1
+          val_bands = sys%brange(2)-sys%brange(2)+1
           sys%have_val = .true.
           
         case default
-          start_band = brange(3)
+          start_band = sys%brange(3)
         end select 
 
 

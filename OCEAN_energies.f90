@@ -15,7 +15,7 @@ module OCEAN_energies
   type( OCEAN_vector ), pointer :: allow
 
 #ifdef __INTEL_COMPILER
-!DIR$ attributes align: 64 :: energies, imag_selfenergy, valence_energies, valence_allow
+!DIR$ attributes align: 64 :: energies, imag_selfenergy
 #endif
 
 
@@ -29,7 +29,7 @@ module OCEAN_energies
   
   contains
 
-  subroutine call OCEAN_energies_val_allow( sys, psi, ierr )
+  subroutine OCEAN_energies_val_allow( sys, psi, ierr )
     use OCEAN_system
     use OCEAN_psi, only : OCEAN_vector, OCEAN_psi_mult
     implicit none
@@ -41,7 +41,7 @@ module OCEAN_energies
     call OCEAN_psi_mult( psi, allow, .true. )
   end subroutine
 
-  subroutine call OCEAN_energies_val_sfact( sys, psi, ierr )
+  subroutine OCEAN_energies_val_sfact( sys, psi, ierr )
     use OCEAN_system
     use OCEAN_psi, only : OCEAN_vector, OCEAN_psi_mult
     implicit none

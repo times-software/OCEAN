@@ -17,8 +17,8 @@ module OCEAN_psi
   INTEGER :: CACHE_DOUBLE = 8
 
   LOGICAL :: is_init = .false.
-  LOGICAL :: have_core 
-  LOGICAL :: have_val 
+  LOGICAL :: have_core = .false.
+  LOGICAL :: have_val = .false.
 
   INTEGER, PARAMETER, PUBLIC :: core_vector = 1
   INTEGER, PARAMETER, PUBLIC :: val_vector = 2
@@ -68,11 +68,11 @@ module OCEAN_psi
     implicit none
     type( OCEAN_vector ), intent( inout ) :: a
 
-    if( have_val )
+    if( have_val ) then
       a%valr = 0.0_dp
       a%vali = 0.0_dp
     endif
-    if( have_con )
+    if( have_core ) then
       a%r = 0.0_dp
       a%i = 0.0_dp
     endif
@@ -95,8 +95,8 @@ module OCEAN_psi
 
   subroutine OCEAN_psi_mult( a, b, use_real )
     implicit none
-    type( OCEAN_vector ), intent( in ) :: a
-    type( OCEAN_vector ), intent( inout ) :: b
+    type( OCEAN_vector ), intent( inout ) :: a
+    type( OCEAN_vector ), intent( in ) :: b
     logical, intent( in ) :: use_real
 
     if( use_real ) then
@@ -676,7 +676,7 @@ module OCEAN_psi
 
   111 continue
 
-  end subroutine OCEAN_psi_load
+  end subroutine OCEAN_psi_load_core
 
   subroutine OCEAN_psi_write( sys, p, ierr )
     use OCEAN_mpi
