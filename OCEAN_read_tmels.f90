@@ -1,6 +1,7 @@
 subroutine OCEAN_read_tmels( sys, p, file_selector, ierr )
   use OCEAN_mpi
   use OCEAN_system
+  use OCEAN_psi
 
   implicit none
 
@@ -10,9 +11,9 @@ subroutine OCEAN_read_tmels( sys, p, file_selector, ierr )
   integer, intent( inout ) :: ierr
 
 
-  integer :: nbc(2), nbv, nk
+  integer :: nbc(2), nbv, nk, ik, fh
 
-  real(dp) :: inv_qlength
+  real(dp) :: inv_qlength, qinb(3)
   complex(dp), allocatable :: psi_in(:,:)
   real(dp), allocatable :: psi_transpose( :, : )
 
@@ -21,26 +22,27 @@ subroutine OCEAN_read_tmels( sys, p, file_selector, ierr )
 #endif
 
 ! qlength
+  qinb(:) = sys%qinunitsofbvectors(:)
     
-  inv_qlength = (qinb(1) * phys_sys%bvecs(1,1) + qinb(2) * phys_sys%bvecs(1,2) + qinb(3) * phys_sys%bvecs(1,3) ) ** 2 &
-              + (qinb(1) * phys_sys%bvecs(2,1) + qinb(2) * phys_sys%bvecs(2,2) + qinb(3) * phys_sys%bvecs(2,3) ) ** 2 &
-              + (qinb(1) * phys_sys%bvecs(3,1) + qinb(2) * phys_sys%bvecs(3,2) + qinb(3) * phys_sys%bvecs(3,3) ) ** 2 
+  inv_qlength = (qinb(1) * sys%bvec(1,1) + qinb(2) * sys%bvec(1,2) + qinb(3) * sys%bvec(1,3) ) ** 2 &
+              + (qinb(1) * sys%bvec(2,1) + qinb(2) * sys%bvec(2,2) + qinb(3) * sys%bvec(2,3) ) ** 2 &
+              + (qinb(1) * sys%bvec(3,1) + qinb(2) * sys%bvec(3,2) + qinb(3) * sys%bvec(3,3) ) ** 2 
   inv_qlength = 1.0_dp / sqrt( inv_qlength )
 
 
-  if( sys%num_bands .ne. ( brange(4)-brange(3)+1 ) ) then
-    if(myid .eq. root ) write(6,*) 'Conduction band mismatch!', sys%num_bands, ( brange(4)-brange(3)+1 ) 
+  if( sys%num_bands .ne. ( sys%brange(4)-sys%brange(3)+1 ) ) then
+    if(myid .eq. root ) write(6,*) 'Conduction band mismatch!', sys%num_bands, ( sys%brange(4)-sys%brange(3)+1 ) 
     ierr = -1
     return
   endif
-  if( sys%val_bands .ne. ( brange(2)-brange(1)+1 ) ) then
-    if(myid .eq. root ) write(6,*) 'Valence band mismatch!', sys%val_bands, ( brange(4)-brange(3)+1 )
+  if( sys%val_bands .ne. ( sys%brange(2)-sys%brange(1)+1 ) ) then
+    if(myid .eq. root ) write(6,*) 'Valence band mismatch!', sys%val_bands, ( sys%brange(4)-sys%brange(3)+1 )
     ierr = -1
     return
   endif
 
 
-  case select (file_selector )
+  select case (file_selector )
   
   case( 1 )
 
@@ -57,9 +59,9 @@ subroutine OCEAN_read_tmels( sys, p, file_selector, ierr )
 
     allocate( psi_in( nbv, nbc(1):nbc(2) ), psi_transpose( sys%val_bands, sys%num_bands ) )
 #ifdef MPI
-    call MPI_BCAST( nbc, 2, MPI_INTEGER, 0, col_comm, ierr )
+    call MPI_BCAST( nbc, 2, MPI_INTEGER, 0, comm, ierr )
     if( ierr .ne. 0 ) return
-    call MPI_BCAST( nbv, 1, MPI_INTEGER, 0, col_comm, ierr )
+    call MPI_BCAST( nbv, 1, MPI_INTEGER, 0, comm, ierr )
     if( ierr .ne. 0 ) return
 
     call MPI_FILE_OPEN( comm, 'ptmels.dat', MPI_MODE_RDONLY, MPI_INFO_NULL, fh, ierr )
@@ -77,8 +79,8 @@ subroutine OCEAN_read_tmels( sys, p, file_selector, ierr )
       ! Read in the tmels
 #ifdef MPI
       offset =  nbv * ( nbc(2) - nbc(1) + 1 ) * ( ik - 1 )
-      call MPI_FILE_READ_AT( FH, offset, psi_derp, &
-            nbv * ( nbc(2) - nbc(1) + 1 ), MPI_DOUBLE_COMPLEX, MPI_STATUS_IGNORE, ierr )
+      call MPI_FILE_READ_AT( FH, offset, psi_in, nbv * ( nbc(2) - nbc(1) + 1 ), &
+                             MPI_DOUBLE_COMPLEX, MPI_STATUS_IGNORE, ierr )
       if( ierr .ne. MPI_SUCCESS) return
 #else
       read(99) psi_in
@@ -108,6 +110,6 @@ subroutine OCEAN_read_tmels( sys, p, file_selector, ierr )
     if( myid .eq. root ) write(6,*) "Unsupported tmels formate requested: ", file_selector
     ierr = -1
     return
-  end select case
+  end select
 
 end subroutine OCEAN_read_tmels

@@ -2,11 +2,11 @@ module OCEAN_val_energy
   use AI_kinds
   implicit none
 
-  contain
+  contains
 
   subroutine OCEAN_read_energies( sys, p_energy, allow, ierr )
-    use OCEAN_system, only O_system
-    use OCEAN_psi, only : OCEAN_vector
+    use OCEAN_system
+    use OCEAN_psi
     use OCEAN_mpi
     implicit none
     !
@@ -20,6 +20,7 @@ module OCEAN_val_energy
     real( DP ) :: efermi, homo, lumo, cliph
     integer :: ik, ibv, ibc, fh
     logical :: metal
+    integer :: nbv, nbc(2), nk
 #ifdef MPI
     integer(MPI_OFFSET_KIND) :: offset
 #endif
@@ -60,6 +61,7 @@ module OCEAN_val_energy
           write(6,*) 'tmels.info not compatible with other run information: NKPTS'
           return
         endif
+      endif
 
 
       call MPI_FILE_OPEN( comm, 'val_energies.dat', MPI_MODE_RDONLY, MPI_INFO_NULL, fh, ierr )
@@ -112,7 +114,7 @@ module OCEAN_val_energy
     do ik = 1, sys%nkpts
       do ibv = 1, sys%val_bands
         do ibc = 1, sys%num_bands
-          energies%valr( ibc, ibv, ik ) = con_energies( ibc, ik ) - val_energies( ibv, ik )
+          p_energy%valr( ibc, ibv, ik, 1 ) = con_energies( ibc, ik ) - val_energies( ibv, ik )
         enddo
       enddo
     enddo
@@ -127,6 +129,8 @@ module OCEAN_val_energy
 
   subroutine energies_allow( sys, val_energies, con_energies, nelectron, efermi, cliph, &
                                 allow, metal, ierr )
+    use OCEAN_system
+    use OCEAN_psi
     implicit none
     type( O_system ), intent( in ) :: sys
     type( OCEAN_vector ), intent( inout ) :: allow
@@ -150,8 +154,8 @@ module OCEAN_val_energy
             if ( con_energies( biter1, kiter ) .le. cliph ) then
               do biter2 = 1, sys%val_bands
                 if ( val_energies( biter2, kiter ) .le. efermi ) then
-                  allow%valr( biter2, biter1, kiter ) = 1.0d0
-                  allow%vali( biter2, biter1, kiter ) = 1.0d0
+                  allow%valr( biter2, biter1, kiter, 1 ) = 1.0d0
+                  allow%vali( biter2, biter1, kiter, 1 ) = 1.0d0
                 endif
               enddo ! biter2
             endif
@@ -159,8 +163,8 @@ module OCEAN_val_energy
            do biter2 = 1, sys%val_bands
               if ( ( val_energies( biter2, kiter ) .ge. efermi ) .and. &
                    ( val_energies( biter2, kiter ) .le. cliph ) ) then
-                allow%valr( biter2, biter1, kiter ) = 1.0d0
-                allow%vali( biter2, biter1, kiter ) = -1.0d0
+                allow%valr( biter2, biter1, kiter, 1 ) = 1.0d0
+                allow%vali( biter2, biter1, kiter, 1 ) = -1.0d0
               endif
             enddo ! biter2
           endif
@@ -172,8 +176,8 @@ module OCEAN_val_energy
         do biter1 = 2 - sys%brange( 3 ) + ( nelectron / 2 ), sys%num_bands
           do biter2 = 1, ( nelectron / 2 ) - sys%brange( 1 ) + 1
             if(  con_energies( biter1, kiter ) .le. cliph ) then
-                  allow%valr( biter2, biter1, kiter ) = 1.0d0
-                  allow%vali( biter2, biter1, kiter ) = 1.0d0
+                  allow%valr( biter2, biter1, kiter, 1 ) = 1.0d0
+                  allow%vali( biter2, biter1, kiter, 1 ) = 1.0d0
             endif
           enddo ! biter2
         enddo ! biter1
@@ -185,6 +189,7 @@ module OCEAN_val_energy
   subroutine find_fermi( sys, val_energies, con_energies, nelectron, efermi, &
                                      homo, lumo, cliph, metal, ierr )
     use OCEAN_mpi, only : myid, root, comm
+    use OCEAN_system
     implicit none
     !
     type( O_system ), intent( in ) :: sys
@@ -242,7 +247,7 @@ module OCEAN_val_energy
     call MPI_BCAST( metal, 1, MPI_LOGICAL, root, comm, ierr )
     if( ierr .ne. MPI_SUCCESS ) return
     call MPI_BCAST( n_electron_dope, 1, MPI_INTEGER, root, comm, ierr )
-    if( ierr .ne. MPI_SUCESS ) return
+    if( ierr .ne. MPI_SUCCESS ) return
 #endif
     !
     if( metal ) then

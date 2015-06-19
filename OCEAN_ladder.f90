@@ -331,6 +331,7 @@ module OCEAN_ladder
     use OCEAN_system
     use OCEAN_val_states
     use OCEAN_mpi
+    use OCEAN_hyb_louie_levine
     implicit none
 
     type(O_system), intent(in) :: sys
@@ -356,7 +357,7 @@ module OCEAN_ladder
 
     select case( screening_method )
     case( 1 )
-      call OL_hyb_louie_levin( sys, nkpts_pad, nxpts_pad, nypts, ladder, nxpts, startx, nkret, kret, ierr, ladcap, kk )
+      call OS_hyb_louie_levin( sys, nkpts_pad, nxpts_pad, nypts, ladder, nxpts, startx, nkret, kret, ierr, ladcap, kk )
       if( ierr .ne. 0 ) return
 
     case default
@@ -511,6 +512,28 @@ module OCEAN_ladder
     is_init = .true.
 
   end subroutine OCEAN_ladder_init
+
+  subroutine velmuls( vec, v2, mul, n, nn, ii )
+    implicit none
+    !
+    integer, intent( in ) :: n, nn
+    integer, intent( in )  :: ii( nn )
+    real( DP ), intent( in ) :: mul( nn )
+    real( DP ), intent( inout ) :: vec( n )
+    real( DP ), intent( out ) :: v2( nn )
+    !
+    integer :: i
+    !
+    do i = 1, nn
+       v2( i ) = vec( ii( i ) ) * mul( i )
+    end do
+    vec( : ) = 0
+    do i = 1, nn
+       vec( ii( i ) ) = v2( i )
+    end do
+    !
+    return
+  end subroutine velmuls
 
 
 end module OCEAN_ladder

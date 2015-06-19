@@ -7,8 +7,8 @@ module OCEAN_energies
   save
   private
 
-  REAL(DP), ALLOCATABLE :: energies(:,:,:)
-  real(DP), ALLOCATABLE :: imag_selfenergy(:,:,:)
+  REAL(DP), ALLOCATABLE, public :: energies(:,:,:)
+  real(DP), ALLOCATABLE, public :: imag_selfenergy(:,:,:)
 
 
   type( OCEAN_vector ), pointer :: p_energy
@@ -26,6 +26,9 @@ module OCEAN_energies
   LOGICAL :: have_selfenergy
   LOGICAL, private :: is_init = .false.
   LOGICAL, private :: is_loaded = .false.
+
+  public :: OCEAN_energies_val_allow, OCEAN_energies_val_sfact, OCEAN_energies_val_act, &
+            OCEAN_energies_val_load, OCEAN_energies_act, OCEAN_energies_init, OCEAN_energies_load
   
   contains
 
@@ -55,7 +58,7 @@ module OCEAN_energies
 
   subroutine OCEAN_energies_val_act( sys, psi, hpsi, ierr )
     use OCEAN_system
-    use OCEAN_psi, only : OCEAN_vector, OCEAN_psi_mult
+    use OCEAN_psi, only : OCEAN_vector, OCEAN_psi_cmult
     implicit none
     !
     integer, intent( inout ) :: ierr
@@ -71,6 +74,7 @@ module OCEAN_energies
   subroutine OCEAN_energies_val_load( sys, ierr )
     use OCEAN_system
     use OCEAN_psi, only : OCEAN_vector, OCEAN_psi_new
+    use OCEAN_val_energy, only : OCEAN_read_energies
     implicit none
     !
     integer, intent( inout ) :: ierr

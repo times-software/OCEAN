@@ -25,8 +25,8 @@ OCEANOBJS = AI_kinds.o OCEAN_mpi.o OCEAN_system.o OCEAN_bloch.o OCEAN_obf.o OCEA
             getabb.o getomega.o gamfcn.o jlmfft.o jimel.o nbsemkcmel.o intval.o \
             newgetylm.o  newgetprefs.o newthreey.o cainmhsetup.o elsdch.o cinv.o \
             sizereport.o OCEAN_exact.o OCEAN_timekeeper.o OCEAN_invdrv.o \
-            OCEAN_val_states.o OCEAN_ladder.o OCEAN_bubble.o OCEAN_val_energy.o \
-            OCEAN_read_tmels.o OCEAN_hyb_louie_levine.o OCEAN_get_rho.o
+            OCEAN_val_states.o OCEAN_ladder.o OCEAN_val_energy.o \
+            OCEAN_read_tmels.o OCEAN_hyb_louie_levine.o OCEAN_get_rho.o kmapr.o optim.o
 
 ocean2.x: $(OCEANOBJS)
 	$(FC) $(LDFLAGS) -o ocean2.x $(OCEANOBJS) $(FFTWL) $(BLACS) 
@@ -149,6 +149,11 @@ OCEAN_hyb_louie_levine.o: OCEAN_hyb_louie_levine.f90
 OCEAN_get_rho.o: OCEAN_get_rho.f90
 	$(FC) $(FLAGS) -c -o OCEAN_get_rho.o OCEAN_get_rho.f90
 
+kmapr.o: kmapr.f90
+	$(FC) $(FLAGS) -c -o kmapr.o kmapr.f90
+
+optim.o: optim.f90
+	$(FC) $(FLAGS) -c -o optim.o optim.f90
 
 clean:
 	rm *.o *.mod

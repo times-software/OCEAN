@@ -34,6 +34,7 @@ module OCEAN_system
     logical          :: kshift
     logical          :: have_core = .true.
     logical          :: have_val = .false.
+    logical          :: backf = .false.
     character(len=5) :: calc_type
 
     type(o_run), pointer :: cur_run => null()

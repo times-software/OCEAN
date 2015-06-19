@@ -45,7 +45,7 @@ module OCEAN_hyb_louie_levine
     integer :: err
     real(dp) :: xk( sys%nkpts, 3 )
     
-    real(kind=kind(1.d0)), external :: AI_max_length
+!    real(kind=kind(1.d0)), external :: AI_max_length
 
 #ifdef CONTIGUOUS
     CONTIGUOUS :: rho
@@ -252,27 +252,6 @@ module OCEAN_hyb_louie_levine
   end subroutine OS_hyb_louie_levin
 
 
-  subroutine velmuls( vec, v2, mul, n, nn, ii )
-    implicit none
-    !
-    integer, intent( in ) :: n, nn
-    integer, intent( in )  :: ii( nn )
-    real( DP ), intent( in ) :: mul( nn )
-    real( DP ), intent( inout ) :: vec( n )
-    real( DP ), intent( out ) :: v2( nn )
-    !
-    integer :: i
-    !
-    do i = 1, nn
-       v2( i ) = vec( ii( i ) ) * mul( i )
-    end do
-    vec( : ) = 0
-    do i = 1, nn
-       vec( ii( i ) ) = v2( i )
-    end do
-    !
-    return
-  end subroutine velmuls
 
   ! walks through the density and finds the minimum and maximum
   subroutine brcapper( nxprod, rho, rsmin, rsmax, ierr )
@@ -342,7 +321,7 @@ module OCEAN_hyb_louie_levine
     !
     complex(kind=kind(1.d0)) :: ra, rb, c1, a, b, aa
     real(kind=kind(1.d0)) :: eill, eift, beta, gamma0, c0, c2, c4, u, w, raw
-    real(kind=kind(1.d0)), external :: levlou
+!    real(kind=kind(1.d0)), external :: levlou
     !
     real(kind=kind(1.d0)) :: pi
     pi = 4.0d0 * datan( 1.0d0 )
@@ -597,6 +576,108 @@ module OCEAN_hyb_louie_levine
     return
   end subroutine AI_ladder_formr
 
+  function levlou( q, qf, lam )
+      implicit none
+      double precision q, qf, lam, levlou
+      double precision xp, xm, term1, term2, term3
+      double precision tmp, c0, c2, c4
+      real( kind = kind( 1.0d0 ) ), parameter :: pi =3.1415926535897932384d0
+!     include 'general.h'
+      if ( q .gt. 0.01d0 ) then
+        xp = q * ( 2.d0 + q ) / lam
+        xm = q * ( 2.d0 - q ) / lam
+        term1 =   1.d0 / q ** 2
+        term2 = - lam / ( 2.d0 * q ** 3 ) * &
+                   ( datan( xp ) + datan( xm ) )
+        term3 =   ( lam ** 2 / ( 8.d0 * q ** 5 ) + &
+                    1.d0 / ( 2.d0 * q ** 3 ) - &
+                    1.d0 / ( 8.d0 * q ) ) * &
+                  dlog( ( 1.d0 + xp ** 2 ) / ( 1.d0 + xm ** 2 ) )
+        tmp = term1 + term2 + term3
+      else
+        c0 =   2.6666667d0 / lam ** 2
+        c2 = - 6.4d0 / lam ** 4
+        c4 =   ( 384.d0 / lam ** 6 - 56.d0 / lam ** 4 ) / 21.d0
+        tmp = c0 + c2 * q ** 2 + c4 * q ** 4
+      end if
+      levlou = 1.d0 / ( 1.d0 + 2.d0 / ( pi * qf ) * tmp )
+      return
+    end function
+
+  function AI_max_length( avec, x_array, nx ) result (maxxy)
+  implicit none
+  !
+  integer :: nx, i, j, k
+  real(kind=kind(1.d0)) :: avec(3,3), x_array(3,nx), vtest(3), maxxy
+  !
+  maxxy = 0
+  do i = 1, nx
+     do j = 1, nx
+        vtest( : ) = 0
+        do k = 1, 3
+           vtest( : ) = vtest( : ) + avec( :, k ) * ( x_array( k, i ) - x_array( k, j ) )
+        end do
+        maxxy = max( maxxy, dot_product( vtest, vtest ) )
+     end do
+  end do
+  maxxy = sqrt( maxxy )
+  return
+  end function AI_max_length
+
+subroutine dist( x, y, r, d, avec, nkx, nky, nkz, clip )
+  implicit none
+  !
+  integer :: nkx, nky, nkz, clip
+  real( kind = kind( 1.0d0 ) ) :: x( 3 ), y( 3 ), r( 3 )
+  real( kind = kind( 1.0d0 ) ) :: d, avec( 3, 3 )
+  !
+  integer :: i, iix, iiy, iiz
+  real( kind = kind( 1.0d0 ) ) :: dsqd, r0( 3 ), r1( 3 ), r2( 3 ), r3( 3 )
+  ! 
+  r0( : ) = 0
+  do i = 1, 3
+     r0( : ) = r0( : ) + avec( :, i ) * ( x( i ) - y( i ) - r( i ) )
+  end do
+  dsqd = r0( 1 ) ** 2 + r0( 2 ) ** 2 + r0( 3 ) ** 2
+  do iix = -clip, clip
+     r1( : ) = r0( : ) + iix * nkx * avec( :, 1 )
+     do iiy = -clip, clip
+        r2( : ) = r1( : ) + iiy * nky * avec( :, 2 )
+        do iiz = -clip, clip
+           r3( : ) = r2( : ) + iiz * nkz * avec( :, 3 )
+           dsqd = min( dsqd, r3( 1 ) ** 2 + r3( 2 ) ** 2 + r3( 3 ) ** 2 )
+        end do
+     end do
+  end do
+  d = sqrt( abs( dsqd ) )
+  !
+  return
+end subroutine dist
+
+
+
+! a function f(x,y) is interpolated in 2-d and the result is returned in [rslt]
+! one has 
+!
+!     vecx1( 1 ) = f(x1,y1), vecx1( 2 )=f(x1,y2)
+!     vecx2( 1 ) = f(x2,y1), vecx2( 2 )=f(x1,y2)
+! 
+!     fx = ( x - x1 ) / ( x2 - x1 )
+!     fy = ( y - y1 ) / ( y2 - y1 )
+!
+subroutine dublinterp( fx, fy, vecx1, vecx2, rslt )
+  implicit none
+  !
+  real( kind = kind( 1.0d0 ) ) :: fx, fy, rslt, vecx1( 2 ), vecx2( 2 )
+  !
+  real( kind = kind( 1.0d0 ) ) :: gx, gy
+  !
+  gx = 1.0d0 - fx
+  gy = 1.0d0 - fy
+  rslt = gy * ( gx * vecx1( 1 ) + fx * vecx2( 1 ) ) + fy * ( gx * vecx1( 2 ) + fx * vecx2( 2 ) )
+  !
+  return
+end subroutine dublinterp
 
 
 end module

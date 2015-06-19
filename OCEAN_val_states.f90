@@ -22,6 +22,7 @@ module OCEAN_val_states
   integer :: startx
 
   integer, allocatable :: nxpts_by_mpiID( : )
+  integer, allocatable :: startx_by_mpiID( : )
 
   integer, parameter :: cache_double = 8
   logical, private :: is_init = .false.
@@ -86,7 +87,7 @@ module OCEAN_val_states
     startx = 1
     nx_remain = sys%nxpts
 
-    allocate( nxpts_by_mpiID( 0:nproc-1 ) )
+    allocate( nxpts_by_mpiID( 0:nproc-1 ), startx_by_mpiID( 0:nproc-1 ) )
 
     do i = 0, myid
       startx = startx + nxpts
@@ -102,6 +103,11 @@ module OCEAN_val_states
     do i = myid + 1, nproc - 1
       nxpts_by_mpiID( i ) = nx_remain / ( nproc - i )
       nx_remain = nx_remain - nxpts_by_mpiID( i )
+    enddo
+
+    startx_by_mpiID( 0 ) = 1
+    do i = 1, nproc - 1
+      startx_by_mpiID( i ) = startx_by_mpiID( i - 1 ) + nxpts_by_mpiID( i - 1 )
     enddo
 
 
