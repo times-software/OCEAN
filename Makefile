@@ -25,7 +25,7 @@ clean:
 	cd PREP;         make clean
 	cd SCREEN;       make clean
 	cd PAW;          make clean
-	cd CNBSE         make clean 
+	cd CNBSE;        make clean 
 	cd zbridge;      make clean
 install:
 	mkdir -p $(INSTDIR)
