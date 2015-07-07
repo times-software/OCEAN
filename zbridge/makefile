@@ -22,8 +22,11 @@ XEQYOBJS = zobj/whom0.o
 SPECTOBJS = zobj/spectrum.o zobj/lxb_getval.o
 #
 
-all: zexe/setup2.x zexe/orthog.x zexe/conugtoux.x 
+all: zexe/setup2.x zexe/orthog.x zexe/conugtoux.x zobj/FFT_wrapper.o
 #
+
+zobj/FFT_wrapper.o: zf90/FFT_wrapper.f90
+	$(COMP) $(OPTS) -c -cpp zf90/FFT_wrapper.f90 $(FFTWI) -o zobj/FFT_wrapper.o
 
 zexe/bridgegw.x: zobj/bridgegw.o zobj/lxb_getval.o
 	$(COMP) $(OPTS) -o zexe/bridgegw.x zobj/bridgegw.o zobj/lxb_getval.o
@@ -128,8 +131,9 @@ clean:
               zexe/conugtoux.x zexe/bridgegw.x zexe/whom0.x \
               zexe/ll.x zexe/spect.x zobj/bridgegw.o $(CONDENSLIST) \
               $(BRDGLIST) $(BRLADRLIST) $(BWAYLIST) $(GWAYLIST) $(ORTHLIST) \
-              $(SETUP2LIST) $(LLOBJS) $(XEQYOBJS) $(SPECTOBJS) $(CONDENS2LIST)
+              $(SETUP2LIST) $(LLOBJS) $(XEQYOBJS) $(SPECTOBJS) $(CONDENS2LIST) zobj/FFT_wrapper.o
 	rm -f *__genmod.???
+	rm -f *.mod
 
 install:
 	cp zexe/*.x $(INSTDIR)

@@ -10,13 +10,13 @@ AUX_EXE = $(ABINIT_EXE) $(CUT3D_EXE) $(PW_EXE) $(PP_EXE)
 
 all:
 	cd Common;       make 
+	cd zbridge;      make 
 	cd DFT;          make 
 	cd QEPREP;       make
 	cd PREP;         make 
 	cd PAW;          make 
 	cd SCREEN;       make 
 	cd CNBSE;        make 
-	cd zbridge;      make 
 
 clean:
 	cd Common;       make clean

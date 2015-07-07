@@ -1,7 +1,9 @@
       program rhotest
+
+        use FFT_wrapper
       implicit none
 !
-      include 'fftw3.f'
+!      include 'fftw3.f'
       complex(kind=kind(1.d0)), allocatable :: rhoofr(:,:,:)
       complex(kind=kind(1.d0)), allocatable ::  rhoofg(:,:,:)
       real( kind=kind(1.d0)), allocatable ::  trhoofg(:,:,:)
@@ -29,8 +31,9 @@
 
         allocate(rhoofr(dims(1),dims(2),dims(3)),rhoofg(dims(1),          &
      &          dims(2),dims(3)))
-        call dfftw_plan_dft_3d(plan, dims(1),dims(2),dims(3), rhoofg,     &
-     &      rhoofg,FFTW_FORWARD,FFTW_ESTIMATE)
+!        call dfftw_plan_dft_3d(plan, dims(1),dims(2),dims(3), rhoofg,     &
+!     &      rhoofg,FFTW_FORWARD,FFTW_ESTIMATE)
+        call FFT_wrapper_init( dims )
         allocate(trhoofg(dims(3),dims(2),dims(1)))
         read(99,*) trhoofg
         close(99)
@@ -50,8 +53,9 @@
 !
         allocate(rhoofr(dims(1),dims(2),dims(3)),rhoofg(dims(1),          &
      &          dims(2),dims(3)))
-        call dfftw_plan_dft_3d(plan, dims(1),dims(2),dims(3), rhoofg,     &
-     &      rhoofg,FFTW_FORWARD,FFTW_ESTIMATE)
+!        call dfftw_plan_dft_3d(plan, dims(1),dims(2),dims(3), rhoofg,     &
+!     &      rhoofg,FFTW_FORWARD,FFTW_ESTIMATE)
+        call FFT_wrapper_init( dims )
 !
 
         open(unit=99,file='rhoofr',form='formatted',status='old')
@@ -68,8 +72,10 @@
 !
       endif
 
-      call dfftw_execute_dft(plan, rhoofg, rhoofg)
-      call dfftw_destroy_plan(plan)
+!      call dfftw_execute_dft(plan, rhoofg, rhoofg)
+!      call dfftw_destroy_plan(plan)
+      call FFT_wrapper_single( rhoofg, OCEAN_FORWARD )
+      call FFT_wrapper_delete()
 !      open(unit=99,file='omega.h',form='formatted',status='old')
 !      read(99,*) norm
 !      close(99)
@@ -79,8 +85,9 @@
      &     - avecs(2,1)*(avecs(1,2)*avecs(3,3)-avecs(3,2)*avecs(1,3))   &
      &     + avecs(3,1)*(avecs(1,2)*avecs(2,3)-avecs(2,2)*avecs(1,3))
       close(99)
-      norm = norm / dble(dims(1)*dims(2)*dims(3))
-!      norm = 1.d0 / norm
+
+!      norm = norm / dble(dims(1)*dims(2)*dims(3))
+!!      norm = 1.d0 / norm
       
       open(unit=17,file='bvecs',form='formatted',status='old')
        read(17,*) bv1(1),bv1(2),bv1(3)
