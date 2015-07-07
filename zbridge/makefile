@@ -22,8 +22,11 @@ XEQYOBJS = zobj/whom0.o
 SPECTOBJS = zobj/spectrum.o zobj/lxb_getval.o
 #
 
-all: zexe/setup2.x zexe/orthog.x zexe/conugtoux.x 
+all: zexe/setup2.x zexe/orthog.x zexe/conugtoux.x zobj/FFT_wrapper.o
 #
+
+zobj/FFT_wrapper.o: zf90/FFT_wrapper.f90
+	$(COMP) $(OPTS) -c -cpp zf90/FFT_wrapper.f90 $(FFTWI) $(FFTWL) -o zobj/FFT_wrapper.o
 
 zexe/bridgegw.x: zobj/bridgegw.o zobj/lxb_getval.o
 	$(COMP) $(OPTS) -o zexe/bridgegw.x zobj/bridgegw.o zobj/lxb_getval.o
