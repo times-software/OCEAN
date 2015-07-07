@@ -14,6 +14,8 @@ module FFT_wrapper
   integer :: dims(4)
   integer :: jfft
 
+  real(kind=kind(1.0d0)) :: norm
+
   integer, parameter :: OCEAN_FORWARD = 1
   integer, parameter :: OCEAN_BACKWARD = -1 
 
@@ -36,11 +38,13 @@ module FFT_wrapper
     dims(4) = product( dims(1:3) )
 #ifdef __FFTW3
     allocate( cwrk(dims(4)))
+    norm = 1.0d0 / dble( dims(4) )
     
     fplan = fftw_plan_dft_3d( dims(1), dims(2), dims(3), cwrk, cwrk, FFTW_FORWARD, FFTW_PATIENT )
     bplan = fftw_plan_dft_3d( dims(1), dims(2), dims(3), cwrk, cwrk, FFTW_BACKWARD, FFTW_PATIENT )
 
 #else
+    norm = 1.0d0
     jfft = 2 * max( zn( 1 ) * ( zn( 1 ) + 1 ), zn( 2 ) * ( zn( 2 ) + 1 ), zn( 3 ) * ( zn( 3 ) + 1 ) )
     allocate( wrk( jfft ) )
 #endif
@@ -73,8 +77,8 @@ module FFT_wrapper
     else
       call fftw_execute_dft( bplan, cwrk, cwrk )
     endif
-    r(:) = real(cwrk(:))
-    i(:) = aimag(cwrk(:))
+    r(:) = real(cwrk(:))*norm
+    i(:) = aimag(cwrk(:))*norm
 #else
     call cfft( r, i, dims(1), dims(1), dims(2), dims(3), dir, wrk, jfft )
 #endif
@@ -97,6 +101,7 @@ module FFT_wrapper
     else
       call fftw_execute_dft( bplan, io, io )
     endif
+    io(:) = io(:) * norm
 #else
     r(:) = real(io(:))
     i(:) = aimag(io(:))

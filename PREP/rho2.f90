@@ -85,8 +85,9 @@
      &     - avecs(2,1)*(avecs(1,2)*avecs(3,3)-avecs(3,2)*avecs(1,3))   &
      &     + avecs(3,1)*(avecs(1,2)*avecs(2,3)-avecs(2,2)*avecs(1,3))
       close(99)
-      norm = norm / dble(dims(1)*dims(2)*dims(3))
-!      norm = 1.d0 / norm
+
+!      norm = norm / dble(dims(1)*dims(2)*dims(3))
+!!      norm = 1.d0 / norm
       
       open(unit=17,file='bvecs',form='formatted',status='old')
        read(17,*) bv1(1),bv1(2),bv1(3)
