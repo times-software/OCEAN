@@ -6,7 +6,9 @@ FC = ifort
 # Flags for the fortran compiler
 OPTIONS = -O2 
 
-# FFTW path. FFTW is required for several programs. Find it at fftw.org
+# FFTW path. Several programs can use FFTW. Find it at fftw.org. 
+#  (There is a fallback fft so FFTW is not required)
+OPTIONS += -D__FFTW
 FFTWI = -I/home/jtv1/bin/intel/include/
 FFTWL = -L/home/jtv1/bin/intel/lib/ -lfftw3
 
