@@ -30,9 +30,13 @@ PP_EXE = /home/jtv1/espresso-5.0.2-intel/bin/pp.x
 QEXML = $(ESPRESSO_DIR)/Modules/qexml.o
 QEMOD = $(ESPRESSO_DIR)/Modules/
 OPTIONS += -D__QE51
-#### QE 5.0 or earlier?
+#### QE 5.0
 #QEXML = $(ESPRESSO_DIR)/PP/src/qexml.o
 #QEMOD = $(ESPRESSO_DIR)/PP/src
+#### QE 4.3
+#QEXML = $(ESPRESSO_DIR)/PP/qexml.o
+#QEMOD = $(ESPRESSO_DIR)/PP/
+
 
 
 
