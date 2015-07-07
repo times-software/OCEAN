@@ -1,7 +1,7 @@
 # The pseudopotentials are in the main run directory
 ppdir {'../'}
 # Select to run the OBF version 
-dft obf
+#dft obf
 # Set this
 para_prefix{ mpirun -n 6 }
 # Legacy, must be here for now and should be 1

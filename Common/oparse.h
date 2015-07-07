@@ -298,3 +298,7 @@ ham_kpoints
 {
 4 4 4 
 } ham_kpoints
+nphoton
+{
+-1
+} nphoton

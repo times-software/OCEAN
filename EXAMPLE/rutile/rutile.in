@@ -1,8 +1,10 @@
 # Control
 control 0
+ppdir {'../'}
 
 #assumes you want to try and run abinit on 4 cores
 core 1
+para_prefix{ mpirun -n 12 }
 
 # Kpt mesh for final states
 nkpt { 4 4 2 }
