@@ -24,7 +24,7 @@ clean:
 	$(FC) $(OPTIONS) -o $*.x $*.f
 
 rhoofg.x: rho2.f90 
-	$(FC) $(OPTIONS) rho2.f90 $(FFT_WRAPPER) -o rhoofg.x 
+	$(FC) $(OPTIONS) rho2.f90 $(FFT_WRAPPER) $(FFTWL) -o rhoofg.x 
 
 nelectron.x: nelectron.f90
 	$(FC) $(OPTIONS) nelectron.f90 -o nelectron.x
