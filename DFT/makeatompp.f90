@@ -5,10 +5,10 @@
       use periodic
 !
       implicit none
-      character(len=3) , allocatable :: satom(:)
+      character(len=3) , allocatable :: satom(:), zsymb(:)
       character(len=7) , allocatable :: mass(:)
       character(len=99), allocatable :: ppname(:), ppline(:)
-      integer :: i
+      integer :: i, iostatus
       integer :: ntype
       integer, allocatable    :: znucl(:)
       logical :: have_zsymb = .false.

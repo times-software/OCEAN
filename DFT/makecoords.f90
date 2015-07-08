@@ -5,7 +5,7 @@
       use periodic
 !
       implicit none
-      character(len=3), allocatable :: satom(:)
+      character(len=3), allocatable :: satom(:), zsymb(:)
       integer :: i,ityp
       integer :: natoms, numtyp, iostatus
       integer, allocatable    :: typat(:), znum(:), zatom(:)
