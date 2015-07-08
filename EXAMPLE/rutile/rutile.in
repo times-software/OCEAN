@@ -2,7 +2,10 @@
 control 0
 ppdir {'../'}
 
-#assumes you want to try and run abinit on 4 cores
+# The pseudopotentials are in the main run directory
+# ppdir {'../'}
+
+#assumes you want to try and run abinit on 1 core
 core 1
 para_prefix{ mpirun -n 12 }
 

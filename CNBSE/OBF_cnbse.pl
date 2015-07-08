@@ -13,15 +13,15 @@ my %alphal = ( "0" => "s", "1" => "p", "2" => "d", "3" => "f" );
 
 my @CommonFiles = ("epsilon", "xmesh.ipt", "nedges", "k0.ipt", #"nbuse.ipt", 
   "cnbse.rad", "cnbse.ways", "metal", "cksshift", "cksstretch", "cksdq", "cks.normal",
-  "cnbse.niter", "cnbse.spect_range", "cnbse.broaden", "cnbse.mode");
+  "cnbse.niter", "cnbse.spect_range", "cnbse.broaden", "cnbse.mode", "dft");
 
 my @AbinitFiles = ("avecsinbohr.ipt");
 
-my @DFTFiles = ("nelectron");
+my @DFTFiles = ("nelectron","nspin");
 
 my @DenDipFiles = ("kmesh.ipt", "masterwfile", "listwfile", "efermiinrydberg.ipt", "qinunitsofbvectors.ipt", "brange.ipt", "enkfile", "tmels", "nelectron", "eshift.ipt" );
 
-my @WFNFiles = ("kmesh.ipt",  "efermiinrydberg.ipt", "qinunitsofbvectors.ipt", "brange.ipt", "avecsinbohr.ipt", "nbuse.ipt", "wvfcninfo", "wvfvainfo", "nbuse_xes.ipt");
+my @WFNFiles = ("kmesh.ipt",  "efermiinrydberg.ipt", "qinunitsofbvectors.ipt", "brange.ipt", "avecsinbohr.ipt", "nbuse.ipt", "wvfcninfo", "wvfvainfo", "nbuse_xes.ipt", "ibeg.h");
 
 my @ExtraFiles = ("Pquadrature", "sphpts" );
 
@@ -58,6 +58,7 @@ foreach (@PawFiles) {
 
 ##### misc other setup
 #`echo gmanner > format65`;
+`cp nspin nspn.ipt`;
 `cp kmesh.ipt kgrid`;
 `cp k0.ipt scaledkzero.ipt`;
 `mv cnbse.mode mode`;
@@ -92,6 +93,7 @@ if ($runtype =~ m/true/ )
 
 
 `ln -s ../zWFN/u2.dat`;
+`ln -s ../zWFN/u2par.dat`;
 
 my $pawrad = `cat cnbse.rad`;
 chomp($pawrad);

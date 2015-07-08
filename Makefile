@@ -17,6 +17,7 @@ all:
 	cd PAW;          make 
 	cd SCREEN;       make 
 	cd CNBSE;        make 
+	cd INTERPOLATE;  make
 
 clean:
 	cd Common;       make clean
@@ -27,6 +28,7 @@ clean:
 	cd PAW;          make clean
 	cd CNBSE;        make clean 
 	cd zbridge;      make clean
+	cd INTERPOLATE;  make clean
 install:
 	mkdir -p $(INSTDIR)
 	cp $(SCRIPTS) $(AUX) $(INSTDIR)
@@ -39,6 +41,7 @@ install:
 	cd PAW;          make install
 	cd CNBSE;        make install
 	cd zbridge;      make install
+	cd INTERPOLATE;  make install
 	chmod u+x $(INSTDIR)/*.pl
 
 instdev:
