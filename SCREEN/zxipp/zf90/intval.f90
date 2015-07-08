@@ -3,7 +3,7 @@ subroutine intval( n, xtab, ytab, x, y, lopt, hopt )
   !
   integer n
   double precision xtab( n ), ytab( n ), x, y
-  character * 3 lopt, hopt
+  character(len=3) lopt, hopt
   !
   integer ii
   double precision rat

@@ -1,3 +1,8 @@
+include ../Makefile.arch
+
+COMP = $(FC)
+OPTS = $(OPTIONS)
+
 all:
 	cd ppmod; make "COMP = $(COMP)" "OPTS = $(OPTS)"
 	cd zatom; make "COMP = $(COMP)" "OPTS = $(OPTS)"

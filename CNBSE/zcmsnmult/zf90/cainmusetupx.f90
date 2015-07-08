@@ -219,7 +219,7 @@
      read( 99, * ) list( 1: nproj( l ) * nproj( l ) )
      i = 0
      do nu = 1, nproj( l )
-        mpm( :, nu, l ) = list( i + 1 : i + nproj( l ) )
+        mpm( 1 : nproj( l ), nu, l ) = list( i + 1 : i + nproj( l ) )
         i = i + nproj( l )
      end do
      close( unit=99 )

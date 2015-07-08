@@ -1,48 +1,53 @@
 # Master Makefile to compile and install all the programs required to run
-# ai2nbse. Please, don't change anything here, add all definitions to the
+# OCEAN. Please, don't change anything here, add all definitions to the
 # Makefile.arch file
 
 include Makefile.arch
 
 SCRIPTS = 
 AUX = Version Header
+AUX_EXE = $(ABINIT_EXE) $(CUT3D_EXE) $(PW_EXE) $(PP_EXE)
 
 all:
-	cd Common;       make "FC = $(FC)" "OPTIONS = $(OPTIONS)"
-	cd ABINIT;       make "FC = $(FC)" "OPTIONS = $(OPTIONS)"
-	cd PREP;       make "FC = $(FC)" "OPTIONS = $(OPTIONS)" "FFTWI=$(FFTWI)" "FFTWL=$(FFTWL)"
-	cd PAW;          make "COMP = $(FC)" "OPTS = $(OPTIONS)"
-	cd SCREEN;       make "COMP = $(FC)" "OPTS = $(OPTIONS)"
-	cd CNBSE;        make "COMP = $(FC)" "OPTS = $(OPTIONS)"
-	cd zbridge;      make "COMP = $(FC)" "OPTS = $(OPTIONS)"
+	cd Common;       make 
+	cd zbridge;      make 
+	cd DFT;          make 
+	cd QEPREP;       make
+	cd PREP;         make 
+	cd PAW;          make 
+	cd SCREEN;       make 
+	cd CNBSE;        make 
 	cd INTERPOLATE;  make
 
 clean:
 	cd Common;       make clean
-	cd ABINIT;       make clean
-	cd PREP;      make clean
+	cd DFT;          make clean
+	cd QEPREP;       make clean
+	cd PREP;         make clean
 	cd SCREEN;       make clean
-	cd PAW;   make clean
-	cd CNBSE  make clean 
-	cd zbridge;  make clean
-	cd INTERPOLATE; make clean
+	cd PAW;          make clean
+	cd CNBSE;        make clean 
+	cd zbridge;      make clean
+	cd INTERPOLATE;  make clean
 install:
 	mkdir -p $(INSTDIR)
 	cp $(SCRIPTS) $(AUX) $(INSTDIR)
-	cd Common;       make "INSTDIR = $(INSTDIR)" install
-	cd ABINIT;       make "INSTDIR = $(INSTDIR)" install
-	cd PREP;       make "INSTDIR = $(INSTDIR)" install
-	cd SCREEN;        make "INSTDIR = $(INSTDIR)" install
-	cd PAW;          make "INSTDIR = $(INSTDIR)" install
-	cd CNBSE;        make "INSTDIR = $(INSTDIR)" install
-	cd zbridge;      make "INSTDIR = $(INSTDIR)" install
-	cd INTERPOLATE;  make "INSTDIR = $(INSTDIR)" install
+	cp $(AUX_EXE) $(INSTDIR)
+	cd Common;       make install
+	cd DFT;          make install
+	cd QEPREP;       make install
+	cd PREP;         make install
+	cd SCREEN;       make install
+	cd PAW;          make install
+	cd CNBSE;        make install
+	cd zbridge;      make install
+	cd INTERPOLATE;  make install
 	chmod u+x $(INSTDIR)/*.pl
 
 instdev:
 	for F in $(SCRIPTS) $(AUX); do ln -fs $(PWD)/$$F $(INSTDEVDIR); done;
 	cd Common;       make "INSTDEVDIR = $(INSTDEVDIR)" instdev
-	cd ABINIT;       make "INSTDEVDIR = $(INSTDEVDIR)" instdev
+	cd DFT;       make "INSTDEVDIR = $(INSTDEVDIR)" instdev
 	cd PREP;      make "INSTDEVDIR = $(INSTDEVDIR)" instdev
 	cd CNBSE;         make "INSTDEVDIR = $(INSTDEVDIR)" instdev
 	cd SCREEN;       make "INSTDEVDIR = $(INSTDEVDIR)" instdev

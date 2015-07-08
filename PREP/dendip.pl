@@ -12,7 +12,7 @@ if (! $ENV{"OCEAN_WORKDIR"}){ $ENV{"OCEAN_WORKDIR"} = `pwd` . "../" ; }
 ###########################
 my $RunDenDip = 0;
 
-#open STATUS, "../ABINIT/abinitstage.stat" or die;
+#open STATUS, "../DFT/abinitstage.stat" or die;
 #<STATUS> =~ m/(\d)/;
 #if ($1 == 1) {
 #  print "Wavefunctions unchanged. Nothing to be done for DenDip\n";
@@ -23,21 +23,21 @@ my $stat = 0;
 $stat = 1 if (-e "done");
 `rm -f done`;
 my $oldden = 0;
-$oldden = 1 if (-e "../ABINIT/old");
+$oldden = 1 if (-e "../DFT/old");
 
 
 my @AbFiles = ( "rhoofr", "density.out", "nkpt", "paw.nkpt",
                 "avecsinbohr.ipt", "qinunitsofbvectors.ipt");
 
 foreach (@AbFiles) {
-  system("cp ../ABINIT/$_ .") == 0 or die "Failed to copy $_\n";
+  system("cp ../DFT/$_ .") == 0 or die "Failed to copy $_\n";
 }
 print "$stat  $oldden\n";
 unless ($stat && $oldden) {
--e "../ABINIT/SCx_DEN" or die "SCx_DEN not found\n";
-`ln -sf ../ABINIT/SCx_DEN SCx_DEN`;
+-e "../DFT/SCx_DEN" or die "SCx_DEN not found\n";
+`ln -sf ../DFT/SCx_DEN SCx_DEN`;
 
-#`ln -sf ../ABINIT/RUN????_WFK .`;
+#`ln -sf ../DFT/RUN????_WFK .`;
 
 `tail -n 1 rhoofr > nfft`;
 
@@ -58,7 +58,7 @@ open NKPT, "paw.nkpt" or die "Failed to open paw.nkpt";
 <NKPT> =~ m/(\d+)\s+(\d+)\s+(\d+)/ or die "Failed to parse paw.nkpt\n";
 my @nkpt = ($1, $2, $3);
 close NKPT;
-$rundir = sprintf("../ABINIT/%03u%03u%03u", $nkpt[0], $nkpt[1], $nkpt[2]);
+$rundir = sprintf("../DFT/%03u%03u%03u", $nkpt[0], $nkpt[1], $nkpt[2]);
 
 unless( -e "PAW/done" && -e "${rundir}/old" ) {
 `rm -r PAW` if (-e "PAW");
@@ -116,7 +116,7 @@ open NKPT, "nkpt" or die "Failed to open nkpt";
 @nkpt = ($1, $2, $3);
 close NKPT;
 
-$rundir = sprintf("../ABINIT/%03u%03u%03u", $nkpt[0], $nkpt[1], $nkpt[2]);
+$rundir = sprintf("../DFT/%03u%03u%03u", $nkpt[0], $nkpt[1], $nkpt[2]);
 
 unless( -e "BSE/done" && -e "${rundir}/old" ) {
 `rm -r BSE` if (-e "BSE");

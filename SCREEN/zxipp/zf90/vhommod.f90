@@ -14,7 +14,7 @@ program vhommod
   !
   real( kind=dp ), external :: levlou, sphj0, sphj1
   !
-  character * 80 :: dummy
+  character(len=80) :: dummy
   !
   pi = 4.d0 * datan( 1.d0 )
   !

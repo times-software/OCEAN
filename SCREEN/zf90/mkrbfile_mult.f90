@@ -8,7 +8,7 @@ program mkrbfile
   implicit none
 !
 !  integer, parameter :: stdin = 5
-  character *2 :: element
+  character(len=2) :: element
   integer :: nang, nr, indx, ntau, itau
   real(kind=kind(1.d0)) :: rmax, avec(3,3)
   real(kind=kind(1.d0)), allocatable :: posn(:,:), wpt(:), drel(:)

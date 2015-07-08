@@ -390,3 +390,7 @@ ldau
 {
 
 }ldau
+nphoton
+{
+-1
+} nphoton

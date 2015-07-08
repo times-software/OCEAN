@@ -1,5 +1,8 @@
+include ../Makefile.arch
+
 FILES   = avec.x kgen2.x makecoords.x makeatompp.x makeacell.x kgen_qe.x
 SCRIPTS = AbinitDriver.pl NewAbinitDriver.pl pp.pl par_ab2.pl OBF_dft.pl converter.py
+AUX = $(ABINIT_EXE) $(CUT3D_EXE) $(PW_EXE) $(PP_EXE)
 
 
 .SUFFIXES: .f .x
@@ -8,7 +11,6 @@ all: $(FILES)
 
 clean:
 	rm -f $(FILES)
-	rm -f kgen.x
 
 install:
 	cp $(SCRIPTS) $(FILES) $(AUX) $(INSTDIR)
@@ -40,4 +42,5 @@ kgen_qe.x: kgen_qe.f90
 periodic.o: periodic.f90
 	 $(FC) $(OPTIONS) -c  periodic.f90
 
-
+avec.x: avec.f90
+	$(FC) $(OPTIONS) avec.f90 -o avec.x

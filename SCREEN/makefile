@@ -1,3 +1,8 @@
+include ../Makefile.arch
+
+COMP = $(FC)
+OPTS = $(OPTIONS)
+
 all:
 	cd zxipp; make "COMP = $(COMP)" "OPTS = $(OPTS)"
 	cd zf90;  make "COMP = $(COMP)" "OPTS = $(OPTS)"

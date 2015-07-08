@@ -1,0 +1,101 @@
+# Control
+control 0
+
+#assumes you want to try and run on 8 cores
+para_prefix { mpirun -n 8 }
+
+# which stages of the calculation to run (one or more of): paw, dft, prep, screen, bse, all
+stages { all }
+
+# dft solver: abi, qe, obf
+#dft{ qe }
+
+# Kpt mesh for final states
+nkpt { 2 2 2 }
+
+# Kpt mesh for final states
+paw.nkpt { 2 2 2 }
+
+# Total bands for screening
+paw.nbands 100
+
+# Total bands for final states
+nbands 100
+
+# SCF mixing
+mixing { 0.2 }
+
+# Mag. of latt. vec. in Bohr
+acell { 7.562683406  7.562683406  7.632603268 }
+#acell { 15.00  15.00  15.00 } in Angstrom
+
+# Cart comps. of latt. vecs.
+rprim {
+     1.0000000000000000    0.0000000000000000    0.0000000000000000
+     0.0000000000000000    1.0000000000000000    0.0000000000000000
+     0.0000000000000000    0.0000000000000000    1.0000000000000000 }
+
+# Ntypes of atoms
+ntypat 3
+
+# Z num for types
+znucl { 38 22 8 }
+
+# pseudo location
+ppdir { '../' }
+
+# pseudopotentials
+pp_list{ 38-sr.lda.fhi
+                ti.fhi 
+          08-o.lda.fhi }
+
+# N atoms in unit cell
+natom 5
+
+# Type of each atom
+typat { 1 2 3 3 3 }
+
+# Relative positions of atoms
+xred {
+    0.0203728791746005  0.0203728791746005  0.0303795357423570
+    0.5185862193479231  0.5185862193479231  0.5238229617910209
+    -0.0113161866710717  0.4907821884149611  0.4862530314327125
+     0.4907821884149611 -0.0113161866710717  0.4862530314327125
+     0.4915748997335849  0.4915748997335849 -0.0167085603988046 }
+
+# Kinetic Energy cutoff (in Ry for QE)
+ecut 80
+
+# SCF Energy tolerance
+toldfe 1.1d-8
+
+# SCF wftol
+tolwfr 1.1d-16
+
+# SCF iterations
+nstep 250
+
+# Static dielectric const
+diemac 5.06
+
+# xmesh
+CNBSE.xmesh { 3 3 3 }
+
+# paw control files
+paw.fill{ 22 ti.fill }
+paw.opts{ 22 ti.opts }
+
+# edge information # number of edges to calculate # atom number, n quantum number, l quantum number
+nedges 1
+edges{ 2 2 1 }
+
+# spectral broadening in Hartree
+cnbse.broaden{ 0.02 }
+
+# radius for paw reconstruciton
+paw.shells{ 3.5 4.0 }
+cnbse.rad{ 4.0 }
+
+#Scaling Factor
+scfac 0.80
+

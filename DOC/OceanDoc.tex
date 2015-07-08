@@ -29,14 +29,15 @@
 
 \newchapter{}
 \begin{abstract}
-\OCEAN{} is an {\it ab initio} Density Functional Theory (DFT) + Bethe-Salpete Equation (BSE) code for calculations of core-level spectra. Currently the code allows for the calculations of x-ray absorption spectra (XAS) and non-resonant x-ray inelastic x-ray spectra (NRIXS) of periodic systems. The code is written in Fortran 90 with associated shell and Perl scripting.
+\OCEAN{} is an {\it ab initio} Density Functional Theory (DFT) + Bethe-Salpete Equation (BSE) code for calculations of core-level 
+spectra. Currently the code allows for the calculations of x-ray absorption spectra (XAS), x-ray emssion (XES), and non-resonant x-ray 
+inelastic x-ray spectra (NRIXS) of periodic systems. The code is written in Fortran 90 with associated shell and Perl scripting.
 
-This work has been supported by \$\$\$.
 
 
 \vspace*{\stretch{1}}
 
- \noindent This document is copyright \copyright\ 2010-2011 by J. Vinson. Following conventions of the FEFF documentation
+ \noindent This document is copyright \copyright\ 2010-2012 by John Vinson. Following conventions of the FEFF documentation
 
 \end{abstract}
 
@@ -86,7 +87,9 @@ The guide is broken up into sections to follow the path the code will take.
 \vspace*{\stretch{1}}
 
 \section{Acknowledgments and history}
-
+The \OCEAN{} code is based historically off of the NIST BSE codes of Eric Shirley. 
+The development of \OCEAN{} grew out of  collaboration between Eric Shirley and John Rehr at the University of Washington 
+by way of the thesis project of John Vinson. 
 
 
 \chapter{Tutorial}
@@ -122,7 +125,10 @@ The second thing to check is the number of unoccupied bands used in the screenin
 
 At this point we will move to the \file{CNBSE} directory and consider the effect of three parameters; NBUSE, CNBSE.XMESH, and NKPT. You might think you missed the parameter NBUSE in \file{rutile.in}, but it is in fact not there. For insulators like rutile it can be determined automatically as the code runs. The BSE section requires that every k-point have the same number of conduction bands in the calculation, but in metals a band can be above or below the Fermi level depending on the k-point. If you look at \file{nbuse.ipt} you will see that it is set to 26. Create a new directory in the run directory called \file{CNBSE\_20/} and edit \file{Common/nbuse.ipt}, changing it to 20. You might notice that it said 0 which tells the code to automatically determine the maximum number of bands available. Here we calculated 50 bands total bands 24 of which are occupied leaving 26. Now go into \file{CNBSE\_20} and run the script \program{cnbse.pl}. This will recalculate the spectra using only 20 bands in the BSE. You can now compare the two spectra files. You'll see that the one with fewer bands falls off at a much lower energy, as is expected. Additionally, it is impossible to tell if 26 bands is enough for convergence, since there are differences between the two spectra. We will have to re-run part of the ABINIT stage, increasing the value of NBAND. Since the convergence with bands should be the same independent of k-point sampling, this step should be done before checking on NKPT.
 
-Another important consideration is the size of CNBSE.XMESH. This determines the number of real-space points in the unit cell that the spherical ($l=0$) part of the direct interaction is calculated at. Said another way, each DFT wavefunction is truncated down to a small set of Fourier coefficients, and the long-range, spherical direct term is evaluated for each point. This part of the direct term is only a function of the distance between the core hole and the electron position coordinates, $V(|\mathbf{r-r'}|)$. The default should be sufficient for small unit cells, but larger cells will require a bigger mesh. Changing this parameter, by editing its value in the Common directory requires re-running the PREP stage as well as the CNBSE stage. If you edit it in the input file and re-run the whole calculation it might work, but there may also be bugs either causing too much or too little to be re-run. Indeed, if you check, you will see that a $4\times4\times4$ grid is insufficient, and there are large deviations if you increase to a $6\times6\times6$ grid. But increasing it further will change little, showing that 216 x-points are sufficient. 
+Another important consideration is the size of CNBSE.XMESH. This determines the number of real-space points in the unit cell that the long-ranged part of the direct interaction is calculated at. Said another way, each DFT wavefunction is truncated down to a small set of Fourier coefficients, and the long-range, spherical direct term is evaluated for each point. This part of the direct term is only a function of the distance between the core hole and the electron position coordinates, $W(|\mathbf{r-r'}|)$. The default should be sufficient for small unit cells, but larger cells will require a bigger mesh. A value of 1-2 points per Bohr of cell length along that direction is typical. 
+Changing this parameter, by editing its value in the Common directory requires re-running the PREP stage as well as the CNBSE stage. 
+%If you edit it in the input file and re-run the whole calculation it might work, but there may also be bugs either causing too much or too little to be re-run. 
+Indeed, if you check, you will see that a $4\times4\times4$ grid is insufficient, and there are large deviations if you increase to a $6\times6\times6$ grid. But increasing it further will change little, showing that 216 x-points are sufficient. 
 
 \begin{figure}
 \includegraphics[scale=0.5]{titanium_xmesh.pdf} \\
@@ -130,7 +136,7 @@ The convergence of the spectra with respect to the number of x-points, ie. cnbse
 \label{titanium_xmesh}
 \end{figure}
 
-The parameter NKPT determines the number of k-points used in the BSE. \OCEAN uses, by default, a very asymmetric shift to ensure that the k-points sampled are fairly unique. The number of k-points varies widely from system to system, with metals or small unit cells using 4096 or more points, while large systems might need only 8-64. The mesh does not need to use the same number for each element, and for oblong unit cells should not, but all the meshes in \OCEAN should be factorable into small primes; 2, 3, or 5. The default tutorial mesh was $4\times4\times2$ which is too small, but faster to run [ALSO THIS SHOULD BE 224]. Try increasing the number of k-points, but try and match your grid to the ratio of reciprocal lattice vectors, about 1.5:1. 
+The parameter NKPT determines the number of k-points used in the BSE. \OCEAN{} uses, by default, a very asymmetric shift to ensure that the k-points sampled are fairly unique. The number of k-points varies widely from system to system, with metals or small unit cells using 4096 or more points, while large systems might need only 8-64. The mesh does not need to use the same number for each element, and for oblong unit cells should not, but all the meshes in \OCEAN{} should be factorable into small primes; 2, 3, or 5. The default tutorial mesh was $4\times4\times2$ which is too small, but faster to run [ALSO THIS SHOULD BE 224]. Try increasing the number of k-points, but try and match your grid to the ratio of reciprocal lattice vectors, about 1.5:1. 
 
 This concludes the tutorial on rutile TiO$_2$.
 
@@ -139,19 +145,22 @@ This concludes the tutorial on rutile TiO$_2$.
 
 
 \chapter{Input}
-\section{Running \OCEAN}
 
-The \OCEAN{} package is run using the \program{perl} script \program{ocean.pl} which takes care of reading in the input file and then running the various executables. This chapter will introduce the various control files and explain their formatting and use.
+The \OCEAN{} package is run using the \program{perl} script \program{ocean.pl} which takes care of reading in the input file and then running the various executables. This chapter will introduce the various controls and explain their formatting and use.
 
 Eventually there will be sample input files describing various calculations and calculation strategies in Chapter \ref{Samples}.
+
+\section{Running \OCEAN}
+
+In addition to the main input file there are several auxiliary files. The \file{*.opts} and \file{*.fill} files are described in  \ref{opts}  and \ref{fill} respectively, and the pseudopotentials are touched upon briefly in  \ref{ground_state}. The next section, \ref{photon_files}, covers the \file{photon?} files which specify the necessary information about the x-ray probe. 
 
 The input parser for \OCEAN{} is relatively basic. Any text following a comment character, `\#,' is ignored up to the line return. If a file has been switching around operating systems it may have non-unix line returns which can cause problems. If the parser returns odd errors try running \program{dos2unix}. The parser is case ignoring and converts all inputs to lower case, requiring any filenames in the input file to be lower case. Each card must be on its own line followed by the value or values to be assigned it. All card values can be surrounded by braces (\{\}) and multi-value cards must be surrounded by braces. For example, the NKPT card must be a list of 3 integers and so must have the following form: ``NKPT \{ 2 2 2 \}" whereas the OCCOPT card takes only one integer and may therefore be listed: ``OCCOPT 1" or ``OCCOPT \{ 1 \}". Line returns may be present within an input. 
 
 After parsing the cards are all stored as small, fortran formatted files in the \file{Common} directory. The package then goes through the following steps:
 \begin{enumerate}
-\item \program{ABINIT} input files are prepared
-\item \program{ABINIT} is run to get DFT valence density and wavefunctions. This requires usually 3 runs. One self-consistent run to get the converged density and two additional runs to calculate wavefunctions for the screening calculation and for the final states.
-\item The wavefunctions and density are converted from \program{ABINIT} output to the form expected by \OCEAN{}.
+\item \program{ABINIT} or \program{QuantumEspresso} input files are prepared
+\item \program{ABINIT} (or \program{QuantumEspresso}) is run to get DFT valence density and wavefunctions. This requires usually 3 runs. One self-consistent run to get the converged density and two additional runs to calculate wavefunctions for the screening calculation and for the final states.
+\item The wavefunctions and density are converted from \program{ABINIT} (or \program{QE})  output to the form expected by \OCEAN{}.
 \item An atomic calculation is done to create projectors following the PAW method.
 \item The core electrons are screened self-consistently in the presence of the core-hole in the atomic system
 \item Slater F and G integrals are computed at the atomic level
@@ -160,12 +169,49 @@ After parsing the cards are all stored as small, fortran formatted files in the 
 \item The Bethe-Salpeter equation (BSE) is iteratively solved using a form of the Haydock recursion algorithm.
 \end{enumerate}
 
+\section{Photon files}
+\label{photon_files}
+The \file{photon} files determine the specifics of the x-ray operator. A single \OCEAN{} calculation may involve a single \file{photon} file or many, depending on the experiment in question. There is currently a hard limit of 99 (which may be excessive), and each should be numbered. 
+
+As an example, if one is simulating non-resonant inelastic x-ray scattering NRIXS (also called x-ray Raman or XRS) the experiment being compared to may include a dozen different values for the momentum transfer. This is easily done with \OCEAN{} and the user needs simply to create 12 files named \file{photon1} through \file{photon12}.  
+
+\subsection{Photon operators}
+In \OCEAN{} we currently support 3 photon operators
+\begin{itemize}
+\item dipole: $\hat{\epsilon} \cdot \mathbf{r}$
+\item quad: $\hat{\epsilon} \cdot \mathbf{r} + i/2 \left( \hat{\epsilon} \cdot \mathbf{r} \right) \left(\mathbf{q} \cdot \mathbf{r} \right)$
+\item NRIXS: $e^{i \mathbf{q} \cdot \mathbf{r} }$
+\end{itemize}
+in two modes, absorption and emission. For most light elements the combination of small core wave-function (small $\mathbf{r}$) and small photon energy (therefore small $\mathbf{q}$) conspire to make dipole and quad effectively the same, i.e., they are in the dipole limit. If you are ever unsure just make two \file{photon} files and check!
+
+\subsection{Photon format}
+Below is a sample \file{photon} file. The most important thing about the photon file is that, depending on the calculation, only some of the information in it will affect the calculation. Look back to the operators in the previous section. Not all of them use all the same things. 
+
+\begin{center}
+\begin{tabular}{| l | c c|}
+\hline
+dipole				& & operator \\
+\hline
+cartesian  0  0  1		& & $\hat{\epsilon}$  \\
+end			& & \\
+\hline
+cartesian  0  1  0		& & $\hat{q}$  \\
+length 8.55 inverseangstroms && $\vert \mathbf{q} \vert$ \\
+end			& & \\
+\hline
+9000 & & X-ray energy (eV) \\
+\hline
+\end{tabular}
+\end{center}
+
+The file has four sections. In the first we select our operator. In the second we set the direction for the x-ray polarization vector $\epsilon$ (currently no circularly polarized light). The next section's meaning depends on the operator in play. For quad it sets the $q$-vector direction for the incoming light, while for NRIXS it sets the direction and magnitude of the momentum \textbf{transfer} (the length specifier is optional unless NRIXS is selected). For dipole the $q$-vector doesn't enter in. The fourth section is only important for quad and it sets the magnitude of $q$ by way of the photon's energy in eV. 
 
 \section{Complete list of \OCEAN{} inputs}
 
 The input of \OCEAN{} can be divided into several sections
 
 \begin{itemize}
+\item run info
 \item structural information of the material
 \item non-structural DFT parameters, eg. convergence
 \item atomic and screening info
@@ -178,6 +224,13 @@ The input of \OCEAN{} can be divided into several sections
 
   %%
   %% STRUCTURAL INFORMATION
+  \item[\large\textbf{Run Control}]\dotfill\
+  \begin{description}
+    \item[\textbf{Purpose:}] Control aspects of the run
+ \item[\textbf{Optional Cards:}] 
+    \htmlref{PARA\_PREFIX}{card:paraprefix}
+    and \htmlref{SCRATCH}{card:scratch}
+\end{description}
 \item[\large\textbf{Structural information}]\dotfill\
   \begin{description}
   \item[\textbf{Purpose:}] Specify the structure
@@ -206,9 +259,8 @@ The input of \OCEAN{} can be divided into several sections
     and \htmlref{FBAND}{card:fband}
   \item[\textbf{Optional Cards:}] 
     \htmlref{TOLDFE}{card:toldfe},
-    \htmlref{TOLWFR}{card:tolwfr},
-    \htmlref{PAW.NKPT}{card:paw.nkpt},
-    and \htmlref{SCRATCH}{card:scratch}
+    \htmlref{TOLWFR}{card:tolwfr}, and
+    \htmlref{PAW.NKPT}{card:paw.nkpt}
   \end{description}
 \item[\large\textbf{Atomic and Screening Info}]\dotfill\
   \begin{description}
@@ -230,6 +282,7 @@ The input of \OCEAN{} can be divided into several sections
     \htmlref{CNBSE.XMESH}{card:cnbse.xmesh},
     \htmlref{METAL}{card:metal},
     \htmlref{CKSSTRETCH}{card:stretch},
+    \htmlref{CKS.NORMAL}{card:cks.normal}, \\
     and \htmlref{CNBSE.MODE}{card:cnbse.mode}
   \end{description}
 \item[\large\textbf{Spectrum Information}]\dotfill\
@@ -261,6 +314,21 @@ or \\
 \end{verbatim}
 
 For arguments that are 2-D arrays the ordering is in normal math / C ordering.
+\end{Card}
+
+\section{Run Control}
+\label{sec:Run-Control}
+
+\begin{Card}{PARA\_PREFIX}{para\_prefix}{Optional}{paraprefix}
+This is necessary for parallel runs. Depending on your system you may need so helper to launch parallel jobs such as \program{mpirun}, 
+\program{mpiexec}, or \program{aprun}. The \OCEAN{} scripts are designed to try and parse this to figure out how many processors 
+you are trying to run across, e.g., `mpirun -n 12' will be parsed to tell \OCEAN{} to prepare DFT runs across 12 cores. 
+\end{Card}
+
+\begin{Card}{SCRATCH}{scratch}{Optional}{scratch}
+Recommended for compute clusters with local scratch space so that \program{abinit} or \program{Quantum Espresso} 
+will write scratch files somewhere reasonable. The path \file{scratch} should include an absolute path. Otherwise the default 
+behavior is that scratch files will be written to the \file{DFT} directory. 
 \end{Card}
 
 
@@ -341,13 +409,14 @@ DFT calculations require a self-consistently determined ground state density for
 \begin{Card}{OCCOPT}{occopt}{Recommended}{occopt}
 OCCOPT controls how \program{ABINIT} determines occupation. The allowed values of \texttt{occopt} are listed in the \program{ABINIT} documentation, but the two most important are 1 and 3 as spin-dependent DFT is not yet compatible with \OCEAN{}.
 \begin{description}
-\item[\texttt{occopt} = 1]\hfill\\ States are all doubly degenerate and either occupied or empty depending on band. Suitable for insulators.
-\item[\texttt{occopt} = 3]\hfill\\ States are all doubly degenerate but can have fractional occupations depending on fermi level. Suitable for metals.
+\item[\texttt{occopt} = 1]\hfill\\ States are all doubly degenerate and either occupied or empty depending on band. Suitable for insulators. 
+	For \program{Quantum Espresso} this is equivalent to  OCCUPATIONS = `fixed'.
+\item[\texttt{occopt} = 3]\hfill\\ States are all doubly degenerate but can have fractional occupations depending on fermi level. Suitable for metals. For \program{Quantum Espresso} this is equivalent to OCCUPATIONS = `smearing'. 
 \end{description}
 \end{Card}
 
 \begin{Card}{FBAND}{fband}{Recommended}{fband}
-FBAND determines the number of unoccupied bands to be included in the SCF calculation of the density. For insulators the default (\texttt{fband} = 0.125) is fine, but for metals care must be made to ensure that the highest band in the density calculation has no occupation weight. The number of extra bands is determined by the formula n = \texttt{natom} * \texttt{fband}.
+FBAND determines the number of unoccupied bands to be included in the SCF calculation of the density. For insulators the default (\texttt{fband} = 0.125) is fine, but for metals care must be made to ensure that the highest band in the density calculation has no occupation weight. The number of extra bands is determined by the formula n = \texttt{natom} * \texttt{fband}. Current this is only enabled for the \program{ABINIT} version of the code. The \program{Quantum Espresso} version will only use the defaults. 
 \end{Card}
 
 \begin{Card}{ECUT}{ecut}{Required}{ecut}
@@ -355,12 +424,12 @@ The plane-wave basis is truncated according to \texttt{ecut} measured in Hartree
 \end{Card}
 
 \begin{Card}{TOLDFE}{toldfe}{Optional}{toldfe}
-TOLDFE sets the convergence parameter for the density. When the total energy changes by less than \texttt{toldfe} in two consecutive SCF runs the density is assumed to be converged. The default (\texttt{toldfe} = $10^{-6}$) might be a little too permissive, but is adequate for many systems.
+TOLDFE sets the convergence parameter for the density or SCF run. For \program{abinit} when the total energy changes by less than \texttt{toldfe} in two consecutive SCF runs the density is assumed to be converged. The default (\texttt{toldfe} = $10^{-6}$) might be a little too permissive, but is adequate for many systems. For \program{Quantum Espresso} this sets the CONV\_THR parameter for the SCF calculation. 
 \end{Card}
 
 
-\begin{Card}{NKPT}{nkpt[3]}{Required}{nkpt}
-NKPT sets the number of k-points used to sample the cell for calculation of the final states. The required number of k-points will vary based on system size (inversely with unit cell volume), and in general metals will require larger grids than insulators. Convergence should always be checked against the k-point sampling.
+\begin{Card}{NKPT}{nkpt[3]}{Optional}{nkpt}
+NKPT sets the number of k-points used to sample the cell for calculation of the final states. The required number of k-points will vary based on system size (inversely with unit cell volume), and in general metals will require larger grids than insulators. Convergence should always be checked against the k-point sampling. If this is not specified than \OCEAN{} will attempt to guess at a reasonable value. 
 \end{Card}
 
 \begin{Card}{NBAND}{nband}{Required}{nband}
@@ -373,7 +442,7 @@ The number of total bands for the final-state wave-functions is set by NBAND. Th
 \end{Card}
 
 \begin{Card}{TOLWFR}{tolwfr}{Optional}{tolwfr}
-The convergence criterium for the wave-function calculations is set by TOLWFR. The default (\texttt{tolwfr} = $10^{-16}$) should be sufficient. 
+The convergence criterium for the (NSCF) wave-function calculations is set by TOLWFR. The default (\texttt{tolwfr} = $10^{-16}$) should be sufficient. For the \program{Quantum Espresso} version, this parameter sets the CONV\_THR for the NSCF calculations. 
 \end{Card}
 
 \begin{Card}{PAW.NKPT}{paw.nkpt[3]}{Optional}{paw.nkpt}
@@ -385,12 +454,10 @@ PAW.NBAND sets the number of bands to be calculated for the screening wave-funct
 \end{Card}
 
 \begin{Card}{ABPAD}{abpad}{Optional}{abpad}
-During the non-self-consistent calculation of the wavefunctions, the convergence of the highest bands can be very slow. The calculation speed can be increased by adding some throw-away bands to the top. These bands are not considered when checking for convergence and should also not be used in the subsequent steps of the calculation. The parameter abpad adds bands to the calculation and tells ABINIT to ignore them using ABINIT's nbdbuf setting.
+During the non-self-consistent calculation of the wavefunctions, the convergence of the highest bands can be very slow. The calculation speed can be increased by adding some throw-away bands to the top. These bands are not considered when checking for convergence and should also not be used in the subsequent steps of the calculation. The parameter abpad adds bands to the calculation and tells ABINIT to ignore them using ABINIT's nbdbuf setting. This has no effect for the \program{Quantum Espresso} version. 
 \end{Card}
 
-\begin{Card}{SCRATCH}{scratch}{Optional}{scratch}
-Recommended for compute clusters with local scratch space so that \program{ABINIT} will write its scratch files somewhere reasonable. The file \file{scratch} should include an absolute path and file name root, otherwise the default \file{scratchXX} will be used, writing scratch files to the \file{ABINIT} directory.
-\end{Card}
+
 
 
 %%%%%%
@@ -433,6 +500,8 @@ For example, running TiS$_2$ where Ti was listed as the first atom and looking a
 
 \begin{Card}{PAW.SHELLS}{shells[]}{Recommended}{paw.shells}
 The screening calculation is a hybrid of RPA and a model based off of Levine-Louie-Hybersten see section \ref{screening}. The corss-over between these two regimes is set by \texttt{shells} in Bohr and several different radii can be chosen to look at the convergence. In the \texttt{shells} $\rightarrow \infty$ limit the RPA is being used for the entire calculation, but convergence is usually reached around 3 - 4 Bohr. If a large radius is being used than the supercell defined by \htmlref{PAW.NKPT}{card:paw.nkpt} must have dimensions larger than the radius chosen or the math could be odd. The default \texttt{shells} = 1.5 Bohr is not recommended.
+
+This parameter should not exceed 6~Bohr in the current version of the code.
 \end{Card}
 
 \begin{Card}{CNBSE.RAD}{cnbse.rad}{Recommended}{cnbse.rad}
@@ -453,20 +522,27 @@ This sets two parameters for the program \program{hfk.x}. The first is a grid an
 \label{sec:BSE-Parameters}
 
 \begin{Card}{CNBSE.XMESH}{xmesh[3]}{Optional}{cnbse.xmesh}
-When the wave-functions are converted into the NIST BSE format they are condensed onto a grid controlled by CNBSE.XMESH. The states are then projected onto a localized basis set, using the PAW formalism. The default(\texttt{xmesh} = 6 6 6) might be insufficient for large unit cells.
+When the wave-functions are converted into the NIST BSE format they are condensed onto a grid controlled by CNBSE.XMESH. The states are then projected onto a localized basis set, using the PAW formalism. By default \OCEAN{} will attempt to guess a reasonable 
+setting for this mesh. 
+%The default(\texttt{xmesh} = 6 6 6) might be insufficient for large unit cells.
 \end{Card}
 
 \begin{Card}{METAL}{metal}{Optional}{metal}
-The METAL card determines wether the code expects to determine occupation by band or by energy with respect to the fermi energy. The parameter \texttt{metal} can be set to either $.true.$ or $.false.$ (default). If \texttt{metal} is set to $.true.$ the code will complain unless \htmlref{OCCOPT}{card:occopt} is 3 and similarly for \texttt{metal} = $.false.$ and \texttt{occopt} = 1.
+The METAL card determines wether the code expects to determine occupation by band or by energy with respect to the fermi energy. The parameter \texttt{metal} can be set to either $.true.$ or $.false.$ (default). If \texttt{metal} is set to {\it .true.} the code will complain unless \htmlref{OCCOPT}{card:occopt} is 3 and similarly for \texttt{metal} = {\it .false.} and \texttt{occopt} = 1. The use of \OCEAN{} on metals requires some further testing. 
 \end{Card}
 
-\begin{Card}{CKSSTRETCH}{stretch}{Optional}{cksstretch}
+\begin{Card}{CKSSTRETCH}{cks.stretch}{Optional}{stretch}
 An approximation to some kind of self-energy is allowed through the use of CKSSTRETCH. All conduction band energies with respect to the fermi level are multiplied by \texttt{stretch}. By default \texttt{stretch} = $1.0$. 
+\end{Card}
+
+\begin{Card}{CKS.NORMAL}{cks.normal}{Optional}{cks.normal}
+This determines wether we are considering absorption or emission. The default value of {\it .true.} is appropriate for XAS or NRIXS
+while XES is specified by choosing {\it .false.}.
 \end{Card}
 
 \begin{Card}{CNBSE.MODE}{interactions iterations}{Optional}{cnbse.mode}
 \begin{description}
-\item[\texttt{interactions}]\hfill\\ The interaction terms of the BSE Hamiltonian can be scaled (or increased) by an arbitrary factor. By default \texttt{interactions} = 1.
+\item[\texttt{interactions}]\hfill\\ The interaction terms of the BSE Hamiltonian can be scaled (or increased) by an arbitrary factor. By default \texttt{interactions} = 1. For XES this must be set to 0. 
 \item[\texttt{iterations}]\hfill\\ The number of iterations in the Haydock recursion (default is 100). This parameter should scale with the size of the BSE Hamiltonian which is controlled by the number of states, ie. bands and k-points.
 \end{description}
 \end{Card}
@@ -489,12 +565,23 @@ CNBSE.NITER sets the number of energy points to use when plotting the final spec
 The amount of Lorentzian broadening included in the spectra is set by CNBSE.BROADEN. This is a required convergence parameter for the continued fraction that is our Haydock approximation to the BSE, but setting it to the core-hole intrinsic broadening is recommended since features sharper than that won't be observable. Given in Hartree the default is \texttt{broadening} = $0.007$~Ha. or about $0.1$~eV.
 \end{Card}
 
+\section{Photon files}
+
+
+
 %%%%%%%%%%%%%%%%%%
 
-
+%\chapter{Additional Input Files}
+%In addition to the main \ocean{} input file there are several files required for a calculation. These are the *.opts, *.fill, photon, and pseudopotentials. This chapter will cover the first three, and psuedopotentials will be covered briefly in the next chapter.
+%
+%\section{*.opts and *.fill Files}
+%The fill and opts files 
 
 \chapter{Ground-State Wavefunctions}
-In principle any pseudo-potential DFT code can be used. In our implementation we have an interface for using ABINIT\cite{abinit}. To run with a custom format see the specs listed in Appendix~\ref{WF_format}.
+\label{ground_state}
+In principle any pseudo-potential DFT code can be used. In our implementation we have an interfaces for using 
+\program{abinit}\cite{abinit} and \program{Quantum Espresso} \cite{quantumespresso}. 
+To run with a custom format see the specs listed in Appendix~\ref{WF_format}.
 
 There are two important differences between what is required for a good core-level calculation with \OCEAN{} and more traditional ground-state DFT calculations. The first is that the wave-functions are projected into a real-space basis around an atomic site, which can lead to faster convergence with respect to k-point sampling. Also, a psuedo-potential that is suitable for ground-state calculations may have poor scattering characteristics at higher energies that will make up the spectrum being calculated. With these brief warnings the rest of this chapter will be spent going over various aspects of the calculation and mention briefly strategies for ensuring accuracy and convergence.
 
@@ -508,7 +595,9 @@ Pseudo-potentials must be carefully constructed to ensure that they adequately m
 As mentioned above for excited state calculations states as high as 50-100~eV above the fermi level must be adequately represented by the pseudo-potentials used. This often requires a harder pseudo-potential than might otherwise be necessary for 
 other calculations. Additionally the way in which chemical bonding affects the valence and low-lying conduction bands is often influenced by the inclusion of semi-core states in the calculation. Better agreement is often seen with the inclusion of semi-core states, eg. 2s and 2p states in a 3d transition metal. This has been seen to also improve the high-energy scattering.\cite{}
 
-In the future the author hopes to collect a database of pseduo-potentials to add to the ease of using \OCEAN and all users will be invited to contribute their carefully tested ones as well.
+In the future the author hopes to collect a database of pseduo-potentials to add to the ease of using \OCEAN{}
+ and all users will be invited to contribute their carefully tested ones as well. Currently the format of the pseudopotentials must
+ match that of  .fhi.
 
 \section{Self-consistent Density Calculation}
 A DFT calculation requires, as one might expect, a density. In the self-consistent loop, wavefunctions are converged in an inner loop, and the density is updated from there to form an outer loop. Once the density has been converged, in this usage it changes less than the parameter TOLDFE over the course of two successive updates, this calculation is complete. The density, $n(\mathbf{r})$, depends on two (2) major convergence factors; ECUT and NGKPT. What follows is a brief discussion of these and other parts of the density calculation.
@@ -534,15 +623,18 @@ The excited state (excitonic) wave-function at any given energy may include cont
 
 \section{Beyond DFT}
 
-In principle these wave-functions should include self-consistent self-energy corrections, eg. GW, but in practice it has been found that for many systems 
-self-energy corrections only affect the energies and not the wave-functions. Even single-shot self-energy calculations can be computationally expensive 
-and we provide several methods to approximate the GW correction; ad-hoc band stretching and the many-pole self-energy which are both presented 
-later.
+In principle these wave-functions should include self-consistent self-energy corrections, eg. {\it GW}, 
+but in practice it has been found that for many systems 
+self-energy corrections only affect the energies and not the wave-functions. 
+Even single-shot self-energy calculations can be computationally expensive 
+and we provide several methods to approximate the {\it GW} correction; 
+ad-hoc band stretching and the many-pole self-energy which are both presented later.
 
-LDA+U should work? The author hasn't thought of any reasons why it wouldn't, but \program{ABINIT} doesn't currently write out usable wavefunctions when using LDA+U .
+LDA+U work using \program{QunatumEspresso} is underway and will be a feature of \OCEAN{} 1.1.
 
 
 \chapter{PAW and Atomic}
+\label{paw}
 
 The PAW/Atomic section of the code is material independent. In principle this section can be run once
 for a given pseudopotential and reused. The important outputs of this section are a collection of 
@@ -577,10 +669,11 @@ The \emph{fill} file determines the numerical parameters used for the PAW constr
 
 The matrix elements are calculated up to $\langle \phi_i \vert n^{pow} \vert \phi_j \rangle$. The PAW reconstruction starts at energy Emin and attempts to span the space to Emax (both in Ha.). 
 %The precision factors should be left alone, but the number of PAW functions to include depends on the system being investigated and convergence should be checked. 
-The PAW radius is in Bohr and convergence should be checked. The overlaps between the states and the projectors is done in reciprocal space on a grid which is controlled by q step and q max, but there parameters should be sufficient for a range of systems. The precision factors should be left as is. The parameter tfac determines the number of test functions for determining the quality of the PAW step (see diagnostics section below).
+The PAW radius is in Bohr and convergence should be checked. The overlaps between the states and the projectors is done in reciprocal space on a grid which is controlled by q step and q max, but these parameters should be sufficient for a range of systems. The precision factors should be left as is. The parameter tfac determines the number of test functions for determining the quality of the PAW step (see diagnostics section below).
 
 
 \subsection{opts}
+\label{opts}
 The \emph{opts} file contains information about the pseudopotential such as z, core-valence partitioning, and reference configuration. This information should match that used to construct the pseudopotential. In the case of pseudopotentials 
 whose origin is unknown a reasonable guess must be made.
 
@@ -649,21 +742,44 @@ Lastly the number of bands included in the truncated sum for calculating the RPA
 The CNBSE section solves for the spectra. The important output file is absspct; column 1 is the energy, 
 column 2 the spectra using a plamon-pole broadening model and column 3 the plain spectra.
 
+\section{Photon specifications}
+
+Each element, edge, and photon (polarization or momentum) requires a separate calculation. 
+The element and edge information are specified by the EDGES input, but the photon specification requires separate files. For XAS on 
+powder or noncrystalline samples would typically require 3 photon directions which would then be averaged together. For NRIXS 
+experiments typically many different photon momenta are measured simultaneously and so you might want to calculate all of them. 
+\OCEAN{} will support up 99 photon files. The files must be named, i.e., if 10 different momenta were desired the files would be named 
+\file{photon1}, \file{photon2}, ..., \file{photon10} sequentially. 
+
+The first line of the \file{photon} file specifies the photon-electron operator: dipole, quad, or NRIXS. The options dipole 
+and quad allow for dipole only, or dipole and quadrupole components for absorption or emission. The NRIXS option uses only the $A^2$ 
+operator. 
+
+The second section specifies the polarization direction of the photon in terms of the unit cell, while the third section specifies the 
+direction of the momentum (or moment transfer for NRIXS). The last number is the approximate photon energy in eV. This is used 
+to determine $\vert q \vert$ which enters in to the quadrupole and NRIXS operators. For dipole-limited calculations the direction of the 
+momentum does not enter in to the calculation at all as the operator is only determined by the polarization. 
+Physically the polarization and momentum vectors should be orthogonal, but this is not currently enforced. 
+
+
 \appendix
 \chapter{Installation}
 \begin{itemize}
-\item The code has been tested with both pgi and intel fortran compilers. Would love to hear people's problems/successes using other vendors. Especially want to add some free (as in \$) compiler to the works list.
+\item The code has been tested with both gcc and intel fortran compilers. Would love to hear people's problems/successes using other vendors. 
+
 \item Requires fftw3 currently. If you are running on a managed cluster that has nice MODULE support (like NERSC) simply loading the fftw3 module may work fine. Otherwise set the environmental variables FFTWL and FFTWI. For BASH `export FFTWL=``-L/myfftw3/lib -lfftw3''' and `export FFTWI=``-I/myfftw3/include''' and for CSH `setenv FFTWL ``-L/myfftw3/lib -lfftw3''' and `setenv FFTWI ``-I/myfftw3/include'''.
 %Look in the makefiles for helpful ``\$FFTWI" and ``\$FFTWL" variables that set the include and library paths respectively. Setting these as environmental variables should work.
 \item The code requires perl
+\item Either {\sc abinit} or {\sc quantum espresso} may be used as the DFT code
 \end{itemize}
 
 The bare bones installation instructions are as follows.
 
 \begin{enumerate}
-\item{ Run `make FC=ifort OPTIONS=-O2'}
-\item{ If this doesn't fail, type `make install INSTDIR=`` \textasciitilde/OCEAN\_BIN/"' or wherever you want the installation to go.}
-\item{ Create links to abinit and cut3d within the OCEAN\_BIN diretory, ie. `ln -s ~/bin/abinit abinit'}
+\item{ Make sure you have a working DFT code installed first}
+\item{ Copy \file{Makefile.arch.example} to \file{Makefile.arch} and edit as necessary}
+\item{ Mind the INSTDIR variable which will set where the installation is placed. }
+\item{ Run `make' and then `make install'}
 \end{enumerate}
 
 Assuming success so far you can now go to the EXAMPLE/rutile directory. Here you will find what you need to do a preliminary 

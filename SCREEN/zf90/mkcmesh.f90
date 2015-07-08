@@ -5,7 +5,7 @@
       integer :: nang, nr, indx
       real( kind = kind( 1.0d0 )) :: rmax, avec( 3, 3 ),posn(3,nang*nr),&
      &         wpt( nang * nr ), drel( nang * nr )
-      character * 2 :: element
+      character(len=2) :: element
 !
       integer :: i, j, ii
       real( kind = kind( 1.0d0 ) ) :: pi, su, tmp, alpha(3), tau(3), dr
