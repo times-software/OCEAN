@@ -145,11 +145,14 @@ This concludes the tutorial on rutile TiO$_2$.
 
 
 \chapter{Input}
-\section{Running \OCEAN}
 
-The \OCEAN{} package is run using the \program{perl} script \program{ocean.pl} which takes care of reading in the input file and then running the various executables. This chapter will introduce the various control files and explain their formatting and use.
+The \OCEAN{} package is run using the \program{perl} script \program{ocean.pl} which takes care of reading in the input file and then running the various executables. This chapter will introduce the various controls and explain their formatting and use.
 
 Eventually there will be sample input files describing various calculations and calculation strategies in Chapter \ref{Samples}.
+
+\section{Running \OCEAN}
+
+In addition to the main input file there are several auxiliary files. The \file{*.opts} and \file{*.fill} files are described in  \ref{opts}  and \ref{fill} respectively, and the pseudopotentials are touched upon briefly in  \ref{ground_state}. The next section, \ref{photon_files}, covers the \file{photon?} files which specify the necessary information about the x-ray probe. 
 
 The input parser for \OCEAN{} is relatively basic. Any text following a comment character, `\#,' is ignored up to the line return. If a file has been switching around operating systems it may have non-unix line returns which can cause problems. If the parser returns odd errors try running \program{dos2unix}. The parser is case ignoring and converts all inputs to lower case, requiring any filenames in the input file to be lower case. Each card must be on its own line followed by the value or values to be assigned it. All card values can be surrounded by braces (\{\}) and multi-value cards must be surrounded by braces. For example, the NKPT card must be a list of 3 integers and so must have the following form: ``NKPT \{ 2 2 2 \}" whereas the OCCOPT card takes only one integer and may therefore be listed: ``OCCOPT 1" or ``OCCOPT \{ 1 \}". Line returns may be present within an input. 
 
@@ -166,6 +169,42 @@ After parsing the cards are all stored as small, fortran formatted files in the 
 \item The Bethe-Salpeter equation (BSE) is iteratively solved using a form of the Haydock recursion algorithm.
 \end{enumerate}
 
+\section{Photon files}
+\label{photon_files}
+The \file{photon} files determine the specifics of the x-ray operator. A single \OCEAN{} calculation may involve a single \file{photon} file or many, depending on the experiment in question. There is currently a hard limit of 99 (which may be excessive), and each should be numbered. 
+
+As an example, if one is simulating non-resonant inelastic x-ray scattering NRIXS (also called x-ray Raman or XRS) the experiment being compared to may include a dozen different values for the momentum transfer. This is easily done with \OCEAN{} and the user needs simply to create 12 files named \file{photon1} through \file{photon12}.  
+
+\subsection{Photon operators}
+In \OCEAN{} we currently support 3 photon operators
+\begin{itemize}
+\item dipole: $\hat{\epsilon} \cdot \mathbf{r}$
+\item quad: $\hat{\epsilon} \cdot \mathbf{r} + i/2 \left( \hat{\epsilon} \cdot \mathbf{r} \right) \left(\mathbf{q} \cdot \mathbf{r} \right)$
+\item NRIXS: $e^{i \mathbf{q} \cdot \mathbf{r} }$
+\end{itemize}
+in two modes, absorption and emission. For most light elements the combination of small core wave-function (small $\mathbf{r}$) and small photon energy (therefore small $\mathbf{q}$) conspire to make dipole and quad effectively the same, i.e., they are in the dipole limit. If you are ever unsure just make two \file{photon} files and check!
+
+\subsection{Photon format}
+Below is a sample \file{photon} file. The most important thing about the photon file is that, depending on the calculation, only some of the information in it will affect the calculation. Look back to the operators in the previous section. Not all of them use all the same things. 
+
+\begin{center}
+\begin{tabular}{| l | c c|}
+\hline
+dipole				& & operator \\
+\hline
+cartesian  0  0  1		& & $\hat{\epsilon}$  \\
+end			& & \\
+\hline
+cartesian  0  1  0		& & $\hat{q}$  \\
+length 8.55 inverseangstroms && $\vert \mathbf{q} \vert$ \\
+end			& & \\
+\hline
+9000 & & X-ray energy (eV) \\
+\hline
+\end{tabular}
+\end{center}
+
+The file has four sections. In the first we select our operator. In the second we set the direction for the x-ray polarization vector $\epsilon$ (currently no circularly polarized light). The next section's meaning depends on the operator in play. For quad it sets the $q$-vector direction for the incoming light, while for NRIXS it sets the direction and magnitude of the momentum \textbf{transfer} (the length specifier is optional unless NRIXS is selected). For dipole the $q$-vector doesn't enter in. The fourth section is only important for quad and it sets the magnitude of $q$ by way of the photon's energy in eV. 
 
 \section{Complete list of \OCEAN{} inputs}
 
@@ -526,11 +565,20 @@ CNBSE.NITER sets the number of energy points to use when plotting the final spec
 The amount of Lorentzian broadening included in the spectra is set by CNBSE.BROADEN. This is a required convergence parameter for the continued fraction that is our Haydock approximation to the BSE, but setting it to the core-hole intrinsic broadening is recommended since features sharper than that won't be observable. Given in Hartree the default is \texttt{broadening} = $0.007$~Ha. or about $0.1$~eV.
 \end{Card}
 
+\section{Photon files}
+
+
+
 %%%%%%%%%%%%%%%%%%
 
-
+%\chapter{Additional Input Files}
+%In addition to the main \ocean{} input file there are several files required for a calculation. These are the *.opts, *.fill, photon, and pseudopotentials. This chapter will cover the first three, and psuedopotentials will be covered briefly in the next chapter.
+%
+%\section{*.opts and *.fill Files}
+%The fill and opts files 
 
 \chapter{Ground-State Wavefunctions}
+\label{ground_state}
 In principle any pseudo-potential DFT code can be used. In our implementation we have an interfaces for using 
 \program{abinit}\cite{abinit} and \program{Quantum Espresso} \cite{quantumespresso}. 
 To run with a custom format see the specs listed in Appendix~\ref{WF_format}.
@@ -586,6 +634,7 @@ LDA+U work using \program{QunatumEspresso} is underway and will be a feature of 
 
 
 \chapter{PAW and Atomic}
+\label{paw}
 
 The PAW/Atomic section of the code is material independent. In principle this section can be run once
 for a given pseudopotential and reused. The important outputs of this section are a collection of 
@@ -624,6 +673,7 @@ The PAW radius is in Bohr and convergence should be checked. The overlaps betwee
 
 
 \subsection{opts}
+\label{opts}
 The \emph{opts} file contains information about the pseudopotential such as z, core-valence partitioning, and reference configuration. This information should match that used to construct the pseudopotential. In the case of pseudopotentials 
 whose origin is unknown a reasonable guess must be made.
 
