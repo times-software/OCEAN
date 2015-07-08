@@ -13,7 +13,7 @@ my %alphal = ( "0" => "s", "1" => "p", "2" => "d", "3" => "f" );
 
 my @CommonFiles = ("epsilon", "xmesh.ipt", "nedges", "k0.ipt", #"nbuse.ipt", 
   "cnbse.rad", "cnbse.ways", "metal", "cksshift", "cksstretch", "cksdq", "cks.normal",
-  "cnbse.niter", "cnbse.spect_range", "cnbse.broaden", "cnbse.mode", "dft");
+  "cnbse.niter", "cnbse.spect_range", "cnbse.broaden", "cnbse.mode", "nphoton", "dft");
 
 my @AbinitFiles = ("avecsinbohr.ipt");
 
@@ -24,9 +24,6 @@ my @DenDipFiles = ("kmesh.ipt", "masterwfile", "listwfile", "efermiinrydberg.ipt
 my @WFNFiles = ("kmesh.ipt",  "efermiinrydberg.ipt", "qinunitsofbvectors.ipt", "brange.ipt", "avecsinbohr.ipt", "nbuse.ipt", "wvfcninfo", "wvfvainfo", "nbuse_xes.ipt", "ibeg.h");
 
 my @ExtraFiles = ("Pquadrature", "sphpts" );
-
-my @jtv = ("jtv1");
-my @ways = ( 1, 2, 3 );
 
 my @PawFiles = ("hfinlist" , "xyz.wyck");
 #`cp ../xyz.wyck .`;
@@ -48,13 +45,95 @@ foreach (@WFNFiles) {
 foreach (@ExtraFiles) {
   `cp $ENV{'OCEAN_BIN'}/$_ .` == 0 or die "Failed to get ../$_\n";
 }
-foreach (@ways) {
-  `cp ../jtv$_ .` == 0 or die "Failed to get ../$_\n";
-}
 
 foreach (@PawFiles) {
   `cp ../SCREEN/$_ .` == 0 or die "Failed to get ../SCREEN/$_\n";
 }
+
+# Grab the needed photon files, copy them into the CNBSE directory,
+# and store their names into the array @photon_files
+my $nphoton = -1;
+open NPHOTON, "nphoton" or die "Failed to open nphoton\n$!";
+while (<NPHOTON>)
+{
+  if( $_ =~ m/(-?\d+)/ )
+  {
+    $nphoton = $1;
+    last;
+  }
+}
+close NPHOTON;
+
+my @photon_files;
+if( $nphoton > 0 )
+{
+  for( my $i = 1; $i <= $nphoton; $i++ )
+  {
+    if( -e "../photon${i}" )
+    {
+      `cp ../photon${i} .`;
+      push @photon_files, "photon${i}";
+    }
+    elsif( -e "../jtv${i}" )
+    {
+      `cp ../jtv${i} .`;
+      push @photon_files, "jtv${i}";
+    }
+    else
+    {
+      print "Could not find photon file # $i\n";
+    }
+  }
+}
+else
+{
+  print "Looking for available photon files:\n";
+  opendir DIR, "../" or die $!;
+  while( my $file = readdir( DIR ) )
+  {
+    if( $file =~ m/^photon\d+$/ )
+    {
+      push @photon_files, $file;
+    }
+  }
+  closedir DIR;
+
+  if( $#photon_files == -1 )  # no photon files, fall back to jtv for now
+  {
+    opendir DIR, "../" or die $!;
+    while( my $file = readdir( DIR ) )
+    {
+      if( $file =~ m/^jtv\d+$/ )
+      {
+        push @photon_files, $file;
+      }
+    }
+    closedir DIR;
+  }
+}
+if( $#photon_files == -1 )
+{
+  print "!!!  Could not find any photon files  !!!\n  Will have to quit :(\n";
+  exit 1;
+}
+else
+{
+  $nphoton = $#photon_files+1;
+  if( $nphoton > 1 )
+  {
+    print "    Running with $nphoton photon files\n";
+  }
+  else
+  {
+    print "    Running with $nphoton photon file\n";
+  }
+  foreach( @photon_files )
+  {
+    print "        $_\n";
+    `cp ../$_ .`;
+  }
+}
+
 
 ##### misc other setup
 #`echo gmanner > format65`;
@@ -92,7 +171,7 @@ if ($runtype =~ m/true/ )
 #system("$ENV{'OCEAN_BIN'}/setup2.x > setup.log") == 0 or die "Setup failed\n";
 
 
-`ln -s ../zWFN/u2.dat`;
+#`ln -s ../zWFN/u2.dat`;
 `ln -s ../zWFN/u2par.dat`;
 
 my $pawrad = `cat cnbse.rad`;
@@ -147,10 +226,10 @@ while (<EDGE>) {
     or die "Failed to grab rpot\n../SCREEN/${zstring}/zR${pawrad}/rpot ./rpotfull\n";
 #
 #
-  foreach my $way (@ways) {
-    system("cp jtv${way} spectfile") ;#== 0 or die;
+  foreach my $way (@photon_files) {
+    system("cp ${way} spectfile") ;#== 0 or die;
     system("$ENV{'OCEAN_BIN'}/meljtv.x");
-    `mv mels jtvmels${way}`;
+    `mv mels mels.${way}`;
   }  
 
 
@@ -159,55 +238,61 @@ while (<EDGE>) {
 #  close CKSIN;
 
 
-  foreach my $way ( @ways ) {
+  foreach my $file ( @photon_files ) {
 
-  `cp jtvmels${way} mels`;
+    `cp mels.${file} mels`;
 
-  print "dotter\n";
-  system("echo 'cbinf0001' | $ENV{'OCEAN_BIN'}/dotter.x") == 0 or die;
+    $file =~ m/(\d+)/ or die;
+    my $way = $1;
+
+    print "dotter\n";
+    system("echo 'cbinf0001' | $ENV{'OCEAN_BIN'}/dotter.x") == 0 or die;
 
 
-  open INFILE, ">bse.in" or die "Failed to open bse.in\n";
-  my $filename = sprintf("deflinz%03un%02ul%02u", $znum, $nnum, $lnum);
+    open INFILE, ">bse.in" or die "Failed to open bse.in\n";
+    my $filename = sprintf("deflinz%03un%02ul%02u", $znum, $nnum, $lnum);
 
-  open TMPFILE, $filename or die "Failed to open $filename\n";
-  my $line = <TMPFILE>;
-  close TMPFILE;
-  
-  print INFILE $line;
-  my $lookup = sprintf("%1u%1s", $nnum, $alphal{$lnum}) or die;
-  my $filename = sprintf("corezetaz%03u", $znum);
-  print "$lookup\t$filename\n";
-  my $line = `grep $lookup $filename`;
-  print INFILE $line;
-  
-  print INFILE "hay\n";
-  open TMPFILE, "cnbse.niter" or die "Failed to open niter\n";
-  <TMPFILE> =~ m/(\d+)/ or die "Failed to parse niter\n";
-  my $niter = $1;
-  close TMPFILE;
-  my $spectrange = `cat cnbse.spect_range`;
-  chomp($spectrange);
-  my $gamma0 = `cat cnbse.broaden`;
-  chomp($gamma0);
-  
-  print INFILE "$niter  $spectrange  $gamma0  0.000\n";
-  close INFILE;
+    open TMPFILE, $filename or die "Failed to open $filename\n";
+    my $line = <TMPFILE>;
+    close TMPFILE;
+    
+    print INFILE $line;
+    my $lookup = sprintf("%1u%1s", $nnum, $alphal{$lnum}) or die;
+    my $filename = sprintf("corezetaz%03u", $znum);
+    print "$lookup\t$filename\n";
+    my $line = `grep $lookup $filename`;
+    print INFILE $line;
+    
+    print INFILE "hay\n";
+    open TMPFILE, "cnbse.niter" or die "Failed to open niter\n";
+    <TMPFILE> =~ m/(\d+)/ or die "Failed to parse niter\n";
+    my $niter = $1;
+    close TMPFILE;
+    my $spectrange = `cat cnbse.spect_range`;
+    chomp($spectrange);
+    my $gamma0 = `cat cnbse.broaden`;
+    chomp($gamma0);
+    
+    print INFILE "$niter  $spectrange  $gamma0  0.000\n";
+    close INFILE;
 
-  if( -e "../SCREEN/core_shift.txt" )
-  {
-    `head -n $elnum ../SCREEN/core_shift.txt | tail -n 1 > core_offset `;
-  } else
-  {
-     `rm -f core_offset`;
+    if( -e "../SCREEN/core_shift.txt" )
+    {
+      `head -n $elnum ../SCREEN/core_shift.txt | tail -n 1 > core_offset `;
+    } else
+    {
+       `rm -f core_offset`;
+    }
+
+    system("$ENV{'OCEAN_BIN'}/cainmultip.x < bse.in > cm.log") == 0 or die "Failed to finish\n"; 
+
+    my $store_string = sprintf("%2s.%04i_%2s_%02i", $elname, $elnum, $lookup, $way);
+
+    `mkdir -p ${store_string}/`;
+    `cp absspct lanceigs mulfile nval.h ${store_string}/`;
+    `cp absspct "absspct_${store_string}"`;
+
   }
-#  system("../swbsys3.job") == 0 or die;
-  system("$ENV{'OCEAN_BIN'}/cainmultip.x < bse.in > cm.log") == 0 or die "Failed to finish\n"; 
-#  my $absspct = sprintf("absspct_%2s.%u_%2s", $elname
-  `mkdir -p ${zstring}_${way}/`;
-  `cp absspct lanceigs mulfile ${zstring}_${way}/`;
-  `cp absspct "absspct_${elname}.${elnum}_${lookup}_${way}"`;
-}
 }
 
 exit 0;
