@@ -100,7 +100,7 @@
   integer :: iuninf, fhu2, finfo, errorcode, fmode, resultlen, nshift, fhtmels, fh_val_energies, fh_con_energies, fho2l
   integer :: fh_val_eigvecs, fh_con_eigvecs, ibeg_unit
 
-  integer :: nr, nr2, ir, nang, nang2, iang, lmax, nthreads, nband, npt
+  integer :: nr, nr2, ir, nang, nang2, iang, lmax, nthreads, nband, npt, val_band
   real(dp) :: qin(3), qcart(3), deltaL, rmax, rmin, bvec(3,3), norm
   real(dp), allocatable ::  rad_grid(:), angular_grid(:,:), rpts(:,:,:), posn(:,:), wpt(:), bofr(:,:), phased_bofr(:,:),phase(:)
   complex(dp), allocatable :: BofRad(:,:,:), u_radial(:,:,:,:), eikr(:), eigvec_single(:,:)
@@ -125,7 +125,7 @@
   integer :: dims(2), ndims, array_of_gsizes(2), array_of_distribs(2), array_of_dargs(2), file_type, nelements, mpistatus, &
              locsize, i_energy_request, n_energy_request, basis_vector_size, basis_vector_type
   integer, allocatable :: energy_request(:), pool_root_map(:)
-  complex(dp), allocatable :: store_eigvec(:,:,:), out_eigvec(:,:,:)
+  complex(dp), allocatable :: store_eigvec(:,:,:,:), out_eigvec(:,:,:)
   real(dp), allocatable :: store_energy(:,:)
  
   namelist /info/ nk, nbnd, nelec, alat, volume, &
@@ -211,27 +211,6 @@
     
   endif
 
-#ifdef FALSE
-  ! MPI-IO
-  if( mypoolid==mypoolroot ) then
-    eigval_file=trim(outfile)//'.eigval'
-    inquire(file=trim(eigval_file),exist=ex)
-    if( ex ) then
-      ! delete pre-existing files
-      fheigval=freeunit()
-      open(fheigval,file=trim(eigval_file),form='unformatted')
-      close(fheigval,status='delete')
-    endif
-
-    call mp_file_open_dp( eigval_file, fheigval, rootpool, cross_pool_comm )
-
-    if( eigvec_output ) then
-      eigvec_file=trim(outfile)//'.eigvec'
-      call mp_file_open_dp( eigvec_file, fheigvec, rootpool, cross_pool_comm )
-    endif
-
-  endif
-#endif
 
 
   if( ionode ) then
@@ -451,7 +430,7 @@
   ! Create descriptors  
   ! For laziness start by copying *all* of eigvector which is way larger than we need 
   call local_cyclic_dims( nr_eigvec, nc_eigvec )
-  allocate( store_eigvec( nr_eigvec, nc_eigvec, pool_tot_k ) ) !, &
+  allocate( store_eigvec( nr_eigvec, nc_eigvec, pool_tot_k, nshift ) ) !, &
 !            store_energy( nband, pool_tot_k ) )
   
 
@@ -505,23 +484,45 @@
       e0( :, ik, ispin, 1 ) = 0.5d0 * eigval(band_subset(1):band_subset(2))
 
 
-      ! Send energies to ionode
-!      if( .not. ionode .and. mypoolid .eq. 0 ) then
-!        if( have_kshift ) then 
-!          nband = max_val
-!        else
-!          nband = band_subset(2) - band_subset(1) + 1
-!        endif
-!   
-!        write(stdout,*) 
-!        call MPI_ISEND( e0( :, ik, ispin, 1 ), nband, MPI_DOUBLE_PRECISION, ionode_id, ik+(ispin-1)*kpt%list%nk, &
-!                        cross_pool_comm, energy_request( ik+(ispin-1)*kpt%list%nk ), ierr )
-!      endif
-
-
-
       !!!!!!! store away eigenvectors
-      store_eigvec( :, :, pool_ik ) = eigvec( :, : )
+      store_eigvec( :, :, pool_ik, 1 ) = eigvec( :, : )
+
+      if( have_kshift ) then
+         kplusq(:) = kpt%list%kvec(1:3,ik) + kshift(:)
+        ! build the Hamiltonian for this q-point
+        call diag_build_hamk( kplusq, kpt%param%cartesian, ispin )
+
+        if( kinetic_only ) then
+          allocate( ztmp(nbasis,nbasis) )
+          call diag_build_kink( kplusq, kpt%param%cartesian, ztmp )
+          forall( i=1:nbasis ) eigval(i)=ztmp(i,i)
+          deallocate( ztmp )
+        else if( local_only ) then
+          allocate( ztmp(nbasis,nbasis) )
+          call diag_build_vlock( kplusq, kpt%param%cartesian, ispin, ztmp )
+          forall( i=1:nbasis ) eigval(i)=ztmp(i,i)
+          deallocate( ztmp )
+        else if( nonlocal_only ) then
+          allocate( ztmp(nbasis,nbasis) )
+          call diag_build_vnlk( kplusq, kpt%param%cartesian, ispin, ztmp )
+          forall( i=1:nbasis ) eigval(i)=ztmp(i,i)
+          deallocate( ztmp )
+        else if( smatrix_only ) then
+          allocate( ztmp(nbasis,nbasis) )
+          call diag_build_sk( kplusq, kpt%param%cartesian, ztmp )
+          forall( i=1:nbasis ) eigval(i)=ztmp(i,i)
+          deallocate( ztmp )
+        else
+          call diag_ham
+        endif
+
+
+        write(stdout,*) ik,  eigval(band_subset(1))*rytoev, eigval(band_subset(2))*rytoev
+        e0( :, ik, ispin, 2 ) = 0.5d0 * eigval(band_subset(1):band_subset(2))
+
+        store_eigvec( :, :, pool_ik, 2 ) = eigvec( :, : )
+
+      endif
 
     enddo ! ik
   enddo ! ispin
@@ -585,12 +586,18 @@
     endif
 
     
-    call dump_energies( band_subset, nband, kpt%list%nk, nspin, nshift, e0, lumo_shift, new_start_band, ierr )
+    call dump_energies( band_subset, nband, kpt%list%nk, nspin, nshift, e0, lumo_shift, new_start_band, brange, ierr )
 
     write(stdout,*) 'Sharing energies'
-
-
+    write(stdout,*) brange(1), brange(2)
+    write(stdout,*) brange(3), brange(4)
   endif
+
+  call mp_bcast( brange, ionode_id )
+  if( .not. ionode ) then
+    allocate( new_start_band( kpt%list%nk, nspin, nshift ) )
+  endif
+  call mp_bcast( new_start_band, ionode_id )
 
 !  if( mypoolid .eq. 0 ) then
 !    if( .not. ionode ) then
@@ -621,7 +628,8 @@
 !                               dims, MPI_ORDER_C, MPI_DOUBLE_COMPLEX, file_type )
 
 
-  nband = band_subset(2) - band_subset(1) + 1
+!  nband = band_subset(2) - band_subset(1) + 1
+  nband = brange( 2 ) - brange( 1 ) + 1 + brange( 4 ) - brange( 3 ) + 1
   if( mypoolid .eq. mypoolroot ) then
     allocate( out_eigvec( nbasis, nband, pool_tot_k ) )
   else
@@ -638,10 +646,27 @@
 
       pool_ik = pool_ik + 1
 
+      if( have_kshift ) then
 
-      call PZGEMR2D( nbasis, nband, store_eigvec( 1, 1, pool_ik ), 1, 1, desc_cyclic, &
+        nband = brange( 2 ) - brange( 1 ) + 1
+        call PZGEMR2D( nbasis, nband, store_eigvec( 1, 1, pool_ik, 1 ), 1, brange( 1 ), desc_cyclic, &
                                       out_eigvec( 1, 1, pool_ik ), 1, 1, desc_eigvec_single, &
-                     context_cyclic, ierr )
+                       context_cyclic, ierr )
+
+        ! val_band gives out offset of out_eigvec
+        val_band = nband + 1
+        nband = brange( 4 ) - brange( 3 ) + 1
+        call PZGEMR2D( nbasis, nband, store_eigvec( 1, 1, pool_ik, 2 ), 1, new_start_band( ik, ispin, 2 ), desc_cyclic, &
+                                      out_eigvec( 1, 1, pool_ik ), 1, val_band, desc_eigvec_single, &
+                       context_cyclic, ierr )
+        nband = brange( 2 ) - brange( 1 ) + 1 + brange( 4 ) - brange( 3 ) + 1
+
+      else
+
+        call PZGEMR2D( nbasis, nband, store_eigvec( 1, 1, pool_ik, 1 ), 1, 1, desc_cyclic, &
+                                      out_eigvec( 1, 1, pool_ik ), 1, 1, desc_eigvec_single, &
+                       context_cyclic, ierr )
+      endif
     enddo
   enddo
 

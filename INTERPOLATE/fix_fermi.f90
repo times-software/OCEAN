@@ -1,15 +1,16 @@
 ! sorts energies
 
-subroutine dump_energies( band_subset, nbands, nkpts, nspin, nshift, e0, lumo_shift, start_band, ierr )
+subroutine dump_energies( band_subset, nbands, nkpts, nspin, nshift, e0, lumo_shift, start_band, brange, ierr )
   use kinds, only : dp
   implicit none
 
   integer, intent( in ) :: band_subset(2), nbands, nkpts, nspin, nshift, start_band( nkpts, nspin, nshift )
   real(dp), intent( in ) :: e0( nbands, nkpts, nspin, nshift ), lumo_shift
+  integer, intent( out ) :: brange( 4 )
   integer, intent( inout ) :: ierr
   integer, external :: freeunit
   !
-  integer :: fh, ispin, ik, ibd, ishift, brange(4), nbuse
+  integer :: fh, ispin, ik, ibd, ishift, nbuse
   real(dp), allocatable :: temp_energy(:,:,:)
 
 
@@ -55,6 +56,20 @@ subroutine dump_energies( band_subset, nbands, nkpts, nspin, nshift, e0, lumo_sh
   write(fh) temp_energy
   close(fh)
 
+  
+  ! write complete e0 for con energies
+  deallocate(temp_energy)
+  nbuse = brange(4) - brange(3) + 1
+  allocate(temp_energy( nbuse, nkpts, nspin ) )
+  do ispin = 1, nspin
+    do ik = 1, nkpts
+      temp_energy( :, ik, ispin ) = e0(brange(3):brange(4), ik, ispin, nshift ) - lumo_shift
+    enddo
+  enddo
+  open(unit=fh,file='con_energies.dat',form='binary',status='unknown')
+  write(fh) temp_energy
+  close(fh)
+
 
   nbuse = brange( 2 ) - brange( 1 ) + 1
   open(unit=fh,file='nbuse_xes.ipt',form='formatted',status='unknown')
@@ -72,6 +87,14 @@ subroutine dump_energies( band_subset, nbands, nkpts, nspin, nshift, e0, lumo_sh
   open(unit=fh,file='wvfvainfo',form='unformatted',status='unknown')!,buffered='yes')
   write(fh) nbuse, nkpts, nspin
   write(fh) temp_energy
+  close(fh)
+
+  open(unit=fh,file='val_energies.dat',form='binary',status='unknown')
+  write(fh) temp_energy
+  close(fh)
+
+  open(unit=fh,file='tmels.info',form='formatted',status='unknown')
+  write(fh,*) nbuse,brange(3),brange(4),nkpts
   close(fh)
 
   deallocate( temp_energy )

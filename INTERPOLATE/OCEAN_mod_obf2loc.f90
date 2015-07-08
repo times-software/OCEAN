@@ -346,9 +346,10 @@ module OCEAN_obf2loc
 !    use kinds, only : dp
     implicit none
     !
-    integer, intent( in ) :: ng, iq, ispin, ishift
+    integer, intent( in ) :: ng, iq, ispin
     integer, intent( in ) :: kvc( 3, ng ), ibeg(nkpt,nspin)
     complex(dp), intent( in ) :: ck( ng, nband )
+    integer, intent( inout ) :: ishift
     
     complex(dp), parameter :: zero = 0.0_dp
     !
@@ -385,6 +386,8 @@ module OCEAN_obf2loc
 
 11 continue
     
+
+    do ishift = 1, nshift
 
     write(stdout,*) q(:)
     o2l = zero
@@ -437,7 +440,7 @@ module OCEAN_obf2loc
             enddo
           endif
 
-!            if( ishift .eq. nshift ) then
+          if( ishift .eq. nshift ) then
             do itau = 1, ntau
               do j = 1, nbuse
                 do k = 1, nptot
@@ -447,10 +450,12 @@ module OCEAN_obf2loc
                 enddo
               enddo
             enddo
-!            endif
+          endif
 
         endif
 
+      q(:) = q(:) + kshift(:)
+    enddo
 
     return
 
