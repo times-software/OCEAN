@@ -127,6 +127,10 @@ else
   {
     print "    Running with $nphoton photon file\n";
   }
+  # Want to sort these back to numerical order (to avoid confusing/annoying users)
+  my @sorted_photon_files = sort{ my ($anum,$bnum); $a =~ m/\w+(\d+)/; $anum = $1; $b =~ m/\w+(\d+)/; $bnum = $1; $anum <=> $bnum } @photon_files;
+  @photon_files = @sorted_photon_files;
+
   foreach( @photon_files )
   {
     print "        $_\n";
