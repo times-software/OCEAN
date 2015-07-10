@@ -40,6 +40,10 @@ program orthog
      close( unit=99 )
      u( :, : ) = uu( :, :, ik )
      do ib = 1, nb
+        if( ik .eq. 1 ) then
+          w = dot_product( u( :, ib ), u( :, ib ) )
+          write(6,*) ib, ib, w
+        endif
         call normalize( nx, u( :, ib ) )
         v( :, ib ) = u( :, ib )
         if ( ib .le. nbv ) then
@@ -54,6 +58,9 @@ program orthog
               x = dot_product( v( :, ibp ), v( :, ibp ) )
               w = w / x
               v( : , ib ) = v( : , ib ) - w * v( : , ibp )
+              if( ik .eq. 1 ) then
+                write(6,*) ib, ibp, w
+              endif
            end do
         end if
         call normalize( nx, v( :, ib ) )
