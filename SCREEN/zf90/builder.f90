@@ -15,12 +15,11 @@
 program builder
   implicit none
   !     
-  integer nv, ng
-  double precision avec( 3, 3 ), bvec( 3, 3 ), bmet( 3, 3 )
+  double precision avec( 3, 3 ), bvec( 3, 3 )
   !
-  character * 7, parameter :: u7 = 'unknown'
-  character * 9, parameter :: f9 = 'formatted'
-  character * 11, parameter :: u11 = 'unformatted'
+  character(len=7), parameter :: u7 = 'unknown'
+  character(len=9), parameter :: f9 = 'formatted'
+  character(len=11), parameter :: u11 = 'unformatted'
   !
   integer, parameter :: stdin = 5
   integer, parameter :: stdout = 6
@@ -28,14 +27,13 @@ program builder
   integer :: i, j, ibl, ibh, nk1, nk2, nk3, ik1, ik2, ik3, it, nt, npt, ii, overlap
   !
   real( kind = kind( 1.0d0 ) ) :: celvol, pi, fr, fi, phse, su, pref, su2
-  real( kind = kind( 1.0d0 ) ) :: denr, deni, iden2, mu, x, s, qcart( 3 ), qin( 3 ), qout( 3 )
-  real( kind = kind( 1.0d0 ) ) :: gr, gi, su0, rmax, absdiff, newdiff
-  real( kind = kind( 1.0d0 ) ) :: vlev, vhev, clev, chev, muev, sev, mindif, maxdif, vec( 3 )
+  real( kind = kind( 1.0d0 ) ) :: denr, deni, iden2, mu, x, s, qcart( 3 ), qin( 3 )
+  real( kind = kind( 1.0d0 ) ) :: absdiff, newdiff
+  real( kind = kind( 1.0d0 ) ) :: vlev, vhev, clev, chev, muev, sev, mindif, maxdif
   !
   real( kind = kind( 1.0d0 ) ), allocatable :: zr( :, : ), zi( :, : ), w( : ), w2( : )
   real( kind = kind( 1.0d0 ) ), allocatable :: posn( :, : ), wpt( : )
   real( kind = kind( 1.0d0 ) ), allocatable :: vipt( : ), drel( : )
-  real( kind = kind( 1.0d0 ) ), allocatable :: bre( :, : ), bim( :, : )
   real( kind = kind( 1.0d0 ) ), allocatable :: t( : ), wgt( : ), newwgt( : )
   real( kind = kind( 1.0d0 ) ), allocatable :: wfr( : ), wfi( : ), wfp( :, : ), dmat( :, : )
   real( kind = kind( 1.0d0 ) ), allocatable :: cosqr( : ), sinqr( : )
@@ -44,13 +42,12 @@ program builder
   real( kind = kind( 1.0d0 ) ), allocatable :: gre_small( :, :, : ), gim_small( :, :, : )
   real( kind = kind( 1.0d0 ) ), allocatable :: vind( : ), nind( : ), xirow( : )
   !
-  real( kind = kind( 1.0d0 ) ) :: term1, term2, rscal, dsqdmod1, dsqdmod2, dsqdmod3, exppref, nav
-  real( kind = kind( 1.0d0 ) ) :: efermi, newdif, absdif
-  integer :: dumint, gtot,bandtot,brange(4), nang, nr, indx, small_band
+  real( kind = kind( 1.0d0 ) ) :: exppref, nav
+  real( kind = kind( 1.0d0 ) ) :: efermi
+  integer :: dumint, gtot,bandtot,brange(4), nang, small_band
   integer, allocatable :: gvec( : , : )
-  character*12 :: wfname
-  character*2 :: element
-  real( kind = kind( 1.0d0 ) ) :: qinb(3), kshift(3)
+  character(len=12) :: wfname
+  real( kind = kind( 1.0d0 ) ) :: kshift(3)
   !
   ! file units by name
   integer, parameter :: enkfile = 20

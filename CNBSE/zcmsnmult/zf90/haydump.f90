@@ -2,7 +2,7 @@ subroutine haydump( ne, el, eh, gam0, nval, eps, j, a, b, kpref, ebase )
   implicit none
   !
   integer :: ne, j
-  real( kind = kind( 1.0d0 ) ) :: el, eh, gam0, nval, eps, a( 0 : j - 1 ), b( 1 : j ), kpref, ebase
+  real( kind = kind( 1.0d0 ) ) :: el, eh, gam0, nval, eps, a( 0 : j ), b( 1 : j ), kpref, ebase
   !
   integer :: ie, jdamp, jj
   real( kind = kind( 1.0d0 ) ) :: e, gam, dr, di, ener, spct( 0 : 1 ), spkk, pi 

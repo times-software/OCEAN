@@ -1,0 +1,63 @@
+OCEAN is the product of informal developement over many years. This shows. As a 
+rule we should all strive to write cleaner, better commented, and more 
+compliant code than what is currently here.
+
+This document is organized into sections:
+I)    Git 
+II)   Code compatibility
+III)  Code style
+
+
+I) Git 
+  A) Structure
+    The two imporant branches on the git repository are `main' and `develop.' 
+    All of the code work should be done on, or on branches off of, the 
+    `develop' branch. When we are ready for a new release the `develop' branch 
+    will be frozen and tested for bugs. If it is good that version will be 
+    merged into `main', tagged, and released. The `main' branch should be kept 
+    clean so that at any time in the development cycle bug fixes can be applied 
+    quickly and easily without worry about checking all of the new work that 
+    has been done on `develop'
+  B) Issues
+    The preferred way to work on a new feature or bugfix is to first open an 
+    issue on github. This allows us to identify, comment on, and assign tasks. 
+  C) Commits
+    When making commits try and be concise, but still convey the work that has 
+    been done.
+
+II) Code compatibility
+  A) Standards
+    The Fortran 2003 standard has reasonably wide adoption for its core 
+    features, and new source code should make all attempts to be compliant. 
+    For our purposes "reasonable adoption" means both that the free (as in $) 
+    GCC as well as several paid options have good support. When possible, test 
+    new code by asking the compiler to complain.
+  B) Acceptable Non-standards
+    1) Flush
+    2) Contiguous
+      Put in #ifdef CONTIGUOUS to block it off. 
+    3) Alignment calls
+      For high-performance code alignment can be crucial. We need a portable 
+      way to specify good data alignment. 
+  C) Pre-processor
+    Currently the code uses c-style preprocessor commands. For many compilers 
+    a "-cpp" will take care of this.
+  D) MPI
+    All MPI commands should be within `#ifdef MPI'. The code should execute 
+    correctly if compiled without MPI support.
+
+III) Code style
+  A) Standard Fortran
+    1) Variable 
+      Variable names should be descriptive. Loop iterators may be single 
+      characters, ie. `i', but only for small loops. 
+    2) Control structures
+      Please use lowercase for standard fortran controls like if, do, etc.
+  B) External libraries
+    Calls to BLAS, LAPACK, MPI, and OpenMP should be written with the 
+    subroutine name in uppercase (or the control names for OpenMP).
+  C) Floating points
+    Some care should be taken to ensure correct precision numbers. For all FP 
+    declarations a type should be explicitly declared using the OCEAN_kinds 
+    module. Additionally, any written constant should be given an explicit 
+    precision, eg. MyHartree = MyRydberg * 2.0_dp.

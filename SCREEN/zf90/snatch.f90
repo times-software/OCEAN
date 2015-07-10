@@ -3,12 +3,12 @@
 !
       integer :: indx
       real( kind = kind( 1.0d0 ) ) :: tau( 3 )
-      character * 2 :: element
+      character(len=2) :: element
 !
       integer :: ntot, nmatch, i
       real( kind = kind( 1.0d0 ) ) :: tmp( 3 )
       logical :: found
-      character * 2 :: ein
+      character(len=2) :: ein
 !
       open( unit=99, file='xyz.wyck', form='formatted', status='old' )
       rewind 99

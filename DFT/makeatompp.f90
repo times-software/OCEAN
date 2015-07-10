@@ -1,14 +1,17 @@
 ! program makeatompp
 !
       program makeatompp
+
+      use periodic
 !
       implicit none
-      character*2 , allocatable :: satom(:)
-      character*7 , allocatable :: mass(:)
-      character*99, allocatable :: ppname(:), ppline(:)
-      integer :: i
+      character(len=3) , allocatable :: satom(:), zsymb(:)
+      character(len=7) , allocatable :: mass(:)
+      character(len=99), allocatable :: ppname(:), ppline(:)
+      integer :: i, iostatus
       integer :: ntype
       integer, allocatable    :: znucl(:)
+      logical :: have_zsymb = .false.
 !
 !
       write(6,*) " in makeatompp"
@@ -22,20 +25,29 @@
       read(99,*) znucl(:)
       close(99)
 !
+      allocate( zsymb(ntype) )
+      open(unit=99,file='zsymb',form='formatted',status='old')
+      read(99,*,IOSTAT=iostatus) zsymb(:)
+      close(99)
+!
       allocate( ppname(ntype) )
       open(unit=99,file='pplist',form='formatted',status='old')
       do i = 1, ntype
          read(99,*) ppname(i)
       end do
       close(99)
+      if( iostatus .eq. 0 ) have_zsymb = .true.
+      write(*,*) have_zsymb, zsymb
 !
 ! get symbol & mass, concatenate
 !
       allocate( satom(ntype), mass(ntype), ppline(ntype) )
       do i = 1, ntype
          call getsymbol( znucl(i), satom(i) )
+         if( have_zsymb ) satom(i)=trim(zsymb(i))
+!         if(trim(zsymb(i)) .ne. '') satom(i)=trim(zsymb(i))
          call getmass  ( znucl(i), mass (i) )
-         ppline(i) = satom(i) // '   ' // mass(i) // '   ' // trim(ppname(i)) &
+         ppline(i) = trim(satom(i)) // '   ' // mass(i) // '   ' // trim(ppname(i)) &
             &        // '.UPF'
       enddo
 !
@@ -51,9 +63,9 @@
       end program makeatompp
 
 
-subroutine getsymbol(zatom,satom)
+subroutine getsymbol_old(zatom,satom)
   integer, intent(in) :: zatom
-  character*2, intent(out) :: satom
+  character(len=2), intent(out) :: satom
 
     select case( zatom )
 
@@ -130,12 +142,12 @@ subroutine getsymbol(zatom,satom)
     end select
 
 
-end subroutine getsymbol
+end subroutine getsymbol_old
 
 
 subroutine getmass(zatom,mass)
   integer, intent(in) :: zatom
-  character*7, intent(out) :: mass
+  character(len=7), intent(out) :: mass
 
     select case( zatom )
 
@@ -199,15 +211,57 @@ subroutine getmass(zatom,mass)
         mass = "63.5460"
       case (30)
         mass = "65.3800"
+      case (31)
+        mass = "69.7230"
+      case (32)
+        mass = "72.6300"
+      case (33)
+        mass = "74.9210"
+      case (34)
+        mass = "78.9710"
+      case (35)
+        mass = "79.9040"
+      case (36)
+        mass = "83.7980"
+      case (37)
+        mass = "85.4678"
       case (38)
         mass = "87.6200"
-      case (74) 
-        mass = "183.84"
-      case(78)
-        mass = "195.084"
-
+      case (39)
+        mass = "88.9058"
+      case (40)
+        mass = "91.2240"
+      case (41)
+        mass = "92.9064"
+      case (42)
+        mass = "95.9500"
+      case (43)
+        mass = "98.0000"
+      case (44)
+        mass = "101.070"
+      case (45)
+        mass = "102.900"
+      case (46)
+        mass = "106.420"
+      case (47)
+        mass = "107.868"
+      case (48)
+        mass = "112.414"
+      case (49)
+        mass = "114.818"
+      case (50)
+        mass = "118.710"
+      case (51)
+        mass = "121.760"
+      case (52)
+        mass = "127.600"
+      case (53)
+        mass = "126.900"
+      case (54)
+        mass = "131.293"
+      case default
+        mass = "120"
     end select
-
 
 end subroutine getmass
 

@@ -1,13 +1,13 @@
 control 0
 core 4
+para_prefix{ mpirun -n 12 }
 nkpt {12 12 12 }
-verbatim{ chksymbreak 0 }
 paw.nkpt{ 2 2 2 }
 ngkpt{ 8 8 8 }
 fband 3.5
 occopt 1
-nbands 60
-paw.nbands 288
+nbands 20
+paw.nbands 80
 # acell { 3.6157 } 
 acell { 6.832682257 6.832682257 6.832682257 }
 rprim {
@@ -17,8 +17,9 @@ rprim {
 }
 ntypat 2 
 znucl { 5 7 }
+ppdir {'../'}
 pp_list{ b.fhi 
-         n.fhi }
+         07-n.lda.fhi }
 natom 2 
 typat { 1 2  }
 xred {  
@@ -26,7 +27,8 @@ xred {
 0.25 0.25 0.25
 }
       
-ecut 17.9
+#ecut 17.9
+ecut 40
 toldfe 1.1d-8
 tolwfr 1.1d-16
 nstep 50
@@ -45,3 +47,4 @@ cnbse.rad{ 5.0 }
 
 #Scaling Factor
 scfac 0.85
+cnbse.broaden 0.007

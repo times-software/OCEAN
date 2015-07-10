@@ -251,7 +251,7 @@ END SUBROUTINE sort
 SUBROUTINE getgap( sorted_o, ivbm, icbm, nval )
   !
   INTEGER, INTENT(in)  :: nval
-  REAL(DP), INTENT(in) :: sorted_o(nbnd)
+  REAL(DP), INTENT(in) :: sorted_o(nval)
   !
   INTEGER, INTENT(out) :: ivbm, icbm
   !

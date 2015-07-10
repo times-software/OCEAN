@@ -3,7 +3,7 @@
       program makecoords
 !
       implicit none
-      character*2, allocatable :: satom(:)
+      character(len=2), allocatable :: satom(:)
       integer :: i
       integer :: ibrav
       integer :: natoms, numtyp
@@ -77,7 +77,7 @@
 
 subroutine getsymbol(zatom,satom)
   integer, intent(in) :: zatom
-  character*2, intent(out) :: satom
+  character(len=2), intent(out) :: satom
 
     select case( zatom )
 

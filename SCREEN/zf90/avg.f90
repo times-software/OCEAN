@@ -8,8 +8,8 @@ program avg
   real(kind=kind(1.d0)), allocatable :: modrealgvec2(:)
   integer :: gmax( 3 ), ngmax, iter, rad_int
   real(kind=kind(1.d0)) :: gmodmax( 3 ), sgmodmax
-  character*2 elname
-  character*7 avgname
+  character(len=2) elname
+  character(len=7) avgname
 
   gmax( : ) = 0
   gmodmax( : ) = 0.d0
@@ -93,6 +93,11 @@ program avg
           radius = 0.00001d0 + dble( rad_int ) / 10.d0
           denr = 0.d0
           deni = 0.d0
+!$OMP PARALLEL DO  &
+!$OMP& DEFAULT( NONE ) &
+!$OMP& PRIVATE( j, gr, mag, magi ) &
+!$OMP& SHARED( radius, ng, rhogr, rhogi, tau, gvec, modrealgvec, pi ) &
+!$OMP REDUCTION(+:denr,deni)
           do j=1,ng
             gr = modrealgvec(j) * radius
             if (gr .ne. 0 ) then
@@ -122,7 +127,8 @@ program avg
 
 
           enddo !ng
-          write(97,"(a2, 1x, i2.2, 1x, e17.11, 1x, e17.11, 1x, e17.11)")elname,elnum,radius,denr,deni
+!$OMP END PARALLEL DO
+          write(97,"(a2, 1x, i2.2, 1x, e18.11, 1x, e18.11, 1x, e18.11)")elname,elnum,radius,denr,deni
         enddo !radius
         close( 97 )
       enddo !numsites

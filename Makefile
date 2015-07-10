@@ -10,13 +10,14 @@ AUX_EXE = $(ABINIT_EXE) $(CUT3D_EXE) $(PW_EXE) $(PP_EXE)
 
 all:
 	cd Common;       make 
+	cd zbridge;      make 
 	cd DFT;          make 
 	cd QEPREP;       make
 	cd PREP;         make 
 	cd PAW;          make 
 	cd SCREEN;       make 
 	cd CNBSE;        make 
-	cd zbridge;      make 
+	cd INTERPOLATE;  make
 
 clean:
 	cd Common;       make clean
@@ -25,8 +26,9 @@ clean:
 	cd PREP;         make clean
 	cd SCREEN;       make clean
 	cd PAW;          make clean
-	cd CNBSE         make clean 
+	cd CNBSE;        make clean 
 	cd zbridge;      make clean
+	cd INTERPOLATE;  make clean
 install:
 	mkdir -p $(INSTDIR)
 	cp $(SCRIPTS) $(AUX) $(INSTDIR)
@@ -39,6 +41,7 @@ install:
 	cd PAW;          make install
 	cd CNBSE;        make install
 	cd zbridge;      make install
+	cd INTERPOLATE;  make install
 	chmod u+x $(INSTDIR)/*.pl
 
 instdev:

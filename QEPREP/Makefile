@@ -1,17 +1,4 @@
 include ../Makefile.arch
-#### Select your QE version here
-
-#### QE 5.1 
-#QEXML = $(ESPRESSO_DIR)/Modules/qexml.o
-#QEMOD = $(ESPRESSO_DIR)/Modules/
-#OPTIONS += -D__QE51
-#### QE 5.0 or earlier?
-QEXML = $(ESPRESSO_DIR)/PP/src/qexml.o
-QEMOD = $(ESPRESSO_DIR)/PP/src
-
-
-
-
 
 include $(ESPRESSO_DIR)/make.sys
 .SUFFIXES :
@@ -78,7 +65,7 @@ wfsubs.o: wfsubs.f90
 	$(FC) $(OPTIONS) -c wfsubs.f90 -o wfsubs.o
 
 wfconvert.o: wfconvert.f90
-	$(FC) $(OPTIONS) -c wfconvert.f90 -o wfconvert.o
+	$(FC) $(OPTIONS) -cpp -c wfconvert.f90 -o wfconvert.o
 
 qehead2.o: qehead2.f90
 	$(FC) $(OPTIONS) -c qehead2.f90 -o qehead2.o -I$(QEMOD)
