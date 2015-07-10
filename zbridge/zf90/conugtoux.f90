@@ -19,7 +19,7 @@
    close( unit=99 )
    !
    ! JDFTx writes out files w/ C. No fortran recl markers
-   inquire( 'dft', exist=is_jdftx )
+   inquire( file='dft', exist=is_jdftx )
    if( is_jdftx ) then
      open( unit=99, file='dft', form='formatted', status='old' )
      read(99,*) DFT
