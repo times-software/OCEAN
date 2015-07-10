@@ -93,6 +93,11 @@ program avg
           radius = 0.00001d0 + dble( rad_int ) / 10.d0
           denr = 0.d0
           deni = 0.d0
+!$OMP PARALLEL DO  &
+!$OMP& DEFAULT( NONE ) &
+!$OMP& PRIVATE( j, gr, mag, magi ) &
+!$OMP& SHARED( radius, ng, rhogr, rhogi, tau, gvec, modrealgvec, pi ) &
+!$OMP REDUCTION(+:denr,deni)
           do j=1,ng
             gr = modrealgvec(j) * radius
             if (gr .ne. 0 ) then
@@ -122,6 +127,7 @@ program avg
 
 
           enddo !ng
+!$OMP END PARALLEL DO
           write(97,"(a2, 1x, i2.2, 1x, e18.11, 1x, e18.11, 1x, e18.11)")elname,elnum,radius,denr,deni
         enddo !radius
         close( 97 )

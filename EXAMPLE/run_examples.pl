@@ -5,14 +5,16 @@ use POSIX;
 
 my $PPN = 12;
 my $qsub = "qsub";
-my $queuename = "-q quick";
-my $node_extra = ":sandy";
+my $queuename = "-q small";
+my $node_extra = ":sandy40";
 my $env_load = "source ~/bin/intel/15";
 my $sleep = 5;
 my $instdir = "/home/jtv1/bin/intel/TEST/";
 my $scratchdir = "/wrk/jtv1/TEST/";
 
-my @DFT_flavors = ("qe"); #"abi", "qe", "obf" );
+my @exclude_list = ("AN");
+
+my @DFT_flavors = ("abi", "qe", "obf" );
 
 my @runlist;
 my $pwd = `pwd`;
@@ -29,6 +31,17 @@ while( my $example_dir = <$fh> )
   # skip .
   next if $example_dir =~ m/^\.\n/;
   chomp($example_dir);
+  my $skip = 0;
+  foreach my $exclude (@exclude_list)
+  {
+    if( $example_dir =~ m/^\.\/$exclude$/ )
+    {
+      $skip = 1;
+      last;
+    }
+  }
+  next if ( $skip == 1 );
+
   print "$example_dir\n";
 
   # Run through each DFT flavor
