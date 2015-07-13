@@ -1,3 +1,10 @@
+c Copyright (C) 2010 OCEAN collaboration
+c
+c This file is part of the OCEAN project and distributed under the terms 
+c of the University of Illinois/NCSA Open Source License. See the file 
+c `License' in the root directory of the present distribution.
+c
+c
 c     program erftest
 c     implicit real*8 (a-h,o-z)
 c     real*8   errfunc

@@ -1,3 +1,10 @@
+c Copyright (C) 2014 OCEAN collaboration
+c
+c This file is part of the OCEAN project and distributed under the terms 
+c of the University of Illinois/NCSA Open Source License. See the file 
+c `License' in the root directory of the present distribution.
+c
+c
       subroutine pseudo(etot,rel,alfa,nr,rmin,rmax,r,dr,r2,dl,
      &                  phe,orb,njrc,vi,cq,zorig,xntot,nel,
      &                  no,nl,nm,xnj,ev,occ,is,ek,iuflag,vctab,
