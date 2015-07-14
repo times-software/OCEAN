@@ -1,3 +1,4 @@
+#!/usr/bin/perl
 # Copyright (C) 2010 OCEAN collaboration
 #
 # This file is part of the OCEAN project and distributed under the terms 
@@ -5,7 +6,6 @@
 # `License' in the root directory of the present distribution.
 #
 #
-#!/usr/bin/perl
 
 #         modG = (bv1(1)*b(1) + bv2(1)*b(2) + bv3(1)*b(3))**2 +
 #     &          (bv1(2)*b(1) + bv2(2)*b(2) + bv3(2)*b(3))**2 +

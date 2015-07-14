@@ -1,3 +1,4 @@
+#!/usr/bin/perl
 # Copyright (C) 2013 OCEAN collaboration
 #
 # This file is part of the OCEAN project and distributed under the terms 
