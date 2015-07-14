@@ -1,3 +1,4 @@
+#!/usr/bin/perl
 # Copyright (C) 2015 OCEAN collaboration
 #
 # This file is part of the OCEAN project and distributed under the terms 
@@ -5,7 +6,6 @@
 # `License' in the root directory of the present distribution.
 #
 #
-#!/usr/bin/perl
 
 use strict;
 
