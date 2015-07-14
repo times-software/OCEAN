@@ -1,3 +1,10 @@
+! Copyright (C) 2010 OCEAN collaboration
+!
+! This file is part of the OCEAN project and distributed under the terms 
+! of the University of Illinois/NCSA Open Source License. See the file 
+! `License' in the root directory of the present distribution.
+!
+!
 subroutine cainxrvmult( nx, ny, nz, zn, tau, amet, epsi, xwrkr, xwrki, ptab )
   implicit none
   !
