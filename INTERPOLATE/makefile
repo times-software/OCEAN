@@ -1,6 +1,6 @@
 include ../Makefile.arch
 
-ifdef ESPRESSO_DIR
+ifdef OBF_DIR
 
 SHIRLEY_DIR = $(ESPRESSO_DIR)/SHIRLEY
 DEBUG =

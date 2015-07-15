@@ -1,8 +1,8 @@
 You will need to set up Makefile.arch to match your system. 
 Please see the annotated Makefile.arch.example for help.
 
-To run you will need either ABINIT or QuantumEspresso (or both), and the 
-FFTW library (fftw.org).
+To run you will need either ABINIT or QuantumEspresso (or both)
+Optionally you can make use of the FFTW library (fftw.org).
 
 
 After setting up Makefile.arch you will be able to make and then make install.
