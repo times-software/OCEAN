@@ -90,7 +90,7 @@ nedges 1
 edges{ 2 2 1 }
 
 # spectral broadening in Hartree
-cnbse.broaden{ 0.02 }
+cnbse.broaden{ 0.544 }
 
 # radius for paw reconstruciton
 paw.shells{ 3.5 4.0 }

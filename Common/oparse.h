@@ -235,11 +235,11 @@ cnbse.niter
 } cnbse.niter
 cnbse.spect_range
 {
-1200 -1.5 2.5
+1200 -40.817 68.028
 } cnbse.spect_range
 cnbse.broaden
 {
-0.001
+0.1
 } cnbse.broaden
 cnbse.mode
 {
