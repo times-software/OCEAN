@@ -231,20 +231,24 @@ cks.normal
 } cks.normal
 cnbse.niter
 {
-1200
+100
 } cnbse.niter
 cnbse.spect_range
 {
--1.5 2.5
+1200 -40.817 68.028
 } cnbse.spect_range
 cnbse.broaden
 {
-0.001
+0.1
 } cnbse.broaden
 cnbse.mode
 {
-1 100
+xas
 } cnbse.mode
+cnbse.strength
+{
+1.0
+} cnbse.strength
 scratch
 {
 scratchXX

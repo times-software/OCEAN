@@ -55,7 +55,8 @@ xred {
  .1947  .8053  .5 } 
 
 # Kinetic Enery cutoff
-ecut 70
+ecut 140
+#ecut 70
 
 # Energy tol
 toldfe 1.1d-6
@@ -87,4 +88,4 @@ cnbse.rad{ 4.0 }
 
 #Scaling Factor
 scfac 0.80
-cnbse.broaden 0.007
+cnbse.broaden 0.19

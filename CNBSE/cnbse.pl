@@ -19,8 +19,8 @@ if (! $ENV{"OCEAN_WORKDIR"}){ $ENV{"OCEAN_WORKDIR"} = `pwd` . "../" ; }
 my %alphal = ( "0" => "s", "1" => "p", "2" => "d", "3" => "f" );
 
 my @CommonFiles = ("epsilon", "xmesh.ipt", "nedges", "k0.ipt", "nbuse.ipt", 
-  "cnbse.rad", "cnbse.ways", "metal", "cksshift", "cksstretch", "cksdq", "cks.normal",
-  "cnbse.niter", "cnbse.spect_range", "cnbse.broaden", "cnbse.mode", "nphoton");
+  "cnbse.rad", "cnbse.ways", "metal", "cksshift", "cksstretch", "cksdq", 
+  "cnbse.niter", "cnbse.spect_range", "cnbse.broaden", "cnbse.mode", "nphoton", "cnbse.strength");
 
 my @AbinitFiles = ("avecsinbohr.ipt");
 
@@ -138,9 +138,55 @@ else
 #`echo gmanner > format65`;
 `cp kmesh.ipt kgrid`;
 `cp k0.ipt scaledkzero.ipt`;
-`mv cnbse.mode mode`;
 `cp qinunitsofbvectors.ipt cksdq`;
 
+
+# Set up mode
+  my $is_xas;
+  open TMPFILE, "cnbse.niter" or die "Failed to open cnbse.niter\n$!";
+  <TMPFILE> =~ m/(\d+)/ or die "Failed to parse cnbse.niter";
+  my $num_haydock_iterations = $1;
+  close TMPFILE;
+
+  open TMPFILE, "cnbse.strength" or die "Failed to open cnbse.strength\n$!";
+  <TMPFILE> =~ m/([0-9]*\.?[0-9]+)/ or die "Failed to parse cnbse.strength\n";
+  my $interaction_strength = $1;
+  close TMPFILE;
+
+  open TMPFILE, "cnbse.mode" or die "Failed to open cnbse.mode\n";
+  my $mode = <TMPFILE>;
+  close TMPFILE;
+  chomp($mode);
+  if( lc($mode) eq 'xes' )
+  {
+    print "Calculating XES\n";
+    $interaction_strength = 0.0;
+    $is_xas = ".false.";
+  }
+  elsif( lc($mode) eq 'xas' )
+  {
+    print "Calculating XAS\n";
+    $is_xas = ".true.";
+  }
+  else
+  {
+    print "Unrecognized mode. Calculating XAS\n";
+    $is_xas = ".true.";
+  }
+
+# write cks.normal file
+  open TMPFILE, ">cks.normal" or die "Failed to open cks.normal for writing\n$!";
+  print TMPFILE "$is_xas\n";
+  close TMPFILE;
+
+#write mode file
+  open TMPFILE, ">mode" or die "Failed to open mode for writing\n$!";
+  print TMPFILE "$interaction_strength    $num_haydock_iterations\n";
+  close TMPFILE;
+
+  
+
+`touch .Psi`;
 system("rm .Psi*");
 open LISTW, "listwfile" or die "Failed to open listwfile\n";
 while (<LISTW>) {
@@ -156,7 +202,6 @@ my $nbuse = $1;
 close NBUSE;
 my @brange;
 if ($nbuse == 0) {
-  open COND, "cks.normal" or die "Failed to open cks.normal\n";
   open BRANGE, "brange.ipt" or die "Failed to open brange.ipt\n";
   <BRANGE> =~ m/(\d+)\s+(\d+)/ or die "Failed to parse brange.ipt\n";
   $brange[0] = $1;
@@ -166,8 +211,8 @@ if ($nbuse == 0) {
   $brange[3] = $2;
   close BRANGE;
 
-  if( <COND> =~ m/\.true\./ ) {
-    print "cks in normal\n";
+  if( $is_xas =~ m/\.true\./ ) {
+    print "cks is normal\n";
     $nbuse = $brange[3] - $brange[2] + 1;
   }
   else{
@@ -280,16 +325,20 @@ while (<EDGE>) {
     print INFILE $line;
     
     print INFILE "hay\n";
-    open TMPFILE, "cnbse.niter" or die "Failed to open niter\n";
-    <TMPFILE> =~ m/(\d+)/ or die "Failed to parse niter\n";
-    my $niter = $1;
+    open TMPFILE, "cnbse.spect_range" or die "Failed to open cnbse.spect_range\n$!";
+    <TMPFILE> =~ m/(\d+)\s+([-+]?[0-9]*\.?[0-9]+)\s+([-+]?[0-9]*\.?[0-9]+)/ 
+      or die "Failed to parse cnbse.spect_range.\n Expecting one int and 2 floats (perhaps you are using the old format?\n";
+    my $grid = $1;
+    my $emin = $2;
+    my $emax = $3;
     close TMPFILE;
-    my $spectrange = `cat cnbse.spect_range`;
-    chomp($spectrange);
-    my $gamma0 = `cat cnbse.broaden`;
-    chomp($gamma0);
+
+    open TMPFILE, "cnbse.broaden" or die "Failed to open cnbse.broaden\n$!";
+    <TMPFILE> =~ m/([-+]?[0-9]*\.?[0-9]+)/ or die "Failed to parse cnbse.broaden\n";
+    my $gamma0 = $1;
+    close TMPFILE;
     
-    print INFILE "$niter  $spectrange  $gamma0  0.000\n";
+    print INFILE "$grid $emin $emax $gamma0 0.000\n";
     close INFILE;
 
     if( -e "../SCREEN/core_shift.txt" )

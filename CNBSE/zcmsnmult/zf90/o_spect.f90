@@ -31,6 +31,9 @@ program o_spect
   INTEGER  :: ne, n_recur, i_recur, nruns, iter, run_iter
 
   real( kind=(kind(1.d0)) ), allocatable :: a(:), b(:)
+  
+!  real(kind=kind(1.0d0)), parameter :: Ryd2eV = 13.605693009  ! (84) 2014 CODATA
+  real(kind=kind(1.0d0)), parameter :: Ha2eV = 27.211386018  ! (168) 2014 CODATA
 
 
   open(unit=99,file='spect.in',form='formatted',status='old')
@@ -46,6 +49,10 @@ program o_spect
       goto 112
   end select
   close(99)
+
+  el = el / Ha2eV
+  eh = eh / Ha2eV
+  gam0 = gam0 / Ha2eV
 
 !  el = (el -ebase)/ 27.2114d0
 !  eh = (eh -ebase)/ 27.2114d0
@@ -125,7 +132,7 @@ program o_spect
           dr = delta
           di = -rm1 * delta
           di = abs( di )
-          ener = ebase + 27.2114d0 * e
+          ener = ebase + Ha2eV * e
 !          ener = 27.2114d0 * e
           spct( jdamp ) = kpref * di / ( dr ** 2 + di ** 2 )
        end do
