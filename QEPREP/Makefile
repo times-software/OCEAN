@@ -22,7 +22,7 @@ PP = $(ESPRESSO_DIR)/PP/src
 LIBOBJS = $(ESPRESSO_DIR)/flib/ptools.a $(ESPRESSO_DIR)/flib/flib.a $(ESPRESSO_DIR)/clib/clib.a \
 					$(ESPRESSO_DIR)/iotk/src/libiotk.a 
 
-SCRIPTS = QespressoDriver.pl celldm.py converter.py qe_dendip.pl 
+SCRIPTS = 
 FILESF90 = qe_wfconvert.x qeband.x qebocc.x
 WFCONVERT_OBJS = wfconvert.o headpar.o grabwf.o wfsubs.o
 
