@@ -1,3 +1,8 @@
+! Copyright (C) 2015 OCEAN collaboration
+!
+! This file is part of the OCEAN project and distributed under the terms 
+! of the GPL 2 License. See the file `License' in the current subdirectory.
+!
 subroutine par_gentoreal( nx, nfcn, fcn, ng, gvec, iu, offset, invert_xmesh, loud, ibeg, u2_type, nfft)
   use kinds, only : dp
   USE io_global,  ONLY : stdout, ionode

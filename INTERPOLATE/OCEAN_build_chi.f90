@@ -1,3 +1,8 @@
+! Copyright (C) 2015 OCEAN collaboration
+!
+! This file is part of the OCEAN project and distributed under the terms 
+! of the GPL 2 License. See the file `License' in the current subdirectory.
+!
 subroutine OCEAN_build_chi( myrow, mycol, nprow, npcol, context, band_subset, gre_mb, gre_nb, &
       band_nb, desc_gre, sigma, t, nt, eshift, fermi_energy, eigval, uofrandb, gre_mloc, &
       gre_nloc, u_m, &

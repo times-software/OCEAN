@@ -1,3 +1,8 @@
+! Copyright (C) 2015 OCEAN collaboration
+!
+! This file is part of the OCEAN project and distributed under the terms 
+! of the GPL 2 License. See the file `License' in the current subdirectory.
+!
 subroutine OCEAN_bofr_multi( )
 ! the idea here is to project the basis functions onti our wonky OCEAN chi real-space grid
 !    The grid is defined by the file rbfile.bin
