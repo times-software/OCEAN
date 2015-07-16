@@ -1,5 +1,15 @@
 include ../Makefile.arch
 
+ifndef $(ESPRESSO_DIR)
+all:
+	@echo "Your build does not have OBF support."
+install:
+	@echo "Your build does not have OBF support."
+clean:
+	rm -f *.o *.x
+
+else
+
 include $(ESPRESSO_DIR)/make.sys
 .SUFFIXES :
 
@@ -87,4 +97,4 @@ qeband.x: $(QEOBJS) qeband.o
 
 qebocc.x: $(QEOBJS) qebocc.o
 	$(LD) $(LDFLAGS) -o $@ qebocc.o $(QEOBJS) $(LIBOBJS)
-
+endif
