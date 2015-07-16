@@ -1,10 +1,10 @@
 include ../Makefile.arch
 
-SCRIPTS = dendip.pl par_dendip.pl bvecs.pl gvecs2.pl ofermi.pl OBF_wfn.pl
+SCRIPTS = dendip.pl par_dendip.pl bvecs.pl gvecs2.pl ofermi.pl OBF_wfn.pl qe_dendip.pl
 FILESF90 = nelectron.x rhoofg.x wfconvert.x
-WFCONVERT_OBJS = wfconvert.o headpar.o grabwf.o wfsubs.o
+WFCONVERT_OBJS = wfconvert.o headpar.o grabwf.o wfsubs.o 
 WFCONVERTGW_OBJS = wfconvert_gw.o headpar.o grabwf.o wfsubs.o
-
+FFT_WRAPPER = ../zbridge/zobj/FFT_wrapper.o -I../zbridge/ ../zbridge/zobj/jlmfft.o
 
 .SUFFIXES: .f .x .f90
 
@@ -23,8 +23,8 @@ clean:
 .f.x:
 	$(FC) $(OPTIONS) -o $*.x $*.f
 
-rhoofg.x: rho2.f90
-	$(FC) $(OPTIONS) rho2.f90 $(FFTWI) $(FFTWL) -o rhoofg.x
+rhoofg.x: rho2.f90 
+	$(FC) $(OPTIONS) rho2.f90 $(FFT_WRAPPER) $(FFTWL) -o rhoofg.x 
 
 nelectron.x: nelectron.f90
 	$(FC) $(OPTIONS) nelectron.f90 -o nelectron.x

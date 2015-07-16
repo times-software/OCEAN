@@ -1,4 +1,11 @@
 #!/usr/bin/perl
+# Copyright (C) 2015 OCEAN collaboration
+#
+# This file is part of the OCEAN project and distributed under the terms 
+# of the University of Illinois/NCSA Open Source License. See the file 
+# `License' in the root directory of the present distribution.
+#
+#
 
 use strict;
 
@@ -290,7 +297,9 @@ print "OBKPTS: $kpt_tot, ideal pools: $ideal_npools\n";
 print QE_POOL "obf\t$ideal_npools\n";
 
 
-
+# Need to figure out the number of bands to use (for the BSE states)
+# 1) User has asked for NBANDS
+# 2) User has asked for and energy range (guessing time!)
 open ERANGE, "dft_energy_range.ipt" or die "Failed to open dft_energy_range.ipt\n$!";
 my $erange = <ERANGE>;
 chomp($erange);

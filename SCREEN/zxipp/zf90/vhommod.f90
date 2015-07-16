@@ -1,3 +1,10 @@
+! Copyright (C) 2015 OCEAN collaboration
+!
+! This file is part of the OCEAN project and distributed under the terms 
+! of the University of Illinois/NCSA Open Source License. See the file 
+! `License' in the root directory of the present distribution.
+!
+!
 program vhommod
   implicit none
   integer, parameter :: stdin = 5, stdout = 6
@@ -14,7 +21,7 @@ program vhommod
   !
   real( kind=dp ), external :: levlou, sphj0, sphj1
   !
-  character * 80 :: dummy
+  character(len=80) :: dummy
   !
   pi = 4.d0 * datan( 1.d0 )
   !

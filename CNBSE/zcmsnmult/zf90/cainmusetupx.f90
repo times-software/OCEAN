@@ -1,3 +1,10 @@
+! Copyright (C) 2015 OCEAN collaboration
+!
+! This file is part of the OCEAN project and distributed under the terms 
+! of the University of Illinois/NCSA Open Source License. See the file 
+! `License' in the root directory of the present distribution.
+!
+!
   inquire(file='core_offset', exist=exst)
   if( exst ) then
     open(unit=99,file='core_offset',  form='formatted', status='old' )
@@ -219,7 +226,7 @@
      read( 99, * ) list( 1: nproj( l ) * nproj( l ) )
      i = 0
      do nu = 1, nproj( l )
-        mpm( :, nu, l ) = list( i + 1 : i + nproj( l ) )
+        mpm( 1 : nproj( l ), nu, l ) = list( i + 1 : i + nproj( l ) )
         i = i + nproj( l )
      end do
      close( unit=99 )

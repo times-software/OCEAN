@@ -1,3 +1,10 @@
+! Copyright (C) 2013 OCEAN collaboration
+!
+! This file is part of the OCEAN project and distributed under the terms 
+! of the University of Illinois/NCSA Open Source License. See the file 
+! `License' in the root directory of the present distribution.
+!
+!
 ! Reads through ximat and checks against a reference ximat
 
 program builder_check
@@ -8,7 +15,7 @@ program builder_check
   real(DP), allocatable :: xi_ref(:,:), xi(:,:)
 
   real(DP) :: max_diff, diff
-  real(DP), parameter :: tol = 1.0d-14
+  real(DP), parameter :: tol = 1.0d-12
 
 
 
@@ -40,12 +47,15 @@ program builder_check
   do jpt = 1, npt
     do ipt = 1, npt
       diff = abs( xi_ref( ipt, jpt ) - xi( ipt, jpt ) )
-      if( diff .gt. max_diff ) max_diff = diff
-      if( diff .gt. tol ) write(6,*) ipt, jpt, diff
+      if( diff .gt. max_diff ) then 
+        max_diff = diff
+        write(6,*) ipt, jpt, diff
+      endif
     enddo
   enddo
 
   write(6,*) 'Max difference: ', max_diff
+  if( max_diff .gt. tol ) write(6,*) 'Diff larger than tol'
 
   deallocate( xi, xi_ref)
 

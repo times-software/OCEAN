@@ -1,7 +1,15 @@
 #!/usr/bin/perl
+# Copyright (C) 2014 OCEAN collaboration
+#
+# This file is part of the OCEAN project and distributed under the terms 
+# of the University of Illinois/NCSA Open Source License. See the file 
+# `License' in the root directory of the present distribution.
+#
+#
 
 use Getopt::Long;
-use Cwd;
+use Cwd 'abs_path';
+use Cwd 'getcwd';
 use File::Copy;
 use strict;
 
@@ -33,9 +41,8 @@ if ($ColWidth > 60 ) {
 }
 
 if (! $ENV{"OCEAN_BIN"} ) {
-  $0 =~ m/(.*)\/ocean\.pl/;
+  abs_path($0) =~ m/(.*)\/ocean\.pl/;
   $ENV{"OCEAN_BIN"} = $1;
-  print "OCEAN_BIN not set. Setting it to $1\n";
 }
 my $OCEAN_BIN = $ENV{"OCEAN_BIN"};
 
@@ -54,7 +61,7 @@ else
 close VERSION;
 
 ##########################################
-#print ', version "$ENV{OCEAN_VERSION}"\n';
+print "version $ENV{'OCEAN_VERSION'}\n";
 
 
 # Process Options

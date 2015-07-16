@@ -1,3 +1,10 @@
+! Copyright (C) 2015 OCEAN collaboration
+!
+! This file is part of the OCEAN project and distributed under the terms 
+! of the University of Illinois/NCSA Open Source License. See the file 
+! `License' in the root directory of the present distribution.
+!
+!
 !  program pawsetup
 !
 !  creates the site list based upon the inputs
@@ -12,10 +19,10 @@
      &    atomcount(:), sitenum(:), pspused(:),inppopts(:), inppfill(:)
 !      real(kind=kind(1.d0)) ::
       real(kind=kind(1.d0)), allocatable :: xred(:,:)
-      character*50, allocatable :: pplist(:),ppopts(:),ppfill(:)
-      character*50 :: atemp1, atemp2
+      character(len=50), allocatable :: pplist(:),ppopts(:),ppfill(:)
+      character(len=50) :: atemp1, atemp2
 !
-      character*9, parameter :: f9='formatted'
+      character(len=9), parameter :: f9='formatted'
 !
       open(unit=99,file='ntype',form=f9,status='old')
       read(99,*) ntypat
@@ -54,7 +61,7 @@
       open(unit=99,file='xyz.wyck',form=f9,status='unknown')
       write(99,*) natom
       do counter=1,natom
-        write(99,'(A3,3(X,F14.10))') elements(znucl(typat(counter))),   &
+        write(99,'(A3,3(1X,F14.10))') elements(znucl(typat(counter))),   &
      &                               xred(:,counter)
       enddo
       close(99)
@@ -113,7 +120,7 @@
             if (inppfill(counter2) .eq. znucl(counter) )                   &
      &            atemp2 = ppfill(counter2)
           enddo
-          write(99,'(I3,X,A2,3(X,A50))') znucl(counter),                &
+          write(99,'(I3,1X,A2,3(1X,A50))') znucl(counter),                &
      &      elements(znucl(counter)), pplist(counter), atemp1, atemp2
         endif
       enddo
@@ -140,7 +147,7 @@
 !  for each edge to be considered.
       open(unit=99,file='hfinlist',form=f9,status='unknown')
       do counter=1,nedges
-        write(99,'(A50,3(X,I3),X,A2,X,I3)')pplist(typat(edges(1,counter))),&
+        write(99,'(A50,3(1X,I3),1X,A2,1X,I3)')pplist(typat(edges(1,counter))),&
      &            znucl(typat(edges(1,counter))),  edges(2:3,counter),  &
      &  elements(znucl(typat(edges(1,counter)))), sitenum(edges(1,counter))
       enddo

@@ -1,7 +1,7 @@
 # The pseudopotentials are in the main run directory
 ppdir {'../'}
 # Select to run the OBF version 
-dft obf
+#dft obf
 # Set this
 para_prefix{ mpirun -n 6 }
 # Legacy, must be here for now and should be 1
@@ -50,7 +50,6 @@ xred {
 0  0   0
 }
 
-#ecut 100
 ecut 100
 
 
@@ -68,7 +67,7 @@ paw.shells{ 4.0 }
 cnbse.rad{ 4.0 }
 
 # spectral broadening in Hartree
-cnbse.broaden{ 0.02 }
+cnbse.broaden{ 0.544 }
 
 #Scaling Factor
 scfac 1.00

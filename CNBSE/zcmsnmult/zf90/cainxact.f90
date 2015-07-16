@@ -1,3 +1,10 @@
+! Copyright (C) 2013 OCEAN collaboration
+!
+! This file is part of the OCEAN project and distributed under the terms 
+! of the University of Illinois/NCSA Open Source License. See the file 
+! `License' in the root directory of the present distribution.
+!
+!
 subroutine cainxact( n, nspn, nc, lc, nq, nbd, e0, self_energy, v, hv, pref, &
      iq, qphys, zn, inter, bvec, celvol, amet, nx, ny, nz, ur, ui, tau, rcut, rzero, renorm, ptab, &
      vms, cml, cms, xi, lmin, lmax, npmax, nproj, mpcr, mpci, mpm, lvl, lvh, jbeg, mham, itot, jtot, mhr, mhi, somel, core_offset )

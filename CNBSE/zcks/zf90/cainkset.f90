@@ -1,3 +1,10 @@
+! Copyright (C) 2015 OCEAN collaboration
+!
+! This file is part of the OCEAN project and distributed under the terms 
+! of the University of Illinois/NCSA Open Source License. See the file 
+! `License' in the root directory of the present distribution.
+!
+!
 subroutine cainkset( avec, bvec, bmet, prefs )
   implicit none
   integer, parameter :: stdin = 5, stdout = 6, mubase = 80
@@ -17,7 +24,7 @@ subroutine cainkset( avec, bvec, bmet, prefs )
   real( kind = kind( 1.0d0 ) ) :: dbeta( 3 ), qraw( 3 ), dq( 3 )
   real( kind = kind( 1.0d0 ) ) :: eshift, edge, sc, pi, celvol
   !
-  integer, allocatable :: iq( :, : ), g( :, : ), kvc( :, : )
+  integer, allocatable :: iq( :, : ), g( :, : ), kvc( :, : ), flip_g( :, : )
   real( kind = kind( 1.0d0 ) ), allocatable :: qphys( :, : )
   real( kind = kind( 1.0d0 ) ), allocatable :: e0( : ), eraw( : )
   !
@@ -50,7 +57,8 @@ subroutine cainkset( avec, bvec, bmet, prefs )
   integer :: j
   real( kind = kind( 1.0d0 ) ) :: su, qsqd, betot( 3 ), nrm
   integer :: OMP_GET_THREAD_NUM, fh
-  logical :: temp_exist
+  logical :: temp_exist, is_jdftx
+  character(len=3) :: DFT
   !
   write ( stdout, * ) 'warning: this assumes one-component system'
   !
@@ -201,6 +209,18 @@ subroutine cainkset( avec, bvec, bmet, prefs )
   end do
   close( unit=99 )
   !
+  ! detect jdftx
+  inquire( file='dft', exist=is_jdftx )
+  if( is_jdftx ) then
+    open( unit=99, file='dft', form=f9, status='old' )
+    read(99,*) DFT
+    if( DFT .eq. 'jdf' ) then
+      is_jdftx = .true.
+    else
+      is_jdftx = .false. 
+    endif
+  endif
+  
   write ( 6, * ) 'looping over k to load...'
   ii = 0
   nq = 0
@@ -218,8 +238,8 @@ subroutine cainkset( avec, bvec, bmet, prefs )
 !$OMP PARALLEL DO  &
 !$OMP& SCHEDULE( STATIC  ) &
 !$OMP& PRIVATE(ik1, ik2, ik3, qraw, nq, i, ng, g, zzr, zzi, ibeg, w, nrm, su, j, betot, qsqd, kvc, &
-!$OMP&         ck, ii, ibd, itau, ip, ilm, l, m, iproj, fh, coeff ) &
-!$OMP& SHARED(zn, qbase, dbeta, wnam, nbtot, metal, ww, efermi, ivh, ivl, bmet, rm1, &
+!$OMP&         ck, ii, ibd, itau, ip, ilm, l, m, iproj, fh, coeff, flip_g ) &
+!$OMP& SHARED(zn, qbase, dbeta, wnam, nbtot, metal, ww, efermi, ivh, ivl, bmet, rm1, is_jdftx, &
 !$OMP&        ntau, tau, lmin, lmax, nproj, npmax, nqproj, dqproj, fttab, prefs, edge, sc, &
 !$OMP&        eshift, nbd, nlm, lml, lmm, pcoefr, pcoefi, e0, temperature, conduct, bvec, ibeg_array )   
 !  do ik1 = 0, zn( 1 ) - 1
@@ -243,11 +263,26 @@ subroutine cainkset( avec, bvec, bmet, prefs )
            !
            fh = 1000 !+ OMP_GET_THREAD_NUM()
 !$         fh = fh + OMP_GET_THREAD_NUM()
-           open( unit=fh, file=wnam( nq ), form='unformatted', status='old' )
+           if( is_jdftx ) then
+!JTV need to switch to more compliant, possibly access='stream'??
+            stop
+!             open( unit=fh, file=wnam( nq ), form='binary', status='old' )
+           else
+             open( unit=fh, file=wnam( nq ), form='unformatted', status='old' )
+           endif
            rewind fh
            read ( fh ) ng
            allocate( g( ng, 3 ), zzr( ng, nbtot ), zzi( ng, nbtot ), w(nbd) )
-           read ( fh ) g  
+
+           if( is_jdftx ) then
+             allocate( flip_g( 3, ng ) )
+             read( fh ) flip_g
+             g = transpose( flip_g )
+             deallocate( flip_g )
+           else
+             read ( fh ) g  
+           endif
+
            read ( fh ) zzr  
            read ( fh ) zzi  
            close( unit=fh )

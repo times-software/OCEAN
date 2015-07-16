@@ -1,10 +1,17 @@
+! Copyright (C) 2015 OCEAN collaboration
+!
+! This file is part of the OCEAN project and distributed under the terms 
+! of the University of Illinois/NCSA Open Source License. See the file 
+! `License' in the root directory of the present distribution.
+!
+!
 ! program nelectron
 ! gets the number of electrons per unit cell (via the realspace density)
 !
       program nelectron
 !
       implicit none
-      character*20 :: lineburn
+      character(len=20) :: lineburn
       integer :: xpnt(3), counter
       real(kind=kind(1.d0)) :: rho, nelect, avecs(3,3), vol
 !

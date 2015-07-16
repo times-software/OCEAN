@@ -1,4 +1,11 @@
 #!/usr/bin/perl
+# Copyright (C) 2015 OCEAN collaboration
+#
+# This file is part of the OCEAN project and distributed under the terms 
+# of the University of Illinois/NCSA Open Source License. See the file 
+# `License' in the root directory of the present distribution.
+#
+#
 
 use strict;
 use File::Copy;
@@ -15,23 +22,26 @@ if (! $ENV{"OCEAN_WORKDIR"}){ $ENV{"OCEAN_WORKDIR"} = `pwd` . "../" ; }
 #FAKE INPUTS FOR NOW
 
 #my $para_prefix = "mpirun -n 16 ";
-my $trace_tolerance = "5.0d-15";
+#my $trace_tolerance = "5.0d-15";
 
 # Spline for Hamiltonian
-my $ham_kpoints = "4 4 4";
+#my $ham_kpoints = "4 4 4";
 
 my $band_start = 1;
-my $band_stop  = 800;
+# A value of minus one should cause the max number to be used
+# (ie. band max = number of OBFs )
+my $band_stop  = -1; #800;
 
-my $screen_nkpt = "2 2 2";
+#my $screen_nkpt = "2 2 2";
 
 
 
 # Step 1: Create support files
-my @CommonFiles = ("znucl", "paw.hfkgrid", "paw.fill", "paw.opts", "pplist", "paw.shells", "ntype",
-                   "natoms", "typat", "taulist", "nedges", "edges", "caution", "epsilon", "k0.ipt", 
-                   "ibase", "scfac", "rscale", "rprim", "para_prefix", "paw.nbands", "core_offset",
-                   "paw.nkpt", "pool_control");
+my @CommonFiles = ("znucl", "paw.hfkgrid", "paw.fill", "paw.opts", "pplist", "paw.shells", 
+                   "ntype", "natoms", "typat", "taulist", "nedges", "edges", "caution", 
+                   "epsilon", "k0.ipt", "ibase", "scfac", "rscale", "rprim", "para_prefix", 
+                   "paw.nbands", "core_offset", "paw.nkpt", "pool_control", "ham_kpoints", 
+                   "cnbse.rad" );
 my @ExtraFiles = ("specpnt", "Pquadrature" );
 my @DFTFiles = ("rhoofr", "nscf.out", "system.rho.dat");
 
@@ -82,14 +92,19 @@ if( open PARA_PREFIX, "para_prefix" )
   $pool_size = 1;
 }
 
-if( -e "../DFT/ham_kpoints" )
-{
-	`cp ../DFT/ham_kpoints .`;
-	$ham_kpoints = `cat ham_kpoints`;
-	chomp($ham_kpoints);
-}
+#if( -e "../DFT/ham_kpoints" )
+#{
+#	`cp ../DFT/ham_kpoints .`;
+#	$ham_kpoints = `cat ham_kpoints`;
+#	chomp($ham_kpoints);
+#}
+open IN, "ham_kpoints" or die;
+<IN> =~ m/(\d+)\s+(\d+)\s+(\d+)/ or die "Failed to parse ham_kpoints\n$_";
+my $ham_kpoints = "$1  $2  $3";
 
-$screen_nkpt = `cat paw.nkpt`;
+
+
+my $screen_nkpt = `cat paw.nkpt`;
 chomp($screen_nkpt);
 
 
@@ -207,7 +222,6 @@ print MKRB_CONTROL "$nedges\n";
 
 
 my $temp_edgename;
-my $temp_rad = sprintf("%03.2f",$rads[0]);
 
 while ($hfinline = <HFINLIST>) {
   chomp $hfinline;
@@ -244,25 +258,34 @@ system("$para_prefix $ENV{'OCEAN_BIN'}/shirley_ham_o.x < bofr.in > bofr.out") ==
         or die "$!\nFailed to run shirley_ham from bofr.in\n";
 #JTV only works for all the same core hole potential right now
 #JTV and all the same radius too
-
-open VCx, "zpawinfo/vcxxxxx${temp_edgename}R${temp_rad}" or die "Failed to open vcxxxxxx\n$!";
-open VPERT, ">vpert" or die;
-while (<VCx>){}
-my $vpert_length = $.;
-seek(VCx,0,0);
-print VPERT "$vpert_length\n";
-while (<VCx>)
+foreach $rad (@rads)
 {
-  print VPERT $_;
+#  my $temp_rad = sprintf("%03.2f",$rads[0]);
+  my $temp_rad = sprintf("%03.2f",$rad);
+  open VCx, "zpawinfo/vcxxxxx${temp_edgename}R${temp_rad}" or die "Failed to open vcxxxxxx\n$!";
+  open VPERT, ">vpert.$rad" or die;
+  while (<VCx>){}
+  my $vpert_length = $.;
+  seek(VCx,0,0);
+  print VPERT "$vpert_length\n";
+  while (<VCx>)
+  {
+    print VPERT $_;
+  }
+  close VCx;
+  close VPERT;
+
+
 }
-close VCx;
-close VPERT;
+unlink "vpert" if (-e "vpert");
+symlink "vpert.$rads[0]", "vpert";
+
 #`cp zpawinfo/vcxxxxx${temp_edgename}R${temp_rad} ./tmp`;
 #`wc tmp > vpert`;
 #`cat tmp >> vpert`;
 
 print "ocean_builder.x\n";
-system("$para_prefix $ENV{'OCEAN_BIN'}/ocean_builder_mult.x  $pool_size  < builder.in 1> builder.out 2> builder.err") == 0
+system("$para_prefix $ENV{'OCEAN_BIN'}/ocean_builder.x  $pool_size  < builder.in 1> builder.out 2> builder.err") == 0
         or die "$!\nFailed to run ocean_builder.x\n";
 
 my $itau = 0;
@@ -337,6 +360,10 @@ while ($hfinline = <HFINLIST>) {
 #    `echo 24 > ipt`;
     print IPT "24\n";
     close IPT;
+
+
+    unlink "vpert" if( -e "vpert");
+    symlink "vpert.$rad", "vpert";
     `$ENV{'OCEAN_BIN'}/xipps.x < ipt`;
     move( "ninduced", "nin" );
 #    `mv ninduced nin`;
@@ -419,7 +446,7 @@ while ($hfinline = <HFINLIST>) {
     `$ENV{'OCEAN_BIN'}/rscombine.x < ipt1 > ./${edgename}/zRXS${fullrad}/ropt`;
 #    `mv {rpot,rpothires,rom,nin} ${edgename}/zRXS${fullrad}/`;
     foreach( "rpot","rpothires","rom","nin")
-      { move( $_ , "${edgename}/zRXT${fullrad}/"); }
+      { move( $_ , "${edgename}/zRXS${fullrad}/"); }
 
   }
 }

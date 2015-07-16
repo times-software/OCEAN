@@ -1,45 +1,39 @@
+OCEAN
+Copyright (c) 2015 University of Washington. All rights reserved.
 
-END-USER LICENSE
 
-The assembled package of OCEAN is referred to below as "the System." 
-The contributing authors and the institutions for whom they have worked shall be referred to below simply as "authors."
+Developed by: OCEAN Collaboration 
+University of Washington
+http://feffproject.org/feffproject-ocean.html
+https://github.com/feffgroup/OCEAN
 
-The use of any part of the OCEAN code constitutes acceptance of this license in its entirety. If any part of this conflicts 
-with applicable law or ordinance the end-user does not have permission to use any part of the System. 
+This software was prepared in part with US Government Funding under
+DOE contract DE-FG03-97ER45623.
 
-USE RESTRICTIONS:
-1. The End-user agrees that neither the System, nor any of its components shall be used
-as the basis of a commercial product, and that the System shall not be rewritten or otherwise
-adapted to circumvent the need for obtaining additional license rights. Components of the
-System subject to other license agreements are excluded from this restriction.
-2. Modification of the System is permitted, e.g., to facilitate its performance by the End-user.
-Use of the System or any of its components for any purpose other than that specified in
-this Agreement requires prior approval in writing.
-3. The license granted hereunder and the licensed System may not be assigned, sublicensed,
-or otherwise transferred by the End-user.
-4. The End-user shall take reasonable precautions to ensure that neither the System nor
-its components are copied, or transferred out side of his/her current academic or government
-afiliated laboratory or disclosed to parties other than the End-user.
-5. In no event shall the End-user install or provide this System on any computer system
-on which the End-user purchases or sells computer-related services.
-6. Nothing in this agreement shall be construed as conferring rights to use in advertising,
-publicity, or otherwise any trademark or the names of the System or the contributing institutions. The End-user
-will not make any claim to the name OCEAN.
-In published accounts of the use or application of OCEAN the System should be referred to by this name,
-with an appropriate literature reference:
-Bethe-Salpeter equation calculations of core excitation spectra
-J. Vinson, J. J. Rehr, J. J. Kas, and E. L. Shirley
-Phys. Rev. B 83, 115106 – Published 3 March 2011
+Permission is hereby granted, free of charge, to any person obtaining a copy of 
+this software and associated documentation files (the "Software"), to deal with 
+the Software without restriction, including without limitation the rights to 
+use, copy, modify, merge, publish, distribute, sublicense, and/or sell copies 
+of the Software, and to permit persons to whom the Software is furnished to do 
+so, subject to the following conditions:
 
-LIMITATION OF LIABILITY:
-1. THE AUTHORS AND INSTITUTIONS MAKES NO WARRANTIES , EITHER EXPRESSED OR IMPLIED, AS TO
-THE CONDITION OF THE SYSTEM, ITS MERCHANTABILITY, OR ITS FITNESS FOR
-ANY PARTICULAR PURPOSE. THE END-USER AGREES TO ACCEPT THE SYSTEM
-'AS IS' AND IT IS UNDERSTOOD THAT THE AUTHORS ARE NOT OBLIGATED TO PROVIDE
-MAINTENANCE, IMPROVEMENTS, DEBUGGING OR SUPPORT OF ANY KIND.
-2. THE AUTHORS SHALL NOT BE LIABLE FOR ANY DIRECT, INDIRECT, SPECIAL,
-INCIDENTAL OR CONSEQUENTIAL DAMAGES SUFFERED BY THE END-USER OR
-ANY OTHER PARTIES FROM THE USE OF THE SYSTEM.
-3. The End-user agrees to indemnify the authors for liability resulting from the use of the System by End-user. 
-The End-user agrees to hold the authors harmless for their own negligence.
+  * Redistributions of source code must retain the above copyright notice, this 
+    list of conditions and the following disclaimers.
+  * Redistributions in binary form must reproduce the above copyright notice, 
+    this list of conditions and the following disclaimers in the documentation 
+    and/or other materials provided with the distribution.
+  * Neither the names of OCEAN Collaboration, University of Washington, DOE, 
+    nor the names of its contributors may be used to endorse or promote 
+    products derived from this Software without specific prior written 
+    permission.
 
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR 
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, 
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE 
+CONTRIBUTORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER 
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, 
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS WITH 
+THE SOFTWARE.
+
+License is applicable for all routines in the distribution, unless otherwise 
+specified.

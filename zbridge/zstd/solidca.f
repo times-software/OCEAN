@@ -1,3 +1,10 @@
+c Copyright (C) 2010 OCEAN collaboration
+c
+c This file is part of the OCEAN project and distributed under the terms 
+c of the University of Illinois/NCSA Open Source License. See the file 
+c `License' in the root directory of the present distribution.
+c
+c
 c  exchange correlation routine, by Ceperley-Alder, as parametrized by
 c  Perdew and Zunger, Phys. Rev. B 23, 5048.  we use their interpolation
 c  between the unpolarized and polarized gas for the correlation part.

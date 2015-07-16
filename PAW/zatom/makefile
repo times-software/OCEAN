@@ -47,7 +47,7 @@ install:
 	cp zexe/hfk.x $(INSTDIR)
 
 clean:
-	rm -f zobj/*.o zexe/*.x
+	rm -f zobj/*.o zexe/*.x *__genmod.???
 
 zexe/hartpart.x: zobj/hartpart.o
 	$(COMP) -o zexe/hartpart.x zobj/hartpart.o

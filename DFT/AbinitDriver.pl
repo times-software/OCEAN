@@ -100,6 +100,7 @@ else {
 }
 
 
+
 #unless ($RunABINIT || $RunPP || $RunKGen ) {
 #  print "Nothing needed in ABINIT Stage\n";
 #  open GOUT, ">abinitstage.stat" or die;
@@ -148,6 +149,11 @@ close PARA;
 #}
 
 #############################################
+my $ecut = `cat ecut`;
+chomp($ecut);
+open OUT, ">ecutRy" or die;
+print OUT "$ecut Ry\n";
+close OUT;
 
 # test paw.nkpt, paw.nbands
 open NKPT, "paw.nkpt" or die "Failed to open paw.nkpt\n";
@@ -289,7 +295,7 @@ if ($RunABINIT) {
   `cat coord >> abfile`;
   `cat taulist >> abfile`;
   `echo 'ecut ' >> abfile`;
-  `cat ecut >> abfile`;
+  `cat ecutRy >> abfile`;
   `echo 'nstep ' >> abfile`;
   `cat nrun >> abfile`;
   `echo 'diemac ' >> abfile`;

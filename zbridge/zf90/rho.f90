@@ -1,3 +1,10 @@
+! Copyright (C) 2010 OCEAN collaboration
+!
+! This file is part of the OCEAN project and distributed under the terms 
+! of the University of Illinois/NCSA Open Source License. See the file 
+! `License' in the root directory of the present distribution.
+!
+!
 !      program xpt
       subroutine rho(nx,nfft,inp,outp,loud)
       integer :: nx(3), nfft(3),i,j,k,ii,iz,iy,ix,dumint,i1,i2,i3

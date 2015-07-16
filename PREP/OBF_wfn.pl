@@ -1,4 +1,11 @@
 #!/usr/bin/perl
+# Copyright (C) 2015 OCEAN collaboration
+#
+# This file is part of the OCEAN project and distributed under the terms 
+# of the University of Illinois/NCSA Open Source License. See the file 
+# `License' in the root directory of the present distribution.
+#
+#
 
 use strict;
 
@@ -19,7 +26,7 @@ my $ham_kpoints = "4 4 4 ";
 
 
 # Step 1: Create support files
-my @CommonFiles = ("nkpt", "k0.ipt", "qinunitsofbvectors.ipt", "nbands", "xmesh.ipt", "para_prefix", "pool_control", "ham_kpoints");
+my @CommonFiles = ("nkpt", "k0.ipt", "qinunitsofbvectors.ipt", "nbands", "xmesh.ipt", "para_prefix", "pool_control", "ham_kpoints", "core_offset");
 my @ExtraFiles = ("specpnt", "Pquadrature", "sphpts" );
 my @DFTFiles = ("rhoofr", "avecsinbohr.ipt", "efermiinrydberg.ipt", "nelectron");
 my @PawFiles = ("hfinlist", "xyz.wyck");
@@ -184,18 +191,19 @@ while (<EDGE>) {
   print CKSIN "$cksout";
   close CKSIN;
 
-
-print "Running BOFX";
-system("$para_prefix $ENV{'OCEAN_BIN'}/shirley_ham_o.x < bofx.in > bofx.out") == 0
-  or die "Failed to run bofx\n$!";
-
-print "\nRunning OBF2LOC";
-system("$para_prefix $ENV{'OCEAN_BIN'}/shirley_ham_o.x < obf2loc.in > obf2loc.out") == 0
-  or die "Failed to run obf2loc\n$!";
-
 print "\nRunning QDIAG\n$para_prefix $ENV{'OCEAN_BIN'}/ocean_qdiagp.x $pool_size < q.in > q.out";
 system("$para_prefix $ENV{'OCEAN_BIN'}/ocean_qdiagp.x $pool_size < q.in > q.out") == 0
   or die "Failed to run qdiag\n$!";
+
+print "\nRunning BOFX";
+system("$para_prefix $ENV{'OCEAN_BIN'}/shirley_ham_o.x < bofx.in > bofx.out") == 0
+  or die "Failed to run bofx\n$!";
+
+print "\nSkipping OBF2LOC";
+#print "\nRunning OBF2LOC";
+#system("$para_prefix $ENV{'OCEAN_BIN'}/shirley_ham_o.x < obf2loc.in > obf2loc.out") == 0
+#  or die "Failed to run obf2loc\n$!";
+
 
 print "\n";
 `touch done`;

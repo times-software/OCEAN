@@ -1,3 +1,10 @@
+! Copyright (C) 2015 OCEAN collaboration
+!
+! This file is part of the OCEAN project and distributed under the terms 
+! of the University of Illinois/NCSA Open Source License. See the file 
+! `License' in the root directory of the present distribution.
+!
+!
 program orthog
   implicit none
   !
@@ -40,6 +47,10 @@ program orthog
      close( unit=99 )
      u( :, : ) = uu( :, :, ik )
      do ib = 1, nb
+        if( ik .eq. 1 ) then
+          w = dot_product( u( :, ib ), u( :, ib ) )
+          write(6,*) ib, ib, w
+        endif
         call normalize( nx, u( :, ib ) )
         v( :, ib ) = u( :, ib )
         if ( ib .le. nbv ) then
@@ -54,6 +65,9 @@ program orthog
               x = dot_product( v( :, ibp ), v( :, ibp ) )
               w = w / x
               v( : , ib ) = v( : , ib ) - w * v( : , ibp )
+              if( ik .eq. 1 ) then
+                write(6,*) ib, ibp, w
+              endif
            end do
         end if
         call normalize( nx, v( :, ib ) )

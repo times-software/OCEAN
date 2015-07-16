@@ -1,10 +1,17 @@
+! Copyright (C) 2015 OCEAN collaboration
+!
+! This file is part of the OCEAN project and distributed under the terms 
+! of the University of Illinois/NCSA Open Source License. See the file 
+! `License' in the root directory of the present distribution.
+!
+!
       subroutine headerpar(filenum, fermie, maxnpw, maxband, nsppol,    &
      & nspinor, nkpt,kout)
       implicit none
 
-      integer :: filenum, maxnpw, maxband,i,kout,density
+      integer :: filenum, maxnpw, maxband,i,kout
 
-      character*6 :: codvsn
+      character(len=6) :: codvsn
       integer :: headform,fform
       integer :: bantot,date,intxc,ixc,natom,ngfft(3),nkpt,             &
      & nspden,nspinor,nsppol,nsym,ntypat,occopt,pertcase,usepaw
@@ -15,10 +22,10 @@
       double precision, allocatable :: kpt(:,:),occ(:),tnons(:,:),      &
      & znucltypat(:),xred(:,:) 
 !      double precision, allocatable, intent (inout) :: kptlist(:,:)
-      character*132 :: title
+      character(len=132) :: title
       double precision :: znuclpsp,zionpsp
       integer :: pspso,pspdat,pspcod,pspxc,npsp,ipsp
-      double precision :: residm,etotal,fermie,dummy
+      double precision :: residm,etotal,fermie
 
 
       read(filenum) codvsn,headform,fform

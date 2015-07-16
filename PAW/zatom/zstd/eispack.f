@@ -1,3 +1,10 @@
+c Copyright (C) 2010 OCEAN collaboration
+c
+c This file is part of the OCEAN project and distributed under the terms 
+c of the University of Illinois/NCSA Open Source License. See the file 
+c `License' in the root directory of the present distribution.
+c
+c
       subroutine qzhes(nm,n,a,b,matz,z)
 c
       integer i,j,k,l,n,lb,l1,nm,nk1,nm1,nm2

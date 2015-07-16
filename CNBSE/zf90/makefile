@@ -17,5 +17,5 @@ install:
 	cp zexe/getnval.x $(INSTDIR)/
 
 clean:
-	rm zobj/*.o
-	rm zexe/*.x
+	rm -f zobj/*.o
+	rm -f zexe/*.x

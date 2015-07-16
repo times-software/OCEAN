@@ -1,4 +1,11 @@
 #!/usr/bin/perl
+# Copyright (C) 2015 OCEAN collaboration
+#
+# This file is part of the OCEAN project and distributed under the terms 
+# of the University of Illinois/NCSA Open Source License. See the file 
+# `License' in the root directory of the present distribution.
+#
+#
 
 use strict;
 
@@ -12,6 +19,10 @@ if (! $ENV{"OCEAN_WORKDIR"}){ $ENV{"OCEAN_WORKDIR"} = `pwd` . "../" ; }
 ###########################
 
 
+open RAD, "cnbse.rad" or die "Failed to open cnbse.rad\n";
+my $rad = <RAD>;
+close RAD;
+my $rad_dir = sprintf("zR%03.2f",$rad);
 
 #my $offset = "no"; #121.611826250456;
 my $para_prefix = `cat para_prefix`;
@@ -26,8 +37,10 @@ if( -e "core_offset" )
 	chomp($offset);
         if( $offset =~ m/false/ )
 	{
-		print "How did I get here?\n";
-		die;
+#		print "How did I get here?\n";
+#		die;
+    print "Offset given as false. Running w/ offset = 0\n";
+    $offset = 0;
 	}
 }
 
@@ -124,7 +137,7 @@ while ( my $line = <HFIN>)
   my $string = sprintf("z%s%02d_n%02dl%02d",$el, $el_rank,$nn,$ll);
   print "$string\n";
 # W shift is in Ha., but we want to multiple by 1/2 anyway, so the units work out
-  my $Wshift = `head -n 1 $string/zR4.00/ropt | awk '{print \$4}'`;
+  my $Wshift = `head -n 1 $string/$rad_dir/ropt | awk '{print \$4}'`;
 
   my $shift = $Vshift + $Wshift;
   $shift *= 13.605;

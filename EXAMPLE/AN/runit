@@ -1,0 +1,5 @@
+#PBS -l nodes=8:ppn=8:sandy20 -q infiniband -l walltime=24:00:00 -N pmmm
+
+source ~/bin/intel/env.csh
+cd $PBS_O_WORKDIR
+time ~/bin/intel/buffer/ocean.pl nh4no3.in

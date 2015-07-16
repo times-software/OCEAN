@@ -1,3 +1,10 @@
+! Copyright (C) 2015 OCEAN collaboration
+!
+! This file is part of the OCEAN project and distributed under the terms 
+! of the University of Illinois/NCSA Open Source License. See the file 
+! `License' in the root directory of the present distribution.
+!
+!
 !      program wfconvert
 !    This is to convert wf binaries from abinit to nbse formats
 !    First step is to read in the abinit files
@@ -6,13 +13,13 @@
       program wfconvert
       IMPLICIT NONE
 
-      integer :: nkpt,nspinor,nsppol,isppol,kout
+      integer :: nkpt,nspinor,nsppol,isppol
       integer :: nband(2)
-      double precision :: fermie,dummy
+      double precision :: dummy
       integer :: iband,ikpt,maxnpw,un_npw,sh_npw 
       double precision, allocatable :: eigen_un(:),eigen_sh(:),         &
      &  cg_un(:,:),cg_sh(:,:), cg(:,:,:),cg_imag(:,:,:),kr(:,:),ki(:,:),&
-     &  occ_sh(:),occ_un(:),kptlist(:,:)
+     &  occ_sh(:),occ_un(:)
       integer, allocatable :: kg_shift(:,:),kg_unshift(:,:),            &
      &   g_occ(:,:,:),gordered(:,:)
       integer :: brange(4),bandtot,maxband
@@ -21,15 +28,13 @@
       integer :: g_un_min(3),g_un_max(3),g_sh_min(3),g_sh_max(3), umk(3)
       integer ::i,j,k,hkpt,gtot,kr_iter,ki_iter,nfiles
       integer :: files_iter,master_iter,g_iter,nkpts,kpt_counter
-      character*11 :: wfkin!,wfkout
-      character*12 :: wfkout
-      character*4 :: wfknum
-      character*3 :: kptnum
+      character(len=11) :: wfkin!,wfkout
+      character(len=12) :: wfkout
       double precision, allocatable :: enklisto(:,:),enklistu(:,:)
-      double precision :: lda_low, lda_high, ldagap,qval
+      double precision :: lda_low, lda_high,qval
       double precision :: orthcr,orthci,q1,q2,q3,bv1(3),bv2(3),bv3(3)
       logical :: noshift
-      character*9, parameter :: f9 = 'formatted'
+      character(len=9), parameter :: f9 = 'formatted'
 !
       integer, parameter :: enkfile =   40
       integer, parameter :: tmels   =   41

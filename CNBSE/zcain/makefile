@@ -51,3 +51,4 @@ install:
 clean:
 	rm -f zobj/*.o
 	rm -f zexe/*.x
+	rm -f *__genmod.???

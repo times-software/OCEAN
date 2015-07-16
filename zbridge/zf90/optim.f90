@@ -1,3 +1,10 @@
+! Copyright (C) 2010 OCEAN collaboration
+!
+! This file is part of the OCEAN project and distributed under the terms 
+! of the University of Illinois/NCSA Open Source License. See the file 
+! `License' in the root directory of the present distribution.
+!
+!
 ! the function optim returns the length [optim] for a fft grid, 
 ! based on a mininum length [nmin].
 ! the length can have [nfac] factors stored in aray [fac], 

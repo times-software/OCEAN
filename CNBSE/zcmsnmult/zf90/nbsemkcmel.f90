@@ -1,3 +1,10 @@
+! Copyright (C) 2015 OCEAN collaboration
+!
+! This file is part of the OCEAN project and distributed under the terms 
+! of the University of Illinois/NCSA Open Source License. See the file 
+! `License' in the root directory of the present distribution.
+!
+!
 subroutine nbsemkcmel( add04 )
   implicit none
   !
@@ -11,7 +18,7 @@ subroutine nbsemkcmel( add04 )
   character * 7 :: s7
   character * 11 :: s11
   integer, allocatable :: nnu( : )
-  real( kind = kind( 1.0d0 ) ), allocatable, dimension( :, : ) :: cmel, nmel, phi
+  real( kind = kind( 1.0d0 ) ), allocatable, dimension( :, : ) :: cmel, nmel, phi, tphi
   real( kind = kind( 1.0d0 ) ), allocatable, dimension( : ) :: rad, dr, val
   !
   write ( s11, '(1a7,1a4)' ) 'prjfile', add04
@@ -68,10 +75,13 @@ subroutine nbsemkcmel( add04 )
      write ( s7, '(1a2,1i1,1a4)' ) 'ps', l, add04
      open( unit=99, file=s7, form='formatted', status='unknown' )
      rewind 99
-     allocate( rad( nr ), phi( nr, nnu( l ) ), dr( nr ), val( nr ) )
+     allocate( rad( nr ), phi( nr, nnu( l ) ), dr( nr ), val( nr ), tphi( nnu( l ), nr ) )
      do i = 1, nr
-        read ( 99, * ) rad( i ), phi( i, : )
+!        read ( 99, * ) rad( i ), phi( i, : )
+        read ( 99, * ) rad( i ), tphi( :, i )
      end do
+     phi = transpose( tphi )
+     deallocate( tphi )
      close( unit=99 )
      dl = log( rad( nr ) / rad( 1 ) ) / dble( nr - 1 )
      x = 1 + nint( log( rmax / rad( 1 ) ) / dl )

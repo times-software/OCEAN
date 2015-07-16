@@ -1,14 +1,18 @@
 ! program makecoords
 !
       program makecoords
+
+      use periodic
 !
       implicit none
-      character*2, allocatable :: satom(:)
-      integer :: i
-      integer :: natoms, numtyp
+      character(len=3), allocatable :: satom(:), zsymb(:)
+      integer :: i,ityp
+      integer :: natoms, numtyp, iostatus
       integer, allocatable    :: typat(:), znum(:), zatom(:)
       real(kind=kind(1.d0))              :: rscale(3)
       real(kind=kind(1.d0)), allocatable :: pos(:,:)
+
+      logical :: have_zsymb
 !
 !
       write(6,*) " in makecoords"
@@ -54,24 +58,39 @@
          zatom(i) = znum( typat(i) )
       end do
 !
+      allocate( zsymb(numtyp) )
+      open(unit=99,file='zsymb',form='formatted',status='old')
+      read(99,*,IOSTAT=iostatus) zsymb(:)
+      close(99)
+      if( iostatus .eq. 0 ) then 
+        have_zsymb = .true.
+        write(6,*) 'User has set ZSYMB'
+      else
+        have_zsymb = .false.
+        write(6,*) 'Using default ZSYMB'
+      endif
+!
 !
       open(unit=98,file='coords',form='formatted',status='unknown')
       do i = 1, natoms
          call getsymbol( zatom(i), satom(i) )
-         write( 98, '(a,x,f16.10,x,f16.10,x,f16.10)') satom(i), pos(:,i)
+         ityp=typat(i)
+!         if(trim(zsymb(ityp)) .ne. '') satom(i)=trim(zsymb(ityp))
+          if( have_zsymb ) satom(i)=trim(zsymb(ityp))
+         write( 98, '(a,1x,f16.10,1x,f16.10,1x,f16.10)') trim(satom(i)), pos(:,i)
       enddo
       close(98)
 
       deallocate( satom )
-      deallocate( typat, zatom, znum )
+      deallocate( typat, zatom, znum, zsymb )
       deallocate( pos )
 
       end program makecoords
 
 
-subroutine getsymbol(zatom,satom)
+subroutine getsymbol_old(zatom,satom)
   integer, intent(in) :: zatom
-  character*2, intent(out) :: satom
+  character(len=2), intent(out) :: satom
 
     select case( zatom )
 
@@ -145,7 +164,7 @@ subroutine getsymbol(zatom,satom)
     end select
 
 
-end subroutine getsymbol
+end subroutine getsymbol_old
 
 
 

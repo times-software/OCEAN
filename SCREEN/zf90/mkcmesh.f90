@@ -1,3 +1,10 @@
+! Copyright (C) 2015 OCEAN collaboration
+!
+! This file is part of the OCEAN project and distributed under the terms 
+! of the University of Illinois/NCSA Open Source License. See the file 
+! `License' in the root directory of the present distribution.
+!
+!
       subroutine mkcmesh( nang, nr, rmax, element, indx, posn, wpt, drel&
      &                    , avec )
       implicit none
@@ -5,7 +12,7 @@
       integer :: nang, nr, indx
       real( kind = kind( 1.0d0 )) :: rmax, avec( 3, 3 ),posn(3,nang*nr),&
      &         wpt( nang * nr ), drel( nang * nr )
-      character * 2 :: element
+      character(len=2) :: element
 !
       integer :: i, j, ii
       real( kind = kind( 1.0d0 ) ) :: pi, su, tmp, alpha(3), tau(3), dr

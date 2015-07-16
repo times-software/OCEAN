@@ -1,3 +1,10 @@
+! Copyright (C) 2012 OCEAN collaboration
+!
+! This file is part of the OCEAN project and distributed under the terms 
+! of the University of Illinois/NCSA Open Source License. See the file 
+! `License' in the root directory of the present distribution.
+!
+!
 subroutine omp_realu2( gtot, npt, ibl, ibh, brange, overlap, w, mu, efermi, kr, ki, gvec, bvec,posn, ure, uim, muminusw )
   implicit none
   !

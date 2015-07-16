@@ -1,6 +1,13 @@
+! Copyright (C) 2015 OCEAN collaboration
+!
+! This file is part of the OCEAN project and distributed under the terms 
+! of the University of Illinois/NCSA Open Source License. See the file 
+! `License' in the root directory of the present distribution.
+!
+!
       module periodic 
 
-      character*2, dimension(109), parameter :: elements =              &
+      character(len=2), dimension(109), parameter :: elements =              &
      &    (/ 'H_', 'He', 'Li', 'Be', 'B_', 'C_', 'N_',                  &
      & 'O_', 'F_', 'Ne', 'Na', 'Mg', 'Al', 'Si', 'P_', 'S_', 'Cl', 'Ar',&
      & 'K_', 'Ca', 'Sc', 'Ti', 'V_', 'Cr', 'Mn', 'Fe', 'Co', 'Ni', 'Cu',&
