@@ -62,16 +62,9 @@
       close( unit=99 )
       if ( i .eq. ikl( 1, iwfile ) ) then
          if( is_jdftx ) then
-           open ( unit=iwf, file=wfnam( iwfile ), form='binary',status='old'  )
-!           inquire( file=wfnam( iwfile ), size=filsize )
-!           ! ng
-!           ng = filsize - 4
-!           ng = ng / ( nb * 16 + 12 )
-!           if( filsize .ne. ( 4 + 12*ng + 16*ng*nb ) ) then
-!              write( 6, *) i, ':', filsize, ng
-!              stop
-!           endif
-!           read( iwf ) filsize
+!JTV need to figure out more compliant way of doing this. GCC (4.7) doesn't support form='binary'
+          stop
+!           open ( unit=iwf, file=wfnam( iwfile ), form='binary',status='old'  )
            read( iwf ) ng
          else
            open ( unit=iwf, file=wfnam( iwfile ), form='unformatted',status='unknown' )

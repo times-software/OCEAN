@@ -71,7 +71,8 @@ subroutine loaduxzerotau( nx, ny, nz, nbd, nq, nspn, zn, tau, ur, ui )
   if ( nbd .gt. 1 + ( ich - icl ) ) stop 'loadux ... nbd mismatch -- cf brange.ipt...'
 
   if( dft_type_is_obf ) then
-    open(unit=u2dat,file='u2par.dat',access='stream',status='old',form='binary' )
+!JTV
+    open(unit=u2dat,file='u2par.dat',access='stream',status='old',form='unformatted' )
     pos = 0
   else
     open( unit=u2dat, file='u2.dat', form='unformatted', status='unknown' )
