@@ -10,11 +10,27 @@ my $node_extra = ":sandy40";
 my $env_load = "source ~/bin/intel/15";
 my $sleep = 5;
 my $instdir = "/home/jtv1/bin/intel/TEST/";
-my $scratchdir = "/wrk/jtv1/TEST/";
+my $scratchdir = "/wrk/jtv1/TEST3/";
 
 my @exclude_list = ("AN");
 
-my @DFT_flavors = ("abi", "qe", "obf" );
+#my @DFT_flavors = ("abi", "qe", "obf" );
+my %allowed_dft_flavors =  (
+  "abi" => '1',
+  "qe"  => '1',
+  "obf" => '1' 
+);
+
+if( scalar(@ARGV) < 1 )
+{
+  print "List DFT flavors after script\n";
+  exit 0;
+}
+my @DFT_flavors;
+foreach my $test_dft (@ARGV)
+{
+  push @DFT_flavors, lc($test_dft) if exists $allowed_dft_flavors{ lc($test_dft) };
+}
 
 my @runlist;
 my $pwd = `pwd`;
@@ -87,8 +103,7 @@ while( my $example_dir = <$fh> )
 
 
   }
-#exit 0;
-  sleep 60;
+  sleep $sleep;
 }
 
 
