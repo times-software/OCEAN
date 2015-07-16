@@ -1,10 +1,10 @@
 include ../Makefile.arch
 
-ifndef $(ESPRESSO_DIR)
+ifndef ESPRESSO_DIR
 all:
-	@echo "Your build does not have OBF support."
+	@echo "Your build does not have QE support."
 install:
-	@echo "Your build does not have OBF support."
+	@echo "Your build does not have QE support."
 clean:
 	rm -f *.o *.x
 
@@ -14,8 +14,6 @@ include $(ESPRESSO_DIR)/make.sys
 .SUFFIXES :
 
 
-# QE 5.X
-#../flib/ptools.a ../flib/flib.a ../clib/clib.a ../iotk/src/libiotk.a
 QEOBJS = $(QEXML) $(ESPRESSO_DIR)/Modules/libqemod.a $(ESPRESSO_DIR)/flib/ptools.a \
          $(ESPRESSO_DIR)/flib/flib.a $(ESPRESSO_DIR)/clib/clib.a $(ESPRESSO_DIR)/iotk/src/libiotk.a
 
@@ -24,20 +22,13 @@ PP = $(ESPRESSO_DIR)/PP/src
 LIBOBJS = $(ESPRESSO_DIR)/flib/ptools.a $(ESPRESSO_DIR)/flib/flib.a $(ESPRESSO_DIR)/clib/clib.a \
 					$(ESPRESSO_DIR)/iotk/src/libiotk.a 
 
-SCRIPTS = dendip.pl par_dendip.pl bvecs.pl gvecs2.pl ofermi.pl QespressoDriver.pl \
-          celldm.py converter.py qe_dendip.pl 
-FILESF90 = makecoords.x makeatompp.x makeacell.x nelectron.x qe_wfconvert.x qeband.x qebocc.x
-# we also want rhoofg.x, but are having trouble linking the FFTW libraries
-#FILESF90 = makecoords.x makeatompp.x makeacell.x nelectron.x rhoofg.x
-#FILESF90 = makecoords.x makeatompp.x makeacell.x wfconvert.x nelectron.x rhoofg.x
+SCRIPTS = QespressoDriver.pl celldm.py converter.py qe_dendip.pl 
+FILESF90 = qe_wfconvert.x qeband.x qebocc.x
 WFCONVERT_OBJS = wfconvert.o headpar.o grabwf.o wfsubs.o
 
 
 
-all: makecoords.x makeatompp.x makeacell.x nelectron.x qe_wfconvert.x qeband.x qebocc.x
-# find the FFTW libraries so that you can also build rhoofg.x
-#all: makecoords.x makeatompp.x makeacell.x nelectron.x rhoofg.x
-#all: makecoords.x makeatompp.x makeacell.x wfconvert.x nelectron.x rhoofg.x
+all: $(FILESF90)
 
 install:
 	cp $(SCRIPTS) $(FILESF90) $(INSTDIR)
@@ -49,21 +40,6 @@ instdev:
 clean:
 	rm -f *.o *.x
 
-
-makecoords.x: makecoords.f90
-	$(FC) $(OPTIONS) makecoords.f90 -o makecoords.x
-
-makeatompp.x: makeatompp.f90
-	$(FC) $(OPTIONS) makeatompp.f90 -o makeatompp.x
-
-makeacell.x: makeacell.f90
-	$(FC) $(OPTIONS) makeacell.f90 -o makeacell.x
-
-rhoofg.x: rho2.f90
-	$(FC) $(OPTIONS) rho2.f90 $(FFTWI) $(FFTWL) -o rhoofg.x
-
-nelectron.x: nelectron.f90
-	$(FC) $(OPTIONS) nelectron.f90 -o nelectron.x
 
 headpar.o: ../PREP/headpar.f90
 	 $(FC) $(OPTIONS) -c ../PREP/headpar.f90 -o headpar.o

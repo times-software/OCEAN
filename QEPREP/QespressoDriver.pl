@@ -27,7 +27,7 @@ my @BandFiles = ("paw.nbands", "nbands");
 my @EspressoFiles = ( "coord", "degauss", "ecut", "etol", "fband", "ibrav",
     "isolated", "mixing", "natoms", "ngkpt", "noncolin", "nrun", "nscf.kshift", "ntype",
     "occopt", "occtype", "prefix", "ppdir", "rprim", "rscale", "scf.kshift", "smearing",
-    "spinorb", "taulist", "typat", "verbatim", "work_dir", "wftol");
+    "spinorb", "taulist", "typat", "verbatim", "work_dir", "wftol", "zsymb");
 #my @EspressoFiles = ( "coord", "degauss", "ecut", "etol", "fband", "ibrav", 
 #    "isolated", "mixing", "natoms", "ngkpt", "noncolin", "nrun", "nscf.kshift", "ntype", 
 #    "occopt", "occtype", "prefix", "ppdir", "rprim", "rscale", "scf.kshift", "smearing", 
