@@ -429,6 +429,9 @@ behavior is that scratch files will be written to the \file{DFT} directory.
 \end{Card}
 
 
+
+
+
 \section{Structural Information}
 \label{sec:Structural-Information}
 
@@ -906,24 +909,18 @@ Physically the polarization and momentum vectors should be orthogonal, but this 
 %Requires fftw3 currently. If you are running on a managed cluster that has nice MODULE support (like NERSC) simply loading the fftw3 module may work fine. Otherwise set the environmental variables FFTWL and FFTWI. For BASH `export FFTWL=``-L/myfftw3/lib -lfftw3''' and `export FFTWI=``-I/myfftw3/include''' and for CSH `setenv FFTWL ``-L/myfftw3/lib -lfftw3''' and `setenv FFTWI ``-I/myfftw3/include'''.
 %Look in the makefiles for helpful ``\$FFTWI" and ``\$FFTWL" variables that set the include and library paths respectively. Setting these as environmental variables should work.
 \item The code requires perl5
-\item Either {\sc abinit} or {\sc QuantumEspresso} (QE) may be used as the DFT code
+\item Either {\sc abinit} or {\sc QuantumEspresso} may be used as the DFT code
 \item Optionally {\sc fftw3} may be used in place of the internal FFT routines
 \end{itemize}
 
 The bare bones installation instructions are as follows.
 
 \begin{enumerate}
-\item{ Make sure you have a working DFT code installed first and know where the binaries, object files and compiled modules for the code are located (see note on qexml below)}
-\item{ Copy \file{Makefile.arch.example} to \file{Makefile.arch} and edit as necessary. Basically comment/un-comment shell variables 
-in \file{Makefile.arch} corresponding to features you wish to deactivate/activate. Helpful comments are included in \file{Makefile.arch.example} }
+\item{ Make sure you have a working DFT code installed first}
+\item{ Copy \file{Makefile.arch.example} to \file{Makefile.arch} and edit as necessary}
 \item{ Mind the INSTDIR variable which will set where the installation is placed. }
 \item{ Run `make' and then `make install'}
 \end{enumerate}
-
-\textbf{Note on qexml:}~To work with QE, OCEAN requires the qexml library of QE to be compiled. This libarary is built by deafult in QE-5.1 and higher 
-and is located in the Modules directory of the QE distribution. For earlier versions such as QE-4.3 and QE-5.0, the user needs to navigate 
-into the PP (for QE-4.3) or PP/src (for QE-5.0) directroy of QE and invoke `make qexml.o' to build the object file qexml.o . The 
-location of qexml.o can then be indicated in the \file{Makefile.arch} of OCEAN.
 
 Assuming success so far you can now go to the \file{EXAMPLE/OBF} directory. Here you will find what you need to do a preliminary 
 calculation of the Ti L$_{2,3}$ edge in strontium titanate. To run \program{ocean} run the command \texttt{\textsl{/path/to/ocean/ocean.pl OBF.in}}  

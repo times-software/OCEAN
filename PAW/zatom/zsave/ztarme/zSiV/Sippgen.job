@@ -1,0 +1,122 @@
+#!/bin/csh
+#
+# note that we now use "K" to define a configuration and "a" to do a calculation
+# this order allows the information about a configuration to be stored differently
+# within the program, and used for certain functions in EXAFS applications, PAW, etc.
+#
+  cp ../zcode/hfk.x .
+  echo " .false. " > caution # allows for fastest use of shooting method. 
+                             # " .true. " is slower but safer, less accurate, and desirable only when
+                             # " .false. " does not work.
+                             #
+                             # (summary: .false. allows integration out from zero and in from infinity, 
+                             # and ensuring a log-derivative match near the classical turning point. 
+                             # This procedure it can break down in cases of using 
+                             # non-local Hartree-Fock exchange, and then .true. can be used, which
+                             # insists on outward integration from zero only, detecting energy being 
+                             # too high or too low when the wave function crosses zero or has an upturn
+                             # beyond the last node, respectively.  This is not as good a procedure.
+                             #
+                             # p.s. maybe a computer scientist knows of a better way to do this, 
+                             # but this method has so far been failed only in calculations involving
+                             # La 4f states.
+#             
+  ( time ./hfk.x ) << HFIN
+i              # set up grid Z=14, 2000 points,
+   14 2000 9   # at most 6 electron levels
+d              # relativity
+   1           # 1 = yes, 0 = no
+x              # exchange correl
+   0.          # 0. = Hartree Fock
+P              # are we in pseudo mode?
+ .false.       # no, not yet!
+K              # define a configuration, as before.  6 levels, 60% new field mixing, 0.000001 eigenvalue convg.
+6 0.6 0.000001 100 0 2 # convergence, HF X (see ELS thesis), vestigial 0, and 2=verbosity (0-2)
+1 0 0  0   1  2      # same as before, Cyrus!
+2 0 0  0   1  2
+2 1 1  1   1  6
+3 0 0  0   1  0
+3 1 1  1   1  0
+3 2 2  2   1  0
+a
+p                    # pseudize -- parameters are same as before
+4 0.0000 4.0 
+  0 -0.9
+1.4 1.5
+1.4 1.5
+1.3 1.5
+K              # define same config, dropping core (included automatically)
+6 0.6 0.000001 100 0 2
+3 0 0  0   1  0
+3 1 1  1   1  0
+3 2 2  2   1  0
+4 0 0  0   1  0
+4 1 1  1   1  0
+4 2 2  2   1  0
+P                    # still keep pseudo off.
+ .false.
+a # do all-el. calc.
+s # dump l=0 all-el. wave functions
+   0
+s # same for l=1
+   1
+s # same for l=2
+   2
+P                    # turn on pseudo.  
+ .true.
+a # do pseudo calc.
+s # dump l=0 pseudo wave functions
+   0
+s # same for l=1
+   1
+s # same for l=2
+   2
+# C  # this and the next line introduce Shirley/Martin CPPs
+# 0.1650 0.6509 0.6214 0.6387 2
+v                    # output pseudopotential in real space
+V                    # output fourier transform of local pseudopotential (for l=0, 1, 2, etc.)
+#   check transferability
+K            # define a configuration.  NOTE: DO NOT change valence principal quantum number.
+3 0.6 0.000001 100 0 1
+3 0 0 -0.5 1 0.      # in a pseudopotential calc., the computer knows that 3s is the pseudo 1s, etc.
+3 1 1 -1.0 1 0. 
+3 2 2 -2.0 1 0.
+P                    # turn on pseudo  
+ .true.
+a                    # do pseuo calc
+P                    # turn off pseudo
+ .false.
+a                    # do all-el count (program remains core level quantum numbers)
+K            # define a configuration.  NOTE: do not change principal quantum number.
+2 0.6 0.000001 100 0 1
+3 0 0 -0.5 1 2.      # in a pseudopotential calc., the computer knows that 3s is the pseudo 1s, etc.
+3 1 1 -1.0 1 2. 
+P                    # turn on pseudo  
+ .true.
+a                    # do pseuo calc
+P                    # turn off pseudo
+ .false.
+a                    # do all-el count (program remains core level quantum numbers)
+K            # define a configuration.  NOTE: do not change principal quantum number.
+2 0.6 0.000001 100 0 1
+3 0 0 -0.5 1 1.      # in a pseudopotential calc., the computer knows that 3s is the pseudo 1s, etc.
+3 1 1 -1.0 1 3. 
+P                    # turn on pseudo  
+ .true.
+a                    # do pseuo calc
+P                    # turn off pseudo
+ .false.
+a                    # do all-el count (program remains core level quantum numbers)
+q                    # quit!
+HFIN
+#
+rm -f aprog atmf99 caution chgsum config hapot hfpot hfk.x psld 
+rm -f radpot rslt skip tmp valcon aex corcon 
+#
+# the files a pseudopotential user would want are 
+# ae0 = all-electron 3s wave function, ps0 = pseudo 3s
+# ae1, ae2, ps1, ps2 (same pattern)
+#   column 1 = r in bohr radii, column 2 = radial w.f. ( not multiplied by r)
+# real0 = s-wave ppot, real1 = p-wave ppot, real2 = d-wave ppot
+# recp0 = fourier transform of real0, recp1 and recp2 (same pattern)
+rm -f real3 recp3 # if f-wave ppot generated, real3 recp3 of interest
