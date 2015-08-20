@@ -162,7 +162,7 @@ paw.shells
 } paw.shells
 paw.hfkgrid
 {
-2000  20
+2000  32
 } paw.hfkgrid
 paw.fill
 {
