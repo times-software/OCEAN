@@ -1,3 +1,10 @@
+! Copyright (C) 2015 OCEAN collaboration
+!
+! This file is part of the OCEAN project and distributed under the terms 
+! of the University of Illinois/NCSA Open Source License. See the file 
+! `License' in the root directory of the present distribution.
+!
+!
 subroutine OCEAN_invdrv( x, b, n, i1, i2, n2, need, iwrk, w, bv, av, bs, as, req, ct, ev, f )
   use AI_kinds, only : DP
   implicit none
