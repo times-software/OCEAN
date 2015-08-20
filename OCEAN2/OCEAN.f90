@@ -12,7 +12,7 @@ program ocean
   use OCEAN_action
   use OCEAN_psi
   use OCEAN_long_range
-  use OCEAN_exact
+!  use OCEAN_exact
   use OCEAN_timekeeper
 
   implicit none

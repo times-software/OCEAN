@@ -791,7 +791,10 @@ module OCEAN_action
       read(99,*) calc_type
       select case ( calc_type )
         case('hay')
-          read(99,*) ne, el, eh, gam0, ebase
+          read(99,*) haydock_niter, ne, el, eh, gam0, ebase
+          el = el / 27.2114d0
+          eh = eh / 27.2114d0
+          gam0 = gam0 / 27.2114d0
         case('inv')
           read(99,*) nloop, gres, gprc, ffff, ener
           read(99,*) inv_style

@@ -254,7 +254,7 @@ print "Entering CNBSE stage\n";
 chdir "../CNBSE";
 if( $script_pre eq 'OBF' )
 {
-	system("$OCEAN_BIN/${script_pre}_cnbse.pl") == 0 or die "CNBSE stage failed\n$!";
+	system("$OCEAN_BIN/${script_pre}_cnbse_mpi.pl") == 0 or die "CNBSE stage failed\n$!";
 }
 else
 {

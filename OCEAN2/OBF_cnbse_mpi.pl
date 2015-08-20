@@ -21,7 +21,7 @@ my %alphal = ( "0" => "s", "1" => "p", "2" => "d", "3" => "f" );
 
 my @CommonFiles = ("epsilon", "xmesh.ipt", "nedges", "k0.ipt", #"nbuse.ipt", 
   "cnbse.rad", "cnbse.ways", "metal", "cksshift", "cksstretch", "cksdq", "cks.normal",
-  "cnbse.niter", "cnbse.spect_range", "cnbse.broaden", "cnbse.mode", "para_prefix");
+  "cnbse.niter", "cnbse.spect_range", "cnbse.broaden", "cnbse.mode", "para_prefix", "cnbse.strength" );
 
 my @AbinitFiles = ("avecsinbohr.ipt");
 
@@ -29,7 +29,7 @@ my @DFTFiles = ("nelectron");
 
 my @DenDipFiles = ("kmesh.ipt", "masterwfile", "listwfile", "efermiinrydberg.ipt", "qinunitsofbvectors.ipt", "brange.ipt", "enkfile", "tmels", "nelectron", "eshift.ipt" );
 
-my @WFNFiles = ("kmesh.ipt",  "efermiinrydberg.ipt", "qinunitsofbvectors.ipt", "brange.ipt", "avecsinbohr.ipt", "nbuse.ipt", "wvfcninfo", "wvfvainfo", "nbuse_xes.ipt");
+my @WFNFiles = ("kmesh.ipt",  "efermiinrydberg.ipt", "qinunitsofbvectors.ipt", "brange.ipt", "avecsinbohr.ipt", "nbuse.ipt", "wvfcninfo", "wvfvainfo", "nbuse_xes.ipt", "obf_control", "ibeg.h");
 
 my @ExtraFiles = ("Pquadrature", "sphpts" );
 
@@ -64,11 +64,12 @@ foreach (@PawFiles) {
   `cp ../SCREEN/$_ .` == 0 or die "Failed to get ../SCREEN/$_\n";
 }
 
+
+
 ##### misc other setup
 #`echo gmanner > format65`;
 `cp kmesh.ipt kgrid`;
 `cp k0.ipt scaledkzero.ipt`;
-`mv cnbse.mode mode`;
 `cp qinunitsofbvectors.ipt cksdq`;
 
 my $para_prefix = "";
@@ -81,6 +82,51 @@ if( open PARA_PREFIX, "para_prefix" )
 {
   print "Failed to open para_prefix. Error: $!\nRunning serially\n";
 }
+
+
+# Set up mode
+  my $is_xas;
+  open TMPFILE, "cnbse.niter" or die "Failed to open cnbse.niter\n$!";
+  <TMPFILE> =~ m/(\d+)/ or die "Failed to parse cnbse.niter";
+  my $num_haydock_iterations = $1;
+  close TMPFILE;
+  
+  open TMPFILE, "cnbse.strength" or die "Failed to open cnbse.strength\n$!";
+  <TMPFILE> =~ m/([0-9]*\.?[0-9]+)/ or die "Failed to parse cnbse.strength\n";
+  my $interaction_strength = $1; 
+  close TMPFILE;
+    
+  open TMPFILE, "cnbse.mode" or die "Failed to open cnbse.mode\n";
+  my $mode = <TMPFILE>;
+  close TMPFILE;
+  chomp($mode);
+  if( lc($mode) eq 'xes' )
+  {
+    print "Calculating XES\n";
+    $interaction_strength = 0.0;
+    $is_xas = ".false.";
+  } 
+  elsif( lc($mode) eq 'xas' )
+  {
+    print "Calculating XAS\n";
+    $is_xas = ".true.";
+  }
+  else
+  {
+    print "Unrecognized mode. Calculating XAS\n";
+    $is_xas = ".true.";
+  }
+
+# write cks.normal file
+  open TMPFILE, ">cks.normal" or die "Failed to open cks.normal for writing\n$!";
+  print TMPFILE "$is_xas\n";
+  close TMPFILE;
+
+#write mode file
+  open TMPFILE, ">mode" or die "Failed to open mode for writing\n$!";
+  print TMPFILE "$interaction_strength    $num_haydock_iterations\n";
+  close TMPFILE;
+
 
 
 
@@ -112,9 +158,17 @@ if ($runtype =~ m/true/ )
 #print "Running setup\n";
 #system("$ENV{'OCEAN_BIN'}/setup2.x > setup.log") == 0 or die "Setup failed\n";
 
-
-`ln -s ../zWFN/u2.dat`;
-
+if( -e "../zWFN/u2par.dat" )
+{
+  `ln -s ../zWFN/u2par.dat`;
+  open OUT, ">bloch_type" or die;
+  print OUT "new\n";
+  close OUT;
+}
+else
+{
+  `ln -s ../zWFN/u2.dat`;
+}
 my $pawrad = `cat cnbse.rad`;
 chomp($pawrad);
 $pawrad = sprintf("%.2f", $pawrad);
@@ -272,6 +326,7 @@ while ( my ($key, $value ) = each(%unique_znl) )
 
 #  print "time mpirun -n 64 $ENV{'OCEAN_BIN'}/ocean.x >& cm.log";
 #  system("time mpirun -n 64 $ENV{'OCEAN_BIN'}/ocean.x >& cm.log") == 0 or die "Failed to finish\n"; 
+
 
   print "time $para_prefix $ENV{'OCEAN_BIN'}/ocean.x > cm.log";
   system("time $para_prefix $ENV{'OCEAN_BIN'}/ocean.x > cm.log") == 0 or die "Failed to finish\n"; 
