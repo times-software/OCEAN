@@ -1,7 +1,9 @@
 module OCEAN_mpi
 
   use AI_kinds
+#ifdef MPI
   use mpi
+#endif
 
   implicit none
   save
@@ -10,7 +12,7 @@ module OCEAN_mpi
   integer( S_INT ) :: myid 
   integer( S_INT ) :: nproc 
   integer( S_INT ) :: comm
-  integer( S_INT ) :: root = 0
+  integer( S_INT ), parameter :: root = 0
 
 
 
