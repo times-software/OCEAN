@@ -588,6 +588,7 @@ module OCEAN_psi
   subroutine OCEAN_psi_load_val( sys, p, ierr )
     use OCEAN_mpi
     use OCEAN_system
+    use OCEAN_rixs_holder, only : OCEAN_rixs_holder_load
 
     implicit none
 
@@ -601,7 +602,17 @@ module OCEAN_psi
 
     if( .true. ) then
       file_selector = 1
-      call OCEAN_read_tmels( sys, p, file_selector, ierr )
+      select case (sys%calc_type)
+      case( 'VAL' )
+        call OCEAN_read_tmels( sys, p, file_selector, ierr )
+      case( 'RXS' )
+        call OCEAN_rixs_holder_load( sys, p, file_selector, ierr )
+      case default
+        if( myid .eq. root ) then 
+          write(6,*) 'Trying to load valence transition matrix for unsupported calculation type'
+        endif
+        ierr = -1
+      end select
     else
       file_selector = 0
       call OCEAN_read_tmels( sys, p, file_selector, ierr )
