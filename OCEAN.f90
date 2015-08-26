@@ -5,7 +5,6 @@ program ocean
   use OCEAN_action
   use OCEAN_psi
   use OCEAN_long_range
-  use OCEAN_exact
   use OCEAN_timekeeper
 
   implicit none
@@ -21,7 +20,9 @@ program ocean
   call ocean_mpi_init( ierr )
 
 
-  write(6,*) 'init: ', myid, nproc, comm
+  if( myid .eq. root ) then
+    write(6,*) 'init: ', myid, nproc, comm
+  endif
 
 
   call ocean_sys_init( sys, ierr )

@@ -107,7 +107,7 @@ subroutine OCEAN_read_tmels( sys, p, file_selector, ierr )
     return
   
   case default
-    if( myid .eq. root ) write(6,*) "Unsupported tmels formate requested: ", file_selector
+    if( myid .eq. root ) write(6,*) "Unsupported tmels format requested: ", file_selector
     ierr = -1
     return
   end select
