@@ -24,6 +24,7 @@ module OCEAN_system
     integer( S_INT ) :: nspn = 1
     integer( S_INT ) :: nobf = 0
     integer( S_INT ) :: nruns
+    integer          :: nedges 
 
     logical          :: e0
     logical          :: mult
@@ -103,6 +104,8 @@ module OCEAN_system
     real( DP ) :: inter
     real( DP ), parameter :: inter_min = 0.000001
     integer :: nruns 
+
+    logical :: exst
 
     if( myid .eq. root ) then
 
@@ -185,6 +188,15 @@ module OCEAN_system
       read(99,*) sys%nelectron
       close(99)
 
+      inquire(file='nedges', exist=exst )
+      if( exst ) then
+        open(unit=99,file='nedges',form='formatted',status='old')
+        read(99,*) sys%nedges
+        close(99)
+      else
+        sys%nedges = 0
+      endif
+
       
       
     endif
@@ -220,6 +232,8 @@ module OCEAN_system
     call MPI_BCAST( sys%brange, 4, MPI_INTEGER, root, comm, ierr )
     if( ierr .ne. MPI_SUCCESS ) goto 111
     call MPI_BCAST( sys%nelectron, 1, MPI_INTEGER, root, comm, ierr )
+    if( ierr .ne. MPI_SUCCESS ) goto 111
+    call MPI_BCAST( sys%nedges, 1, MPI_INTEGER, root, comm, ierr )
     if( ierr .ne. MPI_SUCCESS ) goto 111
 
 
@@ -314,6 +328,10 @@ module OCEAN_system
           num_bands = sys%num_bands
           have_core = .true.
         case( 'VAL' )
+          num_bands = sys%brange(4)-sys%brange(3)+1
+          val_bands = sys%brange(2)-sys%brange(2)+1
+          sys%have_val = .true.
+        case( 'RXS' )
           num_bands = sys%brange(4)-sys%brange(3)+1
           val_bands = sys%brange(2)-sys%brange(2)+1
           sys%have_val = .true.
