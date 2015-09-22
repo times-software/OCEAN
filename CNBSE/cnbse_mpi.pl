@@ -11,7 +11,7 @@
 use strict;
 
 if (! $ENV{"OCEAN_BIN"} ) {
-  $0 =~ m/(.*)\/OBF_cnbse_mpi\.pl/;
+  $0 =~ m/(.*)\/cnbse_mpi\.pl/;
   $ENV{"OCEAN_BIN"} = $1;
   print "OCEAN_BIN not set. Setting it to $1\n";
 }
