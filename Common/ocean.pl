@@ -252,14 +252,8 @@ else
 print "$Separator\n";
 print "Entering CNBSE stage\n";
 chdir "../CNBSE";
-if( $script_pre eq 'OBF' )
-{
-	system("$OCEAN_BIN/${script_pre}_cnbse.pl") == 0 or die "CNBSE stage failed\n$!";
-}
-else
-{
-	system("$OCEAN_BIN/cnbse.pl") == 0 or die "CNBSE stage failed\n$!";
-}
+system("$OCEAN_BIN/cnbse_mpi.pl") == 0 or die "CNBSE stage failed\n$!";
+
 ##########################################
 print "$Separator\n";
 print "Ocean is done\n";

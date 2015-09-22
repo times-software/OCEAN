@@ -14,7 +14,7 @@ install:
 	cd zcks; make install "INSTDIR = $(INSTDIR)" 
 	cd zcmsnmult; make install "INSTDIR = $(INSTDIR)"
 	cd zf90; make install "INSTDIR = $(INSTDIR)"
-	cp cnbse.pl OBF_cnbse.pl $(INSTDIR)/
+	cp cnbse_mpi.pl $(INSTDIR)/
 
 clean:
 	cd zcain; make clean
