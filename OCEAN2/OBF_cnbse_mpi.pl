@@ -416,9 +416,30 @@ while (<EDGE>) {
   }
   else # qe/abi w/o obf need to calculate cainkset
   {
+    open ZNL, ">ZNL" or die;
+    print ZNL "$znum  $nnum  $lnum\n";
+    close ZNL;
+
     open CKSIN, ">cks.in" or die "Failed to open cks.in\n";
     print CKSIN "1\n$elname  $elnum  cbinf\n";
     close CKSIN;
+
+    unless( exists $unique_z{ "$znum" } )
+    {
+      my $zstring = sprintf("z%03i", $znum);
+      print $zstring ."\n";
+      `ln -sf ../PAW/zpawinfo/*${zstring}* .`;
+      my $templine = `ls ../PAW/zpawinfo/*$zstring`;
+      chomp($templine);
+      my @pslist = split(/\s+/, $templine);
+      foreach (@pslist)
+      {
+        $_ =~ m/ae(\S+)/;
+        `ln -sf ../PAW/zpawinfo/ae$1 .`;
+        `ln -sf ae$1 ps$1`;
+      }
+    }
+
 
     print "cks\n";
     system("$ENV{'OCEAN_BIN'}/cks.x < cks.in > cks.log") == 0 or die;
@@ -437,21 +458,21 @@ while (<EDGE>) {
 close EDGE;
 close RUNLIST;
 
-while ( my ($key, $value ) = each(%unique_z) )
-{
-  my $zstring = sprintf("z%03i", $key);
-  print $zstring ."\n";
-  `ln -sf ../PAW/zpawinfo/*${zstring}* .`;
-  my $templine = `ls ../PAW/zpawinfo/*$zstring`;
-  chomp($templine);
-  my @pslist = split(/\s+/, $templine);
-  foreach (@pslist) 
-  {
-    $_ =~ m/ae(\S+)/;
-    `ln -sf ../PAW/zpawinfo/ae$1 .`;
-    `ln -sf ae$1 ps$1`;
-  }
-}
+#while ( my ($key, $value ) = each(%unique_z) )
+#{
+#  my $zstring = sprintf("z%03i", $key);
+#  print $zstring ."\n";
+#  `ln -sf ../PAW/zpawinfo/*${zstring}* .`;
+#  my $templine = `ls ../PAW/zpawinfo/*$zstring`;
+#  chomp($templine);
+#  my @pslist = split(/\s+/, $templine);
+#  foreach (@pslist) 
+#  {
+#    $_ =~ m/ae(\S+)/;
+#    `ln -sf ../PAW/zpawinfo/ae$1 .`;
+#    `ln -sf ae$1 ps$1`;
+#  }
+#}
 
 while ( my ($key, $value ) = each(%unique_znl) )
 { 
