@@ -207,7 +207,7 @@ close HFINLIST;
 my $dft = `cat dft`;
 if( $dft =~ m/qe/i )
 {
-	`ln -s ../QE/Out .`;
+	`ln -s ../DFT/Out .`;
 	my $core_offset = `cat core_offset`;
 	chomp $core_offset;
 	if( $core_offset =~ m/false/i )
