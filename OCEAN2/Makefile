@@ -129,4 +129,3 @@ clean:
 
 install:
 	cp ocean.x $(INSTDIR)/
-	cp OBF_cnbse_mpi.pl $(INSTDIR)/
