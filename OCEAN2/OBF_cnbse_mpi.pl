@@ -19,7 +19,7 @@ if (! $ENV{"OCEAN_WORKDIR"}){ $ENV{"OCEAN_WORKDIR"} = `pwd` . "../" ; }
 
 my %alphal = ( "0" => "s", "1" => "p", "2" => "d", "3" => "f" );
 
-my @CommonFiles = ("epsilon", "xmesh.ipt", "nedges", "k0.ipt", #"nbuse.ipt", 
+my @CommonFiles = ("epsilon", "xmesh.ipt", "nedges", "k0.ipt", "nbuse.ipt", 
   "cnbse.rad", "cnbse.ways", "metal", "cksshift", "cksstretch", "cksdq", 
   "cnbse.niter", "cnbse.spect_range", "cnbse.broaden", "cnbse.mode", "nphoton", "dft", 
   "para_prefix", "cnbse.strength", "serbse" );
@@ -35,22 +35,45 @@ my @WFNFiles = ("kmesh.ipt",  "efermiinrydberg.ipt", "qinunitsofbvectors.ipt", "
 my @ExtraFiles = ("Pquadrature", "sphpts" );
 
 my @PawFiles = ("hfinlist" , "xyz.wyck");
-#`cp ../xyz.wyck .`;
+
 foreach (@CommonFiles) {
   `cp ../Common/$_ .` == 0 or die "Failed to get Common/$_\n";
 }
-#foreach (@AbinitFiles) {
-#  `cp ../SCREEN/$_ .` == 0 or die "Failed to get ABINIT/$_\n";
-#}
-#foreach (@DenDipFiles) {
-#  `cp ../PREP/BSE/$_ .` == 0 or die "Failed to get PREP/BSE/$_\n" ;
-#}
-foreach (@DFTFiles) {
-  `cp ../DFT/$_ . ` == 0 or die "Failed to get DFT/$_\n";
+
+open DFT, "dft" or die "Failed to open dft\n";
+<DFT> =~ m/(\w+)/ or die;
+my $dft_type = $1;
+close DTF;
+my $obf;
+if( $dft_type =~ m/obf/i )
+{
+  $obf = 1;
 }
-foreach (@WFNFiles) {
-  `cp ../zWFN/$_ .`== 0 or die "Failed to get zWFN/$_\n";
+else
+{
+  $obf = 0;
 }
+
+
+if( $obf == 1 ) 
+{
+  foreach (@DFTFiles) {
+    `cp ../DFT/$_ . ` == 0 or die "Failed to get DFT/$_\n";
+  }
+  foreach (@WFNFiles) {
+    `cp ../zWFN/$_ .`== 0 or die "Failed to get zWFN/$_\n";
+  }
+}
+else
+{
+  foreach (@AbinitFiles) {
+    `cp ../SCREEN/$_ .` == 0 or die "Failed to get ABINIT/$_\n";
+  }
+  foreach (@DenDipFiles) {
+    `cp ../PREP/BSE/$_ .` == 0 or die "Failed to get PREP/BSE/$_\n" ;
+  }
+}
+
 foreach (@ExtraFiles) {
   `cp $ENV{'OCEAN_BIN'}/$_ .` == 0 or die "Failed to get ../$_\n";
 }
@@ -211,22 +234,29 @@ if( open PARA_PREFIX, "para_prefix" )
   {
     print "Calculating XES\n";
     $interaction_strength = 0.0;
-    $is_xas = ".false.";
+    $is_xas = 0;
   } 
   elsif( lc($mode) eq 'xas' )
   {
     print "Calculating XAS\n";
-    $is_xas = ".true.";
+    $is_xas = 1;
   }
   else
   {
     print "Unrecognized mode. Calculating XAS\n";
-    $is_xas = ".true.";
+    $is_xas = 1;
   }
 
 # write cks.normal file
   open TMPFILE, ">cks.normal" or die "Failed to open cks.normal for writing\n$!";
-  print TMPFILE "$is_xas\n";
+  if( $is_xas == 1 )
+  {  
+    print TMPFILE ".true.\n";
+  }
+  else
+  {
+    print TMPFILE ".false.\n";
+  }
   close TMPFILE;
 
 #write mode file
@@ -234,48 +264,107 @@ if( open PARA_PREFIX, "para_prefix" )
   print TMPFILE "$interaction_strength    $num_haydock_iterations\n";
   close TMPFILE;
 
+###############
+# If we are using QE/ABI w/o OBFs we need to set nbuse
+my $run_text = '';
+if( $obf == 1 )
+{
+  close RUNTYPE;
+  if ($is_xas == 1 )
+  {
+    $run_text = 'XAS';
+  } 
+  else
+  {
+    `mv nbuse.ipt nbuse_xas.ipt`;
+    `cp nbuse_xes.ipt nbuse.ipt`;
+    $run_text = 'XES';
+    print "XES!\n";
+  }
+}
+else  ### Abi/QE w/o obf
+{ 
+  open NBUSE, "nbuse.ipt" or die "Failed to open nbuse.ipt\n";
+  <NBUSE> =~ m/(\d+)/ or die "Failed to parse nbuse.ipt\n";
+  my $nbuse = $1;
+  close NBUSE;
+  my @brange;
+  if ($nbuse == 0) {
+    open BRANGE, "brange.ipt" or die "Failed to open brange.ipt\n";
+    <BRANGE> =~ m/(\d+)\s+(\d+)/ or die "Failed to parse brange.ipt\n";
+    $brange[0] = $1;
+    $brange[1] = $2;
+    <BRANGE> =~ m/(\d+)\s+(\d+)/ or die "Failed to parse brange.ipt\n";
+    $brange[2] = $1;
+    $brange[3] = $2;
+    close BRANGE;
 
-
+    if( $is_xas == 1 )
+    {
+      $run_text = 'XAS';
+      $nbuse = $brange[3] - $brange[2] + 1;
+    }
+    else
+    {
+      print "XES!\n";
+      $run_text = 'XES';
+      $nbuse = $brange[1] - $brange[0] + 1;
+    }
+    open NBUSE, ">nbuse.ipt" or die "Failed to open nbuse.ipt\n";
+    print NBUSE "$nbuse\n";
+    close NBUSE;
+  }
+}
 
 
 system("$ENV{'OCEAN_BIN'}/getnval.x") == 0 or die "Failed to get nval\n";
 
 
-open RUNTYPE, "cks.normal" or die;
-my $runtype = <RUNTYPE>;
-my $run_text = '';
-close RUNTYPE;
-if ($runtype =~ m/true/ ) 
-{
-  $runtype = 1;
-  $run_text = 'XAS';
-} elsif ($runtype =~ m/false/ )
-{
-  $runtype = 0;
-  `mv nbuse.ipt nbuse_xas.ipt`;
-  `cp nbuse_xes.ipt nbuse.ipt`;
-  $run_text = 'XES';
-  print "XES!\n";
-} else {
-  die "Failed to parse cks.normal\n";
-}
-
-
 #####################
-#print "Running setup\n";
-#system("$ENV{'OCEAN_BIN'}/setup2.x > setup.log") == 0 or die "Setup failed\n";
+if( $obf == 1 )
+{
+  if( -e "../zWFN/u2par.dat" )
+  {
+    `ln -s ../zWFN/u2par.dat`;
+    open OUT, ">bloch_type" or die;
+    print OUT "new\n";
+    close OUT;
+  }
+  else
+  {
+    `ln -s ../zWFN/u2.dat`;
+  }
+}
+else  # We are using abi/qe path w/o obfs
+{
+  # grab .Psi
+  `touch .Psi`;
+  system("rm .Psi*");
+  open LISTW, "listwfile" or die "Failed to open listwfile\n";
+  while (<LISTW>) 
+  {
+    $_ =~ m/(\d+)\s+(\S+)/ or die "Failed to parse listwfile\n";
+    system("ln -sf ../PREP/BSE/$2 .") == 0 or die "Failed to link $2\n";
+  }  
 
-if( -e "../zWFN/u2par.dat" )
-{
-  `ln -s ../zWFN/u2par.dat`;
-  open OUT, ">bloch_type" or die;
-  print OUT "new\n";
-  close OUT;
+  print "Running setup\n";
+  system("$ENV{'OCEAN_BIN'}/setup2.x > setup.log") == 0 or die "Setup failed\n";
+
+  if (-e "../PREP/BSE/u2.dat")
+  {
+    `ln -s ../PREP/BSE/u2.dat`;
+  }
+  else
+  {
+    print "conugtoux\n";
+    system("$ENV{'OCEAN_BIN'}/conugtoux.x > conugtoux.log");# == 0 or die;
+    print "orthog\n";
+    system("$ENV{'OCEAN_BIN'}/orthog.x > orthog.log") == 0 or die;
+  }
 }
-else
-{
-  `ln -s ../zWFN/u2.dat`;
-}
+
+
+
 my $pawrad = `cat cnbse.rad`;
 chomp($pawrad);
 $pawrad = sprintf("%.2f", $pawrad);
@@ -313,7 +402,7 @@ while (<EDGE>) {
 
 
   my $cks;
-  if( $runtype ) {
+  if( $is_xas == 1  ) {
     $cks = sprintf("cksc.${elname}%04u", $elnum );
   } 
   else {
@@ -321,7 +410,20 @@ while (<EDGE>) {
   }
 
   print "CKS NAME = $cks\n";
-  `cp ../zWFN/$cks .`;
+  if( $obf == 1 )
+  {
+    `cp ../zWFN/$cks .`;
+  }
+  else # qe/abi w/o obf need to calculate cainkset
+  {
+    open CKSIN, ">cks.in" or die "Failed to open cks.in\n";
+    print CKSIN "1\n$elname  $elnum  cbinf\n";
+    close CKSIN;
+
+    print "cks\n";
+    system("$ENV{'OCEAN_BIN'}/cks.x < cks.in > cks.log") == 0 or die;
+    `mv cbinf0001 $cks`;
+  }
 
 #  my $add10_zstring = sprintf("z%03un%02ul%02u", $znum, $nnum, $lnum);
   my $zstring = sprintf("z%2s%02i_n%02il%02i", $elname, $elnum, $nnum, $lnum);
@@ -451,7 +553,7 @@ if( $run_serial == 1)
 
     #cks file
     my $cks;
-    if( $runtype ) {
+    if( $is_xas == 1 ) {
       $cks = sprintf("cksc.${elname}%04u", $elnum );
     } 
     else {
