@@ -189,10 +189,11 @@ ibase
 } ibase
 nedges
 {
-} nedges
+-1
+} nedges.ipt
 edges
 {
-} edges
+} edges.ipt
 cnbse.nbuse
 {
 0
