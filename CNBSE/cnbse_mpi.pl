@@ -9,6 +9,7 @@
 #
 
 use strict;
+use File::Copy;
 
 if (! $ENV{"OCEAN_BIN"} ) {
   $0 =~ m/(.*)\/cnbse_mpi\.pl/;
@@ -37,7 +38,7 @@ my @ExtraFiles = ("Pquadrature", "sphpts" );
 my @PawFiles = ("hfinlist" , "xyz.wyck");
 
 foreach (@CommonFiles) {
-  `cp ../Common/$_ .` == 0 or die "Failed to get Common/$_\n";
+  copy( "../Common/$_", $_ ) or die "Failed to get Common/$_\n$!";
 }
 
 open DFT, "dft" or die "Failed to open dft\n";
@@ -58,28 +59,28 @@ else
 if( $obf == 1 ) 
 {
   foreach (@DFTFiles) {
-    `cp ../DFT/$_ . ` == 0 or die "Failed to get DFT/$_\n";
+    copy( "../DFT/$_", $_) or die "Failed to get DFT/$_\n$!";
   }
   foreach (@WFNFiles) {
-    `cp ../zWFN/$_ .`== 0 or die "Failed to get zWFN/$_\n";
+    copy( "../zWFN/$_", $_ ) or die "Failed to get zWFN/$_\n$!";
   }
 }
 else
 {
   foreach (@AbinitFiles) {
-    `cp ../SCREEN/$_ .` == 0 or die "Failed to get ABINIT/$_\n";
+    copy( "../SCREEN/$_", $_) or die "Failed to get ABINIT/$_\n$!";
   }
   foreach (@DenDipFiles) {
-    `cp ../PREP/BSE/$_ .` == 0 or die "Failed to get PREP/BSE/$_\n" ;
+    copy( "../PREP/BSE/$_", $_ ) or die "Failed to get PREP/BSE/$_\n$!" ;
   }
 }
 
 foreach (@ExtraFiles) {
-  `cp $ENV{'OCEAN_BIN'}/$_ .` == 0 or die "Failed to get ../$_\n";
+  copy( "$ENV{'OCEAN_BIN'}/$_", $_ ) or die "Failed to get ../$_\n$!";
 }
 
 foreach (@PawFiles) {
-  `cp ../SCREEN/$_ .` == 0 or die "Failed to get ../SCREEN/$_\n";
+  copy( "../SCREEN/$_", $_ ) or die "Failed to get ../SCREEN/$_\n$!";
 }
 
 
@@ -126,12 +127,12 @@ if( $nphoton > 0 )
   {
     if( -e "../photon${i}" )
     {
-      `cp ../photon${i} .`;
+      copy( "../photon${i}", "photon${i}") or die "Failed to copy photon$i\n$!";
       push @photon_files, "photon${i}";
     }
     elsif( -e "../jtv${i}" )
     {
-      `cp ../jtv${i} .`;
+       copy( "../jtv${i}", "jtv{$i}") or die "Failed to copy jtv$1\n$!";
       push @photon_files, "jtv${i}";
     }
     else
@@ -189,7 +190,7 @@ else
   foreach( @photon_files )
   {
     print "        $_\n";
-    `cp ../$_ .`;
+    copy( "../$_", $_ ) or die "$!";
   }
 }
 
@@ -197,10 +198,10 @@ else
 
 ##### misc other setup
 #`echo gmanner > format65`;
-`cp nspin nspn.ipt`;
-`cp kmesh.ipt kgrid`;
-`cp k0.ipt scaledkzero.ipt`;
-`cp qinunitsofbvectors.ipt cksdq`;
+#`cp nspin nspn.ipt`;
+copy( "kmesh.ipt", "kgrid" ) or die "$!";
+copy( "k0.ipt", "scaledkzero.ipt" ) or die "$!";
+copy( "qinunitsofbvectors.ipt", "cksdq" ) or die "$!";
 
 my $para_prefix = "";
 if( open PARA_PREFIX, "para_prefix" )
@@ -276,8 +277,10 @@ if( $obf == 1 )
   } 
   else
   {
-    `mv nbuse.ipt nbuse_xas.ipt`;
-    `cp nbuse_xes.ipt nbuse.ipt`;
+    move( "nbuse.ipt", "nbuse_xas.ipt" ) or die "$!";
+    copy( "nbuse_xes.ipt", "nbuse.ipt" ) or die "$!";
+#    `mv nbuse.ipt nbuse_xas.ipt`;
+#    `cp nbuse_xes.ipt nbuse.ipt`;
     $run_text = 'XES';
     print "XES!\n";
   }
@@ -409,10 +412,27 @@ while (<EDGE>) {
     $cks = sprintf("cksv.${elname}%04u", $elnum );
   }
 
+  # For each unique Z we need to grab some files from PAW
+  unless( exists $unique_z{ "$znum" } )
+  {
+    my $zstring = sprintf("z%03i", $znum);
+    print $zstring ."\n";
+    `ln -sf ../PAW/zpawinfo/*${zstring}* .`;
+    my $templine = `ls ../PAW/zpawinfo/*$zstring`;
+    chomp($templine);
+    my @pslist = split(/\s+/, $templine);
+    foreach (@pslist)
+    {
+      $_ =~ m/ae(\S+)/;
+      `ln -sf ../PAW/zpawinfo/ae$1 .`;
+      `ln -sf ae$1 ps$1`;
+    }
+  }
+
   print "CKS NAME = $cks\n";
   if( $obf == 1 )
   {
-    `cp ../zWFN/$cks .`;
+    copy( "../zWFN/$cks", $cks ) or die "Failed to grab $cks\n$!";
   }
   else # qe/abi w/o obf need to calculate cainkset
   {
@@ -424,31 +444,17 @@ while (<EDGE>) {
     print CKSIN "1\n$elname  $elnum  cbinf\n";
     close CKSIN;
 
-    unless( exists $unique_z{ "$znum" } )
-    {
-      my $zstring = sprintf("z%03i", $znum);
-      print $zstring ."\n";
-      `ln -sf ../PAW/zpawinfo/*${zstring}* .`;
-      my $templine = `ls ../PAW/zpawinfo/*$zstring`;
-      chomp($templine);
-      my @pslist = split(/\s+/, $templine);
-      foreach (@pslist)
-      {
-        $_ =~ m/ae(\S+)/;
-        `ln -sf ../PAW/zpawinfo/ae$1 .`;
-        `ln -sf ae$1 ps$1`;
-      }
-    }
-
 
     print "cks\n";
     system("$ENV{'OCEAN_BIN'}/cks.x < cks.in > cks.log") == 0 or die;
-    `mv cbinf0001 $cks`;
+    move( "cbinf0001", $cks ) or die "Failed to move cbinf0001 to $cks\n$!";
+#    `mv cbinf0001 $cks`;
   }
 
 #  my $add10_zstring = sprintf("z%03un%02ul%02u", $znum, $nnum, $lnum);
   my $zstring = sprintf("z%2s%02i_n%02il%02i", $elname, $elnum, $nnum, $lnum);
-  system("cp ../SCREEN/${zstring}/zR${pawrad}/rpot ./rpot.${zstring}") == 0 
+#  system("cp ../SCREEN/${zstring}/zR${pawrad}/rpot ./rpot.${zstring}") == 0 
+  copy( "../SCREEN/${zstring}/zR${pawrad}/rpot", "rpot.${zstring}" )
     or die "Failed to grab rpot\n../SCREEN/${zstring}/zR${pawrad}/rpot ./rpot.${zstring}\n";
 #
 
@@ -487,12 +493,14 @@ while ( my ($key, $value ) = each(%unique_znl) )
 
 #
   foreach my $way (@photon_files) {
-    system("cp ${way} spectfile") ;#== 0 or die;
+    copy( $way, "spectfile" ) or die "Failed to copy $way\n$!";
+#    system("cp ${way} spectfile") ;#== 0 or die;
     system("$ENV{'OCEAN_BIN'}/meljtv.x");
     $way =~ m/(\d+)$/ or die "Misformed photon file name\n";
     my $i = $1;
     my $mel_targ = sprintf("mels.z%03un%02ul%02up%02u", $znum, $nnum, $lnum, $i );
-    `mv mels $mel_targ`;
+    move( "mels", $mel_targ ) or die "Failed to move mels to $mel_targ\n$!";
+#    `mv mels $mel_targ`;
   }  
 
 
@@ -542,7 +550,8 @@ close INFILE;
 
 if( -e "../SCREEN/core_shift.txt" )
 {
-  `cp ../SCREEN//core_shift.txt .`;
+  copy( "../SCREEN/core_shift.txt", "core_shift.txt" ) or die "$!";
+#  `cp ../SCREEN//core_shift.txt .`;
   `head -n 1 ../SCREEN/core_shift.txt  > core_offset`;
 } else
 {
@@ -570,7 +579,7 @@ if( $run_serial == 1)
 
     # mel file
     my $mel_targ = sprintf("mels.z%03un%02ul%02up%02u", $znum, $nnum, $lnum, $i );
-    `cp $mel_targ mels`;
+    copy( $mel_targ, "mels" ) or die "Failed to copy $mel_targ\n$!";
 
     #cks file
     my $cks;
@@ -587,7 +596,8 @@ if( $run_serial == 1)
 
     #rpot file
     my $zstring = sprintf("z%2s%02i_n%02il%02i", $elname, $elnum, $nnum, $lnum);
-    system("cp ./rpot.${zstring} rpotfull") == 0 or die;
+    copy( "rpot.${zstring}", "rpotfull" ) or die "Failed to copy rpot.${zstring}\n$!";
+#    system("cp ./rpot.${zstring} rpotfull") == 0 or die;
 
     
     print "dotter\t$cks\n";
@@ -598,8 +608,12 @@ if( $run_serial == 1)
           or die "Failed to run cainmultip. Run count = $run_count\n";
 
     my $store_string = sprintf("%2s.%04i_%2s_%02i", $elname, $elnum, $lookup, $i);
-    `mv absspct "absspct_${store_string}"`;
-    `mv lanceigs "abslanc_${store_string}"`;
+    move( "absspct", "absspct_${store_string}" ) 
+        or die "Failed to move absspct to absspct_${store_string}\n$!";
+    move( "lanceigs", "abslanc_${store_string}" ) 
+        or die "Failed to move lanceigs to abslanc_${store_string}\n$!";
+#    `mv absspct "absspct_${store_string}"`;
+#    `mv lanceigs "abslanc_${store_string}"`;
 
   }
 }

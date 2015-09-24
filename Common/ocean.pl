@@ -165,6 +165,8 @@ else
 
 system("$ENV{'OCEAN_BIN'}/defaults.pl") == 0 or die "Failed to run defaults.pl\n$!";
 
+system("$ENV{'OCEAN_BIN'}/edges.pl") == 0 or die "Failed to run edges.pl\n$!";
+
 
 chdir "../";
 print "Done with parsing\n";

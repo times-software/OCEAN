@@ -422,11 +422,13 @@ while ($hfinline = <HFINLIST>) {
     `ln -sf $ximat_name ximat`;
     `echo 24 > ipt`;
     `$ENV{'OCEAN_BIN'}/xipps.x < ipt`;
-    `mv ninduced nin`;
+    move( "ninduced", "nin" );
+#    `mv ninduced nin`;
     `echo $fullrad > ipt`;
     `cat ibase epsilon >> ipt`;
     `$ENV{'OCEAN_BIN'}/vhommod.x < ipt`;
-    `mv reopt rom`;
+    move( "reopt", "rom" );
+#    `mv reopt rom`;
     `echo 1 3 > ipt`;
     `wc rom >> ipt`;
     `cat rom >> ipt`;
