@@ -412,6 +412,23 @@ while (<EDGE>) {
     $cks = sprintf("cksv.${elname}%04u", $elnum );
   }
 
+  # For each unique Z we need to grab some files from PAW
+  unless( exists $unique_z{ "$znum" } )
+  {
+    my $zstring = sprintf("z%03i", $znum);
+    print $zstring ."\n";
+    `ln -sf ../PAW/zpawinfo/*${zstring}* .`;
+    my $templine = `ls ../PAW/zpawinfo/*$zstring`;
+    chomp($templine);
+    my @pslist = split(/\s+/, $templine);
+    foreach (@pslist)
+    {
+      $_ =~ m/ae(\S+)/;
+      `ln -sf ../PAW/zpawinfo/ae$1 .`;
+      `ln -sf ae$1 ps$1`;
+    }
+  }
+
   print "CKS NAME = $cks\n";
   if( $obf == 1 )
   {
@@ -426,22 +443,6 @@ while (<EDGE>) {
     open CKSIN, ">cks.in" or die "Failed to open cks.in\n";
     print CKSIN "1\n$elname  $elnum  cbinf\n";
     close CKSIN;
-
-    unless( exists $unique_z{ "$znum" } )
-    {
-      my $zstring = sprintf("z%03i", $znum);
-      print $zstring ."\n";
-      `ln -sf ../PAW/zpawinfo/*${zstring}* .`;
-      my $templine = `ls ../PAW/zpawinfo/*$zstring`;
-      chomp($templine);
-      my @pslist = split(/\s+/, $templine);
-      foreach (@pslist)
-      {
-        $_ =~ m/ae(\S+)/;
-        `ln -sf ../PAW/zpawinfo/ae$1 .`;
-        `ln -sf ae$1 ps$1`;
-      }
-    }
 
 
     print "cks\n";
