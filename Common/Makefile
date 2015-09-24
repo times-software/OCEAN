@@ -1,6 +1,6 @@
 include ../Makefile.arch
 FILES   =
-SCRIPTS = ocean.pl par_ocean.pl parse defaults.pl defaults.h parse.pl
+SCRIPTS = ocean.pl par_ocean.pl parse defaults.pl defaults.h parse.pl edges.pl
 AUX = oparse.h Pquadrature specpnt sphpts
 
 .SUFFIXES: .f .x

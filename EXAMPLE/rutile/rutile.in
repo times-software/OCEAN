@@ -78,9 +78,9 @@ paw.fill{ 22 ti.fill }
 paw.opts{ 22 ti.opts }
 
 #edge information
-nedges 2
-edges{ 1 2 1
-       2 2 1 }
+# By setting the first number to a negative
+#  we select ALL of the Ti (Z=22) atoms
+edges{ -22 2 1 }
 
 # radius for paw reconstruciton
 paw.shells{ 3.5 4.0 }
