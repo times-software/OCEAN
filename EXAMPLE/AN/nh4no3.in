@@ -1,8 +1,7 @@
 # J. Phys. Soc. Jpn. 14 1205-16 (1959)  x = .153
 control 0
 ppdir {'../'}
-dft OBF
-#dft abi
+
 para_prefix{ mpirun -n 64}
 nkpt { 4 4 4}
 paw.nkpt{ 2 2 2 }
@@ -58,14 +57,8 @@ CNBSE.xmesh { 10 10 10 }
 paw.fill{ 7 n.fill }
 paw.opts{ 7 n.opts }
 
-#edge information
-nedges 2
-edges{ 
-3 1 0 
-4 1 0
-12 1 0 
-13 1 0
-}
+# Run all 4 nitrogen edges
+edges{  -7 1 0  }
 
 
 # radius for paw reconstruciton
@@ -76,7 +69,10 @@ cnbse.rad{ 4.0 }
 scfac 0.85
 
 cnbse.broaden 0.007
-cks.normal { .false. }
-cnbse.mode { 0 100 }
-#core_offset 121.6
+
+# Run the emission (CLS shows up well)
+cnbse.mode { xes }
+# By setting this to true we ask OCEAN calculate shifts for all the requested sites
+#   and then average them together. 
+core_offset .true.
 
