@@ -10,6 +10,8 @@
 use strict;
 use File::Copy;
 
+my $Ry2eV = 13.605698066;
+
 ###########################
 if (! $ENV{"OCEAN_BIN"} ) {
   $0 =~ m/(.*)\/core_shift\.pl/;
@@ -21,7 +23,7 @@ if (! $ENV{"OCEAN_WORKDIR"}){ $ENV{"OCEAN_WORKDIR"} = `pwd` . "../" ; }
 
 # Figure out our plan
 my $offset;
-my $control
+my $control;
 if( -e "core_offset" )
 {
   open IN, "core_offset" or die "Failed to open core_offset\n$!";
@@ -34,7 +36,7 @@ if( -e "core_offset" )
   }
   elsif( $control =~ m/true/ )
   {
-    print "Offset given as true.\nWill return an average offsetof 0\n";
+    print "Offset given as true.\nWill return an average offset of 0\n";
 	}
   else
   {
@@ -59,7 +61,6 @@ while( <RAD> )
 close RAD;
 my @rads = split( /\s+/, $line );
 
-#my $rad_dir = sprintf("zR%03.2f",$rad);
 
 # Para prefix
 open IN, "para_prefix" or die "Failed to open para_prefix\n$!";
@@ -75,6 +76,7 @@ my $dft;
 if( $line =~ m/abi/i )
 {
   $dft = "abi";
+  die "Core level shift support not written for abinit yet!\n";
 }
 elsif( $line =~ m/qe/i )
 {
@@ -103,12 +105,19 @@ while ( my $line = <HFIN>)
 {
 # 07-n.lda.fhi                                         7   1   0 N_   1
   $line =~ m/\S+\s+\d+\s+(\d+)\s+(\d+)\s+(\S+)\s+(\d+)/ or die "Failed to parse hfin.\n$line";
-  push @hfin, ( $1, $2, $3, $4 );
+  push @hfin, [( $1, $2, $3, $4 )];
 }
 close HFIN;
 
 # After this section DFT_pot will contain the full DFT potential evaluated for site
-my @DFT_pot;
+my @Vshift;
+my @Wshift;
+my $Vsum = 0;
+my @Wsum;
+for( my $i = 0; $i < scalar @rads; $i++ )
+{
+  $Wsum[$i] = 0;
+}
 
 # For QE need to find their ridiculous coordinate formating
 if( $dft eq 'qe' )
@@ -125,7 +134,7 @@ if( $dft eq 'qe' )
     last if ($_ =~ m/site/ );
   }
 # read in the next natom lines
-  for( my $i=0; $i < $natom; $i++ )
+  for( my $i=0; $i < $natoms; $i++ )
   {
     $line = <SCF>;
     $line =~ m/\d+\s+(\w+)\s+tau\(\s*\d+\)\s+=\s+\(\s+(\S+)\s+(\S+)\s+(\S+)/ 
@@ -162,8 +171,9 @@ if( $dft eq 'qe' )
 
     my $taustring;
     my $count = 0;
-    foreach $taustring ( @coords )
+    for( my $j = 0; $j < scalar @coords; $j++ )
     {
+      $taustring = $coords[$j];
       # For each element = small_el iterate count
       $count++ if( $taustring =~ m/$small_el/ );
       last if ( $count == $el_rank );
@@ -174,6 +184,7 @@ if( $dft eq 'qe' )
     my $x = $1;
     my $y = $2;
     my $z = $3;
+    print "$x\t$y\t$z\n";
 
     open OUT, ">pot.in" ;
     print OUT   "&inputpp\n/\n&plot\n"
@@ -193,29 +204,61 @@ if( $dft eq 'qe' )
     `cp pot.in pot.in.$el_rank`;
     system("$para_prefix $ENV{'OCEAN_BIN'}/pp.x < pot.in > pot.out.$el_rank");
 
-# Vshift here is in Rydberg
-  my $Vshift = `head -n 1 system.pot.$el_rank | awk '{print \$2}'`;
+  # Vshift here is in Rydberg
+    $Vshift[$i] = `head -n 1 system.pot.$el_rank | awk '{print \$2}'`;
+    chomp( $Vshift[$i] );
+    $Vsum += $Vshift[$i];
 
 
-  my $string = sprintf("z%s%02d_n%02dl%02d",$el, $el_rank,$nn,$ll);
-  print "$string\n";
-# W shift is in Ha., but we want to multiple by 1/2 anyway, so the units work out
-  my $Wshift = `head -n 1 $string/$rad_dir/ropt | awk '{print \$4}'`;
+    my $string = sprintf("z%s%02d_n%02dl%02d",$el, $el_rank,$nn,$ll);
+    print "$string\n";
+  # W shift is in Ha., but we want to multiple by 1/2 anyway, so the units work out
 
-  my $shift = $Vshift + $Wshift;
-  $shift *= 13.605;
-#  if( $offset eq "no" )
-#  {
-#	$offset = -$shift;
-#  }
-  $shift += $offset;
-  $shift *= -1;
-  print "$el_rank\t$Vshift\t$Wshift\t$shift\n";
+    for( my $j = 0; $j < scalar @rads; $j++ )
+    {
+      my $rad_dir = sprintf("zR%03.2f", $rads[$j] );
+      my $temp = `head -n 1 $string/$rad_dir/ropt | awk '{print \$4}'`;
+      chomp( $temp );
+      $Wshift[$i][$j] = $temp;
+      $Wsum[$j] += $temp;
+    }
+  }
+}
 
-  print CORESHIFT "$shift\n";
+
+# Loop over radii and then hfin
+for( my $i = 0; $i < scalar @rads; $i++ )
+{
+  my $rad_dir = sprintf("zR%03.2f", $rads[$i] );
+
+  # If we are averaging, new shift by radius
+  if( $control =~ m/true/ )
+  {
+    $offset = -( $Vsum + $Wsum[$i] ) * $Ry2eV / ( scalar @hfin );
+    print "$rad_dir\t$offset\n";
+  }
+
+  # Loop over each atom in hfin
+  for( my $j = 0; $j < scalar @hfin; $j++ )
+  {
+    my $nn = $hfin[$j][0];
+    my $ll = $hfin[$j][1];
+    my $el = $hfin[$j][2];
+    my $el_rank = $hfin[$j][3];
+
+    my $shift = ( $Vshift[$j] + $Wshift[$j][$i] ) * $Ry2eV;
+
+    $shift += $offset;
+    $shift *= -1;
+    print "$el_rank\t$Vshift[$j]\t$Wshift[$j][$i]\t$shift\n";
+
+    my $string = sprintf("z%s%02d_n%02dl%02d",$el, $el_rank,$nn,$ll);
+    open OUT, ">$string/$rad_dir/cls" or die "Failed to open $string/$rad_dir/cls\n$!";
+    print OUT $shift . "\n";
+    close OUT;
+  }
 
 }
-close HFIN;
-close CORESHIFT;
 
-#`cp core_shift.txt ../`;
+exit 0;
+
