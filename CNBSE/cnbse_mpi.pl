@@ -23,7 +23,7 @@ my %alphal = ( "0" => "s", "1" => "p", "2" => "d", "3" => "f" );
 my @CommonFiles = ("epsilon", "xmesh.ipt", "nedges", "k0.ipt", "nbuse.ipt", 
   "cnbse.rad", "cnbse.ways", "metal", "cksshift", "cksstretch", "cksdq", 
   "cnbse.niter", "cnbse.spect_range", "cnbse.broaden", "cnbse.mode", "nphoton", "dft", 
-  "para_prefix", "cnbse.strength", "serbse" );
+  "para_prefix", "cnbse.strength", "serbse", "core_offset" );
 
 my @AbinitFiles = ("avecsinbohr.ipt");
 
@@ -231,13 +231,13 @@ if( open PARA_PREFIX, "para_prefix" )
   my $mode = <TMPFILE>;
   close TMPFILE;
   chomp($mode);
-  if( lc($mode) eq 'xes' )
+  if( lc($mode) =~ m/xes/ )
   {
     print "Calculating XES\n";
     $interaction_strength = 0.0;
     $is_xas = 0;
   } 
-  elsif( lc($mode) eq 'xas' )
+  elsif( lc($mode) =~ m/xas/ )
   {
     print "Calculating XAS\n";
     $is_xas = 1;
@@ -367,6 +367,12 @@ else  # We are using abi/qe path w/o obfs
 }
 
 
+my $core_offset;
+open IN, "core_offset" or die "Failed to open core_offset\n$!";
+$core_offset = <IN>;
+chomp($core_offset);
+close IN;
+
 
 my $pawrad = `cat cnbse.rad`;
 chomp($pawrad);
@@ -458,6 +464,22 @@ while (<EDGE>) {
     or die "Failed to grab rpot\n../SCREEN/${zstring}/zR${pawrad}/rpot ./rpot.${zstring}\n";
 #
 
+  # If we don't want CLS then make sure the file is not here
+  if( $core_offset =~ m/false/i )
+  {
+    if( -e "cls.${zstring}" ) 
+    {
+      unlink "cls.${zstring}" or die "Failed to remove cls.${zstring}\n$!";
+    }
+  }
+  else
+  {
+    copy( "../SCREEN/${zstring}/zR${pawrad}/cls", "cls.${zstring}" ) 
+      or warn "WARNING!\nCore-level shift support requested, but could not find ../SCREEN/${zstring}/zR${pawrad}/cls\n"
+            . "No CLS will be done for this site!\n";
+  }
+
+
   $unique_z{ "$znum" } = 1;  
   $unique_znl{ "$znum $nnum $lnum" } = 1;
 }
@@ -548,16 +570,7 @@ else
 
 close INFILE;
 
-if( -e "../SCREEN/core_shift.txt" )
-{
-  copy( "../SCREEN/core_shift.txt", "core_shift.txt" ) or die "$!";
-#  `cp ../SCREEN//core_shift.txt .`;
-  `head -n 1 ../SCREEN/core_shift.txt  > core_offset`;
-} else
-{
-   `rm -f core_offset`;
-  `rm -f core_shift.txt`;
-}
+
 
 #Provide here the legacy serial option
 if( $run_serial == 1)
@@ -599,6 +612,15 @@ if( $run_serial == 1)
     copy( "rpot.${zstring}", "rpotfull" ) or die "Failed to copy rpot.${zstring}\n$!";
 #    system("cp ./rpot.${zstring} rpotfull") == 0 or die;
 
+    #CLS
+    if( -e "cls.${zstring}" )
+    {
+      copy( "cls.${zstring}", "cls" ) or die "Failed to copy cls.${zstring}\n$!";
+    }
+    else  # Make sure cls isn't left lying around
+    {
+      unlink "cls" if( -e "cls" );
+    }
     
     print "dotter\t$cks\n";
     system("echo cbinf0001 | $ENV{'OCEAN_BIN'}/dotter.x") == 0 or die "Failed to run dotter run count=$run_count\n";
@@ -608,8 +630,16 @@ if( $run_serial == 1)
           or die "Failed to run cainmultip. Run count = $run_count\n";
 
     my $store_string = sprintf("%2s.%04i_%2s_%02i", $elname, $elnum, $lookup, $i);
-    move( "absspct", "absspct_${store_string}" ) 
-        or die "Failed to move absspct to absspct_${store_string}\n$!";
+    if( $is_xas == 1 ) 
+    {
+      move( "absspct", "absspct_${store_string}" ) 
+          or die "Failed to move absspct to absspct_${store_string}\n$!";
+    }
+    else
+    {
+      move( "absspct", "xesspct_${store_string}" )
+          or die "Failed to move absspct to xesspct_${store_string}\n$!";
+    }
     move( "lanceigs", "abslanc_${store_string}" ) 
         or die "Failed to move lanceigs to abslanc_${store_string}\n$!";
 #    `mv absspct "absspct_${store_string}"`;
