@@ -68,7 +68,7 @@ cnbse.rad{ 4.0 }
 #Scaling Factor
 scfac 0.85
 
-cnbse.broaden 0.007
+cnbse.broaden 0.544
 
 # Run the emission (CLS shows up well)
 cnbse.mode { xes }
