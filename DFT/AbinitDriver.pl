@@ -334,6 +334,7 @@ if ($RunABINIT) {
   `echo 'fband ' >> inai.denout`;
   `cat fband >> inai.denout`;
   `echo prtden 1 >> inai.denout`;
+  `echo prtpot 1 >> inai.denout`;
   `echo kptopt 1 >> inai.denout`;
   `echo 'ngkpt ' >> inai.denout`;
   `cat ngkpt >> inai.denout`;

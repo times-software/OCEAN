@@ -76,7 +76,7 @@ my $dft;
 if( $line =~ m/abi/i )
 {
   $dft = "abi";
-  die "Core level shift support not written for abinit yet!\n";
+#  die "Core level shift support not written for abinit yet!\n";
 }
 elsif( $line =~ m/qe/i )
 {
@@ -223,6 +223,100 @@ if( $dft eq 'qe' )
       $Wsum[$j] += $temp;
     }
   }
+}
+else
+{
+  copy( "../DFT/SCx_POT", "SCx_POT" );
+  my @coords;
+
+  open IN, "xyz.wyck" or die "Failed to open xyz.wyck.\n$!";
+  <IN>;
+  while (<IN>)
+  {
+    push @coords, $_;
+  }
+  close IN;
+
+  
+  open OUT, ">pot.in" or die "Failed top open pot.in for writing.\n$!";
+
+  print OUT "SCx_POT\n1\n";
+
+  for( my $i = 0; $i < scalar @hfin; $i++ )
+  {
+
+    my $nn = $hfin[$i][0];
+    my $ll = $hfin[$i][1];
+    my $el = $hfin[$i][2];
+    my $el_rank = $hfin[$i][3];
+
+    my $taustring;
+    my $count = 0;
+    for( my $j = 0; $j < scalar @coords; $j++ )
+    {
+      $taustring = $coords[$j];
+      # For each element = small_el iterate count
+      $count++ if( $taustring =~ m/$el/ );
+      last if ( $count == $el_rank );
+    }
+    print "$el_rank, $el, $taustring\n";
+     $taustring =~ m/\S+\s+(\S+)\s+(\S+)\s+(\S+)/;
+    my $x = $1; 
+    my $y = $2;
+    my $z = $3;
+    print "$x\t$y\t$z\n";
+    
+    print OUT "1\n"
+            . "2\n"
+            . "$x $y $z\n";
+    if( ($i+1) < scalar @hfin )
+    {
+      print OUT "1\n";
+    }
+    else
+    {
+      print OUT "0\n";
+    }
+  }
+  close OUT;
+
+  system( "$ENV{'OCEAN_BIN'}/cut3d < pot.in > pot.out") == 0 or die "Failed to run cut3d\n$!";
+
+  open IN, "pot.out" or die "Failed to open pot.out\n$!";
+  my $line;
+  while( $line = <IN> )
+  {
+    if( $line =~ /value=\s+(\S+)/ )
+    {
+      # Vshift is in Ha not Ry for ABINIT
+      push @Vshift, 2*$1;
+      $Vsum += 2*$1;
+    }
+  }
+  close IN;
+  
+
+  for( my $i = 0; $i < scalar @hfin; $i++ )
+  {
+
+    my $nn = $hfin[$i][0];
+    my $ll = $hfin[$i][1];
+    my $el = $hfin[$i][2];
+    my $el_rank = $hfin[$i][3];
+
+    my $string = sprintf("z%s%02d_n%02dl%02d",$el, $el_rank,$nn,$ll);
+    print "$string\n";
+
+    for( my $j = 0; $j < scalar @rads; $j++ )
+    {
+      my $rad_dir = sprintf("zR%03.2f", $rads[$j] );
+      my $temp = `head -n 1 $string/$rad_dir/ropt | awk '{print \$4}'`;
+      chomp( $temp );
+      $Wshift[$i][$j] = $temp;
+      $Wsum[$j] += $temp;
+    }
+  }
+  
 }
 
 
