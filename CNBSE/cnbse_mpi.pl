@@ -23,15 +23,13 @@ my %alphal = ( "0" => "s", "1" => "p", "2" => "d", "3" => "f" );
 my @CommonFiles = ("epsilon", "xmesh.ipt", "nedges", "k0.ipt", "nbuse.ipt", 
   "cnbse.rad", "cnbse.ways", "metal", "cksshift", "cksstretch", "cksdq", 
   "cnbse.niter", "cnbse.spect_range", "cnbse.broaden", "cnbse.mode", "nphoton", "dft", 
-  "para_prefix", "cnbse.strength", "serbse" );
-
-my @AbinitFiles = ("avecsinbohr.ipt");
+  "para_prefix", "cnbse.strength", "serbse", "avecsinbohr.ipt" );
 
 my @DFTFiles = ("nelectron");
 
 my @DenDipFiles = ("kmesh.ipt", "masterwfile", "listwfile", "efermiinrydberg.ipt", "qinunitsofbvectors.ipt", "brange.ipt", "enkfile", "tmels", "nelectron", "eshift.ipt" );
 
-my @WFNFiles = ("kmesh.ipt",  "efermiinrydberg.ipt", "qinunitsofbvectors.ipt", "brange.ipt", "avecsinbohr.ipt", "nbuse.ipt", "wvfcninfo", "wvfvainfo", "nbuse_xes.ipt", "obf_control", "ibeg.h");
+my @WFNFiles = ("kmesh.ipt",  "efermiinrydberg.ipt", "qinunitsofbvectors.ipt", "brange.ipt", "nbuse.ipt", "wvfcninfo", "wvfvainfo", "nbuse_xes.ipt", "obf_control", "ibeg.h");
 
 my @ExtraFiles = ("Pquadrature", "sphpts" );
 
@@ -67,9 +65,6 @@ if( $obf == 1 )
 }
 else
 {
-  foreach (@AbinitFiles) {
-    copy( "../SCREEN/$_", $_) or die "Failed to get ABINIT/$_\n$!";
-  }
   foreach (@DenDipFiles) {
     copy( "../PREP/BSE/$_", $_ ) or die "Failed to get PREP/BSE/$_\n$!" ;
   }

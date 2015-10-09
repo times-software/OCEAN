@@ -26,9 +26,10 @@ my $ham_kpoints = "4 4 4 ";
 
 
 # Step 1: Create support files
-my @CommonFiles = ("nkpt", "k0.ipt", "qinunitsofbvectors.ipt", "nbands", "xmesh.ipt", "para_prefix", "pool_control", "ham_kpoints", "core_offset");
+my @CommonFiles = ("nkpt", "k0.ipt", "qinunitsofbvectors.ipt", "nbands", "xmesh.ipt", "para_prefix", 
+                   "pool_control", "ham_kpoints", "core_offset", "avecsinbohr.ipt" );
 my @ExtraFiles = ("specpnt", "Pquadrature", "sphpts" );
-my @DFTFiles = ("rhoofr", "avecsinbohr.ipt", "efermiinrydberg.ipt", "nelectron");
+my @DFTFiles = ("rhoofr", "efermiinrydberg.ipt", "nelectron");
 my @PawFiles = ("hfinlist", "xyz.wyck");
 
 
