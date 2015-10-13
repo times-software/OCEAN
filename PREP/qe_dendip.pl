@@ -26,8 +26,8 @@ my $oldden = 0;
 $oldden = 1 if (-e "../DFT/old");
 
 
-my @QEFiles     = ( "rhoofr", "density.out", "avecsinbohr.ipt");
-my @CommonFiles = ( "paw.nkpt", "nkpt", "qinunitsofbvectors.ipt");
+my @QEFiles     = ( "rhoofr", "density.out");
+my @CommonFiles = ( "paw.nkpt", "nkpt", "qinunitsofbvectors.ipt", "avecsinbohr.ipt" );
 
 foreach (@QEFiles) {
   system("cp ../DFT/$_ .") == 0 or die "Failed to copy $_\n";
