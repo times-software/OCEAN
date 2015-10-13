@@ -10,8 +10,8 @@ if (! $ENV{"OCEAN_BIN"} ) {
 }
 if (! $ENV{"OCEAN_WORKDIR"}){ $ENV{"OCEAN_WORKDIR"} = `pwd` . "../" ; }
 if (! $ENV{"OCEAN_VERSION"}) {$ENV{"OCEAN_VERSION"} = `cat $ENV{"OCEAN_BIN"}/Version`; }
-if (! $ENV{"OCEAN_ESPRESSO_PW"} ) {$ENV{"OCEAN_ESPRESSO_PW"} = $ENV{"OCEAN_BIN"} . "/pw.x"; }
-if (! $ENV{"OCEAN_ESPRESSO_PP"} ) {$ENV{"OCEAN_ESPRESSO_PP"} = $ENV{"OCEAN_BIN"} . "/pp.x"; }
+if (! $ENV{"OCEAN_ESPRESSO_PW"} ) {$ENV{"OCEAN_ESPRESSO_PW"} = $ENV{"OCEAN_BIN"} . "/obf_pw.x"; }
+if (! $ENV{"OCEAN_ESPRESSO_PP"} ) {$ENV{"OCEAN_ESPRESSO_PP"} = $ENV{"OCEAN_BIN"} . "/obf_pp.x"; }
 
 ####################################
 # Executables to be run
@@ -377,11 +377,6 @@ if ($RunESPRESSO) {
  ### the SCF run for initial density
  ##
  print "Density SCF Run\n";
-# system("mpiexec /global/home/users/kgilmore/Code/QEspresso-4.2.1/bin/pw.x < scf.in >& scf.out") == 0
-#     or die "Failed to run scf stage for Density\n";
-#  system("mpirun -np $nc /global/home/users/kgilmore/Code/QEspresso-4.2.1/bin/pw.x < scf.in > scf.out 2>&1") == 0
-#      or die "Failed to run scf stage for Density\n";
-#  system("mpirun -np $nc $ENV{'OCEAN_ESPRESSO_PW'}  < scf.in > scf.out 2>&1") == 0
   print "$para_prefix $ENV{'OCEAN_ESPRESSO_PW'}  -npool $npool < scf.in > scf.out 2>&1\n";
   system("$para_prefix $ENV{'OCEAN_ESPRESSO_PW'}  -npool $npool < scf.in > scf.out 2>&1") == 0
       or die "Failed to run scf stage for Density\n";

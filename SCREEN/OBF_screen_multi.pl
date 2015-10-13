@@ -41,7 +41,7 @@ my @CommonFiles = ("znucl", "paw.hfkgrid", "paw.fill", "paw.opts", "pplist", "pa
                    "ntype", "natoms", "typat", "taulist", "nedges", "edges", "caution", 
                    "epsilon", "k0.ipt", "ibase", "scfac", "para_prefix", 
                    "paw.nbands", "core_offset", "paw.nkpt", "pool_control", "ham_kpoints", 
-                   "cnbse.rad", "avecsinbohr.ipt" );
+                   "cnbse.rad", "dft", "avecsinbohr.ipt" );
 my @ExtraFiles = ("specpnt", "Pquadrature" );
 my @DFTFiles = ("rhoofr", "nscf.out", "system.rho.dat");
 

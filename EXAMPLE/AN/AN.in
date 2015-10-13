@@ -72,6 +72,7 @@ cnbse.broaden 0.544
 
 # Run the emission (CLS shows up well)
 cnbse.mode { xes }
-# By setting this to false we tell OCEAN not to calculate shifts 
-core_offset .false.
+# By setting this to true we ask OCEAN calculate shifts for all the requested sites
+#   and then average them together. 
+core_offset .true.
 

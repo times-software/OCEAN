@@ -166,6 +166,38 @@ We need to check the results, so we will plot the resulting \file{absspct\_Ti.00
 \end{itemize}
 The two should match very closely, but with the quality settings in the input there may well be differences between the DFT codes (see figure \ref{STO_plot}). The 3{\it d} transition metals highlight the breakdown of a single-particle picture for x-ray absorption. A quick count shows that the intensity ratio between the L$_2$ and the L$_3$ edges should be 2:1 from the intial occupations of the 2$p_{3/2}$ and 2$p_{1/2}$. Instead for titanium we see a ratio of less than 1. The spin-orbit splitting of the 2{\it p} orbitals is not diagonal in the same basis as the conduction band $d$ states, and so trying to move backward from the spectrum to the ground-state density of states (for either the 2$p$ or 3$d$ levels) can be difficult, but the BSE approach in \program{ocean} makes it easy.
 
+\section{Core-level shifts with NH$_4$NO$_3$}
+
+Ammonium nitrate is a wide band gap crystalline solid. Nitrogen atoms occupy central positions in the two constituent ions NH$_4$ and NO$_3$. Given the difference in chemical environment between hydrogen and oxygen nearest neighbors it is of no surprise that there is a significant shift in the energy of the 1{\it s} electrons between the two nitrogen sites. Therefore NH$_4$NO$_3$ makes a good example to look at how we can account for these shifts within \program{ocean}. As always with our tutorials, feel free to start the calculation  and then read while it is running.
+
+There are several methods used for calculating energy levels in core-level spectroscopy. For completeness we will give an overview of them here. The most straightforward, popular in quantum chemistry techniques, is to directly compare the energies of initial and final states. This requires that you calculate explicit initial and final states as well as the core level wavefunction. Pseudopotential-based techniques need a bit more creativity due to their lack of explicit core states. Methods that carry out a self-consistent calculation in the presence of the core hole (full core hole, half core hole, or eXcited core hole) can make use of the energy differences between DFT calculations with and without the core hole. This gives a relative energy shift that can be calibrated to give meaningful information about the core level shifts both within a cell and between different cells.\cite{NeedCites}
+
+The \program{ocean} code has neither explicit core levels or self-consistent calculations with a core hole, and so we need a different approach. In the BSE approach the only elements we need are the bare energies of the electron and the hole, and then the interaction terms. These bare or one-particle energies are the energies that would be calculated within {\it GW}, i.e., the the addition (removal) energies for the conduction electron (core). But a {\it GW} calculation for the core level is neither possible nor feasible, and it is this removal energy we want to try and approximate. Because we are not relaxing the system in the presence of the hole (see the various core-hole approaches mentioned in the previous paragraph) this requires two calculations 1) the energy of the core-level electron and 2) the total energy from the relaxation of the rest of the system once that electron is removed. 
+
+\begin{enumerate}
+\item
+For calculating the energy of the core level we assume that the core level wavefunction is the same between chemical environments. This means that the kinetic energy of the core level is fixed, and therefore changes in the core-level energy can only come from changes in the local potential. This comes directly from the DFT calculation as the total Kohn-Sham potential.
+\item The response of the rest of the system to the removal of the core-level electron is given (within linear response) by the screening of the core-hole potential that we are already calculating. An additional factor of $1/2$ is picked up from adiabatically moving the charge of this electron. 
+\end{enumerate}
+To evaluate both 1 and 2 we approximate the core as a delta at its location $\tau$. 
+The energy of the core hole (as it would then appear in the BSE Hamiltonian $H^0$) is given by
+\begin{align}
+\epsilon_h = V_\text{KS}(\tau) - 1/2 W(\tau) + X
+\end{align}
+where X is an offset which will not vary from site to site and encapsulates the core's kinetic energy term and also the sreening response of the other core electrons -- neither of which change from site to site by assumption.
+
+A ground state calculation of ammonium nitrate shows that the bulk of the nitrogen {\it p}-DOS for both the ammonium and nitrate ions is in the same energy region. The nitrate nitrogen has {\it p}-type states that are split into $\sigma$ and $\pi$, and here we are referring to the $\pi$, with the $\sigma$ states significantly lower in energy. In figure \ref{an_xes} we can see the enormous discrepancy between a density of states calculation and the measured x-ray emission. This calculation can be run using the \file{AN} example. What is missing is a calculation of the core-level shifts. 
+
+Core-level shifts are calculated in the screening stage. The parameter XXX controls the calculation. If it is set to ``false'' no calculations are done. If you inspect the \file{AN.in} input file you will see that this is the case for the example. Within \program{ocean} there are three options for this parameter:
+\begin{enumerate}
+\item false -- don't run any shifts
+\item true -- only interested in a single cell
+\item $[$ any number $]$ -- will be running many cells, e.g., molecular dynamics snapshots.
+\end{enumerate}
+Choosing the number to set XXX can be tricky because we have no idea what values the Kohn-Sham potential or screening calculation will give ahead of time. Instead, we can use the option``true" and the code will figure out what value to set XXX to such that the average offset is zero. Go ahead and change the input so that XXX is ``true'' and rerun the calculation. If you'd like you can use the script ``re_run.sh'' by setting the directory where \program{ocean} was installed. 
+
+This time the code has performed additional calculations to get the Kohn-Sham potential at each nitrogen site. The difference is remarkable -- the main parts of the ammonium and nitrate XES are no longer overlapping, but instead separated by several eVs. The core-level shifts are unique to each site and each screening radius. As such they are stored within the \file{SCREEN} directory by site and radius, i.e., \file{SCREEN/zN_01/}. If you look at these files you will see that the two nitrate and two ammonium nitrogens are almost the same (small differences are inevitable) as we expect since they are equivalent sites. 
+
 \iffalse
 \section{Rutile}
 
@@ -212,6 +244,7 @@ The parameter NKPT determines the number of k-points used in the BSE. \program{o
 This concludes the tutorial on rutile TiO$_2$.
 
 \fi
+
 
 
 
