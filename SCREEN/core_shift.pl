@@ -84,7 +84,7 @@ elsif( $line =~ m/qe/i )
 }
 elsif( $line = ~m/obf/i )
 {
-  $dft = "qe"; # OBF if treated as QE for CLS!
+  $dft = "obf"; 
 }
 else
 {
@@ -120,7 +120,7 @@ for( my $i = 0; $i < scalar @rads; $i++ )
 }
 
 # For QE need to find their ridiculous coordinate formating
-if( $dft eq 'qe' )
+if( $dft eq 'qe' || $dft eq 'obf' )
 {
   my @coords;
   copy( "../DFT/scf.out", "scf.out" );
@@ -153,7 +153,16 @@ if( $dft eq 'qe' )
      .  "  plot_num = 1\n"
      .  "/\n";
   close OUT;
-  system("$para_prefix $ENV{'OCEAN_BIN'}/pp.x < pot_prep.in > pot_prep.out");
+  if( $dft eq 'qe' )
+  {
+    system("$para_prefix $ENV{'OCEAN_BIN'}/pp.x < pot_prep.in > pot_prep.out") == 0 
+        or die "Failed to run pp.x for the pre-computation\n";
+  }
+  else
+  {
+    system("$para_prefix $ENV{'OCEAN_BIN'}/obf_pp.x < pot_prep.in > pot_prep.out") == 0 
+        or die "Failed to run pp.x for the pre-computation\n";
+  }
   print "Pre-comp complete.\n";
 
 
@@ -202,7 +211,16 @@ if( $dft eq 'qe' )
     close OUT;
    
     `cp pot.in pot.in.$el_rank`;
-    system("$para_prefix $ENV{'OCEAN_BIN'}/pp.x < pot.in > pot.out.$el_rank");
+    if( $dft eq 'qe' )
+    {
+      system("$para_prefix $ENV{'OCEAN_BIN'}/pp.x < pot.in > pot.out.$el_rank") == 0
+          or die "Failed to run pp.x for $el_rank\n$!";
+    }
+    else
+    {
+      system("$para_prefix $ENV{'OCEAN_BIN'}/obf_pp.x < pot.in > pot.out.$el_rank") == 0
+          or die "Failed to run pp.x for $el_rank\n$!";
+    }
 
   # Vshift here is in Rydberg
     $Vshift[$i] = `head -n 1 system.pot.$el_rank | awk '{print \$2}'`;

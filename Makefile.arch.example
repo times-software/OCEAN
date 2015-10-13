@@ -58,6 +58,10 @@ OPTIONS += -D__QE51
 #######################
 # OBF Flags
 # Only set these if you have the OBF extension. 
+# The version of QE above does not have to match the version
+#   that the OBFs are built against
 # OBF_DIR = $(ESPRESSO_DIR)
+OBF_PW_EXE = $(OBF_DIR)/bin/pw.x
+OBF_PP_EXE = $(OBF_DIR)/bin/pp.x
 #######################
 
