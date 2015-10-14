@@ -1,4 +1,11 @@
 #!/usr/bin/perl
+# Copyright (C) 2014 OCEAN collaboration
+#
+# This file is part of the OCEAN project and distributed under the terms 
+# of the University of Illinois/NCSA Open Source License. See the file 
+# `License' in the root directory of the present distribution.
+#
+#
 
 use strict;
 
@@ -26,12 +33,18 @@ my $oldden = 0;
 $oldden = 1 if (-e "../DFT/old");
 
 
-my @AbFiles = ( "rhoofr", "density.out", "nkpt", "paw.nkpt",
-                "avecsinbohr.ipt", "qinunitsofbvectors.ipt");
+my @AbFiles = ( "rhoofr", "density.out", "nkpt", "paw.nkpt", "qinunitsofbvectors.ipt");
+my @CommonFiles = ( "avecsinbohr.ipt" );
 
 foreach (@AbFiles) {
   system("cp ../DFT/$_ .") == 0 or die "Failed to copy $_\n";
 }
+foreach (@CommonFiles)
+{
+  system("cp ../Common/$_ .") == 0 or die "Failed to copy $_\n";
+}
+
+
 print "$stat  $oldden\n";
 unless ($stat && $oldden) {
 -e "../DFT/SCx_DEN" or die "SCx_DEN not found\n";

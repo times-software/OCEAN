@@ -162,7 +162,7 @@ paw.shells
 } paw.shells
 paw.hfkgrid
 {
-2000  20
+2000  32
 } paw.hfkgrid
 paw.fill
 {
@@ -189,10 +189,11 @@ ibase
 } ibase
 nedges
 {
-} nedges
+-1
+} nedges.ipt
 edges
 {
-} edges
+} edges.ipt
 cnbse.nbuse
 {
 0
@@ -231,20 +232,24 @@ cks.normal
 } cks.normal
 cnbse.niter
 {
-1200
+100
 } cnbse.niter
 cnbse.spect_range
 {
--1.5 2.5
+1200 -40.817 68.028
 } cnbse.spect_range
 cnbse.broaden
 {
-0.001
+0.1
 } cnbse.broaden
 cnbse.mode
 {
-1 100
+xas
 } cnbse.mode
+cnbse.strength
+{
+1.0
+} cnbse.strength
 scratch
 {
 scratchXX
@@ -394,3 +399,7 @@ nphoton
 {
 -1
 } nphoton
+ser_bse
+{
+0
+} serbse

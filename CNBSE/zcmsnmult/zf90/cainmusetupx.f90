@@ -1,6 +1,13 @@
-  inquire(file='core_offset', exist=exst)
+! Copyright (C) 2015 OCEAN collaboration
+!
+! This file is part of the OCEAN project and distributed under the terms 
+! of the University of Illinois/NCSA Open Source License. See the file 
+! `License' in the root directory of the present distribution.
+!
+!
+  inquire(file='cls', exist=exst)
   if( exst ) then
-    open(unit=99,file='core_offset',  form='formatted', status='old' )
+    open(unit=99,file='cls',  form='formatted', status='old' )
     rewind 99
     read( 99, * ) core_offset
     core_offset = core_offset / 27.2114d0

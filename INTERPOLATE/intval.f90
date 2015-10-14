@@ -1,3 +1,8 @@
+! Copyright (C) 2015 OCEAN collaboration
+!
+! This file is part of the OCEAN project and distributed under the terms 
+! of the GPL 2 License. See the file `License' in the current subdirectory.
+!
 ! behold subroutine intval
 !
       subroutine intval( n, xtab, ytab, x, y, lopt, hopt )

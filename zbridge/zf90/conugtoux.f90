@@ -1,3 +1,10 @@
+! Copyright (C) 2015 OCEAN collaboration
+!
+! This file is part of the OCEAN project and distributed under the terms 
+! of the University of Illinois/NCSA Open Source License. See the file 
+! `License' in the root directory of the present distribution.
+!
+!
  program conugtoux
    implicit none
    !
@@ -19,7 +26,7 @@
    close( unit=99 )
    !
    ! JDFTx writes out files w/ C. No fortran recl markers
-   inquire( 'dft', exist=is_jdftx )
+   inquire( file='dft', exist=is_jdftx )
    if( is_jdftx ) then
      open( unit=99, file='dft', form='formatted', status='old' )
      read(99,*) DFT
@@ -55,16 +62,9 @@
       close( unit=99 )
       if ( i .eq. ikl( 1, iwfile ) ) then
          if( is_jdftx ) then
-           open ( unit=iwf, file=wfnam( iwfile ), form='binary',status='old'  )
-!           inquire( file=wfnam( iwfile ), size=filsize )
-!           ! ng
-!           ng = filsize - 4
-!           ng = ng / ( nb * 16 + 12 )
-!           if( filsize .ne. ( 4 + 12*ng + 16*ng*nb ) ) then
-!              write( 6, *) i, ':', filsize, ng
-!              stop
-!           endif
-!           read( iwf ) filsize
+!JTV need to figure out more compliant way of doing this. GCC (4.7) doesn't support form='binary'
+          stop
+!           open ( unit=iwf, file=wfnam( iwfile ), form='binary',status='old'  )
            read( iwf ) ng
          else
            open ( unit=iwf, file=wfnam( iwfile ), form='unformatted',status='unknown' )

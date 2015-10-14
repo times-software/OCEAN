@@ -1,4 +1,11 @@
 #!/usr/bin/perl
+# Copyright (C) 2015 OCEAN collaboration
+#
+# This file is part of the OCEAN project and distributed under the terms 
+# of the University of Illinois/NCSA Open Source License. See the file 
+# `License' in the root directory of the present distribution.
+#
+#
 
 use strict;
 
@@ -43,18 +50,26 @@ foreach (@cpu_factors)
 open QE_POOL, ">pool_control" or die "Failed to open qe_pool_control for writing\n$!\n";
 
 
+my $tline;
 open RSCALE, "rscale" or die;
-open RPRIM, "rprim" or die;
-<RSCALE> =~  m/(\d+\.?\d+([eEfF][+-]?\d+)?)\s+(\d+\.?\d+([eEfF][+-]?\d+)?)\s+(\d+\.?\d+([eEfF][+-]?\d+)?)/ or die;
-my @rscale = ($1, $3, $5);
-print "$1\t$3\t$5\n";
+$tline = <RSCALE>;
+chomp($tline);
+$tline =~  m/((\d+)?\.?\d+([eEfF][+-]?\d+)?)\s+((\d+)?\.?\d+([eEfF][+-]?\d+)?)\s+((\d+)?\.?\d+([eEfF][+-]?\d+)?)\s*$/ 
+    or die "Failed to parse rscale!\n$tline\n";
+my @rscale = ($1, $4, $7);
+print "$1\t$4\t$7\n";
 close RSCALE;
 
+open RPRIM, "rprim" or die;
 open AVECS, ">avecsinbohr.ipt" or die;
-for (my $i = 0; $i < 3; $i++ ) {
-  <RPRIM> =~  m/([+-]?\d?\.?\d+([eEfF][+-]?\d+)?)\s+([+-]?\d?\.?\d+([eEfF][+-]?\d+)?)\s+([+-]?\d?\.?\d+([eEfF][+-]?\d+)?)/ or die "$_";
-  print AVECS $1*$rscale[0] . "  " . $3*$rscale[1] .  "  " . $5*$rscale[2] . "\n";
-  print "$1\t$3\t$5\n";
+for (my $i = 0; $i < 3; $i++ ) 
+{
+  $tline = <RPRIM>;
+  chomp( $tline );
+  $tline =~  m/([+-]?(\d+)?\.?\d+([eEfF][+-]?\d+)?)\s+([+-]?(\d+)?\.?\d+([eEfF][+-]?\d+)?)\s+([+-]?(\d+)?\.?\d+([eEfF][+-]?\d+)?)\s*$/ 
+      or die "Failed to parse a line of rprim!\n$tline\n";
+  print AVECS $1*$rscale[0] . "  " . $4*$rscale[1] .  "  " . $7*$rscale[2] . "\n";
+  print "$1\t$4\t$7\n";
 }
 close RPRIM;
 close AVECS;

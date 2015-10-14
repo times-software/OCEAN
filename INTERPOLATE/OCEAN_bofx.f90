@@ -1,3 +1,8 @@
+! Copyright (C) 2015 OCEAN collaboration
+!
+! This file is part of the OCEAN project and distributed under the terms 
+! of the GPL 2 License. See the file `License' in the current subdirectory.
+!
 subroutine OCEAN_bofx( )
 ! This is a stopgap, going to probably try and evaluate the matrix elements of W
 !   in the optimal basis. For now, just using the ai2nbse stylings

@@ -18,6 +18,7 @@ all:
 	cd SCREEN;       make 
 	cd CNBSE;        make 
 	cd INTERPOLATE;  make
+	cd OCEAN2;			 make
 
 clean:
 	cd Common;       make clean
@@ -29,6 +30,8 @@ clean:
 	cd CNBSE;        make clean 
 	cd zbridge;      make clean
 	cd INTERPOLATE;  make clean
+	cd OCEAN2;       make clean
+
 install:
 	mkdir -p $(INSTDIR)
 	cp $(SCRIPTS) $(AUX) $(INSTDIR)
@@ -42,6 +45,7 @@ install:
 	cd CNBSE;        make install
 	cd zbridge;      make install
 	cd INTERPOLATE;  make install
+	cd OCEAN2;       make install
 	chmod u+x $(INSTDIR)/*.pl
 
 instdev:

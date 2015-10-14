@@ -1,3 +1,10 @@
+! Copyright (C) 2010 OCEAN collaboration
+!
+! This file is part of the OCEAN project and distributed under the terms 
+! of the University of Illinois/NCSA Open Source License. See the file 
+! `License' in the root directory of the present distribution.
+!
+!
 ! on return, vrslt( i ) = < l, m | L_i | l, mp > for i = 1, 2, 3
 !
 subroutine limel( l, m, mp, vrslt, nsphpt, xsph, ysph, zsph, wsph, prefs )

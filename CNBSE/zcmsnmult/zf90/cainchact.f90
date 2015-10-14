@@ -1,3 +1,10 @@
+! Copyright (C) 2013 OCEAN collaboration
+!
+! This file is part of the OCEAN project and distributed under the terms 
+! of the University of Illinois/NCSA Open Source License. See the file 
+! `License' in the root directory of the present distribution.
+!
+!
 subroutine cainchact( vr, vi, n, e0, se, hvr, hvi, nq, nbd, zn, inter, amet, nx, ny, nz, ur, ui, & 
                       tau, rcut, rzero, ptab, eps, core_offset )
   implicit none

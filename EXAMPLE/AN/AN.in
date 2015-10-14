@@ -1,0 +1,78 @@
+# J. Phys. Soc. Jpn. 14 1205-16 (1959)  x = .153
+control 0
+ppdir {'../'}
+
+para_prefix{ mpirun -n 64}
+nkpt { 4 4 4}
+paw.nkpt{ 2 2 2 }
+ngkpt{ 4 4 4 }
+obkpt{ 2 2 2 }
+
+
+occopt 1
+nbands 200
+paw.nbands 1200
+#acell { 5.7450 5.4380 4.9420 }
+acell { 10.8565 10.2763 9.3390 }
+
+rprim {
+1 0 0
+0 1 0
+0 0 1 }
+
+ntypat 3
+znucl { 1 7 8 }
+pp_list{ 01-h.lda.fhi
+07-n.lda.fhi
+08-o.lda.fhi }
+natom 18
+typat { 1 1 2 2 3 3 1 1 3 1 1 2 2 3 3 1 1 3  }
+xred {
+           7.5000000000E-01  1.0110000000E-01  3.2400000000E-02
+                    6.0450000000E-01  2.5000000000E-01  8.1020000000E-01
+                    7.5000000000E-01  2.5000000000E-01  9.1640000000E-01
+                    2.5000000000E-01  2.5000000000E-01  5.0670000000E-01
+                    2.5000000000E-01  2.5000000000E-01  7.6290000000E-01
+                    4.3420000000E-01  2.5000000000E-01  3.8230000000E-01
+                    7.5000000000E-01  3.9890000000E-01  3.2400000000E-02
+                    8.9550000000E-01  2.5000000000E-01  8.1020000000E-01
+                    6.5800000000E-02  2.5000000000E-01  3.8230000000E-01
+                    2.5000000000E-01  6.0110000000E-01  9.6760000000E-01
+                    3.9550000000E-01  7.5000000000E-01  1.8980000000E-01
+                    2.5000000000E-01  7.5000000000E-01  8.3600000000E-02
+                    7.5000000000E-01  7.5000000000E-01  4.9330000000E-01
+                    7.5000000000E-01  7.5000000000E-01  2.3710000000E-01
+                    5.6580000000E-01  7.5000000000E-01  6.1770000000E-01
+                    2.5000000000E-01  8.9890000000E-01  9.6760000000E-01
+                    1.0450000000E-01  7.5000000000E-01  1.8980000000E-01
+                    9.3420000000E-01  7.5000000000E-01  6.1770000000E-01
+}
+
+ecut 82.494
+toldfe 1.1d-8
+tolwfr 1.1d-16
+nstep 50
+diemac 2.94
+CNBSE.xmesh { 10 10 10 }
+paw.fill{ 7 n.fill }
+paw.opts{ 7 n.opts }
+
+# Run all 4 nitrogen edges
+edges{  -7 1 0  }
+
+
+# radius for paw reconstruciton
+paw.shells{ 4.0 }
+cnbse.rad{ 4.0 }
+
+#Scaling Factor
+scfac 0.85
+
+cnbse.broaden 0.544
+
+# Run the emission (CLS shows up well)
+cnbse.mode { xes }
+# By setting this to true we ask OCEAN calculate shifts for all the requested sites
+#   and then average them together. 
+core_offset .true.
+

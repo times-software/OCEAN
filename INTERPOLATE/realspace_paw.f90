@@ -1,3 +1,8 @@
+! Copyright (C) 2013 OCEAN collaboration
+!
+! This file is part of the OCEAN project and distributed under the terms 
+! of the GPL 2 License. See the file `License' in the current subdirectory.
+!
 subroutine realspace_paw( npt, lmin, lmax, nptot, nproj, posn, drel, ae_func, ps_func, radfunc, & 
                           ae_psi, ps_psi, delta_psi, prefs, loud, wpt )
   use kinds, only : dp

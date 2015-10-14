@@ -55,7 +55,8 @@ xred {
  .1947  .8053  .5 } 
 
 # Kinetic Enery cutoff
-ecut 70
+ecut 140
+#ecut 70
 
 # Energy tol
 toldfe 1.1d-6
@@ -77,9 +78,9 @@ paw.fill{ 22 ti.fill }
 paw.opts{ 22 ti.opts }
 
 #edge information
-nedges 2
-edges{ 1 2 1
-       2 2 1 }
+# By setting the first number to a negative
+#  we select ALL of the Ti (Z=22) atoms
+edges{ -22 2 1 }
 
 # radius for paw reconstruciton
 paw.shells{ 3.5 4.0 }
@@ -87,4 +88,4 @@ cnbse.rad{ 4.0 }
 
 #Scaling Factor
 scfac 0.80
-cnbse.broaden 0.007
+cnbse.broaden 0.19

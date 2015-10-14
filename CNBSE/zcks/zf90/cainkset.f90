@@ -1,3 +1,10 @@
+! Copyright (C) 2015 OCEAN collaboration
+!
+! This file is part of the OCEAN project and distributed under the terms 
+! of the University of Illinois/NCSA Open Source License. See the file 
+! `License' in the root directory of the present distribution.
+!
+!
 subroutine cainkset( avec, bvec, bmet, prefs )
   implicit none
   integer, parameter :: stdin = 5, stdout = 6, mubase = 80
@@ -257,7 +264,9 @@ subroutine cainkset( avec, bvec, bmet, prefs )
            fh = 1000 !+ OMP_GET_THREAD_NUM()
 !$         fh = fh + OMP_GET_THREAD_NUM()
            if( is_jdftx ) then
-             open( unit=fh, file=wnam( nq ), form='binary', status='old' )
+!JTV need to switch to more compliant, possibly access='stream'??
+            stop
+!             open( unit=fh, file=wnam( nq ), form='binary', status='old' )
            else
              open( unit=fh, file=wnam( nq ), form='unformatted', status='old' )
            endif

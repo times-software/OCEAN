@@ -1,3 +1,8 @@
+! Copyright (C) 2015 OCEAN collaboration
+!
+! This file is part of the OCEAN project and distributed under the terms 
+! of the GPL 2 License. See the file `License' in the current subdirectory.
+!
 !
 ! Copyright (C) 2001-2003 PWSCF group
 ! This file is distributed under the terms of the

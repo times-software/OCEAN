@@ -1,4 +1,11 @@
 #!/usr/bin/perl
+# Copyright (C) 2015 OCEAN collaboration
+#
+# This file is part of the OCEAN project and distributed under the terms 
+# of the University of Illinois/NCSA Open Source License. See the file 
+# `License' in the root directory of the present distribution.
+#
+#
 
 use strict;
 use File::Copy;
@@ -32,9 +39,9 @@ my $band_stop  = -1; #800;
 # Step 1: Create support files
 my @CommonFiles = ("znucl", "paw.hfkgrid", "paw.fill", "paw.opts", "pplist", "paw.shells", 
                    "ntype", "natoms", "typat", "taulist", "nedges", "edges", "caution", 
-                   "epsilon", "k0.ipt", "ibase", "scfac", "rscale", "rprim", "para_prefix", 
+                   "epsilon", "k0.ipt", "ibase", "scfac", "para_prefix", 
                    "paw.nbands", "core_offset", "paw.nkpt", "pool_control", "ham_kpoints", 
-                   "cnbse.rad" );
+                   "cnbse.rad", "dft", "avecsinbohr.ipt" );
 my @ExtraFiles = ("specpnt", "Pquadrature" );
 my @DFTFiles = ("rhoofr", "nscf.out", "system.rho.dat");
 
@@ -116,22 +123,6 @@ while( my $line = <SCF> )
 }
 $fermi = $fermi/13.60569252;
 `echo "$fermi" > efermiinrydberg.ipt`;
-
-open RSCALE, "rscale" or die;
-open RPRIM, "rprim" or die;
-<RSCALE> =~  m/(\d+\.?\d+([eEfF][+-]?\d+)?)\s+(\d+\.?\d+([eEfF][+-]?\d+)?)\s+(\d+\.?\d+([eEfF][+-]?\d+)?)/ or die;
-my @rscale = ($1, $3, $5);
-print "$1\t$3\t$5\n";
-close RSCALE;
-
-open AVECS, ">avecsinbohr.ipt" or die;
-for (my $i = 0; $i < 3; $i++ ) {
-  <RPRIM> =~  m/([+-]?\d?\.?\d+([eEfF][+-]?\d+)?)\s+([+-]?\d?\.?\d+([eEfF][+-]?\d+)?)\s+([+-]?\d?\.?\d+([eEfF][+-]?\d+)?)/ or die "$_";
-  print AVECS $1*$rscale[0] . "  " . $3*$rscale[1] .  "  " . $5*$rscale[2] . "\n";
-  print "$1\t$3\t$5\n";
-}
-close RPRIM;
-close AVECS;
 
 system("$ENV{'OCEAN_BIN'}/bvecs.pl") == 0
     or die "Failed to run bvecs.pl\n";
@@ -415,11 +406,13 @@ while ($hfinline = <HFINLIST>) {
     `ln -sf $ximat_name ximat`;
     `echo 24 > ipt`;
     `$ENV{'OCEAN_BIN'}/xipps.x < ipt`;
-    `mv ninduced nin`;
+    move( "ninduced", "nin" );
+#    `mv ninduced nin`;
     `echo $fullrad > ipt`;
     `cat ibase epsilon >> ipt`;
     `$ENV{'OCEAN_BIN'}/vhommod.x < ipt`;
-    `mv reopt rom`;
+    move( "reopt", "rom" );
+#    `mv reopt rom`;
     `echo 1 3 > ipt`;
     `wc rom >> ipt`;
     `cat rom >> ipt`;
