@@ -158,7 +158,7 @@ scfac
 } scfac
 paw.shells
 {
-1.5 
+3.5
 } paw.shells
 paw.hfkgrid
 {
