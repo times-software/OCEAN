@@ -2,6 +2,7 @@
 
 # Fortran compiler
 FC = ifort
+MPIFORT = mpif90
 
 # Flags for the fortran compiler
 OPTIONS = -O2 
