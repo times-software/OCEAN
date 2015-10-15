@@ -125,7 +125,7 @@ OCEAN_invdrv.o: OCEAN_invdrv.f90
 
 
 clean:
-	rm *.o *.mod
+	rm -f *.o *.mod
 
 install:
 	cp ocean.x $(INSTDIR)/
