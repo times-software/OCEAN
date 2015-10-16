@@ -795,6 +795,8 @@ module OCEAN_action
           el = el / 27.2114d0
           eh = eh / 27.2114d0
           gam0 = gam0 / 27.2114d0
+          inv_loop = 1
+          allocate( e_list( inv_loop ) )
         case('inv')
           read(99,*) nloop, gres, gprc, ffff, ener
           read(99,*) inv_style
