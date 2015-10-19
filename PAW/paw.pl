@@ -176,6 +176,14 @@ while ( $hfinline = <HFINLIST> ) {
 
   print "Running hfk.x\n";
   system("$ENV{'OCEAN_BIN'}/hfk.x < HFIN > hfk.${znucl}_${nnum}_${lnum}.log") == 0 or die;
+  # Check the end of the log to see if we are ok
+  my $hfk_status = `tail -n 1 hfk.${znucl}_${nnum}_${lnum}.log`;
+  unless( $hfk_status =~ m/terminus/ )
+  {
+    die "The program hfk.x has exited incorrectly.\nExiting ...\n";
+  }
+  print "Done running hfk.x\n";
+
   my $corezfile = sprintf("corezetaz%03i",$znucl);
 
 # Clean-up time

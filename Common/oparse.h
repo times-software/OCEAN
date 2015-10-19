@@ -162,7 +162,7 @@ paw.shells
 } paw.shells
 paw.hfkgrid
 {
-2000  20
+2000  32
 } paw.hfkgrid
 paw.fill
 {
@@ -189,10 +189,11 @@ ibase
 } ibase
 nedges
 {
-} nedges
+-1
+} nedges.ipt
 edges
 {
-} edges
+} edges.ipt
 cnbse.nbuse
 {
 0
@@ -398,3 +399,7 @@ nphoton
 {
 -1
 } nphoton
+ser_bse
+{
+0
+} serbse

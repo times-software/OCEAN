@@ -334,6 +334,7 @@ if ($RunABINIT) {
   `echo 'fband ' >> inai.denout`;
   `cat fband >> inai.denout`;
   `echo prtden 1 >> inai.denout`;
+  `echo prtpot 1 >> inai.denout`;
   `echo kptopt 1 >> inai.denout`;
   `echo 'ngkpt ' >> inai.denout`;
   `cat ngkpt >> inai.denout`;
@@ -539,22 +540,22 @@ if ( $bseRUN ) {
   chdir "../";
 }
 
-print `pwd`;
-open RSCALE, "rscale" or die;
-open RPRIM, "rprim" or die;
-<RSCALE> =~  m/(\d+\.?\d+([eEfF][+-]?\d+)?)\s+(\d+\.?\d+([eEfF][+-]?\d+)?)\s+(\d+\.?\d+([eEfF][+-]?\d+)?)/ or die;
-my @rscale = ($1, $3, $5);
-print "$1\t$3\t$5\n";
-close RSCALE;
+#print `pwd`;
+#open RSCALE, "rscale" or die;
+#open RPRIM, "rprim" or die;
+#<RSCALE> =~  m/(\d+\.?\d+([eEfF][+-]?\d+)?)\s+(\d+\.?\d+([eEfF][+-]?\d+)?)\s+(\d+\.?\d+([eEfF][+-]?\d+)?)/ or die;
+#my @rscale = ($1, $3, $5);
+#print "$1\t$3\t$5\n";
+#close RSCALE;
 
-open AVECS, ">avecsinbohr.ipt" or die;
-for (my $i = 0; $i < 3; $i++ ) {
-  <RPRIM> =~  m/([+-]?\d?\.?\d+([eEfF][+-]?\d+)?)\s+([+-]?\d?\.?\d+([eEfF][+-]?\d+)?)\s+([+-]?\d?\.?\d+([eEfF][+-]?\d+)?)/ or die "$_";
-  print AVECS $1*$rscale[0] . "  " . $3*$rscale[1] .  "  " . $5*$rscale[2] . "\n";
-  print "$1\t$3\t$5\n";
-}
-close RPRIM;
-close AVECS;
+#open AVECS, ">avecsinbohr.ipt" or die;
+#for (my $i = 0; $i < 3; $i++ ) {
+#  <RPRIM> =~  m/([+-]?\d?\.?\d+([eEfF][+-]?\d+)?)\s+([+-]?\d?\.?\d+([eEfF][+-]?\d+)?)\s+([+-]?\d?\.?\d+([eEfF][+-]?\d+)?)/ or die "$_";
+#  print AVECS $1*$rscale[0] . "  " . $3*$rscale[1] .  "  " . $5*$rscale[2] . "\n";
+#  print "$1\t$3\t$5\n";
+#}
+#close RPRIM;
+#close AVECS;
 
 
 print "Abinit stage complete\n";

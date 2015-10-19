@@ -8,6 +8,7 @@
 #
 
 use strict;
+use File::Copy;
 
 ###########################
 if (! $ENV{"OCEAN_BIN"} ) {
@@ -19,9 +20,7 @@ if (! $ENV{"OCEAN_WORKDIR"}){ $ENV{"OCEAN_WORKDIR"} = `pwd` . "../" ; }
 ###########################
 
 
-my @CommonFiles = ("znucl", "paw.hfkgrid", "paw.fill", "paw.opts", "pplist", "paw.shells", "ntype", "natoms", "typat", "taulist", "nedges", "edges", "caution", "epsilon", "k0.ipt", "ibase", "scfac", "core_offset", "dft" );
-
-my @AbinitFiles = ("avecsinbohr.ipt");
+my @CommonFiles = ("znucl", "paw.hfkgrid", "paw.fill", "paw.opts", "pplist", "paw.shells", "ntype", "natoms", "typat", "taulist", "nedges", "edges", "caution", "epsilon", "k0.ipt", "ibase", "scfac", "core_offset", "dft", "avecsinbohr.ipt" );
 
 my @DenDipFiles = ("rhoofg", "bvecs", "efermiinrydberg.ipt");
 my @DenDipFiles2 = ( "masterwfile", "listwfile", "enkfile", "kmesh.ipt", "brange.ipt" );
@@ -47,20 +46,20 @@ if ($runPAW == 0 ) {
 
 
 foreach (@CommonFiles) {
-  `cp ../Common/$_ .` == 0 or die "Failed to get $_ from Common/\n";
+  copy( "../Common/$_", $_ ) or die "Failed to get $_ from Common/\n$!";
 }
-foreach (@AbinitFiles) {
-  `cp ../DFT/$_ .` == 0 or die "Failed to get $_ from DFT/\n";
-}
+#foreach (@DFTFiles) {
+#  copy( "../DFT/$_", $_ ) or die "Failed to get $_ from DFT/\n$!";
+#}
 foreach (@DenDipFiles) {
-  `cp ../PREP/$_ .` == 0 or die "Failed to get $_ from PREP/\n";
+  copy( "../PREP/$_", $_ ) or die "Failed to get $_ from PREP/\n$!";
 }
 foreach (@DenDipFiles2) {
-  `cp ../PREP/PAW/$_ .` == 0 or die "Failed to get $_ from PREP/PAW/\n";
+  copy( "../PREP/PAW/$_", $_ ) or die "Failed to get $_ from PREP/PAW/\n$!";
 }
 
 foreach (@ExtraFiles) {
-  `cp $ENV{'OCEAN_BIN'}/$_ .` == 0 or die;
+  copy( "$ENV{'OCEAN_BIN'}/$_", $_ ) or die "Failed to get $_ from $ENV{'OCEAN_BIN'}/\n$!";
 }
 
 open LISTW, "listwfile" or die "Failed to open listwfile\n";
@@ -68,12 +67,6 @@ while (<LISTW> ) {
   m/(\d+)\s+(\S+)/ or die "Malformed listwfile\n";
   `ln -sf ../PREP/PAW/$2 $2`;
 }
-
-#open PPLIST, "pplist" or die "Failed to open pplist\n";
-#while (<PPLIST>) {
-#  chomp;
-#  `cp "../$_" .`;
-#}
 
 unless( -e 'clipbands' ) {
 print "Creating clipbands\n";
@@ -94,7 +87,6 @@ close CLIPS;
 print "Running PAW Setup\n";
 system("$ENV{'OCEAN_BIN'}/pawsetup.x") == 0 or die "Failed to run pawsetup.x\n";
 
-#`mkdir -p zdiag/ zpawinfo/`;
 `ln -sf ../PAW/zpawinfo zpawinfo`;
 ###################################
 
@@ -124,11 +116,6 @@ print "Starting xipp section\n";
 system("$ENV{'OCEAN_BIN'}/avg.x") == 0 or die "Failed to run avg.x\n";
 
 open HFINLIST, "hfinlist" or die "Failed to open hfinlist\n";
-#seek (HFINLIST, 0, 0);
-#open SHELLS, "paw.shells" or die "Failed to open shells\n";
-#my $line = <SHELLS>;
-#my @rads = split(/ /, <SHELLS>);
-#close SHELLS;
 
 my $rad;
 my $edgename; 
@@ -148,7 +135,7 @@ while ($hfinline = <HFINLIST>) {
   `mkdir -p $edgename` == 0 or die "Failed to make dir $edgename\n";
 
   my $avden =  sprintf("avg%2s%02i",$elname,$elnum);
-  system("cp $avden avden") == 0 or die "Failed to copy density $avden\n";
+  copy( $avden,  "avden" ) or die "Failed to copy density $avden\n$!";
 
 
   my $edgename2 = sprintf("z%03in%02il%02i",$znucl, $nnum, $lnum);
@@ -162,18 +149,18 @@ while ($hfinline = <HFINLIST>) {
       chdir "$edgename";
       `ln -s -f zRXT${fullrad} zR${fullrad}`;
       chdir "../";
-      `cp zpawinfo/vcxxxxx${edgename2}R${fullrad} ./tmp`;
+      copy( "zpawinfo/vcxxxxx${edgename2}R${fullrad}", "tmp" ) 
+          or die "Failed to copy zpawinfo/vcxxxxx${edgename2}R${fullrad}\n$!";
       `wc tmp > vpert`;
       `cat tmp >> vpert`;
-#      system("builder.x < builder.in") == 0 or die;
       system("$ENV{'OCEAN_BIN'}/builder.x") == 0 or die;
       `echo 24 > ipt`;
       `time $ENV{'OCEAN_BIN'}/xipps.x < ipt`;
-      `mv ninduced nin`;
+      move( "ninduced", "nin" ) or die "Failed to move ninduced.\n$!";
       `echo $fullrad > ipt`;
       `cat ibase epsilon >> ipt`;
       `time $ENV{'OCEAN_BIN'}/vhommod.x < ipt`;
-      `mv reopt rom`;
+      move( "reopt", "rom" ) or die "Failed to move reopt.\n$!";
       `echo 1 3 > ipt`;
       `wc rom >> ipt`;
       `cat rom >> ipt`;
@@ -184,13 +171,14 @@ while ($hfinline = <HFINLIST>) {
       `wc zpawinfo/vcxxxxx${edgename2} >> ipt`;
       `cat zpawinfo/vcxxxxx${edgename2} >> ipt`;
   
-      `cp ipt ipt1`;
+      copy( "ipt", "ipt1" ) or die;
       `echo .false. >> ipt1`;
       `echo 0.1 100 >> ipt1`;
       `time $ENV{'OCEAN_BIN'}/rscombine.x < ipt1 > ./${edgename}/zRXF${fullrad}/ropt`;
-      `mv {rpot,rpothires} ${edgename}/zRXF${fullrad}/`;
+      move( "rpot", "$edgename/zRXF$fullrad/" ) or die "Failed to move rpot\n$!";
+      move( "rpothires", "$edgename/zRXF$fullrad/" ) or die "Failed to move rpothires\n$!";
 
-      `cp ipt ipt1`;
+      copy( "ipt", "ipt1" ) or die;
       `echo .true. >> ipt1`;
       `wc zpawinfo/vvpseud${edgename2} >> ipt1`;
       `cat zpawinfo/vvpseud${edgename2} >> ipt1`;
@@ -198,7 +186,10 @@ while ($hfinline = <HFINLIST>) {
       `cat zpawinfo/vvallel${edgename2} >> ipt1`;
       `echo 0.1 100 >> ipt1`;
       `time $ENV{'OCEAN_BIN'}/rscombine.x < ipt1 > ./${edgename}/zRXT${fullrad}/ropt`;
-      `mv {rpot,rpothires,rom,nin} ${edgename}/zRXT${fullrad}/`;
+      move( "rpot", "$edgename/zRXT$fullrad/" ) or die "Failed to move rpot\n$!";
+      move( "rpothires", "$edgename/zRXT$fullrad/" ) or die "Failed to move rpothires\n$!";
+      move( "rom", "$edgename/zRXT$fullrad/" ) or die "Failed to move rom\n$!";
+      move( "nin", "$edgename/zRXT$fullrad/" ) or die "Failed to move nin\n$!";
   }
 }
 close HFINLIST;
@@ -207,7 +198,7 @@ close HFINLIST;
 my $dft = `cat dft`;
 if( $dft =~ m/qe/i )
 {
-	`ln -s ../QE/Out .`;
+	`ln -s ../DFT/Out .`;
 	my $core_offset = `cat core_offset`;
 	chomp $core_offset;
 	if( $core_offset =~ m/false/i )

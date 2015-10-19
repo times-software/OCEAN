@@ -129,7 +129,7 @@
   CHARACTER(13)            :: frmt
   REAL(DP), ALLOCATABLE    :: eig(:), occ(:), temp_eigen_un(:,:), temp_occ_un(:,:)
 
-  COMPLEX(DP)     :: cg_un_tmp(maxnpw,maxband), cg_sh_tmp(maxnpw,maxband)
+  COMPLEX(DP), ALLOCATABLE :: cg_un_tmp(:,:), cg_sh_tmp(:,:)
   INTEGER         :: npwx, ngm, ngms, npol, nbnd, nkpts, nspin
 
   LOGICAL         :: lsda, lpoint_dir
@@ -142,6 +142,8 @@
 !
 
   WRITE(stdout, "(/,'< Wavefunction Parser > ')" )
+  !
+  allocate( cg_un_tmp(maxnpw,maxband), cg_sh_tmp(maxnpw,maxband) )
   !
   open( unit=97, file="../../Common/prefix", form='formatted', status='unknown')
   read( 97, *) sysname
@@ -328,6 +330,8 @@
 !  kg_shift(:,:) = kg_unshift(:,:)
 !  cg_un = 1.0
 !  cg_sh = cg_un
+
+  deallocate( cg_un_tmp, cg_sh_tmp )
 
   write(6,*) "DONE WITH GRABWF"
 

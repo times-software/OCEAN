@@ -1,0 +1,5 @@
+*.mod
+*.o
+*__genmod.f90
+ocean.x
+
