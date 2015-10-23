@@ -13,37 +13,56 @@ module OCEAN_psi
   INTEGER :: psi_core_alpha
   INTEGER :: psi_val_beta
   INTEGER :: psi_val_bands
+  
+  INTEGER :: psi_core_np
+  INTEGER :: psi_val_np
 
   INTEGER :: CACHE_DOUBLE = 8
+
+
+  INTEGER, ALLOCATABLE :: psi_core_comms( : )
+  INTEGER, ALLOCATABLE :: psi_val_comms( : )
+
+  INTEGER, PARAMETER, PUBLIC :: core_vector = 1
+  INTEGER, PARAMETER, PUBLIC :: val_vector = 2
 
   LOGICAL :: is_init = .false.
   LOGICAL :: have_core = .false.
   LOGICAL :: have_val = .false.
 
-  INTEGER, PARAMETER, PUBLIC :: core_vector = 1
-  INTEGER, PARAMETER, PUBLIC :: val_vector = 2
-
   type OCEAN_vector
     REAL(DP), ALLOCATABLE :: r(:,:,:) 
     REAL(DP), ALLOCATABLE :: i(:,:,:) 
 
+    REAL(DP), ALLOCATABLE :: write_r(:,:,:)
+    REAL(DP), ALLOCATABLE :: write_i(:,:,:)
+
+    REAL(DP), ALLOCATABLE :: store_r(:,:,:)
+    REAL(DP), ALLOCATABLE :: store_i(:,:,:)
+
+
     REAL(DP), ALLOCATABLE :: valr(:,:,:,:)
     REAL(DP), ALLOCATABLE :: vali(:,:,:,:)
 
+
+
 #ifdef CONTIGUOUS
-    CONTIGUOUS :: r, i, valr, vali
+    CONTIGUOUS :: r, i, 
+    CONTIGUOUS :: write_r, write_i, valr, vali
 #endif
 
 #ifdef __INTEL
-!dir$ attributes align:64 :: r, i, valr, vali
+!dir$ attributes align:64 :: r, i, write_r, write_i
+!dir$ attributes align:64 :: valr, vali
 #endif
 
     INTEGER :: nband = 1
+    INTEGER :: nkpts = 1
     INTEGER :: vband = 1 ! valence or 1
     INTEGER :: cband = 1 ! equal to nband or 1
-    INTEGER :: nkpts = 1
-    INTEGER :: nalpha = 1
-    INTEGER :: nbeta = 1 ! always 1 for right now
+    INTEGER(I2) :: nalpha = 1
+    INTEGER(I2) :: nbeta = 1 ! always 1 for right now
+
     INTEGER :: core_full_size = 1
     INTEGER :: core_async_size = 1
     INTEGER :: val_full_size = 1
@@ -52,6 +71,9 @@ module OCEAN_psi
     ! MPI requests for sharing OCEAN_vector
     INTEGER, ALLOCATABLE :: r_request(:)
     INTEGER, ALLOCATABLE :: i_request(:)
+
+
+    INTEGER :: storage_type
 
   end type
 
@@ -353,11 +375,76 @@ module OCEAN_psi
  
     psi_val_beta = sys%nspn ** 2
 
-    is_init = .true.
     have_core = sys%have_core
     have_val  = sys%have_val
+  
+    ! Need the real value of nkpts in the mpi init
+    call OCEAN_psi_mpi_init( sys%nkpts, ierr )
+    if( ierr .ne. 0 ) return
+
+    is_init = .true.
 
   end subroutine OCEAN_psi_init
+
+
+  subroutine OCEAN_psi_mpi_init( nkpts, ierr )
+    use OCEAN_mpi, only : myid, comm, nproc
+    implicit none
+    !
+    integer, intent( in ) :: nkpts
+    integer, intent( inout ) :: ierr
+    !
+    integer, parameter :: blocksize = 64
+    integer :: conblocks, valblocks
+    integer :: i
+    !
+    
+#ifdef MPI
+
+    !!!!  How many procs to spread psi over?
+    ! For the core we max out at kpts by spins (4) by core-level l
+    psi_core_np = min( nproc, nkpts*psi_core_alpha )
+
+    ! For the valence we block con and val bands, and then try and fully distribute by kpts and spins
+    if( have_val ) then
+      if( nkpts*psi_core_alpha .ge. nproc ) then
+        psi_val_np = nproc
+      else
+        conblocks = max( 1, ( psi_bands_pad / blocksize ) )
+        valblocks = max( 1, ( psi_val_bands / blocksize ) )
+        psi_val_np = min( nproc, conblocks * valblocks * nkpts * psi_val_beta )
+      endif
+    else
+      psi_val_np = 1  ! for completeness assign a value
+    endif
+    
+
+    ! Create comms for core level
+    ! PLN: Create psi_core_np different comms
+    !   This allows fewer message tags
+
+    ! Each comm reads/stores psi to the owning process
+    !     The size of each needs to be the complete set of processes
+    if( have_core ) then
+      !
+      allocate( psi_core_comms( 0 : psi_core_np - 1 ) )
+      call MPI_CART_CREATE( comm, 1, nproc, .false., .false., psi_core_comms(0), ierr )
+      if( ierr .ne. MPI_SUCCESS ) return
+
+      do i = 1, psi_core_np - 1
+        CALL MPI_COMM_DUP( psi_core_comms(1), psi_core_comms(i), ierr )
+        if( ierr .ne. MPI_SUCCESS ) return
+      enddo
+    endif
+
+
+    if( have_val ) then
+      ierr = -1
+      return
+    endif
+
+#endif
+  end subroutine OCEAN_psi_mpi_init
 
 
   ! Pass in true/false for core/valence
