@@ -89,9 +89,10 @@ module OCEAN_psi
 
 
     
-    INTEGER :: storage_type
+    INTEGER :: storage_type = 0
     ! Valid storage keeps track of who has `good' data.
-    INTEGER :: valid_storage
+    INTEGER :: valid_storage = 0
+    INTEGER :: pending = 0
 
   end type
 
@@ -737,9 +738,17 @@ module OCEAN_psi
   end subroutine
 
   subroutine OCEAN_psi_store2full( p, ierr )
+    use OCEAN_mpi, only : nproc, comm
     implicit none
     integer, intent(inout) :: ierr
     type(OCEAN_vector), intent( inout ) :: p
+
+    real(DP), allocatable :: psi_temp(:,:,:)
+
+    integer :: store_size, ik, ia, displ, send_size
+    integer, allocatable :: recvcount(:), displs(:)
+
+    
 
 !   min store must be valid
     if( IAND( p%valid_storage, PSI_STORE_MIN ) .eq. 0 ) then
@@ -756,9 +765,63 @@ module OCEAN_psi
     ! If full is already valid then return
     if( IAND( p%valid_storage, PSI_STORE_FULL .eq. 1 ) return
 
-!JTV
-!JTV
-    
+    ! This is ideal for allgatherv
+    !  Each proc has some amount of full
+!JTV not very optimized atm
+    call psi_core_store_size( psi_core_myid, store_size, ik, ia )
+    send_size = store_size * p%nband
+  
+    displ = 0
+  
+    allocate( recvcount(0:nproc-1), displs(0:nproc-1) )
+    do i = 0, nproc - 1
+      call psi_core_store_size( i, store_size, ik, ia )
+      send_size = store_size * psi_bands_pad
+      recvcount( i ) = send_size
+      displs( i ) = displ
+      displ = displ + send_size
+    enddo
+
+    if( psi_kpts_pad .eq. psi_kpts_actual) then
+      call MPI_ALLGATHERV( p%store_r, recvcount( psi_core_myid ), MPI_DOUBLE_PRECISION, &
+                           p%r, recvcount, displs, comm, ierr )
+      
+      call MPI_ALLGATHERV( p%store_i, recvcount( psi_core_myid ), MPI_DOUBLE_PRECISION, &
+                           p%i, recvcount, displs, comm, ierr )
+    elseif( maxval( recvcount ) .eq. 1 ) then
+      ! Re-assign offsets. Doesn't matter if we muck-up offsets for size=0 guys
+      do i = 0, nproc - 1
+        call psi_core_store_size( i, store_size, ik, ia )
+        displs( i ) = ( ia - 1 ) * psi_kpts_pad * psi_band_pad + ( ik - 1 ) * psi_band_pad
+      enddo
+      call MPI_ALLGATHERV( p%store_r, recvcount( psi_core_myid ), MPI_DOUBLE_PRECISION, &
+                           p%r, recvcount, displs, comm, ierr )
+
+      call MPI_ALLGATHERV( p%store_i, recvcount( psi_core_myid ), MPI_DOUBLE_PRECISION, &
+                           p%i, recvcount, displs, comm, ierr )
+    else
+#    if( psi_kpts_pad .ne. psi_kpts_actual ) then
+      allocate( psi_temp( psi_bands_pad, psi_kpts_actual, psi_core_alpha ), STAT=ierr )
+      if( ierr .ne. 0 ) return
+
+      call MPI_ALLGATHERV( p%store_r, recvcount( psi_core_myid ), MPI_DOUBLE_PRECISION, &
+                           psi_temp, recvcount, displs, comm, ierr )
+
+      do i = 1, p%nalpha
+        p%r( :, 1:psi_kpts_actual, i ) = psi_temp( :, : )
+      enddo
+
+      call MPI_ALLGATHERV( p%store_i, recvcount( psi_core_myid ), MPI_DOUBLE_PRECISION, &
+                           psi_temp, recvcount, displs, comm, ierr )
+
+      do i = 1, p%nalpha
+        p%i( :, 1:psi_kpts_actual, i ) = psi_temp( :, : )
+      enddo
+
+      deallocate( psi_temp )
+    endif
+
+    p%valid_storage = IOR( p%valid_storage, PSI_STORE_FULL )
 
   end subroutine OCEAN_psi_store2full
 
