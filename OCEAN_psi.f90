@@ -26,8 +26,8 @@ module OCEAN_psi
   INTEGER :: CACHE_DOUBLE = 8
 
 
-  INTEGER, ALLOCATABLE :: psi_core_comms( : )
-  INTEGER, ALLOCATABLE :: psi_val_comms( : )
+!  INTEGER, ALLOCATABLE :: psi_core_comms( : )
+!  INTEGER, ALLOCATABLE :: psi_val_comms( : )
 
   INTEGER, PARAMETER, PUBLIC :: core_vector = 1
   INTEGER, PARAMETER, PUBLIC :: val_vector = 2
@@ -84,6 +84,8 @@ module OCEAN_psi
     INTEGER, ALLOCATABLE :: r_request(:)
     INTEGER, ALLOCATABLE :: i_request(:)
 
+    INTEGER, ALLOCATABLE :: core_store_rr(:)
+    INTEGER, ALLOCATABLE :: core_store_ri(:)
 
     ! New MPI requests
 
@@ -92,7 +94,12 @@ module OCEAN_psi
     INTEGER :: storage_type = 0
     ! Valid storage keeps track of who has `good' data.
     INTEGER :: valid_storage = 0
-    INTEGER :: pending = 0
+    INTEGER :: buffer_status = 0
+    INTEGER :: core_comm = -1
+    INTEGER :: val_comm = -1
+    INTEGER :: core_store_size
+    INTEGER :: core_k_start
+    INTEGER :: core_a_start
 
   end type
 
@@ -107,6 +114,393 @@ module OCEAN_psi
   private: psi_core_store_size
   contains
 
+  subroutine OCEAN_psi_ready_write( p, ierr )
+    use mpi
+    use OCEAN_mpi, only : nproc
+    implicit none
+    type(OCEAN_vector), intent( inout ) :: p
+    integer, intent( inout ) :: ierr
+    !
+
+    ! Have we called this twice in a row on this psi?
+    !  Crash out. This is a programming error
+    if( p%buffer_status .eq. 1 ) then
+      ierr = -1
+      return
+    endif
+
+    if( IAND( p%storage_type, PSI_STORE_WRITE ) .eq. 0 ) then
+      call OCEAN_psi_alloc_write( p, ierr )
+      if( ierr .ne. 0 ) return
+    endif
+
+!    call psi_core_store_size( psi_core_myid, store_size, ik, ia )
+    if( p%core_store_size .gt. 0 ) then
+      do i = 0, nproc
+        call MPI_IRECV( p%r_store(1,i), p%core_store_size*psi_bands_pad, MPI_DOUBLE_PRECISION, i, 1, p%core_comm, &
+                        p%core_store_rr(i), ierr )
+        if( ierr .ne. 0 ) return
+        call MPI_IRECV( p%i_store(1,i), p%core_store_size*psi_bands_pad, MPI_DOUBLE_PRECISION, i, 2, p%core_comm, &
+                        p%core_store_ri(i), ierr )
+        if( ierr .ne. 0 ) return
+      enddo
+    endif
+
+    p%buffer_status = 1
+  return
+
+  subroutine OCEAN_psi_send_write( p, ierr )
+    use mpi
+    implicit none
+    type(OCEAN_vector), intent( inout ) :: p
+    integer, intent( inout ) :: ierr
+    !
+    if( p%buffer_status .ne. 1 ) then
+      ierr = -1
+      return
+    endif
+
+    if( ( IAND( p%storage_type, PSI_STORE_WRITE ) .eq. 0 ) .or. &
+        ( IAND( p%storage_type, PSI_STORE_FULL ) .eq. 0 ) ) then
+      ierr = -1
+      return
+    endif
+
+    if( have_core ) then
+  !JTV this only works if there is no kpt padding    
+      do i = 0, psi_core_np
+        call psi_core_store_size( i, store_size, ik, ia )
+
+        call MPI_IRSEND( p%r(1,ik,ia), store_size * psi_bands_pad, MPI_DOUBLE_PRECISION, &
+                         i, 1, p%core_comm, p%core_store_sr( i ), ierr )
+        if( ierr .ne. 0 ) return
+      enddo
+
+      ! Go ahead and try and get all the reals out before starting on the imags
+      do i = 0, psi_core_np 
+        call psi_core_store_size( i, store_size, ik, ia )
+  
+        call MPI_IRSEND( p%i(1,ik,ia), store_size * psi_bands_pad, MPI_DOUBLE_PRECISION, &
+                         i, 2, p%core_comm, p%core_store_si( i ), ierr )
+        if( ierr .ne. 0 ) return
+      enddo
+    endif ! have_core
+
+
+    p%buffer_status = 2
+    p%valid_storage = PSI_STORE_WRITE
+
+  end subroutine OCEAN_psi_send_write    
+
+
+
+  subroutine OCEAN_psi_write2store( p, ierr )
+    use OCEAN_mpi, only : nproc
+    type(OCEAN_vector), intent( inout ) :: p
+    integer, intent( inout ) :: ierr
+    !
+    integer :: outcount, i
+
+    logical :: have_real 
+    logical :: have_imag 
+
+    if( have_core ) then
+
+      have_real = .true.
+      have_imag = .true.
+
+    
+!      call psi_core_store_size( psi_core_myid, store_size, ik, ia )
+
+      p%store_r(:,:) = 0.0_DP
+      p%store_i(:,:) = 0.0_DP
+
+      if( p%core_store_size .gt. 0 ) then
+
+        allocate( finished_array( nproc ) )  
+
+        do while( have_real .and. have_imag )
+
+          call MPI_WAITSOME( nproc, p%core_store_rr, outcount, finished_array, &
+                             MPI_STATUSES_IGNORE, ierr )
+          if( ierr .ne. 0 ) return
+          if( outcount .eq. MPI_UNDEFINED ) then
+            have_real = .false.
+          else
+            do i = 1, outcount
+              ! NOTE! The returned array is 1 indexed, but we have cleverly zero indexed it
+              do j = 1, p%core_store_size
+                p%store_r(:,j) = p%store_r(:,j) + p%write_r(:,j,finished_array(i)-1)
+              enddo
+            enddo
+          endif
+        
+          call MPI_WAITSOME( nproc, p%core_store_ri, outcount, finished_array, &
+                             MPI_STATUSES_IGNORE, ierr )
+          if( ierr .ne. 0 ) return
+          if( outcount .eq. MPI_UNDEFINED ) then
+            have_real = .false.
+          else
+            do i = 1, outcount
+              ! NOTE! The returned array is 1 indexed, but we have cleverly zero indexed it
+              do j = 1, p%core_store_size
+                p%store_i(:,j) = p%store_i(:,j) + p%write_i(:,j,finished_array(i)-1)
+              enddo
+            enddo
+          endif
+    
+        enddo
+  
+        deallocate( finished_array )
+      endif
+
+      
+    endif
+    
+    ! If we have finished write2store than want to tag store as having the `correct' data
+    p%valid_storage = PSI_STORE_MIN
+
+  end subroutine OCEAN_psi_write2store
+
+  subroutine OCEAN_psi_axpy( rval, x, y, ierr )
+    implicit none
+    real(DP), intent( in ) :: rval
+    type(OCEAN_vector), intent( inout ) :: x
+    type(OCEAN_vector), intent( inout ) :: y
+    integer, intent( inout ) :: ierr
+    !
+    ! If neither store nor full then need to call write2store
+    !   This has the side effect of throwing an error if store_min is also invalid
+    !
+    ! Making the call that we would very rarely not want to create/use min
+    !  and so if full exists, but not min we will create it here
+    if( IAND( x%valid_storage, PSI_STORE_MIN ) .eq. 0 ) then
+      if( IAND( x%valid_storage, PSI_STORE_FULL ) .eq. 0 ) then
+        call OCEAN_psi_write2store( x, ierr)
+        if( ierr .ne. 0 ) return
+      else
+        call OCEAN_psi_full2store( x, ierr )
+        if( ierr .ne. 0 ) return
+      endif
+    endif
+    if( IAND( y%valid_storage, PSI_STORE_MIN ) .eq. 0 ) then
+      if( IAND( y%valid_storage, PSI_STORE_FULL ) .eq. 0 ) then
+        call OCEAN_psi_write2store( y, ierr)
+        if( ierr .ne. 0 ) return
+      else
+        call OCEAN_psi_full2store( y, ierr )
+        if( ierr .ne. 0 ) return
+      endif
+    endif
+
+    if( have_core .and. x%core_store_size .gt. 0 ) then
+      call DAXPY( x%core_store_size * psi_bands_pad, rval, x%store_r, 1, y%store_r, 1 )
+      call DAXPY( x%core_store_size * psi_bands_pad, rval, x%store_i, 1, y%store_i, 1 )
+    endif
+
+    if( have_val ) then ! and val store size gt 0
+      return
+      call DAXPY( x%val_full_size, rval, x%valr, 1, y%valr, 1 )
+      call DAXPY( x%val_full_size, rval, x%vali, 1, y%vali, 1 )
+    endif
+
+    ! only store is valid now
+    p%valid_storage = PSI_STORE_MIN
+
+  end subroutine OCEAN_psi_axpy
+
+  subroutine OCEAN_psi_nrm( rval, x, ierr, rrequest )
+    use mpi
+    implicit none
+    real(DP), intent( inout ) :: rval  ! Needs to be inout for MPI_IN_PLACE
+    type(OCEAN_vector), intent( inout ) :: x
+    integer, intent( inout ) :: ierr
+    integer, intent( out ), optional :: rrequest
+    !
+    real(dp), external :: DDOT
+
+    ! If neither store nor full then need to call write2store
+    !   This has the side effect of throwing an error if store_min is also invalid
+    !
+    ! Making the call that we would very rarely not want to create/use min
+    !  and so if full exists, but not min we will create it here
+    if( IAND( x%valid_storage, PSI_STORE_MIN ) .eq. 0 ) then
+      if( IAND( x%valid_storage, PSI_STORE_FULL ) .eq. 0 ) then
+        call OCEAN_psi_write2store( x, ierr)
+        if( ierr .ne. 0 ) return
+      else
+        call OCEAN_psi_full2store( x, ierr )
+        if( ierr .ne. 0 ) return
+      endif
+    endif
+
+    if( have_core .and. x%core_store_size .gt. 0 ) then
+      rval = DDOT( a%core_store_size * psi_bands_pad, x%r_store, 1, x%r_store, 1 )
+           + DDOT( a%core_store_size * psi_bands_pad, x%i_store, 1, x%i_store, 1 ) 
+    else
+      rval = 0.0_DP
+    endif
+
+    if( have_val ) then
+      ierr = -1
+      return
+!      OCEAN_psi_nrm_old = DDOT( a%val_full_size, a%valr, 1, a%valr, 1 ) + OCEAN_psi_nrm_old
+!      OCEAN_psi_nrm_old = DDOT( a%val_full_size, a%vali, 1, a%vali, 1 ) + OCEAN_psi_nrm_old
+    endif
+
+#ifdef MPI
+    if( present( rrequest ) ) then
+      call MPI_IALLREDUCE( MPI_IN_PLACE, rval, 1, MPI_DOUBLE_PRECISION, MPI_SUM, x%core_comm, &
+                           rrequest, ierr )
+    else
+      call MPI_ALLREDUCE( MPI_IN_PLACE, rval, 1, MPI_DOUBLE_PRECISION, MPI_SUM, x%core_comm, ierr )
+    endif
+    if( ierr .ne. 0 ) return
+#endif
+
+    ! only store is valid now
+    p%valid_storage = PSI_STORE_MIN
+
+  end subroutine OCEAN_psi_nrm
+
+  subroutine OCEAN_psi_scal( rval, x, ierr )
+    implicit none
+    real(DP), intent( in ) :: rval  
+    type(OCEAN_vector), intent( inout ) :: x
+    integer, intent( inout ) :: ierr
+    !
+    ! If neither store nor full then need to call write2store
+    !   This has the side effect of throwing an error if store_min is also invalid
+    !
+    ! Making the call that we would very rarely not want to create/use min
+    !  and so if full exists, but not min we will create it here
+    if( IAND( x%valid_storage, PSI_STORE_MIN ) .eq. 0 ) then
+      if( IAND( x%valid_storage, PSI_STORE_FULL ) .eq. 0 ) then
+        call OCEAN_psi_write2store( x, ierr)
+        if( ierr .ne. 0 ) return
+      else
+        call OCEAN_psi_full2store( x, ierr )
+        if( ierr .ne. 0 ) return
+      endif
+    endif
+
+    if( have_core .and. x%core_store_size .gt. 0 ) then
+      call DSCAL( x%core_store_size * psi_bands_pad, rval, x%r_store, 1 )
+      call DSCAL( x%core_store_size * psi_bands_pad, rval, x%i_store, 1 )
+    endif
+
+    if( have_val ) ierr = -1
+!    call DSCAL( x%val_full_size, a, x%valr, 1 )
+!    call DSCAL( x%val_full_size, a, x%vali, 1 )
+
+    ! only store is valid now
+    p%valid_storage = PSI_STORE_MIN
+
+  end subroutine OCEAN_psi_scal
+
+  subroutine OCEAN_psi_dot( cval, crequest, p, q )
+    use mpi
+    implicit none
+    complex(DP), intent( inout ) :: cval  ! must be inout for mpi_in_place
+    integer, intent( out ) :: crequest
+    type(OCEAN_vector), intent( inout ) :: p
+    type(OCEAN_vector), intent( inout ) :: q
+    !
+    real(DP) :: rval, ival
+    real(dp), external :: DDOT
+    ! If neither store nor full then need to call write2store
+    !   This has the side effect of throwing an error if store_min is also invalid
+    !
+    ! Making the call that we would very rarely not want to create/use min
+    !  and so if full exists, but not min we will create it here
+    if( IAND( p%valid_storage, PSI_STORE_MIN ) .eq. 0 ) then 
+      if( IAND( p%valid_storage, PSI_STORE_FULL ) .eq. 0 ) then
+        call OCEAN_psi_write2store( p, ierr)
+        if( ierr .ne. 0 ) return
+      else
+        call OCEAN_psi_full2store( p, ierr )
+        if( ierr .ne. 0 ) return
+      endif
+    endif
+  
+    ! repeat for q
+    if( IAND( q%valid_storage, PSI_STORE_MIN ) .eq. 0 ) then
+      if( IAND( q%valid_storage, PSI_STORE_FULL ) .eq. 0 ) then
+        call OCEAN_psi_write2store( q, ierr)
+        if( ierr .ne. 0 ) return
+      else
+        call OCEAN_psi_full2store( q, ierr )
+        if( ierr .ne. 0 ) return
+      endif
+    endif
+
+    if( have_core .and. p%core_store_size .gt. 0 ) then
+      ! Need to do dot product here
+      !  Everything should be in store/min
+      rval = DDOT( psi_bands_pad * p%core_store_size, p%store_r, 1, q%store_r ) &
+           + DDOT( psi_bands_pad * p%core_store_size, p%store_i, 1, q%store_i )
+      ival = DDOT( psi_bands_pad * p%core_store_size, p%store_r, 1, q%store_i ) &
+           - DDOT( psi_bands_pad * p%core_store_size, p%store_i, 1, q%store_r )
+      cval = cmplx( rval, ival, DP )
+    else
+      cval = 0.0_DP
+    endif
+
+    if( have_val ) then
+      ierr = -1
+      return
+    endif
+
+#ifdef MPI
+    ! Using P as the comm channel
+    call MPI_IALLREDUCE( MPI_IN_PLACE, cval, 1, MPI_DOUBLE_COMPLEX, MPI_SUM, p%core_comm, &
+                         crequest, ierr )
+    if( ierr .ne. 0 ) return
+#endif
+    
+  end subroutine OCEAN_psi_dot
+
+  subroutine OCEAN_psi_alloc_write( p, ierr )
+    use OCEAN_mpi, only : nproc
+    implicit none
+    type(OCEAN_vector), intent( inout ) :: p
+    integer, intent( inout ) :: ierr
+    !
+    integer :: store_size, ik, ia
+
+    if( IAND( p%storage_type, PSI_STORE_WRITE ) .eq. 1 ) then
+      ierr = -1
+      return
+    endif
+
+    ! Alloc store and space for send/recv
+    if( have_core ) then
+      call psi_core_store_size( psi_core_myid, store_size, ik, ia )
+      p%core_store_size = store_size
+      p%core_k_start = ik
+      p%core_a_start = ia
+      if( store_size .ne. 0 ) then
+        allocate( p%store_r( psi_bands_pad * store_size, 0:nproc-1 ),     &
+                  p%store_i( psi_bands_pad * store_size, 0:nproc-1 ),     &
+                  core_store_sr( 0:psi_core_np-1 ), core_store_si( 0:psi_core_np-1 ), & 
+                  core_store_rr( 0:nproc-1 ), core_store_ri( 0:nproc-1 ), &
+                  STAT=ierr )
+      else
+        ! empty alloc for funsies
+        allocate( p%store_r( 1, 1 ), p%store_i( 1, 1 ),   &
+                  core_store_sr( 0:psi_core_np-1 ), core_store_si( 0:psi_core_np-1 ), &           
+                  core_store_rr( 1 ), core_store_ri( 1 ), &
+                  STAT=ierr )
+      endif
+      if( ierr .ne. 0 ) return
+
+      ! Write is allocated
+      p%storage_type = IOR( p%storage_type, PSI_STORE_WRITE )
+      ! Write has invald information
+      p%valid_storage = IAND( p%valid_storage, NOT( PSI_STORE_WRITE ) )
+    endif
+
+  end subroutine
 
   ! Returns the needed stats about the store version of psi
   subroutine psi_core_store_size( id, store_size, k_start, a_start )
@@ -125,7 +519,7 @@ module OCEAN_psi
     k_start = 1
     a_start = 1
     do i = 0, id
-      store_size = remain / ( psi_core_np - i )
+      store_size = ceiling( dble( remain ) / dble( psi_core_np - i )
       remain = remain - store_size
       !
       k_start = k_start + store_size
@@ -188,22 +582,22 @@ module OCEAN_psi
   end subroutine
 
 
-  real(dp) function OCEAN_psi_nrm( a )
+  real(dp) function OCEAN_psi_nrm_old( a )
     implicit none
     type( OCEAN_vector ), intent( in ) :: a
     real(dp), external :: DDOT
 
-    OCEAN_psi_nrm = DDOT( a%core_full_size, a%r, 1, a%r, 1 )
-    OCEAN_psi_nrm = DDOT( a%core_full_size, a%i, 1, a%i, 1 ) + OCEAN_psi_nrm
+    OCEAN_psi_nrm_old = DDOT( a%core_full_size, a%r, 1, a%r, 1 )
+    OCEAN_psi_nrm_old = DDOT( a%core_full_size, a%i, 1, a%i, 1 ) + OCEAN_psi_nrm_old
 
-    OCEAN_psi_nrm = DDOT( a%val_full_size, a%valr, 1, a%valr, 1 ) + OCEAN_psi_nrm
-    OCEAN_psi_nrm = DDOT( a%val_full_size, a%vali, 1, a%vali, 1 ) + OCEAN_psi_nrm
+    OCEAN_psi_nrm_old = DDOT( a%val_full_size, a%valr, 1, a%valr, 1 ) + OCEAN_psi_nrm_old
+    OCEAN_psi_nrm_old = DDOT( a%val_full_size, a%vali, 1, a%vali, 1 ) + OCEAN_psi_nrm_old
 
-    OCEAN_psi_nrm = sqrt( OCEAN_psi_nrm )
+    OCEAN_psi_nrm_old = sqrt( OCEAN_psi_nrm_old )
 
-  end function OCEAN_psi_nrm
+  end function OCEAN_psi_nrm_old
 
-  complex(dp) function OCEAN_psi_dot( a, b )
+  complex(dp) function OCEAN_psi_dot_old( a, b )
     implicit none
     type( OCEAN_vector ), intent( in ) :: a, b
     real(dp) :: r, i
@@ -220,11 +614,11 @@ module OCEAN_psi
     i = i + DDOT( a%val_full_size, a%valr, 1, b%vali, 1 ) &
           - DDOT( a%val_full_size, a%vali, 1, b%valr, 1 )
 
-    OCEAN_psi_dot = cmplx( r, i )
+    OCEAN_psi_dot_old = cmplx( r, i )
 
-  end function OCEAN_psi_dot
+  end function OCEAN_psi_dot_old
 
-  subroutine OCEAN_psi_scal( a, x )
+  subroutine OCEAN_psi_scal_old( a, x )
     implicit none
     real(dp), intent( in ) :: a
     type( OCEAN_vector ), intent( inout ) :: x
@@ -236,9 +630,9 @@ module OCEAN_psi
     call DSCAL( x%val_full_size, a, x%valr, 1 )
     call DSCAL( x%val_full_size, a, x%vali, 1 )
 
-  end subroutine OCEAN_psi_scal
+  end subroutine OCEAN_psi_scal_old
 
-  subroutine OCEAN_psi_axpy( a, x, y )
+  subroutine OCEAN_psi_axpy_old( a, x, y )
     implicit none
     real(dp), intent( in ) :: a
     type( OCEAN_vector ), intent( in ) :: x
@@ -250,7 +644,7 @@ module OCEAN_psi
     call DAXPY( x%val_full_size, a, x%valr, 1, y%valr, 1 )
     call DAXPY( x%val_full_size, a, x%vali, 1, y%vali, 1 )
 
-  end subroutine OCEAN_psi_axpy
+  end subroutine OCEAN_psi_axpy_old
   
 
   subroutine OCEAN_psi_set_prec( energy, gprc, psi_in, psi_out )
@@ -421,7 +815,9 @@ module OCEAN_psi
     if( mod( sys%nkpts, CACHE_DOUBLE ) == 0 .or. ( sys%nkpts .eq. 1 ) ) then
       psi_kpts_pad = sys%nkpts
     else
-      psi_kpts_pad =  CACHE_DOUBLE * ( sys%nkpts / CACHE_DOUBLE + 1 )
+      psi_kpts_pad = sys%nkpts
+!JTV had to kill kpt padding for now. Will need to be more clever with the write buffer
+!      psi_kpts_pad =  CACHE_DOUBLE * ( sys%nkpts / CACHE_DOUBLE + 1 )
     endif
     psi_kpts_actual = sys%nkpts
 
@@ -452,8 +848,6 @@ module OCEAN_psi
     integer :: i
     !
     
-#ifdef MPI
-
     !!!!  How many procs to spread psi over?
     ! For the core we max out at kpts by spins (4) by core-level l
     psi_core_np = min( nproc, psi_kpts_actual*psi_core_alpha )
@@ -471,27 +865,29 @@ module OCEAN_psi
       psi_val_np = 1  ! for completeness assign a value
     endif
     
-
+!JTV
+! This might be a terrible plan
     ! Create comms for core level
     ! PLN: Create psi_core_np different comms
     !   This allows fewer message tags
 
     ! Each comm reads/stores psi to the owning process
     !     The size of each needs to be the complete set of processes
-    if( have_core ) then
-      !
-      allocate( psi_core_comms( 0 : psi_core_np - 1 ) )
-      call MPI_CART_CREATE( comm, 1, nproc, .false., .false., psi_core_comms(0), ierr )
-      if( ierr .ne. MPI_SUCCESS ) return
-
-      do i = 1, psi_core_np - 1
-        CALL MPI_COMM_DUP( psi_core_comms(1), psi_core_comms(i), ierr )
-        if( ierr .ne. MPI_SUCCESS ) return
-      enddo
-
-      call MPI_COMM_RANK( psi_core_comms(0), psi_core_myid, ierr )
-      if( ierr .ne. MPI_SUCCESS ) return
-    endif
+!    if( have_core ) then
+!      !
+!      allocate( psi_core_comms( 0 : psi_core_np - 1 ) )
+!      call MPI_CART_CREATE( comm, 1, nproc, .false., .false., psi_core_comms(0), ierr )
+!      if( ierr .ne. MPI_SUCCESS ) return
+!
+!      do i = 1, psi_core_np - 1
+!        CALL MPI_COMM_DUP( psi_core_comms(1), psi_core_comms(i), ierr )
+!        if( ierr .ne. MPI_SUCCESS ) return
+!      enddo
+!
+!      call MPI_COMM_RANK( psi_core_comms(0), psi_core_myid, ierr )
+!      if( ierr .ne. MPI_SUCCESS ) return
+!    endif
+!\JTV  Now this is in buffer
 
 
     if( have_val ) then
@@ -499,20 +895,26 @@ module OCEAN_psi
       return
     endif
 
-#endif
   end subroutine OCEAN_psi_mpi_init
 
 
   ! Pass in true/false for core/valence
-  subroutine OCEAN_psi_new( p, ierr, q )
+  subroutine OCEAN_psi_new( p, ierr, q, o_init_size )
     use OCEAN_system
     implicit none
     
     integer, intent(inout) :: ierr
     type(OCEAN_vector), intent( out ) :: p
     type(OCEAN_vector), intent(in), optional :: q
+    integer, intent(in), optional :: o_init_size
 
-    integer :: store_size, a_start, k_start
+    integer :: store_size, a_start, k_start, init_size
+
+    if( present( o_init_size ) ) then
+      init_size = o_init_size
+    else
+      init_site = PSI_STORE_MIN
+    endif
 
     if( .not. is_init ) then
       ierr = -1
@@ -553,8 +955,8 @@ module OCEAN_psi
       store_size = 1
     endif
 
-    allocate( p%store_r( p%nband, store_size ), &
-              p%store_i( %nband, store_size ), STAT=ierr )
+    allocate( p%store_r( psi_band_pad, store_size ), &
+              p%store_i( psi_band_pad, store_size ), STAT=ierr )
     if( ierr .ne. 0 ) return
 
     if( present( q ) ) then
@@ -568,24 +970,30 @@ module OCEAN_psi
     p%storage_type = PSI_STORE_MIN
     p%valid_storage = PSI_STORE_MIN
 
-!    allocate( p%r(p%nband,p%nkpts,p%nalpha), &
-!              p%i(p%nband,p%nkpts,p%nalpha), &
-!              p%valr(p%cband,p%vband,p%nkpts,p%nbeta), &
-!              p%vali(p%cband,p%vband,p%nkpts,p%nbeta), &
-!              p%r_request(max(p%nalpha,p%nbeta)), p%i_request(max(p%nalpha,p%nbeta)), STAT=ierr )
-!
-!    ! initialize
-!    if( present( q ) ) then
-!      p%r = q%r
-!      p%i = q%i
-!      p%valr = q%valr
-!      p%vali = q%vali
-!    else
-!      p%r = 0.0_DP
-!      p%i = 0.0_DP
-!      p%valr = 0.0_DP
-!      p%vali = 0.0_DP
-!    endif
+    if( IAND( init_size, PSI_STORE_FULL ) .eq. 1 ) then
+      allocate( p%r(p%nband,p%nkpts,p%nalpha), &
+                p%i(p%nband,p%nkpts,p%nalpha), &
+                p%valr(p%cband,p%vband,p%nkpts,p%nbeta), &
+                p%vali(p%cband,p%vband,p%nkpts,p%nbeta), &
+                p%r_request(max(p%nalpha,p%nbeta)), p%i_request(max(p%nalpha,p%nbeta)), STAT=ierr )
+      p%storage_type = IOR( p%storage_type, PSI_STORE_FULL ) 
+
+      ! initialize
+      ! If q and q has valid full data
+      if( present( q ) .and. ( IAND( q%valid_storage, PSI_STORE_FULL ) .eq. 1 ) ) then
+        p%storage_type = IOR( p%valid_storage, PSI_STORE_FULL ) 
+        p%r = q%r
+        p%i = q%i
+        p%valr = q%valr
+        p%vali = q%vali
+      else
+        p%r = 0.0_DP
+        p%i = 0.0_DP
+        p%valr = 0.0_DP
+        p%vali = 0.0_DP
+      endif
+    endif
+
 
   end subroutine OCEAN_psi_new
 
@@ -644,18 +1052,38 @@ module OCEAN_psi
   end subroutine OCEAN_psi_copy_full
 
   
+  subroutine OCEAN_psi_copy_store( p, q, ierr )
+    implicit none
+    integer, intent( inout ) :: ierr
+    type(OCEAN_vector), intent( inout ) :: p
+    type(OCEAN_vector), intent( in ) :: q
+
+    if( IAND( q%valid_storage, PSI_STORE_MIN ) .eq. 0 ) then
+      ierr = -1
+      return
+    endif
+
+    if( IAND( p%storage_type, PSI_STORE_MIN ) .eq. 0 ) then
+      call OCEAN_psi_alloc_min( p, ierr )
+      if( ierr .ne. 0 ) return
+    endif
+
+    p%store_r(:,:,:) = q%store_r(:,:,:)
+    p%store_i(:,:,:) = q%store_i(:,:,:)
+
+    p%valid_storage = PSI_STORE_MIN
+
+  end subroutine
 
   subroutine OCEAN_psi_bcast_full( my_root, p, ierr )
     implicit none
     integer, intent(inout) :: ierr
     type(OCEAN_vector), intent( inout ) :: p
   
-    integer :: comm = psi_core_comms( 0 )
-
     if( psi_core_myid .eq. my_root ) then
       if( IAND( p%valid_storage, PSI_STORE_FULL ) .eq. 0 ) then
         ! We haven't filled psi with values. This should never be hit
-        call MPI_ABORT( comm, -5, ierr )
+        call MPI_ABORT( p%core_comm, -5, ierr )
       endif
     else
       ! Might need to allocate the full psi for the other processes
@@ -669,18 +1097,18 @@ module OCEAN_psi
 
 #ifdef MPI
     if( have_core ) then
-      call MPI_BCAST( p%r, p%core_full_size, MPI_DOUBLE_PRECISION, my_root, comm, ierr )
+      call MPI_BCAST( p%r, p%core_full_size, MPI_DOUBLE_PRECISION, my_root, p%core_comm, ierr )
       if( ierr .ne. MPI_SUCCESS ) goto 111
 
-      call MPI_BCAST( p%i, p%core_full_size, MPI_DOUBLE_PRECISION, my_root, comm, ierr )
+      call MPI_BCAST( p%i, p%core_full_size, MPI_DOUBLE_PRECISION, my_root, p%core_comm, ierr )
       if( ierr .ne. MPI_SUCCESS ) goto 111
     endif
 
     if( have_val ) 
-      call MPI_BCAST( p%valr, p%val_full_size, MPI_DOUBLE_PRECISION, my_root, comm, ierr )
+      call MPI_BCAST( p%valr, p%val_full_size, MPI_DOUBLE_PRECISION, my_root, p%val_comm, ierr )
       if( ierr .ne. MPI_SUCCESS ) goto 111
 
-      call MPI_BCAST( p%vali, p%val_full_size, MPI_DOUBLE_PRECISION, my_root, comm, ierr )
+      call MPI_BCAST( p%vali, p%val_full_size, MPI_DOUBLE_PRECISION, my_root, p%val_comm, ierr )
       if( ierr .ne. MPI_SUCCESS ) goto 111
     endif
 

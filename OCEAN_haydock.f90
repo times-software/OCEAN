@@ -353,13 +353,14 @@ module OCEAN_action
       call ocean_psi_sum( hpsi, multiplet_psi, long_range_psi, ierr )
       call OCEAN_tk_stop( tk_psisum )
 
+      ! This should be hoisted back up here
       call ocean_hay_ab( sys, psi, hpsi, old_psi, iter, ierr )
 
-      ! Shuffle around. This round's old will be written to next round as hpsi
-      temp_psi => old_psi
-      old_psi => psi
-      psi => hpsi
-      hpsi => temp_psi
+!      ! Shuffle around. This round's old will be written to next round as hpsi
+!      temp_psi => old_psi
+!      old_psi => psi
+!      psi => hpsi
+!      hpsi => temp_psi
 
     enddo
 
@@ -677,29 +678,43 @@ module OCEAN_action
     type(O_system), intent( in ) :: sys
     type(OCEAN_vector), intent(inout) :: psi, hpsi, old_psi
 
-    type(OCEAN_vector) :: temp_psi
-    real(DP) :: time1, time2
     complex(DP) :: ctmp
     real(dp) :: rtmp
-    integer :: ialpha, ikpt
-    
-    ctmp = OCEAN_psi_dot( hpsi, psi )
-    real_a(iter-1) = dble( ctmp )
-    imag_a(iter-1) = aimag( ctmp )
+    integer :: ialpha, ikpt, crequest
 
-    rtmp = -real_a( iter - 1 )
-    call OCEAN_psi_axpy( rtmp, psi, hpsi )
+    ! calc ctmp = < hpsi | psi > and begin Iallreduce
+    call OCEAN_psi_dot( ctmp, crequest, hpsi, psi )
+
+    ! hpsi -= b(i-1) * psi^{i-1}
     rtmp = -b(iter-1)
     call OCEAN_psi_axpy( rtmp, old_psi, hpsi )
 
+    ! finish allreduce to get ctmp
+    call MPI_WAIT( crequest, MPI_STATUS_IGNORE, ierr )
+    if( ierr .ne. 0 ) return
+    real_a(iter-1) = dble( ctmp )
+    imag_a(iter-1) = aimag( ctmp )
+    rtmp = -real_a( iter - 1 )
+    call OCEAN_psi_axpy( rtmp, psi, hpsi )
 
-    b(iter) = OCEAN_psi_nrm( hpsi )
+    call OCEAN_psi_nrm( b(iter), hpsi, ierr, crequest )
+    if( ierr .ne. 0 ) return
+
+    call OCEAN_psi_copy( old_psi, psi, ierr )
+    if( ierr .ne. 0 ) return
+
+    call MPI_WAIT( crequest, MPI_STATUS_IGNORE, ierr )
+    if( ierr .ne. 0 ) return
 
     rtmp = 1.0_dp / b(iter)
-    call OCEAN_psi_scal( rtmp, hpsi )
+    call OCEAN_psi_scal( rtmp, hpsi, ierr )
+    if( ierr .ne. 0 ) return
 
-!    call OCEAN_psi_swap( old_psi, psi, hpsi )
+    call OCEAN_psi_copy( psi, hpsi, ierr )
+    if( ierr .ne. 0 ) return
 
+    call OCEAN_psi_store2full( psi, ierr )
+    if( ierr .ne. 0 ) return
 
     if( myid .eq. 0 ) then
 !      write ( 6, '(2x,2f10.6,10x,1e11.4,x,f6.3)' ) a(iter-1), b(iter), imag_a, time2-time1
