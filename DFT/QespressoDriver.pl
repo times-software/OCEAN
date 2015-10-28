@@ -760,8 +760,8 @@ if ( $pawRUN ) {
      or die "qeband.x: Failed to count bands\n";
 
  ## obtain the number of occupied bands
- system("$ENV{'OCEAN_BIN'}/qebocc.x") == 0
-     or die "qebocc.x: Failed to count bands\n";
+# system("$ENV{'OCEAN_BIN'}/qebocc.x") == 0
+#     or die "qebocc.x: Failed to count bands\n";
 
 
  ## get the number of occupied bands
@@ -950,8 +950,8 @@ if ( $bseRUN ) {
   `echo 1 > nscf.stat`;
 
  ## obtain the number of occupied bands
- system("$ENV{'OCEAN_BIN'}/qebocc.x") == 0
-     or die "qebocc.x: Failed to count bands\n";
+# system("$ENV{'OCEAN_BIN'}/qebocc.x") == 0
+#     or die "qebocc.x: Failed to count bands\n";
 
   `grep 1.000 bands.out | wc -l > vb`;
   my $vb = 0;
