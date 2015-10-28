@@ -35,6 +35,7 @@ my @BandFiles = ("paw.nbands", "nbands");
 my @EspressoFiles = ( "coord", "degauss", "ecut", "etol", "fband", "ibrav",
     "isolated", "mixing", "natoms", "ngkpt", "noncolin", "nrun", "nscf.kshift", "ntype",
     "occopt", "occtype", "prefix", "ppdir", "rprim", "rscale", "scf.kshift", "smearing",
+    "nspin", "smag", "ldau", 
     "spinorb", "taulist", "typat", "verbatim", "work_dir", "wftol", "zsymb");
 #my @EspressoFiles = ( "coord", "degauss", "ecut", "etol", "fband", "ibrav", 
 #    "isolated", "mixing", "natoms", "ngkpt", "noncolin", "nrun", "nscf.kshift", "ntype", 
@@ -413,6 +414,12 @@ if ($RunESPRESSO) {
  `cat occtype >> qefile`;
  `echo -n "   smearing = " >> qefile`;
  `cat smearing >> qefile`;
+ `echo -n "   nspin = " >> qefile`;
+ `cat nspin >> qefile`;
+ `echo -n "   " >> qefile`;
+ `cat smag >> qefile`;
+ `echo -n "   " >> qefile`;
+ `cat ldau >> qefile`;
  `echo -n "   degauss = " >> qefile`;
  `cat degauss >> qefile`;
  `echo "   nosym = .true." >> qefile`;
@@ -527,11 +534,11 @@ if ($RunESPRESSO) {
 
  ## find the top of the valence bance
  system("$ENV{'OCEAN_BIN'}/qeband.x") == 0
-     or die "Failed to count bands\n";
+     or die "qeband.x: Failed to count bands\n";
 
 # ## obtain the number of occupied bands
 # system("$ENV{'OCEAN_BIN'}/qebocc.x") == 0
-#     or die "Failed to count bands\n";
+#     or die "qebocc.x: Failed to count bands\n";
       
 
  ## get the number of occupied bands
@@ -680,6 +687,12 @@ if ( $pawRUN ) {
  `cat occtype >> qefile`;
  `echo -n "   smearing = " >> qefile`;
  `cat smearing >> qefile`;
+ `echo -n "   nspin = " >> qefile`;
+ `cat nspin >> qefile`;
+ `echo -n "   " >> qefile`;
+ `cat smag >> qefile`;
+ `echo -n "   " >> qefile`;
+ `cat ldau >> qefile`;
  `echo -n "   degauss = " >> qefile`;
  `cat degauss >> qefile`;
  `echo "   nosym = .true." >> qefile`;
@@ -744,11 +757,11 @@ if ( $pawRUN ) {
 
  ## find the top of the valence bance
  system("$ENV{'OCEAN_BIN'}/qeband.x") == 0
-     or die "Failed to count bands\n";
+     or die "qeband.x: Failed to count bands\n";
 
  ## obtain the number of occupied bands
  system("$ENV{'OCEAN_BIN'}/qebocc.x") == 0
-     or die "Failed to count bands\n";
+     or die "qebocc.x: Failed to count bands\n";
 
 
  ## get the number of occupied bands
@@ -869,6 +882,12 @@ if ( $bseRUN ) {
  `cat occtype >> qefile`;
  `echo -n "   smearing = " >> qefile`;
  `cat smearing >> qefile`;
+ `echo -n "   nspin = " >> qefile`;
+ `cat nspin >> qefile`;
+ `echo -n "   " >> qefile`;
+ `cat smag >> qefile`;
+ `echo -n "   " >> qefile`;
+ `cat ldau >> qefile`;
  `echo -n "   degauss = " >> qefile`;
  `cat degauss >> qefile`;
  `echo "   nosym = .true." >> qefile`;
@@ -932,7 +951,7 @@ if ( $bseRUN ) {
 
  ## obtain the number of occupied bands
  system("$ENV{'OCEAN_BIN'}/qebocc.x") == 0
-     or die "Failed to count bands\n";
+     or die "qebocc.x: Failed to count bands\n";
 
   `grep 1.000 bands.out | wc -l > vb`;
   my $vb = 0;
