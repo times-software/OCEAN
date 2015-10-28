@@ -12,7 +12,7 @@
   !
   ! Adapted from QuantumESPRESSO QEXML example
   ! KG; July 2012
-  !
+  ! JTV; 2015
   ! General comments:
   !
   !   - first init the library
@@ -52,7 +52,7 @@
   CHARACTER(256)  :: dirname, filename, str_units
   !
   INTEGER      :: i, ivbm, icbm
-  INTEGER      :: nbnd, ib, nkpts, ik, nval
+  INTEGER      :: nbnd, ib, nkpts, ik, nval, nspn, ispn
   INTEGER      :: ierr
   !
   REAL(DP)     :: efermi, egap
@@ -97,7 +97,7 @@
   !
 !  write(6,*) ":Reading the band info"
   !
-  CALL qexml_read_bands_info( NBND=nbnd, NUM_K_POINTS=nkpts, EF=efermi, IERR=ierr )
+  CALL qexml_read_bands_info( NBND=nbnd, NUM_K_POINTS=nkpts, nspin=nspn, EF=efermi, IERR=ierr )
   IF ( ierr/=0 ) CALL errore(subname,'QEXML reading ',ABS(ierr))
   !
 !  write(6,*) ' nbnd  = ', nbnd
@@ -109,8 +109,8 @@
   write(91,*) efermi * ha2ev      ! in eV
   close( 91 )
 
-  allocate( enk(nbnd,nkpts), occ(nbnd,nkpts) )
-  nval = nbnd * nkpts
+  allocate( enk(nbnd,nkpts*nspn), occ(nbnd,nkpts*nspn) )
+  nval = nbnd * nkpts * nspn
 
 
   !
@@ -129,9 +129,12 @@
   CALL qexml_read_bands_pw( nkpts, nbnd, nkpts, .false., .true., filename, ET=enk, WG=occ, IERR=ierr )
   IF ( ierr/=0 ) CALL errore(subname,'QEXML reading ',ABS(ierr))
 #else
-  do ik = 1, nkpts
-     CALL qexml_read_bands( IK=ik, EIG=enk(:,ik), OCC=occ(:,ik), ENERGY_UNITS=units, IERR=ierr )
-     IF ( ierr/=0 ) CALL errore(subname,'QEXML reading ',ABS(ierr))
+  do ispn = 1, nspn
+    do ik = 1, nkpts
+       CALL qexml_read_bands( IK=ik, ISPIN=ispn, EIG=enk(:,ik+(ispn-1)*nkpts), & 
+                              OCC=occ(:,ik+(ispn-1)*nkpts), ENERGY_UNITS=units, IERR=ierr )
+       IF ( ierr/=0 ) CALL errore(subname,'QEXML reading ',ABS(ierr))
+    end do
   end do
 #endif
   !
