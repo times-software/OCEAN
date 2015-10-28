@@ -529,9 +529,9 @@ if ($RunESPRESSO) {
  system("$ENV{'OCEAN_BIN'}/qeband.x") == 0
      or die "Failed to count bands\n";
 
- ## obtain the number of occupied bands
- system("$ENV{'OCEAN_BIN'}/qebocc.x") == 0
-     or die "Failed to count bands\n";
+# ## obtain the number of occupied bands
+# system("$ENV{'OCEAN_BIN'}/qebocc.x") == 0
+#     or die "Failed to count bands\n";
       
 
  ## get the number of occupied bands
