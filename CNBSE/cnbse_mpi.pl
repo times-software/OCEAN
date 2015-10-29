@@ -23,7 +23,9 @@ my %alphal = ( "0" => "s", "1" => "p", "2" => "d", "3" => "f" );
 my @CommonFiles = ("epsilon", "xmesh.ipt", "nedges", "k0.ipt", "nbuse.ipt", 
   "cnbse.rad", "cnbse.ways", "metal", "cksshift", "cksstretch", "cksdq", 
   "cnbse.niter", "cnbse.spect_range", "cnbse.broaden", "cnbse.mode", "nphoton", "dft", 
-  "para_prefix", "cnbse.strength", "serbse", "core_offset", "avecsinbohr.ipt" );
+  "para_prefix", "cnbse.strength", "serbse", "core_offset", "avecsinbohr.ipt", 
+  "cnbse.solver", "cnbse.gmres.elist", "cnbse.gmres.erange", "cnbse.gmres.nloop", 
+  "cnbse.gmres.gprc", "cnbse.gmres.ffff" );
 
 my @DFTFiles = ("nelectron");
 
@@ -78,6 +80,103 @@ foreach (@PawFiles) {
   copy( "../SCREEN/$_", $_ ) or die "Failed to get ../SCREEN/$_\n$!";
 }
 
+##### Determine which solver to use
+open IN, "cnbse.solver" or die "Failed to open cnbse.solver!\n$!";
+my $line = <IN>;
+close IN;
+my $solver;
+if( lc($line) =~ m/hay/ )
+{
+  $solver = 'hay';
+}
+elsif( lc($line) =~ m/gmres/ )
+{
+  $solver = 'gmres';
+}
+else
+{
+  print "Trouble parsing cnbse.solver!!\n*** Will default to  Haydock recursion ***\n";
+  $solver = 'hay';
+}
+## Now if gmres we need to parse the inputs for that
+my $gmres_footer = "";
+if( $solver eq 'gmres' )
+{
+  open IN, "cnbse.gmres.nloop" or die "Failed to open cnbse.gmres.nloop\n$!";
+  $line = <IN>;
+  close IN;
+  chomp $line;
+  my $gmres_header = $line;
+
+  open IN, "cnbse.broaden" or die "Failed to open cnbse.broaden\n$!";
+  $line = <IN>;
+  close IN;
+  chomp $line;
+  $line /= 27.2114;
+  $gmres_header .= " " . $line;
+
+  open IN, "cnbse.gmres.gprc" or die "Failed to open cnbse.gmres.gprc\n$!";
+  $line = <IN>;
+  close IN;
+  chomp $line;
+  $gmres_header .= " " . $line;
+
+  open IN, "cnbse.gmres.ffff" or die "Failed to open cnbse.gmres.ffff\n$!";
+  $line = <IN>;
+  close IN;
+  chomp $line;
+  $gmres_header .= " " . $line;
+
+  $gmres_header .= "  0.0\n";
+
+  my $have_elist = 0;
+  my $have_erange = 0;
+  open IN, "cnbse.gmres.elist" or die "Failed to open cnbse.gmres.elist\n$!";
+  $line = <IN>;
+  if( $line =~ m/false/ )
+  {
+    close IN;
+  }
+  else
+  {
+    $gmres_footer = $gmres_header . "list\n";
+    my $temp .= $line;
+    my $i = 1;
+    while( $line = <IN> )
+    {
+      $temp .= $line;
+      $i++;
+    }
+    $gmres_footer .= "$i\n";
+    $gmres_footer .= "$temp";
+    $have_elist = 1;
+    close IN;
+  }
+
+  open IN, "cnbse.gmres.erange" or die "Failed to open cnbse.gmres.erange\n$!";
+  $line = <IN>;
+  if( $line =~ m/false/ )
+  {
+    close IN;
+  }
+  else
+  {
+    $gmres_footer = $gmres_header . "loop\n";
+    $gmres_footer .= $line;
+    $have_erange = 1;
+    close IN;
+  }
+
+  if( $have_erange + $have_elist == 2 )
+  {
+    print "Both erange and elist were specified for GMRES. We are using erange\n";
+  }
+  elsif( $have_erange + $have_elist == 0 )
+  {
+    print "Neither elist nor erange were specified for GMRE!!\nFalling back to Haydock\n";
+    $solver = 'hay';
+  }
+}
 
 ##### Trigger serial bse fallback here
 # later we should remove this and fold these two perl scripts together
@@ -534,17 +633,16 @@ open INFILE, ">bse.in" or die "Failed to open bse.in\n";
 my $filename = sprintf("deflinz%03un%02ul%02u", $znum, $nnum, $lnum);
 
 open TMPFILE, $filename or die "Failed to open $filename\n";
-my $line = <TMPFILE>;
+$line = <TMPFILE>;
 close TMPFILE;
 
 print INFILE $line;
 my $lookup = sprintf("%1u%1s", $nnum, $alphal{$lnum}) or die;
 my $filename = sprintf("corezetaz%03u", $znum);
 print "$lookup\t$filename\n";
-my $line = `grep $lookup $filename`;
+$line = `grep $lookup $filename`;
 print INFILE $line;
 
-print INFILE "hay\n";
 open TMPFILE, "cnbse.niter" or die "Failed to open niter\n";
 <TMPFILE> =~ m/(\d+)/ or die "Failed to parse niter\n";
 my $niter = $1;
@@ -554,15 +652,23 @@ chomp($spectrange);
 my $gamma0 = `cat cnbse.broaden`;
 chomp($gamma0);
 
-if(  $run_serial == 1)
+if( $solver eq 'gmres' )
 {
-  print INFILE "$spectrange  $gamma0  0.000\n";
+  print INFILE "inv\n";
+  print INFILE $gmres_footer . "\n";
 }
 else
 {
-  print INFILE "$niter  $spectrange  $gamma0  0.000\n";
+  print INFILE "hay\n";
+  if(  $run_serial == 1)
+  {
+    print INFILE "$spectrange  $gamma0  0.000\n";
+  }
+  else
+  {
+    print INFILE "$niter  $spectrange  $gamma0  0.000\n";
+  }
 }
-
 close INFILE;
 
 

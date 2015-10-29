@@ -250,6 +250,30 @@ cnbse.strength
 {
 1.0
 } cnbse.strength
+cnbse.solver
+{
+haydock
+} cnbse.solver
+cnbse.gmres.elist
+{
+false
+} cnbse.gmres.elist
+cnbse.gmres.erange
+{
+false
+} cnbse.gmres.erange
+cnbse.gmres.nloop
+{
+80
+} cnbse.gmres.nloop
+cnbse.gmres.gprc
+{
+0.5
+} cnbse.gmres.gprc
+cnbse.gmres.ffff
+{
+0.00000005
+} cnbse.gmres.ffff
 scratch
 {
 scratchXX
