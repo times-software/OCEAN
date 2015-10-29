@@ -22,20 +22,12 @@ program o_spect
 
   open(unit=99,file='spect.in',form='formatted',status='old')
   rewind(99)
-  read(99,*) dumi
-  read(99,*) dumf
-  read(99,*) calc_type
-  select case ( calc_type )
-    case('hay')
-      read(99,*) ne, el, eh, gam0, ebase
-    case default
-      goto 111
-  end select
+  read(99,*) ne, el, eh, gam0, ebase
   close(99)
 
   el = el / 27.2114d0
   eh = eh / 27.2114d0
-
+  gam0 = gam0 / 27.2114d0
 
   open(unit=99,file='epsilon',form='formatted',status='old')
   rewind 99
@@ -47,8 +39,6 @@ program o_spect
   read ( 99, * ) nval
   close( unit=99 )
 
-  open(unit=97,file='mulfile',form='formatted',status='old')
-  
 
 
   open(unit=98,file='runlist',form='formatted',status='old')
@@ -58,26 +48,29 @@ program o_spect
 
   do run_iter = 1, nruns
     read(98,*) ZNL(1), ZNL(2), ZNL(3), elname, corelevel, indx, photon, calc_type
-    read(97,*) kpref
 
-    write(lancfile,'(A8,A2,A1,I4.4,A1,A2,A1,I2.2)' ) 'lanceig_', elname, &
-        '.', indx, '_', '1s', '_', photon
     select case ( calc_type)
     case( 'XES' )
       write(abs_filename,'(A8,A2,A1,I4.4,A1,A2,A1,I2.2)' ) 'xesspct_', elname, &
           '.', indx, '_', '1s', '_', photon
+      write(lancfile,'(A8,A2,A1,I4.4,A1,A2,A1,I2.2)' ) 'xeslanc_', elname, &
+          '.', indx, '_', '1s', '_', photon
     case( 'XAS' )
       write(abs_filename,'(A8,A2,A1,I4.4,A1,A2,A1,I2.2)' ) 'absspct_', elname, &
           '.', indx, '_', '1s', '_', photon
+      write(lancfile,'(A8,A2,A1,I4.4,A1,A2,A1,I2.2)' ) 'abslanc_', elname, &
+          '.', indx, '_', '1s', '_', photon
     case default
       write(abs_filename,'(A8,A2,A1,I4.4,A1,A2,A1,I2.2)' ) 'absspct_', elname, &
+          '.', indx, '_', '1s', '_', photon
+      write(lancfile,'(A8,A2,A1,I4.4,A1,A2,A1,I2.2)' ) 'abslanc_', elname, &
           '.', indx, '_', '1s', '_', photon
     end select
 
 
     open(unit=99,file=lancfile,form='formatted',status='old')
     rewind(99)
-    read(99,*) n_recur
+    read(99,*) n_recur, kpref
     allocate(a(0:n_recur),b(n_recur))
     read(99,*) a(0)
     do i_recur = 1, n_recur
@@ -121,7 +114,6 @@ program o_spect
   enddo
   
   close(98)
-  close(97)
 
 111 continue
 
