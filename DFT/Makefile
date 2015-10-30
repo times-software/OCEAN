@@ -11,6 +11,7 @@ all: $(FILES)
 
 clean:
 	rm -f $(FILES)
+	rm -f periodic.mod periodic.o
 
 install:
 	cp $(SCRIPTS) $(FILES) $(AUX) $(INSTDIR)
