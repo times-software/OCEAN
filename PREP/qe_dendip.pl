@@ -26,7 +26,7 @@ my $oldden = 0;
 $oldden = 1 if (-e "../DFT/old");
 
 
-my @QEFiles     = ( "rhoofr", "density.out");
+my @QEFiles     = ( "rhoofr" );
 my @CommonFiles = ( "paw.nkpt", "nkpt", "qinunitsofbvectors.ipt", "avecsinbohr.ipt" );
 
 foreach (@QEFiles) {
