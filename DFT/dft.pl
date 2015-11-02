@@ -1,4 +1,12 @@
 #!/usr/bin/perl
+# Copyright (C) 2015 OCEAN collaboration
+#
+# This file is part of the OCEAN project and distributed under the terms 
+# of the University of Illinois/NCSA Open Source License. See the file 
+# `License' in the root directory of the present distribution.
+#
+#
+
 
 use strict;
 use File::Copy;
@@ -149,6 +157,7 @@ if ($RunPP) {
   `echo "1" > pp.stat`;
 }
 
+
 #############################################
 
 ### load up the para_prefix
@@ -181,13 +190,18 @@ system("$ENV{'OCEAN_BIN'}/makeacell.x") == 0
 
 print "making atompp";
 system("$ENV{'OCEAN_BIN'}/makeatompp.x") == 0
-    or die "Failed to make acell\n";
+   or die "Failed to make acell\n";
+
+
 
 my @qe_data_files = ('prefix', 'ppdir', 'work_dir', 'ibrav', 'natoms', 'ntype', 'noncolin',
                      'spinorb', 'ecut', 'occtype', 'degauss', 'etol', 'mixing', 'nrun', 
                      'trace_tol', 'tot_charge', 'nspin', 'smag', 'ldau', 'ngkpt', 'k0.ipt',
                      'den.kshift', 'obkpt.ipt', 'obf.nbands', 'nkpt', 'nbands', 'paw.nbands',
                      'paw.nkpt' );
+
+
+
 my %qe_data_files = {};
 foreach my $file_name (@qe_data_files)
 {
@@ -211,88 +225,50 @@ foreach $line (<RSCALE>) {
  ($celldm1, $celldm2, $celldm3) = split(' ' ,$line);
 }
 close(RSCALE);
+$qe_data_files{ "celldm1" } = $celldm1;
+$qe_data_files{ "celldm2" } = $celldm2;
+$qe_data_files{ "celldm3" } = $celldm3;
+
+
+# Switch ppdir to absolute path
+$qe_data_files{ "ppdir" } = abs_path( $qe_data_files{ "ppdir" } ) . "/";
+
+
+#QE optional files
+my @qe_opt_files = ('acell', 'coords', 'atompp' );
+foreach my $file_name (@qe_opt_files)
+{
+    open IN, $file_name or die "$file_name:  $!";
+    my $string;
+    while( my $a = <IN> ) 
+    {
+      $string .= $a;
+    }
+    chomp $string;
+    
+    close IN;
+    $qe_data_files{ "$file_name" } = $string;
+}
+##################
+
+
 
 if ($RunESPRESSO) {
 
 
  ### write SCF input card for initial density
 
-  open QE, ">scf.in" or die "Failed to open scf.in.\n$!";
-  print QE "&control\n" 
-        .  "  calculation = 'scf'\n"
-        .  "  prefix = \'$qe_data_files{'prefix'}\'\n"
-        .  "  pseudo_dir = \'$qe_data_files{'ppdir'}\'\n"
-        .  "  outdir = \'$qe_data_files{'work_dir'}\'\n"
-        .  "  tstress = .true.\n"
-        .  "  tprnfor = .true.\n"
-        .  "  wf_collect = .true.\n"
-        .  "/\n";
-  print QE "&system\n"
-        .  "  ibrav = $qe_data_files{'ibrav'}\n"
-        .  "  nat = $qe_data_files{'natoms'}\n"
-        .  "  ntyp = $qe_data_files{'ntype'}\n"
-        .  "  noncolin = $qe_data_files{'noncolin'}\n"
-        .  "  lspinorb = $qe_data_files{'spinorb'}\n"
-        .  "  ecutwfc = $qe_data_files{'ecut'}\n"
-        .  "  occupations = '$qe_data_files{'occtype'}'\n"
-        .  "  degauss = $qe_data_files{'degauss'}\n"
-        .  "  nspin  = $qe_data_files{'nspin'}\n"
-        .  "  tot_charge  = $qe_data_files{'tot_charge'}\n"
-        .  "  nosym = .true.\n"
-        .  "  noinv = .true.\n";
-  if( $qe_data_files{'smag'}  ne "" )
-  {
-    print QE "$qe_data_files{'smag'}\n";
-  }
-  if( $qe_data_files{'ldau'}  ne "" )
-  {
-    print QE "$qe_data_files{'ldau'}\n";
-  }
-  if( $qe_data_files{'ibrav'} != 0 ) 
-  {
-    print QE "  celldim(1) = ${celldm1}\n";
-  }
-  print QE "/\n"
-        .  "&electrons\n"
-        .  "  conv_thr = $qe_data_files{'etol'}\n"
-        .  "  mixing_beta = $qe_data_files{'mixing'}\n"
-        .  "  electron_maxstep = $qe_data_files{'nrun'}\n"
-        .  "/\n"
-        .  "&ions\n"
-        .  "/\n";
+  open my $QE, ">scf.in" or die "Failed to open scf.in.\n$!";
 
-  open IN, "atompp" or die "$!";
-  my $atompp;
-  while (<IN>) { $atompp .= $_; }
-  close IN;
-  chomp $atompp;
-  print QE "ATOMIC_SPECIES\n" . $atompp . "\n";
+  # Set the flags that change for each input/dft run
+  $qe_data_files{'calctype'} = 'scf';
+  $qe_data_files{'print kpts'} = "K_POINTS automatic\n$qe_data_files{'ngkpt'} $qe_data_files{'den.kshift'}\n";
+  $qe_data_files{'print nbands'} = -1;
 
-  if ($qe_data_files{'ibrav'} == 0) {
-    open IN, "acell" or die "$!";
-    my $acell;
-    while (<IN>) { $acell .= $_; }
-    close IN;
-    chomp $acell;
-    print QE "CELL_PARAMETERS cubic\n" . $acell . "\n";
-  }
 
-  if( $coord_type =~ m/angst/ )
-  {
-    print QE "ATOMIC_POSITIONS angstrom\n";
-  }
-  else
-  {
-    print QE "ATOMIC_POSITIONS crystal\n";
-  }
-  open IN, "coords" or die;
-  while (<IN>) { print QE $_;}
-  close IN;
+  &print_qe( $QE, %qe_data_files );
 
-  print QE "K_POINTS automatic\n$qe_data_files{'ngkpt'} $qe_data_files{'den.kshift'}\n";
-
-  close QE;
-
+  close $QE;
 
 
  ## SCF PP initialize and set defaults
@@ -368,7 +344,7 @@ if ($RunESPRESSO) {
 
   my $natoms = `cat natoms`;
   my $fband = `cat fband`;
-  $pawnbands = `cat paw.nbands`;
+#  $pawnbands = `cat paw.nbands`;
   my $cb = sprintf("%.0f", $vb - 2*$natoms*$fband);
   $cb = 1 if ($cb < 1);
   open BRANGE, ">brange.stub" or die;
@@ -425,15 +401,6 @@ if ( $nscfRUN ) {
 
 #JTV
   my $line = "";
-  my $celldm1 = 0;
-  my $celldm2 = 0;
-  my $celldm3 = 0;
-  open(RSCALE, 'rscale') or die "couldn't open rscale\n$!";
-  foreach $line (<RSCALE>) {
-    ($celldm1, $celldm2, $celldm3) = split(' ' ,$line);
-  }
-  close(RSCALE);
-
 
   #IF( OBF ) then "Single run, main directory"
 
@@ -594,97 +561,36 @@ if ( $nscfRUN ) {
     copy "../nkpt", "nkpt";
     copy "../qinunitsofbvectors.ipt", "qinunitsofbvectors.ipt";
     copy "../k0.ipt", "k0.ipt";
+#    copy "../acell", "acell";
+#    copy "../atompp", "atompp";
+#    copy "../coords", "coords";
     open OUT, ">core" or die;
     print OUT "1\n";
     close OUT;
     system("$ENV{'OCEAN_BIN'}/kgen2.x") == 0 or die "KGEN.X Failed\n";
 
-    open QE, ">nscf.in" or die "Failed to open nscf.in\n$!";
-    print QE "&control\n"
-          .  "  calculation = 'nscf'\n"
-          .  "  prefix = \'$qe_data_files{'prefix'}\'\n"
-          .  "  pseudo_dir = \'$qe_data_files{'ppdir'}\'\n"
-          .  "  outdir = \'$qe_data_files{'work_dir'}\'\n"
-          .  "  tstress = .true.\n"
-          .  "  tprnfor = .true.\n"
-          .  "  wf_collect = .true.\n"
-  #        .  "  disk_io = 'low'\n"
-          .  "/\n";
-    print QE "&system\n"
-          .  "  ibrav = $qe_data_files{'ibrav'}\n"
-          .  "  nat = $qe_data_files{'natoms'}\n"
-          .  "  ntyp = $qe_data_files{'ntype'}\n"
-          .  "  noncolin = $qe_data_files{'noncolin'}\n"
-          .  "  lspinorb = $qe_data_files{'spinorb'}\n"
-          .  "  ecutwfc = $qe_data_files{'ecut'}\n"
-          .  "  occupations = '$qe_data_files{'occtype'}'\n"
-          .  "  degauss = $qe_data_files{'degauss'}\n"
-          .  "  nspin  = $qe_data_files{'nspin'}\n"
-          .  "  tot_charge  = $qe_data_files{'tot_charge'}\n"
-          .  "  nosym = .true.\n"
-          .  "  noinv = .true.\n"
-          .  "  nbnd = $qe_data_files{'nbands'}\n";
-    if( $qe_data_files{'smag'}  ne "" )
-    {
-      print QE "$qe_data_files{'smag'}\n";
-    }
-    if( $qe_data_files{'ldau'}  ne "" )
-    {
-      print QE "$qe_data_files{'ldau'}\n";
-    }
-    if( $qe_data_files{'ibrav'} != 0 )
-    {
-      print QE "  celldim(1) = ${celldm1}\n";
-    }
-    print QE "/\n"
-          .  "&electrons\n"
-          .  "  conv_thr = $qe_data_files{'etol'}\n"
-          .  "  mixing_beta = $qe_data_files{'mixing'}\n"
-          .  "  electron_maxstep = $qe_data_files{'nrun'}\n"
-          .  "/\n"
-          .  "&ions\n"
-          .  "/\n";
+    open my $QE, ">nscf.in" or die "Failed to open nscf.in\n$!";
 
-    open IN, "../atompp" or die "$!";
-    my $atompp;
-    while (<IN>) { $atompp .= $_; }
-    close IN;
-    chomp $atompp;
-    print QE "ATOMIC_SPECIES\n" . $atompp . "\n";
-
-    if ($qe_data_files{'ibrav'} == 0) {
-      open IN, "../acell" or die "$!";
-      my $acell;
-      while (<IN>) { $acell .= $_; }
-      close IN;
-      chomp $acell;
-      print QE "CELL_PARAMETERS cubic\n" . $acell . "\n";
-    }
-
-    if( $coord_type =~ m/angst/ )
-    {
-      print QE "ATOMIC_POSITIONS angstrom\n";
-    }
-    else
-    {
-      print QE "ATOMIC_POSITIONS crystal\n";
-    }
-    open IN, "../coords" or die;
-    while (<IN>) { print QE $_;}
-    close IN;
-
-    print QE  "K_POINTS crystal\n";
+    # Set the flags that change for each input/dft run
+    $qe_data_files{'calctype'} = 'nscf';
+    my $kpt_text = "K_POINTS crystal\n";
     open IN, "nkpts" or die;
     my $nkpts = <IN>;
     close IN;
-    print QE $nkpts;
+    $kpt_text .= $nkpts;
     open IN, "kpts4qe.0001" or die;
     while(<IN>)
     {
-      print QE $_;
+      $kpt_text .= $_;
     }
     close IN;
-    close QE;
+
+    $qe_data_files{'print kpts'} = $kpt_text;
+    $qe_data_files{'print nbands'} = $qe_data_files{'nbands'};
+
+    &print_qe( $QE, %qe_data_files );
+
+    close $QE;
 
     my $npool = 1;
     open INPUT, "../pool_control" or die;
@@ -713,7 +619,7 @@ if ( $nscfRUN ) {
     {
       print OUT $_;
     }
-    print OUT "$qe_data_files{'paw.nbands'}\n";
+    print OUT "$qe_data_files{'nbands'}\n";
     close IN;
     close OUT;
 
@@ -740,6 +646,11 @@ if( $obf == 0 )
   # kpts
   copy "../paw.nkpt", "nkpt";
   copy "../k0.ipt", "k0.ipt";
+
+#  copy "../acell", "acell";
+#  copy "../atompp", "atompp";
+#  copy "../coords", "coords";
+
   # QINB is 0 for screening
   open OUT, ">qinunitsofbvectors.ipt" or die;
   print OUT "0.0 0.0 0.0\n";
@@ -749,91 +660,26 @@ if( $obf == 0 )
   close OUT;
   system("$ENV{'OCEAN_BIN'}/kgen2.x") == 0 or die "KGEN.X Failed\n";
 
-  open QE, ">nscf.in" or die "Failed to open nscf.in\n$!";
-  print QE "&control\n"
-        .  "  calculation = 'nscf'\n"
-        .  "  prefix = \'$qe_data_files{'prefix'}\'\n"
-        .  "  pseudo_dir = \'$qe_data_files{'ppdir'}\'\n"
-        .  "  outdir = \'$qe_data_files{'work_dir'}\'\n"
-        .  "  tstress = .true.\n"
-        .  "  tprnfor = .true.\n"
-        .  "  wf_collect = .true.\n"
-#        .  "  disk_io = 'low'\n"
-        .  "/\n";
-  print QE "&system\n"
-        .  "  ibrav = $qe_data_files{'ibrav'}\n"
-        .  "  nat = $qe_data_files{'natoms'}\n"
-        .  "  ntyp = $qe_data_files{'ntype'}\n"
-        .  "  noncolin = $qe_data_files{'noncolin'}\n"
-        .  "  lspinorb = $qe_data_files{'spinorb'}\n"
-        .  "  ecutwfc = $qe_data_files{'ecut'}\n"
-        .  "  occupations = '$qe_data_files{'occtype'}'\n"
-        .  "  degauss = $qe_data_files{'degauss'}\n"
-        .  "  nspin  = $qe_data_files{'nspin'}\n"
-        .  "  tot_charge  = $qe_data_files{'tot_charge'}\n"
-        .  "  nosym = .true.\n"
-        .  "  noinv = .true.\n"
-        .  "  nbnd = $qe_data_files{'paw.nbands'}\n";
-  if( $qe_data_files{'smag'}  ne "" )
-  {
-    print QE "$qe_data_files{'smag'}\n";
-  }
-  if( $qe_data_files{'ldau'}  ne "" )
-  {
-    print QE "$qe_data_files{'ldau'}\n";
-  }
-  if( $qe_data_files{'ibrav'} != 0 )
-  {
-    print QE "  celldim(1) = ${celldm1}\n";
-  }
-  print QE "/\n"
-        .  "&electrons\n"
-        .  "  conv_thr = $qe_data_files{'etol'}\n"
-        .  "  mixing_beta = $qe_data_files{'mixing'}\n"
-        .  "  electron_maxstep = $qe_data_files{'nrun'}\n"
-        .  "/\n"
-        .  "&ions\n"
-        .  "/\n";
+  open my $QE, ">nscf.in" or die "Failed to open nscf.in\n$!";
 
-  open IN, "../atompp" or die "$!";
-  my $atompp;
-  while (<IN>) { $atompp .= $_; }
-  close IN;
-  chomp $atompp;
-  print QE "ATOMIC_SPECIES\n" . $atompp . "\n";
-
-  if ($qe_data_files{'ibrav'} == 0) {
-    open IN, "../acell" or die "$!";
-    my $acell;
-    while (<IN>) { $acell .= $_; }
-    close IN;
-    chomp $acell;
-    print QE "CELL_PARAMETERS cubic\n" . $acell . "\n";
-  }
-
-  if( $coord_type =~ m/angst/ )
-  {
-    print QE "ATOMIC_POSITIONS angstrom\n";
-  }
-  else
-  {
-    print QE "ATOMIC_POSITIONS crystal\n";
-  }
-  open IN, "../coords" or die;
-  while (<IN>) { print QE $_;}
-  close IN;
-
-  print QE  "K_POINTS crystal\n";
+  $qe_data_files{'calctype'} = 'nscf';
+  my $kpt_text = "K_POINTS crystal\n";
   open IN, "nkpts" or die;
   my $nkpts = <IN>;
   close IN;
-  print QE $nkpts;
+  $kpt_text .= $nkpts;
   open IN, "kpts4qe.0001" or die;
   while(<IN>)
   {
-    print QE $_;
+    $kpt_text .= $_;
   }
   close IN;
+  
+  $qe_data_files{'print kpts'} = $kpt_text;
+  $qe_data_files{'print nbands'} = $qe_data_files{'paw.nbands'};
+
+  &print_qe( $QE, %qe_data_files );
+
   close QE;
 
   my $npool = 1;
@@ -878,3 +724,93 @@ print "Espresso stage complete\n";
 exit 0;
 
 
+# Subroutine to print a QE-style input file
+#   Pass in a file handle and a hashtable
+sub print_qe 
+{
+  my ($fh, %inputs ) = @_;
+
+  print $fh "&control\n"
+        .  "  calculation = \'$inputs{'calctype'}\'\n"
+        .  "  prefix = \'$inputs{'prefix'}\'\n"
+        .  "  pseudo_dir = \'$inputs{'ppdir'}\'\n"
+        .  "  outdir = \'$inputs{'work_dir'}\'\n"
+        .  "  tstress = .true.\n"
+        .  "  tprnfor = .true.\n"
+        .  "  wf_collect = .true.\n"
+        .  "/\n";
+  print $fh "&system\n"
+        .  "  ibrav = $inputs{'ibrav'}\n"
+        .  "  nat = $inputs{'natoms'}\n"
+        .  "  ntyp = $inputs{'ntype'}\n"
+        .  "  noncolin = $inputs{'noncolin'}\n"
+        .  "  lspinorb = $inputs{'spinorb'}\n"
+        .  "  ecutwfc = $inputs{'ecut'}\n"
+        .  "  occupations = '$inputs{'occtype'}'\n"
+        .  "  degauss = $inputs{'degauss'}\n"
+        .  "  nspin  = $inputs{'nspin'}\n"
+        .  "  tot_charge  = $inputs{'tot_charge'}\n"
+        .  "  nosym = .true.\n"
+        .  "  noinv = .true.\n";
+  if( $inputs{'print nbands'} > 0 ) # for scf no nbnd is set. 
+                                    # Therefore -1 is passed in and nothing is written to the input file
+  {
+    print $fh "  nbnd = $inputs{'print nbands'}\n";
+  }
+  if( $inputs{'smag'}  ne "" )
+  {
+    print $fh "$inputs{'smag'}\n";
+  }
+  if( $inputs{'ldau'}  ne "" )
+  {
+    print $fh "$inputs{'ldau'}\n";
+  }
+  if( $inputs{'ibrav'} != 0 )
+  {
+    print $fh "  celldim(1) = $inputs{'celldm1'}\n";
+  }
+  print $fh "/\n"
+        .  "&electrons\n"
+        .  "  conv_thr = $inputs{'etol'}\n"
+        .  "  mixing_beta = $inputs{'mixing'}\n"
+        .  "  electron_maxstep = $inputs{'nrun'}\n"
+        .  "/\n"
+        .  "&ions\n"
+        .  "/\n";
+
+#  open IN, "atompp" or die "$!";
+#  my $atompp;
+#  while (<IN>) { $atompp .= $_; }
+#  close IN;
+#  chomp $atompp;
+#  print $fh "ATOMIC_SPECIES\n" . $atompp . "\n";
+  print $fh "ATOMIC_SPECIES\n" . $inputs{'atompp'} . "\n";
+
+  if ($inputs{'ibrav'} == 0) {
+#    open IN, "acell" or die "$!";
+#    my $acell;
+#    while (<IN>) { $acell .= $_; }
+#    close IN;
+#    chomp $acell;
+#    print $fh "CELL_PARAMETERS cubic\n" . $acell . "\n";
+    print $fh "CELL_PARAMETERS cubic\n" . $inputs{'acell'} . "\n";
+  }
+
+  if( $coord_type =~ m/angst/ )
+  {
+    print $fh "ATOMIC_POSITIONS angstrom\n";
+  }
+  else
+  {
+    print $fh "ATOMIC_POSITIONS crystal\n";
+  }
+#  open IN, "coords" or die;
+#  while (<IN>) { print $fh $_;}
+#  close IN;
+  print $fh $inputs{'coords'} . "\n";
+
+  print $fh $inputs{'print kpts'};
+
+}
+
+  
