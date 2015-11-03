@@ -8,6 +8,7 @@
 #
 
 use strict;
+use File::Path qw( rmtree );
 
 ###########################
 if (! $ENV{"OCEAN_BIN"} ) {
@@ -39,7 +40,6 @@ system("mv nkpt bse.nkpt") == 0 or die "Failed to rename nkpt $_\n";
 print "$stat  $oldden\n";
 unless ($stat && $oldden) {
 
-  #`ln -sf ../ABINIT/RUN????_WFK .`;
 
   `tail -n 1 rhoofr > nfft`;
 
@@ -101,18 +101,32 @@ while (<PREFIX>) {
 close (PREFIX);
 
 
-`cp -r ../${rundir}/Out .`;
+#`cp -r ../${rundir}/Out .`;
+if( -l "Out" )  # Out is an existing link
+{
+  unlink "Out" or die "Problem cleaning old 'Out' link\n$!";
+}
+elsif(  -d "Out" ) #or Out is existing directory
+{
+  rmtree( "Out" );
+}
+elsif( -e "Out" ) #or Out is some other file
+{
+  unlink "Out";
+}
+print "../$rundir/Out\n";
+symlink ("../$rundir/Out", "Out") == 1 or die "Failed to link Out\n$!";
 
 # make prep.in
 
-open  PREP, ">prep.in";
-print PREP  "&input\n";
-print PREP  "  prefix = '";
-print PREP  ${prefix};
-print PREP  "'\n";
-print PREP  "  work_dir = './Out'\n";
-print PREP  "/\n";
-close PREP;
+#open  PREP, ">prep.in";
+#print PREP  "&input\n";
+#print PREP  "  prefix = '";
+#print PREP  ${prefix};
+#print PREP  "'\n";
+#print PREP  "  work_dir = './Out'\n";
+#print PREP  "/\n";
+#close PREP;
 
 
 #system("$ENV{'OCEAN_BIN'}/qe_wfconvert.x ${prefix}") == 0 
@@ -185,7 +199,22 @@ unless( -e "BSE/done" && -e "${rundir}/old" ) {
 
 
 
-  `cp -r ../${rundir}/Out .`;
+#  `cp -r ../${rundir}/Out .`;
+  if( -l "Out" )  # Out is an existing link
+  {
+    unlink "Out" or die "Problem cleaning old 'Out' link\n$!";
+  } 
+  elsif(  -d "Out" ) #or Out is existing directory
+  {
+    rmtree( "Out" );
+  } 
+  elsif( -e "Out" ) #or Out is some other file
+  {
+    unlink "Out";
+  } 
+  print "../$rundir/Out\n";
+  symlink ("../$rundir/Out", "Out") == 1 or die "Failed to link Out\n$!";
+
 
   system("$ENV{'OCEAN_BIN'}/qeband.x") == 0
     or die "Failed to run qeband.x\n";
