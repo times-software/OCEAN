@@ -100,25 +100,8 @@ while (<PREFIX>) {
 }
 close (PREFIX);
 
-my $Nfiles = `cat Nfiles`;
-my $runfile;
-my $qerunfile;
-my $qerundir;
-for (my $i = 1; $i <= $Nfiles; $i++) {
-#  $runfile   = sprintf("../${rundir}/RUN%04u_WFK", $i );
-  $runfile   = sprintf("RUN%04u_WFK", $i);
-  $qerunfile = sprintf("K%05u_evc.dat", $i);
-#  $qerundir = sprintf("../${rundir}/Out/atom.save/K%05u/", $i);
-  $qerundir = sprintf("../${rundir}/Out/${prefix}.save/K%05u", $i);
-#  system("echo $runfile");
-#  system("echo $qerunfile");
-#  system("echo $qerundir");
-#  $qerunfile = sprintf("../${rundir}/K%05u_evc.dat", $i);
-  system("cp ${qerundir}/evc.dat ${qerunfile}") == 0 or die "Failed to copy $qerunfile\n"; 
-  system("ln -s $qerunfile $runfile") == 0  or die "Failed to link $runfile\n";
-}
 
-`cp -r ../${rundir}/Out/ .`;
+`cp -r ../${rundir}/Out .`;
 
 # make prep.in
 
@@ -132,8 +115,9 @@ print PREP  "/\n";
 close PREP;
 
 
-system("$ENV{'OCEAN_BIN'}/qe_wfconvert.x ${prefix}") == 0 
-  or die "Failed to run wfconvert.x\n";
+#system("$ENV{'OCEAN_BIN'}/qe_wfconvert.x ${prefix}") == 0 
+system("$ENV{'OCEAN_BIN'}/qe_wfconvert.x") == 0 
+  or die "Failed to run wfconvert.x\n$!";
 
 
 `touch done`;
@@ -200,25 +184,8 @@ unless( -e "BSE/done" && -e "${rundir}/old" ) {
   close (PREFIX);
 
 
-  my $Nfiles = `cat Nfiles`;
-  my $runfile;
-  my $qerunfile;
-  my $qerundir;
-  for (my $i = 1; $i <= $Nfiles; $i++) {
-#  $runfile   = sprintf("../${rundir}/RUN%04u_WFK", $i );
-    $runfile   = sprintf("RUN%04u_WFK", $i);
-    $qerunfile = sprintf("K%05u_evc.dat", $i);
-#  $qerundir = sprintf("../${rundir}/Out/atom.save/K%05u/", $i);
-    $qerundir = sprintf("../${rundir}/Out/${prefix}.save/K%05u", $i);
-#  system("echo $runfile");
-#  system("echo $qerunfile");
-#  system("echo $qerundir");
-#  $qerunfile = sprintf("../${rundir}/K%05u_evc.dat", $i);
-    system("cp ${qerundir}/evc.dat ${qerunfile}") == 0 or die "Failed to copy $qerunfile\n";
-    system("ln -s $qerunfile $runfile") == 0  or die "Failed to link $runfile\n";
-  }
 
-  `cp -r ../${rundir}/Out/ .`;
+  `cp -r ../${rundir}/Out .`;
 
   system("$ENV{'OCEAN_BIN'}/qeband.x") == 0
     or die "Failed to run qeband.x\n";
