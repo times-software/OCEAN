@@ -100,12 +100,13 @@
   CALL qexml_read_bands_info( NBND=nbnd, NUM_K_POINTS=nkpts, nspin=nspn, EF=efermi, IERR=ierr )
   IF ( ierr/=0 ) CALL errore(subname,'QEXML reading ',ABS(ierr))
   !
-!  write(6,*) ' nbnd  = ', nbnd
-!  write(6,*) ' nkpts = ', nkpts
-!  write(6,*) ' Efermi = ', efermi
+  write(6,*) ' nbnd  = ', nbnd
+  write(6,*) ' nkpts = ', nkpts
+  write(6,*) ' nspin = ', nspn
+  write(6,*) ' Efermi = ', efermi
 
   open( unit=91, file='efermi',form='formatted',status='unknown')
-!  write(91,*) efermi * ha2ryd     ! in Ry
+  write(91,*) efermi * ha2ryd     ! in Ry
   write(91,*) efermi * ha2ev      ! in eV
   close( 91 )
 
@@ -131,9 +132,14 @@
 #else
   do ispn = 1, nspn
     do ik = 1, nkpts
-       CALL qexml_read_bands( IK=ik, ISPIN=ispn, EIG=enk(:,ik+(ispn-1)*nkpts), & 
-                              OCC=occ(:,ik+(ispn-1)*nkpts), ENERGY_UNITS=units, IERR=ierr )
-       IF ( ierr/=0 ) CALL errore(subname,'QEXML reading ',ABS(ierr))
+      if ( nspn == 2 ) then 
+        CALL qexml_read_bands( IK=ik, ISPIN=ispn, EIG=enk(:,ik+(ispn-1)*nkpts), & 
+                               OCC=occ(:,ik+(ispn-1)*nkpts), ENERGY_UNITS=units, IERR=ierr )
+      else
+        CALL qexml_read_bands( IK=ik, EIG=enk(:,ik+(ispn-1)*nkpts), & 
+                               OCC=occ(:,ik+(ispn-1)*nkpts), ENERGY_UNITS=units, IERR=ierr )
+      end if
+      if ( ierr/=0 ) CALL errore(subname,'QEXML reading ',ABS(ierr))
     end do
   end do
 #endif
