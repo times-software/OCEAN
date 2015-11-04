@@ -26,7 +26,7 @@
       integer :: xstart,xend,ystart,yend,zstart,zend
       integer :: xrange,yrange,zrange,np_counter
       integer :: g_un_min(3),g_un_max(3),g_sh_min(3),g_sh_max(3), umk(3)
-      integer ::i,j,k,hkpt,gtot,kr_iter,ki_iter,nfiles
+      integer ::i,j,k,hkpt,gtot,kr_iter,ki_iter,nfiles, ierr
       integer :: files_iter,master_iter,g_iter,nkpts,kpt_counter
       character(len=11) :: wfkin!,wfkout
       character(len=12) :: wfkout
@@ -34,6 +34,8 @@
       double precision :: lda_low, lda_high,qval
       double precision :: orthcr,orthci,q1,q2,q3,bv1(3),bv2(3),bv3(3)
       logical :: noshift
+      character(len=3) :: dft_flavor
+      character(len=128) :: qe_filename
       character(len=9), parameter :: f9 = 'formatted'
 !
       integer, parameter :: enkfile =   40
@@ -73,6 +75,10 @@
         read(99,*) bv1(1),bv1(2),bv1(3)
         read(99,*) bv2(1),bv2(2),bv2(3)
         read(99,*) bv3(1),bv3(2),bv3(3)
+      close(99)
+
+      open(unit=99,file='dft',form=f9,status='old')
+      read(99,'a') dft_flavor
       close(99)
 
       noshift = .false.
@@ -115,10 +121,16 @@
 !   Now iterate over all the run files.
 !   For each run file grab the matching k, k+q pts and write for NBSE
       do files_iter=1,nfiles
-        call getwfkin(wfkin,files_iter,wfkinfile)
-        write(6,*) wfkin
-        call headerpar(wfkinfile, dummy, maxnpw, maxband, nsppol,       &
-     &                 nspinor,nkpt,36)
+        select case( dft_flavor )
+          case( 'qe' )
+            qe_filename = 'Out/system.save/data-file.xml'
+            call qehead( qe_filename, maxband, maxnpw, nsppol, nspinor, nkpt, ierr )
+          case default
+            call getwfkin(wfkin,files_iter,wfkinfile)
+            write(6,*) wfkin
+            call headerpar(wfkinfile, dummy, maxnpw, maxband, nsppol,       &
+     &                     nspinor,nkpt,36)
+        end select
 
         allocate(kg_unshift(3,maxnpw), eigen_un(maxband) )
         if ( .not. noshift ) allocate(kg_shift(3,maxnpw), eigen_sh(maxband) )
@@ -164,10 +176,17 @@
 
 
 !     Read in the wavefunctions
+          select case( dft_flavor )
+
+          case( 'qe' )
+          call qegrabwf(ikpt, maxband, maxnpw, kg_unshift,              &
+     &     kg_shift, eigen_un, eigen_sh, occ_un, occ_sh, cg_un, cg_sh,  &
+     &     brange(2), brange(4), nband, un_npw, sh_npw, noshift)
+          case default
           call grabwf(wfkinfile, maxband, maxnpw, kg_unshift,           &
      &     kg_shift, eigen_un, eigen_sh, occ_un, occ_sh, cg_un, cg_sh,  &
      &     brange(2), brange(4), nband, un_npw, sh_npw, noshift)
-          
+          end select
 
           if (.not. noshift) then
             write(enk_un,*) 2.0*eigen_un(brange(1):brange(4))
