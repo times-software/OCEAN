@@ -31,9 +31,9 @@ subroutine qe_grabwf(ikpt, isppol, nsppol, maxband, maxnpw, kg_unshift, kg_shift
     write( filename, '(a,a,a)' ) trim( dirname ), '/', 'eigenval.xml'
   else
     if( isppol .eq. 1 ) then
-      write( filename, '(a,a,a)' ) trim( dirname ), '/', 'eigenval1.dat'
+      write( filename, '(a,a,a)' ) trim( dirname ), '/', 'eigenval1.xml'
     else
-      write( filename, '(a,a,a)' ) trim( dirname ), '/', 'eigenval2.dat'
+      write( filename, '(a,a,a)' ) trim( dirname ), '/', 'eigenval2.xml'
     endif
   endif
   call iotk_open_read ( 99, FILE = trim(filename), IERR=ierr )

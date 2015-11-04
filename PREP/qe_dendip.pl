@@ -232,7 +232,7 @@ unless( -e "BSE/done" && -e "${rundir}/old" ) {
 
   `cp ../avecsinbohr.ipt .`;
   `cp ../xmesh.ipt .`;
-  `cp ../nspin .`
+  `cp ../nspin .`;
   print "Running setup\n";
   system("$ENV{'OCEAN_BIN'}/setup2.x > setup.log") == 0
     or die "Failed to run setup\n";
