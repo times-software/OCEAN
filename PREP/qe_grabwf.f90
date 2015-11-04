@@ -5,11 +5,11 @@
 ! `License' in the root directory of the present distribution.
 !
 !
-subroutine qe_grabwf(ikpt, maxband, maxnpw, kg_unshift, kg_shift, eigen_un, eigen_sh, occ_un, &
+subroutine qe_grabwf(ikpt, isppol, nsppol, maxband, maxnpw, kg_unshift, kg_shift, eigen_un, eigen_sh, occ_un, &
                      occ_sh, cg_un, cg_sh, occ_max, unocc_max, nband, un_npw, sh_npw, noshift, ierr )
   use iotk_module
   implicit none
-  integer :: ikpt, maxband, maxnpw, nband(2), iband,ii,un_npw,sh_npw,nspinor, occ_max, unocc_max
+  integer :: ikpt, isppol, nsppol, maxband, maxnpw, nband(2), iband,ii,un_npw,sh_npw,nspinor, occ_max, unocc_max
   double precision :: eigen_un(maxband), eigen_sh(maxband),         &
     occ_un(maxband), occ_sh(maxband), cg_un(maxband,2*maxnpw),      &
     cg_sh(maxband,2*maxnpw)
@@ -21,13 +21,21 @@ subroutine qe_grabwf(ikpt, maxband, maxnpw, kg_unshift, kg_shift, eigen_un, eige
   integer :: ierr, npw, i, j, ib, ig
   complex(kind=kind(1.0d0)), allocatable :: tbuffer(:), cg_un_tmp(:,:)
 
-!  write(6,*) ikpt
   write( dirname, '(a16,a1,i5.5)') prefix, 'K', ikpt
-!  write(6,*) dirname
+
+
+
 
   ! Open eigval.xml
-  write(filename, '(a,a,a)') trim( dirname ) , '/', 'eigenval.xml'
-!  write(6,*) trim(filename)
+  if( nsppol .eq. 1) then
+    write( filename, '(a,a,a)' ) trim( dirname ), '/', 'eigenval.xml'
+  else
+    if( isppol .eq. 1 ) then
+      write( filename, '(a,a,a)' ) trim( dirname ), '/', 'eigenval1.dat'
+    else
+      write( filename, '(a,a,a)' ) trim( dirname ), '/', 'eigenval2.dat'
+    endif
+  endif
   call iotk_open_read ( 99, FILE = trim(filename), IERR=ierr )
   if( ierr .ne. 0 ) then
     write(6,*) 'Failed to open ', trim(filename), ierr
@@ -44,11 +52,11 @@ subroutine qe_grabwf(ikpt, maxband, maxnpw, kg_unshift, kg_shift, eigen_un, eige
     return
   endif
   call iotk_close_read( 99 )
-!  write(6,*) '-------------'
+
+
 
   ! gkvectors.dat
   write( filename, '(a,a,a)' ) trim( dirname ), '/', 'gkvectors.dat'
-!  write(6,*) trim(filename)
   call iotk_open_read ( 99, FILE = trim(filename), IERR=ierr )
   if( ierr .ne. 0 ) then 
     write(6,*) 'Failed to open ', trim(filename), ierr
@@ -65,11 +73,19 @@ subroutine qe_grabwf(ikpt, maxband, maxnpw, kg_unshift, kg_shift, eigen_un, eige
     return
   endif
   call iotk_close_read( 99 )  
-!  write(6,*) '-------------'
 
-  ! evc.dat
+
+
   allocate( tbuffer( npw ) )
-  write( filename, '(a,a,a)' ) trim( dirname ), '/', 'evc.dat'
+  if( nsppol .eq. 1) then
+    write( filename, '(a,a,a)' ) trim( dirname ), '/', 'evc.dat'
+  else 
+    if( isppol .eq. 1 ) then
+      write( filename, '(a,a,a)' ) trim( dirname ), '/', 'evc1.dat'
+    else
+      write( filename, '(a,a,a)' ) trim( dirname ), '/', 'evc2.dat'
+    endif
+  endif
   call iotk_open_read ( 99, FILE = trim(filename), IERR=ierr ) 
   if( ierr .ne. 0 ) then 
     write(6,*) 'Failed to open ', trim(filename), ierr

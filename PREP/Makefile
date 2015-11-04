@@ -21,7 +21,7 @@ instdev:
 	for F in $(FILESF90); do ln -fs $(PWD)/$$F $(INSTDEVDIR); done;
 
 clean: 
-	rm -f *.o *.x
+	rm -f *.o *.x *__genmod.mod *__genmod.f90
 
 .f.x:
 	$(FC) $(OPTIONS) -o $*.x $*.f

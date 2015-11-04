@@ -10,7 +10,7 @@
 !    First step is to read in the abinit files
 !    Written by JTV Nov 08
 
-      program wfconvert
+program wfconvert
       IMPLICIT NONE
 
       integer :: nkpt,nspinor,nsppol,isppol
@@ -136,12 +136,13 @@
         if ( .not. noshift ) allocate(kg_shift(3,maxnpw), eigen_sh(maxband) )
 
         if (nsppol .ne. 1) then
-         write(6,*) "Spin stuff is currently not supported by AI2NBSE"
-         ! quit
-         stop 'problem with nsppol ne 1'
+          if( dft_flavor .ne. 'qe' ) then
+            write(6,*) "Spin stuff is currently not supported by AI2NBSE"
+           stop 'problem with nsppol ne 1'
+          endif
         endif
         if (nspinor .ne. 1 ) then
-         write(6,*) "Spin stuff is currently not supported by AI2NBSE"
+         write(6,*) "Spinor stuff is currently not supported by AI2NBSE"
          stop 'problem with nspinor ne 1'
          ! quit, this is because I'm assuming npsinor = 1 for reading cg
         endif
@@ -160,13 +161,13 @@
         allocate(cg_un(maxband,2*maxnpw),cg_sh(maxband,2*maxnpw))
         allocate(occ_un(maxband),occ_sh(maxband))
         isppol=1
-!       do isppol=1,nsppol   ! this is currently unsupported
+       do isppol=1,nsppol   ! this is currently unsupported
         do ikpt=1,hkpt
           kpt_counter = kpt_counter + 1
 
           !if (.not. noshift) read(umklapp, * ) umk(:)
 
-          call getwfkout( wfkout, files_iter, ikpt, wfkoutfile)
+          call getwfkout( wfkout, isppol, ikpt, wfkoutfile)
           if (.not. noshift)  kg_shift(:,:) = 0
           kg_unshift(:,:) = 0
 
@@ -179,7 +180,7 @@
           select case( dft_flavor )
 
           case( 'qe' )
-          call qe_grabwf(ikpt, maxband, maxnpw, kg_unshift,              &
+          call qe_grabwf(ikpt, isppol, nsppol, maxband, maxnpw, kg_unshift,        &
      &     kg_shift, eigen_un, eigen_sh, occ_un, occ_sh, cg_un, cg_sh,  &
      &     brange(2), brange(4), nband, un_npw, sh_npw, noshift, ierr)
             if( ierr .ne. 0 ) then
@@ -446,7 +447,7 @@
 !         close(31)
        enddo 
 
-!      enddo
+      enddo
 !      deallocate(istwfk,nband,npwarr,so_typat,symafm,symrel,typat)
 !      deallocate(kpt,occ,tnons,znucltypat,xred)
       if (.not. noshift) deallocate(kg_shift,eigen_sh)
@@ -496,4 +497,4 @@
        close(enk_un)
        close(enk_sh)
        close(umklapp)
-      end program wfconvert
+end program wfconvert
