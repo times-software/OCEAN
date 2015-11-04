@@ -34,7 +34,7 @@ $oldden = 1 if (-e "../DFT/old");
 
 
 my @AbFiles = ( "rhoofr", "density.out", "nkpt", "paw.nkpt", "qinunitsofbvectors.ipt");
-my @CommonFiles = ( "avecsinbohr.ipt" );
+my @CommonFiles = ( "avecsinbohr.ipt", "nspin", "xmesh.ipt" );
 
 foreach (@AbFiles) {
   system("cp ../DFT/$_ .") == 0 or die "Failed to copy $_\n";
@@ -182,7 +182,8 @@ system("cp efermiinrydberg.ipt ../") == 0
 
 
 `cp ../avecsinbohr.ipt .`;
-`cp ../../Common/xmesh.ipt .`;
+`cp ../xmesh.ipt .`;
+`cp ../nspin .`;
 print "Running setup\n";
 system("$ENV{'OCEAN_BIN'}/setup2.x > setup.log") == 0
   or die "Failed to run setup\n";

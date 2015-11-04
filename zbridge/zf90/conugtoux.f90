@@ -9,7 +9,7 @@
    implicit none
    !
    integer, parameter :: u1dat = 22, iwf = 23
-   integer :: nk, nb, nx( 3 ), ng, i, nwfile, iwfile, filsize, j, k
+   integer :: nk, nb, nx( 3 ), ng, i, nwfile, iwfile, filsize, j, k, nspin, ispin
    integer, allocatable :: g( :, : ), ikl( :, : ), flip_g( :, : )
    real( kind = kind( 1.0d0 ) ), allocatable :: zr( :, : ), zi( :, : )
    real(kind=kind(1.0d0)) :: su
@@ -23,6 +23,7 @@
    call igetval( nx( 1 ), 'ngx  ' )
    call igetval( nx( 2 ), 'ngy  ' )
    call igetval( nx( 3 ), 'ngz  ' )
+   call igetval( nspin,   'nspin' )
    close( unit=99 )
    !
    ! JDFTx writes out files w/ C. No fortran recl markers
@@ -55,59 +56,61 @@
    open( unit=u1dat, file='u1.dat', form='unformatted', status='unknown' )
    rewind u1dat
    iwfile = 1
-   do i = 1, nk
-      open( unit=99, file='prog', form='formatted', status='unknown' )
-      rewind 99
-      write ( 99, '(2x,1a6,3x,2i5)' ) 'conv03g', i,nk
-      close( unit=99 )
-      if ( i .eq. ikl( 1, iwfile ) ) then
-         if( is_jdftx ) then
-!JTV need to figure out more compliant way of doing this. GCC (4.7) doesn't support form='binary'
-          stop
-!           open ( unit=iwf, file=wfnam( iwfile ), form='binary',status='old'  )
-           read( iwf ) ng
-         else
-           open ( unit=iwf, file=wfnam( iwfile ), form='unformatted',status='unknown' )
-           rewind iwf
-           read ( iwf ) ng
-         endif
-         write(6,*) i, ng
-         allocate( g( ng, 3 ), zr( ng, nb ), zi( ng, nb ) )
-         if( is_jdftx ) then
-           allocate( flip_g( 3, ng ) )
-           read( iwf ) flip_g
-!           do j = 1, ng
-!             k = flip_g(1, j )
-!             flip_g(1,j) = flip_g(3,j)
-!             flip_g(3,j) = k
-!           enddo
-           g = transpose( flip_g )
-           deallocate( flip_g )
-         else
-           read ( iwf ) g
-         endif
-      end if
-      read ( iwf ) zr
-      read ( iwf ) zi
+   do ispin = 1, nspin
+     do i = 1, nk
+        open( unit=99, file='prog', form='formatted', status='unknown' )
+        rewind 99
+        write ( 99, '(2x,1a6,3x,2i5)' ) 'conv03g', i,nk
+        close( unit=99 )
+        if ( i .eq. ikl( 1, iwfile ) ) then
+           if( is_jdftx ) then
+  !JTV need to figure out more compliant way of doing this. GCC (4.7) doesn't support form='binary'
+            stop
+  !           open ( unit=iwf, file=wfnam( iwfile ), form='binary',status='old'  )
+             read( iwf ) ng
+           else
+             open ( unit=iwf, file=wfnam( iwfile ), form='unformatted',status='unknown' )
+             rewind iwf
+             read ( iwf ) ng
+           endif
+           write(6,*) i, ng
+           allocate( g( ng, 3 ), zr( ng, nb ), zi( ng, nb ) )
+           if( is_jdftx ) then
+             allocate( flip_g( 3, ng ) )
+             read( iwf ) flip_g
+  !           do j = 1, ng
+  !             k = flip_g(1, j )
+  !             flip_g(1,j) = flip_g(3,j)
+  !             flip_g(3,j) = k
+  !           enddo
+             g = transpose( flip_g )
+             deallocate( flip_g )
+           else
+             read ( iwf ) g
+           endif
+        end if
+        read ( iwf ) zr
+        read ( iwf ) zi
 
-      if( i .eq. 1 .and. is_jdftx ) then
-        do j = 1, ng
-          write(31,'(3I6,4X,E23.16,4X,E23.16)') g(j,1), g(j,2), g(j,3), zr(j,1), zi(j,1)
-        enddo
-      endif
-      if( i .eq. 1 ) then
-        su = 0
-        do j = 1, ng
-          su = su + zr(j,1)**2 + zi(j,i)**2
-        enddo
-        write(6,*) 'Norm:', su
-      endif
+        if( i .eq. 1 .and. is_jdftx ) then
+          do j = 1, ng
+            write(31,'(3I6,4X,E23.16,4X,E23.16)') g(j,1), g(j,2), g(j,3), zr(j,1), zi(j,1)
+          enddo
+        endif
+        if( i .eq. 1 ) then
+          su = 0
+          do j = 1, ng
+            su = su + zr(j,1)**2 + zi(j,i)**2
+          enddo
+          write(6,*) 'Norm:', su
+        endif
 
-      call gentoreal( nx, nb, zr, zi, ng, g, u1dat, i .eq. 1 )
-      if ( i .eq. ikl( 2, iwfile ) ) then
-         deallocate( g, zr, zi )
-         iwfile = iwfile + 1
-      end if
+        call gentoreal( nx, nb, zr, zi, ng, g, u1dat, i .eq. 1 )
+        if ( i .eq. ikl( 2, iwfile ) ) then
+           deallocate( g, zr, zi )
+           iwfile = iwfile + 1
+        end if
+     end do
    end do
    close( unit=u1dat )
    !

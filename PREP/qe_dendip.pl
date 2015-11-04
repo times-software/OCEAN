@@ -28,7 +28,7 @@ $oldden = 1 if (-e "../DFT/old");
 
 
 my @QEFiles     = ( "rhoofr" );
-my @CommonFiles = ( "paw.nkpt", "nkpt", "qinunitsofbvectors.ipt", "avecsinbohr.ipt", "dft" );
+my @CommonFiles = ( "paw.nkpt", "nkpt", "qinunitsofbvectors.ipt", "avecsinbohr.ipt", "dft", "nspin", "xmesh.ipt" );
 
 foreach (@QEFiles) {
   system("cp ../DFT/$_ .") == 0 or die "Failed to copy $_\n";
@@ -231,7 +231,8 @@ unless( -e "BSE/done" && -e "${rundir}/old" ) {
     or die "Failed to copy efermiinrydberg.ipt\n";
 
   `cp ../avecsinbohr.ipt .`;
-  `cp ../../Common/xmesh.ipt .`;
+  `cp ../xmesh.ipt .`;
+  `cp ../nspin .`
   print "Running setup\n";
   system("$ENV{'OCEAN_BIN'}/setup2.x > setup.log") == 0
     or die "Failed to run setup\n";
