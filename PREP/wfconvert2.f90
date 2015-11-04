@@ -78,7 +78,7 @@
       close(99)
 
       open(unit=99,file='dft',form=f9,status='old')
-      read(99,'a') dft_flavor
+      read(99,'(a)') dft_flavor
       close(99)
 
       noshift = .false.
@@ -179,9 +179,14 @@
           select case( dft_flavor )
 
           case( 'qe' )
-          call qegrabwf(ikpt, maxband, maxnpw, kg_unshift,              &
+          call qe_grabwf(ikpt, maxband, maxnpw, kg_unshift,              &
      &     kg_shift, eigen_un, eigen_sh, occ_un, occ_sh, cg_un, cg_sh,  &
-     &     brange(2), brange(4), nband, un_npw, sh_npw, noshift)
+     &     brange(2), brange(4), nband, un_npw, sh_npw, noshift, ierr)
+            if( ierr .ne. 0 ) then
+              write(6,*) ikpt, ierr
+              stop
+            endif
+            kg_shift = kg_unshift
           case default
           call grabwf(wfkinfile, maxband, maxnpw, kg_unshift,           &
      &     kg_shift, eigen_un, eigen_sh, occ_un, occ_sh, cg_un, cg_sh,  &
