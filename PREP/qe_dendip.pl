@@ -28,7 +28,7 @@ $oldden = 1 if (-e "../DFT/old");
 
 
 my @QEFiles     = ( "rhoofr" );
-my @CommonFiles = ( "paw.nkpt", "nkpt", "qinunitsofbvectors.ipt", "avecsinbohr.ipt" );
+my @CommonFiles = ( "paw.nkpt", "nkpt", "qinunitsofbvectors.ipt", "avecsinbohr.ipt", "dft", "nspin", "xmesh.ipt" );
 
 foreach (@QEFiles) {
   system("cp ../DFT/$_ .") == 0 or die "Failed to copy $_\n";
@@ -77,6 +77,8 @@ foreach ("Nfiles", "kmesh.ipt", "brange.ipt", "qinunitsofbvectors.ipt" ) {
 }
 `cp ../qinunitsofbvectors.ipt .`;
 `cp ../bvecs .`;
+`cp ../dft .`;
+`cp ../nspin .`;
 open BRANGE, "brange.ipt";
 my @brange;
 <BRANGE> =~ m/(\d+)\s+(\d+)/;
@@ -130,7 +132,7 @@ symlink ("../$rundir/Out", "Out") == 1 or die "Failed to link Out\n$!";
 
 
 #system("$ENV{'OCEAN_BIN'}/qe_wfconvert.x ${prefix}") == 0 
-system("$ENV{'OCEAN_BIN'}/qe_wfconvert.x") == 0 
+system("$ENV{'OCEAN_BIN'}/wfconvert.x") == 0 
   or die "Failed to run wfconvert.x\n$!";
 
 
@@ -170,24 +172,13 @@ unless( -e "BSE/done" && -e "${rundir}/old" ) {
   }
   `cp ../qinunitsofbvectors.ipt .`;
   `cp ../bvecs .`;
+  `cp ../dft .`;
   `cp ../nelectron .`;
+  `cp ../avecsinbohr.ipt .`;
+  `cp ../xmesh.ipt .`;
+  `cp ../nspin .`;
 #  `cp ../${rundir}/umklapp .`;
   my $Nfiles = `cat Nfiles`;
-
-  open BRANGE, "brange.ipt";
-  my @brange;
-  <BRANGE> =~ m/(\d+)\s+(\d+)/;
-  $brange[0] = $1;
-  $brange[1] = $2;
-  <BRANGE> =~ m/(\d+)\s+(\d+)/;
-  $brange[2] = $1;
-  $brange[3] = $2;
-  close BRANGE;
-  my $nelectron = `cat ../nelectron`;
-  open BRANGE, ">brange.ipt";
-  print BRANGE "1  " . $nelectron/2 . "\n";
-  print BRANGE $nelectron/2+1 . "    $brange[3]\n";
-  close BRANGE;
 
   my $prefix;
   open PREFIX, "../../Common/prefix";
@@ -216,20 +207,16 @@ unless( -e "BSE/done" && -e "${rundir}/old" ) {
   symlink ("../$rundir/Out", "Out") == 1 or die "Failed to link Out\n$!";
 
 
-  system("$ENV{'OCEAN_BIN'}/qeband.x") == 0
-    or die "Failed to run qeband.x\n";
-
-  system("$ENV{'OCEAN_BIN'}/qe_wfconvert.x system") == 0 
+  system("$ENV{'OCEAN_BIN'}/wfconvert.x system") == 0 
     or die "Failed to run wfconvert.x\n";
 
-#KG#  system("$ENV{'OCEAN_BIN'}/ofermi.pl") == 0
-#KG#    or die "Failed to run ofermi.pl\n";
+  system("$ENV{'OCEAN_BIN'}/ofermi.pl") == 0
+    or die "Failed to run ofermi.pl\n";
+
   `cp eshift.ipt ../`;
   system("cp efermiinrydberg.ipt ../") == 0 
     or die "Failed to copy efermiinrydberg.ipt\n";
 
-  `cp ../avecsinbohr.ipt .`;
-  `cp ../../Common/xmesh.ipt .`;
   print "Running setup\n";
   system("$ENV{'OCEAN_BIN'}/setup2.x > setup.log") == 0
     or die "Failed to run setup\n";

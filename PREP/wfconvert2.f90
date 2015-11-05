@@ -10,7 +10,7 @@
 !    First step is to read in the abinit files
 !    Written by JTV Nov 08
 
-      program wfconvert
+program wfconvert
       IMPLICIT NONE
 
       integer :: nkpt,nspinor,nsppol,isppol
@@ -22,18 +22,20 @@
      &  occ_sh(:),occ_un(:)
       integer, allocatable :: kg_shift(:,:),kg_unshift(:,:),            &
      &   g_occ(:,:,:),gordered(:,:)
-      integer :: brange(4),bandtot,maxband
+      integer :: brange(4),bandtot,maxband, nspin
       integer :: xstart,xend,ystart,yend,zstart,zend
       integer :: xrange,yrange,zrange,np_counter
       integer :: g_un_min(3),g_un_max(3),g_sh_min(3),g_sh_max(3), umk(3)
-      integer ::i,j,k,hkpt,gtot,kr_iter,ki_iter,nfiles
+      integer ::i,j,k,hkpt,gtot,kr_iter,ki_iter,nfiles, ierr
       integer :: files_iter,master_iter,g_iter,nkpts,kpt_counter
       character(len=11) :: wfkin!,wfkout
       character(len=12) :: wfkout
-      double precision, allocatable :: enklisto(:,:),enklistu(:,:)
+      double precision, allocatable :: enklisto(:,:,:),enklistu(:,:,:)
       double precision :: lda_low, lda_high,qval
       double precision :: orthcr,orthci,q1,q2,q3,bv1(3),bv2(3),bv3(3)
       logical :: noshift
+      character(len=3) :: dft_flavor
+      character(len=128) :: qe_filename
       character(len=9), parameter :: f9 = 'formatted'
 !
       integer, parameter :: enkfile =   40
@@ -75,6 +77,15 @@
         read(99,*) bv3(1),bv3(2),bv3(3)
       close(99)
 
+      open(unit=99,file='dft',form=f9,status='old')
+      read(99,'(a)') dft_flavor
+      close(99)
+
+      open(unit=99,file='nspin',form=f9,status='old')
+      read(99,*) nspin
+      close(99)
+
+
       noshift = .false.
       if ( (abs(q1) + abs(q2) + abs(q3) ) .eq. 0 ) noshift = .true.
 
@@ -88,14 +99,14 @@
       endif
       if (noshift) then
         qval = 1.d0
-        allocate(enklisto(nkpts,brange(4)-brange(1)+1),                 &
-     &         enklistu(nkpts,brange(4)-brange(3)+1))
+        allocate(enklisto(brange(4)-brange(1)+1,nkpts,nspin),                 &
+                 enklistu(brange(4)-brange(3)+1,nkpts,nspin) )
       else
-        allocate(enklisto(nkpts,brange(2)-brange(1)+1),                 &
-     &         enklistu(nkpts,brange(4)-brange(3)+1))
+        allocate(enklisto(brange(2)-brange(1)+1,nkpts,nspin),                 &
+                 enklistu(brange(4)-brange(3)+1,nkpts,nspin ) )
       endif
-        enklisto(:,:) = 0.0
-        enklistu(:,:) = 0.0
+        enklisto(:,:,:) = 0.0
+        enklistu(:,:,:) = 0.0
         open(unit=enk_un, file='enk_un',form=f9,status='unknown')
         open(unit=enk_sh, file='enk_sh',form=f9,status='unknown')
 
@@ -114,22 +125,34 @@
 
 !   Now iterate over all the run files.
 !   For each run file grab the matching k, k+q pts and write for NBSE
-      do files_iter=1,nfiles
-        call getwfkin(wfkin,files_iter,wfkinfile)
-        write(6,*) wfkin
-        call headerpar(wfkinfile, dummy, maxnpw, maxband, nsppol,       &
-     &                 nspinor,nkpt,36)
+      do files_iter=1,1  ! nfiles is broken as of now
+        select case( dft_flavor )
+          case( 'qe' )
+            qe_filename = 'Out/system.save/data-file.xml'
+            call qehead( qe_filename, maxband, maxnpw, nsppol, nspinor, nkpt, ierr )
+            if( nsppol .ne. nspin ) then
+              write(6,'(a,i1.1,a,i1.1)' ) 'Was expecting spin=',nspin, ' but found spin=', nsppol
+              stop
+            endif
+          case default
+            call getwfkin(wfkin,files_iter,wfkinfile)
+            write(6,*) wfkin
+            call headerpar(wfkinfile, dummy, maxnpw, maxband, nsppol,       &
+     &                     nspinor,nkpt,36)
+        end select
 
         allocate(kg_unshift(3,maxnpw), eigen_un(maxband) )
-        if ( .not. noshift ) allocate(kg_shift(3,maxnpw), eigen_sh(maxband) )
+        !if ( .not. noshift ) 
+        allocate(kg_shift(3,maxnpw), eigen_sh(maxband) )
 
         if (nsppol .ne. 1) then
-         write(6,*) "Spin stuff is currently not supported by AI2NBSE"
-         ! quit
-         stop 'problem with nsppol ne 1'
+          if( dft_flavor .ne. 'qe' ) then
+            write(6,*) "Spin stuff is currently not supported by AI2NBSE"
+           stop 'problem with nsppol ne 1'
+          endif
         endif
         if (nspinor .ne. 1 ) then
-         write(6,*) "Spin stuff is currently not supported by AI2NBSE"
+         write(6,*) "Spinor stuff is currently not supported by AI2NBSE"
          stop 'problem with nspinor ne 1'
          ! quit, this is because I'm assuming npsinor = 1 for reading cg
         endif
@@ -148,13 +171,13 @@
         allocate(cg_un(maxband,2*maxnpw),cg_sh(maxband,2*maxnpw))
         allocate(occ_un(maxband),occ_sh(maxband))
         isppol=1
-!       do isppol=1,nsppol   ! this is currently unsupported
+       do isppol=1,nsppol   ! this is currently unsupported
         do ikpt=1,hkpt
           kpt_counter = kpt_counter + 1
 
           !if (.not. noshift) read(umklapp, * ) umk(:)
 
-          call getwfkout( wfkout, files_iter, ikpt, wfkoutfile)
+          call getwfkout( wfkout, isppol, ikpt, wfkoutfile)
           if (.not. noshift)  kg_shift(:,:) = 0
           kg_unshift(:,:) = 0
 
@@ -164,10 +187,22 @@
 
 
 !     Read in the wavefunctions
+          select case( dft_flavor )
+
+          case( 'qe' )
+          call qe_grabwf(ikpt, isppol, nsppol, maxband, maxnpw, kg_unshift,        &
+     &     kg_shift, eigen_un, eigen_sh, occ_un, occ_sh, cg_un, cg_sh,  &
+     &     brange(2), brange(4), nband, un_npw, sh_npw, noshift, ierr)
+            if( ierr .ne. 0 ) then
+              write(6,*) ikpt, ierr
+              stop
+            endif
+            kg_shift = kg_unshift
+          case default
           call grabwf(wfkinfile, maxband, maxnpw, kg_unshift,           &
      &     kg_shift, eigen_un, eigen_sh, occ_un, occ_sh, cg_un, cg_sh,  &
      &     brange(2), brange(4), nband, un_npw, sh_npw, noshift)
-          
+          end select
 
           if (.not. noshift) then
             write(enk_un,*) 2.0*eigen_un(brange(1):brange(4))
@@ -263,7 +298,7 @@
 
         if ( noshift) then
          do iband=brange(1),brange(2)
-           enklisto(kpt_counter,iband) = eigen_un(iband)
+           enklisto(iband,ikpt,isppol) = eigen_un(iband)
            cg(:,:,:) = 0.0
            cg_imag(:,:,:) = 0.0
            do np_counter=1,un_npw
@@ -294,7 +329,7 @@
          enddo
 
          do iband=brange(3),brange(4)
-           enklisto(kpt_counter,iband) = eigen_un(iband)
+           enklisto(iband,ikpt,isppol) = eigen_un(iband)
            cg(:,:,:) = 0.0
            cg_imag(:,:,:) = 0.0
            do np_counter=1,un_npw
@@ -330,7 +365,7 @@
 !
 !  Also, this is a fine time to store the eigenvalues
          do iband=brange(1),brange(2)
-           enklisto(kpt_counter,iband) = eigen_un(iband)
+           enklisto(iband,ikpt,isppol) = eigen_un(iband)
            cg(:,:,:) = 0.0
            cg_imag(:,:,:) = 0.0
            do np_counter=1,un_npw
@@ -362,7 +397,7 @@
 
 
          do iband=brange(3),brange(4)
-           enklistu(kpt_counter,iband-brange(3)+1) = eigen_sh(iband)
+           enklistu(iband-brange(3)+1,ikpt,isppol) = eigen_sh(iband)
            cg(:,:,:) = 0.0
            cg_imag(:,:,:) = 0.0
            do i=1,sh_npw
@@ -422,7 +457,7 @@
 !         close(31)
        enddo 
 
-!      enddo
+      enddo
 !      deallocate(istwfk,nband,npwarr,so_typat,symafm,symrel,typat)
 !      deallocate(kpt,occ,tnons,znucltypat,xred)
       if (.not. noshift) deallocate(kg_shift,eigen_sh)
@@ -444,14 +479,16 @@
 
       open(unit=enkfile,file='enkfile',form=f9,status='unknown')
 !      write(6,*)enklisto
-      do i=1,nkpts
-        if (noshift) then
-          write(enkfile,*) (2*enklisto(i,j),j=brange(1),brange(2))
-          write(enkfile,*) (2*enklisto(i,j),j=brange(3),brange(4))
-        else
-          write(enkfile,*)(2*enklisto(i,j),j=brange(1),brange(2))
-          write(enkfile,*)(2*enklistu(i,j),j=1,brange(4)-brange(3)+1)
-        endif
+      do isppol = 1, nsppol
+        do i=1,nkpts
+          if (noshift) then
+            write(enkfile,*) (2*enklisto(j,i,isppol),j=brange(1),brange(2))
+            write(enkfile,*) (2*enklisto(j,i,isppol),j=brange(3),brange(4))
+          else
+            write(enkfile,*)(2*enklisto(j,i,isppol),j=brange(1),brange(2))
+            write(enkfile,*)(2*enklistu(j,i,isppol),j=1,brange(4)-brange(3)+1)
+          endif
+        enddo
       enddo
       close(enkfile)
       close(36)
@@ -472,4 +509,4 @@
        close(enk_un)
        close(enk_sh)
        close(umklapp)
-      end program wfconvert
+end program wfconvert

@@ -196,7 +196,7 @@ system("$ENV{'OCEAN_BIN'}/makeatompp.x") == 0
 
 my @qe_data_files = ('prefix', 'ppdir', 'work_dir', 'ibrav', 'natoms', 'ntype', 'noncolin',
                      'spinorb', 'ecut', 'occtype', 'degauss', 'etol', 'mixing', 'nrun', 
-                     'trace_tol', 'tot_charge', 'nspin', 'smag', 'ldau', 'ngkpt', 'k0.ipt',
+                     'trace_tol', 'tot_charge', 'nspin', 'ngkpt', 'k0.ipt',
                      'den.kshift', 'obkpt.ipt', 'obf.nbands', 'nkpt', 'nbands', 'paw.nbands',
                      'paw.nkpt' );
 
@@ -235,7 +235,7 @@ $qe_data_files{ "ppdir" } = abs_path( $qe_data_files{ "ppdir" } ) . "/";
 
 
 #QE optional files
-my @qe_opt_files = ('acell', 'coords', 'atompp' );
+my @qe_opt_files = ('acell', 'coords', 'atompp', 'smag', 'ldau' );
 foreach my $file_name (@qe_opt_files)
 {
     open IN, $file_name or die "$file_name:  $!";
@@ -333,24 +333,24 @@ if ($RunESPRESSO) {
      or die "Failed to convert density\n$!\n";
 
   ## find the top of the valence bance
-  system("$ENV{'OCEAN_BIN'}/qeband.x") == 0
+  system("$ENV{'OCEAN_BIN'}/qeband.pl") == 0
      or die "Failed to count bands\n$!\n";
 
-  `grep 1.000 bands.out | wc -l > vb`;
-  my $vb = 0;
-  open BANDS, "vb" or die;
-  $vb = <BANDS>;
-  close BANDS;
+#  `grep 1.000 bands.out | wc -l > vb`;
+#  my $vb = 0;
+#  open BANDS, "vb" or die;
+#  $vb = <BANDS>;
+#  close BANDS;
 
-  my $natoms = `cat natoms`;
-  my $fband = `cat fband`;
-#  $pawnbands = `cat paw.nbands`;
-  my $cb = sprintf("%.0f", $vb - 2*$natoms*$fband);
-  $cb = 1 if ($cb < 1);
-  open BRANGE, ">brange.stub" or die;
-  print BRANGE "1  $vb"
-             . "$cb";
-  close BRANGE;
+#  my $natoms = `cat natoms`;
+#  my $fband = `cat fband`;
+##  $pawnbands = `cat paw.nbands`;
+#  my $cb = sprintf("%.0f", $vb - 2*$natoms*$fband);
+#  $cb = 1 if ($cb < 1);
+#  open BRANGE, ">brange.stub" or die;
+#  print BRANGE "1  $vb"
+#             . "$cb";
+#  close BRANGE;
 
   open STATUS, ">espresso.stat" or die;
   print STATUS "1";
@@ -557,6 +557,12 @@ if ( $nscfRUN ) {
     copy "../Out/$qe_data_files{'prefix'}.save/data-file.xml", "Out/$qe_data_files{'prefix'}.save/data-file.xml";
 
 
+    if( $qe_data_files{'nspin'} == 2 )
+    {
+      copy "../Out/$qe_data_files{'prefix'}.save/spin-polarization.dat", 
+           "Out/$qe_data_files{'prefix'}.save/spin-polarization.dat";
+    }
+
     # kpts
     copy "../nkpt", "nkpt";
     copy "../qinunitsofbvectors.ipt", "qinunitsofbvectors.ipt";
@@ -607,8 +613,8 @@ if ( $nscfRUN ) {
     print "BSE NSCF Run\n";
     print  "$para_prefix $ENV{'OCEAN_ESPRESSO_PW'}  -npool $npool < nscf.in > nscf.out 2>&1\n";
     system("$para_prefix $ENV{'OCEAN_ESPRESSO_PW'}  -npool $npool < nscf.in > nscf.out 2>&1") == 0
-        or die "Failed to run scf stage for Density\n";
-    open OUT, ">nscf.stat" or die "Failed to open scf.stat\n$!";
+        or die "Failed to run nscf stage for BSE wavefunctions\n";
+    open OUT, ">nscf.stat" or die "Failed to open nscf.stat\n$!";
     print OUT "1\n";
     close OUT;
     print "BSE NSCF complete\n";
@@ -642,6 +648,11 @@ if( $obf == 0 )
   copy "../Out/$qe_data_files{'prefix'}.save/charge-density.dat", "Out/$qe_data_files{'prefix'}.save/charge-density.dat";
   copy "../Out/$qe_data_files{'prefix'}.save/data-file.xml", "Out/$qe_data_files{'prefix'}.save/data-file.xml";
 
+  if( $qe_data_files{'nspin'} == 2 )
+  {
+    copy "../Out/$qe_data_files{'prefix'}.save/spin-polarization.dat", 
+         "Out/$qe_data_files{'prefix'}.save/spin-polarization.dat";
+  }
 
   # kpts
   copy "../paw.nkpt", "nkpt";
@@ -697,8 +708,8 @@ if( $obf == 0 )
   print "Screening NSCF Run\n";
   print  "$para_prefix $ENV{'OCEAN_ESPRESSO_PW'}  -npool $npool < nscf.in > nscf.out 2>&1\n";
   system("$para_prefix $ENV{'OCEAN_ESPRESSO_PW'}  -npool $npool < nscf.in > nscf.out 2>&1") == 0
-      or die "Failed to run scf stage for Density\n";
-  open OUT, ">nscf.stat" or die "Failed to open scf.stat\n$!";
+      or die "Failed to run nscf stage for SCREENing wavefunctions\n";
+  open OUT, ">nscf.stat" or die "Failed to open nscf.stat\n$!";
   print OUT "1\n";
   close OUT;
   print "Screening NSCF complete\n";
