@@ -22,7 +22,7 @@ program wfconvert
      &  occ_sh(:),occ_un(:)
       integer, allocatable :: kg_shift(:,:),kg_unshift(:,:),            &
      &   g_occ(:,:,:),gordered(:,:)
-      integer :: brange(4),bandtot,maxband
+      integer :: brange(4),bandtot,maxband, nspin
       integer :: xstart,xend,ystart,yend,zstart,zend
       integer :: xrange,yrange,zrange,np_counter
       integer :: g_un_min(3),g_un_max(3),g_sh_min(3),g_sh_max(3), umk(3)
@@ -30,7 +30,7 @@ program wfconvert
       integer :: files_iter,master_iter,g_iter,nkpts,kpt_counter
       character(len=11) :: wfkin!,wfkout
       character(len=12) :: wfkout
-      double precision, allocatable :: enklisto(:,:),enklistu(:,:)
+      double precision, allocatable :: enklisto(:,:,:),enklistu(:,:,:)
       double precision :: lda_low, lda_high,qval
       double precision :: orthcr,orthci,q1,q2,q3,bv1(3),bv2(3),bv3(3)
       logical :: noshift
@@ -81,6 +81,11 @@ program wfconvert
       read(99,'(a)') dft_flavor
       close(99)
 
+      open(unit=99,file='nspin',form=f9,status='old')
+      read(99,*) nspin
+      close(99)
+
+
       noshift = .false.
       if ( (abs(q1) + abs(q2) + abs(q3) ) .eq. 0 ) noshift = .true.
 
@@ -94,14 +99,14 @@ program wfconvert
       endif
       if (noshift) then
         qval = 1.d0
-        allocate(enklisto(nkpts,brange(4)-brange(1)+1),                 &
-     &         enklistu(nkpts,brange(4)-brange(3)+1))
+        allocate(enklisto(brange(4)-brange(1)+1,nkpts,nspin),                 &
+                 enklistu(brange(4)-brange(3)+1,nkpts,nspin) )
       else
-        allocate(enklisto(nkpts,brange(2)-brange(1)+1),                 &
-     &         enklistu(nkpts,brange(4)-brange(3)+1))
+        allocate(enklisto(brange(2)-brange(1)+1,nkpts,nspin),                 &
+                 enklistu(brange(4)-brange(3)+1,nkpts,nspin ) )
       endif
-        enklisto(:,:) = 0.0
-        enklistu(:,:) = 0.0
+        enklisto(:,:,:) = 0.0
+        enklistu(:,:,:) = 0.0
         open(unit=enk_un, file='enk_un',form=f9,status='unknown')
         open(unit=enk_sh, file='enk_sh',form=f9,status='unknown')
 
@@ -120,11 +125,15 @@ program wfconvert
 
 !   Now iterate over all the run files.
 !   For each run file grab the matching k, k+q pts and write for NBSE
-      do files_iter=1,nfiles
+      do files_iter=1,1  ! nfiles is broken as of now
         select case( dft_flavor )
           case( 'qe' )
             qe_filename = 'Out/system.save/data-file.xml'
             call qehead( qe_filename, maxband, maxnpw, nsppol, nspinor, nkpt, ierr )
+            if( nsppol .ne. nspin ) then
+              write(6,'(a,i1.1,a,i1.1)' ) 'Was expecting spin=',nspin, ' but found spin=', nsppol
+              stop
+            endif
           case default
             call getwfkin(wfkin,files_iter,wfkinfile)
             write(6,*) wfkin
@@ -133,7 +142,8 @@ program wfconvert
         end select
 
         allocate(kg_unshift(3,maxnpw), eigen_un(maxband) )
-        if ( .not. noshift ) allocate(kg_shift(3,maxnpw), eigen_sh(maxband) )
+        !if ( .not. noshift ) 
+        allocate(kg_shift(3,maxnpw), eigen_sh(maxband) )
 
         if (nsppol .ne. 1) then
           if( dft_flavor .ne. 'qe' ) then
@@ -288,7 +298,7 @@ program wfconvert
 
         if ( noshift) then
          do iband=brange(1),brange(2)
-           enklisto(kpt_counter,iband) = eigen_un(iband)
+           enklisto(iband,ikpt,isppol) = eigen_un(iband)
            cg(:,:,:) = 0.0
            cg_imag(:,:,:) = 0.0
            do np_counter=1,un_npw
@@ -319,7 +329,7 @@ program wfconvert
          enddo
 
          do iband=brange(3),brange(4)
-           enklisto(kpt_counter,iband) = eigen_un(iband)
+           enklisto(iband,ikpt,isppol) = eigen_un(iband)
            cg(:,:,:) = 0.0
            cg_imag(:,:,:) = 0.0
            do np_counter=1,un_npw
@@ -355,7 +365,7 @@ program wfconvert
 !
 !  Also, this is a fine time to store the eigenvalues
          do iband=brange(1),brange(2)
-           enklisto(kpt_counter,iband) = eigen_un(iband)
+           enklisto(iband,ikpt,isppol) = eigen_un(iband)
            cg(:,:,:) = 0.0
            cg_imag(:,:,:) = 0.0
            do np_counter=1,un_npw
@@ -387,7 +397,7 @@ program wfconvert
 
 
          do iband=brange(3),brange(4)
-           enklistu(kpt_counter,iband-brange(3)+1) = eigen_sh(iband)
+           enklistu(iband-brange(3)+1,ikpt,isppol) = eigen_sh(iband)
            cg(:,:,:) = 0.0
            cg_imag(:,:,:) = 0.0
            do i=1,sh_npw
@@ -469,14 +479,16 @@ program wfconvert
 
       open(unit=enkfile,file='enkfile',form=f9,status='unknown')
 !      write(6,*)enklisto
-      do i=1,nkpts
-        if (noshift) then
-          write(enkfile,*) (2*enklisto(i,j),j=brange(1),brange(2))
-          write(enkfile,*) (2*enklisto(i,j),j=brange(3),brange(4))
-        else
-          write(enkfile,*)(2*enklisto(i,j),j=brange(1),brange(2))
-          write(enkfile,*)(2*enklistu(i,j),j=1,brange(4)-brange(3)+1)
-        endif
+      do isppol = 1, nsppol
+        do i=1,nkpts
+          if (noshift) then
+            write(enkfile,*) (2*enklisto(j,i,isppol),j=brange(1),brange(2))
+            write(enkfile,*) (2*enklisto(j,i,isppol),j=brange(3),brange(4))
+          else
+            write(enkfile,*)(2*enklisto(j,i,isppol),j=brange(1),brange(2))
+            write(enkfile,*)(2*enklistu(j,i,isppol),j=1,brange(4)-brange(3)+1)
+          endif
+        enddo
       enddo
       close(enkfile)
       close(36)
