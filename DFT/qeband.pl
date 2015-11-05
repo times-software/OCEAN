@@ -6,6 +6,15 @@
 # `License' in the root directory of the present distribution.
 #
 #
+#
+# qeband.pl looks at the SCF run and pulls up the occupation numbers for 
+# all of the k-pts. The tolerance parameter below sets what it considers
+# to be an occupied (for 1 - tolerance ) unoccupied band. This means 
+# that qeband should get a good reading for min and max ranges for metallic 
+# systems as well.
+
+# Output: creates the file brange.stub to which the total number of bands
+#         can be appended to get brange.ipt
 
 use strict;
 
@@ -37,7 +46,7 @@ my @filelist;
 while( 1 )
 {
   die "Parsing $datafile failed\n" unless( my $line = <IN> );
-  if( $line =~ m/<DATAFILE iotk_link=\"(\S+)\">/ )
+  if( $line =~ m/<DATAFILE\.?\d? iotk_link=\"(\S+)\">/ )
   {
     push @filelist, $1;
   }
