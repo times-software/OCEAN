@@ -193,7 +193,6 @@ else
 
 ##### misc other setup
 #`echo gmanner > format65`;
-#`cp nspin nspn.ipt`;
 copy( "kmesh.ipt", "kgrid" ) or die "$!";
 copy( "k0.ipt", "scaledkzero.ipt" ) or die "$!";
 copy( "qinunitsofbvectors.ipt", "cksdq" ) or die "$!";
