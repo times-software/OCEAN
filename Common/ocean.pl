@@ -196,7 +196,7 @@ elsif( $script_pre eq 'qe' )
 	print "$Separator\n";
   print "Entering QESPRESSO stage\n";
   chdir "DFT";
-  system("$OCEAN_BIN/QespressoDriver.pl") == 0 or die "Qespresso Stage Failed\n";
+  system("$OCEAN_BIN/dft.pl") == 0 or die "Qespresso Stage Failed\n";
   chdir "../";
 }
 else
