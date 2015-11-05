@@ -56,13 +56,15 @@
    open( unit=u1dat, file='u1.dat', form='unformatted', status='unknown' )
    rewind u1dat
    iwfile = 1
+   k = 0
    do ispin = 1, nspin
      do i = 1, nk
+        k = k + 1
         open( unit=99, file='prog', form='formatted', status='unknown' )
         rewind 99
         write ( 99, '(2x,1a6,3x,2i5)' ) 'conv03g', i,nk
         close( unit=99 )
-        if ( i .eq. ikl( 1, iwfile ) ) then
+        if ( k .eq. ikl( 1, iwfile ) ) then
            if( is_jdftx ) then
   !JTV need to figure out more compliant way of doing this. GCC (4.7) doesn't support form='binary'
             stop
@@ -106,7 +108,7 @@
         endif
 
         call gentoreal( nx, nb, zr, zi, ng, g, u1dat, i .eq. 1 )
-        if ( i .eq. ikl( 2, iwfile ) ) then
+        if ( k .eq. ikl( 2, iwfile ) ) then
            deallocate( g, zr, zi )
            iwfile = iwfile + 1
         end if
