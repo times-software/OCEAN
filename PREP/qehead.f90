@@ -73,15 +73,15 @@ subroutine qehead( datafile, maxband, maxnpw, nspin, nspinor, nkpt, ierr )
   endif
 
 
-  if( nspin .eq. 1 ) then
+!  if( nspin .eq. 1 ) then
     call iotk_scan_dat( 99, "NUMBER_OF_BANDS", maxband, IERR=ierr )
     if( ierr .ne. 0 ) return
-  elseif( nspin .eq. 2 ) then
+!  elseif( nspin .eq. 2 ) then
     ! Not sure yet
-  else
-    ierr = -1
-    return
-  endif
+!  else
+!    ierr = -1
+!    return
+!  endif
 
   call iotk_scan_end( 99, "BAND_STRUCTURE_INFO", IERR=ierr )
   if( ierr .ne. 0 ) then
