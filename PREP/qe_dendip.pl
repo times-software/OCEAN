@@ -210,8 +210,9 @@ unless( -e "BSE/done" && -e "${rundir}/old" ) {
   system("$ENV{'OCEAN_BIN'}/wfconvert.x system") == 0 
     or die "Failed to run wfconvert.x\n";
 
-#KG#  system("$ENV{'OCEAN_BIN'}/ofermi.pl") == 0
-#KG#    or die "Failed to run ofermi.pl\n";
+  system("$ENV{'OCEAN_BIN'}/ofermi.pl") == 0
+    or die "Failed to run ofermi.pl\n";
+
   `cp eshift.ipt ../`;
   system("cp efermiinrydberg.ipt ../") == 0 
     or die "Failed to copy efermiinrydberg.ipt\n";
