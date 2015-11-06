@@ -299,7 +299,7 @@ else  ### Abi/QE w/o obf
     if( $is_xas == 1 )
     {
       $run_text = 'XAS';
-      $nbuse = $brange[3] - $brange[2] + 1;
+      $nbuse = $brange[3] - $brange[1];
     }
     else
     {
