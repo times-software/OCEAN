@@ -34,7 +34,7 @@ $oldden = 1 if (-e "../DFT/old");
 
 
 my @AbFiles = ( "rhoofr", "density.out", "nkpt", "paw.nkpt", "qinunitsofbvectors.ipt");
-my @CommonFiles = ( "avecsinbohr.ipt", "nspin", "xmesh.ipt" );
+my @CommonFiles = ( "avecsinbohr.ipt", "nspin", "xmesh.ipt", "dft", "nspin" );
 
 foreach (@AbFiles) {
   system("cp ../DFT/$_ .") == 0 or die "Failed to copy $_\n";
@@ -88,21 +88,9 @@ foreach ("Nfiles", "kmesh.ipt", "brange.ipt", "qinunitsofbvectors.ipt" ) {
 }
 #`cp ../qinunitsofbvectors.ipt .`;
 `cp ../bvecs .`;
+`cp ../dft .`;
+`cp ../nspin .`;
 `cp ../${rundir}/umklapp .`;
-open BRANGE, "brange.ipt";
-my @brange;
-<BRANGE> =~ m/(\d+)\s+(\d+)/;
-$brange[0] = $1;
-$brange[1] = $2;
-<BRANGE> =~ m/(\d+)\s+(\d+)/;
-$brange[2] = $1;
-$brange[3] = $2;
-close BRANGE;
-my $nelectron = `cat ../nelectron`;
-open BRANGE, ">brange.ipt";
-print BRANGE "1  " . $nelectron/2 . "\n";
-print BRANGE $nelectron/2+1 . "    $brange[3]\n";
-close BRANGE;
 
 my $Nfiles = `cat Nfiles`;
 my $runfile;
@@ -145,24 +133,11 @@ foreach ("Nfiles", "kmesh.ipt", "brange.ipt") {
 }
 `cp ../qinunitsofbvectors.ipt .`;
 `cp ../bvecs .`;
+`cp ../dft .`;
+`cp ../nspin .`;
 `cp ../nelectron .`;
 `cp ../${rundir}/umklapp .`;
 my $Nfiles = `cat Nfiles`;
-
-open BRANGE, "brange.ipt";
-my @brange;
-<BRANGE> =~ m/(\d+)\s+(\d+)/;
-$brange[0] = $1;
-$brange[1] = $2;
-<BRANGE> =~ m/(\d+)\s+(\d+)/;
-$brange[2] = $1;
-$brange[3] = $2;
-close BRANGE;
-my $nelectron = `cat ../nelectron`;
-open BRANGE, ">brange.ipt";
-print BRANGE "1  " . $nelectron/2 . "\n";
-print BRANGE $nelectron/2+1 . "    $brange[3]\n";
-close BRANGE;
 
 
 my $runfile;

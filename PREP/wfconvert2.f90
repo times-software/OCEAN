@@ -145,12 +145,6 @@ program wfconvert
         !if ( .not. noshift ) 
         allocate(kg_shift(3,maxnpw), eigen_sh(maxband) )
 
-        if (nsppol .ne. 1) then
-          if( dft_flavor .ne. 'qe' ) then
-            write(6,*) "Spin stuff is currently not supported by AI2NBSE"
-           stop 'problem with nsppol ne 1'
-          endif
-        endif
         if (nspinor .ne. 1 ) then
          write(6,*) "Spinor stuff is currently not supported by AI2NBSE"
          stop 'problem with nspinor ne 1'

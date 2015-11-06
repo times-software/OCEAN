@@ -79,20 +79,6 @@ foreach ("Nfiles", "kmesh.ipt", "brange.ipt", "qinunitsofbvectors.ipt" ) {
 `cp ../bvecs .`;
 `cp ../dft .`;
 `cp ../nspin .`;
-open BRANGE, "brange.ipt";
-my @brange;
-<BRANGE> =~ m/(\d+)\s+(\d+)/;
-$brange[0] = $1;
-$brange[1] = $2;
-<BRANGE> =~ m/(\d+)\s+(\d+)/;
-$brange[2] = $1;
-$brange[3] = $2;
-close BRANGE;
-my $nelectron = `cat ../nelectron`;
-open BRANGE, ">brange.ipt";
-print BRANGE "1  " . $nelectron/2 . "\n";
-print BRANGE $nelectron/2+1 . "    $brange[3]\n";
-close BRANGE;
 
 my $prefix;
 open PREFIX, "../../Common/prefix";
@@ -119,19 +105,7 @@ elsif( -e "Out" ) #or Out is some other file
 print "../$rundir/Out\n";
 symlink ("../$rundir/Out", "Out") == 1 or die "Failed to link Out\n$!";
 
-# make prep.in
 
-#open  PREP, ">prep.in";
-#print PREP  "&input\n";
-#print PREP  "  prefix = '";
-#print PREP  ${prefix};
-#print PREP  "'\n";
-#print PREP  "  work_dir = './Out'\n";
-#print PREP  "/\n";
-#close PREP;
-
-
-#system("$ENV{'OCEAN_BIN'}/qe_wfconvert.x ${prefix}") == 0 
 system("$ENV{'OCEAN_BIN'}/wfconvert.x") == 0 
   or die "Failed to run wfconvert.x\n$!";
 
