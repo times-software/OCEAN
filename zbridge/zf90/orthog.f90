@@ -13,7 +13,7 @@ program orthog
   integer :: ix, ik, ib, ibp, nx, nk, nb, nbv, ispin, nspin
   real( kind = kind( 1.0d0 ) ) :: x
   complex( kind = kind( 1.0d0 ) ) :: w
-  complex( kind = kind( 1.0d0 ) ), allocatable :: uu(:,:,:), u(:,:), v(:,:)
+  complex( kind = kind( 1.0d0 ) ), allocatable :: uu(:,:,:,:), u(:,:), v(:,:)
   !
   call dptest
   !
@@ -28,14 +28,16 @@ program orthog
   call igetval( irgth, 'irgth' )
   call igetval( nspin, 'nspin' )
   close( unit=99 )
-  allocate( uu( nx, nb, nk ), u( nx, nb ), v( nx, nb ) )
+  allocate( uu( nx, nb, nk, nspin ), u( nx, nb ), v( nx, nb ) )
   ! 
   open( unit=u1dat, file='u1.dat', form='unformatted', status='unknown' )
   rewind u1dat 
-  do ik = 1, nk
-     do ib = 1, nb
-        read ( u1dat ) uu( : , ib, ik )
-     end do
+  do ispin = 1, nspin
+    do ik = 1, nk
+       do ib = 1, nb
+          read ( u1dat ) uu( : , ib, ik, ispin )
+       end do
+    end do
   end do
   close( unit=u1dat )
   !
@@ -47,7 +49,7 @@ program orthog
        rewind 99
        write ( 99, '(2x,2i6,2x,2i2)' ) ik, nk, ispin, nspin
        close( unit=99 )
-       u( :, : ) = uu( :, :, ik )
+       u( :, : ) = uu( :, :, ik, ispin )
        do ib = 1, nb
           if( ik .eq. 1 ) then
             w = dot_product( u( :, ib ), u( :, ib ) )
