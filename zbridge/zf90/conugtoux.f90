@@ -9,7 +9,7 @@
    implicit none
    !
    integer, parameter :: u1dat = 22, iwf = 23
-   integer :: nk, nb, nx( 3 ), ng, i, nwfile, iwfile, filsize, j, k, nspin, ispin
+   integer :: nk, nb, nx( 3 ), ng, i, nwfile, iwfile, j, k, nspin, ispin
    integer, allocatable :: g( :, : ), ikl( :, : ), flip_g( :, : )
    real( kind = kind( 1.0d0 ) ), allocatable :: zr( :, : ), zi( :, : )
    real(kind=kind(1.0d0)) :: su
@@ -62,7 +62,7 @@
         k = k + 1
         open( unit=99, file='prog', form='formatted', status='unknown' )
         rewind 99
-        write ( 99, '(2x,1a6,3x,2i5)' ) 'conv03g', i,nk
+        write ( 99, '(2x,1a6,3x,4i5)' ) 'conv03g', i,nk, ispin, nspin
         close( unit=99 )
         if ( k .eq. ikl( 1, iwfile ) ) then
            if( is_jdftx ) then
@@ -107,7 +107,7 @@
           write(6,*) 'Norm:', su
         endif
 
-        call gentoreal( nx, nb, zr, zi, ng, g, u1dat, i .eq. 1 )
+        call gentoreal( nx, nb, zr, zi, ng, g, u1dat, ( ( i .eq. 1) .and. ( ispin .eq. 1 ) ) )
         if ( k .eq. ikl( 2, iwfile ) ) then
            deallocate( g, zr, zi )
            iwfile = iwfile + 1
