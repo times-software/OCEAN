@@ -395,7 +395,7 @@ subroutine cainkset( avec, bvec, bmet, prefs )
   endif
   open( unit=99, file=infoname, form=u11, status=u7 )
   rewind 99
-  write ( 99 ) nbd, zn(1)*zn(2)*zn(3)
+  write ( 99 ) nbd, zn(1)*zn(2)*zn(3), nspin
   write ( 99 ) e0( : )
   close( unit=99 )
   if (conduct) then
@@ -410,12 +410,14 @@ subroutine cainkset( avec, bvec, bmet, prefs )
   close( unit=99 )
 
   !
+  ! For easy accounting spin was glommed on to ntot, but we need to pull it out now
+  ntot = ntot / nspin
   ! output information site specific, i.e. Bloch fcn overlap with projectors
   do itau = 1, ntau
      write ( 6, * ) ' ... ', itau, ntau, fntau( itau )
      open( unit=99, file=fntau( itau ), form=u11, status=u7 )
      rewind 99
-     write ( 99 ) nptot, ntot
+     write ( 99 ) nptot, ntot, nspin
      write ( 99 ) tau( :, itau )
      write ( 99 ) pcoefr( :, :, itau )
      write ( 99 ) pcoefi( :, :, itau )
