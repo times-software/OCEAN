@@ -427,3 +427,7 @@ ser_bse
 {
 0
 } serbse
+spin_orbit
+{
+-1
+} spin_orbit

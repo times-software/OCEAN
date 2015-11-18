@@ -25,7 +25,7 @@ my @CommonFiles = ("epsilon", "xmesh.ipt", "nedges", "k0.ipt", "nbuse.ipt",
   "cnbse.niter", "cnbse.spect_range", "cnbse.broaden", "cnbse.mode", "nphoton", "dft", 
   "para_prefix", "cnbse.strength", "serbse", "core_offset", "avecsinbohr.ipt", 
   "cnbse.solver", "cnbse.gmres.elist", "cnbse.gmres.erange", "cnbse.gmres.nloop", 
-  "cnbse.gmres.gprc", "cnbse.gmres.ffff" );
+  "cnbse.gmres.gprc", "cnbse.gmres.ffff", "spin_orbit" );
 
 my @DFTFiles = ("nelectron");
 
@@ -635,12 +635,25 @@ my $filename = sprintf("deflinz%03un%02ul%02u", $znum, $nnum, $lnum);
 open TMPFILE, $filename or die "Failed to open $filename\n";
 $line = <TMPFILE>;
 close TMPFILE;
-
 print INFILE $line;
-my $lookup = sprintf("%1u%1s", $nnum, $alphal{$lnum}) or die;
-my $filename = sprintf("corezetaz%03u", $znum);
-print "$lookup\t$filename\n";
-$line = `grep $lookup $filename`;
+
+# spin orbit splitting
+open IN, "spin_orbit" or die "Failed to open spin_orbit\n$!";
+my $spin_orbit = <IN>;
+chomp $spin_orbit;
+
+if( $spin_orbit < 0 )
+{
+	my $lookup = sprintf("%1u%1s", $nnum, $alphal{$lnum}) or die;
+	my $filename = sprintf("corezetaz%03u", $znum);
+	print "$lookup\t$filename\n";
+	$line = `grep $lookup $filename`;
+}
+else
+{
+	print "Overiding spin-orbit splitting! Using: $spin_orbit (eV)\n";
+  $line = "$spin_orbit\n";
+}
 print INFILE $line;
 
 open TMPFILE, "cnbse.niter" or die "Failed to open niter\n";
@@ -730,6 +743,7 @@ if( $run_serial == 1)
     system("$ENV{'OCEAN_BIN'}/cainmultip.x < bse.in > cm.log") == 0 
           or die "Failed to run cainmultip. Run count = $run_count\n";
 
+		my $lookup = sprintf("%1u%1s", $nnum, $alphal{$lnum}) or die;
     my $store_string = sprintf("%2s.%04i_%2s_%02i", $elname, $elnum, $lookup, $i);
     if( $is_xas == 1 ) 
     {
