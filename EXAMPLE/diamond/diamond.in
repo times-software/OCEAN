@@ -1,5 +1,5 @@
-cnbse.solver gmres
-cnbse.gmres.elist { 1.0 }
+#cnbse.solver gmres
+#cnbse.gmres.elist { 1.0 }
 control 0
 core 8
 ngkpt { 8 8 8 }
@@ -39,3 +39,4 @@ paw.fill{ 6 c.fill }
 nedges 2
 edges{ 1 1 0 
        2 1 0 }
+cnbse.broaden 0.25
