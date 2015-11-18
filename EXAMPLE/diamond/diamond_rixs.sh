@@ -2,21 +2,25 @@
 
 OCEAN_BIN=/home/jtv1/bin/intel/rixs_test2/
 
+## Run for XAS
 echo "Running bse for spectra"
-# $OCEAN_BIN/ocean.pl diamond.in
+$OCEAN_BIN/ocean.pl diamond.in
+
+mv CNBSE CNBSE_spect
+##  
 
 
-##
-#mv CNBSE CNBSE_spect
 mkdir CNBSE
 
-# Run XES
+## Run XES
 echo xes > Common/cnbse.mode
 cd CNBSE
 $OCEAN_BIN/cnbse_mpi.pl > xes.log
 cd ..
+##
 
 
+## Calculate excitons
 echo xas > Common/cnbse.mode
 echo 1 > Common/nphoton
 # switch to gmres
@@ -30,6 +34,7 @@ echo "Running bse for excitons"
 cd CNBSE
 $OCEAN_BIN/cnbse_mpi.pl > cnbse.log
 cd ..
+##
 
 
 echo "Running RIXS w/ ai2nbse"
