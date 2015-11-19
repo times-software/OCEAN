@@ -173,7 +173,7 @@ if( $solver eq 'gmres' )
   }
   elsif( $have_erange + $have_elist == 0 )
   {
-    print "Neither elist nor erange were specified for GMRE!!\nFalling back to Haydock\n";
+    print "Neither elist nor erange were specified for GMRES!\nFalling back to Haydock\n";
     $solver = 'hay';
   }
 }
