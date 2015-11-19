@@ -396,7 +396,7 @@ subroutine OCEAN_bofx( )
       offset = offset * long_b
 !      offset = offset * long_x
       call par_gentoreal( xmesh, nband, unk, npw, mill, offset, invert_xmesh, loud, ibeg(ikpt,ispin) )  
-    !  loud = .false.
+      loud = .false.
       write(stdout,*) ikpt, offset
   
 
