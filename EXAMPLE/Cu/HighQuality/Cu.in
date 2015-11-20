@@ -1,13 +1,13 @@
 control 0
 metal .true.
-para_prefix {mpirun -n 48 }
+para_prefix {mpirun -n 96 }
 ppdir { '../' }
-nkpt { 8 8 8 }
+nkpt { 10 10 10 }
 paw.nkpt{ 2 2 2 }
-ngkpt{ 10 10 10 }
+ngkpt{ 16 16 16 }
 fband 3
 occopt 3
-nbands 35
+nbands 40
 paw.nbands 200
 acell { 6.821910819 6.821910819 6.821910819 } 
 # 3.61 Angstroms, Ashcrof & Mermin
@@ -22,7 +22,8 @@ natom 1
 typat { 1  }
 xred {  0      0      0 }
 
-ecut 200
+#ecut 180
+ecut 360
 toldfe 1.1d-6
 tolwfr 1.1d-16
 nstep 50
