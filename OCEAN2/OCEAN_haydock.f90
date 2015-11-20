@@ -628,6 +628,9 @@ module OCEAN_action
   end subroutine
 
   subroutine OCEAN_hay_ab( sys, psi, hpsi, old_psi, iter, ierr )
+#ifdef __HAVE_F03
+    use, intrinsic :: ieee_arithmetic, only: ieee_is_nan
+#endif
     use OCEAN_system
     use OCEAN_psi
     use OCEAN_mpi
@@ -698,6 +701,15 @@ module OCEAN_action
 !      write ( 6, '(2x,2f10.6,10x,1e11.4,8x,i6)' ) a(iter-1), b(iter), imag_a, iter
       write ( 6, '(2x,2f20.6,10x,1e11.4,8x,i6)' ) real_a(iter-1), b(iter), imag_a(iter-1), iter
       if( mod( iter, 10 ) .eq. 0 ) call haydump( iter, sys, ierr )
+#ifdef __HAVE_F03
+      if( ieee_is_nan( real_a(iter-1) ) ) then
+#else
+      if( real_a(iter-1) .ne. real_a(iter-1) ) then
+#endif
+        write(6,*) 'NaN detected'
+        ierr = -1
+      endif
+
 !      call haydump( iter, sys, ierr )
     endif
 

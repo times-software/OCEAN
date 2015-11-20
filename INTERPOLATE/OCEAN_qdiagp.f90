@@ -359,12 +359,12 @@
       max_val = nelectron / 2 + 10
   end select
   if( have_kshift ) then
-    allocate( tmels( max_val, band_subset( 1 ) : band_subset( 2 ), kpt%list%nk ) )
-    tmels = 0.0d0
-!    allocate( tmp_eigvec( desc_cyclic(M_), desc_cyclic(N_) ) )
-    call descinit( desc_tmels,  max_val, band_subset( 2 )-band_subset( 1 )+1, &
-                                max_val, band_subset( 2 )-band_subset( 1 )+1, &
-                   0, 0, context_cyclic, max_val, ierr )
+!    allocate( tmels( max_val, band_subset( 1 ) : band_subset( 2 ), kpt%list%nk ) )
+!    tmels = 0.0d0
+!!    allocate( tmp_eigvec( desc_cyclic(M_), desc_cyclic(N_) ) )
+!    call descinit( desc_tmels,  max_val, band_subset( 2 )-band_subset( 1 )+1, &
+!                                max_val, band_subset( 2 )-band_subset( 1 )+1, &
+!                   0, 0, context_cyclic, max_val, ierr )
 
 ! dec 3
 !    tmp_eig_n = numroc( max_val, desc_cyclic(NB_), mycol, 0, npcol )
@@ -542,11 +542,6 @@
 
   ! Find start bands and save out energyfile
   
-  ! Possibly having problems with the non-blocking
-  if( mypoolid .eq. mypoolroot ) then
-    call mp_sum( e0, cross_pool_comm )
-  endif
-  
 #ifdef FALSE
   if( ionode ) then
     do ispin = 1, nspin
@@ -567,6 +562,11 @@
                        cross_pool_comm, MPI_STATUS_IGNORE, ierr )
       enddo
     enddo
+  endif
+#else
+  ! Possibly having problems with the non-blocking
+  if( mypoolid .eq. mypoolroot ) then
+    call mp_sum( e0, cross_pool_comm )
   endif
 #endif
 
@@ -694,6 +694,7 @@
 !    mpiio_workaround = .false.
 !  endif
 
+  mpiio_workaround = .true.
   if( mypoolid .eq. mypoolroot ) then 
     if( .not. mpiio_workaround ) then
 
@@ -780,6 +781,7 @@
     
     call MPI_FILE_CLOSE( fheig, ierr )
 
+    call MPI_TYPE_FREE( file_type, ierr )
 
   elseif( .true. ) then
 
@@ -930,6 +932,7 @@
     !  so that we can get optimized file writing
     call MPI_FILE_SET_VIEW( fheig, offset, basis_vector_type, &
                             file_type, 'native', MPI_INFO_NULL, ierr )
+
     if( ierr/=0 ) then
       errorcode=ierr
       call MPI_ERROR_STRING( errorcode, string, resultlen, ierr )
@@ -982,6 +985,148 @@
     write(iuntmp,*) nbasis_subset
   endif
 
+
+
+! Need to calculate and write tmels
+  if( have_kshift ) then
+
+    write(stdout,*) 'Calculating tmels'
+
+    val_band = brange(2) - brange(1) + 1
+    nband = brange(4) - brange(3) + 1
+
+    write(stdout,*) val_band, nband
+
+    if( mypoolid == mypoolroot ) then
+      allocate( tmels( val_band, nband, pool_tot_k ) )
+    else
+      allocate( tmels( 1, 1, pool_tot_k ) )
+    endif
+!    tmels = 0.0d0
+    call descinit( desc_tmels, val_band, nband, val_band, nband, 0, 0, context_cyclic, val_band, ierr )
+
+    pool_ik = 0
+    do ispin=1,nspin
+      do ik = 1, kpt%list%nk
+        if( mod((ik-1)+(ispin-1)*kpt%list%nk,npool)/=mypool ) cycle
+
+        pool_ik = pool_ik + 1
+
+        call PZGEMM( 'C', 'N', val_band, nband, nbasis, one, &
+                     store_eigvec( 1, 1, pool_ik, 1 ), 1, brange(1), desc_cyclic, &
+                     store_eigvec( 1, 1, pool_ik, 2 ), 1, brange(3), desc_cyclic, &
+                     zero, tmels( 1, 1, pool_ik ), 1, 1, desc_tmels )
+
+      enddo
+    enddo
+
+    if( mypoolid == mypoolroot ) then
+      write(stdout,*) "Writing out tmels"
+
+      if( .false. ) then 
+        ndims = 2
+        dims = (/ 1, npool /)
+        array_of_gsizes = (/ val_band * nband, nspin * kpt%list%nk /)
+        array_of_distribs = (/ MPI_DISTRIBUTE_CYCLIC, MPI_DISTRIBUTE_CYCLIC /)
+        array_of_dargs = (/ val_band * nband, 1 /)
+        !
+        CALL MPI_TYPE_CREATE_DARRAY( npool, pool_rank, ndims, array_of_gsizes, array_of_distribs, array_of_dargs, &
+                                     dims, MPI_ORDER_FORTRAN, MPI_DOUBLE_COMPLEX, file_type, ierr )
+        if( ierr/=0 ) then
+          errorcode=ierr
+          call MPI_ERROR_STRING( errorcode, string, resultlen, ierr )
+          call errore("Create DARRAY",string,errorcode)
+        endif
+
+        CALL MPI_TYPE_COMMIT( file_type, ierr )
+        if( ierr/=0 ) then
+          errorcode=ierr
+          call MPI_ERROR_STRING( errorcode, string, resultlen, ierr )
+          call errore("Commit filetype",string,errorcode)
+        endif
+
+        fmode = IOR(MPI_MODE_CREATE,MPI_MODE_WRONLY)
+        fmode = IOR(fmode, MPI_MODE_UNIQUE_OPEN)
+
+        call MPI_FILE_OPEN( cross_pool_comm, 'ptmels.dat', fmode, MPI_INFO_NULL, fhtmels, ierr )
+        if( ierr/=0 ) then
+          errorcode=ierr
+          call MPI_ERROR_STRING( errorcode, string, resultlen, ierr )
+          call errore("Open eigvecs.dat",string,errorcode)
+        endif
+        offset=0
+        call MPI_FILE_SET_VIEW( fhtmels, offset, MPI_DOUBLE_COMPLEX, &
+                                file_type, 'native', MPI_INFO_NULL, ierr )
+        if( ierr/=0 ) then
+          errorcode=ierr
+          call MPI_ERROR_STRING( errorcode, string, resultlen, ierr )
+          call errore("Set view fhtmels",string,errorcode)
+        endif
+
+        call MPI_TYPE_SIZE( file_type, locsize, ierr )
+        nelements = locsize / 16
+
+        call OCEAN_t_reset
+        call MPI_FILE_WRITE_ALL( fhtmels, tmels, nelements, MPI_DOUBLE_COMPLEX, mpistatus, ierr )
+        call OCEAN_t_printtime( "File out", stdout)
+        write(6,*) nbasis * nband * nspin * kpt%list%nk / 64
+
+        call MPI_FILE_CLOSE( fhtmels, ierr )
+
+        call MPI_TYPE_FREE( file_type, ierr )
+
+      else
+
+
+        fmode = IOR(MPI_MODE_CREATE,MPI_MODE_WRONLY)
+        fmode = IOR(fmode, MPI_MODE_UNIQUE_OPEN)
+        call MPI_FILE_OPEN( cross_pool_comm, 'ptmels.dat', fmode, MPI_INFO_NULL, fhtmels, ierr )
+        if( ierr/=0 ) then
+          errorcode=ierr
+          call MPI_ERROR_STRING( errorcode, string, resultlen, ierr )
+          call errore("Open ptmels.dat",string,errorcode)
+        endif
+        offset=0
+        !JTV At this point it would be good to create a custom MPI_DATATYPE
+        !  so that we can get optimized file writing
+        call MPI_FILE_SET_VIEW( fhtmels, offset, MPI_DOUBLE_COMPLEX, MPI_DOUBLE_COMPLEX, &
+                                'native', MPI_INFO_NULL, ierr )
+        if( ierr/=0 ) then
+          errorcode=ierr
+          call MPI_ERROR_STRING( errorcode, string, resultlen, ierr )
+          call errore("Set view fheig",string,errorcode)
+        endif
+
+        nelements = val_band * nband
+
+        pool_ik = 0
+        do ispin = 1, nspin
+          do ik = 1, kpt%list%nk
+
+            if( mod((ik-1)+(ispin-1)*kpt%list%nk,npool)/=mypool ) cycle
+
+            offset = int( ik-1 + (ispin-1)*kpt%list%nk, MPI_OFFSET_KIND ) * int( nband, MPI_OFFSET_KIND ) & 
+                   * int( val_band, MPI_OFFSET_KIND )
+            pool_ik = pool_ik + 1
+
+            call MPI_FILE_WRITE_AT( fhtmels, offset, tmels(1,1,pool_ik), nelements, MPI_DOUBLE_COMPLEX, MPI_STATUS_IGNORE, ierr )
+
+          enddo
+        enddo
+        call MPI_FILE_CLOSE( fhtmels, ierr )
+      endif
+    endif
+    
+    if( ionode ) then
+
+      open(unit=iuntmp,file='tmels.info',form='formatted',status='unknown')
+      rewind(iuntmp)
+      write(iuntmp,*) val_band, brange(3), brange(4), kpt%list%nk
+      close(iuntmp)
+    endif
+
+    
+  endif
 
 
 #ifdef FALSE
@@ -1666,6 +1811,8 @@
         do j = 1, 3
           do ibd = brange( 1 ), brange( 2 )
             do i = brange( 3 ), brange( 4 )
+
+    val_band a 
               write( iuntmp, '(2(1x,1e22.15))' ) 0.0, 0.0
             enddo
           enddo

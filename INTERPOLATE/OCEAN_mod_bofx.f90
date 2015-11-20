@@ -155,7 +155,13 @@ module OCEAN_bofx_mod
     USE mp, ONLY : mp_sum, mp_max, mp_min,  mp_bcast
     use mpi
     use OCEAN_timer
+#if defined( __FFTW3 ) && defined( __HAVE_F03 )
+    use, intrinsic :: iso_c_binding
     implicit none
+    include 'fftw3.f03'
+#else
+    implicit none
+#endif
     !
     integer, intent( in ) :: nx( 3 ), nfcn, ng
     integer, intent( in ) :: gvec( 3, ng )
@@ -187,6 +193,10 @@ module OCEAN_bofx_mod
     integer, allocatable :: band_block(:), tags(:), band_start(:), &
                             my_send_request(:), my_recv_request(:), u2_recv(:), u2_send(:)
     complex(dp), allocatable :: fcn_buffer(:,:)
+#if defined( __FFTW3 ) && defined( __HAVE_F03 )
+    complex(C_DOUBLE_COMPLEX), allocatable :: zc(:,:,:)
+    type(C_PTR) :: plan
+#endif
 
     logical, parameter :: try_nonblock = .true.
     logical, parameter :: single_io = .false.
@@ -312,15 +322,26 @@ module OCEAN_bofx_mod
 
     if( loud ) then 
       call OCEAN_t_printtime( "fcn_buffer", stdout )
-      call OCEAN_t_reset
     endif
+    call OCEAN_t_reset
 
     !
+#if defined( __FFTW3 ) && defined( __HAVE_F03 )
+    allocate( zc( nfft( 1 ), nfft( 2 ), nfft( 3 ) ) )
+    ! reverse ordering for array
+    plan = fftw_plan_dft_3d( nfft(3), nfft(2), nfft(1), zc, zc, FFTW_BACKWARD, FFTW_ESTIMATE )
+    write( stdout, * ) 'using fft'
+#else
     allocate( zr( nfft( 1 ), nfft( 2 ), nfft( 3 ) ) )!, band_block( me_pool) )
     allocate( zi( nfft( 1 ), nfft( 2 ), nfft( 3 ) ) )!, band_block( me_pool) )
+#endif
   !  do i = 1, nfcn
     do i = 1, band_block( me_pool )
+#if defined( __FFTW3 ) && defined( __HAVE_F03 )
+       zc( :, :, : ) = 0.0d0
+#else
        zr( :, :, : ) = 0.0d0; zi( :, :, : ) = 0.0d0
+#endif
        fstr = '(3(1a1,2i8,2x),1a5,2i8)'
        ii = i + band_start( me_pool ) - 1
        do ig = 1, ng
@@ -331,8 +352,12 @@ module OCEAN_bofx_mod
           i3 = 1 + gvec( 3, ig )
           if ( i3 .le. 0 ) i3 = i3 + nfft( 3 )
 
+#if defined( __FFTW3 ) && defined( __HAVE_F03 )
+          zc( i1, i2, i3 ) = fcn( ig, ii )
+#else
           zr( i1, i2, i3 ) = real( fcn( ig, ii ) )
           zi( i1, i2, i3 ) = aimag( fcn( ig, ii ) )
+#endif 
           if ( loud .and. ( ig .le. 10 ) .and. ( ii .le. 3 ) ) then
              if ( loud ) write ( stdout, fstr ) 'x', gvec( 1, ig ), i1,  &
                                'y', gvec( 2, ig ), i2, 'z', gvec( 3, ig ), i3, 'ig, i', ig, ii
@@ -360,17 +385,26 @@ module OCEAN_bofx_mod
           if ( i2 .le. 0 ) i2 = i2 + nfft( 2 )
           i3 = 1 + gvecs_global( 3, ig, j )
           if ( i3 .le. 0 ) i3 = i3 + nfft( 3 )
+#if defined( __FFTW3 ) && defined( __HAVE_F03 )
+          zc( i1, i2, i3 ) = fcn_buffer( ig_full, j )
+#else
           zr( i1, i2, i3 ) = real( fcn_buffer( ig_full, j ) )
           zi( i1, i2, i3 ) = aimag( fcn_buffer( ig_full, j ) )
+#endif
         enddo
 
       enddo
 
 
   !     if( me_pool .eq. root_pool ) then
+#if defined( __FFTW3 ) && defined( __HAVE_F03 )
+       call fftw_execute_dft( plan, zc, zc )
+!       zc(:,:,:) = zc(:,:,:) / sqrt(dble( nftot ) )
+#else
        call cfft( zr, zi, nfft( 1 ), nfft( 1 ), nfft( 2 ), nfft( 3 ), toreal, wrk, idwrk )
        zr = zr / dble( nftot ) ** normreal
        zi = zi / dble( nftot ) ** normreal
+#endif
        ii = 0 
        fstr = '(2(1a9,3i5,5x),1a9,2(1x,1e15.8))'
        do iz = 1, nx( 3 ) 
@@ -383,12 +417,24 @@ module OCEAN_bofx_mod
                 if ( loud .and. ( ii .le. 10 ) .and. ( i .le. 3 ) ) then
                    write ( stdout, fstr ) 'mesh ind.', i1, i2, i3,  &
                                           'cell ind.', ix, iy, iz,  &
+#if defined( __FFTW3 ) && defined( __HAVE_F03 )
+                                          'value = ', zc( i1, i2, i3 )
+#else
                                           'value = ', zr( i1, i2, i3 ), zi( i1, i2, i3 )
+#endif
                 end if
                 if( invert_xmesh ) then 
+#if defined( __FFTW3 ) && defined( __HAVE_F03 )
+                  cres( iz, iy, ix, i ) = zc( i1, i2, i3 )
+#else
                   cres( iz, iy, ix, i ) = zr( i1, i2, i3 ) + rm1 * zi( i1, i2, i3 )
-                else
+#endif
+              else
+#if defined( __FFTW3 ) && defined( __HAVE_F03 )
+                  cres( ix, iy, iz, i ) = zc( i1, i2, i3 )
+#else
                   cres( ix, iy, iz, i ) = zr( i1, i2, i3 ) + rm1 * zi( i1, i2, i3 )
+#endif
                 endif
              end do
           end do
@@ -405,7 +451,7 @@ module OCEAN_bofx_mod
 
     do i = 1, band_block( me_pool )
       normreal =  DZNRM2( product(nx), cres( 1, 1, 1, i ), 1 )
-  !    if( loud ) write(stdout,*) normreal, i
+      if( loud ) write(stdout,*) normreal, i
       normreal = 1.0_dp / normreal
       call ZDSCAL( product(nx), normreal, cres( 1, 1, 1, i ), 1 )
     enddo
@@ -805,8 +851,13 @@ module OCEAN_bofx_mod
       endif
     endif
 
-
-    deallocate( zr, zi, wrk, cres, ilist )
+#if defined( __FFTW3 ) && defined( __HAVE_F03 )
+    deallocate( zc )
+    call fftw_free(plan)
+#else
+    deallocate( zr, zi )
+#endif
+    deallocate( wrk, cres, ilist )
     deallocate( band_block, tags, fcn_buffer )
     !
     return
