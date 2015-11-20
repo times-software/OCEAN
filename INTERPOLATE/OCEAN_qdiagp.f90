@@ -694,6 +694,7 @@
 !    mpiio_workaround = .false.
 !  endif
 
+  mpiio_workaround = .true.
   if( mypoolid .eq. mypoolroot ) then 
     if( .not. mpiio_workaround ) then
 

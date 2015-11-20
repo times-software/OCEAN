@@ -79,7 +79,7 @@ nstep 250
 diemac 5.06
 
 # xmesh
-CNBSE.xmesh { 3 3 3 }
+CNBSE.xmesh { 5 5 5 }
 
 # paw control files
 paw.fill{ 22 ti.fill }
@@ -89,8 +89,10 @@ paw.opts{ 22 ti.opts }
 nedges 1
 edges{ 2 2 1 }
 
-# spectral broadening in Hartree
+# spectral broadening in eV
 cnbse.broaden{ 0.544 }
+# The code will figure out a good plot range
+cnbse.spect_range{ -1 }
 
 # radius for paw reconstruciton
 paw.shells{ 3.5 4.0 }

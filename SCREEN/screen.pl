@@ -20,7 +20,7 @@ if (! $ENV{"OCEAN_WORKDIR"}){ $ENV{"OCEAN_WORKDIR"} = `pwd` . "../" ; }
 ###########################
 
 
-my @CommonFiles = ("znucl", "paw.hfkgrid", "paw.fill", "paw.opts", "pplist", "paw.shells", "ntype", "natoms", "typat", "taulist", "nedges", "edges", "caution", "epsilon", "k0.ipt", "ibase", "scfac", "core_offset", "dft", "avecsinbohr.ipt" );
+my @CommonFiles = ("znucl", "paw.hfkgrid", "paw.fill", "paw.opts", "pplist", "paw.shells", "ntype", "natoms", "typat", "taulist", "nedges", "edges", "caution", "epsilon", "k0.ipt", "ibase", "scfac", "core_offset", "dft", "avecsinbohr.ipt", "para_prefix" );
 
 my @DenDipFiles = ("rhoofg", "bvecs", "efermiinrydberg.ipt");
 my @DenDipFiles2 = ( "masterwfile", "listwfile", "enkfile", "kmesh.ipt", "brange.ipt" );
@@ -146,6 +146,7 @@ while ($hfinline = <HFINLIST>) {
       `echo "8 25 $elname $elnum" | $ENV{'OCEAN_BIN'}/mkrbfile.x`;
       `mkdir -p ${edgename}/zRXT${fullrad}`;
       `mkdir -p ${edgename}/zRXF${fullrad}`;
+      `mkdir -p ${edgename}/zRXS${fullrad}`;
       chdir "$edgename";
       `ln -s -f zRXT${fullrad} zR${fullrad}`;
       chdir "../";
@@ -154,6 +155,9 @@ while ($hfinline = <HFINLIST>) {
       `wc tmp > vpert`;
       `cat tmp >> vpert`;
       system("$ENV{'OCEAN_BIN'}/builder.x") == 0 or die;
+      copy( "ximat", "${edgename}/zR${fullrad}/ximat" ) or die "Failed to copy ximat to ${edgename}/\n$!";
+      copy( "ximat_small", "${edgename}/zR${fullrad}/ximat_small" ) or die "Failed to copy ximat to ${edgename}/\n$!";
+
       `echo 24 > ipt`;
       `time $ENV{'OCEAN_BIN'}/xipps.x < ipt`;
       move( "ninduced", "nin" ) or die "Failed to move ninduced.\n$!";
@@ -171,6 +175,7 @@ while ($hfinline = <HFINLIST>) {
       `wc zpawinfo/vcxxxxx${edgename2} >> ipt`;
       `cat zpawinfo/vcxxxxx${edgename2} >> ipt`;
   
+			# Full ximat, but using false/older style in rscombine
       copy( "ipt", "ipt1" ) or die;
       `echo .false. >> ipt1`;
       `echo 0.1 100 >> ipt1`;
@@ -178,6 +183,7 @@ while ($hfinline = <HFINLIST>) {
       move( "rpot", "$edgename/zRXF$fullrad/" ) or die "Failed to move rpot\n$!";
       move( "rpothires", "$edgename/zRXF$fullrad/" ) or die "Failed to move rpothires\n$!";
 
+			# Full ximat and most up-to-date rscombine settings
       copy( "ipt", "ipt1" ) or die;
       `echo .true. >> ipt1`;
       `wc zpawinfo/vvpseud${edgename2} >> ipt1`;
@@ -190,6 +196,42 @@ while ($hfinline = <HFINLIST>) {
       move( "rpothires", "$edgename/zRXT$fullrad/" ) or die "Failed to move rpothires\n$!";
       move( "rom", "$edgename/zRXT$fullrad/" ) or die "Failed to move rom\n$!";
       move( "nin", "$edgename/zRXT$fullrad/" ) or die "Failed to move nin\n$!";
+
+      #####################
+      # Now use ximat_small
+			move( "ximat_small", "ximat" ) or die "$!";
+      `echo 24 > ipt`;
+      `time $ENV{'OCEAN_BIN'}/xipps.x < ipt`;
+      move( "ninduced", "nin" ) or die "Failed to move ninduced.\n$!";
+      `echo $fullrad > ipt`;
+      `cat ibase epsilon >> ipt`;
+      `time $ENV{'OCEAN_BIN'}/vhommod.x < ipt`;
+      move( "reopt", "rom" ) or die "Failed to move reopt.\n$!";
+      `echo 1 3 > ipt`;
+      `wc rom >> ipt`;
+      `cat rom >> ipt`;
+      `echo 1 4 >> ipt`;
+      `wc nin >> ipt`;
+      `cat nin >> ipt`;
+      `echo 1 2 >> ipt`;
+      `wc zpawinfo/vcxxxxx${edgename2} >> ipt`;
+      `cat zpawinfo/vcxxxxx${edgename2} >> ipt`;
+
+      copy( "ipt", "ipt1" ) or die;
+      `echo .true. >> ipt1`;
+      `wc zpawinfo/vvpseud${edgename2} >> ipt1`;
+      `cat zpawinfo/vvpseud${edgename2} >> ipt1`;
+      `wc zpawinfo/vvallel${edgename2} >> ipt1`;
+      `cat zpawinfo/vvallel${edgename2} >> ipt1`;
+      `echo 0.1 100 >> ipt1`;
+      `time $ENV{'OCEAN_BIN'}/rscombine.x < ipt1 > ./${edgename}/zRXS${fullrad}/ropt`;
+      move( "rpot", "$edgename/zRXS$fullrad/" ) or die "Failed to move rpot\n$!";
+      move( "rpothires", "$edgename/zRXS$fullrad/" ) or die "Failed to move rpothires\n$!";
+      move( "rom", "$edgename/zRXS$fullrad/" ) or die "Failed to move rom\n$!";
+      move( "nin", "$edgename/zRXS$fullrad/" ) or die "Failed to move nin\n$!";
+      # finished with ximat small
+      #######################
+
   }
 }
 close HFINLIST;
