@@ -8,6 +8,7 @@ DEBUG =
 include $(OBF_DIR)/make.sys
 
 FFLAGS+= -g -traceback -warn all #-check all -init=snan -e03
+FFLAGS+= $(OPTIONS)
 
 #.f90.o:
 #	$(MPIF90) $(F90FLAGS) -I$(OBF_DIR)/include -c $<

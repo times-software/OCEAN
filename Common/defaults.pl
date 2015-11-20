@@ -194,30 +194,6 @@ print QE_POOL "interpolate kpt\t$pool_size\n";
 
 
   
-$input_content = '';
-open INPUT, "xmesh.ipt" or die "Failed to open xmesh.ipt\n$!\n";
-while (<INPUT>)
-  {
-    $input_content .= $_;
-  }
-$input_content =~ s/\n/ /g;
-close INPUT;
-if( $input_content =~ m/^\s*-1/ )
-{
-  my @output;
-  print "Defaults requested for xmesh.ipt\n";
-  for( my $i = 0; $i < 3; $i++ )
-  {
-    $target = $defaults{'xmesh'}[$acc_level];
-    $target = $target * $alength[$i];
-    $output[$i] = findval($target);
-    if( $output[$i] == 1000 ) { die "kmesh too large\n"; }
-  }
-  open INPUT, ">xmesh.ipt" or die "$!\n";
-  print INPUT "$output[0]  $output[1]  $output[2]\n";
-  close INPUT;
-  print "Defaults chosen for xmesh.ipt:\t$output[0]\t$output[1]\t$output[2]\n";
-}
 
 $input_content = '';
 open INPUT, "ngkpt" or die "Failed to open ngkpt\n$!\n";
@@ -357,6 +333,63 @@ elsif( $obf_nbands <= 0 )
   print NBANDS "$obf_nbands\n";
   close NBANDS;
 }
+
+$input_content = '';
+open INPUT, "xmesh.ipt" or die "Failed to open xmesh.ipt\n$!\n";
+while (<INPUT>)
+  {
+    $input_content .= $_;
+  }
+$input_content =~ s/\n/ /g;
+close INPUT;
+if( $input_content =~ m/^\s*-1/ )
+{
+  my @output;
+  print "Defaults requested for xmesh.ipt\n";
+  for( my $i = 0; $i < 3; $i++ )
+  {
+    $target = $defaults{'xmesh'}[$acc_level];
+    $target = $target * $alength[$i];
+    $output[$i] = findval($target);
+    if( $output[$i] == 1000 ) { die "xmesh too large\n"; }
+  }
+  open INPUT, ">xmesh.ipt" or die "$!\n";
+  print INPUT "$output[0]  $output[1]  $output[2]\n";
+  close INPUT;
+  print "Defaults chosen for xmesh.ipt:\t$output[0]\t$output[1]\t$output[2]\n";
+  $input_content = "$output[0]  $output[1]  $output[2]";
+}
+# Now test xmesh to make sure it is large enough for the number of bands requested
+$input_content =~ m/(\d+)\s+(\d+)\s+(\d+)/ or die "Xmesh parsing failed!\n$input_content\n";
+my $nxpts = $1*$2*$3;
+my @orig_x;
+$orig_x[0] = $1; $orig_x[1] = $2; $orig_x[2] = $3;
+if( $nxpts < $nbands )
+{
+  print "Warning! Requested xmesh is too small for requested bands.\nAttempting to increase xmesh.\n";
+  print "Due to orthogonalization the number of x-points must be larger than the number of bands.\n";
+
+  my $scale = 1.1;
+  my @output;
+  while( $nxpts < $nbands )
+  {
+    for( my $i = 0; $i < 3; $i++ )
+    {
+      $target = $orig_x[$i] * $scale;
+      $output[$i] = findval($target);
+      if( $output[$i] == 1000 ) { die "xmesh too large\n"; }
+    }
+    $nxpts = $output[0] * $output[1] * $output[2];
+    $scale += 0.1;
+  }
+  open INPUT, ">xmesh.ipt" or die "$!\n";
+  print INPUT "$output[0]  $output[1]  $output[2]\n";
+  close INPUT;
+  print "New xmesh choosen:\t$output[0]\t$output[1]\t$output[2]\n";
+  $input_content = "$output[0]  $output[1]  $output[2]";
+}
+
+
 
 $input_content = '';
 open INPUT, "ham_kpoints" or die "Failed to open ham_kpoints\n$!\n";

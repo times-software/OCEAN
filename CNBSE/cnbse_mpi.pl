@@ -23,13 +23,15 @@ my %alphal = ( "0" => "s", "1" => "p", "2" => "d", "3" => "f" );
 my @CommonFiles = ("epsilon", "xmesh.ipt", "nedges", "k0.ipt", "nbuse.ipt", 
   "cnbse.rad", "cnbse.ways", "metal", "cksshift", "cksstretch", "cksdq", 
   "cnbse.niter", "cnbse.spect_range", "cnbse.broaden", "cnbse.mode", "nphoton", "dft", 
-  "para_prefix", "cnbse.strength", "serbse", "core_offset", "avecsinbohr.ipt", "nspin" );
+  "para_prefix", "cnbse.strength", "serbse", "core_offset", "avecsinbohr.ipt", 
+  "cnbse.solver", "cnbse.gmres.elist", "cnbse.gmres.erange", "cnbse.gmres.nloop", 
+  "cnbse.gmres.gprc", "cnbse.gmres.ffff", "spin_orbit", "nspin" );
 
 my @DFTFiles = ("nelectron");
 
 my @DenDipFiles = ("kmesh.ipt", "masterwfile", "listwfile", "efermiinrydberg.ipt", "qinunitsofbvectors.ipt", "brange.ipt", "enkfile", "tmels", "nelectron", "eshift.ipt" );
 
-my @WFNFiles = ("kmesh.ipt",  "efermiinrydberg.ipt", "qinunitsofbvectors.ipt", "brange.ipt", "nbuse.ipt", "wvfcninfo", "wvfvainfo", "nbuse_xes.ipt", "obf_control", "ibeg.h");
+my @WFNFiles = ("kmesh.ipt",  "efermiinrydberg.ipt", "qinunitsofbvectors.ipt", "brange.ipt", "nbuse.ipt", "wvfcninfo", "wvfvainfo", "nbuse_xes.ipt", "obf_control", "ibeg.h", "q.out");
 
 my @ExtraFiles = ("Pquadrature", "sphpts" );
 
@@ -78,6 +80,103 @@ foreach (@PawFiles) {
   copy( "../SCREEN/$_", $_ ) or die "Failed to get ../SCREEN/$_\n$!";
 }
 
+##### Determine which solver to use
+open IN, "cnbse.solver" or die "Failed to open cnbse.solver!\n$!";
+my $line = <IN>;
+close IN;
+my $solver;
+if( lc($line) =~ m/hay/ )
+{
+  $solver = 'hay';
+}
+elsif( lc($line) =~ m/gmres/ )
+{
+  $solver = 'gmres';
+}
+else
+{
+  print "Trouble parsing cnbse.solver!!\n*** Will default to  Haydock recursion ***\n";
+  $solver = 'hay';
+}
+## Now if gmres we need to parse the inputs for that
+my $gmres_footer = "";
+if( $solver eq 'gmres' )
+{
+  open IN, "cnbse.gmres.nloop" or die "Failed to open cnbse.gmres.nloop\n$!";
+  $line = <IN>;
+  close IN;
+  chomp $line;
+  my $gmres_header = $line;
+
+  open IN, "cnbse.broaden" or die "Failed to open cnbse.broaden\n$!";
+  $line = <IN>;
+  close IN;
+  chomp $line;
+  $line /= 27.2114;
+  $gmres_header .= " " . $line;
+
+  open IN, "cnbse.gmres.gprc" or die "Failed to open cnbse.gmres.gprc\n$!";
+  $line = <IN>;
+  close IN;
+  chomp $line;
+  $gmres_header .= " " . $line;
+
+  open IN, "cnbse.gmres.ffff" or die "Failed to open cnbse.gmres.ffff\n$!";
+  $line = <IN>;
+  close IN;
+  chomp $line;
+  $gmres_header .= " " . $line;
+
+  $gmres_header .= "  0.0\n";
+
+  my $have_elist = 0;
+  my $have_erange = 0;
+  open IN, "cnbse.gmres.elist" or die "Failed to open cnbse.gmres.elist\n$!";
+  $line = <IN>;
+  if( $line =~ m/false/ )
+  {
+    close IN;
+  }
+  else
+  {
+    $gmres_footer = $gmres_header . "list\n";
+    my $temp .= $line;
+    my $i = 1;
+    while( $line = <IN> )
+    {
+      $temp .= $line;
+      $i++;
+    }
+    $gmres_footer .= "$i\n";
+    $gmres_footer .= "$temp";
+    $have_elist = 1;
+    close IN;
+  }
+
+  open IN, "cnbse.gmres.erange" or die "Failed to open cnbse.gmres.erange\n$!";
+  $line = <IN>;
+  if( $line =~ m/false/ )
+  {
+    close IN;
+  }
+  else
+  {
+    $gmres_footer = $gmres_header . "loop\n";
+    $gmres_footer .= $line;
+    $have_erange = 1;
+    close IN;
+  }
+
+  if( $have_erange + $have_elist == 2 )
+  {
+    print "Both erange and elist were specified for GMRES. We are using erange\n";
+  }
+  elsif( $have_erange + $have_elist == 0 )
+  {
+    print "Neither elist nor erange were specified for GMRES!\nFalling back to Haydock\n";
+    $solver = 'hay';
+  }
+}
 
 ##### Trigger serial bse fallback here
 # later we should remove this and fold these two perl scripts together
@@ -384,7 +483,8 @@ print "$hfinlength\n";
 print RUNLIST "$hfinlength\n";
 
 
-
+my $cls_average = 0;
+my $cls_count = 0;
 open EDGE, "hfinlist";
 while (<EDGE>) {
   $_ =~ m/(\S+)\s+(\d+)\s+(\d+)\s+(\d+)\s+(\S+)\s+(\d+)/ or die;
@@ -471,6 +571,11 @@ while (<EDGE>) {
     copy( "../SCREEN/${zstring}/zR${pawrad}/cls", "cls.${zstring}" ) 
       or warn "WARNING!\nCore-level shift support requested, but could not find ../SCREEN/${zstring}/zR${pawrad}/cls\n"
             . "No CLS will be done for this site!\n";
+    $cls_count++;
+    open IN, "cls.${zstring}" or die "Failed to open cls.${zstring}\n$!";
+    my $cls = <IN>;
+    chomp $cls;
+    $cls_average += $cls;
   }
 
 
@@ -479,6 +584,17 @@ while (<EDGE>) {
 }
 close EDGE;
 close RUNLIST;
+if( $cls_count > 0 )
+{
+  $cls_average /= $cls_count;
+}
+else
+{
+  $cls_average = 0;
+}
+open OUT, ">cls_average" or die "$!";
+print OUT "$cls_average\n";
+close OUT;
 
 #while ( my ($key, $value ) = each(%unique_z) )
 #{
@@ -533,35 +649,67 @@ open INFILE, ">bse.in" or die "Failed to open bse.in\n";
 my $filename = sprintf("deflinz%03un%02ul%02u", $znum, $nnum, $lnum);
 
 open TMPFILE, $filename or die "Failed to open $filename\n";
-my $line = <TMPFILE>;
+$line = <TMPFILE>;
 close TMPFILE;
-
-print INFILE $line;
-my $lookup = sprintf("%1u%1s", $nnum, $alphal{$lnum}) or die;
-my $filename = sprintf("corezetaz%03u", $znum);
-print "$lookup\t$filename\n";
-my $line = `grep $lookup $filename`;
 print INFILE $line;
 
-print INFILE "hay\n";
+# spin orbit splitting
+open IN, "spin_orbit" or die "Failed to open spin_orbit\n$!";
+my $spin_orbit = <IN>;
+chomp $spin_orbit;
+
+if( $spin_orbit < 0 )
+{
+	my $lookup = sprintf("%1u%1s", $nnum, $alphal{$lnum}) or die;
+	my $filename = sprintf("corezetaz%03u", $znum);
+	print "$lookup\t$filename\n";
+	$line = `grep $lookup $filename`;
+}
+else
+{
+	print "Overiding spin-orbit splitting! Using: $spin_orbit (eV)\n";
+  $line = "$spin_orbit\n";
+}
+print INFILE $line;
+$line =~ m/^\s*(\d+(\.\d+)?)/ or die;
+$spin_orbit = $1;
+open OUT, ">so.ipt" or die "$!";
+print OUT "$spin_orbit\n";
+close OUT;
+
 open TMPFILE, "cnbse.niter" or die "Failed to open niter\n";
 <TMPFILE> =~ m/(\d+)/ or die "Failed to parse niter\n";
 my $niter = $1;
 close TMPFILE;
 my $spectrange = `cat cnbse.spect_range`;
 chomp($spectrange);
+# check if spectrange needs correcting
+unless( $spectrange =~ m/\d+\s+[-]?\d+(\.\d+)?\s+[-]?\d+(\.\d+)?/ )
+{
+  system("$ENV{'OCEAN_BIN'}/spect_range.pl") == 0 or die "Failed to run spect_range.pl";
+  $spectrange = `cat cnbse.spect_range`;
+  chomp($spectrange);
+}
 my $gamma0 = `cat cnbse.broaden`;
 chomp($gamma0);
 
-if(  $run_serial == 1)
+if( $solver eq 'gmres' )
 {
-  print INFILE "$spectrange  $gamma0  0.000\n";
+  print INFILE "inv\n";
+  print INFILE $gmres_footer . "\n";
 }
 else
 {
-  print INFILE "$niter  $spectrange  $gamma0  0.000\n";
+  print INFILE "hay\n";
+  if(  $run_serial == 1)
+  {
+    print INFILE "$spectrange  $gamma0  0.000\n";
+  }
+  else
+  {
+    print INFILE "$niter  $spectrange  $gamma0  0.000\n";
+  }
 }
-
 close INFILE;
 
 
@@ -623,6 +771,7 @@ if( $run_serial == 1)
     system("$ENV{'OCEAN_BIN'}/cainmultip.x < bse.in > cm.log") == 0 
           or die "Failed to run cainmultip. Run count = $run_count\n";
 
+		my $lookup = sprintf("%1u%1s", $nnum, $alphal{$lnum}) or die;
     my $store_string = sprintf("%2s.%04i_%2s_%02i", $elname, $elnum, $lookup, $i);
     if( $is_xas == 1 ) 
     {
