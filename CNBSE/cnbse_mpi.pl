@@ -25,7 +25,7 @@ my @CommonFiles = ("epsilon", "xmesh.ipt", "nedges", "k0.ipt", "nbuse.ipt",
   "cnbse.niter", "cnbse.spect_range", "cnbse.broaden", "cnbse.mode", "nphoton", "dft", 
   "para_prefix", "cnbse.strength", "serbse", "core_offset", "avecsinbohr.ipt", 
   "cnbse.solver", "cnbse.gmres.elist", "cnbse.gmres.erange", "cnbse.gmres.nloop", 
-  "cnbse.gmres.gprc", "cnbse.gmres.ffff", "spin_orbit" );
+  "cnbse.gmres.gprc", "cnbse.gmres.ffff", "spin_orbit", "nspin" );
 
 my @DFTFiles = ("nelectron");
 
@@ -292,7 +292,6 @@ else
 
 ##### misc other setup
 #`echo gmanner > format65`;
-#`cp nspin nspn.ipt`;
 copy( "kmesh.ipt", "kgrid" ) or die "$!";
 copy( "k0.ipt", "scaledkzero.ipt" ) or die "$!";
 copy( "qinunitsofbvectors.ipt", "cksdq" ) or die "$!";
@@ -399,7 +398,7 @@ else  ### Abi/QE w/o obf
     if( $is_xas == 1 )
     {
       $run_text = 'XAS';
-      $nbuse = $brange[3] - $brange[2] + 1;
+      $nbuse = $brange[3] - $brange[1];
     }
     else
     {

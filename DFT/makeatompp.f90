@@ -33,7 +33,7 @@
       allocate( ppname(ntype) )
       open(unit=99,file='pplist',form='formatted',status='old')
       do i = 1, ntype
-         read(99,*) ppname(i)
+         read(99,'(a)') ppname(i)
       end do
       close(99)
       if( iostatus .eq. 0 ) have_zsymb = .true.

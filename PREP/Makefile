@@ -2,9 +2,12 @@ include ../Makefile.arch
 
 SCRIPTS = dendip.pl par_dendip.pl bvecs.pl gvecs2.pl ofermi.pl OBF_wfn.pl qe_dendip.pl
 FILESF90 = nelectron.x rhoofg.x wfconvert.x
-WFCONVERT_OBJS = wfconvert.o headpar.o grabwf.o wfsubs.o 
+WFCONVERT_OBJS = wfconvert.o headpar.o grabwf.o wfsubs.o qehead.o qe_grabwf.o
 WFCONVERTGW_OBJS = wfconvert_gw.o headpar.o grabwf.o wfsubs.o
 FFT_WRAPPER = ../zbridge/zobj/FFT_wrapper.o -I../zbridge/ ../zbridge/zobj/jlmfft.o
+INCL_IOTK = -I$(ESPRESSO_DIR)/iotk/src
+LIB_IOTK = $(ESPRESSO_DIR)/iotk/src/libiotk.a
+
 
 .SUFFIXES: .f .x .f90
 
@@ -18,7 +21,7 @@ instdev:
 	for F in $(FILESF90); do ln -fs $(PWD)/$$F $(INSTDEVDIR); done;
 
 clean: 
-	rm -f *.o *.x
+	rm -f *.o *.x *__genmod.mod *__genmod.f90
 
 .f.x:
 	$(FC) $(OPTIONS) -o $*.x $*.f
@@ -30,7 +33,7 @@ nelectron.x: nelectron.f90
 	$(FC) $(OPTIONS) nelectron.f90 -o nelectron.x
 
 wfconvert.x: $(WFCONVERT_OBJS)
-	$(FC) $(OPTIONS) $(WFCONVERT_OBJS) -o wfconvert.x
+	$(MPIFORT) $(OPTIONS) $(WFCONVERT_OBJS) -o wfconvert.x $(LIB_IOTK)
 
 wfconvert_gw.x: $(WFCONVERTGW_OBJS)
 	$(FC) $(OPTIONS) $(WFCONVERTGW_OBJS) -o wfconvert_gw.x
@@ -49,3 +52,9 @@ grabwf.o: grabwf.f90
 
 wfsubs.o: wfsubs.f90
 	$(FC) $(OPTIONS) -c wfsubs.f90 -o wfsubs.o
+
+qehead.o: qehead.f90 
+	$(FC) $(OPTIONS) -c qehead.f90 -o qehead.o $(INCL_IOTK)
+
+qe_grabwf.o: qe_grabwf.f90
+	$(FC) $(OPTIONS) -c qe_grabwf.f90 -o qe_grabwf.o $(INCL_IOTK) 

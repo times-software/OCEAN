@@ -123,8 +123,8 @@
 !   For each run file grab the matching k, k+q pts and write for NBSE
       files_iter = 1
 
-        call getwfkin(wfkin,files_iter,wfkinfile)
-        write(6,*) wfkin
+!        call getwfkin(wfkin,files_iter,wfkinfile)
+!        write(6,*) wfkin
 
         write(6,*) " PREFIX = ", prefix
 
@@ -464,7 +464,7 @@
       deallocate(occ_un, occ_sh)
 
 
-      close(wfkinfile)
+!      close(wfkinfile)
 
 
       close(tmels)

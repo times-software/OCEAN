@@ -15,7 +15,7 @@ BLACS = -lmkl_scalapack_lp64 -lmkl_intel_lp64 -lmkl_sequential -lmkl_core -lmkl_
 CNBSE = ../CNBSE/zcmsnmult/zf90
 
 
-all: ocean.x
+all: ocean.x o_spect.x
 
 OCEANOBJS = AI_kinds.o OCEAN_mpi.o OCEAN_system.o OCEAN_bloch.o OCEAN_obf.o OCEAN_multiplet.o  \
             long_range.o OCEAN_load_data.o OCEAN_psi.o OCEAN_energies.o OCEAN_haydock.o OCEAN.o \
@@ -25,6 +25,9 @@ OCEANOBJS = AI_kinds.o OCEAN_mpi.o OCEAN_system.o OCEAN_bloch.o OCEAN_obf.o OCEA
 
 ocean.x: $(OCEANOBJS)
 	$(MPIFORT) $(LDFLAGS) -o ocean.x $(OCEANOBJS) $(FFTWL) $(BLACS) 
+
+o_spect.x: o_spect.f90 AI_kinds.o gamfcn.o
+	$(MPIFORT) $(FLAGS) -o o_spect.x o_spect.f90 AI_kinds.o gamfcn.o
 
 OCEAN_mpi.o: OCEAN_mpi.f90 AI_kinds.o
 	$(MPIFORT) $(FLAGS) -c -o OCEAN_mpi.o OCEAN_mpi.f90 

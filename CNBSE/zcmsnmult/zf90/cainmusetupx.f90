@@ -95,9 +95,9 @@
   ! !!!!!!!!!
   ! In time this will be deprecated by making sure all the helper files 
   !   always say 1 or 2 spins. For now, check here.
-  inquire(file='nspn.ipt', exist = nspn_exist )
+  inquire(file='nspin', exist = nspn_exist )
   if( nspn_exist ) then
-    open(unit=99,file='nspn.ipt',form='formatted',status='old')
+    open(unit=99,file='nspin',form='formatted',status='old')
     read(99,*) nspn
     close(99)
   else
