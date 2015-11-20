@@ -31,7 +31,7 @@ my @DFTFiles = ("nelectron");
 
 my @DenDipFiles = ("kmesh.ipt", "masterwfile", "listwfile", "efermiinrydberg.ipt", "qinunitsofbvectors.ipt", "brange.ipt", "enkfile", "tmels", "nelectron", "eshift.ipt" );
 
-my @WFNFiles = ("kmesh.ipt",  "efermiinrydberg.ipt", "qinunitsofbvectors.ipt", "brange.ipt", "nbuse.ipt", "wvfcninfo", "wvfvainfo", "nbuse_xes.ipt", "obf_control", "ibeg.h");
+my @WFNFiles = ("kmesh.ipt",  "efermiinrydberg.ipt", "qinunitsofbvectors.ipt", "brange.ipt", "nbuse.ipt", "wvfcninfo", "wvfvainfo", "nbuse_xes.ipt", "obf_control", "ibeg.h", "q.out");
 
 my @ExtraFiles = ("Pquadrature", "sphpts" );
 
@@ -173,7 +173,7 @@ if( $solver eq 'gmres' )
   }
   elsif( $have_erange + $have_elist == 0 )
   {
-    print "Neither elist nor erange were specified for GMRE!!\nFalling back to Haydock\n";
+    print "Neither elist nor erange were specified for GMRES!\nFalling back to Haydock\n";
     $solver = 'hay';
   }
 }
@@ -484,7 +484,8 @@ print "$hfinlength\n";
 print RUNLIST "$hfinlength\n";
 
 
-
+my $cls_average = 0;
+my $cls_count = 0;
 open EDGE, "hfinlist";
 while (<EDGE>) {
   $_ =~ m/(\S+)\s+(\d+)\s+(\d+)\s+(\d+)\s+(\S+)\s+(\d+)/ or die;
@@ -571,6 +572,11 @@ while (<EDGE>) {
     copy( "../SCREEN/${zstring}/zR${pawrad}/cls", "cls.${zstring}" ) 
       or warn "WARNING!\nCore-level shift support requested, but could not find ../SCREEN/${zstring}/zR${pawrad}/cls\n"
             . "No CLS will be done for this site!\n";
+    $cls_count++;
+    open IN, "cls.${zstring}" or die "Failed to open cls.${zstring}\n$!";
+    my $cls = <IN>;
+    chomp $cls;
+    $cls_average += $cls;
   }
 
 
@@ -579,6 +585,17 @@ while (<EDGE>) {
 }
 close EDGE;
 close RUNLIST;
+if( $cls_count > 0 )
+{
+  $cls_average /= $cls_count;
+}
+else
+{
+  $cls_average = 0;
+}
+open OUT, ">cls_average" or die "$!";
+print OUT "$cls_average\n";
+close OUT;
 
 #while ( my ($key, $value ) = each(%unique_z) )
 #{
@@ -655,6 +672,11 @@ else
   $line = "$spin_orbit\n";
 }
 print INFILE $line;
+$line =~ m/^\s*(\d+(\.\d+)?)/ or die;
+$spin_orbit = $1;
+open OUT, ">so.ipt" or die "$!";
+print OUT "$spin_orbit\n";
+close OUT;
 
 open TMPFILE, "cnbse.niter" or die "Failed to open niter\n";
 <TMPFILE> =~ m/(\d+)/ or die "Failed to parse niter\n";
@@ -662,6 +684,13 @@ my $niter = $1;
 close TMPFILE;
 my $spectrange = `cat cnbse.spect_range`;
 chomp($spectrange);
+# check if spectrange needs correcting
+unless( $spectrange =~ m/\d+\s+[-]?\d+(\.\d+)?\s+[-]?\d+(\.\d+)?/ )
+{
+  system("$ENV{'OCEAN_BIN'}/spect_range.pl") == 0 or die "Failed to run spect_range.pl";
+  $spectrange = `cat cnbse.spect_range`;
+  chomp($spectrange);
+}
 my $gamma0 = `cat cnbse.broaden`;
 chomp($gamma0);
 
