@@ -181,7 +181,7 @@ my $nspn = $1;
 close NSPN;
 open IN, "metal" or die "Failed to open metal\n";
 my $metal = 1;
-if( <IN> =~ m/false/ )
+if( <IN> =~ m/false/i )
 {
   $metal = 0;
 }

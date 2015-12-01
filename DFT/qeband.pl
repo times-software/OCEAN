@@ -99,6 +99,7 @@ foreach my $file_stub (@filelist)
   {
     $band_min = $min_count;
   }
+#  print "$file_stub:\t$count\t $min_count\n";
 }
 $band_min++;
 # band_min is the lowest count whereas band_max is the highest count
