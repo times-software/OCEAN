@@ -8,7 +8,8 @@ ngkpt{ 10 10 10 }
 fband 3
 occopt 3
 nbands 35
-paw.nbands 200
+cnbse.nbuse 25
+paw.nbands 100
 acell { 6.821910819 6.821910819 6.821910819 } 
 # 3.61 Angstroms, Ashcrof & Mermin
 rprim {
@@ -22,7 +23,7 @@ natom 1
 typat { 1  }
 xred {  0      0      0 }
 
-ecut 200
+ecut 400
 toldfe 1.1d-6
 tolwfr 1.1d-16
 nstep 50
@@ -33,7 +34,7 @@ paw.opts{ 29 cu.opts }
 
 #edge information
 nedges 1
-edges{ 1 2 1  }
+edges{ 1 1 0  }
 
 # radius for paw reconstruciton
 paw.shells{ 6.0 }
@@ -41,4 +42,4 @@ cnbse.rad{ 6.0 }
 
 #Scaling Factor
 scfac 0.80
-cnbse.broaden 0.1904798
+cnbse.broaden 0.5
