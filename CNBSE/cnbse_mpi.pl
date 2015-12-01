@@ -410,6 +410,18 @@ else  ### Abi/QE w/o obf
     print NBUSE "$nbuse\n";
     close NBUSE;
   }
+  else
+  {
+    if( $is_xas == 1 )
+    {
+      $run_text = 'XAS';
+    }
+    else
+    {
+      print "XES!\n";
+      $run_text = 'XES';
+    }
+  }
 }
 
 
