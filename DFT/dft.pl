@@ -41,7 +41,7 @@ my @KgenFiles = ("nkpt", "k0.ipt", "qinunitsofbvectors.ipt", "paw.nkpt");
 my @BandFiles = ("nbands", "paw.nbands");
 my @EspressoFiles = ( "coord", "degauss", "ecut", "etol", "fband", "ibrav", 
     "isolated", "mixing", "natoms", "ngkpt", "noncolin", "nrun", "ntype", 
-    "occopt", "occtype", "prefix", "ppdir", "rprim", "rscale", "smearing", 
+    "occopt", "prefix", "ppdir", "rprim", "rscale", "metal",
     "spinorb", "taulist", "typat", "verbatim", "work_dir", "wftol", 
     "den.kshift", "obkpt.ipt", "trace_tol", "ham_kpoints", "obf.nbands","tot_charge", 
     "nspin", "smag", "ldau", "zsymb");
@@ -195,8 +195,8 @@ system("$ENV{'OCEAN_BIN'}/makeatompp.x") == 0
 
 
 my @qe_data_files = ('prefix', 'ppdir', 'work_dir', 'ibrav', 'natoms', 'ntype', 'noncolin',
-                     'spinorb', 'ecut', 'occtype', 'degauss', 'etol', 'mixing', 'nrun', 
-                     'trace_tol', 'tot_charge', 'nspin', 'ngkpt', 'k0.ipt',
+                     'spinorb', 'ecut', 'degauss', 'etol', 'mixing', 'nrun', 'occopt',
+                     'trace_tol', 'tot_charge', 'nspin', 'ngkpt', 'k0.ipt', 'metal',
                      'den.kshift', 'obkpt.ipt', 'obf.nbands', 'nkpt', 'nbands', 'paw.nbands',
                      'paw.nkpt' );
 
@@ -250,6 +250,42 @@ foreach my $file_name (@qe_opt_files)
     $qe_data_files{ "$file_name" } = $string;
 }
 ##################
+
+# Map QE/Abinit occupation options
+if( $qe_data_files{ "occopt" } < 1 || $qe_data_files{ "occopt" } > 7 )
+{
+  print "WARNING! Occopt set to a non-sensical value. Changing to 3";
+  $qe_data_files{ "occopt" } = 3;
+}
+# Don't support abinit 2
+$qe_data_files{ "occopt" } = 1 if( $qe_data_files{ "occopt" } == 2 );
+# Override occopt if metal was specified
+if( $qe_data_files{ 'metal' } =~ m/true/i )
+{
+  if( $qe_data_files{ "occopt" } == 1 )
+  {
+    print "WARNING! Mismatch between occopt and metal flags.\n  Setting occopt to 3\n";
+    $qe_data_files{ "occopt" } = 3;
+  }
+}
+
+$qe_data_files{'occtype'} = 'smearing';
+# At the moment we are leaving QE as smearing even if occopt = 1
+#   therefore we want to clamp down the smearing a bunch
+if( $qe_data_files{ "occopt" } == 1 )
+{
+  $qe_data_files{ 'degauss' } = 0.002;
+#  $qe_data_files{'occtype'} = 'fixed';
+}
+
+# Array of QE names for smearing by occopt
+my @QE_smear;
+$QE_smear[1] = "'gaussian'";
+$QE_smear[3] = "'fermi-dirac'";
+$QE_smear[4] = "'fermi-dirac'";
+$QE_smear[5] = "'fermi-dirac'";
+$QE_smear[6] = "'fermi-dirac'";
+$QE_smear[7] = "'gaussian'";
 
 
 
@@ -758,6 +794,7 @@ sub print_qe
         .  "  lspinorb = $inputs{'spinorb'}\n"
         .  "  ecutwfc = $inputs{'ecut'}\n"
         .  "  occupations = '$inputs{'occtype'}'\n"
+        .  "  smearing = $QE_smear[$inputs{'occopt'}]\n"
         .  "  degauss = $inputs{'degauss'}\n"
         .  "  nspin  = $inputs{'nspin'}\n"
         .  "  tot_charge  = $inputs{'tot_charge'}\n"
