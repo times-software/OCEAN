@@ -31,7 +31,8 @@ my @DFTFiles = ("nelectron");
 
 my @DenDipFiles = ("kmesh.ipt", "masterwfile", "listwfile", "efermiinrydberg.ipt", "qinunitsofbvectors.ipt", "brange.ipt", "enkfile", "tmels", "nelectron", "eshift.ipt" );
 
-my @WFNFiles = ("kmesh.ipt",  "efermiinrydberg.ipt", "qinunitsofbvectors.ipt", "brange.ipt", "nbuse.ipt", "wvfcninfo", "wvfvainfo", "nbuse_xes.ipt", "obf_control", "ibeg.h", "q.out");
+my @WFNFiles = ("kmesh.ipt",  "efermiinrydberg.ipt", "qinunitsofbvectors.ipt", "brange.ipt", 
+                "wvfcninfo", "wvfvainfo", "obf_control", "ibeg.h", "q.out");
 
 my @ExtraFiles = ("Pquadrature", "sphpts" );
 
@@ -361,29 +362,34 @@ if( open PARA_PREFIX, "para_prefix" )
 ###############
 # If we are using QE/ABI w/o OBFs we need to set nbuse
 my $run_text = '';
+open NBUSE, "nbuse.ipt" or die "Failed to open nbuse.ipt\n";
+<NBUSE> =~ m/(\d+)/ or die "Failed to parse nbuse.ipt\n";
+my $nbuse = $1;
+close NBUSE;
 if( $obf == 1 )
 {
   close RUNTYPE;
   if ($is_xas == 1 )
   {
     $run_text = 'XAS';
+    if( $nbuse == 0 )
+    {
+      copy( "../zWFN/nbuse.ipt", "nbuse.ipt" ) or die "$!";
+    }
+    print "XAS!\n";
   } 
   else
   {
-    move( "nbuse.ipt", "nbuse_xas.ipt" ) or die "$!";
-    copy( "nbuse_xes.ipt", "nbuse.ipt" ) or die "$!";
-#    `mv nbuse.ipt nbuse_xas.ipt`;
-#    `cp nbuse_xes.ipt nbuse.ipt`;
+    if( $nbuse == 0 )
+    {
+      copy( "../zWFN/nbuse_xas.ipt", "nbuse.ipt" ) or die "$!";
+    }
     $run_text = 'XES';
     print "XES!\n";
   }
 }
 else  ### Abi/QE w/o obf
 { 
-  open NBUSE, "nbuse.ipt" or die "Failed to open nbuse.ipt\n";
-  <NBUSE> =~ m/(\d+)/ or die "Failed to parse nbuse.ipt\n";
-  my $nbuse = $1;
-  close NBUSE;
   my @brange;
   if ($nbuse == 0) {
     open BRANGE, "brange.ipt" or die "Failed to open brange.ipt\n";
