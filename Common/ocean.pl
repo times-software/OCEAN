@@ -52,6 +52,11 @@ if ( open VERSION, "$ENV{'OCEAN_BIN'}/Version" )
   my $version = <VERSION>;
   chomp( $version );
   $ENV{"OCEAN_VERSION"} = $version;
+  if( $version = <VERSION> )
+  {
+    chomp( $version );
+    $ENV{"OCEAN_VERSION_HASH"} = $version;
+  }
 }
 else
 {
@@ -61,7 +66,11 @@ else
 close VERSION;
 
 ##########################################
-print "version $ENV{'OCEAN_VERSION'}\n";
+print "Version $ENV{'OCEAN_VERSION'}\n";
+if( length $ENV{"OCEAN_VERSION_HASH"} > 1 )
+{
+  print "  commit hash: $ENV{'OCEAN_VERSION_HASH'}\n";
+}
 
 
 # Process Options
