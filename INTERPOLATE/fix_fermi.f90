@@ -31,15 +31,13 @@ subroutine dump_energies( band_subset, nbands, nkpts, nspin, nshift, e0, lumo_sh
   write(6,*) maxval( start_band ), minval( start_band ), overlap
 
   ! JTV this hack will make core-level XAS work for metals
-  brange( 3 ) = brange( 2 )
   brange( 2 ) = brange( 3 ) - 1
-  overlap = 0
 
   fh = freeunit()
   open(unit=fh,file='ibeg.h',form='formatted',status='unknown')!,buffered='yes')
   do ishift = 1, nshift
     do ispin = 1, nspin
-      write(fh,'(2I8)') (ik,start_band(ik,ispin,ishift)+overlap, ik=1,nkpts)
+      write(fh,'(2I8)') (ik,start_band(ik,ispin,ishift), ik=1,nkpts)
     enddo
   enddo
   close(fh)
@@ -50,7 +48,7 @@ subroutine dump_energies( band_subset, nbands, nkpts, nspin, nshift, e0, lumo_sh
   write(fh,*) brange(3), brange(4)
   close(fh)
 
-  nbuse = brange( 4 ) - brange( 2 ) 
+  nbuse = brange( 4 ) - brange( 2 ) - overlap
   open(unit=fh,file='nbuse.ipt',form='formatted',status='unknown')
   write(fh,*) nbuse
   close(fh)
