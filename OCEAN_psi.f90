@@ -23,7 +23,7 @@ module OCEAN_psi
   INTEGER :: psi_val_np
   INTEGER :: psi_val_myid
 
-  INTEGER :: CACHE_DOUBLE = 8
+  INTEGER, PARAMETER :: CACHE_DOUBLE = 8
 
 
 !  INTEGER, ALLOCATABLE :: psi_core_comms( : )
@@ -797,6 +797,8 @@ module OCEAN_psi
 
     type(O_system), intent( in ) :: sys
     integer, intent( inout ) :: ierr
+
+    if( is_init ) return
 
     if( mod( sys%num_bands, CACHE_DOUBLE ) == 0 ) then
       psi_bands_pad = sys%num_bands
