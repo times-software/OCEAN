@@ -17,23 +17,32 @@ module OCEAN_system
     real(DP)         :: bvec(3,3)
     real(DP)         :: bmet(3,3)
     real(DP)         :: qinunitsofbvectors(3)
+    real(DP)         :: epsilon0
     integer( S_INT ) :: nkpts
     integer( S_INT ) :: nxpts
     integer( S_INT ) :: nalpha
     integer( S_INT ) :: num_bands
+    integer( S_INT ) :: val_bands
+    integer          :: brange(4)
+    integer          :: nelectron 
     integer( S_INT ) :: xmesh( 3 )
     integer( S_INT ) :: kmesh( 3 )
     integer( S_INT ) :: ZNL(3)
     integer( S_INT ) :: nspn = 1
     integer( S_INT ) :: nobf = 0
     integer( S_INT ) :: nruns
+    integer          :: nedges 
 
     logical          :: e0
     logical          :: mult
     logical          :: long_range
     logical          :: obf
     logical          :: conduct
+    logical          :: valence =.false.
     logical          :: kshift
+    logical          :: have_core = .true.
+    logical          :: have_val = .false.
+    logical          :: backf = .false.
     character(len=5) :: calc_type
 
     type(o_run), pointer :: cur_run => null()
@@ -49,6 +58,7 @@ module OCEAN_system
     integer :: indx
     integer :: photon
     integer :: num_bands
+    integer :: val_bands
     integer :: start_band
     character(len=2) :: elname
     character(len=2) :: corelevel
@@ -62,6 +72,9 @@ module OCEAN_system
     logical          :: long_range
     logical          :: obf
     logical          :: conduct
+    logical          :: valence = .false.
+    logical          :: have_core = .true.
+    logical          :: have_val  = .false.
     
     type(o_run), pointer :: prev_run => null()
     type(o_run), pointer :: next_run => null()
@@ -98,6 +111,8 @@ module OCEAN_system
     real( DP ) :: inter
     real( DP ), parameter :: inter_min = 0.000001
     integer :: nruns 
+
+    logical :: exst
 
     if( myid .eq. root ) then
 
@@ -138,6 +153,12 @@ module OCEAN_system
         sys%kshift = .false.
       endif
 
+      open(unit=98,file='brange.ipt',form='formatted',status='old')
+      rewind(98)
+      read(98,*) sys%brange(1:2)
+      read(98,*) sys%brange(3:4)
+      close(98)
+
 
       call getabb( sys%avec, sys%bvec, sys%bmet )
       call getomega( sys%avec, sys%celvol )     
@@ -170,6 +191,19 @@ module OCEAN_system
       sys%calc_type = 'NaN'
 !      sys%conduct = .true.
 
+      open(unit=99,file='nelectron',form='formatted',status='old')
+      read(99,*) sys%nelectron
+      close(99)
+
+      inquire(file='nedges', exist=exst )
+      if( exst ) then
+        open(unit=99,file='nedges',form='formatted',status='old')
+        read(99,*) sys%nedges
+        close(99)
+      else
+        sys%nedges = 0
+      endif
+
       
       
     endif
@@ -201,6 +235,12 @@ module OCEAN_system
     call MPI_BCAST( sys%kmesh, 3, MPI_INTEGER, root, comm, ierr )
     if( ierr .ne. MPI_SUCCESS ) goto 111
     call MPI_BCAST( sys%ZNL, 3, MPI_INTEGER, root, comm, ierr )
+    if( ierr .ne. MPI_SUCCESS ) goto 111
+    call MPI_BCAST( sys%brange, 4, MPI_INTEGER, root, comm, ierr )
+    if( ierr .ne. MPI_SUCCESS ) goto 111
+    call MPI_BCAST( sys%nelectron, 1, MPI_INTEGER, root, comm, ierr )
+    if( ierr .ne. MPI_SUCCESS ) goto 111
+    call MPI_BCAST( sys%nedges, 1, MPI_INTEGER, root, comm, ierr )
     if( ierr .ne. MPI_SUCCESS ) goto 111
 
 
@@ -258,8 +298,8 @@ module OCEAN_system
     character(len=5) :: calc_type
     type(o_run), pointer :: temp_prev_run, temp_cur_run
 
-    integer :: ntot, nmatch, iter, i, idum, start_band
-    logical :: found
+    integer :: ntot, nmatch, iter, i, idum, start_band, num_bands, val_bands
+    logical :: found, have_val, have_core
     real(DP) :: tmp(3)
 
 
@@ -278,46 +318,62 @@ module OCEAN_system
 #endif
 
     do i = 1, running_total
-      if( myid .eq. root ) read(99,*)  ZNL(1), ZNL(2), ZNL(3), elname, corelevel, indx, photon, calc_type
 
       if( myid .eq. root ) then
-        open(unit=98,file='xyz.wyck',form='formatted',status='old')
-        rewind(98)
-        read(98,*) ntot
-        nmatch = 0
-        found = .false.
-        do iter = 1, ntot
-          read ( 98, * ) ein, tmp( : )
-          if ( ein .eq. elname ) then
-            nmatch = nmatch + 1
-            if ( nmatch .eq. indx ) then
-              tau( : ) = tmp( : )
-              found = .true.
-            end if
-          end if
-          if ( found ) goto 112
-        end do
-        if( .not. found ) then
-          ierr = -1
-          return
-        endif
-112     continue 
-        write ( 6, '(1a15,3f10.5)' ) 'snatched alpha=', tau( : )
-        close(98)
+        read(99,*)  ZNL(1), ZNL(2), ZNL(3), elname, corelevel, indx, photon, calc_type
 
-        open(unit=98,file='brange.ipt',form='formatted',status='old')
-        rewind(98)
+        have_core = .false.
+        have_val = .false.
+
         select case( calc_type )
         case( 'XAS' )
-          read(98,*) idum
-          read(98,*) start_band
+          start_band = sys%brange(3)
+          num_bands = sys%num_bands
+          have_core = .true.
         case( 'XES' )
-          read(98,*) start_band
+          start_band = sys%brange(1)
+          num_bands = sys%num_bands
+          have_core = .true.
+        case( 'VAL' )
+          num_bands = sys%brange(4)-sys%brange(3)+1
+          val_bands = sys%brange(2)-sys%brange(2)+1
+          sys%have_val = .true.
+        case( 'RXS' )
+          num_bands = sys%brange(4)-sys%brange(3)+1
+          val_bands = sys%brange(2)-sys%brange(2)+1
+          sys%have_val = .true.
+          
         case default
-          read(98,*) idum
-          read(98,*) start_band
+          start_band = sys%brange(3)
         end select 
-        close( 98 )
+
+
+        if( have_core ) then
+          open(unit=98,file='xyz.wyck',form='formatted',status='old')
+          rewind(98)
+          read(98,*) ntot
+          nmatch = 0
+          found = .false.
+          do iter = 1, ntot
+            read ( 98, * ) ein, tmp( : )
+            if ( ein .eq. elname ) then
+              nmatch = nmatch + 1
+              if ( nmatch .eq. indx ) then
+                tau( : ) = tmp( : )
+                found = .true.
+              end if
+            end if
+            if ( found ) goto 112
+          end do
+          if( .not. found ) then
+            ierr = -1
+            return
+          endif
+112       continue 
+          write ( 6, '(1a15,3f10.5)' ) 'snatched alpha=', tau( : )
+          close(98)
+        endif
+
 
       endif
 
@@ -339,9 +395,19 @@ module OCEAN_system
       if( ierr .ne. MPI_SUCCESS ) goto 111
       call MPI_BCAST( start_band, 1, MPI_INTEGER, root, comm, ierr )
       if( ierr .ne. MPI_SUCCESS ) goto 111
+      call MPI_BCAST( num_bands, 1, MPI_INTEGER, root, comm, ierr )
+      if( ierr .ne. MPI_SUCCESS ) goto 111
+      call MPI_BCAST( val_bands, 1, MPI_INTEGER, root, comm, ierr )
+      if( ierr .ne. MPI_SUCCESS ) goto 111
+      call MPI_BCAST( have_core, 1, MPI_LOGICAL, root, comm, ierr )
+      if( ierr .ne. MPI_SUCCESS ) goto 111
+      call MPI_BCAST( have_val, 1, MPI_LOGICAL, root, comm, ierr )
+      if( ierr .ne. MPI_SUCCESS ) goto 111
 #endif
 
-      
+      !!!!
+      if( have_core ) sys%have_core = .true.
+      if( have_val ) sys%have_val = .true.
 
 
       allocate( temp_cur_run, STAT=ierr )
@@ -361,7 +427,11 @@ module OCEAN_system
       temp_cur_run%calc_type = calc_type
       temp_cur_run%photon = photon
       temp_cur_run%start_band = start_band
-      temp_cur_run%num_bands = sys%num_bands
+      temp_cur_run%num_bands = num_bands
+      temp_cur_run%val_bands = val_bands
+
+      temp_cur_run%have_core = have_core
+      temp_cur_run%have_val = have_val
       
       temp_cur_run%basename = 'abs'
       write(temp_cur_run%filename,'(A3,A1,A2,A1,I2.2,A1,A2,A1,I2.2)' ) temp_cur_run%basename, '_', temp_cur_run%elname, &
