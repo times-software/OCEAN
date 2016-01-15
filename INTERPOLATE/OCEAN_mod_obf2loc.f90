@@ -306,22 +306,33 @@ module OCEAN_obf2loc
 
     integer :: iuntmp, itau
     character(len=11) :: filout
+    real(kind=dp), allocatable :: out_coeffs(:,:,:,:)
 
 
     iuntmp = freeunit()
 
     if( ionode ) then
       write(stdout,*) nptot, nbuse*nkpt, nspin, ntau
+      allocate( out_coeffs( nptot, nbuse, nkpt, nspin ) )
       do itau = 1, ntau
         write( filout, '(1a5,1a6)' ) 'cksc.', fntau( itau )
         open(unit=iuntmp,file=filout,form='unformatted',status='unknown')!,buffered='yes',blocksize=1048576,buffercount=128)
         rewind(iuntmp)
         write(iuntmp) nptot, nbuse*nkpt, nspin
         write(iuntmp) tau( :, itau )
-        write(iuntmp) real(con_coeff(:,:,:,:,itau))
-        write(iuntmp) aimag(con_coeff(:,:,:,:,itau)) 
+
+        ! Getting strange size-dependent crashes when attempting to combine type conversion and write
+        !   There shouldn't be any time costs to two-stepping it
+        out_coeffs( :,:,:,:) = real(con_coeff(:,:,:,:,itau))
+        write(iuntmp) out_coeffs
+        out_coeffs( :,:,:,:) = aimag(con_coeff(:,:,:,:,itau))
+        write(iuntmp) out_coeffs
+
         close(iuntmp) 
       enddo
+
+      deallocate( out_coeffs )
+      allocate( out_coeffs( nptot, nbuse_xes, nkpt, nspin ) )
 
       do itau = 1, ntau
         write( filout, '(1a5,1a6)' ) 'cksv.', fntau( itau )
@@ -329,10 +340,18 @@ module OCEAN_obf2loc
         rewind(iuntmp)
         write(iuntmp) nptot, nbuse_xes*nkpt, nspin
         write(iuntmp) tau( :, itau )
-        write(iuntmp) real(val_coeff(:,:,:,:,itau))
-        write(iuntmp) aimag(val_coeff(:,:,:,:,itau))
+
+        ! Getting strange size-dependent crashes when attempting to combine type conversion and write
+        !   There shouldn't be any time costs to two-stepping it
+        out_coeffs( :,:,:,:) = real(val_coeff(:,:,:,:,itau))
+        write(iuntmp) out_coeffs
+        out_coeffs( :,:,:,:) = aimag(val_coeff(:,:,:,:,itau))
+        write(iuntmp) out_coeffs
+
         close(iuntmp)
       enddo
+
+      deallocate( out_coeffs )
 
     endif
 

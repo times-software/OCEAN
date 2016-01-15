@@ -423,6 +423,14 @@ subroutine OCEAN_bofx( )
   if( ierr .ne. 0 ) then
     write(stdout,*) 'Failed obf2loc_write'
   endif
+  ! catch errors from obf2loc
+  call MPI_BARRIER( intra_pool_comm, ierr )
+  if( ierr .ne. 0 ) then
+    write(stdout,*) 'Failed barrier after OCEAN_obf2loc_write'
+  else
+    write(stdout,*) 'Finished OCEAN_obf2loc_write'
+  endif
+
 !!!!
 #endif
   
