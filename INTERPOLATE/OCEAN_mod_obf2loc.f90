@@ -364,7 +364,7 @@ module OCEAN_obf2loc
 ! ck = complex wavefunction
 ! ibl = start band
 ! ibh = stop band
-  subroutine OCEAN_obf2loc_coeffs( ng, kvc, ck, iq, ispin, ishift, ibeg )
+  subroutine OCEAN_obf2loc_coeffs( ng, kvc, ck, iq, ispin, ishift, ibeg, loud )
 !    use constants, ONLY : tpi
     use OCEAN_timer
 !    use kinds, only : dp
@@ -374,6 +374,7 @@ module OCEAN_obf2loc
     integer, intent( in ) :: kvc( 3, ng ), ibeg(nkpt,nspin)
     complex(dp), intent( in ) :: ck( ng, nband )
     integer, intent( inout ) :: ishift
+    logical, intent( in ) :: loud
     
     complex(dp), parameter :: zero = 0.0_dp
     !
@@ -413,7 +414,7 @@ module OCEAN_obf2loc
 
     do ishift = 1, nshift
 
-    write(stdout,*) q(:)
+    if( loud ) write(stdout,*) q(:)
     o2l = zero
 
     pi = 4.0d0 * atan( 1.0d0 )
@@ -432,19 +433,19 @@ module OCEAN_obf2loc
         tauphs( ig, itau ) = cos( phase ) + rm1 * sin( phase ) !cmplx( cos(phase), sin(phase) )
       enddo
     end do
-    call OCEAN_t_printtime( "Phase", stdout )
+    if( loud ) call OCEAN_t_printtime( "Phase", stdout )
     call OCEAN_t_reset
 
     do l = lmin, lmax
        call Aseanitup( ng, q, kvc, l, sfq( 1, 1, l ) )
     end do
     call Anewgetylmfac( ng, kvc, q, ylmfac )
-    call OCEAN_t_printtime( "Seanitup", stdout )
+    if( loud ) call OCEAN_t_printtime( "Seanitup", stdout )
     call OCEAN_t_reset
 
     call Afullgetcoeff( ng, ck, tauphs, ylmfac, sfq )
 
-    call OCEAN_t_printtime( "Get Coeff", stdout )
+    if( loud ) call OCEAN_t_printtime( "Get Coeff", stdout )
     !
     deallocate( tauphs, ylmfac, sfq )
     !

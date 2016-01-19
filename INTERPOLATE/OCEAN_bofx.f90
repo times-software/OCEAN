@@ -68,7 +68,7 @@ subroutine OCEAN_bofx( )
 
   complex(dp), allocatable :: eigvec(:,:), unk(:,:)
 
-  integer :: ibd, nelement
+  integer :: ibd, nelement, writeEveryNKpt
   integer :: fheig, fhu2
   integer :: u2_type
   integer(kind=MPI_OFFSET_KIND) :: offset, long_s, long_k, long_x, long_b
@@ -350,6 +350,15 @@ subroutine OCEAN_bofx( )
   endif
   !
   write(stdout,*) 'Blocking eigvec:', band_block, nband
+
+
+  ! Need to reign in amount of stdout
+  if( nkpt .gt. 100 ) then
+    writeEveryNKpt = max( 10, nkpt / 100 )
+  else
+    writeEveryNKpt = 1
+  endif
+  
   
   
 
@@ -386,7 +395,7 @@ subroutine OCEAN_bofx( )
         offset = offset + int( nelement, MPI_OFFSET_KIND ) * int( nbasis_, MPI_OFFSET_KIND )
 
       enddo
-      call OCEAN_t_printtime( "Read eigvec", stdout )
+      if( loud ) call OCEAN_t_printtime( "Read eigvec", stdout )
 
       deallocate( eigvec )
 
@@ -397,12 +406,15 @@ subroutine OCEAN_bofx( )
 !      offset = offset * long_x
       call par_gentoreal( xmesh, nband, unk, npw, mill, offset, invert_xmesh, loud, ibeg(ikpt,ispin) )  
       loud = .false.
-      write(stdout,*) ikpt, offset
+    
+      if( mod( ikpt, writeEveryNKpt ) .eq. 0 ) then
+        write(stdout,*) ikpt, offset
+      endif
   
 
 #ifdef OBF
 !!!!!!
-      call OCEAN_obf2loc_coeffs( npw, mill, unk, ikpt, ispin, ishift, ibeg )
+      call OCEAN_obf2loc_coeffs( npw, mill, unk, ikpt, ispin, ishift, ibeg, loud )
 
 !      call OCEAN_t_reset
 !      call OCEAN_obf2loc_sumO2L()
