@@ -25,11 +25,13 @@ subroutine OCEAN_bofx( )
   USE io_files, ONLY: prefix, nwordwfc, iunwfc
   USE wavefunctions_module, ONLY: evc
   USE mp, ONLY : mp_sum, mp_bcast,  mp_max, mp_min
-  USE mp_global, ONLY : me_pool, nproc_pool, root_pool, mpime
+  USE mp_global, ONLY : me_pool, nproc_pool, root_pool, mpime, intra_pool_comm, & 
+                        mypoolid => my_pool_id, mypoolroot => root_pool
   USE buffers, ONLY : get_buffer
   use hamq_shirley
   use shirley_ham_input, only : debug, band_subset
-  use hamq_pool, only : mypool, mypoolid, mypoolroot, cross_pool_comm, intra_pool_comm
+!  use hamq_pool, only : mypool, mypoolid, mypoolroot, cross_pool_comm, intra_pool_comm
+  
   use mpi
   use OCEAN_bofx_mod
   use OCEAN_obf2loc
@@ -74,7 +76,6 @@ subroutine OCEAN_bofx( )
   integer(kind=MPI_OFFSET_KIND) :: offset, long_s, long_k, long_x, long_b
 
   integer,external :: freeunit
-
 
   WRITE( stdout, '(/5x,"Calling realspacebasis .... ",/)')
   write(stdout,*) ' npwx  = ', npwx
@@ -157,6 +158,7 @@ subroutine OCEAN_bofx( )
   do ibnd=1,nbnd
     norm(ibnd) = dot_product( evc(:,ibnd_indx(ibnd)), evc(:,ibnd_indx(ibnd)) )
   enddo
+  call mpi_barrier( intra_pool_comm, ierr )
   call mp_sum( norm, intra_pool_comm )
   do ibnd=1,nbnd
     if( abs(norm(ibnd)-1.d0) > eps ) then
