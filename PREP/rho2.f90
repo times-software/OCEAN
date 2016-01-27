@@ -7,7 +7,7 @@
 !
       program rhotest
 
-        use FFT_wrapper
+      use FFT_wrapper
       implicit none
 !
 !      include 'fftw3.f'
