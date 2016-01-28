@@ -35,10 +35,11 @@ module FFT_wrapper
 
   contains
 
-  subroutine FFT_wrapper_init( zn )
+  subroutine FFT_wrapper_init( zn, io )
     implicit none
 
     integer, intent(in ) :: zn(3)
+    complex(kind=kind(1.0d0)), intent(inout), optional :: io(zn(1),zn(2),zn(3))
     integer :: fftw_flags
     !
     dims(1:3) = zn(:)
@@ -47,8 +48,13 @@ module FFT_wrapper
     allocate( cwrk(dims(4)))
     norm = 1.0d0 / dble( dims(4) )
     
-    fplan = fftw_plan_dft_3d( dims(1), dims(2), dims(3), cwrk, cwrk, FFTW_FORWARD, FFTW_PATIENT )
-    bplan = fftw_plan_dft_3d( dims(1), dims(2), dims(3), cwrk, cwrk, FFTW_BACKWARD, FFTW_PATIENT )
+    if( present( io ) ) then
+      fplan = fftw_plan_dft_3d( dims(3), dims(2), dims(1), io, io, FFTW_FORWARD, FFTW_PATIENT )
+      bplan = fftw_plan_dft_3d( dims(3), dims(2), dims(1), io, io, FFTW_BACKWARD, FFTW_PATIENT )
+    else
+      fplan = fftw_plan_dft_3d( dims(3), dims(2), dims(1), cwrk, cwrk, FFTW_FORWARD, FFTW_PATIENT )
+      bplan = fftw_plan_dft_3d( dims(3), dims(2), dims(1), cwrk, cwrk, FFTW_BACKWARD, FFTW_PATIENT )
+    endif
 
 #else
     norm = 1.0d0
@@ -95,7 +101,11 @@ module FFT_wrapper
 
   subroutine FFT_wrapper_single( io, dir )
     implicit none
+#ifdef __FFTW3
+    complex(kind=kind(1.0d0)), intent( inout ) :: io( dims(1), dims(2), dims(3) )
+#else
     complex(kind=kind(1.0d0)), intent( inout ) :: io(dims(4))
+#endif
     integer, intent( in ) :: dir
     !
 #ifndef __FFTW3
@@ -108,7 +118,7 @@ module FFT_wrapper
     else
       call fftw_execute_dft( bplan, io, io )
     endif
-    io(:) = io(:) * norm
+    io(:,:,:) = io(:,:,:) * norm
 #else
     r(:) = real(io(:))
     i(:) = aimag(io(:))
