@@ -37,7 +37,6 @@
       end do
       close(99)
       if( iostatus .eq. 0 ) have_zsymb = .true.
-      write(*,*) have_zsymb, zsymb
 !
 ! get symbol & mass, concatenate
 !
