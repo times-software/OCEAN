@@ -18,7 +18,7 @@ program dotter
   logical :: have_spin
   !
   read ( 5, * ) filnam
-  inquire(file='nspn.ipt',exist=have_spin)
+  inquire(file='nspin',exist=have_spin)
   open( unit=99, file=filnam, form='unformatted', status='unknown' )
   rewind 99
   if( have_spin ) then

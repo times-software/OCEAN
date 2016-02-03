@@ -45,13 +45,13 @@ program builder
   real( kind = kind( 1.0d0 ) ), allocatable :: wfr( : ), wfi( : ), wfp( :, : ), dmat( :, : )
   real( kind = kind( 1.0d0 ) ), allocatable :: cosqr( : ), sinqr( : )
   real( kind = kind( 1.0d0 ) ), allocatable :: ure( :, : ), uim( :, : )
-  real( kind = kind( 1.0d0 ) ), allocatable :: gre( :, :, : ), gim( :, :, : )
-  real( kind = kind( 1.0d0 ) ), allocatable :: gre_small( :, :, : ), gim_small( :, :, : )
+  real( kind = kind( 1.0d0 ) ), allocatable :: gre( :, :, :, : ), gim( :, :, :, : )
+  real( kind = kind( 1.0d0 ) ), allocatable :: gre_small( :, :, :, : ), gim_small( :, :, :, : )
   real( kind = kind( 1.0d0 ) ), allocatable :: vind( : ), nind( : ), xirow( : )
   !
   real( kind = kind( 1.0d0 ) ) :: exppref, nav
-  real( kind = kind( 1.0d0 ) ) :: efermi
-  integer :: dumint, gtot,bandtot,brange(4), nang, small_band
+  real( kind = kind( 1.0d0 ) ) :: efermi, spinfac
+  integer :: dumint, gtot,bandtot,brange(4), nang, small_band, nspin, ispin
   integer, allocatable :: gvec( : , : )
   character(len=12) :: wfname
   real( kind = kind( 1.0d0 ) ) :: kshift(3)
@@ -96,6 +96,16 @@ program builder
   open(unit=99,file='clipbands',form=f9,status='old') 
   read(99,*) ibl,ibh
   close(99)
+  !
+  open(unit=99,file='nspin',form=f9,status='old')
+  read(99,*) nspin
+  close(99)
+  if( nspin .eq. 1 ) then
+    spinfac = 2.0d0
+  else
+    spinfac = 1.0d0
+  endif
+
   !
 !!!!
   overlap = brange(2) - brange(3) + 1
@@ -162,9 +172,9 @@ program builder
   !
   !
   allocate( ure( npt, ibl : ibh + overlap ), uim( npt, ibl : ibh + overlap ) )
-  allocate( gre( npt, npt, 2 * nt ), gim( npt, npt, 2 * nt ) )
+  allocate( gre( npt, npt, nt, nspin ), gim( npt, npt, nt, nspin ) )
   gre = 0; gim = 0; dmat = 0
-  allocate( gre_small( npt, npt, 2 * nt ), gim_small( npt, npt, 2 * nt ) )
+  allocate( gre_small( npt, npt, nt, nspin ), gim_small( npt, npt, nt, nspin ) )
   gre_small= 0; gim_small = 0
   allocate( wfr( npt ), wfi( npt ), cosqr( npt ), sinqr( npt ) )
   pref = 1 / ( nk1 * nk2 * nk3 * celvol )
@@ -183,7 +193,8 @@ program builder
   ! otherwise might need to interchange loop order, won't change anything else
 !
 
-  do ik1=1,nk1
+  do ispin=1,nspin
+   do ik1=1,nk1
      qin(1) = ( kshift(1) + dble( ik1 - 1 )) / dble( nk1 )
      do ik2=1,nk2
         qin(2) = ( kshift(2) + dble( ik2 - 1 )) / dble( nk2 )
@@ -274,10 +285,10 @@ program builder
                    denr = sign( newdiff, mu - w( j ) )
                    iden2 = 1.0d0 / ( denr ** 2 + deni ** 2 )
                    fr = iden2 * denr; fi = - iden2 * deni
-                   gre( :, :, it ) = gre( :, :, it ) + fr * wfp( :, : )
-                   gim( :, :, it ) = gim( :, :, it ) + fi * wfp( :, : )
-                   gre_small( :, :, it ) = gre_small( :, :, it ) + fr * wfp( :, : )
-                   gim_small( :, :, it ) = gim_small( :, :, it ) + fi * wfp( :, : )
+                   gre( :, :, it, ispin ) = gre( :, :, it, ispin ) + fr * wfp( :, : )
+                   gim( :, :, it, ispin ) = gim( :, :, it, ispin ) + fi * wfp( :, : )
+                   gre_small( :, :, it, ispin ) = gre_small( :, :, it, ispin ) + fr * wfp( :, : )
+                   gim_small( :, :, it, ispin ) = gim_small( :, :, it, ispin ) + fi * wfp( :, : )
                 end do
               endif
 ! 
@@ -318,11 +329,11 @@ program builder
 
                    iden2 = 1.0d0 / ( denr ** 2 + deni ** 2 )
                    fr = iden2 * denr; fi = - iden2 * deni
-                   gre( :, :, it ) = gre( :, :, it ) + fr * wfp( :, : )
-                   gim( :, :, it ) = gim( :, :, it ) + fi * wfp( :, : )
+                   gre( :, :, it, ispin ) = gre( :, :, it, ispin ) + fr * wfp( :, : )
+                   gim( :, :, it, ispin ) = gim( :, :, it, ispin ) + fi * wfp( :, : )
                    if( j .le. small_band ) then
-                     gre_small( :, :, it ) = gre_small( :, :, it ) + fr * wfp( :, : )
-                     gim_small( :, :, it ) = gim_small( :, :, it ) + fi * wfp( :, : )
+                     gre_small( :, :, it, ispin ) = gre_small( :, :, it, ispin ) + fr * wfp( :, : )
+                     gim_small( :, :, it, ispin ) = gim_small( :, :, it, ispin ) + fi * wfp( :, : )
                    endif
                 end do
               endif
@@ -332,7 +343,8 @@ program builder
            !
         end do ! end k runs
      end do ! end k runs
-  end do ! end k runs
+   end do ! end k runs
+  end do
   !
   exppref = pi / ( 2.0d0 ** ( 5.0d0 / 3.0d0 ) )
   !
@@ -345,10 +357,13 @@ program builder
      su2 = 0
      do j = 1, npt
         su = 0
-        do it = 1, nt
-           su = su + ( gre( i, j, it ) ** 2 - gim( i, j, it ) ** 2 ) * newwgt( it )
-        end do
-        su = 4 * su * s / pi     ! 2 for spin, 2 for Ry
+        do ispin = 1, nspin
+          do it = 1, nt
+             su = su + ( gre( i, j, it, ispin ) ** 2 - gim( i, j, it, ispin ) ** 2 ) * newwgt( it )
+          end do
+        enddo
+!        su = 4 * su * s / pi     ! 2 for spin, 2 for Ry
+        su = 2.0d0 * spinfac * su * s / pi     ! 2 for spin, 2 for Ry
         xirow( j ) = su
         su2 = su2 + vipt( j ) * su * wpt( j )
      end do
@@ -378,10 +393,13 @@ program builder
      su2 = 0
      do j = 1, npt
         su = 0
-        do it = 1, nt
-           su = su + ( gre_small( i, j, it ) ** 2 - gim_small( i, j, it ) ** 2 ) * newwgt( it )
-        end do
-        su = 4 * su * s / pi     ! 2 for spin, 2 for Ry
+        do ispin = 1, nspin
+          do it = 1, nt
+             su = su + ( gre_small( i, j, it, ispin ) ** 2 - gim_small( i, j, it, ispin ) ** 2 ) * newwgt( it )
+          end do
+        enddo
+!        su = 4 * su * s / pi     ! 2 for spin, 2 for Ry
+        su = 2.0d0 * spinfac * su * s / pi     ! 2 for spin, 2 for Ry
         xirow( j ) = su
         su2 = su2 + vipt( j ) * su * wpt( j )
      end do

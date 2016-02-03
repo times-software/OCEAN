@@ -308,6 +308,33 @@ if( $nbands <= 0 )
   close NBANDS;
 }
 
+# Bands for screening calculation
+# 1) User has asked for a set number
+# 2) Attempt to guess using erange
+open ERANGE, "screen_energy_range.ipt" or die "Failed to open screen_energy_range.ipt\n$!";
+my $erange = <ERANGE>;
+chomp($erange);
+close ERANGE;
+open NBANDS, "paw.nbands" or die "Failed to open paw.nbands\n$!";
+my $screen_nbands = <NBANDS>;
+chomp($screen_nbands);
+close NBANDS;
+if( $screen_nbands <= 0 )
+{
+  $erange = 100 if( $erange <= 0 );
+  print "Default requested for paw.nbands. Energy range is $erange eV.\n";
+  $erange = $erange / 13.605;
+  $screen_nbands = 0.01688686394 * $volume * ( $erange**(3/2) );
+  $screen_nbands *= 1.05;
+  $screen_nbands = int($screen_nbands);
+  # 1.05 is a padding factor
+  print "Default chosen for paw.nbands:\t$screen_nbands\n";
+  open NBANDS, ">paw.nbands" or die "Failed to open nbands for writing.\n$!";
+  print NBANDS "$screen_nbands\n";
+  close NBANDS;
+}
+
+# OBF bands
 open ERANGE, "obf_energy_range" or die "Failed to open obf_energy_range\n$!";
 $erange = <ERANGE>;
 chomp($erange);
@@ -319,6 +346,7 @@ close NBANDS;
 if( $obf_nbands <= 0 && $erange <= 0 )
 {
   $obf_nbands = $nbands;
+  print "Default chosen for obf_nbands:\t$obf_nbands\n";
 } 
 elsif( $obf_nbands <= 0 ) 
 {

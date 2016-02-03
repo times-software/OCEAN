@@ -281,7 +281,7 @@ scratchXX
 
 degauss
 {
-0.002
+0.02
 } degauss
 ibrav
 {
@@ -307,10 +307,6 @@ ppdir
 {
 '~/PseudoPots/All'
 } ppdir
-smearing
-{
-'methfessel-paxton'
-} smearing
 spinorb
 {
 .false.
@@ -431,3 +427,7 @@ spin_orbit
 {
 -1
 } spin_orbit
+screen_energy_range
+{
+100
+} screen_energy_range.ipt
