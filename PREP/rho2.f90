@@ -7,7 +7,7 @@
 !
       program rhotest
 
-        use FFT_wrapper
+      use FFT_wrapper
       implicit none
 !
 !      include 'fftw3.f'
@@ -40,7 +40,7 @@
      &          dims(2),dims(3)))
 !        call dfftw_plan_dft_3d(plan, dims(1),dims(2),dims(3), rhoofg,     &
 !     &      rhoofg,FFTW_FORWARD,FFTW_ESTIMATE)
-        call FFT_wrapper_init( dims )
+        call FFT_wrapper_init( dims, rhoofg )
         allocate(trhoofg(dims(3),dims(2),dims(1)))
         read(99,*) trhoofg
         close(99)
@@ -48,7 +48,7 @@
           do counter2=1,dims(2)
             do counter1=1,dims(1)
               rhoofg(counter1,counter2,counter3) =  &
-     &               trhoofg(counter3,counter2,counter1)
+     &               cmplx( trhoofg(counter3,counter2,counter1), 0.0d0 )
             enddo
           enddo
         enddo

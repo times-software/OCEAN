@@ -25,11 +25,13 @@ subroutine OCEAN_bofx( )
   USE io_files, ONLY: prefix, nwordwfc, iunwfc
   USE wavefunctions_module, ONLY: evc
   USE mp, ONLY : mp_sum, mp_bcast,  mp_max, mp_min
-  USE mp_global, ONLY : me_pool, nproc_pool, root_pool, mpime
+  USE mp_global, ONLY : me_pool, nproc_pool, root_pool, mpime, intra_pool_comm, & 
+                        mypoolid => my_pool_id, mypoolroot => root_pool
   USE buffers, ONLY : get_buffer
   use hamq_shirley
   use shirley_ham_input, only : debug, band_subset
-  use hamq_pool, only : mypool, mypoolid, mypoolroot, cross_pool_comm, intra_pool_comm
+!  use hamq_pool, only : mypool, mypoolid, mypoolroot, cross_pool_comm, intra_pool_comm
+  
   use mpi
   use OCEAN_bofx_mod
   use OCEAN_obf2loc
@@ -68,13 +70,12 @@ subroutine OCEAN_bofx( )
 
   complex(dp), allocatable :: eigvec(:,:), unk(:,:)
 
-  integer :: ibd, nelement
+  integer :: ibd, nelement, writeEveryNKpt
   integer :: fheig, fhu2
   integer :: u2_type
   integer(kind=MPI_OFFSET_KIND) :: offset, long_s, long_k, long_x, long_b
 
   integer,external :: freeunit
-
 
   WRITE( stdout, '(/5x,"Calling realspacebasis .... ",/)')
   write(stdout,*) ' npwx  = ', npwx
@@ -157,6 +158,7 @@ subroutine OCEAN_bofx( )
   do ibnd=1,nbnd
     norm(ibnd) = dot_product( evc(:,ibnd_indx(ibnd)), evc(:,ibnd_indx(ibnd)) )
   enddo
+  call mpi_barrier( intra_pool_comm, ierr )
   call mp_sum( norm, intra_pool_comm )
   do ibnd=1,nbnd
     if( abs(norm(ibnd)-1.d0) > eps ) then
@@ -350,6 +352,15 @@ subroutine OCEAN_bofx( )
   endif
   !
   write(stdout,*) 'Blocking eigvec:', band_block, nband
+
+
+  ! Need to reign in amount of stdout
+  if( nkpt .gt. 100 ) then
+    writeEveryNKpt = max( 10, nkpt / 100 )
+  else
+    writeEveryNKpt = 1
+  endif
+  
   
   
 
@@ -386,7 +397,7 @@ subroutine OCEAN_bofx( )
         offset = offset + int( nelement, MPI_OFFSET_KIND ) * int( nbasis_, MPI_OFFSET_KIND )
 
       enddo
-      call OCEAN_t_printtime( "Read eigvec", stdout )
+      if( loud ) call OCEAN_t_printtime( "Read eigvec", stdout )
 
       deallocate( eigvec )
 
@@ -397,12 +408,15 @@ subroutine OCEAN_bofx( )
 !      offset = offset * long_x
       call par_gentoreal( xmesh, nband, unk, npw, mill, offset, invert_xmesh, loud, ibeg(ikpt,ispin) )  
       loud = .false.
-      write(stdout,*) ikpt, offset
+    
+      if( mod( ikpt, writeEveryNKpt ) .eq. 0 ) then
+        write(stdout,*) ikpt, offset
+      endif
   
 
 #ifdef OBF
 !!!!!!
-      call OCEAN_obf2loc_coeffs( npw, mill, unk, ikpt, ispin, ishift, ibeg )
+      call OCEAN_obf2loc_coeffs( npw, mill, unk, ikpt, ispin, ishift, ibeg, loud )
 
 !      call OCEAN_t_reset
 !      call OCEAN_obf2loc_sumO2L()
@@ -423,6 +437,14 @@ subroutine OCEAN_bofx( )
   if( ierr .ne. 0 ) then
     write(stdout,*) 'Failed obf2loc_write'
   endif
+  ! catch errors from obf2loc
+  call MPI_BARRIER( intra_pool_comm, ierr )
+  if( ierr .ne. 0 ) then
+    write(stdout,*) 'Failed barrier after OCEAN_obf2loc_write'
+  else
+    write(stdout,*) 'Finished OCEAN_obf2loc_write'
+  endif
+
 !!!!
 #endif
   

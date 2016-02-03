@@ -31,7 +31,7 @@ my @KgenFiles = ("nkpt", "k0.ipt", "qinunitsofbvectors.ipt", "paw.nkpt");
 my @BandFiles = ("nbands", "paw.nbands");
 my @EspressoFiles = ( "coord", "degauss", "ecut", "etol", "fband", "ibrav", 
     "isolated", "mixing", "natoms", "ngkpt", "noncolin", "nrun", "ntype", 
-    "occopt", "occtype", "prefix", "ppdir", "rprim", "rscale", "smearing", 
+    "occopt", "occtype", "prefix", "ppdir", "rprim", "rscale", 
     "spinorb", "taulist", "typat", "verbatim", "work_dir", "wftol", 
     "den.kshift", "obkpt.ipt", "trace_tol", "ham_kpoints", "obf.nbands","tot_charge", "nspin", "smag", "ldau", "zsymb");
 my @PPFiles = ("pplist", "znucl");

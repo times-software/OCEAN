@@ -1,0 +1,45 @@
+control 0
+metal .true.
+para_prefix {mpirun -n 48 }
+ppdir { '../' }
+nkpt { 8 8 8 }
+paw.nkpt{ 2 2 2 }
+ngkpt{ 10 10 10 }
+fband 3
+occopt 3
+nbands 35
+cnbse.nbuse 25
+paw.nbands 100
+acell { 6.821910819 6.821910819 6.821910819 } 
+# 3.61 Angstroms, Ashcrof & Mermin
+rprim {
+0.0 0.5 0.5
+0.5 0.0 0.5
+0.5 0.5 0.0 }
+ntypat 1
+znucl { 29 }
+pp_list{ cu.fhi }
+natom 1
+typat { 1  }
+xred {  0      0      0 }
+
+ecut 400
+toldfe 1.1d-6
+tolwfr 1.1d-16
+nstep 50
+diemac 100000
+CNBSE.xmesh { 8 8 8 }
+paw.fill{ 29 cu.fill }
+paw.opts{ 29 cu.opts }
+
+#edge information
+nedges 1
+edges{ 1 1 0  }
+
+# radius for paw reconstruciton
+paw.shells{ 6.0 }
+cnbse.rad{ 6.0 }
+
+#Scaling Factor
+scfac 0.80
+cnbse.broaden 0.5

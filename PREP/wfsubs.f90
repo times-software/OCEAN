@@ -22,13 +22,13 @@
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 !
 ! Opens up the wavefunction file to be written out
-      subroutine getwfkout( wfkout, files_iter, kptnum, handle)
+      subroutine getwfkout( wfkout, ispin, kptnum, handle)
       implicit none
 !
       character(len=12), intent(out) :: wfkout
-      integer, intent(in) :: kptnum, handle, files_iter
+      integer, intent(in) :: kptnum, handle, ispin
 !
-      write(wfkout,'(A4,I3.3,A1,I4.4)') '.Psi', files_iter, '.', kptnum
+      write(wfkout,'(A4,I1.1,A1,I6.6)') '.Psi', ispin, '.', kptnum
       open(unit=handle,file=wfkout,form='unformatted',status='unknown')
       rewind(handle)
 !

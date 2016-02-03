@@ -14,7 +14,7 @@ program setup1
   character * 7, parameter :: u7 = 'unknown'
   character * 9, parameter :: f9 = 'formatted'
   !
-  integer :: i, j, il, ir, ik, ix, iy, iz, band
+  integer :: i, j, il, ir, ik, ix, iy, iz, band, nspin
   integer :: ilftl, ilfth, irgtl, irgth, nk, nkx, nky, nkz
   integer :: nb, nbl, nbh, nband, nbv, nbc, ngx, ngy, ngz, nx
   real( kind = kind( 1.0d0 ) ) :: minccap, cx, cy, cz, efermi, pi
@@ -62,6 +62,10 @@ program setup1
   rewind 99
   read ( 99, * ) qtransf( : )
   close( unit=99 )
+  open( unit=99, file='nspin', form=f9, status=u7 )
+  rewind 99
+  read ( 99, * ) nspin
+  close( unit=99)
   nk = nkx * nky * nkz
   nbl = ilftl
   nbh = irgth
@@ -94,6 +98,7 @@ program setup1
   call iputval( ngz, 'ngz  ' )
   call iputval( nx, 'ng   ' )
   call iputval( nx, 'nx   ' )
+  call iputval( nspin, 'nspin' )
   close( unit=99 )
   !
   cx = 2.0d0 * pi / dble( nkx )
