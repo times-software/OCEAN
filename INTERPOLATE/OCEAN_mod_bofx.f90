@@ -225,7 +225,9 @@ module OCEAN_bofx_mod
 
     max_bands = nfcn 
     max_bands = ceiling( dble( max_bands ) / dble( nproc_pool ) )
-    write(stdout,*) max_bands
+    if( loud ) then
+      write(stdout,*) max_bands
+    endif
     ii = max_bands
 !    if( me_pool == root_pool ) ii = nfcn
     !
@@ -330,7 +332,9 @@ module OCEAN_bofx_mod
     allocate( zc( nfft( 1 ), nfft( 2 ), nfft( 3 ) ) )
     ! reverse ordering for array
     plan = fftw_plan_dft_3d( nfft(3), nfft(2), nfft(1), zc, zc, FFTW_BACKWARD, FFTW_ESTIMATE )
-    write( stdout, * ) 'using fft'
+    if( loud ) then
+      write( stdout, * ) 'using fft'
+    endif
 #else
     allocate( zr( nfft( 1 ), nfft( 2 ), nfft( 3 ) ) )!, band_block( me_pool) )
     allocate( zi( nfft( 1 ), nfft( 2 ), nfft( 3 ) ) )!, band_block( me_pool) )
@@ -800,7 +804,9 @@ module OCEAN_bofx_mod
         call MPI_FILE_WRITE_AT( fh_u2, offset, cres(1,1,1,i), nelement, x_type, out_status, ierr )
         if( i .eq. 1 ) then
           call MPI_GET_COUNT( out_status, x_type, ncount, ierr )
-          write( stdout, * ) 'MPI_FILE', ncount, 1
+          if( loud ) then
+            write( stdout, * ) 'MPI_FILE', ncount, 1
+          endif
         endif
         offset = offset + nelement
       enddo
@@ -829,7 +835,9 @@ module OCEAN_bofx_mod
         call MPI_FILE_WRITE_AT_ALL( fh_u2, my_offset, newcres(1,1,1,j), nelement, x_type, out_status, ierr )
         if( i .eq. 1 ) then
           call MPI_GET_COUNT( out_status, x_type, ncount, ierr )
-          write( stdout, * ) 'MPI_FILE', ncount, 1
+          if( loud ) then
+            write( stdout, * ) 'MPI_FILE', ncount, 1
+          endif
         endif 
       enddo
 

@@ -8,7 +8,8 @@ SCRIPTS =
 AUX = Version Header
 AUX_EXE = $(ABINIT_EXE) $(CUT3D_EXE) $(PW_EXE) $(PP_EXE)
 
-all: Version
+all: 
+	perl append_git.pl
 	cd Common;       make 
 	cd zbridge;      make 
 	cd DFT;          make 
@@ -54,7 +55,3 @@ instdev:
 	cd SCREEN;       make "INSTDEVDIR = $(INSTDEVDIR)" instdev
 	chmod u+x $(INSTDEVDIR)/*.pl
 
-Version: VersionNumber 
-	perl append_git.pl
-	touch VersionNumber
-	
