@@ -16,7 +16,34 @@ e.g., xmesh, kmesh, cell volume, etc.
 3. delete
 4. load
 
+### Type OCEAN_vector
+The OCEAN_vector is the object that holds the core and valence coefficients. 
+The data can be distributed in 3 ways. The object tracks which data holders 
+are allocated, which are valid, and this module handles moving data between 
+them. This allows the external interaction routines to always be able to 
+ask for and recieve the expected vector full of valid data. The object also 
+keeps track of the MPI communications: communicator, requests, statuses, etc.
 
+
+
+
+#### Data components
+1. r & i -- hold the entire vector for the core (nband, nkpt, nalpha)
+2. write_r & write_i -- buffers for receiving 
+3. store_r & store_i -- fully distributed vector so that it takes minimal space
+
+#### Parameters
+
+
+#### Status flags
+1. storage_type -- bitwise flag for what is allocated
+2. valid_storage -- bitwise flag for which parts of vector have good data
+3. update -- logical for is no data *good*; requires a summation across all procs
+
+#### Comms
+1. core_comm
+2. core_myid
+ 
 
 
 #### psi_init
