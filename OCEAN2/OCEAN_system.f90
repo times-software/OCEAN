@@ -43,6 +43,7 @@ module OCEAN_system
     logical          :: have_core = .true.
     logical          :: have_val = .false.
     logical          :: backf = .false.
+    logical          :: write_rhs = .true.
     character(len=5) :: calc_type
 
     type(o_run), pointer :: cur_run => null()
