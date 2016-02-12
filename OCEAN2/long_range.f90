@@ -739,7 +739,7 @@ module ocean_long_range
     type( long_range ), intent( inout ) :: lr
     type(OCEAN_vector), intent( in ) :: p
 !    type(OCEAN_vector), intent(inout) :: hp
-    real(DP), dimension(sys%num_bands, sys%nkpts, sys%nalpha ), intent( out ) :: hpr, hpi
+    real(DP), dimension(sys%num_bands, sys%nkpts, sys%nalpha ), intent( inout ) :: hpr, hpi
     integer, intent( inout ) :: ierr
 
     !
@@ -828,21 +828,21 @@ module ocean_long_range
 
 #ifdef BLAS
         do ikpt = 1, lr%my_nkpts
-          call DAXPY( sys%num_bands, xwrkr(ikpt), re_bloch_state(1,ikpt,xiter), 1, &
+          call DAXPY( sys%num_bands, -xwrkr(ikpt), re_bloch_state(1,ikpt,xiter), 1, &
                       hpr(1,ikpt,ialpha), 1 )
-          call DAXPY( sys%num_bands, xwrki(ikpt), im_bloch_state(1,ikpt,xiter), 1, &
+          call DAXPY( sys%num_bands, -xwrki(ikpt), im_bloch_state(1,ikpt,xiter), 1, &
                       hpr(1,ikpt,ialpha), 1 )
-          call DAXPY( sys%num_bands, xwrki(ikpt), re_bloch_state(1,ikpt,xiter), 1, &
+          call DAXPY( sys%num_bands, -xwrki(ikpt), re_bloch_state(1,ikpt,xiter), 1, &
                       hpi(1,ikpt,ialpha), 1 )
-          call DAXPY( sys%num_bands, -xwrkr(ikpt), im_bloch_state(1,ikpt,xiter), 1, &
+          call DAXPY( sys%num_bands, xwrkr(ikpt), im_bloch_state(1,ikpt,xiter), 1, &
                       hpi(1,ikpt,ialpha), 1 )
 #else
             hpr(:,ikpt,ialpha) = hpr(:,ikpt,ialpha) &
-                                + re_bloch_state(:,ikpt,xiter) * xwrkr(ikpt) &
-                                + im_bloch_state(:,ikpt,xiter) * xwrki(ikpt)
+                                - re_bloch_state(:,ikpt,xiter) * xwrkr(ikpt) &
+                                - im_bloch_state(:,ikpt,xiter) * xwrki(ikpt)
             hpi(:,ikpt,ialpha) = hpi(:,ikpt,ialpha) &
-                                + re_bloch_state(:,ikpt,xiter) * xwrki(ikpt) &
-                                - im_bloch_state(:,ikpt,xiter) * xwrkr(ikpt)
+                                - re_bloch_state(:,ikpt,xiter) * xwrki(ikpt) &
+                                + im_bloch_state(:,ikpt,xiter) * xwrkr(ikpt)
 #endif
           enddo
         enddo
