@@ -1,6 +1,6 @@
 include ../Makefile.arch
 
-FLAGS = $(OPTIONS) -cpp -DHAVE_FLUSH -DBLAS -DMPI -DHAVE_CONTIGUOUS 
+FLAGS = $(OPTIONS) -cpp -DHAVE_FLUSH -DBLAS -DMPI -DHAVE_CONTIGUOUS -traceback -g -O0 -warn all -check all 
 
 #MPIFORT = mpif90
 #FLAGS = -O2 -DHAVE_FLUSH -DBLAS -DMPI -DHAVE_CONTIGUOUS -cpp -warn all  -march=corei7 -fopenmp -openmp-report2 -g -traceback
@@ -21,7 +21,14 @@ OCEANOBJS = AI_kinds.o OCEAN_mpi.o OCEAN_system.o OCEAN_bloch.o OCEAN_obf.o OCEA
             long_range.o OCEAN_load_data.o OCEAN_psi.o OCEAN_energies.o OCEAN_haydock.o OCEAN.o \
             getabb.o getomega.o gamfcn.o jlmfft.o jimel.o nbsemkcmel.o intval.o \
             newgetylm.o  newgetprefs.o newthreey.o cainmhsetup.o elsdch.o cinv.o \
-            sizereport.o OCEAN_timekeeper.o OCEAN_invdrv.o
+            sizereport.o OCEAN_timekeeper.o OCEAN_invdrv.o OCEAN_val_energy.o
+
+
+OCEAN_val_energy.o: OCEAN_val_energy.f90 OCEAN_psi.o
+	$(MPIFORT) $(FLAGS) -c -o OCEAN_val_energy.o OCEAN_val_energy.f90
+
+OCEAN_constants.o: OCEAN_constants.f90 AI_kinds.o 
+	$(MPIFORT) $(FLAGS) -c -o OCEAN_constants.o OCEAN_constants.f90
 
 ocean.x: $(OCEANOBJS)
 	$(MPIFORT) $(LDFLAGS) -o ocean.x $(OCEANOBJS) $(FFTWL) $(BLACS) 
@@ -47,10 +54,10 @@ OCEAN_system.o: OCEAN_system.f90
 OCEAN_load_data.o: OCEAN_load_data.f90 OCEAN_energies.o
 	$(MPIFORT) $(FLAGS) -c -o OCEAN_load_data.o OCEAN_load_data.f90 
 
-OCEAN_psi.o: OCEAN_psi.f90
+OCEAN_psi.o: OCEAN_psi.f90 OCEAN_constants.o
 	$(MPIFORT) $(FLAGS) -c -o OCEAN_psi.o OCEAN_psi.f90 $(FFTWI)
 
-OCEAN_energies.o: OCEAN_energies.f90
+OCEAN_energies.o: OCEAN_energies.f90 OCEAN_val_energy.o
 	$(MPIFORT) $(FLAGS) -c -o OCEAN_energies.o OCEAN_energies.f90 $(FFTWI)
 
 OCEAN_haydock.o: OCEAN_haydock.f90 OCEAN_timekeeper.o

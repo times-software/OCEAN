@@ -182,7 +182,7 @@ module OCEAN_system
       read(99,*) inter
       close(99)
       if( inter .lt. inter_min ) then
-!        sys%mult = .false.
+        sys%mult = .false.
         sys%long_range = .false.
       endif
       

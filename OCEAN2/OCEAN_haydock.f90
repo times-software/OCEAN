@@ -553,7 +553,7 @@ module OCEAN_action
     call MPI_WAIT( brequest, MPI_STATUS_IGNORE, ierr )
     if( ierr .ne. 0 ) return
 
-    b(iter) = btmp
+    b(iter) = sqrt( btmp )
     btmp = 1.0_dp / btmp
     call OCEAN_psi_scal( btmp, hpsi, ierr )
     if( ierr .ne. 0 ) return

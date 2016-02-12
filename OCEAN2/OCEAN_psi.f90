@@ -383,16 +383,19 @@ module OCEAN_psi
         enddo
 
       enddo
+
+! ia and ik are fine from above
       i = psi_core_alpha * psi_kpts_actual - ( core_np - 1 ) * max_core_store_size
-      ia = psi_core_alpha
-      ik = psi_kpts_actual
-      do j = 1, i - 1
-        ik = ik - 1
-        if( ik .eq. 0 ) then
-          ik = psi_kpts_actual
-          ia = ia -1
-        endif
-      enddo
+!      ia = psi_core_alpha
+!      ik = psi_kpts_actual
+!      do j = 1, i - 1
+!        ik = ik - 1
+!        if( ik .eq. 0 ) then
+!          ik = psi_kpts_actual
+!          ia = ia -1
+!        endif
+!      enddo
+      
       call MPI_IRSEND( p%r(1,ik,ia), i * psi_bands_pad, MPI_DOUBLE_PRECISION, &
                        core_np - 1, 1, p%core_comm, p%core_store_sr( core_np - 1 ), ierr )
         
@@ -780,11 +783,11 @@ module OCEAN_psi
     if( have_core .and. p%core_store_size .gt. 0 ) then
       ! Need to do dot product here
       !  Everything should be in store/min
-      rval = DDOT( psi_bands_pad * p%core_store_size, p%min_r, 1, q%min_r ) &
-           + DDOT( psi_bands_pad * p%core_store_size, p%min_i, 1, q%min_i )
+      rval = DDOT( psi_bands_pad * p%core_store_size, p%min_r, 1, q%min_r, 1 ) &
+           + DDOT( psi_bands_pad * p%core_store_size, p%min_i, 1, q%min_i, 1 )
       if( present( ival ) ) then
-        ival = DDOT( psi_bands_pad * p%core_store_size, p%min_r, 1, q%min_i ) &
-             - DDOT( psi_bands_pad * p%core_store_size, p%min_i, 1, q%min_r )
+        ival = DDOT( psi_bands_pad * p%core_store_size, p%min_r, 1, q%min_i, 1 ) &
+             - DDOT( psi_bands_pad * p%core_store_size, p%min_i, 1, q%min_r, 1 )
       endif
     else
       rval = 0.0_dp
@@ -894,7 +897,7 @@ module OCEAN_psi
 
       i = max_store_size * id + 1
       a_start = i / psi_kpts_actual + 1
-      k_start = mod( i, psi_kpts_actual ) + 1
+      k_start = mod( i-1, psi_kpts_actual ) + 1
       return
     endif
 
@@ -1367,6 +1370,11 @@ module OCEAN_psi
       ierr = -2
       return
     endif
+
+    if( have_core ) then
+      call OCEAN_psi_new_core_comm( p, ierr )
+      if( ierr .ne. 0 ) return
+    endif
     
     ! If q is present then 
     !   Need to allocate and copy all valid storage, first checking that we are
@@ -1402,11 +1410,6 @@ module OCEAN_psi
 
     else
       call OCEAN_psi_alloc_min( p, ierr )
-      if( ierr .ne. 0 ) return
-    endif
-
-    if( have_core ) then
-      call OCEAN_psi_new_core_comm( p, ierr )
       if( ierr .ne. 0 ) return
     endif
 
@@ -1753,6 +1756,12 @@ module OCEAN_psi
       if( ierr .ne. 0 ) return
     endif
 
+!   For now buffer must be allocated as well, because we need the comms
+    if( IAND( p%alloc_store, PSI_STORE_BUFFER ) .eq. 0 ) then
+      call OCEAN_psi_alloc_buffer( p, ierr )
+      if( ierr .ne. 0 ) return
+    endif
+
 !   can't be currently trying to pass info around in this vector
     if( p%inflight ) then
       ierr = -1
@@ -1775,21 +1784,21 @@ module OCEAN_psi
       
 
     do i = 0, p%core_np - 2
-      call MPI_IRECV( p%extra_r( :, i ), psi_bands_pad * max_core_store_size, MPI_DOUBLE_PRECISION, &
+      call MPI_IRECV( p%extra_r( 1, i ), psi_bands_pad * max_core_store_size, MPI_DOUBLE_PRECISION, &
                       i, 1, p%core_comm, p%core_store_rr( i ), ierr )
       if( ierr .ne. 0 ) return
   
-      call MPI_IRECV( p%extra_i( :, i ), psi_bands_pad * max_core_store_size, MPI_DOUBLE_PRECISION, &
+      call MPI_IRECV( p%extra_i( 1, i ), psi_bands_pad * max_core_store_size, MPI_DOUBLE_PRECISION, &
                       i, 2, p%core_comm, p%core_store_ri( i ), ierr )
       if( ierr .ne. 0 ) return
     enddo
 
     ! The last proc that stores some of min may have less than max
     i = ( psi_kpts_actual * psi_core_alpha ) - ( ( p%core_np - 1 ) * max_core_store_size )
-    call MPI_IRECV( p%extra_r( :, p%core_np - 1 ), psi_bands_pad * i, MPI_DOUBLE_PRECISION, &
+    call MPI_IRECV( p%extra_r( 1, p%core_np - 1 ), psi_bands_pad * i, MPI_DOUBLE_PRECISION, &
                     p%core_np - 1, 1, p%core_comm, p%core_store_rr( p%core_np - 1 ), ierr )
     if( ierr .ne. 0 ) return
-    call MPI_IRECV( p%extra_i( :, p%core_np - 1 ), psi_bands_pad * i, MPI_DOUBLE_PRECISION, &
+    call MPI_IRECV( p%extra_i( 1, p%core_np - 1 ), psi_bands_pad * i, MPI_DOUBLE_PRECISION, &
                     p%core_np - 1, 2, p%core_comm, p%core_store_ri( p%core_np - 1 ), ierr )
     if( ierr .ne. 0 ) return
 
@@ -1854,6 +1863,8 @@ module OCEAN_psi
       return
     endif
 
+    p%inflight = .false.
+
     call OCEAN_psi_finish_min2full( p, ierr )
     
   end subroutine OCEAN_psi_assert_min2full
@@ -1902,6 +1913,7 @@ module OCEAN_psi
     endif
 
     p%valid_store = IOR( p%valid_store, PSI_STORE_FULL )
+    p%inflight = .false.
 
   end subroutine OCEAN_psi_finish_min2full
 
