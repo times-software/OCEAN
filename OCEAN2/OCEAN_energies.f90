@@ -318,6 +318,10 @@ module OCEAN_energies
   111 continue
   end subroutine OCEAN_energies_load
 
+
+ !JTV need to move energies into an ocean_vector then:
+ ! 1) this can be done w/ min instead of full
+ ! 2) we can write an element-wise y(i) = z(i) * x(i) + y(i) in OCEAN_psi
   subroutine OCEAN_energies_act( sys, psi, hpsi, ierr )
     use OCEAN_system
     use OCEAN_psi

@@ -779,10 +779,11 @@ module ocean_long_range
 !$OMP& PRIVATE( xwrkr, xwrki, wrk, ikpt, ialpha, xiter ) &
 !$OMP& FIRSTPRIVATE( jfft ) 
 
-!$OMP WORKSHARE
-   hpr(:,:,:) = zero
-   hpi(:,:,:) = zero
-!$OMP END WORKSHARE
+! Zero-ing out is taken care of externally now
+! !$OMP WORKSHARE
+!   hpr(:,:,:) = zero
+!   hpi(:,:,:) = zero
+! !$OMP END WORKSHARE
 
     allocate( xwrkr( sys%nkpts ), xwrki( sys%nkpts ), &
               wrk( jfft ) )

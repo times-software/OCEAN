@@ -168,7 +168,7 @@ module OCEAN_action
       call OCEAN_psi_ready_buffer( new_psi, ierr )
       if( ierr .ne. 0 ) return
       
-      if( sys%e0 .and. sys%cur_run%have_core) then 
+      if( sys%e0 .and. sys%cur_run%have_core .and. myid .eq. 0) then 
         call OCEAN_tk_start( tk_e0 )
         call ocean_energies_act( sys, psi, new_psi, ierr )
         call OCEAN_tk_stop( tk_e0 )
@@ -533,6 +533,7 @@ module OCEAN_action
 
     ! hpsi -= b(i-1) * psi^{i-1}
     btmp = -b(iter-1)
+    ! y:= a*x + y
     call OCEAN_psi_axpy( btmp, old_psi, hpsi, ierr )
 
     ! finish allreduce to get atmp
@@ -547,6 +548,7 @@ module OCEAN_action
     call OCEAN_psi_nrm( btmp, hpsi, ierr, brequest )
     if( ierr .ne. 0 ) return
 
+    ! copies psi onto old_psi
     call OCEAN_psi_copy_min( old_psi, psi, ierr )
     if( ierr .ne. 0 ) return
 
@@ -554,10 +556,12 @@ module OCEAN_action
     if( ierr .ne. 0 ) return
 
     b(iter) = sqrt( btmp )
-    btmp = 1.0_dp / btmp
+    btmp = 1.0_dp / b( iter )
     call OCEAN_psi_scal( btmp, hpsi, ierr )
     if( ierr .ne. 0 ) return
+    !
 
+    ! copies hpsi onto psi
     call OCEAN_psi_copy_min( psi, hpsi, ierr )
     if( ierr .ne. 0 ) return
 

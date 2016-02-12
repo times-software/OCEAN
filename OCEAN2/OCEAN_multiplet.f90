@@ -627,8 +627,8 @@ module OCEAN_multiplet
 
 !    do take_longer = 1, 10
 
-    out_vec%r(:,:,:) = 0.0_DP
-    out_vec%i(:,:,:) = 0.0_DP
+!    out_vec%r(:,:,:) = 0.0_DP
+!    out_vec%i(:,:,:) = 0.0_DP
 
 
     if( do_staggered_sum ) then
