@@ -20,7 +20,7 @@ module OCEAN_constants
   real(QP), parameter :: PI_QP = 3.1415926535897932384626433832795028841971693993751_QP
 
 
-  integer, parameter  :: CACHE_DOUBLE = 8
+  integer, parameter  :: CACHE_DOUBLE = 1
 
 
 end module OCEAN_constants
