@@ -1,10 +1,10 @@
 #!/bin/sh
 
 #ai2nbse build/git directory
-AI="/home/jtv1/AI2NBSE.git/"
+AI="/users/kgilmore/Code/AI2NBSE/"
 
 # ocean install directory
-OCEAN_INSTALL="/home/jtv1/bin/intel/rixs_test2/"
+OCEAN_INSTALL="/users/kgilmore/Code/OCEAN-develop/BIN/"
 
 echo ${AI}
 

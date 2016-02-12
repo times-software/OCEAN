@@ -1,6 +1,6 @@
 #!/bin/sh
 
-OCEAN_BIN=/home/jtv1/bin/intel/rixs_test2/
+OCEAN_BIN=/users/kgilmore/Code/OCEAN-develop/BIN/
 
 ## Run for XAS
 echo "Running bse for spectra"
