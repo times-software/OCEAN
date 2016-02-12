@@ -306,22 +306,33 @@ module OCEAN_obf2loc
 
     integer :: iuntmp, itau
     character(len=11) :: filout
+    real(kind=dp), allocatable :: out_coeffs(:,:,:,:)
 
 
     iuntmp = freeunit()
 
     if( ionode ) then
       write(stdout,*) nptot, nbuse*nkpt, nspin, ntau
+      allocate( out_coeffs( nptot, nbuse, nkpt, nspin ) )
       do itau = 1, ntau
         write( filout, '(1a5,1a6)' ) 'cksc.', fntau( itau )
         open(unit=iuntmp,file=filout,form='unformatted',status='unknown')!,buffered='yes',blocksize=1048576,buffercount=128)
         rewind(iuntmp)
         write(iuntmp) nptot, nbuse*nkpt, nspin
         write(iuntmp) tau( :, itau )
-        write(iuntmp) real(con_coeff(:,:,:,:,itau))
-        write(iuntmp) aimag(con_coeff(:,:,:,:,itau)) 
+
+        ! Getting strange size-dependent crashes when attempting to combine type conversion and write
+        !   There shouldn't be any time costs to two-stepping it
+        out_coeffs( :,:,:,:) = real(con_coeff(:,:,:,:,itau))
+        write(iuntmp) out_coeffs
+        out_coeffs( :,:,:,:) = aimag(con_coeff(:,:,:,:,itau))
+        write(iuntmp) out_coeffs
+
         close(iuntmp) 
       enddo
+
+      deallocate( out_coeffs )
+      allocate( out_coeffs( nptot, nbuse_xes, nkpt, nspin ) )
 
       do itau = 1, ntau
         write( filout, '(1a5,1a6)' ) 'cksv.', fntau( itau )
@@ -329,10 +340,18 @@ module OCEAN_obf2loc
         rewind(iuntmp)
         write(iuntmp) nptot, nbuse_xes*nkpt, nspin
         write(iuntmp) tau( :, itau )
-        write(iuntmp) real(val_coeff(:,:,:,:,itau))
-        write(iuntmp) aimag(val_coeff(:,:,:,:,itau))
+
+        ! Getting strange size-dependent crashes when attempting to combine type conversion and write
+        !   There shouldn't be any time costs to two-stepping it
+        out_coeffs( :,:,:,:) = real(val_coeff(:,:,:,:,itau))
+        write(iuntmp) out_coeffs
+        out_coeffs( :,:,:,:) = aimag(val_coeff(:,:,:,:,itau))
+        write(iuntmp) out_coeffs
+
         close(iuntmp)
       enddo
+
+      deallocate( out_coeffs )
 
     endif
 
@@ -345,7 +364,7 @@ module OCEAN_obf2loc
 ! ck = complex wavefunction
 ! ibl = start band
 ! ibh = stop band
-  subroutine OCEAN_obf2loc_coeffs( ng, kvc, ck, iq, ispin, ishift, ibeg )
+  subroutine OCEAN_obf2loc_coeffs( ng, kvc, ck, iq, ispin, ishift, ibeg, loud )
 !    use constants, ONLY : tpi
     use OCEAN_timer
 !    use kinds, only : dp
@@ -355,6 +374,7 @@ module OCEAN_obf2loc
     integer, intent( in ) :: kvc( 3, ng ), ibeg(nkpt,nspin)
     complex(dp), intent( in ) :: ck( ng, nband )
     integer, intent( inout ) :: ishift
+    logical, intent( in ) :: loud
     
     complex(dp), parameter :: zero = 0.0_dp
     !
@@ -394,7 +414,7 @@ module OCEAN_obf2loc
 
     do ishift = 1, nshift
 
-    write(stdout,*) q(:)
+    if( loud ) write(stdout,*) q(:)
     o2l = zero
 
     pi = 4.0d0 * atan( 1.0d0 )
@@ -413,19 +433,19 @@ module OCEAN_obf2loc
         tauphs( ig, itau ) = cos( phase ) + rm1 * sin( phase ) !cmplx( cos(phase), sin(phase) )
       enddo
     end do
-    call OCEAN_t_printtime( "Phase", stdout )
+    if( loud ) call OCEAN_t_printtime( "Phase", stdout )
     call OCEAN_t_reset
 
     do l = lmin, lmax
        call Aseanitup( ng, q, kvc, l, sfq( 1, 1, l ) )
     end do
     call Anewgetylmfac( ng, kvc, q, ylmfac )
-    call OCEAN_t_printtime( "Seanitup", stdout )
+    if( loud ) call OCEAN_t_printtime( "Seanitup", stdout )
     call OCEAN_t_reset
 
     call Afullgetcoeff( ng, ck, tauphs, ylmfac, sfq )
 
-    call OCEAN_t_printtime( "Get Coeff", stdout )
+    if( loud ) call OCEAN_t_printtime( "Get Coeff", stdout )
     !
     deallocate( tauphs, ylmfac, sfq )
     !

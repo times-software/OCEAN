@@ -107,12 +107,14 @@ program avg
 !$OMP REDUCTION(+:denr,deni)
           do j=1,ng
             gr = modrealgvec(j) * radius
-            if (gr .ne. 0 ) then
+            if (gr .gt. 0.0001d0 ) then
               mag = (dsin(gr)/gr)*(rhogr(j))
               magi = (dsin(gr)/gr)*(rhogi(j))
-            else
-              mag = 1.d0*rhogr(j)
-              magi = 1.d0*rhogi(j)
+            else  
+              ! The first two terms of the sin expansion divided by x -> ( 1 - x^2/3! )
+              !   the next term is x^4/5! ---->  0.0001^4/120 < 9e-19
+              mag  = rhogr(j) * ( 1.0d0 - ( gr*gr / 6.0d0 ) )
+              magi = rhogi(j) * ( 1.0d0 - ( gr*gr / 6.0d0 ) )
             endif
  
             denr = denr + dcos( 2.0d0 * pi * &

@@ -1,6 +1,7 @@
 #!/usr/bin/perl
 
 use strict;
+use POSIX qw(ceil);
 
 if (! $ENV{"OCEAN_BIN"} ) {
   $0 =~ m/(.*)\/AbinitDriver\.pl/;
@@ -31,7 +32,7 @@ my @KgenFiles = ("nkpt", "k0.ipt", "qinunitsofbvectors.ipt", "paw.nkpt");
 my @BandFiles = ("nbands", "paw.nbands");
 my @AbinitFiles = ( "rscale", "rprim", "ntype", "natoms", "typat",
     "verbatim", "coord", "taulist", "ecut", "etol", "nrun", "wftol", 
-    "fband", "occopt", "ngkpt", "abpad");
+    "fband", "occopt", "ngkpt", "abpad", "nspin", "smag", "metal");
 my @PPFiles = ("pplist", "znucl");
 my @OtherFiles = ("epsilon");
 
@@ -174,6 +175,18 @@ open NBANDS, "nbands" or die "Failed to open nbands\n";
 <NBANDS> =~ m/(\d+)/ or die "Failed to parse nbands\n";
 $nbands = $1;
 close NBANDS;
+open NSPN, "nspin" or die "Failed to open nspin\n";
+<NSPN> =~ m/(\d)/ or die "Failed to parse nspin\n";
+my $nspn = $1;
+close NSPN;
+open IN, "metal" or die "Failed to open metal\n";
+my $metal = 1;
+if( <IN> =~ m/false/i )
+{
+  $metal = 0;
+}
+close IN;
+
 
 if ( $nkpt[0] + $nkpt[1] + $nkpt[2] == 0 ) {
   `cp nkpt paw.nkpt`;
@@ -279,6 +292,7 @@ my $AbinitType = "seq";
 
 if ($RunABINIT) {
   `echo symmorphi 0 > abfile`;
+  `echo autoparal 1 >> abfile`;
   `echo chksymbreak 0 >> abfile`;
   `echo 'acell ' >> abfile`;
   `cat rscale >> abfile`;
@@ -304,6 +318,13 @@ if ($RunABINIT) {
   `echo 'occopt ' >> abfile`;
   `cat occopt >> abfile`;
   `echo 'npfft 1' >> abfile`;
+  `echo -n 'nsppol ' >> abfile`;
+  `cat nspin >> abfile`;
+  if( $nspn == 2 )
+  {
+    `echo 'spinat' >> abfile`;
+    `cat smag >> abfile`;
+  }
 
 #if ($AbinitType eq "par" ) {
 #  die "not an option\n";
@@ -352,7 +373,14 @@ if ($RunABINIT) {
   `ln -s SCx_DEN SCx_DS0_DEN`;
 
   open CUTIN, ">cut3d.in" or die "Failed to open cut3d.in for writing.\n$!\n";
-  print CUTIN "SCx_DEN\n1\n6\nrhoofr\n0\n";
+  if( $nspn == 2 ) 
+  {
+    print CUTIN "SCx_DEN\n1\n0\n6\nrhoofr\n0\n";
+  }
+  else
+  {
+    print CUTIN "SCx_DEN\n1\n6\nrhoofr\n0\n";
+  }
   close CUTIN;
 
   system("$ENV{'OCEAN_BIN'}/cut3d < cut3d.in > cut3d.log 2> cut3d.err") == 0
@@ -443,11 +471,24 @@ if ( $pawRUN ) {
   my $natoms = `cat natoms`;
   my $fband = `cat fband`;
   $pawnbands = `cat paw.nbands`;
+  my $true_vb = $vb - ceil( $natoms*$fband );
+  print "$vb\t$true_vb\n";
   my $cb = sprintf("%.0f", $vb - 2*$natoms*$fband);
   $cb = 1 if ($cb < 1);
   open BRANGE, ">brange.ipt" or die;
-  print BRANGE "1  $vb\n"
-             . "$cb $pawnbands\n";
+  if( $metal == 1 )
+  {
+    print BRANGE "1  $vb\n"
+               . "$cb $pawnbands\n";
+  }
+  else
+  {
+    print "1 $true_vb\n";
+    print BRANGE "1 $true_vb\n";
+    $true_vb++;
+    print BRANGE "$true_vb  $pawnbands\n";
+    print "$true_vb  $pawnbands\n";
+  }
   close BRANGE;
 
   open STATUS, ">abinit.stat" or die;
@@ -479,9 +520,9 @@ if ( $bseRUN ) {
   open ABPAD, "abpad" or die;
   my $abpad = <ABPAD>;
   close ABPAD;
-  $nbands += $abpad; 
+  my $temp_band = $nbands + $abpad; 
   
-  `echo "nband $nbands" >> abfile`;
+  `echo "nband $temp_band" >> abfile`;
   `echo "nbdbuf $abpad" >> abfile`;
   `echo 'iscf -2' >> abfile`;
   `echo 'tolwfr ' >> abfile`;
@@ -523,14 +564,26 @@ if ( $bseRUN ) {
 
   my $natoms = `cat natoms`;
   my $fband = `cat fband`;
-  my $bands = `cat nbands`;
+  $pawnbands = `cat paw.nbands`;
+  my $true_vb = $vb - ceil( $natoms*$fband );
+  print "$vb\t$true_vb\n";
   my $cb = sprintf("%.0f", $vb - 2*$natoms*$fband);
   $cb = 1 if ($cb < 1);
   open BRANGE, ">brange.ipt" or die;
-  print BRANGE "1  $vb\n"
-             . "$cb $bands\n";
+  if( $metal == 1 )
+  {
+    print BRANGE "1  $vb\n"
+               . "$cb $nbands\n";
+  }
+  else
+  {
+    print "1 $true_vb\n";
+    print BRANGE "1 $true_vb\n";
+    $true_vb++;
+    print BRANGE "$true_vb  $nbands\n";
+    print "$true_vb  $nbands\n";
+  }
   close BRANGE;
-
 
   
   open STATUS, ">abinit.stat" or die;
