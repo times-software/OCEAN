@@ -190,6 +190,7 @@ module OCEAN_energies
     integer, intent(inout) :: ierr
     type(O_system), intent( in ) :: sys
 
+    real(DP), allocatable :: tmp_e0(:,:,:)
     real(DP) :: core_offset
     integer :: nbd, nq, nspn, iter, i, j
     character(len=9) :: infoname
@@ -228,8 +229,13 @@ module OCEAN_energies
         goto 111
       endif
 
-!      allocate( tmp_e0( sys%num_bands * sys%nkpts, sys%nspn ) )
-      read(99) energies( 1 : sys%num_bands, 1 : sys%nkpts, : )
+      allocate( tmp_e0( sys%num_bands,  sys%nkpts, sys%nspn ), STAT=ierr )
+      if( ierr .ne. 0 ) return
+      read(99) tmp_e0
+      energies( 1 : sys%num_bands, 1 : sys%nkpts, : ) = tmp_e0( :, :, : )
+      deallocate( tmp_e0 )
+!      read(99) energies( 1 : sys%num_bands, 1 : sys%nkpts, : )
+    
 
       close( 99 )
 
