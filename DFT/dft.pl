@@ -39,7 +39,7 @@ my @GeneralFiles = ("para_prefix", "dft" );
 
 my @KgenFiles = ("nkpt", "k0.ipt", "qinunitsofbvectors.ipt", "paw.nkpt");
 my @BandFiles = ("nbands", "paw.nbands");
-my @EspressoFiles = ( "coord", "degauss", "ecut", "etol", "fband", "ibrav", 
+my @EspressoFiles = ( "coord", "degauss", "ecut", "etol", "fband", "fsmixing", "ibrav", 
     "isolated", "mixing", "natoms", "ngkpt", "noncolin", "nrun", "ntype", 
     "occopt", "prefix", "ppdir", "rprim", "rscale", "metal",
     "spinorb", "taulist", "typat", "verbatim", "work_dir", "wftol", 

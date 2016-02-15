@@ -108,6 +108,13 @@ $band_min++;
 #   band_min  total bands
 print $band_max . "\t" . $band_min . "\n";
 
+## check whether mixing of unoccupied and occupied states is requested
+open FSMIX, "fsmixing" or die;
+my $fsmix = <FSMIX>;
+close FSMIX;
+if ( $fsmix == '.true.' ) {
+     $band_min = 1;
+}
 
 open OUT, ">brange.stub" or die "Failed to open brange.stub for writing\n$!";
 print OUT "1    $band_max\n$band_min    ";
