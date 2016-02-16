@@ -87,7 +87,7 @@ module ocean_long_range
       call lr_act_obf2( sys, p, hp, ierr )
     else
 !      call lr_act_traditional( sys, p, hp, lr, ierr )
-      call lr_act_traditional_x( sys, p, hp%r, hp%i, lr, ierr )
+      call lr_act_traditional_x( sys, p, hp, lr, ierr )
     endif
   end subroutine lr_act
 
@@ -730,7 +730,7 @@ module ocean_long_range
 
 
 
-  subroutine lr_act_traditional_x( sys, p, hpr, hpi, lr, ierr )
+  subroutine lr_act_traditional_x( sys, p, hp, lr, ierr )
     use OCEAN_system
     use OCEAN_psi
     implicit none
@@ -738,8 +738,8 @@ module ocean_long_range
     type( o_system ), intent( in ) :: sys
     type( long_range ), intent( inout ) :: lr
     type(OCEAN_vector), intent( in ) :: p
-!    type(OCEAN_vector), intent(inout) :: hp
-    real(DP), dimension(sys%num_bands, sys%nkpts, sys%nalpha ), intent( inout ) :: hpr, hpi
+    type(OCEAN_vector), intent(inout) :: hp
+!    real(DP), dimension(sys%num_bands, sys%nkpts, sys%nalpha ), intent( inout ) :: hpr, hpi
     integer, intent( inout ) :: ierr
 
     !
@@ -775,7 +775,7 @@ module ocean_long_range
     !
 
 !$OMP PARALLEL DEFAULT( NONE ) &
-!$OMP& SHARED( lr, W, hpr, hpi, re_bloch_state, im_bloch_state, p, sys ) &
+!$OMP& SHARED( lr, W, hp, re_bloch_state, im_bloch_state, p, sys ) &
 !$OMP& PRIVATE( xwrkr, xwrki, wrk, ikpt, ialpha, xiter ) &
 !$OMP& FIRSTPRIVATE( jfft ) 
 
@@ -788,7 +788,7 @@ module ocean_long_range
     allocate( xwrkr( sys%nkpts ), xwrki( sys%nkpts ), &
               wrk( jfft ) )
 
-!$OMP DO COLLAPSE( 2 ) REDUCTION(+:hpr,hpi)
+!$OMP DO COLLAPSE( 2 ) REDUCTION(+:hp%r,hp%i)
     do ialpha = 1, sys%nalpha
       do xiter = 1, lr%my_nxpts
 
@@ -829,18 +829,18 @@ module ocean_long_range
 #ifdef BLAS
         do ikpt = 1, lr%my_nkpts
           call DAXPY( sys%num_bands, -xwrkr(ikpt), re_bloch_state(1,ikpt,xiter), 1, &
-                      hpr(1,ikpt,ialpha), 1 )
+                      hp%r(1,ikpt,ialpha), 1 )
           call DAXPY( sys%num_bands, -xwrki(ikpt), im_bloch_state(1,ikpt,xiter), 1, &
-                      hpr(1,ikpt,ialpha), 1 )
+                      hp%r(1,ikpt,ialpha), 1 )
           call DAXPY( sys%num_bands, -xwrki(ikpt), re_bloch_state(1,ikpt,xiter), 1, &
-                      hpi(1,ikpt,ialpha), 1 )
+                      hp%i(1,ikpt,ialpha), 1 )
           call DAXPY( sys%num_bands, xwrkr(ikpt), im_bloch_state(1,ikpt,xiter), 1, &
-                      hpi(1,ikpt,ialpha), 1 )
+                      hp%i(1,ikpt,ialpha), 1 )
 #else
-            hpr(:,ikpt,ialpha) = hpr(:,ikpt,ialpha) &
+            hp%r(:,ikpt,ialpha) = hp%r(:,ikpt,ialpha) &
                                 - re_bloch_state(:,ikpt,xiter) * xwrkr(ikpt) &
                                 - im_bloch_state(:,ikpt,xiter) * xwrki(ikpt)
-            hpi(:,ikpt,ialpha) = hpi(:,ikpt,ialpha) &
+            hp%i(:,ikpt,ialpha) = hp%i(:,ikpt,ialpha) &
                                 - re_bloch_state(:,ikpt,xiter) * xwrki(ikpt) &
                                 + im_bloch_state(:,ikpt,xiter) * xwrkr(ikpt)
 #endif
@@ -919,8 +919,8 @@ module ocean_long_range
 !$OMP& FIRSTPRIVATE( sys, jfft, p ) 
 
 !$OMP WORKSHARE
-    hp%r(:,:,:) = zero
-    hp%i(:,:,:) = zero
+!    hp%r(:,:,:) = zero
+!    hp%i(:,:,:) = zero
 !$OMP END WORKSHARE
 
     allocate( xwrkr( sys%nkpts, xiter_cache_line ), xwrki( sys%nkpts, xiter_cache_line ), & 
