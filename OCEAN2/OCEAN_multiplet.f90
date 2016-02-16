@@ -1421,6 +1421,96 @@ module OCEAN_multiplet
   end subroutine OCEAN_soact
 
 
+  subroutine OCEAN_fg_combo( sys, inter, in_vec, out_vec, ierr )
+    use OCEAN_system
+    use OCEAN_psi, only : OCEAN_vector
+    implicit none
+    !
+    type( O_system ), intent( in ) :: sys
+    real( DP ), intent( in ) :: inter
+    type( OCEAN_vector ), intent( in ) :: in_vec
+    type( OCEAN_vector ), intent( inout ) :: out_vec
+    integer, intent( inout ) :: ierr
+    !
+    real(DP), allocatable :: ampr(:,:,:,:), ampi(:,:,:,:), so_r(:,:), so_i(:,:)
+    integer :: LandM, el, em, ialpha, nu, ispn
+    integer :: a_stop, k_start, k_stop, core_store_size_remain
+    integer :: zero_elem
+
+    ! If we aren't starting at lmin = 0 then we need
+    zero_elem = 0
+    do el = 0, lmin - 1
+      zero_elem = zero_elem + 2* (el + 1 )
+    enddo
+
+    LandM = 0
+    do el = lmin, lmax
+      do em = -el, el
+        LandM = LandM + 1
+      enddo
+    enddo
+
+    allocate( ampr( npmax, LandM, sys%cur_run%nalpha ), & 
+              ampi( npmax, LandM, sys%cur_run%nalpha ), &
+              so_r( sys%cur_run%nalpha, sys%cur_run%nalpha ), &
+              so_r( sys%cur_run%nalpha, sys%cur_run%nalpha ), STAT=ierr )
+    if( ierr .ne. 0 ) return
+
+    do ialpha = 1, sys%cur_run%nalpha
+!$OMP DO COLLAPSE( 3 )
+      do el = lmin, lmax
+        do em = -el, el
+          do nu = 1, nproj( el )
+            ampr( nu, (el+1)*(el+1)+em-el, ialpha ) = 0.0_DP
+            ampi( nu, (el+1)*(el+1)+em-el, ialpha ) = 0.0_DP
+          enddo
+        enddo
+      enddo
+!$OMP END DO NO WAIT
+    enddo
+
+    core_store_size_remain = in_vec%core_store_size
+    k_start = in_vec%core_k_start
+
+    ! If we stop exactly on nkpts this will give 0 + core_a_start = core_a_start
+    a_stop = ( core_store_size_remain - k_start - 1 ) / sys%nkpts + in_vec%core_a_start
+
+    do ialpha = in_vec%core_a_start, a_stop
+      ispn = 2 - mod( ialpha, 2 )
+      if( sys%nspn .eq. 1 ) then
+        ispn = 1
+      endif
+
+      k_stop = min( sys%nkpts, core_store_size_remain - k_start + 1 )
+
+!$OMP DO COLLAPSE( 3 )
+      do el = lmin, lmax
+        do m = -el, el
+          do nu = 1, nproj( el )
+            do ikpt = k_start, k_stop
+              do ibnd = 1, sys%num_bands
+                ampr( nu, (el+1)*(el+1)+em-el, ialpha ) = ampr( nu, (el+1)*(el+1)+em-el, ialpha ) &
+                    + in_vec%r( ibnd, ikpt, ialpha ) * mpcr( ibnd, ikpt, nu, em, el, ispn ) &
+                    - in_vec%i( ibnd, ikpt, ialpha ) * mpci( ibnd, ikpt, nu, em, el, ispn )
+                ampi( nu, (el+1)*(el+1)+em-el, ialpha ) = ampi( nu, (el+1)*(el+1)+em-el, ialpha ) &
+                    + in_vec%r( ibnd, ikpt, ialpha ) * mpci( ibnd, ikpt, nu, em, el, ispn ) &
+                    + in_vec%i( ibnd, ikpt, ialpha ) * mpcr( ibnd, ikpt, nu, em, el, ispn )
+              enddo
+            enddo
+          enddo
+        enddo
+      enddo
+!$OMP END DO
+
+      core_store_size_remain = core_store_size_remain - ( core_store_size_remain - k_start + 1 )
+      k_start = 1
+    enddo
+
+    
+
+
+  end subroutine OCEAN_fg_combo
+
   subroutine nbsemhsetup2( lc, lv, np, mham, cms, cml, vms, vml, vnu, mhr, mhi, add10 )
     implicit none
     !
