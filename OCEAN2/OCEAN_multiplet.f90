@@ -622,6 +622,8 @@ module OCEAN_multiplet
     real( DP ), intent( in ) :: inter
     type( ocean_vector ), intent( in ) :: in_vec
     type( ocean_vector ), intent( inout ) :: out_vec
+    integer :: ierr
+    ierr = 0
 
 !    integer :: take_longer
 
@@ -630,7 +632,7 @@ module OCEAN_multiplet
 !    out_vec%r(:,:,:) = 0.0_DP
 !    out_vec%i(:,:,:) = 0.0_DP
 
-
+#if 1
     if( do_staggered_sum ) then
       call OCEAN_ctact_dist( sys, inter, in_vec, out_vec )
 !      call OCEAN_ctact_dist( sys, inter, in_vec%r, in_vec%i, out_vec%r, out_vec%i )
@@ -646,6 +648,16 @@ module OCEAN_multiplet
       endif
     endif
 !    call OCEAN_soact( sys, in_vec, out_vec )
+#else
+    call OCEAN_fg_combo( sys, inter, in_vec, out_vec, ierr )
+!    call OCEAN_new_soact( sys, in_vec, out_vec )
+    if( myid .eq. 0 ) then
+      call fgact( sys, inter, in_vec, out_vec )
+        if( sys%ZNL(2) .gt. 0 ) then
+        call OCEAN_soact( sys, in_vec, out_vec )
+      endif
+    endif
+#endif
 
 !  enddo
 
@@ -749,6 +761,10 @@ module OCEAN_multiplet
 
 !JTV
     do ialpha = 1, sys%cur_run%nalpha
+      ispn = 2 - mod( ialpha, 2 )
+      if( sys%nspn .eq. 1 ) then
+        ispn = 1
+      endif
       do l = lmin, lmax
         do m = -l, l
           ihd = ( l + 1 ) ** 2 - l + m
@@ -1402,23 +1418,42 @@ module OCEAN_multiplet
       enddo
     enddo
 ! !$OMP END PARALLEL DO
-!    do ic = 1, sys%cur_run%nalpha
-!      do jc = 1, sys%cur_run%nalpha
-!        if( vms( ic ) .eq. vms( jc ) ) then
-!          ctmp = 0.0_DP
-!          do i = 1, 3
-!            ctmp = ctmp + jimel( dble( lc ), cml( jc ), cml( ic ), i ) &
-!                        * jimel( 0.5_DP, cms( jc ), cms( ic ), i )
-!          enddo
-!          melr = real(ctmp * -xi)
-!          meli = aimag( ctmp * -xi )
-!          do ikpt = 1, sys%nkpts
-!            out_vec%r( 1:sys%num_bands, ikpt, ic ) = out_vec%r( 1:sys%num_bands, ikpt, ic ) &
-!                                                   + melr( 
-
 
 
   end subroutine OCEAN_soact
+
+  subroutine OCEAN_new_soact( sys, in_vec, out_vec )
+    use OCEAN_system
+    use OCEAN_psi, only : OCEAN_vector
+    implicit none
+
+    type( O_system ), intent( in ) :: sys
+    type( OCEAN_vector ), intent( in ) :: in_vec
+    type( OCEAN_vector ), intent( inout ) :: out_vec
+
+    integer :: ic, jc, ikpt, ibnd, i
+    
+
+    do i = 1, in_vec%core_store_size
+      do ibnd = 1, sys%num_bands
+
+        ic = in_vec%core_a_start + ( i - 1 + in_vec%core_k_start ) / sys%nkpts
+        ikpt = mod( i + in_vec%core_k_start - 2, sys%nkpts ) + 1
+        do jc = 1, sys%cur_run%nalpha
+          out_vec%r( ibnd, ikpt, ic ) = out_vec%r( ibnd, ikpt, ic ) &
+                                  + somelr( ic, jc ) * in_vec%r( ibnd, ikpt, jc ) &
+                                  - someli( ic, jc ) * in_vec%i( ibnd, ikpt, jc )
+          out_vec%i( ibnd, ikpt, ic ) = out_vec%i( ibnd, ikpt, ic )  &
+                                  + somelr( ic, jc ) * in_vec%i( ibnd, ikpt, jc ) &
+                                  + someli( ic, jc ) * in_vec%r( ibnd, ikpt, jc )
+        enddo
+
+      enddo
+    enddo
+
+  end subroutine OCEAN_new_soact
+
+
 
 
   subroutine OCEAN_fg_combo( sys, inter, in_vec, out_vec, ierr )
@@ -1432,10 +1467,14 @@ module OCEAN_multiplet
     type( OCEAN_vector ), intent( inout ) :: out_vec
     integer, intent( inout ) :: ierr
     !
-    real(DP), allocatable :: ampr(:,:,:,:), ampi(:,:,:,:), so_r(:,:), so_i(:,:)
-    integer :: LandM, el, em, ialpha, nu, ispn
+    real(DP), allocatable :: ampr(:,:,:), ampi(:,:,:), hampr(:,:,:), hampi(:,:,:), so_r(:,:), so_i(:,:)
+    real( DP ), allocatable, dimension( :,: ) :: pwr, pwi, hpwr, hpwi
+    real(DP) :: mul
+    integer :: LandM, el, em, ialpha, nu, ispn, ihd, ikpt, ibnd, ii, jj, j1
     integer :: a_stop, k_start, k_stop, core_store_size_remain
     integer :: zero_elem
+
+    mul = inter / ( dble( sys%nkpts ) * sys%celvol )
 
     ! If we aren't starting at lmin = 0 then we need
     zero_elem = 0
@@ -1452,8 +1491,14 @@ module OCEAN_multiplet
 
     allocate( ampr( npmax, LandM, sys%cur_run%nalpha ), & 
               ampi( npmax, LandM, sys%cur_run%nalpha ), &
+              hampr( npmax, LandM, sys%cur_run%nalpha ), &
+              hampi( npmax, LandM, sys%cur_run%nalpha ), &
               so_r( sys%cur_run%nalpha, sys%cur_run%nalpha ), &
-              so_r( sys%cur_run%nalpha, sys%cur_run%nalpha ), STAT=ierr )
+              so_i( sys%cur_run%nalpha, sys%cur_run%nalpha ), STAT=ierr )
+    if( ierr .ne. 0 ) return
+
+    allocate( pwr( itot, lmin:lmax ), pwi( itot, lmin:lmax ), &
+              hpwr( itot, lmin:lmax ), hpwi( itot, lmin:lmax ), STAT=ierr )
     if( ierr .ne. 0 ) return
 
     do ialpha = 1, sys%cur_run%nalpha
@@ -1475,24 +1520,28 @@ module OCEAN_multiplet
     ! If we stop exactly on nkpts this will give 0 + core_a_start = core_a_start
     a_stop = ( core_store_size_remain - k_start - 1 ) / sys%nkpts + in_vec%core_a_start
 
+
     do ialpha = in_vec%core_a_start, a_stop
       ispn = 2 - mod( ialpha, 2 )
       if( sys%nspn .eq. 1 ) then
         ispn = 1
       endif
 
-      k_stop = min( sys%nkpts, core_store_size_remain - k_start + 1 )
+      k_stop = min( sys%nkpts, core_store_size_remain + k_start - 1 )
+      write(1000+in_vec%core_myid,*) in_vec%core_a_start, a_stop, k_start, k_stop
 
 !$OMP DO COLLAPSE( 3 )
       do el = lmin, lmax
-        do m = -el, el
+        do em = -el, el
           do nu = 1, nproj( el )
+
+            ihd = (el+1)*(el+1)+em-el
             do ikpt = k_start, k_stop
               do ibnd = 1, sys%num_bands
-                ampr( nu, (el+1)*(el+1)+em-el, ialpha ) = ampr( nu, (el+1)*(el+1)+em-el, ialpha ) &
+                ampr( nu, ihd, ialpha ) = ampr( nu, ihd, ialpha ) &
                     + in_vec%r( ibnd, ikpt, ialpha ) * mpcr( ibnd, ikpt, nu, em, el, ispn ) &
                     - in_vec%i( ibnd, ikpt, ialpha ) * mpci( ibnd, ikpt, nu, em, el, ispn )
-                ampi( nu, (el+1)*(el+1)+em-el, ialpha ) = ampi( nu, (el+1)*(el+1)+em-el, ialpha ) &
+                ampi( nu, ihd, ialpha ) = ampi( nu, ihd, ialpha ) &
                     + in_vec%r( ibnd, ikpt, ialpha ) * mpci( ibnd, ikpt, nu, em, el, ispn ) &
                     + in_vec%i( ibnd, ikpt, ialpha ) * mpcr( ibnd, ikpt, nu, em, el, ispn )
               enddo
@@ -1502,11 +1551,152 @@ module OCEAN_multiplet
       enddo
 !$OMP END DO
 
-      core_store_size_remain = core_store_size_remain - ( core_store_size_remain - k_start + 1 )
+      core_store_size_remain = core_store_size_remain - ( k_stop - k_start + 1 )
       k_start = 1
     enddo
 
+
+! At this point AMPR and AMPI need to be summed across some nodes
+!   NB! The participating nodes need only be those with core_store_size > 0
+!   This is limited to nalpha * nkpt. In the future we will want to have a comm
+!   that only involves these nodes so as to make this sharing faster. This comm
+!   would also be used for doing things like calculating < psi | H | psi > like
+!   overlaps for the Haydock A's and B's
+
+! For testing do nothing fancy
+    call MPI_ALLREDUCE( MPI_IN_PLACE, ampr, npmax * LandM * sys%cur_run%nalpha, MPI_DOUBLE_PRECISION, &
+                        MPI_SUM, in_vec%core_comm, ierr )
+    if( ierr .ne. 0 ) return
+    call MPI_ALLREDUCE( MPI_IN_PLACE, ampi, npmax * LandM * sys%cur_run%nalpha, MPI_DOUBLE_PRECISION, &
+                        MPI_SUM, in_vec%core_comm, ierr )
+    if( ierr .ne. 0 ) return
+!
+
     
+    !
+    
+    do ialpha = in_vec%core_a_start, a_stop
+! zero out hampr and hampi
+!$OMP DO COLLAPSE( 2 )
+      do el = lmin, lmax
+        do em = -el, el
+          ihd = (el+1)*(el+1)+em-el
+          hampr( :, ihd, ialpha ) = 0.0_DP
+          hampi( :, ihd, ialpha ) = 0.0_DP
+          do nu = 1, nproj( el )
+            hampr( 1:nproj(el), ihd, ialpha ) = hampr( 1:nproj(el), ihd, ialpha )  &
+                                              - mpm( 1:nproj(el), nu, el ) * ampr( nu, ihd, ialpha )
+            hampi( 1:nproj(el), ihd, ialpha ) = hampi( 1:nproj(el), ihd, ialpha ) &
+                                              - mpm( 1:nproj(el), nu, el ) * ampi( nu, ihd, ialpha )
+          enddo
+          hampr( :, ihd, ialpha ) = hampr( :, ihd, ialpha ) * mul
+          hampi( :, ihd, ialpha ) = hampi( :, ihd, ialpha ) * mul
+        enddo
+      enddo
+!$OMP END DO NOWAIT
+    enddo
+
+!$OMP BARRIER
+
+
+#if 0
+!!!!! Exchange interaction
+! Re-arrange ampr and ampi to be in the right ordering for compact exchange integrals
+!   pwr( nu, em, alpha, el )
+
+    ! Only need to do the work for alphas in our range
+    do el = lmin, lmax
+      do ialpha = 1, sys%cur_run%nalpha  ! NB! Exchange mixes alphas. Need all of them
+        do em = -el, el
+
+          ihd = (el+1)*(el+1)+em-el
+          do nu = 1, nproj( el )
+            ii = nu + ( em + el ) * nproj( el ) + ( ialpha - 1 ) * ( 2 * el + 1 ) * nproj( el )
+  
+            pwr( ii, el ) = ampr( nu, ihd, ialpha )
+            pwi( ii, el ) = ampi( nu, ihd, ialpha )
+
+          enddo
+        enddo
+      enddo
+    enddo
+
+! Act with exchange Hamiltonian
+    do el = lmin, lmax
+      do ii = 1, mham( el )
+
+        hpwr( ii, el ) = 0.0_DP
+        hpwi( ii, el ) = 0.0_DP
+        do jj = 1, mham( el )
+          j1 = jbeg( el ) + ( jj - 1 ) + ( ii - 1 ) * mham( el )
+          hpwr( ii, el ) = hpwr( ii, el ) + mhr( j1 ) * pwr( jj, el ) - mhi( j1 ) * pwi( jj, el )
+          hpwi( ii, el ) = hpwi( ii, el ) + mhr( j1 ) * pwi( jj, el ) + mhi( j1 ) * pwr( jj, el )
+        enddo
+        hpwr( ii, el ) = hpwr( ii, el ) * mul
+        hpwi( ii, el ) = hpwi( ii, el ) * mul
+      enddo
+    enddo
+
+! Add result to the direct terms back in the hampr basis
+    do ialpha = in_vec%core_a_start, a_stop
+      do el = lmin, lmax
+        do em = -el, el
+
+          ihd = (el+1)*(el+1)+em-el
+          do nu = 1, nproj( el )
+            ii = nu + ( em + el ) * nproj( el ) + ( ialpha - 1 ) * ( 2 * el + 1 ) * nproj( el )
+
+            hampr( nu, ihd, ialpha ) = hampr( nu, ihd, ialpha ) + hpwr( ii, el )
+            hampi( nu, ihd, ialpha ) = hampi( nu, ihd, ialpha ) + hpwi( ii, el )
+
+          enddo
+        enddo
+      enddo
+    enddo
+!   Exchange interaction complete
+#endif
+
+
+    core_store_size_remain = in_vec%core_store_size
+    k_start = in_vec%core_k_start
+
+    do ialpha = in_vec%core_a_start, a_stop
+
+      ispn = 2 - mod( ialpha, 2 )
+      if( sys%nspn .eq. 1 ) then
+        ispn = 1
+      endif
+
+      k_stop = min( sys%nkpts, core_store_size_remain + k_start - 1 )
+
+      do el = lmin, lmax
+        do em = -el, el
+          ihd = (el+1)*(el+1)+em-el
+          do nu = 1, nproj( el )
+
+!$OMP DO COLLAPSE( 2 )
+            do ikpt = k_start, k_stop
+              do ibnd = 1, sys%num_bands
+                out_vec%r( ibnd, ikpt, ialpha ) = out_vec%r( ibnd, ikpt, ialpha ) &
+                                                + mpcr( ibnd, ikpt, nu, em, el, ispn ) * hampr( nu, ihd, ialpha )  &
+                                                + mpci( ibnd, ikpt, nu, em, el, ispn ) * hampi( nu, ihd, ialpha )
+                out_vec%i( ibnd, ikpt, ialpha ) = out_vec%i( ibnd, ikpt, ialpha ) &
+                                                + mpcr( ibnd, ikpt, nu, em, el, ispn ) * hampi( nu, ihd, ialpha ) &
+                                                - mpci( ibnd, ikpt, nu, em, el, ispn ) * hampr( nu, ihd, ialpha )
+              enddo
+            enddo
+!$OMP END DO NOWAIT
+
+          enddo
+        enddo
+      enddo
+
+      core_store_size_remain = core_store_size_remain - ( k_stop - k_start + 1 )
+      k_start = 1
+    enddo
+            
+
+    deallocate( hampr, hampi, ampr, ampi, so_r, so_i, pwr, pwi, hpwr, hpwi )
 
 
   end subroutine OCEAN_fg_combo
