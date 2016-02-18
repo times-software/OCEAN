@@ -632,7 +632,7 @@ module OCEAN_multiplet
 !    out_vec%r(:,:,:) = 0.0_DP
 !    out_vec%i(:,:,:) = 0.0_DP
 
-#if 1
+#if 0
     if( do_staggered_sum ) then
       call OCEAN_ctact_dist( sys, inter, in_vec, out_vec )
 !      call OCEAN_ctact_dist( sys, inter, in_vec%r, in_vec%i, out_vec%r, out_vec%i )
@@ -650,13 +650,14 @@ module OCEAN_multiplet
 !    call OCEAN_soact( sys, in_vec, out_vec )
 #else
     call OCEAN_fg_combo( sys, inter, in_vec, out_vec, ierr )
-!    call OCEAN_new_soact( sys, in_vec, out_vec )
-    if( myid .eq. 0 ) then
-      call fgact( sys, inter, in_vec, out_vec )
-        if( sys%ZNL(2) .gt. 0 ) then
-        call OCEAN_soact( sys, in_vec, out_vec )
-      endif
-    endif
+    call OCEAN_new_soact( sys, in_vec, out_vec )
+
+!    if( myid .eq. 0 ) then
+!      call fgact( sys, inter, in_vec, out_vec )
+!      if( sys%ZNL(2) .gt. 0 ) then
+!        call OCEAN_soact( sys, in_vec, out_vec )
+!      endif
+!    endif
 #endif
 
 !  enddo
@@ -1435,10 +1436,12 @@ module OCEAN_multiplet
     
 
     do i = 1, in_vec%core_store_size
+        ! This silly accounting is to help OMP later atm it is breaking if put in the next loop
+        ic = in_vec%core_a_start + ( i - 2 + in_vec%core_k_start ) / sys%nkpts
+        ikpt = mod( i + in_vec%core_k_start - 2, sys%nkpts ) + 1
+        !
       do ibnd = 1, sys%num_bands
 
-        ic = in_vec%core_a_start + ( i - 1 + in_vec%core_k_start ) / sys%nkpts
-        ikpt = mod( i + in_vec%core_k_start - 2, sys%nkpts ) + 1
         do jc = 1, sys%cur_run%nalpha
           out_vec%r( ibnd, ikpt, ic ) = out_vec%r( ibnd, ikpt, ic ) &
                                   + somelr( ic, jc ) * in_vec%r( ibnd, ikpt, jc ) &
@@ -1501,6 +1504,7 @@ module OCEAN_multiplet
               hpwr( itot, lmin:lmax ), hpwi( itot, lmin:lmax ), STAT=ierr )
     if( ierr .ne. 0 ) return
 
+!   Need to zero out all of ampr and ampi
     do ialpha = 1, sys%cur_run%nalpha
 !$OMP DO COLLAPSE( 3 )
       do el = lmin, lmax
@@ -1518,7 +1522,10 @@ module OCEAN_multiplet
     k_start = in_vec%core_k_start
 
     ! If we stop exactly on nkpts this will give 0 + core_a_start = core_a_start
-    a_stop = ( core_store_size_remain - k_start - 1 ) / sys%nkpts + in_vec%core_a_start
+    a_stop = ( core_store_size_remain + k_start - 2 ) / sys%nkpts + in_vec%core_a_start
+
+!    write(1000+in_vec%core_myid,*) "**** MULT ****"
+!    write(1000+in_vec%core_myid,*) in_vec%core_store_size, in_vec%core_k_start
 
 
     do ialpha = in_vec%core_a_start, a_stop
@@ -1528,7 +1535,7 @@ module OCEAN_multiplet
       endif
 
       k_stop = min( sys%nkpts, core_store_size_remain + k_start - 1 )
-      write(1000+in_vec%core_myid,*) in_vec%core_a_start, a_stop, k_start, k_stop
+!      write(1000+in_vec%core_myid,*) in_vec%core_a_start, a_stop, k_start, k_stop
 
 !$OMP DO COLLAPSE( 3 )
       do el = lmin, lmax
@@ -1599,7 +1606,6 @@ module OCEAN_multiplet
 !$OMP BARRIER
 
 
-#if 0
 !!!!! Exchange interaction
 ! Re-arrange ampr and ampi to be in the right ordering for compact exchange integrals
 !   pwr( nu, em, alpha, el )
@@ -1654,7 +1660,6 @@ module OCEAN_multiplet
       enddo
     enddo
 !   Exchange interaction complete
-#endif
 
 
     core_store_size_remain = in_vec%core_store_size

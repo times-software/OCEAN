@@ -1511,7 +1511,7 @@ module OCEAN_psi
     if( ierr .ne. 0 ) return
 
     ! core_np is the number of cores that have actualy data in buffer or min
-    p%core_np   = core_np
+!    p%core_np   = core_np
 
     call psi_core_store_size( p%core_myid, total_nproc, p%core_np, mcss, &
                               p%core_store_size, p%core_k_start, p%core_a_start )
