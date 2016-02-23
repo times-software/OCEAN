@@ -151,7 +151,7 @@ module OCEAN_system
       read(99,*) sys%conduct
       close(99)
       if( .not. sys%conduct ) then
-        sys%mult = .false.
+        ! Need to run mult to get spin-orbit
         sys%long_range = .false.
       endif
 
@@ -160,7 +160,7 @@ module OCEAN_system
       read(99,*) inter
       close(99)
       if( inter .lt. inter_min ) then
-!        sys%mult = .false.
+        ! Need to run mult to get spin-orbit
         sys%long_range = .false.
       endif
       
