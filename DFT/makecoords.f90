@@ -5,15 +5,22 @@
       use periodic
 !
       implicit none
+      character(len=1), allocatable :: datom(:)
       character(len=3), allocatable :: satom(:), zsymb(:)
       integer :: i,ityp
       integer :: natoms, numtyp, iostatus
+      integer, allocatable    :: eltype(:)
       integer, allocatable    :: typat(:), znum(:), zatom(:)
       real(kind=kind(1.d0))              :: rscale(3)
       real(kind=kind(1.d0)), allocatable :: pos(:,:)
 
       logical :: have_zsymb
 !
+      interface
+        character function gettype(itype)
+          integer, intent(in) :: itype
+        end function gettype
+      end interface
 !
       write(6,*) " in makecoords"
 !
@@ -44,6 +51,11 @@
          if ( typat(i) .gt. numtyp ) numtyp = typat(i)
       end do
 !
+      allocate( eltype(numtyp) )
+      open(unit=99,file='eltype',form='formatted',status='old')
+      read(99,*) eltype(:)
+      close(99)
+!
       allocate( znum(numtyp) )
       open(unit=99,file='znucl',form='formatted',status='old')
       read(99,*) znum(:)
@@ -53,9 +65,10 @@
 !      end do
       close(99)
 !
-      allocate( zatom(natoms), satom(natoms) )
+      allocate( zatom(natoms), satom(natoms), datom(natoms) )
       do i = 1, natoms
          zatom(i) = znum( typat(i) )
+         datom(i) = gettype( eltype( typat(i) ) ) 
       end do
 !
       allocate( zsymb(numtyp) )
@@ -77,15 +90,35 @@
          ityp=typat(i)
 !         if(trim(zsymb(ityp)) .ne. '') satom(i)=trim(zsymb(ityp))
           if( have_zsymb ) satom(i)=trim(zsymb(ityp))
+          satom(i) = trim(satom(i)) // datom(i)
          write( 98, '(a,1x,f16.10,1x,f16.10,1x,f16.10)') trim(satom(i)), pos(:,i)
       enddo
       close(98)
 
-      deallocate( satom )
+      deallocate( satom, datom, eltype )
       deallocate( typat, zatom, znum, zsymb )
       deallocate( pos )
 
       end program makecoords
+
+
+
+character function gettype(itype)
+  implicit none
+   integer :: itype
+
+   gettype = ''
+
+   select case (itype)
+     case (1)
+        gettype = '1'
+     case (2)
+        gettype = '2'
+   end select
+
+ return
+end function gettype
+
 
 
 subroutine getsymbol_old(zatom,satom)

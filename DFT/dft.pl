@@ -44,7 +44,7 @@ my @EspressoFiles = ( "coord", "degauss", "ecut", "etol", "fband", "fsmixing", "
     "occopt", "prefix", "ppdir", "rprim", "rscale", "metal",
     "spinorb", "taulist", "typat", "verbatim", "work_dir", "wftol", 
     "den.kshift", "obkpt.ipt", "trace_tol", "ham_kpoints", "obf.nbands","tot_charge", 
-    "nspin", "smag", "ldau", "zsymb");
+    "nspin", "smag", "ldau", "zsymb", "eltype");
 my @PPFiles = ("pplist", "znucl");
 my @OtherFiles = ("epsilon", "pool_control");
 
@@ -192,8 +192,14 @@ print "making atompp";
 system("$ENV{'OCEAN_BIN'}/makeatompp.x") == 0
    or die "Failed to make acell\n";
 
+print "making qesmag";
+system("$ENV{'OCEAN_BIN'}/smag_qe.x") == 0
+   or die "Failed to make qesmag\n";
 
-
+print "making hubbard";
+system("$ENV{'OCEAN_BIN'}/hubbard_qe.x") == 0
+   or die "Failed to make hubbard\n";
+   
 my @qe_data_files = ('prefix', 'ppdir', 'work_dir', 'ibrav', 'natoms', 'ntype', 'noncolin',
                      'spinorb', 'ecut', 'degauss', 'etol', 'mixing', 'nrun', 'occopt',
                      'trace_tol', 'tot_charge', 'nspin', 'ngkpt', 'k0.ipt', 'metal',
@@ -235,7 +241,7 @@ $qe_data_files{ "ppdir" } = abs_path( $qe_data_files{ "ppdir" } ) . "/";
 
 
 #QE optional files
-my @qe_opt_files = ('acell', 'coords', 'atompp', 'smag', 'ldau' );
+my @qe_opt_files = ('acell', 'coords', 'atompp', 'qesmag', 'ldau', 'hubbard_u' );
 foreach my $file_name (@qe_opt_files)
 {
     open IN, $file_name or die "$file_name:  $!";
@@ -472,13 +478,14 @@ if ( $nscfRUN ) {
           .  "  nosym = .true.\n"
           .  "  noinv = .true.\n"
           .  "  nbnd = $nbands\n";
-    if( $qe_data_files{'smag'}  ne "" )
+    if( $qe_data_files{'qesmag'}  ne "" )
     {
-      print QE "$qe_data_files{'smag'}\n";
+      print QE "$qe_data_files{'qesmag'}\n";
     }
-    if( $qe_data_files{'ldau'}  ne "" )
+    if( $qe_data_files{'hubbard_u'}  ne "" )
     {
-      print QE "$qe_data_files{'ldau'}\n";
+#      print QE "$qe_data_files{'ldau'}\n";
+      print QE "$qe_data_files{'hubbard_u'}\n";      
     }
     if( $qe_data_files{'ibrav'} != 0 )
     {
@@ -805,13 +812,14 @@ sub print_qe
   {
     print $fh "  nbnd = $inputs{'print nbands'}\n";
   }
-  if( $inputs{'smag'}  ne "" )
+  if( $inputs{'qesmag'}  ne "" )
   {
-    print $fh "$inputs{'smag'}\n";
+    print $fh "$inputs{'qesmag'}\n";
   }
-  if( $inputs{'ldau'}  ne "" )
+  if( $inputs{'hubbard_u'}  ne "" )
   {
-    print $fh "$inputs{'ldau'}\n";
+#    print $fh "$inputs{'ldau'}\n";
+    print $fh "$inputs{'hubbard_u'}\n";    
   }
   if( $inputs{'ibrav'} != 0 )
   {

@@ -413,7 +413,7 @@ smag
 } smag
 ldau
 {
-
+.false.
 }ldau
 nphoton
 {
@@ -435,3 +435,6 @@ fsmixing
 {
 .false.
 } fsmixing
+eltype
+{
+} eltype
