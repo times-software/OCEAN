@@ -41,7 +41,7 @@ my @KgenFiles = ("nkpt", "k0.ipt", "qinunitsofbvectors.ipt", "paw.nkpt");
 my @BandFiles = ("nbands", "paw.nbands");
 my @EspressoFiles = ( "coord", "degauss", "ecut", "etol", "fband", "ibrav", 
     "isolated", "mixing", "natoms", "ngkpt", "noncolin", "nrun", "ntype", 
-    "occopt", "prefix", "ppdir", "rprim", "rscale", "metal",
+    "occopt", "prefix", "ppdir", "stress_force", "rprim", "rscale", "metal",
     "spinorb", "taulist", "typat", "verbatim", "work_dir", "wftol", 
     "den.kshift", "obkpt.ipt", "trace_tol", "ham_kpoints", "obf.nbands","tot_charge", 
     "nspin", "smag", "ldau", "zsymb");
@@ -194,7 +194,7 @@ system("$ENV{'OCEAN_BIN'}/makeatompp.x") == 0
 
 
 
-my @qe_data_files = ('prefix', 'ppdir', 'work_dir', 'ibrav', 'natoms', 'ntype', 'noncolin',
+my @qe_data_files = ('prefix', 'ppdir', 'stress_force', 'work_dir', 'ibrav', 'natoms', 'ntype', 'noncolin',
                      'spinorb', 'ecut', 'degauss', 'etol', 'mixing', 'nrun', 'occopt',
                      'trace_tol', 'tot_charge', 'nspin', 'ngkpt', 'k0.ipt', 'metal',
                      'den.kshift', 'obkpt.ipt', 'obf.nbands', 'nkpt', 'nbands', 'paw.nbands',
@@ -453,8 +453,7 @@ if ( $nscfRUN ) {
           .  "  prefix = \'$qe_data_files{'prefix'}\'\n"
           .  "  pseudo_dir = \'$qe_data_files{'ppdir'}\'\n"
           .  "  outdir = \'$qe_data_files{'work_dir'}\'\n"
-          .  "  tstress = .true.\n"
-          .  "  tprnfor = .true.\n"
+          .  "  $qe_data_files{'stress_force'}\n"
           .  "  wf_collect = .true.\n"
   #        .  "  disk_io = 'low'\n"
           .  "/\n";
@@ -597,6 +596,7 @@ if ( $nscfRUN ) {
     {
       copy "../Out/$qe_data_files{'prefix'}.save/spin-polarization.dat", 
            "Out/$qe_data_files{'prefix'}.save/spin-polarization.dat";
+      copy "../Out/$qe_data_files{'prefix'}.occup", "Out/$qe_data_files{'prefix'}.occup";
     }
 
     # kpts
@@ -688,6 +688,7 @@ if( $obf == 0 )
   {
     copy "../Out/$qe_data_files{'prefix'}.save/spin-polarization.dat", 
          "Out/$qe_data_files{'prefix'}.save/spin-polarization.dat";
+    copy "../Out/$qe_data_files{'prefix'}.occup", "Out/$qe_data_files{'prefix'}.occup";
   }
 
   # kpts
@@ -782,8 +783,7 @@ sub print_qe
         .  "  prefix = \'$inputs{'prefix'}\'\n"
         .  "  pseudo_dir = \'$inputs{'ppdir'}\'\n"
         .  "  outdir = \'$inputs{'work_dir'}\'\n"
-        .  "  tstress = .true.\n"
-        .  "  tprnfor = .true.\n"
+        .  "  $inputs{'stress_force'}\n"
         .  "  wf_collect = .true.\n"
         .  "/\n";
   print $fh "&system\n"

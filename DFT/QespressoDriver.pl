@@ -34,13 +34,9 @@ my @BandFiles = ("paw.nbands", "nbands");
 #my @BandFiles = ("paw.nbands", "bse.nbands");
 my @EspressoFiles = ( "coord", "degauss", "ecut", "etol", "fband", "ibrav",
     "isolated", "mixing", "natoms", "ngkpt", "noncolin", "nrun", "nscf.kshift", "ntype",
-    "occopt", "occtype", "prefix", "ppdir", "rprim", "rscale", "scf.kshift", "smearing",
+    "occopt", "occtype", "prefix", "ppdir", "stress_force", "rprim", "rscale", "scf.kshift", "smearing",
     "nspin", "smag", "ldau", 
     "spinorb", "taulist", "typat", "verbatim", "work_dir", "wftol", "zsymb");
-#my @EspressoFiles = ( "coord", "degauss", "ecut", "etol", "fband", "ibrav", 
-#    "isolated", "mixing", "natoms", "ngkpt", "noncolin", "nrun", "nscf.kshift", "ntype", 
-#    "occopt", "occtype", "prefix", "ppdir", "rprim", "rscale", "scf.kshift", "smearing", 
-#    "spinorb", "taulist", "typat", "verbatim", "work_dir", "wftol");
 my @PPFiles = ("pplist", "znucl");
 my @OtherFiles = ("epsilon", "pool_control");
 
@@ -369,8 +365,7 @@ if ($RunESPRESSO) {
  `cat ppdir >> qefile`;
  `echo -n "   outdir = " >> qefile`;
  `cat work_dir >> qefile`;
- `echo "   tstress = .true." >> qefile`;
- `echo "   tprnfor = .true." >> qefile`;
+ `cat stress_force >> qefile`;
  `echo "   wf_collect = .true." >> qefile`;
  `echo "/" >> qefile`;
 
@@ -494,6 +489,7 @@ if ($RunESPRESSO) {
  `echo "'" >> ppfile`;
  `echo -n "   outdir = " >> ppfile`;
  `cat work_dir >> ppfile`;
+ `cat stress_force >> ppfile`;
  `echo "   filplot = 'system.rho'" >> ppfile`;
  `echo "   plot_num = 0" >> ppfile`;
  `echo "/" >> ppfile`;
@@ -642,8 +638,6 @@ if ( $pawRUN ) {
  `cat ppdir >> qefile`;
  `echo -n "   outdir = " >> qefile`;
  `cat work_dir >> qefile`;
- `echo "   tstress = .true." >> qefile`;
- `echo "   tprnfor = .true." >> qefile`;
  `echo "   wf_collect = .true." >> qefile`;
  `echo "/" >> qefile`;
 
@@ -847,8 +841,6 @@ if ( $bseRUN ) {
  `cat ppdir >> qefile`;
  `echo -n "   outdir = " >> qefile`;
  `cat work_dir >> qefile`;
- `echo "   tstress = .true." >> qefile`;
- `echo "   tprnfor = .true." >> qefile`;
  `echo "   wf_collect = .true." >> qefile`;
  `echo "/" >> qefile`;
 
