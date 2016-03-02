@@ -1309,11 +1309,11 @@ module ocean_long_range
     endif
 
 #ifdef MPI    
-    call MPI_BCAST( epsi, 1, MPI_DOUBLE, 0, comm, ierr )
+    call MPI_BCAST( epsi, 1, MPI_DOUBLE_PRECISION, 0, comm, ierr )
     if( ierr /= 0 ) goto 111
-    call MPI_BCAST( ptab, 100, MPI_DOUBLE, 0, comm, ierr )
+    call MPI_BCAST( ptab, 100, MPI_DOUBLE_PRECISION, 0, comm, ierr )
     if( ierr /= 0 ) goto 111
-    call MPI_BCAST( amet, 9, MPI_DOUBLE, 0, comm, ierr )
+    call MPI_BCAST( amet, 9, MPI_DOUBLE_PRECISION, 0, comm, ierr )
     if( ierr /= 0 ) goto 111
     call MPI_BCAST( iso_cut, 1, MPI_DOUBLE_PRECISION, 0, comm, ierr )
     if( ierr /= 0 ) goto 111
