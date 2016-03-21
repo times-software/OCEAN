@@ -3,6 +3,9 @@
 ! This file is part of the OCEAN project and distributed under the terms 
 ! of the GPL 2 License. See the file `License' in the current subdirectory.
 !
+
+!  con_coeff is coeffs on the shifted grid for all bands 1 - Nbands
+!  val_coeff is coeffs on the un-shifted grid for valence only
 module OCEAN_obf2loc
 
   use kinds, only : dp
@@ -21,7 +24,7 @@ module OCEAN_obf2loc
   complex(dp), allocatable :: o2l( :, :, : ), con_coeff(:,:,:,:,:), val_coeff(:,:,:,:,:)
 
 !  integer, parameter :: lmax = 5
-  integer :: nbuse, nbuse_xes, lmin, lmax, npmax, nqproj, nptot, ntau, nband, kpts( 3 ), nkpt, nspin, nshift, numlm
+  integer :: nbuse_xes, lmin, lmax, npmax, nqproj, nptot, ntau, nband, kpts( 3 ), nkpt, nspin, nshift, numlm
   integer, allocatable :: nproj( : ), lml( : ), lmm( : )
   
   logical :: have_kshift
@@ -150,9 +153,9 @@ module OCEAN_obf2loc
       call setlm( numlm, lml, lmm, lmin, lmax, nproj, nptot )
 
 
-      open(unit=iuntmp,file='nbuse.ipt',form='formatted',status='old')
-      read(iuntmp,*) nbuse
-      close(iuntmp)
+!      open(unit=iuntmp,file='nbuse.ipt',form='formatted',status='old')
+!      read(iuntmp,*) nbuse
+!      close(iuntmp)
 
       open(unit=iuntmp,file='nbuse_xes.ipt',form='formatted',status='old')
       read(iuntmp,*) nbuse_xes
@@ -166,7 +169,7 @@ module OCEAN_obf2loc
     write(stdout,*) ' Preparing to share little data files'
 
     call mp_bcast( prefs, ionode_id )
-    call mp_bcast( nbuse, ionode_id )
+!    call mp_bcast( nbuse, ionode_id )
     call mp_bcast( nbuse_xes, ionode_id )
 
 
@@ -223,7 +226,7 @@ module OCEAN_obf2loc
 
     allocate( o2l( nband, nptot, ntau ) )
     if( ionode ) then
-      allocate( con_coeff( nptot, nbuse, nkpt, nspin, ntau ), &
+      allocate( con_coeff( nptot, nband, nkpt, nspin, ntau ), &
                 val_coeff( nptot, nbuse_xes, nkpt, nspin, ntau ) )
     else
       allocate( con_coeff(1,1,1,1,1), val_coeff(1,1,1,1,1) )
@@ -284,9 +287,10 @@ module OCEAN_obf2loc
 
       if( ishift .eq. nshift ) then
         do itau = 1, ntau
-          do j = 1, nbuse
+          do j = 1, nband
             do k = 1, nptot
-              con_coeff( k, j, ikpt, ispin, itau ) = o2l( ibeg-1+j, k, itau )
+!JTV switch to transpose call
+              con_coeff( k, j, ikpt, ispin, itau ) = o2l( j, k, itau )
             enddo
           enddo
         enddo
@@ -312,13 +316,13 @@ module OCEAN_obf2loc
     iuntmp = freeunit()
 
     if( ionode ) then
-      write(stdout,*) nptot, nbuse*nkpt, nspin, ntau
-      allocate( out_coeffs( nptot, nbuse, nkpt, nspin ) )
+      write(stdout,*) nptot, nband*nkpt, nspin, ntau
+      allocate( out_coeffs( nptot, nband, nkpt, nspin ) )
       do itau = 1, ntau
         write( filout, '(1a5,1a6)' ) 'cksc.', fntau( itau )
         open(unit=iuntmp,file=filout,form='unformatted',status='unknown')!,buffered='yes',blocksize=1048576,buffercount=128)
         rewind(iuntmp)
-        write(iuntmp) nptot, nbuse*nkpt, nspin
+        write(iuntmp) nptot, nband*nkpt, nspin
         write(iuntmp) tau( :, itau )
 
         ! Getting strange size-dependent crashes when attempting to combine type conversion and write
@@ -467,9 +471,9 @@ module OCEAN_obf2loc
 
           if( ishift .eq. nshift ) then
             do itau = 1, ntau
-              do j = 1, nbuse
+              do j = 1, nband
                 do k = 1, nptot
-                  con_coeff( k, j, i, ispin, itau ) = o2l( ibeg(i,ispin)-1+j, k, itau )
+                  con_coeff( k, j, i, ispin, itau ) = o2l( j, k, itau )
 !                con_coeff( 1:nptot, 1:nbuse, i, ispin, itau ) = &
 !                           transpose( o2l( ibeg(i,ispin):ibeg(i,ispin)+nbuse-1, 1:nptot, itau ) )
                 enddo
