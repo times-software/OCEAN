@@ -27,7 +27,7 @@ my $oldden = 0;
 $oldden = 1 if (-e "../DFT/old");
 
 
-my @QEFiles     = ( "rhoofr" );
+my @QEFiles     = ( "rhoofr", "efermiinrydberg.ipt" );
 my @CommonFiles = ( "paw.nkpt", "nkpt", "qinunitsofbvectors.ipt", "avecsinbohr.ipt", "dft", "nspin", "xmesh.ipt" );
 
 foreach (@QEFiles) {
@@ -119,7 +119,7 @@ else {
 }
 
 
-print "Done with PAW files";
+print "Done with PAW files\n";
 
 
 ## process bse wf files ##
@@ -188,7 +188,7 @@ unless( -e "BSE/done" && -e "${rundir}/old" ) {
     or die "Failed to run ofermi.pl\n";
 
   `cp eshift.ipt ../`;
-  system("cp efermiinrydberg.ipt ../") == 0 
+  system("cp ../efermiinrydberg.ipt ./") == 0 
     or die "Failed to copy efermiinrydberg.ipt\n";
 
   print "Running setup\n";

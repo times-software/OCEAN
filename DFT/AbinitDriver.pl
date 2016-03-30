@@ -32,7 +32,7 @@ my @KgenFiles = ("nkpt", "k0.ipt", "qinunitsofbvectors.ipt", "paw.nkpt");
 my @BandFiles = ("nbands", "paw.nbands");
 my @AbinitFiles = ( "rscale", "rprim", "ntype", "natoms", "typat",
     "verbatim", "coord", "taulist", "ecut", "etol", "nrun", "wftol", 
-    "fband", "occopt", "ngkpt", "abpad", "nspin", "smag", "metal");
+    "fband", "occopt", "ngkpt", "abpad", "nspin", "smag", "metal", "degauss");
 my @PPFiles = ("pplist", "znucl");
 my @OtherFiles = ("epsilon");
 
@@ -155,6 +155,12 @@ chomp($ecut);
 open OUT, ">ecutRy" or die;
 print OUT "$ecut Ry\n";
 close OUT;
+
+my $degauss = `cat degauss`;
+chomp( $degauss );
+$degauss = $degauss / 2 ;
+my $tsmear = "tsmear $degauss\n";
+
 
 # test paw.nkpt, paw.nbands
 open NKPT, "paw.nkpt" or die "Failed to open paw.nkpt\n";
@@ -317,6 +323,7 @@ if ($RunABINIT) {
   `cat verbatim >> abfile`;
   `echo 'occopt ' >> abfile`;
   `cat occopt >> abfile`;
+  `echo "$tsmear" >> abfile`;
   `echo 'npfft 1' >> abfile`;
   `echo -n 'nsppol ' >> abfile`;
   `cat nspin >> abfile`;
@@ -365,7 +372,7 @@ if ($RunABINIT) {
 #  `echo prtdosm 1 >> inai.denout`;
 
 
-  print "Self-Consisten Density Run\n";
+  print "Self-Consistent Density Run\n";
   system("$para_prefix $ENV{'OCEAN_ABINIT'} < denout.files > density.log 2> density.err") == 0
     or die "Failed to run initial density stage\n$para_prefix $ENV{'OCEAN_ABINIT'}\n";
   `echo 1 > den.stat`;
@@ -609,6 +616,31 @@ if ( $bseRUN ) {
 #}
 #close RPRIM;
 #close AVECS;
+
+my $fermi = 'no';
+
+open IN, "density.out" or die "Failed to open density.out\n$!";
+while( my $line = <IN> )
+{
+  if( $line  =~  m/Fermi \(or HOMO\) energy \(hartree\) =\s+([+-]?\d+\.?\d+)/ )
+    {
+      $fermi = $1 * 2 * 13.60569252;
+      print "Fermi level found at $fermi eV\n";
+      $fermi = $fermi/13.60569252;
+    }
+#    if( $line =~ m/number of electrons\s+=\s+(\d+)/ )
+#    {
+#      $nelectron = $1;
+#    }
+  }
+close IN;
+die "Fermi level not found in scf.out\n" if( $fermi eq 'no' ) ;
+#  die "Number of electrons not found in scf.out\n" if( $nelectron eq 'no' );
+
+open FERMI, ">efermiinrydberg.ipt" or die "Failed to open efermiinrydberg\n$!";
+print FERMI "$fermi\n";
+close FERMI;
+
 
 
 print "Abinit stage complete\n";

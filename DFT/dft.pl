@@ -144,10 +144,12 @@ my $obf;
 if( $dft_type =~ m/obf/i )
 {
   $obf = 1;
+  print "Running DFT calculation with OBF extension\n"
 }
 else
 {
   $obf = 0;
+  print "Running DFT calculation using QE\n";
 }
 
 
@@ -347,18 +349,36 @@ if ($RunESPRESSO) {
  ### the SCF run for initial density
  ##
   print "Density SCF Run\n";
-  print  "$para_prefix $ENV{'OCEAN_ESPRESSO_PW'}  -npool $npool < scf.in > scf.out 2>&1\n";
-  system("$para_prefix $ENV{'OCEAN_ESPRESSO_PW'}  -npool $npool < scf.in > scf.out 2>&1") == 0
-      or die "Failed to run scf stage for Density\n";
+  if( $obf == 1 )
+  {
+    print  "$para_prefix $ENV{'OCEAN_ESPRESSO_OBF_PW'}  -npool $npool < scf.in > scf.out 2>&1\n";
+    system("$para_prefix $ENV{'OCEAN_ESPRESSO_OBF_PW'}  -npool $npool < scf.in > scf.out 2>&1") == 0
+        or die "Failed to run scf stage for Density\n";
+  }
+  else
+  {
+    print  "$para_prefix $ENV{'OCEAN_ESPRESSO_PW'}  -npool $npool < scf.in > scf.out 2>&1\n";
+    system("$para_prefix $ENV{'OCEAN_ESPRESSO_PW'}  -npool $npool < scf.in > scf.out 2>&1") == 0
+        or die "Failed to run scf stage for Density\n";
+  }
   open OUT, ">scf.stat" or die "Failed to open scf.stat\n$!";
   print OUT "1\n";
   close OUT;
   print "SCF complete\n";
 
   print "Density PP Run\n";
-  print  "$para_prefix $ENV{'OCEAN_ESPRESSO_PP'}  -npool $npool < pp.in > pp.out 2>&1\n";
-  system("$para_prefix $ENV{'OCEAN_ESPRESSO_PP'} -npool $npool < pp.in > pp.out 2>&1") == 0
-     or die "Failed to run density stage for PAW\n";
+  if( $obf == 1 )
+  {  
+    print  "$para_prefix $ENV{'OCEAN_ESPRESSO_OBF_PP'}  -npool $npool < pp.in > pp.out 2>&1\n";
+    system("$para_prefix $ENV{'OCEAN_ESPRESSO_OBF_PP'} -npool $npool < pp.in > pp.out 2>&1") == 0
+       or die "Failed to run density stage for PAW\n";
+  }
+  else
+  {
+    print  "$para_prefix $ENV{'OCEAN_ESPRESSO_PP'}  -npool $npool < pp.in > pp.out 2>&1\n";
+    system("$para_prefix $ENV{'OCEAN_ESPRESSO_PP'} -npool $npool < pp.in > pp.out 2>&1") == 0
+       or die "Failed to run density stage for PAW\n";
+  }
   open OUT, ">den.stat" or die "Failed to open scf.stat\n$!";
   print OUT "1\n";
   close OUT;
