@@ -33,7 +33,7 @@ my $oldden = 0;
 $oldden = 1 if (-e "../DFT/old");
 
 
-my @AbFiles = ( "rhoofr", "density.out", "nkpt", "paw.nkpt", "qinunitsofbvectors.ipt");
+my @AbFiles = ( "rhoofr", "density.out", "nkpt", "paw.nkpt", "qinunitsofbvectors.ipt", "efermiinrydberg.ipt");
 my @CommonFiles = ( "avecsinbohr.ipt", "nspin", "xmesh.ipt", "dft", "nspin" );
 
 foreach (@AbFiles) {
@@ -152,7 +152,7 @@ system("$ENV{'OCEAN_BIN'}/wfconvert.x") == 0
 system("$ENV{'OCEAN_BIN'}/ofermi.pl") == 0
   or die "Failed to run ofermi.pl\n";
 `cp eshift.ipt ../`;
-system("cp efermiinrydberg.ipt ../") == 0 
+system("cp ../efermiinrydberg.ipt ./") == 0 
   or die "Failed to copy efermiinrydberg.ipt\n";
 
 
