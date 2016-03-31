@@ -176,9 +176,9 @@ module OCEAN_bloch
         enddo
       enddo
 
+111 continue
   enddo ! spin
 
-111 continue
           
 
 
