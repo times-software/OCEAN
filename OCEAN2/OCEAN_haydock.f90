@@ -323,6 +323,7 @@ module OCEAN_action
       if( sys%e0 ) then 
         call OCEAN_tk_start( tk_e0 )
         call ocean_energies_act( sys, psi, hpsi, ierr )
+        if( ierr .ne. 0 ) return
         call OCEAN_tk_stop( tk_e0 )
       endif
 
