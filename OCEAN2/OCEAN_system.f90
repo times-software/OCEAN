@@ -24,7 +24,7 @@ module OCEAN_system
     integer( S_INT ) :: xmesh( 3 )
     integer( S_INT ) :: kmesh( 3 )
     integer( S_INT ) :: ZNL(3)
-    integer( S_INT ) :: nspn = 1
+    integer( S_INT ) :: nspn 
     integer( S_INT ) :: nobf = 0
     integer( S_INT ) :: nruns
 
@@ -112,6 +112,11 @@ module OCEAN_system
       read(99,*) sys%kmesh(:)
       close(99)
       sys%nkpts = product( sys%kmesh(:) )
+
+      open(unit=99,file='nspin',form='formatted',status='old')
+      rewind(99)
+      read(99,*) sys%nspn
+      close(99)
 
       open(unit=99,file='ZNL',form='formatted',status='old')
       rewind(99) 
@@ -201,6 +206,8 @@ module OCEAN_system
     call MPI_BCAST( sys%kmesh, 3, MPI_INTEGER, root, comm, ierr )
     if( ierr .ne. MPI_SUCCESS ) goto 111
     call MPI_BCAST( sys%ZNL, 3, MPI_INTEGER, root, comm, ierr )
+    if( ierr .ne. MPI_SUCCESS ) goto 111
+    call MPI_BCAST( sys%nspn, 1, MPI_INTEGER, root, comm, ierr )
     if( ierr .ne. MPI_SUCCESS ) goto 111
 
 

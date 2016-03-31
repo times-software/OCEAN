@@ -231,6 +231,8 @@ module OCEAN_energies
 
     if( myid .eq. root ) write(6,*) energy_bands_pad,energy_kpts_pad,sys%nspn
     call MPI_BARRIER( comm, ierr )
+    write(6,*) myid, sys%nspn, energy_bands_pad*energy_kpts_pad*sys%nspn
+    call MPI_BARRIER( comm, ierr )
 
     call MPI_BCAST( energies, energy_bands_pad*energy_kpts_pad*sys%nspn, MPI_DOUBLE_PRECISION, root, comm, ierr )
     if( ierr .ne. MPI_SUCCESS ) goto 111
