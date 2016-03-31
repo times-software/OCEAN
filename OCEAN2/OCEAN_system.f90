@@ -98,6 +98,7 @@ module OCEAN_system
     real( DP ) :: inter
     real( DP ), parameter :: inter_min = 0.000001
     integer :: nruns 
+    logical :: file_exist
 
     if( myid .eq. root ) then
 
@@ -149,6 +150,14 @@ module OCEAN_system
 
 
       sys%mult = .true.
+      inquire(file="mult.ipt",exist=file_exist)
+      if( file_exist ) then
+        open(unit=99,file='mult.ipt',form='formatted',status='old')
+        rewind(99)
+        read(99,*) sys%mult
+        close(99)
+      endif
+ 
       sys%long_range = .true.
 
       open(unit=99,file='cks.normal',form='formatted',status='old')

@@ -316,6 +316,8 @@ module OCEAN_action
         call OCEAN_tk_start( tk_mult )
         call OCEAN_mult_act( sys, inter_scale, psi, multiplet_psi )
         call OCEAN_tk_stop( tk_mult )
+      else
+        call OCEAN_no_mult_act( sys, inter_scale, psi, multiplet_psi )
       endif
 
       if( sys%e0 ) then 
