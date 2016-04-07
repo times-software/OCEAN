@@ -43,7 +43,7 @@ my @CommonFiles = ("znucl", "paw.hfkgrid", "paw.fill", "paw.opts", "pplist", "pa
                    "paw.nbands", "core_offset", "paw.nkpt", "pool_control", "ham_kpoints", 
                    "cnbse.rad", "dft", "avecsinbohr.ipt" );
 my @ExtraFiles = ("specpnt", "Pquadrature" );
-my @DFTFiles = ("rhoofr", "nscf.out", "system.rho.dat");
+my @DFTFiles = ("rhoofr", "nscf.out", "system.rho.dat", "efermiinrydberg.ipt");
 
 foreach(@ExtraFiles)
 {
@@ -110,19 +110,25 @@ chomp($screen_nkpt);
 
 `ln -s ../DFT/Out .`;
 
-my $fermi = 0;
-open SCF, "nscf.out" or die "$!";
-while( my $line = <SCF> )
-{
-  if( $line  =~  m/the Fermi energy is\s+([+-]?\d\S+)/ )
-  {
-    $fermi = $1;
-    print "Fermi level found at $fermi eV\n";
-    last;
-  }
-}
-$fermi = $fermi/13.60569252;
-`echo "$fermi" > efermiinrydberg.ipt`;
+#my $fermi = 0;
+#open SCF, "nscf.out" or die "$!";
+#while( my $line = <SCF> )
+#{
+#  if( $line  =~  m/the Fermi energy is\s+([+-]?\d\S+)/ )
+#  {
+#    $fermi = $1;
+#    print "Fermi level found at $fermi eV\n";
+#    last;
+#  }
+#}
+#$fermi = $fermi/13.60569252;
+#`echo "$fermi" > efermiinrydberg.ipt`;
+open EFERMI, "efermiinrydberg.ipt" or die "$!\nFailed to open eferiinrydberg.ipt\n";
+my $fermi = <EFERMI>;
+chomp( $fermi);
+close EFERMI;
+print "Fermi level found at " . $fermi*13.60569252 . " eV\n";
+
 
 system("$ENV{'OCEAN_BIN'}/bvecs.pl") == 0
     or die "Failed to run bvecs.pl\n";

@@ -307,6 +307,10 @@ ppdir
 {
 '~/PseudoPots/All'
 } ppdir
+stress_force
+{
+ tstress = .false., tprnfor = .false.
+} stress_force
 spinorb
 {
 .false.

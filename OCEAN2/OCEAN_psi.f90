@@ -530,9 +530,9 @@ module OCEAN_psi
     integer, intent( inout ) :: ierr
 
     real(DP) :: tau( 3 ), rr, ri, ir, ii
-    real(DP), allocatable, dimension(:,:) :: pcr, pci
+    real(DP), allocatable, dimension(:,:,:) :: pcr, pci
     real(DP), allocatable, dimension(:,:) :: mer, mei
-    integer :: nptot, ntot, ialpha, icms, ivms, icml, ikpt, iband, iter
+    integer :: nptot, ntot, ialpha, icms, ivms, icml, ikpt, iband, iter, nspn
 
     character (LEN=127) :: cks_filename
     character (LEN=5) :: cks_prefix
@@ -551,14 +551,19 @@ module OCEAN_psi
 
     open(unit=99,file=cks_filename,form='unformatted',status='old')
     rewind( 99 )
-    read ( 99 ) nptot, ntot
+    read ( 99 ) nptot, ntot, nspn
     read ( 99 ) tau( : )
-    allocate( pcr( nptot, ntot ), pci( nptot, ntot ) )
+    allocate( pcr( nptot, ntot, nspn ), pci( nptot, ntot, nspn ) )
     read ( 99 ) pcr
     read ( 99 ) pci
     close( unit=99 )
 
 
+    if( nspn .ne. sys%nspn ) then
+      ierr = -1
+      write(6,*) 'Spin mismatch is fatal'
+      return
+    endif
 
     allocate( mer( nptot, -sys%cur_run%ZNL(3): sys%cur_run%ZNL(3) ),  &
               mei( nptot, -sys%cur_run%ZNL(3): sys%cur_run%ZNL(3) ) )
@@ -585,10 +590,10 @@ module OCEAN_psi
               do ikpt = 1, sys%nkpts
                 do iband = 1, sys%num_bands
                   iter = iter + 1
-                  rr = dot_product( mer( :, icml ), pcr( :, iter ) )
-                  ri = dot_product( mer( :, icml ), pci( :, iter ) )
-                  ir = dot_product( mei( :, icml ), pcr( :, iter ) )
-                  ii = dot_product( mei( :, icml ), pci( :, iter ) )
+                  rr = dot_product( mer( :, icml ), pcr( :, iter, 1 ) )
+                  ri = dot_product( mer( :, icml ), pci( :, iter, 1 ) )
+                  ir = dot_product( mei( :, icml ), pcr( :, iter, 1 ) )
+                  ii = dot_product( mei( :, icml ), pci( :, iter, 1 ) )
                   p%r(iband,ikpt,ialpha) = rr - ii
                   p%i(iband,ikpt,ialpha) = -ri - ir
                 enddo
@@ -598,8 +603,27 @@ module OCEAN_psi
         enddo
       enddo
     else
-      ierr = -1
-      return
+      do icms = 1, 2
+        do icml = -sys%cur_run%ZNL(3), sys%cur_run%ZNL(3)
+          do ivms = 1, 2
+            ialpha = ialpha + 1
+            if( icms .eq. ivms ) then
+              iter = 0
+              do ikpt = 1, sys%nkpts
+                do iband = 1, sys%num_bands
+                  iter = iter + 1
+                  rr = dot_product( mer( :, icml ), pcr( :, iter, ivms ) )
+                  ri = dot_product( mer( :, icml ), pci( :, iter, ivms ) )
+                  ir = dot_product( mei( :, icml ), pcr( :, iter, ivms ) )
+                  ii = dot_product( mei( :, icml ), pci( :, iter, ivms ) )
+                  p%r(iband,ikpt,ialpha) = rr - ii
+                  p%i(iband,ikpt,ialpha) = -ri - ir
+                enddo
+              enddo
+            endif
+          enddo
+        enddo
+      enddo
     endif
 
     deallocate( pcr, pci, mer, mei )

@@ -82,7 +82,7 @@ my $efermi = $ldagap / 2 + $sorted[$ne-1];
 
 #print "$nkpt\t$ne\n";
 print "$sorted[$ne-2]\t$sorted[$ne-1]\t$sorted[$ne]\t$sorted[$ne+1]\n";
-open FERMI, ">efermiinrydberg.ipt" or die;
+open FERMI, ">efermiinrydberg2.ipt" or die;
 print FERMI $efermi . "\n";
 close FERMI;
 
