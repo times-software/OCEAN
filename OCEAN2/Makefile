@@ -1,6 +1,6 @@
 include ../Makefile.arch
 
-FLAGS = $(OPTIONS) -cpp -DHAVE_FLUSH -DBLAS -DMPI -DHAVE_CONTIGUOUS -traceback -g -O0 -warn all -check all 
+FLAGS = $(OPTIONS) -cpp -DHAVE_FLUSH -DBLAS -DMPI -DHAVE_CONTIGUOUS -traceback 
 
 #MPIFORT = mpif90
 #FLAGS = -O2 -DHAVE_FLUSH -DBLAS -DMPI -DHAVE_CONTIGUOUS -cpp -warn all  -march=corei7 -fopenmp -openmp-report2 -g -traceback
