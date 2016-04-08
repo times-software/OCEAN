@@ -382,7 +382,7 @@ if( $obf == 1 )
   {
     if( $nbuse == 0 )
     {
-      copy( "../zWFN/nbuse_xas.ipt", "nbuse.ipt" ) or die "$!";
+      copy( "../zWFN/nbuse_xes.ipt", "nbuse.ipt" ) or die "$!";
     }
     $run_text = 'XES';
     print "XES!\n";

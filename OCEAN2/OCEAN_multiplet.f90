@@ -61,7 +61,7 @@ module OCEAN_multiplet
   integer, allocatable :: fg_list( : )
   integer, allocatable :: so_list( :, : )
 
-  public OCEAN_create_central, OCEAN_mult_act, OCEAN_mult_single, OCEAN_mult_slice
+  public OCEAN_create_central, OCEAN_mult_act, OCEAN_mult_single, OCEAN_mult_slice, OCEAN_no_mult_act
 
   contains
 
@@ -663,6 +663,22 @@ module OCEAN_multiplet
 !  enddo
 
   end subroutine OCEAN_mult_act
+
+  subroutine OCEAN_no_mult_act( sys, inter, in_vec, out_vec )
+    use OCEAN_system
+    use OCEAN_psi
+    implicit none
+
+    type(O_system), intent( in ) :: sys
+    real( DP ), intent( in ) :: inter
+    type( ocean_vector ), intent( in ) :: in_vec
+    type( ocean_vector ), intent( inout ) :: out_vec
+
+    out_vec%r(:,:,:) = 0.0_DP
+    out_vec%i(:,:,:) = 0.0_DP
+  
+  end subroutine OCEAN_no_mult_act
+
 
 
   subroutine OCEAN_ctact( sys, inter, in_vec, out_vec )

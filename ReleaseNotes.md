@@ -1,3 +1,9 @@
+## v. 1.1.5
+
+#### Bug Fix
+Changed mpi_double to mpi_double_precision in several files. 
+Thanks to Liang Li at ANL for the bug report.
+
 ## v. 1.1.4
 
 #### Bug Fix
