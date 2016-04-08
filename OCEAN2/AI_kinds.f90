@@ -35,6 +35,7 @@ module AI_kinds
   integer, parameter :: AI_LOG = MPI_LOGICAL
   public :: QP, DP, SP, I4, I8, I2, S_INT, AI_LOG
   !
+  !
 contains
   subroutine print_kind_info
     implicit none

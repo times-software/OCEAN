@@ -7,34 +7,107 @@
 !
 module OCEAN_energies
   use AI_kinds
+  use OCEAN_psi, only : OCEAN_vector
 !  use iso_c_binding
 
   implicit none
   save
+  private
 
-  REAL(DP), ALLOCATABLE :: energies(:,:,:)
-! ! DEC$ ATTRIBUTES ALIGN: 32 :: energies
+  REAL(DP), ALLOCATABLE, public :: energies(:,:,:)
+  real(DP), ALLOCATABLE, public :: imag_selfenergy(:,:,:)
 
-  real(DP), ALLOCATABLE :: imag_selfenergy(:,:,:)
-! ! DEC$ ATTRIBUTES ALIGN: 32 :: imag_selfenergy
+
+  type( OCEAN_vector ), pointer :: p_energy
+  type( OCEAN_vector ), pointer :: allow
 
 #ifdef __INTEL_COMPILER
 !DIR$ attributes align: 64 :: energies, imag_selfenergy
 #endif
 
-!  REAL(DP), POINTER, CONTIGUOUS :: energies(:,:,:) => null()
-!  REAL(DP), POINTER, CONTIGUOUS :: imag_selfenergy(:,:,:) => null()
 
-!  TYPE(C_PTR) :: rcptr
-!  TYPE(C_PTR) :: icptr
 
   INTEGER :: energy_bands_pad
   INTEGER :: energy_kpts_pad
 
   LOGICAL :: have_selfenergy
+  LOGICAL, private :: is_init = .false.
+  LOGICAL, private :: is_loaded = .false.
 
+  public :: OCEAN_energies_val_allow, OCEAN_energies_val_sfact, OCEAN_energies_val_act, &
+            OCEAN_energies_val_load, OCEAN_energies_act, OCEAN_energies_init, OCEAN_energies_load
   
   contains
+
+  subroutine OCEAN_energies_val_allow( sys, psi, ierr )
+    use OCEAN_system
+    use OCEAN_psi, only : OCEAN_vector, OCEAN_psi_mult
+    implicit none
+    !
+    integer, intent( inout ) :: ierr
+    type(O_system), intent( in ) :: sys
+    type(OCEAN_vector), intent( inout ) :: psi
+    !
+    call OCEAN_psi_mult( psi, allow, .true. )
+  end subroutine
+
+  subroutine OCEAN_energies_val_sfact( sys, psi, ierr )
+    use OCEAN_system
+    use OCEAN_psi, only : OCEAN_vector, OCEAN_psi_mult
+    implicit none
+    !
+    integer, intent( inout ) :: ierr
+    type(O_system), intent( in ) :: sys
+    type(OCEAN_vector), intent( inout ) :: psi
+    !
+    call OCEAN_psi_mult( psi, allow, .false. )
+  end subroutine
+
+  subroutine OCEAN_energies_val_act( sys, psi, hpsi, ierr )
+    use OCEAN_system
+    use OCEAN_psi, only : OCEAN_vector, OCEAN_psi_cmult
+    implicit none
+    !
+    integer, intent( inout ) :: ierr
+    type(O_system), intent( in ) :: sys
+    type(OCEAN_vector), intent( in ) :: psi
+    type(OCEAN_vector), intent( inout ) :: hpsi
+    !
+    call OCEAN_psi_cmult( psi, hpsi, p_energy, .false. )
+
+  end subroutine OCEAN_energies_val_act
+
+
+  subroutine OCEAN_energies_val_load( sys, ierr )
+    use OCEAN_system
+    use OCEAN_psi, only : OCEAN_vector, OCEAN_psi_new
+    use OCEAN_val_energy, only : OCEAN_read_energies
+    implicit none
+    !
+    integer, intent( inout ) :: ierr
+    type(O_system), intent( in ) :: sys
+    !
+    if( sys%have_val .eq. .false. ) return
+    !
+
+    if( .not. is_init ) then
+      allocate( p_energy, allow )
+      call OCEAN_psi_new( p_energy, ierr )
+      if( ierr .ne. 0 ) return
+      call OCEAN_psi_new( allow, ierr )
+      if( ierr .ne. 0 ) return
+      is_init = .true.
+    endif
+
+    if( .not. is_loaded ) then
+      call OCEAN_read_energies( sys, p_energy, allow, ierr )
+      if( ierr .ne. 0 ) return
+
+      is_loaded = .true.
+    endif
+
+  end subroutine OCEAN_energies_val_load
+    
 
   subroutine OCEAN_energies_init(  sys, ierr )
     use OCEAN_system
@@ -117,6 +190,7 @@ module OCEAN_energies
     integer, intent(inout) :: ierr
     type(O_system), intent( in ) :: sys
 
+    real(DP), allocatable :: tmp_e0(:,:,:)
     real(DP) :: core_offset
     integer :: nbd, nq, nspn, iter, i, j
     character(len=9) :: infoname
@@ -155,8 +229,13 @@ module OCEAN_energies
         goto 111
       endif
 
-!      allocate( tmp_e0( sys%num_bands * sys%nkpts, sys%nspn ) )
-      read(99) energies( 1 : sys%num_bands, 1 : sys%nkpts, : )
+      allocate( tmp_e0( sys%num_bands,  sys%nkpts, sys%nspn ), STAT=ierr )
+      if( ierr .ne. 0 ) return
+      read(99) tmp_e0
+      energies( 1 : sys%num_bands, 1 : sys%nkpts, : ) = tmp_e0( :, :, : )
+      deallocate( tmp_e0 )
+!      read(99) energies( 1 : sys%num_bands, 1 : sys%nkpts, : )
+    
 
       close( 99 )
 
@@ -241,6 +320,10 @@ module OCEAN_energies
   111 continue
   end subroutine OCEAN_energies_load
 
+
+ !JTV need to move energies into an ocean_vector then:
+ ! 1) this can be done w/ min instead of full
+ ! 2) we can write an element-wise y(i) = z(i) * x(i) + y(i) in OCEAN_psi
   subroutine OCEAN_energies_act( sys, psi, hpsi, ierr )
     use OCEAN_system
     use OCEAN_psi

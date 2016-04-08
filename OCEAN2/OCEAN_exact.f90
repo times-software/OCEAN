@@ -197,12 +197,14 @@ module OCEAN_exact
 #endif
 
 
-    bse_vec%bands_pad = hay_vec%bands_pad
-    bse_vec%kpts_pad  = hay_vec%kpts_pad
-    allocate( bse_vec_re( bse_vec%bands_pad, bse_vec%kpts_pad, sys%nalpha ), &
-              bse_vec_im( bse_vec%bands_pad, bse_vec%kpts_pad, sys%nalpha ) )
-    bse_vec%r => bse_vec_re
-    bse_vec%i => bse_vec_im
+
+!    bse_vec%bands_pad = hay_vec%bands_pad
+!    bse_vec%kpts_pad  = hay_vec%kpts_pad
+!    allocate( bse_vec_re( bse_vec%bands_pad, bse_vec%kpts_pad, sys%nalpha ), &
+!              bse_vec_im( bse_vec%bands_pad, bse_vec%kpts_pad, sys%nalpha ) )
+!    bse_vec%r => bse_vec_re
+!    bse_vec%i => bse_vec_im
+    call OCEAN_psi_new( bse_vec, core_vector, ierr, hay_vec )
 
     
 
@@ -358,8 +360,9 @@ module OCEAN_exact
         dest_proc = rsrc + csrc*nprow
 
         !!!!?? JTV
-        call MPI_ISEND( bse_matrix_buffer( buf_pointer ), buf_size, MPI_CT, dest_proc, &
-                        comm_tag_index, MPI_REQUEST_NULL, ierr )
+        stop
+!        call MPI_ISEND( bse_matrix_buffer( buf_pointer ), buf_size, MPI_CT, dest_proc, &
+!                        comm_tag_index, MPI_REQUEST_NULL, ierr )
 
         buf_pointer = buf_pointer + buf_size
       enddo
@@ -372,7 +375,7 @@ module OCEAN_exact
     call MPI_WAITALL( my_tag_index, request_list, status_list, ierr )
     deallocate( request_list, status_list )
 
-    deallocate( bse_matrix_buffer, bse_vec_re, bse_vec_im )
+    deallocate( bse_matrix_buffer )
 
     call blacs_barrier( context, 'A' )
     if( myid .eq. root ) write(6,*) 'Finished comm'

@@ -27,6 +27,7 @@ module OCEAN_multiplet
 #endif
 
 
+
   integer, allocatable :: nproj( : ), hvnu(:)
   integer, allocatable :: ibeg( : )
   integer, allocatable :: jbeg( : )
@@ -613,7 +614,7 @@ module OCEAN_multiplet
   
   subroutine OCEAN_mult_act( sys, inter, in_vec, out_vec )
     use OCEAN_system
-    use OCEAN_psi
+    use OCEAN_psi, only : OCEAN_vector
     use OCEAN_mpi
     implicit none
     !
@@ -621,14 +622,17 @@ module OCEAN_multiplet
     real( DP ), intent( in ) :: inter
     type( ocean_vector ), intent( in ) :: in_vec
     type( ocean_vector ), intent( inout ) :: out_vec
+    integer :: ierr
+    ierr = 0
 
 !    integer :: take_longer
 
 !    do take_longer = 1, 10
 
-    out_vec%r(:,:,:) = 0.0_DP
-    out_vec%i(:,:,:) = 0.0_DP
+!    out_vec%r(:,:,:) = 0.0_DP
+!    out_vec%i(:,:,:) = 0.0_DP
 
+#if 0
     if( do_staggered_sum ) then
       call OCEAN_ctact_dist( sys, inter, in_vec, out_vec )
 !      call OCEAN_ctact_dist( sys, inter, in_vec%r, in_vec%i, out_vec%r, out_vec%i )
@@ -644,6 +648,17 @@ module OCEAN_multiplet
       endif
     endif
 !    call OCEAN_soact( sys, in_vec, out_vec )
+#else
+    call OCEAN_fg_combo( sys, inter, in_vec, out_vec, ierr )
+    call OCEAN_new_soact( sys, in_vec, out_vec )
+
+!    if( myid .eq. 0 ) then
+!      call fgact( sys, inter, in_vec, out_vec )
+!      if( sys%ZNL(2) .gt. 0 ) then
+!        call OCEAN_soact( sys, in_vec, out_vec )
+!      endif
+!    endif
+#endif
 
 !  enddo
 
@@ -668,7 +683,7 @@ module OCEAN_multiplet
 
   subroutine OCEAN_ctact( sys, inter, in_vec, out_vec )
     use OCEAN_system
-    use OCEAN_psi
+    use OCEAN_psi, only : OCEAN_vector
     implicit none
     !
     type(O_system), intent( in ) :: sys
@@ -677,25 +692,60 @@ module OCEAN_multiplet
     type( ocean_vector ), intent( inout ) :: out_vec
     !
     !
-    integer :: ialpha, l, m, nu, ispn, ikpt, ibnd
     real( DP ) :: mul
-    real( DP ), dimension( npmax ) :: ampr, ampi, hampr, hampi
-  !
+    real( DP ), dimension( npmax ) :: ampr, ampi 
+    real( DP ), allocatable :: hampr(:,:,:), hampi(:,:,:)
+#ifdef __INTEL
+!dir$ attributes align:64 :: ampr, ampi, hampr, hampi
+#endif
 
+    integer :: ialpha, l, m, nu, ispn, ikpt, ibnd
+    integer :: hd1, hd2, ihd, hd0
+    integer, parameter :: cache_line = 8
+  !
+    ! Want to make sure hampr and hampi start along cache line
+    if( mod(npmax,cache_line) .ne. 0 ) then
+      hd1 = cache_line * ( npmax / cache_line + 1 )
+    else
+      hd1 = npmax
+    endif
+
+    hd2 = 0
+    do l = lmin, lmax
+      hd2 = hd2 + ( 2 * l + 1 )
+    enddo
+    hd2 = hd2
+
+    allocate( hampr( hd1, hd2, sys%cur_run%nalpha ), hampi( hd1, hd2, sys%cur_run%nalpha ) )
     
+    
+!    mul = inter / ( dble( sys%nkpts ) * sys%celvol )
+
+!$OMP PARALLEL &
+!$OMP& DEFAULT( NONE ) &
+!$OMP& PRIVATE( ihd, hd0, ialpha, l, nu, m, ampr, ampi, ispn, mul ) &
+!$OMP& SHARED( mul, sys, lmin, lmax, nproj ) &
+!$OMP& SHARED( mpcr, mpci, mpm, in_vec, out_vec, hampr, hampi )
+
     mul = inter / ( dble( sys%nkpts ) * sys%celvol )
-!$OMP PARALLEL DO &
-!$OMP DEFAULT( NONE ) &
-!$OMP PRIVATE( ialpha, l, nu, m, ampr, ampi, hampr, hampi, ispn ) &
-!$OMP SHARED( mul, sys, lmin, lmax, nproj ) &
-!$OMP SHARED( mpcr, mpci, mpm, in_vec, out_vec )
+    hd0 = 0
+    do l = 0, lmin
+      hd0 = hd0 + ( 2 * l + 1 )
+    enddo
+
+!$OMP DO COLLAPSE( 3 )
     do ialpha = 1, sys%cur_run%nalpha
-      ispn = 2 - mod( ialpha, 2 )
-      if( sys%nspn .eq. 1 ) then
-        ispn = 1
-      endif
       do l = lmin, lmax
         do m = -l, l
+
+          ispn = 2 - mod( ialpha, 2 )
+          if( sys%nspn .eq. 1 ) then
+            ispn = 1
+          endif
+          
+          ihd = ( l + 1 ) ** 2 - l + m
+!JTV Can I unify the nu, m, l, alpha hamiltonian for use by all three local basis sets?
+
           ampr( : ) = 0
           ampi( : ) = 0
           do nu = 1, nproj( l )
@@ -712,36 +762,55 @@ module OCEAN_multiplet
           enddo
 
 
-          hampr( : ) = 0
-          hampi( : ) = 0
+          hampr( 1:nproj(l), ihd, ialpha ) = 0.0_dp
+          hampi( 1:nproj(l), ihd, ialpha ) = 0.0_dp
           do nu = 1, nproj( l )
-            hampr( : ) = hampr( : ) - mpm( :, nu, l ) * ampr( nu ) 
-            hampi( : ) = hampi( : ) - mpm( :, nu, l ) * ampi( nu ) 
+            hampr( 1:nproj(l), ihd, ialpha ) = hampr( 1:nproj(l), ihd, ialpha ) - mpm( 1:nproj(l), nu, l ) * ampr( nu ) 
+            hampi( 1:nproj(l), ihd, ialpha ) = hampi( 1:nproj(l), ihd, ialpha ) - mpm( 1:nproj(l), nu, l ) * ampi( nu ) 
           enddo
-          hampr( : ) = hampr( : ) * mul
-          hampi( : ) = hampi( : ) * mul
+          hampr( 1:nproj(l), ihd, ialpha ) = hampr( 1:nproj(l), ihd, ialpha ) * mul
+          hampi( 1:nproj(l), ihd, ialpha ) = hampi( 1:nproj(l), ihd, ialpha ) * mul
+
+        enddo
+      enddo
+    enddo
+!$OMP END DO
+
+!JTV
+    do ialpha = 1, sys%cur_run%nalpha
+      ispn = 2 - mod( ialpha, 2 )
+      if( sys%nspn .eq. 1 ) then
+        ispn = 1
+      endif
+      do l = lmin, lmax
+        do m = -l, l
+          ihd = ( l + 1 ) ** 2 - l + m
           do nu = 1, nproj( l )
+!$OMP DO COLLAPSE( 2 )            
             do ikpt = 1, sys%nkpts 
               do ibnd = 1, sys%num_bands
                 out_vec%r( ibnd, ikpt, ialpha ) = out_vec%r( ibnd, ikpt, ialpha ) &
-                                                + mpcr( ibnd, ikpt, nu, m, l, ispn ) * hampr( nu )  &
-                                                + mpci( ibnd, ikpt, nu, m, l, ispn ) * hampi( nu )
+                                                + mpcr( ibnd, ikpt, nu, m, l, ispn ) * hampr( nu, ihd, ialpha )  &
+                                                + mpci( ibnd, ikpt, nu, m, l, ispn ) * hampi( nu, ihd, ialpha )
                 out_vec%i( ibnd, ikpt, ialpha ) = out_vec%i( ibnd, ikpt, ialpha ) &
-                                                + mpcr( ibnd, ikpt, nu, m, l, ispn ) * hampi( nu ) &
-                                                - mpci( ibnd, ikpt, nu, m, l, ispn ) * hampr( nu )
+                                                + mpcr( ibnd, ikpt, nu, m, l, ispn ) * hampi( nu, ihd, ialpha ) &
+                                                - mpci( ibnd, ikpt, nu, m, l, ispn ) * hampr( nu, ihd, ialpha )
               enddo
             enddo
+!$OMP END DO
           enddo
         enddo
       enddo
     enddo
-!$OMP END PARALLEL DO
+!$OMP END PARALLEL
+
+    deallocate( hampr, hampi )
 
   end subroutine OCEAN_ctact
 
   subroutine OCEAN_ctact_dist( sys, inter, in_vec, out_vec )
     use OCEAN_system
-    use OCEAN_psi
+    use OCEAN_psi, only : OCEAN_vector
     implicit none
     !
     type(O_system), intent( in ) :: sys
@@ -867,10 +936,228 @@ module OCEAN_multiplet
   
   end subroutine ctact_dist_out
 
+#ifdef FALSE
+  subroutine combo_act( sys, inter, in_vec, out_vec )
+    use OCEAN_system
+    use OCEAN_mpi
+    use OCEAN_psi, only : OCEAN_vector
+    implicit none
+    !
+    type(O_system), intent( in ) :: sys
+    real( DP ), intent( in ) :: inter
+    type( ocean_vector ), intent( in ) :: in_vec
+    type( ocean_vector ), intent( inout ) :: out_vec
+    !
+!    real( DP ), dimension( n, nc, 2 ) :: v, hv
+!    real( DP ), dimension( n, npmax, -lmax : lmax, lmin : lmax, nspn ) :: mpcr, mpci
+!    real( DP ), dimension( jtot ) :: mhr, mhi
+    !
+    integer :: lv, ii, ic, ivml, nu, j1, jj, ispn, ikpt, ibnd
+    real( DP ) :: mul
+    real( DP ), allocatable, dimension( : ) :: pwr, pwi, hpwr, hpwi
+    integer, parameter :: cache_line = 8
+    integer :: hd1, hd2, k
+    !
+    allocate( pwr(itot), pwi( itot), hpwr(itot), hpwi(itot) )
+    ! lvl, lvh is not enough for omp
+    ! should probably pull thread spawning out of the do loop though
+
+
+    ! Want to make sure hampr and hampi start along cache line
+    if( mod(npmax,cache_line) .ne. 0 ) then
+      hd1 = cache_line * ( npmax / cache_line + 1 ) 
+    else
+      hd1 = npmax
+    endif
+
+    hd2 = 0
+    do l = lvl, lvh
+      hd2 = hd2 + ( 2 * l + 1 )
+    enddo
+    hd2 = hd2 
+
+    
+    mul = inter / ( dble( sys%nkpts ) * sys%celvol )
+
+    maxii = ( hd2 * sys%cur_run%nalpha ) / nproc + 1
+    allocate( run_l( maxii ), run_m( maxii ), run_alpha( max_ii ) )
+    myii = 0
+    ii = 0
+    do lv = lvl, lvh
+      do ic = 1, sys%cur_run%nalpha
+        do ivml = -lv, lv
+          if( mod( ii, nproc ) .eq. myid ) then
+            myii = myii + 1
+            run_l( myii ) = lv
+            run_m( myii ) = lvml
+            run_alpha( myii ) = ic
+          endif
+          ii = ii + 1
+        enddo
+      enddo
+    enddo
+
+    maxii = ii
+    start_wait = 1
+
+    allocate( r_request( maxii ), i_request( maxii ) )          
+
+    do ii = 1, maxii
+      if( ii-1 .ne. myid ) then
+        call MPI_IBCAST( ampr(:,ii), npmax, MPI_DOUBLE_PRECISION, ii-1, comm, r_request( ii ), ierr )
+        call MPI_IBCAST( ampi(:,ii), npmax, MPI_DOUBLE_PRECISION, ii-1, comm, i_request( ii ), ierr )
+      endif
+    enddo
+
+!$OMP PARALLEL DEFAULT( NONE )
+!$OMP& PRIVATE( ii, lv, ivml, iv, ispn
+!$OMP& SHARED( myii, run_l, run_m, run_alpha, sys, ampr, ampi, mpcr, mpci )
+
+    do ii = 1, myii
+      lv = run_l( ii )
+      ivml = run_m( ii )
+      ic = run_alpha( ii )
+      ispn = 2 - mod( ic, 2 )
+      if( sys%nspn .eq. 1 ) then
+          ispn = 1
+      endif
+
+!JTV need to fix to blocks later once we've padded out mpcr and mpci to multiples of the cache line
+
+!$OMP DO SCHEDULE( STATIC ) REDUCTION(+:tmp_ampr,tmp_ampi) COLLAPSE( 2 )
+      do ikpt = 1, nkpt
+        do iband = 1, nband 
+! !$OMP PARALLEL DO !!! For phi 4 hardware threads
+          do nu = 1, nproj( lv )
+            tmp_ampr( nu ) = tmp_ampr( nu ) &
+                           + in_vec%r( ibnd, ikpt, ic ) * mpcr( ibnd, ikpt, nu, ivml, lv, ispn ) &
+                           - in_vec%i( ibnd, ikpt, ic ) * mpci( ibnd, ikpt, nu, ivml, lv, ispn )
+            tmp_ampi( nu ) = tmp_ampi( nu ) &
+                           + in_vec%r( ibnd, ikpt, ic ) * mpci( ibnd, ikpt, nu, ivml, lv, ispn ) &
+                           + in_vec%i( ibnd, ikpt, ic ) * mpcr( ibnd, ikpt, nu, ivml, lv, ispn )
+          enddo
+        enddo
+      enddo
+!$OMP END DO
+      
+!$OMP MASTER
+      i = ( ii - 1 ) * nproc + myid + 1
+      ampr( 1:nproj(lv), i ) = tmp_ampr( 1:nproj(lv) )
+      ampi( 1:nproj(lv), i ) = tmp_ampi( 1:nproj(lv) )
+      call MPI_IBCAST( ampr( :, i ), npmax, MPI_DOUBLE_PRECISION, myid, comm, r_request( i ), ierr )
+      call MPI_IBCAST( ampi( :, i ), npmax, MPI_DOUBLE_PRECISION, myid, comm, i_request( i ), ierr )
+!$OMP END MASTER
+
+    enddo
+
+
+    do lv = lvl, lvh
+  
+!$OMP MASTER
+      end_wait = start_wait + ( 2 *lv + 1 ) * sys%cur_run%nalpha
+      call MPI_WAITALL( end_wait-start_wait+1, r_request(start_wait:end_wait), MPI_STATUSES_IGNORE, ierr )
+      call MPI_WAITALL( end_wait-start_wait+1, i_request(start_wait:end_wait), MPI_STATUSES_IGNORE, ierr )
+      ii = 1
+      i = start_wait
+      do ic = 1, sys%cur_run%nalpha
+        do ivml = -lv, lv
+          do nu = 1, nproj( lv )
+            pwr(ii) = ampr(nu,i)
+            pwi(ii) = ampi(nu,i)
+            ii = ii + 1
+          enddo
+          i = i + 1
+        enddo
+      enddo
+      hpwr( : ) = 0
+      hpwi( : ) = 0
+
+!$OMP END MASTER
+
+!$OMP DO SCHEDULE( STATIC, 8 )
+      do ii = 1, mham( lv )
+        do jj = 1, mham( lv )
+          j1 = jbeg( lv ) + ( jj -1 ) + ( ii - 1 ) * mham( lv )
+          hpwr( ii ) = hpwr( ii ) + mhr( j1 ) * pwr( jj ) - mhi( j1 ) * pwi( jj )
+          hpwi( ii ) = hpwi( ii ) + mhr( j1 ) * pwi( jj ) + mhi( j1 ) * pwr( jj )
+        end do
+        hpwr( ii ) = hpwr( ii ) * mul
+        hpwi( ii ) = hpwi( ii ) * mul
+      end do
+!$OMP END DO
+
+
+!$OMP MASTER
+      ii = 1
+      i = start_wait
+      do ic = 1, sys%cur_run%nalpha
+        do ivml = -lv, lv
+          do nu = 1, nproj( lv )
+            hampr(nu,i) = hpwr(ii)
+            hampi(nu,i) = hpwi(ii)
+            ii = ii + 1
+          enddo
+          i = i + 1
+        enddo
+      enddo
+!$OMP END MASTER
+    enddo
+      
+      
+    do ii = 1, myii
+      lv = run_l( ii )
+      ivml = run_m( ii )
+      ic = run_alpha( ii )
+      ispn = 2 - mod( ic, 2 )
+      if( sys%nspn .eq. 1 ) then
+          ispn = 1
+      endif
+
+!JTV need to fix to blocks later once we've padded out mpcr and mpci to multiples of the cache line
+      i = ( ii - 1 ) * nproc + myid + 1
+
+!$OMP DO SCHEDULE( STATIC ) COLLAPSE( 2 ) 
+      do ikpt = 1, nkpt
+        do iband = 1, nband
+! !$OMP PARALLEL DO !!! For phi 4 hardware threads
+          do nu = 1, nproj( lv )
+            out_vec%r( ibnd, ikpt, ic ) = out_vec%r( ibnd, ikpt, ic )  &
+                                        + hpwr( nu, i ) * mpcr( ibnd, ikpt, nu, ivml, lv, ispn ) &
+                                        + hpwi( nu, i ) * mpci( ibnd, ikpt, nu, ivml, lv, ispn )
+            out_vec%i( ibnd, ikpt, ic ) = out_vec%i( ibnd, ikpt, ic )  &
+                                        + hpwi( nu, i ) * mpcr( ibnd, ikpt, nu, ivml, lv, ispn ) &
+                                        - hpwr( ni, i ) * mpci( ibnd, ikpt, nu, ivml, lv, ispn )
+          enddo
+        enddo
+      enddo
+!$OMP END DO
+
+    enddo
+
+!$OMP END PARALLEL
+    !
+
+  end subroutine combo_act
+#endif
+
+  real(dp) function force_align_ddot( a, b )
+    !
+    real(dp) :: a( 64 )
+    real(dp) :: b( 64 )
+    !
+    integer :: i
+!dir$ assume_aligned a : 64
+!dir$ assume_aligned b : 64
+!$OMP SIMD PRIVATE( i ) SHARED( a, b ) REDUCTION(+:force_align_ddot )
+    do i = 1, 64
+      force_align_ddot = force_align_ddot + a(i) * b(i)
+    enddo
+!$OMP END SIMD
+  end function force_align_ddot
 
   subroutine fgact( sys, inter, in_vec, out_vec )
     use OCEAN_system
-    use OCEAN_psi
+    use OCEAN_psi, only : OCEAN_vector
     implicit none
     !
     type(O_system), intent( in ) :: sys
@@ -975,7 +1262,7 @@ module OCEAN_multiplet
 
   subroutine fgact_dist( sys, inter, in_vec, out_vec )
     use OCEAN_system
-    use OCEAN_psi
+    use OCEAN_psi, only : OCEAN_vector
     implicit none
     !
     type(O_system), intent( in ) :: sys
@@ -1069,7 +1356,7 @@ module OCEAN_multiplet
 
   subroutine OCEAN_soact_dist( sys, in_vec, out_vec )
     use OCEAN_system
-    use OCEAN_psi
+    use OCEAN_psi, only : OCEAN_vector
     implicit none
 
     type( O_system ), intent( in ) :: sys
@@ -1082,18 +1369,19 @@ module OCEAN_multiplet
     if( so_n .lt. 1 ) return
 
 !JTV Maybe want to consider blocking this routine for cache reuse
+! Also consider dividing it up by k-point/bands
 
-! !$OMP PARALLEL &
-! !$OMP DEFAULT( NONE ) &
-! !$OMP PRIVATE( iter, ic, jc, ikpt, melr, meli ) &
-! !$OMP SHARED( sys, in_vec, out_vec, somelr, someli, so_n, so_list, vms )
+!$OMP PARALLEL &
+!$OMP DEFAULT( NONE ) &
+!$OMP PRIVATE( iter, ic, jc, ikpt, melr, meli ) &
+!$OMP SHARED( sys, in_vec, out_vec, somelr, someli, so_n, so_list, vms )
     do iter = 1, so_n
       ic = so_list( 1, iter )
       jc = so_list( 2, iter )
       melr = somelr( ic, jc )
       meli = someli( ic, jc )
       if ( vms( ic ) .eq. vms( jc ) ) then
-! !$OMP DO 
+!$OMP DO 
         do ikpt = 1, sys%nkpts
           out_vec%r( 1:sys%num_bands, ikpt, ic ) = out_vec%r( 1:sys%num_bands, ikpt, ic )  &
                                    + melr * in_vec%r( 1:sys%num_bands, ikpt, jc ) &
@@ -1106,10 +1394,10 @@ module OCEAN_multiplet
 !                                   + somelr( ic, jc ) * in_vec%i( 1:sys%num_bands, ikpt, jc ) &
 !                                   + someli( ic, jc ) * in_vec%r( 1:sys%num_bands, ikpt, jc )
         enddo
-! !$OMP END DO
+!$OMP END DO
       endif
     enddo
-! !$OMP END PARALLEL
+!$OMP END PARALLEL
 
 
   end subroutine OCEAN_soact_dist
@@ -1119,7 +1407,7 @@ module OCEAN_multiplet
 
   subroutine OCEAN_soact( sys, in_vec, out_vec )
     use OCEAN_system
-    use OCEAN_psi
+    use OCEAN_psi, only : OCEAN_vector
     implicit none
 
     type( O_system ), intent( in ) :: sys
@@ -1147,24 +1435,292 @@ module OCEAN_multiplet
       enddo
     enddo
 ! !$OMP END PARALLEL DO
-!    do ic = 1, sys%cur_run%nalpha
-!      do jc = 1, sys%cur_run%nalpha
-!        if( vms( ic ) .eq. vms( jc ) ) then
-!          ctmp = 0.0_DP
-!          do i = 1, 3
-!            ctmp = ctmp + jimel( dble( lc ), cml( jc ), cml( ic ), i ) &
-!                        * jimel( 0.5_DP, cms( jc ), cms( ic ), i )
-!          enddo
-!          melr = real(ctmp * -xi)
-!          meli = aimag( ctmp * -xi )
-!          do ikpt = 1, sys%nkpts
-!            out_vec%r( 1:sys%num_bands, ikpt, ic ) = out_vec%r( 1:sys%num_bands, ikpt, ic ) &
-!                                                   + melr( 
-
 
 
   end subroutine OCEAN_soact
 
+  subroutine OCEAN_new_soact( sys, in_vec, out_vec )
+    use OCEAN_system
+    use OCEAN_psi, only : OCEAN_vector
+    implicit none
+
+    type( O_system ), intent( in ) :: sys
+    type( OCEAN_vector ), intent( in ) :: in_vec
+    type( OCEAN_vector ), intent( inout ) :: out_vec
+
+    integer :: ic, jc, ikpt, ibnd, i
+    
+
+    do i = 1, in_vec%core_store_size
+        ! This silly accounting is to help OMP later atm it is breaking if put in the next loop
+        ic = in_vec%core_a_start + ( i - 2 + in_vec%core_k_start ) / sys%nkpts
+        ikpt = mod( i + in_vec%core_k_start - 2, sys%nkpts ) + 1
+        !
+      do ibnd = 1, sys%num_bands
+
+        do jc = 1, sys%cur_run%nalpha
+          out_vec%r( ibnd, ikpt, ic ) = out_vec%r( ibnd, ikpt, ic ) &
+                                  + somelr( ic, jc ) * in_vec%r( ibnd, ikpt, jc ) &
+                                  - someli( ic, jc ) * in_vec%i( ibnd, ikpt, jc )
+          out_vec%i( ibnd, ikpt, ic ) = out_vec%i( ibnd, ikpt, ic )  &
+                                  + somelr( ic, jc ) * in_vec%i( ibnd, ikpt, jc ) &
+                                  + someli( ic, jc ) * in_vec%r( ibnd, ikpt, jc )
+        enddo
+
+      enddo
+    enddo
+
+  end subroutine OCEAN_new_soact
+
+
+
+
+  subroutine OCEAN_fg_combo( sys, inter, in_vec, out_vec, ierr )
+    use OCEAN_system
+    use OCEAN_psi, only : OCEAN_vector
+    implicit none
+    !
+    type( O_system ), intent( in ) :: sys
+    real( DP ), intent( in ) :: inter
+    type( OCEAN_vector ), intent( in ) :: in_vec
+    type( OCEAN_vector ), intent( inout ) :: out_vec
+    integer, intent( inout ) :: ierr
+    !
+    real(DP), allocatable :: ampr(:,:,:), ampi(:,:,:), hampr(:,:,:), hampi(:,:,:), so_r(:,:), so_i(:,:)
+    real( DP ), allocatable, dimension( :,: ) :: pwr, pwi, hpwr, hpwi
+    real(DP) :: mul
+    integer :: LandM, el, em, ialpha, nu, ispn, ihd, ikpt, ibnd, ii, jj, j1
+    integer :: a_stop, k_start, k_stop, core_store_size_remain
+    integer :: zero_elem
+
+    mul = inter / ( dble( sys%nkpts ) * sys%celvol )
+
+    ! If we aren't starting at lmin = 0 then we need
+    zero_elem = 0
+    do el = 0, lmin - 1
+      zero_elem = zero_elem + 2* (el + 1 )
+    enddo
+
+    LandM = 0
+    do el = lmin, lmax
+      do em = -el, el
+        LandM = LandM + 1
+      enddo
+    enddo
+
+    allocate( ampr( npmax, LandM, sys%cur_run%nalpha ), & 
+              ampi( npmax, LandM, sys%cur_run%nalpha ), &
+              hampr( npmax, LandM, sys%cur_run%nalpha ), &
+              hampi( npmax, LandM, sys%cur_run%nalpha ), &
+              so_r( sys%cur_run%nalpha, sys%cur_run%nalpha ), &
+              so_i( sys%cur_run%nalpha, sys%cur_run%nalpha ), STAT=ierr )
+    if( ierr .ne. 0 ) return
+
+    allocate( pwr( itot, lmin:lmax ), pwi( itot, lmin:lmax ), &
+              hpwr( itot, lmin:lmax ), hpwi( itot, lmin:lmax ), STAT=ierr )
+    if( ierr .ne. 0 ) return
+
+!   Need to zero out all of ampr and ampi
+    do ialpha = 1, sys%cur_run%nalpha
+!$OMP DO COLLAPSE( 3 )
+      do el = lmin, lmax
+        do em = -el, el
+          do nu = 1, nproj( el )
+            ampr( nu, (el+1)*(el+1)+em-el, ialpha ) = 0.0_DP
+            ampi( nu, (el+1)*(el+1)+em-el, ialpha ) = 0.0_DP
+          enddo
+        enddo
+      enddo
+!$OMP END DO NO WAIT
+    enddo
+
+    core_store_size_remain = in_vec%core_store_size
+    k_start = in_vec%core_k_start
+
+    ! If we stop exactly on nkpts this will give 0 + core_a_start = core_a_start
+    a_stop = ( core_store_size_remain + k_start - 2 ) / sys%nkpts + in_vec%core_a_start
+
+!    write(1000+in_vec%core_myid,*) "**** MULT ****"
+!    write(1000+in_vec%core_myid,*) in_vec%core_store_size, in_vec%core_k_start
+
+
+    do ialpha = in_vec%core_a_start, a_stop
+      ispn = 2 - mod( ialpha, 2 )
+      if( sys%nspn .eq. 1 ) then
+        ispn = 1
+      endif
+
+      k_stop = min( sys%nkpts, core_store_size_remain + k_start - 1 )
+!      write(1000+in_vec%core_myid,*) in_vec%core_a_start, a_stop, k_start, k_stop
+
+!$OMP DO COLLAPSE( 3 )
+      do el = lmin, lmax
+        do em = -el, el
+          do nu = 1, nproj( el )
+
+            ihd = (el+1)*(el+1)+em-el
+            do ikpt = k_start, k_stop
+              do ibnd = 1, sys%num_bands
+                ampr( nu, ihd, ialpha ) = ampr( nu, ihd, ialpha ) &
+                    + in_vec%r( ibnd, ikpt, ialpha ) * mpcr( ibnd, ikpt, nu, em, el, ispn ) &
+                    - in_vec%i( ibnd, ikpt, ialpha ) * mpci( ibnd, ikpt, nu, em, el, ispn )
+                ampi( nu, ihd, ialpha ) = ampi( nu, ihd, ialpha ) &
+                    + in_vec%r( ibnd, ikpt, ialpha ) * mpci( ibnd, ikpt, nu, em, el, ispn ) &
+                    + in_vec%i( ibnd, ikpt, ialpha ) * mpcr( ibnd, ikpt, nu, em, el, ispn )
+              enddo
+            enddo
+          enddo
+        enddo
+      enddo
+!$OMP END DO
+
+      core_store_size_remain = core_store_size_remain - ( k_stop - k_start + 1 )
+      k_start = 1
+    enddo
+
+
+! At this point AMPR and AMPI need to be summed across some nodes
+!   NB! The participating nodes need only be those with core_store_size > 0
+!   This is limited to nalpha * nkpt. In the future we will want to have a comm
+!   that only involves these nodes so as to make this sharing faster. This comm
+!   would also be used for doing things like calculating < psi | H | psi > like
+!   overlaps for the Haydock A's and B's
+
+! For testing do nothing fancy
+    call MPI_ALLREDUCE( MPI_IN_PLACE, ampr, npmax * LandM * sys%cur_run%nalpha, MPI_DOUBLE_PRECISION, &
+                        MPI_SUM, in_vec%core_comm, ierr )
+    if( ierr .ne. 0 ) return
+    call MPI_ALLREDUCE( MPI_IN_PLACE, ampi, npmax * LandM * sys%cur_run%nalpha, MPI_DOUBLE_PRECISION, &
+                        MPI_SUM, in_vec%core_comm, ierr )
+    if( ierr .ne. 0 ) return
+!
+
+    
+    !
+    
+    do ialpha = in_vec%core_a_start, a_stop
+! zero out hampr and hampi
+!$OMP DO COLLAPSE( 2 )
+      do el = lmin, lmax
+        do em = -el, el
+          ihd = (el+1)*(el+1)+em-el
+          hampr( :, ihd, ialpha ) = 0.0_DP
+          hampi( :, ihd, ialpha ) = 0.0_DP
+          do nu = 1, nproj( el )
+            hampr( 1:nproj(el), ihd, ialpha ) = hampr( 1:nproj(el), ihd, ialpha )  &
+                                              - mpm( 1:nproj(el), nu, el ) * ampr( nu, ihd, ialpha )
+            hampi( 1:nproj(el), ihd, ialpha ) = hampi( 1:nproj(el), ihd, ialpha ) &
+                                              - mpm( 1:nproj(el), nu, el ) * ampi( nu, ihd, ialpha )
+          enddo
+          hampr( :, ihd, ialpha ) = hampr( :, ihd, ialpha ) * mul
+          hampi( :, ihd, ialpha ) = hampi( :, ihd, ialpha ) * mul
+        enddo
+      enddo
+!$OMP END DO NOWAIT
+    enddo
+
+!$OMP BARRIER
+
+
+!!!!! Exchange interaction
+! Re-arrange ampr and ampi to be in the right ordering for compact exchange integrals
+!   pwr( nu, em, alpha, el )
+
+    ! Only need to do the work for alphas in our range
+    do el = lmin, lmax
+      do ialpha = 1, sys%cur_run%nalpha  ! NB! Exchange mixes alphas. Need all of them
+        do em = -el, el
+
+          ihd = (el+1)*(el+1)+em-el
+          do nu = 1, nproj( el )
+            ii = nu + ( em + el ) * nproj( el ) + ( ialpha - 1 ) * ( 2 * el + 1 ) * nproj( el )
+  
+            pwr( ii, el ) = ampr( nu, ihd, ialpha )
+            pwi( ii, el ) = ampi( nu, ihd, ialpha )
+
+          enddo
+        enddo
+      enddo
+    enddo
+
+! Act with exchange Hamiltonian
+    do el = lmin, lmax
+      do ii = 1, mham( el )
+
+        hpwr( ii, el ) = 0.0_DP
+        hpwi( ii, el ) = 0.0_DP
+        do jj = 1, mham( el )
+          j1 = jbeg( el ) + ( jj - 1 ) + ( ii - 1 ) * mham( el )
+          hpwr( ii, el ) = hpwr( ii, el ) + mhr( j1 ) * pwr( jj, el ) - mhi( j1 ) * pwi( jj, el )
+          hpwi( ii, el ) = hpwi( ii, el ) + mhr( j1 ) * pwi( jj, el ) + mhi( j1 ) * pwr( jj, el )
+        enddo
+        hpwr( ii, el ) = hpwr( ii, el ) * mul
+        hpwi( ii, el ) = hpwi( ii, el ) * mul
+      enddo
+    enddo
+
+! Add result to the direct terms back in the hampr basis
+    do ialpha = in_vec%core_a_start, a_stop
+      do el = lmin, lmax
+        do em = -el, el
+
+          ihd = (el+1)*(el+1)+em-el
+          do nu = 1, nproj( el )
+            ii = nu + ( em + el ) * nproj( el ) + ( ialpha - 1 ) * ( 2 * el + 1 ) * nproj( el )
+
+            hampr( nu, ihd, ialpha ) = hampr( nu, ihd, ialpha ) + hpwr( ii, el )
+            hampi( nu, ihd, ialpha ) = hampi( nu, ihd, ialpha ) + hpwi( ii, el )
+
+          enddo
+        enddo
+      enddo
+    enddo
+!   Exchange interaction complete
+
+
+    core_store_size_remain = in_vec%core_store_size
+    k_start = in_vec%core_k_start
+
+    do ialpha = in_vec%core_a_start, a_stop
+
+      ispn = 2 - mod( ialpha, 2 )
+      if( sys%nspn .eq. 1 ) then
+        ispn = 1
+      endif
+
+      k_stop = min( sys%nkpts, core_store_size_remain + k_start - 1 )
+
+      do el = lmin, lmax
+        do em = -el, el
+          ihd = (el+1)*(el+1)+em-el
+          do nu = 1, nproj( el )
+
+!$OMP DO COLLAPSE( 2 )
+            do ikpt = k_start, k_stop
+              do ibnd = 1, sys%num_bands
+                out_vec%r( ibnd, ikpt, ialpha ) = out_vec%r( ibnd, ikpt, ialpha ) &
+                                                + mpcr( ibnd, ikpt, nu, em, el, ispn ) * hampr( nu, ihd, ialpha )  &
+                                                + mpci( ibnd, ikpt, nu, em, el, ispn ) * hampi( nu, ihd, ialpha )
+                out_vec%i( ibnd, ikpt, ialpha ) = out_vec%i( ibnd, ikpt, ialpha ) &
+                                                + mpcr( ibnd, ikpt, nu, em, el, ispn ) * hampi( nu, ihd, ialpha ) &
+                                                - mpci( ibnd, ikpt, nu, em, el, ispn ) * hampr( nu, ihd, ialpha )
+              enddo
+            enddo
+!$OMP END DO NOWAIT
+
+          enddo
+        enddo
+      enddo
+
+      core_store_size_remain = core_store_size_remain - ( k_stop - k_start + 1 )
+      k_start = 1
+    enddo
+            
+
+    deallocate( hampr, hampi, ampr, ampi, so_r, so_i, pwr, pwi, hpwr, hpwi )
+
+
+  end subroutine OCEAN_fg_combo
 
   subroutine nbsemhsetup2( lc, lv, np, mham, cms, cml, vms, vml, vnu, mhr, mhi, add10 )
     implicit none
@@ -1347,7 +1903,7 @@ module OCEAN_multiplet
 
   subroutine OCEAN_mult_slice( sys, out_vec, inter, jb, jk, ja )
     use OCEAN_system
-    use OCEAN_psi
+    use OCEAN_psi, only : OCEAN_vector
     implicit none
     !
     type(O_system), intent( in ) :: sys
@@ -1363,7 +1919,7 @@ module OCEAN_multiplet
 
   subroutine OCEAN_fg_slice( sys, out_vec, inter, jb, jk, ja )
     use OCEAN_system
-    use OCEAN_psi
+    use OCEAN_psi, only : OCEAN_vector
     implicit none
     !
     type(O_system), intent( in ) :: sys
@@ -1478,7 +2034,7 @@ module OCEAN_multiplet
 
   subroutine OCEAN_ct_slice( sys, out_vec, inter, jb, jk, ja )
     use OCEAN_system
-    use OCEAN_psi
+    use OCEAN_psi, only : OCEAN_vector
     implicit none
     !
     type(O_system), intent( in ) :: sys

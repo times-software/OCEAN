@@ -1,4 +1,4 @@
-! Copyright (C) 2015 OCEAN collaboration
+! Copyright (C) 2016 OCEAN collaboration
 !
 ! This file is part of the OCEAN project and distributed under the terms 
 ! of the University of Illinois/NCSA Open Source License. See the file 
@@ -26,11 +26,20 @@ subroutine OCEAN_load_data( sys, hay_vec, lr, ierr )
 
   if( myid .eq. root ) write(6,*) 'Calc Type = ', sys%calc_type
   if( myid .eq. root ) write(6,*) 'Init matrix elements'
-  call ocean_psi_init( sys, hay_vec, ierr )
+
+  call ocean_psi_init( sys, ierr )
+  if( ierr .ne. 0 ) return
+
+  call ocean_psi_new( hay_vec, ierr )
+  if( ierr .ne. 0 ) return
+
   if( myid .eq. root ) write(6,*) 'Load matrix elements'
   call ocean_psi_load( sys, hay_vec, ierr )
+  if( ierr .ne. 0 ) return
+
   if( myid .eq. root ) write(6,*) 'Matrix elements loaded'
   call ocean_psi_write( sys, hay_vec, ierr )
+  if( ierr .ne. 0 ) return
 
   if( sys%e0 ) then
     if( myid .eq. root ) write(6,*) 'Init energies'
@@ -61,6 +70,11 @@ subroutine OCEAN_load_data( sys, hay_vec, lr, ierr )
     if( myid .eq. root ) write(6,*) 'Load OBFs'
     if( myid .eq. root ) write(6,*) 'OBFs loaded'
   endif
+
+  if( sys%have_val) then
+    call OCEAN_energies_val_load( sys, ierr )
+    if( ierr .ne. 0 ) return
+  endif 
 
 
   if( myid .eq. root ) write(6,*) 'Initialization complete'
