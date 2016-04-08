@@ -56,6 +56,8 @@ program ocean
 !    call OCEAN_exact_diagonalize( sys, hay_vec, ierr )
     if( ierr .ne. 0 ) goto 111
 
+    call MPI_BARRIER( comm, ierr )
+
     call ocean_sys_update( sys, ierr )
   enddo
 

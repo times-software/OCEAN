@@ -185,7 +185,7 @@ module OCEAN_psi
 
   subroutine OCEAN_psi_ready_buffer( p, ierr )
 #ifdef MPI
-    use mpi, only : MPI_IRECV, MPI_DOUBLE_PRECISION
+    use mpi, only : MPI_IRECV, MPI_DOUBLE_PRECISION, MPI_BARRIER
 #endif
     implicit none
     type(OCEAN_vector), intent( inout ) :: p
@@ -313,10 +313,10 @@ module OCEAN_psi
 #else
 
 #if 0
-    call MPI_TESTANY( core_np, p%core_store_sr, i, flag1, MPI_STATUS_IGNORE, ierr )
+    call MPI_TESTANY( p%core_np, p%core_store_sr, i, flag1, MPI_STATUS_IGNORE, ierr )
     if( ierr .ne. 0 ) return
 
-    call MPI_TESTANY( core_np, p%core_store_si, j, flag2, MPI_STATUS_IGNORE, ierr )
+    call MPI_TESTANY( p%core_np, p%core_store_si, j, flag2, MPI_STATUS_IGNORE, ierr )
     if( ierr .ne. 0 ) return
 
     if( flag1 .and. i .eq. MPI_UNDEFINED ) then
@@ -333,14 +333,14 @@ module OCEAN_psi
 #endif
     flag1 = .false.
     flag2 = .false.
-    do i = 0, core_np-1
+    do i = 0, p%core_np-1
       if( p%core_store_sr(i) .ne. MPI_REQUEST_NULL ) then
         flag1 = .true.
         exit
       endif
     enddo
 
-    do i = 0, core_np - 1
+    do i = 0, p%core_np - 1
       if( p%core_store_si(i) .ne. MPI_REQUEST_NULL ) then
         flag2 = .true.
         exit
@@ -377,6 +377,7 @@ module OCEAN_psi
 
 !JTV this doesn't work with the MPI_WAITSOME calls because we are completing
 !some of the receive calls. 
+#if 0
     ! recv must be active
     flag = .true.
     call buffer_recv_test( p, flag, ierr )
@@ -398,19 +399,20 @@ module OCEAN_psi
       ierr = -1
       return
     endif
+#endif
 
     if( have_core ) then
   !JTV this only works if there is no kpt padding. Can come back and add in
   !support for p%extra which will be able to fix that
       ik = 1
       ia = 1
-      do i = 0, core_np - 2
-        call MPI_ISEND( p%r(1,ik,ia), max_core_store_size * psi_bands_pad, MPI_DOUBLE_PRECISION, &
+      do i = 0, p%core_np - 2
+        call MPI_IRSEND( p%r(1,ik,ia), max_core_store_size * psi_bands_pad, MPI_DOUBLE_PRECISION, &
                          i, 1, p%core_comm, p%core_store_sr( i ), ierr )
         if( ierr .ne. 0 ) return
 
 !JTV in future maybe split real and imaginary?
-        call MPI_ISEND( p%i(1,ik,ia), max_core_store_size * psi_bands_pad, MPI_DOUBLE_PRECISION, &
+        call MPI_IRSEND( p%i(1,ik,ia), max_core_store_size * psi_bands_pad, MPI_DOUBLE_PRECISION, &
                          i, 2, p%core_comm, p%core_store_si( i ), ierr )
         if( ierr .ne. 0 ) return
 
@@ -424,7 +426,7 @@ module OCEAN_psi
       enddo
 
 ! ia and ik are fine from above
-      i = psi_core_alpha * psi_kpts_actual - ( core_np - 1 ) * max_core_store_size
+      i = psi_core_alpha * psi_kpts_actual - ( p%core_np - 1 ) * max_core_store_size
       ia = psi_core_alpha
       ik = psi_kpts_actual
       do j = 1, i - 1
@@ -435,11 +437,11 @@ module OCEAN_psi
         endif
       enddo
       
-      call MPI_ISEND( p%r(1,ik,ia), i * psi_bands_pad, MPI_DOUBLE_PRECISION, &
-                       core_np - 1, 1, p%core_comm, p%core_store_sr( core_np - 1 ), ierr )
+      call MPI_IRSEND( p%r(1,ik,ia), i * psi_bands_pad, MPI_DOUBLE_PRECISION, &
+                       p%core_np - 1, 1, p%core_comm, p%core_store_sr( p%core_np - 1 ), ierr )
         
-      call MPI_ISEND( p%i(1,ik,ia), i * psi_bands_pad, MPI_DOUBLE_PRECISION, &
-                       core_np - 1, 2, p%core_comm, p%core_store_si( core_np - 1), ierr )
+      call MPI_IRSEND( p%i(1,ik,ia), i * psi_bands_pad, MPI_DOUBLE_PRECISION, &
+                       p%core_np - 1, 2, p%core_comm, p%core_store_si( p%core_np - 1), ierr )
 
     endif ! have_core
 
@@ -471,7 +473,7 @@ module OCEAN_psi
 
 !    p%min_r(:,:) = 0.0_DP
 
-#if 1
+#if 0
     ! go through all reals, then all imags
     allocate( indicies( total_nproc ) )
     if( p%core_store_size .gt. 0 ) then
@@ -502,7 +504,7 @@ module OCEAN_psi
 
 !    p%min_i(:,:) = 0.0_DP
 
-#if 1
+#if 0
     if( p%core_store_size .gt. 0 ) then
       continue_loop = .true.
     else
@@ -531,9 +533,9 @@ module OCEAN_psi
 #endif
 
     ! clean up the sends
-    call MPI_WAITALL( core_np, p%core_store_sr, MPI_STATUSES_IGNORE, ierr )
+    call MPI_WAITALL( p%core_np, p%core_store_sr, MPI_STATUSES_IGNORE, ierr )
     if( ierr .ne. 0 ) return
-    call MPI_WAITALL( core_np, p%core_store_si, MPI_STATUSES_IGNORE, ierr )
+    call MPI_WAITALL( p%core_np, p%core_store_si, MPI_STATUSES_IGNORE, ierr )
     if( ierr .ne. 0 ) return
 
     ! everything is now correctly summed and stored as min
@@ -899,7 +901,7 @@ module OCEAN_psi
         ! empty alloc for funsies
         allocate( p%buffer_r( 1, 1, 1 ), p%buffer_i( 1, 1, 1 ),   &
                   p%core_store_sr( 0:core_np-1 ), p%core_store_si( 0:core_np-1 ), &           
-                  p%core_store_rr( 1 ), p%core_store_ri( 1 ), &
+                  p%core_store_rr( 0:total_nproc-1 ), p%core_store_ri( 0:total_nproc-1 ), &
                   STAT=ierr )
       endif
       if( ierr .ne. 0 ) return
@@ -1840,23 +1842,25 @@ module OCEAN_psi
     endif
       
 
+    ! min2full is the opposite of psi_sned_buffer !
+    !  Therefore we are swapping core_store_Rr and core_store_Sr
     do i = 0, p%core_np - 2
       call MPI_IRECV( p%extra_r( 1, i ), psi_bands_pad * max_core_store_size, MPI_DOUBLE_PRECISION, &
-                      i, 1, p%core_comm, p%core_store_rr( i ), ierr )
+                      i, 1, p%core_comm, p%core_store_sr( i ), ierr )
       if( ierr .ne. 0 ) return
   
       call MPI_IRECV( p%extra_i( 1, i ), psi_bands_pad * max_core_store_size, MPI_DOUBLE_PRECISION, &
-                      i, 2, p%core_comm, p%core_store_ri( i ), ierr )
+                      i, 2, p%core_comm, p%core_store_si( i ), ierr )
       if( ierr .ne. 0 ) return
     enddo
 
     ! The last proc that stores some of min may have less than max
     i = ( psi_kpts_actual * psi_core_alpha ) - ( ( p%core_np - 1 ) * max_core_store_size )
     call MPI_IRECV( p%extra_r( 1, p%core_np - 1 ), psi_bands_pad * i, MPI_DOUBLE_PRECISION, &
-                    p%core_np - 1, 1, p%core_comm, p%core_store_rr( p%core_np - 1 ), ierr )
+                    p%core_np - 1, 1, p%core_comm, p%core_store_sr( p%core_np - 1 ), ierr )
     if( ierr .ne. 0 ) return
     call MPI_IRECV( p%extra_i( 1, p%core_np - 1 ), psi_bands_pad * i, MPI_DOUBLE_PRECISION, &
-                    p%core_np - 1, 2, p%core_comm, p%core_store_ri( p%core_np - 1 ), ierr )
+                    p%core_np - 1, 2, p%core_comm, p%core_store_si( p%core_np - 1 ), ierr )
     if( ierr .ne. 0 ) return
 
     p%inflight = .true.
@@ -1881,19 +1885,19 @@ module OCEAN_psi
     ! against the same node
     do i = p%core_myid, total_nproc - 1
       call MPI_ISEND( p%min_r, psi_bands_pad * p%core_store_size, MPI_DOUBLE_PRECISION, &
-                      i, 1, p%core_comm, p%core_store_sr( i ), ierr )
+                      i, 1, p%core_comm, p%core_store_rr( i ), ierr )
       if( ierr .ne. 0 ) return
       call MPI_ISEND( p%min_i, psi_bands_pad * p%core_store_size, MPI_DOUBLE_PRECISION, &
-                      i, 2, p%core_comm, p%core_store_si( i ), ierr )
+                      i, 2, p%core_comm, p%core_store_ri( i ), ierr )
       if( ierr .ne. 0 ) return
     enddo
 
     do i = 0, p%core_myid - 1
       call MPI_ISEND( p%min_r, psi_bands_pad * p%core_store_size, MPI_DOUBLE_PRECISION, &
-                      i, 1, p%core_comm, p%core_store_sr( i ), ierr )
+                      i, 1, p%core_comm, p%core_store_rr( i ), ierr )
       if( ierr .ne. 0 ) return
       call MPI_ISEND( p%min_i, psi_bands_pad * p%core_store_size, MPI_DOUBLE_PRECISION, &
-                      i, 2, p%core_comm, p%core_store_si( i ), ierr )
+                      i, 2, p%core_comm, p%core_store_ri( i ), ierr )
       if( ierr .ne. 0 ) return
     enddo
 
@@ -1934,7 +1938,7 @@ module OCEAN_psi
 
     integer :: i, j, ik, ia
 
-    call MPI_WAITALL( p%core_np, p%core_store_rr, MPI_STATUSES_IGNORE, ierr )
+    call MPI_WAITALL( p%core_np, p%core_store_sr, MPI_STATUSES_IGNORE, ierr )
     i = 1
     j = 0
     do ia = 1, psi_core_alpha
@@ -1949,7 +1953,7 @@ module OCEAN_psi
       enddo
     enddo
 
-    call MPI_WAITALL( p%core_np, p%core_store_ri, MPI_STATUSES_IGNORE, ierr )
+    call MPI_WAITALL( p%core_np, p%core_store_si, MPI_STATUSES_IGNORE, ierr )
     i = 1
     j = 0
     do ia = 1, psi_core_alpha
@@ -1965,8 +1969,8 @@ module OCEAN_psi
     enddo
         
     if( p%core_store_size .gt. 0 ) then
-      call MPI_WAITALL( p%core_myid, p%core_store_sr, MPI_STATUSES_IGNORE, ierr )
-      call MPI_WAITALL( p%core_myid, p%core_store_si, MPI_STATUSES_IGNORE, ierr )
+      call MPI_WAITALL( p%core_myid, p%core_store_rr, MPI_STATUSES_IGNORE, ierr )
+      call MPI_WAITALL( p%core_myid, p%core_store_ri, MPI_STATUSES_IGNORE, ierr )
     endif
 
     p%valid_store = IOR( p%valid_store, PSI_STORE_FULL )

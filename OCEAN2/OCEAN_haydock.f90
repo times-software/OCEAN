@@ -158,7 +158,7 @@ module OCEAN_action
 
 
 
-
+    call OCEAN_tk_start( tk_psisum )
 
     do iter = 1, haydock_niter
 
@@ -168,6 +168,8 @@ module OCEAN_action
 
       call OCEAN_psi_ready_buffer( new_psi, ierr )
       if( ierr .ne. 0 ) return
+
+      call OCEAN_tk_stop( tk_psisum )
       
       if( sys%e0 .and. sys%cur_run%have_core .and. myid .eq. 0) then 
         call OCEAN_tk_start( tk_e0 )
@@ -187,6 +189,7 @@ module OCEAN_action
         call OCEAN_tk_stop( tk_lr )
       endif
 
+      call OCEAN_tk_start( tk_psisum )
       call OCEAN_psi_send_buffer( new_psi, ierr )
       if( ierr .ne. 0 ) return
       
@@ -210,12 +213,26 @@ module OCEAN_action
 
     enddo
 
+    call OCEAN_tk_stop( tk_psisum )
+    call MPI_BARRIER( comm, ierr )
+
     if( myid .eq. 0 ) then
       write(lanc_filename, '(A8,A2,A1,I4.4,A1,A2,A1,I2.2)' ) 'lanceig_', sys%cur_run%elname, &
         '.', sys%cur_run%indx, '_', sys%cur_run%corelevel, '_', sys%cur_run%photon
       call haydump( haydock_niter, sys, hay_vec%kpref, ierr )
       call redtrid(  haydock_niter, sys, hay_vec%kpref, ierr )
     endif
+
+    call OCEAN_psi_kill( psi, ierr )
+    if( ierr .ne. 0 ) return
+
+    call OCEAN_psi_kill( new_psi, ierr )
+    if( ierr .ne. 0 ) return
+    
+    call OCEAN_psi_kill( old_psi, ierr )
+    if( ierr .ne. 0 ) return
+
+    call MPI_BARRIER( comm, ierr )
 
   end subroutine OCEAN_haydock
 
