@@ -34,8 +34,8 @@ module ocean_long_range
 
   end type
 
-  real( DP ), pointer :: re_bloch_state( :, :, : )
-  real( DP ), pointer :: im_bloch_state( :, :, : )
+  real( DP ), pointer :: re_bloch_state( :, :, :, : )
+  real( DP ), pointer :: im_bloch_state( :, :, :, : )
   real( DP ), pointer :: W( :, : )
 ! Need to check for CONTIGUOUS
 #ifdef HAVE_CONTIGUOUS
@@ -164,10 +164,10 @@ module ocean_long_range
         return
       endif
 
-      cptr = fftw_alloc_real( int(my_num_bands * my_kpts * my_xpts, C_SIZE_T) )
-      call c_f_pointer( cptr, re_bloch_state, [my_num_bands, my_kpts, my_xpts] )
-      cptr = fftw_alloc_real( int(my_num_bands * my_kpts * my_xpts, C_SIZE_T) )
-      call c_f_pointer( cptr, im_bloch_state, [my_num_bands, my_kpts, my_xpts] )
+      cptr = fftw_alloc_real( int(my_num_bands * my_kpts * my_xpts * sys%nspn, C_SIZE_T) )
+      call c_f_pointer( cptr, re_bloch_state, [my_num_bands, my_kpts, my_xpts, sys%nspn] )
+      cptr = fftw_alloc_real( int(my_num_bands * my_kpts * my_xpts * sys%nspn, C_SIZE_T) )
+      call c_f_pointer( cptr, im_bloch_state, [my_num_bands, my_kpts, my_xpts, sys%nspn] )
 
       cptr = fftw_alloc_real( int( my_kpts * my_xpts, C_SIZE_T) )
       call c_f_pointer( cptr, W, [ my_kpts, my_xpts ] )
@@ -748,13 +748,30 @@ module ocean_long_range
     !
     !
     real( DP ), allocatable :: xwrkr( : ), xwrki( : ), wrk( : )
-    integer :: jfft, ialpha, ikpt, xiter
+    integer :: jfft, ialpha, ikpt, xiter, val_spin( sys%nalpha ), icms, icml, ivms
     !
     real(DP), external :: DDOT
 
 #ifdef __INTEL_COMPILER
 !DIR$ attributes align: 64 :: xwrkr, xwrki, wrk
 #endif
+
+
+    ! predefine the valence spins
+    if( sys%nspn .eq. 1 ) then
+      val_spin( : ) = 1
+    else
+      ialpha = 0
+      do icms = 1, 2
+        do icml = -sys%cur_run%ZNL(3), sys%cur_run%ZNL(3)
+          do ivms = 1, 2
+            ialpha = ialpha + 1
+            val_spin( ialpha ) = ivms
+          enddo
+        enddo
+      enddo
+    endif
+          
 
 
     ! For each x-point in the unit cell
@@ -774,7 +791,7 @@ module ocean_long_range
     !
 
 !$OMP PARALLEL DEFAULT( NONE ) &
-!$OMP& SHARED( lr, W, hpr, hpi, re_bloch_state, im_bloch_state, p, sys ) &
+!$OMP& SHARED( lr, W, hpr, hpi, re_bloch_state, im_bloch_state, p, sys, val_spin ) &
 !$OMP& PRIVATE( xwrkr, xwrki, wrk, ikpt, ialpha, xiter ) &
 !$OMP& FIRSTPRIVATE( jfft ) 
 
@@ -794,23 +811,23 @@ module ocean_long_range
 #ifdef BLAS
         do ikpt = 1, lr%my_nkpts
           xwrkr( ikpt )  = DDOT( sys%num_bands, p%r(1,ikpt,ialpha), 1, &
-                                        re_bloch_state(1,ikpt,xiter), 1 ) &
+                                        re_bloch_state(1,ikpt,xiter,val_spin(ialpha)), 1 ) &
                                 - DDOT( sys%num_bands, p%i(1,ikpt,ialpha), 1, &
-                                        im_bloch_state(1,ikpt,xiter), 1 )
+                                        im_bloch_state(1,ikpt,xiter,val_spin(ialpha)), 1 )
           xwrki( ikpt ) = DDOT( sys%num_bands, p%r(1,ikpt,ialpha), 1, &
-                                       im_bloch_state(1,ikpt,xiter), 1 ) &
+                                       im_bloch_state(1,ikpt,xiter,val_spin(ialpha)), 1 ) &
                                + DDOT( sys%num_bands, p%i(1,ikpt,ialpha), 1, &
-                                       re_bloch_state(1,ikpt,xiter), 1 )
+                                       re_bloch_state(1,ikpt,xiter,val_spin(ialpha)), 1 )
         enddo
 
 #else
         do ikpt = 1, lr%my_nkpts
           xwrkr( ikpt ) = &
-                                   dot_product(p%r(:,ikpt,ialpha),re_bloch_state(:,ikpt,xiter)) &
-                                 - dot_product(p%i(:,ikpt,ialpha),im_bloch_state(:,ikpt,xiter))
+                                   dot_product(p%r(:,ikpt,ialpha),re_bloch_state(:,ikpt,xiter,val_spin(ialpha))) &
+                                 - dot_product(p%i(:,ikpt,ialpha),im_bloch_state(:,ikpt,xiter,val_spin(ialpha)))
           xwrki( ikpt ) = &
-                                   dot_product(p%r(:,ikpt,ialpha),im_bloch_state(:,ikpt,xiter)) &
-                                 + dot_product(p%i(:,ikpt,ialpha),re_bloch_state(:,ikpt,xiter))
+                                   dot_product(p%r(:,ikpt,ialpha),im_bloch_state(:,ikpt,xiter,val_spin(ialpha))) &
+                                 + dot_product(p%i(:,ikpt,ialpha),re_bloch_state(:,ikpt,xiter,val_spin(ialpha)))
         enddo
 #endif          
 
@@ -826,21 +843,21 @@ module ocean_long_range
 
 #ifdef BLAS
         do ikpt = 1, lr%my_nkpts
-          call DAXPY( sys%num_bands, xwrkr(ikpt), re_bloch_state(1,ikpt,xiter), 1, &
+          call DAXPY( sys%num_bands, xwrkr(ikpt), re_bloch_state(1,ikpt,xiter,val_spin(ialpha)), 1, &
                       hpr(1,ikpt,ialpha), 1 )
-          call DAXPY( sys%num_bands, xwrki(ikpt), im_bloch_state(1,ikpt,xiter), 1, &
+          call DAXPY( sys%num_bands, xwrki(ikpt), im_bloch_state(1,ikpt,xiter,val_spin(ialpha)), 1, &
                       hpr(1,ikpt,ialpha), 1 )
-          call DAXPY( sys%num_bands, xwrki(ikpt), re_bloch_state(1,ikpt,xiter), 1, &
+          call DAXPY( sys%num_bands, xwrki(ikpt), re_bloch_state(1,ikpt,xiter,val_spin(ialpha)), 1, &
                       hpi(1,ikpt,ialpha), 1 )
-          call DAXPY( sys%num_bands, -xwrkr(ikpt), im_bloch_state(1,ikpt,xiter), 1, &
+          call DAXPY( sys%num_bands, -xwrkr(ikpt), im_bloch_state(1,ikpt,xiter,val_spin(ialpha)), 1, &
                       hpi(1,ikpt,ialpha), 1 )
 #else
             hpr(:,ikpt,ialpha) = hpr(:,ikpt,ialpha) &
-                                + re_bloch_state(:,ikpt,xiter) * xwrkr(ikpt) &
-                                + im_bloch_state(:,ikpt,xiter) * xwrki(ikpt)
+                                + re_bloch_state(:,ikpt,xiter,val_spin(ialpha)) * xwrkr(ikpt) &
+                                + im_bloch_state(:,ikpt,xiter,val_spin(ialpha)) * xwrki(ikpt)
             hpi(:,ikpt,ialpha) = hpi(:,ikpt,ialpha) &
-                                + re_bloch_state(:,ikpt,xiter) * xwrki(ikpt) &
-                                - im_bloch_state(:,ikpt,xiter) * xwrkr(ikpt)
+                                + re_bloch_state(:,ikpt,xiter,val_spin(ialpha)) * xwrki(ikpt) &
+                                - im_bloch_state(:,ikpt,xiter,val_spin(ialpha)) * xwrkr(ikpt)
 #endif
           enddo
         enddo
@@ -875,7 +892,8 @@ module ocean_long_range
     !
     real(DP), allocatable :: rphi(:,:,:), iphi(:,:,:), rtphi(:,:,:), itphi(:,:,:)
     real( DP ), allocatable :: xwrkr( :,: ), xwrki( :,: ), wrk( : )
-    integer :: jfft, ialpha, ixpt, ikpt, ibd, iq, iq1, iq2, iq3, ii, iixpt, xiter, xstop
+    integer :: jfft, ialpha, ixpt, ikpt, ibd, iq, iq1, iq2, iq3, ii, iixpt, xiter, xstop, val_spin( sys%nalpha )
+    integer :: icms, ivms, icml
 
     ! 64 byte cache line & 8 byte real
     integer, parameter :: xiter_cache_line = 8
@@ -898,6 +916,21 @@ module ocean_long_range
 !    nthreads = 1
 ! !$  nthreads = omp_get_num_threads()
 
+    ! predefine the valence spins
+    if( sys%nspn .eq. 1 ) then
+      val_spin( : ) = 1
+    else
+      ialpha = 0
+      do icms = 1, 2
+        do icml = -sys%cur_run%ZNL(3), sys%cur_run%ZNL(3)
+          do ivms = 1, 2
+            ialpha = ialpha + 1
+            val_spin( ialpha ) = ivms
+          enddo
+        enddo
+      enddo
+    endif
+
 
 
     ! prep info for fft
@@ -911,7 +944,7 @@ module ocean_long_range
               itphi( lr%my_nxpts, lr%my_nkpts, sys%nalpha ) )
 
 !$OMP PARALLEL DEFAULT( NONE ) &
-!$OMP& SHARED( rphi, iphi, lr, W, hp, re_bloch_state, im_bloch_state, rtphi, itphi ) &
+!$OMP& SHARED( rphi, iphi, lr, W, hp, re_bloch_state, im_bloch_state, rtphi, itphi, val_spin ) &
 !$OMP& PRIVATE( xwrkr, xwrki, wrk, ikpt, ibd, ialpha, ixpt, iq) &
 !$OMP& PRIVATE( iq1, iq2, iq3, ii, iixpt, xstop, xiter ) &
 !$OMP& FIRSTPRIVATE( sys, jfft, p ) 
@@ -940,26 +973,26 @@ module ocean_long_range
         do ikpt = 1, lr%my_nkpts
 !          rphi(ikpt,ixpt,ialpha) = DDOT( sys%num_bands, p%r(1,ikpt,ialpha), 1, re_bloch_state(1,ikpt,ixpt), 1 ) &
           xwrkr( ikpt, xiter )  = DDOT( sys%num_bands, p%r(1,ikpt,ialpha), 1, &
-                                        re_bloch_state(1,ikpt,ixpt), 1 ) &
+                                        re_bloch_state(1,ikpt,ixpt,val_spin(ialpha)), 1 ) &
                                 - DDOT( sys%num_bands, p%i(1,ikpt,ialpha), 1, &
-                                        im_bloch_state(1,ikpt,ixpt), 1 )
+                                        im_bloch_state(1,ikpt,ixpt,val_spin(ialpha)), 1 )
 !          iphi(ikpt,ixpt,ialpha) = DDOT( sys%num_bands, p%r(1,ikpt,ialpha), 1, im_bloch_state(1,ikpt,ixpt), 1 ) &
           xwrki( ikpt, xiter ) = DDOT( sys%num_bands, p%r(1,ikpt,ialpha), 1, &
-                                       im_bloch_state(1,ikpt,ixpt), 1 ) &
+                                       im_bloch_state(1,ikpt,ixpt,val_spin(ialpha)), 1 ) &
                                + DDOT( sys%num_bands, p%i(1,ikpt,ialpha), 1, &
-                                       re_bloch_state(1,ikpt,ixpt), 1 )
+                                       re_bloch_state(1,ikpt,ixpt,val_spin(ialpha)), 1 )
         enddo
 
 #else
         do ikpt = 1, lr%my_nkpts
 !          rphi(ikpt,ixpt,ialpha) = & 
           xwrkr( ikpt, xiter ) = &
-                                   dot_product(p%r(:,ikpt,ialpha),re_bloch_state(:,ikpt,ixpt)) &
-                                 - dot_product(p%i(:,ikpt,ialpha),im_bloch_state(:,ikpt,ixpt))
+                                   dot_product(p%r(:,ikpt,ialpha),re_bloch_state(:,ikpt,ixpt,val_spin(ialpha))) &
+                                 - dot_product(p%i(:,ikpt,ialpha),im_bloch_state(:,ikpt,ixpt,val_spin(ialpha)))
 !          iphi(ikpt,ixpt,ialpha) = & 
           xwrki( ikpt, xiter ) = &
-                                   dot_product(p%r(:,ikpt,ialpha),im_bloch_state(:,ikpt,ixpt)) &
-                                 + dot_product(p%i(:,ikpt,ialpha),re_bloch_state(:,ikpt,ixpt)) 
+                                   dot_product(p%r(:,ikpt,ialpha),im_bloch_state(:,ikpt,ixpt,val_spin(ialpha))) &
+                                 + dot_product(p%i(:,ikpt,ialpha),re_bloch_state(:,ikpt,ixpt,val_spin(ialpha))) 
         enddo
 #endif          
 
@@ -1004,21 +1037,21 @@ module ocean_long_range
 !                        phpi(1,ikpt,ialpha), 1 )
 !            call DAXPY( sys%num_bands, -rphi(ikpt,ixpt,ialpha), im_bloch_state(1,ikpt,ixpt), 1, &
 !                        phpi(1,ikpt,ialpha), 1 )
-            call DAXPY( sys%num_bands, rtphi(ixpt,ikpt,ialpha), re_bloch_state(1,ikpt,ixpt), 1, &
+            call DAXPY( sys%num_bands, rtphi(ixpt,ikpt,ialpha), re_bloch_state(1,ikpt,ixpt,val_spin(ialpha)), 1, &
                         hp%r(1,ikpt,ialpha), 1 )
-            call DAXPY( sys%num_bands, itphi(ixpt,ikpt,ialpha), im_bloch_state(1,ikpt,ixpt), 1, &
+            call DAXPY( sys%num_bands, itphi(ixpt,ikpt,ialpha), im_bloch_state(1,ikpt,ixpt,val_spin(ialpha)), 1, &
                         hp%r(1,ikpt,ialpha), 1 )
-            call DAXPY( sys%num_bands, itphi(ixpt,ikpt,ialpha), re_bloch_state(1,ikpt,ixpt), 1, &
+            call DAXPY( sys%num_bands, itphi(ixpt,ikpt,ialpha), re_bloch_state(1,ikpt,ixpt,val_spin(ialpha)), 1, &
                         hp%i(1,ikpt,ialpha), 1 )
-            call DAXPY( sys%num_bands, -rtphi(ixpt,ikpt,ialpha), im_bloch_state(1,ikpt,ixpt), 1, &
+            call DAXPY( sys%num_bands, -rtphi(ixpt,ikpt,ialpha), im_bloch_state(1,ikpt,ixpt,val_spin(ialpha)), 1, &
                         hp%i(1,ikpt,ialpha), 1 )
 #else
             hp%r(:,ikpt,ialpha) = hp%r(:,ikpt,ialpha) &
-                                + re_bloch_state(:,ikpt,ixpt) * rtphi(ixpt,ikpt,ialpha ) &
-                                + im_bloch_state(:,ikpt,ixpt) * itphi(ixpt,ikpt,ialpha )
+                                + re_bloch_state(:,ikpt,ixpt,val_spin(ialpha)) * rtphi(ixpt,ikpt,ialpha ) &
+                                + im_bloch_state(:,ikpt,ixpt,val_spin(ialpha)) * itphi(ixpt,ikpt,ialpha )
             hp%i(:,ikpt,ialpha) = hp%i(:,ikpt,ialpha) &
-                                + re_bloch_state(:,ikpt,ixpt) * itphi(ixpt,ikpt,ialpha ) &
-                                - im_bloch_state(:,ikpt,ixpt) * rtphi(ixpt,ikpt,ialpha )
+                                + re_bloch_state(:,ikpt,ixpt,val_spin(ialpha)) * itphi(ixpt,ikpt,ialpha ) &
+                                - im_bloch_state(:,ikpt,ixpt,val_spin(ialpha)) * rtphi(ixpt,ikpt,ialpha )
 !            hp%r(:,ikpt,ialpha) = hp%r(:,ikpt,ialpha) &
 !                                + re_bloch_state(:,ikpt,ixpt) * rphi(ikpt,ixpt,ialpha ) &
 !                                + im_bloch_state(:,ikpt,ixpt) * iphi(ikpt,ixpt,ialpha )
@@ -1079,10 +1112,10 @@ module ocean_long_range
     endif
 
 
-    cptr = fftw_alloc_real( int(lr%my_num_bands * lr%my_nkpts * lr%my_nxpts, C_SIZE_T) )
-    call c_f_pointer( cptr, re_bloch_state, [lr%my_num_bands, lr%my_nkpts, lr%my_nxpts] )
-    cptr = fftw_alloc_real( int(lr%my_num_bands * lr%my_nkpts * lr%my_nxpts, C_SIZE_T) )
-    call c_f_pointer( cptr, im_bloch_state, [lr%my_num_bands, lr%my_nkpts, lr%my_nxpts] )
+    cptr = fftw_alloc_real( int(lr%my_num_bands * lr%my_nkpts * lr%my_nxpts * sys%nspn, C_SIZE_T) )
+    call c_f_pointer( cptr, re_bloch_state, [lr%my_num_bands, lr%my_nkpts, lr%my_nxpts, sys%nspn] )
+    cptr = fftw_alloc_real( int(lr%my_num_bands * lr%my_nkpts * lr%my_nxpts * sys%nspn, C_SIZE_T) )
+    call c_f_pointer( cptr, im_bloch_state, [lr%my_num_bands, lr%my_nkpts, lr%my_nxpts, sys%nspn] )
 !    write(6,*) lr%my_nkpts, lr%my_nxpts
     allocate( W( lr%my_nkpts, lr%my_nxpts ), &
 !              lr%bloch_states( lr%my_num_bands, lr%my_nkpts, lr%my_nxpts ), &
@@ -1642,8 +1675,8 @@ module ocean_long_range
           nx_left = nx_left - nx_tmp
           if( myid .eq. root .and. iq .eq. 1 ) write(6,*) i, nx_start, nx_tmp
           if( i .eq. root .and. myid .eq. root ) then
-            re_bloch_state( :, iq, : ) = re_transpose( :, nx_start : nx_start + nx_tmp - 1 )
-            im_bloch_state( :, iq, : ) = im_transpose( :, nx_start : nx_start + nx_tmp - 1 )
+            re_bloch_state( :, iq, :, 1 ) = re_transpose( :, nx_start : nx_start + nx_tmp - 1 )
+            im_bloch_state( :, iq, :, 1 ) = im_transpose( :, nx_start : nx_start + nx_tmp - 1 )
 #ifdef MPI
           elseif( myid .eq. root ) then
             call MPI_SEND( re_transpose(1,nx_start), lr%my_num_bands*nx_tmp, MPI_DOUBLE_PRECISION, i, i, comm, ierr )
@@ -1657,8 +1690,8 @@ module ocean_long_range
                           i, comm, MPI_STATUS_IGNORE, ierr )
             call MPI_RECV( im_transpose, lr%my_num_bands*nx_tmp, MPI_DOUBLE_PRECISION, 0, &
                           i+nproc, comm, MPI_STATUS_IGNORE, ierr )
-            re_bloch_state( :, iq, : ) = re_transpose( :, : )
-            im_bloch_state( :, iq, : ) = im_transpose( :, : )
+            re_bloch_state( :, iq, :, 1 ) = re_transpose( :, : )
+            im_bloch_state( :, iq, :, 1 ) = im_transpose( :, : )
 #endif
           endif
 !!         if( i .eq. myid ) then
@@ -1730,13 +1763,29 @@ module ocean_long_range
     integer, intent( in ) :: iband, ikpt, ialpha
 
 
-    integer :: jband, jkpt, jalpha
+    integer :: jband, jkpt, jalpha, val_spin( sys%nalpha ), icms, icml, ivms
     integer :: ixpt, jfft
     real(dp), allocatable :: xwrkr(:), xwrki(:), wrk(:), rtphi(:,:), itphi(:,:)
     
 
     outr = 0.0_DP
     outi = 0.0_DP
+
+    ! predefine the valence spins
+    if( sys%nspn .eq. 1 ) then
+      val_spin( : ) = 1
+    else
+      jalpha = 0
+      do icms = 1, 2
+        do icml = -sys%cur_run%ZNL(3), sys%cur_run%ZNL(3)
+          do ivms = 1, 2
+            jalpha = jalpha + 1
+            val_spin( jalpha ) = ivms
+          enddo
+        enddo
+      enddo
+    endif
+
 
     ! prep info for fft
     jfft = 2 * max( sys%kmesh( 1 ) * ( sys%kmesh( 1 ) + 1 ), &
@@ -1766,8 +1815,8 @@ module ocean_long_range
       xwrkr( : ) = 0.0_DP
       xwrki( : ) = 0.0_DP
 
-      xwrkr( ikpt ) = re_bloch_state( iband, ikpt, ixpt )
-      xwrki( ikpt ) = im_bloch_state( iband, ikpt, ixpt )
+      xwrkr( ikpt ) = re_bloch_state( iband, ikpt, ixpt, val_spin( ialpha ) )
+      xwrki( ikpt ) = im_bloch_state( iband, ikpt, ixpt, val_spin( ialpha ) )
 
       call cfft( xwrkr, xwrki, sys%kmesh(3), sys%kmesh(3), sys%kmesh(2), sys%kmesh(1), -1, wrk, jfft )
 
@@ -1793,13 +1842,13 @@ module ocean_long_range
     do jkpt = 1, my_kpts
       do ixpt = 1, my_xpts
 #ifdef BLAS
-        call DAXPY( sys%num_bands, rtphi(ixpt,jkpt), re_bloch_state(1,jkpt,ixpt), 1, &
+        call DAXPY( sys%num_bands, rtphi(ixpt,jkpt), re_bloch_state(1,jkpt,ixpt,val_spin(ialpha)), 1, &
                     outr(1,jkpt), 1 )
-        call DAXPY( sys%num_bands, itphi(ixpt,jkpt), im_bloch_state(1,jkpt,ixpt), 1, &
+        call DAXPY( sys%num_bands, itphi(ixpt,jkpt), im_bloch_state(1,jkpt,ixpt,val_spin(ialpha)), 1, &
                     outr(1,jkpt), 1 )
-        call DAXPY( sys%num_bands, itphi(ixpt,jkpt), re_bloch_state(1,jkpt,ixpt), 1, &
+        call DAXPY( sys%num_bands, itphi(ixpt,jkpt), re_bloch_state(1,jkpt,ixpt,val_spin(ialpha)), 1, &
                     outi(1,jkpt), 1 )
-        call DAXPY( sys%num_bands, -rtphi(ixpt,jkpt), im_bloch_state(1,jkpt,ixpt), 1, &
+        call DAXPY( sys%num_bands, -rtphi(ixpt,jkpt), im_bloch_state(1,jkpt,ixpt,val_spin(ialpha)), 1, &
                     outi(1,jkpt), 1 )
 #else
 !        hp%r(:,ikpt,ialpha) = hp%r(:,ikpt,ialpha) &
@@ -1837,7 +1886,8 @@ module ocean_long_range
     !
     !
     real( DP ), allocatable :: xwrkr( : ), xwrki( : ), wrk( : )
-    integer :: jfft, ialpha, ikpt, xiter, curx, xbuf, iter, ix, iy , iz, x_start, x_stop
+    integer :: jfft, ialpha, ikpt, xiter, curx, xbuf, iter, ix, iy , iz, x_start, x_stop, val_spin( sys%nalpha )
+    integer :: icms, icml, ivms
     !
     real(DP), external :: DDOT
 
@@ -1856,6 +1906,21 @@ module ocean_long_range
     !   Do FFT back to k-points
     
 
+    ! predefine the valence spins
+    if( sys%nspn .eq. 1 ) then
+      val_spin( : ) = 1
+    else
+      ialpha = 0
+      do icms = 1, 2
+        do icml = -sys%cur_run%ZNL(3), sys%cur_run%ZNL(3)
+          do ivms = 1, 2
+            ialpha = ialpha + 1
+            val_spin( ialpha ) = ivms
+          enddo
+        enddo
+      enddo
+    endif
+
 
 
 
@@ -1866,7 +1931,7 @@ module ocean_long_range
     !
     
 ! !$OMP PARALLEL DEFAULT( NONE ) &
-! !$OMP& SHARED( W, hpr, hpi, re_bloch_state, im_bloch_state, p, sys ) &
+! !$OMP& SHARED( W, hpr, hpi, re_bloch_state, im_bloch_state, p, sys, val_spin ) &
 ! !$OMP& PRIVATE( xwrkr, xwrki, wrk, ikpt, ialpha, xiter ) &
 ! !$OMP& FIRSTPRIVATE( jfft ) 
 
@@ -1884,24 +1949,24 @@ module ocean_long_range
 #ifdef BLAS
         do ikpt = 1, my_kpts
           xwrkr( ikpt )  = DDOT( sys%num_bands, p%r(1,ikpt,ialpha), 1, &
-                                        re_bloch_state(1,ikpt,xiter), 1 ) &
+                                        re_bloch_state(1,ikpt,xiter,val_spin(ialpha)), 1 ) &
                                 - DDOT( sys%num_bands, p%i(1,ikpt,ialpha), 1, &
-                                        im_bloch_state(1,ikpt,xiter), 1 )
+                                        im_bloch_state(1,ikpt,xiter,val_spin(ialpha)), 1 )
           xwrki( ikpt ) = DDOT( sys%num_bands, p%r(1,ikpt,ialpha), 1, & 
-                                       im_bloch_state(1,ikpt,xiter), 1 ) &
+                                       im_bloch_state(1,ikpt,xiter,val_spin(ialpha)), 1 ) &
                                + DDOT( sys%num_bands, p%i(1,ikpt,ialpha), 1, &
-                                       re_bloch_state(1,ikpt,xiter), 1 )
+                                       re_bloch_state(1,ikpt,xiter,val_spin(ialpha)), 1 )
         enddo
 
 
 #else
         do ikpt = 1, my_kpts
           xwrkr( ikpt ) = &
-                                   dot_product(p%r(:,ikpt,ialpha),re_bloch_state(:,ikpt,xiter)) &
-                                 - dot_product(p%i(:,ikpt,ialpha),im_bloch_state(:,ikpt,xiter))
+                                   dot_product(p%r(:,ikpt,ialpha),re_bloch_state(:,ikpt,xiter,val_spin(ialpha))) &
+                                 - dot_product(p%i(:,ikpt,ialpha),im_bloch_state(:,ikpt,xiter,val_spin(ialpha)))
           xwrki( ikpt ) = &
-                                   dot_product(p%r(:,ikpt,ialpha),im_bloch_state(:,ikpt,xiter)) &
-                                 + dot_product(p%i(:,ikpt,ialpha),re_bloch_state(:,ikpt,xiter))
+                                   dot_product(p%r(:,ikpt,ialpha),im_bloch_state(:,ikpt,xiter,val_spin(ialpha))) &
+                                 + dot_product(p%i(:,ikpt,ialpha),re_bloch_state(:,ikpt,xiter,val_spin(ialpha)))
         enddo
 #endif          
 

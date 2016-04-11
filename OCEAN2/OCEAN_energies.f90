@@ -231,6 +231,8 @@ module OCEAN_energies
 
     if( myid .eq. root ) write(6,*) energy_bands_pad,energy_kpts_pad,sys%nspn
     call MPI_BARRIER( comm, ierr )
+    write(6,*) myid, sys%nspn, energy_bands_pad*energy_kpts_pad*sys%nspn
+    call MPI_BARRIER( comm, ierr )
 
     call MPI_BCAST( energies, energy_bands_pad*energy_kpts_pad*sys%nspn, MPI_DOUBLE_PRECISION, root, comm, ierr )
     if( ierr .ne. MPI_SUCCESS ) goto 111
@@ -249,9 +251,26 @@ module OCEAN_energies
     type(OCEAN_vector), intent( in ) :: psi
     type(OCEAN_vector), intent( inout ) :: hpsi
 
-    integer :: ialpha, ikpt, ibd
+    integer :: ialpha, ikpt, ibd, icms, icml, ivms, val_spin( sys%nalpha )
 
-    if( sys%nspn .ne. 1 ) ierr = -1 
+!    if( sys%nspn .ne. 1 ) ierr = -1 
+
+    ! predefine the valence spins
+    if( sys%nspn .eq. 1 ) then
+      val_spin( : ) = 1
+    else
+      ialpha = 0
+      do icms = 1, 2
+        do icml = -sys%cur_run%ZNL(3), sys%cur_run%ZNL(3)
+          do ivms = 1, 2
+            ialpha = ialpha + 1
+            val_spin( ialpha ) = ivms
+          enddo
+        enddo
+      enddo
+    endif
+
+
 
     do ialpha = 1, sys%nalpha
 !      hpsi%r( :, :, ialpha ) = energies( :, :, 1 ) * psi%r( :, :, ialpha ) &
@@ -260,12 +279,12 @@ module OCEAN_energies
 !                             + imag_selfenergy( :, :, 1 ) * psi%r( :, :, ialpha )
       do ikpt = 1, sys%nkpts
         do ibd = 1, sys%num_bands
-          hpsi%r( ibd, ikpt, ialpha ) = energies( ibd, ikpt, 1 ) * psi%r( ibd, ikpt, ialpha ) &
-                               - imag_selfenergy( ibd, ikpt, 1 ) * psi%i( ibd, ikpt, ialpha )
+          hpsi%r( ibd, ikpt, ialpha ) = energies( ibd, ikpt, val_spin(ialpha) ) * psi%r( ibd, ikpt, ialpha ) &
+                               - imag_selfenergy( ibd, ikpt, val_spin(ialpha) ) * psi%i( ibd, ikpt, ialpha )
         enddo
         do ibd = 1, sys%num_bands
-          hpsi%i( ibd, ikpt, ialpha ) = energies( ibd, ikpt, 1 ) * psi%i( ibd, ikpt, ialpha ) &
-                               + imag_selfenergy( ibd, ikpt, 1 ) * psi%r( ibd, ikpt, ialpha )
+          hpsi%i( ibd, ikpt, ialpha ) = energies( ibd, ikpt, val_spin(ialpha) ) * psi%i( ibd, ikpt, ialpha ) &
+                               + imag_selfenergy( ibd, ikpt, val_spin(ialpha) ) * psi%r( ibd, ikpt, ialpha )
 
         enddo
       enddo 

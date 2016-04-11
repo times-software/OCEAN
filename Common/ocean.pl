@@ -197,7 +197,7 @@ if( $script_pre eq 'OBF' )
 	print "$Separator\n";
 	print "Entering DFT stage\n";
 	chdir "DFT";
-	system("$OCEAN_BIN/${script_pre}_dft.pl") == 0 or die "DFT Stage Failed\n$!";
+	system("$OCEAN_BIN/dft.pl") == 0 or die "DFT Stage Failed\n$!";
 	chdir "../";
 } 
 elsif( $script_pre eq 'qe' )

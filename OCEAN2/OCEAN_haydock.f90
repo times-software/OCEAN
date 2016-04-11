@@ -38,6 +38,7 @@ module OCEAN_action
 
   CHARACTER(LEN=3) :: calc_type
   LOGICAL  :: echamp
+  LOGICAL  :: project_absspct
 
 
   REAL(DP), POINTER :: mem_psi_r(:,:,:) 
@@ -315,11 +316,14 @@ module OCEAN_action
         call OCEAN_tk_start( tk_mult )
         call OCEAN_mult_act( sys, inter_scale, psi, multiplet_psi )
         call OCEAN_tk_stop( tk_mult )
+      else
+        call OCEAN_no_mult_act( sys, inter_scale, psi, multiplet_psi )
       endif
 
       if( sys%e0 ) then 
         call OCEAN_tk_start( tk_e0 )
         call ocean_energies_act( sys, psi, hpsi, ierr )
+        if( ierr .ne. 0 ) return
         call OCEAN_tk_stop( tk_e0 )
       endif
 
@@ -375,12 +379,14 @@ module OCEAN_action
     character( LEN=5) :: eval
 
     character( LEN = 21 ) :: abs_filename
+    character( LEN = 21 ) :: proj_filename
 !    character( LEN = 17 ) :: rhs_filename
     character( LEN = 25 ) :: e_filename
 
     complex( DP ), allocatable, dimension ( : ) :: x, rhs, v1, v2, pcdiv, cwrk
 
     integer :: i, ntot, iter, iwrk, need, int1, int2
+    integer :: project_file_handle
     real( DP ) :: relative_error, f( 2 ), ener
     complex( DP ) :: rm1
 
@@ -418,6 +424,26 @@ module OCEAN_action
 
       open( unit=76,file=abs_filename,form='formatted',status='unknown' )
       rewind( 76 )
+
+
+      ! This all needs to be moved to a module or type when we expand to make it more general
+      if( project_absspct ) then
+        write(6,*) 'Projections requested!'
+!        nproject = 2
+!        allocate( project_file_handle )
+        write( proj_filename, '(A8,A2,A1,I4.4,A1,A2,A1,I2.2)' ) 'project_', sys%cur_run%elname, &
+            '.', sys%cur_run%indx, '_', sys%cur_run%corelevel, '_', sys%cur_run%photon
+        open( unit=77,file=proj_filename,form='formatted',status='unknown' )
+        rewind( 77 )
+        project_file_handle = 77
+
+!        write( proj_filename, '(A8,A2,A1,I4.4,A1,A2,A1,I2.2)' ) 'spin_dn_', sys%cur_run%elname, &
+!            '.', sys%cur_run%indx, '_', sys%cur_run%corelevel, '_', sys%cur_run%photon
+!        open( unit=78,file=proj_filename,form='formatted',status='unknown' )
+!        rewind( 78 )
+!        project_file_handles( 2 ) = 78
+      endif
+  
     endif
 
 
@@ -506,6 +532,12 @@ module OCEAN_action
           write( 99 ) x
           close( 99 )
         endif
+
+        if( project_absspct ) then
+          call write_projected_absspct( sys, project_file_handle, kpref, ener, ntot, rhs, x, ierr )
+          if( ierr .ne. 0 ) return
+        endif
+
       endif
 
       write(e_filename,'(A7,A2,A1,I4.4,A1,A2,A1,I2.2,A1,I4.4)' ) 'exciton', sys%cur_run%elname, &
@@ -839,6 +871,12 @@ module OCEAN_action
             read(98,*) echamp
             close(98)
           endif
+
+          ! To allow absspct projected by various attributes of either the core or conduction states
+          !   For starters only the conduction-band spin will be enabled.
+          project_absspct = .false.
+          inquire(file='project_absspct.inp',exist=project_absspct)
+
         case default
           ierr = -1
       end select
@@ -876,6 +914,10 @@ module OCEAN_action
     call MPI_BCAST( inv_loop, 1, MPI_INTEGER, root, comm, ierr )
     if( myid .ne. root ) allocate( e_list( inv_loop ) )
     call MPI_BCAST( e_list, inv_loop, MPI_DOUBLE_PRECISION, root, comm, ierr )
+
+
+    call MPI_BCAST( echamp, 1, MPI_LOGICAL, root, comm, ierr )
+    call MPI_BCAST( project_absspct, 1, MPI_LOGICAL, root, comm, ierr )
 #endif
 
     if( allocated( a ) ) deallocate( a )
@@ -970,6 +1012,61 @@ module OCEAN_action
     return
   end subroutine redtrid
 
+
+  ! When using GMRES we can project out only part of the exciton.
+  ! For now this is hard-coded for only doing spin up/down for the conduction band
+  ! In the future we should add things like spin orbit, 3d symmetries, etc.
+  subroutine write_projected_absspct( sys, project_file_handle, kpref, ener, ntot, rhs, x, ierr )
+    use OCEAN_system
+    implicit none
+    integer, intent( inout ) :: ierr
+    type( o_system ), intent( in ) :: sys
+    integer, intent( in ) :: project_file_handle, ntot
+    real(dp), intent(in) :: kpref, ener
+    complex(DP), intent( IN ):: rhs( ntot ), x( ntot )
+    !
+    complex(DP) :: dot_up, dot_down
+    integer :: ialpha, ik, iband, ispn
+    integer :: i
+
+    ! Unfortunately rhs and x have only a single index
+    ! The structure of the vector is
+    ! do core spin
+    !   do core angular momentum
+    !     do valence spin
+    !       do kpts
+    !         do bands
+
+
+!JTV need to doublecheck which is up and which is down
+    dot_up = 0.0_DP
+    dot_down = 0.0_DP
+    i = 0
+    
+    do ialpha = 1, sys%nalpha / 2
+      do ik = 1, sys%nkpts
+        do iband = 1, sys%num_bands
+          i = i + 1
+          dot_up = dot_up + conjg( rhs( i ) ) * x( i )
+        enddo
+      enddo
+      do ik = 1, sys%nkpts
+        do iband = 1, sys%num_bands
+          i = i + 1
+          dot_down = dot_down + conjg( rhs( i ) ) * x( i )
+        enddo
+      enddo
+    enddo
+    
+    write ( project_file_handle, '(5(1x,1e15.8))' ) ener*27.2114_DP, ( 1.0d0 - dot_up ) * kpref, & 
+                                                    ( 1.0d0 - dot_up ) * kpref
+    call flush(project_file_handle)
+
+!    write ( project_file_handles( 2 ), '(3(1x,1e15.8))' ) ener*27.2114_DP, ( 1.0d0 - dot_down ) * kpref
+!    call flush(project_file_handles(2))
+    
+
+  end subroutine write_projected_absspct
 
 
 

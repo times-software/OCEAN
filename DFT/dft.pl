@@ -41,7 +41,7 @@ my @KgenFiles = ("nkpt", "k0.ipt", "qinunitsofbvectors.ipt", "paw.nkpt");
 my @BandFiles = ("nbands", "paw.nbands");
 my @EspressoFiles = ( "coord", "degauss", "ecut", "etol", "fband", "ibrav", 
     "isolated", "mixing", "natoms", "ngkpt", "noncolin", "nrun", "ntype", 
-    "occopt", "prefix", "ppdir", "rprim", "rscale", "metal",
+    "occopt", "prefix", "ppdir", "stress_force", "rprim", "rscale", "metal",
     "spinorb", "taulist", "typat", "verbatim", "work_dir", "wftol", 
     "den.kshift", "obkpt.ipt", "trace_tol", "ham_kpoints", "obf.nbands","tot_charge", 
     "nspin", "smag", "ldau", "zsymb");
@@ -144,10 +144,12 @@ my $obf;
 if( $dft_type =~ m/obf/i )
 {
   $obf = 1;
+  print "Running DFT calculation with OBF extension\n"
 }
 else
 {
   $obf = 0;
+  print "Running DFT calculation using QE\n";
 }
 
 
@@ -194,7 +196,7 @@ system("$ENV{'OCEAN_BIN'}/makeatompp.x") == 0
 
 
 
-my @qe_data_files = ('prefix', 'ppdir', 'work_dir', 'ibrav', 'natoms', 'ntype', 'noncolin',
+my @qe_data_files = ('prefix', 'ppdir', 'stress_force', 'work_dir', 'ibrav', 'natoms', 'ntype', 'noncolin',
                      'spinorb', 'ecut', 'degauss', 'etol', 'mixing', 'nrun', 'occopt',
                      'trace_tol', 'tot_charge', 'nspin', 'ngkpt', 'k0.ipt', 'metal',
                      'den.kshift', 'obkpt.ipt', 'obf.nbands', 'nkpt', 'nbands', 'paw.nbands',
@@ -347,18 +349,36 @@ if ($RunESPRESSO) {
  ### the SCF run for initial density
  ##
   print "Density SCF Run\n";
-  print  "$para_prefix $ENV{'OCEAN_ESPRESSO_PW'}  -npool $npool < scf.in > scf.out 2>&1\n";
-  system("$para_prefix $ENV{'OCEAN_ESPRESSO_PW'}  -npool $npool < scf.in > scf.out 2>&1") == 0
-      or die "Failed to run scf stage for Density\n";
+  if( $obf == 1 )
+  {
+    print  "$para_prefix $ENV{'OCEAN_ESPRESSO_OBF_PW'}  -npool $npool < scf.in > scf.out 2>&1\n";
+    system("$para_prefix $ENV{'OCEAN_ESPRESSO_OBF_PW'}  -npool $npool < scf.in > scf.out 2>&1") == 0
+        or die "Failed to run scf stage for Density\n";
+  }
+  else
+  {
+    print  "$para_prefix $ENV{'OCEAN_ESPRESSO_PW'}  -npool $npool < scf.in > scf.out 2>&1\n";
+    system("$para_prefix $ENV{'OCEAN_ESPRESSO_PW'}  -npool $npool < scf.in > scf.out 2>&1") == 0
+        or die "Failed to run scf stage for Density\n";
+  }
   open OUT, ">scf.stat" or die "Failed to open scf.stat\n$!";
   print OUT "1\n";
   close OUT;
   print "SCF complete\n";
 
   print "Density PP Run\n";
-  print  "$para_prefix $ENV{'OCEAN_ESPRESSO_PP'}  -npool $npool < pp.in > pp.out 2>&1\n";
-  system("$para_prefix $ENV{'OCEAN_ESPRESSO_PP'} -npool $npool < pp.in > pp.out 2>&1") == 0
-     or die "Failed to run density stage for PAW\n";
+  if( $obf == 1 )
+  {  
+    print  "$para_prefix $ENV{'OCEAN_ESPRESSO_OBF_PP'}  -npool $npool < pp.in > pp.out 2>&1\n";
+    system("$para_prefix $ENV{'OCEAN_ESPRESSO_OBF_PP'} -npool $npool < pp.in > pp.out 2>&1") == 0
+       or die "Failed to run density stage for PAW\n";
+  }
+  else
+  {
+    print  "$para_prefix $ENV{'OCEAN_ESPRESSO_PP'}  -npool $npool < pp.in > pp.out 2>&1\n";
+    system("$para_prefix $ENV{'OCEAN_ESPRESSO_PP'} -npool $npool < pp.in > pp.out 2>&1") == 0
+       or die "Failed to run density stage for PAW\n";
+  }
   open OUT, ">den.stat" or die "Failed to open scf.stat\n$!";
   print OUT "1\n";
   close OUT;
@@ -453,8 +473,7 @@ if ( $nscfRUN ) {
           .  "  prefix = \'$qe_data_files{'prefix'}\'\n"
           .  "  pseudo_dir = \'$qe_data_files{'ppdir'}\'\n"
           .  "  outdir = \'$qe_data_files{'work_dir'}\'\n"
-          .  "  tstress = .true.\n"
-          .  "  tprnfor = .true.\n"
+          .  "  $qe_data_files{'stress_force'}\n"
           .  "  wf_collect = .true.\n"
   #        .  "  disk_io = 'low'\n"
           .  "/\n";
@@ -597,6 +616,7 @@ if ( $nscfRUN ) {
     {
       copy "../Out/$qe_data_files{'prefix'}.save/spin-polarization.dat", 
            "Out/$qe_data_files{'prefix'}.save/spin-polarization.dat";
+      copy "../Out/$qe_data_files{'prefix'}.occup", "Out/$qe_data_files{'prefix'}.occup";
     }
 
     # kpts
@@ -688,6 +708,7 @@ if( $obf == 0 )
   {
     copy "../Out/$qe_data_files{'prefix'}.save/spin-polarization.dat", 
          "Out/$qe_data_files{'prefix'}.save/spin-polarization.dat";
+    copy "../Out/$qe_data_files{'prefix'}.occup", "Out/$qe_data_files{'prefix'}.occup";
   }
 
   # kpts
@@ -782,8 +803,7 @@ sub print_qe
         .  "  prefix = \'$inputs{'prefix'}\'\n"
         .  "  pseudo_dir = \'$inputs{'ppdir'}\'\n"
         .  "  outdir = \'$inputs{'work_dir'}\'\n"
-        .  "  tstress = .true.\n"
-        .  "  tprnfor = .true.\n"
+        .  "  $inputs{'stress_force'}\n"
         .  "  wf_collect = .true.\n"
         .  "/\n";
   print $fh "&system\n"
