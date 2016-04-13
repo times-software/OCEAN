@@ -451,15 +451,113 @@ module OCEAN_psi
   end subroutine OCEAN_psi_send_buffer
 
 
+  subroutine buffer2min_thread( p, ierr )
+    use mpi, only : MPI_WAITSOME, MPI_STATUSES_IGNORE, MPI_UNDEFINED
+    use OCEAN_mpi, only : myid
+    implicit none
+    type(OCEAN_vector), intent( inout ) :: p
+    integer, intent( inout ) :: ierr
+    !
+    integer :: nthread, i, hot_index, cold_index, chunk_size, nthread2, thread_num
+    logical :: continue_loop
+!$  integer, external :: omp_get_max_threads, omp_get_thread_num
+
+    if( p%core_store_size .gt. 0 ) then
+      continue_loop = .true.
+    else
+      continue_loop = .false.
+    endif
+
+
+    call MPI_WAITANY( total_nproc, p%core_store_rr, cold_index, MPI_STATUS_IGNORE, ierr )
+    if( ierr .ne. MPI_SUCCESS ) then
+      continue_loop = .false.
+    endif
+
+    if( continue_loop .eqv. .false. ) return
+
+    nthread = 1
+!$  nthread = omp_get_max_threads()
+
+! To make sure that the variables get flushed we are creating and tearing down 
+! the threads each time.
+    do while( continue_loop )
+
+
+
+!$OMP  PARALLEL NUM_THREADS( nthread ) DEFAULT( NONE )  &
+!$OMP& PRIVATE( i ) &
+!$OMP& SHARED( p, total_nproc, hot_index, cold_index, ierr, continue_loop, MPI_STATUS_IGNORE )
+
+!$OMP MASTER
+        call MPI_WAITANY( total_nproc, p%core_store_rr, hot_index, MPI_STATUS_IGNORE, ierr )
+        if( hot_index .eq. MPI_UNDEFINED ) then
+          continue_loop = .false.
+        ! pre call the imaginary one!
+          call MPI_WAITANY( total_nproc, p%core_store_ri, hot_index, MPI_STATUS_IGNORE, ierr )
+        endif
+!$OMP END MASTER
+
+!$OMP DO SCHEDULE( DYNAMIC, 4 ) 
+        do i = 1, p%core_store_size
+          p%min_r(:,i) = p%min_r(:,i) + p%buffer_r(:,i,cold_index-1)
+        enddo
+!$OMP END DO NOWAIT
+
+!$OMP BARRIER
+!$OMP SINGLE
+      cold_index = hot_index
+!$OMP END SINGLE 
+!$OMP END PARALLEL
+
+    end do
+
+    continue_loop = .true.
+!    nthread = 1
+    
+    do while( continue_loop )
+
+!$OMP  PARALLEL NUM_THREADS( nthread ) DEFAULT( NONE )  &
+!$OMP& PRIVATE( i, thread_num ) &
+!$OMP& SHARED( p, total_nproc, hot_index, cold_index, ierr, continue_loop, chunk_size, MPI_STATUS_IGNORE, nthread )
+
+!$OMP MASTER
+      call MPI_WAITANY( total_nproc, p%core_store_ri, hot_index, MPI_STATUS_IGNORE, ierr )
+      if( hot_index .eq. MPI_UNDEFINED ) then
+        continue_loop = .false.
+      endif
+!$OMP END MASTER
+
+!$OMP DO SCHEDULE( DYNAMIC, 4 )
+      do i = 1, p%core_store_size
+        p%min_i(:,i) = p%min_i(:,i) + p%buffer_i(:,i,cold_index-1)
+      enddo
+!$OMP END DO NOWAIT
+
+!$OMP BARRIER
+
+!$OMP SINGLE
+      cold_index = hot_index
+!$OMP END SINGLE
+
+!$OMP END PARALLEL
+    end do
+
+  end subroutine buffer2min_thread
+
   subroutine OCEAN_psi_buffer2min( p, ierr )
     use mpi, only : MPI_WAITSOME, MPI_WAITALL, MPI_STATUSES_IGNORE, MPI_UNDEFINED
+    use OCEAN_timekeeper
+    use OCEAN_mpi, only : myid
     implicit none
     type(OCEAN_vector), intent( inout ) :: p
     integer, intent( inout ) :: ierr
     !
     integer, allocatable :: indicies(:)
-    integer :: outcount, i
+    integer :: outcount, i, j
     logical :: continue_loop
+
+    call OCEAN_tk_start( tk_buffer2min )
 
     if( .not. p%inflight ) then
       ierr = -1
@@ -472,7 +570,7 @@ module OCEAN_psi
     endif
 
 !    p%min_r(:,:) = 0.0_DP
-
+#if 1
 #if 0
     ! go through all reals, then all imags
     allocate( indicies( total_nproc ) )
@@ -488,18 +586,30 @@ module OCEAN_psi
       if( outcount .eq. MPI_UNDEFINED ) then
         continue_loop = .false.
       else
-        do i = 1, outcount
+!$OMP  PARALLEL DO DEFAULT( NONE ) SCHEDULE( STATIC ) &
+!$OMP& PRIVATE(i,j) &
+!$OMP& SHARED( p, outcount, indicies )
+        do j = 1, p%core_store_size
+          do i = 1, outcount
 !          write(6,*) outcount, indicies(i), p%core_myid
-          p%min_r(:,:) = p%min_r(:,:) + p%buffer_r(:,:,indicies(i)-1)
+            p%min_r(:,j) = p%min_r(:,j) + p%buffer_r(:,j,indicies(i)-1)
+          enddo
         enddo
+!$OMP END PARALLEL DO
       endif
     enddo
 #else
     call MPI_WAITALL( total_nproc, p%core_store_rr, MPI_STATUSES_IGNORE, ierr )
     if( ierr .ne. 0 ) return
-    do i = 1, total_nproc
-      p%min_r(:,:) = p%min_r(:,:) + p%buffer_r(:,:,i-1)
+!$OMP  PARALLEL DO DEFAULT( NONE ) SCHEDULE( STATIC, 16 ) &
+!$OMP& PRIVATE(i,j) &
+!$OMP& SHARED( p, outcount, indicies, total_nproc )
+    do j = 1, p%core_store_size
+      do i = 1, total_nproc
+        p%min_r(:,j) = p%min_r(:,j) + p%buffer_r(:,j,i-1)
+      enddo
     enddo
+!$OMP END PARALLEL DO
 #endif
 
 !    p%min_i(:,:) = 0.0_DP
@@ -517,9 +627,15 @@ module OCEAN_psi
       if( outcount .eq. MPI_UNDEFINED ) then
         continue_loop = .false.
       else
-        do i = 1, outcount
-          p%min_i(:,:) = p%min_i(:,:) + p%buffer_i(:,:,indicies(i)-1)
+!$OMP  PARALLEL DO DEFAULT( NONE ) SCHEDULE( STATIC ) &
+!$OMP& PRIVATE(i,j) &
+!$OMP& SHARED( p, outcount, indicies )
+        do j = 1, p%core_store_size
+          do i = 1, outcount
+            p%min_i(:,j) = p%min_i(:,j) + p%buffer_i(:,j,indicies(i)-1)
+          enddo
         enddo
+!$OMP END PARALLEL DO
       endif
     enddo
 
@@ -527,9 +643,18 @@ module OCEAN_psi
 #else
     call MPI_WAITALL( total_nproc, p%core_store_ri, MPI_STATUSES_IGNORE, ierr )
     if( ierr .ne. 0 ) return
-    do i = 1, total_nproc
-      p%min_i(:,:) = p%min_i(:,:) + p%buffer_i(:,:,i-1)
+!$OMP  PARALLEL DO DEFAULT( NONE ) SCHEDULE( STATIC, 16 ) &
+!$OMP& PRIVATE(i,j) &
+!$OMP& SHARED( p, outcount, indicies, total_nproc )
+    do j = 1, p%core_store_size
+      do i = 1, total_nproc
+        p%min_i(:,j) = p%min_i(:,j) + p%buffer_i(:,j,i-1)
+      enddo
     enddo
+!$OMP END PARALLEL DO
+#endif
+#else
+    call buffer2min_thread( p, ierr )
 #endif
 
     ! clean up the sends
@@ -542,6 +667,9 @@ module OCEAN_psi
     p%valid_store = PSI_STORE_MIN
     p%inflight = .false.
     p%update = .false.
+!    call MPI_BARRIER( p%core_comm, ierr )
+!    if( myid .eq. 0 ) write(6,*) 'Done with buffer2min'
+    call OCEAN_tk_stop( tk_buffer2min )
 
   end subroutine OCEAN_psi_buffer2min
 
