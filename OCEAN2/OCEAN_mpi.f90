@@ -30,11 +30,12 @@ module OCEAN_mpi
     implicit none
  
     integer, intent( inout ) :: ierr
-    integer :: temp_myid, ndims, dims(1)
+    integer :: temp_myid, ndims, dims(1), thread_result
     logical :: periods(1), reorder
 
 #ifdef MPI
-    call MPI_INIT( ierr )
+!    call MPI_INIT( ierr )
+    call MPI_INIT_THREAD( MPI_THREAD_FUNNELED, thread_result, ierr )
     if( ierr .ne. 0 ) return
 
     ! Get MPI values
@@ -43,6 +44,24 @@ module OCEAN_mpi
     if( ierr .ne. 0 ) return
     call MPI_COMM_SIZE( comm, nproc, ierr )
     if( ierr .ne. 0 ) return
+
+    if( myid .eq. 0 ) then
+      select case( thread_result ) 
+
+      case( MPI_THREAD_SINGLE)
+        write(6,*) 'MPI_THREAD_SINGLE'
+      case( MPI_THREAD_FUNNELED )
+        write(6,*) 'MPI_THREAD_FUNNELED'
+      case( MPI_THREAD_SERIALIZED )
+        write(6,*) 'MPI_THREAD_SERIALIZED'
+      case( MPI_THREAD_MULTIPLE )
+        write(6,*) 'MPI_THREAD_MULTIPLE'
+      case default  
+        write(6,*) 'WARNING! MPI threads unknown!'
+
+      end select
+    endif
+      
 
     ! Re-arrange to be a circle
     ! Allow the procs to be re-sorted
