@@ -14,8 +14,11 @@ module OCEAN_bloch
 
   ! these guys have no position phasing
   ! bands, kpts, xpoints, spins
-  real(DP), pointer, contiguous :: re_bloch_state( :, :, :, : )
-  real(DP), pointer, contiguous :: im_bloch_state( :, :, :, : )
+  real(DP), pointer :: re_bloch_state( :, :, :, : )
+  real(DP), pointer :: im_bloch_state( :, :, :, : )
+#ifdef HAVE_CONTIGUOUS
+  CONTIGUOUS :: re_bloch_state, im_bloch_state
+#endif
 
 
   

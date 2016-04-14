@@ -35,8 +35,8 @@ module OCEAN_psi
 
 
   type OCEAN_vector
-    REAL(DP), POINTER, CONTIGUOUS :: r(:,:,:) => null()
-    REAL(DP), POINTER, CONTIGUOUS :: i(:,:,:) => null()
+    REAL(DP), POINTER :: r(:,:,:) => null()
+    REAL(DP), POINTER :: i(:,:,:) => null()
 
     TYPE(C_PTR) :: rcptr
     TYPE(C_PTR) :: icptr
