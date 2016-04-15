@@ -162,50 +162,7 @@ module OCEAN_action
 
     do iter = 1, haydock_niter
 
-      ! This can be packaged into act later
-      call OCEAN_psi_zero_full( new_psi, ierr )
-      if( ierr .ne. 0 ) return
-
-      call OCEAN_psi_ready_buffer( new_psi, ierr )
-      if( ierr .ne. 0 ) return
-
-      call OCEAN_tk_stop( tk_psisum )
-      
-      if( sys%e0 .and. sys%cur_run%have_core .and. myid .eq. 0) then 
-        call OCEAN_tk_start( tk_e0 )
-        call ocean_energies_act( sys, psi, new_psi, ierr )
-        call OCEAN_tk_stop( tk_e0 )
-      endif
-
-      if( sys%mult .and. sys%cur_run%have_core ) then 
-        call OCEAN_tk_start( tk_mult )
-        call OCEAN_mult_act( sys, inter_scale, psi, new_psi )
-        call OCEAN_tk_stop( tk_mult )
-      endif
-
-      if( sys%long_range .and. sys%cur_run%have_core ) then
-        call OCEAN_tk_start( tk_lr )
-        call lr_act( sys, psi, new_psi, lr, ierr )
-        call OCEAN_tk_stop( tk_lr )
-      endif
-
-      call OCEAN_tk_start( tk_psisum )
-      call OCEAN_psi_send_buffer( new_psi, ierr )
-      if( ierr .ne. 0 ) return
-      
-      ! end
-
-      !JTV future if we are doing multiplets as a two-step process then their
-      !results get saved down to the local/min while _send_buffer is working
-!      if( sys%mult .and. sys%cur_run%have_core ) then
-!        call OCEAN_mult_finish
-!      else
-      call OCEAN_psi_zero_min( new_psi, ierr )
-!     endif
-      if( ierr .ne. 0 ) return
-
-
-      call OCEAN_psi_buffer2min( new_psi, ierr )
+      call OCEAN_xact( sys, psi, new_psi, lr, ierr )
       if( ierr .ne. 0 ) return
 
       ! This should be hoisted back up here
@@ -254,18 +211,8 @@ module OCEAN_action
     type(long_range), intent( inout ) :: lr
 
 
-    type( ocean_vector ) :: long_range_psi
-    type( ocean_vector ) :: multiplet_psi
-    type( ocean_vector ) :: psi1
-    type( ocean_vector ) :: psi2
-    type( ocean_vector ) :: psi3
-
-    type( ocean_vector ), pointer :: hpsi => null()
-    type( ocean_vector ), pointer :: psi => null()
-    type( ocean_vector ), pointer :: old_psi => null()
-    type( ocean_vector ), pointer :: temp_psi => null()
-
-!    type( ocean_vector ) :: prec_psi
+    type( ocean_vector ) :: hpsi 
+    type( ocean_vector ) :: psi 
 
     character( LEN=21 ) :: lanc_filename
     character( LEN=3 ) :: technique, req, bs, as
@@ -285,8 +232,6 @@ module OCEAN_action
     complex( DP ) :: rm1
 
     return
-  end subroutine OCEAN_GMRES
-#ifdef FALSE
     rm1 = -1
     rm1 = sqrt( rm1 )
     
@@ -298,8 +243,11 @@ module OCEAN_action
     ! for error checking
     allocate( cwrk( 1 ) )
 
-    call ocean_hay_alloc( sys, hay_vec, psi1, psi2, psi3, multiplet_psi, &
-                          long_range_psi, ierr )
+    call OCEAN_psi_new( psi, ierr )
+    if( ierr .ne. 0 ) return
+
+    call OCEAN_psi_new( hpsi, ierr )
+    if( ierr .ne. 0 ) return
 
 
     if( myid .eq. root ) then
@@ -359,6 +307,10 @@ module OCEAN_action
 
 
 !    call OCEAN_tk_init()
+
+
+    call OCEAN_psi_zero_full( psi, ierr )
+
     do iter = 1, inv_loop
 !      ener = ( e_start + ( iter - 1 ) * e_step ) / 27.2114_DP
       ener = e_list( iter ) / 27.2114_DP
@@ -369,7 +321,12 @@ module OCEAN_action
 
       psi%r( :, :, : ) = 1.0_DP
       psi%i( :, :, : ) = 0.0_DP
-      call OCEAN_xact( sys, psi, hpsi, multiplet_psi, long_range_psi, lr, ierr )
+
+      call OCEAN_xact( sys, psi, hpsi, lr, ierr )
+      call OCEAN_psi_prep_min2full( hpsi, ierr )
+      call OCEAN_psi_start_min2full( hpsi, ierr )
+      call OCEAN_psi_finish_min2full( hpsi, ierr )
+!      call OCEAN_xact( sys, psi, hpsi, multiplet_psi, long_range_psi, lr, ierr )
       ! After OCEAN_xact every proc has the same copy of hpsi (and should still have the same psi)
 
       call OCEAN_tk_start( tk_inv )
@@ -395,7 +352,12 @@ module OCEAN_action
           ! v = v1
           call rtov( sys, psi, v1 )
           call OCEAN_tk_stop( tk_inv )
-          call OCEAN_xact( sys, psi, hpsi, multiplet_psi, long_range_psi, lr, ierr )
+!          call OCEAN_xact( sys, psi, hpsi, multiplet_psi, long_range_psi, lr, ierr )
+          call OCEAN_xact( sys, psi, hpsi, lr, ierr )
+          call OCEAN_psi_prep_min2full( hpsi, ierr )
+          call OCEAN_psi_start_min2full( hpsi, ierr )
+          call OCEAN_psi_finish_min2full( hpsi, ierr )
+
           call OCEAN_tk_start( tk_inv )
           call vtor( sys, hpsi, v2 )
           v2( : ) = ( ener + rm1 * gres ) * v1( : ) - v2( : )
@@ -427,7 +389,7 @@ module OCEAN_action
         endif
 
         if( project_absspct ) then
-          call write_projected_absspct( sys, project_file_handle, kpref, ener, ntot, rhs, x, ierr )
+          call write_projected_absspct( sys, project_file_handle, hay_vec%kpref, ener, ntot, rhs, x, ierr )
           if( ierr .ne. 0 ) return
         endif
 
@@ -445,7 +407,12 @@ module OCEAN_action
 
     if( myid .eq. root ) close( 76 )
 
-    call OCEAN_hay_dealloc( psi1, psi2, psi3, multiplet_psi, long_range_psi, ierr )
+!    call OCEAN_hay_dealloc( psi1, psi2, psi3, multiplet_psi, long_range_psi, ierr )
+    call OCEAN_psi_kill( psi, ierr )
+    if( ierr .ne. 0 ) return
+
+    call OCEAN_psi_kill( hpsi, ierr )
+    if( ierr .ne. 0 ) return
 
 !    if( myid .eq. root ) call OCEAN_tk_printtimes
 #ifdef MPI
@@ -509,12 +476,11 @@ module OCEAN_action
       enddo
     enddo
   end subroutine rtov
-#endif
 
 
-
-#ifdef FALSE
-  subroutine OCEAN_xact( sys, psi, hpsi, multiplet_psi, long_range_psi, lr, ierr )
+! On entrance psi needs to be the same everywhere
+! On exit new_psi is stored in min everywhere
+  subroutine OCEAN_xact( sys, psi, new_psi, lr, ierr )
     use AI_kinds 
     use OCEAN_mpi
     use OCEAN_system
@@ -526,36 +492,57 @@ module OCEAN_action
     implicit none
     integer, intent(inout) :: ierr
     type(O_system), intent( in ) :: sys
-    type(OCEAN_vector), intent(inout) :: hpsi,  multiplet_psi, long_range_psi
     type(OCEAN_vector), intent( in ) :: psi
+    type(OCEAN_vector), intent(inout) :: new_psi
     type(long_range), intent( inout ) :: lr
 
-    !
-    if( sys%long_range ) then
+
+    call OCEAN_psi_zero_full( new_psi, ierr )
+    if( ierr .ne. 0 ) return
+
+    call OCEAN_psi_ready_buffer( new_psi, ierr )
+    if( ierr .ne. 0 ) return
+
+    call OCEAN_tk_stop( tk_psisum )
+
+    if( sys%e0 .and. sys%cur_run%have_core .and. myid .eq. 0) then
+      call OCEAN_tk_start( tk_e0 )
+      call ocean_energies_act( sys, psi, new_psi, ierr )
+      call OCEAN_tk_stop( tk_e0 )
+    endif
+
+    if( sys%mult .and. sys%cur_run%have_core ) then
+      call OCEAN_tk_start( tk_mult )
+      call OCEAN_mult_act( sys, inter_scale, psi, new_psi )
+      call OCEAN_tk_stop( tk_mult )
+    endif
+
+    if( sys%long_range .and. sys%cur_run%have_core ) then
       call OCEAN_tk_start( tk_lr )
-      call lr_act( sys, psi, long_range_psi, lr, ierr )
-!      if( nproc .gt. 1 ) then
-!        call ocean_psi_sum_lr( sys, long_range_psi, ierr )
-!      endif
+      call lr_act( sys, psi, new_psi, lr, ierr )
       call OCEAN_tk_stop( tk_lr )
     endif
 
-    if( sys%mult ) then
-      call OCEAN_tk_start( tk_mult )
-      call OCEAN_mult_act( sys, inter_scale, psi, multiplet_psi )
-      call OCEAN_tk_stop( tk_mult )
-    endif
-    if( sys%e0 ) then 
-      call OCEAN_tk_start( tk_e0 )
-      call ocean_energies_act( sys, psi, hpsi, ierr )
-      call OCEAN_tk_stop( tk_e0 )
-    endif
     call OCEAN_tk_start( tk_psisum )
-    call ocean_psi_sum( hpsi, multiplet_psi, long_range_psi, ierr )
-    call OCEAN_tk_stop( tk_psisum )
+    call OCEAN_psi_send_buffer( new_psi, ierr )
+    if( ierr .ne. 0 ) return
+
+    ! end
+
+    !JTV future if we are doing multiplets as a two-step process then their
+    !results get saved down to the local/min while _send_buffer is working
+!      if( sys%mult .and. sys%cur_run%have_core ) then
+!        call OCEAN_mult_finish
+!      else
+    call OCEAN_psi_zero_min( new_psi, ierr )
+!     endif
+    if( ierr .ne. 0 ) return
+
+
+    call OCEAN_psi_buffer2min( new_psi, ierr )
+    if( ierr .ne. 0 ) return
 
   end subroutine
-#endif
 
   subroutine OCEAN_hay_ab( sys, psi, hpsi, old_psi, iter, ierr )
 #ifdef __HAVE_F03
@@ -597,6 +584,9 @@ module OCEAN_action
     ! copies psi onto old_psi
     call OCEAN_psi_copy_min( old_psi, psi, ierr )
     if( ierr .ne. 0 ) return
+
+    ! Could move prep and copy here for hspi -> psi
+    !   just need to include a way to scale full instead of just min
 
     call MPI_WAIT( brequest, MPI_STATUS_IGNORE, ierr )
     if( ierr .ne. 0 ) return

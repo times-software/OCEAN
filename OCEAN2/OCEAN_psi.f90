@@ -869,8 +869,11 @@ module OCEAN_psi
     ! If neither store nor full then need to call write2store
     !   This has the side effect of throwing an error if store_min is also invalid
     !
-    ! Making the call that we would very rarely not want to create/use min
-    !  and so if full exists, but not min we will create it here
+
+
+    ! !?!? Making the call that we would very rarely not want to create/use min
+    ! !?!? and so if full exists, but not min we will create it here
+    ! Maybe if full then run with full
     if( IAND( x%valid_store, PSI_STORE_MIN ) .eq. 0 ) then
       if( IAND( x%valid_store, PSI_STORE_FULL ) .eq. 0 ) then
 !        call OCEAN_psi_write2store( x, ierr)
