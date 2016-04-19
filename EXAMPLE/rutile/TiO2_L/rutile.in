@@ -1,0 +1,91 @@
+# Control
+control 0
+ppdir {'../'}
+
+# The pseudopotentials are in the main run directory
+# ppdir {'../'}
+
+#assumes you want to try and run abinit on 1 core
+core 1
+para_prefix{ mpirun -n 12 }
+
+# Kpt mesh for final states
+nkpt { 4 4 2 }
+
+# Kpt mesh for screening
+paw.nkpt{ 2 2 2 }
+
+# Total bands for final states
+nbands 50
+
+# Total bands for screening
+paw.nbands 100
+
+# Mag. of latt. vec.
+acell { 8.68 8.68 5.6 }
+
+# Cart comps. of latt. vecs.
+rprim {
+ 1 0 0
+ 0 1 0
+ 0 0 1 }
+
+# Ntypes of atoms
+ntypat 2
+
+# Z num for types
+znucl { 22 8 }
+
+# psp info
+pp_list{ ti.fhi
+         08-o.lda.fhi }
+# N atoms in unit cell
+natom 6
+
+# Type of each atom
+typat { 1 1 2 2 2 2 }
+
+# Positions of atoms
+xred {
+ 0      0      0
+ .5     .5     .5
+ .3053  .3053  0
+-.3053 -.3053  0
+ .8053  .1947  .5
+ .1947  .8053  .5 } 
+
+# Kinetic Enery cutoff
+ecut 140
+#ecut 70
+
+# Energy tol
+toldfe 1.1d-6
+
+# wftol
+tolwfr 1.1d-16
+
+# iterations
+nstep 50
+
+# Static dielectric const
+diemac 6
+
+# xmesh
+CNBSE.xmesh { 4 4 4 }
+
+# paw control files
+paw.fill{ 22 ti.fill }
+paw.opts{ 22 ti.opts }
+
+#edge information
+# By setting the first number to a negative
+#  we select ALL of the Ti (Z=22) atoms
+edges{ -22 2 1 }
+
+# radius for paw reconstruciton
+paw.shells{ 3.5 4.0 }
+cnbse.rad{ 4.0 }
+
+#Scaling Factor
+scfac 0.80
+cnbse.broaden 0.19

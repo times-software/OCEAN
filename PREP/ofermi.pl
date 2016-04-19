@@ -1,5 +1,5 @@
 #!/usr/bin/perl
-# Copyright (C) 2011 OCEAN collaboration
+# Copyright (C) 2015 OCEAN collaboration
 #
 # This file is part of the OCEAN project and distributed under the terms 
 # of the University of Illinois/NCSA Open Source License. See the file 
@@ -36,7 +36,16 @@ my $nkpt = $1 ;#/ 2;
 print "$nkpt\n";
 close NKPT;
 
+my $nspin = 1;
+if( open NSPIN, "nspin" )
+{
+  <NSPIN> =~ m/(\d)/;
+  $nspin = $1;
+  close NSPIN;
+}
+
 $ne *= $nkpt;
+$ne *= $nspin;
 
 #open ENK, "enkfile" or die;
 open ENK, "enk_un" or die;
@@ -73,7 +82,7 @@ my $efermi = $ldagap / 2 + $sorted[$ne-1];
 
 #print "$nkpt\t$ne\n";
 print "$sorted[$ne-2]\t$sorted[$ne-1]\t$sorted[$ne]\t$sorted[$ne+1]\n";
-open FERMI, ">efermiinrydberg.ipt" or die;
+open FERMI, ">efermiinrydberg2.ipt" or die;
 print FERMI $efermi . "\n";
 close FERMI;
 

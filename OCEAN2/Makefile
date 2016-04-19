@@ -1,21 +1,12 @@
 include ../Makefile.arch
 
-FLAGS = $(OPTIONS) -cpp -DHAVE_FLUSH -DBLAS -DMPI -DHAVE_CONTIGUOUS 
-
-#MPIFORT = mpif90
-#FLAGS = -O2 -DHAVE_FLUSH -DBLAS -DMPI -DHAVE_CONTIGUOUS -cpp -warn all  -march=corei7 -fopenmp -openmp-report2 -g -traceback
-#LDFLAGS = -fopenmp -traceback
-
-#FFTWL = /home/jtv1/bin/intel/lib/libfftw3.a
-#FFTWI = -I/home/jtv1/bin/intel/include
-
-# Need to specify scalapack, blacs, blas
-BLACS = -lmkl_scalapack_lp64 -lmkl_intel_lp64 -lmkl_sequential -lmkl_core -lmkl_blacs_openmpi_lp64
+# Currently BLAS and MPI are *not* optional
+FLAGS = $(OPTIONS) -cpp -DBLAS -DMPI 
 
 CNBSE = ../CNBSE/zcmsnmult/zf90
 
 
-all: ocean.x
+all: ocean.x o_spect.x
 
 OCEANOBJS = AI_kinds.o OCEAN_mpi.o OCEAN_system.o OCEAN_bloch.o OCEAN_obf.o OCEAN_multiplet.o  \
             long_range.o OCEAN_load_data.o OCEAN_psi.o OCEAN_energies.o OCEAN_haydock.o OCEAN.o \
@@ -25,6 +16,9 @@ OCEANOBJS = AI_kinds.o OCEAN_mpi.o OCEAN_system.o OCEAN_bloch.o OCEAN_obf.o OCEA
 
 ocean.x: $(OCEANOBJS)
 	$(MPIFORT) $(LDFLAGS) -o ocean.x $(OCEANOBJS) $(FFTWL) $(BLACS) 
+
+o_spect.x: o_spect.f90 AI_kinds.o gamfcn.o
+	$(MPIFORT) $(FLAGS) -o o_spect.x o_spect.f90 AI_kinds.o gamfcn.o
 
 OCEAN_mpi.o: OCEAN_mpi.f90 AI_kinds.o
 	$(MPIFORT) $(FLAGS) -c -o OCEAN_mpi.o OCEAN_mpi.f90 

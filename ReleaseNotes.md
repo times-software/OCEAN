@@ -1,3 +1,17 @@
+## v. 1.2.0
+
+#### Major Feature: LDA+U
+Fixed up LDA+U support (QuantumEspresso only). Thanks to Yufeng Liang for 
+spearheading this effort.
+
+#### Minor Features:
+ 1. Improvements to the parsing of QE wavefunctions
+ 2. More consistent determination of the Fermi level for metallic systems. 
+
+#### Bug fixes
+ 1. Some bugs that surfaced with MPICH
+ 2. Cleaned up the OCEAN2/Makefile
+
 ## v. 1.1.5
 
 #### Bug Fix

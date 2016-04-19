@@ -1,0 +1,95 @@
+# Control
+control 0
+ppdir {'../'}
+
+# The pseudopotentials are in the main run directory
+# ppdir {'../'}
+
+#assumes you want to try and run abinit on 1 core
+#core 1
+dft { obf }
+para_prefix{ mpirun -np 64 }
+
+# Kpt mesh for GS
+ngkpt { 6 6 6 }
+
+# Kpt mesh for final states
+nkpt { 6 6 6 }
+
+# Kpt mesh for screening
+paw.nkpt{ 2 2 2 }
+
+# Total bands for final states
+nbands 64
+
+# Total bands for screening
+paw.nbands 200
+
+acell { 1.889726 1.889726 1.889726 }
+
+rprim {
+     4.5887799263000000    0.0000000000000000    0.0000000000000000
+     0.0000000000000000    4.5887799263000000    0.0000000000000000
+     0.0000000000000000    0.0000000000000000    2.9575600623999998
+}
+
+pp_list {
+ti.fhi
+08-o.lda.fhi
+}
+
+ntypat 2
+zsymb { Ti O }
+znucl { 22 8 }
+
+natom 6
+typat { 1 1 2 2 2 2 }
+
+xred {
+  0.0000000000000000  0.0000000000000000  0.0000000000000000
+  0.5000000000000000  0.5000000000000000  0.5000000000000000
+  0.3029543300146587  0.3029543300146587 -0.0000000000000000
+  0.6970456399853387  0.6970456399853387  0.0000000000000000
+  0.1970456699853413  0.8029543600146613  0.5000000000000000
+  0.8029543600146613  0.1970456699853413  0.5000000000000000
+}
+
+
+# Kinetic Enery cutoff
+ecut 140
+#ecut 70
+
+# Energy tol
+toldfe 1.1d-6
+
+# wftol
+tolwfr 1.1d-16
+
+# iterations
+nstep 50
+
+# Static dielectric const
+diemac 6
+
+# xmesh
+CNBSE.xmesh { 6 6 6 }
+
+# paw control files
+paw.fill{ 8 o.fill }
+paw.opts{ 8 o.opts }
+
+#edge information
+nedges 4
+edges{ 3 1 0
+       4 1 0
+       5 1 0 
+       6 1 0
+}
+
+# radius for paw reconstruciton
+paw.shells{ 3.5 4.0 }
+cnbse.rad{ 4.0 }
+
+#Scaling Factor
+scfac 1.00
+cnbse.broaden 0.5

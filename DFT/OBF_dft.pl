@@ -31,7 +31,7 @@ my @KgenFiles = ("nkpt", "k0.ipt", "qinunitsofbvectors.ipt", "paw.nkpt");
 my @BandFiles = ("nbands", "paw.nbands");
 my @EspressoFiles = ( "coord", "degauss", "ecut", "etol", "fband", "ibrav", 
     "isolated", "mixing", "natoms", "ngkpt", "noncolin", "nrun", "ntype", 
-    "occopt", "occtype", "prefix", "ppdir", "rprim", "rscale", "smearing", 
+    "occopt", "occtype", "prefix", "ppdir", "stress_force", "rprim", "rscale", 
     "spinorb", "taulist", "typat", "verbatim", "work_dir", "wftol", 
     "den.kshift", "obkpt.ipt", "trace_tol", "ham_kpoints", "obf.nbands","tot_charge", "nspin", "smag", "ldau", "zsymb");
 my @PPFiles = ("pplist", "znucl");
@@ -171,8 +171,8 @@ print "making atompp";
 system("$ENV{'OCEAN_BIN'}/makeatompp.x") == 0
     or die "Failed to make acell\n";
 
-  my @qe_data_files = ('prefix', 'ppdir', 'work_dir', 'ibrav', 'natoms', 'ntype', 'noncolin',
-                       'spinorb', 'ecut', 'occtype', 'degauss', 'etol', 'mixing', 'nrun', 'trace_tol', 'tot_charge', 'nspin', 'smag', 'ldau' );
+  my @qe_data_files = ('prefix', 'ppdir', 'stress_force', 'work_dir', 'ibrav', 'natoms', 'ntype', 'noncolin',
+                       'spinorb', 'ecut', 'occtype', 'degauss', 'etol', 'mixing', 'nrun', 'trace_tol', 'tot_charge', 'nspin', 'smag', 'ldau');
   my %qe_data_files = {};
   foreach my $file_name (@qe_data_files)
   {
@@ -225,8 +225,7 @@ if ($RunESPRESSO) {
         .  "  prefix = \'$qe_data_files{'prefix'}\'\n"
         .  "  pseudo_dir = \'$qe_data_files{'ppdir'}\'\n"
         .  "  outdir = \'$qe_data_files{'work_dir'}\'\n"
-        .  "  tstress = .true.\n"
-        .  "  tprnfor = .true.\n"
+        .  "  $qe_data_files{'stress_force'}\n"
         .  "  wf_collect = .true.\n"
 #        .  "  disk_io = 'low'\n"
         .  "/\n";
@@ -508,8 +507,6 @@ if ( $nscfRUN ) {
         .  "  prefix = \'$qe_data_files{'prefix'}\'\n"
         .  "  pseudo_dir = \'$qe_data_files{'ppdir'}\'\n"
         .  "  outdir = \'$qe_data_files{'work_dir'}\'\n"
-        .  "  tstress = .true.\n"
-        .  "  tprnfor = .true.\n"
         .  "  wf_collect = .true.\n"
 #        .  "  disk_io = 'low'\n"
         .  "/\n";
