@@ -31,7 +31,7 @@ subroutine dump_energies( band_subset, nbands, nkpts, nspin, nshift, e0, lumo_sh
   write(6,*) maxval( start_band ), minval( start_band ), overlap
 
   ! JTV this hack will make core-level XAS work for metals
-  brange( 2 ) = brange( 3 ) - 1
+  brange( 2 ) = max( brange( 3 ) - 1, 1 )
 
   fh = freeunit()
   open(unit=fh,file='ibeg.h',form='formatted',status='unknown')!,buffered='yes')
