@@ -172,7 +172,7 @@ paw.opts
 } paw.opts
 paw.nkpt
 {
-0 0 0
+-1
 } paw.nkpt
 paw.nbands
 {

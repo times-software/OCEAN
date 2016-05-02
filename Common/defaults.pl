@@ -490,6 +490,10 @@ print QE_POOL "paw\t$ideal_npools\n";
 # Not integrated cleanly right now
 # Need to control pools for the interpolation routines
 $min_interp_pool_size = int( $volume / 1200 );
+if( $min_interp_pool_size < 1 )
+{
+  $min_interp_pool_size = 1;
+}
 print "Minimum size for interpolation pools $min_interp_pool_size\n";
 
 $pool_size = -1;
