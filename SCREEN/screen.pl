@@ -80,6 +80,14 @@ close BRANGE;
 close CLIPS;
 }
 
+my $para_prefix = "";
+if( open PARA_PREFIX, "para_prefix" )
+{
+  $para_prefix = <PARA_PREFIX>;
+  chomp($para_prefix);
+  close( PARA_PREFIX);
+}
+
 ###################################
 
 # Setup
@@ -113,7 +121,16 @@ close SHELLS;
 
 print "Starting xipp section\n";
 
-system("$ENV{'OCEAN_BIN'}/avg.x") == 0 or die "Failed to run avg.x\n";
+if( -e "$ENV{'OCEAN_BIN'}/mpi_avg.x" )
+{
+  print "Running mpi_avg.x\n";
+  system("$para_prefix $ENV{'OCEAN_BIN'}/mpi_avg.x") == 0 or die "$!\nFailed to run mpi_avg.x\n";
+}
+else
+{
+  print "Running avg.x\n";
+  system("$ENV{'OCEAN_BIN'}/avg.x") == 0 or die "$!\nFailed to run avg.x\n";
+}
 
 open HFINLIST, "hfinlist" or die "Failed to open hfinlist\n";
 
