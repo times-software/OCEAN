@@ -1,4 +1,4 @@
-! Copyright (C) 2010 OCEAN collaboration
+! Copyright (C) 2010,2016 OCEAN collaboration
 !
 ! This file is part of the OCEAN project and distributed under the terms 
 ! of the University of Illinois/NCSA Open Source License. See the file 
@@ -6,34 +6,39 @@
 !
 !
 program hartfock
-      implicit none
+  implicit none
+  !
+  integer, allocatable :: no(:),nl(:),nm(:),is(:)
+  integer, allocatable :: ilp(:)
 !
-      integer, allocatable :: no(:),nl(:),nm(:),is(:)
-      integer, allocatable :: ilp(:)
+  double precision, allocatable :: r(:),dr(:),r2(:)
+  double precision, allocatable :: ev(:),occ(:),xnj(:)
+  double precision, allocatable :: ek(:),phe(:,:),orb(:,:)
+  double precision, allocatable :: vi(:,:),cq(:),vctab(:,:)
+  double precision, allocatable :: wgts(:)
 !
-      double precision, allocatable :: r(:),dr(:),r2(:)
-      double precision, allocatable :: ev(:),occ(:),xnj(:)
-      double precision, allocatable :: ek(:),phe(:,:),orb(:,:)
-      double precision, allocatable :: vi(:,:),cq(:),vctab(:,:)
-      double precision, allocatable :: wgts(:)
+  integer :: ii, ic
+  real( kind = kind( 1.0d0 ) ) :: de, eh, rcl, rch
 !
-      integer :: ii, ic
-      real( kind = kind( 1.0d0 ) ) :: de, eh, rcl, rch
+  integer i,j,nel,nr,nst,iuflag,vtry,isuse,nwgt, l, njrc( 4 )
+  integer oldnel, newnel, nelmax
+  character( len = 8 ) :: nam
 !
-      integer i,j,nel,nr,nst,iuflag,vtry,isuse,nwgt, l, njrc( 4 )
-      integer oldnel, newnel, nelmax
-      character * 8 :: nam
+  integer :: lmin, lmax, skips( 0 : 3 ), idum
+  double precision rel,alfa,etot,dl,zorig,xntot,rmin,rmax, zc, mul, pertstr
+  real( kind = kind( 1.0d0 ) ) :: rlast, potn, rad, vpert, dum, tmp, rcocc( 0 : 3 ), rsocc( 0 : 3 )
 !
-      integer :: lmin, lmax, skips( 0 : 3 ), idum
-      double precision rel,alfa,etot,dl,zorig,xntot,rmin,rmax, zc
-      double precision rlast, potn, rad, rcut, vpert, dum, tmp, rcocc( 0 : 3 ), rsocc( 0 : 3 )
+  logical :: done, psflag, rset
 !
-      logical done, psflag, rset, found
+  character( len = 20 ) :: cmd
+  character( len = 3 ) :: mode
+ !
+!     logical found
+!     double precision rcut
+! integer :: ntest, nsmax, irc
+! real( kind = kind( 1.0d0 ) ) :: cush, emax, rrmd, prec
 !
-      character * 20 cmd
-      character * 3 mode
-!
-      integer, parameter :: nwgmx = 10, stdin = 5
+  integer, parameter :: nwgmx = 10, stdin = 5
 !
 !
       allocate( wgts( nwgmx ) )
@@ -54,14 +59,14 @@ program hartfock
       select case( cmd )
       case ( '#' )
         ! this is the comment option'
-      case ( 'o' )
-        read ( stdin, * ) i, nam
+      case ( 'output_psi' )
+        read ( stdin, * ) i, nam, mul
         open( unit=99, file=nam, form='formatted', status='unknown' )
         rewind 99
         do j = 1, nr
            tmp = phe( j, i )
            if ( abs( tmp ) .lt. 1.0d-30 ) tmp = 0.0d0
-           write ( 99,'(2(1e15.8,1x))' ) r( j ), tmp
+           write ( 99,'(3(1e15.8,1x))' ) r( j ), tmp * mul, ev( i )
         end do
         close( unit=99 )
       case ( 'b' )
@@ -88,20 +93,20 @@ program hartfock
       case ( '!' ) ! another comment option
       case ( 'K' )
         call config
-      case ( 'A' )
-        read ( stdin, * ) l
-        open( unit=99, file='radfile', form='formatted', status='unknown' )
-        rewind 99
-        read ( 99, * ) rcut
-        rcut = rcut + 0.000001d0
-        close( unit=99 )
-        found = .false.
-        i = 0
-        do while ( .not. found )
-           i = i + 1
-           if ( l .eq. nl( i ) ) found = .true.
-        end do
-        call getanu( nl( i ), nr, r, rcut, dl, phe( 1, i ) )
+!     case ( 'A' )
+!       read ( stdin, * ) l
+!       open( unit=99, file='radfile', form='formatted', status='unknown' )
+!       rewind 99
+!       read ( 99, * ) rcut
+!       rcut = rcut + 0.000001d0
+!       close( unit=99 )
+!       found = .false.
+!       i = 0
+!       do while ( .not. found )
+!          i = i + 1
+!          if ( l .eq. nl( i ) ) found = .true.
+!       end do
+!       call getanu( nl( i ), nr, r, rcut, dl, phe( 1, i ) )
       case ( 'a' )
         write ( 6, * ) 'nelmax = ', nelmax
         call abinitio(etot,rel,alfa,nr,r, dr,r2,dl,phe,njrc,vi,zorig,xntot,nel, &
@@ -139,8 +144,8 @@ program hartfock
       case ( 'S' )
         read ( stdin, * ) ii, ic, de, eh, rcl, rch
         call escanner( ii, phe( :, ic ), nel, orb, nl, xnj, zorig, rel, nr, r, r2, dl, njrc, vi, psflag, de, eh, rcl, rch )
-      case ( 'W' )
-        call melwriter( etot, rel, alfa, nr, r, dr, r2, dl, njrc, vi, zorig, xntot, nel, iuflag, cq, isuse )
+!     case ( 'W' )
+!       call melwriter( etot, rel, alfa, nr, r, dr, r2, dl, njrc, vi, zorig, xntot, nel, iuflag, cq, isuse )
       case ( 'u' )
         write (6,*) 'please enter iuflag. (0=u, 1=su, 2=r).'
         read ( stdin, * ) iuflag
@@ -153,12 +158,10 @@ program hartfock
         write ( 6, * ) 'calling pseudo'
         call pseudo(etot,rel,alfa,nr,rmin, rmax,r,dr,r2,dl, phe,orb,njrc,vi,cq,zorig,xntot,nel, &
                     no,nl,nm,xnj,ev,occ,is,ek,iuflag,vctab, vtry,isuse)
+        read ( 5, * ) nel
         newnel = nel
-        write ( 6, * ) 'calling lead, after'
-        call leadbehv(nel,nl,nr,phe,r,dl,.true.)
-        write ( 6, * ) 'calling mkkxfile'
-        call mkkxfile( oldnel, newnel )
-        write ( 6, * ) 'done ... '
+!       call leadbehv(nel,nl,nr,phe,r,dl,.true.)
+!       call mkkxfile( oldnel, newnel )
         rcocc( : ) = 0.0d0
         lmin = nl( 1 ); lmax = nl( 1 )
         do i = 1, nel
@@ -169,16 +172,33 @@ program hartfock
         write ( 6, '(1a12,4f10.4)' ) 'refconocc = ', rcocc( : )
         write ( 6, '(1a7,1i5)' ) 'lmin = ', lmin
         write ( 6, '(1a7,1i5)' ) 'lmax = ', lmax
-      case( 'fillinpaw' )
-        call mwreduce( etot, rel, alfa, nr, r, dr, r2, dl, njrc, vi, zorig, xntot, nel, iuflag, cq, isuse, rcocc, lmin, lmax )
+!     case( 'fillinpaw' )
+!       call fillinpaw( etot, rel, alfa, nr, r, dr, r2, dl, njrc, vi, zorig, xntot, nel, iuflag, cq, isuse, rcocc, lmin, lmax )
+      case( 'continuum' )
+         call continuum( nel, no, nl, rel, nr, r, r2, dr, dl, phe, orb( :, 1 ), zorig, njrc, vi, psflag )
+      case( 'projaug' )
+         call projaug( nr, r, dl )
+      case( 'trck' )
+         call trck( nel, nl, phe, nr, r, dl )
+      case( 'spartanfip' )
+         call spartanfip( etot, rel, alfa, nr, r, dr, r2, dl, njrc, vi, zorig, xntot, nel, iuflag, cq, isuse, rcocc, lmin, lmax )
       case( 'screencore' )
-        call pseff( etot, rel, alfa, nr, r, dr, r2, dl, njrc, vi, zorig, xntot, nel, iuflag, cq, isuse, rsocc, lmin, lmax )
+         call screencore( etot, rel, alfa, nr, r, dr, r2, dl, njrc, vi, zorig, xntot, nel, iuflag, cq, isuse, rsocc, lmin, lmax )
       case( 'ppdump' )
-        call ppdump( njrc, vi, nr, r )
+         call ppdump( njrc, vi, nr, r )
       case( 'ppload' )
-        call ppload( njrc, vi, nr, r, zc )
+         call ppload( njrc, vi, nr, r, zc )
+         write ( 6, '(4i8,5x,1a4)' ) njrc( : ), 'njrc'
+         do l = 0, 3
+            if ( njrc( l + 1 ) .ne. 0 ) lmax = l
+         end do
+         do l = 3, 0, -1
+            if ( njrc( l + 1 ) .ne. 0 ) lmin = l
+         end do
+         write ( 6, '(1a7,1i5)' ) 'lmin = ', lmin
+         write ( 6, '(1a7,1i5)' ) 'lmax = ', lmax
       case( 'calcso' )
-        call mkcorcon( alfa, rel, zorig, zc, njrc, rcocc, rsocc, .true. )
+        call mkcorcon( alfa, rel, zorig, zc, rcocc, rsocc, .true. )
         open( unit=99, file='skip', form='formatted', status='unknown' )
         rewind 99
         read ( 99, * )
@@ -186,21 +206,16 @@ program hartfock
            read ( 99, * ) idum, skips( l )
         end do
         close( unit=99 )
-        call freshen( lmin, lmax, rcocc, skips )
+        call freshen( lmin, lmax, rcocc, skips, 1, -0.01d0 )
         call abinitio(etot,rel,alfa,nr,r, dr,r2,dl,phe,njrc,vi,zorig,xntot,nel, &
              no,nl,nm,xnj,ev,occ,is,ek,orb,iuflag,cq,.false.,nelmax)
-      case( 'loadopt' )
-        call mkcorcon( alfa, rel, zorig, zc, njrc, rcocc, rsocc, .false. )  
-        write ( 6, * ) njrc( : ) 
-        do l = 0, 3
-           if ( njrc( l + 1 ) .ne. 0 ) lmax = l
-        end do
-        do l = 3, 0, -1
-           if ( njrc( l + 1 ) .ne. 0 ) lmin = l
-        end do
+!     case ( 'fipfront' )
+!        read ( 5, * ) l, cush, emax, rcut, nsmax, rrmd, prec, ntest
+!        call pwavesetter( l, ntest, cush, emax, rcut, nsmax, rrmd, prec, irc, nr, r, dr, r2, dl, vi, iuflag, cq, isuse, njrc )
+!        call fipfront( lmin, lmax, nr, r, dr, r2, dl, zorig, vi, iuflag, cq, njrc )
+      case( 'mkcorcon' )
+        call mkcorcon( alfa, rel, zorig, zc, rcocc, rsocc, .false. )  
         write ( 6, '(1a12,4f10.4)' ) 'refconocc = ', rcocc( : )
-        write ( 6, '(1a7,1i5)' ) 'lmin = ', lmin
-        write ( 6, '(1a7,1i5)' ) 'lmax = ', lmax
       case ( 'C' )
         call vpscpp( nr, r, r2, vi )
       case ( 'v' )
@@ -237,19 +252,20 @@ program hartfock
         call sigfit(zorig,nr,r,dr,nel,nl,ev,phe)
       case ( 'f' )
         call sigfit2(nel,nl,ev,nr,dr,r,phe)
-      case ( 'G' )
-        call getfg( nr, dl, r, nel, nl, phe, zorig )
+!     case ( 'G' )
+!       call getfg( nr, dl, r, nel, nl, phe, zorig )
       case ( 'c' )
         call mkvctab( nr, vctab, r, r2 )
       case ( 'z' )
         call corepot( nr, vi )
       case ( 'Y' )
+        read ( 5, * ) pertstr
         open( unit=99, file='Real.Input', form='formatted', status='unknown' )
         rewind 99
         do i = 1, nr
            read ( 99, * ) dum, vpert 
            if ( abs( dum - r( i ) ) .gt. 0.0001d0 ) stop 'bad r'
-           vi( i, : ) = vi( i, : ) + vpert
+           vi( i, : ) = vi( i, : ) + vpert * pertstr
         end do
         close( unit=99 )
       case( 'moment' )

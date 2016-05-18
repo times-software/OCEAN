@@ -1,15 +1,15 @@
-! Copyright (C) 2010 OCEAN collaboration
+! Copyright (C) 2010,2016 OCEAN collaboration
 !
 ! This file is part of the OCEAN project and distributed under the terms 
 ! of the University of Illinois/NCSA Open Source License. See the file 
 ! `License' in the root directory of the present distribution.
 !
 !
-subroutine intego( e, l, kap, n, nn, istop, ief, x0, phi, z, v, xm1, xm2, nr, r, dr, r2, dl, rel, plead )
+subroutine intego( e, l, kap, n, nn, is, ief, x0, phi, z, v, xm1, xm2, nr, r, dr, r2, dl, rel, plead, der0, der1 )
   implicit none
   !
-  integer :: l, n, nn, istop, ief, nr
-  real( kind = kind( 1.0d0 ) ) :: e, kap, x0, z, dl, rel, plead
+  integer :: l, n, nn, is, ief, nr
+  real( kind = kind( 1.0d0 ) ) :: e, kap, x0, z, dl, rel, plead, der0, der1
   real( kind = kind( 1.0d0 ) ), dimension( nr ) :: phi, v, xm1, xm2, r, dr, r2
   !
   integer :: i, nnideal
@@ -30,8 +30,8 @@ subroutine intego( e, l, kap, n, nn, istop, ief, x0, phi, z, v, xm1, xm2, nr, r,
   phi( 2 ) = p1 * sqrt( xm( 2 ) * r( 2 ) )
   !
   ! initialize number of nodes, and determine the ideal number.
-  nn=0
-  nnideal=n-l-1
+  nn = 0
+  nnideal = n - l - 1
   !
   ! integ out.  count nodes, stop along way if there are too many.
   cont = .true.
@@ -45,19 +45,24 @@ subroutine intego( e, l, kap, n, nn, istop, ief, x0, phi, z, v, xm1, xm2, nr, r,
      if ( p2 * p1 .lt. 0.0d0 ) nn = nn + 1
      if ( ( nn .gt. nnideal ) .and. ( ief .eq. 0 ) ) ief = 1
      if ( ( nn .eq. nnideal ) .and. ( p2 * p1 .gt. 0.0d0 ) .and. ( p2 / p1 .lt. 1.0d0 ) ) ready = .true.
-     if ( ( istop .eq. 0 ) .and. ( ready ) ) then
+     if ( ( is .eq. 0 ) .and. ( ready ) ) then
         if ( e .lt. v( i ) + dble( l * ( l + 1 ) ) / ( 2.0d0 * r2( i ) ) ) then
-           istop = i - 2
+           is = i - 2
            cont = .false.
         end if
      end if
-     if ( ( istop .ne. 0 ) .and. ( i .eq. istop + 2 ) ) cont = .false.
+     if ( ( is .ne. 0 ) .and. ( i .eq. is + 2 ) ) cont = .false.
      p0 = p1
      p1 = p2
      i = i + 1
      if ( ( i .gt. nr ) .and. ( ief .eq. 0 ) ) ief = -1
   end do
-  if ( ief .eq. 0 ) call getxval( phi( istop - 2 ), dl, r( istop ), x0 )
+  !
+  if ( ief .eq. 0 ) then
+     call getxval( phi( is - 2 ), dl, r( is ), x0 )
+     der0 = phi( is )
+     der1 = ( 8.0d0 * ( phi( is + 1 ) - phi( is - 1 ) ) - ( phi( is + 2 ) - phi( is - 2 ) ) ) / ( 12.0d0 * dl * r( is ) )
+  end if
   !
   return
 end subroutine intego

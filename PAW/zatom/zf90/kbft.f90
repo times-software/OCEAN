@@ -1,4 +1,4 @@
-! Copyright (C) 2010 OCEAN collaboration
+! Copyright (C) 2010,2016 OCEAN collaboration
 !
 ! This file is part of the OCEAN project and distributed under the terms 
 ! of the University of Illinois/NCSA Open Source License. See the file 
@@ -10,8 +10,8 @@
 !      
       integer, parameter :: maxd = 4200
 !
-      integer ir,iw,n,nr,i,l,j2,j,nqnl, id
-      double precision delqnl,r1,r2,rfac,dl,xl,xj
+      integer ir,iw,n,nr,i,l,j2,j,nqnl, id, lp
+      double precision delqnl,r1,r2,rfac,dl,xl,xj, r
       double precision ps0(maxd),ps1(maxd),ps2(maxd), wrk( maxd )
       double precision a( 3 ), e( 3, 3 ), q( 9 )
       character * 6 :: s6
@@ -38,6 +38,7 @@
       do i=1,n
 !
         read (ir,*) l,j2
+        lp = l + 1
         xl=dble(l)
         xj=dble(j2)
         write (iw,'(1x,2f20.10)') xl,xj
@@ -70,6 +71,16 @@
         call ft(l,ps0,r1,r2,nr,nqnl,delqnl,wrk,maxd,iw)
         call ft(l,ps1,r1,r2,nr,nqnl,delqnl,wrk,maxd,iw)
         call ft(l,ps2,r1,r2,nr,nqnl,delqnl,wrk,maxd,iw)
+        close( unit=99 )
+        write ( s6, '(1a5,1i1)' ) 'rvume', l
+        open( unit=99, file=s6, form='formatted', status='unknown' )
+        rewind 99
+        r = r1
+        do j = 1, nr
+           write ( 99, '(4(1x,1e15.8))' ) &
+             r, ps0( j ) / r ** lp, ps1( j ) / r ** lp, ps2( j ) / r ** lp
+           r = r * ( r2 / r1 )
+        end do
         close( unit=99 )
       end do
 !
