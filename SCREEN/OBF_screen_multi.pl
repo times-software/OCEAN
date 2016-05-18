@@ -39,7 +39,7 @@ my $band_stop  = -1; #800;
 # Step 1: Create support files
 my @CommonFiles = ("znucl", "paw.hfkgrid", "paw.fill", "paw.opts", "pplist", "paw.shells", 
                    "ntype", "natoms", "typat", "taulist", "nedges", "edges", "caution", 
-                   "epsilon", "k0.ipt", "ibase", "scfac", "para_prefix", 
+                   "epsilon", "k0.ipt", "ibase", "scfac", "para_prefix", "tmp_dir", 
                    "paw.nbands", "core_offset", "paw.nkpt", "pool_control", "ham_kpoints", 
                    "cnbse.rad", "dft", "avecsinbohr.ipt" );
 my @ExtraFiles = ("specpnt", "Pquadrature" );
@@ -57,6 +57,14 @@ foreach (@DFTFiles)
 
 foreach (@CommonFiles) {
   `cp ../Common/$_ .` == 0 or die "Failed to get $_ from Common/\n";
+}
+
+my $tmpdir = "undefined";
+if( open TMPDIR, "tmp_dir" )
+{
+  $tmpdir = <TMPDIR>;
+  chomp( $tmpdir );
+  close TMPDIR;
 }
 
 open IN, "epsilon" or die "Failed to open epsilon\n$!";
@@ -143,8 +151,16 @@ system("$ENV{'OCEAN_BIN'}/rhoofg.x") == 0
 print "Running PAW Setup\n";
 system("$ENV{'OCEAN_BIN'}/pawsetup.x") == 0 or die "$!\nFailed to run pawsetup.x\n";
 
-print "Running avg.x\n";
-system("$ENV{'OCEAN_BIN'}/avg.x") == 0 or die "$!\nFailed to run avg.x\n";
+if( -e "$ENV{'OCEAN_BIN'}/mpi_avg.x" )
+{
+  print "Running mpi_avg.x\n";
+  system("$para_prefix $ENV{'OCEAN_BIN'}/mpi_avg.x") == 0 or die "$!\nFailed to run mpi_avg.x\n";
+}
+else
+{
+  print "Running avg.x\n";
+  system("$ENV{'OCEAN_BIN'}/avg.x") == 0 or die "$!\nFailed to run avg.x\n";
+}
 
 
 `ln -sf ../PAW/zpawinfo zpawinfo`;
@@ -180,6 +196,7 @@ open BOFR, ">bofr.in" or die "$!\nFailed to open bofr.in for writing\n";
 print BOFR "&input\n" .
           "  prefix = 'system_opt'\n" .
           "  outdir = './Out'\n" .
+          "  wfcdir = '$tmpdir'\n" .
           "  updatepp = .false.\n" .
           "  ncpp = .true.\n" .
           "  calculation = 'ocean_bofr_multi'\n" .
@@ -295,14 +312,14 @@ while ($hfinline = <HFINLIST>) {
   $elnum = $6;
 
 
-  $edgename = sprintf("z%2s%02i_n%02il%02i", $elname, $elnum, $nnum, $lnum);
+  $edgename = sprintf("z%2s%04i_n%02il%02i", $elname, $elnum, $nnum, $lnum);
   print "$edgename\n";
   unless( -d $edgename )
   {
     mkdir $edgename or die "Failed to make dir $edgename\n";
   }
 
-  my $avden =  sprintf("avg%2s%02i",$elname,$elnum);
+  my $avden =  sprintf("avg%2s%04i",$elname,$elnum);
   copy( $avden, "avden" ) or die "Failed to copy density $avden\n$!";
 
   my $edgename2 = sprintf("z%03in%02il%02i",$znucl, $nnum, $lnum);

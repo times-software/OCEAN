@@ -130,11 +130,11 @@ while ($hfinline = <HFINLIST>) {
   $elname = $5;
   $elnum = $6;
 
-  $edgename = sprintf("z%2s%02i_n%02il%02i", $elname, $elnum, $nnum, $lnum);
+  $edgename = sprintf("z%2s%04i_n%02il%02i", $elname, $elnum, $nnum, $lnum);
   print "$edgename\n";
   `mkdir -p $edgename` == 0 or die "Failed to make dir $edgename\n";
 
-  my $avden =  sprintf("avg%2s%02i",$elname,$elnum);
+  my $avden =  sprintf("avg%2s%04i",$elname,$elnum);
   copy( $avden,  "avden" ) or die "Failed to copy density $avden\n$!";
 
 
