@@ -20,8 +20,8 @@ subroutine jlmatfetch( lc, lmin, lmax, npmax, nproj, qmag, jlmel, powmax )
   close( unit=99 )
   !
   ! read in core orbital, set up r grid
-  write ( fnam, '(1a9,1i3.3,1a1,1i2.2,1a1,1i2.2)' ) '.coreorbz', zz, 'n', nn, 'l', ll
-  open( unit=99, file=fnam, form='formatted', status='unknown' )
+  write ( fnam, '(1a8,1i3.3,1a1,1i2.2,1a1,1i2.2)' ) 'coreorbz', zz, 'n', nn, 'l', ll
+  open( unit=99, file=fnam, form='formatted', status='old' )
   rewind 99
   read ( 99, * ) s8, nr
   read ( 99, * ) r1, w1
@@ -39,8 +39,8 @@ subroutine jlmatfetch( lc, lmin, lmax, npmax, nproj, qmag, jlmel, powmax )
   ! read in all electron orbitals
   allocate( phae( nr, npmax, lmin : lmax ), phps( nr, npmax, lmin : lmax ) )
   do l = lmin, lmax
-     write ( s8, '(1a3,1i1,1a1,1i3.3)' ) '.ae', l, 'z', zz
-     open( unit=99, file=s8, form='formatted', status='unknown' )
+     write ( s8, '(1a2,1i1,1a1,1i3.3)' ) 'ae', l, 'z', zz
+     open( unit=99, file=s8, form='formatted', status='old' )
      rewind 99
      do j = 1, nr
         read ( 99, * ) dum, wv( 1 : nproj( l ) )
@@ -49,8 +49,8 @@ subroutine jlmatfetch( lc, lmin, lmax, npmax, nproj, qmag, jlmel, powmax )
         end do
      end do 
      close( unit=99 )
-     write ( s8, '(1a3,1i1,1a1,1i3.3)' ) '.ps', l, 'z', zz
-     open( unit=99, file=s8, form='formatted', status='unknown' )
+     write ( s8, '(1a2,1i1,1a1,1i3.3)' ) 'ps', l, 'z', zz
+     open( unit=99, file=s8, form='formatted', status='old' )
      rewind 99
      do j = 1, nr
         read ( 99, * ) dum, wv( 1 : nproj( l ) )

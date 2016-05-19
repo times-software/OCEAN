@@ -26,8 +26,8 @@ subroutine ckmels( nr, lc, lmin, lmax, npmax, nproj, phae, phps, r, dl, wc, jl, 
   end do
   !
   do l = lmin, lmax
-     write ( fnam, '(1a5,1i1)' ) '.phrc', l
-     open( unit=99, file=fnam, form='formatted', status='unknown' )
+     write ( fnam, '(1a4,1i1)' ) 'phrc', l
+     open( unit=99, file=fnam, form='formatted', status='old' )
      rewind 99
      read ( 99, * ) s8, nener, idum
      allocate( ener( nener ), phiae( nr, nener ), phips( nr, nener ) )
@@ -62,7 +62,7 @@ subroutine ckmels( nr, lc, lmin, lmax, npmax, nproj, phae, phps, r, dl, wc, jl, 
            meltab( ii, 2, iener ) = rcmel
            meltab( ii, 3, iener ) = pomel
         end do
-        write ( fnam, '(1a11,1i1)' ) '.pawmeldiag', l, iphotl
+        write ( fnam, '(1a10,1i1,1i2.2)' ) 'pawmeldiag', l, iphotl
         open( unit=99, file=fnam, form='formatted', status='unknown' )
         rewind 99
         write ( 99, '(1a80)' ) '#    energy, mels for allowed l vals, reconstructed mels for allowed l vals'
