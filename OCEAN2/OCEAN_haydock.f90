@@ -507,6 +507,9 @@ module OCEAN_action
     call OCEAN_psi_ready_buffer( new_psi, ierr )
     if( ierr .ne. 0 ) return
 
+    call OCEAN_psi_zero_min( new_psi, ierr )
+    if( ierr .ne. 0 ) return
+
     call OCEAN_tk_stop( tk_psisum )
 
     if( sys%e0 .and. sys%cur_run%have_core .and. myid .eq. 0) then
@@ -538,9 +541,9 @@ module OCEAN_action
 !      if( sys%mult .and. sys%cur_run%have_core ) then
 !        call OCEAN_mult_finish
 !      else
-    call OCEAN_psi_zero_min( new_psi, ierr )
+!    call OCEAN_psi_zero_min( new_psi, ierr )
 !     endif
-    if( ierr .ne. 0 ) return
+!    if( ierr .ne. 0 ) return
 
 
     call OCEAN_psi_buffer2min( new_psi, ierr )

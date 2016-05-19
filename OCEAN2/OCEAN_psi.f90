@@ -17,6 +17,18 @@ module OCEAN_psi
   save
   private
 
+  INTEGER, PARAMETER, PUBLIC :: core_vector = 1
+  INTEGER, PARAMETER, PUBLIC :: val_vector = 2
+
+  INTEGER, PARAMETER :: psi_store_null = 0
+  INTEGER, PARAMETER :: psi_store_min = 1
+  INTEGER, PARAMETER :: psi_store_full = 2
+  INTEGER, PARAMETER :: psi_store_buffer = 4
+  INTEGER, PARAMETER :: psi_store_extra = 8
+
+  INTEGER, PARAMETER :: psi_comm_buffer = 1
+  INTEGER, PARAMETER :: psi_comm_reduce = 2
+
 !  REAL(DP), public :: kpref
 
   INTEGER :: psi_bands_pad
@@ -35,6 +47,8 @@ module OCEAN_psi
   INTEGER :: core_np
   INTEGER :: core_myid_default
   INTEGER :: max_core_store_size
+
+  INTEGER :: psi_comm_flavor = psi_comm_buffer
 !  INTEGER :: core_k_start
 !  INTEGER :: core_a_start
 !  INTEGER :: core_full_size
@@ -42,14 +56,7 @@ module OCEAN_psi
 !  INTEGER :: val_full_size
 !  INTEGER, PARAMETER :: CACHE_DOUBLE = 8
 
-  INTEGER, PARAMETER, PUBLIC :: core_vector = 1
-  INTEGER, PARAMETER, PUBLIC :: val_vector = 2
 
-  INTEGER, PARAMETER :: psi_store_null = 0
-  INTEGER, PARAMETER :: psi_store_min = 1
-  INTEGER, PARAMETER :: psi_store_full = 2
-  INTEGER, PARAMETER :: psi_store_buffer = 4
-  INTEGER, PARAMETER :: psi_store_extra = 8
 
   LOGICAL :: is_init = .false.
   LOGICAL :: have_core = .false.
@@ -127,26 +134,6 @@ module OCEAN_psi
 
   contains
 
-#if( 0 )
-  subroutine OCEAN_psi_zero_full( p, ierr )
-    implicit none
-    !
-    type(OCEAN_vector), intent( inout ) :: p
-    integer, intent( inout ) :: ierr
-    !
-    if( IAND( p%alloc_store, PSI_STORE_FULL ) .eq. 0 ) then
-      call OCEAN_psi_alloc_full( p, ierr )
-      if( ierr .ne. 0 ) return
-    endif
-    
-    p%r(:,:) = 0.0_DP
-    p%i(:,:) = 0.0_DP
-
-    p%valid_store = PSI_STORE_FULL
-
-  end subroutine OCEAN_psi_zero_full
-#endif
-
   subroutine OCEAN_psi_zero_min( p, ierr )
     implicit none
     !
@@ -207,7 +194,9 @@ module OCEAN_psi
     if( ierr .ne. 0 ) return
     if( flag ) then
       if( p%core_myid .eq. 0 ) write(6,*) 'buffer recv test failed in psi_ready_buffer'
+#ifdef MPI
       call MPI_BARRIER( p%core_comm, ierr )
+#endif
       ierr = -1
       return
     endif
@@ -364,9 +353,6 @@ module OCEAN_psi
     type(OCEAN_vector), intent( inout ) :: p
     integer, intent( inout ) :: ierr
     !
-    integer :: i, j, ik, ia, store_size
-    logical :: flag
-
     ! If full isn't allocate this doesn't make send
     ! If buffer isn't allocated then the matching recv can't have been posted
     if( ( IAND( p%alloc_store, PSI_STORE_BUFFER ) .eq. 0 ) .or. &
@@ -375,80 +361,157 @@ module OCEAN_psi
       return
     endif
 
-!JTV this doesn't work with the MPI_WAITSOME calls because we are completing
-!some of the receive calls. 
-#if 0
-    ! recv must be active
-    flag = .true.
-    call buffer_recv_test( p, flag, ierr )
-    if( ierr .ne. 0 ) return
-    if( .not. flag ) then
-      if( p%core_myid .eq. 0 ) write(6,*) 'buffer recv test failed in psi_send_buffer'
-      call MPI_BARRIER( p%core_comm, ierr )
-      ierr = -1
-      return
-    endif
+    ! if min isn't there allocate and zero
+!    if( IAND(  p%alloc_store, PSI_STORE_MIN ) .eq. 0 ) then
+!    endif
 
-    ! send must not be active    
-    flag = .false.
-    call buffer_send_test( p, flag, ierr )
-    if( ierr .ne. 0 ) return
-    if( flag ) then
-      if( p%core_myid .eq. 0 ) write(6,*) 'buffer send test failed in psi_send_buffer'
-      call MPI_BARRIER( p%core_comm, ierr )
-      ierr = -1
-      return
-    endif
-#endif
 
     if( have_core ) then
-  !JTV this only works if there is no kpt padding. Can come back and add in
-  !support for p%extra which will be able to fix that
-      ik = 1
-      ia = 1
-      do i = 0, p%core_np - 2
-        call MPI_IRSEND( p%r(1,ik,ia), max_core_store_size * psi_bands_pad, MPI_DOUBLE_PRECISION, &
-                         i, 1, p%core_comm, p%core_store_sr( i ), ierr )
+      select case ( psi_comm_flavor )
+      case( psi_comm_buffer )
+        call buffer_send( p, ierr )
         if( ierr .ne. 0 ) return
-
-!JTV in future maybe split real and imaginary?
-        call MPI_IRSEND( p%i(1,ik,ia), max_core_store_size * psi_bands_pad, MPI_DOUBLE_PRECISION, &
-                         i, 2, p%core_comm, p%core_store_si( i ), ierr )
+      case( psi_comm_reduce )
+        call reduce_send( p, ierr )
         if( ierr .ne. 0 ) return
-
-
-        ik = ik + max_core_store_size
-        do while( ik .gt. psi_kpts_actual )
-          ia = ia + 1
-          ik = ik - psi_kpts_actual
-        enddo
-
-      enddo
-
-! ia and ik are fine from above
-      i = psi_core_alpha * psi_kpts_actual - ( p%core_np - 1 ) * max_core_store_size
-      ia = psi_core_alpha
-      ik = psi_kpts_actual
-      do j = 1, i - 1
-        ik = ik - 1
-        if( ik .eq. 0 ) then
-          ik = psi_kpts_actual
-          ia = ia -1
-        endif
-      enddo
-      
-      call MPI_IRSEND( p%r(1,ik,ia), i * psi_bands_pad, MPI_DOUBLE_PRECISION, &
-                       p%core_np - 1, 1, p%core_comm, p%core_store_sr( p%core_np - 1 ), ierr )
-        
-      call MPI_IRSEND( p%i(1,ik,ia), i * psi_bands_pad, MPI_DOUBLE_PRECISION, &
-                       p%core_np - 1, 2, p%core_comm, p%core_store_si( p%core_np - 1), ierr )
-
+      case default
+        ierr = -1
+        return
+      end select 
     endif ! have_core
 
     p%valid_store = PSI_STORE_BUFFER
     p%inflight = .true.
 
   end subroutine OCEAN_psi_send_buffer
+
+
+  subroutine buffer_send(  p, ierr )
+    use mpi, only : MPI_BARRIER, MPI_IRSEND
+    implicit none
+    type(OCEAN_vector), intent( inout ) :: p
+    integer, intent( inout ) :: ierr
+    !
+    integer :: i, j, ik, ia, store_size
+
+!JTV this only works if there is no kpt padding. Can come back and add in
+!support for p%extra which will be able to fix that
+    ik = 1
+    ia = 1
+    do i = 0, p%core_np - 2
+      call MPI_IRSEND( p%r(1,ik,ia), max_core_store_size * psi_bands_pad, MPI_DOUBLE_PRECISION, &
+                       i, 1, p%core_comm, p%core_store_sr( i ), ierr )
+      if( ierr .ne. 0 ) return
+
+!JTV in future maybe split real and imaginary?
+      call MPI_IRSEND( p%i(1,ik,ia), max_core_store_size * psi_bands_pad, MPI_DOUBLE_PRECISION, &
+                       i, 2, p%core_comm, p%core_store_si( i ), ierr )
+      if( ierr .ne. 0 ) return
+
+
+      ik = ik + max_core_store_size
+      do while( ik .gt. psi_kpts_actual )
+        ia = ia + 1
+        ik = ik - psi_kpts_actual
+      enddo
+
+    enddo
+
+! ia and ik are fine from above
+    i = psi_core_alpha * psi_kpts_actual - ( p%core_np - 1 ) * max_core_store_size
+    ia = psi_core_alpha
+    ik = psi_kpts_actual
+    do j = 1, i - 1
+      ik = ik - 1
+      if( ik .eq. 0 ) then
+        ik = psi_kpts_actual
+        ia = ia -1
+      endif
+    enddo
+    
+    call MPI_IRSEND( p%r(1,ik,ia), i * psi_bands_pad, MPI_DOUBLE_PRECISION, &
+                     p%core_np - 1, 1, p%core_comm, p%core_store_sr( p%core_np - 1 ), ierr )
+    if( ierr .ne. 0 ) return
+      
+    call MPI_IRSEND( p%i(1,ik,ia), i * psi_bands_pad, MPI_DOUBLE_PRECISION, &
+                     p%core_np - 1, 2, p%core_comm, p%core_store_si( p%core_np - 1), ierr )
+    if( ierr .ne. 0 ) return
+
+  end subroutine buffer_send
+
+  subroutine reduce_send(  p, ierr )
+    use mpi, only : MPI_IREDUCE
+    implicit none
+    type(OCEAN_vector), intent( inout ) :: p
+    integer, intent( inout ) :: ierr
+    !
+    integer :: i, j, ik, ia, store_size
+
+!JTV this only works if there is no kpt padding. Can come back and add in
+!support for p%extra which will be able to fix that
+    ik = 1
+    ia = 1
+    do i = 0, p%core_np - 2
+      if( p%core_myid .eq. i ) then
+        call MPI_IREDUCE( p%r(1,ik,ia), p%min_r, max_core_store_size * psi_bands_pad, & 
+                          MPI_DOUBLE_PRECISION, MPI_SUM, i, p%core_comm, p%core_store_sr( i ), ierr )
+      else
+        call MPI_IREDUCE( p%r(1,ik,ia), p%r(1,ik,ia), max_core_store_size * psi_bands_pad, &
+                          MPI_DOUBLE_PRECISION, MPI_SUM, i, p%core_comm, p%core_store_sr( i ), ierr )
+      endif
+      if( ierr .ne. 0 ) return
+
+!JTV in future maybe split real and imaginary?
+      if( p%core_myid .eq. i ) then
+        call MPI_IREDUCE( p%i(1,ik,ia), p%min_i, max_core_store_size * psi_bands_pad, &
+                          MPI_DOUBLE_PRECISION, MPI_SUM, i, p%core_comm, p%core_store_si( i ), ierr )
+      else
+        call MPI_IREDUCE( p%i(1,ik,ia), p%i(1,ik,ia), max_core_store_size * psi_bands_pad, &
+                          MPI_DOUBLE_PRECISION, MPI_SUM, i, p%core_comm, p%core_store_si( i ), ierr )
+      endif
+      if( ierr .ne. 0 ) return
+
+
+      ik = ik + max_core_store_size
+      do while( ik .gt. psi_kpts_actual )
+        ia = ia + 1
+        ik = ik - psi_kpts_actual
+      enddo
+
+    enddo
+
+! ia and ik are fine from above
+    i = p%core_np - 1
+    store_size = psi_core_alpha * psi_kpts_actual - ( p%core_np - 1 ) * max_core_store_size
+    ia = psi_core_alpha
+    ik = psi_kpts_actual
+    do j = 1, i - 1
+      ik = ik - 1
+      if( ik .eq. 0 ) then
+        ik = psi_kpts_actual
+        ia = ia -1
+      endif
+    enddo
+
+    if( p%core_myid .eq. i ) then
+      call MPI_IREDUCE( p%r(1,ik,ia), p%min_r, store_size * psi_bands_pad, &
+                        MPI_DOUBLE_PRECISION, MPI_SUM, i, p%core_comm, p%core_store_sr( i ), ierr )
+    else
+      call MPI_IREDUCE( p%r(1,ik,ia), p%r(1,ik,ia), store_size * psi_bands_pad, &
+                        MPI_DOUBLE_PRECISION, MPI_SUM, i, p%core_comm, p%core_store_sr( i ), ierr )
+    endif
+    if( ierr .ne. 0 ) return
+
+    if( p%core_myid .eq. i ) then
+      call MPI_IREDUCE( p%i(1,ik,ia), p%min_i, store_size * psi_bands_pad, &
+                        MPI_DOUBLE_PRECISION, MPI_SUM, i, p%core_comm, p%core_store_si( i ), ierr )
+    else
+      call MPI_IREDUCE( p%i(1,ik,ia), p%i(1,ik,ia), store_size * psi_bands_pad, &
+                        MPI_DOUBLE_PRECISION, MPI_SUM, i, p%core_comm, p%core_store_si( i ), ierr )
+    endif
+    if( ierr .ne. 0 ) return
+
+  end subroutine reduce_send
 
 
   subroutine buffer2min_thread( p, ierr )
@@ -546,16 +609,13 @@ module OCEAN_psi
   end subroutine buffer2min_thread
 
   subroutine OCEAN_psi_buffer2min( p, ierr )
-    use mpi, only : MPI_WAITSOME, MPI_WAITALL, MPI_STATUSES_IGNORE, MPI_UNDEFINED
+    use mpi, only : MPI_WAITALL, MPI_STATUSES_IGNORE, MPI_UNDEFINED
     use OCEAN_timekeeper
     use OCEAN_mpi, only : myid
     implicit none
     type(OCEAN_vector), intent( inout ) :: p
     integer, intent( inout ) :: ierr
     !
-    integer, allocatable :: indicies(:)
-    integer :: outcount, i, j
-    logical :: continue_loop
 
     call OCEAN_tk_start( tk_buffer2min )
 
@@ -569,7 +629,56 @@ module OCEAN_psi
       if( ierr .ne. 0 ) return
     endif
 
-!    p%min_r(:,:) = 0.0_DP
+    if( have_core ) then
+      select case ( psi_comm_flavor )
+      case( psi_comm_buffer )
+        call buffer_buffer2min( p, ierr )
+        if( ierr .ne. 0 ) return
+      case( psi_comm_reduce )
+        call reduce_buffer2min( p, ierr )
+        if( ierr .ne. 0 ) return
+      case default
+        ierr = -1
+        return
+      end select
+    endif ! have_core
+
+    ! everything is now correctly summed and stored as min
+    p%valid_store = PSI_STORE_MIN
+    p%inflight = .false.
+    p%update = .false.
+!    call MPI_BARRIER( p%core_comm, ierr )
+!    if( myid .eq. 0 ) write(6,*) 'Done with buffer2min'
+    call OCEAN_tk_stop( tk_buffer2min )
+
+  end subroutine OCEAN_psi_buffer2min
+
+
+  subroutine reduce_buffer2min( p, ierr )
+    use mpi, only : MPI_WAITALL, MPI_STATUSES_IGNORE
+    implicit none
+    type(OCEAN_vector), intent( inout ) :: p
+    integer, intent( inout ) :: ierr
+    !
+    ! clean up the sends
+    call MPI_WAITALL( p%core_np, p%core_store_sr, MPI_STATUSES_IGNORE, ierr )
+    if( ierr .ne. 0 ) return
+    call MPI_WAITALL( p%core_np, p%core_store_si, MPI_STATUSES_IGNORE, ierr )
+    if( ierr .ne. 0 ) return
+    !
+  end subroutine reduce_buffer2min
+
+  subroutine buffer_buffer2min( p, ierr )
+    use mpi, only : MPI_WAITSOME, MPI_WAITALL, MPI_STATUSES_IGNORE, MPI_UNDEFINED
+    use OCEAN_mpi, only : myid
+    implicit none
+    type(OCEAN_vector), intent( inout ) :: p
+    integer, intent( inout ) :: ierr
+    !
+    integer, allocatable :: indicies(:)
+    integer :: outcount, i, j
+    logical :: continue_loop
+
 #if 1
 #if 0
     ! go through all reals, then all imags
@@ -663,15 +772,8 @@ module OCEAN_psi
     call MPI_WAITALL( p%core_np, p%core_store_si, MPI_STATUSES_IGNORE, ierr )
     if( ierr .ne. 0 ) return
 
-    ! everything is now correctly summed and stored as min
-    p%valid_store = PSI_STORE_MIN
-    p%inflight = .false.
-    p%update = .false.
-!    call MPI_BARRIER( p%core_comm, ierr )
-!    if( myid .eq. 0 ) write(6,*) 'Done with buffer2min'
-    call OCEAN_tk_stop( tk_buffer2min )
 
-  end subroutine OCEAN_psi_buffer2min
+  end subroutine buffer_buffer2min
 
 #if( 0 ) 
   subroutine OCEAN_psi_write2store( p, ierr )
@@ -1085,9 +1187,11 @@ module OCEAN_psi
       my_store_size = max_store_size
       nproc_remain = nproc_total
 
-      i = max_store_size * id + 1
+      i = max_store_size * id 
+!      ! in case we are starting on the last kpt in an alpha
+!      i = max( max_store_size * id, 1 )
       a_start = i / psi_kpts_actual + 1
-      k_start = mod( i-1, psi_kpts_actual ) + 1
+      k_start = mod( i, psi_kpts_actual ) + 1
       return
     endif
 
