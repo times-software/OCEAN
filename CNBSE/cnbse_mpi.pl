@@ -536,15 +536,23 @@ while (<EDGE>) {
     my $zstring = sprintf("z%03i", $znum);
     print $zstring ."\n";
     `ln -sf ../PAW/zpawinfo/*${zstring}* .`;
+    `ln -sf ../PAW/zpawinfo/phrc? .`;
     my $templine = `ls ../PAW/zpawinfo/*$zstring`;
     chomp($templine);
     my @pslist = split(/\s+/, $templine);
-    foreach (@pslist)
-    {
-      $_ =~ m/ae(\S+)/;
-      `ln -sf ../PAW/zpawinfo/ae$1 .`;
-      `ln -sf ae$1 ps$1`;
-    }
+#    foreach (@pslist)
+#    {
+#      if( $_ =~ m/ae(\S+)/ )
+#      {
+#        `ln -sf ../PAW/zpawinfo/ae$1 .`;
+#      }
+#      elsif( $_ =~ m/ps(\S+)/
+#      }
+#        `ln -sf ../PAW/zpawinfo/ps$1 .`;
+#      }
+#
+#      `ln -sf ae$1 ps$1`;
+#    }
   }
 
   print "CKS NAME = $cks\n";
