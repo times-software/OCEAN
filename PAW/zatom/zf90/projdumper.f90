@@ -51,7 +51,7 @@ subroutine projdumper( l, str, nr, irc, r, dl, npj, proj, zorig )
            if ( l .eq. 3 ) jl = 15 * ( sin ( arg ) / arg ** 4 - cos( arg ) / arg ** 3 ) & 
                               - 6 * sin( arg ) / arg ** 2 + cos( arg ) / arg
         end if
-        su( : ) = su( : ) + wr * r( ir ) ** 3 * proj( ir, : ) * jl
+        su( : ) = su( : ) + wr * r( ir ) ** 2 * proj( ir, : ) * jl
      end do
      write ( 99, '(1x,10(1x,1e15.8))' ) q, su( : ) * dl / 45.0d0
   end do
