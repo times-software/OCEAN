@@ -10,7 +10,7 @@ subroutine nbsemkcmel( add04 )
   !
   character * 4 :: add04
   !
-  integer :: lmin, lmax, nr, i, l, ix, mu, nu, ii, j
+  integer :: lmin, lmax, nr, i, l, ix, mu, nu, ii, j, nrmax
   real( kind = kind( 1.0d0 ) ) :: dl, err, rmax, su, su1, tmp, vrun, x
   real( kind = kind( 1.0d0 ) ) :: v( 100 ), rv( 100 )
   real( kind = kind( 1.0d0 ) ) :: vtrim( 100 ), vdiff( 100 ), bwgt( 0 : 3 )
@@ -32,7 +32,7 @@ subroutine nbsemkcmel( add04 )
   write ( s11, '(1a7,1a4)' ) 'radfile', add04
   open( unit=99, file=s11, form='formatted', status='unknown' )
   rewind 99
-  read ( 99, * ) rmax, nr
+  read ( 99, * ) rmax, nrmax, nr
   if ( rmax .gt. 9.9d0 ) stop 'bad rmax'
   close( unit=99 )
   !
@@ -72,7 +72,7 @@ subroutine nbsemkcmel( add04 )
   do l = lmin, lmax
      allocate( cmel( nnu( l ), nnu( l ) ) )
      allocate( nmel( nnu( l ), nnu( l ) ) )
-     write ( s7, '(1a2,1i1,1a4)' ) 'ps', l, add04
+     write ( s7, '(1a2,1i1,1a4)' ) 'ae', l, add04
      open( unit=99, file=s7, form='formatted', status='unknown' )
      rewind 99
      allocate( rad( nr ), phi( nr, nnu( l ) ), dr( nr ), val( nr ), tphi( nnu( l ), nr ) )
