@@ -63,7 +63,8 @@ module ocean_long_range
   logical :: isolated = .false.
   
 
-  public :: create_lr, lr_populate_W, lr_populate_bloch, lr_act, lr_populate_W2, lr_fill_values, lr_init, lr_timer, lr_slice, dump_exciton
+  public :: create_lr, lr_populate_W, lr_populate_bloch, lr_act, lr_populate_W2, lr_fill_values, & 
+            lr_init, lr_timer, lr_slice, dump_exciton
 
   contains
 
@@ -85,9 +86,11 @@ module ocean_long_range
     if( use_obf ) then
       call lr_act_obf2( sys, p, hp, ierr )
     else
-!      call lr_act_traditional( sys, p, hp, lr, ierr )
-      call lr_act_traditional_x( sys, p, hp%r, hp%i, lr, ierr )
+!!!      call lr_act_traditional( sys, p, hp, lr, ierr )
+!      call lr_act_traditional_x( sys, p, hp, lr, ierr )
+      call lr_act_cache( sys, p, hp, lr, ierr )
     endif
+
   end subroutine lr_act
 
 
@@ -729,7 +732,7 @@ module ocean_long_range
 
 
 
-  subroutine lr_act_traditional_x( sys, p, hpr, hpi, lr, ierr )
+  subroutine lr_act_traditional_x( sys, p, hp, lr, ierr )
     use OCEAN_system
     use OCEAN_psi
     implicit none
@@ -737,8 +740,8 @@ module ocean_long_range
     type( o_system ), intent( in ) :: sys
     type( long_range ), intent( inout ) :: lr
     type(OCEAN_vector), intent( in ) :: p
-!    type(OCEAN_vector), intent(inout) :: hp
-    real(DP), dimension(sys%num_bands, sys%nkpts, sys%nalpha ), intent( out ) :: hpr, hpi
+    type(OCEAN_vector), intent(inout) :: hp
+!    real(DP), dimension(sys%num_bands, sys%nkpts, sys%nalpha ), intent( inout ) :: hpr, hpi
     integer, intent( inout ) :: ierr
 
     !
@@ -790,20 +793,21 @@ module ocean_long_range
                     sys%kmesh( 3 ) * ( sys%kmesh( 3 ) + 1 ) )
     !
 
-!$OMP PARALLEL DEFAULT( NONE ) &
-!$OMP& SHARED( lr, W, hpr, hpi, re_bloch_state, im_bloch_state, p, sys, val_spin ) &
-!$OMP& PRIVATE( xwrkr, xwrki, wrk, ikpt, ialpha, xiter ) &
-!$OMP& FIRSTPRIVATE( jfft ) 
+! $OMP PARALLEL DEFAULT( NONE ) &
+! $OMP& SHARED( lr, W, hp, re_bloch_state, im_bloch_state, p, sys, val_spin ) &
+! $OMP& PRIVATE( xwrkr, xwrki, wrk, ikpt, ialpha, xiter ) &
+! $OMP& FIRSTPRIVATE( jfft ) 
 
-!$OMP WORKSHARE
-   hpr(:,:,:) = zero
-   hpi(:,:,:) = zero
-!$OMP END WORKSHARE
+! Zero-ing out is taken care of externally now
+! !$OMP WORKSHARE
+!   hpr(:,:,:) = zero
+!   hpi(:,:,:) = zero
+! !$OMP END WORKSHARE
 
     allocate( xwrkr( sys%nkpts ), xwrki( sys%nkpts ), &
               wrk( jfft ) )
 
-!$OMP DO COLLAPSE( 2 ) REDUCTION(+:hpr,hpi)
+! $OMP DO COLLAPSE( 2 ) REDUCTION(+:hp%r,hp%i)
     do ialpha = 1, sys%nalpha
       do xiter = 1, lr%my_nxpts
 
@@ -843,34 +847,243 @@ module ocean_long_range
 
 #ifdef BLAS
         do ikpt = 1, lr%my_nkpts
-          call DAXPY( sys%num_bands, xwrkr(ikpt), re_bloch_state(1,ikpt,xiter,val_spin(ialpha)), 1, &
-                      hpr(1,ikpt,ialpha), 1 )
-          call DAXPY( sys%num_bands, xwrki(ikpt), im_bloch_state(1,ikpt,xiter,val_spin(ialpha)), 1, &
-                      hpr(1,ikpt,ialpha), 1 )
-          call DAXPY( sys%num_bands, xwrki(ikpt), re_bloch_state(1,ikpt,xiter,val_spin(ialpha)), 1, &
-                      hpi(1,ikpt,ialpha), 1 )
-          call DAXPY( sys%num_bands, -xwrkr(ikpt), im_bloch_state(1,ikpt,xiter,val_spin(ialpha)), 1, &
-                      hpi(1,ikpt,ialpha), 1 )
+          call DAXPY( sys%num_bands, -xwrkr(ikpt), re_bloch_state(1,ikpt,xiter,val_spin(ialpha)), 1, &
+                      hp%r(1,ikpt,ialpha), 1 )
+          call DAXPY( sys%num_bands, -xwrki(ikpt), im_bloch_state(1,ikpt,xiter,val_spin(ialpha)), 1, &
+                      hp%r(1,ikpt,ialpha), 1 )
+          call DAXPY( sys%num_bands, -xwrki(ikpt), re_bloch_state(1,ikpt,xiter,val_spin(ialpha)), 1, &
+                      hp%i(1,ikpt,ialpha), 1 )
+          call DAXPY( sys%num_bands, xwrkr(ikpt), im_bloch_state(1,ikpt,xiter,val_spin(ialpha)), 1, &
+                      hp%i(1,ikpt,ialpha), 1 )
 #else
-            hpr(:,ikpt,ialpha) = hpr(:,ikpt,ialpha) &
-                                + re_bloch_state(:,ikpt,xiter,val_spin(ialpha)) * xwrkr(ikpt) &
-                                + im_bloch_state(:,ikpt,xiter,val_spin(ialpha)) * xwrki(ikpt)
-            hpi(:,ikpt,ialpha) = hpi(:,ikpt,ialpha) &
-                                + re_bloch_state(:,ikpt,xiter,val_spin(ialpha)) * xwrki(ikpt) &
-                                - im_bloch_state(:,ikpt,xiter,val_spin(ialpha)) * xwrkr(ikpt)
+            hp%r(:,ikpt,ialpha) = hp%r(:,ikpt,ialpha) &
+                                - re_bloch_state(:,ikpt,xiter,val_spin(ialpha)) * xwrkr(ikpt) &
+                                - im_bloch_state(:,ikpt,xiter,val_spin(ialpha)) * xwrki(ikpt)
+            hp%i(:,ikpt,ialpha) = hp%i(:,ikpt,ialpha) &
+                                - re_bloch_state(:,ikpt,xiter,val_spin(ialpha)) * xwrki(ikpt) &
+                                + im_bloch_state(:,ikpt,xiter,val_spin(ialpha)) * xwrkr(ikpt)
 #endif
+          enddo
+        enddo
+      enddo
+! $OMP END DO
+
+    deallocate( xwrkr, xwrki, wrk )
+
+! $OMP END PARALLEL
+
+
+  end subroutine lr_act_traditional_x
+
+
+
+  subroutine lr_act_cache( sys, p, hp, lr, ierr )
+    use OCEAN_system
+    use OCEAN_psi
+    implicit none
+
+    type( o_system ), intent( in ) :: sys
+    type( long_range ), intent( inout ) :: lr
+    type(OCEAN_vector), intent( in ) :: p
+    type(OCEAN_vector), intent(inout) :: hp
+!    real(DP), dimension(sys%num_bands, sys%nkpts, sys%nalpha ), intent( inout ) :: hpr, hpi
+    integer, intent( inout ) :: ierr
+
+    !
+    real( DP ), parameter :: one = 1.0_DP
+    real( DP ), parameter :: minusone = -1.0_DP
+    real( DP ), parameter :: zero = 0.0_DP
+    !
+    !
+    real( DP ), allocatable :: xwrkr( :,: ), xwrki( :,: ), wrk( : ), oneDwrkr(:), oneDwrki(:)
+    integer :: jfft, ialpha, ikpt, xiter, val_spin( sys%nalpha ), icms, icml, ivms, nthread, nthread2, k_chunk, ikk
+    !
+    real(DP), external :: DDOT
+!$  integer, external :: omp_get_max_threads
+!$  logical, external :: omp_get_nested
+
+#ifdef __INTEL_COMPILER
+!DIR$ attributes align: 64 :: xwrkr, xwrki, wrk
+#endif
+    ! For each x-point in the unit cell
+    !   Populate \phi(x,k) = \sum_n u(x,k) \psi_n(x,k)
+    !   Do FFT for k-points
+    !   Calculate W(x,k) x \phi(x,k)
+    !   Do FFT back to k-points
+
+    ! predefine the valence spins
+    if( sys%nspn .eq. 1 ) then
+      val_spin( : ) = 1
+    else
+      ialpha = 0
+      do icms = 1, 2
+        do icml = -sys%cur_run%ZNL(3), sys%cur_run%ZNL(3)
+          do ivms = 1, 2
+            ialpha = ialpha + 1
+            val_spin( ialpha ) = ivms
+          enddo
+        enddo
+      enddo
+    endif
+
+    ! prep info for fft
+    jfft = 2 * max( sys%kmesh( 1 ) * ( sys%kmesh( 1 ) + 1 ), &
+                    sys%kmesh( 2 ) * ( sys%kmesh( 2 ) + 1 ), &
+                    sys%kmesh( 3 ) * ( sys%kmesh( 3 ) + 1 ) )
+    !
+    nthread = 1
+! $  nthread = min( 4, omp_get_max_threads() )
+
+!$  if( omp_get_nested() .or. nthread .eq. 1 ) then
+!$    nthread2 = max( 1, omp_get_max_threads() / nthread )
+!$  else
+      nthread2 = 1
+!$  endif
+
+!$  nthread2 = omp_get_max_threads() 
+
+    if( sys%nkpts .gt. ( nthread2 * 32 ) ) then
+      k_chunk = 32
+    elseif( sys%nkpts .gt. ( nthread2 * 16 ) ) then
+      k_chunk = 16
+    elseif( sys%nkpts .gt. ( nthread2 * 8 ) ) then
+      k_chunk = 8
+    elseif( sys%nkpts .gt. ( nthread2 * 4 ) ) then
+      k_chunk = 4
+    else
+      k_chunk = 1
+    endif
+
+! $OMP  PARALLEL NUM_THREADS( nthread ) DEFAULT( NONE ) &
+! $OMP& SHARED( k_chunk, lr, W, hp, re_bloch_state, im_bloch_state, p, sys, val_spin, nthread, nthread2, jfft ) &
+! $OMP& PRIVATE( xwrkr, xwrki, wrk, ikpt, ialpha, xiter, ikk, oneDwrkr, oneDwrki ) 
+
+
+    allocate( xwrkr( sys%nkpts, lr%my_nxpts ), xwrki( sys%nkpts, lr%my_nxpts ) )
+!    allocate( wrk( jfft ), oneDwrkr( sys%nkpts ), oneDwrki( sys%nkpts ) )
+
+! $OMP DO SCHEDULE( STATIC )
+    do ialpha = 1, sys%nalpha
+
+!$OMP  PARALLEL NUM_THREADS( nthread2 ) DEFAULT( NONE ) &
+!$OMP& SHARED( k_chunk, W, hp, lr, re_bloch_state, im_bloch_state, p, sys, val_spin, xwrkr, xwrki, jfft, ialpha ) &
+!$OMP& PRIVATE( ikk, xiter, ikpt, wrk )
+
+
+!$OMP DO COLLAPSE( 2 ) SCHEDULE( STATIC )
+      do ikk = 1, sys%nkpts, k_chunk
+        do xiter = 1, lr%my_nxpts
+
+          do ikpt = ikk, min( ikk + k_chunk - 1, sys%nkpts )
+            xwrkr( ikpt, xiter ) = DDOT( sys%num_bands, p%r(1,ikpt,ialpha), 1, &
+                                         re_bloch_state(1,ikpt,xiter,val_spin(ialpha)), 1 ) 
+            xwrki( ikpt, xiter ) = DDOT( sys%num_bands, p%i(1,ikpt,ialpha), 1, &
+                                         re_bloch_state(1,ikpt,xiter,val_spin(ialpha)), 1 )
+          enddo
+        enddo
+      enddo
+!$OMP END DO 
+! Need to have same scheduling as above or *bad things*! 
+!$OMP DO COLLAPSE( 2 ) SCHEDULE( STATIC )
+      do ikk = 1, sys%nkpts, k_chunk
+        do xiter = 1, lr%my_nxpts
+
+          do ikpt = ikk, min( ikk + k_chunk - 1, sys%nkpts )
+            xwrkr( ikpt, xiter ) = xwrkr( ikpt, xiter ) &
+                                 - DDOT( sys%num_bands, p%i(1,ikpt,ialpha), 1, &
+                                         im_bloch_state(1,ikpt,xiter,val_spin(ialpha)), 1 )
+            xwrki( ikpt, xiter ) = xwrki( ikpt, xiter ) &
+                                 + DDOT( sys%num_bands, p%r(1,ikpt,ialpha), 1, &
+                                         im_bloch_state(1,ikpt,xiter,val_spin(ialpha)), 1 ) 
+          enddo
+        enddo
+      enddo
+!$OMP END DO 
+
+! $OMP  PARALLEL NUM_THREADS( nthread2 ) DEFAULT( NONE ) &
+! $OMP& SHARED( xwrkr, xwrki, jfft, W, sys, lr ) &
+! $OMP& PRIVATE( xiter, wrk )
+
+      allocate( wrk( jfft ) )
+
+! $OMP DO
+!$OMP SINGLE
+      do xiter = 1, lr%my_nxpts
+ !       oneDwrkr( : ) = xwrkr( :, xiter )
+ !       oneDwrki( : ) = xwrki( :, xiter )
+        call cfft( xwrkr(1,xiter), xwrki(1,xiter), sys%kmesh(3), sys%kmesh(3), sys%kmesh(2), &
+                   sys%kmesh(1), -1, wrk, jfft )
+!        call cfft( oneDwrkr, oneDwrki, sys%kmesh(3), sys%kmesh(3), sys%kmesh(2), &
+!                   sys%kmesh(1), -1, wrk, jfft )
+
+        xwrkr(:,xiter) = xwrkr(:,xiter) * W( :, xiter )
+        xwrki(:,xiter) = xwrki(:,xiter) * W( :, xiter )
+!        oneDwrkr( : ) = oneDwrkr( : ) * W( :, xiter )
+!        oneDwrki( : ) = oneDwrki( : ) * W( :, xiter )
+
+        call cfft( xwrkr(1,xiter), xwrki(1,xiter), sys%kmesh(3), sys%kmesh(3), sys%kmesh(2), &
+                   sys%kmesh(1), +1, wrk, jfft )
+!        call cfft( oneDwrkr, oneDwrki, sys%kmesh(3), sys%kmesh(3), sys%kmesh(2), &
+!                   sys%kmesh(1), +1, wrk, jfft )
+!        xwrkr( :, xiter ) = oneDwrkr( : )
+!        xwrki( :, xiter ) = oneDwrki( : )
+      enddo
+!$OMP END SINGLE
+! $OMP END DO
+
+      deallocate( wrk )
+
+! $OMP END PARALLEL
+    
+! $OMP  PARALLEL NUM_THREADS( nthread2 ) DEFAULT( NONE ) &
+! $OMP& SHARED( sys, lr, k_chunk, re_bloch_state, im_bloch_state, xwrkr, xwrki, hp, val_spin, ialpha ) &
+! $OMP& PRIVATE( ikk, xiter, ikpt )
+
+
+
+! W/O collapse don't have to worry about dual updating
+!$OMP DO SCHEDULE( STATIC )
+      do ikk = 1, sys%nkpts, k_chunk
+        do xiter = 1, lr%my_nxpts
+
+          do ikpt = ikk, min( ikk + k_chunk - 1, sys%nkpts )
+            call DAXPY( sys%num_bands, -xwrkr(ikpt,xiter), re_bloch_state(1,ikpt,xiter,val_spin(ialpha)), 1, &
+                        hp%r(1,ikpt,ialpha), 1 )
+            call DAXPY( sys%num_bands, -xwrki(ikpt,xiter), re_bloch_state(1,ikpt,xiter,val_spin(ialpha)), 1, &
+                        hp%i(1,ikpt,ialpha), 1 )
+          enddo
+        enddo
+      enddo
+!$OMP END DO
+!$OMP DO SCHEDULE( STATIC )
+      do ikk = 1, sys%nkpts, k_chunk
+        do xiter = 1, lr%my_nxpts
+          do ikpt = ikk, min( ikk + k_chunk - 1, sys%nkpts )
+            call DAXPY( sys%num_bands, -xwrki(ikpt,xiter), im_bloch_state(1,ikpt,xiter,val_spin(ialpha)), 1, &
+                        hp%r(1,ikpt,ialpha), 1 )
+            call DAXPY( sys%num_bands, xwrkr(ikpt,xiter), im_bloch_state(1,ikpt,xiter,val_spin(ialpha)), 1, &
+                        hp%i(1,ikpt,ialpha), 1 )
           enddo
         enddo
       enddo
 !$OMP END DO
 
-    deallocate( xwrkr, xwrki, wrk )
 
 !$OMP END PARALLEL
 
 
-  end subroutine lr_act_traditional_x
+    end do ! ialpha
+! $ OMP END DO
 
+
+!    deallocate( wrk, oneDwrkr, oneDwrki )
+    deallocate( xwrkr, xwrki )
+
+! $ OMP END PARALLEL
+
+
+
+  end subroutine lr_act_cache
 
 
   subroutine lr_act_traditional( sys, p, hp, lr, ierr )
@@ -950,8 +1163,8 @@ module ocean_long_range
 !$OMP& FIRSTPRIVATE( sys, jfft, p ) 
 
 !$OMP WORKSHARE
-    hp%r(:,:,:) = zero
-    hp%i(:,:,:) = zero
+!    hp%r(:,:,:) = zero
+!    hp%i(:,:,:) = zero
 !$OMP END WORKSHARE
 
     allocate( xwrkr( sys%nkpts, xiter_cache_line ), xwrki( sys%nkpts, xiter_cache_line ), & 

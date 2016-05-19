@@ -29,7 +29,9 @@ program ocean
   call ocean_mpi_init( ierr )
 
 
-  write(6,*) 'init: ', myid, nproc, comm
+  if( myid .eq. root ) then
+    write(6,*) 'init: ', myid, nproc, comm
+  endif
 
 
   call ocean_sys_init( sys, ierr )
@@ -53,6 +55,8 @@ program ocean
 
 !    call OCEAN_exact_diagonalize( sys, hay_vec, ierr )
     if( ierr .ne. 0 ) goto 111
+
+    call MPI_BARRIER( comm, ierr )
 
     call ocean_sys_update( sys, ierr )
   enddo
