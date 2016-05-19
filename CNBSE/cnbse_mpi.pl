@@ -672,12 +672,14 @@ my $lnum = $3;
 
 
 open INFILE, ">bse.in" or die "Failed to open bse.in\n";
-my $filename = sprintf("deflinz%03un%02ul%02u", $znum, $nnum, $lnum);
+my $filename = sprintf("prjfilez%03u", $znum );
 
 open TMPFILE, $filename or die "Failed to open $filename\n";
 $line = <TMPFILE>;
 close TMPFILE;
-print INFILE $line;
+$line =~ m/(\d+)\s+(\d+)\s+\d+\s+\S+/ or die "Failed to match first line of $filename\n";
+
+print INFILE "$lnum\t$1\t$2\n";
 
 # spin orbit splitting
 open IN, "spin_orbit" or die "Failed to open spin_orbit\n$!";

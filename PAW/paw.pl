@@ -167,17 +167,41 @@ while ( $hfinline = <HFINLIST> ) {
   open HFIN, ">HFIN" or die "Failed to open HFIN for writing\n";
   print HFIN "initgrid\n";
   print HFIN "$znucl $grid\n";
-  print HFIN "ppload\nloadopt\nscreencore\nfillinpaw\n";
-  print HFIN "$nnum  $lnum\n";
+  print HFIN "ppload\nmkcorcon\nscreencore\ncalcso\nspartanfip\n";
+#  print HFIN "$nnum  $lnum\n";
   print HFIN `cat "$pspfill{"$znucl"}"`;
-  print HFIN "calcso\n";
+#  print HFIN "calcso\n";
   print HFIN "quit\n";
   close HFIN;
 
+  open HFIN, ">hfin1" or die;
+  print HFIN "initgrid\n";
+  print HFIN "$znucl $grid\n";
+  print HFIN "ppload\nmkcorcon\nscreencore\nquit\n";
+  close HFIN;
+
+  open HFIN, ">hfin2" or die;
+  print HFIN "initgrid\n";
+  print HFIN "$znucl $grid\n";
+  print HFIN "ppload\nmkcorcon\ncalcso\nquit\n";
+  close HFIN;
+
+  open HFIN, ">hfin3" or die;
+  print HFIN "initgrid\n";
+  print HFIN "$znucl $grid\n";
+  print HFIN "ppload\nmkcorcon\nspartanfip\n";
+  print HFIN `cat "$pspfill{"$znucl"}"`;
+  print HFIN "quit\n";
+  close HFIN;
+
+
   print "Running hfk.x\n";
-  system("$ENV{'OCEAN_BIN'}/hfk.x < HFIN > hfk.${znucl}_${nnum}_${lnum}.log") == 0 or die;
+#  system("$ENV{'OCEAN_BIN'}/hfk.x < HFIN > hfk.${znucl}_${nnum}_${lnum}.log") == 0 or die;
+  system("$ENV{'OCEAN_BIN'}/hfk.x < hfin1 > hfk.${znucl}_${nnum}_${lnum}.1.log") == 0 or die;
+  system("$ENV{'OCEAN_BIN'}/hfk.x < hfin2 > hfk.${znucl}_${nnum}_${lnum}.2.log") == 0 or die;
+  system("$ENV{'OCEAN_BIN'}/hfk.x < hfin3 > hfk.${znucl}_${nnum}_${lnum}.3.log") == 0 or die;
   # Check the end of the log to see if we are ok
-  my $hfk_status = `tail -n 1 hfk.${znucl}_${nnum}_${lnum}.log`;
+  my $hfk_status = `tail -n 1 hfk.${znucl}_${nnum}_${lnum}.3.log`;
   unless( $hfk_status =~ m/terminus/ )
   {
     die "The program hfk.x has exited incorrectly.\nExiting ...\n";
@@ -200,7 +224,9 @@ while ( $hfinline = <HFINLIST> ) {
   {
     if( ( $file =~ m/^[fg]k/ ) or ( $file =~ m/^(ae|ft|ps).z/ ) or
         ( $file =~ m/^(deflin|melfile|corez)/ ) or ( $file =~ m/^(rad|prj)filez/ ) or
-        ( $file =~ m/^(vcallel|vvallel|vc_bare|vcxxxxx|vvpseud)/ ) )
+#        ( $file =~ m/^(vcallel|vvallel|vc_bare|vcxxxxx|vvpseud)/ ) or 
+        ( $file =~ m/^(vcallel|vvallel|vc_bare|vpseud|valence)/ ) or 
+        ( $file =~ m/^coreorb/ ) or ($file =~ m/^phr/ ) )
     {
       move( $file, "zpawinfo" );
     }
