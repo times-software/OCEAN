@@ -305,7 +305,6 @@ module OCEAN_action
 !    write( 99 ) rhs
 !    close( 99 )
 
-
 !    call OCEAN_tk_init()
 
 
@@ -319,6 +318,7 @@ module OCEAN_action
 !      call OCEAN_action_set_psi( psi )      
 
 
+      ! After OCEAN_xact every proc has the same copy of hpsi (and should still have the same psi)
       psi%r( :, :, : ) = 1.0_DP
       psi%i( :, :, : ) = 0.0_DP
 
@@ -339,6 +339,10 @@ module OCEAN_action
       end do
       ct = 'beginning'
       req = '---'
+
+      if( iter .gt. 1 ) then
+        v1(:) = x(:)
+      endif
 
       do while ( req .ne. 'end' )
         call OCEAN_invdrv( x, rhs, ntot, int1, int2, nloop, need, iwrk, cwrk, v1, v2, bs, as, &
@@ -398,7 +402,7 @@ module OCEAN_action
       write(e_filename,'(A7,A2,A1,I4.4,A1,A2,A1,I2.2,A1,I4.4)' ) 'exciton', sys%cur_run%elname, &
               '.', sys%cur_run%indx, '_', sys%cur_run%corelevel, '_', sys%cur_run%photon, '.', iter
 !      call rtov( sys, psi, v1 )
-!      call rtov( sys, psi, x )
+      call rtov( sys, hpsi, x )
 !      call dump_exciton( sys, psi, e_filename, ierr )
 
     enddo

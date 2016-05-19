@@ -7,6 +7,12 @@ MPIFORT = mpif90
 # Flags for the fortran compiler
 OPTIONS = -O2 
 
+# Many compilers have flush. We use it sometimes to force output before crashes
+# OPTIONS += -DHAVE_FLUSH
+
+# Linear algebra libraries
+BLACS = -lmkl_scalapack_lp64 -lmkl_intel_lp64 -lmkl_sequential -lmkl_core -lmkl_blacs_openmpi_lp64
+
 # FFTW path. Several programs can use FFTW. Find it at fftw.org. 
 #  (There is a fallback fft so FFTW is not required)
 OPTIONS += -D__FFTW3

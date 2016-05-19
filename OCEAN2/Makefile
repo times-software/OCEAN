@@ -1,18 +1,7 @@
 include ../Makefile.arch
 
-FLAGS = $(OPTIONS) -cpp -DHAVE_FLUSH -DBLAS -DMPI -DHAVE_CONTIGUOUS -traceback 
-
-OPENMP = -openmp
-
-#MPIFORT = mpif90
-#FLAGS = -O2 -DHAVE_FLUSH -DBLAS -DMPI -DHAVE_CONTIGUOUS -cpp -warn all  -march=corei7 -fopenmp -openmp-report2 -g -traceback
-#LDFLAGS = -fopenmp -traceback
-
-#FFTWL = /home/jtv1/bin/intel/lib/libfftw3.a
-#FFTWI = -I/home/jtv1/bin/intel/include
-
-# Need to specify scalapack, blacs, blas
-BLACS = -lmkl_scalapack_lp64 -lmkl_intel_lp64 -lmkl_sequential -lmkl_core -lmkl_blacs_openmpi_lp64
+# Currently BLAS and MPI are *not* optional
+FLAGS = $(OPTIONS) -cpp -DBLAS -DMPI 
 
 CNBSE = ../CNBSE/zcmsnmult/zf90
 
