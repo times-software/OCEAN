@@ -14,7 +14,7 @@ subroutine jtvsub( lmin, lmax, nproj, npmax, lc, nbsemel, powmax, ifcn, stext, e
   real( kind = kind( 1.0d0 ) ) :: prefs( 0 : 1000 ) 
   integer :: lmin, lmax, npmax, lc, powmax
   real( kind = kind( 1.0d0 ) ) :: ehat( 3 ), qhat( 3 ), qmag
-  character * 10 :: spcttype, stext
+  character(len=10) :: spcttype, stext
   integer :: nproj( lmin : lmax )
   real( kind = kind(1.0d0)) :: ifcn( npmax, 0 : powmax, lmin : lmax)
   complex( kind = kind( 1.0d0 ) ) :: nbsemel( npmax, -lmax : lmax, lmin : lmax, -lc : lc )
@@ -144,6 +144,10 @@ subroutine jtvsub( lmin, lmax, nproj, npmax, lc, nbsemel, powmax, ifcn, stext, e
               enddo
               nbsemel( :, m, l, mc ) = nbsemel( :, m, l, mc ) * rm1 / qmag
               !
+           case default
+              write(6,*) "Photon type was not recognized. Must be one of the following:"
+              write(6,*) "      dipole, quad, quadalone, NRIXS, qRaman"
+              stop
            end select
         end do
      end do
