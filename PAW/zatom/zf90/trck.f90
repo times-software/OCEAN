@@ -58,7 +58,7 @@ subroutine trckmelcalc( s3, ilist, lf, irc, r, dl, ph0, phi, mel, ener )
   real( kind = kind( 1.0d0 ) ) :: dum
   character * 80 :: fnam 
   !
-  write ( fnam, '(1a1,1a3,1i2.2,1a1,1i1)' ) '.', s3, ilist, 'l', lf
+  write ( fnam, '(1a3,1i2.2,1a1,1i1)' ) s3, ilist, 'l', lf
   open( unit=99, file=fnam, form='formatted', status='unknown' )
   rewind 99
   do j = 1, irc

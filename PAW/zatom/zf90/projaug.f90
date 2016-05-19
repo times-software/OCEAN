@@ -50,7 +50,7 @@ subroutine projaug( nr, r, dl )
   !
   allocate( phi( nr ), phinew( nr ) )
   do i = 1, nbd
-     write ( fnam, '(1a4,1i2.2,1a1,1i1)' ) '.pbd', i, 'l', l
+     write ( fnam, '(1a3,1i2.2,1a1,1i1)' ) 'pbd', i, 'l', l
      open( unit=99, file=fnam, form='formatted', status='unknown' )
      rewind 99
      do j = 1, nr
@@ -58,7 +58,7 @@ subroutine projaug( nr, r, dl )
      end do
      close( unit=99 )
      call hpa( nr, r, dl, irc, np, phi, phinew, pspr, aepr )
-     write ( fnam, '(1a4,1i2.2,1a1,1i1)' ) '.rbd', i, 'l', l
+     write ( fnam, '(1a3,1i2.2,1a1,1i1)' ) 'rbd', i, 'l', l
      open( unit=99, file=fnam, form='formatted', status='unknown' )
      rewind 99
      do j = 1, nr
@@ -67,7 +67,7 @@ subroutine projaug( nr, r, dl )
      close( unit=99 )
   end do
   do i = 0, nco - 1
-     write ( fnam, '(1a4,1i2.2,1a1,1i1)' ) '.pco', i, 'l', l
+     write ( fnam, '(1a3,1i2.2,1a1,1i1)' ) 'pco', i, 'l', l
      open( unit=99, file=fnam, form='formatted', status='unknown' )
      rewind 99
      do j = 1, nr
@@ -75,7 +75,7 @@ subroutine projaug( nr, r, dl )
      end do
      close( unit=99 )
      call hpa( nr, r, dl, irc, np, phi, phinew, pspr, aepr )
-     write ( fnam, '(1a4,1i2.2,1a1,1i1)' ) '.rco', i, 'l', l
+     write ( fnam, '(1a3,1i2.2,1a1,1i1)' ) 'rco', i, 'l', l
      open( unit=99, file=fnam, form='formatted', status='unknown' )
      rewind 99
      do j = 1, nr

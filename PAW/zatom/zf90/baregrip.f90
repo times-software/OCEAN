@@ -22,7 +22,7 @@ subroutine baregrip( l, lmin, lmax, nr, irc, ntest, north, dl, rel, zorig, emax,
   real( kind = kind( 1.0d0 ) ) :: x
   real( kind = kind( 1.0d0 ) ), allocatable, dimension( : ) :: et, phi, angae, angps, slpps
   real( kind = kind( 1.0d0 ) ), allocatable, dimension( :, : ) :: phiae, phips, pspr, aepr, phirn
-  character * 6 :: fnam
+  character * 5 :: fnam
   real( kind = kind( 1.0d0 ) ), parameter :: zpseu = 0.0d0, nrl = 0.0d0
   !
   integer :: j1, j2, ii, imin, imax
@@ -33,7 +33,7 @@ subroutine baregrip( l, lmin, lmax, nr, irc, ntest, north, dl, rel, zorig, emax,
   allocate( phiae( irc, ntest ), phips( irc, ntest ), pspr( irc, ntest ), aepr( irc, ntest ), phirn( irc, ntest ) )
   allocate( angae( ntest ), angps( ntest ), et( ntest ), phi( nr ), slpps( ntest ) )
   allocate( phi1( irc ), phibest( irc ) )
-  write ( fnam, '(1a5,1i1)' ) '.angs', l
+  write ( fnam, '(1a4,1i1)' ) 'angs', l
   open( unit=99, file=fnam, form='formatted', status='unknown' )
   rewind 99
   do i = 1, ntest
@@ -96,13 +96,13 @@ subroutine baregrip( l, lmin, lmax, nr, irc, ntest, north, dl, rel, zorig, emax,
   call projdumper( l, 'ps', irc, irc, r, dl, north, pspr, zorig )
   call projdumper( l, 'ae', irc, irc, r, dl, north, aepr, zorig )
   !
-  write ( fnam, '(1a5, 1i1)' ) '.ldep', l
+  write ( fnam, '(1a4, 1i1)' ) 'ldep', l
   open ( unit=99, file=fnam, form='formatted', status='unknown' )
   rewind 99
   write (99, *) imin, imax 
   close (unit=99)
   !
-  write ( fnam, '(1a5,1i1)' ) '.phrc', l
+  write ( fnam, '(1a4,1i1)' ) 'phrc', l
   open( unit=99, file=fnam, form='formatted', status='unknown' )
   rewind 99
   write ( 99, '(1a1,2i8)' ) '#', 1 + imax - imin, irc

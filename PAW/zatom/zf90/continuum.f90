@@ -61,9 +61,9 @@ subroutine continuum( nel, no, nl, rel, nr, r, r2, dr, dl, phe, hxcpot, zorig, n
 !       norm = der0 ** 2 + ( der1 / sqrt( 2 * ee ) ) ** 2
         phi = phi / sqrt( norm )
         if ( psflag ) then
-           write ( fnam, '(1a4,1i4.4,1a1,1i1)' ) '.pco', ie, 'l', l
+           write ( fnam, '(1a3,1i4.4,1a1,1i1)' ) 'pco', ie, 'l', l
         else
-           write ( fnam, '(1a4,1i4.4,1a1,1i1)' ) '.aco', ie, 'l', l
+           write ( fnam, '(1a3,1i4.4,1a1,1i1)' ) 'aco', ie, 'l', l
         end if
         open( unit=99, file=fnam, form='formatted', status='unknown' )
         rewind 99

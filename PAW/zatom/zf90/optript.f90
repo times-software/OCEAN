@@ -34,9 +34,9 @@ subroutine optript( nr, r, vcg, vcx, addend, key )
      read ( s3, '(3i1)' ) digs( : )
      !
      ! create the file with the core hole and compensation charge, hole only, and minus shell only
-     write ( fnam, '(1a1,1a7,1a10,1a1,1i1,1a1,2i1)' ) '.', key, addend, 'R', digs( 1 ), '.', digs( 2 : 3 )
-     write ( gnam, '(1a1,1a7,1a10)' ) '.', key, addend
-     write ( hnam, '(1a1,1a6,1i1,1a1,2i1)' ) '.', 'shellR', digs( 1 ), '.', digs( 2 : 3 )
+     write ( fnam, '(1a7,1a10,1a1,1i1,1a1,2i1)' ) key, addend, 'R', digs( 1 ), '.', digs( 2 : 3 )
+     write ( gnam, '(1a7,1a10)' ) key, addend
+     write ( hnam, '(1a6,1i1,1a1,2i1)' ) 'shellR', digs( 1 ), '.', digs( 2 : 3 )
      open( unit=61, file=fnam, form='formatted', status='unknown' )
      open( unit=62, file=gnam, form='formatted', status='unknown' )
      open( unit=63, file=hnam, form='formatted', status='unknown' )

@@ -51,7 +51,7 @@ subroutine spartanfip( etot, rel, alfa, nr, r, dr, r2, dl, njrc, vi, zorig, xnto
   do i = 1, nr, 4
      if ( r( i ) .lt. rc ) irc = i
   end do
-  write ( fnam, '(1a9,1i3.3)' ) '.radfilez', nint( zorig )
+  write ( fnam, '(1a8,1i3.3)' ) 'radfilez', nint( zorig )
   open( unit=99, file=fnam, form='formatted', status='unknown' )
   rewind 99
   write ( 99, * ) r( irc ), nr, irc
@@ -61,7 +61,7 @@ subroutine spartanfip( etot, rel, alfa, nr, r, dr, r2, dl, njrc, vi, zorig, xnto
   call escanprep( nr, r, dr, r2, dl, vi, iuflag, cq, njrc, irc, lmin, lmax, sig, emin, cush, kappa, &
        aexm1, aexm2, aepot, psxm1, psxm2, pspot, aepl, pspl )
   !
-  write ( fnam, '(1a9,1i3.3)' ) '.prjfilez', nint( zorig )
+  write ( fnam, '(1a8,1i3.3)' ) 'prjfilez', nint( zorig )
   open( unit=prjfile, file=fnam, form='formatted', status='unknown' )
   rewind prjfile 
   write ( prjfile, '(3i5,2x,1e15.8)' ) lmin, lmax, nq, dq
@@ -82,7 +82,7 @@ subroutine spartanfip( etot, rel, alfa, nr, r, dr, r2, dl, njrc, vi, zorig, xnto
   !
   ! loop over all core levels, and output Slater Fk and Gk integrals and radial matrix elements
   allocate( fnl( nco + 1 + lmax - lmin ), nn( nco + 1 + lmax - lmin ), ll( nco + 1 + lmax - lmin ), phc( irc ) )
-  write ( fnam, '(1a9,1i3.3)' ) '.radftabz', nint( zorig )
+  write ( fnam, '(1a8,1i3.3)' ) 'radftabz', nint( zorig )
   open( unit=99, file=fnam, form='formatted', status='unknown' )
   rewind 99
   do i = 1, nco + 1 + lmax - lmin

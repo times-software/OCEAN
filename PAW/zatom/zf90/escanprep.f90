@@ -21,7 +21,9 @@ subroutine escanprep( nr, r, dr, r2, dl, vi, iu, cq, njrc, irc, lmin, lmax, sig,
   integer, allocatable :: no( : ), nl( : ), nm( : ), is ( : )
   real( kind = kind( 1.0d0 ) ), allocatable :: ev( : ), occ( : ), ek( : ), xnj( : ), phe( :, : ), pot( :, : )
   logical :: dirac
-  real( kind = kind( 1.0d0 ) ), parameter :: zpseu = 0.0d0, nrl = 0.0d0
+!  real( kind = kind( 1.0d0 ) ), parameter :: zpseu = 0.0d0, nrl = 0.0d0
+  real( kind = kind( 1.0d0 ) ), parameter :: nrl = 0.0d0
+  real( kind = kind( 1.0d0 ) ) :: zpseu = 0.0d0
   logical, parameter :: AE = .false., PS = .true.
   !
   call mkcorcon( alfa, rel, zorig, zc, rcocc, rsocc, dirac )

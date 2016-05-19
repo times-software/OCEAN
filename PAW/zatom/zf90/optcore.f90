@@ -24,7 +24,7 @@ subroutine optcore( nr, irc, zorig, nco, no, nl, r, phe )
   do i = 1, nco
      nn = no( i ); ll = nl( i )
      nver( nn, ll ) = nver( nn, ll ) + 1
-     write ( fnam, '(1a6,1i3.3,3(1a1,1i2.2))' ) '.corez', nint( zorig ), 'n', nn, 'l', ll, 'v', nver( nn, ll )
+     write ( fnam, '(1a5,1i3.3,3(1a1,1i2.2))' ) 'corez', nint( zorig ), 'n', nn, 'l', ll, 'v', nver( nn, ll )
      open( unit=99, file=fnam, form='formatted', status='unknown' )
      rewind 99
      do j = 1, irc

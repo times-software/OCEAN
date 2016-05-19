@@ -19,7 +19,7 @@ subroutine getfgnew( nr, nc, lc, dl, zorig, r, phc )
   integer, allocatable :: np( : ) 
   real( kind = kind( 1.0d0 ) ), allocatable :: temp( : ), phv( :, : ), v11( : ), v23( : ), v12( : ), v13( : ), f( :, : ), g( :, : )
   !
-  write ( filnam18, '(1a9,1i3.3)' ) '.prjfilez', nint( zorig )
+  write ( filnam18, '(1a8,1i3.3)' ) 'prjfilez', nint( zorig )
   open( unit=99, file=filnam18, form='formatted', status='unknown' )
   rewind 99
   read ( 99, * ) ll, lh
@@ -27,7 +27,7 @@ subroutine getfgnew( nr, nc, lc, dl, zorig, r, phc )
   read ( 99, * ) np( : )
   close( unit=99 )
   !
-  write ( filnam18, '(1a9,1i3.3)' ) '.radfilez', nint( zorig )
+  write ( filnam18, '(1a8,1i3.3)' ) 'radfilez', nint( zorig )
   open( unit=99, file=filnam18, form='formatted', status='unknown' )
   rewind 99
   read ( 99, * ) rc, idum, irc
@@ -44,7 +44,7 @@ subroutine getfgnew( nr, nc, lc, dl, zorig, r, phc )
   !
   do lv = ll, lh
      !
-     write ( filnam18, '(1a3,1i1,1a1,1i3.3)' ) '.ae', lv, 'z', nint( zorig )
+     write ( filnam18, '(1a2,1i1,1a1,1i3.3)' ) 'ae', lv, 'z', nint( zorig )
      open( unit=99, file=filnam18, form='formatted', status='unknown' )
      rewind 99
      do i = 1, irc
@@ -60,7 +60,7 @@ subroutine getfgnew( nr, nc, lc, dl, zorig, r, phc )
         !
         do kk = 0, 2 * min( lv, lc ), 2
            if ( k .eq. kk ) then
-              write ( filnam18, '(1a3,3i1,1a1,1i3.3,1a1,1i2.2,1a1,1i2.2)' ) '.fk', lc, lv, k, 'z', nint( zorig ), 'n', nc, 'l', lc  
+              write ( filnam18, '(1a2,3i1,1a1,1i3.3,1a1,1i2.2,1a1,1i2.2)' ) 'fk', lc, lv, k, 'z', nint( zorig ), 'n', nc, 'l', lc  
               open( unit=99, file=filnam18, form='formatted', status='unknown' )
               rewind 99
               do i2 = 1, np( lv )
@@ -73,7 +73,7 @@ subroutine getfgnew( nr, nc, lc, dl, zorig, r, phc )
         !
         do kk = abs( lv - lc ), lv + lc, 2
            if ( k .eq. kk ) then
-              write ( filnam18, '(1a3,3i1,1a1,1i3.3,1a1,1i2.2,1a1,1i2.2)' ) '.gk', lc, lv, k, 'z', nint( zorig ), 'n', nc, 'l', lc  
+              write ( filnam18, '(1a2,3i1,1a1,1i3.3,1a1,1i2.2,1a1,1i2.2)' ) 'gk', lc, lv, k, 'z', nint( zorig ), 'n', nc, 'l', lc  
               open( unit=99, file=filnam18, form='formatted', status='unknown' )
               rewind 99
               do i2 = 1, np( lv )

@@ -15,9 +15,9 @@ subroutine addpot( zz, nn, ll, key, nr, vi )
   !
   integer :: i
   real( kind = kind( 1.0d0 ) ) :: vdelt( nr ), dum
-  character * 18 :: gnam
+  character * 17 :: gnam
   !
-  write ( gnam, '(1a1,1a7,1a1,1i3.3,1a1,1i2.2,1a1,1i2.2)' ) '.', key, 'z', nint( zz ), 'n', nn, 'l', ll
+  write ( gnam, '(1a7,1a1,1i3.3,1a1,1i2.2,1a1,1i2.2)' ) key, 'z', nint( zz ), 'n', nn, 'l', ll
   open( unit=99, file=gnam, form='formatted', status='unknown' )
   rewind 99
   do i = 1, nr

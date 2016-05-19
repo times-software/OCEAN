@@ -16,7 +16,7 @@ subroutine projdumper( l, str, nr, irc, r, dl, npj, proj, zorig )
   real( kind = kind( 1.0d0 ) ) :: q, jl, arg, wr, su( npj )
   character * 8 :: nam
   !
-  write ( unit=nam, fmt='(1a1,1a2,1i1,1a1,1i3.3)' ) '.', str, l, 'z', nint( zorig )
+  write ( unit=nam, fmt='(1a2,1i1,1a1,1i3.3)' ) str, l, 'z', nint( zorig )
   open( unit=99, file=nam, form='formatted', status='unknown' )
   rewind 99
   do i = 1, irc
@@ -25,7 +25,7 @@ subroutine projdumper( l, str, nr, irc, r, dl, npj, proj, zorig )
   close( unit=99 )
   !
   if ( str .eq. 'ae' ) return
-  write ( unit=nam, fmt='(1a3,1i1,1a1,1i3.3)' ) '.ft', l, 'z', nint( zorig )
+  write ( unit=nam, fmt='(1a2,1i1,1a1,1i3.3)' ) 'ft', l, 'z', nint( zorig )
   open( unit=99, file=nam, form='formatted', status='unknown' )
   rewind 99
   do i = 0, 400
@@ -43,10 +43,13 @@ subroutine projdumper( l, str, nr, irc, r, dl, npj, proj, zorig )
            if ( l .eq. 0 ) jl = 1 - arg ** 2 / 6
            if ( l .eq. 1 ) jl = arg / 3 - arg ** 3 / 30
            if ( l .eq. 2 ) jl = arg ** 2 / 15 - arg ** 4 / 210 
+           if ( l .eq. 3 ) jl = arg ** 3 / 105 - arg ** 5 / 1890
         else
            if ( l .eq. 0 ) jl = sin( arg ) / arg
            if ( l .eq. 1 ) jl = sin( arg ) / arg ** 2 - cos( arg ) / arg
            if ( l .eq. 2 ) jl = 3 * ( sin( arg ) / arg ** 3 - cos( arg ) / arg ** 2 ) - sin( arg ) / arg
+           if ( l .eq. 3 ) jl = 15 * ( sin ( arg ) / arg ** 4 - cos( arg ) / arg ** 3 ) & 
+                              - 6 * sin( arg ) / arg ** 2 + cos( arg ) / arg
         end if
         su( : ) = su( : ) + wr * r( ir ) ** 3 * proj( ir, : ) * jl
      end do
