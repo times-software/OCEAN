@@ -1,4 +1,4 @@
-! Copyright (C) 2010 OCEAN collaboration
+! Copyright (C) 2016 OCEAN collaboration
 !
 ! This file is part of the OCEAN project and distributed under the terms 
 ! of the University of Illinois/NCSA Open Source License. See the file 
@@ -9,14 +9,14 @@ program spec_average
  implicit none
   !
   integer :: Nvecs, Nedges, Nspecs, Npnts
-  character*14 :: avename
-  character*5  :: mode
+  character(len=14) :: avename
+  character(len=5)  :: mode
   !
   integer, dimension(:), allocatable :: nval, lval, site
-  character*2, dimension(:), allocatable :: elm
-  character*20, dimension(:), allocatable :: polavename
-  character*21, dimension(:), allocatable :: specname
-  character*22, dimension(:), allocatable :: siteavename
+  character(len=2), dimension(:), allocatable :: elm
+  character(len=20), dimension(:), allocatable :: polavename
+  character(len=21), dimension(:), allocatable :: specname
+  character(len=22), dimension(:), allocatable :: siteavename
   real( kind = kind(1.0d0) ), dimension(:), allocatable :: energy, dummyI
   real( kind = kind(1.0d0) ), dimension(:,:), allocatable :: specvecave, specpolave
   !
@@ -63,7 +63,7 @@ subroutine readinfo(mode,Nvecs,Nedges,Npnts)
  implicit none
   !
   integer, intent(out) :: Nvecs, Nedges, Npnts
-  character*5, intent(out) :: mode
+  character(len=5), intent(out) :: mode
   !
   real( kind = kind(1.0d0) ) :: Emin, Emax
    !
@@ -96,7 +96,7 @@ end subroutine readinfo
 logical function checkmode( mode )
  implicit none
   !
-  character*3, intent(in) :: mode
+  character(len=3), intent(in) :: mode
    !
    checkmode = .false.
    if ( mode .eq. 'xas' ) checkmode = .true.
@@ -112,10 +112,10 @@ subroutine readhfin(Nedges,nval,lval,elm,site)
   integer, intent(in) :: Nedges
   !
   integer, dimension(Nedges), intent(out) :: nval, lval, site
-  character*2, dimension(Nedges), intent(out) :: elm
+  character(len=2), dimension(Nedges), intent(out) :: elm
   !
   integer :: i, Idum
-  character*51 :: Adum51
+  character(len=51) :: Adum51
    !
    open( unit=99, file='hfinlist', form='formatted', status='unknown' )
    rewind 99
@@ -131,18 +131,18 @@ subroutine specnamelist(Nedges,Nvecs,Nspecs,mode,elm,nval,lval,site,specname,sit
  implicit none
   !
   integer, intent(in) :: Nedges, Nvecs, Nspecs
-  character*3, intent(in) :: mode
+  character(len=3), intent(in) :: mode
   integer, dimension(Nedges), intent(in) :: nval, lval, site
-  character*2, dimension(Nedges), intent(in) :: elm
+  character(len=2), dimension(Nedges), intent(in) :: elm
   !
-  character*14, intent(out) :: avename
-  character*20, dimension(Nvecs), intent(out) :: polavename
-  character*21, dimension(Nspecs), intent(out) :: specname
-  character*22, dimension(Nedges), intent(out) :: siteavename
+  character(len=14), intent(out) :: avename
+  character(len=20), dimension(Nvecs), intent(out) :: polavename
+  character(len=21), dimension(Nspecs), intent(out) :: specname
+  character(len=22), dimension(Nedges), intent(out) :: siteavename
   !
   integer :: i,j,k
-  character*4 :: coresym
-  character*8 :: basename
+  character(len=4) :: coresym
+  character(len=8) :: basename
    !
    if ( mode .eq. 'xas' ) then
       basename = 'absspct_'
@@ -164,6 +164,8 @@ subroutine specnamelist(Nedges,Nvecs,Nspecs,mode,elm,nval,lval,site,specname,sit
             write(coresym,'(A1,I1,A2)') '_', nval(i), 'd_'
         case (3)
             write(coresym,'(A1,I1,A2)') '_', nval(i), 'f_'
+        case default
+            stop "Only l = 0 -3 supported!"
       end select
       !
       if ( i == 1 ) then
@@ -189,7 +191,7 @@ subroutine readspec(specname,Npnts,energy,intensity)
  implicit none
   !
   integer, intent(in) :: Npnts
-  character*21, intent(in) :: specname
+  character(len=21), intent(in) :: specname
   !
   real( kind = kind(1.0d0) ), dimension(Npnts), intent(out) :: energy, intensity
   !
@@ -210,13 +212,12 @@ subroutine polarization_ave(Nedges,Nvecs,Npnts,Nspecs,specname,specavename,speci
  implicit none
   !
   integer, intent(in) :: Nedges, Nvecs, Npnts, Nspecs
-  character*21, dimension(Nspecs), intent(in) :: specname
-  character*22, dimension(Nedges), intent(in) :: specavename
+  character(len=21), dimension(Nspecs), intent(in) :: specname
+  character(len=22), dimension(Nedges), intent(in) :: specavename
   !
   real( kind = kind(1.0d0) ), dimension(Nedges,Npnts), intent(out) :: specint
   !
   integer :: i,j,k,l
-  character*26 :: tmpspecavename
   real( kind = kind(1.0d0) ), dimension(Npnts) :: energy, intensity
    !
    k = 1
@@ -249,13 +250,12 @@ subroutine site_ave(Nedges,Nvecs,Npnts,Nspecs,specname,specavename,specint)
  implicit none
   !
   integer, intent(in) :: Nedges, Nvecs, Npnts, Nspecs
-  character*21, dimension(Nspecs), intent(in) :: specname
-  character*20, dimension(Nvecs), intent(in) :: specavename
+  character(len=21), dimension(Nspecs), intent(in) :: specname
+  character(len=20), dimension(Nvecs), intent(in) :: specavename
   !
   real( kind = kind(1.0d0) ), dimension(Nvecs,Npnts), intent(out) :: specint
   !
   integer :: i,j,k,l
-  character*26 :: tmpspecavename
   real( kind = kind(1.0d0) ), dimension(Npnts) :: energy, intensity
    !
    do j = 1, Nvecs
@@ -284,7 +284,7 @@ subroutine total_ave(Nvecs,Npnts,energy,specpolave,avename)
  implicit none
   !
   integer, intent(in) :: Nvecs, Npnts
-  character*14, intent(in) :: avename
+  character(len=14), intent(in) :: avename
   real( kind = kind(1.0d0) ), dimension(Npnts), intent(in) :: energy
   real( kind = kind(1.0d0) ), dimension(Nvecs,Npnts), intent(in) :: specpolave
   !
