@@ -48,7 +48,7 @@ module OCEAN_psi
   INTEGER :: core_myid_default
   INTEGER :: max_core_store_size
 
-  INTEGER :: psi_comm_flavor = psi_comm_buffer
+  INTEGER :: psi_comm_flavor = psi_comm_reduce
 !  INTEGER :: core_k_start
 !  INTEGER :: core_a_start
 !  INTEGER :: core_full_size
@@ -186,6 +186,8 @@ module OCEAN_psi
       call OCEAN_psi_alloc_buffer( p, ierr )
       if( ierr .ne. 0 ) return
     endif
+
+    if( psi_comm_flavor .eq. psi_comm_reduce ) return
 
     ! Have we called this twice in a row on this psi?
     !  Crash out. This is a programming error
@@ -373,7 +375,7 @@ module OCEAN_psi
         if( ierr .ne. 0 ) return
       case( psi_comm_reduce )
         call reduce_send( p, ierr )
-        if( ierr .ne. 0 ) return
+        if( ierr .ne. 0 ) stop
       case default
         ierr = -1
         return
@@ -387,7 +389,7 @@ module OCEAN_psi
 
 
   subroutine buffer_send(  p, ierr )
-    use mpi, only : MPI_BARRIER, MPI_IRSEND
+    use mpi, only : MPI_BARRIER, MPI_IRSEND, MPI_REQUEST_NULL
     implicit none
     type(OCEAN_vector), intent( inout ) :: p
     integer, intent( inout ) :: ierr
@@ -453,21 +455,29 @@ module OCEAN_psi
     ia = 1
     do i = 0, p%core_np - 2
       if( p%core_myid .eq. i ) then
-        call MPI_IREDUCE( p%r(1,ik,ia), p%min_r, max_core_store_size * psi_bands_pad, & 
+        call MPI_IREDUCE( MPI_IN_PLACE, p%r(1,ik,ia), max_core_store_size * psi_bands_pad, & 
                           MPI_DOUBLE_PRECISION, MPI_SUM, i, p%core_comm, p%core_store_sr( i ), ierr )
+!        call MPI_REDUCE( MPI_IN_PLACE, p%r(1,ik,ia), max_core_store_size * psi_bands_pad, & 
+!                          MPI_DOUBLE_PRECISION, MPI_SUM, i, p%core_comm, ierr )
       else
         call MPI_IREDUCE( p%r(1,ik,ia), p%r(1,ik,ia), max_core_store_size * psi_bands_pad, &
                           MPI_DOUBLE_PRECISION, MPI_SUM, i, p%core_comm, p%core_store_sr( i ), ierr )
+!        call MPI_REDUCE( p%r(1,ik,ia), p%r(1,ik,ia), max_core_store_size * psi_bands_pad, &
+!                          MPI_DOUBLE_PRECISION, MPI_SUM, i, p%core_comm, ierr )
       endif
       if( ierr .ne. 0 ) return
 
 !JTV in future maybe split real and imaginary?
       if( p%core_myid .eq. i ) then
-        call MPI_IREDUCE( p%i(1,ik,ia), p%min_i, max_core_store_size * psi_bands_pad, &
+        call MPI_IREDUCE( MPI_IN_PLACE, p%i(1,ik,ia), max_core_store_size * psi_bands_pad, &
                           MPI_DOUBLE_PRECISION, MPI_SUM, i, p%core_comm, p%core_store_si( i ), ierr )
+!        call MPI_REDUCE( MPI_IN_PLACE, p%i(1,ik,ia), max_core_store_size * psi_bands_pad, &
+!                          MPI_DOUBLE_PRECISION, MPI_SUM, i, p%core_comm, ierr )
       else
         call MPI_IREDUCE( p%i(1,ik,ia), p%i(1,ik,ia), max_core_store_size * psi_bands_pad, &
                           MPI_DOUBLE_PRECISION, MPI_SUM, i, p%core_comm, p%core_store_si( i ), ierr )
+!        call MPI_REDUCE( p%i(1,ik,ia), p%i(1,ik,ia), max_core_store_size * psi_bands_pad, &
+!                          MPI_DOUBLE_PRECISION, MPI_SUM, i, p%core_comm, ierr )
       endif
       if( ierr .ne. 0 ) return
 
@@ -485,7 +495,7 @@ module OCEAN_psi
     store_size = psi_core_alpha * psi_kpts_actual - ( p%core_np - 1 ) * max_core_store_size
     ia = psi_core_alpha
     ik = psi_kpts_actual
-    do j = 1, i - 1
+    do j = 1, store_size - 1
       ik = ik - 1
       if( ik .eq. 0 ) then
         ik = psi_kpts_actual
@@ -494,20 +504,29 @@ module OCEAN_psi
     enddo
 
     if( p%core_myid .eq. i ) then
-      call MPI_IREDUCE( p%r(1,ik,ia), p%min_r, store_size * psi_bands_pad, &
+      call MPI_IREDUCE( MPI_IN_PLACE, p%r(1,ik,ia), store_size * psi_bands_pad, &
                         MPI_DOUBLE_PRECISION, MPI_SUM, i, p%core_comm, p%core_store_sr( i ), ierr )
+!      call MPI_REDUCE( MPI_IN_PLACE, p%r(1,ik,ia), store_size * psi_bands_pad, &
+!                       MPI_DOUBLE_PRECISION, MPI_SUM, i, p%core_comm, ierr )
     else
       call MPI_IREDUCE( p%r(1,ik,ia), p%r(1,ik,ia), store_size * psi_bands_pad, &
                         MPI_DOUBLE_PRECISION, MPI_SUM, i, p%core_comm, p%core_store_sr( i ), ierr )
+!      call MPI_REDUCE( p%r(1,ik,ia), p%r(1,ik,ia), store_size * psi_bands_pad, &
+!                       MPI_DOUBLE_PRECISION, MPI_SUM, i, p%core_comm, ierr )
     endif
     if( ierr .ne. 0 ) return
 
     if( p%core_myid .eq. i ) then
-      call MPI_IREDUCE( p%i(1,ik,ia), p%min_i, store_size * psi_bands_pad, &
+      call MPI_IREDUCE( MPI_IN_PLACE, p%i(1,ik,ia), store_size * psi_bands_pad, &
                         MPI_DOUBLE_PRECISION, MPI_SUM, i, p%core_comm, p%core_store_si( i ), ierr )
+!      call MPI_REDUCE( MPI_IN_PLACE, p%i(1,ik,ia), store_size * psi_bands_pad, &
+!                       MPI_DOUBLE_PRECISION, MPI_SUM, i, p%core_comm, ierr )
     else
       call MPI_IREDUCE( p%i(1,ik,ia), p%i(1,ik,ia), store_size * psi_bands_pad, &
                         MPI_DOUBLE_PRECISION, MPI_SUM, i, p%core_comm, p%core_store_si( i ), ierr )
+!      call MPI_REDUCE( p%i(1,ik,ia), p%i(1,ik,ia), store_size * psi_bands_pad, &
+!                       MPI_DOUBLE_PRECISION, MPI_SUM, i, p%core_comm, ierr )
+
     endif
     if( ierr .ne. 0 ) return
 
@@ -636,7 +655,7 @@ module OCEAN_psi
         if( ierr .ne. 0 ) return
       case( psi_comm_reduce )
         call reduce_buffer2min( p, ierr )
-        if( ierr .ne. 0 ) return
+        if( ierr .ne. 0 ) stop
       case default
         ierr = -1
         return
@@ -660,11 +679,58 @@ module OCEAN_psi
     type(OCEAN_vector), intent( inout ) :: p
     integer, intent( inout ) :: ierr
     !
+    integer :: i, ik, ia
     ! clean up the sends
+
+    ik = p%core_k_start
+    ia = p%core_a_start
+
     call MPI_WAITALL( p%core_np, p%core_store_sr, MPI_STATUSES_IGNORE, ierr )
     if( ierr .ne. 0 ) return
+
+    do i = 1, p%core_store_size
+      p%min_r(:,i) = p%min_r(:,i) + p%r(:,ik,ia)
+
+      ik = ik + 1
+      if( ik .gt. psi_kpts_actual ) then
+        ik = 1
+        ia = ia + 1
+      endif
+    enddo
+
+
+    ik = p%core_k_start
+    ia = p%core_a_start
+
     call MPI_WAITALL( p%core_np, p%core_store_si, MPI_STATUSES_IGNORE, ierr )
     if( ierr .ne. 0 ) return
+    do i = 1, p%core_store_size
+      p%min_i(:,i) = p%min_i(:,i) + p%i(:,ik,ia)
+
+      ik = ik + 1
+      if( ik .gt. psi_kpts_actual ) then
+        ik = 1
+        ia = ia + 1
+      endif
+    enddo
+
+      
+
+#if (0)
+    call MPI_WAITALL( p%core_np, p%core_store_sr, MPI_STATUSES_IGNORE, ierr )
+    if( ierr .ne. 0 ) return
+
+    do i = 1, p%core_store_size
+      p%min_r(:,i) = p%min_r(:,i) + p%buffer_r(:,i,0)
+    enddo
+
+    call MPI_WAITALL( p%core_np, p%core_store_si, MPI_STATUSES_IGNORE, ierr )
+    if( ierr .ne. 0 ) return
+
+    do i = 1, p%core_store_size
+      p%min_i(:,i) = p%min_i(:,i) + p%buffer_i(:,i,0)
+    enddo
+#endif
     !
   end subroutine reduce_buffer2min
 
