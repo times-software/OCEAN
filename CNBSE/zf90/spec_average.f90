@@ -70,19 +70,16 @@ subroutine readinfo(mode,Nvecs,Nedges,Npnts)
    open( unit=99, file='cnbse.mode', form='formatted', status='unknown' )
    rewind 99
    read ( 99, * ) mode
-!   write(6,*) "Mode : ", mode, ':'
    close( 99 )
    !
    open( unit=99, file='cnbse.ways', form='formatted', status='unknown' )
    rewind 99
    read ( 99, * ) Nvecs
-!   write(6,*) "Nvecs : ", Nvecs
    close( 99 )
    !
    open( unit=99, file='nedges', form='formatted', status='unknown' )
    rewind 99
    read ( 99, * ) Nedges
-!   write(6,*) "Nedges : ", Nedges
    close( 99 )
    !
    open( unit=99, file='cnbse.spect_range', form='formatted', status='unknown' )
@@ -171,7 +168,6 @@ subroutine specnamelist(Nedges,Nvecs,Nspecs,mode,elm,nval,lval,site,specname,sit
       if ( i == 1 ) then
          do j = 1, Nvecs
             write(polavename(j),'(A8,A2,A4,A4,I0.2)') basename, elm(i), '.ave', coresym, j
-!            write(6,*) polavename(j)
          end do
       end if
       !
