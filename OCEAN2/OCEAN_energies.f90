@@ -256,6 +256,8 @@ module OCEAN_energies
           call OCEAN_gw_by_band( sys, ierr, .false. )
         case( 'ibnd' )
           call OCEAN_gw_by_band( sys, ierr, .true. )
+        case( 'strc' )
+          call OCEAN_gw_stretch( sys, ierr )
         case default
           write(6,*) 'Unrecognized gw_control'
         end select
@@ -386,6 +388,40 @@ module OCEAN_energies
     OCEAN_energies_single = CMPLX( energies( ib, ik, 1 ), imag_selfenergy( ib, ik, 1 ), DP )
   end function
 
+  subroutine OCEAN_gw_stretch( sys, ierr )
+    use OCEAN_system
+    use OCEAN_mpi, only : myid, root
+
+    implicit none
+    integer, intent(inout) :: ierr
+    type(O_system), intent( in ) :: sys
+
+    real(DP) :: cstr
+    logical :: have_gw
+
+    if( myid .ne. root ) return
+
+    write(6,*) 'Attempting GW stretch!'
+
+    inquire(file='gwcstr', exist=have_gw )
+
+    if( .not. have_gw ) then
+      write( 6, * ) 'GW corrections requested (stretch style). File gwcstr not found.'
+      write( 6, * ) 'No corrections will be done'
+      return
+    endif
+
+    open( unit=99, file='gwcstr', form='formatted',status='old')
+    rewind(99)
+    read(99,*) cstr
+    close(99)
+
+    if( abs( cstr ) .lt. 0.00000001_DP ) return
+
+    cstr = cstr + 1.0_DP
+    energies( :, :, : ) = energies( :, :, : ) * cstr
+
+  end subroutine OCEAN_gw_stretch
 
   subroutine OCEAN_gw_by_band( sys, ierr, keep_imag )
     use OCEAN_system
