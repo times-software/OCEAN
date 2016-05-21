@@ -38,6 +38,8 @@ module OCEAN_bloch
   INTEGER :: my_num_bands
   INTEGER :: my_val_bands
   INTEGER :: my_start_nx
+
+  INTEGER :: xshift_override( 3 )
   
   LOGICAL :: is_init = .false.
   LOGICAL :: is_val_init = .false.
@@ -104,6 +106,8 @@ module OCEAN_bloch
       xshift( 3 ) = floor( real(sys%xmesh(3), kind( 1.0d0 )) * (tau(3)-0.5d0 ) )
     endif
     ! 
+    xshift(:) = xshift(:) * xshift_override(:)
+    !
     if( myid .eq. root ) write(6,*) 'Shifting X-grid by ', xshift(:)
     if( myid .eq. root ) write(6,*) 'Original tau ', tau(:)
     tau( 1 ) = tau(1) - real(xshift(1), kind( 1.0d0 ))/real(sys%xmesh(1), kind( 1.0d0 ))
@@ -253,8 +257,27 @@ module OCEAN_bloch
     integer( S_INT ) :: nx_left, nx_start, nx_tmp, i
     type(C_PTR) :: cptr
 
+    logical :: havefile
+
 
     if( is_init ) return
+
+    ! check on xshift override
+    xshift_override( : ) = 1
+    if( myid .eq. root ) then
+      inquire(file='xshift_override.ipt',exist=havefile )
+      if( havefile ) then
+        open( unit=99,file='xshift_override.ipt',form='formatted',status='old')
+        read(99,*) xshift_override(:)
+        close(99)
+        if( maxval( xshift_override ) .gt. 1 .or. minval( xshift_override ) .lt. 0 ) then
+          write(6,*) 'Invalid value in xshift_override.ipt. Reset to 1'
+          xshift_override(:) = 1
+        endif
+      endif
+    endif
+    call MPI_BCAST( xshift_override, 3, MPI_INTEGER, root, comm, ierr )
+    if( ierr .ne. 0 ) return
 
     ! SOP
     my_num_bands = sys%num_bands

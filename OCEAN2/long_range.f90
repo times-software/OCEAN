@@ -1511,9 +1511,10 @@ module ocean_long_range
     
     
     real( DP ) :: epsi, ptab( 100 ), avec( 3, 3 ), amet( 3, 3 ), bvec(3,3), bmet(3,3)
-    real( DP ) :: fr( 3 ), xk( 3 ), alf( 3 ), r, frac, potn
+    real( DP ) :: fr( 3 ), xk( 3 ), alf( 3 ), r, frac, potn, pbc_prefac(3)
     integer :: ix, iy, iz, k1, k2, k3, kk1, kk2, kk3, xiter, kiter, i, ii, j
-    integer :: xtarg, ytarg, ztarg
+    integer :: xtarg, ytarg, ztarg, pbc( 3 )
+    logical :: have_pbc
     
     
     if( myid .eq. 0 ) then
@@ -1552,6 +1553,21 @@ module ocean_long_range
       endif
 
 
+      inquire(file='pbc.inp',exist=have_pbc)
+      if( have_pbc ) then
+        open(unit=99,file='pbc.inp',form='formatted',status='old' )
+        rewind(99)
+        read(99,*) pbc(:)
+        close(99)
+        do i = 1, 3
+          if( pbc(i) .ne. 0 ) pbc( i )  = sys%kmesh( i )
+        enddo
+      else
+        pbc( : ) = sys%kmesh( : )
+      endif
+      write(6,*) 'PBC controls:', pbc(:)
+      
+
     endif
 
 #ifdef MPI    
@@ -1564,6 +1580,8 @@ module ocean_long_range
     call MPI_BCAST( iso_cut, 1, MPI_DOUBLE_PRECISION, 0, comm, ierr )
     if( ierr /= 0 ) goto 111
     call MPI_BCAST( isolated, 1, MPI_LOGICAL, 0, comm, ierr )
+    if( ierr /= 0 ) goto 111
+    call MPI_BCAST( pbc, 3, MPI_INTEGER, 0, comm, ierr )
     if( ierr /= 0 ) goto 111
 #endif
 
@@ -1600,20 +1618,36 @@ module ocean_long_range
           if( ( xiter .ge. my_start_nx ) .and. ( xiter .lt. my_start_nx + my_xpts ) ) then
           kiter = 0
 
-                do k1 = 1, sys%kmesh( 1 )
-                  kk1 = k1 - 1
-                  if ( kk1 .ge. sys%kmesh( 1 ) / 2 ) kk1 = kk1 - sys%kmesh( 1 )
-                  xk( 1 ) = kk1
+          do k1 = 1, sys%kmesh( 1 )
+            kk1 = k1 - 1
+            if ( kk1 .ge. sys%kmesh( 1 ) / 2 ) kk1 = kk1 - sys%kmesh( 1 )
+            xk( 1 ) = kk1
+            if( kk1 .gt. pbc( 1 ) ) then 
+              pbc_prefac(1) = 0.0_DP
+            else
+              pbc_prefac(1) = 1.0_DP
+            endif
+      
 
-              do k2 = 1, sys%kmesh( 2 )
-                kk2 = k2 - 1
-                if ( kk2 .ge. sys%kmesh( 2 ) / 2 ) kk2 = kk2 - sys%kmesh( 2 )
-                xk( 2 ) = kk2
+            do k2 = 1, sys%kmesh( 2 )
+              kk2 = k2 - 1
+              if ( kk2 .ge. sys%kmesh( 2 ) / 2 ) kk2 = kk2 - sys%kmesh( 2 )
+              xk( 2 ) = kk2
+              if( kk2 .gt. pbc( 2 ) ) then
+                pbc_prefac(2) = 0.0_DP
+              else
+                pbc_prefac(2) = pbc_prefac(1)
+              endif
 
-          do k3 = 1, sys%kmesh( 3 )
-            kk3 = k3 - 1
-            if ( kk3 .ge. sys%kmesh( 3 ) / 2 ) kk3 = kk3 - sys%kmesh( 3 )
-            xk( 3 ) = kk3
+              do k3 = 1, sys%kmesh( 3 )
+                kk3 = k3 - 1
+                if ( kk3 .ge. sys%kmesh( 3 ) / 2 ) kk3 = kk3 - sys%kmesh( 3 )
+                xk( 3 ) = kk3
+                if( kk3 .gt. pbc( 3 ) ) then
+                  pbc_prefac(3) = 0.0_DP
+                else
+                  pbc_prefac(3) = pbc_prefac(2)
+                endif
 
                   kiter = kiter + 1
                   alf( : ) = xk( : ) + fr( : ) - my_tau( : )
@@ -1621,13 +1655,13 @@ module ocean_long_range
                   if( isolated .and. r .gt. iso_cut ) then
                     potn = 0.0_DP
                   elseif ( r .ge. 9.9d0 ) then
-                     potn = epsi / r
+                    potn = epsi / r
                   else
-                     ii = 1.0d0 + 10.0d0 * r
-                     frac = 10.d0 * ( r - 0.1d0 * dble( ii - 1 ) )
-                     potn = ptab( ii ) + frac * ( ptab( ii + 1 ) - ptab( ii ) )
+                    ii = 1.0d0 + 10.0d0 * r
+                    frac = 10.d0 * ( r - 0.1d0 * dble( ii - 1 ) )
+                    potn = ptab( ii ) + frac * ( ptab( ii + 1 ) - ptab( ii ) )
                   end if
-                  W( kiter, xiter - my_start_nx + 1 ) =  potn
+                  W( kiter, xiter - my_start_nx + 1 ) =  potn * pbc_prefac(3)
                 end do
               end do
             end do
