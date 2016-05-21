@@ -533,6 +533,7 @@ module OCEAN_action
     call OCEAN_tk_start( tk_psisum )
     call OCEAN_psi_send_buffer( new_psi, ierr )
     if( ierr .ne. 0 ) return
+    call OCEAN_tk_stop( tk_psisum )
 
     ! end
 
@@ -548,6 +549,7 @@ module OCEAN_action
 
     call OCEAN_psi_buffer2min( new_psi, ierr )
     if( ierr .ne. 0 ) return
+    call OCEAN_tk_start( tk_psisum )
 
   end subroutine
 
