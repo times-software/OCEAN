@@ -41,9 +41,12 @@ my @CommonFiles = ("znucl", "paw.hfkgrid", "paw.fill", "paw.opts", "pplist", "pa
                    "ntype", "natoms", "typat", "taulist", "nedges", "edges", "caution", 
                    "epsilon", "k0.ipt", "ibase", "scfac", "para_prefix", "tmp_dir", 
                    "paw.nbands", "core_offset", "paw.nkpt", "pool_control", "ham_kpoints", 
-                   "cnbse.rad", "dft", "avecsinbohr.ipt" );
-my @ExtraFiles = ("specpnt", "Pquadrature" );
+                   "cnbse.rad", "dft", "avecsinbohr.ipt", 
+                   "screen.grid.rmax", "screen.grid.nr", "screen.grid.ang", "screen.grid.lmax", 
+                   "screen.grid.nb", "screen.final.rmax", "screen.final.dr", "screen.model.dq", "screen.model.qmax" );
+
 my @DFTFiles = ("rhoofr", "nscf.out", "system.rho.dat", "efermiinrydberg.ipt");
+my @ExtraFiles = ("Pquadrature" );
 
 foreach(@ExtraFiles)
 {
@@ -72,9 +75,9 @@ my $epsilon = <IN>;
 chomp $epsilon;
 close IN;
 
-open IN, "ibase" or die "Failed to open ibase\n$!";
-my $ibase;
-while( <IN> ) { $ibase .= $_; }
+#open IN, "ibase" or die "Failed to open ibase\n$!";
+#my $ibase;
+#while( <IN> ) { $ibase .= $_; }
 
 my $pool_size = 1;
 open INPUT, "pool_control" or die;
@@ -223,8 +226,125 @@ my $hfinline; my $ppfilename; my $znucl; my $nnum; my $lnum; my $elname; my $eln
 
 my $nedges = `cat nedges`;
 chomp($nedges);
+
+
+##### Grab inputs that control screening grid
+open IN, "screen.grid.rmax" or die "Failed to open screen.grid.rmax\n$!";
+<IN> =~ m/([+-]?\d+\.?\d*)/ or die "Failed to parse screen.grid.rmax\n";
+my $grid_rmax = $1;
+close IN;
+$grid_rmax = 8 if( $grid_rmax < 0 );
+
+open IN, "screen.grid.nr" or die "Failed to open screen.grid.nr\n$!";
+<IN> =~ m/([+-]?\d+)/ or die "Failed to parse screen.grid.nr\n";
+my $grid_nr = $1;
+close IN;
+$grid_nr = 24 if( $grid_nr < 0 );
+
+open IN, "screen.grid.ang" or die "Failed to open screen.grid.ang\n$!";
+<IN> =~ m/(\S+)\s+(\d+)/ or die "Failed to parse screen.grid.ang\n";
+my $grid_ang_type = $1;
+my $grid_ang_max = $2;
+close IN;
+if( lc($grid_ang_type) ne "lebdev" )
+{
+  print "Un-supported grid type requested: $grid_ang_type.\nOCEAN will default to Lebdev grid\n";
+  $grid_ang_type = "lebdev"
+}
+my $specpnt;
+if( lc($grid_ang_type) eq "lebdev" )
+{
+  $specpnt = sprintf("specpnt.%i",$grid_ang_max);
+}
+else
+{
+  die "Unsupported angular grid requested\n";
+}
+
+unless( -e "$ENV{'OCEAN_BIN'}/$specpnt" )
+{
+  die "Requested angular grid not found in OCEAN installation: $ENV{'OCEAN_BIN'}/$specpnt\n";
+}
+print "$specpnt\n";
+copy "$ENV{'OCEAN_BIN'}/$specpnt", "specpnt" or die "$!";
+
+open IN, "screen.grid.lmax" or die "Failed to open screen.grid.lmax\n$!";
+<IN> =~ m/([+-]?\d+)/ or die "Failed to parse screen.grid.lmax\n";
+my $grid_lmax = $1;
+close IN;
+if( $grid_lmax < 0 )
+{
+  print "WARNING: Negative LMAX requested for screening calculation. Using 0 instead\n"
+}
+if( $grid_lmax > $grid_ang_max/2 )
+{
+  $grid_lmax = sprintf("%i",($grid_ang_max/2) );
+  print "WARNING: Requested LMAX is too large for grid. Using $grid_lmax instead\n";
+}
+
+# For now!
+if( $grid_lmax != 0 ) 
+{
+  print "WARNING: Only LMAX = 0 is programmed for the screening\n";
+  $grid_lmax = 0;
+}
+# \For now
+
+open IN, "screen.grid.nb" or die "Failed to open screen.grid.nb\n$!";
+<IN> =~ m/([+-]?\d+)/ or die "Failed to parse screen.grid.nb\n";
+my $grid_nb = $1;
+close IN;
+if( $grid_nb < 0 )
+{
+  $grid_nb = ($grid_nr - 1);
+  print "WARNING: Negative number of basis functions requested. Using $grid_nb.\n";
+}
+if( $grid_nb > ($grid_nr - 1) ) 
+{
+  $grid_nb = ($grid_nr - 1);
+  print "WARNING: For screening calc the number of radial grid points \n"
+      . "  must exceed the number of radial basis functions.\n"
+      . "  Reducing this to $grid_nb\n";
+}
+
+open IN, "screen.final.rmax" or die "Failed to open screen.final.rmax\n$!";
+<IN> =~ m/(\d+\.?\d?)/ or die "Failed to parse screen.final.rmax\n";
+my $final_rmax = $1;
+close IN;
+
+open IN, "screen.final.dr" or die "Failed to open screen.final.dr\n$!";
+<IN> =~ m/(\d+\.?\d*)/ or die "Failed to parse screen.final.dr\n";
+my $final_dr = $1;
+close IN;
+print "$final_dr  $final_rmax\n";
+my $final_nr = sprintf("%.i",$final_rmax/$final_dr);
+print "$final_dr  $final_nr\n";
+
+open IN, "screen.model.dq" or die "Failed to open screen.model.dq\n$!";
+<IN> =~ m/(\d+\.?\d*)/ or die "Failed to parse screen.model.dq\n";
+my $model_dq = $1;
+close IN;
+
+open IN, "screen.model.qmax" or die "Failed to open screen.model.qmax\n$!";
+<IN> =~ m/(\d+\.?\d*)/ or die "Failed to parse screen.model.qmax\n";
+my $model_qmax = $1;
+close IN;
+
+my $ibase = "$final_dr  $final_nr\n$model_dq  $model_qmax\n";
+print $ibase;
+
+open IBASE, ">ibase" or die "Failed to open to open ibase for writing\n";
+print IBASE $ibase;
+close IBASE;
+
+#### Have everything needed for screening grid
+
+
+
+
 open MKRB_CONTROL, ">mkrb_control" or die "Failed to open mkrb_control\n$!\n";
-print MKRB_CONTROL "8 25\n";
+#print MKRB_CONTROL "8 25\n";
+print MKRB_CONTROL "$grid_rmax $grid_nr\n";
 print MKRB_CONTROL "$nedges\n";
 
 
@@ -342,20 +462,6 @@ while ($hfinline = <HFINLIST>) {
     symlink "zRXT${fullrad}",  "zR${fullrad}" ;
     chdir "../";
     
-#    `mkdir -p ${edgename}/zRXT${fullrad}`;
-#    `mkdir -p ${edgename}/zRXF${fullrad}`;
-#    `mkdir -p ${edgename}/zRXS${fullrad}`;
-#    chdir "$edgename";
-#    `ln -s -f zRXT${fullrad} zR${fullrad}`;
-#    chdir "../";
-
-#    $screen_nkpt =~ m/(\d+)\s+(\d+)\s+(\d+)/;
-#    my $np_builder = $1*$2*$3;
-##      system("builder.x < builder.in") == 0 or die;
-##      system("$ENV{'OCEAN_BIN'}/builder.x") == 0 or die;
-#    system("$para_prefix $ENV{'OCEAN_BIN'}/ocean_builder.x  $pool_size < builder.in >& builder.out ") == 0
-#        or die "$!\nFailed to run ocean_builder.x\n";
-
 
     my $ximat_name = sprintf("ximat%04i",$itau);
     unlink "ximat" if ( -e "ximat" );
@@ -364,8 +470,8 @@ while ($hfinline = <HFINLIST>) {
     
     open IPT, ">ipt" or die "Failed to open ipt\n$!";
     # Number of basis functions for chi
-#    `echo 24 > ipt`;
-    print IPT "24\n";
+    print IPT "$grid_nb\n";
+#    print IPT "24\n";
     close IPT;
 
 
@@ -377,10 +483,8 @@ while ($hfinline = <HFINLIST>) {
 
     open IPT, ">ipt" or die "Failed to open ipt\n$!";
     print IPT "$fullrad\n";
-#    `echo $fullrad > ipt`;
-#    `cat ibase epsilon >> ipt`;
-    print IPT $ibase;
-    print IPT "$epsilon\n";
+#    print IPT $ibase;
+#    print IPT "$epsilon\n";
     close IPT;
     `$ENV{'OCEAN_BIN'}/vhommod.x < ipt`;
     move( "reopt", "rom" );
@@ -401,7 +505,9 @@ while ($hfinline = <HFINLIST>) {
 
     `cp ipt ipt1`;
     `echo .false. >> ipt1`;
-    `echo 0.1 100 >> ipt1`;
+#
+#    `echo 0.1 100 >> ipt1`;
+    `echo "$final_dr $final_nr" >> ipt1`;
     `$ENV{'OCEAN_BIN'}/rscombine.x < ipt1 > ./${edgename}/zRXF${fullrad}/ropt`;
     move( "rpot", "${edgename}/zRXF${fullrad}/" );
     move( "rpothires", "${edgename}/zRXF${fullrad}/" );
@@ -413,7 +519,8 @@ while ($hfinline = <HFINLIST>) {
     `cat zpawinfo/vvpseud${edgename2} >> ipt1`;
     `wc zpawinfo/vvallel${edgename2} >> ipt1`;
     `cat zpawinfo/vvallel${edgename2} >> ipt1`;
-    `echo 0.1 100 >> ipt1`;
+#    `echo 0.1 100 >> ipt1`;
+    `echo "$final_dr $final_nr" >> ipt1`;
     `$ENV{'OCEAN_BIN'}/rscombine.x < ipt1 > ./${edgename}/zRXT${fullrad}/ropt`;
 
     foreach( "rpot","rpothires","rom","nin")
@@ -427,12 +534,25 @@ while ($hfinline = <HFINLIST>) {
 #    `cp ximat_small ximat`;
      my $ximat_name = sprintf("ximat_small%04i",$itau);
     `ln -sf $ximat_name ximat`;
-    `echo 24 > ipt`;
+
+    open IPT, ">ipt" or die "Failed to open ipt\n$!";
+    # Number of basis functions for chi
+    print IPT "$grid_nb\n";
+    close IPT;
+
     `$ENV{'OCEAN_BIN'}/xipps.x < ipt`;
     move( "ninduced", "nin" );
 #    `mv ninduced nin`;
-    `echo $fullrad > ipt`;
-    `cat ibase epsilon >> ipt`;
+    open IPT, ">ipt" or die "Failed to open ipt\n$!";
+    print IPT "$fullrad\n";
+#    print IPT $ibase;
+#    print IPT "$epsilon\n";
+    close IPT;
+
+#    `echo $fullrad > ipt`;
+#    `echo $ibase >> ipt`;
+#    `cat epsilon >> ipt`;
+##    `cat ibase epsilon >> ipt`;
     `$ENV{'OCEAN_BIN'}/vhommod.x < ipt`;
     move( "reopt", "rom" );
 #    `mv reopt rom`;
@@ -451,7 +571,8 @@ while ($hfinline = <HFINLIST>) {
     `cat zpawinfo/vvpseud${edgename2} >> ipt1`;
     `wc zpawinfo/vvallel${edgename2} >> ipt1`;
     `cat zpawinfo/vvallel${edgename2} >> ipt1`;
-    `echo 0.1 100 >> ipt1`;
+#    `echo 0.1 100 >> ipt1`;
+    `echo "$final_dr $final_nr" >> ipt1`;
     `$ENV{'OCEAN_BIN'}/rscombine.x < ipt1 > ./${edgename}/zRXS${fullrad}/ropt`;
 #    `mv {rpot,rpothires,rom,nin} ${edgename}/zRXS${fullrad}/`;
     foreach( "rpot","rpothires","rom","nin")

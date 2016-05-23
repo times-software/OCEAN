@@ -10,8 +10,8 @@ AVG = zobj/avg.o zobj/snatch.o zobj/getomega.o
 
 MPI_AVG = zobj/mpi_avg.o zobj/snatch.o zobj/getomega.o
 
-zexe/mkrbfile_mult.x: zobj/mkrbfile_mult.o zobj/mkcmesh.o zobj/snatch.o
-	$(COMP) $(OPTS) zobj/mkrbfile_mult.o zobj/mkcmesh.o zobj/snatch.o -o zexe/mkrbfile_mult.x
+zexe/mkrbfile_mult.x: zobj/mkrbfile_mult.o zobj/mkcmesh.o zobj/snatch.o zobj/mkbmesh.o
+	$(COMP) $(OPTS) zobj/mkrbfile_mult.o zobj/mkcmesh.o zobj/snatch.o zobj/mkbmesh.o -o zexe/mkrbfile_mult.x
 
 zexe/mkrbfile.x: zobj/mkrbfile.o zobj/mkcmesh.o zobj/snatch.o
 	$(COMP) $(OPTS) zobj/mkrbfile.o zobj/mkcmesh.o zobj/snatch.o -o zexe/mkrbfile.x
@@ -45,6 +45,9 @@ zobj/intval.o: intval.f90
 
 zobj/mkcmesh.o: mkcmesh.f90
 	$(COMP) $(OPTS) -c mkcmesh.f90 -o zobj/mkcmesh.o
+
+zobj/mkbmesh.o: mkbmesh.f90
+	$(COMP) $(OPTS) -c mkbmesh.f90 -o zobj/mkbmesh.o
 
 zobj/mkrbfile.o: mkrbfile.f90
 	$(COMP) $(OPTS) -c mkrbfile.f90 -o zobj/mkrbfile.o

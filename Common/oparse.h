@@ -158,7 +158,7 @@ scfac
 } scfac
 paw.shells
 {
-1.5 
+3.5
 } paw.shells
 paw.hfkgrid
 {
@@ -439,3 +439,39 @@ screen_energy_range
 {
 100
 } screen_energy_range.ipt
+screen.grid.rmax
+{
+8
+} screen.grid.rmax
+screen.grid.nr
+{
+25
+} screen.grid.nr
+screen.grid.ang
+{
+lebdev 5
+} screen.grid.ang
+screen.grid.lmax
+{
+0
+} screen.grid.lmax
+screen.grid.nb
+{
+24
+} screen.grid.nb
+screen.final.rmax
+{
+10
+} screen.final.rmax
+screen.final.dr
+{
+0.1
+} screen.final.dr
+screen.model.dq
+{
+0.01
+} screen.model.dq
+screen.model.qmax
+{
+10
+} screen.model.qmax
