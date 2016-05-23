@@ -5,11 +5,11 @@
 ! `License' in the root directory of the present distribution.
 !
 !
-subroutine nbsemkcmel( add04, add12 )
+subroutine nbsemkcmel( add04, add14 )
   implicit none
   !
   character * 4 :: add04
-  character * 12 :: add12
+  character * 14 :: add14
   !
   integer :: lmin, lmax, nr, i, l, ix, mu, nu, ii, j
   real( kind = kind( 1.0d0 ) ) :: dl, err, rmax, su, su1, tmp, vrun, x
@@ -18,7 +18,7 @@ subroutine nbsemkcmel( add04, add12 )
   character * 5 :: s5
   character * 7 :: s7
   character * 11 :: s11
-  character * 18 :: rpot_filename
+  character * 20 :: rpot_filename
   integer, allocatable :: nnu( : )
   real( kind = kind( 1.0d0 ) ), allocatable, dimension( :, : ) :: cmel, nmel, phi
   real( kind = kind( 1.0d0 ) ), allocatable, dimension( : ) :: rad, dr, val
@@ -38,7 +38,7 @@ subroutine nbsemkcmel( add04, add12 )
   if ( rmax .gt. 9.9d0 ) stop 'bad rmax'
   close( unit=99 )
   !
-  write(rpot_filename, '(A6,A12)') 'rpot.z', add12
+  write(rpot_filename, '(A6,A14)') 'rpot.z', add14
 !  open( unit=99, file='rpotfull', form='formatted', status='unknown' )
   open( unit=99, file=rpot_filename, form='formatted', status='unknown' )
   rewind 99

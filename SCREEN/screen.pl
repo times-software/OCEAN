@@ -80,6 +80,14 @@ close BRANGE;
 close CLIPS;
 }
 
+my $para_prefix = "";
+if( open PARA_PREFIX, "para_prefix" )
+{
+  $para_prefix = <PARA_PREFIX>;
+  chomp($para_prefix);
+  close( PARA_PREFIX);
+}
+
 ###################################
 
 # Setup
@@ -113,7 +121,16 @@ close SHELLS;
 
 print "Starting xipp section\n";
 
-system("$ENV{'OCEAN_BIN'}/avg.x") == 0 or die "Failed to run avg.x\n";
+if( -e "$ENV{'OCEAN_BIN'}/mpi_avg.x" )
+{
+  print "Running mpi_avg.x\n";
+  system("$para_prefix $ENV{'OCEAN_BIN'}/mpi_avg.x") == 0 or die "$!\nFailed to run mpi_avg.x\n";
+}
+else
+{
+  print "Running avg.x\n";
+  system("$ENV{'OCEAN_BIN'}/avg.x") == 0 or die "$!\nFailed to run avg.x\n";
+}
 
 open HFINLIST, "hfinlist" or die "Failed to open hfinlist\n";
 
@@ -130,11 +147,11 @@ while ($hfinline = <HFINLIST>) {
   $elname = $5;
   $elnum = $6;
 
-  $edgename = sprintf("z%2s%02i_n%02il%02i", $elname, $elnum, $nnum, $lnum);
+  $edgename = sprintf("z%2s%04i_n%02il%02i", $elname, $elnum, $nnum, $lnum);
   print "$edgename\n";
   `mkdir -p $edgename` == 0 or die "Failed to make dir $edgename\n";
 
-  my $avden =  sprintf("avg%2s%02i",$elname,$elnum);
+  my $avden =  sprintf("avg%2s%04i",$elname,$elnum);
   copy( $avden,  "avden" ) or die "Failed to copy density $avden\n$!";
 
 

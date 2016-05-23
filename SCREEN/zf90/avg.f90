@@ -16,7 +16,7 @@ program avg
   integer :: gmax( 3 ), ngmax, iter, rad_int
   real(kind=kind(1.d0)) :: gmodmax( 3 ), sgmodmax
   character(len=2) elname
-  character(len=7) avgname
+  character(len=9) avgname
 
   gmax( : ) = 0
   gmodmax( : ) = 0.d0
@@ -91,7 +91,7 @@ program avg
       do i=1,numsites
 
         read(98,*)elname,elnum
-        write(avgname,"(a3,a2,i2.2)")"avg",elname,elnum
+        write(avgname,"(a3,a2,i4.4)")"avg",elname,elnum
         open(unit=97,file=avgname,form='formatted',status='unknown')
         call snatch(elname,elnum,tau)
 

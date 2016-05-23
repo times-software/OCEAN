@@ -1,12 +1,14 @@
 COMP=pgf90
 OPTS=-O3
 
-all: zexe/avg.x zexe/builder.x zexe/pawsetup.x zexe/mkrbfile.x zexe/mkrbfile_mult.x
+all: zexe/avg.x zexe/builder.x zexe/pawsetup.x zexe/mkrbfile.x zexe/mkrbfile_mult.x zexe/mpi_avg.x
 
 BUILDER = zobj/builder.o zobj/realu2.o zobj/vcbder2.o zobj/getomega.o zobj/mkvipt.o zobj/rdp.o \
           zobj/intval.o
 
 AVG = zobj/avg.o zobj/snatch.o zobj/getomega.o
+
+MPI_AVG = zobj/mpi_avg.o zobj/snatch.o zobj/getomega.o
 
 zexe/mkrbfile_mult.x: zobj/mkrbfile_mult.o zobj/mkcmesh.o zobj/snatch.o
 	$(COMP) $(OPTS) zobj/mkrbfile_mult.o zobj/mkcmesh.o zobj/snatch.o -o zexe/mkrbfile_mult.x
@@ -20,11 +22,17 @@ zexe/pawsetup.x: pawsetup.f90 zobj/periodic.o
 zexe/avg.x: $(AVG)
 	$(COMP) $(OPTS) $(AVG) -o zexe/avg.x
 
+zexe/mpi_avg.x: $(MPI_AVG)
+	$(MPIFORT) $(OPTS) $(MPI_AVG) -o zexe/mpi_avg.x
+
 zexe/builder.x: $(BUILDER)
 	$(COMP) $(OPTS) $(BUILDER) -o zexe/builder.x
 
 zobj/avg.o: avg.f90
 	$(COMP) $(OPTS) -c avg.f90 -o zobj/avg.o
+
+zobj/mpi_avg.o: MPI_avg.f90
+	$(MPIFORT) $(OPTS) -c MPI_avg.f90 -o zobj/mpi_avg.o
 
 zobj/builder.o: builder.f90 
 	$(COMP) $(OPTS) -c builder.f90 -o zobj/builder.o
@@ -77,6 +85,7 @@ zobj/xxxhed.o: xxxhed.f90
 
 install:
 	cp zexe/avg.x $(INSTDIR)/
+	cp zexe/mpi_avg.x $(INSTDIR)/
 	cp zexe/builder.x $(INSTDIR)/
 	cp zexe/pawsetup.x $(INSTDIR)/
 	cp zexe/mkrbfile.x $(INSTDIR)/

@@ -570,7 +570,7 @@ while (<EDGE>) {
   }
 
 #  my $add10_zstring = sprintf("z%03un%02ul%02u", $znum, $nnum, $lnum);
-  my $zstring = sprintf("z%2s%02i_n%02il%02i", $elname, $elnum, $nnum, $lnum);
+  my $zstring = sprintf("z%2s%04i_n%02il%02i", $elname, $elnum, $nnum, $lnum);
 #  system("cp ../SCREEN/${zstring}/zR${pawrad}/rpot ./rpot.${zstring}") == 0 
   copy( "../SCREEN/${zstring}/zR${pawrad}/rpot", "rpot.${zstring}" )
     or die "Failed to grab rpot\n../SCREEN/${zstring}/zR${pawrad}/rpot ./rpot.${zstring}\n";
@@ -768,7 +768,7 @@ if( $run_serial == 1)
 
 
     #rpot file
-    my $zstring = sprintf("z%2s%02i_n%02il%02i", $elname, $elnum, $nnum, $lnum);
+    my $zstring = sprintf("z%2s%04i_n%02il%02i", $elname, $elnum, $nnum, $lnum);
     copy( "rpot.${zstring}", "rpotfull" ) or die "Failed to copy rpot.${zstring}\n$!";
 #    system("cp ./rpot.${zstring} rpotfull") == 0 or die;
 

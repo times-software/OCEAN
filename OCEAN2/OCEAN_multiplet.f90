@@ -257,7 +257,7 @@ module OCEAN_multiplet
     
     character(len=4) :: add04
     character(len=10) :: add10
-    character(len=12) :: add12
+    character(len=14) :: add14
     character(len=11) :: s11
     character(len=5) :: s5
 
@@ -281,7 +281,7 @@ module OCEAN_multiplet
 
     if( is_init ) return
 
-    write(add12 , '(A2,I2.2,A1,A1,I2.2,A1,I2.2)' ) sys%cur_run%elname, sys%cur_run%indx, &
+    write(add14 , '(A2,I4.4,A1,A1,I2.2,A1,I2.2)' ) sys%cur_run%elname, sys%cur_run%indx, &
             '_', 'n', sys%cur_run%ZNL(2), 'l', sys%cur_run%ZNL(3)
 
     if( myid .eq. root ) then
@@ -358,7 +358,7 @@ module OCEAN_multiplet
          end do
       end do
       !
-      call nbsemkcmel( add04, add12 )
+      call nbsemkcmel( add04, add14 )
       do lv = lvl, lvh
          ii = ibeg( lv )
          jj = jbeg( lv )

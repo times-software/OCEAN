@@ -319,6 +319,10 @@ work_dir
 {
 './Out'
 } work_dir
+tmp_dir
+{
+undefined
+} tmp_dir
 den.kshift
 {
 0 0 0
