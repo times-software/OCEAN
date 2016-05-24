@@ -65,7 +65,12 @@ subroutine jlmatfetch( lc, lmin, lmax, npmax, nproj, qmag, jlmel, powmax )
   !
   allocate( jl( nr, 0 : lc + lmax ), jlpow( nr, 0 : lc + lmax ) )
   do l = 0, lc + lmax
-     if ( l .gt. 3 ) stop 'bad l in jlmatfetch'
+     if ( l .gt. 4 ) then
+       write(6,*) ': lc = ', lc
+       write(6,*) ': lmax = ', lmax
+       write(6,*) ': stopping in /CNBSE/zcain/jtvmel.x ; jlmatfetch.f90'
+       stop 'bad l in jlmatfetch'
+     end if
      do j = 1, nr
         x = qmag * r( j )
         if ( x .lt. 0.001d0 ) then
@@ -78,6 +83,10 @@ subroutine jlmatfetch( lc, lmin, lmax, npmax, nproj, qmag, jlmel, powmax )
               rslt = x ** 2 / 15.0d0 - x ** 4 / 210.0d0
            case( 3 )
               rslt = x ** 3 / 105.0d0 - x ** 5 / 1890.0d0
+           case( 4 )
+              rslt = x ** 4 / 945.0d0 - x ** 6 / 20790.0d0
+           case( 5 )
+              rslt = x ** 5 / 10395.0d0 - x ** 7 / 270270.0d0
            end select
         else
            select case ( l )
@@ -89,6 +98,10 @@ subroutine jlmatfetch( lc, lmin, lmax, npmax, nproj, qmag, jlmel, powmax )
               rslt = ( 3.0d0 / x ** 3 - 1.0d0 / x ) * sin( x ) - 3.0d0 * cos( x ) / x ** 2
            case( 3 )
               rslt = ( 15.0d0 / x ** 4 - 6.0d0 / x ** 2 ) * sin( x ) - ( 15.0d0 / x ** 3 - 1.0d0 / x ) * cos( x )
+           case( 4 )
+              rslt = ( 105.0d0 / x ** 5 - 45.0d0 / x ** 3 + 1.0d0 / x ) * sin( x ) - ( 105.0d0 / x ** 4 - 10.0d0 / x ** 2 ) * cos( x )
+           case( 5 )
+              rslt = ( 945.0d0 / x ** 6 - 420.0d0 / x ** 4 + 15.0d0 / x ** 2 ) * sin( x ) - ( 945.0d0 / x ** 5 - 105.0d0 / x ** 3 + 1.0d0 / x ) * cos( x )
            end select
         end if 
         jl( j, l ) = rslt
