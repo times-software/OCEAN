@@ -49,7 +49,7 @@ subroutine jtvsub( lmin, lmax, nproj, npmax, lc, nbsemel, powmax, ifcn, stext, e
   end if
   !
   write ( 6, * ) 'ck1'
-  if ( spcttype .eq. 'qRaman' ) call jlmatfetch( lc, lmin, lmax, npmax, nproj, qmag, jlmel, powmax )
+  if ( spcttype .eq. 'qRaman' .or. .true.) call jlmatfetch( lc, lmin, lmax, npmax, nproj, qmag, jlmel, powmax )
   write ( 6, * ) 'ck2'
   !
   ! We will need powers of ( -i q )
