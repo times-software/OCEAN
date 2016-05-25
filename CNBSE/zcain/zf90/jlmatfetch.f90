@@ -65,7 +65,7 @@ subroutine jlmatfetch( lc, lmin, lmax, npmax, nproj, qmag, jlmel, powmax )
   !
   allocate( jl( nr, 0 : lc + lmax ), jlpow( nr, 0 : lc + lmax ) )
   do l = 0, lc + lmax
-     if ( l .gt. 4 ) then
+     if ( l .gt. 5 ) then
        write(6,*) ': lc = ', lc
        write(6,*) ': lmax = ', lmax
        write(6,*) ': stopping in /CNBSE/zcain/jtvmel.x ; jlmatfetch.f90'
