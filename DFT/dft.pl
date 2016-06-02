@@ -42,7 +42,7 @@ my @BandFiles = ("nbands", "paw.nbands");
 my @EspressoFiles = ( "coord", "degauss", "ecut", "etol", "fband", "ibrav", 
     "isolated", "mixing", "natoms", "ngkpt", "noncolin", "nrun", "ntype", 
     "occopt", "prefix", "ppdir", "stress_force", "rprim", "rscale", "metal",
-    "spinorb", "taulist", "typat", "verbatim", "work_dir", "wftol", 
+    "spinorb", "taulist", "typat", "verbatim", "work_dir", "tmp_dir", "wftol", 
     "den.kshift", "obkpt.ipt", "trace_tol", "ham_kpoints", "obf.nbands","tot_charge", 
     "nspin", "smag", "ldau", "zsymb");
 my @PPFiles = ("pplist", "znucl");
@@ -196,7 +196,7 @@ system("$ENV{'OCEAN_BIN'}/makeatompp.x") == 0
 
 
 
-my @qe_data_files = ('prefix', 'ppdir', 'stress_force', 'work_dir', 'ibrav', 'natoms', 'ntype', 'noncolin',
+my @qe_data_files = ('prefix', 'ppdir', 'stress_force', 'work_dir', 'tmp_dir', 'ibrav', 'natoms', 'ntype', 'noncolin',
                      'spinorb', 'ecut', 'degauss', 'etol', 'mixing', 'nrun', 'occopt',
                      'trace_tol', 'tot_charge', 'nspin', 'ngkpt', 'k0.ipt', 'metal',
                      'den.kshift', 'obkpt.ipt', 'obf.nbands', 'nkpt', 'nbands', 'paw.nbands',
@@ -473,6 +473,7 @@ if ( $nscfRUN ) {
           .  "  prefix = \'$qe_data_files{'prefix'}\'\n"
           .  "  pseudo_dir = \'$qe_data_files{'ppdir'}\'\n"
           .  "  outdir = \'$qe_data_files{'work_dir'}\'\n"
+          .  "  wfcdir = \'$qe_data_files{'tmp_dir'}\'\n"
           .  "  $qe_data_files{'stress_force'}\n"
           .  "  wf_collect = .true.\n"
   #        .  "  disk_io = 'low'\n"
@@ -569,10 +570,15 @@ if ( $nscfRUN ) {
     print "Create Basis\n";
     open BASIS, ">basis.in" or die "Failed top open basis.in\n$!";
     print BASIS "&input\n"
-            .  "  prefix = \'$qe_data_files{'prefix'}\'\n"
-            .  "  outdir = \'$qe_data_files{'work_dir'}\'\n"
-            .  "  trace_tol = $qe_data_files{'trace_tol'}\n"
-            .  "/\n";
+             .  "  prefix = \'$qe_data_files{'prefix'}\'\n"
+             .  "  outdir = \'$qe_data_files{'work_dir'}\'\n";
+    unless( $qe_data_files{'tmp_dir'} =~ m/undefined/ )
+    {
+#      print "$qe_data_files{'tmp_dir'}\n";
+      print BASIS "  wfcdir = \'$qe_data_files{'tmp_dir'}\'\n";
+    }
+    print BASIS "  trace_tol = $qe_data_files{'trace_tol'}\n"
+             .  "/\n";
     close BASIS;
 
     system("$para_prefix $ENV{'OCEAN_BIN'}/shirley_basis.x  < basis.in > basis.out 2>&1") == 0
@@ -585,8 +591,13 @@ if ( $nscfRUN ) {
     open HAM, ">ham.in" or die "Failed to open ham.in\n$!";
     print HAM "&input\n"
             . "  prefix = 'system_opt'\n"
-            . "  outdir = \'$qe_data_files{'work_dir'}\'\n"
-            . "  updatepp = .false.\n"
+            . "  outdir = \'$qe_data_files{'work_dir'}\'\n";
+    unless( $qe_data_files{'tmp_dir'} =~ m/undefined/ )
+    {
+#      print "$qe_data_files{'tmp_dir'}\n";
+      print HAM "  wfcdir = \'$qe_data_files{'tmp_dir'}\'\n";
+    }
+    print HAM "  updatepp = .false.\n"
             . "  ncpp = .true.\n"
             . "  nspin_ham = $qe_data_files{'nspin'}\n"
             . "/\n"
@@ -803,6 +814,7 @@ sub print_qe
         .  "  prefix = \'$inputs{'prefix'}\'\n"
         .  "  pseudo_dir = \'$inputs{'ppdir'}\'\n"
         .  "  outdir = \'$inputs{'work_dir'}\'\n"
+        .  "  wfcdir = \'$qe_data_files{'tmp_dir'}\'\n"
         .  "  $inputs{'stress_force'}\n"
         .  "  wf_collect = .true.\n"
         .  "/\n";
