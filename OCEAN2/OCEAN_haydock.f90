@@ -231,7 +231,7 @@ module OCEAN_action
     real( DP ) :: relative_error, f( 2 ), ener
     complex( DP ) :: rm1
 
-    return
+!    return
     rm1 = -1
     rm1 = sqrt( rm1 )
     
@@ -399,12 +399,12 @@ module OCEAN_action
 
       endif
 
+!      call rtov( sys, psi, v1 )
       write(e_filename,'(A7,A2,A1,I4.4,A1,A2,A1,I2.2,A1,I4.4)' ) 'exciton', sys%cur_run%elname, &
               '.', sys%cur_run%indx, '_', sys%cur_run%corelevel, '_', sys%cur_run%photon, '.', iter
-!      call rtov( sys, psi, v1 )
-      call rtov( sys, hpsi, x )
 !      call dump_exciton( sys, psi, e_filename, ierr )
 
+      call rtov( sys, hpsi, x )
     enddo
 
     deallocate( rhs, v1, v2, pcdiv, x )

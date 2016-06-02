@@ -461,7 +461,7 @@ screen.grid.nb
 } screen.grid.nb
 screen.final.rmax
 {
-10
+100
 } screen.final.rmax
 screen.final.dr
 {
