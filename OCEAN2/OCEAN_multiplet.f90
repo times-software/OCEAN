@@ -1531,7 +1531,14 @@ module OCEAN_multiplet
 
     ! If we stop exactly on nkpts this will give 0 + core_a_start = core_a_start
     a_stop = ( core_store_size_remain + k_start - 2 ) / sys%nkpts + in_vec%core_a_start
-
+! This should be caught earlier in OCEAN_psi
+!    if( a_stop .gt. sys%nalpha ) then
+!      write(6,*) '!!! ASTOP !!!'
+!      write(6,*) a_stop, core_store_size_remain, k_start
+!      write(6,*) sys%nkpts, in_vec%core_a_start
+!      a_stop = sys%nalpha
+!    endif
+      
 
 !$OMP  PARALLEL DEFAULT( NONE )  &
 !$OMP& SHARED( in_vec, out_vec, lmin, lmax, nproj, sys, mpm, mul, jbeg, mham, mhr, mhi) &
