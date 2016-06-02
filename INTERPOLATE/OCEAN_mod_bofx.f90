@@ -100,7 +100,7 @@ module OCEAN_bofx_mod
 
 
     fac( 1 ) = 2; fac( 2 ) = 3; fac( 3 ) = 5
-    hicap( 1 ) = 20; hicap( 2 ) = 3; hicap( 3 ) = 1
+    hicap( 1 ) = 30; hicap( 2 ) = 8; hicap( 3 ) = 4
     !
     do j = 1, 3
        igl = gvec( j, 1 )
