@@ -683,38 +683,43 @@ module OCEAN_psi
     integer :: i, ik, ia
     ! clean up the sends
 
-    ik = p%core_k_start
-    ia = p%core_a_start
+    ! Check to see if this proc holds any of psi
+    if( p%core_store_size .gt. 0 ) then
 
-    ! Wait only for ours to complete
-    call MPI_WAIT( p%core_store_sr( p%core_myid ), MPI_STATUS_IGNORE, ierr )
-    if( ierr .ne. 0 ) return
+      ik = p%core_k_start
+      ia = p%core_a_start
 
-    do i = 1, p%core_store_size
-      p%min_r(:,i) = p%min_r(:,i) + p%r(:,ik,ia)
+      ! Wait only for ours to complete (and only if we are participating)
+      call MPI_WAIT( p%core_store_sr( p%core_myid ), MPI_STATUS_IGNORE, ierr )
+      if( ierr .ne. 0 ) return
 
-      ik = ik + 1
-      if( ik .gt. psi_kpts_actual ) then
-        ik = 1
-        ia = ia + 1
-      endif
-    enddo
+      do i = 1, p%core_store_size
+        p%min_r(:,i) = p%min_r(:,i) + p%r(:,ik,ia)
+
+        ik = ik + 1
+        if( ik .gt. psi_kpts_actual ) then
+          ik = 1
+          ia = ia + 1
+        endif
+      enddo
 
 
-    ik = p%core_k_start
-    ia = p%core_a_start
+      ik = p%core_k_start
+      ia = p%core_a_start
 
-    call MPI_WAIT( p%core_store_si( p%core_myid ), MPI_STATUS_IGNORE, ierr )
-    if( ierr .ne. 0 ) return
-    do i = 1, p%core_store_size
-      p%min_i(:,i) = p%min_i(:,i) + p%i(:,ik,ia)
+      call MPI_WAIT( p%core_store_si( p%core_myid ), MPI_STATUS_IGNORE, ierr )
+      if( ierr .ne. 0 ) return
+      do i = 1, p%core_store_size
+        p%min_i(:,i) = p%min_i(:,i) + p%i(:,ik,ia)
 
-      ik = ik + 1
-      if( ik .gt. psi_kpts_actual ) then
-        ik = 1
-        ia = ia + 1
-      endif
-    enddo
+        ik = ik + 1
+        if( ik .gt. psi_kpts_actual ) then
+          ik = 1
+          ia = ia + 1
+        endif
+      enddo
+
+    endif  ! ( p%core_store_size .gt. 0 )
 
     ! Wait for all to complete
     call MPI_WAITALL( p%core_np, p%core_store_sr, MPI_STATUSES_IGNORE, ierr )
@@ -1231,10 +1236,11 @@ module OCEAN_psi
 
   ! Returns the needed stats about the store version of psi
   !   For now we chunk evenly. Procs either have nchunk or 0
-  subroutine psi_core_store_size( id, nproc_total, nproc_remain, max_store_size, my_store_size, k_start, a_start )
+  subroutine psi_core_store_size( id, nproc_total, nproc_remain, max_store_size, my_store_size, k_start, a_start, ierr )
     implicit none
     integer, intent( in ) :: id, nproc_total
     integer, intent( out ) :: nproc_remain, max_store_size, my_store_size, k_start, a_start
+    integer, intent( inout ) :: ierr
     
     integer :: i, remain
 
@@ -1253,11 +1259,7 @@ module OCEAN_psi
       return
     endif
 
-    if( mod( remain, nproc_total ) .eq. 0 ) then
-      max_store_size = remain / nproc_total
-    else
-      max_store_size = ceiling( dble( remain ) / dble( nproc_total ) )
-    endif
+    max_store_size = ceiling( dble( remain ) / dble( nproc_total ) )
 
     if( mod( remain, max_store_size ) .eq. 0 ) then
       nproc_remain = remain / max_store_size
@@ -1272,24 +1274,35 @@ module OCEAN_psi
       return
     endif
 
-    my_store_size = min( max_store_size, remain - ( id * max_store_size ) )
-    i = max_store_size * id + 1
-    a_start = i / psi_kpts_actual + 1
-    k_start = mod( (i-1), psi_kpts_actual ) + 1
 
-!    remain = psi_kpts_actual * psi_core_alpha
-!    k_start = 1
-!    a_start = 1
-!    do i = 0, id
-!      store_size = ceiling( dble( remain ) / dble( core_np - i ) )
-!      remain = remain - store_size
-!      !
-!      k_start = k_start + store_size
-!      if( k_start .gt. psi_kpts_actual ) then 
-!        k_start = k_start - psi_kpts_actual
-!        a_start = a_start + 1
-!      endif
-!    enddo
+    k_start = 1
+    a_start = 1
+    my_store_size = max_store_size
+
+    ! if id == 0 then skip this, the assignments above are fine
+    do i = 1, id
+  
+      ! shift k_start by the previous proc's store_size
+      k_start = k_start + my_store_size
+
+      ! store is either max_store_size or whatever remains if we are last proc
+      my_store_size = min( remain, max_store_size )
+      remain = remain - my_store_size
+
+      ! It is possible that store_size > psi_kpts_actual and 
+      !   we will have to account for shifting by several i-alphas
+      do while( k_start .gt. psi_kpts_actual ) 
+        k_start = k_start - psi_kpts_actual
+        a_start = a_start + 1
+      enddo
+
+    enddo
+
+    if( a_start .gt. psi_core_alpha ) then
+      write(6,*) 'CORE_STORE!!!', id, nproc_total
+      write(6,*) k_start, a_start, max_store_size, my_store_size
+      ierr = -1
+    endif
 
   end subroutine psi_core_store_size
     
@@ -1646,7 +1659,7 @@ module OCEAN_psi
       core_comm = comm 
       core_myid_default = myid
       call psi_core_store_size( core_myid_default, total_nproc, core_np, max_core_store_size, &
-                                core_store_size, core_k_start, core_a_start )
+                                core_store_size, core_k_start, core_a_start, ierr )
     else
       core_comm = comm
       core_np = total_nproc
@@ -1809,7 +1822,7 @@ module OCEAN_psi
 !    p%core_np   = core_np
 
     call psi_core_store_size( p%core_myid, total_nproc, p%core_np, mcss, &
-                              p%core_store_size, p%core_k_start, p%core_a_start )
+                              p%core_store_size, p%core_k_start, p%core_a_start, ierr )
 
 !    allocate( buffer_recvs( 2 * nproc ), buffer_sends( 2 * p%core_np ), &
 !              min_recvs( 2 * p%core_np ), min_sends( 2 * nproc ), STAT=ierr )
@@ -2305,14 +2318,14 @@ module OCEAN_psi
     ! This is ideal for allgatherv
     !  Each proc has some amount of full
 !JTV not very optimized atm
-    call psi_core_store_size( core_myid, store_size, ik, ia )
+    call psi_core_store_size( core_myid, store_size, ik, ia, ierr )
     send_size = store_size * psi_bands_pad
   
     displ = 0
   
     allocate( recvcount(0:nproc-1), displs(0:nproc-1) )
     do i = 0, nproc - 1
-      call psi_core_store_size( i, store_size, ik, ia )
+      call psi_core_store_size( i, store_size, ik, ia, ierr )
       send_size = store_size * psi_bands_pad
       recvcount( i ) = send_size
       displs( i ) = displ
@@ -2328,7 +2341,7 @@ module OCEAN_psi
     elseif( maxval( recvcount ) .eq. 1 ) then
       ! Re-assign offsets. Doesn't matter if we muck-up offsets for size=0 guys
       do i = 0, nproc - 1
-        call psi_core_store_size( i, store_size, ik, ia )
+        call psi_core_store_size( i, store_size, ik, ia, ierr )
         displs( i ) = ( ia - 1 ) * psi_kpts_pad * psi_bands_pad + ( ik - 1 ) * psi_bands_pad
       enddo
       call MPI_ALLGATHERV( p%store_r, recvcount( core_myid ), MPI_DOUBLE_PRECISION, &
