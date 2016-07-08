@@ -387,8 +387,8 @@ module OCEAN_action
 
     integer :: i, ntot, iter, iwrk, need, int1, int2
     integer :: project_file_handle
-    real( DP ) :: relative_error, f( 2 ), ener
-    complex( DP ) :: rm1
+    real( DP ) :: relative_error, f( 2 ), ener, exciton_norm
+    complex( DP ) :: rm1, exciton_energy0
 
     rm1 = -1
     rm1 = sqrt( rm1 )
@@ -519,10 +519,23 @@ module OCEAN_action
 
 
       if( myid .eq. 0 ) then
+
+        exciton_norm = dot_product( x, x )
+        call rtov( sys, psi, x )
+        call ocean_energies_act( sys, psi, hpsi, ierr )
+        call vtor( sys, hpsi, v2 )
+        exciton_energy0 = dot_product( x, v2 )
+        exciton_energy0 = exciton_energy0 / exciton_norm
+
+        
+
         relative_error = f( 2 ) / ( dimag( - dot_product( rhs, x ) ) ) !* kpref )
-        write ( 76, '(1p,1i5,4(1x,1e15.8))' ) int1, ener*27.2114_DP, &
-                  ( 1.0d0 - dot_product( rhs, x ) ) * kpref, relative_error
+        write ( 76, '(1p,1i5,6(1x,1e15.8))' ) int1, ener*27.2114_DP, &
+                  ( 1.0d0 - dot_product( rhs, x ) ) * kpref, relative_error, exciton_energy0
         call flush(76)
+
+        
+        
 
         if( echamp ) then
           write(e_filename,'(A7,A2,A1,I4.4,A1,A2,A1,I2.2,A1,I4.4)' ) 'echamp_', sys%cur_run%elname, &
