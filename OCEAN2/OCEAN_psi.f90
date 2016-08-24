@@ -1286,8 +1286,8 @@ module OCEAN_psi
       k_start = k_start + my_store_size
 
       ! store is either max_store_size or whatever remains if we are last proc
-      my_store_size = min( remain, max_store_size )
       remain = remain - my_store_size
+      my_store_size = min( remain, max_store_size )
 
       ! It is possible that store_size > psi_kpts_actual and 
       !   we will have to account for shifting by several i-alphas
