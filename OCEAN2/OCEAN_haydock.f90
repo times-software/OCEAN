@@ -381,7 +381,11 @@ module OCEAN_action
         relative_error = f( 2 ) / ( dimag( - dot_product( rhs, x ) ) ) !* kpref )
         write ( 76, '(1p,1i5,4(1x,1e15.8))' ) int1, ener*27.2114_DP, &
                   ( 1.0d0 - dot_product( rhs, x ) ) * hay_vec%kpref, relative_error
+#ifdef __HAVE_F03
+        flush(76)
+#else
         call flush(76)
+#endif
 
         if( echamp ) then
           write(e_filename,'(A7,A2,A1,I4.4,A1,A2,A1,I2.2,A1,I4.4)' ) 'echamp_', sys%cur_run%elname, &

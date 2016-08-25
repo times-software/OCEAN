@@ -4,6 +4,7 @@
 ! of the University of Illinois/NCSA Open Source License. See the file 
 ! `License' in the root directory of the present distribution.
 !
+#define VAL
 !
 module OCEAN_psi
 !#ifdef MPI
@@ -86,7 +87,7 @@ module OCEAN_psi
 
 #ifdef __INTEL
 !dir$ attributes align:64 :: r, i, write_r, write_i, store_r, store_i
-! !dir$ attributes align:64 :: valr, vali
+!dir$ attributes align:64 :: valr, vali
 #endif
 
     ! MPI requests for sharing OCEAN_vector
@@ -2597,7 +2598,9 @@ module OCEAN_psi
       case( 'VAL' )
         call OCEAN_read_tmels( sys, p, file_selector, ierr )
       case( 'RXS' )
-        call OCEAN_rixs_holder_load( sys, p, file_selector, ierr )
+!        call OCEAN_rixs_holder_load( sys, p, file_selector, ierr )
+        ierr = -1
+        return
       case default
         if( myid .eq. root ) then 
           write(6,*) 'Trying to load valence transition matrix for unsupported calculation type'

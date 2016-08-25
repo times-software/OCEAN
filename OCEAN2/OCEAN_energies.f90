@@ -197,7 +197,7 @@ module OCEAN_energies
     character(len=4) :: gw_control
     logical :: file_exists, have_gw
 
-    character(len=16) ::clsFile
+    character(len=18) ::clsFile
 
     if( sys%conduct ) then
       infoname = 'wvfcninfo'
@@ -263,13 +263,14 @@ module OCEAN_energies
         end select
       endif
 
-      write(clsFile,'(1A5,1A2,1I2.2,1A2,1I2.2,1A1,1I2.2)') 'cls.z', sys%cur_run%elname, sys%cur_run%indx, &
+      write(clsFile,'(1A5,1A2,1I4.4,1A2,1I2.2,1A1,1I2.2)') 'cls.z', sys%cur_run%elname, sys%cur_run%indx, &
           '_n', sys%cur_run%ZNL(2), 'l', sys%cur_run%ZNL(3)
       inquire(file=clsFile,exist=file_exists)
       if( file_exists ) then
         open(unit=99,file=clsFile,form='formatted',status='old')
         read(99,*) core_offset
         close(99)
+        write(6,*) 'Core-level shift:', core_offset
 
 !      if( sys%nruns .gt. 1 ) then
 !        inquire(file='core_shift.txt',exist=file_exists)

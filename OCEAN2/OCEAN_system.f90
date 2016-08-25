@@ -76,6 +76,11 @@ module OCEAN_system
     logical          :: valence = .false.
     logical          :: have_core = .true.
     logical          :: have_val  = .false.
+    logical          :: lflag
+    logical          :: bflag
+    logical          :: bande
+    logical          :: aldaf
+    logical          :: backf
     
     type(o_run), pointer :: prev_run => null()
     type(o_run), pointer :: next_run => null()

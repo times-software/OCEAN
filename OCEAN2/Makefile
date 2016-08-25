@@ -1,7 +1,7 @@
 include ../Makefile.arch
 
 # Currently BLAS and MPI are *not* optional
-FLAGS = $(OPTIONS) -cpp -DBLAS -DMPI 
+FLAGS = $(OPTIONS) -cpp -DBLAS -DMPI -D__HAVE_F03
 
 CNBSE = ../CNBSE/zcmsnmult/zf90
 
@@ -12,7 +12,8 @@ OCEANOBJS = AI_kinds.o OCEAN_mpi.o OCEAN_system.o OCEAN_bloch.o OCEAN_obf.o OCEA
             long_range.o OCEAN_load_data.o OCEAN_psi.o OCEAN_energies.o OCEAN_haydock.o OCEAN.o \
             getabb.o getomega.o gamfcn.o jlmfft.o jimel.o nbsemkcmel.o intval.o \
             newgetylm.o  newgetprefs.o newthreey.o cainmhsetup.o elsdch.o cinv.o \
-            sizereport.o OCEAN_timekeeper.o OCEAN_invdrv.o OCEAN_val_energy.o
+            sizereport.o OCEAN_timekeeper.o OCEAN_invdrv.o OCEAN_val_energy.o \
+            OCEAN_read_tmels.o 
 
 
 OCEAN_val_energy.o: OCEAN_val_energy.f90 OCEAN_psi.o
@@ -123,6 +124,12 @@ OCEAN_obf.o: OCEAN_obf.f90 OCEAN_system.o AI_kinds.o OCEAN_mpi.o
 
 OCEAN_invdrv.o: OCEAN_invdrv.f90
 	$(MPIFORT) $(FLAGS) -c -o OCEAN_invdrv.o OCEAN_invdrv.f90
+
+OCEAN_read_tmels.o: OCEAN_read_tmels.f90 OCEAN_system.o OCEAN_mpi.o OCEAN_psi.o
+	$(MPIFORT) $(FLAGS) -c -o OCEAN_read_tmels.o OCEAN_read_tmels.f90
+
+OCEAN_bubble.o: OCEAN_bubble.f90
+	$(MPIFORT) $(FLAGS) -c -o OCEAN_bubble.o OCEAN_bubble.f90
 
 
 clean:
