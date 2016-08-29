@@ -74,11 +74,11 @@ module OCEAN_system
     logical          :: obf
     logical          :: conduct
     logical          :: valence = .false.
-    logical          :: have_core = .true.
-    logical          :: have_val  = .false.
+    logical          :: have_core  
+    logical          :: have_val  
     logical          :: lflag
     logical          :: bflag
-    logical          :: bande
+    logical          :: bande = .true.
     logical          :: aldaf
     logical          :: backf
     
@@ -357,12 +357,12 @@ module OCEAN_system
           have_core = .true.
         case( 'VAL' )
           num_bands = sys%brange(4)-sys%brange(3)+1
-          val_bands = sys%brange(2)-sys%brange(2)+1
-          sys%have_val = .true.
+          val_bands = sys%brange(2)-sys%brange(1)+1
+          have_val = .true.
         case( 'RXS' )
           num_bands = sys%brange(4)-sys%brange(3)+1
-          val_bands = sys%brange(2)-sys%brange(2)+1
-          sys%have_val = .true.
+          val_bands = sys%brange(2)-sys%brange(1)+1
+          have_val = .true.
           
         case default
           start_band = sys%brange(3)

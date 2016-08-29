@@ -35,21 +35,25 @@ module OCEAN_psi
   INTEGER :: psi_bands_pad
   INTEGER :: psi_kpts_pad
   INTEGER :: psi_core_alpha
-  INTEGER :: psi_val_beta
-  INTEGER :: psi_val_bands
   INTEGER :: psi_kpts_actual
   
-  INTEGER :: psi_val_np
-  INTEGER :: psi_val_myid
+  INTEGER :: psi_val_bands
+  INTEGER :: psi_val_beta
+  INTEGER :: total_nproc
+  INTEGER :: psi_comm_flavor = psi_comm_reduce
+
+
+  INTEGER :: val_comm
+  INTEGER :: val_np
+  INTEGER :: val_myid_default
+  INTEGER :: max_val_store_size
 
 
   INTEGER :: core_comm
-  INTEGER :: total_nproc
   INTEGER :: core_np
   INTEGER :: core_myid_default
   INTEGER :: max_core_store_size
 
-  INTEGER :: psi_comm_flavor = psi_comm_reduce
 !  INTEGER :: core_k_start
 !  INTEGER :: core_a_start
 !  INTEGER :: core_full_size
@@ -108,10 +112,19 @@ module OCEAN_psi
 
     INTEGER :: core_comm = -1
     INTEGER :: core_myid = -1
+    INTEGER :: val_comm  = -1
+    INTEGER :: val_myid  = -1
+
     INTEGER :: core_k_start = 0
     INTEGER :: core_a_start = 0
     INTEGER :: core_store_size = 0
     INTEGER :: core_np
+
+    INTEGER :: val_k_start = 0
+    INTEGER :: val_a_start = 0
+    INTEGER :: val_store_size = 0
+    INTEGER :: val_np
+
 
     LOGICAL :: inflight = .false.
     LOGICAL :: update   = .false.
@@ -1237,6 +1250,65 @@ module OCEAN_psi
 
   ! Returns the needed stats about the store version of psi
   !   For now we chunk evenly. Procs either have nchunk or 0
+  subroutine psi_val_store_size( id, nproc_total, nproc_remain, max_store_size, my_store_size, val_start, &
+                                 k_start, beta_start, ierr )
+    implicit none
+    integer, intent( in ) :: id, nproc_total
+    integer, intent( out ) :: nproc_remain, max_store_size, my_store_size, val_start, k_start, beta_start
+    integer, intent( inout ) :: ierr
+
+    integer :: i, remain
+
+    remain = psi_kpts_actual * psi_val_beta * psi_val_bands
+
+    max_store_size = ceiling( dble( remain ) / dble( nproc_total ) )
+
+    if( mod( remain, max_store_size ) .eq. 0 ) then
+      nproc_remain = remain / max_store_size
+    else
+      nproc_remain = ceiling( dble( remain ) / dble( max_store_size ) )
+    endif
+
+    val_start = 1
+    k_start = 1
+    beta_start = 1
+
+    if( id .gt. nproc_remain - 1 ) then
+      my_store_size = 0
+      return
+    endif
+
+    my_store_size = max_store_size
+
+    ! if id == 0 then skip this, the assignments above are fine
+    do i = 1, id
+
+      ! shift valence counter by prev proc's store_size
+      val_start = val_start + my_store_size
+
+      ! store is either max_store_size or whatever remains if we are last proc
+      remain = remain - my_store_size
+      my_store_size = min( remain, max_store_size )
+
+      ! First make sure we shift valence bands
+      do while( val_start .gt. psi_val_bands )
+        val_start = val_start - psi_val_bands
+        k_start = k_start + 1
+      enddo
+
+      ! Now shift k_start
+      do while( k_start .gt. psi_kpts_actual )
+        k_start = k_start - psi_kpts_actual
+        beta_start = beta_start + 1
+      enddo
+
+    enddo
+  end subroutine psi_val_store_size
+
+
+
+  ! Returns the needed stats about the store version of psi
+  !   For now we chunk evenly. Procs either have nchunk or 0
   subroutine psi_core_store_size( id, nproc_total, nproc_remain, max_store_size, my_store_size, k_start, a_start, ierr )
     implicit none
     integer, intent( in ) :: id, nproc_total
@@ -1320,23 +1392,27 @@ module OCEAN_psi
     endif
 
     if( a%update ) then
-      ierr = -2
+      ierr = -22
       return
     endif
 
-!    if( have_val ) then
-!      a%valr = 0.0_dp
-!      a%vali = 0.0_dp
-!    endif
+    if( IAND( a%alloc_store, PSI_STORE_FULL ) .eq. 0 ) then
+      call OCEAN_psi_alloc_full( a, ierr )
+      if( ierr .ne. 0 ) return
+    endif
+
     if( have_core ) then
-      if( IAND( a%alloc_store, PSI_STORE_FULL ) .eq. 0 ) then
-        call OCEAN_psi_alloc_full( a, ierr )
-        if( ierr .ne. 0 ) return
-      endif
       a%r = 0.0_dp
       a%i = 0.0_dp
-      a%valid_store = PSI_STORE_FULL
     endif
+
+    if( have_val ) then
+      a%valr = 0.0_dp
+      a%vali = 0.0_dp
+    endif
+
+    a%valid_store = PSI_STORE_FULL
+
   end subroutine OCEAN_psi_zero_full
 
   subroutine OCEAN_psi_cmult( a, b, e, have_gw )
@@ -1345,12 +1421,10 @@ module OCEAN_psi
     type( OCEAN_vector ), intent( inout ) :: b
     logical, intent( in ) :: have_gw
 
-#if( 0 )
     if( have_val ) then
       b%valr(:,:,:,:) = a%valr(:,:,:,:) * e%valr(:,:,:,:)
       b%vali(:,:,:,:) = a%vali(:,:,:,:) * e%valr(:,:,:,:)
     endif
-#endif
     
   end subroutine
 
@@ -1594,18 +1668,21 @@ module OCEAN_psi
 
     if( is_init ) return
 
-    if( mod( sys%num_bands, CACHE_DOUBLE ) == 0 ) then
-      psi_bands_pad = sys%num_bands
+    if( mod( sys%cur_run%num_bands, CACHE_DOUBLE ) == 0 ) then
+      psi_bands_pad = sys%cur_run%num_bands
     else
-      psi_bands_pad = CACHE_DOUBLE * ( sys%num_bands / CACHE_DOUBLE + 1 )
+      psi_bands_pad = CACHE_DOUBLE * ( sys%cur_run%num_bands / CACHE_DOUBLE + 1 )
     endif
 
-    if( sys%val_bands .le. 1 ) then
+    if( sys%cur_run%val_bands .le. 1 ) then
       psi_val_bands = 1
-    elseif( mod( sys%val_bands, CACHE_DOUBLE ) == 0 ) then
-      psi_val_bands = sys%val_bands
+    elseif( mod( sys%cur_run%val_bands, CACHE_DOUBLE ) == 0 ) then
+      psi_val_bands = sys%cur_run%val_bands
     else
-      psi_val_bands = CACHE_DOUBLE * ( sys%val_bands / CACHE_DOUBLE + 1 )
+!      psi_val_bands = CACHE_DOUBLE * ( sys%cur_run%val_bands / CACHE_DOUBLE + 1 )
+!JTV We don't really need to pad this one. Padding conduction bads will be 
+!     sufficient to align the data?
+      psi_val_bands = sys%cur_run%val_bands
     endif
 
     if( mod( sys%nkpts, CACHE_DOUBLE ) == 0 .or. ( sys%nkpts .eq. 1 ) ) then
@@ -1621,8 +1698,8 @@ module OCEAN_psi
  
     psi_val_beta = sys%nspn ** 2
 
-    have_core = sys%have_core
-    have_val  = sys%have_val
+    have_core = sys%cur_run%have_core
+    have_val  = sys%cur_run%have_val
 
 !    core_full_size = psi_bands_pad * psi_kpts_pad * psi_core_alpha
   
@@ -1652,6 +1729,7 @@ module OCEAN_psi
 !    logical :: reorder = .false.
     !
     integer :: core_store_size, core_k_start, core_a_start
+    integer :: val_store_size, val_k_start, val_beta_start, val_start
     
     ! copy value from ocean_mpi
     total_nproc = nproc
@@ -1670,18 +1748,18 @@ module OCEAN_psi
 
 
 ! Current valence, but commented out until core works
-!    ! For the valence we block con and val bands, and then try and fully distribute by kpts and spins
-!    if( have_val ) then
-!      if( psi_kpts_actual * psi_val_beta .ge. nproc ) then
-!        psi_val_np = nproc
-!      else
-!        conblocks = max( 1, ( psi_bands_pad / blocksize ) )
-!        valblocks = max( 1, ( psi_val_bands / blocksize ) )
-!        psi_val_np = min( nproc, conblocks * valblocks * psi_kpts_actual * psi_val_beta )
-!      endif
-!    else
-!      psi_val_np = 1  ! for completeness assign a value
-!    endif
+    ! For the valence we block con and val bands, and then try and fully distribute by kpts and spins
+    if( have_val ) then
+      val_comm = comm
+      val_myid_default = myid
+      call psi_val_store_size( val_myid_default, total_nproc, val_np, max_val_store_size, val_store_size, val_start, &
+                               val_k_start, val_beta_start, ierr )
+    else
+      val_comm = comm
+      val_np = total_nproc
+      max_val_store_size = 1
+      val_myid_default = -1
+    endif
     
 !JTV
 ! This might be a terrible plan
@@ -1708,10 +1786,10 @@ module OCEAN_psi
 !\JTV  Now this is in buffer
 
 
-    if( have_val ) then
-      ierr = -1
-      return
-    endif
+!    if( have_val ) then
+!      ierr = -1
+!      return
+!    endif
 
   end subroutine OCEAN_psi_mpi_init
 
@@ -1733,7 +1811,7 @@ module OCEAN_psi
     endif
   
     if( ( .not. have_core ) .and. ( .not. have_val ) ) then
-      ierr = -2
+      ierr = -20
       return
     endif
 
@@ -1862,11 +1940,22 @@ module OCEAN_psi
     integer, intent(inout) :: ierr
     type(OCEAN_vector), intent( inout ) :: p
 
-    allocate( p%r( psi_bands_pad, psi_kpts_pad, psi_core_alpha ), &
-              p%i( psi_bands_pad, psi_kpts_pad, psi_core_alpha ), &
-!              p%valr( psi_bands_pad, psi_val_bands, psi_kpts_pad, psi_val_beta ), &
-!              p%vali( psi_bands_pad, psi_val_bands, psi_kpts_pad, psi_val_beta ), & 
-              STAT=ierr )
+
+    if( have_core ) then
+
+      allocate( p%r( psi_bands_pad, psi_kpts_pad, psi_core_alpha ), &
+                p%i( psi_bands_pad, psi_kpts_pad, psi_core_alpha ), &
+                STAT=ierr )
+      if( ierr .ne. 0 ) return
+    endif
+
+    if( have_val ) then
+      allocate( p%valr( psi_bands_pad, psi_val_bands, psi_kpts_pad, psi_val_beta ), &
+                p%vali( psi_bands_pad, psi_val_bands, psi_kpts_pad, psi_val_beta ), & 
+                STAT=ierr )
+      if( ierr .ne. 0 ) return
+    endif
+
 
     p%alloc_store = IOR(p%alloc_store, PSI_STORE_FULL )
     ! invalidate full
@@ -2137,7 +2226,7 @@ module OCEAN_psi
 !   can't be in the middle of acting the Hamiltonian on the vector or else this
 !   operation ( min -> full ) doesn't make sense
     if( p%update ) then
-      ierr = -2
+      ierr = -21
       return
     endif
 
@@ -2466,7 +2555,7 @@ module OCEAN_psi
               write ( 6, '(1a6,3f10.5)' ) 'tau = ', tau
               if ( icms .eq. ivms ) then
                 do ikpt = 1, sys%nkpts
-                  do iband = 1, sys%num_bands
+                  do iband = 1, sys%cur_run%num_bands
                     read( 99 ) p%r(iband,ikpt,ialpha), p%i(iband,ikpt,ialpha)
 !                    read ( 99 ) tmpr, tmpi
 !                    psi( iband, ikpt, ialpha ) = cmplx( tmpr, tmpi )
@@ -2489,7 +2578,7 @@ module OCEAN_psi
               write ( 6, '(1a6,3f10.5)' ) 'tau = ', tau
               if ( icms .eq. ivms ) then
                 do ikpt = 1, sys%nkpts
-                  do iband = 1, sys%num_bands
+                  do iband = 1, sys%cur_run%num_bands
                     read( 99 ) p%r(iband,ikpt,ialpha), p%i(iband,ikpt,ialpha)
 !                    read ( 99 ) tmpr, tmpi
 !                    psi( iband, ikpt, ialpha ) = cmplx( tmpr, tmpi )
@@ -2514,7 +2603,7 @@ module OCEAN_psi
 ! !#else
         nrm = 0.0_DP
         do ikpt = 1, sys%nkpts
-!          nrm = nrm + dot_product( psi( 1 : sys%num_bands, ikpt, ialpha ), psi( 1 : sys%num_bands, ikpt, ialpha ) )
+!          nrm = nrm + dot_product( psi( 1 : sys%cur_run%num_bands, ikpt, ialpha ), psi( 1 : sys%cur_run%num_bands, ikpt, ialpha ) )
           nrm = nrm + sum(p%r(:,ikpt,ialpha)**2 + p%i(:,ikpt,ialpha)**2)
         enddo
         write( 6, '(1a12,1i4,1x,1e15.8)' ) 'channel dot', ialpha, nrm
@@ -2562,12 +2651,12 @@ module OCEAN_psi
     type(OCEAN_vector), intent( inout ) :: p
     integer, intent( inout ) :: ierr
 
-    if( sys%have_core ) then 
+    if( sys%cur_run%have_core ) then 
       call OCEAN_psi_load_core( sys, p, ierr )
       if( ierr .ne. 0 ) return
     endif
 
-    if( sys%have_val ) then
+    if( sys%cur_run%have_val ) then
 #ifdef VAL
       call OCEAN_psi_load_val( sys, p, ierr )
 #endif
@@ -2590,11 +2679,18 @@ module OCEAN_psi
 
     integer :: file_selector
 
-    if( .not. sys%have_val ) return
+    if( .not. sys%cur_run%have_val ) return
+
+    ! Make sure things are allocated
+    if( IAND( p%alloc_store, PSI_STORE_FULL ) .eq. 0 ) then
+      call OCEAN_psi_alloc_full( p, ierr )
+      if( ierr .ne. 0 ) return
+    endif
+
 
     if( .true. ) then
       file_selector = 1
-      select case (sys%calc_type)
+      select case (sys%cur_run%calc_type)
       case( 'VAL' )
         call OCEAN_read_tmels( sys, p, file_selector, ierr )
       case( 'RXS' )
@@ -2632,7 +2728,7 @@ module OCEAN_psi
     character(LEN=8) :: str
     real(DP), external :: DZNRM2
 
-    if( .not. sys%have_core ) return
+    if( .not. sys%cur_run%have_core ) return
 
     ! Make sure things are allocated
     if( IAND( p%alloc_store, PSI_STORE_FULL ) .eq. 0 ) then
@@ -2715,8 +2811,10 @@ module OCEAN_psi
 
     if( .not. sys%write_rhs ) return
 
-    allocate( out_vec(sys%num_bands, sys%nkpts, sys%nalpha ) )
-    out_vec(:,:,:) = cmplx( p%r(1:sys%num_bands,1:sys%nkpts,:), p%i(1:sys%num_bands,1:sys%nkpts,:) )
+    if( .not. have_core ) return
+
+    allocate( out_vec(sys%cur_run%num_bands, sys%nkpts, sys%nalpha ) )
+    out_vec(:,:,:) = cmplx( p%r(1:sys%cur_run%num_bands,1:sys%nkpts,:), p%i(1:sys%cur_run%num_bands,1:sys%nkpts,:) )
 
     write(rhs_filename,'(A4,A2,A1,I4.4,A1,A2,A1,I2.2)' ) 'rhs_', sys%cur_run%elname, &
             '.', sys%cur_run%indx, '_', '1s', '_', sys%cur_run%photon
@@ -2801,7 +2899,7 @@ module OCEAN_psi
             if( icms .eq. ivms ) then
               iter = 0
               do ikpt = 1, sys%nkpts
-                do iband = 1, sys%num_bands
+                do iband = 1, sys%cur_run%num_bands
                   iter = iter + 1
                   rr = dot_product( mer( :, icml ), pcr( :, iter, 1 ) )
                   ri = dot_product( mer( :, icml ), pci( :, iter, 1 ) )
@@ -2823,7 +2921,7 @@ module OCEAN_psi
             if( icms .eq. ivms ) then
               iter = 0
               do ikpt = 1, sys%nkpts
-                do iband = 1, sys%num_bands
+                do iband = 1, sys%cur_run%num_bands
                   iter = iter + 1
                   rr = dot_product( mer( :, icml ), pcr( :, iter, ivms ) )
                   ri = dot_product( mer( :, icml ), pci( :, iter, ivms ) )

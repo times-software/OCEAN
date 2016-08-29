@@ -18,8 +18,8 @@ module OCEAN_energies
   real(DP), ALLOCATABLE, public :: imag_selfenergy(:,:,:)
 
 
-  type( OCEAN_vector ), pointer :: p_energy
-  type( OCEAN_vector ), pointer :: allow
+  type( OCEAN_vector ) :: p_energy
+  type( OCEAN_vector ) :: allow
 
 #ifdef __INTEL_COMPILER
 !DIR$ attributes align: 64 :: energies, imag_selfenergy
@@ -80,7 +80,7 @@ module OCEAN_energies
 
   subroutine OCEAN_energies_val_load( sys, ierr )
     use OCEAN_system
-    use OCEAN_psi, only : OCEAN_vector, OCEAN_psi_new
+    use OCEAN_psi, only : OCEAN_vector, OCEAN_psi_new, OCEAN_psi_zero_full
     use OCEAN_val_energy, only : OCEAN_read_energies
     implicit none
     !
@@ -91,11 +91,17 @@ module OCEAN_energies
     !
 
     if( .not. is_init ) then
-      allocate( p_energy, allow )
+!      allocate( p_energy, allow )
       call OCEAN_psi_new( p_energy, ierr )
       if( ierr .ne. 0 ) return
       call OCEAN_psi_new( allow, ierr )
       if( ierr .ne. 0 ) return
+
+      call OCEAN_psi_zero_full( p_energy, ierr )
+      if( ierr .ne. 0 ) return
+      call OCEAN_psi_zero_full( allow, ierr )
+      if( ierr .ne. 0 ) return
+      
       is_init = .true.
     endif
 

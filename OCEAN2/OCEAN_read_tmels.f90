@@ -30,13 +30,13 @@ subroutine OCEAN_read_tmels( sys, p, file_selector, ierr )
   inv_qlength = 1.0_dp / sqrt( inv_qlength )
 
 
-  if( sys%num_bands .ne. ( sys%brange(4)-sys%brange(3)+1 ) ) then
-    if(myid .eq. root ) write(6,*) 'Conduction band mismatch!', sys%num_bands, ( sys%brange(4)-sys%brange(3)+1 ) 
+  if( sys%cur_run%num_bands .ne. ( sys%brange(4)-sys%brange(3)+1 ) ) then
+    if(myid .eq. root ) write(6,*) 'Conduction band mismatch!', sys%cur_run%num_bands, ( sys%brange(4)-sys%brange(3)+1 ) 
     ierr = -1
     return
   endif
-  if( sys%val_bands .ne. ( sys%brange(2)-sys%brange(1)+1 ) ) then
-    if(myid .eq. root ) write(6,*) 'Valence band mismatch!', sys%val_bands, ( sys%brange(4)-sys%brange(3)+1 )
+  if( sys%cur_run%val_bands .ne. ( sys%brange(2)-sys%brange(1)+1 ) ) then
+    if(myid .eq. root ) write(6,*) 'Valence band mismatch!', sys%cur_run%val_bands, ( sys%brange(2)-sys%brange(1)+1 )
     ierr = -1
     return
   endif
@@ -57,7 +57,6 @@ subroutine OCEAN_read_tmels( sys, p, file_selector, ierr )
       endif
     endif
 
-    allocate( psi_in( nbv, nbc(1):nbc(2) ), psi_transpose( sys%val_bands, sys%num_bands ) )
 #ifdef MPI
     call MPI_BCAST( nbc, 2, MPI_INTEGER, 0, comm, ierr )
     if( ierr .ne. 0 ) return
@@ -73,6 +72,7 @@ subroutine OCEAN_read_tmels( sys, p, file_selector, ierr )
 #else
     open( unit=99,file='ptmels.dat',form='binary',status='old')
 #endif
+    allocate( psi_in( nbv, nbc(1):nbc(2) ), psi_transpose( sys%cur_run%val_bands, sys%cur_run%num_bands ) )
 
 
     do ik = 1, sys%nkpts
@@ -87,10 +87,10 @@ subroutine OCEAN_read_tmels( sys, p, file_selector, ierr )
 #endif
 
       psi_transpose( :, : ) = inv_qlength * real( psi_in( sys%brange(1):sys%brange(2), sys%brange(3):sys%brange(4) ) )
-      p%valr(1:sys%num_bands,1:sys%val_bands,ik,1) = transpose( psi_transpose )
+      p%valr(1:sys%cur_run%num_bands,1:sys%cur_run%val_bands,ik,1) = transpose( psi_transpose )
 
       psi_transpose( :, : ) = (-inv_qlength) * aimag( psi_in( sys%brange(1):sys%brange(2), sys%brange(3):sys%brange(4) ) )
-      p%vali(1:sys%num_bands,1:sys%val_bands,ik,1) = transpose( psi_transpose )
+      p%vali(1:sys%cur_run%num_bands,1:sys%cur_run%val_bands,ik,1) = transpose( psi_transpose )
     enddo
 
 #ifdef MPI

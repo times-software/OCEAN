@@ -28,7 +28,7 @@ module OCEAN_val_energy
     real(DP), parameter :: Ha_to_eV = 27.21138386_dp
 
 
-    allocate( val_energies( sys%val_bands, sys%nkpts ), con_energies( sys%num_bands, sys%nkpts ), STAT=ierr )
+    allocate( val_energies( sys%cur_run%val_bands, sys%nkpts ), con_energies( sys%cur_run%num_bands, sys%nkpts ), STAT=ierr )
     if( ierr .ne. 0 ) return
 
 
@@ -44,9 +44,9 @@ module OCEAN_val_energy
         con_energies( :, : ) = con_energies( :, : ) * Ha_to_eV
       endif
 #ifdef MPI
-      call MPI_BCAST( val_energies, sys%val_bands*sys%nkpts, MPI_DOUBLE_PRECISION, root, comm, ierr )
+      call MPI_BCAST( val_energies, sys%cur_run%val_bands*sys%nkpts, MPI_DOUBLE_PRECISION, root, comm, ierr )
       if( ierr .ne. MPI_SUCCESS ) return
-      call MPI_BCAST( con_energies, sys%num_bands*sys%nkpts, MPI_DOUBLE_PRECISION, root, comm, ierr )
+      call MPI_BCAST( con_energies, sys%cur_run%num_bands*sys%nkpts, MPI_DOUBLE_PRECISION, root, comm, ierr )
       if( ierr .ne. MPI_SUCCESS ) return
 #endif
     else
@@ -62,6 +62,12 @@ module OCEAN_val_energy
           return
         endif
       endif
+#ifdef MPI
+    call MPI_BCAST( nbc, 2, MPI_INTEGER, 0, comm, ierr )
+    if( ierr .ne. 0 ) return
+    call MPI_BCAST( nbv, 1, MPI_INTEGER, 0, comm, ierr )
+    if( ierr .ne. 0 ) return
+#endif
 
 
       call MPI_FILE_OPEN( comm, 'val_energies.dat', MPI_MODE_RDONLY, MPI_INFO_NULL, fh, ierr )
@@ -71,7 +77,7 @@ module OCEAN_val_energy
       if( ierr .ne. MPI_SUCCESS ) return
       do ik = 1, sys%nkpts
         offset = ( ik - 1 ) * nbv
-        call MPI_FILE_READ_AT( fh, offset, val_energies( 1, ik ), sys%val_bands, MPI_DOUBLE_PRECISION, &
+        call MPI_FILE_READ_AT( fh, offset, val_energies( 1, ik ), sys%cur_run%val_bands, MPI_DOUBLE_PRECISION, &
                                MPI_STATUS_IGNORE, ierr )
         if( ierr .ne. MPI_SUCCESS) return
       enddo
@@ -85,7 +91,7 @@ module OCEAN_val_energy
       if( ierr .ne. MPI_SUCCESS ) return
       do ik = 1, sys%nkpts
         offset = ( ik - 1 ) * ( nbc( 2 ) - nbc( 1 ) + 1 ) + ( sys%brange( 3 ) - nbc( 1 ) )
-        call MPI_FILE_READ_AT( fh, offset, con_energies( 1, ik ), sys%num_bands, MPI_DOUBLE_PRECISION, &
+        call MPI_FILE_READ_AT( fh, offset, con_energies( 1, ik ), sys%cur_run%num_bands, MPI_DOUBLE_PRECISION, &
                                MPI_STATUS_IGNORE, ierr )
         if( ierr .ne. MPI_SUCCESS) return
       enddo
@@ -112,8 +118,8 @@ module OCEAN_val_energy
 
 
     do ik = 1, sys%nkpts
-      do ibv = 1, sys%val_bands
-        do ibc = 1, sys%num_bands
+      do ibv = 1, sys%cur_run%val_bands
+        do ibc = 1, sys%cur_run%num_bands
           p_energy%valr( ibc, ibv, ik, 1 ) = con_energies( ibc, ik ) - val_energies( ibv, ik )
         enddo
       enddo
@@ -135,8 +141,8 @@ module OCEAN_val_energy
     type( O_system ), intent( in ) :: sys
     type( OCEAN_vector ), intent( inout ) :: allow
     integer, intent( in ) :: nelectron
-    real(kind=kind(1.d0)), intent( in ) :: con_energies( sys%num_bands, sys%nkpts ), &
-                                           val_energies( sys%val_bands, sys%nkpts ),  &
+    real(kind=kind(1.d0)), intent( in ) :: con_energies( sys%cur_run%num_bands, sys%nkpts ), &
+                                           val_energies( sys%cur_run%val_bands, sys%nkpts ),  &
                                            efermi, cliph
     logical, intent( in ) :: metal
     integer, intent( inout ) :: ierr
@@ -144,40 +150,44 @@ module OCEAN_val_energy
     integer :: kiter, biter1, biter2
     !
     !
-    allow%valr = 0.0_dp
-    allow%vali = 0.0_dp
+    ! Already zero'd
+!    allow%valr = 0.0_dp
+!    allow%vali = 0.0_dp
     !
+    ! In storing psi the conduction band index is the fast index
     if( metal ) then
       do kiter = 1, sys%nkpts
-        do biter1 = 1, sys%num_bands
-          if ( con_energies( biter1, kiter ) .ge. efermi ) then
-            if ( con_energies( biter1, kiter ) .le. cliph ) then
-              do biter2 = 1, sys%val_bands
-                if ( val_energies( biter2, kiter ) .le. efermi ) then
-                  allow%valr( biter2, biter1, kiter, 1 ) = 1.0d0
-                  allow%vali( biter2, biter1, kiter, 1 ) = 1.0d0
-                endif
-              enddo ! biter2
-            endif
-          elseif ( sys%backf ) then
-           do biter2 = 1, sys%val_bands
-              if ( ( val_energies( biter2, kiter ) .ge. efermi ) .and. &
-                   ( val_energies( biter2, kiter ) .le. cliph ) ) then
-                allow%valr( biter2, biter1, kiter, 1 ) = 1.0d0
-                allow%vali( biter2, biter1, kiter, 1 ) = -1.0d0
+        do biter2 = 1, sys%cur_run%val_bands
+          if ( val_energies( biter2, kiter ) .le. efermi ) then
+
+            do biter1 = 1, sys%cur_run%num_bands
+              if ( ( con_energies( biter1, kiter ) .ge. efermi ) .and. &
+                   ( con_energies( biter1, kiter ) .le. cliph ) ) then
+                allow%valr( biter1, biter2, kiter, 1 ) = 1.0d0
+                allow%vali( biter1, biter2, kiter, 1 ) = 1.0d0
               endif
-            enddo ! biter2
+            enddo 
+          elseif ( sys%backf ) then
+            ierr = -413
+            return
+!           do biter2 = 1, sys%cur_run%val_bands
+!              if ( ( val_energies( biter2, kiter ) .ge. efermi ) .and. &
+!                   ( val_energies( biter2, kiter ) .le. cliph ) ) then
+!                allow%valr( biter2, biter1, kiter, 1 ) = 1.0d0
+!                allow%vali( biter2, biter1, kiter, 1 ) = -1.0d0
+!              endif
+!            enddo ! biter2
           endif
         enddo ! biter1
       enddo ! kiter
     else ! not metal 
       if( sys%backf ) ierr = 413
       do kiter = 1, sys%nkpts
-        do biter1 = 2 - sys%brange( 3 ) + ( nelectron / 2 ), sys%num_bands
-          do biter2 = 1, ( nelectron / 2 ) - sys%brange( 1 ) + 1
+        do biter2 = 1, ( nelectron / 2 ) - sys%brange( 1 ) + 1
+          do biter1 = 2 - sys%brange( 3 ) + ( nelectron / 2 ), sys%cur_run%num_bands
             if(  con_energies( biter1, kiter ) .le. cliph ) then
-                  allow%valr( biter2, biter1, kiter, 1 ) = 1.0d0
-                  allow%vali( biter2, biter1, kiter, 1 ) = 1.0d0
+                  allow%valr( biter1, biter2, kiter, 1 ) = 1.0d0
+                  allow%vali( biter1, biter2, kiter, 1 ) = 1.0d0
             endif
           enddo ! biter2
         enddo ! biter1
@@ -194,7 +204,7 @@ module OCEAN_val_energy
     !
     type( O_system ), intent( in ) :: sys
     integer, intent( in ) :: nelectron 
-    real(dp), intent( in ) :: con_energies( sys%num_bands, sys%nkpts ), val_energies( sys%val_bands, sys%nkpts )
+    real(dp), intent( in ) :: con_energies( sys%cur_run%num_bands, sys%nkpts ), val_energies( sys%cur_run%val_bands, sys%nkpts )
     real(dp), intent( out ) :: efermi, homo, lumo, cliph
     logical, intent( out ) :: metal
     integer, intent( inout ) :: ierr

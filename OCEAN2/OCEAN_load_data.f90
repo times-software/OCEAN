@@ -26,11 +26,12 @@ subroutine OCEAN_load_data( sys, hay_vec, lr, ierr )
 
 
   if( myid .eq. root ) write(6,*) 'Calc Type = ', sys%calc_type
-  if( myid .eq. root ) write(6,*) 'Init matrix elements'
+  if( myid .eq. root ) write(6,*) 'Init matrix elements 1'
 
   call ocean_psi_init( sys, ierr )
   if( ierr .ne. 0 ) return
 
+  if( myid .eq. root ) write(6,*) 'Init matrix elements 2'
   call ocean_psi_new( hay_vec, ierr )
   if( ierr .ne. 0 ) return
 

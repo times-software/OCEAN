@@ -37,7 +37,7 @@ module OCEAN_val_states
 #endif
 
   
-  
+  public :: OCEAN_val_states_load, OCEAN_val_states_init
 
   contains
 
@@ -80,8 +80,8 @@ module OCEAN_val_states
 
     nkpts = sys%nkpts
     nspn  = sys%nspn
-    nbc   = sys%num_bands
-    nbv   = sys%val_bands
+    nbc   = sys%cur_run%num_bands
+    nbv   = sys%cur_run%val_bands
 
     nxpts = 0
     startx = 1
@@ -275,13 +275,13 @@ module OCEAN_val_states
 #endif
 
     if( myid .eq. root ) then
-      allocate( u2_buf( sys%xmesh(3), sys%xmesh(2), sys%xmesh(1), max(brange(2), sys%num_bands ) ) )
-      allocate( re_share_buffer( max_nxpts, max(brange(2), sys%num_bands ), nproc ), &
-                im_share_buffer( max_nxpts, max(brange(2), sys%num_bands ), nproc )  ) 
+      allocate( u2_buf( sys%xmesh(3), sys%xmesh(2), sys%xmesh(1), max(brange(2), sys%cur_run%num_bands ) ) )
+      allocate( re_share_buffer( max_nxpts, max(brange(2), sys%cur_run%num_bands ), nproc ), &
+                im_share_buffer( max_nxpts, max(brange(2), sys%cur_run%num_bands ), nproc )  ) 
     else
       allocate( u2_buf( 1, 1, 1, 1 ) )
-      allocate( re_share_buffer( max_nxpts, max(brange(2), sys%num_bands ), 1 ), &
-                im_share_buffer( max_nxpts, max(brange(2), sys%num_bands ), 1 )  )
+      allocate( re_share_buffer( max_nxpts, max(brange(2), sys%cur_run%num_bands ), 1 ), &
+                im_share_buffer( max_nxpts, max(brange(2), sys%cur_run%num_bands ), 1 )  )
     endif
 
     do iq = 1, nkpts
