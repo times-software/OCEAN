@@ -11,15 +11,17 @@ subroutine OCEAN_read_tmels( sys, p, file_selector, ierr )
   integer, intent( inout ) :: ierr
 
 
-  integer :: nbc(2), nbv, nk, ik, fh
+  integer :: nbc(2), nbv, nk, ik, fh, elements
 
-  real(dp) :: inv_qlength, qinb(3)
+  real(dp) :: inv_qlength, qinb(3), max_psi
   complex(dp), allocatable :: psi_in(:,:)
   real(dp), allocatable :: psi_transpose( :, : )
 
 #ifdef MPI
   integer(MPI_OFFSET_KIND) :: offset
 #endif
+
+  max_psi = 0.0_dp
 
 ! qlength
   qinb(:) = sys%qinunitsofbvectors(:)
@@ -47,6 +49,7 @@ subroutine OCEAN_read_tmels( sys, p, file_selector, ierr )
   case( 1 )
 
     if( myid .eq. root ) then
+      write(6,*) 'Inverse Q-length:', inv_qlength
       open(unit=99,file='tmels.info',form='formatted',status='old')
       read(99,*) nbv, nbc(1), nbc(2), nk
       close(99)
@@ -78,19 +81,25 @@ subroutine OCEAN_read_tmels( sys, p, file_selector, ierr )
     do ik = 1, sys%nkpts
       ! Read in the tmels
 #ifdef MPI
-      offset =  nbv * ( nbc(2) - nbc(1) + 1 ) * ( ik - 1 )
-      call MPI_FILE_READ_AT( FH, offset, psi_in, nbv * ( nbc(2) - nbc(1) + 1 ), &
-                             MPI_DOUBLE_COMPLEX, MPI_STATUS_IGNORE, ierr )
+      offset = nbv * ( nbc(2) - nbc(1) + 1 ) * ( ik - 1 )
+      elements = nbv * ( nbc(2) - nbc(1) + 1 )
+      call MPI_FILE_READ_AT_ALL( FH, offset, psi_in, elements, &
+                                 MPI_DOUBLE_COMPLEX, MPI_STATUS_IGNORE, ierr )
       if( ierr .ne. MPI_SUCCESS) return
 #else
       read(99) psi_in
 #endif
+
+!      max_psi = max( max_psi, maxval( real(psi_in(:,:) ) ) )
 
       psi_transpose( :, : ) = inv_qlength * real( psi_in( sys%brange(1):sys%brange(2), sys%brange(3):sys%brange(4) ) )
       p%valr(1:sys%cur_run%num_bands,1:sys%cur_run%val_bands,ik,1) = transpose( psi_transpose )
 
       psi_transpose( :, : ) = (-inv_qlength) * aimag( psi_in( sys%brange(1):sys%brange(2), sys%brange(3):sys%brange(4) ) )
       p%vali(1:sys%cur_run%num_bands,1:sys%cur_run%val_bands,ik,1) = transpose( psi_transpose )
+
+
+      max_psi = max( max_psi, maxval( p%valr(1:sys%cur_run%num_bands,1:sys%cur_run%val_bands,ik,1) ) )
     enddo
 
 #ifdef MPI
@@ -111,5 +120,7 @@ subroutine OCEAN_read_tmels( sys, p, file_selector, ierr )
     ierr = -1
     return
   end select
+
+  if( myid .eq. root ) write(6,*) 'Max Psi:', max_psi
 
 end subroutine OCEAN_read_tmels
