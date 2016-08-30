@@ -31,8 +31,10 @@ module OCEAN_energies
   INTEGER :: energy_kpts_pad
 
   LOGICAL :: have_selfenergy
-  LOGICAL, private :: is_init = .false.
-  LOGICAL, private :: is_loaded = .false.
+  LOGICAL :: is_init = .false.
+  LOGICAL :: is_loaded = .false.
+  LOGICAL :: val_init = .false.
+  LOGICAL :: val_loaded = .false.
 
   public :: OCEAN_energies_val_allow, OCEAN_energies_val_sfact, OCEAN_energies_val_act, &
             OCEAN_energies_val_load, OCEAN_energies_act, OCEAN_energies_init, OCEAN_energies_load
@@ -73,7 +75,9 @@ module OCEAN_energies
     type(OCEAN_vector), intent( in ) :: psi
     type(OCEAN_vector), intent( inout ) :: hpsi
     !
-    call OCEAN_psi_cmult( psi, hpsi, p_energy, .false. )
+    if( psi%val_myid .eq. 0 ) then
+      call OCEAN_psi_cmult( psi, hpsi, p_energy, .false. )
+    endif
 
   end subroutine OCEAN_energies_val_act
 
@@ -90,26 +94,26 @@ module OCEAN_energies
     if( sys%have_val .eq. .false. ) return
     !
 
-    if( .not. is_init ) then
+    if( .not. val_init ) then
 !      allocate( p_energy, allow )
       call OCEAN_psi_new( p_energy, ierr )
       if( ierr .ne. 0 ) return
       call OCEAN_psi_new( allow, ierr )
       if( ierr .ne. 0 ) return
 
+      val_init = .true.
+    endif
+
+    if( .not. val_loaded ) then
       call OCEAN_psi_zero_full( p_energy, ierr )
       if( ierr .ne. 0 ) return
       call OCEAN_psi_zero_full( allow, ierr )
       if( ierr .ne. 0 ) return
       
-      is_init = .true.
-    endif
-
-    if( .not. is_loaded ) then
       call OCEAN_read_energies( sys, p_energy, allow, ierr )
       if( ierr .ne. 0 ) return
 
-      is_loaded = .true.
+      val_loaded = .true.
     endif
 
   end subroutine OCEAN_energies_val_load

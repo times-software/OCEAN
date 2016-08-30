@@ -148,7 +148,7 @@ module OCEAN_psi
   public :: OCEAN_psi_init, OCEAN_psi_kill, OCEAN_psi_load,  &
             OCEAN_psi_write, &
             OCEAN_psi_dot, OCEAN_psi_nrm, OCEAN_psi_scal, &
-            OCEAN_psi_axpy, OCEAN_psi_new, OCEAN_psi_mult, OCEAN_psi_cmult, &
+            OCEAN_psi_axpy, OCEAN_psi_new, OCEAN_psi_cmult, OCEAN_psi_mult, &
             OCEAN_psi_zero_full, OCEAN_psi_zero_min, &
             OCEAN_psi_ready_buffer, OCEAN_psi_send_buffer, &
             OCEAN_psi_copy_min, OCEAN_psi_buffer2min, &
@@ -1392,7 +1392,7 @@ module OCEAN_psi
       if( present( ival ) ) then
         ival = ival &
              + DDOT( psi_bands_pad * p%val_store_size, p%val_min_r, 1, q%val_min_i, 1 ) &
-             + DDOT( psi_bands_pad * p%val_store_size, p%val_min_i, 1, q%val_min_r, 1 )
+             - DDOT( psi_bands_pad * p%val_store_size, p%val_min_i, 1, q%val_min_r, 1 )
       endif
     endif
     ! There is no "else rval=0" here because it is taken care of above for core
@@ -1663,8 +1663,8 @@ module OCEAN_psi
     logical, intent( in ) :: have_gw
 
     if( have_val ) then
-      b%valr(:,:,:,:) = a%valr(:,:,:,:) * e%valr(:,:,:,:)
-      b%vali(:,:,:,:) = a%vali(:,:,:,:) * e%valr(:,:,:,:)
+      b%valr(:,:,:,:) = a%valr(:,:,:,:) * e%valr(:,:,:,:) + b%valr(:,:,:,:)
+      b%vali(:,:,:,:) = a%vali(:,:,:,:) * e%valr(:,:,:,:) + b%vali(:,:,:,:)
     endif
     
   end subroutine
@@ -1675,19 +1675,16 @@ module OCEAN_psi
     type( OCEAN_vector ), intent( inout ) :: a
     type( OCEAN_vector ), intent( in ) :: b
     logical, intent( in ) :: use_real
-#if( 0 )
+
+    if( .not. have_val ) return
+
     if( use_real ) then
-      if( have_val ) then
         a%valr(:,:,:,:) = a%valr(:,:,:,:) * b%valr(:,:,:,:)
         a%vali(:,:,:,:) = a%vali(:,:,:,:) * b%valr(:,:,:,:)
-      endif
     else
-      if( have_val ) then
         a%valr(:,:,:,:) = a%valr(:,:,:,:) * b%vali(:,:,:,:)
         a%vali(:,:,:,:) = a%vali(:,:,:,:) * b%vali(:,:,:,:)
-      endif
     endif
-#endif
   end subroutine
 
 #ifdef FALSE

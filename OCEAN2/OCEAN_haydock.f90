@@ -95,6 +95,7 @@ module OCEAN_action
 
 
   subroutine OCEAN_action_run( sys, hay_vec, lr, ierr )
+    use OCEAN_mpi, only : myid, root
     use OCEAN_system
     use OCEAN_psi
     use OCEAN_long_range
@@ -110,6 +111,8 @@ module OCEAN_action
         call OCEAN_haydock( sys, hay_vec, lr, ierr )
       case('inv')
         call OCEAN_GMRES( sys, hay_vec, lr, ierr )
+      case default
+        if( myid .eq. root ) write(6,*) 'Unrecognized calc type:', calc_type
     end select
   end subroutine OCEAN_action_run
 
@@ -142,28 +145,39 @@ module OCEAN_action
     type( ocean_vector ) :: psi, old_psi, new_psi
     
 
+!    if( myid .eq. root ) write(6,*) 'entering haydock'
+
     call OCEAN_psi_new( psi, ierr, hay_vec )
     if( ierr .ne. 0 ) return
+!    if( myid .eq. root ) write(6,*) 'psi'
 
     call OCEAN_psi_new( new_psi, ierr )
     if( ierr .ne. 0 ) return
+!    if( myid .eq. root ) write(6,*) 'new_psi'
 
     call OCEAN_psi_new( old_psi, ierr )
     if( ierr .ne. 0 ) return
+!    if( myid .eq. root ) write(6,*) 'old_psi'
 
     if( myid .eq. root ) then 
       write ( 6, '(2x,1a8,1e15.8)' ) ' mult = ', hay_vec%kpref
       write(6,*) inter_scale, haydock_niter
     endif
+    call MPI_BARRIER( comm, ierr )
 
 
 
     call OCEAN_tk_start( tk_psisum )
 
     do iter = 1, haydock_niter
+      if( sys%cur_run%have_val ) then
+        call OCEAN_energies_val_allow( sys, psi, ierr )
+        if( ierr .ne. 0 ) return
+      endif
 
       call OCEAN_xact( sys, psi, new_psi, lr, ierr )
       if( ierr .ne. 0 ) return
+!      if( myid .eq. root ) write(6,*) 'Done with ACT'
 
       ! This should be hoisted back up here
       call ocean_hay_ab( sys, psi, new_psi, old_psi, iter, ierr )
@@ -322,6 +336,12 @@ module OCEAN_action
       psi%r( :, :, : ) = 1.0_DP
       psi%i( :, :, : ) = 0.0_DP
 
+      if( sys%cur_run%have_val ) then
+        call OCEAN_energies_val_allow( sys, psi, ierr )
+        if( ierr .ne. 0 ) return
+      endif
+
+
       call OCEAN_xact( sys, psi, hpsi, lr, ierr )
       call OCEAN_psi_prep_min2full( hpsi, ierr )
       call OCEAN_psi_start_min2full( hpsi, ierr )
@@ -357,6 +377,11 @@ module OCEAN_action
           call rtov( sys, psi, v1 )
           call OCEAN_tk_stop( tk_inv )
 !          call OCEAN_xact( sys, psi, hpsi, multiplet_psi, long_range_psi, lr, ierr )
+          if( sys%cur_run%have_val ) then
+            call OCEAN_energies_val_allow( sys, psi, ierr )
+            if( ierr .ne. 0 ) return
+          endif
+
           call OCEAN_xact( sys, psi, hpsi, lr, ierr )
           call OCEAN_psi_prep_min2full( hpsi, ierr )
           call OCEAN_psi_start_min2full( hpsi, ierr )
@@ -503,16 +528,20 @@ module OCEAN_action
     type(OCEAN_vector), intent( in ) :: psi
     type(OCEAN_vector), intent(inout) :: new_psi
     type(long_range), intent( inout ) :: lr
+!    if( myid .eq. root ) write(6,*) 'XACT'
 
 
     call OCEAN_psi_zero_full( new_psi, ierr )
     if( ierr .ne. 0 ) return
+!    if( myid .eq. root ) write(6,*) 'Zero full'
 
     call OCEAN_psi_ready_buffer( new_psi, ierr )
     if( ierr .ne. 0 ) return
+!    if( myid .eq. root ) write(6,*) 'Ready buffer'
 
     call OCEAN_psi_zero_min( new_psi, ierr )
     if( ierr .ne. 0 ) return
+!    if( myid .eq. root ) write(6,*) 'Zero min'
 
     call OCEAN_tk_stop( tk_psisum )
 
@@ -532,6 +561,18 @@ module OCEAN_action
       call OCEAN_tk_start( tk_lr )
       call lr_act( sys, psi, new_psi, lr, ierr )
       call OCEAN_tk_stop( tk_lr )
+    endif
+
+    if( sys%cur_run%have_val ) then
+!      call OCEAN_energies_val_allow( sys, psi, ierr )
+!      if( ierr .ne. 0 ) return
+      if( sys%cur_run%bande ) then
+        call OCEAN_energies_val_act( sys, psi, new_psi, ierr )
+        if( ierr .ne. 0 ) return
+        call OCEAN_energies_val_sfact( sys, new_psi, ierr )
+        if( ierr .ne. 0 ) return
+      endif
+!      if(  myid .eq. root ) write(6,*) 'Done with 1e'
     endif
 
     call OCEAN_tk_start( tk_psisum )
@@ -555,7 +596,8 @@ module OCEAN_action
     if( ierr .ne. 0 ) return
     call OCEAN_tk_start( tk_psisum )
 
-  end subroutine
+
+  end subroutine OCEAN_xact
 
   subroutine OCEAN_hay_ab( sys, psi, hpsi, old_psi, iter, ierr )
 #ifdef __HAVE_F03
@@ -573,14 +615,17 @@ module OCEAN_action
     real(dp) :: btmp, atmp, aitmp
     integer :: ialpha, ikpt, arequest, airequest, brequest
 
+!    if( myid .eq. root ) write(6,*) 'ab'
     ! calc ctmp = < hpsi | psi > and begin Iallreduce
     call OCEAN_psi_dot( hpsi, psi, arequest, atmp, ierr, airequest, aitmp )
     if( ierr .ne. 0 ) return
+!    if( myid .eq. root ) write(6,*) 'psi_dot'
 
     ! hpsi -= b(i-1) * psi^{i-1}
     btmp = -b(iter-1)
     ! y:= a*x + y
     call OCEAN_psi_axpy( btmp, old_psi, hpsi, ierr )
+!    if( myid .eq. root ) write(6,*) 'psi_axpy 1'
 
     ! finish allreduce to get atmp
     ! we want iatmp too (for output/diagnostics), but that can wait
@@ -589,14 +634,16 @@ module OCEAN_action
     real_a(iter-1) = atmp
     atmp = -atmp
     call OCEAN_psi_axpy( atmp, psi, hpsi, ierr )
-
+!    if( myid .eq. root ) write(6,*) 'psi_axpy 2'
     
     call OCEAN_psi_nrm( btmp, hpsi, ierr, brequest )
     if( ierr .ne. 0 ) return
+!    if( myid .eq. root ) write(6,*) 'psi_nrm'
 
     ! copies psi onto old_psi
     call OCEAN_psi_copy_min( old_psi, psi, ierr )
     if( ierr .ne. 0 ) return
+!    if( myid .eq. root ) write(6,*) 'psi_copy 1'
 
     ! Could move prep and copy here for hspi -> psi
     !   just need to include a way to scale full instead of just min
