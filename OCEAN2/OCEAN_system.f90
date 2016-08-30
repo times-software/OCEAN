@@ -21,6 +21,7 @@ module OCEAN_system
     integer( S_INT ) :: nkpts
     integer( S_INT ) :: nxpts
     integer( S_INT ) :: nalpha
+    integer( S_INT ) :: nbeta
     integer( S_INT ) :: num_bands
     integer( S_INT ) :: val_bands
     integer          :: brange(4)
@@ -139,6 +140,7 @@ module OCEAN_system
       rewind(99)
       read(99,*) sys%nspn
       close(99)
+      sys%nbeta = sys%nspn**2
 
       open(unit=99,file='ZNL',form='formatted',status='old')
       rewind(99) 
@@ -257,6 +259,9 @@ module OCEAN_system
     call MPI_BCAST( sys%ZNL, 3, MPI_INTEGER, root, comm, ierr )
     if( ierr .ne. MPI_SUCCESS ) goto 111
     call MPI_BCAST( sys%nspn, 1, MPI_INTEGER, root, comm, ierr )
+    if( ierr .ne. MPI_SUCCESS ) goto 111
+    call MPI_BCAST( sys%nbeta, 1, MPI_INTEGER, root, comm, ierr )
+    if( ierr .ne. MPI_SUCCESS ) goto 111
     call MPI_BCAST( sys%brange, 4, MPI_INTEGER, root, comm, ierr )
     if( ierr .ne. MPI_SUCCESS ) goto 111
     call MPI_BCAST( sys%nelectron, 1, MPI_INTEGER, root, comm, ierr )

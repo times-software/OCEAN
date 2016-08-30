@@ -84,14 +84,16 @@ module OCEAN_psi
     REAL(DP), ALLOCATABLE :: valr(:,:,:,:)
     REAL(DP), ALLOCATABLE :: vali(:,:,:,:)
 
+    REAL(DP), ALLOCATABLE :: val_min_r(:,:)
+    REAL(DP), ALLOCATABLE :: val_min_i(:,:)
 #ifdef CONTIGUOUS
     CONTIGUOUS :: r, i, write_r, write_i, store_r, store_i
-!    CONTIGUOUS :: valr, vali 
+    CONTIGUOUS :: valr, vali, val_min_r, val_min_i
 #endif
 
 #ifdef __INTEL
 !dir$ attributes align:64 :: r, i, write_r, write_i, store_r, store_i
-!dir$ attributes align:64 :: valr, vali
+!dir$ attributes align:64 :: valr, vali, val_min_r, val_min_i
 #endif
 
     ! MPI requests for sharing OCEAN_vector
@@ -120,8 +122,9 @@ module OCEAN_psi
     INTEGER :: core_store_size = 0
     INTEGER :: core_np
 
+    INTEGER :: val_start
     INTEGER :: val_k_start = 0
-    INTEGER :: val_a_start = 0
+    INTEGER :: val_beta_start = 0
     INTEGER :: val_store_size = 0
     INTEGER :: val_np
 
@@ -129,6 +132,8 @@ module OCEAN_psi
     LOGICAL :: inflight = .false.
     LOGICAL :: update   = .false.
     LOGICAL :: standard_order = .false.
+    LOGICAL :: val_standard_order = .false.
+
 
   end type
 
@@ -159,8 +164,15 @@ module OCEAN_psi
       if( ierr .ne. 0 ) return
     endif
 
-    p%min_r(:,:) = 0.0_DP
-    p%min_i(:,:) = 0.0_DP
+    if( have_core ) then
+      p%min_r(:,:) = 0.0_DP
+      p%min_i(:,:) = 0.0_DP
+    endif
+
+    if( have_val ) then
+      p%val_min_r(:,:) = 0.0_DP
+      p%val_min_i(:,:) = 0.0_DP
+    endif
 
     p%valid_store = PSI_STORE_MIN
 
@@ -1806,7 +1818,7 @@ module OCEAN_psi
     integer :: store_size, a_start, k_start
 
     if( .not. is_init ) then
-      ierr = -1
+      ierr = -11
       return
     endif
   
@@ -1817,6 +1829,11 @@ module OCEAN_psi
 
     if( have_core ) then
       call OCEAN_psi_new_core_comm( p, ierr )
+      if( ierr .ne. 0 ) return
+    endif
+
+    if( have_val ) then
+      call OCEAN_psi_new_val_comm( p, ierr )
       if( ierr .ne. 0 ) return
     endif
     
@@ -1830,7 +1847,7 @@ module OCEAN_psi
     !     complaint later.
     if( present( q ) ) then
       if( q%valid_store .eq. PSI_STORE_NULL ) then
-        ierr = -1
+        ierr = -4
         return
       endif
 
@@ -1897,15 +1914,9 @@ module OCEAN_psi
     call MPI_COMM_RANK( p%core_comm, p%core_myid, ierr )
     if( ierr .ne. 0 ) return
 
-    ! core_np is the number of cores that have actualy data in buffer or min
-!    p%core_np   = core_np
 
     call psi_core_store_size( p%core_myid, total_nproc, p%core_np, mcss, &
                               p%core_store_size, p%core_k_start, p%core_a_start, ierr )
-
-!    allocate( buffer_recvs( 2 * nproc ), buffer_sends( 2 * p%core_np ), &
-!              min_recvs( 2 * p%core_np ), min_sends( 2 * nproc ), STAT=ierr )
-!    if( ierr .ne. 0 ) return
 
     
     if( p%core_myid .eq. core_myid_default ) then
@@ -1918,7 +1929,6 @@ module OCEAN_psi
     call MPI_ALLREDUCE( MPI_IN_PLACE, p%standard_order, 1, MPI_LOGICAL, MPI_LAND, &
                         p%core_comm, ierr )
     
-
 #else
     p%core_comm = core_comm
     p%core_myid = core_myid
@@ -1926,9 +1936,48 @@ module OCEAN_psi
     p%core_k_start = 1
     p%core_a_start = 1
     p%core_store_size = 0
+#endif
 
-!    allocate( buffer_recvs( 1 ), buffer_sends( 1 ), min_recvs( 1 ), min_sends( 1 ), STAT=ierr )
-!    if( ierr .ne. 0 ) return
+
+  end subroutine
+
+  subroutine OCEAN_psi_new_val_comm( p, ierr )
+    implicit none
+    integer, intent(inout) :: ierr
+    type(OCEAN_vector), intent( inout ) :: p
+
+    integer :: mcss
+
+#ifdef MPI
+    call MPI_COMM_DUP( val_comm, p%val_comm, ierr )
+    if( ierr .ne. 0 ) return
+
+    call MPI_COMM_RANK( p%val_comm, p%val_myid, ierr )
+    if( ierr .ne. 0 ) return
+
+
+    call psi_val_store_size( p%val_myid, total_nproc, p%val_np, mcss, &
+                             p%val_store_size, p%val_start, p%val_k_start, p%val_beta_start, ierr )
+
+
+    if( p%val_myid .eq. val_myid_default ) then
+      p%val_standard_order = .true.
+    else
+      p%val_standard_order = .false.
+    endif
+
+    ! Call logical AND across all procs to make sure everyone matches up
+    call MPI_ALLREDUCE( MPI_IN_PLACE, p%val_standard_order, 1, MPI_LOGICAL, MPI_LAND, &
+                        p%val_comm, ierr )
+
+#else
+    p%val_comm = val_comm
+    p%val_myid = val_myid
+    p%val_np   = val_np
+    p%val_start = 1
+    p%val_k_start = 1
+    p%val_beta_start = 1
+    p%val_store_size = 0
 #endif
 
 
@@ -1950,8 +1999,8 @@ module OCEAN_psi
     endif
 
     if( have_val ) then
-      allocate( p%valr( psi_bands_pad, psi_val_bands, psi_kpts_pad, psi_val_beta ), &
-                p%vali( psi_bands_pad, psi_val_bands, psi_kpts_pad, psi_val_beta ), & 
+      allocate( p%valr( psi_bands_pad, psi_val_bands, psi_kpts_actual, psi_val_beta ), &
+                p%vali( psi_bands_pad, psi_val_bands, psi_kpts_actual, psi_val_beta ), & 
                 STAT=ierr )
       if( ierr .ne. 0 ) return
     endif
@@ -1968,19 +2017,36 @@ module OCEAN_psi
     integer, intent(inout) :: ierr
     type(OCEAN_vector), intent( inout ) :: p
 
-    if( allocated( p%min_r ) ) deallocate( p%min_r )
-    if( allocated( p%min_i ) ) deallocate( p%min_i )
-
     ! invalidate min
     p%valid_store = IAND( p%valid_store, NOT( PSI_STORE_MIN ) )
 
-    if( p%core_store_size .gt. 0 ) then
-      allocate( p%min_r( psi_bands_pad, p%core_store_size ), &
-                p%min_i( psi_bands_pad, p%core_store_size ), STAT=ierr )
-    else
-      allocate( p%min_r(1,1), p%min_i(1,1), STAT=ierr )
+    if( have_core ) then
+      if( allocated( p%min_r ) ) deallocate( p%min_r )
+      if( allocated( p%min_i ) ) deallocate( p%min_i )
+
+      if( p%core_store_size .gt. 0 ) then
+        allocate( p%min_r( psi_bands_pad, p%core_store_size ), &
+                  p%min_i( psi_bands_pad, p%core_store_size ), STAT=ierr )
+      else
+        allocate( p%min_r(1,1), p%min_i(1,1), STAT=ierr )
+      endif
+      if( ierr .ne. 0 ) return
+
     endif
-    if( ierr .ne. 0 ) return
+
+    if( have_val ) then
+      if( allocated( p%val_min_r ) ) deallocate( p%val_min_r )
+      if( allocated( p%val_min_i ) ) deallocate( p%val_min_i )
+
+      if( p%val_store_size .gt. 0 ) then
+        allocate( p%val_min_r( psi_bands_pad, p%val_store_size ), & 
+                  p%val_min_i( psi_bands_pad, p%val_store_size ), STAT=ierr ) 
+      else
+        allocate( p%val_min_r(1,1), p%val_min_i(1,1), STAT=ierr ) 
+      endif
+      if( ierr .ne. 0 ) return
+
+    endif
 
     p%alloc_store = IOR( p%alloc_store, PSI_STORE_MIN )
 
@@ -2010,10 +2076,14 @@ module OCEAN_psi
       if( ierr .ne. 0 ) return
     endif
 
-    p%r = q%r
-    p%i = q%i
-!    p%valr = q%valr
-!    p%vali = q%vali
+    if( have_core ) then
+      p%r = q%r
+      p%i = q%i
+    endif
+    if( have_val ) then
+      p%valr = q%valr
+      p%vali = q%vali
+    endif
 
     p%valid_store = IOR( p%valid_store, PSI_STORE_FULL )
   end subroutine OCEAN_psi_copy_full
@@ -2038,8 +2108,10 @@ module OCEAN_psi
 
     ! MPI_comm_dup should give us the same ids. 
     if( p%standard_order .and. q%standard_order ) then
-      p%min_r(:,:) = q%min_r(:,:)
-      p%min_i(:,:) = q%min_i(:,:)
+      if( have_core ) then
+        p%min_r(:,:) = q%min_r(:,:)
+        p%min_i(:,:) = q%min_i(:,:)
+      endif
     else  
     !   but if it doesn't the easiest work-around is backtrack through full
       call OCEAN_psi_min2full( q, ierr )
@@ -2111,9 +2183,9 @@ module OCEAN_psi
     integer, intent(inout) :: ierr
     type(OCEAN_vector), intent( inout ) :: p
     
-    integer :: store_size, ik, ia, i
+    integer :: store_size, ik, ia, i, iv, ib
 
-!   full must be initialized
+!   full must be valid
     if( IAND( p%valid_store, PSI_STORE_FULL ) .eq. 0 ) then
       ierr = 1000
       return
@@ -2141,14 +2213,34 @@ module OCEAN_psi
         endif
       enddo
 
-      p%valid_store = IOR( p%valid_store, PSI_STORE_MIN )
-
     endif
+
 
     if( have_val ) then
-      ierr = -9
-      return
+
+      iv = p%val_start
+      ik = p%val_k_start
+      ib = p%val_beta_start
+
+      do i = 1, p%val_store_size
+        p%val_min_r(:,i) = p%valr(:,iv,ik,ib)
+        p%val_min_i(:,i) = p%vali(:,iv,ik,ib)
+
+        iv = iv + 1
+        if( iv .gt. psi_val_bands ) then
+          iv = 1
+          ik = ik + 1
+          if( ik .gt. psi_kpts_actual ) then
+            ik = 1
+            ib = ib + 1
+          endif
+        endif
+      enddo
+
     endif
+
+    p%valid_store = IOR( p%valid_store, PSI_STORE_MIN )
+
   end subroutine OCEAN_psi_full2min
 
 
@@ -2657,9 +2749,7 @@ module OCEAN_psi
     endif
 
     if( sys%cur_run%have_val ) then
-#ifdef VAL
       call OCEAN_psi_load_val( sys, p, ierr )
-#endif
       if( ierr .ne. 0 ) return
     endif
 
@@ -2669,6 +2759,7 @@ module OCEAN_psi
   subroutine OCEAN_psi_load_val( sys, p, ierr )
     use OCEAN_mpi
     use OCEAN_system
+    use OCEAN_constants, only : PI_DP
 !    use OCEAN_rixs_holder, only : OCEAN_rixs_holder_load
 
     implicit none
@@ -2678,6 +2769,8 @@ module OCEAN_psi
     integer, intent( inout ) :: ierr
 
     integer :: file_selector
+    integer :: ibeta, ikpt, ibnd
+    real(dp) :: val, nrm
 
     if( .not. sys%cur_run%have_val ) return
 
@@ -2693,6 +2786,7 @@ module OCEAN_psi
       select case (sys%cur_run%calc_type)
       case( 'VAL' )
         call OCEAN_read_tmels( sys, p, file_selector, ierr )
+        if( ierr .ne. 0 ) return
       case( 'RXS' )
 !        call OCEAN_rixs_holder_load( sys, p, file_selector, ierr )
         ierr = -1
@@ -2707,6 +2801,36 @@ module OCEAN_psi
       file_selector = 0
       call OCEAN_read_tmels( sys, p, file_selector, ierr )
     endif
+    p%valid_store = PSI_STORE_FULL
+
+    if( myid .eq. root ) write(6,*) sys%nbeta,sys%nkpts, sys%cur_run%val_bands, psi_val_bands
+
+    val = 0.0_DP
+    do ibeta = 1, psi_val_beta
+      nrm = 0.0_DP
+      do ikpt = 1, psi_kpts_actual
+        do ibnd = 1, psi_val_bands
+          nrm = nrm + sum(p%valr(:,ibnd,ikpt,ibeta)**2 + p%vali(:,ibnd,ikpt,ibeta)**2)
+        enddo
+      enddo
+      if( myid .eq. root ) write( 6, '(1a12,1i4,1x,1e15.8)' ) 'channel dot', ibeta, nrm
+      val = val +  nrm
+    enddo
+    val = sqrt(val)
+    p%kpref = 4.0d0 * PI_DP * val ** 2 / (dble(sys%nkpts) * sys%celvol ** 2 )
+    val = 1.0_DP / val
+    p%valr = p%valr * val
+    p%vali = p%vali * val
+    if( myid .eq. root ) then
+      write(6,*) PI_DP, dble(sys%nkpts), sys%celvol, sys%nalpha
+      write ( 6, '(2x,1a8,1e15.8)' ) ' mult = ', p%kpref
+      open( unit=99, file='mulfile', form='formatted', status='unknown' )
+      rewind 99
+      write ( 99, '(1x,1e15.8)' ) p%kpref
+      close( unit=99 )
+    endif
+
+
   end subroutine OCEAN_psi_load_val
 #endif
 
