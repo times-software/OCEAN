@@ -146,7 +146,7 @@ module OCEAN_psi
 
 
   public :: OCEAN_psi_init, OCEAN_psi_kill, OCEAN_psi_load,  &
-            OCEAN_psi_write, &
+            OCEAN_psi_write, OCEAN_psi_val_pnorm,  &
             OCEAN_psi_dot, OCEAN_psi_nrm, OCEAN_psi_scal, &
             OCEAN_psi_axpy, OCEAN_psi_new, OCEAN_psi_cmult, OCEAN_psi_mult, &
             OCEAN_psi_zero_full, OCEAN_psi_zero_min, &
@@ -3067,11 +3067,10 @@ module OCEAN_psi
 
   end subroutine OCEAN_psi_load
 
-#ifdef VAL
   subroutine OCEAN_psi_load_val( sys, p, ierr )
-    use OCEAN_mpi
+    use OCEAN_mpi, only : myid, root
     use OCEAN_system
-    use OCEAN_constants, only : PI_DP
+!    use OCEAN_constants, only : PI_DP
 !    use OCEAN_rixs_holder, only : OCEAN_rixs_holder_load
 
     implicit none
@@ -3081,8 +3080,8 @@ module OCEAN_psi
     integer, intent( inout ) :: ierr
 
     integer :: file_selector
-    integer :: ibeta, ikpt, ibnd
-    real(dp) :: val, nrm
+!    integer :: ibeta, ikpt, ibnd
+!    real(dp) :: val, nrm
 
     if( .not. sys%cur_run%have_val ) return
 
@@ -3115,16 +3114,41 @@ module OCEAN_psi
     endif
     p%valid_store = PSI_STORE_FULL
 
+  end subroutine OCEAN_psi_load_val
+
+  subroutine OCEAN_psi_val_pnorm( sys, p, ierr )
+    use OCEAN_mpi, only : myid, root
+    use OCEAN_system
+    use OCEAN_constants, only : PI_DP
+!    use OCEAN_rixs_holder, only : OCEAN_rixs_holder_load
+
+    implicit none
+
+    type(O_system), intent( in ) :: sys
+    type(OCEAN_vector), intent( inout ) :: p
+    integer, intent( inout ) :: ierr
+
+!    integer :: file_selector
+    integer :: ibeta, ikpt, ibnd
+    real(dp) :: val, nrm
+
+    real(dp), external :: DDOT
+
+
     if( myid .eq. root ) write(6,*) sys%nbeta,sys%nkpts, sys%cur_run%val_bands, psi_val_bands
 
     val = 0.0_DP
     do ibeta = 1, psi_val_beta
-      nrm = 0.0_DP
-      do ikpt = 1, psi_kpts_actual
-        do ibnd = 1, psi_val_bands
-          nrm = nrm + sum(p%valr(:,ibnd,ikpt,ibeta)**2 + p%vali(:,ibnd,ikpt,ibeta)**2)
-        enddo
-      enddo
+!      nrm = 0.0_DP
+!      do ikpt = 1, psi_kpts_actual
+!        do ibnd = 1, psi_val_bands
+!          nrm = nrm & !+ sum(p%valr(:,ibnd,ikpt,ibeta)**2 + p%vali(:,ibnd,ikpt,ibeta)**2)
+      nrm = DDOT( psi_bands_pad*psi_val_bands*psi_kpts_actual, p%valr(1,1,1,ibeta), 1, &
+                  p%valr(1,1,1,ibeta), 1 ) &
+          + DDOT( psi_bands_pad*psi_val_bands*psi_kpts_actual, p%vali(1,1,1,ibeta), 1, &
+                  p%vali(1,1,1,ibeta), 1 )
+!        enddo
+!      enddo
       if( myid .eq. root ) write( 6, '(1a12,1i4,1x,1e15.8)' ) 'channel dot', ibeta, nrm
       val = val +  nrm
     enddo
@@ -3135,16 +3159,17 @@ module OCEAN_psi
     p%vali = p%vali * val
     if( myid .eq. root ) then
       write(6,*) PI_DP, dble(sys%nkpts), sys%celvol, sys%nalpha
-      write ( 6, '(2x,1a8,1e15.8)' ) ' mult = ', p%kpref
+      write ( 6, '(2x,1a8,1e15.8)' ) ' mult  = ', p%kpref
+      ! pnorm is here to match old style of valence
+      write ( 6, '(2x,1a8,1e15.8)' ) ' pnorm = ', 1.0_DP / val
       open( unit=99, file='mulfile', form='formatted', status='unknown' )
       rewind 99
       write ( 99, '(1x,1e15.8)' ) p%kpref
       close( unit=99 )
     endif
 
+  end subroutine OCEAN_psi_val_pnorm
 
-  end subroutine OCEAN_psi_load_val
-#endif
 
 
   subroutine OCEAN_psi_load_core( sys, p, ierr )

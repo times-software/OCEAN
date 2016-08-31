@@ -19,11 +19,11 @@ subroutine OCEAN_load_data( sys, hay_vec, lr, ierr )
   type(ocean_vector), intent( inout ) :: hay_vec
   type( long_range ), intent(out) :: lr
 
+
 #ifdef MPI
 !    write(6,*) myid, root
     call MPI_BARRIER( comm, ierr )
 #endif
-
 
   if( myid .eq. root ) write(6,*) 'Calc Type = ', sys%calc_type
   if( myid .eq. root ) write(6,*) 'Init matrix elements 1'
@@ -45,11 +45,23 @@ subroutine OCEAN_load_data( sys, hay_vec, lr, ierr )
 
 
   if( sys%cur_run%have_val) then
-    if( sys%cur_run%bande ) then
-      if( myid .eq. root ) write(6,*) 'Init energies'
-      call OCEAN_energies_val_load( sys, ierr )
-      if( ierr .ne. 0 ) return
-    endif
+    ! Energy is how we construct the allow and sfact arrays
+    !  these are needed even if (for some reason) we did not want to run energies
+    if( myid .eq. root ) write(6,*) 'Init energies'
+    call OCEAN_energies_val_load( sys, ierr )
+    if( ierr .ne. 0 ) return
+
+    if( myid .eq. root ) write(6,*) 'Trim & scale matrix elements'
+    ! Now trim the hay_vec by the allow array 
+    !  This 1) cuts off over-lapped states valence above Fermi/conduction below
+    !       2) Uniform energy cutoff for upper bands
+    call OCEAN_energies_val_allow( sys, hay_vec, ierr )
+    if( ierr .ne. 0 ) return
+    call OCEAN_psi_val_pnorm( sys, hay_vec, ierr )
+    if( ierr .ne. 0 ) return
+   if( myid .eq. root ) write(6,*) 'Trim & scale complete'
+
+
 
     if( sys%cur_run%bflag ) then
       if( myid .eq. root ) write(6,*) 'Init bubble'
@@ -101,7 +113,11 @@ subroutine OCEAN_load_data( sys, hay_vec, lr, ierr )
 
 
 
-  if( myid .eq. root ) write(6,*) 'Initialization complete'
+  if( myid .eq. root ) write(6,*) 'Initialization complete', ierr
+#ifdef MPI
+!    write(6,*) myid, root
+    call MPI_BARRIER( comm, ierr )
+#endif
 
 
 end subroutine OCEAN_load_data

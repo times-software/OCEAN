@@ -121,6 +121,7 @@ module OCEAN_val_energy
       do ibv = 1, sys%cur_run%val_bands
         do ibc = 1, sys%cur_run%num_bands
           p_energy%valr( ibc, ibv, ik, 1 ) = con_energies( ibc, ik ) - val_energies( ibv, ik )
+          p_energy%vali( ibc, ibv, ik, 1 ) = 0.0_dp
         enddo
       enddo
     enddo
@@ -151,8 +152,8 @@ module OCEAN_val_energy
     !
     !
     ! Already zero'd
-!    allow%valr = 0.0_dp
-!    allow%vali = 0.0_dp
+    allow%valr = 0.0_dp
+    allow%vali = 0.0_dp
     !
     ! In storing psi the conduction band index is the fast index
     if( metal ) then
@@ -194,6 +195,9 @@ module OCEAN_val_energy
       enddo ! kiter
     endif
     !
+!    allow%valr = 1.0_dp
+!    allow%vali = 1.0_dp
+
   end subroutine energies_allow
 
   subroutine find_fermi( sys, val_energies, con_energies, nelectron, efermi, &
