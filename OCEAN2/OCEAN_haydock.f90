@@ -157,6 +157,8 @@ module OCEAN_action
 
     call OCEAN_psi_new( old_psi, ierr )
     if( ierr .ne. 0 ) return
+    call OCEAN_psi_zero_min( old_psi, ierr )
+    if( ierr .ne. 0 ) return
 !    if( myid .eq. root ) write(6,*) 'old_psi'
 
     if( myid .eq. root ) then 
@@ -606,6 +608,7 @@ module OCEAN_action
     use OCEAN_system
     use OCEAN_psi
     use OCEAN_mpi
+    use OCEAN_constants, only : Hartree2eV
     implicit none
     integer, intent(inout) :: ierr
     integer, intent(in) :: iter
@@ -615,7 +618,6 @@ module OCEAN_action
     real(dp) :: btmp, atmp, aitmp
     integer :: ialpha, ikpt, arequest, airequest, brequest
 
-!    if( myid .eq. root ) write(6,*) 'ab'
     ! calc ctmp = < hpsi | psi > and begin Iallreduce
     call OCEAN_psi_dot( hpsi, psi, arequest, atmp, ierr, airequest, aitmp )
     if( ierr .ne. 0 ) return
@@ -625,7 +627,8 @@ module OCEAN_action
     btmp = -b(iter-1)
     ! y:= a*x + y
     call OCEAN_psi_axpy( btmp, old_psi, hpsi, ierr )
-!    if( myid .eq. root ) write(6,*) 'psi_axpy 1'
+    if( ierr .ne. 0 ) return
+    if( myid .eq. root ) write(6,*) 'psi_axpy 1'
 
     ! finish allreduce to get atmp
     ! we want iatmp too (for output/diagnostics), but that can wait
@@ -633,10 +636,14 @@ module OCEAN_action
     if( ierr .ne. 0 ) return
     real_a(iter-1) = atmp
     atmp = -atmp
+    if( myid .eq. root ) write(6,*) 'ab', real_a(iter-1), b(iter-1)
     call OCEAN_psi_axpy( atmp, psi, hpsi, ierr )
-!    if( myid .eq. root ) write(6,*) 'psi_axpy 2'
+    if( ierr .ne. 0 ) return
+    if( myid .eq. root ) write(6,*) 'psi_axpy 2'
     
-    call OCEAN_psi_nrm( btmp, hpsi, ierr, brequest )
+    !JTV was checking to see if any different here. 
+!    call OCEAN_psi_nrm( btmp, hpsi, ierr, brequest )
+    call OCEAN_psi_dot( hpsi, hpsi, brequest, btmp, ierr )
     if( ierr .ne. 0 ) return
 !    if( myid .eq. root ) write(6,*) 'psi_nrm'
 
@@ -674,7 +681,8 @@ module OCEAN_action
     if( myid .eq. 0 ) then
 !      write ( 6, '(2x,2f10.6,10x,1e11.4,x,f6.3)' ) a(iter-1), b(iter), imag_a, time2-time1
 !      write ( 6, '(2x,2f10.6,10x,1e11.4,8x,i6)' ) a(iter-1), b(iter), imag_a, iter
-      write ( 6, '(2x,2f20.6,10x,1e11.4,8x,i6)' ) real_a(iter-1), b(iter), imag_a(iter-1), iter
+      write ( 6, '(2x,2f20.6,10x,1e11.4,8x,i6)' ) real_a(iter-1) * Hartree2eV, b(iter) * Hartree2eV, &
+                                                  imag_a(iter-1) * Hartree2eV, iter
       if( mod( iter, 10 ) .eq. 0 ) call haydump( iter, sys, psi%kpref, ierr )
 #ifdef __HAVE_F03
       if( ieee_is_nan( real_a(iter-1) ) ) then

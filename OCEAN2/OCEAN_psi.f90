@@ -138,8 +138,8 @@ module OCEAN_psi
 
     LOGICAL :: inflight = .false.
     LOGICAL :: update   = .false.
-    LOGICAL :: standard_order = .false.
-    LOGICAL :: val_standard_order = .false.
+    LOGICAL :: standard_order 
+    LOGICAL :: val_standard_order 
 
 
   end type
@@ -408,7 +408,7 @@ module OCEAN_psi
           if( ierr .ne. 0 ) return
         endif
         if( have_val ) then
-          ierr =101
+          ierr = 101
           return
         endif
       case( psi_comm_reduce )
@@ -1148,9 +1148,17 @@ module OCEAN_psi
     integer, intent( inout ) :: ierr
     !
     ! will need to take into account if the ordering is messesed up?
-    if( (.not. x%standard_order) .or. ( .not. y%standard_order ) ) then
-      ierr = -1
-      return
+    if( have_core ) then
+      if( (.not. x%standard_order) .or. ( .not. y%standard_order ) ) then
+        ierr = -11
+        return
+      endif
+    endif
+    if( have_val ) then
+      if( (.not. x%val_standard_order) .or. ( .not. y%val_standard_order ) ) then
+        ierr = -12
+        return
+      endif
     endif
     !
     ! If neither store nor full then need to call write2store
@@ -1184,7 +1192,7 @@ module OCEAN_psi
       call DAXPY( x%core_store_size * psi_bands_pad, rval, x%min_i, 1, y%min_i, 1 )
     endif
 
-    if( have_val .and. x%val_store_size .gt. 0 ) then
+    if( have_val ) then !.and. x%val_store_size .gt. 0 ) then
       call DAXPY( x%val_store_size * psi_bands_pad, rval, x%val_min_r, 1, y%val_min_r, 1 )
       call DAXPY( x%val_store_size * psi_bands_pad, rval, x%val_min_i, 1, y%val_min_i, 1 )
     endif
@@ -1221,6 +1229,8 @@ module OCEAN_psi
       endif
     endif
 
+    rval = 0.0_DP
+
     if( have_core .and. x%core_store_size .gt. 0 ) then
       rval = DDOT( x%core_store_size * psi_bands_pad, x%min_r, 1, x%min_r, 1 ) &
            + DDOT( x%core_store_size * psi_bands_pad, x%min_i, 1, x%min_i, 1 ) 
@@ -1228,7 +1238,7 @@ module OCEAN_psi
       rval = 0.0_DP
     endif
 
-    if( have_val .and. x%val_store_size .gt. 0 ) then
+    if( have_val ) then !.and. x%val_store_size .gt. 0 ) then
       rval = rval &
            + DDOT( x%val_store_size * psi_bands_pad, x%val_min_r, 1, x%val_min_r, 1 ) &
            + DDOT( x%val_store_size * psi_bands_pad, x%val_min_i, 1, x%val_min_i, 1 ) 
@@ -2190,6 +2200,8 @@ module OCEAN_psi
       p%val_standard_order = .true.
     else
       p%val_standard_order = .false.
+      
+      write(6,*) 'Order mismatch!!:', p%val_myid, val_myid_default
     endif
 
     ! Call logical AND across all procs to make sure everyone matches up
