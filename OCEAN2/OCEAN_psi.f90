@@ -153,12 +153,31 @@ module OCEAN_psi
             OCEAN_psi_ready_buffer, OCEAN_psi_send_buffer, &
             OCEAN_psi_copy_min, OCEAN_psi_buffer2min, &
             OCEAN_psi_prep_min2full, OCEAN_psi_start_min2full, &
-            OCEAN_psi_finish_min2full, OCEAN_psi_full2min
+            OCEAN_psi_finish_min2full, OCEAN_psi_full2min, &
+            OCEAN_psi_returnBandPad
 
   public :: OCEAN_vector
 
 
   contains
+
+  subroutine OCEAN_psi_returnBandPad( con_pad, ierr )
+    implicit none
+    !
+    integer, intent( out ) :: con_pad
+    integer, intent( inout ) :: ierr
+    !
+    if( .not. is_init ) then
+      ierr = 103
+      return
+    elseif( .not. have_val ) then
+      ierr = 104
+      return
+    endif
+
+    con_pad = psi_bands_pad
+    
+  end subroutine OCEAN_psi_returnBandPad
 
   subroutine OCEAN_psi_zero_min( p, ierr )
     implicit none

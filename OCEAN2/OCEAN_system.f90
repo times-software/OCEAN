@@ -324,8 +324,8 @@ module OCEAN_system
     character(len=5) :: calc_type
     type(o_run), pointer :: temp_prev_run, temp_cur_run
 
-    integer :: ntot, nmatch, iter, i, idum, start_band, num_bands, val_bands
-    logical :: found, have_val, have_core
+    integer :: ntot, nmatch, iter, i, idum, start_band, num_bands, val_bands, val_flag
+    logical :: found, have_val, have_core, lflag, bflag
     real(DP) :: tmp(3)
 
 
@@ -400,6 +400,30 @@ module OCEAN_system
           close(98)
         endif
 
+        if( have_val ) then
+          open(unit=98,file="lflag",form='formatted',status='old')
+          rewind(98)
+          read(98,*) val_flag
+          close(98)
+          if( val_flag .gt. 0 ) then
+            lflag = .true.
+          else
+            lflag = .false.
+          endif
+
+          open(unit=98,file="bflag",form='formatted',status='old')
+          rewind(98)
+          read(98,*) val_flag
+          close(98)
+          if( val_flag .gt. 0 ) then
+            bflag = .true.
+          else
+            bflag = .false.
+          endif
+
+        endif
+            
+
 
       endif
 
@@ -428,6 +452,10 @@ module OCEAN_system
       call MPI_BCAST( have_core, 1, MPI_LOGICAL, root, comm, ierr )
       if( ierr .ne. MPI_SUCCESS ) goto 111
       call MPI_BCAST( have_val, 1, MPI_LOGICAL, root, comm, ierr )
+      if( ierr .ne. MPI_SUCCESS ) goto 111
+      call MPI_BCAST( lflag, 1, MPI_LOGICAL, root, comm, ierr )
+      if( ierr .ne. MPI_SUCCESS ) goto 111
+      call MPI_BCAST( bflag, 1, MPI_LOGICAL, root, comm, ierr )
       if( ierr .ne. MPI_SUCCESS ) goto 111
 #endif
 
@@ -458,6 +486,8 @@ module OCEAN_system
 
       temp_cur_run%have_core = have_core
       temp_cur_run%have_val = have_val
+      temp_cur_run%lflag = lflag
+      temp_cur_run%bflag = bflag
       
       temp_cur_run%basename = 'abs'
       write(temp_cur_run%filename,'(A3,A1,A2,A1,I2.2,A1,A2,A1,I2.2)' ) temp_cur_run%basename, '_', temp_cur_run%elname, &

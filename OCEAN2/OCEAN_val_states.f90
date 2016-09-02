@@ -3,28 +3,30 @@ module OCEAN_val_states
 
   implicit none
   save
+  private
 
-  real(dp), allocatable :: re_val( :, :, :, : )
-  real(dp), allocatable :: im_val( :, :, :, : )
-  real(dp), allocatable :: re_con( :, :, :, : )
-  real(dp), allocatable :: im_con( :, :, :, : )
 
-  integer :: nkpts
-  integer :: nxpts
-  integer :: nbc
-  integer :: nbv
-  integer :: nspn
-  integer :: nxpts_pad
-  integer :: val_pad
-  integer :: con_pad
+  real(dp), public, protected, allocatable :: re_val( :, :, :, : )
+  real(dp), public, protected, allocatable :: im_val( :, :, :, : )
+  real(dp), public, protected, allocatable :: re_con( :, :, :, : )
+  real(dp), public, protected, allocatable :: im_con( :, :, :, : )
+
+  integer, public, protected :: nkpts
+  integer, public, protected :: nxpts
+  integer, public, protected :: nbc
+  integer, public, protected :: nbv
+  integer, public, protected :: nspn
+  integer, public, protected :: nxpts_pad
+  integer, public, protected :: val_pad
+  integer, public, protected :: con_pad
 
   integer :: max_nxpts
   integer :: startx
 
-  integer, allocatable :: nxpts_by_mpiID( : )
-  integer, allocatable :: startx_by_mpiID( : )
+  integer, public, protected, allocatable :: nxpts_by_mpiID( : )
+  integer, public, protected, allocatable :: startx_by_mpiID( : )
 
-  integer, parameter :: cache_double = 8
+  integer, public, parameter :: cache_double = 8
   logical, private :: is_init = .false.
   logical, private :: is_loaded = .false.
 
@@ -37,9 +39,22 @@ module OCEAN_val_states
 #endif
 
   
-  public :: OCEAN_val_states_load, OCEAN_val_states_init
+  public :: OCEAN_val_states_load, OCEAN_val_states_init, OCEAN_val_states_returnPadXpts
 
   contains
+
+  subroutine OCEAN_val_states_returnPadXpts( x_pad, ierr )
+    implicit none
+    integer, intent( out ) :: x_pad
+    integer, intent( inout ) :: ierr
+    !
+    if( .not. is_init ) then
+      ierr = 201
+      return
+    endif
+    !
+    x_pad = nxpts_pad
+  end subroutine OCEAN_val_states_returnPadXpts
 
   subroutine OCEAN_val_states_load( sys, ierr )
     use OCEAN_system

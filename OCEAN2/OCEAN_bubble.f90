@@ -17,7 +17,7 @@ module OCEAN_bubble
   integer*8        :: fplan
   integer*8        :: bplan
 
-  public :: AI_bubble_prep
+  public :: AI_bubble_prep, AI_bubble_act, AI_bubble_clean
 
   contains
 
@@ -31,6 +31,22 @@ module OCEAN_bubble
            + ( bvec(1,2) * dble(gvec(1)) + bvec(2,2) * dble(gvec(2)) + bvec(3,2) * dble(gvec(3)) ) ** 2d0 &
            + ( bvec(1,3) * dble(gvec(1)) + bvec(2,3) * dble(gvec(2)) + bvec(3,3) * dble(gvec(3)) ) ** 2d0
   end function gvec_length
+
+  subroutine AI_bubble_clean( )
+    use OCEAN_mpi, only : myid, root
+    use iso_c_binding
+    !
+    implicit none
+    include 'fftw3.f03'
+    !
+!    integer, intent( inout ) :: ierr
+    !
+    if( myid .eq. root ) then
+      call dfftw_destroy_plan( bplan )
+      call dfftw_destroy_plan( fplan )
+    endif
+
+  end subroutine AI_bubble_clean
 
   subroutine AI_bubble_prep( sys, ierr )
     use OCEAN_system
@@ -51,6 +67,9 @@ module OCEAN_bubble
     nthreads = 1
 !$  nthreads = omp_get_max_threads()
 
+
+    ! The data for bubble gets saved down to a single array for FFT
+    !  In the future we will want two! different sorts for spin up and spin down
     if( myid .eq. root ) then
       allocate( bubble(  sys%nxpts ), &
                 scratch( sys%nxpts ), re_scratch( sys%nxpts ), im_scratch( sys%nxpts ), &
@@ -161,7 +180,7 @@ module OCEAN_bubble
     !
     integer :: ix, iy, iz, ij, ik, igvec, izz, iyy, ixx, temp_gvec( 3 ), iter
     real( DP ) :: mul, gsqd, qq( 3 ), bmet( 3, 3 ), pi
-    real( DP ), external :: gvec_length
+!    real( DP ), external :: gvec_length
     ! 
     igvec = 0
     pi = 4.0d0 * atan( 1.0d0 )
@@ -213,20 +232,26 @@ module OCEAN_bubble
 !
 !
 !
-  subroutine AI_bubble_act( psi, psiout, ierr )
-    use OCEAN_val_states
+  subroutine AI_bubble_act( sys, psi, psiout, ierr )
+    use OCEAN_val_states, only : nkpts, nxpts, nbc, nbv, nxpts_pad, &
+                                 re_val, im_val, re_con, im_con, &
+                                 cache_double, startx_by_mpiID, nxpts_by_mpiID
     use OCEAN_psi
     use OCEAN_mpi
+    use OCEAN_system
     use iso_c_binding
     implicit none
     include 'fftw3.f03'
     !
+    type( O_system ), intent( in ) :: sys
     type( OCEAN_vector ), intent( in ) :: psi
     type( OCEAN_vector ), intent( inout ) :: psiout
     integer, intent( inout ) :: ierr
     !
     integer :: bciter, bviter, ik
     integer :: ix, iix, xstop, xwidth, nthreads, iproc
+    integer :: psi_con_pad!, nxpts_pad
+!    integer :: nbv, nbc, nkpts
     integer, external :: omp_get_max_threads
     real( DP ), allocatable :: re_l_bubble( : ), im_l_bubble( : )
     real( DP ), allocatable :: re_amat( :, :, : ), im_amat( :, :, : )
@@ -236,6 +261,14 @@ module OCEAN_bubble
     real( DP ), parameter :: minusone = -1.0_dp
     !
     !
+    ! Populate sizes from psi and val_states
+    call OCEAN_psi_returnBandPad( psi_con_pad, ierr )
+    if( ierr .ne. 0 ) return
+!    call OCEAN_val_states_returnPadXpts( nxpts_pad, ierr )
+!    if( ierr .ne. 0 ) return
+
+    !
+      
     allocate( re_l_bubble( nxpts ), im_l_bubble( nxpts ) )
     re_l_bubble( : ) = 0.0_dp
     im_l_bubble( : ) = 0.0_dp
@@ -243,9 +276,17 @@ module OCEAN_bubble
 
     nthreads = 1
 !$  nthreads = omp_get_max_threads()
-    xwidth = max( (nxpts_pad/cache_double) * nkpts / nthreads, 1 )
-    xwidth = xwidth * cache_double
+!    xwidth = max( (nxpts_pad/cache_double) * nkpts / nthreads, 1 )
+!    xwidth = xwidth * cache_double
+
+    ! If more threads than kpts
+    xwidth = (nxpts_pad/cache_double) * nkpts / nthreads
+    xwidth = max( xwidth / nkpts, 1 )
+
+!    xwidth = max( nxpts_pad / cache_double, 1 )
+    xwidth = min( xwidth * cache_double, nxpts_pad )
     
+    write(6,*) nxpts_pad, xwidth
 
     allocate( re_amat( nxpts_pad, nbv, nkpts ), im_amat( nxpts_pad, nbv, nkpts ) )
 
@@ -259,13 +300,13 @@ module OCEAN_bubble
     do ik = 1, nkpts
       do ix = 1, nxpts, xwidth
         call DGEMM( 'N', 'N', xwidth, nbv, nbc, one, re_con(ix, 1, ik, 1), nxpts_pad, &
-                    psi%valr( 1, 1, ik, 1 ), psi%cband, zero, re_amat( ix, 1, ik ), nxpts_pad )
+                    psi%valr( 1, 1, ik, 1 ), psi_con_pad, zero, re_amat( ix, 1, ik ), nxpts_pad )
         call DGEMM( 'N', 'N', xwidth, nbv, nbc, minusone, re_con(ix, 1, ik,1), nxpts_pad, &
-                    psi%valr( 1, 1, ik, 1 ), psi%cband, one, re_amat( ix, 1, ik ), nxpts_pad )
+                    psi%valr( 1, 1, ik, 1 ), psi_con_pad, one, re_amat( ix, 1, ik ), nxpts_pad )
         call DGEMM( 'N', 'N', xwidth, nbv, nbc, one, im_con(ix, 1, ik,1), nxpts_pad, &
-                    psi%valr( 1, 1, ik, 1 ), psi%cband, zero, im_amat( ix, 1, ik ), nxpts_pad )
+                    psi%valr( 1, 1, ik, 1 ), psi_con_pad, zero, im_amat( ix, 1, ik ), nxpts_pad )
         call DGEMM( 'N', 'N', xwidth, nbv, nbc, one, re_con(ix, 1, ik,1), nxpts_pad, &
-                    psi%vali( 1, 1, ik, 1 ), psi%cband, one, im_amat( ix, 1, ik ), nxpts_pad )
+                    psi%vali( 1, 1, ik, 1 ), psi_con_pad, one, im_amat( ix, 1, ik ), nxpts_pad )
       enddo
     enddo
 !$OMP END DO
@@ -279,10 +320,10 @@ module OCEAN_bubble
             do iix = ix, xstop
               re_l_bubble( iix ) = re_l_bubble( iix ) &
                                  + re_val( iix, bviter, ik, 1 ) * re_amat( iix, bviter, ik ) &
-                                 + im_val( iix, bviter, ik, 1 ) * im_amat( iix, bciter, ik ) 
+                                 + im_val( iix, bviter, ik, 1 ) * im_amat( iix, bviter, ik ) 
               im_l_bubble( iix ) = im_l_bubble( iix ) &
                                  + re_val( iix, bviter, ik, 1 ) * im_amat( iix, bviter, ik ) &
-                                 - im_val( iix, bviter, ik, 1 ) * re_amat( iix, bciter, ik ) 
+                                 - im_val( iix, bviter, ik, 1 ) * re_amat( iix, bviter, ik ) 
             enddo
           enddo
         enddo
@@ -295,8 +336,8 @@ module OCEAN_bubble
     do iproc = 0, nproc - 1
       if( myid .eq. root ) then
         if( iproc .eq. myid ) then
-          re_scratch( startx_by_mpiID( iproc ) : startx_by_mpiID( iproc ) + nxpts ) = re_l_bubble( : )
-          im_scratch( startx_by_mpiID( iproc ) : startx_by_mpiID( iproc ) + nxpts ) = im_l_bubble( : )
+          re_scratch( startx_by_mpiID( iproc ) : startx_by_mpiID( iproc ) + nxpts - 1 ) = re_l_bubble( : )
+          im_scratch( startx_by_mpiID( iproc ) : startx_by_mpiID( iproc ) + nxpts - 1 ) = im_l_bubble( : )
 #ifdef MPI
         else
           call MPI_RECV( re_scratch( startx_by_mpiID( iproc ) ), nxpts_by_mpiID( iproc ), MPI_DOUBLE_PRECISION, &
@@ -312,6 +353,11 @@ module OCEAN_bubble
 #endif
       endif
     enddo
+!$OMP END MASTER
+
+!! There is no implied barrier at the end of master !!
+!$OMP BARRIER
+
 
     if( myid .eq. root ) then
       scratch(:) = cmplx( re_scratch(:), im_scratch(:) )
@@ -348,6 +394,10 @@ module OCEAN_bubble
 
 !$OMP END MASTER 
 
+!! There is no implied barrier at the end of master !!
+!$OMP BARRIER
+
+
 !$OMP DO COLLAPSE(3)
     do ik = 1, nkpts
       do bviter = 1, nbv
@@ -370,13 +420,13 @@ module OCEAN_bubble
 !$OMP DO 
     do ik = 1, nkpts
       call DGEMM( 'T', 'N', nbc, nbv, nxpts, one, re_con( 1, 1, ik, 1 ), nxpts_pad, re_amat( 1, 1, ik ), nxpts_pad, &
-                  zero, psiout%valr( 1, 1, ik, 1 ), psi%cband )
+                  zero, psiout%valr( 1, 1, ik, 1 ), nxpts_by_mpiID )
       call DGEMM( 'T', 'N', nbc, nbv, nxpts, one, im_con( 1, 1, ik, 1 ), nxpts_pad, im_amat( 1, 1, ik ), nxpts_pad, &
-                  one, psiout%valr( 1, 1, ik, 1 ), psi%cband )
+                  one, psiout%valr( 1, 1, ik, 1 ), psi_con_pad )
       call DGEMM( 'T', 'N', nbc, nbv, nxpts, minusone, im_con( 1, 1, ik, 1 ), nxpts_pad, re_amat( 1, 1, ik ), nxpts_pad, &
-                  zero, psiout%vali( 1, 1, ik, 1 ), psi%cband )
+                  zero, psiout%vali( 1, 1, ik, 1 ), psi_con_pad )
       call DGEMM( 'T', 'N', nbc, nbv, nxpts, one, re_con( 1, 1, ik, 1 ), nxpts_pad, im_amat( 1, 1, ik ), nxpts_pad, &
-                  one, psiout%vali( 1, 1, ik, 1 ), psi%cband )
+                  one, psiout%vali( 1, 1, ik, 1 ), psi_con_pad )
     enddo
 !$OMP END DO
 

@@ -523,6 +523,7 @@ module OCEAN_action
     use OCEAN_psi
     use OCEAN_multiplet
     use OCEAN_long_range
+    use OCEAN_bubble, only : AI_bubble_act
 
     implicit none
     integer, intent(inout) :: ierr
@@ -574,7 +575,12 @@ module OCEAN_action
         call OCEAN_energies_val_sfact( sys, new_psi, ierr )
         if( ierr .ne. 0 ) return
       endif
-!      if(  myid .eq. root ) write(6,*) 'Done with 1e'
+
+      if( sys%cur_run%bflag ) then
+        call AI_bubble_act( sys, psi, new_psi, ierr )
+        if( ierr .ne. 0 ) return
+      endif
+
     endif
 
     call OCEAN_tk_start( tk_psisum )

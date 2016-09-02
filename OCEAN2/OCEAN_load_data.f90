@@ -12,6 +12,8 @@ subroutine OCEAN_load_data( sys, hay_vec, lr, ierr )
   use OCEAN_mpi
   use OCEAN_multiplet
   use OCEAN_long_range
+  use OCEAN_val_states, only : OCEAN_val_states_load, OCEAN_val_states_init
+  use OCEAN_bubble, only : AI_bubble_prep
 
   implicit none
   integer, intent( inout ) :: ierr
@@ -59,13 +61,23 @@ subroutine OCEAN_load_data( sys, hay_vec, lr, ierr )
     if( ierr .ne. 0 ) return
     call OCEAN_psi_val_pnorm( sys, hay_vec, ierr )
     if( ierr .ne. 0 ) return
-   if( myid .eq. root ) write(6,*) 'Trim & scale complete'
+    if( myid .eq. root ) write(6,*) 'Trim & scale complete'
 
 
+    if( sys%cur_run%bflag .or. sys%cur_run%lflag ) then
+      if( myid .eq. root ) write(6,*) 'Init val states'
+      call OCEAN_val_states_init( sys, ierr )
+      if( ierr .ne. 0 ) return
+      if( myid .eq. root ) write(6,*) 'Load val states'
+      call OCEAN_val_states_load( sys, ierr )
+      if( ierr .ne. 0 ) return
+      if( myid .eq. root ) write(6,*) 'Val states loaded'
+
+    endif
 
     if( sys%cur_run%bflag ) then
       if( myid .eq. root ) write(6,*) 'Init bubble'
-!      call AI_bubble_prep( sys, ierr )
+      call AI_bubble_prep( sys, ierr )
       if( ierr .ne. 0 ) return
       if( myid .eq. root ) write(6,*) 'Bubble prepped'
     endif
