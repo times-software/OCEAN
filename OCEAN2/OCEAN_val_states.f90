@@ -20,13 +20,13 @@ module OCEAN_val_states
   integer, public, protected :: val_pad
   integer, public, protected :: con_pad
 
-  integer :: max_nxpts
-  integer :: startx
+  integer, public, protected :: max_nxpts
+  integer, public, protected :: startx
 
   integer, public, protected, allocatable :: nxpts_by_mpiID( : )
   integer, public, protected, allocatable :: startx_by_mpiID( : )
 
-  integer, public, parameter :: cache_double = 8
+  integer, public, parameter :: cache_double = 1
   logical, private :: is_init = .false.
   logical, private :: is_loaded = .false.
 
@@ -58,6 +58,7 @@ module OCEAN_val_states
 
   subroutine OCEAN_val_states_load( sys, ierr )
     use OCEAN_system
+    use OCEAN_mpi, only : myid, root
     implicit none
     type(O_system), intent( in ) :: sys
     integer, intent( inout ) :: ierr
@@ -68,6 +69,8 @@ module OCEAN_val_states
     endif
  
     if( is_loaded ) return
+
+    if( myid .eq. root ) write( 6, * )'Loading valence states'
 
 
     allocate( re_val( nxpts_pad, val_pad, nkpts, nspn ), &
@@ -134,6 +137,9 @@ module OCEAN_val_states
       nxpts_pad = nxpts
     endif
 
+    !JTV Ladder needs modification to deal with padding
+    nxpts_pad = nxpts
+
     if( nxpts .lt. 1 ) then
       ierr = -1
       return
@@ -141,6 +147,10 @@ module OCEAN_val_states
 
     con_pad = nbc + mod( nbc, cache_double )
     val_pad = nbv + mod( nbv, cache_double )
+
+    nxpts_pad = nxpts
+    con_pad = nbc
+    val_pad = nbv
 
     is_init = .true.
 
@@ -210,6 +220,7 @@ module OCEAN_val_states
       case( 'new' ) 
         call load_new_u2( sys, brange, ierr )
       case default
+        ierr = 500
         return
     end select 
 
@@ -291,8 +302,8 @@ module OCEAN_val_states
 
     if( myid .eq. root ) then
       allocate( u2_buf( sys%xmesh(3), sys%xmesh(2), sys%xmesh(1), max(brange(2), sys%cur_run%num_bands ) ) )
-      allocate( re_share_buffer( max_nxpts, max(brange(2), sys%cur_run%num_bands ), nproc ), &
-                im_share_buffer( max_nxpts, max(brange(2), sys%cur_run%num_bands ), nproc )  ) 
+      allocate( re_share_buffer( max_nxpts, max(brange(2), sys%cur_run%num_bands ), 0:nproc-1 ), &
+                im_share_buffer( max_nxpts, max(brange(2), sys%cur_run%num_bands ), 0:nproc-1 )  ) 
     else
       allocate( u2_buf( 1, 1, 1, 1 ) )
       allocate( re_share_buffer( max_nxpts, max(brange(2), sys%cur_run%num_bands ), 1 ), &
@@ -302,6 +313,7 @@ module OCEAN_val_states
     do iq = 1, nkpts
 
       if( myid .eq. root ) then
+!        write(6,*) iq, nkpts
         ! read valence
 #ifdef MPI
         !JTV need to do some 2GB chunking at some point. Blerg.
@@ -339,23 +351,29 @@ module OCEAN_val_states
         end do
       endif
 !
+!      if( myid .eq. root ) write(6,*) 'Val read', myid, root, nproc-1
 #ifdef MPI
       do iproc = 0, nproc-1
-        if( myid .eq. root .and. iproc .ne. myid) then
-          call MPI_SEND( re_share_buffer(:,:,iproc), max_nxpts*nbv, MPI_DOUBLE_PRECISION, iproc, iproc, comm, ierr )
-          call MPI_SEND( im_share_buffer(:,:,iproc), max_nxpts*nbv, MPI_DOUBLE_PRECISION, iproc, iproc+nproc, comm, ierr )
+        if( myid .eq. root ) then
+          if( iproc .ne. myid) then
+!            write(6,*) 'Val send'
+            call MPI_SEND( re_share_buffer(:,:,iproc), max_nxpts*nbv, MPI_DOUBLE_PRECISION, iproc, iproc, comm, ierr )
+            call MPI_SEND( im_share_buffer(:,:,iproc), max_nxpts*nbv, MPI_DOUBLE_PRECISION, iproc, iproc+nproc, comm, ierr )
+          endif
         elseif( myid .eq. iproc ) then
           call MPI_RECV( re_share_buffer, max_nxpts*nbv, MPI_DOUBLE_PRECISION, root, iproc, comm, MPI_STATUS_IGNORE, ierr ) 
           call MPI_RECV( im_share_buffer, max_nxpts*nbv, MPI_DOUBLE_PRECISION, root, iproc+nproc, comm, MPI_STATUS_IGNORE, ierr )
         endif
       enddo
 #endif
+!      if( myid .eq. root ) write(6,*) 'Val shared'
+
 
       iproc = myid
       if( myid .ne. root ) iproc = 1
 
-      re_val( :, :, iq, 1 ) = re_share_buffer( 1:nxpts, 1:nbv, iproc )
-      im_val( :, :, iq, 1 ) = im_share_buffer( 1:nxpts, 1:nbv, iproc )
+      re_val( 1:nxpts, 1:nbv, iq, 1 ) = re_share_buffer( 1:nxpts, 1:nbv, iproc )
+      im_val( 1:nxpts, 1:nbv, iq, 1 ) = im_share_buffer( 1:nxpts, 1:nbv, iproc )
 
 
 
@@ -400,9 +418,11 @@ module OCEAN_val_states
 !
 #ifdef MPI
       do iproc = 0, nproc-1
-        if( myid .eq. root .and. iproc .ne. myid) then
-          call MPI_SEND( re_share_buffer(:,:,iproc), max_nxpts*nbv, MPI_DOUBLE_PRECISION, iproc, iproc, comm, ierr )
-          call MPI_SEND( im_share_buffer(:,:,iproc), max_nxpts*nbv, MPI_DOUBLE_PRECISION, iproc, iproc+nproc, comm, ierr )
+        if( myid .eq. root ) then
+          if( iproc .ne. myid) then
+            call MPI_SEND( re_share_buffer(:,:,iproc), max_nxpts*nbv, MPI_DOUBLE_PRECISION, iproc, iproc, comm, ierr )
+            call MPI_SEND( im_share_buffer(:,:,iproc), max_nxpts*nbv, MPI_DOUBLE_PRECISION, iproc, iproc+nproc, comm, ierr )
+          endif
         elseif( myid .eq. iproc ) then
           call MPI_RECV( re_share_buffer, max_nxpts*nbv, MPI_DOUBLE_PRECISION, root, iproc, comm, MPI_STATUS_IGNORE, ierr )
           call MPI_RECV( im_share_buffer, max_nxpts*nbv, MPI_DOUBLE_PRECISION, root, iproc+nproc, comm, MPI_STATUS_IGNORE, ierr )
@@ -413,8 +433,8 @@ module OCEAN_val_states
       iproc = myid
       if( myid .ne. root ) iproc = 1
 
-      re_con( :, :, iq, 1 ) = re_share_buffer( 1:nxpts, 1:nbc, iproc )
-      im_con( :, :, iq, 1 ) = im_share_buffer( 1:nxpts, 1:nbc, iproc )
+      re_con( 1:nxpts, 1:nbc, iq, 1 ) = re_share_buffer( 1:nxpts, 1:nbc, iproc )
+      im_con( 1:nxpts, 1:nbc, iq, 1 ) = im_share_buffer( 1:nxpts, 1:nbc, iproc )
 
     enddo ! iq
 

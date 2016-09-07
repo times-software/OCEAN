@@ -3,19 +3,20 @@
 module OCEAN_bubble
 
   use AI_kinds
+  use iso_c_binding
   implicit none
   private
   save
 
 
-  complex( DP ), allocatable :: scratch( : )
+  complex( C_DOUBLE_COMPLEX ), allocatable :: scratch( : )
   real( DP ), allocatable  :: bubble( : )
   real(DP), allocatable :: re_scratch(:), im_scratch(:)
 
   integer, allocatable :: xstart_by_mpiID(:)
 
-  integer*8        :: fplan
-  integer*8        :: bplan
+  type(C_PTR)        :: fplan
+  type(C_PTR)        :: bplan
 
   public :: AI_bubble_prep, AI_bubble_act, AI_bubble_clean
 
@@ -83,6 +84,11 @@ module OCEAN_bubble
                               scratch, scratch, FFTW_FORWARD, FFTW_PATIENT )
       call dfftw_plan_dft_3d( bplan, sys%xmesh(3), sys%xmesh(2), sys%xmesh(1), &
                               scratch, scratch, FFTW_BACKWARD, FFTW_PATIENT )
+!      fplan = fftw_plan_dft_3d( sys%xmesh(3), sys%xmesh(2), sys%xmesh(1), & 
+!                                scratch, scratch, FFTW_FORWARD, FFTW_PATIENT )
+!      bplan = fftw_plan_dft_3d( sys%xmesh(3), sys%xmesh(2), sys%xmesh(1), & 
+!                                scratch, scratch, FFTW_BACKWARD, FFTW_PATIENT )
+
       call dfftw_plan_with_nthreads( 1 )
       call AI_bubble_wall_search( sys, length, ierr )
       if( ierr .ne. 0 ) goto 111
@@ -123,7 +129,7 @@ module OCEAN_bubble
     integer( S_INT ), intent( inout ) :: ierr
     !
     integer :: ix, iy, iz, gvec( 3 )
-    real( DP ) :: min_edge_length
+    real( DP ) :: min_edge_length, prev_min_edge
     !
 !    real( DP ), external :: gvec_length
     !
@@ -134,36 +140,59 @@ module OCEAN_bubble
     gvec = (/ floor( dble(sys%xmesh( 1 )) / 2d0 ) + 1, floor(dble(sys%xmesh( 2 )) / 2d0 )+ 1, &
               floor(dble(sys%xmesh( 3 )) / 2d0 ) + 1/)
     min_edge_length = gvec_length( gvec, sys%bvec )
+    gvec = (/ floor( dble(sys%xmesh( 1 )) / 2d0 ) + 2, floor(dble(sys%xmesh( 2 )) / 2d0 )+ 1, &
+              floor(dble(sys%xmesh( 3 )) / 2d0 ) + 1/)
+
+    prev_min_edge = gvec_length( gvec, sys%bvec )
     do ix = ceiling(dble(-sys%xmesh(1))/2d0) , floor(dble(sys%xmesh(1))/2d0  )
       do iy = ceiling(dble(-sys%xmesh(2)) / 2d0) , floor(dble(sys%xmesh( 2 )) / 2d0 )
         gvec = (/ ix, iy, ceiling(dble(-sys%xmesh(3))/2d0)  /)
         length = gvec_length( gvec, sys%bvec )
-        if ( length .lt. min_edge_length ) min_edge_length = length
+        if ( length .lt. min_edge_length ) then 
+          prev_min_edge = min_edge_length
+          min_edge_length = length
+        endif
         gvec = (/ ix, iy, floor(dble(sys%xmesh(3))/2d0) /)
         length = gvec_length( gvec, sys%bvec )
-        if ( length .lt. min_edge_length ) min_edge_length = length
+        if ( length .lt. min_edge_length ) then 
+          prev_min_edge = min_edge_length
+          min_edge_length = length
+        endif
       enddo
       do iz = ceiling(dble(-sys%xmesh( 3 )) / 2d0) , floor(dble(sys%xmesh( 3 )) / 2d0  )
         gvec = (/ ix, ceiling(dble(-sys%xmesh(2))/2d0) , iz /)
         length = gvec_length( gvec, sys%bvec )
-        if ( length .lt. min_edge_length ) min_edge_length = length
+        if ( length .lt. min_edge_length ) then 
+          prev_min_edge = min_edge_length
+          min_edge_length = length
+        endif
         gvec = (/ ix, floor(dble(sys%xmesh(2))/2d0) , iz /)
         length = gvec_length( gvec, sys%bvec )
-        if ( length .lt. min_edge_length ) min_edge_length = length
+        if ( length .lt. min_edge_length ) then 
+          prev_min_edge = min_edge_length
+          min_edge_length = length
+        endif
       enddo
     enddo
     do iy = ceiling(dble(-sys%xmesh(2)) / 2d0) , floor(dble(sys%xmesh( 2 )) / 2d0 )
       do iz = ceiling(dble(-sys%xmesh( 3 )) / 2d0) , floor(dble(sys%xmesh( 3 )) / 2d0 )
         gvec = (/ ceiling(dble(-sys%xmesh(1))/2d0) , iy, iz /)
         length = gvec_length( gvec, sys%bvec )
-        if ( length .lt. min_edge_length ) min_edge_length = length
+        if ( length .lt. min_edge_length ) then 
+          prev_min_edge = min_edge_length
+          min_edge_length = length
+        endif
         gvec = (/ floor(dble(sys%xmesh(2))/2d0) , iy, iz /)
         length = gvec_length( gvec, sys%bvec )
-        if ( length .lt. min_edge_length ) min_edge_length = length
+        if ( length .lt. min_edge_length ) then
+          prev_min_edge = min_edge_length
+          min_edge_length = length
+        endif
       enddo
     enddo
     length = min_edge_length
-    write( 6, * ) 'Max gvec length: ', length
+    length = length + 1.0d-8
+    write( 6, * ) 'Max gvec length: ', length, prev_min_edge
   end subroutine AI_bubble_wall_search
 !
 !
@@ -197,7 +226,7 @@ module OCEAN_bubble
     do ix = ceiling( dble(-sys%xmesh(1))/2d0 ), floor( dble(sys%xmesh(1))/2d0 )
       temp_gvec( 1 ) = ix 
       do iy =  ceiling( dble(-sys%xmesh(2))/2d0 ), floor( dble(sys%xmesh(2))/2d0 )
-        temp_gvec( 2 ) =  iy 
+        temp_gvec( 2 ) = iy 
         do iz = ceiling( dble(-sys%xmesh(3))/2d0 ), floor( dble(sys%xmesh(3))/2d0 )
           temp_gvec( 3 ) = iz 
           qq( : ) = sys%qinunitsofbvectors( : ) + real( temp_gvec( : ) )
@@ -214,11 +243,13 @@ module OCEAN_bubble
           if ( iyy .le. 0 ) iyy = iyy + sys%xmesh( 2 )
           if ( izz .le. 0 ) izz = izz + sys%xmesh( 3 )
           iter = izz + sys%xmesh(3)*(iyy-1) + sys%xmesh(3)*sys%xmesh(2)*(ixx-1) 
-          if( gvec_length( temp_gvec, sys%bvec ) .ge. length ) then
+          if( gvec_length( temp_gvec, sys%bvec ) .gt. length ) then
             mul = 0.d0
+!            write(6,*) ix, iy, iz, gvec_length( temp_gvec, sys%bvec ), .false.
           else
             mul = 4.0d0 * pi * 27.2114d0 / ( sys%nkpts * sys%celvol * gsqd )
             igvec = igvec + 1
+!            write(6,*) ix, iy, iz, gvec_length( temp_gvec, sys%bvec ), .true.
           endif
 !          bubble( izz, iyy, ixx ) = mul
             bubble( iter ) = mul
@@ -228,6 +259,7 @@ module OCEAN_bubble
     igvec = igvec - 1
     bubble( 1 ) = 0.d0 ! skip G = 0
     write( 6, * )'Num gvecs retained: ', igvec, sys%nxpts
+    write( 6, * ) maxval( bubble )
   end subroutine AI_bubble_populate
 !
 !
@@ -259,6 +291,7 @@ module OCEAN_bubble
     real( DP ), parameter :: one = 1.0_dp
     real( DP ), parameter :: zero = 0.0_dp
     real( DP ), parameter :: minusone = -1.0_dp
+    real( DP ) :: inverse_nxpts
     !
     !
     ! Populate sizes from psi and val_states
@@ -268,6 +301,9 @@ module OCEAN_bubble
 !    if( ierr .ne. 0 ) return
 
     !
+!    inverse_nxpts = 1.0_dp / real( sys%nxpts, dp )
+!    inverse_nxpts = sqrt( inverse_nxpts )
+    inverse_nxpts = 1.0_dp
       
     allocate( re_l_bubble( nxpts ), im_l_bubble( nxpts ) )
     re_l_bubble( : ) = 0.0_dp
@@ -286,7 +322,7 @@ module OCEAN_bubble
 !    xwidth = max( nxpts_pad / cache_double, 1 )
     xwidth = min( xwidth * cache_double, nxpts_pad )
     
-    write(6,*) nxpts_pad, xwidth
+!    write(6,*) nxpts_pad, xwidth, startx_by_mpiID( myid )
 
     allocate( re_amat( nxpts_pad, nbv, nkpts ), im_amat( nxpts_pad, nbv, nkpts ) )
 
@@ -295,28 +331,43 @@ module OCEAN_bubble
 !$OMP& PRIVATE( bciter, bviter, lcindx, xstop )
 
 
+  ! Problems with zero-ing?
+  re_amat( :, :, : ) = zero
+  im_amat( :, :, : ) = zero
 
+!  write(6,*) xwidth, nkpts, nbv, nbc
+!  write(6,*) maxval( psi%valr ), maxval( psi%vali )
+!  write(6,*) maxval( re_con ), maxval( im_con )
+!  write(6,*) maxval( re_val ), maxval( im_val )
+!  write(6,*) '------------'
+
+  xwidth = nxpts
+  ix = 1
 !$OMP DO COLLAPSE(2)
     do ik = 1, nkpts
-      do ix = 1, nxpts, xwidth
+!      do ix = 1, nxpts, xwidth
         call DGEMM( 'N', 'N', xwidth, nbv, nbc, one, re_con(ix, 1, ik, 1), nxpts_pad, &
-                    psi%valr( 1, 1, ik, 1 ), psi_con_pad, zero, re_amat( ix, 1, ik ), nxpts_pad )
-        call DGEMM( 'N', 'N', xwidth, nbv, nbc, minusone, re_con(ix, 1, ik,1), nxpts_pad, &
                     psi%valr( 1, 1, ik, 1 ), psi_con_pad, one, re_amat( ix, 1, ik ), nxpts_pad )
+        call DGEMM( 'N', 'N', xwidth, nbv, nbc, minusone, im_con(ix, 1, ik,1), nxpts_pad, &
+                    psi%vali( 1, 1, ik, 1 ), psi_con_pad, one, re_amat( ix, 1, ik ), nxpts_pad )
+
         call DGEMM( 'N', 'N', xwidth, nbv, nbc, one, im_con(ix, 1, ik,1), nxpts_pad, &
-                    psi%valr( 1, 1, ik, 1 ), psi_con_pad, zero, im_amat( ix, 1, ik ), nxpts_pad )
+                    psi%valr( 1, 1, ik, 1 ), psi_con_pad, one, im_amat( ix, 1, ik ), nxpts_pad )
         call DGEMM( 'N', 'N', xwidth, nbv, nbc, one, re_con(ix, 1, ik,1), nxpts_pad, &
                     psi%vali( 1, 1, ik, 1 ), psi_con_pad, one, im_amat( ix, 1, ik ), nxpts_pad )
-      enddo
+!      enddo
     enddo
 !$OMP END DO
 
+!  write(6,*) 'A:', maxval( re_amat ), maxval( im_amat )
+
 !$OMP DO 
-    do ix = 1, nxpts, xwidth
-      xstop = min( nxpts, ix + xwidth - 1 )
-      do bciter = 1, nbc
-        do bviter = 1, nbv
-          do ik = 1, nkpts
+!    do ix = 1, nxpts, xwidth
+!      xstop = min( nxpts, ix + xwidth - 1 )
+    ix = 1
+    xstop = nxpts
+        do ik = 1, nkpts
+          do bviter = 1, nbv
             do iix = ix, xstop
               re_l_bubble( iix ) = re_l_bubble( iix ) &
                                  + re_val( iix, bviter, ik, 1 ) * re_amat( iix, bviter, ik ) &
@@ -326,16 +377,17 @@ module OCEAN_bubble
                                  - im_val( iix, bviter, ik, 1 ) * re_amat( iix, bviter, ik ) 
             enddo
           enddo
-        enddo
       enddo
-    enddo
+!    enddo
 !$OMP END DO
 
+!    write(6,*) maxval( re_l_bubble ), maxval( im_l_bubble )
 
 !$OMP MASTER
     do iproc = 0, nproc - 1
       if( myid .eq. root ) then
         if( iproc .eq. myid ) then
+          write(6,*) startx_by_mpiID( iproc ), startx_by_mpiID( iproc ) + nxpts - 1
           re_scratch( startx_by_mpiID( iproc ) : startx_by_mpiID( iproc ) + nxpts - 1 ) = re_l_bubble( : )
           im_scratch( startx_by_mpiID( iproc ) : startx_by_mpiID( iproc ) + nxpts - 1 ) = im_l_bubble( : )
 #ifdef MPI
@@ -360,12 +412,15 @@ module OCEAN_bubble
 
 
     if( myid .eq. root ) then
+!      write(6,*) maxval( re_scratch(:) )
       scratch(:) = cmplx( re_scratch(:), im_scratch(:) )
       call dfftw_execute_dft(fplan, scratch, scratch)
+!      write(6,*) maxval( real(scratch(:) ) )
       scratch( : ) = scratch( : ) * bubble( : )
+!      write(6,*) maxval( real( scratch(:) ) )
       call dfftw_execute_dft(bplan, scratch, scratch)
-      re_scratch(:) = real(scratch(:))
-      im_scratch(:) = aimag(scratch(:))
+      re_scratch(:) = real(scratch(:)) * inverse_nxpts
+      im_scratch(:) = aimag(scratch(:)) * inverse_nxpts
     endif
 
 
@@ -374,8 +429,9 @@ module OCEAN_bubble
     do iproc = 0, nproc - 1
       if( myid .eq. root ) then
         if( iproc .eq. myid ) then
-          re_l_bubble( : ) = re_scratch( startx_by_mpiID( iproc ) : startx_by_mpiID( iproc ) + nxpts )
-          im_l_bubble( : ) = im_scratch( startx_by_mpiID( iproc ) : startx_by_mpiID( iproc ) + nxpts )
+          write(6,*) startx_by_mpiID( iproc ), startx_by_mpiID( iproc ) + nxpts - 1
+          re_l_bubble( : ) = re_scratch( startx_by_mpiID( iproc ) : startx_by_mpiID( iproc ) + nxpts - 1 )
+          im_l_bubble( : ) = im_scratch( startx_by_mpiID( iproc ) : startx_by_mpiID( iproc ) + nxpts - 1 )
 #ifdef MPI
         else
           call MPI_SEND( re_scratch( startx_by_mpiID( iproc ) ), nxpts_by_mpiID( iproc ), MPI_DOUBLE_PRECISION, &
@@ -398,33 +454,38 @@ module OCEAN_bubble
 !$OMP BARRIER
 
 
+
 !$OMP DO COLLAPSE(3)
     do ik = 1, nkpts
       do bviter = 1, nbv
-        do ix = 1, nxpts, xwidth
-          xstop = min( nxpts, ix + xwidth - 1 )
-          do iix = 1, xstop
+!        do ix = 1, nxpts, xwidth
+!          xstop = min( nxpts, ix + xwidth - 1 )
+!          do iix = 1, xstop
+        do iix = 1, nxpts
             re_amat( iix, bviter, ik ) = re_l_bubble( iix ) * re_val( iix, bviter, ik, 1 )
             im_amat( iix, bviter, ik ) = im_l_bubble( iix ) * re_val( iix, bviter, ik, 1 )
-          enddo
-          do iix = 1, xstop
+!          enddo
+!          do iix = 1, xstop
             re_amat( iix, bviter, ik ) = re_amat( iix, bviter, ik ) - im_l_bubble( iix ) * im_val( iix, bviter, ik, 1 )
             im_amat( iix, bviter, ik ) = im_amat( iix, bviter, ik ) + re_l_bubble( iix ) * im_val( iix, bviter, ik, 1 )
-          enddo
         enddo
+!          enddo
+!        enddo
       enddo
     enddo
 !$OMP END DO
 
 !JTV add additional tiling
 !$OMP DO 
+
     do ik = 1, nkpts
       call DGEMM( 'T', 'N', nbc, nbv, nxpts, one, re_con( 1, 1, ik, 1 ), nxpts_pad, re_amat( 1, 1, ik ), nxpts_pad, &
-                  zero, psiout%valr( 1, 1, ik, 1 ), nxpts_by_mpiID )
+                  one, psiout%valr( 1, 1, ik, 1 ), psi_con_pad )
       call DGEMM( 'T', 'N', nbc, nbv, nxpts, one, im_con( 1, 1, ik, 1 ), nxpts_pad, im_amat( 1, 1, ik ), nxpts_pad, &
                   one, psiout%valr( 1, 1, ik, 1 ), psi_con_pad )
+
       call DGEMM( 'T', 'N', nbc, nbv, nxpts, minusone, im_con( 1, 1, ik, 1 ), nxpts_pad, re_amat( 1, 1, ik ), nxpts_pad, &
-                  zero, psiout%vali( 1, 1, ik, 1 ), psi_con_pad )
+                  one, psiout%vali( 1, 1, ik, 1 ), psi_con_pad )
       call DGEMM( 'T', 'N', nbc, nbv, nxpts, one, re_con( 1, 1, ik, 1 ), nxpts_pad, im_amat( 1, 1, ik ), nxpts_pad, &
                   one, psiout%vali( 1, 1, ik, 1 ), psi_con_pad )
     enddo

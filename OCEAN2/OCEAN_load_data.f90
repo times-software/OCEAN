@@ -14,6 +14,7 @@ subroutine OCEAN_load_data( sys, hay_vec, lr, ierr )
   use OCEAN_long_range
   use OCEAN_val_states, only : OCEAN_val_states_load, OCEAN_val_states_init
   use OCEAN_bubble, only : AI_bubble_prep
+  use OCEAN_ladder, only : OCEAN_ladder_init, OCEAN_ladder_new
 
   implicit none
   integer, intent( inout ) :: ierr
@@ -83,8 +84,13 @@ subroutine OCEAN_load_data( sys, hay_vec, lr, ierr )
     endif
 
     if( sys%cur_run%lflag ) then
-!      if( myid .eq. root ) write(6,*) 'Init ladder'
-!      call
+      if( myid .eq. root ) write(6,*) 'Init ladder'
+      call OCEAN_ladder_init( sys, ierr )
+      if( ierr .ne. 0 ) return
+      if( myid .eq. root ) write(6,*) 'Load ladder'
+      call OCEAN_ladder_new( sys, ierr )
+      if( ierr .ne. 0 ) return
+      if( myid .eq. root ) write(6,*) 'Ladder loaded'
 
     endif
 
