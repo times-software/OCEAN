@@ -227,6 +227,9 @@ module OCEAN_system
       endif
 
       
+      open(unit=99,file='epsilon',form='formatted', status='old' )
+      read(99,*) sys%epsilon0
+      close( 99 )
       
     endif
 #ifdef MPI
@@ -244,6 +247,9 @@ module OCEAN_system
     if( ierr .ne. MPI_SUCCESS ) goto 111
     call MPI_BCAST( sys%qinunitsofbvectors, 3, MPI_DOUBLE_PRECISION, root, comm, ierr )
     if( ierr .ne. MPI_SUCCESS ) goto 111
+    call MPI_BCAST( sys%epsilon0, 1, MPI_DOUBLE_PRECISION, root, comm, ierr )
+    if( ierr .ne. MPI_SUCCESS ) goto 111
+
     call MPI_BCAST( sys%nkpts, 1, MPI_INTEGER, root, comm, ierr )
     if( ierr .ne. MPI_SUCCESS ) goto 111
     call MPI_BCAST( sys%nxpts, 1, MPI_INTEGER, root, comm, ierr )
