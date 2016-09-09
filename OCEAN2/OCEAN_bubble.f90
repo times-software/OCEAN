@@ -209,8 +209,13 @@ module OCEAN_bubble
     !
     integer :: ix, iy, iz, ij, ik, igvec, izz, iyy, ixx, temp_gvec( 3 ), iter
     real( DP ) :: mul, gsqd, qq( 3 ), bmet( 3, 3 ), pi
+  
+    real( DP ), allocatable :: TdBubble( :, :, : )
 !    real( DP ), external :: gvec_length
     ! 
+    allocate( TdBubble( sys%xmesh( 3 ), sys%xmesh( 2 ), sys%xmesh( 1 ) ) )
+    TdBubble(:,:,:) = 0.0_DP
+
     igvec = 0
     pi = 4.0d0 * atan( 1.0d0 )
     do ij = 1, 3
@@ -222,6 +227,7 @@ module OCEAN_bubble
     iter = 0
     bubble( : ) = 0.d0
     write( 6, * ) 'qinb: ', sys%qinunitsofbvectors( : )
+    write(6,* ) sys%nkpts , sys%celvol
     !
     do ix = ceiling( dble(-sys%xmesh(1))/2d0 ), floor( dble(sys%xmesh(1))/2d0 )
       temp_gvec( 1 ) = ix 
@@ -247,19 +253,22 @@ module OCEAN_bubble
             mul = 0.d0
 !            write(6,*) ix, iy, iz, gvec_length( temp_gvec, sys%bvec ), .false.
           else
-            mul = 4.0d0 * pi * 27.2114d0 / ( sys%nkpts * sys%celvol * gsqd )
+            mul = 4.0d0 * pi / ( sys%nkpts * sys%celvol * gsqd )
             igvec = igvec + 1
 !            write(6,*) ix, iy, iz, gvec_length( temp_gvec, sys%bvec ), .true.
           endif
-!          bubble( izz, iyy, ixx ) = mul
-            bubble( iter ) = mul
+          Tdbubble( izz, iyy, ixx ) = mul
+          !  bubble( iter ) = mul
         enddo
       enddo 
     enddo 
     igvec = igvec - 1
-    bubble( 1 ) = 0.d0 ! skip G = 0
+!    bubble( 1 ) = 0.d0 ! skip G = 0
+    Tdbubble( 1, 1, 1 ) = 0.0_dp
+    bubble = reshape( Tdbubble, (/ sys%nxpts /) )
     write( 6, * )'Num gvecs retained: ', igvec, sys%nxpts
     write( 6, * ) maxval( bubble )
+    deallocate( Tdbubble )
   end subroutine AI_bubble_populate
 !
 !
@@ -291,7 +300,7 @@ module OCEAN_bubble
     real( DP ), parameter :: one = 1.0_dp
     real( DP ), parameter :: zero = 0.0_dp
     real( DP ), parameter :: minusone = -1.0_dp
-    real( DP ) :: inverse_nxpts
+    real( DP ) :: inverse_nxpts, spin_prefac, minus_spin_prefac
     !
     !
     ! Populate sizes from psi and val_states
@@ -304,6 +313,12 @@ module OCEAN_bubble
 !    inverse_nxpts = 1.0_dp / real( sys%nxpts, dp )
 !    inverse_nxpts = sqrt( inverse_nxpts )
     inverse_nxpts = 1.0_dp
+!    if( sys%nspn .eq. 1 ) then
+      spin_prefac = 2.0_dp
+!    else
+!      spin_prefac = 1.0_dp
+!    endif
+    minus_spin_prefac = -spin_prefac
       
     allocate( re_l_bubble( nxpts ), im_l_bubble( nxpts ) )
     re_l_bubble( : ) = 0.0_dp
@@ -331,9 +346,9 @@ module OCEAN_bubble
 !$OMP& PRIVATE( bciter, bviter, lcindx, xstop )
 
 
-  ! Problems with zero-ing?
-  re_amat( :, :, : ) = zero
-  im_amat( :, :, : ) = zero
+!  ! Problems with zero-ing?
+!  re_amat( :, :, : ) = zero
+!  im_amat( :, :, : ) = zero
 
 !  write(6,*) xwidth, nkpts, nbv, nbc
 !  write(6,*) maxval( psi%valr ), maxval( psi%vali )
@@ -347,12 +362,12 @@ module OCEAN_bubble
     do ik = 1, nkpts
 !      do ix = 1, nxpts, xwidth
         call DGEMM( 'N', 'N', xwidth, nbv, nbc, one, re_con(ix, 1, ik, 1), nxpts_pad, &
-                    psi%valr( 1, 1, ik, 1 ), psi_con_pad, one, re_amat( ix, 1, ik ), nxpts_pad )
+                    psi%valr( 1, 1, ik, 1 ), psi_con_pad, zero, re_amat( ix, 1, ik ), nxpts_pad )
         call DGEMM( 'N', 'N', xwidth, nbv, nbc, minusone, im_con(ix, 1, ik,1), nxpts_pad, &
                     psi%vali( 1, 1, ik, 1 ), psi_con_pad, one, re_amat( ix, 1, ik ), nxpts_pad )
 
         call DGEMM( 'N', 'N', xwidth, nbv, nbc, one, im_con(ix, 1, ik,1), nxpts_pad, &
-                    psi%valr( 1, 1, ik, 1 ), psi_con_pad, one, im_amat( ix, 1, ik ), nxpts_pad )
+                    psi%valr( 1, 1, ik, 1 ), psi_con_pad, zero, im_amat( ix, 1, ik ), nxpts_pad )
         call DGEMM( 'N', 'N', xwidth, nbv, nbc, one, re_con(ix, 1, ik,1), nxpts_pad, &
                     psi%vali( 1, 1, ik, 1 ), psi_con_pad, one, im_amat( ix, 1, ik ), nxpts_pad )
 !      enddo
@@ -360,6 +375,8 @@ module OCEAN_bubble
 !$OMP END DO
 
 !  write(6,*) 'A:', maxval( re_amat ), maxval( im_amat )
+
+! Should move zero-ing of re/im_l_bubble here to get omp lined up correctly
 
 !$OMP DO 
 !    do ix = 1, nxpts, xwidth
@@ -454,6 +471,8 @@ module OCEAN_bubble
 !$OMP BARRIER
 
 
+  re_amat = 0.0_dp
+  im_amat = 0.0_dp
 
 !$OMP DO COLLAPSE(3)
     do ik = 1, nkpts
@@ -479,14 +498,18 @@ module OCEAN_bubble
 !$OMP DO 
 
     do ik = 1, nkpts
-      call DGEMM( 'T', 'N', nbc, nbv, nxpts, one, re_con( 1, 1, ik, 1 ), nxpts_pad, re_amat( 1, 1, ik ), nxpts_pad, &
+      call DGEMM( 'T', 'N', nbc, nbv, nxpts, spin_prefac, re_con( 1, 1, ik, 1 ), nxpts_pad, & 
+                  re_amat( 1, 1, ik ), nxpts_pad, &
                   one, psiout%valr( 1, 1, ik, 1 ), psi_con_pad )
-      call DGEMM( 'T', 'N', nbc, nbv, nxpts, one, im_con( 1, 1, ik, 1 ), nxpts_pad, im_amat( 1, 1, ik ), nxpts_pad, &
+      call DGEMM( 'T', 'N', nbc, nbv, nxpts, spin_prefac, im_con( 1, 1, ik, 1 ), nxpts_pad, & 
+                  im_amat( 1, 1, ik ), nxpts_pad, &
                   one, psiout%valr( 1, 1, ik, 1 ), psi_con_pad )
 
-      call DGEMM( 'T', 'N', nbc, nbv, nxpts, minusone, im_con( 1, 1, ik, 1 ), nxpts_pad, re_amat( 1, 1, ik ), nxpts_pad, &
+      call DGEMM( 'T', 'N', nbc, nbv, nxpts, minus_spin_prefac, im_con( 1, 1, ik, 1 ), nxpts_pad, &
+                  re_amat( 1, 1, ik ), nxpts_pad, &
                   one, psiout%vali( 1, 1, ik, 1 ), psi_con_pad )
-      call DGEMM( 'T', 'N', nbc, nbv, nxpts, one, re_con( 1, 1, ik, 1 ), nxpts_pad, im_amat( 1, 1, ik ), nxpts_pad, &
+      call DGEMM( 'T', 'N', nbc, nbv, nxpts, spin_prefac, re_con( 1, 1, ik, 1 ), nxpts_pad, &
+                  im_amat( 1, 1, ik ), nxpts_pad, &
                   one, psiout%vali( 1, 1, ik, 1 ), psi_con_pad )
     enddo
 !$OMP END DO
