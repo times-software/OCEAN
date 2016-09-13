@@ -62,6 +62,7 @@ module OCEAN_bubble
     integer, intent( inout ) :: ierr
     !
     integer :: i, j, nthreads
+!    type(fftw_iodim) :: guru_dims( 3 )
 !$  integer, external :: omp_get_max_threads
     real( DP ) :: length
     !
@@ -80,14 +81,22 @@ module OCEAN_bubble
         goto 111
       endif
       call dfftw_plan_with_nthreads( nthreads )
-      call dfftw_plan_dft_3d( fplan, sys%xmesh(3), sys%xmesh(2), sys%xmesh(1), &
-                              scratch, scratch, FFTW_FORWARD, FFTW_PATIENT )
-      call dfftw_plan_dft_3d( bplan, sys%xmesh(3), sys%xmesh(2), sys%xmesh(1), &
-                              scratch, scratch, FFTW_BACKWARD, FFTW_PATIENT )
-!      fplan = fftw_plan_dft_3d( sys%xmesh(3), sys%xmesh(2), sys%xmesh(1), & 
-!                                scratch, scratch, FFTW_FORWARD, FFTW_PATIENT )
-!      bplan = fftw_plan_dft_3d( sys%xmesh(3), sys%xmesh(2), sys%xmesh(1), & 
-!                                scratch, scratch, FFTW_BACKWARD, FFTW_PATIENT )
+!      call dfftw_plan_dft_3d( fplan, sys%xmesh(3), sys%xmesh(2), sys%xmesh(1), &
+!                              scratch, scratch, FFTW_FORWARD, FFTW_PATIENT )
+!      call dfftw_plan_dft_3d( bplan, sys%xmesh(3), sys%xmesh(2), sys%xmesh(1), &
+!                              scratch, scratch, FFTW_BACKWARD, FFTW_PATIENT )
+
+      
+
+! Also works (the same as above)
+      fplan = fftw_plan_dft_3d( sys%xmesh(3), sys%xmesh(2), sys%xmesh(1), & 
+                                scratch, scratch, FFTW_FORWARD, FFTW_PATIENT )
+      bplan = fftw_plan_dft_3d( sys%xmesh(3), sys%xmesh(2), sys%xmesh(1), & 
+                                scratch, scratch, FFTW_BACKWARD, FFTW_PATIENT )
+
+
+!      fplan = fftw_plan_guru_split_dft( 3,  
+
 
       call dfftw_plan_with_nthreads( 1 )
       call AI_bubble_wall_search( sys, length, ierr )
@@ -222,12 +231,13 @@ module OCEAN_bubble
       do ik = 1, 3
         bmet(ij,ik) = dot_product( sys%bvec(:,ij), sys%bvec( :, ik ) )
       enddo
+!      write(6,*) sys%bvec( :, ij ) 
     enddo
     !
     iter = 0
     bubble( : ) = 0.d0
     write( 6, * ) 'qinb: ', sys%qinunitsofbvectors( : )
-    write(6,* ) sys%nkpts , sys%celvol
+!    write(6,* ) sys%nkpts , sys%celvol
     !
     do ix = ceiling( dble(-sys%xmesh(1))/2d0 ), floor( dble(sys%xmesh(1))/2d0 )
       temp_gvec( 1 ) = ix 
@@ -235,7 +245,7 @@ module OCEAN_bubble
         temp_gvec( 2 ) = iy 
         do iz = ceiling( dble(-sys%xmesh(3))/2d0 ), floor( dble(sys%xmesh(3))/2d0 )
           temp_gvec( 3 ) = iz 
-          qq( : ) = sys%qinunitsofbvectors( : ) + real( temp_gvec( : ) )
+          qq( : ) = sys%qinunitsofbvectors( : ) + real( temp_gvec( : ), DP )
           gsqd = 0.d0
           do ij = 1, 3
             do ik = 1, 3
@@ -258,6 +268,7 @@ module OCEAN_bubble
 !            write(6,*) ix, iy, iz, gvec_length( temp_gvec, sys%bvec ), .true.
           endif
           Tdbubble( izz, iyy, ixx ) = mul
+!          write(6,'(3I5,X,E22.14,E22.14)') ix, iy, iz, mul * 27.2114d0, gsqd
           !  bubble( iter ) = mul
         enddo
       enddo 
@@ -267,8 +278,15 @@ module OCEAN_bubble
     Tdbubble( 1, 1, 1 ) = 0.0_dp
     bubble = reshape( Tdbubble, (/ sys%nxpts /) )
     write( 6, * )'Num gvecs retained: ', igvec, sys%nxpts
-    write( 6, * ) maxval( bubble )
+    write( 6, * ) maxval( bubble ) * 27.2114d0
     deallocate( Tdbubble )
+
+!    write(6,*) 'BUBBLE:'
+!    do ix = 1, sys%nxpts
+!      write(6,*) ix, bubble( ix ) * 27.2114d0
+!    enddo
+!    write(6,*) 'END BUBBLE:'
+
   end subroutine AI_bubble_populate
 !
 !
@@ -278,7 +296,7 @@ module OCEAN_bubble
                                  re_val, im_val, re_con, im_con, &
                                  cache_double, startx_by_mpiID, nxpts_by_mpiID
     use OCEAN_psi
-    use OCEAN_mpi
+    use OCEAN_mpi, only : nproc, myid, root, comm
     use OCEAN_system
     use iso_c_binding
     implicit none
@@ -300,7 +318,7 @@ module OCEAN_bubble
     real( DP ), parameter :: one = 1.0_dp
     real( DP ), parameter :: zero = 0.0_dp
     real( DP ), parameter :: minusone = -1.0_dp
-    real( DP ) :: inverse_nxpts, spin_prefac, minus_spin_prefac
+    real( DP ) :: spin_prefac, minus_spin_prefac
     !
     !
     ! Populate sizes from psi and val_states
@@ -310,14 +328,13 @@ module OCEAN_bubble
 !    if( ierr .ne. 0 ) return
 
     !
-!    inverse_nxpts = 1.0_dp / real( sys%nxpts, dp )
-!    inverse_nxpts = sqrt( inverse_nxpts )
-    inverse_nxpts = 1.0_dp
-!    if( sys%nspn .eq. 1 ) then
-      spin_prefac = 2.0_dp
-!    else
-!      spin_prefac = 1.0_dp
-!    endif
+    if( sys%nspn .eq. 1 ) then
+     spin_prefac = 2.0_dp
+    else
+      spin_prefac = 1.0_dp
+      ierr = -600
+      return
+    endif
     minus_spin_prefac = -spin_prefac
       
     allocate( re_l_bubble( nxpts ), im_l_bubble( nxpts ) )
@@ -404,7 +421,7 @@ module OCEAN_bubble
     do iproc = 0, nproc - 1
       if( myid .eq. root ) then
         if( iproc .eq. myid ) then
-          write(6,*) startx_by_mpiID( iproc ), startx_by_mpiID( iproc ) + nxpts - 1
+!          write(6,*) startx_by_mpiID( iproc ), startx_by_mpiID( iproc ) + nxpts - 1
           re_scratch( startx_by_mpiID( iproc ) : startx_by_mpiID( iproc ) + nxpts - 1 ) = re_l_bubble( : )
           im_scratch( startx_by_mpiID( iproc ) : startx_by_mpiID( iproc ) + nxpts - 1 ) = im_l_bubble( : )
 #ifdef MPI
@@ -430,14 +447,18 @@ module OCEAN_bubble
 
     if( myid .eq. root ) then
 !      write(6,*) maxval( re_scratch(:) )
-      scratch(:) = cmplx( re_scratch(:), im_scratch(:) )
-      call dfftw_execute_dft(fplan, scratch, scratch)
+      scratch(:) = cmplx( re_scratch(:), im_scratch(:), DP )
+      call fftw_execute_dft(fplan, scratch, scratch)
 !      write(6,*) maxval( real(scratch(:) ) )
       scratch( : ) = scratch( : ) * bubble( : )
 !      write(6,*) maxval( real( scratch(:) ) )
-      call dfftw_execute_dft(bplan, scratch, scratch)
-      re_scratch(:) = real(scratch(:)) * inverse_nxpts
-      im_scratch(:) = aimag(scratch(:)) * inverse_nxpts
+      call fftw_execute_dft(bplan, scratch, scratch)
+!      re_scratch(:) = real(scratch(:)) 
+!      im_scratch(:) = aimag(scratch(:)) 
+
+      re_scratch(:) = real(scratch(:),DP) 
+      im_scratch(:) = real(aimag(scratch(:)),DP)
+
     endif
 
 
@@ -446,7 +467,7 @@ module OCEAN_bubble
     do iproc = 0, nproc - 1
       if( myid .eq. root ) then
         if( iproc .eq. myid ) then
-          write(6,*) startx_by_mpiID( iproc ), startx_by_mpiID( iproc ) + nxpts - 1
+!          write(6,*) startx_by_mpiID( iproc ), startx_by_mpiID( iproc ) + nxpts - 1
           re_l_bubble( : ) = re_scratch( startx_by_mpiID( iproc ) : startx_by_mpiID( iproc ) + nxpts - 1 )
           im_l_bubble( : ) = im_scratch( startx_by_mpiID( iproc ) : startx_by_mpiID( iproc ) + nxpts - 1 )
 #ifdef MPI
