@@ -2068,7 +2068,7 @@ module OCEAN_psi
     
     integer, intent(inout) :: ierr
     type(OCEAN_vector), intent( out ) :: p
-    type(OCEAN_vector), intent(inout), optional :: q
+    type(OCEAN_vector), intent( in ), optional :: q
 
     integer :: store_size, a_start, k_start
 
@@ -2137,7 +2137,7 @@ module OCEAN_psi
 
   subroutine OCEAN_psi_copy_data( p, q, ierr )
     implicit none
-    type(OCEAN_vector), intent( inout ) :: q
+    type(OCEAN_vector), intent( in ) :: q
     type(OCEAN_vector), intent( inout ) :: p
     integer, intent(inout) :: ierr
     !
@@ -2350,7 +2350,7 @@ module OCEAN_psi
     implicit none
     integer, intent( inout ) :: ierr
     type(OCEAN_vector), intent( inout ) :: p
-    type(OCEAN_vector), intent( inout ) :: q
+    type(OCEAN_vector), intent( in ) :: q
     !
 
     if( IAND( q%valid_store, PSI_STORE_MIN ) .eq. 0 ) then
@@ -2363,24 +2363,30 @@ module OCEAN_psi
       if( ierr .ne. 0 ) return
     endif
 
-    ! MPI_comm_dup should give us the same ids. 
-    if( p%standard_order .and. q%standard_order ) then
-      if( have_core ) then
+    if( have_core ) then
+      ! MPI_comm_dup should give us the same ids. 
+      if( p%standard_order .and. q%standard_order ) then
         p%min_r(:,:) = q%min_r(:,:)
         p%min_i(:,:) = q%min_i(:,:)
+      else  
+        ierr = -100
+      !   but if it doesn't the easiest work-around is backtrack through full
+  !      call OCEAN_psi_min2full( q, ierr )
+  !      if( ierr .ne. 0 ) return
+  !      call OCEAN_psi_copy_full( p, q, ierr )
+  !      if( ierr .ne. 0 ) return
+  !      call OCEAN_psi_full2min( p, ierr )
+  !      if( ierr .ne. 0 ) return
       endif
-      if( have_val ) then
+    endif
+
+    if( have_val ) then
+      if( p%val_standard_order .and. q%val_standard_order ) then
         p%val_min_r(:,:) = q%val_min_r(:,:)
         p%val_min_i(:,:) = q%val_min_i(:,:)
+      else
+        ierr = -101
       endif
-    else  
-    !   but if it doesn't the easiest work-around is backtrack through full
-      call OCEAN_psi_min2full( q, ierr )
-      if( ierr .ne. 0 ) return
-      call OCEAN_psi_copy_full( p, q, ierr )
-      if( ierr .ne. 0 ) return
-      call OCEAN_psi_full2min( p, ierr )
-      if( ierr .ne. 0 ) return
     endif
       
     p%valid_store = PSI_STORE_MIN
