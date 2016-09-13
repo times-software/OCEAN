@@ -30,9 +30,9 @@ module OCEAN_val_states
   logical, private :: is_init = .false.
   logical, private :: is_loaded = .false.
 
-#ifdef CONTIGUOUS
-  CONTIGUOUS :: re_val, im_val, re_con, im_con
-#endif
+!#ifdef CONTIGUOUS
+!  CONTIGUOUS :: re_val, im_val, re_con, im_con
+!#endif
 
 #ifdef __INTEL
 !dir$ attributes align:64 :: re_val, im_val, re_con, im_con
@@ -42,6 +42,108 @@ module OCEAN_val_states
   public :: OCEAN_val_states_load, OCEAN_val_states_init, OCEAN_val_states_returnPadXpts
 
   contains
+
+  subroutine val_states_add_phase( re_phase, im_phase )
+    implicit none
+    
+    real(dp), intent( in ), dimension( nxpts_pad, nkpts ) :: re_phase, im_phase
+!    integer, intent( inout ) :: ierr
+    !
+    integer :: ik, ix, ispn
+
+    ! DROT is "backwards" from how we want the phases to go hence minus sign in definition of im_phase
+    do ispn = 1, nspn
+      do ik = 1, nkpts
+        do ix = 1, nxpts
+          call DROT( nbv, re_val( ix, 1, ik, ispn ), nxpts_pad, & 
+                          im_val( ix, 1, ik, ispn ), nxpts_pad, &
+                     re_phase( ix, ik ), im_phase( ix, ik ) )
+          call DROT( nbc, re_con( ix, 1, ik, ispn ), nxpts_pad, &
+                          im_con( ix, 1, ik, ispn ), nxpts_pad, &
+                     re_phase( ix, ik ), im_phase( ix, ik ) )
+        enddo
+      enddo
+    enddo
+
+  end subroutine val_states_add_phase
+
+  subroutine val_states_generate_phases( sys, re_phase, im_phase, ierr )
+    use OCEAN_system
+    use OCEAN_constants, only : PI_dp
+    implicit none
+
+    type(O_system), intent( in ) :: sys
+    real(dp), intent( out ), dimension( nxpts_pad, nkpts ) :: re_phase, im_phase
+    integer, intent( inout ) :: ierr
+    ! 
+    real(dp) :: c( 3 ), dotProduct !, xk( 3 )
+    real(dp), allocatable :: kfac( :, : ), xfac( :, : )
+
+    integer :: ix, iy, iz, iix, iik, ikx, iky, ikz
+
+    allocate( kfac( 3, nkpts ), xfac( 3, nxpts ), STAT=ierr )
+    if( ierr .ne. 0 ) return
+  
+    c( : ) = 2.0_dp * PI_dp / sys%kmesh( : )
+    
+    if( sys%nkpts .ne. nkpts ) then
+      ierr = 2000
+      return
+    endif
+
+    !
+    
+    !
+    iik = 0
+    do ikx = 0, sys%kmesh( 1 ) - 1
+      do iky = 0, sys%kmesh( 2 ) - 1
+        do ikz = 0, sys%kmesh( 3 ) - 1
+          iik = iik + 1
+!          xk( : ) = c( : ) * real( (/ ikx, iky, ikz /), dp )
+          kfac( :, iik ) = c( : ) * real( (/ ikx, iky, ikz /), dp )
+        enddo
+      enddo
+    enddo
+
+
+    if( .false. ) then
+      ix = 1 + ( startx - 1 ) / (sys%xmesh(2)*sys%xmesh(3))
+      iy = 1 + mod( ( startx - 1 )/sys%xmesh(3), sys%xmesh(2 ) )
+      iz = 1 + mod( startx - 1, sys%xmesh(2)*sys%xmesh(3) ) 
+      do iix = startx, nxpts+startx-1
+!        xfac( 1, iix - startx + 1 ) = real( 1 + ( iix - 1) / (sys%xmesh(2)*sys%xmesh(3)), dp )/ real( sys%xmesh( 1 ), dp )
+!        xfac( 2, iix - startx + 1 ) = real( 1 + mod( ( iix - 1 )/sys%xmesh(3), sys%xmesh(2 )), dp )/ real( sys%xmesh( 2 ), dp ) 
+!        xfac( 3, iix - startx + 1 ) = real( 1 + mod( iix - 1, sys%xmesh(2)*sys%xmesh(3) ) / real( sys%xmesh( 3 ), dp )
+      enddo
+    else
+
+      iix = 0
+      do ix = 1, sys%xmesh( 1 )
+        do iy = 1, sys%xmesh( 2 )
+          do iz = 1, sys%xmesh( 3 )
+            iix = iix + 1
+            xfac( 1, iix ) = dble( ix - 1 ) / dble( sys%xmesh(1) )
+            xfac( 2, iix ) = dble( iy - 1 ) / dble( sys%xmesh(2) )
+            xfac( 3, iix ) = dble( iz - 1 ) / dble( sys%xmesh(3) )
+          enddo
+        enddo
+      enddo
+    endif
+
+
+    ! DROT is "backwards" from how we want the phases to go hence minus sign in definition of im_phase
+    do iik = 1, nkpts
+      do iix = 1, nxpts
+        dotProduct = dot_product( xfac( :, iix ), kfac( :, iik ) )
+        re_phase( iix, iik ) = dcos( dotProduct )
+        im_phase( iix, iik ) = -dsin( dotProduct )
+      enddo
+    enddo
+
+    deallocate( kfac, xfac )
+
+
+  end subroutine val_states_generate_phases
 
   subroutine OCEAN_val_states_returnPadXpts( x_pad, ierr )
     implicit none
@@ -62,6 +164,8 @@ module OCEAN_val_states
     implicit none
     type(O_system), intent( in ) :: sys
     integer, intent( inout ) :: ierr
+    !
+    real(dp), allocatable :: re_phase( :, : ), im_phase( :, : )
 
     if( .not. is_init ) then
       ierr = -1
@@ -80,6 +184,19 @@ module OCEAN_val_states
     if( ierr .ne. 0 ) return
 
     call OCEAN_val_states_read( sys, ierr )
+    if( ierr .ne. 0 ) return
+
+    if( myid .eq. root ) write( 6, * ) 'Adding phase'
+    allocate( re_phase( nxpts_pad, nkpts ), im_phase( nxpts_pad, nkpts ), STAT=ierr )
+    if( ierr .ne. 0 ) return
+
+    call val_states_generate_phases( sys, re_phase, im_phase, ierr )
+    if( ierr .ne. 0 ) return 
+
+    call val_states_add_phase( re_phase, im_phase )
+
+    deallocate( re_phase, im_phase )
+
   end subroutine OCEAN_val_states_load
 
   subroutine OCEAN_val_states_init( sys, ierr )
@@ -343,8 +460,8 @@ module OCEAN_val_states
                   iproc = iproc + 1
                   xiter = 1
                 endif
-                re_share_buffer( xiter, ibd, iproc ) = real(u2_buf( iz, iy, ix, ibd ))
-                im_share_buffer( xiter, ibd, iproc ) = aimag(u2_buf( iz, iy, ix, ibd ))
+                re_share_buffer( xiter, ibd, iproc ) = real(u2_buf( iz, iy, ix, ibd ), DP)
+                im_share_buffer( xiter, ibd, iproc ) = real(aimag(u2_buf( iz, iy, ix, ibd )),DP)
               end do
             end do
           end do
@@ -408,8 +525,8 @@ module OCEAN_val_states
                   iproc = iproc + 1
                   xiter = 1
                 endif
-                re_share_buffer( xiter, ibd, iproc ) = real(u2_buf( iz, iy, ix, ibd ))
-                im_share_buffer( xiter, ibd, iproc ) = aimag(u2_buf( iz, iy, ix, ibd ))
+                re_share_buffer( xiter, ibd, iproc ) = real(u2_buf( iz, iy, ix, ibd ), DP)
+                im_share_buffer( xiter, ibd, iproc ) = real(aimag(u2_buf( iz, iy, ix, ibd )), DP)
               end do
             end do
           end do

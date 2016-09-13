@@ -66,7 +66,7 @@ subroutine OCEAN_get_rho( xmesh, celvol, rho, ierr )
 
     sumrho = sumrho / dble(product( nfft )) * celvol
     write(6,*) '!', sumrho
-    write(6,*) '!', minval( real( rhoofr ) )
+    write(6,*) '!', minval( real( rhoofr, DP) )
     !
     call dfftw_execute_dft( fftw_plan, rhoofr, rhoofr )
     call dfftw_destroy_plan( fftw_plan )

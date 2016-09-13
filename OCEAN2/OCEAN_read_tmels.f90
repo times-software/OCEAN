@@ -92,10 +92,10 @@ subroutine OCEAN_read_tmels( sys, p, file_selector, ierr )
 
 !      max_psi = max( max_psi, maxval( real(psi_in(:,:) ) ) )
 
-      psi_transpose( :, : ) = inv_qlength * real( psi_in( sys%brange(1):sys%brange(2), sys%brange(3):sys%brange(4) ) )
+      psi_transpose( :, : ) = inv_qlength * real( psi_in( sys%brange(1):sys%brange(2), sys%brange(3):sys%brange(4) ), DP )
       p%valr(1:sys%cur_run%num_bands,1:sys%cur_run%val_bands,ik,1) = transpose( psi_transpose )
 
-      psi_transpose( :, : ) = (-inv_qlength) * aimag( psi_in( sys%brange(1):sys%brange(2), sys%brange(3):sys%brange(4) ) )
+      psi_transpose( :, : ) = (-inv_qlength) * real( aimag( psi_in( sys%brange(1):sys%brange(2), sys%brange(3):sys%brange(4) ) ), DP )
       p%vali(1:sys%cur_run%num_bands,1:sys%cur_run%val_bands,ik,1) = transpose( psi_transpose )
 
 

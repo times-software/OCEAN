@@ -129,7 +129,7 @@ module OCEAN_rixs_holder
       enddo
     enddo    
 
-    psi%valr(:,:,:,:) = real( tmp_psi(:,:,:,:) )
+    psi%valr(:,:,:,:) = real( tmp_psi(:,:,:,:), DP )
     psi%vali(:,:,:,:) = aimag( tmp_psi(:,:,:,:) )
 
     deallocate( rex )
