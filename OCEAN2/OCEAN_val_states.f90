@@ -158,6 +158,11 @@ module OCEAN_val_states
     x_pad = nxpts_pad
   end subroutine OCEAN_val_states_returnPadXpts
 
+
+  ! The loading routines are redundantly done (currently)
+  ! While the core and valence routines have different 
+  !  storage orderings, there should be a more generic
+  !  set of routines that then branches out for DFT-specific versions
   subroutine OCEAN_val_states_load( sys, ierr )
     use OCEAN_system
     use OCEAN_mpi, only : myid, root
@@ -537,12 +542,12 @@ module OCEAN_val_states
       do iproc = 0, nproc-1
         if( myid .eq. root ) then
           if( iproc .ne. myid) then
-            call MPI_SEND( re_share_buffer(:,:,iproc), max_nxpts*nbv, MPI_DOUBLE_PRECISION, iproc, iproc, comm, ierr )
-            call MPI_SEND( im_share_buffer(:,:,iproc), max_nxpts*nbv, MPI_DOUBLE_PRECISION, iproc, iproc+nproc, comm, ierr )
+            call MPI_SEND( re_share_buffer(:,:,iproc), max_nxpts*nbc, MPI_DOUBLE_PRECISION, iproc, iproc, comm, ierr )
+            call MPI_SEND( im_share_buffer(:,:,iproc), max_nxpts*nbc, MPI_DOUBLE_PRECISION, iproc, iproc+nproc, comm, ierr )
           endif
         elseif( myid .eq. iproc ) then
-          call MPI_RECV( re_share_buffer, max_nxpts*nbv, MPI_DOUBLE_PRECISION, root, iproc, comm, MPI_STATUS_IGNORE, ierr )
-          call MPI_RECV( im_share_buffer, max_nxpts*nbv, MPI_DOUBLE_PRECISION, root, iproc+nproc, comm, MPI_STATUS_IGNORE, ierr )
+          call MPI_RECV( re_share_buffer, max_nxpts*nbc, MPI_DOUBLE_PRECISION, root, iproc, comm, MPI_STATUS_IGNORE, ierr )
+          call MPI_RECV( im_share_buffer, max_nxpts*nbc, MPI_DOUBLE_PRECISION, root, iproc+nproc, comm, MPI_STATUS_IGNORE, ierr )
         endif
       enddo
 #endif
@@ -566,5 +571,168 @@ module OCEAN_val_states
     deallocate( re_share_buffer, im_share_buffer, u2_buf )
 
   end subroutine load_new_u2
+
+
+  ! This is quite redudant 
+  subroutine load_old_u2( sys, brange, ierr )
+    use OCEAN_system
+    use OCEAN_mpi
+    implicit none
+
+    type(O_system), intent( in ) :: sys
+    integer, intent( in ) :: brange( 4 )
+    integer, intent( inout ) :: ierr
+
+    real(dp), allocatable :: re_share_buffer(:,:,:), im_share_buffer(:,:,:), ur(:,:,:,:), ui(:,:,:,:)
+
+    logical :: io_group = .false.
+    integer :: fhu2, idum(3)
+    integer :: iq, nelement, ibd, ncount, iproc, xiter, iz, iy, ix, ispn
+
+
+    if( myid .eq. root ) then
+      write(6,*) 'Old U2 format'
+    endif
+
+    if( myid .eq. root ) then
+      open(unit=fhu2,file='u2.dat',form='unformatted',status='old')
+      if( ierr .ne. 0 ) return
+    endif
+
+    if( myid .eq. root ) then
+      allocate( re_share_buffer( max_nxpts, max(brange(2), sys%cur_run%num_bands ), 0:nproc-1 ), &
+                im_share_buffer( max_nxpts, max(brange(2), sys%cur_run%num_bands ), 0:nproc-1 ), &
+                ur( sys%xmesh(1), sys%xmesh(2), sys%xmesh(3), max( nbv, nbc ) ), &
+                ui( sys%xmesh(1), sys%xmesh(2), sys%xmesh(3), max( nbv, nbc ) ), STAT=ierr )
+    else
+      allocate( re_share_buffer( max_nxpts, max(brange(2), sys%cur_run%num_bands ), 1 ), &
+                im_share_buffer( max_nxpts, max(brange(2), sys%cur_run%num_bands ), 1 ), &
+                ur( 1, 1, 1, 1 ), ui( 1, 1, 1, 1 ), STAT=ierr )
+    endif
+    if( ierr .ne. 0 ) return
+
+
+    do ispn = 1, sys%nspn
+      do iq = 1, sys%nkpts
+
+
+        do ibd = 1, brange(2)-brange(1) + 1
+          do ix = 1, sys%xmesh(1)
+            do iy = 1, sys%xmesh(2)
+              do iz = 1, sys%xmesh(3)
+                read ( fhu2 ) idum( 1 : 3 ), ur( ix, iy, iz, ibd ), ui( ix, iy, iz, ibd )
+              end do
+            end do
+          end do
+        enddo
+        do ibd = 1, nbv
+          iproc = 0
+          xiter = 0
+          do iz = 1, sys%xmesh(3)
+            do iy = 1, sys%xmesh(2)
+              do ix = 1, sys%xmesh(1)
+                xiter = xiter + 1
+                if( xiter .gt. nxpts_by_mpiID( iproc ) ) then
+                  iproc = iproc + 1
+                  xiter = 1
+                endif
+                re_share_buffer( xiter, ibd, iproc ) = ur( ix, iy, iz, ibd )
+                im_share_buffer( xiter, ibd, iproc ) = ui( ix, iy, iz, ibd )
+              end do
+            end do
+          end do
+        end do
+
+#ifdef MPI
+        do iproc = 0, nproc-1
+          if( myid .eq. root ) then
+            if( iproc .ne. myid) then
+  !            write(6,*) 'Val send'
+              call MPI_SEND( re_share_buffer(:,:,iproc), max_nxpts*nbv, MPI_DOUBLE_PRECISION, &
+                             iproc, iproc, comm, ierr )
+              call MPI_SEND( im_share_buffer(:,:,iproc), max_nxpts*nbv, MPI_DOUBLE_PRECISION, &
+                             iproc, iproc+nproc, comm, ierr )
+            endif
+          elseif( myid .eq. iproc ) then
+            call MPI_RECV( re_share_buffer, max_nxpts*nbv, MPI_DOUBLE_PRECISION, &
+                           root, iproc, comm, MPI_STATUS_IGNORE, ierr )
+            call MPI_RECV( im_share_buffer, max_nxpts*nbv, MPI_DOUBLE_PRECISION, &
+                           root, iproc+nproc, comm, MPI_STATUS_IGNORE, ierr )
+          endif
+        enddo
+#endif
+  !      if( myid .eq. root ) write(6,*) 'Val shared'
+
+
+        iproc = myid
+        if( myid .ne. root ) iproc = 1
+
+        re_val( 1:nxpts, 1:nbv, iq, ispn ) = re_share_buffer( 1:nxpts, 1:nbv, iproc )
+        im_val( 1:nxpts, 1:nbv, iq, ispn ) = im_share_buffer( 1:nxpts, 1:nbv, iproc )
+
+
+        ! Conduction bands are stacked on top of valence
+        do ibd = 1, brange(4)-brange(3) + 1
+          do ix = 1, sys%xmesh(1)
+            do iy = 1, sys%xmesh(2)
+              do iz = 1, sys%xmesh(3)
+                read ( fhu2 ) idum( 1 : 3 ), ur( ix, iy, iz, ibd ), ui( ix, iy, iz, ibd )
+              end do
+            end do
+          end do
+        enddo
+        do ibd = 1, nbc
+          iproc = 0
+          xiter = 0
+          do iz = 1, sys%xmesh(3)
+            do iy = 1, sys%xmesh(2)
+              do ix = 1, sys%xmesh(1)
+                xiter = xiter + 1
+                if( xiter .gt. nxpts_by_mpiID( iproc ) ) then
+                  iproc = iproc + 1
+                  xiter = 1
+                endif
+                re_share_buffer( xiter, ibd, iproc ) = ur( ix, iy, iz, ibd )
+                im_share_buffer( xiter, ibd, iproc ) = ui( ix, iy, iz, ibd )
+              end do
+            end do
+          end do
+        end do
+
+!
+#ifdef MPI
+        do iproc = 0, nproc-1
+          if( myid .eq. root ) then
+            if( iproc .ne. myid) then
+              call MPI_SEND( re_share_buffer(:,:,iproc), max_nxpts*nbc, MPI_DOUBLE_PRECISION, &
+                             iproc, iproc, comm, ierr )
+              call MPI_SEND( im_share_buffer(:,:,iproc), max_nxpts*nbc, MPI_DOUBLE_PRECISION, &
+                             iproc, iproc+nproc, comm, ierr )
+            endif
+          elseif( myid .eq. iproc ) then
+            call MPI_RECV( re_share_buffer, max_nxpts*nbc, MPI_DOUBLE_PRECISION, &
+                           root, iproc, comm, MPI_STATUS_IGNORE, ierr )
+            call MPI_RECV( im_share_buffer, max_nxpts*nbc, MPI_DOUBLE_PRECISION, &
+                           root, iproc+nproc, comm, MPI_STATUS_IGNORE, ierr )
+          endif
+        enddo
+#endif
+
+        iproc = myid
+        if( myid .ne. root ) iproc = 1
+
+        re_con( 1:nxpts, 1:nbc, iq, 1 ) = re_share_buffer( 1:nxpts, 1:nbc, iproc )
+        im_con( 1:nxpts, 1:nbc, iq, 1 ) = im_share_buffer( 1:nxpts, 1:nbc, iproc )
+
+      enddo ! iq
+    enddo  ! ispn
+
+    deallocate( re_share_buffer, im_share_buffer, ur, ui )
+
+    if( myid .eq. root ) then
+      close( fhu2 )
+    endif
+
+  end subroutine load_old_u2
 
 end module OCEAN_val_states
