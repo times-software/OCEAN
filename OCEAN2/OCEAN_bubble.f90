@@ -8,6 +8,7 @@ module OCEAN_bubble
   private
   save
 
+  logical :: MATCH_AI2NBSE = .true.
 
   complex( C_DOUBLE_COMPLEX ), allocatable :: scratch( : )
   real( DP ), allocatable  :: bubble( : )
@@ -28,9 +29,9 @@ module OCEAN_bubble
     real(dp) :: bvec(3,3)
     !
     !write(71,*) gvec(:) 
-    length = ( bvec(1,1) * dble(gvec(1)) + bvec(2,1) * dble(gvec(2)) + bvec(3,1) * dble(gvec(3)) ) ** 2.0d0 &
-           + ( bvec(1,2) * dble(gvec(1)) + bvec(2,2) * dble(gvec(2)) + bvec(3,2) * dble(gvec(3)) ) ** 2d0 &
-           + ( bvec(1,3) * dble(gvec(1)) + bvec(2,3) * dble(gvec(2)) + bvec(3,3) * dble(gvec(3)) ) ** 2d0
+    length = ( bvec(1,1) * dble(gvec(1)) + bvec(2,1) * dble(gvec(2)) + bvec(3,1) * dble(gvec(3)) ) ** 2.0_dp &
+           + ( bvec(1,2) * dble(gvec(1)) + bvec(2,2) * dble(gvec(2)) + bvec(3,2) * dble(gvec(3)) ) ** 2.0_dp &
+           + ( bvec(1,3) * dble(gvec(1)) + bvec(2,3) * dble(gvec(2)) + bvec(3,3) * dble(gvec(3)) ) ** 2.0_dp
   end function gvec_length
 
   subroutine AI_bubble_clean( )
@@ -99,7 +100,8 @@ module OCEAN_bubble
 
 
       call dfftw_plan_with_nthreads( 1 )
-      call AI_bubble_wall_search( sys, length, ierr )
+!      call AI_bubble_wall_search( sys, length, ierr )
+      call wall_search_old_way( sys, length, ierr )
       if( ierr .ne. 0 ) goto 111
       call AI_bubble_populate( sys, length, ierr )
       if( ierr .ne. 0 ) goto 111
@@ -146,36 +148,36 @@ module OCEAN_bubble
     !  ie. if x goes from -5 to 5 than the |x| = 6 surface will tell us what we missed
     !  this may be slightly more accepting than taking everything equal or less than the |x|=5 surface
     !  since it may include some corners that would otherwise be thrown out.
-    gvec = (/ floor( dble(sys%xmesh( 1 )) / 2d0 ) + 1, floor(dble(sys%xmesh( 2 )) / 2d0 )+ 1, &
-              floor(dble(sys%xmesh( 3 )) / 2d0 ) + 1/)
+    gvec = (/ floor( dble(sys%xmesh( 1 )) / 2.0_dp ) + 1, floor(dble(sys%xmesh( 2 )) / 2.0_dp )+ 1, &
+              floor(dble(sys%xmesh( 3 )) / 2.0_dp ) + 1/)
     min_edge_length = gvec_length( gvec, sys%bvec )
-    gvec = (/ floor( dble(sys%xmesh( 1 )) / 2d0 ) + 2, floor(dble(sys%xmesh( 2 )) / 2d0 )+ 1, &
-              floor(dble(sys%xmesh( 3 )) / 2d0 ) + 1/)
+    gvec = (/ floor( dble(sys%xmesh( 1 )) / 2.0_dp ) + 2, floor(dble(sys%xmesh( 2 )) / 2.0_dp )+ 1, &
+              floor(dble(sys%xmesh( 3 )) / 2.0_dp ) + 1/)
 
     prev_min_edge = gvec_length( gvec, sys%bvec )
-    do ix = ceiling(dble(-sys%xmesh(1))/2d0) , floor(dble(sys%xmesh(1))/2d0  )
-      do iy = ceiling(dble(-sys%xmesh(2)) / 2d0) , floor(dble(sys%xmesh( 2 )) / 2d0 )
-        gvec = (/ ix, iy, ceiling(dble(-sys%xmesh(3))/2d0)  /)
+    do ix = ceiling(dble(-sys%xmesh(1))/2.0_dp) , floor(dble(sys%xmesh(1))/2.0_dp  )
+      do iy = ceiling(dble(-sys%xmesh(2)) / 2.0_dp) , floor(dble(sys%xmesh( 2 )) / 2.0_dp )
+        gvec = (/ ix, iy, ceiling(dble(-sys%xmesh(3))/2.0_dp)  /)
         length = gvec_length( gvec, sys%bvec )
         if ( length .lt. min_edge_length ) then 
           prev_min_edge = min_edge_length
           min_edge_length = length
         endif
-        gvec = (/ ix, iy, floor(dble(sys%xmesh(3))/2d0) /)
+        gvec = (/ ix, iy, floor(dble(sys%xmesh(3))/2.0_dp) /)
         length = gvec_length( gvec, sys%bvec )
         if ( length .lt. min_edge_length ) then 
           prev_min_edge = min_edge_length
           min_edge_length = length
         endif
       enddo
-      do iz = ceiling(dble(-sys%xmesh( 3 )) / 2d0) , floor(dble(sys%xmesh( 3 )) / 2d0  )
-        gvec = (/ ix, ceiling(dble(-sys%xmesh(2))/2d0) , iz /)
+      do iz = ceiling(dble(-sys%xmesh( 3 )) / 2.0_dp) , floor(dble(sys%xmesh( 3 )) / 2.0_dp  )
+        gvec = (/ ix, ceiling(dble(-sys%xmesh(2))/2.0_dp) , iz /)
         length = gvec_length( gvec, sys%bvec )
         if ( length .lt. min_edge_length ) then 
           prev_min_edge = min_edge_length
           min_edge_length = length
         endif
-        gvec = (/ ix, floor(dble(sys%xmesh(2))/2d0) , iz /)
+        gvec = (/ ix, floor(dble(sys%xmesh(2))/2.0_dp) , iz /)
         length = gvec_length( gvec, sys%bvec )
         if ( length .lt. min_edge_length ) then 
           prev_min_edge = min_edge_length
@@ -183,15 +185,15 @@ module OCEAN_bubble
         endif
       enddo
     enddo
-    do iy = ceiling(dble(-sys%xmesh(2)) / 2d0) , floor(dble(sys%xmesh( 2 )) / 2d0 )
-      do iz = ceiling(dble(-sys%xmesh( 3 )) / 2d0) , floor(dble(sys%xmesh( 3 )) / 2d0 )
-        gvec = (/ ceiling(dble(-sys%xmesh(1))/2d0) , iy, iz /)
+    do iy = ceiling(dble(-sys%xmesh(2)) / 2.0_dp) , floor(dble(sys%xmesh( 2 )) / 2.0_dp )
+      do iz = ceiling(dble(-sys%xmesh( 3 )) / 2.0_dp) , floor(dble(sys%xmesh( 3 )) / 2.0_dp )
+        gvec = (/ ceiling(dble(-sys%xmesh(1))/2.0_dp) , iy, iz /)
         length = gvec_length( gvec, sys%bvec )
         if ( length .lt. min_edge_length ) then 
           prev_min_edge = min_edge_length
           min_edge_length = length
         endif
-        gvec = (/ floor(dble(sys%xmesh(2))/2d0) , iy, iz /)
+        gvec = (/ floor(dble(sys%xmesh(2))/2.0_dp) , iy, iz /)
         length = gvec_length( gvec, sys%bvec )
         if ( length .lt. min_edge_length ) then
           prev_min_edge = min_edge_length
@@ -205,10 +207,49 @@ module OCEAN_bubble
   end subroutine AI_bubble_wall_search
 !
 !
+  subroutine wall_search_old_way( sys, length, ierr )
+    use OCEAN_system
+    !
+    implicit none
+    !
+    type( o_system ), intent( in ) :: sys
+    real( DP ), intent( out ) :: length
+    integer( S_INT ), intent( inout ) :: ierr
+    !
+    integer :: ix, iy, iz, gvec( 3 )
+    real( DP ) :: temp_length
+    !
+
+    length = huge( 0.0_dp )
+
+    do ix = ceiling(dble(-sys%xmesh(1))/2.0_dp) , floor(dble(sys%xmesh(1))/2.0_dp  )
+      do iy = ceiling(dble(-sys%xmesh(2)) / 2.0_dp) , floor(dble(sys%xmesh( 2 )) / 2.0_dp )
+        do iz = ceiling(dble(-sys%xmesh(3)) / 2.0_dp) , floor(dble(sys%xmesh( 3 )) / 2.0_dp )
+
+          if( 2 * abs( iz ) .ge. sys%xmesh(3) .or. &
+              2 * abs( iy ) .ge. sys%xmesh(2) .or. &
+              2 * abs( ix ) .ge. sys%xmesh(1) ) then
+
+            gvec = (/ ix, iy, iz /)
+            temp_length = gvec_length( gvec, sys%bvec )
+
+            if( temp_length .lt. length ) then
+              length = temp_length
+            endif
+          endif
+        enddo
+      enddo
+    enddo
+
+    write( 6, * ) 'Max gvec length: ', length
+
+  end subroutine wall_search_old_way
+
 ! 
   subroutine AI_bubble_populate( sys, length, ierr )
     use ai_kinds
     use OCEAN_system
+    use OCEAN_constants, only : pi_dp, Hartree2eV
     !
     implicit none
     !
@@ -217,7 +258,7 @@ module OCEAN_bubble
     integer( S_INT ), intent( inout ) :: ierr
     !
     integer :: ix, iy, iz, ij, ik, igvec, izz, iyy, ixx, temp_gvec( 3 ), iter
-    real( DP ) :: mul, gsqd, qq( 3 ), bmet( 3, 3 ), pi
+    real( DP ) :: mul, gsqd, qq( 3 ), bmet( 3, 3 ) !, pi
   
     real( DP ), allocatable :: TdBubble( :, :, : )
 !    real( DP ), external :: gvec_length
@@ -226,7 +267,7 @@ module OCEAN_bubble
     TdBubble(:,:,:) = 0.0_DP
 
     igvec = 0
-    pi = 4.0d0 * atan( 1.0d0 )
+!    pi = 4.0d0 * atan( 1.0d0 )
     do ij = 1, 3
       do ik = 1, 3
         bmet(ij,ik) = dot_product( sys%bvec(:,ij), sys%bvec( :, ik ) )
@@ -235,18 +276,18 @@ module OCEAN_bubble
     enddo
     !
     iter = 0
-    bubble( : ) = 0.d0
+    bubble( : ) = 0.0_dp
     write( 6, * ) 'qinb: ', sys%qinunitsofbvectors( : )
 !    write(6,* ) sys%nkpts , sys%celvol
     !
-    do ix = ceiling( dble(-sys%xmesh(1))/2d0 ), floor( dble(sys%xmesh(1))/2d0 )
+    do ix = ceiling( dble(-sys%xmesh(1))/2.0_dp ), floor( dble(sys%xmesh(1))/2.0_dp )
       temp_gvec( 1 ) = ix 
-      do iy =  ceiling( dble(-sys%xmesh(2))/2d0 ), floor( dble(sys%xmesh(2))/2d0 )
+      do iy =  ceiling( dble(-sys%xmesh(2))/2.0_dp ), floor( dble(sys%xmesh(2))/2.0_dp )
         temp_gvec( 2 ) = iy 
-        do iz = ceiling( dble(-sys%xmesh(3))/2d0 ), floor( dble(sys%xmesh(3))/2d0 )
+        do iz = ceiling( dble(-sys%xmesh(3))/2.0_dp ), floor( dble(sys%xmesh(3))/2.0_dp )
           temp_gvec( 3 ) = iz 
           qq( : ) = sys%qinunitsofbvectors( : ) + real( temp_gvec( : ), DP )
-          gsqd = 0.d0
+          gsqd = 0.0_dp
           do ij = 1, 3
             do ik = 1, 3
               gsqd = gsqd + qq( ij ) * qq( ik ) * bmet( ij, ik )
@@ -259,11 +300,13 @@ module OCEAN_bubble
           if ( iyy .le. 0 ) iyy = iyy + sys%xmesh( 2 )
           if ( izz .le. 0 ) izz = izz + sys%xmesh( 3 )
           iter = izz + sys%xmesh(3)*(iyy-1) + sys%xmesh(3)*sys%xmesh(2)*(ixx-1) 
-          if( gvec_length( temp_gvec, sys%bvec ) .gt. length ) then
-            mul = 0.d0
+          if( gvec_length( temp_gvec, sys%bvec ) .ge. length ) then
+            mul = 0.0_dp
 !            write(6,*) ix, iy, iz, gvec_length( temp_gvec, sys%bvec ), .false.
           else
-            mul = 4.0d0 * pi / ( sys%nkpts * sys%celvol * gsqd )
+            mul = 4.0_dp * pi_dp / ( sys%nkpts * sys%celvol * gsqd ) 
+            ! fake to better match old
+            mul = mul * 27.2114d0 / Hartree2eV
             igvec = igvec + 1
 !            write(6,*) ix, iy, iz, gvec_length( temp_gvec, sys%bvec ), .true.
           endif
@@ -278,7 +321,7 @@ module OCEAN_bubble
     Tdbubble( 1, 1, 1 ) = 0.0_dp
     bubble = reshape( Tdbubble, (/ sys%nxpts /) )
     write( 6, * )'Num gvecs retained: ', igvec, sys%nxpts
-    write( 6, * ) maxval( bubble ) * 27.2114d0
+    write( 6, * ) maxval( bubble ) * Hartree2eV !27.2114d0
     deallocate( Tdbubble )
 
 !    write(6,*) 'BUBBLE:'
