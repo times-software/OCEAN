@@ -288,7 +288,7 @@ module ocean_long_range
 !    xchunk = 512
     if( myid .eq. root .and. first_time ) write( 6, * ) cache_size, xchunk, num_threads
     if( xchunk .lt. 1 .or. (xchunk * num_threads) .gt. my_xpts ) then
-      xchunk = ceiling( real(my_xpts) / real( num_threads ) )
+      xchunk = ceiling( real(my_xpts,DP) / real( num_threads,DP ) )
       if( myid .eq. root .and. first_time ) write( 6, * ) cache_size, xchunk
     endif 
     first_time = .false.
@@ -577,8 +577,8 @@ module ocean_long_range
         do iixpt = 1, xsize
 
           ! For simplicity we are just going with the fft built in
-          xwrkr( : ) = real( phi( :, iixpt, ialpha ) )
-          xwrki( : ) = aimag( phi( :, iixpt, ialpha ) )
+          xwrkr( : ) = real( phi( :, iixpt, ialpha ), DP )
+          xwrki( : ) = real( aimag( phi( :, iixpt, ialpha ) ), DP )
   
           call cfft( xwrkr, xwrki, sys%kmesh(1), sys%kmesh(1), sys%kmesh(2), sys%kmesh(3), -1, wrk, jfft )
   
@@ -2246,6 +2246,7 @@ module ocean_long_range
     enddo
   enddo
 
+  call MPI_BARRIER( comm, ierr )
   if( myid .eq. root ) then 
     open(unit=99,file=filnam,form='formatted',status='unknown')
 !    write(99,*) exciton_buf(1:curx)
