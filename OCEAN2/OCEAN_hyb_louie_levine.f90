@@ -304,11 +304,11 @@ module OCEAN_hyb_louie_levine
             else
               fcn = 1.0d0 - 0.1d0 * qde ** 2
             end if
-!            ladder( iter1, ix - nx_start + 1, iy ) = 14.400d0 * ww * fcn ** 2 * eV2Hartree! e^2/Angstrom = 14.4 eV
-              ladder( iter1, iy, ix - nx_start + 1 ) = 14.400d0 * ww * fcn ** 2 * eV2Hartree! e^2/Angstrom = 14.4 eV
+            ladder( iter1, ix - nx_start + 1, iy ) = 14.400d0 * ww * fcn ** 2 * eV2Hartree! e^2/Angstrom = 14.4 eV
+!            ladder( iter1, iy, ix - nx_start + 1 ) = 14.400d0 * ww * fcn ** 2 * eV2Hartree! e^2/Angstrom = 14.4 eV
           endif
-!          if( ieee_is_nan( ladder( iter1, ix - nx_start + 1, iy ) ) ) then
-          if( ieee_is_nan( ladder( iter1, iy, ix - nx_start + 1 ) ) ) then
+          if( ieee_is_nan( ladder( iter1, ix - nx_start + 1, iy ) ) ) then
+!          if( ieee_is_nan( ladder( iter1, iy, ix - nx_start + 1 ) ) ) then
             ierr = 1001
             write(6,*) iter1, ix, iy, ladder( iter1, ix - nx_start + 1, iy )
             write(6,*) de, smear_vol, qde
