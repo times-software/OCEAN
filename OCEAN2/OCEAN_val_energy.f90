@@ -8,6 +8,7 @@ module OCEAN_val_energy
     use OCEAN_system
     use OCEAN_psi
     use OCEAN_mpi
+    use OCEAN_constants, only : Hartree2eV
     implicit none
     !
     type( O_system ), intent( in ) :: sys
@@ -25,7 +26,7 @@ module OCEAN_val_energy
     integer(MPI_OFFSET_KIND) :: offset
 #endif
 
-    real(DP), parameter :: Ha_to_eV = 27.21138386_dp
+!    real(DP), parameter :: Ha_to_eV = 27.21138386_dp
 
 
     allocate( val_energies( sys%cur_run%val_bands, sys%nkpts ), con_energies( sys%cur_run%num_bands, sys%nkpts ), STAT=ierr )
@@ -33,15 +34,15 @@ module OCEAN_val_energy
 
 
 ! Read in energies
-    if( .false. ) then
+    if( .true. ) then
       if( myid .eq. root ) then
         open(unit=99,file='enkfile',form='formatted',status='old')
         do ik = 1, sys%nkpts
           read(99,*) val_energies( :, ik )
           read(99,*) con_energies( :, ik )
         enddo
-        val_energies( :, : ) = val_energies( :, : ) * Ha_to_eV
-        con_energies( :, : ) = con_energies( :, : ) * Ha_to_eV
+        val_energies( :, : ) = val_energies( :, : ) / 2.0_dp ! * Hartree2eV !Ha_to_eV
+        con_energies( :, : ) = con_energies( :, : ) / 2.0_dp ! * Hartree2eV !Ha_to_eV
       endif
 #ifdef MPI
       call MPI_BCAST( val_energies, sys%cur_run%val_bands*sys%nkpts, MPI_DOUBLE_PRECISION, root, comm, ierr )
@@ -104,6 +105,11 @@ module OCEAN_val_energy
 #endif
     endif
     
+    if( myid .eq. root ) then
+      open( unit=99,file='val_energy_test.txt', form='formatted',status='unknown' )
+      write(99,*) val_energies(:,:)
+      close(99)
+    endif
 
     call find_fermi( sys, val_energies, con_energies, sys%nelectron, efermi, &
                      homo, lumo, cliph, metal, ierr )
@@ -164,8 +170,8 @@ module OCEAN_val_energy
             do biter1 = 1, sys%cur_run%num_bands
               if ( ( con_energies( biter1, kiter ) .ge. efermi ) .and. &
                    ( con_energies( biter1, kiter ) .le. cliph ) ) then
-                allow%valr( biter1, biter2, kiter, 1 ) = 1.0d0
-                allow%vali( biter1, biter2, kiter, 1 ) = 1.0d0
+                allow%valr( biter1, biter2, kiter, 1 ) = 1.0_dp
+                allow%vali( biter1, biter2, kiter, 1 ) = 1.0_dp
               endif
             enddo 
           elseif ( sys%backf ) then
@@ -187,8 +193,8 @@ module OCEAN_val_energy
         do biter2 = 1, ( nelectron / 2 ) - sys%brange( 1 ) + 1
           do biter1 = 2 - sys%brange( 3 ) + ( nelectron / 2 ), sys%cur_run%num_bands
             if(  con_energies( biter1, kiter ) .le. cliph ) then
-                  allow%valr( biter1, biter2, kiter, 1 ) = 1.0d0
-                  allow%vali( biter1, biter2, kiter, 1 ) = 1.0d0
+                  allow%valr( biter1, biter2, kiter, 1 ) = 1.0_dp
+                  allow%vali( biter1, biter2, kiter, 1 ) = 1.0_dp
             endif
           enddo ! biter2
         enddo ! biter1
@@ -204,6 +210,7 @@ module OCEAN_val_energy
                                      homo, lumo, cliph, metal, ierr )
     use OCEAN_mpi, only : myid, root, comm
     use OCEAN_system
+    use OCEAN_constants, only : Hartree2eV
     implicit none
     !
     type( O_system ), intent( in ) :: sys
@@ -331,6 +338,7 @@ module OCEAN_val_energy
         homo = max( val_energies( i_band, kiter ), homo )
       enddo
       i_band = nelectron / 2 - sys%brange( 3 ) + 2
+!      i_band = nelectron / 2 + 1
       if( myid .eq. root ) write( 6, * ) "i_band = ", i_band
       lumo = con_energies( i_band, 1 )
       do kiter = 2, sys%nkpts
@@ -345,11 +353,11 @@ module OCEAN_val_energy
     enddo
     !
     if( myid .eq. root ) then
-      write( 6, * ) 'HOMO = ', homo
-      write( 6, * ) 'LUMO = ', lumo
-      write( 6, * ) 'Fermi Energy = ', efermi
-      write( 6, * ) 'LDA gap = ', lumo - homo
-      write( 6, * ) 'clips = ', efermi, cliph, cliph - efermi
+      write( 6, * ) 'HOMO = ', homo * Hartree2eV
+      write( 6, * ) 'LUMO = ', lumo * Hartree2eV
+      write( 6, * ) 'Fermi Energy = ', efermi * Hartree2eV
+      write( 6, * ) 'LDA gap = ', ( lumo - homo ) * Hartree2eV
+      write( 6, * ) 'clips = ', efermi* Hartree2eV, cliph* Hartree2eV, (cliph - efermi)* Hartree2eV
     endif
 
   111 continue
