@@ -3130,7 +3130,7 @@ module OCEAN_psi
 
 
     if( .true. ) then
-      file_selector = 1
+      file_selector = 0
       select case (sys%cur_run%calc_type)
       case( 'VAL' )
         call OCEAN_read_tmels( sys, p, file_selector, ierr )
@@ -3166,20 +3166,25 @@ module OCEAN_psi
     integer, intent( inout ) :: ierr
 
 !    integer :: file_selector
-    integer :: ibeta, ikpt, ibnd
+    integer :: ibeta, ikpt, ibnd, jbnd
     real(dp) :: val, nrm
 
     real(dp), external :: DDOT
 
 
-    if( myid .eq. root ) write(6,*) sys%nbeta,sys%nkpts, sys%cur_run%val_bands, psi_val_bands
+    if( myid .eq. root ) write(6,*) sys%nbeta,sys%nkpts, sys%cur_run%val_bands, psi_val_bands, sys%cur_run%num_bands, psi_bands_pad
 
     val = 0.0_DP
     do ibeta = 1, psi_val_beta
-!      nrm = 0.0_DP
-!      do ikpt = 1, psi_kpts_actual
-!        do ibnd = 1, psi_val_bands
-!          nrm = nrm & !+ sum(p%valr(:,ibnd,ikpt,ibeta)**2 + p%vali(:,ibnd,ikpt,ibeta)**2)
+      nrm = 0.0_DP
+      do ikpt = 1, psi_kpts_actual
+        do ibnd = 1, psi_val_bands
+          do jbnd = 1, sys%cur_run%num_bands
+            nrm = nrm + p%valr(jbnd,ibnd,ikpt,ibeta)**2 + p%vali(jbnd,ibnd,ikpt,ibeta)**2
+          enddo
+        enddo
+      enddo
+      if( myid .eq. root ) write( 6, '(1a12,1i4,1x,1e15.8)' ) 'channel dot', ibeta, nrm
       nrm = DDOT( psi_bands_pad*psi_val_bands*psi_kpts_actual, p%valr(1,1,1,ibeta), 1, &
                   p%valr(1,1,1,ibeta), 1 ) &
           + DDOT( psi_bands_pad*psi_val_bands*psi_kpts_actual, p%vali(1,1,1,ibeta), 1, &

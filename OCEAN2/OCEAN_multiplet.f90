@@ -586,13 +586,13 @@ module OCEAN_multiplet
                  ctmp = ctmp + jimel( dble( sys%cur_run%ZNL(3) ), cml( jc ), cml( ic ), i ) & 
                              * jimel( 0.5d0, cms( jc ), cms( ic ), i )
                end do
-               write(20,*) ic, jc, real( ctmp ) !, aimag( ctmp )
+               write(20,*) ic, jc, real( ctmp, DP ) !, aimag( ctmp )
                write(21,*) jimel( dble( sys%cur_run%ZNL(3) ), cml( jc ), cml( ic ), 1 ), &
                   sys%cur_run%ZNL(3), nint( cml( jc ) ), nint( cml( ic ) )
 !               flush(20)
 !               write(21,*) vrslt( : ), jimel( 0.5d0, cms( jc ), cms( ic ), 1 )
 !               ctmp = -xi * ctmp
-               somelr( ic, jc ) = -xi * real( ctmp ) !- aimag( ctmp ) * l_alpha
+               somelr( ic, jc ) = -xi * real( ctmp, DP ) !- aimag( ctmp ) * l_alpha
                someli( ic, jc ) = xi * aimag( ctmp ) !- real( ctmp ) * l_alpha
 !               if( ic .eq. jc ) then
 !                 someli( ic, jc ) = someli( ic, jc ) - l_beta !* real( ctmp )
@@ -1905,7 +1905,7 @@ module OCEAN_multiplet
                          call threey( l1, m1, k, mk, l3, m3, no, npt, x, w, yp, f1 )
                          call threey( l2, m2, k, mk, l4, m4, yes, npt, x, w, yp, f2 )
                          ctmp = - ffk * f1 * f2 * ( 4 * pi / ( 2 * k + 1 ) )
-                         mhr( i1, i2 ) = mhr( i1, i2 ) + real(ctmp)
+                         mhr( i1, i2 ) = mhr( i1, i2 ) + real(ctmp,DP)
                          mhi( i1, i2 ) = mhi( i1, i2 ) + aimag(ctmp) !- ctmp * rm1
                       end if
                    end do
@@ -1927,7 +1927,7 @@ module OCEAN_multiplet
                          call threey( l1, m1, k, mk, l3, m3, no, npt, x, w, yp, f1 )
                          call threey( l2, m2, k, mk, l4, m4, yes, npt, x, w, yp, f2 )
                          ctmp = ggk * f1 * f2 * ( 4 * pi / ( 2 * k + 1 ) )
-                         mhr( i1, i2 ) = mhr( i1, i2 ) + real(ctmp)
+                         mhr( i1, i2 ) = mhr( i1, i2 ) + real(ctmp,DP)
                          mhi( i1, i2 ) = mhi( i1, i2 ) + aimag(ctmp)! - ctmp * rm1
                       end if
                    end do

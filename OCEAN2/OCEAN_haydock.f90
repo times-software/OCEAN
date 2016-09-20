@@ -173,6 +173,7 @@ module OCEAN_action
 
     do iter = 1, haydock_niter
       if( sys%cur_run%have_val ) then
+        write(6,*)   " iter. no.", iter-1
         call OCEAN_energies_val_allow( sys, psi, ierr )
         if( ierr .ne. 0 ) return
       endif
@@ -180,6 +181,12 @@ module OCEAN_action
       call OCEAN_xact( sys, psi, new_psi, lr, ierr )
       if( ierr .ne. 0 ) return
 !      if( myid .eq. root ) write(6,*) 'Done with ACT'
+
+!      if( sys%cur_run%have_val ) then
+!        call OCEAN_energies_val_allow( sys, new_psi, ierr )
+!        if( ierr .ne. 0 ) return
+!      endif
+
 
       ! This should be hoisted back up here
       call ocean_hay_ab( sys, psi, new_psi, old_psi, iter, ierr )
@@ -524,6 +531,8 @@ module OCEAN_action
     use OCEAN_multiplet
     use OCEAN_long_range
     use OCEAN_bubble, only : AI_bubble_act
+    use OCEAN_ladder, only : OCEAN_ladder_act
+    use OCEAN_constants, only : Hartree2eV
 
     implicit none
     integer, intent(inout) :: ierr
@@ -532,6 +541,9 @@ module OCEAN_action
     type(OCEAN_vector), intent(inout) :: new_psi
     type(long_range), intent( inout ) :: lr
 !    if( myid .eq. root ) write(6,*) 'XACT'
+    type(OCEAN_vector) :: psi_o, psi_i
+    integer :: rrequest, irequest
+    real(dp) :: rval, ival
 
 
     call OCEAN_psi_zero_full( new_psi, ierr )
@@ -569,16 +581,57 @@ module OCEAN_action
     if( sys%cur_run%have_val ) then
 !      call OCEAN_energies_val_allow( sys, psi, ierr )
 !      if( ierr .ne. 0 ) return
+      call OCEAN_psi_new( psi_o, ierr, psi )
+      call OCEAN_psi_new( psi_i, ierr )
+
       if( sys%cur_run%bande ) then
-        call OCEAN_energies_val_act( sys, psi, new_psi, ierr )
+        call OCEAN_psi_zero_full( psi_i, ierr )
+        call OCEAN_energies_val_act( sys, psi, psi_i, ierr )
         if( ierr .ne. 0 ) return
-        call OCEAN_energies_val_sfact( sys, new_psi, ierr )
+        call OCEAN_energies_val_sfact( sys, psi_i, ierr )
         if( ierr .ne. 0 ) return
+        call OCEAN_psi_dot( psi_o, psi_i, rrequest, rval, ierr, irequest, ival )
+        call MPI_WAIT( rrequest, MPI_STATUS_IGNORE, ierr )
+        call MPI_WAIT( irequest, MPI_STATUS_IGNORE, ierr )
+        write(6,'(A6,4X,E22.15,X,E22.15)') 'one-el',rval*Hartree2eV, ival*Hartree2eV
+        rval = 1.0_dp
+        call OCEAN_psi_axpy( rval, psi_i, new_psi, ierr )
       endif
 
       if( sys%cur_run%bflag ) then
-        call AI_bubble_act( sys, psi, new_psi, ierr )
+        call OCEAN_psi_zero_full( psi_i, ierr )
+        call AI_bubble_act( sys, psi, psi_i, ierr )
         if( ierr .ne. 0 ) return
+        call OCEAN_energies_val_allow( sys, psi_i, ierr )
+        if( ierr .ne. 0 ) return
+      
+        call OCEAN_psi_dot( psi_o, psi_i, rrequest, rval, ierr, irequest, ival )
+        call MPI_WAIT( rrequest, MPI_STATUS_IGNORE, ierr )
+        call MPI_WAIT( irequest, MPI_STATUS_IGNORE, ierr )
+        write(6,'(A6,4X,E22.15,X,E22.15)') 'bubble', rval*Hartree2eV, ival*Hartree2eV
+        rval = 1.0_dp
+        call OCEAN_psi_axpy( rval, psi_i, new_psi, ierr )
+
+
+      endif
+
+      if( sys%cur_run%lflag ) then
+        call OCEAN_psi_zero_full( psi_i, ierr )
+        if( ierr .ne. 0 ) return
+
+        call OCEAN_ladder_act( sys, psi, psi_i, 1, 1, ierr )
+        if( ierr .ne. 0 ) return
+
+        call OCEAN_energies_val_allow( sys, psi_i, ierr )
+        if( ierr .ne. 0 ) return
+
+        call OCEAN_psi_dot( psi_o, psi_i, rrequest, rval, ierr, irequest, ival )
+        call MPI_WAIT( rrequest, MPI_STATUS_IGNORE, ierr )
+        call MPI_WAIT( irequest, MPI_STATUS_IGNORE, ierr )
+        write(6,'(A6,4X,E22.15,X,E22.15)') 'ladder', rval*Hartree2eV, ival*Hartree2eV
+        rval = 1.0_dp
+        call OCEAN_psi_axpy( rval, psi_i, new_psi, ierr )
+
       endif
 
     endif
@@ -605,6 +658,10 @@ module OCEAN_action
     call OCEAN_tk_start( tk_psisum )
 
 
+    call OCEAN_psi_kill( psi_o, ierr )
+    call OCEAN_psi_kill( psi_i, ierr )
+    
+
   end subroutine OCEAN_xact
 
   subroutine OCEAN_hay_ab( sys, psi, hpsi, old_psi, iter, ierr )
@@ -615,6 +672,7 @@ module OCEAN_action
     use OCEAN_psi
     use OCEAN_mpi
     use OCEAN_constants, only : Hartree2eV
+    use OCEAN_energies, only : OCEAN_energies_val_allow
     implicit none
     integer, intent(inout) :: ierr
     integer, intent(in) :: iter
@@ -623,6 +681,11 @@ module OCEAN_action
 
     real(dp) :: btmp, atmp, aitmp
     integer :: ialpha, ikpt, arequest, airequest, brequest
+
+    if( sys%cur_run%have_val ) then
+      call OCEAN_energies_val_allow( sys, hpsi, ierr )
+      if( ierr .ne. 0 ) return
+    endif
 
     ! calc ctmp = < hpsi | psi > and begin Iallreduce
     call OCEAN_psi_dot( hpsi, psi, arequest, atmp, ierr, airequest, aitmp )
@@ -634,7 +697,7 @@ module OCEAN_action
     ! y:= a*x + y
     call OCEAN_psi_axpy( btmp, old_psi, hpsi, ierr )
     if( ierr .ne. 0 ) return
-    if( myid .eq. root ) write(6,*) 'psi_axpy 1'
+!    if( myid .eq. root ) write(6,*) 'psi_axpy 1'
 
     ! finish allreduce to get atmp
     ! we want iatmp too (for output/diagnostics), but that can wait
@@ -645,7 +708,14 @@ module OCEAN_action
     if( myid .eq. root ) write(6,*) 'ab', real_a(iter-1), b(iter-1)
     call OCEAN_psi_axpy( atmp, psi, hpsi, ierr )
     if( ierr .ne. 0 ) return
-    if( myid .eq. root ) write(6,*) 'psi_axpy 2'
+!    if( myid .eq. root ) write(6,*) 'psi_axpy 2'
+
+
+    if( sys%cur_run%have_val ) then
+      call OCEAN_energies_val_allow( sys, hpsi, ierr )
+      if( ierr .ne. 0 ) return
+    endif
+
     
     !JTV was checking to see if any different here. 
 !    call OCEAN_psi_nrm( btmp, hpsi, ierr, brequest )
@@ -687,7 +757,7 @@ module OCEAN_action
     if( myid .eq. 0 ) then
 !      write ( 6, '(2x,2f10.6,10x,1e11.4,x,f6.3)' ) a(iter-1), b(iter), imag_a, time2-time1
 !      write ( 6, '(2x,2f10.6,10x,1e11.4,8x,i6)' ) a(iter-1), b(iter), imag_a, iter
-      write ( 6, '(2x,2f20.6,10x,1e11.4,8x,i6)' ) real_a(iter-1) * Hartree2eV, b(iter) * Hartree2eV, &
+      write ( 6, '(2x,2f24.13,10x,1e24.13,8x,i6)' ) real_a(iter-1) * Hartree2eV, b(iter) * Hartree2eV, &
                                                   imag_a(iter-1) * Hartree2eV, iter
       if( mod( iter, 10 ) .eq. 0 ) call haydump( iter, sys, psi%kpref, ierr )
 #ifdef __HAVE_F03
@@ -697,6 +767,7 @@ module OCEAN_action
 #endif
         write(6,*) 'NaN detected'
         ierr = -1
+        return
       endif
 
 !      call haydump( iter, sys, ierr )
