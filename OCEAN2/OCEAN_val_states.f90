@@ -51,6 +51,11 @@ module OCEAN_val_states
     !
     integer :: ik, ix, ispn
 
+    write(6,*) 'PHASES!'
+    write(6,*) cmplx( re_val(1,1,1,1), im_val(1,1,1,1), DP )
+    write(6,*) cmplx( re_val(1,4,1,1), im_val(1,4,1,1), DP )
+    write(6,*) cmplx( re_val(2,1,2,1), im_val(2,1,2,1), DP )
+
     ! DROT is "backwards" from how we want the phases to go hence minus sign in definition of im_phase
     do ispn = 1, nspn
       do ik = 1, nkpts
@@ -64,6 +69,9 @@ module OCEAN_val_states
         enddo
       enddo
     enddo
+    write(6,*) cmplx( re_val(1,1,1,1), im_val(1,1,1,1), DP )
+    write(6,*) cmplx( re_val(1,4,1,1), im_val(1,4,1,1), DP )
+    write(6,*) cmplx( re_val(2,1,2,1), im_val(2,1,2,1), DP )
 
   end subroutine val_states_add_phase
 
@@ -341,6 +349,8 @@ module OCEAN_val_states
     select case( bloch_type )
       case( 'new' ) 
         call load_new_u2( sys, brange, ierr )
+      case( 'old' )
+        call load_old_u2( sys, brange, ierr )
       case default
         ierr = 500
         return
@@ -454,12 +464,14 @@ module OCEAN_val_states
 #else
         read(fhu2) u2_buf(:,:,:,1:brange(2)-brange(1)+1)
 #endif        
+
+!JTV -- might need to check on xyz inversion
         do ibd = 1, nbv
           iproc = 0
           xiter = 0
-          do iz = 1, sys%xmesh(3)
+          do ix = 1, sys%xmesh(1)
             do iy = 1, sys%xmesh(2)
-              do ix = 1, sys%xmesh(1)
+              do iz = 1, sys%xmesh(3)
                 xiter = xiter + 1
                 if( xiter .gt. nxpts_by_mpiID( iproc ) ) then
                   iproc = iproc + 1
@@ -519,12 +531,13 @@ module OCEAN_val_states
 #else
         read(fhu2) u2_buf(:,:,:,1:brange(4)-brange(3)+1)
 #endif        
+!JTV -- ditto comment above re: xyz ordering
         do ibd = 1, nbc
           iproc = 0
           xiter = 0
-          do iz = 1, sys%xmesh(3)
+          do ix = 1, sys%xmesh(1)
             do iy = 1, sys%xmesh(2)
-              do ix = 1, sys%xmesh(1)
+              do iz = 1, sys%xmesh(3)
                 xiter = xiter + 1
                 if( xiter .gt. nxpts_by_mpiID( iproc ) ) then
                   iproc = iproc + 1
@@ -602,8 +615,8 @@ module OCEAN_val_states
     if( myid .eq. root ) then
       allocate( re_share_buffer( max_nxpts, max(brange(2), sys%cur_run%num_bands ), 0:nproc-1 ), &
                 im_share_buffer( max_nxpts, max(brange(2), sys%cur_run%num_bands ), 0:nproc-1 ), &
-                ur( sys%xmesh(1), sys%xmesh(2), sys%xmesh(3), max( nbv, nbc ) ), &
-                ui( sys%xmesh(1), sys%xmesh(2), sys%xmesh(3), max( nbv, nbc ) ), STAT=ierr )
+                ur( sys%xmesh(3), sys%xmesh(2), sys%xmesh(1), max( nbv, nbc ) ), &
+                ui( sys%xmesh(3), sys%xmesh(2), sys%xmesh(1), max( nbv, nbc ) ), STAT=ierr )
     else
       allocate( re_share_buffer( max_nxpts, max(brange(2), sys%cur_run%num_bands ), 1 ), &
                 im_share_buffer( max_nxpts, max(brange(2), sys%cur_run%num_bands ), 1 ), &
@@ -620,7 +633,7 @@ module OCEAN_val_states
           do ix = 1, sys%xmesh(1)
             do iy = 1, sys%xmesh(2)
               do iz = 1, sys%xmesh(3)
-                read ( fhu2 ) idum( 1 : 3 ), ur( ix, iy, iz, ibd ), ui( ix, iy, iz, ibd )
+                read ( fhu2 ) idum( 1 : 3 ), ur( iz, iy, ix, ibd ), ui( iz, iy, ix, ibd )
               end do
             end do
           end do
@@ -628,16 +641,16 @@ module OCEAN_val_states
         do ibd = 1, nbv
           iproc = 0
           xiter = 0
-          do iz = 1, sys%xmesh(3)
+          do ix = 1, sys%xmesh(1)
             do iy = 1, sys%xmesh(2)
-              do ix = 1, sys%xmesh(1)
+              do iz = 1, sys%xmesh(3)
                 xiter = xiter + 1
                 if( xiter .gt. nxpts_by_mpiID( iproc ) ) then
                   iproc = iproc + 1
                   xiter = 1
                 endif
-                re_share_buffer( xiter, ibd, iproc ) = ur( ix, iy, iz, ibd )
-                im_share_buffer( xiter, ibd, iproc ) = ui( ix, iy, iz, ibd )
+                re_share_buffer( xiter, ibd, iproc ) = ur( iz, iy, ix, ibd )
+                im_share_buffer( xiter, ibd, iproc ) = ui( iz, iy, ix, ibd )
               end do
             end do
           end do
@@ -676,7 +689,7 @@ module OCEAN_val_states
           do ix = 1, sys%xmesh(1)
             do iy = 1, sys%xmesh(2)
               do iz = 1, sys%xmesh(3)
-                read ( fhu2 ) idum( 1 : 3 ), ur( ix, iy, iz, ibd ), ui( ix, iy, iz, ibd )
+                read ( fhu2 ) idum( 1 : 3 ), ur( iz, iy, ix, ibd ), ui( iz, iy, ix, ibd )
               end do
             end do
           end do
@@ -684,16 +697,16 @@ module OCEAN_val_states
         do ibd = 1, nbc
           iproc = 0
           xiter = 0
-          do iz = 1, sys%xmesh(3)
+          do ix = 1, sys%xmesh(1)
             do iy = 1, sys%xmesh(2)
-              do ix = 1, sys%xmesh(1)
+              do iz = 1, sys%xmesh(3)
                 xiter = xiter + 1
                 if( xiter .gt. nxpts_by_mpiID( iproc ) ) then
                   iproc = iproc + 1
                   xiter = 1
                 endif
-                re_share_buffer( xiter, ibd, iproc ) = ur( ix, iy, iz, ibd )
-                im_share_buffer( xiter, ibd, iproc ) = ui( ix, iy, iz, ibd )
+                re_share_buffer( xiter, ibd, iproc ) = ur( iz, iy, ix, ibd )
+                im_share_buffer( xiter, ibd, iproc ) = ui( iz, iy, ix, ibd )
               end do
             end do
           end do
