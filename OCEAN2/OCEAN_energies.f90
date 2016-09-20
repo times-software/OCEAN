@@ -195,6 +195,7 @@ module OCEAN_energies
     use OCEAN_system
     use OCEAN_mpi
     use mpi
+    use OCEAN_constants, only : eV2Hartree
 
     implicit none
     integer, intent(inout) :: ierr
@@ -292,7 +293,7 @@ module OCEAN_energies
 !          enddo
 !          close(99)
 !          write(6,*) 'Core offset:', core_offset
-          core_offset = core_offset / 27.2114d0
+          core_offset = core_offset * eV2Hartree !/ 27.2114d0
           energies(:,:,:) = energies(:,:,:) + core_offset
         endif
 !      else
@@ -437,6 +438,7 @@ module OCEAN_energies
   subroutine OCEAN_gw_by_band( sys, ierr, keep_imag )
     use OCEAN_system
     use OCEAN_mpi, only : myid, root
+    use OCEAN_constants, only : eV2Hartree
 
     implicit none
     integer, intent(inout) :: ierr
@@ -471,8 +473,8 @@ module OCEAN_energies
       im_se( : ) = 0.0_DP
     endif
     close( 99 )
-    re_se( : ) = re_se( : ) / 27.21138506_DP
-    im_se( : ) = -im_se( : ) / ( 27.21138506_DP ) 
+    re_se( : ) = re_se( : ) * eV2Hartree !/ 27.21138506_DP
+    im_se( : ) = -im_se( : ) * eV2Hartree !/ ( 27.21138506_DP ) 
 
 
     do ispn = 1, sys%nspn
@@ -491,6 +493,7 @@ module OCEAN_energies
 ! Only run on root
     use OCEAN_system
     use OCEAN_mpi, only : myid, root
+    use OCEAN_constants, only : eV2Hartree, Hartree2eV
 
     implicit none
     integer, intent(inout) :: ierr
@@ -551,9 +554,9 @@ module OCEAN_energies
         read(99,*) ibd, e0, re_se( biter ), im_se( biter )
 !        read(99,*) ibd, re_se( biter ), e0, im_se( biter )
       enddo
-      re_se( : ) = re_se( : ) / 27.21138506_DP
+      re_se( : ) = re_se( : ) * eV2Hartree !/ 27.21138506_DP
 !JTV
-      im_se( : ) = - im_se( : ) / 27.21138506_DP
+      im_se( : ) = - im_se( : ) * eV2Hartree !/ 27.21138506_DP
 !      im_se( : ) = -( 2.0_DP * im_se( : ) ) / 27.21138506_DP
 !      im_se( : ) = abs( im_se( : ) ) / ( 27.21138506_DP * 2.0_DP )
 !      im_se( 1 ) = 0.0
@@ -594,7 +597,7 @@ module OCEAN_energies
                   imag_selfenergy( biter - sys%cur_run%start_band + 1, kiter, ispn ) =  &
                         im_se( biter - start_band + 1 )
                   if( kiter .eq. 1 ) then
-                    write(6,*) biter, biter - sys%cur_run%start_band + 1, biter - start_band + 1, im_se(  biter - start_band + 1 ) * 27.2114_DP
+                    write(6,*) biter, biter - sys%cur_run%start_band + 1, biter - start_band + 1, im_se(  biter - start_band + 1 ) * Hartree2eV !* 27.2114_DP
                   endif
                 enddo
               enddo
@@ -633,7 +636,7 @@ module OCEAN_energies
 !        enddo
         do biter = stop_b( kiter ) + 1 - sys%cur_run%start_band, sys%num_bands
           if( kiter == 1 ) then
-            write(6,*) kiter, stop_b( kiter ), sys%num_bands, biter, re_max * 27.2114_DP
+            write(6,*) kiter, stop_b( kiter ), sys%num_bands, biter, re_max * Hartree2eV ! 27.2114_DP
           endif
           energies( biter, kiter, ispn ) = energies( biter, kiter, ispn ) + re_max
           imag_selfenergy( biter, kiter, ispn ) = im_max
