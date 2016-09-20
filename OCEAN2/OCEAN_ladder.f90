@@ -47,9 +47,9 @@ module OCEAN_ladder
   integer :: ladcap(2,3)
   integer, allocatable :: kk(:,:)
 
-#ifdef CONTIGUOUS
-  CONTIGUOUS :: ladder, re_bstate, im_bstate
-#endif
+!#ifdef CONTIGUOUS
+!  CONTIGUOUS :: ladder, re_bstate, im_bstate
+!#endif
 
 #ifdef __INTEL
 !dir$ attributes align:64 :: ladder, re_bstate, im_bstate
@@ -79,16 +79,17 @@ module OCEAN_ladder
     real(dp), allocatable :: re_a_mat(:,:,:), im_a_mat(:,:,:)
     real(dp), allocatable :: re_b_mat(:,:,:), im_b_mat(:,:,:)
     real(dp), allocatable :: re_tphi_mat(:,:,:), im_tphi_mat(:,:,:)
+    real(dp), allocatable :: re_phi_mat(:,:), im_phi_mat(:,:)
     real(dp), allocatable :: fr(:,:,:), fi(:,:,:), vv(:)
     complex(dp), allocatable :: scratch(:)
 
     real(dp), parameter :: zero = 0.0_dp
     real(dp), parameter :: one  = 1.0_dp
     real(dp), parameter :: minusone = -1.0_dp
-    real(dp) :: beta 
+    real(dp) :: beta, inverse_kpts, spin_prefac, minus_spin_prefac
 
 
-    integer :: ik, ib, ix, iy
+    integer :: ik, ib, ix, iy, iix, iik
     integer :: ibc, x_block, y_block, nbv_block, nbc_block
     integer :: i, j, k, id, nthread, block_temp, y_offset
     integer :: joint_request(4)
@@ -101,12 +102,17 @@ module OCEAN_ladder
 !dir$ attributes align:64 :: re_a_mat, im_a_mat, re_b_mat, im_b_mat, re_tphi_mat, im_tphi_mat, scratch
 #endif
 
+!JTV
+!   This needs to be pulled out to allow spin = 1 or spin = 2 options
+    spin_prefac = -1.0d0
+    minus_spin_prefac = - spin_prefac
 
     call OCEAN_psi_returnBandPad( psi_con_pad, ierr )
     if( ierr .ne. 0 ) return
 
     val_pad = nbv
     nkpts = sys%nkpts
+    inverse_kpts = 1.0_dp / real( nkpts, dp )
 
     allocate( re_a_mat( nxpts_pad, val_pad, nkpts ), im_a_mat( nxpts_pad, val_pad, nkpts ), &
               re_b_mat( nxpts_pad, val_pad, nkpts ), im_b_mat( nxpts_pad, val_pad, nkpts ), &
@@ -126,7 +132,7 @@ module OCEAN_ladder
 
     allocate( fr( ladcap(1,1):ladcap(2,1), ladcap(1,2):ladcap(2,2), ladcap(1,3):ladcap(2,3) ), &
               fi( ladcap(1,1):ladcap(2,1), ladcap(1,2):ladcap(2,2), ladcap(1,3):ladcap(2,3) ), &
-              scratch( nkpts ), vv( nkret ) )
+              scratch( nkpts ), vv( nkret ), re_phi_mat( nkpts, 16 ), im_phi_mat( nkpts, 16 ) )
 
     nthread = 1
 !$  nthread = omp_get_num_threads()
@@ -147,31 +153,36 @@ module OCEAN_ladder
     x_block = nxpts
     nbv_block = nbv
 
-    write(6,*) x_block, nbv_block, nbc
-    write(6,*) nxpts_pad, psi_con_pad
+!    write(6,*) x_block, nbv_block, nbc
+!    write(6,*) nxpts_pad, psi_con_pad
 
 
     beta = 0.0_dp
 
-!$OMP DO COLLAPSE(3) SCHEDULE(STATIC)
+
+    ix = 1
+    ib = 1
+    x_block = nxpts
+    nbv_block = nbv
+! !$OMP DO COLLAPSE(3) SCHEDULE(STATIC)
     do ik = 1, nkpts
-      do ib = 1, nbv, nbv_block
-        do ix = 1, nxpts, x_block
+!      do ib = 1, nbv, nbv_block
+!        do ix = 1, nxpts, x_block
 
           call DGEMM( 'N', 'N', x_block, nbv_block, nbc, one, re_con( ix, 1, ik, cspn ), nxpts_pad, &
                       psi%valr( 1, ib, ik, 1 ), psi_con_pad, zero, re_a_mat( ix, ib, ik ), nxpts_pad )
-          call DGEMM( 'N', 'N', x_block, nbv_block, nbc, one, im_con( ix, 1, ik, cspn ), nxpts_pad, &
+          call DGEMM( 'N', 'N', x_block, nbv_block, nbc, minusone, im_con( ix, 1, ik, cspn ), nxpts_pad, &
                       psi%vali( 1, ib, ik, 1 ), psi_con_pad, one, re_a_mat( ix, ib, ik ), nxpts_pad )
 
           call DGEMM( 'N', 'N', x_block, nbv_block, nbc, one, re_con( ix, 1, ik, cspn ), nxpts_pad, &
                       psi%vali( 1, ib, ik, 1 ), psi_con_pad, zero, im_a_mat( ix, ib, ik ), nxpts_pad )
-          call DGEMM( 'N', 'N', x_block, nbv_block, nbc, minusone, im_con( ix, 1, ik, cspn ), nxpts_pad, &
-                      psi%valr( 1, ib, ik, 1 ), psi_con_pad, one, re_a_mat( ix, ib, ik ), nxpts_pad )
+          call DGEMM( 'N', 'N', x_block, nbv_block, nbc, one, im_con( ix, 1, ik, cspn ), nxpts_pad, &
+                      psi%valr( 1, ib, ik, 1 ), psi_con_pad, one, im_a_mat( ix, ib, ik ), nxpts_pad )
 
-        enddo
-      enddo
+!        enddo
+!      enddo
     enddo
-!$OMP END DO
+! $OMP END DO
 
     id = x_block
     if( mod((nkpts * max_nxpts)/cache_double, nthread ) == 0 ) then
@@ -222,31 +233,37 @@ module OCEAN_ladder
 
       y_block = nxpts_by_mpiID( id )
 
-      write(6,*) x_block, y_block, nbv
-      write(6,*) nxpts_pad, max_nxpts
+!      write(6,*) x_block, y_block, nbv
+!      write(6,*) nxpts_pad, max_nxpts
 
-!$OMP DO COLLAPSE(3) SCHEDULE(STATIC)
-      do ik = 1, nkpts
-        do iy = 1, nxpts_by_mpiID( id ), y_block
-          do ix = 1, nxpts, x_block
+! $OMP DO COLLAPSE(3) SCHEDULE(STATIC)
+!      do ik = 1, nkpts
+!        do iy = 1, nxpts_by_mpiID( id ), y_block
+!          do ix = 1, nxpts, x_block
 
-!            ix = 1
-!            iy = 1
+        ix = 1
+        iy = 1
+        x_block = nxpts
+        y_block = nxpts_by_mpiID( id )
+        do ik = 1, nkpts
             call DGEMM( 'N', 'T', x_block, y_block, nbv, one, re_a_mat( ix, 1, ik ), nxpts_pad, &
                         re_bstate( iy, 1, ik, k ), max_nxpts, zero, re_tphi_mat( ix, iy, ik ), nxpts_pad )
-            call DGEMM( 'N', 'T', x_block, y_block, nbv, minusone, im_a_mat( ix, 1, ik ), nxpts_pad, &
+            call DGEMM( 'N', 'T', x_block, y_block, nbv, one, im_a_mat( ix, 1, ik ), nxpts_pad, &
                         im_bstate( iy, 1, ik, k ), max_nxpts, one, re_tphi_mat( ix, iy, ik ), nxpts_pad )
+
             call DGEMM( 'N', 'T', x_block, y_block, nbv, one, im_a_mat( ix, 1, ik ), nxpts_pad, &
                         re_bstate( iy, 1, ik, k ), max_nxpts, zero, im_tphi_mat( ix, iy, ik ), nxpts_pad )
-            call DGEMM( 'N', 'T', x_block, y_block, nbv, one, re_a_mat( ix, 1, ik ), nxpts_pad, &
+            call DGEMM( 'N', 'T', x_block, y_block, nbv, minusone, re_a_mat( ix, 1, ik ), nxpts_pad, &
                         im_bstate( iy, 1, ik, k ), max_nxpts, one, im_tphi_mat( ix, iy, ik ), nxpts_pad )
 
-          enddo
         enddo
-      enddo
-!$OMP END DO
 
-      write(6,*) '-------'
+!          enddo
+!        enddo
+!      enddo
+! $OMP END DO
+
+!      write(6,*) '-------'
 
 
 !$OMP MASTER
@@ -261,50 +278,99 @@ module OCEAN_ladder
         y_offset = y_offset + nxpts_by_mpiID( ik )
       enddo
 
-      write(6,*) '-------'
+!      write(6,*) nxpts_by_mpiID( id ), nxpts
+!      write(6,*) '-------'
 
 !$OMP DO COLLAPSE( 2 ) SCHEDULE( STATIC)
-      do iy = 1, nxpts_by_mpiID( id )
-        do ix = 1, nxpts
-          scratch( : ) = dcmplx(re_tphi_mat( ix, iy, : ), im_tphi_mat( ix, iy, : ) )
-          call dfftw_execute_dft( fplan, scratch, scratch )
-          do ik = 1, nkpts
-              fr( kk( ik, 1 ), kk( ik, 2 ), kk( ik, 3 ) ) = real( scratch( ik ) )
-              fi( kk( ik, 1 ), kk( ik, 2 ), kk( ik, 3 ) ) = aimag( scratch( ik ) )
-          enddo
-          call velmuls( fr, vv, ladder( :, ix, iy + y_offset ), nkpts, nkret, kret )
-          call velmuls( fi, vv, ladder( :, ix, iy + y_offset ), nkpts, nkret, kret )
-          do ik = 1, nkpts
-            scratch( ik ) = dcmplx( fr( kk( ik, 1 ), kk( ik, 2 ), kk( ik, 3 ) ), &
-                                          fi( kk( ik, 1 ), kk( ik, 2 ), kk( ik, 3 ) ) )
-          end do
-          call dfftw_execute_dft( bplan, scratch, scratch )
-          re_tphi_mat( ix, iy, : ) = real(scratch( : )) / dble( nkpts )
-          im_tphi_mat( ix, iy, : ) = aimag(scratch( : )) / dble( nkpts )
 
-        enddo
+      ix = 1
+      do iy = 1, nxpts_by_mpiID( id )
+
+
+
+!        do ix = 1, nxpts, 16
+
+!          do ik = 1, nkpts, 64
+!            do iix = ix, min( nxpts, ix+15 )
+!              do iik = ik, min( nkpts, ik+63 )
+!                re_phi_mat( iik, iix - ix + 1 ) = re_tphi_mat( iix, iy, iik )
+!                im_phi_mat( iik, iix - ix + 1 ) = im_tphi_mat( iix, iy, iik )
+!              enddo
+!            enddo
+!          enddo
+!
+!          do iix = ix, min( nxpts, ix+15 )    
+        do iix = 1, nxpts
+!          re_phi_mat( :, iix - ix + 1) = re_tphi_mat( iix, iy, iik )
+!          im_phi_mat( :, iix - ix + 1) = im_tphi_mat( iix, iy, iik )
+
+            scratch( : ) = dcmplx(re_tphi_mat( iix, iy, : ), im_tphi_mat( iix, iy, : ) )
+!            scratch( : ) = dcmplx( re_phi_mat( :, iix - ix + 1), im_phi_mat( :, iix - ix + 1) )
+
+            call dfftw_execute_dft( fplan, scratch, scratch )
+            do ik = 1, nkpts
+                fr( kk( ik, 1 ), kk( ik, 2 ), kk( ik, 3 ) ) = real( scratch( ik ), DP )
+                fi( kk( ik, 1 ), kk( ik, 2 ), kk( ik, 3 ) ) = aimag( scratch( ik ) )
+            enddo
+            call velmuls( fr, vv, ladder( :, iix -ix + 1, iy + y_offset ), nkpts, nkret, kret )
+            call velmuls( fi, vv, ladder( :, iix -ix + 1, iy + y_offset ), nkpts, nkret, kret )
+            do ik = 1, nkpts
+              scratch( ik ) = dcmplx( fr( kk( ik, 1 ), kk( ik, 2 ), kk( ik, 3 ) ), &
+                                            fi( kk( ik, 1 ), kk( ik, 2 ), kk( ik, 3 ) ) )
+            end do
+            call dfftw_execute_dft( bplan, scratch, scratch )
+            re_tphi_mat( iix, iy, : ) = real(scratch( : ),DP) / dble( nkpts )
+            im_tphi_mat( iix, iy, : ) = aimag(scratch( : )) / dble( nkpts )
+
+
+!            re_phi_mat( :, iix - ix + 1 ) = real(scratch( : ), DP) * inverse_kpts
+!            im_phi_mat( :, iix - ix + 1 ) = aimag(scratch( : )) * inverse_kpts
+
+          enddo
+
+
+
+!          do iik = 1, nkpts !, 64
+!!            do iik = ik, min( nkpts, ik+63 )
+!              do iix = ix, min( nxpts, ix+15 )
+!                re_tphi_mat( iix, iy, iik ) = re_phi_mat( iik, iix - ix + 1 )
+!                im_tphi_mat( iix, iy, iik ) = im_phi_mat( iik, iix - ix + 1 )
+!              enddo
+!!            enddo
+!          enddo
+
+
+!        enddo
       enddo
 !$OMP END DO
 
-      write(6,*) '-------'
+!      write(6,*) '-------'
 
 
-!$OMP DO COLLAPSE(3) SCHEDULE(STATIC)
+! $OMP DO COLLAPSE(3) SCHEDULE(STATIC)
+!      do ik = 1, nkpts
+!        do ib = 1, nbv, nbv_block
+!          do ix = 1, nxpts_pad, block_temp !x_block
+      ib = 1
+      ix = 1
+      nbv_block = nbv
+      x_block = nxpts
+      
       do ik = 1, nkpts
-        do ib = 1, nbv, nbv_block
-          do ix = 1, nxpts_pad, block_temp !x_block
             call DGEMM( 'N', 'N', x_block, nbv_block, nxpts_by_mpiID( id ), one, re_tphi_mat( ix, 1, ik ), nxpts_pad, &
                         re_bstate( 1, ib, ik, k ), max_nxpts, beta, re_b_mat( ix, ib, ik ), nxpts_pad )
             call DGEMM( 'N', 'N', x_block, nbv_block, nxpts_by_mpiID( id ), minusone, im_tphi_mat( ix, 1, ik ), nxpts_pad, &
-                        im_bstate( 1, ib, ik, k ), max_nxpts, beta, re_b_mat( ix, ib, ik ), nxpts_pad )
+                        im_bstate( 1, ib, ik, k ), max_nxpts, one, re_b_mat( ix, ib, ik ), nxpts_pad )
+
             call DGEMM( 'N', 'N', x_block, nbv_block, nxpts_by_mpiID( id ), one, im_tphi_mat( ix, 1, ik ), nxpts_pad, &
                         re_bstate( 1, ib, ik, k ), max_nxpts, beta, im_b_mat( ix, ib, ik ), nxpts_pad )
             call DGEMM( 'N', 'N', x_block, nbv_block, nxpts_by_mpiID( id ), one, re_tphi_mat( ix, 1, ik ), nxpts_pad, &
-                        im_bstate( 1, ib, ik, k ), max_nxpts, beta, im_b_mat( ix, ib, ik ), nxpts_pad )
-          enddo
-        enddo
+                        im_bstate( 1, ib, ik, k ), max_nxpts, one, im_b_mat( ix, ib, ik ), nxpts_pad )
       enddo
-!$OMP END DO
+!          enddo
+!        enddo
+!      enddo
+! $OMP END DO
 
       beta = 1.0_dp
 
@@ -318,33 +384,41 @@ module OCEAN_ladder
     else
       block_temp = nkpts * (val_pad/cache_double )*(psi_con_pad/cache_double)
       block_temp = block_temp/nthread
-      nbv_block = floor(sqrt(real(block_temp)))
+      nbv_block = floor(sqrt(real(block_temp,DP)))
       nbc_block = block_temp / nbv_block
       nbv_block = nbv_block * cache_double
       nbc_block = nbc_block * cache_double
     endif 
 
-!$OMP DO COLLAPSE(3) SCHEDULE(STATIC)
+! ! $OMP DO COLLAPSE(3) SCHEDULE(STATIC)
+!    do ik = 1, nkpts
+!      do ib = 1, nbv, nbv_block
+!        do ibc = 1, nbc, nbc_block
+
+    nbv_block = nbv
+    nbc_block = nbc
+    ib = 1
+    ibc = 1
     do ik = 1, nkpts
-      do ib = 1, nbv, nbv_block
-        do ibc = 1, nbc, nbc_block
 
-          call DGEMM( 'T', 'N', nbc_block, nbv_block, nxpts, one, re_con( 1, ibc, ik, cspn ), nxpts_pad, &
-                      re_b_mat( 1, ib, ik ), nxpts_pad, zero, psi%valr( ibc, ib, ik, 1 ), psi_con_pad )
-          call DGEMM( 'T', 'N', nbc_block, nbv_block, nxpts, one, im_con( 1, ibc, ik, cspn ), nxpts_pad, &
-                      im_b_mat( 1, ib, ik ), nxpts_pad, one, psi%vali( ibc, ib, ik, 1 ), psi_con_pad )
-          call DGEMM( 'T', 'N', nbc_block, nbv_block, nxpts, one, re_con( 1, ibc, ik, cspn ), nxpts_pad, &
-                      im_b_mat( 1, ib, ik ), nxpts_pad, zero, psi%vali( ibc, ib, ik, 1 ), psi_con_pad )
-          call DGEMM( 'T', 'N', nbc_block, nbv_block, nxpts, minusone, im_con( 1, ibc, ik, cspn ), nxpts_pad, &
-                      re_b_mat( 1, ib, ik ), nxpts_pad, one, psi%valr( ibc, ib, ik, 1 ), psi_con_pad )
+          call DGEMM( 'T', 'N', nbc_block, nbv_block, nxpts, spin_prefac, re_con( 1, ibc, ik, cspn ), nxpts_pad, &
+                      re_b_mat( 1, ib, ik ), nxpts_pad, one, psi_out%valr( ibc, ib, ik, 1 ), psi_con_pad )
+          call DGEMM( 'T', 'N', nbc_block, nbv_block, nxpts, spin_prefac, im_con( 1, ibc, ik, cspn ), nxpts_pad, &
+                      im_b_mat( 1, ib, ik ), nxpts_pad, one, psi_out%valr( ibc, ib, ik, 1 ), psi_con_pad )
 
-        enddo
-      enddo
+          call DGEMM( 'T', 'N', nbc_block, nbv_block, nxpts, spin_prefac, re_con( 1, ibc, ik, cspn ), nxpts_pad, &
+                      im_b_mat( 1, ib, ik ), nxpts_pad, one, psi_out%vali( ibc, ib, ik, 1 ), psi_con_pad )
+          call DGEMM( 'T', 'N', nbc_block, nbv_block, nxpts, minus_spin_prefac, im_con( 1, ibc, ik, cspn ), nxpts_pad, &
+                      re_b_mat( 1, ib, ik ), nxpts_pad, one, psi_out%vali( ibc, ib, ik, 1 ), psi_con_pad )
+
     enddo
-!$OMP END DO
+!        enddo
+!      enddo
+!    enddo
+! $OMP END DO
 
 
-    deallocate( fr, fi, vv, scratch )
+    deallocate( fr, fi, vv, scratch, re_phi_mat, im_phi_mat )
 
 !$OMP END PARALLEL
 
@@ -557,7 +631,7 @@ module OCEAN_ladder
     do i = 1, nn
        v2( i ) = vec( ii( i ) ) * mul( i )
     end do
-    vec( : ) = 0
+    vec( : ) = 0.0_dp
     do i = 1, nn
        vec( ii( i ) ) = v2( i )
     end do
