@@ -34,6 +34,10 @@ module OCEAN_system
     integer( S_INT ) :: nruns
     integer          :: nedges 
 
+    integer          :: tmel_selector
+    integer          :: enk_selector
+    integer          :: bloch_selector
+
     logical          :: e0
     logical          :: mult
     logical          :: long_range
@@ -230,6 +234,19 @@ module OCEAN_system
       open(unit=99,file='epsilon',form='formatted', status='old' )
       read(99,*) sys%epsilon0
       close( 99 )
+
+      open(unit=99,file='tmel_selector',form='formatted',status='old')
+      read(99,*) sys%tmel_selector
+      close(99)
+
+      open(unit=99,file='enk_selector',form='formatted',status='old')
+      read(99,*) sys%enk_selector
+      close(99)
+
+      open(unit=99,file='bloch_selector',form='formatted',status='old')
+      read(99,*) sys%bloch_selector
+      close(99)
+
       
     endif
 #ifdef MPI
@@ -274,6 +291,13 @@ module OCEAN_system
     if( ierr .ne. MPI_SUCCESS ) goto 111
     call MPI_BCAST( sys%nedges, 1, MPI_INTEGER, root, comm, ierr )
     if( ierr .ne. MPI_SUCCESS ) goto 111
+    call MPI_BCAST( sys%tmel_selector, 1, MPI_INTEGER, root, comm, ierr )
+    if( ierr .ne. MPI_SUCCESS ) goto 111
+    call MPI_BCAST( sys%enk_selector, 1, MPI_INTEGER, root, comm, ierr )
+    if( ierr .ne. MPI_SUCCESS ) goto 111
+    call MPI_BCAST( sys%bloch_selector, 1, MPI_INTEGER, root, comm, ierr )
+    if( ierr .ne. MPI_SUCCESS ) goto 111
+
 
 
     call MPI_BCAST( sys%e0, 1, MPI_LOGICAL, root, comm, ierr )

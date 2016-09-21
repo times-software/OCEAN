@@ -298,8 +298,8 @@ module OCEAN_val_states
 !    logical :: want_val = .true.
 !    logical :: want_con = .true.
 !    logical :: want_core = .false.
-    logical :: invert_xmesh, ex
-    character(len=3) :: bloch_type
+!    logical :: invert_xmesh, ex
+!    character(len=3) :: bloch_type
 
     integer :: brange(4), err
 
@@ -309,16 +309,16 @@ module OCEAN_val_states
       read ( 99, * ) brange(:)
       close( unit=99 )
 
-      inquire(file="bloch_type",exist=ex)
-      if( ex ) then
-        open(unit=99,file="bloch_type", form='formatted', status='old' )
-        read(99,*) bloch_type
-        invert_xmesh = .true.
-        close(99)
-      else
-        bloch_type = 'old'
-        invert_xmesh = .true.
-      endif
+!      inquire(file="bloch_type",exist=ex)
+!      if( ex ) then
+!        open(unit=99,file="bloch_type", form='formatted', status='old' )
+!        read(99,*) bloch_type
+!        invert_xmesh = .true.
+!        close(99)
+!      else
+!        bloch_type = 'old'
+!        invert_xmesh = .true.
+!      endif
 
 
       if( nbv .gt. (1+brange(2)-brange(1)) ) then
@@ -340,19 +340,20 @@ module OCEAN_val_states
 #endif
     if( ierr .ne. 0 ) return
 
-#ifdef MPI
-    call MPI_BCAST( bloch_type, 3, MPI_CHARACTER, root, comm, ierr )
-    call MPI_BCAST( invert_xmesh, 1, MPI_LOGICAL, root, comm, ierr )
-    if( ierr .ne. 0 ) return
-#endif
+!#ifdef MPI
+!    call MPI_BCAST( bloch_type, 3, MPI_CHARACTER, root, comm, ierr )
+!    call MPI_BCAST( invert_xmesh, 1, MPI_LOGICAL, root, comm, ierr )
+!    if( ierr .ne. 0 ) return
+!#endif
 
-    select case( bloch_type )
-      case( 'new' ) 
+    select case( sys%bloch_selector )
+      case( 1 ) 
         call load_new_u2( sys, brange, ierr )
-      case( 'old' )
+      case( 0 )
         call load_old_u2( sys, brange, ierr )
       case default
         ierr = 500
+        if( myid .eq. root ) write(6,*) 'Unsupported bloch_selector:', sys%bloch_selector
         return
     end select 
 
@@ -628,33 +629,35 @@ module OCEAN_val_states
     do ispn = 1, sys%nspn
       do iq = 1, sys%nkpts
 
-
-        do ibd = 1, brange(2)-brange(1) + 1
-          do ix = 1, sys%xmesh(1)
-            do iy = 1, sys%xmesh(2)
-              do iz = 1, sys%xmesh(3)
-                read ( fhu2 ) idum( 1 : 3 ), ur( iz, iy, ix, ibd ), ui( iz, iy, ix, ibd )
+      
+        if( myid .eq. root ) then
+          do ibd = 1, brange(2)-brange(1) + 1
+            do ix = 1, sys%xmesh(1)
+              do iy = 1, sys%xmesh(2)
+                do iz = 1, sys%xmesh(3)
+                  read ( fhu2 ) idum( 1 : 3 ), ur( iz, iy, ix, ibd ), ui( iz, iy, ix, ibd )
+                end do
+              end do
+            end do
+          enddo
+          do ibd = 1, nbv
+            iproc = 0
+            xiter = 0
+            do ix = 1, sys%xmesh(1)
+              do iy = 1, sys%xmesh(2)
+                do iz = 1, sys%xmesh(3)
+                  xiter = xiter + 1
+                  if( xiter .gt. nxpts_by_mpiID( iproc ) ) then
+                    iproc = iproc + 1
+                    xiter = 1
+                  endif
+                  re_share_buffer( xiter, ibd, iproc ) = ur( iz, iy, ix, ibd )
+                  im_share_buffer( xiter, ibd, iproc ) = ui( iz, iy, ix, ibd )
+                end do
               end do
             end do
           end do
-        enddo
-        do ibd = 1, nbv
-          iproc = 0
-          xiter = 0
-          do ix = 1, sys%xmesh(1)
-            do iy = 1, sys%xmesh(2)
-              do iz = 1, sys%xmesh(3)
-                xiter = xiter + 1
-                if( xiter .gt. nxpts_by_mpiID( iproc ) ) then
-                  iproc = iproc + 1
-                  xiter = 1
-                endif
-                re_share_buffer( xiter, ibd, iproc ) = ur( iz, iy, ix, ibd )
-                im_share_buffer( xiter, ibd, iproc ) = ui( iz, iy, ix, ibd )
-              end do
-            end do
-          end do
-        end do
+        endif
 
 #ifdef MPI
         do iproc = 0, nproc-1
@@ -685,32 +688,34 @@ module OCEAN_val_states
 
 
         ! Conduction bands are stacked on top of valence
-        do ibd = 1, brange(4)-brange(3) + 1
-          do ix = 1, sys%xmesh(1)
-            do iy = 1, sys%xmesh(2)
-              do iz = 1, sys%xmesh(3)
-                read ( fhu2 ) idum( 1 : 3 ), ur( iz, iy, ix, ibd ), ui( iz, iy, ix, ibd )
+        if( myid .eq. root ) then
+          do ibd = 1, brange(4)-brange(3) + 1
+            do ix = 1, sys%xmesh(1)
+              do iy = 1, sys%xmesh(2)
+                do iz = 1, sys%xmesh(3)
+                  read ( fhu2 ) idum( 1 : 3 ), ur( iz, iy, ix, ibd ), ui( iz, iy, ix, ibd )
+                end do
+              end do
+            end do
+          enddo
+          do ibd = 1, nbc
+            iproc = 0
+            xiter = 0
+            do ix = 1, sys%xmesh(1)
+              do iy = 1, sys%xmesh(2)
+                do iz = 1, sys%xmesh(3)
+                  xiter = xiter + 1
+                  if( xiter .gt. nxpts_by_mpiID( iproc ) ) then
+                    iproc = iproc + 1
+                    xiter = 1
+                  endif
+                  re_share_buffer( xiter, ibd, iproc ) = ur( iz, iy, ix, ibd )
+                  im_share_buffer( xiter, ibd, iproc ) = ui( iz, iy, ix, ibd )
+                end do
               end do
             end do
           end do
-        enddo
-        do ibd = 1, nbc
-          iproc = 0
-          xiter = 0
-          do ix = 1, sys%xmesh(1)
-            do iy = 1, sys%xmesh(2)
-              do iz = 1, sys%xmesh(3)
-                xiter = xiter + 1
-                if( xiter .gt. nxpts_by_mpiID( iproc ) ) then
-                  iproc = iproc + 1
-                  xiter = 1
-                endif
-                re_share_buffer( xiter, ibd, iproc ) = ur( iz, iy, ix, ibd )
-                im_share_buffer( xiter, ibd, iproc ) = ui( iz, iy, ix, ibd )
-              end do
-            end do
-          end do
-        end do
+        endif
 
 !
 #ifdef MPI

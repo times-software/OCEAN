@@ -29,8 +29,8 @@ subroutine OCEAN_read_tmels( sys, p, file_selector, ierr )
   inv_qlength = (qinb(1) * sys%bvec(1,1) + qinb(2) * sys%bvec(1,2) + qinb(3) * sys%bvec(1,3) ) ** 2 &
               + (qinb(1) * sys%bvec(2,1) + qinb(2) * sys%bvec(2,2) + qinb(3) * sys%bvec(2,3) ) ** 2 &
               + (qinb(1) * sys%bvec(3,1) + qinb(2) * sys%bvec(3,2) + qinb(3) * sys%bvec(3,3) ) ** 2 
-!  inv_qlength = 1.0_dp / sqrt( inv_qlength )
-  inv_qlength = dsqrt( inv_qlength )
+  inv_qlength = 1.0_dp / dsqrt( inv_qlength )
+!  inv_qlength = dsqrt( inv_qlength )
 
 
   if( sys%cur_run%num_bands .ne. ( sys%brange(4)-sys%brange(3)+1 ) ) then
@@ -50,7 +50,7 @@ subroutine OCEAN_read_tmels( sys, p, file_selector, ierr )
   case( 1 )
 
     if( myid .eq. root ) then
-      write(6,*) 'Inverse Q-length:', (1/inv_qlength)
+      write(6,*) 'Inverse Q-length:', inv_qlength
       open(unit=99,file='tmels.info',form='formatted',status='old')
       read(99,*) nbv, nbc(1), nbc(2), nk
       close(99)
@@ -93,11 +93,11 @@ subroutine OCEAN_read_tmels( sys, p, file_selector, ierr )
 
 !      max_psi = max( max_psi, maxval( real(psi_in(:,:) ) ) )
 
-      psi_transpose( :, : ) = (1.0_dp/inv_qlength) * real( psi_in( sys%brange(1):sys%brange(2), sys%brange(3):sys%brange(4) ), DP )
+      psi_transpose( :, : ) = inv_qlength * real( psi_in( sys%brange(1):sys%brange(2), sys%brange(3):sys%brange(4) ), DP )
       p%valr(1:sys%cur_run%num_bands,1:sys%cur_run%val_bands,ik,1) = transpose( psi_transpose )
 
-      psi_transpose( :, : ) = (1.0_dp/inv_qlength) * real( aimag( psi_in( sys%brange(1):sys%brange(2), sys%brange(3):sys%brange(4) ) ), DP )
-      p%vali(1:sys%cur_run%num_bands,1:sys%cur_run%val_bands,ik,1) = -transpose( psi_transpose )
+      psi_transpose( :, : ) = inv_qlength * real( aimag( psi_in( sys%brange(1):sys%brange(2), sys%brange(3):sys%brange(4) ) ), DP )
+      p%vali(1:sys%cur_run%num_bands,1:sys%cur_run%val_bands,ik,1) = transpose( psi_transpose )
 
 
       max_psi = max( max_psi, maxval( p%valr(1:sys%cur_run%num_bands,1:sys%cur_run%val_bands,ik,1) ) )
@@ -113,7 +113,7 @@ subroutine OCEAN_read_tmels( sys, p, file_selector, ierr )
   case( 0 )
 
     if( myid .eq. root ) then
-      write(6,*) 'Inverse Q-length:', (1/inv_qlength)
+      write(6,*) 'Inverse Q-length:', inv_qlength
       open(unit=99,file='tmels.info',form='formatted',status='old')
       read(99,*) nbv, nbc(1), nbc(2), nk
       close(99)

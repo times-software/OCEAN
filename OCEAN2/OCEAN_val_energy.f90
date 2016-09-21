@@ -34,7 +34,10 @@ module OCEAN_val_energy
 
 
 ! Read in energies
-    if( .true. ) then
+    select case( sys%enk_selector )
+
+    case( 0 )
+
       if( myid .eq. root ) then
         open(unit=99,file='enkfile',form='formatted',status='old')
         do ik = 1, sys%nkpts
@@ -50,7 +53,9 @@ module OCEAN_val_energy
       call MPI_BCAST( con_energies, sys%cur_run%num_bands*sys%nkpts, MPI_DOUBLE_PRECISION, root, comm, ierr )
       if( ierr .ne. MPI_SUCCESS ) return
 #endif
-    else
+
+    case( 1 )
+
 #ifdef MPI
       if( myid .eq. root ) then
         open(unit=99,file='tmels.info',form='formatted',status='old')
@@ -63,13 +68,11 @@ module OCEAN_val_energy
           return
         endif
       endif
-#ifdef MPI
-    call MPI_BCAST( nbc, 2, MPI_INTEGER, 0, comm, ierr )
-    if( ierr .ne. 0 ) return
-    call MPI_BCAST( nbv, 1, MPI_INTEGER, 0, comm, ierr )
-    if( ierr .ne. 0 ) return
-#endif
 
+      call MPI_BCAST( nbc, 2, MPI_INTEGER, 0, comm, ierr )
+      if( ierr .ne. 0 ) return
+      call MPI_BCAST( nbv, 1, MPI_INTEGER, 0, comm, ierr )
+      if( ierr .ne. 0 ) return
 
       call MPI_FILE_OPEN( comm, 'val_energies.dat', MPI_MODE_RDONLY, MPI_INFO_NULL, fh, ierr )
       if( ierr .ne. MPI_SUCCESS ) return
@@ -103,7 +106,13 @@ module OCEAN_val_energy
       if( myid .eq. root ) write(6,*) 'MPI required for OBF-style!'
       return
 #endif
-    endif
+
+    case default
+      ierr = -2
+      if( myid .eq. root ) write(6,*) 'Un-supported enk_selector:', sys%enk_selector
+      return
+
+    end select
     
     if( myid .eq. root ) then
       open( unit=99,file='val_energy_test.txt', form='formatted',status='unknown' )

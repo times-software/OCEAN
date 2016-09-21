@@ -3128,27 +3128,23 @@ module OCEAN_psi
       if( ierr .ne. 0 ) return
     endif
 
+    file_selector = sys%tmel_selector
 
-    if( .true. ) then
-      file_selector = 0
-      select case (sys%cur_run%calc_type)
-      case( 'VAL' )
-        call OCEAN_read_tmels( sys, p, file_selector, ierr )
-        if( ierr .ne. 0 ) return
-      case( 'RXS' )
-!        call OCEAN_rixs_holder_load( sys, p, file_selector, ierr )
-        ierr = -1
-        return
-      case default
-        if( myid .eq. root ) then 
-          write(6,*) 'Trying to load valence transition matrix for unsupported calculation type'
-        endif
-        ierr = -1
-      end select
-    else
-      file_selector = 0
+    select case (sys%cur_run%calc_type)
+    case( 'VAL' )
       call OCEAN_read_tmels( sys, p, file_selector, ierr )
-    endif
+      if( ierr .ne. 0 ) return
+    case( 'RXS' )
+!        call OCEAN_rixs_holder_load( sys, p, file_selector, ierr )
+      ierr = -1
+      return
+    case default
+      if( myid .eq. root ) then 
+        write(6,*) 'Trying to load valence transition matrix for unsupported calculation type'
+      endif
+      ierr = -1
+    end select
+
     p%valid_store = PSI_STORE_FULL
 
   end subroutine OCEAN_psi_load_val
