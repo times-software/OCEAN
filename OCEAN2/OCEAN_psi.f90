@@ -522,6 +522,8 @@ module OCEAN_psi
 
       ! The first np-1 procs all have the same size of psi
       do i = 0, p%val_np - 2
+      
+!        store_size = max_val_store_size
         
         if( ri_count .eq. 1 ) then
 
@@ -573,6 +575,7 @@ module OCEAN_psi
       ! For the final proc we might be sending a smaller number
       i = p%val_np - 1
       store_size = psi_val_beta * psi_kpts_actual * psi_val_bands - ( p%val_np - 1 ) * max_val_store_size
+!      write(6,*) 'small store:', store_size
 
       if( ri_count .eq. 1 ) then
 
@@ -583,7 +586,7 @@ module OCEAN_psi
               write(6,*) ierr, '!!!'
             endif
         else
-          call MPI_IREDUCE( p%valr(1,iv,ik,ib), p%valr(1,iv,ik,ib), max_val_store_size * psi_bands_pad, &
+          call MPI_IREDUCE( p%valr(1,iv,ik,ib), p%valr(1,iv,ik,ib), store_size * psi_bands_pad, &
                             MPI_DOUBLE_PRECISION, MPI_SUM, i, p%val_comm, p%val_store_sr( i ), ierr )
             if( ierr .ne. MPI_SUCCESS ) then
               write(6,*) ierr, '!!!'
@@ -599,7 +602,7 @@ module OCEAN_psi
               write(6,*) ierr, '!!!'
             endif
         else
-          call MPI_IREDUCE( p%vali(1,iv,ik,ib), p%vali(1,iv,ik,ib), max_val_store_size * psi_bands_pad, &
+          call MPI_IREDUCE( p%vali(1,iv,ik,ib), p%vali(1,iv,ik,ib), store_size * psi_bands_pad, &
                             MPI_DOUBLE_PRECISION, MPI_SUM, i, p%val_comm, p%val_store_si( i ), ierr )
             if( ierr .ne. MPI_SUCCESS ) then
               write(6,*) ierr, '!!!'
@@ -2197,6 +2200,7 @@ module OCEAN_psi
   end subroutine
 
   subroutine OCEAN_psi_new_val_comm( p, ierr )
+    use OCEAN_mpi, only : myid
     implicit none
     integer, intent(inout) :: ierr
     type(OCEAN_vector), intent( inout ) :: p
@@ -2237,6 +2241,8 @@ module OCEAN_psi
     p%val_store_size = 0
 #endif
 
+    write(1000+myid,*) p%val_store_size, p%val_np, p%val_myid
+    flush(1000+myid)
 
   end subroutine
     
