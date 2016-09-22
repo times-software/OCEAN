@@ -119,20 +119,24 @@ module OCEAN_val_states
       iy = 1 + mod( ( startx - 1 )/sys%xmesh(3), sys%xmesh(2 ) )
       iz = 1 + mod( startx - 1, sys%xmesh(2)*sys%xmesh(3) ) 
       do iix = startx, nxpts+startx-1
-!        xfac( 1, iix - startx + 1 ) = real( 1 + ( iix - 1) / (sys%xmesh(2)*sys%xmesh(3)), dp )/ real( sys%xmesh( 1 ), dp )
-!        xfac( 2, iix - startx + 1 ) = real( 1 + mod( ( iix - 1 )/sys%xmesh(3), sys%xmesh(2 )), dp )/ real( sys%xmesh( 2 ), dp ) 
-!        xfac( 3, iix - startx + 1 ) = real( 1 + mod( iix - 1, sys%xmesh(2)*sys%xmesh(3) ) / real( sys%xmesh( 3 ), dp )
+        xfac( 1, iix - startx + 1 ) = real( 1 + ( iix - 1) / (sys%xmesh(2)*sys%xmesh(3)), dp )/ real( sys%xmesh( 1 ), dp )
+        xfac( 2, iix - startx + 1 ) = real( 1 + mod( ( iix - 1 )/sys%xmesh(3), sys%xmesh(2 )), dp )/ real( sys%xmesh( 2 ), dp ) 
+        xfac( 3, iix - startx + 1 ) = real( 1 + mod( iix - 1, sys%xmesh(2)*sys%xmesh(3) ), dp ) / real( sys%xmesh( 3 ), dp )
       enddo
     else
 
+      ! This is the "dumb" way, but should work for now. Only called once, so not a terrible thing, 
+      !  but it will become more burdensome as the total number of x-points grows
       iix = 0
       do ix = 1, sys%xmesh( 1 )
         do iy = 1, sys%xmesh( 2 )
           do iz = 1, sys%xmesh( 3 )
             iix = iix + 1
-            xfac( 1, iix ) = dble( ix - 1 ) / dble( sys%xmesh(1) )
-            xfac( 2, iix ) = dble( iy - 1 ) / dble( sys%xmesh(2) )
-            xfac( 3, iix ) = dble( iz - 1 ) / dble( sys%xmesh(3) )
+            if( iix .gt. startx .and. ( iix - startx .lt. nxpts ) ) then
+              xfac( 1, iix - startx + 1 ) = dble( ix - 1 ) / dble( sys%xmesh(1) )
+              xfac( 2, iix - startx + 1 ) = dble( iy - 1 ) / dble( sys%xmesh(2) )
+              xfac( 3, iix - startx + 1 ) = dble( iz - 1 ) / dble( sys%xmesh(3) )
+            endif
           enddo
         enddo
       enddo
@@ -283,6 +287,12 @@ module OCEAN_val_states
     val_pad = nbv
 
     is_init = .true.
+
+    write(1000+myid,*) 'con_pad  ', con_pad, nbc
+    write(1000+myid,*) 'val_pad  ', val_pad, nbv
+    write(1000+myid,*) 'nxpts_pad', nxpts_pad, nxpts
+    flush(1000+myid)
+    
 
   end subroutine
   

@@ -41,6 +41,8 @@ module OCEAN_action
   LOGICAL  :: project_absspct
   LOGICAL  :: is_first = .true.
 
+  LOGICAL  :: val_loud = .true.
+
   public :: OCEAN_hayinit, OCEAN_action_run
 
   contains
@@ -586,29 +588,55 @@ module OCEAN_action
 
       if( sys%cur_run%bande ) then
         call OCEAN_psi_zero_full( psi_i, ierr )
+        call OCEAN_psi_ready_buffer( psi_i, ierr )
+        if( ierr .ne. 0 ) return
+        call OCEAN_psi_zero_min( psi_i, ierr )
+        if( ierr .ne. 0 ) return
+
+
+
         call OCEAN_energies_val_act( sys, psi, psi_i, ierr )
         if( ierr .ne. 0 ) return
-        call OCEAN_energies_val_sfact( sys, psi_i, ierr )
+!        call OCEAN_energies_val_sfact( sys, psi_i, ierr )
+!        if( ierr .ne. 0 ) return
+        call OCEAN_psi_send_buffer( psi_i, ierr )
         if( ierr .ne. 0 ) return
+        call OCEAN_psi_buffer2min( psi_i, ierr )
+        if( ierr .ne. 0 ) return
+
+
+
         call OCEAN_psi_dot( psi_o, psi_i, rrequest, rval, ierr, irequest, ival )
         call MPI_WAIT( rrequest, MPI_STATUS_IGNORE, ierr )
         call MPI_WAIT( irequest, MPI_STATUS_IGNORE, ierr )
-        write(6,'(A6,4X,E22.15,X,E22.15)') 'one-el',rval*Hartree2eV, ival*Hartree2eV
+        if( myid .eq. root ) write(6,'(A6,4X,E22.15,X,E22.15)') 'one-el',rval*Hartree2eV, ival*Hartree2eV
         rval = 1.0_dp
         call OCEAN_psi_axpy( rval, psi_i, new_psi, ierr )
       endif
 
       if( sys%cur_run%bflag ) then
         call OCEAN_psi_zero_full( psi_i, ierr )
+        call OCEAN_psi_ready_buffer( psi_i, ierr )
+        if( ierr .ne. 0 ) return
+        call OCEAN_psi_zero_min( psi_i, ierr )
+        if( ierr .ne. 0 ) return
+
+
         call AI_bubble_act( sys, psi, psi_i, ierr )
         if( ierr .ne. 0 ) return
         call OCEAN_energies_val_allow( sys, psi_i, ierr )
         if( ierr .ne. 0 ) return
+
+        call OCEAN_psi_send_buffer( psi_i, ierr )
+        if( ierr .ne. 0 ) return
+        call OCEAN_psi_buffer2min( psi_i, ierr )
+        if( ierr .ne. 0 ) return
+
       
         call OCEAN_psi_dot( psi_o, psi_i, rrequest, rval, ierr, irequest, ival )
         call MPI_WAIT( rrequest, MPI_STATUS_IGNORE, ierr )
         call MPI_WAIT( irequest, MPI_STATUS_IGNORE, ierr )
-        write(6,'(A6,4X,E22.15,X,E22.15)') 'bubble', rval*Hartree2eV, ival*Hartree2eV
+        if( myid .eq. root ) write(6,'(A6,4X,E22.15,X,E22.15)') 'bubble', rval*Hartree2eV, ival*Hartree2eV
         rval = 1.0_dp
         call OCEAN_psi_axpy( rval, psi_i, new_psi, ierr )
 
@@ -618,12 +646,23 @@ module OCEAN_action
       if( sys%cur_run%lflag ) then
         call OCEAN_psi_zero_full( psi_i, ierr )
         if( ierr .ne. 0 ) return
+        call OCEAN_psi_ready_buffer( psi_i, ierr )
+        if( ierr .ne. 0 ) return
+        call OCEAN_psi_zero_min( psi_i, ierr )
+        if( ierr .ne. 0 ) return
+
 
         call OCEAN_ladder_act( sys, psi, psi_i, 1, 1, ierr )
         if( ierr .ne. 0 ) return
-
         call OCEAN_energies_val_allow( sys, psi_i, ierr )
         if( ierr .ne. 0 ) return
+
+        call OCEAN_psi_send_buffer( psi_i, ierr )
+        if( ierr .ne. 0 ) return
+        call OCEAN_psi_buffer2min( psi_i, ierr )
+        if( ierr .ne. 0 ) return
+
+
 
         call OCEAN_psi_dot( psi_o, psi_i, rrequest, rval, ierr, irequest, ival )
         call MPI_WAIT( rrequest, MPI_STATUS_IGNORE, ierr )

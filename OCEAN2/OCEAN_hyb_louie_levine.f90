@@ -149,9 +149,9 @@ module OCEAN_hyb_louie_levine
         kret( nkret ) = iter1
         mds = max( mds, rmag + maxxy )
       end if
-      if( myid .eq. root ) then
-        write(6,*) iter1, r_array(:,iter1)
-      endif
+!      if( myid .eq. root ) then
+!        write(6,*) iter1, r_array(:,iter1)
+!      endif
 
     enddo
     if( myid .eq. 0 ) then
@@ -227,7 +227,7 @@ module OCEAN_hyb_louie_levine
   20  continue
       irtab( iter1 ) = rs_cur
       ftab( iter1 ) = ( rsx - rs_array( rs_cur ) ) / ( rs_array( rs_cur + 1 ) - rs_array( rs_cur ) )
-      write(6,*) iter1, sys%nxpts, ftab( iter1 ), irtab( iter1 ), rho( iter1 )
+!      write(6,*) iter1, sys%nxpts, ftab( iter1 ), irtab( iter1 ), rho( iter1 )
     enddo
     !
     if( myid .eq. 0 ) write(6,*)  'Done with loop'
@@ -319,7 +319,7 @@ module OCEAN_hyb_louie_levine
             write(6,*) jd, fff, fcn      
             return
           endif
-          write(99,'(4I8,E24.4)') ix, iy, kret(iter1), iter1, ladder( iter1, iy, ix - nx_start + 1 ) * Hartree2eV
+          !write(99,'(4I8,E24.4)') ix, iy, kret(iter1), iter1, ladder( iter1, iy, ix - nx_start + 1 ) * Hartree2eV
         enddo ! iter1 = 1, nkret
       enddo ! iy = 1, num_xpoints
     enddo ! ix = 1, num_xpoints
