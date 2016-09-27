@@ -1,4 +1,4 @@
-! Copyright (C) 2015 OCEAN collaboration
+! Copyright (C) 2015,2016 OCEAN collaboration
 !
 ! This file is part of the OCEAN project and distributed under the terms 
 ! of the University of Illinois/NCSA Open Source License. See the file 
@@ -175,7 +175,7 @@ module OCEAN_action
 
     do iter = 1, haydock_niter
       if( sys%cur_run%have_val ) then
-        write(6,*)   " iter. no.", iter-1
+        if( myid .eq. root ) write(6,*)   " iter. no.", iter-1
         call OCEAN_energies_val_allow( sys, psi, ierr )
         if( ierr .ne. 0 ) return
       endif
@@ -227,7 +227,7 @@ module OCEAN_action
     use OCEAN_psi
     use OCEAN_multiplet
     use OCEAN_long_range
-
+    use OCEAN_pfy, only : OCEAN_pfy_load, OCEAN_pfy_act
 
     implicit none
     integer, intent( inout ) :: ierr
@@ -245,6 +245,7 @@ module OCEAN_action
     character( LEN=5) :: eval
 
     character( LEN = 21 ) :: abs_filename
+    character( LEN = 21 ) :: pfy_filename
     character( LEN = 21 ) :: proj_filename
 !    character( LEN = 17 ) :: rhs_filename
     character( LEN = 25 ) :: e_filename
@@ -252,9 +253,12 @@ module OCEAN_action
     complex( DP ), allocatable, dimension ( : ) :: x, rhs, v1, v2, pcdiv, cwrk
 
     integer :: i, ntot, iter, iwrk, need, int1, int2
-    integer :: project_file_handle
+    integer :: project_file_handle, pfy_file_handle
     real( DP ) :: relative_error, f( 2 ), ener
     complex( DP ) :: rm1
+
+
+    logical :: do_pfy = .false.
 
 !    return
     rm1 = -1
@@ -287,13 +291,27 @@ module OCEAN_action
       case( 'XAS' )
         write(abs_filename,'(A8,A2,A1,I4.4,A1,A2,A1,I2.2)' ) 'absspct_', sys%cur_run%elname, &
             '.', sys%cur_run%indx, '_', sys%cur_run%corelevel, '_', sys%cur_run%photon
+        write(pfy_filename,'(A8,A2,A1,I4.4,A1,A2,A1,I2.2)' ) 'pfyspct_', sys%cur_run%elname, &
+            '.', sys%cur_run%indx, '_', sys%cur_run%corelevel, '_', sys%cur_run%photon
+        do_pfy = .true.
       case default
         write(abs_filename,'(A8,A2,A1,I4.4,A1,A2,A1,I2.2)' ) 'absspct_', sys%cur_run%elname, &
             '.', sys%cur_run%indx, '_', sys%cur_run%corelevel, '_', sys%cur_run%photon
+        write(pfy_filename,'(A8,A2,A1,I4.4,A1,A2,A1,I2.2)' ) 'pfyspct_', sys%cur_run%elname, &
+            '.', sys%cur_run%indx, '_', sys%cur_run%corelevel, '_', sys%cur_run%photon
+        do_pfy = .true.
       end select
 
       open( unit=76,file=abs_filename,form='formatted',status='unknown' )
       rewind( 76 )
+
+      if( do_pfy ) then
+        pfy_file_handle = 75
+        open(pfy_file_handle,file=pfy_filename,form='formatted',status='unknown' )
+        rewind( pfy_file_handle )
+
+        call OCEAN_pfy_load( sys, ierr )
+      endif
 
 
       ! This all needs to be moved to a module or type when we expand to make it more general
@@ -445,6 +463,12 @@ module OCEAN_action
 !      call dump_exciton( sys, psi, e_filename, ierr )
 
       call rtov( sys, hpsi, x )
+
+      if( do_pfy ) then
+        hpsi%kpref = hay_vec%kpref
+        call OCEAN_pfy_act( sys, hpsi, ener, pfy_file_handle, ierr )
+      endif
+
     enddo
 
     deallocate( rhs, v1, v2, pcdiv, x )
@@ -644,6 +668,7 @@ module OCEAN_action
       endif
 
       if( sys%cur_run%lflag ) then
+
         call OCEAN_psi_zero_full( psi_i, ierr )
         if( ierr .ne. 0 ) return
         call OCEAN_psi_ready_buffer( psi_i, ierr )
@@ -667,7 +692,7 @@ module OCEAN_action
         call OCEAN_psi_dot( psi_o, psi_i, rrequest, rval, ierr, irequest, ival )
         call MPI_WAIT( rrequest, MPI_STATUS_IGNORE, ierr )
         call MPI_WAIT( irequest, MPI_STATUS_IGNORE, ierr )
-        write(6,'(A6,4X,E22.15,X,E22.15)') 'ladder', rval*Hartree2eV, ival*Hartree2eV
+        if( myid .eq. root ) write(6,'(A6,4X,E22.15,X,E22.15)') 'ladder', rval*Hartree2eV, ival*Hartree2eV
         rval = 1.0_dp
         call OCEAN_psi_axpy( rval, psi_i, new_psi, ierr )
 

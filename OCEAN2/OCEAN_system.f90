@@ -1,4 +1,4 @@
-! Copyright (C) 2015 OCEAN collaboration
+! Copyright (C) 2015,2016 OCEAN collaboration
 !
 ! This file is part of the OCEAN project and distributed under the terms 
 ! of the University of Illinois/NCSA Open Source License. See the file 
@@ -33,6 +33,7 @@ module OCEAN_system
     integer( S_INT ) :: nobf = 0
     integer( S_INT ) :: nruns
     integer          :: nedges 
+    integer          :: nXES_photon
 
     integer          :: tmel_selector
     integer          :: enk_selector
@@ -177,6 +178,7 @@ module OCEAN_system
       read(98,*) sys%brange(3:4)
       close(98)
 
+      sys%val_bands = sys%brange(2) - sys%brange(1) + 1
 
       call getabb( sys%avec, sys%bvec, sys%bmet )
       call getomega( sys%avec, sys%celvol )     
@@ -247,6 +249,16 @@ module OCEAN_system
       read(99,*) sys%bloch_selector
       close(99)
 
+      inquire(file='nXES_photon.ipt', exist=exst )
+      if( exst ) then
+        open(unit=99,file='nXES_photon.ipt',form='formatted',status='old')
+        read(99,*) sys%nXES_photon
+        close(99)
+      else
+        sys%nXES_photon = -1
+      endif
+
+
       
     endif
 #ifdef MPI
@@ -275,6 +287,8 @@ module OCEAN_system
     if( ierr .ne. MPI_SUCCESS ) goto 111
     call MPI_BCAST( sys%num_bands, 1, MPI_INTEGER, root, comm, ierr )
     if( ierr .ne. MPI_SUCCESS ) goto 111
+    call MPI_BCAST( sys%val_bands, 1, MPI_INTEGER, root, comm, ierr )
+    if( ierr .ne. MPI_SUCCESS ) goto 111
     call MPI_BCAST( sys%xmesh, 3, MPI_INTEGER, root, comm, ierr )
     if( ierr .ne. MPI_SUCCESS ) goto 111
     call MPI_BCAST( sys%kmesh, 3, MPI_INTEGER, root, comm, ierr )
@@ -296,6 +310,8 @@ module OCEAN_system
     call MPI_BCAST( sys%enk_selector, 1, MPI_INTEGER, root, comm, ierr )
     if( ierr .ne. MPI_SUCCESS ) goto 111
     call MPI_BCAST( sys%bloch_selector, 1, MPI_INTEGER, root, comm, ierr )
+    if( ierr .ne. MPI_SUCCESS ) goto 111
+    call MPI_BCAST( sys%nXES_photon, 1, MPI_INTEGER, root, comm, ierr )
     if( ierr .ne. MPI_SUCCESS ) goto 111
 
 
@@ -386,10 +402,12 @@ module OCEAN_system
           start_band = sys%brange(3)
           num_bands = sys%num_bands
           have_core = .true.
+          val_bands = sys%brange(2)-sys%brange(1)+1
         case( 'XES' )
           start_band = sys%brange(1)
           num_bands = sys%num_bands
           have_core = .true.
+          val_bands = sys%brange(2)-sys%brange(1)+1
         case( 'VAL' )
           num_bands = sys%brange(4)-sys%brange(3)+1
           val_bands = sys%brange(2)-sys%brange(1)+1
