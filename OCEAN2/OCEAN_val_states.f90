@@ -44,6 +44,7 @@ module OCEAN_val_states
   contains
 
   subroutine val_states_add_phase( re_phase, im_phase )
+    use OCEAN_mpi, only : myid
     implicit none
     
     real(dp), intent( in ), dimension( nxpts_pad, nkpts ) :: re_phase, im_phase
@@ -51,10 +52,15 @@ module OCEAN_val_states
     !
     integer :: ik, ix, ispn
 
+    if( nxpts .lt. 1 ) return
+
+
     write(6,*) 'PHASES!'
-    write(6,*) cmplx( re_val(1,1,1,1), im_val(1,1,1,1), DP )
-    write(6,*) cmplx( re_val(1,4,1,1), im_val(1,4,1,1), DP )
-    write(6,*) cmplx( re_val(2,1,2,1), im_val(2,1,2,1), DP )
+!    write(6,*) myid, cmplx( re_val(1,1,1,1), im_val(1,1,1,1), DP )
+    write(6,*) myid, startx+1
+    write(6,*) myid, cmplx( re_val(2,1,2,1), im_val(2,1,2,1), DP )
+    write(6,*) myid, startx+min(110,nxpts)-1, startx, nxpts
+    write(6,*) myid, cmplx( re_val(min(110,nxpts),1,2,1), im_val(min(110,nxpts),1,2,1), DP )
 
     ! DROT is "backwards" from how we want the phases to go hence minus sign in definition of im_phase
     do ispn = 1, nspn
@@ -69,9 +75,9 @@ module OCEAN_val_states
         enddo
       enddo
     enddo
-    write(6,*) cmplx( re_val(1,1,1,1), im_val(1,1,1,1), DP )
-    write(6,*) cmplx( re_val(1,4,1,1), im_val(1,4,1,1), DP )
-    write(6,*) cmplx( re_val(2,1,2,1), im_val(2,1,2,1), DP )
+!    write(6,*) myid, cmplx( re_val(1,1,1,1), im_val(1,1,1,1), DP )
+    write(6,*) myid, cmplx( re_val(2,1,2,1), im_val(2,1,2,1), DP )
+    write(6,*) myid, cmplx( re_val(min(110,nxpts),1,2,1), im_val(min(110,nxpts),1,2,1), DP )
 
   end subroutine val_states_add_phase
 
@@ -132,7 +138,7 @@ module OCEAN_val_states
         do iy = 1, sys%xmesh( 2 )
           do iz = 1, sys%xmesh( 3 )
             iix = iix + 1
-            if( iix .gt. startx .and. ( iix - startx .lt. nxpts ) ) then
+            if( iix .ge. startx .and. ( iix - startx .lt. nxpts ) ) then
               xfac( 1, iix - startx + 1 ) = dble( ix - 1 ) / dble( sys%xmesh(1) )
               xfac( 2, iix - startx + 1 ) = dble( iy - 1 ) / dble( sys%xmesh(2) )
               xfac( 3, iix - startx + 1 ) = dble( iz - 1 ) / dble( sys%xmesh(3) )
@@ -194,11 +200,15 @@ module OCEAN_val_states
     if( myid .eq. root ) write( 6, * )'Loading valence states'
 
 
-    allocate( re_val( nxpts_pad, val_pad, nkpts, nspn ), &
-              im_val( nxpts_pad, val_pad, nkpts, nspn ), &
-              re_con( nxpts_pad, con_pad, nkpts, nspn ), &
-              im_con( nxpts_pad, con_pad, nkpts, nspn ), STAT=ierr )
+    allocate( re_val( max( 1, nxpts_pad), val_pad, nkpts, nspn ), &
+              im_val( max( 1, nxpts_pad), val_pad, nkpts, nspn ), &
+              re_con( max( 1, nxpts_pad), con_pad, nkpts, nspn ), &
+              im_con( max( 1, nxpts_pad), con_pad, nkpts, nspn ), STAT=ierr )
     if( ierr .ne. 0 ) return
+!    re_val(:,:,:,:) = 0.0_DP
+!    im_val(:,:,:,:) = 0.0_DP
+!    re_con(:,:,:,:) = 0.0_DP
+!    im_con(:,:,:,:) = 0.0_DP
 
     call OCEAN_val_states_read( sys, ierr )
     if( ierr .ne. 0 ) return
@@ -241,40 +251,59 @@ module OCEAN_val_states
 
     allocate( nxpts_by_mpiID( 0:nproc-1 ), startx_by_mpiID( 0:nproc-1 ) )
 
-    do i = 0, myid
-      startx = startx + nxpts
-      nxpts = nx_remain / ( nproc - i )
-      ! round up to cache line
-      if( nxpts .ge. cache_double ) then
-        nxpts = nxpts + mod( nxpts, cache_double )
-      endif
-      nx_remain = nx_remain - nxpts
-      nxpts_by_mpiID( i ) = nxpts
-    enddo
+    if( .false. ) then
+      max_nxpts = ceiling( dble( sys%nxpts ) / dble( nproc ) )
+      
+      nxpts = max_nxpts
+      nxpts_by_mpiID( 0 ) = nxpts
+      startx_by_mpiID( 0 ) = 1
+      do i = 1, nproc - 1
+        nx_remain = nx_remain - nxpts
+        nxpts = min( max_nxpts, nx_remain )
+        nxpts_by_mpiID( i ) = nxpts
+        startx_by_mpiID( i ) = startx_by_mpiID( i - 1 ) + nxpts_by_mpiID( i - 1 )
+        if( nxpts .eq. 0 ) startx_by_mpiID( i ) = 1
+      enddo
 
-    do i = myid + 1, nproc - 1
-      nxpts_by_mpiID( i ) = nx_remain / ( nproc - i )
-      nx_remain = nx_remain - nxpts_by_mpiID( i )
-    enddo
+      nxpts = nxpts_by_mpiID( myid )
+      startx = startx_by_mpiID( myid )
 
-    startx_by_mpiID( 0 ) = 1
-    do i = 1, nproc - 1
-      startx_by_mpiID( i ) = startx_by_mpiID( i - 1 ) + nxpts_by_mpiID( i - 1 )
-    enddo
-
-
-    max_nxpts = maxval( nxpts_by_mpiID )
-    if( nxpts .lt. cache_double ) then
-      nxpts_pad = cache_double
-      max_nxpts = max( max_nxpts, cache_double ) 
     else
-      nxpts_pad = nxpts
+      do i = 0, myid
+        startx = startx + nxpts
+        nxpts = nx_remain / ( nproc - i )
+        ! round up to cache line
+        if( nxpts .ge. cache_double ) then
+          nxpts = nxpts + mod( nxpts, cache_double )
+        endif
+        nx_remain = nx_remain - nxpts
+        nxpts_by_mpiID( i ) = nxpts
+      enddo
+
+      do i = myid + 1, nproc - 1
+        nxpts_by_mpiID( i ) = nx_remain / ( nproc - i )
+        nx_remain = nx_remain - nxpts_by_mpiID( i )
+      enddo
+
+      startx_by_mpiID( 0 ) = 1
+      do i = 1, nproc - 1
+        startx_by_mpiID( i ) = startx_by_mpiID( i - 1 ) + nxpts_by_mpiID( i - 1 )
+      enddo
+
+
+      max_nxpts = maxval( nxpts_by_mpiID )
+      if( nxpts .lt. cache_double ) then
+        nxpts_pad = cache_double
+        max_nxpts = max( max_nxpts, cache_double ) 
+      else
+        nxpts_pad = nxpts
+      endif
     endif
 
     !JTV Ladder needs modification to deal with padding
     nxpts_pad = nxpts
 
-    if( nxpts .lt. 1 ) then
+    if( nxpts .lt. 0 ) then
       ierr = -1
       return
     endif
@@ -291,6 +320,12 @@ module OCEAN_val_states
     write(1000+myid,*) 'con_pad  ', con_pad, nbc
     write(1000+myid,*) 'val_pad  ', val_pad, nbv
     write(1000+myid,*) 'nxpts_pad', nxpts_pad, nxpts
+    write(1000+myid,*) 'max_nxpts', max_nxpts
+    write(1000+myid,*) 'start_x', startx
+    write(1000+myid,*) '------------------------------'
+    do i = 0, nproc-1
+      write(1000+myid,*) startx_by_mpiID( i ), nxpts_by_mpiID( i )
+    enddo
     flush(1000+myid)
     
 
