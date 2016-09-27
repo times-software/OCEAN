@@ -81,7 +81,7 @@ module OCEAN_val_energy
       if( ierr .ne. MPI_SUCCESS ) return
       do ik = 1, sys%nkpts
         offset = ( ik - 1 ) * nbv
-        call MPI_FILE_READ_AT( fh, offset, val_energies( 1, ik ), sys%cur_run%val_bands, MPI_DOUBLE_PRECISION, &
+        call MPI_FILE_READ_AT_ALL( fh, offset, val_energies( 1, ik ), sys%cur_run%val_bands, MPI_DOUBLE_PRECISION, &
                                MPI_STATUS_IGNORE, ierr )
         if( ierr .ne. MPI_SUCCESS) return
       enddo
@@ -95,7 +95,7 @@ module OCEAN_val_energy
       if( ierr .ne. MPI_SUCCESS ) return
       do ik = 1, sys%nkpts
         offset = ( ik - 1 ) * ( nbc( 2 ) - nbc( 1 ) + 1 ) + ( sys%brange( 3 ) - nbc( 1 ) )
-        call MPI_FILE_READ_AT( fh, offset, con_energies( 1, ik ), sys%cur_run%num_bands, MPI_DOUBLE_PRECISION, &
+        call MPI_FILE_READ_AT_ALL( fh, offset, con_energies( 1, ik ), sys%cur_run%num_bands, MPI_DOUBLE_PRECISION, &
                                MPI_STATUS_IGNORE, ierr )
         if( ierr .ne. MPI_SUCCESS) return
       enddo
@@ -153,6 +153,7 @@ module OCEAN_val_energy
                                 allow, metal, ierr )
     use OCEAN_system
     use OCEAN_psi
+    use OCEAN_mpi, only : myid
     implicit none
     type( O_system ), intent( in ) :: sys
     type( OCEAN_vector ), intent( inout ) :: allow
@@ -210,6 +211,9 @@ module OCEAN_val_energy
       enddo ! kiter
     endif
     !
+    open(myid+2000)
+    write(myid+2000,*) allow%valr
+    close(myid+2000)
 !    allow%valr = 1.0_dp
 !    allow%vali = 1.0_dp
 
@@ -232,7 +236,7 @@ module OCEAN_val_energy
     real(dp), allocatable :: simple_energies( : )
     real(dp) :: temp, per_electron_dope
     integer :: i_band, overlap, t_electron, n_electron_dope
-    integer :: iter, node, node2, top, kiter
+    integer :: iter, node, node2, top, kiter, ierr_
     logical :: doping
     !
     !
@@ -258,22 +262,25 @@ module OCEAN_val_energy
           write( 6, * ) 'Effective doping percent: ', dble( n_electron_dope ) * 2.d0 / sys%nkpts
         endif
       endif
-    endif
-    !
-    !
-    if( mod( nelectron, 2 ) .ne. 0 ) then
-      if ( metal .eqv. .false. )  then
-        write( 6, * ) 'WARNING: for partial occupation we must have a metal!'
-        write( 6, * ) 'Setting metal = true and continuing'
-        metal = .true.
-      endif
-      if( mod( sys%nkpts, 2 ) .ne. 0 ) then
-        ierr = 80
-        write( 6, * ) 'Number of kpts * number of electrons must be even for spinless calc.'
-        goto 111
+      !
+      !
+      if( mod( nelectron, 2 ) .ne. 0 ) then
+        if ( metal .eqv. .false. )  then
+          write( 6, * ) 'WARNING: for partial occupation we must have a metal!'
+          write( 6, * ) 'Setting metal = true and continuing'
+          metal = .true.
+        endif
+        if( mod( sys%nkpts, 2 ) .ne. 0 ) then
+          ierr = 80
+          write( 6, * ) 'Number of kpts * number of electrons must be even for spinless calc.'
+!          goto 111
+        endif
       endif
     endif
 #ifdef MPI
+    call MPI_BCAST( ierr, 1, MPI_INTEGER, root, comm, ierr_ )
+    if( ierr_ .ne. MPI_SUCCESS ) return
+    if( ierr .ne. 0 ) return
     call MPI_BCAST( metal, 1, MPI_LOGICAL, root, comm, ierr )
     if( ierr .ne. MPI_SUCCESS ) return
     call MPI_BCAST( n_electron_dope, 1, MPI_INTEGER, root, comm, ierr )

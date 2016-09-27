@@ -14,7 +14,7 @@ module OCEAN_bubble
   real( DP ), allocatable  :: bubble( : )
   real(DP), allocatable :: re_scratch(:), im_scratch(:)
 
-  integer, allocatable :: xstart_by_mpiID(:)
+!  integer, allocatable :: xstart_by_mpiID(:)
 
   type(C_PTR)        :: fplan
   type(C_PTR)        :: bplan
@@ -106,13 +106,13 @@ module OCEAN_bubble
       call AI_bubble_populate( sys, length, ierr )
       if( ierr .ne. 0 ) goto 111
 
-      allocate( xstart_by_mpiID( 0:nproc-1 ), STAT=ierr )
-      if( ierr .ne. 0 ) goto 111
-      j = 1
-      do i = 0, nproc - 1
-        xstart_by_mpiID( i ) = j
-        j = j + nxpts_by_mpiID( i )
-      enddo
+!      allocate( xstart_by_mpiID( 0:nproc-1 ), STAT=ierr )
+!      if( ierr .ne. 0 ) goto 111
+!      j = 1
+!      do i = 0, nproc - 1
+!        xstart_by_mpiID( i ) = j
+!        j = j + nxpts_by_mpiID( i )
+!      enddo
 
     else ! To allow aggressive error checking
       allocate( bubble( 1 ), &
@@ -380,7 +380,7 @@ module OCEAN_bubble
     endif
     minus_spin_prefac = -spin_prefac
       
-    allocate( re_l_bubble( nxpts ), im_l_bubble( nxpts ) )
+    allocate( re_l_bubble( max(1,nxpts) ), im_l_bubble( max(1,nxpts) ) )
     re_l_bubble( : ) = 0.0_dp
     im_l_bubble( : ) = 0.0_dp
 
@@ -399,7 +399,7 @@ module OCEAN_bubble
     
 !    write(6,*) nxpts_pad, xwidth, startx_by_mpiID( myid )
 
-    allocate( re_amat( nxpts_pad, nbv, nkpts ), im_amat( nxpts_pad, nbv, nkpts ) )
+    allocate( re_amat( max(1,nxpts_pad), nbv, nkpts ), im_amat( max(nxpts_pad,1), nbv, nkpts ) )
 
 !$OMP PARALLEL DEFAULT( NONE ) &
 !$OMP& SHARED( sys, val_ufunc, con_ufunc, psi, sum_l_bubble, xwidth, re_amat, im_amat ) &
@@ -416,6 +416,7 @@ module OCEAN_bubble
 !  write(6,*) maxval( re_val ), maxval( im_val )
 !  write(6,*) '------------'
 
+  if( nxpts .gt. 0 ) then
   xwidth = nxpts
   ix = 1
 !$OMP DO COLLAPSE(2)
@@ -433,6 +434,10 @@ module OCEAN_bubble
 !      enddo
     enddo
 !$OMP END DO
+  else 
+    re_amat( :,:,: ) = 0.0_dp
+    im_amat( :,:,: ) = 0.0_dp
+  endif
 
 !  write(6,*) 'A:', maxval( re_amat ), maxval( im_amat )
 
@@ -558,6 +563,8 @@ module OCEAN_bubble
     enddo
 !$OMP END DO
 
+
+  if( nxpts .gt. 0 ) then
 !JTV add additional tiling
 !$OMP DO 
 
@@ -577,6 +584,8 @@ module OCEAN_bubble
                   one, psiout%vali( 1, 1, ik, 1 ), psi_con_pad )
     enddo
 !$OMP END DO
+
+  endif
 
 
 !$OMP END PARALLEL

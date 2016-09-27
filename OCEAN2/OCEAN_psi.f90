@@ -1525,6 +1525,7 @@ module OCEAN_psi
   !   For now we chunk evenly. Procs either have nchunk or 0
   subroutine psi_val_store_size( id, nproc_total, nproc_remain, max_store_size, my_store_size, val_start, &
                                  k_start, beta_start, ierr )
+    use OCEAN_mpi, only : myid
     implicit none
     integer, intent( in ) :: id, nproc_total
     integer, intent( out ) :: nproc_remain, max_store_size, my_store_size, val_start, k_start, beta_start
@@ -1548,6 +1549,7 @@ module OCEAN_psi
 
     if( id .gt. nproc_remain - 1 ) then
       my_store_size = 0
+      write(1000+myid,*) 'val_store_size', my_store_size, val_start, k_start, beta_start
       return
     endif
 
@@ -1576,6 +1578,9 @@ module OCEAN_psi
       enddo
 
     enddo
+
+    write(1000+myid,*) 'val_store_size', my_store_size, val_start, k_start, beta_start
+
   end subroutine psi_val_store_size
 
 

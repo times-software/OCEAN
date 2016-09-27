@@ -62,7 +62,8 @@ module OCEAN_ladder
   subroutine OCEAN_ladder_act( sys, psi, psi_out, cspn, vspn, ierr )
     use OCEAN_psi
     use OCEAN_mpi
-    use OCEAN_val_states, only : nxpts, nxpts_pad, re_val, im_val, re_con, im_con, nbv, nbc, max_nxpts, nxpts_by_mpiID
+    use OCEAN_val_states, only : nxpts, nxpts_pad, re_val, im_val, re_con, im_con, &
+                                 nbv, nbc, max_nxpts, nxpts_by_mpiID, startx_by_mpiID
     use OCEAN_system
 !    use OCEAN_val_states
     use iso_c_binding
@@ -104,7 +105,7 @@ module OCEAN_ladder
 
 !JTV
 !   This needs to be pulled out to allow spin = 1 or spin = 2 options
-    spin_prefac = -1.0d0
+    spin_prefac = -1.0_dp
     minus_spin_prefac = - spin_prefac
 
     call OCEAN_psi_returnBandPad( psi_con_pad, ierr )
@@ -118,9 +119,13 @@ module OCEAN_ladder
               re_b_mat( nxpts_pad, val_pad, nkpts ), im_b_mat( nxpts_pad, val_pad, nkpts ), &
               re_tphi_mat( nxpts_pad, max_nxpts, nkpts ), im_tphi_mat( nxpts_pad, max_nxpts, nkpts ), STAT=ierr )
 
+!    re_bstate(:,:,:,:) = 0.0_DP
+!    im_bstate(:,:,:,:) = 0.0_DP
+!    re_b_mat = 0.0_Dp
+!    im_b_mat = 0.0_Dp
 
-    re_bstate(:,:,:,1) = re_val(:,:,:,vspn)
-    im_bstate(:,:,:,1) = im_val(:,:,:,vspn)
+    re_bstate(1:nxpts_pad,:,:,1) = re_val(1:nxpts_pad,:,:,vspn)
+    im_bstate(1:nxpts_pad,:,:,1) = im_val(1:nxpts_pad,:,:,vspn)
 
 
 !$OMP PARALLEL DEFAULT(NONE) &
@@ -200,13 +205,17 @@ module OCEAN_ladder
 
 
 
-    id = myid - 1
+    id = myid + 1
     do i = 0, nproc-1
+
+
       j = mod( abs(i-1),2) + 1
       k = mod( i, 2 ) + 1
 
-      id = id + 1
-      if( id .gt. nproc ) id = id - nproc
+      id = id - 1
+      if( id .ge. nproc ) id = id - nproc
+      if( id .lt. 0 ) id = id + nproc
+      write(6,*) myid, i, id, beta
 
       if( i .gt. 0 ) then
 !$OMP MASTER
@@ -216,7 +225,9 @@ module OCEAN_ladder
         joint_request(3) = c_recv_request(k,2)
         joint_request(4) = c_send_request(j,2)
 
+!        write(6,*) 'wait1', myid
         call MPI_WAITALL( 4, joint_request, MPI_STATUSES_IGNORE, ierr )
+!        write(6,*) 'wait2', myid
 !$OMP END MASTER
 !$OMP BARRIER
       endif
@@ -226,12 +237,13 @@ module OCEAN_ladder
       if( i .lt. nproc - 1 ) then
         call MPI_START( c_recv_request(j,1), ierr )
         call MPI_START( c_recv_request(j,2), ierr )
+!        write(6,*) 'MPI_START - recv', myid, c_recv_tag(j,1), c_recv_tag(j,2)
       endif
 !$OMP END MASTER
 
     
 
-      y_block = nxpts_by_mpiID( id )
+!      y_block = nxpts_by_mpiID( id )
 
 !      write(6,*) x_block, y_block, nbv
 !      write(6,*) nxpts_pad, max_nxpts
@@ -270,15 +282,17 @@ module OCEAN_ladder
       if( i .lt. nproc-1 ) then
         call MPI_START( c_send_request(k,1), ierr )
         call MPI_START( c_send_request(k,2), ierr )
+!        write(6,*) 'MPI_START - send', myid, c_send_tag(k,1), c_send_tag(k,2)
       endif
 !$OMP END MASTER
 
-      y_offset = 0
-      do ik = 0, id - 1
-        y_offset = y_offset + nxpts_by_mpiID( ik )
-      enddo
+!      y_offset = 0
+!      do ik = 0, id - 1
+!        y_offset = y_offset + nxpts_by_mpiID( ik )
+!      enddo
+      y_offset = startx_by_mpiID( id ) - 1
 
-!      write(6,*) nxpts_by_mpiID( id ), nxpts
+      write(6,*) myid, nxpts_by_mpiID( id ), y_offset, id
 !      write(6,*) '-------'
 
 !$OMP DO COLLAPSE( 2 ) SCHEDULE( STATIC)
@@ -319,8 +333,8 @@ module OCEAN_ladder
                                             fi( kk( ik, 1 ), kk( ik, 2 ), kk( ik, 3 ) ) )
             end do
             call dfftw_execute_dft( bplan, scratch, scratch )
-            re_tphi_mat( iix, iy, : ) = real(scratch( : ),DP) / dble( nkpts )
-            im_tphi_mat( iix, iy, : ) = aimag(scratch( : )) / dble( nkpts )
+            re_tphi_mat( iix, iy, : ) = real(scratch( : ),DP) * inverse_kpts !/ dble( nkpts )
+            im_tphi_mat( iix, iy, : ) = aimag(scratch( : )) * inverse_kpts !/dble( nkpts )
 
 
 !            re_phi_mat( :, iix - ix + 1 ) = real(scratch( : ), DP) * inverse_kpts
@@ -426,6 +440,9 @@ module OCEAN_ladder
     deallocate( re_a_mat, im_a_mat, re_b_mat, im_b_mat )
 
 
+    call MPI_BARRIER( comm, ierr )
+    if( myid .eq. root ) write( 6, * ) 'ladder done'
+
   end subroutine OCEAN_ladder_act
 
 
@@ -490,28 +507,29 @@ module OCEAN_ladder
   c_send_tag(1,1) = c_dest + 2*nproc
   c_recv_tag(2,1) = myid + 2*nproc
   c_send_tag(2,1) = c_dest + 1*nproc
+
   c_recv_tag(1,2) = myid + 3*nproc
   c_send_tag(1,2) = c_dest + 4*nproc
-  c_recv_tag(2,2) = myid + 3*nproc
-  c_send_tag(2,2) = c_dest + 4*nproc
+  c_recv_tag(2,2) = myid + 4*nproc
+  c_send_tag(2,2) = c_dest + 3*nproc
 
   call MPI_SEND_INIT( re_bstate(1,1,1,1), c_size, MPI_DOUBLE_PRECISION, c_dest, c_send_tag(1,1), &
-                      MPI_COMM_WORLD, c_send_request(1,1), ierr )
+                      comm, c_send_request(1,1), ierr )
   call MPI_SEND_INIT( re_bstate(1,1,1,2), c_size, MPI_DOUBLE_PRECISION, c_dest, c_send_tag(2,1), &
-                      MPI_COMM_WORLD, c_send_request(2,1), ierr )
+                      comm, c_send_request(2,1), ierr )
   call MPI_RECV_INIT( re_bstate(1,1,1,1), c_size, MPI_DOUBLE_PRECISION, c_sour, c_recv_tag(1,1), &
-                      MPI_COMM_WORLD, c_recv_request(1,1), ierr )
+                      comm, c_recv_request(1,1), ierr )
   call MPI_RECV_INIT( re_bstate(1,1,1,2), c_size, MPI_DOUBLE_PRECISION, c_sour, c_recv_tag(2,1), &
-                      MPI_COMM_WORLD, c_recv_request(2,1), ierr )
+                      comm, c_recv_request(2,1), ierr )
 
   call MPI_SEND_INIT( im_bstate(1,1,1,1), c_size, MPI_DOUBLE_PRECISION, c_dest, c_send_tag(1,2), &
-                      MPI_COMM_WORLD, c_send_request(1,2), ierr )
+                      comm, c_send_request(1,2), ierr )
   call MPI_SEND_INIT( im_bstate(1,1,1,2), c_size, MPI_DOUBLE_PRECISION, c_dest, c_send_tag(2,2), &
-                      MPI_COMM_WORLD, c_send_request(2,2), ierr )
+                      comm, c_send_request(2,2), ierr )
   call MPI_RECV_INIT( im_bstate(1,1,1,1), c_size, MPI_DOUBLE_PRECISION, c_sour, c_recv_tag(1,2), &
-                      MPI_COMM_WORLD, c_recv_request(1,2), ierr )
+                      comm, c_recv_request(1,2), ierr )
   call MPI_RECV_INIT( im_bstate(1,1,1,2), c_size, MPI_DOUBLE_PRECISION, c_sour, c_recv_tag(2,2), &
-                      MPI_COMM_WORLD, c_recv_request(2,2), ierr )
+                      comm, c_recv_request(2,2), ierr )
 
 #endif
 

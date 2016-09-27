@@ -169,6 +169,8 @@ subroutine OCEAN_get_rho( xmesh, celvol, rho, ierr )
   call MPI_BCAST( ierr, 1, MPI_INTEGER, root, comm, ierr )
   if( ierr .ne. 0 ) return
   call MPI_BCAST( rho, product(xmesh), MPI_DOUBLE_PRECISION, root, comm, ierr )
+  if( ierr .ne. 0 ) return
+  write(6,*) 'Rho shared: ', myid
 #endif
 
 end subroutine OCEAN_get_rho

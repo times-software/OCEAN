@@ -91,7 +91,7 @@ module OCEAN_energies
     integer, intent( inout ) :: ierr
     type(O_system), intent( in ) :: sys
     !
-    if( sys%have_val .eq. .false. ) return
+    if( sys%have_val .eqv. .false. ) return
     !
 
     if( .not. val_init ) then
