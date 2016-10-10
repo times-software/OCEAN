@@ -67,12 +67,14 @@ module OCEAN_system
     integer :: num_bands
     integer :: val_bands
     integer :: start_band
+    integer :: rixs_energy 
+    integer :: rixs_pol
     character(len=2) :: elname
     character(len=2) :: corelevel
     character(len=255) :: basename
     character(len=255) :: filename
 
-    character(len=5) :: calc_type
+    character(len=3) :: calc_type
 
     logical          :: e0
     logical          :: mult
@@ -370,10 +372,14 @@ module OCEAN_system
     character(len=5) :: calc_type
     type(o_run), pointer :: temp_prev_run, temp_cur_run
 
-    integer :: ntot, nmatch, iter, i, idum, start_band, num_bands, val_bands, val_flag
+    integer :: ntot, nmatch, iter, i, idum, start_band, num_bands, val_bands, val_flag,  &
+               rixs_energy, rixs_pol
     logical :: found, have_val, have_core, lflag, bflag
     real(DP) :: tmp(3)
 
+    ! These are optional so should be given defaults
+    rixs_pol = 0
+    rixs_energy = 0
 
     running_total = 0 
     temp_prev_run => sys%cur_run
@@ -413,6 +419,9 @@ module OCEAN_system
           val_bands = sys%brange(2)-sys%brange(1)+1
           have_val = .true.
         case( 'RXS' )
+          backspace( 99 )
+          read(99,*)  ZNL(1), ZNL(2), ZNL(3), elname, corelevel, indx, photon, calc_type, &
+                      rixs_energy, rixs_pol
           num_bands = sys%brange(4)-sys%brange(3)+1
           val_bands = sys%brange(2)-sys%brange(1)+1
           have_val = .true.
@@ -497,6 +506,10 @@ module OCEAN_system
       if( ierr .ne. MPI_SUCCESS ) goto 111
       call MPI_BCAST( val_bands, 1, MPI_INTEGER, root, comm, ierr )
       if( ierr .ne. MPI_SUCCESS ) goto 111
+      call MPI_BCAST( rixs_energy, 1, MPI_INTEGER, root, comm, ierr )
+      if( ierr .ne. MPI_SUCCESS ) goto 111
+      call MPI_BCAST( rixs_pol, 1, MPI_INTEGER, root, comm, ierr )
+      if( ierr .ne. MPI_SUCCESS ) goto 111
       call MPI_BCAST( have_core, 1, MPI_LOGICAL, root, comm, ierr )
       if( ierr .ne. MPI_SUCCESS ) goto 111
       call MPI_BCAST( have_val, 1, MPI_LOGICAL, root, comm, ierr )
@@ -536,6 +549,9 @@ module OCEAN_system
       temp_cur_run%have_val = have_val
       temp_cur_run%lflag = lflag
       temp_cur_run%bflag = bflag
+
+      temp_cur_run%rixs_energy = rixs_energy
+      temp_cur_run%rixs_pol = rixs_pol
       
       temp_cur_run%basename = 'abs'
       write(temp_cur_run%filename,'(A3,A1,A2,A1,I2.2,A1,A2,A1,I2.2)' ) temp_cur_run%basename, '_', temp_cur_run%elname, &

@@ -3119,7 +3119,7 @@ module OCEAN_psi
     use OCEAN_mpi, only : myid, root
     use OCEAN_system
 !    use OCEAN_constants, only : PI_DP
-!    use OCEAN_rixs_holder, only : OCEAN_rixs_holder_load
+    use OCEAN_rixs_holder, only : OCEAN_rixs_holder_load
 
     implicit none
 
@@ -3128,6 +3128,7 @@ module OCEAN_psi
     integer, intent( inout ) :: ierr
 
     integer :: file_selector
+    complex(DP), allocatable :: p_vec(:,:,:,:)
 !    integer :: ibeta, ikpt, ibnd
 !    real(dp) :: val, nrm
 
@@ -3146,11 +3147,15 @@ module OCEAN_psi
       call OCEAN_read_tmels( sys, p, file_selector, ierr )
       if( ierr .ne. 0 ) return
     case( 'RXS' )
-!        call OCEAN_rixs_holder_load( sys, p, file_selector, ierr )
-      ierr = -1
-      return
+      allocate( p_vec( sys%num_bands, sys%val_bands, sys%nkpts, psi_val_beta ) )
+      call OCEAN_rixs_holder_load( sys, p_vec, file_selector, ierr )
+      if( ierr .ne. 0 ) return
+      p%valr( 1:sys%num_bands, 1:sys%val_bands, :, : ) = real( p_vec(:,:,:,:), DP )
+      p%vali( 1:sys%num_bands, 1:sys%val_bands, :, : ) = aimag( p_vec(:,:,:,:) )
+      deallocate( p_vec) 
     case default
       if( myid .eq. root ) then 
+        write(6,*) sys%cur_run%calc_type
         write(6,*) 'Trying to load valence transition matrix for unsupported calculation type'
       endif
       ierr = -1

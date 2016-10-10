@@ -859,7 +859,7 @@ module OCEAN_action
     real(DP) :: e, gam, dr, di, ener, spct( 0 : 1 ), spkk, pi
     complex(DP) :: rm1, ctmp, disc, delta
 
-    character( LEN=21 ) :: abs_filename
+    character( LEN=40 ) :: abs_filename
     
     select case ( sys%cur_run%calc_type)
     case( 'XES' )
@@ -871,6 +871,10 @@ module OCEAN_action
     case default
       write(abs_filename,'(A8,A2,A1,I4.4,A1,A2,A1,I2.2)' ) 'absspct_', sys%cur_run%elname, &
           '.', sys%cur_run%indx, '_', sys%cur_run%corelevel, '_', sys%cur_run%photon
+    case( 'RXS')
+      write(abs_filename,'(A8,A2,A1,I4.4,A1,A2,A1,I2.2,A1,I2.2,A1,I2.2)' ) 'rxsspct_', sys%cur_run%elname, &
+          '.', sys%cur_run%indx, '_', sys%cur_run%corelevel, '_', sys%cur_run%photon, '.', &
+          sys%cur_run%rixs_energy, '.', sys%cur_run%rixs_pol
     end select
     
     rm1 = -1; rm1 = sqrt( rm1 ); pi = 4.0d0 * atan( 1.0d0 )

@@ -1,7 +1,7 @@
 include ../Makefile.arch
 
 # Currently BLAS and MPI are *not* optional
-FLAGS = $(OPTIONS) -cpp -DBLAS -DMPI -D__HAVE_F03 -check all
+FLAGS = $(OPTIONS) -cpp -DBLAS -DMPI -D__HAVE_F03 #-check all
 
 CNBSE = ../CNBSE/zcmsnmult/zf90
 
@@ -14,7 +14,8 @@ OCEANOBJS = AI_kinds.o OCEAN_mpi.o OCEAN_system.o OCEAN_bloch.o OCEAN_obf.o OCEA
             newgetylm.o  newgetprefs.o newthreey.o cainmhsetup.o elsdch.o cinv.o \
             sizereport.o OCEAN_timekeeper.o OCEAN_invdrv.o OCEAN_val_energy.o \
             OCEAN_read_tmels.o OCEAN_val_states.o OCEAN_bubble.o \
-            OCEAN_get_rho.o optim.o OCEAN_hyb_louie_levine.o OCEAN_ladder.o
+            OCEAN_get_rho.o optim.o OCEAN_hyb_louie_levine.o OCEAN_ladder.o \
+						OCEAN_pfy.o OCEAN_rixs_holder.o
 
 
 OCEAN_val_energy.o: OCEAN_val_energy.f90 OCEAN_psi.o
@@ -24,7 +25,7 @@ OCEAN_constants.o: OCEAN_constants.f90 AI_kinds.o
 	$(MPIFORT) $(FLAGS) -c -o OCEAN_constants.o OCEAN_constants.f90
 
 ocean.x: $(OCEANOBJS)
-	$(MPIFORT) $(LDFLAGS) -o ocean.x $(OCEANOBJS) $(FFTWL) $(BLACS) $(OPENMP)
+	$(MPIFORT) $(LDFLAGS) -o ocean.x $(OCEANOBJS)  $(BLACS) $(OPENMP) /opt/local/lib/libfftw3.a
 
 o_spect.x: o_spect.f90 AI_kinds.o gamfcn.o
 	$(MPIFORT) $(FLAGS) -o o_spect.x o_spect.f90 AI_kinds.o gamfcn.o
@@ -44,17 +45,17 @@ OCEAN_timekeeper.o: OCEAN_timekeeper.f90
 OCEAN_system.o: OCEAN_system.f90
 	$(MPIFORT) $(FLAGS) -c -o  OCEAN_system.o OCEAN_system.f90
 
-OCEAN_load_data.o: OCEAN_load_data.f90 OCEAN_energies.o
+OCEAN_load_data.o: OCEAN_load_data.f90 OCEAN_energies.o OCEAN_val_states.o OCEAN_bubble.o OCEAN_ladder.o
 	$(MPIFORT) $(FLAGS) -c -o OCEAN_load_data.o OCEAN_load_data.f90 
 
-OCEAN_psi.o: OCEAN_psi.f90 OCEAN_constants.o OCEAN_timekeeper.o
-	$(MPIFORT) $(FLAGS) -c -o OCEAN_psi.o OCEAN_psi.f90 $(FFTWI) $(OPENMP)
+OCEAN_psi.o: OCEAN_psi.f90 OCEAN_constants.o OCEAN_timekeeper.o OCEAN_rixs_holder.o
+	$(MPIFORT) $(FLAGS) -c -o OCEAN_psi.o OCEAN_psi.f90 $(FFTWI) $(OPENMP) $(FFTWL)
 
 OCEAN_energies.o: OCEAN_energies.f90 OCEAN_val_energy.o
-	$(MPIFORT) $(FLAGS) -c -o OCEAN_energies.o OCEAN_energies.f90 $(FFTWI)
+	$(MPIFORT) $(FLAGS) -c -o OCEAN_energies.o OCEAN_energies.f90 $(FFTWI) $(FFTWL)
 
-OCEAN_haydock.o: OCEAN_haydock.f90 OCEAN_timekeeper.o OCEAN_psi.o
-	$(MPIFORT) $(FLAGS) -c -o  OCEAN_haydock.o OCEAN_haydock.f90 $(FFTWI)
+OCEAN_haydock.o: OCEAN_haydock.f90 OCEAN_timekeeper.o OCEAN_psi.o OCEAN_pfy.o
+	$(MPIFORT) $(FLAGS) -c -o  OCEAN_haydock.o OCEAN_haydock.f90 $(FFTWI) $(FFTWL)
 
 OCEAN_exact.o: OCEAN_exact.f90
 	$(MPIFORT) $(FLAGS) -c -o  OCEAN_exact.o OCEAN_exact.f90
@@ -69,7 +70,7 @@ gamfcn.o: $(CNBSE)/gamfcn.f90
 	$(MPIFORT) $(FLAGS) -c -o gamfcn.o $(CNBSE)/gamfcn.f90
 
 long_range.o: long_range.f90 OCEAN_system.o
-	$(MPIFORT) $(FLAGS) -c -o long_range.o long_range.f90 $(FFTWI) $(OPENMP)
+	$(MPIFORT) $(FLAGS) -c -o long_range.o long_range.f90 $(FFTWI) $(OPENMP) $(FFTWL)
 
 jlmfft.o: $(CNBSE)/../zstd/jlmfft.f
 	 $(MPIFORT) -c -o jlmfft.o $(CNBSE)/../zstd/jlmfft.f
@@ -118,10 +119,10 @@ sizereport.o: $(CNBSE)/sizereport.f90
 	$(MPIFORT) $(FLAGS) -c -o sizereport.o $(CNBSE)/sizereport.f90
 
 OCEAN_bloch.o: OCEAN_bloch.f90 OCEAN_system.o AI_kinds.o OCEAN_mpi.o
-	$(MPIFORT) $(FLAGS) -c -o OCEAN_bloch.o OCEAN_bloch.f90 $(FFTWI)
+	$(MPIFORT) $(FLAGS) -c -o OCEAN_bloch.o OCEAN_bloch.f90 $(FFTWI) $(FFTWL)
 
 OCEAN_obf.o: OCEAN_obf.f90 OCEAN_system.o AI_kinds.o OCEAN_mpi.o
-	$(MPIFORT) $(FLAGS) -c -o OCEAN_obf.o OCEAN_obf.f90 $(FFTWI)
+	$(MPIFORT) $(FLAGS) -c -o OCEAN_obf.o OCEAN_obf.f90 $(FFTWI) $(FFTWL)
 
 OCEAN_invdrv.o: OCEAN_invdrv.f90
 	$(MPIFORT) $(FLAGS) -c -o OCEAN_invdrv.o OCEAN_invdrv.f90
@@ -130,13 +131,13 @@ OCEAN_read_tmels.o: OCEAN_read_tmels.f90 OCEAN_system.o OCEAN_mpi.o OCEAN_psi.o
 	$(MPIFORT) $(FLAGS) -c -o OCEAN_read_tmels.o OCEAN_read_tmels.f90
 
 OCEAN_bubble.o: OCEAN_bubble.f90 OCEAN_mpi.o OCEAN_val_states.o OCEAN_system.o
-	$(MPIFORT) $(FLAGS) -c -o OCEAN_bubble.o OCEAN_bubble.f90
+	$(MPIFORT) $(FLAGS) -c -o OCEAN_bubble.o OCEAN_bubble.f90 $(FFTWI) $(FFTWL)
 
 OCEAN_val_states.o: OCEAN_val_states.f90 AI_kinds.o
 	$(MPIFORT) $(FLAGS) -c -o OCEAN_val_states.o OCEAN_val_states.f90
 
 OCEAN_get_rho.o: OCEAN_get_rho.f90 OCEAN_mpi.o
-	$(MPIFORT) $(FLAGS) -c -o OCEAN_get_rho.o OCEAN_get_rho.f90
+	$(MPIFORT) $(FLAGS) -c -o OCEAN_get_rho.o OCEAN_get_rho.f90 $(FFTWI) $(FFTWL)
 
 optim.o: optim.f90
 	$(MPIFORT) $(FLAGS) -c -o optim.o optim.f90
@@ -145,7 +146,13 @@ OCEAN_hyb_louie_levine.o: OCEAN_hyb_louie_levine.f90
 	$(MPIFORT) $(FLAGS) -c -o OCEAN_hyb_louie_levine.o OCEAN_hyb_louie_levine.f90
 
 OCEAN_ladder.o: OCEAN_ladder.f90 OCEAN_psi.o OCEAN_mpi.o OCEAN_val_states.o OCEAN_system.o OCEAN_hyb_louie_levine.o
-	$(MPIFORT) $(FLAGS) -c -o OCEAN_ladder.o OCEAN_ladder.f90
+	$(MPIFORT) $(FLAGS) -c -o OCEAN_ladder.o OCEAN_ladder.f90 $(FFTWI) $(FFTWL)
+
+OCEAN_pfy.o: OCEAN_pfy.f90
+	$(MPIFORT) $(FLAGS) -c -o OCEAN_pfy.o OCEAN_pfy.f90
+
+OCEAN_rixs_holder.o: OCEAN_rixs_holder.f90
+	$(MPIFORT) $(FLAGS) -c -o OCEAN_rixs_holder.o OCEAN_rixs_holder.f90
 
 clean:
 	rm -f *.o *.mod
