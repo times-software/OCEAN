@@ -54,13 +54,14 @@ module OCEAN_val_states
 
     if( nxpts .lt. 1 ) return
 
-
-    write(6,*) 'PHASES!'
-!    write(6,*) myid, cmplx( re_val(1,1,1,1), im_val(1,1,1,1), DP )
-    write(6,*) myid, startx+1
-    write(6,*) myid, cmplx( re_val(2,1,2,1), im_val(2,1,2,1), DP )
-    write(6,*) myid, startx+min(110,nxpts)-1, startx, nxpts
-    write(6,*) myid, cmplx( re_val(min(110,nxpts),1,2,1), im_val(min(110,nxpts),1,2,1), DP )
+    if( .false. ) then
+      write(6,*) 'PHASES!'
+  !    write(6,*) myid, cmplx( re_val(1,1,1,1), im_val(1,1,1,1), DP )
+      write(6,*) myid, startx+1
+      write(6,*) myid, cmplx( re_val(2,1,2,1), im_val(2,1,2,1), DP )
+      write(6,*) myid, startx+min(110,nxpts)-1, startx, nxpts
+      write(6,*) myid, cmplx( re_val(min(110,nxpts),1,2,1), im_val(min(110,nxpts),1,2,1), DP )
+    endif
 
     ! DROT is "backwards" from how we want the phases to go hence minus sign in definition of im_phase
     do ispn = 1, nspn
@@ -75,9 +76,12 @@ module OCEAN_val_states
         enddo
       enddo
     enddo
-!    write(6,*) myid, cmplx( re_val(1,1,1,1), im_val(1,1,1,1), DP )
-    write(6,*) myid, cmplx( re_val(2,1,2,1), im_val(2,1,2,1), DP )
-    write(6,*) myid, cmplx( re_val(min(110,nxpts),1,2,1), im_val(min(110,nxpts),1,2,1), DP )
+
+    if( .false. ) then
+  !    write(6,*) myid, cmplx( re_val(1,1,1,1), im_val(1,1,1,1), DP )
+      write(6,*) myid, cmplx( re_val(2,1,2,1), im_val(2,1,2,1), DP )
+      write(6,*) myid, cmplx( re_val(min(110,nxpts),1,2,1), im_val(min(110,nxpts),1,2,1), DP )
+    endif
 
   end subroutine val_states_add_phase
 

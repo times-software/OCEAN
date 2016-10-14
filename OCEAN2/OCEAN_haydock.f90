@@ -868,6 +868,8 @@ module OCEAN_action
     case( 'XAS' )
       write(abs_filename,'(A8,A2,A1,I4.4,A1,A2,A1,I2.2)' ) 'absspct_', sys%cur_run%elname, &
           '.', sys%cur_run%indx, '_', sys%cur_run%corelevel, '_', sys%cur_run%photon
+    case( 'VAL' )
+      write(abs_filename,'(A)' ) 'opcons'
     case default
       write(abs_filename,'(A8,A2,A1,I4.4,A1,A2,A1,I2.2)' ) 'absspct_', sys%cur_run%elname, &
           '.', sys%cur_run%indx, '_', sys%cur_run%corelevel, '_', sys%cur_run%photon
@@ -877,10 +879,23 @@ module OCEAN_action
           sys%cur_run%rixs_energy, '.', sys%cur_run%rixs_pol
     end select
     
-    rm1 = -1; rm1 = sqrt( rm1 ); pi = 4.0d0 * atan( 1.0d0 )
+!    rm1 = -1; rm1 = sqrt( rm1 ); pi = 4.0d0 * atan( 1.0d0 )
 !    open( unit=99, file='absspct', form='formatted', status='unknown' )
     open( unit=99, file=abs_filename, form='formatted', status='unknown' )
     rewind 99
+
+    select case ( sys%cur_run%calc_type)
+      case( 'XES', 'XAS' )
+        call write_core( 99, iter, kpref )
+      case( 'VAL' )
+        call write_val( 99, iter, kpref, sys%celvol )
+
+      case default
+        call write_core( 99, iter, kpref )
+    
+    end select
+
+    if( .false. ) then
     do ie = 1, 2 * ne, 2
        e = el + ( eh - el ) * dble( ie ) / dble( 2 * ne )
        do jdamp = 0, 1
@@ -907,10 +922,111 @@ module OCEAN_action
        spkk = kpref * dr / ( dr ** 2 + di ** 2 )
        write ( 99, '(4(1e15.8,1x),1i5,1x,2(1e15.8,1x),1i5)' ) ener, spct( 1 ), spct( 0 ), spkk, iter, gam, kpref, ne
     end do
+    endif
+
+
     close(unit=99)
     !
     return
   end subroutine haydump
+
+  subroutine write_val( fh, iter, kpref , ucvol)
+    use OCEAN_constants, only : Hartree2eV
+    implicit none
+    integer, intent( in ) :: fh, iter
+    real(DP), intent( in ) :: kpref, ucvol
+    !
+    integer :: ie, i
+    real(DP) :: ere, reeps, imeps, lossf, fact
+    complex(DP) :: ctmp, arg, rp, rm, rrr, al, be, eps
+
+    fact = kpref * 2.0_dp * ucvol
+
+    write(fh,"(a)") "#   omega (eV)      epsilon_1       epsilon_2       n"// &
+      "               kappa           mu (cm^(-1))    R"//  &
+      "               epsinv"
+
+!p%kpref = 4.0d0 * pi * val ** 2 / (dble(sys%nkpts) * sys%celvol ** 2 )
+    do ie = 1, 2 * ne, 2
+      ere = el + ( eh - el ) * dble( ie ) / dble( 2 * ne )
+      ctmp = cmplx( ere, gam0, DP )
+
+      arg = ( ere - real_a( iter - 1 ) ) ** 2 - 4.0_dp * b( iter ) ** 2
+      arg = sqrt( arg )
+
+      rp = 0.5_dp * ( ere - real_a( iter - 1 ) + arg )
+      rm = 0.5_dp * ( ere - real_a( iter - 1 ) - arg )
+      if( aimag( rp ) .lt. 0.0_dp ) then
+        rrr = rp
+      else
+        rrr = rm
+      endif
+
+      al =  ctmp - real_a( iter - 1 ) - rrr
+      be = -ctmp - real_a( iter - 1 ) - rrr
+
+      do i = iter-1, 0, -1
+        al =  ctmp - real_a( i ) - b( i + 1 ) ** 2 / al
+        be = -ctmp - real_a( i ) - b( i + 1 ) ** 2 / be
+      enddo
+
+      eps = 1.0_dp - fact / al - fact / be
+
+      reeps = dble( eps )
+      imeps = dimag( eps )
+!      rad = sqrt( reeps ** 2 + imeps ** 2 )
+!      theta = acos( reeps / rad ) / 2
+!      indref = sqrt( rad ) * cos( theta )
+!      indabs = sqrt( rad ) * sin( theta )
+!      ref = ( ( indref - 1 ) ** 2 + indabs ** 2 ) /
+!   &        ( ( indref + 1 ) ** 2 + indabs ** 2 )
+      lossf = imeps / ( reeps ** 2 + imeps ** 2 )
+
+      write(fh,"(6E24.16)") ere*Hartree2eV, eps, sqrt(eps+1.0_dp), lossf
+
+    enddo
+
+  end subroutine write_val
+
+  subroutine write_core( fh, iter, kpref )
+    use OCEAN_constants, only : Hartree2eV
+    implicit none
+    integer, intent( in ) :: fh, iter
+    real(DP), intent( in ) :: kpref
+    !
+    integer :: ie, jdamp, jj
+    real(DP), external :: gamfcn
+    real(DP) :: e, gam, dr, di, ener, spct( 0 : 1 ), spkk
+    complex(DP) :: rm1, ctmp, disc, delta
+    !
+    rm1 = -1; rm1 = sqrt( rm1 )
+    do ie = 1, 2 * ne, 2
+       e = el + ( eh - el ) * dble( ie ) / dble( 2 * ne )
+       do jdamp = 0, 1
+          gam= gam0 + gamfcn( e, nval, eps ) * dble( jdamp )
+!          ctmp = e - a( iter - 1 ) + rm1 * gam
+          ctmp = e - real_a( iter - 1 ) + rm1 * gam
+          disc = sqrt( ctmp ** 2 - 4 * b( iter ) ** 2 )
+          di= -rm1 * disc
+          if ( di .gt. 0.0d0 ) then
+             delta = ( ctmp + disc ) / 2
+          else
+             delta = ( ctmp - disc ) / 2
+          end if
+          do jj = iter - 1, 0, -1
+!             delta = e - a( jj ) + rm1 * gam - b( jj + 1 ) ** 2 / delta
+             delta = e - real_a( jj ) + rm1 * gam - b( jj + 1 ) ** 2 / delta
+          end do
+          dr = delta
+          di = -rm1 * delta
+          di = abs( di )
+          ener = ebase + Hartree2eV * e
+          spct( jdamp ) = kpref * di / ( dr ** 2 + di ** 2 )
+       end do
+       spkk = kpref * dr / ( dr ** 2 + di ** 2 )
+       write ( fh, '(4(1e15.8,1x),1i5,1x,2(1e15.8,1x),1i5)' ) ener, spct( 1 ), spct( 0 ), spkk, iter, gam, kpref, ne
+    end do
+  end subroutine write_core
 
   subroutine OCEAN_hayinit( ierr )
     use OCEAN_mpi

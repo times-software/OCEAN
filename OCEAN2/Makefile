@@ -154,6 +154,12 @@ OCEAN_pfy.o: OCEAN_pfy.f90
 OCEAN_rixs_holder.o: OCEAN_rixs_holder.f90
 	$(MPIFORT) $(FLAGS) -c -o OCEAN_rixs_holder.o OCEAN_rixs_holder.f90
 
+OCEAN_pfy.o: OCEAN_pfy.f90 OCEAN_psi.o OCEAN_mpi.o OCEAN_system.o OCEAN_constants.o
+	$(MPIFORT) $(FLAGS) -c -o OCEAN_pfy.o OCEAN_pfy.f90
+
+OCEAN_rixs_holder.o: OCEAN_rixs_holder.f90
+	$(MPIFORT) $(FLAGS) -c -o OCEAN_rixs_holder.o OCEAN_rixs_holder.f90
+
 clean:
 	rm -f *.o *.mod
 

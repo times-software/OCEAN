@@ -215,7 +215,7 @@ module OCEAN_ladder
       id = id - 1
       if( id .ge. nproc ) id = id - nproc
       if( id .lt. 0 ) id = id + nproc
-      write(6,*) myid, i, id, beta
+!      write(6,*) myid, i, id, beta
 
       if( i .gt. 0 ) then
 !$OMP MASTER
@@ -292,7 +292,7 @@ module OCEAN_ladder
 !      enddo
       y_offset = startx_by_mpiID( id ) - 1
 
-      write(6,*) myid, nxpts_by_mpiID( id ), y_offset, id
+!      write(6,*) myid, nxpts_by_mpiID( id ), y_offset, id
 !      write(6,*) '-------'
 
 !$OMP DO COLLAPSE( 2 ) SCHEDULE( STATIC)
