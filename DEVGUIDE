@@ -61,3 +61,13 @@ III) Code style
     declarations a type should be explicitly declared using the OCEAN_kinds 
     module. Additionally, any written constant should be given an explicit 
     precision, eg. MyHartree = MyRydberg * 2.0_dp.
+  D) Public/Private
+    By default it is best that everything in modules be private. This doesn't 
+    work for everything. Module global variables that are public should also 
+    be declared as protected. This means they can only be modified within the 
+    module they are declared in. 
+  E) Use-ing Modules
+    Whenever possible, and especially for OCEAN modules, try to use the 'only' 
+    statement with use to explicitly state which variables and subroutines are 
+    being imported from any given module. This can make the code much more 
+    legible to a new developer. 
