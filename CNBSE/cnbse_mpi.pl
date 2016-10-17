@@ -1,6 +1,6 @@
 #!/usr/bin/perl
 
-# Copyright (C) 2015 OCEAN collaboration
+# Copyright (C) 2015, 2016 OCEAN collaboration
 #
 # This file is part of the OCEAN project and distributed under the terms 
 # of the University of Illinois/NCSA Open Source License. See the file 
@@ -65,12 +65,31 @@ if( $obf == 1 )
   foreach (@WFNFiles) {
     copy( "../zWFN/$_", $_ ) or die "Failed to get zWFN/$_\n$!";
   }
+  open OUT, ">tmel_selector" or die;
+  print OUT "1\n";
+  close OUT;
+  open OUT, ">enk_selector" or die;
+  print OUT "1\n";
+  close OUT;
+  open OUT, ">bloch_selector" or die;
+  print OUT "1\n";
+  close OUT;
 }
 else
 {
   foreach (@DenDipFiles) {
     copy( "../PREP/BSE/$_", $_ ) or die "Failed to get PREP/BSE/$_\n$!" ;
   }
+  open OUT, ">tmel_selector" or die;
+  print OUT "0\n";
+  close OUT;
+  open OUT, ">enk_selector" or die;
+  print OUT "0\n";
+  close OUT;
+  open OUT, ">bloch_selector" or die;
+  print OUT "0\n";
+  close OUT;
+
 }
 
 foreach (@ExtraFiles) {

@@ -28,6 +28,7 @@ photon_q
 } qinunitsofbvectors.ipt
 nbands
 {
+-1
 } nbands
 dft_energy_range
 {
@@ -134,7 +135,7 @@ tolwfr
 } wftol
 nstep
 {
-20
+50
 } nrun
 verbatim
 {
@@ -204,7 +205,7 @@ cnbse.xmesh
 } xmesh.ipt
 cnbse.rad
 {
-1.5
+3.5
 } cnbse.rad
 cnbse.ways
 {
