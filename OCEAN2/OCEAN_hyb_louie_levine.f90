@@ -107,7 +107,6 @@ module OCEAN_hyb_louie_levine
     
     call brcapper( sys%nxpts, rho, rsmin, rsmax, ierr )
     if( ierr .ne. 0 ) return 
-    write(6,*) sys%epsilon0
     call llft( sys%epsilon0, rsmin, rsmax, whomdat, d_array, rs_array, ierr )
     if( ierr .ne. 0 ) return
     call whom0( whomdat, d_array, w0dat, rad_array, ierr )
@@ -116,12 +115,15 @@ module OCEAN_hyb_louie_levine
     vol = sys%celvol * 0.529177249d0 ** 3
     rad0 = ( 3.0d0 * vol / ( 4.0d0 * pi * dble( sys%nxpts ) ) ) ** ( 1.0d0 / 3.0d0 )
     smear_vol = ( 6.0d0 * pi ** 2 / ( vol * dble( sys%nkpts ) ) ) ** ( 1.0d0 / 3.0d0 )
-!    if( myid .eq. root ) write(6,*) vol, rad0, smear_vol
     if( myid .eq. root ) then
       write(6,*)  " vol =", vol,       "  cubic angstroms."
       write(6,*)  "rad0 =", rad0,      "        angstroms."
       write(6,*)  "   q =", smear_vol, "inverse angstroms."
     endif
+    write(1000+myid,*)  " vol =", vol,       "  cubic angstroms."
+    write(1000+myid,*)  "rad0 =", rad0,      "        angstroms."
+    write(1000+myid,*)  "   q =", smear_vol, "inverse angstroms."
+
     ! convert avecs to angstroms
     call AI_ladder_formx( sys%xmesh(1), sys%xmesh(2), sys%xmesh(3), x_array )
     call AI_ladder_formr( sys%kmesh(1), sys%kmesh(2), sys%kmesh(3), r_array, ladcap )
@@ -149,9 +151,6 @@ module OCEAN_hyb_louie_levine
         kret( nkret ) = iter1
         mds = max( mds, rmag + maxxy )
       end if
-!      if( myid .eq. root ) then
-!        write(6,*) iter1, r_array(:,iter1)
-!      endif
 
     enddo
     if( myid .eq. 0 ) then
@@ -227,16 +226,15 @@ module OCEAN_hyb_louie_levine
   20  continue
       irtab( iter1 ) = rs_cur
       ftab( iter1 ) = ( rsx - rs_array( rs_cur ) ) / ( rs_array( rs_cur + 1 ) - rs_array( rs_cur ) )
-!      write(6,*) iter1, sys%nxpts, ftab( iter1 ), irtab( iter1 ), rho( iter1 )
     enddo
     !
     if( myid .eq. 0 ) write(6,*)  'Done with loop'
     dspc = d_array(2) - d_array(1)
     !
     !
-    ladder( :, :, : ) = 0.d0
+    ladder( :, :, : ) = 0.0_dp
     inquire( file='ladder.dat', exist=override_ladder ) 
-    if( override_ladder ) then
+    if( override_ladder .and. nproc .eq. 1 ) then
       write(6,*) 'Override ladder!!!'
       open(unit=99,file='ladder.dat',form='unformatted', status='old')
       read(99) nkret_
@@ -245,8 +243,6 @@ module OCEAN_hyb_louie_levine
 
       if( nkret_ .ne. nkret ) then
         override_ladder = .false.
-!      elseif( kret_(:) .ne. kret(:) )
-!        override_ladder = .false.
       else
         do ix = 1, sys%nxpts
           do iy = 1, sys%nxpts
@@ -260,10 +256,11 @@ module OCEAN_hyb_louie_levine
       deallocate( kret_) !, tempor )
     endif
 
+
+
+
     if( .not. override_ladder ) then
-    open( unit=99,file='lad.txt')
     do ix = nx_start, nx_start+nx-1
-!      if( myid .eq. root ) write(6,*) ix, nx_start+nx-1
       ixr = irtab( ix )
       fx = ftab( ix )
       gx = 1.0d0 - fx
@@ -305,10 +302,8 @@ module OCEAN_hyb_louie_levine
               fcn = 1.0d0 - 0.1d0 * qde ** 2
             end if
             ladder( iter1, ix - nx_start + 1, iy ) = 14.400d0 * ww * fcn ** 2 * eV2Hartree! e^2/Angstrom = 14.4 eV
-!            ladder( iter1, iy, ix - nx_start + 1 ) = 14.400d0 * ww * fcn ** 2 * eV2Hartree! e^2/Angstrom = 14.4 eV
           endif
           if( ieee_is_nan( ladder( iter1, ix - nx_start + 1, iy ) ) ) then
-!          if( ieee_is_nan( ladder( iter1, iy, ix - nx_start + 1 ) ) ) then
             ierr = 1001
             write(6,*) iter1, ix, iy, ladder( iter1, ix - nx_start + 1, iy )
             write(6,*) de, smear_vol, qde
@@ -319,13 +314,11 @@ module OCEAN_hyb_louie_levine
             write(6,*) jd, fff, fcn      
             return
           endif
-          !write(99,'(4I8,E24.4)') ix, iy, kret(iter1), iter1, ladder( iter1, iy, ix - nx_start + 1 ) * Hartree2eV
         enddo ! iter1 = 1, nkret
       enddo ! iy = 1, num_xpoints
     enddo ! ix = 1, num_xpoints
   endif
 
-    close(99)
     if( myid .eq. root ) write( 6, * ) 'Hybertsen-Louie-Levine model W constructed'
 
 
