@@ -136,6 +136,12 @@ subroutine jtvsub( lmin, lmax, nproj, npmax, lc, nbsemel, powmax, ifcn, stext, e
                       pl = 0.5d0 * ( 3.0d0 * qdot ** 2 - 1.0d0 )
                     case( 3 )
                       pl = 0.5d0 * ( 5.0d0 * qdot ** 3 - 3.0d0 * qdot )
+                    case( 4 )
+                      pl = 0.125d0 * ( 35.0d0 * qdot ** 4 - 30.0d0 * qdot ** 2 + 3.0d0 )
+                    case( 5 )
+                      pl = 0.125d0 * ( 63.0d0 * qdot ** 5 - 70.0d0 * qdot ** 3 + 15.0d0 * qdot )
+                    case default
+                      pl = 0.0d0
                     end select
                     angint = angint + wsph( i ) * conjg( ylcmc ) * ylm * pl
                  enddo
