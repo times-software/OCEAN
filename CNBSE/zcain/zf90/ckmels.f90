@@ -7,11 +7,11 @@ subroutine ckmels( nr, lc, lmin, lmax, npmax, nproj, phae, phps, r, dl, wc, jl, 
   real( kind = kind( 1.0d0 ) ) :: r( nr ), wc( nr ), jl( nr, 0 : lc + lmax ), jlpow( nr, 0 : lc + lmax )
   real( kind = kind( 1.0d0 ) ) :: phae( nr, npmax, lmin : lmax ), phps( nr, npmax, lmin : lmax )
   !
-  integer :: l, iener, nener, idum, ii, iphotl, ip, ir
+  integer :: l, iener, nener, idum, iphotl, ip, ir
   real( kind = kind( 1.0d0 ) ) :: dum, aemel, rcmel, pomel
   real( kind = kind( 1.0d0 ) ), allocatable, dimension( : ) :: dr, coeff, ener
   real( kind = kind( 1.0d0 ) ), allocatable, dimension( :, : ) :: phiae, phips
-  real( kind = kind( 1.0d0 ) ), allocatable, dimension( :, :, : ) :: meltab
+  real( kind = kind( 1.0d0 ) ), allocatable, dimension( :, : ) :: meltab
   character( len=8 ) :: s8
   character( len=80 ) :: fnam
   !
@@ -31,16 +31,14 @@ subroutine ckmels( nr, lc, lmin, lmax, npmax, nproj, phae, phps, r, dl, wc, jl, 
      rewind 99
      read ( 99, * ) s8, nener, idum
      allocate( ener( nener ), phiae( nr, nener ), phips( nr, nener ) )
-     allocate( meltab( 1000, 3, nener ) )
+     allocate( meltab( 3, nener ) )
      do iener = 1, nener
         do ir = 1, nr
            read ( 99, * ) dum, ener( iener ), phiae( ir, iener ), dum, phips( ir, iener )
         end do
      end do
      close( unit=99 )
-     ii = 0
      do iphotl = iabs( lc - l ), lc + l, 2 
-        ii = ii + 1
         do iener = 1, nener
            coeff( 1 : nproj( l ) ) = 0
            do ip = 1, nproj( l )
@@ -58,17 +56,17 @@ subroutine ckmels( nr, lc, lmin, lmax, npmax, nproj, phae, phps, r, dl, wc, jl, 
                  pomel = pomel + dr( ir ) * wc( ir ) * jlpow( ir, iphotl ) * coeff( ip ) * ( r( ir ) * phae( ir, ip, l ) )
               end do
            end do
-           meltab( ii, 1, iener ) = aemel
-           meltab( ii, 2, iener ) = rcmel
-           meltab( ii, 3, iener ) = pomel
+           meltab( 1, iener ) = aemel
+           meltab( 2, iener ) = rcmel
+           meltab( 3, iener ) = pomel
         end do
         write ( fnam, '(1a10,1i1,1i2.2)' ) 'pawmeldiag', l, iphotl
         open( unit=99, file=fnam, form='formatted', status='unknown' )
         rewind 99
         write ( 99, '(1a80)' ) '#    energy, mels for allowed l vals, reconstructed mels for allowed l vals'
         do iener = 1, nener
-           write ( 99, '(15(1x,1e15.8))' ) ener( iener ), meltab( 1 : ii, 1, iener ), meltab( 1 : ii, 2, iener ), &
-                meltab( 1 : ii, 3, iener )
+           write ( 99, '(15(1x,1e15.8))' ) ener( iener ), meltab( 1, iener ), meltab( 2, iener ), &
+                meltab( 3, iener )
         end do 
         close( unit=99 )
      end do
