@@ -21,6 +21,7 @@ program vhommod
   !
   real( kind=dp ), external :: levlou, sphj0, sphj1
   !
+  logical :: havenav
   character(len=80) :: dummy
   !
   pi = 4.d0 * datan( 1.d0 )
@@ -47,7 +48,14 @@ program vhommod
   read ( 99, * ) idum
   read ( 99, * ) idum, idum, idum, nel
   close( unit=99 )
-  nav = dble( nel ) / omega
+  inquire( file='fake_nav.ipt', exist=havenav)
+  if( havenav ) then
+    open( unit=99, file='fake_nav.ipt', form='formatted', status='old' )
+    rewind 99
+    read( 99, * ) nav
+  else
+    nav = dble( nel ) / omega
+  endif
   !
 !  read ( stdin, * ) epsq0 
   allocate( v( nr ), vh( nr ), dv( nr ) )
