@@ -8,7 +8,6 @@ module OCEAN_rixs_holder
 
   integer :: local_ZNL(3)
   logical :: is_init
-  logical :: have_cksv
 
   public :: OCEAN_rixs_holder_load, OCEAN_rixs_holder_clean
 
@@ -19,7 +18,6 @@ module OCEAN_rixs_holder
 
     if( is_init ) deallocate( xes_vec )
     is_init = .false.
-    have_cksv = .false.
   end subroutine OCEAN_rixs_holder_clean
 
   subroutine OCEAN_rixs_holder_init( sys, ierr )
@@ -38,24 +36,26 @@ module OCEAN_rixs_holder
       if( local_ZNL(1) .eq. sys%ZNL(1) .and. local_ZNL(2) .eq. sys%ZNL(2) .and. local_ZNL(3) .eq. sys%ZNL(3) ) return
       deallocate( xes_vec )
       is_init = .false.
-      have_cksv = .false.
     endif
 
     allocate( xes_vec( sys%val_bands, sys%nkpts, 2 * sys%ZNL(2) + 1, sys%nedges ) )
+    is_init = .true.
 
   end subroutine OCEAN_rixs_holder_init
 
-  subroutine OCEAN_rixs_holder_load( sys, psi, file_selector, ierr )
+  subroutine OCEAN_rixs_holder_load( sys, p_vec, file_selector, ierr )
     use OCEAN_system
-    use OCEAN_psi
     use OCEAN_mpi, only : myid, root, comm
 
     implicit none
     
     type(O_system), intent( in ) :: sys 
-    type(OCEAN_vector), intent( inout ) :: psi
+!    complex(DP), intent( inout ) :: p_vec(sys%num_bands, sys%val_bands, sys%nkpts, 1 )
+    complex(DP), intent( inout ) :: p_vec(:,:,:,:)
     integer, intent( in ) :: file_selector
     integer, intent( inout ) :: ierr
+
+    integer :: ierr_
 
     call OCEAN_rixs_holder_init( sys, ierr )
     if( ierr .ne. 0 ) return
@@ -63,20 +63,18 @@ module OCEAN_rixs_holder
 
     if( myid .eq. root ) then
 
-      if( have_cksv .eq. .false. ) then
-        call cksv_read( sys, file_selector, ierr )
-        if( ierr .ne. 0 ) return
-      endif
+      call cksv_read( sys, file_selector, ierr )
+      if( ierr .ne. 0 ) return
 
-      call rixs_seed( sys, psi, file_selector, ierr )
+      call rixs_seed( sys, p_vec, file_selector, ierr )
       
     endif
 
 #ifdef MPI
-    call MPI_BCAST( psi%valr, psi%val_full_size, MPI_DOUBLE_PRECISION, root, comm, ierr )
+    call MPI_BCAST( ierr, 1, MPI_INTEGER, root, comm, ierr_ )
     if( ierr .ne. MPI_SUCCESS ) return
-
-    call MPI_BCAST( psi%vali, psi%val_full_size, MPI_DOUBLE_PRECISION, root, comm, ierr )
+    
+    call MPI_BCAST( p_vec, size(p_vec), MPI_DOUBLE_COMPLEX, root, comm, ierr )
     if( ierr .ne. MPI_SUCCESS ) return
 #endif
 
@@ -84,30 +82,32 @@ module OCEAN_rixs_holder
   end subroutine OCEAN_rixs_holder_load
 
 
-  subroutine rixs_seed( sys, psi, file_selector, ierr )
+  subroutine rixs_seed( sys, p_vec, file_selector, ierr )
     use OCEAN_system
-    use OCEAN_psi
 
     implicit none
 
     type(O_system), intent( in ) :: sys 
-    type(OCEAN_vector), intent( inout ) :: psi
+    complex(DP), intent( out ) :: p_vec(:,:,:,:)
     integer, intent( in ) :: file_selector
     integer, intent( inout ) :: ierr
     !
-    complex(DP), allocatable :: rex( :, :, :, : ), tmp_psi( :, :, :, : )
+    complex(DP), allocatable :: rex( :, :, :, : )
     integer :: edge_iter, ic, icms, icml, ivms, ispin, i, j, ik
-    character(len=11) :: echamp_file
+    character(len=25) :: echamp_file
 
-    allocate( rex( sys%num_bands, sys%nkpts, 4*(2*sys%ZNL(3)+1), sys%nedges ), &
-              tmp_psi( sys%val_bands, sys%num_bands, sys%nkpts, sys%nspn**2 ) )
+    allocate( rex( sys%num_bands, sys%nkpts, 4*(2*sys%ZNL(3)+1), sys%nedges ) )
 
     do edge_iter = 1, sys%nedges
-      write(6,'(A7,I4.4)') 'echamp.', edge_iter
-      write(echamp_file, '(A7,I4.4)') 'echamp.', edge_iter
+!      write(6,'(A7,I4.4)') 'echamp.', edge_iter
+      write(echamp_file,'(A7,A2,A1,I4.4,A1,A2,A1,I2.2,A1,I4.4)' ) 'echamp_', sys%cur_run%elname, &
+              '.', edge_iter, '_', sys%cur_run%corelevel, '_', sys%cur_run%photon, '.', & 
+              sys%cur_run%rixs_energy
+!      write(echamp_file, '(A7,I4.4)') 'echamp.', edge_iter
+      write(6,*) echamp_file
       open(unit=99,file=echamp_file,form='unformatted',status='old')
       rewind(99)
-      read(99) rex
+      read(99) rex(:,:,:,edge_iter)
       close(99)
 
 
@@ -118,19 +118,18 @@ module OCEAN_rixs_holder
           do ivms = 1, 3, 2
             ispin = min( icms + ivms, sys%nspn**2 )
             ic = ic + 1
-            do i = 1, sys%val_bands
-              do j = 1, sys%num_bands
-                tmp_psi( j, i, ik, ispin ) = tmp_psi( j, i, ik, ispin ) + &
-                    rex( j, ik, ic, edge_iter ) * xes_vec(i,ik,icml,edge_iter)
+            do ik = 1, sys%nkpts
+              do i = 1, sys%val_bands
+                do j = 1, sys%num_bands
+                  p_vec( j, i, ik, ispin ) = p_vec( j, i, ik, ispin ) + &
+                      rex( j, ik, ic, edge_iter ) * xes_vec(i,ik,icml,edge_iter)
+                enddo
               enddo
             enddo
           enddo
         enddo
       enddo
     enddo    
-
-    psi%valr(:,:,:,:) = real( tmp_psi(:,:,:,:) )
-    psi%vali(:,:,:,:) = aimag( tmp_psi(:,:,:,:) )
 
     deallocate( rex )
 
@@ -180,7 +179,7 @@ module OCEAN_rixs_holder
           allocate( mer( nptot, -sys%ZNL(3) : sys%ZNL(3) ),  mei( nptot, -sys%ZNL(3) : sys%ZNL(3) ) )
 
           write(mel_filename,'(A5,A1,I3.3,A1,I2.2,A1,I2.2,A1,I2.2)' ) 'mels.', 'z', sys%ZNL(1), & 
-              'n', sys%ZNL(2), 'l', sys%ZNL(3), 'p', 1 
+              'n', sys%ZNL(2), 'l', sys%ZNL(3), 'p', sys%cur_run%rixs_pol
            open( unit=99, file=mel_filename, form='formatted', status='old' ) 
           rewind( 99 ) 
           do icml = -sys%ZNL(3), sys%ZNL(3)
@@ -216,8 +215,6 @@ module OCEAN_rixs_holder
       enddo
 
       deallocate( mer, mei, pcr, pci )
-
-      have_cksv = .true.
 
 
     case( 0 )

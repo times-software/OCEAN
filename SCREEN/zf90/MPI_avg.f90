@@ -19,7 +19,7 @@ program avg
   real(kind=kind(1.d0)) :: gmodmax( 3 ), sgmodmax
 
   character(len=2), allocatable :: elname(:)
-  character(len=7) :: avgname
+  character(len=9) :: avgname
 
   real(kind=kind(1.d0)), allocatable :: Vdenr(:), Vdeni(:)
 
@@ -242,7 +242,7 @@ program avg
   enddo
 
   if( my_poolrank .eq. 0 ) then
-    write(avgname,"(a3,a2,i2.2)")"avg",elname(i),elnum(i)
+    write(avgname,"(a3,a2,i4.4)")"avg",elname(i),elnum(i)
     open(unit=97,file=avgname,form='formatted',status='unknown')
     do rad_int = 0, 400
       radius = 0.00001d0 + dble( rad_int ) / 10.d0

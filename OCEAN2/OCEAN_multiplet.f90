@@ -257,7 +257,7 @@ module OCEAN_multiplet
     
     character(len=4) :: add04
     character(len=10) :: add10
-    character(len=12) :: add12
+    character(len=14) :: add14
     character(len=11) :: s11
     character(len=5) :: s5
 
@@ -281,7 +281,7 @@ module OCEAN_multiplet
 
     if( is_init ) return
 
-    write(add12 , '(A2,I2.2,A1,A1,I2.2,A1,I2.2)' ) sys%cur_run%elname, sys%cur_run%indx, &
+    write(add14 , '(A2,I4.4,A1,A1,I2.2,A1,I2.2)' ) sys%cur_run%elname, sys%cur_run%indx, &
             '_', 'n', sys%cur_run%ZNL(2), 'l', sys%cur_run%ZNL(3)
 
     if( myid .eq. root ) then
@@ -358,7 +358,7 @@ module OCEAN_multiplet
          end do
       end do
       !
-      call nbsemkcmel( add04, add12 )
+      call nbsemkcmel( add04, add14 )
       do lv = lvl, lvh
          ii = ibeg( lv )
          jj = jbeg( lv )
@@ -586,13 +586,13 @@ module OCEAN_multiplet
                  ctmp = ctmp + jimel( dble( sys%cur_run%ZNL(3) ), cml( jc ), cml( ic ), i ) & 
                              * jimel( 0.5d0, cms( jc ), cms( ic ), i )
                end do
-               write(20,*) ic, jc, real( ctmp ) !, aimag( ctmp )
+               write(20,*) ic, jc, real( ctmp, DP ) !, aimag( ctmp )
                write(21,*) jimel( dble( sys%cur_run%ZNL(3) ), cml( jc ), cml( ic ), 1 ), &
                   sys%cur_run%ZNL(3), nint( cml( jc ) ), nint( cml( ic ) )
 !               flush(20)
 !               write(21,*) vrslt( : ), jimel( 0.5d0, cms( jc ), cms( ic ), 1 )
 !               ctmp = -xi * ctmp
-               somelr( ic, jc ) = -xi * real( ctmp ) !- aimag( ctmp ) * l_alpha
+               somelr( ic, jc ) = -xi * real( ctmp, DP ) !- aimag( ctmp ) * l_alpha
                someli( ic, jc ) = xi * aimag( ctmp ) !- real( ctmp ) * l_alpha
 !               if( ic .eq. jc ) then
 !                 someli( ic, jc ) = someli( ic, jc ) - l_beta !* real( ctmp )
@@ -1531,7 +1531,14 @@ module OCEAN_multiplet
 
     ! If we stop exactly on nkpts this will give 0 + core_a_start = core_a_start
     a_stop = ( core_store_size_remain + k_start - 2 ) / sys%nkpts + in_vec%core_a_start
-
+! This should be caught earlier in OCEAN_psi
+!    if( a_stop .gt. sys%nalpha ) then
+!      write(6,*) '!!! ASTOP !!!'
+!      write(6,*) a_stop, core_store_size_remain, k_start
+!      write(6,*) sys%nkpts, in_vec%core_a_start
+!      a_stop = sys%nalpha
+!    endif
+      
 
 !$OMP  PARALLEL DEFAULT( NONE )  &
 !$OMP& SHARED( in_vec, out_vec, lmin, lmax, nproj, sys, mpm, mul, jbeg, mham, mhr, mhi) &
@@ -1898,7 +1905,7 @@ module OCEAN_multiplet
                          call threey( l1, m1, k, mk, l3, m3, no, npt, x, w, yp, f1 )
                          call threey( l2, m2, k, mk, l4, m4, yes, npt, x, w, yp, f2 )
                          ctmp = - ffk * f1 * f2 * ( 4 * pi / ( 2 * k + 1 ) )
-                         mhr( i1, i2 ) = mhr( i1, i2 ) + real(ctmp)
+                         mhr( i1, i2 ) = mhr( i1, i2 ) + real(ctmp,DP)
                          mhi( i1, i2 ) = mhi( i1, i2 ) + aimag(ctmp) !- ctmp * rm1
                       end if
                    end do
@@ -1920,7 +1927,7 @@ module OCEAN_multiplet
                          call threey( l1, m1, k, mk, l3, m3, no, npt, x, w, yp, f1 )
                          call threey( l2, m2, k, mk, l4, m4, yes, npt, x, w, yp, f2 )
                          ctmp = ggk * f1 * f2 * ( 4 * pi / ( 2 * k + 1 ) )
-                         mhr( i1, i2 ) = mhr( i1, i2 ) + real(ctmp)
+                         mhr( i1, i2 ) = mhr( i1, i2 ) + real(ctmp,DP)
                          mhi( i1, i2 ) = mhi( i1, i2 ) + aimag(ctmp)! - ctmp * rm1
                       end if
                    end do

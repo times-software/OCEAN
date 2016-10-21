@@ -1,4 +1,4 @@
-! Copyright (C) 2015 OCEAN collaboration
+! Copyright (C) 2015,2016 OCEAN collaboration
 !
 ! This file is part of the OCEAN project and distributed under the terms 
 ! of the University of Illinois/NCSA Open Source License. See the file 
@@ -21,6 +21,7 @@ module OCEAN_system
     integer( S_INT ) :: nkpts
     integer( S_INT ) :: nxpts
     integer( S_INT ) :: nalpha
+    integer( S_INT ) :: nbeta
     integer( S_INT ) :: num_bands
     integer( S_INT ) :: val_bands
     integer          :: brange(4)
@@ -32,6 +33,11 @@ module OCEAN_system
     integer( S_INT ) :: nobf = 0
     integer( S_INT ) :: nruns
     integer          :: nedges 
+    integer          :: nXES_photon
+
+    integer          :: tmel_selector
+    integer          :: enk_selector
+    integer          :: bloch_selector
 
     logical          :: e0
     logical          :: mult
@@ -61,12 +67,14 @@ module OCEAN_system
     integer :: num_bands
     integer :: val_bands
     integer :: start_band
+    integer :: rixs_energy 
+    integer :: rixs_pol
     character(len=2) :: elname
     character(len=2) :: corelevel
     character(len=255) :: basename
     character(len=255) :: filename
 
-    character(len=5) :: calc_type
+    character(len=3) :: calc_type
 
     logical          :: e0
     logical          :: mult
@@ -74,8 +82,13 @@ module OCEAN_system
     logical          :: obf
     logical          :: conduct
     logical          :: valence = .false.
-    logical          :: have_core = .true.
-    logical          :: have_val  = .false.
+    logical          :: have_core  
+    logical          :: have_val  
+    logical          :: lflag
+    logical          :: bflag
+    logical          :: bande = .true.
+    logical          :: aldaf
+    logical          :: backf
     
     type(o_run), pointer :: prev_run => null()
     type(o_run), pointer :: next_run => null()
@@ -134,6 +147,7 @@ module OCEAN_system
       rewind(99)
       read(99,*) sys%nspn
       close(99)
+      sys%nbeta = sys%nspn**2
 
       open(unit=99,file='ZNL',form='formatted',status='old')
       rewind(99) 
@@ -166,6 +180,7 @@ module OCEAN_system
       read(98,*) sys%brange(3:4)
       close(98)
 
+      sys%val_bands = sys%brange(2) - sys%brange(1) + 1
 
       call getabb( sys%avec, sys%bvec, sys%bmet )
       call getomega( sys%avec, sys%celvol )     
@@ -220,6 +235,32 @@ module OCEAN_system
       endif
 
       
+      open(unit=99,file='epsilon',form='formatted', status='old' )
+      read(99,*) sys%epsilon0
+      close( 99 )
+
+      open(unit=99,file='tmel_selector',form='formatted',status='old')
+      read(99,*) sys%tmel_selector
+      close(99)
+
+      open(unit=99,file='enk_selector',form='formatted',status='old')
+      read(99,*) sys%enk_selector
+      close(99)
+
+      open(unit=99,file='bloch_selector',form='formatted',status='old')
+      read(99,*) sys%bloch_selector
+      close(99)
+
+      inquire(file='nXES_photon.ipt', exist=exst )
+      if( exst ) then
+        open(unit=99,file='nXES_photon.ipt',form='formatted',status='old')
+        read(99,*) sys%nXES_photon
+        close(99)
+      else
+        sys%nXES_photon = -1
+      endif
+
+
       
     endif
 #ifdef MPI
@@ -237,6 +278,9 @@ module OCEAN_system
     if( ierr .ne. MPI_SUCCESS ) goto 111
     call MPI_BCAST( sys%qinunitsofbvectors, 3, MPI_DOUBLE_PRECISION, root, comm, ierr )
     if( ierr .ne. MPI_SUCCESS ) goto 111
+    call MPI_BCAST( sys%epsilon0, 1, MPI_DOUBLE_PRECISION, root, comm, ierr )
+    if( ierr .ne. MPI_SUCCESS ) goto 111
+
     call MPI_BCAST( sys%nkpts, 1, MPI_INTEGER, root, comm, ierr )
     if( ierr .ne. MPI_SUCCESS ) goto 111
     call MPI_BCAST( sys%nxpts, 1, MPI_INTEGER, root, comm, ierr )
@@ -245,6 +289,8 @@ module OCEAN_system
     if( ierr .ne. MPI_SUCCESS ) goto 111
     call MPI_BCAST( sys%num_bands, 1, MPI_INTEGER, root, comm, ierr )
     if( ierr .ne. MPI_SUCCESS ) goto 111
+    call MPI_BCAST( sys%val_bands, 1, MPI_INTEGER, root, comm, ierr )
+    if( ierr .ne. MPI_SUCCESS ) goto 111
     call MPI_BCAST( sys%xmesh, 3, MPI_INTEGER, root, comm, ierr )
     if( ierr .ne. MPI_SUCCESS ) goto 111
     call MPI_BCAST( sys%kmesh, 3, MPI_INTEGER, root, comm, ierr )
@@ -252,12 +298,24 @@ module OCEAN_system
     call MPI_BCAST( sys%ZNL, 3, MPI_INTEGER, root, comm, ierr )
     if( ierr .ne. MPI_SUCCESS ) goto 111
     call MPI_BCAST( sys%nspn, 1, MPI_INTEGER, root, comm, ierr )
+    if( ierr .ne. MPI_SUCCESS ) goto 111
+    call MPI_BCAST( sys%nbeta, 1, MPI_INTEGER, root, comm, ierr )
+    if( ierr .ne. MPI_SUCCESS ) goto 111
     call MPI_BCAST( sys%brange, 4, MPI_INTEGER, root, comm, ierr )
     if( ierr .ne. MPI_SUCCESS ) goto 111
     call MPI_BCAST( sys%nelectron, 1, MPI_INTEGER, root, comm, ierr )
     if( ierr .ne. MPI_SUCCESS ) goto 111
     call MPI_BCAST( sys%nedges, 1, MPI_INTEGER, root, comm, ierr )
     if( ierr .ne. MPI_SUCCESS ) goto 111
+    call MPI_BCAST( sys%tmel_selector, 1, MPI_INTEGER, root, comm, ierr )
+    if( ierr .ne. MPI_SUCCESS ) goto 111
+    call MPI_BCAST( sys%enk_selector, 1, MPI_INTEGER, root, comm, ierr )
+    if( ierr .ne. MPI_SUCCESS ) goto 111
+    call MPI_BCAST( sys%bloch_selector, 1, MPI_INTEGER, root, comm, ierr )
+    if( ierr .ne. MPI_SUCCESS ) goto 111
+    call MPI_BCAST( sys%nXES_photon, 1, MPI_INTEGER, root, comm, ierr )
+    if( ierr .ne. MPI_SUCCESS ) goto 111
+
 
 
     call MPI_BCAST( sys%e0, 1, MPI_LOGICAL, root, comm, ierr )
@@ -314,10 +372,14 @@ module OCEAN_system
     character(len=5) :: calc_type
     type(o_run), pointer :: temp_prev_run, temp_cur_run
 
-    integer :: ntot, nmatch, iter, i, idum, start_band, num_bands, val_bands
-    logical :: found, have_val, have_core
+    integer :: ntot, nmatch, iter, i, idum, start_band, num_bands, val_bands, val_flag,  &
+               rixs_energy, rixs_pol
+    logical :: found, have_val, have_core, lflag, bflag
     real(DP) :: tmp(3)
 
+    ! These are optional so should be given defaults
+    rixs_pol = 0
+    rixs_energy = 0
 
     running_total = 0 
     temp_prev_run => sys%cur_run
@@ -346,18 +408,23 @@ module OCEAN_system
           start_band = sys%brange(3)
           num_bands = sys%num_bands
           have_core = .true.
+          val_bands = sys%brange(2)-sys%brange(1)+1
         case( 'XES' )
           start_band = sys%brange(1)
           num_bands = sys%num_bands
           have_core = .true.
+          val_bands = sys%brange(2)-sys%brange(1)+1
         case( 'VAL' )
           num_bands = sys%brange(4)-sys%brange(3)+1
-          val_bands = sys%brange(2)-sys%brange(2)+1
-          sys%have_val = .true.
+          val_bands = sys%brange(2)-sys%brange(1)+1
+          have_val = .true.
         case( 'RXS' )
+          backspace( 99 )
+          read(99,*)  ZNL(1), ZNL(2), ZNL(3), elname, corelevel, indx, photon, calc_type, &
+                      rixs_energy, rixs_pol
           num_bands = sys%brange(4)-sys%brange(3)+1
-          val_bands = sys%brange(2)-sys%brange(2)+1
-          sys%have_val = .true.
+          val_bands = sys%brange(2)-sys%brange(1)+1
+          have_val = .true.
           
         case default
           start_band = sys%brange(3)
@@ -390,6 +457,30 @@ module OCEAN_system
           close(98)
         endif
 
+        if( have_val ) then
+          open(unit=98,file="lflag",form='formatted',status='old')
+          rewind(98)
+          read(98,*) val_flag
+          close(98)
+          if( val_flag .gt. 0 ) then
+            lflag = .true.
+          else
+            lflag = .false.
+          endif
+
+          open(unit=98,file="bflag",form='formatted',status='old')
+          rewind(98)
+          read(98,*) val_flag
+          close(98)
+          if( val_flag .gt. 0 ) then
+            bflag = .true.
+          else
+            bflag = .false.
+          endif
+
+        endif
+            
+
 
       endif
 
@@ -415,9 +506,17 @@ module OCEAN_system
       if( ierr .ne. MPI_SUCCESS ) goto 111
       call MPI_BCAST( val_bands, 1, MPI_INTEGER, root, comm, ierr )
       if( ierr .ne. MPI_SUCCESS ) goto 111
+      call MPI_BCAST( rixs_energy, 1, MPI_INTEGER, root, comm, ierr )
+      if( ierr .ne. MPI_SUCCESS ) goto 111
+      call MPI_BCAST( rixs_pol, 1, MPI_INTEGER, root, comm, ierr )
+      if( ierr .ne. MPI_SUCCESS ) goto 111
       call MPI_BCAST( have_core, 1, MPI_LOGICAL, root, comm, ierr )
       if( ierr .ne. MPI_SUCCESS ) goto 111
       call MPI_BCAST( have_val, 1, MPI_LOGICAL, root, comm, ierr )
+      if( ierr .ne. MPI_SUCCESS ) goto 111
+      call MPI_BCAST( lflag, 1, MPI_LOGICAL, root, comm, ierr )
+      if( ierr .ne. MPI_SUCCESS ) goto 111
+      call MPI_BCAST( bflag, 1, MPI_LOGICAL, root, comm, ierr )
       if( ierr .ne. MPI_SUCCESS ) goto 111
 #endif
 
@@ -448,6 +547,11 @@ module OCEAN_system
 
       temp_cur_run%have_core = have_core
       temp_cur_run%have_val = have_val
+      temp_cur_run%lflag = lflag
+      temp_cur_run%bflag = bflag
+
+      temp_cur_run%rixs_energy = rixs_energy
+      temp_cur_run%rixs_pol = rixs_pol
       
       temp_cur_run%basename = 'abs'
       write(temp_cur_run%filename,'(A3,A1,A2,A1,I2.2,A1,A2,A1,I2.2)' ) temp_cur_run%basename, '_', temp_cur_run%elname, &

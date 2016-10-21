@@ -25,7 +25,10 @@ if( $dft =~ m/obf/i )
   {
     last if( $line =~ m/done building Hamiltonian/ );
   }
-  <IN> =~ m/\d+\s+([-]?\d+\.\d+)\s+([-]?\d+\.\d+)/ or die "Failed to parse q.out\n$_\n";
+  my $bonus_line = <IN>;
+  $bonus_line .= <IN>;
+  $bonus_line .= <IN>;
+  $bonus_line =~ m/\d+\s+([-]?\d+\.\d+)\s+([-]?\d+\.\d+)/ or die "Failed to parse q.out\n$_\n";
   $dft_min = $1;
   $dft_max = $2;
   close IN;

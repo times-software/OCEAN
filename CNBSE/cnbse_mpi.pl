@@ -1,6 +1,6 @@
 #!/usr/bin/perl
 
-# Copyright (C) 2015 OCEAN collaboration
+# Copyright (C) 2015, 2016 OCEAN collaboration
 #
 # This file is part of the OCEAN project and distributed under the terms 
 # of the University of Illinois/NCSA Open Source License. See the file 
@@ -65,12 +65,31 @@ if( $obf == 1 )
   foreach (@WFNFiles) {
     copy( "../zWFN/$_", $_ ) or die "Failed to get zWFN/$_\n$!";
   }
+  open OUT, ">tmel_selector" or die;
+  print OUT "1\n";
+  close OUT;
+  open OUT, ">enk_selector" or die;
+  print OUT "1\n";
+  close OUT;
+  open OUT, ">bloch_selector" or die;
+  print OUT "1\n";
+  close OUT;
 }
 else
 {
   foreach (@DenDipFiles) {
     copy( "../PREP/BSE/$_", $_ ) or die "Failed to get PREP/BSE/$_\n$!" ;
   }
+  open OUT, ">tmel_selector" or die;
+  print OUT "0\n";
+  close OUT;
+  open OUT, ">enk_selector" or die;
+  print OUT "0\n";
+  close OUT;
+  open OUT, ">bloch_selector" or die;
+  print OUT "0\n";
+  close OUT;
+
 }
 
 foreach (@ExtraFiles) {
@@ -570,7 +589,7 @@ while (<EDGE>) {
   }
 
 #  my $add10_zstring = sprintf("z%03un%02ul%02u", $znum, $nnum, $lnum);
-  my $zstring = sprintf("z%2s%02i_n%02il%02i", $elname, $elnum, $nnum, $lnum);
+  my $zstring = sprintf("z%2s%04i_n%02il%02i", $elname, $elnum, $nnum, $lnum);
 #  system("cp ../SCREEN/${zstring}/zR${pawrad}/rpot ./rpot.${zstring}") == 0 
   copy( "../SCREEN/${zstring}/zR${pawrad}/rpot", "rpot.${zstring}" )
     or die "Failed to grab rpot\n../SCREEN/${zstring}/zR${pawrad}/rpot ./rpot.${zstring}\n";
@@ -768,7 +787,7 @@ if( $run_serial == 1)
 
 
     #rpot file
-    my $zstring = sprintf("z%2s%02i_n%02il%02i", $elname, $elnum, $nnum, $lnum);
+    my $zstring = sprintf("z%2s%04i_n%02il%02i", $elname, $elnum, $nnum, $lnum);
     copy( "rpot.${zstring}", "rpotfull" ) or die "Failed to copy rpot.${zstring}\n$!";
 #    system("cp ./rpot.${zstring} rpotfull") == 0 or die;
 

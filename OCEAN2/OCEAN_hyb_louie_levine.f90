@@ -1,5 +1,6 @@
 module OCEAN_hyb_louie_levine
   use AI_kinds
+  use OCEAN_constants, only : eV2Rydberg, eV2Hartree, Hartree2eV
 
   private
 
@@ -22,6 +23,7 @@ module OCEAN_hyb_louie_levine
   subroutine OS_hyb_louie_levin( sys, nkpts_pad, nxpts_pad, nypts, ladder, nx, nx_start, nkret, kret, ierr, ladcap, kk )
     use OCEAN_system
     use OCEAN_mpi
+    use, intrinsic :: ieee_arithmetic, only: ieee_is_nan
     implicit none
 
     type(O_system), intent( in ) :: sys
@@ -33,6 +35,8 @@ module OCEAN_hyb_louie_levine
     integer, intent( out ) :: kk( sys%nkpts, 3 )
     !
     real(dp), allocatable :: rho(:)
+    complex(dp), allocatable :: compl_rho(:)
+    integer, allocatable :: kret_( : )
 
     real(dp) :: whomdat( nr, nrs ), w0dat( nrad, nrs ), d_array( nr ), rs_array( nrs ), rad_array( nrad )
     real(dp) :: x_array( 3, sys%nxpts ), r_array( 3, sys%nkpts ), ftab( sys%nxpts )
@@ -42,14 +46,16 @@ module OCEAN_hyb_louie_levine
     
     integer :: num_kpoints, num_xpoints, iter1, iter2, rad_floor, rad_ceil, clip, rs_floor, rs_ceil, &
               rs_cur, rad_cur, ix, iy, iz, iyr, ixr, irad0, jd, irtab( sys%nxpts ), i, j, k
-    integer :: err
+    integer :: err, nkret_
     real(dp) :: xk( sys%nkpts, 3 )
+
+    logical :: override_rho, override_ladder
     
 !    real(kind=kind(1.d0)), external :: AI_max_length
 
-#ifdef CONTIGUOUS
-    CONTIGUOUS :: rho
-#endif
+!#ifdef CONTIGUOUS
+!    CONTIGUOUS :: rho
+!#endif
 
     pi = 4.0d0 * atan( 1.0d0 )
 
@@ -70,6 +76,21 @@ module OCEAN_hyb_louie_levine
       close( 99 )
 111 continue
     endif
+
+    if( myid .eq. root ) then
+      inquire(file='rho.xpts', exist=override_rho)
+      if( override_rho ) then
+        allocate( compl_rho( sys%nxpts ) )
+        write(6,*) 'Overriding rho with rho.xpts!'
+        open( unit=99, file='rho.xpts', form='unformatted', status='old' )
+        rewind 99
+        read ( 99 ) compl_rho( : )
+        close( unit=99 )
+        rho(:) = real( compl_rho(:), dp )
+        deallocate( compl_rho )
+      endif
+    endif
+
 
 #ifdef MPI
     call MPI_BCAST( err, 1, MPI_INTEGER, root, comm, ierr )
@@ -94,7 +115,15 @@ module OCEAN_hyb_louie_levine
     vol = sys%celvol * 0.529177249d0 ** 3
     rad0 = ( 3.0d0 * vol / ( 4.0d0 * pi * dble( sys%nxpts ) ) ) ** ( 1.0d0 / 3.0d0 )
     smear_vol = ( 6.0d0 * pi ** 2 / ( vol * dble( sys%nkpts ) ) ) ** ( 1.0d0 / 3.0d0 )
-    if( myid .eq. root ) write(6,*) vol, rad0, smear_vol
+    if( myid .eq. root ) then
+      write(6,*)  " vol =", vol,       "  cubic angstroms."
+      write(6,*)  "rad0 =", rad0,      "        angstroms."
+      write(6,*)  "   q =", smear_vol, "inverse angstroms."
+    endif
+    write(1000+myid,*)  " vol =", vol,       "  cubic angstroms."
+    write(1000+myid,*)  "rad0 =", rad0,      "        angstroms."
+    write(1000+myid,*)  "   q =", smear_vol, "inverse angstroms."
+
     ! convert avecs to angstroms
     call AI_ladder_formx( sys%xmesh(1), sys%xmesh(2), sys%xmesh(3), x_array )
     call AI_ladder_formr( sys%kmesh(1), sys%kmesh(2), sys%kmesh(3), r_array, ladcap )
@@ -122,21 +151,23 @@ module OCEAN_hyb_louie_levine
         kret( nkret ) = iter1
         mds = max( mds, rmag + maxxy )
       end if
+
     enddo
     if( myid .eq. 0 ) then
       write ( 6, '(1a17,3f20.10)' ) 'maxxy decut rmag ', maxxy, decut, rmag
       write ( 6, '(1a9,2i8)' ) 'nk nkret ', nkret
     endif
     !
-!    call getspacings( avec, gap )
-!    clip = 0
-!    do iter1 = 1, 3
-!      do
-!        if ( ( 1 + clip ) * sys%kmesh( iter1 ) * gap( iter1 ) - mds .gt. mds ) exit
-!        clip = clip + 1
-!      end do
-!     if( myid .eq. 0 ) write ( 6, '(1a4,1i1,5x,1a7,1i3)' ) 'i = ', iter1, 'clip = ', clip
-!    end do
+    call getspacings( avec, gap )
+    clip = 0
+    do iter1 = 1, 3
+      do
+        if ( ( 1 + clip ) * sys%kmesh( iter1 ) * gap( iter1 ) - mds .gt. mds ) exit
+        clip = clip + 1
+      end do
+     if( myid .eq. 0 ) write ( 6, '(1a4,1i1,5x,1a7,1i3)' ) 'i = ', iter1, 'clip = ', clip
+    end do
+    if( myid .eq. 0 ) write ( 6, '(2(1a7,1x,1e15.8))' ) 'rad1 = ', rad_array( 1 ), ' radn = ', rad_array( nrad )
 
     !
     ! check that rad0 is enclosed in the W0 grid
@@ -201,7 +232,34 @@ module OCEAN_hyb_louie_levine
     dspc = d_array(2) - d_array(1)
     !
     !
-    ladder( :, :, : ) = 0.d0
+    ladder( :, :, : ) = 0.0_dp
+    inquire( file='ladder.dat', exist=override_ladder ) 
+    if( override_ladder .and. nproc .eq. 1 ) then
+      write(6,*) 'Override ladder!!!'
+      open(unit=99,file='ladder.dat',form='unformatted', status='old')
+      read(99) nkret_
+      allocate( kret_( nkret_ ) )!, tempor( 1 : nkret_ )
+      read(99) kret_( 1 : nkret_ )
+
+      if( nkret_ .ne. nkret ) then
+        override_ladder = .false.
+      else
+        do ix = 1, sys%nxpts
+          do iy = 1, sys%nxpts
+            read( 99) ladder( 1 : nkret, ix, iy ) 
+            ladder( 1 : nkret, ix, iy ) = ladder( 1 : nkret, ix, iy ) * eV2Hartree
+          enddo
+        enddo
+      endif      
+      close( 99 )
+
+      deallocate( kret_) !, tempor )
+    endif
+
+
+
+
+    if( .not. override_ladder ) then
     do ix = nx_start, nx_start+nx-1
       ixr = irtab( ix )
       fx = ftab( ix )
@@ -214,6 +272,9 @@ module OCEAN_hyb_louie_levine
         do iter1 = 1, nkret
           call dist( x_array( :, ix ), x_array( :, iy ), r_array( :, kret( iter1 ) ), de, avec, &
                      sys%kmesh(1), sys%kmesh(2), sys%kmesh(3), clip )
+          if( ieee_is_nan( de ) ) then
+            write(6,*) 'de', ix, iy, iter1
+          endif
           if ( de .le. decut ) then
             if ( de .le. d_array( 1 ) ) then
                    fff = ( rad0 - rad_array( irad0 ) ) / ( rad_array( irad0 + 1 ) - rad_array( irad0 ) )
@@ -221,7 +282,7 @@ module OCEAN_hyb_louie_levine
                    call dublinterp( fy, fff, w0dat( irad0, iyr ), w0dat( irad0, iyr + 1 ), wy )
                    ww = 0.5d0 * ( wx + wy )
             elseif ( de .le. d_array( nr ) ) then
-                   jd = 1 + NINT( ( de - d_array( 1 ) ) / dspc )
+                   jd = 1 + ( de - d_array( 1 ) ) / dspc 
                    if ( jd .lt. 1 ) jd = 1
                    if ( jd .ge. nr ) jd = nr - 1
                    fff = ( de - d_array( jd ) ) / ( d_array( jd + 1 ) - d_array( jd ) )
@@ -240,13 +301,25 @@ module OCEAN_hyb_louie_levine
             else
               fcn = 1.0d0 - 0.1d0 * qde ** 2
             end if
-            ladder( iter1, ix - nx_start + 1, iy ) = 14.400d0 * ww * fcn ** 2 ! e^2/Angstrom = 14.4 eV
+            ladder( iter1, ix - nx_start + 1, iy ) = 14.400d0 * ww * fcn ** 2 * eV2Hartree! e^2/Angstrom = 14.4 eV
+          endif
+          if( ieee_is_nan( ladder( iter1, ix - nx_start + 1, iy ) ) ) then
+            ierr = 1001
+            write(6,*) iter1, ix, iy, ladder( iter1, ix - nx_start + 1, iy )
+            write(6,*) de, smear_vol, qde
+            write(6,*) ww, wx, wy
+            write(6,*) gx, gy, fx, fy
+            write(6,*) whomdat( jd, ixr + 1 ), whomdat( jd, ixr )
+            write(6,*) whomdat( jd, iyr + 1 ), whomdat( jd, iyr )
+            write(6,*) jd, fff, fcn      
+            return
           endif
         enddo ! iter1 = 1, nkret
       enddo ! iy = 1, num_xpoints
     enddo ! ix = 1, num_xpoints
+  endif
 
-
+    if( myid .eq. root ) write( 6, * ) 'Hybertsen-Louie-Levine model W constructed'
 
 
   end subroutine OS_hyb_louie_levin
@@ -300,6 +373,8 @@ module OCEAN_hyb_louie_levine
   end subroutine brcapper
 
   subroutine llft( epsilon0, rsmin, rsmax,  whomdat, d_array, rs_array, ierr )
+    use, intrinsic :: ieee_arithmetic, only: ieee_is_nan
+
     implicit none
     !
     real(kind=kind(1.d0)), intent(in) :: epsilon0, rsmin, rsmax
@@ -416,6 +491,12 @@ module OCEAN_hyb_louie_levine
         intr = intr * ( 2.d0 / pi )
         intr = intr + c1 + aa / a * ( c1 - cdexp( - ra * qf * r ) )  &
                        - aa / b * ( c1 - cdexp( - rb * qf * r ) )
+        if( ieee_is_nan( intr ) ) then
+          write( 6, * ) c1, aa, a
+          write(6,*) ra, rb, qf, r
+          ierr = 1002
+          return
+        endif
         whomdat( ir, irs ) = intr
   !
   !      write ( whomdat, '(3e16.8)' ) rs, rang, intr
@@ -678,6 +759,108 @@ subroutine dublinterp( fx, fy, vecx1, vecx2, rslt )
   !
   return
 end subroutine dublinterp
+
+
+subroutine AI_kmapr( kmesh, xk, kk, ladcap )
+  implicit none
+  !
+  integer, intent( in ) :: kmesh(3)
+  integer, intent( out ) :: kk( kmesh(3), kmesh(2), kmesh(1), 3 )
+  integer, intent( in ) ::  ladcap(2,3)
+  real(kind=kind(1.d0)), intent( out ) :: xk( kmesh(3), kmesh(2), kmesh(1), 3 )
+  !
+  integer :: ikx, iky, ikz, j
+  real(kind=kind(1.d0)) :: c( 3 ), pi
+  !
+  pi = 4.0d0 * datan( 1.0d0 )
+  !
+  c( : ) = 2.0d0 * pi / dble( kmesh( : ) )
+  do ikx = 1, kmesh(1)
+    do iky = 1, kmesh(2)
+      do ikz = 1, kmesh(3)
+        xk( ikz, iky, ikx, : ) = c( : ) * dble( (/ ikx-1, iky-1, ikz-1 /) ) 
+        kk( ikz, iky, ikx, : ) = (/ ikx-1, iky-1, ikz-1 /)
+        ! mapping k points onto (approximately) zero-centered grid
+        do j = 1, 3
+          if( kk( ikz, iky, ikx, j ) .gt. ladcap( 2, j ) ) &
+              kk( ikz, iky, ikx, j ) = kk( ikz, iky, ikx, j ) - kmesh( j )
+        enddo
+!        write(74,*) xk( ikz, iky, ikx, : )
+      enddo
+    enddo
+  enddo
+  !
+
+end subroutine AI_kmapr
+
+!  open( unit=99, file='ladcap', form='formatted', status='unknown' )
+!  rewind 99
+!  read ( 99, * ) kl( : ), kh( : )
+!  close ( unit=99 )
+!  open( unit=99, file='kpts.dat', form='formatted', status='unknown' )
+!  rewind 99
+!  nkv( 1 ) = nkx; nkv( 2 ) = nky; nkv( 3 ) = nkz
+!  c( : ) = 2.0d0 * pi / dble( nkv( : ) )
+!  ik = 0
+!  do ikx = 1, nkx
+!     do iky = 1, nky
+!        do ikz = 1, nkz
+!           ikv( 1 ) = ikx - 1; ikv( 2 ) = iky - 1; ikv( 3 ) = ikz - 1
+!           ik = ik + 1
+!           xk( ik, : ) = c( : ) * dble( ikv( : ) )
+!           kk( ik, : ) = ikv( : )
+!           read ( 99, * ) ick, xck( : )
+!           if ( ick .ne. ik ) stop 'bad ick'
+           ! mapping k points onto (approximately) zero-centered grid
+!           do j = 1, 3
+!              if ( abs( xck( j ) - xk( ik, j ) ) .gt. 0.0001d0 ) stop 'bad kpt'
+!              if ( ikv( j ) .gt. ladcap( 2, j ) ) kk( ik, j ) = ikv( j ) - nkv( j )
+!           end do
+!        end do
+!     end do
+!  end do
+!  close( unit=99 )
+!  !
+!  return
+!end subroutine AI_kmapr
+
+  subroutine getspacings( u, gap )
+    implicit none
+    !
+    real( kind = kind( 1.0d0 ) ) :: u( 3, 3 ), gap( 3 )
+    !
+    integer :: i, j, k
+    real( kind = kind( 1.0d0 ) ) :: x, perp( 3 )
+    !
+    do i = 1, 3
+       j = i + 1
+       if ( j .eq. 4 ) j = 1
+       k = j + 1
+       if ( k .eq. 4 ) k = 1
+       call cross( u( :, j ), u( :, k ), perp( : ) )
+       x = sqrt( dot_product( perp( : ), perp( : ) ) )
+       perp( : ) = perp( : ) / x
+       gap( i ) = abs( dot_product( perp( : ), u( :, i ) ) )
+    end do
+    !
+    return
+  end subroutine getspacings
+
+  subroutine cross( v1, v2, c )
+    implicit none
+    !
+    real( kind = kind( 1.0d0 ) ) :: v1( 3 ), v2( 3 ), c( 3 )
+    !
+    integer :: i, j, k
+    !
+    do i = 1, 3
+       j = i + 1; if ( j .eq. 4 ) j = 1
+       k = j + 1; if ( k .eq. 4 ) k = 1
+       c( i ) = v1( j ) * v2( k ) - v1( k ) * v2( j )
+    end do
+    !
+    return
+  end subroutine cross
 
 
 end module

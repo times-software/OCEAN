@@ -12,6 +12,9 @@ subroutine OCEAN_load_data( sys, hay_vec, lr, ierr )
   use OCEAN_mpi
   use OCEAN_multiplet
   use OCEAN_long_range
+  use OCEAN_val_states, only : OCEAN_val_states_load, OCEAN_val_states_init
+  use OCEAN_bubble, only : AI_bubble_prep
+  use OCEAN_ladder, only : OCEAN_ladder_init, OCEAN_ladder_new
 
   implicit none
   integer, intent( inout ) :: ierr
@@ -19,17 +22,19 @@ subroutine OCEAN_load_data( sys, hay_vec, lr, ierr )
   type(ocean_vector), intent( inout ) :: hay_vec
   type( long_range ), intent(out) :: lr
 
+
 #ifdef MPI
 !    write(6,*) myid, root
     call MPI_BARRIER( comm, ierr )
 #endif
 
   if( myid .eq. root ) write(6,*) 'Calc Type = ', sys%calc_type
-  if( myid .eq. root ) write(6,*) 'Init matrix elements'
+  if( myid .eq. root ) write(6,*) 'Init matrix elements 1'
 
   call ocean_psi_init( sys, ierr )
   if( ierr .ne. 0 ) return
 
+  if( myid .eq. root ) write(6,*) 'Init matrix elements 2'
   call ocean_psi_new( hay_vec, ierr )
   if( ierr .ne. 0 ) return
 
@@ -41,28 +46,81 @@ subroutine OCEAN_load_data( sys, hay_vec, lr, ierr )
   call ocean_psi_write( sys, hay_vec, ierr )
   if( ierr .ne. 0 ) return
 
-  if( sys%e0 ) then
+
+  if( sys%cur_run%have_val) then
+    ! Energy is how we construct the allow and sfact arrays
+    !  these are needed even if (for some reason) we did not want to run energies
     if( myid .eq. root ) write(6,*) 'Init energies'
-    call ocean_energies_init( sys, ierr )
-    if( myid .eq. root ) write(6,*) 'Load energies'
-    call ocean_energies_load( sys, ierr )
-    if( myid .eq. root ) write(6,*) 'Energies loaded'
-  endif
-
-  if( sys%mult ) then
-    if( myid .eq. root ) write(6,*) 'Init mult'
-    call OCEAN_create_central( sys, ierr )
-    if( myid .eq. root ) write(6,*) 'Mult loaded'
-    
-  endif
-
-  if( sys%long_range ) then
-    if( myid .eq. root ) write(6,*) 'Init long_range'
-!    call create_lr(sys, lr, ierr )
-    call lr_init( sys, lr, ierr )
+    call OCEAN_energies_val_load( sys, ierr )
     if( ierr .ne. 0 ) return
-!    if( myid .eq. root ) write(6,*) 'Load long_range'
-    if( myid .eq. root ) write(6,*) 'Long_range loaded'
+
+    if( myid .eq. root ) write(6,*) 'Trim & scale matrix elements'
+    ! Now trim the hay_vec by the allow array 
+    !  This 1) cuts off over-lapped states valence above Fermi/conduction below
+    !       2) Uniform energy cutoff for upper bands
+    call OCEAN_energies_val_allow( sys, hay_vec, ierr )
+    if( ierr .ne. 0 ) return
+    call OCEAN_psi_val_pnorm( sys, hay_vec, ierr )
+    if( ierr .ne. 0 ) return
+    if( myid .eq. root ) write(6,*) 'Trim & scale complete'
+
+
+    if( sys%cur_run%bflag .or. sys%cur_run%lflag ) then
+      if( myid .eq. root ) write(6,*) 'Init val states'
+      call OCEAN_val_states_init( sys, ierr )
+      if( ierr .ne. 0 ) return
+      if( myid .eq. root ) write(6,*) 'Load val states'
+      call OCEAN_val_states_load( sys, ierr )
+      if( ierr .ne. 0 ) return
+      if( myid .eq. root ) write(6,*) 'Val states loaded'
+
+    endif
+
+    if( sys%cur_run%bflag ) then
+      if( myid .eq. root ) write(6,*) 'Init bubble'
+      call AI_bubble_prep( sys, ierr )
+      if( ierr .ne. 0 ) return
+      if( myid .eq. root ) write(6,*) 'Bubble prepped'
+    endif
+
+    if( sys%cur_run%lflag ) then
+      if( myid .eq. root ) write(6,*) 'Init ladder'
+      call OCEAN_ladder_init( sys, ierr )
+      if( ierr .ne. 0 ) return
+      if( myid .eq. root ) write(6,*) 'Load ladder'
+      call OCEAN_ladder_new( sys, ierr )
+      if( ierr .ne. 0 ) return
+      if( myid .eq. root ) write(6,*) 'Ladder loaded'
+
+    endif
+
+  endif 
+  
+
+  if( sys%cur_run%have_core ) then
+
+    if( sys%e0 ) then
+      if( myid .eq. root ) write(6,*) 'Init energies'
+      call ocean_energies_init( sys, ierr )
+      if( myid .eq. root ) write(6,*) 'Load energies'
+      call ocean_energies_load( sys, ierr )
+      if( myid .eq. root ) write(6,*) 'Energies loaded'
+    endif
+
+    if( sys%mult ) then
+      if( myid .eq. root ) write(6,*) 'Init mult'
+      call OCEAN_create_central( sys, ierr )
+      if( myid .eq. root ) write(6,*) 'Mult loaded'
+      
+    endif
+
+    if( sys%long_range ) then
+      if( myid .eq. root ) write(6,*) 'Init long_range'
+      call lr_init( sys, lr, ierr )
+      if( ierr .ne. 0 ) return
+      if( myid .eq. root ) write(6,*) 'Long_range loaded'
+    endif
+
   endif
 
   if( sys%obf ) then
@@ -71,13 +129,13 @@ subroutine OCEAN_load_data( sys, hay_vec, lr, ierr )
     if( myid .eq. root ) write(6,*) 'OBFs loaded'
   endif
 
-  if( sys%have_val) then
-    call OCEAN_energies_val_load( sys, ierr )
-    if( ierr .ne. 0 ) return
-  endif 
 
 
-  if( myid .eq. root ) write(6,*) 'Initialization complete'
+  if( myid .eq. root ) write(6,*) 'Initialization complete', ierr
+#ifdef MPI
+!    write(6,*) myid, root
+    call MPI_BARRIER( comm, ierr )
+#endif
 
 
 end subroutine OCEAN_load_data

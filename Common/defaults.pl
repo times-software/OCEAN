@@ -148,7 +148,7 @@ if( $input_content =~ m/^\s*-1/ )
     $output[$i] = findval($target);
     if( $output[$i] == 1000 ) { die "kmesh too large\n"; }
   }
-  open INPUT, ">kmesh.ipt" or die "$!\n";
+  open INPUT, ">nkpt" or die "$!\n";
   print INPUT "$output[0]  $output[1]  $output[2]\n";
   close INPUT;
   print "Defaults chosen for kmesh.ipt:\t$output[0]\t$output[1]\t$output[2]\n";

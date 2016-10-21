@@ -26,9 +26,9 @@ subroutine OCEAN_get_rho( xmesh, celvol, rho, ierr )
   integer, external :: optim
 
 
-#ifdef CONTIGUOUS
-    CONTIGUOUS :: rhoofr, rhoofg
-#endif
+!#ifdef CONTIGUOUS
+!    CONTIGUOUS :: rhoofr, rhoofg
+!#endif
 #ifdef __INTEL
 !dir$ attributes align:64 :: rhoofr, rhoofg
 #endif
@@ -66,7 +66,7 @@ subroutine OCEAN_get_rho( xmesh, celvol, rho, ierr )
 
     sumrho = sumrho / dble(product( nfft )) * celvol
     write(6,*) '!', sumrho
-    write(6,*) '!', minval( real( rhoofr ) )
+    write(6,*) '!', minval( real( rhoofr, DP) )
     !
     call dfftw_execute_dft( fftw_plan, rhoofr, rhoofr )
     call dfftw_destroy_plan( fftw_plan )
@@ -89,7 +89,7 @@ subroutine OCEAN_get_rho( xmesh, celvol, rho, ierr )
     if( ierr .ne. 0 ) goto 111
     call  dfftw_plan_dft_3d( fftw_plan2, c_nfft(1), c_nfft(2), c_nfft(3), rhoofg, rhoofg, &
             FFTW_BACKWARD, FFTW_ESTIMATE )
-    rhoofg = 0.d0
+    rhoofg = 0.0_dp
     mul( : ) = c_nfft( : ) / nfft( : )
     write(6,*) c_nfft( : )
     write(6,*) nfft( : )
@@ -122,14 +122,14 @@ subroutine OCEAN_get_rho( xmesh, celvol, rho, ierr )
     call dfftw_execute_dft( fftw_plan2, rhoofg, rhoofg )
     call dfftw_destroy_plan( fftw_plan2 )
     !
-    norm = dble( product( nfft ) )
-    norm = 1.0d0 / norm
+    norm = real( product( nfft ), DP )
+    norm = 1.0_dp / norm
     mul( : ) = c_nfft( : ) / xmesh( : )
     write(6,*) mul( : )
     do i = 0, xmesh( 1 ) - 1
       do j = 0, xmesh( 2 ) - 1
         do k = 0, xmesh( 3 ) - 1
-          rho( k+1, j+1, i+1 ) = norm * rhoofg( i*mul(1)+1, j*mul(2)+1, k*mul(3)+1 )
+          rho( k+1, j+1, i+1 ) = norm * real(rhoofg( i*mul(1)+1, j*mul(2)+1, k*mul(3)+1 ), DP )
           if( rho( k+1, j+1, i+1 ) .le. 0.0d0 ) then
             write(6,*) 'low density', rho( k+1, j+1, i+1 ), k+1, j+1, i+1, rhoofg( i*mul(1)+1, j*mul(2)+1, k*mul(3)+1 )
             if( rho( k+1, j+1, i+1 ) .gt. -1.0d-12 ) then
@@ -144,7 +144,7 @@ subroutine OCEAN_get_rho( xmesh, celvol, rho, ierr )
       enddo
     enddo
 
-    open( unit=99, file='rho.xpts', form='formatted', status='unknown')
+    open( unit=99, file='rho2.xpts', form='formatted', status='unknown')
     rewind( 99 )
     sumrho = 0.d0
     do k = 1, xmesh( 3 )
@@ -169,6 +169,8 @@ subroutine OCEAN_get_rho( xmesh, celvol, rho, ierr )
   call MPI_BCAST( ierr, 1, MPI_INTEGER, root, comm, ierr )
   if( ierr .ne. 0 ) return
   call MPI_BCAST( rho, product(xmesh), MPI_DOUBLE_PRECISION, root, comm, ierr )
+  if( ierr .ne. 0 ) return
+!  write(6,*) 'Rho shared: ', myid
 #endif
 
 end subroutine OCEAN_get_rho

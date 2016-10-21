@@ -27,7 +27,7 @@ my $ham_kpoints = "4 4 4 ";
 
 # Step 1: Create support files
 my @CommonFiles = ("nkpt", "k0.ipt", "qinunitsofbvectors.ipt", "nbands", "xmesh.ipt", "para_prefix", 
-                   "pool_control", "ham_kpoints", "core_offset", "avecsinbohr.ipt" );
+                   "pool_control", "ham_kpoints", "core_offset", "avecsinbohr.ipt", "tmp_dir" );
 my @ExtraFiles = ("specpnt", "Pquadrature", "sphpts" );
 my @DFTFiles = ("rhoofr", "efermiinrydberg.ipt", "nelectron");
 my @PawFiles = ("hfinlist", "xyz.wyck");
@@ -87,6 +87,14 @@ if( open PARA_PREFIX, "para_prefix" )
   print "Failed to open para_prefix. Error: $!\nRunning serially\n";
 }
 
+my $tmpdir = "undefined";
+if( open TMPDIR, "tmp_dir" )
+{
+  $tmpdir = <TMPDIR>;
+  chomp( $tmpdir );
+  close TMPDIR;
+}
+
 system("$ENV{'OCEAN_BIN'}/bvecs.pl") == 0 or die "$!\nBVECS.PL Failed\n";
 
 
@@ -100,14 +108,18 @@ system("$ENV{'OCEAN_BIN'}/kgen_qe.x") == 0 or die "KGEN.X Failed\n";
 # Prep input file
 open BOFX, ">bofx.in" or die "$!\nFailed to open bofx.in for writing\n";
 print BOFX "&input\n" .
-          "  prefix = 'system_opt'\n" .
-          "  outdir = './Out'\n" .
-          "  updatepp = .false.\n" .
-          "  ncpp = .true.\n" .
-          "  calculation = 'ocean_bofx'\n" .
-          "/\n" .
-          " K_POINTS\n" .
-          "$ham_kpoints 0 0 0\n";
+           "  prefix = 'system_opt'\n" .
+           "  outdir = './Out'\n";
+unless( $tmpdir =~ m/undefined/ )
+{
+  print BOFX "  wfcdir = '$tmpdir'\n";
+}
+print BOFX "  updatepp = .false.\n" .
+           "  ncpp = .true.\n" .
+           "  calculation = 'ocean_bofx'\n" .
+           "/\n" .
+           " K_POINTS\n" .
+           "$ham_kpoints 0 0 0\n";
 close BOFX;
 
 open OBF2, ">obf2loc.in" or die "$!\nFailed to open obf2loc.in for writing\n";

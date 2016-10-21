@@ -5,7 +5,7 @@ OPTS = $(OPTIONS)
 
 all:
 	cd zxipp; make "COMP = $(COMP)" "OPTS = $(OPTS)"
-	cd zf90;  make "COMP = $(COMP)" "OPTS = $(OPTS)"
+	cd zf90;  make "COMP = $(COMP)" "OPTS = $(OPTS)" "MPIFORT = $(MPIFORT)"
 
 install:
 	cd zxipp; make "INSTDIR = $(INSTDIR)" install
