@@ -352,7 +352,8 @@
     case default
       max_val = nelectron / 2 + 10
   end select
-  if( have_kshift ) then
+  max_val = min( max_val, band_subset(2) )
+!  if( have_kshift ) then
 !    allocate( tmels( max_val, band_subset( 1 ) : band_subset( 2 ), kpt%list%nk ) )
 !    tmels = 0.0d0
 !!    allocate( tmp_eigvec( desc_cyclic(M_), desc_cyclic(N_) ) )
@@ -373,7 +374,7 @@
 !    allocate( tmp_eigvec(  tmp_eig_m, tmp_eig_n ) )
 
 !    allocate( tmp_eigvec( nbasis, max_val ) )
-  endif
+!  endif
 
 
 
@@ -1116,6 +1117,11 @@
       open(unit=iuntmp,file='tmels.info',form='formatted',status='unknown')
       rewind(iuntmp)
       write(iuntmp,*) val_band, brange(3), brange(4), kpt%list%nk
+      close(iuntmp)
+
+      open(unit=iuntmp,file='tmels_partial.txt',form='formatted',status='unknown')
+      rewind(iuntmp)
+      write(iuntmp,*) tmels(:,:,1)
       close(iuntmp)
     endif
 

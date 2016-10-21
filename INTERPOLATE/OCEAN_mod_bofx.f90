@@ -171,7 +171,7 @@ module OCEAN_bofx_mod
     logical, intent( in ) :: loud
     integer, intent( in ) :: ibeg
     !
-    integer :: ix, iy, iz, i1, i2, i3, idwrk, igl, igh, nmin, ii, jj, nxpts
+    integer :: ix, iy, iz, i1, i2, i3, idwrk, igl, igh, nmin, ii, jj, nxpts, ij
     integer :: fac( 3 ), j, ig, i, locap( 3 ), hicap( 3 ), toreal, torecp, nftot
     real(dp) :: normreal, normrecp
     complex(dp) :: rm1, w
@@ -826,13 +826,15 @@ module OCEAN_bofx_mod
           j = j + 1
           nelement = 1
           my_offset = offset + int( i + me_pool - 1, MPI_OFFSET_KIND )
+          ij = j
         else
           ! To avoid lengthening the file or any such nonsense
           nelement = 0
           my_offset = offset + int( nfcn + 1, MPI_OFFSET_KIND )
+          ij = 1
         endif
 
-        call MPI_FILE_WRITE_AT_ALL( fh_u2, my_offset, newcres(1,1,1,j), nelement, x_type, out_status, ierr )
+        call MPI_FILE_WRITE_AT_ALL( fh_u2, my_offset, newcres(1,1,1,ij), nelement, x_type, out_status, ierr )
         if( i .eq. 1 ) then
           call MPI_GET_COUNT( out_status, x_type, ncount, ierr )
           if( loud ) then
