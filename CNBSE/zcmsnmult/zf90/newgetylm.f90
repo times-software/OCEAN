@@ -1,4 +1,4 @@
-! Copyright (C) 2010 OCEAN collaboration
+! Copyright (C) 2010, 2016 OCEAN collaboration
 !
 ! This file is part of the OCEAN project and distributed under the terms 
 ! of the University of Illinois/NCSA Open Source License. See the file 
@@ -16,7 +16,7 @@ subroutine newgetylm( l, m, x, y, z, ylm, prefs )
   !
   integer :: lam, j, mm
   double precision :: r, rinv, xred, yred, zred, f
-  double precision :: u, u2, u3, u4, u5
+  double precision :: u, u2, u3, u4, u5, u6
   complex( kind = kind( 1.0d0 ) ) :: rm1
   !
   if ( l .gt. 5 ) stop 'l .gt. 5 not yet allowed'
@@ -33,6 +33,7 @@ subroutine newgetylm( l, m, x, y, z, ylm, prefs )
   u3 = u * u2
   u4 = u * u3
   u5 = u * u4
+  u6 = u * u5
   !
   rm1 = -1
   rm1 = sqrt( rm1 )
@@ -90,6 +91,23 @@ subroutine newgetylm( l, m, x, y, z, ylm, prefs )
   case( 05 )
      f =   ( 63 * u5 - 70 * u3 + 15 * u ) / 8      !50
      !
+  case( 66 )
+     f =  10395                                    !66
+  case( 56 )
+     f = -10395 * u                                !65
+  case( 46 )
+     f =  ( 10395 * u2 - 945 ) / 2                 !64
+  case( 36 )
+     f = -( 3465 * u3 - 945 * u ) / 2              !63
+  case( 26 )
+     f = ( 3465 * u4 - 1890 * u2 + 105 ) / 8       !62
+  case( 16 )
+     f = -(693 * u5 - 630 * u3 + 150 * u ) / 8     !61
+  case( 06 )
+     f = (231 * u6 - 315 * u4 + 105 * u2 - 5 )/16  !60
+
+  case default
+     f = 0
   end select
   !
   ylm = prefs( lam ) * f
