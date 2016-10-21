@@ -167,8 +167,8 @@ while ($hfinline = <HFINLIST>) {
       chdir "$edgename";
       `ln -s -f zRXT${fullrad} zR${fullrad}`;
       chdir "../";
-      copy( "zpawinfo/vcxxxxx${edgename2}R${fullrad}", "tmp" ) 
-          or die "Failed to copy zpawinfo/vcxxxxx${edgename2}R${fullrad}\n$!";
+      copy( "zpawinfo/vc_bare${edgename2}R${fullrad}", "tmp" ) 
+          or die "Failed to copy zpawinfo/vc_bare${edgename2}R${fullrad}\n$!";
       `wc tmp > vpert`;
       `cat tmp >> vpert`;
       system("$ENV{'OCEAN_BIN'}/builder.x") == 0 or die;
@@ -189,8 +189,8 @@ while ($hfinline = <HFINLIST>) {
       `wc nin >> ipt`;
       `cat nin >> ipt`;
       `echo 1 2 >> ipt`;
-      `wc zpawinfo/vcxxxxx${edgename2} >> ipt`;
-      `cat zpawinfo/vcxxxxx${edgename2} >> ipt`;
+      `wc zpawinfo/vc_bare${edgename2} >> ipt`;
+      `cat zpawinfo/vc_bare${edgename2} >> ipt`;
   
 			# Full ximat, but using false/older style in rscombine
       copy( "ipt", "ipt1" ) or die;
@@ -203,8 +203,8 @@ while ($hfinline = <HFINLIST>) {
 			# Full ximat and most up-to-date rscombine settings
       copy( "ipt", "ipt1" ) or die;
       `echo .true. >> ipt1`;
-      `wc zpawinfo/vvpseud${edgename2} >> ipt1`;
-      `cat zpawinfo/vvpseud${edgename2} >> ipt1`;
+      `wc zpawinfo/vpseud1${edgename2} >> ipt1`;
+      `cat zpawinfo/vpseud1${edgename2} >> ipt1`;
       `wc zpawinfo/vvallel${edgename2} >> ipt1`;
       `cat zpawinfo/vvallel${edgename2} >> ipt1`;
       `echo 0.1 100 >> ipt1`;
@@ -231,13 +231,13 @@ while ($hfinline = <HFINLIST>) {
       `wc nin >> ipt`;
       `cat nin >> ipt`;
       `echo 1 2 >> ipt`;
-      `wc zpawinfo/vcxxxxx${edgename2} >> ipt`;
-      `cat zpawinfo/vcxxxxx${edgename2} >> ipt`;
+      `wc zpawinfo/vc_bare${edgename2} >> ipt`;
+      `cat zpawinfo/vc_bare${edgename2} >> ipt`;
 
       copy( "ipt", "ipt1" ) or die;
       `echo .true. >> ipt1`;
-      `wc zpawinfo/vvpseud${edgename2} >> ipt1`;
-      `cat zpawinfo/vvpseud${edgename2} >> ipt1`;
+      `wc zpawinfo/vpseud1${edgename2} >> ipt1`;
+      `cat zpawinfo/vpseud1${edgename2} >> ipt1`;
       `wc zpawinfo/vvallel${edgename2} >> ipt1`;
       `cat zpawinfo/vvallel${edgename2} >> ipt1`;
       `echo 0.1 100 >> ipt1`;

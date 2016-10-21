@@ -375,6 +375,11 @@ module OCEAN_multiplet
       write ( 6, * ) 'multiplet hamiltonian set up'
       write(6,*) 'Number of spins = ', sys%nspn
       write ( 6, * ) 'n, nc, nspn', sys%num_bands*sys%nkpts, sys%cur_run%nalpha, sys%nspn
+!      open(unit=99,file='mhr.txt',form='formatted')
+!      do ip = 1, jtot
+!        write(99,*) mhr(ip), mhi(ip)
+!      enddo
+!      close(99)
 
 
       npmax = maxval( nproj( lmin : lmax ) )
@@ -1780,14 +1785,14 @@ module OCEAN_multiplet
 
   end subroutine OCEAN_fg_combo
 
-  subroutine nbsemhsetup2( lc, lv, np, mham, cms, cml, vms, vml, vnu, mhr, mhi, add10 )
+  subroutine nbsemhsetup2( lc, lv, np, mham_l, cms_l, cml_l, vms_l, vml_l, vnu, mhr_l, mhi_l, add10 )
     implicit none
     !
-    integer :: lc, lv, np, mham
-    real( kind = kind( 1.0d0 ) ) :: cms( mham ), cml( mham )
-    real( kind = kind( 1.0d0 ) ) :: vms( mham ), vml( mham )
-    real( kind = kind( 1.0d0 ) ) :: mhr( mham, mham ), mhi( mham, mham )
-    integer :: vnu( mham )
+    integer :: lc, lv, np, mham_l
+    real( kind = kind( 1.0d0 ) ) :: cms_l( mham_l ), cml_l( mham_l )
+    real( kind = kind( 1.0d0 ) ) :: vms_l( mham_l ), vml_l( mham_l )
+    real( kind = kind( 1.0d0 ) ) :: mhr_l( mham_l, mham_l ), mhi_l( mham_l, mham_l )
+    integer :: vnu( mham_l )
     !
     integer :: npt
     real( kind = kind( 1.0d0 ) ) :: pi, su, yp( 0 : 1000 )
@@ -1799,7 +1804,7 @@ module OCEAN_multiplet
     real( kind = kind( 1.0d0 ) ), allocatable :: gk( :, :, : ), scgk( : )
     !
     integer :: i, i1, i2, nu1, nu2
-    integer :: l1, m1, s1, l2, m2, s2, l3, m3, s3, l4, m4, s4, k, mk
+    integer :: l1, m1, s1, l2, m2, s2, l3, m3, s3, l4, m4, s4, k, mk, maxll
     real( kind = kind( 1.0d0 ) ) :: ggk, ffk
     complex( kind = kind( 1.0d0 ) ) :: f1, f2, ctmp
     logical, parameter :: no = .false., yes = .true.
@@ -1812,8 +1817,11 @@ module OCEAN_multiplet
     !
     include 'sphsetx.h.f90'
     !
-     write(6,*) 'nbsemhsetup', lv
-    call newgetprefs( yp, max( lc, lv ), nsphpt, wsph, xsph, ysph, zsph )
+    write(6,*) 'nbsemhsetup', lv
+    maxll = max( 2*lc, 2*lv )
+    ! Currently newgetlym is only programmed for lmax = 5
+    maxll = max( maxll, 5 )
+    call newgetprefs( yp, maxll, nsphpt, wsph, xsph, ysph, zsph )
     rm1 = -1
     rm1 = sqrt( rm1 )
     pi = 4.0d0 * atan( 1.0d0 )
@@ -1884,18 +1892,18 @@ module OCEAN_multiplet
        end do
     end if
     !
-    mhr = 0
-    mhi = 0
-    do i1 = 1, mham
+    mhr_l = 0
+    mhi_l = 0
+    do i1 = 1, mham_l
        nu1 = vnu( i1 )
-       do i2 = 1, mham
+       do i2 = 1, mham_l
           nu2 = vnu( i2 )
           !
           if( kfh .ge. kfl ) then
-             l1 = lc; m1 = nint( cml( i2 ) ); s1 = nint( 2 * cms( i2 ) )
-             l2 = lv; m2 = nint( vml( i1 ) ); s2 = nint( 2 * vms( i1 ) )
-             l3 = lc; m3 = nint( cml( i1 ) ); s3 = nint( 2 * cms( i1 ) )
-             l4 = lv; m4 = nint( vml( i2 ) ); s4 = nint( 2 * vms( i2 ) )
+             l1 = lc; m1 = nint( cml_l( i2 ) ); s1 = nint( 2 * cms_l( i2 ) )
+             l2 = lv; m2 = nint( vml_l( i1 ) ); s2 = nint( 2 * vms_l( i1 ) )
+             l3 = lc; m3 = nint( cml_l( i1 ) ); s3 = nint( 2 * cms_l( i1 ) )
+             l4 = lv; m4 = nint( vml_l( i2 ) ); s4 = nint( 2 * vms_l( i2 ) )
              if ( ( s1 .eq. s3 ) .and. ( s2 .eq. s4 ) ) then
                 mk = m1 - m3
                 if ( m1 + m2 .eq. m3 + m4 ) then
@@ -1905,8 +1913,8 @@ module OCEAN_multiplet
                          call threey( l1, m1, k, mk, l3, m3, no, npt, x, w, yp, f1 )
                          call threey( l2, m2, k, mk, l4, m4, yes, npt, x, w, yp, f2 )
                          ctmp = - ffk * f1 * f2 * ( 4 * pi / ( 2 * k + 1 ) )
-                         mhr( i1, i2 ) = mhr( i1, i2 ) + real(ctmp,DP)
-                         mhi( i1, i2 ) = mhi( i1, i2 ) + aimag(ctmp) !- ctmp * rm1
+                         mhr_l( i1, i2 ) = mhr_l( i1, i2 ) + real(ctmp,DP)
+                         mhi_l( i1, i2 ) = mhi_l( i1, i2 ) + aimag(ctmp) !- ctmp * rm1
                       end if
                    end do
                 end if
@@ -1914,10 +1922,10 @@ module OCEAN_multiplet
           end if
           !
           if( kgh .ge. kgl ) then
-             l1 = lc; m1 = nint( cml( i2 ) ); s1 = nint( 2 * cms( i2 ) )
-             l2 = lv; m2 = nint( vml( i1 ) ); s2 = nint( 2 * vms( i1 ) )
-             l3 = lv; m3 = nint( vml( i2 ) ); s3 = nint( 2 * vms( i2 ) )
-             l4 = lc; m4 = nint( cml( i1 ) ); s4 = nint( 2 * cms( i1 ) )
+             l1 = lc; m1 = nint( cml_l( i2 ) ); s1 = nint( 2 * cms_l( i2 ) )
+             l2 = lv; m2 = nint( vml_l( i1 ) ); s2 = nint( 2 * vms_l( i1 ) )
+             l3 = lv; m3 = nint( vml_l( i2 ) ); s3 = nint( 2 * vms_l( i2 ) )
+             l4 = lc; m4 = nint( cml_l( i1 ) ); s4 = nint( 2 * cms_l( i1 ) )
              if ( ( s1 .eq. s3 ) .and. ( s2 .eq. s4 ) ) then
                 mk = m1 - m3
                 if ( m1 + m2 .eq. m3 + m4 ) then
@@ -1927,8 +1935,8 @@ module OCEAN_multiplet
                          call threey( l1, m1, k, mk, l3, m3, no, npt, x, w, yp, f1 )
                          call threey( l2, m2, k, mk, l4, m4, yes, npt, x, w, yp, f2 )
                          ctmp = ggk * f1 * f2 * ( 4 * pi / ( 2 * k + 1 ) )
-                         mhr( i1, i2 ) = mhr( i1, i2 ) + real(ctmp,DP)
-                         mhi( i1, i2 ) = mhi( i1, i2 ) + aimag(ctmp)! - ctmp * rm1
+                         mhr_l( i1, i2 ) = mhr_l( i1, i2 ) + real(ctmp,dp)
+                         mhi_l( i1, i2 ) = mhi_l( i1, i2 ) + aimag(ctmp)! - ctmp * rm1
                       end if
                    end do
                 end if

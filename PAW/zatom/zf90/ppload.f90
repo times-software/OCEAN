@@ -1,4 +1,4 @@
-! Copyright (C) 2010 OCEAN collaboration
+! Copyright (C) 2010,2016 OCEAN collaboration
 !
 ! This file is part of the OCEAN project and distributed under the terms 
 ! of the University of Illinois/NCSA Open Source License. See the file 
@@ -41,7 +41,7 @@ subroutine ppload( njrc, vi, nr, r, zc )
      end do
      if ( l .gt. 0 ) vi( :, 2 * l ) = vi( :, 2 * l + 1 )
   end do
-  write ( 6, * ) njrc( : )
+  write ( 6, * ) njrc( : ), 'njrc'
   !
   return
 end subroutine ppload

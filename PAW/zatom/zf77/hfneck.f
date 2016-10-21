@@ -1,4 +1,4 @@
-c Copyright (C) 2010 OCEAN collaboration
+c Copyright (C) 2010,2016 OCEAN collaboration
 c
 c This file is part of the OCEAN project and distributed under the terms 
 c of the University of Illinois/NCSA Open Source License. See the file 
@@ -99,11 +99,14 @@ c  get quantum numbers for levels, Hartree charge, init ev's...
 c
       xntot=0.d0
       iu = 99
+      open( unit=97, file='actual', form='formatted', status='unknown' )
+      rewind 97
       do i=1,nel
         if ( i .gt. nco ) iu = 98
         read (iu,*) no(i),nl(i),nm(i),xnj(i),is(i),occ(i)
+        write ( 97, * ) no(i),nl(i),nm(i),xnj(i),is(i),occ(i)
         ev(i)=0.d0
-        if ( no( i ) .le. 0 ) read ( iu, * ) ev( i )
+        if ( no( i ) .eq. 0 ) read ( iu, * ) ev( i )
         xntot=xntot+occ(i)
         do j=1,nr
           orb(j,i)=0.d0
@@ -112,6 +115,7 @@ c
           phe(j,i)=0.d0
         end do
       end do
+      close(unit=97)
       close(unit=98)
       close(unit=99)
       if ((njrc(1).eq.0).or.(.not.psflag)) then
@@ -282,6 +286,8 @@ c
         if (dabs(xnj(i)).lt.dble(nl(i))-0.25d0) xkappa= nl(i)
         if (vtry.eq.1) evi=ev(i)+vnew(i)-vold(i)
         isuse=njrc(nl(i)+1)
+        !
+        ! no > 0 means solve for the regular atomic state
         if ( no( i ) .gt. 0 ) then
           call elsolve(i,no(i),nl(i),xkappa,xnj(i),zorig,zeff,
      &                 evi,phe(1,i),v,xm1,xm2,nr,r,dr,r2,dl,rel,
@@ -290,12 +296,25 @@ c
             if (dabs(ev(i)-evi).gt.eerror) eerror=dabs(ev(i)-evi)
           end if
           ev(i)=evi
-        else
-          evi = ev( i ) 
+        end if
+        !
+        ! no > 0 means solve at the energy that was input
+        if ( no( i ) .eq. 0 ) then
+          evi = ev( i )
           call elener(i,no(i),nl(i),xkappa,xnj(i),zorig,zeff,
      &                evi,phe(1,i),v,xm1,xm2,nr,r,dr,r2,dl,rel,
      &                vtry,isuse)
         end if
+        !
+        ! no < 0 means solve for boundary condits with abs( no( i ) ) nodes
+        if ( no( i ) .eq. 0 ) then
+          call bcsolve(i,no(i),nl(i),xkappa,xnj(i),zorig,zeff,
+     &                 evi,phe(1,i),v,xm1,xm2,nr,r,dr,r2,dl,rel,
+     &                 vtry,isuse)
+          ev(i)=evi
+        end if
+        !
+        !
         ll=2
         ekk=0.d0
         do j=nr,1,-1
@@ -314,8 +333,10 @@ c
       return
       end
 c-----------------------------------------------------------------------
-      subroutine setqmm(i,orb,l,xj,idoflag,v,zef,
+      subroutine setqmm_until_nov_21_2013(i,orb,l,xj,idoflag,v,zef,
      &                  zorig,rel,nr,r,r2,dl,xm1,xm2,njrc,vi,psflag)
+!     subroutine setqmm(i,orb,l,xj,idoflag,v,zef,
+!    &                  zorig,rel,nr,r,r2,dl,xm1,xm2,njrc,vi,psflag)
       implicit none
       integer i,l,idoflag,nr
       double precision xj,zef,zorig,rel,dl
@@ -428,45 +449,6 @@ c  outer end point
       return
       end
 c----------------------------------------------------------------------
-      subroutine augment(e,l,xj,phi,v,nr,r,dl,rel)
-      implicit none
-      integer l,nr
-      double precision e,xj,dl,rel
-      double precision phi(nr),v(nr),r(nr)
-      integer j
-      double precision c,cc,c2,xkappa,g0,ga,gb,gc,gg,f0
-      double precision phi2(nr)
-!     write ( 6, * ) 'augmenting ... ', rel
-      include 'alfinv.h'
-      c=rel*c
-      cc=c*c
-      c2=cc+cc
-      xkappa=-1
-      if (dabs(xj).gt.dble(l)+0.25d0) xkappa=-l-1
-      if (dabs(xj).lt.dble(l)-0.25d0) xkappa= l
-      do j=4,nr-3
-        if (phi(j).ne.0.d0) then
-          g0=phi(j)
-          ga=(phi(j+1)-phi(j-1))
-          gb=(phi(j+2)-phi(j-2))/2.d0
-          gc=(phi(j+3)-phi(j-3))/3.d0
-          gg=((1.5d0*ga-0.6d0*gb+0.1d0*gc)/(2.d0*dl)+xkappa*g0)/r(j)
-          f0=c*gg/(e-v(j)+c2)
-          phi2(j)=dsqrt(g0*g0+f0*f0)
-          if (g0.lt.0.d0) phi2(j)=-phi2(j)
-        else
-          phi2(j)=phi(j)
-        end if
-      end do
-      do j=1,3
-        phi2(j)=phi(j)*phi(4)/phi2(4)
-      end do
-      do j=1,nr
-        phi(j)=phi2(j)
-      end do
-      return
-      end
-c----------------------------------------------------------------------
       subroutine initiali(zorig,nr,rmin,rmax,r,dr,r2,dl,njrc,xntot,nel)
       implicit none
       double precision, parameter :: rmifac = 0.00000001d0
@@ -521,11 +503,20 @@ c----------------------------------------------------------------------
       double precision phi( nr, nlev ), occ( nlev )
       integer j, k, l
       double precision tmp
+      character * 2 elstr
+      character * 9 jive9
       character * 11 jive
-      open(unit=99,file='pslocr',
-     &      form='formatted', status='unknown' )
+      open(unit=99,file='elemfile', 
+     &     form='formatted', status='unknown' )
       rewind 99
-      read ( 5,'(1a11)') jive
+      read ( 99, '(1a2)' ) elstr
+      close( unit=99 ) 
+      rewind 99
+      open(unit=99,file='pslocr',
+     &     form='formatted', status='unknown' )
+      rewind 99
+      read ( 5,'(1a9)') jive9
+      write ( jive, '(1x,1a2,1a9)' ) elstr, jive9
       write(99,'(1a11)') jive
       write(99,*) 4,nr,dabs(r(nr-10)*vps(nr-10,1))
       do k = 1, nr

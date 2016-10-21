@@ -1,4 +1,4 @@
-! Copyright (C) 2010 OCEAN collaboration
+! Copyright (C) 2010,2016 OCEAN collaboration
 !
 ! This file is part of the OCEAN project and distributed under the terms 
 ! of the University of Illinois/NCSA Open Source License. See the file 
@@ -28,8 +28,10 @@ subroutine chgocc( icore, delta )
   !
   open( unit=99, file='corcon', form='formatted', status='unknown' )
   rewind 99
+  write ( 06, '(1i5,34x,1a6)' ) nco, 'chgocc'
   write ( 99, '(1i5)' ) nco
   do i = 1, nco
+     write ( 06, '(3i3,1f6.2,1i4,1f10.5,10x,1a6)' ) nn( i ), ll( i ), mm( i ), xj( i ), is( i ), occ( i ), 'chgocc'
      write ( 99, '(3i3,1f6.2,1i4,1f10.5)' ) nn( i ), ll( i ), mm( i ), xj( i ), is( i ), occ( i )
   end do
   close( unit=99 )

@@ -1,4 +1,4 @@
-c Copyright (C) 2010 OCEAN collaboration
+c Copyright (C) 2010,2016 OCEAN collaboration
 c
 c This file is part of the OCEAN project and distributed under the terms 
 c of the University of Illinois/NCSA Open Source License. See the file 
@@ -296,6 +296,7 @@ c
 c  figure total kinetic energy
 c
       etkin=etot-(etlda+etcou+etnuc)
+!     write ( 6, * ) '....', etkin, etlda, etcou, etnuc, alfa
 c
 c
 c  figure out the first-order ptbn. th'y effects on new
@@ -323,7 +324,7 @@ c----------------------------------------------------------------------
       return
       end
 c----------------------------------------------------------------------
-      subroutine dft(dl,rel,al,nr,ne,l,j,s,o,dr,r2,cq,ph,or,
+      subroutine ddft(dl,rel,al,nr,ne,l,j,s,o,dr,r2,cq,ph,or,
      &               ra,et,x137)
       implicit none
       integer nr,ne,l(ne),s(ne),i,k,ii

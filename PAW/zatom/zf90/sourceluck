@@ -1,0 +1,787 @@
+subroutine pwavesetter( l, ntest, cush, emax, nr, r, dr, r2, dl, vi, iuflag, cq, isuse )
+  implicit none
+  !
+  integer :: l, ntest, nr, iuflag, isuse
+  integer :: njrc( 4 ), isuse, lmin, lmax, iuflag
+  real( kind = kind( 1.0d0 ) ) :: rel, alfa, dl, zorg, rcocc( 0 : 3 )
+  real( kind = kind( 1.0d0 ) ) :: r( nr ), dr( nr ), r2( nr )
+  real( kind = kind( 1.0d0 ) ) :: vi( nr, 7 ), cq( nr )
+  !
+  integer, allocatable :: no( : ), nl( : ), nm( : ), is ( : )
+  real( kind = kind( 1.0d0 ) ), allocatable :: ev( : ), occ( : ), ek( : ), xnj( : ), phe( :, : ), pot( :, : )
+  logical, parameter :: AE = .false., PS = .true.
+  !
+  call mkcorcon( alfa, rel, zorig, zc, njrc, rcocc, rsocc, dirac )
+  open( unit=99, file='corcon', form='formatted', status='unknown' )
+  rewind 99
+  read ( 99, * ) nco
+  close( unit=99 )
+  open( unit=99, file='skip', form='formatted', status='unknown' )
+  rewind 99
+  read ( 99, * )
+  do l = 0, 3
+     read ( 99, * ) i, skips( l )
+  end do
+  noskip( : ) = 0.0d0
+  close( unit=99 )
+  write ( 6, '(1a9,4i5)' ) 'skip   = ', skips( : )
+  write ( 6, '(1a9,4i5)' ) 'noskip = ', noskip( : )
+  nel = ntest + nco + ( 1 + lmax - lmin )
+  allocate( no( nel ), nl( nel ), nm( nel ), is( nel ), ev( nel ), ek( nel ), occ( nel ), xnj( nel ) )
+  allocate( pheps( nr, nel ), pheae( nr, nel ), orb( nr, nel ) )
+  call freshen( lmin, lmax, rcocc, skips, 1 )
+  call abinitio(etot,ru,au,nr,r,dr,r2,dl,phe,njrc,vi,zorig,xntot,nel,no,nl,nm,xnj,ev,occ,is,ek,orb,iuflag,cq,AE,nelmax)
+  !
+  return
+end subroutine pwavesetter
+  !
+  
+  !
+  !
+  !
+  integer :: ncore, lcore, icore, nq, nco, n2, is2, nuse, luse, iuse
+  integer :: l, ne, lcmin, lcmax, k
+  integer :: i, j, lev, ilev, jlev, irc
+  integer :: tfac, nt, i1, i2, j1, j2, lc
+  real( kind = kind( 1.0d0 ) ) :: emin, emax, emid, dq, qmax, prec, rc, ctol, condnum, su, dummy, dum
+  real( kind = kind( 1.0d0 ) ), external :: efrac
+  !
+  real( kind = kind( 1.0d0 ) ), allocatable :: c( : , : ), meltmp( : )
+  real( kind = kind( 1.0d0 ) ), allocatable, dimension( :, : ) :: orb, proj, pheae, pheps, aesav
+  real( kind = kind( 1.0d0 ) ), allocatable, dimension( :, : ) :: meltrue, melfake, melval
+  real( kind = kind( 1.0d0 ) ), allocatable, dimension( :, :, : ) :: etrue, efake, exch
+  !
+  integer, parameter :: prjfile = 93, melfile = 94
+  !
+  integer  :: ntest, nelmax
+  real( kind = kind( 1.0d0 ) ), allocatable :: eint( : ), frac( : )
+  real( kind = kind( 1.0d0 ) ), dimension( nr ) :: ff, copy, reconned, phespc
+  !
+  integer :: nval, npower
+  real( kind = kind( 1.0d0 ) ) :: xj
+  integer, allocatable, dimension( : ) :: ntmp, ltmp
+  real( kind = kind( 1.0d0 ) ), allocatable :: occtmp( : )
+  !
+  real( kind = kind( 1.0d0 ) ) :: ru, au, nulocc( 0 : 3 ) !  , hptab( nr, 2 )
+  !
+  character * 1 :: ltr
+  character * 3 :: nam3
+  character * 4 :: nam4
+  character * 6 :: s6
+  character * 10 :: addend, adduse
+  character * 11 :: filnam11
+  character * 17 :: s17
+  !
+  read ( 5, * ) ncore, lcore
+  write ( addend, '(1a1,1i3.3,2(1a1,1i2.2))' ) 'z', nint( zorig ), 'n', ncore, 'l', lcore
+  call geticore( nco, icore, ncore, lcore )
+  write ( 6, * ) ' all stuffs = ', icore, ncore, lcore
+  !
+  open( unit=99, file='skip', form='formatted', status='unknown' )
+  read ( 99, * )
+  do l = 0, 3
+     read ( 99, * ) i, skips( l )
+  end do
+  !
+  ntest = 80
+  allocate( eint( 0 : ntest ), frac( 0 : ntest ) )
+  !
+
+  call freshen( lmin, lmax, rcocc, skips, 0 )
+  call abinitio(etot,rel,alfa,nr,r,dr,r2,dl,pheae,njrc,vi,zorig,xntot,nel,no,nl,nm,xnj,ev,occ,is,ek,orb,iuflag,cq,.true.,nelmax)
+  write ( 6, * ) nl( 1 : 3 ), ev( 1 : 3 )
+  do i = 1, n2
+     etmii( nl( i ) ) = ev( i ) - 0.15d0
+  end do
+  do l = lmin, lmax
+     write ( 6, '(1i3,5x,1a8,1f10.5)' ) l, 'etmin = ', etmin( l )
+  end do
+  !
+  read ( 5, * ) npower
+  read ( 5, * ) emin, emax, prec, tfac
+  read ( 5, * ) rc, ctol
+  read ( 5, * ) dq, qmax
+  nq = 1 + qmax / dq
+  !
+  ! reset cutoff radius to radius value on the radial grid
+  irc = 0
+  do i = 1, nr, 4
+     if ( r( i ) .lt. rc ) irc = i
+  end do
+  write ( filnam11, '(1a8,1i3.3)' ) 'radfilez', nint( zorig )
+  open( unit=99, file=filnam11, form='formatted', status='unknown' )
+  rewind 99
+  write ( 99, * ) r( irc ), nr, irc
+  close( unit=99 )
+  !
+  write ( filnam11, '(1a8,1i3.3)' ) 'prjfilez', nint( zorig )
+  open( unit=prjfile, file=filnam11, form='formatted', status='unknown' )
+  write ( filnam11, '(1a8,1i3.3)' ) 'melfilez', nint( zorig )
+  open( unit=melfile, file=filnam11, form='formatted', status='unknown' )
+  rewind prjfile 
+  rewind melfile
+  write ( prjfile, '(3i5,2x,1e15.8)' ) lmin, lmax, nq, dq
+  !
+  ! loop over values of valence angular momentum ... 
+  do l = lmin, lmax
+     !
+     ! determine suitable project functions
+     dum = 0
+     call egripper2( nr, nelmax, r, dr, r2, dl, nl, pheps, pheae, njrc, vi, zorig, iuflag, orb, l, ntest, irc, frac, rel, alfa, &
+          & eint, emin, emax, ne, prec, dum ) 
+     write ( 6, *)  'project functions found'
+     write ( 6, * ) 'l, ne ... ', l, ne
+     !
+     ! output projector functions and their fourier transforms 
+     nl( 1 : ne ) = l 
+     call sdump( l, .true., ne, nl, nr, r, dl, irc, pheps, nelmax, zorig )
+     nl( nco + 1 : nco + ne ) = l
+     call sdump( l, .false., ne, nl, nr, r, dl, irc, pheae, nelmax, zorig )
+     !
+     allocate( aesav( irc, ne ) )
+     aesav( 1 : irc, 1 : ne ) = pheae( 1 : irc, 1 + nco : ne + nco )
+     call breader( l, irc, condnum, nr, dl, ne, zorig )
+     !
+     lcmin = iabs( lcore - l )
+     lcmax = lcore + l 
+     write ( 6, '(1a14,2i5)' ) 'lcmin, lcmax: ', lcmin, lcmax
+     write ( prjfile, '(1i5)' ) ne
+     allocate( exch( lcmin : lcmax, ne, ne ) )
+     phespc = pheae( :, icore )
+     open( unit=99, file='coreorb', form='formatted', status='unknown' )
+     do i = 1, nr
+        write ( 99, '(2(1x,1e22.15),1i10)' ) r( i ), phespc( i ), nr
+     end do
+     close( unit=99 )
+     do i = 1, ne
+        ilev = i + nco
+        do j = 1, ne
+           jlev = j + nco
+           call getexch( nr, r, dl, lcmin, lcmax, phespc, pheae( 1, ilev ), pheae( 1, jlev ), exch( lcmin, i, j ) )
+        end do
+     end do
+     write ( 6, * ) 'icore = ', icore, 'ncore = ', ncore, 'lcore = ', lcore
+     nt = tfac * ne
+     allocate( melval( 0 : npower, ne ), meltrue( 0 : npower, nt ), melfake( 0 : npower, nt ), meltmp( 0 : npower ) )
+     write ( 6, * ) ' for melfile ...', ne
+     do i = 1, ne
+        lev = i + nco
+        call rpower( nr, r, dl, phespc, pheae( 1, lev ), npower, meltmp )
+        melval( :, i ) = meltmp( : )
+     end do
+     !
+     open( unit=99, file='valcon', form='formatted', status='unknown' )
+     rewind 99
+     read ( 99, * ) nval
+     allocate ( ntmp( nval ), ltmp( nval ), occtmp( nval ) )
+     do i = 1, nval
+        read ( 99, * ) ntmp( i ), ltmp( i ), occtmp( i )
+     end do
+     close( unit=99 )
+     !
+     open( unit=99, file='config', form='formatted', status='unknown' )
+     rewind 99
+     write ( 99, * ) nt + nval, 0.2d0, 0.0001d0, 100.d0, 0, 0
+     do i = 1, 2 * nt, 2
+        write ( 99, * ) -1, l, l, -dble( l ), 1, 0.d0
+        emid = etmin( l ) + ( emax - etmin( l ) ) * dble( i ) / dble( 2 * nt )
+        write ( 99, * ) emid
+     end do
+     do i = 1, nval
+        xj = -ltmp( i )
+        if ( ltmp( i ) .eq. 0 ) xj = -0.5d0
+        write ( 99, * ) ntmp( i ), ltmp( i ), 0, xj, 1, occtmp( i )
+     end do
+     close( unit=99)
+     deallocate( ntmp, ltmp, occtmp )
+     !
+     call abinitio(etot,rel,alfa,nr,r,dr,r2,dl,pheae,njrc,vi,zorig,xntot,nel,no,nl,nm,xnj,ev,occ,is,ek,orb,iuflag,cq,.false.,nelmax)
+     !
+     allocate( etrue( lcmin : lcmax, nt, nt ) )
+     do i = 1, nt
+        ilev = i + ( nel - nval - nt )
+        do j = 1, nt
+           jlev = j + ( nel - nval - nt )
+           call getexch( nr, r, dl, lcmin, lcmax, phespc, pheae( 1, ilev ), pheae( 1, jlev ), etrue( lcmin, i, j ) )
+        end do
+     end do
+     do i = 1, nt
+        lev = i + ( nel - nval - nt )
+        call rpower( nr, r, dl, phespc, pheae( 1, lev ), npower, meltmp )
+        meltrue( :, i ) = meltmp( : )
+     end do
+     !
+     call amult( l, ne, nr, zorig )
+     allocate( proj( nr, ne ), c( ne, nt ) )
+     write ( unit=nam3, fmt='(1a2,1i1)' ) 'pr', l
+     open( unit=99, file=nam3, form='formatted', status='unknown' )
+     rewind 99
+     do i = 1, nr
+        read ( 99, * ) dummy, ( proj( i, j ), j = 1, ne )
+     end do
+     close( unit=99 )
+     !
+     call transp( l, ne, nr, qmax, dq, nq, dl, irc, zorig )
+     !
+     do j = 0, npower 
+        write ( melfile, '(8(2x,1e15.8))' ) melval( j, : )
+     end do
+     !
+     call abinitio(etot,rel,alfa,nr,r,dr,r2,dl,pheps,njrc,vi,zorig,xntot,nel,no,nl,nm,xnj,ev,occ,is,ek,orb,iuflag,cq,.true.,nelmax)
+     !
+     ! reconstruct wave functions.  insodoing, output diagnostic file showing actual and reconstructed wave functions
+     write ( unit=nam3, fmt='(1a2,i1)' ) 'di', l
+     open( unit=99, file=nam3, form='formatted', status='unknown' )
+     rewind 99
+     do i = 1, nt
+        do k = 1, irc
+           copy( k ) = pheps( k, i ) / r( k )
+           reconned( k ) = 0.d0
+        end do
+        do j = 1, ne
+           do k = 1, irc
+              ff( k ) = proj( k, j ) * pheps( k, i ) / r( k )
+           end do
+           call bintegrate( nr, r, dl, ff, su, irc )
+           do k = 1, irc
+              copy( k ) = copy( k ) - su * proj( k, j )
+              reconned( k ) = reconned( k ) + su * aesav( k, j ) / r( k )
+           end do
+        end do
+        call recon( nr, r, dl, irc, pheps( 1, i ), ne, proj, c( 1, i ) )
+        do j = 1, irc
+           write ( 99, '(2x,2i5,5(2x,1e15.8))' ) is2, j, r( j ), copy( j ), pheps( j, i ),  reconned( j ), pheae( j, i + nco )
+        end do
+        write ( 99, * )
+     end do
+     !
+     ! from reconstruction coefficients, calculate trumped-up transition matrix elements
+     do i = 1, nt
+        do j = 0, npower
+           su = 0.d0
+           do k = 1, ne
+              su = su + c( k, i ) * melval( j, k )
+           end do
+           melfake( j, i ) = su
+        end do
+     end do
+     close( unit=99 )
+     !
+     ! output diagnostic file to show quality of reconstructed transition matrix elements
+     do j = 0, npower
+        write ( unit=nam4, fmt='(1a2,2i1)' ) 'mt', j, l
+        open( unit=99, file=nam4, form='formatted', status='unknown' )
+        rewind 99
+        do i = 1, nt
+           write ( 99, '(2x,1i5,3(2x,1e15.8))' ) i, ev( i ), meltrue( j, i ), melfake( j, i )
+        end do
+        close( unit=99 )
+     end do
+     !
+     ! from reconstruction coefficients, calculate trumped-up exchange integrals
+     allocate( efake( lcmin : lcmax, nt, nt ) )
+     do i1 = 1, nt
+        do i2 = 1, nt
+           do lc = lcmin, lcmax, 2
+              su = 0.d0
+              do j1 = 1, ne
+                 do j2 = 1, ne
+                    su = su + exch( lc, j1, j2 ) * c( j1, i1 ) * c( j2, i2 )
+                 end do
+              end do
+              efake( lc, i1, i2 ) = su
+           end do
+        end do
+     end do
+     !
+     ! output diagnostic file to show quality of reconstructed exchange integrals
+     write ( unit=nam3, fmt='(1a2,1i1)' ) 'ex', l
+     open( unit=99, file=nam3, form='formatted', status='unknown' )
+     rewind 99
+     do i1 = 1, nt
+        do i2 = 1, nt
+           do lc = lcmin, lcmax, 2
+              write ( 99, '(2x,2i5,4(2x,1e15.8))' ) i1, i2, ev( i1 ), ev( i2 ), efake( lc, i1, i2 ), etrue( lc, i1, i2 )
+           end do
+        end do
+        write ( 99, * )
+     end do
+     close( unit=99 )
+     !
+     deallocate( melval, meltrue, melfake, meltmp, proj, c, exch, etrue, efake, aesav )
+     !
+  end do
+  close( unit=prjfile )
+  close( unit=melfile )
+  !
+  ru = 1.0d0
+  au = 0.0d0
+  nulocc( : ) = 0.0d0
+  !
+  ! loop over all core levels
+  do iuse = 1, nco
+     !
+     ! acquiesce N and L
+     open( unit=99, file='corcon', form='formatted', status='unknown' )
+     rewind 99
+     read ( 99, * )
+     do j = 1, iuse
+        read ( 99, * ) nuse, luse
+     end do
+     close( unit=99 )
+     !
+     ! fix file addend
+     write ( adduse, '(1a1,1i3.3,2(1a1,1i2.2))' ) 'z', nint( zorig ), 'n', nuse, 'l', luse
+     !
+     ! make guidefile
+     select case( luse )
+     case( 0 )
+        ltr = 's'
+     case( 1 )
+        ltr = 'p'
+     case( 2 )
+        ltr = 'd'
+     case( 3 )
+        ltr = 'f'
+     end select
+     write ( s6, '(1a4,1i1,1a1)' ) 'znl.', nuse, ltr
+     open( unit=99, file=s6, form='formatted', status='unknown' )
+     write ( 99, '(3i5)' ) nint( zorig ), nuse, luse
+     close( unit=99 )
+     !
+     ! output deflin...
+     write ( s17, '(1a7,1a10)' ) '.deflin', adduse
+     open( unit=99, file=s17, form='formatted', status='unknown' )
+     rewind 99
+     write ( 99, '(3i5)' ) luse, lmin, lmax
+     close( unit=99 )
+     !
+!    ! output real input files
+!    call freshen( lmin, lmax, nulocc, skips, 0 )
+!    call abinitio(etot,ru,au,nr,r,dr,r2,dl,pheae,njrc,vi,zorig,xntot,nel,no,nl,nm,xnj,ev,occ,is,ek,orb,iuflag,cq,.false.,nelmax)
+!    call hpload( hptab, nr, 1 )
+!    call chgocc( iuse, -1.0d0 )
+!    call abinitio(etot,ru,au,nr,r,dr,r2,dl,pheae,njrc,vi,zorig,xntot,nel,no,nl,nm,xnj,ev,occ,is,ek,orb,iuflag,cq,.false.,nelmax)
+!    call hpload( hptab, nr, 2 )
+!    call chgocc( iuse, +1.0d0 )
+!    call optript( nr, r, hptab(:,1), hptab(:,2), adduse, 'vcxxxxx' )
+     !
+     ! output Slater Fk and Gk integrals
+     call freshen( lmin, lmax, rcocc, skips, 0 )
+     call abinitio(etot,ru,au,nr,r,dr,r2,dl,pheae,njrc,vi,zorig,xntot,nel,no,nl,nm,xnj,ev,occ,is,ek,orb,iuflag,cq,.false.,nelmax)
+     call getfgnew( nr, dl, r, nel, nl, pheae, zorig, iuse, nuse, luse )
+     !
+     ! output radial melfiles
+     call getmeznl( nr, dl, r, nel, nl, pheae, zorig, iuse, nuse, luse, npower )
+     !
+  end do
+  !
+  deallocate( pheps, pheae, orb, no, nl, nm, is, ev, ek, occ, xnj )
+  !
+  return
+end subroutine fillinpaw
+subroutine egripper2( nr, nelmax, r, dr, r2, dl, nl, pheps, pheae, njrc, vi, zorig, iuflag, orb, &
+     l, ntest, irc, frac, rel, alfa, eint, emin, emax, north, prec, precdum )
+  implicit none
+  !
+  integer :: nr, nelmax, njrc( 4 )
+  integer :: l, iuflag, ntest, irc, north
+  !
+  real( kind = kind( 1.0d0 ) ) :: dl, zorig, emin, emax, prec, precdum
+  real( kind = kind( 1.0d0 ) ) :: rel, alfa
+  real( kind = kind( 1.0d0 ) ) :: r( nr ),dr( nr ),r2( nr )
+  real( kind = kind( 1.0d0 ) ) :: pheps( nr, nelmax )
+  real( kind = kind( 1.0d0 ) ) :: pheae( nr, nelmax )
+  real( kind = kind( 1.0d0 ) ) :: orb( nr, nelmax )
+  integer :: nl( nelmax )
+  real( kind = kind( 1.0d0 ) ) :: vi( nr, 7 )
+  !
+  real( kind = kind( 1.0d0 ) ) :: frac( 0 : ntest )
+  real( kind = kind( 1.0d0 ) ) :: eint( 0 : ntest )
+  !
+  integer :: i, nco, nnew
+  real( kind = kind( 1.0d0 ) ) :: f, runf, su
+  real( kind = kind( 1.0d0 ) ), allocatable :: enew( : ), dif( : )
+  real( kind = kind( 1.0d0 ) ), allocatable :: map( : , : )
+  real( kind = kind( 1.0d0 ) ), external :: efrac
+  !
+  write ( 6, * ) ' alfa = ', alfa
+  open(unit=99,file='corcon', form='formatted',status='unknown')
+  rewind 99
+  read ( 99, * ) nco
+  close( unit=99 )
+  !
+  allocate( enew( 0 : ntest ), dif( 0 : ntest ) )
+  allocate( map( 0 : ntest, 0 : ntest ) )
+  do i = 0, ntest
+     eint( i ) = emin + ( emax - emin ) * dble( i ) / dble( ntest )
+  end do
+  write ( 06, * ) 'calling grips up front'
+  write ( 77, * ) 'calling grips up front'
+  call grips( ntest + 1, l, nr, nelmax, r, dr, r2, dl, nl, pheps, njrc, vi, zorig, eint, orb, iuflag, &
+       irc, map, dif, 0.d0, alfa, .true. )
+  call optdif( ntest, eint, 'dif1', l, dif )
+  call optmap( ntest, 'map1', l, map )
+  !
+  su = 0
+  do i = 1, ntest - 1, 2
+     dif( i ) = abs( dif( i ) )
+     su = su + sqrt( dif( i ) )
+  end do
+  !
+  frac( 0 ) =0.d0
+  frac( ntest ) = 1.d0
+  runf = 0.d0
+  do i = 1, ntest - 3, 2
+     runf = runf + sqrt( dif( i ) )
+     frac( i + 1 ) = runf / su
+  end do
+  do i = 0, ntest
+  end do
+  !
+  do i = 0, ntest
+     f = dble( i ) / dble( ntest )
+     enew( i ) = efrac( ntest, f, frac, eint )
+  end do
+  call grips( ntest + 1, l, nr, nelmax, r, dr, r2, dl, nl, pheps, njrc, vi, zorig, enew, orb, iuflag, &
+       irc, map, dif, 0.d0, alfa, .true. )
+  call optdif( ntest, enew, 'dif2', l, dif )
+  call optmap( ntest, 'map2', l, map )
+  call grips( ntest + 1, l, nr, nelmax, r, dr, r2, dl, nl, pheae, njrc, vi, zorig, enew, orb, iuflag, &
+       irc, map, dif, rel, alfa, .false. )
+  !
+  call orthred( nr, irc, ntest + 2, nnew, dl, r, pheps( :, 1 ), pheae( :, 1 + nco), prec )
+  north = nnew
+  !
+  deallocate( dif, map, enew )
+  !
+  return
+end subroutine egripper2
+!
+subroutine optmap( ntest, name, l, map )
+  implicit none
+  !
+  integer :: ntest, l
+  character * 4 :: name
+  character * 5 :: name2
+  real( kind = kind( 1.0d0 ) ) :: map( 0 : ntest, 0 : ntest ) 
+  !
+  integer :: i, j
+  !
+  write ( unit=name2, fmt='(1a4,1i1)' ) name, l ! mknam
+  open( unit=99, file=name2, form='formatted', status='unknown' )
+  rewind 99
+  do i = 0, ntest
+     do j = 0, ntest
+        write ( 99, '(2x,2i5,1(2x,1e15.8))' ) i, j, map( i, j )
+     end do
+     write ( 99, * )
+  end do
+  close( unit=99 )
+  !
+  return
+end subroutine optmap
+!
+subroutine optdif( ntest, e, name, l, dif )
+  implicit none
+  !
+  integer :: ntest, l
+  character * 4 :: name
+  character * 5 :: name2
+  real( kind = kind( 1.0d0 ) ) :: e( 0 : ntest ), dif( 0 : ntest )
+  !    
+  integer :: i
+  !
+  write ( unit=name2, fmt='(1a4,1i1)' ) name, l
+  open( unit=99, file=name2, form='formatted', status='unknown' )
+  rewind 99
+  do i = 1, ntest - 1, 2
+     write ( 99, '(2x,1i5,2(2x,1e15.8))' ) i, e( i ), dif( i )
+  end do
+  close( unit=99 )
+  !
+  return
+end subroutine optdif
+!
+function efrac( ntest, f, frac, eint )
+  implicit none
+  !
+  real( kind = kind( 1.0d0 ) ) :: efrac
+  !
+  integer :: ntest
+  real( kind = kind( 1.0d0 ) ) :: f
+  real( kind = kind( 1.0d0 ) ) :: frac( 0 : ntest ), eint( 0 : ntest )
+  !
+  integer :: i
+  real( kind = kind( 1.0d0 ) ) :: el, eh, fl, fh
+  !
+  if ( ( f .ge. frac( 2 ) ) .and. ( f .le. frac( ntest - 2 ) ) ) then
+     i = 0
+     do while ( f .ge. frac( i + 2 ) )
+        i = i + 2
+     end do
+  else
+     if ( f .le. frac( 2 ) ) then
+        i = 0
+     else
+        i = ntest - 2
+     end if
+  end if
+  el = eint( i )
+  eh = eint( i + 2 )
+  fl = frac( i )
+  fh = frac( i + 2 )
+  efrac = el + ( eh - el ) * ( f - fl ) / ( fh - fl )
+  !
+  return
+end function efrac
+!
+subroutine grips( ne, l, nr, nelmax, r, dr, r2, dl, nl, phe, njrc, vi, zorig, eint, orb, iuflag, &
+     irc, smtab, diff, rel, alfa, mode )
+  implicit none
+  !
+  integer :: ne, l, nr, nelmax, njrc( 4 ), iuflag, irc
+  !
+  logical :: mode
+  !
+  real( kind = kind( 1.0d0 ) ) :: dl, zorig
+  real( kind = kind( 1.0d0 ) ) :: r( nr ), dr( nr ), r2( nr )
+  real( kind = kind( 1.0d0 ) ) :: phe( nr, nelmax ), vi( nr, 7 )
+  real( kind = kind( 1.0d0 ) ) :: orb( nr, nelmax )
+  !
+  real( kind = kind( 1.0d0 ) ) :: smtab( ne, ne ), diff( ne )
+  real( kind = kind( 1.0d0 ) ) :: eint( ne )
+  integer :: nl( nelmax )
+  !
+  integer :: nel
+  real( kind = kind( 1.0d0 ) ) :: etot, rel, alfa, xntot
+  !
+  integer, allocatable :: no( : ), nm( : ), is( : )
+  real( kind = kind( 1.0d0 ) ), allocatable :: xnj( : ), occ( : )
+  real( kind = kind( 1.0d0 ) ), allocatable :: ev( : ), ek( : ), cq( : )
+  real( kind = kind( 1.0d0 ) ), allocatable :: f( : )
+  !
+  integer :: nval, ncor, ntot
+  real( kind = kind( 1.0d0 ) ) :: xj
+  integer, allocatable :: ntmp( : ), ltmp( : )
+  real( kind = kind( 1.0d0 ) ), allocatable :: occtmp( : )
+  !
+  integer :: i, j, i1, i2
+  real( kind = kind( 1.0d0 ) ) :: su
+  !
+  allocate( cq( nr ) )
+  cq = 0.0d0
+  allocate( f( irc ) )
+  !
+! alfa = 0.d0
+  !
+  open( unit=99, file='corcon', form='formatted', status='unknown' )
+  rewind 99
+  read ( 99, * ) ncor
+  close( unit=99 )
+  !
+  open( unit=99, file='valcon', form='formatted', status='unknown' )
+  rewind 99
+  read ( 99, * ) nval
+  allocate ( ntmp( nval ), ltmp( nval ), occtmp( nval ) )
+  do i = 1, nval
+     read ( 99, * ) ntmp( i ), ltmp( i ), occtmp( i )
+  end do
+  close( unit=99 )
+  !
+  ntot = ne + ncor + nval
+  allocate( no( ntot ), nm( ntot ), is( ntot ), xnj( ntot ) )
+  allocate( occ( ntot ), ev( ntot ), ek( ntot ) )
+  !
+  open( unit=99, file='config', form='formatted', status='unknown' )
+  rewind 99
+  write ( 99, * ) ne + nval, 0.2d0, 0.0001d0, 100.d0, 0, 2
+  xj = - l
+! if ( l .eq. 0 ) xj = -0.5d0
+  do i = 1, nval
+     if ( ltmp( i ) .eq. l ) then
+        write ( 99, * ) ntmp( i ), l, 0, xj, 1, occtmp( i )
+     end if
+  end do
+  do i = 1, ne
+     write ( 99, * ) -1, l, 0, xj, 1, 0.d0
+     write ( 99, * ) eint( i )
+  end do
+  do i = 1, nval
+     if ( ltmp( i ) .ne. l ) then
+        xj = - ltmp( i )
+!       if ( ltmp( i ) .eq. 0 ) xj = -0.5d0
+        write ( 99, * ) ntmp( i ), ltmp( i ), 0, xj, 1, occtmp( i )
+     end if
+  end do
+  close( unit=99)
+  deallocate( ntmp, ltmp, occtmp )
+  !
+  call abinitio(etot,rel,alfa,nr,r,dr,r2,dl, phe,njrc,vi,zorig,xntot,nel,no,nl,nm,xnj, &
+       ev,occ,is,ek,orb,iuflag,cq,mode,nelmax)
+  !
+  do i = 1, ne ! was to ne + 1
+     do j = 1, irc
+        f( j ) = phe( j, i ) ** 2 / r( j ) ** 2
+     end do
+     call bintegrate( irc, r, dl, f, su, irc )
+     su = 1.d0 / sqrt( su )
+     do j = 1, nr
+        phe( j, i ) = phe( j , i ) * su
+     end do
+  end do
+  do i1 = 1, ne
+     do i2 = 1, ne
+        smtab( i1, i2 ) = 0.d0
+        if ( iabs( i1 - i2 ) .lt. 2 ) then
+           do j = 1, irc
+              f( j ) = phe( j, i1 + 1 ) * phe( j, i2 + 1 ) / r( j ) ** 2
+           end do
+           call bintegrate( irc, r, dl, f, smtab( i1, i2 ), irc )
+        end if
+     end do
+  end do
+  diff( 1 ) = 0.d0
+  diff( ne ) = 0.d0
+  do i = 2, ne - 1
+     diff( i ) = 2.d0 * smtab( i, i ) - smtab( i, i + 1 ) - smtab( i, i - 1 )
+  end do
+  !
+  deallocate( no, nm, is, xnj, occ, ev, ek, cq, f )
+  !
+  return
+end subroutine grips
+subroutine screencore( etot, rel, alfa, nr, r, dr, r2, dl, njrc, vi, zorig, xntot, nel, iuflag, cq, isuse, rsocc, lmin, lmax ) 
+  implicit none
+  !
+  integer :: iuflag, nr, njrc( 4 ), nel, isuse, lmin, lmax, skips( 0 : 3 ), noskip( 0 : 3 )
+  real( kind = kind( 1.0d0 ) ) :: etot, rel, alfa, dl, zorig, xntot, rsocc( 0 : 3 )
+  real( kind = kind( 1.0d0 ) ) :: r( nr ), dr( nr ), r2( nr ), vi( nr, 7 ), cq( nr )
+  !
+  integer :: nco, nuse, luse, iuse, i, j, l, nelmax, nclist, nvlist
+  real( kind = kind( 1.0d0 ) ) :: ru, au, nulocc( 0 : 3 )
+  real( kind = kind( 1.0d0 ) ) :: vcg( nr ), vcx( nr ), vvg( nr ), vvx( nr ), visav( nr, 7 ), gtot( nr ), xtot( nr )
+  real( kind = kind( 1.0d0 ) ), allocatable :: ev( : ), occ( : ), ek( : ), xnj( : ), orb( :, : ), phe( :, : )
+  integer, allocatable :: no( : ), nl( : ), nm( : ), is( : ), vlist( : ), clist( : ), vplist( : )
+  character * 7 :: cp7, vp7
+  character * 10 :: adduse
+  !
+  open( unit=99, file='corcon', form='formatted', status='unknown' )
+  rewind 99
+  read ( 99, * ) nco
+  close( unit=99 )
+  write ( 6, * ) 'nco = ', nco 
+  !
+  nelmax = 1 + nco + ( 1 + lmax - lmin ) + 10
+  allocate( no( nelmax ), nl( nelmax ), nm( nelmax ), is( nelmax ), vlist( nelmax ), clist( nelmax ), vplist( nelmax ) )
+  allocate( ev( nelmax ), ek( nelmax ), occ( nelmax ), xnj( nelmax ), phe( nr, nelmax ), orb( nr, nelmax ) )
+  !
+  ru = rel
+  au = alfa
+  visav( :, : ) = vi( :, : )
+  !
+  nulocc( : ) = 0.0d0
+  do iuse = 1, nco
+     !
+     ! acquiesce N and L
+     open( unit=99, file='corcon', form='formatted', status='unknown' )
+     rewind 99
+     read ( 99, * )
+     do j = 1, iuse
+        read ( 99, * ) nuse, luse
+     end do
+     close( unit=99 )
+     !
+     ! fix file addend
+     write ( adduse, '(1a1,1i3.3,2(1a1,1i2.2))' ) 'z', nint( zorig ), 'n', nuse, 'l', luse
+     !
+     ! output core hole potl files
+     nclist = nco
+     do i = 1, nclist
+        clist( i ) = i
+     end do
+     nvlist = 1 + lmax - lmin
+     do i = 1, nvlist
+        vlist( i ) = nco + i
+        vplist( i ) = i
+     end do
+     ! 
+     ! output files that have no valence electrons
+     cp7 = 'vc_bare'
+     write ( 6, * ); write ( 6, '(1a5,2(1x,1a7))' ) 'begin', cp7;
+     call freshen( lmin, lmax, nulocc, skips, 1 )
+     write ( 6, '(1a14)' ) 'Excited state:'
+     call chgocc( iuse, -1.0d0 )
+     call abinitio(etot,ru,au,nr,r,dr,r2,dl,phe,njrc,vi,zorig,xntot,nel,no,nl,nm,xnj,ev,occ,is,ek,orb,iuflag,cq,.false.,nelmax)
+     call potfigure( nclist, clist, nr, r, dl, phe, nelmax, occ, vcx )
+     write ( 6, '(1a14)' ) 'Ground state: '
+     call chgocc( iuse, +1.0d0 )
+     call abinitio(etot,ru,au,nr,r,dr,r2,dl,phe,njrc,vi,zorig,xntot,nel,no,nl,nm,xnj,ev,occ,is,ek,orb,iuflag,cq,.false.,nelmax)
+     call potfigure( nclist, clist, nr, r, dl, phe, nelmax, occ, vcg )
+     call optript( nr, r, vcg, vcx, adduse, cp7 )
+     write ( 6, '(1a5,2(1x,1a7))' ) 'end  ', cp7; write ( 6, * ); 
+     !
+     ! output files that have valence electrons
+     cp7 = 'vcallel'; vp7 = 'vvallel'
+     write ( 6, * ); write ( 6, '(1a5,2(1x,1a7))' ) 'begin', cp7, vp7;
+     call freshen( lmin, lmax, rsocc, skips, 1 )
+     write ( 6, '(1a14)' ) 'Excited state:'
+     call chgocc( iuse, -1.0d0 )
+     call abinitio(etot,ru,au,nr,r,dr,r2,dl,phe,njrc,vi,zorig,xntot,nel,no,nl,nm,xnj,ev,occ,is,ek,orb,iuflag,cq,.false.,nelmax)
+     call potfigure( nclist, clist, nr, r, dl, phe, nelmax, occ, vcx )
+     call potfigure( nvlist, vlist, nr, r, dl, phe, nelmax, occ, vvx )
+     write ( 6, '(1a14)' ) 'Ground state: '
+     call chgocc( iuse, +1.0d0 )
+     call abinitio(etot,ru,au,nr,r,dr,r2,dl,phe,njrc,vi,zorig,xntot,nel,no,nl,nm,xnj,ev,occ,is,ek,orb,iuflag,cq,.false.,nelmax)
+     call potfigure( nclist, clist, nr, r, dl, phe, nelmax, occ, vcg )
+     call potfigure( nvlist, vlist, nr, r, dl, phe, nelmax, occ, vvg )
+     call optript( nr, r, vcg, vcx, adduse, cp7 )
+     call optript( nr, r, vvg, vvx, adduse, vp7 )
+     write ( 6, '(1a5,2(1x,1a7))' ) 'end  ', cp7, vp7; write ( 6, * );
+     ! write sum of all electron results; this is helpful for core screening in atom prog from 
+     ! valence but frozen out bands in the solid, like Ti(3s,3p), Mg(2s,2p), etc.
+     cp7 = 'aetotal'
+     write ( 6, * ); write ( 6, '(1a5,2(1x,1a7))' ) 'begin', cp7;
+     gtot = vcg + vvg
+     xtot = vcx + vvx
+     call optript( nr, r, gtot, xtot, adduse, cp7 )
+     write ( 6, '(1a5,2(1x,1a7))' ) 'end  ', cp7; write ( 6, * );
+     !
+     ! output file with pseudo val response to bare core screening
+     cp7 = 'vc_bare'; vp7 = 'vpseud0'
+     write ( 6, * ); write ( 6, '(1a5,2(1x,1a7))' ) 'begin', cp7, vp7;
+     call freshen( lmin, lmax, rsocc, skips, 1 )
+     write ( 6, '(1a14)' ) 'Excited state:'
+     ru = 0; au = alfa
+     call addpot( zorig, nuse, luse, cp7, nr, vi )
+     call abinitio(etot,ru,au,nr,r,dr,r2,dl,phe,njrc,vi,zorig,xntot,nel,no,nl,nm,xnj,ev,occ,is,ek,orb,iuflag,cq,.true.,nelmax)
+     call potfigure( nvlist, vplist, nr, r, dl, phe, nelmax, occ, vvx )
+     write ( 6, '(1a14)' ) 'Ground state: '
+     ru = 0; au = alfa
+     vi( :, : ) = visav( :, : )
+     call abinitio(etot,ru,au,nr,r,dr,r2,dl,phe,njrc,vi,zorig,xntot,nel,no,nl,nm,xnj,ev,occ,is,ek,orb,iuflag,cq,.true.,nelmax)
+     call potfigure( nvlist, vplist, nr, r, dl, phe, nelmax, occ, vvg )
+     call optript( nr, r, vvg, vvx, adduse, vp7 )
+     write ( 6, '(1a5,2(1x,1a7))' ) 'end  ', cp7, vp7; write ( 6, * );
+     !
+     ! output file with pseudo val response to dressed core screening
+     cp7 = 'vcallel'; vp7 = 'vpseud1'
+     write ( 6, * ); write ( 6, '(1a5,2(1x,1a7))' ) 'begin', cp7, vp7;
+     call freshen( lmin, lmax, rsocc, skips, 1 )
+     write ( 6, '(1a14)' ) 'Excited state:'
+     ru = 0; au = alfa
+     call addpot( zorig, nuse, luse, cp7, nr, vi )
+     call abinitio(etot,ru,au,nr,r,dr,r2,dl,phe,njrc,vi,zorig,xntot,nel,no,nl,nm,xnj,ev,occ,is,ek,orb,iuflag,cq,.true.,nelmax)
+     call potfigure( nvlist, vplist, nr, r, dl, phe, nelmax, occ, vvx )
+     write ( 6, '(1a14)' ) 'Ground state: '
+     ru = 0; au = alfa
+     vi( :, : ) = visav( :, : )
+     call abinitio(etot,ru,au,nr,r,dr,r2,dl,phe,njrc,vi,zorig,xntot,nel,no,nl,nm,xnj,ev,occ,is,ek,orb,iuflag,cq,.true.,nelmax)
+     call potfigure( nvlist, vplist, nr, r, dl, phe, nelmax, occ, vvg )
+     call optript( nr, r, vvg, vvx, adduse, vp7 )
+     write ( 6, '(1a5,2(1x,1a7))' ) 'end  ', cp7, vp7; write ( 6, * );
+     !
+  end do
+  !
+  return
+end subroutine screencore

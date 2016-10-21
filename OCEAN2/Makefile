@@ -25,7 +25,7 @@ OCEAN_constants.o: OCEAN_constants.f90 AI_kinds.o
 	$(MPIFORT) $(FLAGS) -c -o OCEAN_constants.o OCEAN_constants.f90
 
 ocean.x: $(OCEANOBJS)
-	$(MPIFORT) $(LDFLAGS) -o ocean.x $(OCEANOBJS)  $(BLACS) $(OPENMP) /opt/local/lib/libfftw3.a
+	$(MPIFORT) $(LDFLAGS) -o ocean.x $(OCEANOBJS)  $(BLACS) $(OPENMP) $(FFTWL)
 
 o_spect.x: o_spect.f90 AI_kinds.o gamfcn.o
 	$(MPIFORT) $(FLAGS) -o o_spect.x o_spect.f90 AI_kinds.o gamfcn.o

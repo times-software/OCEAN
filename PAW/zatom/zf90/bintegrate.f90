@@ -1,4 +1,4 @@
-! Copyright (C) 2010 OCEAN collaboration
+! Copyright (C) 2010,2016 OCEAN collaboration
 !
 ! This file is part of the OCEAN project and distributed under the terms 
 ! of the University of Illinois/NCSA Open Source License. See the file 
@@ -33,7 +33,7 @@ subroutine bintegrate( nr, r, dl, f, area, irc )
   end do
   m = irc - 2
   do while ( m .gt. k )
-     su = su + 24.0d0 * f( m ) * r( m ) **3
+     su = su + 24.0d0 * f( m ) * r( m ) ** 3
      m = m - 4
   end do
   area = su * dl / 45.0d0

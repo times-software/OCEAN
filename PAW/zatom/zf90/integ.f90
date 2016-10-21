@@ -1,4 +1,4 @@
-! Copyright (C) 2010 OCEAN collaboration
+! Copyright (C) 2010,2016 OCEAN collaboration
 !
 ! This file is part of the OCEAN project and distributed under the terms 
 ! of the University of Illinois/NCSA Open Source License. See the file 
@@ -54,6 +54,7 @@ subroutine integ(e,l,kap,n,nn,istop,ief,x0,phi,z,v,xm1,xm2,nr,r,dr,r2,dl,rel,ple
      end if
      if ( p2 * p1 .lt. 0.d0 ) then
         nn = nn + 1
+!       write ( 6, * ) nn, nnideal
         if ( nn .gt. nnideal ) then
            ief = 1
            return

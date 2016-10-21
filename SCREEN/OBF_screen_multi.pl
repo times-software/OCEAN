@@ -389,7 +389,7 @@ foreach $rad (@rads)
 {
 #  my $temp_rad = sprintf("%03.2f",$rads[0]);
   my $temp_rad = sprintf("%03.2f",$rad);
-  open VCx, "zpawinfo/vcxxxxx${temp_edgename}R${temp_rad}" or die "Failed to open vcxxxxxx\n$!";
+  open VCx, "zpawinfo/vc_bare${temp_edgename}R${temp_rad}" or die "Failed to open vc_bare${temp_edgename}R${temp_rad}\n$!";
   open VPERT, ">vpert.$rad" or die;
   while (<VCx>){}
   my $vpert_length = $.;
@@ -500,8 +500,8 @@ while ($hfinline = <HFINLIST>) {
     `wc nin >> ipt`;
     `cat nin >> ipt`;
     `echo 1 2 >> ipt`;
-    `wc zpawinfo/vcxxxxx${edgename2} >> ipt`;
-    `cat zpawinfo/vcxxxxx${edgename2} >> ipt`;
+    `wc zpawinfo/vc_bare${edgename2} >> ipt`;
+    `cat zpawinfo/vc_bare${edgename2} >> ipt`;
 
     `cp ipt ipt1`;
     `echo .false. >> ipt1`;
@@ -515,8 +515,8 @@ while ($hfinline = <HFINLIST>) {
 
     `cp ipt ipt1`;
     `echo .true. >> ipt1`;
-    `wc zpawinfo/vvpseud${edgename2} >> ipt1`;
-    `cat zpawinfo/vvpseud${edgename2} >> ipt1`;
+    `wc zpawinfo/vpseud1${edgename2} >> ipt1`;
+    `cat zpawinfo/vpseud1${edgename2} >> ipt1`;
     `wc zpawinfo/vvallel${edgename2} >> ipt1`;
     `cat zpawinfo/vvallel${edgename2} >> ipt1`;
 #    `echo 0.1 100 >> ipt1`;
@@ -563,12 +563,12 @@ while ($hfinline = <HFINLIST>) {
     `wc nin >> ipt`;
     `cat nin >> ipt`;
     `echo 1 2 >> ipt`;
-    `wc zpawinfo/vcxxxxx${edgename2} >> ipt`;
-    `cat zpawinfo/vcxxxxx${edgename2} >> ipt`;
+    `wc zpawinfo/vc_bare${edgename2} >> ipt`;
+    `cat zpawinfo/vc_bare${edgename2} >> ipt`;
     `cp ipt ipt1`;
     `echo .true. >> ipt1`;
-    `wc zpawinfo/vvpseud${edgename2} >> ipt1`;
-    `cat zpawinfo/vvpseud${edgename2} >> ipt1`;
+    `wc zpawinfo/vpseud1${edgename2} >> ipt1`;
+    `cat zpawinfo/vpseud1${edgename2} >> ipt1`;
     `wc zpawinfo/vvallel${edgename2} >> ipt1`;
     `cat zpawinfo/vvallel${edgename2} >> ipt1`;
 #    `echo 0.1 100 >> ipt1`;

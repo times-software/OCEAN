@@ -1,14 +1,13 @@
-! Copyright (C) 2010 OCEAN collaboration
+! Copyright (C) 2010,2016 OCEAN collaboration
 !
 ! This file is part of the OCEAN project and distributed under the terms 
 ! of the University of Illinois/NCSA Open Source License. See the file 
 ! `License' in the root directory of the present distribution.
 !
 !
-subroutine mkcorcon( alfa, rel, z, zc, njrc, rcocc, rsocc, fdirac )
+subroutine mkcorcon( alfa, rel, z, zc, rcocc, rsocc, fdirac )
   implicit none
   !
-  integer :: njrc( 4 ) ! njrc( l + 1 ) > 0 iff ang mom l was pseudized
   real ( kind = kind( 1.0d0 ) ) :: alfa, rel, z, zc, rcocc( 0 : 3 ) ! z = at no; zc = core chg see notes below for alfa, rel
   real ( kind = kind( 1.0d0 ) ) :: rsocc( 0 : 3 ) ! 
   logical :: fdirac
@@ -26,8 +25,10 @@ subroutine mkcorcon( alfa, rel, z, zc, njrc, rcocc, rsocc, fdirac )
   !
   open( unit=99, file='valcon', form='formatted', status='unknown' )
   rewind 99
-  write ( 99, * ) 4
+  write ( 06, '(1i5,25x,1a6)' ) 4, 'valcon'
+  write ( 99, '(1i5)' ) 4
   do l = 0, 3
+     write ( 06, '(2i5,1f10.6,10x,1a6)' ) fs( l ) + l + 1, l, rcocc( l ), 'valcon'
      write ( 99, '(2i5,1f10.6)' ) fs( l ) + l + 1, l, rcocc( l )
   end do
   close( unit=99 )
@@ -86,6 +87,7 @@ subroutine mkcorcon( alfa, rel, z, zc, njrc, rcocc, rsocc, fdirac )
   rewind 99
   write ( 99, '(1i5)' ) 3
   do l = 0, 3
+     write ( 06, '(2i5,10x,1a4)' ) l, fs( l ), 'skip'
      write ( 99, '(2i5)' ) l, fs( l )
   end do
   close( unit=99 )
@@ -99,6 +101,7 @@ subroutine dssh( n, l, j, occ )
   integer :: n, l, occ
   real( kind = kind( 1.0d0 ) ) :: j
   !
+  write ( 06, '(3i3,1f6.2,2i4,10x,1a6)' ) n, l, 0, -j, 1, occ, 'corcon'
   write ( 99, '(3i3,1f6.2,2i4)' ) n, l, 0, -j, 1, occ
   !
   return

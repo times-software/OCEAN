@@ -555,15 +555,23 @@ while (<EDGE>) {
     my $zstring = sprintf("z%03i", $znum);
     print $zstring ."\n";
     `ln -sf ../PAW/zpawinfo/*${zstring}* .`;
+    `ln -sf ../PAW/zpawinfo/phrc? .`;
     my $templine = `ls ../PAW/zpawinfo/*$zstring`;
     chomp($templine);
     my @pslist = split(/\s+/, $templine);
-    foreach (@pslist)
-    {
-      $_ =~ m/ae(\S+)/;
-      `ln -sf ../PAW/zpawinfo/ae$1 .`;
-      `ln -sf ae$1 ps$1`;
-    }
+#    foreach (@pslist)
+#    {
+#      if( $_ =~ m/ae(\S+)/ )
+#      {
+#        `ln -sf ../PAW/zpawinfo/ae$1 .`;
+#      }
+#      elsif( $_ =~ m/ps(\S+)/
+#      }
+#        `ln -sf ../PAW/zpawinfo/ps$1 .`;
+#      }
+#
+#      `ln -sf ae$1 ps$1`;
+#    }
   }
 
   print "CKS NAME = $cks\n";
@@ -683,12 +691,14 @@ my $lnum = $3;
 
 
 open INFILE, ">bse.in" or die "Failed to open bse.in\n";
-my $filename = sprintf("deflinz%03un%02ul%02u", $znum, $nnum, $lnum);
+my $filename = sprintf("prjfilez%03u", $znum );
 
 open TMPFILE, $filename or die "Failed to open $filename\n";
 $line = <TMPFILE>;
 close TMPFILE;
-print INFILE $line;
+$line =~ m/(\d+)\s+(\d+)\s+\d+\s+\S+/ or die "Failed to match first line of $filename\n";
+
+print INFILE "$lnum\t$1\t$2\n";
 
 # spin orbit splitting
 open IN, "spin_orbit" or die "Failed to open spin_orbit\n$!";
@@ -834,8 +844,6 @@ else
   print "time $para_prefix $ENV{'OCEAN_BIN'}/ocean.x > cm.log";
   system("time $para_prefix $ENV{'OCEAN_BIN'}/ocean.x > cm.log") == 0 or die "Failed to finish\n"; 
 }
-
-system("$ENV{'OCEAN_BIN'}/spec_average.x") == 0 or die "Failed to average spectra\n";
 
 exit 0;
 

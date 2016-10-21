@@ -1,5 +1,3 @@
-COMP=pgf90
-OPTS=-O3
 
 all: zexe/avg.x zexe/builder.x zexe/pawsetup.x zexe/mkrbfile.x zexe/mkrbfile_mult.x zexe/mpi_avg.x
 
@@ -97,3 +95,4 @@ install:
 clean:
 	rm -f zobj/*.o
 	rm -f zexe/*.x
+	rm -r *__genmod.f90 *__genmod.mod
