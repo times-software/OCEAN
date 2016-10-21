@@ -1,3 +1,11 @@
+## v. 1.2.1
+
+#### Minor Feature: Averaging spectra
+At the end of the CNBSE section the code will automatically create averages: 
+ 1. By site over all photon files, e.g. for multiple polarizations
+ 2. By photon file over all sites
+ 3. Everything for the given edge
+
 ## v. 1.2.0
 
 #### Major Feature: LDA+U

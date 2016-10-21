@@ -816,5 +816,7 @@ else
   system("time $para_prefix $ENV{'OCEAN_BIN'}/ocean.x > cm.log") == 0 or die "Failed to finish\n"; 
 }
 
+system("$ENV{'OCEAN_BIN'}/spec_average.x") == 0 or die "Failed to average spectra\n";
+
 exit 0;
 
