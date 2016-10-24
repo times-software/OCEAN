@@ -1820,7 +1820,7 @@ module OCEAN_multiplet
     write(6,*) 'nbsemhsetup', lv
     maxll = max( 2*lc, 2*lv )
     ! Currently newgetlym is only programmed for lmax = 5
-    maxll = max( maxll, 5 )
+    maxll = min( maxll, 5 )
     call newgetprefs( yp, maxll, nsphpt, wsph, xsph, ysph, zsph )
     rm1 = -1
     rm1 = sqrt( rm1 )
