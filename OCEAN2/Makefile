@@ -148,12 +148,6 @@ OCEAN_hyb_louie_levine.o: OCEAN_hyb_louie_levine.f90
 OCEAN_ladder.o: OCEAN_ladder.f90 OCEAN_psi.o OCEAN_mpi.o OCEAN_val_states.o OCEAN_system.o OCEAN_hyb_louie_levine.o
 	$(MPIFORT) $(FLAGS) -c -o OCEAN_ladder.o OCEAN_ladder.f90 $(FFTWI) $(FFTWL)
 
-OCEAN_pfy.o: OCEAN_pfy.f90
-	$(MPIFORT) $(FLAGS) -c -o OCEAN_pfy.o OCEAN_pfy.f90
-
-OCEAN_rixs_holder.o: OCEAN_rixs_holder.f90
-	$(MPIFORT) $(FLAGS) -c -o OCEAN_rixs_holder.o OCEAN_rixs_holder.f90
-
 OCEAN_pfy.o: OCEAN_pfy.f90 OCEAN_psi.o OCEAN_mpi.o OCEAN_system.o OCEAN_constants.o
 	$(MPIFORT) $(FLAGS) -c -o OCEAN_pfy.o OCEAN_pfy.f90
 
