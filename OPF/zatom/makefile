@@ -56,7 +56,22 @@ install:
 clean:
 	rm -f zobj/*.o zexe/*.x *__genmod.???
 
+ALLOBJS = $(HFOBJS) $(HPOBJS) $(BTOBJS) $(FTOBJS) $(KBOBJS) $(LLOBJS) $(RTOBJS)$(RTOBJ2) $(SEOBJS) $(VSOBJS) $(VTOBJS)
 
+ALLEXE =  zexe/ftrns.x zexe/hfk.x zexe/kbft.x zexe/separate.x zexe/ffiler.x \
+     zexe/analyze.x zexe/vsubtract.x zexe/vtransf.x zexe/llscreen.x \
+     zexe/backtran.x zexe/rtabber.x zexe/mason.x zexe/rtab2.x zexe/vamend.x zexe/hartpart.x
+
+
+$(ALLOBJS): | zobj
+
+zobj:
+	@mkdir -p $@
+
+$(ALLEXE): | zexe
+
+zexe:
+	@mkdir -p $@
 #
 zexe/hartpart.x: zobj/hartpart.o
 	$(COMP) -o zexe/hartpart.x zobj/hartpart.o

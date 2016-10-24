@@ -14,7 +14,7 @@ all:
 	cd zbridge;      make 
 	cd DFT;          make 
 	cd PREP;         make 
-	cd PAW;          make 
+	cd OPF;          make 
 	cd SCREEN;       make 
 	cd CNBSE;        make 
 	cd INTERPOLATE;  make
@@ -25,7 +25,7 @@ clean:
 	cd DFT;          make clean
 	cd PREP;         make clean
 	cd SCREEN;       make clean
-	cd PAW;          make clean
+	cd OPF;          make clean
 	cd CNBSE;        make clean 
 	cd zbridge;      make clean
 	cd INTERPOLATE;  make clean
@@ -39,7 +39,7 @@ install:
 	cd DFT;          make install
 	cd PREP;         make install
 	cd SCREEN;       make install
-	cd PAW;          make install
+	cd OPF;          make install
 	cd CNBSE;        make install
 	cd zbridge;      make install
 	cd INTERPOLATE;  make install
