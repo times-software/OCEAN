@@ -1,6 +1,6 @@
 control 0
-core 4
-para_prefix{ mpirun -n 12 }
+#core 4
+#para_prefix{ mpirun -n 12 }
 nkpt {12 12 12 }
 paw.nkpt{ 2 2 2 }
 ngkpt{ 8 8 8 }

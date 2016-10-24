@@ -3,7 +3,7 @@ ppdir {'../'}
 # Select to run the OBF version 
 #dft obf
 # Set this
-para_prefix{ mpirun -n 6 }
+#para_prefix{ mpirun -n 6 }
 # Legacy, must be here for now and should be 1
 control 0
 

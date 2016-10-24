@@ -2,7 +2,7 @@
 control 0
 ppdir {'../'}
 
-para_prefix{ mpirun -n 64}
+#para_prefix{ mpirun -n 64}
 nkpt { 4 4 4}
 paw.nkpt{ 2 2 2 }
 ngkpt{ 4 4 4 }

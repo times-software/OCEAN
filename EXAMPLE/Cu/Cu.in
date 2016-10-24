@@ -1,6 +1,6 @@
 control 0
 metal .true.
-para_prefix {mpirun -n 48 }
+#para_prefix {mpirun -n 48 }
 ppdir { '../' }
 nkpt { 8 8 8 }
 paw.nkpt{ 2 2 2 }
