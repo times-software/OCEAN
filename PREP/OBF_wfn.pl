@@ -49,7 +49,7 @@ foreach (@CommonFiles) {
 
 foreach(@PawFiles)
 {
-  `cp ../PAW/$_ .` == 0 or die "Failed to get $_ from PAW/\n";
+  `cp ../OPF/$_ .` == 0 or die "Failed to get $_ from OPF/\n";
 }
 
 
@@ -179,15 +179,15 @@ while (<EDGE>) {
   my $zstring = sprintf("z%03i", $znum);
   print $zstring ."\n";
 #  `ln -sf ../PAW/zpawinfo/*${zstring}* .`;
-  `cp ../PAW/zpawinfo/prjfile$zstring . `;
-  `cp ../PAW/zpawinfo/ft?$zstring .`;
-  my $templine = `ls ../PAW/zpawinfo/*$zstring`;
+  `cp ../OPF/zpawinfo/prjfile$zstring . `;
+  `cp ../OPF/zpawinfo/ft?$zstring .`;
+  my $templine = `ls ../OPF/zpawinfo/*$zstring`;
   chomp($templine);
   my @pslist = split(/\s+/, $templine);
   foreach (@pslist)
   {
     $_ =~ m/ae(\S+)/;
-    `cp ../PAW/zpawinfo/ae$1 .`;
+    `cp ../OPF/zpawinfo/ae$1 .`;
     `ln -sf ae$1 ps$1`;
   }
 

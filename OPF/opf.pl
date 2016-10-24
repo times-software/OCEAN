@@ -13,7 +13,7 @@ use Cwd;
 
 ###########################
 if (! $ENV{"OCEAN_BIN"} ) {
-  $0 =~ m/(.*)\/paw\.pl/;
+  $0 =~ m/(.*)\/opf\.pl/;
   $ENV{"OCEAN_BIN"} = $1;
   print "OCEAN_BIN not set. Setting it to $1\n";
 }

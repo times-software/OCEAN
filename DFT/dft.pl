@@ -371,13 +371,13 @@ if ($RunESPRESSO) {
   {  
     print  "$para_prefix $ENV{'OCEAN_ESPRESSO_OBF_PP'}  -npool $npool < pp.in > pp.out 2>&1\n";
     system("$para_prefix $ENV{'OCEAN_ESPRESSO_OBF_PP'} -npool $npool < pp.in > pp.out 2>&1") == 0
-       or die "Failed to run density stage for PAW\n";
+       or die "Failed to run density stage for SCREENING\n";
   }
   else
   {
     print  "$para_prefix $ENV{'OCEAN_ESPRESSO_PP'}  -npool $npool < pp.in > pp.out 2>&1\n";
     system("$para_prefix $ENV{'OCEAN_ESPRESSO_PP'} -npool $npool < pp.in > pp.out 2>&1") == 0
-       or die "Failed to run density stage for PAW\n";
+       or die "Failed to run density stage for SCREENING\n";
   }
   open OUT, ">den.stat" or die "Failed to open scf.stat\n$!";
   print OUT "1\n";

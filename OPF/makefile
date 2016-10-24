@@ -10,7 +10,7 @@ all:
 install:
 	cd ppmod; make "INSTDIR = $(INSTDIR)" install
 	cd zatom; make "INSTDIR = $(INSTDIR)" install
-	cp paw.pl $(INSTDIR)/ 
+	cp opf.pl $(INSTDIR)/ 
 
 clean:
 	cd ppmod; make clean

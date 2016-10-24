@@ -95,7 +95,7 @@ if( open PARA_PREFIX, "para_prefix" )
 print "Running PAW Setup\n";
 system("$ENV{'OCEAN_BIN'}/pawsetup.x") == 0 or die "Failed to run pawsetup.x\n";
 
-`ln -sf ../PAW/zpawinfo zpawinfo`;
+`ln -sf ../OPF/zpawinfo zpawinfo`;
 ###################################
 
 

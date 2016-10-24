@@ -549,14 +549,14 @@ while (<EDGE>) {
     $cks = sprintf("cksv.${elname}%04u", $elnum );
   }
 
-  # For each unique Z we need to grab some files from PAW
+  # For each unique Z we need to grab some files from OPF
   unless( exists $unique_z{ "$znum" } )
   {
     my $zstring = sprintf("z%03i", $znum);
     print $zstring ."\n";
-    `ln -sf ../PAW/zpawinfo/*${zstring}* .`;
-    `ln -sf ../PAW/zpawinfo/phrc? .`;
-    my $templine = `ls ../PAW/zpawinfo/*$zstring`;
+    `ln -sf ../OPF/zpawinfo/*${zstring}* .`;
+    `ln -sf ../OPF/zpawinfo/phrc? .`;
+    my $templine = `ls ../OPF/zpawinfo/*$zstring`;
     chomp($templine);
     my @pslist = split(/\s+/, $templine);
 #    foreach (@pslist)

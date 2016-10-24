@@ -207,7 +207,7 @@ if ( $nkpt[0] + $nkpt[1] + $nkpt[2] == 0 ) {
 }
 
 
-# test the directory for the PAW run first
+# test the directory for the SCREENING run first
 my $pawDIR = sprintf("%03u%03u%03u", $pawnkpt[0], $pawnkpt[1], $pawnkpt[2] );
 if ( -d $pawDIR ) {
   chdir $pawDIR;
@@ -231,7 +231,7 @@ else {
 }
 
 if ($pawRUN == 1) {
-  print "Need to run for PAW\n";
+  print "Need to run for SCREENING\n";
 #  die;
   `rm -rf $pawDIR`;
   mkdir $pawDIR;
@@ -410,7 +410,7 @@ close LOG;
 
 
 if ( $pawRUN ) {
-  print "PAW run\n";
+  print "SCREENING run\n";
   chdir $pawDIR;   
   `cp ../abfile .`;
  # copy all files over

@@ -166,7 +166,7 @@ else
 }
 
 
-`ln -sf ../PAW/zpawinfo zpawinfo`;
+`ln -sf ../OPF/zpawinfo zpawinfo`;
 open SHELLS, "paw.shells" or die "Failed to open paw.shells\n";
 my $numshells = 0;
 my $allshells = '';
