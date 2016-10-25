@@ -13,13 +13,13 @@ para_prefix{ mpirun -n 12 }
 nkpt { 4 4 2 }
 
 # Kpt mesh for screening
-paw.nkpt{ 2 2 2 }
+screen.nkpt{ 2 2 2 }
 
 # Total bands for final states
 nbands 50
 
 # Total bands for screening
-paw.nbands 100
+screen.nbands 100
 
 # Mag. of latt. vec.
 acell { 8.68 8.68 5.6 }
@@ -73,17 +73,17 @@ diemac 6
 # xmesh
 CNBSE.xmesh { 4 4 4 }
 
-# paw control files
-paw.fill{ 22 ti.fill }
-paw.opts{ 22 ti.opts }
+# opf control files
+opf.fill{ 22 ti.fill }
+opf.opts{ 22 ti.opts }
 
 #edge information
 # By setting the first number to a negative
 #  we select ALL of the Ti (Z=22) atoms
 edges{ -22 2 1 }
 
-# radius for paw reconstruciton
-paw.shells{ 3.5 4.0 }
+# radius for shell for screening
+screen.shells{ 3.5 4.0 }
 cnbse.rad{ 4.0 }
 
 #Scaling Factor

@@ -95,7 +95,7 @@
       inppfill(:) = 0
       ppopts(:) = ''
       ppfill(:) = ''
-      open(unit=99,file='paw.opts',form=f9,status='old')
+      open(unit=99,file='opf.opts',form=f9,status='old')
       do counter=1, ntypat
         read(99,*,end=100) inppopts(counter), ppopts(counter)
       enddo
@@ -103,7 +103,7 @@
       close(99)
 !
 ! Gets the psp fillinpaw details
-      open(unit=99,file='paw.fill',form=f9,status='old')
+      open(unit=99,file='opf.fill',form=f9,status='old')
       do counter=1, ntypat
         read(99,*,end=101) inppfill(counter), ppfill(counter)
       enddo

@@ -17,9 +17,9 @@ nkpt { 12 12 12 }
 # k-point sampling for calculating W (\chi)
 # Because we are interested in a limited region of real-space
 #  2x2x2 is good enough almost always
-paw.nkpt{ 2 2 2 }
+screen.nkpt{ 2 2 2 }
 # Number of bands to use for the screening calculation (could be higher)
-paw.nbands 100
+screen.nbands 100
 # Real-space sampling for calcualting the action of W on a wave function
 cnbse.xmesh{ 8 8 8 }
 
@@ -50,15 +50,15 @@ ecut 120
 
 diemac 11.4
 
-paw.fill{ 14 si.fill }
-paw.opts{ 14 si.opts }
+opf.fill{ 14 si.fill }
+opf.opts{ 14 si.opts }
 
 #edge information
 nedges 1
 edges{ 1 2 1 }
 
-# radius for paw reconstruciton
-paw.shells{ 4.0 }
+# radius for shell for screening
+screen.shells{ 4.0 }
 cnbse.rad{ 4.0 }
 
 # spectral broadening in Hartree

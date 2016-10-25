@@ -2,12 +2,12 @@ control 0
 #core 4
 #para_prefix{ mpirun -n 12 }
 nkpt {12 12 12 }
-paw.nkpt{ 2 2 2 }
+screen.nkpt{ 2 2 2 }
 ngkpt{ 8 8 8 }
 fband 3.5
 occopt 1
 nbands 20
-paw.nbands 80
+screen.nbands 80
 # acell { 3.6157 } 
 acell { 6.832682257 6.832682257 6.832682257 }
 rprim {
@@ -34,15 +34,15 @@ tolwfr 1.1d-16
 nstep 50
 diemac 4.5
 CNBSE.xmesh { 6 6 6 }
-paw.fill{5 b.fill }
-paw.opts{5 b.opts }
+opf.fill{5 b.fill }
+opf.opts{5 b.opts }
 
 #edge information
 nedges 1
 edges{ 1 1 0 }
 
-# radius for paw reconstruciton
-paw.shells{ 2.0 3.0 4.0 5.0 }
+# radius for shell for screening
+screen.shells{ 2.0 3.0 4.0 5.0 }
 cnbse.rad{ 5.0 }
 
 #Scaling Factor

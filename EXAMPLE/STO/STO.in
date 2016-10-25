@@ -13,11 +13,11 @@ control 0
 # Kpt mesh for final states
 nkpt { 2 2 2 }
 
-# Kpt mesh for final states
-paw.nkpt { 2 2 2 }
+# Kpt mesh for the screening
+screen.nkpt { 2 2 2 }
 
 # Total bands for screening
-paw.nbands 100
+screen.nbands 100
 
 # Total bands for final states
 nbands 100
@@ -81,9 +81,9 @@ diemac 5.06
 # xmesh
 CNBSE.xmesh { 5 5 5 }
 
-# paw control files
-paw.fill{ 22 ti.fill }
-paw.opts{ 22 ti.opts }
+# opf control files
+opf.fill{ 22 ti.fill }
+opf.opts{ 22 ti.opts }
 
 # edge information # number of edges to calculate # atom number, n quantum number, l quantum number
 nedges 1
@@ -94,8 +94,8 @@ cnbse.broaden{ 0.544 }
 # The code will figure out a good plot range
 cnbse.spect_range{ -1 }
 
-# radius for paw reconstruciton
-paw.shells{ 3.5 4.0 }
+# radius for shell for screening
+screen.shells{ 3.5 4.0 }
 cnbse.rad{ 4.0 }
 
 #Scaling Factor

@@ -23,7 +23,7 @@ if (! $ENV{"OCEAN_WORKDIR"}){ $ENV{"OCEAN_WORKDIR"} = `pwd` . "../" ; }
 ###########################
 
 
-my @CommonFiles = ("znucl", "paw.hfkgrid", "paw.fill", "paw.opts", "pplist", "paw.shells", "ntype", "natoms", "typat", "taulist", "nedges", "edges", "caution", "epsilon", "k0.ipt", "ibase", "scfac" );
+my @CommonFiles = ("znucl", "opf.hfkgrid", "opf.fill", "opf.opts", "pplist", "screen.shells", "ntype", "natoms", "typat", "taulist", "nedges", "edges", "caution", "epsilon", "k0.ipt", "ibase", "scfac" );
 
 
 my @DenDipFiles = ("rhoofg", "bvecs", "efermiinrydberg.ipt");
@@ -118,7 +118,7 @@ close PSPO;
 
 # shells
 ##################################
-open SHELLS, "paw.shells" or die "Failed to open paw.shells\n";
+open SHELLS, "screen.shells" or die "Failed to open screen.shells\n";
 my $numshells = 0;
 my $allshells = '';
 while (<SHELLS>) {
@@ -137,7 +137,7 @@ close SHELLS;
 ###################################
 print "Starting HFK section\n";
 
-open GRID, "paw.hfkgrid" or die;
+open GRID, "opf.hfkgrid" or die;
 my $grid = <GRID>;
 chomp $grid;
 close GRID;

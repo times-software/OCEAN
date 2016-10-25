@@ -157,28 +157,28 @@ scfac
 {
 1.00
 } scfac
-paw.shells
+screen.shells
 {
 3.5
-} paw.shells
-paw.hfkgrid
+} screen.shells
+opf.hfkgrid
 {
 2000  32
-} paw.hfkgrid
-paw.fill
+} opf.hfkgrid
+opf.fill
 {
-} paw.fill
-paw.opts
+} opf.fill
+opf.opts
 {
-} paw.opts
-paw.nkpt
+} opf.opts
+screen.nkpt
 {
 -1
-} paw.nkpt
-paw.nbands
+} screen.nkpt
+screen.nbands
 {
 0
-} paw.nbands
+} screen.nbands
 caution
 {
 .false.

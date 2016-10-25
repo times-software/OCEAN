@@ -315,21 +315,21 @@ open ERANGE, "screen_energy_range.ipt" or die "Failed to open screen_energy_rang
 my $erange = <ERANGE>;
 chomp($erange);
 close ERANGE;
-open NBANDS, "paw.nbands" or die "Failed to open paw.nbands\n$!";
+open NBANDS, "screen.nbands" or die "Failed to open screen.nbands\n$!";
 my $screen_nbands = <NBANDS>;
 chomp($screen_nbands);
 close NBANDS;
 if( $screen_nbands <= 0 )
 {
   $erange = 100 if( $erange <= 0 );
-  print "Default requested for paw.nbands. Energy range is $erange eV.\n";
+  print "Default requested for screen.nbands. Energy range is $erange eV.\n";
   $erange = $erange / 13.605;
   $screen_nbands = 0.01688686394 * $volume * ( $erange**(3/2) );
   $screen_nbands *= 1.05;
   $screen_nbands = int($screen_nbands);
   # 1.05 is a padding factor
-  print "Default chosen for paw.nbands:\t$screen_nbands\n";
-  open NBANDS, ">paw.nbands" or die "Failed to open nbands for writing.\n$!";
+  print "Default chosen for screen.nbands:\t$screen_nbands\n";
+  open NBANDS, ">screen.nbands" or die "Failed to open nbands for writing.\n$!";
   print NBANDS "$screen_nbands\n";
   close NBANDS;
 }
@@ -446,7 +446,7 @@ if( $input_content =~ m/^\s*-1/ )
 }
 
 $input_content = '';
-open INPUT, "paw.nkpt" or die "Failed to open paw.nkpt\n$!\n";
+open INPUT, "screen.nkpt" or die "Failed to open screen.nkpt\n$!\n";
 while (<INPUT>)
   {
     $input_content .= $_;
@@ -456,18 +456,18 @@ close INPUT;
 if( $input_content =~ m/^\s*-1/ )
 {
   my @output;
-  print "Defaults requested for paw.nkpt\n";
+  print "Defaults requested for screen.nkpt\n";
   for( my $i = 0; $i < 3; $i++ )
   {
-    $target = $defaults{'paw'}[$acc_level];
+    $target = $defaults{'screen'}[$acc_level];
     $target = $target / $alength[$i];
     $output[$i] = findval($target);
-    if( $output[$i] == 1000 ) { die "paw.nkpt too large\n"; }
+    if( $output[$i] == 1000 ) { die "screen.nkpt too large\n"; }
   }
-  open INPUT, ">paw.nkpt" or die "$!\n";
+  open INPUT, ">screen.nkpt" or die "$!\n";
   print INPUT "$output[0]  $output[1]  $output[2]\n";
   close INPUT;
-  print "Defaults chosen for paw.nkpt:\t$output[0]\t$output[1]\t$output[2]\n";
+  print "Defaults chosen for screen.nkpt:\t$output[0]\t$output[1]\t$output[2]\n";
   $kpt_tot = $output[0]*$output[1]*$output[2];
 }
 elsif ( $input_content =~ m/^\s*(\d+)\s+(\d+)\s+(\d+)/ )
@@ -476,7 +476,7 @@ elsif ( $input_content =~ m/^\s*(\d+)\s+(\d+)\s+(\d+)/ )
 }
 else
 {
-  die "FAILED TO CORRECTLY PARSE paw.nkpt\n";
+  die "FAILED TO CORRECTLY PARSE screen.nkpt\n";
 }
 
 my $ideal_npools = 1;
@@ -485,7 +485,7 @@ foreach (@cpu_factors)
   $ideal_npools = $_ unless( $kpt_tot %  $_ );
 }
 print "PAW: $kpt_tot, ideal pools: $ideal_npools\n";
-print QE_POOL "paw\t$ideal_npools\n";
+print QE_POOL "screen\t$ideal_npools\n";
 
 # Not integrated cleanly right now
 # Need to control pools for the interpolation routines
@@ -513,7 +513,7 @@ if( $pool_size == -1 )
   $pool_size = $ncpus;
 }
 print "PAW: $kpt_tot, obf pool size: $pool_size\n";
-print QE_POOL "interpolate paw\t$pool_size\n";
+print QE_POOL "interpolate screen\t$pool_size\n";
 
 
 close QE_POOL;

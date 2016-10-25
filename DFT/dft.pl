@@ -37,8 +37,8 @@ my $nscfRUN = 1;
 
 my @GeneralFiles = ("para_prefix", "dft" );
 
-my @KgenFiles = ("nkpt", "k0.ipt", "qinunitsofbvectors.ipt", "paw.nkpt");
-my @BandFiles = ("nbands", "paw.nbands");
+my @KgenFiles = ("nkpt", "k0.ipt", "qinunitsofbvectors.ipt", "screen.nkpt");
+my @BandFiles = ("nbands", "screen.nbands");
 my @EspressoFiles = ( "coord", "degauss", "ecut", "etol", "fband", "ibrav", 
     "isolated", "mixing", "natoms", "ngkpt", "noncolin", "nrun", "ntype", 
     "occopt", "prefix", "ppdir", "stress_force", "rprim", "rscale", "metal",
@@ -199,8 +199,8 @@ system("$ENV{'OCEAN_BIN'}/makeatompp.x") == 0
 my @qe_data_files = ('prefix', 'ppdir', 'stress_force', 'work_dir', 'tmp_dir', 'ibrav', 'natoms', 'ntype', 'noncolin',
                      'spinorb', 'ecut', 'degauss', 'etol', 'mixing', 'nrun', 'occopt',
                      'trace_tol', 'tot_charge', 'nspin', 'ngkpt', 'k0.ipt', 'metal',
-                     'den.kshift', 'obkpt.ipt', 'obf.nbands', 'nkpt', 'nbands', 'paw.nbands',
-                     'paw.nkpt' );
+                     'den.kshift', 'obkpt.ipt', 'obf.nbands', 'nkpt', 'nbands', 'screen.nbands',
+                     'screen.nkpt' );
 
 
 
@@ -705,7 +705,7 @@ if ( $nscfRUN ) {
 if( $obf == 0 )
 {
   
-  my $bseDIR = sprintf("%03u%03u%03u", split( /\s+/,$qe_data_files{'paw.nkpt'}));
+  my $bseDIR = sprintf("%03u%03u%03u", split( /\s+/,$qe_data_files{'screen.nkpt'}));
   mkdir $bseDIR unless ( -d $bseDIR );
   chdir $bseDIR;
 
@@ -723,7 +723,7 @@ if( $obf == 0 )
   }
 
   # kpts
-  copy "../paw.nkpt", "nkpt";
+  copy "../screen.nkpt", "nkpt";
   copy "../k0.ipt", "k0.ipt";
 
 #  copy "../acell", "acell";
@@ -755,7 +755,7 @@ if( $obf == 0 )
   close IN;
   
   $qe_data_files{'print kpts'} = $kpt_text;
-  $qe_data_files{'print nbands'} = $qe_data_files{'paw.nbands'};
+  $qe_data_files{'print nbands'} = $qe_data_files{'screen.nbands'};
 
   &print_qe( $QE, %qe_data_files );
 
@@ -765,7 +765,7 @@ if( $obf == 0 )
   open INPUT, "../pool_control" or die;
   while (<INPUT>)
   {
-    if( $_ =~ m/^paw\s+(\d+)/ )
+    if( $_ =~ m/^screen\s+(\d+)/ )
     {
       $npool = $1;
       last;
@@ -788,7 +788,7 @@ if( $obf == 0 )
   {
     print OUT $_;
   }
-  print OUT "$qe_data_files{'paw.nbands'}\n";
+  print OUT "$qe_data_files{'screen.nbands'}\n";
   close IN;
   close OUT;
 

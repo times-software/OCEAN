@@ -37,10 +37,10 @@ my $band_stop  = -1; #800;
 
 
 # Step 1: Create support files
-my @CommonFiles = ("znucl", "paw.hfkgrid", "paw.fill", "paw.opts", "pplist", "paw.shells", 
+my @CommonFiles = ("znucl", "opf.hfkgrid", "opf.fill", "opf.opts", "pplist", "screen.shells", 
                    "ntype", "natoms", "typat", "taulist", "nedges", "edges", "caution", 
                    "epsilon", "k0.ipt", "ibase", "scfac", "para_prefix", "tmp_dir", 
-                   "paw.nbands", "core_offset", "paw.nkpt", "pool_control", "ham_kpoints", 
+                   "screen.nbands", "core_offset", "screen.nkpt", "pool_control", "ham_kpoints", 
                    "cnbse.rad", "dft", "avecsinbohr.ipt", 
                    "screen.grid.rmax", "screen.grid.nr", "screen.grid.ang", "screen.grid.lmax", 
                    "screen.grid.nb", "screen.final.rmax", "screen.final.dr", "screen.model.dq", "screen.model.qmax" );
@@ -83,7 +83,7 @@ my $pool_size = 1;
 open INPUT, "pool_control" or die;
 while (<INPUT>)
 {
-  if( $_ =~ m/interpolate paw\s+(\d+)/ )
+  if( $_ =~ m/interpolate screen\s+(\d+)/ )
   {
     $pool_size = $1;
     last;
@@ -115,7 +115,7 @@ my $ham_kpoints = "$1  $2  $3";
 
 
 
-my $screen_nkpt = `cat paw.nkpt`;
+my $screen_nkpt = `cat screen.nkpt`;
 chomp($screen_nkpt);
 
 
@@ -167,7 +167,7 @@ else
 
 
 `ln -sf ../OPF/zpawinfo zpawinfo`;
-open SHELLS, "paw.shells" or die "Failed to open paw.shells\n";
+open SHELLS, "screen.shells" or die "Failed to open screen.shells\n";
 my $numshells = 0;
 my $allshells = '';
 while (<SHELLS>) {
@@ -182,13 +182,13 @@ print SHELLS "$numshells\n";
 print SHELLS "$allshells\n";
 close SHELLS;
 
-open NBAND, "paw.nbands" or die "$!";
+open NBAND, "screen.nbands" or die "$!";
 if( <NBAND> =~ m/(\d+)/ )
 {
   $band_stop = $1;
 } else
 {
-  print "Failed to parse paw.nbands, running with $band_stop\n";
+  print "Failed to parse screen.nbands, running with $band_stop\n";
 }
 close( NBAND );
 

@@ -23,13 +23,13 @@ if (! $ENV{"OCEAN_CUT3D"} ) {$ENV{"OCEAN_CU3D"} = $ENV{"OCEAN_BIN"} . "/cut3d"; 
 my $RunKGen = 0;
 my $RunPP = 0;
 my $RunABINIT = 0;
-my $pawRUN = 0;
+my $screenRUN = 0;
 my $bseRUN = 0;
 
 my @GeneralFiles = ("core", "para_prefix" );
 
-my @KgenFiles = ("nkpt", "k0.ipt", "qinunitsofbvectors.ipt", "paw.nkpt");
-my @BandFiles = ("nbands", "paw.nbands");
+my @KgenFiles = ("nkpt", "k0.ipt", "qinunitsofbvectors.ipt", "screen.nkpt");
+my @BandFiles = ("nbands", "screen.nbands");
 my @AbinitFiles = ( "rscale", "rprim", "ntype", "natoms", "typat",
     "verbatim", "coord", "taulist", "ecut", "etol", "nrun", "wftol", 
     "fband", "occopt", "ngkpt", "abpad", "nspin", "smag", "metal", "degauss");
@@ -162,20 +162,20 @@ $degauss = $degauss / 2 ;
 my $tsmear = "tsmear $degauss\n";
 
 
-# test paw.nkpt, paw.nbands
-open NKPT, "paw.nkpt" or die "Failed to open paw.nkpt\n";
-<NKPT> =~ m/(\d+)\s+(\d+)\s+(\d+)/ or die "Failed to parse. paw.nkpt\n";
-my @pawnkpt = ($1, $2, $3);
+# test screen.nkpt, screen.nbands
+open NKPT, "screen.nkpt" or die "Failed to open screen.nkpt\n";
+<NKPT> =~ m/(\d+)\s+(\d+)\s+(\d+)/ or die "Failed to parse. screen.nkpt\n";
+my @screennkpt = ($1, $2, $3);
 close NKPT;
 open NKPT, "nkpt" or die "Failed to open nkpt\n";
 <NKPT> =~ m/(\d+)\s+(\d+)\s+(\d+)/ or die "Failed to parse. nkpt\n";
 my @nkpt = ($1, $2, $3);
 close NKPT;
-my $pawnbands;
+my $screennbands;
 my $nbands;
-open NBANDS, "paw.nbands" or die "Failed to open paw.nbands\n";
-<NBANDS> =~ m/(\d+)/ or die "Failed to parse paw.nbands\n";
-$pawnbands = $1;
+open NBANDS, "screen.nbands" or die "Failed to open screen.nbands\n";
+<NBANDS> =~ m/(\d+)/ or die "Failed to parse screen.nbands\n";
+$screennbands = $1;
 close NBANDS;
 open NBANDS, "nbands" or die "Failed to open nbands\n";
 <NBANDS> =~ m/(\d+)/ or die "Failed to parse nbands\n";
@@ -195,49 +195,49 @@ close IN;
 
 
 if ( $nkpt[0] + $nkpt[1] + $nkpt[2] == 0 ) {
-  `cp nkpt paw.nkpt`;
-  @pawnkpt = @nkpt;
-  if ( $pawnbands == 0 ) {
-    `cp nbands paw.nbands`;
-    $pawnbands = $nbands;
+  `cp nkpt screen.nkpt`;
+  @screennkpt = @nkpt;
+  if ( $screennbands == 0 ) {
+    `cp nbands screen.nbands`;
+    $screennbands = $nbands;
   }
-  elsif ( $nbands > $pawnbands ) {
-    die "paw.nbands must be larger than nbands\b";
+  elsif ( $nbands > $screennbands ) {
+    die "screen.nbands must be larger than nbands\b";
   }
 }
 
 
 # test the directory for the SCREENING run first
-my $pawDIR = sprintf("%03u%03u%03u", $pawnkpt[0], $pawnkpt[1], $pawnkpt[2] );
-if ( -d $pawDIR ) {
-  chdir $pawDIR;
+my $screenDIR = sprintf("%03u%03u%03u", $screennkpt[0], $screennkpt[1], $screennkpt[2] );
+if ( -d $screenDIR ) {
+  chdir $screenDIR;
   if (-e "abinit.stat") {
-    if ( `diff -q nbands ../paw.nbands`) {
+    if ( `diff -q nbands ../screen.nbands`) {
       open NBANDS, "nbands" or die "Failed to open `pwd`/nbands\n";
       <NBANDS> =~ m/(\d+)/ or die "Failed to parse nbands\n";
       my $tmpnbands = $1;
       close NBANDS;
-      $pawRUN = 1 if ( $tmpnbands < $pawnbands);
+      $screenRUN = 1 if ( $tmpnbands < $screennbands);
     }
-    $pawRUN = 1 if ( `diff -q k0.ipt ../k0.ipt` );
+    $screenRUN = 1 if ( `diff -q k0.ipt ../k0.ipt` );
   }
   else {
-    $pawRUN = 1;
+    $screenRUN = 1;
   }
   chdir "../"
 }
 else {
-  $pawRUN = 1;
+  $screenRUN = 1;
 }
 
-if ($pawRUN == 1) {
+if ($screenRUN == 1) {
   print "Need to run for SCREENING\n";
 #  die;
-  `rm -rf $pawDIR`;
-  mkdir $pawDIR;
+  `rm -rf $screenDIR`;
+  mkdir $screenDIR;
 }
 else {
-  `touch $pawDIR/old`;
+  `touch $screenDIR/old`;
 }
 
 # test the directory for the NBSE run
@@ -263,7 +263,7 @@ else {
   $bseRUN = 1;
 }
 
-if ( $pawRUN == 1 && $nkpt[0] == $pawnkpt[0] && $nkpt[1] == $pawnkpt[1] && $nkpt[2] == $pawnkpt[2] ) {
+if ( $screenRUN == 1 && $nkpt[0] == $screennkpt[0] && $nkpt[1] == $screennkpt[1] && $nkpt[2] == $screennkpt[2] ) {
   $bseRUN = 0;
 }
 
@@ -409,22 +409,22 @@ while (<LOG>) {
 close LOG;
 
 
-if ( $pawRUN ) {
+if ( $screenRUN ) {
   print "SCREENING run\n";
-  chdir $pawDIR;   
+  chdir $screenDIR;   
   `cp ../abfile .`;
  # copy all files over
   foreach ( @GeneralFiles, @AbinitFiles, @PPFiles, @OtherFiles) {
     system("cp ../$_ .") == 0 or die "Failed to copy $_\n";
   }
-  foreach ( "paw.nkpt", "paw.nbands", "k0.ipt", "qinunitsofbvectors.ipt", "finalpplist" ) {
+  foreach ( "screen.nkpt", "screen.nbands", "k0.ipt", "qinunitsofbvectors.ipt", "finalpplist" ) {
     system("cp ../$_ .") == 0 or die "Failed to copy $_\n";
   }
-  `cp paw.nkpt nkpt`;
-  `cp paw.nbands nbands`;
+  `cp screen.nkpt nkpt`;
+  `cp screen.nbands nbands`;
  # run KGEN
   print "Running kgen2.x\n";
-  `cp paw.nkpt kmesh.ipt`;
+  `cp screen.nkpt kmesh.ipt`;
   `echo 0.0 0.0 0.0 > qinunitsofbvectors.ipt`;
   system("$ENV{'OCEAN_BIN'}/kgen2.x") == 0 or die "KGEN.X Failed\n";
   `echo "1" > kgen.stat`;
@@ -433,9 +433,9 @@ if ( $pawRUN ) {
   open ABPAD, "abpad" or die;
   my $abpad = <ABPAD>;
   close ABPAD;
-  $pawnbands += $abpad; 
+  $screennbands += $abpad; 
   
-  `echo "nband $pawnbands" >> abfile`;
+  `echo "nband $screennbands" >> abfile`;
   `echo "nbdbuf $abpad" >> abfile`;
   `echo 'iscf -2' >> abfile`;
   `echo 'tolwfr ' >> abfile`;
@@ -477,7 +477,7 @@ if ( $pawRUN ) {
 
   my $natoms = `cat natoms`;
   my $fband = `cat fband`;
-  $pawnbands = `cat paw.nbands`;
+  $screennbands = `cat screen.nbands`;
   my $true_vb = $vb - ceil( $natoms*$fband );
   print "$vb\t$true_vb\n";
   my $cb = sprintf("%.0f", $vb - 2*$natoms*$fband);
@@ -486,15 +486,15 @@ if ( $pawRUN ) {
   if( $metal == 1 )
   {
     print BRANGE "1  $vb\n"
-               . "$cb $pawnbands\n";
+               . "$cb $screennbands\n";
   }
   else
   {
     print "1 $true_vb\n";
     print BRANGE "1 $true_vb\n";
     $true_vb++;
-    print BRANGE "$true_vb  $pawnbands\n";
-    print "$true_vb  $pawnbands\n";
+    print BRANGE "$true_vb  $screennbands\n";
+    print "$true_vb  $screennbands\n";
   }
   close BRANGE;
 
@@ -571,7 +571,7 @@ if ( $bseRUN ) {
 
   my $natoms = `cat natoms`;
   my $fband = `cat fband`;
-  $pawnbands = `cat paw.nbands`;
+  $screennbands = `cat screen.nbands`;
   my $true_vb = $vb - ceil( $natoms*$fband );
   print "$vb\t$true_vb\n";
   my $cb = sprintf("%.0f", $vb - 2*$natoms*$fband);
