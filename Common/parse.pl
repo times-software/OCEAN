@@ -184,10 +184,12 @@ while (my $line = <IN> )
 	elsif( $line =~ m/\S+\s+\S+/ )
 	{
 #		print TEST "$line\n";
+#    print "$line\t";
 		$tmp_buffer = $line;
 		chomp($tmp_buffer); 
 		$tmp_buffer =~ m/^\s*(\S+)\s+(.+)/ or die "$tmp_buffer\nFailed to parse.\n";
 		$input_hash{ lc $1 }  = "$2";
+#    print "$1\t$2\n";
 	}
 	elsif( $line =~ m/\S+/ )
 	{
@@ -206,7 +208,7 @@ for( keys %input_hash )
 	my $derp = $input_hash{$_};
 	$derp =~ s/\#\s+/\n/g;
 	chomp($derp);
-	print TEST "$_ >>>>\n" .  $derp . "\n";
+	print TEST "$_ >>>>\t" .  $derp . "\n";
 #	print TEST "$_ " .  $input_hash{$_} . "\n";
 }
 
@@ -222,12 +224,13 @@ foreach my $key (@required_list)
 {
 	$filename = $filename_hash{ $key };
 	open OUT, ">$filename" or die "$!\n";
-	unless( $value = $input_hash{ $key } )
+	unless( exists $input_hash{ $key } )
 	{
 		print "Required input $key  not found\n";
 		close OUT;
 		die;
 	}
+  $value = $input_hash{ $key };
 	$value =~  s/\#\s+/\n/g;
 	chomp($value);
 	print OUT "$value\n";
@@ -240,7 +243,11 @@ for( keys %optional_hash )
 	$key = $_;
 	$filename = $filename_hash{ $key };
 	open OUT, ">$filename" or die "$!\n";
-	unless( $value = $input_hash{ $key } )
+	if( exists $input_hash{ $key } )
+  {
+    $value = $input_hash{ $key };
+  }
+  else
 	{
 		$value  = $optional_hash{ $key };
 	}
