@@ -5,16 +5,18 @@
 ! `License' in the root directory of the present distribution.
 !
 !
-subroutine projdumper( l, str, nr, irc, r, dl, npj, proj, zorig )
+subroutine projdumper( l, str, nr, irc, r, dl, npj, proj, zorig, nq, dq )
   implicit none
   !
   integer :: l, nr, irc, npj
   double precision :: r( irc ), proj( nr, npj ), zorig, dl
-  character * 2 :: str
+  character(len=2) :: str
+  integer, intent( in ) :: nq
+  real( kind = kind( 1.0d0 ) ), intent( in ) :: dq
   !
   integer ::  i, ir, ii, i1
   real( kind = kind( 1.0d0 ) ) :: q, jl, arg, wr, su( npj )
-  character * 8 :: nam
+  character(len=8) :: nam
   !
   write ( unit=nam, fmt='(1a2,1i1,1a1,1i3.3)' ) str, l, 'z', nint( zorig )
   open( unit=99, file=nam, form='formatted', status='unknown' )
@@ -28,8 +30,8 @@ subroutine projdumper( l, str, nr, irc, r, dl, npj, proj, zorig )
   write ( unit=nam, fmt='(1a2,1i1,1a1,1i3.3)' ) 'ft', l, 'z', nint( zorig )
   open( unit=99, file=nam, form='formatted', status='unknown' )
   rewind 99
-  do i = 0, 400
-     q = 0.05d0 * dble( i )
+  do i = 0, nq - 1
+     q = dq * dble( i )
      su( : ) = 0
      do ir = 1, irc
         ii = ir - 1; i1 = ii / 4; i1 = ii - i1 * 4 ! use bode rule

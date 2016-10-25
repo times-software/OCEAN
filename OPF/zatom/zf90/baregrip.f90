@@ -6,7 +6,7 @@
 !
 !
 subroutine baregrip( l, lmin, lmax, nr, irc, ntest, north, dl, rel, zorig, emax, prec, &
-     r, dr, r2, aexm1, aexm2, aepot, psxm1, psxm2, pspot, aepl, pspl, skips, emin, kappa )
+     r, dr, r2, aexm1, aexm2, aepot, psxm1, psxm2, pspot, aepl, pspl, skips, emin, kappa, nq, dq )
   implicit none
   !
   integer :: l, lmin, lmax, nr, irc, ntest, north
@@ -17,6 +17,9 @@ subroutine baregrip( l, lmin, lmax, nr, irc, ntest, north, dl, rel, zorig, emax,
   real( kind = kind( 1.0d0 ) ) :: psxm1( nr, lmin : lmax ), psxm2( nr, lmin : lmax ), pspot( nr, lmin : lmax )
   real( kind = kind( 1.0d0 ) ) :: aepl( lmin : lmax ), pspl( lmin : lmax )
   real( kind = kind( 1.0d0 ) ) :: emin( lmin : lmax ), kappa( lmin : lmax )
+  integer, intent( in ) :: nq
+  real( kind = kind( 1.0d0 ) ), intent( in ) :: dq
+
   !
   integer :: i, j, nnode, ief, nnae, nnps
   real( kind = kind( 1.0d0 ) ) :: x
@@ -93,8 +96,8 @@ subroutine baregrip( l, lmin, lmax, nr, irc, ntest, north, dl, rel, zorig, emax,
   !  
   call orthred( irc, irc, 1 + imax - imin, north, dl, r, phips( :, imin ), phirn( :, imin ), pspr, aepr, prec )
   !
-  call projdumper( l, 'ps', irc, irc, r, dl, north, pspr, zorig )
-  call projdumper( l, 'ae', irc, irc, r, dl, north, aepr, zorig )
+  call projdumper( l, 'ps', irc, irc, r, dl, north, pspr, zorig, nq, dq )
+  call projdumper( l, 'ae', irc, irc, r, dl, north, aepr, zorig, nq, dq )
   !
   write ( fnam, '(1a4, 1i1)' ) 'ldep', l
   open ( unit=99, file=fnam, form='formatted', status='unknown' )

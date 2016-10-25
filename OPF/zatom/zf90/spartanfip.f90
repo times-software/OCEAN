@@ -44,7 +44,8 @@ subroutine spartanfip( etot, rel, alfa, nr, r, dr, r2, dl, njrc, vi, zorig, xnto
   read ( 5, * ) cush, emax, prec
   read ( 5, * ) rc
   read ( 5, * ) dq, qmax
-  nq = 1 + qmax / dq
+!  nq = 1 + qmax / dq
+  nq = 1 + ceiling( qmax / dq )
   !
   ! reset cutoff radius to radius value on the radial grid
   irc = 0
@@ -71,7 +72,7 @@ subroutine spartanfip( etot, rel, alfa, nr, r, dr, r2, dl, njrc, vi, zorig, xnto
      !
      ! determine suitable projector functions
      call baregrip( l, lmin, lmax, nr, irc, ntest, ne, dl, rel, zorig, emax, prec, &
-          r, dr, r2, aexm1, aexm2, aepot, psxm1, psxm2, pspot, aepl, pspl, skips, emin, kappa )
+          r, dr, r2, aexm1, aexm2, aepot, psxm1, psxm2, pspot, aepl, pspl, skips, emin, kappa, nq, dq )
      write ( 6, * )  'projector functions found'
      write ( 6, * ) 'l, ne ... ', l, ne
      !
