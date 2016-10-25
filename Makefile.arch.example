@@ -7,11 +7,17 @@ MPIFORT = mpif90
 # Flags for the fortran compiler
 OPTIONS = -O2 
 
+# Currently the bse solver needs MPI and BLAS
+OPTIONS += -DBLAS -DMPI
+
+# We have some preprocessor macros using the "c-style"
+OPTIONS += -cpp 
+
 # Many compilers have flush. We use it sometimes to force output before crashes
 # OPTIONS += -DHAVE_FLUSH
 
 # Linear algebra libraries
-BLACS = -lmkl_scalapack_lp64 -lmkl_intel_lp64 -lmkl_sequential -lmkl_core -lmkl_blacs_openmpi_lp64
+BLAS = -lmkl_intel_lp64 -lmkl_sequential -lmkl_core
 
 # FFTW path. Several programs can use FFTW. Find it at fftw.org. 
 #  (There is a fallback fft so FFTW is not required)
@@ -35,30 +41,12 @@ ABINIT_EXE = $(ABINIT_DIR)/abinit
 CUT3D_EXE  = $(ABINIT_DIR)/cut3d
 #######################
 
+
 #######################
 # ESPRESSO Flags
 ESPRESSO_DIR = /path/to/espresso
 PW_EXE = $(ESPRESSO_DIR)/bin/pw.x
 PP_EXE = $(ESPRESSO_DIR)/bin/pp.x
-
-#### Select your QE version here
-# Some API and directories have changed over QE releases. 
-# Hence the -D__QE5.1 option for recent QE 
-#		(which must *not* be defined for older versions)
-
-#### QE 5.1 
-QEXML = $(ESPRESSO_DIR)/Modules/qexml.o
-QEMOD = $(ESPRESSO_DIR)/Modules/
-OPTIONS += -D__QE51
-
-#### QE 5.0
-#QEXML = $(ESPRESSO_DIR)/PP/src/qexml.o
-#QEMOD = $(ESPRESSO_DIR)/PP/src
-
-#### QE 4.3
-#QEXML = $(ESPRESSO_DIR)/PP/qexml.o
-#QEMOD = $(ESPRESSO_DIR)/PP/
-
 #######################
 
 

@@ -1,7 +1,7 @@
 include ../Makefile.arch
 
 # Currently BLAS and MPI are *not* optional
-FLAGS = $(OPTIONS) -cpp -DBLAS -DMPI -D__HAVE_F03 #-check all
+FLAGS = $(OPTIONS) 
 
 CNBSE = ../CNBSE/zcmsnmult/zf90
 
@@ -25,7 +25,7 @@ OCEAN_constants.o: OCEAN_constants.f90 AI_kinds.o
 	$(MPIFORT) $(FLAGS) -c -o OCEAN_constants.o OCEAN_constants.f90
 
 ocean.x: $(OCEANOBJS)
-	$(MPIFORT) $(LDFLAGS) -o ocean.x $(OCEANOBJS)  $(BLACS) $(OPENMP) $(FFTWL)
+	$(MPIFORT) $(LDFLAGS) -o ocean.x $(OCEANOBJS)  $(BLAS) $(OPENMP) $(FFTWL)
 
 o_spect.x: o_spect.f90 AI_kinds.o gamfcn.o
 	$(MPIFORT) $(FLAGS) -o o_spect.x o_spect.f90 AI_kinds.o gamfcn.o
