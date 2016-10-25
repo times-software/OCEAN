@@ -275,6 +275,10 @@ cnbse.gmres.ffff
 {
 0.00000005
 } cnbse.gmres.ffff
+cnbse.write_rhs
+{
+.false.
+} cnbse.write_rhs
 scratch
 {
 scratchXX

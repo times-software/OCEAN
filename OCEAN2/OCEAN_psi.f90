@@ -3332,7 +3332,7 @@ module OCEAN_psi
     out_vec(:,:,:) = cmplx( p%r(1:sys%cur_run%num_bands,1:sys%nkpts,:), p%i(1:sys%cur_run%num_bands,1:sys%nkpts,:) )
 
     write(rhs_filename,'(A4,A2,A1,I4.4,A1,A2,A1,I2.2)' ) 'rhs_', sys%cur_run%elname, &
-            '.', sys%cur_run%indx, '_', '1s', '_', sys%cur_run%photon
+            '.', sys%cur_run%indx, '_', sys%cur_run%corelevel, '_', sys%cur_run%photon
     open(unit=99,file=rhs_filename,form='unformatted',status='unknown')
     rewind( 99 )
     write( 99 ) out_vec

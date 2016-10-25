@@ -25,7 +25,7 @@ my @CommonFiles = ("epsilon", "xmesh.ipt", "nedges", "k0.ipt", "nbuse.ipt",
   "cnbse.niter", "cnbse.spect_range", "cnbse.broaden", "cnbse.mode", "nphoton", "dft", 
   "para_prefix", "cnbse.strength", "serbse", "core_offset", "avecsinbohr.ipt", 
   "cnbse.solver", "cnbse.gmres.elist", "cnbse.gmres.erange", "cnbse.gmres.nloop", 
-  "cnbse.gmres.gprc", "cnbse.gmres.ffff", "spin_orbit", "nspin" );
+  "cnbse.gmres.gprc", "cnbse.gmres.ffff", "cnbse.write_rhs", "spin_orbit", "nspin" );
 
 my @DFTFiles = ("nelectron");
 

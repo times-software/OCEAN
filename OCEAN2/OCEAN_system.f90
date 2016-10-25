@@ -49,7 +49,7 @@ module OCEAN_system
     logical          :: have_core = .true.
     logical          :: have_val = .false.
     logical          :: backf = .false.
-    logical          :: write_rhs = .true.
+    logical          :: write_rhs 
     character(len=5) :: calc_type
 
     type(o_run), pointer :: cur_run => null()
@@ -261,6 +261,9 @@ module OCEAN_system
       endif
 
 
+      open(unit=99,file='cnbse.write_rhs',form='formatted',status='old')
+      read(99,*) sys%write_rhs
+      close(99)
       
     endif
 #ifdef MPI
@@ -330,6 +333,9 @@ module OCEAN_system
     if( ierr .ne. MPI_SUCCESS ) goto 111
     call MPI_BCAST( sys%kshift, 1, MPI_LOGICAL, root, comm, ierr )
     if( ierr .ne. MPI_SUCCESS ) goto 111
+    call MPI_BCAST( sys%write_rhs, 1, MPI_LOGICAL, root, comm, ierr )
+    if( ierr .ne. MPI_SUCCESS ) goto 111
+
     call MPI_BCAST( sys%calc_type, 5, MPI_CHARACTER, root, comm, ierr )
     if( ierr .ne. MPI_SUCCESS ) goto 111
 
