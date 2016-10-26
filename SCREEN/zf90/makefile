@@ -95,4 +95,4 @@ install:
 clean:
 	rm -f zobj/*.o
 	rm -f zexe/*.x
-	rm -r *__genmod.f90 *__genmod.mod
+	rm -f *__genmod.f90 *__genmod.mod
