@@ -1,4 +1,4 @@
-! Copyright (C) 2015 OCEAN collaboration
+! Copyright (C) 2015, 2016 OCEAN collaboration
 !
 ! This file is part of the OCEAN project and distributed under the terms 
 ! of the University of Illinois/NCSA Open Source License. See the file 
@@ -7,6 +7,7 @@
 !
 module OCEAN_multiplet
   use AI_kinds
+  use OCEAN_constants, only : eV2Hartree
 !  use OCEAN_constants, only : eVtoHartree
 
   private
@@ -293,7 +294,8 @@ module OCEAN_multiplet
       read( 99, * ) tmp_n, lvl, lvh
       read(99,*) xi
       close( 99 )
-      xi = xi / 27.2114d0
+!      xi = xi / 27.2114d0
+      xi = xi * eV2Hartree
 
       write( add04, '(1a1,1i3.3)' ) 'z', sys%cur_run%ZNL(1)
       write( add10, '(1a1,1i3.3,1a1,1i2.2,1a1,1i2.2)' ) 'z', sys%cur_run%ZNL(1), &
@@ -370,8 +372,8 @@ module OCEAN_multiplet
               hvml( ii:ii+mham(lv)-1 ), hvnu( ii:ii+mham(lv)-1 ), &
               mhr( jj:jj-1+mham(lv)*mham(lv) ), mhi( jj:jj-1+mham(lv)*mham(lv) ), add10 )
       end do
-      mhr = mhr / 27.2114d0
-      mhi = mhi / 27.2114d0
+      mhr = mhr * eV2Hartree ! / 27.2114d0
+      mhi = mhi * eV2Hartree !/ 27.2114d0
       write ( 6, * ) 'multiplet hamiltonian set up'
       write(6,*) 'Number of spins = ', sys%nspn
       write ( 6, * ) 'n, nc, nspn', sys%num_bands*sys%nkpts, sys%cur_run%nalpha, sys%nspn
@@ -450,7 +452,7 @@ module OCEAN_multiplet
          end do
          close( unit=99 )
       end do
-      mpm( :, :, : ) = mpm( :, :, : ) / 27.2114d0
+      mpm( :, :, : ) = mpm( :, :, : ) * eV2Hartree !/ 27.2114d0
       deallocate( list )
       write ( 6, * ) 'central projector matrix elements have been read in'
 !      write(100,*) mpcr(:,1,1,0,0,1)
@@ -561,7 +563,7 @@ module OCEAN_multiplet
         open( unit=99, file='core_broaden.ipt', form='formatted', status='old' )
         read( 99, * ) life_time( : )
         close( 99 )
-        life_time( : ) = life_time( : ) / 27.2114d0
+        life_time( : ) = life_time( : ) * eV2Hartree ! / 27.2114d0
 
         delta_so( 1 ) = 0.5d0 * ( ( dble( sys%cur_run%ZNL(3) ) + 0.5 ) * ( dble( sys%cur_run%ZNL(3) ) + 1.5 ) - & 
                                     dble( sys%cur_run%ZNL(3) ) * dble( sys%cur_run%ZNL(3) + 1 ) - 0.75d0 )

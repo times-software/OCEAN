@@ -293,7 +293,7 @@ module OCEAN_energies
 !          enddo
 !          close(99)
 !          write(6,*) 'Core offset:', core_offset
-          core_offset = core_offset * eV2Hartree !/ 27.2114d0
+          !core_offset = core_offset * eV2Hartree !/ 27.2114d0
           energies(:,:,:) = energies(:,:,:) + core_offset
         endif
 !      else
@@ -597,7 +597,8 @@ module OCEAN_energies
                   imag_selfenergy( biter - sys%cur_run%start_band + 1, kiter, ispn ) =  &
                         im_se( biter - start_band + 1 )
                   if( kiter .eq. 1 ) then
-                    write(6,*) biter, biter - sys%cur_run%start_band + 1, biter - start_band + 1, im_se(  biter - start_band + 1 ) * Hartree2eV !* 27.2114_DP
+                    write(6,*) biter, biter - sys%cur_run%start_band + 1, biter - start_band + 1,  &
+                               im_se(  biter - start_band + 1 ) * Hartree2eV !* 27.2114_DP
                   endif
                 enddo
               enddo

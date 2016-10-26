@@ -1,4 +1,4 @@
-! Copyright (C) 2015 OCEAN collaboration
+! Copyright (C) 2015,2016 OCEAN collaboration
 !
 ! This file is part of the OCEAN project and distributed under the terms 
 ! of the University of Illinois/NCSA Open Source License. See the file 
@@ -6,6 +6,7 @@
 !
 !
 subroutine nbsemkcmel( add04, add14 )
+  use OCEAN_constants, only : Hartree2eV
   implicit none
   !
   character * 4 :: add04
@@ -111,7 +112,7 @@ subroutine nbsemkcmel( add04, add14 )
                  su1 = su1 + bwgt( j ) * dr( ii ) * rad( ii ) ** 2 * phi( ii, mu ) * phi( ii, nu )
               end do 
            end do
-           cmel( mu, nu ) = su * 27.2114d0
+           cmel( mu, nu ) = su * Hartree2eV
            nmel( mu, nu ) = su1
         end do
      end do

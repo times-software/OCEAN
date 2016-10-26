@@ -228,6 +228,7 @@ module OCEAN_action
     use OCEAN_multiplet
     use OCEAN_long_range
     use OCEAN_pfy, only : OCEAN_pfy_load, OCEAN_pfy_act
+    use OCEAN_constants, only : Hartree2eV, eV2Hartree
 
     implicit none
     integer, intent( inout ) :: ierr
@@ -355,8 +356,8 @@ module OCEAN_action
 
     do iter = 1, inv_loop
 !      ener = ( e_start + ( iter - 1 ) * e_step ) / 27.2114_DP
-      ener = e_list( iter ) / 27.2114_DP
-      if( myid .eq. root ) write(6,*) ener * 27.2114_DP
+      ener = e_list( iter ) * eV2Hartree !/ 27.2114_DP
+      if( myid .eq. root ) write(6,*) ener * Hartree2eV  !* 27.2114_DP
 
 !      call OCEAN_action_set_psi( psi )      
 
@@ -433,7 +434,7 @@ module OCEAN_action
 
       if( myid .eq. 0 ) then
         relative_error = f( 2 ) / ( dimag( - dot_product( rhs, x ) ) ) !* kpref )
-        write ( 76, '(1p,1i5,4(1x,1e15.8))' ) int1, ener*27.2114_DP, &
+        write ( 76, '(1p,1i5,4(1x,1e15.8))' ) int1, ener * Hartree2eV,  & !*27.2114_DP, &
                   ( 1.0d0 - dot_product( rhs, x ) ) * hay_vec%kpref, relative_error
 #ifdef __HAVE_F03
         flush(76)
@@ -848,6 +849,7 @@ module OCEAN_action
 
   subroutine haydump( iter, sys, kpref, ierr )
     use OCEAN_system
+    use OCEAN_constants, only : Hartree2eV
     implicit none
     integer, intent( inout ) :: ierr
     type( o_system ), intent( in ) :: sys
@@ -916,7 +918,8 @@ module OCEAN_action
           dr = delta
           di = -rm1 * delta
           di = abs( di )
-          ener = ebase + 27.2114d0 * e
+!          ener = ebase + 27.2114d0 * e
+          ener = ebase + Hartree2eV * e
           spct( jdamp ) = kpref * di / ( dr ** 2 + di ** 2 )
        end do
        spkk = kpref * dr / ( dr ** 2 + di ** 2 )
@@ -1030,6 +1033,7 @@ module OCEAN_action
 
   subroutine OCEAN_hayinit( ierr )
     use OCEAN_mpi
+    use OCEAN_constants, only : Hartree2eV, eV2Hartree
     implicit none
 
     integer, intent( inout ) :: ierr
@@ -1056,9 +1060,12 @@ module OCEAN_action
       select case ( calc_type )
         case('hay')
           read(99,*) haydock_niter, ne, el, eh, gam0, ebase
-          el = el / 27.2114d0
-          eh = eh / 27.2114d0
-          gam0 = gam0 / 27.2114d0
+!          el = el / 27.2114d0
+!          eh = eh / 27.2114d0
+!          gam0 = gam0 / 27.2114d0
+          el = el * eV2Hartree
+          eh = eh * eV2Hartree
+          gam0 = gam0 * eV2Hartree
           inv_loop = 1
           allocate( e_list( inv_loop ) )
         case('inv')
@@ -1236,6 +1243,7 @@ module OCEAN_action
   ! In the future we should add things like spin orbit, 3d symmetries, etc.
   subroutine write_projected_absspct( sys, project_file_handle, kpref, ener, ntot, rhs, x, ierr )
     use OCEAN_system
+    use OCEAN_constants, only : Hartree2eV
     implicit none
     integer, intent( inout ) :: ierr
     type( o_system ), intent( in ) :: sys
@@ -1276,7 +1284,7 @@ module OCEAN_action
       enddo
     enddo
     
-    write ( project_file_handle, '(5(1x,1e15.8))' ) ener*27.2114_DP, ( 1.0d0 - dot_up ) * kpref, & 
+    write ( project_file_handle, '(5(1x,1e15.8))' ) ener*Hartree2eV, ( 1.0d0 - dot_up ) * kpref, & 
                                                     ( 1.0d0 - dot_up ) * kpref
     call flush(project_file_handle)
 

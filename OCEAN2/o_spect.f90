@@ -1,5 +1,6 @@
 program o_spect
   use AI_kinds
+  use OCEAN_constants, only : Hartree2eV, eV2Hartree
   implicit none
 
   integer :: ZNL(3), indx, photon
@@ -25,9 +26,9 @@ program o_spect
   read(99,*) ne, el, eh, gam0, ebase
   close(99)
 
-  el = el / 27.2114d0
-  eh = eh / 27.2114d0
-  gam0 = gam0 / 27.2114d0
+  el = el * eV2Hartree !/ 27.2114d0
+  eh = eh * eV2Hartree !/ 27.2114d0
+  gam0 = gam0 * eV2Hartree !/ 27.2114d0
 
   open(unit=99,file='epsilon',form='formatted',status='old')
   rewind 99
@@ -101,7 +102,8 @@ program o_spect
           dr = delta
           di = -rm1 * delta
           di = abs( di )
-          ener = ebase + 27.2114d0 * e
+!          ener = ebase + 27.2114d0 * e
+          ener = ebase + Hartree2eV * e
           spct( jdamp ) = kpref * di / ( dr ** 2 + di ** 2 )
        end do
        spkk = kpref * dr / ( dr ** 2 + di ** 2 )

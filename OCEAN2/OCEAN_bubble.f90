@@ -306,7 +306,7 @@ module OCEAN_bubble
           else
             mul = 4.0_dp * pi_dp / ( sys%nkpts * sys%celvol * gsqd ) 
             ! fake to better match old
-            mul = mul * 27.2114d0 / Hartree2eV
+            !mul = mul * 27.2114d0 / Hartree2eV
             igvec = igvec + 1
 !            write(6,*) ix, iy, iz, gvec_length( temp_gvec, sys%bvec ), .true.
           endif
