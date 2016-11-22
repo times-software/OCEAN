@@ -3256,6 +3256,9 @@ module OCEAN_psi
 
     if( myid .eq. root ) then
 
+      call OCEAN_psi_zero_full( p, ierr )
+      if( ierr .ne. 0 ) goto 111
+
       write(6,*) 'Reading in projector coefficients'
       call OCEAN_psi_dotter( sys, p, ierr )
       if( ierr .ne. 0 ) goto 111
