@@ -138,7 +138,7 @@ program wfconvert
             call getwfkin(wfkin,files_iter,wfkinfile)
             write(6,*) wfkin
             call headerpar(wfkinfile, dummy, maxnpw, maxband, nsppol,       &
-     &                     nspinor,nkpt,36)
+     &                     nspinor,nkpt,36, ierr)
         end select
 
         allocate(kg_unshift(3,maxnpw), eigen_un(maxband) )
