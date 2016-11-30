@@ -11,7 +11,7 @@ if (! $ENV{"OCEAN_BIN"} ) {
 if (! $ENV{"OCEAN_WORKDIR"}){ $ENV{"OCEAN_WORKDIR"} = `pwd` . "../" ; }
 if (!$ENV{"OCEAN_VERSION"}) {$ENV{"OCEAN_VERSION"} = `cat $ENV{"OCEAN_BIN"}/Version`; }
 if (! $ENV{"OCEAN_ABINIT"} ) {$ENV{"OCEAN_ABINIT"} = $ENV{"OCEAN_BIN"} . "/abinit"; }
-if (! $ENV{"OCEAN_CUT3D"} ) {$ENV{"OCEAN_CU3D"} = $ENV{"OCEAN_BIN"} . "/cut3d"; }
+if (! $ENV{"OCEAN_CUT3D"} ) {$ENV{"OCEAN_CUT3D"} = $ENV{"OCEAN_BIN"} . "/cut3d"; }
 
 ####################################
 # Executables to be run
@@ -26,7 +26,7 @@ my $RunABINIT = 0;
 my $screenRUN = 0;
 my $bseRUN = 0;
 
-my @GeneralFiles = ("core", "para_prefix" );
+my @GeneralFiles = ("core", "para_prefix", "ser_prefix" );
 
 my @KgenFiles = ("nkpt", "k0.ipt", "qinunitsofbvectors.ipt", "screen.nkpt");
 my @BandFiles = ("nbands", "screen.nbands");
@@ -36,6 +36,9 @@ my @AbinitFiles = ( "rscale", "rprim", "ntype", "natoms", "typat",
 my @PPFiles = ("pplist", "znucl");
 my @OtherFiles = ("epsilon");
 
+my $AbiVersion = 0;
+my $AbiMinorV = -1;
+my $AbiSubV = -1;
 
 foreach (@PPFiles) {
   if ( -e $_ ) {
@@ -98,6 +101,19 @@ if ($RunABINIT) {
 }
 else {
   `touch old`;
+  open IN, "density.log" or die "Failed to open density.log\n$!";
+  while( my $line = <IN> )
+  {
+    if( $line =~ m/\.Version\s(\d+)\.(\d+)\.(\d)/ )
+    {
+      $AbiVersion = $1;
+      $AbiMinorV = $2;
+      $AbiSubV = $3;
+      last;
+    }
+  }
+  close IN;
+
 }
 
 
@@ -128,6 +144,11 @@ open PARA, "para_prefix" or die "$!";
 my $para_prefix = <PARA>;
 chomp($para_prefix);
 close PARA;
+
+open SER, "ser_prefix" or die "$!";
+my $ser_prefix = <SER>;
+chomp($ser_prefix);
+close SER;
 
 #if  ($RunKGen) {
 #  foreach (@KgenFiles) {
@@ -371,27 +392,140 @@ if ($RunABINIT) {
 #  `echo prtdos 3 >> inai.denout`;
 #  `echo prtdosm 1 >> inai.denout`;
 
+  print "Testing SCF Run parallelism\n";
+  my $test_prefix;
+  if( $ser_prefix =~ m/!/ )
+  {
+    $test_prefix = $para_prefix;
+    $test_prefix =~ s/\d+/1/;
+    print "    Serial prefix: $test_prefix\n";
+  }
+  else
+  {
+    $test_prefix = $ser_prefix;
+  }
+  `cp inai.denout par_test.in`;
+  `echo paral_kgb 1 >> par_test.in`;
+  $para_prefix =~ m/(\d+)/;
+  my $max_cpus = $1;
+  $max_cpus = 1 if( $max_cpus < 1 );
 
+  `echo max_ncpus $max_cpus >> par_test.in`;
+  open FILES, ">par_test.files";
+  print FILES "par_test.in\n"
+            . "par_test.out\n"
+            . "SC\n"
+            . "SCx\n"
+            . "Scxx\n";
+  close FILES;
+  `cat finalpplist >> par_test.files`;
+  system("$test_prefix $ENV{'OCEAN_ABINIT'} < par_test.files > pt.log 2> pt.err");
+
+  open IN, "pt.log" or die "Failed to open pt.log\n$!";
+  while( my $line = <IN> )
+  {
+    if( $line =~ m/\.Version\s(\d+)\.(\d+)\.(\d)/ )
+    {
+      $AbiVersion = $1;
+      $AbiMinorV = $2;
+      $AbiSubV = $3;
+      last;
+    }
+  }
+  close IN;
+
+  my $new_ncpu;
+
+  if( ( $AbiVersion < 7 ) || ( $AbiVersion == 7 && $AbiMinorV < 6 ) )
+  {
+    print "Abinit is pre-7.6: $AbiVersion.$AbiMinorV\n";
+    `rm -rf par_test.out`;
+    `sed '/autoparal/d' inai.denout > tmp`;
+    `mv tmp inai.denout`;
+    `echo istwfk *1 >> inai.denout`;
+    `cp inai.denout par_test.in`;
+    `echo paral_kgb -$max_cpus >> par_test.in`;
+    `echo paral_kgb 1 >> inai.denout`;
+
+    system("$test_prefix $ENV{'OCEAN_ABINIT'} < par_test.files > pt.log 2> pt.err");
+
+    open IN, "pt.log" or die "Failed to open pt.log\n$!";
+    while( my $line = <IN> )
+    {
+      last if $line =~ m/nproc     npkpt/;
+    }
+    my $npfft = 0;
+    while( $npfft != 1 )
+    {
+      <IN> =~ m/^\s+(\d+)\s+(\d+)\s+(\d+)\s+(\d+)\s+(\d+)/ or die "Failed to parse pt.log\n";
+      $new_ncpu = $1;
+      $npfft = $5;
+    }
+
+  }
+  else
+  {
+    open IN, "pt.log" or die "Failed to open pt.log\n$!";
+    while( my $line = <IN> )
+    {
+      last if $line =~ m/npimage\|/;
+    }
+  
+    <IN>;
+    <IN> =~ m/^\s+(\d+)\|\s+(\d+)\|\s+(\d+)\|\s+(\d+)\|\s+(\d+)/ or die "Failed to parse pt.log\n";
+    $new_ncpu = $1*$2*$3*$4*$5;
+    close IN;
+  }
+
+  $test_prefix = $para_prefix;
+  $test_prefix =~ s/\d+/$new_ncpu/;
   print "Self-Consistent Density Run\n";
-  system("$para_prefix $ENV{'OCEAN_ABINIT'} < denout.files > density.log 2> density.err") == 0
-    or die "Failed to run initial density stage\n$para_prefix $ENV{'OCEAN_ABINIT'}\n";
+  system("$test_prefix $ENV{'OCEAN_ABINIT'} < denout.files > density.log 2> density.err") == 0
+    or die "Failed to run initial density stage\n$test_prefix $ENV{'OCEAN_ABINIT'}\n";
   `echo 1 > den.stat`;
 
   `ln -s SCx_DEN SCx_DS0_DEN`;
 
+  print "Abi Version $AbiVersion.$AbiMinorV.$AbiSubV\n";
+
   open CUTIN, ">cut3d.in" or die "Failed to open cut3d.in for writing.\n$!\n";
-  if( $nspn == 2 ) 
+  if( $AbiVersion <= 7 )
   {
-    print CUTIN "SCx_DEN\n1\n0\n6\nrhoofr\n0\n";
+    if( $nspn == 2 ) 
+    {
+      print CUTIN "SCx_DEN\n1\n0\n6\nrhoofr\n0\n";
+    }
+    else
+    {
+      print CUTIN "SCx_DEN\n1\n6\nrhoofr\n0\n";
+    }
   }
   else
   {
-    print CUTIN "SCx_DEN\n1\n6\nrhoofr\n0\n";
+    if( $nspn == 2 )
+    {
+      print CUTIN "SCx_DEN\n0\n6\nrhoofr\n0\n";
+    }
+    else
+    {
+      print CUTIN "SCx_DEN\n6\nrhoofr\n0\n";
+    }
   }
   close CUTIN;
 
-  system("$ENV{'OCEAN_BIN'}/cut3d < cut3d.in > cut3d.log 2> cut3d.err") == 0
-      or die "Failed to run cut3d\n";
+  if( $ser_prefix =~ m/!/ ) 
+  {
+    print "$ENV{'OCEAN_CUT3D'} < cut3d.in > cut3d.log 2> cut3d.err\n";
+    system("$ENV{'OCEAN_CUT3D'} < cut3d.in > cut3d.log 2> cut3d.err") == 0
+        or die "Failed to run cut3d\n";
+  }
+  else
+  {
+    print "$ser_prefix $ENV{'OCEAN_CUT3D'} < cut3d.in > cut3d.log 2> cut3d.err\n";
+    system("$ser_prefix $ENV{'OCEAN_CUT3D'} < cut3d.in > cut3d.log 2> cut3d.err") == 0
+        or die "Failed to run cut3d\n";
+  }
+
 
   
   `echo "1" > abinit.stat`;
@@ -466,13 +600,84 @@ if ( $screenRUN ) {
     close FILES;
     `cat finalpplist >> $deninFiles`;
 
+    $para_prefix =~ m/(\d+)/;
+    my $max_cpus = $1;
+    $max_cpus = 1 if( $max_cpus < 1 );
+    open FILES, ">par_test.files";
+    print FILES "par_test.in\n"
+              . "par_test.out\n"
+              . "../SC\n"
+              . "SCx\n"
+              . "Scxx\n";
+    close FILES;
+    `cat finalpplist >> par_test.files`;
+
+    my $test_prefix;
+    if( $ser_prefix =~ m/!/ )
+    {
+      $test_prefix = $para_prefix;
+      $test_prefix =~ s/\d+/1/;
+#      print "    Serial prefix: $test_prefix\n";
+    }
+    else
+    {
+      $test_prefix = $ser_prefix;
+    }
+
+    my $new_ncpu;
+    if( ( $AbiVersion < 7 ) || ( $AbiVersion == 7 && $AbiMinorV < 6 ) )
+    {
+      print "Abinit is pre-7.6: $AbiVersion.$AbiMinorV\n";
+      `sed '/autoparal/d' $abfilename > tmp`;
+      `mv tmp $abfilename`;
+      `sed /iscf/d  $abfilename > par_test.in`;
+
+      `echo paral_kgb 1 >> $abfilename`;
+      `echo paral_kgb -$max_cpus >> par_test.in`;
+
+      system("$test_prefix $ENV{'OCEAN_ABINIT'} < par_test.files > pt.log 2> pt.err");
+
+      open IN, "pt.log" or die "Failed to open pt.log\n$!";
+      while( my $line = <IN> )
+      {
+        last if $line =~ m/nproc     npkpt/;
+      }
+      my $npkpt = 0;
+      while( <IN> =~ m/^\s+(\d+)\s+(\d+)\s+(\d+)\s+(\d+)\s+(\d+)/ )
+      {
+        $npkpt = $2 if( $2 > $npkpt );
+      }
+      $new_ncpu = $npkpt;
+
+      close IN;
+    }
+    else
+    {
+      `cp $abfilename par_test.in`;
+      `echo paral_kgb 1 >> par_test.in`;
+      `echo max_ncpus $max_cpus >> par_test.in`;
+
+      system("$test_prefix $ENV{'OCEAN_ABINIT'} < par_test.files > pt.log 2> pt.err");
+
+      open IN, "pt.log" or die "Failed to open pt.log\n$!";
+      while( my $line = <IN> )
+      {
+        last if $line =~ m/npimage\|/;
+      }
+      <IN>;
+      <IN> =~ m/^\s+(\d+)\|\s+(\d+)\|\s+(\d+)\|\s+(\d+)\|\s+(\d+)/ or die "Failed to parse pt.log\n";
+      $new_ncpu = $1*$2*$3*$4*$5;
+      close IN;
+    }
+    my $test_prefix = $para_prefix;
+    $test_prefix =~ s/\d+/$new_ncpu/;
+
     my $denin = sprintf("denin.files.%04i", $runcount);
-    print "$para_prefix $ENV{'OCEAN_ABINIT'} < $denin > ABINIT.$runcount.log";
-    system("$para_prefix $ENV{'OCEAN_ABINIT'} < $denin > ABINIT.$runcount.log 2> ABINIT.$runcount.err") == 0 or
+    print "$test_prefix $ENV{'OCEAN_ABINIT'} < $denin > ABINIT.$runcount.log";
+    system("$test_prefix $ENV{'OCEAN_ABINIT'} < $denin > ABINIT.$runcount.log 2> ABINIT.$runcount.err") == 0 or
       die "$!\n";
     print "\n";
   }
-
 
 
   my $natoms = `cat natoms`;
@@ -560,6 +765,81 @@ if ( $bseRUN ) {
     close FILES;
     `cat finalpplist >> $deninFiles`;
 
+    $para_prefix =~ m/(\d+)/;
+    my $max_cpus = $1;
+    $max_cpus = 1 if( $max_cpus < 1 );
+    open FILES, ">par_test.files";
+    print FILES "par_test.in\n"
+              . "par_test.out\n"
+              . "../SC\n"
+              . "SCx\n"
+              . "Scxx\n";
+    close FILES;
+    `cat finalpplist >> par_test.files`;
+
+    my $test_prefix;
+    if( $ser_prefix =~ m/!/ )
+    {
+      $test_prefix = $para_prefix;
+      $test_prefix =~ s/\d+/1/;
+#      print "    Serial prefix: $test_prefix\n";
+    }
+    else
+    {
+      $test_prefix = $ser_prefix;
+    }
+
+    my $new_ncpu;
+    if( ( $AbiVersion < 7 ) || ( $AbiVersion == 7 && $AbiMinorV < 6 ) )
+    {
+      print "Abinit is pre-7.6: $AbiVersion.$AbiMinorV \n";
+      `sed '/autoparal/d' $abfilename > tmp`;
+      `mv tmp $abfilename`;
+  #    `cp $abfilename par_test.in`;
+      `sed /iscf/d  $abfilename > par_test.in`;
+
+      `echo paral_kgb 1 >> $abfilename`;
+      `echo paral_kgb -$max_cpus >> par_test.in`;
+
+      system("$test_prefix $ENV{'OCEAN_ABINIT'} < par_test.files > pt.log 2> pt.err");
+
+      open IN, "pt.log" or die "Failed to open pt.log\n$!";
+      while( my $line = <IN> )
+      {
+        last if $line =~ m/nproc     npkpt/;
+      }
+      my $npkpt = 0;
+      while( <IN> =~ m/^\s+(\d+)\s+(\d+)\s+(\d+)\s+(\d+)\s+(\d+)/ )
+      {
+        $npkpt = $2 if( $2 > $npkpt );
+      }
+      $new_ncpu = $npkpt;
+
+      close IN;
+    }
+    else
+    {
+      `cp $abfilename par_test.in`;
+      `echo paral_kgb 1 >> par_test.in`;
+      `echo max_ncpus $max_cpus >> par_test.in`;
+
+      system("$test_prefix $ENV{'OCEAN_ABINIT'} < par_test.files > pt.log 2> pt.err");
+
+      open IN, "pt.log" or die "Failed to open pt.log\n$!";
+      while( my $line = <IN> )
+      {
+        last if $line =~ m/npimage\|/;
+      }
+      <IN>;
+      <IN> =~ m/^\s+(\d+)\|\s+(\d+)\|\s+(\d+)\|\s+(\d+)\|\s+(\d+)/ or die "Failed to parse pt.log\n";
+      $new_ncpu = $1*$2*$3*$4*$5;
+      close IN;
+    }
+    my $test_prefix = $para_prefix;
+    $test_prefix =~ s/\d+/$new_ncpu/;
+
+
+
     my $denin = sprintf("denin.files.%04i", $runcount);
     print "$para_prefix $ENV{'OCEAN_ABINIT'} < $denin > ABINIT.$runcount.log";
     system("$para_prefix $ENV{'OCEAN_ABINIT'} < $denin > ABINIT.$runcount.log 2> ABINIT.$runcount.err") == 0 or
@@ -571,7 +851,6 @@ if ( $bseRUN ) {
 
   my $natoms = `cat natoms`;
   my $fband = `cat fband`;
-  $screennbands = `cat screen.nbands`;
   my $true_vb = $vb - ceil( $natoms*$fband );
   print "$vb\t$true_vb\n";
   my $cb = sprintf("%.0f", $vb - 2*$natoms*$fband);
