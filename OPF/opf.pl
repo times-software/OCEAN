@@ -23,7 +23,9 @@ if (! $ENV{"OCEAN_WORKDIR"}){ $ENV{"OCEAN_WORKDIR"} = `pwd` . "../" ; }
 ###########################
 
 
-my @CommonFiles = ("znucl", "opf.hfkgrid", "opf.fill", "opf.opts", "pplist", "screen.shells", "ntype", "natoms", "typat", "taulist", "nedges", "edges", "caution", "epsilon", "k0.ipt", "ibase", "scfac" );
+my @CommonFiles = ("znucl", "opf.hfkgrid", "opf.fill", "opf.opts", "pplist", "screen.shells", 
+                   "ntype", "natoms", "typat", "taulist", "nedges", "edges", "caution", "epsilon", 
+                   "k0.ipt", "ibase", "scfac", "calc" );
 
 
 my @DenDipFiles = ("rhoofg", "bvecs", "efermiinrydberg.ipt");
@@ -46,6 +48,7 @@ if ($runPAW == 0 ) {
   print "Nothing new needed for PAW stage\n";
   exit 0;
 }
+
 `rm -f done`;
 
 
@@ -62,6 +65,17 @@ while (<PPLIST>) {
   chomp;
   s/\s+//;
   `cp "../$_" .`;
+}
+
+if( open CALC, "calc" )
+{
+  if( <CALC> =~ m/VAL/i )
+  {
+    print "No OPF calc for valence run\n";
+    close CALC;
+    exit 0;
+  }
+  close CALC;
 }
 
 ###################################

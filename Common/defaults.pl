@@ -517,6 +517,42 @@ print QE_POOL "interpolate screen\t$pool_size\n";
 
 
 close QE_POOL;
+
+# qinunits
+$input_content = '';
+open CALC, "calc" or die "Failed to open open calc\n$!";
+while (<CALC>)
+  {
+    $input_content .= $_;
+  }
+$input_content =~ s/\n/ /g;
+close CALC;
+
+if( $input_content =~ m/VAL/i || $input_content =~ m/RXS/i )
+{
+  open QIN, "qinunitsofbvectors.ipt" or die "Failed to open qinunitsofbvectors.ipt\n$!";
+  $input_content = '';
+  while (<QIN>)
+    {
+      $input_content .= $_;
+    }
+  $input_content =~ s/\n/ /g;
+  close QIN;
+
+  $input_content =~ m/([+-]?\d+(\.\d+)?)\s+([+-]?\d+(\.\d+)?)\s+([+-]?\d+(\.\d+)?)/ 
+    or die "Failed to parse qinunitsofbvectors.ipt\n\t\t$input_content\n";
+  if( abs( $1 ) + abs( $2 ) + abs( 3 ) < 0.0000000001 )
+  {
+    print "Valence or RIXS calculation requires non-zero q-vector\n";
+    print "Assigning default q-vec of ( 0.001, 0, 0 ). You should edit your input\n";
+    open QIN, ">qinunitsofbvectors.ipt" or die "Failed to open qinunitsofbvectors.ipt\n$!";
+    print QIN "0.001 0.0 0.0\n";
+    close QIN;
+  }
+}
+
+
+
 exit;
 
 sub findval

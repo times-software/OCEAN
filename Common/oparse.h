@@ -1,3 +1,7 @@
+calc
+{
+XAS
+} calc
 control
 {
 0

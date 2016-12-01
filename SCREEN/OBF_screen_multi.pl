@@ -43,7 +43,8 @@ my @CommonFiles = ("znucl", "opf.hfkgrid", "opf.fill", "opf.opts", "pplist", "sc
                    "screen.nbands", "core_offset", "screen.nkpt", "pool_control", "ham_kpoints", 
                    "cnbse.rad", "dft", "avecsinbohr.ipt", 
                    "screen.grid.rmax", "screen.grid.nr", "screen.grid.ang", "screen.grid.lmax", 
-                   "screen.grid.nb", "screen.final.rmax", "screen.final.dr", "screen.model.dq", "screen.model.qmax" );
+                   "screen.grid.nb", "screen.final.rmax", "screen.final.dr", "screen.model.dq", 
+                   "screen.model.qmax", "calc" );
 
 my @DFTFiles = ("rhoofr", "nscf.out", "system.rho.dat", "efermiinrydberg.ipt");
 my @ExtraFiles = ("Pquadrature" );
@@ -60,6 +61,17 @@ foreach (@DFTFiles)
 
 foreach (@CommonFiles) {
   `cp ../Common/$_ .` == 0 or die "Failed to get $_ from Common/\n";
+}
+
+if( open CALC, "calc" )
+{
+  if( <CALC> =~ m/VAL/i )
+  {
+    print "No (core-level) SCREEN calc for valence run\n";
+    close CALC;
+    exit 0;
+  }
+  close CALC;
 }
 
 my $tmpdir = "undefined";
