@@ -175,7 +175,7 @@ while (<SHELLS>) {
   $allshells .= $_ ." ";
 }
 close SHELLS;
-my @rads = split(/ /, $allshells);
+my @rads = split(/\s+/, $allshells);
 $numshells = $#rads + 1;
 open SHELLS, ">shells" or die "Failed to open shells for writing\n";
 print SHELLS "$numshells\n";
