@@ -44,6 +44,7 @@ program ocean
   do iter = 1, sys%nruns
 
     call ocean_hayinit( ierr )
+    if( ierr .ne. 0 ) goto 111
 
 
     call ocean_load_data( sys, hay_vec, lr, ierr )

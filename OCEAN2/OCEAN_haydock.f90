@@ -282,7 +282,7 @@ module OCEAN_action
 
     if( myid .eq. root ) then
       write ( 6, '(2x,1a8,1e15.8)' ) ' mult = ', hay_vec%kpref
-      write(6,*) inter_scale, haydock_niter
+      write(6,*) inter_scale, haydock_niter, inv_loop
 
 
       select case ( sys%cur_run%calc_type)
@@ -306,6 +306,7 @@ module OCEAN_action
       open( unit=76,file=abs_filename,form='formatted',status='unknown' )
       rewind( 76 )
 
+      do_pfy = .false.
       if( do_pfy ) then
         pfy_file_handle = 75
         open(pfy_file_handle,file=pfy_filename,form='formatted',status='unknown' )
@@ -1038,7 +1039,7 @@ module OCEAN_action
 
     integer, intent( inout ) :: ierr
 
-    integer :: dumi, iter
+    integer :: dumi, iter, ierr_
     character(len=4) :: inv_style
     real :: dumf
 
@@ -1086,6 +1087,9 @@ module OCEAN_action
               do iter = 1, inv_loop
                 e_list( iter ) = e_start + ( iter - 1 ) * e_step
               enddo
+            case default
+              write(6,*) 'Error reading bse.in'
+              ierr = -1
           end select          
 
           inquire(file='echamp.inp',exist=echamp)
@@ -1118,6 +1122,9 @@ module OCEAN_action
     endif
 
 #ifdef MPI
+    call MPI_BCAST( ierr, 1, MPI_INTEGER, root, comm, ierr_ )
+    if( ierr .ne. 0 ) return
+
     call MPI_BCAST( inter_scale, 1, MPI_DOUBLE_PRECISION, root, comm, ierr )
     call MPI_BCAST( haydock_niter, 1, MPI_INTEGER, root, comm, ierr )
     call MPI_BCAST( calc_type, 3, MPI_CHARACTER, root, comm, ierr )
