@@ -228,6 +228,8 @@ module OCEAN_val_states
 
     deallocate( re_phase, im_phase )
 
+    is_loaded = .true.
+
   end subroutine OCEAN_val_states_load
 
   subroutine OCEAN_val_states_init( sys, ierr )

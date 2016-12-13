@@ -19,6 +19,8 @@ module OCEAN_bubble
   type(C_PTR)        :: fplan
   type(C_PTR)        :: bplan
 
+  logical :: is_init = .false.
+
   public :: AI_bubble_prep, AI_bubble_act, AI_bubble_clean
 
   contains
@@ -70,6 +72,10 @@ module OCEAN_bubble
     nthreads = 1
 !$  nthreads = omp_get_max_threads()
 
+    if( is_init ) then
+      if( myid .eq. root ) write(6,*) '  bubble cached'
+      return
+    endif
 
     ! The data for bubble gets saved down to a single array for FFT
     !  In the future we will want two! different sorts for spin up and spin down
@@ -78,7 +84,7 @@ module OCEAN_bubble
                 scratch( sys%nxpts ), re_scratch( sys%nxpts ), im_scratch( sys%nxpts ), &
                 STAT=ierr )
       if( ierr .ne. 0 ) then
-        write( 1000+myid ) 'Failed to allocate bubble and scratch'
+        write( 1000+myid,* ) 'Failed to allocate bubble and scratch'
         goto 111
       endif
       call dfftw_plan_with_nthreads( nthreads )
@@ -124,6 +130,8 @@ module OCEAN_bubble
       endif
     endif
     !
+
+    is_init = .true.
 111 continue
 
   end subroutine AI_bubble_prep

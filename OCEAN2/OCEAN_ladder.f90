@@ -497,41 +497,43 @@ module OCEAN_ladder
 ! JTV At some point we will instead want to create new comms for each NN pair
 !    and make all this private nonsense
 
-  c_size = max_nxpts * sys%val_bands * sys%nkpts
-  c_dest = myid + 1
-  if( c_dest .ge. nproc ) c_dest = 0
-  c_sour = myid - 1
-  if( c_sour .lt. 0 ) c_sour = nproc - 1
+    c_size = max_nxpts * sys%val_bands * sys%nkpts
+    c_dest = myid + 1
+    if( c_dest .ge. nproc ) c_dest = 0
+    c_sour = myid - 1
+    if( c_sour .lt. 0 ) c_sour = nproc - 1
 
-  c_recv_tag(1,1) = myid + 1*nproc
-  c_send_tag(1,1) = c_dest + 2*nproc
-  c_recv_tag(2,1) = myid + 2*nproc
-  c_send_tag(2,1) = c_dest + 1*nproc
+    c_recv_tag(1,1) = myid + 1*nproc
+    c_send_tag(1,1) = c_dest + 2*nproc
+    c_recv_tag(2,1) = myid + 2*nproc
+    c_send_tag(2,1) = c_dest + 1*nproc
 
-  c_recv_tag(1,2) = myid + 3*nproc
-  c_send_tag(1,2) = c_dest + 4*nproc
-  c_recv_tag(2,2) = myid + 4*nproc
-  c_send_tag(2,2) = c_dest + 3*nproc
+    c_recv_tag(1,2) = myid + 3*nproc
+    c_send_tag(1,2) = c_dest + 4*nproc
+    c_recv_tag(2,2) = myid + 4*nproc
+    c_send_tag(2,2) = c_dest + 3*nproc
 
-  call MPI_SEND_INIT( re_bstate(1,1,1,1), c_size, MPI_DOUBLE_PRECISION, c_dest, c_send_tag(1,1), &
-                      comm, c_send_request(1,1), ierr )
-  call MPI_SEND_INIT( re_bstate(1,1,1,2), c_size, MPI_DOUBLE_PRECISION, c_dest, c_send_tag(2,1), &
-                      comm, c_send_request(2,1), ierr )
-  call MPI_RECV_INIT( re_bstate(1,1,1,1), c_size, MPI_DOUBLE_PRECISION, c_sour, c_recv_tag(1,1), &
-                      comm, c_recv_request(1,1), ierr )
-  call MPI_RECV_INIT( re_bstate(1,1,1,2), c_size, MPI_DOUBLE_PRECISION, c_sour, c_recv_tag(2,1), &
-                      comm, c_recv_request(2,1), ierr )
+    call MPI_SEND_INIT( re_bstate(1,1,1,1), c_size, MPI_DOUBLE_PRECISION, c_dest, c_send_tag(1,1), &
+                        comm, c_send_request(1,1), ierr )
+    call MPI_SEND_INIT( re_bstate(1,1,1,2), c_size, MPI_DOUBLE_PRECISION, c_dest, c_send_tag(2,1), &
+                        comm, c_send_request(2,1), ierr )
+    call MPI_RECV_INIT( re_bstate(1,1,1,1), c_size, MPI_DOUBLE_PRECISION, c_sour, c_recv_tag(1,1), &
+                        comm, c_recv_request(1,1), ierr )
+    call MPI_RECV_INIT( re_bstate(1,1,1,2), c_size, MPI_DOUBLE_PRECISION, c_sour, c_recv_tag(2,1), &
+                        comm, c_recv_request(2,1), ierr )
 
-  call MPI_SEND_INIT( im_bstate(1,1,1,1), c_size, MPI_DOUBLE_PRECISION, c_dest, c_send_tag(1,2), &
-                      comm, c_send_request(1,2), ierr )
-  call MPI_SEND_INIT( im_bstate(1,1,1,2), c_size, MPI_DOUBLE_PRECISION, c_dest, c_send_tag(2,2), &
-                      comm, c_send_request(2,2), ierr )
-  call MPI_RECV_INIT( im_bstate(1,1,1,1), c_size, MPI_DOUBLE_PRECISION, c_sour, c_recv_tag(1,2), &
-                      comm, c_recv_request(1,2), ierr )
-  call MPI_RECV_INIT( im_bstate(1,1,1,2), c_size, MPI_DOUBLE_PRECISION, c_sour, c_recv_tag(2,2), &
-                      comm, c_recv_request(2,2), ierr )
+    call MPI_SEND_INIT( im_bstate(1,1,1,1), c_size, MPI_DOUBLE_PRECISION, c_dest, c_send_tag(1,2), &
+                        comm, c_send_request(1,2), ierr )
+    call MPI_SEND_INIT( im_bstate(1,1,1,2), c_size, MPI_DOUBLE_PRECISION, c_dest, c_send_tag(2,2), &
+                        comm, c_send_request(2,2), ierr )
+    call MPI_RECV_INIT( im_bstate(1,1,1,1), c_size, MPI_DOUBLE_PRECISION, c_sour, c_recv_tag(1,2), &
+                        comm, c_recv_request(1,2), ierr )
+    call MPI_RECV_INIT( im_bstate(1,1,1,2), c_size, MPI_DOUBLE_PRECISION, c_sour, c_recv_tag(2,2), &
+                        comm, c_recv_request(2,2), ierr )
 
 #endif
+
+    is_loaded = .true.
 
   end subroutine OCEAN_ladder_new
 
