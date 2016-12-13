@@ -418,7 +418,7 @@ nbse.se_niter
 } se_niter
 nbse.spect_range
 {
-0 100 1000
+1000 0 100 
 } spect.h
 tot_charge
 {
