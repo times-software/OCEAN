@@ -890,7 +890,7 @@ module OCEAN_action
     select case ( sys%cur_run%calc_type)
       case( 'XES', 'XAS' )
         call write_core( 99, iter, kpref )
-      case( 'VAL' )
+      case( 'VAL', 'RXS' )
         call write_val( 99, iter, kpref, sys%celvol )
 
       case default
@@ -986,7 +986,7 @@ module OCEAN_action
 !   &        ( ( indref + 1 ) ** 2 + indabs ** 2 )
       lossf = imeps / ( reeps ** 2 + imeps ** 2 )
 
-      write(fh,"(6E24.16)") ere*Hartree2eV, eps, sqrt(eps+1.0_dp), lossf
+      write(fh,'(3(1E24.16,x))') ere*Hartree2eV, 1.0_dp - reeps, imeps!, sqrt(eps+1.0_dp), lossf
 
     enddo
 
