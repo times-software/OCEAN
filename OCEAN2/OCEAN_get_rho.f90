@@ -12,7 +12,7 @@ subroutine OCEAN_get_rho( xmesh, celvol, rho, ierr )
   integer, intent( inout ) :: ierr
 
   !
-  integer :: nfft( 3 ), dumint, i, j, k, ii, jj, kk
+  integer :: nfft( 3 ), dumint, i, j, k, ii, jj, kk, ierr_
   complex(dp),  allocatable :: rhoofr(:,:,:), rhoofg(:,:,:)
   real(dp) :: dumr, sumrho, norm
   integer*8 :: fftw_plan, fftw_plan2
@@ -38,6 +38,8 @@ subroutine OCEAN_get_rho( xmesh, celvol, rho, ierr )
 
 ! Lazy start, only MPI master node does work
   if( myid .eq. root ) then
+    write(6,*) 'Reading in rho'
+
     open( unit=99, file='nfft', form='formatted', status='old', IOSTAT=ierr )
     if ( ierr .ne. 0 ) goto 111
     read( 99, * ) nfft( : )
@@ -63,6 +65,8 @@ subroutine OCEAN_get_rho( xmesh, celvol, rho, ierr )
       enddo
     enddo
     close( 99 )
+
+    write(6,*) 'rhoofr loaded'
 
     sumrho = sumrho / dble(product( nfft )) * celvol
     write(6,*) '!', sumrho
@@ -166,8 +170,12 @@ subroutine OCEAN_get_rho( xmesh, celvol, rho, ierr )
 
 
 #ifdef MPI
-  call MPI_BCAST( ierr, 1, MPI_INTEGER, root, comm, ierr )
+  call MPI_BCAST( ierr, 1, MPI_INTEGER, root, comm, ierr_ )
   if( ierr .ne. 0 ) return
+  if( ierr_ .ne. 0 ) then
+    ierr = ierr_
+    return
+  endif
   call MPI_BCAST( rho, product(xmesh), MPI_DOUBLE_PRECISION, root, comm, ierr )
   if( ierr .ne. 0 ) return
 !  write(6,*) 'Rho shared: ', myid
