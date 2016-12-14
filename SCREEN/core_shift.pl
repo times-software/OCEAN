@@ -51,7 +51,7 @@ else
 
 
 # Load up all the radii we need
-open RAD, "paw.shells" or die "Failed to open paw.shells\n";
+open RAD, "screen.shells" or die "Failed to open screen.shells\n";
 my $line;
 while( <RAD> )
 {
