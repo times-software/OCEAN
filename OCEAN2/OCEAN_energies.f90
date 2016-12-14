@@ -282,6 +282,7 @@ module OCEAN_energies
         read(99,*) core_offset
         close(99)
         write(6,*) 'Core-level shift:', core_offset
+        core_offset = core_offset * eV2Hartree
 
 !      if( sys%nruns .gt. 1 ) then
 !        inquire(file='core_shift.txt',exist=file_exists)
