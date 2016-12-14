@@ -1,4 +1,11 @@
 #!/usr/bin/perl
+# Copyright (C) 2015, 2016 OCEAN collaboration
+#
+# This file is part of the OCEAN project and distributed under the terms 
+# of the University of Illinois/NCSA Open Source License. See the file 
+# `License' in the root directory of the present distribution.
+#
+#
 
 use strict;
 use POSIX qw(ceil);
@@ -229,7 +236,8 @@ if ( $nkpt[0] + $nkpt[1] + $nkpt[2] == 0 ) {
 
 
 # test the directory for the SCREENING run first
-my $screenDIR = sprintf("%03u%03u%03u", $screennkpt[0], $screennkpt[1], $screennkpt[2] );
+#my $screenDIR = sprintf("%03u%03u%03u", $screennkpt[0], $screennkpt[1], $screennkpt[2] );
+my $screenDIR = "SCREEN";
 if ( -d $screenDIR ) {
   chdir $screenDIR;
   if (-e "abinit.stat") {

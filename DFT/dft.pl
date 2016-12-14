@@ -1,5 +1,5 @@
 #!/usr/bin/perl
-# Copyright (C) 2015 OCEAN collaboration
+# Copyright (C) 2015, 2016 OCEAN collaboration
 #
 # This file is part of the OCEAN project and distributed under the terms 
 # of the University of Illinois/NCSA Open Source License. See the file 
@@ -705,7 +705,8 @@ if ( $nscfRUN ) {
 if( $obf == 0 )
 {
   
-  my $bseDIR = sprintf("%03u%03u%03u", split( /\s+/,$qe_data_files{'screen.nkpt'}));
+#  my $bseDIR = sprintf("%03u%03u%03u", split( /\s+/,$qe_data_files{'screen.nkpt'}));
+  my $bseDIR = "SCREEN";
   mkdir $bseDIR unless ( -d $bseDIR );
   chdir $bseDIR;
 
