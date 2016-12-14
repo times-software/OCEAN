@@ -9,7 +9,7 @@ OBXP2 = zobj/xippsin.o zobj/xeqtanx.o zobj/rinvert.o zobj/mkvipt.o zobj/intval.o
 OBVHO = zobj/vhommod.o zobj/levlou.o zobj/sphj0.o zobj/sphj1.o zobj/getomega.o
 OBRSC = zobj/rscombine.o zobj/intval.o
 #
-all: zexe/xipps.x zexe/vhommod.x zexe/rscombine.x zexe/xipps_lm.x zexe/xipps_box.x
+all: zexe/xipps.x zexe/vhommod.x zexe/rscombine.x 
 #
 #
 zexe/xipps_lm.x: $(OBXPL)

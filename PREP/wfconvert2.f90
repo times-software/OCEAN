@@ -128,12 +128,17 @@ program wfconvert
       do files_iter=1,1  ! nfiles is broken as of now
         select case( dft_flavor )
           case( 'qe' )
+#ifdef __HAVE_ESPRESSO
             qe_filename = 'Out/system.save/data-file.xml'
             call qehead( qe_filename, maxband, maxnpw, nsppol, nspinor, nkpt, ierr )
             if( nsppol .ne. nspin ) then
               write(6,'(a,i1.1,a,i1.1)' ) 'Was expecting spin=',nspin, ' but found spin=', nsppol
               stop
             endif
+#else
+            write(6,*) 'wfconvert2 was compiled w/o QE support'
+            stop
+#endif
           case default
             call getwfkin(wfkin,files_iter,wfkinfile)
             write(6,*) wfkin
@@ -184,9 +189,11 @@ program wfconvert
           select case( dft_flavor )
 
           case( 'qe' )
+#ifdef __HAVE_ESPRESSO
           call qe_grabwf(ikpt, isppol, nsppol, maxband, maxnpw, kg_unshift,        &
      &     kg_shift, eigen_un, eigen_sh, occ_un, occ_sh, cg_un, cg_sh,  &
      &     brange(2), brange(4), nband, un_npw, sh_npw, noshift, ierr)
+#endif
             if( ierr .ne. 0 ) then
               write(6,*) ikpt, ierr
               stop
