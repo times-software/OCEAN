@@ -146,10 +146,10 @@ Before looking at any of the other files or settings we want to get the calculat
 \begin{itemize}
 \item Run \program{ocean}: \texttt{\textsl{/path/to/ocean/ocean.pl STO.in}}
 \end{itemize}
-While that is running we can look at the other files that were included. First we have the pseudopotential files: \file{*.fhi} and \file{*.fhi.UPF}. Psuedopotentials are covered briefly in chapter \ref{ground_state}. They are necessary for any \program{ocean} calculation. The files \file{ti.opts} and \file{ti.fill} provide a description of the titanium pseudopotential and tell \program{ocean} information about how to construct the matrix elements between the core and the valence electrons (see chapter \ref{paw}). There is also the file \file{photon1} which describes the x-ray experiment being done. In this example we are looking at x-ray absorption, including both dipole and quadrupole terms in the electron-photon interaction. The photon file specifies the direction for the x-ray's polarization $\epsilon$ and momentum $q$ as well as the 
+While that is running we can look at the other files that were included. First we have the pseudopotential files: \file{*.fhi} and \file{*.fhi.UPF}. Psuedopotentials are covered briefly in chapter \ref{ground_state}. They are necessary for any \program{ocean} calculation. The files \file{ti.opts} and \file{ti.fill} provide a description of the titanium pseudopotential and tell \program{ocean} information about how to construct the matrix elements between the core and the valence electrons (see chapter \ref{opf}). There is also the file \file{photon1} which describes the x-ray experiment being done. In this example we are looking at x-ray absorption, including both dipole and quadrupole terms in the electron-photon interaction. The photon file specifies the direction for the x-ray's polarization $\epsilon$ and momentum $q$ as well as the 
 approximate energy (which for the titanium L$_{2,3}$ edge is around 450~eV). A complete description of the photon file format is available in section \ref{photon_files}.
 
-As \program{ocean} runs it will move between several different directories. First it will parse the input file and put all of the settings for the run into the \file{Common} directory. Next it will carry out a series of atomic calculations to determine the localized basis and matrix elements for the core-level to valence excitations in the \file{PAW} directory. The ground-state DFT calculations will be carried out in \file{DFT}, and then a translation into \program{ocean} formatted files will take place in \file{PREP}. The screening of the core-hole potential is done in \file{SCREEN}, and finally the Bethe-Salpeter calculation is carried out in \file{CNBSE}.
+As \program{ocean} runs it will move between several different directories. First it will parse the input file and put all of the settings for the run into the \file{Common} directory. Next it will carry out a series of atomic calculations to determine the localized basis and matrix elements for the core-level to valence excitations in the \file{OPF} directory. The ground-state DFT calculations will be carried out in \file{DFT}, and then a translation into \program{ocean} formatted files will take place in \file{PREP}. The screening of the core-hole potential is done in \file{SCREEN}, and finally the Bethe-Salpeter calculation is carried out in \file{CNBSE}.
 
 \begin{figure}
 \center
@@ -159,13 +159,13 @@ As \program{ocean} runs it will move between several different directories. Firs
 \end{figure}
 
 
-When \program{ocean} has finished running there will be files called \file{absspct*} in the \file{CNBSE} directory. The naming scheme for these files is straight-forward, but long. Our run will have created the file \file{absspct\_Ti.0001\_2p\_01'}. This means that this \file{absspct} file is for titanium (Ti); it is the first titanium listed in the structure (0001); we ran for the L$_{2,3}$ edge or, equivalently, the 2$p$ core levels (2p); and the corresponding photon file is \file{photon1} (01). The current \program{ocean} code can support up to 9999 different atomic sites and 99 different photon specifications. {\it If for example you were running on a very large, disordered cell like liquid water and comparing to NRIXS with a dozen different values for the momentum transfer you could run all of them and the outputs would be nicely labeled.}
+When \program{ocean} has finished running there will be files called \file{absspct*} in the \file{CNBSE} directory. The naming scheme for these files is straight-forward, but long. Our run will have created the file \file{absspct\_Ti.0001\_2p\_01}. This means that this \file{absspct} file is for titanium (Ti); it is the first titanium listed in the structure (0001); we ran for the L$_{2,3}$ edge or, equivalently, the 2$p$ core levels (2p); and the corresponding photon file is \file{photon1} (01). The current \program{ocean} code can support up to 9999 different atomic sites and 99 different photon specifications. {\it If, for example, you were running on a very large, disordered cell like liquid water and comparing to NRIXS with a dozen different values for the momentum transfer you could run all of them and the outputs would be nicely labeled.}
 
 We need to check the results, so we will plot the resulting \file{absspct\_Ti.0001\_2p\_01} and compare to the included \file{absspct} file in the base \file{STO} directory.
 \begin{itemize}
 \item Open gnuplot (or your other favorite plotting tool) and compare your spectrum to the included one
 \end{itemize}
-The two should match very closely, but with the quality settings in the input there may well be differences between the DFT codes (see figure \ref{STO_plot}). The 3{\it d} transition metals highlight the breakdown of a single-particle picture for x-ray absorption. A quick count shows that the intensity ratio between the L$_2$ and the L$_3$ edges should be 2:1 from the initial occupations of the 2$p_{3/2}$ and 2$p_{1/2}$. Instead for titanium we see a ratio of less than 1. The spin-orbit splitting of the 2{\it p} orbitals is not diagonal in the same basis as the conduction band $d$ states, and so trying to move backward from the spectrum to the ground-state density of states (for either the 2$p$ or 3$d$ levels) can be difficult, but the BSE approach in \program{ocean} makes it easy.
+The two should match very closely, but with the quality settings in the input there may well be differences between the DFT codes (see figure \ref{STO_plot}). The 3{\it d} transition metals highlight the breakdown of a single-particle picture for x-ray absorption. A quick count shows that the intensity ratio between the L$_3$ and the L$_2$ edges should be 2:1 from the initial occupations of the 2$p_{3/2}$ and 2$p_{1/2}$. Instead for titanium we see a ratio of less than 1. The spin-orbit splitting of the 2{\it p} orbitals is not diagonal in the same basis as the conduction band $d$ states, and so trying to move backward from the spectrum to the ground-state density of states (for either the 2$p$ or 3$d$ levels) can be difficult, but the BSE approach in \program{ocean} makes it easy.
 
 \section{Core-level shifts with NH$_4$NO$_3$}
 
@@ -282,7 +282,7 @@ The input parser for \program{ocean} is relatively basic. Any text following a c
 
 After parsing the cards are all stored as small, fortran formatted files in the \file{Common} directory. The package then goes through the following steps:
 \begin{enumerate}
-\item An atomic calculation is done to create projectors following the PAW method.
+\item An atomic calculation is done to create the optimal projector functions (OPFs).
 \item Slater F and G integrals are computed at the atomic level
 \item \program{abinit} or \program{QuantumEspresso} input files are prepared
 \item \program{abinit} (or \program{QuantumEspresso}) is run to get DFT valence density and wave functions. This requires usually 3 runs. One self-consistent run to get the converged density and two additional runs to calculate wave functions for the screening calculation and for the final states.
@@ -805,24 +805,27 @@ LDA+U work is underway and will be a feature of \program{ocean} 1.1. Better inte
 \label{opf}
 
 The optimal projector functions (OPF) are solutions to an atomic DFT calculation that depends on the element being investigated not the material. 
+The framework was developed by E.\ L.\ Shirley \cite{ShirleyOPF} and is similar to the projector augmented wave (PAW) formalism developed by Bl\"{o}chl \cite{PhysRevB.50.17953}. 
+%
 In principle this section can be run once for a given pseudopotential and reused. 
 The important outputs of this section are a collection of all-electron and pseudo projector augmented waves. 
 The all-electron core wave function is expressed as coefficients of the all-electron OPFs. 
 The psuedo OPFs will be used later to express the valence/conduction electron wave functions.
-
-The transition matrix elements between core and pseudized conduction or valence states are calculated 
-in a similar manner to the projector augmented wave (PAW) formalism developed by Bl\"{o}chl \cite{PhysRevB.50.17953}. In OCEAN
+%
+%The transition matrix elements between core and pseudized conduction or valence states are calculated 
+%in a similar manner to the projector augmented wave (PAW) formalism developed by Bl\"{o}chl \cite{PhysRevB.50.17953}. 
+In \program{ocean} 
 the construction of all-electron and pseudized atomic states is taken care of by the program \program{hfk.x}. 
-The inputs and outputs of this section are unique for each pseudopotential, but not for each system, i.e., 
-a library of pseudopotentials and atomic info files can be collected and reused.
+%The inputs and outputs of this section are unique for each pseudopotential, but not for each system, i.e., 
+%a library of pseudopotentials and atomic info files can be collected and reused.
 
-The core idea is that a small number of local orbitals can adequately describe the region of space around the 
+The central idea is that a small number of local orbitals can adequately describe the region of space around the 
 core-hole excitation site. These atom-centered orbitals are $\phi_{\nu,l,m}$, where $l$ and $m$ are the 
 expected angular and azimuthal quantum numbers, and $\nu$ allows several projectors per angular momentum channel. 
 The number of projects $\nu$ is determined automatically by the code and ranges around 4 for many systems. 
 
 \subsection{scfac}
-The SCaling FACtor is a real number that modifies the calculated Slater-Condon parameters for the atomic case. For 2nd row elements this should be 1.d0 while for transition metals a factor of 0.8d0 is more appropriate. See DeGroot, some others probably \cite{degroot.book}.
+The SCaling FACtor is a real number that modifies the calculated Slater-Condon parameters for the atomic case. For 2nd row elements this should be 1.d0 while for transition metals a factor of 0.83 is more appropriate. See de Groot, some others probably \cite{degroot.book}.
 
 \subsection{fill}
 \label{fill}
@@ -845,7 +848,7 @@ In the table below on the left is a sample \file{*.fill}, and on the right are t
 \item pow: The matrix elements between the core state $\chi_\alpha$ and local orbital $\phi_i$ are calculated
  up to $\langle \chi_\alpha \vert r^{pow} \vert \phi_i \rangle$. 
 \item Epad and Emax: The OPF reconstruction starts at energy Epad below the lowest valence state for a given angular momentum channel and attempts to span the space to Emax (both in Ha.). 
-\item Cutoff radius: The OPF cutoff radius is in Bohr and sets the sphere in which the local basis is calculated. Convergence of this must be checked. 
+\item Cutoff radius: The OPF cutoff radius is in Bohr and sets the radius of the sphere in which the local basis is calculated. Convergence of this must be checked. 
 \item prec: This should be sufficient for a range of systems and not changed.
 \item q step and q max: These control the Fourier transform of the projectors from real-space. The defaults should be fine.
 \end{itemize}
@@ -891,7 +894,7 @@ The opts file may then read something like
 \begin{tabular}{| l | c l |}
 \hline
 022				& &  Z\\
-3 2 0 0			& & core states; s p d f \\
+2 1 0 0			& & core states; s p d f \\
 scalar rel			& & relativity \\
 lda				& & functional \\
 2.0 6.0 2.0 0.0		& & valence occupation; s p d f \\
@@ -906,30 +909,41 @@ where the occupations of the {\it s} and {\it p} channels reflects the $n=3$ pri
 %scalar or dirac and rel[ativistic] nonrel[ativistic] and should of course match the psuedopotential 
 %construction. 
 
-\section{Diagnostics from the OPF and atomic program}
-There are a number of output files created by the OPF and atomic program, both inputs for later parts of the code as well as diagnostic files. The diagnostic files are placed in the subdirectory \file{zdiag\_Z\_N\_L}, where Z is the atomic number, N is the principle quantum number, and L is the angular quantum number. 
+%\section{Diagnostics from the OPF and atomic program}
+%There are a number of output files created by the OPF and atomic program, both inputs for later parts of the code as well as diagnostic files. The diagnostic files are placed in the subdirectory \file{zdiag\_Z\_N\_L}, where Z is the atomic number, N is the principle quantum number, and L is the angular quantum number. 
 
-\subsection{Matrix elements}
-The \file{mt\#\#} files contain a comparison of the overlap matrix elements using the all-electron projector augmented waves versus the pseudized partial waves. The first number in the 
-file name is the power of $r$ and the second is the angular momentum quantum number $l$ used. Plotting columns 3 versus 4 should give a straight line for perfect 
-agreement. Depending on which core level you are interested in only a couple of these files need to be checked. For dipole limited $s$-type initial states you should only check the the file \file{mt11}, while for L$_{23}$ edges the files \file{mt12} and \file{mt10} are most important. For most users this is the only check that needs to be performed for the OPF section.
+%\subsection{Matrix elements}
+%The \file{mt\#\#} files contain a comparison of the overlap matrix elements using the all-electron projector augmented waves versus the pseudized partial waves. The first number in the 
+%file name is the power of $r$ and the second is the angular momentum quantum number $l$ used. Plotting columns 3 versus 4 should give a straight line for perfect 
+%agreement. Depending on which core level you are interested in only a couple of these files need to be checked. For dipole limited $s$-type initial states you should only check the the file \file{mt11}, while for L$_{23}$ edges the files \file{mt12} and \file{mt10} are most important. For most users this is the only check that needs to be performed for the OPF section.
 
 \section{Outputs from the OPF and atomic program}
+Currently many of the outputs are placed in the \file{zpawinfo} directory.
+
+\subsection{OPFs}
+The all-electron and pesudo OPFs are stored by angular momenta and $z$ in \file{ae\#z\#\#\#} and \file{ps\#z\#\#\#}, respectively.
 
 \subsection{Fourier Coefficients}
-The \file{aeft\#} and \file{psft\#} files contain the Fourier transform of the projector augmented waves. They are kept in the \file{zdiag} directory.
+The \file{psft\#} files contain the Fourier transform of the projectors. They are kept in the \file{zpawinfo} directory.
 
-\subsection{Projectors}
-The \file{pr\#} files contain the projectors on a real-space grid by $l$. The projectors are, by definition, 0 outside of the OPF cut-off radius. They are kept in the \file{zdiag} directory.
+\subsection{Core-level orbitals}
+The all-electron eigenfunctions from the atomic calculation are stored in the \file{coreorbz\#\#\#n\#\#l\#\#} by $z$, $n$, and $l$ on a radial grid.
+
+%\subsection{Projectors}
+%The \file{pr\#} files contain the projectors on a real-space grid by $l$. The projectors are, by definition, 0 outside of the OPF cut-off radius. They are kept in the \file{zpawinfo} directory.
 
 \subsection{Info files}
 The \file{prjfilez\#\#\#} file, where \# is the three digit Z value, contains info about the Fourier grid and angular momentum range of the projector augmented waves. The first line specifies the minimum angular momentum, maximum angular momentum, number of fourier grid points, and the spacing of the fourier grid. Each following line specifies the number of OPFs for each angular momentum channel. 
 
 the \file{radfilez\#\#\#} files, where \# is the three digit Z value, contains info about the real-space grid. The first line is cut-off radius, rounded from the input cut-off to the nearest grid point. The second is the number of real-space grid points, and the last is the index of the cut-off.
 
+
 \subsection{Matrix Elements}
 
 The \file{melfilez\#\#\#n\#\#l\#\#} file contains the matrix elements between the specified core-hole and the different OPF functions. The first line specifies the maximum $x$ for the operator $r^x$, always starting at 0. Starting with the fast index the file is then the value of the matrix elements looped over projectors, powers of $x$, and finally angular momentum.
+
+\subsection{Slater Integrals}
+The various $f$ and $g$ integrals are also tabulated for all of the atomic, all-electron eigenstates (core levels) in the \file{fk*} and \file{gk*} files, respectively. The first three digits in these file names identify the core-level angular momentum, the OPF angular momentum, and the power of $k$ in the expansion of the Coulomb interaction in spherical harmonics. 
 
 \chapter{Screening Calculation}
 \label{screening}
