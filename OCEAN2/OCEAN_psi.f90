@@ -1371,12 +1371,19 @@ module OCEAN_psi
       my_comm = x%val_comm
     endif
 #ifdef MPI
+#ifdef __OLD_MPI
+    if( present( rrequest ) ) then
+      rrequest = MPI_REQUEST_NULL
+    endif
+    call MPI_ALLREDUCE( MPI_IN_PLACE, rval, 1, MPI_DOUBLE_PRECISION, MPI_SUM, my_comm, ierr )
+#else
     if( present( rrequest ) ) then
       call MPI_IALLREDUCE( MPI_IN_PLACE, rval, 1, MPI_DOUBLE_PRECISION, MPI_SUM, my_comm, &
                            rrequest, ierr )
     else
       call MPI_ALLREDUCE( MPI_IN_PLACE, rval, 1, MPI_DOUBLE_PRECISION, MPI_SUM, my_comm, ierr )
     endif
+#endif
     if( ierr .ne. 0 ) return
 #endif
 
@@ -1533,12 +1540,25 @@ module OCEAN_psi
     ! Using P as the comm channel
     ! JTV should make a subcomm that only has procs with core_store_size > 0 for
     ! cases with large unit cells where NX is large and NK is very small
+#ifdef __OLD_MPI
+    call MPI_ALLREDUCE( MPI_IN_PLACE, rval, 1, MPI_DOUBLE_PRECISION, MPI_SUM, my_comm, &
+                        ierr )
+    rrequest = MPI_REQUEST_NULL
+#else
     call MPI_IALLREDUCE( MPI_IN_PLACE, rval, 1, MPI_DOUBLE_PRECISION, MPI_SUM, my_comm, &
                          rrequest, ierr )
+#endif
     if( ierr .ne. 0 ) return
+
     if( present( ival ) ) then
+#ifdef __OLD_MPI
+      call MPI_ALLREDUCE( MPI_IN_PLACE, ival, 1, MPI_DOUBLE_PRECISION, MPI_SUM, my_comm, &
+                          ierr )
+      irequest = MPI_REQUEST_NULL
+#else
       call MPI_IALLREDUCE( MPI_IN_PLACE, ival, 1, MPI_DOUBLE_PRECISION, MPI_SUM, my_comm, &
                            irequest, ierr )
+#endif
       if( ierr .ne. 0 ) return
     endif
 #endif
@@ -1978,10 +1998,19 @@ module OCEAN_psi
         p%i(:,:,ialpha) = p%i(:,:,ialpha) - q%i(:,:,ialpha)
 
 #ifdef MPI
+#ifdef __OLD_MPI
+        call MPI_ALLREDUCE( MPI_IN_PLACE, p%r(:,:,ialpha), p%core_async_size, &
+                            MPI_DOUBLE_PRECISION, MPI_SUM, comm, ierr )
+        call MPI_ALLREDUCE( MPI_IN_PLACE, p%i(:,:,ialpha), p%core_async_size, &
+                            MPI_DOUBLE_PRECISION, MPI_SUM, comm, ierr )
+        p%r_request(ireq) = MPI_REQUEST_NULL
+        p%i_request(ireq) = MPI_REQUEST_NULL
+#else
         call MPI_IALLREDUCE( MPI_IN_PLACE, p%r(:,:,ialpha), p%core_async_size, &
                              MPI_DOUBLE_PRECISION, MPI_SUM, comm, p%r_request(ireq), ierr )
         call MPI_IALLREDUCE( MPI_IN_PLACE, p%i(:,:,ialpha), p%core_async_size, &
                              MPI_DOUBLE_PRECISION, MPI_SUM, comm, p%i_request(ireq), ierr )
+#endif
 #endif
       enddo
 
@@ -2008,10 +2037,19 @@ module OCEAN_psi
         p%vali(:,:,:,ibeta) = p%vali(:,:,:,ibeta) - q%vali(:,:,:,ibeta)
 
 #ifdef MPI
+#ifdef __OLD_MPI
+        call MPI_ALLREDUCE( MPI_IN_PLACE, p%valr(:,:,:,ibeta), p%val_async_size, &
+                             MPI_DOUBLE_PRECISION, MPI_SUM, comm, ierr )
+        call MPI_ALLREDUCE( MPI_IN_PLACE, p%vali(:,:,:,ibeta), p%val_async_size, &
+                             MPI_DOUBLE_PRECISION, MPI_SUM, comm, ierr )
+        p%r_request(ireq) = MPI_REQUEST_NULL
+        p%i_request(ireq) = MPI_REQUEST_NULL
+#else
         call MPI_IALLREDUCE( MPI_IN_PLACE, p%valr(:,:,:,ibeta), p%val_async_size, &
                              MPI_DOUBLE_PRECISION, MPI_SUM, comm, p%r_request(ireq), ierr )
         call MPI_IALLREDUCE( MPI_IN_PLACE, p%vali(:,:,:,ibeta), p%val_async_size, &
                              MPI_DOUBLE_PRECISION, MPI_SUM, comm, p%i_request(ireq), ierr )
+#endif
 #endif
       enddo
 
