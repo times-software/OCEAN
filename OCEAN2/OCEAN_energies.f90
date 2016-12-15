@@ -194,7 +194,7 @@ module OCEAN_energies
   subroutine OCEAN_energies_load( sys, ierr )
     use OCEAN_system
     use OCEAN_mpi
-    use mpi
+!    use mpi
     use OCEAN_constants, only : eV2Hartree
 
     implicit none

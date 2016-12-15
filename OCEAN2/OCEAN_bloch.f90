@@ -244,7 +244,7 @@ module OCEAN_bloch
      
 
   subroutine OCEAN_bloch_con_init( sys, ierr )
-    use OCEAN_mpi, only : myid, nproc, root, comm
+    use OCEAN_mpi!, only : myid, nproc, root, comm
     use OCEAN_system
     use iso_c_binding
     implicit none
@@ -318,7 +318,7 @@ module OCEAN_bloch
   end subroutine OCEAN_bloch_con_init
 
   subroutine OCEAN_bloch_val_init( sys, ierr )
-    use OCEAN_mpi, only : myid, nproc, root, comm
+    use OCEAN_mpi!, only : myid, nproc, root, comm
     use OCEAN_system
     use iso_c_binding
     implicit none
@@ -380,9 +380,9 @@ module OCEAN_bloch
 
 
   subroutine OCEAN_bloch_load( sys, ierr )
-    use OCEAN_mpi, only : myid, nproc, root, comm
+    use OCEAN_mpi!, only : myid, nproc, root, comm
     use OCEAN_system
-    use mpi
+!    use mpi
     implicit none
 
     type( o_system ), intent( in ) :: sys
@@ -666,9 +666,9 @@ module OCEAN_bloch
 
 
   subroutine load_new_u2( sys, ierr, fh_ibeg, metal, ivh2 )
-    use OCEAN_mpi, only : myid, nproc, root, comm
+    use OCEAN_mpi!, only : myid, nproc, root, comm
     use OCEAN_system
-    use mpi
+!    use mpi
     implicit none
     
     type( o_system ), intent( in ) :: sys

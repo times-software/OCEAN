@@ -224,8 +224,9 @@ module OCEAN_psi
 
   subroutine OCEAN_psi_ready_buffer( p, ierr )
 #ifdef MPI
-    use mpi, only : MPI_IRECV, MPI_DOUBLE_PRECISION, MPI_BARRIER
+!    use mpi, only : MPI_IRECV, MPI_DOUBLE_PRECISION, MPI_BARRIER
 #endif
+    use OCEAN_mpi
     implicit none
     type(OCEAN_vector), intent( inout ) :: p
     integer, intent( inout ) :: ierr
@@ -276,8 +277,9 @@ module OCEAN_psi
   ! procs not contributing to buffer won't know where they are in this process
   subroutine buffer_recv_test( p, active, ierr )
 #ifdef MPI
-    use mpi, only : MPI_TESTANY, MPI_UNDEFINED, MPI_REQUEST_NULL
+!    use mpi, only : MPI_TESTANY, MPI_UNDEFINED, MPI_REQUEST_NULL
 #endif
+    use OCEAN_mpi
     implicit none
     type(OCEAN_vector), intent( inout ) :: p
     logical, intent( inout ) :: active
@@ -340,8 +342,9 @@ module OCEAN_psi
 
   subroutine buffer_send_test( p, active, ierr )
 #ifdef MPI
-    use mpi, only : MPI_TESTANY, MPI_UNDEFINED, MPI_REQUEST_NULL
+!    use mpi, only : MPI_TESTANY, MPI_UNDEFINED, MPI_REQUEST_NULL
 #endif
+    use OCEAN_mpi
     implicit none
     type(OCEAN_vector), intent( inout ) :: p
     ! active is set in/out so will work when MPI isn't defined
@@ -451,7 +454,8 @@ module OCEAN_psi
 
 
   subroutine buffer_send(  p, ierr )
-    use mpi, only : MPI_BARRIER, MPI_IRSEND, MPI_REQUEST_NULL
+!    use mpi, only : MPI_BARRIER, MPI_IRSEND, MPI_REQUEST_NULL
+    use OCEAN_mpi
     implicit none
     type(OCEAN_vector), intent( inout ) :: p
     integer, intent( inout ) :: ierr
@@ -504,7 +508,8 @@ module OCEAN_psi
   end subroutine buffer_send
 
   subroutine val_reduce_send( p, ierr )
-    use mpi, only : MPI_IREDUCE
+!    use mpi, only : MPI_IREDUCE
+    use OCEAN_mpi
     implicit none
     type(OCEAN_vector), intent( inout ) :: p
     integer, intent( inout ) :: ierr
@@ -617,7 +622,8 @@ module OCEAN_psi
   end subroutine val_reduce_send
 
   subroutine core_reduce_send( p, ierr )
-    use mpi, only : MPI_IREDUCE
+!    use mpi, only : MPI_IREDUCE
+    use OCEAN_mpi
     implicit none
     type(OCEAN_vector), intent( inout ) :: p
     integer, intent( inout ) :: ierr
@@ -711,8 +717,8 @@ module OCEAN_psi
 
 
   subroutine buffer2min_thread( p, ierr )
-    use mpi, only : MPI_WAITSOME, MPI_STATUSES_IGNORE, MPI_UNDEFINED
-    use OCEAN_mpi, only : myid
+!    use mpi, only : MPI_WAITSOME, MPI_STATUSES_IGNORE, MPI_UNDEFINED
+    use OCEAN_mpi!, only : myid
     implicit none
     type(OCEAN_vector), intent( inout ) :: p
     integer, intent( inout ) :: ierr
@@ -805,9 +811,9 @@ module OCEAN_psi
   end subroutine buffer2min_thread
 
   subroutine OCEAN_psi_buffer2min( p, ierr )
-    use mpi, only : MPI_WAITALL, MPI_STATUSES_IGNORE, MPI_UNDEFINED
+!    use mpi, only : MPI_WAITALL, MPI_STATUSES_IGNORE, MPI_UNDEFINED
     use OCEAN_timekeeper
-    use OCEAN_mpi, only : myid
+    use OCEAN_mpi!, only : myid
     implicit none
     type(OCEAN_vector), intent( inout ) :: p
     integer, intent( inout ) :: ierr
@@ -860,7 +866,8 @@ module OCEAN_psi
   end subroutine OCEAN_psi_buffer2min
 
   subroutine val_reduce_buffer2min( p, ierr )
-    use mpi, only : MPI_WAITALL, MPI_STATUSES_IGNORE, MPI_WAIT, MPI_STATUS_IGNORE
+!    use mpi, only : MPI_WAITALL, MPI_STATUSES_IGNORE, MPI_WAIT, MPI_STATUS_IGNORE
+    use OCEAN_mpi
     implicit none
     type(OCEAN_vector), intent( inout ) :: p
     integer, intent( inout ) :: ierr
@@ -918,7 +925,8 @@ module OCEAN_psi
 
 
   subroutine core_reduce_buffer2min( p, ierr )
-    use mpi, only : MPI_WAITALL, MPI_STATUSES_IGNORE, MPI_WAIT, MPI_STATUS_IGNORE
+!    use mpi, only : MPI_WAITALL, MPI_STATUSES_IGNORE, MPI_WAIT, MPI_STATUS_IGNORE
+    use OCEAN_mpi
     implicit none
     type(OCEAN_vector), intent( inout ) :: p
     integer, intent( inout ) :: ierr
@@ -976,8 +984,8 @@ module OCEAN_psi
   end subroutine core_reduce_buffer2min
 
   subroutine buffer_buffer2min( p, ierr )
-    use mpi, only : MPI_WAITSOME, MPI_WAITALL, MPI_STATUSES_IGNORE, MPI_UNDEFINED
-    use OCEAN_mpi, only : myid
+!    use mpi, only : MPI_WAITSOME, MPI_WAITALL, MPI_STATUSES_IGNORE, MPI_UNDEFINED
+    use OCEAN_mpi!, only : myid
     implicit none
     type(OCEAN_vector), intent( inout ) :: p
     integer, intent( inout ) :: ierr
@@ -1225,7 +1233,8 @@ module OCEAN_psi
   end subroutine OCEAN_psi_axpy
 
   subroutine OCEAN_psi_nrm( rval, x, ierr, rrequest )
-    use mpi
+!    use mpi
+    use OCEAN_mpi
     implicit none
     real(DP), intent( inout ) :: rval  ! Needs to be inout for MPI_IN_PLACE
     type(OCEAN_vector), intent( inout ) :: x
@@ -1328,8 +1337,8 @@ module OCEAN_psi
   !
   ! If both core and val exist then the code will *ADD* the two
   subroutine OCEAN_psi_dot( p, q, rrequest, rval, ierr, irequest, ival )
-    use mpi
-    use OCEAN_mpi, only : root, myid
+!    use mpi
+    use OCEAN_mpi!, only : root, myid
     implicit none
     real(DP), intent( inout ) :: rval  ! must be inout for mpi_in_place
     integer, intent( out ) :: rrequest
@@ -1446,8 +1455,8 @@ module OCEAN_psi
   end subroutine OCEAN_psi_dot
 
   subroutine OCEAN_psi_alloc_buffer( p, ierr )
-!    use OCEAN_mpi, only : nproc
-    use mpi, only : MPI_REQUEST_NULL
+    use OCEAN_mpi!, only : nproc
+!    use mpi, only : MPI_REQUEST_NULL
     implicit none
     type(OCEAN_vector), intent( inout ) :: p
     integer, intent( inout ) :: ierr
@@ -1525,7 +1534,7 @@ module OCEAN_psi
   !   For now we chunk evenly. Procs either have nchunk or 0
   subroutine psi_val_store_size( id, nproc_total, nproc_remain, max_store_size, my_store_size, val_start, &
                                  k_start, beta_start, ierr )
-    use OCEAN_mpi, only : myid
+    use OCEAN_mpi!, only : myid
     implicit none
     integer, intent( in ) :: id, nproc_total
     integer, intent( out ) :: nproc_remain, max_store_size, my_store_size, val_start, k_start, beta_start
@@ -1838,7 +1847,7 @@ module OCEAN_psi
 
 
   subroutine OCEAN_psi_sum_lr( sys, p, ierr ) 
-    use mpi
+!    use mpi
     use OCEAN_system
     use OCEAN_mpi
     implicit none
@@ -1860,7 +1869,7 @@ module OCEAN_psi
 
   subroutine OCEAN_psi_sum( hpsi, p, q, ierr )
     use ocean_mpi
-    use mpi
+!    use mpi
     implicit none
     integer, intent(inout) :: ierr
     type(OCEAN_vector), intent(in) :: q
@@ -1992,7 +2001,7 @@ module OCEAN_psi
 !   Any hints, rearrangement, or tuning of the comms should happen here -- each
 !   ocean_vector will clone its settings
   subroutine OCEAN_psi_mpi_init( ierr )
-    use OCEAN_mpi, only : myid, comm, nproc
+    use OCEAN_mpi!, only : myid, comm, nproc
     implicit none
     !
     integer, intent( inout ) :: ierr
@@ -2164,6 +2173,7 @@ module OCEAN_psi
 
 
   subroutine OCEAN_psi_new_core_comm( p, ierr )
+    use OCEAN_mpi
     implicit none
     integer, intent(inout) :: ierr
     type(OCEAN_vector), intent( inout ) :: p
@@ -2205,7 +2215,7 @@ module OCEAN_psi
   end subroutine
 
   subroutine OCEAN_psi_new_val_comm( p, ierr )
-    use OCEAN_mpi, only : myid
+    use OCEAN_mpi!, only : myid
     implicit none
     integer, intent(inout) :: ierr
     type(OCEAN_vector), intent( inout ) :: p
@@ -2405,6 +2415,7 @@ module OCEAN_psi
   end subroutine
 
   subroutine OCEAN_psi_bcast_full( my_root, p, ierr )
+    use OCEAN_mpi
     implicit none
     integer, intent(inout) :: ierr
     integer, intent( in ) :: my_root
@@ -2525,7 +2536,7 @@ module OCEAN_psi
   ! This is the all-in-one call
   !  Will also have the ability to prep, start, check, and finish
   subroutine OCEAN_psi_min2full( p, ierr )
-    use OCEAN_mpi, only : nproc, comm
+    use OCEAN_mpi!, only : nproc, comm
     implicit none
     integer, intent(inout) :: ierr
     type(OCEAN_vector), intent( inout ) :: p
@@ -2563,6 +2574,7 @@ module OCEAN_psi
 
 
   subroutine OCEAN_psi_prep_min2full( p, ierr )
+    use OCEAN_mpi
     implicit none
     integer, intent(inout) :: ierr
     type(OCEAN_vector), intent( inout ) :: p
@@ -2677,6 +2689,7 @@ module OCEAN_psi
   end subroutine OCEAN_psi_prep_min2full
 
   subroutine OCEAN_psi_start_min2full( p, ierr )
+    use OCEAN_mpi
     implicit none
     integer, intent(inout) :: ierr
     type(OCEAN_vector), intent( inout ) :: p
@@ -2741,7 +2754,8 @@ module OCEAN_psi
 
   ! This can be called wether or not min2full is completed or in-progress
   subroutine OCEAN_psi_assert_min2full( p, ierr )
-    use mpi, only : MPI_TESTANY,  MPI_STATUS_IGNORE, MPI_UNDEFINED 
+!    use mpi, only : MPI_TESTANY,  MPI_STATUS_IGNORE, MPI_UNDEFINED 
+    use OCEAN_mpi
     implicit none
     integer, intent(inout) :: ierr
     type(OCEAN_vector), intent( inout ) :: p
@@ -2767,6 +2781,7 @@ module OCEAN_psi
   
 
   subroutine OCEAN_psi_finish_min2full( p, ierr )
+    use OCEAN_mpi
     implicit none
     integer, intent(inout) :: ierr
     type(OCEAN_vector), intent( inout ) :: p
@@ -2970,7 +2985,7 @@ module OCEAN_psi
   subroutine OCEAN_psi_load_old( sys, p, ierr )
     use OCEAN_mpi 
     use OCEAN_system
-    use mpi
+!    use mpi
     use AI_kinds
 
     implicit none
@@ -3116,7 +3131,7 @@ module OCEAN_psi
   end subroutine OCEAN_psi_load
 
   subroutine OCEAN_psi_load_val( sys, p, ierr )
-    use OCEAN_mpi, only : myid, root
+    use OCEAN_mpi!, only : myid, root
     use OCEAN_system
 !    use OCEAN_constants, only : PI_DP
     use OCEAN_rixs_holder, only : OCEAN_rixs_holder_load
@@ -3166,7 +3181,7 @@ module OCEAN_psi
   end subroutine OCEAN_psi_load_val
 
   subroutine OCEAN_psi_val_pnorm( sys, p, ierr )
-    use OCEAN_mpi, only : myid, root
+    use OCEAN_mpi!, only : myid, root
     use OCEAN_system
     use OCEAN_constants, only : PI_DP
 !    use OCEAN_rixs_holder, only : OCEAN_rixs_holder_load
@@ -3311,7 +3326,7 @@ module OCEAN_psi
   end subroutine OCEAN_psi_load_core
 
   subroutine OCEAN_psi_write( sys, p, ierr )
-    use OCEAN_mpi, only  : myid, root
+    use OCEAN_mpi!, only  : myid, root
     use OCEAN_system
     
     implicit none

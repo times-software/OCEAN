@@ -1,4 +1,4 @@
-! Copyright (C) 2015 OCEAN collaboration
+! Copyright (C) 2015, 2016 OCEAN collaboration
 !
 ! This file is part of the OCEAN project and distributed under the terms 
 ! of the University of Illinois/NCSA Open Source License. See the file 
@@ -6,7 +6,6 @@
 !
 !
 module AI_kinds
-  use mpi
   implicit none
   ! 
   ! The standard numbers should be compatible with MPI and scaLAPACK
@@ -32,8 +31,8 @@ module AI_kinds
   integer, parameter :: I2  = selected_int_kind(4)
   integer, parameter :: I1  = selected_int_kind(1)
   !
-  integer, parameter :: AI_LOG = MPI_LOGICAL
-  public :: QP, DP, SP, I4, I8, I2, S_INT, AI_LOG
+!  integer, parameter :: AI_LOG = MPI_LOGICAL
+  public :: QP, DP, SP, I4, I8, I2, S_INT !, AI_LOG
   !
   !
 contains

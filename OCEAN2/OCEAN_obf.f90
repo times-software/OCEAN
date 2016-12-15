@@ -425,10 +425,10 @@ module OCEAN_obf
   end function OCEAN_obf_is_loaded 
 
   subroutine OCEAN_obf_init( sys, ierr )
-    use OCEAN_mpi, only : myid, nproc, root, comm
+    use OCEAN_mpi!, only : myid, nproc, root, comm
     use OCEAN_system
     use iso_c_binding
-    use mpi
+!    use mpi
     implicit none
     include 'fftw3.f03'
 
@@ -504,9 +504,9 @@ module OCEAN_obf
   end subroutine OCEAN_obf_init
 
   subroutine OCEAN_obf_load( sys, ierr )
-    use OCEAN_mpi, only : myid, nproc, root, comm
+    use OCEAN_mpi!, only : myid, nproc, root, comm
     use OCEAN_system
-    use mpi
+!    use mpi
     implicit none
 
     type( o_system ), intent( in ) :: sys
@@ -729,9 +729,9 @@ module OCEAN_obf
 
 
   subroutine OCEAN_obf_obf2bloch( sys, rbs, ibs, nbands, nkpts, nxpts, ierr )
-    use OCEAN_mpi, only : myid, nproc, root, comm
+    use OCEAN_mpi!, only : myid, nproc, root, comm
     use OCEAN_system
-    use mpi
+!    use mpi
     implicit none
     !
     type( o_system ), intent( in ) :: sys

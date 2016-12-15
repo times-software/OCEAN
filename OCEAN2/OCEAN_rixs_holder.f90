@@ -22,7 +22,7 @@ module OCEAN_rixs_holder
 
   subroutine OCEAN_rixs_holder_init( sys, ierr )
     use OCEAN_system
-    use OCEAN_mpi, only : myid, root
+    use OCEAN_mpi!, only : myid, root
     implicit none
     type(O_system), intent( in ) :: sys
     integer, intent( inout ) :: ierr
@@ -45,7 +45,7 @@ module OCEAN_rixs_holder
 
   subroutine OCEAN_rixs_holder_load( sys, p_vec, file_selector, ierr )
     use OCEAN_system
-    use OCEAN_mpi, only : myid, root, comm
+    use OCEAN_mpi!, only : myid, root, comm
 
     implicit none
     

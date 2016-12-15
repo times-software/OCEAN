@@ -1485,6 +1485,7 @@ module OCEAN_multiplet
   subroutine OCEAN_fg_combo( sys, inter, in_vec, out_vec, ierr )
     use OCEAN_system
     use OCEAN_psi, only : OCEAN_vector
+    use OCEAN_mpi
     implicit none
     !
     type( O_system ), intent( in ) :: sys
