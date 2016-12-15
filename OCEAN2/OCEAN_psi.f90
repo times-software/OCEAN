@@ -533,14 +533,26 @@ module OCEAN_psi
         if( ri_count .eq. 1 ) then
 
           if( p%val_myid .eq. i ) then
+#ifdef __OLD_MPI
+            call MPI_REDUCE( MPI_IN_PLACE, p%valr(1,iv,ik,ib), max_val_store_size * psi_bands_pad, &
+                              MPI_DOUBLE_PRECISION, MPI_SUM, i, p%val_comm, ierr )
+            p%val_store_sr( i ) = MPI_REQUEST_NULL
+#else
             call MPI_IREDUCE( MPI_IN_PLACE, p%valr(1,iv,ik,ib), max_val_store_size * psi_bands_pad, &
                               MPI_DOUBLE_PRECISION, MPI_SUM, i, p%val_comm, p%val_store_sr( i ), ierr )
+#endif
             if( ierr .ne. MPI_SUCCESS ) then
               write(6,*) ierr, '!!!'
             endif
           else
+#ifdef __OLD_MPI
+            call MPI_REDUCE( p%valr(1,iv,ik,ib), p%valr(1,iv,ik,ib), max_val_store_size * psi_bands_pad, &
+                              MPI_DOUBLE_PRECISION, MPI_SUM, i, p%val_comm, ierr )
+            p%val_store_sr( i ) = MPI_REQUEST_NULL
+#else
             call MPI_IREDUCE( p%valr(1,iv,ik,ib), p%valr(1,iv,ik,ib), max_val_store_size * psi_bands_pad, &
                               MPI_DOUBLE_PRECISION, MPI_SUM, i, p%val_comm, p%val_store_sr( i ), ierr )
+#endif
             if( ierr .ne. MPI_SUCCESS ) then
               write(6,*) ierr, '!!!'
             endif
@@ -549,14 +561,26 @@ module OCEAN_psi
         else
 
           if( p%val_myid .eq. i ) then
+#ifdef __OLD_MPI
+            call MPI_REDUCE( MPI_IN_PLACE, p%vali(1,iv,ik,ib), max_val_store_size * psi_bands_pad, &
+                              MPI_DOUBLE_PRECISION, MPI_SUM, i, p%val_comm, ierr )
+            p%val_store_si( i ) = MPI_REQUEST_NULL
+#else
             call MPI_IREDUCE( MPI_IN_PLACE, p%vali(1,iv,ik,ib), max_val_store_size * psi_bands_pad, &
                               MPI_DOUBLE_PRECISION, MPI_SUM, i, p%val_comm, p%val_store_si( i ), ierr )
+#endif
             if( ierr .ne. MPI_SUCCESS ) then
               write(6,*) ierr, '!!!'
             endif
           else
+#ifdef __OLD_MPI
+            call MPI_REDUCE( p%vali(1,iv,ik,ib), p%vali(1,iv,ik,ib), max_val_store_size * psi_bands_pad, &
+                              MPI_DOUBLE_PRECISION, MPI_SUM, i, p%val_comm, ierr )
+            p%val_store_si( i ) = MPI_REQUEST_NULL
+#else
             call MPI_IREDUCE( p%vali(1,iv,ik,ib), p%vali(1,iv,ik,ib), max_val_store_size * psi_bands_pad, &
                               MPI_DOUBLE_PRECISION, MPI_SUM, i, p%val_comm, p%val_store_si( i ), ierr )
+#endif
             if( ierr .ne. MPI_SUCCESS ) then
               write(6,*) ierr, '!!!'
             endif
@@ -585,14 +609,26 @@ module OCEAN_psi
       if( ri_count .eq. 1 ) then
 
         if( p%val_myid .eq. i ) then
+#ifdef __OLD_MPI
+          call MPI_REDUCE( MPI_IN_PLACE, p%valr(1,iv,ik,ib), store_size * psi_bands_pad, &
+                            MPI_DOUBLE_PRECISION, MPI_SUM, i, p%val_comm, ierr )
+          p%val_store_sr( i ) = MPI_REQUEST_NULL
+#else
           call MPI_IREDUCE( MPI_IN_PLACE, p%valr(1,iv,ik,ib), store_size * psi_bands_pad, &
                             MPI_DOUBLE_PRECISION, MPI_SUM, i, p%val_comm, p%val_store_sr( i ), ierr )
+#endif
             if( ierr .ne. MPI_SUCCESS ) then
               write(6,*) ierr, '!!!'
             endif
         else
+#ifdef  __OLD_MPI
+          call MPI_REDUCE( p%valr(1,iv,ik,ib), p%valr(1,iv,ik,ib), store_size * psi_bands_pad, &
+                            MPI_DOUBLE_PRECISION, MPI_SUM, i, p%val_comm, ierr )
+          p%val_store_sr( i ) = MPI_REQUEST_NULL
+#else
           call MPI_IREDUCE( p%valr(1,iv,ik,ib), p%valr(1,iv,ik,ib), store_size * psi_bands_pad, &
                             MPI_DOUBLE_PRECISION, MPI_SUM, i, p%val_comm, p%val_store_sr( i ), ierr )
+#endif
             if( ierr .ne. MPI_SUCCESS ) then
               write(6,*) ierr, '!!!'
             endif
@@ -601,14 +637,26 @@ module OCEAN_psi
       else
 
         if( p%val_myid .eq. i ) then
+#ifdef __OLD_MPI
+          call MPI_REDUCE( MPI_IN_PLACE, p%vali(1,iv,ik,ib), store_size * psi_bands_pad, &
+                            MPI_DOUBLE_PRECISION, MPI_SUM, i, p%val_comm, ierr )
+          p%val_store_si( i ) = MPI_REQUEST_NULL
+#else
           call MPI_IREDUCE( MPI_IN_PLACE, p%vali(1,iv,ik,ib), store_size * psi_bands_pad, &
                             MPI_DOUBLE_PRECISION, MPI_SUM, i, p%val_comm, p%val_store_si( i ), ierr )
+#endif
             if( ierr .ne. MPI_SUCCESS ) then
               write(6,*) ierr, '!!!'
             endif
         else
+#ifdef __OLD_MPI
+          call MPI_REDUCE( p%vali(1,iv,ik,ib), p%vali(1,iv,ik,ib), store_size * psi_bands_pad, &
+                            MPI_DOUBLE_PRECISION, MPI_SUM, i, p%val_comm, ierr )
+          p%val_store_si( i ) = MPI_REQUEST_NULL
+#else
           call MPI_IREDUCE( p%vali(1,iv,ik,ib), p%vali(1,iv,ik,ib), store_size * psi_bands_pad, &
                             MPI_DOUBLE_PRECISION, MPI_SUM, i, p%val_comm, p%val_store_si( i ), ierr )
+#endif
             if( ierr .ne. MPI_SUCCESS ) then
               write(6,*) ierr, '!!!'
             endif
@@ -641,6 +689,16 @@ module OCEAN_psi
     
         if( ri_count .eq. 1 ) then
 
+#ifdef __OLD_MPI
+          if( p%core_myid .eq. i ) then
+            call MPI_REDUCE( MPI_IN_PLACE, p%r(1,ik,ia), max_core_store_size * psi_bands_pad, &
+                              MPI_DOUBLE_PRECISION, MPI_SUM, i, p%core_comm, ierr )
+          else
+            call MPI_REDUCE( p%r(1,ik,ia), p%r(1,ik,ia), max_core_store_size * psi_bands_pad, &
+                              MPI_DOUBLE_PRECISION, MPI_SUM, i, p%core_comm, ierr )
+          endif
+          p%core_store_sr( i ) = MPI_REQUEST_NULL
+#else
           if( p%core_myid .eq. i ) then
             call MPI_IREDUCE( MPI_IN_PLACE, p%r(1,ik,ia), max_core_store_size * psi_bands_pad, & 
                               MPI_DOUBLE_PRECISION, MPI_SUM, i, p%core_comm, p%core_store_sr( i ), ierr )
@@ -648,10 +706,21 @@ module OCEAN_psi
             call MPI_IREDUCE( p%r(1,ik,ia), p%r(1,ik,ia), max_core_store_size * psi_bands_pad, &
                               MPI_DOUBLE_PRECISION, MPI_SUM, i, p%core_comm, p%core_store_sr( i ), ierr )
           endif
+#endif
           if( ierr .ne. 0 ) return
         
         else
 
+#ifdef __OLD_MPI
+          if( p%core_myid .eq. i ) then
+            call MPI_REDUCE( MPI_IN_PLACE, p%i(1,ik,ia), max_core_store_size * psi_bands_pad, &
+                              MPI_DOUBLE_PRECISION, MPI_SUM, i, p%core_comm, ierr )
+          else
+            call MPI_REDUCE( p%i(1,ik,ia), p%i(1,ik,ia), max_core_store_size * psi_bands_pad, &
+                              MPI_DOUBLE_PRECISION, MPI_SUM, i, p%core_comm, ierr )
+          endif
+          p%core_store_si( i ) = MPI_REQUEST_NULL
+#else
           if( p%core_myid .eq. i ) then
             call MPI_IREDUCE( MPI_IN_PLACE, p%i(1,ik,ia), max_core_store_size * psi_bands_pad, &
                               MPI_DOUBLE_PRECISION, MPI_SUM, i, p%core_comm, p%core_store_si( i ), ierr )
@@ -659,6 +728,7 @@ module OCEAN_psi
             call MPI_IREDUCE( p%i(1,ik,ia), p%i(1,ik,ia), max_core_store_size * psi_bands_pad, &
                               MPI_DOUBLE_PRECISION, MPI_SUM, i, p%core_comm, p%core_store_si( i ), ierr )
           endif
+#endif
           if( ierr .ne. 0 ) return
 
         endif
@@ -688,6 +758,16 @@ module OCEAN_psi
 
       if( ri_count .eq. 1 ) then
 
+#ifdef __OLD_MPI
+        if( p%core_myid .eq. i ) then
+          call MPI_REDUCE( MPI_IN_PLACE, p%r(1,ik,ia), store_size * psi_bands_pad, &
+                            MPI_DOUBLE_PRECISION, MPI_SUM, i, p%core_comm, ierr )
+        else
+          call MPI_REDUCE( p%r(1,ik,ia), p%r(1,ik,ia), store_size * psi_bands_pad, &
+                            MPI_DOUBLE_PRECISION, MPI_SUM, i, p%core_comm, ierr )
+        endif
+        p%core_store_sr( i ) = MPI_REQUEST_NULL
+#else
         if( p%core_myid .eq. i ) then
           call MPI_IREDUCE( MPI_IN_PLACE, p%r(1,ik,ia), store_size * psi_bands_pad, &
                             MPI_DOUBLE_PRECISION, MPI_SUM, i, p%core_comm, p%core_store_sr( i ), ierr )
@@ -695,18 +775,29 @@ module OCEAN_psi
           call MPI_IREDUCE( p%r(1,ik,ia), p%r(1,ik,ia), store_size * psi_bands_pad, &
                             MPI_DOUBLE_PRECISION, MPI_SUM, i, p%core_comm, p%core_store_sr( i ), ierr )
         endif
+#endif
         if( ierr .ne. 0 ) return
       
       else
 
+#ifdef __OLD_MPI
+        if( p%core_myid .eq. i ) then
+          call MPI_REDUCE( MPI_IN_PLACE, p%i(1,ik,ia), store_size * psi_bands_pad, &
+                            MPI_DOUBLE_PRECISION, MPI_SUM, i, p%core_comm, ierr )
+        else
+          call MPI_REDUCE( p%i(1,ik,ia), p%i(1,ik,ia), store_size * psi_bands_pad, &
+                            MPI_DOUBLE_PRECISION, MPI_SUM, i, p%core_comm, ierr )
+        endif
+        p%core_store_si( i ) = MPI_REQUEST_NULL
+#else
         if( p%core_myid .eq. i ) then
           call MPI_IREDUCE( MPI_IN_PLACE, p%i(1,ik,ia), store_size * psi_bands_pad, &
                             MPI_DOUBLE_PRECISION, MPI_SUM, i, p%core_comm, p%core_store_si( i ), ierr )
         else
           call MPI_IREDUCE( p%i(1,ik,ia), p%i(1,ik,ia), store_size * psi_bands_pad, &
                             MPI_DOUBLE_PRECISION, MPI_SUM, i, p%core_comm, p%core_store_si( i ), ierr )
-
         endif
+#endif
         if( ierr .ne. 0 ) return
     
       endif
