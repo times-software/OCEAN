@@ -287,6 +287,14 @@ cnbse.write_rhs
 {
 .false.
 } cnbse.write_rhs
+cnbse.gw.control
+{
+none
+} gw_control
+bse.gw.cstr
+{
+0.0
+} gwcstr
 scratch
 {
 scratchXX
@@ -400,10 +408,6 @@ nbse.gwvstr
 {
 0.0
 } gwvstr
-nbse.gwcstr
-{
-0.0
-} gwcstr
 nbse.se_rs
 {
 -1

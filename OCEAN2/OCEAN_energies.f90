@@ -267,7 +267,7 @@ module OCEAN_energies
           call OCEAN_gw_by_band( sys, ierr, .false. )
         case( 'ibnd' )
           call OCEAN_gw_by_band( sys, ierr, .true. )
-        case( 'strc' )
+        case( 'cstr' )
           call OCEAN_gw_stretch( sys, ierr )
         case default
           write(6,*) 'Unrecognized gw_control'
