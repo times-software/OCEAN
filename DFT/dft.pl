@@ -509,6 +509,7 @@ if ( $nscfRUN ) {
           .  "  conv_thr = $qe_data_files{'etol'}\n"
           .  "  mixing_beta = $qe_data_files{'mixing'}\n"
           .  "  electron_maxstep = $qe_data_files{'nrun'}\n"
+          .  "  startingwfc = 'atomic+random'\n"
           .  "/\n"
           .  "&ions\n"
           .  "/\n";
@@ -855,6 +856,7 @@ sub print_qe
         .  "  conv_thr = $inputs{'etol'}\n"
         .  "  mixing_beta = $inputs{'mixing'}\n"
         .  "  electron_maxstep = $inputs{'nrun'}\n"
+        .  "  startingwfc = 'atomic+random'\n"
         .  "/\n"
         .  "&ions\n"
         .  "/\n";
