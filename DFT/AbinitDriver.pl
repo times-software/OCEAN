@@ -292,9 +292,10 @@ else {
   $bseRUN = 1;
 }
 
-if ( $screenRUN == 1 && $nkpt[0] == $screennkpt[0] && $nkpt[1] == $screennkpt[1] && $nkpt[2] == $screennkpt[2] ) {
-  $bseRUN = 0;
-}
+# To better support RIXS/valence screen and bse wfns calcs are always separate
+#if ( $screenRUN == 1 && $nkpt[0] == $screennkpt[0] && $nkpt[1] == $screennkpt[1] && $nkpt[2] == $screennkpt[2] ) {
+#  $bseRUN = 0;
+#}
 
 if ($bseRUN == 1 ) {
   print "Need run for the BSE\n";
