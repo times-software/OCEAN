@@ -155,7 +155,7 @@ OCEAN_rixs_holder.o: OCEAN_rixs_holder.f90
 	$(MPIFORT) $(FLAGS) -c -o OCEAN_rixs_holder.o OCEAN_rixs_holder.f90
 
 clean:
-	rm -f *.o *.mod
+	rm -f *.o *.mod ocean.x
 
 install:
 	cp ocean.x $(INSTDIR)/
