@@ -1,11 +1,5 @@
-# Control
-control 0
-
 #assumes you want to try and run on 8 cores
 #para_prefix { mpirun -n 8 }
-
-# which stages of the calculation to run (one or more of): paw, dft, prep, screen, bse, all
-#stages { all }
 
 # dft solver: abi, qe, obf
 #dft{ qe }
