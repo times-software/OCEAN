@@ -34,7 +34,7 @@
       read(99,*) lineburn  ! Header
       read(99,*) lineburn  ! zatom, zion, pspdat
       read(99,*) pspcond, pspxc, lmax, lloc, rtot, r2well 
-      read(99,*)  rchrg, fchrg, qchrg, lineburn
+      read(99,*)  rchrg, fchrg, qchrg
       read(99,*) lineburn
       read(99,*) lineburn
       read(99,*) lineburn
