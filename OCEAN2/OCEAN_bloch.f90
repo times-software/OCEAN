@@ -507,6 +507,13 @@ module OCEAN_bloch
                 im_transpose( sys%num_bands, sys%nxpts ) )
       open( unit=u2dat, file='u2.dat', form='unformatted', status='unknown' )
       rewind u2dat 
+    else
+      nx_left = sys%nxpts
+      do i = 0, myid
+        nx_tmp = nx_left / ( nproc - i )
+        nx_left = nx_left - nx_tmp
+      enddo
+      allocate( re_transpose( my_num_bands, nx_tmp ), im_transpose( my_num_bands, nx_tmp ) )
     endif
 
     do ispn = 1, sys%nspn
@@ -581,9 +588,9 @@ module OCEAN_bloch
               call MPI_SEND( re_transpose(1,nx_start), my_num_bands*nx_tmp, MPI_DOUBLE_PRECISION, i, i, comm, ierr )
               call MPI_SEND( im_transpose(1,nx_start), my_num_bands*nx_tmp, MPI_DOUBLE_PRECISION, i, i+nproc, comm, ierr )
             elseif( myid .eq. i ) then
-              if( iq .eq. 1 ) then
-                allocate( re_transpose( my_num_bands, nx_tmp ), im_transpose( my_num_bands, nx_tmp ) )
-              endif
+!              if( iq .eq. 1 .and. ispn .eq. 1 ) then
+!                allocate( re_transpose( my_num_bands, nx_tmp ), im_transpose( my_num_bands, nx_tmp ) )
+!              endif
 
               call MPI_RECV( re_transpose, my_num_bands*nx_tmp, MPI_DOUBLE_PRECISION, 0, &
                             i, comm, MPI_STATUS_IGNORE, ierr )
@@ -624,6 +631,8 @@ module OCEAN_bloch
 
 #endif
     case( 'obf' )
+
+      ierr = -2
 
 #ifndef MPI
       if( myid .eq. root ) write(6,*) 'OBF requires MPI'
@@ -818,7 +827,7 @@ module OCEAN_bloch
 
 
         offset = int( ( iq - 1 ), MPI_OFFSET_KIND ) * int( width( 3 ), MPI_OFFSET_KIND ) &
-               + int( (ispn - 1)*sys%nkpts, MPI_OFFSET_KIND )
+               + int( (ispn - 1)*sys%nkpts, MPI_OFFSET_KIND ) * int( width( 3 ), MPI_OFFSET_KIND )
         if( .not. io_style ) then
           offset = offset * int( sys%nxpts, MPI_OFFSET_KIND )
         endif

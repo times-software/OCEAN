@@ -131,11 +131,16 @@ subroutine cainkset( avec, bvec, bmet, prefs )
   close( unit=99 )
   nbtot = 1 + ivh - ivl + 1 + ich - icl
   allocate( ww( nbtot, nktot, nspin ) )
-  do ispin = 1, nspin
+!  do ispin = 1, nspin
+  do i = 1, nktot
+     call enkread( 99, i, .true., 1, nbtot, ww( :, i, 1 ) ) 
+  end do
+!  enddo
+  if( nspin .eq. 2 ) then
     do i = 1, nktot
-       call enkread( 99, i, .true., 1, nbtot, ww( 1, i, ispin ) ) 
+       call enkread( 99, i, .false., 1, nbtot, ww( :, i, 2 ) )     
     end do
-  enddo
+  endif
   close( unit=99 )
   write ( stdout, * ) maxval( ww( ivh, :, : ) )
   write ( stdout, * ) minval( ww( icl, :, : ) )
@@ -405,7 +410,7 @@ subroutine cainkset( avec, bvec, bmet, prefs )
   endif
   open( unit=99, file=infoname, form=f9, status=u7 )
   rewind 99
-  write ( 99, * ) nbd, zn(1)*zn(2)*zn(3) 
+  write ( 99, * ) nbd, zn(1)*zn(2)*zn(3), nspin
   write ( 99, * ) e0( : )
   close( unit=99 )
 
