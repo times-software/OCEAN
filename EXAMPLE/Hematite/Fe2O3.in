@@ -1,0 +1,86 @@
+# Select to run the OBF version 
+ppdir '../'
+# Set this
+para_prefix{ mpirun -n 64 --map-by ppr:8:socket }
+
+##############################
+# Convergence Params
+# scf interations
+nstep 80
+# Number of bands to use (includes valence right now, so we will have 36 unoccupied)
+nbands 86
+# k-point sampling, if not here will use defaults (could be higher)
+nkpt { 6 6 6 }
+ngkpt { 4 4 4 }
+# k-point sampling for calculating W (\chi)
+# Because we are interested in a limited region of real-space
+#  2x2x2 is good enough almost always
+screen.nkpt{ 2 2 2 }
+# Number of bands to use for the screening calculation (could be higher)
+screen.nbands 136
+obf.nbands 136
+# Real-space sampling for calcualting the action of W on a wave function
+cnbse.xmesh{ 8 8 8 }
+
+##############################
+# ABINIT style crystallographic info
+acell { 10.24381038801738801738 10.24381038801738801738 10.24381038801738801738 }
+
+rprim {
+        1.0000000000         0.0000000000         0.0000000000
+    .56956648866089979984  .82194526276486650388  0.0000000000
+    .56956648866089979984  .29826864969411476537  .76591763761263547050
+}
+
+natom 10
+ntypat 3
+typat { 1 1 2 2 3 3 3 3 3 3}
+
+xred {
+     0.355000000         0.355000000         0.355000000
+     0.645000000         0.645000000         0.645000000
+     0.145000000         0.145000000         0.145000000
+     0.855000000         0.855000000         0.855000000
+     0.542000000         0.958000000         0.250000000
+     0.458000000         0.042000000         0.750000000
+     0.250000000         0.542000000         0.958000000
+     0.750000000         0.458000000         0.042000000
+     0.958000000         0.250000000         0.542000000
+     0.042000000         0.750000000         0.458000000
+}
+
+znucl { 26 26 8 }
+zsymb { Fe1 Fe2 O }
+pp_list{
+fe.fhi
+fe.fhi
+o.fhi
+}
+
+ecut 200
+
+diemac 21.8
+
+opf.fill{ 8  o.fill }
+opf.opts{ 8  o.opts }
+
+#edge information
+nedges 1
+edges{ 
+5 1 0 }
+
+# radius for screening
+screen.shells{ 4.5 }
+cnbse.rad{ 4.5 }
+
+# spectral broadening in eV
+cnbse.broaden{ 0.1 }
+
+#Scaling Factor
+scfac 1.00
+occopt 3
+
+nspin 2
+smag{
+starting_magnetization(1)=1,starting_magnetization(2)=-1,starting_magnetization(3)=0
+}
