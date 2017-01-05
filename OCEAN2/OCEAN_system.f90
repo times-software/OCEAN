@@ -7,7 +7,7 @@
 !
 module OCEAN_system
   use AI_kinds
-  use mpi
+!  use mpi
   implicit none
 
 
@@ -115,7 +115,7 @@ module OCEAN_system
   end subroutine OCEAN_sys_update
 
   subroutine OCEAN_sys_init( sys, ierr )
-    use OCEAN_mpi, ONLY : myid, comm, root, nproc
+    use OCEAN_mpi!, ONLY : myid, comm, root, nproc
     implicit none
      
 
@@ -365,7 +365,7 @@ module OCEAN_system
   end subroutine OCEAN_sys_init
 
   subroutine OCEAN_runlist_init( sys, running_total, ierr )
-    use OCEAN_mpi, ONLY : myid, comm, root
+    use OCEAN_mpi!, ONLY : myid, comm, root
     implicit none
 
     type( o_system ), intent( inout ) :: sys

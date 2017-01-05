@@ -8,11 +8,12 @@
 module OCEAN_mpi
 
   use AI_kinds
+  implicit none
 #ifdef MPI
-  use mpi
+!  use mpi
+  include 'mpif.h'
 #endif
 
-  implicit none
   save
 
 

@@ -347,7 +347,7 @@ module OCEAN_bubble
                                  re_val, im_val, re_con, im_con, &
                                  cache_double, startx_by_mpiID, nxpts_by_mpiID
     use OCEAN_psi
-    use OCEAN_mpi, only : nproc, myid, root, comm
+    use OCEAN_mpi!, only : nproc, myid, root, comm
     use OCEAN_system
     use iso_c_binding
     implicit none

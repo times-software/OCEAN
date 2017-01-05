@@ -10,6 +10,10 @@ OPTIONS = -O2
 # Currently the bse solver needs MPI and BLAS
 OPTIONS += -DBLAS -DMPI
 
+# Some installations of MPI don't have latest calls
+# ( MPI_IALLREDUCE, etc. )
+OPTIONS += -D__OLD_MPI
+
 # We have some preprocessor macros using the "c-style"
 OPTIONS += -cpp 
 
@@ -17,7 +21,7 @@ OPTIONS += -cpp
 # OPTIONS += -DHAVE_FLUSH
 
 # Linear algebra libraries
-BLAS = -lmkl_intel_lp64 -lmkl_sequential -lmkl_core
+BLAS = -L/path/to/mkl -lmkl_intel_lp64 -lmkl_sequential -lmkl_core
 
 # FFTW path. Several programs can use FFTW. Find it at fftw.org. 
 #  (There is a fallback fft so FFTW is not required)
@@ -56,7 +60,7 @@ PP_EXE = $(ESPRESSO_DIR)/bin/pp.x
 # The version of QE above does not have to match the version
 #   that the OBFs are built against
 # OBF_DIR = $(ESPRESSO_DIR)
-OBF_PW_EXE = $(OBF_DIR)/bin/pw.x
-OBF_PP_EXE = $(OBF_DIR)/bin/pp.x
+# OBF_PW_EXE = $(OBF_DIR)/bin/pw.x
+# OBF_PP_EXE = $(OBF_DIR)/bin/pp.x
 #######################
 

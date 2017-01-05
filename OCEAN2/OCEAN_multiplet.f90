@@ -1011,8 +1011,15 @@ module OCEAN_multiplet
 
     do ii = 1, maxii
       if( ii-1 .ne. myid ) then
+#ifdef __OLD_MPI
+        call MPI_BCAST( ampr(:,ii), npmax, MPI_DOUBLE_PRECISION, ii-1, comm, ierr )
+        call MPI_BCAST( ampi(:,ii), npmax, MPI_DOUBLE_PRECISION, ii-1, comm, ierr )
+        r_request( ii ) = MPI_REQUEST_NULL
+        i_request( ii ) = MPI_REQUEST_NULL
+#else
         call MPI_IBCAST( ampr(:,ii), npmax, MPI_DOUBLE_PRECISION, ii-1, comm, r_request( ii ), ierr )
         call MPI_IBCAST( ampi(:,ii), npmax, MPI_DOUBLE_PRECISION, ii-1, comm, i_request( ii ), ierr )
+#endif
       endif
     enddo
 
@@ -1051,8 +1058,15 @@ module OCEAN_multiplet
       i = ( ii - 1 ) * nproc + myid + 1
       ampr( 1:nproj(lv), i ) = tmp_ampr( 1:nproj(lv) )
       ampi( 1:nproj(lv), i ) = tmp_ampi( 1:nproj(lv) )
+#ifdef __OLD_MPI
+      call MPI_BCAST( ampr( :, i ), npmax, MPI_DOUBLE_PRECISION, myid, comm, ierr )
+      call MPI_BCAST( ampi( :, i ), npmax, MPI_DOUBLE_PRECISION, myid, comm, ierr )
+      r_request( i ) = MPI_REQUEST_NULL
+      i_request( i ) = MPI_REQUEST_NULL
+#else
       call MPI_IBCAST( ampr( :, i ), npmax, MPI_DOUBLE_PRECISION, myid, comm, r_request( i ), ierr )
       call MPI_IBCAST( ampi( :, i ), npmax, MPI_DOUBLE_PRECISION, myid, comm, i_request( i ), ierr )
+#endif
 ! $OMP END MASTER
 
     enddo
@@ -1485,6 +1499,7 @@ module OCEAN_multiplet
   subroutine OCEAN_fg_combo( sys, inter, in_vec, out_vec, ierr )
     use OCEAN_system
     use OCEAN_psi, only : OCEAN_vector
+    use OCEAN_mpi
     implicit none
     !
     type( O_system ), intent( in ) :: sys

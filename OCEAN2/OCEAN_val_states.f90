@@ -340,7 +340,7 @@ module OCEAN_val_states
 
   subroutine OCEAN_val_states_read( sys, ierr )
     use OCEAN_system
-    use OCEAN_mpi, only : myid, nproc, root, comm
+    use OCEAN_mpi!, only : myid, nproc, root, comm
     implicit none
 
     type(O_system), intent( in ) :: sys

@@ -221,7 +221,7 @@ module OCEAN_val_energy
 
   subroutine find_fermi( sys, val_energies, con_energies, nelectron, efermi, &
                                      homo, lumo, cliph, metal, ierr )
-    use OCEAN_mpi, only : myid, root, comm
+    use OCEAN_mpi!, only : myid, root, comm
     use OCEAN_system
     use OCEAN_constants, only : Hartree2eV
     implicit none

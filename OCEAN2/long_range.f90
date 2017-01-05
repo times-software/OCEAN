@@ -113,9 +113,10 @@ module ocean_long_range
     use OCEAN_obf
     use iso_c_binding
     use OCEAN_mpi
-    use mpi
+!    use mpi
     implicit none
     include 'fftw3.f03'
+!    include 'mpif.h'
 
     type( o_system ), intent( in ) :: sys
     ! bandage for now
@@ -1375,9 +1376,9 @@ module ocean_long_range
 
 
   subroutine lr_populate_W( lr, sys, ierr )
-    use OCEAN_mpi, only : myid, nproc, comm, root
+    use OCEAN_mpi!, only : myid, nproc, comm, root
     use OCEAN_system
-    use mpi
+!    use mpi
     implicit none
 
     type( long_range ), intent( inout ) :: lr
@@ -1501,9 +1502,9 @@ module ocean_long_range
 
 
   subroutine lr_populate_W2( sys, ierr )
-    use OCEAN_mpi, only : myid, comm, root
+    use OCEAN_mpi!, only : myid, comm, root
     use OCEAN_system
-    use mpi
+!    use mpi
     implicit none
 
     type( O_system ), intent( in ) :: sys
@@ -1682,8 +1683,8 @@ module ocean_long_range
 
 
   subroutine lr_populate_bloch( lr, sys, ierr )
-    use OCEAN_mpi, only : myid, nproc, comm, root
-    use mpi
+    use OCEAN_mpi!, only : myid, nproc, comm, root
+!    use mpi
     use OCEAN_system
 
     type( long_range ), intent( inout ) :: lr
@@ -1960,14 +1961,12 @@ module ocean_long_range
     if( myid .eq. 0 ) write ( 6, '(1a16,2f20.15)' ) 'norm bounds ... ', sul, suh
 
 #ifdef MPI
-    call MPI_BCAST(tau, 3, MPI_DOUBLE, 0, comm, ierr )
+    call MPI_BCAST(tau, 3, MPI_DOUBLE_PRECISION, 0, comm, ierr )
     if( ierr /= 0 ) goto 111
 #endif
     lr%tau( : ) = tau( : )
 
     if( myid .eq. 0 ) close(u2dat)
-!    write(1005,*) re_bloch_state(:,1,2)
-!    write(1005,*) im_bloch_state(:,1,2)
 
     deallocate( re_transpose, im_transpose, ur, ui )
     if( myid .eq. 0 ) deallocate( tmp_ur, tmp_ui )
@@ -2118,7 +2117,7 @@ module ocean_long_range
   subroutine dump_exciton( sys, p, filnam, ierr )
     use OCEAN_system
     use OCEAN_psi
-    use OCEAN_mpi, ONLY : myid, comm, root, nproc
+    use OCEAN_mpi!, ONLY : myid, comm, root, nproc
     implicit none
 
     type( o_system ), intent( in ) :: sys
