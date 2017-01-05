@@ -1,5 +1,7 @@
 # Select to run the OBF version 
 ppdir '../'
+# Abinit and QE have different spin interfaces at the moment
+dft qe
 # Set this
 para_prefix{ mpirun -n 64 --map-by ppr:8:socket }
 
