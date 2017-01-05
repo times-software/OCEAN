@@ -1,4 +1,4 @@
-! Copyright (C) 2015 OCEAN collaboration
+! Copyright (C) 2015, 2017 OCEAN collaboration
 !
 ! This file is part of the OCEAN project and distributed under the terms 
 ! of the University of Illinois/NCSA Open Source License. See the file 
@@ -11,9 +11,9 @@ subroutine OCEAN_invdrv( x, b, n, i1, i2, n2, need, iwrk, w, bv, av, bs, as, req
   !
   integer :: n, i1, i2, n2, need, iwrk
   complex(DP) :: x( n ), b( n ), bv( n ), av( n )
-  character * 3 :: req, bs, as
-  character * 5 :: ev
-  character * 9 :: ct
+  character(len=3) :: req, bs, as
+  character(len=5) :: ev
+  character(len=9) :: ct
   complex(DP) :: w( 0 : iwrk - 1 )
   real(DP) :: f( 2 )
   !
@@ -43,20 +43,21 @@ subroutine OCEAN_invdrv( x, b, n, i1, i2, n2, need, iwrk, w, bv, av, bs, as, req
 end subroutine OCEAN_invdrv
 !
 subroutine backend( aftvec, as, befvec, bs, x, b, ax, g, pg, apg, u, au, c, n, i1, i2, n2, &
-ev, ct, req, f )
+                    ev, ct, req, f )
+  use AI_kinds, only : DP
   implicit none
   !
   integer n, i1, i2, n2
-  double precision :: f( 2 )
-  character * 3 req, as, bs
-  character * 5 ev
-  character * 9 ct
-  double complex x( n ), b( n )
-  double complex aftvec( n ), befvec( n )
-  double complex ax( n ), g( n ), pg( n ), apg( n )
-  double complex u( n, n2 ), au( n, n2 ), c( n2, n2 )
+  real(DP) :: f( 2 )
+  character(len=3) req, as, bs
+  character(len=5) ev
+  character(len=9) ct
+  complex(DP) :: x( n ), b( n )
+  complex(DP) :: aftvec( n ), befvec( n )
+  complex(DP) :: ax( n ), g( n ), pg( n ), apg( n )
+  complex(DP) :: u( n, n2 ), au( n, n2 ), c( n2, n2 )
   !
-  double complex, external :: hilbcd
+  complex(DP), external :: hilbcd
   !
   select case( as )
   case ( 'ax_' )
@@ -129,18 +130,19 @@ end subroutine backend
 !
 ! here we try to do some GMRES-like miminization
 subroutine update( x, ax, g, pg, apg, u, au, c, n, i1, i2, n2 )
+  use AI_kinds, only : DP
   implicit none
   !
   integer :: i1, i2, n2, n
-  double complex :: x( n ), ax( n ), g( n ), pg( n ), apg( n )
-  double complex :: u( n, n2 ), au( n, n2 )
-  double complex :: c( n2, n2 )
+  complex(DP) :: x( n ), ax( n ), g( n ), pg( n ), apg( n )
+  complex(DP) :: u( n, n2 ), au( n, n2 )
+  complex(DP) :: c( n2, n2 )
   !
   integer :: i, ip, nstart, nstop
-  double complex :: coeff(i2+1)
-  double complex, allocatable :: c2( : , : ), cinv( : , : ), r( : )
-  double complex :: dumc(i2+1)
-  double complex, external :: hilbcd
+  complex(DP) :: coeff(i2+1)
+  complex(DP), allocatable :: c2( : , : ), cinv( : , : ), r( : )
+  complex(DP) :: dumc(i2+1)
+  complex(DP), external :: hilbcd
   !
 !  call sizereport( 16 * n2 ** 2, 'c2........' ); allocate( c2( n2, n2 ) )
 !  call sizereport( 16 * n2 ** 2, 'cinv......' ); allocate( cinv( n2, n2 ) )
@@ -219,10 +221,11 @@ function hilbcd( n, l, r )
 end function hilbcd
 !
 subroutine loadx( n, x )
+  use AI_kinds, only : DP
   implicit none
   !
   integer n
-  double complex x( n )
+  complex(DP) :: x( n )
   !
   open( unit=99, file='xfile', form='unformatted', status='unknown' )
   rewind 99
@@ -233,10 +236,11 @@ subroutine loadx( n, x )
 end subroutine loadx
 !
 subroutine savex( n, x )
+  use AI_kinds, only : DP
   implicit none
   !
   integer n
-  double complex x( n )
+  complex(DP) :: x( n )
   !
   open( unit=99, file='xfile', form='unformatted', status='unknown' )
   rewind 99

@@ -1,4 +1,4 @@
-! Copyright (C) 2015,2016 OCEAN collaboration
+! Copyright (C) 2015 - 2017 OCEAN collaboration
 !
 ! This file is part of the OCEAN project and distributed under the terms 
 ! of the University of Illinois/NCSA Open Source License. See the file 
@@ -635,7 +635,7 @@ module OCEAN_action
         call OCEAN_psi_dot( psi_o, psi_i, rrequest, rval, ierr, irequest, ival )
         call MPI_WAIT( rrequest, MPI_STATUS_IGNORE, ierr )
         call MPI_WAIT( irequest, MPI_STATUS_IGNORE, ierr )
-        if( myid .eq. root ) write(6,'(A6,4X,E22.15,X,E22.15)') 'one-el',rval*Hartree2eV, ival*Hartree2eV
+        if( myid .eq. root ) write(6,'(A6,4X,E22.15,1X,E22.15)') 'one-el',rval*Hartree2eV, ival*Hartree2eV
         rval = 1.0_dp
         call OCEAN_psi_axpy( rval, psi_i, new_psi, ierr )
       endif
@@ -662,7 +662,7 @@ module OCEAN_action
         call OCEAN_psi_dot( psi_o, psi_i, rrequest, rval, ierr, irequest, ival )
         call MPI_WAIT( rrequest, MPI_STATUS_IGNORE, ierr )
         call MPI_WAIT( irequest, MPI_STATUS_IGNORE, ierr )
-        if( myid .eq. root ) write(6,'(A6,4X,E22.15,X,E22.15)') 'bubble', rval*Hartree2eV, ival*Hartree2eV
+        if( myid .eq. root ) write(6,'(A6,4X,E22.15,1X,E22.15)') 'bubble', rval*Hartree2eV, ival*Hartree2eV
         rval = 1.0_dp
         call OCEAN_psi_axpy( rval, psi_i, new_psi, ierr )
 
@@ -694,7 +694,7 @@ module OCEAN_action
         call OCEAN_psi_dot( psi_o, psi_i, rrequest, rval, ierr, irequest, ival )
         call MPI_WAIT( rrequest, MPI_STATUS_IGNORE, ierr )
         call MPI_WAIT( irequest, MPI_STATUS_IGNORE, ierr )
-        if( myid .eq. root ) write(6,'(A6,4X,E22.15,X,E22.15)') 'ladder', rval*Hartree2eV, ival*Hartree2eV
+        if( myid .eq. root ) write(6,'(A6,4X,E22.15,1X,E22.15)') 'ladder', rval*Hartree2eV, ival*Hartree2eV
         rval = 1.0_dp
         call OCEAN_psi_axpy( rval, psi_i, new_psi, ierr )
 
@@ -986,7 +986,7 @@ module OCEAN_action
 !   &        ( ( indref + 1 ) ** 2 + indabs ** 2 )
       lossf = imeps / ( reeps ** 2 + imeps ** 2 )
 
-      write(fh,'(3(1E24.16,x))') ere*Hartree2eV, 1.0_dp - reeps, imeps!, sqrt(eps+1.0_dp), lossf
+      write(fh,'(3(1E24.16,1X))') ere*Hartree2eV, 1.0_dp - reeps, imeps!, sqrt(eps+1.0_dp), lossf
 
     enddo
 

@@ -1,4 +1,4 @@
-! Copyright (C) 2015 OCEAN collaboration
+! Copyright (C) 2015- 2017 OCEAN collaboration
 !
 ! This file is part of the OCEAN project and distributed under the terms 
 ! of the University of Illinois/NCSA Open Source License. See the file 
@@ -757,7 +757,7 @@ module ocean_long_range
     real(DP), external :: DDOT
 
 #ifdef __INTEL_COMPILER
-!DIR$ attributes align: 64 :: xwrkr, xwrki, wrk
+! DIR$ attributes align: 64 :: xwrkr, xwrki, wrk
 #endif
 
 
@@ -904,7 +904,7 @@ module ocean_long_range
 !$  logical, external :: omp_get_nested
 
 #ifdef __INTEL_COMPILER
-!DIR$ attributes align: 64 :: xwrkr, xwrki, wrk
+! DIR$ attributes align: 64 :: xwrkr, xwrki, wrk
 #endif
     ! For each x-point in the unit cell
     !   Populate \phi(x,k) = \sum_n u(x,k) \psi_n(x,k)
@@ -1115,7 +1115,7 @@ module ocean_long_range
 !    real(DP) :: time1, time2
     real(DP), external :: DDOT
 #ifdef __INTEL_COMPILER
-!DIR$ attributes align: 64 :: rphi, iphi, rtphi, itphi, xwrkr, xwrki, wrk
+! DIR$ attributes align: 64 :: rphi, iphi, rtphi, itphi, xwrkr, xwrki, wrk
 #endif
 
 ! !$  integer, external :: omp_get_num_threads
@@ -2141,7 +2141,7 @@ module ocean_long_range
     real( DP ), allocatable :: re_exciton(:,:,:), im_exciton(:,:,:), exciton_buf(:), exciton_out(:), exciton_transpose( :, :, : ) 
 
 #ifdef __INTEL_COMPILER
-!DIR$ attributes align: 64 :: xwrkr, xwrki, wrk
+! DIR$ attributes align: 64 :: xwrkr, xwrki, wrk
 #endif
 
 

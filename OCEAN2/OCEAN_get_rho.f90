@@ -1,3 +1,10 @@
+! Copyright (C) 2016, 2017 OCEAN collaboration
+!
+! This file is part of the OCEAN project and distributed under the terms 
+! of the University of Illinois/NCSA Open Source License. See the file 
+! `License' in the root directory of the present distribution.
+!
+!
 subroutine OCEAN_get_rho( xmesh, celvol, rho, ierr )
   use AI_kinds
   use OCEAN_mpi
@@ -17,7 +24,7 @@ subroutine OCEAN_get_rho( xmesh, celvol, rho, ierr )
   real(dp) :: dumr, sumrho, norm
   integer*8 :: fftw_plan, fftw_plan2
   integer :: igl(3), igh(3), powlist(3), mul(3), c_nfft(3), iter, offset(3)
-  character*1 :: fstr
+  character(len=1) :: fstr
 
   integer, parameter :: fac(3) = (/ 2, 3, 5 /)
   integer, parameter :: hicap(3) = (/ 20, 8, 4 /)

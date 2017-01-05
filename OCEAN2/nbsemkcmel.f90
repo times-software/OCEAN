@@ -9,17 +9,17 @@ subroutine nbsemkcmel( add04, add14 )
   use OCEAN_constants, only : Hartree2eV
   implicit none
   !
-  character * 4 :: add04
-  character * 14 :: add14
+  character(len=4) :: add04
+  character(len=14) :: add14
   !
   integer :: lmin, lmax, nr, i, l, ix, mu, nu, ii, j, nrmax
   real( kind = kind( 1.0d0 ) ) :: dl, err, rmax, su, su1, tmp, vrun, x
   real( kind = kind( 1.0d0 ) ) :: v( 100 ), rv( 100 )
   real( kind = kind( 1.0d0 ) ) :: vtrim( 100 ), vdiff( 100 ), bwgt( 0 : 3 )
-  character * 5 :: s5
-  character * 7 :: s7
-  character * 11 :: s11
-  character * 20 :: rpot_filename
+  character(len=5) :: s5
+  character(len=7) :: s7
+  character(len=11) :: s11
+  character(len=20) :: rpot_filename
   integer, allocatable :: nnu( : )
   real( kind = kind( 1.0d0 ) ), allocatable, dimension( :, : ) :: cmel, nmel, phi, tphi
   real( kind = kind( 1.0d0 ) ), allocatable, dimension( : ) :: rad, dr, val

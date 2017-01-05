@@ -1,4 +1,4 @@
-! Copyright (C) 2015, 2016 OCEAN collaboration
+! Copyright (C) 2015 - 2017 OCEAN collaboration
 !
 ! This file is part of the OCEAN project and distributed under the terms 
 ! of the University of Illinois/NCSA Open Source License. See the file 
@@ -24,7 +24,7 @@ module OCEAN_multiplet
   real( DP ), allocatable :: someli( :, : )
 
 #ifdef __INTEL_COMPILER
-!DIR$ attributes align: 64 :: mpcr, mpci, mpm, mhr, mhi, somelr, someli
+! DIR$ attributes align: 64 :: mpcr, mpci, mpm, mhr, mhi, somelr, someli
 #endif
 
 
@@ -286,7 +286,8 @@ module OCEAN_multiplet
             '_', 'n', sys%cur_run%ZNL(2), 'l', sys%cur_run%ZNL(3)
 
     if( myid .eq. root ) then
-!      write(deflinz,'(a6,a1,i2.2,a1,i2.2,a1,i2.2)') 'deflin', 'z', sys%cur_run%ZNL(1), 'n', sys%cur_run%ZNL(2), 'l', sys%cur_run%ZNL(3)
+!      write(deflinz,'(a6,a1,i2.2,a1,i2.2,a1,i2.2)') 'deflin', 'z', sys%cur_run%ZNL(1), 'n', & 
+!                                                    sys%cur_run%ZNL(2), 'l', sys%cur_run%ZNL(3)
 !      open(unit=99,file=deflinz,form='formatted',status='old')
 !      open(unit=99,file='derp_control',form='formatted', status='old' )
       open(unit=99,file='bse.in',form='formatted', status='old')
@@ -703,7 +704,7 @@ module OCEAN_multiplet
     real( DP ), dimension( npmax ) :: ampr, ampi 
     real( DP ), allocatable :: hampr(:,:,:), hampi(:,:,:)
 #ifdef __INTEL
-!dir$ attributes align:64 :: ampr, ampi, hampr, hampi
+! dir$ attributes align:64 :: ampr, ampi, hampr, hampi
 #endif
 
     integer :: ialpha, l, m, nu, ispn, ikpt, ibnd
@@ -836,7 +837,7 @@ module OCEAN_multiplet
     real( DP ), dimension( npmax ) :: ampr, ampi, hampr, hampi
     !
 #ifdef __INTEL_COMPILER
-!DIR$ attributes align: 64 :: ampr, ampi, hampr, hampi
+! DIR$ attributes align: 64 :: ampr, ampi, hampr, hampi
 #endif
     !
     !
@@ -1167,8 +1168,8 @@ module OCEAN_multiplet
     real(dp) :: b( 64 )
     !
     integer :: i
-!dir$ assume_aligned a : 64
-!dir$ assume_aligned b : 64
+! dir$ assume_aligned a : 64
+! dir$ assume_aligned b : 64
 ! $OMP SIMD REDUCTION(+:force_align_ddot )
     do i = 1, 64
       force_align_ddot = force_align_ddot + a(i) * b(i)
@@ -1297,7 +1298,7 @@ module OCEAN_multiplet
     real( DP ), allocatable, dimension( : ) :: pwr, pwi, hpwr, hpwi
     !
 #ifdef __INTEL_COMPILER
-!DIR$ attributes align: 64 :: pwr, pwi, hpwr, hpwi
+! DIR$ attributes align: 64 :: pwr, pwi, hpwr, hpwi
 #endif
     !
     !
@@ -1827,8 +1828,8 @@ module OCEAN_multiplet
     logical, parameter :: no = .false., yes = .true.
     logical :: tdlda
     !
-    character * 10 :: add10
-    character * 15 :: filnam
+    character(len=10) :: add10
+    character(len=15) :: filnam
     !
     include 'sphsetnx.h.f90'
     !

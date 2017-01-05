@@ -1,4 +1,4 @@
-! Copyright (C) 2015 OCEAN collaboration
+! Copyright (C) 2015 - 2016 OCEAN collaboration
 !
 ! This file is part of the OCEAN project and distributed under the terms 
 ! of the University of Illinois/NCSA Open Source License. See the file 
@@ -22,7 +22,7 @@ module OCEAN_energies
   type( OCEAN_vector ) :: allow
 
 #ifdef __INTEL_COMPILER
-!DIR$ attributes align: 64 :: energies, imag_selfenergy
+! DIR$ attributes align: 64 :: energies, imag_selfenergy
 #endif
 
 

@@ -1,4 +1,4 @@
-! Copyright (C) 2015,2016 OCEAN collaboration
+! Copyright (C) 2015 - 2017 OCEAN collaboration
 !
 ! This file is part of the OCEAN project and distributed under the terms 
 ! of the University of Illinois/NCSA Open Source License. See the file 
@@ -106,11 +106,15 @@ module OCEAN_system
     type( o_system ), intent( inout ) :: sys
     integer, intent( inout ) :: ierr
 
+    if( .not. associated( sys%cur_run ) ) then
+      ierr = -5
+      return
+    endif
 
     if( associated(sys%cur_run%next_run ) ) then
       sys%cur_run => sys%cur_run%next_run
     else
-      ! deal with it
+      sys%cur_run => null()
     endif
   end subroutine OCEAN_sys_update
 
@@ -378,7 +382,7 @@ module OCEAN_system
     character(len=5) :: calc_type
     type(o_run), pointer :: temp_prev_run, temp_cur_run
 
-    integer :: ntot, nmatch, iter, i, idum, start_band, num_bands, val_bands, val_flag,  &
+    integer :: ntot, nmatch, iter, i, start_band, num_bands, val_bands, val_flag,  &
                rixs_energy, rixs_pol
     logical :: found, have_val, have_core, lflag, bflag
     real(DP) :: tmp(3)
