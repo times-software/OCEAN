@@ -1,4 +1,4 @@
-! Copyright (C) 2015 OCEAN collaboration
+! Copyright (C) 2015 - 2016 OCEAN collaboration
 !
 ! This file is part of the OCEAN project and distributed under the terms 
 ! of the University of Illinois/NCSA Open Source License. See the file 
@@ -7,34 +7,117 @@
 !
 module OCEAN_energies
   use AI_kinds
+  use OCEAN_psi, only : OCEAN_vector
 !  use iso_c_binding
 
   implicit none
   save
+  private
 
-  REAL(DP), ALLOCATABLE :: energies(:,:,:)
-! ! DEC$ ATTRIBUTES ALIGN: 32 :: energies
+  REAL(DP), ALLOCATABLE, public :: energies(:,:,:)
+  real(DP), ALLOCATABLE, public :: imag_selfenergy(:,:,:)
 
-  real(DP), ALLOCATABLE :: imag_selfenergy(:,:,:)
-! ! DEC$ ATTRIBUTES ALIGN: 32 :: imag_selfenergy
+
+  type( OCEAN_vector ) :: p_energy
+  type( OCEAN_vector ) :: allow
 
 #ifdef __INTEL_COMPILER
-!DIR$ attributes align: 64 :: energies, imag_selfenergy
+! DIR$ attributes align: 64 :: energies, imag_selfenergy
 #endif
 
-!  REAL(DP), POINTER, CONTIGUOUS :: energies(:,:,:) => null()
-!  REAL(DP), POINTER, CONTIGUOUS :: imag_selfenergy(:,:,:) => null()
 
-!  TYPE(C_PTR) :: rcptr
-!  TYPE(C_PTR) :: icptr
 
   INTEGER :: energy_bands_pad
   INTEGER :: energy_kpts_pad
 
   LOGICAL :: have_selfenergy
+  LOGICAL :: is_init = .false.
+  LOGICAL :: is_loaded = .false.
+  LOGICAL :: val_init = .false.
+  LOGICAL :: val_loaded = .false.
 
+  public :: OCEAN_energies_val_allow, OCEAN_energies_val_sfact, OCEAN_energies_val_act, &
+            OCEAN_energies_val_load, OCEAN_energies_act, OCEAN_energies_init, OCEAN_energies_load
   
   contains
+
+  subroutine OCEAN_energies_val_allow( sys, psi, ierr )
+    use OCEAN_system
+    use OCEAN_psi, only : OCEAN_vector, OCEAN_psi_mult
+    implicit none
+    !
+    integer, intent( inout ) :: ierr
+    type(O_system), intent( in ) :: sys
+    type(OCEAN_vector), intent( inout ) :: psi
+    !
+    call OCEAN_psi_mult( psi, allow, .true. )
+  end subroutine
+
+  subroutine OCEAN_energies_val_sfact( sys, psi, ierr )
+    use OCEAN_system
+    use OCEAN_psi, only : OCEAN_vector, OCEAN_psi_mult
+    implicit none
+    !
+    integer, intent( inout ) :: ierr
+    type(O_system), intent( in ) :: sys
+    type(OCEAN_vector), intent( inout ) :: psi
+    !
+    call OCEAN_psi_mult( psi, allow, .false. )
+  end subroutine
+
+  subroutine OCEAN_energies_val_act( sys, psi, hpsi, ierr )
+    use OCEAN_system
+    use OCEAN_psi, only : OCEAN_vector, OCEAN_psi_cmult
+    implicit none
+    !
+    integer, intent( inout ) :: ierr
+    type(O_system), intent( in ) :: sys
+    type(OCEAN_vector), intent( in ) :: psi
+    type(OCEAN_vector), intent( inout ) :: hpsi
+    !
+    if( psi%val_myid .eq. 0 ) then
+      call OCEAN_psi_cmult( psi, hpsi, p_energy, .false. )
+    endif
+
+  end subroutine OCEAN_energies_val_act
+
+
+  subroutine OCEAN_energies_val_load( sys, ierr )
+    use OCEAN_system
+    use OCEAN_psi, only : OCEAN_vector, OCEAN_psi_new, OCEAN_psi_zero_full
+    use OCEAN_val_energy, only : OCEAN_read_energies
+    implicit none
+    !
+    integer, intent( inout ) :: ierr
+    type(O_system), intent( in ) :: sys
+    !
+    if( sys%have_val .eqv. .false. ) return
+    !
+
+    if( .not. val_init ) then
+!      allocate( p_energy, allow )
+      call OCEAN_psi_new( p_energy, ierr )
+      if( ierr .ne. 0 ) return
+      call OCEAN_psi_new( allow, ierr )
+      if( ierr .ne. 0 ) return
+
+      val_init = .true.
+    endif
+
+    if( .not. val_loaded ) then
+      call OCEAN_psi_zero_full( p_energy, ierr )
+      if( ierr .ne. 0 ) return
+      call OCEAN_psi_zero_full( allow, ierr )
+      if( ierr .ne. 0 ) return
+      
+      call OCEAN_read_energies( sys, p_energy, allow, ierr )
+      if( ierr .ne. 0 ) return
+
+      val_loaded = .true.
+    endif
+
+  end subroutine OCEAN_energies_val_load
+    
 
   subroutine OCEAN_energies_init(  sys, ierr )
     use OCEAN_system
@@ -111,19 +194,21 @@ module OCEAN_energies
   subroutine OCEAN_energies_load( sys, ierr )
     use OCEAN_system
     use OCEAN_mpi
-    use mpi
+!    use mpi
+    use OCEAN_constants, only : eV2Hartree
 
     implicit none
     integer, intent(inout) :: ierr
     type(O_system), intent( in ) :: sys
 
+    real(DP), allocatable :: tmp_e0(:,:,:)
     real(DP) :: core_offset
     integer :: nbd, nq, nspn, iter, i, j
     character(len=9) :: infoname
     character(len=4) :: gw_control
     logical :: file_exists, have_gw
 
-    character(len=16) ::clsFile
+    character(len=18) ::clsFile
 
     if( sys%conduct ) then
       infoname = 'wvfcninfo'
@@ -155,8 +240,13 @@ module OCEAN_energies
         goto 111
       endif
 
-!      allocate( tmp_e0( sys%num_bands * sys%nkpts, sys%nspn ) )
-      read(99) energies( 1 : sys%num_bands, 1 : sys%nkpts, : )
+      allocate( tmp_e0( sys%num_bands,  sys%nkpts, sys%nspn ), STAT=ierr )
+      if( ierr .ne. 0 ) return
+      read(99) tmp_e0
+      energies( 1 : sys%num_bands, 1 : sys%nkpts, : ) = tmp_e0( :, :, : )
+      deallocate( tmp_e0 )
+!      read(99) energies( 1 : sys%num_bands, 1 : sys%nkpts, : )
+    
 
       close( 99 )
 
@@ -177,18 +267,22 @@ module OCEAN_energies
           call OCEAN_gw_by_band( sys, ierr, .false. )
         case( 'ibnd' )
           call OCEAN_gw_by_band( sys, ierr, .true. )
+        case( 'cstr' )
+          call OCEAN_gw_stretch( sys, ierr )
         case default
           write(6,*) 'Unrecognized gw_control'
         end select
       endif
 
-      write(clsFile,'(1A5,1A2,1I2.2,1A2,1I2.2,1A1,1I2.2)') 'cls.z', sys%cur_run%elname, sys%cur_run%indx, &
+      write(clsFile,'(1A5,1A2,1I4.4,1A2,1I2.2,1A1,1I2.2)') 'cls.z', sys%cur_run%elname, sys%cur_run%indx, &
           '_n', sys%cur_run%ZNL(2), 'l', sys%cur_run%ZNL(3)
       inquire(file=clsFile,exist=file_exists)
       if( file_exists ) then
         open(unit=99,file=clsFile,form='formatted',status='old')
         read(99,*) core_offset
         close(99)
+        write(6,*) 'Core-level shift:', core_offset
+        core_offset = core_offset * eV2Hartree
 
 !      if( sys%nruns .gt. 1 ) then
 !        inquire(file='core_shift.txt',exist=file_exists)
@@ -200,7 +294,7 @@ module OCEAN_energies
 !          enddo
 !          close(99)
 !          write(6,*) 'Core offset:', core_offset
-          core_offset = core_offset / 27.2114d0
+          !core_offset = core_offset * eV2Hartree !/ 27.2114d0
           energies(:,:,:) = energies(:,:,:) + core_offset
         endif
 !      else
@@ -241,6 +335,10 @@ module OCEAN_energies
   111 continue
   end subroutine OCEAN_energies_load
 
+
+ !JTV need to move energies into an ocean_vector then:
+ ! 1) this can be done w/ min instead of full
+ ! 2) we can write an element-wise y(i) = z(i) * x(i) + y(i) in OCEAN_psi
   subroutine OCEAN_energies_act( sys, psi, hpsi, ierr )
     use OCEAN_system
     use OCEAN_psi
@@ -303,10 +401,45 @@ module OCEAN_energies
     OCEAN_energies_single = CMPLX( energies( ib, ik, 1 ), imag_selfenergy( ib, ik, 1 ), DP )
   end function
 
+  subroutine OCEAN_gw_stretch( sys, ierr )
+    use OCEAN_system
+    use OCEAN_mpi, only : myid, root
+
+    implicit none
+    integer, intent(inout) :: ierr
+    type(O_system), intent( in ) :: sys
+
+    real(DP) :: cstr
+    logical :: have_gw
+
+    if( myid .ne. root ) return
+
+    write(6,*) 'Attempting GW stretch!'
+
+    inquire(file='gwcstr', exist=have_gw )
+
+    if( .not. have_gw ) then
+      write( 6, * ) 'GW corrections requested (stretch style). File gwcstr not found.'
+      write( 6, * ) 'No corrections will be done'
+      return
+    endif
+
+    open( unit=99, file='gwcstr', form='formatted',status='old')
+    rewind(99)
+    read(99,*) cstr
+    close(99)
+
+    if( abs( cstr ) .lt. 0.00000001_DP ) return
+
+    cstr = cstr + 1.0_DP
+    energies( :, :, : ) = energies( :, :, : ) * cstr
+
+  end subroutine OCEAN_gw_stretch
 
   subroutine OCEAN_gw_by_band( sys, ierr, keep_imag )
     use OCEAN_system
     use OCEAN_mpi, only : myid, root
+    use OCEAN_constants, only : eV2Hartree
 
     implicit none
     integer, intent(inout) :: ierr
@@ -341,8 +474,8 @@ module OCEAN_energies
       im_se( : ) = 0.0_DP
     endif
     close( 99 )
-    re_se( : ) = re_se( : ) / 27.21138506_DP
-    im_se( : ) = -im_se( : ) / ( 27.21138506_DP ) 
+    re_se( : ) = re_se( : ) * eV2Hartree !/ 27.21138506_DP
+    im_se( : ) = -im_se( : ) * eV2Hartree !/ ( 27.21138506_DP ) 
 
 
     do ispn = 1, sys%nspn
@@ -361,6 +494,7 @@ module OCEAN_energies
 ! Only run on root
     use OCEAN_system
     use OCEAN_mpi, only : myid, root
+    use OCEAN_constants, only : eV2Hartree, Hartree2eV
 
     implicit none
     integer, intent(inout) :: ierr
@@ -421,9 +555,9 @@ module OCEAN_energies
         read(99,*) ibd, e0, re_se( biter ), im_se( biter )
 !        read(99,*) ibd, re_se( biter ), e0, im_se( biter )
       enddo
-      re_se( : ) = re_se( : ) / 27.21138506_DP
+      re_se( : ) = re_se( : ) * eV2Hartree !/ 27.21138506_DP
 !JTV
-      im_se( : ) = - im_se( : ) / 27.21138506_DP
+      im_se( : ) = - im_se( : ) * eV2Hartree !/ 27.21138506_DP
 !      im_se( : ) = -( 2.0_DP * im_se( : ) ) / 27.21138506_DP
 !      im_se( : ) = abs( im_se( : ) ) / ( 27.21138506_DP * 2.0_DP )
 !      im_se( 1 ) = 0.0
@@ -464,7 +598,8 @@ module OCEAN_energies
                   imag_selfenergy( biter - sys%cur_run%start_band + 1, kiter, ispn ) =  &
                         im_se( biter - start_band + 1 )
                   if( kiter .eq. 1 ) then
-                    write(6,*) biter, biter - sys%cur_run%start_band + 1, biter - start_band + 1, im_se(  biter - start_band + 1 ) * 27.2114_DP
+                    write(6,*) biter, biter - sys%cur_run%start_band + 1, biter - start_band + 1,  &
+                               im_se(  biter - start_band + 1 ) * Hartree2eV !* 27.2114_DP
                   endif
                 enddo
               enddo
@@ -503,7 +638,7 @@ module OCEAN_energies
 !        enddo
         do biter = stop_b( kiter ) + 1 - sys%cur_run%start_band, sys%num_bands
           if( kiter == 1 ) then
-            write(6,*) kiter, stop_b( kiter ), sys%num_bands, biter, re_max * 27.2114_DP
+            write(6,*) kiter, stop_b( kiter ), sys%num_bands, biter, re_max * Hartree2eV ! 27.2114_DP
           endif
           energies( biter, kiter, ispn ) = energies( biter, kiter, ispn ) + re_max
           imag_selfenergy( biter, kiter, ispn ) = im_max

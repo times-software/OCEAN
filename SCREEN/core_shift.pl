@@ -51,7 +51,7 @@ else
 
 
 # Load up all the radii we need
-open RAD, "paw.shells" or die "Failed to open paw.shells\n";
+open RAD, "screen.shells" or die "Failed to open screen.shells\n";
 my $line;
 while( <RAD> )
 {
@@ -228,7 +228,7 @@ if( $dft eq 'qe' || $dft eq 'obf' )
     $Vsum += $Vshift[$i];
 
 
-    my $string = sprintf("z%s%02d_n%02dl%02d",$el, $el_rank,$nn,$ll);
+    my $string = sprintf("z%s%04d_n%02dl%02d",$el, $el_rank,$nn,$ll);
     print "$string\n";
   # W shift is in Ha., but we want to multiple by 1/2 anyway, so the units work out
 
@@ -322,7 +322,7 @@ else
     my $el = $hfin[$i][2];
     my $el_rank = $hfin[$i][3];
 
-    my $string = sprintf("z%s%02d_n%02dl%02d",$el, $el_rank,$nn,$ll);
+    my $string = sprintf("z%s%04d_n%02dl%02d",$el, $el_rank,$nn,$ll);
     print "$string\n";
 
     for( my $j = 0; $j < scalar @rads; $j++ )
@@ -364,7 +364,7 @@ for( my $i = 0; $i < scalar @rads; $i++ )
     $shift *= -1;
     print "$el_rank\t$Vshift[$j]\t$Wshift[$j][$i]\t$shift\n";
 
-    my $string = sprintf("z%s%02d_n%02dl%02d",$el, $el_rank,$nn,$ll);
+    my $string = sprintf("z%s%04d_n%02dl%02d",$el, $el_rank,$nn,$ll);
     open OUT, ">$string/$rad_dir/cls" or die "Failed to open $string/$rad_dir/cls\n$!";
     print OUT $shift . "\n";
     close OUT;

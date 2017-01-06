@@ -1,13 +1,13 @@
-#cnbse.solver gmres
-#cnbse.gmres.elist { 1.0 }
-control 0
-core 8
+dft obf
+para_prefix { mpirun -n 64 --map-by ppr:8:socket }
+ppdir{ ../ }
 ngkpt { 8 8 8 }
+obkpt{ 4 4 4 }
 photon_q{ 0.0001 0.0001 0.0001 }
 nkpt { 8 8 8 }
-nbands 12
-paw.nkpt{ 2 2 2 }
-paw.nbands 40
+nbands 24
+screen.nkpt{ 2 2 2 }
+screen.nbands 80
 pp_list{ 06-c.lda.fhi }
 acell { 6.74033 6.74033 6.74033 }
 rprim {
@@ -23,20 +23,20 @@ xred {
  0.00    0.00    0.00
  0.25    0.25    0.25
 }
-ecut 30.0
+ecut 40.0
 toldfe 1.0d-6
 tolwfr 1.0d-16
 nstep 61
 diemac 5.7
 CNBSE.xmesh { 6  6  6 }
 
-paw.shells{ 3.5 }
+screen.shells{ 3.5 }
 cnbse.rad 3.5
 
-paw.opts{ 6 c.opts }
-paw.fill{ 6 c.fill }
+opf.opts{ 6 c.opts }
+opf.fill{ 6 c.fill }
 
 nedges 2
 edges{ 1 1 0 
        2 1 0 }
-cnbse.broaden 0.25
+cnbse.broaden 0.2

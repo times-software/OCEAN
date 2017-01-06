@@ -14,7 +14,7 @@ use File::Copy;
 use strict;
 
 
-my @OceanFolders = ("Common", "DFT", "zWFN", "PAW", "SCREEN", "CNBSE", "PREP");
+my @OceanFolders = ("Common", "DFT", "zWFN", "OPF", "SCREEN", "CNBSE", "PREP");
 
 print "Welcome to OCEAN\n";
 
@@ -181,12 +181,12 @@ chdir "../";
 print "Done with parsing\n";
 ##########################################
 #
-# PAW stage
+# OPF stage
 ##########################################
 print "$Separator\n";
-print "Entering PAW stage\n";
-chdir "PAW";
-system("$OCEAN_BIN/paw.pl") == 0 or die "PAW stage failed\n";
+print "Entering OPF stage\n";
+chdir "OPF";
+system("$OCEAN_BIN/opf.pl") == 0 or die "OPF stage failed\n";
 chdir "../";
 ##########################################
 #

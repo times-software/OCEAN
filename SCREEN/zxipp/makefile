@@ -3,12 +3,19 @@ OPTS = -O2
 COMP = pgf90
 #COMP = /usr/local/usr/absoft32/bin/f90
 #
+OBXPL = zobj/xippsin_lm.o zobj/xeqtanx.o zobj/rinvert.o zobj/mkvipt.o zobj/intval.o
+OBXPB = zobj/xippsin_box.o zobj/xeqtanx.o zobj/rinvert.o zobj/mkvipt.o zobj/intval.o
 OBXP2 = zobj/xippsin.o zobj/xeqtanx.o zobj/rinvert.o zobj/mkvipt.o zobj/intval.o
 OBVHO = zobj/vhommod.o zobj/levlou.o zobj/sphj0.o zobj/sphj1.o zobj/getomega.o
 OBRSC = zobj/rscombine.o zobj/intval.o
 #
-all: zexe/xipps.x zexe/vhommod.x zexe/rscombine.x
+all: zexe/xipps.x zexe/vhommod.x zexe/rscombine.x 
 #
+#
+zexe/xipps_lm.x: $(OBXPL)
+	$(COMP) $(OPTS) $(OBXPL) -o zexe/xipps_lm.x
+zexe/xipps_box.x: $(OBXPB)
+	$(COMP) $(OPTS) $(OBXPB) -o zexe/xipps_box.x -lmkl_intel_lp64  -lmkl_sequential -lmkl_core
 zexe/xipps.x: $(OBXP2)
 	$(COMP) $(OPTS) $(OBXP2) -o zexe/xipps.x
 zexe/rscombine.x: $(OBRSC)
@@ -17,6 +24,10 @@ zexe/vhommod.x: $(OBVHO)
 	$(COMP) $(OPTS) $(OBVHO) -o zexe/vhommod.x
 
 #
+zobj/xippsin_box.o: zf90/xipp_box.f90
+	$(COMP) $(OPTS) -c zf90/xipp_box.f90 -o zobj/xippsin_box.o
+zobj/xippsin_lm.o: zf90/xippsin_lm.f90
+	$(COMP) $(OPTS) -c zf90/xippsin_lm.f90 -o zobj/xippsin_lm.o
 zobj/getomega.o: zf90/getomega.f90
 	$(COMP) $(OPTS) -c zf90/getomega.f90 -o zobj/getomega.o
 zobj/intval.o: zf90/intval.f90

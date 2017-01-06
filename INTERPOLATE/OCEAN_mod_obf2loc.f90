@@ -461,7 +461,16 @@ module OCEAN_obf2loc
         if( ionode ) then
           if( ishift .eq. 1 ) then
             do itau = 1, ntau
-              val_coeff( :, 1:ibeg(i,ispin)-1, i, ispin, itau ) = transpose( o2l( 1:ibeg(i,ispin)-1, :, itau ) )
+              do j = 1, ibeg(i,ispin)-1
+                do k = 1, nptot
+                  val_coeff( k, j, i, ispin, itau ) = o2l( j, k, itau )
+                enddo
+              enddo
+              do j = ibeg(i,ispin), nbuse_xes
+                val_coeff(:,j,i,ispin,itau) = 0.0_DP
+              enddo
+            
+!              val_coeff( :, 1:ibeg(i,ispin)-1, i, ispin, itau ) = transpose( o2l( 1:ibeg(i,ispin)-1, :, itau ) )
             enddo
           endif
 

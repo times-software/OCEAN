@@ -1,6 +1,6 @@
 #!/usr/bin/perl
 
-# Copyright (C) 2015 OCEAN collaboration
+# Copyright (C) 2015, 2016 OCEAN collaboration
 #
 # This file is part of the OCEAN project and distributed under the terms 
 # of the University of Illinois/NCSA Open Source License. See the file 
@@ -25,7 +25,8 @@ my @CommonFiles = ("epsilon", "xmesh.ipt", "nedges", "k0.ipt", "nbuse.ipt",
   "cnbse.niter", "cnbse.spect_range", "cnbse.broaden", "cnbse.mode", "nphoton", "dft", 
   "para_prefix", "cnbse.strength", "serbse", "core_offset", "avecsinbohr.ipt", 
   "cnbse.solver", "cnbse.gmres.elist", "cnbse.gmres.erange", "cnbse.gmres.nloop", 
-  "cnbse.gmres.gprc", "cnbse.gmres.ffff", "spin_orbit", "nspin" );
+  "cnbse.gmres.gprc", "cnbse.gmres.ffff", "cnbse.write_rhs", "spin_orbit", "nspin",
+  "gwcstr", "gw_control" );
 
 my @DFTFiles = ("nelectron");
 
@@ -65,12 +66,31 @@ if( $obf == 1 )
   foreach (@WFNFiles) {
     copy( "../zWFN/$_", $_ ) or die "Failed to get zWFN/$_\n$!";
   }
+  open OUT, ">tmel_selector" or die;
+  print OUT "1\n";
+  close OUT;
+  open OUT, ">enk_selector" or die;
+  print OUT "1\n";
+  close OUT;
+  open OUT, ">bloch_selector" or die;
+  print OUT "1\n";
+  close OUT;
 }
 else
 {
   foreach (@DenDipFiles) {
     copy( "../PREP/BSE/$_", $_ ) or die "Failed to get PREP/BSE/$_\n$!" ;
   }
+  open OUT, ">tmel_selector" or die;
+  print OUT "0\n";
+  close OUT;
+  open OUT, ">enk_selector" or die;
+  print OUT "0\n";
+  close OUT;
+  open OUT, ">bloch_selector" or die;
+  print OUT "0\n";
+  close OUT;
+
 }
 
 foreach (@ExtraFiles) {
@@ -530,21 +550,29 @@ while (<EDGE>) {
     $cks = sprintf("cksv.${elname}%04u", $elnum );
   }
 
-  # For each unique Z we need to grab some files from PAW
+  # For each unique Z we need to grab some files from OPF
   unless( exists $unique_z{ "$znum" } )
   {
     my $zstring = sprintf("z%03i", $znum);
     print $zstring ."\n";
-    `ln -sf ../PAW/zpawinfo/*${zstring}* .`;
-    my $templine = `ls ../PAW/zpawinfo/*$zstring`;
+    `ln -sf ../OPF/zpawinfo/*${zstring}* .`;
+    `ln -sf ../OPF/zpawinfo/phrc? .`;
+    my $templine = `ls ../OPF/zpawinfo/*$zstring`;
     chomp($templine);
     my @pslist = split(/\s+/, $templine);
-    foreach (@pslist)
-    {
-      $_ =~ m/ae(\S+)/;
-      `ln -sf ../PAW/zpawinfo/ae$1 .`;
-      `ln -sf ae$1 ps$1`;
-    }
+#    foreach (@pslist)
+#    {
+#      if( $_ =~ m/ae(\S+)/ )
+#      {
+#        `ln -sf ../PAW/zpawinfo/ae$1 .`;
+#      }
+#      elsif( $_ =~ m/ps(\S+)/
+#      }
+#        `ln -sf ../PAW/zpawinfo/ps$1 .`;
+#      }
+#
+#      `ln -sf ae$1 ps$1`;
+#    }
   }
 
   print "CKS NAME = $cks\n";
@@ -570,7 +598,7 @@ while (<EDGE>) {
   }
 
 #  my $add10_zstring = sprintf("z%03un%02ul%02u", $znum, $nnum, $lnum);
-  my $zstring = sprintf("z%2s%02i_n%02il%02i", $elname, $elnum, $nnum, $lnum);
+  my $zstring = sprintf("z%2s%04i_n%02il%02i", $elname, $elnum, $nnum, $lnum);
 #  system("cp ../SCREEN/${zstring}/zR${pawrad}/rpot ./rpot.${zstring}") == 0 
   copy( "../SCREEN/${zstring}/zR${pawrad}/rpot", "rpot.${zstring}" )
     or die "Failed to grab rpot\n../SCREEN/${zstring}/zR${pawrad}/rpot ./rpot.${zstring}\n";
@@ -664,12 +692,14 @@ my $lnum = $3;
 
 
 open INFILE, ">bse.in" or die "Failed to open bse.in\n";
-my $filename = sprintf("deflinz%03un%02ul%02u", $znum, $nnum, $lnum);
+my $filename = sprintf("prjfilez%03u", $znum );
 
 open TMPFILE, $filename or die "Failed to open $filename\n";
 $line = <TMPFILE>;
 close TMPFILE;
-print INFILE $line;
+$line =~ m/(\d+)\s+(\d+)\s+\d+\s+\S+/ or die "Failed to match first line of $filename\n";
+
+print INFILE "$lnum\t$1\t$2\n";
 
 # spin orbit splitting
 open IN, "spin_orbit" or die "Failed to open spin_orbit\n$!";
@@ -768,7 +798,7 @@ if( $run_serial == 1)
 
 
     #rpot file
-    my $zstring = sprintf("z%2s%02i_n%02il%02i", $elname, $elnum, $nnum, $lnum);
+    my $zstring = sprintf("z%2s%04i_n%02il%02i", $elname, $elnum, $nnum, $lnum);
     copy( "rpot.${zstring}", "rpotfull" ) or die "Failed to copy rpot.${zstring}\n$!";
 #    system("cp ./rpot.${zstring} rpotfull") == 0 or die;
 

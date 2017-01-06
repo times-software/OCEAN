@@ -28,7 +28,7 @@ subroutine fancyvector( vhat, vlen, iu )
   !
   real( kind = kind( 1.0d0 ) ) :: pi, theta, phi, costheta, sintheta, cosphi, sinphi, phirad
   logical :: polar
-  character * 80 :: word, un
+  character(len=80) :: word, un
   !
   pi = 4.0d0 * atan( 1.0d0 )
 
@@ -57,6 +57,9 @@ subroutine fancyvector( vhat, vlen, iu )
            vlen = vlen * 1.0d0
         case( 'inverseangstrom' )
            vlen = vlen * 0.529177d0
+        case default
+           write(6,*) 'WARNING!! Failed to parse units!', un
+           write(6,*) 'Will assume they are inversebohr'
         end select
      case( 'cartesian' )
         backspace iu
@@ -71,6 +74,9 @@ subroutine fancyvector( vhat, vlen, iu )
            theta = theta * 1.0d0
         case( 'degree' )
            theta = theta * pi / 180.0d0
+        case default
+           write(6,*) 'WARNING!! Failed to parse units!', un
+           write(6,*) 'Will assume they are radian'
         end select
         costheta = cos( theta )
      case( 'costheta' )
@@ -86,6 +92,9 @@ subroutine fancyvector( vhat, vlen, iu )
            phi = phi * 1.0d0
         case( 'degree' )
            phi = phi * pi / 180.0d0
+        case default
+           write(6,*) 'WARNING!! Failed to parse units!', un
+           write(6,*) 'Will assume they are radian'
         end select
         cosphi = cos( phi )
         sinphi = sin( phi )

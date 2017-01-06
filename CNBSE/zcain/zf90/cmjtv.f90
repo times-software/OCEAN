@@ -15,9 +15,9 @@ subroutine cmjtv( nsphpt, xsph, ysph, zsph, wsph, prefs )
   integer :: l, m, iproj, mc, npmax, nqproj, atno, nc, lc, lmin, lmax, ip, powmax
   real( kind = kind( 1.0d0 ) ) :: dqproj, qhat( 3 ), ehat( 3 ), ephotev, lam, pi, q, dummy
   integer, allocatable :: nproj( : )
-  character * 4 :: add04
-  character * 15 :: spcttype
-  character * 17 :: f17
+  character(len=4) :: add04
+  character(len=15) :: spcttype
+  character(len=17) :: f17
   real( kind = kind( 1.0d0 ) ), allocatable, dimension( :, :, : ) :: ifcn
   complex( kind = kind( 1.0d0 ) ), allocatable, dimension( :, :, :, : ) :: nbsemel
   !
@@ -63,16 +63,31 @@ subroutine cmjtv( nsphpt, xsph, ysph, zsph, wsph, prefs )
   write ( 6, '(3(1f10.5))' ) ehat( : ), qhat( : )
   select case( spcttype )
   case( 'dipole' )
-     lam = 10000.0d0 / ( ephotev / 0.806554445d0 )
+     lam = 10000.0d0 / ( ephotev * 0.806554445d0 )
      q = 0.529177d0 * ( 2.0d0 * pi / lam )
   case( 'quad' )
-     lam = 10000.0d0 / ( ephotev / 0.806554445d0 )
+     lam = 10000.0d0 / ( ephotev * 0.806554445d0 )
      q = 0.529177d0 * ( 2.0d0 * pi / lam )
   case( 'quadalone' )
-     lam = 10000.0d0 / ( ephotev / 0.806554445d0 )
+     lam = 10000.0d0 / ( ephotev * 0.806554445d0 )
      q = 0.529177d0 * ( 2.0d0 * pi / lam )
   case( 'NRIXS' )
+      write(6,*) 'NRIXS is deprecated in favor of qRaman. Consider changing your inputs'
      ! nothing needs to be done!!!
+  case( 'ldos0' )
+     ! nothing needs to be done!!!
+  case( 'ldos1' )
+     ! nothing needs to be done!!!
+  case( 'ldos2' )
+     ! nothing needs to be done!!!
+  case( 'qRaman' )
+     ! nothing needs to be done!!!
+
+  case default
+     write(6,*) "Photon type was not recognized. Must be one of the following:"
+     write(6,*) "      dipole, quad, quadalone, NRIXS, qRaman"
+     stop
+
   end select
   write ( 6, '(1a4,1f10.5)' ) 'q = ', q
   !

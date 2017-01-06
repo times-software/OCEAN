@@ -13,11 +13,22 @@ module OCEAN_bloch
 
 
   ! these guys have no position phasing
-  ! bands, kpts, xpoints, spins
   real(DP), pointer :: re_bloch_state( :, :, :, : )
   real(DP), pointer :: im_bloch_state( :, :, :, : )
+
+
+  ! these guys do. There is no reason for them not to
+  real(DP), pointer :: re_v_bloch_state( :, :, : )
+  real(DP), pointer :: im_v_bloch_state( :, :, : )
+
 #ifdef HAVE_CONTIGUOUS
   CONTIGUOUS :: re_bloch_state, im_bloch_state
+  CONTIGUOUS :: re_v_bloch_state, im_v_bloch_state
+#endif
+
+#ifdef __INTEL
+!dir$ attributes align:64 :: re_bloch_state, im_bloch_state
+!dir$ attributes align:64 :: re_v_bloch_state, im_v_bloch_state
 #endif
 
 
@@ -25,10 +36,15 @@ module OCEAN_bloch
   INTEGER :: my_xpts
   INTEGER :: my_kpts
   INTEGER :: my_num_bands
+  INTEGER :: my_val_bands
   INTEGER :: my_start_nx
+
+  INTEGER :: xshift_override( 3 )
   
   LOGICAL :: is_init = .false.
+  LOGICAL :: is_val_init = .false.
   LOGICAL :: is_loaded = .false.
+  LOGICAL :: is_val_loaded = .false.
 
 
   public :: OCEAN_bloch_init, OCEAN_bloch_load, OCEAN_bloch_lrINIT, OCEAN_bloch_lrLOAD, OCEAN_bloch_is_loaded
@@ -90,6 +106,8 @@ module OCEAN_bloch
       xshift( 3 ) = floor( real(sys%xmesh(3), kind( 1.0d0 )) * (tau(3)-0.5d0 ) )
     endif
     ! 
+    xshift(:) = xshift(:) * xshift_override(:)
+    !
     if( myid .eq. root ) write(6,*) 'Shifting X-grid by ', xshift(:)
     if( myid .eq. root ) write(6,*) 'Original tau ', tau(:)
     tau( 1 ) = tau(1) - real(xshift(1), kind( 1.0d0 ))/real(sys%xmesh(1), kind( 1.0d0 ))
@@ -206,7 +224,27 @@ module OCEAN_bloch
   end subroutine OCEAN_bloch_lrINIT
 
   subroutine OCEAN_bloch_init( sys, ierr )
-    use OCEAN_mpi, only : myid, nproc, root, comm
+    use OCEAN_system
+    implicit none
+
+    type( o_system ), intent( in ) :: sys
+    integer, intent( inout ) :: ierr
+
+!    if( sys%conduct ) then
+      call OCEAN_bloch_con_init( sys, ierr )
+      if( ierr .ne. 0 ) return
+!    endif
+
+    if( sys%valence ) then
+      call OCEAN_bloch_val_init( sys, ierr )
+      if( ierr .ne. 0 ) return
+    endif
+
+  end subroutine OCEAN_bloch_init
+     
+
+  subroutine OCEAN_bloch_con_init( sys, ierr )
+    use OCEAN_mpi!, only : myid, nproc, root, comm
     use OCEAN_system
     use iso_c_binding
     implicit none
@@ -219,8 +257,27 @@ module OCEAN_bloch
     integer( S_INT ) :: nx_left, nx_start, nx_tmp, i
     type(C_PTR) :: cptr
 
+    logical :: havefile
+
 
     if( is_init ) return
+
+    ! check on xshift override
+    xshift_override( : ) = 1
+    if( myid .eq. root ) then
+      inquire(file='xshift_override.ipt',exist=havefile )
+      if( havefile ) then
+        open( unit=99,file='xshift_override.ipt',form='formatted',status='old')
+        read(99,*) xshift_override(:)
+        close(99)
+        if( maxval( xshift_override ) .gt. 1 .or. minval( xshift_override ) .lt. 0 ) then
+          write(6,*) 'Invalid value in xshift_override.ipt. Reset to 1'
+          xshift_override(:) = 1
+        endif
+      endif
+    endif
+    call MPI_BCAST( xshift_override, 3, MPI_INTEGER, root, comm, ierr )
+    if( ierr .ne. 0 ) return
 
     ! SOP
     my_num_bands = sys%num_bands
@@ -244,20 +301,88 @@ module OCEAN_bloch
     endif
     
 
+#ifdef __INTEL
+    allocate( re_bloch_state( my_num_bands, my_kpts, my_xpts, sys%nspn ), &
+              im_bloch_state( my_num_bands, my_kpts, my_xpts, sys%nspn ), &
+              STAT=ierr )
+    if( ierr .ne. 0 ) return
+#else
     cptr = fftw_alloc_real( int(my_num_bands * my_kpts * my_xpts * sys%nspn, C_SIZE_T) )
     call c_f_pointer( cptr, re_bloch_state, [my_num_bands, my_kpts, my_xpts, sys%nspn] )
     cptr = fftw_alloc_real( int(my_num_bands * my_kpts * my_xpts * sys%nspn, C_SIZE_T) )
     call c_f_pointer( cptr, im_bloch_state, [my_num_bands, my_kpts, my_xpts, sys%nspn] )
+#endif
 
     is_init = .true.
 
+  end subroutine OCEAN_bloch_con_init
 
-  end subroutine OCEAN_bloch_init
+  subroutine OCEAN_bloch_val_init( sys, ierr )
+    use OCEAN_mpi!, only : myid, nproc, root, comm
+    use OCEAN_system
+    use iso_c_binding
+    implicit none
+    include 'fftw3.f03'
+    
+    type( o_system ), intent( in ) :: sys
+    integer, intent( inout ) :: ierr
+    
+
+    integer( S_INT ) :: nx_left, nx_start, nx_tmp, i
+    type(C_PTR) :: cptr 
+    
+
+    if( is_val_init ) return
+
+    ! SOP
+    my_val_bands = sys%val_bands
+
+    if( .not. is_init ) then
+      my_num_bands = sys%num_bands
+      my_kpts = sys%nkpts
+      nx_left = sys%nxpts
+      nx_start = 1
+      do i = 0, nproc - 1
+        nx_tmp = nx_left / ( nproc - i )
+        nx_left = nx_left - nx_tmp
+        if( myid .eq. root ) write(6,*) i, nx_tmp, nx_left, nx_start
+        if( i .eq. myid ) then
+          my_xpts = nx_tmp
+          my_start_nx = nx_start
+        endif
+        nx_start = nx_start + nx_tmp
+      enddo
+      if( myid .eq. root ) then
+        write(6,*) 'LR: NB, NK, NX_START, NX'
+        write(6,*) my_num_bands, my_kpts, myid
+        write(6,*) my_start_nx, my_xpts
+      endif
+    endif
+
+
+#ifdef __INTEL
+    allocate( re_bloch_state( my_v_num_bands, my_kpts, my_xpts ), &
+              im_bloch_state( my_v_num_bands, my_kpts, my_xpts ), &
+              STAT=ierr )
+    if( ierr .ne. 0 ) return
+#else
+    cptr = fftw_alloc_real( int(my_num_bands * my_kpts * my_xpts, C_SIZE_T) )
+    call c_f_pointer( cptr, re_v_bloch_state, [my_num_bands, my_kpts, my_xpts] )
+    cptr = fftw_alloc_real( int(my_num_bands * my_kpts * my_xpts, C_SIZE_T) )
+    call c_f_pointer( cptr, im_v_bloch_state, [my_num_bands, my_kpts, my_xpts] )
+#endif
+
+    is_val_init = .true.
+
+  end subroutine OCEAN_bloch_val_init
+
+
+
 
   subroutine OCEAN_bloch_load( sys, ierr )
-    use OCEAN_mpi, only : myid, nproc, root, comm
+    use OCEAN_mpi!, only : myid, nproc, root, comm
     use OCEAN_system
-    use mpi
+!    use mpi
     implicit none
 
     type( o_system ), intent( in ) :: sys
@@ -296,10 +421,14 @@ module OCEAN_bloch
       write(6,*) 'OCEAN_bloch_load'
     endif
 
-    if( is_init .eqv. .false. ) then 
-      call OCEAN_bloch_init( sys, ierr )
-      if( ierr .ne. 0 ) return
+    call OCEAN_bloch_init( sys, ierr )
+    if( ierr .ne. 0 ) then
+      write(6,*) "Bloch init failed"
+      return
     endif
+
+    call MPI_BARRIER( comm, ierr )
+    if( myid .eq. 0 ) write(6,*) "Finished Bloch init"
 
     if( ( .not. associated( re_bloch_state ) ) .or. ( .not. associated( im_bloch_state ) ) ) then
       ierr = -1
@@ -378,6 +507,13 @@ module OCEAN_bloch
                 im_transpose( sys%num_bands, sys%nxpts ) )
       open( unit=u2dat, file='u2.dat', form='unformatted', status='unknown' )
       rewind u2dat 
+    else
+      nx_left = sys%nxpts
+      do i = 0, myid
+        nx_tmp = nx_left / ( nproc - i )
+        nx_left = nx_left - nx_tmp
+      enddo
+      allocate( re_transpose( my_num_bands, nx_tmp ), im_transpose( my_num_bands, nx_tmp ) )
     endif
 
     do ispn = 1, sys%nspn
@@ -452,9 +588,9 @@ module OCEAN_bloch
               call MPI_SEND( re_transpose(1,nx_start), my_num_bands*nx_tmp, MPI_DOUBLE_PRECISION, i, i, comm, ierr )
               call MPI_SEND( im_transpose(1,nx_start), my_num_bands*nx_tmp, MPI_DOUBLE_PRECISION, i, i+nproc, comm, ierr )
             elseif( myid .eq. i ) then
-              if( iq .eq. 1 ) then
-                allocate( re_transpose( my_num_bands, nx_tmp ), im_transpose( my_num_bands, nx_tmp ) )
-              endif
+!              if( iq .eq. 1 .and. ispn .eq. 1 ) then
+!                allocate( re_transpose( my_num_bands, nx_tmp ), im_transpose( my_num_bands, nx_tmp ) )
+!              endif
 
               call MPI_RECV( re_transpose, my_num_bands*nx_tmp, MPI_DOUBLE_PRECISION, 0, &
                             i, comm, MPI_STATUS_IGNORE, ierr )
@@ -487,255 +623,16 @@ module OCEAN_bloch
       bloch_type = 'old'
       goto 112
 #else
-
-      if( myid .eq. root ) then
-        write(6,*) 'New U2 format'
-
-        open(unit=99,file='obf_control',form='formatted',status='old')
-        rewind(99)
-        read(99,*) width(1)
-        read(99,*) width(2)
-        read(99,*) width(3)
-        close(99)
-
-
-        write(6,*) my_start_nx, my_xpts
-
-        if( sys%kshift ) then
-          write(6,*) 'Two k-grids in u2'
-        endif
-
-
-      endif
-
-      call MPI_BCAST( width, 3, MPI_INTEGER, root, comm, ierr )
-      if( ierr .ne. 0 ) return
-
-      call MPI_BARRIER( comm, ierr )
-
-      if( myid .eq. root ) then
-        write(6,*) width(:)
-      endif
-        
-!      if( myid .eq. root ) then
-        fmode = MPI_MODE_RDONLY
-        call MPI_FILE_OPEN( comm, 'u2par.dat', fmode, MPI_INFO_NULL, fhu2, ierr )
-        if( ierr/=0 ) then
-          goto 111
-        endif
-        offset=0
-        !JTV At this point it would be good to create a custom MPI_DATATYPE
-        !  so that we can get optimized file writing
-        call MPI_TYPE_CONTIGUOUS( sys%nxpts, MPI_DOUBLE_COMPLEX, u2_type, ierr )
-        if( ierr/=0 ) then
-          goto 111
-        endif
-        call MPI_TYPE_COMMIT( u2_type, ierr )
-        if( ierr/=0 ) then
-          goto 111
-        endif
-
-        call MPI_FILE_SET_VIEW( fhu2, offset, u2_type, u2_type, 'native', MPI_INFO_NULL, ierr )
-        if( ierr/=0 ) then
-          goto 111
-        endif
-!      endif
-
-!      allocate( u2_buf( sys%xmesh(3), sys%xmesh(2), sys%xmesh(1), sys%num_bands ) )
-
-
-!JTV change up for valence/conduction choice
-
-      call system_clock( time1, tics_per, time2 )
-
-#ifdef FALSE
-      if( .false. ) then
-      do iq = 1, sys%nkpts
-
-        if( myid .eq. root ) then
-!          open( unit=99, file='gumatprog', form='formatted', status='unknown' )
-!          rewind 99
-!          write ( 99, '(2i8)' ) iq, sys%nkpts
-!          close( unit=99 )
-          if( mod(iq,10) .eq. 0 ) write(6,*) iq
-          if( metal ) then
-            read( 36, * ) dumint, ivh2
-            ivh2 = ivh2 - 1
-          endif
-        endif
-
-
-        call MPI_BCAST( ivh2, 1, MPI_INTEGER, root, comm, ierr )
-
-        ! skipping the occupied bands
-        offset = offset + ivh2 * sys%nxpts
-
-!        offset =  (iq-1) * width(3) * sys%nxpts + ivh2 * sys%nxpts
-        call mpi_file_read_at_all( fhu2, offset, u2_buf, sys%nxpts * sys%num_bands, &
-                                   MPI_DOUBLE_COMPLEX, MPI_STATUS_IGNORE, ierr )
-        if( ierr .ne. 0 ) then
-          write(6,*) 'u2 failed'
-          return
-        endif
-        ! backtrack the occupied and skip over the full k-point
-        offset = offset + ( width(3) - ivh2 ) * sys%nxpts
-
-
-!JTV if we didn't need the transpose we could map the u2par file and do a read-in directly
-        xiter = 1 - my_start_nx
-
-        do iz = 1, sys%xmesh(3)
-          do iy = 1, sys%xmesh(2)
-            do ix = 1, sys%xmesh(1)
-              xiter = xiter + 1
-              if( xiter .lt. 1 ) cycle
-              if( xiter .gt. my_xpts ) goto 113
-              re_bloch_state( :, iq, xiter ) = real(u2_buf( iz, iy, ix, : ))
-              im_bloch_state( :, iq, xiter ) = aimag(u2_buf( iz, iy, ix, : ))
-            enddo
-          enddo
-        enddo
-
-113 continue
-
-      enddo
-
-      else
-#endif
-        if( myid .eq. root ) then
-          allocate( re_transpose( sys%num_bands, sys%nxpts ), &
-                    im_transpose( sys%num_bands, sys%nxpts ) )
-          allocate( u2_buf( sys%xmesh(3), sys%xmesh(2), sys%xmesh(1), sys%num_bands ) )
-        endif
-
-!  u2 is stored by k-point. If there is a shift then
-!    we store bands 1 - max_val :/ unshifted
-!             bands 1 - max :/ shifted
-!    
-        if( sys%kshift ) then
-          if( sys%conduct ) then
-            offset_start = width(2)
-            offset_extra = 0
-          else 
-            offset_start = 0
-            offset_extra = width(2)
-          endif
-!            offset_extra = width(2)
-!          else
-!            offset_extra = width3
-!          endif
-        else
-          offset_extra = 0
-          offset_start = 0
-        endif
-
-        if( myid .eq. root ) then
-          write(6,*) offset_start, offset_extra
-        endif
-
-!       Upcast nxpts to avoid possible overflow
-        offset_nx = sys%nxpts
-
-
-        do ispn = 1, sys%nspn
-         do iq = 1, sys%nkpts
-
-          if( myid .eq. root ) then
-            if( metal ) then
-              read( 36, * ) dumint, ivh2
-              ivh2 = ivh2 - 1
-            endif
-            if( mod(iq,10) .eq. 0 ) write(6,*) iq, ivh2, ispn
-
-          ! skipping the occupied bands
-!            offset = offset + ivh2 * sys%nxpts
-!!!            offset = offset + (ivh2+offset_start) * offset_nx
-!            call mpi_file_read_at( fhu2, offset, u2_buf, sys%nxpts * sys%num_bands, &
-!                                   MPI_DOUBLE_COMPLEX, MPI_STATUS_IGNORE, ierr )
-
-            offset = offset + ivh2
-
-            do ibd = 1, nbd
-              call mpi_file_read_at( fhu2, offset, u2_buf(1,1,1,ibd), 1, u2_type, u2_status, ierr )
-              if( ierr .ne. 0 ) then
-                write(6,*) 'u2 failed', ierr, iq
-                return
-              endif
-              call MPI_GET_COUNT( u2_status, u2_type, ncount, ierr )
-!              if( ncount .ne. sys%num_bands ) then
-              if( ncount .ne. 1 ) then
-                write(6,*) 'u2 read failed.', ncount, sys%num_bands, iq
-                ierr = -100
-                return
-              endif
-              offset = offset + 1
-            enddo
-
-!            ! backtrack the occupied and skip over the full k-point
-!!            offset = offset + ( width(3) - ivh2 + offset_extra ) * offset_nx !sys%nxpts
-!            offset = offset + ( width(3) - ivh2 ) * offset_nx
-            offset = offset + ( width(3) - ivh2 - nbd) !* offset_nx
-            xiter = 0
-            do iz = 1, nz
-              do iy = 1, ny
-                do ix = 1, nx
-                  xiter = xiter + 1
-                  do ibd = 1, nbd
-                    re_transpose( ibd, xiter ) = real(u2_buf( iz, iy, ix, ibd ))
-                    im_transpose( ibd, xiter ) = aimag(u2_buf( iz, iy, ix, ibd ))
-                  end do
-                end do
-              end do
-            end do
-          endif
-
-         nx_left = sys%nxpts
-         nx_start = 1 
-         do i = 0, nproc - 1
-           nx_tmp = nx_left / ( nproc - i )
-           nx_left = nx_left - nx_tmp
-           if( myid .eq. root .and. iq .eq. 1 ) write(6,*) i, nx_start, nx_tmp
-           if( i .eq. root .and. myid .eq. root ) then
-             re_bloch_state( :, iq, :, ispn ) = re_transpose( :, nx_start : nx_start + nx_tmp - 1 )
-             im_bloch_state( :, iq, :, ispn ) = im_transpose( :, nx_start : nx_start + nx_tmp - 1 )
-#ifdef MPI
-           elseif( myid .eq. root ) then
-             call MPI_SEND( re_transpose(1,nx_start), my_num_bands*nx_tmp, MPI_DOUBLE_PRECISION, i, i, comm, ierr )
-             call MPI_SEND( im_transpose(1,nx_start), my_num_bands*nx_tmp, MPI_DOUBLE_PRECISION, i, i+nproc, comm, ierr )
-           elseif( myid .eq. i ) then
-             if( iq .eq. 1 .and. ispn .eq. 1 ) then
-               allocate( re_transpose( my_num_bands, nx_tmp ), im_transpose( my_num_bands, nx_tmp ) )
-             endif
-
-             call MPI_RECV( re_transpose, my_num_bands*nx_tmp, MPI_DOUBLE_PRECISION, 0, &
-                            i, comm, MPI_STATUS_IGNORE, ierr )
-             call MPI_RECV( im_transpose, my_num_bands*nx_tmp, MPI_DOUBLE_PRECISION, 0, &
-                            i+nproc, comm, MPI_STATUS_IGNORE, ierr )
-             re_bloch_state( :, iq, :, ispn ) = re_transpose( :, : )
-             im_bloch_state( :, iq, :, ispn ) = im_transpose( :, : )
-#endif
-           endif
-           nx_start = nx_start + nx_tmp
-          enddo
-        enddo
-       enddo
-         
-
-        deallocate( re_transpose, im_transpose )
-
-!      endif
-      call system_clock( time2 )
-
-      call MPI_FILE_CLOSE( fhu2, ierr )
-
-
-      if( myid .eq. root ) deallocate( u2_buf )
-
-      if( myid .eq. root ) write(6,*) 'Read-in took ', dble( time2-time1 ) / dble( tics_per )
-
+    call load_new_u2(  sys, ierr, 36, metal, ivh2 )
+    if( ierr .ne. 0 ) then
+      if( myid .eq. 0 ) write(6,*) 'new_u2 failed'
+      return
+    endif
 
 #endif
     case( 'obf' )
+
+      ierr = -2
 
 #ifndef MPI
       if( myid .eq. root ) write(6,*) 'OBF requires MPI'
@@ -764,12 +661,6 @@ module OCEAN_bloch
       bloch_type = 'old'
 
     end select
-      
-
-
-
-
-
 
 111 continue
 
@@ -782,5 +673,306 @@ module OCEAN_bloch
 
   end subroutine OCEAN_bloch_load
 
+
+  subroutine load_new_u2( sys, ierr, fh_ibeg, metal, ivh2 )
+    use OCEAN_mpi!, only : myid, nproc, root, comm
+    use OCEAN_system
+!    use mpi
+    implicit none
+    
+    type( o_system ), intent( in ) :: sys
+    integer, intent( in ) :: fh_ibeg !ibeg( sys%nkpts, sys%nspn )
+    logical, intent( in ) :: metal
+    integer, intent( inout ) :: ivh2
+    integer, intent( inout ) :: ierr
+
+    real( DP ), allocatable :: re_transpose( :, : ), im_transpose( :, : )
+    complex( DP ), allocatable :: u2_buf( :, :, :, : )
+    
+    integer :: ix, iy, iz, nx_left, nx_start, nx_tmp, xiter, iq, ibd, i, ispn
+
+    integer :: width(3), iq_ten
+    integer :: fmode, fhu2, u2_type, u2_status(MPI_STATUS_SIZE), ncount, io_comm, nelement
+    integer(kind=MPI_OFFSET_KIND) :: offset, offset_extra, offset_nx, offset_start
+    integer(8) :: time1, time2, tics_per
+    
+    logical :: io_group = .false.
+
+    logical :: io_style = .false.
+
+    
+    call MPI_BARRIER( comm, ierr )
+
+    iq_ten = max(1,sys%nkpts/10)
+
+    
+    if( myid .eq. root ) then
+      write(6,*) 'New U2 format'
+
+      open(unit=99,file='obf_control',form='formatted',status='old')
+      rewind(99)
+      read(99,*) width(1)
+      read(99,*) width(2)
+      read(99,*) width(3)
+      close(99)
+
+
+      write(6,*) my_start_nx, my_xpts
+
+      if( sys%kshift ) then
+        write(6,*) 'Two k-grids in u2'
+      endif
+    endif
+
+    call MPI_BCAST( width, 3, MPI_INTEGER, root, comm, ierr )
+    if( ierr .ne. 0 ) return
+
+
+    if( myid .eq. root ) then
+      write(6,*) width(:)
+    endif
+
+
+    ! Create i/o comm
+    if( myid .eq. root ) then
+      io_group = .true.
+    endif
+  
+    if( io_group ) then
+      call MPI_COMM_SPLIT( comm, 1, myid, io_comm, ierr )
+      if( ierr .ne. 0 ) return
+    else
+      call MPI_COMM_SPLIT( comm, MPI_UNDEFINED, myid, io_comm, ierr )
+      if( ierr .ne. 0 ) return
+    endif
+      
+    if( myid .eq. root ) then
+      fmode = MPI_MODE_RDONLY
+      call MPI_FILE_OPEN( io_comm, 'u2par.dat', fmode, MPI_INFO_NULL, fhu2, ierr )
+      if( ierr/=0 ) then
+        return
+      endif
+      offset=0
+      !JTV At this point it would be good to create a custom MPI_DATATYPE
+      !  so that we can get optimized file writing
+      call MPI_TYPE_CONTIGUOUS( sys%nxpts, MPI_DOUBLE_COMPLEX, u2_type, ierr )
+      if( ierr/=0 ) then
+        return
+      endif
+      call MPI_TYPE_COMMIT( u2_type, ierr )
+      if( ierr/=0 ) then
+        return
+      endif
+
+      if( io_style) then
+        call MPI_FILE_SET_VIEW( fhu2, offset, u2_type, u2_type, 'native', MPI_INFO_NULL, ierr )
+      else
+        call MPI_FILE_SET_VIEW( fhu2, offset, MPI_DOUBLE_COMPLEX, MPI_DOUBLE_COMPLEX, 'native', MPI_INFO_NULL, ierr )
+      endif
+      if( ierr/=0 ) then
+        return
+      endif
+    endif
+
+
+
+!JTV change up for valence/conduction choice
+
+    call system_clock( time1, tics_per, time2 )
+
+    if( myid .eq. root ) then
+      allocate( re_transpose( sys%num_bands, sys%nxpts ), &
+                im_transpose( sys%num_bands, sys%nxpts ) )
+      allocate( u2_buf( sys%xmesh(3), sys%xmesh(2), sys%xmesh(1), sys%num_bands ) )
+    endif
+
+!  u2 is stored by k-point. If there is a shift then
+!    we store bands 1 - max_val :/ unshifted
+!             bands 1 - max :/ shifted
+!    
+    if( sys%kshift ) then
+      if( sys%conduct ) then
+        offset_start = width(2)
+        offset_extra = 0
+      else 
+        offset_start = 0
+        offset_extra = width(2)
+      endif
+!            offset_extra = width(2)
+!          else
+!            offset_extra = width3
+!          endif
+    else
+      offset_extra = 0
+      offset_start = 0
+    endif
+
+    if( myid .eq. root ) then
+      write(6,*) offset_start, offset_extra
+    endif
+
+
+    do ispn = 1, sys%nspn
+     do iq = 1, sys%nkpts
+
+      if( myid .eq. root ) then
+
+        if( metal ) then
+          read(fh_ibeg, * ) i, ivh2
+!          ivh2 = ibeg( iq, 1 ) - 1
+          ivh2 = ivh2 - 1
+        endif
+!        if( mod(iq,10) .eq. 0 ) write(6,*) iq, ivh2
+        if( mod(iq,iq_ten) .eq. 0 ) write(6,*) iq, ivh2
+
+
+        offset = int( ( iq - 1 ), MPI_OFFSET_KIND ) * int( width( 3 ), MPI_OFFSET_KIND ) &
+               + int( (ispn - 1)*sys%nkpts, MPI_OFFSET_KIND ) * int( width( 3 ), MPI_OFFSET_KIND )
+        if( .not. io_style ) then
+          offset = offset * int( sys%nxpts, MPI_OFFSET_KIND )
+        endif
+
+        if( sys%valence ) then
+          exit ! I need to fix
+
+          do ibd = 1, ivh2
+            call MPI_FILE_READ_AT( fhu2, offset, u2_buf(1,1,1,ibd), 1, u2_type, u2_status, ierr )
+            if( ierr .ne. 0 ) then
+              write(6,*) 'u2 failed', ierr, iq, ispn
+              return
+            endif
+            call MPI_GET_COUNT( u2_status, u2_type, ncount, ierr )
+            if( ncount .ne. 1 ) then
+              write(6,*) 'u2 read failed.', ncount, sys%num_bands, iq, ispn
+              ierr = -100
+              return
+            endif
+            offset = offset + 1
+          enddo
+
+          ! zero out bonus bands
+          do ibd = ivh2 + 1, sys%val_bands
+            u2_buf(:,:,:,ibd) = 0.0_dp
+          enddo
+
+        else
+          if( io_style ) then
+            offset = offset + int(ivh2,MPI_OFFSET_KIND)
+          else
+            offset = offset + int(ivh2,MPI_OFFSET_KIND) * int(sys%nxpts, MPI_OFFSET_KIND )
+          endif
+        endif
+
+      if( io_style .and. .true. ) then
+        call mpi_file_read_at( fhu2, offset, u2_buf, sys%num_bands, u2_type, u2_status, ierr )
+        if( ierr .ne. 0 ) then
+          write(6,*) 'u2 failed', ierr, iq, ispn
+          return
+        endif
+        call MPI_GET_COUNT( u2_status, u2_type, ncount, ierr )
+        if( ncount .ne. sys%num_bands ) then
+          write(6,*) 'u2 read failed.', ncount, sys%num_bands, iq, ispn
+        endif
+      elseif( io_style ) then
+        do ibd = 1, sys%num_bands
+          call mpi_file_read_at( fhu2, offset, u2_buf(1,1,1,ibd), 1, u2_type, u2_status, ierr )
+          if( ierr .ne. 0 ) then
+            write(6,*) 'u2 failed', ierr, iq, ispn
+            return
+          endif
+          call MPI_GET_COUNT( u2_status, u2_type, ncount, ierr )
+          if( ncount .ne. 1 ) then
+            write(6,*) 'u2 read failed.', ncount, sys%num_bands, iq, ispn
+            ierr = -100
+            return
+          endif
+          offset = offset + 1
+        enddo
+      else
+        do ibd = 1, sys%num_bands, 512
+          nelement = min( sys%num_bands - ibd + 1, 512 )
+          nelement = nelement * sys%nxpts
+
+          call MPI_FILE_READ_AT( fhu2, offset, u2_buf(1,1,1,ibd), nelement, MPI_DOUBLE_COMPLEX, &
+                                 u2_status, ierr )
+          if( ierr .ne. 0 ) then
+            write(6,*) 'u2 failed', ierr, iq, ispn
+            return
+          endif
+          call MPI_GET_COUNT( u2_status, MPI_DOUBLE_COMPLEX, ncount, ierr )
+          if( ncount .ne. nelement) then
+            write(6,*) 'u2 read failed.', ncount, nelement, iq, ispn
+  !          ierr = -100
+  !          return
+          endif
+
+          offset = offset + nelement
+
+        enddo
+
+      endif
+
+        offset = offset + ( width(3) - ivh2 - sys%num_bands) 
+        xiter = 0
+        do iz = 1, sys%xmesh(3)
+          do iy = 1, sys%xmesh(2)
+            do ix = 1, sys%xmesh(1)
+              xiter = xiter + 1
+              do ibd = 1, sys%num_bands
+                re_transpose( ibd, xiter ) = real(u2_buf( iz, iy, ix, ibd ))
+                im_transpose( ibd, xiter ) = aimag(u2_buf( iz, iy, ix, ibd ))
+              end do
+            end do
+          end do
+        end do
+
+      endif
+
+     nx_left = sys%nxpts
+     nx_start = 1 
+     do i = 0, nproc - 1
+       nx_tmp = nx_left / ( nproc - i )
+       nx_left = nx_left - nx_tmp
+       if( myid .eq. root .and. iq .eq. 1 ) write(6,*) i, nx_start, nx_tmp
+       if( i .eq. root .and. myid .eq. root ) then
+         re_bloch_state( :, iq, :, ispn ) = re_transpose( :, nx_start : nx_start + nx_tmp - 1 )
+         im_bloch_state( :, iq, :, ispn ) = im_transpose( :, nx_start : nx_start + nx_tmp - 1 )
+#ifdef MPI
+       elseif( myid .eq. root ) then
+         call MPI_SEND( re_transpose(1,nx_start), my_num_bands*nx_tmp, MPI_DOUBLE_PRECISION, i, i, comm, ierr )
+         call MPI_SEND( im_transpose(1,nx_start), my_num_bands*nx_tmp, MPI_DOUBLE_PRECISION, i, i+nproc, comm, ierr )
+       elseif( myid .eq. i ) then
+         if( iq .eq. 1 .and. ispn .eq. 1 ) then
+           allocate( re_transpose( my_num_bands, nx_tmp ), im_transpose( my_num_bands, nx_tmp ) )
+         endif
+
+         call MPI_RECV( re_transpose, my_num_bands*nx_tmp, MPI_DOUBLE_PRECISION, 0, &
+                        i, comm, MPI_STATUS_IGNORE, ierr )
+         call MPI_RECV( im_transpose, my_num_bands*nx_tmp, MPI_DOUBLE_PRECISION, 0, &
+                        i+nproc, comm, MPI_STATUS_IGNORE, ierr )
+         re_bloch_state( :, iq, :, ispn ) = re_transpose( :, : )
+         im_bloch_state( :, iq, :, ispn ) = im_transpose( :, : )
+#endif
+       endif
+       nx_start = nx_start + nx_tmp
+      enddo
+     enddo
+    enddo 
+
+  deallocate( re_transpose, im_transpose )
+
+  call system_clock( time2 )
+
+  if( io_group ) then
+    call MPI_FILE_CLOSE( fhu2, ierr )
+  endif
+
+
+  if( myid .eq. root ) deallocate( u2_buf )
+
+  if( myid .eq. root ) write(6,*) 'Read-in took ', dble( time2-time1 ) / dble( tics_per )
+
+
+  end subroutine load_new_u2
 
 end module OCEAN_bloch

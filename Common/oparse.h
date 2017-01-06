@@ -1,3 +1,7 @@
+calc
+{
+XAS
+} calc
 control
 {
 0
@@ -28,6 +32,7 @@ photon_q
 } qinunitsofbvectors.ipt
 nbands
 {
+-1
 } nbands
 dft_energy_range
 {
@@ -134,7 +139,7 @@ tolwfr
 } wftol
 nstep
 {
-20
+50
 } nrun
 verbatim
 {
@@ -144,6 +149,10 @@ para_prefix
 {
 # 
 } para_prefix
+ser_prefix
+{
+!
+} ser_prefix
 core
 {
 1
@@ -156,28 +165,28 @@ scfac
 {
 1.00
 } scfac
-paw.shells
+screen.shells
 {
-1.5 
-} paw.shells
-paw.hfkgrid
+3.5
+} screen.shells
+opf.hfkgrid
 {
 2000  32
-} paw.hfkgrid
-paw.fill
+} opf.hfkgrid
+opf.fill
 {
-} paw.fill
-paw.opts
+} opf.fill
+opf.opts
 {
-} paw.opts
-paw.nkpt
+} opf.opts
+screen.nkpt
 {
-0 0 0
-} paw.nkpt
-paw.nbands
+-1
+} screen.nkpt
+screen.nbands
 {
 0
-} paw.nbands
+} screen.nbands
 caution
 {
 .false.
@@ -204,7 +213,7 @@ cnbse.xmesh
 } xmesh.ipt
 cnbse.rad
 {
-1.5
+3.5
 } cnbse.rad
 cnbse.ways
 {
@@ -274,6 +283,18 @@ cnbse.gmres.ffff
 {
 0.00000005
 } cnbse.gmres.ffff
+cnbse.write_rhs
+{
+.false.
+} cnbse.write_rhs
+cnbse.gw.control
+{
+none
+} gw_control
+bse.gw.cstr
+{
+0.0
+} gwcstr
 scratch
 {
 scratchXX
@@ -319,6 +340,10 @@ work_dir
 {
 './Out'
 } work_dir
+tmp_dir
+{
+undefined
+} tmp_dir
 den.kshift
 {
 0 0 0
@@ -383,10 +408,6 @@ nbse.gwvstr
 {
 0.0
 } gwvstr
-nbse.gwcstr
-{
-0.0
-} gwcstr
 nbse.se_rs
 {
 -1
@@ -401,7 +422,7 @@ nbse.se_niter
 } se_niter
 nbse.spect_range
 {
-0 100 1000
+1000 0 100 
 } spect.h
 tot_charge
 {
@@ -435,3 +456,39 @@ screen_energy_range
 {
 100
 } screen_energy_range.ipt
+screen.grid.rmax
+{
+8
+} screen.grid.rmax
+screen.grid.nr
+{
+25
+} screen.grid.nr
+screen.grid.ang
+{
+lebdev 5
+} screen.grid.ang
+screen.grid.lmax
+{
+0
+} screen.grid.lmax
+screen.grid.nb
+{
+24
+} screen.grid.nb
+screen.final.rmax
+{
+100
+} screen.final.rmax
+screen.final.dr
+{
+0.1
+} screen.final.dr
+screen.model.dq
+{
+0.01
+} screen.model.dq
+screen.model.qmax
+{
+10
+} screen.model.qmax

@@ -1,5 +1,5 @@
 #!/usr/bin/perl
-# Copyright (C) 2014 OCEAN collaboration
+# Copyright (C) 2014, 2016 OCEAN collaboration
 #
 # This file is part of the OCEAN project and distributed under the terms 
 # of the University of Illinois/NCSA Open Source License. See the file 
@@ -28,7 +28,7 @@ $oldden = 1 if (-e "../DFT/old");
 
 
 my @QEFiles     = ( "rhoofr", "efermiinrydberg.ipt" );
-my @CommonFiles = ( "paw.nkpt", "nkpt", "qinunitsofbvectors.ipt", "avecsinbohr.ipt", "dft", "nspin", "xmesh.ipt" );
+my @CommonFiles = ( "screen.nkpt", "nkpt", "qinunitsofbvectors.ipt", "avecsinbohr.ipt", "dft", "nspin", "xmesh.ipt" );
 
 foreach (@QEFiles) {
   system("cp ../DFT/$_ .") == 0 or die "Failed to copy $_\n";
@@ -54,13 +54,13 @@ unless ($stat && $oldden) {
 }
 
 my $rundir;
-## process paw wf files ##
+## process screen wf files ##
 
-open NKPT, "paw.nkpt" or die "Failed to open paw.nkpt";
-<NKPT> =~ m/(\d+)\s+(\d+)\s+(\d+)/ or die "Failed to parse paw.nkpt\n";
+open NKPT, "screen.nkpt" or die "Failed to open screen.nkpt";
+<NKPT> =~ m/(\d+)\s+(\d+)\s+(\d+)/ or die "Failed to parse screen.nkpt\n";
 my @nkpt = ($1, $2, $3);
 close NKPT;
-$rundir = sprintf("../DFT/%03u%03u%03u", $nkpt[0], $nkpt[1], $nkpt[2]);
+$rundir = "../DFT/SCREEN";
 
 unless( -e "PAW/done" && -e "${rundir}/old" ) {
 `rm -r PAW` if (-e "PAW");

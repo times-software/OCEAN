@@ -1,9 +1,13 @@
-! Copyright (C) 2015 OCEAN collaboration
+! Copyright (C) 2015-2016 OCEAN collaboration
 !
 ! This file is part of the OCEAN project and distributed under the terms 
 ! of the University of Illinois/NCSA Open Source License. See the file 
 ! `License' in the root directory of the present distribution.
 !
+!
+! The purpose of this module is to wrap all ocean FFT calls.
+! Currently we support our legacy mode fft and fftw, but this will provide a 
+! centralized location for adding others.
 !
 module FFT_wrapper
 
@@ -14,116 +18,128 @@ module FFT_wrapper
 
   private
   save
-  
-  real(kind=kind(1.0d0)), allocatable :: wrk(:)
-  complex(kind=kind(1.0d0)), allocatable :: cwrk(:)
-
-  integer :: dims(4)
-  integer :: jfft
-
-  real(kind=kind(1.0d0)) :: norm
 
   integer, parameter :: OCEAN_FORWARD = 1
   integer, parameter :: OCEAN_BACKWARD = -1 
 
-#ifdef __FFTW3
-  type(C_PTR) :: fplan, bplan
-#endif
+  type fft_obj
+    integer :: dims(4)
+    integer :: jfft
 
+    real(kind=kind(1.0d0)) :: norm
+#ifdef __FFTW3
+    type(C_PTR) :: fplan, bplan
+#endif
+  end type fft_obj
+
+  public :: fft_obj
   public :: OCEAN_FORWARD, OCEAN_BACKWARD
   public :: FFT_wrapper_init, FFT_wrapper_delete, FFT_wrapper_split, FFT_wrapper_single
 
   contains
 
-  subroutine FFT_wrapper_init( zn, io )
+  subroutine FFT_wrapper_init( zn, fo, io )
     implicit none
 
     integer, intent(in ) :: zn(3)
     complex(kind=kind(1.0d0)), intent(inout), optional :: io(zn(1),zn(2),zn(3))
-    integer :: fftw_flags
+    type( fft_obj ), intent( out ) :: fo
+    complex(kind=kind(1.0d0)), allocatable :: cwrk(:)
     !
-    dims(1:3) = zn(:)
-    dims(4) = product( dims(1:3) )
+    fo%dims(1:3) = zn(:)
+    fo%dims(4) = product( fo%dims(1:3) )
 #ifdef __FFTW3
-    allocate( cwrk(dims(4)))
-    norm = 1.0d0 / dble( dims(4) )
+    fo%norm = 1.0d0 / dble( fo%dims(4) )
     
     if( present( io ) ) then
-      fplan = fftw_plan_dft_3d( dims(3), dims(2), dims(1), io, io, FFTW_FORWARD, FFTW_PATIENT )
-      bplan = fftw_plan_dft_3d( dims(3), dims(2), dims(1), io, io, FFTW_BACKWARD, FFTW_PATIENT )
+      fo%fplan = fftw_plan_dft_3d( fo%dims(3), fo%dims(2), fo%dims(1), io, io, FFTW_FORWARD, FFTW_PATIENT )
+      fo%bplan = fftw_plan_dft_3d( fo%dims(3), fo%dims(2), fo%dims(1), io, io, FFTW_BACKWARD, FFTW_PATIENT )
     else
-      fplan = fftw_plan_dft_3d( dims(3), dims(2), dims(1), cwrk, cwrk, FFTW_FORWARD, FFTW_PATIENT )
-      bplan = fftw_plan_dft_3d( dims(3), dims(2), dims(1), cwrk, cwrk, FFTW_BACKWARD, FFTW_PATIENT )
+      allocate( cwrk(fo%dims(4)))
+      fo%fplan = fftw_plan_dft_3d( fo%dims(3), fo%dims(2), fo%dims(1), cwrk, cwrk, FFTW_FORWARD, FFTW_PATIENT )
+      fo%bplan = fftw_plan_dft_3d( fo%dims(3), fo%dims(2), fo%dims(1), cwrk, cwrk, FFTW_BACKWARD, FFTW_PATIENT )
+      deallocate( cwrk )
     endif
-
 #else
-    norm = 1.0d0
-    jfft = 2 * max( zn( 1 ) * ( zn( 1 ) + 1 ), zn( 2 ) * ( zn( 2 ) + 1 ), zn( 3 ) * ( zn( 3 ) + 1 ) )
-    allocate( wrk( jfft ) )
+    fo%norm = 1.0d0
+    fo%jfft = 2 * max( zn( 1 ) * ( zn( 1 ) + 1 ), zn( 2 ) * ( zn( 2 ) + 1 ), zn( 3 ) * ( zn( 3 ) + 1 ) )
 #endif
   end subroutine FFT_wrapper_init
 
-  subroutine FFT_wrapper_delete()
+  subroutine FFT_wrapper_delete( fo )
     implicit none
+    type( fft_obj ), intent( inout ) :: fo
 
 #ifdef __FFTW3
-    call dfftw_destroy_plan(fplan)
-    call dfftw_destroy_plan(bplan)
-    deallocate(cwrk)
-#else
-    deallocate(wrk)
+    call dfftw_destroy_plan(fo%fplan)
+    call dfftw_destroy_plan(fo%bplan)
 #endif
 
   end subroutine FFT_wrapper_delete
 
 
-  subroutine FFT_wrapper_split( r, i, dir )
+  subroutine FFT_wrapper_split( r, i, dir, fo )
     implicit none
-    real(kind=kind(1.0d0)), intent( inout ) :: r(dims(4))
-    real(kind=kind(1.0d0)), intent( inout ) :: i(dims(4))
+    type( fft_obj ), intent( inout ) :: fo
+    real(kind=kind(1.0d0)), intent( inout ) :: r(fo%dims(4))
+    real(kind=kind(1.0d0)), intent( inout ) :: i(fo%dims(4))
     integer, intent( in ) :: dir
+    !
+#ifdef __FFTW3
+    complex(kind=kind(1.0d0)), allocatable :: wrk(:)
+#else
+    real(kind=kind(1.0d0)), allocatable :: wrk(:)
+#endif
+    
 
 #ifdef __FFTW3
-    cwrk(:) = cmplx(r(:),i(:))
+    allocate( wrk( fo%dims(4) ) )
+    wrk(:) = cmplx(r(:),i(:))
     if( dir .eq. OCEAN_FORWARD ) then
-      call fftw_execute_dft( fplan, cwrk, cwrk )
+      call fftw_execute_dft( fo%fplan, wrk, wrk )
     else
-      call fftw_execute_dft( bplan, cwrk, cwrk )
+      call fftw_execute_dft( fo%bplan, wrk, wrk )
     endif
-    r(:) = real(cwrk(:))*norm
-    i(:) = aimag(cwrk(:))*norm
+    r(:) = real(wrk(:))*fo%norm
+    i(:) = aimag(wrk(:))*fo%norm
 #else
-    call cfft( r, i, dims(1), dims(1), dims(2), dims(3), dir, wrk, jfft )
+    allocate( wrk( fo%jfft ) )
+    call cfft( r, i, fo%dims(1), fo%dims(1), fo%dims(2), fo%dims(3), dir, fo%wrk, fo%jfft )
 #endif
+
+    deallocate( wrk )
   end subroutine FFT_wrapper_split
 
 
 
-  subroutine FFT_wrapper_single( io, dir )
+  subroutine FFT_wrapper_single( io, dir, fo )
     implicit none
+    type( fft_obj ), intent( inout ) :: fo
 #ifdef __FFTW3
-    complex(kind=kind(1.0d0)), intent( inout ) :: io( dims(1), dims(2), dims(3) )
+    complex(kind=kind(1.0d0)), intent( inout ) :: io( fo%dims(1), fo%dims(2), fo%dims(3) )
 #else
-    complex(kind=kind(1.0d0)), intent( inout ) :: io(dims(4))
+    complex(kind=kind(1.0d0)), intent( inout ) :: io( fo%dims(4))
 #endif
     integer, intent( in ) :: dir
     !
 #ifndef __FFTW3
-    real(kind=kind(1.0d0)) :: r(dims(4)), i(dims(4))
+    real(kind=kind(1.0d0)), allocatable :: wrk(:), r(:), i(:)
 #endif
 
 #ifdef __FFTW3
     if( dir .eq. OCEAN_FORWARD ) then
-      call fftw_execute_dft( fplan, io, io )
+      call fftw_execute_dft( fo%fplan, io, io )
     else
-      call fftw_execute_dft( bplan, io, io )
+      call fftw_execute_dft( fo%bplan, io, io )
     endif
-    io(:,:,:) = io(:,:,:) * norm
+    io(:,:,:) = io(:,:,:) * fo%norm
 #else
+    allocate( r( fo%dims(4) ), i( fo%dims(4) ), wrk( fo%jfft ) )
     r(:) = real(io(:))
     i(:) = aimag(io(:))
     call cfft( r, i, dims(1), dims(1), dims(2), dims(3), dir, wrk, jfft )
     io(:) = cmplx(r(:),i(:))
+    deallocate( r, i, wrk )
 #endif
   end subroutine FFT_wrapper_single
 

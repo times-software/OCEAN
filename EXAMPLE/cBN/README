@@ -1,0 +1,4 @@
+Inputs for cubic boron nitride
+
+(For the OBFs a higher quality calculation is required to match 
+ABINIT and QE outputs, and is supplied as cBN_hq and absspct_hq).

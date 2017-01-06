@@ -39,7 +39,7 @@ inelastic x-ray spectra (NRIXS) of periodic systems. The code is written in Fort
 
 \vspace*{\stretch{1}}
 
- \noindent This document is copyright \copyright\ 2010-2015 \program{ocean} collaboration, University of Washington. Following conventions of the FEFF documentation
+ \noindent This document is copyright \copyright\ 2010-2016 \program{ocean} collaboration, University of Washington. Following conventions of the FEFF documentation
 
 \end{abstract}
 
@@ -57,13 +57,13 @@ inelastic x-ray spectra (NRIXS) of periodic systems. The code is written in Fort
 
 \program{ocean} provides a package to numerically solve the Bethe-Salpeter equation for core-level excitations. 
 There are several steps in the process which use a variety of compiled programs and scripts. 
-The entire processes is driven by the main script \program{ocean.pl}, though the experieced user 
+The entire processes is driven by the main script \program{ocean.pl}, though the experienced user 
 can easily run subsections of the code individually.
 The \program{ocean} workflow is as follows:
 
 \begin{enumerate}
 \item Setup and parsing of the input file
-\item Atomic calculation to construct PAW-style projectors
+\item Atomic calculation to construct PAW-style optimal projector functions (OPFs)
 \item DFT calculation using one of several external DFT codes
 \item Calculation to determine the core-hole screening
 \item BSE calculation to get the final spectrum or spectra
@@ -97,7 +97,7 @@ The guide is broken up into sections to follow the path the code will take.
 The \program{ocean} code is based historically off of the NIST BSE codes of Eric Shirley. 
 The development of \program{ocean} grew out of  collaboration between Eric Shirley and John Rehr at the University of Washington by way of the thesis project of John Vinson. 
 
-Select \program{ocean} and \program{ocean}-precusor papers (in reverse chronological order) :
+Select \program{ocean} and \program{ocean}-precursor papers (in reverse chronological order) :
 \begin{itemize}
 \item K.\ Gilmore, John Vinson, E.\ L.\ Shirley, D.\ Prendergast, C.\ D.\ Pemmaraju, J.\ J.\ Kas, F.\ D.\ Vila, J.\ J.\ Rehr, Comp. Phys. Comm., (in press)
 \item J.\ Vinson, J.\ J.\ Rehr, J.\ J.\ Kas, and E.\ L.\ Shirley, Phys.\ Rev.\ B \textbf{83}, 115106 (2011)
@@ -123,7 +123,7 @@ John Vinson \\
 
 \chapter{Tutorials}
 
-This chapter will run through several tutorials showcasing some of the things \program{ocean} can do and highlighting some of the strategies once can use to make sure a result is ``converged.'' The issue of error estimation in computational physics is a bit beyond this tutorial, but we will focus on what it takes to get a spectrum out of \program{ocean} that is a true representation of the underlying theories and approximations: DFT, pseudopotenials, BSE, \&c. All of the initial inputs can be found in the \file{EXAMPLES} directory. Each section will use a single system to focus on some feature or settings. 
+This chapter will run through several tutorials showcasing some of the things \program{ocean} can do and highlighting some of the strategies once can use to make sure a result is ``converged.'' The issue of error estimation in computational physics is a bit beyond this tutorial, but we will focus on what it takes to get a spectrum out of \program{ocean} that is a true representation of the underlying theories and approximations: DFT, pseudopotentials, BSE, \&c. All of the initial inputs can be found in the \file{EXAMPLES} directory. Each section will use a single system to focus on some feature or settings. 
 
 %The purpose of this chapter is to work through a sample \program{ocean} calculation. Go to the \file{EXAMPLES/rutile} directory and look at the file \file{rutile.in}. This is the main input file. For this example let \file{\$OCEAN\_DIR} be the location of the installed \program{ocean} package. Running the command \texttt{\textsl{\$OCEAN\_DIR/ocean.pl rutile.in}} will run ocean. Run this now. If everything runs correctly the main output will be the file \file{CNBSE/absspct} which can be plotted against the included \file{absspct} file to check that the calculation worked.
 
@@ -136,7 +136,7 @@ Computationally it is a good testbed because it is undistorted and both the tita
 \end{itemize}
 All of the necessary files to run should be here. The main input is \file{STO.in} and will require some minor editing before we run. 
 
-When you run \program{ocean} you need to decide how many processors to run on. This can range from 1 on your laptop to thousands on a cluster. {\it Nb.\ When running locally I would recommend selecting fewer processors than your machine has.} You also need to know how your MPI (Message Passing Interface) is called. MPI is what allows the DFT codes to run across many, many nodes on a cluser. Two popular, open-source MPI distributions are \program{mpich} and OpenMPI. To call \program{mpich} you need to use ``mpiexec -n {\it N$_P$''} whereas for OpenMPI the usage is ``mpirun -n {\it N$_P$''} where {\it N$_P$} is the number of processors you want to run on. This information (the wrapper mpiexec/mpirun and {\it N$_P$)} is placed in the input file in \htmlref{PARA\_PREFIX}{card:paraprefix}.
+When you run \program{ocean} you need to decide how many processors to run on. This can range from 1 on your laptop to thousands on a cluster. {\it Nb.\ When running locally I would recommend selecting fewer processors than your machine has.} You also need to know how your MPI (Message Passing Interface) is called. MPI is what allows the DFT codes to run across many, many nodes on a cluster. Two popular, open-source MPI distributions are \program{mpich} and OpenMPI. To call \program{mpich} you need to use ``mpiexec -n {\it N$_P$''} whereas for OpenMPI the usage is ``mpirun -n {\it N$_P$''} where {\it N$_P$} is the number of processors you want to run on. This information (the wrapper mpiexec/mpirun and {\it N$_P$)} is placed in the input file in \htmlref{PARA\_PREFIX}{card:paraprefix}.
 
 The second choice you will need to make before running is which DFT code you want to use. If only one is installed then your choice is easy. Currently \program{ocean} supports \program{abinit} and \program{QuantumEspresso}. Either will work fine, but for historical reasons the default is \program{abinit}. Selection between the two is accomplished via the \htmlref{DFT}{card:dft}  parameter which can be set to either ``qe'' or ``abi.''
 \begin{itemize}
@@ -146,10 +146,10 @@ Before looking at any of the other files or settings we want to get the calculat
 \begin{itemize}
 \item Run \program{ocean}: \texttt{\textsl{/path/to/ocean/ocean.pl STO.in}}
 \end{itemize}
-While that is running we can look at the other files that were included. First we have the pseudopotential files: \file{*.fhi} and \file{*.fhi.UPF}. Psuedopotentials are covered briefly in chapter \ref{ground_state}. They are necessary for any \program{ocean} calculation. The files \file{ti.opts} and \file{ti.fill} provide a description of the titanium pseudopotential and tell \program{ocean} information about how to construct the matrix elements between the core and the valence electrons (see chapter \ref{paw}). There is also the file \file{photon1} which describes the x-ray experiment being done. In this example we are looking at x-ray absorption, including both dipole and quadrupole terms in the electron-photon interaction. The photon file specifies the direction for the x-ray's polarization $\epsilon$ and momentum $q$ as well as the 
-approximant energy (which for the titanium L$_{2,3}$ edge is around 450~eV). A complete description of the photon file format is avaiable in section \ref{photon_files}.
+While that is running we can look at the other files that were included. First we have the pseudopotential files: \file{*.fhi} and \file{*.fhi.UPF}. Psuedopotentials are covered briefly in chapter \ref{ground_state}. They are necessary for any \program{ocean} calculation. The files \file{ti.opts} and \file{ti.fill} provide a description of the titanium pseudopotential and tell \program{ocean} information about how to construct the matrix elements between the core and the valence electrons (see chapter \ref{opf}). There is also the file \file{photon1} which describes the x-ray experiment being done. In this example we are looking at x-ray absorption, including both dipole and quadrupole terms in the electron-photon interaction. The photon file specifies the direction for the x-ray's polarization $\epsilon$ and momentum $q$ as well as the 
+approximate energy (which for the titanium L$_{2,3}$ edge is around 450~eV). A complete description of the photon file format is available in section \ref{photon_files}.
 
-As \program{ocean} runs it will move between several different directories. First it will parse the input file and put all of the settings for the run into the \file{Common} directory. Next it will carry out a series of atomic calculations to determine the localized basis and matrix elements for the core-level to valence excitations in the \file{PAW} directory. The ground-state DFT calculations will be carried out in \file{DFT}, and then a translation into \program{ocean} formatted files will take place in \file{PREP}. The screening of the core-hole potential is done in \file{SCREEN}, and finally the Bethe-Salpeter calculation is carried out in \file{CNBSE}.
+As \program{ocean} runs it will move between several different directories. First it will parse the input file and put all of the settings for the run into the \file{Common} directory. Next it will carry out a series of atomic calculations to determine the localized basis and matrix elements for the core-level to valence excitations in the \file{OPF} directory. The ground-state DFT calculations will be carried out in \file{DFT}, and then a translation into \program{ocean} formatted files will take place in \file{PREP}. The screening of the core-hole potential is done in \file{SCREEN}, and finally the Bethe-Salpeter calculation is carried out in \file{CNBSE}.
 
 \begin{figure}
 \center
@@ -159,25 +159,25 @@ As \program{ocean} runs it will move between several different directories. Firs
 \end{figure}
 
 
-When \program{ocean} has finished running there will be files called \file{absspct*} in the \file{CNBSE} directory. The naming scheme for these files is straight-forward, but long. Our run will have created the file \file{absspct\_Ti.0001\_2p\_01'}. This means that this \file{absspct} file is for titanium (Ti); it is the first titanium listed in the structure (0001); we ran for the L$_{2,3}$ edge or, equivelantly, the 2$p$ core levels (2p); and the corresponding photon file is \file{photon1} (01). The current \program{ocean} code can support up to 9999 different atomic sites and 99 different photon specifications. {\it If for example you were running on a very large, disordered cell like liquid water and comparing to NRIXS with a dozen different values for the momentum transfer you could run all of them and the outputs would be nicely labeled.}
+When \program{ocean} has finished running there will be files called \file{absspct*} in the \file{CNBSE} directory. The naming scheme for these files is straight-forward, but long. Our run will have created the file \file{absspct\_Ti.0001\_2p\_01}. This means that this \file{absspct} file is for titanium (Ti); it is the first titanium listed in the structure (0001); we ran for the L$_{2,3}$ edge or, equivalently, the 2$p$ core levels (2p); and the corresponding photon file is \file{photon1} (01). The current \program{ocean} code can support up to 9999 different atomic sites and 99 different photon specifications. {\it If, for example, you were running on a very large, disordered cell like liquid water and comparing to NRIXS with a dozen different values for the momentum transfer you could run all of them and the outputs would be nicely labeled.}
 
 We need to check the results, so we will plot the resulting \file{absspct\_Ti.0001\_2p\_01} and compare to the included \file{absspct} file in the base \file{STO} directory.
 \begin{itemize}
 \item Open gnuplot (or your other favorite plotting tool) and compare your spectrum to the included one
 \end{itemize}
-The two should match very closely, but with the quality settings in the input there may well be differences between the DFT codes (see figure \ref{STO_plot}). The 3{\it d} transition metals highlight the breakdown of a single-particle picture for x-ray absorption. A quick count shows that the intensity ratio between the L$_2$ and the L$_3$ edges should be 2:1 from the intial occupations of the 2$p_{3/2}$ and 2$p_{1/2}$. Instead for titanium we see a ratio of less than 1. The spin-orbit splitting of the 2{\it p} orbitals is not diagonal in the same basis as the conduction band $d$ states, and so trying to move backward from the spectrum to the ground-state density of states (for either the 2$p$ or 3$d$ levels) can be difficult, but the BSE approach in \program{ocean} makes it easy.
+The two should match very closely, but with the quality settings in the input there may well be differences between the DFT codes (see figure \ref{STO_plot}). The 3{\it d} transition metals highlight the breakdown of a single-particle picture for x-ray absorption. A quick count shows that the intensity ratio between the L$_3$ and the L$_2$ edges should be 2:1 from the initial occupations of the 2$p_{3/2}$ and 2$p_{1/2}$. Instead for titanium we see a ratio of less than 1. The spin-orbit splitting of the 2{\it p} orbitals is not diagonal in the same basis as the conduction band $d$ states, and so trying to move backward from the spectrum to the ground-state density of states (for either the 2$p$ or 3$d$ levels) can be difficult, but the BSE approach in \program{ocean} makes it easy.
 
 \section{Core-level shifts with NH$_4$NO$_3$}
 
 Ammonium nitrate is a wide band gap crystalline solid. Nitrogen atoms occupy central positions in the two constituent ions NH$_4^+$ and NO$_3^-$. Given the difference in chemical environment between hydrogen and oxygen nearest neighbors it is of no surprise that there is a significant shift in the energy of the 1{\it s} electrons between the two nitrogen sites. Therefore NH$_4$NO$_3$ makes a good example to look at how we can account for these shifts within \program{ocean}. As always with our tutorials, feel free to start the calculation  and then read while it is running.
 
-There are several methods used for calculating energy levels in core-level spectroscopy. For completeness we will give an overview of them here. The most straightforward, popular in quantum chemistry techniques, is to directly compare the energies of initial and final states. This requires that you calculate explicit initial and final states as well as the core level wavefunction. Pseudopotential-based techniques need a bit more creativity due to their lack of explicit core states. Methods that carry out a self-consistent calculation in the presence of the core hole (full core hole, half core hole, or eXcited core hole) can make use of the energy differences between DFT calculations with and without the core hole. This gives a relative energy shift that can be calibrated to give meaningful information about the core level shifts both within a cell and between different cells.\cite{NeedCites}
+There are several methods used for calculating energy levels in core-level spectroscopy. For completeness we will give an overview of them here. The most straightforward, popular in quantum chemistry techniques, is to directly compare the energies of initial and final states. This requires that you calculate explicit initial and final states as well as the core level wave function. Pseudopotential-based techniques need a bit more creativity due to their lack of explicit core states. Methods that carry out a self-consistent calculation in the presence of the core hole (full core hole, half core hole, or eXcited core hole) can make use of the energy differences between DFT calculations with and without the core hole. This gives a relative energy shift that can be calibrated to give meaningful information about the core level shifts both within a cell and between different cells.\cite{NeedCites}
 
 The \program{ocean} code has neither explicit core levels nor self-consistent calculations with a core hole, and so we need a different approach. In the BSE approach the only elements we need are the bare energies of the electron and the hole, and then the interaction terms. These bare or one-particle energies are the energies that would be calculated within {\it GW}, i.e., the the addition (removal) energies for the conduction (core) electron. But a {\it GW} calculation for the core level is neither possible nor feasible, and it is this removal energy we want to try and approximate. Because we are not relaxing the system in the presence of the hole (see the various core-hole approaches mentioned in the previous paragraph) this requires two calculations 1) the energy of the core-level electron and 2) the total energy from the relaxation of the rest of the system once that electron is removed. 
 
 \begin{enumerate}
 \item
-For calculating the energy of the core level we assume that the core level wavefunction is the same between chemical environments. This means that the kinetic energy of the core level is fixed, and therefore changes in the core-level energy can only come from changes in the local potential. This comes directly from the DFT calculation as the total Kohn-Sham potential.
+For calculating the energy of the core level we assume that the core level wave function is the same between chemical environments. This means that the kinetic energy of the core level is fixed, and therefore changes in the core-level energy can only come from changes in the local potential. This comes directly from the DFT calculation as the total Kohn-Sham potential.
 \item The response of the rest of the system to the removal of the core-level electron is given (within linear response) by the screening of the core-hole potential that we are already calculating. An additional factor of $1/2$ is picked up from adiabatically moving the charge of this electron. 
 \end{enumerate}
 To evaluate both 1 and 2 we approximate the core as a delta at its location $\tau$. 
@@ -224,7 +224,7 @@ This time the code has performed additional calculations to get the Kohn-Sham po
 
 The main input file, \file{rutile.in}, contains most of the information about the run such as unit cell parameters and numerical parameters. Other important files are the \file{*.fhi} files which contain the pseudo-potentials, the \file{*.fill} and \file{*.opts} files which contain information about the PAW reconstruction, and the \file{jtv1} file which determines information about the probe photon. 
 
-This calculation is definitely not converged, and should not be compared to experiment, any agreement would be fortuitous. Since this is our first time running with either the oxygen or titanium pseudo-potentials we should really check how well the PAW stage performed, but that will be left to a later tutorial. Instead we will start with the screening calculation and work from there. Left out of this tutorial is any investigation of the parameters that determine the quality of the initial DFT runs. For now it is suggested that the user look to ABINIT's provided tutorials to ensure that the calculated DFT wavefunctions are good. The values used in this tutorial are a too stingy for a publication quality run.
+This calculation is definitely not converged, and should not be compared to experiment, any agreement would be fortuitous. Since this is our first time running with either the oxygen or titanium pseudo-potentials we should really check how well the PAW stage performed, but that will be left to a later tutorial. Instead we will start with the screening calculation and work from there. Left out of this tutorial is any investigation of the parameters that determine the quality of the initial DFT runs. For now it is suggested that the user look to ABINIT's provided tutorials to ensure that the calculated DFT wave functions are good. The values used in this tutorial are a too stingy for a publication quality run.
 
 \subsection{Screening}
 
@@ -249,7 +249,7 @@ The second thing to check is the number of unoccupied bands used in the screenin
 
 At this point we will move to the \file{CNBSE} directory and consider the effect of three parameters; NBUSE, CNBSE.XMESH, and NKPT. You might think you missed the parameter NBUSE in \file{rutile.in}, but it is in fact not there. For insulators like rutile it can be determined automatically as the code runs. The BSE section requires that every k-point have the same number of conduction bands in the calculation, but in metals a band can be above or below the Fermi level depending on the k-point. If you look at \file{nbuse.ipt} you will see that it is set to 26. Create a new directory in the run directory called \file{CNBSE\_20/} and edit \file{Common/nbuse.ipt}, changing it to 20. You might notice that it said 0 which tells the code to automatically determine the maximum number of bands available. Here we calculated 50 bands total bands 24 of which are occupied leaving 26. Now go into \file{CNBSE\_20} and run the script \program{cnbse.pl}. This will recalculate the spectra using only 20 bands in the BSE. You can now compare the two spectra files. You'll see that the one with fewer bands falls off at a much lower energy, as is expected. Additionally, it is impossible to tell if 26 bands is enough for convergence, since there are differences between the two spectra. We will have to re-run part of the ABINIT stage, increasing the value of NBAND. Since the convergence with bands should be the same independent of k-point sampling, this step should be done before checking on NKPT.
 
-Another important consideration is the size of CNBSE.XMESH. This determines the number of real-space points in the unit cell that the long-ranged part of the direct interaction is calculated at. Said another way, each DFT wavefunction is truncated down to a small set of Fourier coefficients, and the long-range, spherical direct term is evaluated for each point. This part of the direct term is only a function of the distance between the core hole and the electron position coordinates, $W(|\mathbf{r-r'}|)$. The default should be sufficient for small unit cells, but larger cells will require a bigger mesh. A value of 1-2 points per Bohr of cell length along that direction is typical. 
+Another important consideration is the size of CNBSE.XMESH. This determines the number of real-space points in the unit cell that the long-ranged part of the direct interaction is calculated at. Said another way, each DFT wave function is truncated down to a small set of Fourier coefficients, and the long-range, spherical direct term is evaluated for each point. This part of the direct term is only a function of the distance between the core hole and the electron position coordinates, $W(|\mathbf{r-r'}|)$. The default should be sufficient for small unit cells, but larger cells will require a bigger mesh. A value of 1-2 points per Bohr of cell length along that direction is typical. 
 Changing this parameter, by editing its value in the Common directory requires re-running the PREP stage as well as the CNBSE stage. 
 %If you edit it in the input file and re-run the whole calculation it might work, but there may also be bugs either causing too much or too little to be re-run. 
 Indeed, if you check, you will see that a $4\times4\times4$ grid is insufficient, and there are large deviations if you increase to a $6\times6\times6$ grid. But increasing it further will change little, showing that 216 x-points are sufficient. 
@@ -282,14 +282,14 @@ The input parser for \program{ocean} is relatively basic. Any text following a c
 
 After parsing the cards are all stored as small, fortran formatted files in the \file{Common} directory. The package then goes through the following steps:
 \begin{enumerate}
-\item An atomic calculation is done to create projectors following the PAW method.
+\item An atomic calculation is done to create the optimal projector functions (OPFs).
 \item Slater F and G integrals are computed at the atomic level
 \item \program{abinit} or \program{QuantumEspresso} input files are prepared
-\item \program{abinit} (or \program{QuantumEspresso}) is run to get DFT valence density and wavefunctions. This requires usually 3 runs. One self-consistent run to get the converged density and two additional runs to calculate wavefunctions for the screening calculation and for the final states.
-\item The wavefunctions and density are converted from \program{abinit} (or \program{qe})  output to the form expected by \program{ocean}.
+\item \program{abinit} (or \program{QuantumEspresso}) is run to get DFT valence density and wave functions. This requires usually 3 runs. One self-consistent run to get the converged density and two additional runs to calculate wave functions for the screening calculation and for the final states.
+\item The wave functions and density are converted from \program{abinit} (or \program{qe})  output to the form expected by \program{ocean}.
 \item The core electrons are screened self-consistently in the presence of the core-hole in the atomic system
 \item The spherical part of the direct interaction is screened using RPA. $\chi^0$ is calculated using real-space integration around the site of interest. The RPA is coupled with a form of the Levine-Louie-Hybersten screening model.
-\item The overlap is calculated between the core wavefunction and the conduction band using the specified photon operator, XAS or RXIS.
+\item The overlap is calculated between the core wave function and the conduction band using the specified photon operator, XAS or RXIS.
 \item The Bethe-Salpeter equation (BSE) is iteratively solved using a form of the Haydock recursion algorithm.
 \end{enumerate}
 
@@ -330,7 +330,7 @@ cartesian  0  0  1		& & $\hat{\epsilon}$  \\
 end			& & \\
 \hline
 cartesian  0  1  0		& & $\hat{q}$  \\
-length 8.55 inverseangstroms && $\vert \mathbf{q} \vert$ \\
+length 8.55 inverseangstrom && $\vert \mathbf{q} \vert$ \\
 end			& & \\
 \hline
 9000 & & X-ray energy (eV) \\
@@ -394,31 +394,31 @@ The input of \program{ocean} can be divided into several sections
       \htmlref{NKPT}{card:nkpt},
     \htmlref{NGKPT}{card:ngkpt},
         \htmlref{NBAND}{card:nband},
-     \htmlref{PAW.NBAND}{card:paw.nband},
+     \htmlref{SCREEN.NBAND}{card:screen.nband},
     \htmlref{OCCOPT}{card:occopt}, \\
     and \htmlref{FBAND}{card:fband}
   \item[\textbf{Optional Cards:}] 
     \htmlref{TOLDFE}{card:toldfe},
     \htmlref{TOLWFR}{card:tolwfr}, 
-    \htmlref{PAW.NKPT}{card:paw.nkpt},
+    \htmlref{SCREEN.NKPT}{card:screen.nkpt},
     \htmlref{ABPAD}{card:abpad}, 
     \htmlref{BSE\_ENERGY\_RANGE}{card:bse_energy_range},
-    and \htmlref{PAW\_ENERG\_RANGE}{card:paw_energy_range}
+    and \htmlref{SCREEN\_ENERGY\_RANGE}{card:screen_energy_range}
   \end{description}
 \item[\large\textbf{Atomic and Screening Info}]\dotfill\
   \begin{description}
-  \item[\textbf{Purpose:}] Controls the PAW and screening sections of the calculation
+  \item[\textbf{Purpose:}] Controls the OPF and screening sections of the calculation
   \item[\textbf{Required Cards:}] 
-    \htmlref{PAW.FILL}{card:paw.fill},
-    \htmlref{PAW.OPTS}{card:paw.opts},
+    \htmlref{OPF.FILL}{card:opf.fill},
+    \htmlref{OPF.OPTS}{card:opf.opts},
     \htmlref{NEDGES}{card:nedges},
     and \htmlref{EDGES}{card:edges}
   \item[\textbf{Recommended Cards:}] 
-     \htmlref{PAW.SHELLS}{card:paw.shells},
+     \htmlref{screen.SHELLS}{card:paw.shells},
      \htmlref{CNBSE.RAD}{card:cnbse.rad}, 
      \htmlref{SCFAC}{card:scfac}, and \htmlref{CORE\_OFFSET}{card:core-offset}
   \item[\textbf{Optional Cards:}]     
-     \htmlref{PAW.HFKGRID}{card:paw.hfkgrid}
+     \htmlref{screen.HFKGRID}{card:screen.hfkgrid}
   \end{description}
 \item[\large\textbf{BSE Parameters}]\dotfill\
   \begin{description}
@@ -564,7 +564,7 @@ NKPT sets the number of k-points used to sample the cell for calculation of the 
 \end{Card}
 
 \begin{Card}{NGKPT}{ngkpt[3]}{Recommended}{ngkpt}
-DFT calculations require a self-consistently determined ground state density for the Kohn-Sham Hamiltonian. As such, in \program{ocean}, first a ground state calculation is done using only the occupied states and a few unoccupied states for convergence. This density is then used as input to the other DFT calculations to get wavefunctions. NGKPT determines the k-point sampling for this ground state calculation. Care should be taken to ensure enough k-points are used to give a converged density.
+DFT calculations require a self-consistently determined ground state density for the Kohn-Sham Hamiltonian. As such, in \program{ocean}, first a ground state calculation is done using only the occupied states and a few unoccupied states for convergence. This density is then used as input to the other DFT calculations to get wave functions. NGKPT determines the k-point sampling for this ground state calculation. Care should be taken to ensure enough k-points are used to give a converged density.
 \end{Card}
 
 \begin{Card}{NBAND}{nband}{Recommended}{nband}
@@ -576,8 +576,8 @@ The number of total bands for the final-state wave-functions is set by NBAND. Th
 \end{verbatim}
 \end{Card}
 
-\begin{Card}{PAW.NBAND}{paw.nband}{Recommended}{paw.nband}
-PAW.NBAND sets the number of bands to be calculated for the screening wave-functions. The screening calculation requires a large number of bands as the screened potential only converges in the \texttt{paw.nbands} $\rightarrow \infty$ limit. In practice including bands around 100~eV above the fermi level should be sufficient, but convergence should be checked. 
+\begin{Card}{SCREEN.NBAND}{screen.nband}{Recommended}{screen.nband}
+SCREEN.NBAND sets the number of bands to be calculated for the screening wave-functions. The screening calculation requires a large number of bands as the screened potential only converges in the \texttt{screen.nbands} $\rightarrow \infty$ limit. In practice including bands around 100~eV above the fermi level should be sufficient, but convergence should be checked. 
 \end{Card}
 
 \begin{Card}{OCCOPT}{occopt}{Recommended}{occopt}
@@ -603,8 +603,8 @@ TOLDFE sets the convergence parameter for the density or SCF run. For \program{a
 The convergence criterium for the (NSCF) wave-function calculations is set by TOLWFR. The default (\texttt{tolwfr} = $10^{-16}$) should be sufficient. For the \program{Quantum Espresso} version, this parameter sets the CONV\_THR for the NSCF calculations. 
 \end{Card}
 
-\begin{Card}{PAW.NKPT}{paw.nkpt[3]}{Optional}{paw.nkpt}
-The screening calculation is less sensitive to k-point sampling than the final states and is therefore calculated on a smaller grid which is set by PAW.NKPT. The default setting ( PAW.NKPT = 2 2 2 ) is sufficient for a wide variety of systems though very small or very large unit cells may require more or only the gamma point respectively. 
+\begin{Card}{SCREEN.NKPT}{screen.nkpt[3]}{Optional}{screen.nkpt}
+The screening calculation is less sensitive to k-point sampling than the final states and is therefore calculated on a smaller grid which is set by SCREEN.NKPT. The default setting ( SCREEN.NKPT = 2 2 2 ) is sufficient for a wide variety of systems though very small or very large unit cells may require more or only the gamma point respectively. 
 \end{Card}
 
 \begin{Card}{ABPAD}{abpad}{Optional}{abpad}
@@ -617,17 +617,17 @@ This is only an estimate using the volume of the unit cell and may be unreliable
 This parameter is only used if no value for \texttt{nband} is given. The default value is 25~eV.
 \end{Card}
 
-\begin{Card}{PAW\_ENERGY\_RANGE}{paw\_energy\_range}{Optional}{paw_energy_range}
-Instead of setting the number of bands for the screening (\texttt{paw.nband}) the user may request an energy range in eV. 
+\begin{Card}{SCREEN\_ENERGY\_RANGE}{screen\_energy\_range}{Optional}{screen_energy_range}
+Instead of setting the number of bands for the screening (\texttt{screen.nband}) the user may request an energy range in eV. 
 This is only an estimate using the volume of the unit cell and may be unreliable. 
-This parameter is only used if no value for \texttt{paw.nband} is given. The default value is 100~eV. 
+This parameter is only used if no value for \texttt{screen.nband} is given. The default value is 100~eV. 
 \end{Card}
 
 %%%%%%
 \section{Atomic and Screening Info}
 \label{sec:AS-Info}
 
-\begin{Card}{PAW.FILL}{z z.fill}{Required}{paw.fill}
+\begin{Card}{OPF.FILL}{z z.fill}{Required}{opf.fill}
 Each type of atom you want spectra of requires a \file{*.fill} file which is explained in \ref{fill}. Eventually the code will handle doing an arbitrary set of edges for a given system so this input could have as many (\texttt{z} \texttt{z.fill}) pairs as you have types of atoms, \texttt{ntypat}. Right now you MUST only put one type here due to bugs. The file \file{z.fill} can in principle have any name, but it is recommended a reasonable naming scheme is kept that associates it with a specific pseudo-potential file. The number \texttt{z} is the atomic number of the site of interest.
 
 \begin{verbatim}
@@ -636,7 +636,7 @@ Each type of atom you want spectra of requires a \file{*.fill} file which is exp
 \end{verbatim}
 \end{Card}
 
-\begin{Card}{PAW.OPTS}{z z.opts}{Required}{paw.opts}
+\begin{Card}{OPF.OPTS}{z z.opts}{Required}{opf.opts}
 Each type of atom you want spectra of requires a \file{*.opts} file which is explained in \ref{fill}. Eventually the code will handle doing an arbitrary set of edges for a given system so this input could have as many (\texttt{z} \texttt{z.opts}) pairs as you have types of atoms, \texttt{ntypat}. Right now you MUST only put one type here due to bugs. The file \file{z.opts} can in principle have any name, but it is recommended a reasonable naming scheme is kept that associates it with a specific pseudo-potential file. The number \texttt{z} is the atomic number of the site of interest.
 
 \begin{verbatim}
@@ -661,14 +661,14 @@ For example, running TiS$_2$ where Ti was listed as the first atom and looking a
 \end{verbatim}
 \end{Card}
 
-\begin{Card}{PAW.SHELLS}{shells[]}{Recommended}{paw.shells}
-The screening calculation is a hybrid of RPA and a model based off of Levine-Louie-Hybersten see section \ref{screening}. The corss-over between these two regimes is set by \texttt{shells} in Bohr and several different radii can be chosen to look at the convergence. In the \texttt{shells} $\rightarrow \infty$ limit the RPA is being used for the entire calculation, but convergence is usually reached around 3 - 4 Bohr. If a large radius is being used than the supercell defined by \htmlref{PAW.NKPT}{card:paw.nkpt} must have dimensions larger than the radius chosen or the math could be odd. The default \texttt{shells} = 1.5 Bohr is not recommended.
+\begin{Card}{SCREEN.SHELLS}{shells[]}{Recommended}{screen.shells}
+The screening calculation is a hybrid of RPA and a model based off of Levine-Louie-Hybersten see section \ref{screening}. The cross-over between these two regimes is set by \texttt{shells} in Bohr and several different radii can be chosen to look at the convergence. In the \texttt{shells} $\rightarrow \infty$ limit the RPA is being used for the entire calculation, but convergence is usually reached around 3 - 4 Bohr. If a large radius is being used than the supercell defined by \htmlref{PAW.NKPT}{card:paw.nkpt} must have dimensions larger than the radius chosen or the math could be odd. The default \texttt{shells} = 3.5 Bohr is ok.
 
 This parameter should not exceed 6~Bohr in the current version of the code.
 \end{Card}
 
 \begin{Card}{CNBSE.RAD}{cnbse.rad}{Recommended}{cnbse.rad}
-One screening radius as defined by \htmlref{PAW.SHELLS}{card:paw.shells} is used in the BSE calculation and is specified by CNBSE.RAD. 
+One screening radius as defined by \htmlref{SCREEN.SHELLS}{card:screen.shells} is used in the BSE calculation and is specified by CNBSE.RAD. 
 \end{Card}
 
 \begin{Card}{SCFAC}{scfac}{Recommended}{scfac}
@@ -679,7 +679,7 @@ The Slater integrals are calculated in an atomic program and are generally scale
 This card determines wether or not core-level shifts are run, and, if so, sets the offset. Acceptable values are: true, false, or any number. If set to true the code will determine a value of offset so that the average shift among all sites being run is zero. 
 \end{Card}
 
-\begin{Card}{PAW.HFKGRID}{paw.hfkgrid}{Optional}{paw.hfkgrid}
+\begin{Card}{SCREEN.HFKGRID}{screen.hfkgrid}{Optional}{screen.hfkgrid}
 This sets two parameters for the program \program{hfk.x}. The first is a grid and should be left at the default value of 2000. The second determines the maximum number of projectors per angular momentum channel that can be created. In the future this should dynamically resize, but in the present the default of 20 will work for many calculations. If the program \program{hfk.x} fails it may be solved by increasing this number. It will say something about `ne' being too small. 
 \end{Card}
 
@@ -725,7 +725,7 @@ The amount of Lorentzian broadening included in the spectra is set by CNBSE.BROA
 \end{Card}
 
 \begin{Card}{CNBSE.SPECT\_RANGE}{esteps emin emax}{Optional}{spect-range}
-This controls the output spectrum (or spectra) from a run. The energy of the specturm is set by setting the conduction band minimum and core-hole binding energy to zero. All systems will include a small amount of excitonic binding (depending on $l$ selection rules) and spin-orbit splitting can lower the first peak significantly, eg. L$_{2,3}$ splitting in 4d transition metals. These parameters do not change the BSE calculation, only the output of the spectra at the end. The energy range is given in eV and by default \texttt{emin} = $-40.817$ and \texttt{emax} = $68.028$ ($-1.5$ to $2.5$ Ha.). The parameter \texttt{esteps} gives the number of energt points used for the plot, and by default it is $1200$.
+This controls the output spectrum (or spectra) from a run. The energy of the spectrum is set by setting the conduction band minimum and core-hole binding energy to zero. All systems will include a small amount of excitonic binding (depending on $l$ selection rules) and spin-orbit splitting can lower the first peak significantly, eg. L$_{2,3}$ splitting in 4d transition metals. These parameters do not change the BSE calculation, only the output of the spectra at the end. The energy range is given in eV and by default \texttt{emin} = $-40.817$ and \texttt{emax} = $68.028$ ($-1.5$ to $2.5$ Ha.). The parameter \texttt{esteps} gives the number of energy points used for the plot, and by default it is $1200$.
 \end{Card}
 
 \begin{Card}{CNBSE.NITER}{niter}{Optional}{niter}
@@ -744,13 +744,13 @@ This sets the number of Haydock iterations. The default is $100$.
 %\section{*.opts and *.fill Files}
 %The fill and opts files 
 
-\chapter{Ground-State Wavefunctions}
+\chapter{Ground-State Wave Functions}
 \label{ground_state}
 In principle any pseudo-potential DFT code can be used. In our implementation we have an interfaces for using 
 \program{abinit} \cite{abinit0,abinit1,abinit2,abinit3} and \program{QuantumEspresso} \cite{espresso1,espresso2}. 
 %To run with a custom format see the specs listed in Appendix~\ref{WF_format}.
 
-There are two important differences between what is required for a good core-level calculation with \program{ocean} and more traditional ground-state DFT calculations. The first is that spectroscopy calculations often require denser $k$-point sampling than a calculation of only the density. Secondly, a psuedo-potential that is suitable for ground-state calculations may have poor scattering characteristics at higher energies that will make up the spectrum being calculated. With these brief warnings the rest of this chapter will be spent going over various aspects of the calculation and mention briefly strategies for ensuring accuracy and convergence.
+There are two important differences between what is required for a good core-level calculation with \program{ocean} and more traditional ground-state DFT calculations. The first is that spectroscopy calculations often require denser $k$-point sampling than a calculation of only the density. Secondly, a psuedopotential that is suitable for ground-state calculations may have poor scattering characteristics at higher energies that will make up the spectrum being calculated. With these brief warnings the rest of this chapter will be spent going over various aspects of the calculation and mention briefly strategies for ensuring accuracy and convergence.
 
 %The user is assumed to be familiar with DFT calculations, ie. converging the total energy or unit cell volume. 
 You need a structure and a set of pseudo-potentials to begin a calculation. From there, you must check convergence with respect to all of the adjustable parameters of the calculation. Not to worry, there are not really that many. In this section we will focus on just a few.
@@ -762,14 +762,14 @@ Pseudo-potentials must be carefully constructed to ensure that they adequately m
 As mentioned above for excited state calculations states as high as 50-100~eV above the fermi level must be adequately represented by the pseudo-potentials used. This often requires a harder pseudo-potential than might otherwise be necessary for 
 other calculations. Additionally the way in which chemical bonding affects the valence and low-lying conduction bands is often influenced by the inclusion of semi-core states in the calculation. Better agreement is often seen with the inclusion of semi-core states, eg. 2s and 2p states in a 3d transition metal. This has been seen to also improve the high-energy scattering.\cite{}
 
-In the future the authors hope to collect a database of pseduo-potentials to add to the ease of using \program{ocean},
+In the future the authors hope to collect a database of pseduopotentials to add to the ease of using \program{ocean},
  and all users will be invited to contribute their carefully tested ones as well. Currently the format of the pseudopotentials must
  match that of  .fhi. Users can download compatible pseudopotentials from the \program{abinit} website \cite{abinit0} or build their own using the \program{opium} code. 
 
 \section{Self-consistent Density Calculation}
 A DFT calculation requires, as one might expect, a density. In the self-consistent loop, wavefunctions are converged in an inner loop, and the density is updated from there to form an outer loop. Once the density has been converged, in this usage it changes less than the parameter TOLDFE over the course of two successive updates, this calculation is complete. The density, $n(\mathbf{r})$, depends on two (2) major convergence factors; ECUT and NGKPT. What follows is a brief discussion of these and other parts of the density calculation.
 
-In plane-wave based codes the basis size is truncated according to the ECUT parameter, specifying the largest energy plane-wave. This cut-off energy is largely dominated by the pseudo-potentials, the harder the pseudo-potential the higher the cut-off energy needs to be. It should be noted that the scaling of the DFT section with respect to the number of planewaves is no better than N*LOG(N), and the number of planewaves goes as the cut-off to the 3/2 power. When the total energy no longer changes as a function of an increasing energy cut-off the calculation is converged. A reasonable value would be 1meV per atom or less.
+In plane-wave based codes the basis size is truncated according to the ECUT parameter, specifying the largest energy plane-wave. This cut-off energy is largely dominated by the pseudo-potentials, the harder the pseudo-potential the higher the cut-off energy needs to be. It should be noted that the scaling of the DFT section with respect to the number of plane waves is no better than N*LOG(N), and the number of plane waves goes as the cut-off to the 3/2 power. When the total energy no longer changes as a function of an increasing energy cut-off the calculation is converged. A reasonable value would be 1meV per atom or less.
 
 The second important factor is the k-space sampling used for the self-consistent calculation. As in all numerical work, integrations are replaced by finite sums. The required k-space sampling is highly material dependent. A material with a small unit cell or a metal will both tend to require a larger number of k-points. This can be guided by experience, but should always be checked by increasing the sampling and looking at the total energy or perhaps the pressure. 
 
@@ -780,7 +780,7 @@ The last consideration is the treatment of electron occupancies. For insulators 
 
 \section{K-point sampling}
 
-A sum over a few wavefunctions $\psi_k$ is substituted for a integral over the entire Brillouin zone. In principle knowledge of the crystal symmetry of the unit cell could allow for intelligent choices of  points to sample at with non-equal weight, but that is not the approach here. Instead a regular mesh of points in reciprocal space is used and the mesh must be dense enough to ensure that the sampling is sufficient. 
+A sum over a few wave functions $\psi_k$ is substituted for a integral over the entire Brillouin zone. In principle knowledge of the crystal symmetry of the unit cell could allow for intelligent choices of  points to sample at with non-equal weight, but that is not the approach here. Instead a regular mesh of points in reciprocal space is used and the mesh must be dense enough to ensure that the sampling is sufficient. 
 
 In practice the required $k$-point grid scales inversely with unit cell size, but testing runs at different sizes and checking that the spectrum is unchanged should be done for each calculation. Unit cells that are oblong may benefit from k-point meshes that have a larger number of k-points along the dimensions with longer {\bf reciprocal} lattice vectors. The only way to ensure convergence w.r.t.\ $k$-point sampling is to increase or decrease the number of $k$-points and make sure that the results are not changing. For metals a large number of k-points may be required in order to get a good sampling of the Fermi surface.
 
@@ -801,32 +801,35 @@ ad-hoc band stretching and the many-pole self-energy which are both presented la
 LDA+U work is underway and will be a feature of \program{ocean} 1.1. Better integration with {\it GW} is a planned feature for later in the 1.x series. 
 
 
-\chapter{PAW and Atomic}
-\label{paw}
+\chapter{OPF and Atomic}
+\label{opf}
 
-The PAW/Atomic section of the code is material independent. In principle this section can be run once
-for a given pseudopotential and reused. The important outputs of this section are a collection of 
-all-electron and pseudo projector augmented waves. The all-electron core wavefunction is expressed
-as coefficients of the all-electron PAW. The psuedo PAW will be used later to express the valence/conduction
-electron wavefunctions.
-
-The transition matrix elements between core and pseudized conduction or valence states are calculated 
-in a similar manner to the projector augmented wave (PAW) formalism developed by Bl\"{o}chl \cite{PhysRevB.50.17953}. In OCEAN
+The optimal projector functions (OPF) are solutions to an atomic DFT calculation that depends on the element being investigated not the material. 
+The framework was developed by E.\ L.\ Shirley \cite{ShirleyOPF} and is similar to the projector augmented wave (PAW) formalism developed by Bl\"{o}chl \cite{PhysRevB.50.17953}. 
+%
+In principle this section can be run once for a given pseudopotential and reused. 
+The important outputs of this section are a collection of all-electron and pseudo projector augmented waves. 
+The all-electron core wave function is expressed as coefficients of the all-electron OPFs. 
+The psuedo OPFs will be used later to express the valence/conduction electron wave functions.
+%
+%The transition matrix elements between core and pseudized conduction or valence states are calculated 
+%in a similar manner to the projector augmented wave (PAW) formalism developed by Bl\"{o}chl \cite{PhysRevB.50.17953}. 
+In \program{ocean} 
 the construction of all-electron and pseudized atomic states is taken care of by the program \program{hfk.x}. 
-The inputs and outputs of this section are unique for each pseudopotential, but not for each system, i.e., 
-a library of pseudopotentials and atomic info files can be collected and reused.
+%The inputs and outputs of this section are unique for each pseudopotential, but not for each system, i.e., 
+%a library of pseudopotentials and atomic info files can be collected and reused.
 
-The core idea is that a small number of local orbitals can adequately describe the region of space around the 
+The central idea is that a small number of local orbitals can adequately describe the region of space around the 
 core-hole excitation site. These atom-centered orbitals are $\phi_{\nu,l,m}$, where $l$ and $m$ are the 
 expected angular and azimuthal quantum numbers, and $\nu$ allows several projectors per angular momentum channel. 
 The number of projects $\nu$ is determined automatically by the code and ranges around 4 for many systems. 
 
 \subsection{scfac}
-The SCaling FACtor is a real number that modifies the calculated Slater-Condon parameters for the atomic case. For 2nd row elements this should be 1.d0 while for transition metals a factor of 0.8d0 is more appropriate. See DeGroot, some others probably \cite{degroot.book}.
+The SCaling FACtor is a real number that modifies the calculated Slater-Condon parameters for the atomic case. For 2nd row elements this should be 1.d0 while for transition metals a factor of 0.83 is more appropriate. See de Groot, some others probably \cite{degroot.book}.
 
 \subsection{fill}
 \label{fill}
-The \file{*.fill} file determines the numerical parameters used for the PAW construction. Including the energy range to construct waves over,
+The \file{*.fill} file determines the numerical parameters used for the OPF construction. Including the energy range to construct waves over,
 the cut-off radius to use, and the momentum grid for evaluating the Fourier transform of the projectors. 
 In the table below on the left is a sample \file{*.fill}, and on the right are the corresponding variable names for each item.
 
@@ -834,8 +837,8 @@ In the table below on the left is a sample \file{*.fill}, and on the right are t
 \begin{tabular}{| l | c l |}
 \hline
 2						& &  pow \\
--0.30 2.00 0.0001 0.01 6		& & Emin, Emax, prec1, prec2, tfac \\
-3.5 1e8					& & PAW radius, prec \\
+0.30 2.00 0.0001		& & Epad, Emax, prec \\
+3.5 					& & cutoff radius \\
 0.05 20					& & q step, q max \\
 \hline
 \end{tabular}
@@ -844,10 +847,9 @@ In the table below on the left is a sample \file{*.fill}, and on the right are t
 \begin{itemize}
 \item pow: The matrix elements between the core state $\chi_\alpha$ and local orbital $\phi_i$ are calculated
  up to $\langle \chi_\alpha \vert r^{pow} \vert \phi_i \rangle$. 
-\item Emin and Emax: The PAW reconstruction starts at energy Emin and attempts to span the space to Emax (both in Ha.). 
-\item PAW radius: The PAW radius is in Bohr and sets the sphere in which the local basis is calculated. Convergence of this must be checked. 
-\item tfac: This parameter determines the number of test functions for determining the quality of the PAW step (see diagnostics section below).
-\item prec, prec1, and prec2: These should be sufficient for a range of systems and not changed.
+\item Epad and Emax: The OPF reconstruction starts at energy Epad below the lowest valence state for a given angular momentum channel and attempts to span the space to Emax (both in Ha.). 
+\item Cutoff radius: The OPF cutoff radius is in Bohr and sets the radius of the sphere in which the local basis is calculated. Convergence of this must be checked. 
+\item prec: This should be sufficient for a range of systems and not changed.
 \item q step and q max: These control the Fourier transform of the projectors from real-space. The defaults should be fine.
 \end{itemize}
 
@@ -879,56 +881,88 @@ lda				& & functional \\
 \item core states: The number of core levels for each angular momentum channel (s,p,d,f) that are filled. In this case only the 1{\it s} level is treated as core so only the $s$ channel is non-zero. For sulphur this would likely read ``2 1 0 0'' relecting that both the 2{\it s} and 2{\it p} would be treated as core.
 \item relativity: Specifying how to treat the relativistic spin-orbit effects. The options are scalar or dirac and rel[ativistic] or nonrel[ativistic].
 \item functional: Specifies the exchange-correlation functional that is used for the atomic calculations that give the local orbitals and projectors. Currently only LDA (local density approximation) and HF (Hartree-Fock) are available.
-\item valence occupation: Unlike the core states, here we are interested in the number of electrons per angular momentum channel that are in the referrence configuration for the pseudopotential. Many pseudopotentials are slightly positively ionic and so we choose a 2$s^2$,2$p^{3.5}$ occupation. 
+\item valence occupation: Unlike the core states, here we are interested in the number of electrons per angular momentum channel that are in the reference configuration for the pseudopotential. Many pseudopotentials are slightly positively ionic and so we choose a 2$s^2$,2$p^{3.5}$ occupation. 
 \end{itemize}
+
+
+For semi-core pseudopotentials, such as the 3{\it d} transition metals, some care should be taken. 
+For potassium through copper better results may be obtained by including the 3{\it s} and 3{\it p} states as valence. 
+This means that the pseudopotential will often be [Ne]$3s^23p^63d^n4s^04p^0$. 
+Where $n$ will depend on which metal. 
+The opts file may then read something like 
+\begin{center}
+\begin{tabular}{| l | c l |}
+\hline
+022				& &  Z\\
+2 1 0 0			& & core states; s p d f \\
+scalar rel			& & relativity \\
+lda				& & functional \\
+2.0 6.0 2.0 0.0		& & valence occupation; s p d f \\
+2.0 6.0 2.0 0.0		& & repeat of above \\
+\hline
+\end{tabular}
+\end{center}
+where the occupations of the {\it s} and {\it p} channels reflects the $n=3$ principle quantum level.
+
 
 %For the opt file one specifies the number of levels not included in the pseudo-potential, ie 1s for Oxygen as well as the number of electrons included in the reference configuration of the pseudo-potential, ie 2.0 2s and 3.5 2p for oxygen. For functionals the choice is lda or hf. Options for treatments of spin-orbit are 
 %scalar or dirac and rel[ativistic] nonrel[ativistic] and should of course match the psuedopotential 
 %construction. 
 
-\section{Diagnostics from the PAW and atomic program}
-There are a number of output files created by the PAW and atomic program, both inputs for later parts of the code as well as diagnostic files. The diagnostic files are placed in the subdirectory \file{zdiag\_Z\_N\_L}, where Z is the atomic number, N is the principle quantum number, and L is the angular quantum number. 
+%\section{Diagnostics from the OPF and atomic program}
+%There are a number of output files created by the OPF and atomic program, both inputs for later parts of the code as well as diagnostic files. The diagnostic files are placed in the subdirectory \file{zdiag\_Z\_N\_L}, where Z is the atomic number, N is the principle quantum number, and L is the angular quantum number. 
 
-\subsection{Matrix elements}
-The \file{mt\#\#} files contain a comparison of the overlap matrix elements using the all-electron projector augmented waves versus the pseudized partial waves. The first number in the 
-file name is the power of $r$ and the second is the angular momentum quantum number $l$ used. Plotting columns 3 versus 4 should give a straight line for perfect 
-agreement. Depending on which core level you are interested in only a couple of these files need to be checked. For dipole limited $s$-type initial states you should only check the the file \file{mt11}, while for L$_{23}$ edges the files \file{mt12} and \file{mt10} are most important. For most users this is the only check that needs to be performed for the PAW section.
+%\subsection{Matrix elements}
+%The \file{mt\#\#} files contain a comparison of the overlap matrix elements using the all-electron projector augmented waves versus the pseudized partial waves. The first number in the 
+%file name is the power of $r$ and the second is the angular momentum quantum number $l$ used. Plotting columns 3 versus 4 should give a straight line for perfect 
+%agreement. Depending on which core level you are interested in only a couple of these files need to be checked. For dipole limited $s$-type initial states you should only check the the file \file{mt11}, while for L$_{23}$ edges the files \file{mt12} and \file{mt10} are most important. For most users this is the only check that needs to be performed for the OPF section.
 
-\section{Outputs from the PAW and atomic program}
+\section{Outputs from the OPF and atomic program}
+Currently many of the outputs are placed in the \file{zpawinfo} directory.
+
+\subsection{OPFs}
+The all-electron and pesudo OPFs are stored by angular momenta and $z$ in \file{ae\#z\#\#\#} and \file{ps\#z\#\#\#}, respectively.
 
 \subsection{Fourier Coefficients}
-The \file{aeft\#} and \file{psft\#} files contain the Fourier transform of the projector augmented waves. They are kept in the \file{zdiag} directory.
+The \file{psft\#} files contain the Fourier transform of the projectors. They are kept in the \file{zpawinfo} directory.
 
-\subsection{Projectors}
-The \file{pr\#} files contain the projectors on a real-space grid by $l$. The projectors are, by definition, 0 outside of the PAW cut-off radius. They are kept in the \file{zdiag} directory.
+\subsection{Core-level orbitals}
+The all-electron eigenfunctions from the atomic calculation are stored in the \file{coreorbz\#\#\#n\#\#l\#\#} by $z$, $n$, and $l$ on a radial grid.
+
+%\subsection{Projectors}
+%The \file{pr\#} files contain the projectors on a real-space grid by $l$. The projectors are, by definition, 0 outside of the OPF cut-off radius. They are kept in the \file{zpawinfo} directory.
 
 \subsection{Info files}
-The \file{prjfilez\#\#\#} file, where \# is the three digit Z value, contains info about the Fourier grid and angular momentum range of the projector augmented waves. The first line specifies the minimum angular momentum, maximum angular momentum, number of fourier grid points, and the spacing of the fourier grid. Each following line specifies the number of PAWs for each angular momentum channel. 
+The \file{prjfilez\#\#\#} file, where \# is the three digit Z value, contains info about the Fourier grid and angular momentum range of the projector augmented waves. The first line specifies the minimum angular momentum, maximum angular momentum, number of fourier grid points, and the spacing of the fourier grid. Each following line specifies the number of OPFs for each angular momentum channel. 
 
 the \file{radfilez\#\#\#} files, where \# is the three digit Z value, contains info about the real-space grid. The first line is cut-off radius, rounded from the input cut-off to the nearest grid point. The second is the number of real-space grid points, and the last is the index of the cut-off.
 
+
 \subsection{Matrix Elements}
 
-The \file{melfilez\#\#\#n\#\#l\#\#} file contains the matrix elements between the specified core-hole and the different PAW functions. The first line specifies the maximum $x$ for the operator $r^x$, always starting at 0. Starting with the fast index the file is then the value of the matrix elements looped over projectors, powers of $x$, and finally angular momentum.
+The \file{melfilez\#\#\#n\#\#l\#\#} file contains the matrix elements between the specified core-hole and the different OPF functions. The first line specifies the maximum $x$ for the operator $r^x$, always starting at 0. Starting with the fast index the file is then the value of the matrix elements looped over projectors, powers of $x$, and finally angular momentum.
+
+\subsection{Slater Integrals}
+The various $f$ and $g$ integrals are also tabulated for all of the atomic, all-electron eigenstates (core levels) in the \file{fk*} and \file{gk*} files, respectively. The first three digits in these file names identify the core-level angular momentum, the OPF angular momentum, and the power of $k$ in the expansion of the Coulomb interaction in spherical harmonics. 
 
 \chapter{Screening Calculation}
 \label{screening}
 
 The screening of the core-hole interaction is done in real space using the random phase approximation up to 
-some radius around the core, 2-5 bohrs, and then using an analytic function of the local density, distance, 
+some radius around the core, 2-5 Bohrs, and then using an analytic function of the local density, distance, 
 and static dielectric constant outside of this radius \cite{Shirley2006986}. Convergence with respect to this radius should be 
 checked and will change based on both the core and system of interest. The screening is only exact for an 
 infinite number of bands, but should smoothly converge w.r.t.\ number of bands included. For the average 
 system a 2$^3$ k-point grid is sufficient for convergence, while a very small system might require a 
 slightly higher sampling or a large unit cell might be ok with just the gamma point.
 
-Converging the screening calculation requires only checking four parameters; PAW.NKPT, PAW.NBANDS, PAW.SHELLS and DIEMAC. To check the convergence of the screening calculation you should graph the file \file{ropt} using columns 1 and 4. This gives you calculated valence response to the core-hole potential. The file \file{rpot} can also be graphed using column 2 versus column 1, and it shows the (negative) total screened core-hole potential. Both files give the radius in Bohr and potential in Hartree as well as assuming a spherical potential. The screening info for each atomic site will be stored in a directory labeled by the atomic symbol, the index of that atom, and the core level $n$ and $l$.
+Converging the screening calculation requires only checking four parameters; SCREEN.NKPT, SCREEN.NBANDS, SCREEN.SHELLS and DIEMAC. To check the convergence of the screening calculation you should graph the file \file{ropt} using columns 1 and 4. This gives you calculated valence response to the core-hole potential. The file \file{rpot} can also be graphed using column 2 versus column 1, and it shows the (negative) total screened core-hole potential. Both files give the radius in Bohr and potential in Hartree as well as assuming a spherical potential. The screening info for each atomic site will be stored in a directory labeled by the atomic symbol, the index of that atom, and the core level $n$ and $l$.
 
 The macroscopic dielectric constant, $\epsilon_\infty$, is normally taken from experiment, and so it is not really a free parameter. The number of k-points needed for the screening is small and most calculations should be fine with the default grid of $2\times2\times2$, possible exceptions are very tiny unit cells which may need more points and very large cells or supercells which may only require the gamma point. 
 
-Several different values of the screening cut-off radius can be chosen by listing them in the input PAW.SHELLS. For a calculation several different radii should be tried, for example, 3.5 and 4.0 Bohr. The calculation for each radius is stored in a subdirectory labeled with the radius, \file{zRXT\#.\#\#/}. The directories labeled \file{zRXF\#.\#\#/} should be ignored at present. 
+Several different values of the screening cut-off radius can be chosen by listing them in the input SCREEN.SHELLS. For a calculation several different radii should be tried, for example, 3.5 and 4.0 Bohr. The calculation for each radius is stored in a subdirectory labeled with the radius, \file{zRXT\#.\#\#/}. The directories labeled \file{zRXF\#.\#\#/} should be ignored at present. 
 
-Lastly the number of bands included in the truncated sum for calculating the RPA dielectric function also requires checking. The code automatically computes two screening functions per screening calculation. One contains all of the bands in PAW.NBAND, while the second reduces the number of unoccupied bands included by about 80\%. This allows a quick check of the convergence with bands and the results of the smaller calculation are stored in the subdirectory \file{zRXT\#.\#\#\_small/}.
+Lastly the number of bands included in the truncated sum for calculating the RPA dielectric function also requires checking. The code automatically computes two screening functions per screening calculation. One contains all of the bands in SCREEN.NBAND, while the second reduces the number of unoccupied bands included by about 80\%. This allows a quick check of the convergence with bands and the results of the smaller calculation are stored in the subdirectory \file{zRXT\#.\#\#\_small/}.
 
 %Need to add tutorials and references to those tutorials
 

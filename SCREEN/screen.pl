@@ -20,7 +20,10 @@ if (! $ENV{"OCEAN_WORKDIR"}){ $ENV{"OCEAN_WORKDIR"} = `pwd` . "../" ; }
 ###########################
 
 
-my @CommonFiles = ("znucl", "paw.hfkgrid", "paw.fill", "paw.opts", "pplist", "paw.shells", "ntype", "natoms", "typat", "taulist", "nedges", "edges", "caution", "epsilon", "k0.ipt", "ibase", "scfac", "core_offset", "dft", "avecsinbohr.ipt", "para_prefix", "nspin" );
+my @CommonFiles = ("znucl", "opf.hfkgrid", "opf.fill", "opf.opts", "pplist", "screen.shells", 
+                   "ntype", "natoms", "typat", "taulist", "nedges", "edges", "caution", "epsilon", 
+                   "k0.ipt", "ibase", "scfac", "core_offset", "dft", "avecsinbohr.ipt", 
+                   "para_prefix", "nspin", "calc" );
 
 my @DenDipFiles = ("rhoofg", "bvecs", "efermiinrydberg.ipt");
 my @DenDipFiles2 = ( "masterwfile", "listwfile", "enkfile", "kmesh.ipt", "brange.ipt" );
@@ -42,11 +45,23 @@ if ($runPAW == 0 ) {
   print "Nothing new needed for PAW stage\n";
   exit 0;
 }
+
 `rm -f done`;
 
 
 foreach (@CommonFiles) {
   copy( "../Common/$_", $_ ) or die "Failed to get $_ from Common/\n$!";
+}
+
+if( open CALC, "calc" )
+{
+  if( <CALC> =~ m/VAL/i )
+  {
+    print "No (core-level) SCREEN calc for valence run\n";
+    close CALC;
+    exit 0;
+  }
+  close CALC;
 }
 #foreach (@DFTFiles) {
 #  copy( "../DFT/$_", $_ ) or die "Failed to get $_ from DFT/\n$!";
@@ -80,6 +95,14 @@ close BRANGE;
 close CLIPS;
 }
 
+my $para_prefix = "";
+if( open PARA_PREFIX, "para_prefix" )
+{
+  $para_prefix = <PARA_PREFIX>;
+  chomp($para_prefix);
+  close( PARA_PREFIX);
+}
+
 ###################################
 
 # Setup
@@ -87,14 +110,14 @@ close CLIPS;
 print "Running PAW Setup\n";
 system("$ENV{'OCEAN_BIN'}/pawsetup.x") == 0 or die "Failed to run pawsetup.x\n";
 
-`ln -sf ../PAW/zpawinfo zpawinfo`;
+`ln -sf ../OPF/zpawinfo zpawinfo`;
 ###################################
 
 
 
 # shells
 ##################################
-open SHELLS, "paw.shells" or die "Failed to open paw.shells\n";
+open SHELLS, "screen.shells" or die "Failed to open screen.shells\n";
 my $numshells = 0;
 my $allshells = '';
 while (<SHELLS>) {
@@ -102,7 +125,7 @@ while (<SHELLS>) {
   $allshells .= $_ ." ";
 }
 close SHELLS;
-my @rads = split(/ /, $allshells);
+my @rads = split(/\s+/, $allshells);
 $numshells = $#rads + 1;
 open SHELLS, ">shells" or die "Failed to open shells for writing\n";
 print SHELLS "$numshells\n";
@@ -113,7 +136,16 @@ close SHELLS;
 
 print "Starting xipp section\n";
 
-system("$ENV{'OCEAN_BIN'}/avg.x") == 0 or die "Failed to run avg.x\n";
+if( -e "$ENV{'OCEAN_BIN'}/mpi_avg.x" )
+{
+  print "Running mpi_avg.x\n";
+  system("$para_prefix $ENV{'OCEAN_BIN'}/mpi_avg.x") == 0 or die "$!\nFailed to run mpi_avg.x\n";
+}
+else
+{
+  print "Running avg.x\n";
+  system("$ENV{'OCEAN_BIN'}/avg.x") == 0 or die "$!\nFailed to run avg.x\n";
+}
 
 open HFINLIST, "hfinlist" or die "Failed to open hfinlist\n";
 
@@ -130,11 +162,11 @@ while ($hfinline = <HFINLIST>) {
   $elname = $5;
   $elnum = $6;
 
-  $edgename = sprintf("z%2s%02i_n%02il%02i", $elname, $elnum, $nnum, $lnum);
+  $edgename = sprintf("z%2s%04i_n%02il%02i", $elname, $elnum, $nnum, $lnum);
   print "$edgename\n";
   `mkdir -p $edgename` == 0 or die "Failed to make dir $edgename\n";
 
-  my $avden =  sprintf("avg%2s%02i",$elname,$elnum);
+  my $avden =  sprintf("avg%2s%04i",$elname,$elnum);
   copy( $avden,  "avden" ) or die "Failed to copy density $avden\n$!";
 
 
@@ -150,8 +182,8 @@ while ($hfinline = <HFINLIST>) {
       chdir "$edgename";
       `ln -s -f zRXT${fullrad} zR${fullrad}`;
       chdir "../";
-      copy( "zpawinfo/vcxxxxx${edgename2}R${fullrad}", "tmp" ) 
-          or die "Failed to copy zpawinfo/vcxxxxx${edgename2}R${fullrad}\n$!";
+      copy( "zpawinfo/vc_bare${edgename2}R${fullrad}", "tmp" ) 
+          or die "Failed to copy zpawinfo/vc_bare${edgename2}R${fullrad}\n$!";
       `wc tmp > vpert`;
       `cat tmp >> vpert`;
       system("$ENV{'OCEAN_BIN'}/builder.x") == 0 or die;
@@ -172,8 +204,8 @@ while ($hfinline = <HFINLIST>) {
       `wc nin >> ipt`;
       `cat nin >> ipt`;
       `echo 1 2 >> ipt`;
-      `wc zpawinfo/vcxxxxx${edgename2} >> ipt`;
-      `cat zpawinfo/vcxxxxx${edgename2} >> ipt`;
+      `wc zpawinfo/vc_bare${edgename2} >> ipt`;
+      `cat zpawinfo/vc_bare${edgename2} >> ipt`;
   
 			# Full ximat, but using false/older style in rscombine
       copy( "ipt", "ipt1" ) or die;
@@ -186,8 +218,8 @@ while ($hfinline = <HFINLIST>) {
 			# Full ximat and most up-to-date rscombine settings
       copy( "ipt", "ipt1" ) or die;
       `echo .true. >> ipt1`;
-      `wc zpawinfo/vvpseud${edgename2} >> ipt1`;
-      `cat zpawinfo/vvpseud${edgename2} >> ipt1`;
+      `wc zpawinfo/vpseud1${edgename2} >> ipt1`;
+      `cat zpawinfo/vpseud1${edgename2} >> ipt1`;
       `wc zpawinfo/vvallel${edgename2} >> ipt1`;
       `cat zpawinfo/vvallel${edgename2} >> ipt1`;
       `echo 0.1 100 >> ipt1`;
@@ -214,13 +246,13 @@ while ($hfinline = <HFINLIST>) {
       `wc nin >> ipt`;
       `cat nin >> ipt`;
       `echo 1 2 >> ipt`;
-      `wc zpawinfo/vcxxxxx${edgename2} >> ipt`;
-      `cat zpawinfo/vcxxxxx${edgename2} >> ipt`;
+      `wc zpawinfo/vc_bare${edgename2} >> ipt`;
+      `cat zpawinfo/vc_bare${edgename2} >> ipt`;
 
       copy( "ipt", "ipt1" ) or die;
       `echo .true. >> ipt1`;
-      `wc zpawinfo/vvpseud${edgename2} >> ipt1`;
-      `cat zpawinfo/vvpseud${edgename2} >> ipt1`;
+      `wc zpawinfo/vpseud1${edgename2} >> ipt1`;
+      `cat zpawinfo/vpseud1${edgename2} >> ipt1`;
       `wc zpawinfo/vvallel${edgename2} >> ipt1`;
       `cat zpawinfo/vvallel${edgename2} >> ipt1`;
       `echo 0.1 100 >> ipt1`;

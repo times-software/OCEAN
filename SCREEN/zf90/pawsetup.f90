@@ -95,7 +95,7 @@
       inppfill(:) = 0
       ppopts(:) = ''
       ppfill(:) = ''
-      open(unit=99,file='paw.opts',form=f9,status='old')
+      open(unit=99,file='opf.opts',form=f9,status='old')
       do counter=1, ntypat
         read(99,*,end=100) inppopts(counter), ppopts(counter)
       enddo
@@ -103,7 +103,7 @@
       close(99)
 !
 ! Gets the psp fillinpaw details
-      open(unit=99,file='paw.fill',form=f9,status='old')
+      open(unit=99,file='opf.fill',form=f9,status='old')
       do counter=1, ntypat
         read(99,*,end=101) inppfill(counter), ppfill(counter)
       enddo
@@ -147,7 +147,7 @@
 !  for each edge to be considered.
       open(unit=99,file='hfinlist',form=f9,status='unknown')
       do counter=1,nedges
-        write(99,'(A50,3(1X,I3),1X,A2,1X,I3)')pplist(typat(edges(1,counter))),&
+        write(99,'(A50,3(1X,I3),1X,A2,1X,I4)')pplist(typat(edges(1,counter))),&
      &            znucl(typat(edges(1,counter))),  edges(2:3,counter),  &
      &  elements(znucl(typat(edges(1,counter)))), sitenum(edges(1,counter))
       enddo

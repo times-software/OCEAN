@@ -1,0 +1,11 @@
+qRaman
+
+cartesian  0  0  1             e-hat direction
+end
+
+length 0.1 inverseangstrom
+cartesian    1.000  0.000  0.000         dirx_
+end
+
+105.                           Photon energy (eV) for quad
+

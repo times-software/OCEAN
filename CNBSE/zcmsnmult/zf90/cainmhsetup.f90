@@ -25,7 +25,7 @@ subroutine nbsemhsetup( lc, lv, np, mham, cms, cml, vms, vml, vnu, mhr, mhi, add
   real( kind = kind( 1.0d0 ) ), allocatable :: gk( :, :, : ), scgk( : )
   !
   integer :: i, i1, i2, nu1, nu2
-  integer :: l1, m1, s1, l2, m2, s2, l3, m3, s3, l4, m4, s4, k, mk
+  integer :: l1, m1, s1, l2, m2, s2, l3, m3, s3, l4, m4, s4, k, mk, llmax
   real( kind = kind( 1.0d0 ) ) :: ggk, ffk
   complex( kind = kind( 1.0d0 ) ) :: f1, f2, ctmp
   logical, parameter :: no = .false., yes = .true.
@@ -39,7 +39,8 @@ subroutine nbsemhsetup( lc, lv, np, mham, cms, cml, vms, vml, vnu, mhr, mhi, add
   include 'sphsetx.h.f90'
   !
    write(6,*) 'nbsemhsetup', lv
-  call newgetprefs( yp, max( lc, lv ), nsphpt, wsph, xsph, ysph, zsph )
+  llmax = 5
+  call newgetprefs( yp, llmax, nsphpt, wsph, xsph, ysph, zsph )
   rm1 = -1
   rm1 = sqrt( rm1 )
   pi = 4.0d0 * atan( 1.0d0 )
