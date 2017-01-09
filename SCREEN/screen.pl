@@ -28,7 +28,7 @@ my @CommonFiles = ("znucl", "opf.hfkgrid", "opf.fill", "opf.opts", "pplist", "sc
 my @DenDipFiles = ("rhoofg", "bvecs", "efermiinrydberg.ipt");
 my @DenDipFiles2 = ( "masterwfile", "listwfile", "enkfile", "kmesh.ipt", "brange.ipt" );
 
-my @ExtraFiles = ("specpnt", "Pquadrature" );
+my @ExtraFiles = ("specpnt", "Pquadrature", "hqp", "lqp", "gauss16" );
 
 my $runPAW = 1;
 if (-e "../PREP/PAW/old" && -e "done" ) {
@@ -175,7 +175,13 @@ while ($hfinline = <HFINLIST>) {
 
   foreach $rad (@rads) {
     my $fullrad = sprintf("%03.2f",$rad);
-      `echo "8 25 $elname $elnum" | $ENV{'OCEAN_BIN'}/mkrbfile.x`;
+#      `echo "8 25 $elname $elnum" | $ENV{'OCEAN_BIN'}/mkrbfile.x`;
+      `echo "8 25 2" > mkrb_control`;
+      `echo central gauss16 >> mkrb_control`;
+      `echo 1 >> mkrb_control`;
+      `echo "$elname $elnum" >> mkrb_control`;
+      system("$ENV{'OCEAN_BIN'}/mkrbfile_mult.x");
+      
       `mkdir -p ${edgename}/zRXT${fullrad}`;
       `mkdir -p ${edgename}/zRXF${fullrad}`;
       `mkdir -p ${edgename}/zRXS${fullrad}`;
