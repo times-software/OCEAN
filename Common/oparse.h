@@ -499,7 +499,7 @@ screen.grid.nb
 } screen.grid.nb
 screen.final.rmax
 {
-100
+20
 } screen.final.rmax
 screen.final.dr
 {
