@@ -577,7 +577,7 @@ module OCEAN_ladder
     integer, intent( inout ) :: ierr
     ! 
     complex(dp), allocatable :: scratch(:)
-    integer :: nx_remain, i
+    integer :: nx_remain, i, kmesh( 3 )
 
 #ifdef  __INTEL
 !dir$ attributes align:64 :: scratch
@@ -598,7 +598,12 @@ module OCEAN_ladder
 !                            scratch, scratch, FFTW_FORWARD, FFTW_PATIENT )
 !    call dfftw_plan_dft_3d( bplan, sys%kmesh(3), sys%kmesh(2), sys%kmesh(1), &
 !                            scratch, scratch, FFTW_BACKWARD, FFTW_PATIENT )
-    call FFT_wrapper_init( sys%kmesh, fo, scratch )
+
+    ! The states are stored with z being the fast axis
+    kmesh( 1 ) = sys%kmesh( 3 )
+    kmesh( 2 ) = sys%kmesh( 2 )
+    kmesh( 3 ) = sys%kmesh( 1 )
+    call FFT_wrapper_init( kmesh, fo, scratch )
 
     
 !    nkpts = sys%nkpts

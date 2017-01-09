@@ -70,7 +70,7 @@ module OCEAN_bubble
     type( O_system ), intent( in ) :: sys
     integer, intent( inout ) :: ierr
     !
-    integer :: i, j, nthreads
+    integer :: i, j, nthreads, xmesh( 3 )
 !    type(fftw_iodim) :: guru_dims( 3 )
 !$  integer, external :: omp_get_max_threads
     real( DP ) :: length
@@ -100,7 +100,13 @@ module OCEAN_bubble
 !!                              scratch, scratch, FFTW_BACKWARD, FFTW_PATIENT )
 
       
-      call FFT_wrapper_init( sys%xmesh, fo, scratch )
+
+      ! For valence states the ordering of bands the array is ( z, y, x )
+      ! Therefore we need to invert before passing it in
+      xmesh( 1 ) = sys%xmesh( 3 )
+      xmesh( 2 ) = sys%xmesh( 2 )
+      xmesh( 3 ) = sys%xmesh( 1 )
+      call FFT_wrapper_init( xmesh, fo, scratch )
 ! Also works (the same as above)
 !      fplan = fftw_plan_dft_3d( sys%xmesh(3), sys%xmesh(2), sys%xmesh(1), & 
 !                                scratch, scratch, FFTW_FORWARD, FFTW_PATIENT )
