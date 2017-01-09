@@ -318,11 +318,11 @@ zobj/spartanfip.o: zf90/spartanfip.f90
 	$(COMP) $(OPTS) -c zf90/spartanfip.f90 -o zobj/spartanfip.o
 #
 zobj/continuum.o: zf90/continuum.f90
-	$(COMP) $(OPTS) -Rb -c zf90/continuum.f90 -o zobj/continuum.o
+	$(COMP) $(OPTS) -c zf90/continuum.f90 -o zobj/continuum.o
 zobj/projaug.o: zf90/projaug.f90
-	$(COMP) $(OPTS) -Rb -c zf90/projaug.f90 -o zobj/projaug.o
+	$(COMP) $(OPTS) -c zf90/projaug.f90 -o zobj/projaug.o
 zobj/trck.o: zf90/trck.f90
-	$(COMP) $(OPTS) -Rb -c zf90/trck.f90 -o zobj/trck.o
+	$(COMP) $(OPTS) -c zf90/trck.f90 -o zobj/trck.o
 #
 zobj/rpower.o: zf90/rpower.f90
 	$(COMP) $(OPTS) -c zf90/rpower.f90 -o zobj/rpower.o

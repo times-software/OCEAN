@@ -57,7 +57,7 @@ program rhotest
 !
     allocate(rhoofr(dims(1),dims(2),dims(3)),rhoofg(dims(1),          &
  &          dims(2),dims(3)))
-    call FFT_wrapper_init( dims, fo )
+    call FFT_wrapper_init( dims, fo, rhoofg )
 !
 
     open(unit=99,file='rhoofr',form='formatted',status='old')

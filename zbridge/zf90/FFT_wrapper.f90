@@ -38,11 +38,12 @@ module FFT_wrapper
 
   contains
 
-  subroutine FFT_wrapper_init( zn, fo, io )
+  subroutine FFT_wrapper_init( zn, fo, io, nthread )
     implicit none
 
     integer, intent(in ) :: zn(3)
     complex(kind=kind(1.0d0)), intent(inout), optional :: io(zn(1),zn(2),zn(3))
+    integer, intent( in ), optional :: nthread
     type( fft_obj ), intent( out ) :: fo
     complex(kind=kind(1.0d0)), allocatable :: cwrk(:)
     !
@@ -50,6 +51,10 @@ module FFT_wrapper
     fo%dims(4) = product( fo%dims(1:3) )
 #ifdef __FFTW3
     fo%norm = 1.0d0 / dble( fo%dims(4) )
+
+!    if( present( nthread ) ) then
+!      if( nthread .gt. 0 ) call fftw_plan_with_nthreads( nthreads )
+!    endif
     
     if( present( io ) ) then
       fo%fplan = fftw_plan_dft_3d( fo%dims(3), fo%dims(2), fo%dims(1), io, io, FFTW_FORWARD, FFTW_PATIENT )
@@ -60,6 +65,8 @@ module FFT_wrapper
       fo%bplan = fftw_plan_dft_3d( fo%dims(3), fo%dims(2), fo%dims(1), cwrk, cwrk, FFTW_BACKWARD, FFTW_PATIENT )
       deallocate( cwrk )
     endif
+
+!    if( present( nthread ) ) call fftw_plan_with_nthreads( 1 )
 #else
     fo%norm = 1.0d0
     fo%jfft = 2 * max( zn( 1 ) * ( zn( 1 ) + 1 ), zn( 2 ) * ( zn( 2 ) + 1 ), zn( 3 ) * ( zn( 3 ) + 1 ) )
@@ -71,8 +78,8 @@ module FFT_wrapper
     type( fft_obj ), intent( inout ) :: fo
 
 #ifdef __FFTW3
-    call dfftw_destroy_plan(fo%fplan)
-    call dfftw_destroy_plan(fo%bplan)
+    call fftw_destroy_plan(fo%fplan)
+    call fftw_destroy_plan(fo%bplan)
 #endif
 
   end subroutine FFT_wrapper_delete
