@@ -38,12 +38,12 @@ module FFT_wrapper
 
   contains
 
-  subroutine FFT_wrapper_init( zn, fo, io, nthread )
+  subroutine FFT_wrapper_init( zn, fo, io )!, nthread )
     implicit none
 
     integer, intent(in ) :: zn(3)
     complex(kind=kind(1.0d0)), intent(inout), optional :: io(zn(1),zn(2),zn(3))
-    integer, intent( in ), optional :: nthread
+!    integer, intent( in ), optional :: nthread
     type( fft_obj ), intent( out ) :: fo
     complex(kind=kind(1.0d0)), allocatable :: cwrk(:)
     !

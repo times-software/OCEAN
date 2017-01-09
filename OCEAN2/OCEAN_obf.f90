@@ -430,7 +430,7 @@ module OCEAN_obf
     use iso_c_binding
 !    use mpi
     implicit none
-    include 'fftw3.f03'
+!    include 'fftw3.f03'
 
     type( o_system ), intent( in ) :: sys
     integer, intent( inout ) :: ierr
@@ -483,7 +483,7 @@ module OCEAN_obf
 #endif
     my_obf = num_obf
 
-
+#if 0
     cptr = fftw_alloc_real( int(my_num_bands * my_kpts * my_obf, C_SIZE_T) )
     call c_f_pointer( cptr, re_obf2u, [my_num_bands, my_obf, my_kpts] )
     cptr = fftw_alloc_real( int(my_num_bands * my_kpts * my_obf, C_SIZE_T) )
@@ -498,6 +498,13 @@ module OCEAN_obf
     call c_f_pointer( cptr, re_obf_phs, [sys%nkpts,my_xpts] )
     cptr = fftw_alloc_real( int(my_xpts*sys%nkpts, C_SIZE_T) )
     call c_f_pointer( cptr, im_obf_phs, [sys%nkpts,my_xpts] )
+#endif
+    allocate( re_obf2u( my_num_bands, my_obf, my_kpts ), &
+              im_obf2u( my_num_bands, my_obf, my_kpts ), &
+              re_obf( my_obf, my_xpts ), &
+              im_obf( my_obf, my_xpts ), &
+              re_obf_phs( sys%nkpts,my_xpts ), &
+              im_obf_phs( sys%nkpts,my_xpts ) )
 
     is_init = .true.
 
