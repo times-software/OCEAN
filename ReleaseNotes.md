@@ -1,3 +1,17 @@
+## v. 2.0
+
+#### Major Features:
+1. RIXS! The valence BSE code (formerly AI2NBSE by Hadley Lawler, et al) is now included, allowing for direct RIXS calculations with a relatively simple workflow. See the diamond example. 
+2. The optimal basis functions (PAW-style reconstruction) has been improved. Thanks to Eric Shirley for these changes.
+
+#### Minor Features:
+ 1. Changes under the hood to MPI calls in the BSE.
+ 2. More consistent determination of the Fermi level for metallic systems.
+ 3. Better switching between (optional) FFTW3 and legacy FFT
+
+#### Bug fixes
+ 1. Some bugs that surfaced with MPI calls, see Makefile.arch.example for new -D__OLD_MPI flag.
+
 ## v. 1.2.1
 
 #### Minor Feature: Averaging spectra
