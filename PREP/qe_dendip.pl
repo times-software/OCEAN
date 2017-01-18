@@ -75,10 +75,11 @@ close NKPTS;
 foreach ("Nfiles", "kmesh.ipt", "brange.ipt", "qinunitsofbvectors.ipt" ) {
   system("cp ../${rundir}/$_ .") == 0 or die "Failed to copy $_\n";
 }
-`cp ../qinunitsofbvectors.ipt .`;
+#`cp ../qinunitsofbvectors.ipt .`;
 `cp ../bvecs .`;
 `cp ../dft .`;
 `cp ../nspin .`;
+`cp ../${rundir}/umklapp .`;
 
 my $prefix;
 open PREFIX, "../../Common/prefix";
@@ -151,7 +152,7 @@ unless( -e "BSE/done" && -e "${rundir}/old" ) {
   `cp ../avecsinbohr.ipt .`;
   `cp ../xmesh.ipt .`;
   `cp ../nspin .`;
-#  `cp ../${rundir}/umklapp .`;
+  `cp ../${rundir}/umklapp .`;
   my $Nfiles = `cat Nfiles`;
 
   my $prefix;

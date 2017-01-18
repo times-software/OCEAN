@@ -29,7 +29,7 @@
   if ( (abs(qvec(1)) + abs(qvec(2)) + abs(qvec(3)) ) .lt. small ) then
     write(99,*)nkpt(1)*nkpt(2)*nkpt(3)
   else
-    write(99,*)nkpt(1)*nkpt(2)*nkpt(3)*2.d0
+    write(99,*)nkpt(1)*nkpt(2)*nkpt(3)*2
   endif
   close(99)
 !
@@ -104,6 +104,8 @@
     do coreiter=1,core
       write(kptfile,'(A5,I4.4)') 'kpts.', coreiter
       open(unit=99,file=kptfile,form='formatted',status='unknown')
+      write(qekptfile,'(A8,I4.4)') 'kpts4qe.', coreiter
+      open(unit=97,file=qekptfile,form='formatted',status='unknown')
       write(99,*) 'nkpt', 2*int(ceiling(real(kpttotal)/real(core)))
       write(99,*) 'kpt'
 !
@@ -119,6 +121,7 @@
         if ( ikpt .gt. 1 ) ikpt = ikpt - 1.d0
 !
         write(99,'(3(F14.10,1X))') ikpt, jkpt, kkpt
+        write(97,'(e17.8,e17.8,e17.8,f12.8)') ikpt, jkpt, kkpt, ( 1.0 / dble(2*ceiling(real(kpttotal)/real(core)))  )
         umklapp(:) = 0
         qpoint(1) = ikpt+qvec(1)
         qpoint(2) = jkpt+qvec(2)
@@ -141,6 +144,7 @@
 10        continue
         enddo
         write(99,'(3(F14.10,1X))') qpoint(:)
+        write(97,'(e17.8,e17.8,e17.8,f12.8)') qpoint(:) , ( 1.0 / dble(ceiling(2*real(kpttotal)/real(core)))  )
         write(50, * ) umklapp
         if ( kptiter2(3) .lt. nkpt(3) ) then 
           kkpt = kkpt + 1.d0/dble(nkpt(3))
@@ -160,6 +164,7 @@
         endif
       enddo
       close(99)
+      close(97)
       kpttotal = kpttotal - int(ceiling(real(kpttotal)/real(core)))
       core = core - 1
     enddo
