@@ -1,5 +1,5 @@
-dft obf
-para_prefix { mpirun -n 64 --map-by ppr:8:socket }
+dft qe
+para_prefix { mpirun -n 8 --map-by ppr:4:socket }
 ppdir{ ../ }
 ngkpt { 8 8 8 }
 obkpt{ 4 4 4 }
@@ -23,7 +23,7 @@ xred {
  0.00    0.00    0.00
  0.25    0.25    0.25
 }
-ecut 40.0
+ecut 45.0
 toldfe 1.0d-6
 tolwfr 1.0d-16
 nstep 61
