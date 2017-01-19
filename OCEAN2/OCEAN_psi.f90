@@ -3292,7 +3292,7 @@ module OCEAN_psi
       if( ierr .ne. 0 ) return
     case( 'RXS' )
       allocate( p_vec( sys%num_bands, sys%val_bands, sys%nkpts, psi_val_beta ) )
-      call OCEAN_rixs_holder_load( sys, p_vec, file_selector, ierr )
+      call OCEAN_rixs_holder_load( sys, p_vec, 1, ierr )
       if( ierr .ne. 0 ) return
       p%valr( 1:sys%num_bands, 1:sys%val_bands, :, : ) = real( p_vec(:,:,:,:), DP )
       p%vali( 1:sys%num_bands, 1:sys%val_bands, :, : ) = aimag( p_vec(:,:,:,:) )
