@@ -1,4 +1,4 @@
-! Copyright (C) 2015 OCEAN collaboration
+! Copyright (C) 2015 - 2017 OCEAN collaboration
 !
 ! This file is part of the OCEAN project and distributed under the terms 
 ! of the University of Illinois/NCSA Open Source License. See the file 
@@ -27,7 +27,7 @@ program wfconvert
       integer :: xrange,yrange,zrange,np_counter
       integer :: g_un_min(3),g_un_max(3),g_sh_min(3),g_sh_max(3), umk(3)
       integer ::i,j,k,hkpt,gtot,kr_iter,ki_iter,nfiles, ierr
-      integer :: files_iter,master_iter,g_iter,nkpts,kpt_counter
+      integer :: files_iter,master_iter,g_iter,nkpts,kpt_counter, qe_kpt
       character(len=11) :: wfkin!,wfkout
       character(len=12) :: wfkout
       double precision, allocatable :: enklisto(:,:,:),enklistu(:,:,:)
@@ -189,20 +189,31 @@ program wfconvert
           select case( dft_flavor )
 
           case( 'qe' )
+            if( noshift ) then
+              qe_kpt = ikpt
+            else
+              qe_kpt = ( ikpt -1 ) * 2 + 1
+            endif
 #ifdef __HAVE_ESPRESSO
-          call qe_grabwf(ikpt, isppol, nsppol, maxband, maxnpw, kg_unshift,        &
-     &     kg_shift, eigen_un, eigen_sh, occ_un, occ_sh, cg_un, cg_sh,  &
-     &     brange(2), brange(4), nband, un_npw, sh_npw, noshift, ierr)
+            call qe_grabwf(qe_kpt, isppol, nsppol, maxband, maxnpw, kg_unshift,  &
+     &                     eigen_un, occ_un, cg_un, un_npw, ierr)
 #endif
             if( ierr .ne. 0 ) then
               write(6,*) ikpt, ierr
               stop
             endif
-            kg_shift = kg_unshift
+            if( .not. noshift ) then
+              qe_kpt = qe_kpt + 1
+#ifdef __HAVE_ESPRESSO
+              call qe_grabwf(qe_kpt, isppol, nsppol, maxband, maxnpw, kg_shift,  &
+     &                       eigen_sh, occ_sh, cg_sh, sh_npw, ierr)
+#endif
+            endif
+
           case default
-          call grabwf(wfkinfile, maxband, maxnpw, kg_unshift,           &
-     &     kg_shift, eigen_un, eigen_sh, occ_un, occ_sh, cg_un, cg_sh,  &
-     &     brange(2), brange(4), nband, un_npw, sh_npw, noshift)
+            call grabwf(wfkinfile, maxband, maxnpw, kg_unshift,           &
+     &                  kg_shift, eigen_un, eigen_sh, occ_un, occ_sh, cg_un, cg_sh,  &
+     &                  brange(2), brange(4), nband, un_npw, sh_npw, noshift)
           end select
 
           if (.not. noshift) then
