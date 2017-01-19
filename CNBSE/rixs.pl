@@ -82,6 +82,10 @@ if( $obf == 1 )
 }
 else
 {
+  foreach (@DFTFiles) {
+    copy( "../PREP/$_", $_) or die "Failed to get DFT/$_\n$!";
+  }
+
   foreach (@DenDipFiles) {
     copy( "../PREP/BSE/$_", $_ ) or die "Failed to get PREP/BSE/$_\n$!" ;
   }
@@ -386,6 +390,7 @@ if( open PARA_PREFIX, "para_prefix" )
 
 ###############
 # If we are using QE/ABI w/o OBFs we need to set nbuse
+my @brange;
 my $run_text = '';
 open NBUSE, "nbuse.ipt" or die "Failed to open nbuse.ipt\n";
 <NBUSE> =~ m/(\d+)/ or die "Failed to parse nbuse.ipt\n";
@@ -415,7 +420,7 @@ if( $obf == 1 )
 }
 else  ### Abi/QE w/o obf
 { 
-  my @brange;
+#  my @brange;
   if ($nbuse == 0) {
     open BRANGE, "brange.ipt" or die "Failed to open brange.ipt\n";
     <BRANGE> =~ m/(\d+)\s+(\d+)/ or die "Failed to parse brange.ipt\n";
@@ -576,6 +581,25 @@ while (<EDGE>) {
     }
     else # qe/abi w/o obf need to calculate cainkset
     {
+      if( $cks_iter == 2  ) {
+      open CKSNORM, ">cks.normal" or die "Failed to open cks.normal\n$!";
+      print CKSNORM ".true.\n";
+      close CKSNORM;
+      $nbuse = $brange[3] - $brange[1];
+
+      }
+      else {
+        open CKSNORM, ">cks.normal" or die "Failed to open cks.normal\n$!";
+        print CKSNORM ".false.\n";
+        close CKSNORM;
+        $nbuse = $brange[1] - $brange[0] + 1;
+      }
+
+      open NBUSE, ">nbuse.ipt" or die "Failed to open nbuse.ipt\n";
+      print NBUSE "$nbuse\n";
+      close NBUSE;
+
+
       open ZNL, ">ZNL" or die;
       print ZNL "$znum  $nnum  $lnum\n";
       close ZNL;
