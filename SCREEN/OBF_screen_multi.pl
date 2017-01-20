@@ -210,14 +210,17 @@ close( NBAND );
 open BOFR, ">bofr.in" or die "$!\nFailed to open bofr.in for writing\n";
 print BOFR "&input\n" .
           "  prefix = 'system_opt'\n" .
-          "  outdir = './Out'\n" .
-          "  wfcdir = '$tmpdir'\n" .
-          "  updatepp = .false.\n" .
-          "  ncpp = .true.\n" .
-          "  calculation = 'ocean_bofr_multi'\n" .
-          "/\n" .
-          " K_POINTS\n" .
-          "$ham_kpoints 0 0 0\n";
+          "  outdir = './Out'\n";
+unless( $tmpdir =~ m/undefined/ )
+{
+  print BOFR "  wfcdir = '$tmpdir'\n";
+}
+print BOFR "  updatepp = .false.\n" .
+           "  ncpp = .true.\n" .
+           "  calculation = 'ocean_bofr_multi'\n" .
+           "/\n" .
+           " K_POINTS\n" .
+           "$ham_kpoints 0 0 0\n";
 close BOFR;
 
 open BUILDER, ">builder.in" or die "$!\nFailed to open builder.in for writing\n";
