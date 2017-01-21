@@ -1,0 +1,54 @@
+# As of 18 Jan 2017
+#
+# Modules active
+#  1) modules/3.2.6.7                   9) pmi/5.0.10-1.0000.11050.0.0.ari  17) atp/2.0.3
+#  2) nsg/1.2.0                        10) dmapp/7.1.0-12.37                18) PrgEnv-intel/6.0.3
+#  3) modules/3.2.10.5                 11) gni-headers/5.0.7-3.1            19) craype-haswell
+#  4) intel/17.0.1.132                 12) xpmem/0.1-4.5                    20) cray-shmem/7.4.4
+#  5) craype-network-aries             13) job/1.5.5-3.58                   21) cray-mpich/7.4.4
+#  6) craype/2.5.7                     14) dvs/2.7_0.9.0-2.221              22) fftw/3.3.4.10
+#  7) udreg/2.3.2-4.6                  15) alps/6.1.3-17.12
+#  8) ugni/6.0.12-2.1                  16) rca/1.0.0-8.1
+
+# Actual changes
+# module unload cray-libsci
+# module load fftw/
+
+# Fortran compiler
+FC = ftn
+MPIFORT = ftn
+
+# Flags for the fortran compiler
+OPTIONS = -O2 -heap-arrays 64 -cpp -DBLAS -DMPI -D__HAVE_F03 
+
+# FFTW path. Several programs can use FFTW. Find it at fftw.org. 
+#  (There is a fallback fft so FFTW is not required)
+OPTIONS += -D__FFTW3
+FFTWI = -I/$(FFTW_INC)
+FFTWL = -L/$(FFTW_DIR) -lfftw3
+BLAS = -mkl=cluster
+
+# Install Directory. 
+INSTDIR = /path/to/install
+
+
+# OCEAN can use either ABINIT or QE. 
+# If you only want one then leave the other's varables commented out
+
+#######################
+# ABINIT Flags 
+# This says where abinit and cut3d live 
+#   (cut3d is a post-processing tool available as part of the abinit toolset)
+# When running w/ abinit on Cori you *must* set ser_prefix in input file
+#   This should be: "ser_prefix { srun -n 1 }"
+#   cut3d must be called w/ only a single MPI 
+ABINIT_DIR = /usr/common/software/abinit/8.0.8b/hsw/bin/
+ABINIT_EXE = $(ABINIT_DIR)/abinit
+CUT3D_EXE  = $(ABINIT_DIR)/cut3d
+#######################
+
+#######################
+# ESPRESSO Flags
+PW_EXE = /usr/common/software/espresso/6.1.0-scalapack/hsw/intel/bin/pw.x
+PP_EXE = /usr/common/software/espresso/6.1.0-scalapack/hsw/intel/bin/pp.x
+

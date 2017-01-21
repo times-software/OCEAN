@@ -248,7 +248,7 @@ module OCEAN_bloch
     use OCEAN_system
     use iso_c_binding
     implicit none
-    include 'fftw3.f03'
+!    include 'fftw3.f03'
 
     type( o_system ), intent( in ) :: sys
     integer, intent( inout ) :: ierr
@@ -301,17 +301,17 @@ module OCEAN_bloch
     endif
     
 
-#ifdef __INTEL
+!#ifdef __INTEL
     allocate( re_bloch_state( my_num_bands, my_kpts, my_xpts, sys%nspn ), &
               im_bloch_state( my_num_bands, my_kpts, my_xpts, sys%nspn ), &
               STAT=ierr )
     if( ierr .ne. 0 ) return
-#else
-    cptr = fftw_alloc_real( int(my_num_bands * my_kpts * my_xpts * sys%nspn, C_SIZE_T) )
-    call c_f_pointer( cptr, re_bloch_state, [my_num_bands, my_kpts, my_xpts, sys%nspn] )
-    cptr = fftw_alloc_real( int(my_num_bands * my_kpts * my_xpts * sys%nspn, C_SIZE_T) )
-    call c_f_pointer( cptr, im_bloch_state, [my_num_bands, my_kpts, my_xpts, sys%nspn] )
-#endif
+!#else
+!    cptr = fftw_alloc_real( int(my_num_bands * my_kpts * my_xpts * sys%nspn, C_SIZE_T) )
+!    call c_f_pointer( cptr, re_bloch_state, [my_num_bands, my_kpts, my_xpts, sys%nspn] )
+!    cptr = fftw_alloc_real( int(my_num_bands * my_kpts * my_xpts * sys%nspn, C_SIZE_T) )
+!    call c_f_pointer( cptr, im_bloch_state, [my_num_bands, my_kpts, my_xpts, sys%nspn] )
+!#endif
 
     is_init = .true.
 
@@ -322,7 +322,7 @@ module OCEAN_bloch
     use OCEAN_system
     use iso_c_binding
     implicit none
-    include 'fftw3.f03'
+!    include 'fftw3.f03'
     
     type( o_system ), intent( in ) :: sys
     integer, intent( inout ) :: ierr
@@ -360,17 +360,17 @@ module OCEAN_bloch
     endif
 
 
-#ifdef __INTEL
-    allocate( re_bloch_state( my_v_num_bands, my_kpts, my_xpts ), &
-              im_bloch_state( my_v_num_bands, my_kpts, my_xpts ), &
+!#ifdef __INTEL
+    allocate( re_v_bloch_state( my_num_bands, my_kpts, my_xpts ), &
+              im_v_bloch_state( my_num_bands, my_kpts, my_xpts ), &
               STAT=ierr )
     if( ierr .ne. 0 ) return
-#else
-    cptr = fftw_alloc_real( int(my_num_bands * my_kpts * my_xpts, C_SIZE_T) )
-    call c_f_pointer( cptr, re_v_bloch_state, [my_num_bands, my_kpts, my_xpts] )
-    cptr = fftw_alloc_real( int(my_num_bands * my_kpts * my_xpts, C_SIZE_T) )
-    call c_f_pointer( cptr, im_v_bloch_state, [my_num_bands, my_kpts, my_xpts] )
-#endif
+!#else
+!    cptr = fftw_alloc_real( int(my_num_bands * my_kpts * my_xpts, C_SIZE_T) )
+!    call c_f_pointer( cptr, re_v_bloch_state, [my_num_bands, my_kpts, my_xpts] )
+!    cptr = fftw_alloc_real( int(my_num_bands * my_kpts * my_xpts, C_SIZE_T) )
+!    call c_f_pointer( cptr, im_v_bloch_state, [my_num_bands, my_kpts, my_xpts] )
+!#endif
 
     is_val_init = .true.
 

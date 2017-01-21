@@ -4,6 +4,7 @@ module OCEAN_bubble
 
   use AI_kinds
   use iso_c_binding
+  use FFT_wrapper, only : fft_obj
   implicit none
   private
   save
@@ -16,8 +17,10 @@ module OCEAN_bubble
 
 !  integer, allocatable :: xstart_by_mpiID(:)
 
-  type(C_PTR)        :: fplan
-  type(C_PTR)        :: bplan
+!  type(C_PTR)        :: fplan
+!  type(C_PTR)        :: bplan
+
+  type( fft_obj ) :: fo
 
   logical :: is_init = .false.
 
@@ -38,16 +41,18 @@ module OCEAN_bubble
 
   subroutine AI_bubble_clean( )
     use OCEAN_mpi, only : myid, root
-    use iso_c_binding
+!    use iso_c_binding
+    use FFT_wrapper, only : FFT_wrapper_delete
     !
     implicit none
-    include 'fftw3.f03'
+!    include 'fftw3.f03'
     !
 !    integer, intent( inout ) :: ierr
     !
     if( myid .eq. root ) then
-      call dfftw_destroy_plan( bplan )
-      call dfftw_destroy_plan( fplan )
+      call FFT_wrapper_delete( fo )
+!      call dfftw_destroy_plan( bplan )
+!      call dfftw_destroy_plan( fplan )
     endif
 
   end subroutine AI_bubble_clean
@@ -56,15 +61,16 @@ module OCEAN_bubble
     use OCEAN_system
     use OCEAN_mpi
     use OCEAN_val_states, only : nxpts_by_mpiID
-    use iso_c_binding
+    use FFT_wrapper, only : FFT_wrapper_init
+!    use iso_c_binding
     !
     implicit none
-    include 'fftw3.f03'
+!    include 'fftw3.f03'
     !
     type( O_system ), intent( in ) :: sys
     integer, intent( inout ) :: ierr
     !
-    integer :: i, j, nthreads
+    integer :: i, j, nthreads, xmesh( 3 )
 !    type(fftw_iodim) :: guru_dims( 3 )
 !$  integer, external :: omp_get_max_threads
     real( DP ) :: length
@@ -87,25 +93,31 @@ module OCEAN_bubble
         write( 1000+myid,* ) 'Failed to allocate bubble and scratch'
         goto 111
       endif
-      call dfftw_plan_with_nthreads( nthreads )
-!      call dfftw_plan_dft_3d( fplan, sys%xmesh(3), sys%xmesh(2), sys%xmesh(1), &
-!                              scratch, scratch, FFTW_FORWARD, FFTW_PATIENT )
-!      call dfftw_plan_dft_3d( bplan, sys%xmesh(3), sys%xmesh(2), sys%xmesh(1), &
-!                              scratch, scratch, FFTW_BACKWARD, FFTW_PATIENT )
+!      call dfftw_plan_with_nthreads( nthreads )
+!!      call dfftw_plan_dft_3d( fplan, sys%xmesh(3), sys%xmesh(2), sys%xmesh(1), &
+!!                              scratch, scratch, FFTW_FORWARD, FFTW_PATIENT )
+!!      call dfftw_plan_dft_3d( bplan, sys%xmesh(3), sys%xmesh(2), sys%xmesh(1), &
+!!                              scratch, scratch, FFTW_BACKWARD, FFTW_PATIENT )
 
       
 
+      ! For valence states the ordering of bands the array is ( z, y, x )
+      ! Therefore we need to invert before passing it in
+      xmesh( 1 ) = sys%xmesh( 3 )
+      xmesh( 2 ) = sys%xmesh( 2 )
+      xmesh( 3 ) = sys%xmesh( 1 )
+      call FFT_wrapper_init( xmesh, fo, scratch )
 ! Also works (the same as above)
-      fplan = fftw_plan_dft_3d( sys%xmesh(3), sys%xmesh(2), sys%xmesh(1), & 
-                                scratch, scratch, FFTW_FORWARD, FFTW_PATIENT )
-      bplan = fftw_plan_dft_3d( sys%xmesh(3), sys%xmesh(2), sys%xmesh(1), & 
-                                scratch, scratch, FFTW_BACKWARD, FFTW_PATIENT )
+!      fplan = fftw_plan_dft_3d( sys%xmesh(3), sys%xmesh(2), sys%xmesh(1), & 
+!                                scratch, scratch, FFTW_FORWARD, FFTW_PATIENT )
+!      bplan = fftw_plan_dft_3d( sys%xmesh(3), sys%xmesh(2), sys%xmesh(1), & 
+!                                scratch, scratch, FFTW_BACKWARD, FFTW_PATIENT )
 
 
 !      fplan = fftw_plan_guru_split_dft( 3,  
 
 
-      call dfftw_plan_with_nthreads( 1 )
+!      call dfftw_plan_with_nthreads( 1 )
 !      call AI_bubble_wall_search( sys, length, ierr )
       call wall_search_old_way( sys, length, ierr )
       if( ierr .ne. 0 ) goto 111
@@ -350,8 +362,9 @@ module OCEAN_bubble
     use OCEAN_mpi!, only : nproc, myid, root, comm
     use OCEAN_system
     use iso_c_binding
+    use FFT_wrapper, only : OCEAN_BACKWARD, OCEAN_FORWARD, FFT_wrapper_single
     implicit none
-    include 'fftw3.f03'
+!    include 'fftw3.f03'
     !
     type( O_system ), intent( in ) :: sys
     type( OCEAN_vector ), intent( in ) :: psi
@@ -504,11 +517,13 @@ module OCEAN_bubble
     if( myid .eq. root ) then
 !      write(6,*) maxval( re_scratch(:) )
       scratch(:) = cmplx( re_scratch(:), im_scratch(:), DP )
-      call fftw_execute_dft(fplan, scratch, scratch)
+!      call fftw_execute_dft(fplan, scratch, scratch)
+      call FFT_wrapper_single( scratch, OCEAN_FORWARD, fo )
 !      write(6,*) maxval( real(scratch(:) ) )
       scratch( : ) = scratch( : ) * bubble( : )
 !      write(6,*) maxval( real( scratch(:) ) )
-      call fftw_execute_dft(bplan, scratch, scratch)
+      call FFT_wrapper_single( scratch, OCEAN_BACKWARD, fo )
+!      call fftw_execute_dft(bplan, scratch, scratch)
 !      re_scratch(:) = real(scratch(:)) 
 !      im_scratch(:) = aimag(scratch(:)) 
 

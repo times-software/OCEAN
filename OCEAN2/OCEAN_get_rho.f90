@@ -8,10 +8,11 @@
 subroutine OCEAN_get_rho( xmesh, celvol, rho, ierr )
   use AI_kinds
   use OCEAN_mpi
+  use FFT_wrapper
   use iso_c_binding
   implicit none
 
-  include 'fftw3.f03'
+!  include 'fftw3.f03'
 
   integer, intent( in ) :: xmesh( 3 )
   real(dp), intent( in ) :: celvol
@@ -22,7 +23,8 @@ subroutine OCEAN_get_rho( xmesh, celvol, rho, ierr )
   integer :: nfft( 3 ), dumint, i, j, k, ii, jj, kk, ierr_
   complex(dp),  allocatable :: rhoofr(:,:,:), rhoofg(:,:,:)
   real(dp) :: dumr, sumrho, norm
-  integer*8 :: fftw_plan, fftw_plan2
+!  integer*8 :: fftw_plan, fftw_plan2
+  type( fft_obj ) :: fo
   integer :: igl(3), igh(3), powlist(3), mul(3), c_nfft(3), iter, offset(3)
   character(len=1) :: fstr
 
@@ -53,8 +55,9 @@ subroutine OCEAN_get_rho( xmesh, celvol, rho, ierr )
     close( 99 )
 
     allocate( rhoofr( nfft(1), nfft(2), nfft(3) ) )
-    call dfftw_plan_dft_3d( fftw_plan, nfft(1), nfft(2), nfft(3), rhoofr, rhoofr, &
-            FFTW_FORWARD, FFTW_ESTIMATE )
+!    call fftw_plan_dft_3d( fftw_plan, nfft(1), nfft(2), nfft(3), rhoofr, rhoofr, &
+!            FFTW_FORWARD, FFTW_ESTIMATE )
+    call FFT_wrapper_init( nfft, fo, rhoofr )
     rhoofr = 0.0_dp
 
 
@@ -79,8 +82,10 @@ subroutine OCEAN_get_rho( xmesh, celvol, rho, ierr )
     write(6,*) '!', sumrho
     write(6,*) '!', minval( real( rhoofr, DP) )
     !
-    call dfftw_execute_dft( fftw_plan, rhoofr, rhoofr )
-    call dfftw_destroy_plan( fftw_plan )
+!    call fftw_execute_dft( fftw_plan, rhoofr, rhoofr )
+!    call fftw_destroy_plan( fftw_plan )
+    call FFT_wrapper_single( rhoofr, OCEAN_FORWARD, fo )
+    call FFT_wrapper_delete( fo )
     !
     write( 6, * ) dble(rhoofr( 1, 1, 1 ) ) / dble(product( nfft ))  * celvol , &
           anint( dble(rhoofr( 1, 1, 1 ) ) / dble( product( nfft ) ) * celvol )
@@ -98,8 +103,9 @@ subroutine OCEAN_get_rho( xmesh, celvol, rho, ierr )
 
     allocate( rhoofg( c_nfft( 1 ), c_nfft( 2 ), c_nfft( 3 ) ), STAT=ierr )
     if( ierr .ne. 0 ) goto 111
-    call  dfftw_plan_dft_3d( fftw_plan2, c_nfft(1), c_nfft(2), c_nfft(3), rhoofg, rhoofg, &
-            FFTW_BACKWARD, FFTW_ESTIMATE )
+!    call  fftw_plan_dft_3d( fftw_plan2, c_nfft(1), c_nfft(2), c_nfft(3), rhoofg, rhoofg, &
+!            FFTW_BACKWARD, FFTW_ESTIMATE )
+    call FFT_wrapper_init( c_nfft, fo, rhoofg )
     rhoofg = 0.0_dp
     mul( : ) = c_nfft( : ) / nfft( : )
     write(6,*) c_nfft( : )
@@ -130,8 +136,10 @@ subroutine OCEAN_get_rho( xmesh, celvol, rho, ierr )
         enddo
       enddo
     enddo
-    call dfftw_execute_dft( fftw_plan2, rhoofg, rhoofg )
-    call dfftw_destroy_plan( fftw_plan2 )
+!    call fftw_execute_dft( fftw_plan2, rhoofg, rhoofg )
+!    call fftw_destroy_plan( fftw_plan2 )
+    call FFT_wrapper_single( rhoofg, OCEAN_BACKWARD, fo )
+    call FFT_wrapper_delete( fo )
     !
     norm = real( product( nfft ), DP )
     norm = 1.0_dp / norm

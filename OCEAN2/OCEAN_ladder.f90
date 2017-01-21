@@ -1,5 +1,6 @@
 module OCEAN_ladder
   use AI_kinds
+  use FFT_wrapper, only : fft_obj
 !  use OCEAN_val_states
 
   implicit none
@@ -39,8 +40,9 @@ module OCEAN_ladder
   integer :: c_send_tag(2,2)
   integer :: c_recv_tag(2,2)
 
-  integer*8 :: fplan
-  integer*8 :: bplan
+!  integer*8 :: fplan
+!  integer*8 :: bplan
+  type(fft_obj) :: fo
 
 
 !JTV legacy, to be removed
@@ -66,10 +68,11 @@ module OCEAN_ladder
                                  nbv, nbc, max_nxpts, nxpts_by_mpiID, startx_by_mpiID
     use OCEAN_system
 !    use OCEAN_val_states
-    use iso_c_binding
+!    use iso_c_binding
+    use FFT_wrapper, only : OCEAN_FORWARD, OCEAN_BACKWARD, FFT_wrapper_single
     
     implicit none
-    include 'fftw3.f03'
+!    include 'fftw3.f03'
 
     type(o_system), intent( in ) :: sys
     type(OCEAN_vector), intent( in ) :: psi
@@ -321,7 +324,8 @@ module OCEAN_ladder
             scratch( : ) = dcmplx(re_tphi_mat( iix, iy, : ), im_tphi_mat( iix, iy, : ) )
 !            scratch( : ) = dcmplx( re_phi_mat( :, iix - ix + 1), im_phi_mat( :, iix - ix + 1) )
 
-            call dfftw_execute_dft( fplan, scratch, scratch )
+!            call dfftw_execute_dft( fplan, scratch, scratch )
+            call FFT_wrapper_single( scratch, OCEAN_FORWARD, fo )
             do ik = 1, nkpts
                 fr( kk( ik, 1 ), kk( ik, 2 ), kk( ik, 3 ) ) = real( scratch( ik ), DP )
                 fi( kk( ik, 1 ), kk( ik, 2 ), kk( ik, 3 ) ) = aimag( scratch( ik ) )
@@ -332,7 +336,8 @@ module OCEAN_ladder
               scratch( ik ) = dcmplx( fr( kk( ik, 1 ), kk( ik, 2 ), kk( ik, 3 ) ), &
                                             fi( kk( ik, 1 ), kk( ik, 2 ), kk( ik, 3 ) ) )
             end do
-            call dfftw_execute_dft( bplan, scratch, scratch )
+            call FFT_wrapper_single( scratch, OCEAN_BACKWARD, fo )
+!            call dfftw_execute_dft( bplan, scratch, scratch )
             re_tphi_mat( iix, iy, : ) = real(scratch( : ),DP) * inverse_kpts !/ dble( nkpts )
             im_tphi_mat( iix, iy, : ) = aimag(scratch( : )) * inverse_kpts !/dble( nkpts )
 
@@ -562,16 +567,17 @@ module OCEAN_ladder
   subroutine OCEAN_ladder_init( sys, ierr )
     use OCEAN_system
     use OCEAN_mpi, only : myid, nproc
-    use iso_c_binding
+!    use iso_c_binding
+    use FFT_wrapper, only : FFT_wrapper_init
     implicit none
 
-    include 'fftw3.f03'
+!    include 'fftw3.f03'
 
     type(O_system), intent( in ) :: sys
     integer, intent( inout ) :: ierr
     ! 
     complex(dp), allocatable :: scratch(:)
-    integer :: nx_remain, i
+    integer :: nx_remain, i, kmesh( 3 )
 
 #ifdef  __INTEL
 !dir$ attributes align:64 :: scratch
@@ -587,11 +593,17 @@ module OCEAN_ladder
     nypts = sys%nxpts
 
     allocate( scratch( sys%nkpts ) )
-    call dfftw_plan_with_nthreads( 1 )
-    call dfftw_plan_dft_3d( fplan, sys%kmesh(3), sys%kmesh(2), sys%kmesh(1), &
-                            scratch, scratch, FFTW_FORWARD, FFTW_PATIENT )
-    call dfftw_plan_dft_3d( bplan, sys%kmesh(3), sys%kmesh(2), sys%kmesh(1), &
-                            scratch, scratch, FFTW_BACKWARD, FFTW_PATIENT )
+!    call dfftw_plan_with_nthreads( 1 )
+!    call dfftw_plan_dft_3d( fplan, sys%kmesh(3), sys%kmesh(2), sys%kmesh(1), &
+!                            scratch, scratch, FFTW_FORWARD, FFTW_PATIENT )
+!    call dfftw_plan_dft_3d( bplan, sys%kmesh(3), sys%kmesh(2), sys%kmesh(1), &
+!                            scratch, scratch, FFTW_BACKWARD, FFTW_PATIENT )
+
+    ! The states are stored with z being the fast axis
+    kmesh( 1 ) = sys%kmesh( 3 )
+    kmesh( 2 ) = sys%kmesh( 2 )
+    kmesh( 3 ) = sys%kmesh( 1 )
+    call FFT_wrapper_init( kmesh, fo, scratch )
 
     
 !    nkpts = sys%nkpts

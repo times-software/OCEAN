@@ -170,7 +170,7 @@ module OCEAN_rixs_holder
 
         ! check ntot
         if( ntot .ne. sys%nkpts * sys%val_bands ) then
-          write(6,*) 'Mismatch bands*kpts vs ntot'
+          write(6,*) 'Mismatch bands*kpts vs ntot', ntot, sys%nkpts,  sys%val_bands
           ierr = -1
           return
         endif

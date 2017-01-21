@@ -63,7 +63,7 @@ module ocean_long_range
   logical :: isolated = .false.
   
 
-  public :: create_lr, lr_populate_W, lr_populate_bloch, lr_act, lr_populate_W2, lr_fill_values, & 
+  public :: lr_populate_W, lr_populate_bloch, lr_act, lr_populate_W2, lr_fill_values, & 
             lr_init, lr_timer, lr_slice, dump_exciton
 
   contains
@@ -115,7 +115,7 @@ module ocean_long_range
     use OCEAN_mpi
 !    use mpi
     implicit none
-    include 'fftw3.f03'
+!    include 'fftw3.f03'
 !    include 'mpif.h'
 
     type( o_system ), intent( in ) :: sys
@@ -168,13 +168,17 @@ module ocean_long_range
         return
       endif
 
-      cptr = fftw_alloc_real( int(my_num_bands * my_kpts * my_xpts * sys%nspn, C_SIZE_T) )
-      call c_f_pointer( cptr, re_bloch_state, [my_num_bands, my_kpts, my_xpts, sys%nspn] )
-      cptr = fftw_alloc_real( int(my_num_bands * my_kpts * my_xpts * sys%nspn, C_SIZE_T) )
-      call c_f_pointer( cptr, im_bloch_state, [my_num_bands, my_kpts, my_xpts, sys%nspn] )
+!      cptr = fftw_alloc_real( int(my_num_bands * my_kpts * my_xpts * sys%nspn, C_SIZE_T) )
+!      call c_f_pointer( cptr, re_bloch_state, [my_num_bands, my_kpts, my_xpts, sys%nspn] )
+!      cptr = fftw_alloc_real( int(my_num_bands * my_kpts * my_xpts * sys%nspn, C_SIZE_T) )
+!      call c_f_pointer( cptr, im_bloch_state, [my_num_bands, my_kpts, my_xpts, sys%nspn] )
 
-      cptr = fftw_alloc_real( int( my_kpts * my_xpts, C_SIZE_T) )
-      call c_f_pointer( cptr, W, [ my_kpts, my_xpts ] )
+!      cptr = fftw_alloc_real( int( my_kpts * my_xpts, C_SIZE_T) )
+!      call c_f_pointer( cptr, W, [ my_kpts, my_xpts ] )
+
+      allocate( re_bloch_state( my_num_bands, my_kpts, my_xpts, sys%nspn ), &
+                im_bloch_state( my_num_bands, my_kpts, my_xpts, sys%nspn ), &
+                W( my_kpts, my_xpts ) )
       
       is_init = .true.
     if( myid .eq. root ) write(6,*) 'Done filling values'
@@ -370,12 +374,12 @@ module ocean_long_range
       xwrki( :, ialpha ) = iphi( :, ixpt, ialpha ) * re_obf_phs( :, ixpt ) &
                          + rphi( :, ixpt, ialpha ) * im_obf_phs( :, ixpt ) 
 
-      call cfft( xwrkr(1,ialpha), xwrki(1,ialpha), sys%kmesh(3), sys%kmesh(3), sys%kmesh(2), sys%kmesh(1), -1, wrk, jfft )
+      call cfft( xwrkr(1,ialpha), xwrki(1,ialpha), sys%kmesh(3), sys%kmesh(3), sys%kmesh(2), sys%kmesh(1), +1, wrk, jfft )
 
       xwrkr( :, ialpha ) = xwrkr( :, ialpha ) * W( :, ixpt )
       xwrki( :, ialpha ) = xwrki( :, ialpha ) * W( :, ixpt )
 
-      call cfft( xwrkr(1,ialpha), xwrki(1,ialpha), sys%kmesh(3), sys%kmesh(3), sys%kmesh(2), sys%kmesh(1), +1, wrk, jfft )
+      call cfft( xwrkr(1,ialpha), xwrki(1,ialpha), sys%kmesh(3), sys%kmesh(3), sys%kmesh(2), sys%kmesh(1), -1, wrk, jfft )
 
       rtphi( ixpt, :, ialpha ) = xwrkr( :, ialpha ) * re_obf_phs( :, ixpt ) &
                                + xwrki( :, ialpha ) * im_obf_phs( :, ixpt )
@@ -581,12 +585,12 @@ module ocean_long_range
           xwrkr( : ) = real( phi( :, iixpt, ialpha ), DP )
           xwrki( : ) = real( aimag( phi( :, iixpt, ialpha ) ), DP )
   
-          call cfft( xwrkr, xwrki, sys%kmesh(1), sys%kmesh(1), sys%kmesh(2), sys%kmesh(3), -1, wrk, jfft )
+          call cfft( xwrkr, xwrki, sys%kmesh(1), sys%kmesh(1), sys%kmesh(2), sys%kmesh(3), +1, wrk, jfft )
   
           xwrkr( : ) = xwrkr( : ) * W( :, ixpt + iixpt - 1 )
           xwrki( : ) = xwrki( : ) * W( :, ixpt + iixpt - 1 )
 
-          call cfft( xwrkr, xwrki, sys%kmesh(1), sys%kmesh(1), sys%kmesh(2), sys%kmesh(3), +1, wrk, jfft )
+          call cfft( xwrkr, xwrki, sys%kmesh(1), sys%kmesh(1), sys%kmesh(2), sys%kmesh(3), -1, wrk, jfft )
 
           phi( :, iixpt, ialpha ) = cmplx( xwrkr( : ), xwrki( : ) )
 
@@ -838,13 +842,13 @@ module ocean_long_range
 
 
         call cfft( xwrkr, xwrki, sys%kmesh(3), sys%kmesh(3), sys%kmesh(2), & 
-                   sys%kmesh(1), -1, wrk, jfft )
+                   sys%kmesh(1), +1, wrk, jfft )
 
         xwrkr( : ) = xwrkr( : ) * W( :, xiter )
         xwrki( : ) = xwrki( : ) * W( :, xiter )
 
         call cfft( xwrkr, xwrki, sys%kmesh(3), sys%kmesh(3), sys%kmesh(2), &
-                   sys%kmesh(1), +1, wrk, jfft )
+                   sys%kmesh(1), -1, wrk, jfft )
 
 #ifdef BLAS
         do ikpt = 1, lr%my_nkpts
@@ -1013,7 +1017,7 @@ module ocean_long_range
  !       oneDwrkr( : ) = xwrkr( :, xiter )
  !       oneDwrki( : ) = xwrki( :, xiter )
         call cfft( xwrkr(1,xiter), xwrki(1,xiter), sys%kmesh(3), sys%kmesh(3), sys%kmesh(2), &
-                   sys%kmesh(1), -1, wrk, jfft )
+                   sys%kmesh(1), +1, wrk, jfft )
 !        call cfft( oneDwrkr, oneDwrki, sys%kmesh(3), sys%kmesh(3), sys%kmesh(2), &
 !                   sys%kmesh(1), -1, wrk, jfft )
 
@@ -1023,7 +1027,7 @@ module ocean_long_range
 !        oneDwrki( : ) = oneDwrki( : ) * W( :, xiter )
 
         call cfft( xwrkr(1,xiter), xwrki(1,xiter), sys%kmesh(3), sys%kmesh(3), sys%kmesh(2), &
-                   sys%kmesh(1), +1, wrk, jfft )
+                   sys%kmesh(1), -1, wrk, jfft )
 !        call cfft( oneDwrkr, oneDwrki, sys%kmesh(3), sys%kmesh(3), sys%kmesh(2), &
 !                   sys%kmesh(1), +1, wrk, jfft )
 !        xwrkr( :, xiter ) = oneDwrkr( : )
@@ -1213,13 +1217,13 @@ module ocean_long_range
 !        xwrkr( : ) = rphi( :, ixpt, ialpha )
 !        xwrki( : ) = iphi( :, ixpt, ialpha )
 
-        call cfft( xwrkr(1,xiter), xwrki(1,xiter), sys%kmesh(3), sys%kmesh(3), sys%kmesh(2), sys%kmesh(1), -1, wrk, jfft )
+        call cfft( xwrkr(1,xiter), xwrki(1,xiter), sys%kmesh(3), sys%kmesh(3), sys%kmesh(2), sys%kmesh(1), +1, wrk, jfft )
 !        call cfft( xwrkr, xwrki, sys%kmesh(1), sys%kmesh(1), sys%kmesh(2), sys%kmesh(3), -1, wrk, jfft )
 
         xwrkr( :, xiter ) = xwrkr( :, xiter ) * W( :, ixpt )
         xwrki( :, xiter ) = xwrki( :, xiter ) * W( :, ixpt )
 
-        call cfft( xwrkr(1,xiter), xwrki(1,xiter), sys%kmesh(3), sys%kmesh(3), sys%kmesh(2), sys%kmesh(1), +1, wrk, jfft )
+        call cfft( xwrkr(1,xiter), xwrki(1,xiter), sys%kmesh(3), sys%kmesh(3), sys%kmesh(2), sys%kmesh(1), -1, wrk, jfft )
 !        call cfft( xwrkr, xwrki, sys%kmesh(1), sys%kmesh(1), sys%kmesh(2), sys%kmesh(3), +1, wrk, jfft )
         
         enddo
@@ -1291,6 +1295,7 @@ module ocean_long_range
 !    lr%timer= lr%timer + time2-time1
   end subroutine
 
+#if 0
   subroutine create_lr( sys, lr, ierr )
     use OCEAN_mpi, only : myid, nproc, root, comm
     use OCEAN_system
@@ -1367,7 +1372,7 @@ module ocean_long_range
 111 continue
 
   end subroutine create_lr
-
+#endif
 
   subroutine destroy_W( lr )
     type( long_range ), intent( inout ) :: lr
@@ -2064,12 +2069,12 @@ module ocean_long_range
       xwrkr( ikpt ) = re_bloch_state( iband, ikpt, ixpt, val_spin( ialpha ) )
       xwrki( ikpt ) = im_bloch_state( iband, ikpt, ixpt, val_spin( ialpha ) )
 
-      call cfft( xwrkr, xwrki, sys%kmesh(3), sys%kmesh(3), sys%kmesh(2), sys%kmesh(1), -1, wrk, jfft )
+      call cfft( xwrkr, xwrki, sys%kmesh(3), sys%kmesh(3), sys%kmesh(2), sys%kmesh(1), +1, wrk, jfft )
 
       xwrkr( : ) = xwrkr( : ) * W( :, ixpt )
       xwrki( : ) = xwrki( : ) * W( :, ixpt )
 
-      call cfft( xwrkr, xwrki, sys%kmesh(3), sys%kmesh(3), sys%kmesh(2), sys%kmesh(1), +1, wrk, jfft )
+      call cfft( xwrkr, xwrki, sys%kmesh(3), sys%kmesh(3), sys%kmesh(2), sys%kmesh(1), -1, wrk, jfft )
       rtphi( ixpt, : ) = xwrkr( : )
       itphi( ixpt, : ) = xwrki( : )
 
@@ -2218,7 +2223,7 @@ module ocean_long_range
 
 
         call cfft( xwrkr, xwrki, sys%kmesh(3), sys%kmesh(3), sys%kmesh(2), &
-                   sys%kmesh(1), -1, wrk, jfft )
+                   sys%kmesh(1), +1, wrk, jfft )
 
 
         re_exciton( xiter, 1, ialpha ) = xwrkr( 1 ) * dble(sys%nkpts)
