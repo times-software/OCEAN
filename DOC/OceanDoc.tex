@@ -31,15 +31,15 @@
 
 \newchapter{}
 \begin{abstract}
-\program{ocean} is an {\it ab initio} Density Functional Theory (DFT) + Bethe-Salpete Equation (BSE) code for calculations of core-level 
-spectra. Currently the code allows for the calculations of x-ray absorption spectra (XAS), x-ray emssion (XES), and non-resonant x-ray 
-inelastic x-ray spectra (NRIXS) of periodic systems. The code is written in Fortran 90 with associated shell and Perl scripting.
+\program{ocean} is an {\it ab initio} Density Functional Theory (DFT) + Bethe-Salpeter Equation (BSE) code for calculations of core-level spectra. 
+Currently the code allows for the calculations of x-ray absorption spectra (XAS), x-ray emission (XES), non-resonant x-ray inelastic x-ray spectra (NRIXS), and (direct) resonant inelastic x-ray scattering (RIXS) of periodic systems. 
+The code is written in Fortran 90 with associated shell and Perl scripting.
 
 
 
 \vspace*{\stretch{1}}
 
- \noindent This document is copyright \copyright\ 2010-2016 \program{ocean} collaboration, University of Washington. Following conventions of the FEFF documentation
+ \noindent This document is copyright \copyright\ 2010-2017 \program{ocean} collaboration, University of Washington. Following conventions of the FEFF documentation
 
 \end{abstract}
 
@@ -94,17 +94,25 @@ The guide is broken up into sections to follow the path the code will take.
 \vspace*{\stretch{1}}
 
 \section{Acknowledgments and history}
+
 The \program{ocean} code is based historically off of the NIST BSE codes of Eric Shirley. 
 The development of \program{ocean} grew out of  collaboration between Eric Shirley and John Rehr at the University of Washington by way of the thesis project of John Vinson. 
 
 Select \program{ocean} and \program{ocean}-precursor papers (in reverse chronological order) :
 \begin{itemize}
-\item K.\ Gilmore, John Vinson, E.\ L.\ Shirley, D.\ Prendergast, C.\ D.\ Pemmaraju, J.\ J.\ Kas, F.\ D.\ Vila, J.\ J.\ Rehr, Comp. Phys. Comm., (in press)
+\item K.\ Gilmore, J.\ Vinson, E.\ L.\ Shirley, D.\ Prendergast, C.\ D.\ Pemmaraju, J.\ J.\ Kas, F.\ D.\ Vila, J.\ J.\ Rehr, Comp.\ Phys.\ Comm.\ \textbf{197}, 109 (2015)
 \item J.\ Vinson, J.\ J.\ Rehr, J.\ J.\ Kas, and E.\ L.\ Shirley, Phys.\ Rev.\ B \textbf{83}, 115106 (2011)
 \item E.\ L.\ Shirley, Ultramicroscopy \textbf{106}, 986 (2006)
 \item E.\ L.\ Shirley, Phys.\ Rev.\ Lett.\ \textbf{80}, 794 (1998)
 \end{itemize}
 
+A valence BSE code is now integrated into \program{ocean} for RIXS calculations:
+\begin{itemize}
+\item H.\ M.\ Lawler, J.\ J.\ Rehr, F.\ Vila, S.\ D.\ Dalosto, E.\ L.\ Shirley, and Z.\ H.\ Levine, Phys.\ Rev.\ B \textbf{78}, 205108 (2008)
+\item L.\ X.\ Benedict and E.\ L.\ Shirley, Phys.\ Rev.\ B \textbf{59}, 5441 (1999)
+\item L.\ X.\ Benedict, E.\ L.\ Shirley, and R.\ B.\ Bohn, Phys.\ Rev.\ B \textbf{57}, 9385 (1998)
+\item L.\ X.\ Benedict, E.\ L.\ Shirley, and R.\ B.\ Bohn, Phys.\ Rev.\ Lett.\ \textbf{80}, 4514 (1998) 
+\end{itemize}
 
 
 The current list of contributors  (in alphabetical order):
@@ -180,7 +188,7 @@ The \program{ocean} code has neither explicit core levels nor self-consistent ca
 For calculating the energy of the core level we assume that the core level wave function is the same between chemical environments. This means that the kinetic energy of the core level is fixed, and therefore changes in the core-level energy can only come from changes in the local potential. This comes directly from the DFT calculation as the total Kohn-Sham potential.
 \item The response of the rest of the system to the removal of the core-level electron is given (within linear response) by the screening of the core-hole potential that we are already calculating. An additional factor of $1/2$ is picked up from adiabatically moving the charge of this electron. 
 \end{enumerate}
-To evaluate both 1 and 2 we approximate the core as a delta at its location $\tau$. 
+To evaluate both 1 and 2 we approximate the core as a delta function at its location $\tau$. 
 The energy of the core hole (as it would then appear in the BSE Hamiltonian $H^0$) is given by
 \begin{align}
 \epsilon_h = V_\text{KS}(\tau) - 1/2 W(\tau) + X
@@ -215,9 +223,9 @@ Core-level shifts are calculated in the screening stage. The parameter \htmlref{
 \item true -- only interested in a single cell or testing
 \item $[$ any number $]$ -- running many cells, e.g., molecular dynamics snapshots.
 \end{enumerate}
-Choosing the number to set \htmlref{CORE\_OFFSET}{card:core-offset} can be tricky because we have no idea what values the Kohn-Sham potential or screening calculation will give ahead of time. Instead, we can use the option``true" and the code will figure out what value to set \htmlref{CORE\_OFFSET}{card:core-offset} to such that the average offset is zero. Go ahead and change the input so that \htmlref{CORE\_OFFSET}{card:core-offset} is ``true'' and rerun the calculation. If you'd like you can use the script ``re\_run.sh'' by setting the directory where \program{ocean} was installed. 
+Choosing the number to set \htmlref{CORE\_OFFSET}{card:core-offset} can be tricky because we have no idea what values the Kohn-Sham potential or screening calculation will give ahead of time. Instead, we can use the option ``true" and the code will figure out what value to set \htmlref{CORE\_OFFSET}{card:core-offset} to such that the average offset is zero. Go ahead and change the input so that \htmlref{CORE\_OFFSET}{card:core-offset} is ``true'' and rerun the calculation. If you'd like you can use the script ``re\_run.sh'' by setting the directory where \program{ocean} was installed. 
 
-This time the code has performed additional calculations to get the Kohn-Sham potential at each nitrogen site. The difference is remarkable -- the main parts of the ammonium and nitrate XES are no longer overlapping, but instead separated by several eVs. The core-level shifts are unique to each site and each screening radius. As such they are stored within the \file{SCREEN} directory by site and radius, i.e., \file{SCREEN/zN\_01/}. If you look at these files you will see that the two nitrate and two ammonium nitrogens are almost the same (small differences are inevitable) as we expect since they are equivalent sites. 
+This time the code has performed additional calculations to get the Kohn-Sham potential at each nitrogen site. The difference is remarkable -- the main parts of the ammonium and nitrate XES are no longer overlapping, but instead separated by several eVs. The core-level shifts are unique to each site and each screening radius. As such they are stored within the \file{SCREEN} directory by site and radius, i.e., \file{SCREEN/zN\_0001/}. If you look at these files you will see that the two nitrate and two ammonium nitrogens are almost the same (small differences are inevitable) as we expect since they are equivalent sites. 
 
 \iffalse
 \section{Rutile}
