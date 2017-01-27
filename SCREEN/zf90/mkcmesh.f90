@@ -59,6 +59,14 @@ subroutine mkcmesh( nang_in, nr, rad, drad, element, indx, posn, wpt, drel, avec
     end do
   end do
   deallocate( x, wang, wr )
-!
+
+  ! 
+  open( unit=99, file='projsupp', form='formatted', status='unknown' )
+  rewind( 99 )
+  write( 99, '(2i10)') nr, nang
+  write( 99, '(8F21.16)') rad( : )
+  write( 99, '(8F21.16)') drad( : )
+  close( 99 )
+  !
   return
 end subroutine mkcmesh
