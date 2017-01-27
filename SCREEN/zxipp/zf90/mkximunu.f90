@@ -9,9 +9,8 @@ program mkximunu
   implicit none
   !
   integer :: nr, nang, nang2, i, j, ir, jr, ia, ja, chan1, chan2
-  real( kind = kind( 1.d0 ) ) :: ener
   complex( kind = kind( 1.0d0 ) ) :: csu, rm1
-  character * 8 :: fnam
+  character(len=8) :: fnam
   !
   real( kind = kind( 1.0d0 ) ), allocatable :: rad( : ), x( :, : ), ymu( :, : )
   real( kind = kind( 1.0d0 ) ), allocatable :: rerow( :, : ), imrow( :, : )
@@ -20,7 +19,7 @@ program mkximunu
   rm1 = -1
   rm1 = sqrt( rm1 )
   !
-  read ( 5, * ) ener, chan1, chan2
+  read ( 5, * ) chan1, chan2
   !
   open( unit=99, file='projsupp', form='formatted', status='unknown' )
   rewind 99
@@ -47,16 +46,12 @@ program mkximunu
   close( unit=99 )
   !
   write ( 6, * ) 'reading ximat'
-  open( unit=99, file='ximat1', form='unformatted', status='unknown' )
+  open( unit=99, file='ximat', form='unformatted', status='unknown' )
   rewind 99
-!  open( unit=98, file='ximat2', form='unformatted', status='unknown' )
-!  rewind 98
-  imrow( :, : ) = 0.0d0
   do i = 1, nr
      do j = 1, nang
         read ( 99 ) rerow( :, : )
-!        read ( 98 ) imrow( :, : )
-        xi( :, :, j, i ) = rerow( :, : ) + rm1 * imrow( :, : )
+        xi( :, :, j, i ) = rerow( :, : ) 
      end do
   end do 
   close( unit=99 )
@@ -76,7 +71,7 @@ program mkximunu
                     csu = csu + xi( ia, ir, ja, jr ) * ymu( ia, i ) * x( 4, ia ) * ymu( ja, j ) * x( 4, ja )
                  end do
               end do
-              write ( 99, '(5(1x,1e15.8))' ) rad( ir ), rad( jr ), csu, ener
+              write ( 99, '(4(1x,1e15.8))' ) rad( ir ), rad( jr ), csu
            end do
            write ( 99, * )
         end do

@@ -1,3 +1,10 @@
+! Copyright (C) 2017 OCEAN collaboration
+!
+! This file is part of the OCEAN project and distributed under the terms 
+! of the University of Illinois/NCSA Open Source License. See the file 
+! `License' in the root directory of the present distribution.
+!
+!
 program dressximunu
   implicit none
   !
@@ -13,7 +20,10 @@ program dressximunu
   !
   real( kind = kind ( 1.0d0 ) ) :: r, r1, r2, r3, r4, d1, d2, d3, d4, oldnofr, frac1, frac2
   !
-  read ( 5, * ) dchan, rmax, appx
+!  read ( 5, * ) dchan, rmax, appx
+  dchan = 0
+  rmax = huge( 1.0 )
+  appx = 'rpa'
   !
   pi = 4.0d0 * atan( 1.0d0 )
   rm1= -1.0d0
