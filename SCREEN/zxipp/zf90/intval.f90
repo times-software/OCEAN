@@ -1,4 +1,4 @@
-! Copyright (C) 2015 OCEAN collaboration
+! Copyright (C) 2015, 2017 OCEAN collaboration
 !
 ! This file is part of the OCEAN project and distributed under the terms 
 ! of the University of Illinois/NCSA Open Source License. See the file 
@@ -12,7 +12,7 @@ subroutine intval( n, xtab, ytab, x, y, lopt, hopt )
   double precision xtab( n ), ytab( n ), x, y
   character(len=3) lopt, hopt
   !
-  integer ii
+  integer ii, il, ih
   double precision rat
   logical below, above, interp
   !
@@ -43,7 +43,17 @@ subroutine intval( n, xtab, ytab, x, y, lopt, hopt )
      end if
   else
      interp = .true.
-     ii = 1
+     il = 1
+     ih = n - 1
+     do while ( il + 3 .lt. ih )
+        ii = ( il + ih ) / 2
+        if ( xtab( ii ) .gt. x ) then
+           ih = ii - 1
+        else
+           il = ii
+        end if
+     end do
+     ii = il
      do while ( xtab( ii + 1 ) .lt. x )
         ii = ii + 1
      end do

@@ -12,19 +12,22 @@ program mkximunu
   complex( kind = kind( 1.0d0 ) ) :: csu, rm1
   character(len=8) :: fnam
   !
-  real( kind = kind( 1.0d0 ) ), allocatable :: rad( : ), x( :, : ), ymu( :, : )
+  real( kind = kind( 1.0d0 ) ), allocatable :: rad( : ), ymu( :, : ), xpt( : ), ypt( : ), zpt( : ), wpt( : )
   real( kind = kind( 1.0d0 ) ), allocatable :: rerow( :, : ), imrow( :, : )
   complex( kind = kind( 1.0d0 ) ), allocatable :: xi( :, :, :, : )
   !
   rm1 = -1
   rm1 = sqrt( rm1 )
   !
-  read ( 5, * ) chan1, chan2
+!  read ( 5, * ) chan1, chan2
+  chan1 = 1
+  chan2 = 1
   !
   open( unit=99, file='projsupp', form='formatted', status='unknown' )
   rewind 99
   read ( 99, * ) nr, nang
-  allocate( rad( nr ), x( 4, nang ), xi( nang, nr, nang, nr ), rerow( nang, nr ), imrow( nang, nr ) )
+  allocate( rad( nr ), xi( nang, nr, nang, nr ), rerow( nang, nr ), imrow( nang, nr ), &
+            xpt( nang ), ypt( nang ), zpt( nang ), wpt( nang ) )
   read ( 99, * ) rad( : )
   close( unit=99 )
   !
@@ -32,18 +35,21 @@ program mkximunu
   rewind 99
   read ( 99, * ) nang2
   if ( nang .ne. nang2 ) stop 'nang nang2 mismatch in mkximunu'
-  read ( 99, * ) x( :, : )
+  do i =1, nang
+    read ( 99, * ) xpt( i ), ypt( i ), zpt( i ), wpt( i )
+  enddo
   close( unit=99 )
   !
   allocate( ymu( nang, 9 ) )
-  open( unit=99, file='ytab', form='formatted', status='unknown' )
-  rewind 99
-  do i = 1, 9
-     do j = 1, nang
-        read ( 99, * ) ymu( j, i )
-     end do
-  end do
-  close( unit=99 )
+  call formreytab( nang, xpt, ypt, zpt, ymu, 9 )
+!  open( unit=99, file='ytab', form='formatted', status='unknown' )
+!  rewind 99
+!  do i = 1, 9
+!     do j = 1, nang
+!        read ( 99, * ) ymu( j, i )
+!     end do
+!  end do
+!  close( unit=99 )
   !
   write ( 6, * ) 'reading ximat'
   open( unit=99, file='ximat', form='unformatted', status='unknown' )
@@ -68,7 +74,7 @@ program mkximunu
               csu = 0.0d0
               do ia = 1, nang
                  do ja = 1, nang
-                    csu = csu + xi( ia, ir, ja, jr ) * ymu( ia, i ) * x( 4, ia ) * ymu( ja, j ) * x( 4, ja )
+                    csu = csu + xi( ia, ir, ja, jr ) * ymu( ia, i ) * wpt( ia ) * ymu( ja, j ) * wpt( ja )
                  end do
               end do
               write ( 99, '(4(1x,1e15.8))' ) rad( ir ), rad( jr ), csu

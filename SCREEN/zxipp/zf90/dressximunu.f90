@@ -21,7 +21,7 @@ program dressximunu
   real( kind = kind ( 1.0d0 ) ) :: r, r1, r2, r3, r4, d1, d2, d3, d4, oldnofr, frac1, frac2
   !
 !  read ( 5, * ) dchan, rmax, appx
-  dchan = 0
+  dchan = 1
   rmax = huge( 1.0 )
   appx = 'rpa'
   !
