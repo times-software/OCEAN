@@ -14,7 +14,7 @@ subroutine cmjtv( nsphpt, xsph, ysph, zsph, wsph, prefs )
   !
   integer :: l, m, iproj, mc, npmax, nqproj, atno, nc, lc, lmin, lmax, ip, powmax
   real( kind = kind( 1.0d0 ) ) :: dqproj, qhat( 3 ), ehatr( 3 ), ehati( 3 )
-  real( kind = kind( 1.0d0 ) ) :: ephotev, lam, pi, q, dummy, enrom
+  real( kind = kind( 1.0d0 ) ) :: ephotev, lam, pi, q, dummy, enorm
   complex( kind = kind( 1.0d0 ) ) :: rm1, ehat( 3 )
   integer, allocatable :: nproj( : )
   character(len=4) :: add04
