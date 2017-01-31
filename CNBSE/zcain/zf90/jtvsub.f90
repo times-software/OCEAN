@@ -13,14 +13,15 @@ subroutine jtvsub( lmin, lmax, nproj, npmax, lc, nbsemel, powmax, ifcn, stext, e
   real( kind = kind( 1.0d0 ) ), dimension( nsphpt ) :: xsph, ysph, zsph, wsph
   real( kind = kind( 1.0d0 ) ) :: prefs( 0 : 1000 ) 
   integer :: lmin, lmax, npmax, lc, powmax
-  real( kind = kind( 1.0d0 ) ) :: ehat( 3 ), qhat( 3 ), qmag
+  real( kind = kind( 1.0d0 ) ) :: qhat( 3 ), qmag
+  complex( kind = kind( 1.0d0 ) ) :: ehat( 3 ), edot
   character(len=10) :: spcttype, stext
   integer :: nproj( lmin : lmax )
   real( kind = kind(1.0d0)) :: ifcn( npmax, 0 : powmax, lmin : lmax)
   complex( kind = kind( 1.0d0 ) ) :: nbsemel( npmax, -lmax : lmax, lmin : lmax, -lc : lc )
   !
   integer :: i, j, l, m, mc, lpick, lt
-  real( kind = kind( 1.0d0 ) ) :: edot, qdot, jlmel( npmax, 0 : lmax + lc, lmin : lmax ), pl
+  real( kind = kind( 1.0d0 ) ) :: qdot, jlmel( npmax, 0 : lmax + lc, lmin : lmax ), pl
   complex( kind = kind( 1.0d0 )) :: csu( powmax ), ylm, ylcmc, iqmag, rp, rm1, angint, mip, cpr
   !
   lpick = -1

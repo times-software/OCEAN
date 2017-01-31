@@ -1,0 +1,103 @@
+#assumes you want to try and run abinit on 28 cores
+core 28
+para_prefix{ mpirun -machinefile ../nodelist -n 28 }
+
+# dft solver: abi, qe, obf
+dft{ qe }
+
+# Kpt mesh for final states; was 15 15 15
+nkpt { 4 4 4 }
+
+# Kpt mesh for final states; were 9 9 9
+paw.nkpt { 3 3 3 }
+ngkpt { 3 3 3 }
+
+# Total bands for screening; was 60
+paw.nbands 40
+
+# Total bands for final states; was 60
+nbands 40
+
+# SCF mixing
+mixing { 0.2 }
+
+# Mag. of latt. vec. in Bohr
+acell {  5.41   5.41   5.41  }
+
+# Cart comps. of latt. vecs.
+rprim {
+     0.5000000000000000    0.5000000000000000   -0.5000000000000000
+    -0.5000000000000000    0.5000000000000000    0.5000000000000000
+     0.5000000000000000   -0.5000000000000000    0.5000000000000000 }
+
+# Ntypes of atoms
+ntypat 1
+
+# Z num for types
+znucl { 26 }
+
+# pseudo location
+ppdir { '../' }
+
+# pseudopotentials
+pp_list{        fe.fhi }
+
+
+occopt 3
+
+nspin 2
+smag{
+starting_magnetization(1)=0.8
+}
+
+# N atoms in unit cell
+natom 1
+
+# Type of each atom
+typat { 1 }
+
+# Relative positions of atoms
+xred {
+        0.000000000   0.000000000   0.000000000
+}
+
+# Kinetic Energy cutoff; was 140
+ecut 80
+
+# SCF Energy tolerance
+toldfe 1.0d-7
+
+# SCF wftol
+tolwfr 1.1d-14
+
+# SCF iterations
+nstep 250
+
+# Static dielectric const
+diemac 1000.0
+metal { .true. }
+
+# xmesh
+cnbse.xmesh { 6 6 6 }
+
+# paw control files
+opf.fill{ 26 fe.fill }
+opf.opts{ 26 fe.opts }
+
+# edge information # number of edges to calculate # atom number, n quantum number, l quantum number
+nedges 1
+edges{ 1 2 1 }
+
+cnbse.mode{ xas }
+cnbse.ways{ 2 }
+
+# spectral broadening in eV
+cnbse.broaden{ 0.2 }
+
+# radius for paw reconstruciton
+paw.shells{ 3.5 }
+cnbse.rad{ 3.5 }
+
+#Scaling Factor
+scfac 0.90
+

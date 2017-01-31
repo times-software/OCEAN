@@ -1,0 +1,10 @@
+
+This example calculates the magnetic circular dichroism at the Fe 2p 
+absorption edge of iron.
+
+usage:  ${OCEAN_DIR}/BIN/ocean.pl Fe.in
+
+Compare the reference spectra './absspct-plus' and './absspct-minus' 
+to the result in 'CNBSE/absspct_Fe.0001_2p_01' and 'CNBSE/absspct_Fe.0001_2p_02', 
+respectively.
+

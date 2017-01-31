@@ -13,7 +13,9 @@ subroutine cmjtv( nsphpt, xsph, ysph, zsph, wsph, prefs )
   real( kind = kind( 1.0d0 ) ), dimension( nsphpt ) :: xsph, ysph, zsph, wsph
   !
   integer :: l, m, iproj, mc, npmax, nqproj, atno, nc, lc, lmin, lmax, ip, powmax
-  real( kind = kind( 1.0d0 ) ) :: dqproj, qhat( 3 ), ehat( 3 ), ephotev, lam, pi, q, dummy
+  real( kind = kind( 1.0d0 ) ) :: dqproj, qhat( 3 ), ehatr( 3 ), ehati( 3 )
+  real( kind = kind( 1.0d0 ) ) :: ephotev, lam, pi, q, dummy, enrom
+  complex( kind = kind( 1.0d0 ) ) :: rm1, ehat( 3 )
   integer, allocatable :: nproj( : )
   character(len=4) :: add04
   character(len=15) :: spcttype
@@ -22,6 +24,8 @@ subroutine cmjtv( nsphpt, xsph, ysph, zsph, wsph, prefs )
   complex( kind = kind( 1.0d0 ) ), allocatable, dimension( :, :, :, : ) :: nbsemel
   !
   pi = 4.0d0 * atan( 1.0d0 )
+  rm1 = -1.0d0
+  rm1 = sqrt( rm1 )
   !
   ! get core level info
   open( unit=99, file='ZNL', form='formatted', status='unknown' )
@@ -54,11 +58,17 @@ subroutine cmjtv( nsphpt, xsph, ysph, zsph, wsph, prefs )
   open( unit=99, file='spectfile', form='formatted', status='unknown' )
   rewind 99
   read ( 99, * ) spcttype
-  call fancyvector( ehat, dummy, 99 )
+  call fancyvector( ehatr, dummy, 99 )
+  call fancyvector( ehati, dummy, 99 )
   call fancyvector( qhat, q, 99 )
   read ( 99, * ) ephotev
   close( unit=99 )
-  ehat( : ) = ehat( : ) / sqrt( sum( ehat( : ) ** 2 ) )
+  ehat( 1 ) = ehatr( 1 ) + rm1 * ehati( 1 )
+  ehat( 2 ) = ehatr( 2 ) + rm1 * ehati( 2 )
+  ehat( 3 ) = ehatr( 3 ) + rm1 * ehati( 3 )
+  enorm = ehat(1)*conjg(ehat(1)) + ehat(2)*conjg(ehat(2)) + ehat(3)*conjg(ehat(3))
+  ehat(:) = ehat(:) / sqrt( enorm )
+!  ehat( : ) = ehat( : ) / sqrt( sum( ehat( : ) ** 2 ) )
   qhat( : ) = qhat( : ) / sqrt( sum( qhat( : ) ** 2 ) )
   write ( 6, '(3(1f10.5))' ) ehat( : ), qhat( : )
   select case( spcttype )

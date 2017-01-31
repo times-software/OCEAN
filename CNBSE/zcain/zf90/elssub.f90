@@ -13,14 +13,15 @@ subroutine elssub( lmin, lmax, nproj, npmax, lc, nbsemel, powmax, ifcn, spcttype
   real( kind = kind( 1.0d0 ) ), dimension( nsphpt ) :: xsph, ysph, zsph, wsph
   real( kind = kind( 1.0d0 ) ) :: prefs( 0 : 1000 ) 
   integer :: lmin, lmax, npmax, lc, powmax
-  real( kind = kind( 1.0d0 ) ) :: ehat( 3 ), qhat( 3 ), q
+  real( kind = kind( 1.0d0 ) ) :: qhat( 3 ), q
+  complex( kind = kind( 1.0d0 ) ) :: ehat( 3 ), edot
   character * 15 :: spcttype
   integer :: nproj( lmin : lmax )
   real( kind = kind( 1.0d0 ) ) :: ifcn( npmax, 0 : powmax, lmin : lmax )
   complex( kind = kind( 1.0d0 ) ) :: nbsemel( npmax, -lmax : lmax, lmin : lmax, -lc : lc )
   !
   integer :: i, j, l, m, mc
-  real( kind = kind( 1.0d0 ) ) :: edot, qdot
+  real( kind = kind( 1.0d0 ) ) :: qdot
   complex( kind = kind( 1.0d0 ) ) :: ylm, ylcmc, rm1, emel, eqmel, qpmel( 0 : powmax ), jp
   !
   rm1 = -1
