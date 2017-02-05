@@ -211,9 +211,10 @@ module OCEAN_val_energy
       enddo ! kiter
     endif
     !
-    open(myid+2000)
-    write(myid+2000,*) allow%valr
-    close(myid+2000)
+!    open(myid+2000)
+!    write(myid+2000,*) allow%valr
+!    close(myid+2000)
+
 !    allow%valr = 1.0_dp
 !    allow%vali = 1.0_dp
 

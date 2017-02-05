@@ -777,7 +777,7 @@ my $corelevel = $5;
 close IN;
 
 open RUNLIST, ">runlist" or die "Failed to open runlist for writing\n$!";
-my $photon_combo = $nphoton ** 2;
+my $photon_combo = $nphoton * ($nphoton-1);
 my $tot_gmres_count = $gmres_count * $photon_combo;
 print RUNLIST "$tot_gmres_count\n";
 for( my $e = 1; $e <= $gmres_count; $e++ )
@@ -786,6 +786,7 @@ for( my $e = 1; $e <= $gmres_count; $e++ )
   {
     for( my $j = 1; $j <= $nphoton; $j++ )
     {
+      next if( $i == $j );
       print RUNLIST "$znum  $nnum  $lnum  $elname  $corelevel  0  $i  RXS  $e  $j\n";
     }
   }
