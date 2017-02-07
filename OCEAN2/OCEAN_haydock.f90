@@ -1201,6 +1201,10 @@ module OCEAN_action
     case( 'XAS' )
       write(lanc_filename,'(A8,A2,A1,I4.4,A1,A2,A1,I2.2)' ) 'abslanc_', sys%cur_run%elname, &
           '.', sys%cur_run%indx, '_', sys%cur_run%corelevel, '_', sys%cur_run%photon
+    case( 'RXS')
+      write(lanc_filename,'(A7,A2,A1,A2,A1,I2.2,A1,I2.2,A1,I2.2,A1,I2.2,A1,I2.2)' ) 'rxlanc_', sys%cur_run%elname, &
+          '.', sys%cur_run%corelevel, '_', sys%cur_run%photon, '.', &
+          sys%cur_run%rixs_energy, '.', sys%cur_run%rixs_pol
     case default
       write(lanc_filename,'(A8,A2,A1,I4.4,A1,A2,A1,I2.2)' ) 'abslanc_', sys%cur_run%elname, &
           '.', sys%cur_run%indx, '_', sys%cur_run%corelevel, '_', sys%cur_run%photon

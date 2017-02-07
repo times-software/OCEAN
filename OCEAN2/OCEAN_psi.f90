@@ -1669,7 +1669,7 @@ module OCEAN_psi
 
     if( id .gt. nproc_remain - 1 ) then
       my_store_size = 0
-      write(1000+myid,*) 'val_store_size', my_store_size, val_start, k_start, beta_start
+!      write(1000+myid,*) 'val_store_size', my_store_size, val_start, k_start, beta_start
       return
     endif
 
@@ -1699,7 +1699,7 @@ module OCEAN_psi
 
     enddo
 
-    write(1000+myid,*) 'val_store_size', my_store_size, val_start, k_start, beta_start
+!    write(1000+myid,*) 'val_store_size', my_store_size, val_start, k_start, beta_start
 
   end subroutine psi_val_store_size
 
@@ -2385,8 +2385,8 @@ module OCEAN_psi
     p%val_store_size = 0
 #endif
 
-    write(1000+myid,*) p%val_store_size, p%val_np, p%val_myid
-    flush(1000+myid)
+!    write(1000+myid,*) p%val_store_size, p%val_np, p%val_myid
+!    flush(1000+myid)
 
   end subroutine
     
