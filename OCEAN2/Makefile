@@ -27,7 +27,7 @@ OCEAN_constants.o: OCEAN_constants.f90 AI_kinds.o
 	$(MPIFORT) $(FLAGS) -c -o OCEAN_constants.o OCEAN_constants.f90
 
 ocean.x: $(OCEANOBJS)
-	$(MPIFORT) $(LDFLAGS) -o ocean.x $(OCEANOBJS)  $(BLAS) $(OPENMP) $(FFTWL)
+	$(MPIFORT) $(LDFLAGS) -o ocean.x $(OCEANOBJS)  $(BLAS) $(OPENMP) $(FFTWL) $(OPENMP)
 
 o_spect.x: o_spect.f90 AI_kinds.o gamfcn.o
 	$(MPIFORT) $(FLAGS) -o o_spect.x o_spect.f90 AI_kinds.o gamfcn.o
@@ -133,7 +133,7 @@ OCEAN_read_tmels.o: OCEAN_read_tmels.f90 OCEAN_system.o OCEAN_mpi.o OCEAN_psi.o
 	$(MPIFORT) $(FLAGS) -c -o OCEAN_read_tmels.o OCEAN_read_tmels.f90
 
 OCEAN_bubble.o: OCEAN_bubble.f90 OCEAN_mpi.o OCEAN_val_states.o OCEAN_system.o 
-	$(MPIFORT) $(FLAGS) -c -o OCEAN_bubble.o OCEAN_bubble.f90 $(FFT_WRAPPER_INCL)
+	$(MPIFORT) $(FLAGS) -c -o OCEAN_bubble.o OCEAN_bubble.f90 $(FFT_WRAPPER_INCL) $(OPENMP)
 
 OCEAN_val_states.o: OCEAN_val_states.f90 AI_kinds.o
 	$(MPIFORT) $(FLAGS) -c -o OCEAN_val_states.o OCEAN_val_states.f90
@@ -148,7 +148,7 @@ OCEAN_hyb_louie_levine.o: OCEAN_hyb_louie_levine.f90
 	$(MPIFORT) $(FLAGS) -c -o OCEAN_hyb_louie_levine.o OCEAN_hyb_louie_levine.f90
 
 OCEAN_ladder.o: OCEAN_ladder.f90 OCEAN_psi.o OCEAN_mpi.o OCEAN_val_states.o OCEAN_system.o OCEAN_hyb_louie_levine.o
-	$(MPIFORT) $(FLAGS) -c -o OCEAN_ladder.o OCEAN_ladder.f90 $(FFT_WRAPPER_INCL)
+	$(MPIFORT) $(FLAGS) -c -o OCEAN_ladder.o OCEAN_ladder.f90 $(FFT_WRAPPER_INCL) $(OPENMP)
 
 OCEAN_pfy.o: OCEAN_pfy.f90 OCEAN_psi.o OCEAN_mpi.o OCEAN_system.o OCEAN_constants.o
 	$(MPIFORT) $(FLAGS) -c -o OCEAN_pfy.o OCEAN_pfy.f90
