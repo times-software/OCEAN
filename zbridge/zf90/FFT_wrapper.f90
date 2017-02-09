@@ -111,7 +111,7 @@ module FFT_wrapper
     i(:) = aimag(wrk(:))*fo%norm
 #else
     allocate( wrk( fo%jfft ) )
-    call cfft( r, i, fo%dims(1), fo%dims(1), fo%dims(2), fo%dims(3), dir, fo%wrk, fo%jfft )
+    call cfft( r, i, fo%dims(1), fo%dims(1), fo%dims(2), fo%dims(3), dir, wrk, fo%jfft )
 #endif
 
     deallocate( wrk )
@@ -144,7 +144,7 @@ module FFT_wrapper
     allocate( r( fo%dims(4) ), i( fo%dims(4) ), wrk( fo%jfft ) )
     r(:) = real(io(:))
     i(:) = aimag(io(:))
-    call cfft( r, i, dims(1), dims(1), dims(2), dims(3), dir, wrk, jfft )
+    call cfft( r, i, fo%dims(1), fo%dims(1), fo%dims(2), fo%dims(3), dir, wrk, fo%jfft )
     io(:) = cmplx(r(:),i(:))
     deallocate( r, i, wrk )
 #endif
