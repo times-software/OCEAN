@@ -86,10 +86,6 @@ module OCEAN_psi
 
     REAL(DP), ALLOCATABLE :: val_min_r(:,:)
     REAL(DP), ALLOCATABLE :: val_min_i(:,:)
-#ifdef CONTIGUOUS
-    CONTIGUOUS :: r, i, write_r, write_i, store_r, store_i
-    CONTIGUOUS :: valr, vali, val_min_r, val_min_i
-#endif
 
 #ifdef __INTEL
 !dir$ attributes align:64 :: r, i, write_r, write_i, store_r, store_i

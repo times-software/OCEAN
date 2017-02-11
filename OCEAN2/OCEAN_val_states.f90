@@ -30,9 +30,6 @@ module OCEAN_val_states
   logical, private :: is_init = .false.
   logical, private :: is_loaded = .false.
 
-!#ifdef CONTIGUOUS
-!  CONTIGUOUS :: re_val, im_val, re_con, im_con
-!#endif
 
 #ifdef __INTEL
 !dir$ attributes align:64 :: re_val, im_val, re_con, im_con

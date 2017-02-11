@@ -59,9 +59,6 @@ module OCEAN_ladder
   integer :: ladcap(2,3)
   integer, allocatable :: kk(:,:)
 
-!#ifdef CONTIGUOUS
-!  CONTIGUOUS :: ladder, re_bstate, im_bstate
-!#endif
 
 #ifdef __INTEL
 !dir$ attributes align:64 :: ladder, re_bstate, im_bstate

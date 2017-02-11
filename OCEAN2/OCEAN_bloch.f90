@@ -21,11 +21,6 @@ module OCEAN_bloch
   real(DP), pointer :: re_v_bloch_state( :, :, : )
   real(DP), pointer :: im_v_bloch_state( :, :, : )
 
-#ifdef HAVE_CONTIGUOUS
-  CONTIGUOUS :: re_bloch_state, im_bloch_state
-  CONTIGUOUS :: re_v_bloch_state, im_v_bloch_state
-#endif
-
 #ifdef __INTEL
 !dir$ attributes align:64 :: re_bloch_state, im_bloch_state
 !dir$ attributes align:64 :: re_v_bloch_state, im_v_bloch_state

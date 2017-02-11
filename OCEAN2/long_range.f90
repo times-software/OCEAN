@@ -37,10 +37,6 @@ module ocean_long_range
   real( DP ), pointer :: re_bloch_state( :, :, :, : )
   real( DP ), pointer :: im_bloch_state( :, :, :, : )
   real( DP ), pointer :: W( :, : )
-! Need to check for CONTIGUOUS
-#ifdef HAVE_CONTIGUOUS
-  CONTIGUOUS :: re_bloch_state, im_bloch_state, W
-#endif
 
   real( DP ) :: my_tau( 3 )
   integer :: my_xshift( 3 )
