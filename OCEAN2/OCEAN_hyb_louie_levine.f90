@@ -43,6 +43,7 @@ module OCEAN_hyb_louie_levine
     real(dp) :: vol
     real(dp) :: pi, rsx, decut, rad0, smear_vol, rsmin, rsmax, fy, gy, de, fff, fx, wx, &
               wy, gx, ww, fcn, qde, dspc, avec( 3, 3 ), vtest( 3 ), gap( 3 ), mds, rmag, maxxy
+    real(dp), allocatable :: ladder2(:,:,:) 
     
     integer :: num_kpoints, num_xpoints, iter1, iter2, rad_floor, rad_ceil, clip, rs_floor, rs_ceil, &
               rs_cur, rad_cur, ix, iy, iz, iyr, ixr, irad0, jd, irtab( sys%nxpts ), i, j, k
@@ -53,9 +54,6 @@ module OCEAN_hyb_louie_levine
     
 !    real(kind=kind(1.d0)), external :: AI_max_length
 
-!#ifdef CONTIGUOUS
-!    CONTIGUOUS :: rho
-!#endif
 
     pi = 4.0d0 * atan( 1.0d0 )
 
@@ -86,6 +84,11 @@ module OCEAN_hyb_louie_levine
         rewind 99
         read ( 99 ) compl_rho( : )
         close( unit=99 )
+        open(unit=99,file='rho_compare.txt',form='formatted',status='unknown')
+        do i = 1, sys%nxpts
+          write(99,*) rho(i), real( compl_rho(i), dp )
+        enddo
+        close(99)
         rho(:) = real( compl_rho(:), dp )
         deallocate( compl_rho )
       endif
@@ -151,11 +154,12 @@ module OCEAN_hyb_louie_levine
         kret( nkret ) = iter1
         mds = max( mds, rmag + maxxy )
       end if
+      write ( 73, '(2i8,1f20.10)' ) i, nkret, rmag
 
     enddo
     if( myid .eq. 0 ) then
       write ( 6, '(1a17,3f20.10)' ) 'maxxy decut rmag ', maxxy, decut, rmag
-      write ( 6, '(1a9,2i8)' ) 'nk nkret ', nkret
+      write ( 6, '(1a9,2i8)' ) 'nk nkret ', sys%nkpts, nkret
     endif
     !
     call getspacings( avec, gap )
@@ -243,11 +247,13 @@ module OCEAN_hyb_louie_levine
 
       if( nkret_ .ne. nkret ) then
         override_ladder = .false.
+        write(6,*) 'Override failed!!!'
       else
+        allocate( ladder2( nkret, sys%nxpts, sys%nxpts ) )
         do ix = 1, sys%nxpts
           do iy = 1, sys%nxpts
-            read( 99) ladder( 1 : nkret, ix, iy ) 
-            ladder( 1 : nkret, ix, iy ) = ladder( 1 : nkret, ix, iy ) * eV2Hartree
+            read( 99) ladder2( 1 : nkret, ix, iy ) 
+            ladder2( 1 : nkret, ix, iy ) = ladder2( 1 : nkret, ix, iy ) * eV2Hartree
           enddo
         enddo
       endif      
@@ -259,7 +265,7 @@ module OCEAN_hyb_louie_levine
 
 
 
-    if( .not. override_ladder ) then
+!    if( .not. override_ladder ) then
     do ix = nx_start, nx_start+nx-1
       ixr = irtab( ix )
       fx = ftab( ix )
@@ -301,7 +307,7 @@ module OCEAN_hyb_louie_levine
             else
               fcn = 1.0d0 - 0.1d0 * qde ** 2
             end if
-            ladder( iter1, ix - nx_start + 1, iy ) = 14.400d0 * ww * fcn ** 2 * eV2Hartree! e^2/Angstrom = 14.4 eV
+            ladder( iter1, ix - nx_start + 1, iy ) = 14.400d0 * ww * fcn ** 2 * eV2Hartree ! e^2/Angstrom = 14.4 eV
           endif
           if( ieee_is_nan( ladder( iter1, ix - nx_start + 1, iy ) ) ) then
             ierr = 1001
@@ -314,10 +320,16 @@ module OCEAN_hyb_louie_levine
             write(6,*) jd, fff, fcn      
             return
           endif
+          if( override_ladder ) then
+            if( abs(ladder( iter1, ix - nx_start + 1, iy ) - ladder2(iter1, ix - nx_start + 1, iy ) &
+                .gt. 0.01 ) ) then
+              write(6,*) kret( iter1 ), ix - nx_start + 1, iy, ladder( iter1, ix - nx_start + 1, iy ) , ladder2(iter1, ix - nx_start + 1, iy )
+            endif
+          endif
         enddo ! iter1 = 1, nkret
       enddo ! iy = 1, num_xpoints
     enddo ! ix = 1, num_xpoints
-  endif
+!  endif
 
     if( myid .eq. root ) write( 6, * ) 'Hybertsen-Louie-Levine model W constructed'
 

@@ -22,7 +22,7 @@ subroutine OCEAN_get_rho( xmesh, celvol, rho, ierr )
   !
   integer :: nfft( 3 ), dumint, i, j, k, ii, jj, kk, ierr_
   complex(dp),  allocatable :: rhoofr(:,:,:), rhoofg(:,:,:)
-  real(dp) :: dumr, sumrho, norm
+  real(dp) :: dumr, sumrho !, norm
 !  integer*8 :: fftw_plan, fftw_plan2
   type( fft_obj ) :: fo
   integer :: igl(3), igh(3), powlist(3), mul(3), c_nfft(3), iter, offset(3)
@@ -33,14 +33,6 @@ subroutine OCEAN_get_rho( xmesh, celvol, rho, ierr )
   integer, parameter :: nfac = 3
 
   integer, external :: optim
-
-
-!#ifdef CONTIGUOUS
-!    CONTIGUOUS :: rhoofr, rhoofg
-!#endif
-#ifdef __INTEL
-!dir$ attributes align:64 :: rhoofr, rhoofg
-#endif
 
 
 
@@ -89,6 +81,9 @@ subroutine OCEAN_get_rho( xmesh, celvol, rho, ierr )
     !
     write( 6, * ) dble(rhoofr( 1, 1, 1 ) ) / dble(product( nfft ))  * celvol , &
           anint( dble(rhoofr( 1, 1, 1 ) ) / dble( product( nfft ) ) * celvol )
+!    write( 6, * ) dble(rhoofr( 1, 1, 1 ) ) * celvol , &
+!          anint( dble(rhoofr( 1, 1, 1 ) ) * celvol )
+
     ! need to find compatible grids
     do iter = 1, 3
       call facpowfind( xmesh( iter ), nfac, fac, powlist )
@@ -141,14 +136,16 @@ subroutine OCEAN_get_rho( xmesh, celvol, rho, ierr )
     call FFT_wrapper_single( rhoofg, OCEAN_BACKWARD, fo )
     call FFT_wrapper_delete( fo )
     !
-    norm = real( product( nfft ), DP )
-    norm = 1.0_dp / norm
+!    norm = real( product( nfft ), DP )
+!    norm = 1.0_dp / norm
+!    norm = 1.0_dp
     mul( : ) = c_nfft( : ) / xmesh( : )
     write(6,*) mul( : )
     do i = 0, xmesh( 1 ) - 1
       do j = 0, xmesh( 2 ) - 1
         do k = 0, xmesh( 3 ) - 1
-          rho( k+1, j+1, i+1 ) = norm * real(rhoofg( i*mul(1)+1, j*mul(2)+1, k*mul(3)+1 ), DP )
+          rho( k+1, j+1, i+1 ) = real(rhoofg( i*mul(1)+1, j*mul(2)+1, k*mul(3)+1 ), DP )
+!          rho( k+1, j+1, i+1 ) = norm * real(rhoofg( i*mul(1)+1, j*mul(2)+1, k*mul(3)+1 ), DP )
           if( rho( k+1, j+1, i+1 ) .le. 0.0d0 ) then
             write(6,*) 'low density', rho( k+1, j+1, i+1 ), k+1, j+1, i+1, rhoofg( i*mul(1)+1, j*mul(2)+1, k*mul(3)+1 )
             if( rho( k+1, j+1, i+1 ) .gt. -1.0d-12 ) then

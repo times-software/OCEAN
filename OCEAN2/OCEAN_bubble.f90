@@ -1,4 +1,11 @@
-! This is the RPA bubble diagrams
+! Copyright (C) 2016 - 2017 OCEAN collaboration
+!
+! This file is part of the OCEAN project and distributed under the terms 
+! of the University of Illinois/NCSA Open Source License. See the file 
+! `License' in the root directory of the present distribution.
+!
+!
+! This is the RPA bubble diagrams for the valence level
 
 module OCEAN_bubble
 
@@ -324,7 +331,7 @@ module OCEAN_bubble
             mul = 0.0_dp
 !            write(6,*) ix, iy, iz, gvec_length( temp_gvec, sys%bvec ), .false.
           else
-            mul = 4.0_dp * pi_dp / ( sys%nkpts * sys%celvol * gsqd ) 
+            mul = 4.0_dp * pi_dp / ( sys%celvol * gsqd ) 
             ! fake to better match old
             !mul = mul * 27.2114d0 / Hartree2eV
             igvec = igvec + 1
@@ -526,11 +533,11 @@ module OCEAN_bubble
 !      write(6,*) maxval( re_scratch(:) )
       scratch(:) = cmplx( re_scratch(:), im_scratch(:), DP )
 !      call fftw_execute_dft(fplan, scratch, scratch)
-      call FFT_wrapper_single( scratch, OCEAN_FORWARD, fo )
+      call FFT_wrapper_single( scratch, OCEAN_BACKWARD, fo )
 !      write(6,*) maxval( real(scratch(:) ) )
       scratch( : ) = scratch( : ) * bubble( : )
 !      write(6,*) maxval( real( scratch(:) ) )
-      call FFT_wrapper_single( scratch, OCEAN_BACKWARD, fo )
+      call FFT_wrapper_single( scratch, OCEAN_FORWARD, fo )
 !      call fftw_execute_dft(bplan, scratch, scratch)
 !      re_scratch(:) = real(scratch(:)) 
 !      im_scratch(:) = aimag(scratch(:)) 

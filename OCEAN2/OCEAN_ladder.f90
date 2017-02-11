@@ -1,3 +1,13 @@
+! Copyright (C) 2016 - 2017 OCEAN collaboration
+!
+! This file is part of the OCEAN project and distributed under the terms 
+! of the University of Illinois/NCSA Open Source License. See the file 
+! `License' in the root directory of the present distribution.
+!
+!
+
+#define OCEAN_LADDER_CACHE 0
+
 module OCEAN_ladder
   use AI_kinds
   use FFT_wrapper, only : fft_obj
@@ -364,7 +374,8 @@ module OCEAN_ladder
       do iy = 1, nxpts_by_mpiID( id )
 
 
-
+#if OCEAN_LADDER_CACHE
+        exit
         do ix = 1, nxpts, 16
 
           do ik = 1, nkpts, 64
@@ -377,15 +388,19 @@ module OCEAN_ladder
           enddo
 !
           do iix = ix, min( nxpts, ix+15 )    
-!        do iix = 1, nxpts
+            scratch( : ) = dcmplx( re_phi_mat( :, iix - ix + 1), im_phi_mat( :, iix - ix + 1) )
+#else
+        do iix = 1, nxpts
 !          re_phi_mat( :, iix - ix + 1) = re_tphi_mat( iix, iy, iik )
 !          im_phi_mat( :, iix - ix + 1) = im_tphi_mat( iix, iy, iik )
+          scratch( : ) = dcmplx(re_tphi_mat( iix, iy, : ), im_tphi_mat( iix, iy, : ) )
+#endif
 
-!            scratch( : ) = dcmplx(re_tphi_mat( iix, iy, : ), im_tphi_mat( iix, iy, : ) )
-            scratch( : ) = dcmplx( re_phi_mat( :, iix - ix + 1), im_phi_mat( :, iix - ix + 1) )
 
 !            call dfftw_execute_dft( fplan, scratch, scratch )
+
             call FFT_wrapper_single( scratch, OCEAN_FORWARD, fo )
+!            call FFT_wrapper_single( scratch, OCEAN_BACKWARD, fo )
             do ik = 1, nkpts
                 fr( kk( ik, 1 ), kk( ik, 2 ), kk( ik, 3 ) ) = real( scratch( ik ), DP )
                 fi( kk( ik, 1 ), kk( ik, 2 ), kk( ik, 3 ) ) = aimag( scratch( ik ) )
@@ -396,12 +411,11 @@ module OCEAN_ladder
               scratch( ik ) = dcmplx( fr( kk( ik, 1 ), kk( ik, 2 ), kk( ik, 3 ) ), &
                                             fi( kk( ik, 1 ), kk( ik, 2 ), kk( ik, 3 ) ) )
             end do
+!            call FFT_wrapper_single( scratch, OCEAN_FORWARD, fo )
             call FFT_wrapper_single( scratch, OCEAN_BACKWARD, fo )
 !            call dfftw_execute_dft( bplan, scratch, scratch )
-!            re_tphi_mat( iix, iy, : ) = real(scratch( : ),DP) * inverse_kpts !/ dble( nkpts )
-!            im_tphi_mat( iix, iy, : ) = aimag(scratch( : )) * inverse_kpts !/dble( nkpts )
 
-
+#if OCEAN_LADDER_CACHE
             re_phi_mat( :, iix - ix + 1 ) = real(scratch( : ), DP) * inverse_kpts
             im_phi_mat( :, iix - ix + 1 ) = aimag(scratch( : )) * inverse_kpts
 
@@ -417,7 +431,10 @@ module OCEAN_ladder
               enddo
             enddo
           enddo
-
+#else
+            re_tphi_mat( iix, iy, : ) = real(scratch( : ),DP)! * inverse_kpts !/ dble( nkpts )
+            im_tphi_mat( iix, iy, : ) = aimag(scratch( : )) !* inverse_kpts !/dble( nkpts )
+#endif
 
         enddo
       enddo

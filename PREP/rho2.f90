@@ -1,4 +1,4 @@
-! Copyright (C) 2015 OCEAN collaboration
+! Copyright (C) 2015, 2017 OCEAN collaboration
 !
 ! This file is part of the OCEAN project and distributed under the terms 
 ! of the University of Illinois/NCSA Open Source License. See the file 
@@ -74,7 +74,7 @@ program rhotest
 !
   endif
 
-  call FFT_wrapper_single( rhoofg, OCEAN_FORWARD, fo )
+  call FFT_wrapper_single( rhoofg, OCEAN_BACKWARD, fo )
   call FFT_wrapper_delete( fo )
 !      open(unit=99,file='omega.h',form='formatted',status='old')
 !      read(99,*) norm
