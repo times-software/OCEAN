@@ -154,7 +154,7 @@ module OCEAN_psi
             OCEAN_psi_copy_min, OCEAN_psi_buffer2min, &
             OCEAN_psi_prep_min2full, OCEAN_psi_start_min2full, &
             OCEAN_psi_finish_min2full, OCEAN_psi_full2min, &
-            OCEAN_psi_returnBandPad
+            OCEAN_psi_returnBandPad, OCEAN_psi_bcast_full
 
   public :: OCEAN_vector
 
@@ -2550,7 +2550,7 @@ module OCEAN_psi
     integer, intent( in ) :: my_root
     type(OCEAN_vector), intent( inout ) :: p
 
-    integer :: core_full_size
+    integer :: core_full_size, val_full_size
   
     if( p%core_myid .eq. my_root ) then
       if( IAND( p%valid_store, PSI_STORE_FULL ) .eq. 0 ) then
@@ -2567,7 +2567,10 @@ module OCEAN_psi
       endif
     endif
 
+    if( nproc .le. 1 ) return
+
     core_full_size = psi_bands_pad * psi_kpts_pad * psi_core_alpha
+    val_full_size  = psi_bands_pad * psi_val_bands * psi_kpts_actual * psi_val_beta 
 
 #ifdef MPI
     if( have_core ) then
@@ -2577,7 +2580,7 @@ module OCEAN_psi
       call MPI_BCAST( p%i, core_full_size, MPI_DOUBLE_PRECISION, my_root, p%core_comm, ierr )
       if( ierr .ne. MPI_SUCCESS ) goto 111
     endif
-#if( 0 )
+
     if( have_val ) then
       call MPI_BCAST( p%valr, val_full_size, MPI_DOUBLE_PRECISION, my_root, p%val_comm, ierr )
       if( ierr .ne. MPI_SUCCESS ) goto 111
@@ -2585,7 +2588,6 @@ module OCEAN_psi
       call MPI_BCAST( p%vali, val_full_size, MPI_DOUBLE_PRECISION, my_root, p%val_comm, ierr )
       if( ierr .ne. MPI_SUCCESS ) goto 111
     endif
-#endif
 
 #endif
 
