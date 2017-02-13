@@ -6,6 +6,7 @@
 !
 !
 subroutine confmel( nsphpt, xsph, ysph, zsph, wsph, prefs )
+  use fancy_vec
   implicit none
   !
   integer :: nsphpt

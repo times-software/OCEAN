@@ -13,9 +13,9 @@ zexe/dotter.x: zf90/dotter.f90
 	$(COMP) -o zexe/dotter.x zf90/dotter.f90
 #
 zobj/confmel.o: zf90/confmel.f90
-	$(COMP) -c $(OPTS) -o zobj/confmel.o zf90/confmel.f90
+	$(COMP) -c $(OPTS) -o zobj/confmel.o zf90/confmel.f90 -I../
 zobj/cmjtv.o: zf90/cmjtv.f90
-	$(COMP) -c $(OPTS) -o zobj/cmjtv.o zf90/cmjtv.f90
+	$(COMP) -c $(OPTS) -o zobj/cmjtv.o zf90/cmjtv.f90 -I../
 zobj/getprefs.o: zf90/getprefs.f90
 	$(COMP) -c $(OPTS) -o zobj/getprefs.o zf90/getprefs.f90
 zobj/getylm.o: zf90/getylm.f90
@@ -55,3 +55,4 @@ clean:
 	rm -f zobj/*.o
 	rm -f zexe/*.x
 	rm -f *__genmod.???
+	rm -f *.mod

@@ -1,4 +1,4 @@
-! Copyright (C) 2010 OCEAN collaboration
+! Copyright (C) 2010, 2017 OCEAN collaboration
 !
 ! This file is part of the OCEAN project and distributed under the terms 
 ! of the University of Illinois/NCSA Open Source License. See the file 
@@ -6,6 +6,7 @@
 !
 !
 subroutine cmjtv( nsphpt, xsph, ysph, zsph, wsph, prefs )
+  use fancy_vec
   implicit none
   !
   integer :: nsphpt
@@ -22,6 +23,7 @@ subroutine cmjtv( nsphpt, xsph, ysph, zsph, wsph, prefs )
   character(len=17) :: f17
   real( kind = kind( 1.0d0 ) ), allocatable, dimension( :, :, : ) :: ifcn
   complex( kind = kind( 1.0d0 ) ), allocatable, dimension( :, :, :, : ) :: nbsemel
+  !
   !
   pi = 4.0d0 * atan( 1.0d0 )
   rm1 = -1.0d0
@@ -58,8 +60,8 @@ subroutine cmjtv( nsphpt, xsph, ysph, zsph, wsph, prefs )
   open( unit=99, file='spectfile', form='formatted', status='unknown' )
   rewind 99
   read ( 99, * ) spcttype
-  call fancyvector( ehatr, dummy, 99 )
-  call fancyvector( ehati, dummy, 99 )
+  call fancyvector( ehatr, dummy, 99, ehati )
+!  call fancyvector( ehati, dummy, 99 )
   call fancyvector( qhat, q, 99 )
   read ( 99, * ) ephotev
   close( unit=99 )
