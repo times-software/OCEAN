@@ -1,6 +1,5 @@
 dipole
 cartesian  1  0  0
-end
 cartesian  0  -1  0
 end
 cartesian  0 -1  0
