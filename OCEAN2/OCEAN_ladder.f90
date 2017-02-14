@@ -1,3 +1,13 @@
+! Copyright (C) 2016 - 2017 OCEAN collaboration
+!
+! This file is part of the OCEAN project and distributed under the terms 
+! of the University of Illinois/NCSA Open Source License. See the file 
+! `License' in the root directory of the present distribution.
+!
+!
+
+#define OCEAN_LADDER_CACHE 0
+
 module OCEAN_ladder
   use AI_kinds
   use FFT_wrapper, only : fft_obj
@@ -49,9 +59,6 @@ module OCEAN_ladder
   integer :: ladcap(2,3)
   integer, allocatable :: kk(:,:)
 
-!#ifdef CONTIGUOUS
-!  CONTIGUOUS :: ladder, re_bstate, im_bstate
-!#endif
 
 #ifdef __INTEL
 !dir$ attributes align:64 :: ladder, re_bstate, im_bstate
@@ -99,6 +106,8 @@ module OCEAN_ladder
     integer :: joint_request(4)
     integer :: psi_con_pad, val_pad, nkpts
 
+    logical :: test_flag
+
 !$  integer, external :: omp_get_num_threads
 
 
@@ -132,11 +141,13 @@ module OCEAN_ladder
 
 
 !$OMP PARALLEL DEFAULT(NONE) &
-!$OMP PRIVATE( ik, ib, ix, iy, ibc, i, j, k, id, x_block, y_block, beta ) &
-!$OMP PRIVATE( scratch, fr, fi, vv, nthread, block_temp ) &
+!$OMP PRIVATE( ik, ib, ix, iy, ibc, i, j, k, id, x_block, y_block, beta, y_offset ) &
+!$OMP PRIVATE( scratch, fr, fi, vv, re_phi_mat, im_phi_mat, nthread, block_temp, nbc_block, test_flag ) &
 !$OMP SHARED( nkpts, nbv_block, nxpts_pad, nproc, joint_request, c_recv_request, c_send_request ) &
 !$OMP SHARED( nkret, kret, ladcap, kk, nxpts_by_mpiID, re_tphi_mat, im_tphi_mat ) &
-!$OMP SHARED( re_a_mat, im_a_mat, re_b_mat, im_b_mat, vspn, cspn, ierr ) 
+!$OMP SHARED( re_a_mat, im_a_mat, re_b_mat, im_b_mat, vspn, cspn, ierr, nxpts, inverse_kpts, val_pad )  &
+!$OMP SHARED( nbc, nbv, re_con, im_con, psi, psi_out, psi_con_pad, myid, MPI_STATUSES_IGNORE, MPI_STATUS_IGNORE ) &
+!$OMP SHARED( re_bstate, im_bstate, max_nxpts, startx_by_mpiID, fo, ladder, spin_prefac, minus_spin_prefac )
 
     allocate( fr( ladcap(1,1):ladcap(2,1), ladcap(1,2):ladcap(2,2), ladcap(1,3):ladcap(2,3) ), &
               fi( ladcap(1,1):ladcap(2,1), ladcap(1,2):ladcap(2,2), ladcap(1,3):ladcap(2,3) ), &
@@ -144,6 +155,33 @@ module OCEAN_ladder
 
     nthread = 1
 !$  nthread = omp_get_num_threads()
+
+
+! For now get working with k-point only
+#if 0
+
+
+!   First construct the Amat( x-points, valence, k-points )
+!   1. Each MPI_proc has only a subset of the full xmesh
+!   2. OMP parallelism by either k-points or kpoints + blocking x-points/valence bands    
+!
+    if( mod(nkpts,nthread) == 0 ) then
+      x_block = nxpts
+      nbv_block = nbv
+    elseif( nxpts .lt. 16 ) then
+      x_block = nxpts
+      nbv_block = ( nbv * nkpts ) / nthread
+      nbv_block = max( nbv_block, 8 )
+      nbv_block = min( nbv_block, nbv )
+    elseif( nbv .lt. 16 ) then
+      nbv_block = nbv
+      x_block = ( nxpts * nkpts ) / nthread
+      x_block = max( x_block, 8 )
+      x_block = min( x_block, nxpts )
+    else  ! Both are large enough
+      
+
+    endif
 
     if( mod((nkpts * val_pad)/cache_double, nthread ) == 0 ) then
       x_block = nxpts
@@ -160,6 +198,7 @@ module OCEAN_ladder
     !JTV
     x_block = nxpts
     nbv_block = nbv
+#endif
 
 !    write(6,*) x_block, nbv_block, nbc
 !    write(6,*) nxpts_pad, psi_con_pad
@@ -168,11 +207,14 @@ module OCEAN_ladder
     beta = 0.0_dp
 
 
+! Working on k-point only!!
     ix = 1
     ib = 1
     x_block = nxpts
     nbv_block = nbv
-! !$OMP DO COLLAPSE(3) SCHEDULE(STATIC)
+! \working on k-point only
+
+!$OMP DO COLLAPSE(1) SCHEDULE(STATIC)
     do ik = 1, nkpts
 !      do ib = 1, nbv, nbv_block
 !        do ix = 1, nxpts, x_block
@@ -190,8 +232,15 @@ module OCEAN_ladder
 !        enddo
 !      enddo
     enddo
-! $OMP END DO
+!$OMP END DO
 
+
+
+!   Create blocking for 
+!   phi( x, y, k ) = A( x, v, k ) * u( y, v, k )^\dagger
+!
+! For now k-point only !!!!
+#if 0
     id = x_block
     if( mod((nkpts * max_nxpts)/cache_double, nthread ) == 0 ) then
       x_block = nxpts
@@ -205,7 +254,7 @@ module OCEAN_ladder
       x_block = x_block * cache_double
     endif
     block_temp = id
-
+#endif
 
 
     id = myid + 1
@@ -220,8 +269,8 @@ module OCEAN_ladder
       if( id .lt. 0 ) id = id + nproc
 !      write(6,*) myid, i, id, beta
 
+!$OMP SINGLE
       if( i .gt. 0 ) then
-!$OMP MASTER
 
         joint_request(1) = c_recv_request(k,1)
         joint_request(2) = c_send_request(j,1)
@@ -231,18 +280,24 @@ module OCEAN_ladder
 !        write(6,*) 'wait1', myid
         call MPI_WAITALL( 4, joint_request, MPI_STATUSES_IGNORE, ierr )
 !        write(6,*) 'wait2', myid
-!$OMP END MASTER
-!$OMP BARRIER
+!          $OMP END SINGLE
+!          $OMP BARRIER
       endif
 
-!$OMP MASTER
+!          $OMP SINGLE
       ! Unless it is the last loop
       if( i .lt. nproc - 1 ) then
         call MPI_START( c_recv_request(j,1), ierr )
         call MPI_START( c_recv_request(j,2), ierr )
 !        write(6,*) 'MPI_START - recv', myid, c_recv_tag(j,1), c_recv_tag(j,2)
       endif
-!$OMP END MASTER
+!$OMP END SINGLE
+
+
+! Call a quick barrier in loop 0 no matter what
+!   this helps make sure that the MPI_START has also been called
+
+!$OMP BARRIER
 
     
 
@@ -256,10 +311,13 @@ module OCEAN_ladder
 !        do iy = 1, nxpts_by_mpiID( id ), y_block
 !          do ix = 1, nxpts, x_block
 
+! kpoint only!!
         ix = 1
         iy = 1
         x_block = nxpts
         y_block = nxpts_by_mpiID( id )
+! \kpoint only
+!$OMP DO SCHEDULE( STATIC )
         do ik = 1, nkpts
             call DGEMM( 'N', 'T', x_block, y_block, nbv, one, re_a_mat( ix, 1, ik ), nxpts_pad, &
                         re_bstate( iy, 1, ik, k ), max_nxpts, zero, re_tphi_mat( ix, iy, ik ), nxpts_pad )
@@ -272,6 +330,7 @@ module OCEAN_ladder
                         im_bstate( iy, 1, ik, k ), max_nxpts, one, im_tphi_mat( ix, iy, ik ), nxpts_pad )
 
         enddo
+!$OMP END DO NOWAIT
 
 !          enddo
 !        enddo
@@ -281,13 +340,22 @@ module OCEAN_ladder
 !      write(6,*) '-------'
 
 
-!$OMP MASTER
+!$OMP SINGLE
       if( i .lt. nproc-1 ) then
         call MPI_START( c_send_request(k,1), ierr )
         call MPI_START( c_send_request(k,2), ierr )
 !        write(6,*) 'MPI_START - send', myid, c_send_tag(k,1), c_send_tag(k,2)
       endif
-!$OMP END MASTER
+!$OMP END SINGLE
+
+! No wait in the previous loop means first done can start the sends
+!   By placing the tphi_mat construction between the recv and the send
+!   we are hopefully always going to have the recv in place before the
+!   send starts
+
+!$OMP BARRIER
+
+
 
 !      y_offset = 0
 !      do ik = 0, id - 1
@@ -298,34 +366,38 @@ module OCEAN_ladder
 !      write(6,*) myid, nxpts_by_mpiID( id ), y_offset, id
 !      write(6,*) '-------'
 
-!$OMP DO COLLAPSE( 2 ) SCHEDULE( STATIC)
-
       ix = 1
+!$OMP DO COLLAPSE( 2 ) SCHEDULE( STATIC)
       do iy = 1, nxpts_by_mpiID( id )
 
 
+#if OCEAN_LADDER_CACHE
+        exit
+        do ix = 1, nxpts, 16
 
-!        do ix = 1, nxpts, 16
-
-!          do ik = 1, nkpts, 64
-!            do iix = ix, min( nxpts, ix+15 )
-!              do iik = ik, min( nkpts, ik+63 )
-!                re_phi_mat( iik, iix - ix + 1 ) = re_tphi_mat( iix, iy, iik )
-!                im_phi_mat( iik, iix - ix + 1 ) = im_tphi_mat( iix, iy, iik )
-!              enddo
-!            enddo
-!          enddo
+          do ik = 1, nkpts, 64
+            do iix = ix, min( nxpts, ix+15 )
+              do iik = ik, min( nkpts, ik+63 )
+                re_phi_mat( iik, iix - ix + 1 ) = re_tphi_mat( iix, iy, iik )
+                im_phi_mat( iik, iix - ix + 1 ) = im_tphi_mat( iix, iy, iik )
+              enddo
+            enddo
+          enddo
 !
-!          do iix = ix, min( nxpts, ix+15 )    
+          do iix = ix, min( nxpts, ix+15 )    
+            scratch( : ) = dcmplx( re_phi_mat( :, iix - ix + 1), im_phi_mat( :, iix - ix + 1) )
+#else
         do iix = 1, nxpts
 !          re_phi_mat( :, iix - ix + 1) = re_tphi_mat( iix, iy, iik )
 !          im_phi_mat( :, iix - ix + 1) = im_tphi_mat( iix, iy, iik )
+          scratch( : ) = dcmplx(re_tphi_mat( iix, iy, : ), im_tphi_mat( iix, iy, : ) )
+#endif
 
-            scratch( : ) = dcmplx(re_tphi_mat( iix, iy, : ), im_tphi_mat( iix, iy, : ) )
-!            scratch( : ) = dcmplx( re_phi_mat( :, iix - ix + 1), im_phi_mat( :, iix - ix + 1) )
 
 !            call dfftw_execute_dft( fplan, scratch, scratch )
+
             call FFT_wrapper_single( scratch, OCEAN_FORWARD, fo )
+!            call FFT_wrapper_single( scratch, OCEAN_BACKWARD, fo )
             do ik = 1, nkpts
                 fr( kk( ik, 1 ), kk( ik, 2 ), kk( ik, 3 ) ) = real( scratch( ik ), DP )
                 fi( kk( ik, 1 ), kk( ik, 2 ), kk( ik, 3 ) ) = aimag( scratch( ik ) )
@@ -336,34 +408,49 @@ module OCEAN_ladder
               scratch( ik ) = dcmplx( fr( kk( ik, 1 ), kk( ik, 2 ), kk( ik, 3 ) ), &
                                             fi( kk( ik, 1 ), kk( ik, 2 ), kk( ik, 3 ) ) )
             end do
+!            call FFT_wrapper_single( scratch, OCEAN_FORWARD, fo )
             call FFT_wrapper_single( scratch, OCEAN_BACKWARD, fo )
 !            call dfftw_execute_dft( bplan, scratch, scratch )
-            re_tphi_mat( iix, iy, : ) = real(scratch( : ),DP) * inverse_kpts !/ dble( nkpts )
-            im_tphi_mat( iix, iy, : ) = aimag(scratch( : )) * inverse_kpts !/dble( nkpts )
 
-
-!            re_phi_mat( :, iix - ix + 1 ) = real(scratch( : ), DP) * inverse_kpts
-!            im_phi_mat( :, iix - ix + 1 ) = aimag(scratch( : )) * inverse_kpts
+#if OCEAN_LADDER_CACHE
+            re_phi_mat( :, iix - ix + 1 ) = real(scratch( : ), DP) * inverse_kpts
+            im_phi_mat( :, iix - ix + 1 ) = aimag(scratch( : )) * inverse_kpts
 
           enddo
 
 
 
-!          do iik = 1, nkpts !, 64
-!!            do iik = ik, min( nkpts, ik+63 )
-!              do iix = ix, min( nxpts, ix+15 )
-!                re_tphi_mat( iix, iy, iik ) = re_phi_mat( iik, iix - ix + 1 )
-!                im_tphi_mat( iix, iy, iik ) = im_phi_mat( iik, iix - ix + 1 )
-!              enddo
-!!            enddo
-!          enddo
+          do ik = 1, nkpts, 64
+            do iik = ik, min( nkpts, ik+63 )
+              do iix = ix, min( nxpts, ix+15 )
+                re_tphi_mat( iix, iy, iik ) = re_phi_mat( iik, iix - ix + 1 )
+                im_tphi_mat( iix, iy, iik ) = im_phi_mat( iik, iix - ix + 1 )
+              enddo
+            enddo
+          enddo
+#else
+            re_tphi_mat( iix, iy, : ) = real(scratch( : ),DP)! * inverse_kpts !/ dble( nkpts )
+            im_tphi_mat( iix, iy, : ) = aimag(scratch( : )) !* inverse_kpts !/dble( nkpts )
+#endif
 
-
-!        enddo
+        enddo
       enddo
-!$OMP END DO
+!$OMP END DO NOWAIT
 
 !      write(6,*) '-------'
+
+! First thread out of the loop tries to help with the non-blocking comms
+
+!$OMP SINGLE
+      call MPI_TEST( c_send_request(k,1), test_flag, MPI_STATUS_IGNORE, ierr )
+!$OMP END SINGLE
+! !$OMP SINGLE
+!       call MPI_TEST( c_send_request(k,2), test_flag, MPI_STATUS_IGNORE, ierr )
+! !$OMP END SINGLE
+
+
+
+!OMP BARRIER
 
 
 ! $OMP DO COLLAPSE(3) SCHEDULE(STATIC)
@@ -375,6 +462,7 @@ module OCEAN_ladder
       nbv_block = nbv
       x_block = nxpts
       
+!$OMP DO
       do ik = 1, nkpts
             call DGEMM( 'N', 'N', x_block, nbv_block, nxpts_by_mpiID( id ), one, re_tphi_mat( ix, 1, ik ), nxpts_pad, &
                         re_bstate( 1, ib, ik, k ), max_nxpts, beta, re_b_mat( ix, ib, ik ), nxpts_pad )
@@ -386,6 +474,9 @@ module OCEAN_ladder
             call DGEMM( 'N', 'N', x_block, nbv_block, nxpts_by_mpiID( id ), one, re_tphi_mat( ix, 1, ik ), nxpts_pad, &
                         im_bstate( 1, ib, ik, k ), max_nxpts, one, im_b_mat( ix, ib, ik ), nxpts_pad )
       enddo
+!$OMP END DO NOWAIT
+!  Other than the last loop this will be followed by MPI_SINGLE + BARRIER
+
 !          enddo
 !        enddo
 !      enddo
@@ -396,6 +487,8 @@ module OCEAN_ladder
     enddo ! i over nproc
        
 
+! Need to wait at end of previous loop
+!$OMP BARRIER
 
     if( mod((nkpts * val_pad)/cache_double, nthread ) == 0 ) then
       nbc_block = nbc
@@ -418,6 +511,8 @@ module OCEAN_ladder
     nbc_block = nbc
     ib = 1
     ibc = 1
+
+!$OMP DO
     do ik = 1, nkpts
 
           call DGEMM( 'T', 'N', nbc_block, nbv_block, nxpts, spin_prefac, re_con( 1, ibc, ik, cspn ), nxpts_pad, &
@@ -431,6 +526,8 @@ module OCEAN_ladder
                       re_b_mat( 1, ib, ik ), nxpts_pad, one, psi_out%vali( ibc, ib, ik, 1 ), psi_con_pad )
 
     enddo
+!$OMP END DO
+
 !        enddo
 !      enddo
 !    enddo

@@ -1,4 +1,4 @@
-! Copyright (C) 2015-2016 OCEAN collaboration
+! Copyright (C) 2015-2017 OCEAN collaboration
 !
 ! This file is part of the OCEAN project and distributed under the terms 
 ! of the University of Illinois/NCSA Open Source License. See the file 
@@ -19,8 +19,9 @@ module FFT_wrapper
   private
   save
 
-  integer, parameter :: OCEAN_FORWARD = 1
-  integer, parameter :: OCEAN_BACKWARD = -1 
+  ! Forward is named to match FFTW convention
+  integer, parameter :: OCEAN_FORWARD = -1
+  integer, parameter :: OCEAN_BACKWARD = 1 
 
   type fft_obj
     integer :: dims(4)
@@ -106,9 +107,9 @@ module FFT_wrapper
       call fftw_execute_dft( fo%fplan, wrk, wrk )
     else
       call fftw_execute_dft( fo%bplan, wrk, wrk )
+      r(:) = real(wrk(:))*fo%norm
+      i(:) = aimag(wrk(:))*fo%norm
     endif
-    r(:) = real(wrk(:))*fo%norm
-    i(:) = aimag(wrk(:))*fo%norm
 #else
     allocate( wrk( fo%jfft ) )
     call cfft( r, i, fo%dims(1), fo%dims(1), fo%dims(2), fo%dims(3), dir, wrk, fo%jfft )
@@ -138,8 +139,8 @@ module FFT_wrapper
       call fftw_execute_dft( fo%fplan, io, io )
     else
       call fftw_execute_dft( fo%bplan, io, io )
+      io(:,:,:) = io(:,:,:) * fo%norm
     endif
-    io(:,:,:) = io(:,:,:) * fo%norm
 #else
     allocate( r( fo%dims(4) ), i( fo%dims(4) ), wrk( fo%jfft ) )
     r(:) = real(io(:))

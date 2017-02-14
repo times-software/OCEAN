@@ -1,4 +1,11 @@
-! This is the RPA bubble diagrams
+! Copyright (C) 2016 - 2017 OCEAN collaboration
+!
+! This file is part of the OCEAN project and distributed under the terms 
+! of the University of Illinois/NCSA Open Source License. See the file 
+! `License' in the root directory of the present distribution.
+!
+!
+! This is the RPA bubble diagrams for the valence level
 
 module OCEAN_bubble
 
@@ -324,7 +331,7 @@ module OCEAN_bubble
             mul = 0.0_dp
 !            write(6,*) ix, iy, iz, gvec_length( temp_gvec, sys%bvec ), .false.
           else
-            mul = 4.0_dp * pi_dp / ( sys%nkpts * sys%celvol * gsqd ) 
+            mul = 4.0_dp * pi_dp / ( sys%celvol * gsqd ) 
             ! fake to better match old
             !mul = mul * 27.2114d0 / Hartree2eV
             igvec = igvec + 1
@@ -423,8 +430,12 @@ module OCEAN_bubble
     allocate( re_amat( max(1,nxpts_pad), nbv, nkpts ), im_amat( max(nxpts_pad,1), nbv, nkpts ) )
 
 !$OMP PARALLEL DEFAULT( NONE ) &
-!$OMP& SHARED( sys, val_ufunc, con_ufunc, psi, sum_l_bubble, xwidth, re_amat, im_amat ) &
-!$OMP& PRIVATE( bciter, bviter, lcindx, xstop )
+!$OMP& SHARED( sys, psi, re_amat, im_amat, nxpts, nkpts, nbv, nbc, re_con, im_con ) &
+!$OMP& SHARED( nxpts_pad, re_val, im_val, psi_con_pad, im_l_bubble, re_l_bubble, nproc, myid ) &
+!$OMP& SHARED( re_scratch, im_scratch, nxpts_by_mpiID, comm, MPI_STATUS_IGNORE, ierr, nthreads ) &
+!$OMP& SHARED( scratch, fo, bubble, spin_prefac, psiout, minus_spin_prefac, startx_by_mpiID ) &
+!$OMP& PRIVATE( bciter, bviter, xstop, xwidth, ix, iix, ik )
+
 
 
 !  ! Problems with zero-ing?
@@ -440,7 +451,7 @@ module OCEAN_bubble
   if( nxpts .gt. 0 ) then
   xwidth = nxpts
   ix = 1
-!$OMP DO COLLAPSE(2)
+!$OMP DO COLLAPSE(1)
     do ik = 1, nkpts
 !      do ix = 1, nxpts, xwidth
         call DGEMM( 'N', 'N', xwidth, nbv, nbc, one, re_con(ix, 1, ik, 1), nxpts_pad, &
@@ -464,11 +475,15 @@ module OCEAN_bubble
 
 ! Should move zero-ing of re/im_l_bubble here to get omp lined up correctly
 
+  xwidth = nxpts / ( nthreads * 8 )
+  xwidth = max( 1, xwidth )
+  xwidth = xwidth * 8
+
 !$OMP DO 
-!    do ix = 1, nxpts, xwidth
-!      xstop = min( nxpts, ix + xwidth - 1 )
-    ix = 1
-    xstop = nxpts
+  do ix = 1, nxpts, xwidth
+    xstop = min( nxpts, ix + xwidth - 1 )
+!    ix = 1
+!    xstop = nxpts
         do ik = 1, nkpts
           do bviter = 1, nbv
             do iix = ix, xstop
@@ -481,7 +496,7 @@ module OCEAN_bubble
             enddo
           enddo
       enddo
-!    enddo
+  enddo
 !$OMP END DO
 
 !    write(6,*) maxval( re_l_bubble ), maxval( im_l_bubble )
@@ -508,21 +523,21 @@ module OCEAN_bubble
 #endif
       endif
     enddo
-!$OMP END MASTER
+! $OMP END MASTER
 
 !! There is no implied barrier at the end of master !!
-!$OMP BARRIER
+! $OMP BARRIER
 
 
     if( myid .eq. root ) then
 !      write(6,*) maxval( re_scratch(:) )
       scratch(:) = cmplx( re_scratch(:), im_scratch(:), DP )
 !      call fftw_execute_dft(fplan, scratch, scratch)
-      call FFT_wrapper_single( scratch, OCEAN_FORWARD, fo )
+      call FFT_wrapper_single( scratch, OCEAN_BACKWARD, fo )
 !      write(6,*) maxval( real(scratch(:) ) )
       scratch( : ) = scratch( : ) * bubble( : )
 !      write(6,*) maxval( real( scratch(:) ) )
-      call FFT_wrapper_single( scratch, OCEAN_BACKWARD, fo )
+      call FFT_wrapper_single( scratch, OCEAN_FORWARD, fo )
 !      call fftw_execute_dft(bplan, scratch, scratch)
 !      re_scratch(:) = real(scratch(:)) 
 !      im_scratch(:) = aimag(scratch(:)) 
@@ -534,7 +549,7 @@ module OCEAN_bubble
 
 
 
-!$OMP MASTER
+! $OMP MASTER
     do iproc = 0, nproc - 1
       if( myid .eq. root ) then
         if( iproc .eq. myid ) then
@@ -563,8 +578,10 @@ module OCEAN_bubble
 !$OMP BARRIER
 
 
+!$OMP WORKSHARE
   re_amat = 0.0_dp
   im_amat = 0.0_dp
+!$OMP END WORKSHARE
 
 !$OMP DO COLLAPSE(3)
     do ik = 1, nkpts

@@ -17,6 +17,14 @@ OPTIONS += -D__OLD_MPI
 # We have some preprocessor macros using the "c-style"
 OPTIONS += -cpp 
 
+# Some of the legacy routines don't always declare variables well
+# We can force the promotion of single to double
+# For ifort
+# LEGACY_REAL = -real-size 64
+# For gfortran (don't push doubles to quads)
+# LEGACY_REAL = -fdefault-real-8 -default-double-8
+# Other compiles likely have similar settings
+
 # Many compilers have flush. We use it sometimes to force output before crashes
 # OPTIONS += -DHAVE_FLUSH
 

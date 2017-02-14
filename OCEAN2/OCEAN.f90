@@ -24,7 +24,7 @@ program ocean
 
   integer :: iter
 
-!$ OMP not tested. This line designed to fail
+! $ OMP not tested. This line designed to fail
 
   call ocean_mpi_init( ierr )
 
