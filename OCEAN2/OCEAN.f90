@@ -20,7 +20,6 @@ program ocean
   integer :: ierr
   type( o_system ) :: sys
   type(ocean_vector) :: hay_vec
-  type(long_Range) :: lr
 
   integer :: iter
 
@@ -38,7 +37,7 @@ program ocean
 
   call OCEAN_tk_init()
 
-!  call ocean_init_data( sys, hay_vec, lr, ierr )
+!  call ocean_init_data( sys, hay_vec, ierr )
 !  if( ierr .ne. 0 ) goto 111
 
   do iter = 1, sys%nruns
@@ -47,12 +46,12 @@ program ocean
     if( ierr .ne. 0 ) goto 111
 
 
-    call ocean_load_data( sys, hay_vec, lr, ierr )
+    call ocean_load_data( sys, hay_vec, ierr )
     if( ierr .ne. 0 ) goto 111
 
 
-!!!!!    call ocean_haydock( sys, hay_vec, lr, ierr )
-    call OCEAN_action_run( sys, hay_vec, lr, ierr )
+!!!!!    call ocean_haydock( sys, hay_vec, ierr )
+    call OCEAN_action_run( sys, hay_vec, ierr )
 
 !    call OCEAN_exact_diagonalize( sys, hay_vec, ierr )
     if( ierr .ne. 0 ) goto 111
@@ -69,6 +68,5 @@ program ocean
 111 continue
   if( ierr .ne. 0 ) write(6,*) '!!', ierr
 
-  if( myid .eq. 0 ) write(6,*) lr%timer, lr_timer()
 
 end program ocean

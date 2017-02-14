@@ -96,7 +96,7 @@ module OCEAN_action
   end subroutine OCEAN_hay_alloc
 
 
-  subroutine OCEAN_action_run( sys, hay_vec, lr, ierr )
+  subroutine OCEAN_action_run( sys, hay_vec, ierr )
     use OCEAN_mpi, only : myid, root
     use OCEAN_system
     use OCEAN_psi
@@ -105,21 +105,20 @@ module OCEAN_action
     integer, intent( inout ) :: ierr
     type( o_system ), intent( in ) :: sys
     type( ocean_vector ), intent( inout ) :: hay_vec
-    type(long_range), intent( inout ) :: lr
 
 
     select case ( calc_type )
       case('hay')
-        call OCEAN_haydock( sys, hay_vec, lr, ierr )
+        call OCEAN_haydock( sys, hay_vec, ierr )
       case('inv')
-        call OCEAN_GMRES( sys, hay_vec, lr, ierr )
+        call OCEAN_GMRES( sys, hay_vec, ierr )
       case default
         if( myid .eq. root ) write(6,*) 'Unrecognized calc type:', calc_type
     end select
   end subroutine OCEAN_action_run
 
 
-  subroutine OCEAN_haydock( sys, hay_vec, lr, ierr )
+  subroutine OCEAN_haydock( sys, hay_vec, ierr )
     use AI_kinds
     use OCEAN_mpi
     use OCEAN_system
@@ -137,7 +136,6 @@ module OCEAN_action
     ! a depndency tracing back to calling copy and possibly copy_min, and
     ! possibly needing to go min->full, copy full, full->min
     type( ocean_vector ), intent( inout ) :: hay_vec
-    type(long_range), intent( inout ) :: lr
 
     real(DP) :: imag_a
     integer :: iter
@@ -180,7 +178,7 @@ module OCEAN_action
         if( ierr .ne. 0 ) return
       endif
 
-      call OCEAN_xact( sys, psi, new_psi, lr, ierr )
+      call OCEAN_xact( sys, psi, new_psi, ierr )
       if( ierr .ne. 0 ) return
 !      if( myid .eq. root ) write(6,*) 'Done with ACT'
 
@@ -219,7 +217,7 @@ module OCEAN_action
   end subroutine OCEAN_haydock
 
 
-  subroutine OCEAN_GMRES( sys, hay_vec, lr, ierr )
+  subroutine OCEAN_GMRES( sys, hay_vec, ierr )
     use AI_kinds
     use OCEAN_mpi
     use OCEAN_system
@@ -234,7 +232,6 @@ module OCEAN_action
     integer, intent( inout ) :: ierr
     type( o_system ), intent( in ) :: sys
     type( ocean_vector ), intent( in ) :: hay_vec
-    type(long_range), intent( inout ) :: lr
 
 
     type( ocean_vector ) :: hpsi 
@@ -373,11 +370,11 @@ module OCEAN_action
       endif
 
 
-      call OCEAN_xact( sys, psi, hpsi, lr, ierr )
+      call OCEAN_xact( sys, psi, hpsi, ierr )
       call OCEAN_psi_prep_min2full( hpsi, ierr )
       call OCEAN_psi_start_min2full( hpsi, ierr )
       call OCEAN_psi_finish_min2full( hpsi, ierr )
-!      call OCEAN_xact( sys, psi, hpsi, multiplet_psi, long_range_psi, lr, ierr )
+!      call OCEAN_xact( sys, psi, hpsi, multiplet_psi, long_range_psi, ierr )
       ! After OCEAN_xact every proc has the same copy of hpsi (and should still have the same psi)
 
       call OCEAN_tk_start( tk_inv )
@@ -407,13 +404,13 @@ module OCEAN_action
           ! v = v1
           call rtov( sys, psi, v1 )
           call OCEAN_tk_stop( tk_inv )
-!          call OCEAN_xact( sys, psi, hpsi, multiplet_psi, long_range_psi, lr, ierr )
+!          call OCEAN_xact( sys, psi, hpsi, multiplet_psi, long_range_psi, ierr )
           if( sys%cur_run%have_val ) then
             call OCEAN_energies_val_allow( sys, psi, ierr )
             if( ierr .ne. 0 ) return
           endif
 
-          call OCEAN_xact( sys, psi, hpsi, lr, ierr )
+          call OCEAN_xact( sys, psi, hpsi, ierr )
           call OCEAN_psi_prep_min2full( hpsi, ierr )
           call OCEAN_psi_start_min2full( hpsi, ierr )
           call OCEAN_psi_finish_min2full( hpsi, ierr )
@@ -550,7 +547,7 @@ module OCEAN_action
 
 ! On entrance psi needs to be the same everywhere
 ! On exit new_psi is stored in min everywhere
-  subroutine OCEAN_xact( sys, psi, new_psi, lr, ierr )
+  subroutine OCEAN_xact( sys, psi, new_psi, ierr )
     use AI_kinds 
     use OCEAN_mpi
     use OCEAN_system
@@ -567,7 +564,6 @@ module OCEAN_action
     type(O_system), intent( in ) :: sys
     type(OCEAN_vector), intent( in ) :: psi
     type(OCEAN_vector), intent(inout) :: new_psi
-    type(long_range), intent( inout ) :: lr
 !    if( myid .eq. root ) write(6,*) 'XACT'
     type(OCEAN_vector) :: psi_o, psi_i
     integer :: rrequest, irequest
@@ -602,7 +598,7 @@ module OCEAN_action
 
     if( sys%long_range .and. sys%cur_run%have_core ) then
       call OCEAN_tk_start( tk_lr )
-      call lr_act( sys, psi, new_psi, lr, ierr )
+      call lr_act( sys, psi, new_psi, ierr )
       call OCEAN_tk_stop( tk_lr )
     endif
 
