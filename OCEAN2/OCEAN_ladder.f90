@@ -497,8 +497,8 @@ module OCEAN_ladder
     deallocate( re_a_mat, im_a_mat, re_b_mat, im_b_mat, re_tphi_mat, im_tphi_mat )
 
 
-    call MPI_BARRIER( comm, ierr )
-    if( myid .eq. root ) write( 6, * ) 'ladder done'
+!    call MPI_BARRIER( comm, ierr )
+!    if( myid .eq. root ) write( 6, * ) 'ladder done'
 
   end subroutine OCEAN_ladder_act
 
