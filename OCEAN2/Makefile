@@ -51,7 +51,7 @@ OCEAN_load_data.o: OCEAN_load_data.f90 OCEAN_energies.o OCEAN_val_states.o OCEAN
 	$(MPIFORT) $(FLAGS) -c -o OCEAN_load_data.o OCEAN_load_data.f90 
 
 OCEAN_psi.o: OCEAN_psi.f90 OCEAN_constants.o OCEAN_timekeeper.o OCEAN_rixs_holder.o
-	$(MPIFORT) $(FLAGS) -c -o OCEAN_psi.o OCEAN_psi.f90  
+	$(MPIFORT) $(FLAGS) -c -o OCEAN_psi.o OCEAN_psi.f90 $(OPENMP)
 
 OCEAN_energies.o: OCEAN_energies.f90 OCEAN_val_energy.o
 	$(MPIFORT) $(FLAGS) -c -o OCEAN_energies.o OCEAN_energies.f90 
