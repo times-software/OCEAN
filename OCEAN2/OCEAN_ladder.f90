@@ -494,8 +494,7 @@ module OCEAN_ladder
 
 !$OMP END PARALLEL
 
-
-    deallocate( re_a_mat, im_a_mat, re_b_mat, im_b_mat )
+    deallocate( re_a_mat, im_a_mat, re_b_mat, im_b_mat, re_tphi_mat, im_tphi_mat )
 
 
     call MPI_BARRIER( comm, ierr )
@@ -699,6 +698,7 @@ module OCEAN_ladder
 !    endif
     
     is_init = .true.
+    deallocate( scratch )
 
   end subroutine OCEAN_ladder_init
 
