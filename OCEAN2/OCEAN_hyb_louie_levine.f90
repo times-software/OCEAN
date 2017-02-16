@@ -154,7 +154,7 @@ module OCEAN_hyb_louie_levine
         kret( nkret ) = iter1
         mds = max( mds, rmag + maxxy )
       end if
-      write ( 73, '(2i8,1f20.10)' ) i, nkret, rmag
+      write ( 73, '(2i8,1f20.10)' ) iter1, nkret, rmag
 
     enddo
     if( myid .eq. 0 ) then

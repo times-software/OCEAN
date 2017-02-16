@@ -277,19 +277,13 @@ module OCEAN_ladder
         joint_request(3) = c_recv_request(k,2)
         joint_request(4) = c_send_request(j,2)
 
-!        write(6,*) 'wait1', myid
         call MPI_WAITALL( 4, joint_request, MPI_STATUSES_IGNORE, ierr )
-!        write(6,*) 'wait2', myid
-!          $OMP END SINGLE
-!          $OMP BARRIER
       endif
 
-!          $OMP SINGLE
       ! Unless it is the last loop
       if( i .lt. nproc - 1 ) then
         call MPI_START( c_recv_request(j,1), ierr )
         call MPI_START( c_recv_request(j,2), ierr )
-!        write(6,*) 'MPI_START - recv', myid, c_recv_tag(j,1), c_recv_tag(j,2)
       endif
 !$OMP END SINGLE
 
@@ -301,15 +295,8 @@ module OCEAN_ladder
 
     
 
-!      y_block = nxpts_by_mpiID( id )
 
-!      write(6,*) x_block, y_block, nbv
-!      write(6,*) nxpts_pad, max_nxpts
 
-! $OMP DO COLLAPSE(3) SCHEDULE(STATIC)
-!      do ik = 1, nkpts
-!        do iy = 1, nxpts_by_mpiID( id ), y_block
-!          do ix = 1, nxpts, x_block
 
 ! kpoint only!!
         ix = 1
@@ -332,12 +319,7 @@ module OCEAN_ladder
         enddo
 !$OMP END DO NOWAIT
 
-!          enddo
-!        enddo
-!      enddo
-! $OMP END DO
 
-!      write(6,*) '-------'
 
 
 !$OMP SINGLE
@@ -357,14 +339,8 @@ module OCEAN_ladder
 
 
 
-!      y_offset = 0
-!      do ik = 0, id - 1
-!        y_offset = y_offset + nxpts_by_mpiID( ik )
-!      enddo
       y_offset = startx_by_mpiID( id ) - 1
 
-!      write(6,*) myid, nxpts_by_mpiID( id ), y_offset, id
-!      write(6,*) '-------'
 
       ix = 1
 !$OMP DO COLLAPSE( 2 ) SCHEDULE( STATIC)
@@ -388,33 +364,30 @@ module OCEAN_ladder
             scratch( : ) = dcmplx( re_phi_mat( :, iix - ix + 1), im_phi_mat( :, iix - ix + 1) )
 #else
         do iix = 1, nxpts
-!          re_phi_mat( :, iix - ix + 1) = re_tphi_mat( iix, iy, iik )
-!          im_phi_mat( :, iix - ix + 1) = im_tphi_mat( iix, iy, iik )
           scratch( : ) = dcmplx(re_tphi_mat( iix, iy, : ), im_tphi_mat( iix, iy, : ) )
 #endif
 
 
-!            call dfftw_execute_dft( fplan, scratch, scratch )
-
             call FFT_wrapper_single( scratch, OCEAN_FORWARD, fo )
-!            call FFT_wrapper_single( scratch, OCEAN_BACKWARD, fo )
+
             do ik = 1, nkpts
                 fr( kk( ik, 1 ), kk( ik, 2 ), kk( ik, 3 ) ) = real( scratch( ik ), DP )
                 fi( kk( ik, 1 ), kk( ik, 2 ), kk( ik, 3 ) ) = aimag( scratch( ik ) )
             enddo
+
             call velmuls( fr, vv, ladder( :, iix -ix + 1, iy + y_offset ), nkpts, nkret, kret )
             call velmuls( fi, vv, ladder( :, iix -ix + 1, iy + y_offset ), nkpts, nkret, kret )
+
             do ik = 1, nkpts
               scratch( ik ) = dcmplx( fr( kk( ik, 1 ), kk( ik, 2 ), kk( ik, 3 ) ), &
                                             fi( kk( ik, 1 ), kk( ik, 2 ), kk( ik, 3 ) ) )
             end do
-!            call FFT_wrapper_single( scratch, OCEAN_FORWARD, fo )
+
             call FFT_wrapper_single( scratch, OCEAN_BACKWARD, fo )
-!            call dfftw_execute_dft( bplan, scratch, scratch )
 
 #if OCEAN_LADDER_CACHE
-            re_phi_mat( :, iix - ix + 1 ) = real(scratch( : ), DP) * inverse_kpts
-            im_phi_mat( :, iix - ix + 1 ) = aimag(scratch( : )) * inverse_kpts
+            re_phi_mat( :, iix - ix + 1 ) = real(scratch( : ), DP) 
+            im_phi_mat( :, iix - ix + 1 ) = aimag(scratch( : )) 
 
           enddo
 
@@ -453,10 +426,6 @@ module OCEAN_ladder
 !OMP BARRIER
 
 
-! $OMP DO COLLAPSE(3) SCHEDULE(STATIC)
-!      do ik = 1, nkpts
-!        do ib = 1, nbv, nbv_block
-!          do ix = 1, nxpts_pad, block_temp !x_block
       ib = 1
       ix = 1
       nbv_block = nbv
@@ -477,10 +446,6 @@ module OCEAN_ladder
 !$OMP END DO NOWAIT
 !  Other than the last loop this will be followed by MPI_SINGLE + BARRIER
 
-!          enddo
-!        enddo
-!      enddo
-! $OMP END DO
 
       beta = 1.0_dp
 
@@ -502,10 +467,6 @@ module OCEAN_ladder
       nbc_block = nbc_block * cache_double
     endif 
 
-! ! $OMP DO COLLAPSE(3) SCHEDULE(STATIC)
-!    do ik = 1, nkpts
-!      do ib = 1, nbv, nbv_block
-!        do ibc = 1, nbc, nbc_block
 
     nbv_block = nbv
     nbc_block = nbc
@@ -528,22 +489,16 @@ module OCEAN_ladder
     enddo
 !$OMP END DO
 
-!        enddo
-!      enddo
-!    enddo
-! $OMP END DO
-
 
     deallocate( fr, fi, vv, scratch, re_phi_mat, im_phi_mat )
 
 !$OMP END PARALLEL
 
+    deallocate( re_a_mat, im_a_mat, re_b_mat, im_b_mat, re_tphi_mat, im_tphi_mat )
 
-    deallocate( re_a_mat, im_a_mat, re_b_mat, im_b_mat )
 
-
-    call MPI_BARRIER( comm, ierr )
-    if( myid .eq. root ) write( 6, * ) 'ladder done'
+!    call MPI_BARRIER( comm, ierr )
+!    if( myid .eq. root ) write( 6, * ) 'ladder done'
 
   end subroutine OCEAN_ladder_act
 
@@ -743,6 +698,7 @@ module OCEAN_ladder
 !    endif
     
     is_init = .true.
+    deallocate( scratch )
 
   end subroutine OCEAN_ladder_init
 
