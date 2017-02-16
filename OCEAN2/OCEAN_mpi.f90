@@ -36,7 +36,7 @@ module OCEAN_mpi
 
 #ifdef MPI
 !    call MPI_INIT( ierr )
-    call MPI_INIT_THREAD( MPI_THREAD_SINGLE, thread_result, ierr )
+    call MPI_INIT_THREAD( MPI_THREAD_FUNNELED, thread_result, ierr )
     if( ierr .ne. 0 ) return
 
     ! Get MPI values

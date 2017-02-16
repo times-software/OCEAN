@@ -5,7 +5,7 @@
 ! `License' in the root directory of the present distribution.
 !
 !
-subroutine OCEAN_load_data( sys, hay_vec, lr, ierr )
+subroutine OCEAN_load_data( sys, hay_vec, ierr )
   use OCEAN_system
   use OCEAN_psi
   use OCEAN_energies
@@ -20,7 +20,6 @@ subroutine OCEAN_load_data( sys, hay_vec, lr, ierr )
   integer, intent( inout ) :: ierr
   type( o_system ), intent( in ) :: sys
   type(ocean_vector), intent( inout ) :: hay_vec
-  type( long_range ), intent(out) :: lr
 
 
 #ifdef MPI
@@ -116,7 +115,7 @@ subroutine OCEAN_load_data( sys, hay_vec, lr, ierr )
 
     if( sys%long_range ) then
       if( myid .eq. root ) write(6,*) 'Init long_range'
-      call lr_init( sys, lr, ierr )
+      call lr_init( sys, ierr )
       if( ierr .ne. 0 ) return
       if( myid .eq. root ) write(6,*) 'Long_range loaded'
     endif

@@ -1,3 +1,13 @@
+## v. 2.0.2
+
+#### Minor Features
+ 1. Cleaned up the openmp directives in the BSE section
+
+## v. 2.0.1
+
+#### Bugfixes
+ 1. Fixed major bug in the valence BSE regarding FFTs. 
+
 ## v. 2.0
 
 #### Major Features:

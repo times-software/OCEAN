@@ -114,6 +114,7 @@ subroutine OCEAN_read_tmels( sys, p, file_selector, ierr )
 
     if( myid .eq. root ) then
       write(6,*) 'Inverse Q-length:', inv_qlength
+#if 0
       open(unit=99,file='tmels.info',form='formatted',status='old')
       read(99,*) nbv, nbc(1), nbc(2), nk
       close(99)
@@ -122,6 +123,12 @@ subroutine OCEAN_read_tmels( sys, p, file_selector, ierr )
         ierr = -1
         return
       endif
+#endif
+      nbv = sys%brange(2)-sys%brange(1) + 1
+      nbc(1) = sys%brange(3)
+      nbc(2) = sys%brange(4)
+      nk = sys%nkpts
+
 
 
       allocate( re_wgt( 0:3, nbv, nbc(2)-nbc(1)+1 ), im_wgt( 0:3, nbv, nbc(2)-nbc(1)+1 ) )
@@ -168,7 +175,8 @@ subroutine OCEAN_read_tmels( sys, p, file_selector, ierr )
     
 #ifdef MPI
     ! BCAST psi for parallel
-    if( nproc .gt. 1 ) ierr = -1000
+    call OCEAN_psi_bcast_full( root, p, ierr )
+!    if( nproc .gt. 1 ) ierr = -1000
 #endif
 
   

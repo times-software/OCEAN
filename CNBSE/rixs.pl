@@ -519,6 +519,23 @@ my $pawrad = `cat cnbse.rad`;
 chomp($pawrad);
 $pawrad = sprintf("%.2f", $pawrad);
 
+my @xas_photon_files;
+if( -e 'photon_in' )
+{
+  my $photon_list = '';
+  open IN, "photon_in" or die "Whups\n$!";
+  while( <IN> )
+  {
+    chomp;
+    $photon_list .= $_ . " ";
+  }
+  close IN;
+  @xas_photon_files = split(/\s+/, $photon_list );
+}
+else
+{
+  @xas_photon_files = @photon_files;
+}
 
 my %unique_z;
 my %unique_znl;
@@ -526,7 +543,8 @@ my %unique_znl;
 open RUNLIST, ">runlist";
 my $hfinlength = `wc -l hfinlist`;
 chomp($hfinlength);
-$hfinlength *= ($#photon_files + 1 );
+#$hfinlength *= ($#photon_files + 1 );
+$hfinlength *= ($#xas_photon_files + 1 );
 print "$hfinlength\n";
 print RUNLIST "$hfinlength\n";
 
@@ -544,7 +562,8 @@ while (<EDGE>) {
   my $elnum = $6;
 
 #  for( my $i = 1; $i <= $#photon_files+1; $i++ ) 
-  foreach my $way (@photon_files) 
+#  foreach my $way (@photon_files) 
+  foreach my $way (@xas_photon_files)
   {
     $way =~ m/(\d+)$/ or die "Malformed photon file name:\t$way\n";
     my $i = $1;
@@ -776,18 +795,52 @@ my $elname = $4;
 my $corelevel = $5;
 close IN;
 
+#Set XES photon options
+my @xes_photon_files;
+if( -e 'photon_out' )
+{
+  my $photon_list = '';
+  open IN, "photon_out" or die "Whups\n$!";
+  while( <IN> )
+  {
+    chomp;
+    $photon_list .= $_ . " ";
+  }
+  close IN;
+  @xes_photon_files = split(/\s+/, $photon_list );
+}
+else
+{
+  @xes_photon_files = @photon_files;
+}
+
+my $photon_combo = 0;
+print "$#xas_photon_files\t$#xes_photon_files\n";
+for( my $i = 0; $i <= $#xas_photon_files; $i++ )
+{
+  for( my $j = 0; $j <= $#xes_photon_files; $j++ )
+  {
+    next if( $xas_photon_files[$i] == $xes_photon_files[$j] );
+    print "$xas_photon_files[$i]\t$xes_photon_files[$j]\n";
+    $photon_combo ++;
+  }
+}
+    
+
+
 open RUNLIST, ">runlist" or die "Failed to open runlist for writing\n$!";
-my $photon_combo = $nphoton * ($nphoton-1);
+#my $photon_combo = $nphoton * ($nphoton-1);
 my $tot_gmres_count = $gmres_count * $photon_combo;
 print RUNLIST "$tot_gmres_count\n";
 for( my $e = 1; $e <= $gmres_count; $e++ )
 {
-  for( my $i = 1; $i <= $nphoton; $i++ )
+  for( my $i = 0; $i <= $#xas_photon_files; $i++ )
   {
-    for( my $j = 1; $j <= $nphoton; $j++ )
+    for( my $j = 0; $j <= $#xes_photon_files; $j++ )
     {
-      next if( $i == $j );
-      print RUNLIST "$znum  $nnum  $lnum  $elname  $corelevel  0  $i  RXS  $e  $j\n";
+#      next if( $i == $j );
+      next if( $xas_photon_files[$i] == $xes_photon_files[$j] );
+      print RUNLIST "$znum  $nnum  $lnum  $elname  $corelevel  0  $xas_photon_files[$i]  RXS  $e  $xes_photon_files[$j]\n";
     }
   }
 }
@@ -809,7 +862,7 @@ print INFILE "$num_haydock_iterations  $spectrange  $gamma0  0.000\n";
 close INFILE;
 
 `cat bse.in`;
-sleep 10;
+#sleep 10;
 
 print "Running valence for RIXS\n";
 print "time $para_prefix $ENV{'OCEAN_BIN'}/ocean.x > val.log";

@@ -20,9 +20,6 @@ module OCEAN_obf
   real(DP), pointer, public :: re_obf_phs( :, : )
   real(DP), pointer, public :: im_obf_phs( :, : )
 
-#ifdef HAVE_CONTIGUOUS
-  CONTIGUOUS :: re_obf, im_obf, re_obf2u, im_obf2u, re_obf_phs, im_obf_phs
-#endif
 
 
   INTEGER :: my_xpts

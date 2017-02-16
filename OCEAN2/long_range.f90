@@ -1,4 +1,4 @@
-! Copyright (C) 2015- 2017 OCEAN collaboration
+! Copyright (C) 2015 - 2017 OCEAN collaboration
 !
 ! This file is part of the OCEAN project and distributed under the terms 
 ! of the University of Illinois/NCSA Open Source License. See the file 
@@ -15,32 +15,9 @@ module ocean_long_range
   save
   private
 
-  type, public :: long_range
-
-    integer( S_INT ) :: my_nxpts
-    integer( S_INT ) :: my_nkpts
-
-    integer( S_INT ) :: my_num_bands
-    integer( S_INT ) :: my_start_nx
-
-    real( DP ) :: tau( 3 )
-
-    real( DP ) :: timer = 0.0_DP
-
-
-
-    complex( DP ), pointer :: bloch_states( :, :, : )
-
-
-  end type
-
   real( DP ), pointer :: re_bloch_state( :, :, :, : )
   real( DP ), pointer :: im_bloch_state( :, :, :, : )
   real( DP ), pointer :: W( :, : )
-! Need to check for CONTIGUOUS
-#ifdef HAVE_CONTIGUOUS
-  CONTIGUOUS :: re_bloch_state, im_bloch_state, W
-#endif
 
   real( DP ) :: my_tau( 3 )
   integer :: my_xshift( 3 )
@@ -63,8 +40,7 @@ module ocean_long_range
   logical :: isolated = .false.
   
 
-  public :: lr_populate_W, lr_populate_bloch, lr_act, lr_populate_W2, lr_fill_values, & 
-            lr_init, lr_timer, lr_slice, dump_exciton
+  public :: lr_act, lr_init, lr_timer, lr_slice, dump_exciton
 
   contains
 
@@ -73,22 +49,32 @@ module ocean_long_range
     return
   end function
 
-  subroutine lr_act( sys, p, hp, lr, ierr )
+  subroutine lr_act( sys, p, hp, ierr )
     use OCEAN_system
     use OCEAN_psi
 
     type( o_system ), intent( in ) :: sys
     type(OCEAN_vector), intent( in ) :: p
     type(OCEAN_vector), intent(inout) :: hp
-    type(long_range), intent(inout) :: lr
     integer, intent( inout ) :: ierr
+  
+    integer :: max_threads = 1
+!$  integer, external :: omp_get_max_threads
+!$  logical, external :: omp_get_nested
+
+!$  max_threads = omp_get_max_threads()
 
     if( use_obf ) then
       call lr_act_obf2( sys, p, hp, ierr )
     else
-!!!      call lr_act_traditional( sys, p, hp, lr, ierr )
-!      call lr_act_traditional_x( sys, p, hp, lr, ierr )
-      call lr_act_cache( sys, p, hp, lr, ierr )
+!!!      call lr_act_traditional( sys, p, hp, ierr )
+
+      if( ( .not. omp_get_nested() ) .or.  &
+          ( max_threads .le. sys%nalpha .and. mod( sys%nalpha, max_threads ) .eq. 0 ) ) then
+        call lr_act_traditional_x( sys, p, hp, ierr )
+      else
+        call lr_act_cache( sys, p, hp, ierr )
+      endif
     endif
 
   end subroutine lr_act
@@ -105,7 +91,7 @@ module ocean_long_range
 ! 2) It will ensure that it has been properly initialized
 ! 3) Check previous run to see if we are still at the same atomic site
 ! 4) Load up 
-  subroutine lr_init( sys, lr, ierr )
+  subroutine lr_init( sys, ierr )
     
     use OCEAN_system
     use OCEAN_bloch
@@ -120,7 +106,6 @@ module ocean_long_range
 
     type( o_system ), intent( in ) :: sys
     ! bandage for now
-    type( long_range ), intent( out ) :: lr
     integer, intent( inout ) :: ierr
 
     type(C_PTR) :: cptr
@@ -232,11 +217,6 @@ module ocean_long_range
     is_loaded = .true.
 
 
-    lr%my_nxpts = my_xpts
-    lr%my_nkpts = my_kpts
-    lr%my_num_bands = my_num_bands
-    lr%my_start_nx = my_start_nx
-    lr%tau(:) = my_tau(:)
 
 
 
@@ -454,12 +434,11 @@ module ocean_long_range
 
   end subroutine
 
-  subroutine lr_act_obf( sys, psi, hpsi, lr, obf, ierr )
+  subroutine lr_act_obf( sys, psi, hpsi, obf, ierr )
     use OCEAN_system
     
 
     type( o_system ), intent( in ) :: sys
-    type( long_range ), intent( in ) :: lr
     complex( DP ), intent( in ) :: psi( sys%num_bands, sys%nkpts, sys%nalpha )
     complex( DP ), intent( out ) :: hpsi( sys%num_bands, sys%nkpts, sys%nalpha )
     integer, intent( inout ) :: ierr
@@ -485,7 +464,6 @@ module ocean_long_range
     jfft = 2 * max( sys%kmesh( 1 ) * ( sys%kmesh( 1 ) + 1 ), sys%kmesh( 2 ) * ( sys%kmesh( 2 ) + 1 ), &
                     sys%kmesh( 3 ) * ( sys%kmesh( 3 ) + 1 ) )
     !
-!    allocate( phi( lr%my_nkpts, sys%nalpha, lr%my_nxpts ) )
     
 
 !    allocate( local_beta( local_obf, local_k, sys%nalpha ) )
@@ -543,28 +521,28 @@ module ocean_long_range
 ! Need to sync up full beta
 
 
-    if( lr%my_nxpts .gt. 8 * num_threads ) then
+    if( my_xpts .gt. 8 * num_threads ) then
       xchunk = 8
-    elseif(  lr%my_nxpts .gt. 4 * num_threads ) then
+    elseif(  my_xpts .gt. 4 * num_threads ) then
       xchunk = 4
     else
       xchunk = 1
     endif          
 
-    allocate( tphi( lr%my_nxpts, lr%my_nkpts, sys%nalpha ) )
+    allocate( tphi( my_xpts, my_kpts, sys%nalpha ) )
 
 ! $OMP PARALLEL DEFAULT( NONE ) &
-! $OMP& SHARED( lr%my_nxpts, sys%nalpha, sys%num_obf, sys%nkpts, tphi, beta, obf, W, xchunk ) &
+! $OMP& SHARED( sys%nalpha, sys%num_obf, sys%nkpts, tphi, beta, obf, W, xchunk ) &
 ! $OMP& PRIVATE( ixpt, ialpha, iobf, xsize, iixpt, phi, xwrkr, xwrki, wrk )
     allocate( xwrkr( sys%nkpts ), xwrki( sys%nkpts ), wrk( jfft ), phi( sys%nkpts, xchunk, sys%nalpha ) )
 
 
 !    cache_obf_align = 32
 ! $OMP DO SCHEDULE( STATIC )
-    do ixpt = 1, lr%my_nxpts, xchunk
+    do ixpt = 1, my_xpts, xchunk
       xsize = xchunk
-      if( ixpt - 1 + xchunk .gt. lr%my_nxpts ) then
-        xsize = lr%my_nxpts - ixpt + 1
+      if( ixpt - 1 + xchunk .gt. my_xpts ) then
+        xsize = my_xpts - ixpt + 1
       endif
       do ialpha = 1, sys%nalpha
 !        do iobf = 1, sys%num_obf, cache_obf_align
@@ -626,7 +604,7 @@ module ocean_long_range
     elseif( sys%num_bands .gt. 512 ) then
       cache_nkpts = 1
       cache_nalpha = min( 4, sys%nalpha )
-      cache_nxpts = min( 16, lr%my_nxpts )
+      cache_nxpts = min( 16, my_xpts )
       cache_obf = 10
       remaining_cache = ( 256 - 16 - 4 )*64 &
                       - cache_nalpha * cache_nkpts * sys%num_bands &
@@ -636,7 +614,7 @@ module ocean_long_range
     elseif( sys%num_bands .gt. 128 ) then
       cache_nkpts = 1
       cache_nalpha = min( 12, sys%nalpha )
-      cache_nxpts = min( 16, lr%my_nxpts )
+      cache_nxpts = min( 16, my_xpts )
       cache_obf = 24
       remaining_cache = ( 256 - 16 - 4 )*64 &
                       - cache_nalpha * cache_nkpts * sys%num_bands &
@@ -646,7 +624,7 @@ module ocean_long_range
     elseif( sys%num_bands .gt. 64 ) then
       cache_nkpts = min( 2, sys%nkpts )
       cache_nalpha = min( 12, sys%nalpha )
-      cache_nxpts = min( 32, lr%my_nxpts )
+      cache_nxpts = min( 32, my_xpts )
       cache_obf = 32
       remaining_cache = ( 256 - 16 - 4 )*64 &
                       - cache_nalpha * cache_nkpts * sys%num_bands &
@@ -656,7 +634,7 @@ module ocean_long_range
     else
       cache_nkpts = min( 4, sys%nkpts )
       cache_nalpha = min( 12, sys%nalpha )
-      cache_nxpts = min( 32, lr%my_nxpts )
+      cache_nxpts = min( 32, my_xpts )
       cache_obf = 32
       remaining_cache = ( 256 - 16 - 4 )*64 &
                       - cache_nalpha * cache_nkpts * sys%num_bands &
@@ -676,7 +654,7 @@ module ocean_long_range
         do block_alpha = 1, sys%nalpha/cache_nalpha
           iialpha_start = (block_alpha-1)*cache_nalpha + 1
           iialpha_stop = iialpha_start + cache_nalpha - 1
-          do block_xpt = 1, lr%my_nxpts, cache_nxpts
+          do block_xpt = 1, my_xpts, cache_nxpts
             x_start = (block_xpt - 1) * cache_nxpts + 1
             x_stop = block_xpt * cache_nxpts
             tphi_subset( :, :, : ) = tphi( x_start : x_stop, ikpt : stop_kpt, iialpha_start : iialpha_stop )
@@ -737,13 +715,13 @@ module ocean_long_range
 
 
 
-  subroutine lr_act_traditional_x( sys, p, hp, lr, ierr )
+  subroutine lr_act_traditional_x( sys, p, hp, ierr )
     use OCEAN_system
     use OCEAN_psi
+    use OCEAN_mpi,  only : myid
     implicit none
 
     type( o_system ), intent( in ) :: sys
-    type( long_range ), intent( inout ) :: lr
     type(OCEAN_vector), intent( in ) :: p
     type(OCEAN_vector), intent(inout) :: hp
 !    real(DP), dimension(sys%num_bands, sys%nkpts, sys%nalpha ), intent( inout ) :: hpr, hpi
@@ -757,8 +735,13 @@ module ocean_long_range
     !
     real( DP ), allocatable :: xwrkr( : ), xwrki( : ), wrk( : )
     integer :: jfft, ialpha, ikpt, xiter, val_spin( sys%nalpha ), icms, icml, ivms
+    integer :: nthread, nthread2, max_thread
+    logical :: can_nest
+    character(len=1) :: loop_type
     !
     real(DP), external :: DDOT
+!$  integer, external :: omp_get_max_threads
+!$  logical, external :: omp_get_nested
 
 #ifdef __INTEL_COMPILER
 ! DIR$ attributes align: 64 :: xwrkr, xwrki, wrk
@@ -789,7 +772,8 @@ module ocean_long_range
     !   Do FFT back to k-points
 
 
-
+!$  nthread = min( sys%nalpha, omp_get_max_threads() )
+! $  write(1000+myid,*) nthread, sys%nalpha, omp_get_max_threads()
 
 
     ! prep info for fft
@@ -798,97 +782,117 @@ module ocean_long_range
                     sys%kmesh( 3 ) * ( sys%kmesh( 3 ) + 1 ) )
     !
 
-! $OMP PARALLEL DEFAULT( NONE ) &
-! $OMP& SHARED( lr, W, hp, re_bloch_state, im_bloch_state, p, sys, val_spin ) &
-! $OMP& PRIVATE( xwrkr, xwrki, wrk, ikpt, ialpha, xiter ) &
-! $OMP& FIRSTPRIVATE( jfft ) 
-
-! Zero-ing out is taken care of externally now
-! !$OMP WORKSHARE
-!   hpr(:,:,:) = zero
-!   hpi(:,:,:) = zero
-! !$OMP END WORKSHARE
+!$OMP PARALLEL DEFAULT( NONE ) NUM_THREADS( nthread ) &
+!$OMP& SHARED( W, hp, re_bloch_state, im_bloch_state, p, sys, val_spin, jfft, my_kpts, my_xpts ) &
+!$OMP& PRIVATE( xwrkr, xwrki, wrk, ikpt, ialpha, xiter ) 
 
     allocate( xwrkr( sys%nkpts ), xwrki( sys%nkpts ), &
               wrk( jfft ) )
 
-! $OMP DO COLLAPSE( 2 ) REDUCTION(+:hp%r,hp%i)
+!$OMP DO COLLAPSE( 1 ) SCHEDULE( STATIC )
     do ialpha = 1, sys%nalpha
-      do xiter = 1, lr%my_nxpts
+      do xiter = 1, my_xpts
 
-    ! Populate phi
-#ifdef BLAS
-        do ikpt = 1, lr%my_nkpts
-          xwrkr( ikpt )  = DDOT( sys%num_bands, p%r(1,ikpt,ialpha), 1, &
-                                        re_bloch_state(1,ikpt,xiter,val_spin(ialpha)), 1 ) &
-                                - DDOT( sys%num_bands, p%i(1,ikpt,ialpha), 1, &
-                                        im_bloch_state(1,ikpt,xiter,val_spin(ialpha)), 1 )
-          xwrki( ikpt ) = DDOT( sys%num_bands, p%r(1,ikpt,ialpha), 1, &
-                                       im_bloch_state(1,ikpt,xiter,val_spin(ialpha)), 1 ) &
-                               + DDOT( sys%num_bands, p%i(1,ikpt,ialpha), 1, &
-                                       re_bloch_state(1,ikpt,xiter,val_spin(ialpha)), 1 )
-        enddo
+        call lr_kernel( sys, p, hp%r(:,:,ialpha), hp%i(:,:,ialpha), & 
+                        xwrkr, xwrki, wrk, jfft, ialpha, xiter, val_spin(ialpha))
 
-#else
-        do ikpt = 1, lr%my_nkpts
-          xwrkr( ikpt ) = &
-                                   dot_product(p%r(:,ikpt,ialpha),re_bloch_state(:,ikpt,xiter,val_spin(ialpha))) &
-                                 - dot_product(p%i(:,ikpt,ialpha),im_bloch_state(:,ikpt,xiter,val_spin(ialpha)))
-          xwrki( ikpt ) = &
-                                   dot_product(p%r(:,ikpt,ialpha),im_bloch_state(:,ikpt,xiter,val_spin(ialpha))) &
-                                 + dot_product(p%i(:,ikpt,ialpha),re_bloch_state(:,ikpt,xiter,val_spin(ialpha)))
-        enddo
-#endif          
-
-
-        call cfft( xwrkr, xwrki, sys%kmesh(3), sys%kmesh(3), sys%kmesh(2), & 
-                   sys%kmesh(1), +1, wrk, jfft )
-
-        xwrkr( : ) = xwrkr( : ) * W( :, xiter )
-        xwrki( : ) = xwrki( : ) * W( :, xiter )
-
-        call cfft( xwrkr, xwrki, sys%kmesh(3), sys%kmesh(3), sys%kmesh(2), &
-                   sys%kmesh(1), -1, wrk, jfft )
-
-#ifdef BLAS
-        do ikpt = 1, lr%my_nkpts
-          call DAXPY( sys%num_bands, -xwrkr(ikpt), re_bloch_state(1,ikpt,xiter,val_spin(ialpha)), 1, &
-                      hp%r(1,ikpt,ialpha), 1 )
-          call DAXPY( sys%num_bands, -xwrki(ikpt), im_bloch_state(1,ikpt,xiter,val_spin(ialpha)), 1, &
-                      hp%r(1,ikpt,ialpha), 1 )
-          call DAXPY( sys%num_bands, -xwrki(ikpt), re_bloch_state(1,ikpt,xiter,val_spin(ialpha)), 1, &
-                      hp%i(1,ikpt,ialpha), 1 )
-          call DAXPY( sys%num_bands, xwrkr(ikpt), im_bloch_state(1,ikpt,xiter,val_spin(ialpha)), 1, &
-                      hp%i(1,ikpt,ialpha), 1 )
-#else
-            hp%r(:,ikpt,ialpha) = hp%r(:,ikpt,ialpha) &
-                                - re_bloch_state(:,ikpt,xiter,val_spin(ialpha)) * xwrkr(ikpt) &
-                                - im_bloch_state(:,ikpt,xiter,val_spin(ialpha)) * xwrki(ikpt)
-            hp%i(:,ikpt,ialpha) = hp%i(:,ikpt,ialpha) &
-                                - re_bloch_state(:,ikpt,xiter,val_spin(ialpha)) * xwrki(ikpt) &
-                                + im_bloch_state(:,ikpt,xiter,val_spin(ialpha)) * xwrkr(ikpt)
-#endif
-          enddo
-        enddo
       enddo
-! $OMP END DO
+    enddo
+!$OMP END DO NOWAIT
 
     deallocate( xwrkr, xwrki, wrk )
 
-! $OMP END PARALLEL
-
+!$OMP END PARALLEL
 
   end subroutine lr_act_traditional_x
 
 
-
-  subroutine lr_act_cache( sys, p, hp, lr, ierr )
+  subroutine lr_kernel( sys, p, hpr, hpi, xwrkr, xwrki, wrk, jfft, ialpha, xiter, val_spin )
     use OCEAN_system
     use OCEAN_psi
     implicit none
+    !
+    type( o_system ), intent( in ) :: sys
+    type(OCEAN_vector), intent( in ) :: p
+    real(DP), dimension(sys%num_bands, sys%nkpts ), intent( inout ) :: hpr, hpi
+    real(DP), dimension( sys%nkpts ), intent( out ) :: xwrkr, xwrki
+    real(DP), dimension( jfft ), intent( out ) :: wrk
+    integer, intent( in ) :: jfft, ialpha, xiter, val_spin
+
+    !
+    real( DP ), parameter :: one = 1.0_DP
+    real( DP ), parameter :: minusone = -1.0_DP
+    real( DP ), parameter :: zero = 0.0_DP
+    !
+    integer :: ikpt
+    real(DP), external :: DDOT
+
+
+    ! Populate phi
+#ifdef BLAS
+      do ikpt = 1, my_kpts
+        xwrkr( ikpt )  = DDOT( sys%num_bands, p%r(1,ikpt,ialpha), 1, &
+                               re_bloch_state(1,ikpt,xiter,val_spin), 1 ) &
+                       - DDOT( sys%num_bands, p%i(1,ikpt,ialpha), 1, &
+                               im_bloch_state(1,ikpt,xiter,val_spin), 1 )
+        xwrki( ikpt ) = DDOT( sys%num_bands, p%r(1,ikpt,ialpha), 1, &
+                              im_bloch_state(1,ikpt,xiter,val_spin), 1 ) &
+                      + DDOT( sys%num_bands, p%i(1,ikpt,ialpha), 1, &
+                              re_bloch_state(1,ikpt,xiter,val_spin), 1 )
+      enddo
+
+#else
+      do ikpt = 1, my_kpts
+        xwrkr( ikpt ) = &
+                                 dot_product(p%r(:,ikpt,ialpha),re_bloch_state(:,ikpt,xiter,val_spin)) &
+                               - dot_product(p%i(:,ikpt,ialpha),im_bloch_state(:,ikpt,xiter,val_spin))
+        xwrki( ikpt ) = &
+                                 dot_product(p%r(:,ikpt,ialpha),im_bloch_state(:,ikpt,xiter,val_spin)) &
+                               + dot_product(p%i(:,ikpt,ialpha),re_bloch_state(:,ikpt,xiter,val_spin))
+      enddo
+#endif          
+
+
+      call cfft( xwrkr, xwrki, sys%kmesh(3), sys%kmesh(3), sys%kmesh(2), & 
+                 sys%kmesh(1), +1, wrk, jfft )
+
+      xwrkr( : ) = xwrkr( : ) * W( :, xiter )
+      xwrki( : ) = xwrki( : ) * W( :, xiter )
+
+      call cfft( xwrkr, xwrki, sys%kmesh(3), sys%kmesh(3), sys%kmesh(2), &
+                 sys%kmesh(1), -1, wrk, jfft )
+
+#ifdef BLAS
+      do ikpt = 1, my_kpts
+        call DAXPY( sys%num_bands, -xwrkr(ikpt), re_bloch_state(1,ikpt,xiter,val_spin), 1, &
+                    hpr(1,ikpt), 1 )
+        call DAXPY( sys%num_bands, -xwrki(ikpt), im_bloch_state(1,ikpt,xiter,val_spin), 1, &
+                    hpr(1,ikpt), 1 )
+        call DAXPY( sys%num_bands, -xwrki(ikpt), re_bloch_state(1,ikpt,xiter,val_spin), 1, &
+                    hpi(1,ikpt), 1 )
+        call DAXPY( sys%num_bands, xwrkr(ikpt), im_bloch_state(1,ikpt,xiter,val_spin), 1, &
+                    hpi(1,ikpt), 1 )
+#else
+          hpr(:,ikpt) = hpr(:,ikpt) &
+                             - re_bloch_state(:,ikpt,xiter,val_spin) * xwrkr(ikpt) &
+                             - im_bloch_state(:,ikpt,xiter,val_spin) * xwrki(ikpt)
+          hpi(:,ikpt) = hpi(:,ikpt) &
+                             - re_bloch_state(:,ikpt,xiter,val_spin) * xwrki(ikpt) &
+                             + im_bloch_state(:,ikpt,xiter,val_spin) * xwrkr(ikpt)
+#endif
+      enddo
+
+  end subroutine lr_kernel
+
+
+
+  subroutine lr_act_cache( sys, p, hp, ierr )
+    use OCEAN_system
+    use OCEAN_psi
+    use OCEAN_mpi, only : myid
+    implicit none
 
     type( o_system ), intent( in ) :: sys
-    type( long_range ), intent( inout ) :: lr
     type(OCEAN_vector), intent( in ) :: p
     type(OCEAN_vector), intent(inout) :: hp
 !    real(DP), dimension(sys%num_bands, sys%nkpts, sys%nalpha ), intent( inout ) :: hpr, hpi
@@ -902,13 +906,14 @@ module ocean_long_range
     !
     real( DP ), allocatable :: xwrkr( :,: ), xwrki( :,: ), wrk( : ), oneDwrkr(:), oneDwrki(:)
     integer :: jfft, ialpha, ikpt, xiter, val_spin( sys%nalpha ), icms, icml, ivms, nthread, nthread2, k_chunk, ikk
+    integer :: max_threads
     !
     real(DP), external :: DDOT
 !$  integer, external :: omp_get_max_threads
 !$  logical, external :: omp_get_nested
 
-#ifdef __INTEL_COMPILER
-! DIR$ attributes align: 64 :: xwrkr, xwrki, wrk
+#ifdef __INTEL_COMPILER_ALIGN
+!DIR$ attributes align: 64 :: xwrkr, xwrki, wrk
 #endif
     ! For each x-point in the unit cell
     !   Populate \phi(x,k) = \sum_n u(x,k) \psi_n(x,k)
@@ -936,16 +941,19 @@ module ocean_long_range
                     sys%kmesh( 2 ) * ( sys%kmesh( 2 ) + 1 ), &
                     sys%kmesh( 3 ) * ( sys%kmesh( 3 ) + 1 ) )
     !
-    nthread = 1
-! $  nthread = min( 4, omp_get_max_threads() )
+    max_threads = 1
+!$  max_threads = omp_get_max_threads()
 
-!$  if( omp_get_nested() .or. nthread .eq. 1 ) then
-!$    nthread2 = max( 1, omp_get_max_threads() / nthread )
-!$  else
-      nthread2 = 1
-!$  endif
 
-!$  nthread2 = omp_get_max_threads() 
+    ! If we can nest divide threads into nthread and nthread2
+    do ialpha = min( sys%nalpha, max_threads ), 1, -1
+      if( mod( sys%nalpha, ialpha ) .eq. 0 .and. mod( max_threads, ialpha ) .eq. 0 ) then
+        nthread = ialpha
+        nthread2 = max_threads / ialpha
+        exit
+      endif
+    enddo
+
 
     if( sys%nkpts .gt. ( nthread2 * 32 ) ) then
       k_chunk = 32
@@ -959,25 +967,29 @@ module ocean_long_range
       k_chunk = 1
     endif
 
-! $OMP  PARALLEL NUM_THREADS( nthread ) DEFAULT( NONE ) &
-! $OMP& SHARED( k_chunk, lr, W, hp, re_bloch_state, im_bloch_state, p, sys, val_spin, nthread, nthread2, jfft ) &
-! $OMP& PRIVATE( xwrkr, xwrki, wrk, ikpt, ialpha, xiter, ikk, oneDwrkr, oneDwrki ) 
+! $  write(1000+myid,*) nthread, nthread2, max_threads
+
+    
+
+!$OMP  PARALLEL NUM_THREADS( nthread ) DEFAULT( NONE ) &
+!$OMP& SHARED( k_chunk, W, hp, re_bloch_state, im_bloch_state, p, sys, val_spin, nthread2, jfft, my_xpts ) &
+!$OMP& PRIVATE( xwrkr, xwrki, wrk, ikpt, ialpha, xiter, ikk, oneDwrkr, oneDwrki ) 
 
 
-    allocate( xwrkr( sys%nkpts, lr%my_nxpts ), xwrki( sys%nkpts, lr%my_nxpts ) )
+    allocate( xwrkr( sys%nkpts, my_xpts ), xwrki( sys%nkpts, my_xpts ) )
 !    allocate( wrk( jfft ), oneDwrkr( sys%nkpts ), oneDwrki( sys%nkpts ) )
 
-! $OMP DO SCHEDULE( STATIC )
+!$OMP DO SCHEDULE( STATIC )
     do ialpha = 1, sys%nalpha
 
 !$OMP  PARALLEL NUM_THREADS( nthread2 ) DEFAULT( NONE ) &
-!$OMP& SHARED( k_chunk, W, hp, lr, re_bloch_state, im_bloch_state, p, sys, val_spin, xwrkr, xwrki, jfft, ialpha ) &
+!$OMP& SHARED( my_xpts, k_chunk, W, hp, re_bloch_state, im_bloch_state, p, sys, val_spin, xwrkr, xwrki, jfft, ialpha ) &
 !$OMP& PRIVATE( ikk, xiter, ikpt, wrk )
 
 
 !$OMP DO COLLAPSE( 2 ) SCHEDULE( STATIC )
       do ikk = 1, sys%nkpts, k_chunk
-        do xiter = 1, lr%my_nxpts
+        do xiter = 1, my_xpts
 
           do ikpt = ikk, min( ikk + k_chunk - 1, sys%nkpts )
             xwrkr( ikpt, xiter ) = DDOT( sys%num_bands, p%r(1,ikpt,ialpha), 1, &
@@ -991,7 +1003,7 @@ module ocean_long_range
 ! Need to have same scheduling as above or *bad things*! 
 !$OMP DO COLLAPSE( 2 ) SCHEDULE( STATIC )
       do ikk = 1, sys%nkpts, k_chunk
-        do xiter = 1, lr%my_nxpts
+        do xiter = 1, my_xpts
 
           do ikpt = ikk, min( ikk + k_chunk - 1, sys%nkpts )
             xwrkr( ikpt, xiter ) = xwrkr( ikpt, xiter ) &
@@ -1006,14 +1018,14 @@ module ocean_long_range
 !$OMP END DO 
 
 ! $OMP  PARALLEL NUM_THREADS( nthread2 ) DEFAULT( NONE ) &
-! $OMP& SHARED( xwrkr, xwrki, jfft, W, sys, lr ) &
+! $OMP& SHARED( xwrkr, xwrki, jfft, W, sys, ) &
 ! $OMP& PRIVATE( xiter, wrk )
 
       allocate( wrk( jfft ) )
 
-! $OMP DO
-!$OMP SINGLE
-      do xiter = 1, lr%my_nxpts
+!$OMP DO
+! $OMP SINGLE
+      do xiter = 1, my_xpts
  !       oneDwrkr( : ) = xwrkr( :, xiter )
  !       oneDwrki( : ) = xwrki( :, xiter )
         call cfft( xwrkr(1,xiter), xwrki(1,xiter), sys%kmesh(3), sys%kmesh(3), sys%kmesh(2), &
@@ -1033,15 +1045,15 @@ module ocean_long_range
 !        xwrkr( :, xiter ) = oneDwrkr( : )
 !        xwrki( :, xiter ) = oneDwrki( : )
       enddo
-!$OMP END SINGLE
-! $OMP END DO
+! $OMP END SINGLE
+!$OMP END DO
 
       deallocate( wrk )
 
 ! $OMP END PARALLEL
     
 ! $OMP  PARALLEL NUM_THREADS( nthread2 ) DEFAULT( NONE ) &
-! $OMP& SHARED( sys, lr, k_chunk, re_bloch_state, im_bloch_state, xwrkr, xwrki, hp, val_spin, ialpha ) &
+! $OMP& SHARED( sys, k_chunk, re_bloch_state, im_bloch_state, xwrkr, xwrki, hp, val_spin, ialpha ) &
 ! $OMP& PRIVATE( ikk, xiter, ikpt )
 
 
@@ -1049,7 +1061,7 @@ module ocean_long_range
 ! W/O collapse don't have to worry about dual updating
 !$OMP DO SCHEDULE( STATIC )
       do ikk = 1, sys%nkpts, k_chunk
-        do xiter = 1, lr%my_nxpts
+        do xiter = 1, my_xpts
 
           do ikpt = ikk, min( ikk + k_chunk - 1, sys%nkpts )
             call DAXPY( sys%num_bands, -xwrkr(ikpt,xiter), re_bloch_state(1,ikpt,xiter,val_spin(ialpha)), 1, &
@@ -1062,7 +1074,7 @@ module ocean_long_range
 !$OMP END DO
 !$OMP DO SCHEDULE( STATIC )
       do ikk = 1, sys%nkpts, k_chunk
-        do xiter = 1, lr%my_nxpts
+        do xiter = 1, my_xpts
           do ikpt = ikk, min( ikk + k_chunk - 1, sys%nkpts )
             call DAXPY( sys%num_bands, -xwrki(ikpt,xiter), im_bloch_state(1,ikpt,xiter,val_spin(ialpha)), 1, &
                         hp%r(1,ikpt,ialpha), 1 )
@@ -1078,26 +1090,25 @@ module ocean_long_range
 
 
     end do ! ialpha
-! $ OMP END DO
+!$OMP END DO
 
 
 !    deallocate( wrk, oneDwrkr, oneDwrki )
     deallocate( xwrkr, xwrki )
 
-! $ OMP END PARALLEL
+!$OMP END PARALLEL
 
 
 
   end subroutine lr_act_cache
 
 
-  subroutine lr_act_traditional( sys, p, hp, lr, ierr )
+  subroutine lr_act_traditional( sys, p, hp, ierr )
     use OCEAN_system
     use OCEAN_psi
     implicit none    
     
     type( o_system ), intent( in ) :: sys
-    type( long_range ), intent( inout ) :: lr
     type(OCEAN_vector), intent( in ) :: p
     type(OCEAN_vector), intent(inout) :: hp
     integer, intent( inout ) :: ierr
@@ -1156,13 +1167,11 @@ module ocean_long_range
                     sys%kmesh( 2 ) * ( sys%kmesh( 2 ) + 1 ), &
                     sys%kmesh( 3 ) * ( sys%kmesh( 3 ) + 1 ) )
     !
-    allocate( &!rphi( lr%my_nkpts, lr%my_nxpts, sys%nalpha ), &
-               !iphi( lr%my_nkpts, lr%my_nxpts, sys%nalpha ), &
-              rtphi( lr%my_nxpts, lr%my_nkpts, sys%nalpha ), &
-              itphi( lr%my_nxpts, lr%my_nkpts, sys%nalpha ) )
+    allocate( rtphi( my_xpts, my_kpts, sys%nalpha ), &
+              itphi( my_xpts, my_kpts, sys%nalpha ) )
 
 !$OMP PARALLEL DEFAULT( NONE ) &
-!$OMP& SHARED( rphi, iphi, lr, W, hp, re_bloch_state, im_bloch_state, rtphi, itphi, val_spin ) &
+!$OMP& SHARED( rphi, iphi, W, hp, re_bloch_state, im_bloch_state, rtphi, itphi, val_spin, my_kpts, my_xpts ) &
 !$OMP& PRIVATE( xwrkr, xwrki, wrk, ikpt, ibd, ialpha, ixpt, iq) &
 !$OMP& PRIVATE( iq1, iq2, iq3, ii, iixpt, xstop, xiter ) &
 !$OMP& FIRSTPRIVATE( sys, jfft, p ) 
@@ -1176,10 +1185,10 @@ module ocean_long_range
               wrk( jfft ) )
 
 !$OMP DO COLLAPSE( 2 )
-    do iixpt = 1, lr%my_nxpts, xiter_cache_line
+    do iixpt = 1, my_xpts, xiter_cache_line
       do ialpha = 1, sys%nalpha 
 
-        xstop = min( lr%my_nxpts, iixpt+xiter_cache_line-1)
+        xstop = min( my_xpts, iixpt+xiter_cache_line-1)
         xiter = 0
 
 
@@ -1188,7 +1197,7 @@ module ocean_long_range
 
     ! Populate phi
 #ifdef BLAS
-        do ikpt = 1, lr%my_nkpts
+        do ikpt = 1, my_kpts
 !          rphi(ikpt,ixpt,ialpha) = DDOT( sys%num_bands, p%r(1,ikpt,ialpha), 1, re_bloch_state(1,ikpt,ixpt), 1 ) &
           xwrkr( ikpt, xiter )  = DDOT( sys%num_bands, p%r(1,ikpt,ialpha), 1, &
                                         re_bloch_state(1,ikpt,ixpt,val_spin(ialpha)), 1 ) &
@@ -1202,7 +1211,7 @@ module ocean_long_range
         enddo
 
 #else
-        do ikpt = 1, lr%my_nkpts
+        do ikpt = 1, my_kpts
 !          rphi(ikpt,ixpt,ialpha) = & 
           xwrkr( ikpt, xiter ) = &
                                    dot_product(p%r(:,ikpt,ialpha),re_bloch_state(:,ikpt,ixpt,val_spin(ialpha))) &
@@ -1232,7 +1241,7 @@ module ocean_long_range
 
 
         xiter = xstop - iixpt + 1
-        do ikpt = 1, lr%my_nkpts
+        do ikpt = 1, my_kpts
           rtphi( iixpt:xstop, ikpt, ialpha ) = xwrkr( ikpt, 1:xiter )
           itphi( iixpt:xstop, ikpt, ialpha ) = xwrki( ikpt, 1:xiter )
         enddo
@@ -1243,9 +1252,9 @@ module ocean_long_range
 
 
 !$OMP DO COLLAPSE( 2 )
-    do ikpt = 1, lr%my_nkpts  ! swap k and and alpha to reduce dependencies
+    do ikpt = 1, my_kpts  ! swap k and and alpha to reduce dependencies
       do ialpha = 1, sys%nalpha
-          do ixpt = 1, lr%my_nxpts
+          do ixpt = 1, my_xpts
 #ifdef BLAS
 !            call DAXPY( sys%num_bands, rphi(ikpt,ixpt,ialpha), re_bloch_state(1,ikpt,ixpt), 1, &
 !                        phpr(1,ikpt,ialpha), 1 )
@@ -1292,101 +1301,20 @@ module ocean_long_range
 
 
 !    call cpu_time( time2 )
-!    lr%timer= lr%timer + time2-time1
   end subroutine
 
-#if 0
-  subroutine create_lr( sys, lr, ierr )
-    use OCEAN_mpi, only : myid, nproc, root, comm
-    use OCEAN_system
-    use iso_c_binding
-    implicit none
-    include 'fftw3.f03'
 
-    type( o_system ), intent( in ) :: sys
-    type( long_range ), intent( inout ) :: lr
-    integer, intent( inout ) :: ierr 
-    !
-    integer( S_INT ) :: nx_left, nx_start, nx_tmp, i
-    type(C_PTR) :: cptr
-    ! SOP
-    lr%my_num_bands = sys%num_bands
-    lr%my_nkpts = sys%nkpts
-    nx_left = sys%nxpts
-    nx_start = 1
-    do i = 0, nproc - 1
-      nx_tmp = nx_left / ( nproc - i )
-      nx_left = nx_left - nx_tmp
-      if( myid .eq. root ) write(6,*) i, nx_tmp, nx_left, nx_start
-      if( i .eq. myid ) then
-        lr%my_nxpts = nx_tmp
-        lr%my_start_nx = nx_start
-      endif
-      nx_start = nx_start + nx_tmp
-    enddo
-    if( myid .eq. root ) then
-      write(6,*) 'LR: NB, NK, NX_START, NX'
-      write(6,*) lr%my_num_bands, lr%my_nkpts, myid
-      write(6,*) lr%my_start_nx, lr%my_nxpts
-    endif
-
-
-    cptr = fftw_alloc_real( int(lr%my_num_bands * lr%my_nkpts * lr%my_nxpts * sys%nspn, C_SIZE_T) )
-    call c_f_pointer( cptr, re_bloch_state, [lr%my_num_bands, lr%my_nkpts, lr%my_nxpts, sys%nspn] )
-    cptr = fftw_alloc_real( int(lr%my_num_bands * lr%my_nkpts * lr%my_nxpts * sys%nspn, C_SIZE_T) )
-    call c_f_pointer( cptr, im_bloch_state, [lr%my_num_bands, lr%my_nkpts, lr%my_nxpts, sys%nspn] )
-!    write(6,*) lr%my_nkpts, lr%my_nxpts
-    allocate( W( lr%my_nkpts, lr%my_nxpts ), &
-!              lr%bloch_states( lr%my_num_bands, lr%my_nkpts, lr%my_nxpts ), &
-!              re_bloch_state( lr%my_num_bands, lr%my_nkpts, lr%my_nxpts ), &
-!              im_bloch_state( lr%my_num_bands, lr%my_nkpts, lr%my_nxpts ), &
-              STAT=ierr ) 
-    if( ierr /= 0 ) then
-      write(6,*) 'Failed to allocate W or lr%bloch_states'
-      goto 111
-    endif
-
-#ifdef MPI
-    call MPI_BARRIER( comm, ierr )
-#endif
-    if( myid .eq. root ) write(6,*) 'populate bloch'
-
-
-    call lr_populate_bloch( lr, sys, ierr )
-    if( ierr /= 0 ) then
-      write(6,*) 'Failed to populate lr%bloch_states'
-      goto 111
-    endif
-
-#ifdef MPI
-    call MPI_BARRIER( comm, ierr )
-#endif
-    if( myid .eq. root ) write(6,*) 'populate W'
-    call lr_populate_W( lr, sys, ierr )
-    if( ierr /= 0 ) then
-      write(6,*) 'Failed to populate W'
-      goto 111
-    endif
-
-
-111 continue
-
-  end subroutine create_lr
-#endif
-
-  subroutine destroy_W( lr )
-    type( long_range ), intent( inout ) :: lr
-    deallocate( W, lr%bloch_states )
+  subroutine destroy_W(  )
+    deallocate( W )
   end subroutine destroy_W
 
 
-  subroutine lr_populate_W( lr, sys, ierr )
+  subroutine lr_populate_W( sys, ierr )
     use OCEAN_mpi!, only : myid, nproc, comm, root
     use OCEAN_system
 !    use mpi
     implicit none
 
-    type( long_range ), intent( inout ) :: lr
     type( O_system ), intent( in ) :: sys
     integer, intent( inout ) :: ierr
 
@@ -1452,7 +1380,7 @@ module ocean_long_range
 
 
     ! Slow way to start
-    if( myid .eq. root ) write(6,*) 'Tau: ', lr%tau(:)
+    if( myid .eq. root ) write(6,*) 'Tau: ', my_tau(:)
     xiter = 0
     do iz = 1, sys%xmesh( 3 )
       fr( 3 ) = dble( iz - 1 ) / dble( sys%xmesh( 3 ) )
@@ -1462,7 +1390,7 @@ module ocean_long_range
           fr( 1 ) = dble( ix - 1 ) / dble( sys%xmesh( 1 ) )
           xiter = xiter + 1
           kiter = 0
-          if( ( xiter .ge. lr%my_start_nx ) .and. ( xiter .lt. lr%my_start_nx + lr%my_nxpts ) ) then
+          if( ( xiter .ge. my_start_nx ) .and. ( xiter .lt. my_start_nx + my_xpts ) ) then
           do k3 = 1, sys%kmesh( 3 )
             kk3 = k3 - 1
             if ( kk3 .ge. sys%kmesh( 3 ) / 2 ) kk3 = kk3 - sys%kmesh( 3 )
@@ -1476,7 +1404,7 @@ module ocean_long_range
                   if ( kk1 .ge. sys%kmesh( 1 ) / 2 ) kk1 = kk1 - sys%kmesh( 1 )
                   xk( 1 ) = kk1
                   kiter = kiter + 1
-                  alf( : ) = xk( : ) + fr( : ) - lr%tau( : )
+                  alf( : ) = xk( : ) + fr( : ) - my_tau( : )
                   r = sqrt( dot_product( alf, matmul( amet, alf ) ) )
                   if( isolated .and. r .gt. iso_cut ) then
                     potn = 0.0_DP
@@ -1487,7 +1415,7 @@ module ocean_long_range
                      frac = 10.d0 * ( r - 0.1d0 * dble( ii - 1 ) )
                      potn = ptab( ii ) + frac * ( ptab( ii + 1 ) - ptab( ii ) )
                   end if
-                  W( kiter, xiter - lr%my_start_nx + 1 ) =  potn
+                  W( kiter, xiter - my_start_nx + 1 ) =  potn
                 end do
               end do
             end do
@@ -1687,12 +1615,11 @@ module ocean_long_range
 
 
 
-  subroutine lr_populate_bloch( lr, sys, ierr )
+  subroutine lr_populate_bloch( sys, ierr )
     use OCEAN_mpi!, only : myid, nproc, comm, root
 !    use mpi
     use OCEAN_system
 
-    type( long_range ), intent( inout ) :: lr
     type( O_system ), intent( in ) :: sys
     integer, intent( inout ) :: ierr
     !
@@ -1803,8 +1730,6 @@ module ocean_long_range
     endif
 
     
-!      if( iq .eq. 1 .and. myid .eq. 0 ) write(6,*) size(lr%bloch_states,1), size(lr%bloch_states,2), &
-!                                  size(lr%bloch_states,3)
     if( myid .eq. 0 ) write(6,*) size(re_bloch_state,1), size(re_bloch_state,2),size(re_bloch_state,3)
 
     iq = 0
@@ -1932,24 +1857,24 @@ module ocean_long_range
             im_bloch_state( :, iq, :, 1 ) = im_transpose( :, nx_start : nx_start + nx_tmp - 1 )
 #ifdef MPI
           elseif( myid .eq. root ) then
-            call MPI_SEND( re_transpose(1,nx_start), lr%my_num_bands*nx_tmp, MPI_DOUBLE_PRECISION, i, i, comm, ierr )
-            call MPI_SEND( im_transpose(1,nx_start), lr%my_num_bands*nx_tmp, MPI_DOUBLE_PRECISION, i, i+nproc, comm, ierr )
+            call MPI_SEND( re_transpose(1,nx_start), my_num_bands*nx_tmp, MPI_DOUBLE_PRECISION, i, i, comm, ierr )
+            call MPI_SEND( im_transpose(1,nx_start), my_num_bands*nx_tmp, MPI_DOUBLE_PRECISION, i, i+nproc, comm, ierr )
           elseif( myid .eq. i ) then
             if( iq .eq. 1 ) then 
-              allocate( re_transpose( lr%my_num_bands, nx_tmp ), im_transpose( lr%my_num_bands, nx_tmp ) )
+              allocate( re_transpose( my_num_bands, nx_tmp ), im_transpose( my_num_bands, nx_tmp ) )
             endif
               
-            call MPI_RECV( re_transpose, lr%my_num_bands*nx_tmp, MPI_DOUBLE_PRECISION, 0, &
+            call MPI_RECV( re_transpose, my_num_bands*nx_tmp, MPI_DOUBLE_PRECISION, 0, &
                           i, comm, MPI_STATUS_IGNORE, ierr )
-            call MPI_RECV( im_transpose, lr%my_num_bands*nx_tmp, MPI_DOUBLE_PRECISION, 0, &
+            call MPI_RECV( im_transpose, my_num_bands*nx_tmp, MPI_DOUBLE_PRECISION, 0, &
                           i+nproc, comm, MPI_STATUS_IGNORE, ierr )
             re_bloch_state( :, iq, :, 1 ) = re_transpose( :, : )
             im_bloch_state( :, iq, :, 1 ) = im_transpose( :, : )
 #endif
           endif
 !!         if( i .eq. myid ) then
-!!           lr%my_nxpts = nx_tmp
-!!           lr%my_start_nx = nx_start
+!!           my_xpts = nx_tmp
+!!           my_start_nx = nx_start
 !!         endif
          nx_start = nx_start + nx_tmp
        enddo
@@ -1969,7 +1894,7 @@ module ocean_long_range
     call MPI_BCAST(tau, 3, MPI_DOUBLE_PRECISION, 0, comm, ierr )
     if( ierr /= 0 ) goto 111
 #endif
-    lr%tau( : ) = tau( : )
+    my_tau( : ) = tau( : )
 
     if( myid .eq. 0 ) close(u2dat)
 

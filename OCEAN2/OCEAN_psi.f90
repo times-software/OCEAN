@@ -86,10 +86,6 @@ module OCEAN_psi
 
     REAL(DP), ALLOCATABLE :: val_min_r(:,:)
     REAL(DP), ALLOCATABLE :: val_min_i(:,:)
-#ifdef CONTIGUOUS
-    CONTIGUOUS :: r, i, write_r, write_i, store_r, store_i
-    CONTIGUOUS :: valr, vali, val_min_r, val_min_i
-#endif
 
 #ifdef __INTEL
 !dir$ attributes align:64 :: r, i, write_r, write_i, store_r, store_i
@@ -154,7 +150,7 @@ module OCEAN_psi
             OCEAN_psi_copy_min, OCEAN_psi_buffer2min, &
             OCEAN_psi_prep_min2full, OCEAN_psi_start_min2full, &
             OCEAN_psi_finish_min2full, OCEAN_psi_full2min, &
-            OCEAN_psi_returnBandPad
+            OCEAN_psi_returnBandPad, OCEAN_psi_bcast_full
 
   public :: OCEAN_vector
 
@@ -2467,6 +2463,9 @@ module OCEAN_psi
     if( allocated( p%min_r ) ) deallocate( p%min_r )
     if( allocated( p%min_i ) ) deallocate( p%min_i )
 
+    if( allocated( p%val_min_r ) ) deallocate( p%val_min_r )
+    if( allocated( p%val_min_i ) ) deallocate( p%val_min_i )
+
     p%valid_store = IAND( p%valid_store, NOT( PSI_STORE_MIN ) )
     p%alloc_store = IAND( p%alloc_store, NOT( PSI_STORE_MIN ) )
   end subroutine OCEAN_psi_free_min
@@ -2550,7 +2549,7 @@ module OCEAN_psi
     integer, intent( in ) :: my_root
     type(OCEAN_vector), intent( inout ) :: p
 
-    integer :: core_full_size
+    integer :: core_full_size, val_full_size
   
     if( p%core_myid .eq. my_root ) then
       if( IAND( p%valid_store, PSI_STORE_FULL ) .eq. 0 ) then
@@ -2567,7 +2566,10 @@ module OCEAN_psi
       endif
     endif
 
+    if( nproc .le. 1 ) return
+
     core_full_size = psi_bands_pad * psi_kpts_pad * psi_core_alpha
+    val_full_size  = psi_bands_pad * psi_val_bands * psi_kpts_actual * psi_val_beta 
 
 #ifdef MPI
     if( have_core ) then
@@ -2577,7 +2579,7 @@ module OCEAN_psi
       call MPI_BCAST( p%i, core_full_size, MPI_DOUBLE_PRECISION, my_root, p%core_comm, ierr )
       if( ierr .ne. MPI_SUCCESS ) goto 111
     endif
-#if( 0 )
+
     if( have_val ) then
       call MPI_BCAST( p%valr, val_full_size, MPI_DOUBLE_PRECISION, my_root, p%val_comm, ierr )
       if( ierr .ne. MPI_SUCCESS ) goto 111
@@ -2585,7 +2587,6 @@ module OCEAN_psi
       call MPI_BCAST( p%vali, val_full_size, MPI_DOUBLE_PRECISION, my_root, p%val_comm, ierr )
       if( ierr .ne. MPI_SUCCESS ) goto 111
     endif
-#endif
 
 #endif
 
@@ -3072,12 +3073,16 @@ module OCEAN_psi
     if( allocated( p%r ) ) deallocate( p%r )
     if( allocated( p%i ) ) deallocate( p%i )
 
+    if( allocated( p%valr ) ) deallocate( p%valr )
+    if( allocated( p%vali ) ) deallocate( p%vali )
+
     p%valid_store = IAND( p%valid_store, NOT( PSI_STORE_FULL ) )
     p%alloc_store = IAND( p%alloc_store, NOT( PSI_STORE_FULL ) )
 
   end subroutine
 
   subroutine OCEAN_psi_kill( p, ierr )
+    use OCEAN_mpi
     implicit none 
     integer, intent(inout) :: ierr
     type(OCEAN_vector), intent( inout ) :: p
@@ -3104,6 +3109,42 @@ module OCEAN_psi
       if( ierr .ne. 0 ) return
     endif
 
+#ifdef MPI
+    if( have_val ) then
+      call MPI_COMM_FREE( p%val_comm, ierr )
+      if( ierr .ne. MPI_SUCCESS ) return
+    endif
+    if( have_core ) then
+      call MPI_COMM_FREE( p%core_comm, ierr )
+      if( ierr .ne. MPI_SUCCESS ) return
+    endif
+#endif
+
+    if( allocated(p%r) ) then
+      ierr = 5550
+    elseif( allocated( p%i ) ) then
+      ierr = 5551
+    elseif( allocated( p%buffer_r ) ) then
+      ierr = 5552
+    elseif( allocated( p%buffer_i ) ) then
+      ierr = 5553
+    elseif( allocated( p%min_r ) ) then
+      ierr = 5554
+    elseif( allocated( p%min_i ) ) then
+      ierr = 5555
+    elseif( allocated( p%extra_r ) ) then
+      ierr = 5556
+    elseif( allocated( p%extra_i ) ) then
+      ierr = 5557 
+    elseif( allocated( p%valr ) ) then
+      ierr = 5558
+    elseif( allocated( p%vali ) ) then
+      ierr = 5559 
+    elseif( allocated( p%val_min_r ) ) then
+      ierr = 5560
+    elseif( allocated( p%val_min_r ) ) then
+      ierr = 5561
+    endif
 !    if( allocated( p%r_request ) ) deallocate( p%r_request, STAT=ierr )
 !    if( ierr .ne. 0 ) return
 !    if( allocated( p%i_request ) ) deallocate( p%i_request, STAT=ierr )
