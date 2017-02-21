@@ -39,11 +39,12 @@ module FFT_wrapper
 
   contains
 
-  subroutine FFT_wrapper_init( zn, fo, io )!, nthread )
+  subroutine FFT_wrapper_init( zn, fo, io, fh )!, nthread )
     implicit none
 
     integer, intent(in ) :: zn(3)
     complex(kind=kind(1.0d0)), intent(inout), optional :: io(zn(1),zn(2),zn(3))
+    integer, optional :: fh
 !    integer, intent( in ), optional :: nthread
     type( fft_obj ), intent( out ) :: fo
     complex(kind=kind(1.0d0)), allocatable :: cwrk(:)
@@ -68,9 +69,15 @@ module FFT_wrapper
     endif
 
 !    if( present( nthread ) ) call fftw_plan_with_nthreads( 1 )
+    if( present( fh ) ) then
+      write(fh,*) 'Plan using FFTW:', fo%dims(:)
+    endif
 #else
     fo%norm = 1.0d0
     fo%jfft = 2 * max( zn( 1 ) * ( zn( 1 ) + 1 ), zn( 2 ) * ( zn( 2 ) + 1 ), zn( 3 ) * ( zn( 3 ) + 1 ) )
+    if( present( fh ) ) then
+      write(fh,*) 'Plan using Legacy:', fo%dims(:)
+    endif
 #endif
   end subroutine FFT_wrapper_init
 

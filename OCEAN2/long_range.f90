@@ -10,6 +10,7 @@
 module ocean_long_range
 
   use AI_kinds
+  use FFT_wrapper, only : fft_obj
 
   implicit none
   save
@@ -39,6 +40,7 @@ module ocean_long_range
   real( DP ) :: iso_cut = 0.0_DP
   logical :: isolated = .false.
   
+  type(fft_obj) :: fo
 
   public :: lr_act, lr_init, lr_timer, lr_slice, dump_exciton
 
@@ -59,22 +61,24 @@ module ocean_long_range
     integer, intent( inout ) :: ierr
   
     integer :: max_threads = 1
+    logical :: have_nested = .false.
 !$  integer, external :: omp_get_max_threads
 !$  logical, external :: omp_get_nested
 
 !$  max_threads = omp_get_max_threads()
+!$  have_nested = omp_get_nested()
 
     if( use_obf ) then
       call lr_act_obf2( sys, p, hp, ierr )
     else
 !!!      call lr_act_traditional( sys, p, hp, ierr )
 
-      if( ( .not. omp_get_nested() ) .or.  &
-          ( max_threads .le. sys%nalpha .and. mod( sys%nalpha, max_threads ) .eq. 0 ) ) then
+!      if( ( .not. have_nested ) .or.  &
+!          ( max_threads .le. sys%nalpha .and. mod( sys%nalpha, max_threads ) .eq. 0 ) ) then
         call lr_act_traditional_x( sys, p, hp, ierr )
-      else
-        call lr_act_cache( sys, p, hp, ierr )
-      endif
+!      else
+!        call lr_act_cache( sys, p, hp, ierr )
+!      endif
     endif
 
   end subroutine lr_act
@@ -99,6 +103,7 @@ module ocean_long_range
     use OCEAN_obf
     use iso_c_binding
     use OCEAN_mpi
+    use FFT_wrapper, only : fft_wrapper_init
 !    use mpi
     implicit none
 !    include 'fftw3.f03'
@@ -109,6 +114,7 @@ module ocean_long_range
     integer, intent( inout ) :: ierr
 
     type(C_PTR) :: cptr
+    integer :: kmesh(3), fh
     logical :: bc_exist
 
     if( myid .eq. root ) then
@@ -164,6 +170,13 @@ module ocean_long_range
       allocate( re_bloch_state( my_num_bands, my_kpts, my_xpts, sys%nspn ), &
                 im_bloch_state( my_num_bands, my_kpts, my_xpts, sys%nspn ), &
                 W( my_kpts, my_xpts ) )
+
+      ! The states are arranged with z being the fast axis
+      kmesh( 1 ) = sys%kmesh( 3 )
+      kmesh( 2 ) = sys%kmesh( 2 )
+      kmesh( 3 ) = sys%kmesh( 1 )
+      fh = myid + 1000
+      call FFT_wrapper_init( kmesh, fo, fh=fh )
       
       is_init = .true.
     if( myid .eq. root ) write(6,*) 'Done filling values'
@@ -354,12 +367,14 @@ module ocean_long_range
       xwrki( :, ialpha ) = iphi( :, ixpt, ialpha ) * re_obf_phs( :, ixpt ) &
                          + rphi( :, ixpt, ialpha ) * im_obf_phs( :, ixpt ) 
 
+!$OMP CRITICAL
       call cfft( xwrkr(1,ialpha), xwrki(1,ialpha), sys%kmesh(3), sys%kmesh(3), sys%kmesh(2), sys%kmesh(1), +1, wrk, jfft )
 
       xwrkr( :, ialpha ) = xwrkr( :, ialpha ) * W( :, ixpt )
       xwrki( :, ialpha ) = xwrki( :, ialpha ) * W( :, ixpt )
 
       call cfft( xwrkr(1,ialpha), xwrki(1,ialpha), sys%kmesh(3), sys%kmesh(3), sys%kmesh(2), sys%kmesh(1), -1, wrk, jfft )
+!$OMP END CRITICAL
 
       rtphi( ixpt, :, ialpha ) = xwrkr( :, ialpha ) * re_obf_phs( :, ixpt ) &
                                + xwrki( :, ialpha ) * im_obf_phs( :, ixpt )
@@ -569,6 +584,7 @@ module ocean_long_range
           xwrki( : ) = xwrki( : ) * W( :, ixpt + iixpt - 1 )
 
           call cfft( xwrkr, xwrki, sys%kmesh(1), sys%kmesh(1), sys%kmesh(2), sys%kmesh(3), -1, wrk, jfft )
+
 
           phi( :, iixpt, ialpha ) = cmplx( xwrkr( : ), xwrki( : ) )
 
@@ -783,7 +799,7 @@ module ocean_long_range
     !
 
 !$OMP PARALLEL DEFAULT( NONE ) NUM_THREADS( nthread ) &
-!$OMP& SHARED( W, hp, re_bloch_state, im_bloch_state, p, sys, val_spin, jfft, my_kpts, my_xpts ) &
+!$OMP& SHARED( W, hp, re_bloch_state, im_bloch_state, p, sys, val_spin, jfft, my_kpts, my_xpts, fo ) &
 !$OMP& PRIVATE( xwrkr, xwrki, wrk, ikpt, ialpha, xiter ) 
 
     allocate( xwrkr( sys%nkpts ), xwrki( sys%nkpts ), &
@@ -810,6 +826,7 @@ module ocean_long_range
   subroutine lr_kernel( sys, p, hpr, hpi, xwrkr, xwrki, wrk, jfft, ialpha, xiter, val_spin )
     use OCEAN_system
     use OCEAN_psi
+    use FFT_wrapper, only : OCEAN_FORWARD, OCEAN_BACKWARD, FFT_wrapper_split
     implicit none
     !
     type( o_system ), intent( in ) :: sys
@@ -852,15 +869,28 @@ module ocean_long_range
       enddo
 #endif          
 
+! The legacy FFT routines are not thread safe
+#ifndef __FFTW3
+!$OMP CRITICAL
+#endif 
 
-      call cfft( xwrkr, xwrki, sys%kmesh(3), sys%kmesh(3), sys%kmesh(2), & 
-                 sys%kmesh(1), +1, wrk, jfft )
+      call FFT_wrapper_split( xwrkr, xwrki, OCEAN_FORWARD, fo )
+!      call FFT_wrapper_split( xwrkr, xwrki, OCEAN_BACKWARD, fo )
+!      call cfft( xwrkr, xwrki, sys%kmesh(3), sys%kmesh(3), sys%kmesh(2), & 
+!                 sys%kmesh(1), +1, wrk, jfft )
 
       xwrkr( : ) = xwrkr( : ) * W( :, xiter )
       xwrki( : ) = xwrki( : ) * W( :, xiter )
 
-      call cfft( xwrkr, xwrki, sys%kmesh(3), sys%kmesh(3), sys%kmesh(2), &
-                 sys%kmesh(1), -1, wrk, jfft )
+!      call cfft( xwrkr, xwrki, sys%kmesh(3), sys%kmesh(3), sys%kmesh(2), &
+!                 sys%kmesh(1), -1, wrk, jfft )
+      call FFT_wrapper_split( xwrkr, xwrki, OCEAN_BACKWARD, fo )
+!      call FFT_wrapper_split( xwrkr, xwrki, OCEAN_FORWARD, fo )
+
+
+#ifndef __FFTW3
+!$OMP END CRITICAL
+#endif
 
 #ifdef BLAS
       do ikpt = 1, my_kpts
@@ -890,6 +920,7 @@ module ocean_long_range
     use OCEAN_system
     use OCEAN_psi
     use OCEAN_mpi, only : myid
+    use FFT_wrapper, only : FFT_wrapper_split, OCEAN_FORWARD, OCEAN_BACKWARD
     implicit none
 
     type( o_system ), intent( in ) :: sys
@@ -972,7 +1003,7 @@ module ocean_long_range
     
 
 !$OMP  PARALLEL NUM_THREADS( nthread ) DEFAULT( NONE ) &
-!$OMP& SHARED( k_chunk, W, hp, re_bloch_state, im_bloch_state, p, sys, val_spin, nthread2, jfft, my_xpts ) &
+!$OMP& SHARED( k_chunk, W, hp, re_bloch_state, im_bloch_state, p, sys, val_spin, nthread2, jfft, my_xpts, fo ) &
 !$OMP& PRIVATE( xwrkr, xwrki, wrk, ikpt, ialpha, xiter, ikk, oneDwrkr, oneDwrki ) 
 
 
@@ -983,7 +1014,7 @@ module ocean_long_range
     do ialpha = 1, sys%nalpha
 
 !$OMP  PARALLEL NUM_THREADS( nthread2 ) DEFAULT( NONE ) &
-!$OMP& SHARED( my_xpts, k_chunk, W, hp, re_bloch_state, im_bloch_state, p, sys, val_spin, xwrkr, xwrki, jfft, ialpha ) &
+!$OMP& SHARED( my_xpts, k_chunk, W, hp, re_bloch_state, im_bloch_state, p, sys, val_spin, xwrkr, xwrki, jfft, ialpha, fo ) &
 !$OMP& PRIVATE( ikk, xiter, ikpt, wrk )
 
 
@@ -1023,30 +1054,30 @@ module ocean_long_range
 
       allocate( wrk( jfft ) )
 
+! The legacy FFT is likely not thread safe
+#ifndef __FFTW3
+!$OMP CRITICAL
+#else
 !$OMP DO
-! $OMP SINGLE
+#endif
       do xiter = 1, my_xpts
- !       oneDwrkr( : ) = xwrkr( :, xiter )
- !       oneDwrki( : ) = xwrki( :, xiter )
-        call cfft( xwrkr(1,xiter), xwrki(1,xiter), sys%kmesh(3), sys%kmesh(3), sys%kmesh(2), &
-                   sys%kmesh(1), +1, wrk, jfft )
-!        call cfft( oneDwrkr, oneDwrki, sys%kmesh(3), sys%kmesh(3), sys%kmesh(2), &
-!                   sys%kmesh(1), -1, wrk, jfft )
+
+        call FFT_wrapper_split( xwrkr, xwrki, OCEAN_BACKWARD, fo )
+!        call cfft( xwrkr(1,xiter), xwrki(1,xiter), sys%kmesh(3), sys%kmesh(3), sys%kmesh(2), &
+!                   sys%kmesh(1), +1, wrk, jfft )
 
         xwrkr(:,xiter) = xwrkr(:,xiter) * W( :, xiter )
         xwrki(:,xiter) = xwrki(:,xiter) * W( :, xiter )
-!        oneDwrkr( : ) = oneDwrkr( : ) * W( :, xiter )
-!        oneDwrki( : ) = oneDwrki( : ) * W( :, xiter )
 
-        call cfft( xwrkr(1,xiter), xwrki(1,xiter), sys%kmesh(3), sys%kmesh(3), sys%kmesh(2), &
-                   sys%kmesh(1), -1, wrk, jfft )
-!        call cfft( oneDwrkr, oneDwrki, sys%kmesh(3), sys%kmesh(3), sys%kmesh(2), &
-!                   sys%kmesh(1), +1, wrk, jfft )
-!        xwrkr( :, xiter ) = oneDwrkr( : )
-!        xwrki( :, xiter ) = oneDwrki( : )
+        call FFT_wrapper_split( xwrkr, xwrki, OCEAN_FORWARD, fo ) 
+!        call cfft( xwrkr(1,xiter), xwrki(1,xiter), sys%kmesh(3), sys%kmesh(3), sys%kmesh(2), &
+!                   sys%kmesh(1), -1, wrk, jfft )
       enddo
-! $OMP END SINGLE
+#ifndef __FFTW3
+!$OMP END CRITICAL
+#else
 !$OMP END DO
+#endif
 
       deallocate( wrk )
 
