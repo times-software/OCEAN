@@ -95,7 +95,7 @@ module FFT_wrapper
 
   subroutine FFT_wrapper_split( r, i, dir, fo )
     implicit none
-    type( fft_obj ), intent( inout ) :: fo
+    type( fft_obj ), intent( in ) :: fo
     real(kind=kind(1.0d0)), intent( inout ) :: r(fo%dims(4))
     real(kind=kind(1.0d0)), intent( inout ) :: i(fo%dims(4))
     integer, intent( in ) :: dir
@@ -114,7 +114,7 @@ module FFT_wrapper
       call fftw_execute_dft( fo%fplan, wrk, wrk )
     else
       call fftw_execute_dft( fo%bplan, wrk, wrk )
-      r(:) = real(wrk(:))*fo%norm
+      r(:) = real(wrk(:),kind(1.0d0))*fo%norm
       i(:) = aimag(wrk(:))*fo%norm
     endif
 #else
@@ -127,33 +127,43 @@ module FFT_wrapper
 
 
 
-  subroutine FFT_wrapper_single( io, dir, fo )
+  subroutine FFT_wrapper_single( io, dir, fo, norm )
     implicit none
-    type( fft_obj ), intent( inout ) :: fo
+    type( fft_obj ), intent( in ) :: fo
 #ifdef __FFTW3
     complex(kind=kind(1.0d0)), intent( inout ) :: io( fo%dims(1), fo%dims(2), fo%dims(3) )
 #else
     complex(kind=kind(1.0d0)), intent( inout ) :: io( fo%dims(4))
 #endif
     integer, intent( in ) :: dir
+    logical, intent( in ), optional :: norm
     !
 #ifndef __FFTW3
     real(kind=kind(1.0d0)), allocatable :: wrk(:), r(:), i(:)
 #endif
+    logical :: normalize 
+
+    if( present( norm ) ) then
+      normalize = norm
+    else
+      normalize = .true.
+    endif
 
 #ifdef __FFTW3
     if( dir .eq. OCEAN_FORWARD ) then
       call fftw_execute_dft( fo%fplan, io, io )
     else
       call fftw_execute_dft( fo%bplan, io, io )
-      io(:,:,:) = io(:,:,:) * fo%norm
+      if( normalize ) then
+        io(:,:,:) = io(:,:,:) * fo%norm
+      endif
     endif
 #else
     allocate( r( fo%dims(4) ), i( fo%dims(4) ), wrk( fo%jfft ) )
-    r(:) = real(io(:))
+    r(:) = real(io(:), kind(1.0d0))
     i(:) = aimag(io(:))
     call cfft( r, i, fo%dims(1), fo%dims(1), fo%dims(2), fo%dims(3), dir, wrk, fo%jfft )
-    io(:) = cmplx(r(:),i(:))
+    io(:) = cmplx(r(:),i(:), kind(1.0d0))
     deallocate( r, i, wrk )
 #endif
   end subroutine FFT_wrapper_single
