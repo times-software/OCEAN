@@ -620,7 +620,20 @@ if ( $nscfRUN ) {
     {
       copy "../Out/$qe_data_files{'prefix'}.save/spin-polarization.dat", 
            "Out/$qe_data_files{'prefix'}.save/spin-polarization.dat";
-      copy "../Out/$qe_data_files{'prefix'}.occup", "Out/$qe_data_files{'prefix'}.occup";
+    }
+
+    if( $qe_data_files{'ldau'}  ne "" )
+    {
+      # Starting w/ QE-6.0 this is the DFT+U info from the SCF
+      if( -e "../Out/$qe_data_files{'prefix'}.save/occup.txt" )
+      {
+        copy "../Out/$qe_data_files{'prefix'}.save/occup.txt", "Out/$qe_data_files{'prefix'}.save/occup.txt";
+      }
+      # QE 4.3-5.x
+      elsif( -e "../Out/$qe_data_files{'prefix'}.occup" )
+      {
+        copy "../Out/$qe_data_files{'prefix'}.occup", "Out/$qe_data_files{'prefix'}.occup";
+      }
     }
 
     # kpts
@@ -713,8 +726,22 @@ if( $obf == 0 )
   {
     copy "../Out/$qe_data_files{'prefix'}.save/spin-polarization.dat", 
          "Out/$qe_data_files{'prefix'}.save/spin-polarization.dat";
-    copy "../Out/$qe_data_files{'prefix'}.occup", "Out/$qe_data_files{'prefix'}.occup";
   }
+
+  if( $qe_data_files{'ldau'}  ne "" )
+  {
+    # Starting w/ QE-6.0 this is the DFT+U info from the SCF
+    if( -e "../Out/$qe_data_files{'prefix'}.save/occup.txt" )
+    {
+      copy "../Out/$qe_data_files{'prefix'}.save/occup.txt", "Out/$qe_data_files{'prefix'}.save/occup.txt";
+    }
+    # QE 4.3-5.x
+    elsif( -e "../Out/$qe_data_files{'prefix'}.occup" )
+    {
+      copy "../Out/$qe_data_files{'prefix'}.occup", "Out/$qe_data_files{'prefix'}.occup";
+    }
+  }
+
 
   # kpts
   copy "../screen.nkpt", "nkpt";
