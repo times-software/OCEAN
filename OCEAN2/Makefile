@@ -72,7 +72,7 @@ gamfcn.o: $(CNBSE)/gamfcn.f90
 	$(MPIFORT) $(FLAGS) -c -o gamfcn.o $(CNBSE)/gamfcn.f90
 
 long_range.o: long_range.f90 OCEAN_system.o
-	$(MPIFORT) $(FLAGS) -c -o long_range.o long_range.f90 $(OPENMP)
+	$(MPIFORT) $(FLAGS) -c -o long_range.o long_range.f90 $(OPENMP) $(FFT_WRAPPER_INCL)
 
 #jlmfft.o: $(CNBSE)/../zstd/jlmfft.f
 #	 $(MPIFORT) -c -o jlmfft.o $(CNBSE)/../zstd/jlmfft.f

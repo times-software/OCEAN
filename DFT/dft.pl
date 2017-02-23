@@ -318,18 +318,7 @@ if ($RunESPRESSO) {
           . "  outdir = \'$qe_data_files{'work_dir'}\'\n"
           . "  filplot= 'system.rho'\n"
           . "  plot_num = 0\n"
-          . "/\n"
-          . "&plot\n";
-  if( $obf == 1 ) 
-  {
-     print PP "  plot_center_atom = -1\n";
-  }
-  print PP  "  nfile = 1\n"
-          . "  filepp(1) = 'system.rho', weight(1) = 1\n"
-          . "  iflag = 3\n"
-          . "  output_format = 6\n"
-          . "  fileout = 'system.rho.dat'\n"
-          . "  /\n";
+          . "/\n";
   close PP;
 
 
@@ -385,8 +374,11 @@ if ($RunESPRESSO) {
 
   ## convert the density file to proper format
   print "Density conversion\n";
-  system("$ENV{'OCEAN_BIN'}/converter.py system.rho.dat") == 0
-     or die "Failed to convert density\n$!\n";
+  system("$ENV{'OCEAN_BIN'}/qe2rhoofr.pl" ) == 0 
+    or die "Failed to convert density\n$!\n";
+
+#  system("$ENV{'OCEAN_BIN'}/converter.py system.rho.dat") == 0
+#     or die "Failed to convert density\n$!\n";
 
   ## find the top of the valence bance
   system("$ENV{'OCEAN_BIN'}/qeband.pl") == 0
@@ -628,7 +620,20 @@ if ( $nscfRUN ) {
     {
       copy "../Out/$qe_data_files{'prefix'}.save/spin-polarization.dat", 
            "Out/$qe_data_files{'prefix'}.save/spin-polarization.dat";
-      copy "../Out/$qe_data_files{'prefix'}.occup", "Out/$qe_data_files{'prefix'}.occup";
+    }
+
+    if( $qe_data_files{'ldau'}  ne "" )
+    {
+      # Starting w/ QE-6.0 this is the DFT+U info from the SCF
+      if( -e "../Out/$qe_data_files{'prefix'}.save/occup.txt" )
+      {
+        copy "../Out/$qe_data_files{'prefix'}.save/occup.txt", "Out/$qe_data_files{'prefix'}.save/occup.txt";
+      }
+      # QE 4.3-5.x
+      elsif( -e "../Out/$qe_data_files{'prefix'}.occup" )
+      {
+        copy "../Out/$qe_data_files{'prefix'}.occup", "Out/$qe_data_files{'prefix'}.occup";
+      }
     }
 
     # kpts
@@ -721,8 +726,22 @@ if( $obf == 0 )
   {
     copy "../Out/$qe_data_files{'prefix'}.save/spin-polarization.dat", 
          "Out/$qe_data_files{'prefix'}.save/spin-polarization.dat";
-    copy "../Out/$qe_data_files{'prefix'}.occup", "Out/$qe_data_files{'prefix'}.occup";
   }
+
+  if( $qe_data_files{'ldau'}  ne "" )
+  {
+    # Starting w/ QE-6.0 this is the DFT+U info from the SCF
+    if( -e "../Out/$qe_data_files{'prefix'}.save/occup.txt" )
+    {
+      copy "../Out/$qe_data_files{'prefix'}.save/occup.txt", "Out/$qe_data_files{'prefix'}.save/occup.txt";
+    }
+    # QE 4.3-5.x
+    elsif( -e "../Out/$qe_data_files{'prefix'}.occup" )
+    {
+      copy "../Out/$qe_data_files{'prefix'}.occup", "Out/$qe_data_files{'prefix'}.occup";
+    }
+  }
+
 
   # kpts
   copy "../screen.nkpt", "nkpt";
