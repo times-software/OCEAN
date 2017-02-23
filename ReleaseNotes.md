@@ -1,3 +1,10 @@
+## v. 2.0.3
+
+#### Bugfixes
+ 1. A call to OpenMP wasn't behind a sentinel
+ 2. Fixed a crashing bug with FFTs in the BSE
+ 3. Fixed DFT+U support for QE-6.0+
+
 ## v. 2.0.2
 
 #### Minor Features

@@ -46,7 +46,7 @@ my @CommonFiles = ("znucl", "opf.hfkgrid", "opf.fill", "opf.opts", "pplist", "sc
                    "screen.grid.nb", "screen.final.rmax", "screen.final.dr", "screen.model.dq", 
                    "screen.model.qmax", "calc" );
 
-my @DFTFiles = ("rhoofr", "nscf.out", "system.rho.dat", "efermiinrydberg.ipt");
+my @DFTFiles = ("rhoofr", "nscf.out", "efermiinrydberg.ipt");
 my @ExtraFiles = ("Pquadrature" );
 
 foreach(@ExtraFiles)
