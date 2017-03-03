@@ -8,8 +8,8 @@ c
       function sig(corpol,ru,nr,r,dr,phi)
       implicit none
       integer nr,i
-      real*8 r(nr),dr(nr),phi(nr),corpol,ru
-      real*8 zero,one,half,four,sig,xiu,pref,rsub,f,vcpp
+      double precision r(nr),dr(nr),phi(nr),corpol,ru
+      double precision zero,one,half,four,sig,xiu,pref,rsub,f,vcpp
       parameter(zero=0.,one=1.,half=0.5,four=4.)
       sig=zero
       xiu=one/ru
