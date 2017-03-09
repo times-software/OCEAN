@@ -160,4 +160,4 @@ clean:
 	rm -f *.o *.mod ocean.x
 
 install:
-	cp ocean.x $(INSTDIR)/
+	cp ocean.x o_spect.x $(INSTDIR)/
