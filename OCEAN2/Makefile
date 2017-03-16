@@ -17,6 +17,8 @@ OCEANOBJS = AI_kinds.o OCEAN_mpi.o OCEAN_system.o OCEAN_bloch.o OCEAN_obf.o OCEA
             OCEAN_get_rho.o optim.o OCEAN_hyb_louie_levine.o OCEAN_ladder.o \
 						OCEAN_pfy.o OCEAN_rixs_holder.o $(FFT_WRAPPER_OBJS)
 
+KINDS = AI_kinds.o
+
 FFT_WRAPPER_OBJS = ../zbridge/zobj/FFT_wrapper.o ../zbridge/zobj/jlmfft.o
 FFT_WRAPPER_INCL = -I../zbridge/ 
 
@@ -87,7 +89,7 @@ limel.o: $(CNBSE)/limel.f90
 jimel.o: $(CNBSE)/jimel.f90
 	$(MPIFORT) $(FLAGS) -c -o jimel.o $(CNBSE)/jimel.f90
 
-nbsemkcmel.o: nbsemkcmel.f90
+nbsemkcmel.o: nbsemkcmel.f90 $(KINDS)
 	$(MPIFORT) $(FLAGS) -c -o nbsemkcmel.o nbsemkcmel.f90
 
 intval.o: $(CNBSE)/intval.f90

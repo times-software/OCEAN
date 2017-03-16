@@ -7,22 +7,23 @@
 !
 subroutine nbsemkcmel( add04, add14 )
   use OCEAN_constants, only : Hartree2eV
+  use AI_kinds
   implicit none
   !
   character(len=4) :: add04
   character(len=14) :: add14
   !
   integer :: lmin, lmax, nr, i, l, ix, mu, nu, ii, j, nrmax
-  real( kind = kind( 1.0d0 ) ) :: dl, err, rmax, su, su1, tmp, vrun, x
-  real( kind = kind( 1.0d0 ) ) :: v( 100 ), rv( 100 )
-  real( kind = kind( 1.0d0 ) ) :: vtrim( 100 ), vdiff( 100 ), bwgt( 0 : 3 )
+  real( DP ) :: dl, err, rmax, su, su1, tmp, vrun, x
+  real( DP ) :: v( 100 ), rv( 100 )
+  real( DP ) :: vtrim( 100 ), vdiff( 100 ), bwgt( 0 : 3 )
   character(len=5) :: s5
   character(len=7) :: s7
   character(len=11) :: s11
   character(len=20) :: rpot_filename
   integer, allocatable :: nnu( : )
-  real( kind = kind( 1.0d0 ) ), allocatable, dimension( :, : ) :: cmel, nmel, phi, tphi
-  real( kind = kind( 1.0d0 ) ), allocatable, dimension( : ) :: rad, dr, val
+  real( DP ), allocatable, dimension( :, : ) :: cmel, nmel, phi, tphi
+  real( DP ), allocatable, dimension( : ) :: rad, dr, val
   !
   write ( s11, '(1a7,1a4)' ) 'prjfile', add04
   open( unit=99, file=s11, form='formatted', status='unknown' )

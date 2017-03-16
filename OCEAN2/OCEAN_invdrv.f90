@@ -89,7 +89,7 @@ subroutine backend( aftvec, as, befvec, bs, x, b, ax, g, pg, apg, u, au, c, n, i
         ct = 'checkconv'
      case ( 'checkconv' )
         g = ax - b
-        f( 2 ) = real( hilbcd( n, g, g ) )
+        f( 2 ) = real( hilbcd( n, g, g ), DP )
 !        write( 6, * ) f( 2 )
         if ( f( 2 ) .lt. f( 1 ) ) then
            req = 'end'

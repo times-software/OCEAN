@@ -1084,7 +1084,7 @@ module OCEAN_action
 
     integer :: dumi, iter, ierr_
     character(len=4) :: inv_style
-    real :: dumf
+    real( DP ) :: dumf
 
     if( .not. is_first ) goto 10
     is_first = .false.
