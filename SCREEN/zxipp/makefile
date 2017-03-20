@@ -23,6 +23,8 @@ zexe/vhommod.x: $(OBVHO)
 	$(COMP) $(OPTS) $(OBVHO) -o zexe/vhommod.x
 zexe/mkximunu.x: $(OBXMN)
 	$(COMP) $(OPTS) $(OBXMN) -o zexe/mkximunu.x
+zexe/dressximunu.x: $(OBDRX)
+	$(COMP) $(OPTS) $(OBDRX) -o zexe/dressximunu.x
 #
 zobj/xippsin_box.o: zf90/xipp_box.f90
 	$(COMP) $(OPTS) -c zf90/xipp_box.f90 -o zobj/xippsin_box.o
@@ -59,7 +61,7 @@ zobj/getprefs.o: zf90/getprefs.f90
 zobj/ylmeval.o: zf90/ylmeval.f90
 	$(COMP) $(OPTS) -c zf90/ylmeval.f90 -o zobj/ylmeval.o
 zobj/dressximunu.o: zf90/dressximunu.f90
-	$(COMP) $(OPTS) -c zf90/dressximunu.f90 -o zobj/dressximunu.o:
+	$(COMP) $(OPTS) -c zf90/dressximunu.f90 -o zobj/dressximunu.o
 zobj/cinvert.o: zf90/cinvert.f90
 	$(COMP) $(OPTS) -c zf90/cinvert.f90 -o zobj/cinvert.o
 zobj/dftder3.o: zf90/dftder3.f90
