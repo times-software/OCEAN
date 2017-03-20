@@ -1,5 +1,5 @@
 #!/usr/bin/perl
-# Copyright (C) 2015 OCEAN collaboration
+# Copyright (C) 2015, 2017 OCEAN collaboration
 #
 # This file is part of the OCEAN project and distributed under the terms 
 # of the University of Illinois/NCSA Open Source License. See the file 
@@ -109,6 +109,15 @@ while ( my $line = <HFIN>)
 }
 close HFIN;
 
+# Summarize what will be calculated
+my $rad_name = "radii";
+$rad_name = "radius" if( scalar @rads == 1 );
+my $site_name = "sites";
+$site_name = "site" if( scalar @hfin == 1 );
+
+printf "Core-level shifts requested for %i %s and %i %s\n", scalar @hfin, $site_name, scalar @rads, $rad_name;
+######
+
 # After this section DFT_pot will contain the full DFT potential evaluated for site
 my @Vshift;
 my @Wshift;
@@ -166,8 +175,10 @@ if( $dft eq 'qe' || $dft eq 'obf' )
   print "Pre-comp complete.\n";
 
 
+  print "Looping over each atomic site to get total potential\n";
   for( my $i = 0; $i < scalar @hfin; $i++ )
   {
+    print $i+1 . ":\n";
   
     my $nn = $hfin[$i][0];
     my $ll = $hfin[$i][1];
@@ -188,12 +199,13 @@ if( $dft eq 'qe' || $dft eq 'obf' )
       last if ( $count == $el_rank );
     }
 #  my $taustring = `grep $small_el xyz.alat |  head -n $el_rank | tail -n 1`;
-    print "$el_rank, $small_el, $taustring\n";
-     $taustring =~ m/\S+\s+(\S+)\s+(\S+)\s+(\S+)/;
+#    print "$el_rank, $small_el, $taustring\n";
+    print "$el_rank    $taustring\n";
+    $taustring =~ m/\S+\s+(\S+)\s+(\S+)\s+(\S+)/;
     my $x = $1;
     my $y = $2;
     my $z = $3;
-    print "$x\t$y\t$z\n";
+#    print "$x\t$y\t$z\n";
 
     open OUT, ">pot.in" ;
     print OUT   "&inputpp\n/\n&plot\n"
