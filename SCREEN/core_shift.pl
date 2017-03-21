@@ -11,6 +11,7 @@ use strict;
 use File::Copy;
 
 my $Ry2eV = 13.605698066;
+my $debug = 0;
 
 ###########################
 if (! $ENV{"OCEAN_BIN"} ) {
@@ -36,7 +37,7 @@ if( -e "core_offset" )
   }
   elsif( $control =~ m/true/ )
   {
-    print "Offset given as true.\nWill return an average offset of 0\n";
+    print "Offset given as true.\n  Will return an average offset of 0\n";
 	}
   else
   {
@@ -115,7 +116,7 @@ $rad_name = "radius" if( scalar @rads == 1 );
 my $site_name = "sites";
 $site_name = "site" if( scalar @hfin == 1 );
 
-printf "Core-level shifts requested for %i %s and %i %s\n", scalar @hfin, $site_name, scalar @rads, $rad_name;
+printf "Core-level shifts requested for %i %s at %i %s\n", scalar @hfin, $site_name, scalar @rads, $rad_name;
 ######
 
 # After this section DFT_pot will contain the full DFT potential evaluated for site
@@ -148,12 +149,15 @@ if( $dft eq 'qe' || $dft eq 'obf' )
     $line = <SCF>;
     $line =~ m/\d+\s+(\w+)\s+tau\(\s*\d+\)\s+=\s+\(\s+(\S+)\s+(\S+)\s+(\S+)/ 
                 or die "Failed to parse scf.out\n$line\nAtom index : " . $i+1 . "\n";
-    print "$1\t$2\t$3\t$4\n";
+    if( $debug != 0 ) 
+    {
+      print "$1\t$2\t$3\t$4\n";
+    }
     $coords[$i] = "$1\t$2\t$3\t$4\n";
   }
   close SCF;
 
-  print "Pre-comp\n";
+  print "  Pre-comp\n";
   open OUT, ">pot_prep.in";
   print OUT "&inputpp\n"
      .  "  prefix = 'system'\n"
@@ -172,7 +176,7 @@ if( $dft eq 'qe' || $dft eq 'obf' )
     system("$para_prefix $ENV{'OCEAN_BIN'}/obf_pp.x < pot_prep.in > pot_prep.out") == 0 
         or die "Failed to run pp.x for the pre-computation\n";
   }
-  print "Pre-comp complete.\n";
+  print "  Pre-comp complete.\n\n";
 
 
   print "Looping over each atomic site to get total potential\n";
@@ -200,7 +204,8 @@ if( $dft eq 'qe' || $dft eq 'obf' )
     }
 #  my $taustring = `grep $small_el xyz.alat |  head -n $el_rank | tail -n 1`;
 #    print "$el_rank, $small_el, $taustring\n";
-    print "$el_rank    $taustring\n";
+    chomp( $taustring );
+    print "    $el_rank    $taustring\n";
     $taustring =~ m/\S+\s+(\S+)\s+(\S+)\s+(\S+)/;
     my $x = $1;
     my $y = $2;
@@ -239,9 +244,13 @@ if( $dft eq 'qe' || $dft eq 'obf' )
     chomp( $Vshift[$i] );
     $Vsum += $Vshift[$i];
 
+    printf "    Total potential at the core site is %8.5f Ryd.\n", $Vshift[$i];
 
     my $string = sprintf("z%s%04d_n%02dl%02d",$el, $el_rank,$nn,$ll);
-    print "$string\n";
+    if( $debug != 0 )
+    {
+      print "$string\n";
+    }
   # W shift is in Ha., but we want to multiple by 1/2 anyway, so the units work out
 
     for( my $j = 0; $j < scalar @rads; $j++ )
@@ -257,6 +266,12 @@ if( $dft eq 'qe' || $dft eq 'obf' )
 else
 {
   copy( "../DFT/SCx_POT", "SCx_POT" );
+  copy( "../DFT/density.log", "density.log");
+  open IN, "density.log" or die "Failed to open density.log\n";
+  <IN> =~ m/(\d+)\.(\d+)\.(\d+)/ or die;
+  my $MajorAbinitVersion = $1;
+  close IN;
+
   my @coords;
 
   open IN, "xyz.wyck" or die "Failed to open xyz.wyck.\n$!";
@@ -270,7 +285,14 @@ else
   
   open OUT, ">pot.in" or die "Failed top open pot.in for writing.\n$!";
 
-  print OUT "SCx_POT\n1\n";
+  if( $MajorAbinitVersion <= 7 )
+  {
+    print OUT "SCx_POT\n1\n";
+  }
+  else
+  {
+    print OUT "SCx_POT\n";
+  }
 
   for( my $i = 0; $i < scalar @hfin; $i++ )
   {
@@ -319,8 +341,10 @@ else
     if( $line =~ /value=\s+(\S+)/ )
     {
       # Vshift is in Ha not Ry for ABINIT
-      push @Vshift, 2*$1;
-      $Vsum += 2*$1;
+      my $curVshift = $1*2;
+      push @Vshift, $curVshift;
+      $Vsum += $curVshift;
+      printf "    Total potential is %8.5f Ryd.\n", $curVshift;
     }
   }
   close IN;
@@ -335,7 +359,10 @@ else
     my $el_rank = $hfin[$i][3];
 
     my $string = sprintf("z%s%04d_n%02dl%02d",$el, $el_rank,$nn,$ll);
-    print "$string\n";
+    if( $debug != 0 )
+    {
+      print "$string\n";
+    }
 
     for( my $j = 0; $j < scalar @rads; $j++ )
     {
@@ -349,18 +376,28 @@ else
   
 }
 
+print "\nDone looping over sites.\n\n";
+
+
 
 # Loop over radii and then hfin
 for( my $i = 0; $i < scalar @rads; $i++ )
 {
   my $rad_dir = sprintf("zR%03.2f", $rads[$i] );
 
+  printf "\nRadius = %03.2f Bohr\n", $rads[$i];
+
   # If we are averaging, new shift by radius
   if( $control =~ m/true/ )
   {
     $offset = -( $Vsum + $Wsum[$i] ) * $Ry2eV / ( scalar @hfin );
-    print "$rad_dir\t$offset\n";
+#    print "$rad_dir\t$offset\n";
+    print "  core_offset was set to true. Now set to $offset  \n";
   }
+
+  print  "Site index    Total potential    1/2 Screening      core_offset       total offset\n";
+  print  "                    (eV)              (eV)              (eV)              (eV)\n";
+# print  "   iiiiiii  -xxxxx.yyyyyyyyy  -xxxx.yyyyyyyyy  -xxxx.yyyyyyyyy  -xxxx.yyyyyyyyy\n";
 
   # Loop over each atom in hfin
   for( my $j = 0; $j < scalar @hfin; $j++ )
@@ -370,17 +407,21 @@ for( my $i = 0; $i < scalar @rads; $i++ )
     my $el = $hfin[$j][2];
     my $el_rank = $hfin[$j][3];
 
+    # Wshift is actually in Ha (convert to Ryd and multiply by 1/2 and nothing happens)
     my $shift = ( $Vshift[$j] + $Wshift[$j][$i] ) * $Ry2eV;
 
     $shift += $offset;
     $shift *= -1;
-    print "$el_rank\t$Vshift[$j]\t$Wshift[$j][$i]\t$shift\n";
+    printf "   %7i   %16.9f  %15.9f  %15.9f  %16.7f\n", $el_rank, $Vshift[$j]*$Ry2eV, $Wshift[$j][$i]*$Ry2eV, $offset, $shift;
+#    print "$el_rank\t$Vshift[$j]\t$Wshift[$j][$i]\t$shift\n";
 
     my $string = sprintf("z%s%04d_n%02dl%02d",$el, $el_rank,$nn,$ll);
     open OUT, ">$string/$rad_dir/cls" or die "Failed to open $string/$rad_dir/cls\n$!";
     print OUT $shift . "\n";
     close OUT;
   }
+
+  print "\n";
 
 }
 
