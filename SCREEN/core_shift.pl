@@ -267,9 +267,16 @@ else
 {
   copy( "../DFT/SCx_POT", "SCx_POT" );
   copy( "../DFT/density.log", "density.log");
+  my $MajorAbinitVersion;
   open IN, "density.log" or die "Failed to open density.log\n";
-  <IN> =~ m/(\d+)\.(\d+)\.(\d+)/ or die;
-  my $MajorAbinitVersion = $1;
+  while( my $line = <IN> )
+  {
+    if( $line =~ m/Version\s+(\d+)\.(\d+)\.(\d+)/ )
+    {
+      $MajorAbinitVersion = $1;
+      last;
+    }
+  }
   close IN;
 
   my @coords;
