@@ -18,6 +18,7 @@
 \usepackage{epstopdf}
 \usepackage{float}
 \usepackage{amsmath,natbib}
+\usepackage{xfrac}
 \newcommand{\norm}[1]{\left\Vert#1\right\Vert}
 \newcommand{\abs}[1]{\left\vert#1\right\vert}
 \newcommand{\bra}[1]{\left<#1\right\vert}
@@ -179,21 +180,46 @@ The two should match very closely, but with the quality settings in the input th
 
 Ammonium nitrate is a wide band gap crystalline solid. Nitrogen atoms occupy central positions in the two constituent ions NH$_4^+$ and NO$_3^-$. Given the difference in chemical environment between hydrogen and oxygen nearest neighbors it is of no surprise that there is a significant shift in the energy of the 1{\it s} electrons between the two nitrogen sites. Therefore NH$_4$NO$_3$ makes a good example to look at how we can account for these shifts within \program{ocean}. As always with our tutorials, feel free to start the calculation  and then read while it is running.
 
+\subsection{Overview of core-level shifts}
+
 There are several methods used for calculating energy levels in core-level spectroscopy. For completeness we will give an overview of them here. The most straightforward, popular in quantum chemistry techniques, is to directly compare the energies of initial and final states. This requires that you calculate explicit initial and final states as well as the core level wave function. Pseudopotential-based techniques need a bit more creativity due to their lack of explicit core states. Methods that carry out a self-consistent calculation in the presence of the core hole (full core hole, half core hole, or eXcited core hole) can make use of the energy differences between DFT calculations with and without the core hole. This gives a relative energy shift that can be calibrated to give meaningful information about the core level shifts both within a cell and between different cells.\cite{NeedCites}
 
-The \program{ocean} code has neither explicit core levels nor self-consistent calculations with a core hole, and so we need a different approach. In the BSE approach the only elements we need are the bare energies of the electron and the hole, and then the interaction terms. These bare or one-particle energies are the energies that would be calculated within {\it GW}, i.e., the the addition (removal) energies for the conduction (core) electron. But a {\it GW} calculation for the core level is neither possible nor feasible, and it is this removal energy we want to try and approximate. Because we are not relaxing the system in the presence of the hole (see the various core-hole approaches mentioned in the previous paragraph) this requires two calculations 1) the energy of the core-level electron and 2) the total energy from the relaxation of the rest of the system once that electron is removed. 
+The \program{ocean} code has neither explicit core levels nor self-consistent calculations with a core hole, and so we need a different approach. In the BSE approach the only elements we need are the bare energies of the electron and the hole, and then the interaction terms. 
+\begin{align}
+H_\textrm{BSE} &= H_0 + V_x - W \nonumber \\
+H_0 &= \epsilon_{n,\mathbf{k}} - \epsilon_h
+\end{align}
+where the non-interacting part is the quasiparticle energies of the electron $\epsilon_{n,\mathbf{k}}$ and core hole $\epsilon_h$. 
+The correct determination of the excitation energies, the onset of the edge or position of an exciton, relies on an accurate determination of all three components of the BSE Hamiltonian (as well as the validity of neglecting higher-order interaction terms). This tutorial is focused on how $H_0$ is determined in \program{ocean} and the effects of core-level shifts on the spectra.
+
+The conduction band energies in $H_0$ are, as a first approximation, the DFT energies. Were we to have the exact density functional, then the highest-occupied state would have a meaningful energy. 
+A better approach is the {\it GW} method which approximates the one-electron Green's function in an interacting many-electron system instead of the non-interacting DFT. 
+For many systems (especially {\it s-p} bonded materials) the DFT energies and wavefunctions, even within the local-density approximation (LDA), are remarkably similar to what would be produced by a {\it GW} calculation. 
+The famous DFT underestimation of band gaps is an incredibly small error in comparison to the magnitude of the approximation being made to get there, a reflection of what Walter Kohn referred to as the ``short-sightedness'' of electrons in condensed matter.
+The typical result of correcting the DFT energies with a {\it GW} calculation is a moderate increase in the band gap and a 3-5~\% (5-10~\%) stretch of the conduction (valence) bands, pushing the energies away from the Fermi level. 
+For our NH$_4$NO$_3$ example any correction to the band gap is present for both nitrogen species, and we will use the DFT energies for the calculation. 
+
+%These quasiparticle energies are what would be calculated within {\it GW}, i.e., the the addition (removal) energies for the conduction (core) electron. 
+A {\it GW} calculation for the core level is neither possible nor feasible, and it is this removal energy we want to try and approximate. Because we are not relaxing the system in the presence of the hole (see the various core-hole approaches mentioned previously) this requires two calculations 1) the energy of the core-level electron and 2) the total energy from the relaxation of the rest of the system once that electron is removed. 
 
 \begin{enumerate}
 \item
-For calculating the energy of the core level we assume that the core level wave function is the same between chemical environments. This means that the kinetic energy of the core level is fixed, and therefore changes in the core-level energy can only come from changes in the local potential. This comes directly from the DFT calculation as the total Kohn-Sham potential.
+For calculating the energy of the core level we assume that the core level wave function is the same between chemical environments. This means that the kinetic energy of the core level is fixed, and therefore changes in the core-level energy can only come from changes in the local potential integrated over the core-state's density. This comes directly from the DFT calculation as the total Kohn-Sham potential.
 \item The response of the rest of the system to the removal of the core-level electron is given (within linear response) by the screening of the core-hole potential that we are already calculating. An additional factor of $1/2$ is picked up from adiabatically moving the charge of this electron. 
 \end{enumerate}
 To evaluate both 1 and 2 we approximate the core as a delta function at its location $\tau$. 
 The energy of the core hole (as it would then appear in the BSE Hamiltonian $H^0$) is given by
 \begin{align}
+\label{CLS_eqn}
 \epsilon_h = V_\text{KS}(\tau) - 1/2 W(\tau) + X
 \end{align}
-where X is an offset which will not vary from site to site and encapsulates the core's kinetic energy term and also the sreening response of the other core electrons -- neither of which change from site to site by assumption.
+where X is an offset which will not vary from site to site and encapsulates the core's kinetic energy term and also the screening response of the other core electrons -- neither of which change from site to site by assumption.
+
+Now that we are able to generate both $\epsilon_{n,\mathbf{k}}$ and $\epsilon_h$ we can accurately determine the excitation spectra energies --- so long as the interacting parts of the BSE are also carefully calculated. 
+The absolute alignment is not {\it ab initio}, but requires only a single, element-specific offset $X$.
+
+
+\subsection{Ammonium Nitrate CLS}
 
 Measurements of the nitrogen 1{\it s} x-ray emission (K$\alpha$) from ammonium nitrate show two well separated peaks. Calculations of using several different computational tools concur that these two peaks belong separately to the ammonium and nitrate ions.\cite{ANpapers} 
 In contrast we can look at the local, angular-momentum-projected density of states around the nitrogen atoms in the ground state. (This is a standard feature of DFT codes, and here we are using the output from QE). In figure \ref{an_pdos} we show the {\it p}-type states around both kinds of nitrogen in ammonium nitrate, and clearly the main contributions to the nitrogen K$\alpha$ emission will be at the same energy for both the NH$_4^+$ and NO$_3^-$. This discrepancy is because the ground-state calculation has no core-level shift.
@@ -226,6 +252,13 @@ Core-level shifts are calculated in the screening stage. The parameter \htmlref{
 Choosing the number to set \htmlref{CORE\_OFFSET}{card:core-offset} can be tricky because we have no idea what values the Kohn-Sham potential or screening calculation will give ahead of time. Instead, we can use the option ``true" and the code will figure out what value to set \htmlref{CORE\_OFFSET}{card:core-offset} to such that the average offset is zero. Go ahead and change the input so that \htmlref{CORE\_OFFSET}{card:core-offset} is ``true'' and rerun the calculation. If you'd like you can use the script ``re\_run.sh'' by setting the directory where \program{ocean} was installed. 
 
 This time the code has performed additional calculations to get the Kohn-Sham potential at each nitrogen site. The difference is remarkable -- the main parts of the ammonium and nitrate XES are no longer overlapping, but instead separated by several eVs. The core-level shifts are unique to each site and each screening radius. As such they are stored within the \file{SCREEN} directory by site and radius, i.e., \file{SCREEN/zN\_0001/}. If you look at these files you will see that the two nitrate and two ammonium nitrogens are almost the same (small differences are inevitable) as we expect since they are equivalent sites. 
+
+\subsection{Further details}
+
+The calculation of the core-level shifts are carried out in the \file{SCREEN} directory because the core-hole screening enters in (Eq.~\ref{CLS_eqn}). 
+The auxiliary script \program{core\_shift.pl} takes care of the calculation, running the necessary post-processing for either \program{abint} or \program{QuantumESPRESSO}. 
+
+
 
 \iffalse
 \section{Rutile}
@@ -809,12 +842,22 @@ ad-hoc band stretching and the many-pole self-energy which are both presented la
 LDA+U work is underway and will be a feature of \program{ocean} 1.1. Better integration with {\it GW} is a planned feature for later in the 1.x series. 
 
 
-\chapter{OPF and Atomic}
+\chapter{OPFs}
 \label{opf}
 
-The optimal projector functions (OPF) are solutions to an atomic DFT calculation that depends on the element being investigated not the material. 
+In \program{ocean} we build on top of one-electron orbitals calculated using pseudopotentials. 
+This significantly reduces the computational cost of the DFT calculations, but near the nucleus the electron wavefunctions diverge significantly from an all-electron calculation. 
+For clarity we will refer to electronic states from a pseudopotential calculation as ``pesudized'' in contrast to ``all-electron'' wavefunctions. 
+The matrix elements between a core orbital and a pseudized valence or conduction band state are not well defined. 
+The pseudized valence states are not orthogonal to the core levels because core states explicitly don't exist in a pesudopotential calculation.
+To overcome this problem we make use of the optimal projector functions (OPFs). 
+
+The OPF are solutions to an atomic DFT calculation that depends on the element being investigated not the material. 
 The framework was developed by E.\ L.\ Shirley \cite{ShirleyOPF} and is similar to the projector augmented wave (PAW) formalism developed by Bl\"{o}chl \cite{PhysRevB.50.17953}. 
 %
+We would encourage the reader to peruse Bl\"{o}chl's paper and will only summarize the method here without much justification.
+The pseudopotentials are constructed such that the pseudized orbitals are equal to the all-electron ones outside of the cut-off radius $r_c$. 
+Further,  
 In principle this section can be run once for a given pseudopotential and reused. 
 The important outputs of this section are a collection of all-electron and pseudo projector augmented waves. 
 The all-electron core wave function is expressed as coefficients of the all-electron OPFs. 
@@ -974,9 +1017,118 @@ Lastly the number of bands included in the truncated sum for calculating the RPA
 
 %Need to add tutorials and references to those tutorials
 
+\chapter{Core-Level Shifts and Absolute Energies}
+
+Calculating the correct onset of absorption is important for both UV/vis and x-ray spectra. 
+In the valence case we need to accurately calculate the relative band positions of the valence and conduction states, e.g., a correct band gap energy. 
+While the alignment of x-ray edges is more complicated in practice, the necessary ingredients are the same as for  low-energy spectra, and we will introduce the concepts and approach in this chapter. 
+The calculation of core-level shifts in ammonium nitrate (NH$_4$NO$_3$) provides a good test and is featured in a tutorial (\ref{AN_tutorial}). 
+
+\section{Exciton energies in BSE}
+\label{CLS.bse}
+The Bethe-Salpeter equation (BSE) gives a diagrammatic expansion of the two-particle Green's function. 
+Immediately we are making the approximation that multiple particle-hole excitations (bi-excitons, \&c.) are not important for describing the electronic response of our systems, except in a mean-field, plasmon-like way. 
+The next big approximation is that we truncate the BSE at the $GW$ level, and therefore the interactions have two terms, the direct $W$ and exchange $V_x$
+\begin{align}
+H = H_0 + V_x - W
+\end{align}
+where $H_0$ are the two particles, electron and hole. 
+This can also be written in the standard Dyson's equation way where the electron-hole Green's function is written in terms of the non-interacting Green's functions and the interaction vertex $I$
+\begin{align}
+G^{(2)}(1,1';2,2') &= G_0^{(2)}(1,1';2,2')  + G_0^{(2)}(1,1';3,3') I(3,3';4,4') G^{(2)}(4,4';2,2') \label{2e-gf} \\
+I(1,1';2,2') &= -\delta(3,4) \delta(3',4') W(3,3') + \delta(3,3') \delta(4,4') V(3,4)
+\end{align}
+where $1=\mathbf{x},\sigma,t$ and $W$ and $V$ are the screened and unscreened Coulomb operators, respectively (taken from Hanke and Sham \cite{PhysRevB.21.4656}). 
+The last big approximation we make is that the screening can be considered statically.
+Namely, that the exciton binding energies are small compared to the band gap. 
+
+In summary:
+\begin{enumerate}
+\item{ $\chi(1,2) = G^{(2)}(1,1';2,2')$ }
+\item{ $\Sigma = GW$ }
+\item{ $W(0) \approx W(\omega)$ }
+\end{enumerate}
+Having bravely decided not to consider the above sources of error, we have reduced the question of accurate excitation energies to adequately calculating our two interaction terms and the one-electron Green's functions that make up our two-electron, non-interacting Green's function.
+Undaunted we will also, for this chapter, ignore the calculation of the direct and exchange, except to say that one must, of course, converge these two terms.
+
+\section{One-electron Green's function}
+
+The non-interacting, two-particle Green's function above in Eq.~\ref{2e-gf} is made up of the two (interacting) one-electron Green's functions
+\begin{align}
+G_0^{(2)}(1,1';2,2') = G(1,1') + G(2,2') 
+\end{align}
+which can be written in their own Dyson's series
+\begin{align} 
+G(1,1') = G_0(1,1') + G_0(1,2) \Sigma(2,3) G(3,1')
+\end{align}
+where $\Sigma$ is the proper self-energy.
+For an in-depth look at $\Sigma$ we would suggest the reader look elsewhere \ref{ManyGWstuff}.
+Here we will only point out that, given a correct $\Sigma$, and hence a dressed one-electron Green's function $G$, the BSE will give exciton energies that will match experimental measurements, subject to the approximations at the end of section \ref{CLS.bse}. 
+In practice there are two widely used approximations for $\Sigma$, namely the $GW$ method (really many different approximations with a range of costs and sophistication) and the DFT method $\Sigma = V_{XC} - V_X$.
+It is not usually phrased this way, but the success and popularity of DFT is due to 1) its low computational cost; and 2) the extraordinary fact that the exchange-correlation potential is an adequate approximation to the true exchange and correlation of system. 
+
+For a valence calculation, UV/visible spectrum, the problem of aligning the absorption spectrum is then simply the problem of getting a good enough calculation of the self-energy. 
+At present \program{ocean} has no automatic way to carry out a {\it GW} calculation, but many codes exist: \program{abinit} and \program{BerkleyGW} among others. 
+The BSE section of \program{ocean} has several methods for incorporating these corrections $\Delta E^{\textit{GW}}$ including full corrections $\Delta E^{\textit{GW}}_{n,\mathbf{k}}$, band-by-band corrections 
+$\Delta E^{\textit{GW}}_{n}$, energy-dependent corrections $\Delta E^{\textit{GW}}(E)$, and a simple scissor operator.
+Until such time as the developers write a better interface and document it, interested users should email and politely ask the devs for guidance. 
+
+In principle, this procedure of carrying out quasi-particle corrections could be done also for a core-level hole. 
+However, the authors are not aware of a code capable of such calculations, leading us to recommend a different approach for alignment of core-level spectra.
+
+\section{Core-level shifts}
+
+The \program{ocean} code is built on top of pseudopotential DFT, making the calculation of the core-level energies tricky. 
+Instead of attempting to be able to calculate the energy of each core level from first-principles we content ourselves with being able to calculate the energy shifts in the core levels between chemical environments.
+For instance, in the ammonium nitrate tutorial it is seen that the relative shift between the ammonium nitrogen site and the nitrate nitrogen site is around 4~eV. 
+Our ultimate goal is to be able to align each element edge by comparing a single material to experiment, e.g., correcting all nitrogen edges by setting the N$_2$ XAS onset. 
+The energy of the core-level hole is given by
+\begin{align}
+\epsilon_h = V_{\rm{tot}} - \sfrac{1}{2} W + X_{Znl}
+\end{align}
+where the offset $X$ is fit to a specific element $Z$ and edge $nl$. 
+To arrive at the above expression we make two main approximations.
+
+The first is that we assume that the shape of the orbital wavefunction is unchanged by changes in the chemical environment. In other words, the difference between the NH$_4^+$ and NO$_3^-$ is captured by lowest order perturbation theory. 
+The orbital remains fixed, and the change in energy is simply the change in the external potential exerted on the orbital in the ground state. 
+Currently, this is done by taking the limit that the core orbital is a delta function, but in the future this will be done by integrating the potential over the core orbital density. 
+\begin{align}
+V_{\rm{tot}} =& \, \langle \phi_{Znl} \vert V_{\rm{tot}}(\mathbf{r}) \vert \phi_{Znl} \rangle = \int \!\! d^3r \rho_{Znl}(\mathbf{r})  V_{\rm{tot}}(\mathbf{r}) \nonumber \\
+\approx&  \, V_{\rm{tot}}(\mathbf{r})  \delta(\mathbf{r} - \mathbf{\tau}) 
+\label{CLS_Vext}
+\end{align}
+where $\tau$ is the location of the excited atom, $\phi$ and $\rho$ are the atomic orbital and its density, respectively, and $V_{\rm{tot}}$ is the total potential. 
+The value of the total potential (evaluated at the core site) is determined from the self-consistent density, and is easily extracted from the DFT calculation, using a post-processing tool like \program{pp.x} or \program{cut3d}.
+
+There is a second element needed to calculate the shifts in quasi-particle energy of the core levels with chemical environment, and that is the response of the rest of electrons in the system to the excitation. 
+This response is already calculated in the code as the screening of the core-hole potential.
+The assumption is made that this can be captured within linear response. For the methodology see the chapter \ref{screening} on screening.
+Using the same $\delta$-function approximation as Eq.~\ref{CLS_Vext} the screening reduces the energy required to create a core hole by
+\begin{align}
+\sfrac{1}{2} W = \sfrac{1}{2} W(\mathbf{r}) \delta(\mathbf{r} - \mathbf{\tau}) 
+\end{align}
+though a more accurate integration over the core-hole density could also be implemented. 
+In practice the code uses only the valence screening. The other core electrons will also screen the core hole, but, because we already have assumed that the core-level orbitals are the same irrespective of chemical environments, their screening will also be the same and can be incorporated into the shift $X$.
+
+\section{Errors in the CLS and comparisons with $\Delta$SCF methods}
+
+The core-level shifts have been used in \program{ocean} calculations of both liquid water as well as vibrational disordered crystals of ammonium nitrate and ammonium chloride. 
+However, for these systems the alignment has been done anew each time, and the various disordered snapshots have all had the same volume and the same number and type of atoms.
+A more complete investigation of alignment, say between the O K-edge absorption onset of different oxides M$_x$O$_y$, has not been carried out.
+As a guide, however, we would like to speculate on sources of error that may hamper our desire of a single $X_{Znl}$ for each element and edge.
+\begin{enumerate}
+\item{Inaccurate band gaps, or HOMO or LUMO energies}
+\item{Breakdown of linear response}
+\item{Effects of periodic boundary conditions?}
+\end{enumerate}
+For each of these short-comings, our investigations so far, comparing disordered, but otherwise similar cells, would not be sensitive.
+
+Issue \#1 may be especially significant. The errors in DFT-derived band gaps vary widely, ranging from 0~eV for metals to above 6~eV for wide gap materials like LiF.
+Making the crude estimate that the {\it GW} corrections are split between conduction and valence bands, the error in absorption onset could be several electron-Volts.
+
 \chapter{ CNBSE }
 The CNBSE section solves for the spectra. The important output file is absspct; column 1 is the energy, 
-column 2 the spectra using a plamon-pole broadening model and column 3 the plain spectra.
+column 2 the spectra using a plasmon-pole broadening model and column 3 the plain spectra.
 
 \iffalse
 \section{Photon specifications}
