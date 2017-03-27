@@ -6,14 +6,17 @@
 !
 !
 module OCEAN_mpi
+#ifdef MPI
+#ifndef __OLD_MPI
+  use mpi
+#endif
+#endif
 
   use AI_kinds
   implicit none
 #ifdef MPI
 #ifdef __OLD_MPI
   include 'mpif.h'
-#else
-  use mpi
 #endif
 #endif
 
