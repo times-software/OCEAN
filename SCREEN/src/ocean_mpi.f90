@@ -23,9 +23,13 @@ module OCEAN_mpi
   save
 
 
-  integer( S_INT ) :: myid 
-  integer( S_INT ) :: nproc 
-  integer( S_INT ) :: comm
+  integer( S_INT ), PROTECTED :: myid 
+  integer( S_INT ), PROTECTED :: nproc 
+#ifdef MPI_F08
+  type( MPI_COMM ), PROTECTED :: comm
+#else
+  integer( S_INT ), PROTECTED :: comm
+#endif
   integer( S_INT ), parameter :: root = 0
 
 
