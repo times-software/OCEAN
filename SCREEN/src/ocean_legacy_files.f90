@@ -22,9 +22,44 @@ module ocean_legacy_files
   integer, allocatable :: file_indx( : )
   character( len=12 ), allocatable :: file_names( : )
 
-  public :: olf_read_init, olf_read_at_kpt, olf_clean
+  public :: olf_read_init, olf_read_at_kpt, olf_clean, olf_read_energies
 
   contains
+
+  subroutine olf_read_energies( myid, root, comm, nbv, nbc, nkpts, nspns, val_energies, con_energies, ierr )
+#ifdef MPI
+    use ocean_mpi, only : MPI_BCAST, MPI_DOUBLE_PRECISION
+#endif
+    integer, intent( in ) :: myid, root, nbv, nbc, nkpts, nspns
+#ifdef MPI_F08
+    type( MPI_COMM ), intent( in ) :: comm
+#else
+    integer, intent( in ) :: comm
+#endif
+    real( DP ), intent( out ) :: val_energies( nbv, nkpts, nspns ), con_energies( nbv, nkpts, nspns )
+    integer, intent( inout ) :: ierr
+    !
+    integer :: ispn, ikpt
+
+    if( myid .eq. root ) then
+      open( unit=99, file='enkfile', form='formatted', status='old' )
+      do ispn = 1, nspns
+        do ikpt = 1, nkpts
+          read( 99, * ) val_energies( :, ikpt, ispn )
+          read( 99, * ) con_energies( :, ikpt, ispn )
+        enddo
+      enddo
+      close( 99 )
+    endif
+
+#ifdef MPI
+    call MPI_BCAST( val_energies, nbv*nkpts*nspns, MPI_DOUBLE_PRECISION, root, comm, ierr )
+    call MPI_BCAST( con_energies, nbc*nkpts*nspns, MPI_DOUBLE_PRECISION, root, comm, ierr )
+#endif
+
+  end subroutine olf_read_energies
+
+
 
   subroutine olf_clean()
     nfiles = 0
