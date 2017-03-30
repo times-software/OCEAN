@@ -46,6 +46,13 @@ subroutine spartanfip( etot, rel, alfa, nr, r, dr, r2, dl, njrc, vi, zorig, xnto
   read ( 5, * ) dq, qmax
 !  nq = 1 + qmax / dq
   nq = 1 + ceiling( qmax / dq )
+  ! Require that 'cush' (cushion) be positive
+  if( cush .lt. 0 ) then
+    write( 6, * ) 'Format error in .fill file. Cushion should be positive'
+    write( 6, * ) '   cush     emax     prec'
+    write( 6, '(A,F8.4,F9.4,F9.4)' ) '  ', cush, emax, prec
+    stop
+  endif
   !
   ! reset cutoff radius to radius value on the radial grid
   irc = 0

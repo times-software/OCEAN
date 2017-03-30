@@ -217,20 +217,24 @@ while ( $hfinline = <HFINLIST> ) {
   my $hfk_status = `tail -n 1 hfk.${znucl}_${nnum}_${lnum}.1.log`;
   unless( $hfk_status =~ m/terminus/ )
   {
-    die "The program hfk.x has exited incorrectly.\nExiting ...\n";
+    die "The program hfk.x has exited incorrectly for hfin1.\nExiting ...\n";
   }
 
   system("$ENV{'OCEAN_BIN'}/hfk.x < hfin2 > hfk.${znucl}_${nnum}_${lnum}.2.log") == 0 or die;
   $hfk_status = `tail -n 1 hfk.${znucl}_${nnum}_${lnum}.2.log`;
   unless( $hfk_status =~ m/terminus/ )
   {
-    die "The program hfk.x has exited incorrectly.\nExiting ...\n";
+    die "The program hfk.x has exited incorrectly for hfin2.\nExiting ...\n";
   }
   my $corezfile = sprintf("corezetaz%03i",$znucl);
   move("xifile","$corezfile");
 
   system("$ENV{'OCEAN_BIN'}/hfk.x < hfin3 > hfk.${znucl}_${nnum}_${lnum}.3.log") == 0 or die;
   $hfk_status = `tail -n 1 hfk.${znucl}_${nnum}_${lnum}.3.log`;
+  unless( $hfk_status =~ m/terminus/ )
+  {
+    die "The program hfk.x has exited incorrectly for hfin3.\nExiting ...\n";
+  }
   print "Done running hfk.x\n";
 
 
