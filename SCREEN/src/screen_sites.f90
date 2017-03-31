@@ -1,3 +1,13 @@
+! Copyright (C) 2017 OCEAN collaboration
+!
+! This file is part of the OCEAN project and distributed under the terms 
+! of the University of Illinois/NCSA Open Source License. See the file 
+! `License' in the root directory of the present distribution.
+!
+!
+! by John Vinson 03-2017
+!
+!
 module screen_sites
   use ai_kinds, only : DP
   use screen_grid, only : sgrid
@@ -42,6 +52,8 @@ module screen_sites
   subroutine screen_sites_load( ierr )
     use OCEAN_mpi
     use screen_system, only : screen_system_snatch
+    use screen_grid, only : screen_grid_init
+    use screen_paral, only : screen_paral_init
     !
     integer, intent( inout ) :: ierr
     !
