@@ -22,7 +22,7 @@ module ocean_legacy_files
   integer, allocatable :: file_indx( : )
   character( len=12 ), allocatable :: file_names( : )
 
-  public :: olf_read_init, olf_read_at_kpt, olf_clean, olf_read_energies
+  public :: olf_read_init, olf_read_at_kpt, olf_clean, olf_read_energies, olf_get_ngvecs_at_kpt
 
   contains
 
