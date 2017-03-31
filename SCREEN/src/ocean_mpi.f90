@@ -100,7 +100,10 @@ module OCEAN_mpi
 
   subroutine ocean_mpi_finalize( ierr )
     integer, intent( inout ) :: ierr
+    !
+    integer :: ierr_
 #ifdef MPI
+    if( ierr .ne. 0 ) call MPI_ABORT( comm, ierr, ierr_ )
     call MPI_FINALIZE( ierr )
 #endif
   end subroutine ocean_mpi_finalize
