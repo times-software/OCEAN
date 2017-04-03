@@ -888,22 +888,6 @@ if ( $bseRUN ) {
   chdir "../";
 }
 
-#print `pwd`;
-#open RSCALE, "rscale" or die;
-#open RPRIM, "rprim" or die;
-#<RSCALE> =~  m/(\d+\.?\d+([eEfF][+-]?\d+)?)\s+(\d+\.?\d+([eEfF][+-]?\d+)?)\s+(\d+\.?\d+([eEfF][+-]?\d+)?)/ or die;
-#my @rscale = ($1, $3, $5);
-#print "$1\t$3\t$5\n";
-#close RSCALE;
-
-#open AVECS, ">avecsinbohr.ipt" or die;
-#for (my $i = 0; $i < 3; $i++ ) {
-#  <RPRIM> =~  m/([+-]?\d?\.?\d+([eEfF][+-]?\d+)?)\s+([+-]?\d?\.?\d+([eEfF][+-]?\d+)?)\s+([+-]?\d?\.?\d+([eEfF][+-]?\d+)?)/ or die "$_";
-#  print AVECS $1*$rscale[0] . "  " . $3*$rscale[1] .  "  " . $5*$rscale[2] . "\n";
-#  print "$1\t$3\t$5\n";
-#}
-#close RPRIM;
-#close AVECS;
 
 my $fermi = 'no';
 
@@ -912,9 +896,9 @@ while( my $line = <IN> )
 {
   if( $line  =~  m/Fermi \(or HOMO\) energy \(hartree\) =\s+([+-]?\d+\.?\d+)/ )
     {
-      $fermi = $1 * 2 * 13.60569252;
-      print "Fermi level found at $fermi eV\n";
-      $fermi = $fermi/13.60569252;
+      $fermi = $1 * 2;
+      my $eVfermi = $fermi * 13.60569253;
+      print "Fermi level found at $eVfermi eV\n";
     }
 #    if( $line =~ m/number of electrons\s+=\s+(\d+)/ )
 #    {
