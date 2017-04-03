@@ -276,18 +276,19 @@ $qe_data_files{'occtype'} = 'smearing';
 #   therefore we want to clamp down the smearing a bunch
 if( $qe_data_files{ "occopt" } == 1 )
 {
+  $qe_data_files{'occtype'} = 'fixed';
   $qe_data_files{ 'degauss' } = 0.002;
 #  $qe_data_files{'occtype'} = 'fixed';
 }
 
 # Array of QE names for smearing by occopt
 my @QE_smear;
-$QE_smear[1] = "'gaussian'";
-$QE_smear[3] = "'fermi-dirac'";
-$QE_smear[4] = "'fermi-dirac'";
-$QE_smear[5] = "'fermi-dirac'";
-$QE_smear[6] = "'fermi-dirac'";
-$QE_smear[7] = "'gaussian'";
+$QE_smear[1] = "'gaussian'";     # Still need to fix to be insulator
+$QE_smear[3] = "'fermi-dirac'";  # ABINIT = fermi-dirac
+$QE_smear[4] = "'marzari-vanderbilt'";  # ABINIT = Marzari cold smearing a = -0.5634
+$QE_smear[5] = "'marzari-vanderbilt'";  # ABINIT = Marzari a = -0.8165
+$QE_smear[6] = "'methfessel-paxton'";  # ABINIT = Methfessel and Paxton PRB 40, 3616 (1989)
+$QE_smear[7] = "'gaussian'";     # ABINIT = Gaussian
 
 
 
@@ -408,22 +409,66 @@ if ($RunESPRESSO) {
   # Find Fermi level and number of electrons
   my $fermi = 'no';
   my $nelectron = 'no';
+  my $units;
 
-  open SCF, "scf.out" or die "$!";
-  while( my $line = <SCF> )
+  # First attempt to grab from outfile
+  my $data_file = $qe_data_files{'work_dir'} . "/" . $qe_data_files{'prefix'} . ".save/data-file.xml";
+  print "Looking for $data_file \n";
+  if( open SCF, $data_file )
   {
-    if( $line  =~  m/the Fermi energy is\s+([+-]?\d+\.?\d+)/ )
+    while( my $scf_line = <SCF> )
     {
-      $fermi = $1;
-      print "Fermi level found at $fermi eV\n";
-      $fermi = $fermi/13.60569252;
+      if( $scf_line =~ m/\<UNITS_FOR_ENERGIES UNITS=\"(\w+)/ )
+      {
+        $units = $1;
+      }
+      if( $scf_line =~ m/\<FERMI_ENERGY/ )
+      {
+        $scf_line = <SCF>;
+        $scf_line =~ m/(\d+\.\d+[Ee]?[-+]?(\d+)?)/ or die "$scf_line";
+        $fermi = $1;
+      }
+      if( $scf_line =~m/\<NUMBER_OF_ELECTRONS/ )
+      {
+        $scf_line = <SCF>;
+        $scf_line =~ m/(\d+\.\d+[Ee]?[-+]?(\d+)?)/ or die "$scf_line";
+        $nelectron = $1;
+      }
     }
-    if( $line =~ m/number of electrons\s+=\s+(\d+)/ )
-    {
-      $nelectron = $1;
-    }
+    close SCF;
   }
-  close SCF;
+  
+  if( $fermi =~ m/no/ || $nelectron =~ m/no/ )
+  {
+    open SCF, "scf.out" or die "$!";
+    while( my $line = <SCF> )
+    {
+      if( $line  =~  m/the Fermi energy is\s+([+-]?\d+\.?\d+)/ )
+      {
+        $fermi = $1;
+        print "Fermi level found at $fermi eV\n";
+        $fermi = $fermi/13.60569253;
+      }
+      if( $line =~ m/number of electrons\s+=\s+(\d+)/ )
+      {
+        $nelectron = $1;
+      }
+    }
+    close SCF;
+  }
+  else
+  {
+    if( $units =~ m/hartree/i )
+    {
+      $fermi *= 2;
+    }
+    elsif( $units =~ m/eV/i )
+    {
+      $fermi /= 13.60569253;
+    }
+    my $eVfermi = $fermi * 13.60569253;
+    print "Fermi level found at $eVfermi eV\n";
+  }
 
   die "Fermi level not found in scf.out\n" if( $fermi eq 'no' ) ;
   die "Number of electrons not found in scf.out\n" if( $nelectron eq 'no' );
