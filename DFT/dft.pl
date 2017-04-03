@@ -278,7 +278,6 @@ if( $qe_data_files{ "occopt" } == 1 )
 {
   $qe_data_files{'occtype'} = 'fixed';
   $qe_data_files{ 'degauss' } = 0.002;
-#  $qe_data_files{'occtype'} = 'fixed';
 }
 
 # Array of QE names for smearing by occopt
@@ -378,28 +377,10 @@ if ($RunESPRESSO) {
   system("$ENV{'OCEAN_BIN'}/qe2rhoofr.pl" ) == 0 
     or die "Failed to convert density\n$!\n";
 
-#  system("$ENV{'OCEAN_BIN'}/converter.py system.rho.dat") == 0
-#     or die "Failed to convert density\n$!\n";
-
   ## find the top of the valence bance
   system("$ENV{'OCEAN_BIN'}/qeband.pl") == 0
      or die "Failed to count bands\n$!\n";
 
-#  `grep 1.000 bands.out | wc -l > vb`;
-#  my $vb = 0;
-#  open BANDS, "vb" or die;
-#  $vb = <BANDS>;
-#  close BANDS;
-
-#  my $natoms = `cat natoms`;
-#  my $fband = `cat fband`;
-##  $pawnbands = `cat paw.nbands`;
-#  my $cb = sprintf("%.0f", $vb - 2*$natoms*$fband);
-#  $cb = 1 if ($cb < 1);
-#  open BRANGE, ">brange.stub" or die;
-#  print BRANGE "1  $vb"
-#             . "$cb";
-#  close BRANGE;
 
   open STATUS, ">espresso.stat" or die;
   print STATUS "1";
