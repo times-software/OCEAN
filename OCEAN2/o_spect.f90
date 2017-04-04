@@ -53,19 +53,19 @@ program o_spect
     select case ( calc_type)
     case( 'XES' )
       write(abs_filename,'(A8,A2,A1,I4.4,A1,A2,A1,I2.2)' ) 'xesspct_', elname, &
-          '.', indx, '_', '1s', '_', photon
+          '.', indx, '_', corelevel, '_', photon
       write(lancfile,'(A8,A2,A1,I4.4,A1,A2,A1,I2.2)' ) 'xeslanc_', elname, &
-          '.', indx, '_', '1s', '_', photon
+          '.', indx, '_', corelevel, '_', photon
     case( 'XAS' )
       write(abs_filename,'(A8,A2,A1,I4.4,A1,A2,A1,I2.2)' ) 'absspct_', elname, &
-          '.', indx, '_', '1s', '_', photon
+          '.', indx, '_', corelevel, '_', photon
       write(lancfile,'(A8,A2,A1,I4.4,A1,A2,A1,I2.2)' ) 'abslanc_', elname, &
-          '.', indx, '_', '1s', '_', photon
+          '.', indx, '_', corelevel, '_', photon
     case default
       write(abs_filename,'(A8,A2,A1,I4.4,A1,A2,A1,I2.2)' ) 'absspct_', elname, &
-          '.', indx, '_', '1s', '_', photon
+          '.', indx, '_', corelevel, '_', photon
       write(lancfile,'(A8,A2,A1,I4.4,A1,A2,A1,I2.2)' ) 'abslanc_', elname, &
-          '.', indx, '_', '1s', '_', photon
+          '.', indx, '_', corelevel, '_', photon
     end select
 
 

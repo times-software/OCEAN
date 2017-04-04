@@ -1,5 +1,5 @@
 #!/usr/bin/perl
-# Copyright (C) 2014 OCEAN collaboration
+# Copyright (C) 2014, 2016-2017 OCEAN collaboration
 #
 # This file is part of the OCEAN project and distributed under the terms 
 # of the University of Illinois/NCSA Open Source License. See the file 
@@ -178,6 +178,10 @@ while ( $hfinline = <HFINLIST> ) {
   die "No option file for $ppfilename\n" unless (-e $optionfilename );
   `cp $optionfilename atomoptions`;
   `cp ${ppfilename}.mod ppot`;
+
+  system( "$ENV{'OCEAN_BIN'}/validate_opts.pl ${ppfilename} $optionfilename" ) == 0 
+    or die "Failed to validate options file\nCheck $optionfilename\n";
+
   open HFIN, ">HFIN" or die "Failed to open HFIN for writing\n";
   print HFIN "initgrid\n";
   print HFIN "$znucl $grid\n";
@@ -217,20 +221,24 @@ while ( $hfinline = <HFINLIST> ) {
   my $hfk_status = `tail -n 1 hfk.${znucl}_${nnum}_${lnum}.1.log`;
   unless( $hfk_status =~ m/terminus/ )
   {
-    die "The program hfk.x has exited incorrectly.\nExiting ...\n";
+    die "The program hfk.x has exited incorrectly for hfin1.\nExiting ...\n";
   }
 
   system("$ENV{'OCEAN_BIN'}/hfk.x < hfin2 > hfk.${znucl}_${nnum}_${lnum}.2.log") == 0 or die;
   $hfk_status = `tail -n 1 hfk.${znucl}_${nnum}_${lnum}.2.log`;
   unless( $hfk_status =~ m/terminus/ )
   {
-    die "The program hfk.x has exited incorrectly.\nExiting ...\n";
+    die "The program hfk.x has exited incorrectly for hfin2.\nExiting ...\n";
   }
   my $corezfile = sprintf("corezetaz%03i",$znucl);
   move("xifile","$corezfile");
 
   system("$ENV{'OCEAN_BIN'}/hfk.x < hfin3 > hfk.${znucl}_${nnum}_${lnum}.3.log") == 0 or die;
   $hfk_status = `tail -n 1 hfk.${znucl}_${nnum}_${lnum}.3.log`;
+  unless( $hfk_status =~ m/terminus/ )
+  {
+    die "The program hfk.x has exited incorrectly for hfin3.\nExiting ...\n";
+  }
   print "Done running hfk.x\n";
 
 
