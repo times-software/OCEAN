@@ -1,4 +1,4 @@
-! Copyright (C) 2010 OCEAN collaboration
+! Copyright (C) 2010, 2017 OCEAN collaboration
 !
 ! This file is part of the OCEAN project and distributed under the terms 
 ! of the University of Illinois/NCSA Open Source License. See the file 
@@ -16,7 +16,8 @@
       double precision :: efermi, ry
       double precision, allocatable :: enklist(:,:)
     
-      ry = 13.6057d0
+      ! CODATA 2010
+      ry = 13.60569253d0
 
 !      ibl = 1
 !      ibh = 12
@@ -61,8 +62,9 @@
         do bandcount=ibl,brange(2)
           if (enklist(bandcount,kcount) .lt. vlev ) then
             vlev = enklist(bandcount,kcount)
+! efermi is either Fermi or HOMO: so less than or equal
           elseif ((enklist(bandcount,kcount) .gt. vhev) .and.           &
-     &            (enklist(bandcount,kcount) .lt. efermi ) )  then
+     &            (enklist(bandcount,kcount) .le. efermi ) )  then   
             vhev = enklist(bandcount,kcount)
           endif
         enddo
