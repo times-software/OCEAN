@@ -54,10 +54,10 @@ subroutine cainkset( avec, bvec, bmet, prefs )
   integer, allocatable :: lml( : ), lmm( : ), ibeg_array( :, : )
   real( kind = kind( 1.0d0 ) ), allocatable :: pcoefr( :, :, : ), pcoefi( :, :, : )  
   !
-  integer :: j
+  integer :: j, ierr
   real( kind = kind( 1.0d0 ) ) :: su, qsqd, betot( 3 ), nrm
   integer :: OMP_GET_THREAD_NUM, fh
-  logical :: temp_exist, is_jdftx
+  logical :: temp_exist, is_jdftx, have_core_offset, ex, zero_lumo, noshiftlumo
   character(len=3) :: DFT
   !
   write ( stdout, * ) 'warning: this assumes one-component system'
@@ -85,6 +85,38 @@ subroutine cainkset( avec, bvec, bmet, prefs )
   rewind 99
   read ( 99, * ) eshift
   close( unit=99 )
+  !
+  ! Figure out if we should be shifting to match the conduction band minimum
+  ! default is that we will
+  zero_lumo = .true.
+  !
+  open( unit=99, file='core_offset', form=f9, status='old')
+  rewind 99
+  ! might be true/false, but might be a number (which means true)
+  read( 99, *, IOSTAT=ierr ) have_core_offset
+  close( 99 )
+  if( ierr .ne. 0 ) have_core_offset = .true.
+  ! if we are doing a core-level shift, then we don't zero the lumo
+  if( have_core_offset ) zero_lumo = .false.
+
+  ! Allow an override option
+  inquire( file='noshift_lumo',exist=ex)
+  if( ex ) then
+    open(unit=99,file='noshift_lumo',form='formatted',status='old')
+    read( 99, * ) noshiftlumo
+    close( 99 )
+    if( noshiftlumo ) then
+      zero_lumo = .false.
+    else
+      zero_lumo = .true.
+    endif
+    write(stdout,*) 'LUMO shift from no_lumoshiftt:', zero_lumo
+  endif
+
+  ! Finally get rid of eshift if zero_lumo = .false.
+  if( .not. zero_lumo ) eshift = 0.0d0
+  !
+  !
   ! 
 !  read ( stdin, * ) metal ! new
   open( unit=99, file='metal', form=f9, status='old')
