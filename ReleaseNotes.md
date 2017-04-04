@@ -1,3 +1,10 @@
+## v. 2.0.4
+
+#### Minor features
+ 1. Improvements to OPF generation and error checking
+ 2. Consistency between ABINIT and QuantumESPRESSO occupation numbers (occopt/smearing/etc)
+ 3. Updates to core-level shifts to improve feedback to user. Updated documentation.
+
 ## v. 2.0.3
 
 #### Bugfixes
