@@ -1,5 +1,5 @@
 #!/usr/bin/perl
-# Copyright (C) 2014 OCEAN collaboration
+# Copyright (C) 2014, 2016-2017 OCEAN collaboration
 #
 # This file is part of the OCEAN project and distributed under the terms 
 # of the University of Illinois/NCSA Open Source License. See the file 
@@ -178,6 +178,10 @@ while ( $hfinline = <HFINLIST> ) {
   die "No option file for $ppfilename\n" unless (-e $optionfilename );
   `cp $optionfilename atomoptions`;
   `cp ${ppfilename}.mod ppot`;
+
+  system( "$ENV{'OCEAN_BIN'}/validate_opts.pl ${ppfilename} $optionfilename" ) == 0 
+    or die "Failed to validate options file\nCheck $optionfilename\n";
+
   open HFIN, ">HFIN" or die "Failed to open HFIN for writing\n";
   print HFIN "initgrid\n";
   print HFIN "$znucl $grid\n";
