@@ -15,7 +15,7 @@ FFLAGS+= $(OPTIONS)
 
 MODFLAGS= $(MOD_FLAG)/$(OBF_DIR)/iotk/src $(MOD_FLAG)/$(OBF_DIR)/Modules $(MOD_FLAG)/$(OBF_DIR)/PW $(MOD_FLAG).  $(MOD_FLAG)/$(OBF_DIR)/SHIRLEY
 
-IFLAGS = -I$(OBF_DIR)/include
+IFLAGS = -I$(OBF_DIR)/include -I../zbridge/
 
 LIBOBJS = $(OBF_DIR)/flib/ptools.a $(OBF_DIR)/flib/flib.a $(OBF_DIR)/clib/clib.a $(OBF_DIR)/iotk/src/libiotk.a
 
@@ -80,7 +80,8 @@ OCEAN_obf2localbyk_subs.o \
 ../zbridge/zobj/chkfftrecp.o \
 ../zbridge/zobj/facpowfind.o \
 ../zbridge/zobj/optim.o \
-../zbridge/zobj/jlmfft.o \
+../zbridge/zobj/FFT_wrapper.o \
+../CNBSE/zcmsnmult/zobj/jlmfft.o \
 OCEAN_mod_bofx.o \
 OCEAN_timer.o \
 OCEAN_mod_obf2loc.o \
