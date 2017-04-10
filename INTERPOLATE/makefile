@@ -80,7 +80,7 @@ OCEAN_obf2localbyk_subs.o \
 ../zbridge/zobj/chkfftrecp.o \
 ../zbridge/zobj/facpowfind.o \
 ../zbridge/zobj/optim.o \
-../CNBSE/zcmsnmult/zobj/jlmfft.o \
+../zbridge/zobj/jlmfft.o \
 OCEAN_mod_bofx.o \
 OCEAN_timer.o \
 OCEAN_mod_obf2loc.o \
