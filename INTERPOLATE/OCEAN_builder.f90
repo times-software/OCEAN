@@ -1,4 +1,4 @@
-! Copyright (C) 2015 OCEAN collaboration
+! Copyright (C) 2015, 2017 OCEAN collaboration
 !
 ! This file is part of the OCEAN project and distributed under the terms 
 ! of the GPL 2 License. See the file `License' in the current subdirectory.
@@ -397,6 +397,7 @@ call descinit( desc_uofrandb, npt, nbasis_subset, nb, desc_cyclic(NB_), 0, 0, co
   enddo
   write(stdout,*) "done with vcbder"
   write(stdout, '(4(1x,1e15.8))' ) vlev*rytoev, vhev*rytoev, clev*rytoev, chev*rytoev
+  fermi_energy = ( clev + vhev ) / 2.0_dp
   mindif = min( fermi_energy - vhev, clev - fermi_energy )
   maxdif = max( fermi_energy - vlev, chev - fermi_energy )
   sigma = sqrt( mindif * maxdif )
