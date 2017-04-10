@@ -90,7 +90,7 @@
   integer :: nwordo2l, iuntmp, ntot,nptot, ibd, ibp, n_se, iunrbf
   complex(dp),allocatable :: o2l(:,:,:,:)
   real(dp),allocatable :: tau(:,:), se_list(:)
-  logical :: se_exist
+  logical :: se_exist, metal
 
   complex(dp),allocatable :: wfp(:,:), gre(:,:,:), uofr(:), bofr( :, : ), eikr( : ), gre_small(:,:,:), single_bofr(:,:)
   complex(dp),allocatable :: full_xi(:,:), xiofb(:,:), gre_local(:,:,:), phased_bofr(:,:), uofrandb(:,:)
@@ -244,6 +244,10 @@
     read( iuntmp, * ) fermi_energy
     close( iuntmp )
 
+    open( unit=iuntmp,file='metal',form='formatted',status='old')
+    read( iuntmp, * ) metal
+    close( iuntmp )
+
     n_se = 0
     inquire(file='screeningenergies.ipt',exist=se_exist)
     if( se_exist ) then
@@ -288,6 +292,7 @@
     call mp_bcast( se_list, ionode_id )
   endif
   call mp_bcast( eshift, ionode_id )
+  call mp_bcast( metal, ionode_id )
 
   ! Prep bofr
   call BLACS_GRIDINFO( context_cyclic, nprow, npcol, myrow, mycol )
@@ -397,7 +402,8 @@ call descinit( desc_uofrandb, npt, nbasis_subset, nb, desc_cyclic(NB_), 0, 0, co
   enddo
   write(stdout,*) "done with vcbder"
   write(stdout, '(4(1x,1e15.8))' ) vlev*rytoev, vhev*rytoev, clev*rytoev, chev*rytoev
-  fermi_energy = ( clev + vhev ) / 2.0_dp
+  ! For insulators the input efermi is the HOMO, not the mid-gap
+  if( .not. metal )  fermi_energy = ( clev + vhev ) / 2.0_dp
   mindif = min( fermi_energy - vhev, clev - fermi_energy )
   maxdif = max( fermi_energy - vlev, chev - fermi_energy )
   sigma = sqrt( mindif * maxdif )
