@@ -4,6 +4,8 @@ ppdir{ ../ }
 ngkpt { 8 8 8 }
 obkpt{ 4 4 4 }
 photon_q{ 0.0001 0.0001 0.0001 }
+
+# Converged nkpt would be more like 16 16 16
 nkpt { 8 8 8 }
 nbands 24
 screen.nkpt{ 2 2 2 }
@@ -24,9 +26,6 @@ xred {
  0.25    0.25    0.25
 }
 ecut 45.0
-toldfe 1.0d-6
-tolwfr 1.0d-16
-nstep 61
 diemac 5.7
 CNBSE.xmesh { 6  6  6 }
 
@@ -36,7 +35,12 @@ cnbse.rad 3.5
 opf.opts{ 6 c.opts }
 opf.fill{ 6 c.fill }
 
-nedges 2
-edges{ 1 1 0 
-       2 1 0 }
-cnbse.broaden 0.2
+# Run all (both) carbon sites
+edges{ -6 1 0 }
+
+# Broadening should normally be exactly the core-hole lifetime
+#  this is only higher to make the example faster
+cnbse.broaden 0.4
+
+# Convergence criterion for GMRES
+cnbse.gmres.ffff 0.0000005
