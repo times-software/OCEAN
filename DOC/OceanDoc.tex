@@ -19,6 +19,8 @@
 \usepackage{float}
 \usepackage{amsmath,natbib}
 \usepackage{xfrac}
+\usepackage{caption}
+\usepackage{subcaption}
 \newcommand{\norm}[1]{\left\Vert#1\right\Vert}
 \newcommand{\abs}[1]{\left\vert#1\right\vert}
 \newcommand{\bra}[1]{\left<#1\right\vert}
@@ -258,6 +260,169 @@ This time the code has performed additional calculations to get the Kohn-Sham po
 The calculation of the core-level shifts are carried out in the \file{SCREEN} directory because the core-hole screening enters in (Eq.~\ref{CLS_eqn}). 
 The auxiliary script \program{core\_shift.pl} takes care of the calculation, running the necessary post-processing for either \program{abint} or \program{QuantumESPRESSO}. 
 
+
+\section{RIXS of diamond}
+
+Resonant inelastic x-ray scattering (RIXS) is a photon-in--photon-out spectroscopy where the response of the system can depend strongly on both the incoming and outgoing x-ray photons.
+Several effects can be probed with RIXS, including the phonons and spin-density waves, but \program{ocean} is a BSE code, and, therefore, it is only capable of exploring the excitonic, band-structure contributions to RIXS spectra. 
+After a brief overview of the theory we will walk through an example looking at the carbon K edge in diamond.
+In addition to the regular input file the diamond example has a shell script \file{diamond.sh}. 
+You will need to edit this script to include the path of the \program{ocean} executables.
+
+\subsection{RIXS theory}
+Read the excellent reviews by Kotani and Shin (Rev.\ Mod.\ Phys.\ {\bf 73}, 203, 2001) and Ament {\it et al.} (Rev.\ Mod.\ Phys.\ {\bf 83}, 705, 2011). With \program{ocean} we are able to calculate what Ament {\it et al.} refer to as direct RIXS. To be filled in later.
+
+\subsection{Method}
+
+The way we go about RIXS calculations with \program{ocean} is a two step process: one set of core-level calculations and one of valence. First, we carry out a core-level BSE calculation to determine the intermediate states.
+From Eq.~\ref{rixs} above we have
+\begin{align}
+\sigma( \mathbf{k}, \hat{\epsilon}, \omega; \mathbf{k}', \hat{\epsilon}', \omega' )
+\propto \sum_f \left| \sum_M \frac{ \langle f \vert \hat{d}^\dagger_{\mathbf{k}', \hat{\epsilon}'} \vert M \rangle \langle M \vert \hat{d}_{\mathbf{k}, \hat{\epsilon}} \vert i \rangle}{\omega - (\varepsilon_M - \varepsilon_i) + i\Gamma_M} \right|^2 \delta( \varepsilon_f - \varepsilon_i + \omega'-\omega)
+\label{rixs-method1}
+\end{align}
+but now we denote the intermediate states as $M$ which denote both the conduction-band electronic states $m$ and the specific core site $\alpha$.
+If a system has more than one atomic site of the same element (or with edges with overlapping energy ranges, e.g., V$_x$O$_y$) then each site must be included coherently in the sum over intermediate states. 
+We can rewrite Eq.~\ref{rixs-method1}
+\begin{align}
+\sigma( \mathbf{k}, \hat{\epsilon}, \omega; \mathbf{k}', \hat{\epsilon}', \omega' )
+\propto \sum_f \left|  \langle f \vert \hat{d}^\dagger_{\mathbf{k}', \hat{\epsilon}'} \sum_{M=m,\alpha} \frac{ \vert m \rangle \langle m \vert \hat{d}_{\mathbf{k}, \hat{\epsilon};\alpha} \vert i \rangle}{\omega - (\varepsilon_m +\Delta_\alpha) + i\Gamma_{\alpha}} \right|^2 \delta( \varepsilon_f  + \omega'-\omega)
+\label{rixs-method2}
+\end{align}
+by setting $\varepsilon_i$ to zero and breaking out the explicit reference to which site the photon operator $\hat{d}$ is acting on. 
+We are able to separate out the {\bf absorption} by site because the core orbital is localized and has no overlap with the core orbitals at another site. 
+
+
+We can now define the conduction-band--core-hole ``exciton'' as
+\begin{align}
+\label{rixs-exciton}
+\vert y(\omega,\mathbf{k}, \hat{\epsilon};\alpha) \rangle \equiv& \sum_m \frac{ \vert m \rangle \langle m \vert \hat{d}_{\mathbf{k}, \hat{\epsilon};\alpha} \vert i \rangle}{\omega - (\varepsilon_m +\Delta_\alpha) + i\Gamma_{\alpha}} 
+\end{align}
+where the scare-quotes around exciton remind us that this is not the excitons that are the eigenstates of the two-particle BSE Hamiltonian.
+Instead we are interested in what we could call the experimentally-measured exciton which is the weighted, coherent sum over all possible intermediate states that can be created by our transition operator. 
+The weighting is from the resonant energy denominator, broadened by the core-hole lifetime. 
+(Additional broadening could come from the lifetime of the conduction band states which make up $m$ and possibly from phonon coupling, but these are neglected here.)
+In \program{ocean} the exciton is solved for using a two-particle, electron-hole basis. The electron orbitals are in a Bloch representation with band index $n$ and crystal momentum $\mathbf{q}$ to represent the electron part of the exciton, while the holes are indexed by $\alpha$ to represent the atomic site and principle, angular, and azimuthal quantum numbers and also form Bloch states with momentum $\mathbf{q-k}$.
+By construction we are conserving momentum, hence the hole and electron are offset by the momentum of the absorbed photon.
+
+Inserting our basis into Eq.~\ref{rixs-exciton} we get
+\begin{align}
+\vert y(\omega,\mathbf{k}, \hat{\epsilon};\alpha) \rangle =& 
+\sum_{\substack{c, \mathbf{q}\\ \alpha, \mathbf{q-k}}} \frac{ \vert c \mathbf{k}; \alpha, \mathbf{q-k}\rangle \langle  c \mathbf{k}; \alpha, \mathbf{q-k} \vert \hat{d}_{\mathbf{k}, \hat{\epsilon};\alpha} \vert i \rangle}{\omega - H_\textrm{BSE} + i\Gamma_{\alpha}} \nonumber \\
+=&\sum_{\substack{c, \mathbf{q}\\ \alpha, \mathbf{q-k}}} \frac{ \vert c \mathbf{k}; \alpha, \mathbf{q-k}\rangle \langle  c \mathbf{k} \vert \hat{d}_{\mathbf{k}, \hat{\epsilon};\alpha} \vert  \alpha, \mathbf{q-k} \rangle}{\omega - H_\textrm{BSE} + i\Gamma_{\alpha}} 
+\end{align}
+where, because we have assumed the excited state is a single electron-hole pair, the only connection between the initial state $i$ and the intermediate state is reduced to the transition matrix element between the core level $\alpha$ and conduction band $c$.
+
+We have been a bit sloppy, but our problem is now reduced to 
+\begin{align}
+&\vert x(\omega) \rangle = \frac{1}{\omega - H + i\eta} \vert b \rangle \nonumber \\
+&\vert x(\omega) \rangle = \frac{1}{A(\omega) + i\eta} \vert b \rangle \nonumber \\
+&Ax = b \nonumber
+\end{align}
+where we renamed $y\rightarrow x$ and $\Gamma \rightarrow \eta$ to better match standard linear algebra conventions. 
+This can be approximated using iterative techniques, such as the generalized minimal residual method used in \program{ocean} (Saad and Schultz, 1987). 
+See section \ref{GMRES-section} for a summary and reference to the parameters that control this approximation within \program{ocean}.
+Iterative technique rely on the finite imaginary term $\eta$ to avoid dividing by 0 and instabilities from finite-precision arithmetic. 
+Here we have an advantage as the imaginary term physically corresponds to the inverse lifetime of the intermediate state $\Gamma$ which can be quite large compared to the other energy scales in the Hamiltonian, making convergence easier than for an infinitesimal $\eta$.
+
+
+We can substitute our exciton from Eq.~\ref{rixs-exciton} into Eq.~\ref{rixs-method2} and then expand to alleviate the sum over final states
+\begin{align}
+\sigma( \mathbf{k}, \hat{\epsilon}, \omega; \mathbf{k}', \hat{\epsilon}', \omega' )
+&\propto \sum_f \left|  \langle f \vert \hat{d}^\dagger_{\mathbf{k}', \hat{\epsilon}'} \sum_{\alpha}\vert  y(\omega,\mathbf{k}, \hat{\epsilon};\alpha) \rangle \right|^2 \delta( \varepsilon_f  + \omega'-\omega)
+\label{rixs-method3}  \\
+&\propto \sum_f \left|  \langle f \vert \hat{d}^\dagger_{\mathbf{k}', \hat{\epsilon}'}\vert  \bar{y}(\omega,\mathbf{k}, \hat{\epsilon}) \rangle \right|^2 \delta( \varepsilon_f  + \omega'-\omega)  \nonumber \\
+&\propto -\mathfrak{Im} \left[ \langle \bar{y}(\omega,\mathbf{k}, \hat{\epsilon})  \vert  \hat{d}_{\mathbf{k}', \hat{\epsilon}'} \frac{1}{\omega'-\omega - H}  \hat{d}^\dagger_{\mathbf{k}', \hat{\epsilon}'} \vert  \bar{y}(\omega,\mathbf{k}, \hat{\epsilon}) \rangle \right]
+\label{rixs-method4}
+\end{align}
+where $\bar{y} = \sum_\alpha y(\alpha)$. 
+The operator $\hat{d}^\dagger_{\mathbf{k}', \hat{\epsilon}'}$ acting on the excitonic state $y$ fills the core hole $\alpha$ leaving a valence hole (and the conduction electron). 
+The Hamiltonian in Eq.~\ref{rixs-method4} is acting on a space containing a valence hole and a conduction band electron, and is approximated in \program{ocean} using the valence BSE solver, originally released as \program{ai2nbse}. 
+This is done by inserting a set of valence and conduction band states (eigenstates of the ground-state DFT Hamiltonian)
+\begin{align}
+\sigma( \mathbf{k}, \hat{\epsilon}, \omega; \mathbf{k}', \hat{\epsilon}', \omega' )
+&\propto -\mathfrak{Im} \left[ \langle \bar{y}(\omega,\mathbf{k}, \hat{\epsilon})  \vert  \hat{d}_{\mathbf{k}', \hat{\epsilon}'} \vert vc \rangle \langle vc \vert  \frac{1}{\Omega - H}  \vert v'c' \rangle \langle v'c' \vert  \hat{d}^\dagger_{\mathbf{k}', \hat{\epsilon}'} \vert  \bar{y}(\omega,\mathbf{k}, \hat{\epsilon}) \rangle \right]
+\label{rixs-haydock}
+\end{align}
+and then using the Haydock method to generate the spectra with respect to the energy loss $\Omega=\omega'-\omega$. 
+The states $v$ and $c$ refer to valence and conduction band states, respectively, and the momentum dependence has been dropped for legibility.
+
+\subsection{First, calculate the x-ray absorption}
+For a variety of reasons, as a first step in calculating RIXS we almost always want to run an absorption calculation.
+If we are comparing to experiment we will need to establish an alignment between the energies measured in the experiment versus the calculated energies which have no absolute core-level alignment. 
+On the other hand if we are calculating ahead of an experiment we will probably want to look at the absorption to try and pick interesting features to investigate. 
+In any case, the core-level BSE is a much cheaper calculation (usually fewer 1{\it s} or 2{\it p} states than valence bands, and the core-levels are nicely localized in space), and it will be easier and faster to check the convergence parameters by looking at the absorption than it would be by running the full RIXS.
+
+As with any tutorial feel free to start it before reading the section. In this case run it using the script \file{diamond.sh} which may require editing to specify the path to your \program{ocean} installation. 
+There are a couple of differences in this input file \file{diamond.in} from some of the other tutorials that should be noted. 
+The first is the presence of `photon\_q' (the momentum transferred to the electrons by the photons) which must be present and non-zero for all RIXS (or valence) calculations. 
+This is both physically true, the scattered or emitted photons are going to be measured at a non-zero angle from the incoming beam and therefore represent a finite momentum transfer, and because parts of the calculation diverge in the limit of zero momentum transfer. 
+Some BSE codes go to great length to work around the divergence --- we just use a finite momentum transfer (which can be very, very small).
+The second is that we use a negative number for `edges' which tells the code we want to calculate every element with a matching $Z$. In our case we are asking for every carbon atom ($Z=6$). 
+This is a good habit for RIXS calculations as physically you must include every matching site in the intermediate sum, but the code has no checks to enforce this.
+
+For your own, future calculations you'll want to spend some time with the absorption calculations. 
+You can see how many bands are needed to cover the energy range you are interested in, and check the convergence of both the k-points and xmesh. 
+Valence calculations (including the final part of RIXS) scale with the size of xmesh to the second power. Unlike the core-level calculation, the valence-band hole can be anywhere in the unit cell.
+These calculations take a bit longer than the core-level BSE.
+But, for the example we won't bother with second-guessing or checking and move right along.
+
+\subsection{Second, run the core-level code again}
+\begin{figure}
+\center
+\includegraphics[angle=270,width=4.5in]{diamond_xas.eps}
+\caption{ The calculated XAS at the carbon K edge for diamond (red line) and the same calculation done using GMRES for a select set of 15 points (blue circles). }
+\label{diamond_xas_plot}
+\end{figure}
+
+The second (and third) steps are both run by the helper code \program{rixs.pl}. 
+We now much determine the excitonic states at each incident photon energy (and polarization) which requires switching the algorithm in the BSE code. This is done via the line in \program{diamond.sh} that says ``echo gmres $>$ Common/cnbse.solver'', which switches us to using the GMRES method. 
+There are two ways to determine which energies to use for the incoming photons. 
+In the diamond example we make use of `cnbse.gmres.erange' which allows us to set the energy range and step size. The units are eVs and the range is given with respect to the same energy axis of the \file{absspct} files from the previous absorption calculation (this is why we do that first).
+In \program{diamond.sh} the line `echo 0 30 2 $>$ Common/cnbse.gmres.erange' tells the code to start at 0 and calculate every 2~eV until it hits 30.
+The last input needed to determine the excitons is the description of the incoming photon. By default the code will use every available photon file, but by using ``photon\_in'' we are able to tell it to only use the first one \file{photon1}.
+
+After the core-level BSE has run a new set of \file{absspct} files has been created, but these have a slightly different format. 
+You should plot \file{CNBSE/absspct\_C\_.0001\_1s\_01} using columns 1 and 3 and \file{RIXS/absspct\_C\_.0001\_1s\_01} using columns 2 and 4 (see Fig.~\ref{diamond_xas_plot}). 
+The RIXS version has only a few points, running from 0 to 30 and spaced every 2~eV, but these points should lie on top of the curve from CNBSE.
+More importantly, the \file{RIXS} directory is now full of \file{echamp\_C\_} files. These contain the information about the excitons $y_{\hat{\epsilon},\alpha}(\omega)$. 
+For the diamond example we should have 30 file{echamp\_C\_} files: 15 energy steps times 2 carbon atoms per cell times 1 incoming photon files.
+The code also has generated \file{cksv} files which contain the transition information for a valence-band electron to fill the core hole $\langle v \vert \hat{d}^\dagger_{\mathbf{k},\hat{\epsilon}} \vert \alpha \rangle $. 
+Together these are used to construct the seed vectors for the valence-level BSE calculations.
+
+\
+
+\subsection{Third, run valence-level calculations}
+
+The last step in the RIXS calculation is a set of valence BSE runs to solve for the final conduction-electron--valence-hole spectra.
+The number of valence runs in our example is 15: 15 energy steps times 1 photon-in--photon-out pair. 
+In general, if you do not specify `photon\_in' and `photon\_out' like we have in this example the code will run for every available pair $N_\textrm{photon} (N_\textrm{photon} -1 )$. 
+We exclude scattering into the same photon polarization and direction. 
+Often experiments are set up such that the detector is parallel to the incoming photon's polarization, requiring that $\hat{\epsilon} \cdot \hat{\epsilon}' = 0$ and suppressing the $A^2$ term in the electron-photon interaction.
+
+The final RIXS spectra are named a bit differently than the XAS or XES spectra files. 
+They are a function of photon in, incoming energy, and photon out, but not dependent on which atomic site (all sites much be summed over coherently).
+The naming scheme is then something like \file{rxsspct\_C\_.0000\_1s\_01.08.02}, where we are looking at the carbon 1{\it s} edges using the 1st photon file as our incoming beam, at the 8th energy step, and  the 2nd photon file as the outgoing x-ray. {(\it N.b.} we are planning on getting rid of the unused `0000' which for \file{absspct} or \file{xesspct} files denote the atomic site.)
+The format of the \file{rxsspct} files follows that of the valence BSE output. 
+For RIXS only the energy in column 1 and $\epsilon_2$ in column 3 are meaningful.
+The energy scale is in eV, but it is measuring the loss $\Omega = \omega - \omega'$, see Fig.~\ref{diamond_rixs}(a) and (b). 
+\begin{figure}
+\centering
+\begin{subfigure}{.5\textwidth}
+  \centering
+  \includegraphics[angle=270,width=0.9\linewidth]{diamond_rixs_loss.eps}
+ % \caption{RIXS of diamond as a function of energy loss}
+  \label{fig:sub1}
+\end{subfigure}%
+\begin{subfigure}{.5\textwidth}
+  \centering
+  \includegraphics[angle=270,width=.9\linewidth]{diamond_rixs_em.eps}
+ % \caption{RIXS of diamond as a function of emission energy}
+  \label{fig:sub2}
+\end{subfigure}
+\caption{The first four calculated energies of the diamond K-edge RIXS plotted either as a function of (a) energy loss or (b) emission energy. In (b) the first energy has been scaled down by 0.5 and the spectra are offset vertically for clarity.}
+\label{diamond_rixs}
+\end{figure}
 
 
 \iffalse
@@ -1046,7 +1211,7 @@ In summary:
 \begin{enumerate}
 \item{ $\chi(1,2) = G^{(2)}(1,1';2,2')$ }
 \item{ $\Sigma = GW$ }
-\item{ $W(0) \approx W(\omega)$ }
+\item{ $W(\omega) \approx W(0)$ }
 \end{enumerate}
 Having bravely decided not to consider the above sources of error, we have reduced the question of accurate excitation energies to adequately calculating our two interaction terms and the one-electron Green's functions that make up our two-electron, non-interacting Green's function.
 Undaunted we will also, for this chapter, ignore the calculation of the direct and exchange, except to say that one must, of course, converge these two terms.
@@ -1064,7 +1229,7 @@ G(1,1') = G_0(1,1') + G_0(1,2) \Sigma(2,3) G(3,1')
 where $\Sigma$ is the proper self-energy.
 For an in-depth look at $\Sigma$ we would suggest the reader look elsewhere \ref{ManyGWstuff}.
 Here we will only point out that, given a correct $\Sigma$, and hence a dressed one-electron Green's function $G$, the BSE will give exciton energies that will match experimental measurements, subject to the approximations at the end of section \ref{CLS.bse}. 
-In practice there are two widely used approximations for $\Sigma$, namely the $GW$ method (really many different approximations with a range of costs and sophistication) and the DFT method $\Sigma = V_{XC} - V_X$.
+In practice there are two widely used approximations for $\Sigma$, namely the $GW$ method (really many different approximations with a range of costs and sophistication) and the DFT method where explicitly or implicitly it is assumed that solving the DFT Hamiltonian gives a good approximation to the one-electron orbitals and energies.
 It is not usually phrased this way, but the success and popularity of DFT is due to 1) its low computational cost; and 2) the extraordinary fact that the exchange-correlation potential is an adequate approximation to the true exchange and correlation of system. 
 
 For a valence calculation, UV/visible spectrum, the problem of aligning the absorption spectrum is then simply the problem of getting a good enough calculation of the self-energy. 
