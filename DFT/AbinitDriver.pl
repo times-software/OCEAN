@@ -33,13 +33,14 @@ my $RunABINIT = 0;
 my $screenRUN = 0;
 my $bseRUN = 0;
 
-my @GeneralFiles = ("core", "para_prefix", "ser_prefix" );
+my @GeneralFiles = ("para_prefix", "ser_prefix" );
 
 my @KgenFiles = ("nkpt", "k0.ipt", "qinunitsofbvectors.ipt", "screen.nkpt");
 my @BandFiles = ("nbands", "screen.nbands");
 my @AbinitFiles = ( "rscale", "rprim", "ntype", "natoms", "typat",
     "verbatim", "coord", "taulist", "ecut", "etol", "nrun", "wftol", 
-    "fband", "occopt", "ngkpt", "abpad", "nspin", "smag", "metal", "degauss");
+    "fband", "occopt", "ngkpt", "abpad", "nspin", "smag", "metal", "degauss", 
+    "dft.calc_stress", "dft.calc_force");
 my @PPFiles = ("pplist", "znucl");
 my @OtherFiles = ("epsilon");
 
@@ -123,6 +124,9 @@ else {
 
 }
 
+open OUT, ">core" or die;
+print OUT "1\n";
+close OUT;
 
 
 #unless ($RunABINIT || $RunPP || $RunKGen ) {
@@ -218,6 +222,30 @@ my $metal = 1;
 if( <IN> =~ m/false/i )
 {
   $metal = 0;
+}
+close IN;
+
+open IN, "dft.calc_stress" or die "Failed to open dft.calc_stress\n$!";
+my $calc_stress;
+if ( <IN> =~ m/true/i ) 
+{
+  $calc_stress = 1;
+}
+else
+{
+  $calc_stress = 0;
+}
+close IN;
+
+open IN, "dft.calc_force" or die "Failed to open dft.calc_force\n$!";
+my $calc_force;
+if ( <IN> =~ m/true/i )
+{
+  $calc_force = 2;
+}
+else
+{
+  $calc_force = 0;
 }
 close IN;
 
@@ -398,6 +426,8 @@ if ($RunABINIT) {
   `cat ngkpt >> inai.denout`;
   `echo 'toldfe ' >> inai.denout`;
   `cat etol >> inai.denout`;
+  `echo "optstress $calc_stress" >> inai.denout`; 
+  `echo "optforces $calc_force" >> inai.denout`;
 #  `echo prtdos 3 >> inai.denout`;
 #  `echo prtdosm 1 >> inai.denout`;
 
@@ -560,7 +590,7 @@ if ( $screenRUN ) {
   foreach ( @GeneralFiles, @AbinitFiles, @PPFiles, @OtherFiles) {
     system("cp ../$_ .") == 0 or die "Failed to copy $_\n";
   }
-  foreach ( "screen.nkpt", "screen.nbands", "k0.ipt", "qinunitsofbvectors.ipt", "finalpplist" ) {
+  foreach ( "screen.nkpt", "screen.nbands", "k0.ipt", "qinunitsofbvectors.ipt", "finalpplist", "core" ) {
     system("cp ../$_ .") == 0 or die "Failed to copy $_\n";
   }
   `cp screen.nkpt nkpt`;
@@ -728,7 +758,7 @@ if ( $bseRUN ) {
   foreach ( @GeneralFiles, @AbinitFiles, @PPFiles, @OtherFiles) {
     system("cp ../$_ .") == 0 or die "Failed to copy $_\n";
   }
-  foreach ( "nkpt", "nbands", "k0.ipt", "qinunitsofbvectors.ipt", "finalpplist" ) {
+  foreach ( "nkpt", "nbands", "k0.ipt", "qinunitsofbvectors.ipt", "finalpplist", "core" ) {
     system("cp ../$_ .") == 0 or die "Failed to copy $_\n";
   }
  # run KGEN
