@@ -1,5 +1,5 @@
 #!/usr/bin/perl
-# Copyright (C) 2015, 2016 OCEAN collaboration
+# Copyright (C) 2015 - 2017 OCEAN collaboration
 #
 # This file is part of the OCEAN project and distributed under the terms 
 # of the University of Illinois/NCSA Open Source License. See the file 
@@ -40,7 +40,7 @@ my @BandFiles = ("nbands", "screen.nbands");
 my @AbinitFiles = ( "rscale", "rprim", "ntype", "natoms", "typat",
     "verbatim", "coord", "taulist", "ecut", "etol", "nrun", "wftol", 
     "fband", "occopt", "ngkpt", "abpad", "nspin", "smag", "metal", "degauss", 
-    "dft.calc_stress", "dft.calc_force");
+    "dft.calc_stress", "dft.calc_force", "tot_charge");
 my @PPFiles = ("pplist", "znucl");
 my @OtherFiles = ("epsilon");
 
@@ -383,6 +383,8 @@ if ($RunABINIT) {
   `cat occopt >> abfile`;
   `echo "$tsmear" >> abfile`;
   `echo 'npfft 1' >> abfile`;
+  `echo -n 'charge ' >> abfile`;
+  `cat tot_charge >> abfile`;
   `echo -n 'nsppol ' >> abfile`;
   `cat nspin >> abfile`;
   if( $nspn == 2 )
