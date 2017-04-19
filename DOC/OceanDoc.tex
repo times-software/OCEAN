@@ -574,9 +574,11 @@ The input of \program{ocean} can be divided into several sections
   \begin{description}
     \item[\textbf{Purpose:}] Control aspects of the run
  \item[\textbf{Optional Cards:}] 
-    \htmlref{PARA\_PREFIX}{card:paraprefix}, \htmlref{DFT}{card:dft}, 
+    \htmlref{PARA\_PREFIX}{card:paraprefix}, \htmlref{SER\_PREFIX}{card:serprefix},
+    \htmlref{DFT}{card:dft}, 
     and \htmlref{SCRATCH}{card:scratch}
 \end{description}
+
 \item[\large\textbf{Structural information}]\dotfill\
   \begin{description}
   \item[\textbf{Purpose:}] Specify the structure
@@ -589,7 +591,13 @@ The input of \program{ocean} can be divided into several sections
     \htmlref{TYPAT}{card:typat},
     \htmlref{XRED}{card:xred},
     and \htmlref{DIEMAC}{card:diemac}
+    \item[\textbf{Optional Cards:}] 
+       \htmlref{NSPIN}{card:nspin},
+       \htmlref{SMAG}{card:smag},
+       \htmlref{LDAU}{card:ldau}, and
+       \htmlref{ZYMB}{card:zsymb}
   \end{description}
+  
 \item[\large\textbf{Non-Structural DFT parameters}]\dotfill\
   \begin{description}
   \item[\textbf{Purpose:}] Control convergence of the DFT calculation
@@ -599,17 +607,20 @@ The input of \program{ocean} can be divided into several sections
   \item[\textbf{Recommended Cards:}] 
       \htmlref{NKPT}{card:nkpt},
     \htmlref{NGKPT}{card:ngkpt},
-        \htmlref{NBAND}{card:nband},
+        \htmlref{NBANDS}{card:nbands},
      \htmlref{SCREEN.NBAND}{card:screen.nband},
     \htmlref{OCCOPT}{card:occopt}, \\
     and \htmlref{FBAND}{card:fband}
   \item[\textbf{Optional Cards:}] 
     \htmlref{TOLDFE}{card:toldfe},
     \htmlref{TOLWFR}{card:tolwfr}, 
+    \htmlref{NSTEP}{card:nstep},
     \htmlref{SCREEN.NKPT}{card:screen.nkpt},
-    \htmlref{ABPAD}{card:abpad}, 
-    \htmlref{BSE\_ENERGY\_RANGE}{card:bse_energy_range},
-    and \htmlref{SCREEN\_ENERGY\_RANGE}{card:screen_energy_range}
+    \htmlref{ABPAD}{card:abpad}, \\
+    \htmlref{DFT\_ENERGY\_RANGE}{card:dft_energy_range},
+    \htmlref{SCREEN\_ENERGY\_RANGE}{card:screen_energy_range},
+    \htmlref{K0}{card:k0}, 
+    and \htmlref{DEGAUSS}{card:degauss}
   \end{description}
 \item[\large\textbf{Atomic and Screening Info}]\dotfill\
   \begin{description}
@@ -617,34 +628,42 @@ The input of \program{ocean} can be divided into several sections
   \item[\textbf{Required Cards:}] 
     \htmlref{OPF.FILL}{card:opf.fill},
     \htmlref{OPF.OPTS}{card:opf.opts},
-    \htmlref{NEDGES}{card:nedges},
+ %   \htmlref{NEDGES}{card:nedges},
     and \htmlref{EDGES}{card:edges}
   \item[\textbf{Recommended Cards:}] 
-     \htmlref{screen.SHELLS}{card:paw.shells},
+     \htmlref{SCREEN.SHELLS}{card:screen.shells},
      \htmlref{CNBSE.RAD}{card:cnbse.rad}, 
      \htmlref{SCFAC}{card:scfac}, and \htmlref{CORE\_OFFSET}{card:core-offset}
   \item[\textbf{Optional Cards:}]     
-     \htmlref{screen.HFKGRID}{card:screen.hfkgrid}
+     \htmlref{OPF.HFKGRID}{card:opf.hfkgrid}
   \end{description}
+  
 \item[\large\textbf{BSE Parameters}]\dotfill\
   \begin{description}
   \item[\textbf{Purpose:}] Parameters used in the BSE calculation
   \item[\textbf{Recommended Cards:}]   
-    \htmlref{CNBSE.XMESH}{card:cnbse.xmesh} and \htmlref{CNBSE.MODE}{card:cnbse.mode}
-  \item[\textbf{Optional Cards:}]   
+    \htmlref{CNBSE.XMESH}{card:cnbse.xmesh}, \htmlref{CNBSE.MODE}{card:cnbse.mode},
+     \htmlref{CNBSE.NITER}{card:niter},
     \htmlref{METAL}{card:metal},
-    \htmlref{CKS.STRETCH}{card:stretch},
+    \htmlref{SPIN-ORBIT}{card:spin-orbit}, 
+    \htmlref{PHOTON\_Q}{card:photonq}, 
 %    \htmlref{CKS.NORMAL}{card:cks.normal},
-    and  \htmlref{CNBSE.STRENGTH}{card:strength}
+      \htmlref{CNBSE.STRENGTH}{card:strength},
+      \htmlref{CNBSE.SOLVER}{card:cnbse-solver}, \\
+      \htmlref{CNBSE.GMRES.ELIST}{card:gmres-elist}, 
+      \htmlref{CNBSE.GMRES.ERANGE}{card:gmres-erange},
+      \htmlref{CNBSE.GMRES.NLOOP}{card:gmres-nloop},\\
+      \htmlref{CNBSE.GMRES.GPRC}{card:gmres-gprc}, 
+      and \htmlref{CNBSE.GMRES.FFFF}{card:gmres-ffff}
   \end{description}
+  
 \item[\large\textbf{Spectrum Information}]\dotfill\
   \begin{description}
   \item[\textbf{Purpose:}] Controls the spectrum that is written out, not any aspect of the actual calculation
   \item[\textbf{Recommended Cards:}]   
     \htmlref{CNBSE.BROADEN}{card:broaden}  
    \item[\textbf{Optional Cards:}]   
-    \htmlref{CNBSE.SPECT\_RANGE}{card:spect-range},
-    and \htmlref{CNBSE.NITER}{card:niter}
+    \htmlref{CNBSE.SPECT\_RANGE}{card:spect-range}
   \end{description}   
 \end{description}
 
@@ -671,10 +690,16 @@ For arguments that are 2-D arrays the ordering is in normal math / C ordering.
 \section{Run Control}
 \label{sec:Run-Control}
 
+
 \begin{Card}{PARA\_PREFIX}{para\_prefix}{Optional}{paraprefix}
 This is necessary for parallel runs. Depending on your system you may need so helper to launch parallel jobs such as \program{mpirun}, 
-\program{mpiexec}, or \program{aprun}. The \program{ocean} scripts are designed to try and parse this to figure out how many processors 
-you are trying to run across, e.g., `mpirun -n 12' will be parsed to tell \program{ocean} to prepare DFT runs across 12 cores. 
+\program{mpiexec}, \program{srun}, \program{aprun}, \&c. 
+The \program{ocean} scripts are designed to try and parse this to figure out how many processors you are trying to run across, e.g., `mpirun -n 12' will be parsed to tell \program{ocean} to prepare DFT runs across 12 cores. 
+If you need to include additional flags, e.g., `mpirun -n 16 -{}-map-by ppr:8:socket' just make sure that the first number is the number of processors.
+\end{Card}
+
+\begin{Card}{SER\_PREFIX}{ser\_prefix}{Optional}{serprefix}
+On some systems \program{cut3d} will hang when launched on multiple processors, but must be launched with the parallel job launcher from above, i.e., `mpirun -n 1'.
 \end{Card}
 
 \begin{Card}{DFT}{dft}{Optional}{dft}
@@ -750,6 +775,33 @@ The XRED card lists the reduced coordinates, ( x, y, z ), of the all \texttt{nat
 The MACropscopic DIElectric constant \texttt{diemac} is required for both the DFT stage and also as a parameter in the screening calculations. It is included here as a physical property of the system of interest.
 \end{Card}
 
+\begin{Card}{NSPIN}{nspin}{Optional}{nspin}
+Can choose to have spin=1 (paramagnetic) or spin=2. Currently, only collinear spin is allowed.
+\end{Card}
+
+\begin{Card}{SMAG}{smag}{Optional}{smag}
+Controls the initial magnetism for the DFT calculations. See the hematite example and the \program{abinit} or \program{QuantumESPRESSO} documentation for more information.
+\end{Card}
+
+\begin{Card}{LDAU}{ldau}{Optional}{ldau}
+Controls the $+U$ parameters for the DFT run. Only works with \
+program{QuantumESPRESSO} currently. See the hematite example.
+\end{Card}
+
+\begin{Card}{ZSYMB}{zsymb}{Optional}{zsymb}
+Each element listed in \htmlref{ZNUCL}{card:znucl} also needs a symbol when running using \program{QuantumESPRESSO}.
+By convention this will be the atomic symbol: Fe for iron, and the code can automatically populate this for you.
+However, sometimes the same element needs to be marked as inequivalent, either because of local magnetic order or charge-state ($+U$). 
+For example, in hematite one needs two different iron species in order to set one site as spin up and one as spin down.
+When this is the case the user needs to list iron twice \htmlref{ZNUCL}{card:znucl} and provide zsymb.
+
+\begin{verbatim}
+ntypat 3
+znucl{ 26 26 8 }
+zsymb{ Fe1 Fe2 O }
+\end{verbatim}
+\end{Card}
+
 %%%%%%
 \section{DFT Parameters}
 \label{sec:DFT-Parameters}
@@ -773,7 +825,7 @@ NKPT sets the number of k-points used to sample the cell for calculation of the 
 DFT calculations require a self-consistently determined ground state density for the Kohn-Sham Hamiltonian. As such, in \program{ocean}, first a ground state calculation is done using only the occupied states and a few unoccupied states for convergence. This density is then used as input to the other DFT calculations to get wave functions. NGKPT determines the k-point sampling for this ground state calculation. Care should be taken to ensure enough k-points are used to give a converged density.
 \end{Card}
 
-\begin{Card}{NBAND}{nband}{Recommended}{nband}
+\begin{Card}{NBANDS}{nbands}{Recommended}{nbands}
 The number of total bands for the final-state wave-functions is set by NBAND. This includes all valence states but not core states.
 \begin{verbatim}
   * In diamond there are two C atoms each with 4 valence electrons.
@@ -791,7 +843,7 @@ OCCOPT controls how \program{ABINIT} determines occupation. The allowed values o
 \begin{description}
 \item[\texttt{occopt} = 1]\hfill\\ States are all doubly degenerate and either occupied or empty depending on band. Suitable for insulators. 
 	For \program{Quantum Espresso} this is equivalent to  OCCUPATIONS = `fixed'.
-\item[\texttt{occopt} = 3]\hfill\\ States are all doubly degenerate but can have fractional occupations depending on fermi level. Suitable for metals. For \program{Quantum Espresso} this is equivalent to OCCUPATIONS = `smearing'. 
+\item[\texttt{occopt} = 3]\hfill\\ States are all doubly degenerate but can have fractional occupations depending on fermi level. Suitable for metals. For \program{Quantum Espresso} this is equivalent to OCCUPATIONS = `smearing' and smearing = `fermi-dirac'.
 \end{description}
 \end{Card}
 
@@ -809,6 +861,11 @@ TOLDFE sets the convergence parameter for the density or SCF run. For \program{a
 The convergence criterium for the (NSCF) wave-function calculations is set by TOLWFR. The default (\texttt{tolwfr} = $10^{-16}$) should be sufficient. For the \program{Quantum Espresso} version, this parameter sets the CONV\_THR for the NSCF calculations. 
 \end{Card}
 
+\begin{Card}{NSTEP}{nstep}{Optional}{nstep}
+The maximum number of iterations the DFT code attempt. If convergence is not reached after \texttt{nstep} iterations then \program{abinit} will continue with a silent warning and \program{QuantumESPRESSO} will fail.
+The default is 50.
+\end{Card} 
+
 \begin{Card}{SCREEN.NKPT}{screen.nkpt[3]}{Optional}{screen.nkpt}
 The screening calculation is less sensitive to k-point sampling than the final states and is therefore calculated on a smaller grid which is set by SCREEN.NKPT. The default setting ( SCREEN.NKPT = 2 2 2 ) is sufficient for a wide variety of systems though very small or very large unit cells may require more or only the gamma point respectively. 
 \end{Card}
@@ -817,16 +874,30 @@ The screening calculation is less sensitive to k-point sampling than the final s
 During the non-self-consistent calculation of the wavefunctions, the convergence of the highest bands can be very slow. The calculation speed can be increased by adding some throw-away bands to the top. These bands are not considered when checking for convergence and should also not be used in the subsequent steps of the calculation. The parameter abpad adds bands to the calculation and tells ABINIT to ignore them using ABINIT's nbdbuf setting. This has no effect for the \program{Quantum Espresso} version. 
 \end{Card}
 
-\begin{Card}{BSE\_ENERGY\_RANGE}{bse\_energy\_range}{Optional}{bse_energy_range}
-Instead of setting the number of bands (\texttt{nband}) the user may request an energy range in eV for the final-state wave-functions. 
+\begin{Card}{DFT\_ENERGY\_RANGE}{dft\_energy\_range}{Optional}{dft_energy_range}
+Instead of setting the number of bands (\texttt{nbands}) the user may request an energy range in eV for the final-state wave-functions. 
 This is only an estimate using the volume of the unit cell and may be unreliable. 
-This parameter is only used if no value for \texttt{nband} is given. The default value is 25~eV.
+This parameter is only used if no value for \texttt{nbands} is given. The default value is 25~eV.
 \end{Card}
 
 \begin{Card}{SCREEN\_ENERGY\_RANGE}{screen\_energy\_range}{Optional}{screen_energy_range}
 Instead of setting the number of bands for the screening (\texttt{screen.nband}) the user may request an energy range in eV. 
 This is only an estimate using the volume of the unit cell and may be unreliable. 
 This parameter is only used if no value for \texttt{screen.nband} is given. The default value is 100~eV. 
+\end{Card}
+
+\begin{Card}{K0}{k0[3]}{Optional}{k0}
+The DFT states are calculated using a shifted {\it k}-point grid. 
+The first {\it k}-point is given by 
+\begin{equation}
+\frac{1}{N_k(1) \cdot k_0(1)}, \frac{1}{N_k(2) \cdot k_0(2)}, \frac{1}{N_k(3) \cdot k_0(3)} \nonumber
+\end{equation}
+where $N_k$ is given by \htmlref{nkpt}.
+The default shift is $\sfrac{1}{8},\sfrac{2}{8},\sfrac{3}{8}$.
+
+
+\begin{Card}{DEGAUSS}{degauss}{Optional}{degauss}
+Sets the broadening of the smearing function (in Ryd.) for metallic occupations in the DFT
 \end{Card}
 
 %%%%%%
@@ -851,20 +922,15 @@ Each type of atom you want spectra of requires a \file{*.opts} file which is exp
 \end{verbatim}
 \end{Card}
 
-\begin{Card}{NEDGES}{nedges}{Required}{nedges}
-The number of edges to run is set by NEDGES. Each site and edge is counted separately. So for a 64 atom amorphous carbon cell you would want \texttt{nedges} = 64 for a complete sample. To run the K and L edges Titanium edges in TiS$_2$ you would need \texttt{nedges} = 3. See also \htmlref{EDGES}{card:edges}.
-\end{Card}
+%\begin{Card}{NEDGES}{nedges}{Required}{nedges}
+%The number of edges to run is set by NEDGES. Each site and edge is counted separately. So for a 64 atom amorphous carbon cell you would want \texttt{nedges} = 64 for a complete sample. To run the K and L edges Titanium edges in TiS$_2$ you would need \texttt{nedges} = 3. See also \htmlref{EDGES}{card:edges}.
+%\end{Card}
 
-\begin{Card}{EDGES}{edges[nedges,3]}{Required}{edges}
-Each edges being run is defined by 3 integers that set which atom in the same order as \htmlref{XRED}{card:xred}, and which initial state by $n$ and $l$. Note, spin-orbit split edges are calculated together as is necessary to include multiplet terms.
+\begin{Card}{EDGES}{edges[3,*]}{Required}{edges}
+Each edge entry consists of 3 integers. When the first is greater than 0 it denotes the {\bf index} of the atom (in the order set by \htmlref{XRED}{card:xred}), and when it is less than zero it sets the (negative) $Z$, allowing you to specify {\bf all} of a given element.
+The second and third numbers are the principle and angular quantum number.
+For instance `\texttt{ 1 2 1 }' would run the L$_{2,3}$ edge of the first atom in the input, while `\texttt{ -22 2 1 }' would run the L$_{2,3}$ edges of every titanium atom in the system.
 
-For example, running TiS$_2$ where Ti was listed as the first atom and looking at the K, L$_1$, and L$_{2,3}$ edges respectively.
-\begin{verbatim}
-  * atom, n, l
-    Ti    1  0
-    Ti    2  0
-    Ti    2  1
-\end{verbatim}
 \end{Card}
 
 \begin{Card}{SCREEN.SHELLS}{shells[]}{Recommended}{screen.shells}
@@ -885,7 +951,7 @@ The Slater integrals are calculated in an atomic program and are generally scale
 This card determines wether or not core-level shifts are run, and, if so, sets the offset. Acceptable values are: true, false, or any number. If set to true the code will determine a value of offset so that the average shift among all sites being run is zero. 
 \end{Card}
 
-\begin{Card}{SCREEN.HFKGRID}{screen.hfkgrid}{Optional}{screen.hfkgrid}
+\begin{Card}{OPF.HFKGRID}{opf.hfkgrid}{Optional}{opf.hfkgrid}
 This sets two parameters for the program \program{hfk.x}. The first is a grid and should be left at the default value of 2000. The second determines the maximum number of projectors per angular momentum channel that can be created. In the future this should dynamically resize, but in the present the default of 20 will work for many calculations. If the program \program{hfk.x} fails it may be solved by increasing this number. It will say something about `ne' being too small. 
 \end{Card}
 
@@ -904,12 +970,27 @@ setting for this mesh.
 The mode can be either ``XAS'' or ``XES'' (NRIXS or XRS are treated the same as XAS). By default the code uses ``XAS.''
 \end{Card}
 
+\begin{Card}{CNBSE.NITER}{niter}{Optional}{niter}
+This sets the number of Haydock iterations. The default is $100$.
+\end{Card}
+
 \begin{Card}{METAL}{metal}{Optional}{metal}
 The METAL card determines wether the code expects to determine occupation by band or by energy with respect to the fermi energy. The parameter \texttt{metal} can be set to either $.true.$ or $.false.$ (default). If \texttt{metal} is set to {\it .true.} the code will complain unless \htmlref{OCCOPT}{card:occopt} is 3 and similarly for \texttt{metal} = {\it .false.} and \texttt{occopt} = 1. The use of \program{ocean} on metals requires some further testing. 
 \end{Card}
 
-\begin{Card}{CKS.STRETCH}{cks.stretch}{Optional}{stretch}
-An approximation to some kind of self-energy is allowed through the use of CKS.STRETCH. All conduction band energies with respect to the fermi level are multiplied by \texttt{stretch}. By default \texttt{stretch} = $1.0$. 
+%\begin{Card}{CKS.STRETCH}{cks.stretch}{Optional}{stretch}
+%An approximation to some kind of self-energy is allowed through the use of CKS.STRETCH. All conduction band energies with respect to the fermi level are multiplied by \texttt{stretch}. By default \texttt{stretch} = $1.0$. 
+%\end{Card}
+
+\begin{Card}{SPIN-ORBIT}{spin-orbit}{Optional}{spin-orbit}
+The spin-orbit splitting between, e.g., the L$_2$ and L$_3$ edges, is automatically calculated within \program{ocean}, but can be overridden by setting SPIN-ORBIT $ \ge 0$. 
+This could be useful for heavy elements where the L$_{2,3}$ splitting is many 100s of eVs and the two can be considered separately (set it to 0), or for investigating the effect of spin-orbit strength on the fine structure.
+\end{Card}
+
+\begin{Card}{PHOTON\_Q}{photon\_q[3]}{Optional}{photonq}
+For UV/Vis and RIXS calculations the valence and conduction band states must be offset from each other (by the momentum that is absorbed or transferred). 
+This sets that momentum offset in units of the reciprocal lattice vectors of the system.
+By default it is 0 0 0.
 \end{Card}
 
 \begin{Card}{CNBSE.STRENGTH}{cnbse.strength}{Optional}{strength}
@@ -917,26 +998,47 @@ This card sets the strength for the two interaction terms in the BSE Hamiltonian
 It can be changed for curiosity's sake.
 \end{Card}
 
-%\begin{Card}{CKS.NORMAL}{cks.normal}{Optional}{cks.normal}
-%This determines wether we are considering absorption or emission. The default value of {\it .true.} is appropriate for XAS or NRIXS
-%while XES is specified by choosing {\it .false.}.
-%\end{Card}
+\begin{Card}{CNBSE.SOLVER}{cnbse.solver}{Optional}{cnbse-solver}
+Choose between using the Haydock algorithm (full spectrum, no exciton) or the GMRES algorithm (single energy, exciton).
+\end{Card}
+
+\begin{Card}{CNBSE.GMRES.ELIST}{cnbse.gmres.elist[*]}{Optional}{gmres-elist}
+A list of energies (of arbitrary length) for the code to run the GMRES algorithm. 
+The energies are given in eV, and have the same scaling/shifting as the standard Haydock spectra, e.g., by default the lowest unoccupied state is at zero without the core hole.
+Note, if both this and \htmlref{CNBSE.GMRES.ERANGE}{card:gmres-erange} are specified then \htmlref{CNBSE.GMRES.ERANGE}{card:gmres-erange} will be used.
+\end{Card}
+
+\begin{Card}{CNBSE.GMRES.ERANGE}{cnbse.gmres.erange[3]}{Optional}{gmres-erange}
+Run the GMRES algorithm on a set of evenly spaced energies specified by starting energy, ending energy, and step size (all in eV). 
+This is especially useful for reproducing RIXS planes, in contrast to \htmlref{CNBSE.GMRES.ELIST}{card:gmres-elist}  where the energy points can be arbitrarily spaced.
+If both CNBSE.GMRES.ERANGE and \htmlref{CNBSE.GMRES.ELIST}{card:gmres-elist} are specified this will be used.
+\end{Card}
+
+\begin{Card}{CNBSE.GMRES.NLOOP}{cnbse.gmres.nloop}{Optional}{gmres-nloop}
+The version of the GMRES algorithm implemented in \program{ocean} will grow to be a subspace of no larger than NLOOP before it is restarted. By default this is set to 80, and should probably not be changed without careful timing tests.
+\end{Card}
+
+\begin{Card}{CNBSE.GMRES.GPRC}{cnbse.gmres.gprc}{Optional}{gmres-gprc}
+The version of the GMRES algorithm implemented in \program{ocean} uses the one-electron energies as a pre-conditioner with a Lorentzian broadening set by GPRC (in Ha.). By default this is 0.5~Ha.\ which should be reasonable for K edges.
+ \end{Card}
+
+\begin{Card}{CNBSE.GMRES.FFFF}{cnbse.gmres.ffff}{Optional}{gmres-ffff}
+Sets the convergence criterion for the GMRES.
+\end{Card}
 
 
 %%%%%%
 \section{Spectrum Information}
 \label{sec:Spectrum-Information}
 \begin{Card}{CNBSE.BROADEN}{broadening}{Recommended}{broaden}
-The amount of Lorentzian broadening included in the spectra is set by CNBSE.BROADEN. This is a required convergence parameter for the continued fraction that is our Haydock approximation to the BSE, but setting it to the core-hole intrinsic broadening is recommended since features sharper than that won't be observable. Given in Hartree the default is \texttt{broadening} = $0.007$~Ha. or about $0.1$~eV.
+The amount of Lorentzian broadening included in the spectra is set by CNBSE.BROADEN. This is a required convergence parameter for the continued fraction that is our Haydock approximation to the BSE, but setting it to the core-hole intrinsic broadening is recommended since features sharper than that won't be observable. Given in eV the default is \texttt{broadening} = $0.1$~eV.
 \end{Card}
 
 \begin{Card}{CNBSE.SPECT\_RANGE}{esteps emin emax}{Optional}{spect-range}
 This controls the output spectrum (or spectra) from a run. The energy of the spectrum is set by setting the conduction band minimum and core-hole binding energy to zero. All systems will include a small amount of excitonic binding (depending on $l$ selection rules) and spin-orbit splitting can lower the first peak significantly, eg. L$_{2,3}$ splitting in 4d transition metals. These parameters do not change the BSE calculation, only the output of the spectra at the end. The energy range is given in eV and by default \texttt{emin} = $-40.817$ and \texttt{emax} = $68.028$ ($-1.5$ to $2.5$ Ha.). The parameter \texttt{esteps} gives the number of energy points used for the plot, and by default it is $1200$.
 \end{Card}
 
-\begin{Card}{CNBSE.NITER}{niter}{Optional}{niter}
-This sets the number of Haydock iterations. The default is $100$.
-\end{Card}
+
 
 
 
