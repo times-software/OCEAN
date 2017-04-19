@@ -21,8 +21,8 @@ if (! $ENV{"OCEAN_WORKDIR"}){ $ENV{"OCEAN_WORKDIR"} = `pwd` . "../" ; }
 my %alphal = ( "0" => "s", "1" => "p", "2" => "d", "3" => "f" );
 
 my @CommonFiles = ("epsilon", "xmesh.ipt", "nedges", "k0.ipt", "nbuse.ipt", 
-  "cnbse.rad", "cnbse.ways", "metal", "cksshift", "cksstretch",  
-  "cnbse.niter", "cnbse.spect_range", "cnbse.broaden", "cnbse.mode", "nphoton", "dft", 
+  "cnbse.rad", "metal", "cksshift", "cksstretch",  
+  "cnbse.niter", "cnbse.spect_range", "cnbse.broaden", "calc", "nphoton", "dft", 
   "para_prefix", "cnbse.strength", "serbse", "core_offset", "avecsinbohr.ipt", 
   "cnbse.solver", "cnbse.gmres.elist", "cnbse.gmres.erange", "cnbse.gmres.nloop", 
   "cnbse.gmres.gprc", "cnbse.gmres.ffff", "cnbse.write_rhs", "spin_orbit", "nspin",
@@ -341,7 +341,7 @@ if( open PARA_PREFIX, "para_prefix" )
   my $interaction_strength = $1; 
   close TMPFILE;
     
-  open TMPFILE, "cnbse.mode" or die "Failed to open cnbse.mode\n";
+  open TMPFILE, "calc" or die "Failed to open calc\n";
   my $mode = <TMPFILE>;
   close TMPFILE;
   chomp($mode);

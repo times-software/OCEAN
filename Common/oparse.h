@@ -1,6 +1,6 @@
 calc
 {
-XAS
+xas
 } calc
 dft
 {
@@ -24,11 +24,11 @@ nbands
 } nbands
 dft_energy_range
 {
--1
+25
 } dft_energy_range.ipt
 obf_energy_range
 {
--1
+25
 } obf_energy_range
 obkpt
 {
@@ -60,7 +60,7 @@ occopt
 } occopt
 mixing
 {
-0.3
+0.7
 } mixing
 acell
 {
@@ -183,10 +183,6 @@ cnbse.rad
 {
 3.5
 } cnbse.rad
-cnbse.ways
-{
-1
-} cnbse.ways
 metal
 {
 .false.
@@ -211,10 +207,6 @@ cnbse.broaden
 {
 0.1
 } cnbse.broaden
-cnbse.mode
-{
-xas
-} cnbse.mode
 cnbse.strength
 {
 1.0
@@ -277,7 +269,7 @@ system
 } prefix
 ppdir
 {
-'~/PseudoPots/All'
+'../'
 } ppdir
 dft.calc_stress
 {
