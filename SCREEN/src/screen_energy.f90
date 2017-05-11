@@ -19,12 +19,11 @@ module screen_energy
   !   Should be able to duplicate across all MPI procs
   !   1MB = 131k bands @ 1 k-point, 16k bands @ 2x2x2
   real( DP ), allocatable :: energies( :, :, : )
-  ! Either from file or by finding the mid-gap
-  real( DP ) :: mu_ryd
-  real( DP ) :: efermi
-  real( DP ) :: mindiff
-  real( DP ) :: maxdiff
-  real( DP ) :: geodiff
+  real( DP ) :: mu_ryd    ! midpoint between HOMO/LUMO of states used in screening
+  real( DP ) :: efermi    ! input eFermi from DFT calc
+  real( DP ) :: mindiff   ! min distance between \mu and HOMO or LUMO
+  real( DP ) :: maxdiff   ! max distance between lowest occupied/highest unocc and \mu
+  real( DP ) :: geodiff   ! sqrt( mindiff * maxdiff )
 
   integer :: nspin
   integer :: nbands
@@ -36,6 +35,7 @@ module screen_energy
 
   public :: screen_energy_init
   public :: screen_energy_kill
+  public :: screen_energy_find_fermi
 
   contains
 
@@ -45,10 +45,10 @@ module screen_energy
   !   to make it as far as possible from any poles. 
   subroutine screen_energy_find_fermi( ierr )
     use ocean_mpi, only : myid, root
-    use ocean_constants, only : ryd2ev
+    use ocean_constants, only : Rydberg2eV
     integer, intent( inout ) :: ierr
     !
-    real( DP ) :: vlev, vhev, clev, chev
+    real( DP ) :: vlryd, vhryd, clryd, chryd
     integer :: padder, ispn, ik, ib
     !
     call screen_energy_read_fermi( ierr )
@@ -58,52 +58,53 @@ module screen_energy
     ! Only crawling through a few 1000s, probably fastest to repeat for everyone
 
     ! Initialize valence to lowest band, conduction to highest
-    vlev = energies( 1, 1, 1 )
-    vhev = energies( 1, 1, 1 )
-    clev = energies( nbands, 1, 1 )
-    chev = energies( nbands, 1, 1 )
+    vlryd = energies( 1, 1, 1 )
+    vhryd = energies( 1, 1, 1 )
+    clryd = energies( nbands, 1, 1 )
+    chryd = energies( nbands, 1, 1 )
     !
     padder = min( 16, nbv )
     do ispn = 1, nspin
       do ik = 1, nkpts
         do ib = 1, padder
-          if( energies( ib, ik, ispn ) .lt. vlev ) vlev = energies( ib, ik, ispn )
+          if( energies( ib, ik, ispn ) .lt. vlryd ) vlryd = energies( ib, ik, ispn )
         enddo
         do ib = max( 1, nbv - padder ), min( nbands, nbv + padder )
           if( energies( ib, ik, ispn ) .gt. efermi ) then
-            if( energies( ib, ik, ispn ) .lt. clev ) clev = energies( ib, ik, ispn )
+            if( energies( ib, ik, ispn ) .lt. clryd ) clryd = energies( ib, ik, ispn )
           else
-            if( energies( ib, ik, ispn ) .gt. vhev ) vhev = energies( ib, ik, ispn )
+            if( energies( ib, ik, ispn ) .gt. vhryd ) vhryd = energies( ib, ik, ispn )
           endif
         enddo
         do ib = max( 1, nbands - padder ), nbands
-          if( energies( ib, ik, ispn ) .gt. chev ) chev = energies( ib, ik, ispn )
+          if( energies( ib, ik, ispn ) .gt. chryd ) chryd = energies( ib, ik, ispn )
         enddo
       enddo
     enddo
 
     ! If we have a degeneracy at the Fermi level then there will be problems
-    if( abs( clev - vhev ) .lt. 0.000001_DP ) then
+    if( abs( clryd - vhryd ) .lt. 0.000001_DP ) then
       ierr = -1
-      if( myid .eq. root ) 'ERROR! Degeneracy at Fermi level'
+      if( myid .eq. root ) write( 6, * ) 'ERROR! Degeneracy at Fermi level'
       return
     endif
 
-    mu_ryd = ( clev + vhev ) / 2.0_DP
-    mindiff = min( mu_ryd - vhev, clev - mu_ryd )
-    maxdiff = max( mu_ryd - vlev, chev - mu_ryd )
+    mu_ryd = ( clryd + vhryd ) / 2.0_DP
+    mindiff = min( mu_ryd - vhryd, clryd - mu_ryd )
+    maxdiff = max( mu_ryd - vlryd, chryd - mu_ryd )
     geodiff = sqrt( mindiff * maxdiff )
 
     if( myid .eq. root ) then
-      write( 6, '(A,1F12.6)' ) 'Input Fermi energy is: ', efermi*ryd2ev
-      write( 6, '(A,1F12.6)' ) 'Mid-gap/Chemical pot.: ', mu_ryd*ryd2ev
+      write( 6, '(A,1F12.6)' ) 'Input Fermi energy is: ', efermi*Rydberg2eV
+      write( 6, '(A,1F12.6)' ) 'Mid-gap/Chemical pot.: ', mu_ryd*Rydberg2eV
       write( 6, '(A)' ) "    #### Energy summary (eV) ####"
       write( 6, '(A)' ) " Valence minimum   Valence maximum   Conduction min.   Conduction max."
       !                 " -X.XXXXXXXXE+YY   -X.XXXXXXXXE+YY   -X.XXXXXXXXE+YY   -X.XXXXXXXXE+YY
-      write( 6, '(4(1x,1e15.8,2x))' ) vlev*ryd2ev, vhev*ryd2ev, clev*ryd2ev, chev*ryd2ev
+      write( 6, '(4(1x,1e15.8,2x))' ) vlryd*Rydberg2eV, vhryd*Rydberg2eV, clryd*Rydberg2eV, chryd*Rydberg2eV
       write( 6, '(A)' ) "   Fermi/midgap    Min. difference   Max. difference  Geo. mean of diffs"
       !                 " -X.XXXXXXXXE+YY   -X.XXXXXXXXE+YY   -X.XXXXXXXXE+YY   -X.XXXXXXXXE+YY
-      write ( 6, '(4(1x,1e15.8,2x))' ) mu_ryd*ryd2ev, mindiff, maxdiff, geodiff
+      write ( 6, '(4(1x,1e15.8,2x))' ) mu_ryd*Rydberg2eV, mindiff, maxdiff, geodiff
+      write( 6, '(A)' ) "    #############################"
     endif
     
   end subroutine screen_energy_find_fermi
@@ -145,6 +146,9 @@ module screen_energy
     nbv    = params%brange(2) - params%brange(1) + 1
     !
     allocate( energies( nbands, nkpts, nspin ), STAT=ierr )
+    !
+    ! If we need some clever OMP NUMA then first touch goes here
+    energies( :, :, : ) = 0.0_DP
     !
   end subroutine screen_energy_init
 

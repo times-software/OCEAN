@@ -41,27 +41,53 @@ module screen_sites
 
   type( site_parallel_info ), save :: pinfo
 
-  type( site ), allocatable, save :: all_sites( : )
-  integer, save :: n_sites
+!  type( site ), allocatable, save :: all_sites( : )
+!  integer, save :: n_sites
 
+  integer, allocatable :: tmp_indices( : )
+  character( len=2 ), allocatable :: tmp_elnames( : )
 
-  public :: screen_sites_load
+  public :: site
+  public :: screen_sites_load, screen_sites_prep
 
   contains
 
-  subroutine screen_sites_load( ierr )
+  subroutine screen_sites_prep( nsites, ierr )
+    integer, intent( out ) :: nsites
+    integer, intent( inout ) :: ierr 
+!    character( len=5 ), optional, intent( in ) :: flavor_
+    !
+!    character( len=5 ) :: flavor = 'atoms'
+
+!    ! In the future other options for grabbing locations?
+!    !    Something like a uniform grid in real-space instead of atom-centered
+!    if( present( flavor_ ) ) then
+!      flavor = flavor_
+!    endif   
+
+    call screen_sites_load_hfinlist( nsites, ierr )
+
+  end subroutine
+
+  subroutine screen_sites_load( n_sites, all_sites, ierr )
     use OCEAN_mpi
     use screen_system, only : screen_system_snatch
     use screen_grid, only : screen_grid_init
     use screen_paral, only : screen_paral_init
     !
+    integer, intent( in ) :: n_sites
+    type( site ), intent( inout ) :: all_sites( : )
     integer, intent( inout ) :: ierr
     !
     real( DP ) :: tau( 3 )
     integer :: i
 
-    call screen_sites_load_hfinlist( ierr )
-    if( ierr .ne. 0 ) return
+    ! Store into sites
+    do i = 1, n_sites
+      all_sites( i )%info%indx = tmp_indices( i )
+      all_sites( i )%info%elname = tmp_elnames( i )
+    enddo
+    deallocate( tmp_indices, tmp_elnames )
 
     do i = 1, n_sites
       call screen_system_snatch( all_sites( i )%info%elname, all_sites( i )%info%indx, tau, ierr )
@@ -75,7 +101,7 @@ module screen_sites
       if( i .eq. 1 ) then
         call screen_grid_init( all_sites( i )%grid, tau, ierr )
       else
-        call screen_grid_init( all_sites( i )%grid, tau, ierr, all_sites( i - 1 )%grid )
+        call screen_grid_init( all_sites( i )%grid, tau, ierr, all_sites( 1 )%grid )
       endif
 
     enddo
@@ -84,12 +110,14 @@ module screen_sites
 
   end subroutine screen_sites_load
 
-  subroutine screen_sites_load_hfinlist( ierr )
+  subroutine screen_sites_load_hfinlist( n_sites, ierr )
     use OCEAN_mpi
+    !
+    integer, intent( out ) :: n_sites
     integer, intent( inout ) :: ierr
     !
-    integer, allocatable :: tmp_indices( : ), tmp_indices2( : )
-    character( len=2 ), allocatable :: tmp_elnames( : ), tmp_elnames2( : )
+    integer, allocatable :: tmp_indices2( : )
+    character( len=2 ), allocatable :: tmp_elnames2( : )
     character( len=50) :: pspname
     integer :: tmp_nsites, i, j
     integer :: ZNL(3)
@@ -161,13 +189,6 @@ module screen_sites
     endif
 #endif 
 
-    ! Store into sites
-    allocate( all_sites( n_sites ) )
-    do i = 1, n_sites
-      all_sites( i )%info%indx = tmp_indices( i )
-      all_sites( i )%info%elname = tmp_elnames( i )
-    enddo
-    deallocate( tmp_indices, tmp_elnames )
 
 
   end subroutine screen_sites_load_hfinlist

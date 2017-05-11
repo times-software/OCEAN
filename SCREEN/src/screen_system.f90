@@ -37,6 +37,8 @@ module screen_system
   type( physical_system ), save :: psys
   type( system_parameters ), save :: params
 
+  public :: physical_system, atoms, system_parameters
+  public :: psys, params
   public :: screen_system_load, screen_system_snatch, screen_system_summarize
 
   contains 
@@ -205,7 +207,7 @@ module screen_system
     
   end subroutine share_xyz
 
-  ! NOT MPI SAFE ( is so much as it will let every process hit the filesystem )
+  ! NOT MPI SAFE ( in so much as it will let every process hit the filesystem )
   subroutine load_params( ierr )
     integer, intent( inout ) :: ierr
     !
@@ -276,7 +278,7 @@ module screen_system
   end subroutine load_params
 
 
-  ! NOT MPI SAFE ( is so much as it will let every process hit the filesystem )
+  ! NOT MPI SAFE ( in so much as it will let every process hit the filesystem )
   subroutine load_abvecs( ierr )
     integer, intent( inout ) :: ierr
     !
@@ -316,7 +318,7 @@ module screen_system
 
 
 
-  ! NOT MPI SAFE ( is so much as it will let every process hit the filesystem )
+  ! NOT MPI SAFE ( in so much as it will let every process hit the filesystem )
   subroutine load_xyz( ierr )
     integer, intent( inout ) :: ierr
     !
