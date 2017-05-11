@@ -128,17 +128,19 @@ program wfconvert
       do files_iter=1,1  ! nfiles is broken as of now
         select case( dft_flavor )
           case( 'qe' )
-#ifdef __HAVE_ESPRESSO
             qe_filename = 'Out/system.save/data-file.xml'
+#ifdef __HAVE_IOTK
             call qehead( qe_filename, maxband, maxnpw, nsppol, nspinor, nkpt, ierr )
+#else
+            open(unit=99,file='qe_data.txt',form='formatted',status='old')
+            read(99,*) maxband, maxnpw, nsppol, nspinor, nkpt
+            close(99)
+#endif
             if( nsppol .ne. nspin ) then
               write(6,'(a,i1.1,a,i1.1)' ) 'Was expecting spin=',nspin, ' but found spin=', nsppol
               stop
             endif
-#else
-            write(6,*) 'wfconvert2 was compiled w/o QE support'
-            stop
-#endif
+            
           case default
             call getwfkin(wfkin,files_iter,wfkinfile)
             write(6,*) wfkin
@@ -194,9 +196,12 @@ program wfconvert
             else
               qe_kpt = ( ikpt -1 ) * 2 + 1
             endif
-#ifdef __HAVE_ESPRESSO
+#ifdef __HAVE_IOTK
             call qe_grabwf(qe_kpt, isppol, nsppol, maxband, maxnpw, kg_unshift,  &
      &                     eigen_un, occ_un, cg_un, un_npw, ierr)
+#else
+            call qe_grabwf_noiotk(qe_kpt, isppol, nsppol, maxband, maxnpw, kg_unshift,  &
+     &                     eigen_un, cg_un, un_npw, ierr)
 #endif
             if( ierr .ne. 0 ) then
               write(6,*) ikpt, ierr
@@ -204,9 +209,12 @@ program wfconvert
             endif
             if( .not. noshift ) then
               qe_kpt = qe_kpt + 1
-#ifdef __HAVE_ESPRESSO
+#ifdef __HAVE_IOTK
               call qe_grabwf(qe_kpt, isppol, nsppol, maxband, maxnpw, kg_shift,  &
      &                       eigen_sh, occ_sh, cg_sh, sh_npw, ierr)
+#else
+              call qe_grabwf_noiotk(qe_kpt, isppol, nsppol, maxband, maxnpw, kg_shift,  &
+     &                     eigen_sh, cg_sh, sh_npw, ierr)
 #endif
             endif
 
