@@ -1,6 +1,4 @@
-control 0
 metal .true.
-#para_prefix {mpirun -n 48 }
 ppdir { '../' }
 nkpt { 8 8 8 }
 screen.nkpt{ 2 2 2 }
@@ -23,7 +21,7 @@ natom 1
 typat { 1  }
 xred {  0      0      0 }
 
-ecut 400
+ecut 200
 toldfe 1.1d-6
 tolwfr 1.1d-16
 nstep 50
@@ -36,7 +34,7 @@ opf.opts{ 29 cu.opts }
 nedges 1
 edges{ 1 1 0  }
 
-# radius for shell for screenign
+# radius for shell for screening
 screen.shells{ 6.0 }
 cnbse.rad{ 6.0 }
 

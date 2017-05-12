@@ -1,27 +1,15 @@
 calc
 {
-XAS
+xas
 } calc
-control
-{
-0
-} control
 dft
 {
 abinit
 } dft
-paral_kgb
-{
-1
-} paral_kgb
 nkpt
 {
 -1
 } nkpt
-npkpt
-{ 
-1
-} npkpt
 ngkpt
 {
 -1
@@ -36,11 +24,11 @@ nbands
 } nbands
 dft_energy_range
 {
--1
+25
 } dft_energy_range.ipt
 obf_energy_range
 {
--1
+25
 } obf_energy_range
 obkpt
 {
@@ -58,10 +46,6 @@ acc_level
 {
 1
 } acc_level.ipt
-npband
-{
-10
-} npband
 k0
 {
 0.125 0.250 0.375
@@ -74,17 +58,9 @@ occopt
 {
 1
 } occopt
-nbands_occ
-{
-1
-} obands
-unocc_start
-{
-0
-} unocc_start
 mixing
 {
-0.3
+0.7
 } mixing
 acell
 {
@@ -112,10 +88,6 @@ NULL
 natom
 {
 } natoms
-charge
-{
-0
-} charge
 coord
 {
 xred
@@ -153,10 +125,6 @@ ser_prefix
 {
 !
 } ser_prefix
-core
-{
-1
-} core
 abpad
 {
 4
@@ -215,10 +183,6 @@ cnbse.rad
 {
 3.5
 } cnbse.rad
-cnbse.ways
-{
-1
-} cnbse.ways
 metal
 {
 .false.
@@ -231,14 +195,6 @@ cksstretch
 {
 1.00
 } cksstretch
-cksdq
-{
-0.00 0.00 0.00
-} cksdq
-cks.normal
-{ 
-.true. 
-} cks.normal
 cnbse.niter
 {
 100
@@ -251,10 +207,6 @@ cnbse.broaden
 {
 0.1
 } cnbse.broaden
-cnbse.mode
-{
-xas
-} cnbse.mode
 cnbse.strength
 {
 1.0
@@ -295,11 +247,6 @@ bse.gw.cstr
 {
 0.0
 } gwcstr
-scratch
-{
-scratchXX
-} scratch
-
 degauss
 {
 0.02
@@ -316,22 +263,22 @@ noncolin
 {
 .false.
 } noncolin
-occtype
-{
-'smearing'
-} occtype
 prefix
 {
 system
 } prefix
 ppdir
 {
-'~/PseudoPots/All'
+'../'
 } ppdir
-stress_force
+dft.calc_stress
 {
- tstress = .false., tprnfor = .false.
-} stress_force
+.false.
+} dft.calc_stress
+dft.calc_force
+{
+.false.
+} dft.calc_force
 spinorb
 {
 .false.

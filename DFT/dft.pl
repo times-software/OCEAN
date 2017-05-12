@@ -1,5 +1,5 @@
 #!/usr/bin/perl
-# Copyright (C) 2015, 2016 OCEAN collaboration
+# Copyright (C) 2015 - 2017 OCEAN collaboration
 #
 # This file is part of the OCEAN project and distributed under the terms 
 # of the University of Illinois/NCSA Open Source License. See the file 
@@ -41,10 +41,10 @@ my @KgenFiles = ("nkpt", "k0.ipt", "qinunitsofbvectors.ipt", "screen.nkpt");
 my @BandFiles = ("nbands", "screen.nbands");
 my @EspressoFiles = ( "coord", "degauss", "ecut", "etol", "fband", "ibrav", 
     "isolated", "mixing", "natoms", "ngkpt", "noncolin", "nrun", "ntype", 
-    "occopt", "prefix", "ppdir", "stress_force", "rprim", "rscale", "metal",
+    "occopt", "prefix", "ppdir", "rprim", "rscale", "metal",
     "spinorb", "taulist", "typat", "verbatim", "work_dir", "tmp_dir", "wftol", 
     "den.kshift", "obkpt.ipt", "trace_tol", "ham_kpoints", "obf.nbands","tot_charge", 
-    "nspin", "smag", "ldau", "zsymb");
+    "nspin", "smag", "ldau", "zsymb", "dft.calc_stress", "dft.calc_force" );
 my @PPFiles = ("pplist", "znucl");
 my @OtherFiles = ("epsilon", "pool_control");
 
@@ -196,11 +196,11 @@ system("$ENV{'OCEAN_BIN'}/makeatompp.x") == 0
 
 
 
-my @qe_data_files = ('prefix', 'ppdir', 'stress_force', 'work_dir', 'tmp_dir', 'ibrav', 'natoms', 'ntype', 'noncolin',
+my @qe_data_files = ('prefix', 'ppdir', 'work_dir', 'tmp_dir', 'ibrav', 'natoms', 'ntype', 'noncolin',
                      'spinorb', 'ecut', 'degauss', 'etol', 'mixing', 'nrun', 'occopt',
                      'trace_tol', 'tot_charge', 'nspin', 'ngkpt', 'k0.ipt', 'metal',
                      'den.kshift', 'obkpt.ipt', 'obf.nbands', 'nkpt', 'nbands', 'screen.nbands',
-                     'screen.nkpt' );
+                     'screen.nkpt', 'dft.calc_stress', 'dft.calc_force' );
 
 
 
@@ -492,7 +492,8 @@ if ( $nscfRUN ) {
           .  "  pseudo_dir = \'$qe_data_files{'ppdir'}\'\n"
           .  "  outdir = \'$qe_data_files{'work_dir'}\'\n"
           .  "  wfcdir = \'$qe_data_files{'tmp_dir'}\'\n"
-          .  "  $qe_data_files{'stress_force'}\n"
+          .  "  tstress = $qe_data_files{'dft.calc_stress'}\n"
+          .  "  tprnfor = $qe_data_files{'dft.calc_force'}\n"
           .  "  wf_collect = .true.\n"
   #        .  "  disk_io = 'low'\n"
           .  "/\n";
@@ -861,8 +862,9 @@ sub print_qe
         .  "  prefix = \'$inputs{'prefix'}\'\n"
         .  "  pseudo_dir = \'$inputs{'ppdir'}\'\n"
         .  "  outdir = \'$inputs{'work_dir'}\'\n"
-        .  "  wfcdir = \'$qe_data_files{'tmp_dir'}\'\n"
-        .  "  $inputs{'stress_force'}\n"
+        .  "  wfcdir = \'$inputs{'tmp_dir'}\'\n"
+        .  "  tstress = $inputs{'dft.calc_stress'}\n"
+        .  "  tprnfor = $inputs{'dft.calc_force'}\n"
         .  "  wf_collect = .true.\n"
         .  "/\n";
   print $fh "&system\n"
