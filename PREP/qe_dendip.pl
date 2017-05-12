@@ -106,6 +106,9 @@ elsif( -e "Out" ) #or Out is some other file
 print "../$rundir/Out\n";
 symlink ("../$rundir/Out", "Out") == 1 or die "Failed to link Out\n$!";
 
+print "$ENV{'OCEAN_BIN'}/qe_data_file.pl Out/$prefix.save/data-file.xml\n";
+system("$ENV{'OCEAN_BIN'}/qe_data_file.pl Out/$prefix.save/data-file.xml") == 0 
+  or die "Failed to run qe_data_file.pl\n$!";
 
 system("$ENV{'OCEAN_BIN'}/wfconvert.x") == 0 
   or die "Failed to run wfconvert.x\n$!";
@@ -180,6 +183,9 @@ unless( -e "BSE/done" && -e "${rundir}/old" ) {
   } 
   print "../$rundir/Out\n";
   symlink ("../$rundir/Out", "Out") == 1 or die "Failed to link Out\n$!";
+
+system("$ENV{'OCEAN_BIN'}/qe_data_file.pl Out/$prefix.save/data-file.xml") == 0
+  or die "Failed to run qe_data_file.pl\n$!";
 
 
   system("$ENV{'OCEAN_BIN'}/wfconvert.x system") == 0 

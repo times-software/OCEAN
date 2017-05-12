@@ -1,4 +1,4 @@
-! Copyright (C) 2010 OCEAN collaboration
+! Copyright (C) 2010, 2017 OCEAN collaboration
 !
 ! This file is part of the OCEAN project and distributed under the terms 
 ! of the University of Illinois/NCSA Open Source License. See the file 
@@ -50,3 +50,49 @@
 
       end 
       
+
+
+subroutine grabwf_abi( filenum, maxband, maxnpw, nband, npw, kg, eigen, cg, ierr )
+  implicit none
+  integer, intent( in ) :: filenum, maxband, maxnpw, nband
+  integer, intent( out ) :: kg(3,maxnpw), npw
+  real(kind=kind(1.0d0)), intent( out ) :: eigen(maxband), cg(maxband,2*maxnpw)
+  integer, intent( inout ) :: ierr
+  !
+  integer :: nspinor, nband_, iband, ii
+  !
+  read(filenum) npw, nspinor, nband_
+  !
+  if( npw .gt. maxnpw ) then
+    write(6,*) 'Number of planewaves unexpectedly high!'
+    ierr = -1
+    return
+  endif
+  if( nspinor .ne. 1 ) then
+    write(6,*) 'Npsinor not 1'
+    ierr = -2
+    return
+  endif
+  if( nband_ .lt. nband ) then
+    write(6,*) 'Number of bands too low!', nband_, nband
+    ierr = -3
+    return
+  endif
+
+  read(filenum) kg( 1:3, 1:npw )
+  
+  read(filenum) eigen( 1:nband )
+
+  do iband = 1, nband
+    read(filenum) (cg(iband,ii),ii=1,2*npw)
+  enddo
+
+  ! Have to keep moving the file along
+  do iband = nband+1, nband_
+    read(filenum)
+  enddo
+
+  ierr = 0
+
+end subroutine grabwf_abi
+
