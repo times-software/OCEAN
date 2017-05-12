@@ -31,15 +31,6 @@ program kgen
   read(99,*) qvec(:)
   close(99)
 !
-  open(unit=99,file='nkpts',form='formatted',status='unknown')
-  if ( (abs(qvec(1)) + abs(qvec(2)) + abs(qvec(3)) ) .lt. small ) then
-    write(99,*)nkpt(1)*nkpt(2)*nkpt(3)
-  else
-    write(99,*)nkpt(1)*nkpt(2)*nkpt(3)*2
-  endif
-  close(99)
-!
-!
 
   if ( (abs(qvec(1)) + abs(qvec(2)) + abs(qvec(3)) ) .gt. small ) then 
     have_shift = .true.
@@ -70,6 +61,14 @@ program kgen
     shift_fh = 99
     qe_shift_fh = 97
   endif
+!
+  open(unit=99,file='nkpts',form='formatted',status='unknown')
+  write(99,*) kpttotal
+  close(99)
+!
+
+
+
 
   ! Open files here
   write(kptfile,'(A5,I4.4)') 'kpts.', 1
@@ -95,7 +94,7 @@ program kgen
   ! 
 
   do ikx = 0, nkpt(1)-1
-    ikpt = k0(1)/dble(nkpt(1)) + dble(ikz)/dble(nkpt(1))
+    ikpt = k0(1)/dble(nkpt(1)) + dble(ikx)/dble(nkpt(1))
     do iky = 0, nkpt(2)-1
       jkpt = k0(2)/dble(nkpt(2)) + dble(iky)/dble(nkpt(2))
       do ikz = 0, nkpt(3)-1
