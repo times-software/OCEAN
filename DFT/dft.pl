@@ -658,6 +658,7 @@ if ( $nscfRUN ) {
         <IN> =~ m/([+-]?\d+\.?\d*([eE][+-]?\d+)?)\s+([+-]?\d+\.?\d*([eE][+-]?\d+)?)\s+([+-]?\d+\.?\d*([eE][+-]?\d+)?)/ 
                     or die "Failed to parse qinunitsofbvectors.ipt\n";
         my $fake_qmag = abs($1) + abs($3) + abs($5);
+        close IN;
         $split_dft = 0 if( $fake_qmag < 0.000000001 );
       }
     }

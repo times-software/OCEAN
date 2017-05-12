@@ -40,7 +40,7 @@ my @BandFiles = ("nbands", "screen.nbands");
 my @AbinitFiles = ( "rscale", "rprim", "ntype", "natoms", "typat",
     "verbatim", "coord", "taulist", "ecut", "etol", "nrun", "wftol", 
     "fband", "occopt", "ngkpt", "abpad", "nspin", "smag", "metal", "degauss", 
-    "dft.calc_stress", "dft.calc_force", "tot_charge");
+    "dft.calc_stress", "dft.calc_force", "tot_charge", "dft.split");
 my @PPFiles = ("pplist", "znucl");
 my @OtherFiles = ("epsilon");
 
@@ -642,9 +642,7 @@ if ( $screenRUN ) {
   `echo kptopt 0 >> abfile`;
   `echo "istwfk *1" >> abfile`;
   
-  open NRUNS, "Nfiles" or die;
-  my $nfiles = <NRUNS>;
-  close NRUNS;
+  my $nfiles = 1;
   for (my $runcount = 1; $runcount <= $nfiles; $runcount++ ) 
   {
     my $abfilename = sprintf("inabinit.%04i", $runcount );
@@ -814,9 +812,28 @@ if ( $bseRUN ) {
   `echo kptopt 0 >> abfile`;
   `echo "istwfk *1" >> abfile`;
 
-  open NRUNS, "Nfiles" or die;
-  my $nfiles = <NRUNS>;
-  close NRUNS;
+#  open NRUNS, "Nfiles" or die;
+#  my $nfiles = <NRUNS>;
+#  close NRUNS;
+  my $nfiles = 1;
+  if( open IN, "dft.split" )
+  {
+    if( <IN> =~ m/t/i )
+    {
+      open IN, "qinunitsofbvectors.ipt" or die "Failed to open qinunitofbvectors\n$!";
+      <IN> =~ m/([+-]?\d+\.?\d*([eE][+-]?\d+)?)\s+([+-]?\d+\.?\d*([eE][+-]?\d+)?)\s+([+-]?\d+\.?\d*([eE][+-]?\d+)?)/
+                  or die "Failed to parse qinunitsofbvectors.ipt\n";
+      my $fake_qmag = abs($1) + abs($3) + abs($5);
+      close IN;
+      if( $fake_qmag < 0.000000001 )
+      {
+        $nfiles = 2;
+      }
+    }
+    close IN;
+  }
+
+
   for (my $runcount = 1; $runcount <= $nfiles; $runcount++ )
   {
     my $abfilename = sprintf("inabinit.%04i", $runcount );
