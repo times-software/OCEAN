@@ -270,18 +270,19 @@ In addition to the regular input file the diamond example has a shell script \fi
 You will need to edit this script to include the path of the \program{ocean} executables.
 
 \subsection{RIXS theory}
-Read the excellent reviews by Kotani and Shin (Rev.\ Mod.\ Phys.\ {\bf 73}, 203, 2001) and Ament {\it et al.} (Rev.\ Mod.\ Phys.\ {\bf 83}, 705, 2011). With \program{ocean} we are able to calculate what Ament {\it et al.} refer to as direct RIXS. To be filled in later.
+Before embarking on RIXS calculations we implore you to read the excellent reviews by Kotani and Shin (Rev.\ Mod.\ Phys.\ {\bf 73}, 203, 2001) and Ament {\it et al.} (Rev.\ Mod.\ Phys.\ {\bf 83}, 705, 2011). With \program{ocean} we are able to calculate what Ament {\it et al.} refer to as direct RIXS. To be filled in later.
 
 \subsection{Method}
 
-The way we go about RIXS calculations with \program{ocean} is a two step process: one set of core-level calculations and one of valence. First, we carry out a core-level BSE calculation to determine the intermediate states.
+The way we go about RIXS calculations with \program{ocean} is a two step process: a set of core-level calculations followed by a valence one. 
+First, we carry out a core-level BSE calculation to determine the intermediate states.
 From Eq.~\ref{rixs} above we have
 \begin{align}
 \sigma( \mathbf{k}, \hat{\epsilon}, \omega; \mathbf{k}', \hat{\epsilon}', \omega' )
 \propto \sum_f \left| \sum_M \frac{ \langle f \vert \hat{d}^\dagger_{\mathbf{k}', \hat{\epsilon}'} \vert M \rangle \langle M \vert \hat{d}_{\mathbf{k}, \hat{\epsilon}} \vert i \rangle}{\omega - (\varepsilon_M - \varepsilon_i) + i\Gamma_M} \right|^2 \delta( \varepsilon_f - \varepsilon_i + \omega'-\omega)
 \label{rixs-method1}
 \end{align}
-but now we denote the intermediate states as $M$ which denote both the conduction-band electronic states $m$ and the specific core site $\alpha$.
+but now we denote the intermediate states as $M=m,\alpha$ with both the conduction-band electronic states $m$ and the specific core site $\alpha$.
 If a system has more than one atomic site of the same element (or with edges with overlapping energy ranges, e.g., V$_x$O$_y$) then each site must be included coherently in the sum over intermediate states. 
 We can rewrite Eq.~\ref{rixs-method1}
 \begin{align}
@@ -298,7 +299,7 @@ We can now define the conduction-band--core-hole ``exciton'' as
 \label{rixs-exciton}
 \vert y(\omega,\mathbf{k}, \hat{\epsilon};\alpha) \rangle \equiv& \sum_m \frac{ \vert m \rangle \langle m \vert \hat{d}_{\mathbf{k}, \hat{\epsilon};\alpha} \vert i \rangle}{\omega - (\varepsilon_m +\Delta_\alpha) + i\Gamma_{\alpha}} 
 \end{align}
-where the scare-quotes around exciton remind us that this is not the excitons that are the eigenstates of the two-particle BSE Hamiltonian.
+where the scare-quotes around exciton remind us that this is not an eigenstates of the two-particle BSE Hamiltonian.
 Instead we are interested in what we could call the experimentally-measured exciton which is the weighted, coherent sum over all possible intermediate states that can be created by our transition operator. 
 The weighting is from the resonant energy denominator, broadened by the core-hole lifetime. 
 (Additional broadening could come from the lifetime of the conduction band states which make up $m$ and possibly from phonon coupling, but these are neglected here.)
@@ -322,7 +323,7 @@ We have been a bit sloppy, but our problem is now reduced to
 where we renamed $y\rightarrow x$ and $\Gamma \rightarrow \eta$ to better match standard linear algebra conventions. 
 This can be approximated using iterative techniques, such as the generalized minimal residual method used in \program{ocean} (Saad and Schultz, 1987). 
 See section \ref{GMRES-section} for a summary and reference to the parameters that control this approximation within \program{ocean}.
-Iterative technique rely on the finite imaginary term $\eta$ to avoid dividing by 0 and instabilities from finite-precision arithmetic. 
+Iterative linear algebra techniques rely on the finite imaginary term $\eta$ to avoid dividing by 0 and instabilities from finite-precision arithmetic. 
 Here we have an advantage as the imaginary term physically corresponds to the inverse lifetime of the intermediate state $\Gamma$ which can be quite large compared to the other energy scales in the Hamiltonian, making convergence easier than for an infinitesimal $\eta$.
 
 
@@ -346,6 +347,13 @@ This is done by inserting a set of valence and conduction band states (eigenstat
 \end{align}
 and then using the Haydock method to generate the spectra with respect to the energy loss $\Omega=\omega'-\omega$. 
 The states $v$ and $c$ refer to valence and conduction band states, respectively, and the momentum dependence has been dropped for legibility.
+
+\subsection{RIXS script: diamond.sh}
+In the example directory is the script \file{diamond.sh} which will run all the steps necessary for the RIXS calculation of diamond.
+This script can either be run directly (on a workstation or interactive session) or pasted into a batch script,
+but you'll need to edit the variable ``OCEAN\_BIN'' to point to your \program{ocean} installation directory.
+As remarked in the previous section the calculation is broken up into several steps. 
+The provided \file{diamond.sh} script can be used as a template for your own RIXS runs.
 
 \subsection{First, calculate the x-ray absorption}
 For a variety of reasons, as a first step in calculating RIXS we almost always want to run an absorption calculation.
@@ -894,7 +902,7 @@ The first {\it k}-point is given by
 \end{equation}
 where $N_k$ is given by \htmlref{nkpt}.
 The default shift is $\sfrac{1}{8},\sfrac{2}{8},\sfrac{3}{8}$.
-
+\end{Card}
 
 \begin{Card}{DEGAUSS}{degauss}{Optional}{degauss}
 Sets the broadening of the smearing function (in Ryd.) for metallic occupations in the DFT
