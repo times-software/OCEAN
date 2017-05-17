@@ -17,7 +17,8 @@ subroutine getfgnew( nr, nc, lc, dl, zorig, r, phc )
   character * 18 :: filnam18
   !
   integer, allocatable :: np( : ) 
-  real( kind = kind( 1.0d0 ) ), allocatable :: temp( : ), phv( :, : ), v11( : ), v23( : ), v12( : ), v13( : ), f( :, : ), g( :, : )
+  real( kind = kind( 1.0d0 ) ), allocatable :: temp( : ), phv( :, : ), v11( : ), v23( : ), & 
+                                               v12( : ), v13( : ), f( :, : ), g( :, : )
   !
   write ( filnam18, '(1a8,1i3.3)' ) 'prjfilez', nint( zorig )
   open( unit=99, file=filnam18, form='formatted', status='unknown' )
@@ -60,7 +61,8 @@ subroutine getfgnew( nr, nc, lc, dl, zorig, r, phc )
         !
         do kk = 0, 2 * min( lv, lc ), 2
            if ( k .eq. kk ) then
-              write ( filnam18, '(1a2,3i1,1a1,1i3.3,1a1,1i2.2,1a1,1i2.2)' ) 'fk', lc, lv, k, 'z', nint( zorig ), 'n', nc, 'l', lc  
+              write ( filnam18, '(1a2,3i1,1a1,1i3.3,1a1,1i2.2,1a1,1i2.2)' ) 'fk', lc, lv, k, 'z', nint( zorig ), & 
+                                                                            'n', nc, 'l', lc 
               open( unit=99, file=filnam18, form='formatted', status='unknown' )
               rewind 99
               do i2 = 1, np( lv )
@@ -73,7 +75,8 @@ subroutine getfgnew( nr, nc, lc, dl, zorig, r, phc )
         !
         do kk = abs( lv - lc ), lv + lc, 2
            if ( k .eq. kk ) then
-              write ( filnam18, '(1a2,3i1,1a1,1i3.3,1a1,1i2.2,1a1,1i2.2)' ) 'gk', lc, lv, k, 'z', nint( zorig ), 'n', nc, 'l', lc  
+              write ( filnam18, '(1a2,3i1,1a1,1i3.3,1a1,1i2.2,1a1,1i2.2)' ) 'gk', lc, lv, k, 'z', nint( zorig ), & 
+                                                                            'n', nc, 'l', lc  
               open( unit=99, file=filnam18, form='formatted', status='unknown' )
               rewind 99
               do i2 = 1, np( lv )

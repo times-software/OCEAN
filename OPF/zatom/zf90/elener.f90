@@ -5,7 +5,8 @@
 ! `License' in the root directory of the present distribution.
 !
 !
-subroutine elener( i, n, l, xkappa, xj, zorig, zeff, e, phi, v, xm1, xm2, nr, r, dr, r2, dl, rel, vtry, isuse, nn, ga, de, d0, d1 )
+subroutine elener( i, n, l, xkappa, xj, zorig, zeff, e, phi, v, xm1, xm2, nr, r, dr, r2, dl, rel, & 
+                   vtry, isuse, nn, ga, de, d0, d1 )
   implicit none
   !
   integer :: i, n, l, nr, vtry, isuse, nn
@@ -29,7 +30,8 @@ subroutine elener( i, n, l, xkappa, xj, zorig, zeff, e, phi, v, xm1, xm2, nr, r,
   end do
   !
   istop=isuse
-  call intego( e, l, xkappa, 1000, nn, istop, ief, xo, phi, zeff, v, xm1, xm2, nr, r, dr, r2, dl, rel, plead, d0, d1 )
+  call intego( e, l, xkappa, 1000, nn, istop, ief, xo, phi, zeff, v, xm1, xm2, nr, r, dr, r2, dl, & 
+               rel, plead, d0, d1 )
   phi(  istop + 1 : nr )=0.d0
   !
   if ( abs( abs( xj )-dble( l ) ).gt.0.25d0 ) call augment( e, l, xj, phi, v, nr, r, dl, rel )

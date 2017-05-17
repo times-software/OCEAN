@@ -110,8 +110,8 @@ subroutine pseudo( etot, rel, alfa, nr, rmin, rmax, r, dr, r2, dl, phe, orb, njr
   nel = 1 + nel - np
   deallocate( xm1, xm2 )
   !
-  call unscreen( nr, r, dr, r2, dl, etot, alfa, xntot, nel, phe, orb, occ, is, nl, nm, no, xnj, iuflag, cq, ev, vi, zuse, corpol, &
-       rnorm )
+  call unscreen( nr, r, dr, r2, dl, etot, alfa, xntot, nel, phe, orb, occ, is, nl, &
+                 nm, no, xnj, iuflag, cq, ev, vi, zuse, corpol, rnorm )
   !
   return
 end subroutine pseudo
