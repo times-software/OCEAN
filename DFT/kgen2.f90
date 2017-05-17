@@ -1,12 +1,22 @@
-  program kgen
+! Copyright (C) 2014, 2015, 2017 OCEAN collaboration
+!
+! This file is part of the OCEAN project and distributed under the terms 
+! of the University of Illinois/NCSA Open Source License. See the file 
+! `License' in the root directory of the present distribution.
+!
+!
+program kgen
   implicit none
 !
   real(kind=kind(1.d0)) :: k0(3), qvec(3), ikpt, jkpt, kkpt, qpoint(3)
-  integer :: core, kpttotal, coreiter, kptiter, nkpt(3), kptiter2(3), Nfiles, umklapp(3), iter
+  integer :: kpttotal, nkpt(3), umklapp(3), iter
+  integer :: shift_fh, qe_shift_fh, ikx, iky, ikz
   logical :: change
   character(len=9)  :: kptfile
   character(len=12) :: qekptfile
   real(kind=kind(1.d0)), parameter :: small = 10.0d0 * EPSILON(1.d0)
+  
+  logical :: have_shift, split_dft
 
 !
   open(unit=99,file='k0.ipt',form='formatted',status='old')
@@ -21,158 +31,121 @@
   read(99,*) qvec(:)
   close(99)
 !
-  open(unit=99,file='core',form='formatted',status='old')
-  read(99,*) core
-  close(99)
+
+  if ( (abs(qvec(1)) + abs(qvec(2)) + abs(qvec(3)) ) .gt. small ) then 
+    have_shift = .true.
+    inquire( file='dft.split', exist=split_dft )
+    if( split_dft ) then
+      open(unit=99, file='dft.split',form='formatted',status='old')
+      read(99,*) split_dft
+      close(99)
+    endif
+    if( split_dft ) write(6,*) 'DFT calc will be split between two files.'
+  else
+    have_shift = .false.
+    split_dft = .false.
+  endif
+
+  if( have_shift ) then
+    kpttotal = nkpt(1) * nkpt(2) * nkpt(3) * 2
+  else
+    kpttotal = nkpt(1) * nkpt(2) * nkpt(3)
+  endif
+  
+  if( split_dft ) then
+    shift_fh = 98
+    qe_shift_fh = 96
+    ! override kpt total
+    kpttotal = nkpt(1) * nkpt(2) * nkpt(3)
+  else
+    shift_fh = 99
+    qe_shift_fh = 97
+  endif
 !
   open(unit=99,file='nkpts',form='formatted',status='unknown')
-  if ( (abs(qvec(1)) + abs(qvec(2)) + abs(qvec(3)) ) .lt. small ) then
-    write(99,*)nkpt(1)*nkpt(2)*nkpt(3)
-  else
-    write(99,*)nkpt(1)*nkpt(2)*nkpt(3)*2
-  endif
+  write(99,*) kpttotal
   close(99)
 !
-! Two options, either we have a q or not, for core (or maybe testing) we have
-!  no qvector.
-  ikpt = k0(1)/dble(nkpt(1))
-  jkpt = k0(2)/dble(nkpt(2))
-  kkpt = k0(3)/dble(nkpt(3))
-!
-  kptiter2(:) = 1
-  if ( (abs(qvec(1)) + abs(qvec(2)) + abs(qvec(3)) ) .lt. small ) then 
-    kpttotal = nkpt(1) * nkpt(2) * nkpt(3)
-!
 
-!    core = core * ceiling(real(kpttotal)/real(50*core) )
 
-    core = 1  !KG! - we want all the kpoints in 1 file not N files
-    Nfiles = core
-!
-    do coreiter=1,core
-      write(kptfile,'(A5,I4.4)') 'kpts.', coreiter
-      open(unit=99,file=kptfile,form='formatted',status='unknown')
-      write(qekptfile,'(A8,I4.4)') 'kpts4qe.', coreiter
-      open(unit=97,file=qekptfile,form='formatted',status='unknown')
-      write(99,*) 'nkpt', int(ceiling(real(kpttotal)/real(core)))
-      write(99,*) 'kpt'
-!
-      do kptiter=1, int(ceiling(real(kpttotal)/real(core)))
-        if ( kkpt .gt. 1 ) then
-!          jkpt = jkpt + 1.d0/dble(nkpt(2))
-          kkpt = kkpt - 1.d0
-        endif
-        if (jkpt .gt. 1 ) then
-!          ikpt = ikpt + 1.d0/dble(nkpt(1))
-          jkpt = jkpt - 1.d0
-        endif
-        if ( ikpt .gt. 1 ) ikpt = ikpt - 1.d0
-!
+
+
+  ! Open files here
+  write(kptfile,'(A5,I4.4)') 'kpts.', 1
+  open(unit=99,file=kptfile,form='formatted',status='unknown')
+  write(99, * ) 'nkpt', kpttotal
+  write(99,*) 'kpt'
+
+  write(qekptfile,'(A8,I4.4)') 'kpts4qe.', 1
+  open(unit=97,file=qekptfile,form='formatted',status='unknown')
+
+  if( split_dft ) then
+    write(kptfile,'(A5,I4.4)') 'kpts.', 2
+    open(unit=98,file=kptfile,form='formatted',status='unknown')
+    write(98,*) 'nkpt', kpttotal
+    write(98,*) 'kpt'
+
+    write(qekptfile,'(A8,I4.4)') 'kpts4qe.', 2
+    open(unit=96,file=qekptfile,form='formatted',status='unknown')
+  endif
+
+
+  open(unit=50, file='umklapp', form='formatted', status='unknown')
+  ! 
+
+  do ikx = 0, nkpt(1)-1
+    ikpt = k0(1)/dble(nkpt(1)) + dble(ikx)/dble(nkpt(1))
+    do iky = 0, nkpt(2)-1
+      jkpt = k0(2)/dble(nkpt(2)) + dble(iky)/dble(nkpt(2))
+      do ikz = 0, nkpt(3)-1
+        kkpt = k0(3)/dble(nkpt(3)) + dble(ikz)/dble(nkpt(3))
+
         write(99,*) ikpt, jkpt, kkpt
-        write(97,'(e17.8,e17.8,e17.8,f12.8)') ikpt, jkpt, kkpt, ( 1.0 / dble(ceiling(real(kpttotal)/real(core)))  )
+        write(97,'(e19.10,e19.10,e19.10,f19.11)') ikpt, jkpt, kkpt, ( 1.0 / dble(kpttotal) )
 
-        if ( kptiter2(3) .lt. nkpt(3) ) then
-          kkpt = kkpt + 1.d0/dble(nkpt(3))
-          kptiter2(3) = kptiter2(3) + 1
-        else
-          kkpt = k0(3)/dble(nkpt(3))
-          kptiter2(3) = 1
-          if (kptiter2(2) .lt. nkpt(2)) then
-            jkpt = jkpt + 1.d0/dble(nkpt(2))
-            kptiter2(2) = kptiter2(2) + 1
-          else
-            jkpt = k0(2)/dble(nkpt(2))
-            kptiter2(2) = 1
-            ikpt = ikpt + 1.d0/dble(nkpt(1))
-            kptiter2(1) = kptiter2(1) + 1
-          endif
-        endif
-      enddo
-      close(99)
-      close(97)
-      kpttotal = kpttotal - int(ceiling(real(kpttotal)/real(core)))
-      core = core - 1
-    enddo
-!!!!!!
-!
-  else ! make both k and k+q
-    open(unit=50, file='umklapp', form='formatted', status='unknown')
-    kpttotal = nkpt(1) * nkpt(2) * nkpt(3)
-!    core = core * ceiling(real(kpttotal)/real(25*core) )
-    Nfiles = core
-!
-    do coreiter=1,core
-      write(kptfile,'(A5,I4.4)') 'kpts.', coreiter
-      open(unit=99,file=kptfile,form='formatted',status='unknown')
-      write(qekptfile,'(A8,I4.4)') 'kpts4qe.', coreiter
-      open(unit=97,file=qekptfile,form='formatted',status='unknown')
-      write(99,*) 'nkpt', 2*int(ceiling(real(kpttotal)/real(core)))
-      write(99,*) 'kpt'
-!
-      do kptiter=1, int(ceiling(real(kpttotal)/real(core)))
-        if ( kkpt .gt. 1 ) then
-!          jkpt = jkpt + 1.d0/dble(nkpt(2))
-          kkpt = kkpt - 1.d0
-        endif
-        if (jkpt .gt. 1 ) then
-!          ikpt = ikpt + 1.d0/dble(nkpt(1))
-          jkpt = jkpt - 1.d0
-        endif
-        if ( ikpt .gt. 1 ) ikpt = ikpt - 1.d0
-!
-        write(99,'(3(F14.10,1X))') ikpt, jkpt, kkpt
-        write(97,'(e17.8,e17.8,e17.8,f12.8)') ikpt, jkpt, kkpt, ( 1.0 / dble(2*ceiling(real(kpttotal)/real(core)))  )
-        umklapp(:) = 0
-        qpoint(1) = ikpt+qvec(1)
-        qpoint(2) = jkpt+qvec(2)
-        qpoint(3) = kkpt+qvec(3)
-        do iter=1,3
-!          change = .false.
-          do
-            change = .false.
-            if (qpoint(iter) .gt. 1.d0) then
-              change = .true.
-              umklapp(iter) = umklapp(iter) + 1
-              qpoint(iter) = qpoint(iter) - 1
-            elseif  (qpoint(iter) .lt. 0.d0) then
-              change = .true.
-              umklapp(iter) = umklapp(iter) - 1
-              qpoint(iter) = qpoint(iter) + 1
-            endif
-            if (.not. change) goto 10
+
+        if( have_shift ) then
+
+          umklapp(:) = 0
+          qpoint(1) = ikpt+qvec(1)
+          qpoint(2) = jkpt+qvec(2)
+          qpoint(3) = kkpt+qvec(3)
+
+          do iter=1,3
+  !          change = .false.
+            do
+              change = .false.
+              if (qpoint(iter) .gt. 1.d0) then
+                change = .true.
+                umklapp(iter) = umklapp(iter) + 1
+                qpoint(iter) = qpoint(iter) - 1
+              elseif  (qpoint(iter) .lt. 0.d0) then
+                change = .true.
+                umklapp(iter) = umklapp(iter) - 1
+                qpoint(iter) = qpoint(iter) + 1
+              endif
+              if (.not. change) goto 10
+            enddo
+10          continue
           enddo
-10        continue
-        enddo
-        write(99,'(3(F14.10,1X))') qpoint(:)
-        write(97,'(e17.8,e17.8,e17.8,f12.8)') qpoint(:) , ( 1.0 / dble(ceiling(2*real(kpttotal)/real(core)))  )
-        write(50, * ) umklapp
-        if ( kptiter2(3) .lt. nkpt(3) ) then 
-          kkpt = kkpt + 1.d0/dble(nkpt(3))
-          kptiter2(3) = kptiter2(3) + 1
-        else
-          kkpt = k0(3)/dble(nkpt(3))
-          kptiter2(3) = 1
-          if (kptiter2(2) .lt. nkpt(2)) then
-            jkpt = jkpt + 1.d0/dble(nkpt(2))
-            kptiter2(2) = kptiter2(2) + 1
-          else
-            jkpt = k0(2)/dble(nkpt(2))
-            kptiter2(2) = 1
-            ikpt = ikpt + 1.d0/dble(nkpt(1))
-            kptiter2(1) = kptiter2(1) + 1
-          endif
+
+          write(shift_fh, * ) qpoint(:)
+          write(qe_shift_fh, '(e19.10,e19.10,e19.10,f19.11)')  qpoint(:) , ( 1.0 / dble(kpttotal) )
+
+          write(50, * ) umklapp
         endif
       enddo
-      close(99)
-      close(97)
-      kpttotal = kpttotal - int(ceiling(real(kpttotal)/real(core)))
-      core = core - 1
     enddo
-  
-    close(50) 
-  endif
-  open(unit=99,file='Nfiles',form='formatted',status='unknown')
-  write(99,*) Nfiles
-  close(99)
+  enddo
 
-  end program kgen
+
+  close(99)
+  close(97)
+  if( split_dft ) then
+    close(96)
+    close(98)
+  endif
+  
+  close(50) 
+
+end program kgen

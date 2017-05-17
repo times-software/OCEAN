@@ -44,7 +44,7 @@ my @EspressoFiles = ( "coord", "degauss", "ecut", "etol", "fband", "ibrav",
     "occopt", "prefix", "ppdir", "rprim", "rscale", "metal",
     "spinorb", "taulist", "typat", "verbatim", "work_dir", "tmp_dir", "wftol", 
     "den.kshift", "obkpt.ipt", "trace_tol", "ham_kpoints", "obf.nbands","tot_charge", 
-    "nspin", "smag", "ldau", "zsymb", "dft.calc_stress", "dft.calc_force" );
+    "nspin", "smag", "ldau", "zsymb", "dft.calc_stress", "dft.calc_force", "dft.split" );
 my @PPFiles = ("pplist", "znucl");
 my @OtherFiles = ("epsilon", "pool_control");
 
@@ -636,43 +636,84 @@ if ( $nscfRUN ) {
     mkdir $bseDIR unless ( -d $bseDIR );
     chdir $bseDIR;
 
-    mkdir "Out" unless ( -d "Out" );
-    mkdir "Out/$qe_data_files{'prefix'}.save" unless ( -d "Out/$qe_data_files{'prefix'}.save" );
-
-    copy "../Out/$qe_data_files{'prefix'}.save/charge-density.dat", "Out/$qe_data_files{'prefix'}.save/charge-density.dat";
-    copy "../Out/$qe_data_files{'prefix'}.save/data-file.xml", "Out/$qe_data_files{'prefix'}.save/data-file.xml";
-
-
-    if( $qe_data_files{'nspin'} == 2 )
-    {
-      copy "../Out/$qe_data_files{'prefix'}.save/spin-polarization.dat", 
-           "Out/$qe_data_files{'prefix'}.save/spin-polarization.dat";
-    }
-
-    if( $qe_data_files{'ldau'}  ne "" )
-    {
-      # Starting w/ QE-6.0 this is the DFT+U info from the SCF
-      if( -e "../Out/$qe_data_files{'prefix'}.save/occup.txt" )
-      {
-        copy "../Out/$qe_data_files{'prefix'}.save/occup.txt", "Out/$qe_data_files{'prefix'}.save/occup.txt";
-      }
-      # QE 4.3-5.x
-      elsif( -e "../Out/$qe_data_files{'prefix'}.occup" )
-      {
-        copy "../Out/$qe_data_files{'prefix'}.occup", "Out/$qe_data_files{'prefix'}.occup";
-      }
-    }
-
     # kpts
     copy "../nkpt", "nkpt";
     copy "../qinunitsofbvectors.ipt", "qinunitsofbvectors.ipt";
     copy "../k0.ipt", "k0.ipt";
+    copy "../dft.split", "dft.split";
+
+    my $split_dft;
+    if( open IN, "dft.split" )
+    {
+      $split_dft = 0;
+      if( <IN> =~ m/t/i )
+      {
+        $split_dft = 1;
+      }
+      close IN;
+      # Only makes sense if we have q
+      if( $split_dft )
+      {
+        open IN, "qinunitsofbvectors.ipt" or die "Failed to open qinunitofbvectors\n$!";
+        <IN> =~ m/([+-]?\d+\.?\d*([eE][+-]?\d+)?)\s+([+-]?\d+\.?\d*([eE][+-]?\d+)?)\s+([+-]?\d+\.?\d*([eE][+-]?\d+)?)/ 
+                    or die "Failed to parse qinunitsofbvectors.ipt\n";
+        my $fake_qmag = abs($1) + abs($3) + abs($5);
+        close IN;
+        $split_dft = 0 if( $fake_qmag < 0.000000001 );
+      }
+    }
+    else
+    {
+      $split_dft = 0;
+    } 
+
+    print "DFT runs will be split\n" if( $split_dft );
+
+    $qe_data_files{'prefix_shift'} = $qe_data_files{'prefix'} . "_shift";
+
+    mkdir "Out" unless ( -d "Out" );
+
+    # This will loop back and do everything for prefix_shift if we have split
+    my $repeat = 0;
+    $repeat = 1 if( $split_dft );
+    my $prefix = 'prefix';
+    for( my $i = 0; $i <= $repeat; $i++ )
+    {
+      mkdir "Out/$qe_data_files{$prefix}.save" unless ( -d "Out/$qe_data_files{$prefix}.save" );
+
+      copy "../Out/$qe_data_files{'prefix'}.save/charge-density.dat", "Out/$qe_data_files{$prefix}.save/charge-density.dat";
+      copy "../Out/$qe_data_files{'prefix'}.save/data-file.xml", "Out/$qe_data_files{$prefix}.save/data-file.xml";
+
+
+      if( $qe_data_files{'nspin'} == 2 )
+      {
+        copy "../Out/$qe_data_files{'prefix'}.save/spin-polarization.dat", 
+             "Out/$qe_data_files{$prefix}.save/spin-polarization.dat";
+      }
+
+      if( $qe_data_files{'ldau'}  ne "" )
+      {
+        # Starting w/ QE-6.0 this is the DFT+U info from the SCF
+        if( -e "../Out/$qe_data_files{'prefix'}.save/occup.txt" )
+        {
+          copy "../Out/$qe_data_files{'prefix'}.save/occup.txt", "Out/$qe_data_files{$prefix}.save/occup.txt";
+        }
+        # QE 4.3-5.x
+        elsif( -e "../Out/$qe_data_files{'prefix'}.occup" )
+        {
+          copy "../Out/$qe_data_files{'prefix'}.occup", "Out/$qe_data_files{$prefix}.occup";
+        }
+      }
+      $prefix = "prefix_shift";
+    }
+
+
 #    copy "../acell", "acell";
 #    copy "../atompp", "atompp";
 #    copy "../coords", "coords";
-    open OUT, ">core" or die;
-    print OUT "1\n";
-    close OUT;
+#    open OUT, ">core" or die;
+#    print OUT "1\n";
+#    close OUT;
     system("$ENV{'OCEAN_BIN'}/kgen2.x") == 0 or die "KGEN.X Failed\n";
 
     open my $QE, ">nscf.in" or die "Failed to open nscf.in\n$!";
@@ -714,6 +755,43 @@ if ( $nscfRUN ) {
     print  "$para_prefix $ENV{'OCEAN_ESPRESSO_PW'}  -npool $npool < nscf.in > nscf.out 2>&1\n";
     system("$para_prefix $ENV{'OCEAN_ESPRESSO_PW'}  -npool $npool < nscf.in > nscf.out 2>&1") == 0
         or die "Failed to run nscf stage for BSE wavefunctions\n";
+
+
+    if( $split_dft )
+    {
+      open my $QE, ">nscf_shift.in" or die "Failed to open nscf_shift.in\n$!";
+
+      $prefix = $qe_data_files{'prefix'};
+      $qe_data_files{'prefix'} = $qe_data_files{'prefix_shift'};
+
+      $kpt_text = "K_POINTS crystal\n";
+      open IN, "nkpts" or die;
+      my $nkpts = <IN>;
+      close IN;
+      $kpt_text .= $nkpts;
+      open IN, "kpts4qe.0002" or die;
+      while(<IN>)
+      {
+        $kpt_text .= $_;
+      }
+      close IN;
+      $qe_data_files{'print kpts'} = $kpt_text;
+      $qe_data_files{'print nbands'} = $qe_data_files{'nbands'};
+
+      &print_qe( $QE, %qe_data_files );
+
+      close $QE;
+
+      print  "$para_prefix $ENV{'OCEAN_ESPRESSO_PW'}  -npool $npool < nscf_shift.in > nscf_shift.out 2>&1\n";
+      system("$para_prefix $ENV{'OCEAN_ESPRESSO_PW'}  -npool $npool < nscf_shift.in > nscf_shift.out 2>&1") == 0
+          or die "Failed to run nscf stage for shifted BSE wavefunctions\n";
+
+      $qe_data_files{'prefix'} = $prefix;
+
+    }
+
+
+
     open OUT, ">nscf.stat" or die "Failed to open nscf.stat\n$!";
     print OUT "1\n";
     close OUT;

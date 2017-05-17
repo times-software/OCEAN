@@ -26,7 +26,7 @@ program wfconvert
       integer :: xstart,xend,ystart,yend,zstart,zend
       integer :: xrange,yrange,zrange,np_counter
       integer :: g_un_min(3),g_un_max(3),g_sh_min(3),g_sh_max(3), umk(3)
-      integer ::i,j,k,hkpt,gtot,kr_iter,ki_iter,nfiles, ierr
+      integer ::i,j,k,hkpt,gtot,kr_iter,ki_iter, ierr
       integer :: master_iter,g_iter,nkpts,kpt_counter, qe_kpt
       character(len=11) :: wfkin!,wfkout
       character(len=12) :: wfkout
@@ -60,10 +60,6 @@ program wfconvert
       write(6,'(4I5)')brange(1),brange(2),brange(3),brange(4) 
       bandtot=brange(4)-brange(3)+brange(2)-brange(1)+2
    
-      open(unit=99,file='Nfiles',form=f9,status='old')
-        read(99,*) nfiles
-      close(99)
-
       open(unit=99,file='nkpts',form=f9,status='old')
         read(99,*)nkpts
       close(99) 
@@ -127,12 +123,6 @@ program wfconvert
 
       lda_low = 0.0
       lda_high = 0.0
-
-      if (nfiles .gt. 9999) then
-!     Only giving four places for file names. 9999 Is an arbitrary limit 
-         write(6,*) 'Impending DOOM!'
-         stop 'nfiles too great'
-      endif
 
       open(unit=tmels,file='tmels',form=f9,status='unknown')
       open(unit=listwfile,file='listwfile',form=f9,status='unknown')
@@ -211,6 +201,8 @@ program wfconvert
           write(6,*) 'Error: nkpt must be even. k and k+q together.'
           stop 'Cannot continue'
         endif
+      else
+        write(6,*) "DFT runs are split"
       endif
 
       if (noshift) then
@@ -322,6 +314,7 @@ program wfconvert
             endif
           else
             write(enk_un,*) 2.0*eigen_un(brange(1):brange(4))
+            write(enk_sh,*) 2.0*eigen_un(brange(1):brange(4))
           endif
 
           if (kpt_counter .eq. 1) then
