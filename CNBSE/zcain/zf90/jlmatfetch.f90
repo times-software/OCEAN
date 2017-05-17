@@ -99,9 +99,11 @@ subroutine jlmatfetch( lc, lmin, lmax, npmax, nproj, qmag, jlmel, powmax )
            case( 3 )
               rslt = ( 15.0d0 / x ** 4 - 6.0d0 / x ** 2 ) * sin( x ) - ( 15.0d0 / x ** 3 - 1.0d0 / x ) * cos( x )
            case( 4 )
-              rslt = ( 105.0d0 / x ** 5 - 45.0d0 / x ** 3 + 1.0d0 / x ) * sin( x ) - ( 105.0d0 / x ** 4 - 10.0d0 / x ** 2 ) * cos( x )
+              rslt = ( 105.0d0 / x ** 5 - 45.0d0 / x ** 3 + 1.0d0 / x ) * sin( x )  &
+                   - ( 105.0d0 / x ** 4 - 10.0d0 / x ** 2 ) * cos( x )
            case( 5 )
-              rslt = ( 945.0d0 / x ** 6 - 420.0d0 / x ** 4 + 15.0d0 / x ** 2 ) * sin( x ) - ( 945.0d0 / x ** 5 - 105.0d0 / x ** 3 + 1.0d0 / x ) * cos( x )
+              rslt = ( 945.0d0 / x ** 6 - 420.0d0 / x ** 4 + 15.0d0 / x ** 2 ) * sin( x ) & 
+                   - ( 945.0d0 / x ** 5 - 105.0d0 / x ** 3 + 1.0d0 / x ) * cos( x )
            end select
         end if 
         jl( j, l ) = rslt
