@@ -821,13 +821,20 @@ if ( $bseRUN ) {
     if( <IN> =~ m/t/i )
     {
       open IN, "qinunitsofbvectors.ipt" or die "Failed to open qinunitofbvectors\n$!";
-      <IN> =~ m/([+-]?\d+\.?\d*([eE][+-]?\d+)?)\s+([+-]?\d+\.?\d*([eE][+-]?\d+)?)\s+([+-]?\d+\.?\d*([eE][+-]?\d+)?)/
+#      <IN> =~ m/([+-]?\d+\.?\d*([eE][+-]?\d+)?)\s+([+-]?\d+\.?\d*([eE][+-]?\d+)?)\s+([+-]?\d+\.?\d*([eE][+-]?\d+)?)/
+      <IN> =~ m/([-+]?[0-9]*\.?[0-9]+([eE][-+]?[0-9]+)?)\s+([-+]?[0-9]*\.?[0-9]+([eE][-+]?[0-9]+)?)\s+([-+]?[0-9]*\.?[0-9]+([eE][-+]?[0-9]+)?)\s+/
                   or die "Failed to parse qinunitsofbvectors.ipt\n";
+      print "$1\t$3\t$5\n";
       my $fake_qmag = abs($1) + abs($3) + abs($5);
       close IN;
-      if( $fake_qmag < 0.000000001 )
+      if( $fake_qmag > 0.000000001 )
       {
         $nfiles = 2;
+        print "DFT will be split up\n";
+      }
+      else
+      {
+        print "DFT split requested, but q=0!\n";
       }
     }
     close IN;

@@ -47,28 +47,25 @@ if( open NSPIN, "nspin" )
 $ne *= $nkpt;
 $ne *= $nspin;
 
-#open ENK, "enkfile" or die;
 open ENK, "enk_un" or die;
 my $line;
 my @energy;
-my @Cenergy;
 while ($line = <ENK> ) {
-#for (my $kptcount = 0; $kptcount < $nkpt; $kptcount ++) {
-# for (my $i = 0; $i <($brange[1])/3; $i++ ) {
-#  $line = <ENK> or die; 
   chomp($line);
-  $line =~ m/^\s*(.+)/ ;
-  push @energy, split (/ +/, $1);
-#  print "occ\n";
-# } 
-# for (my $i = 0; $i <($brange[3]-$brange[2]+1)/3; $i++ ) {
-#  $line = <ENK> or die;
-#  print "unocc\n";
-# }
+  push @energy, split( ' ', $line );
+#  $line =~ m/^\s*(.+)/ ;
+#  push @energy, split (/ +/, $1);
 }
 close ENK;
-#my $bah = ($brange[3]-$brange[2]+1)/3;
-#print "$bah\n";
+
+open ENK, "enk_sh" or die;
+my @sh_energy;
+while ($line = <ENK> ) {
+  chomp($line);
+  push @sh_energy, split( ' ', $line );
+}
+close ENK;
+
 
 my @sorted = sort { $a <=> $b } @energy;
 open TEST,">test";
@@ -76,22 +73,30 @@ foreach (@sorted) {
  print TEST "$_\n";
 }
 
+my @sh_sorted = sort { $a <=> $b } @sh_energy;
+open TEST,">test_shifted";
+foreach (@sh_sorted) {
+ print TEST "$_\n";
+}
 
-my $ldagap = ($sorted[$ne]-$sorted[$ne-1]);
+
+
+my $ldagap = ($sh_sorted[$ne]-$sorted[$ne-1]);
 my $efermi = $ldagap / 2 + $sorted[$ne-1];
 
 #print "$nkpt\t$ne\n";
-print "$sorted[$ne-2]\t$sorted[$ne-1]\t$sorted[$ne]\t$sorted[$ne+1]\n";
+print "$sorted[$ne-2]\t$sorted[$ne-1]\t$sh_sorted[$ne]\t$sh_sorted[$ne+1]\n";
 open FERMI, ">efermiinrydberg2.ipt" or die;
 print FERMI $efermi . "\n";
 close FERMI;
 
 open LDA, ">ldagap" or die;
-printf LDA "%.6f\n", (($sorted[$ne]-$sorted[$ne-1])*13.605698) ;
+printf LDA "%.6f\n", $ldagap *13.605698;
+#printf LDA "%.6f\n", (($sorted[$ne]-$sorted[$ne-1])*13.605698) ;
 close LDA;
 
 open ESHIFT, ">eshift.ipt" or die;
-printf ESHIFT "%.6f\n", (-$sorted[$ne]*13.605698) ;
+printf ESHIFT "%.6f\n", (-$sh_sorted[$ne]*13.605698) ;
 close ESHIFT;
 
 exit 0;

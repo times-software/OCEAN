@@ -28,7 +28,8 @@ $oldden = 1 if (-e "../DFT/old");
 
 
 my @QEFiles     = ( "rhoofr", "efermiinrydberg.ipt" );
-my @CommonFiles = ( "screen.nkpt", "nkpt", "qinunitsofbvectors.ipt", "avecsinbohr.ipt", "dft", "nspin", "xmesh.ipt" );
+my @CommonFiles = ( "screen.nkpt", "nkpt", "qinunitsofbvectors.ipt", "avecsinbohr.ipt", "dft", 
+                    "nspin", "xmesh.ipt", "dft.split" );
 
 foreach (@QEFiles) {
   system("cp ../DFT/$_ .") == 0 or die "Failed to copy $_\n";
@@ -72,7 +73,7 @@ print NKPTS $nkpt[0]*$nkpt[1]*$nkpt[2] . "\n";
 close NKPTS;
 
 
-foreach ("Nfiles", "kmesh.ipt", "brange.ipt", "qinunitsofbvectors.ipt" ) {
+foreach ("kmesh.ipt", "brange.ipt", "qinunitsofbvectors.ipt" ) {
   system("cp ../${rundir}/$_ .") == 0 or die "Failed to copy $_\n";
 }
 #`cp ../qinunitsofbvectors.ipt .`;
@@ -127,6 +128,15 @@ print "Done with PAW files\n";
 
 
 ## process bse wf files ##
+my $split_dft = 0;
+if( open IN, "dft.split" )
+{
+  if( <IN> =~ m/t/i )
+  {
+    $split_dft = 1;
+  }
+}
+
 
 open NKPT, "bse.nkpt" or die "Failed to open nkpt";
 <NKPT> =~ m/(\d+)\s+(\d+)\s+(\d+)/ or die "Failed to parse nkpt\n";
@@ -145,7 +155,7 @@ unless( -e "BSE/done" && -e "${rundir}/old" ) {
   print NKPT $nkpt[0]*$nkpt[1]*$nkpt[2] . "\n";
   close NKPT;
 
-  foreach ("Nfiles", "kmesh.ipt", "brange.ipt") {
+  foreach ("kmesh.ipt", "brange.ipt") {
     system("cp ../${rundir}/$_ .") == 0 or die "Failed to copy $_\n";
   }
   `cp ../qinunitsofbvectors.ipt .`;
@@ -156,7 +166,8 @@ unless( -e "BSE/done" && -e "${rundir}/old" ) {
   `cp ../xmesh.ipt .`;
   `cp ../nspin .`;
   `cp ../${rundir}/umklapp .`;
-  my $Nfiles = `cat Nfiles`;
+  `cp ../dft.split .`;
+#  my $Nfiles = `cat Nfiles`;
 
   my $prefix;
   open PREFIX, "../../Common/prefix";
@@ -184,9 +195,15 @@ unless( -e "BSE/done" && -e "${rundir}/old" ) {
   print "../$rundir/Out\n";
   symlink ("../$rundir/Out", "Out") == 1 or die "Failed to link Out\n$!";
 
-system("$ENV{'OCEAN_BIN'}/qe_data_file.pl Out/$prefix.save/data-file.xml") == 0
-  or die "Failed to run qe_data_file.pl\n$!";
-
+  if( $split_dft ) 
+  {
+    system("$ENV{'OCEAN_BIN'}/qe_data_file.pl Out/$prefix.save/data-file.xml Out/${prefix}_shift.save/data-file.xml") == 0
+      or die "Failed to run qe_data_file.pl\n$!";
+  }
+  {
+    system("$ENV{'OCEAN_BIN'}/qe_data_file.pl Out/$prefix.save/data-file.xml") == 0
+      or die "Failed to run qe_data_file.pl\n$!";
+  }
 
   system("$ENV{'OCEAN_BIN'}/wfconvert.x system") == 0 
     or die "Failed to run wfconvert.x\n";
