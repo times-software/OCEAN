@@ -18,6 +18,10 @@ photon_q
 {
 0.00 0.00 0.00
 } qinunitsofbvectors.ipt
+dft.split
+{
+.false.
+} dft.split
 nbands
 {
 -1
