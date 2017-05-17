@@ -336,7 +336,8 @@ module OCEAN_hyb_louie_levine
           if( override_ladder ) then
             if( abs(ladder( iter1, ix - nx_start + 1, iy ) - ladder2(iter1, ix - nx_start + 1, iy ) &
                 .gt. 0.01 ) ) then
-              write(6,*) kret( iter1 ), ix - nx_start + 1, iy, ladder( iter1, ix - nx_start + 1, iy ) , ladder2(iter1, ix - nx_start + 1, iy )
+              write(6,*) kret( iter1 ), ix - nx_start + 1, iy, ladder( iter1, ix - nx_start + 1, iy ) , & 
+                         ladder2(iter1, ix - nx_start + 1, iy )
             endif
           endif
 #endif

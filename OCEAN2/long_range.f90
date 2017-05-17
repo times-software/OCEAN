@@ -2094,7 +2094,8 @@ module ocean_long_range
     real(DP), external :: DDOT
 
     real( DP ) :: su
-    real( DP ), allocatable :: re_exciton(:,:,:), im_exciton(:,:,:), exciton_buf(:), exciton_out(:), exciton_transpose( :, :, : ) 
+    real( DP ), allocatable :: re_exciton(:,:,:), im_exciton(:,:,:), exciton_buf(:), exciton_out(:), & 
+                               exciton_transpose( :, :, : ) 
 
 #ifdef __INTEL_COMPILER
 ! DIR$ attributes align: 64 :: xwrkr, xwrki, wrk

@@ -75,7 +75,8 @@ subroutine gentoreal( nx, nfcn, fcnr, fcni, ng, gvec, iu, loud )
         zr( i1, i2, i3 ) = fcnr( ig, i )
         zi( i1, i2, i3 ) = fcni( ig, i )
         if ( loud .and. ( ig .le. 10 ) .and. ( i .le. 3 ) ) then
-           if ( loud ) write ( 6, fstr ) 'x', gvec( ig, 1 ), i1, 'y', gvec( ig, 2 ), i2, 'z', gvec( ig, 3 ), i3, 'ig, i', ig, i
+           if ( loud ) write ( 6, fstr ) 'x', gvec( ig, 1 ), i1, 'y', gvec( ig, 2 ), i2, 'z', & 
+                                         gvec( ig, 3 ), i3, 'ig, i', ig, i
         end if
      end do
      call cfft( zr, zi, nfft( 1 ), nfft( 1 ), nfft( 2 ), nfft( 3 ), toreal, wrk, idwrk )
@@ -91,7 +92,8 @@ subroutine gentoreal( nx, nfcn, fcnr, fcni, ng, gvec, iu, loud )
               i1 = ilist( ix, 1 )
               ii = ii + 1
               if ( loud .and. ( ii .le. 10 ) .and. ( i .le. 3 ) ) then
-                 write ( 6, fstr ) 'mesh ind.', i1, i2, i3, 'cell ind.', ix, iy, iz, 'value = ', zr( i1, i2, i3 ), zi( i1, i2, i3 )
+                 write ( 6, fstr ) 'mesh ind.', i1, i2, i3, 'cell ind.', ix, iy, iz, 'value = ', & 
+                                   zr( i1, i2, i3 ), zi( i1, i2, i3 )
               end if
               cres( iz, iy, ix ) = zr( i1, i2, i3 ) + rm1 * zi( i1, i2, i3 )
            end do

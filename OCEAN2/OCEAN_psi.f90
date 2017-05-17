@@ -3240,7 +3240,7 @@ module OCEAN_psi
 ! !#else
         nrm = 0.0_DP
         do ikpt = 1, sys%nkpts
-!          nrm = nrm + dot_product( psi( 1 : sys%cur_run%num_bands, ikpt, ialpha ), psi( 1 : sys%cur_run%num_bands, ikpt, ialpha ) )
+!          nrm = nrm + dot_product( psi( 1 : sys%cur_run%num_bands, ikpt, ialpha ), psi( 1 : sys%cur_run%num_bands, ikpt, ialpha))
           nrm = nrm + sum(p%r(:,ikpt,ialpha)**2 + p%i(:,ikpt,ialpha)**2)
         enddo
         write( 6, '(1a12,1i4,1x,1e15.8)' ) 'channel dot', ialpha, nrm
@@ -3369,7 +3369,8 @@ module OCEAN_psi
     real(dp), external :: DDOT
 
 
-    if( myid .eq. root ) write(6,*) sys%nbeta,sys%nkpts, sys%cur_run%val_bands, psi_val_bands, sys%cur_run%num_bands, psi_bands_pad
+    if( myid .eq. root ) write(6,*) sys%nbeta,sys%nkpts, sys%cur_run%val_bands, psi_val_bands, & 
+                                    sys%cur_run%num_bands, psi_bands_pad
 
     val = 0.0_DP
     do ibeta = 1, psi_val_beta

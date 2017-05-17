@@ -558,7 +558,8 @@ call descinit( desc_uofrandb, npt, nbasis_subset, nb, desc_cyclic(NB_), 0, 0, co
 
         write(stdout,*) nprow, npcol, nb, nb2
 
-        if( .true. ) then !.and. ( nprow .eq. npcol ) .and. (nb .eq. nb2) ) then !.and. ( nb *nprow .eq. npt ) .and. ( nb2 * npcol .eq. npt ) ) then
+        if( .true. ) then  
+ !.and. ( nprow .eq. npcol ) .and. (nb .eq. nb2) ) then !.and. ( nb *nprow .eq. npt ) .and. ( nb2 * npcol .eq. npt ) ) then
           write(stdout,*) 'Fast chi'
           call OCEAN_build_chi(myrow, mycol,nprow,npcol,context_cyclic,band_subset,nb,nb2,&
                              desc_cyclic(NB_),desc_gre,sigma,t,nt,eshift,fermi_energy,eigval,&
