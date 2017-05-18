@@ -79,9 +79,16 @@ foreach (@sh_sorted) {
  print TEST "$_\n";
 }
 
-
-
-my $ldagap = ($sh_sorted[$ne]-$sorted[$ne-1]);
+my $ldagap;
+# If we have more bands than strictly necessary
+if( scalar @sorted > $ne )
+{
+  $ldagap = ($sorted[$ne]-$sorted[$ne-1]);
+}
+else
+{
+  $ldagap = ($sh_sorted[$ne]-$sorted[$ne-1]);
+}
 my $efermi = $ldagap / 2 + $sorted[$ne-1];
 
 #print "$nkpt\t$ne\n";
@@ -91,12 +98,12 @@ print FERMI $efermi . "\n";
 close FERMI;
 
 open LDA, ">ldagap" or die;
-printf LDA "%.6f\n", $ldagap *13.605698;
+printf LDA "%.6f\n", $ldagap *13.605693009;  #(84) 2014 CODATA
 #printf LDA "%.6f\n", (($sorted[$ne]-$sorted[$ne-1])*13.605698) ;
 close LDA;
 
 open ESHIFT, ">eshift.ipt" or die;
-printf ESHIFT "%.6f\n", (-$sh_sorted[$ne]*13.605698) ;
+printf ESHIFT "%.8f\n", (-$sh_sorted[$ne]*13.605693009) ;  #(84) 2014 CODATA
 close ESHIFT;
 
 exit 0;
