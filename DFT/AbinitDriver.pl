@@ -40,7 +40,7 @@ my @BandFiles = ("nbands", "screen.nbands");
 my @AbinitFiles = ( "rscale", "rprim", "ntype", "natoms", "typat",
     "verbatim", "coord", "taulist", "ecut", "etol", "nrun", "wftol", 
     "fband", "occopt", "ngkpt", "abpad", "nspin", "smag", "metal", "degauss", 
-    "dft.calc_stress", "dft.calc_force", "tot_charge", "dft.split");
+    "dft.calc_stress", "dft.calc_force", "tot_charge", "dft.split", "dft");
 my @PPFiles = ("pplist", "znucl");
 my @OtherFiles = ("epsilon");
 

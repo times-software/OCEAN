@@ -35,7 +35,7 @@ my $RunPP = 0;
 my $RunESPRESSO = 0;
 my $nscfRUN = 1;
 
-my @GeneralFiles = ("para_prefix", "dft" );
+my @GeneralFiles = ("para_prefix");
 
 my @KgenFiles = ("nkpt", "k0.ipt", "qinunitsofbvectors.ipt", "screen.nkpt");
 my @BandFiles = ("nbands", "screen.nbands");
@@ -44,7 +44,7 @@ my @EspressoFiles = ( "coord", "degauss", "ecut", "etol", "fband", "ibrav",
     "occopt", "prefix", "ppdir", "rprim", "rscale", "metal",
     "spinorb", "taulist", "typat", "verbatim", "work_dir", "tmp_dir", "wftol", 
     "den.kshift", "obkpt.ipt", "trace_tol", "ham_kpoints", "obf.nbands","tot_charge", 
-    "nspin", "smag", "ldau", "zsymb", "dft.calc_stress", "dft.calc_force", "dft.split" );
+    "nspin", "smag", "ldau", "zsymb", "dft.calc_stress", "dft.calc_force", "dft.split", "dft" );
 my @PPFiles = ("pplist", "znucl");
 my @OtherFiles = ("epsilon", "pool_control");
 
