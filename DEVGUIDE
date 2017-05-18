@@ -34,9 +34,7 @@ II) Code compatibility
     new code by asking the compiler to complain.
   B) Acceptable Non-standards
     1) Flush
-    2) Contiguous
-      Put in #ifdef CONTIGUOUS to block it off. 
-    3) Alignment calls
+    2) Alignment calls
       For high-performance code alignment can be crucial. We need a portable 
       way to specify good data alignment. 
   C) Pre-processor
