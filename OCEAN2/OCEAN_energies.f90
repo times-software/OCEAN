@@ -269,6 +269,8 @@ module OCEAN_energies
           call OCEAN_gw_by_band( sys, ierr, .true. )
         case( 'cstr' )
           call OCEAN_gw_stretch( sys, ierr )
+        case( 'list' )
+          call OCEAN_gw_list( sys, ierr, .false. )
         case default
           write(6,*) 'Unrecognized gw_control'
         end select
@@ -435,6 +437,51 @@ module OCEAN_energies
     energies( :, :, : ) = energies( :, :, : ) * cstr
 
   end subroutine OCEAN_gw_stretch
+
+  subroutine OCEAN_gw_list( sys, ierr, keep_imag )
+    use OCEAN_system
+    use OCEAN_mpi, only : myid, root
+    use OCEAN_constants, only : eV2Hartree
+
+    implicit none
+    integer, intent(inout) :: ierr
+    type(O_system), intent( in ) :: sys
+    logical, intent( in ) :: keep_imag
+
+    real( DP ) :: delta_gw, imag_gw
+    integer :: band_max, band_loop, ikpt, iband, ispn
+    logical :: have_gw
+
+    if( myid .ne. root ) return
+    inquire( file="list_val_gw.txt", exist=have_gw )
+    if( have_gw ) then
+      !
+      open( unit=99, file="list_val_gw.txt", form="formatted", status="old" )
+      read( 99, * ) band_max
+      !
+
+      band_loop = min( band_max, sys%cur_run%num_bands )
+      do iband = 1, band_loop
+        do ispn = 1, sys%nspn
+          do ikpt = 1, sys%nkpts
+            if( keep_imag ) then
+              read( 99, * ) delta_gw, imag_gw
+              energies( iband, ikpt, ispn ) = energies( iband, ikpt, ispn ) + delta_gw * eV2Hartree
+              imag_selfenergy( iband, ikpt, ispn ) = imag_gw
+            else
+              read( 99, * ) delta_gw
+              energies( iband, ikpt, ispn ) = energies( iband, ikpt, ispn ) + delta_gw * eV2Hartree
+            endif
+          enddo
+        enddo
+      enddo
+      write(6,* ) 'GW: list corrections from list_val_gw.txt', sys%cur_run%num_bands
+      close( 99 )
+    else
+      write(6,* ) 'GW: list requested, but list_val_gw.txt not found!'
+    endif
+
+  end subroutine OCEAN_gw_list
 
   subroutine OCEAN_gw_by_band( sys, ierr, keep_imag )
     use OCEAN_system
