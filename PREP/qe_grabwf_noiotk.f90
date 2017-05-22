@@ -5,21 +5,22 @@
 ! `License' in the root directory of the present distribution.
 !
 !
-subroutine qe_grabwf_noiotk(ikpt, isppol, nsppol, maxband, maxnpw, kg, eigen, cg, npw, ierr )
+subroutine qe_grabwf_noiotk(ikpt, isppol, nsppol, maxband, maxnpw, prefix, kg, eigen, cg, npw, ierr )
   implicit none
   integer, intent( in ) :: ikpt, isppol, nsppol, maxband, maxnpw
   integer, intent( out ) :: npw
   integer, intent( inout ) :: ierr
+  character(len=128), intent( in ) :: prefix
   real(kind=kind(1.0d0)), intent( out ) :: eigen(maxband), cg(maxband,2*maxnpw)
   integer, intent( out ) :: kg( 3, maxnpw )
   !
-  character(len=22) :: dirname
-  character(len=16) :: prefix = 'Out/system.save/' 
+  character(len=128) :: dirname
+!  character(len=16) :: prefix = 'Out/system.save/' 
   character(len=128) :: filename
   integer :: i, j, crap, max_ngvecs
   complex(kind=kind(1.0d0)), allocatable :: tbuffer(:)
 
-  write( dirname, '(a16,a1,i5.5)') prefix, 'K', ikpt
+  write( dirname, '(a,a1,i5.5)') trim( prefix ), 'K', ikpt
 
 
 
@@ -39,6 +40,7 @@ subroutine qe_grabwf_noiotk(ikpt, isppol, nsppol, maxband, maxnpw, kg, eigen, cg
     read(99,*) 
   enddo
 
+  if( ikpt .eq. 1 ) write( 6, * ) filename, maxband
   do i = 1, maxband
     read(99,*) eigen( i )
   enddo

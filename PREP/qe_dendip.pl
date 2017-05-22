@@ -29,7 +29,7 @@ $oldden = 1 if (-e "../DFT/old");
 
 my @QEFiles     = ( "rhoofr", "efermiinrydberg.ipt" );
 my @CommonFiles = ( "screen.nkpt", "nkpt", "qinunitsofbvectors.ipt", "avecsinbohr.ipt", "dft", 
-                    "nspin", "xmesh.ipt", "dft.split" );
+                    "nspin", "xmesh.ipt", "dft.split", "prefix" );
 
 foreach (@QEFiles) {
   system("cp ../DFT/$_ .") == 0 or die "Failed to copy $_\n";
@@ -81,14 +81,13 @@ foreach ("kmesh.ipt", "brange.ipt", "qinunitsofbvectors.ipt" ) {
 `cp ../dft .`;
 `cp ../nspin .`;
 `cp ../${rundir}/umklapp .`;
+`cp ../prefix .`;
 
 my $prefix;
-open PREFIX, "../../Common/prefix";
-while (<PREFIX>) {
-  chomp;
-  $prefix = $_;
-}
+open PREFIX, "prefix";
+$prefix = <PREFIX>;
 close (PREFIX);
+chomp( $prefix );
 
 
 #`cp -r ../${rundir}/Out .`;
@@ -129,13 +128,13 @@ print "Done with PAW files\n";
 
 ## process bse wf files ##
 my $split_dft = 0;
-if( open IN, "dft.split" )
+open IN, "dft.split" or die "$!\n";
+if( <IN> =~ m/t/i )
 {
-  if( <IN> =~ m/t/i )
-  {
-    $split_dft = 1;
-  }
+  $split_dft = 1;
 }
+close IN;
+
 
 
 open NKPT, "bse.nkpt" or die "Failed to open nkpt";
@@ -167,14 +166,13 @@ unless( -e "BSE/done" && -e "${rundir}/old" ) {
   `cp ../nspin .`;
   `cp ../${rundir}/umklapp .`;
   `cp ../dft.split .`;
+  `cp ../prefix .`;
 #  my $Nfiles = `cat Nfiles`;
 
   my $prefix;
-  open PREFIX, "../../Common/prefix";
-  while (<PREFIX>) {
-    chomp;
-    $prefix = $_;
-  }
+  open PREFIX, "prefix" or die "$!\n";
+  $prefix = <PREFIX>;
+  chomp($prefix);
   close (PREFIX);
 
 
@@ -197,10 +195,13 @@ unless( -e "BSE/done" && -e "${rundir}/old" ) {
 
   if( $split_dft ) 
   {
+    print "$ENV{'OCEAN_BIN'}/qe_data_file.pl Out/$prefix.save/data-file.xml Out/${prefix}_shift.save/data-file.xml\n";
     system("$ENV{'OCEAN_BIN'}/qe_data_file.pl Out/$prefix.save/data-file.xml Out/${prefix}_shift.save/data-file.xml") == 0
       or die "Failed to run qe_data_file.pl\n$!";
   }
+  else
   {
+    print "$ENV{'OCEAN_BIN'}/qe_data_file.pl Out/$prefix.save/data-file.xml\n";
     system("$ENV{'OCEAN_BIN'}/qe_data_file.pl Out/$prefix.save/data-file.xml") == 0
       or die "Failed to run qe_data_file.pl\n$!";
   }

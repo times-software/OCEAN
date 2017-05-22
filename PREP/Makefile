@@ -44,7 +44,7 @@ wfconvert.x: $(WFCONVERT_OBJS)
 wfconvert_gw.x: $(WFCONVERTGW_OBJS)
 	$(FC) $(OPTIONS) $(WFCONVERTGW_OBJS) -o wfconvert_gw.x
 
-wfconvert.o: wfconvert2.f90
+wfconvert.o: wfconvert2.f90 $(WFCONVERT_OBJS)
 	$(FC) $(OPTIONS) -c wfconvert2.f90 -o wfconvert.o
 
 wfconvert_gw.o: wfconvert_gw.f90

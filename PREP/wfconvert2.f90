@@ -38,6 +38,8 @@ program wfconvert
 #ifdef __HAVE_IOTK
       character(len=128) :: qe_filename
 #endif
+      character(len=128) :: prefix
+      character(len=128) :: dir_and_prefix
       character(len=9), parameter :: f9 = 'formatted'
 !
       integer, parameter :: enkfile =   40
@@ -131,11 +133,17 @@ program wfconvert
 !   For each run file grab the matching k, k+q pts and write for NBSE
       select case( dft_flavor )
         case( 'qe' )
+
+        open( unit=99, file='prefix', form=f9, status='old' )
+        read(99,*)  prefix
+        close( 99 )
 #ifdef __HAVE_IOTK
-          qe_filename = 'Out/system.save/data-file.xml'
+          write( qe_filename, '(a,a,a)' ) 'Out/', trim( prefix ), '.save/data-file.xml'
+!          qe_filename = 'Out/system.save/data-file.xml'
           call qehead( qe_filename, maxband(1), maxnpw(1), nsppol(1), nspinor(1), nkpt(1), ierr )
           if( split_dft ) then
-            qe_filename = 'Out_shift/system.save/data-file.xml'
+!            qe_filename = 'Out_shift/system.save/data-file.xml'
+            write( qe_filename, '(a,a,a)' ) 'Out/', trim( prefix ), '_shift.save/data-file.xml'
             call qehead( qe_filename, maxband(2), maxnpw(2), nsppol(2), nspinor(2), nkpt(2), ierr )
           endif
 #else
@@ -247,7 +255,9 @@ program wfconvert
             call qe_grabwf(qe_kpt, isppol, nsppol(1), maxband(1), maxnpw(1), kg_unshift,  &
      &                     eigen_un, occ_un, cg_un, un_npw, ierr)
 #else
-            call qe_grabwf_noiotk(qe_kpt, isppol, nsppol(1), maxband(1), maxnpw(1), kg_unshift,  &
+            write( dir_and_prefix, '(a,a,a)' ) 'Out/', trim(prefix), '.save/'
+            if( qe_kpt .le. 2 ) write( 6, * ) dir_and_prefix
+            call qe_grabwf_noiotk(qe_kpt, isppol, nsppol(1), maxband(1), maxnpw(1), dir_and_prefix, kg_unshift,  &
      &                     eigen_un, cg_un, un_npw, ierr)
 #endif
             if( ierr .ne. 0 ) then
@@ -263,7 +273,13 @@ program wfconvert
               call qe_grabwf(qe_kpt, isppol, nsppol(2), maxband(2), maxnpw(2), kg_shift,  &
      &                       eigen_sh, occ_sh, cg_sh, sh_npw, ierr)
 #else
-              call qe_grabwf_noiotk(qe_kpt, isppol, nsppol(2), maxband(2), maxnpw(2), kg_shift,  &
+              if( split_dft ) then
+                write( dir_and_prefix, '(a,a,a)' ) 'Out/', trim(prefix), '_shift.save/'
+              else
+                write( dir_and_prefix, '(a,a,a)' ) 'Out/', trim(prefix), '.save/'
+              endif
+              if( qe_kpt .le. 2 ) write( 6, * ) dir_and_prefix
+              call qe_grabwf_noiotk(qe_kpt, isppol, nsppol(2), maxband(2), maxnpw(2), dir_and_prefix, kg_shift,  &
      &                     eigen_sh, cg_sh, sh_npw, ierr)
 #endif
             endif
