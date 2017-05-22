@@ -978,14 +978,14 @@ module OCEAN_action
   end subroutine haydump
 
   subroutine write_val( fh, iter, kpref , ucvol)
-    use OCEAN_constants, only : Hartree2eV
+    use OCEAN_constants, only : Hartree2eV, bohr, alphainv
     implicit none
     integer, intent( in ) :: fh, iter
     real(DP), intent( in ) :: kpref, ucvol
     !
     integer :: ie, i
-    real(DP) :: ere, reeps, imeps, lossf, fact
-    complex(DP) :: ctmp, arg, rp, rm, rrr, al, be, eps
+    real(DP) :: ere, reeps, imeps, lossf, fact, mu, reflct
+    complex(DP) :: ctmp, arg, rp, rm, rrr, al, be, eps, refrac
 
     fact = kpref * 2.0_dp * ucvol
 
@@ -1029,7 +1029,11 @@ module OCEAN_action
 !   &        ( ( indref + 1 ) ** 2 + indabs ** 2 )
       lossf = imeps / ( reeps ** 2 + imeps ** 2 )
 
-      write(fh,'(3(1E24.16,1X))') ere*Hartree2eV, 1.0_dp - reeps, imeps!, sqrt(eps+1.0_dp), lossf
+      refrac = sqrt(eps)
+      reflct = abs((refrac-1.0d0)/(refrac+1.0d0))**2
+      mu = 2.0d0 * ere * Hartree2eV * aimag(refrac) / ( bohr * alphainv * 1000 )
+
+      write(fh,'(8(1E24.16,1X))') ere*Hartree2eV, 1.0_dp - reeps, imeps, refrac-1.0d0, mu, reflct, lossf
 
     enddo
 
