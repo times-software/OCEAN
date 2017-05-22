@@ -20,11 +20,9 @@ if (! $ENV{"OCEAN_BIN"} ) {
 }
 if (! $ENV{"OCEAN_WORKDIR"}){ $ENV{"OCEAN_WORKDIR"} = `pwd` . "../" ; }
 
-my %alphal = ( "0" => "s", "1" => "p", "2" => "d", "3" => "f" );
-
-my @CommonFiles = ("epsilon", "xmesh.ipt", "nedges", "k0.ipt", "nbuse.ipt", 
-  "cnbse.rad", "cnbse.ways", "metal", "cksshift", "cksstretch", "cksdq", 
-  "cnbse.niter", "cnbse.spect_range", "cnbse.broaden", "cnbse.mode", "nphoton", "dft", 
+my @CommonFiles = ("epsilon", "xmesh.ipt", "k0.ipt", "nbuse.ipt", 
+  "metal", "cksshift", "cksstretch", 
+  "cnbse.niter", "cnbse.spect_range", "cnbse.broaden", "dft", 
   "para_prefix", "cnbse.strength", "serbse", "core_offset", "avecsinbohr.ipt", 
   "cnbse.solver", "cnbse.gmres.elist", "cnbse.gmres.erange", "cnbse.gmres.nloop", 
   "cnbse.gmres.gprc", "cnbse.gmres.ffff", "cnbse.write_rhs", "spin_orbit", "nspin", 
@@ -99,120 +97,6 @@ else
 }
 
 
-
-##### Rixs requires that gmres be used #####
-open IN, "cnbse.solver" or die "Failed to open cnbse.solver!\n$!";
-my $line = <IN>;
-close IN;
-my $solver;
-if( lc($line) =~ m/hay/ )
-{
-  $solver = 'hay';
-}
-elsif( lc($line) =~ m/gmres/ )
-{
-  $solver = 'gmres';
-}
-else
-{
-  print "Trouble parsing cnbse.solver!!\n*** Will default to  Haydock recursion ***\n";
-  $solver = 'hay';
-}
-## Now if gmres we need to parse the inputs for that
-my $gmres_footer = "";
-my $gmres_count = 0;
-if( $solver eq 'gmres' )
-{
-  open IN, "cnbse.gmres.nloop" or die "Failed to open cnbse.gmres.nloop\n$!";
-  $line = <IN>;
-  close IN;
-  chomp $line;
-  my $gmres_header = $line;
-
-  open IN, "cnbse.broaden" or die "Failed to open cnbse.broaden\n$!";
-  $line = <IN>;
-  close IN;
-  chomp $line;
-  $line /= 27.2114;
-  $gmres_header .= " " . $line;
-
-  open IN, "cnbse.gmres.gprc" or die "Failed to open cnbse.gmres.gprc\n$!";
-  $line = <IN>;
-  close IN;
-  chomp $line;
-  $gmres_header .= " " . $line;
-
-  open IN, "cnbse.gmres.ffff" or die "Failed to open cnbse.gmres.ffff\n$!";
-  $line = <IN>;
-  close IN;
-  chomp $line;
-  $gmres_header .= " " . $line;
-
-  $gmres_header .= "  0.0\n";
-
-  my $have_elist = 0;
-  my $have_erange = 0;
-  open IN, "cnbse.gmres.elist" or die "Failed to open cnbse.gmres.elist\n$!";
-  $line = <IN>;
-  if( $line =~ m/false/ )
-  {
-    close IN;
-  }
-  else
-  {
-    $gmres_footer = $gmres_header . "list\n";
-    my $temp .= $line;
-    my $i = 1;
-    while( $line = <IN> )
-    {
-      $temp .= $line;
-      $i++;
-    }
-    $gmres_count = $i;
-    $gmres_footer .= "$i\n";
-    $gmres_footer .= "$temp";
-    $have_elist = 1;
-    close IN;
-  }
-
-  open IN, "cnbse.gmres.erange" or die "Failed to open cnbse.gmres.erange\n$!";
-  $line = <IN>;
-  if( $line =~ m/false/ )
-  {
-    close IN;
-  }
-  else
-  {
-    if( $have_erange == 1 )
-    {
-      print "Both erange and elist were specified for GMRES. We are using erange\n";
-    }
-    else
-    {
-      $gmres_footer = $gmres_header . "loop\n";
-      $line =~ m/([-+]?[0-9]*\.?[0-9]+([eE][-+]?[0-9]+)?)\s+([-+]?[0-9]*\.?[0-9]+([eE][-+]?[0-9]+)?)\s+([-+]?[0-9]*\.?[0-9]+([eE][-+]?[0-9]+)?)/ or die "Failed to parse erange setting\n$line";
-      my $estart = $1; my $estop = $3; my $estep = $5;
-      $gmres_count = floor( ($estop - $estart + $estep*.9 ) / $estep );
-      $gmres_footer .= $line;
-      $have_erange = 1;
-    }
-    close IN;
-  }
-
-#  if( $have_erange + $have_elist == 2 )
-#  {
-#    print "Both erange and elist were specified for GMRES. We are using erange\n";
-#  }
-  if( $have_erange + $have_elist == 0 )
-  {
-    print "Neither elist nor erange were specified for GMRES!\n";
-    print "*** WARNING ***\n";
-    $have_elist = 1;
-    $gmres_footer = $gmres_header . "list\n1\n0\n";
-    $gmres_count = 1;
-  }
-}
-
 ##### Trigger serial bse fallback here
 # later we should remove this and fold these two perl scripts together
 my $run_serial = 0;
@@ -262,101 +146,6 @@ if( open PARA_PREFIX, "para_prefix" )
 } else
 {
   print "Failed to open para_prefix. Error: $!\nRunning serially\n";
-}
-
-
-# Set up mode -- need to run as xas which means ignore cnbse.mode
-  my $is_xas = 1;
-  open TMPFILE, "cnbse.niter" or die "Failed to open cnbse.niter\n$!";
-  <TMPFILE> =~ m/(\d+)/ or die "Failed to parse cnbse.niter";
-  my $num_haydock_iterations = $1;
-  close TMPFILE;
-  
-  open TMPFILE, "cnbse.strength" or die "Failed to open cnbse.strength\n$!";
-  <TMPFILE> =~ m/([0-9]*\.?[0-9]+)/ or die "Failed to parse cnbse.strength\n";
-  my $interaction_strength = $1; 
-  close TMPFILE;
-    
-# write cks.normal file
-  open TMPFILE, ">cks.normal" or die "Failed to open cks.normal for writing\n$!";
-  print TMPFILE ".true.\n";
-  close TMPFILE;
-
-#write mode file
-  open TMPFILE, ">mode" or die "Failed to open mode for writing\n$!";
-  print TMPFILE "$interaction_strength    $num_haydock_iterations\n";
-  close TMPFILE;
-
-###############
-# If we are using QE/ABI w/o OBFs we need to set nbuse
-my @brange;
-my $run_text = '';
-open NBUSE, "nbuse.ipt" or die "Failed to open nbuse.ipt\n";
-<NBUSE> =~ m/(\d+)/ or die "Failed to parse nbuse.ipt\n";
-my $nbuse = $1;
-close NBUSE;
-if( $obf == 1 )
-{
-  close RUNTYPE;
-  if ($is_xas == 1 )
-  {
-    $run_text = 'XAS';
-    if( $nbuse == 0 )
-    {
-      copy( "../zWFN/nbuse.ipt", "nbuse.ipt" ) or die "$!";
-    }
-    print "XAS!\n";
-  } 
-  else
-  {
-    if( $nbuse == 0 )
-    {
-      copy( "../zWFN/nbuse_xes.ipt", "nbuse.ipt" ) or die "$!";
-    }
-    $run_text = 'XES';
-    print "XES!\n";
-  }
-}
-else  ### Abi/QE w/o obf
-{ 
-#  my @brange;
-  if ($nbuse == 0) {
-    open BRANGE, "brange.ipt" or die "Failed to open brange.ipt\n";
-    <BRANGE> =~ m/(\d+)\s+(\d+)/ or die "Failed to parse brange.ipt\n";
-    $brange[0] = $1;
-    $brange[1] = $2;
-    <BRANGE> =~ m/(\d+)\s+(\d+)/ or die "Failed to parse brange.ipt\n";
-    $brange[2] = $1;
-    $brange[3] = $2;
-    close BRANGE;
-
-    if( $is_xas == 1 )
-    {
-      $run_text = 'XAS';
-      $nbuse = $brange[3] - $brange[1];
-    }
-    else
-    {
-      print "XES!\n";
-      $run_text = 'XES';
-      $nbuse = $brange[1] - $brange[0] + 1;
-    }
-    open NBUSE, ">nbuse.ipt" or die "Failed to open nbuse.ipt\n";
-    print NBUSE "$nbuse\n";
-    close NBUSE;
-  }
-  else
-  {
-    if( $is_xas == 1 )
-    {
-      $run_text = 'XAS';
-    }
-    else
-    {
-      print "XES!\n";
-      $run_text = 'XES';
-    }
-  }
 }
 
 
@@ -410,6 +199,25 @@ else  # We are using abi/qe path w/o obfs
 
 my $gamma0 = `cat cnbse.broaden`;
 chomp($gamma0);
+
+open TMPFILE, "cnbse.niter" or die "Failed to open cnbse.niter\n$!";
+<TMPFILE> =~ m/(\d+)/ or die "Failed to parse cnbse.niter";
+my $num_haydock_iterations = $1;
+close TMPFILE;
+
+open TMPFILE, "cnbse.strength" or die "Failed to open cnbse.strength\n$!";
+<TMPFILE> =~ m/([0-9]*\.?[0-9]+)/ or die "Failed to parse cnbse.strength\n";
+my $interaction_strength = $1;
+close TMPFILE;
+
+#write mode file
+open TMPFILE, ">mode" or die "Failed to open mode for writing\n$!";
+print TMPFILE "$interaction_strength    $num_haydock_iterations\n";
+close TMPFILE;
+
+open CKSNORM, ">cks.normal" or die "$!\n";
+print CKSNORM ".true.\n";
+close CKSNORM;
 
 
 open RUNLIST, ">runlist";
