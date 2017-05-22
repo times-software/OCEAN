@@ -79,6 +79,23 @@ if( open CALC, "calc" )
 }
 
 ###################################
+# Quickcheck
+open IN, "opf.opts" or die "Failed to open opf.opts: $!\n";
+if( <IN> =~ m/^!/ )
+{
+  close IN;
+  die "The input parameter opf.opts was not specified!\n";
+}
+close IN;
+
+open IN, "opf.fill" or die "Failed to open opf.fill: $!\n";
+if( <IN> =~ m/^!/ )
+{
+  close IN;
+  die "The input parameter opf.fill was not specified!\n";
+}
+close IN;
+
 
 # Setup
 ###################################
