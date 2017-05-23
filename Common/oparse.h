@@ -147,9 +147,11 @@ opf.hfkgrid
 } opf.hfkgrid
 opf.fill
 {
+!
 } opf.fill
 opf.opts
 {
+!
 } opf.opts
 screen.nkpt
 {
@@ -174,6 +176,7 @@ nedges
 } nedges.ipt
 edges
 {
+#
 } edges.ipt
 cnbse.nbuse
 {
