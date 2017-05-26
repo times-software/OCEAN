@@ -42,7 +42,7 @@ program ocean
 
   do iter = 1, sys%nruns
 
-    call ocean_hayinit( ierr )
+    call ocean_hayinit( sys, ierr )
     if( ierr .ne. 0 ) goto 111
 
 

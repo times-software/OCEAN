@@ -14,13 +14,13 @@
 ! Z  K     L1    L2    L3    M1   M2    M3     M4    M5   N1   N2    N3   N4   N5   N6   N7
 
 
-module OCEAN_corewidth
-
+module OCEAN_corewidths
+  use AI_kinds, only : DP
   implicit none
   private
   
 
-  real(kind=kind(1.0d0)), parameter, dimension( 16, 3:92 ) :: coreWidths = &
+  real(DP), parameter, dimension( 16, 3:92 ) :: coreWidths = &
        [0.03, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, &
         0.05, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, &
         0.05, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, &
@@ -120,7 +120,7 @@ module OCEAN_corewidth
 
   subroutine returnLifetime( ZZ, NN, LL, lifetime )
     integer, intent( in ) :: ZZ, NN, LL
-    real(kind=kind(1.0d0)), intent(out) :: lifetime
+    real(DP), intent(out) :: lifetime
     integer :: indx
     
     lifetime = -1
@@ -145,4 +145,4 @@ module OCEAN_corewidth
 
   end subroutine returnLifetime
 
-end module OCEAN_corewidth
+end module OCEAN_corewidths
