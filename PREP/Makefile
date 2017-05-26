@@ -6,12 +6,12 @@ WFCONVERTGW_OBJS = wfconvert_gw.o headpar.o grabwf.o wfsubs.o
 FFT_WRAPPER = ../zbridge/zobj/FFT_wrapper.o -I../zbridge/ ../zbridge/zobj/jlmfft.o
 
 ifdef __HAVE_IOTK
-	WFCONVERT_OBJS = wfconvert.o headpar.o grabwf.o wfsubs.o qehead.o qe_grabwf.o
+	WFCONVERT_OBJS = headpar.o grabwf.o wfsubs.o qehead.o qe_grabwf.o
 	INCL_IOTK = -I$(ESPRESSO_DIR)/iotk/src
 	LIB_IOTK = $(ESPRESSO_DIR)/iotk/src/libiotk.a
 	OPTIONS += -D__HAVE_ESPRESSO
 else
-	WFCONVERT_OBJS = wfconvert.o headpar.o grabwf.o wfsubs.o qe_grabwf_noiotk.o
+	WFCONVERT_OBJS = headpar.o grabwf.o wfsubs.o qe_grabwf_noiotk.o
 endif
 
 
@@ -38,8 +38,8 @@ rhoofg.x: rho2.f90
 nelectron.x: nelectron.f90
 	$(FC) $(OPTIONS) nelectron.f90 -o nelectron.x
 
-wfconvert.x: $(WFCONVERT_OBJS)
-	$(MPIFORT) $(OPTIONS) $(WFCONVERT_OBJS) -o wfconvert.x $(LIB_IOTK)
+wfconvert.x: $(WFCONVERT_OBJS) wfconvert.o
+	$(MPIFORT) $(OPTIONS) $(WFCONVERT_OBJS) wfconvert.o -o wfconvert.x $(LIB_IOTK) 
 
 wfconvert_gw.x: $(WFCONVERTGW_OBJS)
 	$(FC) $(OPTIONS) $(WFCONVERTGW_OBJS) -o wfconvert_gw.x

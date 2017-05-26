@@ -578,6 +578,7 @@ program wfconvert
          close(wfkoutfile)
 !         close(31)
        enddo 
+      enddo  ! loop over spin
 
 !      deallocate(istwfk,nband,npwarr,so_typat,symafm,symrel,typat)
 !      deallocate(kpt,occ,tnons,znucltypat,xred)
@@ -590,7 +591,6 @@ program wfconvert
 
 
 !      close(32)
-      enddo  ! loop over run files.
 
       close(tmels)
       close(listwfile)
