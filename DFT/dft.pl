@@ -733,7 +733,10 @@ if ( $nscfRUN ) {
     close IN;
 
     $qe_data_files{'print kpts'} = $kpt_text;
-    $qe_data_files{'print nbands'} = $qe_data_files{'nbands'};
+    unless( $split_dft ) 
+    {
+      $qe_data_files{'print nbands'} = $qe_data_files{'nbands'};
+    }
 
     &print_qe( $QE, %qe_data_files );
 
