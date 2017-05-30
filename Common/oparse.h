@@ -117,6 +117,14 @@ nstep
 {
 50
 } nrun
+dft.startingwfc
+{
+atomic+random
+} dft.startingwfc
+dft.diagonalization
+{
+david
+} dft.diagonalization
 verbatim
 {
 #

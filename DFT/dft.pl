@@ -44,7 +44,8 @@ my @EspressoFiles = ( "coord", "degauss", "ecut", "etol", "fband", "ibrav",
     "occopt", "prefix", "ppdir", "rprim", "rscale", "metal",
     "spinorb", "taulist", "typat", "verbatim", "work_dir", "tmp_dir", "wftol", 
     "den.kshift", "obkpt.ipt", "trace_tol", "ham_kpoints", "obf.nbands","tot_charge", 
-    "nspin", "smag", "ldau", "zsymb", "dft.calc_stress", "dft.calc_force", "dft.split", "dft" );
+    "nspin", "smag", "ldau", "zsymb", "dft.calc_stress", "dft.calc_force", "dft.split", "dft",
+    "dft.startingwfc", "dft.diagonalization" );
 my @PPFiles = ("pplist", "znucl");
 my @OtherFiles = ("epsilon", "pool_control");
 
@@ -200,7 +201,8 @@ my @qe_data_files = ('prefix', 'ppdir', 'work_dir', 'tmp_dir', 'ibrav', 'natoms'
                      'spinorb', 'ecut', 'degauss', 'etol', 'mixing', 'nrun', 'occopt',
                      'trace_tol', 'tot_charge', 'nspin', 'ngkpt', 'k0.ipt', 'metal',
                      'den.kshift', 'obkpt.ipt', 'obf.nbands', 'nkpt', 'nbands', 'screen.nbands',
-                     'screen.nkpt', 'dft.calc_stress', 'dft.calc_force' );
+                     'screen.nkpt', 'dft.calc_stress', 'dft.calc_force', 'dft.startingwfc', 
+                     'dft.diagonalization' );
 
 
 
@@ -528,7 +530,8 @@ if ( $nscfRUN ) {
           .  "  conv_thr = $qe_data_files{'etol'}\n"
           .  "  mixing_beta = $qe_data_files{'mixing'}\n"
           .  "  electron_maxstep = $qe_data_files{'nrun'}\n"
-          .  "  startingwfc = 'atomic+random'\n"
+          .  "  startingwfc = \'$qe_data_files{'dft.startingwfc'}\'\n"
+          .  "  diagonalization = \'$qe_data_files{'dft.diagonalization'}\'\n"
           .  "/\n"
           .  "&ions\n"
           .  "/\n";
@@ -984,7 +987,8 @@ sub print_qe
         .  "  conv_thr = $inputs{'etol'}\n"
         .  "  mixing_beta = $inputs{'mixing'}\n"
         .  "  electron_maxstep = $inputs{'nrun'}\n"
-        .  "  startingwfc = 'atomic+random'\n"
+        .  "  startingwfc = \'$qe_data_files{'dft.startingwfc'}\'\n"
+        .  "  diagonalization = \'$qe_data_files{'dft.diagonalization'}\'\n"
         .  "/\n"
         .  "&ions\n"
         .  "/\n";
