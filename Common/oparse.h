@@ -32,7 +32,7 @@ dft_energy_range
 } dft_energy_range.ipt
 obf_energy_range
 {
-25
+-1
 } obf_energy_range
 obkpt
 {
