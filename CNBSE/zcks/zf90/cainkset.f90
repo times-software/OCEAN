@@ -352,8 +352,32 @@ subroutine cainkset( avec, bvec, bmet, prefs )
                 ibeg = 1 + ( 1 + ivh - ivl )
             end if
            else
-             if ( metal ) stop 'metal rixs not implemented'
-             ibeg = ivl
+!             if ( metal ) stop 'metal rixs not implemented'
+             if ( metal ) then
+               ! find the first band above the fermi level
+               ibeg = 0
+               do i = ivl, ivh
+                 if ( ww( i, nq, ispin ) .gt. efermi ) then
+                   ibeg = i
+                   exit
+                 endif
+               end do
+               if( ibeg .eq. 0 ) then
+                 write(6,*) 'Failed to find LUMO for k,s:', nq, ispin
+                 write(6,*) ivl, ivh, efermi, ww( ivh, nq, ispin)
+                 stop
+               endif
+
+               ibeg = ibeg - nbd
+               
+               if ( ibeg .lt. ivl ) then
+                 write(6,*) 'WARNING: nbuse.ipt is too large'
+                 write(6,*) nq, ispin, ibeg, nbd
+                 stop
+               endif
+             else
+               ibeg = ivl
+             endif
              if (ivh .lt. nbd) stop 'not enough bands for valence...'
            endif
            if ( nbtot .lt. ibeg + nbd - 1 ) stop 'not enough bands...'
