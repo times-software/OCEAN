@@ -102,7 +102,7 @@ system("$ENV{'OCEAN_BIN'}/bvecs.pl") == 0 or die "$!\nBVECS.PL Failed\n";
 #`cp -r ../DFT/Out .`;
 
 `echo 1 > core`;
-system("$ENV{'OCEAN_BIN'}/kgen_qe.x") == 0 or die "KGEN.X Failed\n";
+system("$ENV{'OCEAN_BIN'}/kgen2.x") == 0 or die "KGEN.X Failed\n$!\n";
 
 
 # Prep input file
@@ -144,8 +144,12 @@ print QIN "&input\n"
         . "  outdir = './Out/'\n"
         . "  band_subset = 1 $nbands\n"
         . "/\n"
-        . "K_POINTS\n";
-open KPTS, "kpts.0001" or die "Failed to open kpts.0001\n";
+        . "K_POINTS\ncrystal\n";
+open KPTS, "nkpts" or die "Failed to open nkpts\n$!\n";
+print QIN <KPTS>;
+close KPTS;
+
+open KPTS, "kpts4qe.0001" or die "Failed to open kpts4qe.0001\n$!\n";
 while (<KPTS>)
 {
   print QIN $_;
