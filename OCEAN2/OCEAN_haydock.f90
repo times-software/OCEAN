@@ -1111,7 +1111,7 @@ module OCEAN_action
       select case ( calc_type )
         case('hay')
           read(99,*) haydock_niter, ne, el, eh, gam0, ebase
-          call checkBroadening( sys, gres, default_gam0 )
+          call checkBroadening( sys, gam0, default_gam0 )
 
 !          el = el / 27.2114d0
 !          eh = eh / 27.2114d0
@@ -1243,6 +1243,7 @@ module OCEAN_action
     
     if( broaden .gt. 0.0_dp ) return
 
+
     select case ( sys%cur_run%calc_type )
       case( 'VAL' )
         broaden = default_broaden 
@@ -1252,6 +1253,7 @@ module OCEAN_action
       case default
         broaden = default_broaden
     end select
+    write(6,*) 'Default requested for broadening: ', broaden
 
     end subroutine checkBroadening
 
