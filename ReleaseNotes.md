@@ -1,6 +1,16 @@
+## v. 2.1.0
+
+#### Major Features
+ 1. No longer need iotk.a for QE support. Faster PREP stage for QE.
+ 2. Cleaned up inputs and defaults
+
+#### Minor Features
+ 1. Improvements for spin with QE
+ 2. Database of core hole lifetime widths
+
 ## v. 2.0.4
 
-#### Minor features
+#### Minor Features
  1. Improvements to OPF generation and error checking
  2. Consistency between ABINIT and QuantumESPRESSO occupation numbers (occopt/smearing/etc)
  3. Updates to core-level shifts to improve feedback to user. Updated documentation.
