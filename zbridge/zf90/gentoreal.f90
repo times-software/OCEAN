@@ -6,6 +6,7 @@
 !
 !
 subroutine gentoreal( nx, nfcn, fcnr, fcni, ng, gvec, iu, loud )
+  use FFT_wrapper
   implicit none
   !
   integer :: nx( 3 ), nfcn, ng, iu
@@ -24,6 +25,7 @@ subroutine gentoreal( nx, nfcn, fcnr, fcni, ng, gvec, iu, loud )
   real( kind = kind( 1.0d0 ) ), allocatable :: zr( :, :, : ), zi( :, :, : ), wrk( : )
   complex( kind = kind( 1.0d0 ) ), allocatable :: cres( :, :, : )
   integer, external :: optim
+  type( fft_obj ) :: fo
   !
   rm1 = -1
   rm1 = sqrt( rm1 )
@@ -59,8 +61,9 @@ subroutine gentoreal( nx, nfcn, fcnr, fcni, ng, gvec, iu, loud )
   !
   ! the indices only of the output are reversed here.
   allocate( cres( nx( 3 ), nx( 2 ), nx( 1 ) ) )
-  call chkfftreal( toreal, normreal, loud )
-  call chkfftrecp( torecp, normrecp, loud )
+!  call chkfftreal( toreal, normreal, loud )
+!  call chkfftrecp( torecp, normrecp, loud )
+  call FFT_wrapper_init( nfft, fo )
   !
   do i = 1, nfcn
      zr( :, :, : ) = 0.0d0; zi( :, :, : ) = 0.0d0
@@ -79,9 +82,11 @@ subroutine gentoreal( nx, nfcn, fcnr, fcni, ng, gvec, iu, loud )
                                          gvec( ig, 3 ), i3, 'ig, i', ig, i
         end if
      end do
-     call cfft( zr, zi, nfft( 1 ), nfft( 1 ), nfft( 2 ), nfft( 3 ), toreal, wrk, idwrk )
-     zr = zr / dble( nftot ) ** normreal
-     zi = zi / dble( nftot ) ** normreal
+!     call cfft( zr, zi, nfft( 1 ), nfft( 1 ), nfft( 2 ), nfft( 3 ), toreal, wrk, idwrk )
+!     zr = zr / dble( nftot ) ** normreal
+!     zi = zi / dble( nftot ) ** normreal
+! toreal = 1, normreal = -1
+     call FFT_wrapper_split( zr, zi, OCEAN_BACKWARD, fo )
      ii = 0
      fstr = '(2(1a9,3i5,5x),1a9,2(1x,1e15.8))'
      do iz = 1, nx( 3 )
@@ -95,13 +100,14 @@ subroutine gentoreal( nx, nfcn, fcnr, fcni, ng, gvec, iu, loud )
                  write ( 6, fstr ) 'mesh ind.', i1, i2, i3, 'cell ind.', ix, iy, iz, 'value = ', & 
                                    zr( i1, i2, i3 ), zi( i1, i2, i3 )
               end if
-              cres( iz, iy, ix ) = zr( i1, i2, i3 ) + rm1 * zi( i1, i2, i3 )
+              cres( iz, iy, ix ) = cmplx(zr( i1, i2, i3 ), zi( i1, i2, i3 ) )
            end do
         end do
      end do 
      write ( iu ) cres
   end do
   deallocate( zr, zi, wrk, cres, ilist )
+  call FFT_wrapper_delete( fo )
   !
   return
 end subroutine gentoreal
