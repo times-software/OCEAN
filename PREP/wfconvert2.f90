@@ -282,6 +282,10 @@ program wfconvert
               call qe_grabwf_noiotk(qe_kpt, isppol, nsppol(2), maxband(2), maxnpw(2), dir_and_prefix, kg_shift,  &
      &                     eigen_sh, cg_sh, sh_npw, ierr)
 #endif
+              if( ierr .ne. 0 ) then
+                write(6,*) ikpt, ierr
+                stop
+              endif
             endif
 
           case default
