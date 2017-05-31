@@ -481,8 +481,6 @@ else  # We are using abi/qe path w/o obfs
     system("ln -sf ../PREP/BSE/$2 .") == 0 or die "Failed to link $2\n";
   }  
 
-  print "Running setup\n";
-  system("$ENV{'OCEAN_BIN'}/setup2.x > setup.log") == 0 or die "Setup failed\n";
 
   if (-e "../PREP/BSE/u2.dat")
   {
@@ -490,6 +488,8 @@ else  # We are using abi/qe path w/o obfs
   }
   else
   {
+    print "Running setup\n";
+    system("$ENV{'OCEAN_BIN'}/setup2.x > setup.log") == 0 or die "Setup failed\n";
     print "conugtoux\n";
     system("$ENV{'OCEAN_BIN'}/conugtoux.x > conugtoux.log");# == 0 or die;
     print "orthog\n";
