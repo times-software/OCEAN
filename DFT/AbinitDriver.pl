@@ -579,8 +579,12 @@ if ($RunABINIT) {
 
   if( $ser_prefix =~ m/!/ ) 
   {
-    print "$ENV{'OCEAN_CUT3D'} < cut3d.in > cut3d.log 2> cut3d.err\n";
-    system("$ENV{'OCEAN_CUT3D'} < cut3d.in > cut3d.log 2> cut3d.err") == 0
+    my $test_prefix = $para_prefix;
+    $test_prefix =~ s/\d+/1/;
+    print "    Serial prefix: $test_prefix\n";
+
+    print "$test_prefix $ENV{'OCEAN_CUT3D'} < cut3d.in > cut3d.log 2> cut3d.err\n";
+    system("$test_prefix $ENV{'OCEAN_CUT3D'} < cut3d.in > cut3d.log 2> cut3d.err") == 0
         or die "Failed to run cut3d\n";
   }
   else
