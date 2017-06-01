@@ -1,12 +1,15 @@
 ## v. 2.1.0
 
 #### Major Features
- 1. No longer need iotk.a for QE support. Faster PREP stage for QE.
+ 1. No longer need iotk.a for QE support. Faster PREP stage for QE
  2. Cleaned up inputs and defaults
 
 #### Minor Features
  1. Improvements for spin with QE
  2. Database of core hole lifetime widths
+
+#### Bugfixes
+ 1. Fixed bug in calculating the core-hole screening for some metals
 
 ## v. 2.0.4
 
