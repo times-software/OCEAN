@@ -34,6 +34,15 @@ if (! $ENV{"OCEAN_BIN"} ) {
 if (! $ENV{"OCEAN_WORKDIR"}){ $ENV{"OCEAN_WORKDIR"} = `pwd` . "../" ; }
 if (!$ENV{"OCEAN_VERSION"}) {$ENV{"OCEAN_VERSION"} = `cat $ENV{"OCEAN_BIN"}/Version`; }
 
+open IN, "calc" or die "Failed to open calc: $!\n";
+if( <IN> =~ m/val/i )
+{
+  close IN;
+  print "No edges for a valence calculation\n";
+  exit 0;
+}
+close IN;
+
 
 # fill $line with edges.ipt
 my $line;
@@ -51,6 +60,11 @@ $line =~ s/\s+/ /g;
 
 my @orig_edges = split( " ", $line );
   
+if( scalar @orig_edges < 3 )
+{
+  print "The input edges was not long enough!\nCannot continue!!\n";
+  exit 1;
+}
 
 
 # bring in all the atom info

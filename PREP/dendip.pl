@@ -1,5 +1,5 @@
 #!/usr/bin/perl
-# Copyright (C) 2014, 2016 OCEAN collaboration
+# Copyright (C) 2014, 2016, 2017 OCEAN collaboration
 #
 # This file is part of the OCEAN project and distributed under the terms 
 # of the University of Illinois/NCSA Open Source License. See the file 
@@ -26,6 +26,7 @@ my $RunDenDip = 0;
 #  exit 0;
 #}
 
+my $split_dft = 0;
 my $stat = 0;
 $stat = 1 if (-e "done");
 `rm -f done`;
@@ -34,7 +35,7 @@ $oldden = 1 if (-e "../DFT/old");
 
 
 my @AbFiles = ( "rhoofr", "density.out", "nkpt", "screen.nkpt", "qinunitsofbvectors.ipt", "efermiinrydberg.ipt");
-my @CommonFiles = ( "avecsinbohr.ipt", "nspin", "xmesh.ipt", "dft", "nspin" );
+my @CommonFiles = ( "avecsinbohr.ipt", "nspin", "xmesh.ipt", "dft", "nspin", "dft.split" );
 
 foreach (@AbFiles) {
   system("cp ../DFT/$_ .") == 0 or die "Failed to copy $_\n";
@@ -49,6 +50,13 @@ print "$stat  $oldden\n";
 unless ($stat && $oldden) {
 -e "../DFT/SCx_DEN" or die "SCx_DEN not found\n";
 `ln -sf ../DFT/SCx_DEN SCx_DEN`;
+
+open IN, "dft.split" or die "Failed to open dft.split\n$!";
+if( <IN> =~ m/t/i )
+{
+  $split_dft = 1;
+  print "DFT has been split into to runs\n";
+}
 
 #`ln -sf ../DFT/RUN????_WFK .`;
 
@@ -83,7 +91,7 @@ print NKPT $nkpt[0]*$nkpt[1]*$nkpt[2] . "\n";
 close NKPT;
 
 
-foreach ("Nfiles", "kmesh.ipt", "brange.ipt", "qinunitsofbvectors.ipt" ) {
+foreach ("kmesh.ipt", "brange.ipt", "qinunitsofbvectors.ipt" ) {
   system("cp ../${rundir}/$_ .") == 0 or die "Failed to copy $_\n";
 }
 #`cp ../qinunitsofbvectors.ipt .`;
@@ -92,12 +100,9 @@ foreach ("Nfiles", "kmesh.ipt", "brange.ipt", "qinunitsofbvectors.ipt" ) {
 `cp ../nspin .`;
 `cp ../${rundir}/umklapp .`;
 
-my $Nfiles = `cat Nfiles`;
 my $runfile;
-for (my $i = 1; $i <= $Nfiles; $i++) {
-  $runfile = sprintf("../${rundir}/RUN%04u_WFK", $i );
-  system("ln -s $runfile .") == 0  or die "Failed to link $runfile\n";
-}
+$runfile = sprintf("../${rundir}/RUN%04u_WFK", 1 );
+system("ln -s $runfile .") == 0  or die "Failed to link $runfile\n";
 
 system("$ENV{'OCEAN_BIN'}/wfconvert.x") == 0 
   or die "Failed to run wfconvert.x\n";
@@ -128,7 +133,7 @@ open NKPT, ">nkpts" or die "Failed to open nkpts for writing\n";
 print NKPT $nkpt[0]*$nkpt[1]*$nkpt[2] . "\n";
 close NKPT;
 
-foreach ("Nfiles", "kmesh.ipt", "brange.ipt") {
+foreach ("kmesh.ipt", "brange.ipt") {
   system("cp ../${rundir}/$_ .") == 0 or die "Failed to copy $_\n";
 }
 `cp ../qinunitsofbvectors.ipt .`;
@@ -137,10 +142,14 @@ foreach ("Nfiles", "kmesh.ipt", "brange.ipt") {
 `cp ../nspin .`;
 `cp ../nelectron .`;
 `cp ../${rundir}/umklapp .`;
-my $Nfiles = `cat Nfiles`;
+`cp ../dft.split .`;
 
 
 my $runfile;
+my $Nfiles = 1;
+
+$Nfiles = 2 if( $split_dft == 1);
+
 for (my $i = 1; $i <= $Nfiles; $i++) {
   $runfile = sprintf("../${rundir}/RUN%04u_WFK", $i );
   system("ln -s $runfile .") == 0 or die "Failed to link $runfile\n";

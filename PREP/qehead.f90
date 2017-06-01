@@ -13,7 +13,9 @@
 subroutine qehead( datafile, maxband, maxnpw, nspin, nspinor, nkpt, ierr )
 !
 !
+#ifdef __HAVE_IOTK
   use iotk_module
+#endif
   implicit none
   !
   character(len=128), intent(in) :: datafile
@@ -26,7 +28,7 @@ subroutine qehead( datafile, maxband, maxnpw, nspin, nspinor, nkpt, ierr )
 
   logical :: non_colinear
 
-  
+#ifdef __HAVE_IOTK
   call iotk_open_read ( 99, FILE = trim(datafile), IERR=ierr )
   if( ierr .ne. 0 ) return
 
@@ -91,6 +93,7 @@ subroutine qehead( datafile, maxband, maxnpw, nspin, nspinor, nkpt, ierr )
   ! END BAND
 
   call iotk_close_read( 99 )
+#endif
 
 end subroutine qehead
 

@@ -530,14 +530,14 @@ module OCEAN_multiplet
     integer, intent( inout ) :: ierr
 
     integer :: ic, jc, i
-    complex( kind = kind( 1.0d0 ) ) :: ctmp, rm1
-    complex( kind = kind( 1.0d0 ) ), external :: jimel
-    real( kind = kind( 1.d0 ) )  :: life_time( 2 ), l_alpha, l_beta, delta_so( 2 )
+    complex( DP ) :: ctmp, rm1
+    complex( DP ), external :: jimel
+    real( DP )  :: life_time( 2 ), l_alpha, l_beta, delta_so( 2 )
     logical :: broaden_exist
     !
     integer :: nsphpt, isphpt
-    real( kind = kind( 1.0d0 ) ) :: sphsu
-    real( kind = kind( 1.0d0 ) ), allocatable, dimension( : ) :: xsph, ysph, zsph, wsph
+    real( DP ) :: sphsu
+    real( DP ), allocatable, dimension( : ) :: xsph, ysph, zsph, wsph
 
     ierr = 0
     allocate( somelr( sys%cur_run%nalpha, sys%cur_run%nalpha), someli( sys%cur_run%nalpha, sys%cur_run%nalpha) )
@@ -1807,24 +1807,24 @@ module OCEAN_multiplet
     implicit none
     !
     integer :: lc, lv, np, mham_l
-    real( kind = kind( 1.0d0 ) ) :: cms_l( mham_l ), cml_l( mham_l )
-    real( kind = kind( 1.0d0 ) ) :: vms_l( mham_l ), vml_l( mham_l )
-    real( kind = kind( 1.0d0 ) ) :: mhr_l( mham_l, mham_l ), mhi_l( mham_l, mham_l )
+    real( DP ) :: cms_l( mham_l ), cml_l( mham_l )
+    real( DP ) :: vms_l( mham_l ), vml_l( mham_l )
+    real( DP ) :: mhr_l( mham_l, mham_l ), mhi_l( mham_l, mham_l )
     integer :: vnu( mham_l )
     !
     integer :: npt
-    real( kind = kind( 1.0d0 ) ) :: pi, su, yp( 0 : 1000 )
-    complex( kind = kind( 1.0d0 ) ) :: rm1
-    real( kind = kind( 1.0d0 ) ), allocatable :: x( : ), w( : )
+    real( DP ) :: pi, su, yp( 0 : 1000 )
+    complex( DP ) :: rm1
+    real( DP ), allocatable :: x( : ), w( : )
     !
     integer :: kfl, kfh, kgl, kgh
-    real( kind = kind( 1.0d0 ) ), allocatable :: fk( :, :, : ), scfk( : )
-    real( kind = kind( 1.0d0 ) ), allocatable :: gk( :, :, : ), scgk( : )
+    real( DP ), allocatable :: fk( :, :, : ), scfk( : )
+    real( DP ), allocatable :: gk( :, :, : ), scgk( : )
     !
     integer :: i, i1, i2, nu1, nu2
     integer :: l1, m1, s1, l2, m2, s2, l3, m3, s3, l4, m4, s4, k, mk, maxll
-    real( kind = kind( 1.0d0 ) ) :: ggk, ffk
-    complex( kind = kind( 1.0d0 ) ) :: f1, f2, ctmp
+    real( DP ) :: ggk, ffk
+    complex( DP ) :: f1, f2, ctmp
     logical, parameter :: no = .false., yes = .true.
     logical :: tdlda
     !
@@ -2330,13 +2330,13 @@ subroutine limel( l, m, mp, vrslt, nsphpt, xsph, ysph, zsph, wsph, prefs )
   implicit none
   !
   integer :: nsphpt, l, m, mp
-  real( kind = kind( 1.0d0 ) ) :: prefs( 0 : 1000 )
-  real( kind = kind( 1.0d0 ) ), dimension( nsphpt ) :: xsph, ysph, zsph, wsph
-  complex( kind = kind( 1.0d0 ) ) :: vrslt( 3 )
+  real( DP ) :: prefs( 0 : 1000 )
+  real( DP ), dimension( nsphpt ) :: xsph, ysph, zsph, wsph
+  complex( DP ) :: vrslt( 3 )
   !
   integer :: i, j, mrun
-  real( kind = kind( 1.0d0 ) ) :: xx, yy, zz, xarg, yarg, zarg
-  complex( kind = kind( 1.0d0 ) ) :: su1( -l : l, 3 ), su2( -l : l, 3 ), ylm, ylmp, yrun
+  real( DP ) :: xx, yy, zz, xarg, yarg, zarg
+  complex( DP ) :: su1( -l : l, 3 ), su2( -l : l, 3 ), ylm, ylmp, yrun
   !
   su1( :, : ) = 0.0d0
   su2( :, : ) = 0.0d0

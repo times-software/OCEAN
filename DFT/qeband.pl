@@ -142,6 +142,9 @@ elsif( $metal == 1 )
   #   Therefore brange will be 
   #   1         band_max
   #   band_min  total bands
+
+  # pad band_max by 1
+  $band_max++;
   print $band_max . "\t" . $band_min . "\n";
 }
 else

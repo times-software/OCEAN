@@ -59,7 +59,7 @@ $efermi *= 13.605;
 print "$dft_min\t$efermi\t$dft_max\n";
 
 my $is_xas;
-open TMPFILE, "cnbse.mode" or die "Failed to open cnbse.mode\n";
+open TMPFILE, "calc" or die "Failed to open calc\n";
 my $mode = <TMPFILE>;
 close TMPFILE;
 chomp($mode);

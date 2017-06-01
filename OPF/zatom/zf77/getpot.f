@@ -315,7 +315,7 @@ c
 c----------------------------------------------------------------------
       subroutine getrs(coeff,i,j,oi,oj,ratio,ri,rj,rc)
       implicit none
-      real*8 coeff,oi,oj,ratio,ri,rj,rc
+      double precision coeff,oi,oj,ratio,ri,rj,rc
       integer i,j
       if (i.eq.j) coeff=coeff*0.5
       ri=coeff*oi*ratio

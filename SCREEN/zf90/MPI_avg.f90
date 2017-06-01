@@ -6,6 +6,7 @@
 !
 !
 program avg
+  implicit none
 
   include 'mpif.h'
 
@@ -23,7 +24,7 @@ program avg
 
   real(kind=kind(1.d0)), allocatable :: Vdenr(:), Vdeni(:)
 
-  integer :: ierr, myrank, pool_size, pool_comm, pool_id, num_pools, my_poolrank
+  integer :: ierr, myrank, pool_size, pool_comm, pool_id, num_pools, my_poolrank, mypool
   integer :: max_rad, rad_remain, start_rad, my_rad, my_start_rad, temp_rad
 
 

@@ -17,10 +17,10 @@ module OCEAN_val_energy
     !
 
 
-    real( DP ), allocatable :: val_energies( :, : ), con_energies( :, : )
+    real( DP ), allocatable, dimension(:,:) :: val_energies, con_energies, im_val_energies, im_con_energies
     real( DP ) :: efermi, homo, lumo, cliph
     integer :: ik, ibv, ibc, fh
-    logical :: metal
+    logical :: metal, have_imaginary
     integer :: nbv, nbc(2), nk
 #ifdef MPI
     integer(MPI_OFFSET_KIND) :: offset
@@ -119,6 +119,15 @@ module OCEAN_val_energy
       write(99,*) val_energies(:,:)
       close(99)
     endif
+!   call GW corrections time
+
+    allocate( im_val_energies( sys%cur_run%val_bands, sys%nkpts ), & 
+              im_con_energies( sys%cur_run%num_bands, sys%nkpts ), STAT=ierr )
+    if( ierr .ne. 0 ) return
+
+    call val_gw( sys, val_energies, con_energies, have_imaginary, im_val_energies, &
+                 im_con_energies, ierr )
+    if( ierr .ne. 0 ) return
 
     call find_fermi( sys, val_energies, con_energies, sys%nelectron, efermi, &
                      homo, lumo, cliph, metal, ierr )
@@ -129,38 +138,156 @@ module OCEAN_val_energy
     if( ierr .ne. 0 ) return
 
 
-!   call GW corrections time
 
 
     do ik = 1, sys%nkpts
       do ibv = 1, sys%cur_run%val_bands
         do ibc = 1, sys%cur_run%num_bands
           p_energy%valr( ibc, ibv, ik, 1 ) = con_energies( ibc, ik ) - val_energies( ibv, ik )
-          p_energy%vali( ibc, ibv, ik, 1 ) = 0.0_dp
+!          p_energy%vali( ibc, ibv, ik, 1 ) = 0.0_dp
         enddo
       enddo
     enddo
+    if( have_imaginary ) then
+      do ik = 1, sys%nkpts
+        do ibv = 1, sys%cur_run%val_bands
+          do ibc = 1, sys%cur_run%num_bands
+            p_energy%vali( ibc, ibv, ik, 1 ) = im_con_energies( ibc, ik ) - im_val_energies( ibv, ik )
+          enddo
+        enddo
+      enddo
+    else
+      p_energy%vali( :, :, :, : ) = 0.0_dp
+    endif
 
-    deallocate( val_energies, con_energies )
+
+    deallocate( val_energies, con_energies, im_val_energies, im_con_energies )
     
 
 
   end subroutine OCEAN_read_energies
 
+  ! Master routine for all the gw flavors (for the valence band). 
+  !   For now this is just a stub for what I currently need.
+  !   In the future need to better merge the valence and X-ray versions of everything
+  subroutine val_gw( sys, val_energies, con_energies, have_imaginary, im_val_energies, &
+                     im_con_energies, ierr )
+    use OCEAN_system
+    use OCEAN_mpi
+    implicit none
+    type( O_system ), intent( in ) :: sys
+    real( DP ), intent( inout ), dimension( sys%cur_run%val_bands, sys%nkpts ) :: &
+        val_energies, im_val_energies
+    real( DP ), intent( inout ), dimension( sys%cur_run%num_bands, sys%nkpts ) :: &
+        con_energies, im_con_energies
 
+    logical, intent( out ) :: have_imaginary
+    integer, intent( inout ) :: ierr
+    !
+    logical :: have_gw
+    character( len=4 ) :: gw_control
+
+    have_imaginary = .false.
+
+    if( myid .eq. root ) then
+      inquire( file="gw_control", exist=have_gw )
+      if( have_gw ) then
+        open(unit=99,file='gw_control',form='formatted',status='old')
+        rewind(99)
+        read(99,*) gw_control
+        close(99)
+        select case (gw_control)
+!        case ('full')
+!          call val_abinit_fullgw( sys, ierr, .true. )
+        case ('list')
+          write(6,*) 'GW! Will attempt list-style corrections'
+          call val_list_gw( sys, val_energies, con_energies, ierr )
+!        case( 'band' )
+!          call val_gw_by_band( sys, ierr, .false. )
+!        case( 'ibnd' )
+!          call val_gw_by_band( sys, ierr, .true. )
+!        case( 'cstr' )
+!          call val_gw_stretch( sys, ierr )
+        case default
+          write(6,*) 'Unrecognized gw_control:'
+          write(6,*) '   ', gw_control
+          have_gw = .false.
+        end select
+      endif
+    endif
+#ifdef MPI
+    call MPI_BCAST( have_gw, 1, MPI_LOGICAL, root, comm, ierr )
+    if( ierr .ne. MPI_SUCCESS ) return
+    if( have_gw ) then
+      call MPI_BCAST( val_energies, sys%cur_run%val_bands * sys%nkpts, MPI_DOUBLE_PRECISION, & 
+                      root, comm, ierr )
+      call MPI_BCAST( con_energies, sys%cur_run%num_bands * sys%nkpts, MPI_DOUBLE_PRECISION, & 
+                      root, comm, ierr )
+    endif
+#endif
+
+  end subroutine val_gw
+
+  subroutine val_list_gw( sys, val_energies, con_energies, ierr )
+    use OCEAN_system
+    use OCEAN_constants, only : eV2Hartree
+    implicit none
+    !
+    type( O_system ), intent( in ) :: sys
+    real( DP ), intent( inout ), dimension( sys%cur_run%val_bands, sys%nkpts ) :: val_energies
+    real( DP ), intent( inout ), dimension( sys%cur_run%num_bands, sys%nkpts ) :: con_energies
+    integer, intent( inout ) :: ierr
+    !
+    real( DP ) :: delta_gw
+    integer :: band_max, band_loop, ikpt, iband
+    logical :: have_gw
+    !
+    inquire( file="list_val_gw.txt", exist=have_gw )
+    if( have_gw ) then
+      !
+      open( unit=99, file="list_val_gw.txt", form="formatted", status="old" )
+      read( 99, * ) band_max
+      if( band_max .lt. sys%cur_run%val_bands ) then
+        write( 6, * ) 'WARNING: Bands in list_val_gw.txt is less than the run'
+        write( 6, * ) band_max, sys%cur_run%val_bands
+        write( 6, * ) 'This is almost certainly not what you want, but will continue'
+      endif
+      
+      ! These will be in eV
+      band_loop = min( band_max, sys%cur_run%val_bands )
+      do iband = 1, band_loop
+        do ikpt = 1, sys%nkpts
+          read( 99, * ) delta_gw
+          val_energies( iband, ikpt ) = val_energies( iband, ikpt ) + delta_gw * eV2Hartree
+        enddo
+      enddo
+      write(6,*) 'last gw value for valence: ', delta_gw
+    endif
+
+    delta_gw = 1.0_dp 
+    write( 6, * ) 'WARNING WARNING WARNING'
+    write( 6, * ) 'Hardwired conduction band GW correction of: ', delta_gw, ' eV'
+    delta_gw = delta_gw * eV2Hartree
+    do ikpt = 1, sys%nkpts
+      do iband = 1, sys%cur_run%num_bands
+        con_energies( iband, ikpt ) = con_energies( iband, ikpt ) + delta_gw
+      enddo
+    enddo
+    
+
+  end subroutine val_list_gw
 
   subroutine energies_allow( sys, val_energies, con_energies, nelectron, efermi, cliph, &
-                                allow, metal, ierr )
+                                  allow, metal, ierr )
     use OCEAN_system
     use OCEAN_psi
-    use OCEAN_mpi, only : myid
     implicit none
     type( O_system ), intent( in ) :: sys
     type( OCEAN_vector ), intent( inout ) :: allow
     integer, intent( in ) :: nelectron
-    real(kind=kind(1.d0)), intent( in ) :: con_energies( sys%cur_run%num_bands, sys%nkpts ), &
-                                           val_energies( sys%cur_run%val_bands, sys%nkpts ),  &
-                                           efermi, cliph
+    real( DP ), intent( in ) :: con_energies( sys%cur_run%num_bands, sys%nkpts ), &
+                                val_energies( sys%cur_run%val_bands, sys%nkpts ),  &
+                                efermi, cliph
     logical, intent( in ) :: metal
     integer, intent( inout ) :: ierr
     !

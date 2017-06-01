@@ -43,7 +43,14 @@ for( my $i =1; $i <= $ncpus; $i++ )
 {
   push( @cpu_factors, $i ) unless ( $ncpus % $i );
 }
-print "$ncpus has ", $#cpu_factors + 1, " factors\n";
+if( scalar @cpu_factors == 1 )
+{
+  print "$ncpus has ", $#cpu_factors + 1, " factor\n";
+}
+else
+{
+  print "$ncpus has ", $#cpu_factors + 1, " factors\n";
+}
 foreach (@cpu_factors)
 { print "$_\n"; }
 

@@ -7,7 +7,8 @@
 !
 subroutine cainxact( n, nspn, nc, lc, nq, nbd, e0, self_energy, v, hv, pref, &
      iq, qphys, zn, inter, bvec, celvol, amet, nx, ny, nz, ur, ui, tau, rcut, rzero, renorm, ptab, &
-     vms, cml, cms, xi, lmin, lmax, npmax, nproj, mpcr, mpci, mpm, lvl, lvh, jbeg, mham, itot, jtot, mhr, mhi, somel, core_offset )
+     vms, cml, cms, xi, lmin, lmax, npmax, nproj, mpcr, mpci, mpm, lvl, lvh, jbeg, mham, itot, jtot, &
+     mhr, mhi, somel, core_offset )
   implicit none
   !
   integer :: n, nc, lc, nq, nbd, nx, ny, nz, lmin, lmax, lvl, lvh, itot, jtot, zn( 3 ), npmax, spin_test, nspn
@@ -37,7 +38,8 @@ subroutine cainxact( n, nspn, nc, lc, nq, nbd, e0, self_energy, v, hv, pref, &
 !$OMP PARALLEL DO  & 
 !$OMP& SCHEDULE( STATIC  ) &
 !$OMP& PRIVATE( ic, spin_test ) &
-!$OMP& SHARED( nc, v, n, e0, hv, nq, nbd, zn, inter, amet, nx, ny, nz, ur, ui, tau, rcut, rzero, ptab, eps, nspn, self_energy, core_offset) &
+!$OMP& SHARED( nc, v, n, e0, hv, nq, nbd, zn, inter, amet, nx, ny, nz, ur, ui, tau, rcut, rzero ) &
+!$OMP& SHARED( ptab, eps, nspn, self_energy, core_offset) &
 !$OMP& DEFAULT ( NONE )
   do ic = 1, nc
      ! if ic is odd, spin_test is 1, if even it is 2

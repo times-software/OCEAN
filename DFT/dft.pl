@@ -1,5 +1,5 @@
 #!/usr/bin/perl
-# Copyright (C) 2015, 2016 OCEAN collaboration
+# Copyright (C) 2015 - 2017 OCEAN collaboration
 #
 # This file is part of the OCEAN project and distributed under the terms 
 # of the University of Illinois/NCSA Open Source License. See the file 
@@ -35,16 +35,17 @@ my $RunPP = 0;
 my $RunESPRESSO = 0;
 my $nscfRUN = 1;
 
-my @GeneralFiles = ("para_prefix", "dft" );
+my @GeneralFiles = ("para_prefix");
 
 my @KgenFiles = ("nkpt", "k0.ipt", "qinunitsofbvectors.ipt", "screen.nkpt");
 my @BandFiles = ("nbands", "screen.nbands");
 my @EspressoFiles = ( "coord", "degauss", "ecut", "etol", "fband", "ibrav", 
     "isolated", "mixing", "natoms", "ngkpt", "noncolin", "nrun", "ntype", 
-    "occopt", "prefix", "ppdir", "stress_force", "rprim", "rscale", "metal",
+    "occopt", "prefix", "ppdir", "rprim", "rscale", "metal",
     "spinorb", "taulist", "typat", "verbatim", "work_dir", "tmp_dir", "wftol", 
     "den.kshift", "obkpt.ipt", "trace_tol", "ham_kpoints", "obf.nbands","tot_charge", 
-    "nspin", "smag", "ldau", "zsymb");
+    "nspin", "smag", "ldau", "zsymb", "dft.calc_stress", "dft.calc_force", "dft.split", "dft",
+    "dft.startingwfc", "dft.diagonalization" );
 my @PPFiles = ("pplist", "znucl");
 my @OtherFiles = ("epsilon", "pool_control");
 
@@ -196,11 +197,12 @@ system("$ENV{'OCEAN_BIN'}/makeatompp.x") == 0
 
 
 
-my @qe_data_files = ('prefix', 'ppdir', 'stress_force', 'work_dir', 'tmp_dir', 'ibrav', 'natoms', 'ntype', 'noncolin',
+my @qe_data_files = ('prefix', 'ppdir', 'work_dir', 'tmp_dir', 'ibrav', 'natoms', 'ntype', 'noncolin',
                      'spinorb', 'ecut', 'degauss', 'etol', 'mixing', 'nrun', 'occopt',
                      'trace_tol', 'tot_charge', 'nspin', 'ngkpt', 'k0.ipt', 'metal',
                      'den.kshift', 'obkpt.ipt', 'obf.nbands', 'nkpt', 'nbands', 'screen.nbands',
-                     'screen.nkpt' );
+                     'screen.nkpt', 'dft.calc_stress', 'dft.calc_force', 'dft.startingwfc', 
+                     'dft.diagonalization' );
 
 
 
@@ -276,18 +278,18 @@ $qe_data_files{'occtype'} = 'smearing';
 #   therefore we want to clamp down the smearing a bunch
 if( $qe_data_files{ "occopt" } == 1 )
 {
+  $qe_data_files{'occtype'} = 'fixed';
   $qe_data_files{ 'degauss' } = 0.002;
-#  $qe_data_files{'occtype'} = 'fixed';
 }
 
 # Array of QE names for smearing by occopt
 my @QE_smear;
-$QE_smear[1] = "'gaussian'";
-$QE_smear[3] = "'fermi-dirac'";
-$QE_smear[4] = "'fermi-dirac'";
-$QE_smear[5] = "'fermi-dirac'";
-$QE_smear[6] = "'fermi-dirac'";
-$QE_smear[7] = "'gaussian'";
+$QE_smear[1] = "'gaussian'";     # Still need to fix to be insulator
+$QE_smear[3] = "'fermi-dirac'";  # ABINIT = fermi-dirac
+$QE_smear[4] = "'marzari-vanderbilt'";  # ABINIT = Marzari cold smearing a = -0.5634
+$QE_smear[5] = "'marzari-vanderbilt'";  # ABINIT = Marzari a = -0.8165
+$QE_smear[6] = "'methfessel-paxton'";  # ABINIT = Methfessel and Paxton PRB 40, 3616 (1989)
+$QE_smear[7] = "'gaussian'";     # ABINIT = Gaussian
 
 
 
@@ -377,28 +379,10 @@ if ($RunESPRESSO) {
   system("$ENV{'OCEAN_BIN'}/qe2rhoofr.pl" ) == 0 
     or die "Failed to convert density\n$!\n";
 
-#  system("$ENV{'OCEAN_BIN'}/converter.py system.rho.dat") == 0
-#     or die "Failed to convert density\n$!\n";
-
   ## find the top of the valence bance
   system("$ENV{'OCEAN_BIN'}/qeband.pl") == 0
      or die "Failed to count bands\n$!\n";
 
-#  `grep 1.000 bands.out | wc -l > vb`;
-#  my $vb = 0;
-#  open BANDS, "vb" or die;
-#  $vb = <BANDS>;
-#  close BANDS;
-
-#  my $natoms = `cat natoms`;
-#  my $fband = `cat fband`;
-##  $pawnbands = `cat paw.nbands`;
-#  my $cb = sprintf("%.0f", $vb - 2*$natoms*$fband);
-#  $cb = 1 if ($cb < 1);
-#  open BRANGE, ">brange.stub" or die;
-#  print BRANGE "1  $vb"
-#             . "$cb";
-#  close BRANGE;
 
   open STATUS, ">espresso.stat" or die;
   print STATUS "1";
@@ -408,22 +392,66 @@ if ($RunESPRESSO) {
   # Find Fermi level and number of electrons
   my $fermi = 'no';
   my $nelectron = 'no';
+  my $units;
 
-  open SCF, "scf.out" or die "$!";
-  while( my $line = <SCF> )
+  # First attempt to grab from outfile
+  my $data_file = $qe_data_files{'work_dir'} . "/" . $qe_data_files{'prefix'} . ".save/data-file.xml";
+  print "Looking for $data_file \n";
+  if( open SCF, $data_file )
   {
-    if( $line  =~  m/the Fermi energy is\s+([+-]?\d+\.?\d+)/ )
+    while( my $scf_line = <SCF> )
     {
-      $fermi = $1;
-      print "Fermi level found at $fermi eV\n";
-      $fermi = $fermi/13.60569252;
+      if( $scf_line =~ m/\<UNITS_FOR_ENERGIES UNITS=\"(\w+)/ )
+      {
+        $units = $1;
+      }
+      if( $scf_line =~ m/\<FERMI_ENERGY/ )
+      {
+        $scf_line = <SCF>;
+        $scf_line =~ m/(\d+\.\d+[Ee]?[-+]?(\d+)?)/ or die "$scf_line";
+        $fermi = $1;
+      }
+      if( $scf_line =~m/\<NUMBER_OF_ELECTRONS/ )
+      {
+        $scf_line = <SCF>;
+        $scf_line =~ m/(\d+\.\d+[Ee]?[-+]?(\d+)?)/ or die "$scf_line";
+        $nelectron = $1;
+      }
     }
-    if( $line =~ m/number of electrons\s+=\s+(\d+)/ )
-    {
-      $nelectron = $1;
-    }
+    close SCF;
   }
-  close SCF;
+  
+  if( $fermi =~ m/no/ || $nelectron =~ m/no/ )
+  {
+    open SCF, "scf.out" or die "$!";
+    while( my $line = <SCF> )
+    {
+      if( $line  =~  m/the Fermi energy is\s+([+-]?\d+\.?\d+)/ )
+      {
+        $fermi = $1;
+        print "Fermi level found at $fermi eV\n";
+        $fermi = $fermi/13.60569253;
+      }
+      if( $line =~ m/number of electrons\s+=\s+(\d+)/ )
+      {
+        $nelectron = $1;
+      }
+    }
+    close SCF;
+  }
+  else
+  {
+    if( $units =~ m/hartree/i )
+    {
+      $fermi *= 2;
+    }
+    elsif( $units =~ m/eV/i )
+    {
+      $fermi /= 13.60569253;
+    }
+    my $eVfermi = $fermi * 13.60569253;
+    print "Fermi level found at $eVfermi eV\n";
+  }
 
   die "Fermi level not found in scf.out\n" if( $fermi eq 'no' ) ;
   die "Number of electrons not found in scf.out\n" if( $nelectron eq 'no' );
@@ -466,7 +494,8 @@ if ( $nscfRUN ) {
           .  "  pseudo_dir = \'$qe_data_files{'ppdir'}\'\n"
           .  "  outdir = \'$qe_data_files{'work_dir'}\'\n"
           .  "  wfcdir = \'$qe_data_files{'tmp_dir'}\'\n"
-          .  "  $qe_data_files{'stress_force'}\n"
+          .  "  tstress = $qe_data_files{'dft.calc_stress'}\n"
+          .  "  tprnfor = $qe_data_files{'dft.calc_force'}\n"
           .  "  wf_collect = .true.\n"
   #        .  "  disk_io = 'low'\n"
           .  "/\n";
@@ -501,7 +530,8 @@ if ( $nscfRUN ) {
           .  "  conv_thr = $qe_data_files{'etol'}\n"
           .  "  mixing_beta = $qe_data_files{'mixing'}\n"
           .  "  electron_maxstep = $qe_data_files{'nrun'}\n"
-          .  "  startingwfc = 'atomic+random'\n"
+          .  "  startingwfc = \'$qe_data_files{'dft.startingwfc'}\'\n"
+          .  "  diagonalization = \'$qe_data_files{'dft.diagonalization'}\'\n"
           .  "/\n"
           .  "&ions\n"
           .  "/\n";
@@ -609,43 +639,84 @@ if ( $nscfRUN ) {
     mkdir $bseDIR unless ( -d $bseDIR );
     chdir $bseDIR;
 
-    mkdir "Out" unless ( -d "Out" );
-    mkdir "Out/$qe_data_files{'prefix'}.save" unless ( -d "Out/$qe_data_files{'prefix'}.save" );
-
-    copy "../Out/$qe_data_files{'prefix'}.save/charge-density.dat", "Out/$qe_data_files{'prefix'}.save/charge-density.dat";
-    copy "../Out/$qe_data_files{'prefix'}.save/data-file.xml", "Out/$qe_data_files{'prefix'}.save/data-file.xml";
-
-
-    if( $qe_data_files{'nspin'} == 2 )
-    {
-      copy "../Out/$qe_data_files{'prefix'}.save/spin-polarization.dat", 
-           "Out/$qe_data_files{'prefix'}.save/spin-polarization.dat";
-    }
-
-    if( $qe_data_files{'ldau'}  ne "" )
-    {
-      # Starting w/ QE-6.0 this is the DFT+U info from the SCF
-      if( -e "../Out/$qe_data_files{'prefix'}.save/occup.txt" )
-      {
-        copy "../Out/$qe_data_files{'prefix'}.save/occup.txt", "Out/$qe_data_files{'prefix'}.save/occup.txt";
-      }
-      # QE 4.3-5.x
-      elsif( -e "../Out/$qe_data_files{'prefix'}.occup" )
-      {
-        copy "../Out/$qe_data_files{'prefix'}.occup", "Out/$qe_data_files{'prefix'}.occup";
-      }
-    }
-
     # kpts
     copy "../nkpt", "nkpt";
     copy "../qinunitsofbvectors.ipt", "qinunitsofbvectors.ipt";
     copy "../k0.ipt", "k0.ipt";
+    copy "../dft.split", "dft.split";
+
+    my $split_dft;
+    if( open IN, "dft.split" )
+    {
+      $split_dft = 0;
+      if( <IN> =~ m/t/i )
+      {
+        $split_dft = 1;
+      }
+      close IN;
+      # Only makes sense if we have q
+      if( $split_dft )
+      {
+        open IN, "qinunitsofbvectors.ipt" or die "Failed to open qinunitofbvectors\n$!";
+        <IN> =~ m/([+-]?\d+\.?\d*([eE][+-]?\d+)?)\s+([+-]?\d+\.?\d*([eE][+-]?\d+)?)\s+([+-]?\d+\.?\d*([eE][+-]?\d+)?)/ 
+                    or die "Failed to parse qinunitsofbvectors.ipt\n";
+        my $fake_qmag = abs($1) + abs($3) + abs($5);
+        close IN;
+        $split_dft = 0 if( $fake_qmag < 0.000000001 );
+      }
+    }
+    else
+    {
+      $split_dft = 0;
+    } 
+
+    print "DFT runs will be split\n" if( $split_dft );
+
+    $qe_data_files{'prefix_shift'} = $qe_data_files{'prefix'} . "_shift";
+
+    mkdir "Out" unless ( -d "Out" );
+
+    # This will loop back and do everything for prefix_shift if we have split
+    my $repeat = 0;
+    $repeat = 1 if( $split_dft );
+    my $prefix = 'prefix';
+    for( my $i = 0; $i <= $repeat; $i++ )
+    {
+      mkdir "Out/$qe_data_files{$prefix}.save" unless ( -d "Out/$qe_data_files{$prefix}.save" );
+
+      copy "../Out/$qe_data_files{'prefix'}.save/charge-density.dat", "Out/$qe_data_files{$prefix}.save/charge-density.dat";
+      copy "../Out/$qe_data_files{'prefix'}.save/data-file.xml", "Out/$qe_data_files{$prefix}.save/data-file.xml";
+
+
+      if( $qe_data_files{'nspin'} == 2 )
+      {
+        copy "../Out/$qe_data_files{'prefix'}.save/spin-polarization.dat", 
+             "Out/$qe_data_files{$prefix}.save/spin-polarization.dat";
+      }
+
+      if( $qe_data_files{'ldau'}  ne "" )
+      {
+        # Starting w/ QE-6.0 this is the DFT+U info from the SCF
+        if( -e "../Out/$qe_data_files{'prefix'}.save/occup.txt" )
+        {
+          copy "../Out/$qe_data_files{'prefix'}.save/occup.txt", "Out/$qe_data_files{$prefix}.save/occup.txt";
+        }
+        # QE 4.3-5.x
+        elsif( -e "../Out/$qe_data_files{'prefix'}.occup" )
+        {
+          copy "../Out/$qe_data_files{'prefix'}.occup", "Out/$qe_data_files{$prefix}.occup";
+        }
+      }
+      $prefix = "prefix_shift";
+    }
+
+
 #    copy "../acell", "acell";
 #    copy "../atompp", "atompp";
 #    copy "../coords", "coords";
-    open OUT, ">core" or die;
-    print OUT "1\n";
-    close OUT;
+#    open OUT, ">core" or die;
+#    print OUT "1\n";
+#    close OUT;
     system("$ENV{'OCEAN_BIN'}/kgen2.x") == 0 or die "KGEN.X Failed\n";
 
     open my $QE, ">nscf.in" or die "Failed to open nscf.in\n$!";
@@ -665,7 +736,10 @@ if ( $nscfRUN ) {
     close IN;
 
     $qe_data_files{'print kpts'} = $kpt_text;
-    $qe_data_files{'print nbands'} = $qe_data_files{'nbands'};
+    unless( $split_dft ) 
+    {
+      $qe_data_files{'print nbands'} = $qe_data_files{'nbands'};
+    }
 
     &print_qe( $QE, %qe_data_files );
 
@@ -687,6 +761,43 @@ if ( $nscfRUN ) {
     print  "$para_prefix $ENV{'OCEAN_ESPRESSO_PW'}  -npool $npool < nscf.in > nscf.out 2>&1\n";
     system("$para_prefix $ENV{'OCEAN_ESPRESSO_PW'}  -npool $npool < nscf.in > nscf.out 2>&1") == 0
         or die "Failed to run nscf stage for BSE wavefunctions\n";
+
+
+    if( $split_dft )
+    {
+      open my $QE, ">nscf_shift.in" or die "Failed to open nscf_shift.in\n$!";
+
+      $prefix = $qe_data_files{'prefix'};
+      $qe_data_files{'prefix'} = $qe_data_files{'prefix_shift'};
+
+      $kpt_text = "K_POINTS crystal\n";
+      open IN, "nkpts" or die;
+      my $nkpts = <IN>;
+      close IN;
+      $kpt_text .= $nkpts;
+      open IN, "kpts4qe.0002" or die;
+      while(<IN>)
+      {
+        $kpt_text .= $_;
+      }
+      close IN;
+      $qe_data_files{'print kpts'} = $kpt_text;
+      $qe_data_files{'print nbands'} = $qe_data_files{'nbands'};
+
+      &print_qe( $QE, %qe_data_files );
+
+      close $QE;
+
+      print  "$para_prefix $ENV{'OCEAN_ESPRESSO_PW'}  -npool $npool < nscf_shift.in > nscf_shift.out 2>&1\n";
+      system("$para_prefix $ENV{'OCEAN_ESPRESSO_PW'}  -npool $npool < nscf_shift.in > nscf_shift.out 2>&1") == 0
+          or die "Failed to run nscf stage for shifted BSE wavefunctions\n";
+
+      $qe_data_files{'prefix'} = $prefix;
+
+    }
+
+
+
     open OUT, ">nscf.stat" or die "Failed to open nscf.stat\n$!";
     print OUT "1\n";
     close OUT;
@@ -835,8 +946,9 @@ sub print_qe
         .  "  prefix = \'$inputs{'prefix'}\'\n"
         .  "  pseudo_dir = \'$inputs{'ppdir'}\'\n"
         .  "  outdir = \'$inputs{'work_dir'}\'\n"
-        .  "  wfcdir = \'$qe_data_files{'tmp_dir'}\'\n"
-        .  "  $inputs{'stress_force'}\n"
+        .  "  wfcdir = \'$inputs{'tmp_dir'}\'\n"
+        .  "  tstress = $inputs{'dft.calc_stress'}\n"
+        .  "  tprnfor = $inputs{'dft.calc_force'}\n"
         .  "  wf_collect = .true.\n"
         .  "/\n";
   print $fh "&system\n"
@@ -875,7 +987,8 @@ sub print_qe
         .  "  conv_thr = $inputs{'etol'}\n"
         .  "  mixing_beta = $inputs{'mixing'}\n"
         .  "  electron_maxstep = $inputs{'nrun'}\n"
-        .  "  startingwfc = 'atomic+random'\n"
+        .  "  startingwfc = \'$qe_data_files{'dft.startingwfc'}\'\n"
+        .  "  diagonalization = \'$qe_data_files{'dft.diagonalization'}\'\n"
         .  "/\n"
         .  "&ions\n"
         .  "/\n";

@@ -5,7 +5,8 @@
 ! `License' in the root directory of the present distribution.
 !
 !
-subroutine pseudize( i, orb, ev, l, xj, n, njrc, zeff, v, xm1, xm2, nr, rmin, rmax, r, dr, r2, dl, rel, rcut, rtest, factor, ntar )
+subroutine pseudize( i, orb, ev, l, xj, n, njrc, zeff, v, xm1, xm2, nr, rmin, rmax, r, dr, r2, &
+                     dl, rel, rcut, rtest, factor, ntar )
   implicit none
   !
   integer :: i, l, n, nr, njrc( 4 )

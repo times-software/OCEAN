@@ -86,28 +86,28 @@ module OCEAN_bloch
     !
     xshift(:) = 0
     if( mod( sys%kmesh(1), 2 ) .eq. 0 ) then
-      xshift( 1 ) = floor( real(sys%xmesh(1), kind( 1.0d0 )) * tau(1) )
+      xshift( 1 ) = floor( real(sys%xmesh(1), DP ) * tau(1) )
     else
-      xshift( 1 ) = floor( real(sys%xmesh(2), kind( 1.0d0 )) * (tau(1)-0.5d0 ) )
+      xshift( 1 ) = floor( real(sys%xmesh(2), DP ) * (tau(1)-0.5d0 ) )
     endif
     if( mod( sys%kmesh(2), 2 ) .eq. 0 ) then
-      xshift( 2 ) = floor( real(sys%xmesh(2), kind( 1.0d0 )) * tau(2) )
+      xshift( 2 ) = floor( real(sys%xmesh(2), DP ) * tau(2) )
     else
-      xshift( 2 ) = floor( real(sys%xmesh(2), kind( 1.0d0 )) * (tau(2)-0.5d0 ) )
+      xshift( 2 ) = floor( real(sys%xmesh(2), DP ) * (tau(2)-0.5d0 ) )
     endif
     if( mod( sys%kmesh(3), 2 ) .eq. 0 ) then
-      xshift( 3 ) = floor( real(sys%xmesh(3), kind( 1.0d0 )) * tau(3) )
+      xshift( 3 ) = floor( real(sys%xmesh(3), DP ) * tau(3) )
     else
-      xshift( 3 ) = floor( real(sys%xmesh(3), kind( 1.0d0 )) * (tau(3)-0.5d0 ) )
+      xshift( 3 ) = floor( real(sys%xmesh(3), DP ) * (tau(3)-0.5d0 ) )
     endif
     ! 
     xshift(:) = xshift(:) * xshift_override(:)
     !
     if( myid .eq. root ) write(6,*) 'Shifting X-grid by ', xshift(:)
     if( myid .eq. root ) write(6,*) 'Original tau ', tau(:)
-    tau( 1 ) = tau(1) - real(xshift(1), kind( 1.0d0 ))/real(sys%xmesh(1), kind( 1.0d0 ))
-    tau( 2 ) = tau(2) - real(xshift(2), kind( 1.0d0 ))/real(sys%xmesh(2), kind( 1.0d0 ))
-    tau( 3 ) = tau(3) - real(xshift(3), kind( 1.0d0 ))/real(sys%xmesh(3), kind( 1.0d0 ))
+    tau( 1 ) = tau(1) - real(xshift(1), DP )/real(sys%xmesh(1), kind( 1.0d0 ))
+    tau( 2 ) = tau(2) - real(xshift(2), DP )/real(sys%xmesh(2), kind( 1.0d0 ))
+    tau( 3 ) = tau(3) - real(xshift(3), DP )/real(sys%xmesh(3), kind( 1.0d0 ))
     if( myid .eq. root ) write(6,*) 'New tau      ', tau(:)
 
 
@@ -387,17 +387,17 @@ module OCEAN_bloch
     integer, parameter :: u2dat = 35
     !
     integer :: nx, ny, nz, nbd, nq
-!    real( kind = kind( 1.0d0 ) ), dimension( nx, ny, nz, nbd ) :: ur, ui
+!    real( kind = DP  ), dimension( nx, ny, nz, nbd ) :: ur, ui
     !
     integer :: iq, ibd, ig, idum( 3 ), ix, iy, iz, ivl, ivh, icl, ich, ispn, i
     integer :: iq1, iq2, iq3, dumint, icl2, ich2, ivh2, xshift(3)
     integer :: xtarg, ytarg, ztarg, xph, yph, zph
-    real( kind = kind( 1.0d0 ) ) :: phsx, phsy, phsz, cphs, sphs, psir, psii, pi
-    real( kind = kind( 1.0d0 ) ) :: su, sul, suh
-    real( kind = kind( 1.0d0 ) ), allocatable, dimension( :, :, :, : ) :: tmp_ur, tmp_ui, ur, ui
+    real( kind = DP  ) :: phsx, phsy, phsz, cphs, sphs, psir, psii, pi
+    real( kind = DP  ) :: su, sul, suh
+    real( kind = DP  ), allocatable, dimension( :, :, :, : ) :: tmp_ur, tmp_ui, ur, ui
     real( DP ), allocatable :: re_transpose( :, : ), im_transpose( :, : )
     complex( DP ), allocatable :: u2_buf( :, :, :, : )
-!    complex( kind = kind( 1.0d0 ) ), allocatable, dimension( :, : ) :: tmp_bloch
+!    complex( kind = DP  ), allocatable, dimension( :, : ) :: tmp_bloch
     logical :: metal, normal, ex
     integer :: nx_left, nx_start, nx_tmp, xiter, ii, width(3)
     character(len=3) :: bloch_type
@@ -914,8 +914,8 @@ module OCEAN_bloch
             do ix = 1, sys%xmesh(1)
               xiter = xiter + 1
               do ibd = 1, sys%num_bands
-                re_transpose( ibd, xiter ) = real(u2_buf( iz, iy, ix, ibd ))
-                im_transpose( ibd, xiter ) = aimag(u2_buf( iz, iy, ix, ibd ))
+                re_transpose( ibd, xiter ) = real( u2_buf( iz, iy, ix, ibd ), DP )
+                im_transpose( ibd, xiter ) = aimag( u2_buf( iz, iy, ix, ibd ) )
               end do
             end do
           end do

@@ -11,6 +11,7 @@ install:
 	cd ppmod; make "INSTDIR = $(INSTDIR)" install
 	cd zatom; make "INSTDIR = $(INSTDIR)" install
 	cp opf.pl $(INSTDIR)/ 
+	cp validate_opts.pl $(INSTDIR)/
 
 clean:
 	cd ppmod; make clean

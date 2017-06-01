@@ -6,6 +6,7 @@
 !
 !
 program xes_spaghetti
+  use AI_kinds
   implicit none
 
 
@@ -13,10 +14,10 @@ program xes_spaghetti
 
 
   integer :: ZNL(3), nalpha, nb, kmesh(3), nkpts, steps
-  real(kind=kind(1.d0)) :: k0(3), tau(3), rr, ri, ir, ii, qpt(3), start_coord(3), stop_coord(3)
+  real( DP ) :: k0(3), tau(3), rr, ri, ir, ii, qpt(3), start_coord(3), stop_coord(3)
 
   integer :: nptot, ntot
-  real(kind=kind(1.d0)), allocatable :: pcr(:,:),pci(:,:),mer(:,:),mei(:,:), &
+  real( DP ), allocatable :: pcr(:,:),pci(:,:),mer(:,:),mei(:,:), &
       re_psi(:,:),im_psi(:,:), energies(:,:)
 
   integer :: iter, icml, ialpha, ikpt, iband, ivms, xk, yk, zk, nbd, nq
