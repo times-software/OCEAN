@@ -8,7 +8,7 @@ c
       subroutine elsch(nm,n,ar,ai,w,matz,zr,zi,fv1,fv2,fm1,ierr)
 c
       integer i,j,n,nm,ierr,matz
-      real*8 ar(nm,n),ai(nm,n),w(n),zr(nm,n),zi(nm,n),
+      double precision ar(nm,n),ai(nm,n),w(n),zr(nm,n),zi(nm,n),
      x       fv1(n),fv2(n),fm1(2,n)
 c
 c     this subroutine calls the recommended sequence of
@@ -78,8 +78,8 @@ c
       subroutine elshtridi(nm,n,ar,ai,d,e,e2,tau)
 c
       integer i,j,k,l,n,ii,nm,jp1
-      real*8 ar(nm,n),ai(nm,n),d(n),e(n),e2(n),tau(2,n)
-      real*8 f,g,h,fi,gi,hh,si,scale,elspythag
+      double precision ar(nm,n),ai(nm,n),d(n),e(n),e2(n),tau(2,n)
+      double precision f,g,h,fi,gi,hh,si,scale,elspythag
 c
 c     this subroutine is a translation of a complex analogue of
 c     the algol procedure tred1, num. math. 11, 181-195(1968)
@@ -232,8 +232,8 @@ c
       subroutine elstqlrat(n,d,e2,ierr)
 c
       integer i,j,l,m,n,ii,l1,mml,ierr
-      real*8 d(n),e2(n)
-      real*8 b,c,f,g,h,p,r,s,t,elsepslon,elspythag
+      double precision d(n),e2(n)
+      double precision b,c,f,g,h,p,r,s,t,elsepslon,elspythag
 c
 c     this subroutine is a translation of the algol procedure tqlrat,
 c     algorithm 464, comm. acm 16, 689(1973) by reinsch.
@@ -362,8 +362,8 @@ c                eigenvalue after 30 iterations ..........
       subroutine elshtribk(nm,n,ar,ai,tau,m,zr,zi)
 c
       integer i,j,k,l,m,n,nm
-      real*8 ar(nm,n),ai(nm,n),tau(2,n),zr(nm,m),zi(nm,m)
-      real*8 h,s,si
+      double precision ar(nm,n),ai(nm,n),tau(2,n),zr(nm,m),zi(nm,m)
+      double precision h,s,si
 c
 c     this subroutine is a translation of a complex analogue of
 c     the algol procedure trbak1, num. math. 11, 181-195(1968)
@@ -453,8 +453,9 @@ c
       subroutine elstql2(nm,n,d,e,z,ierr)
 c
       integer i,j,k,l,m,n,ii,l1,l2,nm,mml,ierr
-      real*8 d(n),e(n),z(nm,n)
-      real*8 c,c2,c3,dl1,el1,f,g,h,p,r,s,s2,tst1,tst2,elspythag
+      double precision d(n),e(n),z(nm,n)
+      double precision c,c2,c3,dl1,el1,f,g,h,p,r,s,s2,tst1,tst2
+      double precision elspythag
 c
 c     this subroutine is a translation of the algol procedure tql2,
 c     num. math. 11, 293-306(1968) by bowdler, martin, reinsch, and
@@ -620,12 +621,12 @@ c                eigenvalue after 30 iterations ..........
  1000 ierr = l
  1001 return
       end
-      real*8 function elspythag(a,b)
-      real*8 a,b
+      double precision function elspythag(a,b)
+      double precision a,b
 c
 c     finds dsqrt(a**2+b**2) without overflow or destructive underflow
 c
-      real*8 p,r,s,t,u
+      double precision p,r,s,t,u
       p = dmax1(dabs(a),dabs(b))
       if (p .eq. 0.0d0) go to 20
       r = (dmin1(dabs(a),dabs(b))/p)**2
@@ -640,12 +641,12 @@ c
    20 elspythag = p
       return
       end
-      real*8 function elsepslon (x)
-      real*8 x
+      double precision function elsepslon (x)
+      double precision x
 c
 c     estimate unit roundoff in quantities of size x.
 c
-      real*8 a,b,c,eps
+      double precision a,b,c,eps
 c
 c     this program should function properly on all systems
 c     satisfying the following two assumptions,

@@ -1,4 +1,4 @@
-! Copyright (C) 2015 OCEAN collaboration
+! Copyright (C) 2015, 2017 OCEAN collaboration
 !
 ! This file is part of the OCEAN project and distributed under the terms 
 ! of the University of Illinois/NCSA Open Source License. See the file 
@@ -9,7 +9,7 @@
 !
 !  creates the site list based upon the inputs
 !
-      program pawsetup
+program pawsetup
 
       use periodic
       implicit none
@@ -130,15 +130,17 @@
 ! Then lists each site, giving the symbol and its rank in the xyz.wyck file
       open(unit=99,file='sitelist',form=f9,status='unknown')
       write(99,*) sum(sites)
-      allocate(atomcount(ntypat))
+!      allocate(atomcount(ntypat))
+      ! Needs to be more than possible Z
+      allocate(atomcount(160))
       atomcount(:) = 0
       do counter=1,natom
-        atomcount(typat(counter)) = atomcount(typat(counter)) + 1
+        atomcount(znucl(typat(counter))) = atomcount(znucl(typat(counter))) + 1
         if (sites(counter) .ne. 0 ) then
           write(99,*) elements(znucl(typat(counter))),                  &
-     &               atomcount(typat(counter)), pplist(typat(counter))
+     &               atomcount(znucl(typat(counter))), pplist(typat(counter))
         endif
-        sitenum(counter) = atomcount(typat(counter))
+        sitenum(counter) = atomcount(znucl(typat(counter)))
       enddo
       close(99)
 !
@@ -155,5 +157,5 @@
 !
       deallocate(znucl,typat,xred,edges,sites,atomcount, pplist,sitenum)
 !
-      end program pawsetup 
+end program pawsetup 
 !!!!!!!!

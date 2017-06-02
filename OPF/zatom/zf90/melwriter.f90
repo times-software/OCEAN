@@ -290,7 +290,8 @@ subroutine melwriter( etot, rel, alfa, nr, r, dr, r2, dl, njrc, vi, zorig, xntot
         end do
      end select
      !
-     call abinitio(etot,rel,alfa,nr,r,dr,r2,dl,pheps,njrc,vi,zorig,xntot,nel,no,nl,nm,xnj,ev,occ,is,ek,orb,iuflag,cq,.true.,nelmax)
+     call abinitio(etot,rel,alfa,nr,r,dr,r2,dl,pheps,njrc,vi,zorig,xntot,nel,no, &
+                   nl,nm,xnj,ev,occ,is,ek,orb,iuflag,cq,.true.,nelmax)
      !
      ! reconstruct wave functions.  insodoing, output diagnostic file showing actual and reconstructed wave functions
      write ( unit=nam3, fmt='(1a2,i1)' ) 'di', l

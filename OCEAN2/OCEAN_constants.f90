@@ -15,6 +15,9 @@ module OCEAN_constants
   real(DP), parameter :: eV2Hartree = 0.036749323777346887_DP
   real(DP), parameter :: Hartree2eV = 27.21138506_DP
 
+  real(DP), parameter :: alphainv = 1.0_DP / 0.0072973525664_DP
+  real(DP), parameter :: bohr = 0.52917721067_DP
+
   ! older data from Rev Mod Phys 80 633 (2008 )
 !  real(DP), parameter :: eV2Hartree = 0.0367493253979623245294_DP 
 !  real(DP), parameter :: Hartree2eV = 27.21138386_DP

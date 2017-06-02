@@ -165,10 +165,16 @@ program builder
   mindif = min( muev - vhev, clev - muev )
   maxdif = max( muev - vlev, chev - muev )
   sev = sqrt( mindif * maxdif )
-  write( 6, '(4(1x,1e15.8))' ) vlev, vhev, clev, chev
-  write ( 6, '(4(1x,1e15.8))' ) muev, mindif, maxdif, sev
-  mu = muev / 13.6057d0    ! s & mu are in Ry!
-  s = sev / 13.6057d0      ! s & mu are in Ry!
+  write( 6, '(A)' ) "    #### Energy summary (eV) ####"
+  write( 6, '(A)' ) " Valence minimum   Valence maximum   Conduction min.   Conduction max."
+  !                 " -X.XXXXXXXXE+YY   -X.XXXXXXXXE+YY   -X.XXXXXXXXE+YY   -X.XXXXXXXXE+YY
+  write( 6, '(4(1x,1e15.8,2x))' ) vlev, vhev, clev, chev
+  write( 6, '(A)' ) "   Fermi/midgap    Min. difference   Max. difference  Geo. mean of diffs"
+  !                 " -X.XXXXXXXXE+YY   -X.XXXXXXXXE+YY   -X.XXXXXXXXE+YY   -X.XXXXXXXXE+YY
+  write ( 6, '(4(1x,1e15.8,2x))' ) muev, mindif, maxdif, sev
+  ! CODATA 2010
+  mu = muev / 13.60569253d0    ! s & mu are in Ry!
+  s = sev / 13.60569253d0      ! s & mu are in Ry!
   !
   !
   allocate( ure( npt, ibl : ibh + overlap ), uim( npt, ibl : ibh + overlap ) )

@@ -22,8 +22,8 @@ if (! $ENV{"OCEAN_WORKDIR"}){ $ENV{"OCEAN_WORKDIR"} = `pwd` . "../" ; }
 my %alphal = ( "0" => "s", "1" => "p", "2" => "d", "3" => "f" );
 
 my @CommonFiles = ("epsilon", "xmesh.ipt", "nedges", "k0.ipt", "nbuse.ipt", 
-  "cnbse.rad", "cnbse.ways", "metal", "cksshift", "cksstretch", "cksdq", 
-  "cnbse.niter", "cnbse.spect_range", "cnbse.broaden", "cnbse.mode", "nphoton", "dft", 
+  "cnbse.rad", "metal", "cksshift", "cksstretch",  
+  "cnbse.niter", "cnbse.spect_range", "cnbse.broaden", "nphoton", "dft", 
   "para_prefix", "cnbse.strength", "serbse", "core_offset", "avecsinbohr.ipt", 
   "cnbse.solver", "cnbse.gmres.elist", "cnbse.gmres.erange", "cnbse.gmres.nloop", 
   "cnbse.gmres.gprc", "cnbse.gmres.ffff", "cnbse.write_rhs", "spin_orbit", "nspin", 
@@ -167,7 +167,7 @@ if( $solver eq 'gmres' )
   my $have_erange = 0;
   open IN, "cnbse.gmres.elist" or die "Failed to open cnbse.gmres.elist\n$!";
   $line = <IN>;
-  if( $line =~ m/false/ )
+  if( $line =~ m/false/i )
   {
     close IN;
   }
@@ -190,7 +190,7 @@ if( $solver eq 'gmres' )
 
   open IN, "cnbse.gmres.erange" or die "Failed to open cnbse.gmres.erange\n$!";
   $line = <IN>;
-  if( $line =~ m/false/ )
+  if( $line =~ m/false/i )
   {
     close IN;
   }
@@ -205,7 +205,9 @@ if( $solver eq 'gmres' )
       $gmres_footer = $gmres_header . "loop\n";
       $line =~ m/([-+]?[0-9]*\.?[0-9]+([eE][-+]?[0-9]+)?)\s+([-+]?[0-9]*\.?[0-9]+([eE][-+]?[0-9]+)?)\s+([-+]?[0-9]*\.?[0-9]+([eE][-+]?[0-9]+)?)/ or die "Failed to parse erange setting\n$line";
       my $estart = $1; my $estop = $3; my $estep = $5;
+      print "GMRES loop: $estart\t$estop\t$estep\n";
       $gmres_count = floor( ($estop - $estart + $estep*.9 ) / $estep );
+      print "      count $gmres_count\n";
       $gmres_footer .= $line;
       $have_erange = 1;
     }
@@ -531,10 +533,17 @@ if( -e 'photon_in' )
   }
   close IN;
   @xas_photon_files = split(/\s+/, $photon_list );
+  print "XAS photons from photon_in\n";
 }
 else
 {
   @xas_photon_files = @photon_files;
+  print "XAS photons using nphoton\n";
+}
+
+foreach my $line (@xas_photon_files )
+{
+  print $line . "\n";
 }
 
 my %unique_z;
@@ -815,16 +824,20 @@ else
 }
 
 my $photon_combo = 0;
-print "$#xas_photon_files\t$#xes_photon_files\n";
+print scalar @xas_photon_files . "\t" . scalar @xes_photon_files . "\n";
 for( my $i = 0; $i <= $#xas_photon_files; $i++ )
 {
   for( my $j = 0; $j <= $#xes_photon_files; $j++ )
   {
-    next if( $xas_photon_files[$i] == $xes_photon_files[$j] );
+#    print "\t\t$i\t$j\tphotons\n";
+    next if( $xas_photon_files[$i] eq $xes_photon_files[$j] );
     print "$xas_photon_files[$i]\t$xes_photon_files[$j]\n";
     $photon_combo ++;
   }
 }
+
+print "Found $photon_combo combinations of photon files\n";
+print "From XAS we have $gmres_count energy steps\n";
     
 
 
@@ -834,13 +847,17 @@ my $tot_gmres_count = $gmres_count * $photon_combo;
 print RUNLIST "$tot_gmres_count\n";
 for( my $e = 1; $e <= $gmres_count; $e++ )
 {
-  for( my $i = 0; $i <= $#xas_photon_files; $i++ )
+  for( my $i = 0; $i < scalar @xas_photon_files; $i++ )
   {
-    for( my $j = 0; $j <= $#xes_photon_files; $j++ )
+    $xas_photon_files[$i] =~ m/(\d+)\s*$/ or die "Malformed photon file name:\t$xas_photon_files[$i]\n";
+    my $i_num = $1;
+    for( my $j = 0; $j < scalar @xes_photon_files; $j++ )
     {
+      $xes_photon_files[$j] =~ m/(\d+)\s*$/ or die "Malformed photon file name:\t$xes_photon_files[$j]\n";
+      my $j_num = $1;
 #      next if( $i == $j );
-      next if( $xas_photon_files[$i] == $xes_photon_files[$j] );
-      print RUNLIST "$znum  $nnum  $lnum  $elname  $corelevel  0  $xas_photon_files[$i]  RXS  $e  $xes_photon_files[$j]\n";
+      next if( $xas_photon_files[$i] eq $xes_photon_files[$j] );
+      print RUNLIST "$znum  $nnum  $lnum  $elname  $corelevel  0  $i_num  RXS  $e  $j_num\n";
     }
   }
 }
@@ -863,6 +880,7 @@ close INFILE;
 
 `cat bse.in`;
 #sleep 10;
+
 
 print "Running valence for RIXS\n";
 print "time $para_prefix $ENV{'OCEAN_BIN'}/ocean.x > val.log";

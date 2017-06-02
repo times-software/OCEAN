@@ -35,24 +35,27 @@ module OCEAN_hyb_louie_levine
     integer, intent( out ) :: kk( sys%nkpts, 3 )
     !
     real(dp), allocatable :: rho(:)
-    complex(dp), allocatable :: compl_rho(:)
-    integer, allocatable :: kret_( : )
 
     real(dp) :: whomdat( nr, nrs ), w0dat( nrad, nrs ), d_array( nr ), rs_array( nrs ), rad_array( nrad )
     real(dp) :: x_array( 3, sys%nxpts ), r_array( 3, sys%nkpts ), ftab( sys%nxpts )
     real(dp) :: vol
     real(dp) :: pi, rsx, decut, rad0, smear_vol, rsmin, rsmax, fy, gy, de, fff, fx, wx, &
               wy, gx, ww, fcn, qde, dspc, avec( 3, 3 ), vtest( 3 ), gap( 3 ), mds, rmag, maxxy
-    real(dp), allocatable :: ladder2(:,:,:) 
     
-    integer :: num_kpoints, num_xpoints, iter1, iter2, rad_floor, rad_ceil, clip, rs_floor, rs_ceil, &
-              rs_cur, rad_cur, ix, iy, iz, iyr, ixr, irad0, jd, irtab( sys%nxpts ), i, j, k
-    integer :: err, nkret_
+    integer :: iter1, iter2, rad_floor, rad_ceil, clip, rs_floor, rs_ceil, &
+              rs_cur, rad_cur, iyr, ixr, irad0, jd, irtab( sys%nxpts ), ix, iy
+    integer :: err
     real(dp) :: xk( sys%nkpts, 3 )
 
+#ifdef DEBUG
+    complex(dp), allocatable :: compl_rho(:)
+    real(dp), allocatable :: ladder2(:,:,:) 
+    integer, allocatable :: kret_( : )
+    integer :: nkret_, i
     logical :: override_rho, override_ladder
+#endif
     
-!    real(kind=kind(1.d0)), external :: AI_max_length
+!    real( DP ), external :: AI_max_length
 
 
     pi = 4.0d0 * atan( 1.0d0 )
@@ -75,6 +78,8 @@ module OCEAN_hyb_louie_levine
 111 continue
     endif
 
+!   This allows grabbing in the rho written by the legacy ai2nbse routines
+#ifdef DEBUG
     if( myid .eq. root ) then
       inquire(file='rho.xpts', exist=override_rho)
       if( override_rho ) then
@@ -93,6 +98,8 @@ module OCEAN_hyb_louie_levine
         deallocate( compl_rho )
       endif
     endif
+#endif
+! end debug flag
 
 
 #ifdef MPI
@@ -237,6 +244,9 @@ module OCEAN_hyb_louie_levine
     !
     !
     ladder( :, :, : ) = 0.0_dp
+
+    ! This allows grabbing in the ladder.dat file created by the legacy ai2nbse routines
+#ifdef DEBUG
     inquire( file='ladder.dat', exist=override_ladder ) 
     if( override_ladder .and. nproc .eq. 1 ) then
       write(6,*) 'Override ladder!!!'
@@ -261,6 +271,8 @@ module OCEAN_hyb_louie_levine
 
       deallocate( kret_) !, tempor )
     endif
+#endif
+!   end debug
 
 
 
@@ -320,17 +332,23 @@ module OCEAN_hyb_louie_levine
             write(6,*) jd, fff, fcn      
             return
           endif
+#ifdef DEBUG
           if( override_ladder ) then
             if( abs(ladder( iter1, ix - nx_start + 1, iy ) - ladder2(iter1, ix - nx_start + 1, iy ) &
                 .gt. 0.01 ) ) then
-              write(6,*) kret( iter1 ), ix - nx_start + 1, iy, ladder( iter1, ix - nx_start + 1, iy ) , ladder2(iter1, ix - nx_start + 1, iy )
+              write(6,*) kret( iter1 ), ix - nx_start + 1, iy, ladder( iter1, ix - nx_start + 1, iy ) , & 
+                         ladder2(iter1, ix - nx_start + 1, iy )
             endif
           endif
+#endif
         enddo ! iter1 = 1, nkret
       enddo ! iy = 1, num_xpoints
     enddo ! ix = 1, num_xpoints
 !  endif
 
+#ifdef DEBUG
+    if( allocated( ladder2 ) ) deallocate( ladder2 )
+#endif
     if( myid .eq. root ) write( 6, * ) 'Hybertsen-Louie-Levine model W constructed'
 
 
@@ -344,12 +362,12 @@ module OCEAN_hyb_louie_levine
     implicit none
     !
     integer, intent(in) :: nxprod
-    real( kind = kind( 1.0d0 ) ), intent(in) :: rho( nxprod )
-    real(kind=kind(1.d0)), intent(out) :: rsmin, rsmax
+    real( DP ), intent(in) :: rho( nxprod )
+    real( DP ), intent(out) :: rsmin, rsmax
     integer, intent(inout) :: ierr
     !
     integer :: i
-    real( kind = kind( 1.0d0 ) ) :: rhomin, rhomax, pi
+    real( DP ) :: rhomin, rhomax, pi
     !
   !  write(6,*) nxprod, rho(1)
     pi = 4.0d0 * atan( 1.0d0 )
@@ -389,28 +407,27 @@ module OCEAN_hyb_louie_levine
 
     implicit none
     !
-    real(kind=kind(1.d0)), intent(in) :: epsilon0, rsmin, rsmax
-    real(kind=kind(1.d0)), intent(out) :: whomdat( nr, nrs ), d_array( nr ), rs_array( nrs )
+    real( DP ), intent(in) :: epsilon0, rsmin, rsmax
+    real( DP ), intent(out) :: whomdat( nr, nrs ), d_array( nr ), rs_array( nrs )
     integer, intent(inout) :: ierr
     !
-    real(kind=kind(1.d0)) :: remd( nq ), rsh, rsl
+    real( DP ) :: remd( nq ), rsh, rsl
     !
     integer :: irs
-    real(kind=kind(1.d0)) :: rs
-    real(kind=kind(1.d0)) :: n, qf, wf, wpsqd, lam
+    real( DP ) :: n, qf, wf, wpsqd, lam
     !
     integer :: ir
-    real(kind=kind(1.d0)) :: r !, rang
+    real( DP ) :: r !, rang
     !
     integer j
-    real(kind=kind(1.d0)) :: intr, q, qq, dq
-    real(kind=kind(1.d0)) :: cold, sold, cnew, snew, cs, ss
+    real( DP ) :: intr, q, qq, dq
+    real( DP ) :: cold, sold, cnew, snew, cs, ss
     !
-    complex(kind=kind(1.d0)) :: ra, rb, c1, a, b, aa
-    real(kind=kind(1.d0)) :: eill, eift, beta, gamma0, c0, c2, c4, u, w, raw
-!    real(kind=kind(1.d0)), external :: levlou
+    complex( DP ) :: ra, rb, c1, a, b, aa
+    real( DP ) :: eill, eift, beta, gamma0, c0, c2, c4, u, w, raw
+!    real( DP ), external :: levlou
     !
-    real(kind=kind(1.d0)) :: pi
+    real( DP ) :: pi
     pi = 4.0d0 * datan( 1.0d0 )
     !
     rsl = rsmin * 0.95d0
@@ -524,9 +541,9 @@ module OCEAN_hyb_louie_levine
   subroutine whom0( whomdat, d_array, w0dat, rad_array, ierr )
     implicit none
   !
-    real(kind=kind(1.d0)), intent( in ) :: whomdat( nr, nrs )
-    real(kind=kind(1.d0)), intent( in ) :: d_array( nr )
-    real(kind=kind(1.d0)), intent( out ) :: w0dat( nrad, nrs ), rad_array( nrad )
+    real( DP ), intent( in ) :: whomdat( nr, nrs )
+    real( DP ), intent( in ) :: d_array( nr )
+    real( DP ), intent( out ) :: w0dat( nrad, nrs ), rad_array( nrad )
     integer, intent( inout ) :: ierr
   !  include 'whom.h'
   !  integer, parameter :: wdat = 30
@@ -534,10 +551,10 @@ module OCEAN_hyb_louie_levine
   !
   !  double precision whom( nr, nrs ), d( nr ), rs( nrs )
   !
-    integer ir, irs, jl, jh, i, irad
-    real(kind=kind(1.d0)) :: whomdat2( nr, nrs )
+    integer :: irs, jl, jh, i, irad
+    real( DP ) :: whomdat2( nr, nrs )
   !
-    double precision radl, radh, num, den, rho, drho, w, brack, r
+    real( DP ) :: radl, radh, num, den, rho, drho, w, brack, r
   !
   !  open( unit=wdat, file='W.els', form='formatted', status='old' )
   !  rewind wdat
@@ -674,7 +691,7 @@ module OCEAN_hyb_louie_levine
       double precision q, qf, lam, levlou
       double precision xp, xm, term1, term2, term3
       double precision tmp, c0, c2, c4
-      real( kind = kind( 1.0d0 ) ), parameter :: pi =3.1415926535897932384d0
+      real( DP ), parameter :: pi =3.1415926535897932384d0
 !     include 'general.h'
       if ( q .gt. 0.01d0 ) then
         xp = q * ( 2.d0 + q ) / lam
@@ -701,7 +718,7 @@ module OCEAN_hyb_louie_levine
   implicit none
   !
   integer :: nx, i, j, k
-  real(kind=kind(1.d0)) :: avec(3,3), x_array(3,nx), vtest(3), maxxy
+  real( DP ) :: avec(3,3), x_array(3,nx), vtest(3), maxxy
   !
   maxxy = 0
   do i = 1, nx
@@ -721,11 +738,11 @@ subroutine dist( x, y, r, d, avec, nkx, nky, nkz, clip )
   implicit none
   !
   integer :: nkx, nky, nkz, clip
-  real( kind = kind( 1.0d0 ) ) :: x( 3 ), y( 3 ), r( 3 )
-  real( kind = kind( 1.0d0 ) ) :: d, avec( 3, 3 )
+  real( DP ) :: x( 3 ), y( 3 ), r( 3 )
+  real( DP ) :: d, avec( 3, 3 )
   !
   integer :: i, iix, iiy, iiz
-  real( kind = kind( 1.0d0 ) ) :: dsqd, r0( 3 ), r1( 3 ), r2( 3 ), r3( 3 )
+  real( DP ) :: dsqd, r0( 3 ), r1( 3 ), r2( 3 ), r3( 3 )
   ! 
   r0( : ) = 0
   do i = 1, 3
@@ -761,9 +778,9 @@ end subroutine dist
 subroutine dublinterp( fx, fy, vecx1, vecx2, rslt )
   implicit none
   !
-  real( kind = kind( 1.0d0 ) ) :: fx, fy, rslt, vecx1( 2 ), vecx2( 2 )
+  real( DP ) :: fx, fy, rslt, vecx1( 2 ), vecx2( 2 )
   !
-  real( kind = kind( 1.0d0 ) ) :: gx, gy
+  real( DP ) :: gx, gy
   !
   gx = 1.0d0 - fx
   gy = 1.0d0 - fy
@@ -779,10 +796,10 @@ subroutine AI_kmapr( kmesh, xk, kk, ladcap )
   integer, intent( in ) :: kmesh(3)
   integer, intent( out ) :: kk( kmesh(3), kmesh(2), kmesh(1), 3 )
   integer, intent( in ) ::  ladcap(2,3)
-  real(kind=kind(1.d0)), intent( out ) :: xk( kmesh(3), kmesh(2), kmesh(1), 3 )
+  real( DP ), intent( out ) :: xk( kmesh(3), kmesh(2), kmesh(1), 3 )
   !
   integer :: ikx, iky, ikz, j
-  real(kind=kind(1.d0)) :: c( 3 ), pi
+  real( DP ) :: c( 3 ), pi
   !
   pi = 4.0d0 * datan( 1.0d0 )
   !
@@ -839,10 +856,10 @@ end subroutine AI_kmapr
   subroutine getspacings( u, gap )
     implicit none
     !
-    real( kind = kind( 1.0d0 ) ) :: u( 3, 3 ), gap( 3 )
+    real( DP ) :: u( 3, 3 ), gap( 3 )
     !
     integer :: i, j, k
-    real( kind = kind( 1.0d0 ) ) :: x, perp( 3 )
+    real( DP ) :: x, perp( 3 )
     !
     do i = 1, 3
        j = i + 1
@@ -861,7 +878,7 @@ end subroutine AI_kmapr
   subroutine cross( v1, v2, c )
     implicit none
     !
-    real( kind = kind( 1.0d0 ) ) :: v1( 3 ), v2( 3 ), c( 3 )
+    real( DP ) :: v1( 3 ), v2( 3 ), c( 3 )
     !
     integer :: i, j, k
     !

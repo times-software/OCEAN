@@ -1,0 +1,4 @@
+absspct_C_.0001_1s_01 is the results from the standard XAS
+abs.gmres is the same site/photon file, but from gmres
+
+gnuplot -persist xas.gplt

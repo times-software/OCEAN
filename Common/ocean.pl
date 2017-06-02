@@ -14,7 +14,7 @@ use File::Copy;
 use strict;
 
 
-my @OceanFolders = ("Common", "DFT", "zWFN", "OPF", "SCREEN", "CNBSE", "PREP");
+my @OceanFolders = ("Common", "DFT", "zWFN", "OPF", "SCREEN", "CNBSE", "PREP", "NBSE");
 
 print "Welcome to OCEAN\n";
 
@@ -176,6 +176,29 @@ system("$ENV{'OCEAN_BIN'}/defaults.pl") == 0 or die "Failed to run defaults.pl\n
 
 system("$ENV{'OCEAN_BIN'}/edges.pl") == 0 or die "Failed to run edges.pl\n$!";
 
+### CALC ###
+
+# The type of calculation will determine a bit about what scripts/stages get run
+# In the future this may be more complicated
+open CALC, "calc" or die "Failed to open file calc: $!\n";
+<CALC> =~ m/(\w+)/ or die "Failed to read file calc\n";
+my $calc = lc($1);
+close CALC;
+my $run_opf;
+my $run_screen;
+if( $calc =~ m/val/ )
+{
+  $run_opf = 0;
+  $run_screen = 0;
+}
+else
+{
+  $run_opf = 1;
+  $run_screen = 1;
+}
+
+
+### \CALC ###
 
 chdir "../";
 print "Done with parsing\n";
@@ -184,10 +207,13 @@ print "Done with parsing\n";
 # OPF stage
 ##########################################
 print "$Separator\n";
-print "Entering OPF stage\n";
-chdir "OPF";
-system("$OCEAN_BIN/opf.pl") == 0 or die "OPF stage failed\n";
-chdir "../";
+if( $run_opf )
+{
+  print "Entering OPF stage\n";
+  chdir "OPF";
+  system("$OCEAN_BIN/opf.pl") == 0 or die "OPF stage failed\n";
+  chdir "../";
+}
 ##########################################
 #
 # DFT stage
@@ -246,24 +272,36 @@ else
 # SCREENing stage
 ##########################################
 print "$Separator\n";
-print "Entering SCREENing stage\n";
-chdir "../SCREEN";
-if( $script_pre eq 'OBF' )
+if( $run_screen) 
 {
-	system("$OCEAN_BIN/${script_pre}_screen_multi.pl") == 0 or die "SCREEN stage failed\n$!";
-}
-else
-{
-	system("$OCEAN_BIN/screen.pl") == 0 or die "SCREEN stage failed\n$!";
+  print "Entering SCREENing stage\n";
+  chdir "../SCREEN";
+  if( $script_pre eq 'OBF' )
+  {
+    system("$OCEAN_BIN/${script_pre}_screen_multi.pl") == 0 or die "SCREEN stage failed\n$!";
+  }
+  else
+  {
+    system("$OCEAN_BIN/screen.pl") == 0 or die "SCREEN stage failed\n$!";
+  }
 }
 ##########################################
 #
 # CNBSE stage
 ##########################################
 print "$Separator\n";
-print "Entering CNBSE stage\n";
-chdir "../CNBSE";
-system("$OCEAN_BIN/cnbse_mpi.pl") == 0 or die "CNBSE stage failed\n$!";
+if( $calc =~ m/val/ )
+{
+  print "Entering NBSE stage\n";
+  chdir "../NBSE";
+  system("$OCEAN_BIN/nbse.pl") == 0 or die "CNBSE stage failed\n$!";
+}
+else
+{
+  print "Entering CNBSE stage\n";
+  chdir "../CNBSE";
+  system("$OCEAN_BIN/cnbse_mpi.pl") == 0 or die "CNBSE stage failed\n$!";
+}
 
 ##########################################
 print "$Separator\n";

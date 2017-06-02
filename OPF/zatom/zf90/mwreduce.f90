@@ -78,7 +78,8 @@ subroutine mwreduce( etot, rel, alfa, nr, r, dr, r2, dl, njrc, vi, zorig, xntot,
   allocate( orb( nr, nelmax ) )
   !
   call freshen( lmin, lmax, rcocc, skips )
-  call abinitio(etot,rel,alfa,nr,r,dr,r2,dl,pheae,njrc,vi,zorig,xntot,nel,no,nl,nm,xnj,ev,occ,is,ek,orb,iuflag,cq,.true.,nelmax)
+  call abinitio(etot,rel,alfa,nr,r,dr,r2,dl,pheae,njrc,vi,zorig,xntot,nel,no, &
+                nl,nm,xnj,ev,occ,is,ek,orb,iuflag,cq,.true.,nelmax)
   write ( 6, * ) nl( 1 : 3 ), ev( 1 : 3 )
   do i = 1, n2
      etmin( nl( i ) ) = ev( i ) - 0.15d0
@@ -176,7 +177,8 @@ subroutine mwreduce( etot, rel, alfa, nr, r, dr, r2, dl, njrc, vi, zorig, xntot,
      close( unit=99)
      deallocate( ntmp, ltmp, occtmp )
      !
-     call abinitio(etot,rel,alfa,nr,r,dr,r2,dl,pheae,njrc,vi,zorig,xntot,nel,no,nl,nm,xnj,ev,occ,is,ek,orb,iuflag,cq,.false.,nelmax)
+     call abinitio(etot,rel,alfa,nr,r,dr,r2,dl,pheae,njrc,vi,zorig,xntot,nel,no, &
+                   nl,nm,xnj,ev,occ,is,ek,orb,iuflag,cq,.false.,nelmax)
      !
      allocate( etrue( lcmin : lcmax, nt, nt ) )
      do i = 1, nt
@@ -208,7 +210,8 @@ subroutine mwreduce( etot, rel, alfa, nr, r, dr, r2, dl, njrc, vi, zorig, xntot,
         write ( melfile, '(8(2x,1e15.8))' ) melval( j, : )
      end do
      !
-     call abinitio(etot,rel,alfa,nr,r,dr,r2,dl,pheps,njrc,vi,zorig,xntot,nel,no,nl,nm,xnj,ev,occ,is,ek,orb,iuflag,cq,.true.,nelmax)
+     call abinitio(etot,rel,alfa,nr,r,dr,r2,dl,pheps,njrc,vi,zorig,xntot,nel,no, &
+                   nl,nm,xnj,ev,occ,is,ek,orb,iuflag,cq,.true.,nelmax)
      !
      ! reconstruct wave functions.  insodoing, output diagnostic file showing actual and reconstructed wave functions
      write ( unit=nam3, fmt='(1a2,i1)' ) 'di', l
@@ -343,11 +346,13 @@ subroutine mwreduce( etot, rel, alfa, nr, r, dr, r2, dl, njrc, vi, zorig, xntot,
      ! output real input files
      write ( 6, * ) 'valence null occ for core part begin'
      call freshen( lmin, lmax, nulocc, skips )
-     call abinitio(etot,ru,au,nr,r,dr,r2,dl,pheae,njrc,vi,zorig,xntot,nel,no,nl,nm,xnj,ev,occ,is,ek,orb,iuflag,cq,.false.,nelmax)
+     call abinitio(etot,ru,au,nr,r,dr,r2,dl,pheae,njrc,vi,zorig,xntot,nel,no, &
+                   nl,nm,xnj,ev,occ,is,ek,orb,iuflag,cq,.false.,nelmax)
      call hpload( hptab, nr, 1 )
      write ( 6, '(2i5,1x,1f10.5,1x,1a4)' ) iuse, nco, hptab( nr - 10, 1 ) * r( nr - 10 ), 'tail'
      call chgocc( iuse, -1.0d0 )
-     call abinitio(etot,ru,au,nr,r,dr,r2,dl,pheae,njrc,vi,zorig,xntot,nel,no,nl,nm,xnj,ev,occ,is,ek,orb,iuflag,cq,.false.,nelmax)
+     call abinitio(etot,ru,au,nr,r,dr,r2,dl,pheae,njrc,vi,zorig,xntot,nel,no, &
+                   nl,nm,xnj,ev,occ,is,ek,orb,iuflag,cq,.false.,nelmax)
      call hpload( hptab, nr, 2 )
      call chgocc( iuse, +1.0d0 )
      write ( 6, '(2i5,1x,1f10.5,1x,1a4)' ) iuse, nco, hptab( nr - 10, 2 ) * r( nr - 10 ), 'tail'
@@ -356,7 +361,8 @@ subroutine mwreduce( etot, rel, alfa, nr, r, dr, r2, dl, njrc, vi, zorig, xntot,
      !
      ! output Slater Fk and Gk integrals
      call freshen( lmin, lmax, rcocc, skips )
-     call abinitio(etot,ru,au,nr,r,dr,r2,dl,pheae,njrc,vi,zorig,xntot,nel,no,nl,nm,xnj,ev,occ,is,ek,orb,iuflag,cq,.false.,nelmax)
+     call abinitio(etot,ru,au,nr,r,dr,r2,dl,pheae,njrc,vi,zorig,xntot,nel,no, &
+                   nl,nm,xnj,ev,occ,is,ek,orb,iuflag,cq,.false.,nelmax)
      call getfgnew( nr, dl, r, nel, nl, pheae, zorig, iuse, nuse, luse )
      !
      ! output radial melfiles

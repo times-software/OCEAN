@@ -41,7 +41,7 @@ my @CommonFiles = ("znucl", "opf.hfkgrid", "opf.fill", "opf.opts", "pplist", "sc
                    "ntype", "natoms", "typat", "taulist", "nedges", "edges", "caution", 
                    "epsilon", "k0.ipt", "ibase", "scfac", "para_prefix", "tmp_dir", 
                    "screen.nbands", "core_offset", "screen.nkpt", "pool_control", "ham_kpoints", 
-                   "cnbse.rad", "dft", "avecsinbohr.ipt", 
+                   "cnbse.rad", "dft", "avecsinbohr.ipt", "metal", 
                    "screen.grid.rmax", "screen.grid.nr", "screen.grid.ang", "screen.grid.lmax", 
                    "screen.grid.nb", "screen.final.rmax", "screen.final.dr", "screen.model.dq", 
                    "screen.model.qmax", "calc" );

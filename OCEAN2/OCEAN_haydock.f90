@@ -978,14 +978,14 @@ module OCEAN_action
   end subroutine haydump
 
   subroutine write_val( fh, iter, kpref , ucvol)
-    use OCEAN_constants, only : Hartree2eV
+    use OCEAN_constants, only : Hartree2eV, bohr, alphainv
     implicit none
     integer, intent( in ) :: fh, iter
     real(DP), intent( in ) :: kpref, ucvol
     !
     integer :: ie, i
-    real(DP) :: ere, reeps, imeps, lossf, fact
-    complex(DP) :: ctmp, arg, rp, rm, rrr, al, be, eps
+    real(DP) :: ere, reeps, imeps, lossf, fact, mu, reflct
+    complex(DP) :: ctmp, arg, rp, rm, rrr, al, be, eps, refrac
 
     fact = kpref * 2.0_dp * ucvol
 
@@ -1029,7 +1029,11 @@ module OCEAN_action
 !   &        ( ( indref + 1 ) ** 2 + indabs ** 2 )
       lossf = imeps / ( reeps ** 2 + imeps ** 2 )
 
-      write(fh,'(3(1E24.16,1X))') ere*Hartree2eV, 1.0_dp - reeps, imeps!, sqrt(eps+1.0_dp), lossf
+      refrac = sqrt(eps)
+      reflct = abs((refrac-1.0d0)/(refrac+1.0d0))**2
+      mu = 2.0d0 * ere * Hartree2eV * aimag(refrac) / ( bohr * alphainv * 1000 )
+
+      write(fh,'(8(1E24.16,1X))') ere*Hartree2eV, reeps, imeps, refrac-1.0d0, mu, reflct, lossf
 
     enddo
 
@@ -1047,7 +1051,7 @@ module OCEAN_action
     complex(DP) :: rm1, ctmp, disc, delta
     !
     rm1 = -1; rm1 = sqrt( rm1 )
-    do ie = 1, 2 * ne, 2
+    do ie = 0, 2 * ne, 2
        e = el + ( eh - el ) * dble( ie ) / dble( 2 * ne )
        do jdamp = 0, 1
           gam= gam0 + gamfcn( e, nval, eps ) * dble( jdamp )
@@ -1075,16 +1079,19 @@ module OCEAN_action
     end do
   end subroutine write_core
 
-  subroutine OCEAN_hayinit( ierr )
+  subroutine OCEAN_hayinit( sys, ierr )
     use OCEAN_mpi
     use OCEAN_constants, only : Hartree2eV, eV2Hartree
+    use OCEAN_system
     implicit none
 
+    type(o_system), intent( in ) :: sys
     integer, intent( inout ) :: ierr
 
     integer :: dumi, iter, ierr_
     character(len=4) :: inv_style
-    real :: dumf
+    real( DP ) :: dumf
+    real( DP ), parameter :: default_gam0 = 0.1_DP
 
     if( .not. is_first ) goto 10
     is_first = .false.
@@ -1104,6 +1111,8 @@ module OCEAN_action
       select case ( calc_type )
         case('hay')
           read(99,*) haydock_niter, ne, el, eh, gam0, ebase
+          call checkBroadening( sys, gam0, default_gam0 )
+
 !          el = el / 27.2114d0
 !          eh = eh / 27.2114d0
 !          gam0 = gam0 / 27.2114d0
@@ -1114,6 +1123,9 @@ module OCEAN_action
           allocate( e_list( inv_loop ) )
         case('inv')
           read(99,*) nloop, gres, gprc, ffff, ener
+          ! if gres is negative fill it with core-hole lifetime broadening
+          call checkBroadening( sys, gres, default_gam0 )
+
           read(99,*) inv_style
           select case( inv_style )
             case('list')
@@ -1219,6 +1231,31 @@ module OCEAN_action
     endif
 
   end subroutine OCEAN_hayinit
+
+
+  subroutine checkBroadening( sys, broaden, default_broaden )
+    use OCEAN_corewidths, only : returnLifetime
+    use OCEAN_system
+    implicit none
+    type( o_system ), intent( in ) :: sys
+    real(DP), intent( inout ) :: broaden
+    real(DP), intent( in ) :: default_broaden
+    
+    if( broaden .gt. 0.0_dp ) return
+
+
+    select case ( sys%cur_run%calc_type )
+      case( 'VAL' )
+        broaden = default_broaden 
+      case( 'XAS' , 'XES', 'RXS' ) 
+        call returnLifetime( sys%cur_run%ZNL(1), sys%cur_run%ZNL(2), sys%cur_run%ZNL(3), broaden )
+        if( broaden .le. 0 ) broaden = default_broaden
+      case default
+        broaden = default_broaden
+    end select
+    write(6,*) 'Default requested for broadening: ', broaden
+
+    end subroutine checkBroadening
 
   subroutine redtrid(n,sys, kpref, ierr)
     use OCEAN_system

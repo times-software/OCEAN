@@ -14,7 +14,7 @@ BRLADRLIST = zobj/bridgelad.o zobj/dublinterp.o zobj/lxb_getval.o zobj/dist.o zo
 BWAYLIST = zobj/conbbtoux.o zobj/chkfftreal.o zobj/chkfftrecp.o zobj/jlmfft.o zobj/facpowfind.o \
 zobj/gentoreal.o zobj/lxb_getval.o zobj/optim.o zobj/formx.o
 GWAYLIST = zobj/conugtoux.o zobj/chkfftreal.o zobj/chkfftrecp.o zobj/jlmfft.o zobj/facpowfind.o \
-zobj/gentoreal.o zobj/lxb_getval.o zobj/optim.o zobj/formx.o
+zobj/gentoreal.o zobj/lxb_getval.o zobj/optim.o zobj/formx.o zobj/FFT_wrapper.o
 ORTHLIST = zobj/orthog.o zobj/normalize.o zobj/lxb_getval.o zobj/dptest.o
 SETUP2LIST = zobj/setup2.o zobj/enkread.o zobj/lxb_getval.o zobj/melread.o zobj/cross.o zobj/getrecvec.o
 LLOBJS = zobj/ll.o zobj/lxb_getval.o zobj/levlou.o
@@ -37,7 +37,7 @@ zexe/conbbtoug.x: $(BRDGLIST)
 zexe/conbbtoux.x: $(BWAYLIST)
 	$(COMP) $(OPTS) -o zexe/conbbtoux.x $(BWAYLIST)
 zexe/conugtoux.x: $(GWAYLIST)
-	$(COMP) $(OPTS) -o zexe/conugtoux.x $(GWAYLIST)
+	$(COMP) $(OPTS) -o zexe/conugtoux.x $(GWAYLIST) $(FFTWI) $(FFTWL)
 zexe/condens.x: $(CONDENSLIST)
 	$(COMP) $(OPTS) -o zexe/condens.x $(CONDENSLIST)
 zexe/condens2.x: $(CONDENS2LIST)
@@ -88,7 +88,7 @@ zobj/conbbtoug.o: zf90/conbbtoug.f90
 	$(COMP) $(OPTS) -c zf90/conbbtoug.f90 -o zobj/conbbtoug.o
 zobj/conbbtoux.o: zf90/conbbtoux.f90
 	$(COMP) $(OPTS) -c zf90/conbbtoux.f90 -o zobj/conbbtoux.o
-zobj/conugtoux.o: zf90/conugtoux.f90
+zobj/conugtoux.o: zf90/conugtoux.f90 zobj/FFT_wrapper.o
 	$(COMP) $(OPTS) -c zf90/conugtoux.f90 -o zobj/conugtoux.o
 zobj/condens.o: zf90/condens.f90
 	$(COMP) $(OPTS) -c zf90/condens.f90 -o zobj/condens.o

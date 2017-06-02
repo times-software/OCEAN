@@ -6,7 +6,7 @@ c `License' in the root directory of the present distribution.
 c
 c
       subroutine bachelet(vi,r,njrc,nr)
-      implicit real*8 (a-h,o-z)
+      implicit double precision (a-h,o-z)
       integer njrc( 4 )
       double precision vi(nr,7),r(nr)
       double precision c(6),aa(6),q(6,6),s(6,6),a(3)

@@ -18,6 +18,9 @@
 \usepackage{epstopdf}
 \usepackage{float}
 \usepackage{amsmath,natbib}
+\usepackage{xfrac}
+\usepackage{caption}
+\usepackage{subcaption}
 \newcommand{\norm}[1]{\left\Vert#1\right\Vert}
 \newcommand{\abs}[1]{\left\vert#1\right\vert}
 \newcommand{\bra}[1]{\left<#1\right\vert}
@@ -179,21 +182,46 @@ The two should match very closely, but with the quality settings in the input th
 
 Ammonium nitrate is a wide band gap crystalline solid. Nitrogen atoms occupy central positions in the two constituent ions NH$_4^+$ and NO$_3^-$. Given the difference in chemical environment between hydrogen and oxygen nearest neighbors it is of no surprise that there is a significant shift in the energy of the 1{\it s} electrons between the two nitrogen sites. Therefore NH$_4$NO$_3$ makes a good example to look at how we can account for these shifts within \program{ocean}. As always with our tutorials, feel free to start the calculation  and then read while it is running.
 
+\subsection{Overview of core-level shifts}
+
 There are several methods used for calculating energy levels in core-level spectroscopy. For completeness we will give an overview of them here. The most straightforward, popular in quantum chemistry techniques, is to directly compare the energies of initial and final states. This requires that you calculate explicit initial and final states as well as the core level wave function. Pseudopotential-based techniques need a bit more creativity due to their lack of explicit core states. Methods that carry out a self-consistent calculation in the presence of the core hole (full core hole, half core hole, or eXcited core hole) can make use of the energy differences between DFT calculations with and without the core hole. This gives a relative energy shift that can be calibrated to give meaningful information about the core level shifts both within a cell and between different cells.\cite{NeedCites}
 
-The \program{ocean} code has neither explicit core levels nor self-consistent calculations with a core hole, and so we need a different approach. In the BSE approach the only elements we need are the bare energies of the electron and the hole, and then the interaction terms. These bare or one-particle energies are the energies that would be calculated within {\it GW}, i.e., the the addition (removal) energies for the conduction (core) electron. But a {\it GW} calculation for the core level is neither possible nor feasible, and it is this removal energy we want to try and approximate. Because we are not relaxing the system in the presence of the hole (see the various core-hole approaches mentioned in the previous paragraph) this requires two calculations 1) the energy of the core-level electron and 2) the total energy from the relaxation of the rest of the system once that electron is removed. 
+The \program{ocean} code has neither explicit core levels nor self-consistent calculations with a core hole, and so we need a different approach. In the BSE approach the only elements we need are the bare energies of the electron and the hole, and then the interaction terms. 
+\begin{align}
+H_\textrm{BSE} &= H_0 + V_x - W \nonumber \\
+H_0 &= \epsilon_{n,\mathbf{k}} - \epsilon_h
+\end{align}
+where the non-interacting part is the quasiparticle energies of the electron $\epsilon_{n,\mathbf{k}}$ and core hole $\epsilon_h$. 
+The correct determination of the excitation energies, the onset of the edge or position of an exciton, relies on an accurate determination of all three components of the BSE Hamiltonian (as well as the validity of neglecting higher-order interaction terms). This tutorial is focused on how $H_0$ is determined in \program{ocean} and the effects of core-level shifts on the spectra.
+
+The conduction band energies in $H_0$ are, as a first approximation, the DFT energies. Were we to have the exact density functional, then the highest-occupied state would have a meaningful energy. 
+A better approach is the {\it GW} method which approximates the one-electron Green's function in an interacting many-electron system instead of the non-interacting DFT. 
+For many systems (especially {\it s-p} bonded materials) the DFT energies and wavefunctions, even within the local-density approximation (LDA), are remarkably similar to what would be produced by a {\it GW} calculation. 
+The famous DFT underestimation of band gaps is an incredibly small error in comparison to the magnitude of the approximation being made to get there, a reflection of what Walter Kohn referred to as the ``short-sightedness'' of electrons in condensed matter.
+The typical result of correcting the DFT energies with a {\it GW} calculation is a moderate increase in the band gap and a 3-5~\% (5-10~\%) stretch of the conduction (valence) bands, pushing the energies away from the Fermi level. 
+For our NH$_4$NO$_3$ example any correction to the band gap is present for both nitrogen species, and we will use the DFT energies for the calculation. 
+
+%These quasiparticle energies are what would be calculated within {\it GW}, i.e., the the addition (removal) energies for the conduction (core) electron. 
+A {\it GW} calculation for the core level is neither possible nor feasible, and it is this removal energy we want to try and approximate. Because we are not relaxing the system in the presence of the hole (see the various core-hole approaches mentioned previously) this requires two calculations 1) the energy of the core-level electron and 2) the total energy from the relaxation of the rest of the system once that electron is removed. 
 
 \begin{enumerate}
 \item
-For calculating the energy of the core level we assume that the core level wave function is the same between chemical environments. This means that the kinetic energy of the core level is fixed, and therefore changes in the core-level energy can only come from changes in the local potential. This comes directly from the DFT calculation as the total Kohn-Sham potential.
+For calculating the energy of the core level we assume that the core level wave function is the same between chemical environments. This means that the kinetic energy of the core level is fixed, and therefore changes in the core-level energy can only come from changes in the local potential integrated over the core-state's density. This comes directly from the DFT calculation as the total Kohn-Sham potential.
 \item The response of the rest of the system to the removal of the core-level electron is given (within linear response) by the screening of the core-hole potential that we are already calculating. An additional factor of $1/2$ is picked up from adiabatically moving the charge of this electron. 
 \end{enumerate}
 To evaluate both 1 and 2 we approximate the core as a delta function at its location $\tau$. 
 The energy of the core hole (as it would then appear in the BSE Hamiltonian $H^0$) is given by
 \begin{align}
+\label{CLS_eqn}
 \epsilon_h = V_\text{KS}(\tau) - 1/2 W(\tau) + X
 \end{align}
-where X is an offset which will not vary from site to site and encapsulates the core's kinetic energy term and also the sreening response of the other core electrons -- neither of which change from site to site by assumption.
+where X is an offset which will not vary from site to site and encapsulates the core's kinetic energy term and also the screening response of the other core electrons -- neither of which change from site to site by assumption.
+
+Now that we are able to generate both $\epsilon_{n,\mathbf{k}}$ and $\epsilon_h$ we can accurately determine the excitation spectra energies --- so long as the interacting parts of the BSE are also carefully calculated. 
+The absolute alignment is not {\it ab initio}, but requires only a single, element-specific offset $X$.
+
+
+\subsection{Ammonium Nitrate CLS}
 
 Measurements of the nitrogen 1{\it s} x-ray emission (K$\alpha$) from ammonium nitrate show two well separated peaks. Calculations of using several different computational tools concur that these two peaks belong separately to the ammonium and nitrate ions.\cite{ANpapers} 
 In contrast we can look at the local, angular-momentum-projected density of states around the nitrogen atoms in the ground state. (This is a standard feature of DFT codes, and here we are using the output from QE). In figure \ref{an_pdos} we show the {\it p}-type states around both kinds of nitrogen in ammonium nitrate, and clearly the main contributions to the nitrogen K$\alpha$ emission will be at the same energy for both the NH$_4^+$ and NO$_3^-$. This discrepancy is because the ground-state calculation has no core-level shift.
@@ -226,6 +254,184 @@ Core-level shifts are calculated in the screening stage. The parameter \htmlref{
 Choosing the number to set \htmlref{CORE\_OFFSET}{card:core-offset} can be tricky because we have no idea what values the Kohn-Sham potential or screening calculation will give ahead of time. Instead, we can use the option ``true" and the code will figure out what value to set \htmlref{CORE\_OFFSET}{card:core-offset} to such that the average offset is zero. Go ahead and change the input so that \htmlref{CORE\_OFFSET}{card:core-offset} is ``true'' and rerun the calculation. If you'd like you can use the script ``re\_run.sh'' by setting the directory where \program{ocean} was installed. 
 
 This time the code has performed additional calculations to get the Kohn-Sham potential at each nitrogen site. The difference is remarkable -- the main parts of the ammonium and nitrate XES are no longer overlapping, but instead separated by several eVs. The core-level shifts are unique to each site and each screening radius. As such they are stored within the \file{SCREEN} directory by site and radius, i.e., \file{SCREEN/zN\_0001/}. If you look at these files you will see that the two nitrate and two ammonium nitrogens are almost the same (small differences are inevitable) as we expect since they are equivalent sites. 
+
+\subsection{Further details}
+
+The calculation of the core-level shifts are carried out in the \file{SCREEN} directory because the core-hole screening enters in (Eq.~\ref{CLS_eqn}). 
+The auxiliary script \program{core\_shift.pl} takes care of the calculation, running the necessary post-processing for either \program{abint} or \program{QuantumESPRESSO}. 
+
+
+\section{RIXS of diamond}
+
+Resonant inelastic x-ray scattering (RIXS) is a photon-in--photon-out spectroscopy where the response of the system can depend strongly on both the incoming and outgoing x-ray photons.
+Several effects can be probed with RIXS, including the phonons and spin-density waves, but \program{ocean} is a BSE code, and, therefore, it is only capable of exploring the excitonic, band-structure contributions to RIXS spectra. 
+After a brief overview of the theory we will walk through an example looking at the carbon K edge in diamond.
+In addition to the regular input file the diamond example has a shell script \file{diamond.sh}. 
+You will need to edit this script to include the path of the \program{ocean} executables.
+
+\subsection{RIXS theory}
+Before embarking on RIXS calculations we implore you to read the excellent reviews by Kotani and Shin (Rev.\ Mod.\ Phys.\ {\bf 73}, 203, 2001) and Ament {\it et al.} (Rev.\ Mod.\ Phys.\ {\bf 83}, 705, 2011). With \program{ocean} we are able to calculate what Ament {\it et al.} refer to as direct RIXS. To be filled in later.
+
+\subsection{Method}
+
+The way we go about RIXS calculations with \program{ocean} is a two step process: a set of core-level calculations followed by a valence one. 
+First, we carry out a core-level BSE calculation to determine the intermediate states.
+From Eq.~\ref{rixs} above we have
+\begin{align}
+\sigma( \mathbf{k}, \hat{\epsilon}, \omega; \mathbf{k}', \hat{\epsilon}', \omega' )
+\propto \sum_f \left| \sum_M \frac{ \langle f \vert \hat{d}^\dagger_{\mathbf{k}', \hat{\epsilon}'} \vert M \rangle \langle M \vert \hat{d}_{\mathbf{k}, \hat{\epsilon}} \vert i \rangle}{\omega - (\varepsilon_M - \varepsilon_i) + i\Gamma_M} \right|^2 \delta( \varepsilon_f - \varepsilon_i + \omega'-\omega)
+\label{rixs-method1}
+\end{align}
+but now we denote the intermediate states as $M=m,\alpha$ with both the conduction-band electronic states $m$ and the specific core site $\alpha$.
+If a system has more than one atomic site of the same element (or with edges with overlapping energy ranges, e.g., V$_x$O$_y$) then each site must be included coherently in the sum over intermediate states. 
+We can rewrite Eq.~\ref{rixs-method1}
+\begin{align}
+\sigma( \mathbf{k}, \hat{\epsilon}, \omega; \mathbf{k}', \hat{\epsilon}', \omega' )
+\propto \sum_f \left|  \langle f \vert \hat{d}^\dagger_{\mathbf{k}', \hat{\epsilon}'} \sum_{M=m,\alpha} \frac{ \vert m \rangle \langle m \vert \hat{d}_{\mathbf{k}, \hat{\epsilon};\alpha} \vert i \rangle}{\omega - (\varepsilon_m +\Delta_\alpha) + i\Gamma_{\alpha}} \right|^2 \delta( \varepsilon_f  + \omega'-\omega)
+\label{rixs-method2}
+\end{align}
+by setting $\varepsilon_i$ to zero and breaking out the explicit reference to which site the photon operator $\hat{d}$ is acting on. 
+We are able to separate out the {\bf absorption} by site because the core orbital is localized and has no overlap with the core orbitals at another site. 
+
+
+We can now define the conduction-band--core-hole ``exciton'' as
+\begin{align}
+\label{rixs-exciton}
+\vert y(\omega,\mathbf{k}, \hat{\epsilon};\alpha) \rangle \equiv& \sum_m \frac{ \vert m \rangle \langle m \vert \hat{d}_{\mathbf{k}, \hat{\epsilon};\alpha} \vert i \rangle}{\omega - (\varepsilon_m +\Delta_\alpha) + i\Gamma_{\alpha}} 
+\end{align}
+where the scare-quotes around exciton remind us that this is not an eigenstates of the two-particle BSE Hamiltonian.
+Instead we are interested in what we could call the experimentally-measured exciton which is the weighted, coherent sum over all possible intermediate states that can be created by our transition operator. 
+The weighting is from the resonant energy denominator, broadened by the core-hole lifetime. 
+(Additional broadening could come from the lifetime of the conduction band states which make up $m$ and possibly from phonon coupling, but these are neglected here.)
+In \program{ocean} the exciton is solved for using a two-particle, electron-hole basis. The electron orbitals are in a Bloch representation with band index $n$ and crystal momentum $\mathbf{q}$ to represent the electron part of the exciton, while the holes are indexed by $\alpha$ to represent the atomic site and principle, angular, and azimuthal quantum numbers and also form Bloch states with momentum $\mathbf{q-k}$.
+By construction we are conserving momentum, hence the hole and electron are offset by the momentum of the absorbed photon.
+
+Inserting our basis into Eq.~\ref{rixs-exciton} we get
+\begin{align}
+\vert y(\omega,\mathbf{k}, \hat{\epsilon};\alpha) \rangle =& 
+\sum_{\substack{c, \mathbf{q}\\ \alpha, \mathbf{q-k}}} \frac{ \vert c \mathbf{k}; \alpha, \mathbf{q-k}\rangle \langle  c \mathbf{k}; \alpha, \mathbf{q-k} \vert \hat{d}_{\mathbf{k}, \hat{\epsilon};\alpha} \vert i \rangle}{\omega - H_\textrm{BSE} + i\Gamma_{\alpha}} \nonumber \\
+=&\sum_{\substack{c, \mathbf{q}\\ \alpha, \mathbf{q-k}}} \frac{ \vert c \mathbf{k}; \alpha, \mathbf{q-k}\rangle \langle  c \mathbf{k} \vert \hat{d}_{\mathbf{k}, \hat{\epsilon};\alpha} \vert  \alpha, \mathbf{q-k} \rangle}{\omega - H_\textrm{BSE} + i\Gamma_{\alpha}} 
+\end{align}
+where, because we have assumed the excited state is a single electron-hole pair, the only connection between the initial state $i$ and the intermediate state is reduced to the transition matrix element between the core level $\alpha$ and conduction band $c$.
+
+We have been a bit sloppy, but our problem is now reduced to 
+\begin{align}
+&\vert x(\omega) \rangle = \frac{1}{\omega - H + i\eta} \vert b \rangle \nonumber \\
+&\vert x(\omega) \rangle = \frac{1}{A(\omega) + i\eta} \vert b \rangle \nonumber \\
+&Ax = b \nonumber
+\end{align}
+where we renamed $y\rightarrow x$ and $\Gamma \rightarrow \eta$ to better match standard linear algebra conventions. 
+This can be approximated using iterative techniques, such as the generalized minimal residual method used in \program{ocean} (Saad and Schultz, 1987). 
+See section \ref{GMRES-section} for a summary and reference to the parameters that control this approximation within \program{ocean}.
+Iterative linear algebra techniques rely on the finite imaginary term $\eta$ to avoid dividing by 0 and instabilities from finite-precision arithmetic. 
+Here we have an advantage as the imaginary term physically corresponds to the inverse lifetime of the intermediate state $\Gamma$ which can be quite large compared to the other energy scales in the Hamiltonian, making convergence easier than for an infinitesimal $\eta$.
+
+
+We can substitute our exciton from Eq.~\ref{rixs-exciton} into Eq.~\ref{rixs-method2} and then expand to alleviate the sum over final states
+\begin{align}
+\sigma( \mathbf{k}, \hat{\epsilon}, \omega; \mathbf{k}', \hat{\epsilon}', \omega' )
+&\propto \sum_f \left|  \langle f \vert \hat{d}^\dagger_{\mathbf{k}', \hat{\epsilon}'} \sum_{\alpha}\vert  y(\omega,\mathbf{k}, \hat{\epsilon};\alpha) \rangle \right|^2 \delta( \varepsilon_f  + \omega'-\omega)
+\label{rixs-method3}  \\
+&\propto \sum_f \left|  \langle f \vert \hat{d}^\dagger_{\mathbf{k}', \hat{\epsilon}'}\vert  \bar{y}(\omega,\mathbf{k}, \hat{\epsilon}) \rangle \right|^2 \delta( \varepsilon_f  + \omega'-\omega)  \nonumber \\
+&\propto -\mathfrak{Im} \left[ \langle \bar{y}(\omega,\mathbf{k}, \hat{\epsilon})  \vert  \hat{d}_{\mathbf{k}', \hat{\epsilon}'} \frac{1}{\omega'-\omega - H}  \hat{d}^\dagger_{\mathbf{k}', \hat{\epsilon}'} \vert  \bar{y}(\omega,\mathbf{k}, \hat{\epsilon}) \rangle \right]
+\label{rixs-method4}
+\end{align}
+where $\bar{y} = \sum_\alpha y(\alpha)$. 
+The operator $\hat{d}^\dagger_{\mathbf{k}', \hat{\epsilon}'}$ acting on the excitonic state $y$ fills the core hole $\alpha$ leaving a valence hole (and the conduction electron). 
+The Hamiltonian in Eq.~\ref{rixs-method4} is acting on a space containing a valence hole and a conduction band electron, and is approximated in \program{ocean} using the valence BSE solver, originally released as \program{ai2nbse}. 
+This is done by inserting a set of valence and conduction band states (eigenstates of the ground-state DFT Hamiltonian)
+\begin{align}
+\sigma( \mathbf{k}, \hat{\epsilon}, \omega; \mathbf{k}', \hat{\epsilon}', \omega' )
+&\propto -\mathfrak{Im} \left[ \langle \bar{y}(\omega,\mathbf{k}, \hat{\epsilon})  \vert  \hat{d}_{\mathbf{k}', \hat{\epsilon}'} \vert vc \rangle \langle vc \vert  \frac{1}{\Omega - H}  \vert v'c' \rangle \langle v'c' \vert  \hat{d}^\dagger_{\mathbf{k}', \hat{\epsilon}'} \vert  \bar{y}(\omega,\mathbf{k}, \hat{\epsilon}) \rangle \right]
+\label{rixs-haydock}
+\end{align}
+and then using the Haydock method to generate the spectra with respect to the energy loss $\Omega=\omega'-\omega$. 
+The states $v$ and $c$ refer to valence and conduction band states, respectively, and the momentum dependence has been dropped for legibility.
+
+\subsection{RIXS script: diamond.sh}
+In the example directory is the script \file{diamond.sh} which will run all the steps necessary for the RIXS calculation of diamond.
+This script can either be run directly (on a workstation or interactive session) or pasted into a batch script,
+but you'll need to edit the variable ``OCEAN\_BIN'' to point to your \program{ocean} installation directory.
+As remarked in the previous section the calculation is broken up into several steps. 
+The provided \file{diamond.sh} script can be used as a template for your own RIXS runs.
+
+\subsection{First, calculate the x-ray absorption}
+For a variety of reasons, as a first step in calculating RIXS we almost always want to run an absorption calculation.
+If we are comparing to experiment we will need to establish an alignment between the energies measured in the experiment versus the calculated energies which have no absolute core-level alignment. 
+On the other hand if we are calculating ahead of an experiment we will probably want to look at the absorption to try and pick interesting features to investigate. 
+In any case, the core-level BSE is a much cheaper calculation (usually fewer 1{\it s} or 2{\it p} states than valence bands, and the core-levels are nicely localized in space), and it will be easier and faster to check the convergence parameters by looking at the absorption than it would be by running the full RIXS.
+
+As with any tutorial feel free to start it before reading the section. In this case run it using the script \file{diamond.sh} which may require editing to specify the path to your \program{ocean} installation. 
+There are a couple of differences in this input file \file{diamond.in} from some of the other tutorials that should be noted. 
+The first is the presence of `photon\_q' (the momentum transferred to the electrons by the photons) which must be present and non-zero for all RIXS (or valence) calculations. 
+This is both physically true, the scattered or emitted photons are going to be measured at a non-zero angle from the incoming beam and therefore represent a finite momentum transfer, and because parts of the calculation diverge in the limit of zero momentum transfer. 
+Some BSE codes go to great length to work around the divergence --- we just use a finite momentum transfer (which can be very, very small).
+The second is that we use a negative number for `edges' which tells the code we want to calculate every element with a matching $Z$. In our case we are asking for every carbon atom ($Z=6$). 
+This is a good habit for RIXS calculations as physically you must include every matching site in the intermediate sum, but the code has no checks to enforce this.
+
+For your own, future calculations you'll want to spend some time with the absorption calculations. 
+You can see how many bands are needed to cover the energy range you are interested in, and check the convergence of both the k-points and xmesh. 
+Valence calculations (including the final part of RIXS) scale with the size of xmesh to the second power. Unlike the core-level calculation, the valence-band hole can be anywhere in the unit cell.
+These calculations take a bit longer than the core-level BSE.
+But, for the example we won't bother with second-guessing or checking and move right along.
+
+\subsection{Second, run the core-level code again}
+\begin{figure}
+\center
+\includegraphics[angle=270,width=4.5in]{diamond_xas.eps}
+\caption{ The calculated XAS at the carbon K edge for diamond (red line) and the same calculation done using GMRES for a select set of 15 points (blue circles). }
+\label{diamond_xas_plot}
+\end{figure}
+
+The second (and third) steps are both run by the helper code \program{rixs.pl}. 
+We now much determine the excitonic states at each incident photon energy (and polarization) which requires switching the algorithm in the BSE code. This is done via the line in \program{diamond.sh} that says ``echo gmres $>$ Common/cnbse.solver'', which switches us to using the GMRES method. 
+There are two ways to determine which energies to use for the incoming photons. 
+In the diamond example we make use of `cnbse.gmres.erange' which allows us to set the energy range and step size. The units are eVs and the range is given with respect to the same energy axis of the \file{absspct} files from the previous absorption calculation (this is why we do that first).
+In \program{diamond.sh} the line `echo 0 30 2 $>$ Common/cnbse.gmres.erange' tells the code to start at 0 and calculate every 2~eV until it hits 30.
+The last input needed to determine the excitons is the description of the incoming photon. By default the code will use every available photon file, but by using ``photon\_in'' we are able to tell it to only use the first one \file{photon1}.
+
+After the core-level BSE has run a new set of \file{absspct} files has been created, but these have a slightly different format. 
+You should plot \file{CNBSE/absspct\_C\_.0001\_1s\_01} using columns 1 and 3 and \file{RIXS/absspct\_C\_.0001\_1s\_01} using columns 2 and 4 (see Fig.~\ref{diamond_xas_plot}). 
+The RIXS version has only a few points, running from 0 to 30 and spaced every 2~eV, but these points should lie on top of the curve from CNBSE.
+More importantly, the \file{RIXS} directory is now full of \file{echamp\_C\_} files. These contain the information about the excitons $y_{\hat{\epsilon},\alpha}(\omega)$. 
+For the diamond example we should have 30 file{echamp\_C\_} files: 15 energy steps times 2 carbon atoms per cell times 1 incoming photon files.
+The code also has generated \file{cksv} files which contain the transition information for a valence-band electron to fill the core hole $\langle v \vert \hat{d}^\dagger_{\mathbf{k},\hat{\epsilon}} \vert \alpha \rangle $. 
+Together these are used to construct the seed vectors for the valence-level BSE calculations.
+
+\
+
+\subsection{Third, run valence-level calculations}
+
+The last step in the RIXS calculation is a set of valence BSE runs to solve for the final conduction-electron--valence-hole spectra.
+The number of valence runs in our example is 15: 15 energy steps times 1 photon-in--photon-out pair. 
+In general, if you do not specify `photon\_in' and `photon\_out' like we have in this example the code will run for every available pair $N_\textrm{photon} (N_\textrm{photon} -1 )$. 
+We exclude scattering into the same photon polarization and direction. 
+Often experiments are set up such that the detector is parallel to the incoming photon's polarization, requiring that $\hat{\epsilon} \cdot \hat{\epsilon}' = 0$ and suppressing the $A^2$ term in the electron-photon interaction.
+
+The final RIXS spectra are named a bit differently than the XAS or XES spectra files. 
+They are a function of photon in, incoming energy, and photon out, but not dependent on which atomic site (all sites much be summed over coherently).
+The naming scheme is then something like \file{rxsspct\_C\_.0000\_1s\_01.08.02}, where we are looking at the carbon 1{\it s} edges using the 1st photon file as our incoming beam, at the 8th energy step, and  the 2nd photon file as the outgoing x-ray. {(\it N.b.} we are planning on getting rid of the unused `0000' which for \file{absspct} or \file{xesspct} files denote the atomic site.)
+The format of the \file{rxsspct} files follows that of the valence BSE output. 
+For RIXS only the energy in column 1 and $\epsilon_2$ in column 3 are meaningful.
+The energy scale is in eV, but it is measuring the loss $\Omega = \omega - \omega'$, see Fig.~\ref{diamond_rixs}(a) and (b). 
+\begin{figure}
+\centering
+\begin{subfigure}{.5\textwidth}
+  \centering
+  \includegraphics[angle=270,width=0.9\linewidth]{diamond_rixs_loss.eps}
+ % \caption{RIXS of diamond as a function of energy loss}
+  \label{fig:sub1}
+\end{subfigure}%
+\begin{subfigure}{.5\textwidth}
+  \centering
+  \includegraphics[angle=270,width=.9\linewidth]{diamond_rixs_em.eps}
+ % \caption{RIXS of diamond as a function of emission energy}
+  \label{fig:sub2}
+\end{subfigure}
+\caption{The first four calculated energies of the diamond K-edge RIXS plotted either as a function of (a) energy loss or (b) emission energy. In (b) the first energy has been scaled down by 0.5 and the spectra are offset vertically for clarity.}
+\label{diamond_rixs}
+\end{figure}
+
 
 \iffalse
 \section{Rutile}
@@ -376,9 +582,11 @@ The input of \program{ocean} can be divided into several sections
   \begin{description}
     \item[\textbf{Purpose:}] Control aspects of the run
  \item[\textbf{Optional Cards:}] 
-    \htmlref{PARA\_PREFIX}{card:paraprefix}, \htmlref{DFT}{card:dft}, 
+    \htmlref{PARA\_PREFIX}{card:paraprefix}, \htmlref{SER\_PREFIX}{card:serprefix},
+    \htmlref{DFT}{card:dft}, 
     and \htmlref{SCRATCH}{card:scratch}
 \end{description}
+
 \item[\large\textbf{Structural information}]\dotfill\
   \begin{description}
   \item[\textbf{Purpose:}] Specify the structure
@@ -391,7 +599,13 @@ The input of \program{ocean} can be divided into several sections
     \htmlref{TYPAT}{card:typat},
     \htmlref{XRED}{card:xred},
     and \htmlref{DIEMAC}{card:diemac}
+    \item[\textbf{Optional Cards:}] 
+       \htmlref{NSPIN}{card:nspin},
+       \htmlref{SMAG}{card:smag},
+       \htmlref{LDAU}{card:ldau}, and
+       \htmlref{ZYMB}{card:zsymb}
   \end{description}
+  
 \item[\large\textbf{Non-Structural DFT parameters}]\dotfill\
   \begin{description}
   \item[\textbf{Purpose:}] Control convergence of the DFT calculation
@@ -401,17 +615,20 @@ The input of \program{ocean} can be divided into several sections
   \item[\textbf{Recommended Cards:}] 
       \htmlref{NKPT}{card:nkpt},
     \htmlref{NGKPT}{card:ngkpt},
-        \htmlref{NBAND}{card:nband},
+        \htmlref{NBANDS}{card:nbands},
      \htmlref{SCREEN.NBAND}{card:screen.nband},
     \htmlref{OCCOPT}{card:occopt}, \\
     and \htmlref{FBAND}{card:fband}
   \item[\textbf{Optional Cards:}] 
     \htmlref{TOLDFE}{card:toldfe},
     \htmlref{TOLWFR}{card:tolwfr}, 
+    \htmlref{NSTEP}{card:nstep},
     \htmlref{SCREEN.NKPT}{card:screen.nkpt},
-    \htmlref{ABPAD}{card:abpad}, 
-    \htmlref{BSE\_ENERGY\_RANGE}{card:bse_energy_range},
-    and \htmlref{SCREEN\_ENERGY\_RANGE}{card:screen_energy_range}
+    \htmlref{ABPAD}{card:abpad}, \\
+    \htmlref{DFT\_ENERGY\_RANGE}{card:dft_energy_range},
+    \htmlref{SCREEN\_ENERGY\_RANGE}{card:screen_energy_range},
+    \htmlref{K0}{card:k0}, 
+    and \htmlref{DEGAUSS}{card:degauss}
   \end{description}
 \item[\large\textbf{Atomic and Screening Info}]\dotfill\
   \begin{description}
@@ -419,34 +636,42 @@ The input of \program{ocean} can be divided into several sections
   \item[\textbf{Required Cards:}] 
     \htmlref{OPF.FILL}{card:opf.fill},
     \htmlref{OPF.OPTS}{card:opf.opts},
-    \htmlref{NEDGES}{card:nedges},
+ %   \htmlref{NEDGES}{card:nedges},
     and \htmlref{EDGES}{card:edges}
   \item[\textbf{Recommended Cards:}] 
-     \htmlref{screen.SHELLS}{card:paw.shells},
+     \htmlref{SCREEN.SHELLS}{card:screen.shells},
      \htmlref{CNBSE.RAD}{card:cnbse.rad}, 
      \htmlref{SCFAC}{card:scfac}, and \htmlref{CORE\_OFFSET}{card:core-offset}
   \item[\textbf{Optional Cards:}]     
-     \htmlref{screen.HFKGRID}{card:screen.hfkgrid}
+     \htmlref{OPF.HFKGRID}{card:opf.hfkgrid}
   \end{description}
+  
 \item[\large\textbf{BSE Parameters}]\dotfill\
   \begin{description}
   \item[\textbf{Purpose:}] Parameters used in the BSE calculation
   \item[\textbf{Recommended Cards:}]   
-    \htmlref{CNBSE.XMESH}{card:cnbse.xmesh} and \htmlref{CNBSE.MODE}{card:cnbse.mode}
-  \item[\textbf{Optional Cards:}]   
+    \htmlref{CNBSE.XMESH}{card:cnbse.xmesh}, \htmlref{CNBSE.MODE}{card:cnbse.mode},
+     \htmlref{CNBSE.NITER}{card:niter},
     \htmlref{METAL}{card:metal},
-    \htmlref{CKS.STRETCH}{card:stretch},
+    \htmlref{SPIN-ORBIT}{card:spin-orbit}, 
+    \htmlref{PHOTON\_Q}{card:photonq}, 
 %    \htmlref{CKS.NORMAL}{card:cks.normal},
-    and  \htmlref{CNBSE.STRENGTH}{card:strength}
+      \htmlref{CNBSE.STRENGTH}{card:strength},
+      \htmlref{CNBSE.SOLVER}{card:cnbse-solver}, \\
+      \htmlref{CNBSE.GMRES.ELIST}{card:gmres-elist}, 
+      \htmlref{CNBSE.GMRES.ERANGE}{card:gmres-erange},
+      \htmlref{CNBSE.GMRES.NLOOP}{card:gmres-nloop},\\
+      \htmlref{CNBSE.GMRES.GPRC}{card:gmres-gprc}, 
+      and \htmlref{CNBSE.GMRES.FFFF}{card:gmres-ffff}
   \end{description}
+  
 \item[\large\textbf{Spectrum Information}]\dotfill\
   \begin{description}
   \item[\textbf{Purpose:}] Controls the spectrum that is written out, not any aspect of the actual calculation
   \item[\textbf{Recommended Cards:}]   
     \htmlref{CNBSE.BROADEN}{card:broaden}  
    \item[\textbf{Optional Cards:}]   
-    \htmlref{CNBSE.SPECT\_RANGE}{card:spect-range},
-    and \htmlref{CNBSE.NITER}{card:niter}
+    \htmlref{CNBSE.SPECT\_RANGE}{card:spect-range}
   \end{description}   
 \end{description}
 
@@ -473,10 +698,16 @@ For arguments that are 2-D arrays the ordering is in normal math / C ordering.
 \section{Run Control}
 \label{sec:Run-Control}
 
+
 \begin{Card}{PARA\_PREFIX}{para\_prefix}{Optional}{paraprefix}
 This is necessary for parallel runs. Depending on your system you may need so helper to launch parallel jobs such as \program{mpirun}, 
-\program{mpiexec}, or \program{aprun}. The \program{ocean} scripts are designed to try and parse this to figure out how many processors 
-you are trying to run across, e.g., `mpirun -n 12' will be parsed to tell \program{ocean} to prepare DFT runs across 12 cores. 
+\program{mpiexec}, \program{srun}, \program{aprun}, \&c. 
+The \program{ocean} scripts are designed to try and parse this to figure out how many processors you are trying to run across, e.g., `mpirun -n 12' will be parsed to tell \program{ocean} to prepare DFT runs across 12 cores. 
+If you need to include additional flags, e.g., `mpirun -n 16 -{}-map-by ppr:8:socket' just make sure that the first number is the number of processors.
+\end{Card}
+
+\begin{Card}{SER\_PREFIX}{ser\_prefix}{Optional}{serprefix}
+On some systems \program{cut3d} will hang when launched on multiple processors, but must be launched with the parallel job launcher from above, i.e., `mpirun -n 1'.
 \end{Card}
 
 \begin{Card}{DFT}{dft}{Optional}{dft}
@@ -552,6 +783,33 @@ The XRED card lists the reduced coordinates, ( x, y, z ), of the all \texttt{nat
 The MACropscopic DIElectric constant \texttt{diemac} is required for both the DFT stage and also as a parameter in the screening calculations. It is included here as a physical property of the system of interest.
 \end{Card}
 
+\begin{Card}{NSPIN}{nspin}{Optional}{nspin}
+Can choose to have spin=1 (paramagnetic) or spin=2. Currently, only collinear spin is allowed.
+\end{Card}
+
+\begin{Card}{SMAG}{smag}{Optional}{smag}
+Controls the initial magnetism for the DFT calculations. See the hematite example and the \program{abinit} or \program{QuantumESPRESSO} documentation for more information.
+\end{Card}
+
+\begin{Card}{LDAU}{ldau}{Optional}{ldau}
+Controls the $+U$ parameters for the DFT run. Only works with \
+program{QuantumESPRESSO} currently. See the hematite example.
+\end{Card}
+
+\begin{Card}{ZSYMB}{zsymb}{Optional}{zsymb}
+Each element listed in \htmlref{ZNUCL}{card:znucl} also needs a symbol when running using \program{QuantumESPRESSO}.
+By convention this will be the atomic symbol: Fe for iron, and the code can automatically populate this for you.
+However, sometimes the same element needs to be marked as inequivalent, either because of local magnetic order or charge-state ($+U$). 
+For example, in hematite one needs two different iron species in order to set one site as spin up and one as spin down.
+When this is the case the user needs to list iron twice \htmlref{ZNUCL}{card:znucl} and provide zsymb.
+
+\begin{verbatim}
+ntypat 3
+znucl{ 26 26 8 }
+zsymb{ Fe1 Fe2 O }
+\end{verbatim}
+\end{Card}
+
 %%%%%%
 \section{DFT Parameters}
 \label{sec:DFT-Parameters}
@@ -575,7 +833,7 @@ NKPT sets the number of k-points used to sample the cell for calculation of the 
 DFT calculations require a self-consistently determined ground state density for the Kohn-Sham Hamiltonian. As such, in \program{ocean}, first a ground state calculation is done using only the occupied states and a few unoccupied states for convergence. This density is then used as input to the other DFT calculations to get wave functions. NGKPT determines the k-point sampling for this ground state calculation. Care should be taken to ensure enough k-points are used to give a converged density.
 \end{Card}
 
-\begin{Card}{NBAND}{nband}{Recommended}{nband}
+\begin{Card}{NBANDS}{nbands}{Recommended}{nbands}
 The number of total bands for the final-state wave-functions is set by NBAND. This includes all valence states but not core states.
 \begin{verbatim}
   * In diamond there are two C atoms each with 4 valence electrons.
@@ -593,7 +851,7 @@ OCCOPT controls how \program{ABINIT} determines occupation. The allowed values o
 \begin{description}
 \item[\texttt{occopt} = 1]\hfill\\ States are all doubly degenerate and either occupied or empty depending on band. Suitable for insulators. 
 	For \program{Quantum Espresso} this is equivalent to  OCCUPATIONS = `fixed'.
-\item[\texttt{occopt} = 3]\hfill\\ States are all doubly degenerate but can have fractional occupations depending on fermi level. Suitable for metals. For \program{Quantum Espresso} this is equivalent to OCCUPATIONS = `smearing'. 
+\item[\texttt{occopt} = 3]\hfill\\ States are all doubly degenerate but can have fractional occupations depending on fermi level. Suitable for metals. For \program{Quantum Espresso} this is equivalent to OCCUPATIONS = `smearing' and smearing = `fermi-dirac'.
 \end{description}
 \end{Card}
 
@@ -611,6 +869,11 @@ TOLDFE sets the convergence parameter for the density or SCF run. For \program{a
 The convergence criterium for the (NSCF) wave-function calculations is set by TOLWFR. The default (\texttt{tolwfr} = $10^{-16}$) should be sufficient. For the \program{Quantum Espresso} version, this parameter sets the CONV\_THR for the NSCF calculations. 
 \end{Card}
 
+\begin{Card}{NSTEP}{nstep}{Optional}{nstep}
+The maximum number of iterations the DFT code attempt. If convergence is not reached after \texttt{nstep} iterations then \program{abinit} will continue with a silent warning and \program{QuantumESPRESSO} will fail.
+The default is 50.
+\end{Card} 
+
 \begin{Card}{SCREEN.NKPT}{screen.nkpt[3]}{Optional}{screen.nkpt}
 The screening calculation is less sensitive to k-point sampling than the final states and is therefore calculated on a smaller grid which is set by SCREEN.NKPT. The default setting ( SCREEN.NKPT = 2 2 2 ) is sufficient for a wide variety of systems though very small or very large unit cells may require more or only the gamma point respectively. 
 \end{Card}
@@ -619,16 +882,30 @@ The screening calculation is less sensitive to k-point sampling than the final s
 During the non-self-consistent calculation of the wavefunctions, the convergence of the highest bands can be very slow. The calculation speed can be increased by adding some throw-away bands to the top. These bands are not considered when checking for convergence and should also not be used in the subsequent steps of the calculation. The parameter abpad adds bands to the calculation and tells ABINIT to ignore them using ABINIT's nbdbuf setting. This has no effect for the \program{Quantum Espresso} version. 
 \end{Card}
 
-\begin{Card}{BSE\_ENERGY\_RANGE}{bse\_energy\_range}{Optional}{bse_energy_range}
-Instead of setting the number of bands (\texttt{nband}) the user may request an energy range in eV for the final-state wave-functions. 
+\begin{Card}{DFT\_ENERGY\_RANGE}{dft\_energy\_range}{Optional}{dft_energy_range}
+Instead of setting the number of bands (\texttt{nbands}) the user may request an energy range in eV for the final-state wave-functions. 
 This is only an estimate using the volume of the unit cell and may be unreliable. 
-This parameter is only used if no value for \texttt{nband} is given. The default value is 25~eV.
+This parameter is only used if no value for \texttt{nbands} is given. The default value is 25~eV.
 \end{Card}
 
 \begin{Card}{SCREEN\_ENERGY\_RANGE}{screen\_energy\_range}{Optional}{screen_energy_range}
 Instead of setting the number of bands for the screening (\texttt{screen.nband}) the user may request an energy range in eV. 
 This is only an estimate using the volume of the unit cell and may be unreliable. 
 This parameter is only used if no value for \texttt{screen.nband} is given. The default value is 100~eV. 
+\end{Card}
+
+\begin{Card}{K0}{k0[3]}{Optional}{k0}
+The DFT states are calculated using a shifted {\it k}-point grid. 
+The first {\it k}-point is given by 
+\begin{equation}
+\frac{1}{N_k(1) \cdot k_0(1)}, \frac{1}{N_k(2) \cdot k_0(2)}, \frac{1}{N_k(3) \cdot k_0(3)} \nonumber
+\end{equation}
+where $N_k$ is given by \htmlref{nkpt}.
+The default shift is $\sfrac{1}{8},\sfrac{2}{8},\sfrac{3}{8}$.
+\end{Card}
+
+\begin{Card}{DEGAUSS}{degauss}{Optional}{degauss}
+Sets the broadening of the smearing function (in Ryd.) for metallic occupations in the DFT
 \end{Card}
 
 %%%%%%
@@ -653,20 +930,15 @@ Each type of atom you want spectra of requires a \file{*.opts} file which is exp
 \end{verbatim}
 \end{Card}
 
-\begin{Card}{NEDGES}{nedges}{Required}{nedges}
-The number of edges to run is set by NEDGES. Each site and edge is counted separately. So for a 64 atom amorphous carbon cell you would want \texttt{nedges} = 64 for a complete sample. To run the K and L edges Titanium edges in TiS$_2$ you would need \texttt{nedges} = 3. See also \htmlref{EDGES}{card:edges}.
-\end{Card}
+%\begin{Card}{NEDGES}{nedges}{Required}{nedges}
+%The number of edges to run is set by NEDGES. Each site and edge is counted separately. So for a 64 atom amorphous carbon cell you would want \texttt{nedges} = 64 for a complete sample. To run the K and L edges Titanium edges in TiS$_2$ you would need \texttt{nedges} = 3. See also \htmlref{EDGES}{card:edges}.
+%\end{Card}
 
-\begin{Card}{EDGES}{edges[nedges,3]}{Required}{edges}
-Each edges being run is defined by 3 integers that set which atom in the same order as \htmlref{XRED}{card:xred}, and which initial state by $n$ and $l$. Note, spin-orbit split edges are calculated together as is necessary to include multiplet terms.
+\begin{Card}{EDGES}{edges[3,*]}{Required}{edges}
+Each edge entry consists of 3 integers. When the first is greater than 0 it denotes the {\bf index} of the atom (in the order set by \htmlref{XRED}{card:xred}), and when it is less than zero it sets the (negative) $Z$, allowing you to specify {\bf all} of a given element.
+The second and third numbers are the principle and angular quantum number.
+For instance `\texttt{ 1 2 1 }' would run the L$_{2,3}$ edge of the first atom in the input, while `\texttt{ -22 2 1 }' would run the L$_{2,3}$ edges of every titanium atom in the system.
 
-For example, running TiS$_2$ where Ti was listed as the first atom and looking at the K, L$_1$, and L$_{2,3}$ edges respectively.
-\begin{verbatim}
-  * atom, n, l
-    Ti    1  0
-    Ti    2  0
-    Ti    2  1
-\end{verbatim}
 \end{Card}
 
 \begin{Card}{SCREEN.SHELLS}{shells[]}{Recommended}{screen.shells}
@@ -687,7 +959,7 @@ The Slater integrals are calculated in an atomic program and are generally scale
 This card determines wether or not core-level shifts are run, and, if so, sets the offset. Acceptable values are: true, false, or any number. If set to true the code will determine a value of offset so that the average shift among all sites being run is zero. 
 \end{Card}
 
-\begin{Card}{SCREEN.HFKGRID}{screen.hfkgrid}{Optional}{screen.hfkgrid}
+\begin{Card}{OPF.HFKGRID}{opf.hfkgrid}{Optional}{opf.hfkgrid}
 This sets two parameters for the program \program{hfk.x}. The first is a grid and should be left at the default value of 2000. The second determines the maximum number of projectors per angular momentum channel that can be created. In the future this should dynamically resize, but in the present the default of 20 will work for many calculations. If the program \program{hfk.x} fails it may be solved by increasing this number. It will say something about `ne' being too small. 
 \end{Card}
 
@@ -706,12 +978,27 @@ setting for this mesh.
 The mode can be either ``XAS'' or ``XES'' (NRIXS or XRS are treated the same as XAS). By default the code uses ``XAS.''
 \end{Card}
 
+\begin{Card}{CNBSE.NITER}{niter}{Optional}{niter}
+This sets the number of Haydock iterations. The default is $100$.
+\end{Card}
+
 \begin{Card}{METAL}{metal}{Optional}{metal}
 The METAL card determines wether the code expects to determine occupation by band or by energy with respect to the fermi energy. The parameter \texttt{metal} can be set to either $.true.$ or $.false.$ (default). If \texttt{metal} is set to {\it .true.} the code will complain unless \htmlref{OCCOPT}{card:occopt} is 3 and similarly for \texttt{metal} = {\it .false.} and \texttt{occopt} = 1. The use of \program{ocean} on metals requires some further testing. 
 \end{Card}
 
-\begin{Card}{CKS.STRETCH}{cks.stretch}{Optional}{stretch}
-An approximation to some kind of self-energy is allowed through the use of CKS.STRETCH. All conduction band energies with respect to the fermi level are multiplied by \texttt{stretch}. By default \texttt{stretch} = $1.0$. 
+%\begin{Card}{CKS.STRETCH}{cks.stretch}{Optional}{stretch}
+%An approximation to some kind of self-energy is allowed through the use of CKS.STRETCH. All conduction band energies with respect to the fermi level are multiplied by \texttt{stretch}. By default \texttt{stretch} = $1.0$. 
+%\end{Card}
+
+\begin{Card}{SPIN-ORBIT}{spin-orbit}{Optional}{spin-orbit}
+The spin-orbit splitting between, e.g., the L$_2$ and L$_3$ edges, is automatically calculated within \program{ocean}, but can be overridden by setting SPIN-ORBIT $ \ge 0$. 
+This could be useful for heavy elements where the L$_{2,3}$ splitting is many 100s of eVs and the two can be considered separately (set it to 0), or for investigating the effect of spin-orbit strength on the fine structure.
+\end{Card}
+
+\begin{Card}{PHOTON\_Q}{photon\_q[3]}{Optional}{photonq}
+For UV/Vis and RIXS calculations the valence and conduction band states must be offset from each other (by the momentum that is absorbed or transferred). 
+This sets that momentum offset in units of the reciprocal lattice vectors of the system.
+By default it is 0 0 0.
 \end{Card}
 
 \begin{Card}{CNBSE.STRENGTH}{cnbse.strength}{Optional}{strength}
@@ -719,26 +1006,47 @@ This card sets the strength for the two interaction terms in the BSE Hamiltonian
 It can be changed for curiosity's sake.
 \end{Card}
 
-%\begin{Card}{CKS.NORMAL}{cks.normal}{Optional}{cks.normal}
-%This determines wether we are considering absorption or emission. The default value of {\it .true.} is appropriate for XAS or NRIXS
-%while XES is specified by choosing {\it .false.}.
-%\end{Card}
+\begin{Card}{CNBSE.SOLVER}{cnbse.solver}{Optional}{cnbse-solver}
+Choose between using the Haydock algorithm (full spectrum, no exciton) or the GMRES algorithm (single energy, exciton).
+\end{Card}
+
+\begin{Card}{CNBSE.GMRES.ELIST}{cnbse.gmres.elist[*]}{Optional}{gmres-elist}
+A list of energies (of arbitrary length) for the code to run the GMRES algorithm. 
+The energies are given in eV, and have the same scaling/shifting as the standard Haydock spectra, e.g., by default the lowest unoccupied state is at zero without the core hole.
+Note, if both this and \htmlref{CNBSE.GMRES.ERANGE}{card:gmres-erange} are specified then \htmlref{CNBSE.GMRES.ERANGE}{card:gmres-erange} will be used.
+\end{Card}
+
+\begin{Card}{CNBSE.GMRES.ERANGE}{cnbse.gmres.erange[3]}{Optional}{gmres-erange}
+Run the GMRES algorithm on a set of evenly spaced energies specified by starting energy, ending energy, and step size (all in eV). 
+This is especially useful for reproducing RIXS planes, in contrast to \htmlref{CNBSE.GMRES.ELIST}{card:gmres-elist}  where the energy points can be arbitrarily spaced.
+If both CNBSE.GMRES.ERANGE and \htmlref{CNBSE.GMRES.ELIST}{card:gmres-elist} are specified this will be used.
+\end{Card}
+
+\begin{Card}{CNBSE.GMRES.NLOOP}{cnbse.gmres.nloop}{Optional}{gmres-nloop}
+The version of the GMRES algorithm implemented in \program{ocean} will grow to be a subspace of no larger than NLOOP before it is restarted. By default this is set to 80, and should probably not be changed without careful timing tests.
+\end{Card}
+
+\begin{Card}{CNBSE.GMRES.GPRC}{cnbse.gmres.gprc}{Optional}{gmres-gprc}
+The version of the GMRES algorithm implemented in \program{ocean} uses the one-electron energies as a pre-conditioner with a Lorentzian broadening set by GPRC (in Ha.). By default this is 0.5~Ha.\ which should be reasonable for K edges.
+ \end{Card}
+
+\begin{Card}{CNBSE.GMRES.FFFF}{cnbse.gmres.ffff}{Optional}{gmres-ffff}
+Sets the convergence criterion for the GMRES.
+\end{Card}
 
 
 %%%%%%
 \section{Spectrum Information}
 \label{sec:Spectrum-Information}
 \begin{Card}{CNBSE.BROADEN}{broadening}{Recommended}{broaden}
-The amount of Lorentzian broadening included in the spectra is set by CNBSE.BROADEN. This is a required convergence parameter for the continued fraction that is our Haydock approximation to the BSE, but setting it to the core-hole intrinsic broadening is recommended since features sharper than that won't be observable. Given in Hartree the default is \texttt{broadening} = $0.007$~Ha. or about $0.1$~eV.
+The amount of Lorentzian broadening included in the spectra is set by CNBSE.BROADEN. This is a required convergence parameter for the continued fraction that is our Haydock approximation to the BSE, but setting it to the core-hole intrinsic broadening is recommended since features sharper than that won't be observable. Given in eV the default is \texttt{broadening} = $0.1$~eV.
 \end{Card}
 
 \begin{Card}{CNBSE.SPECT\_RANGE}{esteps emin emax}{Optional}{spect-range}
 This controls the output spectrum (or spectra) from a run. The energy of the spectrum is set by setting the conduction band minimum and core-hole binding energy to zero. All systems will include a small amount of excitonic binding (depending on $l$ selection rules) and spin-orbit splitting can lower the first peak significantly, eg. L$_{2,3}$ splitting in 4d transition metals. These parameters do not change the BSE calculation, only the output of the spectra at the end. The energy range is given in eV and by default \texttt{emin} = $-40.817$ and \texttt{emax} = $68.028$ ($-1.5$ to $2.5$ Ha.). The parameter \texttt{esteps} gives the number of energy points used for the plot, and by default it is $1200$.
 \end{Card}
 
-\begin{Card}{CNBSE.NITER}{niter}{Optional}{niter}
-This sets the number of Haydock iterations. The default is $100$.
-\end{Card}
+
 
 
 
@@ -809,12 +1117,22 @@ ad-hoc band stretching and the many-pole self-energy which are both presented la
 LDA+U work is underway and will be a feature of \program{ocean} 1.1. Better integration with {\it GW} is a planned feature for later in the 1.x series. 
 
 
-\chapter{OPF and Atomic}
+\chapter{OPFs}
 \label{opf}
 
-The optimal projector functions (OPF) are solutions to an atomic DFT calculation that depends on the element being investigated not the material. 
+In \program{ocean} we build on top of one-electron orbitals calculated using pseudopotentials. 
+This significantly reduces the computational cost of the DFT calculations, but near the nucleus the electron wavefunctions diverge significantly from an all-electron calculation. 
+For clarity we will refer to electronic states from a pseudopotential calculation as ``pesudized'' in contrast to ``all-electron'' wavefunctions. 
+The matrix elements between a core orbital and a pseudized valence or conduction band state are not well defined. 
+The pseudized valence states are not orthogonal to the core levels because core states explicitly don't exist in a pesudopotential calculation.
+To overcome this problem we make use of the optimal projector functions (OPFs). 
+
+The OPF are solutions to an atomic DFT calculation that depends on the element being investigated not the material. 
 The framework was developed by E.\ L.\ Shirley \cite{ShirleyOPF} and is similar to the projector augmented wave (PAW) formalism developed by Bl\"{o}chl \cite{PhysRevB.50.17953}. 
 %
+We would encourage the reader to peruse Bl\"{o}chl's paper and will only summarize the method here without much justification.
+The pseudopotentials are constructed such that the pseudized orbitals are equal to the all-electron ones outside of the cut-off radius $r_c$. 
+Further,  
 In principle this section can be run once for a given pseudopotential and reused. 
 The important outputs of this section are a collection of all-electron and pseudo projector augmented waves. 
 The all-electron core wave function is expressed as coefficients of the all-electron OPFs. 
@@ -974,9 +1292,118 @@ Lastly the number of bands included in the truncated sum for calculating the RPA
 
 %Need to add tutorials and references to those tutorials
 
+\chapter{Core-Level Shifts and Absolute Energies}
+
+Calculating the correct onset of absorption is important for both UV/vis and x-ray spectra. 
+In the valence case we need to accurately calculate the relative band positions of the valence and conduction states, e.g., a correct band gap energy. 
+While the alignment of x-ray edges is more complicated in practice, the necessary ingredients are the same as for  low-energy spectra, and we will introduce the concepts and approach in this chapter. 
+The calculation of core-level shifts in ammonium nitrate (NH$_4$NO$_3$) provides a good test and is featured in a tutorial (\ref{AN_tutorial}). 
+
+\section{Exciton energies in BSE}
+\label{CLS.bse}
+The Bethe-Salpeter equation (BSE) gives a diagrammatic expansion of the two-particle Green's function. 
+Immediately we are making the approximation that multiple particle-hole excitations (bi-excitons, \&c.) are not important for describing the electronic response of our systems, except in a mean-field, plasmon-like way. 
+The next big approximation is that we truncate the BSE at the $GW$ level, and therefore the interactions have two terms, the direct $W$ and exchange $V_x$
+\begin{align}
+H = H_0 + V_x - W
+\end{align}
+where $H_0$ are the two particles, electron and hole. 
+This can also be written in the standard Dyson's equation way where the electron-hole Green's function is written in terms of the non-interacting Green's functions and the interaction vertex $I$
+\begin{align}
+G^{(2)}(1,1';2,2') &= G_0^{(2)}(1,1';2,2')  + G_0^{(2)}(1,1';3,3') I(3,3';4,4') G^{(2)}(4,4';2,2') \label{2e-gf} \\
+I(1,1';2,2') &= -\delta(3,4) \delta(3',4') W(3,3') + \delta(3,3') \delta(4,4') V(3,4)
+\end{align}
+where $1=\mathbf{x},\sigma,t$ and $W$ and $V$ are the screened and unscreened Coulomb operators, respectively (taken from Hanke and Sham \cite{PhysRevB.21.4656}). 
+The last big approximation we make is that the screening can be considered statically.
+Namely, that the exciton binding energies are small compared to the band gap. 
+
+In summary:
+\begin{enumerate}
+\item{ $\chi(1,2) = G^{(2)}(1,1';2,2')$ }
+\item{ $\Sigma = GW$ }
+\item{ $W(\omega) \approx W(0)$ }
+\end{enumerate}
+Having bravely decided not to consider the above sources of error, we have reduced the question of accurate excitation energies to adequately calculating our two interaction terms and the one-electron Green's functions that make up our two-electron, non-interacting Green's function.
+Undaunted we will also, for this chapter, ignore the calculation of the direct and exchange, except to say that one must, of course, converge these two terms.
+
+\section{One-electron Green's function}
+
+The non-interacting, two-particle Green's function above in Eq.~\ref{2e-gf} is made up of the two (interacting) one-electron Green's functions
+\begin{align}
+G_0^{(2)}(1,1';2,2') = G(1,1') + G(2,2') 
+\end{align}
+which can be written in their own Dyson's series
+\begin{align} 
+G(1,1') = G_0(1,1') + G_0(1,2) \Sigma(2,3) G(3,1')
+\end{align}
+where $\Sigma$ is the proper self-energy.
+For an in-depth look at $\Sigma$ we would suggest the reader look elsewhere \ref{ManyGWstuff}.
+Here we will only point out that, given a correct $\Sigma$, and hence a dressed one-electron Green's function $G$, the BSE will give exciton energies that will match experimental measurements, subject to the approximations at the end of section \ref{CLS.bse}. 
+In practice there are two widely used approximations for $\Sigma$, namely the $GW$ method (really many different approximations with a range of costs and sophistication) and the DFT method where explicitly or implicitly it is assumed that solving the DFT Hamiltonian gives a good approximation to the one-electron orbitals and energies.
+It is not usually phrased this way, but the success and popularity of DFT is due to 1) its low computational cost; and 2) the extraordinary fact that the exchange-correlation potential is an adequate approximation to the true exchange and correlation of system. 
+
+For a valence calculation, UV/visible spectrum, the problem of aligning the absorption spectrum is then simply the problem of getting a good enough calculation of the self-energy. 
+At present \program{ocean} has no automatic way to carry out a {\it GW} calculation, but many codes exist: \program{abinit} and \program{BerkleyGW} among others. 
+The BSE section of \program{ocean} has several methods for incorporating these corrections $\Delta E^{\textit{GW}}$ including full corrections $\Delta E^{\textit{GW}}_{n,\mathbf{k}}$, band-by-band corrections 
+$\Delta E^{\textit{GW}}_{n}$, energy-dependent corrections $\Delta E^{\textit{GW}}(E)$, and a simple scissor operator.
+Until such time as the developers write a better interface and document it, interested users should email and politely ask the devs for guidance. 
+
+In principle, this procedure of carrying out quasi-particle corrections could be done also for a core-level hole. 
+However, the authors are not aware of a code capable of such calculations, leading us to recommend a different approach for alignment of core-level spectra.
+
+\section{Core-level shifts}
+
+The \program{ocean} code is built on top of pseudopotential DFT, making the calculation of the core-level energies tricky. 
+Instead of attempting to be able to calculate the energy of each core level from first-principles we content ourselves with being able to calculate the energy shifts in the core levels between chemical environments.
+For instance, in the ammonium nitrate tutorial it is seen that the relative shift between the ammonium nitrogen site and the nitrate nitrogen site is around 4~eV. 
+Our ultimate goal is to be able to align each element edge by comparing a single material to experiment, e.g., correcting all nitrogen edges by setting the N$_2$ XAS onset. 
+The energy of the core-level hole is given by
+\begin{align}
+\epsilon_h = V_{\rm{tot}} - \sfrac{1}{2} W + X_{Znl}
+\end{align}
+where the offset $X$ is fit to a specific element $Z$ and edge $nl$. 
+To arrive at the above expression we make two main approximations.
+
+The first is that we assume that the shape of the orbital wavefunction is unchanged by changes in the chemical environment. In other words, the difference between the NH$_4^+$ and NO$_3^-$ is captured by lowest order perturbation theory. 
+The orbital remains fixed, and the change in energy is simply the change in the external potential exerted on the orbital in the ground state. 
+Currently, this is done by taking the limit that the core orbital is a delta function, but in the future this will be done by integrating the potential over the core orbital density. 
+\begin{align}
+V_{\rm{tot}} =& \, \langle \phi_{Znl} \vert V_{\rm{tot}}(\mathbf{r}) \vert \phi_{Znl} \rangle = \int \!\! d^3r \rho_{Znl}(\mathbf{r})  V_{\rm{tot}}(\mathbf{r}) \nonumber \\
+\approx&  \, V_{\rm{tot}}(\mathbf{r})  \delta(\mathbf{r} - \mathbf{\tau}) 
+\label{CLS_Vext}
+\end{align}
+where $\tau$ is the location of the excited atom, $\phi$ and $\rho$ are the atomic orbital and its density, respectively, and $V_{\rm{tot}}$ is the total potential. 
+The value of the total potential (evaluated at the core site) is determined from the self-consistent density, and is easily extracted from the DFT calculation, using a post-processing tool like \program{pp.x} or \program{cut3d}.
+
+There is a second element needed to calculate the shifts in quasi-particle energy of the core levels with chemical environment, and that is the response of the rest of electrons in the system to the excitation. 
+This response is already calculated in the code as the screening of the core-hole potential.
+The assumption is made that this can be captured within linear response. For the methodology see the chapter \ref{screening} on screening.
+Using the same $\delta$-function approximation as Eq.~\ref{CLS_Vext} the screening reduces the energy required to create a core hole by
+\begin{align}
+\sfrac{1}{2} W = \sfrac{1}{2} W(\mathbf{r}) \delta(\mathbf{r} - \mathbf{\tau}) 
+\end{align}
+though a more accurate integration over the core-hole density could also be implemented. 
+In practice the code uses only the valence screening. The other core electrons will also screen the core hole, but, because we already have assumed that the core-level orbitals are the same irrespective of chemical environments, their screening will also be the same and can be incorporated into the shift $X$.
+
+\section{Errors in the CLS and comparisons with $\Delta$SCF methods}
+
+The core-level shifts have been used in \program{ocean} calculations of both liquid water as well as vibrational disordered crystals of ammonium nitrate and ammonium chloride. 
+However, for these systems the alignment has been done anew each time, and the various disordered snapshots have all had the same volume and the same number and type of atoms.
+A more complete investigation of alignment, say between the O K-edge absorption onset of different oxides M$_x$O$_y$, has not been carried out.
+As a guide, however, we would like to speculate on sources of error that may hamper our desire of a single $X_{Znl}$ for each element and edge.
+\begin{enumerate}
+\item{Inaccurate band gaps, or HOMO or LUMO energies}
+\item{Breakdown of linear response}
+\item{Effects of periodic boundary conditions?}
+\end{enumerate}
+For each of these short-comings, our investigations so far, comparing disordered, but otherwise similar cells, would not be sensitive.
+
+Issue \#1 may be especially significant. The errors in DFT-derived band gaps vary widely, ranging from 0~eV for metals to above 6~eV for wide gap materials like LiF.
+Making the crude estimate that the {\it GW} corrections are split between conduction and valence bands, the error in absorption onset could be several electron-Volts.
+
 \chapter{ CNBSE }
 The CNBSE section solves for the spectra. The important output file is absspct; column 1 is the energy, 
-column 2 the spectra using a plamon-pole broadening model and column 3 the plain spectra.
+column 2 the spectra using a plasmon-pole broadening model and column 3 the plain spectra.
 
 \iffalse
 \section{Photon specifications}

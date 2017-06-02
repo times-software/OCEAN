@@ -41,7 +41,8 @@ subroutine kexpnd( longr, longi, shortr, shorti, nq, nbd, imark )
   return
 end subroutine kexpnd
 !
-subroutine nqtoxr( nx, ny, nz, nfft, nv, nq, nbd, indx, vecr, veci, cor, coi, xwrkr, xwrki, tau, nn1, zn, wrk, jfft, ur, ui, qpred )
+subroutine nqtoxr( nx, ny, nz, nfft, nv, nq, nbd, indx, vecr, veci, cor, coi, xwrkr, xwrki, tau, & 
+                   nn1, zn, wrk, jfft, ur, ui, qpred )
   implicit none
   !
   integer nx, ny, nz, nfft, nv, nq, nbd, nn1, zn( 3 ), jfft

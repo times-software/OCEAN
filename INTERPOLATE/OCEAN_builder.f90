@@ -1,4 +1,4 @@
-! Copyright (C) 2015 OCEAN collaboration
+! Copyright (C) 2015, 2017 OCEAN collaboration
 !
 ! This file is part of the OCEAN project and distributed under the terms 
 ! of the GPL 2 License. See the file `License' in the current subdirectory.
@@ -90,7 +90,7 @@
   integer :: nwordo2l, iuntmp, ntot,nptot, ibd, ibp, n_se, iunrbf
   complex(dp),allocatable :: o2l(:,:,:,:)
   real(dp),allocatable :: tau(:,:), se_list(:)
-  logical :: se_exist
+  logical :: se_exist, metal
 
   complex(dp),allocatable :: wfp(:,:), gre(:,:,:), uofr(:), bofr( :, : ), eikr( : ), gre_small(:,:,:), single_bofr(:,:)
   complex(dp),allocatable :: full_xi(:,:), xiofb(:,:), gre_local(:,:,:), phased_bofr(:,:), uofrandb(:,:)
@@ -244,6 +244,10 @@
     read( iuntmp, * ) fermi_energy
     close( iuntmp )
 
+    open( unit=iuntmp,file='metal',form='formatted',status='old')
+    read( iuntmp, * ) metal
+    close( iuntmp )
+
     n_se = 0
     inquire(file='screeningenergies.ipt',exist=se_exist)
     if( se_exist ) then
@@ -288,6 +292,7 @@
     call mp_bcast( se_list, ionode_id )
   endif
   call mp_bcast( eshift, ionode_id )
+  call mp_bcast( metal, ionode_id )
 
   ! Prep bofr
   call BLACS_GRIDINFO( context_cyclic, nprow, npcol, myrow, mycol )
@@ -397,6 +402,8 @@ call descinit( desc_uofrandb, npt, nbasis_subset, nb, desc_cyclic(NB_), 0, 0, co
   enddo
   write(stdout,*) "done with vcbder"
   write(stdout, '(4(1x,1e15.8))' ) vlev*rytoev, vhev*rytoev, clev*rytoev, chev*rytoev
+  ! For insulators the input efermi is the HOMO, not the mid-gap
+  if( .not. metal )  fermi_energy = ( clev + vhev ) / 2.0_dp
   mindif = min( fermi_energy - vhev, clev - fermi_energy )
   maxdif = max( fermi_energy - vlev, chev - fermi_energy )
   sigma = sqrt( mindif * maxdif )
@@ -551,7 +558,8 @@ call descinit( desc_uofrandb, npt, nbasis_subset, nb, desc_cyclic(NB_), 0, 0, co
 
         write(stdout,*) nprow, npcol, nb, nb2
 
-        if( .true. ) then !.and. ( nprow .eq. npcol ) .and. (nb .eq. nb2) ) then !.and. ( nb *nprow .eq. npt ) .and. ( nb2 * npcol .eq. npt ) ) then
+        if( .true. ) then  
+ !.and. ( nprow .eq. npcol ) .and. (nb .eq. nb2) ) then !.and. ( nb *nprow .eq. npt ) .and. ( nb2 * npcol .eq. npt ) ) then
           write(stdout,*) 'Fast chi'
           call OCEAN_build_chi(myrow, mycol,nprow,npcol,context_cyclic,band_subset,nb,nb2,&
                              desc_cyclic(NB_),desc_gre,sigma,t,nt,eshift,fermi_energy,eigval,&

@@ -6,8 +6,8 @@ c `License' in the root directory of the present distribution.
 c
 c
 c     program erftest
-c     implicit real*8 (a-h,o-z)
-c     real*8   errfunc
+c     implicit double precision (a-h,o-z)
+c     double precision   errfunc
 c     external errfunc
 c10   read (5,*) x
 c     if (x.lt.0.d0) x=dsqrt(-x*4.d0*datan(1.d0))
@@ -17,8 +17,8 @@ c     goto 10
 c     end
 c--------
       function errfunc(ss)
-      implicit real*8 (a-h,o-z)
-      real*8 errfunc
+      implicit double precision (a-h,o-z)
+      double precision errfunc
       if (ss.gt.8.d0) then
         errfunc=1.d0
         return

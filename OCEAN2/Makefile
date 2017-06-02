@@ -15,7 +15,9 @@ OCEANOBJS = AI_kinds.o OCEAN_mpi.o OCEAN_system.o OCEAN_bloch.o OCEAN_obf.o OCEA
             sizereport.o OCEAN_timekeeper.o OCEAN_invdrv.o OCEAN_val_energy.o \
             OCEAN_read_tmels.o OCEAN_val_states.o OCEAN_bubble.o \
             OCEAN_get_rho.o optim.o OCEAN_hyb_louie_levine.o OCEAN_ladder.o \
-						OCEAN_pfy.o OCEAN_rixs_holder.o $(FFT_WRAPPER_OBJS)
+						OCEAN_pfy.o OCEAN_rixs_holder.o OCEAN_corewidths.o $(FFT_WRAPPER_OBJS)
+
+KINDS = AI_kinds.o
 
 FFT_WRAPPER_OBJS = ../zbridge/zobj/FFT_wrapper.o ../zbridge/zobj/jlmfft.o
 FFT_WRAPPER_INCL = -I../zbridge/ 
@@ -56,7 +58,7 @@ OCEAN_psi.o: OCEAN_psi.f90 OCEAN_constants.o OCEAN_timekeeper.o OCEAN_rixs_holde
 OCEAN_energies.o: OCEAN_energies.f90 OCEAN_val_energy.o
 	$(MPIFORT) $(FLAGS) -c -o OCEAN_energies.o OCEAN_energies.f90 
 
-OCEAN_haydock.o: OCEAN_haydock.f90 OCEAN_timekeeper.o OCEAN_psi.o OCEAN_pfy.o
+OCEAN_haydock.o: OCEAN_haydock.f90 OCEAN_timekeeper.o OCEAN_psi.o OCEAN_pfy.o OCEAN_corewidths.o
 	$(MPIFORT) $(FLAGS) -c -o  OCEAN_haydock.o OCEAN_haydock.f90 
 
 OCEAN_exact.o: OCEAN_exact.f90
@@ -87,7 +89,7 @@ limel.o: $(CNBSE)/limel.f90
 jimel.o: $(CNBSE)/jimel.f90
 	$(MPIFORT) $(FLAGS) -c -o jimel.o $(CNBSE)/jimel.f90
 
-nbsemkcmel.o: nbsemkcmel.f90
+nbsemkcmel.o: nbsemkcmel.f90 $(KINDS)
 	$(MPIFORT) $(FLAGS) -c -o nbsemkcmel.o nbsemkcmel.f90
 
 intval.o: $(CNBSE)/intval.f90
@@ -156,8 +158,11 @@ OCEAN_pfy.o: OCEAN_pfy.f90 OCEAN_psi.o OCEAN_mpi.o OCEAN_system.o OCEAN_constant
 OCEAN_rixs_holder.o: OCEAN_rixs_holder.f90
 	$(MPIFORT) $(FLAGS) -c -o OCEAN_rixs_holder.o OCEAN_rixs_holder.f90
 
+OCEAN_corewidths.o: OCEAN_corewidths.f90 AI_kinds.o
+	$(MPIFORT) $(FLAGS) -c -o OCEAN_corewidths.o OCEAN_corewidths.f90
+
 clean:
 	rm -f *.o *.mod ocean.x
 
 install:
-	cp ocean.x $(INSTDIR)/
+	cp ocean.x o_spect.x $(INSTDIR)/

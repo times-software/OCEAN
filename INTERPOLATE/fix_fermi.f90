@@ -76,7 +76,7 @@ subroutine dump_energies( band_subset, nbands, nkpts, nspin, nshift, e0, lumo_sh
       temp_energy( :, ik, ispin ) = e0(brange(3):brange(4), ik, ispin, nshift ) - lumo_shift
     enddo
   enddo
-  open(unit=fh,file='con_energies.dat',form='binary',status='unknown')
+  open(unit=fh,file='con_energies.dat',form='unformatted',access='stream',status='replace')
   write(fh) temp_energy
   close(fh)
 
@@ -99,7 +99,7 @@ subroutine dump_energies( band_subset, nbands, nkpts, nspin, nshift, e0, lumo_sh
   write(fh) temp_energy
   close(fh)
 
-  open(unit=fh,file='val_energies.dat',form='binary',status='unknown')
+  open(unit=fh,file='val_energies.dat',form='unformatted',access='stream',status='replace')
   write(fh) temp_energy
   close(fh)
 

@@ -12,7 +12,7 @@ c  Perdew and Zunger, Phys. Rev. B 23, 5048.  we use their interpolation
 c  between the unpolarized and polarized gas for the correlation part.
 c
       subroutine cacorr(nst,rel,rr,rh1,rh2,ex,ec,ux1,ux2,uc1,uc2)
-      implicit real*8 (a-h,o-z)
+      implicit double precision (a-h,o-z)
       include 'alfinv.h'
       trd=1.d0/3.d0
       ft=4.d0/3.d0
