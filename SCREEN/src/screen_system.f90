@@ -53,7 +53,7 @@ module screen_system
       write( 6, * ) "-------------------------------"
       write( 6, * ) "N atoms: ", psys%natoms
       do ii = 1, psys%natoms
-        write( 6, '(A2,A1,X,3F16.8)' ) psys%atom_list( ii )%el_name, ':', psys%atom_list( ii )%reduced_coord( : )
+        write( 6, '(A2,A1,1X,3F16.8)' ) psys%atom_list( ii )%el_name, ':', psys%atom_list( ii )%reduced_coord( : )
       enddo
       write( 6, * ) "-------------------------------"
     endif

@@ -6,9 +6,16 @@
 !
 !
 module OCEAN_mpi
+
 #ifdef MPI
 #ifndef __OLD_MPI
+
+#ifdef MPI_F08
+  use mpi_f08
+#else
   use mpi
+#endif
+
 #endif
 #endif
 

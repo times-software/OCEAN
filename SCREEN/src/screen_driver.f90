@@ -8,7 +8,7 @@
 ! John Vinson
 program screen_driver
   use ai_kinds
-  use ocean_mpi, only : ocean_mpi_init, ocean_mpi_finalize, comm, myid
+  use ocean_mpi, only : ocean_mpi_init, ocean_mpi_finalize, comm, myid, root
 !  use screen_grid
   use screen_system, only : screen_system_load, screen_system_summarize
   use screen_sites, only : screen_sites_load, screen_sites_prep, &
@@ -21,7 +21,7 @@ program screen_driver
 
   integer :: ierr
   integer :: nsites
-
+  integer :: flavor
 
 
   ierr = 0
