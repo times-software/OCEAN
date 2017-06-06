@@ -252,7 +252,7 @@ module OCEAN_action
 
     integer :: i, ntot, iter, iwrk, need, int1, int2
     integer :: project_file_handle, pfy_file_handle
-    real( DP ) :: relative_error, f( 2 ), ener
+    real( DP ) :: relative_error, f( 2 ), ener, fact
     complex( DP ) :: rm1
 
 
@@ -275,7 +275,12 @@ module OCEAN_action
 
     call OCEAN_psi_new( hpsi, ierr )
     if( ierr .ne. 0 ) return
-
+  
+    if(  sys%cur_run%have_val ) then
+      fact = hay_vec%kpref * 2.0_dp * sys%celvol
+    else
+      fact = hay_vec%kpref
+    endif
 
     if( myid .eq. root ) then
       write ( 6, '(2x,1a8,1e15.8)' ) ' mult = ', hay_vec%kpref
@@ -439,7 +444,7 @@ module OCEAN_action
       if( myid .eq. 0 ) then
         relative_error = f( 2 ) / ( dimag( - dot_product( rhs, x ) ) ) !* kpref )
         write ( 76, '(1p,1i5,4(1x,1e15.8))' ) int1, ener * Hartree2eV,  & !*27.2114_DP, &
-                  ( 1.0d0 - dot_product( rhs, x ) ) * hay_vec%kpref, relative_error
+                  ( 1.0d0 - dot_product( rhs, x ) ) * fact, relative_error
 #ifdef __HAVE_F03
         flush(76)
 #else
@@ -1132,6 +1137,8 @@ module OCEAN_action
           read(99,*) nloop, gres, gprc, ffff, ener
           ! if gres is negative fill it with core-hole lifetime broadening
           call checkBroadening( sys, gres, default_gam0 )
+          gprc = gprc * eV2Hartree
+          gres = gres * eV2Hartree
 
           read(99,*) inv_style
           select case( inv_style )
