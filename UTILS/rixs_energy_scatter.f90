@@ -59,19 +59,24 @@ program rixs_energy_scatter
   con_energies( :, : ) = con_energies( :, : ) * 13.60569253d0
   ! now energies are in eV
 
-
+  ! go ahead and load up the ehcamp
   allocate( vec( nbc, nbv, nkpts ) )
   read(98) vec
   close(98)
+  ! close the echamp file
 
+
+  ! figure out the energy range of the DFT states
   min_E = minval( val_energies )
   max_E = maxval( con_energies )
-
   E_count = ( max_E - min_E + deltaE ) / deltaE
 
   write(6,*) 'Energy grid: '
   write(6,*) min_E, max_E, E_count
-  
+
+
+
+  ! Real arrays that will hold the exciton vector**2 and summed over valence or conduction bands
   allocate( val_vec( nbv, nkpts ), con_vec( nbc, nkpts ) )
   val_vec = 0.0d0
   con_vec = 0.0d0
@@ -85,6 +90,9 @@ program rixs_energy_scatter
     enddo
   enddo
 
+
+
+  ! Energy histogram arrays
   allocate( val_en_out(0:E_count), con_en_out(0:E_count) )
   val_en_out = 0.0d0
   con_en_out = 0.0d0
@@ -101,6 +109,8 @@ program rixs_energy_scatter
   enddo
 
 
+
+  ! write out both valence and conduction to file
   open(unit=99, file='test.txt', form='formatted', status='unknown' )
   do ie = 0, E_count
     write(99,*) (min_E + dble(ie)*deltaE), val_en_out(ie), con_en_out(ie)
