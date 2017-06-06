@@ -242,7 +242,7 @@ module OCEAN_action
     character( LEN = 9 ) :: ct
     character( LEN=5) :: eval
 
-    character( LEN = 21 ) :: abs_filename
+    character( LEN = 40 ) :: abs_filename
     character( LEN = 21 ) :: pfy_filename
     character( LEN = 21 ) :: proj_filename
 !    character( LEN = 17 ) :: rhs_filename
@@ -297,6 +297,10 @@ module OCEAN_action
         write(pfy_filename,'(A8,A2,A1,I4.4,A1,A2,A1,I2.2)' ) 'pfyspct_', sys%cur_run%elname, &
             '.', sys%cur_run%indx, '_', sys%cur_run%corelevel, '_', sys%cur_run%photon
         do_pfy = .true.
+      case( 'RXS')
+        write(abs_filename,'(A8,A2,A1,I4.4,A1,A2,A1,I2.2,A1,I2.2,A1,I2.2)' ) 'rxsspct_', sys%cur_run%elname, &
+            '.', sys%cur_run%indx, '_', sys%cur_run%corelevel, '_', sys%cur_run%photon, '.', &
+            sys%cur_run%rixs_energy, '.', sys%cur_run%rixs_pol
       case default
         write(abs_filename,'(A8,A2,A1,I4.4,A1,A2,A1,I2.2)' ) 'absspct_', sys%cur_run%elname, &
             '.', sys%cur_run%indx, '_', sys%cur_run%corelevel, '_', sys%cur_run%photon
