@@ -7,6 +7,8 @@
 #### Minor Features
  1. Improvements for spin with QE
  2. Database of core hole lifetime widths
+ 3. Changes to alignment! By default, OCEAN sets the DFT LUMO = 0. However! 
+    When core_offset is specified the DFT energies will **not** be adjusted. 
 
 #### Bugfixes
  1. Fixed bug in calculating the core-hole screening for some metals
