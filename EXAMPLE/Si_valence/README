@@ -1,0 +1,9 @@
+Valence calculation of Si.
+
+The legacy ai2nbse results are included. 
+Note that there are differences in the spectra (ai2nbse v. ocean), these are 
+due to slight differences in the the conversion between units as well as 
+significant rounding errors in the density which in turn changes the ladder/
+direct interaction strength.
+
+We are using bulk silicon. The psp is probably not very good; DO NOT USE IT.
