@@ -146,7 +146,6 @@ if( $solver eq 'gmres' )
   $line = <IN>;
   close IN;
   chomp $line;
-  $line /= 27.2114;
   $gmres_header .= " " . $line;
 
   open IN, "cnbse.gmres.gprc" or die "Failed to open cnbse.gmres.gprc\n$!";

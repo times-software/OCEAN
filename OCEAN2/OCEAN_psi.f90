@@ -145,12 +145,13 @@ module OCEAN_psi
             OCEAN_psi_write, OCEAN_psi_val_pnorm,  &
             OCEAN_psi_dot, OCEAN_psi_nrm, OCEAN_psi_scal, &
             OCEAN_psi_axpy, OCEAN_psi_new, OCEAN_psi_cmult, OCEAN_psi_mult, &
-            OCEAN_psi_zero_full, OCEAN_psi_zero_min, &
+            OCEAN_psi_zero_full, OCEAN_psi_zero_min, OCEAN_psi_one_full, &
             OCEAN_psi_ready_buffer, OCEAN_psi_send_buffer, &
             OCEAN_psi_copy_min, OCEAN_psi_buffer2min, &
             OCEAN_psi_prep_min2full, OCEAN_psi_start_min2full, &
             OCEAN_psi_finish_min2full, OCEAN_psi_full2min, &
-            OCEAN_psi_returnBandPad, OCEAN_psi_bcast_full
+            OCEAN_psi_returnBandPad, OCEAN_psi_bcast_full, &
+            OCEAN_psi_vtor, OCEAN_psi_rtov, OCEAN_psi_size_full
 
   public :: OCEAN_vector
 
@@ -1809,6 +1810,41 @@ module OCEAN_psi
 
   end subroutine OCEAN_psi_zero_full
 
+
+  subroutine OCEAN_psi_one_full( a, ierr )
+    implicit none
+    type( OCEAN_vector ), intent( inout ) :: a
+    integer, intent( inout) :: ierr
+
+    if( a%inflight ) then
+      ierr = -1
+      return
+    endif
+
+    if( a%update ) then
+      ierr = -22
+      return
+    endif
+
+    if( IAND( a%alloc_store, PSI_STORE_FULL ) .eq. 0 ) then
+      call OCEAN_psi_alloc_full( a, ierr )
+      if( ierr .ne. 0 ) return
+    endif
+
+    if( have_core ) then
+      a%r = 1.0_dp
+      a%i = 0.0_dp
+    endif
+
+    if( have_val ) then
+      a%valr = 1.0_dp
+      a%vali = 0.0_dp
+    endif
+
+    a%valid_store = PSI_STORE_FULL
+
+  end subroutine OCEAN_psi_one_full
+
   subroutine OCEAN_psi_cmult( a, b, e, have_gw )
     implicit none
     type( OCEAN_vector ), intent( in ) :: a, e
@@ -2414,6 +2450,83 @@ module OCEAN_psi
     p%valid_store = IAND( p%valid_store, NOT(PSI_STORE_FULL ) )
 
   end subroutine OCEAN_psi_alloc_full
+
+  function OCEAN_psi_size_full( p )
+    type(OCEAN_vector), intent( in ) :: p
+    integer :: OCEAN_psi_size_full 
+    if( have_core ) then
+      OCEAN_psi_size_full = psi_bands_pad * psi_kpts_pad * psi_core_alpha
+    elseif( have_val ) then
+      OCEAN_psi_size_full = psi_bands_pad * psi_val_bands * psi_kpts_actual * psi_val_beta
+    else
+      OCEAN_psi_size_full = 0
+    endif
+  end function OCEAN_psi_size_full
+
+
+  subroutine OCEAN_psi_vtor( p, vec )
+    type(OCEAN_vector), intent( in ) :: p
+    complex(DP), intent( out ) :: vec(:)
+    !
+    integer :: ia, ik, ib, ibv, ii
+    !
+    ii = 0
+    if( have_core ) then
+      do ia = 1, psi_core_alpha
+        do ik = 1, psi_kpts_pad
+          do ib = 1, psi_bands_pad
+            ii = ii + 1
+            vec( ii ) = cmplx( p%r( ib, ik, ia ), p%i( ib, ik, ia ), DP )
+          enddo
+        enddo
+      enddo
+    elseif( have_val ) then
+      do ia = 1, psi_val_beta
+        do ik = 1, psi_kpts_actual
+          do ibv = 1, psi_val_bands 
+            do ib = 1, psi_bands_pad
+              ii = ii + 1
+              vec( ii ) = cmplx( p%valr( ib, ibv, ik, ia ), p%vali( ib, ibv, ik, ia ), DP )
+            enddo
+          enddo
+        enddo
+      enddo
+    endif
+    !
+  end subroutine OCEAN_psi_vtor
+
+  subroutine OCEAN_psi_rtov( p, vec )
+    type(OCEAN_vector), intent( inout ) :: p
+    complex(DP), intent( in ) :: vec(:)
+    !
+    integer :: ia, ik, ib, ibv, ii
+    !
+    ii = 0
+    if( have_core ) then
+      do ia = 1, psi_core_alpha
+        do ik = 1, psi_kpts_pad
+          do ib = 1, psi_bands_pad
+            ii = ii + 1
+            p%r( ib, ik, ia ) = real( vec( ii ), DP )
+            p%i( ib, ik, ia ) = aimag( vec( ii ) )
+          enddo
+        enddo
+      enddo
+    elseif( have_val ) then
+      do ia = 1, psi_val_beta
+        do ik = 1, psi_kpts_actual
+          do ibv = 1, psi_val_bands
+            do ib = 1, psi_bands_pad
+              ii = ii + 1
+              p%valr( ib, ibv, ik, ia ) = real( vec( ii ), DP )
+              p%vali( ib, ibv, ik, ia ) = aimag( vec( ii ) )
+            enddo
+          enddo
+        enddo
+      enddo
+    endif
+    !
+  end subroutine OCEAN_psi_rtov
 
   subroutine OCEAN_psi_alloc_min( p, ierr )
     implicit none
