@@ -54,8 +54,8 @@ subroutine OCEAN_read_tmels( sys, p, file_selector, ierr )
       open(unit=99,file='tmels.info',form='formatted',status='old')
       read(99,*) nbv, nbc(1), nbc(2), nk
       close(99)
-      if( nk .ne. sys%nkpts ) then
-        write(6,*) 'tmels.info mismatch: nkpts'
+      if( nk .ne. sys%nkpts*2 ) then
+        write(6,*) 'tmels.info mismatch: nkpts', nk, sys%nkpts
         ierr = -1
         return
       endif
@@ -149,7 +149,7 @@ subroutine OCEAN_read_tmels( sys, p, file_selector, ierr )
         do i = 1, sys%cur_run%val_bands
           do j = 1, sys%cur_run%num_bands
              p%valr( j, i, ik, 1 ) = re_wgt( 0, i, j )
-             p%vali( j, i, ik, 1 ) = im_wgt( 0, i, j )
+             p%vali( j, i, ik, 1 ) = -im_wgt( 0, i, j )
              su = su + re_wgt( 0, i, j ) * re_wgt( 0, i, j ) + im_wgt( 0, i, j ) * im_wgt( 0, i, j )
           end do
         end do
@@ -187,6 +187,17 @@ subroutine OCEAN_read_tmels( sys, p, file_selector, ierr )
     return
   end select
 
-  if( myid .eq. root ) write(6,*) 'Max Psi:', max_psi
+  if( myid .eq. root ) then
+    write(6,*) 'Max Psi:', max_psi
+!    open( unit=99,file='psi_test',form='formatted')
+!    do ik = 1, sys%nkpts
+!      do j = 1, sys%cur_run%num_bands
+!        do i = 1, sys%cur_run%val_bands
+!          write(99,'(E12.5,X)') cmplx( p%valr( j, i, ik, 1 ), p%vali( j, i, ik, 1 ), DP )
+!        enddo
+!      enddo
+!    enddo
+!    close( 99 )
+  endif
 
 end subroutine OCEAN_read_tmels
