@@ -54,6 +54,15 @@ else
 foreach (@cpu_factors)
 { print "$_\n"; }
 
+my @square_cpu_factors;
+foreach my $cpu_count (@cpu_factors)
+{
+  push @square_cpu_factors, $cpu_count if( int(sqrt($cpu_count)) ** 2 == $cpu_count );
+}
+foreach (@square_cpu_factors)
+{ print "$_\n"; }
+
+
 open QE_POOL, ">pool_control" or die "Failed to open qe_pool_control for writing\n$!\n";
 
 
@@ -179,16 +188,27 @@ print "NKPTS: $kpt_tot, ideal pools: $ideal_npools\n";
 print QE_POOL "nscf\t$ideal_npools\n";
 # Not integrated cleanly right now
 # Need to control pools for the interpolation routines
-my $min_interp_pool_size = int( $volume / 1200 );
+my $min_interp_pool_size = int( $volume / 800 );
 print "Minimum size for interpolation pools $min_interp_pool_size\n";
 
 my $pool_size = -1;
-foreach( @cpu_factors )
+foreach( @square_cpu_factors )
 {
   if( $_ >= $min_interp_pool_size && ($ncpus/$_) <= $kpt_tot )
   {
      $pool_size = $_;
      last;
+  }
+}
+if( $pool_size == -1 )
+{
+  foreach( @cpu_factors )
+  {
+    if( $_ >= $min_interp_pool_size && ($ncpus/$_) <= $kpt_tot )
+    {
+       $pool_size = $_;
+       last;
+    }
   }
 }
 if( $pool_size == -1 )
@@ -496,7 +516,7 @@ print QE_POOL "screen\t$ideal_npools\n";
 
 # Not integrated cleanly right now
 # Need to control pools for the interpolation routines
-$min_interp_pool_size = int( $volume / 1200 );
+$min_interp_pool_size = int( $volume / 800 );
 if( $min_interp_pool_size < 1 )
 {
   $min_interp_pool_size = 1;
