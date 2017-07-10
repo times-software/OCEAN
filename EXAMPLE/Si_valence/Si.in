@@ -1,0 +1,81 @@
+calc val
+pp_list {14si.pspnc}
+# Control
+control 0
+
+# Kpt mesh (N1,N2,N3)
+nkpt { 8 8 8 }
+ngkpt{ 4 4 4 }
+
+# Photon momentum
+photon_q { 0.0001   0.0001    0.0001 }
+
+# number of electrons in unit cell
+nelectron 8
+
+# Total bands
+nbands 12
+
+# Mag.of latt.vec1,latt.vec 2,latt.vec.3
+acell { 10.26 10.26 10.26 }
+
+# Cart. comps. latt.vecs
+rprim {
+ 0.0 0.5 0.5
+ 0.5 0.0 0.5
+ 0.5 0.5 0.0
+}
+
+# Ntypes of atoms
+ntypat 1
+
+# Nuclear charge for type (typ1,type2,...)
+znucl { 14 }
+
+# Number of Atoms in unit cell
+natom 2
+
+# Type of each atom (atom1,atom2)
+typat { 1 1 }
+
+# Postitions of atoms1,2, etc. in units latt. vecs.
+xred {
+ 0.00    0.00    0.00
+ 0.25    0.25    0.25
+}
+
+# Kinetic Energy cutoff
+ecut 16.0
+
+# Energy tol
+toldfe 1.0d-6
+
+# wftol
+tolwfr 1.0d-16
+
+# iterations
+nstep 21
+
+# Static dielectric const.
+diemac 11.4
+
+# GW val. stretch
+NBSE.gwvstr 0.0
+
+# GW cond. stretch
+NBSE.gwcstr 0.0
+
+#Brodening
+NBSE.broaden .1
+
+# xmesh
+CNBSE.xmesh { 6  6  6 }
+
+# bflag
+NBSE.bflag 1
+
+# lflag
+NBSE.lflag 1
+
+# niter
+NBSE.niter 100

@@ -244,14 +244,14 @@ module OCEAN_bubble
     integer( S_INT ), intent( inout ) :: ierr
     !
     integer :: ix, iy, iz, gvec( 3 )
-    real( DP ) :: temp_length
+    real( DP ) :: temp_length, next_length
     !
 
     length = huge( 0.0_dp )
 
-    do ix = ceiling(dble(-sys%xmesh(1))/2.0_dp) , floor(dble(sys%xmesh(1))/2.0_dp  )
-      do iy = ceiling(dble(-sys%xmesh(2)) / 2.0_dp) , floor(dble(sys%xmesh( 2 )) / 2.0_dp )
-        do iz = ceiling(dble(-sys%xmesh(3)) / 2.0_dp) , floor(dble(sys%xmesh( 3 )) / 2.0_dp )
+    do ix = floor(dble(-sys%xmesh(1))/2.0_dp) , ceiling(dble(sys%xmesh(1))/2.0_dp  )
+      do iy = floor(dble(-sys%xmesh(2)) / 2.0_dp) , ceiling(dble(sys%xmesh( 2 )) / 2.0_dp )
+        do iz = floor(dble(-sys%xmesh(3)) / 2.0_dp) , ceiling(dble(sys%xmesh( 3 )) / 2.0_dp )
 
           if( 2 * abs( iz ) .ge. sys%xmesh(3) .or. &
               2 * abs( iy ) .ge. sys%xmesh(2) .or. &
@@ -261,14 +261,37 @@ module OCEAN_bubble
             temp_length = gvec_length( gvec, sys%bvec )
 
             if( temp_length .lt. length ) then
+              write(6,*)  ix, iy, iz , temp_length, length
               length = temp_length
             endif
           endif
         enddo
       enddo
     enddo
+    write(6,*)  ''
 
-    write( 6, * ) 'Max gvec length: ', length
+    next_length = 0.0_dp
+    do ix = floor(dble(-sys%xmesh(1))/2.0_dp) , ceiling(dble(sys%xmesh(1))/2.0_dp  )
+      do iy = floor(dble(-sys%xmesh(2)) / 2.0_dp) , ceiling(dble(sys%xmesh( 2 )) / 2.0_dp )
+        do iz = floor(dble(-sys%xmesh(3)) / 2.0_dp) , ceiling(dble(sys%xmesh( 3 )) / 2.0_dp )
+
+            gvec = (/ ix, iy, iz /)
+            temp_length = gvec_length( gvec, sys%bvec )
+
+            if( temp_length .lt. length .and. temp_length .gt. next_length) then
+              write(6,*)  ix, iy, iz , temp_length, next_length
+              next_length = temp_length
+            endif
+        enddo
+      enddo
+    enddo
+
+
+
+    write( 6, * ) 'Max gvec length: ', length, next_length, 0.5_dp * ( length + next_length )
+    length = 0.5_dp * ( length + next_length )
+
+    
 
   end subroutine wall_search_old_way
 
@@ -290,6 +313,7 @@ module OCEAN_bubble
     real( DP ), allocatable :: TdBubble( :, :, : )
 !    real( DP ), external :: gvec_length
     ! 
+!    pi = 4.0d0 * atan( 1.0d0 )
     allocate( TdBubble( sys%xmesh( 3 ), sys%xmesh( 2 ), sys%xmesh( 1 ) ) )
     TdBubble(:,:,:) = 0.0_DP
 
@@ -298,6 +322,7 @@ module OCEAN_bubble
     do ij = 1, 3
       do ik = 1, 3
         bmet(ij,ik) = dot_product( sys%bvec(:,ij), sys%bvec( :, ik ) )
+!        write(6,*) bmet(ij,ik), sys%bvec(ij, ik)
       enddo
 !      write(6,*) sys%bvec( :, ij ) 
     enddo
@@ -306,6 +331,8 @@ module OCEAN_bubble
     bubble( : ) = 0.0_dp
     write( 6, * ) 'qinb: ', sys%qinunitsofbvectors( : )
 !    write(6,* ) sys%nkpts , sys%celvol
+!    write(6,* )  floor( dble(-sys%xmesh(1))/2.0_dp ), ceiling( dble(sys%xmesh(1))/2.0_dp )
+
     !
     do ix = ceiling( dble(-sys%xmesh(1))/2.0_dp ), floor( dble(sys%xmesh(1))/2.0_dp )
       temp_gvec( 1 ) = ix 
@@ -331,14 +358,14 @@ module OCEAN_bubble
             mul = 0.0_dp
 !            write(6,*) ix, iy, iz, gvec_length( temp_gvec, sys%bvec ), .false.
           else
-            mul = 4.0_dp * pi_dp / ( sys%celvol * gsqd ) 
+            mul = 4.0_dp * pi_dp / ( sys%celvol * gsqd * dble(sys%nkpts) )
             ! fake to better match old
-            !mul = mul * 27.2114d0 / Hartree2eV
+!            mul = mul * 27.2114d0 / Hartree2eV
             igvec = igvec + 1
 !            write(6,*) ix, iy, iz, gvec_length( temp_gvec, sys%bvec ), .true.
           endif
           Tdbubble( izz, iyy, ixx ) = mul
-!          write(6,'(3I5,X,E22.14,E22.14)') ix, iy, iz, mul * 27.2114d0, gsqd
+!          write(103,'(6I5,X,E22.7,E22.7)') ix, iy,iz, ixx, iyy, izz, mul * 27.2114d0, gsqd
           !  bubble( iter ) = mul
         enddo
       enddo 
@@ -398,6 +425,13 @@ module OCEAN_bubble
 !    call OCEAN_val_states_returnPadXpts( nxpts_pad, ierr )
 !    if( ierr .ne. 0 ) return
 
+!    do bviter = 1, nbv
+!      do bciter = 1, nbc
+!        write(105,*) cmplx( psi%valr( bciter, bviter, 1, 1 ), psi%vali( bciter, bviter, 1, 1 ), DP )
+!      enddo
+!    enddo
+!    write(105,*)
+!
     !
     if( sys%nspn .eq. 1 ) then
      spin_prefac = 2.0_dp
@@ -480,10 +514,10 @@ module OCEAN_bubble
   xwidth = xwidth * 8
 
 !$OMP DO 
-  do ix = 1, nxpts, xwidth
-    xstop = min( nxpts, ix + xwidth - 1 )
-!    ix = 1
-!    xstop = nxpts
+!  do ix = 1, nxpts, xwidth
+!    xstop = min( nxpts, ix + xwidth - 1 )
+    ix = 1
+    xstop = nxpts
         do ik = 1, nkpts
           do bviter = 1, nbv
             do iix = ix, xstop
@@ -496,11 +530,12 @@ module OCEAN_bubble
             enddo
           enddo
       enddo
-  enddo
+!  enddo
 !$OMP END DO
 
 !    write(6,*) maxval( re_l_bubble ), maxval( im_l_bubble )
 
+!    write(6,*) startx_by_mpiID( 0 ), nxpts
 !$OMP MASTER
     do iproc = 0, nproc - 1
       if( myid .eq. root ) then
@@ -531,13 +566,17 @@ module OCEAN_bubble
 
     if( myid .eq. root ) then
 !      write(6,*) maxval( re_scratch(:) )
-      scratch(:) = cmplx( re_scratch(:), im_scratch(:), DP )
+      scratch(:) = cmplx( re_scratch(:), im_scratch(:), DP ) 
+!      do iix = 1, sys%nxpts
+!        write(104,*) scratch(iix) * sys%nxpts
+!      enddo
+!      write(104,*)
 !      call fftw_execute_dft(fplan, scratch, scratch)
-      call FFT_wrapper_single( scratch, OCEAN_BACKWARD, fo )
+      call FFT_wrapper_single( scratch, OCEAN_BACKWARD, fo, .false. )
 !      write(6,*) maxval( real(scratch(:) ) )
       scratch( : ) = scratch( : ) * bubble( : )
 !      write(6,*) maxval( real( scratch(:) ) )
-      call FFT_wrapper_single( scratch, OCEAN_FORWARD, fo )
+      call FFT_wrapper_single( scratch, OCEAN_FORWARD, fo, .false. )
 !      call fftw_execute_dft(bplan, scratch, scratch)
 !      re_scratch(:) = real(scratch(:)) 
 !      im_scratch(:) = aimag(scratch(:)) 

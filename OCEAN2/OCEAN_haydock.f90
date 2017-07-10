@@ -242,7 +242,7 @@ module OCEAN_action
     character( LEN = 9 ) :: ct
     character( LEN=5) :: eval
 
-    character( LEN = 21 ) :: abs_filename
+    character( LEN = 40 ) :: abs_filename
     character( LEN = 21 ) :: pfy_filename
     character( LEN = 21 ) :: proj_filename
 !    character( LEN = 17 ) :: rhs_filename
@@ -252,7 +252,7 @@ module OCEAN_action
 
     integer :: i, ntot, iter, iwrk, need, int1, int2
     integer :: project_file_handle, pfy_file_handle
-    real( DP ) :: relative_error, f( 2 ), ener
+    real( DP ) :: relative_error, f( 2 ), ener, fact
     complex( DP ) :: rm1
 
 
@@ -275,7 +275,12 @@ module OCEAN_action
 
     call OCEAN_psi_new( hpsi, ierr )
     if( ierr .ne. 0 ) return
-
+  
+    if(  sys%cur_run%have_val ) then
+      fact = hay_vec%kpref * 2.0_dp * sys%celvol
+    else
+      fact = hay_vec%kpref
+    endif
 
     if( myid .eq. root ) then
       write ( 6, '(2x,1a8,1e15.8)' ) ' mult = ', hay_vec%kpref
@@ -292,6 +297,10 @@ module OCEAN_action
         write(pfy_filename,'(A8,A2,A1,I4.4,A1,A2,A1,I2.2)' ) 'pfyspct_', sys%cur_run%elname, &
             '.', sys%cur_run%indx, '_', sys%cur_run%corelevel, '_', sys%cur_run%photon
         do_pfy = .true.
+      case( 'RXS')
+        write(abs_filename,'(A8,A2,A1,I4.4,A1,A2,A1,I2.2,A1,I2.2,A1,I2.2)' ) 'rxsspct_', sys%cur_run%elname, &
+            '.', sys%cur_run%indx, '_', sys%cur_run%corelevel, '_', sys%cur_run%photon, '.', &
+            sys%cur_run%rixs_energy, '.', sys%cur_run%rixs_pol
       case default
         write(abs_filename,'(A8,A2,A1,I4.4,A1,A2,A1,I2.2)' ) 'absspct_', sys%cur_run%elname, &
             '.', sys%cur_run%indx, '_', sys%cur_run%corelevel, '_', sys%cur_run%photon
@@ -334,12 +343,14 @@ module OCEAN_action
     endif
 
 
-    ntot = sys%nalpha * sys%nkpts * sys%num_bands
+!    ntot = sys%nalpha * sys%nkpts * sys%num_bands
+    ntot = OCEAN_psi_size_full( hay_vec )
     allocate( rhs( ntot ), v1( ntot ), v2( ntot ), pcdiv( ntot ), x( ntot ) )
 
     !
 
-    call vtor( sys, hay_vec, rhs )
+!    call vtor( sys, hay_vec, rhs )
+    call OCEAN_psi_vtor( hay_vec, rhs )
 !    write(rhs_filename,'(A4,A2,A1,I4.4,A1,A2,A1,I2.2)' ) 'rhs_', sys%cur_run%elname, &
 !            '.', sys%cur_run%indx, '_', '1s', '_', sys%cur_run%photon
 !    open(unit=99,file=rhs_filename,form='unformatted',status='unknown')
@@ -361,8 +372,9 @@ module OCEAN_action
 
 
       ! After OCEAN_xact every proc has the same copy of hpsi (and should still have the same psi)
-      psi%r( :, :, : ) = 1.0_DP
-      psi%i( :, :, : ) = 0.0_DP
+!      psi%r( :, :, : ) = 1.0_DP
+!      psi%i( :, :, : ) = 0.0_DP
+      call OCEAN_psi_one_full( psi, ierr )
 
       if( sys%cur_run%have_val ) then
         call OCEAN_energies_val_allow( sys, psi, ierr )
@@ -381,7 +393,8 @@ module OCEAN_action
 
 
 !      call OCEAN_psi_set_prec( sys, ener, gprc, hpsi, prec_psi )
-      call vtor( sys, hpsi, v1 )
+!      call vtor( sys, hpsi, v1 )
+      call OCEAN_psi_vtor( hpsi, v1 )
       do i = 1, ntot
         pcdiv( i ) = ( ener - v1( i ) - rm1 * gprc ) / ( ( ener - v1( i ) ) ** 2 + gprc ** 2 )
       end do
@@ -402,7 +415,8 @@ module OCEAN_action
           allocate( cwrk( need ) )
         case( 'act' ) ! E - S H ... in what follows, v1 must be untouched
           ! v = v1
-          call rtov( sys, psi, v1 )
+!          call rtov( sys, psi, v1 )
+          call OCEAN_psi_rtov( psi, v1 )
           call OCEAN_tk_stop( tk_inv )
 !          call OCEAN_xact( sys, psi, hpsi, multiplet_psi, long_range_psi, ierr )
           if( sys%cur_run%have_val ) then
@@ -416,7 +430,8 @@ module OCEAN_action
           call OCEAN_psi_finish_min2full( hpsi, ierr )
 
           call OCEAN_tk_start( tk_inv )
-          call vtor( sys, hpsi, v2 )
+!          call vtor( sys, hpsi, v2 )
+          call OCEAN_psi_vtor( hpsi, v2 )
           v2( : ) = ( ener + rm1 * gres ) * v1( : ) - v2( : )
         case( 'prc' )  ! meaning, divide by S(E-H0) ... in what follows, v1 must be untouched
           v2( : ) = v1 ( : ) * pcdiv( : )
@@ -433,7 +448,7 @@ module OCEAN_action
       if( myid .eq. 0 ) then
         relative_error = f( 2 ) / ( dimag( - dot_product( rhs, x ) ) ) !* kpref )
         write ( 76, '(1p,1i5,4(1x,1e15.8))' ) int1, ener * Hartree2eV,  & !*27.2114_DP, &
-                  ( 1.0d0 - dot_product( rhs, x ) ) * hay_vec%kpref, relative_error
+                  ( 1.0d0 - dot_product( rhs, x ) ) * fact, relative_error
 #ifdef __HAVE_F03
         flush(76)
 #else
@@ -461,7 +476,8 @@ module OCEAN_action
               '.', sys%cur_run%indx, '_', sys%cur_run%corelevel, '_', sys%cur_run%photon, '.', iter
 !      call dump_exciton( sys, psi, e_filename, ierr )
 
-      call rtov( sys, hpsi, x )
+!      call rtov( sys, hpsi, x )
+      call OCEAN_psi_rtov( hpsi, x )
 
       if( do_pfy ) then
         hpsi%kpref = hay_vec%kpref
@@ -1125,6 +1141,8 @@ module OCEAN_action
           read(99,*) nloop, gres, gprc, ffff, ener
           ! if gres is negative fill it with core-hole lifetime broadening
           call checkBroadening( sys, gres, default_gam0 )
+          gprc = gprc * eV2Hartree
+          gres = gres * eV2Hartree
 
           read(99,*) inv_style
           select case( inv_style )

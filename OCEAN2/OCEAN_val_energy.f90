@@ -69,7 +69,7 @@ module OCEAN_val_energy
         read(99,*) nbv, nbc(1), nbc(2), nk
         close(99)
 
-        if( nk .ne. sys%nkpts ) then
+        if( nk .ne. sys%nkpts .and. nk .ne. sys%nkpts*2) then
           ierr = -1
           write(6,*) 'tmels.info not compatible with other run information: NKPTS'
           return
@@ -336,7 +336,7 @@ module OCEAN_val_energy
       do kiter = 1, sys%nkpts
         do biter2 = 1, ( nelectron / 2 ) - sys%brange( 1 ) + 1
           do biter1 = 2 - sys%brange( 3 ) + ( nelectron / 2 ), sys%cur_run%num_bands
-            if(  con_energies( biter1, kiter ) .le. cliph ) then
+            if(  con_energies( biter1, kiter ) .lt. cliph ) then
                   allow%valr( biter1, biter2, kiter, 1 ) = 1.0_dp
                   allow%vali( biter1, biter2, kiter, 1 ) = 1.0_dp
             endif
