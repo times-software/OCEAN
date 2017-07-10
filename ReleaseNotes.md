@@ -1,3 +1,8 @@
+## v. 2.1.1
+
+#### Major Features
+ 1. Fixed bug in valence (UV/optical) calculations
+
 ## v. 2.1.0
 
 #### Major Features
