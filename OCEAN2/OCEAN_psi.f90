@@ -1,4 +1,4 @@
-! Copyright (C) 2016 OCEAN collaboration
+! Copyright (C) 2016, 2017 OCEAN collaboration
 !
 ! This file is part of the OCEAN project and distributed under the terms 
 ! of the University of Illinois/NCSA Open Source License. See the file 
@@ -2358,7 +2358,14 @@ module OCEAN_psi
 
   end subroutine OCEAN_psi_new
 
-
+!------------------------------------------------------------------------------
+!> @author John Vinson, NIST
+!
+!> @brief Copies data from one ::ocean_vector to another
+!
+!> @details 
+!! Copies data from #q to #p IFF #q had valid full or min. 
+!! IF neither full nor min are valid then the routine will exit silently.
   subroutine OCEAN_psi_copy_data( p, q, ierr )
     implicit none
     type(OCEAN_vector), intent( in ) :: q
@@ -2629,7 +2636,14 @@ module OCEAN_psi
     p%alloc_store = IAND( p%alloc_store, NOT( PSI_STORE_MIN ) )
   end subroutine OCEAN_psi_free_min
 
-
+!------------------------------------------------------------------------------
+!> @author John Vinson, NIST
+!
+!> @brief Copies the full data from one ::ocean_vector to another
+!
+!> @details Copies the full data from #q to #p. Will allocate space on #p if it 
+!! is not currently allocated. Will copy both/either the core or valence vector.
+!! Sets the valid storage bit to include full
   subroutine OCEAN_psi_copy_full( p, q, ierr )
     implicit none
     integer, intent(inout) :: ierr
@@ -2653,7 +2667,15 @@ module OCEAN_psi
     p%valid_store = IOR( p%valid_store, PSI_STORE_FULL )
   end subroutine OCEAN_psi_copy_full
 
-  
+!------------------------------------------------------------------------------
+!> @author John Vinson, NIST
+!
+!> @brief Copies the min data from one ::ocean_vector to another
+!
+!> @details Copies the min data from #q to #p. Will allocate space on #p if it 
+!! is not currently allocated. Will copy both/either the core or valence vector.
+!! Sets the valid storage bit to be only min. Requires that the data storage 
+!! ordering of min is the same on both p and q, otherwise it will crash out.
   subroutine OCEAN_psi_copy_min( p, q, ierr )
     implicit none
     integer, intent( inout ) :: ierr
@@ -2701,6 +2723,16 @@ module OCEAN_psi
 
   end subroutine
 
+!------------------------------------------------------------------------------
+!> @author John Vinson, NIST
+!
+!> @brief Broadcasts the full ::ocean_vector
+!
+!> @details Using a blocking MPI_BCAST call, this broadcasts the ocean_vector 
+!! to all processes in the vector's comm. The root process is set by #my_root, 
+!! but will usually be root/0. If the full vector is not valid on the 
+!! root/caller calling this subroutine will abort. If the full storage is not 
+!! allocated on any of the over processes it will be allocated. 
   subroutine OCEAN_psi_bcast_full( my_root, p, ierr )
     use OCEAN_mpi
     implicit none
@@ -2713,7 +2745,9 @@ module OCEAN_psi
     if( p%core_myid .eq. my_root ) then
       if( IAND( p%valid_store, PSI_STORE_FULL ) .eq. 0 ) then
         ! We haven't filled psi with values. This should never be hit
+#ifdef MPI
         call MPI_ABORT( p%core_comm, -5, ierr )
+#endif
       endif
     else
       ! Might need to allocate the full psi for the other processes
@@ -2755,7 +2789,18 @@ module OCEAN_psi
     
   end subroutine OCEAN_psi_bcast_full
 
-
+!------------------------------------------------------------------------------
+!> @author John Vinson, NIST
+!
+!> @brief Truncates the full vector to the min
+!
+!> @details Requires/assumes that the full ::ocean_vector is located on each 
+!! process. Copies the minimum vector to min, allocating space if necessary. 
+!! Adds min as a valid store. The minimum store is a contiguous set of data 
+!! that spans the whole of the fast index of the ocean_vector (conduction or 
+!! valence bands). Each processor can have a different min storage size 
+!! core_store_size/val_store_size, and will be indexed by starting on a 
+!! different ik,ia/iv,ik,ib index. 
   subroutine OCEAN_psi_full2min( p, ierr )
     implicit none
     integer, intent(inout) :: ierr
@@ -2822,10 +2867,19 @@ module OCEAN_psi
   end subroutine OCEAN_psi_full2min
 
 
-  ! This is the all-in-one call
-  !  Will also have the ability to prep, start, check, and finish
+!------------------------------------------------------------------------------
+!> @author John Vinson, NIST
+!
+!> @brief Copies the min stored ocean_vector to a full one
+!
+!> @details All-in-one call to copy the min storage to full storage. 
+!! Will fail if the min storage is not valid. Call 3 aux subroutines: 
+!! ::OCEAN_psi_prep_min2full, ::OCEAN_psi_start_min2full, and 
+!! ::OCEAN_psi_finish_min2full. Will be skipped entirely if full is already 
+!! valid. At the end full is added as a valid storage. 
+!! Not currently accessible externally
   subroutine OCEAN_psi_min2full( p, ierr )
-    use OCEAN_mpi!, only : nproc, comm
+!    use OCEAN_mpi!, only : nproc, comm
     implicit none
     integer, intent(inout) :: ierr
     type(OCEAN_vector), intent( inout ) :: p
@@ -2861,7 +2915,18 @@ module OCEAN_psi
 
   end subroutine OCEAN_psi_min2full
 
-
+!------------------------------------------------------------------------------
+!> @author John Vinson, NIST
+!
+!> @brief Begins copy ::ocean_vector from min to full. 
+!! Checks storage validity and allocations; posts recvs for MPI 
+!
+!> @details The core and valence vectors behave slightly differently. The core 
+!! vector is double-buffered to deal with the fact that both the bands and the 
+!! k-points might be padded. Therefore, extra storage is allocated such that 
+!! only a single MPI call is needed to move all the data. It is likely a more
+!! elegant solution could be found. 
+!! \todo Re-architect this to use windows/rdma commands
   subroutine OCEAN_psi_prep_min2full( p, ierr )
     use OCEAN_mpi
     implicit none
@@ -2913,6 +2978,7 @@ module OCEAN_psi
     !  Therefore we are swapping core_store_Rr and core_store_Sr
 
     if( have_core ) then
+#ifdef MPI
       do i = 0, p%core_np - 2
         call MPI_IRECV( p%extra_r( 1, i ), psi_bands_pad * max_core_store_size, MPI_DOUBLE_PRECISION, &
                         i, 1, p%core_comm, p%core_store_sr( i ), ierr )
@@ -2931,12 +2997,14 @@ module OCEAN_psi
       call MPI_IRECV( p%extra_i( 1, p%core_np - 1 ), psi_bands_pad * i, MPI_DOUBLE_PRECISION, &
                       p%core_np - 1, 2, p%core_comm, p%core_store_si( p%core_np - 1 ), ierr )
       if( ierr .ne. 0 ) return
+#endif
     endif
 
     ! This should be a complete analogy to the above for the core
     !  Except there is no double padding issue for the valence at the moment
     !  And so everything can be dropped directly into the proper full
     if( have_val ) then
+#ifdef MPI
       iv = 1
       ik = 1
       ib = 1
@@ -2971,12 +3039,14 @@ module OCEAN_psi
                       p%val_np - 1, 2, p%val_comm, p%val_store_si( p%val_np - 1 ), ierr )
       if( ierr .ne. 0 ) return
 
+#endif
     endif
 
     p%inflight = .true.
 
   end subroutine OCEAN_psi_prep_min2full
 
+!> @author John Vinson, NIST
   subroutine OCEAN_psi_start_min2full( p, ierr )
     use OCEAN_mpi
     implicit none
@@ -3068,7 +3138,7 @@ module OCEAN_psi
     
   end subroutine OCEAN_psi_assert_min2full
   
-
+!> @author John Vinson, NIST
   subroutine OCEAN_psi_finish_min2full( p, ierr )
     use OCEAN_mpi
     implicit none
