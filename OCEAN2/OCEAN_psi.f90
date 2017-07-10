@@ -6,6 +6,8 @@
 !
 #define VAL
 !
+!> The OCEAN_psi module contains the type and subroutines that control the 
+!! configuration-space vectors of the BSE (psi).
 module OCEAN_psi
 !#ifdef MPI
 !  use mpi
@@ -67,7 +69,7 @@ module OCEAN_psi
   LOGICAL :: have_core = .false.
   LOGICAL :: have_val = .false.
 
-
+!> The OCEAN_vector type
   type OCEAN_vector
     REAL(DP), ALLOCATABLE :: r(:,:,:) 
     REAL(DP), ALLOCATABLE :: i(:,:,:) 
@@ -158,6 +160,12 @@ module OCEAN_psi
 
   contains
 
+!------------------------------------------------------------------------------
+!> @author  
+!> John Vinson, NIST
+!
+!> @brief
+!> Returns the band-level padding of the psi vector 
   subroutine OCEAN_psi_returnBandPad( con_pad, ierr )
     implicit none
     !
@@ -176,6 +184,13 @@ module OCEAN_psi
     
   end subroutine OCEAN_psi_returnBandPad
 
+!------------------------------------------------------------------------------
+!> @author
+!> John Vinson, NIST
+!
+!> @brief 
+!> Sets the minimal-storage component of the psi vector to all zeros and resets 
+!> the valid flag to psi_store_min
   subroutine OCEAN_psi_zero_min( p, ierr )
     implicit none
     !
@@ -2104,6 +2119,19 @@ module OCEAN_psi
 
 #endif
 
+!------------------------------------------------------------------------------
+!> @author John Vinson, NIST
+!
+!> @brief 
+!! Initialization routine for OCEAN_psi. Must be called first/once
+!
+!> @details
+!! Sets all of the sizing information. This includes sizes of each dimension of 
+!! the PSI vector as well as flags for core and valence. Also calls the mpi 
+!! setup ::OCEAN_psi_mpi_init
+! !  1. Padding of vector, currently not enabled ( CACHE_DOUBLE = 1 )
+! !   A. psi_bands_pad for the core-level exciton
+! !   B. psi_val_bands for the valence-level exciton
   subroutine OCEAN_psi_init( sys, ierr )
     use OCEAN_system
     implicit none
@@ -2158,9 +2186,19 @@ module OCEAN_psi
 
 
 
-! This routine sets up the globals associated with core comms
-!   Any hints, rearrangement, or tuning of the comms should happen here -- each
-!   ocean_vector will clone its settings
+!------------------------------------------------------------------------------
+!> @author John Vinson, NIST
+!
+!> @brief 
+!! Initialization routine for OCEAN_psi MPI commands
+!
+!> @details
+!! This routine sets up the globals associated with core comms
+!!  Any hints, rearrangement, or tuning of the comms should happen here -- each
+!!  ocean_vector will clone its settings.
+!! 
+!! Each psi vector will have a unique set of MPI comms such that communications 
+!! won't collide. 
   subroutine OCEAN_psi_mpi_init( ierr )
     use OCEAN_mpi!, only : myid, comm, nproc
     implicit none
@@ -2239,7 +2277,15 @@ module OCEAN_psi
   end subroutine OCEAN_psi_mpi_init
 
 
-  ! Pass in true/false for core/valence
+!------------------------------------------------------------------------------
+!> @author John Vinson, NIST
+!
+!> @brief Create a new ::ocean_vector
+!
+!> @details 
+!! Creates a new ::ocean_vector that either has an allocated minimal data store, 
+!! or, if ::ocean_vector #q is present, will make #p a copy of #q with the same
+!! stored/valid data.
   subroutine OCEAN_psi_new( p, ierr, q )
     use OCEAN_system
     implicit none
