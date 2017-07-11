@@ -6,7 +6,7 @@
 !
 #define VAL
 !
-!> The OCEAN_psi module contains the type and subroutines that control the 
+!> @brief The OCEAN_psi module contains the type and subroutines that control the 
 !! configuration-space vectors of the BSE (psi).
 module OCEAN_psi
 !#ifdef MPI
@@ -20,8 +20,6 @@ module OCEAN_psi
   save
   private
 
-  INTEGER, PARAMETER, PUBLIC :: core_vector = 1
-  INTEGER, PARAMETER, PUBLIC :: val_vector = 2
 
   INTEGER, PARAMETER :: psi_store_null = 0
   INTEGER, PARAMETER :: psi_store_min = 1
@@ -32,7 +30,6 @@ module OCEAN_psi
   INTEGER, PARAMETER :: psi_comm_buffer = 1
   INTEGER, PARAMETER :: psi_comm_reduce = 2
 
-!  REAL(DP), public :: kpref
 
   INTEGER :: psi_bands_pad
   INTEGER :: psi_kpts_pad
@@ -56,23 +53,15 @@ module OCEAN_psi
   INTEGER :: core_myid_default
   INTEGER :: max_core_store_size
 
-!  INTEGER :: core_k_start
-!  INTEGER :: core_a_start
-!  INTEGER :: core_full_size
-
-!  INTEGER :: val_full_size
-!  INTEGER, PARAMETER :: CACHE_DOUBLE = 8
-
-
 
   LOGICAL :: is_init = .false.
   LOGICAL :: have_core = .false.
   LOGICAL :: have_val = .false.
 
-!> The OCEAN_vector type
+!> @brief The ocean_vector is the exciton in configuration space (bands, kpts, spins)
   type OCEAN_vector
-    REAL(DP), ALLOCATABLE :: r(:,:,:) 
-    REAL(DP), ALLOCATABLE :: i(:,:,:) 
+    REAL(DP), ALLOCATABLE :: r(:,:,:) !> The real component of the full core-level exciton
+    REAL(DP), ALLOCATABLE :: i(:,:,:) !> The imag component of the full core-level exciton
 
     REAL(DP), ALLOCATABLE :: buffer_r(:,:,:)
     REAL(DP), ALLOCATABLE :: buffer_i(:,:,:)
@@ -234,6 +223,11 @@ module OCEAN_psi
   end subroutine OCEAN_psi_start_sum
 #endif
 
+!> @author John Vinson, NIST
+!
+!> @brief Allocates the buffer storage. Currently returns before other action.
+!
+!> @details \todo For psi_comm_flavor = buffer run timing and test for valence.
   subroutine OCEAN_psi_ready_buffer( p, ierr )
 #ifdef MPI
 !    use mpi, only : MPI_IRECV, MPI_DOUBLE_PRECISION, MPI_BARRIER
@@ -819,9 +813,12 @@ module OCEAN_psi
   end subroutine core_reduce_send
 
 
+!> @author John Vinson, NIST
+!
+!> @brief Uses explicit OMP threads to transfer from buffer to min
   subroutine buffer2min_thread( p, ierr )
 !    use mpi, only : MPI_WAITSOME, MPI_STATUSES_IGNORE, MPI_UNDEFINED
-    use OCEAN_mpi!, only : myid
+    use OCEAN_mpi, only : myid, MPI_STATUS_IGNORE, MPI_UNDEFINED, MPI_SUCCESS
     implicit none
     type(OCEAN_vector), intent( inout ) :: p
     integer, intent( inout ) :: ierr
@@ -1647,6 +1644,11 @@ module OCEAN_psi
     if( allocated( p%core_store_si ) ) deallocate( p%core_store_si )
     if( allocated( p%core_store_rr ) ) deallocate( p%core_store_rr )
     if( allocated( p%core_store_ri ) ) deallocate( p%core_store_ri )
+
+    if( allocated( p%val_store_sr ) ) deallocate( p%val_store_sr )
+    if( allocated( p%val_store_si ) ) deallocate( p%val_store_si )
+    if( allocated( p%val_store_rr ) ) deallocate( p%val_store_rr )
+    if( allocated( p%val_store_ri ) ) deallocate( p%val_store_ri )
 
     p%valid_store = IAND( p%valid_store, NOT( PSI_STORE_BUFFER ) )
     p%alloc_store = IAND( p%alloc_store, NOT( PSI_STORE_BUFFER ) )
@@ -3047,6 +3049,14 @@ module OCEAN_psi
   end subroutine OCEAN_psi_prep_min2full
 
 !> @author John Vinson, NIST
+!
+!> @brief Calls non-blocking sends to move from min storage to full
+!
+!> @details
+!! Calls a series of MPI_ISEND's to share the data in the ocean_vector min with 
+!! all of the processors in the comm. 
+!! \todo This would likely be better served by a) non-blocking broadcast, or 
+!! b) window/rdma calls.
   subroutine OCEAN_psi_start_min2full( p, ierr )
     use OCEAN_mpi
     implicit none
@@ -3065,6 +3075,7 @@ module OCEAN_psi
     ! against the same node
     if( have_core .and. ( p%core_store_size .gt. 0 ) ) then
 
+#ifdef MPI
       do i = p%core_myid, total_nproc - 1
         call MPI_ISEND( p%min_r, psi_bands_pad * p%core_store_size, MPI_DOUBLE_PRECISION, &
                         i, 1, p%core_comm, p%core_store_rr( i ), ierr )
@@ -3082,11 +3093,12 @@ module OCEAN_psi
                         i, 2, p%core_comm, p%core_store_ri( i ), ierr )
         if( ierr .ne. 0 ) return
       enddo
-
+#endif
     endif
 
     if( have_val .and. ( p%val_store_size .gt. 0 ) ) then
     
+#ifdef MPI
       do i = p%val_myid, total_nproc - 1
         call MPI_ISEND( p%val_min_r, psi_bands_pad * p%val_store_size, MPI_DOUBLE_PRECISION, &
                         i, 1, p%val_comm, p%val_store_rr( i ), ierr )
@@ -3104,7 +3116,7 @@ module OCEAN_psi
                         i, 2, p%val_comm, p%val_store_ri( i ), ierr )
         if( ierr .ne. 0 ) return
       enddo
-
+#endif
 
     endif
 
@@ -3112,6 +3124,8 @@ module OCEAN_psi
 
 
   ! This can be called wether or not min2full is completed or in-progress
+!> @author John Vinson, NIST
+! Unused
   subroutine OCEAN_psi_assert_min2full( p, ierr )
 !    use mpi, only : MPI_TESTANY,  MPI_STATUS_IGNORE, MPI_UNDEFINED 
     use OCEAN_mpi
@@ -3139,6 +3153,14 @@ module OCEAN_psi
   end subroutine OCEAN_psi_assert_min2full
   
 !> @author John Vinson, NIST
+!
+!> @brief Completes the min2full calls
+!
+!> @details Cleans up all of the communications from the min2full set and 
+!! correctly moves the core-level exciton from the extra buffer to the full. 
+!! The valence-level exciton does not have this extra step, making the code a 
+!! bit simpler. 
+!! \todo Check on the use of band and k-point padding for the core exciton.
   subroutine OCEAN_psi_finish_min2full( p, ierr )
     use OCEAN_mpi
     implicit none
@@ -3200,6 +3222,16 @@ module OCEAN_psi
 
   end subroutine OCEAN_psi_finish_min2full
 
+!> @author John Vinson, NIST
+!
+!> @brief Allocates the extra buffer for the core-level exciton
+!
+!> @details If the extra buffer is currently allocated then it will first be 
+!! freed, and then it will be reallocated. It is designed to have a uniform 
+!! space for each processor to send to, therefore the first dimension is the 
+!! band padding * the maximum store size (k-points and spins) of any of the 
+!! processors. The data is not initialized. Extra is added to the list of 
+!! allocated stores.
   subroutine OCEAN_psi_alloc_extra( p, ierr )
     implicit none
     integer, intent(inout) :: ierr
@@ -3217,6 +3249,10 @@ module OCEAN_psi
     
   end subroutine OCEAN_psi_alloc_extra
 
+!> @author John Vinson, NIST
+!
+!> @brief Deallocates the extra buffer for the core-level exciton. Will still 
+!! return without error if the extra buffer is unallocated.
   subroutine OCEAN_psi_free_extra( p, ierr )
     implicit none
     integer, intent(inout) :: ierr
@@ -3292,7 +3328,10 @@ module OCEAN_psi
   end subroutine OCEAN_psi_store2full
 #endif
 
-
+!> @author John Vinson, NIST
+!
+!> @brief Deallocates the full stores for both valence and core. Will 
+!! succeed even if neither are currently allocated.
   subroutine OCEAN_psi_free_full( p, ierr )
     implicit none
     integer, intent(inout) :: ierr
@@ -3310,13 +3349,20 @@ module OCEAN_psi
 
   end subroutine
 
+!> @author John Vinson, NIST
+!
+!> @brief Deallocates all aspects of an ocean_vector
+!
+!> @details Steps through and clears out all of the data associated with an 
+!! ocean_vector. Does not check on comm status of anything. Will cause MPI 
+!! problems if it is called while without making sure that the comms have all 
+!! finished. 
   subroutine OCEAN_psi_kill( p, ierr )
     use OCEAN_mpi
     implicit none 
     integer, intent(inout) :: ierr
     type(OCEAN_vector), intent( inout ) :: p
 
-!    deallocate( psi )
 
     if( IAND( p%alloc_store, PSI_STORE_FULL ) .ne. 0 ) then
       call OCEAN_psi_free_full( p, ierr )
@@ -3328,6 +3374,7 @@ module OCEAN_psi
       if( ierr .ne. 0 ) return
     endif
 
+!   Buffer takes care of the comms layer atm
     if( IAND( p%alloc_store, PSI_STORE_BUFFER ) .ne. 0 ) then
       call OCEAN_psi_free_buffer( p, ierr )
       if( ierr .ne. 0 ) return
@@ -3374,9 +3421,6 @@ module OCEAN_psi
     elseif( allocated( p%val_min_r ) ) then
       ierr = 5561
     endif
-!    if( allocated( p%r_request ) ) deallocate( p%r_request, STAT=ierr )
-!    if( ierr .ne. 0 ) return
-!    if( allocated( p%i_request ) ) deallocate( p%i_request, STAT=ierr )
     
   end subroutine OCEAN_psi_kill
 
