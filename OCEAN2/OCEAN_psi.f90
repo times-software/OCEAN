@@ -817,7 +817,6 @@ module OCEAN_psi
 !
 !> @brief Uses explicit OMP threads to transfer from buffer to min
   subroutine buffer2min_thread( p, ierr )
-!    use mpi, only : MPI_WAITSOME, MPI_STATUSES_IGNORE, MPI_UNDEFINED
     use OCEAN_mpi, only : myid, MPI_STATUS_IGNORE, MPI_UNDEFINED, MPI_SUCCESS
     implicit none
     type(OCEAN_vector), intent( inout ) :: p
@@ -910,10 +909,11 @@ module OCEAN_psi
 
   end subroutine buffer2min_thread
 
+!> @author John Vinson, NIST
+!
+!> @brief Moves the vector data from the buffer to the minimal storage.
   subroutine OCEAN_psi_buffer2min( p, ierr )
-!    use mpi, only : MPI_WAITALL, MPI_STATUSES_IGNORE, MPI_UNDEFINED
-    use OCEAN_timekeeper
-    use OCEAN_mpi!, only : myid
+    use OCEAN_timekeeper, only : OCEAN_tk_start, OCEAN_tk_stop, tk_buffer2min
     implicit none
     type(OCEAN_vector), intent( inout ) :: p
     integer, intent( inout ) :: ierr
@@ -959,15 +959,24 @@ module OCEAN_psi
     p%valid_store = PSI_STORE_MIN
     p%inflight = .false.
     p%update = .false.
-!    call MPI_BARRIER( p%core_comm, ierr )
-!    if( myid .eq. 0 ) write(6,*) 'Done with buffer2min'
+
     call OCEAN_tk_stop( tk_buffer2min )
 
   end subroutine OCEAN_psi_buffer2min
 
+!> @author John Vinson, NIST
+!
+!> @brief Valence exciton buffer to min storage
+!
+!> @details Moves the valence exciton to the min storage. Counterpart to the 
+!! routine val_reduce_send which uses MPI_(I)REDUCE calls sum up the 
+!! contributions from every proc to the ocean_vector. The result is added to 
+!! the contents of min (which need not be zero). For __OLD_MPI we use blocking 
+!! MPI_REDUCE and so the MPI_WAIT calls will return immediately taking no time. 
+!!
+!! Alternatively one might use the buffered comm_flavor or create a new rdma one.
   subroutine val_reduce_buffer2min( p, ierr )
-!    use mpi, only : MPI_WAITALL, MPI_STATUSES_IGNORE, MPI_WAIT, MPI_STATUS_IGNORE
-    use OCEAN_mpi
+    use OCEAN_mpi, only : MPI_STATUS_IGNORE, MPI_STATUSES_IGNORE
     implicit none
     type(OCEAN_vector), intent( inout ) :: p
     integer, intent( inout ) :: ierr
@@ -984,12 +993,14 @@ module OCEAN_psi
         ib = p%val_beta_start
 
         ! Wait for my reduce to finish
+#ifdef MPI
         if( ir_count .eq. 1 ) then
           call MPI_WAIT( p%val_store_sr( p%val_myid ), MPI_STATUS_IGNORE, ierr )
         else
           call MPI_WAIT( p%val_store_si( p%val_myid ), MPI_STATUS_IGNORE, ierr )
         endif
         if( ierr .ne. 0 ) return
+#endif
 
         do i = 1, p%val_store_size
           if( ir_count .eq. 1 ) then
@@ -1014,19 +1025,32 @@ module OCEAN_psi
 
     endif
 
+#ifdef MPI
     ! Wait for all the others to complete
     call MPI_WAITALL( p%val_np, p%val_store_sr, MPI_STATUSES_IGNORE, ierr )
     if( ierr .ne. 0 ) return
 
     call MPI_WAITALL( p%val_np, p%val_store_si, MPI_STATUSES_IGNORE, ierr )
     if( ierr .ne. 0 ) return
+#endif
 
   end subroutine val_reduce_buffer2min
 
 
+!> @author John Vinson, NIST
+!
+!> @brief Core exciton buffer to min storage
+!
+!> @details Moves the core exciton to the min storage. Counterpart to the 
+!! routine val_reduce_send which uses MPI_(I)REDUCE calls sum up the 
+!! contributions from every proc to the ocean_vector. The result is added to 
+!! the contents of min (which need not be zero). For __OLD_MPI we use blocking 
+!! MPI_REDUCE and so the MPI_WAIT calls will return immediately taking no time. 
+!!
+!! Alternatively one might use the buffered comm_flavor or create a new rdma one.
   subroutine core_reduce_buffer2min( p, ierr )
 !    use mpi, only : MPI_WAITALL, MPI_STATUSES_IGNORE, MPI_WAIT, MPI_STATUS_IGNORE
-    use OCEAN_mpi
+    use OCEAN_mpi, only : MPI_STATUS_IGNORE, MPI_STATUSES_IGNORE
     implicit none
     type(OCEAN_vector), intent( inout ) :: p
     integer, intent( inout ) :: ierr
@@ -1042,7 +1066,9 @@ module OCEAN_psi
       ia = p%core_a_start
 
       ! Wait only for ours to complete (and only if we are participating)
+#ifdef MPI
       call MPI_WAIT( p%core_store_sr( p%core_myid ), MPI_STATUS_IGNORE, ierr )
+#endif
       if( ierr .ne. 0 ) return
 
       do i = 1, p%core_store_size
@@ -1059,7 +1085,9 @@ module OCEAN_psi
       ik = p%core_k_start
       ia = p%core_a_start
 
+#ifdef MPI
       call MPI_WAIT( p%core_store_si( p%core_myid ), MPI_STATUS_IGNORE, ierr )
+#endif
       if( ierr .ne. 0 ) return
       do i = 1, p%core_store_size
         p%min_i(:,i) = p%min_i(:,i) + p%i(:,ik,ia)
@@ -1073,16 +1101,23 @@ module OCEAN_psi
 
     endif  ! ( p%core_store_size .gt. 0 )
 
+#ifdef MPI
     ! Wait for all to complete
     call MPI_WAITALL( p%core_np, p%core_store_sr, MPI_STATUSES_IGNORE, ierr )
     if( ierr .ne. 0 ) return
 
     call MPI_WAITALL( p%core_np, p%core_store_si, MPI_STATUSES_IGNORE, ierr )
     if( ierr .ne. 0 ) return
+#endif
       
     !
   end subroutine core_reduce_buffer2min
 
+!> @author John Vinson, NIST
+!
+!> @brief Buffered version of moving from buffer to min
+!
+!> @details \todo Needs timing and bug checking to determine versus reduce comm option
   subroutine buffer_buffer2min( p, ierr )
 !    use mpi, only : MPI_WAITSOME, MPI_WAITALL, MPI_STATUSES_IGNORE, MPI_UNDEFINED
     use OCEAN_mpi!, only : myid
@@ -1270,6 +1305,15 @@ module OCEAN_psi
   end subroutine OCEAN_psi_write2store
 #endif
 
+!> @author John Vinson
+!
+!> @brief Returns the results of Y = A*X + Y
+!
+!> @details The calculation is only carried out on the minimal storeage option. 
+!! If for some reason the MPI group is rearranged between the two vectors then 
+!! we are unable to recover and an error is returned. 
+!! If min is not valid attempt to copy data from full to min (tests both X and 
+!! Y). Uses BLAS call DAXPY. At end result is in Y and only min has valid storage for Y.
   subroutine OCEAN_psi_axpy( rval, x, y, ierr )
     implicit none
     real(DP), intent( in ) :: rval
@@ -1332,9 +1376,16 @@ module OCEAN_psi
 
   end subroutine OCEAN_psi_axpy
 
+!> @author John Vinson, NIST
+!
+!> @brief Returns the results the norm squared of the ocean_vector
+!
+!> @details Requires that the valid data be in min or it will be sent there 
+!! from full. Computes both the core-level and valence contributions. If 
+!! #rrequest is passed in then the code will use a non-blocking allreduce and
+!! return #rrequest to be dealt with later on.
   subroutine OCEAN_psi_nrm( rval, x, ierr, rrequest )
-!    use mpi
-    use OCEAN_mpi
+    use OCEAN_mpi, only : MPI_IN_PLACE, MPI_DOUBLE_PRECISION, MPI_SUM, MPI_REQUEST_NULL
     implicit none
     real(DP), intent( inout ) :: rval  ! Needs to be inout for MPI_IN_PLACE
     type(OCEAN_vector), intent( inout ) :: x
@@ -1365,8 +1416,6 @@ module OCEAN_psi
     if( have_core .and. x%core_store_size .gt. 0 ) then
       rval = DDOT( x%core_store_size * psi_bands_pad, x%min_r, 1, x%min_r, 1 ) &
            + DDOT( x%core_store_size * psi_bands_pad, x%min_i, 1, x%min_i, 1 ) 
-    else
-      rval = 0.0_DP
     endif
 
     if( have_val ) then !.and. x%val_store_size .gt. 0 ) then
@@ -1398,6 +1447,9 @@ module OCEAN_psi
 
   end subroutine OCEAN_psi_nrm
 
+!> @author John Vinson, NIST
+!
+!> @brief Scales the ocean_vector #x by #rval. 
   subroutine OCEAN_psi_scal( rval, x, ierr )
     implicit none
     real(DP), intent( in ) :: rval  
@@ -1438,11 +1490,16 @@ module OCEAN_psi
 
   end subroutine OCEAN_psi_scal
 
-  ! Determines the dot_product between p and q. 
-  ! The values (r and i) are reduced via non-blocking with requests (r/irequest)
-  ! A wait call is necessary before using them!
-  !
-  ! If both core and val exist then the code will *ADD* the two
+!> @author John Vinson, NIST
+!
+!> @brief Calculates dot_product bewteen two ocean_vectors
+!
+!> @details
+!! Determines the dot_product between p and q. 
+!! The values (r and i) are reduced via non-blocking with requests (r/irequest)
+!! A wait call is necessary before using them! The imaginary part is optional
+!! and only calculated if irequest and ival are passed in. 
+!! If both core and val exist then the code will *ADD* the two
   subroutine OCEAN_psi_dot( p, q, rrequest, rval, ierr, irequest, ival )
 !    use mpi
     use OCEAN_mpi!, only : root, myid
