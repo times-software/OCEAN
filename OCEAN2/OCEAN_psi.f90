@@ -154,7 +154,7 @@ module OCEAN_psi
 !> John Vinson, NIST
 !
 !> @brief
-!> Returns the band-level padding of the psi vector 
+!> Returns the band-level padding of the core-level ocean_vector 
   subroutine OCEAN_psi_returnBandPad( con_pad, ierr )
     implicit none
     !
@@ -281,6 +281,10 @@ module OCEAN_psi
 
   ! To avoid problems, set active to desired state
   ! procs not contributing to buffer won't know where they are in this process
+!> @author John Vinson, NIST
+!
+!> @brief Primarily a programming correctness test. Advances/tests the status 
+!! of the buffer communications for the receives
   subroutine buffer_recv_test( p, active, ierr )
 #ifdef MPI
 !    use mpi, only : MPI_TESTANY, MPI_UNDEFINED, MPI_REQUEST_NULL
@@ -345,7 +349,10 @@ module OCEAN_psi
   end subroutine buffer_recv_test
 
 
-
+!> @author John Vinson, NIST
+!
+!> @brief Primarily a programming correctness test. Advances/tests the status 
+!! of the buffer communications for the sends
   subroutine buffer_send_test( p, active, ierr )
 #ifdef MPI
 !    use mpi, only : MPI_TESTANY, MPI_UNDEFINED, MPI_REQUEST_NULL
@@ -410,6 +417,16 @@ module OCEAN_psi
 
 
   ! Starts sending the data in p%r/i to p%buffer_r/i
+!> @author John Vinson, NIST
+!
+!> @brief Initiate 'sending' the ocean_vector. This results in a summation 
+!! of each processor's contribution to the ocean_vector, that will end up 
+!! being saved in the min storage.
+!
+!> @details Currently two flavors of sending are (kinda) supported, but the 
+!! code is hardwired to use psi_comm_reduce. 
+!! \todo This should be renamed to better abstract away the medtho we are using 
+!! to share the ocean_vector between buffer, reduce, and a future RDMA approach.
   subroutine OCEAN_psi_send_buffer( p, ierr )
 !    use mpi, only : MPI_BARRIER, MPI_IRSEND
     implicit none
@@ -458,7 +475,20 @@ module OCEAN_psi
 
   end subroutine OCEAN_psi_send_buffer
 
-
+!> @author John Vinson
+!
+!> @brief Initiates the sending of the ocean_vector using psi_buffer_comm
+!
+!> @details In general each processor has its own version of the ocean_vector 
+!! and we must condense/sum this to get the real vector. For all comm versions 
+!! we do this by eventually filling the min storage on each processor with the 
+!! correct ocean_vector. For the psi_buffer_comm flavor each processor A has 
+!! empty space for every other processor B to send B's version of A's min. 
+!! This means A has a buffer that is the size of A's min storage * N_B. In a 
+!! later step A will explicitly sum up its buffer and place it in A's min.
+!! This subroutine calls a bunch of non-blocking send and recieves that will 
+!! be checked on later. 
+!! \todo Make a version that works for the valence?
   subroutine buffer_send(  p, ierr )
 !    use mpi, only : MPI_BARRIER, MPI_IRSEND, MPI_REQUEST_NULL
     use OCEAN_mpi
@@ -513,6 +543,16 @@ module OCEAN_psi
 
   end subroutine buffer_send
 
+
+!> @author John Vinson, NIST
+!
+!> @details Using MPI_(I)REDUCE calls we sum each processor's versions of 
+!! ocean_vector onto a processor's min storage for the valence exciton. 
+!! The blocking version is 
+!! activated via compile-time ifdef __OLD_MPI, and is only included for 
+!! compatibility with out-dated MPI installations. Should be removed in a few 
+!! years. If the hardware support is there this should enable offloading 
+!! the reduction, allowing for overlapping comms and work. 
   subroutine val_reduce_send( p, ierr )
 !    use mpi, only : MPI_IREDUCE
     use OCEAN_mpi
@@ -675,6 +715,17 @@ module OCEAN_psi
 
   end subroutine val_reduce_send
 
+!> @author John Vinson, NIST
+!
+!> @details Using MPI_(I)REDUCE calls we sum each processor's versions of 
+!! ocean_vector onto a processor's min storage for the core exciton. 
+!! The blocking version is 
+!! activated via compile-time ifdef __OLD_MPI, and is only included for 
+!! compatibility with out-dated MPI installations. Should be removed in a few 
+!! years. If the hardware support is there this should enable offloading 
+!! the reduction, allowing for overlapping comms and work. 
+!! \todo Currently this requires no k-point padding. Need to evaluate if 
+!! we even want to consider adding such support
   subroutine core_reduce_send( p, ierr )
 !    use mpi, only : MPI_IREDUCE
     use OCEAN_mpi
@@ -1807,6 +1858,21 @@ module OCEAN_psi
 
   ! Returns the needed stats about the store version of psi
   !   For now we chunk evenly. Procs either have nchunk or 0
+!> @author John Vinson, NIST
+!
+!> @brief Local utility for determining sizes and distributions for the core vector
+!
+!> @details Only the local proc id and total number of processors are passed in. 
+!! This routine then figures out how large a slice of the core-level ocean_vector 
+!! is stored locally by this proc (in the min storage). It also returns the size 
+!! of the largest slice. 
+!! 
+!! Each processor's slice is continous in the full vector
+!! ( :, kpoint, beta ). The conduction band part of the vector is 
+!! never divided. Each processor also will have either the max (max_store_size)
+!! or a size of 0 (with the exception of the last process to have any can have 
+!! any positive integer equal or less than the max. Lastly, the routine will 
+!! return the starting kpt and alpha of the slice. 
   subroutine psi_core_store_size( id, nproc_total, nproc_remain, max_store_size, my_store_size, k_start, a_start, ierr )
     implicit none
     integer, intent( in ) :: id, nproc_total
@@ -1878,7 +1944,11 @@ module OCEAN_psi
   end subroutine psi_core_store_size
     
 
-
+!> @author John Vinson, NIST
+!
+!> @brief Stores 0's in the ocean_vector
+!
+!> \todo Should consider first touch memory locality for future OMP work
   subroutine OCEAN_psi_zero_full( a, ierr )
     implicit none
     type( OCEAN_vector ), intent( inout ) :: a
@@ -1913,7 +1983,11 @@ module OCEAN_psi
 
   end subroutine OCEAN_psi_zero_full
 
-
+!> @author John Vinson, NIST
+!
+!> @brief Stores 1's in the real part of the ocean_vector
+!
+!> \todo Should consider first touch memory locality for future OMP work
   subroutine OCEAN_psi_one_full( a, ierr )
     implicit none
     type( OCEAN_vector ), intent( inout ) :: a
@@ -1948,6 +2022,12 @@ module OCEAN_psi
 
   end subroutine OCEAN_psi_one_full
 
+!> @author John Vinson, NIST
+!
+!> @brief Calculates B = A*E + B where all three are ocean_vectors
+!
+!> @details Currently only enabled for valence ocean_vector and assumes that 
+!! the vector E is strictly real. \todo Enable complex E vector. Core-level?
   subroutine OCEAN_psi_cmult( a, b, e, have_gw )
     implicit none
     type( OCEAN_vector ), intent( in ) :: a, e
@@ -1962,6 +2042,12 @@ module OCEAN_psi
   end subroutine
 
 
+!> @author John Vinson, NIST
+!
+!> @brief Calculates A = A*B where both are ocean_vectors
+!
+!> @details Currently only enabled for valence ocean_vector. Can set B to be 
+!! strictly real via #use_real
   subroutine OCEAN_psi_mult( a, b, use_real )
     implicit none
     type( OCEAN_vector ), intent( inout ) :: a
@@ -1979,6 +2065,7 @@ module OCEAN_psi
     endif
   end subroutine
 
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 #ifdef FALSE
   real(dp) function OCEAN_psi_nrm_old( a )
     implicit none
@@ -2206,6 +2293,7 @@ module OCEAN_psi
   end subroutine OCEAN_psi_sum
 
 #endif
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
 !------------------------------------------------------------------------------
 !> @author John Vinson, NIST
@@ -2474,6 +2562,17 @@ module OCEAN_psi
   end subroutine OCEAN_psi_copy_data
 
 
+!> @author John Vinson
+!
+!> @brief Sets up the comms for a new ocean_vector (core level)
+!
+!> @details Makes a new communicator for the new ocean_vector 
+!! by duplicating the universal (module-wide) core_comm. This comm will be 
+!! deallocated by ::OCEAN_psi_kill. This routine tests to make sure that the 
+!! processors are in the same order as in the original (#core_myid_default) 
+!! because the min storage relies on a processor being in the same position 
+!! and therefore having the same sub-chunk of the ocean_vector for every 
+!! different ocean_vector that might be created.
   subroutine OCEAN_psi_new_core_comm( p, ierr )
     use OCEAN_mpi
     implicit none
@@ -2516,6 +2615,18 @@ module OCEAN_psi
 
   end subroutine
 
+
+!> @author John Vinson
+!
+!> @brief Sets up the comms for a new ocean_vector (valence level)
+!
+!> @details Makes a new communicator for the new ocean_vector 
+!! by duplicating the universal (module-wide) val_comm. This comm will be 
+!! deallocated by ::OCEAN_psi_kill. This routine tests to make sure that the 
+!! processors are in the same order as in the original (#val_myid_default) 
+!! because the min storage relies on a processor being in the same position 
+!! and therefore having the same sub-chunk of the ocean_vector for every 
+!! different ocean_vector that might be created.
   subroutine OCEAN_psi_new_val_comm( p, ierr )
     use OCEAN_mpi!, only : myid
     implicit none
@@ -2564,6 +2675,9 @@ module OCEAN_psi
   end subroutine
     
 
+!> @author John Vinson, NIST
+!
+!> @brief Allocates the ocean_vector full storage: core and/or valence
   subroutine OCEAN_psi_alloc_full( p, ierr )
     implicit none
     integer, intent(inout) :: ierr
@@ -2592,6 +2706,10 @@ module OCEAN_psi
 
   end subroutine OCEAN_psi_alloc_full
 
+!> @author John Vinson, NIST
+!
+!> @brief Integer function that gives the size of the full ocean_vector
+!> \todo Make compatible if we have both core and valence
   function OCEAN_psi_size_full( p )
     type(OCEAN_vector), intent( in ) :: p
     integer :: OCEAN_psi_size_full 
@@ -2605,6 +2723,14 @@ module OCEAN_psi
   end function OCEAN_psi_size_full
 
 
+!> @author John Vinson, NIST
+!
+!> @brief Returns a complex vector equal to the data of ocean_vector
+!
+!> @details Because the GMRES is currently all legacy code we need to be able to 
+!! pass in a simple one-dimensional array that is the ocean_vector. This is the 
+!! inverse of OCEAN_psi_rtov. 
+!! \todo Deprecate when we fix GMRES
   subroutine OCEAN_psi_vtor( p, vec )
     type(OCEAN_vector), intent( in ) :: p
     complex(DP), intent( out ) :: vec(:)
@@ -2636,6 +2762,15 @@ module OCEAN_psi
     !
   end subroutine OCEAN_psi_vtor
 
+!> @author John Vinson, NIST
+!
+!> @brief Fills in ocean_vector with the data from a 1D complex vector
+!
+!> @details Because the GMRES is currently all legacy code we need to be able 
+!! to have a simple one-dimensional array that is the ocean_vector, and after
+!! a step of the GMRES algorithm we need to get back an ocean_vector. This is
+!! the inverse of OCEAN_psi_vtor. 
+!! \todo Deprecate when we fix GMRES
   subroutine OCEAN_psi_rtov( p, vec )
     type(OCEAN_vector), intent( inout ) :: p
     complex(DP), intent( in ) :: vec(:)
@@ -2669,6 +2804,11 @@ module OCEAN_psi
     !
   end subroutine OCEAN_psi_rtov
 
+
+!> @author John Vinson, NIST
+!
+!> @brief Allocates the min storage for the ocean_vector. 
+!! \todo Some sort of first touch for better OMP performance
   subroutine OCEAN_psi_alloc_min( p, ierr )
     implicit none
     integer, intent(inout) :: ierr
@@ -2709,6 +2849,8 @@ module OCEAN_psi
 
   end subroutine
 
+!> @author John Vinson
+!> @brief Deallocate the min storage of an ocean_vector
   subroutine OCEAN_psi_free_min( p, ierr )
     implicit none
     integer, intent(inout) :: ierr
@@ -3211,7 +3353,7 @@ module OCEAN_psi
 
   ! This can be called wether or not min2full is completed or in-progress
 !> @author John Vinson, NIST
-! Unused
+!> @brief  Unused
   subroutine OCEAN_psi_assert_min2full( p, ierr )
 !    use mpi, only : MPI_TESTANY,  MPI_STATUS_IGNORE, MPI_UNDEFINED 
     use OCEAN_mpi
@@ -3510,7 +3652,7 @@ module OCEAN_psi
     
   end subroutine OCEAN_psi_kill
 
-
+#if 0
   subroutine OCEAN_psi_load_old( sys, p, ierr )
     use OCEAN_mpi 
     use OCEAN_system
@@ -3639,7 +3781,13 @@ module OCEAN_psi
   111 continue
 
   end subroutine OCEAN_psi_load_old
+#endif
 
+!> @author John Vinson, NIST
+!
+!> @brief Overaching routine for loading the initial ocean_vector for a run:
+!! either core or valence, transition matrix elements or RIXS run.
+!> \todo In the long run this should be hoisted out into a different load module
   subroutine OCEAN_psi_load( sys, p, ierr )
     use OCEAN_system
     implicit none
@@ -3659,6 +3807,12 @@ module OCEAN_psi
 
   end subroutine OCEAN_psi_load
 
+!> @author John Vinson, NIST
+!
+!> @brief Loads the valence-level exciton starting point, either calling to 
+!! get the transition matrix elements or to read in an echamp file from a 
+!! previous GMRES core-level run.
+!> \todo In the long run this should be hoisted out into a different load module
   subroutine OCEAN_psi_load_val( sys, p, ierr )
     use OCEAN_mpi!, only : myid, root
     use OCEAN_system
@@ -3709,6 +3863,15 @@ module OCEAN_psi
 
   end subroutine OCEAN_psi_load_val
 
+
+!> @author John Vinson, NIST
+!
+!> @brief Calculates the norm and rescales the valence exciton
+!
+!> @details Before using the ocean_vector we rescale it to have a norm of 1. 
+!! Currently different routines are used for valence and core.
+!! \todo Replace with calls to the underlying psi_nrm, make a unified core/val 
+!! version, hoist out of this module -- maybe to the future load module.
   subroutine OCEAN_psi_val_pnorm( sys, p, ierr )
     use OCEAN_mpi!, only : myid, root
     use OCEAN_system
@@ -3770,7 +3933,12 @@ module OCEAN_psi
   end subroutine OCEAN_psi_val_pnorm
 
 
-
+!> @author John Vinson, NIST
+!
+!> @brief Loads the core-level exciton starting point, either calling to 
+!! get the transition matrix elements by running dotter.
+!> \todo In the long run this should be hoisted out into a different load module
+!! alongside the valence version.
   subroutine OCEAN_psi_load_core( sys, p, ierr )
     use OCEAN_mpi
     use OCEAN_system
@@ -3855,8 +4023,13 @@ module OCEAN_psi
 
   end subroutine OCEAN_psi_load_core
 
+
+!> @author John Vinson, NIST
+!
+!> @brief Routine for writing out the right-hand side, which is to say the 
+!! initial ocean_vector $\hat{d} \vert G.S. \rangle$.
   subroutine OCEAN_psi_write( sys, p, ierr )
-    use OCEAN_mpi!, only  : myid, root
+    use OCEAN_mpi, only  : myid, root
     use OCEAN_system
     
     implicit none
@@ -3891,7 +4064,16 @@ module OCEAN_psi
   end subroutine OCEAN_psi_write
 
 
-
+!> @author John Vinson, NIST
+!
+!> @brief Calculates the initial core-level ocean_vector 
+!
+!> @details Calculates the initial core-level ocean_vector by doing a matrix 
+!! multiplication where the OPFs are the fast index. The matrix elements 
+!! between the core level and the OPFs (for a given photon file) have already 
+!! been calculated in the mels file. The overlap between the DFT bands and the 
+!! OPFs have already been calculated in the cks file. These are then combined.
+!! \todo This should be hoisted out of this module and into a load module 
   subroutine OCEAN_psi_dotter( sys, p, ierr )
     use OCEAN_system
  
