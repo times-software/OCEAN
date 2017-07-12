@@ -697,7 +697,7 @@ module OCEAN_action
           if( ierr .ne. 0 ) return
 
 
-          call OCEAN_ladder_act( sys, psi, psi_i, 1, 1, ierr )
+          call OCEAN_ladder_act( sys, psi, psi_i, ierr )
           if( ierr .ne. 0 ) return
           call OCEAN_energies_val_allow( sys, psi_i, ierr )
           if( ierr .ne. 0 ) return
@@ -748,7 +748,7 @@ module OCEAN_action
         if( sys%cur_run%lflag ) then
           ! For now re-use lr timing for ladder
           call OCEAN_tk_start( tk_lr )
-          call OCEAN_ladder_act( sys, psi, new_psi, 1, 1, ierr )
+          call OCEAN_ladder_act( sys, psi, new_psi, ierr )
           if( ierr .ne. 0 ) return
 !          call OCEAN_energies_val_allow( sys, new_psi, ierr )
           call OCEAN_tk_stop( tk_lr )

@@ -17,8 +17,8 @@ module OCEAN_ladder
   save
   private
 
-  real(DP), allocatable :: ladder( :, :, : )
-  real(DP), allocatable :: re_bstate( :, :, :, : )
+  real(DP), allocatable :: ladder( :, :, : )  !> The value of the ladder interactions in real-space (R,x,y)
+  real(DP), allocatable :: re_bstate( :, :, :, : ) 
   real(DP), allocatable :: im_bstate( :, :, :, : )
 
   integer, allocatable :: kret( : )
@@ -68,7 +68,61 @@ module OCEAN_ladder
 
   contains
 
-  subroutine OCEAN_ladder_act( sys, psi, psi_out, cspn, vspn, ierr )
+!> @author John Vinson, NIST
+!
+!> @brief Acts the direct (ladder) part of the valence Hamiltonian on psi, 
+!! returning psi_out. Loops over appropriate spins and calls 
+!! OCEAN_ladder_act_single.
+!> @details The dimension of the spins for psi can be 2x2=4 even if the DFT 
+!! states are spin=1. This is analogous to the core-level case, except that 
+!! for the core-level calcs we always have the spins 2x2=4 (even for K-edges). 
+subroutine OCEAN_ladder_act( sys, psi, psi_out, ierr )
+  use OCEAN_psi
+  use OCEAN_system
+  implicit none
+  !
+  type(o_system), intent( in ) :: sys
+  type(OCEAN_vector), intent( in ) :: psi
+  type(OCEAN_vector), intent( inout ) :: psi_out
+  integer, intent( inout ) :: ierr
+  !
+#if 0
+  integer :: i, j, ibeta, cspn, vspn
+
+  ibeta = 0
+  do i = 1, sys%valence_ham_spin
+    vspn = min( i, sys%nspn )
+    do j = 1, sys%valence_ham_spin
+      cspn = min( j, sys%nspn )
+      ibeta = ibeta + 1
+      
+      call OCEAN_ladder_act_single( sys, psi, psi_out, ibeta, cspn, vspn, ierr )
+      if( ierr .ne. 0 ) return
+
+    enddo
+  enddo
+#else
+  call  OCEAN_ladder_act_single( sys, psi, psi_out, 1, 1, 1, ierr )
+  if( ierr .ne. 0 ) return
+#endif
+
+end subroutine OCEAN_ladder_act
+
+!> @author John Vinson, NIST
+!
+!> @brief Acts the direct (ladder) part of the valence Hamiltonian on psi, 
+!! returning psi_out for a single spin combination
+!> @details Gives $\psi_{\textrm{out}} = \hat{K}^d \psi + \psi_{\textrm{out}}$ .
+!! We don't zero out psi_out because we are allowing multiple parts of the 
+!! Hamiltonian to be calculated before trying to sync the disparate 
+!! ocean_vectors. The direct interaction is diagonal in spin space, however, 
+!! we allow for the ocean_vectors to be spin-dependent (RIXS of L-edges) while 
+!! the DFT basis is not, hence we have decoupled the psi_spn from cspn and vspn.
+!!
+!! Includes OMP-level parallelism to improve scaling performance. The direct 
+!! interaction for the valence scales as the number of x-points squared and can 
+!! become very large.
+  subroutine OCEAN_ladder_act_single( sys, psi, psi_out, psi_spn, cspn, vspn, ierr )
     use OCEAN_psi
     use OCEAN_mpi
     use OCEAN_val_states, only : nxpts, nxpts_pad, re_val, im_val, re_con, im_con, &
@@ -84,7 +138,7 @@ module OCEAN_ladder
     type(o_system), intent( in ) :: sys
     type(OCEAN_vector), intent( in ) :: psi
     type(OCEAN_vector), intent( inout ) :: psi_out
-    integer, intent( in ) :: cspn, vspn
+    integer, intent( in ) :: psi_spn, cspn, vspn
     integer, intent( inout ) :: ierr
 
     real(dp), allocatable :: re_a_mat(:,:,:), im_a_mat(:,:,:)
@@ -145,7 +199,7 @@ module OCEAN_ladder
 !$OMP PRIVATE( scratch, fr, fi, vv, re_phi_mat, im_phi_mat, nthread, block_temp, nbc_block, test_flag ) &
 !$OMP SHARED( nkpts, nbv_block, nxpts_pad, nproc, joint_request, c_recv_request, c_send_request ) &
 !$OMP SHARED( nkret, kret, ladcap, kk, nxpts_by_mpiID, re_tphi_mat, im_tphi_mat ) &
-!$OMP SHARED( re_a_mat, im_a_mat, re_b_mat, im_b_mat, vspn, cspn, ierr, nxpts, inverse_kpts, val_pad )  &
+!$OMP SHARED( re_a_mat, im_a_mat, re_b_mat, im_b_mat, psi_spn, vspn, cspn, ierr, nxpts, inverse_kpts, val_pad )  &
 !$OMP SHARED( nbc, nbv, re_con, im_con, psi, psi_out, psi_con_pad, myid, MPI_STATUSES_IGNORE, MPI_STATUS_IGNORE ) &
 !$OMP SHARED( re_bstate, im_bstate, max_nxpts, startx_by_mpiID, fo, ladder, spin_prefac, minus_spin_prefac )
 
@@ -220,14 +274,14 @@ module OCEAN_ladder
 !        do ix = 1, nxpts, x_block
 
           call DGEMM( 'N', 'N', x_block, nbv_block, nbc, one, re_con( ix, 1, ik, cspn ), nxpts_pad, &
-                      psi%valr( 1, ib, ik, 1 ), psi_con_pad, zero, re_a_mat( ix, ib, ik ), nxpts_pad )
+                      psi%valr( 1, ib, ik, psi_spn ), psi_con_pad, zero, re_a_mat( ix, ib, ik ), nxpts_pad )
           call DGEMM( 'N', 'N', x_block, nbv_block, nbc, minusone, im_con( ix, 1, ik, cspn ), nxpts_pad, &
-                      psi%vali( 1, ib, ik, 1 ), psi_con_pad, one, re_a_mat( ix, ib, ik ), nxpts_pad )
+                      psi%vali( 1, ib, ik, psi_spn ), psi_con_pad, one, re_a_mat( ix, ib, ik ), nxpts_pad )
 
           call DGEMM( 'N', 'N', x_block, nbv_block, nbc, one, re_con( ix, 1, ik, cspn ), nxpts_pad, &
-                      psi%vali( 1, ib, ik, 1 ), psi_con_pad, zero, im_a_mat( ix, ib, ik ), nxpts_pad )
+                      psi%vali( 1, ib, ik, psi_spn ), psi_con_pad, zero, im_a_mat( ix, ib, ik ), nxpts_pad )
           call DGEMM( 'N', 'N', x_block, nbv_block, nbc, one, im_con( ix, 1, ik, cspn ), nxpts_pad, &
-                      psi%valr( 1, ib, ik, 1 ), psi_con_pad, one, im_a_mat( ix, ib, ik ), nxpts_pad )
+                      psi%valr( 1, ib, ik, psi_spn ), psi_con_pad, one, im_a_mat( ix, ib, ik ), nxpts_pad )
 
 !        enddo
 !      enddo
@@ -477,14 +531,14 @@ module OCEAN_ladder
     do ik = 1, nkpts
 
           call DGEMM( 'T', 'N', nbc_block, nbv_block, nxpts, spin_prefac, re_con( 1, ibc, ik, cspn ), nxpts_pad, &
-                      re_b_mat( 1, ib, ik ), nxpts_pad, one, psi_out%valr( ibc, ib, ik, 1 ), psi_con_pad )
+                      re_b_mat( 1, ib, ik ), nxpts_pad, one, psi_out%valr( ibc, ib, ik, psi_spn ), psi_con_pad )
           call DGEMM( 'T', 'N', nbc_block, nbv_block, nxpts, spin_prefac, im_con( 1, ibc, ik, cspn ), nxpts_pad, &
-                      im_b_mat( 1, ib, ik ), nxpts_pad, one, psi_out%valr( ibc, ib, ik, 1 ), psi_con_pad )
+                      im_b_mat( 1, ib, ik ), nxpts_pad, one, psi_out%valr( ibc, ib, ik, psi_spn ), psi_con_pad )
 
           call DGEMM( 'T', 'N', nbc_block, nbv_block, nxpts, spin_prefac, re_con( 1, ibc, ik, cspn ), nxpts_pad, &
-                      im_b_mat( 1, ib, ik ), nxpts_pad, one, psi_out%vali( ibc, ib, ik, 1 ), psi_con_pad )
+                      im_b_mat( 1, ib, ik ), nxpts_pad, one, psi_out%vali( ibc, ib, ik, psi_spn ), psi_con_pad )
           call DGEMM( 'T', 'N', nbc_block, nbv_block, nxpts, minus_spin_prefac, im_con( 1, ibc, ik, cspn ), nxpts_pad, &
-                      re_b_mat( 1, ib, ik ), nxpts_pad, one, psi_out%vali( ibc, ib, ik, 1 ), psi_con_pad )
+                      re_b_mat( 1, ib, ik ), nxpts_pad, one, psi_out%vali( ibc, ib, ik, psi_spn ), psi_con_pad )
 
     enddo
 !$OMP END DO
@@ -500,7 +554,7 @@ module OCEAN_ladder
 !    call MPI_BARRIER( comm, ierr )
 !    if( myid .eq. root ) write( 6, * ) 'ladder done'
 
-  end subroutine OCEAN_ladder_act
+  end subroutine OCEAN_ladder_act_single
 
 
 
