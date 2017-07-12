@@ -1631,8 +1631,16 @@ module OCEAN_psi
     
   end subroutine OCEAN_psi_dot
 
+!> @brief Allocates the buffer space (core only) and arrays for mpi requests for the ocean_vector
+!
+!> @details The core-level exciton can use buffer storage. Both the core and 
+!! valence are able to use non-blocking mpi calls which require keeping track 
+!! of the mpi requests. These request arrays are also allocated in this 
+!! subroutine. The buffer store is not initialized, but the request arrays are 
+!! all set to MPI_REQUEST_NULL so that they could immediately be passed to 
+!! MPI_WAIT -like mpi calls without any issue.
   subroutine OCEAN_psi_alloc_buffer( p, ierr )
-    use OCEAN_mpi!, only : nproc
+    use OCEAN_mpi, only : MPI_REQUEST_NULL
 !    use mpi, only : MPI_REQUEST_NULL
     implicit none
     type(OCEAN_vector), intent( inout ) :: p
@@ -1640,7 +1648,7 @@ module OCEAN_psi
     !
     integer :: store_size, ik, ia
 
-    if( IAND( p%valid_store, PSI_STORE_BUFFER ) .eq. 1 ) then
+    if( IAND( p%valid_store, PSI_STORE_BUFFER ) .eq. PSI_STORE_BUFFER ) then
       if( p%core_myid .eq. 0 ) write(6,*) "Psi_alloc_buffer called multiple times"
       ierr = -1
       return
@@ -1689,6 +1697,12 @@ module OCEAN_psi
 
   end subroutine OCEAN_psi_alloc_buffer
 
+!> @author John Vinson, NIST
+!
+!> @brief Deallocates buffer storage and mpi_request arrays
+!
+!> @details No checks are done to make sure that all the MPI requests are done, 
+!! simply deallocates everything.
   subroutine OCEAN_psi_free_buffer( p, ierr )
     implicit none
     type(OCEAN_vector), intent( inout ) :: p
@@ -1712,11 +1726,26 @@ module OCEAN_psi
 
   end subroutine OCEAN_psi_free_buffer
 
+!> @author John Vinson, NIST
+!
+!> @brief Local utility for determining sizes and distributions for valence vector
+!
+!> @details Only the local proc id and total number of processors are passed in. 
+!! This routine then figures out how large a slice of the valence ocean_vector 
+!! is stored locally by this proc (in the min storage). It also returns the size 
+!! of the largest slice. 
+!! 
+!! Each processor's slice is continous in the full vector
+!! ( :, valence bands, kpoint, beta ). The conduction band part of the vector is 
+!! never divided. Each processor also will have either the max (max_store_size)
+!! or a size of 0 (with the exception of the last process to have any can have 
+!! any positive integer equal or less than the max. Lastly, the routine will 
+!! return the starting band, kpt, and beta of the slice. 
   ! Returns the needed stats about the store version of psi
   !   For now we chunk evenly. Procs either have nchunk or 0
   subroutine psi_val_store_size( id, nproc_total, nproc_remain, max_store_size, my_store_size, val_start, &
                                  k_start, beta_start, ierr )
-    use OCEAN_mpi!, only : myid
+!    use OCEAN_mpi!, only : myid
     implicit none
     integer, intent( in ) :: id, nproc_total
     integer, intent( out ) :: nproc_remain, max_store_size, my_store_size, val_start, k_start, beta_start
