@@ -98,35 +98,22 @@ for number in numa:
 def pathmaker():
 	oblist = []
 	print "in pathmaker"
-	semicore = semic() #for now
-	qual = fakequalitylist() #for now
+	semicore = semic()
+	qual = fakequalitylist() #change fakequalitylist() to quality list when ready
 	for object in zdict:
 		start = os.path.join(a, zdict[object])
-		print start
+		#print start #get rid of this later
 		
 		next = os.path.join(start, semicore[object])
-		print next
+		#print next #get rid of this later
 	
 		last = os.path.join(next, qual[object])
-		print last
+		#print last #get rid of this later
 		
 		oblist.append(last)
 		#need to grab the letter associated with the object of zdict for the dict semicore
-#		for thing in semicore:
-#			next = os.path.join(start, semicore[thing])
-#			print next
-#			#for now
-#			for thingy in qual: #change to qualitylist()
-#				last = os.path.join(next, qual[thingy])
-#				print last
-#				oblist.append(last)
 	print oblist
-        
-#	for object in semicorelist:
-#                ob = os.path.join(item, object)
-#                oblist.append(ob)
-#                return oblist
-#supposed to combine paths from znucllist with each of the strings from semicorelist to make the next path for quality
+#uses the dictionaries made for znucl, semicore, and quality to make paths and then it prints the paths        
 
 def semic():
 	commons = open("Common/semicore", "r")
@@ -136,15 +123,18 @@ def semic():
 	y = 0
 	sdict = {}
 	newletters = []
-	print "Will semicore file be included?"
+	print "From the semicore file:"
 	ssslist = []	
 	for index, line in enumerate(searchs):
 		nothing = index, line
-		print nothing[1] 
+		print nothing[1]
+		#string extracted from file 
 		letters = nothing[1].rsplit(' ', x)
 		print letters
+		print "now the line return will be removed."
+		#string split into however many semicores (or znucls technically) there are
 		for l in letters:
-			print l
+			#print l
 			if "\n" in l:
 				l = l[:-1]
 			newletters.append(l)		
@@ -152,17 +142,16 @@ def semic():
 		#should break down the semmicore text into the individual letters based on how many znucls there are
 		
 		for bl in newletters:
-			print bl
+			#print bl
 			z = z + 1 
 			y = y + 1
 			sdict[y] = bl
 		print "Semicore dictionary?"
 		print sdict
+		print "How do i get rid of this below?"
 		return sdict
 		
-		for bl in sdict:
-			print "A letter?"
-			print sdict[bl]
+		
 		
 		#for semicore in sdict:
 		#	if semicore in slist:
@@ -207,7 +196,7 @@ def fakequalitylist():
 		t = t + 1
 		qdict[t] = ("40")
 	return qdict
-	print sorted(qdict)		
+			
 
 #makes path and then lists quality files. They're sorted and the length is measured. The sorted list is printed 
 
