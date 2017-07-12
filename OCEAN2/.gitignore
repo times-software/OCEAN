@@ -5,3 +5,6 @@ ocean.x
 o_spect.x
 *.x
 doxygen*tmp
+html
+latex
+doxygen_sqlite3.db
