@@ -2345,7 +2345,7 @@ module OCEAN_psi
 
     psi_core_alpha = sys%nalpha
  
-    psi_val_beta = sys%nspn ** 2
+    psi_val_beta = sys%nbeta
 
     have_core = sys%cur_run%have_core
     have_val  = sys%cur_run%have_val
