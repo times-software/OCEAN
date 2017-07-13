@@ -95,24 +95,44 @@ for number in numa:
 #prints what atomic number is what symbol for the user
 
 
-def pathmaker():
-	oblist = []
-	print "in pathmaker"
-	semicore = semic()
-	qual = fakequalitylist() #change fakequalitylist() to quality list when ready
+def pathmaker1():
+	startdict = {}
+	lastdict = {}
+
+	#print "pathmaker1"
+	#qual = fakequalitylist() #change fakequalitylist() to quality list when ready
+
 	for object in zdict:
 		start = os.path.join(a, zdict[object])
 		#print start #get rid of this later
+		startdict[object] = start
+	return startdict
+
+def pathmaker2():
+	nextdict = {}
+	semicore = semic()	
 		
-		next = os.path.join(start, semicore[object])
+	#print "in pathmaker2"
+	for object in pathmaker1():
+		next = os.path.join(pathmaker1()[object], semicore[object])
 		#print next #get rid of this later
+		nextdict[object] = next
+	return nextdict	
+
+def pathmaker3():
+        lastdict = {}
+	qual = qualitylist()
 	
-		last = os.path.join(next, qual[object])
+	pathlist = []
+	for object in pathmaker2():
+		last = os.path.join(pathmaker2()[object], qual[object])
 		#print last #get rid of this later
-		
-		oblist.append(last)
+		lastdict[object] = last		
+
+		pathlist.append(last)
 		#need to grab the letter associated with the object of zdict for the dict semicore
-	print oblist
+	print "\n"
+	print pathlist
 #uses the dictionaries made for znucl, semicore, and quality to make paths and then it prints the paths        
 
 def semic():
@@ -123,32 +143,22 @@ def semic():
 	y = 0
 	sdict = {}
 	newletters = []
-	print "From the semicore file:"
+	print "\nFrom the semicore file:"
 	ssslist = []	
 	for index, line in enumerate(searchs):
-		nothing = index, line
-		print nothing[1]
-		#string extracted from file 
-		letters = nothing[1].rsplit(' ', x)
-		print letters
-		print "now the line return will be removed."
-		#string split into however many semicores (or znucls technically) there are
-		for l in letters:
-			#print l
-			if "\n" in l:
-				l = l[:-1]
-			newletters.append(l)		
-		print newletters
-		#should break down the semmicore text into the individual letters based on how many znucls there are
-		
-		for bl in newletters:
+		semicorestring = index, line
+		#print semicorestring[1] 
+		letters = semicorestring[1].split()
+		#splits string of letters automatically and gets rid of line return and white spaces
+		#print letters
+		#will need to be editted to allow for one semicore input also. Atm just does them for as many znucls there are		
+		for bl in letters:
 			#print bl
 			z = z + 1 
 			y = y + 1
 			sdict[y] = bl
-		print "Semicore dictionary?"
+		print "\nSemicore dictionary?"
 		print sdict
-		print "How do i get rid of this below?"
 		return sdict
 		
 		
@@ -167,32 +177,48 @@ def semic():
 #looks at semicore file in Common and for each znucl it sees if for it's semicore options which one it should
 #pick based on the semicores that correspond to each znucl in Common 
 
+
 def qualitylist():
-     	q = item
-       	qqlist = os.listdir(q)
-       	qlist = sorted(qqlist)
-       	lengthq = len(qqlist)  
        	print "\nAvailable options for quality:"
-       	print qlist
-	qqqlist = []
+
+	qdict = {}
 
 	commonq = open("Common/pp.quality", "r")
 	searchq = commonq.readlines()
 	commonq.close()
 
 	for index, line in enumerate(searchq):
-		everything = index, line 
-		print everything[1]
-		for quality in qlist:
-			if quality in everything[1]:
-				for i in range(len(znucllist)):
-					qqqlist.append(str(quality))
-					return qqqlist 
+		qualitystring = index, line 
+		print qualitystring[1]
+		quality_asked_for = int(qualitystring[1])
+		#grabs the one quality listed in Common and sets it equal to quality_asked_for (which should only be one value)
+		for key in pathmaker2():
+			path = pathmaker2()[key]
+			qqlist = os.listdir(path)
+        		qlist = sorted(qqlist)
+        		lengthq = len(qqlist)
+
+			print "\nThis a znucl's options:"
+			qnumber_list = map(int, qlist)
+			print qnumber_list
+			take_closest = lambda num,collection:min(collection,key=lambda x:abs(x-num))
+			#should be callable and find the closest value if give a value and a list
+			closest = take_closest(quality_asked_for, qnumber_list)
+			#finds out closest value to the quality listed in Common so that can be picked
+			print closest
+			#for x in zdict:
+			qdict[key] = str(closest)		
+			#then for each key in zdict, add a key to qdict with the closest value
+		#pathmaker2() returns dict of paths that can be used to list of options of quality for each znucl	
+					
+	print "\n"
+	print qdict
+	return qdict 
+
 def fakequalitylist():
 	t = 0
 	qdict = {}
 	for thing in zdict:
-		print thing
 		t = t + 1
 		qdict[t] = ("40")
 	return qdict
@@ -216,18 +242,18 @@ print zlist
 #then if any of the stuff in that list is one of the options listed in the psps directory, it prints each of the options
 #that matched something
 
-znucllist = []
+zpathlist = []
 for item in zlist:
-	zzz = os.path.join(a, str(item))
-	znucllist.append(zzz)
+	zpath = os.path.join(a, str(item))
+	zpathlist.append(zpath)
 
 print "\nList of znucl paths:"
-print znucllist
-print len(znucllist)
+print zpathlist
+print len(zpathlist)
 #makes an empty list and then takes all the znucls from above, makes a path for them, and adds that path to a list
 
 print "\nPath for each znucl:"
-for item in znucllist:
+for item in zpathlist:
 	print item
 
 print "\nDictionary for znucls:"
@@ -276,6 +302,7 @@ print sorted(zdict)
 #		finalist.append(fff)
 		
 #	print finalist
-pathmaker()	
+
+pathmaker3()	
 	
 						
