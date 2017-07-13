@@ -24,81 +24,52 @@ commonz.close()
 print "Available elements (by atomic number):"
 print alist
 
-#may want to make the system of atomic numbers to names a dictionary for easier use.
+element_names = {
+	1: "H",
+	2: "He",
+	3: "Li",
+	4: "Be",
+        5: "B",
+        6: "C",
+        7: "N",
+        8: "O",
+        9: "F",
+	10: "Ne",
+        11: "Na",
+        12: "Mg",
+	13: "Al",
+        14: "Si",
+        15: "P",
+	16: "S",
+	17: "Cl",
+	18: "Ar",
+	19: "K",
+	20: "Ca",
+	21: "Sc",
+	22: "Ti",
+	23: "V",
+	24: "Cr",
+	25: "Mn",
+	26: "Fe",
+	27: "Co",
+	28: "Ni",
+	29: "Cu",
+	30: "Zn",
+#more names need to be inputed	
+}
+#list of atomic numbers with their corresponding symbol
 
 for number in numa:
-        if number == 1:
-                name = "H"
-        elif number == 2:
-                name = "He"
-        elif number == 3:
-                name = "Li"
-        elif number == 4:
-                name = "Be"
-        elif number == 5:
-                name = "B"
-        elif number == 6:
-                name = "C"
-        elif number == 7:
-                name = "N"
-        elif number == 8:
-                name = "O"
-        elif number == 9:
-                name = "F"
-        elif number == 10:
-                name = "Ne"
-        elif number == 11:
-                name = "Na"
-        elif number == 12:
-                name = "Mg"
-        elif number == 13:
-                name = "Al"
-        elif number == 14:
-                name = "Si"
-        elif number == 15:
-                name = "P"
-        elif number == 16:
-                name = "S"
-        elif number == 17:
-                name = "Cl"
-        elif number == 18:
-                name = "Ar"
-        elif number == 19:
-                name = "K"
-        elif number == 20:
-                name = "Ca"
-        elif number == 21:
-                name = "Sc"
-	elif number == 22:
-                name = "Ti"
-        elif number == 23:
-                name = "V"
-        elif number == 24:
-                name = "Cr"
-        elif number == 25:
-                name = "Mn"
-        elif number == 26:
-                name = "Fe"
-        elif number == 27:
-                name = "Co"
-        elif number == 28:
-                name = "Ni"
-        elif number == 29:
-                name = "Cu"
-        elif number == 30:
-                name = "Zn"
-        #need to enter more just in case he enters a lot in the future
-        else:
-                name == "not inputed yet."
-        #by atomic number it lists abbreviated name
-
-        print "Atomic number " + str(number) + " is " + name
-#prints what atomic number is what symbol for the user
+	if number in element_names:
+		print "Atomic number " + str(number) + " is " + element_names[number] 
+	else:
+		print "Name has not been inputed yet for atomic number " + str(number)
+#for each of the znucl options listed. if the atomic number is in element_names, print the element name, else, say it's not there
 
 
 
 
-
+        
 #the final pathmaking code:
 
 def pathmaker1():
@@ -116,7 +87,9 @@ def pathmaker1():
 
 def pathmaker2():
 	nextdict = {}
-	semicore = semic()	
+	semicore = semic()
+	print "\nSemicore dictionary:"
+	print semicore	
 		
 	#print "in pathmaker2"
 	for object in pathmaker1():
@@ -166,8 +139,6 @@ def semic():
 			#print bl 
 			y = y + 1
 			sdict[y] = bl
-	print "\nSemicore dictionary?"
-	print sdict
 	return sdict
 		
 		
@@ -212,7 +183,7 @@ def qualitylist():
         		qlist = sorted(qqlist)
         		lengthq = len(qqlist)
 
-			print "\nThis a znucl's options:"
+			print "\nA znucl's quality options:"
 			qnumber_list = map(int, qlist)
 			print qnumber_list
 			take_closest = lambda num,collection:min(collection,key=lambda x:abs(x-num))
@@ -246,23 +217,23 @@ for index, line in enumerate(searchz):
         	if znucl in something[1]:
                 	#print znucl #not needed atm
 			zlist.append(znucl)
+
 print "The complete list of znucls"
 print zlist
-#looks through znucl file and grabs the second item in the list it returns (the string with all the data)
-#then if any of the stuff in that list is one of the options listed in the psps directory, it grabs that stuff,
-#and makes a list of znucls from the stuff
+#looks through znucl file in Common and grabs the string with requested znucls. If a requested znucl = one of the options in psps, 
+#it grabs the znucl from the string and adds it to a list of znucls
 
-print "\nConverting list of znucls to numbers for sorting:"
-print zlist
+
+print "\nSorted znucl list:"
 znumber_list= map(int, zlist)
-print znumber_list
 znumber_list= sorted(znumber_list)
-print znumber_list
+#znumber_list is zlist as a list of ints, znumber_list is then sorted
 
 zlist = map(lambda x:str(x), znumber_list)
 print zlist
-#turns znucls in zlist into ints and makes it znumber_list, sorts znumber_list, then changes znucls back to strings for zlist
+#changes znucls back to strings for zlist
 #This makes sure that the list given to zdict is sorted numerically so keys correspond to order of semicores
+
 
 print "\nDictionary for znucls:"
 x = 0
@@ -274,7 +245,9 @@ for znucl in zlist:
 
 print zdict
 
-	
+
+
+
 
 #print "\nList of semicores:"
 #semicorelist = []
