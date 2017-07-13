@@ -24,6 +24,7 @@ commonz.close()
 print "Available elements (by atomic number):"
 print alist
 
+#may want to make the system of atomic numbers to names a dictionary for easier use.
 
 for number in numa:
         if number == 1:
@@ -95,6 +96,11 @@ for number in numa:
 #prints what atomic number is what symbol for the user
 
 
+
+
+
+#the final pathmaking code:
+
 def pathmaker1():
 	startdict = {}
 	lastdict = {}
@@ -135,26 +141,29 @@ def pathmaker3():
 	print pathlist
 #uses the dictionaries made for znucl, semicore, and quality to make paths and then it prints the paths        
 
+
+
+
+
+#the semicore code:
+
 def semic():
 	commons = open("Common/semicore", "r")
 	searchs = commons.readlines()
 	commons.close()
-	z = 0
+
 	y = 0
 	sdict = {}
-	newletters = []
 	#print "\nFrom the semicore file:"
-	ssslist = []	
+	#ssslist = []	
 	for index, line in enumerate(searchs):
 		semicorestring = index, line
 		#print semicorestring[1] 
 		letters = semicorestring[1].split()
 		#splits string of letters automatically and gets rid of line return and white spaces
-		#print letters
 		#will need to be editted to allow for one semicore input also. Atm just does them for as many znucls there are		
 		for bl in letters:
-			#print bl
-			z = z + 1 
+			#print bl 
 			y = y + 1
 			sdict[y] = bl
 	print "\nSemicore dictionary?"
@@ -178,8 +187,13 @@ def semic():
 #pick based on the semicores that correspond to each znucl in Common 
 
 
+
+
+
+#the quality code:
+
 def qualitylist():
-       	print "\nAvailable options for quality:"
+       	print "\nQuality requested in Common file:"
 
 	qdict = {}
 
@@ -205,7 +219,7 @@ def qualitylist():
 			#should be callable and find the closest value if give a value and a list
 			closest = take_closest(quality_asked_for, qnumber_list)
 			#finds out closest value to the quality listed in Common so that can be picked
-			print "\nThe closest matching option to the asked for value is:"
+			print "\nThe closest matching option to the quality requested is:"
 			print closest
 			
 			qdict[key] = str(closest)		
@@ -217,6 +231,11 @@ def qualitylist():
 	return qdict 
 #returns a dictionary to be used in pathmaker3() so it can match each quality with it's znucl and path 
 
+
+
+
+#the znucl code (I may make this a method later but it's not necessary):
+
 zlist = []
 
 for index, line in enumerate(searchz):
@@ -225,27 +244,13 @@ for index, line in enumerate(searchz):
         print something[1]
 	for znucl in alist:
         	if znucl in something[1]:
-                	print znucl #not needed atm
+                	#print znucl #not needed atm
 			zlist.append(znucl)
 print "The complete list of znucls"
 print zlist
 #looks through znucl file and grabs the second item in the list it returns (the string with all the data)
-#then if any of the stuff in that list is one of the options listed in the psps directory, it prints each of the options
-#that matched something
-
-zpathlist = []
-for item in zlist:
-	zpath = os.path.join(a, str(item))
-	zpathlist.append(zpath)
-
-print "\nList of znucl paths:"
-print zpathlist
-print len(zpathlist)
-#makes an empty list and then takes all the znucls from above, makes a path for them, and adds that path to a list
-
-print "\nPath for each znucl:"
-for item in zpathlist:
-	print item
+#then if any of the stuff in that list is one of the options listed in the psps directory, it grabs that stuff,
+#and makes a list of znucls from the stuff
 
 print "\nConverting list of znucls to numbers for sorting:"
 print zlist
@@ -297,16 +302,6 @@ print zdict
 #	else:
 #       		print "Something went wrong."
 #       		sys.exit(0)
-#currently not really working
-
-#finalist = []
-#for item, i in pathmaker():
-#	print item
-#	for thing in qualitylist():
-#		fff = os.path.join(item, thing)			
-#		finalist.append(fff)
-		
-#	print finalist
 
 pathmaker3()	
 	
