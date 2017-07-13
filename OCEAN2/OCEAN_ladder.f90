@@ -86,7 +86,6 @@ subroutine OCEAN_ladder_act( sys, psi, psi_out, ierr )
   type(OCEAN_vector), intent( inout ) :: psi_out
   integer, intent( inout ) :: ierr
   !
-#if 0
   integer :: i, j, ibeta, cspn, vspn
 
   ibeta = 0
@@ -101,10 +100,10 @@ subroutine OCEAN_ladder_act( sys, psi, psi_out, ierr )
 
     enddo
   enddo
-#else
-  call  OCEAN_ladder_act_single( sys, psi, psi_out, 1, 1, 1, ierr )
-  if( ierr .ne. 0 ) return
-#endif
+!#else
+!  call  OCEAN_ladder_act_single( sys, psi, psi_out, 1, 1, 1, ierr )
+!  if( ierr .ne. 0 ) return
+!#endif
 
 end subroutine OCEAN_ladder_act
 
