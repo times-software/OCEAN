@@ -20,7 +20,7 @@ module OCEAN_bubble
 
   complex( C_DOUBLE_COMPLEX ), allocatable :: scratch( : )
   real( DP ), allocatable  :: bubble( : )
-  real(DP), allocatable :: re_scratch(:), im_scratch(:)
+  real(DP), allocatable :: re_scratch(:,:), im_scratch(:,:)
 
 !  integer, allocatable :: xstart_by_mpiID(:)
 
@@ -94,7 +94,8 @@ module OCEAN_bubble
     !  In the future we will want two! different sorts for spin up and spin down
     if( myid .eq. root ) then
       allocate( bubble(  sys%nxpts ), &
-                scratch( sys%nxpts ), re_scratch( sys%nxpts ), im_scratch( sys%nxpts ), &
+                scratch( sys%nxpts ), re_scratch( sys%nxpts, sys%valence_ham_spin ), &
+                im_scratch( sys%nxpts, sys%valence_ham_spin ), &
                 STAT=ierr )
       if( ierr .ne. 0 ) then
         write( 1000+myid,* ) 'Failed to allocate bubble and scratch'
@@ -388,6 +389,15 @@ module OCEAN_bubble
 !
 !
 !
+!> @author John Vinson, NIST
+!
+!> @brief Calculates the action of the exchange (bubble) operator on the valence vector
+!
+!> @details The exchange operator requires that both the electron and hole have 
+!! the same spin, but can mix up-up with down-down. We therefore, when spin is 
+!! being used, loop over the first section of the calculation and accumulate 
+!! the result. Then we loop over the second half to apply it to both up-up and 
+!! down-down.
   subroutine AI_bubble_act( sys, psi, psiout, ierr )
     use OCEAN_val_states, only : nkpts, nxpts, nbc, nbv, nxpts_pad, &
                                  re_val, im_val, re_con, im_con, &
@@ -405,7 +415,7 @@ module OCEAN_bubble
     type( OCEAN_vector ), intent( inout ) :: psiout
     integer, intent( inout ) :: ierr
     !
-    integer :: bciter, bviter, ik
+    integer :: bciter, bviter, ik, ispn, dft_spin, psi_spin
     integer :: ix, iix, xstop, xwidth, nthreads, iproc
     integer :: psi_con_pad!, nxpts_pad
 !    integer :: nbv, nbc, nkpts
@@ -433,12 +443,10 @@ module OCEAN_bubble
 !    write(105,*)
 !
     !
-    if( sys%nspn .eq. 1 ) then
+    if( sys%valence_ham_spin .eq. 1 ) then
      spin_prefac = 2.0_dp
     else
       spin_prefac = 1.0_dp
-      ierr = -600
-      return
     endif
     minus_spin_prefac = -spin_prefac
       
@@ -468,68 +476,63 @@ module OCEAN_bubble
 !$OMP& SHARED( nxpts_pad, re_val, im_val, psi_con_pad, im_l_bubble, re_l_bubble, nproc, myid ) &
 !$OMP& SHARED( re_scratch, im_scratch, nxpts_by_mpiID, comm, MPI_STATUS_IGNORE, ierr, nthreads ) &
 !$OMP& SHARED( scratch, fo, bubble, spin_prefac, psiout, minus_spin_prefac, startx_by_mpiID ) &
-!$OMP& PRIVATE( bciter, bviter, xstop, xwidth, ix, iix, ik )
+!$OMP& PRIVATE( bciter, bviter, xstop, xwidth, ix, iix, ik, ispn, dft_spin, psi_spin )
 
 
 
-!  ! Problems with zero-ing?
-!  re_amat( :, :, : ) = zero
-!  im_amat( :, :, : ) = zero
 
-!  write(6,*) xwidth, nkpts, nbv, nbc
-!  write(6,*) maxval( psi%valr ), maxval( psi%vali )
-!  write(6,*) maxval( re_con ), maxval( im_con )
-!  write(6,*) maxval( re_val ), maxval( im_val )
-!  write(6,*) '------------'
+  do ispn = 1, sys%valence_ham_spin
+    psi_spin = ispn * ispn  ! Either 1 or 4 
+    dft_spin = min( ispn, sys%nspn )   ! The DFT states need not be different for spin up/down
 
-  if( nxpts .gt. 0 ) then
-  xwidth = nxpts
-  ix = 1
+    if( nxpts .gt. 0 ) then
+    xwidth = nxpts
+    ix = 1
 !$OMP DO COLLAPSE(1)
-    do ik = 1, nkpts
+      do ik = 1, nkpts
 !      do ix = 1, nxpts, xwidth
-        call DGEMM( 'N', 'N', xwidth, nbv, nbc, one, re_con(ix, 1, ik, 1), nxpts_pad, &
-                    psi%valr( 1, 1, ik, 1 ), psi_con_pad, zero, re_amat( ix, 1, ik ), nxpts_pad )
-        call DGEMM( 'N', 'N', xwidth, nbv, nbc, minusone, im_con(ix, 1, ik,1), nxpts_pad, &
-                    psi%vali( 1, 1, ik, 1 ), psi_con_pad, one, re_amat( ix, 1, ik ), nxpts_pad )
+          call DGEMM( 'N', 'N', xwidth, nbv, nbc, one, re_con(ix, 1, ik, dft_spin), nxpts_pad, &
+                      psi%valr( 1, 1, ik, psi_spin ), psi_con_pad, zero, re_amat( ix, 1, ik ), nxpts_pad )
+          call DGEMM( 'N', 'N', xwidth, nbv, nbc, minusone, im_con(ix, 1, ik,dft_spin), nxpts_pad, &
+                      psi%vali( 1, 1, ik, psi_spin ), psi_con_pad, one, re_amat( ix, 1, ik ), nxpts_pad )
 
-        call DGEMM( 'N', 'N', xwidth, nbv, nbc, one, im_con(ix, 1, ik,1), nxpts_pad, &
-                    psi%valr( 1, 1, ik, 1 ), psi_con_pad, zero, im_amat( ix, 1, ik ), nxpts_pad )
-        call DGEMM( 'N', 'N', xwidth, nbv, nbc, one, re_con(ix, 1, ik,1), nxpts_pad, &
-                    psi%vali( 1, 1, ik, 1 ), psi_con_pad, one, im_amat( ix, 1, ik ), nxpts_pad )
+          call DGEMM( 'N', 'N', xwidth, nbv, nbc, one, im_con(ix, 1, ik,dft_spin), nxpts_pad, &
+                      psi%valr( 1, 1, ik, psi_spin ), psi_con_pad, zero, im_amat( ix, 1, ik ), nxpts_pad )
+          call DGEMM( 'N', 'N', xwidth, nbv, nbc, one, re_con(ix, 1, ik,dft_spin), nxpts_pad, &
+                      psi%vali( 1, 1, ik, psi_spin ), psi_con_pad, one, im_amat( ix, 1, ik ), nxpts_pad )
 !      enddo
-    enddo
+      enddo
 !$OMP END DO
-  else 
-    re_amat( :,:,: ) = 0.0_dp
-    im_amat( :,:,: ) = 0.0_dp
-  endif
+    else 
+      re_amat( :,:,: ) = 0.0_dp
+      im_amat( :,:,: ) = 0.0_dp
+    endif
 
 !  write(6,*) 'A:', maxval( re_amat ), maxval( im_amat )
 
 ! Should move zero-ing of re/im_l_bubble here to get omp lined up correctly
 
-  xwidth = nxpts / ( nthreads * 8 )
-  xwidth = max( 1, xwidth )
-  xwidth = xwidth * 8
+    xwidth = nxpts / ( nthreads * 8 )
+    xwidth = max( 1, xwidth )
+    xwidth = xwidth * 8
 
 !$OMP DO 
 !  do ix = 1, nxpts, xwidth
 !    xstop = min( nxpts, ix + xwidth - 1 )
-    ix = 1
-    xstop = nxpts
-        do ik = 1, nkpts
-          do bviter = 1, nbv
-            do iix = ix, xstop
-              re_l_bubble( iix ) = re_l_bubble( iix ) &
-                                 + re_val( iix, bviter, ik, 1 ) * re_amat( iix, bviter, ik ) &
-                                 + im_val( iix, bviter, ik, 1 ) * im_amat( iix, bviter, ik ) 
-              im_l_bubble( iix ) = im_l_bubble( iix ) &
-                                 + re_val( iix, bviter, ik, 1 ) * im_amat( iix, bviter, ik ) &
-                                 - im_val( iix, bviter, ik, 1 ) * re_amat( iix, bviter, ik ) 
+      ix = 1
+      xstop = nxpts
+          do ik = 1, nkpts
+            do bviter = 1, nbv
+              do iix = ix, xstop
+                re_l_bubble( iix ) = re_l_bubble( iix ) &
+                                   + re_val( iix, bviter, ik, dft_spin ) * re_amat( iix, bviter, ik ) &
+                                   + im_val( iix, bviter, ik, dft_spin ) * im_amat( iix, bviter, ik ) 
+                im_l_bubble( iix ) = im_l_bubble( iix ) &
+                                   + re_val( iix, bviter, ik, dft_spin ) * im_amat( iix, bviter, ik ) &
+                                   - im_val( iix, bviter, ik, dft_spin ) * re_amat( iix, bviter, ik ) 
+              enddo
             enddo
-          enddo
-      enddo
+        enddo
 !  enddo
 !$OMP END DO
 
@@ -537,54 +540,52 @@ module OCEAN_bubble
 
 !    write(6,*) startx_by_mpiID( 0 ), nxpts
 !$OMP MASTER
-    do iproc = 0, nproc - 1
-      if( myid .eq. root ) then
-        if( iproc .eq. myid ) then
+      do iproc = 0, nproc - 1
+        if( myid .eq. root ) then
+          if( iproc .eq. myid ) then
 !          write(6,*) startx_by_mpiID( iproc ), startx_by_mpiID( iproc ) + nxpts - 1
-          re_scratch( startx_by_mpiID( iproc ) : startx_by_mpiID( iproc ) + nxpts - 1 ) = re_l_bubble( : )
-          im_scratch( startx_by_mpiID( iproc ) : startx_by_mpiID( iproc ) + nxpts - 1 ) = im_l_bubble( : )
+            re_scratch( startx_by_mpiID( iproc ) : startx_by_mpiID( iproc ) + nxpts - 1, ispn ) = re_l_bubble( : )
+            im_scratch( startx_by_mpiID( iproc ) : startx_by_mpiID( iproc ) + nxpts - 1, ispn ) = im_l_bubble( : )
 #ifdef MPI
-        else
-          call MPI_RECV( re_scratch( startx_by_mpiID( iproc ) ), nxpts_by_mpiID( iproc ), MPI_DOUBLE_PRECISION, &
-                         iproc, iproc, comm, MPI_STATUS_IGNORE, ierr )
-          call MPI_RECV( im_scratch( startx_by_mpiID( iproc ) ), nxpts_by_mpiID( iproc ), MPI_DOUBLE_PRECISION, &
-                         iproc, iproc+nproc, comm, MPI_STATUS_IGNORE, ierr )
+          else
+            call MPI_RECV( re_scratch( startx_by_mpiID( iproc ), ispn ), nxpts_by_mpiID( iproc ), MPI_DOUBLE_PRECISION, &
+                           iproc, iproc, comm, MPI_STATUS_IGNORE, ierr )
+            call MPI_RECV( im_scratch( startx_by_mpiID( iproc ), ispn ), nxpts_by_mpiID( iproc ), MPI_DOUBLE_PRECISION, &
+                           iproc, iproc+nproc, comm, MPI_STATUS_IGNORE, ierr )
+#endif
+          endif
+#ifdef MPI
+        elseif( iproc .eq. myid ) then
+          call MPI_SEND( re_l_bubble, nxpts, MPI_DOUBLE_PRECISION, root, iproc, comm, ierr )
+          call MPI_SEND( im_l_bubble, nxpts, MPI_DOUBLE_PRECISION, root, iproc+nproc, comm, ierr )
 #endif
         endif
-#ifdef MPI
-      elseif( iproc .eq. myid ) then
-        call MPI_SEND( re_l_bubble, nxpts, MPI_DOUBLE_PRECISION, root, iproc, comm, ierr )
-        call MPI_SEND( im_l_bubble, nxpts, MPI_DOUBLE_PRECISION, root, iproc+nproc, comm, ierr )
-#endif
-      endif
-    enddo
+      enddo
 ! $OMP END MASTER
 
 !! There is no implied barrier at the end of master !!
 ! $OMP BARRIER
 
 
-    if( myid .eq. root ) then
-!      write(6,*) maxval( re_scratch(:) )
-      scratch(:) = cmplx( re_scratch(:), im_scratch(:), DP ) 
-!      do iix = 1, sys%nxpts
-!        write(104,*) scratch(iix) * sys%nxpts
-!      enddo
-!      write(104,*)
-!      call fftw_execute_dft(fplan, scratch, scratch)
-      call FFT_wrapper_single( scratch, OCEAN_BACKWARD, fo, .false. )
-!      write(6,*) maxval( real(scratch(:) ) )
-      scratch( : ) = scratch( : ) * bubble( : )
-!      write(6,*) maxval( real( scratch(:) ) )
-      call FFT_wrapper_single( scratch, OCEAN_FORWARD, fo, .false. )
-!      call fftw_execute_dft(bplan, scratch, scratch)
-!      re_scratch(:) = real(scratch(:)) 
-!      im_scratch(:) = aimag(scratch(:)) 
+      if( myid .eq. root ) then
+        scratch(:) = cmplx( re_scratch(:, ispn), im_scratch(:,ispn), DP ) 
+        call FFT_wrapper_single( scratch, OCEAN_BACKWARD, fo, .false. )
+        scratch( : ) = scratch( : ) * bubble( : )
+        call FFT_wrapper_single( scratch, OCEAN_FORWARD, fo, .false. )
 
-      re_scratch(:) = real(scratch(:),DP) 
-      im_scratch(:) = real(aimag(scratch(:)),DP)
+        if( ispn .eq. 1 ) then
+          re_scratch(:,1) = real(scratch(:),DP) 
+          im_scratch(:,1) = real(aimag(scratch(:)),DP)
+        else
+          re_scratch(:,1) = re_scratch(:,1) + real(scratch(:),DP)
+          im_scratch(:,1) = im_scratch(:,1) + real(aimag(scratch(:)),DP)
+        endif
+      endif
 
-    endif
+
+    enddo  ! ispn
+    ! At this point re/im_scratch (on root) has the sum of the action of the exchange on 
+    ! both the up-up and down-down electron-hole pairs
 
 
 
@@ -593,13 +594,13 @@ module OCEAN_bubble
       if( myid .eq. root ) then
         if( iproc .eq. myid ) then
 !          write(6,*) startx_by_mpiID( iproc ), startx_by_mpiID( iproc ) + nxpts - 1
-          re_l_bubble( : ) = re_scratch( startx_by_mpiID( iproc ) : startx_by_mpiID( iproc ) + nxpts - 1 )
-          im_l_bubble( : ) = im_scratch( startx_by_mpiID( iproc ) : startx_by_mpiID( iproc ) + nxpts - 1 )
+          re_l_bubble( : ) = re_scratch( startx_by_mpiID( iproc ) : startx_by_mpiID( iproc ) + nxpts - 1, 1 )
+          im_l_bubble( : ) = im_scratch( startx_by_mpiID( iproc ) : startx_by_mpiID( iproc ) + nxpts - 1, 1 )
 #ifdef MPI
         else
-          call MPI_SEND( re_scratch( startx_by_mpiID( iproc ) ), nxpts_by_mpiID( iproc ), MPI_DOUBLE_PRECISION, &
+          call MPI_SEND( re_scratch( startx_by_mpiID( iproc ), 1 ), nxpts_by_mpiID( iproc ), MPI_DOUBLE_PRECISION, &
                          iproc, iproc, comm, ierr )
-          call MPI_SEND( im_scratch( startx_by_mpiID( iproc ) ), nxpts_by_mpiID( iproc ), MPI_DOUBLE_PRECISION, &
+          call MPI_SEND( im_scratch( startx_by_mpiID( iproc ), 1 ), nxpts_by_mpiID( iproc ), MPI_DOUBLE_PRECISION, &
                          iproc, iproc+nproc, comm, ierr )
 #endif
         endif
@@ -616,55 +617,63 @@ module OCEAN_bubble
 !! There is no implied barrier at the end of master !!
 !$OMP BARRIER
 
+  do ispn = 1, sys%valence_ham_spin
+    psi_spin = ispn * ispn  ! Either 1 or 4 
+    dft_spin = min( ispn, sys%nspn )   ! The DFT states need not be different for spin up/down
+
 
 !$OMP WORKSHARE
-  re_amat = 0.0_dp
-  im_amat = 0.0_dp
+    re_amat = 0.0_dp
+    im_amat = 0.0_dp
 !$OMP END WORKSHARE
 
 !$OMP DO COLLAPSE(3)
-    do ik = 1, nkpts
-      do bviter = 1, nbv
+      do ik = 1, nkpts
+        do bviter = 1, nbv
 !        do ix = 1, nxpts, xwidth
 !          xstop = min( nxpts, ix + xwidth - 1 )
 !          do iix = 1, xstop
-        do iix = 1, nxpts
-            re_amat( iix, bviter, ik ) = re_l_bubble( iix ) * re_val( iix, bviter, ik, 1 )
-            im_amat( iix, bviter, ik ) = im_l_bubble( iix ) * re_val( iix, bviter, ik, 1 )
+          do iix = 1, nxpts
+              re_amat( iix, bviter, ik ) = re_l_bubble( iix ) * re_val( iix, bviter, ik, dft_spin )
+              im_amat( iix, bviter, ik ) = im_l_bubble( iix ) * re_val( iix, bviter, ik, dft_spin )
 !          enddo
 !          do iix = 1, xstop
-            re_amat( iix, bviter, ik ) = re_amat( iix, bviter, ik ) - im_l_bubble( iix ) * im_val( iix, bviter, ik, 1 )
-            im_amat( iix, bviter, ik ) = im_amat( iix, bviter, ik ) + re_l_bubble( iix ) * im_val( iix, bviter, ik, 1 )
-        enddo
+              re_amat( iix, bviter, ik ) = re_amat( iix, bviter, ik ) & 
+                                         - im_l_bubble( iix ) * im_val( iix, bviter, ik, dft_spin )
+              im_amat( iix, bviter, ik ) = im_amat( iix, bviter, ik ) &
+                                         + re_l_bubble( iix ) * im_val( iix, bviter, ik, dft_spin )
+          enddo
 !          enddo
 !        enddo
+        enddo
       enddo
-    enddo
 !$OMP END DO
 
 
-  if( nxpts .gt. 0 ) then
+    if( nxpts .gt. 0 ) then
 !JTV add additional tiling
 !$OMP DO 
 
-    do ik = 1, nkpts
-      call DGEMM( 'T', 'N', nbc, nbv, nxpts, spin_prefac, re_con( 1, 1, ik, 1 ), nxpts_pad, & 
-                  re_amat( 1, 1, ik ), nxpts_pad, &
-                  one, psiout%valr( 1, 1, ik, 1 ), psi_con_pad )
-      call DGEMM( 'T', 'N', nbc, nbv, nxpts, spin_prefac, im_con( 1, 1, ik, 1 ), nxpts_pad, & 
-                  im_amat( 1, 1, ik ), nxpts_pad, &
-                  one, psiout%valr( 1, 1, ik, 1 ), psi_con_pad )
+      do ik = 1, nkpts
+        call DGEMM( 'T', 'N', nbc, nbv, nxpts, spin_prefac, re_con( 1, 1, ik, dft_spin ), nxpts_pad, & 
+                    re_amat( 1, 1, ik ), nxpts_pad, &
+                    one, psiout%valr( 1, 1, ik, psi_spin ), psi_con_pad )
+        call DGEMM( 'T', 'N', nbc, nbv, nxpts, spin_prefac, im_con( 1, 1, ik, dft_spin ), nxpts_pad, & 
+                    im_amat( 1, 1, ik ), nxpts_pad, &
+                    one, psiout%valr( 1, 1, ik, psi_spin ), psi_con_pad )
 
-      call DGEMM( 'T', 'N', nbc, nbv, nxpts, minus_spin_prefac, im_con( 1, 1, ik, 1 ), nxpts_pad, &
-                  re_amat( 1, 1, ik ), nxpts_pad, &
-                  one, psiout%vali( 1, 1, ik, 1 ), psi_con_pad )
-      call DGEMM( 'T', 'N', nbc, nbv, nxpts, spin_prefac, re_con( 1, 1, ik, 1 ), nxpts_pad, &
-                  im_amat( 1, 1, ik ), nxpts_pad, &
-                  one, psiout%vali( 1, 1, ik, 1 ), psi_con_pad )
-    enddo
+        call DGEMM( 'T', 'N', nbc, nbv, nxpts, minus_spin_prefac, im_con( 1, 1, ik, dft_spin ), nxpts_pad, &
+                    re_amat( 1, 1, ik ), nxpts_pad, &
+                    one, psiout%vali( 1, 1, ik, psi_spin ), psi_con_pad )
+        call DGEMM( 'T', 'N', nbc, nbv, nxpts, spin_prefac, re_con( 1, 1, ik, dft_spin ), nxpts_pad, &
+                    im_amat( 1, 1, ik ), nxpts_pad, &
+                    one, psiout%vali( 1, 1, ik, psi_spin ), psi_con_pad )
+      enddo
 !$OMP END DO
 
-  endif
+    endif
+
+  enddo
 
 
 !$OMP END PARALLEL
