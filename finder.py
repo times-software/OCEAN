@@ -143,7 +143,7 @@ def semic():
 	y = 0
 	sdict = {}
 	newletters = []
-	print "\nFrom the semicore file:"
+	#print "\nFrom the semicore file:"
 	ssslist = []	
 	for index, line in enumerate(searchs):
 		semicorestring = index, line
@@ -157,9 +157,9 @@ def semic():
 			z = z + 1 
 			y = y + 1
 			sdict[y] = bl
-		print "\nSemicore dictionary?"
-		print sdict
-		return sdict
+	print "\nSemicore dictionary?"
+	print sdict
+	return sdict
 		
 		
 		
@@ -205,26 +205,17 @@ def qualitylist():
 			#should be callable and find the closest value if give a value and a list
 			closest = take_closest(quality_asked_for, qnumber_list)
 			#finds out closest value to the quality listed in Common so that can be picked
+			print "\nThe closest matching option to the asked for value is:"
 			print closest
-			#for x in zdict:
+			
 			qdict[key] = str(closest)		
-			#then for each key in zdict, add a key to qdict with the closest value
+			#then for each key in zdict, add a key to qdict with the closest value found above
 		#pathmaker2() returns dict of paths that can be used to list of options of quality for each znucl	
 					
 	print "\n"
 	print qdict
 	return qdict 
-
-def fakequalitylist():
-	t = 0
-	qdict = {}
-	for thing in zdict:
-		t = t + 1
-		qdict[t] = ("40")
-	return qdict
-			
-
-#makes path and then lists quality files. They're sorted and the length is measured. The sorted list is printed 
+#returns a dictionary to be used in pathmaker3() so it can match each quality with it's znucl and path 
 
 zlist = []
 
@@ -256,14 +247,28 @@ print "\nPath for each znucl:"
 for item in zpathlist:
 	print item
 
+print "\nConverting list of znucls to numbers for sorting:"
+print zlist
+znumber_list= map(int, zlist)
+print znumber_list
+znumber_list= sorted(znumber_list)
+print znumber_list
+
+zlist = map(lambda x:str(x), znumber_list)
+print zlist
+#turns znucls in zlist into ints and makes it znumber_list, sorts znumber_list, then changes znucls back to strings for zlist
+#This makes sure that the list given to zdict is sorted numerically so keys correspond to order of semicores
+
 print "\nDictionary for znucls:"
 x = 0
 zdict = {}
-for nucl in zlist:
+for znucl in zlist:
 	x = x + 1
-	zdict[x] = nucl
-print sorted(zdict)
+	zdict[x] = znucl
 #makes the list of znucls into a dictionary so that it's easier to keep track of what's what 
+
+print zdict
+
 	
 
 #print "\nList of semicores:"
