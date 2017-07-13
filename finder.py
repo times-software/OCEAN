@@ -112,7 +112,62 @@ def pathmaker3():
 		#need to grab the letter associated with the object of zdict for the dict semicore
 	print "\n"
 	print pathlist
+	return pathlist
 #uses the dictionaries made for znucl, semicore, and quality to make paths and then it prints the paths        
+
+
+
+
+
+def reader():
+	fhi_list = []
+	fhi_dict = {}
+	z = 0
+
+	for final_path in pathmaker3():
+		info_location = os.path.join(final_path, "info.txt")
+		info = open(info_location, "r")
+		search_names = info.readlines()
+		info.close()
+		
+		for line in enumerate(search_names):
+			file_name = line[1].split()
+			#print file_name
+
+			for file in file_name:
+				if file.endswith('.fhi'):
+					fhi_list.append(file)
+
+	print "\nThe .fhi files from info.txt:"
+	print fhi_list
+	for file in fhi_list:
+		z = z + 1
+		fhi_dict[z] = file
+
+	return fhi_dict
+#when reading the lines of info.txt, it returns a tuple that numbers the lines so this may be useful for the future. 
+#For now just prints the files names out of info.txt
+
+
+
+
+
+def writer():
+	fhi_dict = reader()
+	print "\nFile names added to pplist:"
+		
+	pplist = open("Common/pplist", "a")
+	#may need to make pplist file first just in case a blank one isn't already there
+	#search_pplist = pplist.readlines()
+
+	for key in fhi_dict:
+		pplist.write(fhi_dict[key])
+		pplist.write("\n")
+		print fhi_dict[key]
+	
+	pplist.close()
+#takes fhi_dict from reader(). For each key, it writes it's value (the fhi file names) to pplist in Commmon
+
 
 
 
@@ -279,3 +334,5 @@ print zdict
 pathmaker3()	
 	
 						
+reader()
+writer()
