@@ -30,6 +30,7 @@ module OCEAN_system
     integer( S_INT ) :: kmesh( 3 )
     integer( S_INT ) :: ZNL(3)
     integer( S_INT ) :: nspn 
+    integer          :: valence_ham_spin
     integer( S_INT ) :: nobf = 0
     integer( S_INT ) :: nruns
     integer          :: nedges 
@@ -152,6 +153,7 @@ module OCEAN_system
       read(99,*) sys%nspn
       close(99)
       sys%nbeta = sys%nspn**2
+      sys%valence_ham_spin = sys%nspn
 
       open(unit=99,file='ZNL',form='formatted',status='old')
       rewind(99) 
@@ -161,6 +163,23 @@ module OCEAN_system
       ! nalpha is ( nspin valence ) * ( nspin core ) * ( 2 * l_core + 1 )
       sys%nalpha = 4 * ( 2 * sys%ZNL(3) + 1 )
       write(6,*) sys%nalpha
+      if( sys%ZNL(3) .gt. 0 ) then
+        if( sys%valence_ham_spin .eq. 1 ) then
+          write(6,*) 'Detected L>0 while spin=1'
+          write(6,*) '  Upgrading valence Hamiltonian to spin=2'
+          sys%nbeta = 4
+          sys%valence_ham_spin = 2
+        endif
+      endif
+
+      inquire( file='force_val_ham_spin.ipt', exist=exst )
+      if( exst ) then
+        open( unit=99, file='force_val_ham_spin.ipt', form='formatted',status='old')
+        read(99,*) sys%valence_ham_spin
+        close(99)
+        sys%nbeta = sys%valence_ham_spin * sys%valence_ham_spin
+        write(6,*) '  Override of valence Hamiltonian spin requested:', sys%valence_ham_spin
+      endif
 
       open(unit=99,file='nbuse.ipt',form='formatted',status='old')
       rewind(99)
@@ -305,6 +324,8 @@ module OCEAN_system
     call MPI_BCAST( sys%ZNL, 3, MPI_INTEGER, root, comm, ierr )
     if( ierr .ne. MPI_SUCCESS ) goto 111
     call MPI_BCAST( sys%nspn, 1, MPI_INTEGER, root, comm, ierr )
+    if( ierr .ne. MPI_SUCCESS ) goto 111
+    call MPI_BCAST( sys%valence_ham_spin, 1, MPI_INTEGER, root, comm, ierr )
     if( ierr .ne. MPI_SUCCESS ) goto 111
     call MPI_BCAST( sys%nbeta, 1, MPI_INTEGER, root, comm, ierr )
     if( ierr .ne. MPI_SUCCESS ) goto 111
