@@ -167,7 +167,7 @@ def writer():
 	fhi_dict = reader()
 	print "\nFile names added to pplist:"
 		
-	pplist = open("Common/pplist", "a")
+	pplist = open("Common/pplist", "w")
 	#may need to make pplist file first just in case a blank one isn't already there
 	#search_pplist = pplist.readlines()
 
@@ -183,19 +183,62 @@ def writer():
 
 
 
+def citation_writer():
+	citation_file_list = copier()
+	current_directory = os.getcwd()
+	
+        final_citation_file = os.path.join(current_directory, "citation")
+        final_citation_title = open(final_citation_file, "w")
+        final_citation_title.write("Citations:\n")
+
+	for key in zdict:
+		citation_file = citation_file_list[key-1]
+		#gets location of the znucl's citation file from copier
+		zdict[key]
+				
+		citation = open(citation_file, "r")
+                search_citation = citation.readlines()
+                citation.close()
+
+                final_citation = open(final_citation_file, "a")
+                final_citation.write(element_names[znumber_list[key-1]] + ": \n")
+		#writes that znucl's symbol to the final citation
+		print element_names[znumber_list[key-1]]
+
+                for i, line in enumerate(search_citation):
+			if line == line:
+                		for l in search_citation[i:]:
+					final_citation.write(l)
+		
+                final_citation = open(final_citation_file, "a")
+                final_citation.write("\n")
+		#writes all of the lines from znucl's citation under it's symbol
+	final_citation.close()
+		#writes all of citation information about znucls in a file called citation in cwd
+	print "The citation has been made in this directory."
+
+
+
 def copier():
+	current_directory = os.getcwd()
+	citation_file_list = []	
+
 	for path in pathmaker3():
-		current_directory = os.getcwd()
 		pseudofile_list = os.listdir(path)
 		print "\n"
 		for file in pseudofile_list:
 			file_path = os.path.join(path, file)
 			if file.endswith('.txt'):
 				print file + " was not copied."
+			elif file.startswith('cite'):
+
+				citation_file = os.path.join(path, file)
+				citation_file_list.append(citation_file)
 			else:
 				shutil.copy(file_path, current_directory)
 				print file + " was copied."
-	print "The pseudo files have been copied into the working directory."	
+	print "The pseudo files have been copied into the working directory.\n"	
+	return citation_file_list
 #takes dict from pathmaker3() in order to know where to copy pseudo files from, finds cwd, then copies pseudo files into Common
 
 
@@ -256,9 +299,12 @@ def semicore_list():
 					else:
 						print "Something's wrong."
 						sys.exit(1)
+		else:
+			print "There was nothing in the semicore file in Common."
+			sys.exit(1)
 		#if there's more than one semicore requested, the options need to be checked to make sure the requests are ok
-
-	return sdict
+	
+		return sdict
 
 
 
@@ -307,7 +353,7 @@ def quality_list():
 			print "\nThe closest matching option to the quality requested is:"
 			print closest
 			
-			length_options_list = length_options_list + 1
+			
 			qdict[key] = str(closest)		
 			#then for each key in zdict, add a key to qdict with the closest value found above
 		#pathmaker2() returns dict of paths that can be used to list of options of quality for each znucl	
@@ -344,10 +390,7 @@ for index, line in enumerate(searchz):
 		if znucl in alist:
 			zlist.append(znucl)
 
-	#for znucl in alist:
-        #	if znucl in something[1]:
-        #        	#print znucl #not needed atm
-	#		zlist.append(znucl)
+znumber_list = map(int, zlist)
 
 print "The complete list of znucls"
 print zlist
@@ -375,4 +418,4 @@ pathmaker3()
 reader()
 writer()
 
-copier()
+citation_writer()
