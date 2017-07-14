@@ -1,6 +1,5 @@
 #This is the automated code
-import shutil, os, sys
-
+import shutil, os, sys, bisect
 
 commona = open("Common/pp.dir", "r")
 searcha = commona.readlines()
@@ -197,7 +196,8 @@ def copier():
 				shutil.copy(file_path, current_directory)
 				print file + " was copied."
 	print "The pseudo files have been copied into the working directory."	
-#takes dict from pathmaker3() in order to know where to copy pseudo files from, finds cwd, then copies pseudo files into cwd.
+#takes dict from pathmaker3() in order to know where to copy pseudo files from, finds cwd, then copies pseudo files into Common
+
 
 
 
@@ -264,6 +264,16 @@ def semicore_list():
 
 
 
+def find_ge(searched_list, wanted_value):
+
+	value_found = bisect.bisect_left(searched_list, wanted_value)
+	if value_found == len(searched_list):
+		print "There was no quality available equal to or greater than the asked for value."
+		sys.exit(1)
+	return searched_list[value_found]
+#finds value greater or equal to wanted_value from searched_list		  
+
+
 
 #the quality code:
 
@@ -271,6 +281,7 @@ def quality_list():
        	print "\nQuality requested in Common file:"
 
 	qdict = {}
+	length_options_list = 0
 
 	commonq = open("Common/pp.quality", "r")
 	searchq = commonq.readlines()
@@ -290,21 +301,32 @@ def quality_list():
 			print "\nA znucl's quality options:"
 			qnumber_list = map(int, qlist)
 			print qnumber_list
-			take_closest = lambda num,collection:min(collection,key=lambda x:abs(x-num))
-			#should be callable and find the closest value if give a value and a list
-			closest = take_closest(quality_asked_for, qnumber_list)
-			#finds out closest value to the quality listed in Common so that can be picked
+			 
+			closest = find_ge(qnumber_list, quality_asked_for)
+			#finds out closest value >= to the quality listed in Common so that can be picked
 			print "\nThe closest matching option to the quality requested is:"
 			print closest
 			
+			length_options_list = length_options_list + 1
 			qdict[key] = str(closest)		
 			#then for each key in zdict, add a key to qdict with the closest value found above
 		#pathmaker2() returns dict of paths that can be used to list of options of quality for each znucl	
 					
+	if max(qnumber_list) != quality_asked_for: 
+		biggest_quality = str(max(qnumber_list))
+        	
+        	commone = open("Common/ecut", "w")
+        	commone.write(biggest_quality)
+        	print "\n" + biggest_quality + " was written to ecut in Common."
+        	#takes max quality from qnumber and writes it to ecut file
+
+	#if quality_asked_for isn't the largest value in qnumber_list, rewrite ecut file with largest value from qnumber_list
+
 	print "\n"
 	print qdict
 	return qdict 
 #returns a dictionary to be used in pathmaker3() so it can match each quality with it's znucl and path 
+
 
 
 
