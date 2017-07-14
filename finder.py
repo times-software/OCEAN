@@ -173,6 +173,26 @@ def writer():
 
 
 
+def copier():
+	for path in pathmaker3():
+		current_directory = os.getcwd()
+		pseudofile_list = os.listdir(path)
+		print "\n"
+		for file in pseudofile_list:
+			file_path = os.path.join(path, file)
+			if file.endswith('.txt'):
+				print file + " was not copied."
+			else:
+				shutil.copy(file_path, current_directory)
+				print file + " was copied."
+	print "The pseudo files have been copied into the working directory."	
+#takes dict from pathmaker3() in order to know where to copy pseudo files from, finds cwd, then copies pseudo files into cwd.
+
+
+
+
+
+
 #the semicore code:
 
 def semic():
@@ -336,3 +356,5 @@ pathmaker3()
 						
 reader()
 writer()
+
+copier()
