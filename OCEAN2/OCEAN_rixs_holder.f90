@@ -82,6 +82,19 @@ module OCEAN_rixs_holder
   end subroutine OCEAN_rixs_holder_load
 
 
+!> @brief Loads up the echamp (conduction-band--core-hole exciton intensities) 
+!! and does the inner-product with the core-valence overlaps to get the full 
+!! RIXS starting point
+!
+!> @details Loops over all the edges and fills out the full RIXS starting vec. 
+!! The various l<sub>m</sub>'s of the core are summed over. If we are running 
+!! spin=1 for the valence Hamiltonian (say a K edge of a nonmagnetic system) 
+!! then the various spin states are also compressed down (but the up-down and 
+!! down-up channels are zero in that case anyway). 
+!! \todo Make a naming module so that the naming convention of files like 
+!! the echamps are always consistent and only in a single place. (also things 
+!! like absspct, etc.).  Consider bringing in the ocean_vector type instead 
+!! of a complex array of fixed size. 
   subroutine rixs_seed( sys, p_vec, file_selector, ierr )
     use OCEAN_system
 
@@ -113,10 +126,11 @@ module OCEAN_rixs_holder
 
 ! JTV block this so psi is in cache
       ic = 0
-      do icms = 0, 1
+      do icms = 1, 3    ! Core-hole spin becomes valence-hole spin
         do icml = 1, sys%ZNL(3)*2 + 1
-          do ivms = 1, 3, 2
-            ispin = min( icms + ivms, sys%nspn**2 )
+          do ivms = 0, 1  ! conduction-band spin stays
+            ! the order of ispin will be 1, 2, 3, 4 (assuming that sys%nbeta == 4)
+            ispin = min( icms + ivms, sys%nbeta )  
             ic = ic + 1
             do ik = 1, sys%nkpts
               do i = 1, sys%val_bands
