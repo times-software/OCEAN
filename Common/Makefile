@@ -1,6 +1,7 @@
 include ../Makefile.arch
 FILES   =
-SCRIPTS = ocean.pl par_ocean.pl parse defaults.pl defaults.h parse.pl edges.pl
+SCRIPTS = ocean.pl par_ocean.pl parse defaults.pl defaults.h parse.pl edges.pl \
+          psp_tools/adder.py psp_tools/finder.py psp_tools/interactivefinder.py
 AUX = oparse.h Pquadrature specpnt sphpts
 LEBDEV = specpnt.5 specpnt.6 specpnt.7 specpnt.8 specpnt.9 specpnt.10 specpnt.15 specpnt.20
 

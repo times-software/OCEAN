@@ -45,6 +45,7 @@ install:
 	cd INTERPOLATE;  make install
 	cd OCEAN2;       make install
 	chmod u+x $(INSTDIR)/*.pl
+	chmod u+x $(INSTDIR)/*.py
 
 instdev:
 	for F in $(SCRIPTS) $(AUX); do ln -fs $(PWD)/$$F $(INSTDEVDIR); done;
@@ -54,4 +55,5 @@ instdev:
 	cd CNBSE;         make "INSTDEVDIR = $(INSTDEVDIR)" instdev
 	cd SCREEN;       make "INSTDEVDIR = $(INSTDEVDIR)" instdev
 	chmod u+x $(INSTDEVDIR)/*.pl
+	chmod u+x $(INSTDEVDIR)/*.py
 

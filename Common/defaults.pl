@@ -579,6 +579,32 @@ if( $input_content =~ m/VAL/i || $input_content =~ m/RXS/i )
 }
 
 
+########### Prep setup for psp_finder scripts
+open PPLIST, "pplist" or die "Failed to open pplisty\n$!\n";
+my $pplist = <PPLIST>;
+close PPLIST;
+  ### Only will run this if pplist is the default (null)
+if( $pplist =~ m/NULL/ )
+{
+  ### If no pp.dir was specified then set it to the install location default
+  open PPDIR, "pp.dir" or die "Failed to open pp.dir\n$!";
+  my $ppdir = <PPDIR>;
+  close PPDIR;
+  if( $ppdir =~ m/NULL/ )
+  {
+    $ppdir = $ENV{"OCEAN_BIN"} . "/psps";
+    open PPDIR, ">pp.dir" or die "Failed to open pp.dir for writing\n$!\n";
+    print PPDIR "$ppdir\n";
+    close PPDIR;
+  }
+
+  system("chdir ..; python2 $ENV{'OCEAN_BIN'}/finder.py" ) == 0 or 
+    die "Failed to run finder.py\n";
+
+}
+
+print "\n\n\nFinshed with defaults\n\n\n";
+
 
 exit;
 

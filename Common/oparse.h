@@ -89,6 +89,18 @@ pp_list
 {
 NULL
 } pplist
+pp.dir
+{
+NULL
+} pp.dir
+semicore
+{
+F
+} semicore
+pp.quality
+{
+10
+} pp.quality
 natom
 {
 } natoms
