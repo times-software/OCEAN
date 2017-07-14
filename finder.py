@@ -1,14 +1,27 @@
-#This is the automated one
+#This is the automated code
 import shutil, os, sys
-from distutils.dir_util import copy_tree
 
-pseudo = "psps"
-#this will be where all the pseudofiles are
+
+commona = open("Common/pp.dir", "r")
+searcha = commona.readlines()
+commona.close()
+
+for index, line in enumerate(searcha):
+        dir_string = index, line
+        print "\nList of everything found in znucl file (in Common):"
+        print dir_string[1]
+        dir_asked_for = dir_string[1].split()
+        for dir in dir_asked_for:
+                absolute_path = dir
+#search pp.dir in Common to get the absolute path, a will use
+
 
 
 #znucl code:
 
-a = os.path.join("/flash", "jtv1", "OCEAN", "bin", pseudo)
+#read absolute list of file in Common
+
+a = os.path.join(absolute_path)
 aalist = os.listdir(a)
 alist = sorted(aalist)
 numa = map(int, alist)
@@ -77,7 +90,6 @@ def pathmaker1():
 	lastdict = {}
 
 	#print "pathmaker1"
-	#qual = fakequalitylist() #change fakequalitylist() to quality list when ready
 
 	for object in zdict:
 		start = os.path.join(a, zdict[object])
@@ -87,7 +99,7 @@ def pathmaker1():
 
 def pathmaker2():
 	nextdict = {}
-	semicore = semic()
+	semicore = semicore_list()
 	print "\nSemicore dictionary:"
 	print semicore	
 		
@@ -100,7 +112,7 @@ def pathmaker2():
 
 def pathmaker3():
         lastdict = {}
-	qual = qualitylist()
+	qual = quality_list()
 	
 	pathlist = []
 	for object in pathmaker2():
@@ -172,7 +184,6 @@ def writer():
 
 
 
-
 def copier():
 	for path in pathmaker3():
 		current_directory = os.getcwd()
@@ -192,10 +203,9 @@ def copier():
 
 
 
-
 #the semicore code:
 
-def semic():
+def semicore_list():
 	commons = open("Common/semicore", "r")
 	searchs = commons.readlines()
 	commons.close()
@@ -205,32 +215,51 @@ def semic():
 	#print "\nFrom the semicore file:"
 	#ssslist = []	
 	for index, line in enumerate(searchs):
-		semicorestring = index, line
-		#print semicorestring[1] 
-		letters = semicorestring[1].split()
-		#splits string of letters automatically and gets rid of line return and white spaces
-		#will need to be editted to allow for one semicore input also. Atm just does them for as many znucls there are		
-		for bl in letters:
-			#print bl 
-			y = y + 1
-			sdict[y] = bl
-	return sdict
+		semicorestring = index, line 
+		semicores_requested = semicorestring[1].split()
+		print "\nSemicores requested:"
+		print semicores_requested
+		#splits string of letters automatically and gets rid of line return and white spaces		
 		
-		
-		
-		#for semicore in sdict:
-		#	if semicore in slist:
+		if len(semicores_requested) == 1: 
+			for key in pathmaker1():
+                	       	sdict[key] = semicores_requested[0]
+		#if there's only one semicore requested, add that semicore to sdict for as many znucls as there are
+		elif len(semicores_requested) > 1:
+			for key in pathmaker1():
+			        path = pathmaker1()[key]
+        			sslist = os.listdir(path)
+        			slist = sorted(sslist)
+        			lengths = len(sslist)
+	
+				semicore = semicores_requested[key-1]
+				#index is one less than the order of the keys
+				print semicore + " was requested."
+					
+        			print "\nA znucl's semicore options:"
+        			print slist
 				
-		#		print semicore
-	    	#		if semicore.lower() in "t":	
-		#			ssslist.append('T')
-		#		        
-		#		else:
-                #			ssslist.append('F')
-		#		return ssslist
-		#for now i'm not going to check that it's actually one of the options, im just going to pick it			
-#looks at semicore file in Common and for each znucl it sees if for it's semicore options which one it should
-#pick based on the semicores that correspond to each znucl in Common 
+				if semicore in slist:
+					sdict[key] = semicore
+				#if the requested semicore with that znucl is an option, that option is picked
+				else:
+					if semicore == "T":
+						print "True was requested in Common but was not available."
+						sys.exit(1)
+					#if the semicore requested was True and it wasn't in slist, exit out of code
+					#If T is requested, it must be given or something's wrong
+					elif semicore == "F":
+						true = slist[0]
+						sdict[key] = true
+						print "T was picked instead of F."
+					#if the semicore requested was False and wasn't in slist, return True
+					else:
+						print "Something's wrong."
+						sys.exit(1)
+		#if there's more than one semicore requested, the options need to be checked to make sure the requests are ok
+
+	return sdict
+
 
 
 
@@ -238,7 +267,7 @@ def semic():
 
 #the quality code:
 
-def qualitylist():
+def quality_list():
        	print "\nQuality requested in Common file:"
 
 	qdict = {}
@@ -280,35 +309,28 @@ def qualitylist():
 
 
 
-#the znucl code (I may make this a method later but it's not necessary):
+#the znucl code:
 
 zlist = []
 
 for index, line in enumerate(searchz):
-	something = index, line
+	znucl_string = index, line
 	print "\nList of everything found in znucl file (in Common):"
-        print something[1]
-	for znucl in alist:
-        	if znucl in something[1]:
-                	#print znucl #not needed atm
+        print znucl_string[1]
+	znucl_asked_for = znucl_string[1].split()
+	for znucl in znucl_asked_for:
+		if znucl in alist:
 			zlist.append(znucl)
+
+	#for znucl in alist:
+        #	if znucl in something[1]:
+        #        	#print znucl #not needed atm
+	#		zlist.append(znucl)
 
 print "The complete list of znucls"
 print zlist
 #looks through znucl file in Common and grabs the string with requested znucls. If a requested znucl = one of the options in psps, 
 #it grabs the znucl from the string and adds it to a list of znucls
-
-
-print "\nSorted znucl list:"
-znumber_list= map(int, zlist)
-znumber_list= sorted(znumber_list)
-#znumber_list is zlist as a list of ints, znumber_list is then sorted
-
-zlist = map(lambda x:str(x), znumber_list)
-print zlist
-#changes znucls back to strings for zlist
-#This makes sure that the list given to zdict is sorted numerically so keys correspond to order of semicores
-
 
 print "\nDictionary for znucls:"
 x = 0
@@ -323,33 +345,7 @@ print zdict
 
 
 
-
-#print "\nList of semicores:"
-#semicorelist = []
-#for item in znucllist:
-#	s = item
-#	sslist = os.listdir(s)
-#	slist = sorted(sslist)
-#	print "List of options in znucl directories:"
-#	print slist
-#	lengths = len(sslist)
-#	#makes path and lists all of semicore options, sorts it, and sees how long it is
-#
-#	if lengths == 1:		
-#        	sssc = 'F'
-#		semicorelist.append(sssc)
-#		pathmaker()
-#        	#if there's only one option for a znucl, that option is picked
-#	elif lengths == 2:
-#		print "List of semicores from Common (for ti in this case):"
-#	     	for sssc in semic():
-#			print sssc
-#			semicorelist.append(sssc)
-#			pathmaker()
-#  		#if there's two options for a znucl, code looks to see if it's T or F 
-#	else:
-#       		print "Something went wrong."
-#       		sys.exit(0)
+#finally everything is called:
 
 pathmaker3()	
 	
