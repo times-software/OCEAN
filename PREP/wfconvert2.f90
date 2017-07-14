@@ -53,7 +53,6 @@ program wfconvert
       integer, parameter :: wfkoutfile= 48
       integer, parameter :: umklapp =   49
 ! 
-      open(unit=umklapp,file='umklapp', form=f9,status='unknown')
 
       open(unit=36,file='klist',form=f9,status='unknown')
       open(unit=99,file='brange.ipt',form=f9,status='old')
@@ -224,12 +223,17 @@ program wfconvert
       allocate(cg_un(maxband(1),2*maxnpw(1)),cg_sh(maxband(2),2*maxnpw(2)))
       allocate(occ_un(maxband(1)),occ_sh(maxband(2)))
 
+      ! umklapp can only be an issue with shifted grids where k+q might go off the edge
+      if( .not. noshift ) open(unit=umklapp,file='umklapp', form=f9,status='old')
+
       isppol=1
-      do isppol=1,nsppol(1)   ! this is currently unsupported
+      do isppol=1,nsppol(1)   
+        ! Once again only for shifts, but umklapp is the same for each spin
+        if( .not. noshift ) rewind( umklapp )
+    
         do ikpt=1,hkpt
           kpt_counter = kpt_counter + 1
 
-          !if (.not. noshift) read(umklapp, * ) umk(:)
 
           call getwfkout( wfkout, isppol, ikpt, wfkoutfile)
           if (.not. noshift)  kg_shift(:,:) = 0
@@ -633,5 +637,5 @@ program wfconvert
 
        close(enk_un)
        close(enk_sh)
-       close(umklapp)
+       if( .not. noshift ) close(umklapp)
 end program wfconvert
