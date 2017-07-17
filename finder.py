@@ -12,13 +12,11 @@ for index, line in enumerate(searcha):
         dir_asked_for = dir_string[1].split()
         for dir in dir_asked_for:
                 absolute_path = dir
-#search pp.dir in Common to get the absolute path, a will use
+#search pp.dir in Common to get the absolute path, a will use this
 
 
 
 #znucl code:
-
-#read absolute list of file in Common
 
 a = os.path.join(absolute_path)
 aalist = os.listdir(a)
@@ -187,9 +185,9 @@ def citation_writer():
 	citation_file_list = copier()
 	current_directory = os.getcwd()
 	
-        final_citation_file = os.path.join(current_directory, "citation")
-        final_citation_title = open(final_citation_file, "w")
-        final_citation_title.write("Citations:\n")
+        final_citation_file = os.path.join(current_directory, "psp_citation")
+        final_citation = open(final_citation_file, "w")
+        final_citation.write("Citations:\n")
 
 	for key in zdict:
 		citation_file = citation_file_list[key-1]
@@ -200,7 +198,6 @@ def citation_writer():
                 search_citation = citation.readlines()
                 citation.close()
 
-                final_citation = open(final_citation_file, "a")
                 final_citation.write(element_names[znumber_list[key-1]] + ": \n")
 		#writes that znucl's symbol to the final citation
 		print element_names[znumber_list[key-1]]
@@ -210,7 +207,6 @@ def citation_writer():
                 		for l in search_citation[i:]:
 					final_citation.write(l)
 		
-                final_citation = open(final_citation_file, "a")
                 final_citation.write("\n")
 		#writes all of the lines from znucl's citation under it's symbol
 	final_citation.close()
@@ -238,6 +234,7 @@ def copier():
 				shutil.copy(file_path, current_directory)
 				print file + " was copied."
 	print "The pseudo files have been copied into the working directory.\n"	
+	print citation_file_list
 	return citation_file_list
 #takes dict from pathmaker3() in order to know where to copy pseudo files from, finds cwd, then copies pseudo files into Common
 
@@ -310,7 +307,7 @@ def semicore_list():
 
 
 
-def find_ge(searched_list, wanted_value):
+def find_greater_or_equal(searched_list, wanted_value):
 
 	value_found = bisect.bisect_left(searched_list, wanted_value)
 	if value_found == len(searched_list):
@@ -319,6 +316,10 @@ def find_ge(searched_list, wanted_value):
 	return searched_list[value_found]
 #finds value greater or equal to wanted_value from searched_list		  
 
+def find_next_highest(searched_list):
+	return max(searched_list)
+	#values are already less than max quality, the highest one just needs to be found.
+#finds greateset value less than max quality from searched_list
 
 
 #the quality code:
@@ -328,6 +329,7 @@ def quality_list():
 
 	qdict = {}
 	length_options_list = 0
+	new_qnumber_list = []
 
 	commonq = open("Common/pp.quality", "r")
 	searchq = commonq.readlines()
@@ -348,7 +350,7 @@ def quality_list():
 			qnumber_list = map(int, qlist)
 			print qnumber_list
 			 
-			closest = find_ge(qnumber_list, quality_asked_for)
+			closest = find_greater_or_equal(qnumber_list, quality_asked_for)
 			#finds out closest value >= to the quality listed in Common so that can be picked
 			print "\nThe closest matching option to the quality requested is:"
 			print closest
@@ -357,16 +359,41 @@ def quality_list():
 			qdict[key] = str(closest)		
 			#then for each key in zdict, add a key to qdict with the closest value found above
 		#pathmaker2() returns dict of paths that can be used to list of options of quality for each znucl	
-					
-	if max(qnumber_list) != quality_asked_for: 
-		biggest_quality = str(max(qnumber_list))
+	print qdict
+	highest = max(qnumber_list)		
+			
+	if highest != quality_asked_for: 
+		biggest_quality = str(highest)
         	
         	commone = open("Common/ecut", "w")
         	commone.write(biggest_quality)
         	print "\n" + biggest_quality + " was written to ecut in Common."
         	#takes max quality from qnumber and writes it to ecut file
+	#if quality_asked_for isn't the largest value in qnumber_list, rewrite ecut file with largest value from qnumber_list	
 
-	#if quality_asked_for isn't the largest value in qnumber_list, rewrite ecut file with largest value from qnumber_list
+	for key in pathmaker2():
+        	path = pathmaker2()[key]
+                qqlist = os.listdir(path)
+                qlist = sorted(qqlist)
+                lengthq = len(qqlist)
+
+                print "\nJust for the next step. A znucl's options again:"
+                qnumber_list = map(int, qlist)
+		print qnumber_list
+
+		for quality in qnumber_list:
+			if quality <= highest:
+				new_qnumber_list.append(quality)
+				print "Numbers under the highest value picked for each znucl."
+				print new_qnumber_list
+		#for each element, if their picked option doesn't equal the highest quality, a new list is created for them
+		if new_qnumber_list > 0:
+			other_closest = find_next_highest(new_qnumber_list)
+			if other_closest != qdict[key]:
+				qdict[key] = str(other_closest)
+				print str(other_closest) + "was closer to the highest quality."
+		new_qnumber_list = []
+		#if there's something in the new list, the closest value to the max is found and then qdict[key] is replaced. 	
 
 	print "\n"
 	print qdict
