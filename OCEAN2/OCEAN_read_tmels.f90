@@ -12,6 +12,9 @@ subroutine OCEAN_read_tmels( sys, p, file_selector, ierr )
 
 
   integer :: nbc(2), nbv, nk, ik, fh, elements, ic, i, j
+!DASb
+  integer :: ispn, ibeta
+!DASe
 
   real(dp) :: inv_qlength, qinb(3), max_psi, su
   complex(dp), allocatable :: psi_in(:,:)
@@ -44,6 +47,9 @@ subroutine OCEAN_read_tmels( sys, p, file_selector, ierr )
     return
   endif
 
+!DASb
+  write(*,*) "DAS nspin, nalpha, nbeta, valhamsp:",sys%nspn, sys%nalpha, sys%nbeta, sys%valence_ham_spin
+!DASe
 
   select case (file_selector )
   
@@ -77,7 +83,6 @@ subroutine OCEAN_read_tmels( sys, p, file_selector, ierr )
     open( unit=99,file='ptmels.dat',form='binary',status='old')
 #endif
     allocate( psi_in( nbv, nbc(1):nbc(2) ), psi_transpose( sys%cur_run%val_bands, sys%cur_run%num_bands ) )
-
 
     do ik = 1, sys%nkpts
       ! Read in the tmels
@@ -133,43 +138,58 @@ subroutine OCEAN_read_tmels( sys, p, file_selector, ierr )
 
 
       allocate( re_wgt( 0:3, nbv, nbc(2)-nbc(1)+1 ), im_wgt( 0:3, nbv, nbc(2)-nbc(1)+1 ) )
-      su = 0.0_DP
       fh = 99
       open( unit=fh, file='tmels', status='unknown' )
       rewind fh
-      do ik = 1, sys%nkpts
-!        do ic = 0, 3
-          do j = 1, nbc(2) - nbc(1) + 1
-            do i = 1, nbv
-!              read ( fh, '(2(1x,1e22.15))' ) re_wgt( 0, i, j ), im_wgt( 0, i, j )
-              read ( fh, * ) re_wgt( 0, i, j ), im_wgt( 0, i, j )
+
+      do ispn = 1, sys%nspn  !DAS add spin loop
+         ibeta=ispn*ispn     !ibeta maps  to up,up & down,down
+
+         su = 0.0_DP
+
+         do ik = 1, sys%nkpts
+            !        do ic = 0, 3
+            do j = 1, nbc(2) - nbc(1) + 1
+               do i = 1, nbv
+                  !              read ( fh, '(2(1x,1e22.15))' ) re_wgt( 0, i, j ), im_wgt( 0, i, j )
+                  read ( fh, * ) re_wgt( 0, i, j ), im_wgt( 0, i, j )
+               end do
             end do
-          end do
-!        end do
-        do i = 1, sys%cur_run%val_bands
-          do j = 1, sys%cur_run%num_bands
-             p%valr( j, i, ik, 1 ) = re_wgt( 0, i, j )
-             p%vali( j, i, ik, 1 ) = -im_wgt( 0, i, j )
-             su = su + re_wgt( 0, i, j ) * re_wgt( 0, i, j ) + im_wgt( 0, i, j ) * im_wgt( 0, i, j )
-          end do
-        end do
+            !        end do
+            do i = 1, sys%cur_run%val_bands
+               do j = 1, sys%cur_run%num_bands
+                  p%valr( j, i, ik, ibeta ) = re_wgt( 0, i, j )
+                  p%vali( j, i, ik, ibeta ) = -im_wgt( 0, i, j )
+                  su = su + re_wgt( 0, i, j ) * re_wgt( 0, i, j ) + im_wgt( 0, i, j ) * im_wgt( 0, i, j )
+               end do
+            end do
+         end do
+
+         su = sqrt( su )
+         write(6,*) 'pnorm=', su, sys%cur_run%val_bands, sys%cur_run%num_bands, ispn
+
       end do
+
       close( unit=fh )
       !
       deallocate( re_wgt, im_wgt )
-      su = sqrt( su )
-      write(6,*) 'pnorm=', su, sys%cur_run%val_bands, sys%cur_run%num_bands
 
-      su = 0.0_DP
-      do ik = 1, sys%nkpts
-        do i = 1, sys%cur_run%val_bands
-          do j = 1, sys%cur_run%num_bands
-            su = su + p%valr( j, i, ik, 1 ) * p%valr( j, i, ik, 1 ) + p%vali( j, i, ik, 1 ) * p%vali( j, i, ik, 1 )
-          enddo
-        enddo
-      enddo
-      su = sqrt( su )
-      write(6,*) 'pnorm=', su
+      do ibeta=1,sys%nbeta
+         
+         su = 0.0_DP
+
+         do ik = 1, sys%nkpts
+            do i = 1, sys%cur_run%val_bands
+               do j = 1, sys%cur_run%num_bands
+                  su = su + p%valr( j, i, ik, ibeta ) * p%valr( j, i, ik, ibeta ) + p%vali( j, i, ik, ibeta ) * p%vali( j, i, ik, ibeta )
+               enddo
+            enddo
+         enddo
+
+         su = sqrt( su )
+         write(6,*) 'pnorm=', su, ibeta
+
+      enddo  !ibeta 
 
 
     endif

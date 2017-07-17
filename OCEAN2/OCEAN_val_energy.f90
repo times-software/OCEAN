@@ -24,9 +24,9 @@ module OCEAN_val_energy
     !
 
 
-    real( DP ), allocatable, dimension(:,:) :: val_energies, con_energies, im_val_energies, im_con_energies
+    real( DP ), allocatable, dimension(:,:,:) :: val_energies, con_energies, im_val_energies, im_con_energies
     real( DP ) :: efermi, homo, lumo, cliph
-    integer :: ik, ibv, ibc, fh
+    integer :: ik, ibv, ibc, fh, ispn, jspn, ibeta
     logical :: metal, have_imaginary
     integer :: nbv, nbc(2), nk
 #ifdef MPI
@@ -36,100 +36,106 @@ module OCEAN_val_energy
 !    real(DP), parameter :: Ha_to_eV = 27.21138386_dp
 
 
-    allocate( val_energies( sys%cur_run%val_bands, sys%nkpts ), con_energies( sys%cur_run%num_bands, sys%nkpts ), STAT=ierr )
+    allocate( val_energies( sys%cur_run%val_bands, sys%nkpts, sys%nspn ), con_energies( sys%cur_run%num_bands, sys%nkpts, sys%nspn ), STAT=ierr )
     if( ierr .ne. 0 ) return
 
 
 ! Read in energies
-    select case( sys%enk_selector )
+       select case( sys%enk_selector )
 
-    case( 0 )
-
-      if( myid .eq. root ) then
-        open(unit=99,file='enkfile',form='formatted',status='old')
-        do ik = 1, sys%nkpts
-          read(99,*) val_energies( :, ik )
-          read(99,*) con_energies( :, ik )
-        enddo
-        val_energies( :, : ) = val_energies( :, : ) / 2.0_dp ! * Hartree2eV !Ha_to_eV
-        con_energies( :, : ) = con_energies( :, : ) / 2.0_dp ! * Hartree2eV !Ha_to_eV
-      endif
+       case( 0 )
+          
+          if( myid .eq. root ) then
+             open(unit=99,file='enkfile',form='formatted',status='old')
+             do ispn=1, sys%nspn
+                do ik = 1, sys%nkpts
+                   read(99,*) val_energies( :, ik ,ispn)
+                   read(99,*) con_energies( :, ik ,ispn )
+                enddo
+                val_energies( :, : ,ispn ) = val_energies( :, : ,ispn ) / 2.0_dp ! * Hartree2eV !Ha_to_eV
+                con_energies( :, : ,ispn ) = con_energies( :, : ,ispn ) / 2.0_dp ! * Hartree2eV !Ha_to_eV
+             enddo  !ispn
+          endif
 #ifdef MPI
-      call MPI_BCAST( val_energies, sys%cur_run%val_bands*sys%nkpts, MPI_DOUBLE_PRECISION, root, comm, ierr )
-      if( ierr .ne. MPI_SUCCESS ) return
-      call MPI_BCAST( con_energies, sys%cur_run%num_bands*sys%nkpts, MPI_DOUBLE_PRECISION, root, comm, ierr )
-      if( ierr .ne. MPI_SUCCESS ) return
+          call MPI_BCAST( val_energies, sys%cur_run%val_bands*sys%nkpts*sys%nspn, MPI_DOUBLE_PRECISION, root, comm, ierr )
+          if( ierr .ne. MPI_SUCCESS ) return
+          call MPI_BCAST( con_energies, sys%cur_run%num_bands*sys%nkpts*sys%nspn, MPI_DOUBLE_PRECISION, root, comm, ierr )
+          if( ierr .ne. MPI_SUCCESS ) return
 #endif
-
-    case( 1 )
-
+          
+       case( 1 )
+          
 #ifdef MPI
-      if( myid .eq. root ) then
-        open(unit=99,file='tmels.info',form='formatted',status='old')
-        read(99,*) nbv, nbc(1), nbc(2), nk
-        close(99)
-
-        if( nk .ne. sys%nkpts .and. nk .ne. sys%nkpts*2) then
-          ierr = -1
-          write(6,*) 'tmels.info not compatible with other run information: NKPTS'
-          return
-        endif
-      endif
-
-      call MPI_BCAST( nbc, 2, MPI_INTEGER, 0, comm, ierr )
-      if( ierr .ne. 0 ) return
-      call MPI_BCAST( nbv, 1, MPI_INTEGER, 0, comm, ierr )
-      if( ierr .ne. 0 ) return
-
-      call MPI_FILE_OPEN( comm, 'val_energies.dat', MPI_MODE_RDONLY, MPI_INFO_NULL, fh, ierr )
-      if( ierr .ne. MPI_SUCCESS ) return
-      offset = 0
-      call MPI_FILE_SET_VIEW( fh, offset, MPI_DOUBLE_PRECISION, MPI_DOUBLE_PRECISION, 'native', MPI_INFO_NULL,ierr)
-      if( ierr .ne. MPI_SUCCESS ) return
-      do ik = 1, sys%nkpts
-        offset = ( ik - 1 ) * nbv
-        call MPI_FILE_READ_AT_ALL( fh, offset, val_energies( 1, ik ), sys%cur_run%val_bands, MPI_DOUBLE_PRECISION, &
-                               MPI_STATUS_IGNORE, ierr )
-        if( ierr .ne. MPI_SUCCESS) return
-      enddo
-      call MPI_FILE_CLOSE( fh, ierr )
-      if( ierr .ne. MPI_SUCCESS) return
-
-      call MPI_FILE_OPEN( comm, 'con_energies.dat', MPI_MODE_RDONLY, MPI_INFO_NULL, fh, ierr )
-      if( ierr .ne. MPI_SUCCESS ) return
-      offset = 0
-      call MPI_FILE_SET_VIEW( fh, offset, MPI_DOUBLE_PRECISION, MPI_DOUBLE_PRECISION, 'native', MPI_INFO_NULL,ierr)
-      if( ierr .ne. MPI_SUCCESS ) return
-      do ik = 1, sys%nkpts
-        offset = ( ik - 1 ) * ( nbc( 2 ) - nbc( 1 ) + 1 ) + ( sys%brange( 3 ) - nbc( 1 ) )
-        call MPI_FILE_READ_AT_ALL( fh, offset, con_energies( 1, ik ), sys%cur_run%num_bands, MPI_DOUBLE_PRECISION, &
-                               MPI_STATUS_IGNORE, ierr )
-        if( ierr .ne. MPI_SUCCESS) return
-      enddo
-      call MPI_FILE_CLOSE( fh, ierr )
-      if( ierr .ne. MPI_SUCCESS) return
+          if( myid .eq. root ) then
+             open(unit=99,file='tmels.info',form='formatted',status='old')
+             read(99,*) nbv, nbc(1), nbc(2), nk
+             close(99)
+             
+             if( nk .ne. sys%nkpts .and. nk .ne. sys%nkpts*2) then
+                ierr = -1
+                write(6,*) 'tmels.info not compatible with other run information: NKPTS'
+                return
+             endif
+          endif
+          
+          call MPI_BCAST( nbc, 2, MPI_INTEGER, 0, comm, ierr )
+          if( ierr .ne. 0 ) return
+          call MPI_BCAST( nbv, 1, MPI_INTEGER, 0, comm, ierr )
+          if( ierr .ne. 0 ) return
+          
+          call MPI_FILE_OPEN( comm, 'val_energies.dat', MPI_MODE_RDONLY, MPI_INFO_NULL, fh, ierr )
+          if( ierr .ne. MPI_SUCCESS ) return
+          offset = 0
+          call MPI_FILE_SET_VIEW( fh, offset, MPI_DOUBLE_PRECISION, MPI_DOUBLE_PRECISION, 'native', MPI_INFO_NULL,ierr)
+          if( ierr .ne. MPI_SUCCESS ) return
+          do ispn=1, sys%nspn
+             do ik = 1, sys%nkpts
+                offset = ( ispn - 1 )* sys%nkpts * nbv + ( ik - 1 ) * nbv
+                call MPI_FILE_READ_AT_ALL( fh, offset, val_energies( 1, ik , ispn), sys%cur_run%val_bands, MPI_DOUBLE_PRECISION, &
+                     MPI_STATUS_IGNORE, ierr )
+                if( ierr .ne. MPI_SUCCESS) return
+             enddo
+          enddo  !ispn
+          call MPI_FILE_CLOSE( fh, ierr )
+          if( ierr .ne. MPI_SUCCESS) return
+          
+          call MPI_FILE_OPEN( comm, 'con_energies.dat', MPI_MODE_RDONLY, MPI_INFO_NULL, fh, ierr )
+          if( ierr .ne. MPI_SUCCESS ) return
+          offset = 0
+          call MPI_FILE_SET_VIEW( fh, offset, MPI_DOUBLE_PRECISION, MPI_DOUBLE_PRECISION, 'native', MPI_INFO_NULL,ierr)
+          if( ierr .ne. MPI_SUCCESS ) return
+          do ispn = 1, sys%nspn
+             do ik = 1, sys%nkpts
+                offset = ( ispn - 1 ) * sys%nkpts * ( nbc( 2 ) - nbc( 1 ) + 1 ) + ( ik - 1 ) * ( nbc( 2 ) - nbc( 1 ) + 1 ) + ( sys%brange( 3 ) - nbc( 1 ) )
+                call MPI_FILE_READ_AT_ALL( fh, offset, con_energies( 1, ik, ispn ), sys%cur_run%num_bands, MPI_DOUBLE_PRECISION, &
+                     MPI_STATUS_IGNORE, ierr )
+                if( ierr .ne. MPI_SUCCESS) return
+             enddo
+          enddo  !ispn
+          call MPI_FILE_CLOSE( fh, ierr )
+          if( ierr .ne. MPI_SUCCESS) return
 #else
-      ierr = -1
-      if( myid .eq. root ) write(6,*) 'MPI required for OBF-style!'
-      return
+          ierr = -1
+          if( myid .eq. root ) write(6,*) 'MPI required for OBF-style!'
+          return
 #endif
-
-    case default
-      ierr = -2
-      if( myid .eq. root ) write(6,*) 'Un-supported enk_selector:', sys%enk_selector
-      return
-
-    end select
+          
+       case default
+          ierr = -2
+          if( myid .eq. root ) write(6,*) 'Un-supported enk_selector:', sys%enk_selector
+          return
+          
+       end select
     
     if( myid .eq. root ) then
       open( unit=99,file='val_energy_test.txt', form='formatted',status='unknown' )
-      write(99,*) val_energies(:,:)
+      write(99,*) val_energies(:,:,:)
       close(99)
     endif
 !   call GW corrections time
 
-    allocate( im_val_energies( sys%cur_run%val_bands, sys%nkpts ), & 
-              im_con_energies( sys%cur_run%num_bands, sys%nkpts ), STAT=ierr )
+    allocate( im_val_energies( sys%cur_run%val_bands, sys%nkpts, sys%nspn ), & 
+              im_con_energies( sys%cur_run%num_bands, sys%nkpts, sys%nspn ), STAT=ierr )
     if( ierr .ne. 0 ) return
 
     call val_gw( sys, val_energies, con_energies, have_imaginary, im_val_energies, &
@@ -146,23 +152,34 @@ module OCEAN_val_energy
 
 
 
-
-    do ik = 1, sys%nkpts
-      do ibv = 1, sys%cur_run%val_bands
-        do ibc = 1, sys%cur_run%num_bands
-          p_energy%valr( ibc, ibv, ik, 1 ) = con_energies( ibc, ik ) - val_energies( ibv, ik )
-!          p_energy%vali( ibc, ibv, ik, 1 ) = 0.0_dp
-        enddo
-      enddo
-    enddo
-    if( have_imaginary ) then
-      do ik = 1, sys%nkpts
-        do ibv = 1, sys%cur_run%val_bands
-          do ibc = 1, sys%cur_run%num_bands
-            p_energy%vali( ibc, ibv, ik, 1 ) = im_con_energies( ibc, ik ) - im_val_energies( ibv, ik )
+    ibeta=0
+    do ispn=1,sys%nspn 
+       do jspn=1,sys%nspn
+          ibeta=ibeta+1
+          do ik = 1, sys%nkpts
+             do ibv = 1, sys%cur_run%val_bands
+                do ibc = 1, sys%cur_run%num_bands
+                   p_energy%valr( ibc, ibv, ik, ibeta ) = con_energies( ibc, ik, ispn ) - val_energies( ibv, ik, jspn )
+                   !          p_energy%vali( ibc, ibv, ik, 1 ) = 0.0_dp
+                enddo
+             enddo
           enddo
-        enddo
-      enddo
+       enddo  !jspn
+    enddo  !ispn
+    if( have_imaginary ) then
+       ibeta=0
+       do ispn=1,sys%nspn
+          do jspn=1,sys%nspn
+             ibeta=ibeta+1
+             do ik = 1, sys%nkpts
+                do ibv = 1, sys%cur_run%val_bands
+                   do ibc = 1, sys%cur_run%num_bands
+                      p_energy%vali( ibc, ibv, ik, ibeta ) = im_con_energies( ibc, ik, ispn ) - im_val_energies( ibv, ik, jspn )
+                   enddo
+                enddo
+             enddo
+          enddo !jspn
+       enddo  !ispn
     else
       p_energy%vali( :, :, :, : ) = 0.0_dp
     endif
@@ -363,7 +380,7 @@ module OCEAN_val_energy
     !
     type( O_system ), intent( in ) :: sys
     integer, intent( in ) :: nelectron 
-    real(dp), intent( in ) :: con_energies( sys%cur_run%num_bands, sys%nkpts ), val_energies( sys%cur_run%val_bands, sys%nkpts )
+    real(dp), intent( in ) :: con_energies( sys%cur_run%num_bands, sys%nkpts, sys%nspn ), val_energies( sys%cur_run%val_bands, sys%nkpts, sys%nspn )
     real(dp), intent( out ) :: efermi, homo, lumo, cliph
     logical, intent( out ) :: metal
     integer, intent( inout ) :: ierr
@@ -371,7 +388,7 @@ module OCEAN_val_energy
     real(dp), allocatable :: simple_energies( : )
     real(dp) :: temp, per_electron_dope
     integer :: i_band, overlap, t_electron, n_electron_dope
-    integer :: iter, node, node2, top, kiter, ierr_
+    integer :: iter, node, node2, top, kiter, ierr_, ispn
     logical :: doping
     !
     !
@@ -390,11 +407,11 @@ module OCEAN_val_energy
           open( unit=99, file='doping', form='formatted', status='old' )
           read( 99, * ) per_electron_dope
           close( 99 )
-          n_electron_dope = floor( per_electron_dope * dble( sys%nkpts ) / 2.d0 )
+          n_electron_dope = floor( per_electron_dope * dble( sys%nkpts * sys%nspn ) / 2.d0 )
           write( 6, * ) 'Doping option:'
           write( 6, * ) 'Percent doping: ', per_electron_dope
           write( 6, * ) 'Modifying electron number by ', n_electron_dope
-          write( 6, * ) 'Effective doping percent: ', dble( n_electron_dope ) * 2.d0 / sys%nkpts
+          write( 6, * ) 'Effective doping percent: ', dble( n_electron_dope ) * 2.d0 / ( sys%nkpts * sys%nspn)
         endif
       endif
       !
@@ -424,17 +441,19 @@ module OCEAN_val_energy
     !
     if( metal ) then
       overlap = sys%brange( 2 ) - sys%brange( 3 ) + 1
-      allocate( simple_energies( overlap * sys%nkpts ) )
-      do kiter = 1, sys%nkpts
-        do iter = 1, overlap
-          simple_energies( iter + ( kiter - 1 ) * overlap ) = &
-                        val_energies( iter + sys%brange( 2 ) - overlap, kiter )
-        enddo
+      allocate( simple_energies( overlap * sys%nkpts * sys%nspn ) )
+      do ispn = 1, sys%nspn
+         do kiter = 1, sys%nkpts
+            do iter = 1, overlap
+               simple_energies( iter + ( kiter - 1 ) * overlap + ( ispn - 1 ) * sys%nkpts * overlap ) = &
+                    val_energies( iter + sys%brange( 2 ) - overlap, kiter, ispn )
+            enddo
+         enddo
       enddo
      ! heap sort
       write(6,*) 'sorting'
-      top = overlap*sys%nkpts
-      do iter = overlap*sys%nkpts / 2 , 1, -1
+      top = overlap*sys%nkpts*sys%nspn
+      do iter = overlap*sys%nkpts*sys%nspn / 2 , 1, -1
         temp = simple_energies( iter )
         node = iter + iter
        node2 = iter
@@ -452,7 +471,7 @@ module OCEAN_val_energy
         enddo
  10 continue
       enddo
-      do iter = overlap*sys%nkpts, 1, -1
+      do iter = overlap*sys%nkpts*sys%nspn, 1, -1
         temp = simple_energies( iter )
         simple_energies( iter ) = simple_energies( 1 )
         node = 2
@@ -472,8 +491,8 @@ module OCEAN_val_energy
   20 continue
 
       enddo
-      t_electron = ( ( nelectron * sys%nkpts ) / 2 ) &
-                 - ( ( sys%brange( 3 ) - 1 ) * sys%nkpts ) + n_electron_dope
+      t_electron = ( ( nelectron * sys%nkpts * sys%nspn ) / 2 ) &
+                 - ( ( sys%brange( 3 ) - 1 ) * sys%nkpts * sys%nspn ) + n_electron_dope
       if( doping .and. ( myid .eq. root ) ) then
         write( 6, * ) 'old HOMO = ', simple_energies( t_electron - n_electron_dope )
         write( 6, * ) 'old LUMO = ', simple_energies( t_electron - n_electron_dope  + 1 )
@@ -484,23 +503,23 @@ module OCEAN_val_energy
     else ! not metal
       i_band = nelectron / 2 - sys%brange( 1 ) + 1
       if( myid .eq. root ) write( 6, * ) "i_band = ", i_band
-      homo =  val_energies( i_band, 1 )
+      homo =  val_energies( i_band, 1 , 1)
       do kiter = 2, sys%nkpts
-        homo = max( val_energies( i_band, kiter ), homo )
+        homo = max( val_energies( i_band, kiter , 1), homo )
       enddo
       i_band = nelectron / 2 - sys%brange( 3 ) + 2
 !      i_band = nelectron / 2 + 1
       if( myid .eq. root ) write( 6, * ) "i_band = ", i_band
-      lumo = con_energies( i_band, 1 )
+      lumo = con_energies( i_band, 1 , 1)
       do kiter = 2, sys%nkpts
-        lumo = min( con_energies( i_band, kiter ), lumo )
+        lumo = min( con_energies( i_band, kiter , 1), lumo )
       enddo
       efermi = ( lumo + homo ) / 2.d0
     endif
     !
-    cliph = con_energies( sys%brange( 4 ) - sys%brange( 3 ) + 1, 1 )
+    cliph = con_energies( sys%brange( 4 ) - sys%brange( 3 ) + 1, 1 , 1)
     do kiter = 2, sys%nkpts
-      cliph = min( con_energies( sys%brange( 4 ) - sys%brange( 3 ) + 1, kiter ), cliph )
+      cliph = min( con_energies( sys%brange( 4 ) - sys%brange( 3 ) + 1, kiter , 1), cliph )
     enddo
     !
     if( myid .eq. root ) then
