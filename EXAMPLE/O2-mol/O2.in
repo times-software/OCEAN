@@ -1,0 +1,96 @@
+calc val
+
+dft { qe }
+
+pp_list {08-o.lda.fhi}
+# Modify for your cluster/machine
+para_prefix{ srun -n 16  }
+# Control
+control 0
+
+# Kpt mesh (N1,N2,N3)
+nkpt { 2 2 2 }
+ngkpt{ 2 2 2 }
+
+# Photon momentum
+photon_q { 0.0001   0.0001    0.0001 }
+
+# number of electrons in unit cell
+nelectron 12
+#metal .true.
+
+occopt 3
+nspin 2
+smag{
+starting_magnetization(1)=2
+}
+
+# Total bands
+nbands 12
+screen.nbands 40
+
+# Mag.of latt.vec1,latt.vec 2,latt.vec.3
+acell { 1.889725989 1.889725989 1.889725989 }
+
+# Cart. comps. latt.vecs
+rprim {
+ 8.0 0.0 0.0
+ 0.0 8.0 0.0
+ 0.0 0.0 12.0
+}
+
+# Ntypes of atoms
+ntypat 1
+
+# Nuclear charge for type (typ1,type2,...)
+znucl { 08 }
+
+# Number of Atoms in unit cell
+natom 2
+
+# Type of each atom (atom1,atom2)
+typat { 1 1 }
+
+# Postitions of atoms1,2, etc. in units latt. vecs.
+xred {
+ 0.00    0.00    0.00
+ 0.00    0.00    0.10
+}
+
+# Kinetic Energy cutoff
+ecut 40.0
+
+# Energy tol
+toldfe 1.0d-6
+
+# wftol
+tolwfr 1.0d-16
+
+# iterations
+nstep 21
+
+# Static dielectric const.
+diemac 1.10
+
+# GW val. stretch
+NBSE.gwvstr 0.0
+
+# GW cond. stretch
+NBSE.gwcstr 0.0
+
+#Brodening
+NBSE.broaden .1
+
+# xmesh
+CNBSE.xmesh { 6  6  6 }
+
+# bflag
+NBSE.bflag 1
+
+# lflag
+NBSE.lflag 1
+
+# niter
+NBSE.niter 100
+
+
