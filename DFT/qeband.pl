@@ -36,6 +36,7 @@ my $prefix = <IN>;
 close IN;
 chomp $prefix;
 
+# Different behavior for metals/nonmetals
 open IN, "metal" or die "Failed to open metal\n$!";
 my $metal_line = <IN>;
 close IN;
@@ -43,6 +44,15 @@ my $metal = 0;
 if( $metal_line =~ m/true/i )
 {
   $metal = 1;
+}
+
+# Spin=2 needs to use the metals version
+if( $metal == 0 )
+{
+  open IN, "nspin" or die "Failed to open nspin\n$!\n";
+  my $spin = <IN>;
+  close IN;
+  $metal = 2 if( $spin =~ m/2/ );
 }
 
 
@@ -72,7 +82,7 @@ if( $metal == 0 )
   close IN;
   print $band_max . "\t" . $band_min . "\n";
 }
-elsif( $metal == 1 )
+elsif( $metal == 1 || $metal == 2 )
 {
   while( 1 )
   {
@@ -144,7 +154,7 @@ elsif( $metal == 1 )
   #   band_min  total bands
 
   # pad band_max by 1
-  $band_max++;
+  $band_max;
   print $band_max . "\t" . $band_min . "\n";
 }
 else

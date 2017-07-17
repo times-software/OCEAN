@@ -379,9 +379,6 @@ if ($RunESPRESSO) {
   system("$ENV{'OCEAN_BIN'}/qe2rhoofr.pl" ) == 0 
     or die "Failed to convert density\n$!\n";
 
-  ## find the top of the valence bance
-  system("$ENV{'OCEAN_BIN'}/qeband.pl") == 0
-     or die "Failed to count bands\n$!\n";
 
 
   open STATUS, ">espresso.stat" or die;
@@ -803,7 +800,11 @@ if ( $nscfRUN ) {
     close OUT;
     print "BSE NSCF complete\n";
 
-    open IN, "../brange.stub" or die;
+    ## find the top of the valence bance
+    system("$ENV{'OCEAN_BIN'}/qeband.pl") == 0
+       or die "Failed to count bands\n$!\n";
+
+    open IN, "brange.stub" or die;
     open OUT, ">brange.ipt" or die;
     while(<IN>)
     {
@@ -914,7 +915,11 @@ if( $obf == 0 )
   close OUT;
   print "Screening NSCF complete\n";
 
-  open IN, "../brange.stub" or die;
+    ## find the top of the valence bance
+    system("$ENV{'OCEAN_BIN'}/qeband.pl") == 0
+       or die "Failed to count bands\n$!\n";
+
+  open IN, "brange.stub" or die;
   open OUT, ">brange.ipt" or die;
   while(<IN>)
   {
