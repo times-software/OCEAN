@@ -787,8 +787,8 @@ module OCEAN_val_states
         iproc = myid
         if( myid .ne. root ) iproc = 1
 
-        re_con( 1:nxpts, 1:nbc, iq, 1 ) = re_share_buffer( 1:nxpts, 1:nbc, iproc )
-        im_con( 1:nxpts, 1:nbc, iq, 1 ) = im_share_buffer( 1:nxpts, 1:nbc, iproc )
+        re_con( 1:nxpts, 1:nbc, iq, ispn ) = re_share_buffer( 1:nxpts, 1:nbc, iproc )
+        im_con( 1:nxpts, 1:nbc, iq, ispn ) = im_share_buffer( 1:nxpts, 1:nbc, iproc )
 
       enddo ! iq
     enddo  ! ispn
