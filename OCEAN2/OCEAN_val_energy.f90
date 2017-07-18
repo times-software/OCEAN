@@ -26,7 +26,7 @@ module OCEAN_val_energy
 
     real( DP ), allocatable, dimension(:,:,:) :: val_energies, con_energies, im_val_energies, im_con_energies
     real( DP ) :: efermi, homo, lumo, cliph
-    integer :: ik, ibv, ibc, fh, ispn, jspn, ibeta
+    integer :: ik, ibv, ibc, fh, ispn, jspn, ibeta, i, j
     logical :: metal, have_imaginary
     integer :: nbv, nbc(2), nk
 #ifdef MPI
@@ -36,7 +36,8 @@ module OCEAN_val_energy
 !    real(DP), parameter :: Ha_to_eV = 27.21138386_dp
 
 
-    allocate( val_energies( sys%cur_run%val_bands, sys%nkpts, sys%nspn ), con_energies( sys%cur_run%num_bands, sys%nkpts, sys%nspn ), STAT=ierr )
+    allocate( val_energies( sys%cur_run%val_bands, sys%nkpts, sys%nspn ),  &
+              con_energies( sys%cur_run%num_bands, sys%nkpts, sys%nspn ), STAT=ierr )
     if( ierr .ne. 0 ) return
 
 
@@ -106,7 +107,8 @@ module OCEAN_val_energy
           if( ierr .ne. MPI_SUCCESS ) return
           do ispn = 1, sys%nspn
              do ik = 1, sys%nkpts
-                offset = ( ispn - 1 ) * sys%nkpts * ( nbc( 2 ) - nbc( 1 ) + 1 ) + ( ik - 1 ) * ( nbc( 2 ) - nbc( 1 ) + 1 ) + ( sys%brange( 3 ) - nbc( 1 ) )
+                offset = ( ispn - 1 ) * sys%nkpts * ( nbc( 2 ) - nbc( 1 ) + 1 ) &
+                       + ( ik - 1 ) * ( nbc( 2 ) - nbc( 1 ) + 1 ) + ( sys%brange( 3 ) - nbc( 1 ) )
                 call MPI_FILE_READ_AT_ALL( fh, offset, con_energies( 1, ik, ispn ), sys%cur_run%num_bands, MPI_DOUBLE_PRECISION, &
                      MPI_STATUS_IGNORE, ierr )
                 if( ierr .ne. MPI_SUCCESS) return
@@ -153,13 +155,15 @@ module OCEAN_val_energy
 
 
     ibeta=0
-    do ispn=1,sys%nspn 
-       do jspn=1,sys%nspn
+    do i=1,sys%valence_ham_spin
+       ispn = max( i, sys%nspn ) 
+       do j=1,sys%valence_ham_spin
+          jspn = max( j, sys%nspn )
           ibeta=ibeta+1
           do ik = 1, sys%nkpts
              do ibv = 1, sys%cur_run%val_bands
                 do ibc = 1, sys%cur_run%num_bands
-                   p_energy%valr( ibc, ibv, ik, ibeta ) = con_energies( ibc, ik, ispn ) - val_energies( ibv, ik, jspn )
+                   p_energy%valr( ibc, ibv, ik, ibeta ) = con_energies( ibc, ik, jspn ) - val_energies( ibv, ik, ispn )
                    !          p_energy%vali( ibc, ibv, ik, 1 ) = 0.0_dp
                 enddo
              enddo
@@ -168,13 +172,15 @@ module OCEAN_val_energy
     enddo  !ispn
     if( have_imaginary ) then
        ibeta=0
-       do ispn=1,sys%nspn
-          do jspn=1,sys%nspn
+       do i=1,sys%nspn
+          ispn = max( i, sys%nspn )
+          do j=1,sys%nspn
+             jspn = max( j, sys%nspn )
              ibeta=ibeta+1
              do ik = 1, sys%nkpts
                 do ibv = 1, sys%cur_run%val_bands
                    do ibc = 1, sys%cur_run%num_bands
-                      p_energy%vali( ibc, ibv, ik, ibeta ) = im_con_energies( ibc, ik, ispn ) - im_val_energies( ibv, ik, jspn )
+                      p_energy%vali( ibc, ibv, ik, ibeta ) = im_con_energies( ibc, ik, jspn ) - im_val_energies( ibv, ik, ispn )
                    enddo
                 enddo
              enddo
