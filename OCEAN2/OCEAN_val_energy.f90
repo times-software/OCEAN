@@ -156,9 +156,9 @@ module OCEAN_val_energy
 
     ibeta=0
     do i=1,sys%valence_ham_spin
-       ispn = max( i, sys%nspn ) 
+       ispn = min( i, sys%nspn ) 
        do j=1,sys%valence_ham_spin
-          jspn = max( j, sys%nspn )
+          jspn = min( j, sys%nspn )
           ibeta=ibeta+1
           do ik = 1, sys%nkpts
              do ibv = 1, sys%cur_run%val_bands
@@ -172,10 +172,10 @@ module OCEAN_val_energy
     enddo  !ispn
     if( have_imaginary ) then
        ibeta=0
-       do i=1,sys%nspn
-          ispn = max( i, sys%nspn )
-          do j=1,sys%nspn
-             jspn = max( j, sys%nspn )
+       do i=1,sys%valence_ham_spin
+          ispn = min( i, sys%nspn )
+          do j=1,sys%valence_ham_spin
+             jspn = min( j, sys%nspn )
              ibeta=ibeta+1
              do ik = 1, sys%nkpts
                 do ibv = 1, sys%cur_run%val_bands
@@ -335,9 +335,9 @@ module OCEAN_val_energy
     if( metal .or. sys%nspn .ne. 1 ) then
       ibeta = 0
       do i = 1, sys%valence_ham_spin
-        ispn = max( i, sys%nspn )
+        ispn = min( i, sys%nspn )
         do j = 1, sys%valence_ham_spin
-          jspn = max( j, sys%nspn )
+          jspn = min( j, sys%nspn )
           ibeta = ibeta + 1
           do kiter = 1, sys%nkpts
             do biter2 = 1, sys%cur_run%val_bands
