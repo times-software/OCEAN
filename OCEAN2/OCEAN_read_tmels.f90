@@ -142,7 +142,8 @@ subroutine OCEAN_read_tmels( sys, p, file_selector, ierr )
       open( unit=fh, file='tmels', status='unknown' )
       rewind fh
 
-      do ispn = 1, sys%nspn  !DAS add spin loop
+      ! The user could override nspn=2 with valence_ham_spin=1
+      do ispn = 1, min( sys%nspn, sys%valence_ham_spin )  !DAS add spin loop
          ibeta=ispn*ispn     !ibeta maps  to up,up & down,down
 
          su = 0.0_DP
@@ -166,7 +167,7 @@ subroutine OCEAN_read_tmels( sys, p, file_selector, ierr )
          end do
 
          su = sqrt( su )
-         write(6,*) 'pnorm=', su, sys%cur_run%val_bands, sys%cur_run%num_bands, ispn
+         write(6,*) 'pnorm=', su, sys%cur_run%val_bands, sys%cur_run%num_bands, ispn, ibeta
 
       end do
 
