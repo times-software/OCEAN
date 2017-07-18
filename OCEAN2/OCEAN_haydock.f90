@@ -950,7 +950,7 @@ module OCEAN_action
       case( 'XES', 'XAS' )
         call write_core( 99, iter, kpref )
       case( 'VAL', 'RXS' )
-        call write_val( 99, iter, kpref, sys%celvol )
+        call write_val( 99, iter, kpref, sys%celvol, sys%valence_ham_spin )
 
       case default
         call write_core( 99, iter, kpref )
@@ -993,17 +993,17 @@ module OCEAN_action
     return
   end subroutine haydump
 
-  subroutine write_val( fh, iter, kpref , ucvol)
+  subroutine write_val( fh, iter, kpref , ucvol, val_ham_spin )
     use OCEAN_constants, only : Hartree2eV, bohr, alphainv
     implicit none
-    integer, intent( in ) :: fh, iter
+    integer, intent( in ) :: fh, iter, val_ham_spin
     real(DP), intent( in ) :: kpref, ucvol
     !
     integer :: ie, i
     real(DP) :: ere, reeps, imeps, lossf, fact, mu, reflct
     complex(DP) :: ctmp, arg, rp, rm, rrr, al, be, eps, refrac
 
-    fact = kpref * 2.0_dp * ucvol
+    fact = kpref * real( 2 / val_ham_spin, DP ) * ucvol
 
     write(fh,"(a)") "#   omega (eV)      epsilon_1       epsilon_2       n"// &
       "               kappa           mu (cm^(-1))    R"//  &
