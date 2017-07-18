@@ -315,57 +315,70 @@ module OCEAN_val_energy
     type( O_system ), intent( in ) :: sys
     type( OCEAN_vector ), intent( inout ) :: allow
     integer, intent( in ) :: nelectron
-    real( DP ), intent( in ) :: con_energies( sys%cur_run%num_bands, sys%nkpts ), &
-                                val_energies( sys%cur_run%val_bands, sys%nkpts ),  &
+    real( DP ), intent( in ) :: con_energies( sys%cur_run%num_bands, sys%nkpts, sys%nspn ), &
+                                val_energies( sys%cur_run%val_bands, sys%nkpts, sys%nspn ),  &
                                 efermi, cliph
     logical, intent( in ) :: metal
     integer, intent( inout ) :: ierr
     !
-    integer :: kiter, biter1, biter2
+    integer :: kiter, biter1, biter2, ibeta, i, ispn, j, jspn
     !
     !
     ! Already zero'd
     allow%valr = 0.0_dp
     allow%vali = 0.0_dp
     !
+    ! If we have spins from the DFT then we can't rely on band index, need to use Fermi level 
+    !  just like for the metals case. 
+    !
     ! In storing psi the conduction band index is the fast index
-    if( metal ) then
-      do kiter = 1, sys%nkpts
-        do biter2 = 1, sys%cur_run%val_bands
-          if ( val_energies( biter2, kiter ) .le. efermi ) then
+    if( metal .or. sys%nspn .ne. 1 ) then
+      ibeta = 0
+      do i = 1, sys%valence_ham_spin
+        ispn = max( i, sys%nspn )
+        do j = 1, sys%valence_ham_spin
+          jspn = max( j, sys%nspn )
+          ibeta = ibeta + 1
+          do kiter = 1, sys%nkpts
+            do biter2 = 1, sys%cur_run%val_bands
+              if ( val_energies( biter2, kiter, ispn ) .le. efermi ) then
 
-            do biter1 = 1, sys%cur_run%num_bands
-              if ( ( con_energies( biter1, kiter ) .ge. efermi ) .and. &
-                   ( con_energies( biter1, kiter ) .le. cliph ) ) then
-                allow%valr( biter1, biter2, kiter, 1 ) = 1.0_dp
-                allow%vali( biter1, biter2, kiter, 1 ) = 1.0_dp
-              endif
-            enddo 
-          elseif ( sys%backf ) then
-            ierr = -413
-            return
-!           do biter2 = 1, sys%cur_run%val_bands
-!              if ( ( val_energies( biter2, kiter ) .ge. efermi ) .and. &
-!                   ( val_energies( biter2, kiter ) .le. cliph ) ) then
-!                allow%valr( biter2, biter1, kiter, 1 ) = 1.0d0
-!                allow%vali( biter2, biter1, kiter, 1 ) = -1.0d0
-!              endif
+                do biter1 = 1, sys%cur_run%num_bands
+                  if ( ( con_energies( biter1, kiter, jspn ) .ge. efermi ) .and. &
+                       ( con_energies( biter1, kiter, jspn ) .le. cliph ) ) then
+                    allow%valr( biter1, biter2, kiter, ibeta ) = 1.0_dp
+                    allow%vali( biter1, biter2, kiter, ibeta ) = 1.0_dp
+                  endif
+                enddo 
+              elseif ( sys%backf ) then
+                ierr = -413
+                return
+    !           do biter2 = 1, sys%cur_run%val_bands
+    !              if ( ( val_energies( biter2, kiter ) .ge. efermi ) .and. &
+    !                   ( val_energies( biter2, kiter ) .le. cliph ) ) then
+    !                allow%valr( biter2, biter1, kiter, 1 ) = 1.0d0
+    !                allow%vali( biter2, biter1, kiter, 1 ) = -1.0d0
+    !              endif
 !            enddo ! biter2
-          endif
-        enddo ! biter1
-      enddo ! kiter
-    else ! not metal 
+              endif
+            enddo ! biter1
+          enddo ! kiter
+        enddo ! j
+      enddo ! i
+    else ! not metal && sys%nspn==1
       if( sys%backf ) ierr = 413
-      do kiter = 1, sys%nkpts
-        do biter2 = 1, ( nelectron / 2 ) - sys%brange( 1 ) + 1
-          do biter1 = 2 - sys%brange( 3 ) + ( nelectron / 2 ), sys%cur_run%num_bands
-            if(  con_energies( biter1, kiter ) .lt. cliph ) then
-                  allow%valr( biter1, biter2, kiter, 1 ) = 1.0_dp
-                  allow%vali( biter1, biter2, kiter, 1 ) = 1.0_dp
-            endif
-          enddo ! biter2
-        enddo ! biter1
-      enddo ! kiter
+      do ibeta = 1, sys%nbeta
+        do kiter = 1, sys%nkpts
+          do biter2 = 1, ( nelectron / 2 ) - sys%brange( 1 ) + 1
+            do biter1 = 2 - sys%brange( 3 ) + ( nelectron / 2 ), sys%cur_run%num_bands
+              if(  con_energies( biter1, kiter, 1 ) .lt. cliph ) then
+                    allow%valr( biter1, biter2, kiter, ibeta ) = 1.0_dp
+                    allow%vali( biter1, biter2, kiter, ibeta ) = 1.0_dp
+              endif
+            enddo ! biter2
+          enddo ! biter1
+        enddo ! kiter
+      enddo
     endif
     !
 !    open(myid+2000)
