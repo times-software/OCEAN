@@ -26,7 +26,7 @@ module OCEAN_val_energy
 
     real( DP ), allocatable, dimension(:,:,:) :: val_energies, con_energies, im_val_energies, im_con_energies
     real( DP ) :: efermi, homo, lumo, cliph
-    integer :: ik, ibv, ibc, fh, ispn, jspn, ibeta
+    integer :: ik, ibv, ibc, fh, ispn, jspn, ibeta, i, j
     logical :: metal, have_imaginary
     integer :: nbv, nbc(2), nk
 #ifdef MPI
@@ -36,7 +36,8 @@ module OCEAN_val_energy
 !    real(DP), parameter :: Ha_to_eV = 27.21138386_dp
 
 
-    allocate( val_energies( sys%cur_run%val_bands, sys%nkpts, sys%nspn ), con_energies( sys%cur_run%num_bands, sys%nkpts, sys%nspn ), STAT=ierr )
+    allocate( val_energies( sys%cur_run%val_bands, sys%nkpts, sys%nspn ),  &
+              con_energies( sys%cur_run%num_bands, sys%nkpts, sys%nspn ), STAT=ierr )
     if( ierr .ne. 0 ) return
 
 
@@ -106,7 +107,8 @@ module OCEAN_val_energy
           if( ierr .ne. MPI_SUCCESS ) return
           do ispn = 1, sys%nspn
              do ik = 1, sys%nkpts
-                offset = ( ispn - 1 ) * sys%nkpts * ( nbc( 2 ) - nbc( 1 ) + 1 ) + ( ik - 1 ) * ( nbc( 2 ) - nbc( 1 ) + 1 ) + ( sys%brange( 3 ) - nbc( 1 ) )
+                offset = ( ispn - 1 ) * sys%nkpts * ( nbc( 2 ) - nbc( 1 ) + 1 ) &
+                       + ( ik - 1 ) * ( nbc( 2 ) - nbc( 1 ) + 1 ) + ( sys%brange( 3 ) - nbc( 1 ) )
                 call MPI_FILE_READ_AT_ALL( fh, offset, con_energies( 1, ik, ispn ), sys%cur_run%num_bands, MPI_DOUBLE_PRECISION, &
                      MPI_STATUS_IGNORE, ierr )
                 if( ierr .ne. MPI_SUCCESS) return
@@ -153,13 +155,15 @@ module OCEAN_val_energy
 
 
     ibeta=0
-    do ispn=1,sys%nspn 
-       do jspn=1,sys%nspn
+    do i=1,sys%valence_ham_spin
+       ispn = min( i, sys%nspn ) 
+       do j=1,sys%valence_ham_spin
+          jspn = min( j, sys%nspn )
           ibeta=ibeta+1
           do ik = 1, sys%nkpts
              do ibv = 1, sys%cur_run%val_bands
                 do ibc = 1, sys%cur_run%num_bands
-                   p_energy%valr( ibc, ibv, ik, ibeta ) = con_energies( ibc, ik, ispn ) - val_energies( ibv, ik, jspn )
+                   p_energy%valr( ibc, ibv, ik, ibeta ) = con_energies( ibc, ik, jspn ) - val_energies( ibv, ik, ispn )
                    !          p_energy%vali( ibc, ibv, ik, 1 ) = 0.0_dp
                 enddo
              enddo
@@ -168,13 +172,15 @@ module OCEAN_val_energy
     enddo  !ispn
     if( have_imaginary ) then
        ibeta=0
-       do ispn=1,sys%nspn
-          do jspn=1,sys%nspn
+       do i=1,sys%valence_ham_spin
+          ispn = min( i, sys%nspn )
+          do j=1,sys%valence_ham_spin
+             jspn = min( j, sys%nspn )
              ibeta=ibeta+1
              do ik = 1, sys%nkpts
                 do ibv = 1, sys%cur_run%val_bands
                    do ibc = 1, sys%cur_run%num_bands
-                      p_energy%vali( ibc, ibv, ik, ibeta ) = im_con_energies( ibc, ik, ispn ) - im_val_energies( ibv, ik, jspn )
+                      p_energy%vali( ibc, ibv, ik, ibeta ) = im_con_energies( ibc, ik, jspn ) - im_val_energies( ibv, ik, ispn )
                    enddo
                 enddo
              enddo
@@ -309,57 +315,70 @@ module OCEAN_val_energy
     type( O_system ), intent( in ) :: sys
     type( OCEAN_vector ), intent( inout ) :: allow
     integer, intent( in ) :: nelectron
-    real( DP ), intent( in ) :: con_energies( sys%cur_run%num_bands, sys%nkpts ), &
-                                val_energies( sys%cur_run%val_bands, sys%nkpts ),  &
+    real( DP ), intent( in ) :: con_energies( sys%cur_run%num_bands, sys%nkpts, sys%nspn ), &
+                                val_energies( sys%cur_run%val_bands, sys%nkpts, sys%nspn ),  &
                                 efermi, cliph
     logical, intent( in ) :: metal
     integer, intent( inout ) :: ierr
     !
-    integer :: kiter, biter1, biter2
+    integer :: kiter, biter1, biter2, ibeta, i, ispn, j, jspn
     !
     !
     ! Already zero'd
     allow%valr = 0.0_dp
     allow%vali = 0.0_dp
     !
+    ! If we have spins from the DFT then we can't rely on band index, need to use Fermi level 
+    !  just like for the metals case. 
+    !
     ! In storing psi the conduction band index is the fast index
-    if( metal ) then
-      do kiter = 1, sys%nkpts
-        do biter2 = 1, sys%cur_run%val_bands
-          if ( val_energies( biter2, kiter ) .le. efermi ) then
+    if( metal .or. sys%nspn .ne. 1 ) then
+      ibeta = 0
+      do i = 1, sys%valence_ham_spin
+        ispn = min( i, sys%nspn )
+        do j = 1, sys%valence_ham_spin
+          jspn = min( j, sys%nspn )
+          ibeta = ibeta + 1
+          do kiter = 1, sys%nkpts
+            do biter2 = 1, sys%cur_run%val_bands
+              if ( val_energies( biter2, kiter, ispn ) .le. efermi ) then
 
-            do biter1 = 1, sys%cur_run%num_bands
-              if ( ( con_energies( biter1, kiter ) .ge. efermi ) .and. &
-                   ( con_energies( biter1, kiter ) .le. cliph ) ) then
-                allow%valr( biter1, biter2, kiter, 1 ) = 1.0_dp
-                allow%vali( biter1, biter2, kiter, 1 ) = 1.0_dp
-              endif
-            enddo 
-          elseif ( sys%backf ) then
-            ierr = -413
-            return
-!           do biter2 = 1, sys%cur_run%val_bands
-!              if ( ( val_energies( biter2, kiter ) .ge. efermi ) .and. &
-!                   ( val_energies( biter2, kiter ) .le. cliph ) ) then
-!                allow%valr( biter2, biter1, kiter, 1 ) = 1.0d0
-!                allow%vali( biter2, biter1, kiter, 1 ) = -1.0d0
-!              endif
+                do biter1 = 1, sys%cur_run%num_bands
+                  if ( ( con_energies( biter1, kiter, jspn ) .ge. efermi ) .and. &
+                       ( con_energies( biter1, kiter, jspn ) .le. cliph ) ) then
+                    allow%valr( biter1, biter2, kiter, ibeta ) = 1.0_dp
+                    allow%vali( biter1, biter2, kiter, ibeta ) = 1.0_dp
+                  endif
+                enddo 
+              elseif ( sys%backf ) then
+                ierr = -413
+                return
+    !           do biter2 = 1, sys%cur_run%val_bands
+    !              if ( ( val_energies( biter2, kiter ) .ge. efermi ) .and. &
+    !                   ( val_energies( biter2, kiter ) .le. cliph ) ) then
+    !                allow%valr( biter2, biter1, kiter, 1 ) = 1.0d0
+    !                allow%vali( biter2, biter1, kiter, 1 ) = -1.0d0
+    !              endif
 !            enddo ! biter2
-          endif
-        enddo ! biter1
-      enddo ! kiter
-    else ! not metal 
+              endif
+            enddo ! biter1
+          enddo ! kiter
+        enddo ! j
+      enddo ! i
+    else ! not metal && sys%nspn==1
       if( sys%backf ) ierr = 413
-      do kiter = 1, sys%nkpts
-        do biter2 = 1, ( nelectron / 2 ) - sys%brange( 1 ) + 1
-          do biter1 = 2 - sys%brange( 3 ) + ( nelectron / 2 ), sys%cur_run%num_bands
-            if(  con_energies( biter1, kiter ) .lt. cliph ) then
-                  allow%valr( biter1, biter2, kiter, 1 ) = 1.0_dp
-                  allow%vali( biter1, biter2, kiter, 1 ) = 1.0_dp
-            endif
-          enddo ! biter2
-        enddo ! biter1
-      enddo ! kiter
+      do ibeta = 1, sys%nbeta
+        do kiter = 1, sys%nkpts
+          do biter2 = 1, ( nelectron / 2 ) - sys%brange( 1 ) + 1
+            do biter1 = 2 - sys%brange( 3 ) + ( nelectron / 2 ), sys%cur_run%num_bands
+              if(  con_energies( biter1, kiter, 1 ) .lt. cliph ) then
+                    allow%valr( biter1, biter2, kiter, ibeta ) = 1.0_dp
+                    allow%vali( biter1, biter2, kiter, ibeta ) = 1.0_dp
+              endif
+            enddo ! biter2
+          enddo ! biter1
+        enddo ! kiter
+      enddo
     endif
     !
 !    open(myid+2000)

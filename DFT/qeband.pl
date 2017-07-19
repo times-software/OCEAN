@@ -23,7 +23,7 @@ use strict;
 
 my $tolerance = 0.000001;
 
-open IN, "work_dir" or die "Failed to open work_dir\n$!";
+open IN, "../work_dir" or die "Failed to open work_dir\n$!";
 my $work_dir = <IN>;
 close IN;
 chomp $work_dir;
@@ -31,13 +31,13 @@ $work_dir =~ s/\'//g;
 $work_dir =~ s/^\.//;
 $work_dir =~ s/^\///;
 
-open IN, "prefix" or die "Failed to open prefix\n$!";
+open IN, "../prefix" or die "Failed to open prefix\n$!";
 my $prefix = <IN>;
 close IN;
 chomp $prefix;
 
 # Different behavior for metals/nonmetals
-open IN, "metal" or die "Failed to open metal\n$!";
+open IN, "../metal" or die "Failed to open metal\n$!";
 my $metal_line = <IN>;
 close IN;
 my $metal = 0;
@@ -49,7 +49,7 @@ if( $metal_line =~ m/true/i )
 # Spin=2 needs to use the metals version
 if( $metal == 0 )
 {
-  open IN, "nspin" or die "Failed to open nspin\n$!\n";
+  open IN, "../nspin" or die "Failed to open nspin\n$!\n";
   my $spin = <IN>;
   close IN;
   $metal = 2 if( $spin =~ m/2/ );
