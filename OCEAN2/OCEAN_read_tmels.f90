@@ -48,7 +48,7 @@ subroutine OCEAN_read_tmels( sys, p, file_selector, ierr )
   endif
 
 !DASb
-  write(*,*) "DAS nspin, nalpha, nbeta, valhamsp:",sys%nspn, sys%nalpha, sys%nbeta, sys%valence_ham_spin
+!  write(*,*) "DAS nspin, nalpha, nbeta, valhamsp:",sys%nspn, sys%nalpha, sys%nbeta, sys%valence_ham_spin
 !DASe
 
   select case (file_selector )

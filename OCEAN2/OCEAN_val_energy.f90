@@ -407,7 +407,7 @@ module OCEAN_val_energy
     real(dp), allocatable :: simple_energies( : )
     real(dp) :: temp, per_electron_dope
     integer :: i_band, overlap, t_electron, n_electron_dope
-    integer :: iter, node, node2, top, kiter, ierr_, ispn
+    integer :: iter, node, node2, top, kiter, ierr_, ispn, i
     logical :: doping
     !
     !
@@ -458,10 +458,11 @@ module OCEAN_val_energy
     if( ierr .ne. MPI_SUCCESS ) return
 #endif
     !
-    if( metal ) then
+    if( metal .or. sys%valence_ham_spin .gt. 1 ) then
       overlap = sys%brange( 2 ) - sys%brange( 3 ) + 1
       allocate( simple_energies( overlap * sys%nkpts * sys%nspn ) )
-      do ispn = 1, sys%nspn
+      do i = 1, sys%valence_ham_spin
+         ispn = min( i, sys%nspn )
          do kiter = 1, sys%nkpts
             do iter = 1, overlap
                simple_energies( iter + ( kiter - 1 ) * overlap + ( ispn - 1 ) * sys%nkpts * overlap ) = &

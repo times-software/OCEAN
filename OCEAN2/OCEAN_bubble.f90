@@ -262,14 +262,14 @@ module OCEAN_bubble
             temp_length = gvec_length( gvec, sys%bvec )
 
             if( temp_length .lt. length ) then
-              write(6,*)  ix, iy, iz , temp_length, length
+!              write(6,*)  ix, iy, iz , temp_length, length
               length = temp_length
             endif
           endif
         enddo
       enddo
     enddo
-    write(6,*)  ''
+!    write(6,*)  ''
 
     next_length = 0.0_dp
     do ix = floor(dble(-sys%xmesh(1))/2.0_dp) , ceiling(dble(sys%xmesh(1))/2.0_dp  )
@@ -280,7 +280,7 @@ module OCEAN_bubble
             temp_length = gvec_length( gvec, sys%bvec )
 
             if( temp_length .lt. length .and. temp_length .gt. next_length) then
-              write(6,*)  ix, iy, iz , temp_length, next_length
+!              write(6,*)  ix, iy, iz , temp_length, next_length
               next_length = temp_length
             endif
         enddo
