@@ -664,7 +664,7 @@ module OCEAN_val_states
     endif
 
     if( myid .eq. root ) then
-      open(unit=fhu2,file='u2.dat',form='unformatted',status='old')
+      open(newunit=fhu2,file='u2.dat',form='unformatted',status='old')
       if( ierr .ne. 0 ) return
     endif
 
