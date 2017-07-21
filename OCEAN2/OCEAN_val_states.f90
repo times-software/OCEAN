@@ -384,7 +384,14 @@ module OCEAN_val_states
     if( err .ne. MPI_SUCCESS ) then
       ierr = -4
       return
-    endif
+   endif
+   !DASb  also broadcast brange as value on child nodes is not set otherwise.
+    call MPI_BCAST( brange, 4, MPI_INTEGER, root, comm, err )
+    if( err .ne. MPI_SUCCESS ) then
+      ierr = -4
+      return
+   endif
+   !DASe
 #endif
     if( ierr .ne. 0 ) return
 
