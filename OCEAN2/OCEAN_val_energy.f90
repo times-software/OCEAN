@@ -27,7 +27,7 @@ module OCEAN_val_energy
     real( DP ), allocatable, dimension(:,:,:) :: val_energies, con_energies, im_val_energies, im_con_energies
     real( DP ) :: efermi, homo, lumo, cliph
     integer :: ik, ibv, ibc, fh, ispn, jspn, ibeta, i, j
-    logical :: metal, have_imaginary
+    logical :: metal, have_imaginary, did_gw_correction
     integer :: nbv, nbc(2), nk
 #ifdef MPI
     integer(MPI_OFFSET_KIND) :: offset
@@ -140,18 +140,24 @@ module OCEAN_val_energy
               im_con_energies( sys%cur_run%num_bands, sys%nkpts, sys%nspn ), STAT=ierr )
     if( ierr .ne. 0 ) return
 
-    call val_gw( sys, val_energies, con_energies, have_imaginary, im_val_energies, &
-                 im_con_energies, ierr )
+    call find_fermi( sys, val_energies, con_energies, sys%nelectron, efermi, &
+                     homo, lumo, cliph, metal, .true., ierr )
     if( ierr .ne. 0 ) return
 
-    call find_fermi( sys, val_energies, con_energies, sys%nelectron, efermi, &
-                     homo, lumo, cliph, metal, ierr )
+    
+    call val_gw( sys, homo, lumo, val_energies, con_energies, have_imaginary, im_val_energies, &
+                 im_con_energies, did_gw_correction, ierr )
     if( ierr .ne. 0 ) return
+
+    if( did_gw_correction ) then 
+      call find_fermi( sys, val_energies, con_energies, sys%nelectron, efermi, &
+                       homo, lumo, cliph, metal, .false., ierr )
+      if( ierr .ne. 0 ) return
+    endif
 
     call energies_allow( sys, val_energies, con_energies, sys%nelectron, efermi, cliph, &
                                 allow, metal, ierr )
     if( ierr .ne. 0 ) return
-
 
 
     ibeta=0
@@ -200,23 +206,25 @@ module OCEAN_val_energy
   ! Master routine for all the gw flavors (for the valence band). 
   !   For now this is just a stub for what I currently need.
   !   In the future need to better merge the valence and X-ray versions of everything
-  subroutine val_gw( sys, val_energies, con_energies, have_imaginary, im_val_energies, &
-                     im_con_energies, ierr )
+  subroutine val_gw( sys, homo, lumo, val_energies, con_energies, have_imaginary, im_val_energies, &
+                     im_con_energies, did_gw_correction, ierr )
     use OCEAN_system
     use OCEAN_mpi
     implicit none
     type( O_system ), intent( in ) :: sys
-    real( DP ), intent( inout ), dimension( sys%cur_run%val_bands, sys%nkpts ) :: &
+    real( DP ), intent( in ) :: homo, lumo
+    real( DP ), intent( inout ), dimension( sys%cur_run%val_bands, sys%nkpts,sys%nspn ) :: &
         val_energies, im_val_energies
-    real( DP ), intent( inout ), dimension( sys%cur_run%num_bands, sys%nkpts ) :: &
+    real( DP ), intent( inout ), dimension( sys%cur_run%num_bands, sys%nkpts, sys%nspn ) :: &
         con_energies, im_con_energies
 
-    logical, intent( out ) :: have_imaginary
+    logical, intent( out ) :: have_imaginary, did_gw_correction
     integer, intent( inout ) :: ierr
     !
     logical :: have_gw
     character( len=4 ) :: gw_control
 
+    did_gw_correction = .false.
     have_imaginary = .false.
 
     if( myid .eq. root ) then
@@ -236,8 +244,8 @@ module OCEAN_val_energy
 !          call val_gw_by_band( sys, ierr, .false. )
 !        case( 'ibnd' )
 !          call val_gw_by_band( sys, ierr, .true. )
-!        case( 'cstr' )
-!          call val_gw_stretch( sys, ierr )
+        case( 'cstr' )
+          call val_gw_stretch( sys, homo, lumo, val_energies, con_energies, ierr )
         case default
           write(6,*) 'Unrecognized gw_control:'
           write(6,*) '   ', gw_control
@@ -255,8 +263,49 @@ module OCEAN_val_energy
                       root, comm, ierr )
     endif
 #endif
+    did_gw_correction = have_gw
 
   end subroutine val_gw
+
+  subroutine val_gw_stretch( sys, homo, lumo, val_energies, con_energies, ierr )
+    use OCEAN_system
+    use OCEAN_constants, only : eV2Hartree
+    implicit none
+    !
+    type( O_system ), intent( in ) :: sys
+    real( DP ), intent( in ) :: homo, lumo
+    real( DP ), intent( inout ), dimension( sys%cur_run%val_bands, sys%nkpts, sys%nspn ) :: val_energies
+    real( DP ), intent( inout ), dimension( sys%cur_run%num_bands, sys%nkpts, sys%nspn ) ::  con_energies
+    integer, intent( inout ) :: ierr
+    !
+    real(dp) :: gw_gap_correction, stretch
+    logical :: abs_gap
+
+    open(unit=99,file='gwgap',form='formatted', status='old' )
+    read( 99, * ) gw_gap_correction, abs_gap
+    close( 99 ) 
+
+    if( abs_gap ) then
+      gw_gap_correction = gw_gap_correction * eV2Hartree + homo
+    else
+      gw_gap_correction = gw_gap_correction * eV2Hartree + lumo
+    endif
+
+    open(unit=99,file='gwcstr',form='formatted', status='old' )
+    read( 99, * ) stretch
+    close( 99 )
+    stretch = stretch + 1.0_dp
+
+    con_energies( :, :, : ) = gw_gap_correction + ( con_energies( :, :, : ) - lumo ) * stretch
+
+    open(unit=99,file='gwvstr',form='formatted', status='old' )
+    read( 99, * ) stretch
+    close( 99 )
+    stretch = stretch + 1.0_dp
+
+    val_energies( :, :, : ) = homo + ( val_energies( :, :, : ) - homo ) * stretch
+
+  end subroutine val_gw_stretch
 
   subroutine val_list_gw( sys, val_energies, con_energies, ierr )
     use OCEAN_system
@@ -391,7 +440,7 @@ module OCEAN_val_energy
   end subroutine energies_allow
 
   subroutine find_fermi( sys, val_energies, con_energies, nelectron, efermi, &
-                                     homo, lumo, cliph, metal, ierr )
+                                     homo, lumo, cliph, metal, dft_flag, ierr )
     use OCEAN_mpi!, only : myid, root, comm
     use OCEAN_system
     use OCEAN_constants, only : Hartree2eV
@@ -402,6 +451,7 @@ module OCEAN_val_energy
     real(dp), intent( in ) :: con_energies( sys%cur_run%num_bands, sys%nkpts, sys%nspn ), val_energies( sys%cur_run%val_bands, sys%nkpts, sys%nspn )
     real(dp), intent( out ) :: efermi, homo, lumo, cliph
     logical, intent( out ) :: metal
+    logical, intent( in ) :: dft_flag
     integer, intent( inout ) :: ierr
     !
     real(dp), allocatable :: simple_energies( : )
@@ -458,8 +508,8 @@ module OCEAN_val_energy
     if( ierr .ne. MPI_SUCCESS ) return
 #endif
     !
-    if( metal .or. sys%valence_ham_spin .gt. 1 ) then
-      overlap = sys%brange( 2 ) - sys%brange( 3 ) + 1
+    overlap = sys%brange( 2 ) - sys%brange( 3 ) + 1
+    if( metal .or. ( sys%valence_ham_spin .gt. 1 .and. overlap .gt. 0 ) ) then
       allocate( simple_energies( overlap * sys%nkpts * sys%nspn ) )
       do i = 1, sys%valence_ham_spin
          ispn = min( i, sys%nspn )
@@ -519,7 +569,7 @@ module OCEAN_val_energy
       endif
       homo = simple_energies( t_electron )
       lumo = simple_energies( t_electron + 1 )
-      efermi = ( lumo + homo ) / 2.d0
+      efermi = ( lumo + homo ) / 2.0_dp
     else ! not metal
       i_band = nelectron / 2 - sys%brange( 1 ) + 1
       if( myid .eq. root ) write( 6, * ) "i_band = ", i_band
@@ -543,10 +593,19 @@ module OCEAN_val_energy
     enddo
     !
     if( myid .eq. root ) then
+      if( dft_flag ) then
+        write( 6, * ) ' **** DFT energy summary **** '
+      else
+        write( 6, * ) ' **** DFT+GW energy summary **** '
+      endif
       write( 6, * ) 'HOMO = ', homo * Hartree2eV
       write( 6, * ) 'LUMO = ', lumo * Hartree2eV
       write( 6, * ) 'Fermi Energy = ', efermi * Hartree2eV
-      write( 6, * ) 'LDA gap = ', ( lumo - homo ) * Hartree2eV
+      if( dft_flag ) then
+        write( 6, * ) 'DFT gap = ', ( lumo - homo ) * Hartree2eV
+      else
+        write( 6, * ) '    gap = ', ( lumo - homo ) * Hartree2eV
+      endif
       write( 6, * ) 'clips = ', efermi* Hartree2eV, cliph* Hartree2eV, (cliph - efermi)* Hartree2eV
     endif
 

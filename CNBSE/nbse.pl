@@ -26,7 +26,8 @@ my @CommonFiles = ("epsilon", "xmesh.ipt", "k0.ipt", "nbuse.ipt",
   "para_prefix", "cnbse.strength", "serbse", "core_offset", "avecsinbohr.ipt", 
   "cnbse.solver", "cnbse.gmres.elist", "cnbse.gmres.erange", "cnbse.gmres.nloop", 
   "cnbse.gmres.gprc", "cnbse.gmres.ffff", "cnbse.write_rhs", "spin_orbit", "nspin", 
-  "niter", "backf", "aldaf", "bwflg", "bande", "bflag", "lflag", "decut", "spect.h" );
+  "niter", "backf", "aldaf", "bwflg", "bande", "bflag", "lflag", "decut", "spect.h", 
+  "gw_control", "gwcstr", "gwvstr", "gwgap" );
 
 my @DFTFiles = ("nelectron", "rhoofr");
 
