@@ -109,7 +109,8 @@ module OCEAN_rixs_holder
     integer :: edge_iter, ic, icms, icml, ivms, ispin, i, j, ik
     character(len=25) :: echamp_file
 
-    allocate( rex( sys%num_bands, sys%nkpts, 4*(2*sys%ZNL(3)+1), sys%nedges ) )
+ !   allocate( rex( sys%num_bands, sys%nkpts, 4*(2*sys%ZNL(3)+1), sys%nedges ) )
+    allocate( rex( sys%num_bands, sys%nkpts, 4*(2*sys%ZNL(3)+1), 1 ) ) ! Don't need sys%nedges since edges are being read one at a time
 
     do edge_iter = 1, sys%nedges
 !      write(6,'(A7,I4.4)') 'echamp.', edge_iter
@@ -120,13 +121,14 @@ module OCEAN_rixs_holder
       write(6,*) echamp_file
       open(unit=99,file=echamp_file,form='unformatted',status='old')
       rewind(99)
-      read(99) rex(:,:,:,edge_iter)
+!      read(99) rex(:,:,:,edge_iter)
+      read(99) rex(:,:,:,1)
       close(99)
 
 
 ! JTV block this so psi is in cache
       ic = 0
-      do icms = 1, 3    ! Core-hole spin becomes valence-hole spin
+      do icms = 1, 3, 2    ! Core-hole spin becomes valence-hole spin
         do icml = 1, sys%ZNL(3)*2 + 1
           do ivms = 0, 1  ! conduction-band spin stays
             ! the order of ispin will be 1, 2, 3, 4 (assuming that sys%nbeta == 4)
@@ -136,7 +138,8 @@ module OCEAN_rixs_holder
               do i = 1, sys%val_bands
                 do j = 1, sys%num_bands
                   p_vec( j, i, ik, ispin ) = p_vec( j, i, ik, ispin ) + &
-                      rex( j, ik, ic, edge_iter ) * xes_vec(i,ik,icml,edge_iter)
+                      rex( j, ik, ic, 1 ) * xes_vec(i,ik,icml,edge_iter)
+!                      rex( j, ik, ic, edge_iter ) * xes_vec(i,ik,icml,edge_iter)
                 enddo
               enddo
             enddo
