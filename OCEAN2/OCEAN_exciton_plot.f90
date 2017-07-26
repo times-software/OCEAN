@@ -231,32 +231,33 @@ program OCEAN_exciton_plot
   
   ! Now ready to write out 
 !  open(unit=99,file='out.cube',form='formatted')
+  
   outname = trim(filname)//'.cube'
   open(unit=99,file=outname,form='formatted')
   write(99,*) "OCEAN exciton plot"
   write(99,*) "---"
-  write(99,'(I5,3(F12.6))') natom, 0.0_dp, 0.0_dp, 0.0_dp
+  write(99,'(I5,3(F12.6))') natom*product(Rmesh(:)), 0.0_dp, 0.0_dp, 0.0_dp
   do ix = 1, 3
     x_count = Rmesh( ix ) * xmesh( ix )
     write(99,'(I5,3(F12.6))') x_count, (Rmesh(:) * avecs(:,ix))/dble(x_count)
   enddo
 
-!  do iRx = 0, Rmesh(1)-1 !Rstart(1), Rstart(1) + Rmesh(1) - 1
-!    do iRy = 0, Rmesh(2)-1 !Rstart(2), Rstart(2) + Rmesh(2) - 1
-!      do iRz = 0, Rmesh(3) -1 !Rstart(3), Rstart(3) + Rmesh(3) - 1
+  do iRx = Rstart(1), Rstart(1) + Rmesh(1) - 1
+    do iRy = Rstart(2), Rstart(2) + Rmesh(2) - 1
+      do iRz = Rstart(3), Rstart(3) + Rmesh(3) - 1
         do i = 1, natom 
           call get_atom_number( elname( i ), ix )
-!          tau(:) = atom_loc(:,i)
-!          tau( : ) = tau( : ) + iRx * avecs(:, 1 )
-!          tau( : ) = tau( : ) + iRy * avecs(:, 2 )
-!          tau( : ) = tau( : ) + iRz * avecs(:, 3 )
+          tau(:) = atom_loc(:,i)
+          tau( : ) = tau( : ) + iRx * avecs(:, 1 )
+          tau( : ) = tau( : ) + iRy * avecs(:, 2 )
+          tau( : ) = tau( : ) + iRz * avecs(:, 3 )
 
-!          write(99,'(I5,4(F12.6))') ix, 0.0, tau(:)
-          write(99,'(I5,4(F12.6))') ix, 0.0, atom_loc(:,i)
+          write(99,'(I5,4(F12.6))') ix, 0.0, tau(:)
+!          write(99,'(I5,4(F12.6))') ix, 0.0, atom_loc(:,i)
         enddo
-!      enddo
-!    enddo
-!  enddo
+      enddo
+    enddo
+  enddo
 
 
   ! Need Z to be fast axis
@@ -304,6 +305,8 @@ program OCEAN_exciton_plot
     elnum = 1
     if( elnam .eq. 'N_' ) elnum = 7
     if( elnam .eq. 'O_' ) elnum = 8
+    if( elnam .eq. 'S_' ) elnum = 16
+    if( elnam .eq. 'Cd' ) elnum = 38
   end subroutine
 
 end program OCEAN_exciton_plot

@@ -15,7 +15,9 @@ module periodic
      & 'Am', 'Cm', 'Bk', 'Cf', 'Es', 'Fm', 'Md', 'No', 'Lr', 'Rf', 'Db',&
      & 'Sg', 'Bh', 'Hs', 'Mt' /) 
 
-  public :: getsymbol, getsymbol_underscore
+  integer, parameter :: el_len = 109
+
+  public :: getsymbol, getsymbol_underscore, get_atom_number
 
   contains
 
@@ -38,5 +40,22 @@ module periodic
 
   end subroutine getsymbol_underscore
 
+  subroutine get_atom_number( zatom, satom )
+    integer, intent( out ) :: zatom
+    character(len=2), intent( in ) :: satom
+    !
+    integer :: i
+    !
+    zatom = -1
+    do i = 1, el_len
+      if( satom .eq. elements( i ) then
+        zatom = i
+        goto 111
+      endif
+    enddo
+  
+111 continue
+    
+  end subroutine get_atom_number
 
 end module periodic
