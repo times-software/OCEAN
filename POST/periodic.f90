@@ -48,7 +48,7 @@ module periodic
     !
     zatom = -1
     do i = 1, el_len
-      if( satom .eq. elements( i ) then
+      if( satom .eq. elements( i ) ) then
         zatom = i
         goto 111
       endif
