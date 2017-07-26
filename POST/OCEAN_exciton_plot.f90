@@ -1,3 +1,9 @@
+! Copyright (C) 2016 - 2017 OCEAN collaboration
+!
+! This file is part of the OCEAN project and distributed under the terms 
+! of the University of Illinois/NCSA Open Source License. See the file 
+! `License' in the root directory of the present distribution.
+!
 program OCEAN_exciton_plot
   implicit none
 
@@ -6,14 +12,14 @@ program OCEAN_exciton_plot
   complex(DP) :: cphs
 
   real(DP), allocatable :: z_stripe( : ), xyz(:,:), atom_loc(:,:)
-  real(DP) :: qinb(3), avecs(3,3), su, k0(3), qvec(3), Rvec(3), xphs, yphs, zphs, twopi, tau(3)
+  real(DP) :: qinb(3), avecs(3,3), su, k0(3), qvec(3), Rvec(3), xphs, yphs, zphs, twopi, tau(3), ur, ui
 
 
   integer :: Rmesh(3), kmesh(3), nband, nalpha, nkpts, NR, Riter, kiter, xmesh(3), nspn
-  integer :: ikx, iky, ikz, iRx, iRy, iRz, NX, i, ix, x_count, xiter, iy, iz, izz
-  integer :: brange(4), u2size, u2start, Rshift(3), natom, kiter_break, Rstart(3)
+  integer :: ikx, iky, ikz, iRx, iRy, iRz, NX, i, ix, x_count, xiter, iy, iz, izz, bloch_selector
+  integer :: brange(4), u2size, u2start, Rshift(3), natom, kiter_break, Rstart(3), idum(3)
   character(len=25) :: filname
-  character(len=30) :: outname
+  character(len=128) :: outname
   character(len=2), allocatable :: elname(:)
 
   real(DP), external :: DZNRM2
@@ -24,9 +30,11 @@ program OCEAN_exciton_plot
 
   open(unit=99,file='exciton_plot.ipt',form='formatted',status='old')
   read(99,*) filname
+  read(99,*) outname
   read(99,*) Rmesh(:)
   read(99,*) Rstart(:)
-  read(99,*) tau(:)
+!  read(99,*) tau(:)
+  tau(:) = 0.0_dp
   close(99)
 
   open(unit=99,file='nbuse.ipt',form='formatted',status='old')
@@ -66,6 +74,10 @@ program OCEAN_exciton_plot
   do i = 1, natom
     read(99,*) elname( i ), xyz(:,i)
   enddo
+  close(99)
+
+  open(unit=99,file='bloch_selector',form='formatted',status='old')
+  read(99,*) bloch_selector
   close(99)
 
   atom_loc = 0.0_DP
@@ -111,17 +123,45 @@ program OCEAN_exciton_plot
   rk_exciton(:,:) = 0.0d0
 
   write(6,*) 'Opening u2'
-  open(unit=99,file='u2par.dat',access='stream',status='old',form='unformatted' )
-
   kiter_break = nkpts / 20
-  do kiter = 1, nkpts
-    if( mod( kiter, kiter_break ) .eq. 0 ) write(6,*) kiter
-    read(99) u2
-    call ZGEMV( 'N', NX, nband, one, u2(1,u2start), NX, cond_exciton( 1, kiter ), 1, &
-                 one, rk_exciton( 1, kiter ), 1 )
-  enddo
 
-  close( 99 )
+  select case( bloch_selector )
+  
+  case( 1 )
+    open(unit=99,file='u2par.dat',access='stream',status='old',form='unformatted' )
+
+    do kiter = 1, nkpts
+      if( mod( kiter, kiter_break ) .eq. 0 ) write(6,*) kiter
+      read(99) u2
+      call ZGEMV( 'N', NX, nband, one, u2(1,u2start), NX, cond_exciton( 1, kiter ), 1, &
+                   one, rk_exciton( 1, kiter ), 1 )
+    enddo
+
+    close( 99 )
+
+  case( 0 )
+    open(unit=99,file='u2.dat',form='unformatted',status='old')
+    do kiter = 1, nkpts
+      if( mod( kiter, kiter_break ) .eq. 0 ) write(6,*) kiter
+      do i = 1, brange(2)-brange(1)+1
+        do ix = 1, NX
+          read(99) 
+        enddo
+      enddo
+      do i = 1, nband
+        do ix =1, NX
+          read(99) idum(1:3), ur, ui
+          u2( i, ix ) = cmplx( ur, ui, DP )
+        enddo
+      enddo
+      call ZGEMV( 'N', NX, nband, one, u2, NX, cond_exciton( 1, kiter ), 1, &
+                   one, rk_exciton( 1, kiter ), 1 )
+    enddo
+    close( 99 )
+  case default
+    stop
+  end select
+
   write(6,*) 'Done loading u2'
 
   
@@ -232,7 +272,7 @@ program OCEAN_exciton_plot
   ! Now ready to write out 
 !  open(unit=99,file='out.cube',form='formatted')
   
-  outname = trim(filname)//'.cube'
+!  outname = trim(filname)//'.cube'
   open(unit=99,file=outname,form='formatted')
   write(99,*) "OCEAN exciton plot"
   write(99,*) "---"
