@@ -430,7 +430,7 @@ else  ### Abi/QE w/o obf
     {
       print "XES!\n";
       $run_text = 'XES';
-      $nbuse = $brange[1] - $brange[0] + 1;
+      $nbuse = $brange[2] - $brange[0];
     }
     open NBUSE, ">nbuse.ipt" or die "Failed to open nbuse.ipt\n";
     print NBUSE "$nbuse\n";
