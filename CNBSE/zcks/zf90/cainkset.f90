@@ -270,7 +270,7 @@ subroutine cainkset( avec, bvec, bmet, prefs )
   write ( 6, * ) 'looping over k to load...'
   ii = 0
   nq = 0
-  if( metal ) then
+  if( metal .or. ( nspin .eq. 2 ) ) then
     open(unit=20,file='ibeg.h')
     allocate( ibeg_array( nktot, nspin ) )
   endif
@@ -335,7 +335,7 @@ subroutine cainkset( avec, bvec, bmet, prefs )
            close( unit=fh )
            !
            if ( conduct ) then
-             if ( metal ) then
+             if ( metal .or. ( nspin .eq. 2 ) ) then
                if( temperature .gt. 0.000001 ) then
 !                 write(6,*) temperature, ivh - ivl + 2
                  ibeg = ivh -ivl + 2
@@ -353,7 +353,7 @@ subroutine cainkset( avec, bvec, bmet, prefs )
             end if
            else
 !             if ( metal ) stop 'metal rixs not implemented'
-             if ( metal ) then
+             if ( metal .or. ( nspin .eq. 2 ) ) then
                ! find the first band above the fermi level
                ibeg = 0
                do i = ivl, ivh
@@ -438,7 +438,7 @@ subroutine cainkset( avec, bvec, bmet, prefs )
    end do
   end do
 !$OMP END PARALLEL DO 
-  if( metal ) then
+  if( metal .or. ( nspin .eq. 2 ) ) then
     do ispin = 1, nspin
       do nq = 1, nktot
         write(20,*) nq, ibeg_array( nq, ispin )

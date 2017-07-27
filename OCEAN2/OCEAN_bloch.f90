@@ -445,7 +445,7 @@ module OCEAN_bloch
       open( unit=99, file='metal', form='formatted', status='old')
       read( 99, * ) metal
       close( 99 )
-      if( metal ) then
+      if( metal .or. ( sys%nspn .eq. 2 ) ) then
         open( unit=36, file='ibeg.h', form='formatted', status='old' )
         rewind( 36 )
       endif
@@ -524,7 +524,7 @@ module OCEAN_bloch
             rewind 99
             write ( 99, '(2i8)' ) iq, sys%nkpts
             close( unit=99 )
-            if( metal ) then
+            if( metal .or. ( sys%nspn .eq. 2 ) ) then
               read( 36, * ) dumint, ivh2
               ivh2 = ivh2 - 1
             endif
@@ -662,7 +662,7 @@ module OCEAN_bloch
 
     if( myid .eq. 0 ) write ( 6, '(1a16,2f20.15)' ) 'norm bounds ... ', sul, suh
 
-    if( myid .eq. 0 .and. metal ) close( 36 )
+    if( myid .eq. 0 .and. ( metal .or. ( sys%nspn .eq. 2 ) ) ) close( 36 )
 
     is_loaded = .true.
 
@@ -812,7 +812,7 @@ module OCEAN_bloch
 
       if( myid .eq. root ) then
 
-        if( metal ) then
+        if( metal .or. ( sys%nspn .eq. 2 ) ) then
           read(fh_ibeg, * ) i, ivh2
 !          ivh2 = ibeg( iq, 1 ) - 1
           ivh2 = ivh2 - 1
