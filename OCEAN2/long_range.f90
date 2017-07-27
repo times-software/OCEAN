@@ -1692,7 +1692,7 @@ module ocean_long_range
       open( unit=99, file='metal', form='formatted', status='old')
       read( 99, * ) metal
       close( 99 )
-      if( metal ) then
+      if( metal .or. ( sys%nspn .eq. 2 ) ) then
         open( unit=36, file='ibeg.h', form='formatted', status='old' )
       endif
       
@@ -1770,7 +1770,7 @@ module ocean_long_range
           rewind 99
           write ( 99, '(2i8)' ) iq, sys%nkpts
           close( unit=99 )
-          if( metal ) then
+          if( metal .or. ( sys%nspn .eq. 2 ) ) then
             read( 36, * ) dumint, ivh2
             ivh2 = ivh2 - 1 
           endif
@@ -1926,6 +1926,12 @@ module ocean_long_range
 
     deallocate( re_transpose, im_transpose, ur, ui )
     if( myid .eq. 0 ) deallocate( tmp_ur, tmp_ui )
+
+    if( myid .eq. 0 ) then
+      if( metal .or. ( sys%nspn .eq. 2 ) ) then
+        close( 36 )
+      endif
+    endif
 
 
 
