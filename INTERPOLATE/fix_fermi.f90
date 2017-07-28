@@ -27,7 +27,7 @@ subroutine dump_energies( band_subset, nbands, nkpts, nspin, nshift, e0, lumo_sh
   brange(2) = brange(2) - 1
   brange(3) = minval( start_band )
 
-  nkpts_out = nkpts / nshift
+  nkpts_out = nkpts !/ nshift
 
   overlap = brange(2) - brange(3) + 1
   write(6,*) maxval( start_band ), minval( start_band ), overlap
