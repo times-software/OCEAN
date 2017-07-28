@@ -1427,6 +1427,87 @@ module OCEAN_psi
 
   end subroutine OCEAN_psi_axpy
 
+
+!> @brief Returns the results of Y = A*X - Y
+!
+!> @details The calculation is only carried out on the minimal storeage option. 
+!! If for some reason the MPI group is rearranged between the two vectors then 
+!! we are unable to recover and an error is returned.  
+!! If min is not valid attempt to copy data from full to min (tests both X and 
+!! Y). Uses BLAS call DAXPY. At end result is in Y and only min has valid storage for Y.
+  subroutine OCEAN_psi_axmy( rval, x, y, ierr, ival )
+    implicit none
+    real(DP), intent( in ) :: rval
+    type(OCEAN_vector), intent( inout ) :: x
+    type(OCEAN_vector), intent( inout ) :: y
+    integer, intent( inout ) :: ierr
+    real(DP), intent( in ), optional :: ival
+    !
+    ! will need to take into account if the ordering is messesed up?
+    if( have_core ) then
+      if( (.not. x%standard_order) .or. ( .not. y%standard_order ) ) then
+        ierr = -11
+        return
+      endif
+    endif
+    if( have_val ) then
+      if( (.not. x%val_standard_order) .or. ( .not. y%val_standard_order ) ) then
+        ierr = -12
+        return
+      endif
+    endif
+    !
+    ! If neither store nor full then need to call write2store
+    !   This has the side effect of throwing an error if store_min is also invalid
+    !
+    ! Making the call that we would very rarely not want to create/use min
+    !  and so if full exists, but not min we will create it here
+    if( IAND( x%valid_store, PSI_STORE_MIN ) .eq. 0 ) then
+      if( IAND( x%valid_store, PSI_STORE_FULL ) .eq. 0 ) then
+        ierr = -1
+!        call OCEAN_psi_write2store( x, ierr)
+        if( ierr .ne. 0 ) return
+      else
+        call OCEAN_psi_full2min( x, ierr )
+        if( ierr .ne. 0 ) return
+      endif
+    endif
+    if( IAND( y%valid_store, PSI_STORE_MIN ) .eq. 0 ) then
+      if( IAND( y%valid_store, PSI_STORE_FULL ) .eq. 0 ) then
+!        call OCEAN_psi_write2store( y, ierr)
+        ierr = -1
+        if( ierr .ne. 0 ) return
+      else
+        call OCEAN_psi_full2min( y, ierr )
+        if( ierr .ne. 0 ) return
+      endif
+    endif
+
+    if( have_core .and. x%core_store_size .gt. 0 ) then
+      if( present( ival ) ) then
+        allocate( buffer( psi_bands_pad, x%core_store_size ) )
+        buffer( :, : ) = rval * x%min_r( :, : ) - y%min_r( :, : )
+        y%min_r( :, : ) = buffer( :, : ) - ival * x%min_i( :, : )
+        buffer( :, : ) = rval * x%min_i( :, : ) - y%min_i( :, : )
+        y_min%i( :, : ) = buffer( :, : ) + ival * x%min_r( :, : )
+        deallocate( buffer )
+      else
+        y%min_r( :, : ) = rval * x%min_r( :, : ) - y%min_r( :, : )
+        y_min%i( :, : ) = rval * x%min_i( :, : ) - y%min_i( :, : )
+      endif
+    endif
+
+    if( have_val ) then !.and. x%val_store_size .gt. 0 ) then
+      ierr = -2
+!      call DAXPY( x%val_store_size * psi_bands_pad, rval, x%val_min_r, 1, y%val_min_r, 1 )
+!      call DAXPY( x%val_store_size * psi_bands_pad, rval, x%val_min_i, 1, y%val_min_i, 1 )
+    endif
+
+    ! only store is valid now
+    y%valid_store = PSI_STORE_MIN
+
+  end subroutine OCEAN_psi_axmy
+
 !> @author John Vinson, NIST
 !
 !> @brief Returns the results the norm squared of the ocean_vector
