@@ -364,16 +364,13 @@ module OCEAN_action
     call OCEAN_psi_zero_full( psi, ierr )
 
     do iter = 1, inv_loop
-!      ener = ( e_start + ( iter - 1 ) * e_step ) / 27.2114_DP
-      ener = e_list( iter ) * eV2Hartree !/ 27.2114_DP
-      if( myid .eq. root ) write(6,*) ener * Hartree2eV  !* 27.2114_DP
 
-!      call OCEAN_action_set_psi( psi )      
+      ener = e_list( iter ) * eV2Hartree 
+      if( myid .eq. root ) write(6,*) ener * Hartree2eV  
+
 
 
       ! After OCEAN_xact every proc has the same copy of hpsi (and should still have the same psi)
-!      psi%r( :, :, : ) = 1.0_DP
-!      psi%i( :, :, : ) = 0.0_DP
       call OCEAN_psi_one_full( psi, ierr )
 
       if( sys%cur_run%have_val ) then
@@ -386,7 +383,6 @@ module OCEAN_action
       call OCEAN_psi_prep_min2full( hpsi, ierr )
       call OCEAN_psi_start_min2full( hpsi, ierr )
       call OCEAN_psi_finish_min2full( hpsi, ierr )
-!      call OCEAN_xact( sys, psi, hpsi, multiplet_psi, long_range_psi, ierr )
       ! After OCEAN_xact every proc has the same copy of hpsi (and should still have the same psi)
 
       call OCEAN_tk_start( tk_inv )
@@ -412,17 +408,30 @@ module OCEAN_action
       endif
 
       do while ( req .ne. 'end' )
-        call OCEAN_invdrv( x, rhs, ntot, int1, int2, nloop, need, iwrk, cwrk, v1, v2, bs, as, &
-                     req, ct, eval, f )
+
+        if( myid .eq. root ) then
+          call OCEAN_invdrv( x, rhs, ntot, int1, int2, nloop, need, iwrk, cwrk, v1, v2, bs, as, &
+                       req, ct, eval, f )
+        endif
+        call MPI_BCAST( req, 3, MPI_CHARACTER, root, psi%core_comm, ierr )
+        if( ierr .ne. MPI_SUCCESS ) return
+
         select case( req )
         case( 'all ' )
-          if( allocated( cwrk ) ) deallocate( cwrk )
-          iwrk = need
-          allocate( cwrk( need ) )
+          if( myid .eq. root ) then
+            if( allocated( cwrk ) ) deallocate( cwrk )
+            iwrk = need
+            allocate( cwrk( need ) )
+          endif
         case( 'act' ) ! E - S H ... in what follows, v1 must be untouched
           ! v = v1
 !          call rtov( sys, psi, v1 )
-          call OCEAN_psi_rtov( psi, v1 )
+
+          if( myid .eq. root ) then
+            call OCEAN_psi_rtov( psi, v1 )
+          endif
+          call OCEAN_psi_bcast_full( root, psi, ierr )
+          !
           call OCEAN_tk_stop( tk_inv )
 !          call OCEAN_xact( sys, psi, hpsi, multiplet_psi, long_range_psi, ierr )
           if( sys%cur_run%have_val ) then
@@ -437,13 +446,18 @@ module OCEAN_action
 
           call OCEAN_tk_start( tk_inv )
 !          call vtor( sys, hpsi, v2 )
-          call OCEAN_psi_vtor( hpsi, v2 )
-          v2( : ) = ( ener + rm1 * gres ) * v1( : ) - v2( : )
-        case( 'prc' )  ! meaning, divide by S(E-H0) ... in what follows, v1 must be untouched
-          v2( : ) = v1 ( : ) * pcdiv( : )
+  
           if( myid .eq. root ) then
-            write ( 6, '(1p,2x,3i5,5(1x,1e15.8))' ) int1, int2, nloop, f( 2 ), f( 1 ), ener, 1.0d0 - dot_product( rhs, x )
-!             write ( 66, '(1p,2x,3i5,5(1x,1e15.8))' ) int1, int2, nloop, f( 2 ), f( 1 ), ener, 1.0d0 - dot_product( rhs, x )
+            call OCEAN_psi_vtor( hpsi, v2 )
+            v2( : ) = ( ener + rm1 * gres ) * v1( : ) - v2( : )
+          endif
+        case( 'prc' )  ! meaning, divide by S(E-H0) ... in what follows, v1 must be untouched
+
+          if( myid .eq. root ) then
+            v2( : ) = v1 ( : ) * pcdiv( : )
+!            if( myid .eq. root ) then
+              write ( 6, '(1p,2x,3i5,5(1x,1e15.8))' ) int1, int2, nloop, f( 2 ), f( 1 ), ener, 1.0d0 - dot_product( rhs, x )
+  !             write ( 66, '(1p,2x,3i5,5(1x,1e15.8))' ) int1, int2, nloop, f( 2 ), f( 1 ), ener, 1.0d0 - dot_product( rhs, x )
           endif
         end select
       enddo
@@ -451,7 +465,7 @@ module OCEAN_action
 
 
 
-      if( myid .eq. 0 ) then
+      if( myid .eq. root ) then
         relative_error = f( 2 ) / ( dimag( - dot_product( rhs, x ) ) ) !* kpref )
         write ( 76, '(1p,1i5,4(1x,1e15.8))' ) int1, ener * Hartree2eV,  & !*27.2114_DP, &
                   ( 1.0d0 - dot_product( rhs, x ) ) * fact, relative_error
@@ -483,7 +497,10 @@ module OCEAN_action
 !      call dump_exciton( sys, psi, e_filename, ierr )
 
 !      call rtov( sys, hpsi, x )
-      call OCEAN_psi_rtov( hpsi, x )
+
+      if( myid .eq. root ) then
+        call OCEAN_psi_rtov( hpsi, x )
+      endif
 
       if( do_pfy ) then
         hpsi%kpref = hay_vec%kpref
@@ -772,7 +789,7 @@ module OCEAN_action
     call OCEAN_tk_start( tk_psisum )
     call OCEAN_psi_send_buffer( new_psi, ierr )
     if( ierr .ne. 0 ) return
-    call OCEAN_tk_stop( tk_psisum )
+!    call OCEAN_tk_stop( tk_psisum )
 
     ! end
 
@@ -788,7 +805,7 @@ module OCEAN_action
 
     call OCEAN_psi_buffer2min( new_psi, ierr )
     if( ierr .ne. 0 ) return
-    call OCEAN_tk_start( tk_psisum )
+    call OCEAN_tk_stop( tk_psisum )
 
 
     
