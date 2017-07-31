@@ -78,7 +78,7 @@ subroutine backend( aftvec, as, befvec, bs, x, b, ax, g, pg, apg, u, au, c, n, i
         case ( 'loadx' )
            call loadx( n, x )
         case ( 'havex' )
-           write ( 6, * ) 'x is assumed'
+!           write ( 6, * ) 'x is assumed'
         end select
         ct = 'newi2loop'
      case ( 'newi2loop' )

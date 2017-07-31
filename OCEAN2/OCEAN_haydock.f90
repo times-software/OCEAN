@@ -140,7 +140,7 @@ module OCEAN_action
     real(DP) :: imag_a
     integer :: iter
 
-    character( LEN=21 ) :: lanc_filename
+!    character( LEN=21 ) :: lanc_filename
 
     type( ocean_vector ) :: psi, old_psi, new_psi
     
@@ -197,8 +197,8 @@ module OCEAN_action
     call MPI_BARRIER( comm, ierr )
 
     if( myid .eq. 0 ) then
-      write(lanc_filename, '(A8,A2,A1,I4.4,A1,A2,A1,I2.2)' ) 'lanceig_', sys%cur_run%elname, &
-        '.', sys%cur_run%indx, '_', sys%cur_run%corelevel, '_', sys%cur_run%photon
+!      write(lanc_filename, '(A8,A2,A1,I4.4,A1,A2,A1,I2.2)' ) 'lanceig_', sys%cur_run%elname, &
+!        '.', sys%cur_run%indx, '_', sys%cur_run%corelevel, '_', sys%cur_run%photon
       call haydump( haydock_niter, sys, hay_vec%kpref, ierr )
       call redtrid(  haydock_niter, sys, hay_vec%kpref, ierr )
     endif
@@ -237,7 +237,7 @@ module OCEAN_action
     type( ocean_vector ) :: hpsi 
     type( ocean_vector ) :: psi 
 
-    character( LEN=21 ) :: lanc_filename
+!    character( LEN=21 ) :: lanc_filename
     character( LEN=3 ) :: technique, req, bs, as
     character( LEN = 9 ) :: ct
     character( LEN=5) :: eval
@@ -298,8 +298,8 @@ module OCEAN_action
             '.', sys%cur_run%indx, '_', sys%cur_run%corelevel, '_', sys%cur_run%photon
         do_pfy = .true.
       case( 'RXS')
-        write(abs_filename,'(A8,A2,A1,I4.4,A1,A2,A1,I2.2,A1,I2.2,A1,I2.2)' ) 'rxsspct_', sys%cur_run%elname, &
-            '.', sys%cur_run%indx, '_', sys%cur_run%corelevel, '_', sys%cur_run%photon, '.', &
+        write(abs_filename,'(A8,A2,A1,A2,A1,I2.2,A1,I5.5,A1,I2.2)' ) 'rxsspct_', sys%cur_run%elname, &
+            '.', sys%cur_run%corelevel, '_', sys%cur_run%photon, '.', &
             sys%cur_run%rixs_energy, '.', sys%cur_run%rixs_pol
       case default
         write(abs_filename,'(A8,A2,A1,I4.4,A1,A2,A1,I2.2)' ) 'absspct_', sys%cur_run%elname, &
@@ -402,7 +402,13 @@ module OCEAN_action
       req = '---'
 
       if( iter .gt. 1 ) then
-        v1(:) = x(:)
+        if( abs( e_list( iter ) - e_list( iter - 1 ) ) * eV2Hartree .lt. 3.0_dp * gres ) then
+          if( myid .eq. 0 ) write( 6,* ) '    Re-use previous x'
+          eval = 'havex'
+        else
+          eval = 'zerox'
+        endif
+!        v1(:) = x(:)
       endif
 
       do while ( req .ne. 'end' )
@@ -936,8 +942,8 @@ module OCEAN_action
       write(abs_filename,'(A8,A2,A1,I4.4,A1,A2,A1,I2.2)' ) 'absspct_', sys%cur_run%elname, &
           '.', sys%cur_run%indx, '_', sys%cur_run%corelevel, '_', sys%cur_run%photon
     case( 'RXS')
-      write(abs_filename,'(A8,A2,A1,I4.4,A1,A2,A1,I2.2,A1,I2.2,A1,I2.2)' ) 'rxsspct_', sys%cur_run%elname, &
-          '.', sys%cur_run%indx, '_', sys%cur_run%corelevel, '_', sys%cur_run%photon, '.', &
+      write(abs_filename,'(A8,A2,A1,A2,A1,I2.2,A1,I5.5,A1,I2.2)' ) 'rxsspct_', sys%cur_run%elname, &
+          '.', sys%cur_run%corelevel, '_', sys%cur_run%photon, '.', &
           sys%cur_run%rixs_energy, '.', sys%cur_run%rixs_pol
     end select
     
@@ -1290,7 +1296,7 @@ module OCEAN_action
     integer :: matz,nm,i,j,nn
 
 
-    character( LEN=21 ) :: lanc_filename
+    character( LEN=24 ) :: lanc_filename
 
     select case ( sys%cur_run%calc_type)
     case( 'XES' )
@@ -1300,7 +1306,7 @@ module OCEAN_action
       write(lanc_filename,'(A8,A2,A1,I4.4,A1,A2,A1,I2.2)' ) 'abslanc_', sys%cur_run%elname, &
           '.', sys%cur_run%indx, '_', sys%cur_run%corelevel, '_', sys%cur_run%photon
     case( 'RXS')
-      write(lanc_filename,'(A7,A2,A1,A2,A1,I2.2,A1,I2.2,A1,I2.2,A1,I2.2,A1,I2.2)' ) 'rxlanc_', sys%cur_run%elname, &
+      write(lanc_filename,'(A7,A2,A1,A2,A1,I2.2,A1,I5.5,A1,I2.2)' ) 'rxlanc_', sys%cur_run%elname, &
           '.', sys%cur_run%corelevel, '_', sys%cur_run%photon, '.', &
           sys%cur_run%rixs_energy, '.', sys%cur_run%rixs_pol
     case default
