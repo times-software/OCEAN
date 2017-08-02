@@ -142,7 +142,8 @@ module OCEAN_psi
             OCEAN_psi_prep_min2full, OCEAN_psi_start_min2full, &
             OCEAN_psi_finish_min2full, OCEAN_psi_full2min, &
             OCEAN_psi_returnBandPad, OCEAN_psi_bcast_full, &
-            OCEAN_psi_vtor, OCEAN_psi_rtov, OCEAN_psi_size_full
+            OCEAN_psi_vtor, OCEAN_psi_rtov, OCEAN_psi_size_full, &
+            OCEAN_psi_min_set_prec
 
   public :: OCEAN_vector
 
@@ -2258,6 +2259,78 @@ module OCEAN_psi
 
 
   end subroutine OCEAN_psi_set_prec
+
+
+  subroutine OCEAN_psi_min_set_prec( energy, gprc, psi_in, psi_out, ierr )
+    implicit none
+    real( DP ), intent( in ) :: energy, gprc
+    type(OCEAN_vector), intent(inout) :: psi_in
+    type(OCEAN_vector), intent(inout) :: psi_out
+    !
+    real( DP ) :: gprc_sqd, denom
+    integer :: i, j
+    
+    if( IAND( psi_in%valid_store, PSI_STORE_MIN ) .eq. 0 ) then
+      if( IAND( psi_in%valid_store, PSI_STORE_FULL ) .eq. 0 ) then
+        ierr = -1
+        return
+      else
+        call OCEAN_psi_full2min( psi_in, ierr )
+        if( ierr .ne. 0 ) return
+      endif
+    endif
+
+    if( IAND( psi_out%valid_store, PSI_STORE_MIN ) .eq. 0 ) then
+      if( IAND( psi_out%valid_store, PSI_STORE_FULL ) .eq. 0 ) then
+        ierr = -1
+        return
+      else
+        call OCEAN_psi_full2min( psi_out, ierr )
+        if( ierr .ne. 0 ) return
+      endif
+    endif
+
+    gprc_sqd = gprc * gprc
+
+    if( have_core .and. psi_in%core_store_size .gt. 0 ) then
+      do i = 1, psi_in%core_store_size
+        do j = 1, psi_bands_pad
+          denom = ( energy - psi_in%min_r( j, i ) ) ** 2 + gprc_sqd + psi_in%min_i( j, i ) ** 2
+          denom = 1.0_dp / denom
+          psi_out%min_r( j, i ) = ( energy - psi_in%min_r( j, i ) ) * denom
+          psi_out%min_i( j, i ) = - ( gprc + psi_in%min_r( j, i ) ) * denom
+        enddo
+      enddo
+    endif
+
+    if( have_val .and. x%val_store_size .gt. 0 ) then
+      do i = 1, psi_in%val_store_size
+        do j = 1, psi_bands_pad
+          denom = ( energy - psi_in%val_min_r( j, i ) ) ** 2  &
+                + gprc_sqd + psi_in%val_min_i( j, i ) ** 2
+          denom = 1.0_dp / denom
+          psi_out%val_min_r( j, i ) = ( energy - psi_in%val_min_r( j, i ) ) * denom
+          psi_out%val_min_i( j, i ) = - ( gprc + psi_in%val_min_r( j, i ) ) * denom
+        enddo
+      enddo
+    endif
+
+    psi_out%valid_store = PSI_STORE_MIN
+
+  end subroutine OCEAN_psi_min_set_prec
+
+
+!> @brief calculates element-wise z = x * y + a * z
+  subroutine OCEAN_psi_element_multi( z, x, y, alpha, ierr )
+    implicit none
+    real( DP ), intent( in ) :: alpha
+    type(OCEAN_vector), intent(inout) :: z, x, y
+    integer, intent( inout ) :: ierr
+    !
+
+
+  end subroutine OCEAN_psi_element_multi
+
 
 
   subroutine OCEAN_psi_sum_lr( sys, p, ierr ) 

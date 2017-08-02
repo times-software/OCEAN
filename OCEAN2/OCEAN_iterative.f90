@@ -68,7 +68,7 @@ module OCEAN_iterative
       ! could have some out maximum here, like size_of_psi / nloop 
       do ! outerloop for restarted GMRES
 
-        do iter = 1, nloop-1 ! inner loop for restarted GMRES
+        do iter = 1, nloop ! inner loop for restarted GMRES
           ! pg = g * pcdiv
           call OCEAN_psi_element_multi( psi_pg, psi_g, psi_pcdiv, 0.0_dp, ierr )
           if( ierr .ne. 0 ) return
@@ -88,7 +88,7 @@ module OCEAN_iterative
             call OCEAN_xact( sys, psi_x, psi_ax, ierr )
             if( ierr .ne. 0 ) return
             !
-            call OCEAN_psi_zacmy( zener, psi_x, psi_ax, ierr )
+            call OCEAN_psi_zaxmy( zener, psi_x, psi_ax, ierr )
             if( ierr .ne. 0 ) return
             !
           endif
