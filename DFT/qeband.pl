@@ -97,7 +97,14 @@ elsif( $metal == 1 || $metal == 2 )
     {
       $line = <IN>;
       $line =~ m/([-]?\d+\.\d+[Ee]?[-+]?(\d+)?)/ or die "$line";
-      $fermi = $1;
+      if( $fermi eq 'no' ) 
+      {
+        $fermi = $1;
+      }
+      else
+      {
+        $fermi = $1 if( $fermi < $1 );
+      }
     }
 
     last if( $line =~ m/<EIGENVALUES>/ );
