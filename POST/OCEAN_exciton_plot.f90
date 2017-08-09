@@ -151,7 +151,7 @@ program OCEAN_exciton_plot
       do i = 1, nband
         do ix =1, NX
           read(99) idum(1:3), ur, ui
-          u2( i, ix ) = cmplx( ur, ui, DP )
+          u2( ix, i ) = cmplx( ur, ui, DP )
         enddo
       enddo
       call ZGEMV( 'N', NX, nband, one, u2, NX, cond_exciton( 1, kiter ), 1, &
