@@ -476,7 +476,7 @@ module OCEAN_bubble
 !$OMP& SHARED( nxpts_pad, re_val, im_val, psi_con_pad, im_l_bubble, re_l_bubble, nproc, myid ) &
 !$OMP& SHARED( re_scratch, im_scratch, nxpts_by_mpiID, comm, MPI_STATUS_IGNORE, ierr, nthreads ) &
 !$OMP& SHARED( scratch, fo, bubble, spin_prefac, psiout, minus_spin_prefac, startx_by_mpiID ) &
-!$OMP& PRIVATE( bciter, bviter, xstop, xwidth, ix, iix, ik, ispn, dft_spin, psi_spin )
+!$OMP& PRIVATE( bciter, bviter, xstop, xwidth, ix, iix, ik, ispn, dft_spin, psi_spin, dft_spin2, psi_spin2 )
 
 
 
@@ -517,10 +517,10 @@ module OCEAN_bubble
     xwidth = xwidth * 8
 
 !$OMP DO 
-!  do ix = 1, nxpts, xwidth
-!    xstop = min( nxpts, ix + xwidth - 1 )
-      ix = 1
-      xstop = nxpts
+  do ix = 1, nxpts, xwidth
+    xstop = min( nxpts, ix + xwidth - 1 )
+!      ix = 1
+!      xstop = nxpts
           do ik = 1, nkpts
             do bviter = 1, nbv
               do iix = ix, xstop
@@ -533,7 +533,7 @@ module OCEAN_bubble
               enddo
             enddo
         enddo
-!  enddo
+  enddo
 !$OMP END DO
 
 !    write(6,*) maxval( re_l_bubble ), maxval( im_l_bubble )
