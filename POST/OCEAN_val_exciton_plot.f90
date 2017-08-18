@@ -160,8 +160,28 @@ program OCEAN_val_exciton_plot
      
      select case ( bloch_selector )
      case(1)
-        write(6, *) "u2par.dat Not implemented"
-        STOP
+!        write(6, *) "u2par.dat Not implemented"
+!        STOP
+        open(unit=99,file='u2par.dat',access='stream',status='old',form='unformatted' )
+
+        do kiter = 1, nkpts
+          if( mod( kiter, kiter_break ) .eq. 0 ) write(6,*) kiter
+          read(99) u2
+
+          pointwf(1:ncb)=u2( ixctr, u2size-ncb+1:u2size )  !get value near center
+
+          !Contract electron part to specified point
+
+          call ZGEMV('T', ncb, nvb, one, cv_exciton(1,1,kiter), ncb, pointwf(1), 1, one, plot_exciton(1, kiter), 1)
+
+          !Convert hole part to real space           
+          call ZGEMV( 'N', NX, nvb, one, u2(1,1), NX, plot_exciton( 1, kiter ), 1, &
+                      one, rk_exciton( 1, kiter ), 1 )
+
+        enddo
+
+      close( 99 )
+
      case(0)
         open(unit=99,file='u2.dat',form='unformatted',status='old')
         do kiter = 1, nkpts
