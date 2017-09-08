@@ -135,15 +135,17 @@ module OCEAN_psi
   public :: OCEAN_psi_init, OCEAN_psi_kill, OCEAN_psi_load,  &
             OCEAN_psi_write, OCEAN_psi_val_pnorm,  &
             OCEAN_psi_dot, OCEAN_psi_nrm, OCEAN_psi_scal, &
-            OCEAN_psi_axpy, OCEAN_psi_new, OCEAN_psi_cmult, OCEAN_psi_mult, &
+            OCEAN_psi_axpy, OCEAN_psi_axmy, OCEAN_psi_axmz, &
+            OCEAN_psi_new, OCEAN_psi_cmult, OCEAN_psi_mult, &
             OCEAN_psi_zero_full, OCEAN_psi_zero_min, OCEAN_psi_one_full, &
             OCEAN_psi_ready_buffer, OCEAN_psi_send_buffer, &
             OCEAN_psi_copy_min, OCEAN_psi_buffer2min, &
             OCEAN_psi_prep_min2full, OCEAN_psi_start_min2full, &
             OCEAN_psi_finish_min2full, OCEAN_psi_full2min, &
             OCEAN_psi_returnBandPad, OCEAN_psi_bcast_full, &
-            OCEAN_psi_vtor, OCEAN_psi_rtov, OCEAN_psi_size_full, &
-            OCEAN_psi_min_set_prec
+            OCEAN_psi_vtor, OCEAN_psi_rtov, OCEAN_psi_size_full
+!            OCEAN_psi_min_set_prec, OCEAN_psi_element_mult
+  public :: OCEAN_psi_element_mult
 
   public :: OCEAN_vector
 
@@ -1435,15 +1437,21 @@ module OCEAN_psi
 !! If for some reason the MPI group is rearranged between the two vectors then 
 !! we are unable to recover and an error is returned.  
 !! If min is not valid attempt to copy data from full to min (tests both X and 
-!! Y). Uses BLAS call DAXPY. At end result is in Y and only min has valid storage for Y.
-  subroutine OCEAN_psi_axmy( rval, x, y, ierr, ival )
+!! Y). At end result is in Y and only min has valid storage for Y.
+  subroutine OCEAN_psi_axmy( x, y, ierr, rval, ival )
     implicit none
-    real(DP), intent( in ) :: rval
     type(OCEAN_vector), intent( inout ) :: x
     type(OCEAN_vector), intent( inout ) :: y
     integer, intent( inout ) :: ierr
+    real(DP), intent( in ), optional :: rval
     real(DP), intent( in ), optional :: ival
     !
+    real(DP), allocatable :: buffer(:,:)
+    real(DP) :: rval_ = 1.0_DP
+    !
+    if( present( rval ) ) then
+      rval_ = rval
+    endif
     ! will need to take into account if the ordering is messesed up?
     if( have_core ) then
       if( (.not. x%standard_order) .or. ( .not. y%standard_order ) ) then
@@ -1487,27 +1495,144 @@ module OCEAN_psi
     if( have_core .and. x%core_store_size .gt. 0 ) then
       if( present( ival ) ) then
         allocate( buffer( psi_bands_pad, x%core_store_size ) )
-        buffer( :, : ) = rval * x%min_r( :, : ) - y%min_r( :, : )
+        buffer( :, : ) = rval_ * x%min_r( :, : ) - y%min_r( :, : )
         y%min_r( :, : ) = buffer( :, : ) - ival * x%min_i( :, : )
-        buffer( :, : ) = rval * x%min_i( :, : ) - y%min_i( :, : )
-        y_min%i( :, : ) = buffer( :, : ) + ival * x%min_r( :, : )
+        buffer( :, : ) = rval_ * x%min_i( :, : ) - y%min_i( :, : )
+        y%min_i( :, : ) = buffer( :, : ) + ival * x%min_r( :, : )
         deallocate( buffer )
+      elseif( present( rval ) ) then
+        y%min_r( :, : ) = rval_ * x%min_r( :, : ) - y%min_r( :, : )
+        y%min_i( :, : ) = rval_ * x%min_i( :, : ) - y%min_i( :, : )
       else
-        y%min_r( :, : ) = rval * x%min_r( :, : ) - y%min_r( :, : )
-        y_min%i( :, : ) = rval * x%min_i( :, : ) - y%min_i( :, : )
+        y%min_r( :, : ) = x%min_r( :, : ) - y%min_r( :, : )
+        y%min_i( :, : ) = x%min_i( :, : ) - y%min_i( :, : )
       endif
     endif
 
-    if( have_val ) then !.and. x%val_store_size .gt. 0 ) then
-      ierr = -2
-!      call DAXPY( x%val_store_size * psi_bands_pad, rval, x%val_min_r, 1, y%val_min_r, 1 )
-!      call DAXPY( x%val_store_size * psi_bands_pad, rval, x%val_min_i, 1, y%val_min_i, 1 )
+    if( have_val .and. x%val_store_size .gt. 0 ) then
+      if( present( ival ) ) then
+        allocate( buffer( psi_bands_pad, x%val_store_size ) )
+        buffer( :, : ) = rval_ * x%val_min_r( :, : ) - y%val_min_r( :, : )
+        y%val_min_r( :, : ) = buffer( :, : ) - ival * x%val_min_i( :, : )
+        buffer( :, : ) = rval_ * x%val_min_i( :, : ) - y%val_min_i( :, : )
+        y%val_min_i( :, : ) = buffer( :, : ) + ival * x%val_min_r( :, : )
+        deallocate( buffer )
+      elseif( present( rval ) ) then
+        y%val_min_r( :, : ) = rval_ * x%val_min_r( :, : ) - y%val_min_r( :, : )
+        y%val_min_i( :, : ) = rval_ * x%val_min_i( :, : ) - y%val_min_i( :, : )
+      else
+        y%val_min_r( :, : ) = x%val_min_r( :, : ) - y%val_min_r( :, : )
+        y%val_min_i( :, : ) = x%val_min_i( :, : ) - y%val_min_i( :, : )
+      endif
     endif
 
     ! only store is valid now
     y%valid_store = PSI_STORE_MIN
 
   end subroutine OCEAN_psi_axmy
+
+!> @brief Returns the results of Y = A*X - Z
+!
+!> @details The calculation is only carried out on the minimal storeage option. 
+!! If for some reason the MPI group is rearranged between the two vectors then 
+!! we are unable to recover and an error is returned.  
+!! If min is not valid attempt to copy data from full to min (tests both X and 
+!! Y). At end result is in Y and only min has valid storage for Y.
+  subroutine OCEAN_psi_axmz( x, y, z, ierr, rval, ival )
+    implicit none
+    type(OCEAN_vector), intent( inout ) :: x
+    type(OCEAN_vector), intent( inout ) :: y
+    type(OCEAN_vector), intent( inout ) :: z
+    integer, intent( inout ) :: ierr
+    real(DP), intent( in ), optional :: rval
+    real(DP), intent( in ), optional :: ival
+    !
+    real(DP) :: rval_ = 1.0_DP
+    !
+    if( present( rval ) ) rval_ = rval
+    ! will need to take into account if the ordering is messesed up?
+    if( have_core ) then
+      if( (.not. x%standard_order) .or. ( .not. y%standard_order ) .or. ( .not. z%standard_order ) ) then
+        ierr = -11
+        return
+      endif
+    endif
+    if( have_val ) then
+      if( (.not. x%val_standard_order) .or. ( .not. y%val_standard_order ) .or. &
+         ( .not. z%val_standard_order )) then
+        ierr = -12
+        return
+      endif
+    endif
+    !
+    ! If neither store nor full then need to call write2store
+    !   This has the side effect of throwing an error if store_min is also invalid
+    !
+    ! Making the call that we would very rarely not want to create/use min
+    !  and so if full exists, but not min we will create it here
+    if( IAND( x%valid_store, PSI_STORE_MIN ) .eq. 0 ) then
+      if( IAND( x%valid_store, PSI_STORE_FULL ) .eq. 0 ) then
+        ierr = -1
+!        call OCEAN_psi_write2store( x, ierr)
+        if( ierr .ne. 0 ) return
+      else
+        call OCEAN_psi_full2min( x, ierr )
+        if( ierr .ne. 0 ) return
+      endif
+    endif
+    if( IAND( y%valid_store, PSI_STORE_MIN ) .eq. 0 ) then
+      if( IAND( y%valid_store, PSI_STORE_FULL ) .eq. 0 ) then
+!        call OCEAN_psi_write2store( y, ierr)
+        ierr = -1
+        if( ierr .ne. 0 ) return
+      else
+        call OCEAN_psi_full2min( y, ierr )
+        if( ierr .ne. 0 ) return
+      endif
+    endif
+    if( IAND( z%valid_store, PSI_STORE_MIN ) .eq. 0 ) then
+      if( IAND( z%valid_store, PSI_STORE_FULL ) .eq. 0 ) then
+!        call OCEAN_psi_write2store( y, ierr)
+        ierr = -1
+        if( ierr .ne. 0 ) return
+      else
+        call OCEAN_psi_full2min( z, ierr )
+        if( ierr .ne. 0 ) return
+      endif
+    endif
+
+    if( have_core .and. x%core_store_size .gt. 0 ) then
+      if( present( ival ) ) then
+        y%min_r( :, : ) = rval_ * x%min_r( :, : ) - z%min_r( :, : ) - ival * x%min_i( :, : )
+        y%min_i( :, : ) = rval_ * x%min_i( :, : ) - z%min_i( :, : ) + ival * x%min_r( :, : )
+      elseif( present( rval ) ) then
+        y%min_r( :, : ) = rval_ * x%min_r( :, : ) - z%min_r( :, : )
+        y%min_i( :, : ) = rval_ * x%min_i( :, : ) - z%min_i( :, : )
+      else
+        y%min_r( :, : ) = x%min_r( :, : ) - z%min_r( :, : )
+        y%min_i( :, : ) = x%min_i( :, : ) - z%min_i( :, : )
+      endif
+    endif
+
+    if( have_val .and. x%val_store_size .gt. 0 ) then
+      if( present( ival ) ) then
+        y%val_min_r( :, : ) = rval_ * x%val_min_r( :, : ) - ival * x%val_min_i( :, : ) - z%val_min_r( :, : )
+        y%val_min_i( :, : ) = rval_ * x%val_min_i( :, : ) + ival * x%val_min_r( :, : ) - z%val_min_i( :, : )
+      elseif( present( rval ) ) then
+        y%val_min_r( :, : ) = rval_ * x%val_min_r( :, : ) - z%val_min_r( :, : )
+        y%val_min_i( :, : ) = rval_ * x%val_min_i( :, : ) - z%val_min_i( :, : )
+      else
+        y%val_min_r( :, : ) = x%val_min_r( :, : ) - z%val_min_r( :, : )
+        y%val_min_i( :, : ) = x%val_min_i( :, : ) - z%val_min_i( :, : )
+      endif
+    endif
+
+    ! only store is valid now
+    y%valid_store = PSI_STORE_MIN
+
+  end subroutine OCEAN_psi_axmz
+
+
 
 !> @author John Vinson, NIST
 !
@@ -2259,6 +2384,7 @@ module OCEAN_psi
 
 
   end subroutine OCEAN_psi_set_prec
+#endif
 
 
   subroutine OCEAN_psi_min_set_prec( energy, gprc, psi_in, psi_out, ierr )
@@ -2266,6 +2392,7 @@ module OCEAN_psi
     real( DP ), intent( in ) :: energy, gprc
     type(OCEAN_vector), intent(inout) :: psi_in
     type(OCEAN_vector), intent(inout) :: psi_out
+    integer, intent( inout ) :: ierr
     !
     real( DP ) :: gprc_sqd, denom
     integer :: i, j
@@ -2303,7 +2430,7 @@ module OCEAN_psi
       enddo
     endif
 
-    if( have_val .and. x%val_store_size .gt. 0 ) then
+    if( have_val .and. psi_in%val_store_size .gt. 0 ) then
       do i = 1, psi_in%val_store_size
         do j = 1, psi_bands_pad
           denom = ( energy - psi_in%val_min_r( j, i ) ) ** 2  &
@@ -2321,18 +2448,106 @@ module OCEAN_psi
 
 
 !> @brief calculates element-wise z = x * y + a * z
-  subroutine OCEAN_psi_element_multi( z, x, y, alpha, ierr )
+  subroutine OCEAN_psi_element_mult( z, x, y, alpha, ierr )
     implicit none
     real( DP ), intent( in ) :: alpha
     type(OCEAN_vector), intent(inout) :: z, x, y
     integer, intent( inout ) :: ierr
     !
+    integer :: i, j
+    ! check that x and y are valid and min
+    if( IAND( x%valid_store, PSI_STORE_MIN ) .eq. 0 ) then
+      if( IAND( x%valid_store, PSI_STORE_FULL ) .eq. 0 ) then
+        ierr = -1
+        return
+      else
+        call OCEAN_psi_full2min( x, ierr )
+        if( ierr .ne. 0 ) return
+      endif
+    endif
+
+    if( IAND( y%valid_store, PSI_STORE_MIN ) .eq. 0 ) then
+      if( IAND( y%valid_store, PSI_STORE_FULL ) .eq. 0 ) then
+        ierr = -1
+        return
+      else
+        call OCEAN_psi_full2min( y, ierr )
+        if( ierr .ne. 0 ) return
+      endif
+    endif
+
+    ! If alpha is (almost) 0
+    ! z = x*y
+    if( abs( alpha ) < epsilon(alpha ) ) then
+      ! check z allocated min
+      if( IAND( z%alloc_store, PSI_STORE_MIN ) .eq. 0 ) then
+        call OCEAN_psi_alloc_min( z, ierr )
+        if( ierr .ne. 0 ) return
+      endif
+
+      if( have_core .and. z%core_store_size .gt. 0 ) then
+        do i = 1, z%core_store_size
+          do j = 1, psi_bands_pad
+            z%min_r( j, i ) = x%min_r( j, i ) * y%min_r( j, i ) - x%min_i( j, i ) * y%min_i( j, i )
+            z%min_i( j, i ) = x%min_r( j, i ) * y%min_i( j, i ) + x%min_i( j, i ) * y%min_r( j, i )
+          enddo
+        enddo
+      endif
+
+      if( have_val .and. z%val_store_size .gt. 0 ) then
+        do i = 1, z%val_store_size
+          do j = 1, psi_bands_pad
+            z%val_min_r( j, i ) = x%val_min_r( j, i ) * y%val_min_r( j, i ) &
+                                - x%val_min_i( j, i ) * y%val_min_i( j, i )
+            z%val_min_i( j, i ) = x%val_min_r( j, i ) * y%val_min_i( j, i ) &
+                                + x%val_min_i( j, i ) * y%val_min_r( j, i )
+          enddo
+        enddo
+      endif
+      
+    else ! z = x*y + a * z
+      ! check z is valid
+      if( IAND( z%valid_store, PSI_STORE_MIN ) .eq. 0 ) then
+        if( IAND( z%valid_store, PSI_STORE_FULL ) .eq. 0 ) then
+          ierr = -1
+          return
+        else
+          call OCEAN_psi_full2min( z, ierr )
+          if( ierr .ne. 0 ) return
+        endif
+      endif
+
+      if( have_core .and. z%core_store_size .gt. 0 ) then
+        do i = 1, z%core_store_size
+          do j = 1, psi_bands_pad
+            z%min_r( j, i ) = x%min_r( j, i ) * y%min_r( j, i ) - x%min_i( j, i ) * y%min_i( j, i ) &
+                            + alpha * z%min_r( j, i )
+            z%min_i( j, i ) = x%min_r( j, i ) * y%min_i( j, i ) + x%min_i( j, i ) * y%min_r( j, i ) &
+                            + alpha * z%min_i( j, i )
+          enddo
+        enddo
+      endif
+
+      if( have_val .and. z%val_store_size .gt. 0 ) then
+        do i = 1, z%val_store_size
+          do j = 1, psi_bands_pad
+            z%val_min_r( j, i ) = x%val_min_r( j, i ) * y%val_min_r( j, i ) &
+                                - x%val_min_i( j, i ) * y%val_min_i( j, i ) &
+                                + alpha * z%val_min_r( j, i )
+            z%val_min_i( j, i ) = x%val_min_r( j, i ) * y%val_min_i( j, i ) &
+                                + x%val_min_i( j, i ) * y%val_min_r( j, i ) &
+                                + alpha * z%val_min_i( j, i )
+          enddo
+        enddo
+      endif
 
 
-  end subroutine OCEAN_psi_element_multi
+    endif
+
+  end subroutine OCEAN_psi_element_mult
 
 
-
+#ifdef FALSE
   subroutine OCEAN_psi_sum_lr( sys, p, ierr ) 
 !    use mpi
     use OCEAN_system
