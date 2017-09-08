@@ -70,7 +70,7 @@ module OCEAN_iterative
 
         do iter = 1, nloop ! inner loop for restarted GMRES
           ! pg = g * pcdiv
-          call OCEAN_psi_element_multi( psi_pg, psi_g, psi_pcdiv, 0.0_dp, ierr )
+          call OCEAN_psi_element_mult( psi_pg, psi_g, psi_pcdiv, 0.0_dp, ierr )
           if( ierr .ne. 0 ) return
 
           ! apg = H . pg
@@ -78,7 +78,8 @@ module OCEAN_iterative
           if( ierr .ne. 0 ) return
         
           ! apg = (e-iG) * pg - apg
-          call OCEAN_psi_zaxmy( zener, psi_pg, psi_apg, ierr )
+          call OCEAN_psi_axmy( ener, psi_pg, psi_apg, ierr, gres )
+          if( ierr .ne. 0 ) return
 
 
           call update_gmres( )
@@ -88,14 +89,15 @@ module OCEAN_iterative
             call OCEAN_xact( sys, psi_x, psi_ax, ierr )
             if( ierr .ne. 0 ) return
             !
-            call OCEAN_psi_zaxmy( zener, psi_x, psi_ax, ierr )
+            ! psi_ax = (ener + iG ) * psi_x - psi_ax
+            call OCEAN_psi_axmy( ener, psi_x, psi_ax, ierr, gres )
             if( ierr .ne. 0 ) return
             !
           endif
 
           ! get new g
-          ! g = ax - b
-          call OCEAN_psi_axmy( psi_ax, hay_vec, psi_g )
+          ! g = ax - b   !!! y = x - z
+          call OCEAN_psi_axmy( psi_ax, psi_g, hay_vec )
           !
 
           call OCEAN_psi_nrm( rval, psi_g, ierr )  ! non-blocking wouldn't do any good
