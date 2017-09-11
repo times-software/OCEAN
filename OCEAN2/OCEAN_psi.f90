@@ -1368,12 +1368,13 @@ module OCEAN_psi
 !! we are unable to recover and an error is returned. 
 !! If min is not valid attempt to copy data from full to min (tests both X and 
 !! Y). Uses BLAS call DAXPY. At end result is in Y and only min has valid storage for Y.
-  subroutine OCEAN_psi_axpy( rval, x, y, ierr )
+  subroutine OCEAN_psi_axpy( rval, x, y, ierr, ival )
     implicit none
     real(DP), intent( in ) :: rval
     type(OCEAN_vector), intent( inout ) :: x
     type(OCEAN_vector), intent( inout ) :: y
     integer, intent( inout ) :: ierr
+    real(DP), intent( in ), optional :: ival
     !
     ! will need to take into account if the ordering is messesed up?
     if( have_core ) then
@@ -1418,11 +1419,19 @@ module OCEAN_psi
     if( have_core .and. x%core_store_size .gt. 0 ) then
       call DAXPY( x%core_store_size * psi_bands_pad, rval, x%min_r, 1, y%min_r, 1 )
       call DAXPY( x%core_store_size * psi_bands_pad, rval, x%min_i, 1, y%min_i, 1 )
+      if( present( ival ) ) then
+        call DAXPY( x%core_store_size * psi_bands_pad, -ival, x%min_i, 1, y%min_r, 1 )
+        call DAXPY( x%core_store_size * psi_bands_pad, ival, x%min_r, 1, y%min_i, 1 )
+      endif
     endif
 
     if( have_val ) then !.and. x%val_store_size .gt. 0 ) then
       call DAXPY( x%val_store_size * psi_bands_pad, rval, x%val_min_r, 1, y%val_min_r, 1 )
       call DAXPY( x%val_store_size * psi_bands_pad, rval, x%val_min_i, 1, y%val_min_i, 1 )
+      if( present( ival ) ) then
+        call DAXPY( x%val_store_size * psi_bands_pad, -ival, x%val_min_i, 1, y%val_min_r, 1 )
+        call DAXPY( x%val_store_size * psi_bands_pad, ival, x%val_min_r, 1, y%val_min_i, 1 )
+      endif
     endif
 
     ! only store is valid now
@@ -3078,18 +3087,36 @@ module OCEAN_psi
 !> @author John Vinson, NIST
 !
 !> @brief Integer function that gives the size of the full ocean_vector
-!> \todo Make compatible if we have both core and valence
   function OCEAN_psi_size_full( p )
     type(OCEAN_vector), intent( in ) :: p
     integer :: OCEAN_psi_size_full 
+    !
+    OCEAN_psi_size_full = 0
     if( have_core ) then
       OCEAN_psi_size_full = psi_bands_pad * psi_kpts_pad * psi_core_alpha
-    elseif( have_val ) then
-      OCEAN_psi_size_full = psi_bands_pad * psi_val_bands * psi_kpts_actual * psi_val_beta
-    else
-      OCEAN_psi_size_full = 0
+    endif
+    if( have_val ) then
+      OCEAN_psi_size_full = psi_bands_pad * psi_val_bands * psi_kpts_actual * psi_val_beta &
+                          + OCEAN_psi_size_full
     endif
   end function OCEAN_psi_size_full
+
+
+!> @brief Integer function that gives the size of the min ocean_vector
+  function OCEAN_psi_size_min( p )
+    type(OCEAN_vector), intent( in ) :: p
+    integer :: OCEAN_psi_size_min
+    !
+    OCEAN_psi_size_min = 0 
+    if( have_core ) then
+      OCEAN_psi_size_min = psi_bands_pad * p%core_store_size
+    endif
+    if( have_val ) then
+      OCEAN_psi_size_min = psi_bands_pad * p%val_store_size &
+                          + OCEAN_psi_size_min
+    endif
+  end function OCEAN_psi_size_min
+
 
 
 !> @author John Vinson, NIST
