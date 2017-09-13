@@ -43,7 +43,7 @@ module OCEAN_action
 
   LOGICAL  :: val_loud = .true.
 
-  public :: OCEAN_hayinit, OCEAN_action_run
+  public :: OCEAN_hayinit, OCEAN_action_run, OCEAN_xact
 
   contains
 

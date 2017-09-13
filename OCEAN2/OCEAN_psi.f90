@@ -1551,7 +1551,7 @@ module OCEAN_psi
     implicit none
     type(OCEAN_vector), intent( inout ) :: x
     type(OCEAN_vector), intent( inout ) :: y
-    type(OCEAN_vector), intent( inout ) :: z
+    type(OCEAN_vector), intent( in ) :: z
     integer, intent( inout ) :: ierr
     real(DP), intent( in ), optional :: rval
     real(DP), intent( in ), optional :: ival
@@ -1600,14 +1600,14 @@ module OCEAN_psi
       endif
     endif
     if( IAND( z%valid_store, PSI_STORE_MIN ) .eq. 0 ) then
-      if( IAND( z%valid_store, PSI_STORE_FULL ) .eq. 0 ) then
+!      if( IAND( z%valid_store, PSI_STORE_FULL ) .eq. 0 ) then
 !        call OCEAN_psi_write2store( y, ierr)
-        ierr = -1
+        ierr = -10001
         if( ierr .ne. 0 ) return
-      else
-        call OCEAN_psi_full2min( z, ierr )
-        if( ierr .ne. 0 ) return
-      endif
+!      else
+!        call OCEAN_psi_full2min( z, ierr )
+!        if( ierr .ne. 0 ) return
+!      endif
     endif
 
     if( have_core .and. x%core_store_size .gt. 0 ) then
