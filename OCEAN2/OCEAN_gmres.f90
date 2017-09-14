@@ -5,7 +5,7 @@
 ! `License' in the root directory of the present distribution.
 !
 !> @brief This module contains the necessary pieces for carrying out GMRES
-module OCEAN_iterative
+module OCEAN_gmres
   use OCEAN_psi, only : ocean_vector
   use AI_kinds
 
@@ -26,11 +26,11 @@ module OCEAN_iterative
   integer :: gmres_nsteps
   real(DP), allocatable :: gmres_energy_list(:)
 
-  public :: OCEAN_it_do_gmres, OCEAN_it_setup_gmres, OCEAN_it_clean_gmres
+  public :: OCEAN_gmres_do, OCEAN_gmres_setup, OCEAN_gmres_clean
 
   contains
 
-  subroutine OCEAN_it_clean_gmres( ierr )
+  subroutine OCEAN_gmres_clean( ierr )
     !
     integer, intent( inout ) :: ierr
     !
@@ -57,9 +57,9 @@ module OCEAN_iterative
       deallocate( u_matrix )
     endif
 
-  end subroutine OCEAN_it_clean_gmres
+  end subroutine OCEAN_gmres_clean
 
-  subroutine OCEAN_it_setup_gmres( sys, ierr )
+  subroutine OCEAN_gmres_setup( sys, ierr )
     use OCEAN_system
     use OCEAN_mpi!, only : myid, root, comm, MPI_BCAST, MPI_INTEGER, MPI_DOUBLE_PRECISION
     use OCEAN_corewidths, only : returnLifetime
@@ -132,7 +132,7 @@ module OCEAN_iterative
     call initialize_gmres_storage( sys, ierr )
     if( ierr .ne. 0 ) return
 
-  end subroutine OCEAN_it_setup_gmres
+  end subroutine OCEAN_gmres_setup
 
   subroutine initialize_gmres_storage( sys, ierr )
     use OCEAN_psi
@@ -248,7 +248,7 @@ module OCEAN_iterative
   end subroutine update_gmres
 
 
-  subroutine OCEAN_it_do_gmres( sys, hay_vec, ierr )
+  subroutine OCEAN_gmres_do( sys, hay_vec, ierr )
     use OCEAN_psi
     use OCEAN_system
     use OCEAN_action, only : OCEAN_xact
@@ -263,6 +263,7 @@ module OCEAN_iterative
     type( ocean_vector), pointer :: psi_pg, psi_apg
     !
     real(DP) :: ener, rval
+    real(dp), parameter :: one = 1.0_dp
     integer :: iter, step_iter
 
     ! Create all the psi vectors we need
@@ -296,7 +297,7 @@ module OCEAN_iterative
       if( ierr .ne. 0 ) return
     endif
 
-    call OCEAN_xact( sys, psi_x, hpsi1, ierr )
+    call OCEAN_xact( sys, one, psi_x, hpsi1, ierr )
     !!!!
 
 
@@ -328,7 +329,7 @@ module OCEAN_iterative
           if( ierr .ne. 0 ) return
 
           ! apg = H . pg
-          call OCEAN_xact( sys, psi_pg, psi_apg, ierr )
+          call OCEAN_xact( sys, one, psi_pg, psi_apg, ierr )
           if( ierr .ne. 0 ) return
         
           ! apg = (e-iG) * pg - apg
@@ -340,7 +341,7 @@ module OCEAN_iterative
 
           if( iter .eq. gmres_depth ) then
             ! newi2loop section here
-            call OCEAN_xact( sys, psi_x, psi_ax, ierr )
+            call OCEAN_xact( sys, one, psi_x, psi_ax, ierr )
             if( ierr .ne. 0 ) return
             !
             ! psi_ax = (ener + iG ) * psi_x - psi_ax
@@ -388,7 +389,7 @@ module OCEAN_iterative
 
 
 
-  end subroutine OCEAN_it_do_gmres
+  end subroutine OCEAN_gmres_do
 
 !> @brief Initializes X (and hence AX)
   subroutine set_initial_vector( sys, iter, psi_x, psi_g, psi_ax, hay_vec, ierr )
@@ -417,4 +418,4 @@ module OCEAN_iterative
 
 
 
-end module OCEAN_iterative
+end module OCEAN_gmres
