@@ -1,4 +1,4 @@
-! Copyright (C) 2015 OCEAN collaboration
+! Copyright (C) 2015 - 2017 OCEAN collaboration
 !
 ! This file is part of the OCEAN project and distributed under the terms 
 ! of the University of Illinois/NCSA Open Source License. See the file 
@@ -9,7 +9,7 @@ program ocean
   use AI_kinds
   use OCEAN_mpi
   use OCEAN_system
-  use OCEAN_action
+  use OCEAN_haydock
   use OCEAN_psi
   use OCEAN_long_range
 !  use OCEAN_exact

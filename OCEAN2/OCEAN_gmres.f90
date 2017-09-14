@@ -31,6 +31,7 @@ module OCEAN_gmres
   contains
 
   subroutine OCEAN_gmres_clean( ierr )
+    use OCEAN_psi, only : OCEAN_psi_kill
     !
     integer, intent( inout ) :: ierr
     !
@@ -165,6 +166,7 @@ module OCEAN_gmres
 
   subroutine update_gmres( current_iter, psi_g, psi_x, psi_ax, ierr)
     use OCEAN_mpi
+    use OCEAN_psi, only : ocean_vector, OCEAN_psi_dot, OCEAN_psi_axpy
     !
     integer, intent( in ) :: current_iter
     type( ocean_vector ), intent(inout ) :: psi_g, psi_x, psi_ax
@@ -227,7 +229,7 @@ module OCEAN_gmres
       call MPI_WAITALL( current_iter, im_rvec_request, MPI_STATUSES_IGNORE, ierr )
     endif
 
-    call BCAST( info, 1, MPI_INTEGER, root, comm, ierr )
+    call MPI_BCAST( info, 1, MPI_INTEGER, root, comm, ierr )
     ierr = info
     if( ierr .ne. 0 ) return
 
@@ -254,6 +256,7 @@ module OCEAN_gmres
     use OCEAN_action, only : OCEAN_xact
     use OCEAN_constants, only : eV2Hartree, Hartree2eV
     use OCEAN_mpi, only : myid, root
+    use OCEAN_energies, only : OCEAN_energies_val_allow
     !
     type( o_system ), intent( in ) :: sys
     type( ocean_vector ), intent( in ) :: hay_vec

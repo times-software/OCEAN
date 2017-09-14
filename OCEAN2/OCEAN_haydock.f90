@@ -5,7 +5,7 @@
 ! `License' in the root directory of the present distribution.
 !
 !
-module OCEAN_action
+module OCEAN_haydock
   use AI_kinds
   use OCEAN_timekeeper
   use iso_c_binding
@@ -43,7 +43,7 @@ module OCEAN_action
 
   LOGICAL  :: val_loud = .true.
 
-  public :: OCEAN_hayinit, OCEAN_action_run, OCEAN_xact
+  public :: OCEAN_haydock_setup, OCEAN_haydock_do
 
   contains
 
@@ -109,7 +109,7 @@ module OCEAN_action
 
     select case ( calc_type )
       case('hay')
-        call OCEAN_haydock( sys, hay_vec, ierr )
+        call OCEAN_haydock_do( sys, hay_vec, ierr )
       case('inv')
         call OCEAN_GMRES( sys, hay_vec, ierr )
       case default
@@ -118,7 +118,7 @@ module OCEAN_action
   end subroutine OCEAN_action_run
 
 
-  subroutine OCEAN_haydock( sys, hay_vec, ierr )
+  subroutine OCEAN_haydock_do( sys, hay_vec, ierr )
     use AI_kinds
     use OCEAN_mpi
     use OCEAN_system
@@ -126,7 +126,7 @@ module OCEAN_action
     use OCEAN_psi
     use OCEAN_multiplet
     use OCEAN_long_range
-    
+    use OCEAN_action, only : OCEAN_xact
 
 
     implicit none
@@ -178,7 +178,7 @@ module OCEAN_action
         if( ierr .ne. 0 ) return
       endif
 
-      call OCEAN_xact( sys, psi, new_psi, ierr )
+      call OCEAN_xact( sys, inter_scale, psi, new_psi, ierr )
       if( ierr .ne. 0 ) return
 !      if( myid .eq. root ) write(6,*) 'Done with ACT'
 
@@ -214,7 +214,7 @@ module OCEAN_action
 
     call MPI_BARRIER( comm, ierr )
 
-  end subroutine OCEAN_haydock
+  end subroutine OCEAN_haydock_do
 
 
   subroutine OCEAN_GMRES( sys, hay_vec, ierr )
@@ -227,6 +227,7 @@ module OCEAN_action
     use OCEAN_long_range
     use OCEAN_pfy, only : OCEAN_pfy_load, OCEAN_pfy_act
     use OCEAN_constants, only : Hartree2eV, eV2Hartree
+    use OCEAN_action, only : OCEAN_xact
 
     implicit none
     integer, intent( inout ) :: ierr
@@ -379,7 +380,7 @@ module OCEAN_action
       endif
 
 
-      call OCEAN_xact( sys, psi, hpsi, ierr )
+      call OCEAN_xact( sys, inter_scale, psi, hpsi, ierr )
       call OCEAN_psi_prep_min2full( hpsi, ierr )
       call OCEAN_psi_start_min2full( hpsi, ierr )
       call OCEAN_psi_finish_min2full( hpsi, ierr )
@@ -439,7 +440,7 @@ module OCEAN_action
             if( ierr .ne. 0 ) return
           endif
 
-          call OCEAN_xact( sys, psi, hpsi, ierr )
+          call OCEAN_xact( sys, inter_scale, psi, hpsi, ierr )
           call OCEAN_psi_prep_min2full( hpsi, ierr )
           call OCEAN_psi_start_min2full( hpsi, ierr )
           call OCEAN_psi_finish_min2full( hpsi, ierr )
@@ -583,7 +584,7 @@ module OCEAN_action
     enddo
   end subroutine rtov
 
-
+#if( 0 )
 ! On entrance psi needs to be the same everywhere
 ! On exit new_psi is stored in min everywhere
   subroutine OCEAN_xact( sys, psi, new_psi, ierr )
@@ -811,6 +812,7 @@ module OCEAN_action
     
 
   end subroutine OCEAN_xact
+#endif
 
   subroutine OCEAN_hay_ab( sys, psi, hpsi, old_psi, iter, ierr )
 #ifdef __HAVE_F03
@@ -1118,7 +1120,7 @@ module OCEAN_action
     end do
   end subroutine write_core
 
-  subroutine OCEAN_hayinit( sys, ierr )
+  subroutine OCEAN_haydock_setup( sys, ierr )
     use OCEAN_mpi
     use OCEAN_constants, only : Hartree2eV, eV2Hartree
     use OCEAN_system
@@ -1147,8 +1149,8 @@ module OCEAN_action
       read(99,*) dumi
       read(99,*) dumf
       read(99,*) calc_type
-      select case ( calc_type )
-        case('hay')
+!      select case ( calc_type )
+!        case('hay')
           read(99,*) haydock_niter, ne, el, eh, gam0, ebase
           call checkBroadening( sys, gam0, default_gam0 )
 
@@ -1158,8 +1160,9 @@ module OCEAN_action
           el = el * eV2Hartree
           eh = eh * eV2Hartree
           gam0 = gam0 * eV2Hartree
-          inv_loop = 1
-          allocate( e_list( inv_loop ) )
+!          inv_loop = 1
+!          allocate( e_list( inv_loop ) )
+#if( 0 )
         case('inv')
           read(99,*) nloop, gres, gprc, ffff, ener
           ! if gres is negative fill it with core-hole lifetime broadening
@@ -1203,6 +1206,7 @@ module OCEAN_action
         case default
           ierr = -1
       end select
+#endif
       close(99)
 
 
@@ -1223,23 +1227,23 @@ module OCEAN_action
 
     call MPI_BCAST( inter_scale, 1, MPI_DOUBLE_PRECISION, root, comm, ierr )
     call MPI_BCAST( haydock_niter, 1, MPI_INTEGER, root, comm, ierr )
-    call MPI_BCAST( calc_type, 3, MPI_CHARACTER, root, comm, ierr )
+!    call MPI_BCAST( calc_type, 3, MPI_CHARACTER, root, comm, ierr )
 
-    call MPI_BCAST( nloop, 1, MPI_INTEGER, root, comm, ierr )
-    call MPI_BCAST( gres, 1, MPI_DOUBLE_PRECISION, root, comm, ierr )
-    call MPI_BCAST( gprc, 1, MPI_DOUBLE_PRECISION, root, comm, ierr )
-    call MPI_BCAST( ffff, 1, MPI_DOUBLE_PRECISION, root, comm, ierr )
-    call MPI_BCAST( ener, 1, MPI_DOUBLE_PRECISION, root, comm, ierr )
+!    call MPI_BCAST( nloop, 1, MPI_INTEGER, root, comm, ierr )
+!    call MPI_BCAST( gres, 1, MPI_DOUBLE_PRECISION, root, comm, ierr )
+!    call MPI_BCAST( gprc, 1, MPI_DOUBLE_PRECISION, root, comm, ierr )
+!    call MPI_BCAST( ffff, 1, MPI_DOUBLE_PRECISION, root, comm, ierr )
+!    call MPI_BCAST( ener, 1, MPI_DOUBLE_PRECISION, root, comm, ierr )
     call MPI_BCAST( eps, 1, MPI_DOUBLE_PRECISION, root, comm, ierr )
     call MPI_BCAST( nval, 1, MPI_DOUBLE_PRECISION, root, comm, ierr )
 
 
-    call MPI_BCAST( e_start, 1, MPI_DOUBLE_PRECISION, root, comm, ierr )
-    call MPI_BCAST( e_stop, 1, MPI_DOUBLE_PRECISION, root, comm, ierr )
-    call MPI_BCAST( e_step, 1, MPI_DOUBLE_PRECISION, root, comm, ierr )
-    call MPI_BCAST( inv_loop, 1, MPI_INTEGER, root, comm, ierr )
-    if( myid .ne. root ) allocate( e_list( inv_loop ) )
-    call MPI_BCAST( e_list, inv_loop, MPI_DOUBLE_PRECISION, root, comm, ierr )
+!    call MPI_BCAST( e_start, 1, MPI_DOUBLE_PRECISION, root, comm, ierr )
+!    call MPI_BCAST( e_stop, 1, MPI_DOUBLE_PRECISION, root, comm, ierr )
+!    call MPI_BCAST( e_step, 1, MPI_DOUBLE_PRECISION, root, comm, ierr )
+!    call MPI_BCAST( inv_loop, 1, MPI_INTEGER, root, comm, ierr )
+!    if( myid .ne. root ) allocate( e_list( inv_loop ) )
+!    call MPI_BCAST( e_list, inv_loop, MPI_DOUBLE_PRECISION, root, comm, ierr )
 
 
     call MPI_BCAST( echamp, 1, MPI_LOGICAL, root, comm, ierr )
@@ -1271,7 +1275,7 @@ module OCEAN_action
       allocate( a(1), b(1) )
     endif
 
-  end subroutine OCEAN_hayinit
+  end subroutine OCEAN_haydock_setup
 
 
   subroutine checkBroadening( sys, broaden, default_broaden )
@@ -1428,4 +1432,4 @@ module OCEAN_action
 
 
 
-end module OCEAN_action
+end module OCEAN_haydock

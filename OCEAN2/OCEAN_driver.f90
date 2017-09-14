@@ -42,8 +42,11 @@ module OCEAN_driver
 
 
   subroutine OCEAN_driver_setup( sys, ierr )
-    use OCEAN_mpi, only : myid, root, comm, MPI_CHARACTER, MP_INTEGER
-
+    use OCEAN_mpi, only : myid, root, comm, MPI_CHARACTER, MPI_INTEGER
+    use OCEAN_system
+    use OCEAN_haydock, only : OCEAN_haydock_setup
+    use OCEAN_gmres, only : OCEAN_gmres_setup
+    type( o_system ), intent( in ) :: sys
     integer, intent( inout ) :: ierr
     !
     integer :: ierr_, dumi
@@ -77,7 +80,7 @@ module OCEAN_driver
         call OCEAN_gmres_setup( sys, ierr )
 
       case default
-        if( myid .eq. root ) write(6,*) 'Unsupported style in bse.in: ', syle
+        if( myid .eq. root ) write(6,*) 'Unsupported style in bse.in: ', style
         ierr = 5
         return
 

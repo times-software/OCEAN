@@ -143,8 +143,8 @@ module OCEAN_psi
             OCEAN_psi_prep_min2full, OCEAN_psi_start_min2full, &
             OCEAN_psi_finish_min2full, OCEAN_psi_full2min, &
             OCEAN_psi_returnBandPad, OCEAN_psi_bcast_full, &
-            OCEAN_psi_vtor, OCEAN_psi_rtov, OCEAN_psi_size_full
-!            OCEAN_psi_min_set_prec, OCEAN_psi_element_mult
+            OCEAN_psi_vtor, OCEAN_psi_rtov, OCEAN_psi_size_full, & 
+            OCEAN_psi_min_set_prec !, OCEAN_psi_element_mult
   public :: OCEAN_psi_element_mult
 
   public :: OCEAN_vector
