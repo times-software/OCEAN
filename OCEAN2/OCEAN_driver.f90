@@ -13,10 +13,14 @@ module OCEAN_driver
 
   character(len=3) :: style
 
-  public :: OCEAN_driver_setup, OCEAN_driver_run
+  public :: OCEAN_driver_setup, OCEAN_driver_run, OCEAN_driver_clean
 
   contains
 
+  subroutine OCEAN_driver_clean( ierr )
+    integer, intent( inout ) :: ierr
+
+  end subroutine OCEAN_driver_clean
   
   subroutine OCEAN_driver_run( sys, hay_vec, ierr )
     use OCEAN_mpi, only : myid, root
@@ -43,7 +47,7 @@ module OCEAN_driver
 
   subroutine OCEAN_driver_setup( sys, ierr )
     use OCEAN_mpi, only : myid, root, comm, MPI_CHARACTER, MPI_INTEGER
-    use OCEAN_system
+    use OCEAN_system, only : o_system
     use OCEAN_haydock, only : OCEAN_haydock_setup
     use OCEAN_gmres, only : OCEAN_gmres_setup
     type( o_system ), intent( in ) :: sys

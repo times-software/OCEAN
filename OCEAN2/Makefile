@@ -16,7 +16,7 @@ OCEANOBJS = AI_kinds.o OCEAN_mpi.o OCEAN_system.o OCEAN_bloch.o OCEAN_obf.o OCEA
             OCEAN_read_tmels.o OCEAN_val_states.o OCEAN_bubble.o \
             OCEAN_get_rho.o optim.o OCEAN_hyb_louie_levine.o OCEAN_ladder.o \
 						OCEAN_pfy.o OCEAN_rixs_holder.o OCEAN_corewidths.o OCEAN_action.o \
-						OCEAN_driver.o OCEAN_gmres.o $(FFT_WRAPPER_OBJS)
+						OCEAN_driver.o OCEAN_gmres.o OCEAN_filenames.o $(FFT_WRAPPER_OBJS)
 
 KINDS = AI_kinds.o
 
@@ -59,7 +59,8 @@ OCEAN_psi.o: OCEAN_psi.f90 OCEAN_constants.o OCEAN_timekeeper.o OCEAN_rixs_holde
 OCEAN_energies.o: OCEAN_energies.f90 OCEAN_val_energy.o
 	$(MPIFORT) $(FLAGS) -c -o OCEAN_energies.o OCEAN_energies.f90 
 
-OCEAN_haydock.o: OCEAN_haydock.f90 OCEAN_timekeeper.o OCEAN_psi.o OCEAN_pfy.o OCEAN_corewidths.o OCEAN_action.o
+OCEAN_haydock.o: OCEAN_haydock.f90 OCEAN_timekeeper.o OCEAN_psi.o OCEAN_pfy.o OCEAN_corewidths.o OCEAN_action.o \
+								 OCEAN_filenames.o
 	$(MPIFORT) $(FLAGS) -c -o  OCEAN_haydock.o OCEAN_haydock.f90 
 
 OCEAN_action.o: OCEAN_action.f90 OCEAN_timekeeper.o OCEAN_psi.o OCEAN_bubble.o OCEAN_ladder.o 
@@ -171,6 +172,9 @@ OCEAN_driver.o: OCEAN_driver.f90 OCEAN_mpi.o OCEAN_system.o OCEAN_psi.o OCEAN_ha
 OCEAN_gmres.o: OCEAN_gmres.f90 AI_kinds.o OCEAN_psi.o OCEAN_system.o OCEAN_mpi.o \
 							 OCEAN_corewidths.o OCEAN_constants.o OCEAN_action.o 
 	$(MPIFORT) $(FLAGS) -c -o OCEAN_gmres.o OCEAN_gmres.f90
+
+OCEAN_filenames.o: OCEAN_filenames.f90 OCEAN_system.o
+	$(MPIFORT) $(FLAGS) -c -o OCEAN_filenames.o OCEAN_filenames.f90
 
 clean:
 	rm -f *.o *.mod ocean.x
