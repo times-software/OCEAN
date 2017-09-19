@@ -411,7 +411,7 @@ module OCEAN_gmres
       if( ierr .ne. 0 ) return
     endif
 
-    call OCEAN_xact( sys, one, psi_x, hpsi1, ierr )
+    call OCEAN_xact( sys, interaction_scale, psi_x, hpsi1, ierr )
     !!!!
 
 
@@ -472,7 +472,7 @@ module OCEAN_gmres
 !          if( ierr .ne. 0 ) return
 
           ! apg = H . pg
-          call OCEAN_xact( sys, one, psi_pg, psi_apg, ierr )
+          call OCEAN_xact( sys, interaction_scale, psi_pg, psi_apg, ierr )
           if( ierr .ne. 0 ) return
         
           ! apg = (e+iG) * pg - apg
@@ -487,9 +487,12 @@ module OCEAN_gmres
 
           call update_gmres( iter, psi_g, psi_x, psi_ax, ierr )
 
+
           if( iter .eq. gmres_depth ) then
+            call OCEAN_psi_min2full( psi_x, ierr )
+            if( ierr .ne. 0 ) return
             ! newi2loop section here
-            call OCEAN_xact( sys, one, psi_x, psi_ax, ierr )
+            call OCEAN_xact( sys, interaction_scale, psi_x, psi_ax, ierr )
             if( ierr .ne. 0 ) return
             !
             ! psi_ax = (ener + iG ) * psi_x - psi_ax
@@ -573,7 +576,8 @@ module OCEAN_gmres
 
 !> @brief Initializes X (and hence AX)
   subroutine set_initial_vector( sys, iter, psi_x, psi_g, psi_ax, hay_vec, ierr )
-    use OCEAN_psi, only : ocean_vector, OCEAN_psi_zero_min, OCEAN_psi_axmz, OCEAN_psi_axmy
+    use OCEAN_psi, only : ocean_vector, OCEAN_psi_zero_min, OCEAN_psi_axmz, OCEAN_psi_axmy, &
+                          OCEAN_psi_min2full
     use OCEAN_action, only : OCEAN_xact
     use OCEAN_system, only : o_system
     use OCEAN_constants, only : eV2Hartree
@@ -602,6 +606,8 @@ module OCEAN_gmres
       case ( 'keep' )
         ! Keep X, generate psi_ax
         if( myid .eq. root ) write(6,*) '   Re-use previous X'
+        call OCEAN_psi_min2full( psi_x, ierr )
+        if( ierr .ne. 0 ) return
         call OCEAN_xact( sys, interaction_scale, psi_x, psi_ax, ierr )
         if( ierr .ne. 0 ) return
         ener = gmres_energy_list( iter ) * eV2Hartree
