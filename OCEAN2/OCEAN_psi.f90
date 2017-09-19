@@ -144,8 +144,8 @@ module OCEAN_psi
             OCEAN_psi_finish_min2full, OCEAN_psi_full2min, &
             OCEAN_psi_returnBandPad, OCEAN_psi_bcast_full, &
             OCEAN_psi_vtor, OCEAN_psi_rtov, OCEAN_psi_size_full, & 
-            OCEAN_psi_min_set_prec, OCEAN_psi_min2full
-  public :: OCEAN_psi_element_mult
+            OCEAN_psi_min_set_prec, OCEAN_psi_min2full, OCEAN_psi_size_min
+  public :: OCEAN_psi_element_mult, OCEAN_psi_free_full
 
   public :: OCEAN_vector
 
@@ -3955,12 +3955,19 @@ module OCEAN_psi
 !> @author John Vinson, NIST
 !
 !> @brief Deallocates the full stores for both valence and core. Will 
-!! succeed even if neither are currently allocated.
+!! succeed even if neither are currently allocated. If full is valid 
+!! and min is not will first save data to min. 
   subroutine OCEAN_psi_free_full( p, ierr )
     implicit none
     integer, intent(inout) :: ierr
     type(OCEAN_vector), intent( inout ) :: p
 
+    if( IAND( p%valid_store, PSI_STORE_FULL ) ) then
+      if( .not. IAND( p%valid_store, PSI_STORE_MIN ) ) then
+        call OCEAN_psi_full2min( p, ierr )
+        if( ierr .ne. 0 ) return
+      endif
+    endif
 
     if( allocated( p%r ) ) deallocate( p%r )
     if( allocated( p%i ) ) deallocate( p%i )
@@ -3987,7 +3994,7 @@ module OCEAN_psi
     integer, intent(inout) :: ierr
     type(OCEAN_vector), intent( inout ) :: p
 
-
+    p%valid_store = 0
     if( IAND( p%alloc_store, PSI_STORE_FULL ) .ne. 0 ) then
       call OCEAN_psi_free_full( p, ierr )
       if( ierr .ne. 0 ) return

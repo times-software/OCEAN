@@ -166,7 +166,7 @@ module OCEAN_gmres
   end subroutine OCEAN_gmres_setup
 
   subroutine initialize_gmres_storage( sys, ierr )
-    use OCEAN_psi, only : OCEAN_psi_init, OCEAN_psi_new
+    use OCEAN_psi, only : OCEAN_psi_init, OCEAN_psi_new, OCEAN_psi_size_min
     use OCEAN_system, only : o_system
     use OCEAN_mpi, only : myid, root
     !
@@ -189,12 +189,17 @@ module OCEAN_gmres
     enddo
 
     if( myid .eq. root ) then
+      i = OCEAN_psi_size_min(au_matrix(1))
+      write(6,'(A,F8.2,A)') 'GMRES requires additional: ', gmres_depth*dble(i)*(32.0_dp/1048576.0_dp), ' MB'
+    endif
+
+    if( myid .eq. root ) then
       allocate( c_matrix( gmres_depth*(gmres_depth+1)/2 ) )
     else
       allocate( c_matrix( 1 ) )
     endif
 
-  end subroutine
+  end subroutine initialize_gmres_storage
 
 
   subroutine update_gmres( current_iter, psi_g, psi_x, psi_ax, ierr)
@@ -414,6 +419,7 @@ module OCEAN_gmres
 
     do step_iter = 1, gmres_nsteps
       complete_iter = 0
+      iter = 0
 
 !      ener = e_list( iter ) * eV2Hartree
       ener = gmres_energy_list( step_iter ) * eV2Hartree
@@ -458,12 +464,12 @@ module OCEAN_gmres
           call OCEAN_psi_element_mult( psi_pg, psi_g, psi_pcdiv, ierr )
           if( ierr .ne. 0 ) return
 
-          call OCEAN_psi_prep_min2full( psi_pg, ierr )
+          call OCEAN_psi_min2full( psi_pg, ierr )
           if( ierr .ne. 0 ) return
-          call OCEAN_psi_start_min2full( psi_pg, ierr )
-          if( ierr .ne. 0 ) return
-          call OCEAN_psi_finish_min2full( psi_pg, ierr )
-          if( ierr .ne. 0 ) return
+!          call OCEAN_psi_start_min2full( psi_pg, ierr )
+!          if( ierr .ne. 0 ) return
+!          call OCEAN_psi_finish_min2full( psi_pg, ierr )
+!          if( ierr .ne. 0 ) return
 
           ! apg = H . pg
           call OCEAN_xact( sys, one, psi_pg, psi_apg, ierr )
@@ -471,6 +477,11 @@ module OCEAN_gmres
         
           ! apg = (e+iG) * pg - apg
           call OCEAN_psi_axmy( psi_pg, psi_apg, ierr, ener, gmres_resolution )
+          if( ierr .ne. 0 ) return
+
+          call OCEAN_psi_free_full( psi_pg, ierr )
+          if( ierr .ne. 0 ) return
+          call OCEAN_psi_free_full( psi_apg, ierr )
           if( ierr .ne. 0 ) return
 
 
