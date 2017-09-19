@@ -38,7 +38,7 @@ o_spect.x: o_spect.f90 AI_kinds.o gamfcn.o
 OCEAN_mpi.o: OCEAN_mpi.f90 AI_kinds.o
 	$(MPIFORT) $(FLAGS) -c -o OCEAN_mpi.o OCEAN_mpi.f90 
 
-OCEAN.o: OCEAN.f90 AI_kinds.o 
+OCEAN.o: OCEAN.f90 AI_kinds.o OCEAN_driver.o
 	$(MPIFORT) $(FLAGS) -c -o OCEAN.o OCEAN.f90
 
 AI_kinds.o: AI_kinds.f90

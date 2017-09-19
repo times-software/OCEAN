@@ -1551,7 +1551,7 @@ module OCEAN_psi
     implicit none
     type(OCEAN_vector), intent( inout ) :: x
     type(OCEAN_vector), intent( inout ) :: y
-    type(OCEAN_vector), intent( in ) :: z
+    type(OCEAN_vector), intent( inout ) :: z
     integer, intent( inout ) :: ierr
     real(DP), intent( in ), optional :: rval
     real(DP), intent( in ), optional :: ival
@@ -1589,25 +1589,20 @@ module OCEAN_psi
         if( ierr .ne. 0 ) return
       endif
     endif
-    if( IAND( y%valid_store, PSI_STORE_MIN ) .eq. 0 ) then
-      if( IAND( y%valid_store, PSI_STORE_FULL ) .eq. 0 ) then
-!        call OCEAN_psi_write2store( y, ierr)
-        ierr = -1
-        if( ierr .ne. 0 ) return
-      else
-        call OCEAN_psi_full2min( y, ierr )
-        if( ierr .ne. 0 ) return
-      endif
+    ! Don't need any data in Y, 
+    if( IAND( y%alloc_store, PSI_STORE_MIN ) .eq. 0 ) then
+      call OCEAN_psi_alloc_min( y, ierr )
+      if( ierr .ne. 0 ) return
     endif
     if( IAND( z%valid_store, PSI_STORE_MIN ) .eq. 0 ) then
-!      if( IAND( z%valid_store, PSI_STORE_FULL ) .eq. 0 ) then
+      if( IAND( z%valid_store, PSI_STORE_FULL ) .eq. 0 ) then
 !        call OCEAN_psi_write2store( y, ierr)
         ierr = -10001
         if( ierr .ne. 0 ) return
-!      else
-!        call OCEAN_psi_full2min( z, ierr )
-!        if( ierr .ne. 0 ) return
-!      endif
+      else
+        call OCEAN_psi_full2min( z, ierr )
+        if( ierr .ne. 0 ) return
+      endif
     endif
 
     if( have_core .and. x%core_store_size .gt. 0 ) then
@@ -2404,6 +2399,7 @@ module OCEAN_psi
     integer, intent( inout ) :: ierr
     !
     real( DP ) :: gprc_sqd, denom
+    complex(DP) :: ctemp, ctemp2
     integer :: i, j
     
     if( IAND( psi_in%valid_store, PSI_STORE_MIN ) .eq. 0 ) then
@@ -2416,14 +2412,9 @@ module OCEAN_psi
       endif
     endif
 
-    if( IAND( psi_out%valid_store, PSI_STORE_MIN ) .eq. 0 ) then
-      if( IAND( psi_out%valid_store, PSI_STORE_FULL ) .eq. 0 ) then
-        ierr = -1
-        return
-      else
-        call OCEAN_psi_full2min( psi_out, ierr )
-        if( ierr .ne. 0 ) return
-      endif
+    if( IAND( psi_out%alloc_store, PSI_STORE_MIN ) .eq. 0 ) then
+      call OCEAN_psi_alloc_min( psi_out, ierr )
+      if( ierr .ne. 0 ) return
     endif
 
     gprc_sqd = gprc * gprc
@@ -2431,10 +2422,18 @@ module OCEAN_psi
     if( have_core .and. psi_in%core_store_size .gt. 0 ) then
       do i = 1, psi_in%core_store_size
         do j = 1, psi_bands_pad
+#if( 0 )          
           denom = ( energy - psi_in%min_r( j, i ) ) ** 2 + gprc_sqd + psi_in%min_i( j, i ) ** 2
           denom = 1.0_dp / denom
           psi_out%min_r( j, i ) = ( energy - psi_in%min_r( j, i ) ) * denom
-          psi_out%min_i( j, i ) = - ( gprc + psi_in%min_r( j, i ) ) * denom
+          psi_out%min_i( j, i ) = - ( gprc + psi_in%min_i( j, i ) ) * denom
+#else
+          ctemp = cmplx( psi_in%min_r( j, i ), psi_in%min_i( j, i ), DP )
+          ctemp = ( energy - ctemp ) ** 2 + gprc_sqd
+          ctemp2 = (energy - cmplx( psi_in%min_r( j, i ), psi_in%min_i( j, i ) + gprc, DP ) ) /  ctemp
+          psi_out%min_r( j, i ) = real( ctemp2, DP )
+          psi_out%min_i( j, i ) = aimag( ctemp2 )
+#endif
         enddo
       enddo
     endif
@@ -2446,7 +2445,7 @@ module OCEAN_psi
                 + gprc_sqd + psi_in%val_min_i( j, i ) ** 2
           denom = 1.0_dp / denom
           psi_out%val_min_r( j, i ) = ( energy - psi_in%val_min_r( j, i ) ) * denom
-          psi_out%val_min_i( j, i ) = - ( gprc + psi_in%val_min_r( j, i ) ) * denom
+          psi_out%val_min_i( j, i ) = - ( gprc + psi_in%val_min_i( j, i ) ) * denom
         enddo
       enddo
     endif
@@ -2457,11 +2456,11 @@ module OCEAN_psi
 
 
 !> @brief calculates element-wise z = x * y + a * z
-  subroutine OCEAN_psi_element_mult( z, x, y, alpha, ierr )
+  subroutine OCEAN_psi_element_mult( z, x, y, ierr, alpha )
     implicit none
-    real( DP ), intent( in ) :: alpha
     type(OCEAN_vector), intent(inout) :: z, x, y
     integer, intent( inout ) :: ierr
+    real( DP ), intent( in ), optional :: alpha
     !
     integer :: i, j
     ! check that x and y are valid and min
@@ -2485,36 +2484,7 @@ module OCEAN_psi
       endif
     endif
 
-    ! If alpha is (almost) 0
-    ! z = x*y
-    if( abs( alpha ) < epsilon(alpha ) ) then
-      ! check z allocated min
-      if( IAND( z%alloc_store, PSI_STORE_MIN ) .eq. 0 ) then
-        call OCEAN_psi_alloc_min( z, ierr )
-        if( ierr .ne. 0 ) return
-      endif
-
-      if( have_core .and. z%core_store_size .gt. 0 ) then
-        do i = 1, z%core_store_size
-          do j = 1, psi_bands_pad
-            z%min_r( j, i ) = x%min_r( j, i ) * y%min_r( j, i ) - x%min_i( j, i ) * y%min_i( j, i )
-            z%min_i( j, i ) = x%min_r( j, i ) * y%min_i( j, i ) + x%min_i( j, i ) * y%min_r( j, i )
-          enddo
-        enddo
-      endif
-
-      if( have_val .and. z%val_store_size .gt. 0 ) then
-        do i = 1, z%val_store_size
-          do j = 1, psi_bands_pad
-            z%val_min_r( j, i ) = x%val_min_r( j, i ) * y%val_min_r( j, i ) &
-                                - x%val_min_i( j, i ) * y%val_min_i( j, i )
-            z%val_min_i( j, i ) = x%val_min_r( j, i ) * y%val_min_i( j, i ) &
-                                + x%val_min_i( j, i ) * y%val_min_r( j, i )
-          enddo
-        enddo
-      endif
-      
-    else ! z = x*y + a * z
+    if( present( alpha ) .and. ( alpha .gt. epsilon( alpha ) ) ) then  ! z = x*y + a * z
       ! check z is valid
       if( IAND( z%valid_store, PSI_STORE_MIN ) .eq. 0 ) then
         if( IAND( z%valid_store, PSI_STORE_FULL ) .eq. 0 ) then
@@ -2550,8 +2520,38 @@ module OCEAN_psi
         enddo
       endif
 
+    ! If alpha is (almost) 0
+    ! z = x*y
+    else 
+      ! check z allocated min
+      if( IAND( z%alloc_store, PSI_STORE_MIN ) .eq. 0 ) then
+        call OCEAN_psi_alloc_min( z, ierr )
+        if( ierr .ne. 0 ) return
+      endif
 
+      if( have_core .and. z%core_store_size .gt. 0 ) then
+        do i = 1, z%core_store_size
+          do j = 1, psi_bands_pad
+            z%min_r( j, i ) = x%min_r( j, i ) * y%min_r( j, i ) - x%min_i( j, i ) * y%min_i( j, i )
+            z%min_i( j, i ) = x%min_r( j, i ) * y%min_i( j, i ) + x%min_i( j, i ) * y%min_r( j, i )
+          enddo
+        enddo
+      endif
+
+      if( have_val .and. z%val_store_size .gt. 0 ) then
+        do i = 1, z%val_store_size
+          do j = 1, psi_bands_pad
+            z%val_min_r( j, i ) = x%val_min_r( j, i ) * y%val_min_r( j, i ) &
+                                - x%val_min_i( j, i ) * y%val_min_i( j, i )
+            z%val_min_i( j, i ) = x%val_min_r( j, i ) * y%val_min_i( j, i ) &
+                                + x%val_min_i( j, i ) * y%val_min_r( j, i )
+          enddo
+        enddo
+      endif
+      
     endif
+
+    z%valid_store = PSI_STORE_MIN
 
   end subroutine OCEAN_psi_element_mult
 

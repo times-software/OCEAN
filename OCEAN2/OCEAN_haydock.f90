@@ -977,23 +977,6 @@ module OCEAN_haydock
 
     character( LEN=24 ) :: lanc_filename
 
-#if( 0 )
-    select case ( sys%cur_run%calc_type)
-    case( 'XES' )
-      write(lanc_filename,'(A8,A2,A1,I4.4,A1,A2,A1,I2.2)' ) 'xeslanc_', sys%cur_run%elname, &
-          '.', sys%cur_run%indx, '_', sys%cur_run%corelevel, '_', sys%cur_run%photon
-    case( 'XAS' )
-      write(lanc_filename,'(A8,A2,A1,I4.4,A1,A2,A1,I2.2)' ) 'abslanc_', sys%cur_run%elname, &
-          '.', sys%cur_run%indx, '_', sys%cur_run%corelevel, '_', sys%cur_run%photon
-    case( 'RXS')
-      write(lanc_filename,'(A7,A2,A1,A2,A1,I2.2,A1,I5.5,A1,I2.2)' ) 'rxlanc_', sys%cur_run%elname, &
-          '.', sys%cur_run%corelevel, '_', sys%cur_run%photon, '.', &
-          sys%cur_run%rixs_energy, '.', sys%cur_run%rixs_pol
-    case default
-      write(lanc_filename,'(A8,A2,A1,I4.4,A1,A2,A1,I2.2)' ) 'abslanc_', sys%cur_run%elname, &
-          '.', sys%cur_run%indx, '_', sys%cur_run%corelevel, '_', sys%cur_run%photon
-    end select
-#endif
     call OCEAN_filenames_lanc( sys, lanc_filename, ierr )
     if( ierr .ne. 0 ) return
 
@@ -1035,7 +1018,7 @@ module OCEAN_haydock
     return
   end subroutine redtrid
 
-
+#if( 0 )
   ! When using GMRES we can project out only part of the exciton.
   ! For now this is hard-coded for only doing spin up/down for the conduction band
   ! In the future we should add things like spin orbit, 3d symmetries, etc.
@@ -1091,6 +1074,7 @@ module OCEAN_haydock
     
 
   end subroutine write_projected_absspct
+#endif
 
 
 
