@@ -11,7 +11,7 @@ module OCEAN_filenames
   private
   save
 
-  public :: OCEAN_filenames_spectrum, OCEAN_filenames_lanc
+  public :: OCEAN_filenames_spectrum, OCEAN_filenames_lanc, OCEAN_filenames_ehamp
 
   contains
 

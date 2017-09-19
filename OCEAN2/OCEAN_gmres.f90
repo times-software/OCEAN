@@ -26,6 +26,9 @@ module OCEAN_gmres
   integer :: gmres_nsteps
   real(DP), allocatable :: gmres_energy_list(:)
 
+  real(DP) :: interaction_scale = 1.0_DP
+  logical :: echamp
+
   public :: OCEAN_gmres_do, OCEAN_gmres_setup, OCEAN_gmres_clean
 
   contains
@@ -116,6 +119,13 @@ module OCEAN_gmres
       close( 99 )
 
       write(6,*) 'GMRES energy steps: ', gmres_nsteps
+
+      inquire( file="echamp.inp", exist=echamp )
+      if( echamp ) then
+        open( unit=99, file="echamp.inp", form="formatted", status="old" )
+        read( 99, * ) echamp
+        close( 99 )
+      endif
     endif
 100 continue
     if( myid .eq. 0 .and. ierr .ne. 0 ) then
@@ -140,6 +150,9 @@ module OCEAN_gmres
     if( ierr .ne. 0 ) return
     if( myid .ne. root ) allocate( gmres_energy_list( gmres_nsteps ) )
     call MPI_BCAST( gmres_energy_list, gmres_nsteps, MPI_DOUBLE_PRECISION, root, comm, ierr )
+    if( ierr .ne. 0 ) return
+
+    call MPI_BCAST( echamp, 1, MPI_LOGICAL, root, comm, ierr )
     if( ierr .ne. 0 ) return
 
     call MPI_BARRIER( comm, ierr )
@@ -187,6 +200,7 @@ module OCEAN_gmres
   subroutine update_gmres( current_iter, psi_g, psi_x, psi_ax, ierr)
     use OCEAN_mpi
     use OCEAN_psi, only : ocean_vector, OCEAN_psi_dot, OCEAN_psi_axpy, OCEAN_psi_nrm
+    use OCEAN_timekeeper, only : tk_inv, OCEAN_tk_start, OCEAN_tk_stop
     !
     integer, intent( in ) :: current_iter
     type( ocean_vector ), intent(inout ) :: psi_g, psi_x, psi_ax
@@ -198,6 +212,8 @@ module OCEAN_gmres
     integer, allocatable :: ipiv( : )
     real(DP) :: tmp_r, tmp_i
     integer :: local_gmres_size, info, iter, c_size, iter_start
+    !
+    call OCEAN_tk_start( tk_inv )
     !
     allocate( re_coeff_vec( current_iter ), im_coeff_vec( current_iter ), & 
               re_rvec( current_iter ), im_rvec( current_iter ) )    
@@ -306,7 +322,8 @@ module OCEAN_gmres
     deallocate( coeff, re_coeff_vec, im_coeff_vec, re_rvec, im_rvec, & 
                 re_coeff_request, im_coeff_request, re_rvec_request, im_rvec_request )
     
-
+    call OCEAN_tk_stop( tk_inv )
+    !
   end subroutine update_gmres
 
 
@@ -315,8 +332,9 @@ module OCEAN_gmres
     use OCEAN_system
     use OCEAN_action, only : OCEAN_xact
     use OCEAN_constants, only : eV2Hartree, Hartree2eV
-    use OCEAN_mpi, only : myid, root, MPI_STATUSES_IGNORE, MPI_REQUEST_NULL
+    use OCEAN_mpi, only : myid, root, comm, MPI_STATUSES_IGNORE, MPI_REQUEST_NULL, MPI_INTEGER
     use OCEAN_energies, only : OCEAN_energies_val_allow
+    use OCEAN_filenames, only : OCEAN_filenames_spectrum
     !
     type( o_system ), intent( in ) :: sys
     type( ocean_vector ), intent( inout ) :: hay_vec
@@ -327,8 +345,10 @@ module OCEAN_gmres
     !
     real(DP) :: ener, rval, ival, gval, rel_error, fact
     real(dp), parameter :: one = 1.0_dp
-    integer :: iter, step_iter, complete_iter, requests( 2 )
+    integer :: iter, step_iter, complete_iter, requests( 2 ), ierr_
     logical :: loud = .true.
+    character( len=25 ) :: abs_filename
+    integer, parameter :: abs_fh = 76
 
     requests( : ) = MPI_REQUEST_NULL
 
@@ -339,8 +359,19 @@ module OCEAN_gmres
     endif
 
     if( myid .eq. root ) then
+
       write ( 6, '(2x,1a8,1e15.8)' ) ' mult = ', hay_vec%kpref
-!      write(6,*) hay_vec%r(1,1,1), hay_vec%i(1,1,1)
+
+      call OCEAN_filenames_spectrum( sys, abs_filename, ierr )
+      open( unit=abs_fh,file=abs_filename,form='formatted',status='unknown' )
+      rewind( abs_fh )
+
+    endif
+    call MPI_BCAST( ierr, 1, MPI_INTEGER, root, comm, ierr_ )
+    if( ierr .ne. 0 ) return
+    if( ierr_ .ne. 0 ) then
+      ierr = ierr_
+      return
     endif
 
 
@@ -496,8 +527,14 @@ module OCEAN_gmres
   
       if( myid .eq. root ) then
         rel_error = -gval / ival
-        write( 76, '(1p,1i5,4(1x,1e15.8))' ) complete_iter, ener * Hartree2eV, & 
+        write( abs_fh, '(1p,1i5,4(1x,1e15.8))' ) complete_iter, ener * Hartree2eV, & 
                     (1.0_dp - rval )*fact, -ival*fact, rel_error
+      endif
+
+
+      if( echamp ) then
+        call write_out_echamp( sys, step_iter, psi_x, ierr )
+        if( ierr .ne. 0 ) return
       endif
       
 
@@ -519,14 +556,17 @@ module OCEAN_gmres
     call OCEAN_psi_kill( psi_pcdiv, ierr )
     if( ierr .ne. 0 ) return
 
-
+    if( myid .eq. root ) close( abs_fh )
 
   end subroutine OCEAN_gmres_do
 
 !> @brief Initializes X (and hence AX)
   subroutine set_initial_vector( sys, iter, psi_x, psi_g, psi_ax, hay_vec, ierr )
-    use OCEAN_psi
-    use OCEAN_system
+    use OCEAN_psi, only : ocean_vector, OCEAN_psi_zero_min, OCEAN_psi_axmz, OCEAN_psi_axmy
+    use OCEAN_action, only : OCEAN_xact
+    use OCEAN_system, only : o_system
+    use OCEAN_constants, only : eV2Hartree
+    use OCEAN_mpi, only : myid, root
     !
     type( o_system ), intent( in ) :: sys
     type( ocean_vector ), intent( inout ) :: hay_vec
@@ -534,20 +574,70 @@ module OCEAN_gmres
     type( ocean_vector ), intent( inout ) :: psi_x, psi_g, psi_ax
     integer, intent( inout ) :: ierr
     !
-    if( .true. ) then
-      call OCEAN_psi_zero_min( psi_x, ierr )
-      call OCEAN_psi_zero_min( psi_ax, ierr )
-    else
-      ! Set psi_x to be something
-!      call OCEAN_xact( sys, psi_x, psi_ax, ierr )
-!      call OCEAN_psi_axmy( psi_x, psi_ax, ierr, ener, gmres_resolution )
+    real(DP) :: ener
+    character(len=4) :: initial = 'zero'
+
+    ! option to reuse X
+    if( iter .gt. 1 ) then
+      if( ( gmres_energy_list( iter ) - gmres_energy_list( iter -1 ) ) * eV2Hartree & 
+              .lt. 3.0_DP * gmres_resolution ) then
+        initial = 'keep'
+      endif
     endif
+
+
+    select case ( initial )
+
+      case ( 'keep' )
+        ! Keep X, generate psi_ax
+        if( myid .eq. root ) write(6,*) '   Re-use previous X'
+        call OCEAN_xact( sys, interaction_scale, psi_x, psi_ax, ierr )
+        if( ierr .ne. 0 ) return
+        ener = gmres_energy_list( iter ) * eV2Hartree
+        call OCEAN_psi_axmy( psi_x, psi_ax, ierr, ener, gmres_resolution )
+
+      case default 
+        ! or 'zero'
+        call OCEAN_psi_zero_min( psi_x, ierr )
+        call OCEAN_psi_zero_min( psi_ax, ierr )
+
+    end select
     !
     call OCEAN_psi_axmz( psi_ax, psi_g, hay_vec, ierr )
     !
   end subroutine set_initial_vector
 
 
-
+  subroutine write_out_echamp( sys, current_iter, psi_x, ierr )
+    use OCEAN_psi, only : ocean_vector, OCEAN_psi_min2full, OCEAN_psi_vtor, OCEAN_psi_size_full
+    use OCEAN_system, only : o_system
+    use OCEAN_mpi, only : myid, root
+    use OCEAN_filenames, only : OCEAN_filenames_ehamp
+    !
+    type( o_system ), intent( in ) :: sys
+    integer, intent( in ) :: current_iter
+    type( ocean_vector ), intent( inout ) :: psi_x
+    integer, intent( inout ) :: ierr
+    !
+    complex(DP), allocatable :: out_vec( : )
+    character(len=28) :: filename
+    !
+    call OCEAN_filenames_ehamp( sys, filename, current_iter, ierr )
+    if( ierr .ne. 0 ) return
+    !
+    call OCEAN_psi_min2full( psi_x, ierr )
+    if( ierr .ne. 0 ) return
+    !
+    if( myid .eq. root ) then
+      allocate( out_vec( OCEAN_psi_size_full( psi_x ) ) )
+      call OCEAN_psi_vtor( psi_x, out_vec ) 
+      !
+      open( unit=99, file=filename, form='unformatted', status='old' )
+      rewind( 99 )
+      write(99) out_vec
+      close( 99 )
+      deallocate( out_vec )
+    endif
+  end subroutine write_out_echamp
 
 end module OCEAN_gmres

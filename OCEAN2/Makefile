@@ -172,7 +172,7 @@ OCEAN_driver.o: OCEAN_driver.f90 OCEAN_mpi.o OCEAN_system.o OCEAN_psi.o OCEAN_ha
 	$(MPIFORT) $(FLAGS) -c -o OCEAN_driver.o OCEAN_driver.f90
 
 OCEAN_gmres.o: OCEAN_gmres.f90 AI_kinds.o OCEAN_psi.o OCEAN_system.o OCEAN_mpi.o \
-							 OCEAN_corewidths.o OCEAN_constants.o OCEAN_action.o 
+							 OCEAN_corewidths.o OCEAN_constants.o OCEAN_action.o OCEAN_filenames.o
 	$(MPIFORT) $(FLAGS) -c -o OCEAN_gmres.o OCEAN_gmres.f90
 
 OCEAN_filenames.o: OCEAN_filenames.f90 OCEAN_system.o
