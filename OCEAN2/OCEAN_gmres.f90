@@ -230,19 +230,19 @@ module OCEAN_gmres
     allocate( coeff( current_iter ) )
     if( myid .eq. root ) then
       iter_start = (current_iter * ( current_iter - 1 ) ) / 2
-      if( current_iter .eq. 1 ) then
-        write(6,*) iter_start, cmplx( re_coeff_vec( 1 ), im_coeff_vec( 1 ), DP )
-      endif
+!      if( current_iter .eq. 1 ) then
+!        write(6,*) iter_start, cmplx( re_coeff_vec( 1 ), im_coeff_vec( 1 ), DP )
+!      endif
       do iter = 1, current_iter
-        c_matrix( iter + iter_start ) = cmplx( re_coeff_vec( iter ), im_coeff_vec( iter ), DP )
+        c_matrix( iter + iter_start ) = cmplx( re_coeff_vec( iter ), -im_coeff_vec( iter ), DP )
       enddo
       
       c_size = current_iter * (current_iter + 1 ) / 2 
       allocate( c_temp( c_size ), ipiv( current_iter ) )
       c_temp( : ) = c_matrix( 1 : c_size )
-      if( current_iter .le. 3 ) then
-        write(6,*) c_temp( : )
-      endif
+!      if( current_iter .le. 3 ) then
+!        write(6,*) c_temp( : )
+!      endif
 
 
 !      if( current_iter .gt. 1 ) then
@@ -261,9 +261,9 @@ module OCEAN_gmres
         do iter = 1, current_iter
           coeff( iter ) = -cmplx( re_rvec( iter ), im_rvec( iter ), DP )
         enddo
-        if( current_iter .le. 3 ) then
-          write(6,*) coeff(:)
-        endif
+!        if( current_iter .le. 3 ) then
+!          write(6,*) coeff(:)
+!        endif
 
 
 !       if( current_iter .gt. 1 ) then
@@ -288,9 +288,9 @@ module OCEAN_gmres
     call MPI_BCAST( coeff, current_iter, MPI_DOUBLE_COMPLEX, root, comm, ierr )
     if( ierr .ne. 0 ) return
 
-    if( current_iter .le. 3 ) then
-      write(6,*) coeff(:)
-    endif
+!    if( current_iter .le. 3 ) then
+!      write(6,*) coeff(:)
+!    endif
 
 
     ! update ax and x
@@ -338,7 +338,7 @@ module OCEAN_gmres
 
     if( myid .eq. root ) then
       write ( 6, '(2x,1a8,1e15.8)' ) ' mult = ', hay_vec%kpref
-      write(6,*) hay_vec%r(1,1,1), hay_vec%i(1,1,1)
+!      write(6,*) hay_vec%r(1,1,1), hay_vec%i(1,1,1)
     endif
 
 
@@ -388,7 +388,7 @@ module OCEAN_gmres
 
       call OCEAN_psi_min_set_prec( ener, gmres_preconditioner, hpsi1, psi_pcdiv, ierr )
       if( ierr .ne. 0 ) return
-      write(6,*) 'prec:', psi_pcdiv%min_r(1,1), psi_pcdiv%min_i(1,1)
+!      write(6,*) 'prec:', psi_pcdiv%min_r(1,1), psi_pcdiv%min_i(1,1)
 
 !      zener = cmplx( ener, gres, DP )
 
@@ -396,8 +396,8 @@ module OCEAN_gmres
       call set_initial_vector( sys, step_iter, psi_x, psi_g, psi_ax, hay_vec, ierr )
       if( ierr .ne. 0 ) return
 
-      write(6,*) hay_vec%r(1,1,1), hay_vec%i(1,1,1)
-      write(6,*) psi_g%min_r(1,1), psi_g%min_i(1,1)
+!      write(6,*) hay_vec%r(1,1,1), hay_vec%i(1,1,1)
+!      write(6,*) psi_g%min_r(1,1), psi_g%min_i(1,1)
 
       if( loud ) then
         call OCEAN_psi_nrm( gval, psi_g, ierr )  ! non-blocking wouldn't do any good
