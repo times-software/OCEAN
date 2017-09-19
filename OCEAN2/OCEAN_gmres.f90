@@ -132,6 +132,8 @@ module OCEAN_gmres
     if( ierr .ne. 0 ) return
     call MPI_BCAST( gmres_resolution, 1, MPI_DOUBLE_PRECISION, root, comm, ierr )
     if( ierr .ne. 0 ) return
+    call MPI_BCAST( gmres_convergence, 1, MPI_DOUBLE_PRECISION, root, comm, ierr )
+    if( ierr .ne. 0 ) return
     call MPI_BCAST( gmres_preconditioner, 1, MPI_DOUBLE_PRECISION, root, comm, ierr )
     if( ierr .ne. 0 ) return
     call MPI_BCAST( gmres_nsteps, 1, MPI_INTEGER, root, comm, ierr )
