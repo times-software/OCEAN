@@ -225,11 +225,15 @@ module OCEAN_gmres
 
     allocate( re_coeff_request( current_iter ), im_coeff_request( current_iter ), &
               re_rvec_request( current_iter ), im_rvec_request( current_iter ) )
-    ! 
+    !
+    !
+    ! For iter = current_iter we can call psi_nrm instead of psi_dot
+    !  this will save a small amount of time, but need to correctly 
+    !  set the imaginary value and request to 0/null 
     im_coeff_request( current_iter ) = MPI_REQUEST_NULL
     im_coeff_vec( current_iter ) = 0.0_DP
     !
-    do iter = 1, current_iter 
+    do iter = 1, current_iter - 1
       call OCEAN_psi_dot( au_matrix( current_iter ), au_matrix( iter ), &
                           re_coeff_request( iter ), re_coeff_vec( iter ), ierr, & 
                           im_coeff_request( iter ), im_coeff_vec( iter ) )
@@ -239,11 +243,11 @@ module OCEAN_gmres
                           im_rvec_request( iter ), im_rvec( iter ) )
     enddo
 
-!    call OCEAN_psi_nrm( re_coeff_vec( current_iter ), au_matrix( current_iter ), ierr, & 
-!                        re_coeff_request( current_iter ) )
-!    call OCEAN_psi_dot( au_matrix( current_iter ), psi_g, &
-!                        re_rvec_request( current_iter ), re_rvec( current_iter ), ierr , &
-!                        im_rvec_request( current_iter ), im_rvec( current_iter ) )
+    call OCEAN_psi_nrm( re_coeff_vec( current_iter ), au_matrix( current_iter ), ierr, & 
+                        re_coeff_request( current_iter ) )
+    call OCEAN_psi_dot( au_matrix( current_iter ), psi_g, &
+                        re_rvec_request( current_iter ), re_rvec( current_iter ), ierr , &
+                        im_rvec_request( current_iter ), im_rvec( current_iter ) )
 
     call MPI_WAITALL( current_iter, re_coeff_request, MPI_STATUSES_IGNORE, ierr )
     if( ierr .ne. 0 ) return
@@ -351,7 +355,7 @@ module OCEAN_gmres
     real(DP) :: ener, rval, ival, gval, rel_error, fact
     real(dp), parameter :: one = 1.0_dp
     integer :: iter, step_iter, complete_iter, requests( 2 ), ierr_
-    logical :: loud = .true.
+    logical :: loud = .false.
     character( len=25 ) :: abs_filename
     integer, parameter :: abs_fh = 76
 

@@ -58,7 +58,7 @@ module OCEAN_action
     if( ierr .ne. 0 ) return
 !    if( myid .eq. root ) write(6,*) 'Zero min'
 
-    call OCEAN_tk_stop( tk_psisum )
+!    call OCEAN_tk_stop( tk_psisum )
 
     if( sys%cur_run%have_core ) then
 
