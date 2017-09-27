@@ -20,6 +20,8 @@ module OCEAN_haydock
   REAL(DP), ALLOCATABLE :: imag_a( : )
   REAL(DP), ALLOCATABLE :: real_b( : )
   REAL(DP), ALLOCATABLE :: imag_b( : )
+  REAL(DP), ALLOCATABLE :: real_c( : )
+  REAL(DP), ALLOCATABLE :: imag_c( : )
  
   REAL(DP) :: inter_scale_threshold = 0.00001
   REAL(DP) :: inter_scale
@@ -46,6 +48,110 @@ module OCEAN_haydock
   public :: OCEAN_haydock_setup, OCEAN_haydock_do
 
   contains
+
+  subroutine OCEAN_haydock_nonHerm_do( sys, hay_vec, ierr )
+    use AI_kinds, only : DP
+    use OCEAN_energies
+    use OCEAN_system, only : o_system
+    use OCEAN_psi
+    use OCEAN_action, only : OCEAN_xact
+    use OCEAN_mpi, only : myid, root, comm
+
+    implicit none
+    integer, intent( inout ) :: ierr
+    type( o_system ), intent( in ) :: sys
+    !JTV need to figure out a work-around. Right now hay_vec is inout because of
+    ! a depndency tracing back to calling copy and possibly copy_min, and
+    ! possibly needing to go min->full, copy full, full->min
+    type( ocean_vector ), intent( inout ) :: hay_vec
+
+    real(DP) :: imag_a
+    integer :: iter
+    type( ocean_vector ) :: psi, old_psi, new_psi
+    type( ocean_vector ) :: back_psi, back_old_psi, back_new_psi
+
+
+    call OCEAN_psi_new( psi, ierr, hay_vec )
+    if( ierr .ne. 0 ) return
+
+    call OCEAN_psi_new( back_psi, ierr, hay_vec, conj=.true. )
+    if( ierr .ne. 0 ) return
+
+    call OCEAN_psi_new( new_psi, ierr )
+    if( ierr .ne. 0 ) return
+
+    call OCEAN_psi_new( old_psi, ierr )
+    if( ierr .ne. 0 ) return
+    call OCEAN_psi_zero_min( old_psi, ierr )
+    if( ierr .ne. 0 ) return
+
+
+    call OCEAN_psi_new( back_new_psi, ierr )
+    if( ierr .ne. 0 ) return
+
+    call OCEAN_psi_new( back_old_psi, ierr )
+    if( ierr .ne. 0 ) return
+    call OCEAN_psi_zero_min( back_old_psi, ierr )
+    if( ierr .ne. 0 ) return
+
+    if( myid .eq. root ) then
+      write ( 6, '(2x,1a8,1e15.8)' ) ' mult = ', hay_vec%kpref
+      write(6,*) inter_scale, haydock_niter
+    endif
+    call MPI_BARRIER( comm, ierr )
+    do iter = 1, haydock_niter
+      if( sys%cur_run%have_val ) then
+        if( myid .eq. root ) write(6,*)   " iter. no.", iter-1
+        call OCEAN_energies_val_allow( sys, psi, ierr )
+        if( ierr .ne. 0 ) return
+      endif
+
+      call OCEAN_xact( sys, inter_scale, psi, new_psi, ierr )
+      if( ierr .ne. 0 ) return
+
+      ! need the action of the Hermitian conjugate of the Hamiltonian
+      !  obviously we are only bothering to do this when H isn't Hermitian
+!      call OCEAN_xact( sys, inter_scale, back_psi, back_new_psi, ierr, backwards=.true. )
+      if( ierr .ne. 0 ) return
+
+      ! This should be hoisted back up here
+      call ocean_hay_abc( sys, psi, new_psi, old_psi, back_psi, back_new_psi, back_old_psi, & 
+                          iter, ierr )
+
+    enddo
+
+    call OCEAN_tk_stop( tk_psisum )
+    call MPI_BARRIER( comm, ierr )
+    if( myid .eq. 0 ) then
+      call haydump( haydock_niter, sys, hay_vec%kpref, ierr )
+      call redtrid(  haydock_niter, sys, hay_vec%kpref, ierr )
+    endif
+
+    call OCEAN_psi_kill( psi, ierr )
+    if( ierr .ne. 0 ) return
+
+    call OCEAN_psi_kill( new_psi, ierr )
+    if( ierr .ne. 0 ) return
+
+    call OCEAN_psi_kill( old_psi, ierr )
+    if( ierr .ne. 0 ) return
+
+    call OCEAN_psi_kill( back_psi, ierr )
+    if( ierr .ne. 0 ) return
+
+    call OCEAN_psi_kill( back_new_psi, ierr )
+    if( ierr .ne. 0 ) return
+
+    call OCEAN_psi_kill( back_old_psi, ierr )
+    if( ierr .ne. 0 ) return
+
+    call MPI_BARRIER( comm, ierr )
+
+  end subroutine OCEAN_haydock_nonHerm_do
+
+
+
+
 
 
   subroutine OCEAN_haydock_do( sys, hay_vec, ierr )
@@ -99,7 +205,7 @@ module OCEAN_haydock
 
 
 
-    call OCEAN_tk_start( tk_psisum )
+!    call OCEAN_tk_start( tk_psisum )
 
     do iter = 1, haydock_niter
       if( sys%cur_run%have_val ) then
@@ -632,6 +738,159 @@ module OCEAN_haydock
     
 
   end subroutine OCEAN_hay_ab
+
+
+  subroutine OCEAN_hay_abc( sys, psi, hpsi, old_psi, back_psi, back_hpsi, back_old_psi, iter, ierr )
+#ifdef __HAVE_F03
+    use, intrinsic :: ieee_arithmetic, only: ieee_is_nan
+#endif
+    use OCEAN_system, only : o_system
+    use OCEAN_psi
+    use OCEAN_mpi, only : myid, root, MPI_STATUS_IGNORE
+    use OCEAN_constants, only : Hartree2eV
+    use OCEAN_energies, only : OCEAN_energies_val_allow
+    implicit none
+    integer, intent(inout) :: ierr
+    integer, intent(in) :: iter
+    type(O_system), intent( in ) :: sys
+    type(OCEAN_vector), intent(inout) :: psi, hpsi, old_psi
+    type(OCEAN_vector), intent(inout) :: back_psi, back_hpsi, back_old_psi
+
+    complex(dp) :: ctmp
+    real(dp) :: rtmp, itmp
+    integer :: ialpha, ikpt, irequest, rrequest
+
+    if( sys%cur_run%have_val ) then
+      call OCEAN_energies_val_allow( sys, hpsi, ierr )
+      if( ierr .ne. 0 ) return
+      call OCEAN_energies_val_allow( sys, back_hpsi, ierr )
+      if( ierr .ne. 0 ) return
+    endif
+
+    ! calc ctmp = < hpsi | back_psi > and begin Iallreduce
+    call OCEAN_psi_dot( hpsi, back_psi, rrequest, rtmp, ierr, irequest, itmp )
+    if( ierr .ne. 0 ) return
+!    if( myid .eq. root ) write(6,*) 'psi_dot'
+
+    ! hpsi -= b(i-1) * psi^{i-1}
+    ! y:= a*x + y
+    call OCEAN_psi_axmy( old_psi, hpsi, ierr, real_b(iter-1), imag_b(iter-1) )
+    if( ierr .ne. 0 ) return
+    call OCEAN_psi_axmy( back_old_psi, back_hpsi, ierr, real_c(iter-1), imag_c(iter-1) )
+    if( ierr .ne. 0 ) return
+!    if( myid .eq. root ) write(6,*) 'psi_axpy 1'
+
+    ! finish allreduce to get a
+    call MPI_WAIT( rrequest, MPI_STATUS_IGNORE, ierr )
+    if( ierr .ne. 0 ) return
+
+    call MPI_WAIT( irequest, MPI_STATUS_IGNORE, ierr )
+    if( ierr .ne. 0 ) return
+
+    call OCEAN_psi_axmy( psi, hpsi, ierr, rtmp, itmp )
+    if( ierr .ne. 0 ) return
+
+    call OCEAN_psi_axmy( back_psi, back_hpsi, ierr, rtmp, -itmp )
+    if( ierr .ne. 0 ) return
+
+    real_a(iter-1) = rtmp
+    imag_a(iter-1) = itmp
+
+!    if( myid .eq. root ) write(6,*) 'ab', real_a(iter-1), b(iter-1)
+
+    if( sys%cur_run%have_val ) then
+      call OCEAN_energies_val_allow( sys, hpsi, ierr )
+      if( ierr .ne. 0 ) return
+      call OCEAN_energies_val_allow( sys, back_hpsi, ierr )
+      if( ierr .ne. 0 ) return
+    endif
+
+    call OCEAN_psi_dot( hpsi, back_hpsi, rrequest, rtmp, ierr, irequest, itmp )
+    if( ierr .ne. 0 ) return
+
+    ! copies psi onto old_psi
+    call OCEAN_psi_copy_min( old_psi, psi, ierr )
+    if( ierr .ne. 0 ) return
+
+    call OCEAN_psi_copy_min( back_old_psi, back_psi, ierr )
+    if( ierr .ne. 0 ) return
+
+    ! Could move prep and copy here for hspi -> psi
+    !   just need to include a way to scale full instead of just min
+
+    call MPI_WAIT( rrequest, MPI_STATUS_IGNORE, ierr )
+    if( ierr .ne. 0 ) return
+
+    call MPI_WAIT( irequest, MPI_STATUS_IGNORE, ierr )
+    if( ierr .ne. 0 ) return
+
+    ctmp = sqrt( cmplx( rtmp, itmp, DP ) )
+    
+    real_c( iter ) = real( ctmp, DP )
+    imag_c( iter ) = aimag( ctmp )
+
+    ctmp = cmplx( rtmp, itmp, DP ) / ctmp
+
+    real_b( iter ) = real( ctmp, DP )
+    imag_b( iter ) = aimag( ctmp )
+
+
+    call OCEAN_psi_divide( back_hpsi, ierr, real_b(iter), -imag_b(iter) )
+    if( ierr .ne. 0 ) return
+
+    call OCEAN_psi_divide( hpsi, ierr, real_c(iter), imag_c(iter) )
+    if( ierr .ne. 0 ) return
+    !
+
+    ! copies hpsi onto psi
+    call OCEAN_psi_copy_min( psi, hpsi, ierr )
+    if( ierr .ne. 0 ) return
+
+    call OCEAN_psi_prep_min2full( psi, ierr )
+    if( ierr .ne. 0 ) return
+
+    call OCEAN_psi_start_min2full( psi, ierr )
+    if( ierr .ne. 0 ) return
+
+    call OCEAN_psi_copy_min( back_psi, back_hpsi, ierr )
+    if( ierr .ne. 0 ) return
+
+    call OCEAN_psi_prep_min2full( back_psi, ierr )
+    if( ierr .ne. 0 ) return
+
+    call OCEAN_psi_start_min2full( back_psi, ierr )
+    if( ierr .ne. 0 ) return
+
+
+
+    if( myid .eq. 0 ) then
+!      write ( 6, '(2x,2f10.6,10x,1e11.4,x,f6.3)' ) a(iter-1), b(iter), imag_a, time2-time1
+!      write ( 6, '(2x,2f10.6,10x,1e11.4,8x,i6)' ) a(iter-1), b(iter), imag_a, iter
+      write ( 6, '(2x,2f24.13,10x,1e24.13,8x,i6)' ) real_a(iter-1) * Hartree2eV, b(iter) * Hartree2eV, &
+                                                  imag_a(iter-1) * Hartree2eV, iter
+      if( mod( iter, 10 ) .eq. 0 ) call haydump( iter, sys, psi%kpref, ierr )
+#ifdef __HAVE_F03
+      if( ieee_is_nan( real_a(iter-1) ) ) then
+#else
+      if( real_a(iter-1) .ne. real_a(iter-1) ) then
+#endif
+        write(6,*) 'NaN detected'
+        ierr = -1
+        return
+      endif
+
+!      call haydump( iter, sys, ierr )
+    endif
+    ! Might be moved up & out?
+    call OCEAN_psi_finish_min2full( psi, ierr )
+    if( ierr .ne. 0 ) return
+
+    call OCEAN_psi_finish_min2full( back_psi, ierr )
+    if( ierr .ne. 0 ) return
+
+
+  end subroutine OCEAN_hay_abc
+
 
 
   subroutine haydump( iter, sys, kpref, ierr )

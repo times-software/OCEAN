@@ -145,7 +145,7 @@ module OCEAN_psi
             OCEAN_psi_returnBandPad, OCEAN_psi_bcast_full, &
             OCEAN_psi_vtor, OCEAN_psi_rtov, OCEAN_psi_size_full, & 
             OCEAN_psi_min_set_prec, OCEAN_psi_min2full, OCEAN_psi_size_min
-  public :: OCEAN_psi_element_mult, OCEAN_psi_free_full
+  public :: OCEAN_psi_element_mult, OCEAN_psi_free_full, OCEAN_psi_divide
 
   public :: OCEAN_vector
 
@@ -1728,6 +1728,110 @@ module OCEAN_psi
 
   end subroutine OCEAN_psi_nrm
 
+!
+!> @brief Divides the ocean_vector #x by complex(rval,ival). 
+  subroutine OCEAN_psi_divide( x, ierr, rval, ival )
+    implicit none
+    type(OCEAN_vector), intent( inout ) :: x
+    integer, intent( inout ) :: ierr
+    real(DP), intent( in ), optional :: rval
+    real(DP), intent( in ), optional :: ival
+    !
+    real(DP), allocatable :: buffer(:,:)
+    real(DP) :: denom, nrm, inrm, rnrm
+    !
+
+    ! need to have something to scale!
+    if( .not. present( rval ) .and. .not. present( ival ) ) return
+
+    ! If neither store nor full then need to call write2store
+    !   This has the side effect of throwing an error if store_min is also invalid
+    !
+    ! !?!? Making the call that we would very rarely not want to create/use min
+    ! !?!? and so if full exists, but not min we will create it here
+    ! Maybe if full then run with full
+    if( IAND( x%valid_store, PSI_STORE_MIN ) .eq. 0 ) then
+      if( IAND( x%valid_store, PSI_STORE_FULL ) .eq. 0 ) then
+!        call OCEAN_psi_write2store( x, ierr)
+        ierr = -1
+        if( ierr .ne. 0 ) return
+      else
+        call OCEAN_psi_full2min( x, ierr )
+        if( ierr .ne. 0 ) return
+      endif
+    endif
+
+
+    if( present( rval ) .and. present( ival ) ) then
+      denom = rval * rval + ival * ival
+      rnrm = rval / denom
+      inrm = ival / denom
+
+      if( have_core .and. x%core_store_size .gt. 0 ) then
+        allocate( buffer( psi_bands_pad, x%core_store_size ) )
+
+        buffer(:,:) = -inrm * x%min_r(:,:)
+        x%min_r(:,:) = rnrm * x%min_r(:,:)
+        x%min_r(:,:) = x%min_r(:,:) + inrm * x%min_i(:,:)
+        x%min_i(:,:) = buffer(:,:) + rnrm * x%min_i(:,:)
+
+        deallocate( buffer )
+      endif
+
+      if( have_val .and. x%val_store_size .gt. 0 ) then
+        allocate( buffer( psi_bands_pad, x%val_store_size ) )
+
+        buffer(:,:) = -inrm * x%val_min_r(:,:)
+        x%val_min_r(:,:) = rnrm * x%val_min_r(:,:)
+        x%val_min_r(:,:) = x%val_min_r(:,:) + inrm * x%val_min_i(:,:)
+        x%val_min_i(:,:) = buffer(:,:) + rnrm * x%val_min_i(:,:)
+
+        deallocate( buffer )
+      endif
+
+
+    elseif( present( rval ) ) then
+      rnrm = 1.0_DP / rval
+
+      if( have_core .and. x%core_store_size .gt. 0 ) then
+        call DSCAL( x%core_store_size * psi_bands_pad, rnrm, x%min_r, 1 )
+        call DSCAL( x%core_store_size * psi_bands_pad, rnrm, x%min_i, 1 )
+      endif
+
+      if( have_val .and. x%val_store_size .gt. 0 ) then
+        call DSCAL( x%val_store_size * psi_bands_pad, rnrm, x%val_min_r, 1 )
+        call DSCAL( x%val_store_size * psi_bands_pad, rnrm, x%val_min_i, 1 )
+      endif
+    else  ! only ival
+      inrm = 1.0_DP / ival
+
+      if( have_core .and. x%core_store_size .gt. 0 ) then
+        allocate( buffer( psi_bands_pad, x%core_store_size ) )
+
+        buffer(:,:) = x%min_i(:,:) * inrm
+        x%min_i(:,:) = -inrm * x%min_r(:,:)
+        x%min_r(:,:) = buffer(:,:)
+
+        deallocate( buffer )
+      endif
+
+      if( have_val .and. x%val_store_size .gt. 0 ) then
+        allocate( buffer( psi_bands_pad, x%val_store_size ) )
+
+        buffer(:,:) = x%val_min_i(:,:) * inrm
+        x%val_min_i(:,:) = -inrm * x%val_min_r(:,:)
+        x%val_min_r(:,:) = buffer(:,:)
+
+        deallocate( buffer )
+      endif
+    endif
+
+    ! only store is valid now
+    x%valid_store = PSI_STORE_MIN
+
+  end subroutine OCEAN_psi_divide
+
+
 !> @author John Vinson, NIST
 !
 !> @brief Scales the ocean_vector #x by #rval. 
@@ -2891,15 +2995,19 @@ module OCEAN_psi
 !! Creates a new ::ocean_vector that either has an allocated minimal data store, 
 !! or, if ::ocean_vector #q is present, will make #p a copy of #q with the same
 !! stored/valid data.
-  subroutine OCEAN_psi_new( p, ierr, q )
+  subroutine OCEAN_psi_new( p, ierr, q, conj )
     use OCEAN_system
     implicit none
     
     integer, intent(inout) :: ierr
     type(OCEAN_vector), intent( out ) :: p
     type(OCEAN_vector), intent( in ), optional :: q
+    logical, intent( in ), optional :: conj
 
     integer :: store_size, a_start, k_start
+    logical :: conj_ = .false.
+
+    if( present( conj ) ) conj_ = conj
 
     if( .not. is_init ) then
       ierr = -11
@@ -2948,7 +3056,7 @@ module OCEAN_psi
         if( ierr .ne. 0 ) return
       endif
 
-      call OCEAN_psi_copy_data( p, q, ierr )
+      call OCEAN_psi_copy_data( p, q, ierr, conj )
       if( ierr .ne. 0 ) return
 
       p%kpref = q%kpref
@@ -2971,20 +3079,25 @@ module OCEAN_psi
 !> @details 
 !! Copies data from #q to #p IFF #q had valid full or min. 
 !! IF neither full nor min are valid then the routine will exit silently.
-  subroutine OCEAN_psi_copy_data( p, q, ierr )
+  subroutine OCEAN_psi_copy_data( p, q, ierr, conj )
     implicit none
     type(OCEAN_vector), intent( in ) :: q
     type(OCEAN_vector), intent( inout ) :: p
     integer, intent(inout) :: ierr
+    logical, intent( in ), optional :: conj
+    !
+    logical :: conj_ = .false.
+    !
+    if( present( conj ) ) conj_ = conj
     !
     if( IAND( q%valid_store, PSI_STORE_FULL ) .eq. PSI_STORE_FULL ) then
-      call OCEAN_psi_copy_full( p, q, ierr )
+      call OCEAN_psi_copy_full( p, q, ierr, conj )
       if( ierr .ne. 0 ) return
     endif
 
 
     if( IAND( q%valid_store, PSI_STORE_MIN ) .eq. PSI_STORE_MIN ) then
-      call OCEAN_psi_copy_min( p, q, ierr )
+      call OCEAN_psi_copy_min( p, q, ierr, conj )
       if( ierr .ne. 0 ) return
     endif
 
@@ -3321,11 +3434,15 @@ module OCEAN_psi
 !> @details Copies the full data from #q to #p. Will allocate space on #p if it 
 !! is not currently allocated. Will copy both/either the core or valence vector.
 !! Sets the valid storage bit to include full
-  subroutine OCEAN_psi_copy_full( p, q, ierr )
+  subroutine OCEAN_psi_copy_full( p, q, ierr, conj )
     implicit none
     integer, intent(inout) :: ierr
     type(OCEAN_vector), intent( inout ) :: p
     type(OCEAN_vector), intent( in ) :: q
+    logical, intent( in ), optional :: conj
+    !
+    logical :: conj_ = .false.
+    if( present( conj ) ) conj_ = conj
     !
     if( IAND( p%alloc_store, PSI_STORE_FULL ) .eq. 0 ) then
       call OCEAN_psi_alloc_full( p, ierr )
@@ -3334,11 +3451,20 @@ module OCEAN_psi
 
     if( have_core ) then
       p%r = q%r
-      p%i = q%i
+      if( conj_ ) then
+        p%i = -q%i
+      else
+        p%i = q%i
+      endif
     endif
     if( have_val ) then
       p%valr = q%valr
-      p%vali = q%vali
+      if( conj_ ) then
+        p%vali = -q%vali
+      else
+        p%vali = q%vali
+      endif
+
     endif
 
     p%valid_store = IOR( p%valid_store, PSI_STORE_FULL )
@@ -3353,11 +3479,15 @@ module OCEAN_psi
 !! is not currently allocated. Will copy both/either the core or valence vector.
 !! Sets the valid storage bit to be only min. Requires that the data storage 
 !! ordering of min is the same on both p and q, otherwise it will crash out.
-  subroutine OCEAN_psi_copy_min( p, q, ierr )
+  subroutine OCEAN_psi_copy_min( p, q, ierr, conj )
     implicit none
     integer, intent( inout ) :: ierr
     type(OCEAN_vector), intent( inout ) :: p
     type(OCEAN_vector), intent( in ) :: q
+    logical, intent( in ), optional :: conj
+    !
+    logical :: conj_ = .false.
+    if( present( conj ) ) conj_ = conj
     !
 
     if( IAND( q%valid_store, PSI_STORE_MIN ) .eq. 0 ) then
@@ -3374,7 +3504,11 @@ module OCEAN_psi
       ! MPI_comm_dup should give us the same ids. 
       if( p%standard_order .and. q%standard_order ) then
         p%min_r(:,:) = q%min_r(:,:)
-        p%min_i(:,:) = q%min_i(:,:)
+        if( conj_ ) then
+          p%min_i(:,:) = -q%min_i(:,:)
+        else
+          p%min_i(:,:) = q%min_i(:,:)
+        endif
       else  
         ierr = -100
       !   but if it doesn't the easiest work-around is backtrack through full
@@ -3390,7 +3524,11 @@ module OCEAN_psi
     if( have_val ) then
       if( p%val_standard_order .and. q%val_standard_order ) then
         p%val_min_r(:,:) = q%val_min_r(:,:)
-        p%val_min_i(:,:) = q%val_min_i(:,:)
+        if( conj_ ) then
+          p%val_min_i(:,:) = -q%val_min_i(:,:)
+        else
+          p%val_min_i(:,:) = q%val_min_i(:,:)
+        endif
       else
         ierr = -101
       endif
