@@ -102,6 +102,9 @@ system("$ENV{'OCEAN_BIN'}/bvecs.pl") == 0 or die "$!\nBVECS.PL Failed\n";
 #`cp -r ../DFT/Out .`;
 
 `echo 1 > core`;
+
+# For OBFs we take care of the shifted k-points internally
+`echo .true. > dft.split`;
 system("$ENV{'OCEAN_BIN'}/kgen2.x") == 0 or die "KGEN.X Failed\n$!\n";
 
 

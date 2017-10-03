@@ -262,6 +262,14 @@ bse.gw.cstr
 {
 0.0
 } gwcstr
+bse.gw.vstr
+{
+0.0
+} gwvstr
+bse.gw.gap
+{
+0.0 .false.
+} gwgap
 degauss
 {
 0.02
@@ -318,14 +326,6 @@ ham_kpoints
 {
 4 4 4 
 } ham_kpoints
-nbse.gwgap
-{
-0
-} gwgap
-nbse.abs_gap
-{
-0
-} abs_gap
 nbse.niter
 {
 100
@@ -366,10 +366,6 @@ nbse.decut
 {
 10 2
 } decut
-nbse.gwvstr
-{
-0.0
-} gwvstr
 nbse.se_rs
 {
 -1
@@ -402,6 +398,10 @@ ldau
 {
 
 }ldau
+qe_scissor
+{
+
+}qe_scissor
 nphoton
 {
 -1

@@ -78,7 +78,7 @@ subroutine backend( aftvec, as, befvec, bs, x, b, ax, g, pg, apg, u, au, c, n, i
         case ( 'loadx' )
            call loadx( n, x )
         case ( 'havex' )
-           write ( 6, * ) 'x is assumed'
+!           write ( 6, * ) 'x is assumed'
         end select
         ct = 'newi2loop'
      case ( 'newi2loop' )
@@ -138,20 +138,25 @@ subroutine update( x, ax, g, pg, apg, u, au, c, n, i1, i2, n2 )
   complex(DP) :: u( n, n2 ), au( n, n2 )
   complex(DP) :: c( n2, n2 )
   !
-  integer :: i, ip, nstart, nstop
+  integer :: i, ip, nstart, nstop, info, i3
+  integer, allocatable :: ipiv( : )
   complex(DP) :: coeff(i2+1)
-  complex(DP), allocatable :: c2( : , : ), cinv( : , : ), r( : )
+  complex(DP), allocatable :: c2( : , : ), cinv( : , : ), r( : ), cwork( : )
   complex(DP) :: dumc(i2+1)
   complex(DP), external :: hilbcd
+  complex(DP), parameter :: cm1 = -1.0_dp
+  complex(DP), parameter :: cp1 = 1.0_dp
+  complex(DP), parameter :: c0  = 0.0_dp
   !
 !  call sizereport( 16 * n2 ** 2, 'c2........' ); allocate( c2( n2, n2 ) )
 !  call sizereport( 16 * n2 ** 2, 'cinv......' ); allocate( cinv( n2, n2 ) )
 !  call sizereport( 16 * n2, 'r.........' ); allocate( r( n2 ) )
-  allocate( c2( n2, n2 ), cinv( n2, n2 ), r( n2 ) )
+  allocate( c2( n2, n2 ), cinv( n2, n2 ), r( n2 ), ipiv( n2 ) )
   i1 = i1 + 1
   i2 = i2 + 1
   u( : , i2 ) = pg
   au( : , i2 ) = apg
+if( 0 ) then
   r = 0
   dumc=0
 
@@ -179,6 +184,7 @@ enddo
 
   coeff(1:i2) = matmul( cinv(1:i2,1:i2), r(1:i2) )
 
+
 !!$OMP PARALLEL DO &
 !!$OMP DEFAULT( NONE ) &
 !!$OMP SCHEDULE( STATIC ) &
@@ -195,10 +201,50 @@ enddo
 !!$OMP END PARALLEL DO
 
 
+else
+  call ZGEMV( 'C', n, i2, cm1, au, n, g, 1, c0, r, 1 )
+
+
+  if( 0 ) then
+    call ZGEMV( 'C', n, i2, cp1, au, n, au(:,i2), 1, c0, dumc, 1 )
+    c( 1:i2, i2 ) = dumc(:)
+    c( i2, 1:i2 ) = conjg( dumc(:) )
+    call invert( i2, n2, c, c2, cinv )
+    coeff(1:i2) = matmul( cinv(1:i2,1:i2), r(1:i2) )
+  else
+!    call ZGEMM( 'C', 'N', i2, i2, n, cp1, au, n, au, n, c0, c, n2 )
+    call ZGEMV( 'C', n, i2, cp1, au, n, au(:,i2), 1, c0, dumc, 1 )
+    c( 1:i2, i2 ) = dumc(:)
+    c( i2, 1:i2 ) = conjg( dumc(:) )
+    c2( 1:i2, 1:i2 ) = c( 1:i2, 1:i2 )
+
+    if( 0 ) then
+      call ZGETRF( i2, i2, c, n2, ipiv, info )
+      call ZGETRS( 'N', i2, 1, c, n2, ipiv, r, n2, info )
+    else
+      i3 = 64*i2
+      allocate( cwork( i3 ) )
+      call ZHETRF( 'L', i2, c, n2, ipiv, cwork, i3, info )
+      call ZHETRS( 'L', i2, 1, c, n2, ipiv, r, n2, info )
+      deallocate( cwork )
+    endif
+    coeff(1:i2) = r(1:i2)
+    c( 1:i2, 1:i2 ) = c2( 1:i2, 1:i2 )
+  endif
+
+  call ZGEMV( 'N', n, i2, cp1, u, n, coeff, 1, cp1, x, 1 )
+  call ZGEMV( 'N', n, i2, cp1, au, n, coeff, 1, cp1, ax, 1 )
+
+endif
+
+
+
+
+
 !  call sizereport( 0, 'c2........' ); deallocate( c2 ) 
 !  call sizereport( 0, 'cinv......' ); deallocate( cinv ) 
 !  call sizereport( 0, 'r.........' ); deallocate( r ) 
-  deallocate( c2, cinv, r )
+  deallocate( c2, cinv, r, ipiv )
   return
 end subroutine update
 !
