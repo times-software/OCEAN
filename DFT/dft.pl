@@ -44,7 +44,7 @@ my @EspressoFiles = ( "coord", "degauss", "ecut", "etol", "fband", "ibrav",
     "occopt", "prefix", "ppdir", "rprim", "rscale", "metal",
     "spinorb", "taulist", "typat", "verbatim", "work_dir", "tmp_dir", "wftol", 
     "den.kshift", "obkpt.ipt", "trace_tol", "ham_kpoints", "obf.nbands","tot_charge", 
-    "nspin", "smag", "ldau", "zsymb", "dft.calc_stress", "dft.calc_force", "dft.split", "dft",
+    "nspin", "smag", "ldau", "qe_scissor", "zsymb", "dft.calc_stress", "dft.calc_force", "dft.split", "dft",
     "dft.startingwfc", "dft.diagonalization" );
 my @PPFiles = ("pplist", "znucl");
 my @OtherFiles = ("epsilon", "pool_control");
@@ -239,7 +239,7 @@ $qe_data_files{ "ppdir" } = abs_path( $qe_data_files{ "ppdir" } ) . "/";
 
 
 #QE optional files
-my @qe_opt_files = ('acell', 'coords', 'atompp', 'smag', 'ldau' );
+my @qe_opt_files = ('acell', 'coords', 'atompp', 'smag', 'ldau', 'qe_scissor' );
 foreach my $file_name (@qe_opt_files)
 {
     open IN, $file_name or die "$file_name:  $!";
@@ -517,6 +517,10 @@ if ( $nscfRUN ) {
     if( $qe_data_files{'ldau'}  ne "" )
     {
       print QE "$qe_data_files{'ldau'}\n";
+    }
+    if( $qe_data_files{'qe_scissor'}  ne "" )
+    {
+      print QE "$qe_data_files{'qe_scissor'}\n";
     }
     if( $qe_data_files{'ibrav'} != 0 )
     {
@@ -982,6 +986,10 @@ sub print_qe
   if( $inputs{'ldau'}  ne "" )
   {
     print $fh "$inputs{'ldau'}\n";
+  }
+  if( $inputs{'qe_scissor'}  ne "" )
+  {
+    print $fh "$inputs{'qe_scissor'}\n";
   }
   if( $inputs{'ibrav'} != 0 )
   {

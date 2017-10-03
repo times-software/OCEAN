@@ -398,6 +398,10 @@ ldau
 {
 
 }ldau
+qe_scissor
+{
+
+}qe_scissor
 nphoton
 {
 -1

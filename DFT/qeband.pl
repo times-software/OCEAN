@@ -96,8 +96,15 @@ elsif( $metal == 1 || $metal == 2 )
     if( $line =~ m/\<FERMI_ENERGY/ )
     {
       $line = <IN>;
-      $line =~ m/(\d+\.\d+[Ee]?[-+]?(\d+)?)/ or die "$line";
-      $fermi = $1;
+      $line =~ m/([-]?\d+\.\d+[Ee]?[-+]?(\d+)?)/ or die "$line";
+      if( $fermi eq 'no' ) 
+      {
+        $fermi = $1;
+      }
+      else
+      {
+        $fermi = $1 if( $fermi < $1 );
+      }
     }
 
     last if( $line =~ m/<EIGENVALUES>/ );
@@ -150,7 +157,7 @@ elsif( $metal == 1 || $metal == 2 )
       while( 1 )
       {
         die "Parsing $file failed\n" unless( my $line = <IN> );
-        if( $line =~ m/(\d+\.\d+[Ee]?[+-]?\d*)/ )
+        if( $line =~ m/([-]?\d+\.\d+[Ee]?[+-]?\d*)/ )
         {
           push @occ, $1;
         }
@@ -187,7 +194,7 @@ elsif( $metal == 1 || $metal == 2 )
       while( 1 )
       {
         die "Parsing $file failed\n" unless( my $line = <IN> );
-        if( $line =~ m/(\d+\.\d+[Ee]?[+-]?\d*)/ )
+        if( $line =~ m/([-]?\d+\.\d+[Ee]?[+-]?\d*)/ )
         {
           push @energy, $1;
         }

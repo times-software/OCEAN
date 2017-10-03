@@ -356,7 +356,7 @@ subroutine cainkset( avec, bvec, bmet, prefs )
              if ( metal .or. ( nspin .eq. 2 ) ) then
                ! find the first band above the fermi level
                ibeg = 0
-               do i = ivl, ivh
+               do i = 1, (ivh-ivl+1)+1 !add +1 in case there is no overlap region !ivl, ivh
                  if ( ww( i, nq, ispin ) .gt. efermi ) then
                    ibeg = i
                    exit

@@ -6,7 +6,7 @@ FLAGS = $(OPTIONS) #-Wall -finit-real=nan
 CNBSE = ../CNBSE/zcmsnmult/zf90
 
 
-all: ocean.x o_spect.x
+all: ocean.x o_spect.x rixs_plane.x
 
 OCEANOBJS = AI_kinds.o OCEAN_mpi.o OCEAN_system.o OCEAN_bloch.o OCEAN_obf.o OCEAN_multiplet.o  \
             long_range.o OCEAN_load_data.o OCEAN_psi.o OCEAN_energies.o OCEAN_haydock.o OCEAN.o \
@@ -34,6 +34,9 @@ ocean.x: $(OCEANOBJS)
 
 o_spect.x: o_spect.f90 AI_kinds.o gamfcn.o
 	$(MPIFORT) $(FLAGS) -o o_spect.x o_spect.f90 AI_kinds.o gamfcn.o
+
+rixs_plane.x: rixs_plane.f90 AI_kinds.o
+	$(FC) $(FLAGS) -o rixs_plane.x rixs_plane.f90 AI_kinds.o
 
 OCEAN_mpi.o: OCEAN_mpi.f90 AI_kinds.o
 	$(MPIFORT) $(FLAGS) -c -o OCEAN_mpi.o OCEAN_mpi.f90 
@@ -179,7 +182,7 @@ OCEAN_filenames.o: OCEAN_filenames.f90 OCEAN_system.o
 	$(MPIFORT) $(FLAGS) -c -o OCEAN_filenames.o OCEAN_filenames.f90
 
 clean:
-	rm -f *.o *.mod ocean.x
+	rm -f *.o *.mod ocean.x o_spect.x rixs_plane.x
 
 install:
-	cp ocean.x o_spect.x $(INSTDIR)/
+	cp ocean.x o_spect.x rixs_plane.x $(INSTDIR)/
