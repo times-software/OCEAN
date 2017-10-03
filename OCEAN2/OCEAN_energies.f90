@@ -203,7 +203,7 @@ module OCEAN_energies
 
     real(DP), allocatable :: tmp_e0(:,:,:)
     real(DP) :: core_offset
-    integer :: nbd, nq, nspn, iter, i, j
+    integer :: nbd, nq, nspn, iter, i, j, ierr_
     character(len=9) :: infoname
     character(len=4) :: gw_control
     logical :: file_exists, have_gw
@@ -322,8 +322,16 @@ module OCEAN_energies
 !      close(99)
 
     endif
-  ! Need to sychronize to test for ierr from above?
+  ! Need to sychronize to test for ierr from above? YES
+
 #ifdef MPI
+111 continue
+    call MPI_BCAST( ierr, 1, MPI_INTEGER, root, comm, ierr_ )
+    if( ierr .ne. 0 ) return
+    if( ierr_ .ne. MPI_SUCCESS ) then
+      ierr = ierr_
+      return
+    endif
 
     if( myid .eq. root ) write(6,*) energy_bands_pad,energy_kpts_pad,sys%nspn
     call MPI_BARRIER( comm, ierr )
@@ -331,10 +339,9 @@ module OCEAN_energies
     call MPI_BARRIER( comm, ierr )
 
     call MPI_BCAST( energies, energy_bands_pad*energy_kpts_pad*sys%nspn, MPI_DOUBLE_PRECISION, root, comm, ierr )
-    if( ierr .ne. MPI_SUCCESS ) goto 111
+    if( ierr .ne. MPI_SUCCESS ) return
 #endif
 
-  111 continue
   end subroutine OCEAN_energies_load
 
 

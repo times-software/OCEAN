@@ -15,7 +15,7 @@ subroutine dump_energies( band_subset, nbands, nkpts, nspin, nshift, e0, lumo_sh
   integer, intent( inout ) :: ierr
   integer, external :: freeunit
   !
-  integer :: fh, ispin, ik, ibd, ishift, nbuse, overlap
+  integer :: fh, ispin, ik, ibd, ishift, nbuse, overlap, nkpts_out
   real(dp), allocatable :: temp_energy(:,:,:)
 
 
@@ -26,6 +26,8 @@ subroutine dump_energies( band_subset, nbands, nkpts, nspin, nshift, e0, lumo_sh
   brange(2) = maxval( start_band )
   brange(2) = brange(2) - 1
   brange(3) = minval( start_band )
+
+  nkpts_out = nkpts !/ nshift
 
   overlap = brange(2) - brange(3) + 1
   write(6,*) maxval( start_band ), minval( start_band ), overlap
@@ -62,7 +64,7 @@ subroutine dump_energies( band_subset, nbands, nkpts, nspin, nshift, e0, lumo_sh
     enddo
   enddo
   open(unit=fh,file='wvfcninfo',form='unformatted',status='unknown')!,buffered='yes')
-  write(fh) nbuse, nkpts, nspin
+  write(fh) nbuse, nkpts_out, nspin
   write(fh) temp_energy
   close(fh)
 
@@ -95,7 +97,7 @@ subroutine dump_energies( band_subset, nbands, nkpts, nspin, nshift, e0, lumo_sh
     enddo
   enddo
   open(unit=fh,file='wvfvainfo',form='unformatted',status='unknown')!,buffered='yes')
-  write(fh) nbuse, nkpts, nspin
+  write(fh) nbuse, nkpts_out, nspin
   write(fh) temp_energy
   close(fh)
 

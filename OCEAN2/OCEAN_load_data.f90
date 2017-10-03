@@ -101,8 +101,10 @@ subroutine OCEAN_load_data( sys, hay_vec, ierr )
     if( sys%e0 ) then
       if( myid .eq. root ) write(6,*) 'Init energies'
       call ocean_energies_init( sys, ierr )
+      if( ierr .ne. 0 ) return
       if( myid .eq. root ) write(6,*) 'Load energies'
       call ocean_energies_load( sys, ierr )
+      if( ierr .ne. 0 ) return
       if( myid .eq. root ) write(6,*) 'Energies loaded'
     endif
 
