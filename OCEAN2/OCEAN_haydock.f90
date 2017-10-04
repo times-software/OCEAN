@@ -14,8 +14,8 @@ module OCEAN_haydock
   save  
 
 
-  REAL(DP), ALLOCATABLE :: a( : )
-  REAL(DP), ALLOCATABLE :: b( : )
+!  REAL(DP), ALLOCATABLE :: a( : )
+!  REAL(DP), ALLOCATABLE :: b( : )
   REAL(DP), ALLOCATABLE :: real_a( : )
   REAL(DP), ALLOCATABLE :: imag_a( : )
   REAL(DP), ALLOCATABLE :: real_b( : )
@@ -44,6 +44,7 @@ module OCEAN_haydock
   LOGICAL  :: is_first = .true.
 
   LOGICAL  :: val_loud = .true.
+  LOGICAL  :: complex_haydock = .false.
 
   public :: OCEAN_haydock_setup, OCEAN_haydock_do
 
@@ -74,7 +75,7 @@ module OCEAN_haydock
     call OCEAN_psi_new( psi, ierr, hay_vec )
     if( ierr .ne. 0 ) return
 
-    call OCEAN_psi_new( back_psi, ierr, hay_vec, conj=.true. )
+    call OCEAN_psi_new( back_psi, ierr, hay_vec, conj=.false. )
     if( ierr .ne. 0 ) return
 
     call OCEAN_psi_new( new_psi, ierr )
@@ -99,6 +100,7 @@ module OCEAN_haydock
       write(6,*) inter_scale, haydock_niter
     endif
     call MPI_BARRIER( comm, ierr )
+
     do iter = 1, haydock_niter
       if( sys%cur_run%have_val ) then
         if( myid .eq. root ) write(6,*)   " iter. no.", iter-1
@@ -111,7 +113,7 @@ module OCEAN_haydock
 
       ! need the action of the Hermitian conjugate of the Hamiltonian
       !  obviously we are only bothering to do this when H isn't Hermitian
-!      call OCEAN_xact( sys, inter_scale, back_psi, back_new_psi, ierr, backwards=.true. )
+      call OCEAN_xact( sys, inter_scale, back_psi, back_new_psi, ierr, .true. )
       if( ierr .ne. 0 ) return
 
       ! This should be hoisted back up here
@@ -150,11 +152,28 @@ module OCEAN_haydock
   end subroutine OCEAN_haydock_nonHerm_do
 
 
-
-
-
-
   subroutine OCEAN_haydock_do( sys, hay_vec, ierr )
+    use OCEAN_system, only : o_system
+    use OCEAN_psi, only : ocean_vector
+
+    integer, intent( inout ) :: ierr
+    type( o_system ), intent( in ) :: sys
+    !JTV need to figure out a work-around. Right now hay_vec is inout because of
+    ! a depndency tracing back to calling copy and possibly copy_min, and
+    ! possibly needing to go min->full, copy full, full->min
+    type( ocean_vector ), intent( inout ) :: hay_vec
+
+
+    if( complex_haydock ) then
+      call OCEAN_haydock_nonHerm_do( sys, hay_vec, ierr )
+    else
+      call OCEAN_haydock_Herm_do( sys, hay_vec, ierr )
+    endif
+
+  end subroutine OCEAN_haydock_do
+
+
+  subroutine OCEAN_haydock_Herm_do( sys, hay_vec, ierr )
     use AI_kinds
     use OCEAN_mpi
     use OCEAN_system
@@ -250,7 +269,7 @@ module OCEAN_haydock
 
     call MPI_BARRIER( comm, ierr )
 
-  end subroutine OCEAN_haydock_do
+  end subroutine OCEAN_haydock_Herm_do
 
 #if( 0 )
   subroutine OCEAN_GMRES( sys, hay_vec, ierr )
@@ -651,7 +670,7 @@ module OCEAN_haydock
 !    if( myid .eq. root ) write(6,*) 'psi_dot'
 
     ! hpsi -= b(i-1) * psi^{i-1}
-    btmp = -b(iter-1)
+    btmp = -real_b(iter-1)
     ! y:= a*x + y
     call OCEAN_psi_axpy( btmp, old_psi, hpsi, ierr )
     if( ierr .ne. 0 ) return
@@ -663,7 +682,7 @@ module OCEAN_haydock
     if( ierr .ne. 0 ) return
     real_a(iter-1) = atmp
     atmp = -atmp
-    if( myid .eq. root ) write(6,*) 'ab', real_a(iter-1), b(iter-1)
+!    if( myid .eq. root ) write(6,*) 'ab', real_a(iter-1), real_b(iter-1)
     call OCEAN_psi_axpy( atmp, psi, hpsi, ierr )
     if( ierr .ne. 0 ) return
 !    if( myid .eq. root ) write(6,*) 'psi_axpy 2'
@@ -692,8 +711,9 @@ module OCEAN_haydock
     call MPI_WAIT( brequest, MPI_STATUS_IGNORE, ierr )
     if( ierr .ne. 0 ) return
 
-    b(iter) = sqrt( btmp )
-    btmp = 1.0_dp / b( iter )
+    real_b(iter) = sqrt( btmp )
+    real_c(iter) = real_b(iter)
+    btmp = 1.0_dp / real_b( iter )
     call OCEAN_psi_scal( btmp, hpsi, ierr )
     if( ierr .ne. 0 ) return
     !
@@ -715,8 +735,12 @@ module OCEAN_haydock
     if( myid .eq. 0 ) then
 !      write ( 6, '(2x,2f10.6,10x,1e11.4,x,f6.3)' ) a(iter-1), b(iter), imag_a, time2-time1
 !      write ( 6, '(2x,2f10.6,10x,1e11.4,8x,i6)' ) a(iter-1), b(iter), imag_a, iter
-      write ( 6, '(2x,2f24.13,10x,1e24.13,8x,i6)' ) real_a(iter-1) * Hartree2eV, b(iter) * Hartree2eV, &
-                                                  imag_a(iter-1) * Hartree2eV, iter
+!      write ( 6, '(2x,2f24.13,10x,1e24.13,8x,i6)' ) real_a(iter-1) * Hartree2eV, real_b(iter) * Hartree2eV, &
+!                                                  imag_a(iter-1) * Hartree2eV, iter
+      write ( 6, '(1x,6(f20.13,2x),i6)' ) real_a(iter-1)*Hartree2eV, imag_a(iter-1) * Hartree2eV, &
+                                                    real_b(iter) * Hartree2eV, imag_b(iter) * Hartree2eV, &
+                                                    real_c(iter) * Hartree2eV, imag_c(iter) * Hartree2eV, iter
+
       if( mod( iter, 10 ) .eq. 0 ) call haydump( iter, sys, psi%kpref, ierr )
 #ifdef __HAVE_F03
       if( ieee_is_nan( real_a(iter-1) ) ) then
@@ -757,7 +781,7 @@ module OCEAN_haydock
     type(OCEAN_vector), intent(inout) :: back_psi, back_hpsi, back_old_psi
 
     complex(dp) :: ctmp
-    real(dp) :: rtmp, itmp
+    real(dp) :: rtmp, itmp, atmp, btmp
     integer :: ialpha, ikpt, irequest, rrequest
 
     if( sys%cur_run%have_val ) then
@@ -768,15 +792,20 @@ module OCEAN_haydock
     endif
 
     ! calc ctmp = < hpsi | back_psi > and begin Iallreduce
-    call OCEAN_psi_dot( hpsi, back_psi, rrequest, rtmp, ierr, irequest, itmp )
+    call OCEAN_psi_dot( back_psi, hpsi, rrequest, rtmp, ierr, irequest, itmp )
     if( ierr .ne. 0 ) return
 !    if( myid .eq. root ) write(6,*) 'psi_dot'
 
     ! hpsi -= b(i-1) * psi^{i-1}
     ! y:= a*x + y
-    call OCEAN_psi_axmy( old_psi, hpsi, ierr, real_b(iter-1), imag_b(iter-1) )
+    atmp = -real_b(iter-1)
+    btmp = -imag_b(iter-1)
+    call OCEAN_psi_axpy( atmp, old_psi, hpsi, ierr, btmp )
     if( ierr .ne. 0 ) return
-    call OCEAN_psi_axmy( back_old_psi, back_hpsi, ierr, real_c(iter-1), imag_c(iter-1) )
+
+    atmp = -real_c(iter-1)
+    btmp = -imag_c(iter-1)
+    call OCEAN_psi_axpy( atmp, back_old_psi, back_hpsi, ierr, btmp )
     if( ierr .ne. 0 ) return
 !    if( myid .eq. root ) write(6,*) 'psi_axpy 1'
 
@@ -787,10 +816,13 @@ module OCEAN_haydock
     call MPI_WAIT( irequest, MPI_STATUS_IGNORE, ierr )
     if( ierr .ne. 0 ) return
 
-    call OCEAN_psi_axmy( psi, hpsi, ierr, rtmp, itmp )
+    atmp = -rtmp
+    btmp = -itmp
+    call OCEAN_psi_axpy( atmp, psi, hpsi, ierr, btmp )
     if( ierr .ne. 0 ) return
 
-    call OCEAN_psi_axmy( back_psi, back_hpsi, ierr, rtmp, -itmp )
+    btmp = -itmp
+    call OCEAN_psi_axpy( atmp, back_psi, back_hpsi, ierr, btmp )
     if( ierr .ne. 0 ) return
 
     real_a(iter-1) = rtmp
@@ -805,7 +837,7 @@ module OCEAN_haydock
       if( ierr .ne. 0 ) return
     endif
 
-    call OCEAN_psi_dot( hpsi, back_hpsi, rrequest, rtmp, ierr, irequest, itmp )
+    call OCEAN_psi_dot( back_hpsi, hpsi, rrequest, rtmp, ierr, irequest, itmp )
     if( ierr .ne. 0 ) return
 
     ! copies psi onto old_psi
@@ -824,7 +856,8 @@ module OCEAN_haydock
     call MPI_WAIT( irequest, MPI_STATUS_IGNORE, ierr )
     if( ierr .ne. 0 ) return
 
-    ctmp = sqrt( cmplx( rtmp, itmp, DP ) )
+    ctmp = sqrt( cmplx( rtmp, itmp, DP ) ) 
+!    ctmp = sqrt( sqrt( rtmp*rtmp + itmp*itmp ) )
     
     real_c( iter ) = real( ctmp, DP )
     imag_c( iter ) = aimag( ctmp )
@@ -834,6 +867,9 @@ module OCEAN_haydock
     real_b( iter ) = real( ctmp, DP )
     imag_b( iter ) = aimag( ctmp )
 
+!    if( myid .eq. root ) then
+!      write(6,*) rtmp, itmp, cmplx( real_c(iter), imag_c(iter) )*cmplx(real_b(iter),imag_b(iter))
+!    endif
 
     call OCEAN_psi_divide( back_hpsi, ierr, real_b(iter), -imag_b(iter) )
     if( ierr .ne. 0 ) return
@@ -864,10 +900,9 @@ module OCEAN_haydock
 
 
     if( myid .eq. 0 ) then
-!      write ( 6, '(2x,2f10.6,10x,1e11.4,x,f6.3)' ) a(iter-1), b(iter), imag_a, time2-time1
-!      write ( 6, '(2x,2f10.6,10x,1e11.4,8x,i6)' ) a(iter-1), b(iter), imag_a, iter
-      write ( 6, '(2x,2f24.13,10x,1e24.13,8x,i6)' ) real_a(iter-1) * Hartree2eV, b(iter) * Hartree2eV, &
-                                                  imag_a(iter-1) * Hartree2eV, iter
+      write ( 6, '(1x,6(f14.8,2x),i6)' ) real_a(iter-1)*Hartree2eV, imag_a(iter-1) * Hartree2eV, &
+                                                    real_b(iter) * Hartree2eV, imag_b(iter) * Hartree2eV, &
+                                                    real_c(iter) * Hartree2eV, imag_c(iter) * Hartree2eV, iter
       if( mod( iter, 10 ) .eq. 0 ) call haydump( iter, sys, psi%kpref, ierr )
 #ifdef __HAVE_F03
       if( ieee_is_nan( real_a(iter-1) ) ) then
@@ -955,7 +990,7 @@ module OCEAN_haydock
       ere = el + ( eh - el ) * dble( ie ) / dble( 2 * ne )
       ctmp = cmplx( ere, gam0, DP )
 
-      arg = ( ere - real_a( iter - 1 ) ) ** 2 - 4.0_dp * b( iter ) ** 2
+      arg = ( ere - real_a( iter - 1 ) ) ** 2 - 4.0_dp * real_b( iter ) ** 2
       arg = sqrt( arg )
 
       rp = 0.5_dp * ( ere - real_a( iter - 1 ) + arg )
@@ -970,8 +1005,8 @@ module OCEAN_haydock
       be = -ctmp - real_a( iter - 1 ) - rrr
 
       do i = iter-1, 0, -1
-        al =  ctmp - real_a( i ) - b( i + 1 ) ** 2 / al
-        be = -ctmp - real_a( i ) - b( i + 1 ) ** 2 / be
+        al =  ctmp - real_a( i ) - real_b( i + 1 ) ** 2 / al
+        be = -ctmp - real_a( i ) - real_b( i + 1 ) ** 2 / be
       enddo
 
       eps = 1.0_dp - fact / al - fact / be
@@ -1004,35 +1039,59 @@ module OCEAN_haydock
     !
     integer :: ie, jdamp, jj
     real(DP), external :: gamfcn
-    real(DP) :: e, gam, dr, di, ener, spct( 0 : 1 ), spkk
-    complex(DP) :: rm1, ctmp, disc, delta
+    real(DP) :: e, gam, dr, di, ener, spct( 0 : 1 ), spkk( 0 : 1 )
+    complex(DP) :: ctmp, disc, delta, rm1
     !
+    write( fh, '(A,1i5,A,1e15.8,A,1e15.8)' ) '#   iter=', iter, '   gam=', gam, '   kpref=', kpref
+    write( fh, '(5(A15,1x))' ) '#   Energy', 'Spect', 'Spect(0)', 'SPKK', 'SPKK(0)'
     rm1 = -1; rm1 = sqrt( rm1 )
     do ie = 0, 2 * ne, 2
        e = el + ( eh - el ) * dble( ie ) / dble( 2 * ne )
        do jdamp = 0, 1
           gam= gam0 + gamfcn( e, nval, eps ) * dble( jdamp )
 !          ctmp = e - a( iter - 1 ) + rm1 * gam
-          ctmp = e - real_a( iter - 1 ) + rm1 * gam
-          disc = sqrt( ctmp ** 2 - 4 * b( iter ) ** 2 )
-          di= -rm1 * disc
-          if ( di .gt. 0.0d0 ) then
-             delta = ( ctmp + disc ) / 2
+
+!          if( .true. ) then
+#if(1)
+          ctmp = cmplx( e - real_a( iter - 1 ), gam + imag_a( iter - 1 ), DP )  
+          disc = sqrt( ctmp ** 2 - 4 * cmplx( real_b( iter ), imag_b( iter ) ) & 
+                                     * cmplx( real_c( iter ), -imag_c( iter ) ) )
+          if( aimag( disc ) .gt. 0.0d0 ) then
+            delta = (ctmp + disc ) / 2.0_dp
           else
-             delta = ( ctmp - disc ) / 2
-          end if
+            delta = (ctmp - disc ) / 2.0_dp
+          endif
+
+#else
+            ctmp = e - real_a( iter - 1 ) + rm1 * gam
+            disc = sqrt( ctmp ** 2 - 4 * real_b( iter ) ** 2 )
+            di= -rm1 * disc
+            if ( di .gt. 0.0d0 ) then
+               delta = ( ctmp + disc ) / 2
+            else
+               delta = ( ctmp - disc ) / 2
+            end if
+#endif
+
           do jj = iter - 1, 0, -1
 !             delta = e - a( jj ) + rm1 * gam - b( jj + 1 ) ** 2 / delta
-             delta = e - real_a( jj ) + rm1 * gam - b( jj + 1 ) ** 2 / delta
+!           if( .false. ) then
+!             delta = e - real_a( jj ) + rm1 * gam - real_b( jj + 1 ) ** 2 / delta
+!           else
+            ctmp = cmplx( real_b( jj+1 ), imag_b( jj+1 ) ) * cmplx( real_c( jj+1 ), -imag_c( jj+1 ) )
+            delta = cmplx( e - real_a( jj ), gam + imag_a( jj ) ) - ctmp / delta
+!           endif
           end do
           dr = delta
-          di = -rm1 * delta
-          di = abs( di )
+!          di = -rm1 * delta
+!          di = abs( di )
+          di = abs(aimag( delta ) )
           ener = ebase + Hartree2eV * e
           spct( jdamp ) = kpref * di / ( dr ** 2 + di ** 2 )
+         spkk( jdamp ) = kpref * dr / ( dr ** 2 + di ** 2 )
        end do
-       spkk = kpref * dr / ( dr ** 2 + di ** 2 )
-       write ( fh, '(4(1e15.8,1x),1i5,1x,2(1e15.8,1x),1i5)' ) ener, spct( 1 ), spct( 0 ), spkk, iter, gam, kpref, ne
+!       write ( fh, '(4(1e15.8,1x),1i5,1x,2(1e15.8,1x),1i5)' ) ener, spct( 1 ), spct( 0 ), spkk, iter, gam, kpref, ne
+       write ( fh, '(5(1e15.8,1x))') ener, spct( 1 ), spct( 0 ), spkk( 1 ), spkk( 0 )
     end do
   end subroutine write_core
 
@@ -1168,27 +1227,33 @@ module OCEAN_haydock
 
 10 continue
 
-    if( allocated( a ) ) deallocate( a )
-    if( allocated( b ) ) deallocate( b )
+!    if( allocated( a ) ) deallocate( a )
+!    if( allocated( b ) ) deallocate( b )
     if( allocated( real_a ) ) deallocate( real_a )
     if( allocated( imag_a ) ) deallocate( imag_a )
     if( allocated( real_b ) ) deallocate( real_b )
     if( allocated( imag_b ) ) deallocate( imag_b )
+    if( allocated( real_c ) ) deallocate( real_c )
+    if( allocated( imag_c ) ) deallocate( imag_c )
     if( haydock_niter .gt. 0 ) then
-      allocate( a( 0 : haydock_niter ) )
-      allocate( b( 0 : haydock_niter ) )
+!      allocate( a( 0 : haydock_niter ) )
+!      allocate( b( 0 : haydock_niter ) )
       allocate( real_a( 0 : haydock_niter ) )
       allocate( imag_a( 0 : haydock_niter ) )
       allocate( real_b( 0 : haydock_niter ) )
       allocate( imag_b( 0 : haydock_niter ) )
-      a(:) = 0.0_DP
-      b(:) = 0.0_DP
+      allocate( real_c( 0 : haydock_niter ) )
+      allocate( imag_c( 0 : haydock_niter ) )
+!      a(:) = 0.0_DP
+!      b(:) = 0.0_DP
       real_a(:) = 0.0_DP
       imag_a(:) = 0.0_DP
       real_b(:) = 0.0_DP
       imag_b(:) = 0.0_DP
-    else
-      allocate( a(1), b(1) )
+      real_c(:) = 0.0_DP
+      imag_c(:) = 0.0_DP
+!    else
+!      allocate( a(1), b(1) )
     endif
 
   end subroutine OCEAN_haydock_setup
@@ -1253,24 +1318,37 @@ module OCEAN_haydock
     end do
     do i=1,n+1
       ar(i,i)=real_a(i-1)
+      ai(i,i)=imag_a(i-1)
       if (i.le.n) then
-        ar(i+1,i)=b(i)
-        ar(i,i+1)=b(i)
+        ar(i+1,i)=real_c(i)
+        ar(i,i+1)=real_b(i)
+        ai(i+1,i)=imag_c(i)
+        ai(i,i+1)=imag_b(i)
       end if
     end do
     matz=0
     call elsch(nm,nn,ar,ai,w,matz,zr,zi,fv1,fv2,fm1,ierr)
 !    open(unit=99,file='lanceigs',form='formatted',status='unknown')
+    if( n .lt. 0 ) return
+
     open(unit=99,file=lanc_filename,form='formatted',status='unknown')
     rewind 99
     write ( 99, '(1i5,1e26.15)' ) n, kpref
-    do i = 0, n
-      if ( i .eq. 0 ) then
-        write ( 99, '(2x,1f20.10)' ) real_a( i )
-      else
-        write ( 99, '(2x,2f20.10)' ) real_a( i ), b( i )
-      end if
-    end do
+    if( complex_haydock ) then
+      write ( 99, '(2x,2f20.10)' ) real_a( 0 ), imag_a( 0 )
+      do i = 1, n
+        write ( 99, '(2x,6f20.10)' ) real_a( i ), imag_a( i ), real_b( i ), imag_b( i ), & 
+                                     real_c( i ), imag_c( i )
+      enddo
+    else
+      do i = 0, n
+        if ( i .eq. 0 ) then
+          write ( 99, '(2x,1f20.10)' ) real_a( i )
+        else
+          write ( 99, '(2x,2f20.10)' ) real_a( i ), real_b( i )
+        end if
+      end do
+    endif
     write (99,'(2x,2i5,1f20.10)') (i,nn,w(i),i=1,nn)
     close(unit=99)
     deallocate(ar,ai,w,zr,zi,fv1,fv2,fm1)
