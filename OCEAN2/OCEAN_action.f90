@@ -22,7 +22,7 @@ module OCEAN_action
 
 ! On entrance psi needs to be the same everywhere
 ! On exit new_psi is stored in min everywhere
-  subroutine OCEAN_xact( sys, inter_scale, psi, new_psi, ierr )
+  subroutine OCEAN_xact( sys, inter_scale, psi, new_psi, ierr, backwards )
     use OCEAN_mpi
     use OCEAN_system
     use OCEAN_energies
@@ -39,11 +39,15 @@ module OCEAN_action
     type(OCEAN_vector), intent( in ) :: psi
     type(OCEAN_vector), intent(inout) :: new_psi
     integer, intent(inout) :: ierr
+    logical, optional, intent(in) :: backwards
     !
     type(OCEAN_vector) :: psi_o, psi_i
     integer :: rrequest, irequest
     real(dp) :: rval, ival
     logical :: loud_valence = .false.
+    logical :: back = .false.
+
+    if( present( backwards ) ) back = backwards
 
 
     call OCEAN_psi_zero_full( new_psi, ierr )
@@ -64,7 +68,7 @@ module OCEAN_action
 
       if( sys%e0 .and. myid .eq. 0) then
         call OCEAN_tk_start( tk_e0 )
-        call ocean_energies_act( sys, psi, new_psi, ierr )
+        call ocean_energies_act( sys, psi, new_psi, back, ierr )
         call OCEAN_tk_stop( tk_e0 )
       endif
 
