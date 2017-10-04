@@ -3091,13 +3091,13 @@ module OCEAN_psi
     if( present( conj ) ) conj_ = conj
     !
     if( IAND( q%valid_store, PSI_STORE_FULL ) .eq. PSI_STORE_FULL ) then
-      call OCEAN_psi_copy_full( p, q, ierr, conj )
+      call OCEAN_psi_copy_full( p, q, ierr, conj_ )
       if( ierr .ne. 0 ) return
     endif
 
 
     if( IAND( q%valid_store, PSI_STORE_MIN ) .eq. PSI_STORE_MIN ) then
-      call OCEAN_psi_copy_min( p, q, ierr, conj )
+      call OCEAN_psi_copy_min( p, q, ierr, conj_ )
       if( ierr .ne. 0 ) return
     endif
 
