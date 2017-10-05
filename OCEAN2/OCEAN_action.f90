@@ -39,16 +39,19 @@ module OCEAN_action
     type(OCEAN_vector), intent( in ) :: psi
     type(OCEAN_vector), intent(inout) :: new_psi
     integer, intent(inout) :: ierr
-    logical, optional, intent(in) :: backwards
+    logical, optional :: backwards
     !
     type(OCEAN_vector) :: psi_o, psi_i
     integer :: rrequest, irequest
     real(dp) :: rval, ival
     logical :: loud_valence = .false.
-    logical :: back = .false.
+    logical :: back 
 
-    if( present( backwards ) ) back = backwards
-
+    if( present( backwards ) ) then
+      back = backwards
+    else
+      back = .false.
+    endif
 
     call OCEAN_psi_zero_full( new_psi, ierr )
     if( ierr .ne. 0 ) return
