@@ -28,6 +28,8 @@ module OCEAN_gmres
 
   real(DP) :: interaction_scale = 1.0_DP
   logical :: echamp
+  logical :: do_precondition = .true.
+  logical :: allow_reuse_x = .true.
 
   public :: OCEAN_gmres_do, OCEAN_gmres_setup, OCEAN_gmres_clean
 
@@ -429,8 +431,10 @@ module OCEAN_gmres
       ener = gmres_energy_list( step_iter ) * eV2Hartree
       if( myid .eq. root ) write(6,*) ener * Hartree2eV
 
-      call OCEAN_psi_min_set_prec( ener, gmres_preconditioner, hpsi1, psi_pcdiv, ierr )
-      if( ierr .ne. 0 ) return
+      if( do_precondition ) then
+        call OCEAN_psi_min_set_prec( ener, gmres_preconditioner, hpsi1, psi_pcdiv, ierr )
+        if( ierr .ne. 0 ) return
+      endif
 !      write(6,*) 'prec:', psi_pcdiv%min_r(1,1), psi_pcdiv%min_i(1,1)
 
 !      zener = cmplx( ener, gres, DP )
@@ -465,7 +469,11 @@ module OCEAN_gmres
           psi_pg => u_matrix( iter )
           psi_apg => au_matrix( iter )
           ! pg = g * pcdiv
-          call OCEAN_psi_element_mult( psi_pg, psi_g, psi_pcdiv, ierr )
+          if( do_precondition) then
+            call OCEAN_psi_element_mult( psi_pg, psi_g, psi_pcdiv, ierr )
+          else
+            call OCEAN_psi_copy_min( psi_pg, psi_g, ierr )
+          endif
           if( ierr .ne. 0 ) return
 
           call OCEAN_psi_min2full( psi_pg, ierr )
@@ -596,11 +604,14 @@ module OCEAN_gmres
     real(DP) :: ener
     character(len=4) :: initial = 'zero'
 
-    ! option to reuse X
-    if( iter .gt. 1 ) then
-      if( ( gmres_energy_list( iter ) - gmres_energy_list( iter -1 ) ) * eV2Hartree & 
-              .lt. 3.0_DP * gmres_resolution ) then
-        initial = 'keep'
+
+    if( allow_reuse_x ) then
+      ! option to reuse X
+      if( iter .gt. 1 ) then
+        if( ( gmres_energy_list( iter ) - gmres_energy_list( iter -1 ) ) * eV2Hartree & 
+                .lt. 3.0_DP * gmres_resolution ) then
+          initial = 'keep'
+        endif
       endif
     endif
 
