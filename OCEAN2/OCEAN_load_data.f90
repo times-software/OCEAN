@@ -18,9 +18,12 @@ subroutine OCEAN_load_data( sys, hay_vec, ierr )
 
   implicit none
   integer, intent( inout ) :: ierr
-  type( o_system ), intent( in ) :: sys
+  type( o_system ), intent( inout ) :: sys
   type(ocean_vector), intent( inout ) :: hay_vec
 
+  logical :: complex_bse
+
+  complex_bse = .false.
 
 #ifdef MPI
 !    write(6,*) myid, root
@@ -103,14 +106,14 @@ subroutine OCEAN_load_data( sys, hay_vec, ierr )
       call ocean_energies_init( sys, ierr )
       if( ierr .ne. 0 ) return
       if( myid .eq. root ) write(6,*) 'Load energies'
-      call ocean_energies_load( sys, ierr )
+      call ocean_energies_load( sys, complex_bse, ierr )
       if( ierr .ne. 0 ) return
       if( myid .eq. root ) write(6,*) 'Energies loaded'
     endif
 
     if( sys%mult ) then
       if( myid .eq. root ) write(6,*) 'Init mult'
-      call OCEAN_create_central( sys, ierr )
+      call OCEAN_create_central( sys, complex_bse, ierr )
       if( myid .eq. root ) write(6,*) 'Mult loaded'
       
     endif
@@ -131,8 +134,12 @@ subroutine OCEAN_load_data( sys, hay_vec, ierr )
   endif
 
 
+  sys%cur_run%complex_bse = complex_bse
 
   if( myid .eq. root ) write(6,*) 'Initialization complete', ierr
+  if( sys%cur_run%complex_bse ) then
+    if( myid .eq. root ) write(6,*) '  Will use bi-lanczos for non-Hermitian Hamiltonian'
+  endif
 #ifdef MPI
 !    write(6,*) myid, root
     call MPI_BARRIER( comm, ierr )

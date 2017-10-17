@@ -191,15 +191,16 @@ module OCEAN_energies
 
   end subroutine OCEAN_energies_kill
 
-  subroutine OCEAN_energies_load( sys, ierr )
+  subroutine OCEAN_energies_load( sys, complex_bse, ierr )
     use OCEAN_system
     use OCEAN_mpi
 !    use mpi
     use OCEAN_constants, only : eV2Hartree
 
     implicit none
-    integer, intent(inout) :: ierr
     type(O_system), intent( in ) :: sys
+    logical, intent(inout) :: complex_bse
+    integer, intent(inout) :: ierr
 
     real(DP), allocatable :: tmp_e0(:,:,:)
     real(DP) :: core_offset
@@ -260,12 +261,14 @@ module OCEAN_energies
         select case (gw_control)
         case ('full')
           if( myid .eq. root ) write(6,*) 'full'
+          complex_bse = .true.
           call OCEAN_abinit_fullgw( sys, ierr, .true. )
         case ('real')
           call OCEAN_abinit_fullgw( sys, ierr, .false. )
         case( 'band' )
           call OCEAN_gw_by_band( sys, ierr, .false. )
         case( 'ibnd' )
+          complex_bse = .true.
           call OCEAN_gw_by_band( sys, ierr, .true. )
         case( 'cstr' )
           call OCEAN_gw_stretch( sys, ierr )
@@ -340,6 +343,9 @@ module OCEAN_energies
 
     call MPI_BCAST( energies, energy_bands_pad*energy_kpts_pad*sys%nspn, MPI_DOUBLE_PRECISION, root, comm, ierr )
     if( ierr .ne. MPI_SUCCESS ) return
+
+    call MPI_BCAST( complex_bse, 1, MPI_LOGICAL, root, comm, ierr )
+    if( ierr .ne. MPI_SUCCESS ) return
 #endif
 
   end subroutine OCEAN_energies_load
@@ -348,7 +354,7 @@ module OCEAN_energies
  !JTV need to move energies into an ocean_vector then:
  ! 1) this can be done w/ min instead of full
  ! 2) we can write an element-wise y(i) = z(i) * x(i) + y(i) in OCEAN_psi
-  subroutine OCEAN_energies_act( sys, psi, hpsi, ierr )
+  subroutine OCEAN_energies_act( sys, psi, hpsi, backwards, ierr )
     use OCEAN_system
     use OCEAN_psi
 
@@ -357,6 +363,7 @@ module OCEAN_energies
     type(O_system), intent( in ) :: sys
     type(OCEAN_vector), intent( in ) :: psi
     type(OCEAN_vector), intent( inout ) :: hpsi
+    logical, intent( in ) :: backwards
 
     integer :: ialpha, ikpt, ibd, icms, icml, ivms, val_spin( sys%nalpha )
 
@@ -378,24 +385,40 @@ module OCEAN_energies
     endif
 
 
+    ! if back = true then we are acting the Hermitian conjugate, i.e. i -> -i
+    if( backwards ) then
 
-    do ialpha = 1, sys%nalpha
-!      hpsi%r( :, :, ialpha ) = energies( :, :, 1 ) * psi%r( :, :, ialpha ) &
-!                             - imag_selfenergy( :, :, 1 ) * psi%i( :, :, ialpha )
-!      hpsi%i( :, :, ialpha ) = energies( :, :, 1 ) * psi%i( :, :, ialpha ) &
-!                             + imag_selfenergy( :, :, 1 ) * psi%r( :, :, ialpha )
-      do ikpt = 1, sys%nkpts
-        do ibd = 1, sys%num_bands
-          hpsi%r( ibd, ikpt, ialpha ) = energies( ibd, ikpt, val_spin(ialpha) ) * psi%r( ibd, ikpt, ialpha ) &
-                               - imag_selfenergy( ibd, ikpt, val_spin(ialpha) ) * psi%i( ibd, ikpt, ialpha )
-        enddo
-        do ibd = 1, sys%num_bands
-          hpsi%i( ibd, ikpt, ialpha ) = energies( ibd, ikpt, val_spin(ialpha) ) * psi%i( ibd, ikpt, ialpha ) &
-                               + imag_selfenergy( ibd, ikpt, val_spin(ialpha) ) * psi%r( ibd, ikpt, ialpha )
+      do ialpha = 1, sys%nalpha
+        do ikpt = 1, sys%nkpts
+          do ibd = 1, sys%num_bands
+            hpsi%r( ibd, ikpt, ialpha ) = energies( ibd, ikpt, val_spin(ialpha) ) * psi%r( ibd, ikpt, ialpha ) &
+                                 + imag_selfenergy( ibd, ikpt, val_spin(ialpha) ) * psi%i( ibd, ikpt, ialpha )
+          enddo
+          do ibd = 1, sys%num_bands
+            hpsi%i( ibd, ikpt, ialpha ) = energies( ibd, ikpt, val_spin(ialpha) ) * psi%i( ibd, ikpt, ialpha ) &
+                                 - imag_selfenergy( ibd, ikpt, val_spin(ialpha) ) * psi%r( ibd, ikpt, ialpha )
 
-        enddo
-      enddo 
-    enddo
+          enddo
+        enddo 
+      enddo
+
+    else ! normal 
+
+      do ialpha = 1, sys%nalpha
+        do ikpt = 1, sys%nkpts
+          do ibd = 1, sys%num_bands
+            hpsi%r( ibd, ikpt, ialpha ) = energies( ibd, ikpt, val_spin(ialpha) ) * psi%r( ibd, ikpt, ialpha ) &
+                                 - imag_selfenergy( ibd, ikpt, val_spin(ialpha) ) * psi%i( ibd, ikpt, ialpha )
+          enddo
+          do ibd = 1, sys%num_bands
+            hpsi%i( ibd, ikpt, ialpha ) = energies( ibd, ikpt, val_spin(ialpha) ) * psi%i( ibd, ikpt, ialpha ) &
+                                 + imag_selfenergy( ibd, ikpt, val_spin(ialpha) ) * psi%r( ibd, ikpt, ialpha )
+
+          enddo
+        enddo 
+      enddo
+
+    endif
 
   end subroutine OCEAN_energies_act
 

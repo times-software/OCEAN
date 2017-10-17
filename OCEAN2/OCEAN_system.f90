@@ -51,6 +51,7 @@ module OCEAN_system
     logical          :: have_val = .false.
     logical          :: backf = .false.
     logical          :: write_rhs 
+    logical          :: complex_bse
     character(len=5) :: calc_type
 
     type(o_run), pointer :: cur_run => null()
@@ -90,6 +91,7 @@ module OCEAN_system
     logical          :: bande = .true.
     logical          :: aldaf
     logical          :: backf
+    logical          :: complex_bse
     
     type(o_run), pointer :: prev_run => null()
     type(o_run), pointer :: next_run => null()
@@ -287,6 +289,16 @@ module OCEAN_system
       open(unit=99,file='cnbse.write_rhs',form='formatted',status='old')
       read(99,*) sys%write_rhs
       close(99)
+
+
+      inquire(file='force_complex_bse.ipt', exist=exst )
+      if( exst ) then
+        open( unit=99, file='force_complex_bse.ipt', form='formatted',status='old')
+        read( 99, * ) sys%complex_bse
+        close( 99 )
+      else
+        sys%complex_bse = .false.
+      endif
       
     endif
 #ifdef MPI
@@ -359,6 +371,8 @@ module OCEAN_system
     call MPI_BCAST( sys%kshift, 1, MPI_LOGICAL, root, comm, ierr )
     if( ierr .ne. MPI_SUCCESS ) goto 111
     call MPI_BCAST( sys%write_rhs, 1, MPI_LOGICAL, root, comm, ierr )
+    if( ierr .ne. MPI_SUCCESS ) goto 111
+    call MPI_BCAST( sys%complex_bse, 1, MPI_LOGICAL, root, comm, ierr )
     if( ierr .ne. MPI_SUCCESS ) goto 111
 
     call MPI_BCAST( sys%calc_type, 5, MPI_CHARACTER, root, comm, ierr )
@@ -583,6 +597,8 @@ module OCEAN_system
 
       temp_cur_run%rixs_energy = rixs_energy
       temp_cur_run%rixs_pol = rixs_pol
+
+      temp_cur_run%complex_bse = sys%complex_bse
       
       temp_cur_run%basename = 'abs'
       write(temp_cur_run%filename,'(A3,A1,A2,A1,I2.2,A1,A2,A1,I2.2)' ) temp_cur_run%basename, '_', temp_cur_run%elname, &

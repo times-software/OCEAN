@@ -244,12 +244,13 @@ module OCEAN_multiplet
   end subroutine OCEAN_mult_create_par
 
 
-  subroutine OCEAN_create_central( sys, ierr )
+  subroutine OCEAN_create_central( sys, complex_bse, ierr )
     use OCEAN_mpi
     use OCEAN_system
     implicit none
     
     type(O_system), intent( in ) :: sys
+    logical, intent( inout ) :: complex_bse
     integer, intent( inout ) :: ierr
 
     integer :: lv, ic, icms, icml, ivms, ii, ivml, jj, nu, i, iband, ikpt, ip, ispn
@@ -511,7 +512,7 @@ module OCEAN_multiplet
     if( myid .eq. root ) write( 6, * ) 'multiplet hamilotian shared'
 #endif
   
-    call OCEAN_soprep( sys, ierr )
+    call OCEAN_soprep( sys, complex_bse, ierr )
     if( ierr .ne. 0 ) return
 
     call OCEAN_mult_create_par( sys, ierr )
@@ -521,12 +522,13 @@ module OCEAN_multiplet
 
   end subroutine OCEAN_create_central
 
-  subroutine OCEAN_soprep( sys, ierr )
+  subroutine OCEAN_soprep( sys, complex_bse, ierr )
     use OCEAN_mpi
     use OCEAN_system
     implicit none
     
     type( O_system ), intent( in ) :: sys
+    logical, intent( inout ) :: complex_bse
     integer, intent( inout ) :: ierr
 
     integer :: ic, jc, i
@@ -566,14 +568,22 @@ module OCEAN_multiplet
         close( 99 )
         life_time( : ) = life_time( : ) * eV2Hartree ! / 27.2114d0
 
-        delta_so( 1 ) = 0.5d0 * ( ( dble( sys%cur_run%ZNL(3) ) + 0.5 ) * ( dble( sys%cur_run%ZNL(3) ) + 1.5 ) - & 
-                                    dble( sys%cur_run%ZNL(3) ) * dble( sys%cur_run%ZNL(3) + 1 ) - 0.75d0 )
-        delta_so( 2 ) = 0.5d0 * ( ( dble( sys%cur_run%ZNL(3) ) - 0.5 ) * ( dble( sys%cur_run%ZNL(3) ) + 0.5 ) - &
-                                    dble( sys%cur_run%ZNL(3) ) * dble( sys%cur_run%ZNL(3) + 1 ) - 0.75d0 )
-        !
-        l_alpha = ( life_time( 2 ) - life_time( 1 ) ) / ( - xi * ( delta_so( 2 ) - delta_so( 1 ) ) )
-        l_beta = ( life_time( 2 ) * delta_so( 1 ) - life_time( 1 ) * delta_so( 2 ) ) / ( delta_so( 1 ) - delta_so( 2 ) )
+        ! < J | L . S | J > give l/2 or -(l+1)/2
+        if( .true. ) then
+          l_alpha = 2.0_dp / dble(2 * sys%cur_run%ZNL(3) + 1 ) * ( life_time(1) - life_time(2 ) )
+          l_beta = dble( sys%cur_run%ZNL(3) + 1 ) / dble( 2 * sys%cur_run%ZNL(3) + 1 ) * life_time( 1 ) &
+                 + dble( sys%cur_run%ZNL(3) ) / dble( 2 * sys%cur_run%ZNL(3) + 1 ) * life_time( 2 )
+        else
+          delta_so( 1 ) = 0.5d0 * ( ( dble( sys%cur_run%ZNL(3) ) + 0.5 ) * ( dble( sys%cur_run%ZNL(3) ) + 1.5 ) - & 
+                                      dble( sys%cur_run%ZNL(3) ) * dble( sys%cur_run%ZNL(3) + 1 ) - 0.75d0 )
+          delta_so( 2 ) = 0.5d0 * ( ( dble( sys%cur_run%ZNL(3) ) - 0.5 ) * ( dble( sys%cur_run%ZNL(3) ) + 0.5 ) - &
+                                      dble( sys%cur_run%ZNL(3) ) * dble( sys%cur_run%ZNL(3) + 1 ) - 0.75d0 )
+  !        !
+          l_alpha = ( life_time( 2 ) - life_time( 1 ) ) / ( ( delta_so( 2 ) - delta_so( 1 ) ) )
+          l_beta = ( life_time( 2 ) * delta_so( 1 ) - life_time( 1 ) * delta_so( 2 ) ) / ( delta_so( 1 ) - delta_so( 2 ) )
+        endif
         write(6,*) l_alpha, l_beta
+        complex_bse = .true.
       else
         l_alpha = 0.d0
         l_beta  = 0.d0
@@ -594,17 +604,18 @@ module OCEAN_multiplet
                  ctmp = ctmp + jimel( dble( sys%cur_run%ZNL(3) ), cml( jc ), cml( ic ), i ) & 
                              * jimel( 0.5d0, cms( jc ), cms( ic ), i )
                end do
-               write(20,*) ic, jc, real( ctmp, DP ) !, aimag( ctmp )
+               write(20,'(2(I2,X),5(F6.3,X))') ic, jc, cml( ic ), cms( ic ), cml( jc ), cms( jc ), real( ctmp, DP )!, aimag( ctmp )
                write(21,*) jimel( dble( sys%cur_run%ZNL(3) ), cml( jc ), cml( ic ), 1 ), &
                   sys%cur_run%ZNL(3), nint( cml( jc ) ), nint( cml( ic ) )
 !               flush(20)
 !               write(21,*) vrslt( : ), jimel( 0.5d0, cms( jc ), cms( ic ), 1 )
 !               ctmp = -xi * ctmp
-               somelr( ic, jc ) = -xi * real( ctmp, DP ) !- aimag( ctmp ) * l_alpha
-               someli( ic, jc ) = xi * aimag( ctmp ) !- real( ctmp ) * l_alpha
-!               if( ic .eq. jc ) then
-!                 someli( ic, jc ) = someli( ic, jc ) - l_beta !* real( ctmp )
-!               endif
+               somelr( ic, jc ) = -xi * real( ctmp, DP )! + aimag( ctmp ) * l_alpha
+               someli( ic, jc ) = - real( ctmp, DP ) * l_alpha
+!               someli( ic, jc ) = xi * aimag( ctmp ) + real( ctmp, DP ) * l_alpha
+               if( ic .eq. jc ) then
+                 someli( ic, jc ) = someli( ic, jc ) - l_beta !* real( ctmp, DP )
+               endif
              end if
          end do
       end do
@@ -613,14 +624,18 @@ module OCEAN_multiplet
 #ifdef MPI
     if( nproc .gt. 1 ) then
       call MPI_BCAST( someli, sys%cur_run%nalpha*sys%cur_run%nalpha, MPI_DOUBLE_PRECISION, root, comm, ierr )
+      if( ierr .ne. 0 ) return
       call MPI_BCAST( somelr, sys%cur_run%nalpha*sys%cur_run%nalpha, MPI_DOUBLE_PRECISION, root, comm, ierr )
+      if( ierr .ne. 0 ) return
+      call MPI_BCAST( complex_bse, 1, MPI_LOGICAL, root, comm, ierr )
+      if( ierr .ne. 0 ) return
     endif
 #endif
 
   end subroutine OCEAN_soprep
     
   
-  subroutine OCEAN_mult_act( sys, inter, in_vec, out_vec )
+  subroutine OCEAN_mult_act( sys, inter, in_vec, out_vec, backwards )
     use OCEAN_system
     use OCEAN_psi, only : OCEAN_vector
     use OCEAN_mpi
@@ -630,6 +645,7 @@ module OCEAN_multiplet
     real( DP ), intent( in ) :: inter
     type( ocean_vector ), intent( in ) :: in_vec
     type( ocean_vector ), intent( inout ) :: out_vec
+    logical, intent( in ) :: backwards
     integer :: ierr
     ierr = 0
 
@@ -658,7 +674,7 @@ module OCEAN_multiplet
 !    call OCEAN_soact( sys, in_vec, out_vec )
 #else
     call OCEAN_fg_combo( sys, inter, in_vec, out_vec, ierr )
-    call OCEAN_new_soact( sys, in_vec, out_vec )
+    call OCEAN_new_soact( sys, in_vec, out_vec, backwards )
 
 !    if( myid .eq. 0 ) then
 !      call fgact( sys, inter, in_vec, out_vec )
@@ -1461,7 +1477,7 @@ module OCEAN_multiplet
 
   end subroutine OCEAN_soact
 
-  subroutine OCEAN_new_soact( sys, in_vec, out_vec )
+  subroutine OCEAN_new_soact( sys, in_vec, out_vec, backwards )
     use OCEAN_system
     use OCEAN_psi, only : OCEAN_vector
     implicit none
@@ -1469,28 +1485,51 @@ module OCEAN_multiplet
     type( O_system ), intent( in ) :: sys
     type( OCEAN_vector ), intent( in ) :: in_vec
     type( OCEAN_vector ), intent( inout ) :: out_vec
+    logical, intent( in ) :: backwards
 
     integer :: ic, jc, ikpt, ibnd, i
     
 
-    do i = 1, in_vec%core_store_size
-        ! This silly accounting is to help OMP later atm it is breaking if put in the next loop
-        ic = in_vec%core_a_start + ( i - 2 + in_vec%core_k_start ) / sys%nkpts
-        ikpt = mod( i + in_vec%core_k_start - 2, sys%nkpts ) + 1
-        !
-      do ibnd = 1, sys%num_bands
+    if( backwards ) then  ! someli -> - someli
+      do i = 1, in_vec%core_store_size
+          ! This silly accounting is to help OMP later atm it is breaking if put in the next loop
+          ic = in_vec%core_a_start + ( i - 2 + in_vec%core_k_start ) / sys%nkpts
+          ikpt = mod( i + in_vec%core_k_start - 2, sys%nkpts ) + 1
+          !
+        do ibnd = 1, sys%num_bands
 
-        do jc = 1, sys%cur_run%nalpha
-          out_vec%r( ibnd, ikpt, ic ) = out_vec%r( ibnd, ikpt, ic ) &
-                                  + somelr( ic, jc ) * in_vec%r( ibnd, ikpt, jc ) &
-                                  - someli( ic, jc ) * in_vec%i( ibnd, ikpt, jc )
-          out_vec%i( ibnd, ikpt, ic ) = out_vec%i( ibnd, ikpt, ic )  &
-                                  + somelr( ic, jc ) * in_vec%i( ibnd, ikpt, jc ) &
-                                  + someli( ic, jc ) * in_vec%r( ibnd, ikpt, jc )
+          do jc = 1, sys%cur_run%nalpha
+            out_vec%r( ibnd, ikpt, ic ) = out_vec%r( ibnd, ikpt, ic ) &
+                                    + somelr( ic, jc ) * in_vec%r( ibnd, ikpt, jc ) &
+                                    + someli( ic, jc ) * in_vec%i( ibnd, ikpt, jc )
+            out_vec%i( ibnd, ikpt, ic ) = out_vec%i( ibnd, ikpt, ic )  &
+                                    + somelr( ic, jc ) * in_vec%i( ibnd, ikpt, jc ) &
+                                    - someli( ic, jc ) * in_vec%r( ibnd, ikpt, jc )
+          enddo
+
         enddo
-
       enddo
-    enddo
+
+    else  ! normal
+      do i = 1, in_vec%core_store_size
+          ! This silly accounting is to help OMP later atm it is breaking if put in the next loop
+          ic = in_vec%core_a_start + ( i - 2 + in_vec%core_k_start ) / sys%nkpts
+          ikpt = mod( i + in_vec%core_k_start - 2, sys%nkpts ) + 1
+          !
+        do ibnd = 1, sys%num_bands
+
+          do jc = 1, sys%cur_run%nalpha
+            out_vec%r( ibnd, ikpt, ic ) = out_vec%r( ibnd, ikpt, ic ) &
+                                    + somelr( ic, jc ) * in_vec%r( ibnd, ikpt, jc ) &
+                                    - someli( ic, jc ) * in_vec%i( ibnd, ikpt, jc )
+            out_vec%i( ibnd, ikpt, ic ) = out_vec%i( ibnd, ikpt, ic )  &
+                                    + somelr( ic, jc ) * in_vec%i( ibnd, ikpt, jc ) &
+                                    + someli( ic, jc ) * in_vec%r( ibnd, ikpt, jc )
+          enddo
+
+        enddo
+      enddo
+    endif
 
   end subroutine OCEAN_new_soact
 
