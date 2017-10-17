@@ -191,15 +191,16 @@ module OCEAN_energies
 
   end subroutine OCEAN_energies_kill
 
-  subroutine OCEAN_energies_load( sys, ierr )
+  subroutine OCEAN_energies_load( sys, complex_bse, ierr )
     use OCEAN_system
     use OCEAN_mpi
 !    use mpi
     use OCEAN_constants, only : eV2Hartree
 
     implicit none
-    integer, intent(inout) :: ierr
     type(O_system), intent( in ) :: sys
+    logical, intent(inout) :: complex_bse
+    integer, intent(inout) :: ierr
 
     real(DP), allocatable :: tmp_e0(:,:,:)
     real(DP) :: core_offset
@@ -260,12 +261,14 @@ module OCEAN_energies
         select case (gw_control)
         case ('full')
           if( myid .eq. root ) write(6,*) 'full'
+          complex_bse = .true.
           call OCEAN_abinit_fullgw( sys, ierr, .true. )
         case ('real')
           call OCEAN_abinit_fullgw( sys, ierr, .false. )
         case( 'band' )
           call OCEAN_gw_by_band( sys, ierr, .false. )
         case( 'ibnd' )
+          complex_bse = .true.
           call OCEAN_gw_by_band( sys, ierr, .true. )
         case( 'cstr' )
           call OCEAN_gw_stretch( sys, ierr )
@@ -339,6 +342,9 @@ module OCEAN_energies
     call MPI_BARRIER( comm, ierr )
 
     call MPI_BCAST( energies, energy_bands_pad*energy_kpts_pad*sys%nspn, MPI_DOUBLE_PRECISION, root, comm, ierr )
+    if( ierr .ne. MPI_SUCCESS ) return
+
+    call MPI_BCAST( complex_bse, 1, MPI_LOGICAL, root, comm, ierr )
     if( ierr .ne. MPI_SUCCESS ) return
 #endif
 

@@ -75,7 +75,7 @@ module OCEAN_haydock
     call OCEAN_psi_new( psi, ierr, hay_vec )
     if( ierr .ne. 0 ) return
 
-    call OCEAN_psi_new( back_psi, ierr, hay_vec, conj=.false. )
+    call OCEAN_psi_new( back_psi, ierr, hay_vec )
     if( ierr .ne. 0 ) return
 
     call OCEAN_psi_new( new_psi, ierr )
@@ -763,6 +763,170 @@ module OCEAN_haydock
 
   end subroutine OCEAN_hay_ab
 
+#if 0
+! Alternate ordering of orthogonalization as given originially by Chris Paige
+  subroutine OCEAN_hay_abc_Paige( sys, psi, hpsi, old_psi, back_psi, back_hpsi, back_old_psi, iter, ierr )
+#ifdef __HAVE_F03
+    use, intrinsic :: ieee_arithmetic, only: ieee_is_nan
+#endif
+    use OCEAN_system, only : o_system
+    use OCEAN_psi
+    use OCEAN_mpi, only : myid, root, MPI_STATUS_IGNORE
+    use OCEAN_constants, only : Hartree2eV
+    use OCEAN_energies, only : OCEAN_energies_val_allow
+    implicit none
+    integer, intent(inout) :: ierr
+    integer, intent(in) :: iter
+    type(O_system), intent( in ) :: sys
+    type(OCEAN_vector), intent(inout) :: psi, hpsi, old_psi
+    type(OCEAN_vector), intent(inout) :: back_psi, back_hpsi, back_old_psi
+
+    complex(dp) :: ctmp
+    real(dp) :: rtmp, itmp, atmp, btmp
+    integer :: ialpha, ikpt, irequest, rrequest
+
+    if( sys%cur_run%have_val ) then
+      call OCEAN_energies_val_allow( sys, hpsi, ierr )
+      if( ierr .ne. 0 ) return
+      call OCEAN_energies_val_allow( sys, back_hpsi, ierr )
+      if( ierr .ne. 0 ) return
+    endif
+
+    ! first calculate hpsi = ( hspi - b * old_psi ) 
+    !             back_hpsi = ( back_hpsi - c * back_old_psi )
+
+    ! hpsi -= b(i-1) * psi^{i-1}
+    ! y:= a*x + y
+    atmp = -real_b(iter-1)
+    btmp = -imag_b(iter-1)
+    call OCEAN_psi_axpy( atmp, old_psi, hpsi, ierr, btmp )
+    if( ierr .ne. 0 ) return
+
+    atmp = -real_c(iter-1)
+    btmp = -imag_c(iter-1)
+    call OCEAN_psi_axpy( atmp, back_old_psi, back_hpsi, ierr, btmp )
+    if( ierr .ne. 0 ) return
+
+    ! calc ctmp = < hpsi | back_psi > and begin Iallreduce
+    call OCEAN_psi_dot( back_psi, hpsi, rrequest, rtmp, ierr, irequest, itmp )
+    if( ierr .ne. 0 ) return
+
+
+    ! finish allreduce to get a
+    call MPI_WAIT( rrequest, MPI_STATUS_IGNORE, ierr )
+    if( ierr .ne. 0 ) return
+
+    call MPI_WAIT( irequest, MPI_STATUS_IGNORE, ierr )
+    if( ierr .ne. 0 ) return
+
+    atmp = -rtmp
+    btmp = -itmp
+    call OCEAN_psi_axpy( atmp, psi, hpsi, ierr, btmp )
+    if( ierr .ne. 0 ) return
+
+    btmp = -itmp
+    call OCEAN_psi_axpy( atmp, back_psi, back_hpsi, ierr, btmp )
+    if( ierr .ne. 0 ) return
+
+    real_a(iter-1) = rtmp
+    imag_a(iter-1) = itmp
+
+!    if( myid .eq. root ) write(6,*) 'ab', real_a(iter-1), b(iter-1)
+
+    if( sys%cur_run%have_val ) then
+      call OCEAN_energies_val_allow( sys, hpsi, ierr )
+      if( ierr .ne. 0 ) return
+      call OCEAN_energies_val_allow( sys, back_hpsi, ierr )
+      if( ierr .ne. 0 ) return
+    endif
+
+    call OCEAN_psi_dot( back_hpsi, hpsi, rrequest, rtmp, ierr, irequest, itmp )
+    if( ierr .ne. 0 ) return
+
+    ! copies psi onto old_psi
+    call OCEAN_psi_copy_min( old_psi, psi, ierr )
+    if( ierr .ne. 0 ) return
+
+    call OCEAN_psi_copy_min( back_old_psi, back_psi, ierr )
+    if( ierr .ne. 0 ) return
+
+    ! Could move prep and copy here for hspi -> psi
+    !   just need to include a way to scale full instead of just min
+
+    call MPI_WAIT( rrequest, MPI_STATUS_IGNORE, ierr )
+    if( ierr .ne. 0 ) return
+
+    call MPI_WAIT( irequest, MPI_STATUS_IGNORE, ierr )
+    if( ierr .ne. 0 ) return
+
+    ctmp = sqrt( cmplx( rtmp, itmp, DP ) )
+!    ctmp = sqrt( sqrt( rtmp*rtmp + itmp*itmp ) )
+
+    real_c( iter ) = real( ctmp, DP )
+    imag_c( iter ) = aimag( ctmp )
+
+    ctmp = cmplx( rtmp, itmp, DP ) / ctmp
+
+    real_b( iter ) = real( ctmp, DP )
+    imag_b( iter ) = aimag( ctmp )
+
+   call OCEAN_psi_divide( back_hpsi, ierr, real_b(iter), -imag_b(iter) )
+    if( ierr .ne. 0 ) return
+
+    call OCEAN_psi_divide( hpsi, ierr, real_c(iter), imag_c(iter) )
+    if( ierr .ne. 0 ) return
+    !
+
+    ! copies hpsi onto psi
+    call OCEAN_psi_copy_min( psi, hpsi, ierr )
+    if( ierr .ne. 0 ) return
+
+    call OCEAN_psi_prep_min2full( psi, ierr )
+    if( ierr .ne. 0 ) return
+
+    call OCEAN_psi_start_min2full( psi, ierr )
+    if( ierr .ne. 0 ) return
+
+    call OCEAN_psi_copy_min( back_psi, back_hpsi, ierr )
+    if( ierr .ne. 0 ) return
+
+    call OCEAN_psi_prep_min2full( back_psi, ierr )
+    if( ierr .ne. 0 ) return
+
+    call OCEAN_psi_start_min2full( back_psi, ierr )
+    if( ierr .ne. 0 ) return
+
+
+
+    if( myid .eq. 0 ) then
+      write ( 6, '(1x,6(f14.8,2x),i6)' ) real_a(iter-1)*Hartree2eV, imag_a(iter-1) * Hartree2eV, &
+                                                    real_b(iter) * Hartree2eV, imag_b(iter) * Hartree2eV, &
+                                                    real_c(iter) * Hartree2eV, imag_c(iter) * Hartree2eV, iter
+      if( mod( iter, 10 ) .eq. 0 ) call haydump( iter, sys, psi%kpref, ierr )
+#ifdef __HAVE_F03
+      if( ieee_is_nan( real_a(iter-1) ) ) then
+#else
+      if( real_a(iter-1) .ne. real_a(iter-1) ) then
+#endif
+        write(6,*) 'NaN detected'
+        ierr = -1
+        return
+      endif
+
+!      call haydump( iter, sys, ierr )
+    endif
+    ! Might be moved up & out?
+    call OCEAN_psi_finish_min2full( psi, ierr )
+    if( ierr .ne. 0 ) return
+
+    call OCEAN_psi_finish_min2full( back_psi, ierr )
+    if( ierr .ne. 0 ) return
+
+
+  end subroutine OCEAN_hay_abc_Paige
+#endif
+
+
 
   subroutine OCEAN_hay_abc( sys, psi, hpsi, old_psi, back_psi, back_hpsi, back_old_psi, iter, ierr )
 #ifdef __HAVE_F03
@@ -821,7 +985,7 @@ module OCEAN_haydock
     call OCEAN_psi_axpy( atmp, psi, hpsi, ierr, btmp )
     if( ierr .ne. 0 ) return
 
-    btmp = -itmp
+    btmp = itmp
     call OCEAN_psi_axpy( atmp, back_psi, back_hpsi, ierr, btmp )
     if( ierr .ne. 0 ) return
 
@@ -857,19 +1021,14 @@ module OCEAN_haydock
     if( ierr .ne. 0 ) return
 
     ctmp = sqrt( cmplx( rtmp, itmp, DP ) ) 
-!    ctmp = sqrt( sqrt( rtmp*rtmp + itmp*itmp ) )
     
-    real_c( iter ) = real( ctmp, DP )
-    imag_c( iter ) = aimag( ctmp )
-
-    ctmp = cmplx( rtmp, itmp, DP ) / ctmp
-
     real_b( iter ) = real( ctmp, DP )
     imag_b( iter ) = aimag( ctmp )
 
-!    if( myid .eq. root ) then
-!      write(6,*) rtmp, itmp, cmplx( real_c(iter), imag_c(iter) )*cmplx(real_b(iter),imag_b(iter))
-!    endif
+    ctmp = cmplx( rtmp, itmp, DP ) / ctmp
+
+    real_c( iter ) = real( ctmp, DP )
+    imag_c( iter ) = aimag( ctmp )
 
     call OCEAN_psi_divide( back_hpsi, ierr, real_b(iter), -imag_b(iter) )
     if( ierr .ne. 0 ) return

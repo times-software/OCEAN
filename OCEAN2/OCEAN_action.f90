@@ -77,7 +77,7 @@ module OCEAN_action
 
       if( sys%mult ) then
         call OCEAN_tk_start( tk_mult )
-        call OCEAN_mult_act( sys, inter_scale, psi, new_psi )
+        call OCEAN_mult_act( sys, inter_scale, psi, new_psi, back )
         call OCEAN_tk_stop( tk_mult )
       endif
 
