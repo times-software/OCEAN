@@ -20,7 +20,7 @@ module OCEAN_corewidths
   private
   
 
-  real(DP),parameter,dimension( 16,3:92 ) :: coreWidths = &
+  real(DP),parameter,dimension( 16,3:92 ) :: coreWidths = reshape( &
    [0.03_dp,0.0_dp,0.0_dp,0.0_dp,0.0_dp,0.0_dp,0.0_dp,0.0_dp,0.0_dp,0.0_dp,0.0_dp,0.0_dp,0.0_dp,0.0_dp,0.0_dp,0.0_dp,&
     0.05_dp,0.0_dp,0.0_dp,0.0_dp,0.0_dp,0.0_dp,0.0_dp,0.0_dp,0.0_dp,0.0_dp,0.0_dp,0.0_dp,0.0_dp,0.0_dp,0.0_dp,0.0_dp,&
     0.05_dp,0.0_dp,0.0_dp,0.0_dp,0.0_dp,0.0_dp,0.0_dp,0.0_dp,0.0_dp,0.0_dp,0.0_dp,0.0_dp,0.0_dp,0.0_dp,0.0_dp,0.0_dp,&
@@ -110,7 +110,8 @@ module OCEAN_corewidths
     84.4_dp,14.0_dp,8.0_dp,7.51_dp,15.4_dp,12.9_dp,8.0_dp,3.18_dp,3.18_dp,11.2_dp,8.5_dp,7.25_dp,4.2_dp,4.05_dp,0.15_dp,0.17_dp,&
     88.2_dp,14.3_dp,8.5_dp,7.74_dp,15.5_dp,13.2_dp,8.0_dp,3.28_dp,3.28_dp,11.5_dp,8.75_dp,7.5_dp,4.3_dp,4.1_dp,0.15_dp,0.18_dp,&
     92.1_dp,14.7_dp,9.1_dp,7.97_dp,15.5_dp,13.6_dp,7.9_dp,3.39_dp,3.39_dp,11.6_dp,9.2_dp,7.75_dp,4.4_dp,4.2_dp,0.29_dp,0.25_dp,&
-    96.3_dp,16.0_dp,10.0_dp,8.2_dp,15.5_dp,14.1_dp,7.9_dp,3.5_dp,3.5_dp,12.2_dp,9.6_dp,8.0_dp,4.5_dp,4.25_dp,0.37_dp,0.31_dp ]
+    96.3_dp,16.0_dp,10.0_dp,8.2_dp,15.5_dp,14.1_dp,7.9_dp,3.5_dp,3.5_dp,12.2_dp,9.6_dp,8.0_dp,4.5_dp,4.25_dp,0.37_dp,0.31_dp ]&
+    , [16,90] )
 
 
   public :: returnLifetime

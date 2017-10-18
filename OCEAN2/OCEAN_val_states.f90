@@ -384,7 +384,14 @@ module OCEAN_val_states
     if( err .ne. MPI_SUCCESS ) then
       ierr = -4
       return
-    endif
+   endif
+   !DASb  also broadcast brange as value on child nodes is not set otherwise.
+    call MPI_BCAST( brange, 4, MPI_INTEGER, root, comm, err )
+    if( err .ne. MPI_SUCCESS ) then
+      ierr = -4
+      return
+   endif
+   !DASe
 #endif
     if( ierr .ne. 0 ) return
 
@@ -657,7 +664,7 @@ module OCEAN_val_states
     endif
 
     if( myid .eq. root ) then
-      open(unit=fhu2,file='u2.dat',form='unformatted',status='old')
+      open(newunit=fhu2,file='u2.dat',form='unformatted',status='old')
       if( ierr .ne. 0 ) return
     endif
 
@@ -787,8 +794,8 @@ module OCEAN_val_states
         iproc = myid
         if( myid .ne. root ) iproc = 1
 
-        re_con( 1:nxpts, 1:nbc, iq, 1 ) = re_share_buffer( 1:nxpts, 1:nbc, iproc )
-        im_con( 1:nxpts, 1:nbc, iq, 1 ) = im_share_buffer( 1:nxpts, 1:nbc, iproc )
+        re_con( 1:nxpts, 1:nbc, iq, ispn ) = re_share_buffer( 1:nxpts, 1:nbc, iproc )
+        im_con( 1:nxpts, 1:nbc, iq, ispn ) = im_share_buffer( 1:nxpts, 1:nbc, iproc )
 
       enddo ! iq
     enddo  ! ispn
