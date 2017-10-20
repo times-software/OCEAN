@@ -165,7 +165,7 @@ OCEAN_ladder.o: OCEAN_ladder.f90 OCEAN_psi.o OCEAN_mpi.o OCEAN_val_states.o OCEA
 OCEAN_pfy.o: OCEAN_pfy.f90 OCEAN_psi.o OCEAN_mpi.o OCEAN_system.o OCEAN_constants.o AI_kinds.o 
 	$(MPIFORT) $(FLAGS) -c -o OCEAN_pfy.o OCEAN_pfy.f90
 
-OCEAN_rixs_holder.o: OCEAN_rixs_holder.f90 AI_kinds.o OCEAN_system.o OCEAN_mpi.o
+OCEAN_rixs_holder.o: OCEAN_rixs_holder.f90 AI_kinds.o OCEAN_system.o OCEAN_mpi.o OCEAN_filenames.o
 	$(MPIFORT) $(FLAGS) -c -o OCEAN_rixs_holder.o OCEAN_rixs_holder.f90
 
 OCEAN_corewidths.o: OCEAN_corewidths.f90 AI_kinds.o

@@ -96,7 +96,8 @@ module OCEAN_rixs_holder
 !! like absspct, etc.).  Consider bringing in the ocean_vector type instead 
 !! of a complex array of fixed size. 
   subroutine rixs_seed( sys, p_vec, file_selector, ierr )
-    use OCEAN_system
+    use OCEAN_system, only : o_system
+    use OCEAN_filenames, only : OCEAN_filenames_read_ehamp
 
     implicit none
 
@@ -105,24 +106,25 @@ module OCEAN_rixs_holder
     integer, intent( in ) :: file_selector
     integer, intent( inout ) :: ierr
     !
-    complex(DP), allocatable :: rex( :, :, :, : )
+    complex(DP), allocatable :: rex( :, :, : )
     integer :: edge_iter, ic, icms, icml, ivms, ispin, i, j, ik
     character(len=25) :: echamp_file
 
- !   allocate( rex( sys%num_bands, sys%nkpts, 4*(2*sys%ZNL(3)+1), sys%nedges ) )
-    allocate( rex( sys%num_bands, sys%nkpts, 4*(2*sys%ZNL(3)+1), 1 ) ) ! Don't need sys%nedges since edges are being read one at a time
+    allocate( rex( sys%num_bands, sys%nkpts, 4*(2*sys%ZNL(3)+1) ) ) 
 
     do edge_iter = 1, sys%nedges
-!      write(6,'(A7,I4.4)') 'echamp.', edge_iter
-      write(echamp_file,'(A7,A2,A1,I4.4,A1,A2,A1,I2.2,A1,I4.4)' ) 'echamp_', sys%cur_run%elname, &
-              '.', edge_iter, '_', sys%cur_run%corelevel, '_', sys%cur_run%photon, '.', & 
-              sys%cur_run%rixs_energy
-!      write(echamp_file, '(A7,I4.4)') 'echamp.', edge_iter
+
+      call OCEAN_filenames_read_ehamp( sys, echamp_file, edge_iter, ierr )
+      if( ierr .ne. 0 ) return
+
+!      write(echamp_file,'(A7,A2,A1,I4.4,A1,A2,A1,I2.2,A1,I4.4)' ) 'echamp_', sys%cur_run%elname, &
+!              '.', edge_iter, '_', sys%cur_run%corelevel, '_', sys%cur_run%photon, '.', & 
+!              sys%cur_run%rixs_energy
+
       write(6,*) echamp_file
       open(unit=99,file=echamp_file,form='unformatted',status='old')
       rewind(99)
-!      read(99) rex(:,:,:,edge_iter)
-      read(99) rex(:,:,:,1)
+      read(99) rex(:,:,:)
       close(99)
 
 
@@ -138,8 +140,7 @@ module OCEAN_rixs_holder
               do i = 1, sys%val_bands
                 do j = 1, sys%num_bands
                   p_vec( j, i, ik, ispin ) = p_vec( j, i, ik, ispin ) + &
-                      rex( j, ik, ic, 1 ) * xes_vec(i,ik,icml,edge_iter)
-!                      rex( j, ik, ic, edge_iter ) * xes_vec(i,ik,icml,edge_iter)
+                      rex( j, ik, ic ) * xes_vec(i,ik,icml,edge_iter)
                 enddo
               enddo
             enddo
@@ -150,8 +151,113 @@ module OCEAN_rixs_holder
 
     deallocate( rex )
 
-  end subroutine
+  end subroutine rixs_seed
 
+  subroutine ctc_rixs_seed( sys, p_vec, ierr )
+    use OCEAN_system, only : o_system
+    use OCEAN_filenames, only : OCEAN_filenames_read_ehamp
+
+    implicit none
+
+    type(O_system), intent( in ) :: sys
+    complex(DP), intent( out ) :: p_vec(:,:,:,:)
+    integer, intent( inout ) :: ierr
+
+
+    allocate( rex( sys%num_bands, sys%nkpts, 4*(2*sys%ZNL(3)+1) ) )
+
+    allocate( mels( sys%ZNL(3)*2 + 1 ) )
+
+    call ctc_mels_hack( mels, ierr )
+    if( ierr .ne. 0 ) return
+
+    do edge_iter = 1, sys%nedges
+
+      call OCEAN_filenames_read_ehamp( sys, echamp_file, edge_iter, ierr )
+      if( ierr .ne. 0 ) return
+
+      write(6,*) echamp_file
+      open(unit=99,file=echamp_file,form='unformatted',status='old')
+      rewind(99)
+      read(99) rex(:,:,:)
+      close(99)
+
+
+      ialpha = 0
+      do icms = 1, 3, 2
+        do icml = 1, sys%ZNL(3)*2 + 1
+          do ivms = 0, 1
+
+            ialpha = ialpha + 1
+            ic = ivms+icms
+            do ik = 1, sys%nkpts
+              do j = 1, sys%num_bands
+              
+                pvec( j, ik, ialpha ) = pvec( j, ik, ialpha ) + rex( j, ik, ic ) * mels( icml )
+      
+              enddo
+            enddo
+
+          enddo
+        enddo
+      enddo
+
+    enddo
+
+  end subroutine ctc_rixs_seed
+
+  subroutine ctc_mels_hack( mels, ierr )
+    complex(DP), intent( out ) :: mels( 3 )
+    integer, intent( inout ) :: ierr
+    !
+    real(DP), allocatable(:) :: xsph, ysph, zsph, wsph
+    real(DP), prefs( 0: 1000 ) 
+    real(DP) :: su, ehat(3)
+    complex(DP) :: csu, ylm, ylcmc
+    integer :: nsphpt
+    integer, parameter :: lmax = 5
+
+    open( unit=99, file='sphpts', form='formatted', status='old' )
+    rewind 99
+    read ( 99, * ) nsphpt
+    allocate( sphpts( 3, nsphpt ), wsph( nsphpt ) )
+    su = 0.0_dp
+    do i = 1, nsphpt
+      read( 99, * ) xsph(i), ysph(i), zsph(i), wsph( i )
+      su = su + wsph( i )
+    enddo
+    close( 99 )
+    wsph( : ) = wsph( : ) * ( 4.0d0 * 4.0d0 * atan( 1.0d0 ) / su )
+    write ( 6, * ) nsphpt, ' points with weights summing to four pi '
+
+    call getprefs( prefs, lmax, nsphpt, wsph, xsph, ysph, zsph )
+
+    open( unit=99, file='spectfile', form='formatted', status='unknown' )
+    rewind 99
+    read ( 99, * ) spcttype
+    call fancyvector( ehat, su, 99 )
+    close( unit=99 )
+
+    l_orig = 0
+    m_orig = 0
+    lc = 1
+    do mc = -lc, lc
+
+      csu = 0.0_dp
+      
+      do i = 1, nsphpt
+         call getylm( lc, mc, xsph( i ), ysph( i ), zsph( i ), ylcmc, prefs )
+         call getylm( l_orig, m_orig, xsph( i ), ysph( i ), zsph( i ), ylm, prefs )
+         edot = xsph( i ) * ehat( 1 ) + ysph( i ) * ehat( 2 ) + zsph( i ) * ehat( 3 )
+         csu = csu + conjg(ylcmc) * edot * ylm * wsph(i)
+      end do
+      mels( mc + lc + 1 ) = csu
+
+    enddo
+
+    deallocate( xsph, ysph, zsph, wsph )
+
+  end subroutine ctc_mels_hack
 
   subroutine cksv_read( sys, file_selector, ierr )
     use OCEAN_system
