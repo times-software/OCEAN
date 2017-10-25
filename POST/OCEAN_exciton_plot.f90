@@ -5,6 +5,7 @@
 ! `License' in the root directory of the present distribution.
 !
 program OCEAN_exciton_plot
+  use periodic, only : get_atom_number
   implicit none
 
   integer, parameter :: DP = kind(1.0d0 )
@@ -286,7 +287,8 @@ program OCEAN_exciton_plot
     do iRy = Rstart(2), Rstart(2) + Rmesh(2) - 1
       do iRz = Rstart(3), Rstart(3) + Rmesh(3) - 1
         do i = 1, natom 
-          call get_atom_number( elname( i ), ix )
+!          call get_atom_number( elname( i ), ix )
+          call get_atom_number( ix, elname( i ) )
           tau(:) = atom_loc(:,i)
           tau( : ) = tau( : ) + iRx * avecs(:, 1 )
           tau( : ) = tau( : ) + iRy * avecs(:, 2 )
@@ -334,19 +336,19 @@ program OCEAN_exciton_plot
   close( 99 )
 
   deallocate( Rspace_exciton, z_stripe )
-
-  contains
-
-  subroutine get_atom_number( elnam, elnum )
-    implicit none
-    character(len=2), intent( in ) :: elnam
-    integer, intent( out ) :: elnum
-
-    elnum = 1
-    if( elnam .eq. 'N_' ) elnum = 7
-    if( elnam .eq. 'O_' ) elnum = 8
-    if( elnam .eq. 'S_' ) elnum = 16
-    if( elnam .eq. 'Cd' ) elnum = 38
-  end subroutine
-
+!#if 0
+!  contains
+!
+!  subroutine get_atom_number( elnam, elnum )
+!    implicit none
+!    character(len=2), intent( in ) :: elnam
+!    integer, intent( out ) :: elnum
+!
+!    elnum = 1
+!    if( elnam .eq. 'N_' ) elnum = 7
+!    if( elnam .eq. 'O_' ) elnum = 8
+!    if( elnam .eq. 'S_' ) elnum = 16
+!    if( elnam .eq. 'Cd' ) elnum = 38
+!  end subroutine
+!#endif
 end program OCEAN_exciton_plot
