@@ -15,13 +15,15 @@ program OCEAN_exciton_plot
   real(DP), allocatable :: z_stripe( : ), xyz(:,:), atom_loc(:,:)
   real(DP) :: qinb(3), avecs(3,3), su, k0(3), qvec(3), Rvec(3), xphs, yphs, zphs, twopi, tau(3), ur, ui
 
-
-  integer :: Rmesh(3), kmesh(3), nband, nalpha, nkpts, NR, Riter, kiter, xmesh(3), nspn
+  integer, allocatable :: ibeg(:,:)
+  integer :: Rmesh(3), kmesh(3), nband, nalpha, nkpts, NR, Riter, kiter, xmesh(3), nspn, ispin, ivh2
   integer :: ikx, iky, ikz, iRx, iRy, iRz, NX, i, ix, x_count, xiter, iy, iz, izz, bloch_selector
   integer :: brange(4), u2size, u2start, Rshift(3), natom, kiter_break, Rstart(3), idum(3)
   character(len=25) :: filname
   character(len=128) :: outname
   character(len=2), allocatable :: elname(:)
+
+  logical :: metal
 
   real(DP), external :: DZNRM2
   complex(DP), parameter :: one = 1.0_dp
@@ -50,6 +52,14 @@ program OCEAN_exciton_plot
   read(99,*) kmesh(:)
   close(99)
   nkpts = product( kmesh(:) )
+
+  open(unit=99,file='nspin',form='formatted',status='old')
+  read(99,*) nspn
+  close(99)
+  if( nspn .ne. 1 ) then
+    write(6,*) 'WARNING! Spin not yet supported!'
+    goto 111
+  endif
   nspn = 1
 
   open(unit=99,file='qinunitsofbvectors.ipt',form='formatted',status='old')
@@ -81,6 +91,12 @@ program OCEAN_exciton_plot
   read(99,*) bloch_selector
   close(99)
 
+  open(unit=99,file='ZNL',form='formatted',status='old')
+  read(99,*) idum(1:2), nalpha
+  close(99)
+  !(2l+1)
+  nalpha = (2*nalpha+1) * 4
+
   atom_loc = 0.0_DP
   do i = 1, natom
     do ix = 1, 3
@@ -88,8 +104,30 @@ program OCEAN_exciton_plot
     enddo
   enddo
 
+
+  inquire(file='metal', exist=metal )
+  if( metal ) then
+    open(unit=99,file='metal',form='formatted',status='old')
+    read(99,*) metal
+    close(99)
+  endif
+
+  if( metal ) then
+    allocate( ibeg( nkpts, nspn ) )
+    open( unit=99,file='ibeg.h',form='formatted',status='old')
+    do ispin = 1, nspn
+      do kiter = 1, nkpts
+        read(99,*) idum(1), ibeg( kiter, ispin )
+      enddo
+    enddo
+    close( 99 )
+  else
+    allocate( ibeg( 1, 1 ) )
+    ivh2 = brange( 2 )
+  endif
+
 !JTV!
-  nalpha = 4
+!  nalpha = 4
 !  Rmesh(:) = 3
 !  Rstart(:) = -1
   write(6,*) Rmesh(:)
@@ -97,6 +135,7 @@ program OCEAN_exciton_plot
   NR = product( Rmesh(:) )
 
 
+  write(6,*) nband, nkpts, nalpha
 
   allocate( exciton( nband, nkpts, nalpha ), cond_exciton( nband, nkpts ) )
   write(6,*) filname
@@ -105,7 +144,6 @@ program OCEAN_exciton_plot
   close(99)
 
   ! Want to normalize excitonic wvfn   
-  write(6,*) nband, nkpts, nalpha
   su = DZNRM2( nband*nkpts*nalpha, exciton, 1 )
   su = 1.0_DP / su
   write(6,*) su
@@ -134,6 +172,8 @@ program OCEAN_exciton_plot
     do kiter = 1, nkpts
       if( mod( kiter, kiter_break ) .eq. 0 ) write(6,*) kiter
       read(99) u2
+      if( metal ) ivh2 = ibeg( kiter, 1 ) - 1
+      u2start = ivh2 + 2
       call ZGEMV( 'N', NX, nband, one, u2(1,u2start), NX, cond_exciton( 1, kiter ), 1, &
                    one, rk_exciton( 1, kiter ), 1 )
     enddo
@@ -144,7 +184,8 @@ program OCEAN_exciton_plot
     open(unit=99,file='u2.dat',form='unformatted',status='old')
     do kiter = 1, nkpts
       if( mod( kiter, kiter_break ) .eq. 0 ) write(6,*) kiter
-      do i = 1, brange(2)-brange(1)+1
+      if( metal ) ivh2 = ibeg( kiter, 1 ) - 1
+      do i = 1, ivh2 - brange( 1 ) + 1 !brange(2)-brange(1)+1
         do ix = 1, NX
           read(99) 
         enddo
@@ -155,6 +196,12 @@ program OCEAN_exciton_plot
           u2( ix, i ) = cmplx( ur, ui, DP )
         enddo
       enddo
+      do i = ivh2 + nband + 1, brange(2)-brange(1)+brange(4)-brange(3) + 2
+        do ix = 1, NX
+           read ( 99 )
+        end do
+      enddo
+
       call ZGEMV( 'N', NX, nband, one, u2, NX, cond_exciton( 1, kiter ), 1, &
                    one, rk_exciton( 1, kiter ), 1 )
     enddo
@@ -335,20 +382,8 @@ program OCEAN_exciton_plot
   
   close( 99 )
 
-  deallocate( Rspace_exciton, z_stripe )
-!#if 0
-!  contains
-!
-!  subroutine get_atom_number( elnam, elnum )
-!    implicit none
-!    character(len=2), intent( in ) :: elnam
-!    integer, intent( out ) :: elnum
-!
-!    elnum = 1
-!    if( elnam .eq. 'N_' ) elnum = 7
-!    if( elnam .eq. 'O_' ) elnum = 8
-!    if( elnam .eq. 'S_' ) elnum = 16
-!    if( elnam .eq. 'Cd' ) elnum = 38
-!  end subroutine
-!#endif
+  deallocate( Rspace_exciton, z_stripe, ibeg )
+
+
+  111 continue
 end program OCEAN_exciton_plot
