@@ -605,6 +605,7 @@ module OCEAN_gmres
     character(len=4) :: initial = 'zero'
 
 
+    initial = 'zero'
     if( allow_reuse_x ) then
       ! option to reuse X
       if( iter .gt. 1 ) then
@@ -664,7 +665,7 @@ module OCEAN_gmres
       allocate( out_vec( OCEAN_psi_size_full( psi_x ) ) )
       call OCEAN_psi_vtor( psi_x, out_vec ) 
       !
-      open( unit=99, file=filename, form='unformatted', status='old' )
+      open( unit=99, file=filename, form='unformatted', status='unknown' )
       rewind( 99 )
       write(99) out_vec
       close( 99 )
