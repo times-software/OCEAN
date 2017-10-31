@@ -16,12 +16,14 @@ OCEANOBJS = AI_kinds.o OCEAN_mpi.o OCEAN_system.o OCEAN_bloch.o OCEAN_obf.o OCEA
             OCEAN_read_tmels.o OCEAN_val_states.o OCEAN_bubble.o \
             OCEAN_get_rho.o optim.o OCEAN_hyb_louie_levine.o OCEAN_ladder.o \
 						OCEAN_pfy.o OCEAN_rixs_holder.o OCEAN_corewidths.o OCEAN_action.o \
-						OCEAN_driver.o OCEAN_gmres.o OCEAN_filenames.o $(FFT_WRAPPER_OBJS)
+						OCEAN_driver.o OCEAN_gmres.o OCEAN_filenames.o $(FFT_WRAPPER_OBJS) $(CAIN_OBJS)
 
 KINDS = AI_kinds.o
 
 FFT_WRAPPER_OBJS = ../zbridge/zobj/FFT_wrapper.o ../zbridge/zobj/jlmfft.o
 FFT_WRAPPER_INCL = -I../zbridge/ 
+
+CAIN_OBJS = ../CNBSE/zcain/zobj/getprefs.o ../CNBSE/zcain/zobj/getylm.o ../CNBSE/zcain/zobj/fancyvector.o
 
 OCEAN_val_energy.o: OCEAN_val_energy.f90 OCEAN_psi.o OCEAN_mpi.o OCEAN_system.o OCEAN_constants.o
 	$(MPIFORT) $(FLAGS) -c -o OCEAN_val_energy.o OCEAN_val_energy.f90

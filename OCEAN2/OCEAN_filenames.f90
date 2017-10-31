@@ -44,6 +44,11 @@ module OCEAN_filenames
             '.', sys%cur_run%corelevel, '_', sys%cur_run%photon, '.', &
             sys%cur_run%rixs_energy, '.', sys%cur_run%rixs_pol
 
+      case ('C2C')
+        write(filename,'(A8,A2,A1,I4.4,A1,A2,A1,I2.2,A1,I5.5,A1,I2.2)' ) 'ctcspct_', sys%cur_run%elname, &
+            '.', sys%cur_run%indx, '_', sys%cur_run%corelevel, '_', sys%cur_run%photon, '.', &
+            sys%cur_run%rixs_energy, '.', sys%cur_run%rixs_pol
+
       case( 'VAL' )
         write(filename, '(A)' ) 'opcons'
 
@@ -81,6 +86,11 @@ module OCEAN_filenames
       case( 'RXS')
         write(filename,'(A7,A2,A1,A2,A1,I2.2,A1,I5.5,A1,I2.2)' ) 'rxlanc_', sys%cur_run%elname, &
             '.', sys%cur_run%corelevel, '_', sys%cur_run%photon, '.', &
+            sys%cur_run%rixs_energy, '.', sys%cur_run%rixs_pol
+
+      case( 'C2C' )
+        write(filename,'(A8,A2,A1,I4.4,A1,A2,A1,I2.2,A1,I5.5,A1,I2.2)' ) 'ctclanc_', sys%cur_run%elname, &
+            '.', sys%cur_run%indx, '_', sys%cur_run%corelevel, '_', sys%cur_run%photon, '.', &
             sys%cur_run%rixs_energy, '.', sys%cur_run%rixs_pol
 
       case( 'VAL' )
@@ -162,13 +172,13 @@ module OCEAN_filenames
         write(filename,'(A7,A2,A1,I4.4,A1,A2,A1,I2.2,A1,I4.4)' ) 'echamp_', sys%cur_run%elname, &
               '.', iter, '_', sys%cur_run%corelevel, '_', sys%cur_run%photon, '.', sys%cur_run%rixs_energy
           
-      case( 'CTC' )
+      case( 'C2C' )
         if( len( filename ) < 25 ) then
           ierr = 6 
           return
         endif
         write(filename,'(A7,A2,A1,I4.4,A1,A2,A1,I2.2,A1,I4.4)' ) 'echamp_', sys%cur_run%elname, & 
-              '.', iter, '_', '1s', '_', sys%cur_run%photon, '.', iter
+              '.', iter, '_', '1s', '_', sys%cur_run%photon, '.', sys%cur_run%rixs_energy
 
       case default ! Currently XAS/XES option
         if( len( filename ) < 25 ) then

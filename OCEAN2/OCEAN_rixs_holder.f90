@@ -9,7 +9,7 @@ module OCEAN_rixs_holder
   integer :: local_ZNL(3)
   logical :: is_init
 
-  public :: OCEAN_rixs_holder_load, OCEAN_rixs_holder_clean
+  public :: OCEAN_rixs_holder_load, OCEAN_rixs_holder_clean, OCEAN_rixs_holder_ctc
 
   contains
 
@@ -153,6 +153,20 @@ module OCEAN_rixs_holder
 
   end subroutine rixs_seed
 
+
+  ! This is abstracted to allow for better tracking the 'mels' later
+  subroutine OCEAN_rixs_holder_ctc( sys, p_vec, ierr )
+    use OCEAN_system, only : o_system
+    implicit none
+
+    type(O_system), intent( in ) :: sys
+    complex(DP), intent( out ) :: p_vec(:,:,:)
+    integer, intent( inout ) :: ierr
+
+    call ctc_rixs_seed( sys, p_vec, ierr )
+
+  end subroutine OCEAN_rixs_holder_ctc
+
   subroutine ctc_rixs_seed( sys, p_vec, ierr )
     use OCEAN_system, only : o_system
     use OCEAN_filenames, only : OCEAN_filenames_read_ehamp
@@ -160,21 +174,28 @@ module OCEAN_rixs_holder
     implicit none
 
     type(O_system), intent( in ) :: sys
-    complex(DP), intent( out ) :: p_vec(:,:,:,:)
+    complex(DP), intent( out ) :: p_vec(:,:,:)
     integer, intent( inout ) :: ierr
 
+    complex(DP), allocatable :: rex(:,:,:), mels( : )
+    integer :: edge_iter, ialpha, icms, icml, ivms, ic, ik, j, l_orig
+    character(len=50) :: echamp_file
 
-    allocate( rex( sys%num_bands, sys%nkpts, 4*(2*sys%ZNL(3)+1) ) )
+    
+    l_orig = 0
+    allocate( rex( sys%num_bands, sys%nkpts, 4*(2*l_orig+1) ) )
 
     allocate( mels( sys%ZNL(3)*2 + 1 ) )
 
     call ctc_mels_hack( mels, ierr )
     if( ierr .ne. 0 ) return
 
-    do edge_iter = 1, sys%nedges
+!    do edge_iter = 1, sys%nedges
 
+      edge_iter = sys%cur_run%indx
       call OCEAN_filenames_read_ehamp( sys, echamp_file, edge_iter, ierr )
       if( ierr .ne. 0 ) return
+      write(6,*) echamp_file
 
       write(6,*) echamp_file
       open(unit=99,file=echamp_file,form='unformatted',status='old')
@@ -193,7 +214,7 @@ module OCEAN_rixs_holder
             do ik = 1, sys%nkpts
               do j = 1, sys%num_bands
               
-                pvec( j, ik, ialpha ) = pvec( j, ik, ialpha ) + rex( j, ik, ic ) * mels( icml )
+                p_vec( j, ik, ialpha ) = p_vec( j, ik, ialpha ) + rex( j, ik, ic ) * mels( icml )
       
               enddo
             enddo
@@ -202,7 +223,7 @@ module OCEAN_rixs_holder
         enddo
       enddo
 
-    enddo
+!    enddo
 
   end subroutine ctc_rixs_seed
 
@@ -210,17 +231,18 @@ module OCEAN_rixs_holder
     complex(DP), intent( out ) :: mels( 3 )
     integer, intent( inout ) :: ierr
     !
-    real(DP), allocatable(:) :: xsph, ysph, zsph, wsph
-    real(DP), prefs( 0: 1000 ) 
-    real(DP) :: su, ehat(3)
+    real(DP), allocatable, dimension(:) :: xsph, ysph, zsph, wsph
+    real(DP) :: prefs( 0: 1000 ) 
+    real(DP) :: su, ehat(3), edot
     complex(DP) :: csu, ylm, ylcmc
-    integer :: nsphpt
+    integer :: nsphpt, i, l_orig, m_orig, lc, mc
     integer, parameter :: lmax = 5
+    character(len=10) :: spcttype
 
     open( unit=99, file='sphpts', form='formatted', status='old' )
     rewind 99
     read ( 99, * ) nsphpt
-    allocate( sphpts( 3, nsphpt ), wsph( nsphpt ) )
+    allocate( xsph( nsphpt ), ysph( nsphpt ), zsph( nsphpt ), wsph( nsphpt ) )
     su = 0.0_dp
     do i = 1, nsphpt
       read( 99, * ) xsph(i), ysph(i), zsph(i), wsph( i )
@@ -254,6 +276,8 @@ module OCEAN_rixs_holder
       mels( mc + lc + 1 ) = csu
 
     enddo
+
+!    mels(:) = 1.0d0
 
     deallocate( xsph, ysph, zsph, wsph )
 

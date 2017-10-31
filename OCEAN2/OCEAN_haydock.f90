@@ -1458,7 +1458,7 @@ module OCEAN_haydock
     integer :: matz,nm,i,j,nn
 
 
-    character( LEN=24 ) :: lanc_filename
+    character( LEN=40 ) :: lanc_filename
 
     call OCEAN_filenames_lanc( sys, lanc_filename, ierr )
     if( ierr .ne. 0 ) return
