@@ -1,6 +1,6 @@
 #!/usr/bin/perl
 
-# Copyright (C) 2015, 2016 OCEAN collaboration
+# Copyright (C) 2015 - 2017 OCEAN collaboration
 #
 # This file is part of the OCEAN project and distributed under the terms 
 # of the University of Illinois/NCSA Open Source License. See the file 
@@ -126,7 +126,7 @@ elsif( lc($line) =~ m/gmres/ )
 }
 else
 {
-  print "Trouble parsing cnbse.solver!!\n*** Will default to  Haydock recursion ***\n";
+  print "Trouble parsing cnbse.solver!!\n\n";
   print "Must select GMRES for use with rixs\n";
   print "Cannot continue\n";
   exit 1;
