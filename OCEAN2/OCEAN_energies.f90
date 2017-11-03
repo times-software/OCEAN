@@ -121,6 +121,7 @@ module OCEAN_energies
 
   subroutine OCEAN_energies_init(  sys, ierr )
     use OCEAN_system
+    use OCEAN_psi
 !    use OCEAN_mpi, only : myid, root
 
     implicit none
@@ -129,6 +130,16 @@ module OCEAN_energies
     type(O_system), intent( in ) :: sys
 
     integer, parameter :: cacheline_by_Z = 1
+
+
+    if( .not. is_init ) then
+      call OCEAN_psi_new( p_energy, ierr )
+      if( ierr .ne. 0 ) return
+      call OCEAN_psi_new( allow, ierr )
+      if( ierr .ne. 0 ) return
+
+      is_init = .true.
+    endif
 
 
 !    if( associated( energies ) ) then
@@ -194,6 +205,7 @@ module OCEAN_energies
   subroutine OCEAN_energies_load( sys, complex_bse, ierr )
     use OCEAN_system
     use OCEAN_mpi
+    use OCEAN_psi
 !    use mpi
     use OCEAN_constants, only : eV2Hartree
 
@@ -210,6 +222,12 @@ module OCEAN_energies
     logical :: file_exists, have_gw
 
     character(len=18) ::clsFile
+
+    call OCEAN_psi_zero_full( p_energy, ierr )
+    if( ierr .ne. 0 ) return
+    call OCEAN_psi_zero_full( allow, ierr )
+    if( ierr .ne. 0 ) return
+
 
     if( sys%conduct ) then
       infoname = 'wvfcninfo'
@@ -348,13 +366,73 @@ module OCEAN_energies
     if( ierr .ne. MPI_SUCCESS ) return
 #endif
 
+    call stubby( sys )
+
   end subroutine OCEAN_energies_load
+
+
+  subroutine stubby( sys)
+    use OCEAN_system
+
+    implicit none
+    type(O_system), intent( in ) :: sys
+
+    integer :: ialpha, ikpt, ibd, icms, icml, ivms, val_spin( sys%nalpha )
+
+!    if( sys%nspn .ne. 1 ) ierr = -1 
+
+    ! predefine the valence spins
+    if( sys%nspn .eq. 1 ) then
+      val_spin( : ) = 1
+    else
+      ialpha = 0
+      do icms = 1, 2
+        do icml = -sys%cur_run%ZNL(3), sys%cur_run%ZNL(3)
+          do ivms = 1, 2
+            ialpha = ialpha + 1
+            val_spin( ialpha ) = ivms
+          enddo
+        enddo
+      enddo
+    endif
+
+    do ialpha = 1, sys%nalpha
+      do ikpt = 1, sys%nkpts
+        do ibd = 1, sys%num_bands
+          p_energy%r( ibd, ikpt, ialpha ) = energies( ibd, ikpt, val_spin(ialpha) )
+          p_energy%i( ibd, ikpt, ialpha ) = imag_selfenergy( ibd, ikpt, val_spin(ialpha) ) 
+
+        enddo
+      enddo
+    enddo
+
+
+  end subroutine stubby
+
+  subroutine OCEAN_energies_act( sys, psi, hpsi, backwards, ierr )
+    use OCEAN_system
+    use OCEAN_psi
+
+    implicit none
+    integer, intent(inout) :: ierr
+    type(O_system), intent( in ) :: sys
+    type(OCEAN_vector), intent( in ) :: psi
+    type(OCEAN_vector), intent( inout ) :: hpsi
+    logical, intent( in ) :: backwards
+
+!    hpsi%r(:,:,:) = p_energy%r(:,:,:) * psi%r(:,:,:)
+!    hpsi%i(:,:,:) = p_energy%r(:,:,:) * psi%i(:,:,:)
+
+    call OCEAN_psi_f2m_3element_mult( hpsi, p_energy, psi, ierr, backwards )
+
+  end subroutine OCEAN_energies_act
+
 
 
  !JTV need to move energies into an ocean_vector then:
  ! 1) this can be done w/ min instead of full
  ! 2) we can write an element-wise y(i) = z(i) * x(i) + y(i) in OCEAN_psi
-  subroutine OCEAN_energies_act( sys, psi, hpsi, backwards, ierr )
+  subroutine OCEAN_energies_act2( sys, psi, hpsi, backwards, ierr )
     use OCEAN_system
     use OCEAN_psi
 
@@ -420,7 +498,7 @@ module OCEAN_energies
 
     endif
 
-  end subroutine OCEAN_energies_act
+  end subroutine OCEAN_energies_act2
 
 
 

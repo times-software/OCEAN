@@ -470,7 +470,7 @@ module OCEAN_gmres
           psi_apg => au_matrix( iter )
           ! pg = g * pcdiv
           if( do_precondition) then
-            call OCEAN_psi_element_mult( psi_pg, psi_g, psi_pcdiv, ierr )
+            call OCEAN_psi_3element_mult( psi_pg, psi_g, psi_pcdiv, ierr )
           else
             call OCEAN_psi_copy_min( psi_pg, psi_g, ierr )
           endif

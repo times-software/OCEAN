@@ -69,7 +69,8 @@ module OCEAN_action
 
     if( sys%cur_run%have_core ) then
 
-      if( sys%e0 .and. myid .eq. 0) then
+!      if( sys%e0 .and. myid .eq. 0) then
+      if( sys%e0 ) then
         call OCEAN_tk_start( tk_e0 )
         call ocean_energies_act( sys, psi, new_psi, back, ierr )
         call OCEAN_tk_stop( tk_e0 )
