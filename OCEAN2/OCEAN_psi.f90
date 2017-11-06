@@ -2791,7 +2791,7 @@ module OCEAN_psi
       do_conjugate = .false.
     endif
     ! check that x is valid and min
-    write(6,'(A,3I5)') 'valid', y%valid_store, IAND( y%valid_store, PSI_STORE_FULL ), IAND( y%valid_store, PSI_STORE_MIN ) 
+    ! write(6,'(A,3I5)') 'valid', y%valid_store, IAND( y%valid_store, PSI_STORE_FULL ), IAND( y%valid_store, PSI_STORE_MIN ) 
     if( IAND( x%valid_store, PSI_STORE_MIN ) .eq. 0 ) then
       if( IAND( x%valid_store, PSI_STORE_FULL ) .eq. 0 ) then
         ierr = -1

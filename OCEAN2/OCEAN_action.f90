@@ -61,8 +61,8 @@ module OCEAN_action
     if( ierr .ne. 0 ) return
 !    if( myid .eq. root ) write(6,*) 'Ready buffer'
 
-    call OCEAN_psi_zero_min( new_psi, ierr )
-    if( ierr .ne. 0 ) return
+!    call OCEAN_psi_zero_min( new_psi, ierr )
+!    if( ierr .ne. 0 ) return
 !    if( myid .eq. root ) write(6,*) 'Zero min'
 
 !    call OCEAN_tk_stop( tk_psisum )
@@ -70,11 +70,6 @@ module OCEAN_action
     if( sys%cur_run%have_core ) then
 
 !      if( sys%e0 .and. myid .eq. 0) then
-      if( sys%e0 ) then
-        call OCEAN_tk_start( tk_e0 )
-        call ocean_energies_act( sys, psi, new_psi, back, ierr )
-        call OCEAN_tk_stop( tk_e0 )
-      endif
 
       if( sys%mult ) then
         call OCEAN_tk_start( tk_mult )
@@ -245,6 +240,16 @@ module OCEAN_action
 !    call OCEAN_psi_zero_min( new_psi, ierr )
 !     endif
 !    if( ierr .ne. 0 ) return
+
+    ! Right now this energy action is only for the core, but we will roll valence in later
+    if( sys%e0 .and. sys%cur_run%have_core ) then
+      call OCEAN_tk_start( tk_e0 )
+      call ocean_energies_act( sys, psi, new_psi, back, ierr )
+      call OCEAN_tk_stop( tk_e0 )
+    else
+      call OCEAN_psi_zero_min( new_psi, ierr )
+      if( ierr .ne. 0 ) return
+    endif
 
 
     call OCEAN_psi_buffer2min( new_psi, ierr )
