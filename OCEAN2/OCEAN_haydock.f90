@@ -104,9 +104,10 @@ module OCEAN_haydock
     do iter = 1, haydock_niter
       if( sys%cur_run%have_val ) then
         if( myid .eq. root ) write(6,*)   " iter. no.", iter-1
-        call OCEAN_energies_val_allow( sys, psi, ierr )
-        if( ierr .ne. 0 ) return
       endif
+        call OCEAN_energies_allow( sys, psi, ierr )
+        if( ierr .ne. 0 ) return
+!      endif
 
       call OCEAN_xact( sys, inter_scale, psi, new_psi, ierr )
       if( ierr .ne. 0 ) return
@@ -229,18 +230,15 @@ module OCEAN_haydock
     do iter = 1, haydock_niter
       if( sys%cur_run%have_val ) then
         if( myid .eq. root ) write(6,*)   " iter. no.", iter-1
-        call OCEAN_energies_val_allow( sys, psi, ierr )
-        if( ierr .ne. 0 ) return
       endif
+        call OCEAN_energies_allow( sys, psi, ierr )
+        if( ierr .ne. 0 ) return
+!      endif
 
       call OCEAN_xact( sys, inter_scale, psi, new_psi, ierr )
       if( ierr .ne. 0 ) return
 !      if( myid .eq. root ) write(6,*) 'Done with ACT'
 
-!      if( sys%cur_run%have_val ) then
-!        call OCEAN_energies_val_allow( sys, new_psi, ierr )
-!        if( ierr .ne. 0 ) return
-!      endif
 
 
       ! This should be hoisted back up here
@@ -430,7 +428,7 @@ module OCEAN_haydock
       call OCEAN_psi_one_full( psi, ierr )
 
       if( sys%cur_run%have_val ) then
-        call OCEAN_energies_val_allow( sys, psi, ierr )
+        call OCEAN_energies_allow( sys, psi, ierr )
         if( ierr .ne. 0 ) return
       endif
 
@@ -491,7 +489,7 @@ module OCEAN_haydock
           call OCEAN_tk_stop( tk_inv )
 !          call OCEAN_xact( sys, psi, hpsi, multiplet_psi, long_range_psi, ierr )
           if( sys%cur_run%have_val ) then
-            call OCEAN_energies_val_allow( sys, psi, ierr )
+            call OCEAN_energies_allow( sys, psi, ierr )
             if( ierr .ne. 0 ) return
           endif
 
@@ -649,7 +647,7 @@ module OCEAN_haydock
     use OCEAN_psi
     use OCEAN_mpi
     use OCEAN_constants, only : Hartree2eV
-    use OCEAN_energies, only : OCEAN_energies_val_allow
+    use OCEAN_energies, only : OCEAN_energies_allow
     implicit none
     integer, intent(inout) :: ierr
     integer, intent(in) :: iter
@@ -659,10 +657,10 @@ module OCEAN_haydock
     real(dp) :: btmp, atmp, aitmp
     integer :: ialpha, ikpt, arequest, airequest, brequest
 
-    if( sys%cur_run%have_val ) then
-      call OCEAN_energies_val_allow( sys, hpsi, ierr )
+!    if( sys%cur_run%have_val ) then
+      call OCEAN_energies_allow( sys, hpsi, ierr )
       if( ierr .ne. 0 ) return
-    endif
+!    endif
 
     ! calc ctmp = < hpsi | psi > and begin Iallreduce
     call OCEAN_psi_dot( hpsi, psi, arequest, atmp, ierr, airequest, aitmp )
@@ -688,10 +686,10 @@ module OCEAN_haydock
 !    if( myid .eq. root ) write(6,*) 'psi_axpy 2'
 
 
-    if( sys%cur_run%have_val ) then
-      call OCEAN_energies_val_allow( sys, hpsi, ierr )
+!    if( sys%cur_run%have_val ) then
+      call OCEAN_energies_allow( sys, hpsi, ierr )
       if( ierr .ne. 0 ) return
-    endif
+!    endif
 
     
     !JTV was checking to see if any different here. 
@@ -773,7 +771,7 @@ module OCEAN_haydock
     use OCEAN_psi
     use OCEAN_mpi, only : myid, root, MPI_STATUS_IGNORE
     use OCEAN_constants, only : Hartree2eV
-    use OCEAN_energies, only : OCEAN_energies_val_allow
+    use OCEAN_energies, only : OCEAN_energies_allow
     implicit none
     integer, intent(inout) :: ierr
     integer, intent(in) :: iter
@@ -785,12 +783,12 @@ module OCEAN_haydock
     real(dp) :: rtmp, itmp, atmp, btmp
     integer :: ialpha, ikpt, irequest, rrequest
 
-    if( sys%cur_run%have_val ) then
-      call OCEAN_energies_val_allow( sys, hpsi, ierr )
+!    if( sys%cur_run%have_val ) then
+      call OCEAN_energies_allow( sys, hpsi, ierr )
       if( ierr .ne. 0 ) return
-      call OCEAN_energies_val_allow( sys, back_hpsi, ierr )
+      call OCEAN_energies_allow( sys, back_hpsi, ierr )
       if( ierr .ne. 0 ) return
-    endif
+!    endif
 
     ! first calculate hpsi = ( hspi - b * old_psi ) 
     !             back_hpsi = ( back_hpsi - c * back_old_psi )
@@ -833,12 +831,12 @@ module OCEAN_haydock
 
 !    if( myid .eq. root ) write(6,*) 'ab', real_a(iter-1), b(iter-1)
 
-    if( sys%cur_run%have_val ) then
-      call OCEAN_energies_val_allow( sys, hpsi, ierr )
+!    if( sys%cur_run%have_val ) then
+      call OCEAN_energies_allow( sys, hpsi, ierr )
       if( ierr .ne. 0 ) return
-      call OCEAN_energies_val_allow( sys, back_hpsi, ierr )
+      call OCEAN_energies_allow( sys, back_hpsi, ierr )
       if( ierr .ne. 0 ) return
-    endif
+!    endif
 
     call OCEAN_psi_dot( back_hpsi, hpsi, rrequest, rtmp, ierr, irequest, itmp )
     if( ierr .ne. 0 ) return
@@ -936,7 +934,7 @@ module OCEAN_haydock
     use OCEAN_psi
     use OCEAN_mpi, only : myid, root, MPI_STATUS_IGNORE
     use OCEAN_constants, only : Hartree2eV
-    use OCEAN_energies, only : OCEAN_energies_val_allow
+    use OCEAN_energies, only : OCEAN_energies_allow
     implicit none
     integer, intent(inout) :: ierr
     integer, intent(in) :: iter
@@ -948,12 +946,12 @@ module OCEAN_haydock
     real(dp) :: rtmp, itmp, atmp, btmp
     integer :: ialpha, ikpt, irequest, rrequest
 
-    if( sys%cur_run%have_val ) then
-      call OCEAN_energies_val_allow( sys, hpsi, ierr )
+!    if( sys%cur_run%have_val ) then
+      call OCEAN_energies_allow( sys, hpsi, ierr )
       if( ierr .ne. 0 ) return
-      call OCEAN_energies_val_allow( sys, back_hpsi, ierr )
+      call OCEAN_energies_allow( sys, back_hpsi, ierr )
       if( ierr .ne. 0 ) return
-    endif
+!    endif
 
     ! calc ctmp = < hpsi | back_psi > and begin Iallreduce
     call OCEAN_psi_dot( back_psi, hpsi, rrequest, rtmp, ierr, irequest, itmp )
@@ -994,12 +992,12 @@ module OCEAN_haydock
 
 !    if( myid .eq. root ) write(6,*) 'ab', real_a(iter-1), b(iter-1)
 
-    if( sys%cur_run%have_val ) then
-      call OCEAN_energies_val_allow( sys, hpsi, ierr )
+!    if( sys%cur_run%have_val ) then
+      call OCEAN_energies_allow( sys, hpsi, ierr )
       if( ierr .ne. 0 ) return
-      call OCEAN_energies_val_allow( sys, back_hpsi, ierr )
+      call OCEAN_energies_allow( sys, back_hpsi, ierr )
       if( ierr .ne. 0 ) return
-    endif
+!    endif
 
     call OCEAN_psi_dot( back_hpsi, hpsi, rrequest, rtmp, ierr, irequest, itmp )
     if( ierr .ne. 0 ) return

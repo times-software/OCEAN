@@ -1,4 +1,4 @@
-! Copyright (C) 2015 - 2016 OCEAN collaboration
+! Copyright (C) 2015 - 2017 OCEAN collaboration
 !
 ! This file is part of the OCEAN project and distributed under the terms 
 ! of the University of Illinois/NCSA Open Source License. See the file 
@@ -36,12 +36,12 @@ module OCEAN_energies
   LOGICAL :: val_init = .false.
   LOGICAL :: val_loaded = .false.
 
-  public :: OCEAN_energies_val_allow, OCEAN_energies_val_sfact, OCEAN_energies_val_act, &
+  public :: OCEAN_energies_allow, OCEAN_energies_val_sfact, OCEAN_energies_val_act, &
             OCEAN_energies_val_load, OCEAN_energies_act, OCEAN_energies_init, OCEAN_energies_load
   
   contains
 
-  subroutine OCEAN_energies_val_allow( sys, psi, ierr )
+  subroutine OCEAN_energies_allow( sys, psi, ierr )
     use OCEAN_system
     use OCEAN_psi, only : OCEAN_vector, OCEAN_psi_mult
     implicit none
@@ -214,6 +214,115 @@ module OCEAN_energies
     logical, intent(inout) :: complex_bse
     integer, intent(inout) :: ierr
 
+    real(DP) :: core_offset, efermi
+    logical :: metal
+
+
+    call OCEAN_psi_zero_full( p_energy, ierr )
+    if( ierr .ne. 0 ) return
+    call OCEAN_psi_zero_full( allow, ierr )
+    if( ierr .ne. 0 ) return
+
+
+    ! Currently all of this is done only on the root proccess 
+    !  the energies are only shared at the end, once they are in p_energy.
+    ! However, all of the other variables are bcast within each subroutine
+    call read_energies( sys, ierr )
+
+    call gw_corrections( sys, complex_bse, ierr )
+
+    call read_coreLevelShift( sys, core_offset, ierr )
+
+    call core_find_fermi( sys, energies, complex_bse, metal, efermi, ierr )
+
+    call core_make_allow( sys, energies, metal, efermi )
+
+    call stubby( sys, p_energy, energies, imag_selfenergy, core_offset )
+
+    call OCEAN_psi_bcast_full( root, p_energy, ierr )
+
+  end subroutine
+
+!> @brief Wrapper for making allow array for core-levels
+  subroutine core_make_allow( sys, ener, metal, efermi )
+    use OCEAN_system, only : O_system
+    use OCEAN_mpi, only : myid, root
+    !
+    type(O_system), intent( in ) :: sys
+    real(DP), intent( in ) :: ener(:,:,:)
+    real(DP), intent( in ) :: efermi
+    logical, intent( in ) :: metal
+    !
+    real(DP), allocatable :: allowArray(:,:,:)
+    integer :: n(3)
+
+    if( myid .ne. root ) return
+
+    n = shape( ener )
+    allocate( allowArray( n(1), n(2), n(3) ) )
+
+    call core_allow_ff( sys, allowArray, ener, metal, efermi )
+
+    call stubby( sys, allow, allowArray )
+
+    deallocate( allowArray )
+
+  end subroutine core_make_allow
+
+
+!> brief Makes the core-level allow array using a Fermi-factor
+  subroutine core_allow_ff(  sys, allowArray, ener, metal, efermi, temp )
+    use OCEAN_system, only : O_system
+    !
+    type(O_system), intent( in ) :: sys
+    real(DP), intent( out ) :: allowArray(:,:,:)
+    real(DP), intent( in ) :: ener(:,:,:)
+    logical, intent( in ) :: metal
+    real(DP), intent( in ) :: efermi
+    real(DP), intent( in ), optional :: temp
+    !
+    real(DP) :: itemp, scaledFermi
+    integer :: i, j, k, n(3)
+
+    if( present( temp ) ) then
+      itemp = 1.0_dp / temp
+      scaledFermi = - efermi / temp
+    endif
+    
+    n = shape( ener )
+
+    if( present( temp ) ) then
+      do k = 1, n(3)
+        do j = 1, n(2)
+          do i = 1, n(1)
+            allowArray(i,j,k) = 1.0_dp / ( exp( ener(i,j,k) * itemp + scaledFermi ) + 1.0_dp )
+          enddo
+        enddo
+      enddo
+    else
+      do k = 1, n(3)
+        do j = 1, n(2)
+          do i = 1, n(1)
+            if( ener( i, j, k ) .ge. efermi ) then
+              allowArray(i,j,k) = 1.0_dp
+            else
+              allowArray(i,j,k) = 0.0_dp
+            endif
+          enddo
+        enddo
+      enddo
+    endif
+  
+
+  end subroutine core_allow_ff
+  
+
+  subroutine read_energies( sys, ierr )
+    use OCEAN_system, only : O_system
+    use OCEAN_mpi, only : myid, root, comm, MPI_SUCCESS, MPI_INTEGER
+    
+    type(O_system), intent( in ) :: sys
+    integer, intent(inout) :: ierr
     real(DP), allocatable :: tmp_e0(:,:,:)
     real(DP) :: core_offset
     integer :: nbd, nq, nspn, iter, i, j, ierr_
@@ -223,10 +332,6 @@ module OCEAN_energies
 
     character(len=18) ::clsFile
 
-    call OCEAN_psi_zero_full( p_energy, ierr )
-    if( ierr .ne. 0 ) return
-    call OCEAN_psi_zero_full( allow, ierr )
-    if( ierr .ne. 0 ) return
 
 
     if( sys%conduct ) then
@@ -265,9 +370,48 @@ module OCEAN_energies
       energies( 1 : sys%num_bands, 1 : sys%nkpts, : ) = tmp_e0( :, :, : )
       deallocate( tmp_e0 )
 !      read(99) energies( 1 : sys%num_bands, 1 : sys%nkpts, : )
-    
+
 
       close( 99 )
+    endif
+
+111 continue
+#ifdef MPI
+    call MPI_BCAST( ierr, 1, MPI_INTEGER, root, comm, ierr_ )
+    if( ierr .ne. 0 ) return
+    if( ierr_ .ne. MPI_SUCCESS ) then
+      ierr = ierr_
+      return
+    endif
+#endif
+
+  end subroutine read_energies
+
+
+  subroutine gw_corrections( sys, complex_bse, ierr )
+    use OCEAN_system
+    use OCEAN_mpi
+    use OCEAN_psi
+!    use mpi
+    use OCEAN_constants, only : eV2Hartree
+
+    implicit none
+    type(O_system), intent( in ) :: sys
+    logical, intent(inout) :: complex_bse
+    integer, intent(inout) :: ierr
+
+    real(DP), allocatable :: tmp_e0(:,:,:)
+    real(DP) :: core_offset
+    integer :: nbd, nq, nspn, iter, i, j, ierr_
+    character(len=9) :: infoname
+    character(len=4) :: gw_control
+    logical :: file_exists, have_gw
+
+    character(len=18) ::clsFile
+
+
+
+    if( myid .eq. root ) then
 
 
       inquire(file='gw_control',exist=have_gw)
@@ -296,54 +440,9 @@ module OCEAN_energies
           write(6,*) 'Unrecognized gw_control'
         end select
       endif
-
-      write(clsFile,'(1A5,1A2,1I4.4,1A2,1I2.2,1A1,1I2.2)') 'cls.z', sys%cur_run%elname, sys%cur_run%indx, &
-          '_n', sys%cur_run%ZNL(2), 'l', sys%cur_run%ZNL(3)
-      inquire(file=clsFile,exist=file_exists)
-      if( file_exists ) then
-        open(unit=99,file=clsFile,form='formatted',status='old')
-        read(99,*) core_offset
-        close(99)
-        write(6,*) 'Core-level shift:', core_offset
-        core_offset = core_offset * eV2Hartree
-
-!      if( sys%nruns .gt. 1 ) then
-!        inquire(file='core_shift.txt',exist=file_exists)
-!        core_offset = 0.0_DP
-!        if( file_exists ) then
-!          open(unit=99,file='core_shift.txt',form='formatted',status='old')
-!          do iter = 1, sys%cur_run%indx
-!            read(99,*) core_offset
-!          enddo
-!          close(99)
-!          write(6,*) 'Core offset:', core_offset
-          !core_offset = core_offset * eV2Hartree !/ 27.2114d0
-          energies(:,:,:) = energies(:,:,:) + core_offset
-        endif
-!      else
-!        inquire(file='core_offset',exist=file_exists)
-!        core_offset = 0.0_DP
-!        if( file_exists ) then
-!          open(unit=99,file='core_offset',form='formatted',status='old')
-!          read(99,*) core_offset
-!          write(6,*) 'Core offset:', core_offset
-!          core_offset = core_offset / 27.2114d0
-!          close(99)
-!          energies(:,:,:) = energies(:,:,:) + core_offset
-!        endif
-!      endif
-
-!      open(unit=99,file='energies.txt',form='formatted')
-!      rewind(99)
-!      do i = 1, sys%nkpts
-!        do j = 1, sys%num_bands
-!          write(99,*) j, energies(j,i,1)
-!        enddo
-!      enddo
-!      close(99)
-
+    
     endif
-  ! Need to sychronize to test for ierr from above? YES
+
 
 #ifdef MPI
 111 continue
@@ -354,30 +453,65 @@ module OCEAN_energies
       return
     endif
 
-    if( myid .eq. root ) write(6,*) energy_bands_pad,energy_kpts_pad,sys%nspn
-    call MPI_BARRIER( comm, ierr )
-    write(6,*) myid, sys%nspn, energy_bands_pad*energy_kpts_pad*sys%nspn
-    call MPI_BARRIER( comm, ierr )
+!    if( myid .eq. root ) write(6,*) energy_bands_pad,energy_kpts_pad,sys%nspn
+!    call MPI_BARRIER( comm, ierr )
+!    write(6,*) myid, sys%nspn, energy_bands_pad*energy_kpts_pad*sys%nspn
+!    call MPI_BARRIER( comm, ierr )
 
-    call MPI_BCAST( energies, energy_bands_pad*energy_kpts_pad*sys%nspn, MPI_DOUBLE_PRECISION, root, comm, ierr )
-    if( ierr .ne. MPI_SUCCESS ) return
+!    call MPI_BCAST( energies, energy_bands_pad*energy_kpts_pad*sys%nspn, MPI_DOUBLE_PRECISION, root, comm, ierr )
+!    if( ierr .ne. MPI_SUCCESS ) return
 
     call MPI_BCAST( complex_bse, 1, MPI_LOGICAL, root, comm, ierr )
     if( ierr .ne. MPI_SUCCESS ) return
 #endif
 
-    call stubby( sys )
 
-  end subroutine OCEAN_energies_load
+  end subroutine gw_corrections
+
+  subroutine read_coreLevelShift( sys, cls, ierr )
+    use OCEAN_system, only : O_system
+    use OCEAN_mpi, only : myid, root, comm, MPI_DOUBLE_PRECISION
+
+    type(O_system), intent( in ) :: sys
+    real(DP), intent( out ) :: cls
+    integer, intent( inout ) :: ierr
+
+    character(len=18) ::clsFile
+    logical :: file_exists
+
+    if( myid .eq. root ) then
+      write(clsFile,'(1A5,1A2,1I4.4,1A2,1I2.2,1A1,1I2.2)') 'cls.z', sys%cur_run%elname, sys%cur_run%indx, &
+            '_n', sys%cur_run%ZNL(2), 'l', sys%cur_run%ZNL(3)
+      inquire(file=clsFile,exist=file_exists)
+      if( file_exists ) then
+        open(unit=99,file=clsFile,form='formatted',status='old')
+        read(99,*) cls
+        close(99)
+      else
+        cls = 0.0_DP
+      endif
+    endif
+
+#ifdef MPI
+    call MPI_BCAST( cls, 1, MPI_DOUBLE_PRECISION, root, comm, ierr )
+#endif
+
+  end subroutine read_coreLevelShift
 
 
-  subroutine stubby( sys)
+
+  subroutine stubby( sys, p, re_array, im_array, shift )
     use OCEAN_system
 
     implicit none
     type(O_system), intent( in ) :: sys
+    type(ocean_vector), intent(inout) :: p
+    real(DP), intent( in ) :: re_array(:,:,:)
+    real(DP), intent( in ), optional :: im_array(:,:,:)
+    real(DP), intent( in ), optional :: shift
 
     integer :: ialpha, ikpt, ibd, icms, icml, ivms, val_spin( sys%nalpha )
+
 
 !    if( sys%nspn .ne. 1 ) ierr = -1 
 
@@ -396,16 +530,34 @@ module OCEAN_energies
       enddo
     endif
 
-    do ialpha = 1, sys%nalpha
-      do ikpt = 1, sys%nkpts
-        do ibd = 1, sys%num_bands
-          p_energy%r( ibd, ikpt, ialpha ) = energies( ibd, ikpt, val_spin(ialpha) )
-          p_energy%i( ibd, ikpt, ialpha ) = imag_selfenergy( ibd, ikpt, val_spin(ialpha) ) 
+    if( present( shift ) ) then
+      do ialpha = 1, sys%nalpha
+        do ikpt = 1, sys%nkpts
+          do ibd = 1, sys%num_bands
+            p%r( ibd, ikpt, ialpha ) = re_array( ibd, ikpt, val_spin(ialpha) ) + shift
 
+          enddo
         enddo
       enddo
-    enddo
+    else
+      do ialpha = 1, sys%nalpha
+        do ikpt = 1, sys%nkpts
+          do ibd = 1, sys%num_bands
+            p%r( ibd, ikpt, ialpha ) = re_array( ibd, ikpt, val_spin(ialpha) ) 
+          enddo
+        enddo
+      enddo
+    endif
 
+    if( present( im_array ) ) then
+      do ialpha = 1, sys%nalpha
+        do ikpt = 1, sys%nkpts
+          do ibd = 1, sys%num_bands
+            p%i( ibd, ikpt, ialpha ) = im_array( ibd, ikpt, val_spin(ialpha) )
+          enddo
+        enddo
+      enddo
+    endif
 
   end subroutine stubby
 
@@ -836,5 +988,151 @@ module OCEAN_energies
     enddo
 
   end subroutine OCEAN_energies_act_derp
+
+!> @brief Figures out the appropriate Fermi level 
+  subroutine core_find_fermi( sys, ener, didGWcorrection, metal, efermi, ierr )
+    use OCEAN_system, only : O_system
+    use OCEAN_mpi, only : myid, root, comm, MPI_LOGICAL, MPI_DOUBLE_PRECISION
+    !
+    type(O_system), intent( in ) :: sys
+    real(DP), intent( in ) :: ener( sys%num_bands, sys%nkpts, sys%nspn )
+    logical, intent( in ) :: didGWcorrection
+    logical, intent( out ) :: metal
+    real(DP), intent( out ) :: efermi
+    integer, intent( inout ) :: ierr
+  
+    real(DP), allocatable :: sorted_energies(:)
+    logical :: useFermiFromFile, doping, overrideFermi
+    real(DP) :: per_electron_dope, homo, lumo, tot_electron, fullyOccupiedElectrons
+    integer :: n_electron_dope, bandOverlap
+
+    
+
+    if( myid .eq. root ) then
+      n_electron_dope = 0
+
+      inquire(file='metal', exist=metal ) 
+      if( metal ) then
+        open( unit=99, file='metal', form='formatted', status='old' )
+        read(99,*) metal
+        close(99)
+        !
+        inquire( file='doping', exist=doping )
+        if( doping ) then
+          open( unit=99, file='doping', form='formatted', status='old' )
+          read( 99, * ) per_electron_dope
+          close( 99 )
+          n_electron_dope = floor( per_electron_dope * dble( sys%nkpts * sys%nspn ) / 2.d0 )
+          write( 6, * ) 'Doping option:'
+          write( 6, * ) 'Percent doping: ', per_electron_dope
+          write( 6, * ) 'Modifying electron number by ', n_electron_dope
+          write( 6, * ) 'Effective doping percent: ', dble( n_electron_dope ) * 2.d0 / ( sys%nkpts * sys%nspn)
+        endif
+      endif
+
+      bandOverlap = sys%brange(2) - sys%brange(3) + 1
+      if( metal .and. bandOverlap .lt. 1 ) then
+        write(6,*) 'Metal requested, but no overlap in bands.'
+        write(6,*) 'Results may be poorly defined'
+      endif
+
+      ! if we have doping, GW+metal, or by request THEN
+      !  we need to find the updated Fermi
+      ! ELSE we can read from file
+      inquire(file='findNewFermi.ipt', exist=overrideFermi )
+      if( overrideFermi ) then
+        open(unit=99,file='findNewFermi.ipt',form='formatted', status='old' )
+        read(99,*) overrideFermi
+        close(99)
+      endif
+
+      if( doping .or. ( didGWcorrection .and. metal ) ) then
+        overrideFermi = .true.
+      endif
+
+      if( overrideFermi ) then
+        allocate( sorted_energies( sys%num_bands * sys%nkpts * sys%nspn ) )
+        sorted_energies = reshape( ener, (/ sys%num_bands * sys%nkpts * sys%nspn /) )
+        call do_sort( sorted_energies )
+        tot_electron = sys%nelectron * sys%nkpts * sys%nspn
+        tot_electron = tot_electron / 2 + n_electron_dope
+
+        fullyOccupiedElectrons = ( sys%brange(3) - 1 ) * sys%nkpts * sys%nspn
+        tot_electron = tot_electron - fullyOccupiedElectrons
+
+        homo = sorted_energies( tot_electron )
+        lumo = sorted_energies( tot_electron + 1 )
+    
+        efermi = (homo+lumo) / 2.0_dp
+
+        write( 6, '(A,2(F12.6,X),E21.14)') 'Found new Fermi:', lumo, homo, efermi
+
+        deallocate( sorted_energies )
+      else
+
+        open(unit=99, file='efermiinrydberg.ipt', form='formatted', status='old' )
+        read(99,*) efermi
+        close( 99 )
+        efermi = efermi / 2.0_dp
+
+      endif
+
+    endif
+
+#ifdef MPI
+    call MPI_BCAST( metal, 1, MPI_LOGICAL, root, comm, ierr )
+    call MPI_BCAST( efermi, 1, MPI_DOUBLE_PRECISION, root, comm, ierr )
+#endif
+
+  end subroutine core_find_fermi
+
+  subroutine do_sort( array )
+    real(DP), intent(inout) :: array(:)
+    !
+    integer :: top, iter, node, node2
+    real(DP) :: temp
+
+    top = size( array )
+    do iter = size( array )/2, 1, -2
+      temp = array(iter)
+      node = iter+iter
+      node2 = iter
+
+      do
+        if( node .gt. top ) goto 10
+        if( ( node .lt. top ) .and. ( array(node) .lt. array( node+1 ) ) ) node = node + 1
+        if( temp .lt. array( node ) ) then
+          array( node2 ) = array( node )
+          node2 = node
+          node = node + node
+        else
+          goto 10
+        endif
+      enddo
+10    continue
+    enddo
+
+    do iter = size(array), 1, -1
+      temp = array( iter )
+      array( iter ) = array( 1 )
+      node = 2
+      node2 = 1
+
+      do
+        if( node .gt. iter -1 ) goto 20
+        if( ( node .lt. iter - 1 ) .and. ( array( node ) .lt. array( node + 1 ) ) ) node = node+1
+        if( temp .lt. array( node ) ) then
+          array(node2) = array( node )
+          array( node ) = temp
+          node2 = node
+          node = node + node
+        else
+          goto 20
+        endif
+      enddo
+20    continue
+    enddo
+
+  end subroutine do_sort
 
 end module OCEAN_energies

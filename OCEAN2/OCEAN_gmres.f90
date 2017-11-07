@@ -344,7 +344,7 @@ module OCEAN_gmres
     use OCEAN_action, only : OCEAN_xact
     use OCEAN_constants, only : eV2Hartree, Hartree2eV
     use OCEAN_mpi, only : myid, root, comm, MPI_STATUSES_IGNORE, MPI_REQUEST_NULL, MPI_INTEGER
-    use OCEAN_energies, only : OCEAN_energies_val_allow
+    use OCEAN_energies, only : OCEAN_energies_allow
     use OCEAN_filenames, only : OCEAN_filenames_spectrum
     !
     type( o_system ), intent( in ) :: sys
@@ -413,7 +413,7 @@ module OCEAN_gmres
     if( ierr .ne. 0 ) return
     
     if( sys%cur_run%have_val ) then
-      call OCEAN_energies_val_allow( sys, psi_x, ierr )
+      call OCEAN_energies_allow( sys, psi_x, ierr )
       if( ierr .ne. 0 ) return
     endif
 

@@ -87,7 +87,7 @@ module OCEAN_action
 
     if( sys%cur_run%have_val ) then
       if( loud_valence ) then
-  !      call OCEAN_energies_val_allow( sys, psi, ierr )
+  !      call OCEAN_energies_allow( sys, psi, ierr )
   !      if( ierr .ne. 0 ) return
         call OCEAN_psi_new( psi_o, ierr, psi )
         call OCEAN_psi_new( psi_i, ierr )
@@ -130,7 +130,7 @@ module OCEAN_action
 
           call AI_bubble_act( sys, psi, psi_i, ierr )
           if( ierr .ne. 0 ) return
-          call OCEAN_energies_val_allow( sys, psi_i, ierr )
+          call OCEAN_energies_allow( sys, psi_i, ierr )
           if( ierr .ne. 0 ) return
 
           call OCEAN_psi_send_buffer( psi_i, ierr )
@@ -161,7 +161,7 @@ module OCEAN_action
 
           call OCEAN_ladder_act( sys, psi, psi_i, ierr )
           if( ierr .ne. 0 ) return
-          call OCEAN_energies_val_allow( sys, psi_i, ierr )
+          call OCEAN_energies_allow( sys, psi_i, ierr )
           if( ierr .ne. 0 ) return
 
           call OCEAN_psi_send_buffer( psi_i, ierr )
@@ -193,7 +193,7 @@ module OCEAN_action
         if( sys%cur_run%bande ) then
           call OCEAN_tk_start( tk_e0 )
           call OCEAN_energies_val_act( sys, psi, new_psi, ierr )
-!          call OCEAN_energies_val_allow( sys, new_psi, ierr )
+!          call OCEAN_energies_allow( sys, new_psi, ierr )
           if( ierr .ne. 0 ) return
           call OCEAN_tk_stop( tk_e0 )
         endif
@@ -202,7 +202,7 @@ module OCEAN_action
           ! For now re-use mult timing for bubble
           call OCEAN_tk_start( tk_mult )
           call AI_bubble_act( sys, psi, new_psi, ierr )
-!          call OCEAN_energies_val_allow( sys, new_psi, ierr )
+!          call OCEAN_energies_allow( sys, new_psi, ierr )
           if( ierr .ne. 0 ) return
           call OCEAN_tk_stop( tk_mult )
         endif
@@ -212,12 +212,12 @@ module OCEAN_action
           call OCEAN_tk_start( tk_lr )
           call OCEAN_ladder_act( sys, psi, new_psi, ierr )
           if( ierr .ne. 0 ) return
-!          call OCEAN_energies_val_allow( sys, new_psi, ierr )
+!          call OCEAN_energies_allow( sys, new_psi, ierr )
           call OCEAN_tk_stop( tk_lr )
         endif
 
         ! This should be redundant
-        call OCEAN_energies_val_allow( sys, new_psi, ierr )
+        call OCEAN_energies_allow( sys, new_psi, ierr )
         if( ierr .ne. 0 ) return
       
       endif
