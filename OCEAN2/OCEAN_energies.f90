@@ -8,27 +8,19 @@
 module OCEAN_energies
   use AI_kinds
   use OCEAN_psi, only : OCEAN_vector
-!  use iso_c_binding
 
   implicit none
   save
   private
 
-  REAL(DP), ALLOCATABLE, public :: energies(:,:,:)
-  real(DP), ALLOCATABLE, public :: imag_selfenergy(:,:,:)
 
 
   type( OCEAN_vector ) :: p_energy
   type( OCEAN_vector ) :: allow
 
-#ifdef __INTEL_COMPILER
-! DIR$ attributes align: 64 :: energies, imag_selfenergy
-#endif
 
 
 
-  INTEGER :: energy_bands_pad
-  INTEGER :: energy_kpts_pad
 
   LOGICAL :: have_selfenergy
   LOGICAL :: is_init = .false.
@@ -142,71 +134,24 @@ module OCEAN_energies
     endif
 
 
-!    if( associated( energies ) ) then
-!      call fftw_free( rcptr )
-!      energies => null()
-!    endif
-!    if( associated( imag_selfenergy ) ) then
-!      call fftw_free( icptr )
-!      imag_selfenergy => null()
-!    endif
-!JTV
-    if( allocated( energies ) ) deallocate( energies )
-    if( allocated( imag_selfenergy ) ) deallocate( imag_selfenergy )
-   
-
-    if( mod( sys%num_bands, cacheline_by_Z ) == 0 ) then
-      energy_bands_pad = sys%num_bands
-    else
-      energy_bands_pad =  cacheline_by_Z * ( sys%num_bands / cacheline_by_Z + 1 )
-    endif
-
-    if( mod( sys%nkpts, cacheline_by_Z ) == 0 .or. ( sys%nkpts .eq. 1 ) ) then
-      energy_kpts_pad = sys%nkpts
-    else
-      energy_kpts_pad =  cacheline_by_Z * ( sys%nkpts / cacheline_by_Z + 1 )
-    endif
-
-
-    allocate( energies( energy_bands_pad, energy_kpts_pad, sys%nspn ), STAT=ierr )
-!    rcptr = fftw_alloc_real( int( energy_bands_pad * energy_kpts_pad * sys%nspn, C_SIZE_T ) )
-!    call c_f_pointer( rcptr, energies, [ energy_bands_pad, energy_kpts_pad, sys%nspn ] )
-    energies = 0.0_DP
-
-
-    allocate( imag_selfenergy( energy_bands_pad, energy_kpts_pad, sys%nspn ), STAT=ierr )
-!    icptr = fftw_alloc_real( int( energy_bands_pad * energy_kpts_pad * sys%nspn, C_SIZE_T ) )
-!    call c_f_pointer( icptr, imag_selfenergy, [ energy_bands_pad, energy_kpts_pad, sys%nspn ] )
-    imag_selfenergy = 0.0_DP
-    
-
   end subroutine OCEAN_energies_init
 
 
   subroutine OCEAN_energies_kill( ierr )
+    use OCEAN_psi, only : OCEAN_psi_kill
     implicit none
-!    include 'fftw3.f03'
     integer, intent(inout) :: ierr
 
-!    if( associated( energies ) ) then
-!      call fftw_free( rcptr )
-!      energies => null()
-!    endif
-!    if( associated( imag_selfenergy ) ) then
-!      call fftw_free( icptr )
-!      imag_selfenergy => null()
-!    endif
-
-    deallocate( energies )
-    deallocate( imag_selfenergy )
+    call OCEAN_psi_kill( p_energy, ierr )
+    call OCEAN_psi_kill( allow, ierr )
+    is_init = .false.
 
   end subroutine OCEAN_energies_kill
 
   subroutine OCEAN_energies_load( sys, complex_bse, ierr )
-    use OCEAN_system
-    use OCEAN_mpi
-    use OCEAN_psi
-!    use mpi
+    use OCEAN_system, only : O_system
+    use OCEAN_mpi, only : myid, root
+    use OCEAN_psi, only : OCEAN_psi_zero_full, OCEAN_psi_bcast_full
     use OCEAN_constants, only : eV2Hartree
 
     implicit none
@@ -214,9 +159,18 @@ module OCEAN_energies
     logical, intent(inout) :: complex_bse
     integer, intent(inout) :: ierr
 
+    real(DP), allocatable :: energies(:,:,:), imag_se(:,:,:)
     real(DP) :: core_offset, efermi
     logical :: metal
 
+    if( myid .eq. root ) then
+      allocate( energies( sys%num_bands, sys%nkpts, sys%nspn ), &
+                imag_se(  sys%num_bands, sys%nkpts, sys%nspn ) )
+    else
+      allocate( energies( 1, 1, 1 ), imag_se( 1, 1, 1 ) )
+    endif
+    energies = 0.0_DP
+    imag_se = 0.0_DP
 
     call OCEAN_psi_zero_full( p_energy, ierr )
     if( ierr .ne. 0 ) return
@@ -227,9 +181,9 @@ module OCEAN_energies
     ! Currently all of this is done only on the root proccess 
     !  the energies are only shared at the end, once they are in p_energy.
     ! However, all of the other variables are bcast within each subroutine
-    call read_energies( sys, ierr )
+    call read_energies( sys, energies, ierr )
 
-    call gw_corrections( sys, complex_bse, ierr )
+    call gw_corrections( sys, energies, imag_se, complex_bse, ierr )
 
     call read_coreLevelShift( sys, core_offset, ierr )
 
@@ -237,9 +191,11 @@ module OCEAN_energies
 
     call core_make_allow( sys, energies, metal, efermi )
 
-    call stubby( sys, p_energy, energies, imag_selfenergy, core_offset )
+    call stubby( sys, p_energy, energies, imag_se, core_offset )
 
     call OCEAN_psi_bcast_full( root, p_energy, ierr )
+
+    deallocate( energies, imag_se )
 
   end subroutine
 
@@ -317,12 +273,14 @@ module OCEAN_energies
   end subroutine core_allow_ff
   
 
-  subroutine read_energies( sys, ierr )
+  subroutine read_energies( sys, energies, ierr )
     use OCEAN_system, only : O_system
     use OCEAN_mpi, only : myid, root, comm, MPI_SUCCESS, MPI_INTEGER
     
     type(O_system), intent( in ) :: sys
+    real(DP), intent( out ) :: energies(:,:,:)
     integer, intent(inout) :: ierr
+
     real(DP), allocatable :: tmp_e0(:,:,:)
     real(DP) :: core_offset
     integer :: nbd, nq, nspn, iter, i, j, ierr_
@@ -388,7 +346,7 @@ module OCEAN_energies
   end subroutine read_energies
 
 
-  subroutine gw_corrections( sys, complex_bse, ierr )
+  subroutine gw_corrections( sys, energies, imag_se, complex_bse, ierr )
     use OCEAN_system
     use OCEAN_mpi
     use OCEAN_psi
@@ -397,6 +355,8 @@ module OCEAN_energies
 
     implicit none
     type(O_system), intent( in ) :: sys
+    real(DP), intent(inout) :: energies(:,:,:)
+    real(DP), intent( out ) :: imag_se(:,:,:)
     logical, intent(inout) :: complex_bse
     integer, intent(inout) :: ierr
 
@@ -424,18 +384,18 @@ module OCEAN_energies
         case ('full')
           if( myid .eq. root ) write(6,*) 'full'
           complex_bse = .true.
-          call OCEAN_abinit_fullgw( sys, ierr, .true. )
+          call OCEAN_abinit_fullgw( sys, energies, imag_se, ierr, .true. )
         case ('real')
-          call OCEAN_abinit_fullgw( sys, ierr, .false. )
+          call OCEAN_abinit_fullgw( sys, energies, imag_se, ierr, .false. )
         case( 'band' )
-          call OCEAN_gw_by_band( sys, ierr, .false. )
+          call OCEAN_gw_by_band( sys, energies, imag_se, ierr, .false. )
         case( 'ibnd' )
           complex_bse = .true.
-          call OCEAN_gw_by_band( sys, ierr, .true. )
+          call OCEAN_gw_by_band( sys, energies, imag_se, ierr, .true. )
         case( 'cstr' )
-          call OCEAN_gw_stretch( sys, ierr )
+          call OCEAN_gw_stretch( sys, energies, ierr )
         case( 'list' )
-          call OCEAN_gw_list( sys, ierr, .false. )
+          call OCEAN_gw_list( sys, energies, imag_se, ierr, .false. )
         case default
           write(6,*) 'Unrecognized gw_control'
         end select
@@ -452,14 +412,6 @@ module OCEAN_energies
       ierr = ierr_
       return
     endif
-
-!    if( myid .eq. root ) write(6,*) energy_bands_pad,energy_kpts_pad,sys%nspn
-!    call MPI_BARRIER( comm, ierr )
-!    write(6,*) myid, sys%nspn, energy_bands_pad*energy_kpts_pad*sys%nspn
-!    call MPI_BARRIER( comm, ierr )
-
-!    call MPI_BCAST( energies, energy_bands_pad*energy_kpts_pad*sys%nspn, MPI_DOUBLE_PRECISION, root, comm, ierr )
-!    if( ierr .ne. MPI_SUCCESS ) return
 
     call MPI_BCAST( complex_bse, 1, MPI_LOGICAL, root, comm, ierr )
     if( ierr .ne. MPI_SUCCESS ) return
@@ -581,6 +533,7 @@ module OCEAN_energies
 
 
 
+#if 0
  !JTV need to move energies into an ocean_vector then:
  ! 1) this can be done w/ min instead of full
  ! 2) we can write an element-wise y(i) = z(i) * x(i) + y(i) in OCEAN_psi
@@ -662,14 +615,16 @@ module OCEAN_energies
 
     OCEAN_energies_single = CMPLX( energies( ib, ik, 1 ), imag_selfenergy( ib, ik, 1 ), DP )
   end function
+#endif
 
-  subroutine OCEAN_gw_stretch( sys, ierr )
+  subroutine OCEAN_gw_stretch( sys, energies, ierr )
     use OCEAN_system
     use OCEAN_mpi, only : myid, root
 
     implicit none
     integer, intent(inout) :: ierr
     type(O_system), intent( in ) :: sys
+    real(DP), intent(inout) :: energies(:,:,:)
 
     real(DP) :: cstr
     logical :: have_gw
@@ -698,7 +653,7 @@ module OCEAN_energies
 
   end subroutine OCEAN_gw_stretch
 
-  subroutine OCEAN_gw_list( sys, ierr, keep_imag )
+  subroutine OCEAN_gw_list( sys, energies, imag_selfenergy, ierr, keep_imag )
     use OCEAN_system
     use OCEAN_mpi, only : myid, root
     use OCEAN_constants, only : eV2Hartree
@@ -707,6 +662,8 @@ module OCEAN_energies
     integer, intent(inout) :: ierr
     type(O_system), intent( in ) :: sys
     logical, intent( in ) :: keep_imag
+    real(DP), intent( inout ) :: energies(:,:,:)
+    real(DP), intent( out ) :: imag_selfenergy(:,:,:)
 
     real( DP ) :: delta_gw, imag_gw
     integer :: band_max, band_loop, ikpt, iband, ispn
@@ -743,7 +700,7 @@ module OCEAN_energies
 
   end subroutine OCEAN_gw_list
 
-  subroutine OCEAN_gw_by_band( sys, ierr, keep_imag )
+  subroutine OCEAN_gw_by_band( sys, energies, imag_selfenergy, ierr, keep_imag )
     use OCEAN_system
     use OCEAN_mpi, only : myid, root
     use OCEAN_constants, only : eV2Hartree
@@ -752,6 +709,8 @@ module OCEAN_energies
     integer, intent(inout) :: ierr
     type(O_system), intent( in ) :: sys
     logical, intent( in ) :: keep_imag
+    real(DP), intent( inout ) :: energies(:,:,:)
+    real(DP), intent( out ) :: imag_selfenergy(:,:,:)
 
     integer :: iter, ispn, kiter
     real( DP ), allocatable :: re_se( : ), im_se( : )
@@ -797,7 +756,7 @@ module OCEAN_energies
 
   end subroutine OCEAN_gw_by_band
 
-  subroutine OCEAN_abinit_fullgw( sys, ierr, keep_imag )
+  subroutine OCEAN_abinit_fullgw( sys, energies, imag_selfenergy, ierr, keep_imag )
 ! Only run on root
     use OCEAN_system
     use OCEAN_mpi, only : myid, root
@@ -807,6 +766,8 @@ module OCEAN_energies
     integer, intent(inout) :: ierr
     type(O_system), intent( in ) :: sys
     logical, intent( in ) :: keep_imag
+    real(DP), intent(inout) :: energies(:,:,:)
+    real(DP), intent(out )  :: imag_selfenergy(:,:,:)
 
     integer :: iter, biter, kiter, ix, iy, iz, r_kiter, ibd, ispn
     integer :: num_band, gw_nkpt, gw_nspn, start_band, stop_band, skip_band
@@ -962,32 +923,7 @@ module OCEAN_energies
 
   end subroutine OCEAN_abinit_fullgw
   
-  subroutine OCEAN_energies_act_derp( sys, pi, pr, hpi, hpr, ener, se, ierr )
-    use OCEAN_system
-    use OCEAN_psi 
 
-    implicit none
-    integer, intent(inout) :: ierr
-    type(O_system), intent( in ) :: sys
-    real(DP), intent(in), dimension(sys%num_bands,sys%nkpts,sys%nalpha) :: pi, pr
-    real(DP), intent(in), dimension(energy_bands_pad,energy_kpts_pad,1) :: ener, se
-    real(DP), intent(inout), dimension(sys%num_bands,sys%nkpts,sys%nalpha) :: hpi, hpr
-
-    integer :: ialpha, ikpt, ibd
-
-    if( sys%nspn .ne. 1 ) ierr = -1 
-
-    do ialpha = 1, sys%nalpha
-      do ikpt = 1, sys%nkpts
-        do ibd = 1, sys%num_bands
-          hpr( ibd, ikpt, ialpha  ) = ener( ibd, ikpt, 1 ) * pr( ibd, ikpt, ialpha ) &
-                                    - se(   ibd, ikpt, 1 ) * pi( ibd, ikpt, ialpha )
-
-        enddo
-      enddo 
-    enddo
-
-  end subroutine OCEAN_energies_act_derp
 
 !> @brief Figures out the appropriate Fermi level 
   subroutine core_find_fermi( sys, ener, didGWcorrection, metal, efermi, ierr )
