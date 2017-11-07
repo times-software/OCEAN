@@ -14,12 +14,8 @@ module OCEAN_energies
   private
 
 
-
   type( OCEAN_vector ) :: p_energy
   type( OCEAN_vector ) :: allow
-
-
-
 
 
   LOGICAL :: have_selfenergy
@@ -34,7 +30,7 @@ module OCEAN_energies
   contains
 
   subroutine OCEAN_energies_allow( sys, psi, ierr )
-    use OCEAN_system
+    use OCEAN_system, only : O_system
     use OCEAN_psi, only : OCEAN_vector, OCEAN_psi_mult
     implicit none
     !
