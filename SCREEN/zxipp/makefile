@@ -1,15 +1,14 @@
-#OPTS = -O2 -YDEALLOC=ALL
-OPTS = -O2
-COMP = pgf90
-#COMP = /usr/local/usr/absoft32/bin/f90
 #
 OBXPL = zobj/xippsin_lm.o zobj/xeqtanx.o zobj/rinvert.o zobj/mkvipt.o zobj/intval.o
 OBXPB = zobj/xippsin_box.o zobj/xeqtanx.o zobj/rinvert.o zobj/mkvipt.o zobj/intval.o
 OBXP2 = zobj/xippsin.o zobj/xeqtanx.o zobj/rinvert.o zobj/mkvipt.o zobj/intval.o
 OBVHO = zobj/vhommod.o zobj/levlou.o zobj/sphj0.o zobj/sphj1.o zobj/getomega.o
 OBRSC = zobj/rscombine.o zobj/intval.o
+OBXMN = zobj/mkximunu.o zobj/formreytab.o zobj/getprefs.o zobj/ylmeval.o
+OBDRX = zobj/dressximunu.o zobj/intval.o zobj/dftder3.o zobj/getc2.o zobj/cacorr.o zobj/cinvert.o
 #
-all: zexe/xipps.x zexe/vhommod.x zexe/rscombine.x 
+TARGETS = zexe/xipps.x zexe/vhommod.x zexe/rscombine.x  zexe/mkximunu.x zexe/dressximunu.x
+all: $(TARGETS)
 #
 #
 zexe/xipps_lm.x: $(OBXPL)
@@ -22,7 +21,10 @@ zexe/rscombine.x: $(OBRSC)
 	$(COMP) $(OPTS) $(OBRSC) -o zexe/rscombine.x
 zexe/vhommod.x: $(OBVHO)
 	$(COMP) $(OPTS) $(OBVHO) -o zexe/vhommod.x
-
+zexe/mkximunu.x: $(OBXMN)
+	$(COMP) $(OPTS) $(OBXMN) -o zexe/mkximunu.x
+zexe/dressximunu.x: $(OBDRX)
+	$(COMP) $(OPTS) $(OBDRX) -o zexe/dressximunu.x
 #
 zobj/xippsin_box.o: zf90/xipp_box.f90
 	$(COMP) $(OPTS) -c zf90/xipp_box.f90 -o zobj/xippsin_box.o
@@ -50,11 +52,27 @@ zobj/xippsin.o: zf90/xippsin.f90
 	$(COMP) $(OPTS) -c zf90/xippsin.f90 -o zobj/xippsin.o
 zobj/xeqtanx.o: zf90/xeqtanx.f90
 	$(COMP) $(OPTS) -c zf90/xeqtanx.f90 -o zobj/xeqtanx.o
+zobj/mkximunu.o: zf90/mkximunu.f90
+	$(COMP) $(OPTS) -c zf90/mkximunu.f90 -o zobj/mkximunu.o
+zobj/formreytab.o: zf90/formreytab.f90
+	$(COMP) $(OPTS) -c zf90/formreytab.f90 -o zobj/formreytab.o
+zobj/getprefs.o: zf90/getprefs.f90
+	$(COMP) $(OPTS) -c zf90/getprefs.f90 -o zobj/getprefs.o
+zobj/ylmeval.o: zf90/ylmeval.f90
+	$(COMP) $(OPTS) -c zf90/ylmeval.f90 -o zobj/ylmeval.o
+zobj/dressximunu.o: zf90/dressximunu.f90
+	$(COMP) $(OPTS) -c zf90/dressximunu.f90 -o zobj/dressximunu.o
+zobj/cinvert.o: zf90/cinvert.f90
+	$(COMP) $(OPTS) -c zf90/cinvert.f90 -o zobj/cinvert.o
+zobj/dftder3.o: zf90/dftder3.f90
+	$(COMP) $(OPTS) -c zf90/dftder3.f90 -o zobj/dftder3.o
+zobj/cacorr.o: zf90/cacorr.f
+	$(COMP) $(OPTS) -c zf90/cacorr.f -o zobj/cacorr.o
+zobj/getc2.o: zf90/getc2.f
+	$(COMP) $(OPTS) -c zf90/getc2.f -o zobj/getc2.o
 
 install:
-	cp zexe/xipps.x $(INSTDIR)/
-	cp zexe/vhommod.x $(INSTDIR)/
-	cp zexe/rscombine.x $(INSTDIR)/
+	cp $(TARGETS) $(INSTDIR)/
 
 clean:
 	rm -f zobj/*.o

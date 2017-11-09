@@ -25,10 +25,15 @@ my @CommonFiles = ("znucl", "opf.hfkgrid", "opf.fill", "opf.opts", "pplist", "sc
                    "k0.ipt", "ibase", "scfac", "core_offset", "dft", "avecsinbohr.ipt", 
                    "para_prefix", "nspin", "calc" );
 
+my @ScreenFiles = ("screen.grid.scheme", "screen.grid.rmode", "screen.grid.ninter", 
+                   "screen.grid.shells", "screen.grid.xyz", "screen.grid.rmax", "screen.grid.ang",
+                   "screen.grid.lmax", "screen.grid.nb", "screen.grid.nr", "screen.final.rmax", 
+                   "screen.final.dr" );
+
 my @DenDipFiles = ("rhoofg", "bvecs", "efermiinrydberg.ipt");
 my @DenDipFiles2 = ( "masterwfile", "listwfile", "enkfile", "kmesh.ipt", "brange.ipt" );
 
-my @ExtraFiles = ("specpnt", "Pquadrature" );
+my @ExtraFiles = ("specpnt", "Pquadrature", "hqp", "lqp", "gauss16" );
 
 my $runPAW = 1;
 if (-e "../PREP/PAW/old" && -e "done" ) {
@@ -52,6 +57,25 @@ if ($runPAW == 0 ) {
 foreach (@CommonFiles) {
   copy( "../Common/$_", $_ ) or die "Failed to get $_ from Common/\n$!";
 }
+
+my %screen_data_files = {};
+foreach my $filename (@ScreenFiles)
+{
+  copy( "../Common/$filename", $filename ) or die "Failed to get $filename from Common\n$!";
+  open IN, $filename or die "filename: $!";
+  my $string;
+    while( my $a = <IN> )
+    {
+      $string .= $a;
+    }
+    chomp $string;
+
+    close IN;
+    $filename =~ m/screen\.(\w+\.\w+)/ or die;
+    my $store_name = $1;
+    $screen_data_files{ "$store_name" } = $string;
+}
+
 
 if( open CALC, "calc" )
 {
@@ -147,6 +171,15 @@ else
   system("$ENV{'OCEAN_BIN'}/avg.x") == 0 or die "$!\nFailed to run avg.x\n";
 }
 
+
+# Pre-process some screen params here
+$screen_data_files{'final.rmax'} =~ m/(\d+\.?\d?)/ or die "Failed to parse screen.final.rmax\n";
+$screen_data_files{'final.rmax'} = $1;
+$screen_data_files{'final.dr'} =~ m/(\d+\.?\d*)/ or die "Failed to parse screen.final.dr\n";
+$screen_data_files{'final.dr'} = $1;
+my $final_nr = sprintf("%.i", $screen_data_files{'final.rmax'} / $screen_data_files{'final.dr'} );
+print "Final grid: " . $screen_data_files{'final.dr'} . " " . $final_nr . "\n";
+
 open HFINLIST, "hfinlist" or die "Failed to open hfinlist\n";
 
 my $rad;
@@ -175,7 +208,12 @@ while ($hfinline = <HFINLIST>) {
 
   foreach $rad (@rads) {
     my $fullrad = sprintf("%03.2f",$rad);
-      `echo "8 25 $elname $elnum" | $ENV{'OCEAN_BIN'}/mkrbfile.x`;
+#      `echo "$screen_data_files{'grid.rmax'} $screen_data_files{'grid.nr'} $elname $elnum" | $ENV{'OCEAN_BIN'}/mkrbfile.x`;
+      `echo "$screen_data_files{'grid.rmax'} $screen_data_files{'grid.nr'} $screen_data_files{'grid.ninter'}" > mkrb_control`;
+      `echo "$screen_data_files{'grid.scheme'} $screen_data_files{'grid.rmode'}" >> mkrb_control`;
+      `echo 1 >> mkrb_control`;
+      `echo "$elname $elnum" >> mkrb_control`;
+      system( " $ENV{'OCEAN_BIN'}/mkrbfile_mult.x" ) == 0 or die "Failed to run mkrbfile_mult.x\n$!";
       `mkdir -p ${edgename}/zRXT${fullrad}`;
       `mkdir -p ${edgename}/zRXF${fullrad}`;
       `mkdir -p ${edgename}/zRXS${fullrad}`;
@@ -190,7 +228,7 @@ while ($hfinline = <HFINLIST>) {
       copy( "ximat", "${edgename}/zR${fullrad}/ximat" ) or die "Failed to copy ximat to ${edgename}/\n$!";
       copy( "ximat_small", "${edgename}/zR${fullrad}/ximat_small" ) or die "Failed to copy ximat to ${edgename}/\n$!";
 
-      `echo 24 > ipt`;
+      `echo "$screen_data_files{'grid.nb'}" > ipt`;
       `time $ENV{'OCEAN_BIN'}/xipps.x < ipt`;
       move( "ninduced", "nin" ) or die "Failed to move ninduced.\n$!";
       `echo $fullrad > ipt`;
@@ -222,7 +260,7 @@ while ($hfinline = <HFINLIST>) {
       `cat zpawinfo/vpseud1${edgename2} >> ipt1`;
       `wc zpawinfo/vvallel${edgename2} >> ipt1`;
       `cat zpawinfo/vvallel${edgename2} >> ipt1`;
-      `echo 0.1 100 >> ipt1`;
+      `echo "$screen_data_files{'final.dr'} $final_nr" >> ipt1`;
       `time $ENV{'OCEAN_BIN'}/rscombine.x < ipt1 > ./${edgename}/zRXT${fullrad}/ropt`;
       move( "rpot", "$edgename/zRXT$fullrad/" ) or die "Failed to move rpot\n$!";
       move( "rpothires", "$edgename/zRXT$fullrad/" ) or die "Failed to move rpothires\n$!";
@@ -232,7 +270,7 @@ while ($hfinline = <HFINLIST>) {
       #####################
       # Now use ximat_small
 			move( "ximat_small", "ximat" ) or die "$!";
-      `echo 24 > ipt`;
+      `echo "$screen_data_files{'grid.nb'}" > ipt`;
       `time $ENV{'OCEAN_BIN'}/xipps.x < ipt`;
       move( "ninduced", "nin" ) or die "Failed to move ninduced.\n$!";
       `echo $fullrad > ipt`;
@@ -255,7 +293,7 @@ while ($hfinline = <HFINLIST>) {
       `cat zpawinfo/vpseud1${edgename2} >> ipt1`;
       `wc zpawinfo/vvallel${edgename2} >> ipt1`;
       `cat zpawinfo/vvallel${edgename2} >> ipt1`;
-      `echo 0.1 100 >> ipt1`;
+      `echo "$screen_data_files{'final.dr'} $final_nr" >> ipt1`;
       `time $ENV{'OCEAN_BIN'}/rscombine.x < ipt1 > ./${edgename}/zRXS${fullrad}/ropt`;
       move( "rpot", "$edgename/zRXS$fullrad/" ) or die "Failed to move rpot\n$!";
       move( "rpothires", "$edgename/zRXS$fullrad/" ) or die "Failed to move rpothires\n$!";
