@@ -343,37 +343,16 @@ module OCEAN_val_states
     type(O_system), intent( in ) :: sys
     integer, intent( inout ) :: ierr
     !
-!    logical :: want_val = .true.
-!    logical :: want_con = .true.
-!    logical :: want_core = .false.
-!    logical :: invert_xmesh, ex
-!    character(len=3) :: bloch_type
-
-    integer :: brange(4), err
+    integer :: err
 
     if( myid .eq. root ) then
-      open( unit=99, file='brange.ipt', form='formatted', status='unknown' )
-      rewind 99
-      read ( 99, * ) brange(:)
-      close( unit=99 )
 
-!      inquire(file="bloch_type",exist=ex)
-!      if( ex ) then
-!        open(unit=99,file="bloch_type", form='formatted', status='old' )
-!        read(99,*) bloch_type
-!        invert_xmesh = .true.
-!        close(99)
-!      else
-!        bloch_type = 'old'
-!        invert_xmesh = .true.
-!      endif
-
-
-      if( nbv .gt. (1+brange(2)-brange(1)) ) then
+!JTV is this all redundant?
+      if( nbv .gt. (1+sys%brange(2)-sys%brange(1)) ) then
         write(6,*) 'Not enough valence bands!'
         ierr = -1
       endif
-      if( nbc .gt. (1+brange(4)-brange(3)) ) then
+      if( nbc .gt. (1+sys%brange(4)-sys%brange(3)) ) then
         write(6,*) 'Not enough conduction bands!'
         ierr = ierr - 2
       endif
@@ -385,27 +364,17 @@ module OCEAN_val_states
       ierr = -4
       return
    endif
-   !DASb  also broadcast brange as value on child nodes is not set otherwise.
-    call MPI_BCAST( brange, 4, MPI_INTEGER, root, comm, err )
-    if( err .ne. MPI_SUCCESS ) then
-      ierr = -4
-      return
-   endif
-   !DASe
 #endif
     if( ierr .ne. 0 ) return
 
-!#ifdef MPI
-!    call MPI_BCAST( bloch_type, 3, MPI_CHARACTER, root, comm, ierr )
-!    call MPI_BCAST( invert_xmesh, 1, MPI_LOGICAL, root, comm, ierr )
-!    if( ierr .ne. 0 ) return
-!#endif
 
     select case( sys%bloch_selector )
       case( 1 ) 
-        call load_new_u2( sys, brange, ierr )
+        call load_new_u2( sys, sys%brange, ierr )
       case( 0 )
-        call load_old_u2( sys, brange, ierr )
+        call load_old_u2( sys, sys%brange, ierr )
+      case( 2 )
+        call load_raw( sys, ierr )
       case default
         ierr = 500
         if( myid .eq. root ) write(6,*) 'Unsupported bloch_selector:', sys%bloch_selector
@@ -413,6 +382,15 @@ module OCEAN_val_states
     end select 
 
   end subroutine OCEAN_val_states_read
+
+!> @brief Read in DFT states directly from u(G) form instead of u(x)
+  subroutine load_raw( sys, ierr )
+    use OCEAN_system, only : sys
+    
+    type(O_system), intent( in ) :: sys
+    integer, intent( inout ) :: ierr
+
+  end subroutine load_raw
 
   subroutine load_new_u2( sys, brange, ierr )
     use OCEAN_system
