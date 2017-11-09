@@ -29,7 +29,7 @@ $oldden = 1 if (-e "../DFT/old");
 
 my @QEFiles     = ( "rhoofr", "efermiinrydberg.ipt" );
 my @CommonFiles = ( "screen.nkpt", "nkpt", "qinunitsofbvectors.ipt", "avecsinbohr.ipt", "dft", 
-                    "nspin", "xmesh.ipt", "dft.split", "prefix" );
+                    "nspin", "xmesh.ipt", "dft.split", "prefix", "calc" );
 
 foreach (@QEFiles) {
   system("cp ../DFT/$_ .") == 0 or die "Failed to copy $_\n";
@@ -54,76 +54,91 @@ unless ($stat && $oldden) {
     or die "Failed to run gvecs2.pl\n";
 }
 
+
+open IN, "calc" or die "Failed to open calc\n";
+<IN> =~ m/(\w+)/ or die "Failed to parse calc\n";
+my $calc = $1;
+close IN;
+my $run_screen = 1;
+if( $calc =~ m/val/i )
+{
+  $run_screen = 0;
+}
+
 my $rundir;
+my @nkpt;
+
 ## process screen wf files ##
-
-open NKPT, "screen.nkpt" or die "Failed to open screen.nkpt";
-<NKPT> =~ m/(\d+)\s+(\d+)\s+(\d+)/ or die "Failed to parse screen.nkpt\n";
-my @nkpt = ($1, $2, $3);
-close NKPT;
-$rundir = "../DFT/SCREEN";
-
-unless( -e "PAW/done" && -e "${rundir}/old" ) {
-`rm -r PAW` if (-e "PAW");
-mkdir "PAW"; 
-chdir "PAW";
-
-open NKPTS, ">nkpts" or die "Failed to open nkpts for writing\n";
-print NKPTS $nkpt[0]*$nkpt[1]*$nkpt[2] . "\n";
-close NKPTS;
-
-
-foreach ("kmesh.ipt", "brange.ipt", "qinunitsofbvectors.ipt" ) {
-  system("cp ../${rundir}/$_ .") == 0 or die "Failed to copy $_\n";
-}
-#`cp ../qinunitsofbvectors.ipt .`;
-`cp ../bvecs .`;
-`cp ../dft .`;
-`cp ../nspin .`;
-`cp ../${rundir}/umklapp .`;
-`cp ../prefix .`;
-
-my $prefix;
-open PREFIX, "prefix";
-$prefix = <PREFIX>;
-close (PREFIX);
-chomp( $prefix );
-
-
-#`cp -r ../${rundir}/Out .`;
-if( -l "Out" )  # Out is an existing link
+if( $run_screen == 1 )
 {
-  unlink "Out" or die "Problem cleaning old 'Out' link\n$!";
+  open NKPT, "screen.nkpt" or die "Failed to open screen.nkpt";
+  <NKPT> =~ m/(\d+)\s+(\d+)\s+(\d+)/ or die "Failed to parse screen.nkpt\n";
+  @nkpt = ($1, $2, $3);
+  close NKPT;
+  $rundir = "../DFT/SCREEN";
+
+  unless( -e "PAW/done" && -e "${rundir}/old" ) {
+  `rm -r PAW` if (-e "PAW");
+  mkdir "PAW"; 
+  chdir "PAW";
+
+  open NKPTS, ">nkpts" or die "Failed to open nkpts for writing\n";
+  print NKPTS $nkpt[0]*$nkpt[1]*$nkpt[2] . "\n";
+  close NKPTS;
+
+
+  foreach ("kmesh.ipt", "brange.ipt", "qinunitsofbvectors.ipt" ) {
+    system("cp ../${rundir}/$_ .") == 0 or die "Failed to copy $_\n";
+  }
+  #`cp ../qinunitsofbvectors.ipt .`;
+  `cp ../bvecs .`;
+  `cp ../dft .`;
+  `cp ../nspin .`;
+  `cp ../${rundir}/umklapp .`;
+  `cp ../prefix .`;
+
+  my $prefix;
+  open PREFIX, "prefix";
+  $prefix = <PREFIX>;
+  close (PREFIX);
+  chomp( $prefix );
+
+
+  #`cp -r ../${rundir}/Out .`;
+  if( -l "Out" )  # Out is an existing link
+  {
+    unlink "Out" or die "Problem cleaning old 'Out' link\n$!";
+  }
+  elsif(  -d "Out" ) #or Out is existing directory
+  {
+    rmtree( "Out" );
+  }
+  elsif( -e "Out" ) #or Out is some other file
+  {
+    unlink "Out";
+  }
+  print "../$rundir/Out\n";
+  symlink ("../$rundir/Out", "Out") == 1 or die "Failed to link Out\n$!";
+
+  print "$ENV{'OCEAN_BIN'}/qe_data_file.pl Out/$prefix.save/data-file.xml\n";
+  system("$ENV{'OCEAN_BIN'}/qe_data_file.pl Out/$prefix.save/data-file.xml") == 0 
+    or die "Failed to run qe_data_file.pl\n$!";
+
+  system("$ENV{'OCEAN_BIN'}/wfconvert.x") == 0 
+    or die "Failed to run wfconvert.x\n$!";
+
+
+  `touch done`;
+  chdir "../";
+  }
+  else {
+    `touch PAW/old`;
+    print  "Nothing needed for PAW wfns\n";
+  }
+
+
+  print "Done with PAW files\n";
 }
-elsif(  -d "Out" ) #or Out is existing directory
-{
-  rmtree( "Out" );
-}
-elsif( -e "Out" ) #or Out is some other file
-{
-  unlink "Out";
-}
-print "../$rundir/Out\n";
-symlink ("../$rundir/Out", "Out") == 1 or die "Failed to link Out\n$!";
-
-print "$ENV{'OCEAN_BIN'}/qe_data_file.pl Out/$prefix.save/data-file.xml\n";
-system("$ENV{'OCEAN_BIN'}/qe_data_file.pl Out/$prefix.save/data-file.xml") == 0 
-  or die "Failed to run qe_data_file.pl\n$!";
-
-system("$ENV{'OCEAN_BIN'}/wfconvert.x") == 0 
-  or die "Failed to run wfconvert.x\n$!";
-
-
-`touch done`;
-chdir "../";
-}
-else {
-  `touch PAW/old`;
-  print  "Nothing needed for PAW wfns\n";
-}
-
-
-print "Done with PAW files\n";
 
 
 ## process bse wf files ##

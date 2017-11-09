@@ -35,7 +35,7 @@ my $RunPP = 0;
 my $RunESPRESSO = 0;
 my $nscfRUN = 1;
 
-my @GeneralFiles = ("para_prefix");
+my @GeneralFiles = ("para_prefix", "calc");
 
 my @KgenFiles = ("nkpt", "k0.ipt", "qinunitsofbvectors.ipt", "screen.nkpt");
 my @BandFiles = ("nbands", "screen.nbands");
@@ -151,6 +151,16 @@ else
 {
   $obf = 0;
   print "Running DFT calculation using QE\n";
+}
+
+open IN, "calc" or die "Failed to open calc\n";
+<IN> =~m/(\w+)/ or die "Failed to parse calc\n";
+my $calc = $1;
+close IN;
+my $run_screen = 1;
+if( $calc =~ m/val/i )
+{
+  $run_screen = 0;
 }
 
 
@@ -405,7 +415,7 @@ if ($RunESPRESSO) {
       if( $scf_line =~ m/\<FERMI_ENERGY/ )
       {
         $scf_line = <SCF>;
-        $scf_line =~ m/(\d+\.\d+[Ee]?[-+]?(\d+)?)/ or die "$scf_line";
+        $scf_line =~ m/([-+]?\d+\.\d+[Ee]?[-+]?(\d+)?)/ or die "$scf_line";
         $fermi = $1;
       }
       if( $scf_line =~m/\<NUMBER_OF_ELECTRONS/ )
@@ -491,8 +501,8 @@ if ( $nscfRUN ) {
           .  "  pseudo_dir = \'$qe_data_files{'ppdir'}\'\n"
           .  "  outdir = \'$qe_data_files{'work_dir'}\'\n"
           .  "  wfcdir = \'$qe_data_files{'tmp_dir'}\'\n"
-          .  "  tstress = $qe_data_files{'dft.calc_stress'}\n"
-          .  "  tprnfor = $qe_data_files{'dft.calc_force'}\n"
+#          .  "  tstress = $qe_data_files{'dft.calc_stress'}\n"
+#          .  "  tprnfor = $qe_data_files{'dft.calc_force'}\n"
           .  "  wf_collect = .true.\n"
   #        .  "  disk_io = 'low'\n"
           .  "/\n";
@@ -556,6 +566,10 @@ if ( $nscfRUN ) {
     if( $coord_type =~ m/angst/ )
     {
       print QE "ATOMIC_POSITIONS angstrom\n";
+    }
+    elsif( $coord_type =~ m/bohr/ )
+    {
+      print QE "ATOMIC_POSITIONS bohr\n";
     }
     else
     {
@@ -824,7 +838,7 @@ if ( $nscfRUN ) {
   }
 }
 
-if( $obf == 0 )
+if( $obf == 0 && $run_screen == 1 )
 {
   
 #  my $bseDIR = sprintf("%03u%03u%03u", split( /\s+/,$qe_data_files{'screen.nkpt'}));
@@ -1027,6 +1041,10 @@ sub print_qe
   if( $coord_type =~ m/angst/ )
   {
     print $fh "ATOMIC_POSITIONS angstrom\n";
+  }
+  elsif( $coord_type =~ m/bohr/ )
+  {
+    print $fh "ATOMIC_POSITIONS bohr\n";
   }
   else
   {
