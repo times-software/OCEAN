@@ -180,7 +180,7 @@ module ocean_legacy_files
     !
     real( DP ), allocatable, dimension( :, : ) :: re_wvfn, im_wvfn, trans_gvecs
     integer :: test_gvec, itarg, nbands_to_send, iband, i, ir, nr, ierr_
-#ifdef MPI_F09
+#ifdef MPI_F08
     type( MPI_REQUEST ), allocatable :: requests( : )
 #else
     integer, allocatable :: requests( : )
