@@ -32,11 +32,11 @@ OCEAN_constants.o: OCEAN_constants.f90 AI_kinds.o
 ocean.x: $(OCEANOBJS)
 	$(MPIFORT) $(LDFLAGS) -o ocean.x $(OCEANOBJS) $(FFTWL)  $(BLAS) $(OPENMP) $(FFTWL)
 
-o_spect.x: o_spect.f90 AI_kinds.o gamfcn.o
-	$(MPIFORT) $(FLAGS) -o o_spect.x o_spect.f90 AI_kinds.o gamfcn.o
+o_spect.x: o_spect.f90 AI_kinds.o gamfcn.o OCEAN_constants.o 
+	$(MPIFORT) $(FLAGS) -o o_spect.x o_spect.f90 AI_kinds.o gamfcn.o OCEAN_constants.o
 
-rixs_plane.x: rixs_plane.f90 AI_kinds.o
-	$(FC) $(FLAGS) -o rixs_plane.x rixs_plane.f90 AI_kinds.o
+rixs_plane.x: rixs_plane.f90 AI_kinds.o OCEAN_constants.o
+	$(FC) $(FLAGS) -o rixs_plane.x rixs_plane.f90 AI_kinds.o OCEAN_constants.o
 
 OCEAN_mpi.o: OCEAN_mpi.f90 AI_kinds.o
 	$(MPIFORT) $(FLAGS) -c -o OCEAN_mpi.o OCEAN_mpi.f90 
