@@ -556,7 +556,7 @@ while (<EDGE>) {
     my $zstring = sprintf("z%03i", $znum);
     print $zstring ."\n";
     `ln -sf ../OPF/zpawinfo/*${zstring}* .`;
-    `ln -sf ../OPF/zpawinfo/phrc? .`;
+    `ln -sf ../OPF/zpawinfo/phrc?${zstring} .`;
     my $templine = `ls ../OPF/zpawinfo/*$zstring`;
     chomp($templine);
     my @pslist = split(/\s+/, $templine);

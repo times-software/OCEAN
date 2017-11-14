@@ -33,19 +33,19 @@ my @DenDipFiles2 = ( "masterwfile", "listwfile", "enkfile", "kmesh.ipt", "brange
 
 my @ExtraFiles = ("specpnt", "Pquadrature" );
 
-my $runPAW = 1;
+my $runOBF = 1;
 if (-e "done" ) {
-  $runPAW = 0;
+  $runOBF = 0;
   foreach (@CommonFiles) {
     if (`diff -q $_ ../Common/$_`) {
-      $runPAW = 1;
+      $runOBF = 1;
       last;
     }
   }
 }
 
-if ($runPAW == 0 ) {
-  print "Nothing new needed for PAW stage\n";
+if ($runOBF == 0 ) {
+  print "Nothing new needed for OBF stage\n";
   exit 0;
 }
 
@@ -99,7 +99,7 @@ close IN;
 
 # Setup
 ###################################
-print "Running PAW Setup\n";
+print "Running OBF Setup\n";
 system("$ENV{'OCEAN_BIN'}/pawsetup.x") == 0 or die "Failed to run pawsetup.x\n";
 
 #`mkdir -p zdiag/ zpawinfo/`;
@@ -274,9 +274,15 @@ while ( $hfinline = <HFINLIST> ) {
         ( $file =~ m/^(deflin|melfile|corez)/ ) or ( $file =~ m/^(rad|prj)filez/ ) or
 #        ( $file =~ m/^(vcallel|vvallel|vc_bare|vcxxxxx|vvpseud)/ ) or 
         ( $file =~ m/^(vcallel|vvallel|vc_bare|vpseud|valence)/ ) or 
-        ( $file =~ m/^coreorb/ ) or ($file =~ m/^phr/ ) )
+        ( $file =~ m/^coreorb/ ) )
     {
       move( $file, "zpawinfo" );
+    }
+    elsif( $file =~ m/^phr/ )
+    {
+      my $dest = sprintf( "${file}z%03i", $znucl );
+      move( $file, "zpawinfo/$dest" );
+#      move( $file, "zpawinfo/${file}z${znucl}" )
     }
     elsif( ( $file =~ m/^melfilez\w$/ ) or ( $file =~ m/^(sm|am|di|pr|psft|aeft)\w$/ ) or
            ( $file =~ m/^(mt|dif)\w\w$/ ) or ( $file =~ m/^(map|ex)/ ) )
@@ -306,5 +312,5 @@ close HFINLIST;
 
 
 ######################################
-print "PAW section done\n";
+print "OBF section done\n";
 exit 0;
