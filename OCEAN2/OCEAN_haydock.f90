@@ -1199,7 +1199,7 @@ module OCEAN_haydock
     real(DP) :: e, gam, dr, di, ener, spct( 0 : 1 ), spkk( 0 : 1 )
     complex(DP) :: ctmp, disc, delta, rm1
     !
-    write( fh, '(A,1i5,A,1e15.8,A,1e15.8)' ) '#   iter=', iter, '   gam=', gam, '   kpref=', kpref
+    write( fh, '(A,1i5,A,1e15.8,A,1e15.8)' ) '#   iter=', iter, '   gam=', gam0, '   kpref=', kpref
     write( fh, '(5(A15,1x))' ) '#   Energy', 'Spect', 'Spect(0)', 'SPKK', 'SPKK(0)'
     rm1 = -1; rm1 = sqrt( rm1 )
     do ie = 0, 2 * ne, 2
