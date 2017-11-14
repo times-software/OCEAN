@@ -99,7 +99,7 @@ limel.o: $(CNBSE)/limel.f90
 jimel.o: $(CNBSE)/jimel.f90
 	$(MPIFORT) $(FLAGS) -c -o jimel.o $(CNBSE)/jimel.f90
 
-nbsemkcmel.o: nbsemkcmel.f90 $(KINDS)
+nbsemkcmel.o: nbsemkcmel.f90 $(KINDS) OCEAN_constants.o
 	$(MPIFORT) $(FLAGS) -c -o nbsemkcmel.o nbsemkcmel.f90
 
 intval.o: $(CNBSE)/intval.f90
@@ -123,8 +123,8 @@ redtrid.o: redtrid.f
 elsdch.o: $(CNBSE)/../zstd/elsdch.f
 	$(MPIFORT) $(FLAGS) -c -o elsdch.o $(CNBSE)/../zstd/elsdch.f
 
-invdrv.o: $(CNBSE)/invdrv.f90
-	$(MPIFORT) $(FLAGS) -c -o invdrv.o $(CNBSE)/invdrv.f90
+invdrv.o: $(CNBSE)/invdrv.f90 AI_kinds.o
+	$(MPIFORT) $(FLAGS) -c -o invdrv.o $(CNBSE)/invdrv.f90 
 
 cinv.o: $(CNBSE)/../zstd/cinv.f
 	$(MPIFORT) $(FLAGS) -c -o cinv.o $(CNBSE)/../zstd/cinv.f
