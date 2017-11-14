@@ -258,6 +258,9 @@ module OCEAN_action
 
 
     
+    call OCEAN_energies_allow( sys, new_psi, ierr )
+    if( ierr .ne. 0 ) return
+
 
   end subroutine OCEAN_xact
 

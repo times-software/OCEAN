@@ -133,7 +133,7 @@ module OCEAN_psi
 
 
   public :: OCEAN_psi_init, OCEAN_psi_kill, OCEAN_psi_load,  &
-            OCEAN_psi_write, OCEAN_psi_val_pnorm,  &
+            OCEAN_psi_write, OCEAN_psi_pnorm,  &
             OCEAN_psi_dot, OCEAN_psi_nrm, OCEAN_psi_scal, &
             OCEAN_psi_axpy, OCEAN_psi_axmy, OCEAN_psi_axmz, &
             OCEAN_psi_new, OCEAN_psi_cmult, OCEAN_psi_mult, &
@@ -2770,6 +2770,7 @@ module OCEAN_psi
       endif
 
     endif 
+    z%valid_store = PSI_STORE_MIN
 
   end subroutine OCEAN_psi_2element_mult
 
@@ -4855,16 +4856,90 @@ module OCEAN_psi
 
   end subroutine OCEAN_psi_load_val
 
+  subroutine OCEAN_psi_pnorm( sys, p, ierr )
+    use OCEAN_mpi!, only : myid, root
+    use OCEAN_system, only : o_system
+    !
+    implicit none
+    
+    type(O_system), intent( in ) :: sys
+    type(OCEAN_vector), intent( inout ) :: p
+    integer, intent( inout ) :: ierr
 
-!> @author John Vinson, NIST
-!
+    if( sys%cur_run%have_val ) then
+      call val_pnorm( sys, p, ierr )  
+      if( ierr .ne. 0 ) return
+    endif
+
+    if( sys%cur_run%have_core ) then
+      call core_pnorm( sys, p, ierr ) 
+      if( ierr .ne. 0 ) return
+    endif
+
+  end subroutine OCEAN_psi_pnorm
+
+
+!> @brief Calculates the norm and rescales the core exciton
+  subroutine core_pnorm( sys, p, ierr )
+    use OCEAN_mpi, only : myid, root
+    use OCEAN_system, only : o_system
+    use OCEAN_constants, only : PI_DP
+    !
+    implicit none
+
+    type(O_system), intent( in ) :: sys
+    type(OCEAN_vector), intent( inout ) :: p
+    integer, intent( inout ) :: ierr
+
+    real(DP) :: val, nrm
+    integer :: ialpha, ikpt
+
+    if( IAND( p%valid_store, PSI_STORE_FULL ) .ne. PSI_STORE_FULL ) then
+      if( IAND( p%valid_store, PSI_STORE_MIN ) .eq. PSI_STORE_MIN ) then
+        call OCEAN_psi_min2full( p, ierr )
+        if( ierr .ne. 0 ) return
+      else
+        ierr = 101
+        return
+      endif
+    endif
+
+    val = 0.0_DP
+    do ialpha = 1, sys%nalpha
+      nrm = 0.0_DP
+      do ikpt = 1, sys%nkpts
+        nrm = nrm + sum(p%r(:,ikpt,ialpha)**2 + p%i(:,ikpt,ialpha)**2)
+      enddo
+      write( 6, '(1a12,1i4,1x,1e15.8)' ) 'channel dot', ialpha, nrm
+      val = val +  nrm
+    enddo
+    val = sqrt(val)
+    p%kpref = 4.0d0 * PI_DP * val ** 2 / (dble(sys%nkpts) * sys%celvol ** 2 )
+    val = 1.0_DP / val
+    p%r = p%r * val
+    p%i = p%i * val
+
+    if( myid .eq. root ) then
+      write(6,*) PI_DP, dble(sys%nkpts), sys%celvol, sys%nalpha
+      write ( 6, '(2x,1a8,1e15.8)' ) ' mult = ', p%kpref
+      open( unit=99, file='mulfile', form='formatted', status='unknown' )
+      rewind 99
+      write ( 99, '(1x,1e15.8)' ) p%kpref
+      close( unit=99 )
+    endif
+
+    p%valid_store = PSI_STORE_FULL
+  end subroutine core_pnorm
+
+  
+
 !> @brief Calculates the norm and rescales the valence exciton
 !
 !> @details Before using the ocean_vector we rescale it to have a norm of 1. 
 !! Currently different routines are used for valence and core.
 !! \todo Replace with calls to the underlying psi_nrm, make a unified core/val 
 !! version, hoist out of this module -- maybe to the future load module.
-  subroutine OCEAN_psi_val_pnorm( sys, p, ierr )
+  subroutine val_pnorm( sys, p, ierr )
     use OCEAN_mpi!, only : myid, root
     use OCEAN_system
     use OCEAN_constants, only : PI_DP
@@ -4922,7 +4997,7 @@ module OCEAN_psi
       close( unit=99 )
     endif
 
-  end subroutine OCEAN_psi_val_pnorm
+  end subroutine val_pnorm
 
 
 !> @author John Vinson, NIST
@@ -4982,8 +5057,8 @@ module OCEAN_psi
       val = sqrt(val)
       p%kpref = 4.0d0 * PI_DP * val ** 2 / (dble(sys%nkpts) * sys%celvol ** 2 )
       val = 1.0_DP / val
-      p%r = p%r * val
-      p%i = p%i * val 
+!      p%r = p%r * val
+!      p%i = p%i * val 
       write(6,*) PI_DP, dble(sys%nkpts), sys%celvol, sys%nalpha
       write ( 6, '(2x,1a8,1e15.8)' ) ' mult = ', p%kpref
       open( unit=99, file='mulfile', form='formatted', status='unknown' )
@@ -4998,8 +5073,8 @@ module OCEAN_psi
     if( myid .eq. root ) write(6,*) psi_bands_pad, psi_kpts_pad, sys%nalpha
     write(6,*) myid, root
     call MPI_BARRIER( comm, ierr )
-    call MPI_BCAST( p%kpref, 1, MPI_DOUBLE_PRECISION, root, comm, ierr )
-    if( ierr .ne. MPI_SUCCESS ) goto 111
+!    call MPI_BCAST( p%kpref, 1, MPI_DOUBLE_PRECISION, root, comm, ierr )
+!    if( ierr .ne. MPI_SUCCESS ) goto 111
 
     call MPI_BCAST( p%r, core_full_size, MPI_DOUBLE_PRECISION, root, comm, ierr )
     if( ierr .ne. MPI_SUCCESS ) goto 111

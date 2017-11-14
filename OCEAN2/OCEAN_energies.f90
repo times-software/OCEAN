@@ -31,14 +31,15 @@ module OCEAN_energies
 
   subroutine OCEAN_energies_allow( sys, psi, ierr )
     use OCEAN_system, only : O_system
-    use OCEAN_psi, only : OCEAN_vector, OCEAN_psi_mult
+    use OCEAN_psi, only : OCEAN_vector, OCEAN_psi_2element_mult
+    use OCEAN_mpi, only : myid, root
     implicit none
     !
     integer, intent( inout ) :: ierr
     type(O_system), intent( in ) :: sys
     type(OCEAN_vector), intent( inout ) :: psi
     !
-    call OCEAN_psi_mult( psi, allow, .true. )
+    call OCEAN_psi_2element_mult( psi, allow, ierr, is_real_only=.true. )
   end subroutine
 
   subroutine OCEAN_energies_val_sfact( sys, psi, ierr )
@@ -187,9 +188,12 @@ module OCEAN_energies
 
     call core_make_allow( sys, energies, metal, efermi )
 
-    call stubby( sys, p_energy, energies, imag_se, core_offset )
+    if( myid .eq. root ) then
+      call stubby( sys, p_energy, energies, imag_se, core_offset )
+    endif
 
     call OCEAN_psi_bcast_full( root, p_energy, ierr )
+    call OCEAN_psi_bcast_full( root, allow, ierr )
 
     deallocate( energies, imag_se )
 
@@ -217,6 +221,7 @@ module OCEAN_energies
 
     call stubby( sys, allow, allowArray )
 
+
     deallocate( allowArray )
 
   end subroutine core_make_allow
@@ -225,6 +230,7 @@ module OCEAN_energies
 !> brief Makes the core-level allow array using a Fermi-factor
   subroutine core_allow_ff(  sys, allowArray, ener, metal, efermi, temp )
     use OCEAN_system, only : O_system
+    use OCEAN_mpi, only : myid, root
     !
     type(O_system), intent( in ) :: sys
     real(DP), intent( out ) :: allowArray(:,:,:)
@@ -233,15 +239,33 @@ module OCEAN_energies
     real(DP), intent( in ) :: efermi
     real(DP), intent( in ), optional :: temp
     !
-    real(DP) :: itemp, scaledFermi
+    real(DP) :: itemp, scaledFermi, con, val
     integer :: i, j, k, n(3)
 
     if( present( temp ) ) then
       itemp = 1.0_dp / temp
       scaledFermi = - efermi / temp
     endif
+
+    select case( sys%cur_run%calc_type )
+
+      case( 'XAS' )
+        con = 1.0_DP
+        val = 0.0_DP
+
+      case( 'XES' )
+        con = 0.0_DP
+        val = 1.0_DP
+
+      case default
+        con = 1.0_DP
+        val = 0.0_DP
+
+    end select
     
     n = shape( ener )
+
+    if( myid .eq. root ) write(6,*) 'Dim:', n(:)
 
     if( present( temp ) ) then
       do k = 1, n(3)
@@ -256,15 +280,25 @@ module OCEAN_energies
         do j = 1, n(2)
           do i = 1, n(1)
             if( ener( i, j, k ) .ge. efermi ) then
-              allowArray(i,j,k) = 1.0_dp
+              allowArray(i,j,k) = con
             else
-              allowArray(i,j,k) = 0.0_dp
+!              if( myid .eq. root ) write(6,*) i,j,k, ener(i,j,k)
+              allowArray(i,j,k) = val
             endif
           enddo
         enddo
       enddo
     endif
   
+    open(unit=99,file='allow.txt',form='formatted', status='unknown')
+    do k = 1, n(3)
+      do j = 1, n(2)
+        do i = 1, n(1)
+          write(99,*) i,j,k,allowArray(i,j,k)
+        enddo
+      enddo
+    enddo
+    close(99)
 
   end subroutine core_allow_ff
   
@@ -419,13 +453,14 @@ module OCEAN_energies
   subroutine read_coreLevelShift( sys, cls, ierr )
     use OCEAN_system, only : O_system
     use OCEAN_mpi, only : myid, root, comm, MPI_DOUBLE_PRECISION
+    use OCEAN_constants, only : ev2Hartree, Hartree2eV
 
     type(O_system), intent( in ) :: sys
     real(DP), intent( out ) :: cls
     integer, intent( inout ) :: ierr
 
     character(len=18) ::clsFile
-    logical :: file_exists
+    logical :: file_exists, file_exists2, noshift_lumo
 
     if( myid .eq. root ) then
       write(clsFile,'(1A5,1A2,1I4.4,1A2,1I2.2,1A1,1I2.2)') 'cls.z', sys%cur_run%elname, sys%cur_run%indx, &
@@ -436,8 +471,26 @@ module OCEAN_energies
         read(99,*) cls
         close(99)
       else
-        cls = 0.0_DP
+        inquire( file='noshift_lumo', exist=file_exists2)
+        if( file_exists2 ) then
+          open(unit=99,file='noshift_lumo', form='formatted',status='old')
+          read(99,*) noshift_lumo
+          close(99)
+        else
+          noshift_lumo = .false.
+        endif
+        if( noshift_lumo .eq. .false. ) then
+          open( unit=99, file='eshift.ipt', form='formatted', status='old' )
+          rewind 99
+          read ( 99, * ) cls
+          close( unit=99 )
+          cls = cls * eV2Hartree
+        else
+          cls = 0.0_DP
+        endif
       endif
+
+      write(6,*) 'Shifting energies by:', cls * Hartree2eV
     endif
 
 #ifdef MPI

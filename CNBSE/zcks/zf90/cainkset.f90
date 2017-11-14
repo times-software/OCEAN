@@ -31,7 +31,7 @@ subroutine cainkset( avec, bvec, bmet, prefs )
   real( kind = kind( 1.0d0 ) ), allocatable :: zzr( :, : ), zzi( :, : ), ww( :, :, : ), w( : )
   !
   integer :: iproj, indx
-  logical :: metal, conduct
+  logical :: metal, conduct, legacy_ibeg
   real( kind = kind( 1.0d0 ) ) :: efermi, temperature
   !
   character * 2 :: element
@@ -75,10 +75,10 @@ subroutine cainkset( avec, bvec, bmet, prefs )
   close( unit=99 )
   ! 
 ! read ( stdin, * ) nbd
-  open( unit=99, file='nbuse.ipt', form=f9, status='old' )
-  rewind 99
-  read ( 99, * ) nbd
-  close( unit=99 )
+!  open( unit=99, file='nbuse.ipt', form=f9, status='old' )
+!  rewind 99
+!  read ( 99, * ) nbd
+!  close( unit=99 )
   ! 
 ! read ( stdin, * ) cs
   open( unit=99, file='eshift.ipt', form=f9, status='old' )
@@ -88,7 +88,7 @@ subroutine cainkset( avec, bvec, bmet, prefs )
   !
   ! Figure out if we should be shifting to match the conduction band minimum
   ! default is that we will
-  zero_lumo = .true.
+  zero_lumo = .false.
   !
   open( unit=99, file='core_offset', form=f9, status='old')
   rewind 99
@@ -112,6 +112,17 @@ subroutine cainkset( avec, bvec, bmet, prefs )
     endif
     write(stdout,*) 'LUMO shift from no_lumoshiftt:', zero_lumo
   endif
+
+  !
+  inquire(file='force_legacy_ibeg.ipt', exist=ex )
+  if( ex ) then
+    open( unit=99, file='force_legacy_ibeg.ipt', form='formatted',status='old')
+    read( 99, * ) legacy_ibeg
+    close( 99 )
+  else
+    legacy_ibeg = .false.
+  endif
+
 
   ! Finally get rid of eshift if zero_lumo = .false.
   if( .not. zero_lumo ) eshift = 0.0d0
@@ -140,7 +151,7 @@ subroutine cainkset( avec, bvec, bmet, prefs )
   read ( 99, * ) zn( : )
   close( unit=99 )
   nktot = product( zn( : ) )
-  ntot = nbd * nktot * nspin
+!  ntot = nbd * nktot * nspin
   !
   ! set energy zero to Fermi level or conduction band minimum
   open( unit=99, file='efermiinrydberg.ipt', form=f9, status='old' )
@@ -163,6 +174,13 @@ subroutine cainkset( avec, bvec, bmet, prefs )
   close( unit=99 )
   nbtot = 1 + ivh - ivl + 1 + ich - icl
   allocate( ww( nbtot, nktot, nspin ) )
+
+  if( conduct ) then
+    nbd = ich - icl + 1
+  else
+    nbd = ivh - ivl + 1
+  endif
+  ntot = nbd * nktot * nspin
 !  do ispin = 1, nspin
   do i = 1, nktot
      call enkread( 99, i, .true., 1, nbtot, ww( :, i, 1 ) ) 
@@ -270,7 +288,7 @@ subroutine cainkset( avec, bvec, bmet, prefs )
   write ( 6, * ) 'looping over k to load...'
   ii = 0
   nq = 0
-  if( metal .or. ( nspin .eq. 2 ) ) then
+  if( legacy_ibeg .and. ( metal .or. ( nspin .eq. 2 ) ) ) then
     open(unit=20,file='ibeg.h')
     allocate( ibeg_array( nktot, nspin ) )
   endif
@@ -285,7 +303,7 @@ subroutine cainkset( avec, bvec, bmet, prefs )
 !$OMP& SCHEDULE( STATIC  ) &
 !$OMP& PRIVATE(ik1, ik2, ik3, qraw, nq, i, ng, g, zzr, zzi, ibeg, w, nrm, su, j, betot, qsqd, kvc, &
 !$OMP&         ck, ii, ibd, itau, ip, ilm, l, m, iproj, fh, coeff, flip_g, ispin ) &
-!$OMP& SHARED(zn, qbase, dbeta, wnam, nbtot, metal, ww, efermi, ivh, ivl, bmet, rm1, is_jdftx, &
+!$OMP& SHARED(zn, qbase, dbeta, wnam, nbtot, metal, legacy_ibeg, ww, efermi, ivh, ivl, bmet, rm1, is_jdftx, &
 !$OMP&        ntau, tau, lmin, lmax, nproj, npmax, nqproj, dqproj, fttab, prefs, edge, sc, nspin, &
 !$OMP&        eshift, nbd, nlm, lml, lmm, pcoefr, pcoefi, e0, temperature, conduct, bvec, ibeg_array )   
 !  do ik1 = 0, zn( 1 ) - 1
@@ -335,7 +353,7 @@ subroutine cainkset( avec, bvec, bmet, prefs )
            close( unit=fh )
            !
            if ( conduct ) then
-             if ( metal .or. ( nspin .eq. 2 ) ) then
+             if ( legacy_ibeg .and. ( metal .or. ( nspin .eq. 2 ) ) ) then
                if( temperature .gt. 0.000001 ) then
 !                 write(6,*) temperature, ivh - ivl + 2
                  ibeg = ivh -ivl + 2
@@ -353,7 +371,7 @@ subroutine cainkset( avec, bvec, bmet, prefs )
             end if
            else
 !             if ( metal ) stop 'metal rixs not implemented'
-             if ( metal .or. ( nspin .eq. 2 ) ) then
+             if ( legacy_ibeg .and. ( metal .or. ( nspin .eq. 2 ) ) ) then
                ! find the first band above the fermi level
                ibeg = 0
                do i = 1, (ivh-ivl+1)+1 !add +1 in case there is no overlap region !ivl, ivh
@@ -438,7 +456,7 @@ subroutine cainkset( avec, bvec, bmet, prefs )
    end do
   end do
 !$OMP END PARALLEL DO 
-  if( metal .or. ( nspin .eq. 2 ) ) then
+  if( legacy_ibeg .and. ( metal .or. ( nspin .eq. 2 ) ) ) then
     do ispin = 1, nspin
       do nq = 1, nktot
         write(20,*) nq, ibeg_array( nq, ispin )
