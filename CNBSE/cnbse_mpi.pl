@@ -1,6 +1,6 @@
 #!/usr/bin/perl
 
-# Copyright (C) 2015, 2016 OCEAN collaboration
+# Copyright (C) 2015 - 2017 OCEAN collaboration
 #
 # This file is part of the OCEAN project and distributed under the terms 
 # of the University of Illinois/NCSA Open Source License. See the file 
@@ -553,26 +553,24 @@ while (<EDGE>) {
   # For each unique Z we need to grab some files from OPF
   unless( exists $unique_z{ "$znum" } )
   {
-    my $zstring = sprintf("z%03i", $znum);
+    my $zstring = sprintf("z%03in%02il%02i", $znum, $nnum, $lnum);
     print $zstring ."\n";
-    `ln -sf ../OPF/zpawinfo/*${zstring}* .`;
-    `ln -sf ../OPF/zpawinfo/phrc?${zstring} .`;
-    my $templine = `ls ../OPF/zpawinfo/*$zstring`;
-    chomp($templine);
-    my @pslist = split(/\s+/, $templine);
-#    foreach (@pslist)
-#    {
-#      if( $_ =~ m/ae(\S+)/ )
-#      {
-#        `ln -sf ../PAW/zpawinfo/ae$1 .`;
-#      }
-#      elsif( $_ =~ m/ps(\S+)/
-#      }
-#        `ln -sf ../PAW/zpawinfo/ps$1 .`;
-#      }
-#
-#      `ln -sf ae$1 ps$1`;
-#    }
+
+    `ln -sf ../OPF/zpawinfo/gk*${zstring} .`;
+    `ln -sf ../OPF/zpawinfo/fk*${zstring} .`;
+    `ln -sf ../OPF/zpawinfo/melfile${zstring} .`;
+    `ln -sf ../OPF/zpawinfo/coreorb${zstring} .`;
+
+
+    my $z3 = sprintf("z%03i", $znum);
+    `ln -sf ../OPF/zpawinfo/phrc?${z3} .`;
+    `ln -sf ../OPF/zpawinfo/prjfile${z3} .`;
+    `ln -sf ../OPF/zpawinfo/ft?${z3} .`;
+    `ln -sf ../OPF/zpawinfo/ae?${z3} .`;
+    `ln -sf ../OPF/zpawinfo/ps?${z3} .`;
+    `ln -sf ../OPF/zpawinfo/corezeta${z3} .`;
+    `ln -sf ../OPF/zpawinfo/radfile${z3} .`;
+
   }
 
   print "CKS NAME = $cks\n";

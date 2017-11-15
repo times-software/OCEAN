@@ -583,13 +583,24 @@ while (<EDGE>) {
   # For each unique Z we need to grab some files from OPF
   unless( exists $unique_z{ "$znum" } )
   {
-    my $zstring = sprintf("z%03i", $znum);
+    my $zstring = sprintf("z%03in%02il%02i", $znum, $nnum, $lnum);
     print $zstring ."\n";
-    `ln -sf ../OPF/zpawinfo/*${zstring}* .`;
-    `ln -sf ../OPF/zpawinfo/phrc?${zstring} .`;
-    my $templine = `ls ../OPF/zpawinfo/*$zstring`;
-    chomp($templine);
-    my @pslist = split(/\s+/, $templine);
+
+    `ln -sf ../OPF/zpawinfo/gk*${zstring} .`;
+    `ln -sf ../OPF/zpawinfo/fk*${zstring} .`;
+    `ln -sf ../OPF/zpawinfo/melfile${zstring} .`;
+    `ln -sf ../OPF/zpawinfo/coreorb${zstring} .`;
+
+
+    my $z3 = sprintf("z%03i", $znum);
+    `ln -sf ../OPF/zpawinfo/phrc?${z3} .`;
+    `ln -sf ../OPF/zpawinfo/prjfile${z3} .`;
+    `ln -sf ../OPF/zpawinfo/ft?${z3} .`;
+    `ln -sf ../OPF/zpawinfo/ae?${z3} .`;
+    `ln -sf ../OPF/zpawinfo/ps?${z3} .`;
+    `ln -sf ../OPF/zpawinfo/corezeta${z3} .`;
+    `ln -sf ../OPF/zpawinfo/radfile${z3} .`;
+
   }
 
   for( my $cks_iter = 1; $cks_iter <= 2; $cks_iter++ )
