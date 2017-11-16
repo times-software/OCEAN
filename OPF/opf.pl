@@ -24,8 +24,8 @@ if (! $ENV{"OCEAN_WORKDIR"}){ $ENV{"OCEAN_WORKDIR"} = `pwd` . "../" ; }
 
 
 my @CommonFiles = ("znucl", "opf.hfkgrid", "opf.fill", "opf.opts", "pplist", "screen.shells", 
-                   "ntype", "natoms", "typat", "taulist", "nedges", "edges", "caution", "epsilon", 
-                   "k0.ipt", "ibase", "scfac", "calc" );
+                   "ntype", "natoms", "typat", "taulist", "nedges", "edges", "caution", 
+                   "scfac", "calc" );
 
 
 
@@ -45,11 +45,11 @@ if ($runOBF == 0 ) {
   exit 0;
 }
 
-`rm -f done`;
+unlink "done";
 
 
 foreach (@CommonFiles) {
-  `cp ../Common/$_ .` == 0 or die "Failed to get $_ from Common/\n";
+  copy( "../Common/$_", "$_") == 1 or die "Failed to get $_ from Common/\n";
 }
 
 
@@ -88,7 +88,6 @@ close IN;
 print "Running OBF Setup\n";
 system("$ENV{'OCEAN_BIN'}/pawsetup.x") == 0 or die "Failed to run pawsetup.x\n";
 
-#`mkdir -p zdiag/ zpawinfo/`;
 unless( -d "zpawinfo" )
 {
   mkdir "zpawinfo" or die "$!";
@@ -110,9 +109,9 @@ while (<PSPO>) {
   $psplist{"$1"} = $3;
   $pspopts{"$1"} = $4;
   $pspfill{"$1"} = $5;
-  `cp "../$3" .`;
-  `cp "../$4" .`;
-  copy( "../$5", "$5" );
+  copy( "../$3", "$3" ) == 1 or die "Failed to copy $3\n$1";
+  copy( "../$4", "$4" ) == 1 or die "Failed to copy $4\n$!";
+  copy( "../$5", "$5" ) == 1 or die "Failed to copy $5\n$!";
 }
 close PSPO;
 
@@ -122,8 +121,17 @@ foreach  my $znucl (keys %psplist )
 {
   $ppfilename = $psplist{$znucl};
   $ppmodname = $ppfilename . ".mod";
-  system("echo '$ppfilename\n$ppmodname' | $ENV{'OCEAN_BIN'}/fhi2eric.x") == 0
-      or die "Failed to convert psp file $ppfilename\n";
+  if( -e "../$ppmodname" )
+  {
+    print "Using found modified psps\n";
+    copy( "../$ppmodname", $ppmodname ) == 1 or die "Failed to copy $ppmodname\n$!";
+  }
+  else
+  {
+    print "Converting $ppfilename\n";
+    system("echo '$ppfilename\n$ppmodname' | $ENV{'OCEAN_BIN'}/fhi2eric.x") == 0
+        or die "Failed to convert psp file $ppfilename\n";
+  }
 }
 
 # shells
@@ -160,19 +168,11 @@ foreach my $znucl (keys %psplist )
   $optionfilename = $pspopts{"$znucl"};
 #  print "$optionfilename\n";
   die "No option file for $ppfilename\n" unless (-e $optionfilename );
-  `cp $optionfilename atomoptions`;
-  `cp ${ppfilename}.mod ppot`;
+  copy( $optionfilename, "atomoptions" ) == 1 or die "Failed to copy $optionfilename to atomoptions\n$!";
+  copy( "${ppfilename}.mod", "ppot" ) == 1 or die "Failed to copy ${ppfilename}.mod to ppot\n$!";
 
   system( "$ENV{'OCEAN_BIN'}/validate_opts.pl ${ppfilename} $optionfilename" ) == 0 
     or die "Failed to validate options file\nCheck $optionfilename\n";
-
-  open HFIN, ">HFIN" or die "Failed to open HFIN for writing\n";
-  print HFIN "initgrid\n";
-  print HFIN "$znucl $grid\n";
-  print HFIN "ppload\nmkcorcon\nscreencore\ncalcso\nspartanfip\n";
-  print HFIN `cat "$pspfill{"$znucl"}"`;
-  print HFIN "quit\n";
-  close HFIN;
 
   open HFIN, ">hfin1" or die;
   print HFIN "initgrid\n";
@@ -246,14 +246,20 @@ foreach my $znucl (keys %psplist )
       move( $file, "zpawinfo/$dest" );
     }
     elsif( ( $file =~ m/^melfilez\w$/ ) or ( $file =~ m/^(sm|am|di|pr|psft|aeft)\w$/ ) or
-           ( $file =~ m/^(mt|dif)\w\w$/ ) or ( $file =~ m/^(map|ex)/ ) )
+           ( $file =~ m/^(mt|dif)\w\w$/ ) or ( $file =~ m/^(map|ex)/ ) or ( $file =~ /hfin/ ) or
+           ( $file =~ m/hfk.+log/ ) or ( $file =~ m/aetotal/ ) or ( $file =~ m/radf/ ) )
     {
       move( $file, "zdiag_${znucl}" );
+    }
+    elsif( ( $file =~ m/^angs\d$/ ) or ( $file =~ m/^ldep\d$/ ) or ( $file =~ m/^shellR\d\.\d\d$/ ) )
+    {
+      unlink $file;
     }
   }
 
   my @paw_files_to_kill = ( 'radpot', 'hapot', 'hfpot', 'config', 'corcon', 'valcon', 'chgsum',
-                            'atmf99', 'skip', 'psld', 'rslt', 'tmp', 'aprog', 'vxcofr' );
+                            'atmf99', 'skip', 'psld', 'rslt', 'tmp', 'aprog', 'vxcofr', 'xifile',
+                            'actual', 'ppot' );
   foreach (@paw_files_to_kill)
   {
     unlink $_;
@@ -261,9 +267,13 @@ foreach my $znucl (keys %psplist )
 
 
 }
-close HFINLIST;
 
 
 ######################################
 print "OBF section done\n";
+
+open DONE, ">done" or exit 0;
+print DONE "1\n";
+close DONE;
+
 exit 0;
