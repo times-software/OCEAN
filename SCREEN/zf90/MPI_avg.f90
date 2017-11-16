@@ -36,6 +36,7 @@ program avg
   pool_comm = MPI_COMM_WORLD
   pool_id = 0
   num_pools = 1
+  mypool = 0
 
   call MPI_COMM_RANK( pool_comm, myrank, ierr )
   if( ierr .ne. MPI_SUCCESS ) goto 111
