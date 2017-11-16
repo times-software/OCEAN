@@ -154,11 +154,11 @@ else
 }
 
 
-if ($RunPP) {
-  system("$ENV{'OCEAN_BIN'}/pp.pl znucl pplist finalpplist") == 0
-    or die "Failed to run pp.pl\n";
-  `echo "1" > pp.stat`;
-}
+#if ($RunPP) {
+#  system("$ENV{'OCEAN_BIN'}/pp.pl znucl pplist finalpplist") == 0
+#    or die "Failed to run pp.pl\n";
+#  `echo "1" > pp.stat`;
+#}
 
 
 #############################################
