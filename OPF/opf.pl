@@ -109,25 +109,29 @@ while (<PSPO>) {
   $psplist{"$1"} = $3;
   $pspopts{"$1"} = $4;
   $pspfill{"$1"} = $5;
-  copy( "../$3", "$3" ) == 1 or die "Failed to copy $3\n$1";
+#  copy( "../$3", "$3" ) == 1 or die "Failed to copy $3\n$1";
   copy( "../$4", "$4" ) == 1 or die "Failed to copy $4\n$!";
   copy( "../$5", "$5" ) == 1 or die "Failed to copy $5\n$!";
 }
 close PSPO;
 
+my %skipValidation;
 # PP mod
 ###################################
 foreach  my $znucl (keys %psplist )
 {
   $ppfilename = $psplist{$znucl};
   $ppmodname = $ppfilename . ".mod";
+  print "Need $ppmodname\n\n";
   if( -e "../$ppmodname" )
   {
     print "Using found modified psps\n";
     copy( "../$ppmodname", $ppmodname ) == 1 or die "Failed to copy $ppmodname\n$!";
+    $skipValidation{$znucl} = 1;
   }
   else
   {
+    copy( "../$ppfilename", $ppfilename ) == 1 or die "Failed to copy $ppfilename\n$!";
     print "Converting $ppfilename\n";
     system("echo '$ppfilename\n$ppmodname' | $ENV{'OCEAN_BIN'}/fhi2eric.x") == 0
         or die "Failed to convert psp file $ppfilename\n";
@@ -171,8 +175,15 @@ foreach my $znucl (keys %psplist )
   copy( $optionfilename, "atomoptions" ) == 1 or die "Failed to copy $optionfilename to atomoptions\n$!";
   copy( "${ppfilename}.mod", "ppot" ) == 1 or die "Failed to copy ${ppfilename}.mod to ppot\n$!";
 
-  system( "$ENV{'OCEAN_BIN'}/validate_opts.pl ${ppfilename} $optionfilename" ) == 0 
-    or die "Failed to validate options file\nCheck $optionfilename\n";
+  if( $skipValidation{$znucl} == 1 )
+  {
+    print "  Skipping validation for $znucl. Pre-modified psp was provided\n";
+  }
+  else
+  {
+    system( "$ENV{'OCEAN_BIN'}/validate_opts.pl ${ppfilename} $optionfilename" ) == 0 
+      or die "Failed to validate options file\nCheck $optionfilename\n";
+  }
 
   open HFIN, ">hfin1" or die;
   print HFIN "initgrid\n";
