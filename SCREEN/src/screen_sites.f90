@@ -44,8 +44,8 @@ module screen_sites
 !  type( site ), allocatable, save :: all_sites( : )
 !  integer, save :: n_sites
 
-  integer, allocatable :: tmp_indices( : )
-  character( len=2 ), allocatable :: tmp_elnames( : )
+!  integer, allocatable :: tmp_indices( : )
+!  character( len=2 ), allocatable :: tmp_elnames( : )
 
   public :: site
   public :: screen_sites_load, screen_sites_prep
@@ -55,17 +55,8 @@ module screen_sites
   subroutine screen_sites_prep( nsites, ierr )
     integer, intent( out ) :: nsites
     integer, intent( inout ) :: ierr 
-!    character( len=5 ), optional, intent( in ) :: flavor_
     !
-!    character( len=5 ) :: flavor = 'atoms'
-
-!    ! In the future other options for grabbing locations?
-!    !    Something like a uniform grid in real-space instead of atom-centered
-!    if( present( flavor_ ) ) then
-!      flavor = flavor_
-!    endif   
-
-    call screen_sites_load_hfinlist( nsites, ierr )
+    call count_sitelist( nsites, ierr )
 
   end subroutine
 
@@ -81,7 +72,12 @@ module screen_sites
     !
     real( DP ) :: tau( 3 )
     integer :: i
+    integer, allocatable :: tmp_indices( : )
+    character( len=2 ), allocatable :: tmp_elnames( : )
 
+    allocate( tmp_indices( n_sites ), tmp_elnames( n_sites ) )
+    call load_sitelist( n_sites, tmp_indices, tmp_elnames, ierr )
+    if( ierr .ne. 0 ) return
     ! Store into sites
     do i = 1, n_sites
       all_sites( i )%info%indx = tmp_indices( i )
@@ -110,87 +106,105 @@ module screen_sites
 
   end subroutine screen_sites_load
 
-  subroutine screen_sites_load_hfinlist( n_sites, ierr )
-    use OCEAN_mpi
+
+  subroutine count_sitelist( nsites, ierr )
+    use OCEAN_mpi, only : myid, root, comm
     !
-    integer, intent( out ) :: n_sites
+    integer, intent( out ) :: nsites
     integer, intent( inout ) :: ierr
     !
-    integer, allocatable :: tmp_indices2( : )
-    character( len=2 ), allocatable :: tmp_elnames2( : )
-    character( len=50) :: pspname
-    integer :: tmp_nsites, i, j
-    integer :: ZNL(3)
-    logical :: dup
-
+    integer :: ierr_
+    !
     if( myid .eq. root ) then
-      allocate( tmp_indices2( 10000 ), tmp_elnames2( 10000 ), STAT=ierr )
-      if( ierr .ne. 0 ) goto 10
-
-      tmp_nsites = 0
-      open( unit=99, file='hfinlist', form='formatted', status='old' )
-      do while( ierr .eq. 0 )
-        tmp_nsites = tmp_nsites + 1
-        read( 99, *, IOSTAT=ierr ) pspname, ZNL(:), tmp_elnames2( tmp_nsites ), & 
-                                                    tmp_indices2( tmp_nsites )
-      enddo
-      close( 99 )
-
-      tmp_nsites = tmp_nsites - 1
-      if( tmp_nsites .lt. 1 ) then
-        ierr  = -1
+      open( unit=99, file='sitelist', form='formatted', status='old', iostat=ierr, action='read' )
+      if( ierr .ne. 0 ) then
+        write(6,*) 'Failed to open sitelist'
         goto 10
       endif
 
-      allocate( tmp_indices( tmp_nsites ), tmp_elnames( tmp_nsites ) )
-
-      ! hfinlist will have duplicate sites iff the edges are different, e.g. 1s vs 2p vd 3d
-      !   The calculation of \chi is the same regardless of edge details
-      n_sites = 1
-      tmp_elnames( 1 ) = tmp_elnames2( 1 )
-      tmp_indices( 1 ) = tmp_indices2( 1 )
-
-      do i = 2, tmp_nsites
-        dup = .false.
-        do j = 1, n_sites
-          if( ( tmp_indices( j ) .eq. tmp_indices2( i ) ) .or. &
-              ( tmp_elnames( j ) .eq. tmp_elnames2( i ) )  ) then
-            dup = .true.
-            exit
-          endif
-        enddo
-        if( .not. dup ) then
-          n_sites = n_sites + 1
-          tmp_indices( n_sites ) = tmp_indices2( i ) 
-          tmp_elnames( n_sites ) = tmp_elnames2( i )
-        endif
-      enddo
-      deallocate( tmp_elnames2, tmp_indices2 )
-
-      write( 6, * ) 'N sites: ', n_sites
-      do i = 1, n_sites
-        write( 6, * ) '  ', tmp_elnames( i ), tmp_indices( i )
-      enddo
+      rewind(99)
+      read( 99, *, iostat=ierr ) nsites
+      if( ierr .ne. 0 ) write(6,*) 'Failed to read sitelist'
+      close( 99 )
 
     endif
+
 10  continue
 
-
-    ! Share with all the threads
 #ifdef MPI
-    if( nproc .gt. 1 ) then
-      call MPI_BCAST( n_sites, 1, MPI_INTEGER, root, comm, ierr )
-      if( ierr .ne. 0 ) return
-      if( myid .ne. root ) allocate( tmp_elnames( n_sites ), tmp_indices( n_sites ) )
-      call MPI_BCAST( tmp_elnames, 2*n_sites, MPI_CHARACTER, root, comm, ierr )
-      if( ierr .ne. 0 ) return
-      call MPI_BCAST( tmp_indices, n_sites, MPI_INTEGER, root, comm, ierr )
-      if( ierr .ne. 0 ) return
+    call MPI_BCAST( ierr, 1, MPI_INTEGER, root, comm, ierr_ )
+    if( ierr .ne. 0 ) return
+    if( ierr_ .ne. 0 ) then
+      if( myid .eq. root ) write(6,*) 'Failed to sync ierr in screen_sites_count_sitelist'
+      ierr = ierr_
+      return
     endif
-#endif 
 
+    call MPI_BCAST( nsites, 1, MPI_INTEGER, root, comm, ierr )
+    if( ierr .ne. 0 ) return
+#endif
 
+  end subroutine count_sitelist
 
-  end subroutine screen_sites_load_hfinlist
+  subroutine load_sitelist( nsites, tmp_indices, tmp_elnames, ierr )
+    use OCEAN_mpi, only : myid, comm, root, MPI_INTEGER, MPI_CHARACTER
+    !
+    integer, intent( in ) :: nsites
+    integer, intent( inout ) :: ierr
+    integer, intent( out ) :: tmp_indices( : )
+    character( len=2 ), intent( out ) :: tmp_elnames( : )
+
+    integer :: ierr_, nsites_, i
+    !
+    if( myid .eq. root ) then
+      open( unit=99, file='sitelist', form='formatted', status='old', iostat=ierr, action='read' )
+      if( ierr .ne. 0 ) then
+        write(6,*) 'Failed to open sitelist'
+        goto 10
+      endif
+
+      rewind(99)
+      read( 99, *, iostat=ierr ) nsites_
+      if( ierr .ne. 0 ) then
+        write(6,*) 'Failed to read sitelist'
+        goto 10
+      endif
+      
+      if( nsites .ne. nsites_ ) then
+        write(6,*) 'Mismatch in nsites. File sitelist must have changed during execution!'
+        ierr = -6
+        goto 10
+      endif
+
+      do i = 1, nsites
+        read( 99, *, iostat=ierr ) tmp_elnames( i ), tmp_indices( i )
+        if( ierr .ne. 0 ) then
+          write( 6, * ) 'Failed reading sitelist. Site #', i
+          goto 10
+        endif
+      enddo
+
+      close( 99 )
+
+    endif
+
+10  continue
+
+#ifdef MPI
+    call MPI_BCAST( ierr, 1, MPI_INTEGER, root, comm, ierr_ )
+    if( ierr .ne. 0 ) return
+    if( ierr_ .ne. 0 ) then
+      if( myid .eq. root ) write(6,*) 'Failed to sync ierr in screen_sites_count_sitelist'
+      ierr = ierr_
+      return
+    endif
+
+    call MPI_BCAST( tmp_elnames, 2*nsites, MPI_CHARACTER, root, comm, ierr )
+    if( ierr .ne. 0 ) return
+    call MPI_BCAST( tmp_indices, nsites, MPI_INTEGER, root, comm, ierr )
+    if( ierr .ne. 0 ) return
+#endif
+
+  end subroutine load_sitelist
 
 end module screen_sites
