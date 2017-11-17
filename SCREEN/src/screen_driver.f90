@@ -13,7 +13,7 @@ program screen_driver
   use screen_system, only : screen_system_load, screen_system_summarize
   use screen_sites, only : screen_sites_load, screen_sites_prep, &
                            site
-  use screen_energy, only : screen_energy_init
+  use screen_energy, only : screen_energy_init, screen_energy_load, screen_energy_find_fermi
   use ocean_dft_files, only : odf_init
 
   implicit none
@@ -39,10 +39,8 @@ program screen_driver
   call screen_energy_init( ierr )
   if( ierr .ne. 0 ) goto 111
   ! 
-  write(6,*) '1'
   call screen_sites_prep( nsites, ierr )
   if( ierr .ne. 0 ) goto 111
-  write(6,*) '2'
   allocate( all_sites( nsites ), stat=ierr )
   if( ierr .ne. 0 ) goto 111
   call screen_sites_load( nsites, all_sites, ierr )
@@ -54,7 +52,11 @@ program screen_driver
   call odf_init( myid, root, comm, ierr )
   if( ierr .ne. 0 ) goto 111
 
-
+  
+  call screen_energy_load( ierr )
+  if( ierr .ne. 0 ) goto 111
+  call screen_energy_find_fermi( ierr )
+  if( ierr .ne. 0 ) goto 111
 
 
   

@@ -18,13 +18,80 @@ module ocean_legacy_files
   save
 
 
+  logical :: is_init = .false.
   integer :: nfiles
   integer, allocatable :: file_indx( : )
   character( len=12 ), allocatable :: file_names( : )
 
-  public :: olf_read_init, olf_read_at_kpt, olf_clean, olf_read_energies, olf_get_ngvecs_at_kpt
+  integer :: brange(4)
+  integer :: kpts(3)
+  integer :: nspin 
+
+  public :: olf_read_init, olf_read_at_kpt, olf_clean, olf_read_energies, olf_get_ngvecs_at_kpt, &
+            olf_read_energies_single
 
   contains
+
+  subroutine olf_read_energies_single( myid, root, comm, energies, ierr )
+#ifdef MPI
+    use ocean_mpi, only : MPI_BCAST, MPI_DOUBLE_PRECISION
+#endif
+    integer, intent( in ) :: myid, root
+#ifdef MPI_F08
+    type( MPI_COMM ), intent( in ) :: comm
+#else
+    integer, intent( in ) :: comm
+#endif
+    real( DP ), intent( out ) :: energies( :, :, : )
+    integer, intent( inout ) :: ierr
+    !
+    integer :: ispn, ikpt, bstop1, bstart2, bstop2
+
+    if( is_init .eqv. .false. ) then
+      write(6,*) 'olf_read_energies_single called but was not initialized'
+      ierr = 4
+      return
+    endif 
+
+    if( size( energies, 1 ) .lt. ( brange(4)-brange(1)+1 ) ) then
+      write(6,*) 'Error! Band dimension of energies too small in olf_read_energies_single'
+      ierr = 1
+      return
+    endif
+    if( size( energies, 2 ) .lt. product(kpts(:)) ) then
+      write(6,*) 'Error! K-point dimension of energies too small in olf_read_energies_single'
+      ierr = 2
+      return
+    endif
+    if( size( energies, 3 ) .lt. nspin ) then
+      write(6,*) 'Error! Spin dimension of energies too small in olf_read_energies_single'
+      ierr = 3
+      return
+    endif
+
+
+    if( myid .eq. root ) then
+      bstop1  = brange(2) - brange(1) + 1
+      bstart2 = brange(3) - brange(1) + 1
+      bstop2  = brange(4) - brange(1) + 1
+
+      open( unit=99, file='enkfile', form='formatted', status='old' )
+      do ispn = 1, nspin
+        do ikpt = 1, product(kpts(:))
+          read( 99, * ) energies( 1 : bstop1, ikpt, ispn )
+          read( 99, * ) energies( bstart2 : bstop2, ikpt, ispn )
+        enddo
+      enddo
+      close( 99 )
+    endif
+
+#ifdef MPI
+    call MPI_BCAST( energies, size(energies), MPI_DOUBLE_PRECISION, root, comm, ierr )
+#endif
+
+  end subroutine olf_read_energies_single
+
+
 
   subroutine olf_read_energies( myid, root, comm, nbv, nbc, nkpts, nspns, val_energies, con_energies, ierr )
 #ifdef MPI
@@ -90,6 +157,16 @@ module ocean_legacy_files
         read( 99, * ) file_indx( i ), file_names( i )
       enddo
       close( 99 )
+
+      open(unit=99,file='brange.ipt', form='formatted', status='old' )
+      read(99,*) brange(:)
+      close(99)
+      open(unit=99,file='kmesh.ipt', form='formatted', status='old' )
+      read(99,*) kpts(:)
+      close(99)
+      open(unit=99,file='nspin', form='formatted', status='old' )
+      read(99,*) nspin
+      close(99)
     endif
 
 #ifdef MPI
@@ -105,7 +182,18 @@ module ocean_legacy_files
 
     call MPI_BCAST( file_names, 12 * nfiles, MPI_CHARACTER, root, comm, ierr )
     if( ierr .ne. 0 ) return
+
+    call MPI_BCAST( brange, 4, MPI_INTEGER, root, comm, ierr )
+    if( ierr .ne. 0 ) return
+
+    call MPI_BCAST( kpts, 3, MPI_INTEGER, root, comm, ierr )
+    if( ierr .ne. 0 ) return
+
+    call MPI_BCAST( nspin, 1, MPI_INTEGER, root, comm, ierr )
+    if( ierr .ne. 0 ) return
 #endif
+
+    is_init = .true.
   
   end subroutine  olf_read_init 
 

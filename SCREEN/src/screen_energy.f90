@@ -36,6 +36,7 @@ module screen_energy
   public :: screen_energy_init
   public :: screen_energy_kill
   public :: screen_energy_find_fermi
+  public :: screen_energy_load
 
   contains
 
@@ -155,5 +156,15 @@ module screen_energy
   subroutine screen_energy_kill()
     deallocate( energies )
   end subroutine
+
+
+  subroutine screen_energy_load( ierr )
+    use OCEAN_dft_files, only : odf_read_energies_single
+    use OCEAN_mpi, only : myid, root, comm
+    integer, intent( inout ) :: ierr
+    
+    call odf_read_energies_single( myid, root, comm, energies, ierr )
+
+  end subroutine screen_energy_load
 
 end module screen_energy
