@@ -3292,10 +3292,23 @@ module OCEAN_psi
 
     is_init = .true.
 
+    call summarize_psi_init()
+
   end subroutine OCEAN_psi_init
 
 
+  subroutine summarize_psi_init()
+    use OCEAN_mpi, only : myid, root
+    implicit none
 
+    if( myid .eq. root ) then
+      write(6,*) '*****  PSI_INIT  *****'
+      write(6,*) 'have_core:', have_core
+      write(6,*) 'have_val: ', have_val
+      write(6,*) '*****  PSI_INIT  *****'
+    endif
+
+  end subroutine summarize_psi_init
 !------------------------------------------------------------------------------
 !> @author John Vinson, NIST
 !
@@ -3487,8 +3500,9 @@ module OCEAN_psi
     integer, intent(inout) :: ierr
     logical, intent( in ), optional :: conj
     !
-    logical :: conj_ = .false.
+    logical :: conj_ 
     !
+    conj_ = .false.
     if( present( conj ) ) conj_ = conj
     !
     if( IAND( q%valid_store, PSI_STORE_FULL ) .eq. PSI_STORE_FULL ) then
@@ -4957,6 +4971,16 @@ module OCEAN_psi
 
     real(dp), external :: DDOT
 
+    if( IAND( p%valid_store, PSI_STORE_FULL ) .ne. PSI_STORE_FULL ) then
+      if( IAND( p%valid_store, PSI_STORE_MIN ) .eq. PSI_STORE_MIN ) then
+        call OCEAN_psi_min2full( p, ierr )
+        if( ierr .ne. 0 ) return
+      else
+        ierr = 101
+        return
+      endif
+    endif
+
 
     if( myid .eq. root ) write(6,*) sys%nbeta,sys%nkpts, sys%cur_run%val_bands, psi_val_bands, & 
                                     sys%cur_run%num_bands, psi_bands_pad
@@ -4996,6 +5020,8 @@ module OCEAN_psi
       write ( 99, '(1x,1e15.8)' ) p%kpref
       close( unit=99 )
     endif
+
+    p%valid_store = PSI_STORE_FULL
 
   end subroutine val_pnorm
 

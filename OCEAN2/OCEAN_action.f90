@@ -61,10 +61,6 @@ module OCEAN_action
     if( ierr .ne. 0 ) return
 !    if( myid .eq. root ) write(6,*) 'Ready buffer'
 
-!    call OCEAN_psi_zero_min( new_psi, ierr )
-!    if( ierr .ne. 0 ) return
-!    if( myid .eq. root ) write(6,*) 'Zero min'
-
 !    call OCEAN_tk_stop( tk_psisum )
 
     if( sys%cur_run%have_core ) then
@@ -87,6 +83,11 @@ module OCEAN_action
 
     if( sys%cur_run%have_val ) then
       if( loud_valence ) then
+        !JTV
+        ! Loud valence hasn't been tested in a while!!
+        ierr = 1
+        if( myid .eq. root ) write(6,*) 'This code pathway is currently disabled'
+        return
   !      call OCEAN_energies_allow( sys, psi, ierr )
   !      if( ierr .ne. 0 ) return
         call OCEAN_psi_new( psi_o, ierr, psi )
@@ -190,14 +191,6 @@ module OCEAN_action
         ! exchange. This should be faster because less communication needed.
         ! Only share the psi vectors at the end like in the core case.
     
-        if( sys%cur_run%bande ) then
-          call OCEAN_tk_start( tk_e0 )
-          call OCEAN_energies_val_act( sys, psi, new_psi, ierr )
-!          call OCEAN_energies_allow( sys, new_psi, ierr )
-          if( ierr .ne. 0 ) return
-          call OCEAN_tk_stop( tk_e0 )
-        endif
-
         if( sys%cur_run%bflag ) then
           ! For now re-use mult timing for bubble
           call OCEAN_tk_start( tk_mult )
@@ -217,8 +210,8 @@ module OCEAN_action
         endif
 
         ! This should be redundant
-        call OCEAN_energies_allow( sys, new_psi, ierr )
-        if( ierr .ne. 0 ) return
+!        call OCEAN_energies_allow( sys, new_psi, ierr )
+!        if( ierr .ne. 0 ) return
       
       endif
     
@@ -242,7 +235,7 @@ module OCEAN_action
 !    if( ierr .ne. 0 ) return
 
     ! Right now this energy action is only for the core, but we will roll valence in later
-    if( sys%e0 .and. sys%cur_run%have_core ) then
+    if( ( sys%e0 .and. sys%cur_run%have_core ) .or. ( sys%cur_run%bande .and. sys%cur_run%have_val ) ) then
       call OCEAN_tk_start( tk_e0 )
       call ocean_energies_act( sys, psi, new_psi, back, ierr )
       call OCEAN_tk_stop( tk_e0 )
