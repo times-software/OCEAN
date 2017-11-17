@@ -424,13 +424,13 @@ else  ### Abi/QE w/o obf
     if( $is_xas == 1 )
     {
       $run_text = 'XAS';
-      $nbuse = $brange[3] - $brange[1];
+      $nbuse = $brange[3] - $brange[2] + 1;
     }
     else
     {
       print "XES!\n";
       $run_text = 'XES';
-      $nbuse = $brange[2] - $brange[0];
+      $nbuse = $brange[1] - $brange[0] + 1;
     }
     open NBUSE, ">nbuse.ipt" or die "Failed to open nbuse.ipt\n";
     print NBUSE "$nbuse\n";

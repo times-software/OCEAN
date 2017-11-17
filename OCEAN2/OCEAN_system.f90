@@ -52,6 +52,7 @@ module OCEAN_system
     logical          :: backf = .false.
     logical          :: write_rhs 
     logical          :: complex_bse
+    logical          :: legacy_ibeg 
     character(len=5) :: calc_type
 
     type(o_run), pointer :: cur_run => null()
@@ -290,6 +291,15 @@ module OCEAN_system
       read(99,*) sys%write_rhs
       close(99)
 
+      inquire(file='force_legacy_ibeg.ipt', exist=exst )
+      if( exst ) then
+        open( unit=99, file='force_legacy_ibeg.ipt', form='formatted',status='old')
+        read( 99, * ) sys%legacy_ibeg
+        close( 99 )
+      else
+        sys%legacy_ibeg = .false.
+      endif
+
 
       inquire(file='force_complex_bse.ipt', exist=exst )
       if( exst ) then
@@ -371,6 +381,8 @@ module OCEAN_system
     call MPI_BCAST( sys%kshift, 1, MPI_LOGICAL, root, comm, ierr )
     if( ierr .ne. MPI_SUCCESS ) goto 111
     call MPI_BCAST( sys%write_rhs, 1, MPI_LOGICAL, root, comm, ierr )
+    if( ierr .ne. MPI_SUCCESS ) goto 111
+    call MPI_BCAST( sys%legacy_ibeg, 1, MPI_LOGICAL, root, comm, ierr )
     if( ierr .ne. MPI_SUCCESS ) goto 111
     call MPI_BCAST( sys%complex_bse, 1, MPI_LOGICAL, root, comm, ierr )
     if( ierr .ne. MPI_SUCCESS ) goto 111
