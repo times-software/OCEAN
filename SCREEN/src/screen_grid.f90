@@ -211,7 +211,7 @@ module screen_grid
 
     new_g%center( : ) = new_center( : )
     call mkmesh( new_g, ierr )
-    if( ierr .eq. restart_mkmesh ) call mkmesh( new_g, ierr )
+!    if( ierr .eq. restart_mkmesh ) call mkmesh( new_g, ierr )
     if( ierr .ne. 0 ) return
 
   end subroutine screen_grid_init
@@ -222,6 +222,11 @@ module screen_grid
     type( sgrid ), intent( inout ) :: new_g
     integer, intent( inout ) :: ierr
     !
+    logical :: restart
+
+10  continue
+    restart = .false.
+
     select case( new_g%info%scheme )
       
     case( 'central' )
@@ -243,6 +248,7 @@ module screen_grid
         end select
 
         call mkcmesh( new_g, ierr )
+        if( ierr .ne. 0 ) return
 
     case( 'xyzgrid' )
       ierr = -1
@@ -255,10 +261,11 @@ module screen_grid
         write(6,*) '  Will continue using: central'
       endif
       new_g%info%scheme = 'central'
-      ierr = restart_mkmesh
-      return
+      restart = .true.
 
     end select
+
+    if( restart ) goto 10
 
     return
 
@@ -327,6 +334,7 @@ module screen_grid
                 STAT=ierr )
       if( ierr .ne. 0 ) goto 11
 
+      su = 0.0_DP
       do i = 1, g%agrid%nang
         read( 99, * ) g%agrid%angles( :, i ), g%agrid%weights( i )
         su = su + g%agrid%weights( i )

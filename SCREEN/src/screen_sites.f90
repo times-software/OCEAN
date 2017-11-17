@@ -99,6 +99,7 @@ module screen_sites
       else
         call screen_grid_init( all_sites( i )%grid, tau, ierr, all_sites( 1 )%grid )
       endif
+      if( ierr .ne. 0 ) return
 
     enddo
 
@@ -108,7 +109,7 @@ module screen_sites
 
 
   subroutine count_sitelist( nsites, ierr )
-    use OCEAN_mpi, only : myid, root, comm
+    use OCEAN_mpi, only : myid, root, comm, MPI_INTEGER
     !
     integer, intent( out ) :: nsites
     integer, intent( inout ) :: ierr

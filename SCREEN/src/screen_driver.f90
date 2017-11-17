@@ -14,6 +14,7 @@ program screen_driver
   use screen_sites, only : screen_sites_load, screen_sites_prep, &
                            site
   use screen_energy, only : screen_energy_init
+  use ocean_dft_files, only : odf_init
 
   implicit none
 
@@ -21,8 +22,9 @@ program screen_driver
 
   integer :: ierr
   integer :: nsites
-  integer :: flavor
 
+
+  
 
   ierr = 0
 
@@ -36,10 +38,11 @@ program screen_driver
 
   call screen_energy_init( ierr )
   if( ierr .ne. 0 ) goto 111
-
   ! 
+  write(6,*) '1'
   call screen_sites_prep( nsites, ierr )
   if( ierr .ne. 0 ) goto 111
+  write(6,*) '2'
   allocate( all_sites( nsites ), stat=ierr )
   if( ierr .ne. 0 ) goto 111
   call screen_sites_load( nsites, all_sites, ierr )
@@ -48,7 +51,7 @@ program screen_driver
 
 
   ! 
-  call odf_init( flavor,  myid, root, comm, ierr )
+  call odf_init( myid, root, comm, ierr )
   if( ierr .ne. 0 ) goto 111
 
 
@@ -58,7 +61,8 @@ program screen_driver
 
   
 
-  write(6,*) 'success', myid
+  if( ierr .eq. 0 ) write(6,*) 'success', myid
+  if( ierr .ne. 0 ) write(6,*) 'failure', myid, ierr
 
 111 continue
 !  if( ierr .ne. 0 ) call MPI_ABORT( comm, ierr, ierr_ )
