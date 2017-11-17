@@ -56,7 +56,7 @@ module OCEAN_energies
 
   subroutine OCEAN_energies_val_act( sys, psi, hpsi, ierr )
     use OCEAN_system
-    use OCEAN_psi, only : OCEAN_vector, OCEAN_psi_cmult
+    use OCEAN_psi, only : OCEAN_vector, OCEAN_psi_f2m_3element_mult
     implicit none
     !
     integer, intent( inout ) :: ierr
@@ -64,9 +64,13 @@ module OCEAN_energies
     type(OCEAN_vector), intent( in ) :: psi
     type(OCEAN_vector), intent( inout ) :: hpsi
     !
-    if( psi%val_myid .eq. 0 ) then
-      call OCEAN_psi_cmult( psi, hpsi, p_energy, .false. )
-    endif
+    logical :: backwards
+    backwards = .false.
+!    if( psi%val_myid .eq. 0 ) then
+!      call OCEAN_psi_cmult( psi, hpsi, p_energy, .false. )
+!    endif
+    
+    call OCEAN_psi_f2m_3element_mult( hpsi, p_energy, psi, ierr, backwards )
 
   end subroutine OCEAN_energies_val_act
 

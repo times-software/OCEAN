@@ -40,7 +40,10 @@ subroutine OCEAN_load_data( sys, hay_vec, ierr )
   call ocean_psi_new( hay_vec, ierr )
   if( ierr .ne. 0 ) return
 
-  if( myid .eq. root ) write(6,*) 'Load matrix elements'
+  if( myid .eq. root ) then 
+    if( sys%cur_run%have_val )write(6,*) 'Load matrix elements for valence calculation'
+    if( sys%cur_run%have_core )write(6,*) 'Load matrix elements for core calculation'
+  endif
   call ocean_psi_load( sys, hay_vec, ierr )
   if( ierr .ne. 0 ) return
 
