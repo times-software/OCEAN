@@ -385,7 +385,7 @@ module OCEAN_val_states
 
 !> @brief Read in DFT states directly from u(G) form instead of u(x)
   subroutine load_raw( sys, ierr )
-    use OCEAN_system, only : sys
+    use OCEAN_system, only : O_system
     
     type(O_system), intent( in ) :: sys
     integer, intent( inout ) :: ierr
