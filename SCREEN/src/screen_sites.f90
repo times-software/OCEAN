@@ -12,6 +12,7 @@ module screen_sites
   use ai_kinds, only : DP
   use screen_grid, only : sgrid
   use screen_paral, only : site_parallel_info
+  use screen_wavefunction, only : screen_wvfn
 
   private
 
@@ -36,6 +37,7 @@ module screen_sites
     type( sgrid ) :: grid
     type( site_info ) :: info
 !    type( site_parallel_info ) :: pinfo
+    type( screen_wvfn ) :: wvfn
   end type site
 
 
@@ -65,6 +67,7 @@ module screen_sites
     use screen_system, only : screen_system_snatch
     use screen_grid, only : screen_grid_init
     use screen_paral, only : screen_paral_init
+    use screen_wavefunction, only : screen_wvfn_init
     !
     integer, intent( in ) :: n_sites
     type( site ), intent( inout ) :: all_sites( : )
@@ -104,6 +107,11 @@ module screen_sites
     enddo
 
     call screen_paral_init( n_sites, pinfo, ierr )
+
+    do i = 1, n_sites
+      call screen_wvfn_init( pinfo, all_sites( i )%grid, all_sites( i )%wvfn, i, ierr )
+      if( ierr .ne. 0 ) return
+    enddo
 
   end subroutine screen_sites_load
 

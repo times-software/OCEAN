@@ -29,7 +29,9 @@ module screen_system
   type system_parameters
     integer :: brange( 4 )
     integer :: kmesh( 3 )
+    integer :: nkpts
     integer :: nspin
+    integer :: nbands
     real( DP ) :: kshift( 3 )
   end type system_parameters
 
@@ -147,6 +149,9 @@ module screen_system
     call MPI_BCAST( params%nspin, 1, MPI_INTEGER, root, comm, ierr )
     if( ierr .ne. MPI_SUCCESS ) return
 
+    params%nkpts = product( params%kmesh(:) )
+    params%nbands = params%brange(4) - params%brange(3) + params%brange(2) - params%brange(1) + 2
+
   end subroutine share_params
 
 
@@ -226,6 +231,7 @@ module screen_system
       write( 6, * ) 'FATAL ERROR: Failed to close kmesh.ipt', ierr
       return
     endif
+    params%nkpts = product( params%kmesh(:) )
 
     open( unit=99, file='nspin', form='formatted', status='old', IOSTAT=ierr )
     if( ierr .ne. 0 ) then
