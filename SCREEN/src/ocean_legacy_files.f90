@@ -416,14 +416,20 @@ module ocean_legacy_files
     integer, intent( inout ) :: ierr
     !
     real( DP ), allocatable, dimension( :, : ) :: re_wvfn, im_wvfn, trans_gvecs
-    integer :: test_gvec, itarg, nbands_to_send, iband, i, ir, nr, ierr_, nbands
+    integer :: test_gvec, itarg, nbands_to_send, nr, ierr_, nbands, id, start_band
 #ifdef MPI_F08
     type( MPI_REQUEST ), allocatable :: requests( : )
 #else
     integer, allocatable :: requests( : )
 #endif
 
+    if( olf_getPoolIndex( ispin, ikpt ) .ne. mypool ) return
     !
+    if( olf_getBandsForPoolID( pool_myid ) .ne. my_bands ) then
+      ierr = 1
+      return
+    endif
+
     if( pool_myid .eq. pool_root ) then
       itarg = wvfn_file_indx( ikpt )
       if( itarg .lt. 1 ) then
@@ -451,53 +457,54 @@ module ocean_legacy_files
       gvecs = transpose( trans_gvecs )
       deallocate( trans_gvecs )
 
-      nr = 2 * ( nproc - 1 ) + 1 
+      nr = 2 * ( pool_nproc - 1 ) + 1 
       allocate( requests( nr ) )
-      ir = 0
 #ifdef MPI
-      ir = ir + 1
-      call MPI_IBCAST( gvecs, 3*ngvecs, MPI_INTEGER, pool_root, pool_comm, requests( ir ), ierr )
+      call MPI_IBCAST( gvecs, 3*ngvecs, MPI_INTEGER, pool_root, pool_comm, requests( nr ), ierr )
 #endif
       nbands = brange(4)-brange(3)+brange(2)-brange(1)+2
       allocate( re_wvfn( ngvecs, nbands ), im_wvfn( ngvecs, nbands ) )
 
       read( 99 ) re_wvfn
+      start_band = 1
+
 #ifdef MPI
-      nbands_to_send = nbands / nproc + 1
-      iband = 1
-      do i = 1, mod( nbands, nproc )
-        ir = ir + 1
-        call MPI_IRSEND( re_wvfn( 1, iband ), nbands_to_send*ngvecs, MPI_DOUBLE_PRECISION, &
-                         i, 1, comm, requests( ir ), ierr )
-        iband = iband + nbands_to_send
-      enddo
-      nbands_to_send = nbands / nproc
-      do i = mod( nbands, nproc ) + 1, nproc - 1
-        ir = ir + 1
-        call MPI_IRSEND( re_wvfn( 1, iband ), nbands_to_send*ngvecs, MPI_DOUBLE_PRECISION, &
-                         i, 1, comm, requests( ir ), ierr )
-        iband = iband + nbands_to_send
+      ! loop over each proc in this pool to send wavefunctions
+      do id = 0, pool_nproc
+        nbands_to_send = olf_getBandsForPoolID( id )
+
+        ! don't send if I am me
+        if( id .ne. pool_myid ) then
+          call MPI_IRSEND( re_wvfn( 1, start_band ), nbands_to_send*ngvecs, MPI_DOUBLE_PRECISION, &
+                         id, 1, pool_comm, requests( id ), ierr )
+          ! this might not sync up
+          if( ierr .ne. 0 ) return
+        endif
+
+        start_band = start_band + nbands_to_send
       enddo
 #endif
 
       read( 99 ) im_wvfn
+      start_band = 1
+
 #ifdef MPI
-      nbands_to_send = nbands / nproc + 1
-      iband = 1
-      do i = 1, mod( nbands, nproc )
-        ir = ir + 1
-        call MPI_IRSEND( im_wvfn( 1, iband ), nbands_to_send*ngvecs, MPI_DOUBLE_PRECISION, &
-                         i, 2, comm, requests( ir ), ierr )
-        iband = iband + nbands_to_send
-      enddo
-      nbands_to_send = nbands / nproc
-      do i = mod( nbands, nproc ) + 1, nproc - 1
-        ir = ir + 1
-        call MPI_IRSEND( im_wvfn( 1, iband ), nbands_to_send*ngvecs, MPI_DOUBLE_PRECISION, &
-                         i, 2, comm, requests( ir ), ierr )
-        iband = iband + nbands_to_send
+     ! loop over each proc in this pool to send imag wavefunctions
+      do id = 0, pool_nproc
+        nbands_to_send = olf_getBandsForPoolID( id )
+
+        ! don't send if I am me
+        if( id .ne. pool_myid ) then
+          call MPI_IRSEND( im_wvfn( 1, start_band ), nbands_to_send*ngvecs, MPI_DOUBLE_PRECISION, &
+                         id, 2, pool_comm, requests( id + pool_nproc), ierr )
+          ! this might not sync up
+          if( ierr .ne. 0 ) return
+        endif
+
+        start_band = start_band + nbands_to_send
       enddo
 #endif
+
       close( 99 )
 
     else
@@ -505,10 +512,12 @@ module ocean_legacy_files
       allocate( requests( nr ) )
       allocate( re_wvfn( ngvecs, my_bands ), im_wvfn( ngvecs, my_bands ) )
 #ifdef MPI
-      call MPI_IRECV( re_wvfn, ngvecs*my_bands, MPI_DOUBLE_PRECISION, root, 1, comm, requests( 1 ), ierr )
-      call MPI_IRECV( im_wvfn, ngvecs*my_bands, MPI_DOUBLE_PRECISION, root, 2, comm, requests( 2 ), ierr )
+      call MPI_IRECV( re_wvfn, ngvecs*my_bands, MPI_DOUBLE_PRECISION, pool_root, 1, pool_comm, & 
+                      requests( 1 ), ierr )
+      call MPI_IRECV( im_wvfn, ngvecs*my_bands, MPI_DOUBLE_PRECISION, pool_root, 2, pool_comm, &
+                      requests( 2 ), ierr )
 
-      call MPI_BCAST( ierr, 1, MPI_INTEGER, root, comm, ierr_ )
+      call MPI_BCAST( ierr, 1, MPI_INTEGER, pool_root, pool_comm, ierr_ )
       if( ierr .ne. 0 .or. ierr_ .ne. 0 ) then
         call MPI_CANCEL( requests( 1 ) , ierr )
         call MPI_CANCEL( requests( 2 ) , ierr )
@@ -516,7 +525,7 @@ module ocean_legacy_files
         return
       endif
 
-      call MPI_IBCAST( gvecs, 3*ngvecs, MPI_INTEGER, root, comm, requests( 3 ), ierr )
+      call MPI_IBCAST( gvecs, 3*ngvecs, MPI_INTEGER, pool_root, pool_comm, requests( 3 ), ierr )
 #endif
 
 
@@ -526,7 +535,7 @@ module ocean_legacy_files
     if( ierr .ne. 0 ) return
 
     wfns( :, : ) = cmplx( re_wvfn( :, 1:my_bands ), im_wvfn( :, 1:my_bands ), DP )
-    deallocate( re_wvfn, im_wvfn )
+    deallocate( re_wvfn, im_wvfn, requests )
 
 
   end subroutine olf_read_at_kpt

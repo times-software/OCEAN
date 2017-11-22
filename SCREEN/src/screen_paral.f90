@@ -33,10 +33,10 @@ module screen_paral
 
   public :: site_parallel_info
   public :: screen_paral_init
-  public :: screen_paral_siteIndex2groupIndex, screen_paral_procID2groupID, screen_paral_procID2groupIndex
+  public :: screen_paral_siteIndex2groupIndex, screen_paral_procID2groupID, screen_paral_procID2groupIndex, &
+            screen_paral_NumLocalSites, screen_paral_isMySite
 
   contains
-
 
 
   subroutine screen_paral_init( n_sites, pinfo, ierr )
@@ -101,6 +101,13 @@ module screen_paral
 
   end subroutine write_paral_summary
 
+  pure function screen_paral_isMySite( pinfo, siteIndex ) result( isMySite )
+    type( site_parallel_info ), intent( in ) :: pinfo
+    integer, intent( in ) :: siteIndex
+    logical :: isMySite
+
+    isMySite = ( screen_paral_siteIndex2groupIndex( pinfo, siteIndex ) .eq. pinfo%mygroup )
+  end function screen_paral_isMySite
 
   pure function screen_paral_siteIndex2groupIndex( pinfo, siteIndex ) result( groupIndex )
     type( site_parallel_info ), intent( in ) :: pinfo
@@ -109,6 +116,20 @@ module screen_paral
     !
     groupIndex = mod( siteIndex - 1, pinfo%num_groups )
   end function screen_paral_siteIndex2groupIndex
+
+  pure function screen_paral_NumLocalSites( pinfo, nsites ) result( NumLocalSites )
+    type( site_parallel_info ), intent( in ) :: pinfo
+    integer, intent( in ) :: nsites
+    integer :: NumLocalSites
+
+    integer :: i, j
+
+    j = nsites
+    do i = 0, pinfo%mygroup
+      NumLocalSites = j / ( pinfo%num_groups - i )
+      j = j - NumLocalSites
+    enddo
+  end function screen_paral_NumLocalSites
 
   pure function screen_paral_procID2groupIndex( pinfo, procID ) result( groupIndex )
     type( site_parallel_info ), intent( in  ) :: pinfo

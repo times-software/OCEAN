@@ -42,8 +42,27 @@ module screen_system
   public :: physical_system, atoms, system_parameters
   public :: psys, params
   public :: screen_system_load, screen_system_snatch, screen_system_summarize
+  public :: screen_system_returnKvec
 
   contains 
+
+  pure function screen_system_returnKvec( sp, ikpt ) result( Kvec )
+    type( system_parameters ), intent( in ) :: sp
+    integer, intent( in ) :: ikpt
+    real(DP) :: Kvec(3)
+    !
+    integer :: i, j
+
+    j = ( ikpt - 1 ) / ( sp%kmesh(2) * sp%kmesh(3) ) 
+    i = ikpt - 1 - j * sp%kmesh(2) * sp%kmesh(3)
+
+    Kvec(1) = ( sp%kshift(1) + real( j, DP ) ) / real( sp%kmesh(1), DP )
+
+    Kvec(2) = ( sp%kshift(2) + real( i/sp%kmesh(3), DP) ) / real( sp%kmesh(2), DP )
+
+    Kvec(3) = ( sp%kshift(3) + real( mod( i, sp%kmesh(3) ), DP ) ) / real( sp%kmesh(3), DP )
+    
+  end function screen_system_returnKvec
 
   subroutine screen_system_summarize( ierr )
     use OCEAN_mpi, only : myid, root
@@ -58,6 +77,12 @@ module screen_system
         write( 6, '(A2,A1,1X,3F16.8)' ) psys%atom_list( ii )%el_name, ':', psys%atom_list( ii )%reduced_coord( : )
       enddo
       write( 6, * ) "-------------------------------"
+      write( 6, * ) "Expected K-point mesh: "
+      do ii = 1, params%nkpts
+        write(6,*) screen_system_returnKvec( params, ii )
+      enddo
+      write( 6, * ) "-------------------------------"
+  
     endif
 
   end subroutine screen_system_summarize

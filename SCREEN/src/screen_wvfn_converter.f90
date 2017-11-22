@@ -8,8 +8,49 @@ module screen_wvfn_converter
   end type wvfn_uofg
 
 
+  public :: screen_wvfn_converter_driver
+
   contains
 
+  subroutine screen_wvfn_converter_driver( pinfo, nsites, all_sites, ierr )
+    use screen_paral, only : site_parallel_info, & 
+                             screen_paral_NumLocalSites, screen_paral_isMySite
+    use screen_system, only : system_parameters, params
+    use screen_sites, only : site
+    use ocean_legacy_files, only : olf_nprocPerPool
+    use ocean_mpi
+    
+    type( site_parallel_info ), intent( in ) :: pinfo
+    integer, intent( in ) :: nsites
+    type( site ), intent( inout ) :: all_sites( nsites )
+    integer, intent( inout ) :: ierr
+
+#ifdef MPI_F08
+    type( MPI_REQUEST ), allocatable :: recvArray(:,:)
+#else
+    integer, allocatable :: recvArray(:,:)
+#endif
+
+    integer :: isite, i
+    integer :: recvSize, siteSize
+
+    recvSize = params%nspin * params%nkpts * olf_nprocPerPool()
+    siteSize = screen_paral_NumLocalSites( pinfo, nsites )
+
+    allocate( recvArray( recvSize, siteSize ) )
+    recvArray = MPI_REQUEST_NULL
+    i = 0
+
+    do isite = 1 , nsites
+
+      if( screen_paral_isMySite( pinfo, isite ) ) then
+        i = i + 1
+        call swl_postSiteRecvs( isite, all_sites( isite ), recvArray(:,i), ierr )
+        if( ierr .ne. 0 ) return
+      endif
+    enddo
+
+  end subroutine screen_wvfn_converter_driver
 
   subroutine screen_wvfn_converter_loader( nsites, all_sites, ierr )
     use screen_system, only : system_parameters, params
@@ -17,7 +58,7 @@ module screen_wvfn_converter
     use ocean_legacy_files
 
     integer, intent( in ) :: nsites
-    type( site ), intent( inout ) :: all_sites( nsites )
+    type( site ), intent( in ) :: all_sites( nsites )
     integer, intent( inout ) :: ierr
 
 !    type( wvfn_ufog ), allocatable :: input_wvfns(:,:)
@@ -52,11 +93,11 @@ module screen_wvfn_converter
                     input_uofg(ngvecs,nbands), STAT=ierr )
           if( ierr .ne. 0 ) return
 
-          call olf_read_at_kpt( ikpt, ispin, ngvecs, input_gvecs, input_uofg, ierr )
+          call olf_read_at_kpt( ikpt, ispin, ngvecs, nbands, input_gvecs, input_uofg, ierr )
           if( ierr .ne. 0 ) return
           
-
-
+          call swl_convertAndSend( ikpt, ispin, ngvecs, nbands, input_gvecs, input_uofg, &
+                                   nsites, all_sites, ierr )
 
         endif
       enddo
@@ -120,5 +161,80 @@ module screen_wvfn_converter
 
 #endif
   end subroutine swl_postSiteRecvs
+
+
+  subroutine swl_convertAndSend( ikpt, ispin, ngvecs, nbands, input_gvecs, input_uofg, &
+                                 nsites, all_sites, ierr )
+    use screen_system, only : system_parameters, params, screen_system_returnKvec, &
+                              physical_system, psys
+    use screen_sites, only : site
+    use screen_grid, only : sgrid
+    use screen_wavefunction, only : screen_wvfn
+    
+    integer, intent( in ) :: ikpt, ispin, ngvecs, nbands, nsites
+    integer, intent( in ) :: input_gvecs( 3, ngvecs )
+    complex(DP), intent( in ) :: input_uofg( nbands, ngvecs )
+    type( site ), intent( in ) :: all_sites( nsites )
+    integer, intent( inout ) :: ierr
+
+    complex(DP), allocatable :: phases(:)
+    complex(DP), allocatable :: temp_wavefunctions(:,:,:)
+    real(DP) :: kpoints(3), qcart(3), phse
+    integer :: isite, j, ipt
+    integer :: npts
+
+    kpoints = screen_system_returnKvec( params, ikpt )
+
+    qcart(:) = 0.0_DP
+    do j = 1, 3
+      qcart( : ) = qcart( : ) + psys%bvecs( :, j ) * kpoints( j )
+    enddo
+
+    ! this will break if sites vary in Npts
+    npts = all_sites( 1 )%grid%Npt
+    allocate( phases( npts ), temp_wavefunctions( npts, nbands, nsites ) )
+    
+    do isite = 1, nsites
+      do ipt = 1, npts
+        phse = dot_product( qcart, all_sites( isite )%grid%posn( :, ipt ) )
+        phases( ipt ) = cmplx( dcos( phse ), dsin( phse ), DP )
+      enddo    
+
+      call realu2( ngvecs, npts, nbands, input_uofg, input_gvecs, psys%bvecs, & 
+                   all_sites( isite )%grid%posn, temp_wavefunctions( :, :, isite ) )
+  
+      
+    enddo
+
+
+  end subroutine swl_convertAndSend
+
+  subroutine realu2( ngvecs, npts, nbands, uofg, gvecs, bvecs, & 
+                     posn, wavefunctions )
+    integer, intent( in ) :: ngvecs, npts, nbands
+    integer, intent( in ) :: gvecs( 3, ngvecs )
+    real(DP), intent( in ) :: bvecs(3,3)
+    complex(DP), intent( in ) :: uofg( ngvecs, nbands )
+    real(DP), intent( in ) :: posn( 3, npts )
+    complex(DP), intent( out ) :: wavefunctions( npts, nbands )
+    !
+    complex(DP), allocatable :: phases(:,:)
+    real(DP) :: gcart(3), phse
+    integer :: i, j
+
+    allocate( phases( npts, ngvecs ) )
+    
+    do i = 1, ngvecs
+      gcart(:) = matmul( bvecs(:,:), gvecs( :, i ) )
+      do j = 1, npts
+        phse = dot_product( gcart, posn(:, j ) )
+        phases( j, i ) = cmplx( dcos(phse), dsin(phse), DP )
+      enddo
+    enddo
+
+    wavefunctions( :, : ) = matmul( phases, uofg )
+
+    deallocate( phases )
+  end subroutine realu2
 
 end module screen_wvfn_converter
