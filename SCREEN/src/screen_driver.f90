@@ -49,16 +49,18 @@ program screen_driver
 
 
   ! 
+  ! Initializes the framework for reading in files from the DFT
   call odf_init( myid, root, comm, ierr )
   if( ierr .ne. 0 ) goto 111
-
   
+  ! Load up the energies, currently fully duplicated across all MPI
   call screen_energy_load( ierr )
   if( ierr .ne. 0 ) goto 111
   call screen_energy_find_fermi( ierr )
   if( ierr .ne. 0 ) goto 111
 
 
+  
   
 
   

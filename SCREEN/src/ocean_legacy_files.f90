@@ -27,10 +27,109 @@ module ocean_legacy_files
   integer :: kpts(3)
   integer :: nspin 
 
+
+#ifdef MPI_F08
+  type( MPI_COMM ) :: inter_comm
+  type( MPI_COMM ) :: pool_comm
+#else
+  integer :: inter_comm
+  integer :: pool_comm
+#endif
+
+  integer :: inter_myid
+  integer :: inter_nproc
+  integer, parameter :: inter_root = 0
+
+  integer :: npool
+  integer :: mypool
+  integer :: pool_myid
+  integer :: pool_nproc
+  integer, parameter :: pool_root = 0
+  
+  integer :: pool_nbands
+
   public :: olf_read_init, olf_read_at_kpt, olf_clean, olf_read_energies, olf_get_ngvecs_at_kpt, &
             olf_read_energies_single
+  public :: olf_kpts_and_spins, olf_return_my_bands, olf_is_my_kpt
+  public :: olf_nprocPerPool, olf_getPoolIndex, olf_getBandsForPoolID, olf_returnGlobalID
 
   contains
+
+  pure function olf_nprocPerPool() result( nproc )
+    integer :: nproc
+    
+    nproc = pool_nproc
+  end function olf_nprocPerPool
+
+  pure function olf_getPoolIndex( ispin, ikpt ) result( poolIndex )
+    integer, intent( in ) :: ispin, ikpt
+    integer :: poolIndex
+    integer :: kptCounter
+    !
+    kptCounter = ikpt + ( ispin - 1 ) * product(kpts(:))
+    poolIndex = mod( kptCounter, npool )
+  end function olf_getPoolIndex
+
+  pure function olf_getBandsForPoolID( poolID ) result(nbands)
+    integer, intent( in ) :: poolID
+    integer :: nbands
+    integer :: bands_remain, i
+
+    bands_remain = brange(4)-brange(3)+brange(2)-brange(1)+2
+
+    do i = 0, poolID
+      nbands = bands_remain / ( pool_nproc - i )
+      bands_remain = bands_remain - nbands
+    enddo
+
+  end function olf_getBandsForPoolID
+
+  pure function olf_returnGlobalID( poolIndex, poolID ) result( globalID )
+    integer, intent( in ) :: poolIndex, poolID
+    integer :: globalID
+
+    globalID = poolIndex * pool_nproc + poolID
+  end function olf_returnGlobalID
+
+  subroutine olf_is_my_kpt( ikpt, ispin, is_kpt, ierr )
+    integer, intent( in ) :: ikpt, ispin
+    logical, intent( out ) :: is_kpt
+    integer, intent( inout ) :: ierr
+    !
+    if( .not. is_init ) then
+      ierr = 2
+      return
+    endif
+    if( ispin .lt. 1 .or. ispin .gt. nspin ) then
+      ierr = 3 
+      return
+    endif
+    if( ikpt .lt. 1 .or. ikpt .gt. product(kpts(:)) ) then
+      ierr = 4
+      return
+    endif
+
+!    if( mod( ikpt + (ispin-1)*product(kpts(:)), npool ) .eq. mypool ) then
+    if( olf_getPoolIndex( ispin, ikpt ) .eq. mypool ) then
+      is_kpt = .true.
+    else
+      is_kpt = .false.
+    endif
+
+  end subroutine olf_is_my_kpt
+
+  subroutine olf_return_my_bands( nbands, ierr )
+    integer, intent( out ) :: nbands
+    integer, intent( inout ) :: ierr
+    
+    if( .not. is_init ) ierr = 1
+    nbands = pool_nbands
+  end subroutine olf_return_my_bands
+
+  integer function olf_kpts_and_spins()
+    olf_kpts_and_spins = product(kpts(:)) * nspin / npool
+    return
+  end function olf_kpts_and_spins
 
   subroutine olf_read_energies_single( myid, root, comm, energies, ierr )
 #ifdef MPI
@@ -135,9 +234,8 @@ module ocean_legacy_files
   end subroutine olf_clean
 
   ! Read the universal little files
-  subroutine olf_read_init( myid, root, comm, ierr )
+  subroutine olf_read_init( comm, ierr )
     use ocean_mpi, only :  MPI_BCAST, MPI_INTEGER, MPI_CHARACTER
-    integer, intent( in ) :: myid, root
 #ifdef MPI_F08
     type( MPI_COMM ), intent( in ) :: comm
 #else
@@ -147,7 +245,16 @@ module ocean_legacy_files
     !
     integer :: i
     !
-    if( myid .eq. root ) then
+    ! Set the comms for file handling
+    call MPI_COMM_DUP( comm, inter_comm, ierr )
+    if( ierr .ne. 0 ) return
+    call MPI_COMM_SIZE( inter_comm, inter_nproc, ierr )
+    if( ierr .ne. 0 ) return
+    call MPI_COMM_RANK( inter_comm, inter_myid, ierr )
+    if( ierr .ne. 0 ) return
+
+
+    if( inter_myid .eq. inter_root ) then
       open( unit=99, file='masterwfile', form='formatted', status='old' )
       read( 99, * ) nfiles
       close( 99 )
@@ -170,49 +277,95 @@ module ocean_legacy_files
     endif
 
 #ifdef MPI
-    call MPI_BCAST( nfiles, 1, MPI_INTEGER, root, comm, ierr )
+    call MPI_BCAST( nfiles, 1, MPI_INTEGER, inter_root, inter_comm, ierr )
     if( ierr .ne. 0 ) return
 
-    if( myid .ne. root ) then
+    if( inter_myid .ne. inter_root ) then
       allocate( file_names( nfiles ), file_indx( nfiles ) )
     endif
 
-    call MPI_BCAST( file_indx, nfiles,  MPI_INTEGER, root, comm, ierr )
+    call MPI_BCAST( file_indx, nfiles,  MPI_INTEGER, inter_root, inter_comm, ierr )
     if( ierr .ne. 0 ) return
 
-    call MPI_BCAST( file_names, 12 * nfiles, MPI_CHARACTER, root, comm, ierr )
+    call MPI_BCAST( file_names, 12 * nfiles, MPI_CHARACTER, inter_root, inter_comm, ierr )
     if( ierr .ne. 0 ) return
 
-    call MPI_BCAST( brange, 4, MPI_INTEGER, root, comm, ierr )
+    call MPI_BCAST( brange, 4, MPI_INTEGER, inter_root, inter_comm, ierr )
     if( ierr .ne. 0 ) return
 
-    call MPI_BCAST( kpts, 3, MPI_INTEGER, root, comm, ierr )
+    call MPI_BCAST( kpts, 3, MPI_INTEGER, inter_root, inter_comm, ierr )
     if( ierr .ne. 0 ) return
 
-    call MPI_BCAST( nspin, 1, MPI_INTEGER, root, comm, ierr )
+    call MPI_BCAST( nspin, 1, MPI_INTEGER, inter_root, inter_comm, ierr )
     if( ierr .ne. 0 ) return
 #endif
+
+    call set_pools( ierr )
+    if( ierr .ne. 0 ) return
 
     is_init = .true.
   
   end subroutine  olf_read_init 
 
 
-  subroutine olf_get_ngvecs_at_kpt( ikpt, myid, root, comm, gvecs, ierr )
-#ifdef MPI
-    use ocean_mpi, only : MPI_BCAST, MPI_INTEGER
-#endif
-    integer, intent( in ) :: ikpt, myid, root
-#ifdef MPI_F08
-    type( MPI_COMM ), intent( in ) :: comm
-#else
-    integer, intent( in ) :: comm
-#endif
+  subroutine set_pools( ierr )
+    integer, intent( inout ) :: ierr
+    !
+    integer :: i, nbands_left, nbands
+
+    if( nfiles .gt. inter_nproc ) then
+      mypool = inter_myid
+      npool = inter_nproc
+
+    else
+      do i = 2, inter_nproc
+        if( mod( inter_nproc, i ) .eq. 0 ) then
+          if( nfiles .gt. (inter_nproc/i) ) then
+            npool = inter_nproc/i
+            mypool = mod( inter_myid, i )
+            goto 11
+          endif
+        endif
+      enddo
+11    continue
+    endif
+    
+    call MPI_COMM_SPLIT( inter_comm, mypool, inter_myid, pool_comm, ierr )
+    if( ierr .ne. 0 ) return
+
+    call MPI_COMM_RANK( pool_comm, pool_myid, ierr )
+    if( ierr .ne. 0 ) return
+    call MPI_COMM_SIZE( pool_comm, pool_nproc, ierr )
+    if( ierr .ne. 0 ) return
+
+
+    nbands_left = brange(4)-brange(3)+brange(2)-brange(1)+2
+    do i = 0, pool_nproc-1
+      nbands = nbands_left / ( pool_nproc - i )
+      if( i .eq. pool_myid ) pool_nbands = nbands
+      nbands_left = nbands_left - nbands
+    enddo
+
+  end subroutine set_pools
+
+
+  subroutine olf_get_ngvecs_at_kpt( ikpt, ispin, gvecs, ierr )
+    use OCEAN_mpi
+    integer, intent( in ) :: ikpt, ispin
     integer, intent( out ) :: gvecs
     integer, intent( inout ) :: ierr
     !
     integer :: i, itarg
-    if( myid .eq. root ) then
+    logical :: is_kpt
+
+    call olf_is_my_kpt( ikpt, ispin, is_kpt, ierr )
+    if( ierr .ne. 0 ) return
+    if( is_kpt .eqv. .false. ) then 
+      gvecs = 0
+      return
+    endif
+
+    if( pool_myid .eq. pool_root ) then
       ! determine which file we want (usually we have 1 kpt per file)
       itarg = 0
       if( file_indx( nfiles ) .gt. ikpt ) then
@@ -238,36 +391,32 @@ module ocean_legacy_files
 111 continue
     
 #ifdef MPI
-    call MPI_BCAST( ierr, 1, MPI_INTEGER, root, comm, i )
+    call MPI_BCAST( ierr, 1, MPI_INTEGER, pool_root, pool_comm, i )
     if( ierr .ne. 0 ) return
     if( i .ne. 0 ) then
       ierr = i
       return
     endif
 
-    call MPI_BCAST( gvecs, 1, MPI_INTEGER, root, comm, ierr )
+    call MPI_BCAST( gvecs, 1, MPI_INTEGER, pool_root, pool_comm, ierr )
     if( ierr .ne. 0 ) return
 #endif
 
   end subroutine olf_get_ngvecs_at_kpt
 
-  subroutine olf_read_at_kpt( ikpt, myid, root, nproc, comm, nbands, my_bands, ngvecs, gvecs, wfns, ierr )
+  subroutine olf_read_at_kpt( ikpt, ispin, ngvecs, my_bands, gvecs, wfns, ierr )
 #ifdef MPI
-    use OCEAN_mpi, only : MPI_IBCAST, MPI_INTEGER, MPI_BCAST, MPI_IRSEND, MPI_IRECV, &
-                          MPI_DOUBLE_PRECISION, MPI_STATUSES_IGNORE, MPI_CANCEL
+!    use OCEAN_mpi, only : MPI_IBCAST, MPI_INTEGER, MPI_BCAST, MPI_IRSEND, MPI_IRECV, &
+!                          MPI_DOUBLE_PRECISION, MPI_STATUSES_IGNORE, MPI_CANCEL
+    use OCEAN_mpi
 #endif
-    integer, intent( in ) :: ikpt, myid, root, nproc, ngvecs, nbands, my_bands
-#ifdef MPI_F08
-    type( MPI_COMM ), intent( in ) :: comm
-#else
-    integer, intent( in ) :: comm
-#endif
+    integer, intent( in ) :: ikpt, ispin, ngvecs, my_bands
     integer, intent( out ) :: gvecs( 3, ngvecs )
     complex( DP ), intent( out ) :: wfns( ngvecs, my_bands )
     integer, intent( inout ) :: ierr
     !
     real( DP ), allocatable, dimension( :, : ) :: re_wvfn, im_wvfn, trans_gvecs
-    integer :: test_gvec, itarg, nbands_to_send, iband, i, ir, nr, ierr_
+    integer :: test_gvec, itarg, nbands_to_send, iband, i, ir, nr, ierr_, nbands
 #ifdef MPI_F08
     type( MPI_REQUEST ), allocatable :: requests( : )
 #else
@@ -275,7 +424,7 @@ module ocean_legacy_files
 #endif
 
     !
-    if( myid .eq. root ) then
+    if( pool_myid .eq. pool_root ) then
       itarg = wvfn_file_indx( ikpt )
       if( itarg .lt. 1 ) then
         ierr = -1
@@ -290,7 +439,7 @@ module ocean_legacy_files
 
       ! Error synch. Also ensures that the other procs have posted their recvs
 10    continue
-      call MPI_BCAST( ierr, 1, MPI_INTEGER, root, comm, ierr_ )
+      call MPI_BCAST( ierr, 1, MPI_INTEGER, pool_root, pool_comm, ierr_ )
       if( ierr .ne. 0 ) return
       if( ierr_ .ne. 0 ) then
         ierr = ierr_
@@ -307,8 +456,9 @@ module ocean_legacy_files
       ir = 0
 #ifdef MPI
       ir = ir + 1
-      call MPI_IBCAST( gvecs, 3*ngvecs, MPI_INTEGER, root, comm, requests( ir ), ierr )
+      call MPI_IBCAST( gvecs, 3*ngvecs, MPI_INTEGER, pool_root, pool_comm, requests( ir ), ierr )
 #endif
+      nbands = brange(4)-brange(3)+brange(2)-brange(1)+2
       allocate( re_wvfn( ngvecs, nbands ), im_wvfn( ngvecs, nbands ) )
 
       read( 99 ) re_wvfn
