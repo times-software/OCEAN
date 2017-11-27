@@ -104,7 +104,7 @@ module screen_energy
       write( 6, '(4(1x,1e15.8,2x))' ) vlryd*Rydberg2eV, vhryd*Rydberg2eV, clryd*Rydberg2eV, chryd*Rydberg2eV
       write( 6, '(A)' ) "   Fermi/midgap    Min. difference   Max. difference  Geo. mean of diffs"
       !                 " -X.XXXXXXXXE+YY   -X.XXXXXXXXE+YY   -X.XXXXXXXXE+YY   -X.XXXXXXXXE+YY
-      write ( 6, '(4(1x,1e15.8,2x))' ) mu_ryd*Rydberg2eV, mindiff, maxdiff, geodiff
+      write ( 6, '(4(1x,1e15.8,2x))' ) mu_ryd*Rydberg2eV, mindiff*Rydberg2eV, maxdiff*Rydberg2eV, geodiff*Rydberg2eV
       write( 6, '(A)' ) "    #############################"
     endif
     
