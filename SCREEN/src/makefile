@@ -6,7 +6,8 @@ OPTIONS += -stand f03 #-warn all -check all
 all: screen_grid.o screen_system.o screen_driver.x
 
 OBJS = screen_driver.o ai_kinds.o ocean_mpi.o screen_grid.o screen_system.o screen_sites.o screen_paral.o \
-       screen_energy.o ocean_dft_files.o ocean_legacy_files.o screen_wavefunction.o screen_wvfn_converter.o
+       screen_energy.o ocean_dft_files.o ocean_legacy_files.o screen_wavefunction.o screen_wvfn_converter.o \
+       screen_chi.o
 
 %.o %.mod: %.f90
 	$(MPIFORT) $(OPTIONS) -c -o $*.o $<
@@ -52,8 +53,12 @@ screen_wvfn_converter.o:   screen_wvfn_converter.f90 ai_kinds.mod ocean_dft_file
 screen_wvfn_converter.mod: screen_wvfn_converter.f90 ai_kinds.mod ocean_dft_files.mod ocean_legacy_files.mod \
                            screen_sites.mod screen_grid.mod screen_paral.mod
 
+screen_chi.o:   screen_chi.f90 ai_kinds.mod screen_paral.mod screen_sites.mod screen_grid.mod screen_wavefunction.mod
+screen_chi.mod: screen_chi.f90 ai_kinds.mod screen_paral.mod screen_sites.mod screen_grid.mod screen_wavefunction.mod
+
 screen_driver.o: screen_driver.f90 ai_kinds.mod ocean_mpi.mod screen_grid.mod screen_system.mod screen_sites.mod \
-                 screen_energy.mod ocean_dft_files.mod screen_wvfn_converter.mod screen_wavefunction.mod
+                 screen_energy.mod ocean_dft_files.mod screen_wvfn_converter.mod screen_wavefunction.mod \
+                 screen_chi.mod
 
 screen_driver.x: $(OBJS)
 	$(MPIFORT) $(OPTIONS) -o screen_driver.x $(OBJS)
