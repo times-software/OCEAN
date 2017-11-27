@@ -41,7 +41,7 @@ module screen_sites
   end type site
 
 
-  type( site_parallel_info ), save :: pinfo
+  type( site_parallel_info ), save, public :: pinfo
 
 !  type( site ), allocatable, save :: all_sites( : )
 !  integer, save :: n_sites
@@ -73,7 +73,7 @@ module screen_sites
     type( site ), intent( inout ) :: all_sites( : )
     integer, intent( inout ) :: ierr
     !
-    real( DP ) :: tau( 3 )
+    real( DP ) :: tau( 3 ), xcoord( 3 )
     integer :: i
     integer, allocatable :: tmp_indices( : )
     character( len=2 ), allocatable :: tmp_elnames( : )
@@ -89,7 +89,7 @@ module screen_sites
     deallocate( tmp_indices, tmp_elnames )
 
     do i = 1, n_sites
-      call screen_system_snatch( all_sites( i )%info%elname, all_sites( i )%info%indx, tau, ierr )
+      call screen_system_snatch( all_sites( i )%info%elname, all_sites( i )%info%indx, tau, xcoord, ierr )
       if( ierr .ne. 0 ) then
         if( myid .eq. root ) write( 6, * ) 'Problems fetching location of site:', i, & 
                                            all_sites( i )%info%elname, all_sites( i )%info%indx
@@ -98,9 +98,9 @@ module screen_sites
 
       ! After the first grid just copy all the initialization data instead of reading from file
       if( i .eq. 1 ) then
-        call screen_grid_init( all_sites( i )%grid, tau, ierr )
+        call screen_grid_init( all_sites( i )%grid, xcoord, ierr )
       else
-        call screen_grid_init( all_sites( i )%grid, tau, ierr, all_sites( 1 )%grid )
+        call screen_grid_init( all_sites( i )%grid, xcoord, ierr, all_sites( 1 )%grid )
       endif
       if( ierr .ne. 0 ) return
 
@@ -108,7 +108,7 @@ module screen_sites
 
     call screen_paral_init( n_sites, pinfo, ierr )
 
-    do i = 1, n_sites
+    do i = 1, n_sites 
       call screen_wvfn_init( pinfo, all_sites( i )%grid, all_sites( i )%wvfn, i, ierr )
       if( ierr .ne. 0 ) return
     enddo

@@ -34,7 +34,7 @@ module screen_paral
   public :: site_parallel_info
   public :: screen_paral_init
   public :: screen_paral_siteIndex2groupIndex, screen_paral_procID2groupID, screen_paral_procID2groupIndex, &
-            screen_paral_NumLocalSites, screen_paral_isMySite
+            screen_paral_NumLocalSites, screen_paral_isMySite, screen_paral_siteIndexID2procID
 
   contains
 
@@ -100,6 +100,17 @@ module screen_paral
     write(1000+myid,*) "############################"
 
   end subroutine write_paral_summary
+
+  pure function screen_paral_siteIndexID2procID( pinfo, SiteIndex, SiteID ) result( procID )
+    type( site_parallel_info ), intent( in ) :: pinfo
+    integer, intent( in ) :: siteIndex, SiteID
+    integer :: procID
+    integer :: groupIndex
+
+    groupIndex = screen_paral_siteIndex2groupIndex( pinfo, siteIndex )
+    procID = groupIndex * pinfo%nprocs + SiteID
+
+  end function screen_paral_siteIndexID2procID
 
   pure function screen_paral_isMySite( pinfo, siteIndex ) result( isMySite )
     type( site_parallel_info ), intent( in ) :: pinfo

@@ -87,10 +87,11 @@ module screen_system
 
   end subroutine screen_system_summarize
 
-  subroutine screen_system_snatch( element, indx, tau, ierr )
+  subroutine screen_system_snatch( element, indx, tau, xcoord, ierr )
     character( len=2 ), intent( in ) :: element
     integer, intent( in ) :: indx
     real( DP ), intent( out ) :: tau( 3 )
+    real( DP ), intent( out ) :: xcoord( 3 )
     integer, intent( inout ) :: ierr
     !
     integer :: ii, nmatch
@@ -108,8 +109,11 @@ module screen_system
 
     write( 6, * ) 'Atom coord not found!'
     ierr = -1
+    return
 
 111 continue
+
+    xcoord = matmul( psys%avecs, tau )
 
   end subroutine screen_system_snatch
 
@@ -152,6 +156,8 @@ module screen_system
 
     endif
 #endif
+    params%nkpts = product( params%kmesh(:) )
+    params%nbands = params%brange(4) - params%brange(3) + params%brange(2) - params%brange(1) + 2
 
   end subroutine screen_system_load
 
@@ -174,8 +180,6 @@ module screen_system
     call MPI_BCAST( params%nspin, 1, MPI_INTEGER, root, comm, ierr )
     if( ierr .ne. MPI_SUCCESS ) return
 
-    params%nkpts = product( params%kmesh(:) )
-    params%nbands = params%brange(4) - params%brange(3) + params%brange(2) - params%brange(1) + 2
 
   end subroutine share_params
 

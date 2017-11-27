@@ -32,12 +32,27 @@ module screen_wavefunction
 
   public :: screen_wvfn
   public :: screen_wvfn_init, screen_wvfn_map_procID
+  public :: screen_wvfn_diagnostic
 
   contains
 
+  subroutine screen_wvfn_diagnostic( wvfn, ierr )
+    type( screen_wvfn ), intent( in ) :: wvfn
+    integer, intent( inout ) :: ierr
+
+    if( .not. allocated( wvfn%wvfn ) ) then
+      ierr = 10
+      return
+    endif
+
+    write(6,*) 'dumping test wvfn'
+    write(101,*) real(wvfn%wvfn(:,:,1),DP)
+
+  end subroutine screen_wvfn_diagnostic
+
   subroutine screen_wvfn_init( pinfo, grid, wvfn, siteIndex, ierr )
     use screen_system, only : system_parameters, params
-    use screen_paral, only : screen_paral_siteIndex2groupIndex
+    use screen_paral, only : screen_paral_siteIndex2groupIndex, screen_paral_isMySite
 !#ifdef MPI
 !    use ocean_mpi, only : comm, MPI_SUM, MPI_INTEGER
 !#endif MPI
@@ -52,13 +67,18 @@ module screen_wavefunction
 
 
     groupIndex = screen_paral_siteIndex2groupIndex( pinfo, siteIndex )
+    write(6,*) 'WVFN_INIT:', groupIndex, pinfo%mygroup, siteIndex
 
-    if( groupIndex .eq. pinfo%mygroup ) then
+!    if( groupIndex .eq. pinfo%mygroup ) then
+    if( screen_paral_isMySite( pinfo, siteIndex ) ) then
       wvfn%npts = grid%npt
       call divide_grid( pinfo%nprocs, pinfo%myid, grid%npt, wvfn%pts_start, wvfn%mypts, & 
-                        params%nbands, wvfn% band_start, wvfn%mybands, & 
+                        params%nbands, wvfn%band_start, wvfn%mybands, & 
                         params%nkpts, params%nspin, wvfn%kpts_start, wvfn%mykpts )
+      write(6,*) 'true', wvfn%mypts, wvfn%mybands, wvfn%mykpts
       allocate( wvfn%wvfn( wvfn%mypts, wvfn%mybands, wvfn%mykpts ), STAT=ierr )
+    else
+      write(6,*) 'false'
     endif
 
     
@@ -68,7 +88,7 @@ module screen_wavefunction
   subroutine screen_wvfn_map_procID( procID, siteIndex, pinfo, grid,  &
                                      pts_start, mypts, band_start, mybands, kpts_start, mykpts )
     use screen_system, only : system_parameters, params
-    use screen_paral, only  : screen_paral_siteIndex2groupIndex, screen_paral_procID2groupID
+    use screen_paral, only  : screen_paral_isMySite, screen_paral_procID2groupID
 
     integer, intent( in ) :: procID, siteIndex
     type( site_parallel_info ), intent( in ) :: pinfo
@@ -77,9 +97,9 @@ module screen_wavefunction
 
     integer :: groupIndex, groupID
     
-    groupIndex = screen_paral_siteIndex2groupIndex( pinfo, siteIndex )
+!    groupIndex = screen_paral_siteIndex2groupIndex( pinfo, siteIndex )
     
-    if( groupIndex .eq. pinfo%mygroup ) then
+    if( screen_paral_isMySite( pinfo, siteIndex) ) then
       groupID = screen_paral_procID2groupID( pinfo, procID )
       
 

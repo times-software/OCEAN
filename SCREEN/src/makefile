@@ -1,6 +1,6 @@
 include ../../Makefile.arch
 
-OPTIONS += -stand f03 -warn all -check all
+OPTIONS += -stand f03 #-warn all -check all
 
 
 all: screen_grid.o screen_system.o screen_driver.x
@@ -53,7 +53,7 @@ screen_wvfn_converter.mod: screen_wvfn_converter.f90 ai_kinds.mod ocean_dft_file
                            screen_sites.mod screen_grid.mod screen_paral.mod
 
 screen_driver.o: screen_driver.f90 ai_kinds.mod ocean_mpi.mod screen_grid.mod screen_system.mod screen_sites.mod \
-                 screen_energy.mod ocean_dft_files.mod
+                 screen_energy.mod ocean_dft_files.mod screen_wvfn_converter.mod screen_wavefunction.mod
 
 screen_driver.x: $(OBJS)
 	$(MPIFORT) $(OPTIONS) -o screen_driver.x $(OBJS)

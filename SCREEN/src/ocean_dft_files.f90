@@ -25,10 +25,27 @@ module ocean_dft_files
 
   
 
-  public :: odf_init, odf_read_energies_single
+  public :: odf_init, odf_read_energies_single, odf_clean
 
   contains 
 
+  subroutine odf_clean( ierr )
+    use ocean_legacy_files, only : olf_clean
+    integer, intent( inout ) :: ierr
+    !
+
+    select case( flavor )
+
+      case( LEGACY_FLAVOR )
+
+        call olf_clean( ierr )
+
+      case default
+        ierr = 1
+    end select
+    return
+
+  end subroutine 
 
   subroutine odf_init( myid, root, comm, ierr )
     use ocean_legacy_files, only : olf_read_init

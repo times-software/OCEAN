@@ -227,10 +227,20 @@ module ocean_legacy_files
 
 
 
-  subroutine olf_clean()
+  subroutine olf_clean( ierr )
+    integer, intent( inout ) :: ierr
+    !
     nfiles = 0
     if( allocated( file_indx ) ) deallocate( file_indx )
     if( allocated( file_names ) ) deallocate( file_names )
+
+#ifdef MPI
+    call MPI_COMM_FREE( pool_comm, ierr )
+    if( ierr .ne. 0 ) return
+    call MPI_COMM_FREE( inter_comm, ierr )
+    if( ierr .ne. 0 ) return
+#endif
+
   end subroutine olf_clean
 
   ! Read the universal little files
@@ -303,6 +313,7 @@ module ocean_legacy_files
     call set_pools( ierr )
     if( ierr .ne. 0 ) return
 
+    write(6,*) 'olf_read_init was successful'
     is_init = .true.
   
   end subroutine  olf_read_init 
@@ -388,6 +399,8 @@ module ocean_legacy_files
       read( 99 ) gvecs
       close( 99 )
     endif
+
+!    write(6,*) 'gvecs', pool_root, pool_comm
 111 continue
     
 #ifdef MPI
@@ -401,6 +414,7 @@ module ocean_legacy_files
     call MPI_BCAST( gvecs, 1, MPI_INTEGER, pool_root, pool_comm, ierr )
     if( ierr .ne. 0 ) return
 #endif
+!    write(6,*) 'gvecs', pool_root, pool_comm
 
   end subroutine olf_get_ngvecs_at_kpt
 
@@ -415,7 +429,8 @@ module ocean_legacy_files
     complex( DP ), intent( out ) :: wfns( ngvecs, my_bands )
     integer, intent( inout ) :: ierr
     !
-    real( DP ), allocatable, dimension( :, : ) :: re_wvfn, im_wvfn, trans_gvecs
+    real( DP ), allocatable, dimension( :, : ) :: re_wvfn, im_wvfn
+    integer, allocatable, dimension( :, : ) :: trans_gvecs
     integer :: test_gvec, itarg, nbands_to_send, nr, ierr_, nbands, id, start_band
 #ifdef MPI_F08
     type( MPI_REQUEST ), allocatable :: requests( : )
@@ -470,7 +485,7 @@ module ocean_legacy_files
 
 #ifdef MPI
       ! loop over each proc in this pool to send wavefunctions
-      do id = 0, pool_nproc
+      do id = 0, pool_nproc - 1
         nbands_to_send = olf_getBandsForPoolID( id )
 
         ! don't send if I am me
@@ -490,7 +505,7 @@ module ocean_legacy_files
 
 #ifdef MPI
      ! loop over each proc in this pool to send imag wavefunctions
-      do id = 0, pool_nproc
+      do id = 0, pool_nproc - 1
         nbands_to_send = olf_getBandsForPoolID( id )
 
         ! don't send if I am me

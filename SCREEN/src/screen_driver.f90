@@ -14,7 +14,9 @@ program screen_driver
   use screen_sites, only : screen_sites_load, screen_sites_prep, &
                            site
   use screen_energy, only : screen_energy_init, screen_energy_load, screen_energy_find_fermi
-  use ocean_dft_files, only : odf_init
+  use ocean_dft_files, only : odf_init, odf_clean
+  use screen_wvfn_converter, only : screen_wvfn_converter_driver
+  use screen_wavefunction, only : screen_wvfn_diagnostic 
 
   implicit none
 
@@ -61,8 +63,19 @@ program screen_driver
 
 
   
-  
+  call screen_wvfn_converter_driver( nsites, all_sites, ierr )
+  if( ierr .ne. 0 ) goto 111
+  if( myid .eq. root ) write( 6, * ) 'Done reading and converting wavefunctions'
 
+  call odf_clean( ierr )
+  if( ierr .ne. 0 ) goto 111
+
+  if( myid .eq. root ) then 
+    call screen_wvfn_diagnostic( all_sites(1)%wvfn, ierr )
+    if( ierr .ne. 0 ) goto 111
+  else
+    write(6,*) myid, root
+  endif
   
 
   if( ierr .eq. 0 ) write(6,*) 'success', myid
