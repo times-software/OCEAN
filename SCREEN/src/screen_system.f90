@@ -21,6 +21,7 @@ module screen_system
 
   type physical_system
     real( DP ) :: avecs( 3, 3 )
+    real( DP ) :: celvol
     real( DP ) :: bvecs( 3, 3 )
     integer :: natoms
     type( atoms ), allocatable :: atom_list( : )
@@ -196,6 +197,9 @@ module screen_system
     call MPI_BCAST( psys%bvecs, 9, MPI_DOUBLE_PRECISION, root, comm, ierr )
     if( ierr .ne. MPI_SUCCESS ) return
 
+    call MPI_BCAST( psys%celvol, 1, MPI_DOUBLE_PRECISION, root, comm, ierr )
+    if( ierr .ne. MPI_SUCCESS ) return
+
   end subroutine
 
 
@@ -332,6 +336,7 @@ module screen_system
       write( 6, * ) 'FATAL ERROR: Failed to close avecsinbohr.ipt', ierr
       return
     endif
+    call getomega( psys%avecs, psys%celvol )
 
     open( unit=99, file='bvecs', form='formatted', status='old', IOSTAT=ierr )
     if( ierr .ne. 0 ) then
@@ -393,6 +398,26 @@ module screen_system
 111 continue
     return
   end subroutine load_xyz
+
+  subroutine getomega( avec, omega )
+    !
+    real(DP), intent( in ) :: avec( 3, 3 )
+    real(DP), intent( out ) :: omega
+    integer :: i, j, k
+    !
+    omega = 0.0_DP
+    do i = 1, 3
+     j = i + 1
+     if ( j .eq. 4 ) j = 1
+     k = j + 1
+     if ( k .eq. 4 ) k = 1
+     omega = omega + avec( i, 1 ) * avec( j, 2 ) * avec( k, 3 )
+     omega = omega - avec( i, 1 ) * avec( k, 2 ) * avec( j, 3 )
+    end do
+    omega = abs( omega )
+    !
+    return
+  end subroutine getomega
 
 
 end module screen_system

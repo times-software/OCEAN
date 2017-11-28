@@ -18,12 +18,12 @@ module screen_energy
   ! Energies are the same for all the sites
   !   Should be able to duplicate across all MPI procs
   !   1MB = 131k bands @ 1 k-point, 16k bands @ 2x2x2
-  real( DP ), allocatable :: energies( :, :, : )
-  real( DP ) :: mu_ryd    ! midpoint between HOMO/LUMO of states used in screening
-  real( DP ) :: efermi    ! input eFermi from DFT calc
-  real( DP ) :: mindiff   ! min distance between \mu and HOMO or LUMO
-  real( DP ) :: maxdiff   ! max distance between lowest occupied/highest unocc and \mu
-  real( DP ) :: geodiff   ! sqrt( mindiff * maxdiff )
+  real( DP ), protected, allocatable :: energies( :, :, : )
+  real( DP ), protected :: mu_ryd    ! midpoint between HOMO/LUMO of states used in screening
+  real( DP ), protected :: efermi    ! input eFermi from DFT calc
+  real( DP ), protected :: mindiff   ! min distance between \mu and HOMO or LUMO
+  real( DP ), protected :: maxdiff   ! max distance between lowest occupied/highest unocc and \mu
+  real( DP ), protected :: geodiff   ! sqrt( mindiff * maxdiff )
 
   integer :: nspin
   integer :: nbands
@@ -31,7 +31,7 @@ module screen_energy
 
   integer :: nbv
 
-  public :: energies
+  public :: energies, mu_ryd, geodiff
 
   public :: screen_energy_init
   public :: screen_energy_kill

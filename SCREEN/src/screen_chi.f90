@@ -99,8 +99,8 @@ module screen_chi
     type( site ), intent( in ) :: singleSite
     integer, intent( inout ) :: ierr
     !
-    complex(DP), allocatable :: FullChi(:,:)
-    complex(DP), allocatable :: chi(:,:)
+    real(DP), allocatable :: FullChi(:,:)
+    real(DP), allocatable :: chi(:,:)
     complex(DP), allocatable :: chi0(:,:,:)
     type( screen_wvfn ), allocatable :: spareWavefunctions( : )
 
@@ -187,7 +187,7 @@ module screen_chi
     ! The MPI call might not be done yet, so the info in spareWavefunctions might change
     !   I don't think the fortran runtime will ever know, but inout is probably more correct
     type( screen_wvfn ), intent( inout ) :: spareWavefunctions(:)  
-    complex(DP), intent( out ) :: chi(:,:)
+    real(DP), intent( out ) :: chi(:,:)
 !    complex(DP), intent( out ) :: chi0(:,:)
 #ifdef MPI_F08
     type( MPI_REQUEST ), intent( inout ) :: spareWvfnRecvs(:)
@@ -204,7 +204,7 @@ module screen_chi
       curPts = curPts + spareWavefunctions(id)%mypts
     enddo
 
-    call calcSingleChi( MyWvfn%wvfn, MyWvfn%wvfn, chi(:,CurPts:), ierr )
+    call calcSingleChi( MyWvfn%wvfn, MyWvfn%wvfn, chi(:,CurPts:), 1, ierr )
     if( ierr .ne. 0 ) return
     curPts = curPts + MyWvfn%mypts
 
@@ -212,7 +212,7 @@ module screen_chi
       call MPI_WAIT( spareWvfnRecvs(id), MPI_STATUS_IGNORE, ierr )
       if( ierr .ne. 0 ) return
     
-      call calcSingleChi( Mywvfn%wvfn, spareWavefunctions(id)%wvfn, chi(:,CurPts:), ierr )
+      call calcSingleChi( Mywvfn%wvfn, spareWavefunctions(id)%wvfn, chi(:,CurPts:), 1, ierr )
       if( ierr .ne. 0 ) return
 
       curPts = curPts + MyWvfn%mypts
@@ -223,30 +223,67 @@ module screen_chi
       call MPI_WAIT( spareWvfnRecvs(id), MPI_STATUS_IGNORE, ierr )
       if( ierr .ne. 0 ) return
 
-      call calcSingleChi( Mywvfn%wvfn, spareWavefunctions(id)%wvfn, chi(:,CurPts:), ierr )
+      call calcSingleChi( Mywvfn%wvfn, spareWavefunctions(id)%wvfn, chi(:,CurPts:), 1, ierr )
       if( ierr .ne. 0 ) return
 
       curPts = curPts + MyWvfn%mypts
     enddo
   end subroutine calcChi
 
-  subroutine calcSingleChi( LWvfn, RWvfn, chi, ierr )
+  subroutine calcSingleChi( LWvfn, RWvfn, chi, ispin, ierr )
+    use screen_system, only : physical_system, system_parameters, psys, params
+    use screen_energy, only : mu_ryd, geodiff, energies
     complex(DP), intent( in ), dimension(:,:,:) :: LWvfn, RWvfn
-    complex(DP), intent( inout ) :: chi(:,:)
+    real(DP), intent( inout ) :: chi(:,:)
+    integer, intent( in ) :: ispin
     integer, intent( inout ) :: ierr
 
     complex(DP), allocatable :: chi0(:,:,:)
-    integer :: Lpts, Rpts, nbands, nkpts
+    real(DP) :: pref, denr, deni, scalar, diff
+    integer :: Lpts, Rpts, nbands, nkpts, ikpt, iband, it, i, j
 
     Lpts = size( LWvfn, 1 )
     Rpts = size( RWvfn, 1 )
     nbands = size( LWvfn, 2 )
     nkpts = size( LWvfn, 3 )
 
+    pref = 1.0_DP / ( real( params%nkpts, DP ) * psys%celvol )
+
+    chi(:,1:RPts) = 0.0_DP
+!   s is Geometric mean in Ryd
+!   mu is EFermi in Ryd
+
     allocate( chi0( Lpts, Rpts, NImagEnergies ), STAT=ierr )
     if( ierr .ne. 0 ) return
+    chi0 = 0.0_DP
 
+    do it = 1, NImagEnergies
+      deni = geodiff * ImagEnergies( it ) / ( 1.0_DP - ImagEnergies( it ) )
 
+      do ikpt = 1, nkpts
+        do iband = 1, nbands
+          diff = sqrt( (mu_ryd - energies( iband, ikpt, ispin ))**2 + 1.0_DP*10**(-6) )
+          denr = sign( diff, mu_ryd - energies( iband, ikpt, ispin ) )
+
+          scalar = pref / cmplx( denr, deni, DP )
+
+          call ZGERC( Lpts, Rpts, scalar, LWvfn(:,iband,ikpt), 1, RWvfn(:,iband,ikpt), 1, &
+                      chi0(:,:,it), Lpts ) 
+          
+        enddo
+      enddo
+
+    enddo
+
+    do it = 1, NImagEnergies
+      ! FAKE SPIN FACTOR HERE!
+      pref = 2.0_DP * weightImagEnergies( it )
+      do j = 1, Rpts
+        do i = 1, Lpts
+          chi( i, j ) = chi( i, j ) + pref * ( real(chi0( i, j, it ),DP)**2 + aimag( chi0( i, j, it ) )**2 )
+        enddo
+      enddo
+    enddo
 
     deallocate( chi0 )
   end subroutine calcSingleChi
@@ -289,7 +326,7 @@ module screen_chi
   subroutine postRecvChi( pinfo, spareWavefunctions, chiRecvs, FullChi, ierr )
     use screen_paral, only : site_parallel_info
     use screen_wavefunction, only : screen_wvfn
-    use ocean_mpi, only : MPI_REQUEST_NULL, MPI_DOUBLE_COMPLEX
+    use ocean_mpi, only : MPI_REQUEST_NULL, MPI_DOUBLE_PRECISION
     type( site_parallel_info ), intent( in ) :: pinfo
     type( screen_wvfn ), intent( in ) :: spareWavefunctions(:)
 #ifdef MPI_F08
@@ -297,7 +334,7 @@ module screen_chi
 #else
     integer, intent( inout ) :: chiRecvs(:)
 #endif
-    complex(DP), intent( inout ) :: FullChi(:,:)
+    real(DP), intent( inout ) :: FullChi(:,:)
     integer, intent( inout ) :: ierr
 
     integer :: id, curPts, i
@@ -306,7 +343,7 @@ module screen_chi
       curPts = 1
       do id = 0, pinfo%nprocs - 1
         i = spareWavefunctions( id )%mypts * spareWavefunctions( id )%npts
-        call MPI_IRECV( FullChi(:,curPts), i, MPI_DOUBLE_COMPLEX, id, TagChi, pinfo%comm, &
+        call MPI_IRECV( FullChi(:,curPts), i, MPI_DOUBLE_PRECISION, id, TagChi, pinfo%comm, &
                         chiRecvs(id), ierr )
         curPts = curPts + spareWavefunctions( id )%mypts
       enddo
