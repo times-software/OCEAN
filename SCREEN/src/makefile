@@ -1,6 +1,6 @@
 include ../../Makefile.arch
 
-OPTIONS += -stand f03 #-warn all -check all
+OPTIONS += -stand f03 -warn all -check all
 
 
 all: screen_grid.o screen_system.o screen_driver.x

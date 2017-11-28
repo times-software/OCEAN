@@ -31,7 +31,7 @@ module screen_wavefunction
   end type screen_wvfn
 
   public :: screen_wvfn
-  public :: screen_wvfn_init, screen_wvfn_map_procID
+  public :: screen_wvfn_init, screen_wvfn_map_procID, screen_wvfn_initForGroupID
   public :: screen_wvfn_diagnostic
 
   contains
@@ -49,6 +49,25 @@ module screen_wavefunction
     write(101,*) real(wvfn%wvfn(:,:,1),DP)
 
   end subroutine screen_wvfn_diagnostic
+
+  subroutine screen_wvfn_initForGroupID( pinfo, grid, groupID, wvfn, ierr )
+    use screen_system, only : system_parameters, params
+    
+    type( site_parallel_info ), intent( in ) :: pinfo
+    type( sgrid ), intent( in ) :: grid
+    integer, intent( in ) :: groupID
+    type( screen_wvfn ), intent( inout ) :: wvfn
+    integer, intent( inout ) :: ierr
+
+    wvfn%npts = grid%npt
+    call divide_grid( pinfo%nprocs, groupID, grid%npt, wvfn%pts_start, wvfn%mypts, &
+                      params%nbands, wvfn%band_start, wvfn%mybands, &
+                      params%nkpts, params%nspin, wvfn%kpts_start, wvfn%mykpts )
+
+    allocate( wvfn%wvfn( wvfn%mypts, wvfn%mybands, wvfn%mykpts ), STAT=ierr )
+
+  end subroutine screen_wvfn_initForGroupID
+
 
   subroutine screen_wvfn_init( pinfo, grid, wvfn, siteIndex, ierr )
     use screen_system, only : system_parameters, params
@@ -69,17 +88,20 @@ module screen_wavefunction
     groupIndex = screen_paral_siteIndex2groupIndex( pinfo, siteIndex )
     write(6,*) 'WVFN_INIT:', groupIndex, pinfo%mygroup, siteIndex
 
-!    if( groupIndex .eq. pinfo%mygroup ) then
     if( screen_paral_isMySite( pinfo, siteIndex ) ) then
-      wvfn%npts = grid%npt
-      call divide_grid( pinfo%nprocs, pinfo%myid, grid%npt, wvfn%pts_start, wvfn%mypts, & 
-                        params%nbands, wvfn%band_start, wvfn%mybands, & 
-                        params%nkpts, params%nspin, wvfn%kpts_start, wvfn%mykpts )
-      write(6,*) 'true', wvfn%mypts, wvfn%mybands, wvfn%mykpts
-      allocate( wvfn%wvfn( wvfn%mypts, wvfn%mybands, wvfn%mykpts ), STAT=ierr )
-    else
-      write(6,*) 'false'
+      call screen_wvfn_initForGroupID( pinfo, grid, pinfo%myid, wvfn, ierr )
     endif
+
+!    if( screen_paral_isMySite( pinfo, siteIndex ) ) then
+!      wvfn%npts = grid%npt
+!      call divide_grid( pinfo%nprocs, pinfo%myid, grid%npt, wvfn%pts_start, wvfn%mypts, & 
+!                        params%nbands, wvfn%band_start, wvfn%mybands, & 
+!                        params%nkpts, params%nspin, wvfn%kpts_start, wvfn%mykpts )
+!      write(6,*) 'true', wvfn%mypts, wvfn%mybands, wvfn%mykpts
+!      allocate( wvfn%wvfn( wvfn%mypts, wvfn%mybands, wvfn%mykpts ), STAT=ierr )
+!    else
+!      write(6,*) 'false'
+!    endif
 
     
   end subroutine screen_wvfn_init
@@ -95,7 +117,7 @@ module screen_wavefunction
     type( sgrid ), intent( in ) :: grid
     integer, intent( out ) :: pts_start, mypts, band_start, mybands, kpts_start, mykpts
 
-    integer :: groupIndex, groupID
+    integer :: groupID
     
 !    groupIndex = screen_paral_siteIndex2groupIndex( pinfo, siteIndex )
     

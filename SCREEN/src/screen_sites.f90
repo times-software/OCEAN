@@ -51,8 +51,27 @@ module screen_sites
 
   public :: site
   public :: screen_sites_load, screen_sites_prep
+  public :: screen_sites_returnWavefunctionDims, screen_sites_returnWavefunctionBK
 
   contains
+
+  pure function screen_sites_returnWavefunctionDims( a ) result( dims )
+    use screen_wavefunction, only : screen_wvfn
+    type( site ), intent( in ) :: a
+    integer :: dims(2)
+    
+    dims(1) = a%wvfn%mypts
+    dims(2) = a%wvfn%npts
+  end function screen_sites_returnWavefunctionDims
+
+  pure function screen_sites_returnWavefunctionBK( a ) result( dims )
+    use screen_wavefunction, only : screen_wvfn
+    type( site ), intent( in ) :: a
+    integer :: dims(2)
+
+    dims(1) = a%wvfn%mybands
+    dims(2) = a%wvfn%mykpts
+  end function screen_sites_returnWavefunctionBK
 
   subroutine screen_sites_prep( nsites, ierr )
     integer, intent( out ) :: nsites
