@@ -205,7 +205,7 @@ module screen_wvfn_converter
     type( site ), intent( in ) :: all_sites( nsites )
     integer, intent( inout ) :: ierr
 
-    complex(DP), allocatable :: phases(:)
+!    complex(DP), allocatable :: phases(:)
     complex(DP), allocatable :: temp_wavefunctions(:,:,:)
     real(DP) :: kpoints(3), qcart(3), phse
     integer :: isite, j, ipt, isend, itag, destID
@@ -227,7 +227,7 @@ module screen_wvfn_converter
 
     ! this will break if sites vary in Npts
     npts = all_sites( 1 )%grid%Npt
-    allocate( phases( npts ), temp_wavefunctions( npts, nbands, nsites ) )
+    allocate( temp_wavefunctions( npts, nbands, nsites ) )
 
 
     nprocsPerPool = pinfo%nprocs
@@ -235,12 +235,12 @@ module screen_wvfn_converter
     isend = 0
     
     do isite = 1, nsites
-      do ipt = 1, npts
-        phse = dot_product( qcart, all_sites( isite )%grid%posn( :, ipt ) )
-        phases( ipt ) = cmplx( dcos( phse ), dsin( phse ), DP )
-      enddo    
+!      do ipt = 1, npts
+!        phse = dot_product( qcart, all_sites( isite )%grid%posn( :, ipt ) )
+!        phases( ipt ) = cmplx( dcos( phse ), dsin( phse ), DP )
+!      enddo    
 
-      call realu2( ngvecs, npts, nbands, input_uofg, input_gvecs, psys%bvecs, & 
+      call realu2( ngvecs, npts, nbands, input_uofg, input_gvecs, psys%bvecs, qcart, & 
                    all_sites( isite )%grid%posn, temp_wavefunctions( :, :, isite ) )
 
   
@@ -273,30 +273,36 @@ module screen_wvfn_converter
 
   end subroutine swl_convertAndSend
 
-  subroutine realu2( ngvecs, npts, nbands, uofg, gvecs, bvecs, & 
+  subroutine realu2( ngvecs, npts, nbands, uofg, gvecs, bvecs, qcart, & 
                      posn, wavefunctions )
     integer, intent( in ) :: ngvecs, npts, nbands
     integer, intent( in ) :: gvecs( 3, ngvecs )
-    real(DP), intent( in ) :: bvecs(3,3)
+    real(DP), intent( in ) :: bvecs(3,3), qcart(3)
     complex(DP), intent( in ) :: uofg( ngvecs, nbands )
     real(DP), intent( in ) :: posn( 3, npts )
     complex(DP), intent( out ) :: wavefunctions( npts, nbands )
     !
     complex(DP), allocatable :: phases(:,:)
-    real(DP) :: gcart(3), phse
+    real(DP) :: gcart(3), gplusq(3), phse
     integer :: i, j
+    complex(DP), parameter :: cone = 1.0_DP
+    complex(DP), parameter :: czero = 0.0_DP
 
     allocate( phases( npts, ngvecs ) )
     
     do i = 1, ngvecs
-      gcart(:) = matmul( bvecs(:,:), gvecs( :, i ) )
+!      gplusq(:) = real(gvecs( :, i ), DP ) + qcart( : )
+      gcart(:) = matmul( bvecs(:,:), real(gvecs( :, i ), DP ) )
+      gplusq(:) = gcart(:) + qcart( : )
       do j = 1, npts
-        phse = dot_product( gcart, posn(:, j ) )
+        phse = dot_product( gplusq, posn(:, j ) )
         phases( j, i ) = cmplx( dcos(phse), dsin(phse), DP )
       enddo
     enddo
 
-    wavefunctions( :, : ) = matmul( phases, uofg )
+!    wavefunctions( :, : ) = matmul( phases, uofg )
+    call zgemm( 'N', 'N', npts, nbands, ngvecs, cone, phases, npts, uofg, ngvecs, czero, &
+                wavefunctions, npts )
 
     deallocate( phases )
   end subroutine realu2

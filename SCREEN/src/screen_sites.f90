@@ -49,7 +49,7 @@ module screen_sites
 !  integer, allocatable :: tmp_indices( : )
 !  character( len=2 ), allocatable :: tmp_elnames( : )
 
-  public :: site
+  public :: site, site_info
   public :: screen_sites_load, screen_sites_prep
   public :: screen_sites_returnWavefunctionDims, screen_sites_returnWavefunctionBK
 

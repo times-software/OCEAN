@@ -17,6 +17,7 @@ program screen_driver
   use ocean_dft_files, only : odf_init, odf_clean
   use screen_wvfn_converter, only : screen_wvfn_converter_driver
   use screen_wavefunction, only : screen_wvfn_diagnostic 
+  use screen_chi, only : screen_chi_init, screen_chi_driver
 
   implicit none
 
@@ -77,6 +78,10 @@ program screen_driver
     write(6,*) myid, root
   endif
   
+  call screen_chi_init( ierr )
+  if( ierr .ne. 0 ) goto 111
+  call screen_chi_driver( nsites, all_sites, ierr )
+  if( ierr .ne. 0 ) goto 111
 
   if( ierr .eq. 0 ) write(6,*) 'success', myid
   if( ierr .ne. 0 ) write(6,*) 'failure', myid, ierr

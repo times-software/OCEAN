@@ -33,8 +33,19 @@ module screen_wavefunction
   public :: screen_wvfn
   public :: screen_wvfn_init, screen_wvfn_map_procID, screen_wvfn_initForGroupID
   public :: screen_wvfn_diagnostic
+  public :: screen_wvfn_kill
 
   contains
+
+  subroutine screen_wvfn_kill( wvfn )
+    type( screen_wvfn ), intent( inout ) :: wvfn
+
+    if( allocated( wvfn%wvfn ) ) deallocate( wvfn%wvfn ) 
+    wvfn%mypts = 0
+    wvfn%mybands = 0
+    wvfn%mykpts = 0
+  end subroutine screen_wvfn_kill
+
 
   subroutine screen_wvfn_diagnostic( wvfn, ierr )
     type( screen_wvfn ), intent( in ) :: wvfn
