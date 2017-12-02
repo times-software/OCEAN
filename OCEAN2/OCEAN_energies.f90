@@ -483,7 +483,7 @@ module OCEAN_energies
         else
           noshift_lumo = .false.
         endif
-        if( noshift_lumo .eq. .false. ) then
+        if( noshift_lumo .eqv. .false. ) then
           open( unit=99, file='eshift.ipt', form='formatted', status='old' )
           rewind 99
           read ( 99, * ) cls
