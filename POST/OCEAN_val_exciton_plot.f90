@@ -8,7 +8,8 @@ program OCEAN_val_exciton_plot
   implicit none
 
   integer, parameter :: DP = kind(1.0d0 )
-  complex(DP), allocatable :: exciton(:,:,:,:), plot_exciton(:,:), Rspace_exciton(:,:), u2(:,:), rk_exciton(:,:), cv_exciton(:,:,:),cvkex(:,:),pointwf(:)
+  complex(DP), allocatable :: exciton(:,:,:,:), plot_exciton(:,:), Rspace_exciton(:,:), &
+                              u2(:,:), rk_exciton(:,:), cv_exciton(:,:,:),cvkex(:,:),pointwf(:)
   complex(DP) :: cphs
 
   real(DP), allocatable :: z_stripe( : ), xyz(:,:), atom_loc(:,:)
@@ -142,7 +143,8 @@ program OCEAN_val_exciton_plot
   do i=1,3
      ehcoor(i) = fraction( 1 + ehcoor(i)) ! ged rid of negative frac coor
   enddo
-  ixctr = floor(xmesh(1)*ehcoor(1)) + ( floor(xmesh(2)*ehcoor(2)) - 1 ) * xmesh(1) + ( floor(xmesh(3)*ehcoor(3)) - 1 ) * xmesh(1) * xmesh(2)
+  ixctr = floor(xmesh(1)*ehcoor(1)) + ( floor(xmesh(2)*ehcoor(2)) - 1 ) * xmesh(1) & 
+        + ( floor(xmesh(3)*ehcoor(3)) - 1 ) * xmesh(1) * xmesh(2)
   write(6,*) 'Selected nearest real space point index:', ixctr
   
   write(6,*) 'Opening u2'
