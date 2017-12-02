@@ -156,7 +156,8 @@ subroutine update( x, ax, g, pg, apg, u, au, c, n, i1, i2, n2 )
   i2 = i2 + 1
   u( : , i2 ) = pg
   au( : , i2 ) = apg
-if( 0 ) then
+#if 0
+!if( 0 ) then
   r = 0
   dumc=0
 
@@ -201,41 +202,49 @@ enddo
 !!$OMP END PARALLEL DO
 
 
-else
+!else
+#else
   call ZGEMV( 'C', n, i2, cm1, au, n, g, 1, c0, r, 1 )
 
 
-  if( 0 ) then
+!  if( 0 ) then
+#if 0
     call ZGEMV( 'C', n, i2, cp1, au, n, au(:,i2), 1, c0, dumc, 1 )
     c( 1:i2, i2 ) = dumc(:)
     c( i2, 1:i2 ) = conjg( dumc(:) )
     call invert( i2, n2, c, c2, cinv )
     coeff(1:i2) = matmul( cinv(1:i2,1:i2), r(1:i2) )
-  else
+!  else
+#else
 !    call ZGEMM( 'C', 'N', i2, i2, n, cp1, au, n, au, n, c0, c, n2 )
     call ZGEMV( 'C', n, i2, cp1, au, n, au(:,i2), 1, c0, dumc, 1 )
     c( 1:i2, i2 ) = dumc(:)
     c( i2, 1:i2 ) = conjg( dumc(:) )
     c2( 1:i2, 1:i2 ) = c( 1:i2, 1:i2 )
 
-    if( 0 ) then
+!    if( 0 ) then
+#if 0
       call ZGETRF( i2, i2, c, n2, ipiv, info )
       call ZGETRS( 'N', i2, 1, c, n2, ipiv, r, n2, info )
-    else
+!    else
+#else
       i3 = 64*i2
       allocate( cwork( i3 ) )
       call ZHETRF( 'L', i2, c, n2, ipiv, cwork, i3, info )
       call ZHETRS( 'L', i2, 1, c, n2, ipiv, r, n2, info )
       deallocate( cwork )
-    endif
+!    endif
+#endif
     coeff(1:i2) = r(1:i2)
     c( 1:i2, 1:i2 ) = c2( 1:i2, 1:i2 )
-  endif
+!  endif
+#endif
 
   call ZGEMV( 'N', n, i2, cp1, u, n, coeff, 1, cp1, x, 1 )
   call ZGEMV( 'N', n, i2, cp1, au, n, coeff, 1, cp1, ax, 1 )
 
-endif
+!endif
+#endif
 
 
 
