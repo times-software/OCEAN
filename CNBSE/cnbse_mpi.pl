@@ -411,7 +411,11 @@ if( $obf == 1 )
 else  ### Abi/QE w/o obf
 { 
   my @brange;
-  if ($nbuse == 0) {
+#  if ($nbuse == 0) {
+  if( $nbuse != 0 ) 
+  {
+    print "Currently nbuse is set to defaults!\n";
+  }
     open BRANGE, "brange.ipt" or die "Failed to open brange.ipt\n";
     <BRANGE> =~ m/(\d+)\s+(\d+)/ or die "Failed to parse brange.ipt\n";
     $brange[0] = $1;
@@ -435,19 +439,19 @@ else  ### Abi/QE w/o obf
     open NBUSE, ">nbuse.ipt" or die "Failed to open nbuse.ipt\n";
     print NBUSE "$nbuse\n";
     close NBUSE;
-  }
-  else
-  {
-    if( $is_xas == 1 )
-    {
-      $run_text = 'XAS';
-    }
-    else
-    {
-      print "XES!\n";
-      $run_text = 'XES';
-    }
-  }
+#  }
+#  else
+#  {
+#    if( $is_xas == 1 )
+#    {
+#      $run_text = 'XAS';
+#    }
+#    else
+#    {
+#      print "XES!\n";
+#      $run_text = 'XES';
+#    }
+#  }
 }
 
 
