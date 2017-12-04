@@ -520,7 +520,7 @@ module OCEAN_haydock
 
 
       if( myid .eq. root ) then
-        relative_error = f( 2 ) / ( dimag( - dot_product( rhs, x ) ) ) !* kpref )
+        relative_error = f( 2 ) / ( aimag( - dot_product( rhs, x ) ) ) !* kpref )
         write ( 76, '(1p,1i5,4(1x,1e15.8))' ) int1, ener * Hartree2eV,  & !*27.2114_DP, &
                   ( 1.0d0 - dot_product( rhs, x ) ) * fact, relative_error
 #ifdef __HAVE_F03
@@ -1169,7 +1169,7 @@ module OCEAN_haydock
       eps = 1.0_dp - fact / al - fact / be
 
       reeps = dble( eps )
-      imeps = dimag( eps )
+      imeps = aimag( eps )
 !      rad = sqrt( reeps ** 2 + imeps ** 2 )
 !      theta = acos( reeps / rad ) / 2
 !      indref = sqrt( rad ) * cos( theta )

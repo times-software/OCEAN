@@ -147,7 +147,7 @@ program rixs_plane
       if( eloss .le. 0.0_dp ) eps = 0.0d0
 
       reeps = dble( eps )
-      imeps = dimag( eps )
+      imeps = aimag( eps )
 
 
       write ( 99, '(3(1e15.8,1x))' ) e*Hartree2eV, ein*Hartree2eV, imeps
