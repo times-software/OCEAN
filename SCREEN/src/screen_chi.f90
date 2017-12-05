@@ -310,7 +310,7 @@ module screen_chi
     if( ierr .ne. 0 ) return
     curPts = curPts + MyWvfn%mypts
 
-    if( pinfo%myid .eq. pinfo%root ) write(205,*) chi(1:225,1:225)
+!    if( pinfo%myid .eq. pinfo%root ) write(205,*) chi(1:225,1:225)
 
     do id = pinfo%myid + 1, pinfo%nprocs - 1
       stopPts = curPts + spareWavefunctions(id)%mypts - 1
@@ -318,14 +318,14 @@ module screen_chi
       call MPI_WAIT( spareWvfnRecvs(id), MPI_STATUS_IGNORE, ierr )
       if( ierr .ne. 0 ) return
 
-      if( myid .eq. 0 ) then
-        do i = 1, 2
-          do j = 1, 225
-            write(6050+id,'(2E20.11)') real(spareWavefunctions(id)%wvfn(j,i,1),DP), &
-                             aimag( spareWavefunctions(id)%wvfn(j,i,1))
-          enddo
-        enddo
-      endif
+!      if( myid .eq. 0 ) then
+!        do i = 1, 2
+!          do j = 1, 225
+!            write(6050+id,'(2E20.11)') real(spareWavefunctions(id)%wvfn(j,i,1),DP), &
+!                             aimag( spareWavefunctions(id)%wvfn(j,i,1))
+!          enddo
+!        enddo
+!      endif
     
       call calcSingleChi( Mywvfn%wvfn, spareWavefunctions(id)%wvfn, chi(:,CurPts:stopPts), 1, ierr )
       if( ierr .ne. 0 ) return

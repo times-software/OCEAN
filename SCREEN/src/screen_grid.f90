@@ -213,7 +213,7 @@ module screen_grid
     call mkmesh( new_g, ierr )
 !    if( ierr .eq. restart_mkmesh ) call mkmesh( new_g, ierr )
     if( ierr .ne. 0 ) return
-    write(103,*) new_g%posn
+!    write(103,*) new_g%posn
 
   end subroutine screen_grid_init
 

@@ -351,9 +351,11 @@ module ocean_legacy_files
     else
       do i = 2, inter_nproc
         if( mod( inter_nproc, i ) .eq. 0 ) then
-          if( nfiles .gt. (inter_nproc/i) ) then
+          if( inter_myid .eq. 0 ) write(6,*) i, inter_nproc
+          if( nfiles .ge. (inter_nproc/i) ) then
             npool = inter_nproc/i
-            mypool = mod( inter_myid, i )
+            mypool = inter_myid/ i 
+            write(6,*) '*', inter_myid, npool, mypool
             goto 11
           endif
         endif
@@ -442,7 +444,7 @@ module ocean_legacy_files
   subroutine olf_read_at_kpt( ikpt, ispin, ngvecs, my_bands, gvecs, wfns, ierr )
 #ifdef MPI
     use OCEAN_mpi, only : MPI_IBCAST, MPI_INTEGER, MPI_BCAST, MPI_IRSEND, MPI_IRECV, &
-                          MPI_DOUBLE_PRECISION, MPI_STATUSES_IGNORE, MPI_CANCEL, myid
+                          MPI_DOUBLE_PRECISION, MPI_STATUSES_IGNORE, MPI_CANCEL, myid, MPI_REQUEST_NULL
 !    use OCEAN_mpi
 #endif
     integer, intent( in ) :: ikpt, ispin, ngvecs, my_bands
@@ -465,6 +467,8 @@ module ocean_legacy_files
       ierr = 1
       return
     endif
+
+    nbands = brange(4)-brange(3)+brange(2)-brange(1)+2
 
     if( pool_myid .eq. pool_root ) then
       itarg = wvfn_file_indx( ikpt )
@@ -494,11 +498,12 @@ module ocean_legacy_files
       deallocate( trans_gvecs )
 
       nr = 2 * ( pool_nproc - 1 ) + 1 
-      allocate( requests( nr ) )
+!      nr = 2 * pool_nproc
+      allocate( requests( 0:nr ) )
+      requests(:) = MPI_REQUEST_NULL
 #ifdef MPI
       call MPI_IBCAST( gvecs, 3*ngvecs, MPI_INTEGER, pool_root, pool_comm, requests( nr ), ierr )
 #endif
-      nbands = brange(4)-brange(3)+brange(2)-brange(1)+2
       allocate( re_wvfn( ngvecs, nbands ), im_wvfn( ngvecs, nbands ) )
 
       write(1000+myid,*) '***Reading k-point: ', ikpt, ispin
@@ -540,7 +545,7 @@ module ocean_legacy_files
         ! don't send if I am me
         if( id .ne. pool_myid ) then
           call MPI_IRSEND( im_wvfn( 1, start_band ), nbands_to_send*ngvecs, MPI_DOUBLE_PRECISION, &
-                         id, 2, pool_comm, requests( id + pool_nproc), ierr )
+                         id, 2, pool_comm, requests( id + pool_nproc - 1), ierr )
           ! this might not sync up
           if( ierr .ne. 0 ) return
         endif
@@ -554,6 +559,12 @@ module ocean_legacy_files
     else
       nr = 3
       allocate( requests( nr ) )
+      requests(:) = MPI_REQUEST_NULL
+      write(1000+myid,*) '***Receiving k-point: ', ikpt, ispin
+      write(1000+myid,*) '   Ngvecs: ', ngvecs
+      write(1000+myid,*) '   Nbands: ', nbands
+
+
       allocate( re_wvfn( ngvecs, my_bands ), im_wvfn( ngvecs, my_bands ) )
 #ifdef MPI
       call MPI_IRECV( re_wvfn, ngvecs*my_bands, MPI_DOUBLE_PRECISION, pool_root, 1, pool_comm, & 
@@ -575,12 +586,15 @@ module ocean_legacy_files
 
     endif
 
+
     call MPI_WAITALL( nr, requests, MPI_STATUSES_IGNORE, ierr )
     if( ierr .ne. 0 ) return
 
     wfns( :, : ) = cmplx( re_wvfn( :, 1:my_bands ), im_wvfn( :, 1:my_bands ), DP )
     deallocate( re_wvfn, im_wvfn, requests )
 
+    write(1000+myid,*) '***Finishing k-point: ', ikpt, ispin
+    call MPI_BARRIER( pool_comm, ierr )
 
   end subroutine olf_read_at_kpt
 

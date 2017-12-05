@@ -56,9 +56,9 @@ module screen_wvfn_converter
       if( ierr .ne. 0 ) return
     enddo
 
-    do i = 1, size(all_sites(1)%wvfn%wvfn, 2 )
-      write(1050+myid,'(2E20.11)') real(all_sites(1)%wvfn%wvfn(1,i,1),DP), aimag( all_sites(1)%wvfn%wvfn(1,i,1) )
-    enddo
+!    do i = 1, size(all_sites(1)%wvfn%wvfn, 2 )
+!      write(1050+myid,'(2E20.11)') real(all_sites(1)%wvfn%wvfn(1,i,1),DP), aimag( all_sites(1)%wvfn%wvfn(1,i,1) )
+!    enddo
 
     deallocate( recvArray )
 
@@ -156,7 +156,7 @@ module screen_wvfn_converter
     recv_list(:) = 0
 #else
     write(1000+myid,*) 'Running swl_postSiteRecvs'
-    write(1000+myid,'(A3,2(1x,I8))'), '   ', size(current_site%wvfn%wvfn,1), size(current_site%wvfn%wvfn,2)
+    write(1000+myid,'(A3,2(1x,I8))') '   ', size(current_site%wvfn%wvfn,1), size(current_site%wvfn%wvfn,2)
     write(1000+myid,'(A3,7A9)') '   ', 'Npts', 'Start', 'Nbands', 'Sender', 'iKpts', 'iSpin', 'Tag'
     
     nprocPerKpt = olf_nprocPerPool()
@@ -179,7 +179,8 @@ module screen_wvfn_converter
       
           write(1000+myid,'(A,7(1X,I8))') '   ', npts, start_band, num_bands, targetID, ikpt, ispin, itag
 
-          call MPI_IRECV( current_site%wvfn%wvfn( :, start_band:start_band+num_bands-1, i ), npts*num_bands, & 
+!          call MPI_IRECV( current_site%wvfn%wvfn( :, start_band:start_band+num_bands-1, i ), npts*num_bands, & 
+          call MPI_IRECV( current_site%wvfn%wvfn( 1, start_band, i ), npts*num_bands, & 
                           MPI_DOUBLE_COMPLEX, targetID, itag, comm, recv_list( j ), ierr )
           if( ierr .ne. 0 ) return
           start_band = start_band + num_bands
@@ -196,7 +197,7 @@ module screen_wvfn_converter
 
   subroutine swl_convertAndSend( pinfo, ikpt, ispin, ngvecs, nbands, input_gvecs, input_uofg, &
                                  nsites, all_sites, ierr )
-    use ocean_mpi
+    use ocean_mpi, only : myid, comm, MPI_DOUBLE_COMPLEX
     use screen_system, only : system_parameters, params, screen_system_returnKvec, &
                               physical_system, psys
     use screen_sites, only : site
@@ -220,9 +221,11 @@ module screen_wvfn_converter
     integer :: npts, nProcsPerPool, iproc
     integer :: pts_start, num_pts, band_start, num_band, kpts_start, num_kpts
 #ifdef MPI_F08
+    type( MPI_DATATYPE ) :: newType
     type( MPI_DATATYPE ), allocatable :: typeList(:,:)
     type( MPI_REQUEST ), allocatable :: send_list(:)
 #else
+    integer :: newType
     integer, allocatable :: typeList(:,:)
     integer, allocatable :: send_list(:)
 #endif
@@ -248,7 +251,8 @@ module screen_wvfn_converter
     allocate( send_list( nsites * nprocsPerPool ), typeList( 0:nprocsPerPool, nsites ) )
     isend = 0
 
-    
+    write(1000+myid,'(A,2(1X,I8))') '*** Convert and Send ***', ikpt, ispin
+
     
     do isite = 1, nsites
 !      do ipt = 1, npts
@@ -268,6 +272,9 @@ module screen_wvfn_converter
       call screen_wvfn_singleKInit( all_sites( isite )%grid, temp_wavefunctions( isite ), ierr )
       if( ierr .ne. 0 ) return
 
+      write(1000+myid,'(A,4(1X,I8))') '   Site:', isite, size(temp_wavefunctions( isite )%wvfn,1), &
+             size(temp_wavefunctions( isite )%wvfn,2), nbands
+
       npts = all_sites( isite )%grid%Npt
 
       call realu2( ngvecs, npts, nbands, input_uofg, input_gvecs, psys%bvecs, qcart, & 
@@ -283,9 +290,9 @@ module screen_wvfn_converter
         call screen_wvfn_map_procID( destID, isite, pinfo, all_sites( isite )%grid, &
                                      pts_start, num_pts, band_start, num_band, kpts_start, num_kpts )
 
-        call MPI_TYPE_VECTOR( num_band, num_pts, npts, MPI_DOUBLE_COMPLEX, typeList( iproc, isite ), ierr )
+        call MPI_TYPE_VECTOR( nbands, num_pts, npts, MPI_DOUBLE_COMPLEX, newType, ierr )
         if( ierr .ne. 0 ) return
-        call MPI_TYPE_COMMIT( typeList( iproc, isite ), ierr )
+        call MPI_TYPE_COMMIT( newType, ierr )
         if( ierr .ne. 0 ) return
 
 !        write(6,*) ikpt, ispin, isend, destID, num_pts, num_band, itag
@@ -295,13 +302,15 @@ module screen_wvfn_converter
 !          call MPI_ISEND( temp_wavefunctions(isite)%wvfn( pts_start, band_start, 1 ), num_pts * num_band, &
 !                          MPI_DOUBLE_COMPLEX, destID, itag, comm, send_list( isend ), ierr )
           call MPI_ISEND( temp_wavefunctions(isite)%wvfn( pts_start, band_start, 1 ), 1, &
-                          typeList( iproc, isite ), destID, itag, comm, send_list( isend ), ierr )
+                          newType, destID, itag, comm, send_list( isend ), ierr )
         else
           write(6,*) 'Empty!', ikpt, ispin, iproc
           send_list( isend ) = MPI_REQUEST_NULL
           ierr = -1
           return
         endif
+        call MPI_TYPE_FREE( newType, ierr )
+        if( ierr .ne. 0 ) return
       enddo
     enddo
 
@@ -310,34 +319,34 @@ module screen_wvfn_converter
 
 
     ! You are supposed to be able to free the type immediately after the isend call
-    do isite = 1, nsites
-      do iproc = 0, nprocsPerPool - 1
-        call MPI_TYPE_FREE( typeList( iproc, isite ), ierr )
-      enddo
-    enddo
+!    do isite = 1, nsites
+!      do iproc = 0, nprocsPerPool - 1
+!        call MPI_TYPE_FREE( typeList( iproc, isite ), ierr )
+!      enddo
+!    enddo
     
 
-    if( ikpt .eq. 1 .and. ispin .eq. 1 ) then
-      write(6,*) 'TEST WVFN with myid=', myid, npts, nbands
-!      write(7000,*) real(temp_wavefunctions(1)%wvfn(1:225,1:2,1),DP)
-!      write(7001,*) real(temp_wavefunctions(1)%wvfn(226:450,1:2,1),DP)
-!      write(7002,*) real(temp_wavefunctions(1)%wvfn(451:675,1:2,1),DP)
-!      write(7003,*) real(temp_wavefunctions(1)%wvfn(676:900,1:2,1),DP)
-      do i = 1, 2
-        do j = 1, 225
-          write(7050+myid,'(2E20.11)') real(temp_wavefunctions(1)%wvfn(j,i,1),DP), &
-                             aimag( temp_wavefunctions(1)%wvfn(j,i,1))
-        enddo
-      enddo
-      write(8000+myid,*) real(input_uofg(:,2),DP)
-      write(9000+myid,*) all_sites( 1 )%grid%posn(:,:)
-    endif
+!    if( ikpt .eq. 1 .and. ispin .eq. 1 ) then
+!      write(6,*) 'TEST WVFN with myid=', myid, npts, nbands
+!!      write(7000,*) real(temp_wavefunctions(1)%wvfn(1:225,1:2,1),DP)
+!!      write(7001,*) real(temp_wavefunctions(1)%wvfn(226:450,1:2,1),DP)
+!!      write(7002,*) real(temp_wavefunctions(1)%wvfn(451:675,1:2,1),DP)
+!!      write(7003,*) real(temp_wavefunctions(1)%wvfn(676:900,1:2,1),DP)
+!      do i = 1, 2
+!        do j = 1, 225
+!          write(7050+myid,'(2E20.11)') real(temp_wavefunctions(1)%wvfn(j,i,1),DP), &
+!                             aimag( temp_wavefunctions(1)%wvfn(j,i,1))
+!        enddo
+!      enddo
+!      write(8000+myid,*) real(input_uofg(:,2),DP)
+!      write(9000+myid,*) all_sites( 1 )%grid%posn(:,:)
+!    endif
 
     do isite = 1, nsites
       call screen_wvfn_kill( temp_wavefunctions( isite ) )
     enddo
 
-    deallocate( temp_wavefunctions, send_list )
+    deallocate( temp_wavefunctions, send_list, typeList )
 
 !    write( 6, * ) 'Convert and send', ikpt, ispin
 
