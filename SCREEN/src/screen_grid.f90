@@ -248,7 +248,7 @@ module screen_grid
           call make_uniform( new_g, ierr )
       end select
 
-      write(6,*) 'central point:', new_g%center(:)
+      if( myid .eq. root ) write(6,'(A,3F20.14)') 'central point:', new_g%center(:)
       call mkcmesh( new_g, ierr )
       if( ierr .ne. 0 ) return
 

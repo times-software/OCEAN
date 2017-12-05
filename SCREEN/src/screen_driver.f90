@@ -71,12 +71,12 @@ program screen_driver
   call odf_clean( ierr )
   if( ierr .ne. 0 ) goto 111
 
-  if( myid .eq. root ) then 
+!  if( myid .eq. root ) then 
     call screen_wvfn_diagnostic( all_sites(1)%wvfn, ierr )
     if( ierr .ne. 0 ) goto 111
-  else
-    write(6,*) myid, root
-  endif
+!  else
+!    write(6,*) myid, root
+!  endif
   
   call screen_chi_init( ierr )
   if( ierr .ne. 0 ) goto 111

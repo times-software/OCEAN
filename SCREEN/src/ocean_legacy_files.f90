@@ -313,11 +313,31 @@ module ocean_legacy_files
     call set_pools( ierr )
     if( ierr .ne. 0 ) return
 
-    write(6,*) 'olf_read_init was successful'
+    call writeDiagnostics( )
+
+!    write(6,*) 'olf_read_init was successful'
     is_init = .true.
   
   end subroutine  olf_read_init 
 
+  subroutine writeDiagnostics( )
+    if( inter_myid .eq. inter_root ) then
+      write( 6, '(A)' ) "    #############################"
+      write( 6, '(A,I8)' ) " Npools:      ", npool
+      write( 6, '(A,I8)' ) " Nprocs/pool: ", pool_nproc
+    endif
+
+    write(1000+inter_myid, '(A)' ) "    #############################"
+    write(1000+inter_myid, '(A,I8)' ) " Npools:      ", npool
+    write(1000+inter_myid, '(A,I8)' ) " Nprocs/pool: ", pool_nproc
+    write(1000+inter_myid, '(A,I8)' ) " My pool:     ", mypool
+    write(1000+inter_myid, '(A,I8)' ) " My pool id:  ", pool_myid
+    write(1000+inter_myid, '(A,I8)' ) " My bands:    ", pool_nbands
+
+
+    write(1000+inter_myid, '(A)' ) "    #############################"
+    flush(1000+inter_myid)
+  end subroutine 
 
   subroutine set_pools( ierr )
     integer, intent( inout ) :: ierr
@@ -350,12 +370,13 @@ module ocean_legacy_files
     if( ierr .ne. 0 ) return
 
 
-    nbands_left = brange(4)-brange(3)+brange(2)-brange(1)+2
-    do i = 0, pool_nproc-1
-      nbands = nbands_left / ( pool_nproc - i )
-      if( i .eq. pool_myid ) pool_nbands = nbands
-      nbands_left = nbands_left - nbands
-    enddo
+    pool_nbands = olf_getBandsForPoolID( pool_myid )
+!    nbands_left = brange(4)-brange(3)+brange(2)-brange(1)+2
+!    do i = 0, pool_nproc-1
+!      nbands = nbands_left / ( pool_nproc - i )
+!      if( i .eq. pool_myid ) pool_nbands = nbands
+!      nbands_left = nbands_left - nbands
+!    enddo
 
   end subroutine set_pools
 
@@ -420,9 +441,9 @@ module ocean_legacy_files
 
   subroutine olf_read_at_kpt( ikpt, ispin, ngvecs, my_bands, gvecs, wfns, ierr )
 #ifdef MPI
-!    use OCEAN_mpi, only : MPI_IBCAST, MPI_INTEGER, MPI_BCAST, MPI_IRSEND, MPI_IRECV, &
-!                          MPI_DOUBLE_PRECISION, MPI_STATUSES_IGNORE, MPI_CANCEL
-    use OCEAN_mpi
+    use OCEAN_mpi, only : MPI_IBCAST, MPI_INTEGER, MPI_BCAST, MPI_IRSEND, MPI_IRECV, &
+                          MPI_DOUBLE_PRECISION, MPI_STATUSES_IGNORE, MPI_CANCEL, myid
+!    use OCEAN_mpi
 #endif
     integer, intent( in ) :: ikpt, ispin, ngvecs, my_bands
     integer, intent( out ) :: gvecs( 3, ngvecs )
@@ -480,6 +501,11 @@ module ocean_legacy_files
       nbands = brange(4)-brange(3)+brange(2)-brange(1)+2
       allocate( re_wvfn( ngvecs, nbands ), im_wvfn( ngvecs, nbands ) )
 
+      write(1000+myid,*) '***Reading k-point: ', ikpt, ispin
+      write(1000+myid,*) '   Ngvecs: ', ngvecs
+      write(1000+myid,*) '   Nbands: ', nbands
+
+
       read( 99 ) re_wvfn
       start_band = 1
 
@@ -490,10 +516,13 @@ module ocean_legacy_files
 
         ! don't send if I am me
         if( id .ne. pool_myid ) then
+          write(1000+myid,'(A,3(1X,I8))') '   Sending ...', id, start_band, nbands_to_send
           call MPI_IRSEND( re_wvfn( 1, start_band ), nbands_to_send*ngvecs, MPI_DOUBLE_PRECISION, &
                          id, 1, pool_comm, requests( id ), ierr )
           ! this might not sync up
           if( ierr .ne. 0 ) return
+        else
+          write(1000+myid,'(A,3(1X,I8))') "   Don't Send: ", start_band, nbands_to_send, my_bands
         endif
 
         start_band = start_band + nbands_to_send

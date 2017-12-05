@@ -34,8 +34,28 @@ module screen_wavefunction
   public :: screen_wvfn_init, screen_wvfn_map_procID, screen_wvfn_initForGroupID
   public :: screen_wvfn_diagnostic
   public :: screen_wvfn_kill
+  public :: screen_wvfn_singleKInit
 
   contains
+
+  subroutine screen_wvfn_singleKInit( grid, wvfn, ierr )
+    use screen_system, only : system_parameters, params
+    
+    type( sgrid ), intent( in ) :: grid
+    type( screen_wvfn ), intent( inout ) :: wvfn
+    integer, intent( inout ) :: ierr
+
+    wvfn%npts = grid%npt
+    wvfn%mypts = grid%npt
+    wvfn%mybands = params%nbands
+    wvfn%mykpts = 1
+    wvfn%band_start = 1
+    wvfn%kpts_start = 1
+    wvfn%pts_start = 1
+
+    allocate( wvfn%wvfn( wvfn%mypts, wvfn%mybands, wvfn%mykpts ), STAT=ierr )    
+
+  end subroutine screen_wvfn_singleKInit
 
   subroutine screen_wvfn_kill( wvfn )
     type( screen_wvfn ), intent( inout ) :: wvfn
@@ -48,16 +68,54 @@ module screen_wavefunction
 
 
   subroutine screen_wvfn_diagnostic( wvfn, ierr )
+    use ocean_mpi, only : myid, nproc, root
     type( screen_wvfn ), intent( in ) :: wvfn
     integer, intent( inout ) :: ierr
+
+    integer :: i, j
 
     if( .not. allocated( wvfn%wvfn ) ) then
       ierr = 10
       return
     endif
 
-    write(6,*) 'dumping test wvfn'
-    write(101,*) real(wvfn%wvfn(:,:,1),DP)
+    if( myid .eq. root ) write(6,*) 'dumping test wvfn'
+    if( nproc .eq. 1 ) then
+      do i = 1, 2
+        do j = 1, 225
+          write(6000,'(2E20.11)') real(wvfn%wvfn(j,i,1),DP), &
+                             aimag( wvfn%wvfn(j,i,1))
+        enddo
+        do j = 226, 450
+          write(6001,'(2E20.11)') real(wvfn%wvfn(j,i,1),DP), &
+                             aimag( wvfn%wvfn(j,i,1))
+        enddo
+        do j = 451, 675
+          write(6002,'(2E20.11)') real(wvfn%wvfn(j,i,1),DP), &
+                             aimag( wvfn%wvfn(j,i,1))
+        enddo
+        do j = 676, 900
+          write(6003,'(2E20.11)') real(wvfn%wvfn(j,i,1),DP), &
+                             aimag( wvfn%wvfn(j,i,1))
+        enddo
+      enddo
+
+!      write(6000,*) real(wvfn%wvfn(1:225,1:2,1),DP)
+!      write(6001,*) real(wvfn%wvfn(226:450,1:2,1),DP)
+!      write(6002,*) real(wvfn%wvfn(451:675,1:2,1),DP)
+!      write(6003,*) real(wvfn%wvfn(676:900,1:2,1),DP)
+    else
+      do i = 1, 2
+        do j = 1, 225
+          write(5000+myid,'(2E20.11)') real(wvfn%wvfn(j,i,1),DP), &
+                             aimag( wvfn%wvfn(j,i,1))
+        enddo
+      enddo
+
+!      write(5000+myid,*) real(wvfn%wvfn(1:225,1:2,1),DP)
+    endif
+
+    write(1000+myid,*) 'TEST WVFN SIZING:', size(wvfn%wvfn,1), size(wvfn%wvfn,2)
 
   end subroutine screen_wvfn_diagnostic
 
@@ -97,7 +155,7 @@ module screen_wavefunction
 
 
     groupIndex = screen_paral_siteIndex2groupIndex( pinfo, siteIndex )
-    write(6,*) 'WVFN_INIT:', groupIndex, pinfo%mygroup, siteIndex
+!    write(6,*) 'WVFN_INIT:', groupIndex, pinfo%mygroup, siteIndex
 
     if( screen_paral_isMySite( pinfo, siteIndex ) ) then
       call screen_wvfn_initForGroupID( pinfo, grid, pinfo%myid, wvfn, ierr )

@@ -118,11 +118,13 @@ module screen_chi
     if( pinfo%myid .eq. pinfo%root ) write(6,*) 'Running Schi_runSite'
     ! allocate chi and chi0, spareWavefunctions, mpi_requests
     dims = screen_sites_returnWavefunctionDims( singleSite )
+    write(1000+pinfo%myid,*) 'Chi dims:', dims(:)
     allocate( chi( dims(1), dims(2) ), STAT=ierr )
     if( ierr .ne. 0 ) then
       write(6,*) 'Failed to allocate chi in Schi_runSite', ierr
       return
     endif
+    chi(:,:) = 0.0_DP
 
 !    allocate( chi0( dims(1), dims(2), NImagEnergies ), STAT=ierr )
 !    if( ierr .ne. 0 ) then
@@ -185,13 +187,13 @@ module screen_chi
     if( ierr .ne. 0 ) return
 
 #ifdef MPI
-    write(6,*) 'SpareWvfnSends', SpareWvfnSends(:)
+!    write(6,*) 'SpareWvfnSends', SpareWvfnSends(:)
     call MPI_WAITALL( pinfo%nprocs, SpareWvfnSends, MPI_STATUSES_IGNORE, ierr )
     if( ierr .ne. 0 ) return
-    write(6,*) 'chiSends', chiSends(:)
+!    write(6,*) 'chiSends', chiSends(:)
     call MPI_WAIT( chiSends(1), MPI_STATUS_IGNORE, ierr )
     if( ierr .ne. 0 ) return
-    write(6,*) 'chiRecvs', chiRecvs(:)
+!    write(6,*) 'chiRecvs', chiRecvs(:)
     call MPI_WAITALL( pinfo%nprocs, chiRecvs, MPI_STATUSES_IGNORE, ierr )
     if( ierr .ne. 0 ) return
 #endif
@@ -243,7 +245,7 @@ module screen_chi
       open(unit=99, file=chiNameText, form='formatted', status='unknown' )
       rewind(99)
       do i = 1, size(FullChi,2)
-        write(99,*) FullChi(:,i)
+        write(99,'(F20.12)') FullChi(:,i)
       enddo
       close(99)
     endif
@@ -264,8 +266,8 @@ module screen_chi
     integer :: i
 
     i = size( chi )
-    write(6,*) i, chi(1,1)
-    write(6,*) pinfo%root, TagChi, pinfo%comm
+!    write(6,*) i, chi(1,1)
+!    write(6,*) pinfo%root, TagChi, pinfo%comm
 #ifdef MPI
 !    if( pinfo%myid .ne. pinfo%root ) then
       call MPI_SEND( chi(:,:), i, MPI_DOUBLE_PRECISION, pinfo%root, TagChi, pinfo%comm, ierr )
@@ -279,7 +281,7 @@ module screen_chi
   subroutine calcChi( pinfo, MyWvfn, spareWavefunctions, chi, spareWvfnRecvs, ierr )
     use screen_paral, only : site_parallel_info
     use screen_wavefunction, only : screen_wvfn
-    use ocean_mpi, only : MPI_STATUS_IGNORE
+    use ocean_mpi, only : MPI_STATUS_IGNORE, myid
  
     type( site_parallel_info ), intent( in ) :: pinfo
     type( screen_wvfn ), intent( in ) :: MyWvfn
@@ -295,7 +297,7 @@ module screen_chi
 #endif
     integer, intent( inout ) :: ierr
 
-    integer :: id, curPts
+    integer :: id, curPts, stopPts, i, j
 
     ! Need to figure out the offset for chi/chi0
     curPts = 1    
@@ -303,30 +305,52 @@ module screen_chi
       curPts = curPts + spareWavefunctions(id)%mypts
     enddo
 
+    write(1000+pinfo%myid,*) pinfo%myid, pinfo%myid, CurPts
     call calcSingleChi( MyWvfn%wvfn, MyWvfn%wvfn, chi(:,CurPts:), 1, ierr )
     if( ierr .ne. 0 ) return
     curPts = curPts + MyWvfn%mypts
 
+    if( pinfo%myid .eq. pinfo%root ) write(205,*) chi(1:225,1:225)
+
     do id = pinfo%myid + 1, pinfo%nprocs - 1
+      stopPts = curPts + spareWavefunctions(id)%mypts - 1
+      write(1000+pinfo%myid,'(A,4(1X,I8))') '  ', pinfo%myid, id, CurPts, stopPts
       call MPI_WAIT( spareWvfnRecvs(id), MPI_STATUS_IGNORE, ierr )
       if( ierr .ne. 0 ) return
+
+      if( myid .eq. 0 ) then
+        do i = 1, 2
+          do j = 1, 225
+            write(6050+id,'(2E20.11)') real(spareWavefunctions(id)%wvfn(j,i,1),DP), &
+                             aimag( spareWavefunctions(id)%wvfn(j,i,1))
+          enddo
+        enddo
+      endif
     
-      call calcSingleChi( Mywvfn%wvfn, spareWavefunctions(id)%wvfn, chi(:,CurPts:), 1, ierr )
+      call calcSingleChi( Mywvfn%wvfn, spareWavefunctions(id)%wvfn, chi(:,CurPts:stopPts), 1, ierr )
       if( ierr .ne. 0 ) return
 
-      curPts = curPts + MyWvfn%mypts
+      curPts = curPts + spareWavefunctions(id)%mypts
     enddo
 
     curPts = 1
     do id = 0, pinfo%myid - 1
+      stopPts = curPts + spareWavefunctions(id)%mypts - 1
+      write(1000+pinfo%myid,'(A,4(1X,I8))') '  ', pinfo%myid, id, CurPts, stopPts
       call MPI_WAIT( spareWvfnRecvs(id), MPI_STATUS_IGNORE, ierr )
       if( ierr .ne. 0 ) return
 
       call calcSingleChi( Mywvfn%wvfn, spareWavefunctions(id)%wvfn, chi(:,CurPts:), 1, ierr )
       if( ierr .ne. 0 ) return
 
-      curPts = curPts + MyWvfn%mypts
+      curPts = curPts + spareWavefunctions(id)%mypts
     enddo
+
+!    if( pinfo%myid .ne. 0 ) then
+!      write(1000+pinfo%myid,*) spareWavefunctions(0)%wvfn(1:225,1,4)
+!    else
+!      write(1000+pinfo%myid,*)  Mywvfn%wvfn(1:225,1,4)
+!    endif
   end subroutine calcChi
 
   subroutine calcSingleChi( LWvfn, RWvfn, chi, ispin, ierr )
@@ -341,18 +365,20 @@ module screen_chi
     real(DP), allocatable :: temp(:,:)
     complex(DP), allocatable :: chi0(:,:,:)
     complex(DP) :: scalar
-    real(DP) :: pref, denr, deni, diff, fr, fi, norm
-    integer :: Lpts, Rpts, nbands, nkpts, ikpt, iband, it, i, j
+    real(DP) :: pref, denr, deni, diff, fr, fi, norm, spinfac
+    integer :: Lpts, Rpts, nbands, nKptsAndSpin, ikpt, iband, it, i, j
 
     Lpts = size( LWvfn, 1 )
     Rpts = size( RWvfn, 1 )
     nbands = size( LWvfn, 2 )
-    nkpts = size( LWvfn, 3 )
+    ! for a spin = 2 system the 'number of k-points' will be doubled
+    nKptsAndspin = size( LWvfn, 3 )
 
+    spinfac = 2.0_DP / real(params%nspin, DP )
     pref = 1.0_DP / ( real( params%nkpts, DP ) * psys%celvol )
-    write(6,*) 'pref', pref
+!    write(6,*) 'pref', pref
 
-    chi(:,1:RPts) = 0.0_DP
+!    chi(:,1:RPts) = 0.0_DP
 !   s is Geometric mean in Ryd
 !   mu is EFermi in Ryd
 
@@ -361,7 +387,7 @@ module screen_chi
     chi0 = 0.0_DP
 
 
-    do ikpt = 1, nkpts
+    do ikpt = 1, NkptsAndSpin
       do iband = 1, nbands
         diff = sqrt( (mu_ryd - energies( iband, ikpt, ispin ))**2 + 1.0_DP*10**(-6) )
         denr = sign( diff, mu_ryd - energies( iband, ikpt, ispin ) )
@@ -377,11 +403,13 @@ module screen_chi
           deni = geodiff * ImagEnergies( it ) / ( 1.0_DP - ImagEnergies( it ) )
 
 !          scalar = pref / cmplx( denr, deni, DP )
+          scalar = 1.0_dp / cmplx( denr, deni, DP )
           norm = 1.0_DP / ( denr**2 + deni**2 )
           fr = norm * denr
           fi = norm * deni
 
-          chi0(:,:,it) = chi0(:,:,it) + temp(:,:) * cmplx( fr, fi, DP )
+!          chi0(:,:,it) = chi0(:,:,it) + temp(:,:) * cmplx( fr, fi, DP )
+          chi0(:,:,it) = chi0(:,:,it) + scalar * temp( :, : )
 
 !          call ZGERC( Lpts, Rpts, scalar, LWvfn(:,iband,ikpt), 1, RWvfn(:,iband,ikpt), 1, &
 !                      chi0(:,:,it), Lpts ) 
@@ -392,17 +420,17 @@ module screen_chi
 
     enddo
 
-    do it = 1, size(LWvfn,1)
-      write(202,*) real(LWvfn(it,1,1),DP), aimag(LWvfn(it,1,1))
-    enddo
-    flush(202)
+!    do it = 1, size(LWvfn,2)
+!      write(202,*) real(LWvfn(1,it,1),DP), aimag(LWvfn(1,it,1))
+!    enddo
+!    flush(202)
 
-    write(201,*) chi0(:,:,1)
-    flush(201)
+!    write(201,*) chi0(:,:,1)
+!    flush(201)
 
     do it = 1, NImagEnergies
       ! FAKE SPIN FACTOR HERE!
-      pref = 4.0_DP * weightImagEnergies( it ) * geodiff / pi_dp
+      pref = spinfac * 2.0_DP * weightImagEnergies( it ) * geodiff / pi_dp
       do j = 1, Rpts
         do i = 1, Lpts
           chi( i, j ) = chi( i, j ) + pref * ( real(chi0( i, j, it ),DP)**2 - aimag( chi0( i, j, it ) )**2 )
@@ -417,7 +445,7 @@ module screen_chi
   subroutine postSendSpareWvfn( pinfo, spareWvfnSends, Wavefunction, ierr )
     use screen_paral, only : site_parallel_info
     use screen_wavefunction, only : screen_wvfn
-    use ocean_mpi, only : MPI_REQUEST_NULL, MPI_DOUBLE_COMPLEX
+    use ocean_mpi, only : MPI_REQUEST_NULL, MPI_DOUBLE_COMPLEX, myid
     type( site_parallel_info ), intent( in ) :: pinfo
 #ifdef MPI_F08
     type( MPI_REQUEST ), intent( inout ) :: spareWvfnSends(0:)
@@ -429,6 +457,8 @@ module screen_chi
 
 
     integer :: id, i, istart, istop, j
+
+    write(1000+myid,*) 'Posting Sends for Spare Wavefunctions'
     
     istart = pinfo%myid + 1
     istop = pinfo%nprocs - 1
@@ -437,6 +467,8 @@ module screen_chi
 
     do j = 0, 1
       do id = istart, istop
+        write(1000+myid,'(A,6(1X,I8))') '   ', id, Wavefunction%mypts, Wavefunction%mybands, &
+                                        Wavefunction%mykpts, i, TagWvfn
         call MPI_ISEND( Wavefunction%wvfn, i, MPI_DOUBLE_COMPLEX, id, TagWvfn, pinfo%comm, &
                         spareWvfnSends(id), ierr )
         if( ierr .ne. 0 ) return
@@ -461,22 +493,44 @@ module screen_chi
 #endif
     real(DP), intent( inout ) :: FullChi(:,:)
     integer, intent( inout ) :: ierr
-
+#ifdef MPI_F08
+    type( MPI_DATATYPE ) :: newType
+#else
+    integer :: newType
+#endif
     integer :: id, curPts, i
 
     if( pinfo%myid .eq. pinfo%root ) then
       curPts = 1
       do id = 0, pinfo%nprocs - 1
-        i = spareWavefunctions( id )%mypts * spareWavefunctions( id )%npts
-!        if( id .eq. pinfo%myid ) then
-!          chiRecvs( id ) = MPI_REQUEST_NULL
-!        else
-        write(6,'(A,3(X,I8))') 'recvChi', id, curPts, i
-          call MPI_IRECV( FullChi(:,curPts:), i, MPI_DOUBLE_PRECISION, id, TagChi, pinfo%comm, &
-                          chiRecvs(id), ierr )
-!        endif
+        
+        ! Each processor has a stripe of chi0 which locally runs (1:mynpts,1:npts)
+        ! We need to match that onto the global array (1:npts,1:npts)
+        !   Currently this becomes npts stripes of length mynpts and stride npts
+        !JTV need to check performance hit of this
+        call MPI_TYPE_VECTOR( spareWavefunctions( id )%npts, spareWavefunctions( id )%mypts, &
+                              spareWavefunctions( id )%npts, MPI_DOUBLE_PRECISION, newType, ierr )
+        if( ierr .ne. 0 ) return
+        call MPI_TYPE_COMMIT( newType, ierr )
+        if( ierr .ne. 0 ) return
+
+        call MPI_IRECV( FullChi(curPts,1), 1, newType, id, TagChi, pinfo%comm, chiRecvs(id), ierr )
+        if( ierr .ne. 0 ) return
+
+        call MPI_TYPE_FREE( newType, ierr )
+        if( ierr .ne. 0 ) return
+
         curPts = curPts + spareWavefunctions( id )%mypts
       enddo
+
+!      curPts = 1
+!      do id = 0, pinfo%nprocs - 1
+!        i = spareWavefunctions( id )%mypts * spareWavefunctions( id )%npts
+!        write(6,'(A,3(1X,I8))') 'recvChi', id, curPts, i
+!          call MPI_IRECV( FullChi(:,curPts:), i, MPI_DOUBLE_PRECISION, id, TagChi, pinfo%comm, &
+!                          chiRecvs(id), ierr )
+!        curPts = curPts + spareWavefunctions( id )%mypts
+!      enddo
     else
       chiRecvs(:) = MPI_REQUEST_NULL
     endif
@@ -486,7 +540,7 @@ module screen_chi
   subroutine postRecvSpareWvfn( pinfo, spareWvfnRecvs, spareWavefunction, ierr )
     use screen_paral, only : site_parallel_info
     use screen_wavefunction, only : screen_wvfn
-    use ocean_mpi, only : MPI_REQUEST_NULL, MPI_DOUBLE_COMPLEX
+    use ocean_mpi, only : MPI_REQUEST_NULL, MPI_DOUBLE_COMPLEX, myid
     type( site_parallel_info ), intent( in ) :: pinfo
 #ifdef MPI_F08
     type( MPI_REQUEST ), intent( inout ) :: spareWvfnRecvs(0:)
@@ -498,6 +552,8 @@ module screen_chi
 
     integer :: id, i
 
+    write(1000+myid,*) 'Posting Recvs for Spare Wavefunctions'
+
     do id = 0, pinfo%nprocs - 1
 
       if( id .eq. pinfo%myid ) then
@@ -505,7 +561,10 @@ module screen_chi
         cycle
       endif
 
+
       i = spareWavefunction(id)%mypts * spareWavefunction(id)%mybands * spareWavefunction(id)%mykpts
+      write(1000+myid,'(A,6(1X,I8))') '   ', id, spareWavefunction(id)%mypts, spareWavefunction(id)%mybands, &
+                                      spareWavefunction(id)%mykpts, i, TagWvfn
       call MPI_IRECV( spareWavefunction(id)%wvfn, i, MPI_DOUBLE_COMPLEX, id, TagWvfn, pinfo%comm, &
                       spareWvfnRecvs(id), ierr )
       if( ierr .ne. 0 ) return
