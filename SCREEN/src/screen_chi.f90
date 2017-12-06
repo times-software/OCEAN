@@ -112,6 +112,7 @@ module screen_chi
     allocatable, dimension(:) :: spareWvfnRecvs, SpareWvfnSends, chiRecvs, chiSends
 
     integer :: dims(2), id
+    integer(kind=8) :: clock_start, count_rate, count_max, clock_stop
 
     call MPI_BARRIER( pinfo%comm, ierr )
     if( ierr .ne. 0 ) return
@@ -179,7 +180,11 @@ module screen_chi
     if( ierr .ne. 0 ) return
 
     if( pinfo%myid .eq. pinfo%root ) write(6,*) 'calcChi'
+    call system_clock( clock_start, count_rate, count_max )
     call calcChi( pinfo, singleSite%wvfn, spareWavefunctions, chi, spareWvfnRecvs, ierr )
+    call system_clock( clock_stop )
+    if( pinfo%myid .eq. pinfo%root ) write(6,'(2(I16,1X),F14.8)') clock_start, clock_stop, & 
+            ( real( clock_stop - clock_start, DP ) / real( count_rate, DP ) )
     if( ierr .ne. 0 ) return
 
     if( pinfo%myid .eq. pinfo%root ) write(6,*) 'SendChi'
@@ -306,7 +311,7 @@ module screen_chi
     enddo
 
     write(1000+pinfo%myid,*) pinfo%myid, pinfo%myid, CurPts
-    call calcSingleChi( MyWvfn%wvfn, MyWvfn%wvfn, chi(:,CurPts:), 1, ierr )
+    call calcSingleChiBuffer1( MyWvfn%wvfn, MyWvfn%wvfn, chi(:,CurPts:), 1, ierr )
     if( ierr .ne. 0 ) return
     curPts = curPts + MyWvfn%mypts
 
@@ -327,7 +332,7 @@ module screen_chi
 !        enddo
 !      endif
     
-      call calcSingleChi( Mywvfn%wvfn, spareWavefunctions(id)%wvfn, chi(:,CurPts:stopPts), 1, ierr )
+      call calcSingleChiBuffer1( Mywvfn%wvfn, spareWavefunctions(id)%wvfn, chi(:,CurPts:stopPts), 1, ierr )
       if( ierr .ne. 0 ) return
 
       curPts = curPts + spareWavefunctions(id)%mypts
@@ -340,7 +345,7 @@ module screen_chi
       call MPI_WAIT( spareWvfnRecvs(id), MPI_STATUS_IGNORE, ierr )
       if( ierr .ne. 0 ) return
 
-      call calcSingleChi( Mywvfn%wvfn, spareWavefunctions(id)%wvfn, chi(:,CurPts:), 1, ierr )
+      call calcSingleChiBuffer1( Mywvfn%wvfn, spareWavefunctions(id)%wvfn, chi(:,CurPts:), 1, ierr )
       if( ierr .ne. 0 ) return
 
       curPts = curPts + spareWavefunctions(id)%mypts
@@ -352,6 +357,103 @@ module screen_chi
 !      write(1000+pinfo%myid,*)  Mywvfn%wvfn(1:225,1,4)
 !    endif
   end subroutine calcChi
+
+  subroutine calcSingleChiBuffer1( LWvfn, RWvfn, chi, ispin, ierr )
+    use screen_system, only : physical_system, system_parameters, psys, params
+    use screen_energy, only : mu_ryd, geodiff, energies
+    use ocean_constants, only : pi_dp
+    complex(DP), intent( in ), dimension(:,:,:) :: LWvfn, RWvfn
+    real(DP), intent( inout ) :: chi(:,:)
+    integer, intent( in ) :: ispin
+    integer, intent( inout ) :: ierr
+
+    real(DP), allocatable :: temp(:,:)
+    complex(DP), allocatable :: chi0(:,:,:), energyDenom( :, :, : )
+    complex(DP) :: scalar
+    real(DP) :: pref, denr, deni, diff, fr, fi, norm, spinfac, pref2
+    integer :: Lpts, Rpts, nbands, nKptsAndSpin, ikpt, iband, it, i, j
+    integer :: ichunk, jchunk, istart, istop, jstart, jstop, NRchunks, NLchunks
+    integer, parameter :: icSize = 32
+    integer, parameter :: jcSize = 32
+    
+
+    Lpts = size( LWvfn, 1 )
+    Rpts = size( RWvfn, 1 )
+    NLChunks = ( Lpts - 1 ) / jcSize + 1
+    NRChunks = ( Rpts - 1 ) / icSize + 1
+    nbands = size( LWvfn, 2 )
+    ! for a spin = 2 system the 'number of k-points' will be doubled
+    nKptsAndspin = size( LWvfn, 3 )
+
+    spinfac = 2.0_DP / real(params%nspin, DP )
+    pref = 1.0_DP / ( real( params%nkpts, DP ) * psys%celvol )
+
+!    chi(:,1:RPts) = 0.0_DP
+!   s is Geometric mean in Ryd
+!   mu is EFermi in Ryd
+
+    allocate( chi0( jcSize, icSize, NImagEnergies ), temp( jcSize, icSize ), & 
+              energyDenom( NImagEnergies, nbands, nKptsAndSpin ), STAT=ierr )
+    if( ierr .ne. 0 ) return
+
+    do ikpt = 1, NkptsAndSpin
+      do iband = 1, nbands
+        diff = sqrt( (mu_ryd - energies( iband, ikpt, ispin ))**2 + 1.0_DP*10**(-6) )
+        denr = sign( diff, mu_ryd - energies( iband, ikpt, ispin ) )
+        do it = 1, NImagEnergies
+          deni = geodiff * ImagEnergies( it ) / ( 1.0_DP - ImagEnergies( it ) )
+          energyDenom( it, iband, ikpt ) = pref / cmplx( denr, deni, DP ) 
+        enddo
+      enddo
+    enddo
+
+    do ichunk = 1, NRchunks
+      do jchunk = 1, NLchunks
+        chi0 = 0.0_DP
+
+        istart = ( ichunk - 1 ) * icSize + 1
+        istop = min( ichunk * icSize, Rpts )
+        jstart = ( jchunk - 1 ) * jcSize + 1
+        jstop = min( jchunk * jcSize, Lpts )
+
+
+        do ikpt = 1, NkptsAndSpin
+          do iband = 1, nbands
+
+
+            do i = istart, istop
+              do j = jstart, jstop
+                temp( j-jstart+1, i-istart+1 ) = & 
+                           ( real(LWvfn(j,iband,ikpt),DP) * real(RWvfn(i,iband,ikpt),DP) + &
+                             aimag(LWvfn(j,iband,ikpt)) * aimag(RWvfn(i,iband,ikpt)) )
+              enddo
+            enddo
+            do it = 1, NImagEnergies
+              chi0(:,:,it) = chi0(:,:,it) + energyDenom( it, iband, ikpt ) * temp( :, : )
+            enddo
+          enddo
+        enddo
+
+
+        do i = istart, istop
+          do it = 1, NImagEnergies
+            pref2 = spinfac * 2.0_DP * weightImagEnergies( it ) * geodiff / pi_dp
+            do j = jstart, jstop
+              chi( j, i ) = chi( j, i ) & 
+                          + pref2 * ( real(chi0( j-jstart+1, i-istart+1, it ),DP)**2 &
+                                     - aimag( chi0( j-jstart+1, i-istart+1, it ) )**2 ) 
+            enddo
+          enddo
+        enddo
+      enddo
+    enddo
+
+
+    deallocate( chi0, energyDenom, temp )
+
+  end subroutine calcSingleChiBuffer1
+
+
 
   subroutine calcSingleChi( LWvfn, RWvfn, chi, ispin, ierr )
     use screen_system, only : physical_system, system_parameters, psys, params
@@ -420,16 +522,7 @@ module screen_chi
 
     enddo
 
-!    do it = 1, size(LWvfn,2)
-!      write(202,*) real(LWvfn(1,it,1),DP), aimag(LWvfn(1,it,1))
-!    enddo
-!    flush(202)
-
-!    write(201,*) chi0(:,:,1)
-!    flush(201)
-
     do it = 1, NImagEnergies
-      ! FAKE SPIN FACTOR HERE!
       pref = spinfac * 2.0_DP * weightImagEnergies( it ) * geodiff / pi_dp
       do j = 1, Rpts
         do i = 1, Lpts
