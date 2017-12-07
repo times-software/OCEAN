@@ -68,8 +68,26 @@ module screen_grid
 
   public :: sgrid, angular_grid
   public :: screen_grid_init
+  public :: screen_grid_dumpRBfile
 
   contains
+
+  subroutine screen_grid_dumpRBfile( g, ierr )
+    use OCEAN_mpi, only : myid ,root
+    type( sgrid ), intent( in ) :: g
+    integer, intent( inout ) :: ierr
+    !
+    if( myid .eq. root ) then
+      open( unit=99, file='rbfile.bin', form='unformatted', status='unknown' )
+      rewind 99
+      write(99) g%npt, g%rmax
+      write(99) g%posn
+      write(99) g%wpt
+      write(99) g%drel
+      close(99)
+    endif
+
+  end subroutine screen_grid_dumpRBfile
 
 
   subroutine new_sgrid_info( g, ierr )

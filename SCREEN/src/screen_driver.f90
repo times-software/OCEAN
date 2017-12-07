@@ -18,6 +18,7 @@ program screen_driver
   use screen_wvfn_converter, only : screen_wvfn_converter_driver
   use screen_wavefunction, only : screen_wvfn_diagnostic 
   use screen_chi, only : screen_chi_init, screen_chi_driver
+  use screen_grid, only : sgrid, screen_grid_dumpRBfile
 
   implicit none
 
@@ -75,6 +76,9 @@ program screen_driver
   call screen_chi_init( ierr )
   if( ierr .ne. 0 ) goto 111
   call screen_chi_driver( nsites, all_sites, ierr )
+  if( ierr .ne. 0 ) goto 111
+
+  call screen_grid_dumpRBfile( all_sites( 1 )%grid, ierr )
   if( ierr .ne. 0 ) goto 111
 
   if( ierr .eq. 0 ) write(6,*) 'success', myid
