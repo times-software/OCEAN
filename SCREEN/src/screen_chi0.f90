@@ -1,4 +1,4 @@
-module screen_chi
+module screen_chi0
   use AI_kinds, only : DP
 #ifdef MPI_F08
   use ocean_mpi, only : MPI_REQUEST
@@ -6,6 +6,7 @@ module screen_chi
 
   implicit none
   private
+  save
 
   integer :: NImagEnergies 
   real(DP), allocatable :: imagEnergies( : )
@@ -21,11 +22,11 @@ module screen_chi
 !    complex(DP) :: 
 !  end type chiHolder
 
-  public :: screen_chi_init, screen_chi_driver
+  public :: screen_chi0_init, screen_chi0_runSite
 
   contains
 
-  subroutine screen_chi_init( ierr )
+  subroutine screen_chi0_init( ierr )
     use ocean_mpi, only : myid, root, comm, MPI_INTEGER, MPI_DOUBLE_PRECISION
     integer, intent( inout ) :: ierr
 
@@ -67,8 +68,9 @@ module screen_chi
 #endif
 
     is_init = .true.
-  end subroutine screen_chi_init
+  end subroutine screen_chi0_init
 
+#if 0
   subroutine screen_chi_driver( nsites, all_sites, ierr )
     use screen_sites, only : site, pinfo
     use screen_paral, only : site_parallel_info, screen_paral_isMySite
@@ -86,9 +88,10 @@ module screen_chi
     enddo
 
   end subroutine screen_chi_driver
+#endif
 
 
-  subroutine Schi_runSite( singleSite, ierr )
+  subroutine screen_chi0_runSite( singleSite, FullChi0, ierr )
     use screen_sites, only : site, pinfo, &
                              screen_sites_returnWavefunctionDims
     use screen_wavefunction, only : screen_wvfn, screen_wvfn_initForGroupID, screen_wvfn_kill
@@ -97,9 +100,9 @@ module screen_chi
     use ocean_mpi, only : MPI_REQUEST 
 #endif
     type( site ), intent( in ) :: singleSite
+    real(DP), intent( inout ) :: FullChi0(:,:)
     integer, intent( inout ) :: ierr
     !
-    real(DP), allocatable :: FullChi(:,:)
     real(DP), allocatable :: chi(:,:)
 !    complex(DP), allocatable :: chi0(:,:,:)
     type( screen_wvfn ), allocatable :: spareWavefunctions( : )
@@ -127,21 +130,21 @@ module screen_chi
     endif
     chi(:,:) = 0.0_DP
 
-!    allocate( chi0( dims(1), dims(2), NImagEnergies ), STAT=ierr )
+!!    allocate( chi0( dims(1), dims(2), NImagEnergies ), STAT=ierr )
+!!    if( ierr .ne. 0 ) then
+!!      write(6,*) 'Failed to allocate chi0 in Schi_runSite', ierr
+!!      return
+!!    endif
+
+!    if( pinfo%myid .eq. pinfo%root ) then
+!      allocate( FullChi0( dims(2), dims(2) ), STAT=ierr )
+!    else
+!      allocate( FullChi0( 0, 0 ), STAT=ierr )
+!    endif
 !    if( ierr .ne. 0 ) then
-!      write(6,*) 'Failed to allocate chi0 in Schi_runSite', ierr
+!      write(6,*) 'Failed to allocate FullChi0 in Schi_runSite', ierr
 !      return
 !    endif
-
-    if( pinfo%myid .eq. pinfo%root ) then
-      allocate( FullChi( dims(2), dims(2) ), STAT=ierr )
-    else
-      allocate( FullChi( 0, 0 ), STAT=ierr )
-    endif
-    if( ierr .ne. 0 ) then
-      write(6,*) 'Failed to allocate FullChi in Schi_runSite', ierr
-      return
-    endif
 
     allocate( spareWavefunctions( 0:pinfo%nprocs-1 ), STAT=ierr )
     if( ierr .ne. 0 ) then
@@ -172,7 +175,7 @@ module screen_chi
     if( ierr .ne. 0 ) return
 
     if( pinfo%myid .eq. pinfo%root ) write(6,*) 'postRecvChi'
-    call postRecvChi( pinfo, spareWavefunctions, chiRecvs, FullChi, ierr )
+    call postRecvChi( pinfo, spareWavefunctions, chiRecvs, FullChi0, ierr )
     if( ierr .ne. 0 ) return
 
     if( pinfo%myid .eq. pinfo%root ) write(6,*) 'postSendSpareWvfn'
@@ -205,14 +208,14 @@ module screen_chi
     deallocate( spareWvfnRecvs, spareWvfnSends, chiRecvs, chiSends )
 
     if( pinfo%myid .eq. pinfo%root ) write(6,*) 'WriteChi'
-    call writeChi( pinfo, singleSite%info, FullChi, ierr )
+    call writeChi( pinfo, singleSite%info, FullChi0, ierr )
     if( ierr .ne. 0 ) return
 
     do id = 0, pinfo%nprocs - 1
       call screen_wvfn_kill( spareWavefunctions( id ) )
     enddo
     deallocate( spareWavefunctions )
-    deallocate( FullChi )
+!    deallocate( FullChi )
     deallocate( chi )
 
 #ifdef MPI
@@ -221,7 +224,7 @@ module screen_chi
 #endif
     if( pinfo%myid .eq. pinfo%root ) write(6,*) 'Done with Schi_runSite'
 
-  end subroutine Schi_runSite
+  end subroutine screen_chi0_runSite
 
 
   subroutine writeChi( pinfo, siteInfo, FullChi, ierr )
@@ -680,4 +683,4 @@ module screen_chi
     allocate( chi( dims(1), dims(2) ), STAT=ierr )
   end subroutine allocateChi
 
-end module screen_chi
+end module screen_chi0

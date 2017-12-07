@@ -17,7 +17,7 @@ program screen_driver
   use ocean_dft_files, only : odf_init, odf_clean
   use screen_wvfn_converter, only : screen_wvfn_converter_driver
   use screen_wavefunction, only : screen_wvfn_diagnostic 
-  use screen_chi, only : screen_chi_init, screen_chi_driver
+  use screen_chi_driver, only : screen_chi_driver_init, screen_chi_driver_run
   use screen_grid, only : sgrid, screen_grid_dumpRBfile
 
   implicit none
@@ -73,9 +73,9 @@ program screen_driver
   if( ierr .ne. 0 ) goto 111
 
   
-  call screen_chi_init( ierr )
+  call screen_chi_driver_init( ierr )
   if( ierr .ne. 0 ) goto 111
-  call screen_chi_driver( nsites, all_sites, ierr )
+  call screen_chi_driver_run( nsites, all_sites, ierr )
   if( ierr .ne. 0 ) goto 111
 
   call screen_grid_dumpRBfile( all_sites( 1 )%grid, ierr )
