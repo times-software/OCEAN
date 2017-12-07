@@ -36,16 +36,26 @@ module screen_system
     real( DP ) :: kshift( 3 )
   end type system_parameters
 
+  type calculation_parameters
+    character(len=4) :: convertStyle = 'real'
+  end type calculation_parameters
 
   type( physical_system ), save :: psys
   type( system_parameters ), save :: params
+  type( calculation_parameters ), save :: calcParams
 
   public :: physical_system, atoms, system_parameters
   public :: psys, params
   public :: screen_system_load, screen_system_snatch, screen_system_summarize
   public :: screen_system_returnKvec
+  public :: screen_system_convertStyle
 
   contains 
+
+  pure function screen_system_convertStyle() result (cs)
+    character(len=4) :: cs
+    cs = calcParams%convertStyle
+  end function screen_system_convertStyle
 
   pure function screen_system_returnKvec( sp, ikpt ) result( Kvec )
     type( system_parameters ), intent( in ) :: sp
