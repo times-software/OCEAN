@@ -344,7 +344,7 @@ module ocean_legacy_files
     !
     integer :: i, nbands_left, nbands
 
-    if( nfiles .gt. inter_nproc ) then
+    if( nfiles .ge. inter_nproc ) then
       mypool = inter_myid
       npool = inter_nproc
 
