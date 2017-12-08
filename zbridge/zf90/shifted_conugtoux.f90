@@ -9,26 +9,63 @@
    implicit none
    !
    integer, parameter :: u1dat = 22, iwf = 23
-   integer :: nk, nb, nx( 3 ), ng, i, nwfile, iwfile, j, k, nspin, ispin, nbv, nbc, nbands, ishift
+   integer :: nk, nb, nx( 3 ), ng, i, nwfile, iwfile, j, k, nspin, ispin, nbv, nbc, nbands, ishift, brange(4), nshift
+   integer :: ig, jg, sh_ng, ib, jb
    integer, allocatable :: g( :, : ), ikl( :, : ), flip_g( :, : )
+   integer, allocatable :: sh_flip_g( :, : ), map_g( : ), sh_g( :, : )
    real( kind = kind( 1.0d0 ) ), allocatable :: zr( :, : ), zi( :, : )
-   real(kind=kind(1.0d0)) :: su
+   real( kind = kind( 1.0d0 ) ), allocatable :: sh_zr( :, : ), sh_zi( :, : )
+   real(kind=kind(1.0d0)) :: su, qval, q1, q2, q3, bv1(3), bv2(3), bv3(3), rr, ii, ri, ir, orthcr, orthci
    character(len=20), allocatable :: wfnam( : )
    character(len=20) :: filePrefix
    character(len=40) :: fileName
    character(len=3) :: DFT
-   logical :: is_jdftx
+   logical :: is_jdftx, split_dft, shift_dft
+   integer, parameter :: tmels = 41
    !
-   open( unit=99, file='kandb.h', form='formatted', status='unknown' )
-   call igetval( nk, 'nk   ' )
-   call igetval( nb, 'nb   '  )
-   call igetval( nbv, 'nbv  ' )
-   call igetval( nbc, 'nbc  ' )
-   call igetval( nx( 1 ), 'ngx  ' )
-   call igetval( nx( 2 ), 'ngy  ' )
-   call igetval( nx( 3 ), 'ngz  ' )
-   call igetval( nspin,   'nspin' )
-   close( unit=99 )
+   open( unit=99, file='nkpts', form='formatted', status='old')
+   read(99,*) nk
+   close(99)
+   open( unit=99, file='xmesh.ipt', form='formatted', status='old')
+   read(99,*) nx(1), nx(2), nx(3)
+   close(99)
+   open( unit=99, file='nspin', form='formatted', status='old')
+   read(99,*) nspin
+   close(99)
+   open( unit=99, file='brange.ipt', form='formatted', status='old')
+   read(99,*) brange(1:4)
+   close(99)
+
+   open(unit=99,file='dft.split', form='formatted', status='old')
+   read(99,*) split_dft
+   close(99)
+
+   open(unit=99,file='qinunitsofbvectors.ipt',form='formatted', status='old')
+   read(99,*) q1,q2,q3
+   close(99)
+
+   open(unit=99,file='bvecs', form='formatted', status='old')
+     read(99,*) bv1(1),bv1(2),bv1(3)
+     read(99,*) bv2(1),bv2(2),bv2(3)
+     read(99,*) bv3(1),bv3(2),bv3(3)
+   close(99)
+
+
+   ! at the moment split and shift are identical
+   shift_dft = split_dft
+   if( shift_dft ) then
+     nshift = 2
+     open( unit=tmels,file='tmels',form='formatted',status='unknown')
+      qval =dsqrt( (q1*bv1(1)+q2*bv2(1)+q3*bv3(1))**2                   &
+     &            +(q1*bv1(2)+q2*bv2(2)+q3*bv3(2))**2                   &
+     &            +(q1*bv1(3)+q2*bv2(3)+q3*bv3(3))**2)
+
+   else
+     nshift = 1 
+     qval = 1.0d0
+   endif
+
+
    !
    inquire( file='dft', exist=is_jdftx )
    if( is_jdftx ) then
@@ -41,6 +78,7 @@
        is_jdftx = .false.
      endif
    endif
+   if( is_jdftx .eqv. .false. ) stop 1
    !
    open( unit=99, file='masterwfile', form='formatted', status='unknown' )
    rewind 99
@@ -69,59 +107,152 @@
         close( unit=99 )
 
         ! here we double-up, first read shifted, then non-shifted
-        filePrefix = 'unshifted/'
-        nbands = nbv
-        do ishift = 1, 2
+!        filePrefix = 'unshifted/'
 
-           write(fileName,'(A,A)') filePrefix, wfnam( iwfile )
-           write(6,*) fileName
-           if( is_jdftx ) then
-             open ( unit=iwf, file=fileName, form='unformatted',status='old', access='stream' )
-             read( iwf ) ng
-           else
-             open ( unit=iwf, file=fileName, form='unformatted',status='old' )
-             rewind iwf
-             read ( iwf ) ng
-           endif
-           write(6,*) i, ng, nbands
-           allocate( g( ng, 3 ), zr( ng, nbands ), zi( ng, nbands ) )
-           if( is_jdftx ) then
-             allocate( flip_g( 3, ng ) )
-             read( iwf ) flip_g
-             g = transpose( flip_g )
-             deallocate( flip_g )
-           else
-             read ( iwf ) g
-           endif
+        if( split_dft ) then
+          nbands = brange( 2 )
+        else
+          nbands = brange( 4 )
+        endif
 
-          read ( iwf ) zr
-          read ( iwf ) zi
+         write(fileName,'(A,A)') 'unshifted/', wfnam( iwfile )
+         write(6,*) fileName
+         if( is_jdftx ) then
+!           open ( unit=iwf, file=fileName, form='unformatted',status='old', access='stream' )
+           open ( unit=iwf, file=fileName, form='unformatted', status='old', access='stream' )
+           read( iwf ) ng
+         else
+           open ( unit=iwf, file=fileName, form='unformatted',status='old' )
+           rewind iwf
+           read ( iwf ) ng
+         endif
+         write(6,*) i, ng, nbands
+         allocate( g( ng, 3 ), zr( ng, nbands ), zi( ng, nbands ) )
+         if( is_jdftx ) then
+           allocate( flip_g( 3, ng ) )
+!           do ig = 1, ng
+!             read( iwf ) flip_g(3,ig), flip_g(2,ig), flip_g(1,ig)
+!           enddo
+           read( iwf ) flip_g
+           g = transpose( flip_g )
+!           deallocate( flip_g )
+         else
+           read ( iwf ) g
+         endif
 
-          if( i .eq. 1 .and. is_jdftx ) then
-            do j = 1, ng
-              write(31,'(3I6,4X,E23.16,4X,E23.16)') g(j,1), g(j,2), g(j,3), zr(j,1), zi(j,1)
+        read ( iwf ) zr
+        read ( iwf ) zi
+        close( iwf )
+
+!          if( i .eq. 1 .and. is_jdftx ) then
+!            do j = 1, ng
+!              write(31,'(3I6,4X,E23.16,4X,E23.16)') g(j,1), g(j,2), g(j,3), zr(j,1), zi(j,1)
+!            enddo
+!          endif
+        if( i .eq. 1 ) then
+          su = 0
+          do j = 1, ng
+            su = su + zr(j,1)**2 + zi(j,i)**2
+          enddo
+          write(6,*) 'Norm:', su
+        endif
+
+        call gentoreal( nx, nbands, zr, zi, ng, g, u1dat, ( ( i .eq. 1) .and. ( ispin .eq. 1 ) ) )
+    
+        if( split_dft ) then
+!          filePrefix = 'shifted/'
+          nbands = brange(4)
+          allocate( map_g( ng ) )
+          map_g(:) = 0
+          write(fileName,'(A,A)') 'shifted/', wfnam( iwfile ) 
+          write(6,*) fileName
+          if( is_jdftx ) then
+            open ( unit=iwf, file=fileName, form='unformatted',status='old', access='stream' ) 
+            read( iwf ) sh_ng
+          else
+            open ( unit=iwf, file=fileName, form='unformatted',status='old' ) 
+            rewind iwf
+            read ( iwf ) sh_ng
+          endif
+          write(6,*) i, sh_ng, nbands
+          allocate( sh_g( sh_ng, 3 ), sh_zr( sh_ng, nbands ), sh_zi( sh_ng, nbands ) )
+          if( is_jdftx ) then
+            allocate( sh_flip_g( 3, sh_ng ) ) 
+!            do ig = 1, sh_ng
+!              read( iwf ) sh_flip_g(3,ig), sh_flip_g(2,ig), sh_flip_g(1,ig)
+!            enddo
+            read( iwf ) sh_flip_g
+            sh_g = transpose( sh_flip_g ) 
+            do ig = 1, ng
+              if( flip_g( 1, ig ) .eq. sh_flip_g( 1, ig ) .and. &
+                  flip_g( 2, ig ) .eq. sh_flip_g( 2, ig ) .and. &
+                  flip_g( 3, ig ) .eq. sh_flip_g( 3, ig ) ) then
+                 map_g( i ) = i
+              else
+                do jg = 1, sh_ng !max(1,i-10), sh_ng
+                  if( flip_g( 1, ig ) .eq. sh_flip_g( 1, jg ) .and. &
+                      flip_g( 2, ig ) .eq. sh_flip_g( 2, jg ) .and. &
+                      flip_g( 3, ig ) .eq. sh_flip_g( 3, jg ) ) then
+                     map_g( ig ) = jg
+                     exit
+                  endif
+                enddo
+              endif
+            enddo
+            deallocate( sh_flip_g )
+          else
+            stop
+            read ( iwf ) g 
+          endif
+
+          read ( iwf ) sh_zr
+          read ( iwf ) sh_zi
+          close( iwf )
+
+          if( i .le. 2 .and. is_jdftx ) then
+            do j = 1, sh_ng
+              write(31,'(3I6,4X,E23.16,4X,E23.16)') sh_g(j,1), sh_g(j,2), sh_g(j,3), sh_zr(j,1), sh_zi(j,1)
             enddo
           endif
-          if( i .eq. 1 ) then
-            su = 0
-            do j = 1, ng
-              su = su + zr(j,1)**2 + zi(j,i)**2
-            enddo
-            write(6,*) 'Norm:', su
-          endif
 
-          call gentoreal( nx, nb, zr, zi, ng, g, u1dat, ( ( i .eq. 1) .and. ( ispin .eq. 1 ) ) )
       
-          filePrefix = 'shifted/'
-          nbands = nb
+          do ib=brange(3),brange(4)
+            do jb=brange(1),brange(2)
+              rr = 0.0d0
+              ii = 0.0d0
+              ri = 0.0d0
+              ir = 0.0d0
+              do ig = 1, ng
+                if( map_g(ig) .gt. 0 ) then
+                  rr = rr + zr( ig, jb ) * sh_zr( map_g( ig ), ib )
+                  ii = ii + zi( ig, jb ) * sh_zi( map_g( ig ), ib )
+                  ri = ri + zr( ig, jb ) * sh_zi( map_g( ig ), ib )
+                  ir = ir + zi( ig, jb ) * sh_zr( map_g( ig ), ib )
+                endif
+              enddo
+              orthcr = rr + ii
+              orthci = ri - ir
+              write(tmels,'(8(1x,1e22.15))')orthcr/qval,orthci/qval,0.0,0.0, &
+                                  0.0,0.0,0.0,0.0
+            enddo
+          enddo
 
-          deallocate( g, zr, zi )
-        enddo
+          nbands = brange(4)-brange(3)+1
+          call gentoreal( nx, nbands, sh_zr(:,brange(3):), sh_zi(:,brange(3):), sh_ng, sh_g, u1dat, & 
+                          ( ( i .eq. 1) .and. ( ispin .eq. 1 ) ) )
+
+
+          deallocate( sh_g, sh_zr, sh_zi )
+          deallocate( map_g )
+        endif
+
+        deallocate( g, zr, zi )
+        if( is_jdftx ) deallocate( flip_g )
         iwfile = iwfile + 1
-     end do
+      end do
    end do
    close( unit=u1dat )
    !
    deallocate( wfnam, ikl )
-   !
- end program shifted_conugtoux
+  !
+end program shifted_conugtoux
