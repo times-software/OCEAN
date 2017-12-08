@@ -9,11 +9,12 @@
    implicit none
    !
    integer, parameter :: u1dat = 22, iwf = 23
-   integer :: nk, nb, nx( 3 ), ng, i, nwfile, iwfile, j, k, nspin, ispin, nbv, nbc, nbands
+   integer :: nk, nb, nx( 3 ), ng, i, nwfile, iwfile, j, k, nspin, ispin, nbv, nbc, nbands, ishift
    integer, allocatable :: g( :, : ), ikl( :, : ), flip_g( :, : )
    real( kind = kind( 1.0d0 ) ), allocatable :: zr( :, : ), zi( :, : )
    real(kind=kind(1.0d0)) :: su
    character(len=20), allocatable :: wfnam( : )
+   character(len=20) :: filePrefix
    character(len=40) :: fileName
    character(len=3) :: DFT
    logical :: is_jdftx
@@ -75,7 +76,7 @@
            write(fileName,'(A,A)') filePrefix, wfnam( iwfile )
            write(6,*) fileName
            if( is_jdftx ) then
-             open ( unit=iwf, file=fileName, form='stream',status='old'  )
+             open ( unit=iwf, file=fileName, form='unformatted',status='old', access='stream' )
              read( iwf ) ng
            else
              open ( unit=iwf, file=fileName, form='unformatted',status='old' )
@@ -111,7 +112,7 @@
 
           call gentoreal( nx, nb, zr, zi, ng, g, u1dat, ( ( i .eq. 1) .and. ( ispin .eq. 1 ) ) )
       
-          prefix = 'shifted/'
+          filePrefix = 'shifted/'
           nbands = nb
 
           deallocate( g, zr, zi )
@@ -123,4 +124,4 @@
    !
    deallocate( wfnam, ikl )
    !
- end program conugtoux
+ end program shifted_conugtoux
