@@ -1,6 +1,7 @@
 module screen_wvfn_converter
   use AI_kinds, only : DP
 
+  implicit none
   
   public :: screen_wvfn_converter_driver
 

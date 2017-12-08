@@ -7,7 +7,7 @@ all: screen_grid.o screen_system.o screen_driver.x
 
 OBJS = screen_driver.o ai_kinds.o ocean_mpi.o screen_grid.o screen_system.o screen_sites.o screen_paral.o \
        screen_energy.o ocean_dft_files.o ocean_legacy_files.o screen_wavefunction.o screen_wvfn_converter.o \
-       screen_chi0.o screen_chi_driver.o screen_chi.o
+       screen_chi0.o screen_chi_driver.o screen_chi.o screen_centralpotential.o periodic.o
 
 %.o %.mod: %.f90
 	$(MPIFORT) $(OPTIONS) -c -o $*.o $<
@@ -30,8 +30,10 @@ screen_system.mod: screen_system.f90 ai_kinds.mod ocean_mpi.mod
 screen_paral.o: screen_paral.f90 ai_kinds.mod ocean_mpi.mod
 screen_paral.mod: screen_paral.f90 ai_kinds.mod ocean_mpi.mod
 
-screen_sites.o: screen_sites.f90 screen_paral.mod screen_grid.mod ocean_mpi.mod ai_kinds.mod screen_wavefunction.mod
-screen_sites.mod: screen_sites.f90 screen_paral.mod screen_grid.mod ocean_mpi.mod ai_kinds.mod screen_wavefunction.mod
+screen_sites.o: screen_sites.f90 screen_paral.mod screen_grid.mod ocean_mpi.mod ai_kinds.mod screen_wavefunction.mod \
+                periodic.mod
+screen_sites.mod: screen_sites.f90 screen_paral.mod screen_grid.mod ocean_mpi.mod ai_kinds.mod screen_wavefunction.mod \
+                  periodic.mod
 
 screen_energy.o: screen_energy.f90 ai_kinds.mod ocean_mpi.mod screen_system.mod ocean_dft_files.mod
 screen_energy.mod: screen_energy.f90 ai_kinds.mod ocean_mpi.mod screen_system.mod ocean_dft_files.mod
@@ -62,9 +64,15 @@ screen_chi.mod: screen_chi.f90 ai_kinds.mod screen_grid.mod ocean_mpi.mod ocean_
 screen_chi_driver.o:   screen_chi_driver.f90 screen_chi0.mod screen_chi.mod
 screen_chi_driver.mod: screen_chi_driver.f90 screen_chi0.mod screen_chi.mod
 
+screen_centralpotential.o:   screen_centralpotential.f90 ai_kinds.mod ocean_mpi.mod
+screen_centralpotential.mod: screen_centralpotential.f90 ai_kinds.mod ocean_mpi.mod
+
+periodic.o:   periodic.f90
+periodic.mod: periodic.f90
+
 screen_driver.o: screen_driver.f90 ai_kinds.mod ocean_mpi.mod screen_grid.mod screen_system.mod screen_sites.mod \
                  screen_energy.mod ocean_dft_files.mod screen_wvfn_converter.mod screen_wavefunction.mod \
-                 screen_chi_driver.mod
+                 screen_chi_driver.mod screen_centralpotential.mod
 
 screen_driver.x: $(OBJS)
 	$(MPIFORT) $(OPTIONS) -o screen_driver.x $(OBJS) $(FFTWL) $(BLAS) $(FFTWL)

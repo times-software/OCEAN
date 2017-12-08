@@ -2,3 +2,7 @@
 *.o
 *.x
 .*.swp
+Doxyfile
+doxygen_sqlite3.db
+html
+latex

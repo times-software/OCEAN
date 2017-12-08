@@ -14,12 +14,14 @@ module screen_sites
   use screen_paral, only : site_parallel_info
   use screen_wavefunction, only : screen_wvfn
 
+  implicit none
   private
 
 
   type site_info
     character( len=2 ) :: elname
     integer :: indx
+    integer :: z
   end type site_info
 
 !  type site_parallel_info
@@ -38,6 +40,7 @@ module screen_sites
     type( site_info ) :: info
 !    type( site_parallel_info ) :: pinfo
     type( screen_wvfn ) :: wvfn
+    real(DP), allocatable :: shells(:)
   end type site
 
 
@@ -87,25 +90,45 @@ module screen_sites
     use screen_grid, only : screen_grid_init
     use screen_paral, only : screen_paral_init
     use screen_wavefunction, only : screen_wvfn_init
+    use periodic, only : get_atom_number
     !
     integer, intent( in ) :: n_sites
     type( site ), intent( inout ) :: all_sites( : )
     integer, intent( inout ) :: ierr
     !
     real( DP ) :: tau( 3 ), xcoord( 3 )
-    integer :: i
+    integer :: i, atomNumber, nshells
+    real(DP), allocatable :: shells(:)
     integer, allocatable :: tmp_indices( : )
     character( len=2 ), allocatable :: tmp_elnames( : )
 
     allocate( tmp_indices( n_sites ), tmp_elnames( n_sites ) )
     call load_sitelist( n_sites, tmp_indices, tmp_elnames, ierr )
     if( ierr .ne. 0 ) return
+
+    ! currently every site gets the same shell list
+    call count_shells( nshells, ierr )
+    if( ierr .ne. 0 ) return
+    allocate( shells( nshells ) )
+    call read_shells( nshells, shells, ierr )
+    if( ierr .ne. 0 ) return
+
     ! Store into sites
     do i = 1, n_sites
       all_sites( i )%info%indx = tmp_indices( i )
       all_sites( i )%info%elname = tmp_elnames( i )
+      call get_atom_number( atomNumber, tmp_elnames( i ) )
+      if( atomNumber .gt. 0 ) then
+        all_sites( i )%info%z = atomNumber
+      else
+        ierr = 10
+        return
+      endif
+
+      allocate( all_sites( i )%shells( nshells ) )
+      all_sites( i )%shells( : ) = shells( 1 : nshells )
     enddo
-    deallocate( tmp_indices, tmp_elnames )
+    deallocate( tmp_indices, tmp_elnames, shells )
 
     do i = 1, n_sites
       call screen_system_snatch( all_sites( i )%info%elname, all_sites( i )%info%indx, tau, xcoord, ierr )
@@ -234,5 +257,62 @@ module screen_sites
 #endif
 
   end subroutine load_sitelist
+
+  subroutine count_shells( nshells, ierr )
+    use ocean_mpi, only : myid, root, comm, MPI_INTEGER
+    integer, intent( out ) :: nshells
+    integer, intent( inout ) :: ierr
+
+    if( myid .eq. root ) then
+      open( unit=99, file='shells', form='formatted', status='old' )
+      rewind( 99 )
+      read( 99, * ) nshells
+      close( 99 )
+    endif
+#ifdef MPI
+    call MPI_BCAST( nshells, 1, MPI_INTEGER, root, comm, ierr )
+#endif
+  end subroutine count_shells
+
+  subroutine read_shells( nshells, shells, ierr )
+    use ocean_mpi, only : myid, root, comm, MPI_INTEGER, MPI_DOUBLE_PRECISION
+    integer, intent( inout ) :: nshells
+    real(DP), intent( out ) :: shells( nshells )
+    integer, intent( inout ) :: ierr
+
+    integer :: nshells_, ierr_, i
+
+    ierr_ = 0
+    nshells_ = nshells
+    if( myid .eq. root ) then
+      open( unit=99, file='shells', form='formatted', status='old' )
+      rewind( 99 )
+      read( 99, * ) nshells
+
+      if( nshells .gt. nshells_ ) then
+        ierr = 1
+        goto 11
+      endif
+      do i = 1, nshells
+        read(99,*) shells(i)
+      enddo
+      close( 99 )
+    endif
+
+11  continue
+#ifdef MPI
+    call MPI_BCAST( ierr, 1, MPI_INTEGER, root, comm, ierr_ )
+#endif
+    if( ierr .ne. 0 ) return
+    if( ierr_ .ne. 0 ) then
+      ierr = ierr_
+      return
+    endif
+#ifdef MPI
+    call MPI_BCAST( nshells, 1, MPI_INTEGER, root, comm, ierr )
+    if( ierr .ne. 0 ) return
+    call MPI_BCAST( shells, nshells, MPI_DOUBLE_PRECISION, root, comm, ierr )
+#endif
+  end subroutine read_shells
 
 end module screen_sites
