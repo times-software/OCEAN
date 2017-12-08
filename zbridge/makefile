@@ -24,7 +24,7 @@ XEQYOBJS = zobj/whom0.o
 SPECTOBJS = zobj/spectrum.o zobj/lxb_getval.o
 #
 
-all: zexe/setup2.x zexe/orthog.x zexe/conugtoux.x zobj/FFT_wrapper.o zexe/shifted_conugtoux.x
+all: zexe/setup2.x zexe/orthog.x zexe/conugtoux.x zobj/FFT_wrapper.o zexe/shifted_conugtoux.x zexe/jdftx_density.x
 #
 
 zobj/FFT_wrapper.o: zf90/FFT_wrapper.f90
@@ -56,6 +56,8 @@ zexe/setup2.x: $(SETUP2LIST)
 	$(COMP) $(OPTS) -o zexe/setup2.x $(SETUP2LIST)
 zexe/whom0.x: $(XEQYOBJS)
 	$(COMP) $(OPTS) -o zexe/whom0.x $(XEQYOBJS)
+zexe/jdftx_density.x: zf90/jdftx_density.f90
+	$(COMP) $(OPTS) -o zexe/jdftx_density.x zf90/jdftx_density.f90
 #
 
 zobj/setup2.o: zf90/setup2.f90
