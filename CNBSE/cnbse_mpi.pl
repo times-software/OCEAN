@@ -1,6 +1,6 @@
 #!/usr/bin/perl
 
-# Copyright (C) 2015, 2016 OCEAN collaboration
+# Copyright (C) 2015 - 2017 OCEAN collaboration
 #
 # This file is part of the OCEAN project and distributed under the terms 
 # of the University of Illinois/NCSA Open Source License. See the file 
@@ -133,7 +133,7 @@ if( $solver eq 'gmres' )
   $line = <IN>;
   close IN;
   chomp $line;
-  $line /= 27.2114;
+#  $line /= 27.2114;
   $gmres_header .= " " . $line;
 
   open IN, "cnbse.gmres.gprc" or die "Failed to open cnbse.gmres.gprc\n$!";
