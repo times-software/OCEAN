@@ -116,7 +116,7 @@
         endif
 
          write(fileName,'(A,A)') 'unshifted/', wfnam( iwfile )
-         write(6,*) fileName
+!         write(6,*) fileName
          if( is_jdftx ) then
 !           open ( unit=iwf, file=fileName, form='unformatted',status='old', access='stream' )
            open ( unit=iwf, file=fileName, form='unformatted', status='old', access='stream' )
@@ -149,13 +149,14 @@
 !              write(31,'(3I6,4X,E23.16,4X,E23.16)') g(j,1), g(j,2), g(j,3), zr(j,1), zi(j,1)
 !            enddo
 !          endif
-        if( i .eq. 1 ) then
-          su = 0
-          do j = 1, ng
-            su = su + zr(j,1)**2 + zi(j,i)**2
+!        if( i .eq. 1 ) then
+        do j = 1, nbands
+          su = 0.0d0
+          do ig = 1, ng
+            su = su + zr(ig,j)**2 + zi(ig,j)**2
           enddo
-          write(6,*) 'Norm:', su
-        endif
+          write(6,'(I8,I8,A,E22.16)') i, j, '    Norm:  ', su
+        enddo
 
         call gentoreal( nx, nbands, zr, zi, ng, g, u1dat, ( ( i .eq. 1) .and. ( ispin .eq. 1 ) ) )
     
@@ -165,7 +166,7 @@
           allocate( map_g( ng ) )
           map_g(:) = 0
           write(fileName,'(A,A)') 'shifted/', wfnam( iwfile ) 
-          write(6,*) fileName
+!          write(6,*) fileName
           if( is_jdftx ) then
             open ( unit=iwf, file=fileName, form='unformatted',status='old', access='stream' ) 
             read( iwf ) sh_ng
@@ -183,22 +184,38 @@
 !            enddo
             read( iwf ) sh_flip_g
             sh_g = transpose( sh_flip_g ) 
-            do ig = 1, ng
+            do ig = 1, min(ng,sh_ng)
               if( flip_g( 1, ig ) .eq. sh_flip_g( 1, ig ) .and. &
                   flip_g( 2, ig ) .eq. sh_flip_g( 2, ig ) .and. &
                   flip_g( 3, ig ) .eq. sh_flip_g( 3, ig ) ) then
-                 map_g( i ) = i
+                 map_g( ig ) = ig
               else
                 do jg = 1, sh_ng !max(1,i-10), sh_ng
                   if( flip_g( 1, ig ) .eq. sh_flip_g( 1, jg ) .and. &
                       flip_g( 2, ig ) .eq. sh_flip_g( 2, jg ) .and. &
                       flip_g( 3, ig ) .eq. sh_flip_g( 3, jg ) ) then
                      map_g( ig ) = jg
-                     exit
+                     goto 11
                   endif
                 enddo
+11              continue
               endif
             enddo
+            if( i .eq. 1 .and. ispin .eq. 1 ) then
+              do ig = 1, ng
+                write(100,*) flip_g(:,ig)
+              enddo
+              do ig = 1, sh_ng
+                write(101,*) sh_flip_g(:,ig)
+              enddo
+!              do ig = 1, ng
+!                if( map_g( ig ) .gt. 0 ) then
+!                  write(6,'(8I8)') ig, map_g( ig ), flip_g( :, ig ), sh_flip_g( :, map_g( ig ) )
+!                else
+!                  write(6,'(5I8)') ig, map_g( ig ), flip_g( :, ig )
+!                endif
+!              enddo
+            endif
             deallocate( sh_flip_g )
           else
             stop
@@ -235,6 +252,14 @@
               write(tmels,'(8(1x,1e22.15))')orthcr/qval,orthci/qval,0.0,0.0, &
                                   0.0,0.0,0.0,0.0
             enddo
+          enddo
+
+          do j = brange(3), brange(4)
+            su = 0.0d0
+            do ig = 1, sh_ng
+              su = su + sh_zr(ig,j)**2 + sh_zi(ig,j)**2
+            enddo
+            write(6,'(I8,I8,A,E22.16)') i, j, '    Norm:  ', su
           enddo
 
           nbands = brange(4)-brange(3)+1
