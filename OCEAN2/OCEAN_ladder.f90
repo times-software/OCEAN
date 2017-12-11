@@ -414,10 +414,10 @@ end subroutine OCEAN_ladder_act
           enddo
 !
           do iix = ix, min( nxpts, ix+15 )    
-            scratch( : ) = dcmplx( re_phi_mat( :, iix - ix + 1), im_phi_mat( :, iix - ix + 1) )
+            scratch( : ) = cmplx( re_phi_mat( :, iix - ix + 1), im_phi_mat( :, iix - ix + 1), DP )
 #else
         do iix = 1, nxpts
-          scratch( : ) = dcmplx(re_tphi_mat( iix, iy, : ), im_tphi_mat( iix, iy, : ) )
+          scratch( : ) = cmplx(re_tphi_mat( iix, iy, : ), im_tphi_mat( iix, iy, : ), DP )
 #endif
 
 
@@ -432,8 +432,8 @@ end subroutine OCEAN_ladder_act
             call velmuls( fi, vv, ladder( :, iix -ix + 1, iy + y_offset ), nkpts, nkret, kret )
 
             do ik = 1, nkpts
-              scratch( ik ) = dcmplx( fr( kk( ik, 1 ), kk( ik, 2 ), kk( ik, 3 ) ), &
-                                            fi( kk( ik, 1 ), kk( ik, 2 ), kk( ik, 3 ) ) )
+              scratch( ik ) = cmplx( fr( kk( ik, 1 ), kk( ik, 2 ), kk( ik, 3 ) ), &
+                                     fi( kk( ik, 1 ), kk( ik, 2 ), kk( ik, 3 ) ), DP )
             end do
 
             call FFT_wrapper_single( scratch, OCEAN_BACKWARD, fo )

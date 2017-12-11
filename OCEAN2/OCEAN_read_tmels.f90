@@ -182,7 +182,8 @@ subroutine OCEAN_read_tmels( sys, p, file_selector, ierr )
          do ik = 1, sys%nkpts
             do i = 1, sys%cur_run%val_bands
                do j = 1, sys%cur_run%num_bands
-                  su = su + p%valr( j, i, ik, ibeta ) * p%valr( j, i, ik, ibeta ) + p%vali( j, i, ik, ibeta ) * p%vali( j, i, ik, ibeta )
+                  su = su + p%valr( j, i, ik, ibeta ) * p%valr( j, i, ik, ibeta ) & 
+                          + p%vali( j, i, ik, ibeta ) * p%vali( j, i, ik, ibeta )
                enddo
             enddo
          enddo
