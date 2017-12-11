@@ -611,7 +611,7 @@ while (<EDGE>) {
       open CKSNORM, ">cks.normal" or die "Failed to open cks.normal\n$!";
       print CKSNORM ".true.\n";
       close CKSNORM;
-      $nbuse = $brange[3] - $brange[1];
+      $nbuse = $brange[3] - $brange[2] + 1;
 
       }
       else {
