@@ -1,4 +1,11 @@
-
+! Copyright (C) 2017 OCEAN collaboration
+!
+! This file is part of the OCEAN project and distributed under the terms 
+! of the University of Illinois/NCSA Open Source License. See the file 
+! `License' in the root directory of the present distribution.
+!
+!
+! Reads the energies from a jdftx run and writes the correct enk files
 program jdftx_energy
   implicit none
   real(kind=kind(1.0d0)), allocatable :: energies(:,:), shiftedEnergies(:,:)

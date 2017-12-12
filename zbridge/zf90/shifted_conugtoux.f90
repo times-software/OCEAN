@@ -22,6 +22,7 @@
    character(len=3) :: DFT
    logical :: is_jdftx, split_dft, shift_dft
    integer, parameter :: tmels = 41
+!   integer, parameter :: tmel2 = 42
    !
    open( unit=99, file='nkpts', form='formatted', status='old')
    read(99,*) nk
@@ -56,6 +57,7 @@
    if( shift_dft ) then
      nshift = 2
      open( unit=tmels,file='tmels',form='formatted',status='unknown')
+!     open( unit=tmel2,file='tmels.rough',form='formatted',status='unknown')
       qval =dsqrt( (q1*bv1(1)+q2*bv2(1)+q3*bv3(1))**2                   &
      &            +(q1*bv1(2)+q2*bv2(2)+q3*bv3(2))**2                   &
      &            +(q1*bv1(3)+q2*bv2(3)+q3*bv3(3))**2)
@@ -249,8 +251,8 @@
               enddo
               orthcr = rr + ii
               orthci = ri - ir
-              write(tmels,'(8(1x,1e22.15))')orthcr/qval,orthci/qval,0.0,0.0, &
-                                  0.0,0.0,0.0,0.0
+              write(tmels,'(2(1x,1e22.15),1x,A)')orthcr/qval,orthci/qval, "0 0 0 0 0 0"
+!              write(tmel2,'(2(1x,1e12.5))')orthcr/qval,orthci/qval
             enddo
           enddo
 
