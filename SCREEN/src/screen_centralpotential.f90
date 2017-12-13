@@ -11,11 +11,102 @@ module screen_centralPotential
     integer :: z, n, l
   end type potential
 
+
+
+  type( potential ), allocatable, target :: znlPotentials( : )
+
   public :: potential
   public :: screen_centralPotential_newScreenShell, screen_centralPotential_loadAll
-  public :: screen_centralPotential_prepAll
+  public :: screen_centralPotential_prepAll, screen_centalPotential_freePot
+  public :: screen_centalPotential_loadInternal, screen_centalPotential_freeInternal
+  public :: screen_centralPotential_findByZ, screen_centralPotential_countByZ
 
   contains
+
+  pure function screen_centralPotential_countByZ( Z ) result( n )
+    integer, intent( in ) :: Z
+    integer :: n
+    !
+    integer :: PotSize, i
+    !
+    n = 0
+    PotSize = size( znlPotentials )
+    do i = 1, PotSize
+      if( znlPotentials( i )%z .eq. Z ) n = n + 1
+    enddo
+  end function screen_centralPotential_countByZ
+
+  subroutine screen_centralPotential_findByZ( Z, PotPointers, ierr )
+    integer, intent( in ) :: Z
+    type( potential ), pointer :: PotPointers( : )
+    integer, intent( inout ) :: ierr
+    !
+    integer :: i, PotSize, j
+
+    if( size( PotPointers ) .lt. screen_centralPotential_countByZ( Z ) ) then
+      write(6,*) 'PotPointers too small!'
+      ierr = 1
+      return
+    endif
+
+    PotSize = size( znlPotentials )
+    j = 1
+    do i = 1, PotSize
+      if( znlPotentials( i )%z .eq. Z ) then
+        PotPointers( j ) => znlPotentials( i )
+        j = j + 1
+      endif
+    enddo
+
+    do i = j, size( PotPointers )
+      PotPointers( i ) => NULL
+    enddo
+
+  end subroutine screen_centralPotential_findByZ
+    
+
+  subroutine screen_centalPotential_loadInternal( ierr )
+    use ocean_mpi, only : myid, root
+    integer intent( inout ) :: ierr
+    !
+    integer, allocatable :: tmp_znl( :, : )
+    integer :: znlLength
+    !
+    ! load up potentials to be screened later
+    ! 2000 should be more than enough for the entire periodic table at the moment
+    if( myid .eq. root ) then
+      allocate( tmp_znl( 3, 2000 ), stat=ierr )
+    else
+      allocate( tmp_znl( 1, 1 ), stat=ierr )
+    endif
+    call screen_centralPotential_prepAll( tmp_znl, znlLength, ierr )
+    if( ierr .ne. 0 ) return
+    allocate( znlPotentials( znlLength ), stat=ierr )
+    if( ierr .ne. 0 ) return
+    call screen_centralPotential_loadAll( znlPotentials, tmp_znl, ierr )
+    if( ierr .ne. 0 ) return
+    deallocate( tmp_znl )
+
+  end subroutine screen_centralPotential_loadInternal
+
+  subroutine screen_centalPotential_freeInternal()
+    integer :: i
+
+    do i = 1, size( znlPotentials ) 
+      call screen_centralPotential_freePot( znlPotentials( i ) )
+    enddo
+
+    if( allocated( znlPotentials ) ) deallocate( znlPotentials )
+  end subroutine screen_centalPotential_freeInternal
+
+  subroutine screen_centralPotential_freePot( pot )
+    type( potential ), intent( inout ) :: pot
+
+
+    if( allocated( pot%pot ) ) deallocate( pot%pot )
+    if( allocated( pot%rad ) ) deallocate( pot%rad )
+
+  end subroutine screen_centralPotential_freePot
 
   subroutine screen_centralPotential_loadAll( znlPot, znl, ierr )
     use ocean_mpi, only : myid, root, comm, MPI_INTEGER

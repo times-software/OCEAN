@@ -35,6 +35,74 @@ module screen_chi
 
   contains
 
+  subroutine screen_chi_makeW( mySite, fullChi, ierr )
+    use screen_sites, only : site
+    use screen_grid, only : sgrid
+    use screen_sites, only : site_info
+    use screen_centralPotential, only : potential, screen_centralPotential_findByZ, & 
+                                        screen_centralPotential_countByZ, &
+                                        screen_centralPotential_newScreenShell
+    type( site ), intent( in ) :: mySite
+    real(DP), intent( in ) :: FullChi( :, :, :, : )
+    integer, intent( inout ) :: ierr
+    !
+    real(DP), allocatable :: FullW( :, : )
+    type( potential ), pointer, allocatable :: temp_Pots( : )
+    type( potential ) :: Pot
+    integer :: nPots, iPots, iShell, nShell
+    character( len=40 ) :: NInducedName
+    
+    
+    nPots = screen_centralPotential_countByZ( mySite%info%Z )
+    if( nPots .lt. 1 ) return
+
+    nShell = size( mySite%shells )
+    if( nShell .lt. 1 ) return 
+
+    allocate( FullW( size( FullChi, 1 ), size( FullChi, 2 ) ), stat=ierr )
+    if( ierr .ne. 0 ) return
+  
+    allocate( temp_Pots( nPots ) )
+    call screen_centralPotential_findByZ( mySite%info%Z, temp_Pots, ierr )
+    if( ierr .ne. 0 ) return
+
+    do iPots = 1 , nPots
+      do iShell = 1, nShell
+      
+        screen_centralPotential_newScreenShell( temp_Pots( iPots ), Pot, mySite%shells( iShell ), ierr )
+        if( ierr .ne. 0 ) return
+
+        NInducedName = screen_chi_getNInducedName( mySite%info%elname, mySite%info%indx, Pot%N, Pot%L, &
+                                         mySite%shells( iShell ) )
+
+
+        call screen_chi_calcW( mySite%grid, Pot, FullChi, FullW, ierr )
+        if( ierr .ne. 0 ) return
+        
+        call screen_chi_writeW( NInducedName, FullW )
+
+        call screen_centalPotential_freePot( Pot )
+      enddo
+    enddo
+
+    deallocate( temp_Pots )
+    deallocate( FullW )
+
+  end subroutine screen_chi_makeW
+
+  pure function screen_chi_getNInducedName( elname, indx, N, L, rad ) result( NInducedName )
+    character(len=2), intent( in ) :: elname
+    integer, intent( in ) :: indx, N, L
+    real(DP), intent( in ) :: rad
+    character( len=*) :: NInducedName
+    ! zTi0001_n02l01/
+    write(NInducedName,'(A1,A2,I4.4,A2,I2.2,A1,I2.2,A4,F3.2,A4)') & 
+                'z', elname, indx, '_n', N, 'l', L, '.zRXT', rad, '.nin'
+  end function screen_chi_getNInducedName
+                        
+
+  end function screen_chi_getNInducedName
+
   pure function screen_chi_NLM() result( NLM )
     integer :: NLM
     integer :: i

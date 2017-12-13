@@ -31,7 +31,8 @@ module screen_chi_driver
 
   subroutine screen_chi_driver_run( nsites, all_sites, ierr )
     use screen_chi0, only : screen_chi0_runSite
-    use screen_chi, only : screen_chi_runSite, screen_chi_NLM, screen_chi_NR, screen_chi_printSite
+    use screen_chi, only : screen_chi_runSite, screen_chi_NLM, screen_chi_NR, screen_chi_printSite, &
+                           screen_chi_makeW
     use screen_sites, only : site, pinfo, screen_sites_returnWavefunctionDims
     use screen_paral, only : site_parallel_info, screen_paral_isMySite
     integer, intent( in ) :: nsites
@@ -75,7 +76,14 @@ module screen_chi_driver
         if( pinfo%myid .eq. pinfo%root ) then
           write(6,*) 'Start screen_chi_printsite'
           call screen_chi_printsite( all_sites( isite )%grid, FullChi, ierr )
+          if( ierr .ne. 0 ) return
           write(6,*) 'Done with screen_chi_printsite'
+
+          write(6,*) 'Start screen_chi_makeW'
+          call screen_chi_makeW( all_sites( isite )%grid, FullChi, ierr )
+          if( ierr .ne. 0 ) return
+          write(6,*) 'Done with screen_chi_makeW'
+        
         endif
 
         deallocate( FullChi )

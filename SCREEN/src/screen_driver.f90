@@ -19,8 +19,8 @@ program screen_driver
   use screen_wavefunction, only : screen_wvfn_diagnostic 
   use screen_chi_driver, only : screen_chi_driver_init, screen_chi_driver_run
   use screen_grid, only : sgrid, screen_grid_dumpRBfile
-  use screen_centralPotential, only : potential, screen_centralPotential_prepAll, &
-                                      screen_centralPotential_loadAll
+!  use screen_centralPotential, only : potential, screen_centralPotential_prepAll, &
+!                                      screen_centralPotential_loadAll
 
   implicit none
 
@@ -57,19 +57,19 @@ program screen_driver
   if( ierr .ne. 0 ) goto 111
   !
 
-  ! load up potentials to be screened later
-  if( myid .eq. root ) then
-    allocate( tmp_znl( 3, 2000 ), stat=ierr )
-  else
-    allocate( tmp_znl( 1, 1 ), stat=ierr )
-  endif
-  call screen_centralPotential_prepAll( tmp_znl, znlLength, ierr )
-  if( ierr .ne. 0 ) goto 111
-  allocate( znlPotentials( znlLength ), stat=ierr )
-  if( ierr .ne. 0 ) goto 111
-  call screen_centralPotential_loadAll( znlPotentials, tmp_znl, ierr )
-  if( ierr .ne. 0 ) goto 111
-  deallocate( tmp_znl )
+!  ! load up potentials to be screened later
+!  if( myid .eq. root ) then
+!    allocate( tmp_znl( 3, 2000 ), stat=ierr )
+!  else
+!    allocate( tmp_znl( 1, 1 ), stat=ierr )
+!  endif
+!  call screen_centralPotential_prepAll( tmp_znl, znlLength, ierr )
+!  if( ierr .ne. 0 ) goto 111
+!  allocate( znlPotentials( znlLength ), stat=ierr )
+!  if( ierr .ne. 0 ) goto 111
+!  call screen_centralPotential_loadAll( znlPotentials, tmp_znl, ierr )
+!  if( ierr .ne. 0 ) goto 111
+!  deallocate( tmp_znl )
   ! 
   ! Initializes the framework for reading in files from the DFT
   call odf_init( myid, root, comm, ierr )

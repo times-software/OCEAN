@@ -293,9 +293,7 @@ module screen_sites
         ierr = 1
         goto 11
       endif
-      do i = 1, nshells
-        read(99,*) shells(i)
-      enddo
+      read(99,*) shells(:)
       close( 99 )
     endif
 
