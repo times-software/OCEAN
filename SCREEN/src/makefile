@@ -1,13 +1,13 @@
 include ../../Makefile.arch
 
-#OPTIONS += -stand f03 -mkl -warn all
+OPTIONS += -warn all -check all -DDEBUG
 
 
 all: screen_grid.o screen_system.o screen_driver.x
 
 OBJS = screen_driver.o ai_kinds.o ocean_mpi.o screen_grid.o screen_system.o screen_sites.o screen_paral.o \
        screen_energy.o ocean_dft_files.o ocean_legacy_files.o screen_wavefunction.o screen_wvfn_converter.o \
-       screen_chi0.o screen_chi_driver.o screen_chi.o screen_centralpotential.o periodic.o
+       screen_chi0.o screen_chi_driver.o screen_chi.o screen_centralpotential.o periodic.o schi_sinqr.o
 
 %.o %.mod: %.f90
 	$(MPIFORT) $(OPTIONS) -c -o $*.o $<
@@ -58,14 +58,19 @@ screen_wvfn_converter.mod: screen_wvfn_converter.f90 ai_kinds.mod ocean_dft_file
 screen_chi0.o:   screen_chi0.f90 ai_kinds.mod screen_paral.mod screen_sites.mod screen_grid.mod screen_wavefunction.mod
 screen_chi0.mod: screen_chi0.f90 ai_kinds.mod screen_paral.mod screen_sites.mod screen_grid.mod screen_wavefunction.mod
 
-screen_chi.o:   screen_chi.f90 ai_kinds.mod screen_grid.mod ocean_mpi.mod ocean_constants.mod 
-screen_chi.mod: screen_chi.f90 ai_kinds.mod screen_grid.mod ocean_mpi.mod ocean_constants.mod
+screen_chi.o:   screen_chi.f90 ai_kinds.mod screen_grid.mod ocean_mpi.mod ocean_constants.mod schi_sinqr.mod \
+                screen_centralpotential.mod
+screen_chi.mod: screen_chi.f90 ai_kinds.mod screen_grid.mod ocean_mpi.mod ocean_constants.mod schi_sinqr.mod \
+                screen_centralpotential.mod
 
-screen_chi_driver.o:   screen_chi_driver.f90 screen_chi0.mod screen_chi.mod
-screen_chi_driver.mod: screen_chi_driver.f90 screen_chi0.mod screen_chi.mod
+screen_chi_driver.o:   screen_chi_driver.f90 screen_chi0.mod screen_chi.mod screen_centralpotential.mod
+screen_chi_driver.mod: screen_chi_driver.f90 screen_chi0.mod screen_chi.mod screen_centralpotential.mod
 
 screen_centralpotential.o:   screen_centralpotential.f90 ai_kinds.mod ocean_mpi.mod
 screen_centralpotential.mod: screen_centralpotential.f90 ai_kinds.mod ocean_mpi.mod
+
+schi_sinqr.o:   schi_sinqr.f90 ai_kinds.mod
+schi_sinqr.mod: schi_sinqr.f90 ai_kinds.mod
 
 periodic.o:   periodic.f90
 periodic.mod: periodic.f90

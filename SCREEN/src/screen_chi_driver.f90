@@ -80,7 +80,7 @@ module screen_chi_driver
           write(6,*) 'Done with screen_chi_printsite'
 
           write(6,*) 'Start screen_chi_makeW'
-          call screen_chi_makeW( all_sites( isite )%grid, FullChi, ierr )
+          call screen_chi_makeW( all_sites( isite ), FullChi, ierr )
           if( ierr .ne. 0 ) return
           write(6,*) 'Done with screen_chi_makeW'
         

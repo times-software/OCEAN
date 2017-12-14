@@ -21,17 +21,18 @@ program screen_driver
   use screen_grid, only : sgrid, screen_grid_dumpRBfile
 !  use screen_centralPotential, only : potential, screen_centralPotential_prepAll, &
 !                                      screen_centralPotential_loadAll
+  use screen_centralPotential, only : screen_centralPotential_loadInternal
 
   implicit none
 
   type( site ), allocatable :: all_sites( : )
-  type( potential ), allocatable :: znlPotentials( : )
+!  type( potential ), allocatable :: znlPotentials( : )
 
-  integer, allocatable :: tmp_znl( :, : )
+!  integer, allocatable :: tmp_znl( :, : )
 
   integer :: ierr
   integer :: nsites
-  integer :: znlLength
+!  integer :: znlLength
 
 
   
@@ -70,6 +71,8 @@ program screen_driver
 !  call screen_centralPotential_loadAll( znlPotentials, tmp_znl, ierr )
 !  if( ierr .ne. 0 ) goto 111
 !  deallocate( tmp_znl )
+  call screen_centralPotential_loadInternal( ierr )
+  if( ierr .ne. 0 ) goto 111
   ! 
   ! Initializes the framework for reading in files from the DFT
   call odf_init( myid, root, comm, ierr )

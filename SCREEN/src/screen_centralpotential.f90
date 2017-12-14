@@ -17,9 +17,9 @@ module screen_centralPotential
 
   public :: potential
   public :: screen_centralPotential_newScreenShell, screen_centralPotential_loadAll
-  public :: screen_centralPotential_prepAll, screen_centalPotential_freePot
-  public :: screen_centalPotential_loadInternal, screen_centalPotential_freeInternal
-  public :: screen_centralPotential_findByZ, screen_centralPotential_countByZ
+  public :: screen_centralPotential_prepAll, screen_centralPotential_freePot
+  public :: screen_centralPotential_loadInternal, screen_centralPotential_freeInternal
+  public :: screen_centralPotential_findNextByZ, screen_centralPotential_countByZ
 
   contains
 
@@ -36,41 +36,40 @@ module screen_centralPotential
     enddo
   end function screen_centralPotential_countByZ
 
-  subroutine screen_centralPotential_findByZ( Z, PotPointers, ierr )
+  subroutine screen_centralPotential_findNextByZ( Z, i, PotPointers, ierr )
     integer, intent( in ) :: Z
-    type( potential ), pointer :: PotPointers( : )
+    integer, intent( inout ) :: i
+    type( potential ), pointer, intent( out ) :: PotPointers
     integer, intent( inout ) :: ierr
     !
-    integer :: i, PotSize, j
+    integer :: PotSize, j
 
-    if( size( PotPointers ) .lt. screen_centralPotential_countByZ( Z ) ) then
-      write(6,*) 'PotPointers too small!'
-      ierr = 1
-      return
-    endif
+!    if( size( PotPointers ) .lt. screen_centralPotential_countByZ( Z ) ) then
+!      write(6,*) 'PotPointers too small!'
+!      ierr = 1
+!      return
+!    endif
 
     PotSize = size( znlPotentials )
-    j = 1
-    do i = 1, PotSize
-      if( znlPotentials( i )%z .eq. Z ) then
-        PotPointers( j ) => znlPotentials( i )
-        j = j + 1
+    
+    do j = i+1, PotSize
+      if( znlPotentials( j )%z .eq. Z ) then
+        PotPointers => znlPotentials( j )
+        return
       endif
     enddo
 
-    do i = j, size( PotPointers )
-      PotPointers( i ) => NULL
-    enddo
+    ierr = 1
 
-  end subroutine screen_centralPotential_findByZ
+  end subroutine screen_centralPotential_findNextByZ
     
 
-  subroutine screen_centalPotential_loadInternal( ierr )
+  subroutine screen_centralPotential_loadInternal( ierr )
     use ocean_mpi, only : myid, root
-    integer intent( inout ) :: ierr
+    integer, intent( inout ) :: ierr
     !
     integer, allocatable :: tmp_znl( :, : )
-    integer :: znlLength
+    integer :: znlLength, i
     !
     ! load up potentials to be screened later
     ! 2000 should be more than enough for the entire periodic table at the moment
@@ -81,6 +80,11 @@ module screen_centralPotential
     endif
     call screen_centralPotential_prepAll( tmp_znl, znlLength, ierr )
     if( ierr .ne. 0 ) return
+    if( myid .eq. root ) then
+      do i = 1, znlLength
+        write(6,*) tmp_znl( :, i )
+      enddo
+    endif
     allocate( znlPotentials( znlLength ), stat=ierr )
     if( ierr .ne. 0 ) return
     call screen_centralPotential_loadAll( znlPotentials, tmp_znl, ierr )
@@ -89,7 +93,7 @@ module screen_centralPotential
 
   end subroutine screen_centralPotential_loadInternal
 
-  subroutine screen_centalPotential_freeInternal()
+  subroutine screen_centralPotential_freeInternal()
     integer :: i
 
     do i = 1, size( znlPotentials ) 
@@ -97,7 +101,7 @@ module screen_centralPotential
     enddo
 
     if( allocated( znlPotentials ) ) deallocate( znlPotentials )
-  end subroutine screen_centalPotential_freeInternal
+  end subroutine screen_centralPotential_freeInternal
 
   subroutine screen_centralPotential_freePot( pot )
     type( potential ), intent( inout ) :: pot
@@ -214,8 +218,9 @@ module screen_centralPotential
     real(DP), intent( in ) :: rad
     integer, intent( inout ) :: ierr
 
-    integer :: i, restart
+    integer :: i
     real(DP) :: invRad
+    character(len=40) :: filename
 
     if( ( .not. allocated( pot%pot ) ) .or. ( .not. allocated( pot%rad ) ) ) then
       ierr = 5
@@ -224,18 +229,26 @@ module screen_centralPotential
 
     allocate( newPot%pot( size( pot%pot ) ), newPot%rad( size( pot%rad ) ) )
     newPot%rad(:) = pot%rad(:)
+
     
     invRad = 1.0_DP / rad
     do i = 1, size( pot%pot ) 
       if( newPot%rad( i ) .lt. rad ) then
         newPot%pot( i ) = pot%pot( i ) + invRad
       else
-        restart = i
+        newPot%pot( i : size( newPot%pot ) ) = 0.0_DP
         exit
       endif
     enddo
 
-    newPot%pot( restart : size( newPot%pot ) ) = 0.0_DP
+    write(6,*) 'newScreenShell', rad, newPot%rad( size( newPot%rad ) )
+    write(filename,'(A,F4.2)') 'vpert.', rad
+    open(unit=99,file=filename, form='formatted' )
+    do i = 1, size( pot%pot ) 
+      write(99,* ) newPot%rad( i ), newPot%pot( i ), pot%pot( i )
+    enddo
+    close( 99 )
+
     newPot%z = pot%z
     newPot%n = pot%n
     newPot%l = pot%l
@@ -256,12 +269,12 @@ module screen_centralPotential
     pot%n = n
     pot%l = l
     
-    write(fileName,'(A17,I3.3,A1,I2.2,A1,I2.2)') 'zpawinfo/vc_barez', z, 'n', n, 'l'
+    write(fileName,'(A17,I3.3,A1,I2.2,A1,I2.2)') 'zpawinfo/vc_barez', z, 'n', n, 'l', l
     fh = 99
-    open( unit=fh, file=fileName, form='formatted', status='unknown' )
+    open( unit=fh, file=fileName, form='formatted', status='old' )
     rewind( 99 )
 
-    maxLength = 1000
+    maxLength = 4000
     curLength = 1
 
     allocate( tmpPot( maxLength ), tmpRad( maxLength ), STAT=ierr )
@@ -302,6 +315,11 @@ module screen_centralPotential
     deallocate( tmpPot, tmpRad )
 
     close( fh )
+
+    write(6,* ) z, n, l
+    write(6,*) curLength
+    write(6,*) pot%rad(1), pot%pot(1)
+    write(6,*) pot%rad(curLength), pot%pot(curLength)
 
   end subroutine screen_centralPotential_load
 
