@@ -42,7 +42,9 @@ module screen_chi
     real(DP), intent( in ) :: FullChi(:,:,:,:)
     integer, intent( inout ) :: ierr
 
-    call schi_sinqr_printSite( grid, FullChi, ierr )
+    if( invStyle .eq. 'sinqr' ) then
+      call schi_sinqr_printSite( grid, FullChi, ierr )
+    endif
   end subroutine screen_chi_printSite
 
 
@@ -77,8 +79,15 @@ module screen_chi
 
 
     ! This is wrong, should be NR (unique radii) not NPT, by NL (which is size(fullchi,2)
-!    allocate( FullW( size( FullChi, 1 ), size( FullChi, 2 ) ), stat=ierr )
-    allocate( FullW( mySite%grid%Npt, size( FullChi, 2 ) ), stat=ierr )
+!!    allocate( FullW( size( FullChi, 1 ), size( FullChi, 2 ) ), stat=ierr )
+    select case ( invStyle )
+    case ( 'sinqr' )
+      allocate( FullW( mySite%grid%Npt, size( FullChi, 2 ) ), stat=ierr )
+    case( 'direct' )
+      allocate( FullW( mySite%grid%Nr, size( FullChi, 2 ) ), stat=ierr )
+    case default
+      ierr = 1
+    end select
     if( ierr .ne. 0 ) return
   
     if( ierr .ne. 0 ) return
@@ -122,9 +131,19 @@ module screen_chi
 !    if( myid .eq. root ) then
       open(unit=99,file=NInducedName,form='formatted',status='unknown')
       rewind( 99 )
-      do i = 1, grid%npt
-        write(99,*) grid%drel( i ), FullW( i, 1 )
-      enddo
+
+      select case ( invStyle )
+      case ( 'sinqr' )
+        do i = 1, grid%npt
+          write(99,*) grid%drel( i ), FullW( i, 1 )
+        enddo
+      case( 'direct' )
+        do i = 1, grid%nr
+          write(99,*) grid%rad( i ), FullW( i, 1 )
+        enddo
+      case default
+      end select
+
       close( 99 )
 !    endif
 
@@ -289,6 +308,7 @@ module screen_chi
   subroutine screen_chi_calcW( grid, Pot, FullChi, FullW, ierr )
     use screen_grid, only : sgrid
     use schi_sinqr, only : schi_sinqr_calcW
+    use schi_direct, only : schi_direct_calcW
     use screen_centralPotential, only : potential
     type( sgrid ), intent( in ) :: grid
     type( potential ), intent( in ) :: Pot
@@ -301,7 +321,7 @@ module screen_chi
       case( 'sinqr' )
         call schi_sinqr_calcW( grid, Pot, FullChi, FullW, ierr )
       case( 'direct' )
-        ierr = 2
+        call schi_direct_calcW( grid, Pot, FullChi, FullW, ierr )
       case default
         ierr = 1
     end select
@@ -311,6 +331,7 @@ module screen_chi
   subroutine schi_project( grid, FullSpace, ProjectedSpace, ierr )
     use screen_grid, only : sgrid
     use schi_sinqr, only : schi_sinqr_project
+    use schi_direct, only : schi_direct_project
     type( sgrid ), intent( in ) :: grid
     real(DP), intent( in ) :: FullSpace(:,:)
     real(DP), intent( out ) :: ProjectedSpace(:,:,:,:)
@@ -320,7 +341,7 @@ module screen_chi
       case( 'sinqr' )
         call schi_sinqr_project( grid, FullSpace, ProjectedSpace, ierr )
       case( 'direct' )
-        ierr = 2
+        call schi_direct_project( grid, FullSpace, ProjectedSpace, ierr )
       case default
         ierr = 1
     end select
@@ -329,6 +350,7 @@ module screen_chi
   subroutine schi_buildCoulombMatrix( grid, cMat, ierr )
     use screen_grid, only : sgrid
     use schi_sinqr, only : schi_sinqr_buildCoulombMatrix
+    use schi_direct, only : schi_direct_buildCoulombMatrix
     type( sgrid ), intent( in ) :: grid
     real(DP), intent( out ) :: cMat(:,:,:,:)
     integer, intent( inout ) :: ierr
@@ -337,7 +359,7 @@ module screen_chi
       case( 'sinqr' )
         call schi_sinqr_buildCoulombMatrix( grid, cMat, ierr )
       case( 'direct' )
-        ierr = 2
+        call schi_direct_buildCoulombMatrix( grid, cMat, ierr )
       case default
         ierr = 1
     end select
@@ -352,7 +374,7 @@ module screen_chi
 
 
     if( myid .eq. root ) then
-      invStyle = 'sinqr'
+      invStyle = 'direct'
       lmin = 0
       lmax = 0
 

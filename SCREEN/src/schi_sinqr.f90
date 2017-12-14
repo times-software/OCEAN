@@ -17,6 +17,7 @@ module schi_sinqr
   public :: schi_sinqr_buildCoulombMatrix
   public :: schi_sinqr_project
   public :: schi_sinqr_calcW
+  public :: newmkvipt
 
   contains
 
