@@ -435,7 +435,7 @@ else  ### Abi/QE w/o obf
     if( $is_xas == 1 )
     {
       $run_text = 'XAS';
-      $nbuse = $brange[3] - $brange[1];
+      $nbuse = $brange[3] - $brange[2] + 1;
     }
     else
     {
@@ -460,7 +460,6 @@ else  ### Abi/QE w/o obf
     }
   }
 }
-
 
 system("$ENV{'OCEAN_BIN'}/getnval.x") == 0 or die "Failed to get nval\n";
 
@@ -612,7 +611,7 @@ while (<EDGE>) {
       open CKSNORM, ">cks.normal" or die "Failed to open cks.normal\n$!";
       print CKSNORM ".true.\n";
       close CKSNORM;
-      $nbuse = $brange[3] - $brange[1];
+      $nbuse = $brange[3] - $brange[2] + 1;
 
       }
       else {

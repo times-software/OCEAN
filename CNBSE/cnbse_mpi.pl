@@ -1,6 +1,6 @@
 #!/usr/bin/perl
 
-# Copyright (C) 2015, 2016 OCEAN collaboration
+# Copyright (C) 2015 - 2017 OCEAN collaboration
 #
 # This file is part of the OCEAN project and distributed under the terms 
 # of the University of Illinois/NCSA Open Source License. See the file 
@@ -133,7 +133,7 @@ if( $solver eq 'gmres' )
   $line = <IN>;
   close IN;
   chomp $line;
-  $line /= 27.2114;
+#  $line /= 27.2114;
   $gmres_header .= " " . $line;
 
   open IN, "cnbse.gmres.gprc" or die "Failed to open cnbse.gmres.gprc\n$!";
@@ -411,7 +411,11 @@ if( $obf == 1 )
 else  ### Abi/QE w/o obf
 { 
   my @brange;
-  if ($nbuse == 0) {
+#  if ($nbuse == 0) {
+  if( $nbuse != 0 ) 
+  {
+    print "Currently nbuse is set to defaults!\n";
+  }
     open BRANGE, "brange.ipt" or die "Failed to open brange.ipt\n";
     <BRANGE> =~ m/(\d+)\s+(\d+)/ or die "Failed to parse brange.ipt\n";
     $brange[0] = $1;
@@ -424,30 +428,30 @@ else  ### Abi/QE w/o obf
     if( $is_xas == 1 )
     {
       $run_text = 'XAS';
-      $nbuse = $brange[3] - $brange[1];
+      $nbuse = $brange[3] - $brange[2] + 1;
     }
     else
     {
       print "XES!\n";
       $run_text = 'XES';
-      $nbuse = $brange[2] - $brange[0];
+      $nbuse = $brange[1] - $brange[0] + 1;
     }
     open NBUSE, ">nbuse.ipt" or die "Failed to open nbuse.ipt\n";
     print NBUSE "$nbuse\n";
     close NBUSE;
-  }
-  else
-  {
-    if( $is_xas == 1 )
-    {
-      $run_text = 'XAS';
-    }
-    else
-    {
-      print "XES!\n";
-      $run_text = 'XES';
-    }
-  }
+#  }
+#  else
+#  {
+#    if( $is_xas == 1 )
+#    {
+#      $run_text = 'XAS';
+#    }
+#    else
+#    {
+#      print "XES!\n";
+#      $run_text = 'XES';
+#    }
+#  }
 }
 
 

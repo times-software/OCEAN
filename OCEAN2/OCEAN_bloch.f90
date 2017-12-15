@@ -445,7 +445,7 @@ module OCEAN_bloch
       open( unit=99, file='metal', form='formatted', status='old')
       read( 99, * ) metal
       close( 99 )
-      if( metal .or. ( sys%nspn .eq. 2 ) ) then
+      if( sys%legacy_ibeg .and. ( metal .or. ( sys%nspn .eq. 2 ) ) ) then
         open( unit=36, file='ibeg.h', form='formatted', status='old' )
         rewind( 36 )
       endif
@@ -524,7 +524,7 @@ module OCEAN_bloch
             rewind 99
             write ( 99, '(2i8)' ) iq, sys%nkpts
             close( unit=99 )
-            if( metal .or. ( sys%nspn .eq. 2 ) ) then
+            if( sys%legacy_ibeg .and. (metal .or. ( sys%nspn .eq. 2 ) ) ) then
               read( 36, * ) dumint, ivh2
               ivh2 = ivh2 - 1
             endif
@@ -616,7 +616,8 @@ module OCEAN_bloch
 #ifndef MPI
       if( myid .eq. 0 ) write(6,*) "New requires MPI. Attempting old"
       bloch_type = 'old'
-      goto 112
+      ierr = -1
+!      goto 112
 #else
     call load_new_u2(  sys, ierr, 36, metal, ivh2 )
     if( ierr .ne. 0 ) then
@@ -657,7 +658,7 @@ module OCEAN_bloch
 
     end select
 
-111 continue
+!111 continue
 
 
     if( myid .eq. 0 ) write ( 6, '(1a16,2f20.15)' ) 'norm bounds ... ', sul, suh
@@ -812,7 +813,7 @@ module OCEAN_bloch
 
       if( myid .eq. root ) then
 
-        if( metal .or. ( sys%nspn .eq. 2 ) ) then
+        if( sys%legacy_ibeg .and. (metal .or. ( sys%nspn .eq. 2 ) ) ) then
           read(fh_ibeg, * ) i, ivh2
 !          ivh2 = ibeg( iq, 1 ) - 1
           ivh2 = ivh2 - 1

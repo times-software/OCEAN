@@ -658,13 +658,14 @@ module OCEAN_val_states
     integer :: fhu2, idum(3)
     integer :: iq, nelement, ibd, ncount, iproc, xiter, iz, iy, ix, ispn
 
+    fhu2 = 99
 
     if( myid .eq. root ) then
       write(6,*) 'Old U2 format'
     endif
 
     if( myid .eq. root ) then
-      open(newunit=fhu2,file='u2.dat',form='unformatted',status='old')
+      open(unit=fhu2,file='u2.dat',form='unformatted',status='old')
       if( ierr .ne. 0 ) return
     endif
 

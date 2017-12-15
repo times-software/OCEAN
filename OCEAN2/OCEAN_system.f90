@@ -52,7 +52,8 @@ module OCEAN_system
     logical          :: backf = .false.
     logical          :: write_rhs 
     logical          :: complex_bse
-    character(len=5) :: calc_type
+    logical          :: legacy_ibeg 
+!    character(len=5) :: calc_type
 
     type(o_run), pointer :: cur_run => null()
 
@@ -243,7 +244,7 @@ module OCEAN_system
 
       sys%e0 = .true.
       sys%obf = .false.
-      sys%calc_type = 'NaN'
+!      sys%calc_type = 'NaN'
 !      sys%conduct = .true.
 
       open(unit=99,file='nelectron',form='formatted',status='old')
@@ -289,6 +290,15 @@ module OCEAN_system
       open(unit=99,file='cnbse.write_rhs',form='formatted',status='old')
       read(99,*) sys%write_rhs
       close(99)
+
+      inquire(file='force_legacy_ibeg.ipt', exist=exst )
+      if( exst ) then
+        open( unit=99, file='force_legacy_ibeg.ipt', form='formatted',status='old')
+        read( 99, * ) sys%legacy_ibeg
+        close( 99 )
+      else
+        sys%legacy_ibeg = .false.
+      endif
 
 
       inquire(file='force_complex_bse.ipt', exist=exst )
@@ -372,11 +382,13 @@ module OCEAN_system
     if( ierr .ne. MPI_SUCCESS ) goto 111
     call MPI_BCAST( sys%write_rhs, 1, MPI_LOGICAL, root, comm, ierr )
     if( ierr .ne. MPI_SUCCESS ) goto 111
+    call MPI_BCAST( sys%legacy_ibeg, 1, MPI_LOGICAL, root, comm, ierr )
+    if( ierr .ne. MPI_SUCCESS ) goto 111
     call MPI_BCAST( sys%complex_bse, 1, MPI_LOGICAL, root, comm, ierr )
     if( ierr .ne. MPI_SUCCESS ) goto 111
 
-    call MPI_BCAST( sys%calc_type, 5, MPI_CHARACTER, root, comm, ierr )
-    if( ierr .ne. MPI_SUCCESS ) goto 111
+!    call MPI_BCAST( sys%calc_type, 5, MPI_CHARACTER, root, comm, ierr )
+!    if( ierr .ne. MPI_SUCCESS ) goto 111
 
 
     endif
@@ -414,7 +426,7 @@ module OCEAN_system
     real(DP) :: tau(3)
     integer :: ZNL(3), indx, photon
     character(len=2) :: elname, corelevel, ein
-    character(len=5) :: calc_type
+    character(len=3) :: calc_type
     type(o_run), pointer :: temp_prev_run, temp_cur_run
 
     integer :: ntot, nmatch, iter, i, start_band, num_bands, val_bands, val_flag,  &
@@ -543,7 +555,7 @@ module OCEAN_system
       if( ierr .ne. MPI_SUCCESS ) goto 111
       call MPI_BCAST( photon, 1, MPI_INTEGER, root, comm, ierr )
       if( ierr .ne. MPI_SUCCESS ) goto 111
-      call MPI_BCAST( calc_type, 5, MPI_CHARACTER, root, comm, ierr )
+      call MPI_BCAST( calc_type, 3, MPI_CHARACTER, root, comm, ierr )
       if( ierr .ne. MPI_SUCCESS ) goto 111
       call MPI_BCAST( start_band, 1, MPI_INTEGER, root, comm, ierr )
       if( ierr .ne. MPI_SUCCESS ) goto 111
