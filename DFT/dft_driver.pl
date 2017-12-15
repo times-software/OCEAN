@@ -13,6 +13,7 @@
 use strict;
 use File::Copy;
 use Cwd 'abs_path';
+use Switch;
 
 if (! $ENV{"OCEAN_BIN"} ) {
   $0 =~ m/(.*)\/dft_driver\.pl/;
@@ -322,6 +323,11 @@ $QE_smear[5] = "'marzari-vanderbilt'";  # ABINIT = Marzari a = -0.8165
 $QE_smear[6] = "'methfessel-paxton'";  # ABINIT = Methfessel and Paxton PRB 40, 3616 (1989)
 $QE_smear[7] = "'gaussian'";     # ABINIT = Gaussian
 
+my @jdftx_smear;
+$jdftx_smear[1] = "Fermi"; $jdftx_smear[3] = "Fermi";
+$jdftx_smear[4] = "Cold"; $jdftx_smear[5] = "Cold";
+$jdftx_smear[6] = "Gauss"; $jdftx_smear[7] = "Gauss";
+
 
 
 if ($runDFT) {
@@ -329,17 +335,26 @@ if ($runDFT) {
 
  ### write SCF input card for initial density
 
-  open my $QE, ">scf.in" or die "Failed to open scf.in.\n$!";
+  open my $SCF, ">scf.in" or die "Failed to open scf.in.\n$!";
 
   # Set the flags that change for each input/dft run
   $dft_data_files{'calctype'} = 'scf';
-  $dft_data_files{'print kpts'} = "K_POINTS automatic\n$dft_data_files{'ngkpt'} $dft_data_files{'den.kshift'}\n";
   $dft_data_files{'print nbands'} = -1;
 
+  switch ( $dft_type )
+  {
+  case ["qe","obf"]
+  {
+    $dft_data_files{'print kpts'} = "K_POINTS automatic\n$dft_data_files{'ngkpt'} $dft_data_files{'den.kshift'}\n";
+    &print_qe( $SCF, %dft_data_files );
+  }
+  case "jdf"
+  {
+    exit 0;
+  }
 
-  &print_qe( $QE, %dft_data_files );
 
-  close $QE;
+  close $SCF;
 
 
  ## SCF PP initialize and set defaults
