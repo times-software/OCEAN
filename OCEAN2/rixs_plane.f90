@@ -24,10 +24,10 @@ program rixs_plane
   integer :: ZNL(3), indx, photon
   character(len=2) :: elname, corelevel
   character(len=5) :: calc_type
-  character( LEN=24 ) :: lancfile
+  character( LEN=40 ) :: lancfile
   character( LEN=21 ) :: abs_filename
 
-  integer :: ie, jdamp, jj, dumi, i, j, k
+  integer :: ie, jdamp, jj, dumi, i, j, k, nspin
   real(DP), external :: gamfcn
   real(DP) :: e, gam, dr, di, spct( 0 : 1 ), spkk, pi, ein, eloss, omega, avec(3,3)
   complex(DP) :: rm1, ctmp, disc, delta
@@ -52,12 +52,18 @@ program rixs_plane
   open(unit=99,file='cnbse.gmres.erange',form='formatted',status='old')
   rewind 99
   read(99,*) estart, estop, estep
+  close( 99 )
 
-
-  open( unit=99, file='avecsinbohr.ipt', form='formatted', status='unknown' )
+  open( unit=99, file='avecsinbohr.ipt', form='formatted', status='old' )
   rewind 99
   read( 99, * ) avec( :, : )
   close( unit=99 )
+
+  open(unit=99, file='nspin', form='formatted',status='old')
+  rewind 99
+  read(99,*) nspin
+  close(99)
+  
 
   omega = 0
   do i = 1, 3
@@ -71,6 +77,7 @@ program rixs_plane
   omega = abs( omega )
 
 
+  write(6,*) omega
 
 
   open(unit=98,file='runlist',form='formatted',status='old')
@@ -84,11 +91,17 @@ program rixs_plane
     read(98,*) ZNL(1), ZNL(2), ZNL(3), elname, corelevel, indx, photon, calc_type, rixs_energy, rixs_pol
 
     select case ( calc_type)
-    case( 'RXS')
+    case( 'RXS' )
 !      write(abs_filename,'(A8,A2,A1,A2,A1,I2.2,A1,I5.5,A1,I2.2)' ) 'rxsspct_', elname, &
 !            '.', corelevel, '_', photon, '.', rixs_energy, '.', rixs_pol
       write(lancfile,'(A7,A2,A1,A2,A1,I2.2,A1,I5.5,A1,I2.2)' ) 'rxlanc_', elname, &
                 '.', corelevel, '_', photon, '.', rixs_energy, '.', rixs_pol
+
+    case( 'C2C' )
+
+      write(lancfile,'(A8,A2,A1,I4.4,A1,A2,A1,I2.2,A1,I5.5,A1,I2.2)' ) 'ctclanc_', elname, &
+            '.', indx, '_', corelevel, '_', photon, '.', &
+            rixs_energy, '.', rixs_pol
 
 
     case default
@@ -108,7 +121,7 @@ program rixs_plane
     close(97)
     iter = n_recur
 
-    fact = kpref * omega
+    fact = kpref * omega * real( 2 / nspin, DP ) 
 
     ein = estart + estep * dble( run_iter - 1 )
     ein = ein * eV2Hartree
@@ -118,7 +131,7 @@ program rixs_plane
        
       e = el + ( eh - el ) * dble( ie ) / dble( 2 * ne )
 
-      eloss = ein - e
+      eloss = e !+ ein 
 
       ctmp = cmplx( eloss, gam0, DP )
 
@@ -150,7 +163,7 @@ program rixs_plane
       imeps = dimag( eps )
 
 
-      write ( 99, '(3(1e15.8,1x))' ) e*Hartree2eV, ein*Hartree2eV, imeps
+      write ( 99, '(4(1e15.8,1x))' ) e*Hartree2eV, ein*Hartree2eV, imeps, eloss*Hartree2eV
  
     end do
     write(99,*) ''
