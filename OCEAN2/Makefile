@@ -11,8 +11,8 @@ all: ocean.x o_spect.x rixs_plane.x
 OCEANOBJS = AI_kinds.o OCEAN_mpi.o OCEAN_system.o OCEAN_bloch.o OCEAN_obf.o OCEAN_multiplet.o  \
             long_range.o OCEAN_load_data.o OCEAN_psi.o OCEAN_energies.o OCEAN_haydock.o OCEAN.o \
             getabb.o getomega.o gamfcn.o jimel.o nbsemkcmel.o intval.o \
-            newgetylm.o  newgetprefs.o newthreey.o cainmhsetup.o elsdch.o cinv.o \
-            sizereport.o OCEAN_timekeeper.o OCEAN_invdrv.o OCEAN_val_energy.o \
+            newgetylm.o  newgetprefs.o newthreey.o  elsdch.o cinv.o \
+            OCEAN_timekeeper.o OCEAN_invdrv.o OCEAN_val_energy.o \
             OCEAN_read_tmels.o OCEAN_val_states.o OCEAN_bubble.o \
             OCEAN_get_rho.o optim.o OCEAN_hyb_louie_levine.o OCEAN_ladder.o \
 						OCEAN_pfy.o OCEAN_rixs_holder.o OCEAN_corewidths.o OCEAN_action.o \

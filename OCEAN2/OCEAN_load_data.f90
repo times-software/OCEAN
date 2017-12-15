@@ -30,7 +30,7 @@ subroutine OCEAN_load_data( sys, hay_vec, ierr )
     call MPI_BARRIER( comm, ierr )
 #endif
 
-  if( myid .eq. root ) write(6,*) 'Calc Type = ', sys%calc_type
+  if( myid .eq. root ) write(6,*) 'Calc Type = ', sys%cur_run%calc_type
   if( myid .eq. root ) write(6,*) 'Init matrix elements 1'
 
   call ocean_psi_init( sys, ierr )

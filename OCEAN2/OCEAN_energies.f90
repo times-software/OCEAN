@@ -483,7 +483,7 @@ module OCEAN_energies
         else
           noshift_lumo = .false.
         endif
-        if( noshift_lumo .eq. .false. ) then
+        if( noshift_lumo .eqv. .false. ) then
           open( unit=99, file='eshift.ipt', form='formatted', status='old' )
           rewind 99
           read ( 99, * ) cls
@@ -992,8 +992,8 @@ module OCEAN_energies
   
     real(DP), allocatable :: sorted_energies(:)
     logical :: useFermiFromFile, doping, overrideFermi
-    real(DP) :: per_electron_dope, homo, lumo, tot_electron, fullyOccupiedElectrons
-    integer :: n_electron_dope, bandOverlap
+    real(DP) :: per_electron_dope, homo, lumo, fullyOccupiedElectrons
+    integer :: n_electron_dope, bandOverlap, tot_electron
 
     
 
@@ -1054,7 +1054,7 @@ module OCEAN_energies
     
         efermi = (homo+lumo) / 2.0_dp
 
-        write( 6, '(A,2(F12.6,X),E21.14)') 'Found new Fermi:', lumo, homo, efermi
+        write( 6, '(A,2(F12.6,1X),E21.14)') 'Found new Fermi:', lumo, homo, efermi
 
         deallocate( sorted_energies )
       else

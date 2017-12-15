@@ -469,19 +469,19 @@ module OCEAN_hyb_louie_levine
   !
       raw = dsqrt( dabs( w ) )
       if ( w .ge. 0.d0 ) then
-        a = dcmplx( u, - raw )
-        b = dcmplx( u, + raw )
-        aa = dcmplx( 0.d0, - 0.5d0 * c4 / raw )
+        a = cmplx( u, - raw, DP )
+        b = cmplx( u, + raw, DP )
+        aa = cmplx( 0.d0, - 0.5d0 * c4 / raw, DP )
       else
-        a = dcmplx( u + raw, 0.d0 )
-        b = dcmplx( u - raw, 0.d0 )
-        aa = dcmplx( - 0.5d0 * c4 / raw, 0.d0 )
+        a = cmplx( u + raw, 0.d0, DP )
+        b = cmplx( u - raw, 0.d0, DP )
+        aa = cmplx( - 0.5d0 * c4 / raw, 0.d0, DP )
       end if
-      ra = cdsqrt( a )
+      ra = sqrt( a )
       if ( dble( ra ) .lt. 0.d0 ) ra = - ra
-      rb = cdsqrt( b )
+      rb = sqrt( b )
       if ( dble( rb ) .lt. 0.d0 ) rb = - rb
-      c1 = dcmplx( 1.d0, 0.d0 )
+      c1 = cmplx( 1.d0, 0.d0, DP )
       dq = dqq * qf
   !
       do j = 1, nq
@@ -518,8 +518,8 @@ module OCEAN_hyb_louie_levine
           cold = cnew
         end do ! j = 1, nq
         intr = intr * ( 2.d0 / pi )
-        intr = intr + c1 + aa / a * ( c1 - cdexp( - ra * qf * r ) )  &
-                       - aa / b * ( c1 - cdexp( - rb * qf * r ) )
+        intr = intr + c1 + aa / a * ( c1 - exp( - ra * qf * r ) )  &
+                       - aa / b * ( c1 - exp( - rb * qf * r ) )
         if( ieee_is_nan( intr ) ) then
           write( 6, * ) c1, aa, a
           write(6,*) ra, rb, qf, r

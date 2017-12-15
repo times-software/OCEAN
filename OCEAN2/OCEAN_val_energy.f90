@@ -540,7 +540,8 @@ module OCEAN_val_energy
     !
     type( O_system ), intent( in ) :: sys
     integer, intent( in ) :: nelectron 
-    real(dp), intent( in ) :: con_energies( sys%cur_run%num_bands, sys%nkpts, sys%nspn ), val_energies( sys%cur_run%val_bands, sys%nkpts, sys%nspn )
+    real(dp), intent( in ) :: con_energies( sys%cur_run%num_bands, sys%nkpts, sys%nspn ), &
+                              val_energies( sys%cur_run%val_bands, sys%nkpts, sys%nspn )
     real(dp), intent( out ) :: efermi, homo, lumo, cliph
     logical, intent( out ) :: metal
     logical, intent( in ) :: dft_flag

@@ -616,7 +616,8 @@ module OCEAN_bloch
 #ifndef MPI
       if( myid .eq. 0 ) write(6,*) "New requires MPI. Attempting old"
       bloch_type = 'old'
-      goto 112
+      ierr = -1
+!      goto 112
 #else
     call load_new_u2(  sys, ierr, 36, metal, ivh2 )
     if( ierr .ne. 0 ) then
@@ -657,7 +658,7 @@ module OCEAN_bloch
 
     end select
 
-111 continue
+!111 continue
 
 
     if( myid .eq. 0 ) write ( 6, '(1a16,2f20.15)' ) 'norm bounds ... ', sul, suh

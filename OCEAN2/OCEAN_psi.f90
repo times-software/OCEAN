@@ -4566,8 +4566,8 @@ module OCEAN_psi
     integer, intent(inout) :: ierr
     type(OCEAN_vector), intent( inout ) :: p
 
-    if( IAND( p%valid_store, PSI_STORE_FULL ) ) then
-      if( .not. IAND( p%valid_store, PSI_STORE_MIN ) ) then
+    if( IAND( p%valid_store, PSI_STORE_FULL ) .eq. PSI_STORE_FULL ) then
+      if( IAND( p%valid_store, PSI_STORE_MIN ) .ne. PSI_STORE_MIN ) then
         call OCEAN_psi_full2min( p, ierr )
         if( ierr .ne. 0 ) return
       endif
@@ -5143,7 +5143,8 @@ module OCEAN_psi
     if( .not. have_core ) return
 
     allocate( out_vec(sys%cur_run%num_bands, sys%nkpts, sys%nalpha ) )
-    out_vec(:,:,:) = cmplx( p%r(1:sys%cur_run%num_bands,1:sys%nkpts,:), p%i(1:sys%cur_run%num_bands,1:sys%nkpts,:) )
+    out_vec(:,:,:) = cmplx( p%r(1:sys%cur_run%num_bands,1:sys%nkpts,:), &
+                            p%i(1:sys%cur_run%num_bands,1:sys%nkpts,:), DP )
 
     write(rhs_filename,'(A4,A2,A1,I4.4,A1,A2,A1,I2.2)' ) 'rhs_', sys%cur_run%elname, &
             '.', sys%cur_run%indx, '_', sys%cur_run%corelevel, '_', sys%cur_run%photon
