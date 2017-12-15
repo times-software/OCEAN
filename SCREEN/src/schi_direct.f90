@@ -36,7 +36,11 @@ module schi_direct
     real(DP), parameter :: d_zero = 0.0_DP
     real(DP), allocatable :: vipt( : ), NINd(:,:)
     real(DP) :: rgt, coul, r2dr
-    integer :: nLM, nR, i, j
+    integer :: nLM, nR, i, j, ilm
+
+#ifdef DEBUG
+    character(len=30) :: fmtstmt
+#endif
 
     nr = grid%nr
     nLM = size( FullChi, 2 )
@@ -64,16 +68,21 @@ module schi_direct
     allocate( NInd( nr, nLM ) )
     NInd = 0.0_DP
     do j = 1, nr
-      do i = 1, nr
-        NInd( i, 1 ) = NInd( i, 1 ) + FullChi( i , 1, j, 1 ) * vipt( j ) * grid%rad(j)**2 * grid%drad(j)
+      do iLM = 1, nLM
+        do i = 1, nr
+          NInd( i, ilm ) = NInd( i, ilm ) + FullChi( i , ilm, j, 1 ) * vipt( j ) * grid%rad(j)**2 * grid%drad(j)
+        enddo
       enddo
     enddo
 
 #ifdef DEBUG
     open( unit=99, file='ninduced.test', form='formatted', status='unknown' )
     rewind 99
+!    write(fmtstmt,'(A1,I,A12)') '(', nLM+1, '(1x,1e15.8))'
+    write(fmtstmt, '("(", I0, "(1x,1e15.8))")' ) nLM+1
+    write(6,*) fmtstmt
     do i = 1, nr
-        write ( 99, '(2(1x,1e15.8))' ) grid%rad( i ), NInd(i,1)
+        write ( 99, fmtstmt ) grid%rad( i ), NInd(i,:)
     end do
     close( unit=99 )
 #endif
@@ -112,35 +121,98 @@ module schi_direct
     real(DP), intent( out ) :: cMat(:,:,:,:)
     integer, intent( inout ) :: ierr
 
-    real(DP) :: coulfac
-    integer :: iLM, i, j, lpol
+    real(DP) :: coulfac, FourPi
+    integer :: i, j, iLM, jLM
     integer :: nLM, nr
 
     nr = size( cMat, 1 )
     nLM = size( cMat, 2 )
 
+    if( nLM .lt. 1 ) then
+      ierr = 1
+      return
+    endif
 
     cMat = 0.0_DP
+    FourPi = 4.0_DP * PI_DP
 
-    lpol = 0
+!    lpol = 0
     do i = 1, nr
-      do j = 1, nr
-        coulfac = 4.0d0 * PI_DP / real( 2 * lpol + 1, DP )
+        coulfac = FourPi / grid%rad( i )
+      do j = 1, i
+!        coulfac = 4.0d0 * PI_DP / real( 2 * lpol + 1, DP )
+!        coulfac = FourPi / max( grid%rad( i ), grid%rad( j ) )
 !        coulfac = coulfac * grid%rad( j ) ** lpol
 !        coulfac = coulfac / grid%rad( i ) ** ( lpol + 1 )
 !        coulfac = coulfac / grid%rad( i )
-        coulfac = coulfac * min( grid%rad( i ), grid%rad( j ) ) ** lpol
-        coulfac = coulfac / max( grid%rad( i ), grid%rad( j ) ) ** ( lpol + 1 )
-
-        Cmat( i, 1, j, 1 ) = grid%drad( i ) * grid%rad( i ) ** 2 * grid%drad( j ) * grid%rad( j ) ** 2 * coulfac
+!        coulfac = coulfac * min( grid%rad( i ), grid%rad( j ) ) ** lpol
+!        coulfac = coulfac / max( grid%rad( i ), grid%rad( j ) ) ** ( lpol + 1 )
+        Cmat( j, 1, i, 1 ) = grid%drad( i ) * grid%rad( i ) ** 2 * grid%drad( j ) * grid%rad( j ) ** 2 * coulfac
       end do
-!      do j = i + 1, nr
+      do j = i + 1, nr
+        coulfac = FourPi / grid%rad( j )
 !        coulfac = 4.0d0 * PI_DP / real( 2 * lpol + 1, DP )
 !        coulfac = coulfac / grid%rad( j )
-!        cMat( j, 1, i, 1 ) = grid%drad( i ) * grid%rad( i ) ** 2 * grid%drad( j ) * grid%rad( j ) ** 2 * coulfac
-!      enddo
+        cMat( j, 1, i, 1 ) = grid%drad( i ) * grid%rad( i ) ** 2 * grid%drad( j ) * grid%rad( j ) ** 2 * coulfac
+      enddo
     end do
   
+    if( nLM .eq. 1 ) return
+
+    ! Have to have 2l + 1 for each l
+    ! so we need 2, 3, and 4
+    if( nLM .lt. 4 ) then
+      ierr = 2
+      return
+    endif
+
+    do ilm = 2, 4
+      do i = 1, nr
+        do jlm = 2, 4
+          coulfac = FourPi / grid%rad( i )**2
+          do j = 1, i
+            coulfac = coulfac * grid%rad( j )
+            Cmat( j, jlm, i, ilm ) = grid%drad( i ) * grid%rad( i ) ** 2 & 
+                               * grid%drad( j ) * grid%rad( j ) ** 2 * coulfac
+          enddo
+          coulfac = FourPi * grid%rad( i )
+          do j = i + 1, nr
+            coulfac = coulfac / grid%rad( j )**2
+            Cmat( j, jlm, i, ilm ) = grid%drad( i ) * grid%rad( i ) ** 2 & 
+                                   * grid%drad( j ) * grid%rad( j ) ** 2 * coulfac
+          enddo
+        enddo
+      enddo
+    enddo
+
+    if( nLM .eq. 4 ) return
+
+    ! just like above we need all 5 m's for l=2
+    if( nLM .lt. 9 ) then
+      ierr = 3
+      return
+    endif
+
+    do iLM = 5, 9
+      do i = 1, nr
+        do jLM = 5, 9
+          coulfac = FourPi / grid%rad( i )**3
+          do j = 1, i
+            coulfac = coulfac * grid%rad( j )**2
+            Cmat( j, jlm, i, ilm ) = grid%drad( i ) * grid%rad( i ) ** 2 &
+                                   * grid%drad( j ) * grid%rad( j ) ** 2 * coulfac
+          end do
+          coulfac = FourPi * grid%rad( i )**2
+          do j = i + 1, nr
+            coulfac = coulfac / grid%rad( j )**3
+            Cmat( j, jlm, i, ilm ) = grid%drad( i ) * grid%rad( i ) ** 2 &
+                                   * grid%drad( j ) * grid%rad( j ) ** 2 * coulfac
+          enddo
+        end do
+      enddo
+    enddo
+
+
   end subroutine schi_direct_buildCoulombMatrix
 
 

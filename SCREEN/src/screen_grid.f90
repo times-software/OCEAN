@@ -146,9 +146,9 @@ module screen_grid
         rewind 99
         do ii = 1, g%info%ninter
           read ( 99, *, IOSTAT=ierr, ERR=11 ) g%info%rend( ii ), g%info%nrad( ii )
-#ifdef DEBUG
-          write ( 6, * ) rend( ii ), nrad( ii )
-#endif
+!#ifdef DEBUG
+!          write ( 6, * ) rend( ii ), nrad( ii )
+!#endif
         enddo
         close( 99, IOSTAT=ierr )
         if( ierr .ne. 0 ) then
