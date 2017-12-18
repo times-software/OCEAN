@@ -29,7 +29,7 @@ function optim( nmin, nfac, fac, locap, hicap )
   powmax( : ) = powmin( : ) 
   do j = 1, nfac
      i = nbase
-     do while ( i .lt. nmin )
+     do while ( i .le. nmin )
         powmax( j ) = powmax( j ) + 1
         i = i * fac( j )
      end do
@@ -47,7 +47,7 @@ function optim( nmin, nfac, fac, locap, hicap )
      do j = 1, nfac
         ntest = ntest * fac( j ) ** pow( j )
      end do
-     if ( ( ntest .gt. nmin ) .and. ( ntest .le. n ) ) n = ntest
+     if ( ( ntest .ge. nmin ) .and. ( ntest .le. n ) ) n = ntest
      call reginc( nfac, pow, powmin, powmax, valid )
   end do
   deallocate( pow, powmin, powmax )
