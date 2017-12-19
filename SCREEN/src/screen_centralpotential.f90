@@ -9,6 +9,7 @@ module screen_centralPotential
     real(DP), allocatable :: pot(:)
     real(DP), allocatable :: rad(:)
     integer :: z, n, l
+!    real(DP) :: deltaR  ! this is the spacing on the written out induced potential
   end type potential
 
 
@@ -20,8 +21,40 @@ module screen_centralPotential
   public :: screen_centralPotential_prepAll, screen_centralPotential_freePot
   public :: screen_centralPotential_loadInternal, screen_centralPotential_freeInternal
   public :: screen_centralPotential_findNextByZ, screen_centralPotential_countByZ
+!  public :: screen_centralPotential_NOutGrid, screen_centralPotential_MakeOutGrid
 
   contains
+
+#if 0
+  pure function screen_centralPotential_NOutGrid( Pot, rmax ) result( n )
+    type( potential ), intent( in ) :: Pot
+    real( DP ), intent( in ) :: rmax
+    integer :: n
+
+    n = max( floor( rmax / Pot%deltaR ) + 1, 1 )
+  end function screen_centralPotential_NOutGrid
+
+  subroutine screen_centralPotential_MakeOutGrid( Pot, rmax, rlist, ierr )
+    type( potential ), intent( in ) :: Pot
+    real( DP ), intent( in ) :: rmax
+    real( DP ), intent( out ) :: rlist( : )
+    integer, intent( inout ) :: ierr
+
+    integer :: i, n  
+
+    n = screen_centralPotential_NOutGrid( Pot, rmax )
+
+    if( size( rlist, 1 ) .lt. n ) then
+      ierr = 1
+      return
+    endif
+
+    do i = 1, n
+      rlist( i ) = real( i - 1, DP ) * Pot%deltaR
+    enddo
+
+  end subroutine screen_centralPotential_MakeOutGrid
+#endif
 
   pure function screen_centralPotential_countByZ( Z ) result( n )
     integer, intent( in ) :: Z
@@ -252,6 +285,7 @@ module screen_centralPotential
     newPot%z = pot%z
     newPot%n = pot%n
     newPot%l = pot%l
+!    newPot%deltaR = pot%deltaR
 
   end subroutine screen_centralPotential_newScreenShell
 
@@ -268,6 +302,7 @@ module screen_centralPotential
     pot%z = z
     pot%n = n
     pot%l = l
+!    pot%deltaR = 0.02_DP
     
     write(fileName,'(A17,I3.3,A1,I2.2,A1,I2.2)') 'zpawinfo/vc_barez', z, 'n', n, 'l', l
     fh = 99

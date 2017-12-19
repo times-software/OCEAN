@@ -38,6 +38,7 @@ module screen_system
 
   type calculation_parameters
     character(len=4) :: convertStyle = 'real'
+    character(len=6) :: inversionStyle = 'direct'
   end type calculation_parameters
 
   type( physical_system ), save :: psys
@@ -49,8 +50,14 @@ module screen_system
   public :: screen_system_load, screen_system_snatch, screen_system_summarize
   public :: screen_system_returnKvec
   public :: screen_system_convertStyle
+  public :: screen_system_invStyle
 
   contains 
+
+  pure function screen_system_invStyle() result (is)
+    character(len=6) :: is
+    is = calcParams%inversionStyle
+  end function screen_system_invStyle
 
   pure function screen_system_convertStyle() result (cs)
     character(len=4) :: cs

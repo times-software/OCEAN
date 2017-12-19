@@ -40,8 +40,8 @@ module screen_grid
     real(DP), allocatable :: weights( : )
 
     integer :: nang
-    integer :: lmax = 5
-    character(len=7) :: angle_type = 'specpnt'
+    integer :: lmax != 7
+    character(len=7) :: angle_type != 'specpnt'
     logical :: is_init = .false.
 
   end type angular_grid
@@ -335,10 +335,26 @@ module screen_grid
 
     character( len=2 ) :: i_char
     character( len=11 ) :: filnam
+    logical :: ex
     !
     if( g%agrid%is_init ) return
     !
     if( myid .eq. root ) then
+
+      inquire( file='agrid.ipt', exist=ex )
+      if( ex ) then
+        open( unit=99, file='agrid.ipt', form='formatted', status='old' )
+        read( 99, *, iostat=i ) g%agrid%angle_type, g%agrid%lmax
+        if( i .ne. 0 ) then
+          ex = .false.
+        endif
+        close( 99 )
+      endif
+      if( ex .eqv. .false. ) then
+        g%agrid%angle_type = 'specpnt'
+        g%agrid%lmax = 5
+      endif
+
       write( i_char, '(I2)' ) g%agrid%lmax
       write( filnam, '(A7,A1,A)' ) g%agrid%angle_type, '.', trim( adjustl( i_char ) )
     
@@ -349,6 +365,8 @@ module screen_grid
         ierr = -7
         goto 10
       endif
+
+      write(6,*) '  ', filnam, g%agrid%nang
 
       allocate( g%agrid%angles( 3, g%agrid%nang ), g%agrid%weights( g%agrid%nang ), &
                 STAT=ierr )
@@ -382,8 +400,14 @@ module screen_grid
     ! done checking against errors from root
 
     ! share from root across all 
-    call MPI_BCAST( g%agrid%nang, 1, MPI_DOUBLE_PRECISION, root, comm, ierr )
+    call MPI_BCAST( g%agrid%nang, 1, MPI_INTEGER, root, comm, ierr )
     if( ierr .ne. MPI_SUCCESS ) return
+    call MPI_BCAST( g%agrid%lmax, 1, MPI_INTEGER, root, comm, ierr )
+    if( ierr .ne. MPI_SUCCESS ) return
+    call MPI_BCAST( g%agrid%angle_type, 7, MPI_CHARACTER, root, comm, ierr )
+    if( ierr .ne. MPI_SUCCESS ) return
+
+
     if( myid .ne. root ) then
       allocate( g%agrid%angles( 3, g%agrid%nang ), g%agrid%weights( g%agrid%nang ), &
                 STAT=ierr )

@@ -40,7 +40,7 @@ module screen_chi_driver
     integer, intent( inout ) :: ierr
     !
     real(DP), allocatable :: FullChi0(:,:)
-    real(DP), allocatable :: FullChi(:,:,:,:)
+    real(DP), allocatable :: FullChi(:,:,:,:), ProjectedChi0(:,:,:,:)
     integer :: isite, dims(2), NLM, NR
 
 
@@ -56,7 +56,7 @@ module screen_chi_driver
 
         NR = screen_chi_NR( all_sites( isite )%grid )
         dims = screen_sites_returnWavefunctionDims( all_sites( isite ) )
-        allocate( FullChi( NR, NLM, NR, NLM),  stat=ierr )
+        allocate( FullChi( NR, NLM, NR, NLM), ProjectedChi0( NR, NLM, NR, NLM), stat=ierr )
         if( ierr .ne. 0 ) return
         allocate( FullChi0( dims(2), dims(2) ), STAT=ierr )
         if( ierr .ne. 0 ) return
@@ -66,7 +66,7 @@ module screen_chi_driver
 
         if( pinfo%myid .eq. pinfo%root ) then
           write(6,*) 'Start screen_chi_runSite'
-          call screen_chi_runSite( all_sites( isite )%grid, FullChi0, FullChi, ierr )
+          call screen_chi_runSite( all_sites( isite )%grid, FullChi0, FullChi, ProjectedChi0, ierr )
           write(6,*) 'Done with screen_chi_runSite'
         endif
         if( ierr .ne. 0 ) return
@@ -80,13 +80,13 @@ module screen_chi_driver
           write(6,*) 'Done with screen_chi_printsite'
 
           write(6,*) 'Start screen_chi_makeW'
-          call screen_chi_makeW( all_sites( isite ), FullChi, ierr )
+          call screen_chi_makeW( all_sites( isite ), FullChi, ProjectedChi0, ierr )
           if( ierr .ne. 0 ) return
           write(6,*) 'Done with screen_chi_makeW'
         
         endif
 
-        deallocate( FullChi )
+        deallocate( ProjectedChi0, FullChi )
 
       endif
 

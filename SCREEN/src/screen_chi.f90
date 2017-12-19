@@ -48,22 +48,23 @@ module screen_chi
   end subroutine screen_chi_printSite
 
 
-  subroutine screen_chi_makeW( mySite, fullChi, ierr )
+  subroutine screen_chi_makeW( mySite, fullChi, fullChi0, ierr )
     use screen_sites, only : site
     use screen_grid, only : sgrid
     use screen_sites, only : site_info
     use screen_centralPotential, only : potential, screen_centralPotential_findNextByZ, & 
-                                        screen_centralPotential_countByZ, &
-                                        screen_centralPotential_newScreenShell, &
-                                        screen_centralPotential_freePot
+          screen_centralPotential_countByZ, screen_centralPotential_newScreenShell, &
+          screen_centralPotential_freePot, screen_centralPotential_NOutGrid, &
+          screen_centralPotential_MakeOutGrid
     type( site ), intent( in ) :: mySite
     real(DP), intent( in ) :: FullChi( :, :, :, : )
+    real(DP), intent( in ) :: FullChi0( :, :, :, : )
     integer, intent( inout ) :: ierr
     !
-    real(DP), allocatable :: FullW( :, : )
+    real(DP), allocatable :: FullW( :, : ), FullW0( :, : )
     type( potential ), pointer :: temp_Pots
     type( potential ) :: Pot
-    integer :: nPots, iPots, iShell, nShell, potIndex
+    integer :: nPots, iPots, iShell, nShell, potIndex, Wsize
     character( len=40 ) :: NInducedName
     
     potIndex = 0
@@ -82,7 +83,7 @@ module screen_chi
 !!    allocate( FullW( size( FullChi, 1 ), size( FullChi, 2 ) ), stat=ierr )
     select case ( invStyle )
     case ( 'sinqr' )
-      allocate( FullW( mySite%grid%Npt, size( FullChi, 2 ) ), stat=ierr )
+      allocate( FullW( mySite%grid%Nr, size( FullChi, 2 ) ), stat=ierr )
     case( 'direct' )
       allocate( FullW( mySite%grid%Nr, size( FullChi, 2 ) ), stat=ierr )
     case default
@@ -90,11 +91,11 @@ module screen_chi
     end select
     if( ierr .ne. 0 ) return
   
-    if( ierr .ne. 0 ) return
 
     write(6,*) ' ', nPots, nShell
     do iPots = 1 , nPots
       call screen_centralPotential_findNextByZ( mySite%info%Z, potIndex, temp_Pots, ierr )
+
       do iShell = 1, nShell
       
         call screen_centralPotential_newScreenShell( temp_Pots, Pot, mySite%shells( iShell ), ierr )
@@ -105,16 +106,18 @@ module screen_chi
 
         write(6,*) NInducedName
 
-        call screen_chi_calcW( mySite%grid, Pot, FullChi, FullW, ierr )
+        call screen_chi_calcW( mySite%grid, Pot, FullChi, FullChi0, FullW, ierr )
         if( ierr .ne. 0 ) return
         
         call screen_chi_writeW( mySite%grid, NInducedName, FullW )
 
         call screen_centralPotential_freePot( Pot )
       enddo
+
+    
+      deallocate( FullW )
     enddo
 
-    deallocate( FullW )
 
   end subroutine screen_chi_makeW
     
@@ -132,17 +135,18 @@ module screen_chi
       open(unit=99,file=NInducedName,form='formatted',status='unknown')
       rewind( 99 )
 
-      select case ( invStyle )
-      case ( 'sinqr' )
-        do i = 1, grid%npt
-          write(99,*) grid%drel( i ), FullW( i, 1 )
-        enddo
-      case( 'direct' )
+!      select case ( invStyle )
+!      case ( 'sinqr' )
+!        do i = 1, grid%npt
+!          write(99,*) grid%drel( i ), FullW( i, 1 )
+!        enddo
+!      case( 'direct' )
         do i = 1, grid%nr
-          write(99,*) grid%rad( i ), FullW( i, 1 )
+!          write(99,*) grid%rad( i ), FullW( i, 1 )
+          write(99,'(2(E22.15,X))') grid%rad(i), FullW(i,1)
         enddo
-      case default
-      end select
+!      case default
+!      end select
 
       close( 99 )
 !    endif
@@ -192,19 +196,20 @@ module screen_chi
   end function screen_chi_NR
 
 
-  subroutine screen_chi_runSite( grid, FullChi0, FullChi, ierr )
+  subroutine screen_chi_runSite( grid, FullChi0, FullChi, projectedChi0, ierr )
     use screen_grid, only : sgrid
     type( sgrid ), intent( in ) :: grid
     real(DP), intent( in ) :: FullChi0(:,:)
     real(DP), intent( out ) :: FullChi(:,:,:,:)
+    real(DP), intent( out ) :: projectedchi0(:,:,:,:)
     integer, intent( inout ) :: ierr
     !
-    real(DP), allocatable :: projectedChi0(:,:,:,:)
+!    real(DP), allocatable :: projectedChi0(:,:,:,:)
     real(DP), allocatable :: coulombMatrix(:,:,:,:)
 
 
-    allocate( projectedChi0( size(FullChi,1), size(FullChi,2), size(FullChi,3), size(FullChi,4) ), STAT=ierr )
-    if( ierr .ne. 0 ) return
+!    allocate( projectedChi0( size(FullChi,1), size(FullChi,2), size(FullChi,3), size(FullChi,4) ), STAT=ierr )
+!    if( ierr .ne. 0 ) return
 
     call schi_project( grid, FullChi0, projectedChi0, ierr )
     if( ierr .ne. 0 ) return
@@ -218,7 +223,8 @@ module screen_chi
     call schi_makeChi( projectedChi0, coulombMatrix, FullChi, ierr )
     if( ierr .ne. 0 ) return
 
-    deallocate( projectedChi0, coulombMatrix )
+!    deallocate( projectedChi0, coulombMatrix )
+    deallocate( coulombMatrix )
 
   end subroutine screen_chi_runSite
 
@@ -305,7 +311,7 @@ module screen_chi
 
   end subroutine schi_makeChi
 
-  subroutine screen_chi_calcW( grid, Pot, FullChi, FullW, ierr )
+  subroutine screen_chi_calcW( grid, Pot, FullChi, FullChi0, FullW, ierr )
     use screen_grid, only : sgrid
     use schi_sinqr, only : schi_sinqr_calcW
     use schi_direct, only : schi_direct_calcW
@@ -313,15 +319,16 @@ module screen_chi
     type( sgrid ), intent( in ) :: grid
     type( potential ), intent( in ) :: Pot
     real(DP), intent( in ) :: FullChi(:,:,:,:)
+    real(DP), intent( in ) :: FullChi0(:,:,:,:)
     real(DP), intent( out ) :: FullW(:,:)
     integer, intent( inout ) :: ierr
 
 
     select case ( invStyle )
       case( 'sinqr' )
-        call schi_sinqr_calcW( grid, Pot, FullChi, FullW, ierr )
+        call schi_sinqr_calcW( grid, Pot, FullChi, FullChi0, FullW, ierr )
       case( 'direct' )
-        call schi_direct_calcW( grid, Pot, FullChi, FullW, ierr )
+        call schi_direct_calcW( grid, Pot, FullChi, FullChi0, FullW, ierr )
       case default
         ierr = 1
     end select
@@ -368,13 +375,15 @@ module screen_chi
 
   subroutine screen_chi_init( ierr )
     use ocean_mpi, only : myid, root, comm, MPI_INTEGER, MPI_CHARACTER
+    use screen_system, only : screen_system_invStyle
     integer, intent( inout ) :: ierr
 
     if( is_init ) return
 
 
     if( myid .eq. root ) then
-      invStyle = 'direct'
+!      invStyle = 'direct'
+      invStyle = screen_system_invStyle()
       lmin = 0
       lmax = 0
 

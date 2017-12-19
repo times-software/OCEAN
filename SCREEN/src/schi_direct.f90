@@ -20,7 +20,7 @@ module schi_direct
 
   contains
 
-  subroutine schi_direct_calcW( grid, Pot, FullChi, FullW, ierr )
+  subroutine schi_direct_calcW( grid, Pot, FullChi, FullChi0, FullW, ierr )
     ! THIS IS A HACK, NEEDS TO BE EXTERNAL TO BOTH OR INTERNAL TO BOTH
     use ocean_constants, only : PI_DP
     use schi_sinqr, only : Newmkvipt
@@ -29,6 +29,7 @@ module schi_direct
     type( sgrid ), intent( in ) :: grid
     type( potential ), intent( in ) :: Pot
     real(DP), intent( in ) :: FullChi(:,:,:,:)
+    real(DP), intent( in ) :: FullChi0(:,:,:,:)
     real(DP), intent( out ) :: FullW(:,:)
     integer, intent( inout ) :: ierr
 

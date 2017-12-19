@@ -304,10 +304,10 @@ module screen_wvfn_converter
           call MPI_ISEND( temp_wavefunctions(isite)%wvfn( pts_start, band_start, 1 ), 1, &
                           newType, destID, itag, comm, send_list( isend ), ierr )
         else
-          write(6,*) 'Empty!', ikpt, ispin, iproc
+!          write(6,*) 'Empty!', ikpt, ispin, iproc
           send_list( isend ) = MPI_REQUEST_NULL
-          ierr = -1
-          return
+!          ierr = -1
+!          return
         endif
         call MPI_TYPE_FREE( newType, ierr )
         if( ierr .ne. 0 ) return

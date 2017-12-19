@@ -21,13 +21,14 @@ module schi_sinqr
 
   contains
 
-  subroutine schi_sinqr_calcW( grid, Pot, FullChi, FullW, ierr )
+  subroutine schi_sinqr_calcW( grid, Pot, FullChi, FullChi0, FullW, ierr )
     use ocean_constants, only : PI_DP
     use screen_grid, only : sgrid
     use screen_centralPotential, only : potential
     type( sgrid ), intent( in ) :: grid
     type( potential ), intent( in ) :: Pot
     real(DP), intent( in ) :: FullChi(:,:,:,:)
+    real(DP), intent( in ) :: FullChi0(:,:,:,:)
     real(DP), intent( out ) :: FullW(:,:)
     integer, intent( inout ) :: ierr
 
@@ -41,8 +42,9 @@ module schi_sinqr
     nr = grid%nr
 
     write(6,*) 'mkvipt'
-    allocate( vipt( npt ), basfcn( npt, nbasis ), qtab( nbasis ), rhs( nbasis ), potfcn( npt, nbasis ) )
-    call Newmkvipt( npt, grid%drel, pot%rad, pot%pot, vipt )
+    allocate( vipt( nr ), basfcn( nr, nbasis ), qtab( nbasis ), rhs( nbasis ), potfcn( nr, nbasis ) )
+!    call Newmkvipt( npt, grid%drel, pot%rad, pot%pot, vipt )
+    call Newmkvipt( nr, grid%rad, pot%rad, pot%pot, vipt )
 
     write(6,*) 'basis'
     do i = 1, nbasis
@@ -53,13 +55,14 @@ module schi_sinqr
       coul = 4.0_DP * PI_DP / q**2
       cterm = cos( q * grid%rmax )
 
-      do j = 1, npt
-        arg = q * grid%drel( j )
+      do j = 1, nr
+!        arg = q * grid%drel( j )
+        arg = q * grid%rad( j )
         if( arg .gt. 0.0002_DP ) then
-          basfcn( j, i ) = grid%wpt(j) * pref * sin( arg ) / arg
+          basfcn( j, i ) = grid%rad( j )**2 * grid%drad( j ) * pref * sin( arg ) / arg 
           potfcn( j, i ) = pref * coul * ( sin( arg ) / arg - cterm )
         else
-          basfcn( j, i ) = grid%wpt(j) * pref * (1.0_DP - arg**2/4.0_DP )
+          basfcn( j, i ) = grid%rad( j )**2 * grid%drad( j )* pref * (1.0_DP - arg**2/4.0_DP )
           potfcn( j, i ) = pref * coul * ( 1.0_DP - arg**2/4.0_DP - cterm )
         endif
       enddo
@@ -75,7 +78,7 @@ module schi_sinqr
 
     do i = 1, nbasis
        su = 0
-       do ii = 1, npt
+       do ii = 1, nr
           su = su + basfcn( ii, i ) * vipt( ii ) !* grid%wpt( ii )
        end do
        rhs( i ) = su
@@ -97,7 +100,7 @@ module schi_sinqr
         write(98, '(2i5,3(1x,1e15.8))' ) i, j, qtab( i ), qtab( j ), FullChi( i, 1, j, 1 )
       enddo
 
-      do ii = 1, npt
+      do ii = 1, nr
         FullW( ii, 1 ) = FullW( ii, 1 ) + su * potfcn( ii, i )
       enddo
       write(98,*)
