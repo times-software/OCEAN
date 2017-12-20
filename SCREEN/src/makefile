@@ -8,7 +8,7 @@ all: screen_grid.o screen_system.o screen_driver.x
 OBJS = screen_driver.o ai_kinds.o ocean_mpi.o screen_grid.o screen_system.o screen_sites.o screen_paral.o \
        screen_energy.o ocean_dft_files.o ocean_legacy_files.o screen_wavefunction.o screen_wvfn_converter.o \
        screen_chi0.o screen_chi_driver.o screen_chi.o screen_centralpotential.o periodic.o schi_sinqr.o \
-       schi_direct.o
+       schi_direct.o ocean_sphericalharmonics.o
 
 %.o %.mod: %.f90
 	$(MPIFORT) $(OPTIONS) -c -o $*.o $<
@@ -73,11 +73,14 @@ screen_centralpotential.mod: screen_centralpotential.f90 ai_kinds.mod ocean_mpi.
 schi_sinqr.o:   schi_sinqr.f90 ai_kinds.mod screen_centralpotential.mod
 schi_sinqr.mod: schi_sinqr.f90 ai_kinds.mod screen_centralpotential.mod
 
-schi_direct.o:   schi_direct.f90 ai_kinds.mod screen_centralpotential.mod schi_sinqr.mod
-schi_direct.mod: schi_direct.f90 ai_kinds.mod screen_centralpotential.mod schi_sinqr.mod
+schi_direct.o:   schi_direct.f90 ai_kinds.mod screen_centralpotential.mod schi_sinqr.mod ocean_sphericalharmonics.mod
+schi_direct.mod: schi_direct.f90 ai_kinds.mod screen_centralpotential.mod schi_sinqr.mod ocean_sphericalharmonics.mod
 
 periodic.o:   periodic.f90
 periodic.mod: periodic.f90
+
+ocean_sphericalharmonics.o:   ocean_sphericalharmonics.f90 ai_kinds.mod ocean_constants.mod
+ocean_sphericalharmonics.mod: ocean_sphericalharmonics.f90 ai_kinds.mod ocean_constants.mod
 
 screen_driver.o: screen_driver.f90 ai_kinds.mod ocean_mpi.mod screen_grid.mod screen_system.mod screen_sites.mod \
                  screen_energy.mod ocean_dft_files.mod screen_wvfn_converter.mod screen_wavefunction.mod \

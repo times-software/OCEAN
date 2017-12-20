@@ -35,28 +35,30 @@ module schi_direct
 
     real(DP), parameter :: d_one = 1.0_DP
     real(DP), parameter :: d_zero = 0.0_DP
-    real(DP), allocatable :: vipt( : ), NINd(:,:)
+    real(DP), allocatable :: vipt( : ), NINd(:,:), Nind0(:,:), transpNind(:,:)
     real(DP) :: rgt, coul, r2dr, rlt
     integer :: nLM, nR, i, j, ilm, lpol
 
 #ifdef DEBUG
     character(len=30) :: fmtstmt
+    character(len=8)  :: filnam
 #endif
 
     nr = grid%nr
     nLM = size( FullChi, 2 )
 
 #ifdef DEBUG
-    open( unit=99, file='zmunu', form='formatted', status='unknown' )
-    rewind 99
-    do i = 1, nr
-      do j = 1, nr
-        write ( 99, '(4(1x,1e15.8))' ) grid%rad( i ), grid%rad( j ), FullChi( i, 1, j, 1 )
-     end do
-     write ( 99, * )
-  end do
-  close( unit=99 )
-
+    do ilm = 1, nlm
+      write(filnam,'(A6,I1,I1)') 'zmunu.', ilm, ilm
+      open( unit=99, file=filnam, form='formatted', status='unknown' )
+      do i = 1, nr
+        do j = 1, nr
+           write ( 99, '(3(1x,1e15.8))' ) grid%rad( i ), grid%rad( j ), FullChi( i, ilm, j, ilm )
+        enddo
+        write ( 99, * )
+      enddo
+      close( 99 )
+    enddo
 #endif
 
     allocate( vipt( nr ) )
@@ -66,29 +68,41 @@ module schi_direct
     ! Only treating the first (l=0) beacuse vipt is only that long and we are only starting with l=0 external pot
 !    call DGEMV( 'N', nr*nLM, nr, d_one, FullChi, nr*nLM, vipt, 1, d_zero, FullW, 1 )
 
-    allocate( NInd( nr, nLM ) )
+    allocate( NInd( nr, nLM ), Nind0( nr, nLM ), transpNind( nLM, nr ) )
     NInd = 0.0_DP
+    Nind0 = 0.0_DP
     do j = 1, nr
       do iLM = 1, nLM
         do i = 1, nr
           NInd( i, ilm ) = NInd( i, ilm ) + FullChi( i , ilm, j, 1 ) * vipt( j ) * grid%rad(j)**2 * grid%drad(j)
+          NInd0( i, ilm ) = NInd0( i, ilm ) + FullChi0( i , ilm, j, 1 ) * vipt( j ) * grid%rad(j)**2 * grid%drad(j)
         enddo
       enddo
     enddo
 
 #ifdef DEBUG
+
+    transpNind = transpose( Nind )
     open( unit=99, file='ninduced.test', form='formatted', status='unknown' )
     rewind 99
 !    write(fmtstmt,'(A1,I,A12)') '(', nLM+1, '(1x,1e15.8))'
     write(fmtstmt, '("(", I0, "(1x,1e15.8))")' ) nLM+1
     write(6,*) fmtstmt
     do i = 1, nr
-        write ( 99, fmtstmt ) grid%rad( i ), NInd(i,:)
+        write ( 99, fmtstmt ) grid%rad( i ), transpNind(:,i ) !NInd(i,:)
+    end do
+    close( unit=99 )
+
+    transpNind = transpose( Nind0 )
+    open( unit=99, file='nin0.test', form='formatted', status='unknown' )
+    rewind 99
+    do i = 1, nr
+        write ( 99, fmtstmt ) grid%rad( i ), transpNind(:,i ) !NInd(i,:)
     end do
     close( unit=99 )
 #endif
 
-
+    deallocate( Nind0, transpNind )
     
     FullW(:,:) = 0.0_DP
     do i = 1, nr
@@ -239,18 +253,21 @@ module schi_direct
     use screen_grid, only : sgrid
     use ocean_constants, only : PI_DP
     use ocean_mpi, only : myid
+    use ocean_sphericalHarmonics, only : ocean_sphH_getylm
     type( sgrid ), intent( in ) :: grid
     real(DP), intent( in ) :: FullSpace(:,:)
     real(DP), intent( out ) :: ProjectedSpace(:,:,:,:)
     integer, intent( inout ) :: ierr
 
-    real(DP), allocatable :: ymu( :, :, :, : ), slice_ymu( :, : ), temp( :, : )
+    real(DP), allocatable :: ymu( :, :, :, : ), slice_ymu( :, : ), temp( :, : ), test_ymu( :, : )
 
     integer :: npt, nbasis, nLM, fullSize, nang, nr, dimTemp
-    integer :: ii, i, j, iLM
+    integer :: ii, i, j, iLM, l, m
 
     real(DP), parameter :: d_zero = 0.0_DP
     real(DP), parameter :: d_one = 1.0_DP
+
+    character(len=8) :: filnam
 
     npt = size( FullSpace, 1 )
     nbasis = size( ProjectedSpace, 1 )
@@ -278,12 +295,37 @@ module schi_direct
     endif
 
     ! Build ymu basis functions
-    allocate( ymu( nang, nr, nr, nLM ), slice_ymu( nang, nLM ), stat=ierr )
+    allocate( ymu( nang, nr, nr, nLM ), slice_ymu( nang, nLM ), test_ymu( nang, nLM ), stat=ierr )
     if( ierr .ne. 0 ) return
     ymu = 0.0_DP
 
     call formreytab( grid%agrid%angles, slice_ymu, nLM, ierr )
     if( ierr .ne. 0 ) return
+
+    do iLM = 1, nLM
+      l = floor( sqrt( real( iLM, DP ) - 0.99_DP ) )
+      m = iLM + l - (l+1)**2
+      write(6,*) ilm, l, m
+    enddo
+
+    do iLM = 1, nLM
+      l = floor( sqrt( real( iLM, DP ) - 0.99_DP ) )
+      m = iLM + l - (l+1)**2
+      do j = 1, nang
+        test_ymu( j, iLM ) = ocean_sphH_getylm( grid%agrid%angles( :, j ), l, m )
+      enddo
+    enddo
+
+    open( unit=99, file='sphere.test' )
+    do iLM = 1, nLM 
+      l = floor( sqrt( real( iLM, DP ) - 0.99_DP ) )
+      m = iLM + l - (l+1)**2
+      do j = 1, nang
+        write(99, '(2I8,2E25.15)' ) l, m, slice_ymu( j, iLM ), test_ymu( j, iLM )
+      enddo
+    enddo
+    close( 99 )
+    deallocate( test_ymu )
     
     do iLM = 1, nLM
 !      ii = 0
@@ -310,14 +352,17 @@ module schi_direct
     deallocate( ymu )
 
 #ifdef DEBUG
-    open( unit=99, file='ymunu', form='formatted', status='unknown' )
-    do i = 1, nr
-      do j = 1, nr
-         write ( 99, '(4(1x,1e15.8))' ) grid%rad( i ), grid%rad( j ), ProjectedSpace( i, 1, j, 1 ), 0.0_DP
+    do ilm = 1, nlm
+      write(filnam,'(A6,I1,I1)') 'ymunu.', ilm, ilm
+      open( unit=99, file=filnam, form='formatted', status='unknown' )
+      do i = 1, nr
+        do j = 1, nr
+           write ( 99, '(4(1x,1e15.8))' ) grid%rad( i ), grid%rad( j ), ProjectedSpace( i, ilm, j, ilm ), 0.0_DP
+        enddo
+        write ( 99, * )
       enddo
-      write ( 99, * )
+      close( 99 )
     enddo
-    close( 99 )
 #endif
 
   end subroutine schi_direct_project

@@ -207,9 +207,9 @@ module screen_chi0
 #endif
     deallocate( spareWvfnRecvs, spareWvfnSends, chiRecvs, chiSends )
 
-    if( pinfo%myid .eq. pinfo%root ) write(6,*) 'WriteChi'
-    call writeChi( pinfo, singleSite%info, FullChi0, ierr )
-    if( ierr .ne. 0 ) return
+!    if( pinfo%myid .eq. pinfo%root ) write(6,*) 'WriteChi'
+!    call writeChi( pinfo, singleSite%info, FullChi0, ierr )
+!    if( ierr .ne. 0 ) return
 
     do id = 0, pinfo%nprocs - 1
       call screen_wvfn_kill( spareWavefunctions( id ) )
