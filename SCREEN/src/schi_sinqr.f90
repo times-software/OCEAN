@@ -32,7 +32,7 @@ module schi_sinqr
     real(DP), intent( out ) :: FullW(:,:)
     integer, intent( inout ) :: ierr
 
-    real(DP), allocatable :: vipt( : ), basfcn(:,:), qtab(:), rhs(:), potfcn(: ,: )
+    real(DP), allocatable :: vipt( : ), basfcn(:,:), qtab(:), rhs(:), potfcn(: ,: ), weight( : )
     real(DP) :: q, pref, arg, su, coul, cterm
     integer :: i, j ,ii
     integer :: nbasis, npt, nr
@@ -42,9 +42,14 @@ module schi_sinqr
     nr = grid%nr
 
     write(6,*) 'mkvipt'
-    allocate( vipt( nr ), basfcn( nr, nbasis ), qtab( nbasis ), rhs( nbasis ), potfcn( nr, nbasis ) )
+    allocate( vipt( nr ), basfcn( nr, nbasis ), qtab( nbasis ), rhs( nbasis ), & 
+              potfcn( nr, nbasis ), weight( nr ) )
 !    call Newmkvipt( npt, grid%drel, pot%rad, pot%pot, vipt )
     call Newmkvipt( nr, grid%rad, pot%rad, pot%pot, vipt )
+
+    do i = 1, nr
+      weight( i ) = grid%rad( i )**2 * grid%drad( i ) * 4.0_DP * PI_DP
+    enddo
 
     write(6,*) 'basis'
     do i = 1, nbasis
@@ -59,10 +64,12 @@ module schi_sinqr
 !        arg = q * grid%drel( j )
         arg = q * grid%rad( j )
         if( arg .gt. 0.0002_DP ) then
-          basfcn( j, i ) = grid%rad( j )**2 * grid%drad( j ) * pref * sin( arg ) / arg 
+!          basfcn( j, i ) = grid%rad( j )**2 * grid%drad( j ) * pref * sin( arg ) / arg 
+          basfcn( j, i ) = weight( j ) * pref * sin( arg ) / arg 
           potfcn( j, i ) = pref * coul * ( sin( arg ) / arg - cterm )
         else
-          basfcn( j, i ) = grid%rad( j )**2 * grid%drad( j )* pref * (1.0_DP - arg**2/4.0_DP )
+!          basfcn( j, i ) = grid%rad( j )**2 * grid%drad( j )* pref * (1.0_DP - arg**2/4.0_DP )
+          basfcn( j, i ) = weight( j ) * pref * (1.0_DP - arg**2/4.0_DP )
           potfcn( j, i ) = pref * coul * ( 1.0_DP - arg**2/4.0_DP - cterm )
         endif
       enddo
@@ -82,7 +89,7 @@ module schi_sinqr
           su = su + basfcn( ii, i ) * vipt( ii ) !* grid%wpt( ii )
        end do
        rhs( i ) = su
-       write(6,'(1i5,2(1x,1e15.8))' ) i, qtab( i ), rhs( i )
+!       write(6,'(1i5,2(1x,1e15.8))' ) i, qtab( i ), rhs( i )
     end do
 
 
@@ -107,7 +114,7 @@ module schi_sinqr
     enddo
     close ( 98 )
 
-    deallocate( vipt, basfcn, qtab, rhs, potfcn )
+    deallocate( vipt, basfcn, qtab, rhs, potfcn, weight )
 
   end subroutine
 

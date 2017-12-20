@@ -36,8 +36,8 @@ module schi_direct
     real(DP), parameter :: d_one = 1.0_DP
     real(DP), parameter :: d_zero = 0.0_DP
     real(DP), allocatable :: vipt( : ), NINd(:,:)
-    real(DP) :: rgt, coul, r2dr
-    integer :: nLM, nR, i, j, ilm
+    real(DP) :: rgt, coul, r2dr, rlt
+    integer :: nLM, nR, i, j, ilm, lpol
 
 #ifdef DEBUG
     character(len=30) :: fmtstmt
@@ -99,6 +99,22 @@ module schi_direct
         FullW( j, 1 ) = FullW( j, 1 ) + coul * Nind( i, 1 )
       enddo
     enddo
+
+
+    do ilm = 2, nLM
+      if( ilm .le. 4 ) lpol = 1
+      if( ilm .gt. 4 ) lpol = 2
+      do i = 1, nr
+        r2dr = grid%rad(i)**2 * grid%drad(i)
+        do j = 1, nr
+          rgt = max( grid%rad(j), grid%rad(i) ) 
+          rlt = min( grid%rad(j), grid%rad(i) )
+          coul = 4.0_DP * PI_DP * r2dr * rlt ** lpol / rgt ** ( lpol + 1 )
+          FullW( j, ilm ) = FullW( j, ilm ) + coul * Nind( i, ilm ) 
+        enddo
+      enddo
+    enddo
+    
 
     deallocate( NIND)
 
@@ -168,8 +184,9 @@ module schi_direct
     endif
 
     do ilm = 2, 4
+      jlm = ilm
       do i = 1, nr
-        do jlm = 2, 4
+!        do jlm = 2, 4
           coulfac = FourPi / grid%rad( i )**2
           do j = 1, i
             coulfac = coulfac * grid%rad( j )
@@ -182,7 +199,7 @@ module schi_direct
             Cmat( j, jlm, i, ilm ) = grid%drad( i ) * grid%rad( i ) ** 2 & 
                                    * grid%drad( j ) * grid%rad( j ) ** 2 * coulfac
           enddo
-        enddo
+!        enddo
       enddo
     enddo
 
@@ -195,8 +212,9 @@ module schi_direct
     endif
 
     do iLM = 5, 9
+      jlm = ilm
       do i = 1, nr
-        do jLM = 5, 9
+!        do jLM = 5, 9
           coulfac = FourPi / grid%rad( i )**3
           do j = 1, i
             coulfac = coulfac * grid%rad( j )**2
@@ -209,7 +227,7 @@ module schi_direct
             Cmat( j, jlm, i, ilm ) = grid%drad( i ) * grid%rad( i ) ** 2 &
                                    * grid%drad( j ) * grid%rad( j ) ** 2 * coulfac
           enddo
-        end do
+ !       end do
       enddo
     enddo
 
@@ -226,7 +244,7 @@ module schi_direct
     real(DP), intent( out ) :: ProjectedSpace(:,:,:,:)
     integer, intent( inout ) :: ierr
 
-    real(DP), allocatable :: ymu( :, :, : ), slice_ymu( :, : ), temp( :, : )
+    real(DP), allocatable :: ymu( :, :, :, : ), slice_ymu( :, : ), temp( :, : )
 
     integer :: npt, nbasis, nLM, fullSize, nang, nr, dimTemp
     integer :: ii, i, j, iLM
@@ -260,7 +278,7 @@ module schi_direct
     endif
 
     ! Build ymu basis functions
-    allocate( ymu( npt, nr, nLM ), slice_ymu( nang, nLM ), stat=ierr )
+    allocate( ymu( nang, nr, nr, nLM ), slice_ymu( nang, nLM ), stat=ierr )
     if( ierr .ne. 0 ) return
     ymu = 0.0_DP
 
@@ -268,16 +286,16 @@ module schi_direct
     if( ierr .ne. 0 ) return
     
     do iLM = 1, nLM
-      ii = 0
+!      ii = 0
       do i = 1, nr
         do j = 1, nang
-          ii = ii + 1
-          ymu( ii, i, iLM ) = slice_ymu( j, iLM ) * grid%agrid%weights( j )
+!          ii = ii + 1
+          ymu( j, i, i, iLM ) = slice_ymu( j, iLM ) * grid%agrid%weights( j )
         enddo
       enddo
     enddo
 
-
+    ! Is this matrix math still wrong for nLM > 1?
     deallocate( slice_ymu )
     dimTemp = nr*nLM
     allocate( temp( npt, dimTemp ), stat=ierr )

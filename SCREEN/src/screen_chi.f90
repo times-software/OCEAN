@@ -54,8 +54,7 @@ module screen_chi
     use screen_sites, only : site_info
     use screen_centralPotential, only : potential, screen_centralPotential_findNextByZ, & 
           screen_centralPotential_countByZ, screen_centralPotential_newScreenShell, &
-          screen_centralPotential_freePot, screen_centralPotential_NOutGrid, &
-          screen_centralPotential_MakeOutGrid
+          screen_centralPotential_freePot
     type( site ), intent( in ) :: mySite
     real(DP), intent( in ) :: FullChi( :, :, :, : )
     real(DP), intent( in ) :: FullChi0( :, :, :, : )
@@ -79,18 +78,8 @@ module screen_chi
     if( nShell .lt. 1 ) return 
 
 
-    ! This is wrong, should be NR (unique radii) not NPT, by NL (which is size(fullchi,2)
-!!    allocate( FullW( size( FullChi, 1 ), size( FullChi, 2 ) ), stat=ierr )
-    select case ( invStyle )
-    case ( 'sinqr' )
-      allocate( FullW( mySite%grid%Nr, size( FullChi, 2 ) ), stat=ierr )
-    case( 'direct' )
-      allocate( FullW( mySite%grid%Nr, size( FullChi, 2 ) ), stat=ierr )
-    case default
-      ierr = 1
-    end select
+    allocate( FullW( mySite%grid%Nr, size( FullChi, 2 ) ), stat=ierr )
     if( ierr .ne. 0 ) return
-  
 
     write(6,*) ' ', nPots, nShell
     do iPots = 1 , nPots
@@ -114,9 +103,9 @@ module screen_chi
         call screen_centralPotential_freePot( Pot )
       enddo
 
-    
-      deallocate( FullW )
     enddo
+
+    deallocate( FullW )
 
 
   end subroutine screen_chi_makeW
@@ -129,27 +118,28 @@ module screen_chi
     character( len=40 ), intent( in ) :: NInducedName
     real(DP), intent( in ) :: FullW(:,:)
 
-    integer :: i
+    real(DP), allocatable :: transpW(:,:)
+    integer :: i, ilm
+    character(len=40) :: fmtstmt
 
-!    if( myid .eq. root ) then
-      open(unit=99,file=NInducedName,form='formatted',status='unknown')
-      rewind( 99 )
+    allocate( transpW( size( FullW, 2 ), size( FullW, 1 ) ) )
+    transpW = transpose( FullW )
 
-!      select case ( invStyle )
-!      case ( 'sinqr' )
-!        do i = 1, grid%npt
-!          write(99,*) grid%drel( i ), FullW( i, 1 )
-!        enddo
-!      case( 'direct' )
-        do i = 1, grid%nr
-!          write(99,*) grid%rad( i ), FullW( i, 1 )
-          write(99,'(2(E22.15,X))') grid%rad(i), FullW(i,1)
-        enddo
-!      case default
-!      end select
+    write(fmtstmt, '("(", I0, "(1x,1e15.8))")' ) size( FullW, 2 )+1
 
-      close( 99 )
-!    endif
+    open(unit=99,file=NInducedName,form='formatted',status='unknown')
+    rewind( 99 )
+
+!    do ilm = 1, size( FullW, 2 )
+      do i = 1, grid%nr
+!        write(99,'(2(E22.15,X))') grid%rad(i), FullW(i,ilm)
+        write( 99, fmtstmt ) grid%rad(i), transpW( :, i )
+      enddo
+!    enddo
+
+    close( 99 )
+
+    deallocate( transpW )
 
   end subroutine screen_chi_writeW
 
@@ -246,6 +236,7 @@ module screen_chi
 
     nbasis = size( chi0, 1 )
     nLM = size( chi0, 2 )
+    fullsize = nbasis * nLM
 
 !    if( nLM .ne. 1 ) then
 !      write(6,*) 'BUG!!!!'
@@ -259,17 +250,12 @@ module screen_chi
  
     temp = 0.0_DP
 
-!    do jj = 1, nLM
-!      do ii = 1, nbasis
-        do j = 1, nLM
-          do i = 1, nbasis
-            temp( i, j, i, j ) = 1.0_DP
-          enddo
-        enddo
-!      enddo
-!    enddo
+    do j = 1, nLM
+      do i = 1, nbasis
+        temp( i, j, i, j ) = 1.0_DP
+      enddo
+    enddo
 
-    fullsize = nbasis * nLM
     write(6,*) nbasis, nLM, fullsize
     write(6,'(4(I8))') size(chi0,1), size(chi0,2),size(chi0,3),size(chi0,4)
     write(6,'(4(I8))') size(cmat,1), size(cmat,2),size(cmat,3),size(cmat,4)
