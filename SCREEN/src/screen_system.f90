@@ -38,7 +38,9 @@ module screen_system
 
   type calculation_parameters
     character(len=4) :: convertStyle = 'real'
+    character(len=4) :: chi0Integrand = 'full'
     character(len=6) :: inversionStyle = 'direct'
+    integer :: QuadOrder = 16
   end type calculation_parameters
 
   type( physical_system ), save :: psys
@@ -49,10 +51,20 @@ module screen_system
   public :: psys, params
   public :: screen_system_load, screen_system_snatch, screen_system_summarize
   public :: screen_system_returnKvec
-  public :: screen_system_convertStyle
-  public :: screen_system_invStyle
+  public :: screen_system_convertStyle, screen_system_chi0Integrand
+  public :: screen_system_invStyle, screen_system_QuadOrder
 
   contains 
+
+  pure function screen_system_chi0Integrand() result( integrand )
+    character(len=4) :: integrand
+    integrand = calcParams%chi0Integrand
+  end function screen_system_chi0Integrand
+
+  pure function screen_system_QuadOrder() result( i )
+    integer :: i
+    i = calcParams%QuadOrder
+  end function screen_system_QuadOrder
 
   pure function screen_system_invStyle() result (is)
     character(len=6) :: is

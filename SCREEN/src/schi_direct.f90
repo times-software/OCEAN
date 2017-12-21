@@ -20,9 +20,9 @@ module schi_direct
 
   contains
 
-  subroutine schi_direct_calcW( grid, Pot, FullChi, FullChi0, FullW, ierr )
-    ! THIS IS A HACK, NEEDS TO BE EXTERNAL TO BOTH OR INTERNAL TO BOTH
+  subroutine schi_direct_calcW( grid, Pot, FullChi, FullChi0, FullW, FullW0, Nind, Nind0, ierr )
     use ocean_constants, only : PI_DP
+    ! THIS IS A HACK, NEEDS TO BE EXTERNAL TO BOTH OR INTERNAL TO BOTH
     use schi_sinqr, only : Newmkvipt
     use screen_grid, only : sgrid
     use screen_centralPotential, only : potential
@@ -30,12 +30,12 @@ module schi_direct
     type( potential ), intent( in ) :: Pot
     real(DP), intent( in ) :: FullChi(:,:,:,:)
     real(DP), intent( in ) :: FullChi0(:,:,:,:)
-    real(DP), intent( out ) :: FullW(:,:)
+    real(DP), intent( out ) :: FullW(:,:), FullW0(:,:), NINd(:,:), Nind0(:,:)
     integer, intent( inout ) :: ierr
 
     real(DP), parameter :: d_one = 1.0_DP
     real(DP), parameter :: d_zero = 0.0_DP
-    real(DP), allocatable :: vipt( : ), NINd(:,:), Nind0(:,:), transpNind(:,:)
+    real(DP), allocatable :: vipt( : ), transpNind(:,:)
     real(DP) :: rgt, coul, r2dr, rlt
     integer :: nLM, nR, i, j, ilm, lpol
 
@@ -68,7 +68,7 @@ module schi_direct
     ! Only treating the first (l=0) beacuse vipt is only that long and we are only starting with l=0 external pot
 !    call DGEMV( 'N', nr*nLM, nr, d_one, FullChi, nr*nLM, vipt, 1, d_zero, FullW, 1 )
 
-    allocate( NInd( nr, nLM ), Nind0( nr, nLM ), transpNind( nLM, nr ) )
+    allocate( transpNind( nLM, nr ) )
     NInd = 0.0_DP
     Nind0 = 0.0_DP
     do j = 1, nr
@@ -102,15 +102,17 @@ module schi_direct
     close( unit=99 )
 #endif
 
-    deallocate( Nind0, transpNind )
+    deallocate( transpNind )
     
     FullW(:,:) = 0.0_DP
+    FullW0(:,:) = 0.0_DP
     do i = 1, nr
       r2dr = grid%rad(i)**2 * grid%drad(i)
       do j = 1, nr
         rgt = max( grid%rad(j), grid%rad(i) )
         coul = 4.0_DP * PI_DP * r2dr / rgt
         FullW( j, 1 ) = FullW( j, 1 ) + coul * Nind( i, 1 )
+        FullW0( j, 1 ) = FullW0( j, 1 ) + coul * Nind0( i, 1 )
       enddo
     enddo
 
@@ -125,20 +127,19 @@ module schi_direct
           rlt = min( grid%rad(j), grid%rad(i) )
           coul = 4.0_DP * PI_DP * r2dr * rlt ** lpol / rgt ** ( lpol + 1 )
           FullW( j, ilm ) = FullW( j, ilm ) + coul * Nind( i, ilm ) 
+          FullW0( j, ilm ) = FullW0( j, ilm ) + coul * Nind0( i, ilm )
         enddo
       enddo
     enddo
     
 
-    deallocate( NIND)
-
-#ifdef DEBUG
-    open(unit=99,file='vpert.test', form='formatted')
-    do i = 1, nr
-      write(99,*) grid%rad(i), vipt(i)
-    enddo
-    close( 99 )
-#endif
+!#ifdef DEBUG
+!    open(unit=99,file='vpert.test', form='formatted')
+!    do i = 1, nr
+!      write(99,*) grid%rad(i), vipt(i)
+!    enddo
+!    close( 99 )
+!#endif
 
     deallocate( vipt )
 

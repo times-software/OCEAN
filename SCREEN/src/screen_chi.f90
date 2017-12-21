@@ -30,11 +30,13 @@ module screen_chi
 !  end type schi
 
 
-  public :: screen_chi_init, screen_chi_runSite, screen_chi_printSite
+  public :: screen_chi_init, screen_chi_runSite
   public :: screen_chi_NLM, screen_chi_NR, screen_chi_makeW
+  public :: screen_chi_project
 
   contains
 
+  ! This is deprecated
   subroutine screen_chi_printSite( grid, FullChi, ierr )
     use screen_grid, only : sgrid
     use schi_sinqr, only : schi_sinqr_printSite
@@ -60,11 +62,11 @@ module screen_chi
     real(DP), intent( in ) :: FullChi0( :, :, :, : )
     integer, intent( inout ) :: ierr
     !
-    real(DP), allocatable :: FullW( :, : ), FullW0( :, : )
+    real(DP), allocatable :: FullW( :, : ), FullW0( :, : ), Ninduced( :, : ), N0induced( :, : )
     type( potential ), pointer :: temp_Pots
     type( potential ) :: Pot
-    integer :: nPots, iPots, iShell, nShell, potIndex, Wsize
-    character( len=40 ) :: NInducedName
+    integer :: nPots, iPots, iShell, nShell, potIndex, nLM
+    character( len=40 ) :: Prefix
     
     potIndex = 0
     write( 6, * ) 'screen_chi_makeW'
@@ -77,8 +79,10 @@ module screen_chi
     write(6,*) 'Shell', nShell
     if( nShell .lt. 1 ) return 
 
+    nLM = size( FullChi, 2 ) 
 
-    allocate( FullW( mySite%grid%Nr, size( FullChi, 2 ) ), stat=ierr )
+    allocate( FullW( mySite%grid%Nr, nLM ), FullW0( mySite%grid%Nr, nLM ), & 
+              Ninduced( mySite%grid%Nr, nLM ), N0induced( mySite%grid%Nr, nLM ), stat=ierr )
     if( ierr .ne. 0 ) return
 
     write(6,*) ' ', nPots, nShell
@@ -90,15 +94,15 @@ module screen_chi
         call screen_centralPotential_newScreenShell( temp_Pots, Pot, mySite%shells( iShell ), ierr )
         if( ierr .ne. 0 ) return
 
-        NInducedName = screen_chi_getNInducedName( mySite%info%elname, mySite%info%indx, Pot%N, Pot%L, &
+        Prefix = screen_chi_getOutputPrefix( mySite%info%elname, mySite%info%indx, Pot%N, Pot%L, &
                                          mySite%shells( iShell ) )
 
-        write(6,*) NInducedName
+        write(6,*) Prefix
 
-        call screen_chi_calcW( mySite%grid, Pot, FullChi, FullChi0, FullW, ierr )
+        call screen_chi_calcW( mySite%grid, Pot, FullChi, FullChi0, FullW, FullW0, Ninduced, N0induced, ierr )
         if( ierr .ne. 0 ) return
         
-        call screen_chi_writeW( mySite%grid, NInducedName, FullW )
+        call screen_chi_writeW( mySite%grid, Prefix, FullW, FullW0, Ninduced, N0induced )
 
         call screen_centralPotential_freePot( Pot )
       enddo
@@ -111,47 +115,71 @@ module screen_chi
   end subroutine screen_chi_makeW
     
 
-  subroutine screen_chi_writeW( grid, NInducedName, FullW )
+  subroutine screen_chi_writeW( grid, prefix, FullW, FullW0, Ninduced, N0induced )
     use screen_grid, only : sgrid
 !    use ocean_mpi, only : root, myid
     type( sgrid ), intent( in ) :: grid
-    character( len=40 ), intent( in ) :: NInducedName
-    real(DP), intent( in ) :: FullW(:,:)
+    character( len=40 ), intent( in ) :: prefix
+    real(DP), intent( in ), dimension(:,:) :: FullW, FullW0, Ninduced, N0induced
 
     real(DP), allocatable :: transpW(:,:)
     integer :: i, ilm
     character(len=40) :: fmtstmt
+    character(len=80) :: filnam
 
     allocate( transpW( size( FullW, 2 ), size( FullW, 1 ) ) )
-    transpW = transpose( FullW )
 
     write(fmtstmt, '("(", I0, "(1x,1e15.8))")' ) size( FullW, 2 )+1
 
-    open(unit=99,file=NInducedName,form='formatted',status='unknown')
+    write( filnam, '(A,A)' ) trim( prefix ), 'vind'
+    transpW = transpose( FullW )
+    open(unit=99,file=filnam,form='formatted',status='unknown')
     rewind( 99 )
+    do i = 1, grid%nr
+      write( 99, fmtstmt ) grid%rad(i), transpW( :, i )
+    enddo
+    close( 99 )
 
-!    do ilm = 1, size( FullW, 2 )
-      do i = 1, grid%nr
-!        write(99,'(2(E22.15,X))') grid%rad(i), FullW(i,ilm)
-        write( 99, fmtstmt ) grid%rad(i), transpW( :, i )
-      enddo
-!    enddo
+    write( filnam, '(A,A)' ) trim( prefix ), 'vind0'
+    transpW = transpose( FullW0 )
+    open(unit=99,file=filnam,form='formatted',status='unknown')
+    rewind( 99 )
+    do i = 1, grid%nr
+      write( 99, fmtstmt ) grid%rad(i), transpW( :, i )
+    enddo
+    close( 99 )
 
+    write( filnam, '(A,A)' ) trim( prefix ), 'nind'
+    transpW = transpose( Ninduced )
+    open(unit=99,file=filnam,form='formatted',status='unknown')
+    rewind( 99 )
+    do i = 1, grid%nr
+      write( 99, fmtstmt ) grid%rad(i), transpW( :, i )
+    enddo
+    close( 99 )
+
+    write( filnam, '(A,A)' ) trim( prefix ), 'nind0'
+    transpW = transpose( N0induced )
+    open(unit=99,file=filnam,form='formatted',status='unknown')
+    rewind( 99 )
+    do i = 1, grid%nr
+      write( 99, fmtstmt ) grid%rad(i), transpW( :, i )
+    enddo
     close( 99 )
 
     deallocate( transpW )
 
   end subroutine screen_chi_writeW
 
-  pure function screen_chi_getNInducedName( elname, indx, N, L, rad ) result( NInducedName )
+  pure function screen_chi_getOutputPrefix( elname, indx, N, L, rad ) result( Prefix )
     character(len=2), intent( in ) :: elname
     integer, intent( in ) :: indx, N, L
     real(DP), intent( in ) :: rad
-    character( len=40 ) :: NInducedName
+    character( len=40 ) :: Prefix
     ! zTi0001_n02l01/
-    write(NInducedName,'(A1,A2,I4.4,A2,I2.2,A1,I2.2,A4,F4.2,A4)') & 
-                'z', elname, indx, '_n', N, 'l', L, '.zRXT', rad, '.nin'
-  end function screen_chi_getNInducedName
+    write(Prefix,'(A1,A2,I4.4,A2,I2.2,A1,I2.2,A4,F4.2)') & 
+                'z', elname, indx, '_n', N, 'l', L, '.zRXT', rad
+  end function screen_chi_getOutputPrefix
                         
 
   pure function screen_chi_NLM() result( NLM )
@@ -186,12 +214,12 @@ module screen_chi
   end function screen_chi_NR
 
 
-  subroutine screen_chi_runSite( grid, FullChi0, FullChi, projectedChi0, ierr )
+  subroutine screen_chi_runSite( grid, FullChi, projectedChi0, ierr )
     use screen_grid, only : sgrid
     type( sgrid ), intent( in ) :: grid
-    real(DP), intent( in ) :: FullChi0(:,:)
+!    real(DP), intent( in ) :: FullChi0(:,:)
     real(DP), intent( out ) :: FullChi(:,:,:,:)
-    real(DP), intent( out ) :: projectedchi0(:,:,:,:)
+    real(DP), intent( in ) :: projectedchi0(:,:,:,:)
     integer, intent( inout ) :: ierr
     !
 !    real(DP), allocatable :: projectedChi0(:,:,:,:)
@@ -201,8 +229,8 @@ module screen_chi
 !    allocate( projectedChi0( size(FullChi,1), size(FullChi,2), size(FullChi,3), size(FullChi,4) ), STAT=ierr )
 !    if( ierr .ne. 0 ) return
 
-    call schi_project( grid, FullChi0, projectedChi0, ierr )
-    if( ierr .ne. 0 ) return
+!    call schi_project( grid, FullChi0, projectedChi0, ierr )
+!    if( ierr .ne. 0 ) return
 
     allocate( coulombMatrix( size(FullChi,1), size(FullChi,2), size(FullChi,3), size(FullChi,4) ), STAT=ierr )
     if( ierr .ne. 0 ) return
@@ -297,7 +325,7 @@ module screen_chi
 
   end subroutine schi_makeChi
 
-  subroutine screen_chi_calcW( grid, Pot, FullChi, FullChi0, FullW, ierr )
+  subroutine screen_chi_calcW( grid, Pot, FullChi, FullChi0, FullW, FullW0, Ninduced, N0induced, ierr )
     use screen_grid, only : sgrid
     use schi_sinqr, only : schi_sinqr_calcW
     use schi_direct, only : schi_direct_calcW
@@ -306,22 +334,24 @@ module screen_chi
     type( potential ), intent( in ) :: Pot
     real(DP), intent( in ) :: FullChi(:,:,:,:)
     real(DP), intent( in ) :: FullChi0(:,:,:,:)
-    real(DP), intent( out ) :: FullW(:,:)
+    real(DP), intent( out ), dimension(:,:) :: FullW, FullW0, Ninduced, N0induced
     integer, intent( inout ) :: ierr
-
 
     select case ( invStyle )
       case( 'sinqr' )
         call schi_sinqr_calcW( grid, Pot, FullChi, FullChi0, FullW, ierr )
+        FullW0 = 0.0_DP 
+        Ninduced = 0.0_DP
+        N0induced = 0.0_DP
       case( 'direct' )
-        call schi_direct_calcW( grid, Pot, FullChi, FullChi0, FullW, ierr )
+        call schi_direct_calcW( grid, Pot, FullChi, FullChi0, FullW, FullW0, Ninduced, N0induced, ierr )
       case default
         ierr = 1
     end select
 
   end subroutine screen_chi_calcW
 
-  subroutine schi_project( grid, FullSpace, ProjectedSpace, ierr )
+  subroutine screen_chi_project( grid, FullSpace, ProjectedSpace, ierr )
     use screen_grid, only : sgrid
     use schi_sinqr, only : schi_sinqr_project
     use schi_direct, only : schi_direct_project
@@ -338,7 +368,7 @@ module screen_chi
       case default
         ierr = 1
     end select
-  end subroutine schi_project
+  end subroutine screen_chi_project
 
   subroutine schi_buildCoulombMatrix( grid, cMat, ierr )
     use screen_grid, only : sgrid

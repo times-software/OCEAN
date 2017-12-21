@@ -69,8 +69,34 @@ module screen_grid
   public :: sgrid, angular_grid
   public :: screen_grid_init
   public :: screen_grid_dumpRBfile
+  public :: screen_grid_dumpFullGrid
 
   contains
+
+  subroutine screen_grid_dumpFullGrid( g, elname, elindx, ierr )
+    type( sgrid ), intent( in ) :: g
+    character( len=2 ), intent( in ) :: elname
+    integer, intent( in ) :: elindx
+    integer, intent( inout ) :: ierr
+
+    character( len=12 ) :: filnam
+
+    write( filnam, '(A,A2,I4.4)' ) 'grid.', elname, elindx
+    write(6,*) filnam
+
+    open( unit=99, file=filnam, form='unformatted', status='unknown', iostat=ierr, err=100 )
+    rewind( 99 )
+    write(99) g%npt, g%nr, g%nang, g%rmax, g%center
+    write(99) g%posn
+    write(99) g%wpt
+    write(99) g%drel
+    write(99) g%rad
+    write(99) g%drad
+    close(99)
+
+100 continue
+
+  end subroutine screen_grid_dumpFullGrid
 
   subroutine screen_grid_dumpRBfile( g, ierr )
     use OCEAN_mpi, only : myid ,root

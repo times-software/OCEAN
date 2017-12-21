@@ -28,6 +28,8 @@ module screen_chi0
 
   subroutine screen_chi0_init( ierr )
     use ocean_mpi, only : myid, root, comm, MPI_INTEGER, MPI_DOUBLE_PRECISION
+    use screen_system, only : screen_system_QuadOrder
+    use ocean_quadrature, only : ocean_quadrature_loadLegendre
     integer, intent( inout ) :: ierr
 
     real(DP), allocatable :: tempWeight( : )
@@ -36,6 +38,8 @@ module screen_chi0
     
 
     if( myid .eq. root ) then
+
+#if 0
       open( unit=99, file='Pquadrature', form='formatted', status='old' )
       read( 99, * ) NImagEnergies 
       allocate( imagEnergies( NImagEnergies ), weightImagEnergies( NImagEnergies ), &
@@ -48,11 +52,24 @@ module screen_chi0
         su = su + tempWeight( i )
       enddo
       close( 99 )
+#else
+      NImagEnergies = screen_system_QuadOrder()
+      allocate( imagEnergies( NImagEnergies ), weightImagEnergies( NImagEnergies ), &
+                tempWeight( NImagEnergies ) )
+      call ocean_quadrature_loadLegendre( NImagEnergies, imagEnergies, tempWeight, ierr )
+      if( ierr .ne. 0 ) return
+      do i = 1, NImagEnergies
+        imagEnergies( i ) = ( 1.0_DP + imagEnergies( i ) ) / 2.0_DP
+        su = su + tempWeight( i )
+      enddo
+#endif
 
       tempWeight( : ) = tempWeight( : ) / su
       weightImagEnergies( : ) = tempWeight( : ) / ( 1.0_DP - imagEnergies( : ) ) ** 2
 
       deallocate( tempWeight )
+
+      write(6,'(A,I0,A)') '  Integrating over: ', NImagEnergies, ' energies to build chi0'
     endif
 
 #ifdef MPI
