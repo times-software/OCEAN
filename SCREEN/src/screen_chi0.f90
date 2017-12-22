@@ -32,42 +32,33 @@ module screen_chi0
     use ocean_quadrature, only : ocean_quadrature_loadLegendre
     integer, intent( inout ) :: ierr
 
-    real(DP), allocatable :: tempWeight( : )
+    real(DP), allocatable :: tempWeight( : ), tempEnergies( : )
     real(DP) :: su
-    integer :: i
+    integer :: i, n
     
 
     if( myid .eq. root ) then
 
-#if 0
-      open( unit=99, file='Pquadrature', form='formatted', status='old' )
-      read( 99, * ) NImagEnergies 
-      allocate( imagEnergies( NImagEnergies ), weightImagEnergies( NImagEnergies ), &
-                tempWeight( NImagEnergies ) )
-
-      su = 0.0_DP
-      do i = 1, NImagEnergies
-        read( 99, * ) imagEnergies( i ), tempWeight( i )
-        imagEnergies( i ) = ( 1.0_DP + imagEnergies( i ) ) / 2.0_DP
-        su = su + tempWeight( i )
-      enddo
-      close( 99 )
-#else
-      NImagEnergies = screen_system_QuadOrder()
-      allocate( imagEnergies( NImagEnergies ), weightImagEnergies( NImagEnergies ), &
-                tempWeight( NImagEnergies ) )
-      call ocean_quadrature_loadLegendre( NImagEnergies, imagEnergies, tempWeight, ierr )
+      N = screen_system_QuadOrder()
+!      allocate( imagEnergies( NImagEnergies ), weightImagEnergies( NImagEnergies ), &
+!                tempWeight( NImagEnergies ) )
+      allocate( tempWeight( N ), tempEnergies( N ), stat=ierr)
       if( ierr .ne. 0 ) return
-      do i = 1, NImagEnergies
-        imagEnergies( i ) = ( 1.0_DP + imagEnergies( i ) ) / 2.0_DP
-        su = su + tempWeight( i )
-      enddo
-#endif
+      call ocean_quadrature_loadLegendre( N, tempEnergies, tempWeight, ierr )
+      if( ierr .ne. 0 ) return
 
-      tempWeight( : ) = tempWeight( : ) / su
-      weightImagEnergies( : ) = tempWeight( : ) / ( 1.0_DP - imagEnergies( : ) ) ** 2
+      call buildEnergies( N, tempEnergies, tempWeight )
 
-      deallocate( tempWeight )
+!      if( ierr .ne. 0 ) return
+!      do i = 1, NImagEnergies
+!        imagEnergies( i ) = ( 1.0_DP + imagEnergies( i ) ) / 2.0_DP
+!        su = su + tempWeight( i )
+!      enddo
+!
+!      tempWeight( : ) = tempWeight( : ) / su
+!      weightImagEnergies( : ) = tempWeight( : ) / ( 1.0_DP - imagEnergies( : ) ) ** 2
+
+      deallocate( tempWeight, tempEnergies )
 
       write(6,'(A,I0,A)') '  Integrating over: ', NImagEnergies, ' energies to build chi0'
     endif
@@ -86,6 +77,77 @@ module screen_chi0
 
     is_init = .true.
   end subroutine screen_chi0_init
+
+  subroutine fullBuildEnergies( N, tempE, tempW )
+    use ocean_constants, only : pi_dp
+    use screen_energy, only : geodiff
+
+    integer, intent( in ) :: N
+    real(DP), intent( in ) :: tempE(:), tempW(:)
+
+    real(DP) :: su, pref
+    integer :: i
+
+    NImagEnergies = 2*N
+    allocate( imagEnergies( NImagEnergies ), weightImagEnergies( NImagEnergies ) )
+    do i = 1, N
+      imagEnergies( i ) = geodiff * ( 1.0_DP + tempE( i ) ) / 2.0_DP
+      su = su + tempW( i )
+    enddo
+    pref = 2.0_DP/su * geodiff / pi_dp
+    weightImagEnergies( 1 : N ) = pref * tempW( : ) 
+
+    do i = 1, N
+      su = ( 1.0_DP + tempE( i ) ) / 2.0_DP
+      imagEnergies( i + N ) = geodiff / su
+      weightImagEnergies( i + N ) = pref * tempW( i ) / su**2
+    enddo
+
+  end subroutine
+
+  subroutine halfBuildEnergies( N, tempE, tempW )
+    use ocean_constants, only : pi_dp
+    use screen_energy, only : geodiff
+    integer, intent( in ) :: N
+    real(DP), intent( in ) :: tempE(:), tempW(:)
+
+    real(DP) :: su, pref
+    integer :: i
+
+    NImagEnergies = N
+    allocate( imagEnergies( NImagEnergies ), weightImagEnergies( NImagEnergies ) )
+    do i = 1, NImagEnergies
+      imagEnergies( i ) = ( 1.0_DP + tempE( i ) ) / 2.0_DP
+      su = su + tempW( i )
+    enddo
+    pref = 2.0_DP/su * geodiff / pi_dp
+    weightImagEnergies( : ) = pref * tempW( : ) / ( 1.0_DP - imagEnergies( : ) ) ** 2
+
+    do i = 1, NImagEnergies
+      imagEnergies( i ) = geodiff * ImagEnergies( i ) / ( 1.0_DP - ImagEnergies( i ) )
+    enddo
+
+  end subroutine halfBuildEnergies
+
+  subroutine buildEnergies( N, tempE, tempW )
+    use screen_system, only : screen_system_chi0Integrand
+    integer, intent( in ) :: N
+    real(DP), intent( in ) :: tempE(:), tempW(:)
+    character(len=4) :: integrand
+
+    integrand = screen_system_chi0Integrand()
+    select case (integrand )
+    
+      case ('half')
+        write(6,*) '  Using half integrand approximation'
+        call halfBuildEnergies( N, tempE, tempW )
+      case ('full')
+        call fullBuildEnergies( N, tempE, tempW )
+      case default
+        write(6,*) '  Using half integrand approximation by default'
+        call halfBuildEnergies( N, tempE, tempW )
+    end select
+  end subroutine
 
 #if 0
   subroutine screen_chi_driver( nsites, all_sites, ierr )
@@ -420,10 +482,12 @@ module screen_chi0
 
     do ikpt = 1, NkptsAndSpin
       do iband = 1, nbands
-        diff = sqrt( (mu_ryd - energies( iband, ikpt, ispin ))**2 + 1.0_DP*10**(-6) )
-        denr = sign( diff, mu_ryd - energies( iband, ikpt, ispin ) )
+!        diff = sqrt( (mu_ryd - energies( iband, ikpt, ispin ))**2 + 1.0_DP*10**(-6) )
+!        denr = sign( diff, mu_ryd - energies( iband, ikpt, ispin ) )
+        denr = mu_ryd - energies( iband, ikpt, ispin )
         do it = 1, NImagEnergies
-          deni = geodiff * ImagEnergies( it ) / ( 1.0_DP - ImagEnergies( it ) )
+!          deni = geodiff * ImagEnergies( it ) / ( 1.0_DP - ImagEnergies( it ) )
+          deni = ImagEnergies( it )
           energyDenom( it, iband, ikpt ) = pref / cmplx( denr, deni, DP ) 
         enddo
       enddo
@@ -459,7 +523,8 @@ module screen_chi0
 
         do i = istart, istop
           do it = 1, NImagEnergies
-            pref2 = spinfac * 2.0_DP * weightImagEnergies( it ) * geodiff / pi_dp
+!            pref2 = spinfac * 2.0_DP * weightImagEnergies( it ) * geodiff / pi_dp
+            pref2 = spinfac * weightImagEnergies( it ) 
             do j = jstart, jstop
               chi( j, i ) = chi( j, i ) & 
                           + pref2 * ( real(chi0( j-jstart+1, i-istart+1, it ),DP)**2 &
@@ -474,6 +539,108 @@ module screen_chi0
     deallocate( chi0, energyDenom, temp )
 
   end subroutine calcSingleChiBuffer1
+
+  subroutine calcSingleChiBuffer2( LWvfn, RWvfn, chi, ispin, ierr )
+    use screen_system, only : physical_system, system_parameters, psys, params
+    use screen_energy, only : mu_ryd, energies
+    use ocean_constants, only : pi_dp
+    complex(DP), intent( in ), dimension(:,:,:) :: LWvfn, RWvfn
+    real(DP), intent( inout ) :: chi(:,:)
+    integer, intent( in ) :: ispin
+    integer, intent( inout ) :: ierr
+
+!    real(DP), allocatable :: temp(:,:)
+    compleX(DP), allocatable :: temp(:,:)
+    complex(DP), allocatable :: Gplus(:,:,:), Gminus(:,:,:), energyDenom( :, :, : )
+    complex(DP) :: scalar
+    real(DP) :: pref, denr, deni, diff, fr, fi, norm, spinfac, pref2
+    integer :: Lpts, Rpts, nbands, nKptsAndSpin, ikpt, iband, it, i, j
+    integer :: ichunk, jchunk, istart, istop, jstart, jstop, NRchunks, NLchunks
+    integer, parameter :: icSize = 32
+    integer, parameter :: jcSize = 32
+
+
+    Lpts = size( LWvfn, 1 )
+    Rpts = size( RWvfn, 1 )
+    NLChunks = ( Lpts - 1 ) / jcSize + 1
+    NRChunks = ( Rpts - 1 ) / icSize + 1
+    nbands = size( LWvfn, 2 )
+    ! for a spin = 2 system the 'number of k-points' will be doubled
+    nKptsAndspin = size( LWvfn, 3 )
+
+    spinfac = 2.0_DP / real(params%nspin, DP )
+    pref = 1.0_DP / ( real( params%nkpts, DP ) * psys%celvol )
+
+!   mu is EFermi in Ryd
+
+    allocate( Gplus( jcSize, icSize, NImagEnergies ), Gminus( jcSize, icSize, NImagEnergies ), &
+              temp( jcSize, icSize ), energyDenom( NImagEnergies, nbands, nKptsAndSpin ), STAT=ierr )
+    if( ierr .ne. 0 ) return
+
+    do ikpt = 1, NkptsAndSpin
+      do iband = 1, nbands
+        denr = mu_ryd - energies( iband, ikpt, ispin )
+        do it = 1, NImagEnergies
+          deni = ImagEnergies( it )
+          energyDenom( it, iband, ikpt ) = pref / cmplx( denr, deni, DP )
+        enddo
+      enddo
+    enddo
+
+    do ichunk = 1, NRchunks
+      do jchunk = 1, NLchunks
+        Gplus = 0.0_DP
+        GMinus = 0.0_DP
+
+        istart = ( ichunk - 1 ) * icSize + 1
+        istop = min( ichunk * icSize, Rpts )
+        jstart = ( jchunk - 1 ) * jcSize + 1
+        jstop = min( jchunk * jcSize, Lpts )
+
+
+        do ikpt = 1, NkptsAndSpin
+          do iband = 1, nbands
+
+
+            do i = istart, istop
+              do j = jstart, jstop
+                temp( j-jstart+1, i-istart+1 ) = &
+                          conjg( LWvfn(j,iband,ikpt) ) * RWvfn(i,iband,ikpt)
+!                           ( real(LWvfn(j,iband,ikpt),DP) * real(RWvfn(i,iband,ikpt),DP) + &
+!                             aimag(LWvfn(j,iband,ikpt)) * aimag(RWvfn(i,iband,ikpt)) )
+              enddo
+            enddo
+            do it = 1, NImagEnergies
+!              chi0(:,:,it) = chi0(:,:,it) + energyDenom( it, iband, ikpt ) * temp( :, : )
+              Gplus(:,:,it) = Gplus(:,:,it) + energyDenom( it, iband, ikpt ) * temp( :, : )
+              Gminus(:,:,it) = Gminus(:,:,it) + conjg( energyDenom( it, iband, ikpt ) ) * temp( :, : )
+            enddo
+          enddo
+        enddo
+
+
+        do i = istart, istop
+          do it = 1, NImagEnergies
+!            pref2 = spinfac * 2.0_DP * weightImagEnergies( it ) * geodiff / pi_dp
+            pref2 = spinfac * weightImagEnergies( it )
+            do j = jstart, jstop
+              chi( j, i ) = chi( j, i ) &
+                          + pref2 * ( real(Gplus( j-jstart+1, i-istart+1, it ),DP) &
+                                    * real(Gminus( j-jstart+1, i-istart+1, it ),DP) &
+                                    + aimag( Gplus( j-jstart+1, i-istart+1, it ) ) &
+                                    * aimag( Gminus( j-jstart+1, i-istart+1, it ) ) )
+!                          + pref2 * ( real(chi0( j-jstart+1, i-istart+1, it ),DP)**2 &
+!                                     - aimag( chi0( j-jstart+1, i-istart+1, it ) )**2 )
+            enddo
+          enddo
+        enddo
+      enddo
+    enddo
+
+
+    deallocate( Gplus, Gminus, energyDenom, temp )
+
+  end subroutine calcSingleChiBuffer2
 
 
 
