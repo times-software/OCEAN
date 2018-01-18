@@ -195,6 +195,10 @@ if( $dft eq 'qe' || $dft eq 'obf' )
   copy "../sitelist", "sitelist";
   copy "../hfinlist", "hfinlist";
   copy "../xyz.wyck", "xyz.wyck";
+  open OUT, ">avg.ipt" or die "Failed to open avg.ipt for writing\n$!";
+  print OUT "501 0.01\n";
+  close OUT;
+
   if( -e "$ENV{'OCEAN_BIN'}/mpi_avg.x" )
   {
     print "Running mpi_avg.x\n";
