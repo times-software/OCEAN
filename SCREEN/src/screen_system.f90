@@ -39,7 +39,7 @@ module screen_system
   type calculation_parameters
     character(len=4) :: convertStyle = 'real'
     character(len=4) :: chi0Integrand = 'half'
-    character(len=6) :: inversionStyle = 'direct'
+    character(len=6) :: inversionStyle = 'sinqr'
     integer :: QuadOrder = 16
   end type calculation_parameters
 

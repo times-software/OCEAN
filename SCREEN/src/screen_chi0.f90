@@ -88,6 +88,7 @@ module screen_chi0
     real(DP) :: su, pref
     integer :: i
 
+    su = 0.0_DP
     NImagEnergies = 2*N
     allocate( imagEnergies( NImagEnergies ), weightImagEnergies( NImagEnergies ) )
     do i = 1, N
@@ -114,6 +115,7 @@ module screen_chi0
     real(DP) :: su, pref
     integer :: i
 
+    su = 0.0_DP
     NImagEnergies = N
     allocate( imagEnergies( NImagEnergies ), weightImagEnergies( NImagEnergies ) )
     do i = 1, NImagEnergies

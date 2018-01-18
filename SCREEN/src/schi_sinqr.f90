@@ -116,7 +116,82 @@ module schi_sinqr
 
     deallocate( vipt, basfcn, qtab, rhs, potfcn, weight )
 
-  end subroutine
+
+    !!!!!TEST!!!!
+    !call schi_sinqr_epsilon( grid, FullChi, ierr )
+
+
+  end subroutine schi_sinqr_calcW
+
+
+  subroutine schi_sinqr_epsilon( grid, FullChi, ierr )
+    use ocean_constants, only : PI_DP
+    use screen_grid, only : sgrid
+    implicit none
+    type( sgrid ), intent( in ) :: grid
+    real(DP), intent( in ) :: FullChi(:,:,:,:)
+    integer, intent( inout ) :: ierr
+    !
+    real(DP), allocatable :: pref( : ), arg( : ), beta( : ), beta2( : )
+    real(DP) :: alpha, delta, bigR
+
+    integer :: nbasis
+    integer :: i, j
+
+    nbasis = size( FullChi, 1 )
+
+    allocate( pref( nbasis ), arg( nbasis ), beta( nbasis ), beta2( nbasis ) )
+
+!    alpha = 4.0_DP * PI_DP * sqrt( PI_DP / 2.0_DP / grid%rmax**3 ) 
+!    alpha = sqrt( PI_DP / 2.0_DP / grid%rmax**3 )
+    alpha = 2.0_DP / PI_DP
+    delta = PI_DP / grid%rmax
+
+    do i = 1, nbasis
+      pref( i ) = real( i, DP ) * alpha
+      arg( i ) = real( i, DP ) * delta
+    enddo
+
+    do i = 1, nbasis
+      ! Since chi is symmetric we can use the fast axis for the dot_product
+      beta( i ) = dot_product( pref( : ), FullChi( :, 1, i, 1 ) )
+    enddo
+
+    beta2(:) = 0.0_DP
+    do i = 1, nbasis
+      do j = 1, nbasis
+        beta2( j ) = beta2( j ) + pref( i ) * FullChi( j, 1, i, 1 )
+      enddo
+    enddo
+
+    open(unit=99, file='basis.test', form='formatted', status='unknown' )
+    rewind (99 )
+    do i = 1, nbasis
+      write(99,*) beta( i ), beta2( i )
+    enddo 
+    close(99)
+
+
+    delta = sqrt( ( 2.0_DP * grid%rmax / PI_DP )**3 )
+    open( unit=99, file='epsilon.test', form='formatted', status='unknown' )
+    rewind (99 )
+    do i = 0, nbasis*6
+
+      alpha = 0.0_DP
+      bigR = grid%rmax/8.0_DP + real( i, DP ) * grid%rmax/8.0_DP / real( nbasis, DP )
+      
+      do j = 1, nbasis
+        alpha = alpha + ( beta( j ) / real( j*j, DP ) ) & 
+                      * ( sin( arg( j ) * bigR ) - arg( j ) * bigR * cos( arg( j ) * bigR ) )
+      enddo
+      write(99,*) bigR, alpha
+    enddo
+
+    close( 99 )
+
+    deallocate( pref, arg, beta, beta2 )
+
+  end subroutine schi_sinqr_epsilon
 
 
   subroutine schi_sinqr_project( grid, FullSpace, ProjectedSpace, ierr )
