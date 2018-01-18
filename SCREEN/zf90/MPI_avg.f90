@@ -17,7 +17,7 @@ program avg
   real(kind=kind(1.d0)), allocatable :: rhogr(:),rhogi(:),modrealgvec(:)
   real(kind=kind(1.d0)), allocatable :: modrealgvec2(:), tau(:,:)
   integer :: gmax( 3 ), ngmax, iter, rad_int
-  real(kind=kind(1.d0)) :: gmodmax( 3 ), sgmodmax
+  real(kind=kind(1.d0)) :: gmodmax( 3 ), sgmodmax, rad_step
 
   character(len=2), allocatable :: elname(:)
   character(len=9) :: avgname
@@ -26,6 +26,8 @@ program avg
 
   integer :: ierr, myrank, pool_size, pool_comm, pool_id, num_pools, my_poolrank, mypool
   integer :: max_rad, rad_remain, start_rad, my_rad, my_start_rad, temp_rad
+
+  logical :: ex
 
 
   call MPI_INIT( ierr )
@@ -45,11 +47,27 @@ program avg
 
   call MPI_COMM_SIZE( pool_comm, pool_size, ierr )
   if( ierr .ne. MPI_SUCCESS ) goto 111
+
+  if( myrank .eq. 0 .and. mypool .eq. 0 ) then
+    inquire( file='avg.ipt', exist=ex )
+    if( ex ) then
+      open( unit=99, file='avg.ipt', form='formatted', status='old' )
+      read( 99, * ) max_rad, rad_step
+      close( 99 )
+    else
+      max_rad = 401
+      rad_step = 1.0d0/ 10.0d0
+    endif
+  endif
   
+
+  call MPI_BCAST( max_rad, 1, MPI_INTEGER, 0, pool_comm, ierr )
+  call MPI_BCAST( rad_step, 1, MPI_DOUBLE_PRECISION, 0, pool_comm, ierr )
+
 
   pi = 4.d0*datan(1.d0)
 
-  max_rad = 401
+!  max_rad = 401
   rad_remain = max_rad
   start_rad = 0
   do i = 0, pool_size - 1
@@ -182,7 +200,7 @@ program avg
 !!        do radius=0.00001d0,40.0,0.1d0
 !    do rad_int = 0, 400
     do rad_int = 1, my_rad 
-      radius = 0.00001d0 + dble( rad_int - 1 + my_start_rad) / 10.d0
+      radius = 0.00001d0 + dble( rad_int - 1 + my_start_rad) * rad_step
       denr = 0.d0
       deni = 0.d0
 !$OMP PARALLEL DO  &
@@ -246,8 +264,8 @@ program avg
   if( my_poolrank .eq. 0 ) then
     write(avgname,"(a3,a2,i4.4)")"avg",elname(i),elnum(i)
     open(unit=97,file=avgname,form='formatted',status='unknown')
-    do rad_int = 0, 400
-      radius = 0.00001d0 + dble( rad_int ) / 10.d0
+    do rad_int = 0, max_rad-1
+      radius = 0.00001d0 + dble( rad_int ) * rad_step
       write(97,"(a2, 1x, i2.2, 1x, e17.11, 1x, e17.11, 1x, e17.11)")elname(i),elnum(i),radius,Vdenr(rad_int+1),Vdeni(rad_int+1)
     enddo
     close(97)
