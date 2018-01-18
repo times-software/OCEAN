@@ -148,6 +148,8 @@ program avg
     do i=1,ng
       mag = 0.d0
       do j =1,3
+!         greal(j) = gvec(1,i)*bvec(1,j) + gvec(2,i)*bvec(2,j) +       &
+!   &                gvec(3,i)*bvec(3,j)
          greal(j) = gvec(1,i)*bvec(j,1) + gvec(2,i)*bvec(j,2) +       &
    &                gvec(3,i)*bvec(j,3)
       enddo
@@ -210,12 +212,12 @@ program avg
 !$OMP REDUCTION(+:denr,deni)
       do j=1,ng
         gr = modrealgvec(j) * radius
-        if (gr .ne. 0 ) then
+        if (gr .gt. 0.00001 ) then
           mag = (dsin(gr)/gr)*(rhogr(j))
           magi = (dsin(gr)/gr)*(rhogi(j))
         else
-          mag = 1.d0*rhogr(j)
-          magi = 1.d0*rhogi(j)
+          mag = rhogr(j) * (1.0d0 - gr*gr/4.0 )
+          magi = rhogi(j) *(1.0d0 - gr*gr/4.0 )
         endif
 
         denr = denr + dcos( 2.0d0 * pi * &
