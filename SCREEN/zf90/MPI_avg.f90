@@ -204,11 +204,11 @@ program avg
  &               ( dble( gvec(1,j) ) * tau(1,i) + &
  &                 dble( gvec(2,j) ) * tau(2,i) + &
  &                 dble( gvec(3,j) ) * tau(3,i) ) ) * mag
-        denr = denr - dsin( 2.0d0 * pi * &
+        denr = denr + dsin( 2.0d0 * pi * &
  &               ( dble( gvec(1,j) ) * tau(1,i) + &
  &                 dble( gvec(2,j) ) * tau(2,i) + &
  &                 dble( gvec(3,j) ) * tau(3,i) ) ) * magi
-        deni = deni + dcos( 2.0d0 * pi * &
+        deni = deni - dcos( 2.0d0 * pi * &
  &               ( dble( gvec(1,j) ) * tau(1,i) + &
  &                 dble( gvec(2,j) ) * tau(2,i) + &
  &                 dble( gvec(3,j) ) * tau(3,i) ) ) * magi

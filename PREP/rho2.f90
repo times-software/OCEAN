@@ -74,7 +74,7 @@ program rhotest
 !
   endif
 
-  call FFT_wrapper_single( rhoofg, OCEAN_FORWARD, fo )
+  call FFT_wrapper_single( rhoofg, OCEAN_BACKWARD, fo )
   call FFT_wrapper_delete( fo )
 !      open(unit=99,file='omega.h',form='formatted',status='old')
 !      read(99,*) norm
@@ -86,7 +86,7 @@ program rhotest
  &     + avecs(3,1)*(avecs(1,2)*avecs(2,3)-avecs(2,2)*avecs(1,3))
   close(99)
 
-      norm = norm / dble(dims(1)*dims(2)*dims(3))
+!      norm = norm / dble(dims(1)*dims(2)*dims(3))
 !!      norm = 1.d0 / norm
   
   open(unit=17,file='bvecs',form='formatted',status='old')
