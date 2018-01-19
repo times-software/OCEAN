@@ -1,7 +1,9 @@
 ## v. 2.1.1
 
-#### Major Features
+#### Bugfixes
  1. Fixed bug in valence (UV/optical) calculations
+ 2. Failed to initialize a variable in mpi_avg.x
+ 3. Rare bug gives bad densities in mpi_avg.x
 
 ## v. 2.1.0
 
