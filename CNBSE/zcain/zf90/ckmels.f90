@@ -1,7 +1,7 @@
-subroutine ckmels( nr, lc, lmin, lmax, npmax, nproj, phae, phps, r, dl, wc, jl, jlpow )
+subroutine ckmels( nr, zz, lc, lmin, lmax, npmax, nproj, phae, phps, r, dl, wc, jl, jlpow )
   implicit none
   !
-  integer :: nr, lc, lmin, lmax, npmax
+  integer, intent(in) :: nr, zz, lc, lmin, lmax, npmax
   integer :: nproj( lmin : lmax )
   real( kind = kind( 1.0d0 ) ) :: dl
   real( kind = kind( 1.0d0 ) ) :: r( nr ), wc( nr ), jl( nr, 0 : lc + lmax ), jlpow( nr, 0 : lc + lmax )
@@ -26,7 +26,7 @@ subroutine ckmels( nr, lc, lmin, lmax, npmax, nproj, phae, phps, r, dl, wc, jl, 
   end do
   !
   do l = lmin, lmax
-     write ( fnam, '(1a4,1i1)' ) 'phrc', l
+     write ( fnam, '(1a4,1i1,1a1,1i3.3)' ) 'phrc', l, 'z', zz
      open( unit=99, file=fnam, form='formatted', status='old' )
      rewind 99
      read ( 99, * ) s8, nener, idum

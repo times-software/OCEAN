@@ -482,6 +482,16 @@ module OCEAN_system
           num_bands = sys%brange(4)-sys%brange(3)+1
           val_bands = sys%brange(2)-sys%brange(1)+1
           have_val = .true.
+
+        case( 'C2C' )
+        ! Core-to-core RIXS should mix both XAS and RXS
+          backspace( 99 )
+          read(99,*)  ZNL(1), ZNL(2), ZNL(3), elname, corelevel, indx, photon, calc_type, &
+                      rixs_energy, rixs_pol
+          start_band = sys%brange(3)
+          num_bands = sys%num_bands
+          have_core = .true.
+          val_bands = sys%brange(2)-sys%brange(1)+1
           
         case default
           start_band = sys%brange(3)

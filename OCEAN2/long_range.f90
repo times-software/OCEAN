@@ -1476,16 +1476,15 @@ module ocean_long_range
     integer :: xtarg, ytarg, ztarg, pbc( 3 )
     logical :: have_pbc
     
+    character(len=24) :: rpotName
     
-    if( myid .eq. 0 ) then
-      
-      open(unit=99,file='epsilon',form='formatted', status='old' )
-      rewind( 99 )
-      read(99,*) epsi
-      close( 99 ) 
-      epsi = 1.d0 / epsi
+    epsi = 1.d0 / sys%epsilon0
 
-      open(unit=99,file='rpottrim',form='formatted',status='old' )
+    if( myid .eq. 0 ) then
+
+      write( rpotName, '(A10,A2,I4.4,A2,I2.2,A1,I2.2)' ) 'rpottrim.z', sys%cur_run%elname, & 
+                     sys%cur_run%indx, '_n', sys%cur_run%ZNL(2), 'l', sys%cur_run%ZNL(3)
+      open(unit=99,file=rpotName,form='formatted',status='old' )
       rewind( 99 ) 
       do i = 1, 100
         read(99,*) ptab( i )
@@ -1531,8 +1530,6 @@ module ocean_long_range
     endif
 
 #ifdef MPI    
-    call MPI_BCAST( epsi, 1, MPI_DOUBLE_PRECISION, 0, comm, ierr )
-    if( ierr /= 0 ) goto 111
     call MPI_BCAST( ptab, 100, MPI_DOUBLE_PRECISION, 0, comm, ierr )
     if( ierr /= 0 ) goto 111
     call MPI_BCAST( amet, 9, MPI_DOUBLE_PRECISION, 0, comm, ierr )

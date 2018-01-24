@@ -5035,6 +5035,7 @@ module OCEAN_psi
   subroutine OCEAN_psi_load_core( sys, p, ierr )
     use OCEAN_mpi
     use OCEAN_system
+    use OCEAN_rixs_holder, only : OCEAN_rixs_holder_ctc
 !    use OCEAN_constants, only : PI_DP
 
     implicit none
@@ -5042,6 +5043,8 @@ module OCEAN_psi
     type(O_system), intent( in ) :: sys
     type(OCEAN_vector), intent( inout ) :: p
     integer, intent( inout ) :: ierr
+
+    complex(DP), allocatable :: p_vec(:,:,:)
 
     integer :: ialpha, icms, icml, ivms, ikpt, iband, lc, core_full_size
     real(DP) :: val, nrm, tmpr, tmpi, pi_dp
@@ -5065,9 +5068,23 @@ module OCEAN_psi
       call OCEAN_psi_zero_full( p, ierr )
       if( ierr .ne. 0 ) goto 111
 
-      write(6,*) 'Reading in projector coefficients'
-      call OCEAN_psi_dotter( sys, p, ierr )
-      if( ierr .ne. 0 ) goto 111
+      select case (sys%cur_run%calc_type)
+        case( 'C2C' )
+          write( 6, * ) 'Reading in rixs'
+          allocate( p_vec(sys%num_bands,sys%nkpts,sys%nalpha) )
+          call OCEAN_rixs_holder_ctc( sys, p_vec, ierr )
+          if( ierr .ne. 0 ) goto 111
+          p%r(:,:,:) = real(p_vec(:,:,:), DP )
+          p%i(:,:,:) = AIMAG(p_vec(:,:,:) )
+          deallocate( p_vec )
+
+        case default
+
+          write(6,*) 'Reading in projector coefficients'
+          call OCEAN_psi_dotter( sys, p, ierr )
+          if( ierr .ne. 0 ) goto 111
+
+      end select
       write (6,*) 'band states have been read in',  sys%nalpha
 
     
