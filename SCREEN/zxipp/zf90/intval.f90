@@ -59,8 +59,12 @@ subroutine intval( n, xtab, ytab, x, y, lopt, hopt )
      end do
   end if
   if ( interp ) then
-     rat = ( x - xtab( ii ) ) / ( xtab( ii + 1 ) - xtab( ii ) )
-     y = ytab( ii ) + rat * ( ytab( ii + 1 ) - ytab( ii ) ) 
+     if( ( xtab( ii + 1 ) - xtab( ii ) ) .lt. 0.00001d0 ) then
+        y = ( ytab( ii ) + ytab( ii + 1 ) ) / 2.0d0
+     else
+       rat = ( x - xtab( ii ) ) / ( xtab( ii + 1 ) - xtab( ii ) )
+       y = ytab( ii ) + rat * ( ytab( ii + 1 ) - ytab( ii ) ) 
+      endif
   end if
   !
   return
