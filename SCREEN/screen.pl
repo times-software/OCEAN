@@ -24,13 +24,13 @@ if (! $ENV{"OCEAN_WORKDIR"}){ $ENV{"OCEAN_WORKDIR"} = `pwd` . "../" ; }
 
 my @CommonFiles = ("znucl", "opf.hfkgrid", "opf.fill", "opf.opts", "pplist", "screen.shells", 
                    "ntype", "natoms", "typat", "taulist", "nedges", "edges", "caution", "epsilon", 
-                   "k0.ipt", "ibase", "scfac", "core_offset", "dft", "avecsinbohr.ipt", 
+                   "k0.ipt", "scfac", "core_offset", "dft", "avecsinbohr.ipt", 
                    "para_prefix", "nspin", "calc" );
 
 my @ScreenFiles = ("screen.grid.scheme", "screen.grid.rmode", "screen.grid.ninter", 
                    "screen.grid.shells", "screen.grid.xyz", "screen.grid.rmax", "screen.grid.ang",
                    "screen.grid.lmax", "screen.grid.nb", "screen.grid.nr", "screen.final.rmax", 
-                   "screen.final.dr", "screen.legacy" );
+                   "screen.final.dr", "screen.legacy", "screen.model.dq", "screen.model.qmax" );
 
 my @DenDipFiles = ("rhoofg", "bvecs", "efermiinrydberg.ipt");
 my @DenDipFiles2 = ( "masterwfile", "listwfile", "enkfile", "kmesh.ipt", "brange.ipt" );
@@ -213,6 +213,8 @@ if( $screen_data_files{ 'legacy' } != 0 )
     my $edgename2 = sprintf("z%03in%02il%02i",$znucl, $nnum, $lnum);
   #  `mkdir -p $edgename` == 0 or die "Failed to make dir $edgename\n";
 
+    system( "$ENV{'OCEAN_BIN'}/vhommod.x" == 0 or die "Failed to run vhommod.x\n$!" );
+
     foreach $rad (@rads) {
       my $fullrad = sprintf("%03.2f",$rad);
   #      `echo "$screen_data_files{'grid.rmax'} $screen_data_files{'grid.nr'} $elname $elnum" | $ENV{'OCEAN_BIN'}/mkrbfile.x`;
@@ -238,13 +240,16 @@ if( $screen_data_files{ 'legacy' } != 0 )
         `echo "$screen_data_files{'grid.nb'}" > ipt`;
         `time $ENV{'OCEAN_BIN'}/xipps.x < ipt`;
         move( "ninduced", "nin" ) or die "Failed to move ninduced.\n$!";
-        `echo $fullrad > ipt`;
-        `cat ibase epsilon >> ipt`;
-        `time $ENV{'OCEAN_BIN'}/vhommod.x < ipt`;
-        move( "reopt", "rom" ) or die "Failed to move reopt.\n$!";
+#        `echo $fullrad > ipt`;
+#        `cat ibase epsilon >> ipt`;
+#        `time $ENV{'OCEAN_BIN'}/vhommod.x < ipt`;
+        my $reoptName = sprintf( "reopt%2s%04i.R%s", $elname, $elnum, $fullrad );
+#        move( "reopt", "rom" ) or die "Failed to move reopt.\n$!";
         `echo 1 3 > ipt`;
-        `wc rom >> ipt`;
-        `cat rom >> ipt`;
+        `wc $reoptName >> ipt`;
+        `cat $reoptName >> ipt`;
+#        `wc rom >> ipt`;
+#        `cat rom >> ipt`;
         `echo 1 4 >> ipt`;
         `wc nin >> ipt`;
         `cat nin >> ipt`;
@@ -271,7 +276,8 @@ if( $screen_data_files{ 'legacy' } != 0 )
         `time $ENV{'OCEAN_BIN'}/rscombine.x < ipt1 > ./${edgename}/zRXT${fullrad}/ropt`;
         move( "rpot", "$edgename/zRXT$fullrad/" ) or die "Failed to move rpot\n$!";
         move( "rpothires", "$edgename/zRXT$fullrad/" ) or die "Failed to move rpothires\n$!";
-        move( "rom", "$edgename/zRXT$fullrad/" ) or die "Failed to move rom\n$!";
+        copy( $reoptName, "$edgename/zRXT$fullrad/rom" ) or die "Failed to copy rom\n$!";
+#        move( "rom", "$edgename/zRXT$fullrad/" ) or die "Failed to move rom\n$!";
         move( "nin", "$edgename/zRXT$fullrad/" ) or die "Failed to move nin\n$!";
 
         #####################
@@ -280,13 +286,15 @@ if( $screen_data_files{ 'legacy' } != 0 )
         `echo "$screen_data_files{'grid.nb'}" > ipt`;
         `time $ENV{'OCEAN_BIN'}/xipps.x < ipt`;
         move( "ninduced", "nin" ) or die "Failed to move ninduced.\n$!";
-        `echo $fullrad > ipt`;
-        `cat ibase epsilon >> ipt`;
-        `time $ENV{'OCEAN_BIN'}/vhommod.x < ipt`;
-        move( "reopt", "rom" ) or die "Failed to move reopt.\n$!";
+#        `echo $fullrad > ipt`;
+#        `cat ibase epsilon >> ipt`;
+#        `time $ENV{'OCEAN_BIN'}/vhommod.x < ipt`;
+#        move( "reopt", "rom" ) or die "Failed to move reopt.\n$!";
         `echo 1 3 > ipt`;
-        `wc rom >> ipt`;
-        `cat rom >> ipt`;
+        `wc $reoptName >> ipt`;
+        `cat $reoptName >> ipt`;
+#        `wc rom >> ipt`;
+#        `cat rom >> ipt`;
         `echo 1 4 >> ipt`;
         `wc nin >> ipt`;
         `cat nin >> ipt`;
@@ -304,7 +312,8 @@ if( $screen_data_files{ 'legacy' } != 0 )
         `time $ENV{'OCEAN_BIN'}/rscombine.x < ipt1 > ./${edgename}/zRXS${fullrad}/ropt`;
         move( "rpot", "$edgename/zRXS$fullrad/" ) or die "Failed to move rpot\n$!";
         move( "rpothires", "$edgename/zRXS$fullrad/" ) or die "Failed to move rpothires\n$!";
-        move( "rom", "$edgename/zRXS$fullrad/" ) or die "Failed to move rom\n$!";
+#        move( "rom", "$edgename/zRXS$fullrad/" ) or die "Failed to move rom\n$!";
+        copy( $reoptName, "$edgename/zRXT$fullrad/rom" ) or die "Failed to copy rom\n$!";
         move( "nin", "$edgename/zRXS$fullrad/" ) or die "Failed to move nin\n$!";
         # finished with ximat small
         #######################

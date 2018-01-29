@@ -173,11 +173,6 @@ caution
 {
 .false.
 } caution
-ibase
-{
-0.1  100
-0.01 10
-} ibase
 nedges
 {
 -1
@@ -461,7 +456,7 @@ screen.grid.nb
 } screen.grid.nb
 screen.final.rmax
 {
-20
+10
 } screen.final.rmax
 screen.final.dr
 {
