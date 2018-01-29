@@ -177,8 +177,8 @@ module screen_chi
     real(DP), intent( in ) :: rad
     character( len=40 ) :: Prefix
     ! zTi0001_n02l01/
-    write(Prefix,'(A1,A2,I4.4,A2,I2.2,A1,I2.2,A4,F4.2)') & 
-                'z', elname, indx, '_n', N, 'l', L, '.zRXT', rad
+    write(Prefix,'(A1,A2,I4.4,A2,I2.2,A1,I2.2,A3,F4.2)') & 
+                'z', elname, indx, '_n', N, 'l', L, '.zR', rad
   end function screen_chi_getOutputPrefix
                         
 

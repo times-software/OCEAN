@@ -1,14 +1,17 @@
 include ../../Makefile.arch
 
-OPTIONS += -warn all -check all -DDEBUG
+OPTIONS += #-warn all -check all -DDEBUG
 
 
-all: screen_grid.o screen_system.o screen_driver.x
+all: screen_driver.x
 
 OBJS = screen_driver.o ai_kinds.o ocean_mpi.o screen_grid.o screen_system.o screen_sites.o screen_paral.o \
        screen_energy.o ocean_dft_files.o ocean_legacy_files.o screen_wavefunction.o screen_wvfn_converter.o \
        screen_chi0.o screen_chi_driver.o screen_chi.o screen_centralpotential.o periodic.o schi_sinqr.o \
        schi_direct.o ocean_sphericalharmonics.o ocean_quadrature.o
+
+install:
+	cp screen_driver.x $(INSTDIR)/
 
 %.o %.mod: %.f90
 	$(MPIFORT) $(OPTIONS) -c -o $*.o $<

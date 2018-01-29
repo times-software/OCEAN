@@ -97,22 +97,30 @@ module schi_sinqr
     ! If this is done correctly with the first dimension of FullW being NR not NPT
     ! then we want to average over all angles for a given radius which also means
     ! we need to bring back in the weights which are neglect (wpt)
+#ifdef DEBUG
     open(unit=98, file='xifull', form='formatted', status='unknown' )
+#endif
 
     FullW(:,:) = 0.0_DP
     do i = 1, nbasis
       su = 0.0_dp
       do j = 1, nbasis
         su = su + FullChi( i, 1, j, 1 ) * rhs( j )
+#ifdef DEBUG
         write(98, '(2i5,3(1x,1e15.8))' ) i, j, qtab( i ), qtab( j ), FullChi( i, 1, j, 1 )
+#endif
       enddo
 
       do ii = 1, nr
         FullW( ii, 1 ) = FullW( ii, 1 ) + su * potfcn( ii, i )
       enddo
+#ifdef DEBUG
       write(98,*)
+#endif
     enddo
+#ifdef DEBUG
     close ( 98 )
+#endif
 
     deallocate( vipt, basfcn, qtab, rhs, potfcn, weight )
 

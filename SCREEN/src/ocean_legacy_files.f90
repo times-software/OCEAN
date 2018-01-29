@@ -355,7 +355,9 @@ module ocean_legacy_files
           if( nfiles .ge. (inter_nproc/i) ) then
             npool = inter_nproc/i
             mypool = inter_myid/ i 
+#ifdef DEBUG
             write(6,*) '*', inter_myid, npool, mypool
+#endif
             goto 11
           endif
         endif

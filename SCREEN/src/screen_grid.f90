@@ -81,7 +81,7 @@ module screen_grid
 
     character( len=12 ) :: filnam
 
-    write( filnam, '(A,A2,I4.4)' ) 'grid.', elname, elindx
+    write( filnam, '(A,A2,I4.4)' ) 'grid', elname, elindx
     write(6,*) filnam
 
     open( unit=99, file=filnam, form='unformatted', status='unknown', iostat=ierr, err=100 )

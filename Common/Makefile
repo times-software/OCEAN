@@ -1,7 +1,7 @@
 include ../Makefile.arch
 FILES   =
 SCRIPTS = ocean.pl par_ocean.pl parse defaults.pl defaults.h parse.pl edges.pl
-AUX = oparse.h Pquadrature specpnt sphpts
+AUX = oparse.h Pquadrature specpnt sphpts EvenQuadHalf.txt
 LEBDEV = specpnt.5 specpnt.6 specpnt.7 specpnt.8 specpnt.9 specpnt.10 specpnt.15 specpnt.20
 
 .SUFFIXES: .f .x

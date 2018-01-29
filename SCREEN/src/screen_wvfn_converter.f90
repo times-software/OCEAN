@@ -50,8 +50,9 @@ module screen_wvfn_converter
     call screen_wvfn_converter_loader( pinfo, nsites, all_sites, ierr )
     if( ierr .ne. 0 ) return
 
-
+#ifdef DEBUG
     write(6,*) 'Wait on RECVs'
+#endif
     do i = 1, siteSize
       call MPI_WAITALL( recvSize, recvArray(:,i), MPI_STATUSES_IGNORE, ierr )
       if( ierr .ne. 0 ) return
