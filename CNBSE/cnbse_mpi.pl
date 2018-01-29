@@ -600,10 +600,17 @@ while (<EDGE>) {
   }
 
 #  my $add10_zstring = sprintf("z%03un%02ul%02u", $znum, $nnum, $lnum);
-  my $zstring = sprintf("z%2s%04i_n%02il%02i", $elname, $elnum, $nnum, $lnum);
+  my $zstring = sprintf("z%2s%04i/n%02il%02i", $elname, $elnum, $nnum, $lnum);
+  my $compactZstring = sprintf("z%2s%04i_n%02il%02i", $elname, $elnum, $nnum, $lnum);
 #  system("cp ../SCREEN/${zstring}/zR${pawrad}/rpot ./rpot.${zstring}") == 0 
-  copy( "../SCREEN/${zstring}/zR${pawrad}/rpot", "rpot.${zstring}" )
-    or die "Failed to grab rpot\n../SCREEN/${zstring}/zR${pawrad}/rpot ./rpot.${zstring}\n";
+  print "$zstring   $compactZstring\n";
+  print "../SCREEN/${zstring}/zR${pawrad}/rpot  rpot.${compactZstring}\n";
+  unless( copy( "../SCREEN/${zstring}/zR${pawrad}/rpot", "rpot.${compactZstring}" ) == 1 )
+  {
+    $zstring = sprintf("z%2s%04i_n%02il%02i", $elname, $elnum, $nnum, $lnum);
+    copy( "../SCREEN/${zstring}/zR${pawrad}/rpot", "rpot.${zstring}" )
+      or die "Failed to grab rpot\n../SCREEN/${zstring}/zR${pawrad}/rpot ./rpot.${zstring}\n";
+  }
 #
 
   # If we don't want CLS then make sure the file is not here
@@ -616,11 +623,11 @@ while (<EDGE>) {
   }
   else
   {
-    copy( "../SCREEN/${zstring}/zR${pawrad}/cls", "cls.${zstring}" ) 
-      or warn "WARNING!\nCore-level shift support requested, but could not find ../SCREEN/${zstring}/zR${pawrad}/cls\n"
+    copy( "../SCREEN/${zstring}/zR${pawrad}/cls", "cls.${compactZstring}" ) 
+      or warn "WARNING!\nCore-level shift support requested, but could not find ../SCREEN/${zstring}/zR${pawrad}/cls\n\$!"
             . "No CLS will be done for this site!\n";
     $cls_count++;
-    open IN, "cls.${zstring}" or die "Failed to open cls.${zstring}\n$!";
+    open IN, "cls.${compactZstring}" or die "Failed to open cls.${compactZstring}\n$!";
     my $cls = <IN>;
     chomp $cls;
     $cls_average += $cls;

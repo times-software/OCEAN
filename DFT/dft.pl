@@ -333,6 +333,17 @@ if ($RunESPRESSO) {
           . "/\n";
   close PP;
 
+ ### write PP input card for total potential
+  open PP, ">pp2.in";
+  print PP "&inputpp\n"
+          . "  prefix = \'$qe_data_files{'prefix'}\'\n"
+          . "  outdir = \'$qe_data_files{'work_dir'}\'\n"
+          . "  filplot= 'system.pot'\n"
+          . "  plot_num = 1\n"
+          . "/\n";
+  close PP;
+
+
 
   my $npool = 1;
   open INPUT, "pool_control" or die;
@@ -373,11 +384,17 @@ if ($RunESPRESSO) {
     print  "$para_prefix $ENV{'OCEAN_ESPRESSO_OBF_PP'}  -npool $npool < pp.in > pp.out 2>&1\n";
     system("$para_prefix $ENV{'OCEAN_ESPRESSO_OBF_PP'} -npool $npool < pp.in > pp.out 2>&1") == 0
        or die "Failed to run density stage for SCREENING\n";
+    print  "$para_prefix $ENV{'OCEAN_ESPRESSO_OBF_PP'}  -npool $npool < pp2.in > pp2.out 2>&1\n";
+    system("$para_prefix $ENV{'OCEAN_ESPRESSO_OBF_PP'} -npool $npool < pp2.in > pp2.out 2>&1") == 0
+       or die "Failed to run density stage for SCREENING\n";
   }
   else
   {
     print  "$para_prefix $ENV{'OCEAN_ESPRESSO_PP'}  -npool $npool < pp.in > pp.out 2>&1\n";
     system("$para_prefix $ENV{'OCEAN_ESPRESSO_PP'} -npool $npool < pp.in > pp.out 2>&1") == 0
+       or die "Failed to run density stage for SCREENING\n";
+    print  "$para_prefix $ENV{'OCEAN_ESPRESSO_PP'}  -npool $npool < pp2.in > pp2.out 2>&1\n";
+    system("$para_prefix $ENV{'OCEAN_ESPRESSO_PP'} -npool $npool < pp2.in > pp2.out 2>&1") == 0
        or die "Failed to run density stage for SCREENING\n";
   }
   open OUT, ">den.stat" or die "Failed to open scf.stat\n$!";
@@ -386,9 +403,12 @@ if ($RunESPRESSO) {
 
   ## convert the density file to proper format
   print "Density conversion\n";
-  system("$ENV{'OCEAN_BIN'}/qe2rhoofr.pl" ) == 0 
+  system("$ENV{'OCEAN_BIN'}/qe2rhoofr.pl system.rho rhoofr" ) == 0 
     or die "Failed to convert density\n$!\n";
 
+  print "Potential conversion\n";
+  system("$ENV{'OCEAN_BIN'}/qe2rhoofr.pl system.pot potofr" ) == 0
+    or die "Failed to convert potential\n$!\n";
 
 
   open STATUS, ">espresso.stat" or die;

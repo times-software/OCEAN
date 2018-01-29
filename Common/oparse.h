@@ -475,3 +475,7 @@ screen.model.qmax
 {
 10
 } screen.model.qmax
+screen.legacy
+{
+1
+} screen.legacy
