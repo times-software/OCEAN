@@ -188,6 +188,7 @@ print "Final grid: " . $screen_data_files{'final.dr'} . " " . $final_nr . "\n";
 if( $screen_data_files{ 'legacy' } != 0 )
 {
   open HFINLIST, "hfinlist" or die "Failed to open hfinlist\n";
+  system( "$ENV{'OCEAN_BIN'}/vhommod.x" == 0 or die "Failed to run vhommod.x\n$!" );
 
   my $rad;
   my $edgename; 
@@ -213,7 +214,6 @@ if( $screen_data_files{ 'legacy' } != 0 )
     my $edgename2 = sprintf("z%03in%02il%02i",$znucl, $nnum, $lnum);
   #  `mkdir -p $edgename` == 0 or die "Failed to make dir $edgename\n";
 
-    system( "$ENV{'OCEAN_BIN'}/vhommod.x" == 0 or die "Failed to run vhommod.x\n$!" );
 
     foreach $rad (@rads) {
       my $fullrad = sprintf("%03.2f",$rad);

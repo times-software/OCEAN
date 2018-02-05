@@ -129,9 +129,9 @@ program vhommod
      end do
   end do
 
-  s = 0.00001d0
-  ds = 0.10d0
   do isite = 1, nsites
+    s = 0.00001d0
+    ds = 0.10d0
 
     if( isite .ge. 1 ) then
       v( :, : ) = vh( :, : )
