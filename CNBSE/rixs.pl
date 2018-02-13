@@ -27,7 +27,7 @@ my @CommonFiles = ("epsilon", "xmesh.ipt", "nedges", "k0.ipt", "nbuse.ipt",
   "para_prefix", "cnbse.strength", "serbse", "core_offset", "avecsinbohr.ipt", 
   "cnbse.solver", "cnbse.gmres.elist", "cnbse.gmres.erange", "cnbse.gmres.nloop", 
   "cnbse.gmres.gprc", "cnbse.gmres.ffff", "cnbse.write_rhs", "spin_orbit", "nspin", 
-  "niter", "backf", "aldaf", "bwflg", "bande", "bflag", "lflag", "decut", "spect.h" );
+  "niter", "backf", "aldaf", "bwflg", "bande", "bflag", "lflag", "decut", "spect.h", "calc" );
 
 my @DFTFiles = ("nelectron", "rhoofr");
 
@@ -59,6 +59,16 @@ if( $dft_type =~ m/obf/i )
 else
 {
   $obf = 0;
+}
+
+open IN, "calc" or die "Failed to open calc\n$!";
+my $calc = <IN>;
+chomp $calc;
+close IN;
+unless( lc( $calc ) =~ m/rxs/ || lc( $calc ) =~ m/c2c/ )
+{
+  print "Unexpected value of 'calc'\nChanging to RXS\n";
+  $calc = 'RXS';
 }
 
 
@@ -849,7 +859,7 @@ print "Found $photon_combo combinations of photon files\n";
 print "From XAS we have $gmres_count energy steps\n";
     
 
-
+$calc = uc( $calc );
 open RUNLIST, ">runlist" or die "Failed to open runlist for writing\n$!";
 #my $photon_combo = $nphoton * ($nphoton-1);
 my $tot_gmres_count = $gmres_count * $photon_combo;
@@ -866,7 +876,7 @@ for( my $e = 1; $e <= $gmres_count; $e++ )
       my $j_num = $1;
 #      next if( $i == $j );
       next if( $xas_photon_files[$i] eq $xes_photon_files[$j] );
-      print RUNLIST "$znum  $nnum  $lnum  $elname  $corelevel  0  $i_num  RXS  $e  $j_num\n";
+      print RUNLIST "$znum  $nnum  $lnum  $elname  $corelevel  0  $i_num  $calc  $e  $j_num\n";
     }
   }
 }
