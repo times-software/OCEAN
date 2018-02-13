@@ -157,7 +157,11 @@ my @rads = split ' ', $allshells;
 $numshells = $#rads + 1;
 open SHELLS, ">shells" or die "Failed to open shells for writing\n";
 print SHELLS "$numshells\n";
-print SHELLS "$allshells\n";
+for( my $i = 0; $i < scalar @rads; $i++ )
+{
+  print SHELLS "$rads[$i]\n";
+}
+#print SHELLS "$allshells\n";
 close SHELLS;
 
 ######################################
