@@ -401,9 +401,9 @@ else
   my @sitelist;
   while( my $siteline = <IN> )
   {
-    $siteline =~ m/(\S+)\s+(\d+)\s+(\S+)/ or die "Malformed sitelist\t$1 $2 $3\n";
+    $siteline =~ m/(\S+)\s+(\d+)\s+(\d+)\s+(\S+)/ or die "Malformed sitelist\t$1 $2 $3 $4\n";
     push @sitelist, [( $1, $2 )];
-    my $siteName = sprintf("%2s%04i", $1, $2 );
+    my $siteName = sprintf("%2s%04i", $1, $3 );
     foreach my $fileName (@siteFiles)
     {
       my $newFileName = catfile( "z$siteName", $fileName );

@@ -16,7 +16,7 @@ program avg
             radius,gr,greal(3), magi
   real(kind=kind(1.d0)), allocatable :: rhogr(:),rhogi(:),modrealgvec(:)
   real(kind=kind(1.d0)), allocatable :: modrealgvec2(:), tau(:,:)
-  integer :: gmax( 3 ), ngmax, iter, rad_int
+  integer :: gmax( 3 ), ngmax, iter, rad_int, dumi
   real(kind=kind(1.d0)) :: gmodmax( 3 ), sgmodmax, rad_step
 
   character(len=2), allocatable :: elname(:)
@@ -163,7 +163,7 @@ program avg
     read(98,*)numsites
     allocate( tau(3,numsites), elname(numsites), elnum(numsites) )
     do i = 1, numsites
-      read(98,*)elname(i),elnum(i)
+      read(98,*)elname(i),dumi,elnum(i)
       call snatch( elname(i),elnum(i), tau(:,i) )
     enddo
     close(98)

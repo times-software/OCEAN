@@ -45,7 +45,7 @@ program vhommod
   read( 99, * ) nsites
   allocate( siteSymbol( nsites ), siteIndex( nsites ) )
   do i = 1, nsites
-    read( 99, * ) siteSymbol( i ), siteIndex( i )
+    read( 99, * ) siteSymbol( i ), idum, siteIndex( i )
   enddo
   close( 99 )
 

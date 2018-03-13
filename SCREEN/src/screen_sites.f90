@@ -205,7 +205,7 @@ module screen_sites
     integer, intent( out ) :: tmp_indices( : )
     character( len=2 ), intent( out ) :: tmp_elnames( : )
 
-    integer :: ierr_, nsites_, i
+    integer :: ierr_, nsites_, i, idum
     !
     if( myid .eq. root ) then
       open( unit=99, file='sitelist', form='formatted', status='old', iostat=ierr, action='read' )
@@ -228,7 +228,7 @@ module screen_sites
       endif
 
       do i = 1, nsites
-        read( 99, *, iostat=ierr ) tmp_elnames( i ), tmp_indices( i )
+        read( 99, *, iostat=ierr ) tmp_elnames( i ), idum, tmp_indices( i )
         if( ierr .ne. 0 ) then
           write( 6, * ) 'Failed reading sitelist. Site #', i
           goto 10
