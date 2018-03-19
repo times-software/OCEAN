@@ -34,7 +34,8 @@ module screen_paral
   public :: site_parallel_info
   public :: screen_paral_init
   public :: screen_paral_siteIndex2groupIndex, screen_paral_procID2groupID, screen_paral_procID2groupIndex, &
-            screen_paral_NumLocalSites, screen_paral_isMySite, screen_paral_siteIndexID2procID
+            screen_paral_NumLocalSites, screen_paral_isMySite, screen_paral_siteIndexID2procID, &
+            screen_paral_isYourSite
 
   contains
 
@@ -119,6 +120,16 @@ module screen_paral
 
     isMySite = ( screen_paral_siteIndex2groupIndex( pinfo, siteIndex ) .eq. pinfo%mygroup )
   end function screen_paral_isMySite
+
+  pure function screen_paral_isYourSite( procID, pinfo, siteIndex ) result ( isYourSite )
+    type( site_parallel_info ), intent( in ) :: pinfo
+    integer, intent( in ) :: procID, siteIndex
+    logical :: isYourSite
+
+    isYourSite = ( screen_paral_procID2groupIndex( pinfo, procID ) .eq. & 
+                   screen_paral_siteIndex2groupIndex( pinfo, siteIndex ) )
+    
+  end function screen_paral_isYourSite
 
   pure function screen_paral_siteIndex2groupIndex( pinfo, siteIndex ) result( groupIndex )
     type( site_parallel_info ), intent( in ) :: pinfo

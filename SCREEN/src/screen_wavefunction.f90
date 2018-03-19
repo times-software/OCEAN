@@ -179,7 +179,7 @@ module screen_wavefunction
   subroutine screen_wvfn_map_procID( procID, siteIndex, pinfo, grid,  &
                                      pts_start, mypts, band_start, mybands, kpts_start, mykpts )
     use screen_system, only : system_parameters, params
-    use screen_paral, only  : screen_paral_isMySite, screen_paral_procID2groupID
+    use screen_paral, only  : screen_paral_isYourSite, screen_paral_procID2groupID
 
     integer, intent( in ) :: procID, siteIndex
     type( site_parallel_info ), intent( in ) :: pinfo
@@ -190,7 +190,7 @@ module screen_wavefunction
     
 !    groupIndex = screen_paral_siteIndex2groupIndex( pinfo, siteIndex )
     
-    if( screen_paral_isMySite( pinfo, siteIndex) ) then
+    if( screen_paral_isYourSite( procID, pinfo, siteIndex) ) then
       groupID = screen_paral_procID2groupID( pinfo, procID )
       
 

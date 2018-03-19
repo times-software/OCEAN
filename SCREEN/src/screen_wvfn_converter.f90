@@ -34,8 +34,10 @@ module screen_wvfn_converter
 
     siteSize = screen_paral_NumLocalSites( pinfo, nsites )
 
+!    write(6,*) recvSize, siteSize
+
     allocate( recvArray( recvSize, siteSize ) )
-    recvArray = MPI_REQUEST_NULL
+    recvArray(:,:) = MPI_REQUEST_NULL
     i = 0
 
     do isite = 1 , nsites 
@@ -158,7 +160,7 @@ module screen_wvfn_converter
 #else
     write(1000+myid,*) 'Running swl_postSiteRecvs'
     write(1000+myid,'(A3,2(1x,I8))') '   ', size(current_site%wvfn%wvfn,1), size(current_site%wvfn%wvfn,2)
-    write(1000+myid,'(A3,7A9)') '   ', 'Npts', 'Start', 'Nbands', 'Sender', 'iKpts', 'iSpin', 'Tag'
+    write(1000+myid,'(A3,8A9)') '   ', 'Npts', 'Start', 'Nbands', 'Sender', 'iKpts', 'iSpin', 'Tag', 'Site'
     
     nprocPerKpt = olf_nprocPerPool()
     npts = size( current_site%wvfn%wvfn, 1 )
@@ -178,7 +180,7 @@ module screen_wvfn_converter
           num_bands = olf_getBandsForPoolID( poolID )
           targetID = olf_returnGlobalID( poolIndex, poolID )
       
-          write(1000+myid,'(A,7(1X,I8))') '   ', npts, start_band, num_bands, targetID, ikpt, ispin, itag
+          write(1000+myid,'(A,8(1X,I8))') '   ', npts, start_band, num_bands, targetID, ikpt, ispin, itag, isite
 
 !          call MPI_IRECV( current_site%wvfn%wvfn( :, start_band:start_band+num_bands-1, i ), npts*num_bands, & 
           call MPI_IRECV( current_site%wvfn%wvfn( 1, start_band, i ), npts*num_bands, & 
@@ -297,9 +299,11 @@ module screen_wvfn_converter
         if( ierr .ne. 0 ) return
 
 !        write(6,*) ikpt, ispin, isend, destID, num_pts, num_band, itag
-        if( num_pts .gt. 0 ) then
+          write(1000+myid,'(A,7(A9))') '   Send converted:', 'DestID', 'Tag', 'P-start', 'P-num', &
+                                       'B-start', 'B-num', 'Site'
           write(1000+myid,'(A,7(1X,I8))') '   Send converted:', destID, itag, pts_start, num_pts,  &
                                           band_start, num_band, isite
+        if( num_pts .gt. 0 ) then
 !          call MPI_ISEND( temp_wavefunctions(isite)%wvfn( pts_start, band_start, 1 ), num_pts * num_band, &
 !                          MPI_DOUBLE_COMPLEX, destID, itag, comm, send_list( isend ), ierr )
           call MPI_ISEND( temp_wavefunctions(isite)%wvfn( pts_start, band_start, 1 ), 1, &
