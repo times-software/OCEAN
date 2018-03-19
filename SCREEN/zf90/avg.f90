@@ -13,7 +13,7 @@ program avg
             tau(3),radius,gr,greal(3), magi
   real(kind=kind(1.d0)), allocatable :: rhogr(:),rhogi(:),modrealgvec(:)
   real(kind=kind(1.d0)), allocatable :: modrealgvec2(:)
-  integer :: gmax( 3 ), ngmax, iter, rad_int
+  integer :: gmax( 3 ), ngmax, iter, rad_int, dumi
   real(kind=kind(1.d0)) :: gmodmax( 3 ), sgmodmax
   character(len=2) elname
   character(len=9) avgname
@@ -90,7 +90,7 @@ program avg
 
       do i=1,numsites
 
-        read(98,*)elname,elnum
+        read(98,*)elname,dumi,elnum
         write(avgname,"(a3,a2,i4.4)")"avg",elname,elnum
         open(unit=97,file=avgname,form='formatted',status='unknown')
         call snatch(elname,elnum,tau)
@@ -121,11 +121,11 @@ program avg
      &               ( dble( gvec(1,j) ) * tau(1) + &
      &                 dble( gvec(2,j) ) * tau(2) + &
      &                 dble( gvec(3,j) ) * tau(3) ) ) * mag
-            denr = denr - dsin( 2.0d0 * pi * &
+            denr = denr + dsin( 2.0d0 * pi * &
      &               ( dble( gvec(1,j) ) * tau(1) + &
      &                 dble( gvec(2,j) ) * tau(2) + &
      &                 dble( gvec(3,j) ) * tau(3) ) ) * magi
-            deni = deni + dcos( 2.0d0 * pi * &
+            deni = deni - dcos( 2.0d0 * pi * &
      &               ( dble( gvec(1,j) ) * tau(1) + &
      &                 dble( gvec(2,j) ) * tau(2) + &
      &                 dble( gvec(3,j) ) * tau(3) ) ) * magi
