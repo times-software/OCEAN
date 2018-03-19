@@ -5070,7 +5070,7 @@ module OCEAN_psi
 
       select case (sys%cur_run%calc_type)
         case( 'C2C' )
-          write( 6, * ) 'Reading in rixs'
+          write( 6, * ) 'Reading in core-to-core rixs'
           allocate( p_vec(sys%num_bands,sys%nkpts,sys%nalpha) )
           call OCEAN_rixs_holder_ctc( sys, p_vec, ierr )
           if( ierr .ne. 0 ) goto 111

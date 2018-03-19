@@ -169,6 +169,7 @@ module OCEAN_filenames
           ierr = 6 
           return
         endif
+        write(6,*) 'RXS!'
         write(filename,'(A7,A2,A1,I4.4,A1,A2,A1,I2.2,A1,I4.4)' ) 'echamp_', sys%cur_run%elname, &
               '.', iter, '_', sys%cur_run%corelevel, '_', sys%cur_run%photon, '.', sys%cur_run%rixs_energy
           
@@ -177,14 +178,17 @@ module OCEAN_filenames
           ierr = 6 
           return
         endif
+        write(6,*) 'C2C!'
+        write( 6, * ) sys%cur_run%rixsInputCoreLevel
         write(filename,'(A7,A2,A1,I4.4,A1,A2,A1,I2.2,A1,I4.4)' ) 'echamp_', sys%cur_run%elname, & 
-              '.', iter, '_', '1s', '_', sys%cur_run%photon, '.', sys%cur_run%rixs_energy
+              '.', iter, '_', sys%cur_run%rixsInputCoreLevel, '_', sys%cur_run%photon, '.', sys%cur_run%rixs_energy
 
       case default ! Currently XAS/XES option
         if( len( filename ) < 25 ) then
           ierr = 6 
           return
         endif
+        write(6,*) 'DEFAULT!'
         write(filename,'(A7,A2,A1,I4.4,A1,A2,A1,I2.2,A1,I4.4)' ) 'echamp_', sys%cur_run%elname, &
               '.', iter, '_', sys%cur_run%corelevel, '_', sys%cur_run%photon, '.', sys%cur_run%rixs_energy
 

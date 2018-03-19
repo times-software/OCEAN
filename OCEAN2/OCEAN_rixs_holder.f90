@@ -117,9 +117,6 @@ module OCEAN_rixs_holder
       call OCEAN_filenames_read_ehamp( sys, echamp_file, edge_iter, ierr )
       if( ierr .ne. 0 ) return
 
-!      write(echamp_file,'(A7,A2,A1,I4.4,A1,A2,A1,I2.2,A1,I4.4)' ) 'echamp_', sys%cur_run%elname, &
-!              '.', edge_iter, '_', sys%cur_run%corelevel, '_', sys%cur_run%photon, '.', & 
-!              sys%cur_run%rixs_energy
 
       write(6,*) echamp_file
       open(unit=99,file=echamp_file,form='unformatted',status='old')
@@ -178,16 +175,16 @@ module OCEAN_rixs_holder
     integer, intent( inout ) :: ierr
 
     complex(DP), allocatable :: rex(:,:,:), mels( : )
-    integer :: edge_iter, ialpha, icms, icml, ivms, ic, ik, j, l_orig
+    integer :: edge_iter, ialpha, icms, icml, ivms, ic, ik, j
     character(len=50) :: echamp_file
 
     
-    l_orig = 0
-    allocate( rex( sys%num_bands, sys%nkpts, 4*(2*l_orig+1) ) )
+    ! size of echamp comes from rixsInputZNL
+    allocate( rex( sys%num_bands, sys%nkpts, 4*(2*sys%cur_run%rixsInputZNL(3)+1) ) )
 
     allocate( mels( sys%ZNL(3)*2 + 1 ) )
 
-    call ctc_mels_hack( mels, ierr )
+    call ctc_mels_hack( mels, sys%cur_run%rixs_pol, ierr )
     if( ierr .ne. 0 ) return
 
 !    do edge_iter = 1, sys%nedges
@@ -197,16 +194,17 @@ module OCEAN_rixs_holder
       if( ierr .ne. 0 ) return
       write(6,*) echamp_file
 
-      write(6,*) echamp_file
+!      write(6,*) echamp_file
       open(unit=99,file=echamp_file,form='unformatted',status='old')
       rewind(99)
       read(99) rex(:,:,:)
       close(99)
 
 
+      !JTV plenty remains to move beyond 1s2p
       ialpha = 0
       do icms = 1, 3, 2
-        do icml = 1, sys%ZNL(3)*2 + 1
+        do icml = 1, sys%cur_run%ZNL(3)*2 + 1
           do ivms = 0, 1
 
             ialpha = ialpha + 1
@@ -225,10 +223,14 @@ module OCEAN_rixs_holder
 
 !    enddo
 
+      deallocate( mels )
+      deallocate( rex )
+
   end subroutine ctc_rixs_seed
 
-  subroutine ctc_mels_hack( mels, ierr )
+  subroutine ctc_mels_hack( mels, photonNum, ierr )
     complex(DP), intent( out ) :: mels( 3 )
+    integer, intent( in ) :: photonNum
     integer, intent( inout ) :: ierr
     !
     real(DP), allocatable, dimension(:) :: xsph, ysph, zsph, wsph
@@ -238,6 +240,7 @@ module OCEAN_rixs_holder
     integer :: nsphpt, i, l_orig, m_orig, lc, mc
     integer, parameter :: lmax = 5
     character(len=10) :: spcttype
+    character(len=255) :: spctfile
 
     open( unit=99, file='sphpts', form='formatted', status='old' )
     rewind 99
@@ -254,7 +257,11 @@ module OCEAN_rixs_holder
 
     call getprefs( prefs, lmax, nsphpt, wsph, xsph, ysph, zsph )
 
-    open( unit=99, file='spectfile', form='formatted', status='unknown' )
+    write( spctfile, '(A6,I0)' ) 'photon', photonNum
+    write(6,*) 'ctc_hack: ', spctfile
+
+!    open( unit=99, file='spectfile', form='formatted', status='unknown' )
+    open( unit=99, file=spctfile, form='formatted', status='old' )
     rewind 99
     read ( 99, * ) spcttype
     call fancyvector( ehat, su, 99 )
