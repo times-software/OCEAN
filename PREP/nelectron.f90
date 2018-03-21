@@ -21,6 +21,7 @@
       vol = avecs(1,1) * (avecs(2,2)*avecs(3,3)-avecs(3,2)*avecs(2,3))  &
      &    - avecs(2,1) * (avecs(1,2)*avecs(3,3)-avecs(3,2)*avecs(1,3))  &
      &    + avecs(3,1) * (avecs(1,2)*avecs(2,3)-avecs(2,2)*avecs(1,3))
+      vol = abs(vol)
 !      write(6,*) vol
 
       nelect = 0.d0;

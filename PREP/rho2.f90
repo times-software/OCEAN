@@ -85,6 +85,7 @@ program rhotest
  &     - avecs(2,1)*(avecs(1,2)*avecs(3,3)-avecs(3,2)*avecs(1,3))   &
  &     + avecs(3,1)*(avecs(1,2)*avecs(2,3)-avecs(2,2)*avecs(1,3))
   close(99)
+  norm = abs( norm )
 
 !      norm = norm / dble(dims(1)*dims(2)*dims(3))
 !!      norm = 1.d0 / norm
