@@ -22,6 +22,7 @@ program screen_driver
 !  use screen_centralPotential, only : potential, screen_centralPotential_prepAll, &
 !                                      screen_centralPotential_loadAll
   use screen_centralPotential, only : screen_centralPotential_loadInternal
+  use screen_opf, only : screen_opf_loadAll
 
   implicit none
 
@@ -72,6 +73,10 @@ program screen_driver
 !  if( ierr .ne. 0 ) goto 111
 !  deallocate( tmp_znl )
   call screen_centralPotential_loadInternal( ierr )
+  if( ierr .ne. 0 ) goto 111
+
+  ! load up all the augmentation options
+  call screen_opf_loadAll( ierr )
   if( ierr .ne. 0 ) goto 111
   ! 
   ! Initializes the framework for reading in files from the DFT

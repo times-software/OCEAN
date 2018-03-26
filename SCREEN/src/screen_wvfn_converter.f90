@@ -1,3 +1,13 @@
+! Copyright (C) 2017, 2018 OCEAN collaboration
+!
+! This file is part of the OCEAN project and distributed under the terms 
+! of the University of Illinois/NCSA Open Source License. See the file 
+! `License' in the root directory of the present distribution.
+!
+!
+! by John Vinson 01-2017
+!
+!
 module screen_wvfn_converter
   use AI_kinds, only : DP
 
@@ -279,10 +289,14 @@ module screen_wvfn_converter
 
       npts = all_sites( isite )%grid%Npt
 
+      ! For this site project from u(G)/u(x) to u( r ), the atom-centered basis we use for screening
       call swl_DoProject( ngvecs, npts, nbands, input_uofg, input_gvecs, psys%bvecs, qcart, & 
                           all_sites( isite )%grid%posn, uofx, temp_wavefunctions( isite )%wvfn, ierr )
       if( ierr .ne. 0 ) return
 
+      ! Augment using the OPFs to give the all-electron character
+      call swl_DoAugment( all_sites( isite ), npts, nbands, temp_wavefunctions( isite )%wvfn, ierr )
+      if( ierr .ne. 0 ) return
   
       itag = ( isite - 1 ) * ( ikpt + ( ispin - 1 ) * params%nkpts ) &
            + ( ispin - 1 ) * params%nkpts + ikpt
@@ -360,6 +374,156 @@ module screen_wvfn_converter
 !    ierr = 1
 
   end subroutine swl_convertAndSend
+
+  subroutine swl_DoAugment( isite, npts, nbands, wavefunctions, ierr )
+    use screen_system, only : screen_system_doAugment
+    use screen_sites, only : site
+    use screen_opf
+
+    type( site ), intent( in ) :: isite
+    integer, intent( in ) :: npts, nbands
+    complex(DP), intent( inout ) :: wavefunctions( npts, nbands )
+    integer, intent( inout ) :: ierr
+
+    complex(DP), allocatable, dimension( :, : ) :: waveByLM, Delta, Ylm, Smat, Cmat, TCmat, weightedYlmStar
+    real(DP), allocatable, dimension( :, :, : ) :: psproj, diffproj, amat
+    real(DP), allocatable :: prefs(:)
+
+    complex(DP), parameter :: zone = 1.0_DP
+    complex(DP), parameter :: zero = 0.0_DP
+    
+    integer :: l, m, lmin, lmax, itarg, nproj, maxNproj, ncutoff
+    integer :: i, j, k, il, nl, totLM, ib
+
+    if( .not. screen_system_doAugment() ) return
+!    write(6,*) 'Start Augment'
+
+    ! gather projector information
+    call screen_opf_lbounds( isite%info%z, lmin, lmax, ierr, itarg )
+    if( ierr .ne. 0 ) return
+
+    call screen_opf_getNCutoff( isite%info%z, ncutoff, isite%grid%rad, ierr, itarg )
+    if( ierr .ne. 0 ) return
+
+    call screen_opf_maxNproj( isite%info%z, maxNproj, ierr, itarg )
+    if( ierr .ne. 0 ) return
+
+    totLM = ( lmax + 1 ) ** 2
+    
+    ! allocate space and carry out preliminary projector prep
+    allocate( ylm( isite%grid%nang, totLM ), waveByLM( ncutoff, totLM ), Delta( totLM, ncutoff ), &
+              weightedYlmStar( isite%grid%nang, totLM ) )
+    
+    allocate( psproj( ncutoff, maxnproj, lmin:lmax ), diffproj( ncutoff, maxnproj, lmin:lmax ), &
+              amat( maxnproj, maxnproj, lmin:lmax ), stat=ierr )
+    if( ierr .ne. 0 ) return
+
+    do l = lmin, lmax
+      call screen_opf_nprojForChannel( isite%info%z, l, nproj, ierr, itarg )
+      if( ierr .ne. 0 ) return
+
+      call screen_opf_interpProjs( isite%info%z, l, isite%grid%rad, psproj(:,:,l), diffproj(:,:,l), ierr, itarg )
+      if( ierr .ne. 0 ) return
+
+      call screen_opf_makeAMat( nproj, ncutoff, isite%grid%rad, isite%grid%drad, psproj(:,:,l), amat(:,:,l), ierr )
+      if( ierr .ne. 0 ) return
+
+      ! precompute r^2 dr on the ps projector
+      do i = 1, nproj
+        do j = 1, ncutoff
+          psproj( j, i, l ) = psproj( j, i, l ) * isite%grid%rad( j ) ** 2 * isite%grid%drad( j )
+        enddo
+      enddo
+
+    enddo  
+
+    ! prep Ylm's
+!    write(6,*) 'YLM'
+    allocate( prefs(0:1000) )
+    call getprefs( prefs )
+    il = 0
+    do l = lmin, lmax
+      do m = -l, l
+        il = il + 1
+        do j = 1, isite%grid%nang
+          
+          call ylmeval( l, m, isite%grid%agrid%angles(1,j), isite%grid%agrid%angles(2,j), & 
+                        isite%grid%agrid%angles(3,j), ylm(j,il), prefs )
+          weightedYlmStar( j, il ) = isite%grid%agrid%weights(j) * conjg( ylm(j,il) )
+        enddo
+      enddo
+    enddo
+    deallocate( prefs )
+    
+
+    ! loop over bands
+    do ib = 1, nbands
+!      write( 6, * ) ib
+      call ZGEMM( 'T', 'N', ncutoff, totLM, isite%grid%nang, zone, wavefunctions( :, ib ), &
+                  isite%grid%nang, weightedYlmStar, isite%grid%nang, zero, waveByLM, ncutoff )
+
+      Delta = 0.0_DP
+      il = 1
+      do l = lmin, lmax
+!        write(6,*) l
+        call screen_opf_nprojForChannel( isite%info%z, l, nproj, ierr, itarg )
+        if( ierr .ne. 0 ) return
+
+        ! Have mixed real/complex which isn't compatible with BLAS
+!        nl = 2*l + 1
+!        call ZGEMM( 'T', 'N', nproj, nl, ncutoff, zone, psproj(:,:,l), ncutoff, & 
+!                    waveByLM(:,il), ncutoff, zero, Smat, nproj )
+
+        nl = il + 2*l ! no plus 1 because we are adding, ie l=0 we go from 1 to 1, l=1 we go from 2 to 4 (inclusive)
+        allocate( Smat( nproj, il:nl ), Cmat( nproj, il:nl ), TCmat( il:nl, nproj ) )
+        do i = il, nl
+          do j = 1, nproj
+            Smat( j, i ) = dot_product( psproj(1:ncutoff,j,l), waveByLM(1:ncutoff,i) )
+          enddo
+        enddo
+    
+        ! still have mixed real/complex
+        Cmat(:,:) = 0.0d0
+        do i = il, nl
+          do j = 1, nproj
+            do k = 1, nproj
+              Cmat( k, i ) = Cmat( k, i ) + aMat( k, j, l ) * Smat( j, i )
+            enddo
+          enddo
+        enddo
+
+!        ! The conjg is becuase we originially took the star of the wavefunctions and not Ylm
+!        TCmat(:,:) = conjg( transpose( Cmat ) )
+        TCmat(:,:) = transpose( Cmat )
+
+        ! last time for mixed real/complex
+        do j = 1, nproj
+          do k = 1, ncutoff
+            do i = il, nl
+              Delta( i, k ) = Delta( i, k ) + TCmat( i, j ) * diffProj( k, j, l )
+            enddo
+          enddo
+        enddo
+        deallocate( Smat, Cmat, TCmat )
+
+
+        ! Here we add back on the 1 for (2l+1)
+        il = nl + 1
+      enddo ! l
+
+
+      ! now augment
+      call ZGEMM( 'N', 'N', isite%grid%nang, ncutoff, totLM, zone, ylm, isite%grid%nang, &
+                  Delta, totLM, zone, wavefunctions(:,ib), isite%grid%nang )
+
+    enddo
+
+    deallocate( psproj, diffproj, amat )
+    deallocate( Delta, waveByLM, ylm, weightedYlmStar )
+
+!    write(6,*) 'Augment done'
+
+  end subroutine swl_DoAugment
 
 
   subroutine swl_DoProject( ngvecs, npts, nbands, uofg, gvecs, bvecs, qcart, &
@@ -684,5 +848,137 @@ module screen_wvfn_converter
 
     deallocate( phases )
   end subroutine realu2
+
+  subroutine ylmeval( l, m, x, y, z, ylm, prefs )
+    implicit none
+    !
+    integer, intent( in )  :: l, m
+    !
+    real( DP ), intent( in ) :: x, y, z, prefs( 0 : 1000 )
+    complex( DP ), intent( out ) :: ylm
+    !
+    integer :: lam, j, mm
+    real( DP ) :: r, rinv, xred, yred, zred, f
+    real( DP ) :: u, u2, u3, u4, u5
+    complex( DP ) :: rm1
+    !
+    if ( l .gt. 5 ) stop 'l .gt. 5 not yet allowed'
+    !
+    r = sqrt( x ** 2 + y ** 2 + z ** 2 )
+    if ( r .eq. 0.d0 ) r = 1
+    rinv = 1 / r
+    xred = x * rinv
+    yred = y * rinv
+    zred = z * rinv
+    !
+    u = zred
+    u2 = u * u
+    u3 = u * u2
+    u4 = u * u3
+    u5 = u * u4
+    !
+    rm1 = -1
+    rm1 = sqrt( rm1 )
+    !
+    mm = abs( m ) + 0.1
+    lam = 10 * mm + l
+    !
+    select case( lam )
+       !
+    case( 00 )
+       f =   1                                       !00
+       !
+    case( 11 )
+       f = - 1                                       !11
+    case( 01 )
+       f =   u                                       !10
+       !
+    case( 22 )
+       f =   3                                       !22
+    case( 12 )
+       f = - 3 * u                                   !21
+    case( 02 )
+       f =   ( 3 * u2 - 1 ) / 2                      !20
+       !
+    case( 33 )
+       f = - 15                                      !33
+    case( 23 )
+       f =   15 * u                                  !32
+    case( 13 )
+       f = - ( 15 * u2 - 3 ) / 2                     !31
+    case( 03 )
+       f =   ( 5 * u3 - 3 * u ) / 2                  !30
+       !
+    case( 44 )
+       f =   105                                     !44
+    case( 34 )
+       f = - 105 * u                                 !43
+    case( 24 )
+       f =   ( 105 * u2 - 15 ) / 2                   !42
+    case( 14 )
+       f = - ( 35 * u3 - 15 * u ) / 2                !41
+    case( 04 )
+       f =   ( 35 * u4 - 30 * u2 + 3 ) / 8           !40
+       !
+    case( 55 )
+       f = - 945                                     !55
+    case( 45 )
+       f =   945 * u                                 !54
+    case( 35 )
+       f = - ( 945 * u2 - 105 ) / 2                  !53
+    case( 25 )
+       f =   ( 315 * u3 - 105 * u ) / 2              !52
+    case( 15 )
+       f = - ( 315 * u4 - 210 * u2 + 15 ) / 8        !51
+    case( 05 )
+       f =   ( 63 * u5 - 70 * u3 + 15 * u ) / 8      !50
+       !
+    end select
+    !
+    ylm = prefs( lam ) * f
+    if ( m .gt. 0 ) then
+       do j = 1, m
+          ylm = ylm * ( xred + rm1 * yred )
+       end do
+    end if
+    if ( m .lt. 0 ) then
+       do j = 1, mm
+          ylm = - ylm * ( xred - rm1 * yred )
+       end do
+    end if
+    !
+    return
+  end subroutine ylmeval
+
+
+  subroutine getprefs( prefs )
+    implicit none
+    !
+    real( DP ), intent(out) :: prefs( 0 : 1000 )
+    !
+    integer l, m, lam, lamold
+    real( DP ) :: pi
+    !
+    pi = 4.0d0 * atan( 1.0d0 )
+    !
+    do l = 0, 5
+       prefs( l ) = dble( 2 * l + 1 ) / ( 4.0d0 * pi )
+       lamold = l
+       do m = 1, l
+          lam = 10 * m + l
+          prefs( lam ) = prefs( lamold ) / dble( ( l - m + 1 ) * ( l + m ) )
+          lamold = lam
+       end do
+    end do
+    !
+    do l = 0, 5
+       do m = 0, l
+          lam = 10 * m + l
+          prefs( lam ) = sqrt( prefs( lam ) )
+       end do
+    end do
+    !
+    return
+end subroutine getprefs  
 
 end module screen_wvfn_converter

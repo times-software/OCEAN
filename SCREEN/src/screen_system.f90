@@ -1,4 +1,4 @@
-! Copyright (C) 2017 OCEAN collaboration
+! Copyright (C) 2017, 2018 OCEAN collaboration
 !
 ! This file is part of the OCEAN project and distributed under the terms 
 ! of the University of Illinois/NCSA Open Source License. See the file 
@@ -41,6 +41,7 @@ module screen_system
     character(len=4) :: chi0Integrand = 'half'
     character(len=6) :: inversionStyle = 'sinqr'
     integer :: QuadOrder = 16
+    logical :: do_augment = .true.
   end type calculation_parameters
 
   type( physical_system ), save :: psys
@@ -53,8 +54,15 @@ module screen_system
   public :: screen_system_returnKvec
   public :: screen_system_convertStyle, screen_system_chi0Integrand
   public :: screen_system_invStyle, screen_system_QuadOrder
+  public :: screen_system_doAugment
 
   contains 
+
+  pure function screen_system_doAugment() result( doAugment )
+    logical :: doAugment
+
+    doAugment = calcParams%do_augment
+  end function screen_system_doAugment
 
   pure function screen_system_chi0Integrand() result( integrand )
     character(len=4) :: integrand
@@ -165,6 +173,9 @@ module screen_system
 
       call load_params( ierr ) 
       if( ierr .ne. 0 ) goto 111
+
+      call load_calcParams( ierr )
+      if( ierr .ne. 0 ) goto 111
     endif
 
 111 continue
@@ -184,6 +195,9 @@ module screen_system
       call share_params( ierr )
       if( ierr .ne. 0 ) return
 
+      call share_calcParams( ierr )
+      if( ierr .ne. 0 ) return
+
     endif
 #endif
     params%nkpts = product( params%kmesh(:) )
@@ -191,6 +205,28 @@ module screen_system
 
   end subroutine screen_system_load
 
+  subroutine share_calcParams( ierr )
+    use OCEAN_mpi
+    integer, intent( inout ) :: ierr
+    !
+    if( nproc .eq. 1 ) return
+#ifdef MPI
+    call MPI_BCAST( calcParams%convertStyle, 4, MPI_CHARACTER, root, comm, ierr )
+    if( ierr .ne. MPI_SUCCESS ) return
+
+    call MPI_BCAST( calcParams%chi0Integrand, 4, MPI_CHARACTER, root, comm, ierr )
+    if( ierr .ne. MPI_SUCCESS ) return
+
+    call MPI_BCAST( calcParams%inversionStyle, 4, MPI_CHARACTER, root, comm, ierr )
+    if( ierr .ne. MPI_SUCCESS ) return
+
+    call MPI_BCAST( calcParams%QuadOrder, 1, MPI_INTEGER, root, comm, ierr )
+    if( ierr .ne. MPI_SUCCESS ) return
+
+    call MPI_BCAST( calcParams%do_augment, 1, MPI_LOGICAL, root, comm, ierr )
+    if( ierr .ne. MPI_SUCCESS ) return
+#endif
+  end subroutine share_calcParams
 
   subroutine share_params( ierr )
     use OCEAN_mpi
@@ -273,6 +309,102 @@ module screen_system
     return
     
   end subroutine share_xyz
+
+  ! NOT MPI SAFE ( in so much as it will let every process hit the filesystem )
+  subroutine load_calcParams( ierr )
+    integer, intent( inout ) :: ierr
+    !
+    integer :: ignoreErrors
+    logical :: ex
+
+    ignoreErrors = 0
+
+    inquire( file='screen.convertstyle', exist=ex )
+    if( ex ) then
+      open( unit=99, file='screen.convertstyle', form='formatted', status='old' )
+      read( 99, *, IOSTAT=ignoreErrors ) calcParams%convertStyle
+      close( 99 )
+      if( ignoreErrors .ne. 0 ) then
+        write(6,*) 'Error reading screen.convertstyle: ', ignoreErrors
+      endif
+    else
+      calcParams%convertStyle = ''
+    endif
+
+    select case ( calcParams%convertStyle )
+      case( 'real' , 'recp' )
+      case default
+        write( 6, * ) 'Using default for screen.convertstyle!'
+        write( 6, * ) '  screen.convertstyle = real'
+        calcParams%convertStyle = 'real'
+    end select
+
+    inquire( file='screen.chi0integrand', exist=ex )
+    if( ex ) then
+      open( unit=99, file='screen.chi0integrand', form='formatted', status='old' )
+      read( 99, *, IOSTAT=ignoreErrors ) calcParams%chi0integrand
+      close( 99 )
+      if( ignoreErrors .ne. 0 ) then
+        write(6,*) 'Error reading screen.chi0integrand: ', ignoreErrors
+      endif
+    else
+      calcParams%chi0Integrand = ''
+    endif
+
+    select case ( calcParams%chi0Integrand )
+      case( 'half' , 'full' )
+      case default
+        write( 6, * ) 'Using default for screen.chi0integrand!'
+        write( 6, * ) '  screen.chi0integrand = half'
+        calcParams%chi0Integrand = 'half'
+    end select
+    
+    inquire( file='screen.inversionstyle', exist=ex )
+    if( ex ) then
+      open( unit=99, file='screen.inversionstyle', form='formatted', status='old' )
+      read( 99, *, IOSTAT=ignoreErrors ) calcParams%inversionStyle
+      close( 99 )
+      if( ignoreErrors .ne. 0 ) then
+        write(6,*) 'Error reading screen.inversionstyle: ', ignoreErrors
+      endif
+    else
+      calcParams%inversionStyle = ''
+    endif
+
+    select case ( calcParams%inversionStyle )
+      case( 'sinqr' , 'direct' )
+      case default
+        write( 6, * ) 'Using default for screen.inversionstyle!'
+        write( 6, * ) '  screen.inversionstyle = sinqr'
+        calcParams%inversionStyle = 'sinqr'
+    end select
+
+    inquire( file='screen.quadorder', exist=ex )
+    if( ex ) then
+      open( unit=99, file='screen.quadorder', form='formatted', status='old' )
+      read( 99, *, IOSTAT=ignoreErrors ) calcParams%QuadOrder
+      close( 99 )
+    endif
+    if( ex .eqv. .false. .or. ignoreErrors .ne. 0 ) then
+      write( 6, * ) 'Using default for screen.quadorder!' 
+      write( 6, * ) '  screen.quadorder = 16'
+      calcParams%QuadOrder = 16
+    endif
+      
+    inquire( file='screen.augment', exist=ex )
+    if( ex ) then
+      open( unit=99, file='screen.augment', form='formatted', status='old' )
+      read( 99, *, IOSTAT=ignoreErrors ) calcParams%do_augment
+      close( 99 )
+    endif
+    if( ex .eqv. .false. .or. ignoreErrors .ne. 0 ) then
+      write( 6, * ) 'Using default for screen.augment!'
+      write( 6, * ) '  screen.augment = true'
+      calcParams%do_augment = .true.
+    endif
+
+  end subroutine load_calcParams
+
 
   ! NOT MPI SAFE ( in so much as it will let every process hit the filesystem )
   subroutine load_params( ierr )
