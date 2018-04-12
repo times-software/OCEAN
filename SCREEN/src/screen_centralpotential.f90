@@ -17,7 +17,7 @@ module screen_centralPotential
   type( potential ), allocatable, target :: znlPotentials( : )
 
   public :: potential
-  public :: screen_centralPotential_newScreenShell, screen_centralPotential_loadAll
+  public :: screen_centralPotential_newScreenShell
   public :: screen_centralPotential_prepAll, screen_centralPotential_freePot
   public :: screen_centralPotential_loadInternal, screen_centralPotential_freeInternal
   public :: screen_centralPotential_findNextByZ, screen_centralPotential_countByZ
@@ -67,6 +67,7 @@ module screen_centralPotential
     do i = 1, PotSize
       if( znlPotentials( i )%z .eq. Z ) n = n + 1
     enddo
+    
   end function screen_centralPotential_countByZ
 
   subroutine screen_centralPotential_findNextByZ( Z, i, PotPointers, ierr )
@@ -118,10 +119,15 @@ module screen_centralPotential
         write(6,*) tmp_znl( :, i )
       enddo
     endif
+!    write(6,*) "znlPotentials", znlLength
     allocate( znlPotentials( znlLength ), stat=ierr )
     if( ierr .ne. 0 ) return
-    call screen_centralPotential_loadAll( znlPotentials, tmp_znl, ierr )
-    if( ierr .ne. 0 ) return
+!    call screen_centralPotential_loadAll( znlLength, znlPotentials, tmp_znl, ierr )
+!    if( ierr .ne. 0 ) return
+    do i = 1, znlLength
+      call screen_centralPotential_loadSingle( znlPotentials( i ), tmp_znl( :, i ), ierr )
+      if( ierr .ne. 0 ) return
+    enddo
     deallocate( tmp_znl )
 
   end subroutine screen_centralPotential_loadInternal
@@ -145,16 +151,51 @@ module screen_centralPotential
 
   end subroutine screen_centralPotential_freePot
 
-  subroutine screen_centralPotential_loadAll( znlPot, znl, ierr )
+  subroutine screen_centralPotential_loadSingle( Pot, znl, ierr )
     use ocean_mpi, only : myid, root, comm, MPI_INTEGER
-    type( potential ), intent( out ) :: znlPot( : )
+    type( potential ), intent( inout ) :: Pot
+    integer, intent( in ) :: znl(:)
+    integer, intent( inout ) :: ierr
+
+    integer :: i, ierr_
+
+    ierr_ = 0
+
+    if( myid .eq. root ) then
+      call screen_centralPotential_load( znl(1), znl(2), znl(3), Pot, ierr )
+      write(6,*) znl(:)
+      write(6,*) Pot%z, Pot%n, Pot%l
+    endif
+#ifdef MPI
+    call MPI_BCAST( ierr, 1, MPI_INTEGER, root, comm, ierr_ )
+#endif
+    if( ierr .ne. 0 ) return
+    if( ierr_ .ne. 0 ) then
+      ierr = ierr_
+      return
+    endif
+    call screen_centralPotential_share( Pot, myid, root, comm, ierr )
+    if( ierr .ne. 0 ) return
+
+      write(3000+myid, * ) pot%z, pot%n, pot%l
+      flush(3000+myid)
+
+
+  end subroutine screen_centralPotential_loadSingle
+
+
+  subroutine screen_centralPotential_loadAll( Nznl, znlPot, znl, ierr )
+    use ocean_mpi, only : myid, root, comm, MPI_INTEGER
+    integer, intent( in ) :: Nznl
+    type( potential ), intent( inout ) :: znlPot( : )
     integer, intent( in ) :: znl(:,:)
     integer, intent( inout ) :: ierr
 
-    integer :: i, Nznl, ierr_
+    integer :: i, ierr_
 
-    Nznl = size( znlPot, 1 )
+!    Nznl = size( znlPot, 1 )
     ierr_ = 0
+    write(6,*) myid, Nznl
 
     do i = 1, Nznl
       if( myid .eq. root ) then
@@ -171,7 +212,27 @@ module screen_centralPotential
       call screen_centralPotential_share( znlPot(i), myid, root, comm, ierr )
       if( ierr .ne. 0 ) return
     enddo
+    
+!    call screen_centralPotential_dumpLog( znlPot, myid )
+    write(1000+myid, * ) 'Central Potential: ', Nznl
+
+    do i = 1, Nznl
+      write(1000+myid, * ) znlpot( i )%z, znlpot( i )%n, znlpot( i )%l
+    enddo
+
   end subroutine screen_centralPotential_loadAll
+
+  subroutine screen_centralPotential_dumpLog( pot, myid )
+    type( potential ), intent( in ) :: pot( : )
+    integer, intent( in ) :: myid
+    integer :: i
+
+    write(1000+myid, * ) 'Central Potential: ', size( pot, 1 )
+    do i = 1, size( pot, 1 )
+      write(1000+myid, * ) pot( i )%z, pot( i )%n, pot( i )%l
+    enddo
+  end subroutine screen_centralPotential_dumpLog
+
 
   subroutine screen_centralPotential_share( pot, myid_, root_, comm_, ierr )
     use ocean_mpi, only : MPI_INTEGER, MPI_DOUBLE_PRECISION
@@ -191,7 +252,12 @@ module screen_centralPotential
     call MPI_BCAST( intArray, 4, MPI_INTEGER, root_, comm_, ierr )
     if( ierr .ne. 0 ) return
     if( myid_ .ne. root_ ) then
+!      write(6,*) 'pot_share'
+!      write(6,*) intArray(:)
       allocate( pot%pot( intArray(4) ), pot%rad( intArray(4) ) )
+      pot%z = intArray(1)
+      pot%n = intArray(2)
+      pot%l = intArray(3)
     endif
     call MPI_BCAST( pot%pot, intArray(4), MPI_DOUBLE_PRECISION, root_, comm_, ierr )
     if( ierr .ne. 0 ) return
@@ -231,7 +297,7 @@ module screen_centralPotential
         return
       elseif( j .gt. 0 ) then
         ierr = j
-        return
+!        return
       endif
     enddo
     close( 99 )

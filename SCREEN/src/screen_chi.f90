@@ -72,7 +72,7 @@ module screen_chi
     write( 6, * ) 'screen_chi_makeW'
     
     nPots = screen_centralPotential_countByZ( mySite%info%Z )
-    write(6,*) 'nPots', nPots
+    write(6,*) 'nPots', nPots, mySite%info%Z
     if( nPots .lt. 1 ) return
 
     nShell = size( mySite%shells )
@@ -339,10 +339,10 @@ module screen_chi
 
     select case ( invStyle )
       case( 'sinqr' )
-        call schi_sinqr_calcW( grid, Pot, FullChi, FullChi0, FullW, ierr )
-        FullW0 = 0.0_DP 
-        Ninduced = 0.0_DP
-        N0induced = 0.0_DP
+        call schi_sinqr_calcW( grid, Pot, FullChi, FullChi0, FullW, FullW0, Ninduced, N0induced, ierr )
+!        FullW0 = 0.0_DP 
+!        Ninduced = 0.0_DP
+!        N0induced = 0.0_DP
       case( 'direct' )
         call schi_direct_calcW( grid, Pot, FullChi, FullChi0, FullW, FullW0, Ninduced, N0induced, ierr )
       case default

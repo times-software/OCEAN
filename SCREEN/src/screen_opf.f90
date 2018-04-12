@@ -33,7 +33,7 @@ module screen_opf
 
   public :: screen_opf_init, screen_opf_clean, screen_opf_makeNew, screen_opf_loadAll, &
             screen_opf_lbounds, screen_opf_getNCutoff, screen_opf_nprojForChannel, &
-            screen_opf_interpProjs, screen_opf_makeAMat, screen_opf_maxNproj
+            screen_opf_interpProjs, screen_opf_makeAMat, screen_opf_maxNproj, screen_opf_AltInterpProjs
 
   contains
 
@@ -70,7 +70,7 @@ module screen_opf
 !    write(6,*) tmat(:,:)
     call rinvert( np, tmat, ierr )
     amat( 1:np, 1:np ) = tmat( :, : )
-    deallocate( tmat )
+    deallocate( tmat, rad2drad )
 
   end subroutine screen_opf_makeAMat
     
@@ -249,8 +249,54 @@ module screen_opf
     endif
   end subroutine screen_opf_getNCutoff
 
+  subroutine screen_opf_altinterpProjs(  zee, l, rad, psproj, aeproj, ierr, itarg )
+    use OCEAN_mpi, only : myid, root
+    integer, intent( in ) :: zee, l
+    real(DP), intent( in ) :: rad( : )
+    real(DP), intent( out ) :: psproj( :, : ), aeproj( :, : )
+    integer, intent( inout ) :: ierr
+    integer, intent( inout ), optional :: itarg
+    !
+    integer :: targ, i, p
+    character(len=20 ) :: filnam
+    character(len=100) :: formatting
+
+    if( present( itarg ) ) then
+      if( isRightTarg( zee, itarg ) ) then
+        targ = itarg
+      else
+        targ = getRightTarg( zee )
+      endif
+    else
+      targ = getRightTarg( zee )
+    endif
+
+    if( targ .lt. 1 ) then
+      ierr = 1
+      return
+    endif
+
+    if( present( itarg ) ) itarg = targ
+
+    if( size( psProj, 2 ) .lt. FullTable( targ )%nprojPerChannel( l ) ) then
+      ierr = 2
+      return
+    endif
+
+    do p = 1, FullTable( targ )%nprojPerChannel( l )
+      do i = 1, size( psProj, 1 )
+        call intval( FullTable( targ )%nrad, FullTable( targ )%rad, FullTable( targ )%psProj( :, p, l ), &
+                     rad( i ), psProj( i, p ), 'err', 'err' )
+        call intval( FullTable( targ )%nrad, FullTable( targ )%rad, FullTable( targ )%aeProj( :, p, l ), &
+                     rad( i ), aeProj( i, p ), 'err', 'err' )
+      enddo
+    enddo
+
+  end subroutine screen_opf_altinterpProjs
+
 
   subroutine screen_opf_interpProjs(  zee, l, rad, psproj, diffproj, ierr, itarg )
+    use OCEAN_mpi, only : myid, root
     integer, intent( in ) :: zee, l
     real(DP), intent( in ) :: rad( : )
     real(DP), intent( out ) :: psproj( :, : ), diffproj( :, : )
@@ -258,6 +304,8 @@ module screen_opf
     integer, intent( inout ), optional :: itarg
     !
     integer :: targ, i, p
+    character(len=20 ) :: filnam
+    character(len=100) :: formatting
 
     if( present( itarg ) ) then
       if( isRightTarg( zee, itarg ) ) then
@@ -290,6 +338,25 @@ module screen_opf
         diffProj( i, p ) = diffProj( i, p ) - psProj( i, p )
       enddo
     enddo
+
+    if( myid .eq. root ) then
+      write(filnam, '(A,I2.2,I1.1)' ) 'test1.', zee, l
+      write(formatting, '("("I"(F20.10))")' ) FullTable( targ )%nprojPerChannel( l )+1
+      open(unit=99,file=filnam)
+      do i = 1, size( psProj, 1 )
+        write( 99, formatting ) rad(i), psProj( i, : )
+      enddo
+      close( 99 )
+
+      write(filnam, '(A,I2.2,I1.1)' ) 'test2.', zee, l
+      write(formatting, '("("I"(F20.10))")' ) FullTable( targ )%nprojPerChannel( l )+1
+      open(unit=99,file=filnam)
+      do i = 1, size( psProj, 1 )
+        write( 99, formatting ) rad(i), diffProj( i, : )
+      enddo
+      close( 99 )
+
+    endif
 
   end subroutine screen_opf_interpProjs
 
@@ -453,7 +520,7 @@ module screen_opf
 
       call rinvert( n, tmat, ierr )
       if( ierr .ne. 0 ) return
-      oh%aMat( 1 :, 1 : n, l ) = tmat( :, : )
+      oh%aMat( 1 : n, 1 : n, l ) = tmat( :, : )
       deallocate( tmat )
     end do
 
@@ -539,13 +606,13 @@ module screen_opf
     integer, intent( inout ) :: ierr
 
     integer :: l, i
-    character( len=7 ) :: filnam
+    character( len=16 ) :: filnam
     logical :: ex
     real(DP), allocatable :: readbuf(:)
 
     do l = oh%lMin, oh%lMax
 
-      write( filnam, '(A2,I1.1,A1,I3.3)' ) 'ae', l, 'z', oh%Zee
+      write( filnam, '(A9,A2,I1.1,A1,I3.3)' ) 'zpawinfo/', 'ae', l, 'z', oh%Zee
       inquire( file=filnam, exist=ex )
       if( ex .eqv. .false. ) then
         write( 6, * ) 'Could not find file: ', filnam
@@ -562,7 +629,7 @@ module screen_opf
       enddo
       close( 99 )
 
-      write( filnam, '(A2,I1.1,A1,I3.3)' ) 'ps', l, 'z', oh%Zee
+      write( filnam, '(A9,A2,I1.1,A1,I3.3)' ) 'zpawinfo/', 'ps', l, 'z', oh%Zee
       inquire( file=filnam, exist=ex )
       if( ex .eqv. .false. ) then
         write( 6, * ) 'Could not find file: ', filnam
@@ -607,7 +674,7 @@ module screen_opf
     integer, intent( inout ) :: ierr
 
     integer :: dumi
-    character( len=11 ) :: filnam
+    character( len=20 ) :: filnam
     logical :: ex
 
 
@@ -616,7 +683,7 @@ module screen_opf
       return
     endif
 
-    write(filnam, '(A8,I3.3)' ) 'radfilez', oh%Zee
+    write(filnam, '(A17,I3.3)' ) 'zpawinfo/radfilez', oh%Zee
     inquire( file=filnam, exist=ex )
     if( ex .eqv. .false. ) then
       write( 6, * ) 'Could not find file: ', filnam
@@ -636,7 +703,7 @@ module screen_opf
     integer, intent( inout ) :: ierr
 
     integer :: i
-    character( len=11 ) :: filnam
+    character( len=20 ) :: filnam
     logical :: ex
 
     if( oh%Zee .lt. 1 .or. oh%Zee .gt. 109 ) then
@@ -644,7 +711,7 @@ module screen_opf
       return
     endif
 
-    write(filnam, '(A8,I3.3)' ) 'prjfilez', oh%Zee
+    write(filnam, '(A17,I3.3)' ) 'zpawinfo/prjfilez', oh%Zee
     inquire( file=filnam, exist=ex )
     if( ex .eqv. .false. ) then
       write( 6, * ) 'Could not find file: ', filnam

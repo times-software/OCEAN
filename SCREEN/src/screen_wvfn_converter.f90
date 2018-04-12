@@ -295,7 +295,7 @@ module screen_wvfn_converter
       if( ierr .ne. 0 ) return
 
       ! Augment using the OPFs to give the all-electron character
-      call swl_DoAugment( all_sites( isite ), npts, nbands, temp_wavefunctions( isite )%wvfn, ierr )
+      call swl_DoAugment_2( all_sites( isite ), npts, nbands, ikpt, temp_wavefunctions( isite )%wvfn, ierr )
       if( ierr .ne. 0 ) return
   
       itag = ( isite - 1 ) * ( ikpt + ( ispin - 1 ) * params%nkpts ) &
@@ -375,18 +375,160 @@ module screen_wvfn_converter
 
   end subroutine swl_convertAndSend
 
-  subroutine swl_DoAugment( isite, npts, nbands, wavefunctions, ierr )
+  subroutine swl_DoAugment( isite, npts, nbands, iq, wavefunctions, ierr )
+    use ocean_mpi, only : myid, root
     use screen_system, only : screen_system_doAugment
     use screen_sites, only : site
     use screen_opf
 
     type( site ), intent( in ) :: isite
-    integer, intent( in ) :: npts, nbands
+    integer, intent( in ) :: npts, nbands, iq
     complex(DP), intent( inout ) :: wavefunctions( npts, nbands )
     integer, intent( inout ) :: ierr
 
-    complex(DP), allocatable, dimension( :, : ) :: waveByLM, Delta, Ylm, Smat, Cmat, TCmat, weightedYlmStar
-    real(DP), allocatable, dimension( :, :, : ) :: psproj, diffproj, amat
+    complex(DP), allocatable :: Ylm( :, : ), chg( : ), phi( : ), fit( : ), s( : )
+    real(DP), allocatable, dimension(:,:) :: psproj, aeproj, amat
+    real(DP), allocatable :: prefs(:)
+
+    complex(DP) :: c
+
+    integer :: l, m, lmin, lmax, itarg, nproj, maxNproj, ncutoff
+    integer :: i, j, k, il, nl, totLM, ib
+    character(len=20 ) :: filnam, fnam
+    character(len=100) :: formatting
+
+    if( .not. screen_system_doAugment() ) return
+
+    ! gather projector information
+    call screen_opf_lbounds( isite%info%z, lmin, lmax, ierr, itarg )
+    if( ierr .ne. 0 ) return
+
+   
+    call screen_opf_getNCutoff( isite%info%z, ncutoff, isite%grid%rad, ierr, itarg )
+    if( ierr .ne. 0 ) return
+
+    call screen_opf_maxNproj( isite%info%z, maxNproj, ierr, itarg )
+    if( ierr .ne. 0 ) return
+
+    totLM = ( lmax + 1 ) ** 2
+
+    allocate( Ylm( isite%grid%nang, totLM ), phi( ncutoff ), chg( ncutoff ), fit( ncutoff ) )
+
+    allocate( prefs(0:1000) )
+    call getprefs( prefs )
+    il = 0
+    do l = lmin, lmax
+      do m = -l, l
+        il = il + 1
+        do j = 1, isite%grid%nang
+
+          call ylmeval( l, m, isite%grid%agrid%angles(1,j), isite%grid%agrid%angles(2,j), &
+                        isite%grid%agrid%angles(3,j), ylm(j,il), prefs )
+        enddo
+      enddo
+    enddo
+    deallocate( prefs )
+
+
+    do ib = 1, nbands
+      il = 0
+      do l = lmin, lmax
+        ! grab projectors and amat for this l
+
+        call screen_opf_nprojForChannel( isite%info%z, l, nproj, ierr, itarg )
+        if( ierr .ne. 0 ) return
+
+        allocate( psproj( ncutoff, nproj ), aeproj( ncutoff, nproj ), amat( nproj, nproj ), s( nproj ) )
+
+        call screen_opf_AltInterpProjs( isite%info%z, l, isite%grid%rad, psproj, aeproj, ierr, itarg )
+        if( ierr .ne. 0 ) return
+
+        call screen_opf_makeAMat( nproj, ncutoff, isite%grid%rad, isite%grid%drad, psproj, amat, ierr )
+        if( ierr .ne. 0 ) return
+
+        do m = -l, l
+          il = il + 1
+          
+          phi( : ) = 0.0_DP
+          k = 0
+          do i = 1, ncutoff
+            do j = 1, isite%grid%nang
+              k = k + 1
+              phi( i ) = phi( i )+ isite%grid%agrid%weights( j ) * conjg( Ylm( j, il ) ) * wavefunctions( k, ib )
+            enddo
+          enddo
+
+          s(:) = 0.0_DP
+          do j = 1, nproj
+            do k = 1, ncutoff
+              s(j) = s(j) + isite%grid%drad( k ) * isite%grid%rad( k ) ** 2 * psproj( k, j ) * phi( k )
+            enddo
+          enddo
+
+          fit( : ) = 0.0_dp
+          chg( : ) = 0.0_dp
+
+          do j = 1, nproj
+            c = 0.0_DP
+            do k = 1, nproj
+              c = c + amat( j, k ) * s( k )
+            enddo
+            
+            fit( : ) = fit( : ) + c * psproj( :, j )
+            chg( : ) = chg( : ) + c * ( aeproj( :, j ) - psproj( :, j ) )
+          enddo
+
+          k = 0
+          do i = 1, ncutoff
+            do j = 1, isite%grid%nang
+              k = k + 1
+              wavefunctions( k, ib ) = wavefunctions( k, ib ) + chg( i ) * ylm( j, il )
+            enddo
+          enddo
+
+#ifdef DEBUG          
+          write ( fnam, '(1a4,2i5.5,1i2.2)' ) '.aug', iq, ib, 10 * l + ( m + l )
+          open( unit=99, file=fnam, form='formatted', status='unknown' )
+          rewind 99
+          write(formatting, '("(A,"I"(F20.10))")' ) nproj
+          write( 99, formatting ) '#', real(s( : ), DP)
+          write( 99, formatting ) '#', aimag(s( : ))
+          do k = 1, nproj
+            write( 99, formatting ) '#', amat( :, k )
+          enddo
+          do k = 1, ncutoff
+            write ( 99, '(7(E20.12))' ) isite%grid%rad( k ), fit( k ) , phi(k ), chg( k )
+          enddo
+          close( 99 )
+          if( iq .eq. 1 .and. ib .eq. 100 .and. l .eq. 0 ) then
+            write(6,*) '!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!'
+          endif
+#endif
+
+
+        enddo ! m
+        deallocate( psproj, aeproj, amat, s )
+      enddo ! l
+    enddo
+
+    deallocate( ylm, phi, chg, fit )
+
+  end subroutine swl_DoAugment
+
+  subroutine swl_DoAugment_2( isite, npts, nbands, iq, wavefunctions, ierr )
+    use ocean_mpi, only : myid, root
+    use screen_system, only : screen_system_doAugment
+    use screen_sites, only : site
+    use screen_opf
+
+    type( site ), intent( in ) :: isite
+    integer, intent( in ) :: npts, nbands, iq
+    complex(DP), intent( inout ) :: wavefunctions( npts, nbands )
+    integer, intent( inout ) :: ierr
+
+    complex(DP), allocatable, dimension( :, : ) :: waveByLM, Delta, Ylm, Smat, Cmat, TCmat, weightedYlmStar, fit
+    complex(DP), allocatable :: su(:)
+    real(DP), allocatable, dimension( :, :, : ) :: psproj, diffproj, amat, psproj_hold
     real(DP), allocatable :: prefs(:)
 
     complex(DP), parameter :: zone = 1.0_DP
@@ -394,6 +536,9 @@ module screen_wvfn_converter
     
     integer :: l, m, lmin, lmax, itarg, nproj, maxNproj, ncutoff
     integer :: i, j, k, il, nl, totLM, ib
+
+    character(len=20 ) :: filnam, fnam
+    character(len=100) :: formatting
 
     if( .not. screen_system_doAugment() ) return
 !    write(6,*) 'Start Augment'
@@ -412,11 +557,13 @@ module screen_wvfn_converter
     
     ! allocate space and carry out preliminary projector prep
     allocate( ylm( isite%grid%nang, totLM ), waveByLM( ncutoff, totLM ), Delta( totLM, ncutoff ), &
-              weightedYlmStar( isite%grid%nang, totLM ) )
+              weightedYlmStar( isite%grid%nang, totLM ), fit( ncutoff, totLM ), su( totLM ) )
     
     allocate( psproj( ncutoff, maxnproj, lmin:lmax ), diffproj( ncutoff, maxnproj, lmin:lmax ), &
-              amat( maxnproj, maxnproj, lmin:lmax ), stat=ierr )
+              amat( maxnproj, maxnproj, lmin:lmax ), psproj_hold( ncutoff, maxnproj, lmin:lmax ), stat=ierr )
     if( ierr .ne. 0 ) return
+    psproj = 0.0_DP
+    psproj_hold = 0.0_DP
 
     do l = lmin, lmax
       call screen_opf_nprojForChannel( isite%info%z, l, nproj, ierr, itarg )
@@ -431,9 +578,23 @@ module screen_wvfn_converter
       ! precompute r^2 dr on the ps projector
       do i = 1, nproj
         do j = 1, ncutoff
+          psproj_hold( j, i, l ) = psproj( j, i, l )
           psproj( j, i, l ) = psproj( j, i, l ) * isite%grid%rad( j ) ** 2 * isite%grid%drad( j )
         enddo
       enddo
+
+#ifdef DEBUG
+      if( myid .eq. root ) then
+        write(filnam, '(A,I2.2,I1.1)' ) 'amat.', isite%info%z, l
+        write(formatting, '("("I"(F20.10))")' ) nproj
+        open(unit=99,file=filnam) 
+        rewind( 99 )
+        do i = 1, nproj
+          write( 99, formatting ) amat( 1 : nproj, i, l )
+        enddo
+        close( 99 )
+      endif
+#endif
 
     enddo  
 
@@ -459,26 +620,47 @@ module screen_wvfn_converter
     ! loop over bands
     do ib = 1, nbands
 !      write( 6, * ) ib
-      call ZGEMM( 'T', 'N', ncutoff, totLM, isite%grid%nang, zone, wavefunctions( :, ib ), &
-                  isite%grid%nang, weightedYlmStar, isite%grid%nang, zero, waveByLM, ncutoff )
+!      call ZGEMM( 'T', 'N', ncutoff, totLM, isite%grid%nang, zone, wavefunctions( :, ib ), &
+!                  isite%grid%nang, weightedYlmStar, isite%grid%nang, zero, waveByLM, ncutoff )
+      waveByLM = 0.0_DP
+      il = 0
+      do l = lmin, lmax
+        do m = -l, l
+          il = il + 1
+          k = 0
+          do i = 1, ncutoff
+            do j = 1, isite%grid%nang
+              k = k + 1
+              waveByLM( i, il ) = waveByLM( i, il ) & 
+                                + wavefunctions( k, ib ) * conjg( ylm( j, il ) ) * isite%grid%agrid%weights(j)
+            enddo
+          enddo
+        enddo
+      enddo
 
+
+      su = 0.0_DP
       Delta = 0.0_DP
+      fit = 0.0_DP
       il = 1
       do l = lmin, lmax
-!        write(6,*) l
         call screen_opf_nprojForChannel( isite%info%z, l, nproj, ierr, itarg )
         if( ierr .ne. 0 ) return
 
-        ! Have mixed real/complex which isn't compatible with BLAS
+!       ! Have mixed real/complex which isn't compatible with BLAS
 !        nl = 2*l + 1
 !        call ZGEMM( 'T', 'N', nproj, nl, ncutoff, zone, psproj(:,:,l), ncutoff, & 
 !                    waveByLM(:,il), ncutoff, zero, Smat, nproj )
+!       !\ 
+
 
         nl = il + 2*l ! no plus 1 because we are adding, ie l=0 we go from 1 to 1, l=1 we go from 2 to 4 (inclusive)
+!        write(6,*) l, il, nl
         allocate( Smat( nproj, il:nl ), Cmat( nproj, il:nl ), TCmat( il:nl, nproj ) )
         do i = il, nl
           do j = 1, nproj
-            Smat( j, i ) = dot_product( psproj(1:ncutoff,j,l), waveByLM(1:ncutoff,i) )
+!            Smat( j, i ) = dot_product( psproj(1:ncutoff,j,l), waveByLM(1:ncutoff,i) )
+            Smat( j, i ) = sum( psproj(1:ncutoff,j,l) * waveByLM(1:ncutoff,i) )
           enddo
         enddo
     
@@ -494,16 +676,36 @@ module screen_wvfn_converter
 
 !        ! The conjg is becuase we originially took the star of the wavefunctions and not Ylm
 !        TCmat(:,:) = conjg( transpose( Cmat ) )
-        TCmat(:,:) = transpose( Cmat )
+!        TCmat(:,:) = transpose( Cmat )
 
         ! last time for mixed real/complex
         do j = 1, nproj
           do k = 1, ncutoff
             do i = il, nl
-              Delta( i, k ) = Delta( i, k ) + TCmat( i, j ) * diffProj( k, j, l )
+!              Delta( i, k ) = Delta( i, k ) + TCmat( i, j ) * diffProj( k, j, l )
+              Delta( i, k ) = Delta( i, k ) + Cmat( j, i ) * diffProj( k, j, l )
+              fit( k, i ) = fit( k, i ) + Cmat( j, i ) * psProj_hold( k, j, l )
             enddo
           enddo
         enddo
+
+#if 0
+        do i = il, nl
+          do k = 1, nproj
+            do j = 1, nproj
+              su( i ) = su( i ) + conjg(Cmat( j, i )) * amat( j, k, l ) * Cmat( k, i )
+            enddo
+          enddo
+        enddo
+#endif
+            
+#ifdef DEBUG
+        write(formatting, '("(I5,X,I3,"I"(F20.10))")' ) 2*nproj
+        do i = il, nl
+        write(5000+iq, formatting ) ib, i, Cmat( :, i )
+        enddo
+#endif
+
         deallocate( Smat, Cmat, TCmat )
 
 
@@ -511,19 +713,50 @@ module screen_wvfn_converter
         il = nl + 1
       enddo ! l
 
+#ifdef DEBUG
+      i = 0
+      do l = lmin, lmax
+        do m = -l, l
+          i = i + 1
+          write ( fnam, '(1a4,2i5.5,1i2.2)' ) '.aug', iq, ib, 10 * l + ( m + l )
+          open( unit=99, file=fnam, form='formatted', status='unknown' )
+          rewind 99
+!          write ( 99, '(A1,X,16(E20.12))' ) '#', su(:)
+          write(formatting, '("("I"(F20.10))")' ) 5+nproj
+          do k = 1, ncutoff
+            write ( 99, formatting ) isite%grid%rad( k ), fit( k, i ) , waveByLM(k,i), psProj_hold( k, :, l )
+!            write ( 99, '(5(E20.12))' ) isite%grid%rad( k ), fit( k, i ) , waveByLM(k,i)
+          enddo
+          close( 99 )
+        enddo
+      enddo
+#endif
 
       ! now augment
-      call ZGEMM( 'N', 'N', isite%grid%nang, ncutoff, totLM, zone, ylm, isite%grid%nang, &
-                  Delta, totLM, zone, wavefunctions(:,ib), isite%grid%nang )
+!      call ZGEMM( 'N', 'N', isite%grid%nang, ncutoff, totLM, zone, ylm, isite%grid%nang, &
+!                  Delta, totLM, zone, wavefunctions(:,ib), isite%grid%nang )
+      il = 0
+      do l = lmin, lmax
+        do m = -l, l
+          il = il + 1
+          k = 0
+          do i = 1, ncutoff
+            do j = 1, isite%grid%nang
+              k = k + 1
+              wavefunctions( k, ib ) = wavefunctions( k, ib ) + Delta( il, i ) * ylm( j, il )
+            enddo
+          enddo
+        enddo
+      enddo
 
     enddo
 
-    deallocate( psproj, diffproj, amat )
+    deallocate( psproj, diffproj, amat, su )
     deallocate( Delta, waveByLM, ylm, weightedYlmStar )
 
 !    write(6,*) 'Augment done'
 
-  end subroutine swl_DoAugment
+  end subroutine swl_DoAugment_2
 
 
   subroutine swl_DoProject( ngvecs, npts, nbands, uofg, gvecs, bvecs, qcart, &
@@ -840,11 +1073,13 @@ module screen_wvfn_converter
     call zgemm( 'N', 'N', npts, nbands, ngvecs, cone, phases, npts, uofg, ngvecs, czero, &
                 wavefunctions, npts )
 
+#ifdef DEBUG
     do j = 1, 8
       do i = 1, npts
         write(2002,'(2(E20.10,1X))') wavefunctions( i, j )
       enddo
     enddo
+#endif
 
     deallocate( phases )
   end subroutine realu2

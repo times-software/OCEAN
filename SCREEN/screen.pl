@@ -30,7 +30,8 @@ my @CommonFiles = ("znucl", "opf.hfkgrid", "opf.fill", "opf.opts", "pplist", "sc
 my @ScreenFiles = ("screen.grid.scheme", "screen.grid.rmode", "screen.grid.ninter", 
                    "screen.grid.shells", "screen.grid.xyz", "screen.grid.rmax", "screen.grid.ang",
                    "screen.grid.lmax", "screen.grid.nb", "screen.grid.nr", "screen.final.rmax", 
-                   "screen.final.dr", "screen.legacy", "screen.model.dq", "screen.model.qmax" );
+                   "screen.final.dr", "screen.legacy", "screen.model.dq", "screen.model.qmax", 
+                   "screen.augment" );
 
 my @DenDipFiles = ("rhoofg", "bvecs", "efermiinrydberg.ipt");
 my @DenDipFiles2 = ( "masterwfile", "listwfile", "enkfile", "kmesh.ipt", "brange.ipt" );
@@ -46,6 +47,16 @@ if (-e "../PREP/PAW/old" && -e "done" ) {
     if (`diff -q $_ ../Common/$_`) {
       $runSCREEN = 1;
       last;
+    }
+  }
+  if( $runSCREEN == 0 )
+  {
+    foreach (@ScreenFiles)
+    {
+      if (`diff -q $_ ../Common/$_`) {
+        $runSCREEN = 1;
+        last;
+      }
     }
   }
 }
@@ -345,6 +356,7 @@ else
   # Identify unique ZNL combos
   my %completeList;
   my %edgelist;
+  my %zeelist;
   my @hfinlist;
   open HFINLIST, "hfinlist" or die "Failed to open hfinlist\n";
 
@@ -365,6 +377,7 @@ else
     my $edgeEntry = sprintf "%3i %2i %2i", $2, $3, $4;
 
     $edgelist{ "$edgeEntry" } = '1';
+    $zeelist{ "$2" } = '1';
 
     push @{ $completeList{ $siteName } }, [( $edgeName, $edgeEntry) ];
     
@@ -394,8 +407,18 @@ else
   }
   close EDGELIST;
 
+  open ZEELIST, ">", "zeelist" or die "Failed to open zeelist for writing\n$!";
+  print ZEELIST ( scalar keys %zeelist ) . "\n";
+  foreach my $Zee (keys %zeelist )
+  {
+    print ZEELIST "$Zee\n";
+  }
+  close ZEELIST;
+
+
 
   system("$para_prefix $ENV{'OCEAN_BIN'}/screen_driver.x") == 0 or die "$!\nFailed to run screen_driver.x\n";
+  print "screen_driver.x done\n";
 
   system("$ENV{'OCEAN_BIN'}/vhommod.x") == 0 or die "$!\nFailed to run vhommod.x\n";
 
@@ -541,7 +564,22 @@ else
         my $rundir = catfile( $currentSite, $currentEdge[0], $radName );
         chdir $rundir or die;
 
-        for( my $reconstruct = 0; $reconstruct <= 1; $reconstruct++ )
+        # If all-electron augmentation then can only make augmented=true version of screened potential
+        #  but shouldn't use the faked atomic calculation version
+        my $recon_start = 0; 
+        my $recon_stop = 1;
+        if( $screen_data_files{ "augment" } =~ m/t/i )
+        {
+          $recon_start = -1;
+          $recon_stop = -1;
+          print "screen_driver used augmentation\n";
+        }
+        else
+        {
+          print "screen_driver did not use augmentation\n";
+        }
+    
+        for( my $reconstruct = $recon_start; $reconstruct <= $recon_stop; $reconstruct++ )
         {
           open OUT, ">", "ipt1" or die "Failed to open ipt\n$!";
 
@@ -566,12 +604,21 @@ else
             print OUT "$vc_bare{ $currentEdge[1] }[0][$i]  $vc_bare{ $currentEdge[1] }[1][$i]\n";
           }
 
-          if( $reconstruct == 0 )
+          # True reconstruction of wavefunctions
+          if( $reconstruct == -1 )
+          {
+            print OUT ".false.\n$screen_data_files{'final.dr'} $final_nr\n";
+            close OUT;
+            system( "$ENV{'OCEAN_BIN'}/rscombine.x < ipt1 > ropt") == 0 or die;
+          }
+          # No reconstruction
+          elsif( $reconstruct == 0 )
           {
             print OUT ".false.\n$screen_data_files{'final.dr'} $final_nr\n";
             close OUT;
             system( "$ENV{'OCEAN_BIN'}/rscombine.x < ipt1 > ropt_false") == 0 or die;
           }
+          # Fake reconstruction using atomic all-electron/pseudo difference
           else
           {
             print OUT ".true.\n";

@@ -399,8 +399,8 @@ module screen_system
     endif
     if( ex .eqv. .false. .or. ignoreErrors .ne. 0 ) then
       write( 6, * ) 'Using default for screen.augment!'
-      write( 6, * ) '  screen.augment = true'
-      calcParams%do_augment = .true.
+      write( 6, * ) '  screen.augment = false'
+      calcParams%do_augment = .false.
     endif
 
   end subroutine load_calcParams

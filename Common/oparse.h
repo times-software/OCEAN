@@ -22,6 +22,10 @@ dft.split
 {
 .false.
 } dft.split
+dft.qe_redirect
+{
+.false.
+} dft.qe_redirect
 nbands
 {
 -1
@@ -474,3 +478,7 @@ screen.legacy
 {
 1
 } screen.legacy
+screen.augment
+{
+.true.
+} screen.augment

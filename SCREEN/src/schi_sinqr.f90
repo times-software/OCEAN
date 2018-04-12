@@ -21,7 +21,7 @@ module schi_sinqr
 
   contains
 
-  subroutine schi_sinqr_calcW( grid, Pot, FullChi, FullChi0, FullW, ierr )
+  subroutine schi_sinqr_calcW( grid, Pot, FullChi, FullChi0, FullW, FullW0, Ninduced, N0induced, ierr )
     use ocean_constants, only : PI_DP
     use screen_grid, only : sgrid
     use screen_centralPotential, only : potential
@@ -29,11 +29,11 @@ module schi_sinqr
     type( potential ), intent( in ) :: Pot
     real(DP), intent( in ) :: FullChi(:,:,:,:)
     real(DP), intent( in ) :: FullChi0(:,:,:,:)
-    real(DP), intent( out ) :: FullW(:,:)
+    real(DP), intent( out ), dimension( :, :) :: FullW, FullW0, Ninduced, N0induced
     integer, intent( inout ) :: ierr
 
     real(DP), allocatable :: vipt( : ), basfcn(:,:), qtab(:), rhs(:), potfcn(: ,: ), weight( : )
-    real(DP) :: q, pref, arg, su, coul, cterm
+    real(DP) :: q, pref, arg, su, coul, cterm, su0
     integer :: i, j ,ii
     integer :: nbasis, npt, nr
 
@@ -65,11 +65,13 @@ module schi_sinqr
         arg = q * grid%rad( j )
         if( arg .gt. 0.0002_DP ) then
 !          basfcn( j, i ) = grid%rad( j )**2 * grid%drad( j ) * pref * sin( arg ) / arg 
-          basfcn( j, i ) = weight( j ) * pref * sin( arg ) / arg 
+!          basfcn( j, i ) = weight( j ) * pref * sin( arg ) / arg 
+          basfcn( j, i ) = pref * sin( arg ) / arg
           potfcn( j, i ) = pref * coul * ( sin( arg ) / arg - cterm )
         else
 !          basfcn( j, i ) = grid%rad( j )**2 * grid%drad( j )* pref * (1.0_DP - arg**2/4.0_DP )
-          basfcn( j, i ) = weight( j ) * pref * (1.0_DP - arg**2/4.0_DP )
+!          basfcn( j, i ) = weight( j ) * pref * (1.0_DP - arg**2/4.0_DP )
+          basfcn( j, i ) = pref * (1.0_DP - arg**2/4.0_DP )
           potfcn( j, i ) = pref * coul * ( 1.0_DP - arg**2/4.0_DP - cterm )
         endif
       enddo
@@ -86,7 +88,8 @@ module schi_sinqr
     do i = 1, nbasis
        su = 0
        do ii = 1, nr
-          su = su + basfcn( ii, i ) * vipt( ii ) !* grid%wpt( ii )
+!          su = su + basfcn( ii, i ) * vipt( ii ) !* grid%wpt( ii )
+          su = su + basfcn( ii, i ) * vipt( ii ) * weight( ii )
        end do
        rhs( i ) = su
 !       write(6,'(1i5,2(1x,1e15.8))' ) i, qtab( i ), rhs( i )
@@ -102,10 +105,15 @@ module schi_sinqr
 #endif
 
     FullW(:,:) = 0.0_DP
+    FullW0(:,:) = 0.0_DP
+    Ninduced(:,:) = 0.0_DP
+    N0induced(:,:) = 0.0_DP
     do i = 1, nbasis
       su = 0.0_dp
+      su0 = 0.0_DP
       do j = 1, nbasis
         su = su + FullChi( i, 1, j, 1 ) * rhs( j )
+        su0 = su0 + FullChi0( i, 1, j, 1 ) * rhs( j )
 #ifdef DEBUG
         write(98, '(2i5,3(1x,1e15.8))' ) i, j, qtab( i ), qtab( j ), FullChi( i, 1, j, 1 )
 #endif
@@ -113,6 +121,9 @@ module schi_sinqr
 
       do ii = 1, nr
         FullW( ii, 1 ) = FullW( ii, 1 ) + su * potfcn( ii, i )
+        FullW0( ii, 1 ) = FullW0( ii, 1 ) + su0 * potfcn( ii, i )
+        Ninduced( ii, 1 ) = Ninduced( ii, 1 ) + su * basfcn( ii, i )
+        N0induced( ii, 1 ) = N0induced( ii, 1 ) + su0 * basfcn( ii, i )
       enddo
 #ifdef DEBUG
       write(98,*)
