@@ -45,7 +45,7 @@ my @EspressoFiles = ( "coord", "degauss", "ecut", "etol", "fband", "ibrav",
     "spinorb", "taulist", "typat", "verbatim", "work_dir", "tmp_dir", "wftol", 
     "den.kshift", "obkpt.ipt", "trace_tol", "ham_kpoints", "obf.nbands","tot_charge", 
     "nspin", "smag", "ldau", "qe_scissor", "zsymb", "dft.calc_stress", "dft.calc_force", "dft.split", "dft",
-    "dft.startingwfc", "dft.diagonalization" );
+    "dft.startingwfc", "dft.diagonalization", "dft.qe_redirect" );
 my @PPFiles = ("pplist", "znucl");
 my @OtherFiles = ("epsilon", "pool_control");
 
@@ -161,6 +161,20 @@ my $run_screen = 1;
 if( $calc =~ m/val/i )
 {
   $run_screen = 0;
+}
+
+# Input to QE can be done via redirect (legacy) or -inp (more stable)
+open IN, "dft.qe_redirect" or die "Failed to open dft.qe_redirect\n$!";
+my $qe_redirect = <IN>;
+close IN;
+chomp( $qe_redirect );
+if( $qe_redirect =~ m/f/i )
+{
+  $qe_redirect = 0;
+}
+elsif( $qe_redirect =~ m/t/i )
+{
+  $qe_redirect = 1;
 }
 
 
@@ -363,15 +377,33 @@ if ($RunESPRESSO) {
   print "Density SCF Run\n";
   if( $obf == 1 )
   {
-    print  "$para_prefix $ENV{'OCEAN_ESPRESSO_OBF_PW'}  -npool $npool < scf.in > scf.out 2>&1\n";
-    system("$para_prefix $ENV{'OCEAN_ESPRESSO_OBF_PW'}  -npool $npool < scf.in > scf.out 2>&1") == 0
-        or die "Failed to run scf stage for Density\n";
+    if( $qe_redirect ) 
+    {
+      print  "$para_prefix $ENV{'OCEAN_ESPRESSO_OBF_PW'}  -npool $npool < scf.in > scf.out 2>&1\n";
+      system("$para_prefix $ENV{'OCEAN_ESPRESSO_OBF_PW'}  -npool $npool < scf.in > scf.out 2>&1") == 0
+          or die "Failed to run scf stage for Density\n";
+    }
+    else
+    {
+      print  "$para_prefix $ENV{'OCEAN_ESPRESSO_OBF_PW'}  -npool $npool -inp scf.in > scf.out 2>&1\n";
+      system("$para_prefix $ENV{'OCEAN_ESPRESSO_OBF_PW'}  -npool $npool -inp scf.in > scf.out 2>&1") == 0
+          or die "Failed to run scf stage for Density\n";
+    }
   }
   else
   {
-    print  "$para_prefix $ENV{'OCEAN_ESPRESSO_PW'}  -npool $npool < scf.in > scf.out 2>&1\n";
-    system("$para_prefix $ENV{'OCEAN_ESPRESSO_PW'}  -npool $npool < scf.in > scf.out 2>&1") == 0
-        or die "Failed to run scf stage for Density\n";
+    if( $qe_redirect )
+    {    
+      print  "$para_prefix $ENV{'OCEAN_ESPRESSO_PW'}  -npool $npool < scf.in > scf.out 2>&1\n";
+      system("$para_prefix $ENV{'OCEAN_ESPRESSO_PW'}  -npool $npool < scf.in > scf.out 2>&1") == 0
+          or die "Failed to run scf stage for Density\n";
+    } 
+    else
+    {
+      print  "$para_prefix $ENV{'OCEAN_ESPRESSO_PW'}  -npool $npool -inp scf.in > scf.out 2>&1\n";
+      system("$para_prefix $ENV{'OCEAN_ESPRESSO_PW'}  -npool $npool -inp scf.in > scf.out 2>&1") == 0
+          or die "Failed to run scf stage for Density\n";
+    }
   }
   open OUT, ">scf.stat" or die "Failed to open scf.stat\n$!";
   print OUT "1\n";
@@ -381,21 +413,43 @@ if ($RunESPRESSO) {
   print "Density PP Run\n";
   if( $obf == 1 )
   {  
-    print  "$para_prefix $ENV{'OCEAN_ESPRESSO_OBF_PP'}  -npool $npool < pp.in > pp.out 2>&1\n";
-    system("$para_prefix $ENV{'OCEAN_ESPRESSO_OBF_PP'} -npool $npool < pp.in > pp.out 2>&1") == 0
-       or die "Failed to run density stage for SCREENING\n";
-    print  "$para_prefix $ENV{'OCEAN_ESPRESSO_OBF_PP'}  -npool $npool < pp2.in > pp2.out 2>&1\n";
-    system("$para_prefix $ENV{'OCEAN_ESPRESSO_OBF_PP'} -npool $npool < pp2.in > pp2.out 2>&1") == 0
-       or die "Failed to run density stage for SCREENING\n";
+    if( $qe_redirect )
+    {
+      print  "$para_prefix $ENV{'OCEAN_ESPRESSO_OBF_PP'}  -npool $npool < pp.in > pp.out 2>&1\n";
+      system("$para_prefix $ENV{'OCEAN_ESPRESSO_OBF_PP'} -npool $npool < pp.in > pp.out 2>&1") == 0
+         or die "Failed to run density stage for SCREENING\n";
+      print  "$para_prefix $ENV{'OCEAN_ESPRESSO_OBF_PP'}  -npool $npool < pp2.in > pp2.out 2>&1\n";
+      system("$para_prefix $ENV{'OCEAN_ESPRESSO_OBF_PP'} -npool $npool < pp2.in > pp2.out 2>&1") == 0
+         or die "Failed to run density stage for SCREENING\n";
+    } else
+    {
+      print  "$para_prefix $ENV{'OCEAN_ESPRESSO_OBF_PP'}  -npool $npool -inp pp.in > pp.out 2>&1\n";
+      system("$para_prefix $ENV{'OCEAN_ESPRESSO_OBF_PP'} -npool $npool -inp pp.in > pp.out 2>&1") == 0
+         or die "Failed to run density stage for SCREENING\n";
+      print  "$para_prefix $ENV{'OCEAN_ESPRESSO_OBF_PP'}  -npool $npool -inp pp2.in > pp2.out 2>&1\n";
+      system("$para_prefix $ENV{'OCEAN_ESPRESSO_OBF_PP'} -npool $npool -inp pp2.in > pp2.out 2>&1") == 0
+         or die "Failed to run density stage for SCREENING\n";
+    }
   }
   else
   {
-    print  "$para_prefix $ENV{'OCEAN_ESPRESSO_PP'}  -npool $npool < pp.in > pp.out 2>&1\n";
-    system("$para_prefix $ENV{'OCEAN_ESPRESSO_PP'} -npool $npool < pp.in > pp.out 2>&1") == 0
-       or die "Failed to run density stage for SCREENING\n";
-    print  "$para_prefix $ENV{'OCEAN_ESPRESSO_PP'}  -npool $npool < pp2.in > pp2.out 2>&1\n";
-    system("$para_prefix $ENV{'OCEAN_ESPRESSO_PP'} -npool $npool < pp2.in > pp2.out 2>&1") == 0
-       or die "Failed to run density stage for SCREENING\n";
+    if( $qe_redirect )
+    {  
+      print  "$para_prefix $ENV{'OCEAN_ESPRESSO_PP'}  -npool $npool < pp.in > pp.out 2>&1\n";
+      system("$para_prefix $ENV{'OCEAN_ESPRESSO_PP'} -npool $npool < pp.in > pp.out 2>&1") == 0
+         or die "Failed to run density stage for SCREENING\n";
+      print  "$para_prefix $ENV{'OCEAN_ESPRESSO_PP'}  -npool $npool < pp2.in > pp2.out 2>&1\n";
+      system("$para_prefix $ENV{'OCEAN_ESPRESSO_PP'} -npool $npool < pp2.in > pp2.out 2>&1") == 0
+         or die "Failed to run density stage for SCREENING\n";
+    } else
+    {
+      print  "$para_prefix $ENV{'OCEAN_ESPRESSO_PP'}  -npool $npool -inp pp.in > pp.out 2>&1\n";
+      system("$para_prefix $ENV{'OCEAN_ESPRESSO_PP'} -npool $npool -inp pp.in > pp.out 2>&1") == 0
+         or die "Failed to run density stage for SCREENING\n";
+      print  "$para_prefix $ENV{'OCEAN_ESPRESSO_PP'}  -npool $npool -inp pp2.in > pp2.out 2>&1\n";
+      system("$para_prefix $ENV{'OCEAN_ESPRESSO_PP'} -npool $npool -inp pp2.in > pp2.out 2>&1") == 0
+         or die "Failed to run density stage for SCREENING\n";
+    }
   }
   open OUT, ">den.stat" or die "Failed to open scf.stat\n$!";
   print OUT "1\n";
@@ -615,10 +669,17 @@ if ( $nscfRUN ) {
     }
     close INPUT;
 
-
-    print  "$para_prefix $ENV{'OCEAN_ESPRESSO_OBF_PW'} -npool $npool < nscf.in > nscf.out 2>&1\n";
-    system("$para_prefix $ENV{'OCEAN_ESPRESSO_OBF_PW'} -npool $npool < nscf.in > nscf.out 2>&1") == 0
-       or die "Failed to run nscf stage for OBFs\n";
+    if( $qe_redirect )
+    {  
+      print  "$para_prefix $ENV{'OCEAN_ESPRESSO_OBF_PW'} -npool $npool < nscf.in > nscf.out 2>&1\n";
+      system("$para_prefix $ENV{'OCEAN_ESPRESSO_OBF_PW'} -npool $npool < nscf.in > nscf.out 2>&1") == 0
+         or die "Failed to run nscf stage for OBFs\n";
+    } else
+    {
+      print  "$para_prefix $ENV{'OCEAN_ESPRESSO_OBF_PW'} -npool $npool -inp nscf.in > nscf.out 2>&1\n";
+      system("$para_prefix $ENV{'OCEAN_ESPRESSO_OBF_PW'} -npool $npool -inp nscf.in > nscf.out 2>&1") == 0
+         or die "Failed to run nscf stage for OBFs\n";
+    }
     print "NSCF complete\n";
 
     open OUT, ">nscf.stat" or die "Failed to open nscf.stat\n$!";
@@ -793,9 +854,17 @@ if ( $nscfRUN ) {
     close INPUT;
 
     print "BSE NSCF Run\n";
-    print  "$para_prefix $ENV{'OCEAN_ESPRESSO_PW'}  -npool $npool < nscf.in > nscf.out 2>&1\n";
-    system("$para_prefix $ENV{'OCEAN_ESPRESSO_PW'}  -npool $npool < nscf.in > nscf.out 2>&1") == 0
-        or die "Failed to run nscf stage for BSE wavefunctions\n";
+    if( $qe_redirect )
+    {  
+      print  "$para_prefix $ENV{'OCEAN_ESPRESSO_PW'}  -npool $npool < nscf.in > nscf.out 2>&1\n";
+      system("$para_prefix $ENV{'OCEAN_ESPRESSO_PW'}  -npool $npool < nscf.in > nscf.out 2>&1") == 0
+          or die "Failed to run nscf stage for BSE wavefunctions\n";
+    } else
+    {
+      print  "$para_prefix $ENV{'OCEAN_ESPRESSO_PW'}  -npool $npool -inp nscf.in > nscf.out 2>&1\n";
+      system("$para_prefix $ENV{'OCEAN_ESPRESSO_PW'}  -npool $npool -inp nscf.in > nscf.out 2>&1") == 0
+          or die "Failed to run nscf stage for BSE wavefunctions\n";
+    }
 
 
     if( $split_dft )
@@ -823,9 +892,17 @@ if ( $nscfRUN ) {
 
       close $QE;
 
-      print  "$para_prefix $ENV{'OCEAN_ESPRESSO_PW'}  -npool $npool < nscf_shift.in > nscf_shift.out 2>&1\n";
-      system("$para_prefix $ENV{'OCEAN_ESPRESSO_PW'}  -npool $npool < nscf_shift.in > nscf_shift.out 2>&1") == 0
-          or die "Failed to run nscf stage for shifted BSE wavefunctions\n";
+      if( $qe_redirect )
+      {  
+        print  "$para_prefix $ENV{'OCEAN_ESPRESSO_PW'}  -npool $npool < nscf_shift.in > nscf_shift.out 2>&1\n";
+        system("$para_prefix $ENV{'OCEAN_ESPRESSO_PW'}  -npool $npool < nscf_shift.in > nscf_shift.out 2>&1") == 0
+            or die "Failed to run nscf stage for shifted BSE wavefunctions\n";
+      } else
+      {
+        print  "$para_prefix $ENV{'OCEAN_ESPRESSO_PW'}  -npool $npool -inp nscf_shift.in > nscf_shift.out 2>&1\n";
+        system("$para_prefix $ENV{'OCEAN_ESPRESSO_PW'}  -npool $npool -inp nscf_shift.in > nscf_shift.out 2>&1") == 0
+            or die "Failed to run nscf stage for shifted BSE wavefunctions\n";
+      }
 
       $qe_data_files{'prefix'} = $prefix;
 
@@ -945,9 +1022,17 @@ if( $obf == 0 && $run_screen == 1 )
   close INPUT;
 
   print "Screening NSCF Run\n";
-  print  "$para_prefix $ENV{'OCEAN_ESPRESSO_PW'}  -npool $npool < nscf.in > nscf.out 2>&1\n";
-  system("$para_prefix $ENV{'OCEAN_ESPRESSO_PW'}  -npool $npool < nscf.in > nscf.out 2>&1") == 0
-      or die "Failed to run nscf stage for SCREENing wavefunctions\n";
+  if( $qe_redirect )
+  {  
+    print  "$para_prefix $ENV{'OCEAN_ESPRESSO_PW'}  -npool $npool < nscf.in > nscf.out 2>&1\n";
+    system("$para_prefix $ENV{'OCEAN_ESPRESSO_PW'}  -npool $npool < nscf.in > nscf.out 2>&1") == 0
+        or die "Failed to run nscf stage for SCREENing wavefunctions\n";
+  } else
+  {
+    print  "$para_prefix $ENV{'OCEAN_ESPRESSO_PW'}  -npool $npool -inp nscf.in > nscf.out 2>&1\n";
+    system("$para_prefix $ENV{'OCEAN_ESPRESSO_PW'}  -npool $npool -inp nscf.in > nscf.out 2>&1") == 0
+        or die "Failed to run nscf stage for SCREENing wavefunctions\n";
+  }
   open OUT, ">nscf.stat" or die "Failed to open nscf.stat\n$!";
   print OUT "1\n";
   close OUT;
