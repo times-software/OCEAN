@@ -224,7 +224,7 @@ module schi_sinqr
 
     real(DP), allocatable :: basfcn( :, :, : ), temp( : , : ), qtab( : )
     real(DP) :: pref, q, arg
-    integer :: i, j, iLM, jLM
+    integer :: i, j, iLM
     integer :: npt, nbasis, nLM, fullSize
 
     real(DP), parameter :: d_zero = 0.0_DP

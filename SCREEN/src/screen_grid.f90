@@ -99,12 +99,14 @@ module screen_grid
   end subroutine screen_grid_dumpFullGrid
 
   subroutine screen_grid_dumpRBfile( g, ierr )
-    use OCEAN_mpi, only : myid ,root
+    use OCEAN_mpi, only : myid, root, comm, MPI_INTEGER
     type( sgrid ), intent( in ) :: g
     integer, intent( inout ) :: ierr
     !
+    integer :: ierr_
+    !
     if( myid .eq. root ) then
-      open( unit=99, file='rbfile.bin', form='unformatted', status='unknown' )
+      open( unit=99, file='rbfile.bin', form='unformatted', status='unknown', iostat=ierr, err=10 )
       rewind 99
       write(99) g%npt, g%rmax
       write(99) g%posn
@@ -112,6 +114,12 @@ module screen_grid
       write(99) g%drel
       close(99)
     endif
+10  continue
+#ifdef MPI
+    call MPI_BCAST( ierr, 1, MPI_INTEGER, root, comm, ierr_ )
+    if( ierr .ne. 0 ) return
+    if( ierr_ .ne. 0 ) ierr = ierr_
+#endif
 
   end subroutine screen_grid_dumpRBfile
 

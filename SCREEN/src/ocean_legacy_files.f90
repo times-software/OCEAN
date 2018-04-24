@@ -342,7 +342,7 @@ module ocean_legacy_files
   subroutine set_pools( ierr )
     integer, intent( inout ) :: ierr
     !
-    integer :: i, nbands_left, nbands
+    integer :: i
 
     if( nfiles .ge. inter_nproc ) then
       mypool = inter_myid

@@ -148,7 +148,6 @@ module schi_direct
   subroutine schi_direct_buildCoulombMatrix( grid, cMat, ierr )
     use screen_grid, only : sgrid
     use ocean_constants, only : PI_DP
-    use ocean_mpi, only : myid
     type( sgrid ), intent( in ) :: grid
     real(DP), intent( out ) :: cMat(:,:,:,:)
     integer, intent( inout ) :: ierr
@@ -263,12 +262,10 @@ module schi_direct
     real(DP), allocatable :: ymu( :, :, :, : ), slice_ymu( :, : ), temp( :, : ), test_ymu( :, : )
 
     integer :: npt, nbasis, nLM, fullSize, nang, nr, dimTemp
-    integer :: ii, i, j, iLM, l, m
+    integer :: i, j, iLM, l, m
 
     real(DP), parameter :: d_zero = 0.0_DP
     real(DP), parameter :: d_one = 1.0_DP
-
-    character(len=8) :: filnam
 
     npt = size( FullSpace, 1 )
     nbasis = size( ProjectedSpace, 1 )

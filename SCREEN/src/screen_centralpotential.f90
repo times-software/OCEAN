@@ -157,7 +157,7 @@ module screen_centralPotential
     integer, intent( in ) :: znl(:)
     integer, intent( inout ) :: ierr
 
-    integer :: i, ierr_
+    integer :: ierr_
 
     ierr_ = 0
 
@@ -319,7 +319,6 @@ module screen_centralPotential
 
     integer :: i
     real(DP) :: invRad
-    character(len=40) :: filename
 
     if( ( .not. allocated( pot%pot ) ) .or. ( .not. allocated( pot%rad ) ) ) then
       ierr = 5

@@ -123,7 +123,7 @@ module screen_chi
     real(DP), intent( in ), dimension(:,:) :: FullW, FullW0, Ninduced, N0induced
 
     real(DP), allocatable :: transpW(:,:)
-    integer :: i, ilm
+    integer :: i
     character(len=40) :: fmtstmt
     character(len=80) :: filnam
 
@@ -256,7 +256,7 @@ module screen_chi
     real(DP), allocatable :: work(:)
     integer, allocatable :: ipiv( : )
     integer :: nbasis, nLM, fullsize, lwork
-    integer :: i, j, ii, jj
+    integer :: i, j
 
     real(DP), parameter :: zero = 0.0_DP
     real(DP), parameter :: one = 1.0_DP
@@ -266,12 +266,6 @@ module screen_chi
     nLM = size( chi0, 2 )
     fullsize = nbasis * nLM
 
-!    if( nLM .ne. 1 ) then
-!      write(6,*) 'BUG!!!!'
-!      write(6,*) 'Right now nbasis and nLM are interleaved and must be fixed!!!'
-!      ierr =10
-!      return
-!    endif
 
     allocate( temp( nbasis, nLM, nbasis, nLM ), stat=ierr )
     if( ierr .ne. 0 ) return

@@ -33,8 +33,7 @@ module screen_chi0
     integer, intent( inout ) :: ierr
 
     real(DP), allocatable :: tempWeight( : ), tempEnergies( : )
-    real(DP) :: su
-    integer :: i, n
+    integer :: n
     
 
     if( myid .eq. root ) then
@@ -319,7 +318,6 @@ module screen_chi0
 
     integer :: i
     character(len=12) :: chiName
-    character(len=16) :: chiNameText
 
     if( pinfo%myid .eq. pinfo%root ) then
       write(chiName,'(A,A2,I4.4)' ) 'ximat_', siteInfo%elname, siteInfo%indx
@@ -372,7 +370,7 @@ module screen_chi0
   subroutine calcChi( pinfo, MyWvfn, spareWavefunctions, chi, spareWvfnRecvs, ierr )
     use screen_paral, only : site_parallel_info
     use screen_wavefunction, only : screen_wvfn
-    use ocean_mpi, only : MPI_STATUS_IGNORE, myid
+    use ocean_mpi, only : MPI_STATUS_IGNORE
  
     type( site_parallel_info ), intent( in ) :: pinfo
     type( screen_wvfn ), intent( in ) :: MyWvfn
@@ -388,7 +386,7 @@ module screen_chi0
 #endif
     integer, intent( inout ) :: ierr
 
-    integer :: id, curPts, stopPts, i, j
+    integer :: id, curPts, stopPts
 
     ! Need to figure out the offset for chi/chi0
     curPts = 1    
@@ -446,7 +444,7 @@ module screen_chi0
 
   subroutine calcSingleChiBuffer1( LWvfn, RWvfn, chi, ispin, ierr )
     use screen_system, only : physical_system, system_parameters, psys, params
-    use screen_energy, only : mu_ryd, geodiff, energies
+    use screen_energy, only : mu_ryd, energies
     use ocean_constants, only : pi_dp
     complex(DP), intent( in ), dimension(:,:,:) :: LWvfn, RWvfn
     real(DP), intent( inout ) :: chi(:,:)
@@ -455,8 +453,7 @@ module screen_chi0
 
     real(DP), allocatable :: temp(:,:)
     complex(DP), allocatable :: chi0(:,:,:), energyDenom( :, :, : )
-    complex(DP) :: scalar
-    real(DP) :: pref, denr, deni, diff, fr, fi, norm, spinfac, pref2
+    real(DP) :: pref, denr, deni, spinfac, pref2
     integer :: Lpts, Rpts, nbands, nKptsAndSpin, ikpt, iband, it, i, j
     integer :: ichunk, jchunk, istart, istop, jstart, jstop, NRchunks, NLchunks
     integer, parameter :: icSize = 32
@@ -554,8 +551,7 @@ module screen_chi0
 !    real(DP), allocatable :: temp(:,:)
     compleX(DP), allocatable :: temp(:,:)
     complex(DP), allocatable :: Gplus(:,:,:), Gminus(:,:,:), energyDenom( :, :, : )
-    complex(DP) :: scalar
-    real(DP) :: pref, denr, deni, diff, fr, fi, norm, spinfac, pref2
+    real(DP) :: pref, denr, deni, spinfac, pref2
     integer :: Lpts, Rpts, nbands, nKptsAndSpin, ikpt, iband, it, i, j
     integer :: ichunk, jchunk, istart, istop, jstart, jstop, NRchunks, NLchunks
     integer, parameter :: icSize = 32
@@ -782,7 +778,7 @@ module screen_chi0
 #else
     integer :: newType
 #endif
-    integer :: id, curPts, i
+    integer :: id, curPts
 
     if( pinfo%myid .eq. pinfo%root ) then
       curPts = 1

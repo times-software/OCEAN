@@ -139,7 +139,7 @@ module screen_wavefunction
 
 
   subroutine screen_wvfn_init( pinfo, grid, wvfn, siteIndex, ierr )
-    use screen_system, only : system_parameters, params
+!    use screen_system, only : system_parameters
     use screen_paral, only : screen_paral_siteIndex2groupIndex, screen_paral_isMySite
 !#ifdef MPI
 !    use ocean_mpi, only : comm, MPI_SUM, MPI_INTEGER

@@ -228,9 +228,9 @@ module screen_wvfn_converter
 
     complex(DP), allocatable :: uofx( :, :, :, : )
     type( screen_wvfn ), allocatable :: temp_wavefunctions(:)
-    real(DP) :: kpoints(3), qcart(3), phse
+    real(DP) :: kpoints(3), qcart(3)
     integer :: uofxDims(3), boundaries(3,2)
-    integer :: isite, j, ipt, isend, itag, destID, i
+    integer :: isite, j, isend, itag, destID
     integer :: npts, nProcsPerPool, iproc
     integer :: pts_start, num_pts, band_start, num_band, kpts_start, num_kpts
 #ifdef MPI_F08
@@ -266,7 +266,7 @@ module screen_wvfn_converter
 
     write(1000+myid,'(A,2(1X,I8))') '*** Convert and Send ***', ikpt, ispin
 
-    call swl_checkConvert( nbands, input_gvecs, uofxDims, boundaries, ierr )
+    call swl_checkConvert( input_gvecs, uofxDims, boundaries, ierr )
     if( ierr .ne. 0 ) return
     write(1000+myid,'(A,3(1X,I8))') '   ', uofxDims(:)
     write(1000+myid,'(A,3(1X,I8))') '   ', boundaries(:,1)
@@ -275,8 +275,7 @@ module screen_wvfn_converter
     allocate( uofx( uofxDims(1), uofxDims(2), uofxDims(3), nbands ), STAT=ierr )
     if( ierr .ne. 0 ) return
 
-    call swl_doConvert( nbands, ngvecs, boundaries, input_gvecs, input_uofg, & 
-                        psys%bvecs, qcart, uofx, ierr )
+    call swl_doConvert( nbands, ngvecs, input_gvecs, input_uofg, uofx )
     if( ierr .ne. 0 ) return
     
     do isite = 1, nsites
@@ -376,7 +375,6 @@ module screen_wvfn_converter
   end subroutine swl_convertAndSend
 
   subroutine swl_DoAugment( isite, npts, nbands, iq, wavefunctions, ierr )
-    use ocean_mpi, only : myid, root
     use screen_system, only : screen_system_doAugment
     use screen_sites, only : site
     use screen_opf
@@ -393,9 +391,7 @@ module screen_wvfn_converter
     complex(DP) :: c
 
     integer :: l, m, lmin, lmax, itarg, nproj, maxNproj, ncutoff
-    integer :: i, j, k, il, nl, totLM, ib
-    character(len=20 ) :: filnam, fnam
-    character(len=100) :: formatting
+    integer :: i, j, k, il, totLM, ib
 
     if( .not. screen_system_doAugment() ) return
 
@@ -516,7 +512,6 @@ module screen_wvfn_converter
   end subroutine swl_DoAugment
 
   subroutine swl_DoAugment_2( isite, npts, nbands, iq, wavefunctions, ierr )
-    use ocean_mpi, only : myid, root
     use screen_system, only : screen_system_doAugment
     use screen_sites, only : site
     use screen_opf
@@ -536,9 +531,6 @@ module screen_wvfn_converter
     
     integer :: l, m, lmin, lmax, itarg, nproj, maxNproj, ncutoff
     integer :: i, j, k, il, nl, totLM, ib
-
-    character(len=20 ) :: filnam, fnam
-    character(len=100) :: formatting
 
     if( .not. screen_system_doAugment() ) return
 !    write(6,*) 'Start Augment'
@@ -790,24 +782,21 @@ module screen_wvfn_converter
 
   end subroutine swl_DoProject
 
-  subroutine swl_doConvert( nbands, ngvecs, boundaries, gvecs, uofg, bvecs, qcart, uofx, ierr )
+  subroutine swl_doConvert( nbands, ngvecs, gvecs, uofg, uofx )
     use screen_system, only : screen_system_convertStyle
 #ifdef __FFTW3
     use iso_c_binding
     include 'fftw3.f03'
 #endif
-    integer, intent( in ) :: ngvecs, nbands, boundaries(3,2)
+    integer, intent( in ) :: ngvecs, nbands
     integer, intent( in ) :: gvecs( :,: )
     complex(DP), intent( in ) :: uofg( :, : )
-    real(DP), intent( in ) :: bvecs(3,3), qcart(3)
     complex(DP), intent( out ) :: uofx( :, :, :, : )
-    integer, intent( inout ) :: ierr
 #ifdef __FFTW3
     type(C_PTR) :: bplan
     integer :: dims(3)
     integer :: i, j, k, ig, ib
 
-!    dims(:) = boundaries(:,2) - boundaries(:,1) + 1
     dims(1) = size( uofx, 1 )
     dims(2) = size( uofx, 2 )
     dims(3) = size( uofx, 3 )
@@ -824,22 +813,6 @@ module screen_wvfn_converter
         if( i .le. 0 ) i = i + dims(1)
         if( j .le. 0 ) j = j + dims(2)
         if( k .le. 0 ) k = k + dims(3)
-
-!      if( gvecs(1,ig) .ge. 0 ) then
-!        i = gvecs(1,ig) + 1
-!      else
-!        i = gvecs(1,ig) + dims(1)
-!      endif
-!      if( gvecs(2,ig) .ge. 0 ) then
-!        j = gvecs(2,ig) + 1
-!      else
-!        j = gvecs(2,ig) + dims(2)
-!      endif
-!      if( gvecs(3,ig) .ge. 0 ) then
-!        k = gvecs(3,ig) + 1
-!      else
-!        k = gvecs(3,ig) + dims(3)
-!      endif
 
         uofx( i, j, k, ib ) = uofg( ig, ib )
       enddo
@@ -858,9 +831,9 @@ module screen_wvfn_converter
   end subroutine swl_doConvert
 
 
-  subroutine swl_checkConvert( nbands, gvecs, uofxDims, boundaries, ierr )
+  subroutine swl_checkConvert( gvecs, uofxDims, boundaries, ierr )
     use screen_system, only : screen_system_convertStyle
-    integer, intent( in ) :: nbands, gvecs( :, : )
+    integer, intent( in ) :: gvecs( :, : )
     integer, intent( out ) :: uofxDims( 3 )
     integer, intent( out ) :: boundaries( 3, 2 )
     integer, intent( inout ) :: ierr
@@ -906,14 +879,14 @@ module screen_wvfn_converter
     complex(DP) :: c00, c01, c10, c11, c0, c1, c
     real(DP) :: rvec(3), i2pi, phse, dxtemp, dytemp
     integer :: dims(3), ib, ip, i, j
-    integer :: ix1, ix2, iy1, iy2, iz1, iz2
   
     real(DP), allocatable :: distanceMap( :, : )
     complex(DP), allocatable :: phase( : )
     integer, allocatable :: pointMap( :, :, : )
 !    logical , allocatable :: phaseMap( : )
 
-    allocate( pointMap( 3, 2, npts ), distanceMap( 3, npts ), phase( npts ) )
+    allocate( pointMap( 3, 2, npts ), distanceMap( 3, npts ), phase( npts ), stat=ierr )
+    if( ierr .ne. 0 ) return
     
     i2pi = 1.0_DP / ( 2.0_DP * PI_DP )
 

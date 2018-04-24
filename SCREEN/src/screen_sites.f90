@@ -280,7 +280,7 @@ module screen_sites
     real(DP), intent( out ) :: shells( nshells )
     integer, intent( inout ) :: ierr
 
-    integer :: nshells_, ierr_, i
+    integer :: nshells_, ierr_
 
     ierr_ = 0
     nshells_ = nshells

@@ -250,7 +250,6 @@ module screen_opf
   end subroutine screen_opf_getNCutoff
 
   subroutine screen_opf_altinterpProjs(  zee, l, rad, psproj, aeproj, ierr, itarg )
-    use OCEAN_mpi, only : myid, root
     integer, intent( in ) :: zee, l
     real(DP), intent( in ) :: rad( : )
     real(DP), intent( out ) :: psproj( :, : ), aeproj( :, : )
@@ -258,8 +257,6 @@ module screen_opf
     integer, intent( inout ), optional :: itarg
     !
     integer :: targ, i, p
-    character(len=20 ) :: filnam
-    character(len=100) :: formatting
 
     if( present( itarg ) ) then
       if( isRightTarg( zee, itarg ) ) then
