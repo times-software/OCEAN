@@ -137,7 +137,7 @@ program pawsetup
       do counter=1,natom
         atomcount(znucl(typat(counter))) = atomcount(znucl(typat(counter))) + 1
         if (sites(counter) .ne. 0 ) then
-          write(99,*) elements(znucl(typat(counter))),                  &
+          write(99,*) elements(znucl(typat(counter))), znucl(typat(counter)),  &
      &               atomcount(znucl(typat(counter))), pplist(typat(counter))
         endif
         sitenum(counter) = atomcount(znucl(typat(counter)))

@@ -557,26 +557,24 @@ while (<EDGE>) {
   # For each unique Z we need to grab some files from OPF
   unless( exists $unique_z{ "$znum" } )
   {
-    my $zstring = sprintf("z%03i", $znum);
+    my $zstring = sprintf("z%03in%02il%02i", $znum, $nnum, $lnum);
     print $zstring ."\n";
-    `ln -sf ../OPF/zpawinfo/*${zstring}* .`;
-    `ln -sf ../OPF/zpawinfo/phrc? .`;
-    my $templine = `ls ../OPF/zpawinfo/*$zstring`;
-    chomp($templine);
-    my @pslist = split(/\s+/, $templine);
-#    foreach (@pslist)
-#    {
-#      if( $_ =~ m/ae(\S+)/ )
-#      {
-#        `ln -sf ../PAW/zpawinfo/ae$1 .`;
-#      }
-#      elsif( $_ =~ m/ps(\S+)/
-#      }
-#        `ln -sf ../PAW/zpawinfo/ps$1 .`;
-#      }
-#
-#      `ln -sf ae$1 ps$1`;
-#    }
+
+    `ln -sf ../OPF/zpawinfo/gk*${zstring} .`;
+    `ln -sf ../OPF/zpawinfo/fk*${zstring} .`;
+    `ln -sf ../OPF/zpawinfo/melfile${zstring} .`;
+    `ln -sf ../OPF/zpawinfo/coreorb${zstring} .`;
+
+
+    my $z3 = sprintf("z%03i", $znum);
+    `ln -sf ../OPF/zpawinfo/phrc?${z3} .`;
+    `ln -sf ../OPF/zpawinfo/prjfile${z3} .`;
+    `ln -sf ../OPF/zpawinfo/ft?${z3} .`;
+    `ln -sf ../OPF/zpawinfo/ae?${z3} .`;
+    `ln -sf ../OPF/zpawinfo/ps?${z3} .`;
+    `ln -sf ../OPF/zpawinfo/corezeta${z3} .`;
+    `ln -sf ../OPF/zpawinfo/radfile${z3} .`;
+
   }
 
   print "CKS NAME = $cks\n";
@@ -602,10 +600,17 @@ while (<EDGE>) {
   }
 
 #  my $add10_zstring = sprintf("z%03un%02ul%02u", $znum, $nnum, $lnum);
-  my $zstring = sprintf("z%2s%04i_n%02il%02i", $elname, $elnum, $nnum, $lnum);
+  my $zstring = sprintf("z%2s%04i/n%02il%02i", $elname, $elnum, $nnum, $lnum);
+  my $compactZstring = sprintf("z%2s%04i_n%02il%02i", $elname, $elnum, $nnum, $lnum);
 #  system("cp ../SCREEN/${zstring}/zR${pawrad}/rpot ./rpot.${zstring}") == 0 
-  copy( "../SCREEN/${zstring}/zR${pawrad}/rpot", "rpot.${zstring}" )
-    or die "Failed to grab rpot\n../SCREEN/${zstring}/zR${pawrad}/rpot ./rpot.${zstring}\n";
+  print "$zstring   $compactZstring\n";
+  print "../SCREEN/${zstring}/zR${pawrad}/rpot  rpot.${compactZstring}\n";
+  unless( copy( "../SCREEN/${zstring}/zR${pawrad}/rpot", "rpot.${compactZstring}" ) == 1 )
+  {
+    $zstring = sprintf("z%2s%04i_n%02il%02i", $elname, $elnum, $nnum, $lnum);
+    copy( "../SCREEN/${zstring}/zR${pawrad}/rpot", "rpot.${zstring}" )
+      or die "Failed to grab rpot\n../SCREEN/${zstring}/zR${pawrad}/rpot ./rpot.${zstring}\n";
+  }
 #
 
   # If we don't want CLS then make sure the file is not here
@@ -618,11 +623,11 @@ while (<EDGE>) {
   }
   else
   {
-    copy( "../SCREEN/${zstring}/zR${pawrad}/cls", "cls.${zstring}" ) 
-      or warn "WARNING!\nCore-level shift support requested, but could not find ../SCREEN/${zstring}/zR${pawrad}/cls\n"
+    copy( "../SCREEN/${zstring}/zR${pawrad}/cls", "cls.${compactZstring}" ) 
+      or warn "WARNING!\nCore-level shift support requested, but could not find ../SCREEN/${zstring}/zR${pawrad}/cls\n\$!"
             . "No CLS will be done for this site!\n";
     $cls_count++;
-    open IN, "cls.${zstring}" or die "Failed to open cls.${zstring}\n$!";
+    open IN, "cls.${compactZstring}" or die "Failed to open cls.${compactZstring}\n$!";
     my $cls = <IN>;
     chomp $cls;
     $cls_average += $cls;

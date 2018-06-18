@@ -64,6 +64,7 @@ module OCEAN_system
     real(DP) :: tau(3)
     integer( S_INT ) :: nalpha
     integer( S_INT ) :: ZNL(3)
+    integer( S_INT ) :: rixsInputZNL(3)   ! if loading from echamp
     
     integer :: indx
     integer :: photon
@@ -74,8 +75,9 @@ module OCEAN_system
     integer :: rixs_pol
     character(len=2) :: elname
     character(len=2) :: corelevel
-    character(len=255) :: basename
-    character(len=255) :: filename
+    character(len=2) :: rixsInputCoreLevel
+!    character(len=255) :: basename
+!    character(len=255) :: filename
 
     character(len=3) :: calc_type
 
@@ -424,8 +426,8 @@ module OCEAN_system
     integer, intent( inout ) :: ierr
 
     real(DP) :: tau(3)
-    integer :: ZNL(3), indx, photon
-    character(len=2) :: elname, corelevel, ein
+    integer :: ZNL(3), rixsInputZNL(3), indx, photon
+    character(len=2) :: elname, corelevel, ein, rixsInputCoreLevel
     character(len=3) :: calc_type
     type(o_run), pointer :: temp_prev_run, temp_cur_run
 
@@ -482,6 +484,20 @@ module OCEAN_system
           num_bands = sys%brange(4)-sys%brange(3)+1
           val_bands = sys%brange(2)-sys%brange(1)+1
           have_val = .true.
+          rixsInputZNL( : ) = ZNL( : )
+          rixsInputCoreLevel = corelevel
+
+        case( 'C2C' )
+        ! Core-to-core RIXS should mix both XAS and RXS
+          backspace( 99 )
+          read(99,*)  ZNL(1), ZNL(2), ZNL(3), elname, corelevel, indx, photon, calc_type, &
+                      rixs_energy, rixs_pol, rixsInputZNL(2), rixsInputZNL(3), rixsInputCoreLevel
+          start_band = sys%brange(3)
+          num_bands = sys%num_bands
+          have_core = .true.
+          val_bands = sys%brange(2)-sys%brange(1)+1
+
+          rixsInputZNL(1) = ZNL(1)  ! core-to-core is on-site therefore Z = Z
           
         case default
           start_band = sys%brange(3)
@@ -547,9 +563,13 @@ module OCEAN_system
       if( ierr .ne. MPI_SUCCESS ) goto 111
       call MPI_BCAST( ZNL, 3, MPI_INTEGER, root, comm, ierr )
       if( ierr .ne. MPI_SUCCESS ) goto 111
+      call MPI_BCAST( rixsInputZNL, 3, MPI_INTEGER, root, comm, ierr )
+      if( ierr .ne. MPI_SUCCESS ) goto 111
       call MPI_BCAST( elname, 2, MPI_CHARACTER, root, comm, ierr )
       if( ierr .ne. MPI_SUCCESS ) goto 111
       call MPI_BCAST( corelevel, 2, MPI_CHARACTER, root, comm, ierr )
+      if( ierr .ne. MPI_SUCCESS ) goto 111
+      call MPI_BCAST( rixsInputCoreLevel, 2, MPI_CHARACTER, root, comm, ierr )
       if( ierr .ne. MPI_SUCCESS ) goto 111
       call MPI_BCAST( indx, 1, MPI_INTEGER, root, comm, ierr )
       if( ierr .ne. MPI_SUCCESS ) goto 111
@@ -592,10 +612,12 @@ module OCEAN_system
       endif
       temp_cur_run%tau(:) = tau(:)
       temp_cur_run%ZNL(:) = ZNL(:)
+      temp_cur_run%rixsInputZNL(:) = rixsInputZNL(:)
       temp_cur_run%nalpha = 4 * ( 2 * temp_cur_run%ZNL(3) + 1 )
       temp_cur_run%elname = elname
       temp_cur_run%indx = indx
       temp_cur_run%corelevel = corelevel
+      temp_cur_run%rixsInputcorelevel = rixsInputcorelevel
       temp_cur_run%calc_type = calc_type
       temp_cur_run%photon = photon
       temp_cur_run%start_band = start_band
@@ -612,9 +634,9 @@ module OCEAN_system
 
       temp_cur_run%complex_bse = sys%complex_bse
       
-      temp_cur_run%basename = 'abs'
-      write(temp_cur_run%filename,'(A3,A1,A2,A1,I2.2,A1,A2,A1,I2.2)' ) temp_cur_run%basename, '_', temp_cur_run%elname, &
-            '.', temp_cur_run%indx, '_', temp_cur_run%corelevel, '_', temp_cur_run%photon
+!      temp_cur_run%basename = 'abs'
+!      write(temp_cur_run%filename,'(A3,A1,A2,A1,I2.2,A1,A2,A1,I2.2)' ) temp_cur_run%basename, '_', temp_cur_run%elname, &
+!            '.', temp_cur_run%indx, '_', temp_cur_run%corelevel, '_', temp_cur_run%photon
 
       temp_prev_run => temp_cur_run
 !      running_total = running_total + 1

@@ -1,6 +1,6 @@
 #!/usr/bin/perl
 
-# Copyright (C) 2015, 2016 OCEAN collaboration
+# Copyright (C) 2015 - 2017 OCEAN collaboration
 #
 # This file is part of the OCEAN project and distributed under the terms 
 # of the University of Illinois/NCSA Open Source License. See the file 
@@ -27,7 +27,7 @@ my @CommonFiles = ("epsilon", "xmesh.ipt", "nedges", "k0.ipt", "nbuse.ipt",
   "para_prefix", "cnbse.strength", "serbse", "core_offset", "avecsinbohr.ipt", 
   "cnbse.solver", "cnbse.gmres.elist", "cnbse.gmres.erange", "cnbse.gmres.nloop", 
   "cnbse.gmres.gprc", "cnbse.gmres.ffff", "cnbse.write_rhs", "spin_orbit", "nspin", 
-  "niter", "backf", "aldaf", "bwflg", "bande", "bflag", "lflag", "decut", "spect.h" );
+  "niter", "backf", "aldaf", "bwflg", "bande", "bflag", "lflag", "decut", "spect.h", "calc" );
 
 my @DFTFiles = ("nelectron", "rhoofr");
 
@@ -59,6 +59,16 @@ if( $dft_type =~ m/obf/i )
 else
 {
   $obf = 0;
+}
+
+open IN, "calc" or die "Failed to open calc\n$!";
+my $calc = <IN>;
+chomp $calc;
+close IN;
+unless( lc( $calc ) =~ m/rxs/ || lc( $calc ) =~ m/c2c/ )
+{
+  print "Unexpected value of 'calc'\nChanging to RXS\n";
+  $calc = 'RXS';
 }
 
 
@@ -126,7 +136,7 @@ elsif( lc($line) =~ m/gmres/ )
 }
 else
 {
-  print "Trouble parsing cnbse.solver!!\n*** Will default to  Haydock recursion ***\n";
+  print "Trouble parsing cnbse.solver!!\n\n";
   print "Must select GMRES for use with rixs\n";
   print "Cannot continue\n";
   exit 1;
@@ -346,13 +356,16 @@ copy( "k0.ipt", "scaledkzero.ipt" ) or die "$!";
 copy( "qinunitsofbvectors.ipt", "cksdq" ) or die "$!";
 
 ##### qin must be non-zero
-open QIN, "qinunitsofbvectors.ipt" or die "Failed to open qinunitsofbvectors.ipt\n$!";
-<QIN> =~ m/(\d*\.?\d+)\s+(\d*\.?\d+)\s+(\d*\.?\d+)/ or die "Failed to parse qinunitsofbvectors.ipt\n";
-close QIN;
-if( abs( $1 ) + abs( $2 ) + abs( $3 ) < 0.0000001 ) 
+if( $calc =~ m/rxs/i )
 {
-  print "Non-zero q required for RIXS\n";
-  exit 1;
+  open QIN, "qinunitsofbvectors.ipt" or die "Failed to open qinunitsofbvectors.ipt\n$!";
+  <QIN> =~ m/(\d*\.?\d+)\s+(\d*\.?\d+)\s+(\d*\.?\d+)/ or die "Failed to parse qinunitsofbvectors.ipt\n";
+  close QIN;
+  if( abs( $1 ) + abs( $2 ) + abs( $3 ) < 0.0000001 ) 
+  {
+    print "Non-zero q required for RIXS\n";
+    exit 1;
+  }
 }
 
 my $para_prefix = "";
@@ -582,13 +595,24 @@ while (<EDGE>) {
   # For each unique Z we need to grab some files from OPF
   unless( exists $unique_z{ "$znum" } )
   {
-    my $zstring = sprintf("z%03i", $znum);
+    my $zstring = sprintf("z%03in%02il%02i", $znum, $nnum, $lnum);
     print $zstring ."\n";
-    `ln -sf ../OPF/zpawinfo/*${zstring}* .`;
-    `ln -sf ../OPF/zpawinfo/phrc? .`;
-    my $templine = `ls ../OPF/zpawinfo/*$zstring`;
-    chomp($templine);
-    my @pslist = split(/\s+/, $templine);
+
+    `ln -sf ../OPF/zpawinfo/gk*${zstring} .`;
+    `ln -sf ../OPF/zpawinfo/fk*${zstring} .`;
+    `ln -sf ../OPF/zpawinfo/melfile${zstring} .`;
+    `ln -sf ../OPF/zpawinfo/coreorb${zstring} .`;
+
+
+    my $z3 = sprintf("z%03i", $znum);
+    `ln -sf ../OPF/zpawinfo/phrc?${z3} .`;
+    `ln -sf ../OPF/zpawinfo/prjfile${z3} .`;
+    `ln -sf ../OPF/zpawinfo/ft?${z3} .`;
+    `ln -sf ../OPF/zpawinfo/ae?${z3} .`;
+    `ln -sf ../OPF/zpawinfo/ps?${z3} .`;
+    `ln -sf ../OPF/zpawinfo/corezeta${z3} .`;
+    `ln -sf ../OPF/zpawinfo/radfile${z3} .`;
+
   }
 
   for( my $cks_iter = 1; $cks_iter <= 2; $cks_iter++ )
@@ -641,9 +665,16 @@ while (<EDGE>) {
     }
   }
 
-  my $zstring = sprintf("z%2s%04i_n%02il%02i", $elname, $elnum, $nnum, $lnum);
-  copy( "../SCREEN/${zstring}/zR${pawrad}/rpot", "rpot.${zstring}" )
-    or die "Failed to grab rpot\n../SCREEN/${zstring}/zR${pawrad}/rpot ./rpot.${zstring}\n";
+  my $zstring = sprintf("z%2s%04i/n%02il%02i", $elname, $elnum, $nnum, $lnum);
+  my $compactZstring = sprintf("z%2s%04i_n%02il%02i", $elname, $elnum, $nnum, $lnum);
+  print "$zstring   $compactZstring\n";
+  print "../SCREEN/${zstring}/zR${pawrad}/rpot  rpot.${compactZstring}\n";
+  unless( copy( "../SCREEN/${zstring}/zR${pawrad}/rpot", "rpot.${compactZstring}" ) == 1 )
+  {
+    $zstring = sprintf("z%2s%04i_n%02il%02i", $elname, $elnum, $nnum, $lnum);
+    copy( "../SCREEN/${zstring}/zR${pawrad}/rpot", "rpot.${zstring}" )
+      or die "Failed to grab rpot\n../SCREEN/${zstring}/zR${pawrad}/rpot ./rpot.${zstring}\n";
+  }
 
   # If we don't want CLS then make sure the file is not here
   if( $core_offset =~ m/false/i )
@@ -655,11 +686,11 @@ while (<EDGE>) {
   }
   else
   {
-    copy( "../SCREEN/${zstring}/zR${pawrad}/cls", "cls.${zstring}" ) 
+    copy( "../SCREEN/${zstring}/zR${pawrad}/cls", "cls.${compactZstring}" ) 
       or warn "WARNING!\nCore-level shift support requested, but could not find ../SCREEN/${zstring}/zR${pawrad}/cls\n"
             . "No CLS will be done for this site!\n";
     $cls_count++;
-    open IN, "cls.${zstring}" or die "Failed to open cls.${zstring}\n$!";
+    open IN, "cls.${compactZstring}" or die "Failed to open cls.${compactZstring}\n$!";
     my $cls = <IN>;
     chomp $cls;
     $cls_average += $cls;
@@ -838,24 +869,54 @@ print "Found $photon_combo combinations of photon files\n";
 print "From XAS we have $gmres_count energy steps\n";
     
 
-
+$calc = uc( $calc );
 open RUNLIST, ">runlist" or die "Failed to open runlist for writing\n$!";
 #my $photon_combo = $nphoton * ($nphoton-1);
-my $tot_gmres_count = $gmres_count * $photon_combo;
-print RUNLIST "$tot_gmres_count\n";
-for( my $e = 1; $e <= $gmres_count; $e++ )
+if( $calc =~ m/RXS/ )
 {
-  for( my $i = 0; $i < scalar @xas_photon_files; $i++ )
+  my $tot_gmres_count = $gmres_count * $photon_combo;
+  print RUNLIST "$tot_gmres_count\n";
+  for( my $e = 1; $e <= $gmres_count; $e++ )
   {
-    $xas_photon_files[$i] =~ m/(\d+)\s*$/ or die "Malformed photon file name:\t$xas_photon_files[$i]\n";
-    my $i_num = $1;
-    for( my $j = 0; $j < scalar @xes_photon_files; $j++ )
+    for( my $i = 0; $i < scalar @xas_photon_files; $i++ )
     {
-      $xes_photon_files[$j] =~ m/(\d+)\s*$/ or die "Malformed photon file name:\t$xes_photon_files[$j]\n";
-      my $j_num = $1;
-#      next if( $i == $j );
-      next if( $xas_photon_files[$i] eq $xes_photon_files[$j] );
-      print RUNLIST "$znum  $nnum  $lnum  $elname  $corelevel  0  $i_num  RXS  $e  $j_num\n";
+      $xas_photon_files[$i] =~ m/(\d+)\s*$/ or die "Malformed photon file name:\t$xas_photon_files[$i]\n";
+      my $i_num = $1;
+      for( my $j = 0; $j < scalar @xes_photon_files; $j++ )
+      {
+        $xes_photon_files[$j] =~ m/(\d+)\s*$/ or die "Malformed photon file name:\t$xes_photon_files[$j]\n";
+        my $j_num = $1;
+  #      next if( $i == $j );
+        next if( $xas_photon_files[$i] eq $xes_photon_files[$j] );
+        print RUNLIST "$znum  $nnum  $lnum  $elname  $corelevel  0  $i_num  $calc  $e  $j_num\n";
+      }
+    }
+  }
+}
+else # For C2C things look different
+{
+  # Need to get elnum in here at smoe point
+  my @elnums = ( 1 );
+  my $tot_elnum = scalar @elnums;
+  my $tot_gmres_count = $gmres_count * $photon_combo * $tot_elnum;
+  print RUNLIST "$tot_gmres_count\n";
+  foreach my $elnum ( @elnums )
+  {
+    for( my $e = 1; $e <= $gmres_count; $e++ )
+    {
+      for( my $i = 0; $i < scalar @xas_photon_files; $i++ )
+      {
+        $xas_photon_files[$i] =~ m/(\d+)\s*$/ or die "Malformed photon file name:\t$xas_photon_files[$i]\n";
+        my $i_num = $1;
+        for( my $j = 0; $j < scalar @xes_photon_files; $j++ )
+        {
+          $xes_photon_files[$j] =~ m/(\d+)\s*$/ or die "Malformed photon file name:\t$xes_photon_files[$j]\n";
+          my $j_num = $1;
+          next if( $xas_photon_files[$i] eq $xes_photon_files[$j] );
+          print RUNLIST "$znum  2 1  $elname  $corelevel $elnum $i_num  $calc  $e  $j_num $nnum $lnum ${nnum}" . 
+                        $alphal{$lnum} . "\n";
+        }
+      }
     }
   }
 }

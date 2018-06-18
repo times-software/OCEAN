@@ -85,6 +85,7 @@ program rhotest
  &     - avecs(2,1)*(avecs(1,2)*avecs(3,3)-avecs(3,2)*avecs(1,3))   &
  &     + avecs(3,1)*(avecs(1,2)*avecs(2,3)-avecs(2,2)*avecs(1,3))
   close(99)
+  norm = abs( norm )
 
 !      norm = norm / dble(dims(1)*dims(2)*dims(3))
 !!      norm = 1.d0 / norm
@@ -109,6 +110,10 @@ program rhotest
         modG =  (bv1(1)*b(1) + bv2(1)*b(2) + bv3(1)*b(3))**2 +      &
  &          (bv1(2)*b(1) + bv2(2)*b(2) + bv3(2)*b(3))**2 +          &
  &          (bv1(3)*b(1) + bv2(3)*b(2) + bv3(3)*b(3))**2
+!        modG = (bv1(1)*b(1) + bv1(2)*b(2) + bv1(3)*b(3))**2 +      &
+! &          (bv2(1)*b(1) + bv2(2)*b(2) + bv2(3)*b(3))**2 +          &
+! &          (bv3(1)*b(1) + bv3(2)*b(2) + bv3(3)*b(3))**2
+
         write(99,'(3(I5,1X),1X,2(E19.12,2X),F25.10)') counter1-1,     &
  &        counter2-1, counter3-1,                                   &
  &        real(rhoofg(cter1,cter2,cter3),kind(1.d0))* norm,                    &

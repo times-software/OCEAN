@@ -1,4 +1,4 @@
-! Copyright (C) 2015,2016 OCEAN collaboration
+! Copyright (C) 2015 - 2017 OCEAN collaboration
 !
 ! This file is part of the OCEAN project and distributed under the terms 
 ! of the University of Illinois/NCSA Open Source License. See the file 
@@ -21,6 +21,7 @@ subroutine nbsemkcmel( add04, add14 )
   character(len=7) :: s7
   character(len=11) :: s11
   character(len=20) :: rpot_filename
+  character(len=24) :: rpotModFilename
   integer, allocatable :: nnu( : )
   real( DP ), allocatable, dimension( :, : ) :: cmel, nmel, phi, tphi
   real( DP ), allocatable, dimension( : ) :: rad, dr, val
@@ -58,13 +59,16 @@ subroutine nbsemkcmel( add04, add14 )
         vdiff( i ) = v( i ) - vtrim( i )
      end if     
   end do
-  open( unit=99, file='rpottrim', form='formatted', status='unknown' )
+  write(rpotModFilename, '(A10,A14)') 'rpottrim.z', add14
+  open( unit=99, file=rpotModfilename, form='formatted', status='unknown' )
   rewind 99
   do i = 1, 100
      write ( 99, '(2f10.5)' ) vtrim( i ), rv( i )
   end do
   close( unit=99 )
-  open( unit=99, file='rpotdiff', form='formatted', status='unknown' )
+  
+  write(rpotModFilename, '(A10,A14)') 'rpotdiff.z', add14
+  open( unit=99, file=rpotModfilename, form='formatted', status='unknown' )
   rewind 99
   do i = 1, 100
      write ( 99, '(2f10.5)' ) vdiff( i ), rv( i )

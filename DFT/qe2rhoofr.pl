@@ -8,9 +8,14 @@
 #
 use strict;
 
+#die "Expected usage qe2rhoofr.pl infile outfile\n" unless( $ARGV > 1 );
+
+my $infile = $ARGV[0];
+my $outfile = $ARGV[1];
+
 my $ngx = -1; my $ngy; my $ngz;
 my $ntypat; my $natom;
-open IN, "system.rho" or die "Failed to open system.rho\n$!";
+open IN, "$infile" or die "Failed to open infile\n$!";
 while( my $line=<IN> )
 {
   # density fft grid, other fft grid, natom, ntypat
@@ -27,7 +32,7 @@ while( my $line=<IN> )
 
 if( $ngx < 0 ) 
 {
-  die "Failed to parse system.rho\n";
+  die "Failed to parse $infile\n";
 }
 
 <IN>; # lattice info
@@ -66,7 +71,7 @@ if( scalar @rhoofr != $ngz*$ngy*$ngx+1 )
   die "Mismatch between read in rhoofr and FFT dims!\n";
 }
 
-open OUT, ">rhoofr" or die "Failed to open rhoofr for writing.\n$!";
+open OUT, ">$outfile" or die "Failed to open $outfile for writing.\n$!";
 printf OUT  "%8s %8s %8s %s\n", "i1", "i2", "i3", "data";
 
 my $iter = 1;
