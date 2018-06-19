@@ -1,5 +1,5 @@
 #!/usr/bin/perl
-# Copyright (C) 2015 OCEAN collaboration
+# Copyright (C) 2015-2018 OCEAN collaboration
 #
 # This file is part of the OCEAN project and distributed under the terms 
 # of the University of Illinois/NCSA Open Source License. See the file 
@@ -319,16 +319,24 @@ open NBANDS, "nbands" or die "Failed to open nbands\n$!";
 my $nbands = <NBANDS>;
 chomp($nbands);
 close NBANDS;
-die "Either dft_energy_range or nbands must be speified\n" 
+die "Either dft_energy_range or nbands must be specified\n" 
     if( $erange <= 0 && $nbands <= 0);
 if( $nbands <= 0 )
 {
   print "Default requested for nbands. Energy range is $erange eV.\n";
+  # First guess N conduction electrons
   $erange = $erange / 13.605;
-  $nbands = 0.01688686394 * $volume * ( $erange**(3/2) );
-  $nbands *= 1.05;
-  $nbands = int($nbands);
+  $nbands = 0.018 * $volume * ( $erange**(3/2) );
+#  print "      $nbands\n";
+  # Then add a guess for valence
+  $nbands += 0.036 * $volume;
+#  print "      $nbands\n";
   # 1.05 is a padding factor
+  $nbands *= 1.05;
+#  print "      $nbands\n";
+  $nbands = int($nbands);
+  # might as well pick an even number
+  $nbands++ if( $nbands % 2 == 1 );
   print "Default chosen for nbands:\t$nbands\n";
   open NBANDS, ">nbands" or die "Failed to open nbands for writing.\n$!";
   print NBANDS "$nbands\n";
@@ -351,10 +359,15 @@ if( $screen_nbands <= 0 )
   $erange = 100 if( $erange <= 0 );
   print "Default requested for screen.nbands. Energy range is $erange eV.\n";
   $erange = $erange / 13.605;
-  $screen_nbands = 0.01688686394 * $volume * ( $erange**(3/2) );
+  # First guess N conduction electrons
+  $screen_nbands = 0.018 * $volume * ( $erange**(3/2) );
+  # Then add a guess for valence
+  $screen_nbands += 0.036 * $volume;
+  # 1.05 is a padding factor
   $screen_nbands *= 1.05;
   $screen_nbands = int($screen_nbands);
-  # 1.05 is a padding factor
+  # might as well pick an even number
+  $screen_nbands++ if( $screen_nbands % 2 == 1 );
   print "Default chosen for screen.nbands:\t$screen_nbands\n";
   open NBANDS, ">screen.nbands" or die "Failed to open nbands for writing.\n$!";
   print NBANDS "$screen_nbands\n";

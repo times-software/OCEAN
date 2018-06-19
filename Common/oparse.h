@@ -78,6 +78,7 @@ rprim
 } rprim
 ntypat
 {
+-1
 } ntype
 typat
 {
@@ -95,6 +96,7 @@ NULL
 } pplist
 natom
 {
+-1
 } natoms
 coord
 {
@@ -476,7 +478,7 @@ screen.model.qmax
 } screen.model.qmax
 screen.legacy
 {
-1
+0
 } screen.legacy
 screen.augment
 {
