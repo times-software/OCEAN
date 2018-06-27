@@ -474,6 +474,7 @@ module OCEAN_energies
         open(unit=99,file=clsFile,form='formatted',status='old')
         read(99,*) cls
         close(99)
+        cls = cls * eV2Hartree
       else
         inquire( file='noshift_lumo', exist=file_exists2)
         if( file_exists2 ) then
