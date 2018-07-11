@@ -643,7 +643,6 @@ module screen_wvfn_converter
 !        nl = 2*l + 1
 !        call ZGEMM( 'T', 'N', nproj, nl, ncutoff, zone, psproj(:,:,l), ncutoff, & 
 !                    waveByLM(:,il), ncutoff, zero, Smat, nproj )
-!       !\ 
 
 
         nl = il + 2*l ! no plus 1 because we are adding, ie l=0 we go from 1 to 1, l=1 we go from 2 to 4 (inclusive)

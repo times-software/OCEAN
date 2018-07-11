@@ -338,7 +338,7 @@ module screen_opf
 
     if( myid .eq. root ) then
       write(filnam, '(A,I2.2,I1.1)' ) 'test1.', zee, l
-      write(formatting, '("("I"(F20.10))")' ) FullTable( targ )%nprojPerChannel( l )+1
+      write(formatting, '("("I0"(F20.10))")' ) FullTable( targ )%nprojPerChannel( l )+1
       open(unit=99,file=filnam)
       do i = 1, size( psProj, 1 )
         write( 99, formatting ) rad(i), psProj( i, : )
@@ -346,7 +346,7 @@ module screen_opf
       close( 99 )
 
       write(filnam, '(A,I2.2,I1.1)' ) 'test2.', zee, l
-      write(formatting, '("("I"(F20.10))")' ) FullTable( targ )%nprojPerChannel( l )+1
+      write(formatting, '("("I0"(F20.10))")' ) FullTable( targ )%nprojPerChannel( l )+1
       open(unit=99,file=filnam)
       do i = 1, size( psProj, 1 )
         write( 99, formatting ) rad(i), diffProj( i, : )
