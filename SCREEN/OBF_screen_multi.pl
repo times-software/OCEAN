@@ -254,7 +254,7 @@ open IN, "screen.grid.nr" or die "Failed to open screen.grid.nr\n$!";
 <IN> =~ m/([+-]?\d+)/ or die "Failed to parse screen.grid.nr\n";
 my $grid_nr = $1;
 close IN;
-$grid_nr = 24 if( $grid_nr < 0 );
+#$grid_nr = 24 if( $grid_nr < 0 );
 
 open IN, "screen.grid.ang" or die "Failed to open screen.grid.ang\n$!";
 <IN> =~ m/(\S+)\s+(\d+)/ or die "Failed to parse screen.grid.ang\n";

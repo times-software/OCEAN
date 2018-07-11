@@ -344,7 +344,7 @@ module OCEAN_gmres
     use OCEAN_action, only : OCEAN_xact
     use OCEAN_constants, only : eV2Hartree, Hartree2eV
     use OCEAN_mpi, only : myid, root, comm, MPI_STATUSES_IGNORE, MPI_REQUEST_NULL, MPI_INTEGER
-    use OCEAN_energies, only : OCEAN_energies_val_allow
+    use OCEAN_energies, only : OCEAN_energies_allow
     use OCEAN_filenames, only : OCEAN_filenames_spectrum
     !
     type( o_system ), intent( in ) :: sys
@@ -413,7 +413,7 @@ module OCEAN_gmres
     if( ierr .ne. 0 ) return
     
     if( sys%cur_run%have_val ) then
-      call OCEAN_energies_val_allow( sys, psi_x, ierr )
+      call OCEAN_energies_allow( sys, psi_x, ierr )
       if( ierr .ne. 0 ) return
     endif
 
@@ -470,7 +470,7 @@ module OCEAN_gmres
           psi_apg => au_matrix( iter )
           ! pg = g * pcdiv
           if( do_precondition) then
-            call OCEAN_psi_element_mult( psi_pg, psi_g, psi_pcdiv, ierr )
+            call OCEAN_psi_3element_mult( psi_pg, psi_g, psi_pcdiv, ierr )
           else
             call OCEAN_psi_copy_min( psi_pg, psi_g, ierr )
           endif
@@ -605,6 +605,7 @@ module OCEAN_gmres
     character(len=4) :: initial = 'zero'
 
 
+    initial = 'zero'
     if( allow_reuse_x ) then
       ! option to reuse X
       if( iter .gt. 1 ) then
@@ -664,7 +665,7 @@ module OCEAN_gmres
       allocate( out_vec( OCEAN_psi_size_full( psi_x ) ) )
       call OCEAN_psi_vtor( psi_x, out_vec ) 
       !
-      open( unit=99, file=filename, form='unformatted', status='old' )
+      open( unit=99, file=filename, form='unformatted', status='unknown' )
       rewind( 99 )
       write(99) out_vec
       close( 99 )

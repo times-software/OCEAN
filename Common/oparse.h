@@ -22,6 +22,10 @@ dft.split
 {
 .false.
 } dft.split
+dft.qe_redirect
+{
+.false.
+} dft.qe_redirect
 nbands
 {
 -1
@@ -74,6 +78,7 @@ rprim
 } rprim
 ntypat
 {
+-1
 } ntype
 typat
 {
@@ -91,6 +96,7 @@ NULL
 } pplist
 natom
 {
+-1
 } natoms
 coord
 {
@@ -173,11 +179,6 @@ caution
 {
 .false.
 } caution
-ibase
-{
-0.1  100
-0.01 10
-} ibase
 nedges
 {
 -1
@@ -418,6 +419,27 @@ screen_energy_range
 {
 100
 } screen_energy_range.ipt
+screen.grid.scheme
+{
+central
+} screen.grid.scheme
+screen.grid.rmode
+{
+uniform
+} screen.grid.rmode
+screen.grid.ninter
+{
+2
+} screen.grid.ninter
+screen.grid.shells
+{
+4 16
+8 16
+} screen.grid.shells
+screen.grid.xyz
+{
+2 2 2 
+} screen.grid.xyz
 screen.grid.rmax
 {
 8
@@ -440,7 +462,7 @@ screen.grid.nb
 } screen.grid.nb
 screen.final.rmax
 {
-100
+10
 } screen.final.rmax
 screen.final.dr
 {
@@ -454,3 +476,11 @@ screen.model.qmax
 {
 10
 } screen.model.qmax
+screen.legacy
+{
+0
+} screen.legacy
+screen.augment
+{
+.true.
+} screen.augment

@@ -121,6 +121,7 @@ printf "Core-level shifts requested for %i %s at %i %s\n", scalar @hfin, $site_n
 
 # After this section DFT_pot will contain the full DFT potential evaluated for site
 my @Vshift;
+my @newPot;
 my @Wshift;
 my $Vsum = 0;
 my @Wsum;
@@ -178,6 +179,48 @@ if( $dft eq 'qe' || $dft eq 'obf' )
   }
   print "  Pre-comp complete.\n\n";
 
+
+  # NEW WAY
+  mkdir "vxc_test";
+  chdir "vxc_test" or die;
+
+  copy "../potofr", "rhoofr" or die;
+  copy "../avecsinbohr.ipt", "avecsinbohr.ipt";
+  copy "../bvecs", "bvecs";
+#  sleep 1;
+#  system("$ENV{'OCEAN_BIN'}/qe2rhoofr.pl" ) == 0
+#    or die "Failed to convert potential\n$!\n";
+  `tail -n 1 rhoofr > nfft`;
+  system("$ENV{'OCEAN_BIN'}/rhoofg.x") == 0 or die;
+  `wc -l rhoG2 > rhoofg`;
+  `sort -n -k 6 rhoG2 >> rhoofg`;
+  copy "../sitelist", "sitelist";
+  copy "../hfinlist", "hfinlist";
+  copy "../xyz.wyck", "xyz.wyck";
+  open OUT, ">avg.ipt" or die "Failed to open avg.ipt for writing\n$!";
+  print OUT "501 0.01\n";
+  close OUT;
+
+  if( -e "$ENV{'OCEAN_BIN'}/mpi_avg.x" )
+  {
+    print "Running mpi_avg.x\n";
+    system("$para_prefix $ENV{'OCEAN_BIN'}/mpi_avg.x") == 0 or die "$!\nFailed to run mpi_avg.x\n";
+  }
+  else
+  {
+    print "Running avg.x\n";
+    system("$ENV{'OCEAN_BIN'}/avg.x") == 0 or die "$!\nFailed to run avg.x\n";
+  }
+  system("$ENV{'OCEAN_BIN'}/projectVxc.pl") == 0 or die "Failed to run projectVxc.pl\n$!";
+  open IN, "pot.txt";
+  while( $line = <IN> )
+  {
+    $line =~ m/^\s*(\S+)/ or die "Failed to parse pot.txt\n$line";
+    push @newPot, $1;
+    $Vsum += $1;
+  }
+  close IN;
+  chdir "../";
 
   print "Looping over each atomic site to get total potential\n";
   for( my $i = 0; $i < scalar @hfin; $i++ )
@@ -242,11 +285,11 @@ if( $dft eq 'qe' || $dft eq 'obf' )
   # Vshift here is in Rydberg
     $Vshift[$i] = `head -n 1 system.pot.$el_rank | awk '{print \$2}'`;
     chomp( $Vshift[$i] );
-    $Vsum += $Vshift[$i];
+#    $Vsum += $Vshift[$i];
 
     printf "    Total potential at the core site is %8.5f Ryd.\n", $Vshift[$i];
 
-    my $string = sprintf("z%s%04d_n%02dl%02d",$el, $el_rank,$nn,$ll);
+    my $string = sprintf("z%s%04d/n%02dl%02d",$el, $el_rank,$nn,$ll);
     if( $debug != 0 )
     {
       print "$string\n";
@@ -265,6 +308,7 @@ if( $dft eq 'qe' || $dft eq 'obf' )
 }
 else
 {
+  #### OLD WAY ####
   copy( "../DFT/SCx_POT", "SCx_POT" );
   copy( "../DFT/density.log", "density.log");
   my $MajorAbinitVersion;
@@ -350,11 +394,53 @@ else
       # Vshift is in Ha not Ry for ABINIT
       my $curVshift = $1*2;
       push @Vshift, $curVshift;
-      $Vsum += $curVshift;
+#      push @newPot, $curVshift;
+#      $Vsum += $curVshift;
       printf "    Total potential is %8.5f Ryd.\n", $curVshift;
     }
   }
   close IN;
+  #### END OLD WAY ###
+
+  ### NEW WAY copied from above
+  mkdir "vxc_test";
+  chdir "vxc_test" or die;
+
+  copy "../potofr", "rhoofr" or die;
+  copy "../avecsinbohr.ipt", "avecsinbohr.ipt";
+  copy "../bvecs", "bvecs";
+  `tail -n 1 rhoofr > nfft`;
+  system("$ENV{'OCEAN_BIN'}/rhoofg.x") == 0 or die;
+  `wc -l rhoG2 > rhoofg`;
+  `sort -n -k 6 rhoG2 >> rhoofg`;
+  copy "../sitelist", "sitelist";
+  copy "../hfinlist", "hfinlist";
+  copy "../xyz.wyck", "xyz.wyck";
+  open OUT, ">avg.ipt" or die "Failed to open avg.ipt for writing\n$!";
+  print OUT "501 0.01\n";
+  close OUT;
+
+  if( -e "$ENV{'OCEAN_BIN'}/mpi_avg.x" )
+  {
+    print "Running mpi_avg.x\n";
+    system("$para_prefix $ENV{'OCEAN_BIN'}/mpi_avg.x") == 0 or die "$!\nFailed to run mpi_avg.x\n";
+  }
+  else
+  {
+    print "Running avg.x\n";
+    system("$ENV{'OCEAN_BIN'}/avg.x") == 0 or die "$!\nFailed to run avg.x\n";
+  }
+  system("$ENV{'OCEAN_BIN'}/projectVxc.pl") == 0 or die "Failed to run projectVxc.pl\n$!";
+  open IN, "pot.txt";
+  while( $line = <IN> )
+  {
+    $line =~ m/^\s*(\S+)/ or die "Failed to parse pot.txt\n$line";
+    push @newPot, 2*$1;
+    $Vsum += 2*$1;
+  }
+  close IN;
+  chdir "../";
+
   
 
   for( my $i = 0; $i < scalar @hfin; $i++ )
@@ -365,7 +451,7 @@ else
     my $el = $hfin[$i][2];
     my $el_rank = $hfin[$i][3];
 
-    my $string = sprintf("z%s%04d_n%02dl%02d",$el, $el_rank,$nn,$ll);
+    my $string = sprintf("z%s%04d/n%02dl%02d",$el, $el_rank,$nn,$ll);
     if( $debug != 0 )
     {
       print "$string\n";
@@ -402,9 +488,9 @@ for( my $i = 0; $i < scalar @rads; $i++ )
     print "  core_offset was set to true. Now set to $offset  \n";
   }
 
-  print  "Site index    Total potential    1/2 Screening      core_offset       total offset\n";
-  print  "                    (eV)              (eV)              (eV)              (eV)\n";
-# print  "   iiiiiii  -xxxxx.yyyyyyyyy  -xxxx.yyyyyyyyy  -xxxx.yyyyyyyyy  -xxxx.yyyyyyyyy\n";
+  print  "Site index    Total potential   New potential    1/2 Screening      core_offset       total offset\n";
+  print  "                    (eV)            (eV)              (eV)              (eV)              (eV)\n";
+# print  "   iiiiiii  -xxxxx.yyyyyyyyy  -xxxxx.yyyyyyyyy  -xxxx.yyyyyyyyy  -xxxx.yyyyyyyyy  -xxxx.yyyyyyyyy\n";
 
   # Loop over each atom in hfin
   for( my $j = 0; $j < scalar @hfin; $j++ )
@@ -415,14 +501,15 @@ for( my $i = 0; $i < scalar @rads; $i++ )
     my $el_rank = $hfin[$j][3];
 
     # Wshift is actually in Ha (convert to Ryd and multiply by 1/2 and nothing happens)
-    my $shift = ( $Vshift[$j] + $Wshift[$j][$i] ) * $Ry2eV;
+#    my $shift = ( $Vshift[$j] + $Wshift[$j][$i] ) * $Ry2eV;
+    my $shift = ( $newPot[$j] + $Wshift[$j][$i] ) * $Ry2eV;
 
     $shift += $offset;
     $shift *= -1;
-    printf "   %7i   %16.9f  %15.9f  %15.9f  %16.7f\n", $el_rank, $Vshift[$j]*$Ry2eV, $Wshift[$j][$i]*$Ry2eV, $offset, $shift;
+    printf "   %7i   %16.9f  %16.9f  %15.9f  %15.9f  %16.7f\n", $el_rank, $Vshift[$j]*$Ry2eV, $newPot[$j]*$Ry2eV, $Wshift[$j][$i]*$Ry2eV, $offset, $shift;
 #    print "$el_rank\t$Vshift[$j]\t$Wshift[$j][$i]\t$shift\n";
 
-    my $string = sprintf("z%s%04d_n%02dl%02d",$el, $el_rank,$nn,$ll);
+    my $string = sprintf("z%s%04d/n%02dl%02d",$el, $el_rank,$nn,$ll);
     open OUT, ">$string/$rad_dir/cls" or die "Failed to open $string/$rad_dir/cls\n$!";
     print OUT $shift . "\n";
     close OUT;

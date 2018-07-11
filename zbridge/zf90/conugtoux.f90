@@ -67,8 +67,8 @@
         if ( k .eq. ikl( 1, iwfile ) ) then
            if( is_jdftx ) then
   !JTV need to figure out more compliant way of doing this. GCC (4.7) doesn't support form='binary'
-            stop
-  !           open ( unit=iwf, file=wfnam( iwfile ), form='binary',status='old'  )
+!            stop
+             open ( unit=iwf, file=wfnam( iwfile ), form='unformatted',status='old',access='stream'  )
              read( iwf ) ng
            else
              open ( unit=iwf, file=wfnam( iwfile ), form='unformatted',status='unknown' )

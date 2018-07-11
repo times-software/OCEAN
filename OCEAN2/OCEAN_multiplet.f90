@@ -604,7 +604,7 @@ module OCEAN_multiplet
                  ctmp = ctmp + jimel( dble( sys%cur_run%ZNL(3) ), cml( jc ), cml( ic ), i ) & 
                              * jimel( 0.5d0, cms( jc ), cms( ic ), i )
                end do
-               write(20,'(2(I2,X),5(F6.3,X))') ic, jc, cml( ic ), cms( ic ), cml( jc ), cms( jc ), real( ctmp, DP )!, aimag( ctmp )
+               write(20,'(2(I2,1X),5(F6.3,1X))') ic, jc, cml( ic ), cms( ic ), cml( jc ), cms( jc ), real( ctmp, DP )
                write(21,*) jimel( dble( sys%cur_run%ZNL(3) ), cml( jc ), cml( ic ), 1 ), &
                   sys%cur_run%ZNL(3), nint( cml( jc ) ), nint( cml( ic ) )
 !               flush(20)

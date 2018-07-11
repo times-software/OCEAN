@@ -1,0 +1,50 @@
+para_prefix { mpirun -n 64 --map-by ppr:8:socket }
+dft qe
+metal .true.
+ppdir { '../' }
+nkpt { 8 8 8 }
+screen.nkpt{ 2 2 2 }
+ngkpt{ 10 10 10 }
+nspin 2
+smag{
+starting_magnetization(1)=3
+}
+qinunitsofbvectors{ 0.001 0.001 0.001 }
+
+fband 3
+occopt 3
+nbands 35
+screen.nbands 100
+acell { 5.423513587 5.423513587 5.423513587 }
+# 2.87 Angstroms BCC, Kittel
+rprim {
+1 0 0 
+0 1 0
+0 0 1 }
+ntypat 1
+znucl { 26 }
+pp_list{ fe.fhi }
+natom 1
+typat { 1  }
+xred {  0      0      0 }
+
+ecut 200
+toldfe 1.1d-6
+tolwfr 1.1d-16
+nstep 50
+diemac 100000
+CNBSE.xmesh { 8 8 8 }
+opf.fill{ 26 fe.fill }
+opf.opts{ 26 fe.opts }
+
+#edge information
+nedges 1
+edges{ 1 1 0  }
+
+# radius for shell for screening
+screen.shells{ 4.0 }
+cnbse.rad{ 4.0 }
+
+#Scaling Factor
+scfac 0.80
+cnbse.broaden 0.5

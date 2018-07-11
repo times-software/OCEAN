@@ -11,7 +11,7 @@ module OCEAN_filenames
   private
   save
 
-  public :: OCEAN_filenames_spectrum, OCEAN_filenames_lanc, OCEAN_filenames_ehamp
+  public :: OCEAN_filenames_spectrum, OCEAN_filenames_lanc, OCEAN_filenames_ehamp, OCEAN_filenames_read_ehamp
 
   contains
 
@@ -42,6 +42,11 @@ module OCEAN_filenames
       case( 'RXS')
         write(filename,'(A8,A2,A1,A2,A1,I2.2,A1,I5.5,A1,I2.2)' ) 'rxsspct_', sys%cur_run%elname, &
             '.', sys%cur_run%corelevel, '_', sys%cur_run%photon, '.', &
+            sys%cur_run%rixs_energy, '.', sys%cur_run%rixs_pol
+
+      case ('C2C')
+        write(filename,'(A8,A2,A1,I4.4,A1,A2,A1,I2.2,A1,I5.5,A1,I2.2)' ) 'ctcspct_', sys%cur_run%elname, &
+            '.', sys%cur_run%indx, '_', sys%cur_run%corelevel, '_', sys%cur_run%photon, '.', &
             sys%cur_run%rixs_energy, '.', sys%cur_run%rixs_pol
 
       case( 'VAL' )
@@ -81,6 +86,11 @@ module OCEAN_filenames
       case( 'RXS')
         write(filename,'(A7,A2,A1,A2,A1,I2.2,A1,I5.5,A1,I2.2)' ) 'rxlanc_', sys%cur_run%elname, &
             '.', sys%cur_run%corelevel, '_', sys%cur_run%photon, '.', &
+            sys%cur_run%rixs_energy, '.', sys%cur_run%rixs_pol
+
+      case( 'C2C' )
+        write(filename,'(A8,A2,A1,I4.4,A1,A2,A1,I2.2,A1,I5.5,A1,I2.2)' ) 'ctclanc_', sys%cur_run%elname, &
+            '.', sys%cur_run%indx, '_', sys%cur_run%corelevel, '_', sys%cur_run%photon, '.', &
             sys%cur_run%rixs_energy, '.', sys%cur_run%rixs_pol
 
       case( 'VAL' )
@@ -141,5 +151,50 @@ module OCEAN_filenames
     end select
     !
   end subroutine OCEAN_filenames_ehamp
+
+
+  ! The Electron--(Core)-Hole AMPlitude files 
+  subroutine OCEAN_filenames_read_ehamp( sys, filename, iter, ierr )
+    use OCEAN_system, only : o_system
+    !
+    type( o_system ), intent( in ) :: sys
+    character(len=*), intent( out ) :: filename
+    integer, intent( in ) :: iter
+    integer, intent( inout ) :: ierr
+    !
+    select case( sys%cur_run%calc_type ) 
+
+      case( 'RXS' ) 
+        if( len( filename ) < 25 ) then
+          ierr = 6 
+          return
+        endif
+        write(6,*) 'RXS!'
+        write(filename,'(A7,A2,A1,I4.4,A1,A2,A1,I2.2,A1,I4.4)' ) 'echamp_', sys%cur_run%elname, &
+              '.', iter, '_', sys%cur_run%corelevel, '_', sys%cur_run%photon, '.', sys%cur_run%rixs_energy
+          
+      case( 'C2C' )
+        if( len( filename ) < 25 ) then
+          ierr = 6 
+          return
+        endif
+        write(6,*) 'C2C!'
+        write( 6, * ) sys%cur_run%rixsInputCoreLevel
+        write(filename,'(A7,A2,A1,I4.4,A1,A2,A1,I2.2,A1,I4.4)' ) 'echamp_', sys%cur_run%elname, & 
+              '.', iter, '_', sys%cur_run%rixsInputCoreLevel, '_', sys%cur_run%photon, '.', sys%cur_run%rixs_energy
+
+      case default ! Currently XAS/XES option
+        if( len( filename ) < 25 ) then
+          ierr = 6 
+          return
+        endif
+        write(6,*) 'DEFAULT!'
+        write(filename,'(A7,A2,A1,I4.4,A1,A2,A1,I2.2,A1,I4.4)' ) 'echamp_', sys%cur_run%elname, &
+              '.', iter, '_', sys%cur_run%corelevel, '_', sys%cur_run%photon, '.', sys%cur_run%rixs_energy
+
+    end select
+    !
+  end subroutine OCEAN_filenames_read_ehamp
+
 
 end module OCEAN_filenames

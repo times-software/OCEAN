@@ -1,6 +1,6 @@
 #!/usr/bin/perl
 
-# Copyright (C) 2015, 2016 OCEAN collaboration
+# Copyright (C) 2015 - 2017 OCEAN collaboration
 #
 # This file is part of the OCEAN project and distributed under the terms 
 # of the University of Illinois/NCSA Open Source License. See the file 
@@ -133,7 +133,7 @@ if( $solver eq 'gmres' )
   $line = <IN>;
   close IN;
   chomp $line;
-  $line /= 27.2114;
+#  $line /= 27.2114;
   $gmres_header .= " " . $line;
 
   open IN, "cnbse.gmres.gprc" or die "Failed to open cnbse.gmres.gprc\n$!";
@@ -411,7 +411,11 @@ if( $obf == 1 )
 else  ### Abi/QE w/o obf
 { 
   my @brange;
-  if ($nbuse == 0) {
+#  if ($nbuse == 0) {
+  if( $nbuse != 0 ) 
+  {
+    print "Currently nbuse is set to defaults!\n";
+  }
     open BRANGE, "brange.ipt" or die "Failed to open brange.ipt\n";
     <BRANGE> =~ m/(\d+)\s+(\d+)/ or die "Failed to parse brange.ipt\n";
     $brange[0] = $1;
@@ -424,30 +428,30 @@ else  ### Abi/QE w/o obf
     if( $is_xas == 1 )
     {
       $run_text = 'XAS';
-      $nbuse = $brange[3] - $brange[1];
+      $nbuse = $brange[3] - $brange[2] + 1;
     }
     else
     {
       print "XES!\n";
       $run_text = 'XES';
-      $nbuse = $brange[2] - $brange[0];
+      $nbuse = $brange[1] - $brange[0] + 1;
     }
     open NBUSE, ">nbuse.ipt" or die "Failed to open nbuse.ipt\n";
     print NBUSE "$nbuse\n";
     close NBUSE;
-  }
-  else
-  {
-    if( $is_xas == 1 )
-    {
-      $run_text = 'XAS';
-    }
-    else
-    {
-      print "XES!\n";
-      $run_text = 'XES';
-    }
-  }
+#  }
+#  else
+#  {
+#    if( $is_xas == 1 )
+#    {
+#      $run_text = 'XAS';
+#    }
+#    else
+#    {
+#      print "XES!\n";
+#      $run_text = 'XES';
+#    }
+#  }
 }
 
 
@@ -553,26 +557,24 @@ while (<EDGE>) {
   # For each unique Z we need to grab some files from OPF
   unless( exists $unique_z{ "$znum" } )
   {
-    my $zstring = sprintf("z%03i", $znum);
+    my $zstring = sprintf("z%03in%02il%02i", $znum, $nnum, $lnum);
     print $zstring ."\n";
-    `ln -sf ../OPF/zpawinfo/*${zstring}* .`;
-    `ln -sf ../OPF/zpawinfo/phrc? .`;
-    my $templine = `ls ../OPF/zpawinfo/*$zstring`;
-    chomp($templine);
-    my @pslist = split(/\s+/, $templine);
-#    foreach (@pslist)
-#    {
-#      if( $_ =~ m/ae(\S+)/ )
-#      {
-#        `ln -sf ../PAW/zpawinfo/ae$1 .`;
-#      }
-#      elsif( $_ =~ m/ps(\S+)/
-#      }
-#        `ln -sf ../PAW/zpawinfo/ps$1 .`;
-#      }
-#
-#      `ln -sf ae$1 ps$1`;
-#    }
+
+    `ln -sf ../OPF/zpawinfo/gk*${zstring} .`;
+    `ln -sf ../OPF/zpawinfo/fk*${zstring} .`;
+    `ln -sf ../OPF/zpawinfo/melfile${zstring} .`;
+    `ln -sf ../OPF/zpawinfo/coreorb${zstring} .`;
+
+
+    my $z3 = sprintf("z%03i", $znum);
+    `ln -sf ../OPF/zpawinfo/phrc?${z3} .`;
+    `ln -sf ../OPF/zpawinfo/prjfile${z3} .`;
+    `ln -sf ../OPF/zpawinfo/ft?${z3} .`;
+    `ln -sf ../OPF/zpawinfo/ae?${z3} .`;
+    `ln -sf ../OPF/zpawinfo/ps?${z3} .`;
+    `ln -sf ../OPF/zpawinfo/corezeta${z3} .`;
+    `ln -sf ../OPF/zpawinfo/radfile${z3} .`;
+
   }
 
   print "CKS NAME = $cks\n";
@@ -598,10 +600,17 @@ while (<EDGE>) {
   }
 
 #  my $add10_zstring = sprintf("z%03un%02ul%02u", $znum, $nnum, $lnum);
-  my $zstring = sprintf("z%2s%04i_n%02il%02i", $elname, $elnum, $nnum, $lnum);
+  my $zstring = sprintf("z%2s%04i/n%02il%02i", $elname, $elnum, $nnum, $lnum);
+  my $compactZstring = sprintf("z%2s%04i_n%02il%02i", $elname, $elnum, $nnum, $lnum);
 #  system("cp ../SCREEN/${zstring}/zR${pawrad}/rpot ./rpot.${zstring}") == 0 
-  copy( "../SCREEN/${zstring}/zR${pawrad}/rpot", "rpot.${zstring}" )
-    or die "Failed to grab rpot\n../SCREEN/${zstring}/zR${pawrad}/rpot ./rpot.${zstring}\n";
+  print "$zstring   $compactZstring\n";
+  print "../SCREEN/${zstring}/zR${pawrad}/rpot  rpot.${compactZstring}\n";
+  unless( copy( "../SCREEN/${zstring}/zR${pawrad}/rpot", "rpot.${compactZstring}" ) == 1 )
+  {
+    $zstring = sprintf("z%2s%04i_n%02il%02i", $elname, $elnum, $nnum, $lnum);
+    copy( "../SCREEN/${zstring}/zR${pawrad}/rpot", "rpot.${zstring}" )
+      or die "Failed to grab rpot\n../SCREEN/${zstring}/zR${pawrad}/rpot ./rpot.${zstring}\n";
+  }
 #
 
   # If we don't want CLS then make sure the file is not here
@@ -614,11 +623,11 @@ while (<EDGE>) {
   }
   else
   {
-    copy( "../SCREEN/${zstring}/zR${pawrad}/cls", "cls.${zstring}" ) 
-      or warn "WARNING!\nCore-level shift support requested, but could not find ../SCREEN/${zstring}/zR${pawrad}/cls\n"
+    copy( "../SCREEN/${zstring}/zR${pawrad}/cls", "cls.${compactZstring}" ) 
+      or warn "WARNING!\nCore-level shift support requested, but could not find ../SCREEN/${zstring}/zR${pawrad}/cls\n\$!"
             . "No CLS will be done for this site!\n";
     $cls_count++;
-    open IN, "cls.${zstring}" or die "Failed to open cls.${zstring}\n$!";
+    open IN, "cls.${compactZstring}" or die "Failed to open cls.${compactZstring}\n$!";
     my $cls = <IN>;
     chomp $cls;
     $cls_average += $cls;

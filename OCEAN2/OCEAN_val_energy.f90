@@ -133,6 +133,7 @@ module OCEAN_val_energy
       open( unit=99,file='val_energy_test.txt', form='formatted',status='unknown' )
       write(99,*) val_energies(:,:,:)
       close(99)
+      write(6,*) val_energies(:,1,1)
     endif
 !   call GW corrections time
 
@@ -145,6 +146,7 @@ module OCEAN_val_energy
     if( ierr .ne. 0 ) return
 
     
+    if( myid .eq. 0 ) write(6,*) val_energies(:,1,1)
     call val_gw( sys, homo, lumo, val_energies, con_energies, have_imaginary, im_val_energies, &
                  im_con_energies, did_gw_correction, ierr )
     if( ierr .ne. 0 ) return
@@ -155,6 +157,7 @@ module OCEAN_val_energy
       if( ierr .ne. 0 ) return
     endif
 
+    if( myid .eq. 0 ) write(6,*) val_energies(:,1,1)
     call energies_allow( sys, val_energies, con_energies, sys%nelectron, efermi, cliph, &
                                 allow, metal, ierr )
     if( ierr .ne. 0 ) return
@@ -240,10 +243,11 @@ module OCEAN_val_energy
         case ('list')
           write(6,*) 'GW! Will attempt list-style corrections'
           call val_list_gw( sys, val_energies, con_energies, ierr )
-!        case( 'band' )
-!          call val_gw_by_band( sys, ierr, .false. )
-!        case( 'ibnd' )
-!          call val_gw_by_band( sys, ierr, .true. )
+        case( 'band' )
+          call val_gw_by_band( sys, val_energies, con_energies, ierr, .false. )
+        case( 'ibnd' )
+          call val_gw_by_band( sys, val_energies, con_energies, ierr, .true., &
+                               im_val_energies, im_con_energies )
         case( 'cstr' )
           call val_gw_stretch( sys, homo, lumo, val_energies, con_energies, ierr )
         case default
@@ -266,6 +270,64 @@ module OCEAN_val_energy
     did_gw_correction = have_gw
 
   end subroutine val_gw
+
+  subroutine val_gw_by_band( sys, val_energies, con_energies, ierr, keep_imag, im_val_energies, im_con_energies )
+    use OCEAN_system
+    use OCEAN_constants, only : eV2Hartree
+    implicit none
+    !
+    type( O_system ), intent( in ) :: sys
+    real( DP ), intent( inout ), dimension( sys%cur_run%val_bands, sys%nkpts, sys%nspn ) :: val_energies
+    real( DP ), intent( inout ), dimension( sys%cur_run%num_bands, sys%nkpts, sys%nspn ) :: con_energies
+    integer, intent( inout ) :: ierr
+    logical, intent( in ), optional :: keep_imag
+    real( DP ), intent( inout ), optional, dimension( sys%cur_run%val_bands, sys%nkpts, sys%nspn ) :: im_val_energies
+    real( DP ), intent( inout ), optional, dimension( sys%cur_run%num_bands, sys%nkpts, sys%nspn ) :: im_con_energies
+    !
+    integer :: nbands, iter, ispn, ikpt
+    real( DP ), allocatable, dimension(:) :: re_se, im_se
+    logical :: have_gw
+    !
+    inquire(file='GW_band.in',exist=have_gw)
+    if( .not. have_gw ) then
+      write( 6, * ) 'GW corrections requested (band style). File GW_band.in not found.'
+      write( 6, * ) 'No corrections will be done'
+      return
+    endif
+
+    open(unit=99,file='GW_band.in',form='formatted',status='old')
+    rewind(99)
+    read(99,*) nbands
+    allocate( re_se( nbands ), im_se( nbands ) )
+    if( keep_imag ) then
+      do iter = 1, nbands
+        read(99,*) re_se( iter ), im_se( iter )
+      enddo
+    else
+      do iter = 1, nbands
+        read(99,*) re_se( iter )
+      enddo
+      im_se( : ) = 0.0_DP
+    endif
+    close( 99 )
+
+    re_se( : ) = re_se( : ) * eV2Hartree
+    im_se( : ) = -im_se( : ) * eV2Hartree
+
+    do ispn = 1, sys%nspn
+      do ikpt = 1, sys%nkpts
+        do iter = 1, min( nbands, sys%cur_run%val_bands )
+          val_energies( iter, ikpt, ispn ) = val_energies( iter, ikpt, ispn ) + re_se( iter )
+          im_val_energies ( iter, ikpt, ispn ) = im_se( iter )
+        enddo
+      enddo
+    enddo
+
+    deallocate( re_se, im_se )
+
+  
+  end subroutine val_gw_by_band
+
 
   subroutine val_gw_stretch( sys, homo, lumo, val_energies, con_energies, ierr )
     use OCEAN_system
@@ -358,6 +420,7 @@ module OCEAN_val_energy
 
   subroutine energies_allow( sys, val_energies, con_energies, nelectron, efermi, cliph, &
                                   allow, metal, ierr )
+    use OCEAN_mpi
     use OCEAN_system
     use OCEAN_psi
     implicit none
@@ -371,17 +434,36 @@ module OCEAN_val_energy
     integer, intent( inout ) :: ierr
     !
     integer :: kiter, biter1, biter2, ibeta, i, ispn, j, jspn
+    logical :: have_clipl
+    real(dp) :: clipl
     !
     !
     ! Already zero'd
     allow%valr = 0.0_dp
     allow%vali = 0.0_dp
+
+    if( myid .eq. root ) then
+      inquire(file='clipl',exist=have_clipl )
+      clipl = val_energies( 1, 1, 1 ) - 10000.0_dp
+      if( have_clipl ) then
+        open(unit=99,file='clipl',form='formatted',status='old' )
+        read(99,*) clipl
+        close(99)
+        write(6,*) 'clipl: ', clipl, val_energies( 1, 1, 1 )
+      endif
+    endif
+    call MPI_BCAST( have_clipl, 1, MPI_LOGICAL, root, comm, ierr )
+    call MPI_BCAST( clipl, 1, MPI_DOUBLE_PRECISION, root, comm, ierr )
+
+    if( myid .eq. root ) write(6,*) 'clipl: ', clipl, val_energies( 1, 1, 1 )
+
     !
     ! If we have spins from the DFT then we can't rely on band index, need to use Fermi level 
     !  just like for the metals case. 
     !
     ! In storing psi the conduction band index is the fast index
     if( metal .or. sys%nspn .ne. 1 ) then
+    
       ibeta = 0
       do i = 1, sys%valence_ham_spin
         ispn = min( i, sys%nspn )
@@ -390,7 +472,9 @@ module OCEAN_val_energy
           ibeta = ibeta + 1
           do kiter = 1, sys%nkpts
             do biter2 = 1, sys%cur_run%val_bands
-              if ( val_energies( biter2, kiter, ispn ) .le. efermi ) then
+              if( kiter .eq. 1 .and. myid .eq. 0 ) write(6,*) 'clipl: ', clipl, val_energies( biter2, kiter, ispn )
+              if ( val_energies( biter2, kiter, ispn ) .le. efermi  .and. &
+                    ( val_energies( biter2, kiter, ispn ) .gt. clipl )) then
 
                 do biter1 = 1, sys%cur_run%num_bands
                   if ( ( con_energies( biter1, kiter, jspn ) .ge. efermi ) .and. &
@@ -399,6 +483,8 @@ module OCEAN_val_energy
                     allow%vali( biter1, biter2, kiter, ibeta ) = 1.0_dp
                   endif
                 enddo 
+              elseif (  kiter .eq. 1 ) then
+                write(6,*) ibeta, kiter, biter2, val_energies( biter2, kiter, ispn )
               elseif ( sys%backf ) then
                 ierr = -413
                 return
@@ -419,12 +505,18 @@ module OCEAN_val_energy
       do ibeta = 1, sys%nbeta
         do kiter = 1, sys%nkpts
           do biter2 = 1, ( nelectron / 2 ) - sys%brange( 1 ) + 1
-            do biter1 = 2 - sys%brange( 3 ) + ( nelectron / 2 ), sys%cur_run%num_bands
-              if(  con_energies( biter1, kiter, 1 ) .lt. cliph ) then
-                    allow%valr( biter1, biter2, kiter, ibeta ) = 1.0_dp
-                    allow%vali( biter1, biter2, kiter, ibeta ) = 1.0_dp
-              endif
-            enddo ! biter2
+!            if( kiter .eq. 1 .and. myid .eq. 0 ) write(6,*) 'clipl: ', clipl, val_energies( biter2, kiter, 1 )
+!            if( (.not. have_clipl) .or.  val_energies( biter2, kiter, 1 ) .gt. clipl ) then
+            if( val_energies( biter2, kiter, 1 ) .gt. clipl ) then
+              do biter1 = 2 - sys%brange( 3 ) + ( nelectron / 2 ), sys%cur_run%num_bands
+                if(  con_energies( biter1, kiter, 1 ) .lt. cliph ) then
+                      allow%valr( biter1, biter2, kiter, ibeta ) = 1.0_dp
+                      allow%vali( biter1, biter2, kiter, ibeta ) = 1.0_dp
+                endif
+              enddo ! biter2
+            elseif ( myid .eq. 0 .and. kiter .eq. 1 ) then
+              write(6,*) ibeta, kiter, biter2, val_energies( biter2, kiter, 1 )
+            endif
           enddo ! biter1
         enddo ! kiter
       enddo
@@ -448,7 +540,8 @@ module OCEAN_val_energy
     !
     type( O_system ), intent( in ) :: sys
     integer, intent( in ) :: nelectron 
-    real(dp), intent( in ) :: con_energies( sys%cur_run%num_bands, sys%nkpts, sys%nspn ), val_energies( sys%cur_run%val_bands, sys%nkpts, sys%nspn )
+    real(dp), intent( in ) :: con_energies( sys%cur_run%num_bands, sys%nkpts, sys%nspn ), &
+                              val_energies( sys%cur_run%val_bands, sys%nkpts, sys%nspn )
     real(dp), intent( out ) :: efermi, homo, lumo, cliph
     logical, intent( out ) :: metal
     logical, intent( in ) :: dft_flag

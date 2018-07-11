@@ -124,7 +124,7 @@ subroutine jlmatfetch( lc, lmin, lmax, npmax, nproj, qmag, jlmel, powmax )
      end do
   end do
   !
-  call ckmels( nr, lc, lmin, lmax, npmax, nproj, phae, phps, r, dl, wc, jl, jlpow )
+  call ckmels( nr, zz, lc, lmin, lmax, npmax, nproj, phae, phps, r, dl, wc, jl, jlpow )
   !
   do l = lmin, lmax
      do lt = 0, lc + lmax

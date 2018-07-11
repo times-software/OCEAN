@@ -19,6 +19,7 @@ all:
 	cd CNBSE;        make 
 	cd INTERPOLATE;  make
 	cd OCEAN2;			 make
+	cd POST;         make
 
 clean:
 	cd Common;       make clean
@@ -45,6 +46,7 @@ install:
 	cd INTERPOLATE;  make install
 	cd OCEAN2;       make install
 	chmod u+x $(INSTDIR)/*.pl
+	cd POST;				 make install
 
 instdev:
 	for F in $(SCRIPTS) $(AUX); do ln -fs $(PWD)/$$F $(INSTDEVDIR); done;

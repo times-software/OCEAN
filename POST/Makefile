@@ -1,6 +1,6 @@
 include ../Makefile.arch
 
-FOPTS=-g -O0 -traceback
+FOPTS=$(OPTIONS)
 
 all: exciton_plot.x val_exciton_plot.x
 
@@ -20,3 +20,9 @@ periodic.mod: periodic.o
 
 periodic.o: periodic.f90
 	$(FC)  $(FOPTS) -c -o periodic.o periodic.f90
+
+install:
+	cp exciton_plot.x val_exciton_plot.x $(INSTDIR)/
+
+clean:
+	rm *.o *.x

@@ -174,6 +174,8 @@ else
 
 system("$ENV{'OCEAN_BIN'}/defaults.pl") == 0 or die "Failed to run defaults.pl\n$!";
 
+system("$ENV{'OCEAN_BIN'}/structure.pl") == 0 or die "Failed to run structure.pl\n$!";
+
 system("$ENV{'OCEAN_BIN'}/edges.pl") == 0 or die "Failed to run edges.pl\n$!";
 
 ### CALC ###
@@ -186,7 +188,7 @@ my $calc = lc($1);
 close CALC;
 my $run_opf;
 my $run_screen;
-if( $calc =~ m/val/ )
+if( $calc =~ m/val/i )
 {
   $run_opf = 0;
   $run_screen = 0;
@@ -290,7 +292,7 @@ if( $run_screen)
 # CNBSE stage
 ##########################################
 print "$Separator\n";
-if( $calc =~ m/val/ )
+if( $calc =~ m/val/i )
 {
   print "Entering NBSE stage\n";
   chdir "../NBSE";

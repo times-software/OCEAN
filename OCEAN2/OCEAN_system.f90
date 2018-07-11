@@ -52,7 +52,8 @@ module OCEAN_system
     logical          :: backf = .false.
     logical          :: write_rhs 
     logical          :: complex_bse
-    character(len=5) :: calc_type
+    logical          :: legacy_ibeg 
+!    character(len=5) :: calc_type
 
     type(o_run), pointer :: cur_run => null()
 
@@ -63,6 +64,7 @@ module OCEAN_system
     real(DP) :: tau(3)
     integer( S_INT ) :: nalpha
     integer( S_INT ) :: ZNL(3)
+    integer( S_INT ) :: rixsInputZNL(3)   ! if loading from echamp
     
     integer :: indx
     integer :: photon
@@ -73,8 +75,9 @@ module OCEAN_system
     integer :: rixs_pol
     character(len=2) :: elname
     character(len=2) :: corelevel
-    character(len=255) :: basename
-    character(len=255) :: filename
+    character(len=2) :: rixsInputCoreLevel
+!    character(len=255) :: basename
+!    character(len=255) :: filename
 
     character(len=3) :: calc_type
 
@@ -243,7 +246,7 @@ module OCEAN_system
 
       sys%e0 = .true.
       sys%obf = .false.
-      sys%calc_type = 'NaN'
+!      sys%calc_type = 'NaN'
 !      sys%conduct = .true.
 
       open(unit=99,file='nelectron',form='formatted',status='old')
@@ -289,6 +292,15 @@ module OCEAN_system
       open(unit=99,file='cnbse.write_rhs',form='formatted',status='old')
       read(99,*) sys%write_rhs
       close(99)
+
+      inquire(file='force_legacy_ibeg.ipt', exist=exst )
+      if( exst ) then
+        open( unit=99, file='force_legacy_ibeg.ipt', form='formatted',status='old')
+        read( 99, * ) sys%legacy_ibeg
+        close( 99 )
+      else
+        sys%legacy_ibeg = .false.
+      endif
 
 
       inquire(file='force_complex_bse.ipt', exist=exst )
@@ -372,11 +384,13 @@ module OCEAN_system
     if( ierr .ne. MPI_SUCCESS ) goto 111
     call MPI_BCAST( sys%write_rhs, 1, MPI_LOGICAL, root, comm, ierr )
     if( ierr .ne. MPI_SUCCESS ) goto 111
+    call MPI_BCAST( sys%legacy_ibeg, 1, MPI_LOGICAL, root, comm, ierr )
+    if( ierr .ne. MPI_SUCCESS ) goto 111
     call MPI_BCAST( sys%complex_bse, 1, MPI_LOGICAL, root, comm, ierr )
     if( ierr .ne. MPI_SUCCESS ) goto 111
 
-    call MPI_BCAST( sys%calc_type, 5, MPI_CHARACTER, root, comm, ierr )
-    if( ierr .ne. MPI_SUCCESS ) goto 111
+!    call MPI_BCAST( sys%calc_type, 5, MPI_CHARACTER, root, comm, ierr )
+!    if( ierr .ne. MPI_SUCCESS ) goto 111
 
 
     endif
@@ -412,9 +426,9 @@ module OCEAN_system
     integer, intent( inout ) :: ierr
 
     real(DP) :: tau(3)
-    integer :: ZNL(3), indx, photon
-    character(len=2) :: elname, corelevel, ein
-    character(len=5) :: calc_type
+    integer :: ZNL(3), rixsInputZNL(3), indx, photon
+    character(len=2) :: elname, corelevel, ein, rixsInputCoreLevel
+    character(len=3) :: calc_type
     type(o_run), pointer :: temp_prev_run, temp_cur_run
 
     integer :: ntot, nmatch, iter, i, start_band, num_bands, val_bands, val_flag,  &
@@ -470,6 +484,20 @@ module OCEAN_system
           num_bands = sys%brange(4)-sys%brange(3)+1
           val_bands = sys%brange(2)-sys%brange(1)+1
           have_val = .true.
+          rixsInputZNL( : ) = ZNL( : )
+          rixsInputCoreLevel = corelevel
+
+        case( 'C2C' )
+        ! Core-to-core RIXS should mix both XAS and RXS
+          backspace( 99 )
+          read(99,*)  ZNL(1), ZNL(2), ZNL(3), elname, corelevel, indx, photon, calc_type, &
+                      rixs_energy, rixs_pol, rixsInputZNL(2), rixsInputZNL(3), rixsInputCoreLevel
+          start_band = sys%brange(3)
+          num_bands = sys%num_bands
+          have_core = .true.
+          val_bands = sys%brange(2)-sys%brange(1)+1
+
+          rixsInputZNL(1) = ZNL(1)  ! core-to-core is on-site therefore Z = Z
           
         case default
           start_band = sys%brange(3)
@@ -535,15 +563,19 @@ module OCEAN_system
       if( ierr .ne. MPI_SUCCESS ) goto 111
       call MPI_BCAST( ZNL, 3, MPI_INTEGER, root, comm, ierr )
       if( ierr .ne. MPI_SUCCESS ) goto 111
+      call MPI_BCAST( rixsInputZNL, 3, MPI_INTEGER, root, comm, ierr )
+      if( ierr .ne. MPI_SUCCESS ) goto 111
       call MPI_BCAST( elname, 2, MPI_CHARACTER, root, comm, ierr )
       if( ierr .ne. MPI_SUCCESS ) goto 111
       call MPI_BCAST( corelevel, 2, MPI_CHARACTER, root, comm, ierr )
+      if( ierr .ne. MPI_SUCCESS ) goto 111
+      call MPI_BCAST( rixsInputCoreLevel, 2, MPI_CHARACTER, root, comm, ierr )
       if( ierr .ne. MPI_SUCCESS ) goto 111
       call MPI_BCAST( indx, 1, MPI_INTEGER, root, comm, ierr )
       if( ierr .ne. MPI_SUCCESS ) goto 111
       call MPI_BCAST( photon, 1, MPI_INTEGER, root, comm, ierr )
       if( ierr .ne. MPI_SUCCESS ) goto 111
-      call MPI_BCAST( calc_type, 5, MPI_CHARACTER, root, comm, ierr )
+      call MPI_BCAST( calc_type, 3, MPI_CHARACTER, root, comm, ierr )
       if( ierr .ne. MPI_SUCCESS ) goto 111
       call MPI_BCAST( start_band, 1, MPI_INTEGER, root, comm, ierr )
       if( ierr .ne. MPI_SUCCESS ) goto 111
@@ -580,10 +612,12 @@ module OCEAN_system
       endif
       temp_cur_run%tau(:) = tau(:)
       temp_cur_run%ZNL(:) = ZNL(:)
+      temp_cur_run%rixsInputZNL(:) = rixsInputZNL(:)
       temp_cur_run%nalpha = 4 * ( 2 * temp_cur_run%ZNL(3) + 1 )
       temp_cur_run%elname = elname
       temp_cur_run%indx = indx
       temp_cur_run%corelevel = corelevel
+      temp_cur_run%rixsInputcorelevel = rixsInputcorelevel
       temp_cur_run%calc_type = calc_type
       temp_cur_run%photon = photon
       temp_cur_run%start_band = start_band
@@ -600,9 +634,9 @@ module OCEAN_system
 
       temp_cur_run%complex_bse = sys%complex_bse
       
-      temp_cur_run%basename = 'abs'
-      write(temp_cur_run%filename,'(A3,A1,A2,A1,I2.2,A1,A2,A1,I2.2)' ) temp_cur_run%basename, '_', temp_cur_run%elname, &
-            '.', temp_cur_run%indx, '_', temp_cur_run%corelevel, '_', temp_cur_run%photon
+!      temp_cur_run%basename = 'abs'
+!      write(temp_cur_run%filename,'(A3,A1,A2,A1,I2.2,A1,A2,A1,I2.2)' ) temp_cur_run%basename, '_', temp_cur_run%elname, &
+!            '.', temp_cur_run%indx, '_', temp_cur_run%corelevel, '_', temp_cur_run%photon
 
       temp_prev_run => temp_cur_run
 !      running_total = running_total + 1

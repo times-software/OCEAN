@@ -41,9 +41,9 @@ module OCEAN_bubble
     real(dp) :: bvec(3,3)
     !
     !write(71,*) gvec(:) 
-    length = ( bvec(1,1) * dble(gvec(1)) + bvec(2,1) * dble(gvec(2)) + bvec(3,1) * dble(gvec(3)) ) ** 2.0_dp &
-           + ( bvec(1,2) * dble(gvec(1)) + bvec(2,2) * dble(gvec(2)) + bvec(3,2) * dble(gvec(3)) ) ** 2.0_dp &
-           + ( bvec(1,3) * dble(gvec(1)) + bvec(2,3) * dble(gvec(2)) + bvec(3,3) * dble(gvec(3)) ) ** 2.0_dp
+    length = ( bvec(1,1) * dble(gvec(1)) + bvec(1,2) * dble(gvec(2)) + bvec(1,3) * dble(gvec(3)) ) ** 2.0_dp &
+           + ( bvec(2,1) * dble(gvec(1)) + bvec(2,2) * dble(gvec(2)) + bvec(2,3) * dble(gvec(3)) ) ** 2.0_dp &
+           + ( bvec(3,1) * dble(gvec(1)) + bvec(3,2) * dble(gvec(2)) + bvec(3,3) * dble(gvec(3)) ) ** 2.0_dp
   end function gvec_length
 
   subroutine AI_bubble_clean( )

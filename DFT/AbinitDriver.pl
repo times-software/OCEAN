@@ -577,24 +577,48 @@ if ($RunABINIT) {
   }
   close CUTIN;
 
-  if( $ser_prefix =~ m/!/ ) 
+  open CUTIN, ">cut3d2.in" or die "Failed to open cut3d2.in for writing.\n$!\n";
+  if( $AbiVersion <= 7 )
   {
-    my $test_prefix = $para_prefix;
-    $test_prefix =~ s/\d+/1/;
-    print "    Serial prefix: $test_prefix\n";
-
-    print "$test_prefix $ENV{'OCEAN_CUT3D'} < cut3d.in > cut3d.log 2> cut3d.err\n";
-    system("$test_prefix $ENV{'OCEAN_CUT3D'} < cut3d.in > cut3d.log 2> cut3d.err") == 0
-        or die "Failed to run cut3d\n";
+    if( $nspn == 2 )
+    {
+      print CUTIN "SCx_POT\n1\n0\n6\npotofr\n0\n";
+    }
+    else
+    {
+      print CUTIN "SCx_POT\n1\n6\npotofr\n0\n";
+    }
   }
   else
   {
-    print "$ser_prefix $ENV{'OCEAN_CUT3D'} < cut3d.in > cut3d.log 2> cut3d.err\n";
-    system("$ser_prefix $ENV{'OCEAN_CUT3D'} < cut3d.in > cut3d.log 2> cut3d.err") == 0
-        or die "Failed to run cut3d\n";
+    if( $nspn == 2 )
+    {
+      print CUTIN "SCx_POT\n0\n6\npotofr\n0\n";
+    }
+    else
+    {
+      print CUTIN "SCx_POT\n6\npotofr\n0\n";
+    }
+  }
+  close CUTIN;
+
+
+  my $useThis_prefix = $ser_prefix;
+  if( $ser_prefix =~ m/!/ ) 
+  {
+    $useThis_prefix = $para_prefix;
+    $useThis_prefix =~ s/\d+/1/;
+    print "    Serial prefix: $useThis_prefix\n";
   }
 
 
+  print "$useThis_prefix $ENV{'OCEAN_CUT3D'} < cut3d.in > cut3d.log 2> cut3d.err\n";
+  system("$useThis_prefix $ENV{'OCEAN_CUT3D'} < cut3d.in > cut3d.log 2> cut3d.err") == 0
+      or die "Failed to run cut3d\n";
+
+  print "$useThis_prefix $ENV{'OCEAN_CUT3D'} < cut3d2.in > cut3d2.log 2> cut3d2.err\n";
+  system("$useThis_prefix $ENV{'OCEAN_CUT3D'} < cut3d2.in > cut3d2.log 2> cut3d2.err") == 0
+      or die "Failed to run cut3d\n";
   
   `echo "1" > abinit.stat`;
 
