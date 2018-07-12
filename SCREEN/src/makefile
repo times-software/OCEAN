@@ -14,7 +14,7 @@ install:
 	cp screen_driver.x $(INSTDIR)/
 
 %.o %.mod: %.f90
-	$(MPIFORT) $(OPTIONS) -c -o $*.o $<
+	$(MPIFORT) $(OPTIONS) -c -o $*.o $< $(FFTWI)
 
 ocean_mpi.o: ocean_mpi.f90 ai_kinds.mod
 ocean_mpi.mod: ocean_mpi.f90 ai_kinds.mod
