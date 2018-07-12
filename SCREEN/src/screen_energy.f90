@@ -112,7 +112,7 @@ module screen_energy
 
 
   subroutine screen_energy_read_fermi( ierr )
-    use ocean_mpi, only : myid, root, comm, MPI_BCAST, MPI_INTEGER, MPI_SUCCESS, MPI_DOUBLE_PRECISION
+    use ocean_mpi, only : myid, root, comm, MPI_INTEGER, MPI_SUCCESS, MPI_DOUBLE_PRECISION
     integer, intent( inout ) :: ierr
 #ifdef MPI
     integer :: ierr_

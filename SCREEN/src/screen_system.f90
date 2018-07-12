@@ -156,7 +156,7 @@ module screen_system
   end subroutine screen_system_snatch
 
   subroutine screen_system_load( ierr )
-    use OCEAN_mpi, only : myid, root, comm, nproc, MPI_BCAST, MPI_INTEGER, MPI_SUCCESS
+    use OCEAN_mpi, only : myid, root, comm, nproc, MPI_INTEGER, MPI_SUCCESS
     integer, intent( inout ) :: ierr
     !
 #ifdef MPI
