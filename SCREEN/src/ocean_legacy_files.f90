@@ -445,7 +445,7 @@ module ocean_legacy_files
 
   subroutine olf_read_at_kpt( ikpt, ispin, ngvecs, my_bands, gvecs, wfns, ierr )
 #ifdef MPI
-    use OCEAN_mpi, only : MPI_INTEGER, MPI_DOUBLE_PRECISION, MPI_STATUSES_IGNORE, MPI_CANCEL, myid, MPI_REQUEST_NULL
+    use OCEAN_mpi, only : MPI_INTEGER,MPI_DOUBLE_PRECISION, MPI_STATUSES_IGNORE, myid, MPI_REQUEST_NULL
 !    use OCEAN_mpi
 #endif
     integer, intent( in ) :: ikpt, ispin, ngvecs, my_bands
