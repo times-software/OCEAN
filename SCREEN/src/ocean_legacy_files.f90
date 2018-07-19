@@ -133,7 +133,7 @@ module ocean_legacy_files
 
   subroutine olf_read_energies_single( myid, root, comm, energies, ierr )
 #ifdef MPI
-    use ocean_mpi, only : MPI_BCAST, MPI_DOUBLE_PRECISION
+    use ocean_mpi, only : MPI_DOUBLE_PRECISION
 #endif
     integer, intent( in ) :: myid, root
 #ifdef MPI_F08
@@ -194,7 +194,7 @@ module ocean_legacy_files
 
   subroutine olf_read_energies( myid, root, comm, nbv, nbc, nkpts, nspns, val_energies, con_energies, ierr )
 #ifdef MPI
-    use ocean_mpi, only : MPI_BCAST, MPI_DOUBLE_PRECISION
+    use ocean_mpi, only : MPI_DOUBLE_PRECISION
 #endif
     integer, intent( in ) :: myid, root, nbv, nbc, nkpts, nspns
 #ifdef MPI_F08
@@ -245,7 +245,7 @@ module ocean_legacy_files
 
   ! Read the universal little files
   subroutine olf_read_init( comm, ierr )
-    use ocean_mpi, only :  MPI_BCAST, MPI_INTEGER, MPI_CHARACTER
+    use ocean_mpi, only : MPI_INTEGER, MPI_CHARACTER
 #ifdef MPI_F08
     type( MPI_COMM ), intent( in ) :: comm
 #else
@@ -445,8 +445,7 @@ module ocean_legacy_files
 
   subroutine olf_read_at_kpt( ikpt, ispin, ngvecs, my_bands, gvecs, wfns, ierr )
 #ifdef MPI
-    use OCEAN_mpi, only : MPI_IBCAST, MPI_INTEGER, MPI_BCAST, MPI_IRSEND, MPI_IRECV, &
-                          MPI_DOUBLE_PRECISION, MPI_STATUSES_IGNORE, MPI_CANCEL, myid, MPI_REQUEST_NULL
+    use OCEAN_mpi, only : MPI_INTEGER, MPI_DOUBLE_PRECISION, MPI_STATUSES_IGNORE, MPI_CANCEL, myid, MPI_REQUEST_NULL
 !    use OCEAN_mpi
 #endif
     integer, intent( in ) :: ikpt, ispin, ngvecs, my_bands
