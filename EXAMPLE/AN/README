@@ -1,2 +1,7 @@
-The Ammonium Nitrate example is not ready for primetime. Sorry. Check back 
-for version 1.1!
+The Ammonium Nitrate example shows the effects of the core-level shift.
+By default the input will carry out a core-level shift calculation, such that 
+the average shift (between the NH4 and NO3 nitrogen atoms) is zero. 
+
+The emission is polarization dependent. The script avg.csh will make an 
+average over the nitrogen sites as well as x, y, and z and save this to 
+CNBSE/xes.avg

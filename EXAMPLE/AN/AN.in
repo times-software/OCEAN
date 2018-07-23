@@ -2,7 +2,7 @@
 control 0
 ppdir {'../'}
 
-#para_prefix{ mpirun -n 64}
+para_prefix{ mpirun -n 8}
 nkpt { 4 4 4}
 screen.nkpt{ 2 2 2 }
 ngkpt{ 4 4 4 }
@@ -71,7 +71,7 @@ scfac 0.85
 cnbse.broaden 0.544
 
 # Run the emission (CLS shows up well)
-cnbse.mode { xes }
+calc { xes }
 # By setting this to true we ask OCEAN calculate shifts for all the requested sites
 #   and then average them together. 
 core_offset .true.
