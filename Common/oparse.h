@@ -484,3 +484,7 @@ screen.augment
 {
 .true.
 } screen.augment
+screen.wvfn
+{
+legacy
+} screen.wvfn
