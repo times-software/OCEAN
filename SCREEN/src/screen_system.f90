@@ -28,7 +28,7 @@ module screen_system
   end type physical_system
 
   type system_parameters
-    integer :: brange( 4 )
+    integer :: bands( 2 )
     integer :: kmesh( 3 )
     integer :: nkpts
     integer :: nspin
@@ -201,7 +201,7 @@ module screen_system
     endif
 #endif
     params%nkpts = product( params%kmesh(:) )
-    params%nbands = params%brange(4) - params%brange(3) + params%brange(2) - params%brange(1) + 2
+    params%nbands = params%bands(2) - params%bands(1) + 1
 
   end subroutine screen_system_load
 
@@ -237,7 +237,7 @@ module screen_system
     call MPI_BCAST( params%kshift, 3, MPI_DOUBLE_PRECISION, root, comm, ierr )
     if( ierr .ne. MPI_SUCCESS ) return
     
-    call MPI_BCAST( params%brange, 4, MPI_INTEGER, root, comm, ierr )
+    call MPI_BCAST( params%bands, 2, MPI_INTEGER, root, comm, ierr )
     if( ierr .ne. MPI_SUCCESS ) return
 
     call MPI_BCAST( params%kmesh, 3, MPI_INTEGER, root, comm, ierr )
@@ -410,6 +410,9 @@ module screen_system
   subroutine load_params( ierr )
     integer, intent( inout ) :: ierr
     !
+    integer :: brange( 4 )
+    logical :: ex
+    !
     open( unit=99, file='kmesh.ipt', form='formatted', status='old', IOSTAT=ierr )
     if( ierr .ne. 0 ) then
       write( 6, * ) 'FATAL ERROR: Failed to open kmesh.ipt', ierr
@@ -459,20 +462,41 @@ module screen_system
       return
     endif
 
-    open( unit=99, file='brange.ipt', form='formatted', status='old', IOSTAT=ierr )
-    if( ierr .ne. 0 ) then
-      write( 6, * ) 'FATAL ERROR: Failed to open brange.ipt', ierr
-      return
-    endif
-    read( 99, *, IOSTAT=ierr ) params%brange( : )
-    if( ierr .ne. 0 ) then
-      write( 6, * ) 'FATAL ERROR: Failed to read brange.ipt', ierr
-      return
-    endif
-    close( 99, IOSTAT=ierr)
-    if( ierr .ne. 0 ) then
-      write( 6, * ) 'FATAL ERROR: Failed to close brange.ipt', ierr
-      return
+    inquire( file='bands.ipt', exist=ex )
+    if( ex ) then
+      open( unit=99, file='bands.ipt', form='formatted', status='old', IOSTAT=ierr )
+      if( ierr .ne. 0 ) then
+        write( 6, * ) 'FATAL ERROR: Failed to open bands.ipt', ierr
+        return
+      endif
+      read( 99, *, IOSTAT=ierr ) params%bands( : )
+      if( ierr .ne. 0 ) then
+        write( 6, * ) 'FATAL ERROR: Failed to read bands.ipt', ierr
+        return
+      endif
+      close( 99, IOSTAT=ierr)
+      if( ierr .ne. 0 ) then
+        write( 6, * ) 'FATAL ERROR: Failed to close bands.ipt', ierr
+        return
+      endif
+    else
+      open( unit=99, file='brange.ipt', form='formatted', status='old', IOSTAT=ierr )
+      if( ierr .ne. 0 ) then
+        write( 6, * ) 'FATAL ERROR: Failed to open brange.ipt', ierr
+        return
+      endif
+      read( 99, *, IOSTAT=ierr ) brange( : )
+      if( ierr .ne. 0 ) then
+        write( 6, * ) 'FATAL ERROR: Failed to read brange.ipt', ierr
+        return
+      endif
+      close( 99, IOSTAT=ierr)
+      if( ierr .ne. 0 ) then
+        write( 6, * ) 'FATAL ERROR: Failed to close brange.ipt', ierr
+        return
+      endif
+      params%bands(1) = brange(1)
+      params%bands(2) = brange(4)
     endif
 
   end subroutine load_params

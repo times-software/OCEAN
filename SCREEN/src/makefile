@@ -1,6 +1,6 @@
 include ../../Makefile.arch
 
-OPTIONS += #-warn all -check all -DDEBUG
+OPTIONS += #-fcheck=all #-warn all -check all -DDEBUG
 
 
 all: screen_driver.x
@@ -8,7 +8,7 @@ all: screen_driver.x
 OBJS = screen_driver.o ai_kinds.o ocean_mpi.o screen_grid.o screen_system.o screen_sites.o screen_paral.o \
        screen_energy.o ocean_dft_files.o ocean_legacy_files.o screen_wavefunction.o screen_wvfn_converter.o \
        screen_chi0.o screen_chi_driver.o screen_chi.o screen_centralpotential.o periodic.o schi_sinqr.o \
-       schi_direct.o ocean_sphericalharmonics.o ocean_quadrature.o screen_opf.o
+       schi_direct.o ocean_sphericalharmonics.o ocean_quadrature.o screen_opf.o ocean_qe54_files.o
 
 install:
 	cp screen_driver.x $(INSTDIR)/
@@ -48,8 +48,8 @@ ocean_prep.mod: ocean_prep.f90 ocean_legacy_files.mod ai_kinds.mod ocean_mpi.mod
 ocean_legacy_files.o: ocean_legacy_files.f90 ai_kinds.mod ocean_mpi.mod 
 ocean_legacy_files.mod: ocean_legacy_files.f90 ai_kinds.mod ocean_mpi.mod
 
-ocean_dft_files.o: ocean_dft_files.f90 ai_kinds.mod ocean_mpi.mod ocean_legacy_files.mod
-ocean_dft_files.mod: ocean_dft_files.f90 ai_kinds.mod ocean_mpi.mod ocean_legacy_files.mod
+ocean_dft_files.o: ocean_dft_files.f90 ai_kinds.mod ocean_mpi.mod ocean_legacy_files.mod ocean_qe54_files.mod
+ocean_dft_files.mod: ocean_dft_files.f90 ai_kinds.mod ocean_mpi.mod ocean_legacy_files.mod ocean_qe54_files.mod
 
 screen_wavefunction.o:   screen_wavefunction.f90 ai_kinds.mod screen_system.mod screen_paral.mod
 screen_wavefunction.mod: screen_wavefunction.f90 ai_kinds.mod screen_system.mod screen_paral.mod

@@ -22,7 +22,7 @@ module screen_wvfn_converter
                              screen_paral_NumLocalSites, screen_paral_isMySite
     use screen_system, only : system_parameters, params
     use screen_sites, only : site, pinfo
-    use ocean_legacy_files, only : olf_nprocPerPool
+    use ocean_dft_files, only : odf_nprocPerPool
     use ocean_mpi
     
 !    type( site_parallel_info ), intent( in ) :: pinfo
@@ -40,7 +40,7 @@ module screen_wvfn_converter
     integer :: recvSize, siteSize
 
     ! This is currently larger than it needs to be
-    recvSize = params%nspin * params%nkpts * olf_nprocPerPool()
+    recvSize = params%nspin * params%nkpts * odf_nprocPerPool()
 
     siteSize = screen_paral_NumLocalSites( pinfo, nsites )
 
@@ -83,7 +83,8 @@ module screen_wvfn_converter
     use screen_system, only : system_parameters, params
     use screen_sites, only : site
     use screen_paral, only : site_parallel_info
-    use ocean_legacy_files
+    use ocean_dft_files, only : odf_return_my_bands, odf_is_my_kpt, odf_get_ngvecs_at_kpt, &
+                                odf_read_at_kpt
     use ocean_mpi, only : myid, root
 
     type( site_parallel_info ), intent( in ) :: pinfo
@@ -100,7 +101,7 @@ module screen_wvfn_converter
     logical :: is_kpt
     
 
-    call olf_return_my_bands( nbands, ierr )
+    call odf_return_my_bands( nbands, ierr )
     if( ierr .ne. 0 ) return
 
 
@@ -109,12 +110,12 @@ module screen_wvfn_converter
 
         if( myid .eq. root ) write(6,*) ikpt, ispin
 
-        call olf_is_my_kpt( ikpt, ispin, is_kpt, ierr )
+        call odf_is_my_kpt( ikpt, ispin, is_kpt, ierr )
         if( ierr .ne. 0 ) return
 
         if( is_kpt ) then
 !          write(6,*) 'ngvec', ispin, ikpt
-          call olf_get_ngvecs_at_kpt( ikpt, ispin, ngvecs, ierr )
+          call odf_get_ngvecs_at_kpt( ikpt, ispin, ngvecs, ierr )
           if( ierr .ne. 0 ) return
 
 !          write(6,*) 'nband', nbands, ngvecs
@@ -127,7 +128,7 @@ module screen_wvfn_converter
           endif
 
 !          write(6,*) 'read ', ispin, ikpt
-          call olf_read_at_kpt( ikpt, ispin, ngvecs, nbands, input_gvecs, input_uofg, ierr )
+          call odf_read_at_kpt( ikpt, ispin, ngvecs, nbands, input_gvecs, input_uofg, ierr )
           if( ierr .ne. 0 ) return
           
           call swl_convertAndSend( pinfo, ikpt, ispin, ngvecs, nbands, input_gvecs, input_uofg, &
