@@ -266,7 +266,7 @@ module screen_chi0
     call system_clock( clock_start, count_rate, count_max )
     call calcChi( pinfo, singleSite%wvfn, spareWavefunctions, chi, spareWvfnRecvs, ierr )
     call system_clock( clock_stop )
-    if( pinfo%myid .eq. pinfo%root ) write(6,'(2(I16,1X),F14.8)') clock_start, clock_stop, & 
+    if( pinfo%myid .eq. pinfo%root ) write(6,'(2(I0,1X),F14.8)') clock_start, clock_stop, & 
             ( real( clock_stop - clock_start, DP ) / real( count_rate, DP ) )
     if( ierr .ne. 0 ) return
 

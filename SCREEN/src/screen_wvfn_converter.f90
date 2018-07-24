@@ -153,7 +153,7 @@ module screen_wvfn_converter
     use screen_system, only : system_parameters, params
     use screen_sites, only : site
     use screen_wavefunction, only : screen_wvfn
-    use ocean_legacy_files, only : olf_nprocPerPool, olf_getPoolIndex, olf_getBandsForPoolID, olf_returnGlobalID
+    use ocean_dft_files, only : odf_nprocPerPool, odf_getPoolIndex, odf_getBandsForPoolID, odf_returnGlobalID
     integer, intent( in ) :: isite
     type( site ) :: current_site
 #ifdef MPI_F08
@@ -172,9 +172,11 @@ module screen_wvfn_converter
     write(1000+myid,*) 'Running swl_postSiteRecvs'
     write(1000+myid,'(A3,2(1x,I8))') '   ', size(current_site%wvfn%wvfn,1), size(current_site%wvfn%wvfn,2)
     write(1000+myid,'(A3,8A9)') '   ', 'Npts', 'Start', 'Nbands', 'Sender', 'iKpts', 'iSpin', 'Tag', 'Site'
+    flush(1000+myid)
     
-    nprocPerKpt = olf_nprocPerPool()
+    nprocPerKpt = odf_nprocPerPool()
     npts = size( current_site%wvfn%wvfn, 1 )
+
     
     i = 0
     j = 0
@@ -184,12 +186,12 @@ module screen_wvfn_converter
 
         itag = ( isite - 1 ) * ( ikpt + ( ispin - 1 ) * params%nkpts ) &
              + ( ispin - 1 ) * params%nkpts + ikpt
-        poolIndex = olf_getPoolIndex( ispin, ikpt )
+        poolIndex = odf_getPoolIndex( ispin, ikpt )
         start_band = 1
         do poolID = 0, nprocPerKpt - 1
           j = j + 1
-          num_bands = olf_getBandsForPoolID( poolID )
-          targetID = olf_returnGlobalID( poolIndex, poolID )
+          num_bands = odf_getBandsForPoolID( poolID )
+          targetID = odf_returnGlobalID( poolIndex, poolID )
       
           write(1000+myid,'(A,8(1X,I8))') '   ', npts, start_band, num_bands, targetID, ikpt, ispin, itag, isite
 
@@ -202,6 +204,7 @@ module screen_wvfn_converter
         enddo
       enddo
     enddo
+    flush(1000+myid)
 
 
 

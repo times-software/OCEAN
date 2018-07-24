@@ -21,7 +21,7 @@ module ocean_qe54_files
   logical :: is_init = .false.
   character( len=128 ) :: prefix
 
-  integer :: brange(4)
+  integer :: bands(2)
   integer :: kpts(3)
   integer :: nspin 
   integer :: nfiles
@@ -74,7 +74,7 @@ module ocean_qe54_files
     integer :: nbands
     integer :: bands_remain, i
 
-    bands_remain = brange(4)-brange(3)+brange(2)-brange(1)+2
+    bands_remain = bands(2)-bands(1)+1
 
     do i = 0, poolID
       nbands = bands_remain / ( pool_nproc - i )
@@ -145,6 +145,7 @@ module ocean_qe54_files
     !
     integer :: ispn, ikpt, i, bstop2 !bstop1, bstart2, bstop2
     real(DP) :: dumf
+    character(len=128) :: lineBurn
 
     if( is_init .eqv. .false. ) then
       write(6,*) 'qe54_read_energies_single called but was not initialized'
@@ -152,7 +153,7 @@ module ocean_qe54_files
       return
     endif 
 
-    if( size( energies, 1 ) .lt. ( brange(4)-brange(1)+1 ) ) then
+    if( size( energies, 1 ) .lt. ( bands(2)-bands(1)+1 ) ) then
       write(6,*) 'Error! Band dimension of energies too small in qe54_read_energies_single'
       ierr = 1
       return
@@ -169,20 +170,20 @@ module ocean_qe54_files
     endif
 
     if( myid .eq. root ) then
-!      bstop1  = brange(2) - brange(1) + 1
-!      bstart2 = brange(3) - brange(1) + 1
-      bstop2  = brange(4) - brange(1) + 1
+      bstop2  = bands(2) - bands(1) + 1
 
       do ispn = 1, nspin
         do ikpt = 1, product(kpts(:))
 
           open( unit=99, file=qe54_eigFile(ikpt,ispn), form='formatted', status='old' )
           do i = 1, 9
-            read(99,*)
+            read(99,*) !lineBurn
+!            write(6,*) lineBurn
           enddo
-          do i = 1, brange( 1 ) - 1
-            read(99,*) dumf
-          enddo
+!          do i = 1, bands( 1 ) - 1
+!            read(99,*) dumf
+!            write(6,*) dumf
+!          enddo
           do i = 1, bstop2
             read(99,*) energies( i, ikpt, ispn )
           enddo
@@ -190,6 +191,7 @@ module ocean_qe54_files
           close( 99 )
         enddo
       enddo
+      energies(:,:,:) = energies(:,:,:) * 2.0_DP
     endif
 
 #ifdef MPI
@@ -216,7 +218,7 @@ module ocean_qe54_files
     integer, intent ( in ) :: ikpt, ispin
     character(len=512) :: fileName
 
-    write( fileName, '(a,a1,i5.5,a1,a)' ) trim( prefix ), 'K', ikpt, '/', 'gvectors.dat'
+    write( fileName, '(a,a1,i5.5,a1,a)' ) trim( prefix ), 'K', ikpt, '/', 'gkvectors.dat'
 
   end function qe54_gkvFile
 
@@ -293,7 +295,9 @@ module ocean_qe54_files
 #endif
     integer, intent( inout ) :: ierr
     !
-    integer :: i
+    integer :: i, brange(4)
+    logical :: ex
+    character(len=128) :: tmp
     !
     ! Set the comms for file handling
     call MPI_COMM_DUP( comm, inter_comm, ierr )
@@ -306,12 +310,22 @@ module ocean_qe54_files
 
     if( inter_myid .eq. inter_root ) then
       open( unit=99, file='prefix', form='formatted', status='old' )
-      read(99,*)  prefix
+      read(99,*)  tmp
       close( 99 )
+      write( prefix, '(a,a,a)' ) 'Out/', trim(tmp), '.save/'
 
-      open(unit=99,file='brange.ipt', form='formatted', status='old' )
-      read(99,*) brange(:)
-      close(99)
+      inquire( file='bands.ipt', exist=ex )
+      if( ex ) then
+        open(unit=99,file='bands.ipt', form='formatted', status='old' )
+        read(99,*) bands(:)
+        close(99)
+      else
+        open(unit=99,file='brange.ipt', form='formatted', status='old' )
+        read(99,*) brange(:)
+        close(99)
+        bands(2) = brange(4)
+        bands(1) = brange(1)
+      endif
       open(unit=99,file='kmesh.ipt', form='formatted', status='old' )
       read(99,*) kpts(:)
       close(99)
@@ -326,7 +340,7 @@ module ocean_qe54_files
     call MPI_BCAST( nfiles, 1, MPI_INTEGER, inter_root, inter_comm, ierr )
     if( ierr .ne. 0 ) return
 
-    call MPI_BCAST( brange, 4, MPI_INTEGER, inter_root, inter_comm, ierr )
+    call MPI_BCAST( bands, 2, MPI_INTEGER, inter_root, inter_comm, ierr )
     if( ierr .ne. 0 ) return
 
     call MPI_BCAST( kpts, 3, MPI_INTEGER, inter_root, inter_comm, ierr )
@@ -334,6 +348,10 @@ module ocean_qe54_files
 
     call MPI_BCAST( nspin, 1, MPI_INTEGER, inter_root, inter_comm, ierr )
     if( ierr .ne. 0 ) return
+
+    call MPI_BCAST( prefix, len(prefix), MPI_CHARACTER, inter_root, inter_comm, ierr )
+    if( ierr .ne. 0 ) return
+
 #endif
 
     call set_pools( ierr )
@@ -432,7 +450,7 @@ module ocean_qe54_files
       do i = 1, 12
         read( 99 )
       enddo
-        read(99) crap, gvecs
+      read(99) crap, gvecs
       close( 99 )
     endif
 
@@ -479,7 +497,7 @@ module ocean_qe54_files
       return
     endif
 
-    nbands = brange(4)-brange(1)+1
+    nbands = bands(2)-bands(1)+1
 
     if( pool_myid .eq. pool_root ) then
     
@@ -491,7 +509,12 @@ module ocean_qe54_files
       read(99) crap, test_gvec
       if( test_gvec .ne. ngvecs ) then
         ierr = -2
+        write(6,*) test_gvec, ngvecs
+        return
       endif
+      do i = 1, 5
+        read(99)
+      enddo
 
       ! Error synch. Also ensures that the other procs have posted their recvs
       call MPI_BCAST( ierr, 1, MPI_INTEGER, pool_root, pool_comm, ierr_ )
@@ -522,6 +545,14 @@ module ocean_qe54_files
       write(1000+myid,*) '   Nbands: ', nbands
 
       open( unit=99, file=qe54_evcFile( ikpt, ispin), form='unformatted', status='old' )
+      do i = 1, 12
+        read(99)
+      enddo
+
+      ! if we are skipping bands, do that here
+!      do i = 1, bands(1)-1
+!        read( 99 ) crap, cmplx_wvfn( 1, 1 )
+!      enddo
 
       start_band = 1
 
@@ -531,7 +562,11 @@ module ocean_qe54_files
         nbands_to_send = qe54_getBandsForPoolID( id )
 
         do i = start_band, nbands_to_send + start_band - 1
+          read(99)
+          read(99)
           read( 99 ) crap, cmplx_wvfn( :, i )
+          read(99)
+          read(99)
         enddo
 
         ! don't send if I am me

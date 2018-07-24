@@ -89,7 +89,6 @@ program screen_driver
   call screen_energy_find_fermi( ierr )
   if( ierr .ne. 0 ) goto 111
 
-
   
   call screen_wvfn_converter_driver( nsites, all_sites, ierr )
   if( ierr .ne. 0 ) goto 111

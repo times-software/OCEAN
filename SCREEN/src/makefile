@@ -1,6 +1,6 @@
 include ../../Makefile.arch
 
-OPTIONS += #-fcheck=all #-warn all -check all -DDEBUG
+OPTIONS += #-fbacktrace -g -O0 -fcheck=all #-warn all -check all -DDEBUG
 
 
 all: screen_driver.x
@@ -54,9 +54,9 @@ ocean_dft_files.mod: ocean_dft_files.f90 ai_kinds.mod ocean_mpi.mod ocean_legacy
 screen_wavefunction.o:   screen_wavefunction.f90 ai_kinds.mod screen_system.mod screen_paral.mod
 screen_wavefunction.mod: screen_wavefunction.f90 ai_kinds.mod screen_system.mod screen_paral.mod
 
-screen_wvfn_converter.o:   screen_wvfn_converter.f90 ai_kinds.mod ocean_dft_files.mod ocean_legacy_files.mod \
+screen_wvfn_converter.o:   screen_wvfn_converter.f90 ai_kinds.mod ocean_dft_files.mod  \
                            screen_sites.mod screen_grid.mod screen_paral.mod screen_opf.mod
-screen_wvfn_converter.mod: screen_wvfn_converter.f90 ai_kinds.mod ocean_dft_files.mod ocean_legacy_files.mod \
+screen_wvfn_converter.mod: screen_wvfn_converter.f90 ai_kinds.mod ocean_dft_files.mod  \
                            screen_sites.mod screen_grid.mod screen_paral.mod screen_opf.mod
 
 screen_chi0.o:   screen_chi0.f90 ai_kinds.mod screen_paral.mod screen_sites.mod screen_grid.mod \
