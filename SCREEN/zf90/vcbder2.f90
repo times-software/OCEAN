@@ -12,7 +12,7 @@
       double precision :: vlev, vhev, clev, chev
 
       integer :: brange(4), nkpts,numocc,numunocc,bandcount,kcount
-      integer :: kmesh(3)
+      integer :: kmesh(3), nspin
       double precision :: efermi, ry
       double precision, allocatable :: enklist(:,:)
     
@@ -32,6 +32,11 @@
 !      write(6,*) "nkpts = ",nkpts
       close(99)
       nkpts = kmesh(1)*kmesh(2)*kmesh(3)
+
+      open(unit=99,file='nspin',form='formatted',status='old')
+      read(99,*)nspin
+      close(99)
+      nkpts = nkpts * nspin
       
       numocc = brange(2)-brange(1)+1
       numunocc = brange(4)-brange(3)+1

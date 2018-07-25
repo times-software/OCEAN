@@ -395,7 +395,7 @@ module screen_chi0
     enddo
 
     write(1000+pinfo%myid,*) pinfo%myid, pinfo%myid, CurPts
-    call calcSingleChiBuffer1( MyWvfn%wvfn, MyWvfn%wvfn, chi(:,CurPts:), 1, ierr )
+    call calcSingleChiBuffer1( MyWvfn%wvfn, MyWvfn%wvfn, chi(:,CurPts:), ierr )
     if( ierr .ne. 0 ) return
     curPts = curPts + MyWvfn%mypts
 
@@ -416,7 +416,7 @@ module screen_chi0
 !        enddo
 !      endif
     
-      call calcSingleChiBuffer1( Mywvfn%wvfn, spareWavefunctions(id)%wvfn, chi(:,CurPts:stopPts), 1, ierr )
+      call calcSingleChiBuffer1( Mywvfn%wvfn, spareWavefunctions(id)%wvfn, chi(:,CurPts:stopPts), ierr )
       if( ierr .ne. 0 ) return
 
       curPts = curPts + spareWavefunctions(id)%mypts
@@ -429,7 +429,7 @@ module screen_chi0
       call MPI_WAIT( spareWvfnRecvs(id), MPI_STATUS_IGNORE, ierr )
       if( ierr .ne. 0 ) return
 
-      call calcSingleChiBuffer1( Mywvfn%wvfn, spareWavefunctions(id)%wvfn, chi(:,CurPts:), 1, ierr )
+      call calcSingleChiBuffer1( Mywvfn%wvfn, spareWavefunctions(id)%wvfn, chi(:,CurPts:), ierr )
       if( ierr .ne. 0 ) return
 
       curPts = curPts + spareWavefunctions(id)%mypts
@@ -442,19 +442,20 @@ module screen_chi0
 !    endif
   end subroutine calcChi
 
-  subroutine calcSingleChiBuffer1( LWvfn, RWvfn, chi, ispin, ierr )
+
+  ! currently each proc has subset of real-space points and ALL of k-points and spins
+  subroutine calcSingleChiBuffer1( LWvfn, RWvfn, chi, ierr )
     use screen_system, only : physical_system, system_parameters, psys, params
     use screen_energy, only : mu_ryd, energies
     use ocean_constants, only : pi_dp
     complex(DP), intent( in ), dimension(:,:,:) :: LWvfn, RWvfn
     real(DP), intent( inout ) :: chi(:,:)
-    integer, intent( in ) :: ispin
     integer, intent( inout ) :: ierr
 
     real(DP), allocatable :: temp(:,:)
     complex(DP), allocatable :: chi0(:,:,:), energyDenom( :, :, : )
     real(DP) :: pref, denr, deni, spinfac, pref2
-    integer :: Lpts, Rpts, nbands, nKptsAndSpin, ikpt, iband, it, i, j
+    integer :: Lpts, Rpts, nbands, nKptsAndSpin, ispin, ikpt, iband, it, i, j
     integer :: ichunk, jchunk, istart, istop, jstart, jstop, NRchunks, NLchunks
     integer, parameter :: icSize = 32
     integer, parameter :: jcSize = 32
@@ -468,7 +469,18 @@ module screen_chi0
     ! for a spin = 2 system the 'number of k-points' will be doubled
     nKptsAndspin = size( LWvfn, 3 )
 
-    spinfac = 2.0_DP / real(params%nspin, DP )
+    if( nKptsAndspin .ne. params%nspin * params%nkpts ) then
+      ierr = -100
+      return
+    endif
+
+    ! This shouldn't be correct, but is?
+    if( params%nspin .eq. 1 ) then
+      spinfac = 2.0_DP
+    else
+      spinfac = 0.5_DP
+    endif
+!    spinfac = 2.0_DP / real(params%nspin, DP )
     pref = 1.0_DP / ( real( params%nkpts, DP ) * psys%celvol )
 
 !    chi(:,1:RPts) = 0.0_DP
@@ -479,15 +491,20 @@ module screen_chi0
               energyDenom( NImagEnergies, nbands, nKptsAndSpin ), STAT=ierr )
     if( ierr .ne. 0 ) return
 
-    do ikpt = 1, NkptsAndSpin
-      do iband = 1, nbands
-!        diff = sqrt( (mu_ryd - energies( iband, ikpt, ispin ))**2 + 1.0_DP*10**(-6) )
-!        denr = sign( diff, mu_ryd - energies( iband, ikpt, ispin ) )
-        denr = mu_ryd - energies( iband, ikpt, ispin )
-        do it = 1, NImagEnergies
-!          deni = geodiff * ImagEnergies( it ) / ( 1.0_DP - ImagEnergies( it ) )
-          deni = ImagEnergies( it )
-          energyDenom( it, iband, ikpt ) = pref / cmplx( denr, deni, DP ) 
+    ! Need to get energy( band, kpt, spin ) onto unified kpt+spin index
+    i = 0
+    do ispin = 1, params%nspin
+      do ikpt = 1, params%nkpts
+        i = i + 1
+        do iband = 1, nbands
+  !        diff = sqrt( (mu_ryd - energies( iband, ikpt, ispin ))**2 + 1.0_DP*10**(-6) )
+  !        denr = sign( diff, mu_ryd - energies( iband, ikpt, ispin ) )
+          denr = mu_ryd - energies( iband, ikpt, ispin )
+          do it = 1, NImagEnergies
+  !          deni = geodiff * ImagEnergies( it ) / ( 1.0_DP - ImagEnergies( it ) )
+            deni = ImagEnergies( it )
+            energyDenom( it, iband, i ) = pref / cmplx( denr, deni, DP ) 
+          enddo
         enddo
       enddo
     enddo
@@ -539,6 +556,7 @@ module screen_chi0
 
   end subroutine calcSingleChiBuffer1
 
+#if 0
   subroutine calcSingleChiBuffer2( LWvfn, RWvfn, chi, ispin, ierr )
     use screen_system, only : physical_system, system_parameters, psys, params
     use screen_energy, only : mu_ryd, energies
@@ -720,6 +738,7 @@ module screen_chi0
 
     deallocate( chi0, temp )
   end subroutine calcSingleChi
+#endif
   
 
   subroutine postSendSpareWvfn( pinfo, spareWvfnSends, Wavefunction, ierr )
