@@ -29,8 +29,6 @@ module screen_energy
   integer :: nbands
   integer :: nkpts
 
-  integer :: nbv
-
   public :: energies, mu_ryd, geodiff
 
   public :: screen_energy_init
@@ -64,20 +62,20 @@ module screen_energy
     clryd = energies( nbands, 1, 1 )
     chryd = energies( nbands, 1, 1 )
     !
-    padder = min( 16, nbv )
+!    padder = min( 16, nbv )
     do ispn = 1, nspin
       do ik = 1, nkpts
-        do ib = 1, padder
+        do ib = 1,  min( 16, nbands )
           if( energies( ib, ik, ispn ) .lt. vlryd ) vlryd = energies( ib, ik, ispn )
         enddo
-        do ib = max( 1, nbv - padder ), min( nbands, nbv + padder )
+        do ib = 1, nbands !max( 1, nbv - padder ), min( nbands, nbv + padder )
           if( energies( ib, ik, ispn ) .gt. efermi ) then
             if( energies( ib, ik, ispn ) .lt. clryd ) clryd = energies( ib, ik, ispn )
           else
             if( energies( ib, ik, ispn ) .gt. vhryd ) vhryd = energies( ib, ik, ispn )
           endif
         enddo
-        do ib = max( 1, nbands - padder ), nbands
+        do ib = max( 1, nbands - 16 ), nbands
           if( energies( ib, ik, ispn ) .gt. chryd ) chryd = energies( ib, ik, ispn )
         enddo
       enddo
@@ -143,8 +141,7 @@ module screen_energy
     !
     nspin  = params%nspin
     nkpts  = product( params%kmesh( : ) )
-    nbands = params%brange(4) - params%brange(1) + 1
-    nbv    = params%brange(2) - params%brange(1) + 1
+    nbands = params%nbands
     !
     allocate( energies( nbands, nkpts, nspin ), STAT=ierr )
     !
