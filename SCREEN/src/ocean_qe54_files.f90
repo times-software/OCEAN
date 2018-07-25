@@ -587,6 +587,7 @@ module ocean_qe54_files
 
       close( 99 )
 
+      nr=nr+1
     else
       nr = 2
       allocate( requests( nr ), cmplx_wvfn( 1, 1 ) )
@@ -597,9 +598,10 @@ module ocean_qe54_files
 
 
 #ifdef MPI
-      call MPI_IRECV( cmplx_wvfn, ngvecs*my_bands, MPI_DOUBLE_COMPLEX, pool_root, 1, pool_comm, & 
+      call MPI_IRECV( wfns, ngvecs*my_bands, MPI_DOUBLE_COMPLEX, pool_root, 1, pool_comm, & 
                       requests( 1 ), ierr )
 
+      call MPI_IBCAST( gvecs, 3*ngvecs, MPI_INTEGER, pool_root, pool_comm, requests( 2 ), ierr )
       call MPI_BCAST( ierr, 1, MPI_INTEGER, pool_root, pool_comm, ierr_ )
       if( ierr .ne. 0 .or. ierr_ .ne. 0 ) then
         call MPI_CANCEL( requests( 1 ) , ierr )
@@ -608,7 +610,6 @@ module ocean_qe54_files
         return
       endif
 
-      call MPI_IBCAST( gvecs, 3*ngvecs, MPI_INTEGER, pool_root, pool_comm, requests( 2 ), ierr )
 #endif
 
 
