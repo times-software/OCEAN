@@ -29,7 +29,7 @@ $oldden = 1 if (-e "../DFT/old");
 
 my @QEFiles     = ( "rhoofr", "efermiinrydberg.ipt" );
 my @CommonFiles = ( "screen.nkpt", "nkpt", "qinunitsofbvectors.ipt", "avecsinbohr.ipt", "dft", 
-                    "nspin", "xmesh.ipt", "dft.split", "prefix", "calc", "screen.wvfn" );
+                    "nspin", "xmesh.ipt", "dft.split", "prefix", "calc", "screen.wvfn", "screen.legacy" );
 
 foreach (@QEFiles) {
   system("cp ../DFT/$_ .") == 0 or die "Failed to copy $_\n";
@@ -67,6 +67,11 @@ if( $calc =~ m/val/i )
 
 open IN, "screen.wvfn" or die "Failed to open screen.wvfn\n$!";
 my $screenWvfn = <IN>;
+close IN;
+
+open IN, "screen.legacy" or die "Failed to open screen.legacy\n$!";
+my $screenLegacy = <IN>;
+chomp $screenLegacy;
 close IN;
 
 my $rundir;
@@ -125,13 +130,14 @@ if( $run_screen == 1 )
   symlink ("../$rundir/Out", "Out") == 1 or die "Failed to link Out\n$!";
 
   # New methods for skipping wfconvert
-  if( $screenWvfn =~ m/qe54/ )
+  if( $screenWvfn =~ m/qe54/ && $screenLegacy == 0 )
   {
     print "Don't convert DFT. Using new method for screening wavefunctions\n";
     `touch listwfile masterwfile enkfile`;
   }
   else  # old method, run wfconvert
   {
+    print "$screenWvfn $screenLegacy\n";
     print "$ENV{'OCEAN_BIN'}/qe_data_file.pl Out/$prefix.save/data-file.xml\n";
     system("$ENV{'OCEAN_BIN'}/qe_data_file.pl Out/$prefix.save/data-file.xml") == 0 
       or die "Failed to run qe_data_file.pl\n$!";
