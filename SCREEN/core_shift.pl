@@ -162,7 +162,7 @@ if( $dft eq 'qe' || $dft eq 'obf' )
   open OUT, ">pot_prep.in";
   print OUT "&inputpp\n"
      .  "  prefix = 'system'\n"
-     .  "  outdir = './Out'\n"
+     .  "  outdir = './SCF'\n"
      .  "  filplot = 'system.pot'\n"
      .  "  plot_num = 1\n"
      .  "/\n";

@@ -1,5 +1,5 @@
 #!/usr/bin/perl
-# Copyright (C) 2014, 2016, 2017 OCEAN collaboration
+# Copyright (C) 2014, 2016 - 2018 OCEAN collaboration
 #
 # This file is part of the OCEAN project and distributed under the terms 
 # of the University of Illinois/NCSA Open Source License. See the file 
@@ -29,7 +29,7 @@ $oldden = 1 if (-e "../DFT/old");
 
 my @QEFiles     = ( "rhoofr", "efermiinrydberg.ipt" );
 my @CommonFiles = ( "screen.nkpt", "nkpt", "qinunitsofbvectors.ipt", "avecsinbohr.ipt", "dft", 
-                    "nspin", "xmesh.ipt", "dft.split", "prefix", "calc" );
+                    "nspin", "xmesh.ipt", "dft.split", "prefix", "calc", "screen.wvfn", "screen.legacy" );
 
 foreach (@QEFiles) {
   system("cp ../DFT/$_ .") == 0 or die "Failed to copy $_\n";
@@ -64,6 +64,15 @@ if( $calc =~ m/val/i )
 {
   $run_screen = 0;
 }
+
+open IN, "screen.wvfn" or die "Failed to open screen.wvfn\n$!";
+my $screenWvfn = <IN>;
+close IN;
+
+open IN, "screen.legacy" or die "Failed to open screen.legacy\n$!";
+my $screenLegacy = <IN>;
+chomp $screenLegacy;
+close IN;
 
 my $rundir;
 my @nkpt;
@@ -120,12 +129,22 @@ if( $run_screen == 1 )
   print "../$rundir/Out\n";
   symlink ("../$rundir/Out", "Out") == 1 or die "Failed to link Out\n$!";
 
-  print "$ENV{'OCEAN_BIN'}/qe_data_file.pl Out/$prefix.save/data-file.xml\n";
-  system("$ENV{'OCEAN_BIN'}/qe_data_file.pl Out/$prefix.save/data-file.xml") == 0 
-    or die "Failed to run qe_data_file.pl\n$!";
+  # New methods for skipping wfconvert
+  if( $screenWvfn =~ m/qe54/ && $screenLegacy == 0 )
+  {
+    print "Don't convert DFT. Using new method for screening wavefunctions\n";
+    `touch listwfile masterwfile enkfile`;
+  }
+  else  # old method, run wfconvert
+  {
+    print "$screenWvfn $screenLegacy\n";
+    print "$ENV{'OCEAN_BIN'}/qe_data_file.pl Out/$prefix.save/data-file.xml\n";
+    system("$ENV{'OCEAN_BIN'}/qe_data_file.pl Out/$prefix.save/data-file.xml") == 0 
+      or die "Failed to run qe_data_file.pl\n$!";
 
-  system("$ENV{'OCEAN_BIN'}/wfconvert.x") == 0 
-    or die "Failed to run wfconvert.x\n$!";
+    system("$ENV{'OCEAN_BIN'}/wfconvert.x") == 0 
+      or die "Failed to run wfconvert.x\n$!";
+  }
 
 
   `touch done`;

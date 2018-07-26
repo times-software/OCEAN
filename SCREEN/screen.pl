@@ -1,5 +1,5 @@
 #!/usr/bin/perl
-# Copyright (C) 2010, 2013 - 2017 OCEAN collaboration
+# Copyright (C) 2010, 2013 - 2018 OCEAN collaboration
 #
 # This file is part of the OCEAN project and distributed under the terms 
 # of the University of Illinois/NCSA Open Source License. See the file 
@@ -25,13 +25,13 @@ if (! $ENV{"OCEAN_WORKDIR"}){ $ENV{"OCEAN_WORKDIR"} = `pwd` . "../" ; }
 my @CommonFiles = ("znucl", "opf.hfkgrid", "opf.fill", "opf.opts", "pplist", "screen.shells", 
                    "ntype", "natoms", "typat", "taulist", "nedges", "edges", "caution", "epsilon", 
                    "k0.ipt", "scfac", "core_offset", "dft", "avecsinbohr.ipt", 
-                   "para_prefix", "nspin", "calc" );
+                   "para_prefix", "nspin", "calc", "prefix" );
 
 my @ScreenFiles = ("screen.grid.scheme", "screen.grid.rmode", "screen.grid.ninter", 
                    "screen.grid.shells", "screen.grid.xyz", "screen.grid.rmax", "screen.grid.ang",
                    "screen.grid.lmax", "screen.grid.nb", "screen.grid.nr", "screen.final.rmax", 
                    "screen.final.dr", "screen.legacy", "screen.model.dq", "screen.model.qmax", 
-                   "screen.augment" );
+                   "screen.augment", "screen.wvfn" );
 
 my @DenDipFiles = ("rhoofg", "bvecs", "efermiinrydberg.ipt");
 my @DenDipFiles2 = ( "masterwfile", "listwfile", "enkfile", "kmesh.ipt", "brange.ipt" );
@@ -115,6 +115,17 @@ foreach (@DenDipFiles2) {
 foreach (@ExtraFiles) {
   copy( "$ENV{'OCEAN_BIN'}/$_", $_ ) or die "Failed to get $_ from $ENV{'OCEAN_BIN'}/\n$!";
 }
+
+my $dft = `cat dft`;
+if( $dft =~ m/qe/i )
+{
+  `ln -s ../DFT/Out SCF`;
+  `ln -s ../DFT/SCREEN/Out .`;
+}
+
+open WVFN, ">", "wvfn.ipt" or die "Failed to open wvfn.ipt for writing\n$!";
+print WVFN $screen_data_files{ 'wvfn' } . "\n";
+close WVFN;
 
 open LISTW, "listwfile" or die "Failed to open listwfile\n";
 while (<LISTW> ) {
@@ -655,11 +666,11 @@ else
   # then for each site and core level
 }
 # core offsets
-my $dft = `cat dft`;
-if( $dft =~ m/qe/i )
-{
-  `ln -s ../DFT/Out .`;
-}
+#my $dft = `cat dft`;
+#if( $dft =~ m/qe/i )
+#{
+#  `ln -s ../DFT/Out SCF`;
+#}
 my $core_offset = `cat core_offset`;
 chomp $core_offset;
 if( $core_offset =~ m/false/i )

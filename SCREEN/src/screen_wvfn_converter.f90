@@ -22,7 +22,7 @@ module screen_wvfn_converter
                              screen_paral_NumLocalSites, screen_paral_isMySite
     use screen_system, only : system_parameters, params
     use screen_sites, only : site, pinfo
-    use ocean_legacy_files, only : olf_nprocPerPool
+    use ocean_dft_files, only : odf_nprocPerPool
     use ocean_mpi
     
 !    type( site_parallel_info ), intent( in ) :: pinfo
@@ -40,7 +40,7 @@ module screen_wvfn_converter
     integer :: recvSize, siteSize
 
     ! This is currently larger than it needs to be
-    recvSize = params%nspin * params%nkpts * olf_nprocPerPool()
+    recvSize = params%nspin * params%nkpts * odf_nprocPerPool()
 
     siteSize = screen_paral_NumLocalSites( pinfo, nsites )
 
@@ -83,7 +83,8 @@ module screen_wvfn_converter
     use screen_system, only : system_parameters, params
     use screen_sites, only : site
     use screen_paral, only : site_parallel_info
-    use ocean_legacy_files
+    use ocean_dft_files, only : odf_return_my_bands, odf_is_my_kpt, odf_get_ngvecs_at_kpt, &
+                                odf_read_at_kpt
     use ocean_mpi, only : myid, root
 
     type( site_parallel_info ), intent( in ) :: pinfo
@@ -100,7 +101,7 @@ module screen_wvfn_converter
     logical :: is_kpt
     
 
-    call olf_return_my_bands( nbands, ierr )
+    call odf_return_my_bands( nbands, ierr )
     if( ierr .ne. 0 ) return
 
 
@@ -109,12 +110,12 @@ module screen_wvfn_converter
 
         if( myid .eq. root ) write(6,*) ikpt, ispin
 
-        call olf_is_my_kpt( ikpt, ispin, is_kpt, ierr )
+        call odf_is_my_kpt( ikpt, ispin, is_kpt, ierr )
         if( ierr .ne. 0 ) return
 
         if( is_kpt ) then
 !          write(6,*) 'ngvec', ispin, ikpt
-          call olf_get_ngvecs_at_kpt( ikpt, ispin, ngvecs, ierr )
+          call odf_get_ngvecs_at_kpt( ikpt, ispin, ngvecs, ierr )
           if( ierr .ne. 0 ) return
 
 !          write(6,*) 'nband', nbands, ngvecs
@@ -127,7 +128,7 @@ module screen_wvfn_converter
           endif
 
 !          write(6,*) 'read ', ispin, ikpt
-          call olf_read_at_kpt( ikpt, ispin, ngvecs, nbands, input_gvecs, input_uofg, ierr )
+          call odf_read_at_kpt( ikpt, ispin, ngvecs, nbands, input_gvecs, input_uofg, ierr )
           if( ierr .ne. 0 ) return
           
           call swl_convertAndSend( pinfo, ikpt, ispin, ngvecs, nbands, input_gvecs, input_uofg, &
@@ -152,7 +153,7 @@ module screen_wvfn_converter
     use screen_system, only : system_parameters, params
     use screen_sites, only : site
     use screen_wavefunction, only : screen_wvfn
-    use ocean_legacy_files, only : olf_nprocPerPool, olf_getPoolIndex, olf_getBandsForPoolID, olf_returnGlobalID
+    use ocean_dft_files, only : odf_nprocPerPool, odf_getPoolIndex, odf_getBandsForPoolID, odf_returnGlobalID
     integer, intent( in ) :: isite
     type( site ) :: current_site
 #ifdef MPI_F08
@@ -171,9 +172,11 @@ module screen_wvfn_converter
     write(1000+myid,*) 'Running swl_postSiteRecvs'
     write(1000+myid,'(A3,2(1x,I8))') '   ', size(current_site%wvfn%wvfn,1), size(current_site%wvfn%wvfn,2)
     write(1000+myid,'(A3,8A9)') '   ', 'Npts', 'Start', 'Nbands', 'Sender', 'iKpts', 'iSpin', 'Tag', 'Site'
+    flush(1000+myid)
     
-    nprocPerKpt = olf_nprocPerPool()
+    nprocPerKpt = odf_nprocPerPool()
     npts = size( current_site%wvfn%wvfn, 1 )
+
     
     i = 0
     j = 0
@@ -183,12 +186,12 @@ module screen_wvfn_converter
 
         itag = ( isite - 1 ) * ( ikpt + ( ispin - 1 ) * params%nkpts ) &
              + ( ispin - 1 ) * params%nkpts + ikpt
-        poolIndex = olf_getPoolIndex( ispin, ikpt )
+        poolIndex = odf_getPoolIndex( ispin, ikpt )
         start_band = 1
         do poolID = 0, nprocPerKpt - 1
           j = j + 1
-          num_bands = olf_getBandsForPoolID( poolID )
-          targetID = olf_returnGlobalID( poolIndex, poolID )
+          num_bands = odf_getBandsForPoolID( poolID )
+          targetID = odf_returnGlobalID( poolIndex, poolID )
       
           write(1000+myid,'(A,8(1X,I8))') '   ', npts, start_band, num_bands, targetID, ikpt, ispin, itag, isite
 
@@ -201,6 +204,7 @@ module screen_wvfn_converter
         enddo
       enddo
     enddo
+    flush(1000+myid)
 
 
 
@@ -264,7 +268,7 @@ module screen_wvfn_converter
     allocate( send_list( nsites * nprocsPerPool ), typeList( 0:nprocsPerPool, nsites ) )
     isend = 0
 
-    write(1000+myid,'(A,2(1X,I8))') '*** Convert and Send ***', ikpt, ispin
+    write(1000+myid,'(A,3(1X,I0))') '*** Convert and Send ***', ikpt, ispin, nbands
 
     call swl_checkConvert( input_gvecs, uofxDims, boundaries, ierr )
     if( ierr .ne. 0 ) return
@@ -1014,6 +1018,7 @@ module screen_wvfn_converter
 
   end subroutine  swl_recpConvert
 
+  
   subroutine realu2( ngvecs, npts, nbands, uofg, gvecs, bvecs, qcart, & 
                      posn, wavefunctions )
     integer, intent( in ) :: ngvecs, npts, nbands
@@ -1024,26 +1029,44 @@ module screen_wvfn_converter
     complex(DP), intent( out ) :: wavefunctions( npts, nbands )
     !
     complex(DP), allocatable :: phases(:,:)
+    complex(DP) :: prefac
     real(DP) :: gcart(3), gplusq(3), phse
-    integer :: i, j
+    integer :: i, j, blockFactor, ii, ig_start, ig_stop, ig_width
     complex(DP), parameter :: cone = 1.0_DP
     complex(DP), parameter :: czero = 0.0_DP
+    integer, parameter :: blockParameter = 1024
 
-    allocate( phases( npts, ngvecs ) )
+    prefac = czero
+    blockFactor = min( blockParameter, ngvecs )
+    allocate( phases( npts, blockFactor ) )
+
+    ! Need to block this for large cells or the memory requirement is too big
+    do ig_start = 1, ngvecs, blockParameter
+
+      ig_stop = min( ngvecs, ig_start+blockParameter - 1 )
+      ig_width = min( blockParameter, ig_stop - ig_start + 1 )
     
-    do i = 1, ngvecs
-!      gplusq(:) = real(gvecs( :, i ), DP ) + qcart( : )
-      gcart(:) = matmul( bvecs(:,:), real(gvecs( :, i ), DP ) )
-      gplusq(:) = gcart(:) + qcart( : )
-      do j = 1, npts
-        phse = dot_product( gplusq, posn(:, j ) )
-        phases( j, i ) = cmplx( dcos(phse), dsin(phse), DP )
+!      do i = 1, ngvecs
+      ii = 0
+      do i = ig_start, ig_stop
+        ii = ii + 1
+        gcart(:) = matmul( bvecs(:,:), real(gvecs( :, i ), DP ) )
+        gplusq(:) = gcart(:) + qcart( : )
+        do j = 1, npts
+          phse = dot_product( gplusq, posn(:, j ) )
+          phases( j, ii ) = cmplx( dcos(phse), dsin(phse), DP )
+        enddo
       enddo
-    enddo
 
-!    wavefunctions( :, : ) = matmul( phases, uofg )
-    call zgemm( 'N', 'N', npts, nbands, ngvecs, cone, phases, npts, uofg, ngvecs, czero, &
-                wavefunctions, npts )
+      call zgemm( 'N', 'N', npts, nbands, ig_width, cone, phases, npts, uofg( ig_start, 1 ), ngvecs, &
+                  prefac, wavefunctions, npts )
+!      call zgemm( 'N', 'N', npts, nbands, ngvecs, cone, phases, npts, uofg, ngvecs, czero, &
+!                  wavefunctions, npts )
+
+      ! first time through we write over wavefunctions, every other time we add
+      prefac = cone
+
+    enddo
 
 #ifdef DEBUG
     do j = 1, 8
