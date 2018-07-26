@@ -268,7 +268,7 @@ module screen_wvfn_converter
     allocate( send_list( nsites * nprocsPerPool ), typeList( 0:nprocsPerPool, nsites ) )
     isend = 0
 
-    write(1000+myid,'(A,2(1X,I8))') '*** Convert and Send ***', ikpt, ispin
+    write(1000+myid,'(A,3(1X,I0))') '*** Convert and Send ***', ikpt, ispin, nbands
 
     call swl_checkConvert( input_gvecs, uofxDims, boundaries, ierr )
     if( ierr .ne. 0 ) return
@@ -1018,6 +1018,7 @@ module screen_wvfn_converter
 
   end subroutine  swl_recpConvert
 
+  
   subroutine realu2( ngvecs, npts, nbands, uofg, gvecs, bvecs, qcart, & 
                      posn, wavefunctions )
     integer, intent( in ) :: ngvecs, npts, nbands
@@ -1028,26 +1029,44 @@ module screen_wvfn_converter
     complex(DP), intent( out ) :: wavefunctions( npts, nbands )
     !
     complex(DP), allocatable :: phases(:,:)
+    complex(DP) :: prefac
     real(DP) :: gcart(3), gplusq(3), phse
-    integer :: i, j
+    integer :: i, j, blockFactor, ii, ig_start, ig_stop, ig_width
     complex(DP), parameter :: cone = 1.0_DP
     complex(DP), parameter :: czero = 0.0_DP
+    integer, parameter :: blockParameter = 1024
 
-    allocate( phases( npts, ngvecs ) )
+    prefac = czero
+    blockFactor = min( blockParameter, ngvecs )
+    allocate( phases( npts, blockFactor ) )
+
+    ! Need to block this for large cells or the memory requirement is too big
+    do ig_start = 1, ngvecs, blockParameter
+
+      ig_stop = min( ngvecs, ig_start+blockParameter - 1 )
+      ig_width = min( blockParameter, ig_stop - ig_start + 1 )
     
-    do i = 1, ngvecs
-!      gplusq(:) = real(gvecs( :, i ), DP ) + qcart( : )
-      gcart(:) = matmul( bvecs(:,:), real(gvecs( :, i ), DP ) )
-      gplusq(:) = gcart(:) + qcart( : )
-      do j = 1, npts
-        phse = dot_product( gplusq, posn(:, j ) )
-        phases( j, i ) = cmplx( dcos(phse), dsin(phse), DP )
+!      do i = 1, ngvecs
+      ii = 0
+      do i = ig_start, ig_stop
+        ii = ii + 1
+        gcart(:) = matmul( bvecs(:,:), real(gvecs( :, i ), DP ) )
+        gplusq(:) = gcart(:) + qcart( : )
+        do j = 1, npts
+          phse = dot_product( gplusq, posn(:, j ) )
+          phases( j, ii ) = cmplx( dcos(phse), dsin(phse), DP )
+        enddo
       enddo
-    enddo
 
-!    wavefunctions( :, : ) = matmul( phases, uofg )
-    call zgemm( 'N', 'N', npts, nbands, ngvecs, cone, phases, npts, uofg, ngvecs, czero, &
-                wavefunctions, npts )
+      call zgemm( 'N', 'N', npts, nbands, ig_width, cone, phases, npts, uofg( ig_start, 1 ), ngvecs, &
+                  prefac, wavefunctions, npts )
+!      call zgemm( 'N', 'N', npts, nbands, ngvecs, cone, phases, npts, uofg, ngvecs, czero, &
+!                  wavefunctions, npts )
+
+      ! first time through we write over wavefunctions, every other time we add
+      prefac = cone
+
+    enddo
 
 #ifdef DEBUG
     do j = 1, 8
