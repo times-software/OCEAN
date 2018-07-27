@@ -1,10 +1,13 @@
-## v. 2.5.1
+## v. 2.5.2
 
 #### Major Features
  1. Impoved screening calculations
     1. Augmentation of pseudo-wavefunctions to restore all-electron character
     2. Much faster
  2. Better core-level shift calculations
+
+#### Bugfixes
+ * Fixed bugs in new screening method in 2.5.0 and 2.5.1
 
 ## v. 2.1.1
 
