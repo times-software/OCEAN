@@ -421,17 +421,19 @@ module ocean_legacy_files
 
     if( pool_myid .eq. pool_root ) then
       ! determine which file we want (usually we have 1 kpt per file)
-      itarg = 0
-      if( file_indx( nfiles ) .gt. ikpt ) then
-        do i = min( ikpt, nfiles-1), 1, -1
-          if( file_indx( i ) .le. ikpt .and. file_indx( i + 1 ) .gt. ikpt ) then
-            itarg = i
-            exit
-          endif
-        enddo
-      else
-        itarg = nfiles
-      endif
+
+!      itarg = 0
+!      if( file_indx( nfiles ) .gt. ikpt ) then
+!        do i = min( ikpt, nfiles-1), 1, -1
+!          if( file_indx( i ) .le. ikpt .and. file_indx( i + 1 ) .gt. ikpt ) then
+!            itarg = i
+!            exit
+!          endif
+!        enddo
+!      else
+!        itarg = nfiles
+!      endif
+      itarg = wvfn_file_indx( ikpt, ispin )
 
       if( itarg .eq. 0 ) then
         write( 6, * ) "Couldn't figure out which file to open", ikpt
@@ -490,7 +492,7 @@ module ocean_legacy_files
     nbands_to_read = brange(4)-brange(3)+brange(2)-brange(1)+2
 
     if( pool_myid .eq. pool_root ) then
-      itarg = wvfn_file_indx( ikpt )
+      itarg = wvfn_file_indx( ikpt, ispin )
       if( itarg .lt. 1 ) then
         ierr = -1
         goto 10
@@ -644,11 +646,14 @@ module ocean_legacy_files
   end subroutine olf_read_at_kpt
 
 
-  integer function wvfn_file_indx( ikpt )
-    integer, intent( in ) :: ikpt
+  integer function wvfn_file_indx( ikpt_, ispin_ )
+    integer, intent( in ) :: ikpt_, ispin_
     !
-    integer :: i
+    integer :: i, ikpt
     !
+    wvfn_file_indx = 0
+
+    ikpt = ikpt_ + ( ispin_ - 1 ) * product( kpts(:) )
     wvfn_file_indx = 0
     if( file_indx( nfiles ) .gt. ikpt ) then
       do i = min( ikpt, nfiles-1), 1, -1
