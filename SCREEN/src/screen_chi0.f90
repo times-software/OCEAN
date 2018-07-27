@@ -455,7 +455,7 @@ module screen_chi0
     real(DP), allocatable :: temp(:,:)
     complex(DP), allocatable :: chi0(:,:,:), energyDenom( :, :, : )
     real(DP) :: pref, denr, deni, spinfac, pref2
-    integer :: Lpts, Rpts, nbands, nKptsAndSpin, ispin, ikpt, iband, it, i, j
+    integer :: Lpts, Rpts, nbands, nKptsAndSpin, ispin, ikpt, iband, it, i, j, iks
     integer :: ichunk, jchunk, istart, istop, jstart, jstop, NRchunks, NLchunks
     integer, parameter :: icSize = 32
     integer, parameter :: jcSize = 32
@@ -474,13 +474,7 @@ module screen_chi0
       return
     endif
 
-    ! This shouldn't be correct, but is?
-    if( params%nspin .eq. 1 ) then
-      spinfac = 2.0_DP
-    else
-      spinfac = 0.5_DP
-    endif
-!    spinfac = 2.0_DP / real(params%nspin, DP )
+    spinfac = 2.0_DP / real(params%nspin, DP )
     pref = 1.0_DP / ( real( params%nkpts, DP ) * psys%celvol )
 
 !    chi(:,1:RPts) = 0.0_DP
@@ -492,10 +486,10 @@ module screen_chi0
     if( ierr .ne. 0 ) return
 
     ! Need to get energy( band, kpt, spin ) onto unified kpt+spin index
-    i = 0
+    iks = 0
     do ispin = 1, params%nspin
       do ikpt = 1, params%nkpts
-        i = i + 1
+        iks = iks + 1
         do iband = 1, nbands
   !        diff = sqrt( (mu_ryd - energies( iband, ikpt, ispin ))**2 + 1.0_DP*10**(-6) )
   !        denr = sign( diff, mu_ryd - energies( iband, ikpt, ispin ) )
@@ -503,48 +497,50 @@ module screen_chi0
           do it = 1, NImagEnergies
   !          deni = geodiff * ImagEnergies( it ) / ( 1.0_DP - ImagEnergies( it ) )
             deni = ImagEnergies( it )
-            energyDenom( it, iband, i ) = pref / cmplx( denr, deni, DP ) 
+            energyDenom( it, iband, iks ) = pref / cmplx( denr, deni, DP ) 
           enddo
         enddo
       enddo
     enddo
 
-    do ichunk = 1, NRchunks
-      do jchunk = 1, NLchunks
-        chi0 = 0.0_DP
+    do ispin = 1, params%nspin
+      do ichunk = 1, NRchunks
+        do jchunk = 1, NLchunks
+          chi0 = 0.0_DP
 
-        istart = ( ichunk - 1 ) * icSize + 1
-        istop = min( ichunk * icSize, Rpts )
-        jstart = ( jchunk - 1 ) * jcSize + 1
-        jstop = min( jchunk * jcSize, Lpts )
-
-
-        do ikpt = 1, NkptsAndSpin
-          do iband = 1, nbands
+          istart = ( ichunk - 1 ) * icSize + 1
+          istop = min( ichunk * icSize, Rpts )
+          jstart = ( jchunk - 1 ) * jcSize + 1
+          jstop = min( jchunk * jcSize, Lpts )
 
 
-            do i = istart, istop
-              do j = jstart, jstop
-                temp( j-jstart+1, i-istart+1 ) = & 
-                           ( real(LWvfn(j,iband,ikpt),DP) * real(RWvfn(i,iband,ikpt),DP) + &
-                             aimag(LWvfn(j,iband,ikpt)) * aimag(RWvfn(i,iband,ikpt)) )
+          do iks = 1 + (ispin-1)*params%nkpts, ispin*params%nkpts
+            do iband = 1, nbands
+
+
+              do i = istart, istop
+                do j = jstart, jstop
+                  temp( j-jstart+1, i-istart+1 ) = & 
+                             ( real(LWvfn(j,iband,iks),DP) * real(RWvfn(i,iband,iks),DP) + &
+                               aimag(LWvfn(j,iband,iks)) * aimag(RWvfn(i,iband,iks)) )
+                enddo
+              enddo
+              do it = 1, NImagEnergies
+                chi0(:,:,it) = chi0(:,:,it) + energyDenom( it, iband, iks ) * temp( :, : )
               enddo
             enddo
-            do it = 1, NImagEnergies
-              chi0(:,:,it) = chi0(:,:,it) + energyDenom( it, iband, ikpt ) * temp( :, : )
-            enddo
           enddo
-        enddo
 
 
-        do i = istart, istop
-          do it = 1, NImagEnergies
-!            pref2 = spinfac * 2.0_DP * weightImagEnergies( it ) * geodiff / pi_dp
-            pref2 = spinfac * weightImagEnergies( it ) 
-            do j = jstart, jstop
-              chi( j, i ) = chi( j, i ) & 
-                          + pref2 * ( real(chi0( j-jstart+1, i-istart+1, it ),DP)**2 &
-                                     - aimag( chi0( j-jstart+1, i-istart+1, it ) )**2 ) 
+          do i = istart, istop
+            do it = 1, NImagEnergies
+  !            pref2 = spinfac * 2.0_DP * weightImagEnergies( it ) * geodiff / pi_dp
+              pref2 = spinfac * weightImagEnergies( it ) 
+              do j = jstart, jstop
+                chi( j, i ) = chi( j, i ) & 
+                            + pref2 * ( real(chi0( j-jstart+1, i-istart+1, it ),DP)**2 &
+                                       - aimag( chi0( j-jstart+1, i-istart+1, it ) )**2 ) 
+              enddo
             enddo
           enddo
         enddo
@@ -658,22 +654,22 @@ module screen_chi0
 
   end subroutine calcSingleChiBuffer2
 
+#endif
 
 
-  subroutine calcSingleChi( LWvfn, RWvfn, chi, ispin, ierr )
+  subroutine calcSingleChi( LWvfn, RWvfn, chi, ierr )
     use screen_system, only : physical_system, system_parameters, psys, params
     use screen_energy, only : mu_ryd, geodiff, energies
     use ocean_constants, only : pi_dp
     complex(DP), intent( in ), dimension(:,:,:) :: LWvfn, RWvfn
     real(DP), intent( inout ) :: chi(:,:)
-    integer, intent( in ) :: ispin
     integer, intent( inout ) :: ierr
 
     real(DP), allocatable :: temp(:,:)
     complex(DP), allocatable :: chi0(:,:,:)
     complex(DP) :: scalar
     real(DP) :: pref, denr, deni, diff, fr, fi, norm, spinfac
-    integer :: Lpts, Rpts, nbands, nKptsAndSpin, ikpt, iband, it, i, j
+    integer :: Lpts, Rpts, nbands, nKptsAndSpin, ikpt, iband, it, i, j, ispin, iks
 
     Lpts = size( LWvfn, 1 )
     Rpts = size( RWvfn, 1 )
@@ -694,34 +690,37 @@ module screen_chi0
     chi0 = 0.0_DP
 
 
-    do ikpt = 1, NkptsAndSpin
-      do iband = 1, nbands
-        diff = sqrt( (mu_ryd - energies( iband, ikpt, ispin ))**2 + 1.0_DP*10**(-6) )
-        denr = sign( diff, mu_ryd - energies( iband, ikpt, ispin ) )
+    iks = 0
+    do ispin = 1, params%nspin
+      do ikpt = 1, params%nkpts
+        iks = iks + 1
+        do iband = 1, nbands
+          diff = sqrt( (mu_ryd - energies( iband, ikpt, ispin ))**2 + 1.0_DP*10**(-6) )
+          denr = sign( diff, mu_ryd - energies( iband, ikpt, ispin ) )
 
-        do i = 1, Rpts
-          do j = 1, Lpts
-            temp(j,i) = pref*( real(LWvfn(j,iband,ikpt),DP) * real(RWvfn(i,iband,ikpt),DP) + & 
-                               aimag(LWvfn(j,iband,ikpt)) * aimag(RWvfn(i,iband,ikpt)) )
+          do i = 1, Rpts
+            do j = 1, Lpts
+              temp(j,i) = pref*( real(LWvfn(j,iband,iks),DP) * real(RWvfn(i,iband,iks),DP) + & 
+                                 aimag(LWvfn(j,iband,iks)) * aimag(RWvfn(i,iband,iks)) )
+            enddo
           enddo
-        enddo
 
-        do it = 1, NImagEnergies
-          deni = geodiff * ImagEnergies( it ) / ( 1.0_DP - ImagEnergies( it ) )
+          do it = 1, NImagEnergies
+            deni = geodiff * ImagEnergies( it ) / ( 1.0_DP - ImagEnergies( it ) )
 
-!          scalar = pref / cmplx( denr, deni, DP )
-          scalar = 1.0_dp / cmplx( denr, deni, DP )
-          norm = 1.0_DP / ( denr**2 + deni**2 )
-          fr = norm * denr
-          fi = norm * deni
+  !          scalar = pref / cmplx( denr, deni, DP )
+            scalar = 1.0_dp / cmplx( denr, deni, DP )
+            norm = 1.0_DP / ( denr**2 + deni**2 )
+            fr = norm * denr
+            fi = norm * deni
 
 !          chi0(:,:,it) = chi0(:,:,it) + temp(:,:) * cmplx( fr, fi, DP )
-          chi0(:,:,it) = chi0(:,:,it) + scalar * temp( :, : )
+            chi0(:,:,it) = chi0(:,:,it) + scalar * temp( :, : )
 
-!          call ZGERC( Lpts, Rpts, scalar, LWvfn(:,iband,ikpt), 1, RWvfn(:,iband,ikpt), 1, &
-!                      chi0(:,:,it), Lpts ) 
-          
-          
+  !          call ZGERC( Lpts, Rpts, scalar, LWvfn(:,iband,ikpt), 1, RWvfn(:,iband,ikpt), 1, &
+  !                      chi0(:,:,it), Lpts ) 
+            
+          enddo
         enddo
       enddo
 
@@ -738,7 +737,6 @@ module screen_chi0
 
     deallocate( chi0, temp )
   end subroutine calcSingleChi
-#endif
   
 
   subroutine postSendSpareWvfn( pinfo, spareWvfnSends, Wavefunction, ierr )
