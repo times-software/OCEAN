@@ -53,7 +53,7 @@ subroutine makeProjectorRadialIntegral( npmax, lmin, lmax, nproj, atno, powmax, 
 !            if( ll2 .eq. ll1 ) then
               write(6,'(5I8,2(X,E20.12))') ip, ll1, nu1, ll2, nu2, area, mel
 !            endif
-            radialPrj( nu2, ll2, nu1, ll1, ip ) = mel
+            radialPrj( nu2, ll2, nu1, ll1, ip ) = area
           enddo
         enddo
       

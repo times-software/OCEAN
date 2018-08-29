@@ -12,12 +12,12 @@ program tpa_dotter
   implicit none
   !
   integer, parameter :: DP = kind(1.0d0)
-  integer :: nptot, ntot, mc, i, lc, idum, nspn, ivms, iufmt, ifmt
+  integer :: nptot, ntot, mc, i, lc, idum, nspn, ivms, ispn, k, j
   real( DP ) :: rr, ri, ir, ii, br, bi, tau( 3 )
   real( DP ), allocatable, dimension( : ) :: mer, mei
   real( DP ), allocatable, dimension( :, : ) :: reSecondPhoton, imSecondPhoton
   real( DP ), allocatable, dimension( :, :, : ) :: pcr, pci, reSecondary, imSecondary, reOuter, imOuter
-  character(len=9) :: cksnam
+  character(len=11) :: cksnam
   character(len=7) :: secondPhotonName
   character(len=18) :: melInName, melOutName
   logical :: have_spin
@@ -52,7 +52,7 @@ program tpa_dotter
   imOuter(:,:,:) = 0.0_dp
 
   ! Testing option here
-  if( .false. ) then
+  if( .true. ) then
     do ispn = 1, nspn
       do i = 1, nptot
         reOuter( i, i, ispn ) = 1.0_dp
@@ -138,7 +138,7 @@ program tpa_dotter
   close( 99 )
 
   open( unit=99, file=melOutName, form='formatted', status='unknown' )
-  if( npsn .eq. 1 ) then
+  if( nspn .eq. 1 ) then
     do mc = -lc, lc
       do i = 1, nptot
         rr = dot_product( reSecondary( :, 1, mc ), reSecondPhoton( :, i ) )
@@ -160,4 +160,4 @@ program tpa_dotter
   deallocate( reSecondPhoton, imSecondPhoton, reSecondary, imSecondary )
   !
   !
-end program dotter
+end program tpa_dotter

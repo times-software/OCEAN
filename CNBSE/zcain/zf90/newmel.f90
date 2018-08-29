@@ -98,18 +98,20 @@ program newmel
 
 
   allocate( mels( npmax, -lmax : lmax, lmin:lmax, npmax, -lmax : lmax, lmin:lmax ) )
+  mels = 0.0_dp
   do ll = lmin, lmax
     allocate( tempMels( npmax, -lmax : lmax, lmin:lmax, -ll : ll ) )
     do iprj = 1, nproj( ll )
+      tempMels = 0.0_dp
       do ll2 = lmin, lmax
         do ip = 0, powmax
           ifcn( :, ip, ll2 ) = radialPrj( :, ll2, iprj, ll, ip )
         enddo
       enddo
-      call jtvsub( lmin, lmax, nproj, npmax, lc, tempMels, powmax, ifcn, spcttype, ehat, qhat, q, &
+      call jtvsub( lmin, lmax, nproj, npmax, ll, tempMels, powmax, ifcn, spcttype, ehat, qhat, q, &
                    nsphpt, xsph, ysph, zsph, wsph, prefs )
       do mc = -ll, ll
-        mels( :, :, :, ip, mc, ll ) = tempMels( :, :, :, mc )
+        mels( :, :, :, iprj, mc, ll ) = tempMels( :, :, :, mc )
       enddo
     enddo
     deallocate( tempMels )
@@ -127,7 +129,7 @@ program newmel
           do mc2 = -ll2, ll2
             do iprj2 = 1, nproj(ll2) 
 
-              write(99, '(2(1x,1e26.12),6i4)' ) mels( iprj2, mc2, ll2, iprj, mc, ll ), iprj2, mc2, ll2, iprj, mc, ll
+              write(99, '(2(1x,1e26.18),6i4)' ) mels( iprj2, mc2, ll2, iprj, mc, ll ), iprj2, mc2, ll2, iprj, mc, ll
             enddo
           enddo
         enddo
