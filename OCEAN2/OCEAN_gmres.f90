@@ -553,8 +553,8 @@ module OCEAN_gmres
   
       if( myid .eq. root ) then
         rel_error = -gval / ival
-        write( abs_fh, '(1p,1i5,4(1x,1e15.8))' ) complete_iter, ener * Hartree2eV, & 
-                    (1.0_dp - rval )*fact, -ival*fact, rel_error
+        write( abs_fh, '(1p,4(1e15.8,1x),1i6)' ) ener * Hartree2eV, & 
+                    (1.0_dp - rval )*fact, -ival*fact, rel_error, complete_iter
       endif
 
 

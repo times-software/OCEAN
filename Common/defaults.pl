@@ -63,7 +63,7 @@ foreach (@square_cpu_factors)
 { print "$_\n"; }
 
 
-open QE_POOL, ">pool_control" or die "Failed to open qe_pool_control for writing\n$!\n";
+open QE_POOL, ">pool_control" or die "Failed to open pool_control for writing\n$!\n";
 
 
 my $tline;
@@ -554,6 +554,7 @@ if( $pool_size == -1 )
 }
 print "PAW: $kpt_tot, obf pool size: $pool_size\n";
 print QE_POOL "interpolate screen\t$pool_size\n";
+print QE_POOL "total\t$ncpus\n";
 
 
 close QE_POOL;

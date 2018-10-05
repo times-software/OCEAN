@@ -45,7 +45,7 @@ my @EspressoFiles = ( "coord", "degauss", "ecut", "etol", "fband", "ibrav",
     "spinorb", "taulist", "typat", "verbatim", "work_dir", "tmp_dir", "wftol", 
     "den.kshift", "obkpt.ipt", "trace_tol", "ham_kpoints", "obf.nbands","tot_charge", 
     "nspin", "smag", "ldau", "qe_scissor", "zsymb", "dft.calc_stress", "dft.calc_force", "dft.split", "dft",
-    "dft.startingwfc", "dft.diagonalization", "dft.qe_redirect" );
+    "dft.startingwfc", "dft.diagonalization", "dft.qe_redirect", "dft.ndiag" );
 my @PPFiles = ("pplist", "znucl");
 my @OtherFiles = ("epsilon", "pool_control");
 
@@ -64,16 +64,6 @@ foreach (@PPFiles) {
     last;
   }
 }
-unless ($RunPP) {
-  $RunPP = 1;
-  if (open STATUS, "pp.stat" ) {
-    if (<STATUS> == 1) { $RunPP = 0; }
-  }
-  close STATUS;
-}
-if ($RunPP != 0) {
-  `rm -f pp.stat`;
-} 
 
 if ( $RunPP ) {
   $RunESPRESSO = 1;
@@ -127,8 +117,11 @@ foreach (@BandFiles) {
   system("cp ../Common/$_ .") == 0 or die;
 }
 
-foreach (@PPFiles) {
-  system("cp ../Common/$_ .") == 0 or die;
+if( $RunPP == 1 )
+{
+  foreach (@PPFiles) {
+    system("cp ../Common/$_ .") == 0 or die;
+  }
 }
 
 foreach (@EspressoFiles, @OtherFiles) {
@@ -178,11 +171,6 @@ elsif( $qe_redirect =~ m/t/i )
 }
 
 
-#if ($RunPP) {
-#  system("$ENV{'OCEAN_BIN'}/pp.pl znucl pplist finalpplist") == 0
-#    or die "Failed to run pp.pl\n";
-#  `echo "1" > pp.stat`;
-#}
 
 
 #############################################
@@ -226,7 +214,7 @@ my @qe_data_files = ('prefix', 'ppdir', 'work_dir', 'tmp_dir', 'ibrav', 'natoms'
                      'trace_tol', 'tot_charge', 'nspin', 'ngkpt', 'k0.ipt', 'metal',
                      'den.kshift', 'obkpt.ipt', 'obf.nbands', 'nkpt', 'nbands', 'screen.nbands',
                      'screen.nkpt', 'dft.calc_stress', 'dft.calc_force', 'dft.startingwfc', 
-                     'dft.diagonalization' );
+                     'dft.diagonalization', 'dft.ndiag' );
 
 
 
@@ -360,33 +348,57 @@ if ($RunESPRESSO) {
 
 
   my $npool = 1;
+  my $ncpus = 1;
   open INPUT, "pool_control" or die;
   while (<INPUT>)
   {
     if( $_ =~ m/^scf\s+(\d+)/ )
     {
       $npool = $1;
-      last;
     }
+    elsif( $_ =~ m/^total\s+(\d+)/ )
+    { 
+      $ncpus = $1;
+    }
+
   }
   close INPUT;
+
+  print "TEST\n";
+  print $qe_data_files{'dft.ndiag'} . "\n";
+  if( $qe_data_files{'dft.ndiag'} =~ m/(-?\d+)/ )
+  {
+    if( $1 > 0 )
+    {
+      $qe_data_files{'dft.ndiag'} = $1;
+    }
+    else
+    {
+      $qe_data_files{'dft.ndiag'} = $ncpus;
+    }
+  }
+  else
+  {
+    $qe_data_files{'dft.ndiag'} = $ncpus;
+  }
 
 
  ### the SCF run for initial density
  ##
   print "Density SCF Run\n";
+  my $qeCommandLine = "-ndiag $qe_data_files{'dft.ndiag'} -npool $npool";
   if( $obf == 1 )
   {
     if( $qe_redirect ) 
     {
-      print  "$para_prefix $ENV{'OCEAN_ESPRESSO_OBF_PW'}  -npool $npool < scf.in > scf.out 2>&1\n";
-      system("$para_prefix $ENV{'OCEAN_ESPRESSO_OBF_PW'}  -npool $npool < scf.in > scf.out 2>&1") == 0
+      print  "$para_prefix $ENV{'OCEAN_ESPRESSO_OBF_PW'} $qeCommandLine < scf.in > scf.out 2>&1\n";
+      system("$para_prefix $ENV{'OCEAN_ESPRESSO_OBF_PW'} $qeCommandLine < scf.in > scf.out 2>&1") == 0
           or die "Failed to run scf stage for Density\n";
     }
     else
     {
-      print  "$para_prefix $ENV{'OCEAN_ESPRESSO_OBF_PW'}  -npool $npool -inp scf.in > scf.out 2>&1\n";
-      system("$para_prefix $ENV{'OCEAN_ESPRESSO_OBF_PW'}  -npool $npool -inp scf.in > scf.out 2>&1") == 0
+      print  "$para_prefix $ENV{'OCEAN_ESPRESSO_OBF_PW'} $qeCommandLine -inp scf.in > scf.out 2>&1\n";
+      system("$para_prefix $ENV{'OCEAN_ESPRESSO_OBF_PW'} $qeCommandLine -inp scf.in > scf.out 2>&1") == 0
           or die "Failed to run scf stage for Density\n";
     }
   }
@@ -394,14 +406,14 @@ if ($RunESPRESSO) {
   {
     if( $qe_redirect )
     {    
-      print  "$para_prefix $ENV{'OCEAN_ESPRESSO_PW'}  -npool $npool < scf.in > scf.out 2>&1\n";
-      system("$para_prefix $ENV{'OCEAN_ESPRESSO_PW'}  -npool $npool < scf.in > scf.out 2>&1") == 0
+      print  "$para_prefix $ENV{'OCEAN_ESPRESSO_PW'} $qeCommandLine < scf.in > scf.out 2>&1\n";
+      system("$para_prefix $ENV{'OCEAN_ESPRESSO_PW'} $qeCommandLine < scf.in > scf.out 2>&1") == 0
           or die "Failed to run scf stage for Density\n";
     } 
     else
     {
-      print  "$para_prefix $ENV{'OCEAN_ESPRESSO_PW'}  -npool $npool -inp scf.in > scf.out 2>&1\n";
-      system("$para_prefix $ENV{'OCEAN_ESPRESSO_PW'}  -npool $npool -inp scf.in > scf.out 2>&1") == 0
+      print  "$para_prefix $ENV{'OCEAN_ESPRESSO_PW'} $qeCommandLine -inp scf.in > scf.out 2>&1\n";
+      system("$para_prefix $ENV{'OCEAN_ESPRESSO_PW'} $qeCommandLine -inp scf.in > scf.out 2>&1") == 0
           or die "Failed to run scf stage for Density\n";
     }
   }
@@ -842,27 +854,53 @@ if ( $nscfRUN ) {
     close $QE;
 
     my $npool = 1;
+    my $ncpus = 1;
     open INPUT, "../pool_control" or die;
     while (<INPUT>)
     {
       if( $_ =~ m/^nscf\s+(\d+)/ )
       {
         $npool = $1;
-        last;
       }
+      elsif( $_ =~ m/^total\s+(\d+)/ )
+      {
+        $ncpus = $1;
+      }
+
     }
     close INPUT;
+
+    print "TEST\n";
+    print $qe_data_files{'dft.ndiag'} . "\n";
+    if( $qe_data_files{'dft.ndiag'} =~ m/(-?\d+)/ )
+    {
+      if( $1 > 0 )
+      {
+        $qe_data_files{'dft.ndiag'} = $1;
+      }
+      else
+      {
+        $qe_data_files{'dft.ndiag'} = $ncpus;
+      }
+    }
+    else
+    {
+      $qe_data_files{'dft.ndiag'} = $ncpus;
+    }
+
+
+    my $qeCommandLine = "-ndiag $qe_data_files{'dft.ndiag'} -npool $npool";
 
     print "BSE NSCF Run\n";
     if( $qe_redirect )
     {  
-      print  "$para_prefix $ENV{'OCEAN_ESPRESSO_PW'}  -npool $npool < nscf.in > nscf.out 2>&1\n";
-      system("$para_prefix $ENV{'OCEAN_ESPRESSO_PW'}  -npool $npool < nscf.in > nscf.out 2>&1") == 0
+      print  "$para_prefix $ENV{'OCEAN_ESPRESSO_PW'} $qeCommandLine < nscf.in > nscf.out 2>&1\n";
+      system("$para_prefix $ENV{'OCEAN_ESPRESSO_PW'} $qeCommandLine < nscf.in > nscf.out 2>&1") == 0
           or die "Failed to run nscf stage for BSE wavefunctions\n";
     } else
     {
-      print  "$para_prefix $ENV{'OCEAN_ESPRESSO_PW'}  -npool $npool -inp nscf.in > nscf.out 2>&1\n";
-      system("$para_prefix $ENV{'OCEAN_ESPRESSO_PW'}  -npool $npool -inp nscf.in > nscf.out 2>&1") == 0
+      print  "$para_prefix $ENV{'OCEAN_ESPRESSO_PW'} $qeCommandLine -inp nscf.in > nscf.out 2>&1\n";
+      system("$para_prefix $ENV{'OCEAN_ESPRESSO_PW'} $qeCommandLine -inp nscf.in > nscf.out 2>&1") == 0
           or die "Failed to run nscf stage for BSE wavefunctions\n";
     }
 
@@ -894,13 +932,13 @@ if ( $nscfRUN ) {
 
       if( $qe_redirect )
       {  
-        print  "$para_prefix $ENV{'OCEAN_ESPRESSO_PW'}  -npool $npool < nscf_shift.in > nscf_shift.out 2>&1\n";
-        system("$para_prefix $ENV{'OCEAN_ESPRESSO_PW'}  -npool $npool < nscf_shift.in > nscf_shift.out 2>&1") == 0
+        print  "$para_prefix $ENV{'OCEAN_ESPRESSO_PW'} $qeCommandLine < nscf_shift.in > nscf_shift.out 2>&1\n";
+        system("$para_prefix $ENV{'OCEAN_ESPRESSO_PW'} $qeCommandLine < nscf_shift.in > nscf_shift.out 2>&1") == 0
             or die "Failed to run nscf stage for shifted BSE wavefunctions\n";
       } else
       {
-        print  "$para_prefix $ENV{'OCEAN_ESPRESSO_PW'}  -npool $npool -inp nscf_shift.in > nscf_shift.out 2>&1\n";
-        system("$para_prefix $ENV{'OCEAN_ESPRESSO_PW'}  -npool $npool -inp nscf_shift.in > nscf_shift.out 2>&1") == 0
+        print  "$para_prefix $ENV{'OCEAN_ESPRESSO_PW'} $qeCommandLine -inp nscf_shift.in > nscf_shift.out 2>&1\n";
+        system("$para_prefix $ENV{'OCEAN_ESPRESSO_PW'} $qeCommandLine -inp nscf_shift.in > nscf_shift.out 2>&1") == 0
             or die "Failed to run nscf stage for shifted BSE wavefunctions\n";
       }
 
@@ -1010,27 +1048,53 @@ if( $obf == 0 && $run_screen == 1 )
   close QE;
 
   my $npool = 1;
+  my $ncpus = 1;
   open INPUT, "../pool_control" or die;
   while (<INPUT>)
   {
     if( $_ =~ m/^screen\s+(\d+)/ )
     {
       $npool = $1;
-      last;
     }
+    elsif( $_ =~ m/^total\s+(\d+)/ )
+    {
+      $ncpus = $1;
+    }
+
   }
   close INPUT;
+
+  print "TEST\n";
+  print $qe_data_files{'dft.ndiag'} . "\n";
+  if( $qe_data_files{'dft.ndiag'} =~ m/(-?\d+)/ )
+  {
+    if( $1 > 0 )
+    {
+      $qe_data_files{'dft.ndiag'} = $1;
+    }
+    else
+    {
+      $qe_data_files{'dft.ndiag'} = $ncpus;
+    }
+  }
+  else
+  {
+    $qe_data_files{'dft.ndiag'} = $ncpus;
+  }
+
+
+  my $qeCommandLine = "-ndiag $qe_data_files{'dft.ndiag'} -npool $npool";
 
   print "Screening NSCF Run\n";
   if( $qe_redirect )
   {  
-    print  "$para_prefix $ENV{'OCEAN_ESPRESSO_PW'}  -npool $npool < nscf.in > nscf.out 2>&1\n";
-    system("$para_prefix $ENV{'OCEAN_ESPRESSO_PW'}  -npool $npool < nscf.in > nscf.out 2>&1") == 0
+    print  "$para_prefix $ENV{'OCEAN_ESPRESSO_PW'} $qeCommandLine < nscf.in > nscf.out 2>&1\n";
+    system("$para_prefix $ENV{'OCEAN_ESPRESSO_PW'} $qeCommandLine < nscf.in > nscf.out 2>&1") == 0
         or die "Failed to run nscf stage for SCREENing wavefunctions\n";
   } else
   {
-    print  "$para_prefix $ENV{'OCEAN_ESPRESSO_PW'}  -npool $npool -inp nscf.in > nscf.out 2>&1\n";
-    system("$para_prefix $ENV{'OCEAN_ESPRESSO_PW'}  -npool $npool -inp nscf.in > nscf.out 2>&1") == 0
+    print  "$para_prefix $ENV{'OCEAN_ESPRESSO_PW'} $qeCommandLine -inp nscf.in > nscf.out 2>&1\n";
+    system("$para_prefix $ENV{'OCEAN_ESPRESSO_PW'} $qeCommandLine -inp nscf.in > nscf.out 2>&1") == 0
         or die "Failed to run nscf stage for SCREENing wavefunctions\n";
   }
   open OUT, ">nscf.stat" or die "Failed to open nscf.stat\n$!";

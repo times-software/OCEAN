@@ -131,6 +131,10 @@ dft.diagonalization
 {
 david
 } dft.diagonalization
+dft.ndiag
+{
+-1
+} dft.ndiag
 verbatim
 {
 #
@@ -167,6 +171,10 @@ opf.opts
 {
 !
 } opf.opts
+opf.program
+{
+shirley
+} opf.program
 screen.nkpt
 {
 -1
