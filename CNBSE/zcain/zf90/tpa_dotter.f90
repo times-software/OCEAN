@@ -13,7 +13,7 @@ program tpa_dotter
   !
   integer, parameter :: DP = kind(1.0d0)
   integer :: nptot, ntot, mc, i, lc, idum, nspn, ivms, ispn, k, j
-  real( DP ) :: rr, ri, ir, ii, br, bi, tau( 3 )
+  real( DP ) :: rr, ri, ir, ii, br, bi, tau( 3 ), norm
   real( DP ), allocatable, dimension( : ) :: mer, mei
   real( DP ), allocatable, dimension( :, : ) :: reSecondPhoton, imSecondPhoton
   real( DP ), allocatable, dimension( :, :, : ) :: pcr, pci, reSecondary, imSecondary, reOuter, imOuter
@@ -51,8 +51,9 @@ program tpa_dotter
   reOuter(:,:,:) = 0.0_dp
   imOuter(:,:,:) = 0.0_dp
 
+  norm = 1.0_dp / ( real( ntot, dp ) )
   ! Testing option here
-  if( .true. ) then
+  if( .false. ) then
     do ispn = 1, nspn
       do i = 1, nptot
         reOuter( i, i, ispn ) = 1.0_dp
@@ -63,6 +64,7 @@ program tpa_dotter
       do k = 1, ntot
         do j = 1, nptot
           do i = 1, nptot
+            ! THIS IS ALSO NO GOOD. CLEARLY SHOULD BE RR + II , +/-(RI +/- IR)
             reOuter( i, j, ispn ) = reOuter( i, j, ispn ) + pcr( j, k, ispn ) * pcr( i, k, ispn ) &
                                   + pci( j, k, ispn ) * pci( i, k, ispn )
             imOuter( i, j, ispn ) = imOuter( i, j, ispn ) + pcr( j, k, ispn ) * pci( i, k, ispn ) &
@@ -71,6 +73,8 @@ program tpa_dotter
         enddo
       enddo
     enddo
+    reOuter(:,:,:) = reOuter(:,:,:) * norm
+    imOuter(:,:,:) = imOuter(:,:,:) * norm
   endif
 
   deallocate( pcr, pci )
@@ -100,8 +104,8 @@ program tpa_dotter
            ri = dot_product( mer( : ), imOuter( :, i, 1 ) )
            ir = dot_product( mei( : ), reOuter( :, i, 1 ) )
            ii = dot_product( mei( : ), imOuter( :, i, 1 ) )
-           br = rr - ii
-           bi = -ri - ir
+           br = rr + ii
+           bi = ri - ir
            reSecondary( i, 1, mc ) = br
            imSecondary( i, 1, mc ) = bi
         end do
@@ -148,7 +152,7 @@ program tpa_dotter
           
         ! secondPhoton is starred
         br = rr + ii
-        bi = ri - ir
+        bi = - ri + ir
   
         write( 99, * ) br, bi
       enddo
