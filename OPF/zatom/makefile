@@ -26,7 +26,7 @@ HFOBJS = zobj/hfhead.o zobj/hfhead2.o zobj/hfneck.o \
          \
          zobj/spartanfip.o zobj/baregrip.o zobj/orthred.o \
          zobj/projdumper.o zobj/escanprep.o zobj/normangnodes.o \
-         zobj/reconstruct.o zobj/optradf.o zobj/getfgnew.o zobj/fgcalc.o zobj/getmeznl.o \
+         zobj/reconstruct.o zobj/optradf.o zobj/getfgnew.o zobj/fgcalc.o zobj/getmeznl.o zobj/core2coreme.o\
          \
          zobj/continuum.o zobj/projaug.o zobj/trck.o
 #
@@ -346,6 +346,8 @@ zobj/fgcalc.o: zf90/fgcalc.f90
 	$(COMP) $(OPTS) -c zf90/fgcalc.f90 -o zobj/fgcalc.o
 zobj/getmeznl.o: zf90/getmeznl.f90
 	$(COMP) $(OPTS) -c zf90/getmeznl.f90 -o zobj/getmeznl.o
+zobj/core2coreme.o: zf90/core2coreme.f90
+	$(COMP) $(OPTS) -c zf90/core2coreme.f90 -o zobj/core2coreme.o
 zobj/orbmom.o: zf90/orbmom.f90
 	$(COMP) $(OPTS) -c zf90/orbmom.f90 -o zobj/orbmom.o
 zobj/screencore.o: zf90/screencore.f90

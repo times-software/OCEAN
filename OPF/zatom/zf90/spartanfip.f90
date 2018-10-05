@@ -1,4 +1,4 @@
-! Copyright (C) 2016 OCEAN collaboration
+! Copyright (C) 2016, 2018 OCEAN collaboration
 !
 ! This file is part of the OCEAN project and distributed under the terms 
 ! of the University of Illinois/NCSA Open Source License. See the file 
@@ -23,7 +23,7 @@ subroutine spartanfip( etot, rel, alfa, nr, r, dr, r2, dl, njrc, vi, zorig, xnto
   character( len=20 ) :: fnam
   integer, parameter :: prjfile = 93, melfile = 94
   integer, allocatable :: nn( : ), ll( : ), ver( :, : )
-  real( kind = kind( 1.0d0 ) ), allocatable :: eint( : ), frac( : ), phc( : )
+  real( kind = kind( 1.0d0 ) ), allocatable :: eint( : ), frac( : ), phc( : ), coreorb( :, : )
   character( len=20 ), allocatable :: fnl( : )
   !
   open( unit=99, file='corcon', form='formatted', status='unknown' )
@@ -66,6 +66,8 @@ subroutine spartanfip( etot, rel, alfa, nr, r, dr, r2, dl, njrc, vi, zorig, xnto
   close( unit=99 )
   !
   ! prep for other stuffs
+  write(6,*) njrc(:)
+  write(6,*) ''
   call escanprep( nr, r, dr, r2, dl, vi, iuflag, cq, njrc, irc, lmin, lmax, sig, emin, cush, kappa, &
        aexm1, aexm2, aepot, psxm1, psxm2, pspot, aepl, pspl )
   !
@@ -99,6 +101,7 @@ subroutine spartanfip( etot, rel, alfa, nr, r, dr, r2, dl, njrc, vi, zorig, xnto
   close( unit=99 )
   allocate( ver( 1 : maxval( nn ), 0 : maxval( ll ) ) )
   ver( :, : ) = 0
+  allocate( coreorb( irc, nco+lmax-lmin+1) )
   do i = 1, nco + 1 + lmax - lmin
      ver( nn( i ), ll( i ) ) = ver( nn( i ), ll( i ) ) + 1
 !    write ( fnam, '(1a6,1i3.3,3(1a1,1i2.2))' ) '.corez', nint( zorig ), 'n', nn( i ), 'l', ll( i ), 'v', ver( nn( i ), ll( i ) )
@@ -116,10 +119,13 @@ subroutine spartanfip( etot, rel, alfa, nr, r, dr, r2, dl, njrc, vi, zorig, xnto
      do j = 1, irc
         if ( abs( phc( j ) ) .lt. 1.d-30 ) phc( j ) = 0.0d0
         write ( 99, '(2(1x,1e22.15))' ) r( j ), phc( j )
+        coreorb( j, i ) = phc( j )
      end do
      close( unit=99 )
      call getmeznl( nr, nn( i ), ll( i ), npowr, dl, zorig, r, phc )
+     call core2coreme( irc, nco + 1 + lmax - lmin, i, nn, ll, npowr, dl, zorig, r, coreorb )
   end do
+  deallocate( coreorb )
   !
   return
 end subroutine spartanfip

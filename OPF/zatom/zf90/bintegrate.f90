@@ -76,9 +76,9 @@ subroutine bintegrate2( nr, r, dl, f, area, irc )
   !
   do i = 2, irc, 4
     su( 1 ) = su( 1 ) + 64.0d0 * f( i ) * rrr( i )
-    su( 2 ) = su( 1 ) + 24.0d0 * f( i+1 ) * rrr( i+1 )
-    su( 3 ) = su( 1 ) + 64.0d0 * f( i+2 ) * rrr( i+2 )
-    su( 4 ) = su( 1 ) + 28.0d0 * f( i+3 ) * rrr( i+3 )
+    su( 2 ) = su( 2 ) + 24.0d0 * f( i+1 ) * rrr( i+1 )
+    su( 3 ) = su( 3 ) + 64.0d0 * f( i+2 ) * rrr( i+2 )
+    su( 4 ) = su( 4 ) + 28.0d0 * f( i+3 ) * rrr( i+3 )
   enddo
   area = sum( su( : ) ) * dl / 45.0d0
   deallocate( rrr )
