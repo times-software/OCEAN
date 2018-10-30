@@ -5,9 +5,9 @@
 ! `License' in the root directory of the present distribution.
 !
 !
-subroutine qe_grabwf_noiotk(ikpt, isppol, nsppol, maxband, maxnpw, prefix, kg, eigen, cg, npw, ierr )
+subroutine qe_grabwf_noiotk(ikpt, isppol, nsppol, maxband, maxnpw, gpt,  prefix, kg, eigen, cg, npw, ierr )
   implicit none
-  integer, intent( in ) :: ikpt, isppol, nsppol, maxband, maxnpw
+  integer, intent( in ) :: ikpt, isppol, nsppol, maxband, maxnpw, gpt
   integer, intent( out ) :: npw
   integer, intent( inout ) :: ierr
   character(len=128), intent( in ) :: prefix
@@ -61,9 +61,9 @@ subroutine qe_grabwf_noiotk(ikpt, isppol, nsppol, maxband, maxnpw, prefix, kg, e
     read(99)
   enddo
   read(99) crap, max_ngvecs
-  if( max_ngvecs .gt. maxnpw ) then
+  if( max_ngvecs .gt. maxnpw .or. (gpt .eq. 2 .and. max_ngvecs*2-1 .gt. maxnpw  )) then
     write(6,*) 'K-point specific max_ngevcs is larger than expected'
-    write(6,*) '  ', max_ngvecs, maxnpw
+    write(6,*) '  ', max_ngvecs, maxnpw, gpt
   endif
 
   do i = 1, 19
@@ -108,6 +108,23 @@ subroutine qe_grabwf_noiotk(ikpt, isppol, nsppol, maxband, maxnpw, prefix, kg, e
   deallocate( tbuffer )
 
 
+  ! If we are using a gamma point calculation expand the wvfn
+  !  For every G != (0,0,0)
+  !  1. Add -G
+  !  2. u(-G) = u^*(G)
+  if( gpt .eq. 2 ) then
+    j = npw
+    do i = 1, npw
+      if( kg(1,i) .eq. 0 .and. kg(2,i) .eq. 0 .and. kg(3,i) .eq. 0 ) cycle
+
+      j = j + 1
+      kg( :, j ) = -kg(:,i)
+      cg(1:maxband,2*j-1) = cg(1:maxband,2*i-1)
+      cg(1:maxband,2*j) = -cg(1:maxband,2*i)
+    enddo
+    npw = npw * 2 - 1
+    write(6,*) npw, j
+  endif
 
 end subroutine
   

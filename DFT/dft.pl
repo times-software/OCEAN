@@ -37,7 +37,7 @@ my $nscfRUN = 1;
 
 my @GeneralFiles = ("para_prefix", "calc");
 
-my @KgenFiles = ("nkpt", "k0.ipt", "qinunitsofbvectors.ipt", "screen.nkpt");
+my @KgenFiles = ("nkpt", "k0.ipt", "qinunitsofbvectors.ipt", "screen.nkpt", "screen.k0");
 my @BandFiles = ("nbands", "screen.nbands");
 my @EspressoFiles = ( "coord", "degauss", "ecut", "etol", "fband", "ibrav", 
     "isolated", "mixing", "natoms", "ngkpt", "noncolin", "nrun", "ntype", 
@@ -317,6 +317,19 @@ if ($RunESPRESSO) {
   $qe_data_files{'print kpts'} = "K_POINTS automatic\n$qe_data_files{'ngkpt'} $qe_data_files{'den.kshift'}\n";
   $qe_data_files{'print nbands'} = -1;
 
+  # Check for Gamma-only, and over-write 'print kpts'
+  $qe_data_files{'ngkpt'} =~ m/(\d+)\s+(\d+)\s+(\d+)/ or die "$qe_data_files{'ngkpt'}";
+  if( $1 * $2 * $3 == 1 )
+  {
+    $qe_data_files{'den.kshift'} =~ m/(\S+)\s+(\S+)\s+(\S+)/ or die "$qe_data_files{'den.kshift'}";
+    unless ( abs($1) > 0.000001 || abs($2) > 0.000001 || abs($3) > 0.000001 )
+    {
+      $qe_data_files{'print kpts'} = "K_POINTS gamma\n";
+    }
+    else { print "KSHIFT: $1  $2  $3\n"; }
+  }
+  else
+  { print "KPOINTS: $1  $2  $3\n"; }
 
   &print_qe( $QE, %qe_data_files );
 
@@ -374,12 +387,12 @@ if ($RunESPRESSO) {
     }
     else
     {
-      $qe_data_files{'dft.ndiag'} = $ncpus;
+      $qe_data_files{'dft.ndiag'} = 4;
     }
   }
   else
   {
-    $qe_data_files{'dft.ndiag'} = $ncpus;
+    $qe_data_files{'dft.ndiag'} = 4;
   }
 
 
@@ -1010,11 +1023,8 @@ if( $obf == 0 && $run_screen == 1 )
 
   # kpts
   copy "../screen.nkpt", "nkpt";
-  copy "../k0.ipt", "k0.ipt";
+  copy "../screen.k0", "k0.ipt";
 
-#  copy "../acell", "acell";
-#  copy "../atompp", "atompp";
-#  copy "../coords", "coords";
 
   # QINB is 0 for screening
   open OUT, ">qinunitsofbvectors.ipt" or die;
@@ -1027,18 +1037,40 @@ if( $obf == 0 && $run_screen == 1 )
 
   open my $QE, ">nscf.in" or die "Failed to open nscf.in\n$!";
 
+
   $qe_data_files{'calctype'} = 'nscf';
-  my $kpt_text = "K_POINTS crystal\n";
-  open IN, "nkpts" or die;
-  my $nkpts = <IN>;
+
+  my $gamma = 1;
+
+  open IN, "nkpt" or die "Failed to open nkpt (screening)\n$!";
+  <IN> =~ m/(\d+)\s+(\d+)\s+(\d+)/ or die "Failed to parse screen.nkpt.\n";
+  $gamma *= 0 if ( $1 * $2 * $3 > 1 ); 
   close IN;
-  $kpt_text .= $nkpts;
-  open IN, "kpts4qe.0001" or die;
-  while(<IN>)
+
+  open IN, "k0.ipt"  or die "Failed to open k0.ipt (screening)\n$!";
+  <IN> =~ m/(\S+)\s+(\S+)\s+(\S+)/ or die "Failed to parse k0.ipt\n";
+  $gamma *= 0 if( abs($1) > 0.000001 || abs($2) > 0.000001 || abs($3) > 0.000001 );
+  close IN;
+
+  my $kpt_text;
+  if( $gamma == 1 ) 
   {
-    $kpt_text .= $_;
+    $kpt_text = "K_POINTS gamma\n";
   }
-  close IN;
+  else
+  {
+    $kpt_text = "K_POINTS crystal\n";
+    open IN, "nkpts" or die;
+    my $nkpts = <IN>;
+    close IN;
+    $kpt_text .= $nkpts;
+    open IN, "kpts4qe.0001" or die;
+    while(<IN>)
+    {
+      $kpt_text .= $_;
+    }
+    close IN;
+  }
   
   $qe_data_files{'print kpts'} = $kpt_text;
   $qe_data_files{'print nbands'} = $qe_data_files{'screen.nbands'};

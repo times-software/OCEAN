@@ -23,7 +23,7 @@ if (! $ENV{"OCEAN_WORKDIR"}){ $ENV{"OCEAN_WORKDIR"} = `pwd` . "../" ; }
 ###########################
 
 
-my @CommonFiles = ("znucl", "opf.hfkgrid", "opf.fill", "opf.opts", "pplist", "screen.shells", 
+my @CommonFiles = ("znucl", "opf.hfkgrid", "opf.fill", "opf.opts", "pplist", 
                    "ntype", "natoms", "typat", "taulist", "nedges", "edges", "caution", 
                    "scfac", "calc", "opf.program" );
 
@@ -158,6 +158,7 @@ if( $program =~ m/shirley/ )
 
   # shells
   ##################################
+  if( 0 ) {
   open SHELLS, "screen.shells" or die "Failed to open screen.shells\n";
   my $numshells = 0;
   my $allshells = '';
@@ -172,6 +173,7 @@ if( $program =~ m/shirley/ )
   print SHELLS "$numshells\n";
   print SHELLS "$allshells\n";
   close SHELLS;
+  }
 
   # HFK
   ###################################
