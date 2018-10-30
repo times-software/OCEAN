@@ -266,6 +266,9 @@ module schi_direct
 
     real(DP), parameter :: d_zero = 0.0_DP
     real(DP), parameter :: d_one = 1.0_DP
+#ifdef DEBUG
+    character(len=8) :: filnam
+#endif
 
     npt = size( FullSpace, 1 )
     nbasis = size( ProjectedSpace, 1 )

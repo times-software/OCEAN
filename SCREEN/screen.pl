@@ -24,7 +24,7 @@ if (! $ENV{"OCEAN_WORKDIR"}){ $ENV{"OCEAN_WORKDIR"} = `pwd` . "../" ; }
 
 my @CommonFiles = ("znucl", "opf.hfkgrid", "opf.fill", "opf.opts", "pplist", "screen.shells", 
                    "ntype", "natoms", "typat", "taulist", "nedges", "edges", "caution", "epsilon", 
-                   "k0.ipt", "scfac", "core_offset", "dft", "avecsinbohr.ipt", 
+                   "screen.k0", "scfac", "core_offset", "dft", "avecsinbohr.ipt", 
                    "para_prefix", "nspin", "calc", "prefix" );
 
 my @ScreenFiles = ("screen.grid.scheme", "screen.grid.rmode", "screen.grid.ninter", 
@@ -72,6 +72,8 @@ if ($runSCREEN == 0 ) {
 foreach (@CommonFiles) {
   copy( "../Common/$_", $_ ) or die "Failed to get $_ from Common/\n$!";
 }
+
+move( "screen.k0", "k0.ipt") or die "$!";
 
 my %screen_data_files = {};
 foreach my $filename (@ScreenFiles)
@@ -613,6 +615,8 @@ else
           for( my $i = 0; $i < $len; $i++ )
           {
             print OUT "$vc_bare{ $currentEdge[1] }[0][$i]  $vc_bare{ $currentEdge[1] }[1][$i]\n";
+#            my $inv = -1 / $vc_bare{ $currentEdge[1] }[0][$i];
+#            print OUT "$vc_bare{ $currentEdge[1] }[0][$i]  $inv\n";
           }
 
           # True reconstruction of wavefunctions

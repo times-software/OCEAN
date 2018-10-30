@@ -39,7 +39,7 @@ module screen_system
   type calculation_parameters
     character(len=4) :: convertStyle = 'real'
     character(len=4) :: chi0Integrand = 'half'
-    character(len=6) :: inversionStyle = 'sinqr'
+    character(len=6) :: inversionStyle 
     integer :: QuadOrder = 16
     logical :: do_augment = .true.
   end type calculation_parameters
@@ -217,7 +217,7 @@ module screen_system
     call MPI_BCAST( calcParams%chi0Integrand, 4, MPI_CHARACTER, root, comm, ierr )
     if( ierr .ne. MPI_SUCCESS ) return
 
-    call MPI_BCAST( calcParams%inversionStyle, 4, MPI_CHARACTER, root, comm, ierr )
+    call MPI_BCAST( calcParams%inversionStyle, 6, MPI_CHARACTER, root, comm, ierr )
     if( ierr .ne. MPI_SUCCESS ) return
 
     call MPI_BCAST( calcParams%QuadOrder, 1, MPI_INTEGER, root, comm, ierr )

@@ -179,6 +179,10 @@ screen.nkpt
 {
 -1
 } screen.nkpt
+screen.k0
+{
+0.125 0.250 0.375
+} screen.k0
 screen.nbands
 {
 0

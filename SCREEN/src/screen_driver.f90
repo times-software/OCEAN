@@ -23,6 +23,7 @@ program screen_driver
 !                                      screen_centralPotential_loadAll
   use screen_centralPotential, only : screen_centralPotential_loadInternal
   use screen_opf, only : screen_opf_loadAll
+  use screen_timekeeper, only : screen_tk_init, screen_tk_printtimes, screen_tk_start, screen_tk_stop
 
   implicit none
 
@@ -40,6 +41,10 @@ program screen_driver
 
   ierr = 0
 
+  call screen_tk_init()
+  call screen_tk_start( "screen" )
+
+  call screen_tk_start( "init" )
   call ocean_mpi_init( ierr )
   if( ierr .ne. 0 ) goto 111
 
@@ -60,18 +65,6 @@ program screen_driver
   !
 
 !  ! load up potentials to be screened later
-!  if( myid .eq. root ) then
-!    allocate( tmp_znl( 3, 2000 ), stat=ierr )
-!  else
-!    allocate( tmp_znl( 1, 1 ), stat=ierr )
-!  endif
-!  call screen_centralPotential_prepAll( tmp_znl, znlLength, ierr )
-!  if( ierr .ne. 0 ) goto 111
-!  allocate( znlPotentials( znlLength ), stat=ierr )
-!  if( ierr .ne. 0 ) goto 111
-!  call screen_centralPotential_loadAll( znlPotentials, tmp_znl, ierr )
-!  if( ierr .ne. 0 ) goto 111
-!  deallocate( tmp_znl )
   call screen_centralPotential_loadInternal( ierr )
   if( ierr .ne. 0 ) goto 111
 
@@ -79,6 +72,12 @@ program screen_driver
   call screen_opf_loadAll( ierr )
   if( ierr .ne. 0 ) goto 111
   ! 
+  call screen_tk_stop( "init" )
+
+
+  ! DFT file section: Energies and wavefunctions, read-in and redistributed
+  !
+  call screen_tk_start( "dft" )
   ! Initializes the framework for reading in files from the DFT
   call odf_init( myid, root, comm, ierr )
   if( ierr .ne. 0 ) goto 111
@@ -96,12 +95,19 @@ program screen_driver
 
   call odf_clean( ierr )
   if( ierr .ne. 0 ) goto 111
+  !
+  ! Done with the DFT section
+  call MPI_BARRIER( comm, ierr )
+  call screen_tk_stop( "dft" )
+!  goto 111
 
   
+  call screen_tk_start( "chi" )
   call screen_chi_driver_init( ierr )
   if( ierr .ne. 0 ) goto 111
   call screen_chi_driver_run( nsites, all_sites, ierr )
   if( ierr .ne. 0 ) goto 111
+  call screen_tk_stop( "chi" )
 
   call screen_grid_dumpRBfile( all_sites( 1 )%grid, ierr )
   if( ierr .ne. 0 ) goto 111
@@ -113,5 +119,7 @@ program screen_driver
 !  if( ierr .ne. 0 ) call MPI_ABORT( comm, ierr, ierr_ )
   call ocean_mpi_finalize( ierr )
 
+  call screen_tk_stop( "screen" )
+  if( ierr .eq. 0 ) call screen_tk_printtimes( myid )
 
 end program screen_driver

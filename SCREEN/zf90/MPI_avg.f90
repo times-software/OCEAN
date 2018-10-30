@@ -80,7 +80,7 @@ program avg
     rad_remain = rad_remain - temp_rad
   enddo
 
-  write(6,*) my_poolrank, my_rad, my_start_rad
+!  write(6,*) my_poolrank, my_rad, my_start_rad
     
   if( my_poolrank .eq. 0 ) then
     allocate( Vdenr( max_rad ), Vdeni( max_rad ) )

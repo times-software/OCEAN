@@ -36,6 +36,8 @@ module screen_chi_driver
     use screen_sites, only : site, pinfo, screen_sites_returnWavefunctionDims
     use screen_paral, only : site_parallel_info, screen_paral_isMySite
     use screen_grid, only : screen_grid_dumpFullGrid
+    use ocean_mpi, only : myid
+    use screen_timekeeper, only : screen_tk_start, screen_tk_stop
     integer, intent( in ) :: nsites
     type( site ), intent( in ) :: all_sites( nsites )
     integer, intent( inout ) :: ierr
@@ -56,6 +58,9 @@ module screen_chi_driver
 
       if( screen_paral_isMySite( pinfo, isite ) ) then
 
+
+        write(1000+myid,*) 'Chi Driver site: ', isite
+
         NR = screen_chi_NR( all_sites( isite )%grid )
         dims = screen_sites_returnWavefunctionDims( all_sites( isite ) )
         allocate( ProjectedChi0( NR, NLM, NR, NLM), stat=ierr )
@@ -63,9 +68,12 @@ module screen_chi_driver
         allocate( FullChi0( dims(2), dims(2) ), STAT=ierr )
         if( ierr .ne. 0 ) return
 
+        call screen_tk_start( "screen_chi0_runSite" )
         call screen_chi0_runSite( all_sites( isite ), FullChi0, ierr )
         if( ierr .ne. 0 ) return
+        call screen_tk_stop( "screen_chi0_runSite" )
 
+        call screen_tk_start( "screen_chi_project" )
         if( pinfo%myid .eq. pinfo%root ) then
           call screen_chi_project( all_sites( isite )%grid, FullChi0, ProjectedChi0, ierr )
           if( ierr .ne. 0 ) return
@@ -74,6 +82,7 @@ module screen_chi_driver
           call driver_write_chi( all_sites( isite )%info, chiPrefix, ProjectedChi0, ierr )
           if( ierr .ne. 0 ) return
         endif
+        call screen_tk_stop( "screen_chi_project" )
 
         deallocate( FullChi0 )
 
@@ -108,6 +117,8 @@ module screen_chi_driver
 
         deallocate( ProjectedChi0, FullChi )
 
+        call MPI_BARRIER( pinfo%comm, ierr )
+        if( ierr .ne. 0 ) return 
       endif
 
     enddo
