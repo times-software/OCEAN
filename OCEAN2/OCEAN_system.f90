@@ -18,6 +18,7 @@ module OCEAN_system
     real(DP)         :: bmet(3,3)
     real(DP)         :: qinunitsofbvectors(3)
     real(DP)         :: epsilon0
+    real(DP)         :: occupationValue
     integer( S_INT ) :: nkpts
     integer( S_INT ) :: nxpts
     integer( S_INT ) :: nalpha
@@ -54,6 +55,8 @@ module OCEAN_system
     logical          :: complex_bse
     logical          :: legacy_ibeg 
 !    character(len=5) :: calc_type
+
+    character(len=5) :: occupationType
 
     type(o_run), pointer :: cur_run => null()
 
@@ -311,6 +314,19 @@ module OCEAN_system
       else
         sys%complex_bse = .false.
       endif
+
+      inquire(file='occupation.ipt', exist=exst )
+      if( exst ) then
+        open( unit=99, file='occupation.ipt', form='formatted',status='old')
+        read( 99, * ) sys%occupationType, sys%occupationValue
+        write(6,*) 'occupation', sys%occupationType, sys%occupationValue
+        close( 99 )
+      else
+        sys%occupationType = 'none'
+        sys%occupationValue = 0.0_dp
+      endif
+      
+
       
     endif
 #ifdef MPI
@@ -329,6 +345,8 @@ module OCEAN_system
     call MPI_BCAST( sys%qinunitsofbvectors, 3, MPI_DOUBLE_PRECISION, root, comm, ierr )
     if( ierr .ne. MPI_SUCCESS ) goto 111
     call MPI_BCAST( sys%epsilon0, 1, MPI_DOUBLE_PRECISION, root, comm, ierr )
+    if( ierr .ne. MPI_SUCCESS ) goto 111
+    call MPI_BCAST( sys%occupationValue, 1, MPI_DOUBLE_PRECISION, root, comm, ierr )
     if( ierr .ne. MPI_SUCCESS ) goto 111
 
     call MPI_BCAST( sys%nkpts, 1, MPI_INTEGER, root, comm, ierr )
@@ -389,6 +407,8 @@ module OCEAN_system
     call MPI_BCAST( sys%complex_bse, 1, MPI_LOGICAL, root, comm, ierr )
     if( ierr .ne. MPI_SUCCESS ) goto 111
 
+    call MPI_BCAST( sys%occupationType, 5, MPI_CHARACTER, root, comm, ierr )
+    if( ierr .ne. MPI_SUCCESS ) goto 111
 !    call MPI_BCAST( sys%calc_type, 5, MPI_CHARACTER, root, comm, ierr )
 !    if( ierr .ne. MPI_SUCCESS ) goto 111
 
