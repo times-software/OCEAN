@@ -524,6 +524,10 @@ $hfinlength *= ($#photon_files + 1 );
 print "$hfinlength\n";
 print RUNLIST "$hfinlength\n";
 
+open CKS, ">cks.in" or die "Failed to open cks.in\n";
+my $znl_string = 0;
+my $ncks = 0;
+my $cks_string;
 
 my $cls_average = 0;
 my $cls_count = 0;
@@ -548,10 +552,12 @@ while (<EDGE>) {
 
   my $cks;
   if( $is_xas == 1  ) {
-    $cks = sprintf("cksc.${elname}%04u", $elnum );
+#    $cks = sprintf("cksc.${elname}%04u", $elnum );
+    $cks = "cksc.${elname}";
   } 
   else {
-    $cks = sprintf("cksv.${elname}%04u", $elnum );
+#    $cks = sprintf("cksv.${elname}%04u", $elnum );
+    $cks = "cksv.${elname}"
   }
 
   # For each unique Z we need to grab some files from OPF
@@ -584,19 +590,48 @@ while (<EDGE>) {
   }
   else # qe/abi w/o obf need to calculate cainkset
   {
-    open ZNL, ">ZNL" or die;
-    print ZNL "$znum  $nnum  $lnum\n";
-    close ZNL;
+    my $temp_znl = sprintf "%i  %i  %i", $znum, $nnum, $lnum;
+    if( $znl_string == 0 ) 
+    {
+      $znl_string = $temp_znl;
+      open ZNL, ">ZNL" or die;
+      print ZNL "$znl_string\n";
+      close ZNL;
+    }
 
-    open CKSIN, ">cks.in" or die "Failed to open cks.in\n";
-    print CKSIN "1\n$elname  $elnum  cbinf\n";
-    close CKSIN;
+    if( $znl_string eq $temp_znl )
+    {
+      $ncks++;
+      $cks_string .= "$elname  $elnum  $cks\n";
+    }
+    else
+    {
+      print "New ZNL!\nRunning $ncks through cks\n";
+      unless ( $ncks == 0 ) 
+      {
+        open CKSIN, ">cks.in" or die "Failed to open cks.in\n";
+        print CKSIN "$ncks\n$cks_string";
+        close CKSIN;
+        print "cks\n";
+        system("$ENV{'OCEAN_BIN'}/cks.x < cks.in > cks.log") == 0 or die;
+      }
+      $znl_string = $temp_znl;
+      open ZNL, ">ZNL" or die;
+      print ZNL "$znl_string\n";
+      close ZNL;
+      $ncks = 1;
+      $cks_string = "$elname  $elnum  $cks\n";
+    }
+
+#    open CKSIN, ">cks.in" or die "Failed to open cks.in\n";
+#    print CKSIN "1\n$elname  $elnum  cbinf\n";
+#    close CKSIN;
 
 
-    print "cks\n";
-    system("$ENV{'OCEAN_BIN'}/cks.x < cks.in > cks.log") == 0 or die;
-    move( "cbinf0001", $cks ) or die "Failed to move cbinf0001 to $cks\n$!";
-#    `mv cbinf0001 $cks`;
+#    print "cks\n";
+#    system("$ENV{'OCEAN_BIN'}/cks.x < cks.in > cks.log") == 0 or die;
+#    move( "cbinf0001", $cks ) or die "Failed to move cbinf0001 to $cks\n$!";
+##    `mv cbinf0001 $cks`;
   }
 
 #  my $add10_zstring = sprintf("z%03un%02ul%02u", $znum, $nnum, $lnum);
@@ -639,6 +674,20 @@ while (<EDGE>) {
 }
 close EDGE;
 close RUNLIST;
+
+
+unless ( $ncks == 0 )
+{
+  print "Final cks: $ncks\n";
+  open CKSIN, ">cks.in" or die "Failed to open cks.in\n";
+  print CKSIN "$ncks\n$cks_string";
+  close CKSIN;
+  print "cks\n";
+  system("$ENV{'OCEAN_BIN'}/cks.x < cks.in > cks.log") == 0 or die;
+}
+
+
+
 if( $cls_count > 0 )
 {
   $cls_average /= $cls_count;
