@@ -1,6 +1,6 @@
 include ../../Makefile.arch
 
-OPTIONS += -qopt-report=5 -march=core-avx2 #-fbacktrace -g -O0 -fcheck=all #-warn all -check all -DDEBUG
+OPTIONS += 
 
 
 all: screen_driver.x
