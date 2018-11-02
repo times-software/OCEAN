@@ -16,7 +16,7 @@ program OCEAN_val_exciton_plot
   real(DP) :: qinb(3), avecs(3,3), su, k0(3), qvec(3), Rvec(3), xphs, yphs, zphs, twopi, tau(3), ur, ui, ehcoor(3)
 
 
-  integer :: Rmesh(3), kmesh(3), nband, nalpha, nkpts, NR, Riter, kiter, xmesh(3), nspn
+  integer :: Rmesh(3), kmesh(3), nband, nalpha, nkpts, NR, Riter, kiter, xmesh(3), nspn, iehcoor(3)
   integer :: ikx, iky, ikz, iRx, iRy, iRz, NX, i, ix, x_count, xiter, iy, iz, izz, bloch_selector
   integer :: brange(4), u2size, u2start, Rshift(3), natom, kiter_break, Rstart(3), idum(3)
   integer :: nvb, ncb, ehflag, ixctr
@@ -72,7 +72,7 @@ program OCEAN_val_exciton_plot
 
   open(unit=99,file='xyz.wyck',form='formatted',status='old')
   read(99,*) natom
-  allocate( xyz(3,natom), atom_loc(3,natom), elname( natom ) ) 
+  allocate( xyz(3,natom), atom_loc(3,0:natom), elname( natom ) ) 
   do i = 1, natom
     read(99,*) elname( i ), xyz(:,i)
   enddo
@@ -140,11 +140,35 @@ program OCEAN_val_exciton_plot
 
   !select point near centroid
   write (6,'(A,3f12.6)') "Reference point selected:", ehcoor
+ ! do i=1,3
+ !    ehcoor(i) = fraction( 1 + ehcoor(i)) ! ged rid of negative frac coor
+ ! enddo
+  
   do i=1,3
-     ehcoor(i) = fraction( 1 + ehcoor(i)) ! ged rid of negative frac coor
+    iehcoor(i) = nint( xmesh(i)*ehcoor(i) ) + 1
+    write(6,*) ehcoor(i), iehcoor(i)
+    if( iehcoor(i) .ge. xmesh(i) ) iehcoor(i) = iehcoor(i) - xmesh(i)
+    if( iehcoor(i) .lt. 0        ) iehcoor(i) = iehcoor(i) + xmesh(i)
+     
+    ehcoor(i) = dble(iehcoor(i))/dble(xmesh(i))
+    write(6,*) ehcoor(i), iehcoor(i)
   enddo
+
+  do ix = 1, 3
+    atom_loc(:,0) = atom_loc(:,0) + avecs(:,ix) * ehcoor(ix)
+  enddo
+
+  
   ixctr = floor(xmesh(1)*ehcoor(1)) + ( floor(xmesh(2)*ehcoor(2)) - 1 ) * xmesh(1) & 
         + ( floor(xmesh(3)*ehcoor(3)) - 1 ) * xmesh(1) * xmesh(2)
+  write(6,*) 'Selected nearest real space point index:', ixctr
+
+  ixctr = iehcoor(1) + (iehcoor(2) - 1 ) * xmesh(1) &
+        + ( iehcoor(3) - 1 ) * xmesh(1) * xmesh(2)
+  write(6,*) 'Selected nearest real space point index:', ixctr
+
+  ixctr = iehcoor(3) + (iehcoor(2) - 1 ) * xmesh(3) &
+        + ( iehcoor(1) - 1 ) * xmesh(3) * xmesh(2)
   write(6,*) 'Selected nearest real space point index:', ixctr
   
   write(6,*) 'Opening u2'
@@ -226,6 +250,50 @@ program OCEAN_val_exciton_plot
         STOP
      case(0)
         open(unit=99,file='u2.dat',form='unformatted',status='old')
+
+
+        !!! This is the new section !!!
+        if( .true. ) then 
+        kiter = 0
+        do ikx = 0, kmesh(1)-1
+          qvec(1) = (k0(1) + dble(ikx))/dble(kmesh(1))
+          xphs = twopi * dble( iehcoor(1)-1)/dble( xmesh(1) )  * qvec( 1 )
+          do iky = 0, kmesh(2)-1
+            qvec(2) = (k0(2) + dble(iky))/dble(kmesh(2))
+            yphs = twopi * dble( iehcoor(2)-1)/dble( xmesh(2) )  * qvec( 2 ) + xphs
+            do ikz = 0, kmesh(3)-1
+              kiter = kiter + 1
+              qvec(3) = (k0(3) + dble(ikz))/dble(kmesh(3))
+              zphs = twopi * dble( iehcoor(3)-1)/dble( xmesh(3) ) * qvec( 3 ) + yphs
+
+              if( mod( kiter, kiter_break ) .eq. 0 ) write(6,*) kiter
+              do i = u2start, u2size
+                 do ix =1, NX
+                    read(99) idum(1:3), ur, ui
+                    u2( ix, i ) = cmplx( ur, ui, DP )
+                 enddo
+              enddo
+
+              cphs = cmplx( cos( zphs ), sin(zphs) )
+
+              ! The hole gets phase and then gets conjugated
+              pointwf(1:nvb)= conjg(u2( ixctr, 1:nvb ) * cphs)  !get value near center
+
+              !Contract hole part to specified point
+
+              call ZGEMV('N', ncb, nvb, one, cv_exciton(1,1,kiter), ncb, pointwf(1), 1, one, plot_exciton(1, kiter), 1)
+
+              !Convert electron part to real space           
+              call ZGEMV( 'N', NX, ncb, one, u2(1,u2size-ncb+1), NX, plot_exciton( 1, kiter ), 1, &
+                      one, rk_exciton( 1, kiter ), 1 )
+
+            enddo
+          enddo
+        enddo
+
+
+
+        else
         do kiter = 1, nkpts
            if( mod( kiter, kiter_break ) .eq. 0 ) write(6,*) kiter
            do i = u2start, u2size
@@ -246,6 +314,7 @@ program OCEAN_val_exciton_plot
                    one, rk_exciton( 1, kiter ), 1 )
            
         enddo
+        endif
         close( 99 )
         
      case default
@@ -304,14 +373,17 @@ program OCEAN_val_exciton_plot
 !  qvec(1) = qinb(1) + k0(1)/dble(kmesh(1))
   do ikx = 0, kmesh(1)-1
     qvec(1) = qinb(1) + (k0(1) + dble(ikx))/dble(kmesh(1))
+    qvec(1) = (k0(1) + dble(ikx))/dble(kmesh(1))
 !    qvec(1) = qinb(1) + dble(ikx)/dble(kmesh(1))
 !    qvec(2) = qinb(2) + k0(2)/dble(kmesh(2))
     do iky = 0, kmesh(2)-1
       qvec(2) = qinb(2) + (k0(2) + dble(iky))/dble(kmesh(2))
+      qvec(2) = (k0(2) + dble(iky))/dble(kmesh(2))
 !      qvec(2) = qinb(2) + dble(iky)/dble(kmesh(2))
 !      qvec(3) = qinb(3) + k0(3)/dble(kmesh(3))
       do ikz = 0, kmesh(3)-1
         qvec(3) = qinb(3) + (k0(3) + dble(ikz))/dble(kmesh(3))
+        qvec(3) = (k0(3) + dble(ikz))/dble(kmesh(3))
 !        qvec(3) = qinb(3) + dble(ikz)/dble(kmesh(3))
         
         kiter = kiter + 1
@@ -356,7 +428,7 @@ program OCEAN_val_exciton_plot
     Rshift( ix ) = - Rstart( ix )
   enddo
 
-  do i = 1, natom
+  do i = 0, natom
     do ix = 1, 3
       atom_loc( :, i ) = atom_loc( :, i ) + Rshift( ix ) * avecs(:, ix )
     enddo
@@ -370,12 +442,16 @@ program OCEAN_val_exciton_plot
   open(unit=99,file=outname,form='formatted')
   write(99,*) "OCEAN exciton plot"
   write(99,*) "---"
-  write(99,'(I5,3(F12.6))') natom*product(Rmesh(:)), 0.0_dp, 0.0_dp, 0.0_dp
+  write(99,'(I5,3(F12.6))') 1+natom*product(Rmesh(:)), 0.0_dp, 0.0_dp, 0.0_dp
   do ix = 1, 3
     x_count = Rmesh( ix ) * xmesh( ix )
     write(99,'(I5,3(F12.6))') x_count, (Rmesh(:) * avecs(:,ix))/dble(x_count)
   enddo
 
+  
+  ! This is where I write out the location of the electron/hole that is frozen out
+  ! The "atom" type is hardwired as Z=99, could be other things
+  write(99,'(I5,4(F12.6))') 99, 0.0, atom_loc(:,0)
   do iRx = Rstart(1), Rstart(1) + Rmesh(1) - 1
     do iRy = Rstart(2), Rstart(2) + Rmesh(2) - 1
       do iRz = Rstart(3), Rstart(3) + Rmesh(3) - 1
