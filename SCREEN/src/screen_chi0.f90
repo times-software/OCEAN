@@ -571,6 +571,7 @@ module screen_chi0
     use screen_energy, only : mu_ryd, energies
     use ocean_constants, only : pi_dp
     use screen_timekeeper, only : screen_tk_start, screen_tk_stop
+    use ocean_mpi, only : myid
     complex(DP), intent( in ), dimension(:,:,:) :: LWvfn, RWvfn
     real(DP), intent( inout ) :: chi(:,:)
     integer, intent( inout ) :: ierr
@@ -657,8 +658,9 @@ module screen_chi0
     call screen_tk_stop( "calcSingleChiBuffer Init" )
 
 !$  nthreads = OMP_GET_MAX_THREADS()
+!    write(1000+myid,*) 'OMP: ', nthreads
 
-!$OMP  PARALLEL DEFAULT( NONE ) NUM_THREADS( 16 ) &
+!$OMP  PARALLEL DEFAULT( NONE )  &
 !$OMP& SHARED ( params, NRchunks, NLchunks, Rpts, Lpts, nbands, NImagEnergies ) &
 !$OMP& SHARED ( chi, spinfac, weightImagEnergies, LWvfn, RWvfn, ReEnergyDenom, ImEnergyDenom ) &
 !$OMP& PRIVATE( ispin, ichunk, istart, istop, jchunk, jstart, jstop, iks, ib, ibstop, iband, i, j, it, pref2, ii, jj ) &
@@ -674,9 +676,6 @@ module screen_chi0
 
 !$OMP DO COLLAPSE( 2 ) SCHEDULE( STATIC )
       do ichunk = 1, NRchunks
-!        istart = ( ichunk - 1 ) * icSize + 1
-!        istop = min( ichunk * icSize, Rpts )
-!
         do jchunk = 1, NLchunks
 
           istart = ( ichunk - 1 ) * icSize + 1
@@ -686,10 +685,8 @@ module screen_chi0
 ! !$OMP SINGLE
 !           call screen_tk_start( "calcSingleChiBuffer Greens" )
 ! !$OMP END SINGLE NOWAIT
-          allocate( real_LWvfn( jcSize, bandBuf ), imag_LWvfn( jcSize, bandBuf ), &
-                    real_RWvfn( icSize, bandBuf ), imag_RWvfn( icSize, bandBuf ) )
 
-!$OMP  PARALLEL DEFAULT( NONE ) NUM_THREADS( 2 ) &
+!$OMP  PARALLEL DEFAULT( NONE )  &
 !$OMP& SHARED ( params, NRchunks, NLchunks, Rpts, Lpts, nbands, NImagEnergies ) &
 !$OMP& SHARED ( chi, spinfac, weightImagEnergies, LWvfn, RWvfn, ReEnergyDenom, ImEnergyDenom ) &
 !$OMP& PRIVATE( jstart, jstop, iks, ib, ibstop, iband, i, j, it, pref2, ii, jj, iwidth ) &
@@ -707,72 +704,13 @@ module screen_chi0
           jstart = ( jchunk - 1 ) * jcSize + 1
           jstop = min( jchunk * jcSize, Lpts )
 
-!$OMP SINGLE
-          real_LWvfn(:,:) = 0.0_DP
-          imag_LWvfn(:,:) = 0.0_DP
-          real_RWvfn(:,:) = 0.0_DP
-          imag_RWvfn(:,:) = 0.0_DP
-!$OMP END SINGLE
 
           do iks = 1 + (ispin-1)*params%nkpts, ispin*params%nkpts
             do ib = 1, nbands, bandBuf
               ibstop = min( ib+bandBuf-1,nbands )
   
-!              ! Zero out temp if not in use
-!              do iband = ibstop + 1, ib + bandbuf - 1
-!                temp(:,:,iband) = 0.0_DP
-!              enddo
-
-#if 0
-              
-              do iband = ib, ibstop
-!$OMP SINGLE
-                real_LWvfn(1:jstop-jstart+1,iband-ib+1) = real(LWvfn(jstart:jstop,iband,iks),DP)
-                imag_LWvfn(1:jstop-jstart+1,iband-ib+1) = aimag(LWvfn(jstart:jstop,iband,iks))
-                real_RWvfn(1:istop-istart+1,iband-ib+1) = real(RWvfn(istart:istop,iband,iks),DP)
-                imag_RWvfn(1:istop-istart+1,iband-ib+1) = aimag(RWvfn(istart:istop,iband,iks))
-!$OMP END SINGLE
-            
-!                do ii = 1, istop-istart+1-3, 4
-!$OMP DO SCHEDULE( STATIC )
-                do ii = 1, icSize, 4
-!                  iwidth = min( 3, istop-istart+1-ii )
-!                  real_RWvfn(ii:ii+iwidth) = real(RWvfn(istart+ii-1:istart+iwidth,iband,iks),DP)
-!                  imag_RWvfn(ii:ii+iwidth) = aimag(RWvfn(istart+ii-1:istart+iwidth,iband,iks))
-                  do jj = 1, jcSize, 8
-                    do i = ii, ii+3
-                      do j = jj, jj+7
-                        temp(j,i,iband-ib+1 ) = real_LWvfn(j,iband-ib+1) * real_RWvfn(i,iband-ib+1) &
-                                              + imag_LWvfn(j,iband-ib+1) * imag_LWvfn(i,iband-ib+1)
-                      enddo
-                    enddo
-                  enddo
-                enddo
-!$OMP END DO NOWAIT
-#if 0 
-                ii = istop-istart+1 - mod( istop-istart+1, 4 )
-                real_RWvfn( ii:istop-istart+1) = real(RWvfn(istop-ii+1:istop,iband,iks),DP)
-                imag_RWvfn( ii:istop-istart+1) = aimag(RWvfn(istop-ii+1:istop,iband,iks))
-                if( istop - istart + 1 .lt. icSize ) then
-                  real_RWvfn( istop-istart+2:icSize ) = 0.0_DP
-                  imag_RWvfn( istop-istart+2:icSize ) = 0.0_DP
-                endif
-                do ii = istop-istart+1 - mod( istop-istart+1, 4 ), icSize
-                  do jj = 1, jcSize, 4
-                    do i = ii, ii+3
-                      do j = jj, jj+3
-                        temp(j,i,iband-ib+1 ) = real_LWvfn(j) * real_RWvfn( i ) &
-                                              + imag_LWvfn(j) * imag_LWvfn( i )
-                      enddo
-                    enddo
-                  enddo
-                enddo
-#endif
-              enddo
-!$OMP BARRIER
 
 ! Possibly re-write the above without the explicit mem copy, but eh?
-#else
 !$OMP DO SCHEDULE( STATIC )
               do iband = ib, ibstop!min(ib+7,nbands)
                 do i = istart, istop
@@ -784,42 +722,8 @@ module screen_chi0
                 enddo
               enddo
 !$OMP END DO 
-#endif
 
 
-! Still need to figure this part out. Maybe explicit unroll of the ib loop
-! if we zero out temp where needed for the top
-! Then we could fo the bands by 2s and have both Re and Im in the same loop?
-
-
-! If this is good, then over allocate the Energy Denoms and zero off the top
-! then don't need to worry about temp either
-#if 0 
-!              if( mod(ibstop - ib, 2) .eq. 1 ) then
-!$OMP DO SCHEDULE( STATIC ) 
-              do ii = 1, NImagEnergies, 2
-                do i = 1, icSize
-                  do iband = ib, ibstop, 2 !min(ib+7,nbands)
-                    do it = ii, ii+1
-                      do jj = 1, jcsize, 8
-                        do j = jj, jj + 7
-                        ReGreen(j,i,it) = ReGreen(j,i,it) &
-                                               + ReEnergyDenom( iband, it, iks ) * temp(j,i,iband-ib+1) 
-                        ImGreen(j,i,it) = ImGreen(j,i,it) &
-                                               + ImEnergyDenom( iband, it, iks ) * temp(j,i,iband-ib+1) 
-                        ReGreen(j,i,it) = ReGreen(j,i,it) &
-                                               + ReEnergyDenom( iband+1, it, iks ) * temp(j,i,iband-ib+2)
-                        ImGreen(j,i,it) = ImGreen(j,i,it) &
-                                               + ImEnergyDenom( iband+1, it, iks ) * temp(j,i,iband-ib+2) 
-                      enddo
-                      enddo
-                    enddo
-                  enddo
-                enddo
-              enddo
-!$OMP END DO
-#endif
-#if 1
               ibstop = ( ( ( nbands - 1 ) / bandBuf ) + 1 ) * bandBuf
 !$OMP SINGLE
               call DGEMM( 'N', 'N', jcsize * icsize, NImagEnergies, bandBuf, 1.0_DP, temp, jcsize * icsize, &
@@ -830,59 +734,9 @@ module screen_chi0
                           ImEnergyDenom( ib, 1, iks ), ibstop, 1.0_DP, ImGreen, jcsize * icsize )
 !$OMP END SINGLE
 
-!              else
-!!$OMP DO SCHEDULE( STATIC )
-!              do i = 1, icSize
-!                do it = 1, NImagEnergies
-!                  do iband = ib, ibstop !min(ib+7,nbands)
-!                    ReGreen(1:jcSize,i,it) = ReGreen(1:jcSize,i,it) &
-!                                           + ReEnergyDenom( iband, it, iks ) * temp(1:jcSize,i,iband-ib+1)
-!                  enddo
-!                enddo
-!                do it = 1, NImagEnergies
-!                  do iband = ib, ibstop !min(ib+7,nbands)
-!                    ImGreen(1:jcSize,i,it) = ImGreen(1:jcSize,i,it) &
-!                                           + ImEnergyDenom( iband, it, iks ) * temp(1:jcSize,i,iband-ib+1)
-!                  enddo
-!                enddo
-!              enddo
-!!$OMP END DO
-!              endif
-#else
-!$OMP DO SCHEDULE( STATIC )
-              do i = 1, icSize
-                do it = 1, NImagEnergies
-                  do iband = ib, ibstop !min(ib+7,nbands)
-                    ReGreen(1:jcSize,i,it) = ReGreen(1:jcSize,i,it) &
-                                           + ReEnergyDenom( iband, it, iks ) * temp(1:jcSize,i,iband-ib+1)
-                  enddo
-                enddo
-                do it = 1, NImagEnergies
-                  do iband = ib, ibstop !min(ib+7,nbands)
-                    ImGreen(1:jcSize,i,it) = ImGreen(1:jcSize,i,it) &
-                                           + ImEnergyDenom( iband, it, iks ) * temp(1:jcSize,i,iband-ib+1)
-                  enddo
-
-                enddo
-              enddo
-!$OMP END DO 
-#endif
-!     $OMP BARRIER
-           
-!              do i = 1, icSize
-!!$OMP DO
-!                do it = 1, NImagEnergies
-!                    do iband = ib, ibstop !min(ib+7,nbands)
-!                    ImGreen(1:jcSize,i,it) = ImGreen(1:jcSize,i,it) &
-!                                           + ImEnergyDenom( iband, it, iks ) * temp(1:jcSize,i,iband-ib+1)
-!                  enddo
-!                enddo
-!!$OMP END DO
-!              enddo
               
 
             enddo
-
 
           enddo  ! iks
 
@@ -909,7 +763,7 @@ module screen_chi0
 !           call screen_tk_stop( "calcSingleChiBuffer Chi0" )
 ! !$OMP END SINGLE
 !$OMP END PARALLEL
-          deallocate( real_LWvfn, imag_LWvfn, real_RWvfn, imag_RWvfn )
+!          deallocate( real_LWvfn, imag_LWvfn, real_RWvfn, imag_RWvfn )
 
         enddo
       enddo
