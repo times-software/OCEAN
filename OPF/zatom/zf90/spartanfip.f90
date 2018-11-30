@@ -37,7 +37,7 @@ subroutine spartanfip( etot, rel, alfa, nr, r, dr, r2, dl, njrc, vi, zorig, xnto
      read ( 99, * ) i, skips( l )
   end do
   !
-  ntest = 80
+  ntest = 128
   allocate( eint( 0 : ntest ), frac( 0 : ntest ) )
   !
   read ( 5, * ) npowr
