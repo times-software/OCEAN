@@ -392,6 +392,13 @@ else  # oncvpsp method
     $spdf[2] = 10 if( $spdf[2] > 10 );
     $spdf[3] = 14 if( $spdf[3] > 14 );
 
+    # This hack is because, currently, hfk.x is used to screen the core
+    #  and for some neutral atoms it doesn't work. 
+    for( my $i = 0; $i <=3; $i++ )
+    {
+      $spdf[$i] *= 0.95;
+    } 
+
     print OUT "$spdf[0]   $spdf[1]   $spdf[2]   $spdf[3]\n";
     print OUT "$spdf[0]   $spdf[1]   $spdf[2]   $spdf[3]\n";
 
@@ -403,7 +410,8 @@ else  # oncvpsp method
     open HFIN, ">hfin1" or die;
     print HFIN "initgrid\n";
     print HFIN "$znucl $grid\n";
-    print HFIN "fakel\n0 $lmax\n";
+#    print HFIN "fakel\n0 $lmax\n";
+    print HFIN "ppload\n";
     print HFIN "mkcorcon\nscreencore\nmkcorcon\ncalcso\nquit\n";
     close HFIN;
 
