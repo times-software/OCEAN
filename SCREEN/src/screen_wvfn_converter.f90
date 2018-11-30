@@ -24,6 +24,7 @@ module screen_wvfn_converter
     use screen_sites, only : site, pinfo
     use ocean_dft_files, only : odf_nprocPerPool
     use ocean_mpi
+    use screen_timekeeper, only : screen_tk_start, screen_tk_stop
     
 !    type( site_parallel_info ), intent( in ) :: pinfo
     integer, intent( in ) :: nsites
@@ -50,6 +51,7 @@ module screen_wvfn_converter
     recvArray(:,:) = MPI_REQUEST_NULL
     i = 0
 
+    call screen_tk_start( "wc_driver_postSiteRecvs" )
     do isite = 1 , nsites 
 
       if( screen_paral_isMySite( pinfo, isite ) ) then
@@ -58,6 +60,7 @@ module screen_wvfn_converter
         if( ierr .ne. 0 ) return
       endif
     enddo
+    call screen_tk_stop( "wc_driver_postSiteRecvs" )
 
     call screen_wvfn_converter_loader( pinfo, nsites, all_sites, ierr )
     if( ierr .ne. 0 ) return
@@ -65,10 +68,13 @@ module screen_wvfn_converter
 #ifdef DEBUG
     write(6,*) 'Wait on RECVs'
 #endif
+
+    call screen_tk_start( "wc_driver_waitSiteRecvs" )
     do i = 1, siteSize
       call MPI_WAITALL( recvSize, recvArray(:,i), MPI_STATUSES_IGNORE, ierr )
       if( ierr .ne. 0 ) return
     enddo
+    call screen_tk_stop( "wc_driver_waitSiteRecvs" )
 
 !    do i = 1, size(all_sites(1)%wvfn%wvfn, 2 )
 !      write(1050+myid,'(2E20.11)') real(all_sites(1)%wvfn%wvfn(1,i,1),DP), aimag( all_sites(1)%wvfn%wvfn(1,i,1) )
@@ -86,6 +92,7 @@ module screen_wvfn_converter
     use ocean_dft_files, only : odf_return_my_bands, odf_is_my_kpt, odf_get_ngvecs_at_kpt, &
                                 odf_read_at_kpt
     use ocean_mpi, only : myid, root
+    use screen_timekeeper, only : screen_tk_start, screen_tk_stop
 
     type( site_parallel_info ), intent( in ) :: pinfo
     integer, intent( in ) :: nsites
@@ -128,8 +135,10 @@ module screen_wvfn_converter
           endif
 
 !          write(6,*) 'read ', ispin, ikpt
+          call screen_tk_start( "odf_read_at_kpt" )
           call odf_read_at_kpt( ikpt, ispin, ngvecs, nbands, input_gvecs, input_uofg, ierr )
           if( ierr .ne. 0 ) return
+          call screen_tk_stop( "odf_read_at_kpt" )
           
           call swl_convertAndSend( pinfo, ikpt, ispin, ngvecs, nbands, input_gvecs, input_uofg, &
                                    nsites, all_sites, ierr )
@@ -222,6 +231,7 @@ module screen_wvfn_converter
     use screen_wavefunction, only : screen_wvfn, screen_wvfn_map_procID, screen_wvfn_singleKInit, &
                                     screen_wvfn_kill
     use screen_paral, only : site_parallel_info, screen_paral_siteIndexID2procID
+    use screen_timekeeper, only : screen_tk_start, screen_tk_stop
 
     type( site_parallel_info ), intent( in ) :: pinfo
     integer, intent( in ) :: ikpt, ispin, ngvecs, nbands, nsites
@@ -247,7 +257,9 @@ module screen_wvfn_converter
     integer, allocatable :: send_list(:)
 #endif
 
+    call screen_tk_start( "swl_convertAndSend" )
 
+    call screen_tk_start( "swl_convertAndSend_Init" )
     kpoints = screen_system_returnKvec( params, ikpt )
 
     qcart(:) = 0.0_DP
@@ -278,29 +290,39 @@ module screen_wvfn_converter
 
     allocate( uofx( uofxDims(1), uofxDims(2), uofxDims(3), nbands ), STAT=ierr )
     if( ierr .ne. 0 ) return
+    call screen_tk_stop( "swl_convertAndSend_Init" )
 
+    call screen_tk_start( "swl_DoConvert" )
     call swl_doConvert( nbands, ngvecs, input_gvecs, input_uofg, uofx )
     if( ierr .ne. 0 ) return
+    call screen_tk_stop( "swl_DoConvert" )
     
     do isite = 1, nsites
 
+      call screen_tk_start( "singleKInit" )
       call screen_wvfn_singleKInit( all_sites( isite )%grid, temp_wavefunctions( isite ), ierr )
       if( ierr .ne. 0 ) return
+      call screen_tk_stop( "singleKInit" )
 
       write(1000+myid,'(A,4(1X,I8))') '   Site:', isite, size(temp_wavefunctions( isite )%wvfn,1), &
              size(temp_wavefunctions( isite )%wvfn,2), nbands
 
       npts = all_sites( isite )%grid%Npt
 
+      call screen_tk_start( "swl_DoProject" )
       ! For this site project from u(G)/u(x) to u( r ), the atom-centered basis we use for screening
       call swl_DoProject( ngvecs, npts, nbands, input_uofg, input_gvecs, psys%bvecs, qcart, & 
                           all_sites( isite )%grid%posn, uofx, temp_wavefunctions( isite )%wvfn, ierr )
       if( ierr .ne. 0 ) return
+      call screen_tk_stop( "swl_DoProject" )
 
+      call screen_tk_start( "swl_DoAugment" )
       ! Augment using the OPFs to give the all-electron character
       call swl_DoAugment_2( all_sites( isite ), npts, nbands, ikpt, temp_wavefunctions( isite )%wvfn, ierr )
       if( ierr .ne. 0 ) return
+      call screen_tk_stop( "swl_DoAugment" )
   
+      call screen_tk_start( "swl_convertAndSend_Send" )
       itag = ( isite - 1 ) * ( ikpt + ( ispin - 1 ) * params%nkpts ) &
            + ( ispin - 1 ) * params%nkpts + ikpt
       do iproc = 0, nprocsPerPool - 1
@@ -333,11 +355,21 @@ module screen_wvfn_converter
         endif
         call MPI_TYPE_FREE( newType, ierr )
         if( ierr .ne. 0 ) return
+
+        if( mod( iproc + 1, 16 ) .eq. 0 ) then
+          write(1000+myid, '(A,2(1X,I8))' ) 'Triggered intermediate send', iproc, isite
+          call MPI_WAITALL( 16, send_list( isend-15 ), MPI_STATUSES_IGNORE, ierr )
+          if( ierr .ne. 0 ) return
+        endif
+
       enddo
     enddo
+    call screen_tk_stop( "swl_convertAndSend_Send" )
 
+    call screen_tk_start( "swl_convertAndSend_Wait" )
     call MPI_WAITALL( nsites * nprocsPerPool, send_list, MPI_STATUSES_IGNORE, ierr )
     if( ierr .ne. 0 ) return
+    call screen_tk_stop( "swl_convertAndSend_Wait" )
 
 
     ! You are supposed to be able to free the type immediately after the isend call
@@ -365,9 +397,11 @@ module screen_wvfn_converter
 !    endif
     deallocate( uofx )
 
+    call screen_tk_start( "screen_wvfn_kill" )
     do isite = 1, nsites
       call screen_wvfn_kill( temp_wavefunctions( isite ) )
     enddo
+    call screen_tk_stop( "screen_wvfn_kill" )
 
     deallocate( temp_wavefunctions, send_list, typeList )
 
@@ -376,6 +410,7 @@ module screen_wvfn_converter
 
 !    ierr = 1
 
+    call screen_tk_stop( "swl_convertAndSend" )
   end subroutine swl_convertAndSend
 
   subroutine swl_DoAugment( isite, npts, nbands, iq, wavefunctions, ierr )
@@ -806,9 +841,9 @@ module screen_wvfn_converter
     if( dims(1) .lt. 1 ) return
     ! almost certainly need to reverse dims
 !    bplan = fftw_plan_many_dft( 3, dims, nbands, uofx, 
-    bplan = fftw_plan_dft_3d( dims(3), dims(2), dims(1), uofx, uofx, FFTW_BACKWARD, FFTW_PATIENT )
 
     do ib = 1, nbands
+      bplan = fftw_plan_dft_3d( dims(3), dims(2), dims(1), uofx(:,:,:,ib), uofx(:,:,:,ib), FFTW_BACKWARD, FFTW_PATIENT )
       do ig = 1, ngvecs
         i = 1 + gvecs(1,ig)
         j = 1 + gvecs(2,ig)
@@ -819,13 +854,14 @@ module screen_wvfn_converter
 
         uofx( i, j, k, ib ) = uofg( ig, ib )
       enddo
-    enddo
+!    enddo
 
-    do j = 1, nbands
-      call fftw_execute_dft( bplan, uofx(:,:,:,j), uofx(:,:,:,j) )
-    enddo
+!    do j = 1, nbands
+      call fftw_execute_dft( bplan, uofx(:,:,:,ib), uofx(:,:,:,ib) )
+!    enddo
     
-    call fftw_destroy_plan( bplan )
+      call fftw_destroy_plan( bplan )
+    enddo
 
 #else
     ! To keep the compiler happy
@@ -836,12 +872,13 @@ module screen_wvfn_converter
 
   subroutine swl_checkConvert( gvecs, uofxDims, boundaries, ierr )
     use screen_system, only : screen_system_convertStyle
+    use ocean_mpi, only : myid
     integer, intent( in ) :: gvecs( :, : )
     integer, intent( out ) :: uofxDims( 3 )
     integer, intent( out ) :: boundaries( 3, 2 )
     integer, intent( inout ) :: ierr
 
-!    integer :: i
+    integer :: i, j, k ,test
 
     select case( screen_system_convertStyle() )
 
@@ -853,16 +890,44 @@ module screen_wvfn_converter
         ierr = -1
         write(6,*) 'recp requires FFTW3 support'
 #endif
-        boundaries(:,1) = minval( gvecs )
-        boundaries(:,2) = maxval( gvecs )
+        boundaries(:,1) = minval( gvecs, 2 )
+        boundaries(:,2) = maxval( gvecs, 2 )
         uofxDims(:) = boundaries(:,2) - boundaries(:,1) + 1 + 2
-!        uofxDims(2) = nbands
-!        uofxDims(1) = 1
-!        do i = 1, 3
-!          uofxDims(1) = uofxDims(1) * ( boundaries(i,2) - boundaries(i,1) + 1 )
-!        enddo
-        
-      case default
+
+        ! This changes the FFT grid to factor to reasonably small primes
+        do i = 1, 3
+          do k = 0, 5
+            test = uofxDims(i) + k
+            write(1000+myid,*) 'TESTING: ', test
+            do 
+              if( mod( test, 2 ) .ne. 0 ) exit
+              test = test / 2
+              write(1000+myid,*) '   ', 2
+            enddo
+            do j = 7, 3, -2
+              do
+                if( mod( test, j ) .ne. 0 ) exit
+                test = test / j
+                write(1000+myid,*) '   ', j
+              enddo
+            enddo
+            if( test .eq. 1 ) then
+              uofxDims(i) = uofxDims(i) + k
+              write(1000+myid,*) 'FINAL:    ', uofxDims(i)
+              exit
+            endif
+            
+          enddo
+        enddo
+
+        uofxDims(:) = 2*uofxDims(:)
+  !        uofxDims(2) = nbands
+  !        uofxDims(1) = 1
+  !        do i = 1, 3
+  !          uofxDims(1) = uofxDims(1) * ( boundaries(i,2) - boundaries(i,1) + 1 )
+  !        enddo
+          
+        case default
         write(6,*) 'unrecognized conversion style'
         ierr = -1
     end select
@@ -872,6 +937,7 @@ module screen_wvfn_converter
   subroutine swl_recpConvert( npts, nbands, uofx, bvecs, qcart, posn, wavefunctions, ierr )
 !    use screen_system, only : physical_system, psys
     use ocean_constants, only : pi_dp
+    use ocean_mpi, only : myid 
     integer, intent( in ) :: npts, nbands
     real(DP), intent( in ) :: bvecs(3,3), qcart(3)
     complex(DP), intent( in ) :: uofx( :, :, :, : )
@@ -897,6 +963,7 @@ module screen_wvfn_converter
     dims(2) = size( uofx, 2 )
     dims(3) = size( uofx, 3 )
 
+    write(1000+myid,'(A,3(I8,1X))') 'x-dims', dims(:)
 !    write(2000,'(3(I5,1X))') dims(:)
     do ip = 1, npts
       rvec(:) = i2pi * matmul( bvecs, posn(:,ip) )
@@ -911,14 +978,18 @@ module screen_wvfn_converter
 !        phaseMap(ip) = .true. 
 !      endif
 
+      phse = dot_product( qcart(:), posn(:,ip) )
       do i = 1, 3
         do while( rvec(i) .gt. 1.0_DP ) 
           rvec(i) = rvec(i) - 1.0_DP
+!          phse = phse - PI_DP
         end do
         do while( rvec(i) .lt. 0.0_DP )
           rvec(i) = rvec(i) + 1.0_DP
+!          phse = phse + PI_DP
         end do
       enddo
+      phase( ip ) = cmplx( dcos(phse), dsin(phse), DP )
         
 !      rvec(:) = mod(rvec(:),1.0_DP)
 !      write(6,*) rvec(:)
@@ -934,10 +1005,9 @@ module screen_wvfn_converter
 
       distanceMap(:,ip) = rvec( : ) * real( dims(:), DP ) - floor( rvec( : ) * real( dims(:), DP ) )
 
-      phse = dot_product( qcart(:), posn(:,ip) )
-      phase( ip ) = cmplx( dcos(phse), dsin(phse), DP )
 !      phase(ip) = 1.0_DP
-!      write(2000,'(6(F10.6,1X),3(I5,1X),9(F10.6,1X))') posn(:,ip)/7.562683406_DP, rvec(:), pointMap(:,1,ip), &
+!      write(4000+myid,'(6(F10.6,1X),3(I5,1X),9(F10.6,1X))') posn(1,ip)/8.49790929909_DP, posn(2,ip)/14.7188106641359_DP, &
+!        posn(3,ip)/13.83487375071_DP, rvec(:), pointMap(:,1,ip), &
 !        real(pointMap(:,1,ip)-1, DP)/dims(:), real(pointMap(:,2,ip)-1, DP)/dims(:), distanceMap(:,ip)
     enddo
 
@@ -1018,9 +1088,91 @@ module screen_wvfn_converter
 
   end subroutine  swl_recpConvert
 
+
+
+  subroutine realu2_split( ngvecs, npts, nbands, uofg, gvecs, bvecs, qcart, &
+                     posn, real_wavefunctions, imag_wavefunctions )
+    integer, intent( in ) :: ngvecs, npts, nbands
+    integer, intent( in ) :: gvecs( 3, ngvecs )
+    real(DP), intent( in ) :: bvecs(3,3), qcart(3)
+    complex(DP), intent( in ) :: uofg( ngvecs, nbands )
+    real(DP), intent( in ) :: posn( 3, npts )
+    real(DP), intent( out ) :: real_wavefunctions( npts, nbands )
+    real(DP), intent( out ), optional :: imag_wavefunctions( npts, nbands )
+    !
+    real(DP) :: prefac
+    real(DP), allocatable, dimension(:,:) :: phse2, gplusq2, cos_phases, sin_phases, real_uofg, imag_uofg
+    real(DP) :: gcart(3), gplusq(3), phse
+    integer :: i, j, blockFactor, ii, ig_start, ig_stop, ig_width
+    real(DP), parameter :: done = 1.0_DP
+    real(DP), parameter :: mone = -1.0_DP
+    real(DP), parameter :: dzero = 0.0_DP
+
+    integer, parameter :: blockParameter = 512
+
+    prefac = dzero
+    blockFactor = min( blockParameter, ngvecs )
+    allocate( cos_phases( npts, blockFactor ), sin_phases( npts, blockFactor ) )
+    allocate( real_uofg( blockFactor, nbands ), imag_uofg( blockFactor, nbands ) )
+
+    ! Need to block this for large cells or the memory requirement is too big
+    allocate( gplusq2( 3, blockFactor ), phse2( npts, blockFactor ) )
+    do ig_start = 1, ngvecs, blockParameter
+
+      ig_stop = min( ngvecs, ig_start+blockParameter - 1 )
+      ig_width = min( blockParameter, ig_stop - ig_start + 1 )
+
+      ii = 0
+      do i = ig_start, ig_stop
+        ii = ii + 1
+        gplusq2(:,ii) = matmul( bvecs(:,:), real(gvecs( :, i ), DP ) ) + qcart(:)
+      enddo
+
+      call DGEMM( 'T', 'N', npts, ig_width, 3, 1.0_DP, posn, 3, gplusq2, 3, 0.0_DP, phse2, npts )
   
+
+
+      real_uofg( 1:ig_width, : ) = real( uofg( ig_start:ig_stop, : ), DP )
+      imag_uofg( 1:ig_width, : ) = aimag( uofg( ig_start:ig_stop, : ) )
+      do ii = 1, ig_width
+        do j = 1, npts
+          cos_phases( j, ii ) = dcos(phse2(j,ii))
+          sin_phases( j, ii ) = dsin(phse2(j,ii))
+        enddo
+      enddo
+
+
+      call dgemm( 'N', 'N', npts, nbands, ig_width, done, cos_phases, npts, real_uofg, ngvecs, &
+                  prefac, real_wavefunctions, npts )
+      call dgemm( 'N', 'N', npts, nbands, ig_width, mone, sin_phases, npts, imag_uofg, ngvecs, &
+                  done, real_wavefunctions, npts )
+
+      if( present( imag_wavefunctions ) ) then
+        call dgemm( 'N', 'N', npts, nbands, ig_width, done, sin_phases, npts, real_uofg, ngvecs, &
+                    prefac, imag_wavefunctions, npts )
+        call dgemm( 'N', 'N', npts, nbands, ig_width, done, cos_phases, npts, imag_uofg, ngvecs, &
+                    done, imag_wavefunctions, npts )
+      endif
+      ! first time through we write over wavefunctions, every other time we add
+      prefac = done
+
+    enddo
+    deallocate( gplusq2, phse2 )
+
+    ! In the future store wavefunctions by real/imag?
+    !  or have some more gamma-only stuff programmed in
+!    wavefunctions(:,:) = real_wavefunctions(:,:)
+
+    deallocate( real_uofg, imag_uofg )
+    deallocate( cos_phases, sin_phases )
+  end subroutine realu2_split
+
+
   subroutine realu2( ngvecs, npts, nbands, uofg, gvecs, bvecs, qcart, & 
                      posn, wavefunctions )
+#ifdef MKL_VML
+    include 'mkl_vml.f90'
+#endif
     integer, intent( in ) :: ngvecs, npts, nbands
     integer, intent( in ) :: gvecs( 3, ngvecs )
     real(DP), intent( in ) :: bvecs(3,3), qcart(3)
@@ -1030,16 +1182,22 @@ module screen_wvfn_converter
     !
     complex(DP), allocatable :: phases(:,:)
     complex(DP) :: prefac
+    real(DP), allocatable :: phse2(:,:), gplusq2(:,:)
     real(DP) :: gcart(3), gplusq(3), phse
     integer :: i, j, blockFactor, ii, ig_start, ig_stop, ig_width
     complex(DP), parameter :: cone = 1.0_DP
     complex(DP), parameter :: czero = 0.0_DP
-    integer, parameter :: blockParameter = 1024
+    real(DP), parameter :: done = 1.0_DP
+    real(DP), parameter :: dzero = 0.0_DP
+
+    integer, parameter :: blockParameter = 512
 
     prefac = czero
     blockFactor = min( blockParameter, ngvecs )
     allocate( phases( npts, blockFactor ) )
 
+
+#if 0
     ! Need to block this for large cells or the memory requirement is too big
     do ig_start = 1, ngvecs, blockParameter
 
@@ -1067,6 +1225,46 @@ module screen_wvfn_converter
       prefac = cone
 
     enddo
+#else
+    ! Need to block this for large cells or the memory requirement is too big
+    allocate( gplusq2( 3, blockFactor ), phse2( npts, blockFactor ) )
+    do ig_start = 1, ngvecs, blockParameter
+
+      ig_stop = min( ngvecs, ig_start+blockParameter - 1 )
+      ig_width = min( blockParameter, ig_stop - ig_start + 1 )
+
+      ii = 0
+      do i = ig_start, ig_stop
+        ii = ii + 1
+        gplusq2(:,ii) = matmul( bvecs(:,:), real(gvecs( :, i ), DP ) ) + qcart(:)
+      enddo
+!      call DGEMM( 'T', 'N', npts, ig_width, 3, 1.0_DP, gplusq2, 3, posn, 3, 0.0_DP, phse2, npts )
+      call DGEMM( 'T', 'N', npts, ig_width, 3, 1.0_DP, posn, 3, gplusq2, 3, 0.0_DP, phse2, npts )
+
+
+      
+#ifdef MKL_VML
+      call vmzCIS( npts*ig_width, phse2, phases, VML_EP )
+#else
+      do ii = 1, ig_width
+        do j = 1, npts
+!          phse2( j, ii ) = dot_product( gplusq2( :, ii ), posn( :, j ) )
+          phases( j, ii ) = cmplx( dcos(phse2(j,ii)), dsin(phse2(j,ii)), DP )
+        enddo
+      enddo
+#endif
+
+
+      call zgemm( 'N', 'N', npts, nbands, ig_width, cone, phases, npts, uofg( ig_start, 1 ), ngvecs, &
+                  prefac, wavefunctions, npts )
+
+      ! first time through we write over wavefunctions, every other time we add
+      prefac = cone
+
+    enddo
+    deallocate( gplusq2, phse2 )
+
+#endif
 
 #ifdef DEBUG
     do j = 1, 8

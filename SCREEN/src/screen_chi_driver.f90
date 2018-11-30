@@ -59,6 +59,8 @@ module screen_chi_driver
       if( screen_paral_isMySite( pinfo, isite ) ) then
 
 
+        call MPI_BARRIER( pinfo%comm, ierr )
+        if( ierr .ne. 0 ) return 
         write(1000+myid,*) 'Chi Driver site: ', isite
 
         NR = screen_chi_NR( all_sites( isite )%grid )
@@ -117,8 +119,6 @@ module screen_chi_driver
 
         deallocate( ProjectedChi0, FullChi )
 
-        call MPI_BARRIER( pinfo%comm, ierr )
-        if( ierr .ne. 0 ) return 
       endif
 
     enddo

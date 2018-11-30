@@ -34,6 +34,11 @@ module screen_system
     integer :: nspin
     integer :: nbands
     real( DP ) :: kshift( 3 )
+    logical :: isGamma = .false.
+    ! This is not meant to be permanent!!!
+    ! Depending on benchmarks, this will likely be moved to always true, read: removed
+    ! But for now it makes sense to store it with the isGamma flag
+    logical :: isSplit = .false.
   end type system_parameters
 
   type calculation_parameters

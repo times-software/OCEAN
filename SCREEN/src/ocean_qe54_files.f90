@@ -19,6 +19,7 @@ module ocean_qe54_files
 
 
   logical :: is_init = .false.
+  logical :: is_gamma
   character( len=128 ) :: prefix
 
   integer :: bands(2)
@@ -287,7 +288,7 @@ module ocean_qe54_files
 
   ! Read the universal little files
   subroutine qe54_read_init( comm, ierr )
-    use ocean_mpi, only : MPI_INTEGER, MPI_CHARACTER
+    use ocean_mpi, only : MPI_INTEGER, MPI_CHARACTER, MPI_LOGICAL
 #ifdef MPI_F08
     type( MPI_COMM ), intent( in ) :: comm
 #else
@@ -333,6 +334,15 @@ module ocean_qe54_files
       read(99,*) nspin
       close(99)
 
+      inquire( file='gamma', exist=ex )
+      if( ex ) then
+        open(unit=99,file='gamma', form='formatted', status='old' )
+        read(99,*) is_gamma
+        close(99)
+      else
+        is_gamma = .false.
+      endif
+
       nfiles = nspin * product(kpts(:) )
     endif
 
@@ -352,6 +362,8 @@ module ocean_qe54_files
     call MPI_BCAST( prefix, len(prefix), MPI_CHARACTER, inter_root, inter_comm, ierr )
     if( ierr .ne. 0 ) return
 
+    call MPI_BCAST( is_gamma, 1, MPI_LOGICAL, inter_root, inter_comm, ierr )
+    if( ierr .ne. 0 ) return
 #endif
 
     call set_pools( ierr )
@@ -452,6 +464,7 @@ module ocean_qe54_files
       enddo
       read(99) crap, gvecs
       close( 99 )
+      if( is_gamma ) gvecs = 2 * gvecs - 1
     endif
 
 !    write(6,*) 'gvecs', pool_root, pool_comm
@@ -483,7 +496,7 @@ module ocean_qe54_files
     integer, intent( inout ) :: ierr
     !
     complex( DP ), allocatable, dimension( :, : ) :: cmplx_wvfn
-    integer :: test_gvec, itarg, nbands_to_send, nr, ierr_, nbands, id, start_band, crap, i
+    integer :: test_gvec, itarg, nbands_to_send, nr, ierr_, nbands, id, start_band, crap, i, j, k
 #ifdef MPI_F08
     type( MPI_REQUEST ), allocatable :: requests( : )
 #else
@@ -507,10 +520,18 @@ module ocean_qe54_files
         read( 99 )
       enddo
       read(99) crap, test_gvec
-      if( test_gvec .ne. ngvecs ) then
-        ierr = -2
-        write(6,*) test_gvec, ngvecs
-        return
+      if( is_gamma ) then
+        if( ( 2 * test_gvec - 1 ) .ne. ngvecs ) then
+          ierr = -2
+          write(6,*) (2*test_gvec-1), ngvecs
+          return
+        endif
+      else
+        if( test_gvec .ne. ngvecs ) then
+          ierr = -2
+          write(6,*) test_gvec, ngvecs
+          return
+        endif
       endif
       do i = 1, 5
         read(99)
@@ -528,7 +549,8 @@ module ocean_qe54_files
         read( 99 )
       enddo
 
-      read( 99 ) crap, gvecs( :, 1:ngvecs )
+      ! Using test_gvec for gamma support
+      read( 99 ) crap, gvecs( :, 1:test_gvec )
       close( 99 )
 
       nr = pool_nproc 
@@ -536,7 +558,7 @@ module ocean_qe54_files
       allocate( requests( 0:nr ) )
       requests(:) = MPI_REQUEST_NULL
 #ifdef MPI
-      call MPI_IBCAST( gvecs, 3*ngvecs, MPI_INTEGER, pool_root, pool_comm, requests( nr ), ierr )
+      call MPI_IBCAST( gvecs, 3*test_gvec, MPI_INTEGER, pool_root, pool_comm, requests( nr ), ierr )
 #endif
       allocate( cmplx_wvfn( ngvecs, nbands ) )
 
@@ -564,11 +586,14 @@ module ocean_qe54_files
         do i = start_band, nbands_to_send + start_band - 1
           read(99)
           read(99)
-          read( 99 ) crap, cmplx_wvfn( :, i )
+          read( 99 ) crap, cmplx_wvfn( 1:test_gvec, i )
           read(99)
           read(99)
         enddo
 
+        !TODO
+        ! Use MPI_TYPE or VECTOR to only send the first test_gvec 
+        ! For now, no worries
         ! don't send if I am me
         if( id .ne. pool_myid ) then
           write(1000+myid,'(A,3(1X,I8))') '   Sending ...', id, start_band, nbands_to_send
@@ -578,7 +603,7 @@ module ocean_qe54_files
           if( ierr .ne. 0 ) return
         else
           write(1000+myid,'(A,3(1X,I8))') "   Don't Send: ", start_band, nbands_to_send, my_bands
-          wfns( :, : ) = cmplx_wvfn( :, start_band : nbands_to_send + start_band - 1 )
+          wfns( 1:test_gvec, : ) = cmplx_wvfn( 1:test_gvec, start_band : nbands_to_send + start_band - 1 )
         endif
 
         start_band = start_band + nbands_to_send
@@ -596,12 +621,17 @@ module ocean_qe54_files
       write(1000+myid,*) '   Ngvecs: ', ngvecs
       write(1000+myid,*) '   Nbands: ', nbands
 
+      if( is_gamma ) then
+        test_gvec = ( ngvecs + 1 ) / 2
+      else
+        test_gvec = ngvecs 
+      endif
 
 #ifdef MPI
       call MPI_IRECV( wfns, ngvecs*my_bands, MPI_DOUBLE_COMPLEX, pool_root, 1, pool_comm, & 
                       requests( 1 ), ierr )
 
-      call MPI_IBCAST( gvecs, 3*ngvecs, MPI_INTEGER, pool_root, pool_comm, requests( 2 ), ierr )
+      call MPI_IBCAST( gvecs, 3*test_gvec, MPI_INTEGER, pool_root, pool_comm, requests( 2 ), ierr )
       call MPI_BCAST( ierr, 1, MPI_INTEGER, pool_root, pool_comm, ierr_ )
       if( ierr .ne. 0 .or. ierr_ .ne. 0 ) then
         call MPI_CANCEL( requests( 1 ) , ierr )
@@ -620,6 +650,25 @@ module ocean_qe54_files
     if( ierr .ne. 0 ) return
 
     deallocate( cmplx_wvfn, requests )
+
+    if( is_gamma ) then
+      j = test_gvec
+      do i = 1, test_gvec
+        if( gvecs(1,i) .eq. 0 .and. gvecs(2,i) .eq. 0 .and. gvecs(3,i) .eq. 0 ) then
+          k = i + 1
+          exit
+        endif
+        j = j + 1
+        gvecs(:,j) = -gvecs(:,i)
+        wfns(j,:) = conjg( wfns(i,:) )
+      enddo
+
+      do i = k, test_gvec
+        j = j + 1
+        gvecs(:,j) = -gvecs(:,i)
+        wfns(j,:) = conjg( wfns(i,:) )
+      enddo
+    endif
 
     write(1000+myid,*) '***Finishing k-point: ', ikpt, ispin
     call MPI_BARRIER( pool_comm, ierr )

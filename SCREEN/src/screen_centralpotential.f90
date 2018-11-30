@@ -319,6 +319,9 @@ module screen_centralPotential
 
     integer :: i
     real(DP) :: invRad
+!#ifdef DEBUG
+    character(len=10) :: filename
+!#endif
 
     if( ( .not. allocated( pot%pot ) ) .or. ( .not. allocated( pot%rad ) ) ) then
       ierr = 5
@@ -339,7 +342,7 @@ module screen_centralPotential
       endif
     enddo
 
-#ifdef DEBUG
+!#ifdef DEBUG
     write(6,*) 'newScreenShell', rad, newPot%rad( size( newPot%rad ) )
     write(filename,'(A,F4.2)') 'vpert.', rad
     open(unit=99,file=filename, form='formatted' )
@@ -347,7 +350,7 @@ module screen_centralPotential
       write(99,* ) newPot%rad( i ), newPot%pot( i ), pot%pot( i )
     enddo
     close( 99 )
-#endif
+!#endif
 
     newPot%z = pot%z
     newPot%n = pot%n

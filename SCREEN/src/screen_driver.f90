@@ -16,7 +16,7 @@ program screen_driver
   use screen_energy, only : screen_energy_init, screen_energy_load, screen_energy_find_fermi
   use ocean_dft_files, only : odf_init, odf_clean
   use screen_wvfn_converter, only : screen_wvfn_converter_driver
-  use screen_wavefunction, only : screen_wvfn_diagnostic 
+!  use screen_wavefunction, only : screen_wvfn_diagnostic 
   use screen_chi_driver, only : screen_chi_driver_init, screen_chi_driver_run
   use screen_grid, only : sgrid, screen_grid_dumpRBfile
 !  use screen_centralPotential, only : potential, screen_centralPotential_prepAll, &

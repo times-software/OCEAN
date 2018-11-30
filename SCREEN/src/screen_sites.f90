@@ -59,21 +59,19 @@ module screen_sites
   contains
 
   pure function screen_sites_returnWavefunctionDims( a ) result( dims )
-    use screen_wavefunction, only : screen_wvfn
+    use screen_wavefunction, only : screen_wvfn_returnWavefunctionDims
     type( site ), intent( in ) :: a
     integer :: dims(2)
     
-    dims(1) = a%wvfn%mypts
-    dims(2) = a%wvfn%npts
+    dims(:) = screen_wvfn_returnWavefunctionDims( a%wvfn )
   end function screen_sites_returnWavefunctionDims
 
   pure function screen_sites_returnWavefunctionBK( a ) result( dims )
-    use screen_wavefunction, only : screen_wvfn
+    use screen_wavefunction, only : screen_wvfn_returnWavefunctionBK
     type( site ), intent( in ) :: a
     integer :: dims(2)
 
-    dims(1) = a%wvfn%mybands
-    dims(2) = a%wvfn%mykpts
+    dims(:) = screen_wvfn_returnWavefunctionBK( a%wvfn )
   end function screen_sites_returnWavefunctionBK
 
   subroutine screen_sites_prep( nsites, ierr )
