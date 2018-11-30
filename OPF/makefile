@@ -1,7 +1,7 @@
 include ../Makefile.arch
 
 COMP = $(FC)
-OPTS = $(OPTIONS)
+OPTS = $(OPTIONS) $(LEGACY_REAL)
 
 all:
 	cd ppmod; make "COMP = $(COMP)" "OPTS = $(OPTS)"
