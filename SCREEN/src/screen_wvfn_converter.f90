@@ -807,11 +807,17 @@ module screen_wvfn_converter
       case('real')
         call realu2( ngvecs, npts, nbands, uofg, gvecs, bvecs, qcart, &
                      posn, wavefunctions )
-      case('recp')
+
+      case('fft2')
         call swl_recpConvert( npts, nbands, uofx, bvecs, qcart, posn, wavefunctions, ierr )
 
 !        call realu2( ngvecs, npts, nbands, uofg, gvecs, bvecs, qcart, &
 !                     posn, wavefunctions )
+      case('fft3')
+        call swl_Lagrange3rd( npts, nbands, uofx, bvecs, qcart, posn, wavefunctions, ierr )
+      case('fft4')
+!        call swl_fftpProject( npts, nbands, uofx, bvecs, qcart, posn, wavefunctions, ierr )
+        call swl_Lagrange4th( npts, nbands, uofx, bvecs, qcart, posn, wavefunctions, ierr )
 
       case default
         write(6,*) 'unrecognized conversion style'
@@ -885,10 +891,10 @@ module screen_wvfn_converter
       case('real')
         uofxDims(:) = 0
         boundaries(:,:) = 0
-      case('recp')
+      case('fft2', 'fft3', 'fft4' )
 #ifndef __FFTW3
         ierr = -1
-        write(6,*) 'recp requires FFTW3 support'
+        write(6,*) 'FFT-based conversion requires FFTW3 support'
 #endif
         boundaries(:,1) = minval( gvecs, 2 )
         boundaries(:,2) = maxval( gvecs, 2 )
@@ -920,7 +926,7 @@ module screen_wvfn_converter
           enddo
         enddo
 
-        uofxDims(:) = 2*uofxDims(:)
+  !      uofxDims(:) = 2*uofxDims(:)
   !        uofxDims(2) = nbands
   !        uofxDims(1) = 1
   !        do i = 1, 3
@@ -933,6 +939,581 @@ module screen_wvfn_converter
     end select
 
   end subroutine swl_checkConvert
+
+#if 0
+  subroutine swl_fftpProject( npts, nbands, uofx, bvecs, qcart, posn, wavefunctions, ierr )
+!    use screen_system, only : physical_system, psys
+    use ocean_constants, only : pi_dp
+    use ocean_mpi, only : myid
+    use bspline
+    integer, intent( in ) :: npts, nbands
+    real(DP), intent( in ) :: bvecs(3,3), qcart(3)
+    complex(DP), intent( in ) :: uofx( :, :, :, : )
+    real(DP), intent( in ) :: posn( 3, npts )
+    complex(DP), intent( out ) :: wavefunctions( npts, nbands )
+    integer, intent( inout ) :: ierr
+
+    complex(DP) :: c00, c01, c10, c11, c0, c1, c
+    real(DP) :: i2pi, phse, dxtemp, dytemp
+    integer :: dims(3), ib, ip, i, j, splineDims( 3 ), order( 3 )
+
+    real(DP), allocatable :: distanceMap( :, : ), rvec(:,:), splineInput(:,:,:), bcoef(:,:,:)
+    real(DP), allocatable,dimension(:) :: xvec, yvec, zvec, xknot, yknot, zknot
+    complex(DP), allocatable :: phase( : )
+    integer, allocatable :: pointMap( :, :, : )
+!    logical , allocatable :: phaseMap( : )
+
+    allocate( pointMap( 3, 2, npts ), distanceMap( 3, npts ), phase( npts ), stat=ierr )
+    if( ierr .ne. 0 ) return
+    allocate( rvec( 3, npts ) )
+
+    i2pi = 1.0_DP / ( 2.0_DP * PI_DP )
+
+    dims(1) = size( uofx, 1 )
+    dims(2) = size( uofx, 2 )
+    dims(3) = size( uofx, 3 )
+
+    write(1000+myid,'(A,3(I8,1X))') 'x-dims', dims(:)
+!    write(2000,'(3(I5,1X))') dims(:)
+    do ip = 1, npts
+      rvec(:,ip) = i2pi * matmul( bvecs, posn(:,ip) )
+
+
+
+      phse = dot_product( qcart(:), posn(:,ip) )
+      do i = 1, 3
+        do while( rvec(i,ip) .gt. 1.0_DP )
+          rvec(i,ip) = rvec(i,ip) - 1.0_DP
+        end do
+        do while( rvec(i,ip) .lt. 0.0_DP )
+          rvec(i,ip) = rvec(i,ip) + 1.0_DP
+        end do
+      enddo
+      phase( ip ) = cmplx( dcos(phse), dsin(phse), DP )
+
+    enddo
+
+    splineDims( : ) = dims( : ) + 1
+    allocate( splineInput( splineDims( 1 ), splineDims( 2 ), splineDims( 3 ) ) )
+    splineInput(:,:,:) = 0.0_DP
+
+    ! FIT ORDER
+    order( : ) = splineDims( 3 )
+    allocate( xknot( order( 1 ) + splineDims( 1 ) ), yknot( order( 2 ) + splineDims( 2 ) ), & 
+              zknot( order( 3 ) + splineDims( 3 ) ) )
+    allocate( xvec( splineDims( 1 ) ), yvec( splineDims( 2 ) ), zvec( splineDims( 1 ) ) )
+    do i = 1, splineDims( 1 )
+      ! remember dims = SplineDims - 1. Vec goes from 0 to 1  
+      xvec( i ) = dble( i - 1 )/ dble( dims( 1 ) )
+    enddo
+    do i = 1, splineDims( 2 ) 
+      yvec( i ) = dble( i - 1 )/ dble( dims( 2 ) )
+    enddo
+    do i = 1, splineDims( 3 )
+      zvec( i ) = dble( i - 1 )/ dble( dims( 3 ) )
+    enddo
+
+    call dbsnak( splineDims( 1 ), xvec, order( 1 ), xknot )
+    call dbsnak( splineDims( 2 ), yvec, order( 2 ), yknot )
+    call dbsnak( splineDims( 3 ), zvec, order( 3 ), zknot )
+
+    allocate( bcoef( splineDims( 1 ), splineDims( 2 ), splineDims( 3 ) ) )
+    
+    do ib = 1, nbands
+      write(6,*) ib
+!      splineInput( 1 : dims( 1 ), 1, 1 ) = uofx( :, 1, 1 )
+!      splineInput( splineDims( 1 ), 1, 1 ) = uofx( 1, 1, 1 )
+!      splineInput( 1 : dims( 1 ), splineDims(2), 1 ) = uofx( :, 1, 1 )
+!      splineInput( splineDims( 1 ), splineDims(2), 1 ) = uofx( 1, 1, 1 )
+!      splineInput( 1 : dims( 1 ), 1, splineDims(3) ) = uofx( :, 1, 1 )
+!      splineInput( splineDims( 1 ), 1, splineDims(3) ) = uofx( 1, 1, 1 )
+!      splineInput( 1 : dims( 1 ), splineDims(2), splineDims(3) ) = uofx( :, 1, 1 )
+!      splineInput( splineDims( 1 ), splineDims(2), splineDims(3) ) = uofx( 1, 1, 1 )
+
+      do i = 1, dims( 3 )
+        splineInput( 1 : dims( 1 ), 1, i ) = uofx( :, 1, i, ib )
+        splineInput( Splinedims( 1 ), 1, i ) = uofx( 1, 1, i, ib )
+
+        splineInput( 1 : dims( 1 ), splineDims(2), i ) = uofx( :, 1, i, ib )
+        splineInput( splineDims( 1 ), splineDims(2), i ) = uofx( 1, 1, i, ib )
+        do j = 2, dims( 2 )
+          splineInput( 1 : dims( 1 ), j, i ) = uofx( :, j, i, ib )  
+          splineInput( splineDims( 1 ), j, i ) = uofx( 1, j, i, ib )
+        enddo
+      enddo
+
+      do i = 1, dims( 2 )
+        do j = 1, dims( 1 )
+          splineInput( j, i, dims(3) ) = uofx( j, i, 1, ib )
+        enddo
+      enddo
+
+      call dbs3in( splineDims(1), xvec, splineDims(2), yvec, splineDims(3), zvec, splineInput, &
+                   splineDims(1), splineDims(2), order(1), order(2), order(3), xknot, yknot, &
+                   zknot, bcoef )
+
+      do ip = 1, npts
+        wavefunctions( ip, ib ) = dbs3vl( rvec(1,ip), rvec(2,ip), rvec(3,ip), & 
+                                  order(1), order(2), order(3), xknot, yknot, zknot, &
+                                  splineDims(1), splineDims(2), splineDims(3), bcoef ) &
+                                * real( phase( ip ), DP )
+      enddo
+      
+      if( ib .eq. 208 ) then
+          write(2001,'(5(E20.10,1X))') posn(:,ip), wavefunctions( ip, ib )    
+      endif
+
+
+    enddo
+
+    deallocate( bcoef )
+    deallocate( xknot, yknot, zknot, xvec, yvec, zvec )
+    deallocate( phase, rvec, splineInput )
+    deallocate( pointMap, distanceMap )
+
+  end subroutine  swl_fftpProject
+#endif
+
+  subroutine swl_Lagrange3rd(  npts, nbands, uofx, bvecs, qcart, posn, wavefunctions, ierr )
+    use ocean_constants, only : pi_dp
+    use ocean_mpi, only : myid
+    integer, intent( in ) :: npts, nbands
+    real(DP), intent( in ) :: bvecs(3,3), qcart(3)
+    complex(DP), intent( in ) :: uofx( :, :, :, : )
+    real(DP), intent( in ) :: posn( 3, npts )
+    complex(DP), intent( out ) :: wavefunctions( npts, nbands )
+    integer, intent( inout ) :: ierr
+ 
+!    complex(DP) :: c00, c01, c10, c11, c0, c1, c
+    real(DP) :: P11, P12, P13, P21, P22, P23, P31, P32, P33, Q1, Q2, Q3, R, dx, dy, dz
+    real(DP) :: rvec(3), i2pi, phse, dxtemp, dytemp
+    integer :: dims(3), ib, ip, i, j
+
+    real(DP), allocatable :: distanceMap( :, : )
+    complex(DP), allocatable :: phase( : )
+    integer, allocatable :: pointMap( :, :, : )
+!    logical , allocatable :: phaseMap( : )
+
+    allocate( pointMap( 3, 3, npts ), distanceMap( 3, npts ), phase( npts ), stat=ierr )
+    if( ierr .ne. 0 ) return
+
+    i2pi = 1.0_DP / ( 2.0_DP * PI_DP )
+
+    dims(1) = size( uofx, 1 )
+    dims(2) = size( uofx, 2 )
+    dims(3) = size( uofx, 3 )
+
+    write(1000+myid,'(A,3(I8,1X))') 'x-dims', dims(:)
+    do ip = 1, npts
+      rvec(:) = i2pi * matmul( bvecs, posn(:,ip) )
+
+      phse = dot_product( qcart(:), posn(:,ip) )
+      do i = 1, 3
+        do while( rvec(i) .gt. 1.0_DP )
+          rvec(i) = rvec(i) - 1.0_DP
+        end do
+        do while( rvec(i) .lt. 0.0_DP )
+          rvec(i) = rvec(i) + 1.0_DP
+        end do
+      enddo
+      phase( ip ) = cmplx( dcos(phse), dsin(phse), DP )
+
+
+      pointMap( :, 2, ip ) = nint(  rvec( : ) * real( dims(:), DP ) ) + 1
+!      pointMap( :, 1, ip ) = 1 + floor( rvec( : ) * real( dims(:), DP ) )
+      pointMap( :, 1, ip ) = pointMap( :, 2, ip ) - 1
+      pointMap( :, 3, ip ) = pointMap( :, 2, ip ) + 1 
+      do i = 1, 3
+        do j = 1, 3
+          if( pointMap( j, i, ip ) .lt. 1 ) pointMap( j, i, ip ) = pointMap( j, i, ip ) + dims(j)
+          if( pointMap( j, i, ip ) .gt. dims(j) ) pointMap( j, i, ip ) = pointMap( j, i, ip ) - dims(j)
+        enddo
+      enddo
+
+      distanceMap(:,ip) = ( rvec( : ) * real( dims(:), DP ) - nint( rvec( : ) * real( dims(:), DP ) ) ) / real(dims( : ), DP )
+!      write( 4000,'(I8,3(E24.16))') ip,distanceMap(:,ip)
+
+    enddo
+
+    dx = 1.0_dp / dims( 1 )
+    dy = 1.0_dp / dims( 2 )
+    dz = 1.0_dp / dims( 3 )
+
+    do ib = 1, nbands
+!      write(6,*) ib
+      do ip = 1, npts
+
+        P11 = distanceMap( 1, ip ) * ( distanceMap( 1, ip ) - dx ) & 
+            * real( uofx( pointMap( 1, 1, ip ), pointMap( 2, 1, ip ), pointMap( 3, 1, ip ), ib ), DP ) & 
+            / ( 2.0_dp * dx * dx ) &
+            - ( distanceMap( 1, ip ) + dx ) * ( distanceMap( 1, ip ) - dx ) &
+            * real( uofx( pointMap( 1, 2, ip ), pointMap( 2, 1, ip ), pointMap( 3, 1, ip ), ib ), DP ) & 
+            / ( dx * dx ) &
+            + distanceMap( 1, ip ) * ( distanceMap( 1, ip ) + dx ) & 
+            * real( uofx( pointMap( 1, 3, ip ), pointMap( 2, 1, ip ), pointMap( 3, 1, ip ), ib ), DP ) & 
+            / ( 2.0_dp * dx * dx ) 
+
+        P21 = distanceMap( 1, ip ) * ( distanceMap( 1, ip ) - dx ) & 
+            * real( uofx( pointMap( 1, 1, ip ), pointMap( 2, 2, ip ), pointMap( 3, 1, ip ), ib ), DP ) & 
+            / ( 2.0_dp * dx * dx ) &
+            - ( distanceMap( 1, ip ) + dx ) * ( distanceMap( 1, ip ) - dx ) &
+            * real( uofx( pointMap( 1, 2, ip ), pointMap( 2, 2, ip ), pointMap( 3, 1, ip ), ib ), DP ) &
+            / ( dx * dx ) &
+            + distanceMap( 1, ip ) * ( distanceMap( 1, ip ) + dx ) &
+            * real( uofx( pointMap( 1, 3, ip ), pointMap( 2, 2, ip ), pointMap( 3, 1, ip ), ib ), DP ) &
+            / ( 2.0_dp * dx * dx )
+
+        P31 = distanceMap( 1, ip ) * ( distanceMap( 1, ip ) - dx ) &
+            * real( uofx( pointMap( 1, 1, ip ), pointMap( 2, 3, ip ), pointMap( 3, 1, ip ), ib ), DP ) &
+            / ( 2.0_dp * dx * dx ) &
+            - ( distanceMap( 1, ip ) + dx ) * ( distanceMap( 1, ip ) - dx ) &
+            * real( uofx( pointMap( 1, 2, ip ), pointMap( 2, 3, ip ), pointMap( 3, 1, ip ), ib ), DP ) &
+            / ( dx * dx ) &
+            + distanceMap( 1, ip ) * ( distanceMap( 1, ip ) + dx ) &
+            * real( uofx( pointMap( 1, 3, ip ), pointMap( 2, 3, ip ), pointMap( 3, 1, ip ), ib ), DP ) &
+            / ( 2.0_dp * dx * dx )
+
+        P12 = distanceMap( 1, ip ) * ( distanceMap( 1, ip ) - dx ) &
+            * real( uofx( pointMap( 1, 1, ip ), pointMap( 2, 1, ip ), pointMap( 3, 2, ip ), ib ), DP ) &
+            / ( 2.0_dp * dx * dx ) &
+            - ( distanceMap( 1, ip ) + dx ) * ( distanceMap( 1, ip ) - dx ) &
+            * real( uofx( pointMap( 1, 2, ip ), pointMap( 2, 1, ip ), pointMap( 3, 2, ip ), ib ), DP ) &
+            / ( dx * dx ) &
+            + distanceMap( 1, ip ) * ( distanceMap( 1, ip ) + dx ) &
+            * real( uofx( pointMap( 1, 3, ip ), pointMap( 2, 1, ip ), pointMap( 3, 2, ip ), ib ), DP ) &
+            / ( 2.0_dp * dx * dx )
+
+        P22 = distanceMap( 1, ip ) * ( distanceMap( 1, ip ) - dx ) &
+            * real( uofx( pointMap( 1, 1, ip ), pointMap( 2, 2, ip ), pointMap( 3, 2, ip ), ib ), DP ) &
+            / ( 2.0_dp * dx * dx ) &
+            - ( distanceMap( 1, ip ) + dx ) * ( distanceMap( 1, ip ) - dx ) &
+            * real( uofx( pointMap( 1, 2, ip ), pointMap( 2, 2, ip ), pointMap( 3, 2, ip ), ib ), DP ) &
+            / ( dx * dx ) &
+            + distanceMap( 1, ip ) * ( distanceMap( 1, ip ) + dx ) &
+            * real( uofx( pointMap( 1, 3, ip ), pointMap( 2, 2, ip ), pointMap( 3, 2, ip ), ib ), DP ) &
+            / ( 2.0_dp * dx * dx )
+
+        P32 = distanceMap( 1, ip ) * ( distanceMap( 1, ip ) - dx ) &
+            * real( uofx( pointMap( 1, 1, ip ), pointMap( 2, 3, ip ), pointMap( 3, 2, ip ), ib ), DP ) &
+            / ( 2.0_dp * dx * dx ) &
+            - ( distanceMap( 1, ip ) + dx ) * ( distanceMap( 1, ip ) - dx ) &
+            * real( uofx( pointMap( 1, 2, ip ), pointMap( 2, 3, ip ), pointMap( 3, 2, ip ), ib ), DP ) &
+            / ( dx * dx ) &
+            + distanceMap( 1, ip ) * ( distanceMap( 1, ip ) + dx ) &
+            * real( uofx( pointMap( 1, 3, ip ), pointMap( 2, 3, ip ), pointMap( 3, 2, ip ), ib ), DP ) &
+            / ( 2.0_dp * dx * dx )
+
+        P13 = distanceMap( 1, ip ) * ( distanceMap( 1, ip ) - dx ) &
+            * real( uofx( pointMap( 1, 1, ip ), pointMap( 2, 1, ip ), pointMap( 3, 3, ip ), ib ), DP ) &
+            / ( 2.0_dp * dx * dx ) &
+            - ( distanceMap( 1, ip ) + dx ) * ( distanceMap( 1, ip ) - dx ) &
+            * real( uofx( pointMap( 1, 2, ip ), pointMap( 2, 1, ip ), pointMap( 3, 3, ip ), ib ), DP ) &
+            / ( dx * dx ) &
+            + distanceMap( 1, ip ) * ( distanceMap( 1, ip ) + dx ) &
+            * real( uofx( pointMap( 1, 3, ip ), pointMap( 2, 1, ip ), pointMap( 3, 3, ip ), ib ), DP ) &
+            / ( 2.0_dp * dx * dx )
+
+        P23 = distanceMap( 1, ip ) * ( distanceMap( 1, ip ) - dx ) &
+            * real( uofx( pointMap( 1, 1, ip ), pointMap( 2, 2, ip ), pointMap( 3, 3, ip ), ib ), DP ) &
+            / ( 2.0_dp * dx * dx ) &
+            - ( distanceMap( 1, ip ) + dx ) * ( distanceMap( 1, ip ) - dx ) &
+            * real( uofx( pointMap( 1, 2, ip ), pointMap( 2, 2, ip ), pointMap( 3, 3, ip ), ib ), DP ) &
+            / ( dx * dx ) &
+            + distanceMap( 1, ip ) * ( distanceMap( 1, ip ) + dx ) &
+            * real( uofx( pointMap( 1, 3, ip ), pointMap( 2, 2, ip ), pointMap( 3, 3, ip ), ib ), DP ) &
+            / ( 2.0_dp * dx * dx )
+        
+        P33 = distanceMap( 1, ip ) * ( distanceMap( 1, ip ) - dx ) &
+            * real( uofx( pointMap( 1, 1, ip ), pointMap( 2, 1, ip ), pointMap( 3, 3, ip ), ib ), DP ) &
+            / ( 2.0_dp * dx * dx ) &
+            - ( distanceMap( 1, ip ) + dx ) * ( distanceMap( 1, ip ) - dx ) &
+            * real( uofx( pointMap( 1, 2, ip ), pointMap( 2, 1, ip ), pointMap( 3, 3, ip ), ib ), DP ) &
+            / ( dx * dx ) &
+            + distanceMap( 1, ip ) * ( distanceMap( 1, ip ) + dx ) &
+            * real( uofx( pointMap( 1, 3, ip ), pointMap( 2, 1, ip ), pointMap( 3, 3, ip ), ib ), DP ) &
+            / ( 2.0_dp * dx * dx )
+
+        Q1 = distanceMap( 2, ip ) * ( distanceMap( 2, ip ) - dy ) * P11 / (2.0_dp * dy * dy ) &
+           - ( distanceMap( 2, ip ) + dy ) * ( distanceMap( 2, ip ) - dy ) * P21 / ( dy * dy ) &
+           + distanceMap( 2, ip ) * ( distanceMap( 2, ip ) + dy ) * P31 / (2.0_dp * dy * dy )
+
+        Q2 = distanceMap( 2, ip ) * ( distanceMap( 2, ip ) - dy ) * P12 / (2.0_dp * dy * dy ) &
+           - ( distanceMap( 2, ip ) + dy ) * ( distanceMap( 2, ip ) - dy ) * P22 / ( dy * dy ) &
+           + distanceMap( 2, ip ) * ( distanceMap( 2, ip ) + dy ) * P33 / (2.0_dp * dy * dy )
+
+        Q3 = distanceMap( 2, ip ) * ( distanceMap( 2, ip ) - dy ) * P13 / (2.0_dp * dy * dy ) &
+           - ( distanceMap( 2, ip ) + dy ) * ( distanceMap( 2, ip ) - dy ) * P23 / ( dy * dy ) &
+           + distanceMap( 2, ip ) * ( distanceMap( 2, ip ) + dy ) * P33 / (2.0_dp * dy * dy )
+
+        R  = distanceMap( 3, ip ) * ( distanceMap( 3, ip ) - dz ) * Q1 / (2.0_dp * dz * dz ) &
+           - ( distanceMap( 3, ip ) + dz ) * ( distanceMap( 3, ip ) - dz ) * Q2 / ( dz * dz ) &
+           + distanceMap( 3, ip ) * ( distanceMap( 3, ip ) + dz ) * Q3 / (2.0_dp * dz * dz )
+
+        wavefunctions( ip, ib ) = phase( ip ) * r
+
+        if( ib .eq. 208 ) then
+          write(2001,'(5(E20.10,1X))') posn(:,ip), wavefunctions( ip, ib )
+        endif
+
+
+
+      enddo
+      if( ib .eq. 208 ) then
+        write(2001,*) ''
+        write(2001,*) ''
+      endif
+    enddo
+
+!    ierr = 1
+    deallocate( pointMap, distanceMap, phase )
+
+  end subroutine  swl_Lagrange3rd
+
+
+
+  subroutine swl_Lagrange4th( npts, nbands, uofx, bvecs, qcart, posn, wavefunctions, ierr )
+    use ocean_constants, only : pi_dp
+    use ocean_mpi, only : myid
+    integer, intent( in ) :: npts, nbands
+    real(DP), intent( in ) :: bvecs(3,3), qcart(3)
+    complex(DP), intent( in ) :: uofx( :, :, :, : )
+    real(DP), intent( in ) :: posn( 3, npts )
+    complex(DP), intent( out ) :: wavefunctions( npts, nbands )
+    integer, intent( inout ) :: ierr
+
+!    complex(DP) :: c00, c01, c10, c11, c0, c1, c
+    complex(DP) :: R, Rgrid(4), Q(4), QGrid(4,4), P(4,4)
+    real(DP) :: dx, dy, dz
+    real(DP) :: rvec(3), i2pi, phse, dxtemp, dytemp
+    integer :: dims(3), ib, ip, i, j, iy, iz
+
+    real(DP), allocatable :: distanceMap( :, : )
+    complex(DP), allocatable :: phase( : ), Pgrid( :,:,:,:)
+    integer, allocatable :: pointMap( :, :, : )
+!    logical , allocatable :: phaseMap( : )
+    logical, allocatable :: isInitGrid( :, : ,: )
+
+    allocate( pointMap( 3, 4, npts ), distanceMap( 3, npts ), phase( npts ), stat=ierr )
+    if( ierr .ne. 0 ) return
+
+    i2pi = 1.0_DP / ( 2.0_DP * PI_DP )
+
+    dims(1) = size( uofx, 1 )
+    dims(2) = size( uofx, 2 )
+    dims(3) = size( uofx, 3 )
+
+    write(1000+myid,'(A,3(I8,1X))') 'x-dims', dims(:)
+    do ip = 1, npts
+      rvec(:) = i2pi * matmul( bvecs, posn(:,ip) )
+
+      phse = dot_product( qcart(:), posn(:,ip) )
+      do i = 1, 3
+        do while( rvec(i) .gt. 1.0_DP )
+          rvec(i) = rvec(i) - 1.0_DP
+        end do
+        do while( rvec(i) .lt. 0.0_DP )
+          rvec(i) = rvec(i) + 1.0_DP
+        end do
+      enddo
+      phase( ip ) = cmplx( dcos(phse), dsin(phse), DP )
+
+
+!      pointMap( :, 2, ip ) = nint(  rvec( : ) * real( dims(:), DP ) ) + 1
+
+
+      ! For fourth order we want index=2 to be just below
+      pointMap( :, 2, ip ) = 1 + floor( rvec( : ) * real( dims(:), DP ) )
+      pointMap( :, 1, ip ) = pointMap( :, 2, ip ) - 1
+      pointMap( :, 3, ip ) = pointMap( :, 2, ip ) + 1
+      pointMap( :, 4, ip ) = pointMap( :, 2, ip ) + 2
+      do i = 1, 4
+        do j = 1, 3
+          if( pointMap( j, i, ip ) .lt. 1 ) pointMap( j, i, ip ) = pointMap( j, i, ip ) + dims(j)
+          if( pointMap( j, i, ip ) .gt. dims(j) ) pointMap( j, i, ip ) = pointMap( j, i, ip ) - dims(j)
+        enddo
+      enddo
+
+
+      ! distance is mapped to point 2 still
+      distanceMap(:,ip) = ( rvec( : ) * real( dims(:), DP ) - floor( rvec( : ) * real( dims(:), DP ) ) ) & 
+                        / real(dims( : ), DP )
+
+    enddo
+
+    allocate( isInitGrid( dims(1), dims(2), dims(3) ), PGrid( 4, dims(1), dims(2), dims(3) ) )
+    dx = 1.0_dp / dims( 1 )
+    dy = 1.0_dp / dims( 2 )
+    dz = 1.0_dp / dims( 3 )   
+
+    do ib = 1, nbands
+      isInitGrid(:,:,:) = .false.
+
+      do ip = 1, npts
+
+        ! First determine the x-dimension factors 
+        do iz = 1, 4
+          do iy = 1, 4
+            if( .not. isInitGrid( pointMap( 1, 2, ip ), pointMap( 2, iy, ip ), pointMap( 3, iz, ip ) ) ) then
+              
+              call makeP4( pointMap( 1, 1, ip ), pointMap( 1, 2, ip ), pointMap( 1, 3, ip ), pointMap( 1, 4, ip ), &
+                           pointMap( 2, iy, ip ), pointMap( 3, iz, ip ), dx, uofx(:,:,:,ib), &
+                           PGrid( :, pointMap( 1, 2, ip ), pointMap( 2, iy, ip ), pointMap( 3, iz, ip ) ) )
+              
+              isInitGrid( pointMap( 1, 2, ip ), pointMap( 2, iy, ip ), pointMap( 3, iz, ip ) ) = .true.
+            endif 
+          enddo
+        enddo
+
+
+        ! Now figure out the Ps
+        do iz = 1, 4
+          do iy = 1, 4
+            P(iy,iz) = evalP4( distanceMap( 1, ip ), & 
+                       PGrid( :, pointMap( 1, 2, ip ), pointMap( 2, iy, ip ), pointMap( 3, iz, ip ) ) )
+          enddo
+        enddo
+
+        ! Now the Qs
+        do iz = 1, 4
+          call makeP4simple( dy, P(:,iz), QGrid(:,iz) )
+          Q(iz) = evalP4( distanceMap( 2, ip ), QGrid(:,iz ) )
+        enddo 
+
+
+        call makeP4Simple( dz, Q(:), RGrid(:) )
+        R = evalP4( distanceMap( 3, ip ), RGrid(:) )
+        wavefunctions( ip, ib ) = R * phase( ip )
+
+        if( ib .eq. 208 ) then
+          write(2001,'(5(E20.10,1X))') posn(:,ip), wavefunctions( ip, ib )
+        endif
+
+      enddo
+      if( ib .eq. 208 ) then
+        write(2001,*) ''
+        write(2001,*) ''
+      endif
+
+    enddo
+
+    deallocate( isInitGrid, PGrid, pointMap, phase )
+
+  end subroutine swl_Lagrange4th
+
+  function evalP4( x, Pgrid )
+    real(dp), intent( in ) :: x
+    complex(dp), intent( in ) :: Pgrid( 4 )
+    complex(dp) :: evalP4
+    !
+    evalP4 = Pgrid(1) + x * Pgrid(2) + x*x*Pgrid(3) + x*x*x*Pgrid(4)
+  end function evalP4
+
+  subroutine makeP4simple( dx, inData, Qgrid )
+    real( dp ), intent( in ) :: dx
+    complex( dp ), intent( in ) :: inData(:)
+    complex( dp ), intent( inout ) :: Qgrid( 4 )
+
+    real( dp ) :: dx1, dx2, dx3
+    complex( dp ) :: y1, y2, y3, y4
+
+    y1 = inData(1)
+    y2 = inData(2)
+    y3 = inData(3)
+    y4 = inData(4)
+
+    dx1 = 1.0_dp / dx
+    dx2 = 1.0_dp / ( dx * dx )
+    dx3 = 1.0_dp / ( dx * dx * dx )
+
+    Qgrid( 1 ) = y2
+    Qgrid( 2 ) = dx1 * ( -y1/3.0_dp - y2 / 2.0_dp + y3 - y4/6.0_dp )
+    Qgrid( 3 ) = dx2 * ( y1/2.0_dp - y2 + y3/2.0_dp )
+    Qgrid( 4 ) = dx3 * ( -y1/6.0_dp + y2/2.0_dp - y3/2.0_dp + y4 / 6.0_dp )
+
+  end subroutine makeP4simple
+
+  subroutine makeP4( ix1, ix2, ix3, ix4, iy, iz, dx, uofx, PGrid )
+    integer, intent( in ) :: ix1, ix2, ix3, ix4, iy, iz
+    real( dp ), intent( in ) :: dx
+    complex( dp ), intent( in ) :: uofx(:,:,:)
+    complex( dp ), intent( inout ) :: Pgrid( 4 )
+
+    real( dp ) :: dx1, dx2, dx3
+    complex( dp ) :: y1, y2, y3, y4
+
+    y1 = uofx(ix1,iy,iz)
+    y2 = uofx(ix2,iy,iz)
+    y3 = uofx(ix3,iy,iz)
+    y4 = uofx(ix4,iy,iz)
+
+    dx1 = 1.0_dp / dx
+    dx2 = 1.0_dp / ( dx * dx )
+    dx3 = 1.0_dp / ( dx * dx * dx )
+
+    Pgrid( 1 ) = y2
+    Pgrid( 2 ) = dx1 * ( -y1/3.0_dp - y2 / 2.0_dp + y3 - y4/6.0_dp )
+    Pgrid( 3 ) = dx2 * ( y1/2.0_dp - y2 + y3/2.0_dp )
+    Pgrid( 4 ) = dx3 * ( -y1/6.0_dp + y2/2.0_dp - y3/2.0_dp + y4 / 6.0_dp )
+
+  end subroutine makeP4
+
+
+  function evalP5( x, Pgrid )
+    real(dp), intent( in ) :: x
+    complex(dp), intent( in ) :: Pgrid( 5 )
+    complex(dp) :: evalP5
+    !
+    evalP5 = Pgrid(1) + x * Pgrid(2) + x*x*Pgrid(3) + x*x*x*Pgrid(4) + x*x*x*x*Pgrid(5)
+  end function evalP5
+
+  subroutine makeP5( ix1, ix2, ix3, ix4, ix5, iy, iz, dx, uofx, PGrid )
+    integer, intent( in ) :: ix1, ix2, ix3, ix4, ix5, iy, iz
+    real( dp ), intent( in ) :: dx
+    complex( dp ), intent( in ) :: uofx(:,:,:)
+    complex( dp ), intent( inout ) :: Pgrid( 5 )
+
+    complex( dp ) :: dataHolder( 5 )
+
+    
+    dataHolder( 1 ) = uofx(ix1,iy,iz)
+    dataHolder( 2 ) = uofx(ix2,iy,iz)
+    dataHolder( 3 ) = uofx(ix3,iy,iz)
+    dataHolder( 4 ) = uofx(ix4,iy,iz)
+    dataHolder( 5 ) = uofx(ix5,iy,iz)
+
+    call makeP5simple( dx, dataHolder, Pgrid )
+  end subroutine makeP5
+
+
+  ! x is centered around the third element
+  subroutine makeP5simple( dx, inData, Qgrid )
+    real( dp ), intent( in ) :: dx
+    complex( dp ), intent( in ) :: inData(:)
+    complex( dp ), intent( inout ) :: Qgrid( 5 )
+
+    real( dp ) :: dx1, dx2, dx3, dx4
+    complex( dp ) :: y1, y2, y3, y4, y5
+
+    y1 = inData(1)
+    y2 = inData(2)
+    y3 = inData(3)
+    y4 = inData(4)
+    y5 = inData(5)
+
+    dx1 = 1.0_dp / dx
+    dx2 = 1.0_dp / ( dx * dx )
+    dx3 = 1.0_dp / ( dx * dx * dx )
+    dx4 = 1.0_dp / ( dx * dx * dx * dx)
+
+    Qgrid( 1 ) = y3
+    Qgrid( 2 ) = dx * ( y1/12.0_dp - y2 * 2.0_dp/3.0_dp + y4 * 2.0_dp/3.0_dp - y5/12.0_dp )
+    Qgrid( 3 ) = dx2 * ( -y1/24.0_dp + y2 * 4.0_dp/3.0_dp - y3 * 5.0_dp/4.0_dp & 
+                         + y4 * 4.0_dp/3.0_dp - y5 / 24.0_dp )
+    Qgrid( 4 ) = dx3 * ( -y1/12.0_dp + y2/6.0_dp - y3/6.0_dp + y5/12.0_dp )
+    Qgrid( 5 ) = dx4 * ( y1/24.0_dp - y2/6.0_dp + y3/4.0_dp - y4/6.0_dp + y5/24.0_dp )
+
+  end subroutine makeP5simple
+
 
   subroutine swl_recpConvert( npts, nbands, uofx, bvecs, qcart, posn, wavefunctions, ierr )
 !    use screen_system, only : physical_system, psys
@@ -1034,8 +1615,8 @@ module screen_wvfn_converter
         c   = c0 * ( 1.0_DP - distanceMap( 3, ip ) ) + c1 * distanceMap( 3, ip )
         wavefunctions( ip, ib ) = phase( ip ) * c
 
-        if( ib .lt. 9 ) then 
-          write(2001,'(2(E20.10,1X))') wavefunctions( ip, ib )
+        if( ib .eq. 208 ) then 
+          write(2001,'(5(E20.10,1X))') posn(:,ip), wavefunctions( ip, ib )
 #if 0
      write(2003,'(3(I3,1X),16(E9.2,1X))') pointMap( :, 1, ip ), &
         uofx( pointMap( 1, 1, ip ), pointMap( 2, 1, ip ), pointMap( 3, 1, ip ), ib ) * phase(ip), &
@@ -1082,6 +1663,8 @@ module screen_wvfn_converter
 
 
       enddo
+      write(2001,*) ''
+      write(2001,*) ''
     enddo
 
     deallocate( pointMap, distanceMap, phase )    
@@ -1266,13 +1849,16 @@ module screen_wvfn_converter
 
 #endif
 
-#ifdef DEBUG
-    do j = 1, 8
+!#ifdef DEBUG
+!    do j = 1, 8
+      j = 208
       do i = 1, npts
-        write(2002,'(2(E20.10,1X))') wavefunctions( i, j )
+        write(2002,'(5(E20.10,1X))') posn(:,i), wavefunctions( i, j )
       enddo
-    enddo
-#endif
+      write(2002,*) ''
+      write(2002,*) ''
+!    enddo
+!#endif
 
     deallocate( phases )
   end subroutine realu2
