@@ -816,8 +816,12 @@ module screen_wvfn_converter
       case('fft3')
         call swl_Lagrange3rd( npts, nbands, uofx, bvecs, qcart, posn, wavefunctions, ierr )
       case('fft4')
-!        call swl_fftpProject( npts, nbands, uofx, bvecs, qcart, posn, wavefunctions, ierr )
         call swl_Lagrange4th( npts, nbands, uofx, bvecs, qcart, posn, wavefunctions, ierr )
+      case('fft5')
+        call swl_Lagrange5th( npts, nbands, uofx, bvecs, qcart, posn, wavefunctions, ierr )
+
+      case('fft6')
+        call swl_Lagrange6th( npts, nbands, uofx, bvecs, qcart, posn, wavefunctions, ierr )
 
       case default
         write(6,*) 'unrecognized conversion style'
@@ -891,14 +895,15 @@ module screen_wvfn_converter
       case('real')
         uofxDims(:) = 0
         boundaries(:,:) = 0
-      case('fft2', 'fft3', 'fft4' )
+      case('fft2', 'fft3', 'fft4', 'fft5', 'fft6' )
 #ifndef __FFTW3
         ierr = -1
         write(6,*) 'FFT-based conversion requires FFTW3 support'
 #endif
         boundaries(:,1) = minval( gvecs, 2 )
         boundaries(:,2) = maxval( gvecs, 2 )
-        uofxDims(:) = boundaries(:,2) - boundaries(:,1) + 1 + 2
+        uofxDims(:) = boundaries(:,2) - boundaries(:,1) + 1 
+        uofxDims(:) = uofxDims * 1.25
 
         ! This changes the FFT grid to factor to reasonably small primes
         do i = 1, 3
@@ -1093,6 +1098,7 @@ module screen_wvfn_converter
     complex(DP), allocatable :: phase( : )
     integer, allocatable :: pointMap( :, :, : )
 !    logical , allocatable :: phaseMap( : )
+    character(len=12) :: wvfnfile
 
     allocate( pointMap( 3, 3, npts ), distanceMap( 3, npts ), phase( npts ), stat=ierr )
     if( ierr .ne. 0 ) return
@@ -1251,20 +1257,21 @@ module screen_wvfn_converter
 
         wavefunctions( ip, ib ) = phase( ip ) * r
 
-        if( ib .eq. 208 ) then
-          write(2001,'(5(E20.10,1X))') posn(:,ip), wavefunctions( ip, ib )
-        endif
-
 
 
       enddo
-      if( ib .eq. 208 ) then
-        write(2001,*) ''
-        write(2001,*) ''
-      endif
+#if 1
+          write(wvfnfile, '(A,I8.8)' ) 'wvf3', ib
+          open( unit=99, file=wvfnfile, form='formatted' )
+          rewind( 99 )
+          do ip = 1, npts
+            write(99,'(5(E20.10,1X))') posn(:,ip), wavefunctions( ip, ib )
+          enddo
+          close( 99 )
+    ierr = 1
+#endif
     enddo
 
-!    ierr = 1
     deallocate( pointMap, distanceMap, phase )
 
   end subroutine  swl_Lagrange3rd
@@ -1292,6 +1299,7 @@ module screen_wvfn_converter
     integer, allocatable :: pointMap( :, :, : )
 !    logical , allocatable :: phaseMap( : )
     logical, allocatable :: isInitGrid( :, : ,: )
+    character(len=12) :: wvfnfile
 
     allocate( pointMap( 3, 4, npts ), distanceMap( 3, npts ), phase( npts ), stat=ierr )
     if( ierr .ne. 0 ) return
@@ -1356,7 +1364,7 @@ module screen_wvfn_converter
             if( .not. isInitGrid( pointMap( 1, 2, ip ), pointMap( 2, iy, ip ), pointMap( 3, iz, ip ) ) ) then
               
               call makeP4( pointMap( 1, 1, ip ), pointMap( 1, 2, ip ), pointMap( 1, 3, ip ), pointMap( 1, 4, ip ), &
-                           pointMap( 2, iy, ip ), pointMap( 3, iz, ip ), dx, uofx(:,:,:,ib), &
+                           pointMap( 2, iy, ip ), pointMap( 3, iz, ip ), 1.0_dp, uofx(:,:,:,ib), &
                            PGrid( :, pointMap( 1, 2, ip ), pointMap( 2, iy, ip ), pointMap( 3, iz, ip ) ) )
               
               isInitGrid( pointMap( 1, 2, ip ), pointMap( 2, iy, ip ), pointMap( 3, iz, ip ) ) = .true.
@@ -1368,37 +1376,390 @@ module screen_wvfn_converter
         ! Now figure out the Ps
         do iz = 1, 4
           do iy = 1, 4
-            P(iy,iz) = evalP4( distanceMap( 1, ip ), & 
+            P(iy,iz) = evalP4( distanceMap( 1, ip )/dx, & 
                        PGrid( :, pointMap( 1, 2, ip ), pointMap( 2, iy, ip ), pointMap( 3, iz, ip ) ) )
           enddo
         enddo
 
         ! Now the Qs
         do iz = 1, 4
-          call makeP4simple( dy, P(:,iz), QGrid(:,iz) )
-          Q(iz) = evalP4( distanceMap( 2, ip ), QGrid(:,iz ) )
+          call makeP4simple( 1.0_dp, P(:,iz), QGrid(:,iz) )
+          Q(iz) = evalP4( distanceMap( 2, ip )/dy, QGrid(:,iz ) )
         enddo 
 
 
-        call makeP4Simple( dz, Q(:), RGrid(:) )
-        R = evalP4( distanceMap( 3, ip ), RGrid(:) )
+        call makeP4Simple( 1.0_dp, Q(:), RGrid(:) )
+        R = evalP4( distanceMap( 3, ip )/dz, RGrid(:) )
         wavefunctions( ip, ib ) = R * phase( ip )
 
-        if( ib .eq. 208 ) then
-          write(2001,'(5(E20.10,1X))') posn(:,ip), wavefunctions( ip, ib )
-        endif
+!        if( ib .gt. 200 .and. ib .lt. 208 ) then
+!          write(2001,'(5(E20.10,1X))') posn(:,ip), wavefunctions( ip, ib )
+!        endif
+          
 
       enddo
-      if( ib .eq. 208 ) then
-        write(2001,*) ''
-        write(2001,*) ''
-      endif
+
+#if 0
+          write(wvfnfile, '(A,I8.8)' ) 'wvf4', ib
+          open( unit=99, file=wvfnfile, form='formatted' )
+          rewind( 99 )
+          do ip = 1, npts
+            write(99,'(5(E20.10,1X))') posn(:,ip), wavefunctions( ip, ib )
+          enddo
+          close( 99 )
+    ierr = 1
+#endif
+!      if( ib .gt. 200 .and. ib .lt. 208 ) then
+!        write(2001,*) ''
+!        write(2001,*) ''
+!      endif
 
     enddo
 
     deallocate( isInitGrid, PGrid, pointMap, phase )
 
   end subroutine swl_Lagrange4th
+
+
+  subroutine swl_Lagrange5th( npts, nbands, uofx, bvecs, qcart, posn, wavefunctions, ierr )
+    use ocean_constants, only : pi_dp
+    use ocean_mpi, only : myid
+    integer, intent( in ) :: npts, nbands
+    real(DP), intent( in ) :: bvecs(3,3), qcart(3)
+    complex(DP), intent( in ) :: uofx( :, :, :, : )
+    real(DP), intent( in ) :: posn( 3, npts )
+    complex(DP), intent( out ) :: wavefunctions( npts, nbands )
+    integer, intent( inout ) :: ierr
+
+!    complex(DP) :: c00, c01, c10, c11, c0, c1, c
+    complex(DP) :: R, Rgrid(5), Q(5), QGrid(5,5), P(5,5)
+    real(DP) :: dx, dy, dz
+    real(DP) :: rvec(3), i2pi, phse, dxtemp, dytemp
+    integer :: dims(3), ib, ip, i, j, iy, iz
+
+    real(DP), allocatable :: distanceMap( :, : )
+    complex(DP), allocatable :: phase( : ), Pgrid( :,:,:,:)
+    integer, allocatable :: pointMap( :, :, : )
+!    logical , allocatable :: phaseMap( : )
+    logical, allocatable :: isInitGrid( :, : ,: )
+    character(len=12):: wvfnfile
+
+    allocate( pointMap( 3, 5, npts ), distanceMap( 3, npts ), phase( npts ), stat=ierr )
+    if( ierr .ne. 0 ) return
+
+    i2pi = 1.0_DP / ( 2.0_DP * PI_DP )
+
+    dims(1) = size( uofx, 1 )
+    dims(2) = size( uofx, 2 )
+    dims(3) = size( uofx, 3 )
+
+    write(1000+myid,'(A,3(I8,1X))') 'x-dims', dims(:)
+    do ip = 1, npts
+      rvec(:) = i2pi * matmul( bvecs, posn(:,ip) )
+
+      phse = dot_product( qcart(:), posn(:,ip) )
+      do i = 1, 3
+        do while( rvec(i) .gt. 1.0_DP )
+          rvec(i) = rvec(i) - 1.0_DP
+        end do
+        do while( rvec(i) .lt. 0.0_DP )
+          rvec(i) = rvec(i) + 1.0_DP
+        end do
+      enddo
+      phase( ip ) = cmplx( dcos(phse), dsin(phse), DP )
+
+
+!      pointMap( :, 2, ip ) = nint(  rvec( : ) * real( dims(:), DP ) ) + 1
+
+
+      ! For fifth order we want index=3 to be closest
+      pointMap( :, 3, ip ) = nint(  rvec( : ) * real( dims(:), DP ) ) + 1
+      pointMap( :, 1, ip ) = pointMap( :, 3, ip ) - 2
+      pointMap( :, 2, ip ) = pointMap( :, 3, ip ) - 1
+      pointMap( :, 4, ip ) = pointMap( :, 3, ip ) + 1
+      pointMap( :, 5, ip ) = pointMap( :, 3, ip ) + 2
+      do i = 1, 5
+        do j = 1, 3
+          if( pointMap( j, i, ip ) .lt. 1 ) pointMap( j, i, ip ) = pointMap( j, i, ip ) + dims(j)
+          if( pointMap( j, i, ip ) .gt. dims(j) ) pointMap( j, i, ip ) = pointMap( j, i, ip ) - dims(j)
+        enddo
+      enddo
+
+
+      ! distance is mapped to point 3
+!      distanceMap(:,ip) = ( rvec( : ) * real( dims(:), DP ) - nint( rvec( : ) * real( dims(:), DP ) ) ) &
+!                        / real(dims( : ), DP )
+      distanceMap(:,ip) = ( rvec( : ) - real( nint( rvec( : ) * real( dims(:), DP ) ), DP  ) &
+                        / real(dims( : ), DP ) )
+
+    enddo
+
+    allocate( isInitGrid( dims(1), dims(2), dims(3) ), PGrid( 5, dims(1), dims(2), dims(3) ) )
+    dx = 1.0_dp / real(dims( 1 ),DP)
+    dy = 1.0_dp / real(dims( 2 ),DP)
+    dz = 1.0_dp / real(dims( 3 ),DP)
+
+    do ib = 1, nbands
+      isInitGrid(:,:,:) = .false.
+      PGrid( :,:,:,: ) = 0.0_dp
+
+      do ip = 1, npts
+
+        ! First determine the x-dimension factors 
+        do iz = 1, 5
+          do iy = 1, 5
+            if( .not. isInitGrid( pointMap( 1, 3, ip ), pointMap( 2, iy, ip ), pointMap( 3, iz, ip ) ) ) then
+
+              call makeP5( pointMap( 1, 1, ip ), pointMap( 1, 2, ip ), pointMap( 1, 3, ip ), & 
+                           pointMap( 1, 4, ip ), pointMap( 1, 5, ip ), &
+                           pointMap( 2, iy, ip ), pointMap( 3, iz, ip ), dx, uofx(:,:,:,ib), &
+                           PGrid( :, pointMap( 1, 3, ip ), pointMap( 2, iy, ip ), pointMap( 3, iz, ip ) ) )
+
+              isInitGrid( pointMap( 1, 3, ip ), pointMap( 2, iy, ip ), pointMap( 3, iz, ip ) ) = .true.
+            endif
+          enddo
+        enddo
+
+
+        ! Now figure out the Ps
+        dxtemp = distanceMap( 1, ip ) / dx
+        do iz = 1, 5
+          do iy = 1, 5
+            P(iy,iz) = evalP5( dxtemp, & !distanceMap( 1, ip ), &
+                       PGrid( :, pointMap( 1, 3, ip ), pointMap( 2, iy, ip ), pointMap( 3, iz, ip ) ) )
+          enddo
+        enddo
+
+        ! Now the Qs
+        dxtemp = distanceMap( 2, ip ) / dy
+        do iz = 1, 5
+          call makeP5simple( dy, P(:,iz), QGrid(:,iz) )
+          Q(iz) = evalP5( dxtemp, QGrid(:,iz ) )
+!          Q(iz) = evalP5( distanceMap( 2, ip ), QGrid(:,iz ) )
+        enddo
+
+
+        dxtemp = distanceMap( 3, ip ) / dz
+        call makeP5Simple( dz, Q(:), RGrid(:) )
+!        R = evalP5( distanceMap( 3, ip ), RGrid(:) )
+        R = evalP5( dxtemp, RGrid(:) )
+        wavefunctions( ip, ib ) = R * phase( ip )
+
+
+      enddo
+
+          write(wvfnfile, '(A,I8.8)' ) 'wvf5', ib
+          open( unit=99, file=wvfnfile, form='formatted' )
+          rewind( 99 )
+          do ip = 1, npts
+            write(99,'(5(E20.10,1X),3(F20.10,1x))') posn(:,ip), wavefunctions( ip, ib ), &
+              distanceMap(1,ip)/dx, distanceMap(2,ip)/dy, distanceMap(3,ip)/dz
+          enddo
+          close( 99 )
+
+    enddo
+
+    deallocate( isInitGrid, PGrid, pointMap, phase )
+    ierr = 1
+
+  end subroutine swl_Lagrange5th
+
+  subroutine swl_Lagrange6th( npts, nbands, uofx, bvecs, qcart, posn, wavefunctions, ierr )
+    use ocean_constants, only : pi_dp
+    use ocean_mpi, only : myid
+    integer, intent( in ) :: npts, nbands
+    real(DP), intent( in ) :: bvecs(3,3), qcart(3)
+    complex(DP), intent( in ) :: uofx( :, :, :, : )
+    real(DP), intent( in ) :: posn( 3, npts )
+    complex(DP), intent( out ) :: wavefunctions( npts, nbands )
+    integer, intent( inout ) :: ierr
+
+!    complex(DP) :: c00, c01, c10, c11, c0, c1, c
+    complex(DP) :: R, Rgrid(6), Q(6), QGrid(6,6), P(6,6)
+    real(DP) :: dx, dy, dz
+    real(DP) :: rvec(3), i2pi, phse, dxtemp, dytemp
+    integer :: dims(3), ib, ip, i, j, iy, iz
+
+    real(DP), allocatable :: distanceMap( :, : )
+    complex(DP), allocatable :: phase( : ), Pgrid( :,:,:,:)
+    integer, allocatable :: pointMap( :, :, : )
+!    logical , allocatable :: phaseMap( : )
+    logical, allocatable :: isInitGrid( :, : ,: )
+    character(len=12) :: wvfnfile
+
+    allocate( pointMap( 3, 6, npts ), distanceMap( 3, npts ), phase( npts ), stat=ierr )
+    if( ierr .ne. 0 ) return
+
+    i2pi = 1.0_DP / ( 2.0_DP * PI_DP )
+
+    dims(1) = size( uofx, 1 )
+    dims(2) = size( uofx, 2 )
+    dims(3) = size( uofx, 3 )
+
+    write(1000+myid,'(A,3(I8,1X))') 'x-dims', dims(:)
+    do ip = 1, npts
+      rvec(:) = i2pi * matmul( bvecs, posn(:,ip) )
+
+      phse = dot_product( qcart(:), posn(:,ip) )
+      do i = 1, 3
+        do while( rvec(i) .gt. 1.0_DP )
+          rvec(i) = rvec(i) - 1.0_DP
+        end do
+        do while( rvec(i) .lt. 0.0_DP )
+          rvec(i) = rvec(i) + 1.0_DP
+        end do
+      enddo
+      phase( ip ) = cmplx( dcos(phse), dsin(phse), DP )
+
+
+!      pointMap( :, 2, ip ) = nint(  rvec( : ) * real( dims(:), DP ) ) + 1
+
+
+      ! For sixth order (even) we want to be just below
+      pointMap( :, 3, ip ) = 1 + floor( rvec( : ) * real( dims(:), DP ) )
+      pointMap( :, 1, ip ) = pointMap( :, 3, ip ) - 2
+      pointMap( :, 2, ip ) = pointMap( :, 3, ip ) - 1
+      pointMap( :, 4, ip ) = pointMap( :, 3, ip ) + 1
+      pointMap( :, 5, ip ) = pointMap( :, 3, ip ) + 2
+      pointMap( :, 6, ip ) = pointMap( :, 3, ip ) + 3
+
+      do i = 1, 6
+        do j = 1, 3
+          if( pointMap( j, i, ip ) .lt. 1 ) pointMap( j, i, ip ) = pointMap( j, i, ip ) + dims(j)
+          if( pointMap( j, i, ip ) .gt. dims(j) ) pointMap( j, i, ip ) = pointMap( j, i, ip ) - dims(j)
+        enddo
+      enddo
+
+      ! distance is actual distance / delta 
+!      distanceMap(:,ip) = ( rvec( : ) * real( dims(:), DP ) - floor( rvec( : ) * real( dims(:), DP ) ) ) &
+!                        / real(dims( : ), DP )
+      distanceMap(:,ip) = rvec( : ) * real( dims(:), DP ) - floor( rvec( : ) * real( dims(:), DP ) ) 
+
+    enddo
+
+    allocate( isInitGrid( dims(1), dims(2), dims(3) ), PGrid( 6, dims(1), dims(2), dims(3) ) )
+!    dx = 1.0_dp / dims( 1 )
+!    dy = 1.0_dp / dims( 2 )
+!    dz = 1.0_dp / dims( 3 )
+
+    do ib = 1, nbands
+      isInitGrid(:,:,:) = .false.
+
+      do ip = 1, npts
+
+        ! First determine the x-dimension factors 
+        do iz = 1, 6
+          do iy = 1, 6
+            if( .not. isInitGrid( pointMap( 1, 1, ip ), pointMap( 2, iy, ip ), pointMap( 3, iz, ip ) ) ) then
+
+              call makeP6( pointMap( 1, 1, ip ), pointMap( 1, 2, ip ), pointMap( 1, 3, ip ), & 
+                           pointMap( 1, 4, ip ), pointMap( 1, 5, ip ), pointMap( 1, 6, ip ), &
+                           pointMap( 2, iy, ip ), pointMap( 3, iz, ip ), uofx(:,:,:,ib), &
+                           PGrid( :, pointMap( 1, 1, ip ), pointMap( 2, iy, ip ), pointMap( 3, iz, ip ) ) )
+
+              isInitGrid( pointMap( 1, 1, ip ), pointMap( 2, iy, ip ), pointMap( 3, iz, ip ) ) = .true.
+            endif
+          enddo
+        enddo
+
+
+        ! Now figure out the Ps
+        do iz = 1, 6
+          do iy = 1, 6
+            P(iy,iz) = evalP6( distanceMap( 1, ip ), &
+                       PGrid( :, pointMap( 1, 1, ip ), pointMap( 2, iy, ip ), pointMap( 3, iz, ip ) ) )
+          enddo
+        enddo
+
+        ! Now the Qs
+        do iz = 1, 6
+          call makeP6simple( P(:,iz), QGrid(:,iz) )
+          Q(iz) = evalP6( distanceMap( 2, ip ), QGrid(:,iz ) )
+        enddo
+
+
+        call makeP6Simple( Q(:), RGrid(:) )
+        R = evalP6( distanceMap( 3, ip ), RGrid(:) )
+        wavefunctions( ip, ib ) = R * phase( ip )
+
+!        if( ib .gt. 200 .and. ib .lt. 208 ) then
+!          write(2001,'(5(E20.10,1X))') posn(:,ip), wavefunctions( ip, ib )
+!        endif
+
+
+      enddo
+
+#if 1
+          write(wvfnfile, '(A,I8.8)' ) 'wvf6', ib
+          open( unit=99, file=wvfnfile, form='formatted' )
+          rewind( 99 )
+          do ip = 1, npts
+            write(99,'(5(E20.10,1X))') posn(:,ip), wavefunctions( ip, ib )
+          enddo
+          close( 99 )
+    ierr = 1
+#endif
+!      if( ib .gt. 200 .and. ib .lt. 208 ) then
+!        write(2001,*) ''
+!        write(2001,*) ''
+!      endif
+
+    enddo
+
+    deallocate( isInitGrid, PGrid, pointMap, phase )
+
+  end subroutine swl_Lagrange6th
+
+  function evalP6( x, Pgrid )
+    real(dp), intent( in ) :: x
+    complex(dp), intent( in ) :: Pgrid( 4 )
+    complex(dp) :: evalP6
+    !
+    evalP6 = Pgrid(1) + x * Pgrid(2) + x*x*Pgrid(3) + x*x*x*Pgrid(4) &
+           + x*x*x*x*Pgrid(5) + x*x*x*x*x*x*Pgrid(6)
+  end function evalP6
+
+  subroutine makeP6simple( inData, P )
+    complex( dp ), intent( in ) :: inData(:)
+    complex( dp ), intent( inout ) :: P( 6 )
+
+    complex( dp ) :: y1, y2, y3, y4, y5, y6
+
+    y1 = inData(1)
+    y2 = inData(2)
+    y3 = inData(3)
+    y4 = inData(4)
+    y5 = inData(5)
+    y6 = inData(6)
+
+    P(1) = y3
+    P(2) = 0.05_dp * y1 - 0.5_dp * y2 - (1.0_dp/3.0_dp) * y3 + y4 - 0.25_dp * y5 + 0.05_dp * y6
+    P(3) = (-1.0_dp / 24.0_dp)*y1 + (2.0_dp/3.0_dp) * y2 - 1.25_dp * y3 + (2.0_dp/3.0_dp) * y4 &
+         - (1.0_dp / 24.0_dp)*y5
+    P(4) = (-1.0_dp / 24.0_dp)*y1 - (1.0_dp / 24.0_dp)*y2 + (5.0_dp/12.0_dp)*y3 &
+         - (7.0_dp/12.0_dp)*y4 + (7.0_dp/24.0_dp)*y5 - (1.0_dp/24.0_dp)*y6
+    P(5) = (1.0_dp/24.0_dp)*y1 - (1.0_dp/6.0_dp)*y2 + 0.25_dp * y3 - (1.0_dp/6.0_dp)*y4 + (1.0_dp/24.0_dp)*y5
+    P(6) = (-1.0_dp/120.0_dp)*y1 + (1.0_dp/24.0_dp)*y2 - (1.0_dp/12.0_dp)*y3 + (1.0_dp/12.0_dp)*y4 &
+         - (1.0_dp/24.0_dp)*y5 + (1.0_dp/120.0_dp)*y6
+
+  end subroutine makeP6simple
+
+  subroutine makeP6( ix1, ix2, ix3, ix4, ix5, ix6, iy, iz, uofx, P )
+    integer, intent( in ) :: ix1, ix2, ix3, ix4, ix5, ix6, iy, iz
+    complex( dp ), intent( in ) :: uofx(:,:,:)
+    complex( dp ), intent( inout ) :: P( 6 )
+
+    complex( dp ) :: Q(6)
+
+    Q(1) = uofx(ix1,iy,iz)
+    Q(2) = uofx(ix2,iy,iz)
+    Q(3) = uofx(ix3,iy,iz)
+    Q(4) = uofx(ix4,iy,iz)
+    Q(5) = uofx(ix5,iy,iz)
+    Q(6) = uofx(ix6,iy,iz)
+
+    call makeP6simple( Q, P )
+  end subroutine makeP6
 
   function evalP4( x, Pgrid )
     real(dp), intent( in ) :: x
@@ -1491,7 +1852,7 @@ module screen_wvfn_converter
     complex( dp ), intent( in ) :: inData(:)
     complex( dp ), intent( inout ) :: Qgrid( 5 )
 
-    real( dp ) :: dx1, dx2, dx3, dx4
+    real( dp ) :: dx0, dx1, dx2, dx3, dx4
     complex( dp ) :: y1, y2, y3, y4, y5
 
     y1 = inData(1)
@@ -1500,16 +1861,30 @@ module screen_wvfn_converter
     y4 = inData(4)
     y5 = inData(5)
 
-    dx1 = 1.0_dp / dx
-    dx2 = 1.0_dp / ( dx * dx )
-    dx3 = 1.0_dp / ( dx * dx * dx )
-    dx4 = 1.0_dp / ( dx * dx * dx * dx)
+!    dx0 = 1.0dp
+!    dx1 = 1.0_dp / dx
+!    dx2 = 1.0_dp / ( dx * dx )
+!    dx3 = 1.0_dp / ( dx * dx * dx )
+!    dx4 = 1.0_dp / ( dx * dx * dx * dx)
 
-    Qgrid( 1 ) = y3
+
+!    dx0 = dx*dx
+!    dx1 = dx
+!    dx2 = 1.0_dp
+!    dx3 = 1.0_dp / dx
+!    dx4 = 1.0_dp / ( dx * dx )
+ 
+    dx0 = 1.0_dp   
+    dx1 = 1.0_dp   
+    dx2 = 1.0_dp   
+    dx3 = 1.0_dp   
+    dx4 = 1.0_dp   
+
+    Qgrid( 1 ) = y3 * dx0
     Qgrid( 2 ) = dx * ( y1/12.0_dp - y2 * 2.0_dp/3.0_dp + y4 * 2.0_dp/3.0_dp - y5/12.0_dp )
-    Qgrid( 3 ) = dx2 * ( -y1/24.0_dp + y2 * 4.0_dp/3.0_dp - y3 * 5.0_dp/4.0_dp & 
-                         + y4 * 4.0_dp/3.0_dp - y5 / 24.0_dp )
-    Qgrid( 4 ) = dx3 * ( -y1/12.0_dp + y2/6.0_dp - y3/6.0_dp + y5/12.0_dp )
+    Qgrid( 3 ) = -dx2 * ( y1/24.0_dp - y2 * 2.0_dp/3.0_dp + y3 * 5.0_dp/4.0_dp & 
+                         - y4 * 2.0_dp/3.0_dp + y5 / 24.0_dp )
+    Qgrid( 4 ) = dx3 * ( -y1/12.0_dp + y2/6.0_dp - y4/6.0_dp + y5/12.0_dp )
     Qgrid( 5 ) = dx4 * ( y1/24.0_dp - y2/6.0_dp + y3/4.0_dp - y4/6.0_dp + y5/24.0_dp )
 
   end subroutine makeP5simple
@@ -1774,6 +2149,7 @@ module screen_wvfn_converter
     real(DP), parameter :: dzero = 0.0_DP
 
     integer, parameter :: blockParameter = 512
+    character(len=12) :: wvfnfile
 
     prefac = czero
     blockFactor = min( blockParameter, ngvecs )
@@ -1849,16 +2225,25 @@ module screen_wvfn_converter
 
 #endif
 
-!#ifdef DEBUG
-!    do j = 1, 8
-      j = 208
-      do i = 1, npts
-        write(2002,'(5(E20.10,1X))') posn(:,i), wavefunctions( i, j )
-      enddo
-      write(2002,*) ''
-      write(2002,*) ''
+#ifdef DEBUG
+        do j = 1, nbands
+          write(wvfnfile, '(A,I8.8)' ) 'real', j
+          open( unit=99, file=wvfnfile, form='formatted' )
+          rewind( 99 )
+          do i = 1, npts
+            write(99,'(5(E20.10,1X))') posn(:,i), wavefunctions( i, j )
+          enddo
+          close( 99 )
+        enddo
+!    do j = 200, 207
+!!      j = 208
+!      do i = 1, npts
+!        write(2002,'(5(E20.10,1X))') posn(:,i), wavefunctions( i, j )
+!      enddo
+!      write(2002,*) ''
+!      write(2002,*) ''
 !    enddo
-!#endif
+#endif
 
     deallocate( phases )
   end subroutine realu2

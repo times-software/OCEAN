@@ -337,7 +337,7 @@ module screen_system
     endif
 
     select case ( calcParams%convertStyle )
-      case( 'real' , 'fft2', 'fft3', 'fft4' )
+      case( 'real' , 'fft2', 'fft3', 'fft4', 'fft5', 'fft6' )
       case default
         write( 6, * ) 'Using default for screen.convertstyle!'
         write( 6, * ) '  screen.convertstyle = real'
