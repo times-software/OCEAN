@@ -1712,7 +1712,7 @@ module screen_wvfn_converter
 
   function evalP6( x, Pgrid )
     real(dp), intent( in ) :: x
-    complex(dp), intent( in ) :: Pgrid( 4 )
+    complex(dp), intent( in ) :: Pgrid( 6 )
     complex(dp) :: evalP6
     !
     evalP6 = Pgrid(1) + x * Pgrid(2) + x*x*Pgrid(3) + x*x*x*Pgrid(4) &
@@ -2187,10 +2187,10 @@ module screen_wvfn_converter
 #else
     ! Need to block this for large cells or the memory requirement is too big
     allocate( gplusq2( 3, blockFactor ), phse2( npts, blockFactor ) )
-    do ig_start = 1, ngvecs, blockParameter
+    do ig_start = 1, ngvecs, blockFactor
 
-      ig_stop = min( ngvecs, ig_start+blockParameter - 1 )
-      ig_width = min( blockParameter, ig_stop - ig_start + 1 )
+      ig_stop = min( ngvecs, ig_start+blockFactor - 1 )
+      ig_width = min( blockFactor, ig_stop - ig_start + 1 )
 
       ii = 0
       do i = ig_start, ig_stop
