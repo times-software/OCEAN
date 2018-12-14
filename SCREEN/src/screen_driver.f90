@@ -91,7 +91,6 @@ program screen_driver
   
   call screen_wvfn_converter_driver( nsites, all_sites, ierr )
   if( ierr .ne. 0 ) goto 111
-  if( myid .eq. root ) write( 6, * ) 'Done reading and converting wavefunctions'
 
   call odf_clean( ierr )
   if( ierr .ne. 0 ) goto 111
@@ -99,6 +98,7 @@ program screen_driver
   ! Done with the DFT section
   call MPI_BARRIER( comm, ierr )
   call screen_tk_stop( "dft" )
+  if( myid .eq. root ) write( 6, * ) 'Done reading and converting wavefunctions'
 !  goto 111
 
   
@@ -112,14 +112,18 @@ program screen_driver
   call screen_grid_dumpRBfile( all_sites( 1 )%grid, ierr )
   if( ierr .ne. 0 ) goto 111
 
-  if( ierr .eq. 0 ) write(6,*) 'success', myid
+!  if( ierr .eq. 0 ) write(6,*) 'success', myid
   if( ierr .ne. 0 ) write(6,*) 'failure', myid, ierr
 
+  call screen_tk_start("wait at end")
+  call MPI_BARRIER( comm, ierr )
+  call screen_tk_stop("wait at end")
 111 continue
 !  if( ierr .ne. 0 ) call MPI_ABORT( comm, ierr, ierr_ )
   call ocean_mpi_finalize( ierr )
 
   call screen_tk_stop( "screen" )
   if( ierr .eq. 0 ) call screen_tk_printtimes( myid )
+  if( myid .eq. 0 ) write(6,*) '*** Screening is done ***'
 
 end program screen_driver
