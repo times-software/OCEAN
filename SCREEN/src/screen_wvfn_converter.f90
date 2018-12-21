@@ -12,6 +12,14 @@ module screen_wvfn_converter
   use AI_kinds, only : DP
 
   implicit none
+
+  type xHolder
+    complex(dp), allocatable :: cUofX(:,:,:,:)
+    real(dp), allocatable :: rUofX(:,:,:,:)
+
+    integer :: dims(3)
+    logical :: isReal ! not sure about this guy
+  end type xHolder
   
   public :: screen_wvfn_converter_driver
 
@@ -240,10 +248,15 @@ module screen_wvfn_converter
     type( site ), intent( in ) :: all_sites( nsites )
     integer, intent( inout ) :: ierr
 
-    complex(DP), allocatable :: uofx( :, :, :, : )
+
+!   I think it makes sense to just have two uofx here
+!   we can pass around both the complex and the real, or even better
+!   create a type here to pass around with the dimensions and an allocatable for both real and complex
+    type(xHolder) :: uofx
+!     complex(DP), allocatable :: uofx( :, :, :, : )
     type( screen_wvfn ), allocatable :: temp_wavefunctions(:)
     real(DP) :: kpoints(3), qcart(3)
-    integer :: uofxDims(3), boundaries(3,2)
+!    integer :: uofxDims(3), boundaries(3,2)
     integer :: isite, j, isend, itag, destID
     integer :: npts, nProcsPerPool, iproc
     integer :: pts_start, num_pts, band_start, num_band, kpts_start, num_kpts
@@ -282,14 +295,18 @@ module screen_wvfn_converter
 
     write(1000+myid,'(A,3(1X,I0))') '*** Convert and Send ***', ikpt, ispin, nbands
 
-    call swl_checkConvert( input_gvecs, uofxDims, boundaries, ierr )
+    call swl_checkConvert( input_gvecs, uofx%dims, ierr )
+!    if( ierr .ne. 0 ) return
+!    write(1000+myid,'(A,3(1X,I8))') '   ', uofxDims(:)
+!    write(1000+myid,'(A,3(1X,I8))') '   ', boundaries(:,1)
+!    write(1000+myid,'(A,3(1X,I8))') '   ', boundaries(:,2)
+!
+!    allocate( uofx( uofxDims(1), uofxDims(2), uofxDims(3), nbands ), STAT=ierr )
     if( ierr .ne. 0 ) return
-    write(1000+myid,'(A,3(1X,I8))') '   ', uofxDims(:)
-    write(1000+myid,'(A,3(1X,I8))') '   ', boundaries(:,1)
-    write(1000+myid,'(A,3(1X,I8))') '   ', boundaries(:,2)
 
-    allocate( uofx( uofxDims(1), uofxDims(2), uofxDims(3), nbands ), STAT=ierr )
+    call swl_allocateUofX( params%isGamma, nbands, uofx, ierr )
     if( ierr .ne. 0 ) return
+
     call screen_tk_stop( "swl_convertAndSend_Init" )
 
     call screen_tk_start( "swl_DoConvert" )
@@ -395,7 +412,8 @@ module screen_wvfn_converter
 !      write(8000+myid,*) real(input_uofg(:,2),DP)
 !      write(9000+myid,*) all_sites( 1 )%grid%posn(:,:)
 !    endif
-    deallocate( uofx )
+!     deallocate( uofx )
+    call swl_cleanUofX( uofx )
 
     call screen_tk_start( "screen_wvfn_kill" )
     do isite = 1, nsites
@@ -797,7 +815,8 @@ module screen_wvfn_converter
     real(DP), intent( in ) :: bvecs(3,3), qcart(3)
     complex(DP), intent( in ) :: uofg( ngvecs, nbands )
     real(DP), intent( in ) :: posn( 3, npts )
-    complex(DP), intent( in ) :: uofx(:,:,:,:)
+!    complex(DP), intent( in ) :: uofx(:,:,:,:)
+    type( xHolder ), intent( in ) :: uofx
     complex(DP), intent( out ) :: wavefunctions( npts, nbands )
     integer, intent( inout ) :: ierr
     !
@@ -809,19 +828,22 @@ module screen_wvfn_converter
                      posn, wavefunctions )
 
       case('fft2')
-        call swl_recpConvert( npts, nbands, uofx, bvecs, qcart, posn, wavefunctions, ierr )
+        call swl_recpConvert( npts, nbands, uofx%cUofX, bvecs, qcart, posn, wavefunctions, ierr )
 
 !        call realu2( ngvecs, npts, nbands, uofg, gvecs, bvecs, qcart, &
 !                     posn, wavefunctions )
       case('fft3')
-        call swl_Lagrange3rd( npts, nbands, uofx, bvecs, qcart, posn, wavefunctions, ierr )
+        call swl_Lagrange3rd( npts, nbands, uofx%cUofX, bvecs, qcart, posn, wavefunctions, ierr )
       case('fft4')
-        call swl_Lagrange4th( npts, nbands, uofx, bvecs, qcart, posn, wavefunctions, ierr )
+        call swl_Lagrange4th( npts, nbands, uofx%cUofX, bvecs, qcart, posn, wavefunctions, ierr )
       case('fft5')
-        call swl_Lagrange5th( npts, nbands, uofx, bvecs, qcart, posn, wavefunctions, ierr )
+        call swl_Lagrange5th( npts, nbands, uofx%cUofX, bvecs, qcart, posn, wavefunctions, ierr )
 
       case('fft6')
-        call swl_Lagrange6th( npts, nbands, uofx, bvecs, qcart, posn, wavefunctions, ierr )
+        call swl_Lagrange6th( npts, nbands, uofx%cUofX, bvecs, qcart, posn, wavefunctions, ierr )
+
+      case('intp')
+        call swl_DoInterpolate( npts, nbands, uofx, bvecs, qcart, posn, wavefunctions, ierr )
 
       case default
         write(6,*) 'unrecognized conversion style'
@@ -830,8 +852,47 @@ module screen_wvfn_converter
 
   end subroutine swl_DoProject
 
+  subroutine swl_DoInterpolate( npts, nbands, uofx, bvecs, qcart, posn, wavefunctions, ierr )
+    use screen_system, only : screen_system_convertInterpolateStyle, &
+                              screen_system_convertInterpolateOrder
+    integer, intent( in ) :: npts, nbands
+    real(DP), intent( in ) :: bvecs(3,3), qcart(3)
+    real(DP), intent( in ) :: posn( 3, npts )
+    type( xHolder ), intent( in ) :: uofx
+    complex(DP), intent( out ) :: wavefunctions( npts, nbands )
+    integer, intent( inout ) :: ierr
+
+    select case ( screen_system_convertInterpolateStyle() )
+
+      case( 'lagrange' )
+        if( uofx%isReal ) then
+
+        else
+          call swl_ComplexDoLagrange( screen_system_convertInterpolateOrder(), npts, nbands, & 
+                               uofx%cUofX, bvecs, qcart, posn, wavefunctions, ierr )
+        endif
+      case default
+        ierr = 1
+    end select 
+  end subroutine swl_DoInterpolate
+
+
   subroutine swl_doConvert( nbands, ngvecs, gvecs, uofg, uofx )
-    use screen_system, only : screen_system_convertStyle
+    integer, intent( in ) :: ngvecs, nbands
+    integer, intent( in ) :: gvecs( :,: )
+    complex(DP), intent( in ) :: uofg( :, : )
+    type( xHolder ), intent( inout ) :: uofx
+
+    if( uofx%dims(1) .lt. 1 ) return
+
+    if( uofx%isReal ) then
+      call swl_doConvertGamma( nbands, ngvecs, gvecs, uofg, uofx%rUofX )
+    else 
+      call swl_doConvertComplex( nbands, ngvecs, gvecs, uofg, uofx%cUofX )
+    endif
+  end subroutine swl_doConvert
+
+  subroutine swl_doConvertComplex( nbands, ngvecs, gvecs, uofg, uofx )
 #ifdef __FFTW3
     use iso_c_binding
     include 'fftw3.f03'
@@ -877,17 +938,93 @@ module screen_wvfn_converter
     ! To keep the compiler happy
     uofx = 0.0_DP
 #endif
-  end subroutine swl_doConvert
+  end subroutine swl_doConvertComplex
+
+  subroutine swl_doConvertGamma( nbands, ngvecs, gvecs, uofg, uofx )
+#ifdef __FFTW3
+    use iso_c_binding
+    include 'fftw3.f03'
+#endif
+    integer, intent( in ) :: ngvecs, nbands
+    integer, intent( in ) :: gvecs( :,: )
+    complex(DP), intent( in ) :: uofg( :, : )
+    real(DP), intent( out ) :: uofx( :, :, :, : )
+#ifdef __FFTW3
+    complex(DP), allocatable :: tempC(:,:,:)
+    type(C_PTR) :: bplan
+    integer :: dims(3)
+    integer :: i, j, k, ig, ib, flags
+
+    dims(1) = size( uofx, 1 )
+    dims(2) = size( uofx, 2 )
+    dims(3) = size( uofx, 3 )
+    if( dims(1) .lt. 1 ) return
+    ! almost certainly need to reverse dims
+!    bplan = fftw_plan_many_dft( 3, dims, nbands, uofx, 
+
+    allocate( tempC( dims(1), dims(2), dims(3) ) )
+
+    do ib = 1, nbands
+      bplan = fftw_plan_dft_c2r_3d( dims(3), dims(2), dims(1), tempC(:,:,:), uofx(:,:,:,ib), FFTW_PATIENT )
+      do ig = 1, ngvecs
+        i = 1 + gvecs(1,ig)
+        j = 1 + gvecs(2,ig)
+        k = 1 + gvecs(3,ig)
+        if( i .le. 0 ) i = i + dims(1)
+        if( j .le. 0 ) j = j + dims(2)
+        if( k .le. 0 ) k = k + dims(3)
+
+       tempC( i, j, k ) = uofg( ig, ib )
+      enddo
+!    enddo
+
+!    do j = 1, nbands
+      call fftw_execute_dft_c2r( bplan, tempC, uofx(:,:,:,ib) )
+!    enddo
+
+      call fftw_destroy_plan( bplan )
+    enddo
+    deallocate( tempC )
+
+#else
+    ! To keep the compiler happy
+    uofx = 0.0_DP
+#endif
+  end subroutine swl_doConvertGamma
 
 
-  subroutine swl_checkConvert( gvecs, uofxDims, boundaries, ierr )
+  subroutine swl_allocateUofX( isGamma, nbands, uofx, ierr )
+    logical, intent( in ) :: isGamma
+    integer, intent( in ) :: nbands
+    type( xHolder ), intent( inout ) :: uofx
+    integer, intent( inout ) :: ierr
+
+    ! For now, force complex version
+    if( .false. ) then !isGamma ) then
+      uofx%isReal = .true.
+      allocate( uofx%rUofX( uofx%dims(1), uofx%dims(2), uofx%dims(3), nbands ), STAT=ierr )
+    else
+      uofx%isReal = .false.
+      allocate( uofx%cUofX( uofx%dims(1), uofx%dims(2), uofx%dims(3), nbands ), STAT=ierr )
+    endif
+
+  end subroutine swl_allocateUofX
+
+  subroutine swl_cleanUofX( uofx )  
+    type( xHolder ), intent( inout ) :: uofx
+
+    if( allocated( uofx%cUofX ) ) deallocate ( uofx%cUofX )
+    if( allocated( uofx%rUofX ) ) deallocate ( uofx%rUofX )
+  end subroutine swl_cleanUofX
+
+  subroutine swl_checkConvert( gvecs, uofxDims, ierr )
     use screen_system, only : screen_system_convertStyle
     use ocean_mpi, only : myid
     integer, intent( in ) :: gvecs( :, : )
-    integer, intent( out ) :: uofxDims( 3 )
-    integer, intent( out ) :: boundaries( 3, 2 )
+    integer, intent( out ) :: uofxDims(3)
     integer, intent( inout ) :: ierr
 
+    integer :: boundaries( 3, 2 )
     integer :: i, j, k ,test
 
     select case( screen_system_convertStyle() )
@@ -895,7 +1032,7 @@ module screen_wvfn_converter
       case('real')
         uofxDims(:) = 0
         boundaries(:,:) = 0
-      case('fft2', 'fft3', 'fft4', 'fft5', 'fft6' )
+      case('fft2', 'fft3', 'fft4', 'fft5', 'fft6', 'intp' )
 #ifndef __FFTW3
         ierr = -1
         write(6,*) 'FFT-based conversion requires FFTW3 support'
@@ -903,7 +1040,7 @@ module screen_wvfn_converter
         boundaries(:,1) = minval( gvecs, 2 )
         boundaries(:,2) = maxval( gvecs, 2 )
         uofxDims(:) = boundaries(:,2) - boundaries(:,1) + 1 
-        uofxDims(:) = uofxDims * 1.25
+        uofxDims(:) = uofxDims(:) * 1.25
 
         ! This changes the FFT grid to factor to reasonably small primes
         do i = 1, 3
@@ -931,17 +1068,15 @@ module screen_wvfn_converter
           enddo
         enddo
 
-  !      uofxDims(:) = 2*uofxDims(:)
-  !        uofxDims(2) = nbands
-  !        uofxDims(1) = 1
-  !        do i = 1, 3
-  !          uofxDims(1) = uofxDims(1) * ( boundaries(i,2) - boundaries(i,1) + 1 )
-  !        enddo
           
         case default
         write(6,*) 'unrecognized conversion style'
         ierr = -1
     end select
+
+    write(1000+myid,'(A,3(1X,I8))') '   ', uofxDims(:)
+    write(1000+myid,'(A,3(1X,I8))') '   ', boundaries(:,1)
+    write(1000+myid,'(A,3(1X,I8))') '   ', boundaries(:,2)
 
   end subroutine swl_checkConvert
 
@@ -1276,7 +1411,250 @@ module screen_wvfn_converter
 
   end subroutine  swl_Lagrange3rd
 
+  subroutine swl_RealDoLagrange( order, npts, nbands, uofx, bvecs, qcart, posn, wavefunctions, ierr )
+    use ocean_constants, only : pi_dp
+    use ocean_mpi, only : myid
+    use ocean_interpolate
+    integer, intent( in ) :: order, npts, nbands
+    real(DP), intent( in ) :: bvecs(3,3), qcart(3)
+    real(DP), intent( in ) :: uofx( :, :, :, : )
+    real(DP), intent( in ) :: posn( 3, npts )
+    ! to-fix!
+    complex(DP), intent( out ) :: wavefunctions( npts, nbands )
+    integer, intent( inout ) :: ierr
 
+    real(DP), allocatable :: distanceMap(:,:), P(:,:), QGrid(:,:), Q(:), RGrid(:), PGrid(:,:,:,:)
+    integer, allocatable :: pointMap(:,:)
+    logical, allocatable :: isInitGrid(:,:,:)
+
+    real(DP) :: R, dx, dy, dz, rvec(3), i2pi
+    integer :: dims(3), ib, ip, i, j, ix, iy, iz, iyy, izz
+
+    allocate( pointMap( 3, npts ), distanceMap( 3, npts ), stat=ierr )
+    if( ierr .ne. 0 ) return
+
+
+    i2pi = 1.0_DP / ( 2.0_DP * PI_DP )
+
+    dims(1) = size( uofx, 1 )
+    dims(2) = size( uofx, 2 )
+    dims(3) = size( uofx, 3 )
+
+    write(1000+myid,'(A,3(I8,1X))') 'x-dims', dims(:)
+    do ip = 1, npts
+      rvec(:) = i2pi * matmul( bvecs, posn(:,ip) )
+
+      do i = 1, 3
+        do while( rvec(i) .gt. 1.0_DP )
+          rvec(i) = rvec(i) - 1.0_DP
+        end do
+        do while( rvec(i) .lt. 0.0_DP )
+          rvec(i) = rvec(i) + 1.0_DP
+        end do
+      enddo
+
+      pointMap( :, ip ) = 1 + floor( rvec( : ) * real( dims(:), DP ) )
+      do j = 1, 3
+        if( pointMap( j, ip ) .lt. 1 ) pointMap( j, ip ) = pointMap( j, ip ) + dims(j)
+        if( pointMap( j, ip ) .gt. dims(j) ) pointMap( j, ip ) = pointMap( j, ip ) - dims(j)
+      enddo
+
+      distanceMap(:,ip) = ( rvec( : ) * real( dims(:), DP ) - floor( rvec( : ) * real( dims(:), DP ) ) ) &
+                        / real(dims( : ), DP )
+    enddo
+
+    allocate( P(order,order), QGrid(order,order), Q(order), RGrid(order), &
+              isInitGrid( dims(1), dims(2), dims(3) ), PGrid( order, dims(1), dims(2), dims(3) ), STAT=ierr )
+    if( ierr .ne. 0 ) return
+    dx = 1.0_dp / dims( 1 )
+    dy = 1.0_dp / dims( 2 )
+    dz = 1.0_dp / dims( 3 )
+
+    do ib = 1, nbands
+      ! New band, nothing is correct
+      isInitGrid(:,:,:) = .false.
+
+      do ip = 1, npts
+
+        do iz = 0, order - 1
+          izz = pointMap( 3, ip ) + iz
+          if( izz .gt. dims( 3 ) ) izz = izz - dims( 3 )
+
+          do iy = 0, order - 1
+            iyy = pointMap( 2, ip ) + iy
+            if( iyy .gt. dims( 2 ) ) iyy = iyy - dims( 2 )
+
+            if( .not. isInitGrid( pointMap( 1, ip ), iyy, izz ) ) then
+
+              call MakeLagrange( order, pointMap( 1, ip ), iyy, izz, uofx(:,:,:,ib), &
+                              Pgrid( :, pointMap( 1, ip ), iyy, izz ) )
+              isInitGrid( pointMap( 1, ip ), iyy, izz ) = .true.
+            endif
+
+          enddo ! iy
+        enddo ! iz
+
+        do iz = 1, order
+          izz = pointMap( 3, ip ) + iz - 1
+          if( izz .gt. dims( 3 ) ) izz = izz - dims( 3 )
+
+          do iy = 1, order
+            iyy = pointMap( 2, ip ) + iy - 1
+            if( iyy .gt. dims( 2 ) ) iyy = iyy - dims( 2 )
+
+            P(iy,iz) = evalLagrange( order, distanceMap( 1, ip ), dx, Pgrid( :, pointMap( 1, ip ), iyy, izz ) )
+          enddo
+        enddo
+
+
+        do iz = 1, order
+          call makeLagrange( order, P(:,iz), QGrid(:,iz) )
+          Q(iz) = evalLagrange( order, distanceMap( 2, ip ), dy, Qgrid(:,iz) )
+        enddo
+
+        call makeLagrange( order, Q, RGrid )
+        R = evalLagrange( order, distanceMap( 3, ip ), dz, Rgrid )
+
+        wavefunctions( ip, ib ) = R 
+
+      enddo ! ip
+    enddo ! ib
+
+
+    deallocate( P, Q, QGrid, RGrid )
+    deallocate( isInitGrid, PGrid, pointMap )
+
+  end subroutine swl_RealDoLagrange
+    
+
+  subroutine swl_ComplexDoLagrange( order, npts, nbands, uofx, bvecs, qcart, posn, wavefunctions, ierr )
+    use ocean_constants, only : pi_dp
+    use ocean_mpi, only : myid
+    use ocean_interpolate
+    integer, intent( in ) :: order, npts, nbands
+    real(DP), intent( in ) :: bvecs(3,3), qcart(3)
+    complex(DP), intent( in ) :: uofx( :, :, :, : )
+    real(DP), intent( in ) :: posn( 3, npts )
+    complex(DP), intent( out ) :: wavefunctions( npts, nbands )
+    integer, intent( inout ) :: ierr
+    !
+    complex(DP), allocatable :: phase(:), P(:,:), QGrid(:,:), Q(:), RGrid(:), PGrid(:,:,:,:)
+    real(DP), allocatable :: distanceMap(:,:) 
+    integer, allocatable :: pointMap(:,:)
+    logical, allocatable :: isInitGrid(:,:,:)
+    !
+    complex(DP) :: R
+    real(DP) :: dx, dy, dz, rvec(3), i2pi, phse
+    integer :: dims(3), ib, ip, i, j, ix, iy, iz, iyy, izz
+
+
+    allocate( pointMap( 3, npts ), distanceMap( 3, npts ), phase( npts ), stat=ierr )
+    if( ierr .ne. 0 ) return
+
+    i2pi = 1.0_DP / ( 2.0_DP * PI_DP )
+
+    dims(1) = size( uofx, 1 )
+    dims(2) = size( uofx, 2 )
+    dims(3) = size( uofx, 3 )
+
+    write(1000+myid,'(A,3(I8,1X))') 'x-dims', dims(:)
+    do ip = 1, npts
+      rvec(:) = i2pi * matmul( bvecs, posn(:,ip) )
+
+      phse = dot_product( qcart(:), posn(:,ip) )
+      do i = 1, 3
+        do while( rvec(i) .gt. 1.0_DP )
+          rvec(i) = rvec(i) - 1.0_DP
+        end do
+        do while( rvec(i) .lt. 0.0_DP )
+          rvec(i) = rvec(i) + 1.0_DP
+        end do
+      enddo
+      phase( ip ) = cmplx( dcos(phse), dsin(phse), DP )
+
+
+!      pointMap( :, 2, ip ) = nint(  rvec( : ) * real( dims(:), DP ) ) + 1
+
+
+      ! For fourth order we want index=2 to be just below
+      pointMap( :, ip ) = 1 + floor( rvec( : ) * real( dims(:), DP ) )
+      do j = 1, 3
+        if( pointMap( j, ip ) .lt. 1 ) pointMap( j, ip ) = pointMap( j, ip ) + dims(j)
+        if( pointMap( j, ip ) .gt. dims(j) ) pointMap( j, ip ) = pointMap( j, ip ) - dims(j)
+      enddo
+
+
+      ! distance is mapped to point 2 still
+      distanceMap(:,ip) = ( rvec( : ) * real( dims(:), DP ) - floor( rvec( : ) * real( dims(:), DP ) ) ) &
+                        / real(dims( : ), DP )
+    enddo
+
+    ! These two, isInitGrid and PGrid, allow for the possiblity of re-use at the cost of storage
+    ! The amount of computation and data fetching is greatly reduced if we can re-use, and the 
+    ! re-used array is in order (whereas sometimes we'll wander around the PBC of the Bloch functions).
+    allocate( isInitGrid( dims(1), dims(2), dims(3) ), PGrid( order, dims(1), dims(2), dims(3) ) )
+    allocate( P(order,order), QGrid(order,order), Q(order), RGrid(order) )
+    dx = 1.0_dp / dims( 1 )
+    dy = 1.0_dp / dims( 2 )
+    dz = 1.0_dp / dims( 3 )
+
+    do ib = 1, nbands
+      ! New band, nothing is correct
+      isInitGrid(:,:,:) = .false.
+
+      do ip = 1, npts
+
+        do iz = 0, order - 1
+          izz = pointMap( 3, ip ) + iz
+          if( izz .gt. dims( 3 ) ) izz = izz - dims( 3 )
+
+          do iy = 0, order - 1
+            iyy = pointMap( 2, ip ) + iy
+            if( iyy .gt. dims( 2 ) ) iyy = iyy - dims( 2 )
+
+            if( .not. isInitGrid( pointMap( 1, ip ), iyy, izz ) ) then
+              
+              call MakeLagrange( order, pointMap( 1, ip ), iyy, izz, uofx(:,:,:,ib), & 
+                              Pgrid( :, pointMap( 1, ip ), iyy, izz ) )
+              isInitGrid( pointMap( 1, ip ), iyy, izz ) = .true.
+            endif
+
+          enddo ! iy
+        enddo ! iz
+
+        do iz = 1, order
+          izz = pointMap( 3, ip ) + iz - 1
+          if( izz .gt. dims( 3 ) ) izz = izz - dims( 3 )
+
+          do iy = 1, order
+            iyy = pointMap( 2, ip ) + iy - 1
+            if( iyy .gt. dims( 2 ) ) iyy = iyy - dims( 2 )
+
+            P(iy,iz) = evalLagrange( order, distanceMap( 1, ip ), dx, Pgrid( :, pointMap( 1, ip ), iyy, izz ) )
+          enddo
+        enddo
+
+
+        do iz = 1, order
+          call makeLagrange( order, P(:,iz), QGrid(:,iz) )
+          Q(iz) = evalLagrange( order, distanceMap( 2, ip ), dy, Qgrid(:,iz) )
+        enddo
+
+        call makeLagrange( order, Q, RGrid )
+        R = evalLagrange( order, distanceMap( 3, ip ), dz, Rgrid )
+
+        wavefunctions( ip, ib ) = R * phase( ip )
+
+      enddo ! ip
+    enddo ! ib
+
+
+    deallocate( P, Q, QGrid, RGrid )
+    deallocate( isInitGrid, PGrid, pointMap, phase )
+
+
+
+  end subroutine swl_ComplexDoLagrange
 
   subroutine swl_Lagrange4th( npts, nbands, uofx, bvecs, qcart, posn, wavefunctions, ierr )
     use ocean_constants, only : pi_dp

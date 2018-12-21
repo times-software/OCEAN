@@ -59,9 +59,21 @@ module screen_system
   public :: screen_system_returnKvec
   public :: screen_system_convertStyle, screen_system_chi0Integrand
   public :: screen_system_invStyle, screen_system_QuadOrder
+  public :: screen_system_convertInterpolateStyle, screen_system_convertInterpolateOrder
   public :: screen_system_doAugment
 
   contains 
+
+  ! Hardwire these for now, later allow inputs
+  pure function screen_system_convertInterpolateStyle() result( interpStyle )
+    character(len=8) :: interpStyle
+    interpStyle = 'lagrange'
+  end function screen_system_convertInterpolateStyle
+
+  pure function screen_system_convertInterpolateOrder() result( order )
+    integer :: order
+    order = 4
+  end function screen_system_convertInterpolateOrder
 
   pure function screen_system_doAugment() result( doAugment )
     logical :: doAugment
@@ -337,7 +349,7 @@ module screen_system
     endif
 
     select case ( calcParams%convertStyle )
-      case( 'real' , 'fft2', 'fft3', 'fft4', 'fft5', 'fft6' )
+      case( 'real' , 'fft2', 'fft3', 'fft4', 'fft5', 'fft6', 'intp' )
       case default
         write( 6, * ) 'Using default for screen.convertstyle!'
         write( 6, * ) '  screen.convertstyle = real'

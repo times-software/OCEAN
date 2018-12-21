@@ -9,7 +9,7 @@ OBJS = screen_driver.o ai_kinds.o ocean_mpi.o screen_grid.o screen_system.o scre
        screen_energy.o ocean_dft_files.o ocean_legacy_files.o screen_wavefunction.o screen_wvfn_converter.o \
        screen_chi0.o screen_chi_driver.o screen_chi.o screen_centralpotential.o periodic.o schi_sinqr.o \
        schi_direct.o ocean_sphericalharmonics.o ocean_quadrature.o screen_opf.o ocean_qe54_files.o \
-       screen_timekeeper.o
+       screen_timekeeper.o ocean_interpolate.o
 
 install:
 	cp screen_driver.x $(INSTDIR)/
@@ -59,9 +59,11 @@ screen_wavefunction.o:   screen_wavefunction.f90 ai_kinds.mod screen_system.mod 
 screen_wavefunction.mod: screen_wavefunction.f90 ai_kinds.mod screen_system.mod screen_paral.mod
 
 screen_wvfn_converter.o:   screen_wvfn_converter.f90 ai_kinds.mod ocean_dft_files.mod  \
-                           screen_sites.mod screen_grid.mod screen_paral.mod screen_opf.mod screen_timekeeper.mod
+                           screen_sites.mod screen_grid.mod screen_paral.mod screen_opf.mod \
+                           screen_timekeeper.mod ocean_interpolate.mod
 screen_wvfn_converter.mod: screen_wvfn_converter.f90 ai_kinds.mod ocean_dft_files.mod  \
-                           screen_sites.mod screen_grid.mod screen_paral.mod screen_opf.mod screen_timekeeper.mod
+                           screen_sites.mod screen_grid.mod screen_paral.mod screen_opf.mod \
+                           screen_timekeeper.mod ocean_interpolate.mod
 
 screen_chi0.o:   screen_chi0.f90 ai_kinds.mod screen_paral.mod screen_sites.mod screen_grid.mod \
                  screen_wavefunction.mod ocean_quadrature.mod screen_timekeeper.mod
@@ -98,6 +100,9 @@ ocean_quadrature.mod: ocean_quadrature.f90 ai_kinds.mod
 
 ocean_sphericalharmonics.o:   ocean_sphericalharmonics.f90 ai_kinds.mod ocean_constants.mod
 ocean_sphericalharmonics.mod: ocean_sphericalharmonics.f90 ai_kinds.mod ocean_constants.mod
+
+ocean_interpolate.o:   ocean_interpolate.f90 ai_kinds.mod
+ocean_interpolate.mod: ocean_interpolate.f90 ai_kinds.mod
 
 screen_driver.o: screen_driver.f90 ai_kinds.mod ocean_mpi.mod screen_grid.mod screen_system.mod screen_sites.mod \
                  screen_energy.mod ocean_dft_files.mod screen_wvfn_converter.mod screen_wavefunction.mod \

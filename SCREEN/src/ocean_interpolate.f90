@@ -29,7 +29,7 @@ module ocean_interpolate
   end interface evalLagrange
 
   interface makeLagrange
-    module procedure rMakeLagrange, cMakeLagrange
+    module procedure rMakeLagrange, cMakeLagrange, rMakeSimpleLagrange, cMakeSimpleLagrange
   end interface makeLagrange
 
   interface makeSimpleLagrange
@@ -239,8 +239,8 @@ module ocean_interpolate
     real(dp), parameter :: oneSixth = 1.0_dp/6.0_dp
 
     p(1) = d(2)
-    p(2) = -oneThird * d(1) - 0.5_dp * d(2) - oneSixth * d(3)
-    p(3) = 0.5_dp * d(1) - 0.5_dp * d(3)
+    p(2) = -oneThird * d(1) - 0.5_dp * d(2) + d(3) - oneSixth * d(4)
+    p(3) = 0.5_dp * d(1) - d(2) + 0.5_dp * d(3)
     p(4) = - oneSixth * d(1) + 0.5_dp * d(2) - 0.5_dp * d(3) + oneSixth * d(4)
   
   end subroutine cSL4
@@ -253,8 +253,8 @@ module ocean_interpolate
     real(dp), parameter :: oneSixth = 1.0_dp/6.0_dp
 
     p(1) = d(2)
-    p(2) = -oneThird * d(1) - 0.5_dp * d(2) - oneSixth * d(3)
-    p(3) = 0.5_dp * d(1) - 0.5_dp * d(3)
+    p(2) = -oneThird * d(1) - 0.5_dp * d(2) + d(3) - oneSixth * d(4)
+    p(3) = 0.5_dp * d(1) - d(2) + 0.5_dp * d(3)
     p(4) = - oneSixth * d(1) + 0.5_dp * d(2) - 0.5_dp * d(3) + oneSixth * d(4)
 
   end subroutine rSL4

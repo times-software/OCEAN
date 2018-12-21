@@ -183,7 +183,7 @@ module screen_paral
     integer, intent( in ) :: n_sites, nproc 
     integer, intent( out ) :: ngroups
     !
-    real( DP ) :: score, best_score
+    real( DP ) :: score, best_score, mismatch
     integer :: i, j, best_ngroup
 
     if( n_sites .eq. 1 .or. nproc .eq. 1 ) then
@@ -204,7 +204,8 @@ module screen_paral
     best_ngroup = 1
     best_score = 0.0_DP
 
-    do i = 1, n_sites
+    do i = 1, nproc
+#if 0
       ! i groups, j per group, i * j being used
       j = nproc / i
       score = real( j * i, DP ) / real( nproc, DP )
@@ -212,10 +213,28 @@ module screen_paral
       if( mod( n_sites, i ) .ne. 0 ) then
         score = score * real( mod( n_sites, i ), DP ) / real( i, DP )
       endif
+#else
+      ! i is the number of processors per pool
+      ! j is the number of groups
+      j = nproc / i
+      ! score is percentage processors in use
+      score = real( j * i, DP ) / real( nproc, DP )
+      ! then score is scaled down by the pool size
+      score = score / sqrt( real( i, DP ) )
+      ! then score is scaled again by mismatch
+      ! mismatch is actually the float sites per pool
+      mismatch = real( n_sites, DP ) / real( j, DP )
+      ! floor / ceiling gives 1 if the same, gives fraction if not
+      ! adding one to avoid 0 v 1 problems
+      score = score * real( floor( mismatch ) + 1, DP ) / real( ceiling( mismatch ) + 1, DP )
+#endif
 
       if( score .gt. best_score ) then
         best_score = score
-        best_ngroup = i
+        best_ngroup = j
+      endif
+      if( myid .eq. 0 ) then
+        write(myid+1000,'(3(I6,X),2F24.12)') i, j, best_ngroup, score, best_score
       endif
     enddo
 
