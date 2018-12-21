@@ -329,7 +329,7 @@ undefined
 } tmp_dir
 den.kshift
 {
-0 0 0
+1 1 1
 } den.kshift
 core_offset
 {

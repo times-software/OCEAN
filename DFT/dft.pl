@@ -316,6 +316,16 @@ if ($RunESPRESSO) {
   $qe_data_files{'calctype'} = 'scf';
   $qe_data_files{'print kpts'} = "K_POINTS automatic\n$qe_data_files{'ngkpt'} $qe_data_files{'den.kshift'}\n";
   $qe_data_files{'print nbands'} = -1;
+  if( $obf == 1 ) 
+  {
+    $qe_data_files{'nosym'} = '.true.';
+    $qe_data_files{'noinv'} = '.true.';
+  }
+  else
+  {
+    $qe_data_files{'nosym'} = '.false.';
+    $qe_data_files{'noinv'} = '.false.';
+  }
 
   # Check for Gamma-only, and over-write 'print kpts'
   $qe_data_files{'ngkpt'} =~ m/(\d+)\s+(\d+)\s+(\d+)/ or die "$qe_data_files{'ngkpt'}";
@@ -387,7 +397,7 @@ if ($RunESPRESSO) {
     }
     else
     {
-      $qe_data_files{'dft.ndiag'} = 4;
+      $qe_data_files{'dft.ndiag'} = $ncpus;
     }
   }
   else
@@ -395,6 +405,61 @@ if ($RunESPRESSO) {
     $qe_data_files{'dft.ndiag'} = 4;
   }
 
+  if( $obf != 1 ) 
+  {
+    my $ser_prefix = $para_prefix;
+    $ser_prefix =~ s/\d+/1/;
+    open TMP, '>', "$qe_data_files{'prefix'}.EXIT" or die "Failed to open file $qe_data_files{'prefix'}.EXIT\n$!";
+    close TMP;
+    if( $qe_redirect )
+    {
+      print  "$ser_prefix $ENV{'OCEAN_ESPRESSO_PW'} < scf.in > scf.out 2>&1\n";
+      system("$ser_prefix $ENV{'OCEAN_ESPRESSO_PW'} < scf.in > scf.out 2>&1");
+    }
+    else
+    {
+      print  "$ser_prefix $ENV{'OCEAN_ESPRESSO_PW'} -inp scf.in > scf.out 2>&1\n";
+      system("$ser_prefix $ENV{'OCEAN_ESPRESSO_PW'} -inp scf.in > scf.out 2>&1");
+    }
+
+    if( open TMP, "scf.out" )
+    {
+      my $actualKpts = -1;
+      while (<TMP>)
+      {
+        if( $_ =~ m/number of k points=\s+(\d+)/ )
+        {
+          $actualKpts = $1;
+          last;
+        }
+      }
+      close TMP;
+      if( $actualKpts == -1 )
+      {
+        print "Had trouble parsing scf.out\nDidn't find number of k points\n";
+      }
+      else
+      {
+        if( $actualKpts > $ncpus )
+        {
+          $npool = $ncpus;
+        }
+        else
+#        if( $npool > $actualKpts )
+        {
+          for( my $i = 1; $i <= $actualKpts; $i++ )
+          {
+            $npool = $i if(  $ncpus % $i == 0 );
+          }
+        }
+        print "SCF has $actualKpts k-points\nWill use $npool pools\n";
+      }
+    }
+    else
+    {
+      print "Had trouble parsing scf.out\n. Will attempt to continue.\n";
+    }
+  }
 
  ### the SCF run for initial density
  ##
@@ -844,6 +909,8 @@ if ( $nscfRUN ) {
 
     # Set the flags that change for each input/dft run
     $qe_data_files{'calctype'} = 'nscf';
+    $qe_data_files{'nosym'} = '.true.';
+    $qe_data_files{'noinv'} = '.true.';
     my $kpt_text = "K_POINTS crystal\n";
     open IN, "nkpts" or die;
     my $nkpts = <IN>;
@@ -1039,6 +1106,8 @@ if( $obf == 0 && $run_screen == 1 )
 
 
   $qe_data_files{'calctype'} = 'nscf';
+  $qe_data_files{'nosym'} = '.true.';
+  $qe_data_files{'noinv'} = '.true.';
 
   my $gamma = 1;
 
@@ -1187,8 +1256,10 @@ sub print_qe
         .  "  degauss = $inputs{'degauss'}\n"
         .  "  nspin  = $inputs{'nspin'}\n"
         .  "  tot_charge  = $inputs{'tot_charge'}\n"
-        .  "  nosym = .true.\n"
-        .  "  noinv = .true.\n";
+        .  "  nosym = $inputs{'nosym'}\n"
+        .  "  noinv = $inputs{'noinv'}\n";
+#        .  "  nosym = .true.\n"
+#        .  "  noinv = .true.\n";
   if( $inputs{'print nbands'} > 0 ) # for scf no nbnd is set. 
                                     # Therefore -1 is passed in and nothing is written to the input file
   {

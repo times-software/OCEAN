@@ -189,6 +189,17 @@ foreach (@cpu_factors)
   }
 }
 print "NKPTS: $kpt_tot, ideal pools: $ideal_npools\n";
+if( $kpt_tot > (1.9*$ideal_npools ) && $ncpus / $ideal_npools > 6 )  # if ideal is too inefficient
+{
+  foreach (@cpu_factors)
+  {
+    if( $ncpus / $_ > $min_nscf_pool_size )
+    {
+      $ideal_npools = $_;
+    }
+  }
+}
+print "NKPTS: $kpt_tot, ideal pools: $ideal_npools\n";
 print QE_POOL "nscf\t$ideal_npools\n";
 # Not integrated cleanly right now
 # Need to control pools for the interpolation routines
