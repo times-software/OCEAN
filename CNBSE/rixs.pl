@@ -27,15 +27,16 @@ my @CommonFiles = ("epsilon", "xmesh.ipt", "nedges", "k0.ipt", "nbuse.ipt",
   "para_prefix", "cnbse.strength", "serbse", "core_offset", "avecsinbohr.ipt", 
   "cnbse.solver", "cnbse.gmres.elist", "cnbse.gmres.erange", "cnbse.gmres.nloop", 
   "cnbse.gmres.gprc", "cnbse.gmres.ffff", "cnbse.write_rhs", "spin_orbit", "nspin", 
-  "niter", "backf", "aldaf", "bwflg", "bande", "bflag", "lflag", "decut", "spect.h", "calc" );
+  "niter", "backf", "aldaf", "bwflg", "bande", "bflag", "lflag", "decut", "spect.h", "calc", 
+  "photon_in", "photon_out", "qinunitsofbvectors.ipt" );
 
 my @DFTFiles = ("nelectron", "rhoofr");
 
 my @DenDipFiles = ("kmesh.ipt", "masterwfile", "listwfile", "efermiinrydberg.ipt", 
-                   "qinunitsofbvectors.ipt", "brange.ipt", "enkfile", "tmels", "nelectron", 
+                   "brange.ipt", "enkfile", "tmels", "nelectron", 
                    "eshift.ipt" );
 
-my @WFNFiles = ("kmesh.ipt",  "efermiinrydberg.ipt", "qinunitsofbvectors.ipt", "brange.ipt", 
+my @WFNFiles = ("kmesh.ipt",  "efermiinrydberg.ipt", "brange.ipt", 
                 "wvfcninfo", "wvfvainfo", "obf_control", "ibeg.h", "q.out", "tmels.info", 
                 "val_energies.dat", "con_energies.dat" );
 

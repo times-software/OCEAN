@@ -488,3 +488,19 @@ screen.wvfn
 {
 legacy
 } screen.wvfn
+sumspec
+{
+.false.
+} sumspec
+plot.exciton
+{
+.false.
+} plotexc
+photon_in
+{
+1
+} photon_in
+photon_out
+{
+1
+} photon_out

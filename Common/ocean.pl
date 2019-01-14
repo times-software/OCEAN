@@ -14,7 +14,7 @@ use File::Copy;
 use strict;
 
 
-my @OceanFolders = ("Common", "DFT", "zWFN", "OPF", "SCREEN", "CNBSE", "PREP", "NBSE");
+my @OceanFolders = ("Common", "DFT", "zWFN", "OPF", "SCREEN", "CNBSE", "PREP", "NBSE" );
 
 print "Welcome to OCEAN\n";
 
@@ -199,8 +199,129 @@ else
   $run_screen = 1;
 }
 
+my $run_rixs = 0;
+if( $calc =~ m/rixs/i )
+{
+  $run_rixs = 1;
+}
 
 ### \CALC ###
+
+
+### EXCITON ###
+
+open EXC, "plotexc" or die "Failed to open file plotexc: $!\n";
+<EXC> =~ m/(\w+)/ or die "Failed to read file plotexc\n";
+my $excp = lc($1);
+close EXC;
+my $run_val_exc = 0;
+my $run_core_exc = 0;
+
+if( $excp =~ m/true/i )
+{
+    if( $calc =~ m/val/i )
+    {
+        $run_val_exc = 1;
+    }
+    elsif( $calc =~ m/xas/i )
+    {
+        $run_core_exc = 1;
+    }
+    elsif( $calc =~ m/rixs/i )
+    {
+        $run_core_exc = 1;
+        $run_val_exc = 1;
+    }
+}
+
+### \EXCITON ###
+
+
+### CHECK STATUS ###
+
+my $run_paw = 0;
+if ( open STATUS, "../OPF/status" )
+{
+   $run_paw = <STATUS>;
+   chomp( $run_paw );
+   print "DFT STATUS : $run_paw\n";
+   close STATUS;
+}
+
+
+my $run_dft = 0;
+if ( open STATUS, "../DFT/status" )
+{
+   $run_dft = <STATUS>;
+   chomp( $run_dft );
+   print "DFT STATUS : $run_dft\n";
+   close STATUS;
+}
+
+
+my $run_wfn = 0;
+if ( open STATUS, "../PREP/status" )
+{
+   $run_wfn = <STATUS>;
+   chomp( $run_wfn );
+   print "PREP STATUS : $run_wfn\n";
+   close STATUS;
+}
+
+if ( open STATUS, "../zWFN/status" )
+{
+   $run_wfn = <STATUS>;
+   chomp( $run_wfn );
+   print "zWFN STATUS : $run_wfn\n";
+   close STATUS;
+}
+
+
+my $run_scr = 0;
+if ( open STATUS, "../SCREEN/status" )
+{
+   $run_scr = <STATUS>;
+   chomp( $run_scr );
+   print "SCREEN STATUS : $run_scr\n";
+   close STATUS;
+}
+
+
+my $run_vbse = 0;
+if ( open STATUS, "../NBSE/status" )
+{
+   $run_vbse = <STATUS>;
+   chomp( $run_vbse );
+   print "NBSE STATUS : $run_vbse\n";
+   close STATUS;
+}
+
+my $run_cbse = 0;
+if ( open STATUS, "../CNBSE/status" )
+{
+   $run_cbse = <STATUS>;
+   chomp( $run_cbse );
+   print "CNBSE STATUS : $run_cbse\n";
+   close STATUS;
+}
+
+
+# if RIXS folder exists see if it ran successfully
+# i.e. skip if we are plotting excitons after running RIXS
+my $run_rxs = 0;
+if ( -d "../RIXS/") {
+   if ( open STATUS, "../RIXS/status" )
+   {
+      $run_rxs = <STATUS>;
+      chomp( $run_rxs );
+      print "RIXS STATUS : $run_rxs\n";
+      close STATUS;
+   }
+}
+
+### \CHECK STATUS ###
+
+
 
 chdir "../";
 print "Done with parsing\n";
@@ -209,82 +330,127 @@ print "Done with parsing\n";
 # OPF stage
 ##########################################
 print "$Separator\n";
-if( $run_opf )
+if( $run_paw == 0 )
 {
-  print "Entering OPF stage\n";
-  chdir "OPF";
-  system("$OCEAN_BIN/opf.pl") == 0 or die "OPF stage failed\n";
-  chdir "../";
+  if( $run_opf )
+  {
+    print "Entering OPF stage\n";
+    chdir "OPF";
+    print_status(0);
+    system("$OCEAN_BIN/opf.pl") == 0 or die "OPF stage failed\n";
+    print_status(1);
+    chdir "../";
+  }
+}
+else
+{
+    print "No need to run PAW stage\n";
 }
 ##########################################
 #
 # DFT stage
 ##########################################
-if( $script_pre eq 'OBF' ) 
+if( $run_dft == 0 )
 {
-	print "$Separator\n";
-	print "Entering DFT stage\n";
-	chdir "DFT";
-	system("$OCEAN_BIN/dft.pl") == 0 or die "DFT Stage Failed\n$!";
-	chdir "../";
-} 
-elsif( $script_pre eq 'qe' )
-{
-	print "$Separator\n";
-  print "Entering QESPRESSO stage\n";
-  chdir "DFT";
-  system("$OCEAN_BIN/dft.pl") == 0 or die "Qespresso Stage Failed\n";
-  chdir "../";
+  if( $script_pre eq 'OBF' )
+  {
+    print "$Separator\n";
+    print "Entering DFT stage\n";
+    chdir "DFT";
+    print_status(0);
+    system("$OCEAN_BIN/dft.pl") == 0 or die "DFT Stage Failed\n$!";
+    print_status(1);
+    chdir "../";
+  }
+  elsif( $script_pre eq 'qe' )
+  {
+    print "$Separator\n";
+    print "Entering QESPRESSO stage\n";
+    chdir "DFT";
+    print_status(0);
+    system("$OCEAN_BIN/dft.pl") == 0 or die "Qespresso Stage Failed\n";
+    print_status(1);
+    chdir "../";
+  }
+  else
+  {
+    print "$Separator\n";
+    print "Entering ABINIT stage\n";
+    chdir "DFT";
+    print_status(0);
+    system("$OCEAN_BIN/AbinitDriver.pl") == 0 or die "Abinit Stage Failed\n";
+    print_status(1);
+    chdir "../";
+  }
 }
 else
 {
-	print "$Separator\n";
-	print "Entering ABINIT stage\n";
-	chdir "DFT";
-	system("$OCEAN_BIN/AbinitDriver.pl") == 0 or die "Abinit Stage Failed\n";
-  chdir "../";
+    print "No need to run DFT stage\n";
 }
 ##########################################
 #
 # zWFN stage
 ##########################################
-if( $script_pre eq 'OBF' ) 
+if( $run_wfn == 0 )
 {
-	print "$Separator\n";
-	print "Entering zWFN stage\n";
-	chdir "zWFN" or die "$!\n";
-	system("$OCEAN_BIN/${script_pre}_wfn.pl") == 0 or die "zWFN Stage Failed\n$!";
+  if( $script_pre eq 'OBF' )
+  {
+    print "$Separator\n";
+    print "Entering zWFN stage\n";
+    chdir "zWFN" or die "$!\n";
+    print_status(0);
+    system("$OCEAN_BIN/${script_pre}_wfn.pl") == 0 or die "zWFN Stage Failed\n$!";
+    print_status(1);
+    chdir "../";
+  }
+  else
+  {
+    print "$Separator\n";
+    print "Entering PREP stage\n";
+    chdir "PREP" or die "$!\n";
+    print_status(0);
+    if( $script_pre eq 'qe' )
+    {
+        system("$OCEAN_BIN/qe_dendip.pl") == 0 or die "PREP Stage Failed\n$!";
+    }
+    else
+    {
+        system("$OCEAN_BIN/dendip.pl") == 0 or die "PREP Stage Failed\n$!";
+    }
+    print_status(1);
+    chdir "../";
+  }
 }
 else
 {
-	print "$Separator\n";
-	print "Entering PREP stage\n";
-	chdir "PREP" or die "$!\n";
-	if( $script_pre eq 'qe' )
-	{
-  		system("$OCEAN_BIN/qe_dendip.pl") == 0 or die "PREP Stage Failed\n$!";
-	}
-	else
-	{
-		system("$OCEAN_BIN/dendip.pl") == 0 or die "PREP Stage Failed\n$!";
-	}
+      print "No need to run WFN stage\n";
 }
 ##########################################
 #
 # SCREENing stage
 ##########################################
 print "$Separator\n";
-if( $run_screen) 
+if( $run_screen)
 {
-  print "Entering SCREENing stage\n";
-  chdir "../SCREEN";
-  if( $script_pre eq 'OBF' )
+  if( $run_scr == 0 )
   {
-    system("$OCEAN_BIN/${script_pre}_screen_multi.pl") == 0 or die "SCREEN stage failed\n$!";
+    print "Entering SCREENing stage\n";
+    chdir "SCREEN";
+    print_status(0);
+    if( $script_pre eq 'OBF' )
+    {
+      system("$OCEAN_BIN/${script_pre}_screen_multi.pl") == 0 or die "SCREEN stage failed\n$!";
+    }
+    else
+    {
+      system("$OCEAN_BIN/screen.pl") == 0 or die "SCREEN stage failed\n$!";
+    }
+    print_status(1);
+    chdir "../";
   }
   else
   {
-    system("$OCEAN_BIN/screen.pl") == 0 or die "SCREEN stage failed\n$!";
+    print "No need to run core SCREEN stage\n";
   }
 }
 ##########################################
@@ -292,19 +458,87 @@ if( $run_screen)
 # CNBSE stage
 ##########################################
 print "$Separator\n";
-if( $calc =~ m/val/i )
+if( $calc =~ m/val/ )
 {
-  print "Entering NBSE stage\n";
-  chdir "../NBSE";
-  system("$OCEAN_BIN/nbse.pl") == 0 or die "CNBSE stage failed\n$!";
+  if( $run_vbse == 0 )
+  {
+    print "Entering NBSE stage\n";
+    chdir "NBSE";
+    print_status(0);
+    system("$OCEAN_BIN/nbse.pl") == 0 or die "CNBSE stage failed\n$!";
+    print_status(1);
+    chdir "../";
+  }
+  else
+  {
+    print "No need to run valence BSE stage\n";
+  }
 }
 else
 {
-  print "Entering CNBSE stage\n";
-  chdir "../CNBSE";
-  system("$OCEAN_BIN/cnbse_mpi.pl") == 0 or die "CNBSE stage failed\n$!";
+  if( $run_cbse == 0 )
+  {
+    print "Entering CNBSE stage\n";
+    chdir "CNBSE";
+    print_status(0);
+    system("$OCEAN_BIN/cnbse_mpi.pl") == 0 or die "CNBSE stage failed\n$!";
+    print_status(1);
+    chdir "../";
+  }
+  else
+  {
+    print "No need to run core BSE stage\n";
+  }
 }
-
+##########################################
+#
+# RIXS stage
+##########################################
+print "$Separator\n";
+if( $run_rixs == 1 )
+{
+  if ( $run_rxs == 0 )
+  {
+    print "Entering RIXS stage\n";
+    mkdir "RIXS" unless -d "RIXS";
+    chdir "RIXS";
+    print_status(0);
+    `echo gmres > ../Common/cnbse.solver`;
+    `echo xas > ../Common/calc`;
+    system("$OCEAN_BIN/rixs.pl > rixs.log") == 0 or die "RIXS stage failed\n$!";
+    print_status(1);
+    chdir "../";
+  }
+  else
+  {
+    print "No need to run RIXS stage\n";
+  }
+}
+##########################################
+#
+# EXCITON stage
+##########################################
+print "$Separator\n";
+if( $run_core_exc == 1 )
+{
+  print "Entering core EXCITON stage\n";
+  `mkdir -p EXCITON`;
+  chdir "EXCITON";
+  print_status(0);
+  system("$OCEAN_BIN/core-exciton.pl > exciton.log") == 0 or die "EXCITON stage failed\n$!";
+  print_status(1);
+  chdir "../";
+}
+if( $run_val_exc == 1 )
+{
+  print "Entering valence EXCITON stage\n";
+  `mkdir -p EXCITON`;
+  chdir "EXCITON";
+  print_status(0);
+  system("$OCEAN_BIN/val-exciton.pl > exciton.log") == 0 or die "EXCITON stage failed\n$!";
+  print_status(1);
+  chdir "../";
+}
 ##########################################
 print "$Separator\n";
 print "Ocean is done\n";
@@ -313,3 +547,14 @@ print "$Separator\n";
 
 
 exit 0;
+
+
+sub print_status {
+   if (-e "status") {
+   unlink('status') or die "Failed to delete status!\n";
+   }
+   open(my $runfh, '>', "status") or die "Could not open file 'status' $!";
+   print $runfh "$_[0]\n";
+   close $runfh;
+}
+
