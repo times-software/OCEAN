@@ -97,6 +97,104 @@ else
 
 }
 
+##### Determine which solver to use
+open IN, "cnbse.solver" or die "Failed to open cnbse.solver!\n$!";
+my $line = <IN>;
+close IN;
+my $solver;
+if( lc($line) =~ m/hay/ )
+{
+  $solver = 'hay';
+}
+elsif( lc($line) =~ m/gmres/ )
+{
+  $solver = 'gmres';
+  `echo .true. > echamp.inp`;       # do we want to change this to ehamp.inp ?
+}
+else
+{
+  print "Trouble parsing cnbse.solver!!\n*** Will default to  Haydock recursion ***\n";
+  $solver = 'hay';
+}
+## If gmres we need to further parse the inputs
+my $gmres_footer = "";
+if( $solver eq 'gmres' )
+{
+  open IN, "cnbse.gmres.nloop" or die "Failed to open cnbse.gmres.nloop\n$!";
+  $line = <IN>;
+  close IN;
+  chomp $line;
+  my $gmres_header = $line;
+
+  open IN, "cnbse.broaden" or die "Failed to open cnbse.broaden\n$!";
+  $line = <IN>;
+  close IN;
+  chomp $line;
+#  $line /= 27.2114;
+  $gmres_header .= " " . $line;
+
+  open IN, "cnbse.gmres.gprc" or die "Failed to open cnbse.gmres.gprc\n$!";
+  $line = <IN>;
+  close IN;
+  chomp $line;
+  $gmres_header .= " " . $line;
+
+  open IN, "cnbse.gmres.ffff" or die "Failed to open cnbse.gmres.ffff\n$!";
+  $line = <IN>;
+  close IN;
+  chomp $line;
+  $gmres_header .= " " . $line;
+
+  $gmres_header .= "  0.0\n";
+
+  my $have_elist = 0;
+  my $have_erange = 0;
+  open IN, "cnbse.gmres.elist" or die "Failed to open cnbse.gmres.elist\n$!";
+  $line = <IN>;
+  if( $line =~ m/false/ )
+  {
+    close IN;
+  }
+  else
+  {
+    $gmres_footer = $gmres_header . "list\n";
+    my $temp .= $line;
+    my $i = 1;
+    while( $line = <IN> )
+    {
+      $temp .= $line;
+      $i++;
+    }
+    $gmres_footer .= "$i\n";
+    $gmres_footer .= "$temp";
+    $have_elist = 1;
+    close IN;
+  }
+
+  open IN, "cnbse.gmres.erange" or die "Failed to open cnbse.gmres.erange\n$!";
+  $line = <IN>;
+  if( $line =~ m/false/ )
+  {
+    close IN;
+  }
+  else
+  {
+    $gmres_footer = $gmres_header . "loop\n";
+    $gmres_footer .= $line;
+    $have_erange = 1;
+    close IN;
+  }
+
+  if( $have_erange + $have_elist == 2 )
+  {
+    print "Both erange and elist were specified for GMRES. We are using erange\n";
+  }
+  elsif( $have_erange + $have_elist == 0 )
+  {
+    print "Neither elist nor erange were specified for GMRES!\nFalling back to Haydock\n";
+    $solver = 'hay';
+  }
+}
 
 ##### Trigger serial bse fallback here
 # later we should remove this and fold these two perl scripts together
@@ -241,8 +339,27 @@ my $num_haydock_iterations = `cat niter`;
 chomp($num_haydock_iterations);
 
 
-print INFILE "hay\n";
-print INFILE "$num_haydock_iterations  $spectrange  $gamma0  0.000\n";
+if( $solver eq 'gmres' )
+{
+   print INFILE "inv\n";
+   print INFILE $gmres_footer . "\n";
+}
+else
+{
+   print INFILE "hay\n";
+   if(  $run_serial == 1)
+   {
+      print INFILE "$spectrange  $gamma0  0.000\n";
+   }
+      else
+   {
+      print INFILE "$num_haydock_iterations  $spectrange  $gamma0  0.000\n";
+   }
+}
+
+
+#print INFILE "hay\n";
+#print INFILE "$num_haydock_iterations  $spectrange  $gamma0  0.000\n";
 close INFILE;
 
 `cat bse.in`;
