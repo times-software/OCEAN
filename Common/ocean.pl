@@ -524,9 +524,9 @@ if( $run_core_exc == 1 )
   print "Entering core EXCITON stage\n";
   `mkdir -p EXCITON`;
   chdir "EXCITON";
-  print_status(0);
+#  print_status(0);
   system("$OCEAN_BIN/core-exciton.pl > exciton.log") == 0 or die "EXCITON stage failed\n$!";
-  print_status(1);
+#  print_status(1);
   chdir "../";
 }
 if( $run_val_exc == 1 )
@@ -534,9 +534,9 @@ if( $run_val_exc == 1 )
   print "Entering valence EXCITON stage\n";
   `mkdir -p EXCITON`;
   chdir "EXCITON";
-  print_status(0);
+#  print_status(0);
   system("$OCEAN_BIN/val-exciton.pl > exciton.log") == 0 or die "EXCITON stage failed\n$!";
-  print_status(1);
+#  print_status(1);
   chdir "../";
 }
 ##########################################

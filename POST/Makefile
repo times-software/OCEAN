@@ -23,6 +23,7 @@ periodic.o: periodic.f90
 
 install:
 	cp exciton_plot.x val_exciton_plot.x $(INSTDIR)/
+	cp core-exciton.pl val-exciton.pl $(INSTDIR)/
 
 clean:
 	rm *.o *.x

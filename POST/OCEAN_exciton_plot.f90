@@ -9,7 +9,7 @@ program OCEAN_exciton_plot
   implicit none
 
   integer, parameter :: DP = kind(1.0d0 )
-  complex(DP), allocatable :: exciton(:,:,:), cond_exciton(:,:,:), Rspace_exciton(:,:,:), u2(:,:), rk_exciton(:,:,:)
+  complex(DP), allocatable :: exciton(:,:,:), cond_exciton(:,:), Rspace_exciton(:,:), u2(:,:), rk_exciton(:,:)
   complex(DP) :: cphs
 
   real(DP), allocatable :: z_stripe( : ), xyz(:,:), atom_loc(:,:)
@@ -17,13 +17,13 @@ program OCEAN_exciton_plot
 
   integer, allocatable :: ibeg(:,:)
   integer :: Rmesh(3), kmesh(3), nband, nalpha, nkpts, NR, Riter, kiter, xmesh(3), nspn, ispin, ivh2
-  integer :: ikx, iky, ikz, iRx, iRy, iRz, NX, i, ix, x_count, xiter, iy, iz, izz, bloch_selector, icms, ivms, icml
-  integer :: brange(4), u2size, u2start, Rshift(3), natom, kiter_break, Rstart(3), idum(3), ZNL(3)
+  integer :: ikx, iky, ikz, iRx, iRy, iRz, NX, i, ix, x_count, xiter, iy, iz, izz, bloch_selector
+  integer :: brange(4), u2size, u2start, Rshift(3), natom, kiter_break, Rstart(3), idum(3)
   character(len=25) :: filname
   character(len=128) :: outname
   character(len=2), allocatable :: elname(:)
 
-  logical :: metal, legacy_ibeg
+  logical :: metal
 
   real(DP), external :: DZNRM2
   complex(DP), parameter :: one = 1.0_dp
@@ -56,11 +56,11 @@ program OCEAN_exciton_plot
   open(unit=99,file='nspin',form='formatted',status='old')
   read(99,*) nspn
   close(99)
-!  if( nspn .ne. 1 ) then
-!    write(6,*) 'WARNING! Spin not yet supported!'
-!    goto 111
-!  endif
-!  nspn = 1
+  if( nspn .ne. 1 ) then
+    write(6,*) 'WARNING! Spin not yet supported!'
+    goto 111
+  endif
+  nspn = 1
 
   open(unit=99,file='qinunitsofbvectors.ipt',form='formatted',status='old')
   read(99,*) qinb(:)
@@ -92,17 +92,10 @@ program OCEAN_exciton_plot
   close(99)
 
   open(unit=99,file='ZNL',form='formatted',status='old')
-  read(99,*) ZNL(:)
+  read(99,*) idum(1:2), nalpha
   close(99)
   !(2l+1)
-  nalpha = (2*ZNL(3)+1) * 4
-
-  inquire(file='force_legacy_ibeg.ipt', exist=legacy_ibeg )
-  if( legacy_ibeg ) then
-    open( unit=99, file='force_legacy_ibeg.ipt', form='formatted',status='old')
-    read( 99, * ) legacy_ibeg
-    close( 99 )
-  endif
+  nalpha = (2*nalpha+1) * 4
 
   atom_loc = 0.0_DP
   do i = 1, natom
@@ -118,11 +111,6 @@ program OCEAN_exciton_plot
     read(99,*) metal
     close(99)
   endif
-
-  ! For our purposes metal means play games with ibeg
-  ! This means skipping over bands and the like
-  ! But the newer version of OCEAN doesn't bother
-  if( legacy_ibeg .eqv. .false. ) metal = .false.
 
   if( metal ) then
     allocate( ibeg( nkpts, nspn ) )
@@ -149,7 +137,7 @@ program OCEAN_exciton_plot
 
   write(6,*) nband, nkpts, nalpha
 
-  allocate( exciton( nband, nkpts, nalpha ), cond_exciton( nband, nkpts, nspn ) )
+  allocate( exciton( nband, nkpts, nalpha ), cond_exciton( nband, nkpts ) )
   write(6,*) filname
   open(unit=99,file=filname,form='unformatted',status='old')
   read(99) exciton
@@ -160,17 +148,9 @@ program OCEAN_exciton_plot
   su = 1.0_DP / su
   write(6,*) su
 
-  cond_exciton(:,:,:) = 0.0_DP
-  
-!  do i = 1, nalpha
-  i = 0
-  do icms = 1, 2
-    do icml = -ZNL(3), ZNL(3)
-      do ivms = 1, 2
-        i = i + 1
-          cond_exciton(:,:,ivms) = cond_exciton(:,:,ivms) + su * exciton(:,:,i)
-      enddo
-    enddo
+  cond_exciton(:,:) = 0.0_DP
+  do i = 1, nalpha
+    cond_exciton(:,:) = cond_exciton(:,:) + su * exciton(:,:,i)
   enddo
 
  
@@ -178,8 +158,8 @@ program OCEAN_exciton_plot
   u2start = brange(2)-brange(1)+2
   write(6,*) u2size, u2start, nband
   allocate( u2( NX, u2size ) )
-  allocate( rk_exciton( NX, nkpts, nspn ) )
-  rk_exciton(:,:,:) = 0.0d0
+  allocate( rk_exciton( NX, nkpts ) )
+  rk_exciton(:,:) = 0.0d0
 
   write(6,*) 'Opening u2'
   kiter_break = nkpts / 20
@@ -189,48 +169,41 @@ program OCEAN_exciton_plot
   case( 1 )
     open(unit=99,file='u2par.dat',access='stream',status='old',form='unformatted' )
 
-    if( nspn .ne. 1 ) then  
-      write(6,*) 'Spin not implemented for u2par.dat'
-      goto 111
-    endif
-    ispin = 1
     do kiter = 1, nkpts
       if( mod( kiter, kiter_break ) .eq. 0 ) write(6,*) kiter
       read(99) u2
       if( metal ) ivh2 = ibeg( kiter, 1 ) - 1
       u2start = ivh2 + 2
-      call ZGEMV( 'N', NX, nband, one, u2(1,u2start), NX, cond_exciton( 1, kiter, ispin ), 1, &
-                   one, rk_exciton( 1, kiter, ispin ), 1 )
+      call ZGEMV( 'N', NX, nband, one, u2(1,u2start), NX, cond_exciton( 1, kiter ), 1, &
+                   one, rk_exciton( 1, kiter ), 1 )
     enddo
 
     close( 99 )
 
   case( 0 )
     open(unit=99,file='u2.dat',form='unformatted',status='old')
-    do ispin = 1, nspn
-      do kiter = 1, nkpts
-        if( mod( kiter, kiter_break ) .eq. 0 ) write(6,*) kiter
-        if( metal ) ivh2 = ibeg( kiter, 1 ) - 1
-        do i = 1, ivh2 - brange( 1 ) + 1 !brange(2)-brange(1)+1
-          do ix = 1, NX
-            read(99) 
-          enddo
+    do kiter = 1, nkpts
+      if( mod( kiter, kiter_break ) .eq. 0 ) write(6,*) kiter
+      if( metal ) ivh2 = ibeg( kiter, 1 ) - 1
+      do i = 1, ivh2 - brange( 1 ) + 1 !brange(2)-brange(1)+1
+        do ix = 1, NX
+          read(99) 
         enddo
-        do i = 1, nband
-          do ix =1, NX
-            read(99) idum(1:3), ur, ui
-            u2( ix, i ) = cmplx( ur, ui, DP )
-          enddo
-        enddo
-        do i = ivh2 + nband + 1, brange(2)-brange(1)+brange(4)-brange(3) + 2
-          do ix = 1, NX
-             read ( 99 )
-          end do
-        enddo
-
-        call ZGEMV( 'N', NX, nband, one, u2, NX, cond_exciton( 1, kiter, ispin ), 1, &
-                     one, rk_exciton( 1, kiter, ispin ), 1 )
       enddo
+      do i = 1, nband
+        do ix =1, NX
+          read(99) idum(1:3), ur, ui
+          u2( ix, i ) = cmplx( ur, ui, DP )
+        enddo
+      enddo
+      do i = ivh2 + nband + 1, brange(2)-brange(1)+brange(4)-brange(3) + 2
+        do ix = 1, NX
+           read ( 99 )
+        end do
+      enddo
+
+      call ZGEMV( 'N', NX, nband, one, u2, NX, cond_exciton( 1, kiter ), 1, &
+                   one, rk_exciton( 1, kiter ), 1 )
     enddo
     close( 99 )
   case default
@@ -265,8 +238,7 @@ program OCEAN_exciton_plot
               Rvec(3) = twopi * (dble(iz)/dble(xmesh(3)) - tau(3))
               zphs = Rvec(3) * qvec(3) + yphs
               cphs = cmplx( cos( zphs ), sin( zphs ) )
-              ! Not sure how bad the cost of out-of-order memory will be
-              rk_exciton( xiter, kiter, : ) = rk_exciton( xiter, kiter, : ) * cphs
+              rk_exciton( xiter, kiter ) = rk_exciton( xiter, kiter ) * cphs
               
             enddo
           enddo
@@ -275,63 +247,57 @@ program OCEAN_exciton_plot
     enddo
   enddo
 
-  write(6,*) 'Done with rk exciton'
-
 
 ! Do Fourier transform into Rspace_exciton
-  allocate( Rspace_exciton( NX, NR, nspn ) )
+  allocate( Rspace_exciton( NX, NR ) )
   Rspace_exciton = 0.0_DP
 
 ! Using slow FT and 6 loops for clarity
   
+  kiter = 0
 !  qvec(1) = qinb(1) + k0(1)/dble(kmesh(1))
-  do ispin = 1, nspn
-    kiter = 0
-    do ikx = 0, kmesh(1)-1
-      qvec(1) = qinb(1) + (k0(1) + dble(ikx))/dble(kmesh(1))
-  !    qvec(1) = qinb(1) + dble(ikx)/dble(kmesh(1))
-  !    qvec(2) = qinb(2) + k0(2)/dble(kmesh(2))
-      do iky = 0, kmesh(2)-1
-        qvec(2) = qinb(2) + (k0(2) + dble(iky))/dble(kmesh(2))
-  !      qvec(2) = qinb(2) + dble(iky)/dble(kmesh(2))
-  !      qvec(3) = qinb(3) + k0(3)/dble(kmesh(3))
-        do ikz = 0, kmesh(3)-1
-          qvec(3) = qinb(3) + (k0(3) + dble(ikz))/dble(kmesh(3))
-  !        qvec(3) = qinb(3) + dble(ikz)/dble(kmesh(3))
-          
-          kiter = kiter + 1
-          Riter = 0
+  do ikx = 0, kmesh(1)-1
+    qvec(1) = qinb(1) + (k0(1) + dble(ikx))/dble(kmesh(1))
+!    qvec(1) = qinb(1) + dble(ikx)/dble(kmesh(1))
+!    qvec(2) = qinb(2) + k0(2)/dble(kmesh(2))
+    do iky = 0, kmesh(2)-1
+      qvec(2) = qinb(2) + (k0(2) + dble(iky))/dble(kmesh(2))
+!      qvec(2) = qinb(2) + dble(iky)/dble(kmesh(2))
+!      qvec(3) = qinb(3) + k0(3)/dble(kmesh(3))
+      do ikz = 0, kmesh(3)-1
+        qvec(3) = qinb(3) + (k0(3) + dble(ikz))/dble(kmesh(3))
+!        qvec(3) = qinb(3) + dble(ikz)/dble(kmesh(3))
+        
+        kiter = kiter + 1
+        Riter = 0
 
-          do iRx = Rstart(1), Rstart(1) + Rmesh(1) - 1
-            xphs = dble( iRx ) * qvec(1) 
-            do iRy = Rstart(2), Rstart(2) + Rmesh(2) - 1
-              yphs = xphs + dble(iRy) * qvec(2) 
-              do iRz = Rstart(3), Rstart(3) + Rmesh(3) - 1
-                Riter = Riter + 1
-                zphs = yphs + dble( iRz ) * qvec(3)
-                cphs = cmplx( cos( twopi * zphs ), sin( twopi * zphs ) )
+        do iRx = Rstart(1), Rstart(1) + Rmesh(1) - 1
+          xphs = dble( iRx ) * qvec(1) 
+          do iRy = Rstart(2), Rstart(2) + Rmesh(2) - 1
+            yphs = xphs + dble(iRy) * qvec(2) 
+            do iRz = Rstart(3), Rstart(3) + Rmesh(3) - 1
+              Riter = Riter + 1
+              zphs = yphs + dble( iRz ) * qvec(3)
+              cphs = cmplx( cos( twopi * zphs ), sin( twopi * zphs ) )
 
-  !JTV PHASE!!
-                ! phase info is wrong here
-                do xiter = 1, NX
-                  Rspace_exciton( xiter, Riter, ispin ) = Rspace_exciton( xiter, Riter, ispin ) & 
-                                                        + cphs * rk_exciton( xiter, kiter, ispin )
-                enddo
-
+!JTV PHASE!!
+              ! phase info is wrong here
+              do xiter = 1, NX
+                Rspace_exciton( xiter, Riter ) = Rspace_exciton( xiter, Riter ) + cphs * rk_exciton( xiter, kiter )
               enddo
+
             enddo
           enddo
-
-  !        qvec(3) = qvec(3) + 1.0_dp / dble( kmesh(3) )
         enddo
-  !      qvec(2) = qvec(2) + 1.0_dp / dble( kmesh(2) )
+
+!        qvec(3) = qvec(3) + 1.0_dp / dble( kmesh(3) )
       enddo
-  !    qvec(1) = qvec(1) + 1.0_dp / dble( kmesh(1) )
+!      qvec(2) = qvec(2) + 1.0_dp / dble( kmesh(2) )
     enddo
+!    qvec(1) = qvec(1) + 1.0_dp / dble( kmesh(1) )
   enddo
 
 
-  write(6,*) 'Done with Rspace exciton'
   deallocate( rk_exciton )
 
 
@@ -402,12 +368,7 @@ program OCEAN_exciton_plot
 
             do iz = 1, xmesh(3)
               izz = izz + 1
-              z_stripe( izz ) = 0.0_DP
-              do ispin = 1, nspn
-                z_stripe( izz ) = z_stripe( izz ) &
-                                + (Rspace_exciton( Xiter + iz, Riter, ispin )) &
-                                 *conjg(Rspace_exciton( Xiter + iz, Riter, ispin  ))
-              enddo
+              z_stripe( izz ) = (Rspace_exciton( Xiter + iz, Riter ))*conjg(Rspace_exciton( Xiter + iz, Riter ))
             enddo
           enddo
 
