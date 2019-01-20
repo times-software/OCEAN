@@ -45,10 +45,11 @@ if( $calc =~ m/val/i )
       print "Found sovler is GMRES\n";
       chdir "../NBSE";
       map { copy($_, "../EXCITON/$_") or die "Failed to copy echamp" } glob("ehamp_*");
+   #   map { copy($_, "../EXCITON/$_") or die "Failed to copy absspct" } glob("abss*");
       chdir "../EXCITON";
       my @BseFiles = ("avecsinbohr.ipt", "bloch_selector", "brange.ipt", "kmesh.ipt", "k0.ipt", "nspin", "nbuse.ipt", "opcons", "qinunitsofbvectors.ipt", "runlist", "u2.dat", "xmesh.ipt", "ZNL" );
       foreach (@BseFiles) {
-         copy( "../NBSE/$_", $_ ) or die "Failed to get NBSE/$_\n$!";
+         copy( "../NBSE/$_", $_ ) or die "Failed to get CNBSE/$_\n$!";
       }
    }
    else
@@ -66,7 +67,7 @@ elsif( $calc =~ m/rixs/i )
     print "Made it through RIXS rerun\n";
 
     # now we test whether the rest could work
-    copy("rxsspct_Si.2p_01.00001.02","opcons");
+#    copy("rxsspct_Si.2p_01.00001.02","opcons");
 
 #    # try the brute force approach
 #    opendir my $rixsdir, "../RIXS" or die "Cannot open RIXS directory$!\n";
@@ -82,6 +83,7 @@ elsif( $calc =~ m/rixs/i )
 
 
 # make xyz.wyck
+#system("$ENV{'OCEAN_BIN'}/pawsetup.x") == 0 or die "Failed to make xyz.wyck\n";
 system("$ENV{'OCEAN_BIN'}/makewyck.x") == 0 or die "Failed to make xyz.wyck\n";
 
 
@@ -91,63 +93,196 @@ system("$ENV{'OCEAN_BIN'}/makewyck.x") == 0 or die "Failed to make xyz.wyck\n";
 
 
 ### want to loop over all ehamp files
-# get the number of excitons we generated
-`wc -l < opcons > nexc`;
-open NEX, "nexc" or die "Failed to open nexc\n$!";
-my $line = <NEX>;
-close NEX;
-chomp $line;
-my $nexc = $line;
+# there are 4 values to loop over: ph_in, ph_out, w_i, w_loss
+
+my @ph_in;
+my @ph_out;
 
 
-my $zi;
 # Select the hole part of the exciton
+print "Working on the hole part\n";
 `echo 0 > ehflag.ipt`;
 
-for( my $i = 1; $i <= $nexc; $i++ )
+my $zi;
+my $zj;
+my $nce = get_nce();
+my $nve = get_nve();
+
+for( my $i = 1; $i <= $nce; $i++ )
 {
+   $zi = sprintf("%05d",$i);
+   for( my $j = 1; $j <= $nve; $j++ )
+   {
+       $zj = sprintf("%04d",$j);
+       # make exciton_plot.ipt
+       open EXCPLOT, ">exciton_plot.ipt";
+       print EXCPLOT "ehamp_Si.2p_01.$zi.02.$zj \n";
+       print EXCPLOT "hole_$zi.$zj.cube\n";
+       print EXCPLOT "3 3 3\n";
+       print EXCPLOT "-1 -1 -1\n";
+       close EXCPLOT;
 
-   $zi = sprintf("%04d",$i);
-   # make exciton_plot.ipt
-   open EXCPLOT, ">exciton_plot.ipt";
-   print EXCPLOT "ehamp_$zi\n";
-   print EXCPLOT "hole_$zi.cube\n";
-   print EXCPLOT "3 3 3\n";
-   print EXCPLOT "-1 -1 -1\n";
-   close EXCPLOT;
+       # run cube generator
+       system("$ENV{'OCEAN_BIN'}/val_exciton_plot.x") == 0 or die "Failed to run exciton plotter\n";
 
-   # run cube generator
-   system("$ENV{'OCEAN_BIN'}/val_exciton_plot.x") == 0 or die "Failed to run exciton plotter\n";
-
-   # rename input file to store
-   `mv exciton_plot.ipt exc_$zi.ipt`;
+       # rename input file to store
+       `mv exciton_plot.ipt exc_$zi.$zj.ipt`;
+   }
 }
 
 
 # Select the electron part of the exciton
+print "Working on the electron part\n";
 `echo 3 > ehflag.ipt`;
 
-for( my $i = 1; $i <= $nexc; $i++ )
+for( my $i = 1; $i <= $nce; $i++ )
 {
+   $zi = sprintf("%05d",$i);
+   for( my $j = 1; $j <= $nve; $j++ )
+   {
+ 
+       $zj = sprintf("%04d",$j);
+       # make exciton_plot.ipt
+       open EXCPLOT, ">exciton_plot.ipt";
+       print EXCPLOT "ehamp_Si.2p_01.$zi.02.$zj \n";
+       print EXCPLOT "electron_$zi.$zj.cube\n";
+       print EXCPLOT "3 3 3\n";
+       print EXCPLOT "-1 -1 -1\n";
+       close EXCPLOT;
 
-   $zi = sprintf("%04d",$i);
-   # make exciton_plot.ipt
-   open EXCPLOT, ">exciton_plot.ipt";
-   print EXCPLOT "ehamp_$zi\n";
-   print EXCPLOT "electron_$zi.cube\n";
-   print EXCPLOT "3 3 3\n";
-   print EXCPLOT "-1 -1 -1\n";
-   close EXCPLOT;
+       # run cube generator
+       system("$ENV{'OCEAN_BIN'}/val_exciton_plot.x") == 0 or die "Failed to run exciton plotter\n";
 
-   # run cube generator
-   system("$ENV{'OCEAN_BIN'}/val_exciton_plot.x") == 0 or die "Failed to run exciton plotter\n";
-
-   # rename input file to store
-   `mv exciton_plot.ipt exc_$zi.ipt`;
+       # rename input file to store
+       `mv exciton_plot.ipt exc_$zi.$zj.ipt`;
+   }
 }
 
 
+`mkdir -p Valence/`;
+opendir my $excdir, "./" or die "Cannot open directory$!\n";
+my @files = readdir $excdir;
+closedir $excdir;
+foreach my $file (@files) {
+    move $file, "Valence/$file";
+}
+# may want to introduce a check here (if Valence/Core exists)
+move "./Valence/Core/", "./Core";
 
 chdir "../";
 
 exit 0;
+
+
+sub get_nce {
+
+  my $nce = 0;
+  my $have_elist = 0;
+  my $have_erange = 0;
+
+  open IN, "cnbse.gmres.elist" or die "Failed to open cnbse.gmres.elist\n$!";
+  my $line = <IN>;
+  if( $line =~ m/false/ )
+  {
+    close IN;
+  }
+  else
+  {
+    $have_elist = 1;
+    $nce = 1;
+    while( $line = <IN> )
+    {
+      $nce++;
+    }
+    close IN;
+  }
+
+  open IN, "cnbse.gmres.erange" or die "Failed to open cnbse.gmres.erange\n$!";
+  $line = <IN>;
+  if( $line =~ m/false/ )
+  {
+    close IN;
+  }
+  else
+  {
+    $have_erange = 1;
+    my @erange = split ' ', $line;
+    my $emin = @erange[0];
+    my $emax = @erange[1];
+    my $estep = @erange[2];
+
+    for( my $c = $emin; $c <= $emax; $c += $estep ) {
+            $nce++;
+    }
+#    print "We have $nve energies\n";
+    close IN;
+  }
+
+  if( $have_erange + $have_elist == 2 )
+  {
+    print "Both erange and elist were specified for GMRES. We are using erange\n";
+  }
+  elsif( $have_erange + $have_elist == 0 )
+  {
+    print "Neither elist nor erange were specified for GMRES!\nFalling back to Haydock\n";
+  }
+
+  return $nce;
+}
+
+
+sub get_nve {
+
+  my $nve = 0;
+  my $have_elist = 0;
+  my $have_erange = 0;
+
+  open IN, "vnbse.gmres.elist" or die "Failed to open vnbse.gmres.elist\n$!";
+  my $line = <IN>;
+  if( $line =~ m/false/ )
+  {
+    close IN;
+  }
+  else
+  {
+    $have_elist = 1;
+    $nve = 1;
+    while( $line = <IN> )
+    {
+      $nve++;
+    }
+    close IN;
+  }
+
+  open IN, "vnbse.gmres.erange" or die "Failed to open vnbse.gmres.erange\n$!";
+  $line = <IN>;
+  if( $line =~ m/false/ )
+  {
+    close IN;
+  }
+  else
+  {
+    $have_erange = 1;
+    my @erange = split ' ', $line;
+    my $emin = @erange[0];
+    my $emax = @erange[1];
+    my $estep = @erange[2];
+
+    for( my $c = $emin; $c <= $emax; $c += $estep ) {
+            $nve++;
+    }
+#    print "We have $nve energies\n";
+    close IN;
+  }
+
+  if( $have_erange + $have_elist == 2 )
+  {
+    print "Both erange and elist were specified for GMRES. We are using erange\n";
+  }
+  elsif( $have_erange + $have_elist == 0 )
+  {
+    print "Neither elist nor erange were specified for GMRES!\nFalling back to Haydock\n";
+  }
+
+  return $nve;
+}

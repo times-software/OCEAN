@@ -20,7 +20,7 @@ program OCEAN_val_exciton_plot
   integer :: ikx, iky, ikz, iRx, iRy, iRz, NX, i, ix, x_count, xiter, iy, iz, izz, bloch_selector
   integer :: brange(4), u2size, u2start, Rshift(3), natom, kiter_break, Rstart(3), idum(3)
   integer :: nvb, ncb, ehflag, ixctr
-  character(len=25) :: filname
+  character(len=28) :: filname
   character(len=128) :: outname
   character(len=2), allocatable :: elname(:)
 

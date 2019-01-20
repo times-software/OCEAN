@@ -251,6 +251,14 @@ cnbse.gmres.ffff
 {
 0.00000005
 } cnbse.gmres.ffff
+vnbse.gmres.elist
+{
+false
+} vnbse.gmres.elist
+vnbse.gmres.erange
+{
+false
+} vnbse.gmres.erange
 cnbse.write_rhs
 {
 .false.

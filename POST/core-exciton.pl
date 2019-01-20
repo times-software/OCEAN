@@ -84,7 +84,7 @@ my @ph;
 open RL, "runlist" or die "Failed to open runlist\n$!";
 my $nspec = <RL>;
 chomp $nspec;
-print "Number of absspct files : $nspec\n";
+# print "Number of absspct files : $nspec\n";
 # need to build arrays of length nspec for elm name, core state, site num, photon num
 my $line;
 my @entry;
@@ -161,9 +161,9 @@ for( my $j = 1; $j <= $nexc; $j++ )
       close EXCPLOT;
 
       # run cube generator
-      print "Starting exciton_plot\n";
+#      print "Starting exciton_plot\n";
       system("$ENV{'OCEAN_BIN'}/exciton_plot.x") == 0 or die "Failed to run exciton plotter\n";
-      print "Back from exciton_plot\n";
+#      print "Back from exciton_plot\n";
 
       # rename input file
 #      `mv exciton_plot.ipt exc_$label.ipt`;

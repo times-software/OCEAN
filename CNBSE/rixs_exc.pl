@@ -10,9 +10,10 @@
 
 use strict;
 use File::Copy;
+use POSIX;
 
 if (! $ENV{"OCEAN_BIN"} ) {
-  $0 =~ m/(.*)\/cnbse_mpi\.pl/;
+  $0 =~ m/(.*)\/rixs\.pl/;
   $ENV{"OCEAN_BIN"} = $1;
   print "OCEAN_BIN not set. Setting it to $1\n";
 }
@@ -22,18 +23,22 @@ my %alphal = ( "0" => "s", "1" => "p", "2" => "d", "3" => "f" );
 
 my @CommonFiles = ("epsilon", "xmesh.ipt", "nedges", "k0.ipt", "nbuse.ipt", 
   "cnbse.rad", "metal", "cksshift", "cksstretch",  
-  "cnbse.niter", "cnbse.spect_range", "cnbse.broaden", "calc", "nphoton", "dft", 
+  "cnbse.niter", "cnbse.spect_range", "cnbse.broaden", "nphoton", "dft", 
   "para_prefix", "cnbse.strength", "serbse", "core_offset", "avecsinbohr.ipt", 
   "cnbse.solver", "cnbse.gmres.elist", "cnbse.gmres.erange", "cnbse.gmres.nloop", 
-  "cnbse.gmres.gprc", "cnbse.gmres.ffff", "cnbse.write_rhs", "spin_orbit", "nspin",
-  "gwcstr", "gw_control" );
+  "cnbse.gmres.gprc", "cnbse.gmres.ffff", "cnbse.write_rhs", "spin_orbit", "nspin", 
+  "niter", "backf", "aldaf", "bwflg", "bande", "bflag", "lflag", "decut", "spect.h", "calc", 
+  "photon_in", "photon_out", "qinunitsofbvectors.ipt", "vnbse.gmres.elist", "vnbse.gmres.erange" );
 
-my @DFTFiles = ("nelectron");
+my @DFTFiles = ("nelectron", "rhoofr");
 
-my @DenDipFiles = ("kmesh.ipt", "masterwfile", "listwfile", "efermiinrydberg.ipt", "qinunitsofbvectors.ipt", "brange.ipt", "enkfile", "tmels", "nelectron", "eshift.ipt" );
+my @DenDipFiles = ("kmesh.ipt", "masterwfile", "listwfile", "efermiinrydberg.ipt", 
+                   "brange.ipt", "enkfile", "tmels", "nelectron", 
+                   "eshift.ipt" );
 
-my @WFNFiles = ("kmesh.ipt",  "efermiinrydberg.ipt", "qinunitsofbvectors.ipt", "brange.ipt", 
-                "wvfcninfo", "wvfvainfo", "obf_control", "ibeg.h", "q.out");
+my @WFNFiles = ("kmesh.ipt",  "efermiinrydberg.ipt", "brange.ipt", 
+                "wvfcninfo", "wvfvainfo", "obf_control", "ibeg.h", "q.out", "tmels.info", 
+                "val_energies.dat", "con_energies.dat" );
 
 my @ExtraFiles = ("Pquadrature", "sphpts" );
 
@@ -57,6 +62,16 @@ else
   $obf = 0;
 }
 
+open IN, "calc" or die "Failed to open calc\n$!";
+my $calc = <IN>;
+chomp $calc;
+close IN;
+unless( lc( $calc ) =~ m/rxs/ || lc( $calc ) =~ m/c2c/ )
+{
+  print "Unexpected value of 'calc'\nChanging to RXS\n";
+  $calc = 'RXS';
+}
+
 
 if( $obf == 1 ) 
 {
@@ -78,6 +93,10 @@ if( $obf == 1 )
 }
 else
 {
+  foreach (@DFTFiles) {
+    copy( "../PREP/$_", $_) or die "Failed to get DFT/$_\n$!";
+  }
+
   foreach (@DenDipFiles) {
     copy( "../PREP/BSE/$_", $_ ) or die "Failed to get PREP/BSE/$_\n$!" ;
   }
@@ -101,27 +120,37 @@ foreach (@PawFiles) {
   copy( "../SCREEN/$_", $_ ) or die "Failed to get ../SCREEN/$_\n$!";
 }
 
-##### Determine which solver to use
+##### Rixs requires that gmres be used #####
+
+# temporary hack
+`echo gmres > cnbse.solver`;
+
 open IN, "cnbse.solver" or die "Failed to open cnbse.solver!\n$!";
 my $line = <IN>;
 close IN;
 my $solver;
 if( lc($line) =~ m/hay/ )
 {
-  $solver = 'hay';
+  print "Must select GMRES for use with rixs\n";
+#  print "Cannot continue\n";
+#  exit 1;
+  print "Changing to GMRES\n";
+  $solver = 'gmres';
 }
 elsif( lc($line) =~ m/gmres/ )
 {
   $solver = 'gmres';
-  `echo .true. > echamp.inp`;
 }
 else
 {
-  print "Trouble parsing cnbse.solver!!\n*** Will default to  Haydock recursion ***\n";
-  $solver = 'hay';
+  print "Trouble parsing cnbse.solver!!\n\n";
+  print "Must select GMRES for use with rixs\n";
+  print "Cannot continue\n";
+  exit 1;
 }
 ## Now if gmres we need to parse the inputs for that
 my $gmres_footer = "";
+my $gmres_count = 0;
 if( $solver eq 'gmres' )
 {
   open IN, "cnbse.gmres.nloop" or die "Failed to open cnbse.gmres.nloop\n$!";
@@ -134,7 +163,6 @@ if( $solver eq 'gmres' )
   $line = <IN>;
   close IN;
   chomp $line;
-#  $line /= 27.2114;
   $gmres_header .= " " . $line;
 
   open IN, "cnbse.gmres.gprc" or die "Failed to open cnbse.gmres.gprc\n$!";
@@ -155,7 +183,7 @@ if( $solver eq 'gmres' )
   my $have_erange = 0;
   open IN, "cnbse.gmres.elist" or die "Failed to open cnbse.gmres.elist\n$!";
   $line = <IN>;
-  if( $line =~ m/false/ )
+  if( $line =~ m/false/i )
   {
     close IN;
   }
@@ -169,6 +197,7 @@ if( $solver eq 'gmres' )
       $temp .= $line;
       $i++;
     }
+    $gmres_count = $i;
     $gmres_footer .= "$i\n";
     $gmres_footer .= "$temp";
     $have_elist = 1;
@@ -177,26 +206,41 @@ if( $solver eq 'gmres' )
 
   open IN, "cnbse.gmres.erange" or die "Failed to open cnbse.gmres.erange\n$!";
   $line = <IN>;
-  if( $line =~ m/false/ )
+  if( $line =~ m/false/i )
   {
     close IN;
   }
   else
   {
-    $gmres_footer = $gmres_header . "loop\n";
-    $gmres_footer .= $line;
-    $have_erange = 1;
+    if( $have_erange == 1 )
+    {
+      print "Both erange and elist were specified for GMRES. We are using erange\n";
+    }
+    else
+    {
+      $gmres_footer = $gmres_header . "loop\n";
+      $line =~ m/([-+]?[0-9]*\.?[0-9]+([eE][-+]?[0-9]+)?)\s+([-+]?[0-9]*\.?[0-9]+([eE][-+]?[0-9]+)?)\s+([-+]?[0-9]*\.?[0-9]+([eE][-+]?[0-9]+)?)/ or die "Failed to parse erange setting\n$line";
+      my $estart = $1; my $estop = $3; my $estep = $5;
+      print "GMRES loop: $estart\t$estop\t$estep\n";
+      $gmres_count = floor( ($estop - $estart + $estep*.9 ) / $estep );
+      print "      count $gmres_count\n";
+      $gmres_footer .= $line;
+      $have_erange = 1;
+    }
     close IN;
   }
 
-  if( $have_erange + $have_elist == 2 )
+#  if( $have_erange + $have_elist == 2 )
+#  {
+#    print "Both erange and elist were specified for GMRES. We are using erange\n";
+#  }
+  if( $have_erange + $have_elist == 0 )
   {
-    print "Both erange and elist were specified for GMRES. We are using erange\n";
-  }
-  elsif( $have_erange + $have_elist == 0 )
-  {
-    print "Neither elist nor erange were specified for GMRES!\nFalling back to Haydock\n";
-    $solver = 'hay';
+    print "Neither elist nor erange were specified for GMRES!\n";
+    print "*** WARNING ***\n";
+    $have_elist = 1;
+    $gmres_footer = $gmres_header . "list\n1\n0\n";
+    $gmres_count = 1;
   }
 }
 
@@ -210,16 +254,16 @@ if( -e "serbse" )
   if( $1 == 1 )
   {
     print "Serial BSE requested!!\n";
-#    exit system("$ENV{'OCEAN_BIN'}/OBF_cnbse.pl");
-    $run_serial = 1;
+    print "Parallel required\nCannot continue\n";
+    exit 1;
   }
   close IN;
 }
 unless( -e "$ENV{'OCEAN_BIN'}/ocean.x" )
 {
-  print "Parallel BSE executable not present in $ENV{'OCEAN_BIN'}\nAttempting serial run ...\n";
-#  exit system("$ENV{'OCEAN_BIN'}/OBF_cnbse.pl");
-  $run_serial = 1;
+  print "Parallel BSE executable not present in $ENV{'OCEAN_BIN'}\n";
+  print "Parallel required\nCannot continue\n";
+  exit 1;
 }
 
 # Grab the needed photon files, copy them into the CNBSE directory,
@@ -318,6 +362,19 @@ copy( "kmesh.ipt", "kgrid" ) or die "$!";
 copy( "k0.ipt", "scaledkzero.ipt" ) or die "$!";
 copy( "qinunitsofbvectors.ipt", "cksdq" ) or die "$!";
 
+##### qin must be non-zero
+if( $calc =~ m/rxs/i )
+{
+  open QIN, "qinunitsofbvectors.ipt" or die "Failed to open qinunitsofbvectors.ipt\n$!";
+  <QIN> =~ m/(\d*\.?\d+)\s+(\d*\.?\d+)\s+(\d*\.?\d+)/ or die "Failed to parse qinunitsofbvectors.ipt\n";
+  close QIN;
+  if( abs( $1 ) + abs( $2 ) + abs( $3 ) < 0.0000001 ) 
+  {
+    print "Non-zero q required for RIXS\n";
+    exit 1;
+  }
+}
+
 my $para_prefix = "";
 if( open PARA_PREFIX, "para_prefix" )
 {
@@ -330,8 +387,8 @@ if( open PARA_PREFIX, "para_prefix" )
 }
 
 
-# Set up mode
-  my $is_xas;
+# Set up mode -- need to run as xas which means ignore cnbse.mode
+  my $is_xas = 1;
   open TMPFILE, "cnbse.niter" or die "Failed to open cnbse.niter\n$!";
   <TMPFILE> =~ m/(\d+)/ or die "Failed to parse cnbse.niter";
   my $num_haydock_iterations = $1;
@@ -342,37 +399,9 @@ if( open PARA_PREFIX, "para_prefix" )
   my $interaction_strength = $1; 
   close TMPFILE;
     
-  open TMPFILE, "calc" or die "Failed to open calc\n";
-  my $mode = <TMPFILE>;
-  close TMPFILE;
-  chomp($mode);
-  if( lc($mode) =~ m/xes/ )
-  {
-    print "Calculating XES\n";
-    $interaction_strength = 0.0;
-    $is_xas = 0;
-  } 
-  elsif( lc($mode) =~ m/xas/ )
-  {
-    print "Calculating XAS\n";
-    $is_xas = 1;
-  }
-  else
-  {
-    print "Unrecognized mode. Calculating XAS\n";
-    $is_xas = 1;
-  }
-
 # write cks.normal file
   open TMPFILE, ">cks.normal" or die "Failed to open cks.normal for writing\n$!";
-  if( $is_xas == 1 )
-  {  
-    print TMPFILE ".true.\n";
-  }
-  else
-  {
-    print TMPFILE ".false.\n";
-  }
+  print TMPFILE ".true.\n";
   close TMPFILE;
 
 #write mode file
@@ -382,6 +411,7 @@ if( open PARA_PREFIX, "para_prefix" )
 
 ###############
 # If we are using QE/ABI w/o OBFs we need to set nbuse
+my @brange;
 my $run_text = '';
 open NBUSE, "nbuse.ipt" or die "Failed to open nbuse.ipt\n";
 <NBUSE> =~ m/(\d+)/ or die "Failed to parse nbuse.ipt\n";
@@ -411,12 +441,8 @@ if( $obf == 1 )
 }
 else  ### Abi/QE w/o obf
 { 
-  my @brange;
-#  if ($nbuse == 0) {
-  if( $nbuse != 0 ) 
-  {
-    print "Currently nbuse is set to defaults!\n";
-  }
+#  my @brange;
+  if ($nbuse == 0) {
     open BRANGE, "brange.ipt" or die "Failed to open brange.ipt\n";
     <BRANGE> =~ m/(\d+)\s+(\d+)/ or die "Failed to parse brange.ipt\n";
     $brange[0] = $1;
@@ -440,21 +466,20 @@ else  ### Abi/QE w/o obf
     open NBUSE, ">nbuse.ipt" or die "Failed to open nbuse.ipt\n";
     print NBUSE "$nbuse\n";
     close NBUSE;
-#  }
-#  else
-#  {
-#    if( $is_xas == 1 )
-#    {
-#      $run_text = 'XAS';
-#    }
-#    else
-#    {
-#      print "XES!\n";
-#      $run_text = 'XES';
-#    }
-#  }
+  }
+  else
+  {
+    if( $is_xas == 1 )
+    {
+      $run_text = 'XAS';
+    }
+    else
+    {
+      print "XES!\n";
+      $run_text = 'XES';
+    }
+  }
 }
-
 
 system("$ENV{'OCEAN_BIN'}/getnval.x") == 0 or die "Failed to get nval\n";
 
@@ -486,6 +511,8 @@ else  # We are using abi/qe path w/o obfs
     system("ln -sf ../PREP/BSE/$2 .") == 0 or die "Failed to link $2\n";
   }  
 
+  print "Running setup\n";
+  system("$ENV{'OCEAN_BIN'}/setup2.x > setup.log") == 0 or die "Setup failed\n";
 
   if (-e "../PREP/BSE/u2.dat")
   {
@@ -493,8 +520,6 @@ else  # We are using abi/qe path w/o obfs
   }
   else
   {
-    print "Running setup\n";
-    system("$ENV{'OCEAN_BIN'}/setup2.x > setup.log") == 0 or die "Setup failed\n";
     print "conugtoux\n";
     system("$ENV{'OCEAN_BIN'}/conugtoux.x > conugtoux.log");# == 0 or die;
     print "orthog\n";
@@ -514,6 +539,30 @@ my $pawrad = `cat cnbse.rad`;
 chomp($pawrad);
 $pawrad = sprintf("%.2f", $pawrad);
 
+my @xas_photon_files;
+if( -e 'photon_in' )
+{
+  my $photon_list = '';
+  open IN, "photon_in" or die "Whups\n$!";
+  while( <IN> )
+  {
+    chomp;
+    $photon_list .= $_ . " ";
+  }
+  close IN;
+  @xas_photon_files = split(/\s+/, $photon_list );
+  print "XAS photons from photon_in\n";
+}
+else
+{
+  @xas_photon_files = @photon_files;
+  print "XAS photons using nphoton\n";
+}
+
+foreach my $line (@xas_photon_files )
+{
+  print $line . "\n";
+}
 
 my %unique_z;
 my %unique_znl;
@@ -521,7 +570,8 @@ my %unique_znl;
 open RUNLIST, ">runlist";
 my $hfinlength = `wc -l hfinlist`;
 chomp($hfinlength);
-$hfinlength *= ($#photon_files + 1 );
+#$hfinlength *= ($#photon_files + 1 );
+$hfinlength *= ($#xas_photon_files + 1 );
 print "$hfinlength\n";
 print RUNLIST "$hfinlength\n";
 
@@ -539,7 +589,8 @@ while (<EDGE>) {
   my $elnum = $6;
 
 #  for( my $i = 1; $i <= $#photon_files+1; $i++ ) 
-  foreach my $way (@photon_files) 
+#  foreach my $way (@photon_files) 
+  foreach my $way (@xas_photon_files)
   {
     $way =~ m/(\d+)$/ or die "Malformed photon file name:\t$way\n";
     my $i = $1;
@@ -547,13 +598,6 @@ while (<EDGE>) {
   }
 
 
-  my $cks;
-  if( $is_xas == 1  ) {
-    $cks = sprintf("cksc.${elname}%04u", $elnum );
-  } 
-  else {
-    $cks = sprintf("cksv.${elname}%04u", $elnum );
-  }
 
   # For each unique Z we need to grab some files from OPF
   unless( exists $unique_z{ "$znum" } )
@@ -578,32 +622,58 @@ while (<EDGE>) {
 
   }
 
-  print "CKS NAME = $cks\n";
-  if( $obf == 1 )
+  for( my $cks_iter = 1; $cks_iter <= 2; $cks_iter++ )
   {
-    copy( "../zWFN/$cks", $cks ) or die "Failed to grab $cks\n$!";
+    my $cks;
+    if( $cks_iter == 2  ) {
+      $cks = sprintf("cksc.${elname}%04u", $elnum );
+    } 
+    else {
+      $cks = sprintf("cksv.${elname}%04u", $elnum );
+    }
+    print "CKS NAME = $cks\n";
+    if( $obf == 1 )
+    {
+      copy( "../zWFN/$cks", $cks ) or die "Failed to grab $cks\n$!";
+    }
+    else # qe/abi w/o obf need to calculate cainkset
+    {
+      if( $cks_iter == 2  ) {
+      open CKSNORM, ">cks.normal" or die "Failed to open cks.normal\n$!";
+      print CKSNORM ".true.\n";
+      close CKSNORM;
+      $nbuse = $brange[3] - $brange[2] + 1;
+
+      }
+      else {
+        open CKSNORM, ">cks.normal" or die "Failed to open cks.normal\n$!";
+        print CKSNORM ".false.\n";
+        close CKSNORM;
+        $nbuse = $brange[1] - $brange[0] + 1;
+      }
+
+      open NBUSE, ">nbuse.ipt" or die "Failed to open nbuse.ipt\n";
+      print NBUSE "$nbuse\n";
+      close NBUSE;
+
+
+      open ZNL, ">ZNL" or die;
+      print ZNL "$znum  $nnum  $lnum\n";
+      close ZNL;
+
+      open CKSIN, ">cks.in" or die "Failed to open cks.in\n";
+      print CKSIN "1\n$elname  $elnum  cbinf\n";
+      close CKSIN;
+
+
+      print "cks\n";
+      system("$ENV{'OCEAN_BIN'}/cks.x < cks.in > cks.log") == 0 or die;
+      move( "cbinf0001", $cks ) or die "Failed to move cbinf0001 to $cks\n$!";
+    }
   }
-  else # qe/abi w/o obf need to calculate cainkset
-  {
-    open ZNL, ">ZNL" or die;
-    print ZNL "$znum  $nnum  $lnum\n";
-    close ZNL;
 
-    open CKSIN, ">cks.in" or die "Failed to open cks.in\n";
-    print CKSIN "1\n$elname  $elnum  cbinf\n";
-    close CKSIN;
-
-
-    print "cks\n";
-    system("$ENV{'OCEAN_BIN'}/cks.x < cks.in > cks.log") == 0 or die;
-    move( "cbinf0001", $cks ) or die "Failed to move cbinf0001 to $cks\n$!";
-#    `mv cbinf0001 $cks`;
-  }
-
-#  my $add10_zstring = sprintf("z%03un%02ul%02u", $znum, $nnum, $lnum);
   my $zstring = sprintf("z%2s%04i/n%02il%02i", $elname, $elnum, $nnum, $lnum);
   my $compactZstring = sprintf("z%2s%04i_n%02il%02i", $elname, $elnum, $nnum, $lnum);
-#  system("cp ../SCREEN/${zstring}/zR${pawrad}/rpot ./rpot.${zstring}") == 0 
   print "$zstring   $compactZstring\n";
   print "../SCREEN/${zstring}/zR${pawrad}/rpot  rpot.${compactZstring}\n";
   unless( copy( "../SCREEN/${zstring}/zR${pawrad}/rpot", "rpot.${compactZstring}" ) == 1 )
@@ -612,7 +682,6 @@ while (<EDGE>) {
     copy( "../SCREEN/${zstring}/zR${pawrad}/rpot", "rpot.${zstring}" )
       or die "Failed to grab rpot\n../SCREEN/${zstring}/zR${pawrad}/rpot ./rpot.${zstring}\n";
   }
-#
 
   # If we don't want CLS then make sure the file is not here
   if( $core_offset =~ m/false/i )
@@ -625,7 +694,7 @@ while (<EDGE>) {
   else
   {
     copy( "../SCREEN/${zstring}/zR${pawrad}/cls", "cls.${compactZstring}" ) 
-      or warn "WARNING!\nCore-level shift support requested, but could not find ../SCREEN/${zstring}/zR${pawrad}/cls\n\$!"
+      or warn "WARNING!\nCore-level shift support requested, but could not find ../SCREEN/${zstring}/zR${pawrad}/cls\n"
             . "No CLS will be done for this site!\n";
     $cls_count++;
     open IN, "cls.${compactZstring}" or die "Failed to open cls.${compactZstring}\n$!";
@@ -652,21 +721,6 @@ open OUT, ">cls_average" or die "$!";
 print OUT "$cls_average\n";
 close OUT;
 
-#while ( my ($key, $value ) = each(%unique_z) )
-#{
-#  my $zstring = sprintf("z%03i", $key);
-#  print $zstring ."\n";
-#  `ln -sf ../PAW/zpawinfo/*${zstring}* .`;
-#  my $templine = `ls ../PAW/zpawinfo/*$zstring`;
-#  chomp($templine);
-#  my @pslist = split(/\s+/, $templine);
-#  foreach (@pslist) 
-#  {
-#    $_ =~ m/ae(\S+)/;
-#    `ln -sf ../PAW/zpawinfo/ae$1 .`;
-#    `ln -sf ae$1 ps$1`;
-#  }
-#}
 
 while ( my ($key, $value ) = each(%unique_znl) )
 { 
@@ -682,13 +736,11 @@ while ( my ($key, $value ) = each(%unique_znl) )
 #
   foreach my $way (@photon_files) {
     copy( $way, "spectfile" ) or die "Failed to copy $way\n$!";
-#    system("cp ${way} spectfile") ;#== 0 or die;
     system("$ENV{'OCEAN_BIN'}/meljtv.x");
     $way =~ m/(\d+)$/ or die "Misformed photon file name\n";
     my $i = $1;
     my $mel_targ = sprintf("mels.z%03un%02ul%02up%02u", $znum, $nnum, $lnum, $i );
     move( "mels", $mel_targ ) or die "Failed to move mels to $mel_targ\n$!";
-#    `mv mels $mel_targ`;
   }  
 
 
@@ -735,9 +787,6 @@ open OUT, ">so.ipt" or die "$!";
 print OUT "$spin_orbit\n";
 close OUT;
 
-open TMPFILE, "cnbse.niter" or die "Failed to open niter\n";
-<TMPFILE> =~ m/(\d+)/ or die "Failed to parse niter\n";
-my $niter = $1;
 close TMPFILE;
 my $spectrange = `cat cnbse.spect_range`;
 chomp($spectrange);
@@ -759,102 +808,247 @@ if( $solver eq 'gmres' )
 else
 {
   print INFILE "hay\n";
-  if(  $run_serial == 1)
-  {
-    print INFILE "$spectrange  $gamma0  0.000\n";
-  }
-  else
-  {
-    print INFILE "$niter  $spectrange  $gamma0  0.000\n";
-  }
+  print INFILE "$num_haydock_iterations  $spectrange  $gamma0  0.000\n";
 }
 close INFILE;
 
+# open echamp.inp
+open INFILE, ">echamp.inp" or die "$!";
+print INFILE ".true.\n";
+close INFILE;
+
+# Run ocean.x once for all the selected energies to get the excitons
+$ENV{"OMP_NUM_THREADS"}=1;
+
+print "Running XAS through GMRES\n";
+print "time $para_prefix $ENV{'OCEAN_BIN'}/ocean.x > core.log";
+system("time $para_prefix $ENV{'OCEAN_BIN'}/ocean.x > core.log") == 0 or die "Failed to finish\n"; 
 
 
-#Provide here the legacy serial option
-if( $run_serial == 1)
+# Set up for running the valence pathway for RIXS
+
+print "\nSetting up valence section\n";
+move("runlist", "runlist.xas");
+
+open IN, "runlist.xas" or die "Failed to open runlist.xas\n$!";
+<IN>;
+<IN> =~ m/^\s*(\d+)\s+(\d+)\s+(\d+)\s+(\w\w)\s+(\w\w)/ or die;
+my $znum = $1;
+my $nnum = $2;
+my $lnum = $3;
+my $elname = $4;
+my $corelevel = $5;
+close IN;
+
+#Set XES photon options
+my @xes_photon_files;
+if( -e 'photon_out' )
 {
-
-  open RUNLIST, "runlist" or die;
-  <RUNLIST> =~ m/(\d+)/ or die;
-  my $num_runs = $1;
-  die "Unpossible num runs\n" if( $num_runs < 1 );
-  print "Will run through $num_runs in serial\n";
-
-  my $run_count = 0;
-  while( my $runline = <RUNLIST>)
+  my $photon_list = '';
+  open IN, "photon_out" or die "Whups\n$!";
+  while( <IN> )
   {
-    $run_count++;
-    $runline =~ m/(\d+)\s+(\d+)\s+(\d+)\s+(\w+)\s+(\d\w)\s+(\d+)\s+(\d+)\s+(\w+)/ or die "Failed to parse runlist\n$runline";
-    my $znum = $1; my $nnum = $2; my $lnum = $3;
-    my $elname = $4; my $alphal = $5; my $elnum = $6; my $i = $7; my $run_text = $8;
-
-    # mel file
-    my $mel_targ = sprintf("mels.z%03un%02ul%02up%02u", $znum, $nnum, $lnum, $i );
-    copy( $mel_targ, "mels" ) or die "Failed to copy $mel_targ\n$!";
-
-    #cks file
-    my $cks;
-    if( $is_xas == 1 ) {
-      $cks = sprintf("cksc.${elname}%04u", $elnum );
-    } 
-    else {
-      $cks = sprintf("cksv.${elname}%04u", $elnum );
-    }
-
-    `ln -sf $cks cbinf0001`;
-    `ln -sf cbinf0001 ufmi`;
-
-
-    #rpot file
-    my $zstring = sprintf("z%2s%04i_n%02il%02i", $elname, $elnum, $nnum, $lnum);
-    copy( "rpot.${zstring}", "rpotfull" ) or die "Failed to copy rpot.${zstring}\n$!";
-#    system("cp ./rpot.${zstring} rpotfull") == 0 or die;
-
-    #CLS
-    if( -e "cls.${zstring}" )
-    {
-      copy( "cls.${zstring}", "cls" ) or die "Failed to copy cls.${zstring}\n$!";
-    }
-    else  # Make sure cls isn't left lying around
-    {
-      unlink "cls" if( -e "cls" );
-    }
-    
-    print "dotter\t$cks\n";
-    system("echo cbinf0001 | $ENV{'OCEAN_BIN'}/dotter.x") == 0 or die "Failed to run dotter run count=$run_count\n";
-
-    print "cainmultip\t$znum\t$nnum\t$lnum\t$i\t$run_text\n";
-    system("$ENV{'OCEAN_BIN'}/cainmultip.x < bse.in > cm.log") == 0 
-          or die "Failed to run cainmultip. Run count = $run_count\n";
-
-		my $lookup = sprintf("%1u%1s", $nnum, $alphal{$lnum}) or die;
-    my $store_string = sprintf("%2s.%04i_%2s_%02i", $elname, $elnum, $lookup, $i);
-    if( $is_xas == 1 ) 
-    {
-      move( "absspct", "absspct_${store_string}" ) 
-          or die "Failed to move absspct to absspct_${store_string}\n$!";
-    }
-    else
-    {
-      move( "absspct", "xesspct_${store_string}" )
-          or die "Failed to move absspct to xesspct_${store_string}\n$!";
-    }
-    move( "lanceigs", "abslanc_${store_string}" ) 
-        or die "Failed to move lanceigs to abslanc_${store_string}\n$!";
-#    `mv absspct "absspct_${store_string}"`;
-#    `mv lanceigs "abslanc_${store_string}"`;
-
+    chomp;
+    $photon_list .= $_ . " ";
   }
+  close IN;
+  @xes_photon_files = split(/\s+/, $photon_list );
 }
 else
 {
-  $ENV{"OMP_NUM_THREADS"}=1;
-
-  print "time $para_prefix $ENV{'OCEAN_BIN'}/ocean.x > cm.log";
-  system("time $para_prefix $ENV{'OCEAN_BIN'}/ocean.x > cm.log") == 0 or die "Failed to finish\n"; 
+  @xes_photon_files = @photon_files;
 }
 
+my $photon_combo = 0;
+print scalar @xas_photon_files . "\t" . scalar @xes_photon_files . "\n";
+for( my $i = 0; $i <= $#xas_photon_files; $i++ )
+{
+  for( my $j = 0; $j <= $#xes_photon_files; $j++ )
+  {
+#    print "\t\t$i\t$j\tphotons\n";
+    next if( $xas_photon_files[$i] eq $xes_photon_files[$j] );
+    print "$xas_photon_files[$i]\t$xes_photon_files[$j]\n";
+    $photon_combo ++;
+  }
+}
+
+print "Found $photon_combo combinations of photon files\n";
+print "From XAS we have $gmres_count energy steps\n";
+    
+
+$calc = uc( $calc );
+open RUNLIST, ">runlist" or die "Failed to open runlist for writing\n$!";
+#my $photon_combo = $nphoton * ($nphoton-1);
+if( $calc =~ m/RXS/ )
+{
+  my $tot_gmres_count = $gmres_count * $photon_combo;
+  print RUNLIST "$tot_gmres_count\n";
+  for( my $e = 1; $e <= $gmres_count; $e++ )
+  {
+    for( my $i = 0; $i < scalar @xas_photon_files; $i++ )
+    {
+      $xas_photon_files[$i] =~ m/(\d+)\s*$/ or die "Malformed photon file name:\t$xas_photon_files[$i]\n";
+      my $i_num = $1;
+      for( my $j = 0; $j < scalar @xes_photon_files; $j++ )
+      {
+        $xes_photon_files[$j] =~ m/(\d+)\s*$/ or die "Malformed photon file name:\t$xes_photon_files[$j]\n";
+        my $j_num = $1;
+  #      next if( $i == $j );
+        next if( $xas_photon_files[$i] eq $xes_photon_files[$j] );
+        print RUNLIST "$znum  $nnum  $lnum  $elname  $corelevel  0  $i_num  $calc  $e  $j_num\n";
+      }
+    }
+  }
+}
+else # For C2C things look different
+{
+  # Need to get elnum in here at smoe point
+  my @elnums = ( 1 );
+  my $tot_elnum = scalar @elnums;
+  my $tot_gmres_count = $gmres_count * $photon_combo * $tot_elnum;
+  print RUNLIST "$tot_gmres_count\n";
+  foreach my $elnum ( @elnums )
+  {
+    for( my $e = 1; $e <= $gmres_count; $e++ )
+    {
+      for( my $i = 0; $i < scalar @xas_photon_files; $i++ )
+      {
+        $xas_photon_files[$i] =~ m/(\d+)\s*$/ or die "Malformed photon file name:\t$xas_photon_files[$i]\n";
+        my $i_num = $1;
+        for( my $j = 0; $j < scalar @xes_photon_files; $j++ )
+        {
+          $xes_photon_files[$j] =~ m/(\d+)\s*$/ or die "Malformed photon file name:\t$xes_photon_files[$j]\n";
+          my $j_num = $1;
+          next if( $xas_photon_files[$i] eq $xes_photon_files[$j] );
+          print RUNLIST "$znum  2 1  $elname  $corelevel $elnum $i_num  $calc  $e  $j_num $nnum $lnum ${nnum}" . 
+                        $alphal{$lnum} . "\n";
+        }
+      }
+    }
+  }
+}
+close RUNLIST;
+
+`tail -n 1 rhoofr > nfft`;
+
+open INFILE, ">bse.in" or die "Failed to open bse.in\n";
+print INFILE "0 0 0\n";
+print INFILE "0 0 0\n";
+my $spectrange = `cat spect.h`;
+chomp($spectrange);
+my $num_haydock_iterations = `cat niter`;
+chomp($num_haydock_iterations);
+
+# This is the usual way of doing RIXS
+# print INFILE "hay\n";
+# print INFILE "$num_haydock_iterations  $spectrange  $gamma0  0.000\n";
+
+# Now we want a full diagonalization
+#my $gmres_header = parse_gmres_header();
+#my $gmres_footer = parse_gmres_footer();
+my $gmres_footer = parse_gmres();
+
+print INFILE "inv\n";
+#print INFILE $gmres_header;
+print INFILE $gmres_footer;
+#print INFILE "80 0.1 13.605 0.00000005  0.0\n";
+#print INFILE "loop\n";
+#print INFILE "-2.9 2.5 1.0\n";
+
+close INFILE;
+
+`cat bse.in`;
+#sleep 10;
+
+
+print "Running valence for RIXS\n";
+print "time $para_prefix $ENV{'OCEAN_BIN'}/ocean.x > val.log";
+system("time $para_prefix $ENV{'OCEAN_BIN'}/ocean.x > val.log") == 0 or die "Failed to finish\n";
+
+
 exit 0;
+
+
+
+sub parse_gmres {
+
+  open IN, "cnbse.gmres.nloop" or die "Failed to open cnbse.gmres.nloop\n$!";
+  $line = <IN>;
+  close IN;
+  chomp $line;
+  my $gmres_header = $line;
+
+  open IN, "cnbse.broaden" or die "Failed to open cnbse.broaden\n$!";
+  $line = <IN>;
+  close IN;
+  chomp $line;
+#  $line /= 27.2114;
+  $gmres_header .= " " . $line;
+
+  open IN, "cnbse.gmres.gprc" or die "Failed to open cnbse.gmres.gprc\n$!";
+  $line = <IN>;
+  close IN;
+  chomp $line;
+  $gmres_header .= " " . $line;
+
+  open IN, "cnbse.gmres.ffff" or die "Failed to open cnbse.gmres.ffff\n$!";
+  $line = <IN>;
+  close IN;
+  chomp $line;
+  $gmres_header .= " " . $line;
+
+  $gmres_header .= "  0.0\n"; 
+
+
+  my $gmres_footer = "";
+  my $have_elist = 0;
+  my $have_erange = 0;
+  open IN, "vnbse.gmres.elist" or die "Failed to open cnbse.gmres.elist\n$!";
+  $line = <IN>;
+  if( $line =~ m/false/ )
+  {
+    close IN;
+  }
+  else
+  {
+    $gmres_footer = $gmres_header . "list\n";
+    my $temp .= $line;
+    my $i = 1;
+    while( $line = <IN> )
+    {
+      $temp .= $line;
+      $i++;
+    }
+    $gmres_footer .= "$i\n";
+    $gmres_footer .= "$temp";
+    $have_elist = 1;
+    close IN;
+  }
+
+  open IN, "vnbse.gmres.erange" or die "Failed to open cnbse.gmres.erange\n$!";
+  $line = <IN>;
+  if( $line =~ m/false/ )
+  {
+    close IN;
+  }
+  else
+  {
+    $gmres_footer = $gmres_header . "loop\n";
+    $gmres_footer .= $line;
+    $have_erange = 1;
+    close IN;
+  }
+
+  if( $have_erange + $have_elist == 2 )
+  {
+    print "Both erange and elist were specified for GMRES. We are using erange\n";
+  }
+  elsif( $have_erange + $have_elist == 0 )
+  {
+    print "Neither elist nor erange were specified for GMRES!\nFalling back to Haydock\n";
+    $solver = 'hay';
+  }
+
+  return $gmres_footer;
+}
 
