@@ -65,25 +65,10 @@ elsif( $calc =~ m/rixs/i )
     # let's try rerunning full RIXS calculation, but using gmres at each step
     system("$ENV{'OCEAN_BIN'}/rixs_exc.pl > rixs.log") == 0 or die "Failed to run RIXS for final exciton states\n$!";
     print "Made it through RIXS rerun\n";
-
-    # now we test whether the rest could work
-#    copy("rxsspct_Si.2p_01.00001.02","opcons");
-
-#    # try the brute force approach
-#    opendir my $rixsdir, "../RIXS" or die "Cannot open RIXS directory$!\n";
-#    my @files = readdir $rixsdir;
-#    closedir $rixsdir;
-#    foreach my $file (@files) {
-#       copy "../RIXS/$file", $file;
-#    }
-#    `echo .true. > echamp.inp`;
-#    `echo gmres > ../Common/cnbse.solver`;
-#    system("$ENV{'OCEAN_BIN'}/rixs_nbse_exc.pl") == 0 or die "Failed to run valence BSE for RIXS exciton states\n$!";
 }
 
 
 # make xyz.wyck
-#system("$ENV{'OCEAN_BIN'}/pawsetup.x") == 0 or die "Failed to make xyz.wyck\n";
 system("$ENV{'OCEAN_BIN'}/makewyck.x") == 0 or die "Failed to make xyz.wyck\n";
 
 
@@ -94,19 +79,27 @@ system("$ENV{'OCEAN_BIN'}/makewyck.x") == 0 or die "Failed to make xyz.wyck\n";
 
 ### want to loop over all ehamp files
 # there are 4 values to loop over: ph_in, ph_out, w_i, w_loss
-
 my @ph_in;
 my @ph_out;
+my $zi;
+my $zj;
+my $nce = get_nce();
+my $nve = get_nve();
+
+open RLIST, "runlist.xas" or die "Failed to open file hfinlist: $!\n";
+my $line = <RLIST>;
+my $line = <RLIST>;
+my @rlist = split ' ', $line;
+print "Parsing of runlist: \n";
+my $elm = $rlist[3];
+my $core = $rlist[4];
+print "ELM = $elm  :  CORE = $core\n";
+close RLIST;
 
 
 # Select the hole part of the exciton
 print "Working on the hole part\n";
 `echo 0 > ehflag.ipt`;
-
-my $zi;
-my $zj;
-my $nce = get_nce();
-my $nve = get_nve();
 
 for( my $i = 1; $i <= $nce; $i++ )
 {
@@ -116,7 +109,7 @@ for( my $i = 1; $i <= $nce; $i++ )
        $zj = sprintf("%04d",$j);
        # make exciton_plot.ipt
        open EXCPLOT, ">exciton_plot.ipt";
-       print EXCPLOT "ehamp_Si.2p_01.$zi.02.$zj \n";
+       print EXCPLOT "ehamp_$elm.${core}_01.$zi.02.$zj \n";
        print EXCPLOT "hole_$zi.$zj.cube\n";
        print EXCPLOT "3 3 3\n";
        print EXCPLOT "-1 -1 -1\n";
@@ -144,7 +137,7 @@ for( my $i = 1; $i <= $nce; $i++ )
        $zj = sprintf("%04d",$j);
        # make exciton_plot.ipt
        open EXCPLOT, ">exciton_plot.ipt";
-       print EXCPLOT "ehamp_Si.2p_01.$zi.02.$zj \n";
+       print EXCPLOT "ehamp_$elm.${core}_01.$zi.02.$zj \n";
        print EXCPLOT "electron_$zi.$zj.cube\n";
        print EXCPLOT "3 3 3\n";
        print EXCPLOT "-1 -1 -1\n";
