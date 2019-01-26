@@ -77,9 +77,9 @@ module screen_wvfn_converter
     call screen_wvfn_converter_loader( pinfo, nsites, all_sites, ierr )
     if( ierr .ne. 0 ) return
 
-#ifdef DEBUG
+!#ifdef DEBUG
     write(6,*) 'Wait on RECVs'
-#endif
+!#endif
 
     call screen_tk_start( "wc_driver_waitSiteRecvs" )
     do i = 1, siteSize
@@ -93,6 +93,7 @@ module screen_wvfn_converter
 !    enddo
 
     deallocate( recvArray )
+    write(6,*) 'converter_driver done'
 
 
   end subroutine screen_wvfn_converter_driver
@@ -173,7 +174,7 @@ module screen_wvfn_converter
                           MPI_DOUBLE_COMPLEX, MPI_DOUBLE_PRECISION, comm, myid
     use screen_system, only : system_parameters, params
     use screen_sites, only : site
-    use screen_wavefunction, only : screen_wvfn
+    use screen_wavefunction, only : screen_wvfn, screen_wvfn_returnWavefunctionDims
     use ocean_dft_files, only : odf_nprocPerPool, odf_getPoolIndex, odf_getBandsForPoolID, odf_returnGlobalID
     integer, intent( in ) :: isite
     type( site ) :: current_site
@@ -185,18 +186,23 @@ module screen_wvfn_converter
     integer, intent( inout ) :: ierr
 
 
-    integer :: ikpt, ispin, npts, i, j, itag, iwvfn
+    integer :: ikpt, ispin, npts, i, j, itag, iwvfn, dims(2)
     integer :: nprocPerKpt, poolIndex, targetID, num_bands, start_band, poolID
+
 #ifndef MPI
     recv_list(:) = 0
 #else
+
+    dims(:) = screen_wvfn_returnWavefunctionDims( current_site%wvfn )
+
     write(1000+myid,*) 'Running swl_postSiteRecvs'
-    write(1000+myid,'(A3,2(1x,I8))') '   ', size(current_site%wvfn%wvfn,1), size(current_site%wvfn%wvfn,2)
+    write(1000+myid,'(A3,2(1x,I8))') '   ', dims(:) !size(current_site%wvfn%wvfn,1), size(current_site%wvfn%wvfn,2)
     write(1000+myid,'(A3,8A9)') '   ', 'Npts', 'Start', 'Nbands', 'Sender', 'iKpts', 'iSpin', 'Tag', 'Site'
     flush(1000+myid)
     
     nprocPerKpt = odf_nprocPerPool()
-    npts = size( current_site%wvfn%wvfn, 1 )
+!    npts = size( current_site%wvfn%wvfn, 1 )
+    npts = dims(1)
 
     ! if we are splitting the wvfns and we don't have real-only/gamma-point routines
     iwvfn = 1
@@ -232,6 +238,7 @@ module screen_wvfn_converter
 
             ! only have imaginary components if NOT gamma-point/real-only
             if( .not. params%isGamma ) then
+              write(1000+myid,'(A,8(1X,I8))') '   ', npts, start_band, num_bands, targetID, ikpt, ispin, itag+1, isite
               j = j + 1
               call MPI_IRECV( current_site%wvfn%imag_wvfn( 1, start_band, i ), npts*num_bands, &
                               MPI_DOUBLE_PRECISION, targetID, itag+1, comm, recv_list( j ), ierr )
@@ -359,15 +366,17 @@ module screen_wvfn_converter
       call screen_tk_start( "swl_DoProject" )
       ! For this site project from u(G)/u(x) to u( r ), the atom-centered basis we use for screening
       call swl_DoProject( ngvecs, npts, nbands, input_uofg, input_gvecs, psys%bvecs, qcart, & 
-                          all_sites( isite )%grid%posn, uofx, temp_wavefunctions( isite )%wvfn, ierr )
+                          all_sites( isite )%grid%posn, uofx, temp_wavefunctions( isite ), ierr )
       if( ierr .ne. 0 ) return
       call screen_tk_stop( "swl_DoProject" )
+      write(6,*) 'project done'
 
       call screen_tk_start( "swl_DoAugment" )
       ! Augment using the OPFs to give the all-electron character
-      call swl_DoAugment_2( all_sites( isite ), npts, nbands, ikpt, temp_wavefunctions( isite )%wvfn, ierr )
+      call swl_DoAugment_2( all_sites( isite ), npts, nbands, ikpt, temp_wavefunctions( isite ), ierr )
       if( ierr .ne. 0 ) return
       call screen_tk_stop( "swl_DoAugment" )
+      write(6,*) 'augment done'
   
       call screen_tk_start( "swl_convertAndSend_Send" )
 !      itag = ( isite - 1 ) * ( ikpt + ( ispin - 1 ) * params%nkpts ) &
@@ -395,12 +404,16 @@ module screen_wvfn_converter
                                        'B-start', 'B-num', 'Site'
           write(1000+myid,'(A,7(1X,I8))') '   Send converted:', destID, itag, pts_start, num_pts,  &
                                           band_start, num_band, isite
+        flush(1000+myid)
         if( num_pts .gt. 0 ) then
           if( params%isSplit ) then
             call MPI_ISEND( temp_wavefunctions(isite)%real_wvfn( pts_start, band_start, 1 ), 1, &
                             newType, destID, itag, comm, send_list( isend ), ierr )
             ! only have imaginary components if NOT gamma-point/real-only
             if( .not. params%isGamma ) then
+              write(1000+myid,'(A,7(1X,I8))') '   Send converted:', destID, itag+1, pts_start, num_pts,  &
+                                              band_start, num_band, isite
+              flush(1000+myid)
               isend = isend + 1
               call MPI_ISEND( temp_wavefunctions(isite)%imag_wvfn( pts_start, band_start, 1 ), 1, &
                               newType, destID, itag+1, comm, send_list( isend ), ierr )
@@ -431,8 +444,9 @@ module screen_wvfn_converter
     call screen_tk_stop( "swl_convertAndSend_Send" )
 
     call screen_tk_start( "swl_convertAndSend_Wait" )
-    call MPI_WAITALL( nsites * nprocsPerPool, send_list, MPI_STATUSES_IGNORE, ierr )
+    call MPI_WAITALL( nsites * nprocsPerPool * iwvfn, send_list, MPI_STATUSES_IGNORE, ierr )
     if( ierr .ne. 0 ) return
+    write(6,*) 'Done waiting on send_list'
     call screen_tk_stop( "swl_convertAndSend_Wait" )
 
 
@@ -619,16 +633,18 @@ module screen_wvfn_converter
     use screen_system, only : screen_system_doAugment
     use screen_sites, only : site
     use screen_opf
+    use screen_wavefunction, only : screen_wvfn
 
     type( site ), intent( in ) :: isite
     integer, intent( in ) :: npts, nbands, iq
-    complex(DP), intent( inout ) :: wavefunctions( npts, nbands )
+!    complex(DP), intent( inout ) :: wavefunctions( npts, nbands )
+    type( screen_wvfn ), intent( inout ) :: wavefunctions
     integer, intent( inout ) :: ierr
 
-    complex(DP), allocatable, dimension( :, : ) :: waveByLM, Delta, Ylm, Smat, Cmat, TCmat, weightedYlmStar, fit
-    complex(DP), allocatable :: su(:)
+!    complex(DP), allocatable, dimension( :, : ) :: waveByLM, Delta, Ylm, Smat, Cmat, TCmat, weightedYlmStar, fit
+!    complex(DP), allocatable :: su(:)
     real(DP), allocatable, dimension( :, :, : ) :: psproj, diffproj, amat, psproj_hold
-    real(DP), allocatable :: prefs(:)
+!    real(DP), allocatable :: prefs(:)
 
     complex(DP), parameter :: zone = 1.0_DP
     complex(DP), parameter :: zero = 0.0_DP
@@ -652,8 +668,8 @@ module screen_wvfn_converter
     totLM = ( lmax + 1 ) ** 2
     
     ! allocate space and carry out preliminary projector prep
-    allocate( ylm( isite%grid%nang, totLM ), waveByLM( ncutoff, totLM ), Delta( totLM, ncutoff ), &
-              weightedYlmStar( isite%grid%nang, totLM ), fit( ncutoff, totLM ), su( totLM ) )
+!    allocate( ylm( isite%grid%nang, totLM ), waveByLM( ncutoff, totLM ), Delta( totLM, ncutoff ), &
+!              weightedYlmStar( isite%grid%nang, totLM ), fit( ncutoff, totLM ), su( totLM ) )
     
     allocate( psproj( ncutoff, maxnproj, lmin:lmax ), diffproj( ncutoff, maxnproj, lmin:lmax ), &
               amat( maxnproj, maxnproj, lmin:lmax ), psproj_hold( ncutoff, maxnproj, lmin:lmax ), stat=ierr )
@@ -693,6 +709,48 @@ module screen_wvfn_converter
 #endif
 
     enddo  
+
+    if( wavefunctions%isSplit ) then
+      call FinishAugment_Split( isite, npts, nbands, iq, ncutoff, maxnproj, lmin, lmax, &
+                                psproj, diffProj, psProj_hold, aMat, & 
+                                wavefunctions%real_wvfn(:,:,1), ierr, wavefunctions%imag_wvfn(:,:,1) )
+    else
+      call FinishAugment( isite, npts, nbands, iq, ncutoff, maxnproj, lmin, lmax, &
+                          psproj, diffProj, psProj_hold, aMat, wavefunctions%wvfn(:,:,1), ierr )
+    endif
+
+    deallocate( psproj, diffproj, amat, psProj_hold )
+
+  end subroutine swl_DoAugment_2
+
+  subroutine FinishAugment( isite, npts, nbands, iq, ncutoff, maxnproj, lmin, lmax, &
+                            psproj, diffProj, psProj_hold, aMat, wavefunctions, ierr )
+    use screen_sites, only : site
+    use screen_opf
+
+    type( site ), intent( in ) :: isite
+    integer, intent( in ) :: npts, nbands, iq, ncutoff, maxnproj, lmin, lmax
+    real(DP), intent( in ), dimension( ncutoff, maxnproj, lmin:lmax ) :: psproj, diffproj, psProj_hold
+    real(DP), intent( in ), dimension( maxnproj, maxnproj, lmin:lmax ) :: aMat
+    complex(DP), intent( inout ) :: wavefunctions( npts, nbands )
+    integer, intent( inout ) :: ierr
+
+    complex(DP), allocatable, dimension( :, : ) :: waveByLM, Delta, Ylm, Smat, Cmat, TCmat, weightedYlmStar, fit
+    complex(DP), allocatable :: su(:)
+    real(DP), allocatable :: prefs(:)
+
+    complex(DP), parameter :: zone = 1.0_DP
+    complex(DP), parameter :: zero = 0.0_DP
+
+    integer :: l, m, itarg, nproj, totLM
+    integer :: i, j, k, il, nl, ib
+
+    totLM = ( lmax + 1 ) ** 2
+    
+    ! allocate space and carry out preliminary projector prep
+    allocate( ylm( isite%grid%nang, totLM ), waveByLM( ncutoff, totLM ), Delta( totLM, ncutoff ), &
+              weightedYlmStar( isite%grid%nang, totLM ), fit( ncutoff, totLM ), su( totLM ), STAT=ierr )
+    if( ierr .ne. 0 ) return
 
     ! prep Ylm's
 !    write(6,*) 'YLM'
@@ -846,17 +904,250 @@ module screen_wvfn_converter
 
     enddo
 
-    deallocate( psproj, diffproj, amat, su )
+!    deallocate( psproj, diffproj, amat, su )
+    deallocate( Delta, waveByLM, ylm, weightedYlmStar, su )
+
+!    write(6,*) 'Augment done'
+
+  end subroutine FinishAugment
+
+
+  subroutine FinishAugment_split( isite, npts, nbands, iq, ncutoff, maxnproj, lmin, lmax, &
+                            psproj, diffProj, psProj_hold, aMat, wavefunctions, ierr, imag_wvfn )
+    use screen_sites, only : site
+    use screen_opf
+
+    type( site ), intent( in ) :: isite
+    integer, intent( in ) :: npts, nbands, iq, ncutoff, maxnproj, lmin, lmax
+    real(DP), intent( in ), dimension( ncutoff, maxnproj, lmin:lmax ) :: psproj, diffproj, psProj_hold
+    real(DP), intent( in ), dimension( maxnproj, maxnproj, lmin:lmax ) :: aMat
+    real(DP), intent( inout ) :: wavefunctions( npts, nbands )
+    integer, intent( inout ) :: ierr
+    real(DP), intent( inout ), optional :: imag_wvfn( npts, nbands )
+
+    real(DP), allocatable, dimension( :, : ) :: waveByLM, Delta, Ylm, imag_waveByLM, imag_Delta
+    real(DP), allocatable, dimension( :, : ) :: Smat, Cmat, imag_Smat, imag_Cmat, weightedYlmStar
+!    real(DP), allocatable :: prefs(:)
+
+    real(DP), parameter :: zone = 1.0_DP
+    real(DP), parameter :: zero = 0.0_DP
+
+    integer :: l, m, itarg, nproj, totLM
+    integer :: i, j, k, il, nl, ib
+
+    totLM = ( lmax + 1 ) ** 2
+
+    ! allocate space and carry out preliminary projector prep
+    allocate( ylm( isite%grid%nang, totLM ), waveByLM( ncutoff, totLM ), Delta( totLM, ncutoff ), &
+              weightedYlmStar( isite%grid%nang, totLM ), STAT=ierr ) !fit( ncutoff, totLM ), STAT=ierr )
+    if( ierr .ne. 0 ) return
+
+    if( present( imag_wvfn ) ) then
+      allocate( imag_waveByLM( ncutoff, totLM ), imag_Delta( totLM, ncutoff ), STAT=ierr )
+      if( ierr .ne. 0 ) return
+    endif
+
+    ! prep Ylm's
+!    write(6,*) 'YLM'
+!    allocate( prefs(0:1000) )
+!    call getprefs( prefs )
+    il = 0
+    do l = lmin, lmax
+      do m = -l, l
+        il = il + 1
+        do j = 1, isite%grid%nang
+
+          call real_ylmeval( l, m, isite%grid%agrid%angles(1,j), isite%grid%agrid%angles(2,j), &
+                             isite%grid%agrid%angles(3,j), ylm(j,il) )
+          weightedYlmStar( j, il ) = isite%grid%agrid%weights(j) * ylm(j,il)
+          if( ylm(j, il ) .ne. ylm( j, il ) ) then
+            write(6,*) 'YLM gives NAN'
+            ierr = 1
+            return
+          endif
+        enddo
+      enddo
+    enddo
+!    deallocate( prefs )
+
+
+
+    ! loop over bands
+    do ib = 1, nbands
+!      write( 6, * ) ib
+!      call ZGEMM( 'T', 'N', ncutoff, totLM, isite%grid%nang, zone, wavefunctions( :, ib ), &
+!                  isite%grid%nang, weightedYlmStar, isite%grid%nang, zero, waveByLM, ncutoff )
+      waveByLM = 0.0_DP
+      il = 0
+      do l = lmin, lmax
+        do m = -l, l
+          il = il + 1
+          k = 0
+          do i = 1, ncutoff
+            do j = 1, isite%grid%nang
+              k = k + 1
+              waveByLM( i, il ) = waveByLM( i, il ) &
+                                + wavefunctions( k, ib ) * ylm( j, il ) * isite%grid%agrid%weights(j)
+            enddo
+          enddo
+        enddo
+      enddo
+
+      if( present( imag_wvfn ) ) then
+        imag_waveByLM = 0.0_DP
+        il = 0
+        do l = lmin, lmax
+          do m = -l, l
+            il = il + 1
+            k = 0
+            do i = 1, ncutoff
+              do j = 1, isite%grid%nang
+                k = k + 1
+                imag_waveByLM( i, il ) = imag_waveByLM( i, il ) &
+                                       + imag_wvfn( k, ib ) * ylm( j, il ) * isite%grid%agrid%weights(j)
+              enddo
+            enddo
+          enddo
+        enddo
+
+      endif
+
+
+      Delta = 0.0_DP
+      if( present( imag_wvfn ) ) imag_Delta = 0.0_DP
+!      fit = 0.0_DP
+      il = 1
+      do l = lmin, lmax
+        call screen_opf_nprojForChannel( isite%info%z, l, nproj, ierr, itarg )
+        if( ierr .ne. 0 ) return
+
+!       ! Have mixed real/complex which isn't compatible with BLAS
+!        nl = 2*l + 1
+!        call ZGEMM( 'T', 'N', nproj, nl, ncutoff, zone, psproj(:,:,l), ncutoff, & 
+!                    waveByLM(:,il), ncutoff, zero, Smat, nproj )
+
+
+        nl = il + 2*l ! no plus 1 because we are adding, ie l=0 we go from 1 to 1, l=1 we go from 2 to 4 (inclusive)
+!        write(6,*) l, il, nl
+        allocate( Smat( nproj, il:nl ), Cmat( nproj, il:nl ) )
+        if( present( imag_wvfn ) ) allocate( imag_Smat( nproj, il:nl ), imag_Cmat( nproj, il:nl ) )
+
+        do i = il, nl
+          do j = 1, nproj
+!            Smat( j, i ) = dot_product( psproj(1:ncutoff,j,l), waveByLM(1:ncutoff,i) )
+            Smat( j, i ) = sum( psproj(1:ncutoff,j,l) * waveByLM(1:ncutoff,i) )
+          enddo
+        enddo
+    
+        if( present( imag_wvfn ) ) then
+          do i = il, nl
+            do j = 1, nproj
+              imag_Smat( j, i ) = sum( psproj(1:ncutoff,j,l) * imag_waveByLM(1:ncutoff,i) )
+            enddo
+          enddo
+        endif
+
+        ! still have mixed real/complex
+        Cmat(:,:) = 0.0d0
+        do i = il, nl
+          do j = 1, nproj
+            do k = 1, nproj
+              Cmat( k, i ) = Cmat( k, i ) + aMat( k, j, l ) * Smat( j, i )
+            enddo
+          enddo
+        enddo
+
+        if( present( imag_wvfn ) ) then
+          imag_Cmat(:,:) = 0.0d0
+          do i = il, nl
+            do j = 1, nproj
+              do k = 1, nproj
+                imag_Cmat( k, i ) = imag_Cmat( k, i ) + aMat( k, j, l ) * imag_Smat( j, i )
+              enddo
+            enddo
+          enddo
+        endif
+
+
+        ! last time for mixed real/complex
+        do j = 1, nproj
+          do k = 1, ncutoff
+            do i = il, nl
+              Delta( i, k ) = Delta( i, k ) + Cmat( j, i ) * diffProj( k, j, l )
+!              fit( k, i ) = fit( k, i ) + Cmat( j, i ) * psProj_hold( k, j, l )
+            enddo
+          enddo
+        enddo
+
+        if( present( imag_wvfn ) ) then
+          do j = 1, nproj
+            do k = 1, ncutoff
+              do i = il, nl
+                imag_Delta( i, k ) = imag_Delta( i, k ) + imag_Cmat( j, i ) * diffProj( k, j, l )
+!                imag_fit( k, i ) = imag_fit( k, i ) + imag_Cmat( j, i ) * psProj_hold( k, j, l )
+              enddo
+            enddo
+          enddo
+        endif
+
+
+        if( present( imag_wvfn ) ) deallocate( imag_Smat, imag_Cmat )
+
+        deallocate( Smat, Cmat )
+
+
+        ! Here we add back on the 1 for (2l+1)
+        il = nl + 1
+      enddo ! l
+
+      ! now augment
+!      call ZGEMM( 'N', 'N', isite%grid%nang, ncutoff, totLM, zone, ylm, isite%grid%nang, &
+!                  Delta, totLM, zone, wavefunctions(:,ib), isite%grid%nang )
+      il = 0
+      do l = lmin, lmax
+        do m = -l, l
+          il = il + 1
+          k = 0
+          do i = 1, ncutoff
+            do j = 1, isite%grid%nang
+              k = k + 1
+              wavefunctions( k, ib ) = wavefunctions( k, ib ) + Delta( il, i ) * ylm( j, il )
+            enddo
+          enddo
+        enddo
+      enddo
+
+      if( present( imag_wvfn ) ) then
+        il = 0
+        do l = lmin, lmax
+          do m = -l, l
+            il = il + 1
+            k = 0
+            do i = 1, ncutoff
+              do j = 1, isite%grid%nang
+                k = k + 1
+                imag_wvfn( k, ib ) = imag_wvfn( k, ib ) + imag_Delta( il, i ) * ylm( j, il )
+              enddo
+            enddo
+          enddo
+        enddo
+      endif
+
+    enddo
+
+    if( present( imag_wvfn ) ) deallocate( imag_Delta, imag_waveByLM )
+!    deallocate( psproj, diffproj, amat, su )
     deallocate( Delta, waveByLM, ylm, weightedYlmStar )
 
 !    write(6,*) 'Augment done'
 
-  end subroutine swl_DoAugment_2
+  end subroutine FinishAugment_split
 
 
   subroutine swl_DoProject( ngvecs, npts, nbands, uofg, gvecs, bvecs, qcart, &
-                            posn, uofx, wavefunctions, ierr )
-    use screen_system, only : screen_system_convertStyle
+                            posn, uofx, wvfn, ierr )
+    use screen_system, only : screen_system_convertStyle, params
+    use screen_wavefunction, only : screen_wvfn
     integer, intent( in ) :: ngvecs, npts, nbands
     integer, intent( in ) :: gvecs( 3, ngvecs )
     real(DP), intent( in ) :: bvecs(3,3), qcart(3)
@@ -864,33 +1155,46 @@ module screen_wvfn_converter
     real(DP), intent( in ) :: posn( 3, npts )
 !    complex(DP), intent( in ) :: uofx(:,:,:,:)
     type( xHolder ), intent( in ) :: uofx
-    complex(DP), intent( out ) :: wavefunctions( npts, nbands )
+    type( screen_wvfn ), intent( inout ) :: wvfn
+!    complex(DP), intent( out ) :: wavefunctions( npts, nbands )
     integer, intent( inout ) :: ierr
     !
 
     select case( screen_system_convertStyle() )
     
       case('real')
-        call realu2( ngvecs, npts, nbands, uofg, gvecs, bvecs, qcart, &
-                     posn, wavefunctions )
+
+        if( params%isSplit ) then
+          if( params%isGamma ) then
+            ! if gamma, don't pass in imag_wvfn
+            call realu2_split( ngvecs, npts, nbands, uofg, gvecs, bvecs, qcart, &
+                               posn, wvfn%real_wvfn(:,:,1) )
+          else
+            call realu2_split( ngvecs, npts, nbands, uofg, gvecs, bvecs, qcart, &
+                               posn, wvfn%real_wvfn(:,:,1), wvfn%imag_wvfn(:,:,1) )
+          endif
+        else
+          call realu2( ngvecs, npts, nbands, uofg, gvecs, bvecs, qcart, &
+                       posn, wvfn%wvfn(:,:,1) )
+        endif
 
       case('fft2')
-        call swl_recpConvert( npts, nbands, uofx%cUofX, bvecs, qcart, posn, wavefunctions, ierr )
+        call swl_recpConvert( npts, nbands, uofx%cUofX, bvecs, qcart, posn, wvfn%wvfn(:,:,1), ierr )
 
 !        call realu2( ngvecs, npts, nbands, uofg, gvecs, bvecs, qcart, &
 !                     posn, wavefunctions )
       case('fft3')
-        call swl_Lagrange3rd( npts, nbands, uofx%cUofX, bvecs, qcart, posn, wavefunctions, ierr )
+        call swl_Lagrange3rd( npts, nbands, uofx%cUofX, bvecs, qcart, posn, wvfn%wvfn(:,:,1), ierr )
       case('fft4')
-        call swl_Lagrange4th( npts, nbands, uofx%cUofX, bvecs, qcart, posn, wavefunctions, ierr )
+        call swl_Lagrange4th( npts, nbands, uofx%cUofX, bvecs, qcart, posn, wvfn%wvfn(:,:,1), ierr )
       case('fft5')
-        call swl_Lagrange5th( npts, nbands, uofx%cUofX, bvecs, qcart, posn, wavefunctions, ierr )
+        call swl_Lagrange5th( npts, nbands, uofx%cUofX, bvecs, qcart, posn, wvfn%wvfn(:,:,1), ierr )
 
       case('fft6')
-        call swl_Lagrange6th( npts, nbands, uofx%cUofX, bvecs, qcart, posn, wavefunctions, ierr )
+        call swl_Lagrange6th( npts, nbands, uofx%cUofX, bvecs, qcart, posn, wvfn%wvfn(:,:,1), ierr )
 
       case('intp')
-        call swl_DoInterpolate( npts, nbands, uofx, bvecs, qcart, posn, wavefunctions, ierr )
+        call swl_DoInterpolate( npts, nbands, uofx, bvecs, qcart, posn, wvfn, ierr )
 
       case default
         write(6,*) 'unrecognized conversion style'
@@ -899,14 +1203,16 @@ module screen_wvfn_converter
 
   end subroutine swl_DoProject
 
-  subroutine swl_DoInterpolate( npts, nbands, uofx, bvecs, qcart, posn, wavefunctions, ierr )
+  subroutine swl_DoInterpolate( npts, nbands, uofx, bvecs, qcart, posn, wvfn, ierr )
     use screen_system, only : screen_system_convertInterpolateStyle, &
                               screen_system_convertInterpolateOrder
+    use screen_wavefunction, only : screen_wvfn
     integer, intent( in ) :: npts, nbands
     real(DP), intent( in ) :: bvecs(3,3), qcart(3)
     real(DP), intent( in ) :: posn( 3, npts )
     type( xHolder ), intent( in ) :: uofx
-    complex(DP), intent( out ) :: wavefunctions( npts, nbands )
+    type( screen_wvfn ), intent( inout ) :: wvfn
+!    complex(DP), intent( out ) :: wavefunctions( npts, nbands )
     integer, intent( inout ) :: ierr
 
     select case ( screen_system_convertInterpolateStyle() )
@@ -916,7 +1222,7 @@ module screen_wvfn_converter
 
         else
           call swl_ComplexDoLagrange( screen_system_convertInterpolateOrder(), npts, nbands, & 
-                               uofx%cUofX, bvecs, qcart, posn, wavefunctions, ierr )
+                               uofx%cUofX, bvecs, qcart, posn, wvfn, ierr )
         endif
       case default
         ierr = 1
@@ -1578,23 +1884,26 @@ module screen_wvfn_converter
   end subroutine swl_RealDoLagrange
     
 
-  subroutine swl_ComplexDoLagrange( order, npts, nbands, uofx, bvecs, qcart, posn, wavefunctions, ierr )
+  subroutine swl_ComplexDoLagrange( order, npts, nbands, uofx, bvecs, qcart, posn, wvfn, ierr )
     use ocean_constants, only : pi_dp
     use ocean_mpi, only : myid
     use ocean_interpolate
+    use screen_wavefunction, only : screen_wvfn
     integer, intent( in ) :: order, npts, nbands
     real(DP), intent( in ) :: bvecs(3,3), qcart(3)
     complex(DP), intent( in ) :: uofx( :, :, :, : )
     real(DP), intent( in ) :: posn( 3, npts )
-    complex(DP), intent( out ) :: wavefunctions( npts, nbands )
+    type( screen_wvfn ), intent( inout ) :: wvfn
+!    complex(DP), intent( out ) :: wavefunctions( npts, nbands )
     integer, intent( inout ) :: ierr
     !
+!    complex(DP), allocatable :: temp_wavefunctions( :, : )
     complex(DP), allocatable :: phase(:), P(:,:), QGrid(:,:), Q(:), RGrid(:), PGrid(:,:,:,:)
     real(DP), allocatable :: distanceMap(:,:) 
     integer, allocatable :: pointMap(:,:)
     logical, allocatable :: isInitGrid(:,:,:)
     !
-    complex(DP) :: R
+    complex(DP) :: R, C
     real(DP) :: dx, dy, dz, rvec(3), i2pi, phse
     integer :: dims(3), ib, ip, i, j, ix, iy, iz, iyy, izz, offset
 
@@ -1661,6 +1970,7 @@ module screen_wvfn_converter
     do ib = 1, nbands
       ! New band, nothing is correct
       isInitGrid(:,:,:) = .false.
+!      if( .not. wvfn%isSplit ) wavefunctions(:) => wvfn%wvfn(:,ib,1)
 
       do ip = 1, npts
 
@@ -1707,11 +2017,19 @@ module screen_wvfn_converter
         call makeLagrange( order, Q, RGrid )
         R = evalLagrange( order, distanceMap( 3, ip ), dz, Rgrid )
 
-        wavefunctions( ip, ib ) = R * phase( ip )
+        if( wvfn%isSplit ) then
+          C = R * phase( ip )
+          wvfn%real_wvfn( ip, ib, 1 ) = real( C, DP )
+          if( .not. wvfn%isGamma ) wvfn%imag_wvfn( ip, ib, 1 ) = aimag( C )
+        else
+          wvfn%wvfn( ip, ib, 1 ) = R * phase( ip )
+        endif
+!        wavefunctions( ip, ib ) = R * phase( ip )
+!        wavefunctions( ip ) = R * phase( ip )
 
       enddo ! ip
-    enddo ! ib
 
+    enddo ! ib
 
     deallocate( P, Q, QGrid, RGrid )
     deallocate( isInitGrid, PGrid, pointMap, phase )
@@ -2791,6 +3109,213 @@ module screen_wvfn_converter
     return
   end subroutine ylmeval
 
+  subroutine real_ylmeval( l, m, x, y, z, ylm )
+    use ocean_constants, only : PI_DP
+    integer, intent( in ) :: l, m
+    real(DP), intent( in ) :: x, y, z
+    real(DP), intent( out ) :: ylm
+
+    real(DP) :: r, xred, yred, zred
+
+    real(DP), parameter :: invRootPi = 1.0_DP / sqrt( PI_DP )
+    real(DP), parameter :: invRootTwo = 1.0_DP / sqrt( 2.0_DP )
+    real(DP), parameter :: rootThree = sqrt( 3.0_DP )
+    real(DP), parameter :: rootFive  = sqrt( 5.0_DP )
+    real(DP), parameter :: rootSeven = sqrt( 7.0_DP )
+    real(DP), parameter :: rootFifteen = sqrt( 15.0_DP )
+
+    if( l .eq. 0 ) then
+      ylm = 0.5_DP * invRootPi
+      return
+    endif
+
+    r = sqrt( x ** 2 + y ** 2 + z ** 2 )
+    if ( r .eq. 0.d0 ) r = 1
+    xred = x / r
+    yred = y / r
+    zred = z / r
+
+    select case( l )
+!      case( 0 )
+!        ylm = 0.5_DP * invRootPi
+
+      case( 1 )
+        select case( m )
+          case( -1 )
+            ylm = 0.5_DP * invRootPi * rootThree * yred
+          case( 0 ) 
+            ylm = 0.5_DP * invRootPi * rootThree * zred
+          case( 1 )
+            ylm = 0.5_DP * invRootPi * rootThree * xred
+          case default
+            ylm = 0.0_DP
+        end select
+
+      case( 2 )
+        select case( m )
+          case( -2 )
+            ylm = 0.5_DP * rootFifteen * invRootPi * xred * yred
+          case( -1 )
+            ylm = 0.5_DP * rootFifteen * invRootPi * yred * zred
+          case( 0 )
+            ylm = 0.25_DP * rootFive * invRootPi * ( 2.0_DP * zred**2 - xred**2 - yred**2 )
+          case( 1 )
+            ylm = 0.5_DP * rootFifteen * invRootPi * zred * xred
+          case( 2 )
+            ylm = 0.25_DP * rootFifteen * invRootPi * ( xred**2 - yred**2 )
+          case default
+            ylm = 0.0_DP
+        end select
+
+      case( 3 )
+        select case( m )
+          case( -3 )
+            ylm = 0.25_DP * rootFive * rootSeven * invRootPi * invRootTwo &
+                * yred * ( 3.0_DP * xred**2 - yred**2 )
+          case( -2 )
+            ylm = 0.5_DP * rootThree * rootFive * rootSeven * invRootPi &
+                * xred * yred * zred
+          case( -1 )
+            ylm = 0.25_DP * rootThree * rootSeven * invRootPi * invRootTwo &
+                * yred * ( 4.0_DP * zred**2 - xred**2 - yred**2 )
+          case( 0 ) 
+            ylm = 0.25_DP * rootSeven * invRootPi & 
+                * zred * ( 2.0_DP * zred**2 - 3.0_DP * xred**2 - 3.0_DP * yred**2 )
+          case( 1 )
+            ylm = 0.25_DP * rootThree * rootSeven * invRootPi * invRootTwo &
+                * xred * ( 4.0_DP * zred**2 - xred**2 - yred**2 )
+          case( 2 )
+            ylm = 0.25_DP * rootThree * rootFive * RootSeven * invRootPi &
+                * zred * ( xred**2 - yred**2 )
+          case( 3 ) 
+            ylm = 0.25_DP * rootFive * rootSeven * invRootPi * invRootTwo &
+                * xred * ( xred**2 - 3.0_DP * yred**2 )
+
+          case default
+            ylm = 0.0_DP
+        end select
+
+      case default
+        ylm = 0.0_DP
+    end select
+
+  end subroutine
+
+  subroutine OLD_real_ylmeval( l, m, x, y, z, ylm, prefs )
+    implicit none
+    !
+    integer, intent( in )  :: l, m
+    !
+    real( DP ), intent( in ) :: x, y, z, prefs( 0 : 1000 )
+    real( DP ), intent( out ) :: ylm
+    !
+    integer :: lam, j, mm
+    real( DP ) :: r, rinv, xred, yred, zred, f
+    real( DP ) :: u, u2, u3, u4, u5
+    complex( DP ) :: rm1, pYlm, mYlm
+    !
+    if ( l .gt. 5 ) stop 'l .gt. 5 not yet allowed'
+    !
+    r = sqrt( x ** 2 + y ** 2 + z ** 2 )
+    if ( r .eq. 0.d0 ) r = 1
+    rinv = 1 / r
+    xred = x * rinv
+    yred = y * rinv
+    zred = z * rinv
+    !
+    u = zred
+    u2 = u * u
+    u3 = u * u2
+    u4 = u * u3
+    u5 = u * u4
+    !
+    rm1 = -1
+    rm1 = sqrt( rm1 )
+    !
+    mm = abs( m ) + 0.1
+    lam = 10 * mm + l
+    !
+    select case( lam )
+       !
+    case( 00 )
+       f =   1                                       !00
+       !
+    case( 11 )
+       f = - 1                                       !11
+    case( 01 )
+       f =   u                                       !10
+       !
+    case( 22 )
+       f =   3                                       !22
+    case( 12 )
+       f = - 3 * u                                   !21
+    case( 02 )
+       f =   ( 3 * u2 - 1 ) / 2                      !20
+       !
+    case( 33 )
+       f = - 15                                      !33
+    case( 23 )
+       f =   15 * u                                  !32
+    case( 13 )
+       f = - ( 15 * u2 - 3 ) / 2                     !31
+    case( 03 )
+       f =   ( 5 * u3 - 3 * u ) / 2                  !30
+       !
+    case( 44 )
+       f =   105                                     !44
+    case( 34 )
+       f = - 105 * u                                 !43
+    case( 24 )
+       f =   ( 105 * u2 - 15 ) / 2                   !42
+    case( 14 )
+       f = - ( 35 * u3 - 15 * u ) / 2                !41
+    case( 04 )
+       f =   ( 35 * u4 - 30 * u2 + 3 ) / 8           !40
+       !
+    case( 55 )
+       f = - 945                                     !55
+    case( 45 )
+       f =   945 * u                                 !54
+    case( 35 )
+       f = - ( 945 * u2 - 105 ) / 2                  !53
+    case( 25 )
+       f =   ( 315 * u3 - 105 * u ) / 2              !52
+    case( 15 )
+       f = - ( 315 * u4 - 210 * u2 + 15 ) / 8        !51
+    case( 05 )
+       f =   ( 63 * u5 - 70 * u3 + 15 * u ) / 8      !50
+       !
+    end select
+    !
+    ylm = prefs( lam ) * f
+    if( m .eq. 0 ) return
+
+    pYlm = ylm
+    mYlm = ylm
+    do j = 1, m
+      pYlm = pYlm * ( xred + rm1 * yred )
+    end do
+    do j = 1, mm
+      mylm = - mylm * ( xred - rm1 * yred )
+    end do
+
+    if( m .lt. 0 ) then
+      if( mod( abs(m), 2 ) .eq. 0 ) then
+        ylm = -aimag( mYlm - pYlm ) / sqrt( 2.0_DP ) 
+      else
+        ylm = -aimag( mYlm + pYlm ) / sqrt( 2.0_DP ) 
+      endif
+    else
+      if( mod( m, 2 ) .eq. 0 ) then
+        ylm = real( mYlm + pYlm, DP ) / sqrt( 2.0_DP ) 
+      else
+        ylm = real( mYlm - pYlm, DP ) / sqrt( 2.0_DP ) 
+      endif
+    endif
+
+    !
+    return
+  end subroutine OLD_real_ylmeval
 
   subroutine getprefs( prefs )
     implicit none
