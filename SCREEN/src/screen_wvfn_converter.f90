@@ -271,7 +271,7 @@ module screen_wvfn_converter
     use screen_sites, only : site
     use screen_grid, only : sgrid
     use screen_wavefunction, only : screen_wvfn, screen_wvfn_map_procID, screen_wvfn_singleKInit, &
-                                    screen_wvfn_kill
+                                    screen_wvfn_kill, screen_wvfn_returnWavefunctionDims
     use screen_paral, only : site_parallel_info, screen_paral_siteIndexID2procID
     use screen_timekeeper, only : screen_tk_start, screen_tk_stop
 
@@ -358,8 +358,10 @@ module screen_wvfn_converter
       if( ierr .ne. 0 ) return
       call screen_tk_stop( "singleKInit" )
 
-      write(1000+myid,'(A,4(1X,I8))') '   Site:', isite, size(temp_wavefunctions( isite )%wvfn,1), &
-             size(temp_wavefunctions( isite )%wvfn,2), nbands
+!      write(1000+myid,'(A,4(1X,I8))') '   Site:', isite, size(temp_wavefunctions( isite )%wvfn,1), &
+!             size(temp_wavefunctions( isite )%wvfn,2), nbands
+      write(1000+myid,'(A,4(1X,I8))') '   Site:', isite, & 
+                                      screen_wvfn_returnWavefunctionDims( temp_wavefunctions( isite )), nbands
 
       npts = all_sites( isite )%grid%Npt
 
@@ -369,14 +371,12 @@ module screen_wvfn_converter
                           all_sites( isite )%grid%posn, uofx, temp_wavefunctions( isite ), ierr )
       if( ierr .ne. 0 ) return
       call screen_tk_stop( "swl_DoProject" )
-      write(6,*) 'project done'
 
       call screen_tk_start( "swl_DoAugment" )
       ! Augment using the OPFs to give the all-electron character
       call swl_DoAugment_2( all_sites( isite ), npts, nbands, ikpt, temp_wavefunctions( isite ), ierr )
       if( ierr .ne. 0 ) return
       call screen_tk_stop( "swl_DoAugment" )
-      write(6,*) 'augment done'
   
       call screen_tk_start( "swl_convertAndSend_Send" )
 !      itag = ( isite - 1 ) * ( ikpt + ( ispin - 1 ) * params%nkpts ) &
@@ -446,7 +446,6 @@ module screen_wvfn_converter
     call screen_tk_start( "swl_convertAndSend_Wait" )
     call MPI_WAITALL( nsites * nprocsPerPool * iwvfn, send_list, MPI_STATUSES_IGNORE, ierr )
     if( ierr .ne. 0 ) return
-    write(6,*) 'Done waiting on send_list'
     call screen_tk_stop( "swl_convertAndSend_Wait" )
 
 
@@ -1268,6 +1267,7 @@ module screen_wvfn_converter
 
     do ib = 1, nbands
       bplan = fftw_plan_dft_3d( dims(3), dims(2), dims(1), uofx(:,:,:,ib), uofx(:,:,:,ib), FFTW_BACKWARD, FFTW_PATIENT )
+      uofx(:,:,:,ib) = 0.0_DP
       do ig = 1, ngvecs
         i = 1 + gvecs(1,ig)
         j = 1 + gvecs(2,ig)
@@ -1319,6 +1319,7 @@ module screen_wvfn_converter
 
     do ib = 1, nbands
       bplan = fftw_plan_dft_c2r_3d( dims(3), dims(2), dims(1), tempC(:,:,:), uofx(:,:,:,ib), FFTW_PATIENT )
+      tempC(:,:,:) = 0.0_DP
       do ig = 1, ngvecs
         i = 1 + gvecs(1,ig)
         j = 1 + gvecs(2,ig)
@@ -2838,7 +2839,8 @@ module screen_wvfn_converter
     do ig_start = 1, ngvecs, blockParameter
 
       ig_stop = min( ngvecs, ig_start+blockParameter - 1 )
-      ig_width = min( blockParameter, ig_stop - ig_start + 1 )
+!      ig_width = min( blockParameter, ig_stop - ig_start + 1 )
+      ig_width = ig_stop - ig_start + 1
 
       ii = 0
       do i = ig_start, ig_stop
@@ -2860,15 +2862,15 @@ module screen_wvfn_converter
       enddo
 
 
-      call dgemm( 'N', 'N', npts, nbands, ig_width, done, cos_phases, npts, real_uofg, ngvecs, &
+      call dgemm( 'N', 'N', npts, nbands, ig_width, done, cos_phases, npts, real_uofg, blockFactor, &
                   prefac, real_wavefunctions, npts )
-      call dgemm( 'N', 'N', npts, nbands, ig_width, mone, sin_phases, npts, imag_uofg, ngvecs, &
+      call dgemm( 'N', 'N', npts, nbands, ig_width, mone, sin_phases, npts, imag_uofg, blockFactor, &
                   done, real_wavefunctions, npts )
 
       if( present( imag_wavefunctions ) ) then
-        call dgemm( 'N', 'N', npts, nbands, ig_width, done, sin_phases, npts, real_uofg, ngvecs, &
+        call dgemm( 'N', 'N', npts, nbands, ig_width, done, sin_phases, npts, real_uofg, blockFactor, &
                     prefac, imag_wavefunctions, npts )
-        call dgemm( 'N', 'N', npts, nbands, ig_width, done, cos_phases, npts, imag_uofg, ngvecs, &
+        call dgemm( 'N', 'N', npts, nbands, ig_width, done, cos_phases, npts, imag_uofg, blockFactor, &
                     done, imag_wavefunctions, npts )
       endif
       ! first time through we write over wavefunctions, every other time we add
