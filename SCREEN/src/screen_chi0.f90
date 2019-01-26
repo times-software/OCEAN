@@ -199,10 +199,10 @@ module screen_chi0
     integer(kind=8) :: clock_start, count_rate, count_max, clock_stop
 
     call screen_tk_start( "chi0_runSite: Init" )
-!    call MPI_BARRIER( pinfo%comm, ierr )
+
     if( ierr .ne. 0 ) return
     if( pinfo%myid .eq. pinfo%root ) write(6,*) 'Running Schi_runSite'
-    ! allocate chi and chi0, spareWavefunctions, mpi_requests
+    
     dims = screen_sites_returnWavefunctionDims( singleSite )
     write(1000+myid,*) 'Chi dims:', dims(:)
     allocate( chi( dims(1), dims(2) ), STAT=ierr )
@@ -212,21 +212,6 @@ module screen_chi0
     endif
     chi(:,:) = 0.0_DP
 
-!!    allocate( chi0( dims(1), dims(2), NImagEnergies ), STAT=ierr )
-!!    if( ierr .ne. 0 ) then
-!!      write(6,*) 'Failed to allocate chi0 in Schi_runSite', ierr
-!!      return
-!!    endif
-
-!    if( pinfo%myid .eq. pinfo%root ) then
-!      allocate( FullChi0( dims(2), dims(2) ), STAT=ierr )
-!    else
-!      allocate( FullChi0( 0, 0 ), STAT=ierr )
-!    endif
-!    if( ierr .ne. 0 ) then
-!      write(6,*) 'Failed to allocate FullChi0 in Schi_runSite', ierr
-!      return
-!    endif
 
     allocate( spareWavefunctions( 0:pinfo%nprocs-1 ), STAT=ierr )
     if( ierr .ne. 0 ) then
@@ -234,8 +219,6 @@ module screen_chi0
       return
     endif
     do id = 0, pinfo%nprocs - 1
-!      if( id .eq. pinfo%myid ) cycle
-
       call screen_wvfn_initForGroupID( pinfo, singleSite%grid, id, spareWavefunctions( id ), ierr )
       if( ierr .ne. 0 ) return
     enddo
@@ -269,11 +252,9 @@ module screen_chi0
 
     call screen_tk_start( "chi0_runSite: calcChi" )
     if( pinfo%myid .eq. pinfo%root ) write(6,*) 'calcChi'
-!    call system_clock( clock_start, count_rate, count_max )
+
     call calcChi( pinfo, singleSite%wvfn, spareWavefunctions, chi, spareWvfnRecvs, ierr )
-!    call system_clock( clock_stop )
-!    if( pinfo%myid .eq. pinfo%root ) write(6,'(2(I0,1X),F14.8)') clock_start, clock_stop, & 
-!            ( real( clock_stop - clock_start, DP ) / real( count_rate, DP ) )
+
     if( ierr .ne. 0 ) return
     call screen_tk_stop( "chi0_runSite: calcChi" )
 
@@ -285,13 +266,12 @@ module screen_chi0
 
     call screen_tk_start( "chi0_runSite: Wait MPI" )
 #ifdef MPI
-!    write(6,*) 'SpareWvfnSends', SpareWvfnSends(:)
     call MPI_WAITALL( pinfo%nprocs, SpareWvfnSends, MPI_STATUSES_IGNORE, ierr )
     if( ierr .ne. 0 ) return
-!    write(6,*) 'chiSends', chiSends(:)
+
     call MPI_WAIT( chiSends(1), MPI_STATUS_IGNORE, ierr )
     if( ierr .ne. 0 ) return
-!    write(6,*) 'chiRecvs', chiRecvs(:)
+
     call MPI_WAITALL( pinfo%nprocs, chiRecvs, MPI_STATUSES_IGNORE, ierr )
     if( ierr .ne. 0 ) return
 #endif
@@ -299,19 +279,15 @@ module screen_chi0
     call screen_tk_start( "chi0_runSite: Clean" )
     deallocate( spareWvfnRecvs, spareWvfnSends, chiRecvs, chiSends )
 
-!    if( pinfo%myid .eq. pinfo%root ) write(6,*) 'WriteChi'
-!    call writeChi( pinfo, singleSite%info, FullChi0, ierr )
-!    if( ierr .ne. 0 ) return
 
     do id = 0, pinfo%nprocs - 1
       call screen_wvfn_kill( spareWavefunctions( id ) )
     enddo
     deallocate( spareWavefunctions )
-!    deallocate( FullChi )
+
     deallocate( chi )
 
 #ifdef MPI
-!    call MPI_BARRIER( pinfo%comm, ierr )
     if( ierr .ne. 0 ) return
 #endif
     if( pinfo%myid .eq. pinfo%root ) write(6,*) 'Done with Schi_runSite'
@@ -368,8 +344,7 @@ module screen_chi0
     integer :: i
 
     i = size( chi )
-!    write(6,*) i, chi(1,1)
-!    write(6,*) pinfo%root, TagChi, pinfo%comm
+
 #ifdef MPI
 !    if( pinfo%myid .ne. pinfo%root ) then
       call MPI_SEND( chi(:,:), i, MPI_DOUBLE_PRECISION, pinfo%root, TagChi, pinfo%comm, ierr )
