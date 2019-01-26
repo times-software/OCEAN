@@ -79,11 +79,13 @@ module screen_opf
     integer, intent( in ) :: zee, targ
     logical :: isright
 
-    if( targ .lt. 0 .or. targ .gt. size( FullTable ) ) then
+    if( targ .lt. 1 .or. targ .gt. size( FullTable ) ) then
       isRight = .false.
-    else
-      isRight = ( zee .eq. FullTable( targ )%Zee )
+      return
     endif
+
+    isRight = ( zee .eq. FullTable( targ )%Zee )
+
   end function
     
   pure function getRightTarg( zee ) result( targ )
