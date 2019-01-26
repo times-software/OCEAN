@@ -1,5 +1,5 @@
 #!/usr/bin/perl
-# Copyright (C) 2010, 2013 - 2018 OCEAN collaboration
+# Copyright (C) 2010, 2013 - 2019 OCEAN collaboration
 #
 # This file is part of the OCEAN project and distributed under the terms 
 # of the University of Illinois/NCSA Open Source License. See the file 
@@ -10,13 +10,19 @@
 use strict;
 use File::Copy;
 use File::Spec::Functions;
+use File::Compare;
+use Cwd 'abs_path';
+
 use POSIX;
 
 ###########################
 if (! $ENV{"OCEAN_BIN"} ) {
   $0 =~ m/(.*)\/screen\.pl/;
-  $ENV{"OCEAN_BIN"} = $1;
-  print "OCEAN_BIN not set. Setting it to $1\n";
+#   my $test = File::Spec->rel2abs( $0 );
+#  my $test = abs_path( $1 );
+  $ENV{"OCEAN_BIN"} = abs_path( $1 );
+#  print "OCEAN_BIN not set. Setting it to $1\n";
+  print "OCEAN_BIN not set. Setting it to $ENV{'OCEAN_BIN'}\n";
 }
 if (! $ENV{"OCEAN_WORKDIR"}){ $ENV{"OCEAN_WORKDIR"} = `pwd` . "../" ; }
 ###########################
@@ -44,7 +50,9 @@ my $runSCREEN = 1;
 if (-e "../PREP/PAW/old" && -e "done" ) {
   $runSCREEN = 0;
   foreach (@CommonFiles) {
-    if (`diff -q $_ ../Common/$_`) {
+#    if (`diff -q $_ ../Common/$_`) {
+    if( compare("$_", "../Common/$_" ) != 0 )   # should get diff or non-exist
+    {
       $runSCREEN = 1;
       last;
     }
@@ -53,7 +61,9 @@ if (-e "../PREP/PAW/old" && -e "done" ) {
   {
     foreach (@ScreenFiles)
     {
-      if (`diff -q $_ ../Common/$_`) {
+#      if (`diff -q $_ ../Common/$_`) {
+    if( compare("$_", "../Common/$_" ) != 0 )   # should get diff or non-exist
+    {
         $runSCREEN = 1;
         last;
       }
