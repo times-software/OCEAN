@@ -1,5 +1,5 @@
 #!/usr/bin/perl
-# Copyright (C) 2014, 2016-2018 OCEAN collaboration
+# Copyright (C) 2014, 2016-2019 OCEAN collaboration
 #
 # This file is part of the OCEAN project and distributed under the terms 
 # of the University of Illinois/NCSA Open Source License. See the file 
@@ -10,12 +10,14 @@
 use strict;
 use File::Copy;
 use Cwd;
+use Cwd 'abs_path';
 
 ###########################
 if (! $ENV{"OCEAN_BIN"} ) {
   $0 =~ m/(.*)\/opf\.pl/;
-  $ENV{"OCEAN_BIN"} = $1;
-  print "OCEAN_BIN not set. Setting it to $1\n";
+#  $ENV{"OCEAN_BIN"} = $1;
+  $ENV{"OCEAN_BIN"} = abs_path( $1 );
+  print "OCEAN_BIN not set. Setting it to $ENV{'OCEAN_BIN'}\n";
 }
 
 my $dir = getcwd;
