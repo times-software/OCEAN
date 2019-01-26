@@ -61,8 +61,22 @@ module screen_system
   public :: screen_system_invStyle, screen_system_QuadOrder
   public :: screen_system_convertInterpolateStyle, screen_system_convertInterpolateOrder
   public :: screen_system_doAugment
+  public :: screen_system_setGamma
 
   contains 
+
+  subroutine screen_system_setGamma( newGamma )
+    use ocean_mpi, only : myid
+    logical, intent( in ) :: newGamma
+
+    if( params%isGamma .and. .not. newGamma ) then
+      write(1000+myid,*) 'Gamma-point compatible routines requested, but not supported by underlying DFT calc.'
+      params%isGamma = .false.
+    endif
+
+    write(1000+myid,*) 'Gamma point routine support is set to :', params%isGamma
+
+  end subroutine screen_system_setGamma
 
   ! Hardwire these for now, later allow inputs
   pure function screen_system_convertInterpolateStyle() result( interpStyle )
@@ -261,6 +275,9 @@ module screen_system
     if( ierr .ne. MPI_SUCCESS ) return
 
     call MPI_BCAST( params%nspin, 1, MPI_INTEGER, root, comm, ierr )
+    if( ierr .ne. MPI_SUCCESS ) return
+
+    call MPI_BCAST( params%isSplit, 1, MPI_LOGICAL, root, comm, ierr )
     if( ierr .ne. MPI_SUCCESS ) return
 
 
@@ -514,6 +531,27 @@ module screen_system
       endif
       params%bands(1) = brange(1)
       params%bands(2) = brange(4)
+    endif
+
+    inquire( file='screen.split', exist=ex )
+    if( ex ) then
+      open( unit=99, file='screen.split', form='formatted', status='old', IOSTAT=ierr )
+      if( ierr .ne. 0 ) then
+        write( 6, * ) 'FATAL ERROR: Failed to open screen.split', ierr
+        return
+      endif
+      read( 99, *, IOSTAT=ierr ) params%isSplit
+      if( ierr .ne. 0 ) then
+        write( 6, * ) 'FATAL ERROR: Failed to read screen.split', ierr
+        return
+      endif
+      close( 99, IOSTAT=ierr)
+      if( ierr .ne. 0 ) then
+        write( 6, * ) 'FATAL ERROR: Failed to close screen.split', ierr
+        return
+      endif
+    else
+      params%isSplit = .false.
     endif
 
   end subroutine load_params

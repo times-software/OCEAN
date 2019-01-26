@@ -10,11 +10,11 @@ program screen_driver
   use ai_kinds
   use ocean_mpi, only : ocean_mpi_init, ocean_mpi_finalize, comm, myid, root
 !  use screen_grid
-  use screen_system, only : screen_system_load, screen_system_summarize
+  use screen_system, only : screen_system_load, screen_system_summarize, screen_system_setGamma
   use screen_sites, only : screen_sites_load, screen_sites_prep, &
                            site
   use screen_energy, only : screen_energy_init, screen_energy_load, screen_energy_find_fermi
-  use ocean_dft_files, only : odf_init, odf_clean
+  use ocean_dft_files, only : odf_init, odf_clean, odf_isGamma
   use screen_wvfn_converter, only : screen_wvfn_converter_driver
 !  use screen_wavefunction, only : screen_wvfn_diagnostic 
   use screen_chi_driver, only : screen_chi_driver_init, screen_chi_driver_run
@@ -53,6 +53,11 @@ program screen_driver
   call screen_system_summarize( ierr )
   if( ierr .ne. 0 ) goto 111
 
+  ! Initializes the framework for reading in files from the DFT
+  call odf_init( myid, root, comm, ierr )
+  if( ierr .ne. 0 ) goto 111
+  call screen_system_setGamma( odf_isGamma() )
+
   call screen_energy_init( ierr )
   if( ierr .ne. 0 ) goto 111
   ! 
@@ -78,9 +83,6 @@ program screen_driver
   ! DFT file section: Energies and wavefunctions, read-in and redistributed
   !
   call screen_tk_start( "dft" )
-  ! Initializes the framework for reading in files from the DFT
-  call odf_init( myid, root, comm, ierr )
-  if( ierr .ne. 0 ) goto 111
   
   ! Load up the energies, currently fully duplicated across all MPI
   call screen_energy_load( ierr )

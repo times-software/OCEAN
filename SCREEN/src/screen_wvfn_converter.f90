@@ -48,8 +48,12 @@ module screen_wvfn_converter
     integer :: isite, i
     integer :: recvSize, siteSize
 
+    ! Step 1 is figuring out wave funtion storage
+    ! if we are splitting the wvfns and we don't have real-only/gamma-point routines
+    i = 1
+    if( params%isSplit .and. .not. params%isGamma ) i = 2
     ! This is currently larger than it needs to be
-    recvSize = params%nspin * params%nkpts * odf_nprocPerPool()
+    recvSize = params%nspin * params%nkpts * odf_nprocPerPool() * i
 
     siteSize = screen_paral_NumLocalSites( pinfo, nsites )
 
@@ -166,7 +170,7 @@ module screen_wvfn_converter
 #ifdef MPI_F08
                           MPI_REQUEST, &
 #endif
-                          MPI_DOUBLE_COMPLEX, comm, myid
+                          MPI_DOUBLE_COMPLEX, MPI_DOUBLE_PRECISION, comm, myid
     use screen_system, only : system_parameters, params
     use screen_sites, only : site
     use screen_wavefunction, only : screen_wvfn
@@ -181,7 +185,7 @@ module screen_wvfn_converter
     integer, intent( inout ) :: ierr
 
 
-    integer :: ikpt, ispin, npts, i, j, itag
+    integer :: ikpt, ispin, npts, i, j, itag, iwvfn
     integer :: nprocPerKpt, poolIndex, targetID, num_bands, start_band, poolID
 #ifndef MPI
     recv_list(:) = 0
@@ -194,6 +198,11 @@ module screen_wvfn_converter
     nprocPerKpt = odf_nprocPerPool()
     npts = size( current_site%wvfn%wvfn, 1 )
 
+    ! if we are splitting the wvfns and we don't have real-only/gamma-point routines
+    iwvfn = 1
+    if( params%isSplit .and. .not. params%isGamma ) iwvfn = 2
+
+!    itag = ( isite - 1 ) * params%nkpts * params%nspin * iwvfn
     
     i = 0
     j = 0
@@ -201,8 +210,12 @@ module screen_wvfn_converter
       do ikpt = 1, params%nkpts
         i = i + 1
 
-        itag = ( isite - 1 ) * ( ikpt + ( ispin - 1 ) * params%nkpts ) &
-             + ( ispin - 1 ) * params%nkpts + ikpt
+!        itag = ( isite - 1 ) * ( ikpt + ( ispin - 1 ) * params%nkpts ) &
+!             + ( ispin - 1 ) * params%nkpts + ikpt
+        ! later switch this to incrementing
+        itag = ( isite - 1 ) * params%nkpts * params%nspin * iwvfn &
+             + ( ispin - 1 ) * params%nkpts * iwvfn + ( ikpt - 1 ) * iwvfn
+
         poolIndex = odf_getPoolIndex( ispin, ikpt )
         start_band = 1
         do poolID = 0, nprocPerKpt - 1
@@ -212,10 +225,23 @@ module screen_wvfn_converter
       
           write(1000+myid,'(A,8(1X,I8))') '   ', npts, start_band, num_bands, targetID, ikpt, ispin, itag, isite
 
-!          call MPI_IRECV( current_site%wvfn%wvfn( :, start_band:start_band+num_bands-1, i ), npts*num_bands, & 
-          call MPI_IRECV( current_site%wvfn%wvfn( 1, start_band, i ), npts*num_bands, & 
-                          MPI_DOUBLE_COMPLEX, targetID, itag, comm, recv_list( j ), ierr )
-          if( ierr .ne. 0 ) return
+          if( params%isSplit ) then
+            call MPI_IRECV( current_site%wvfn%real_wvfn( 1, start_band, i ), npts*num_bands, &
+                            MPI_DOUBLE_PRECISION, targetID, itag, comm, recv_list( j ), ierr )
+            if( ierr .ne. 0 ) return
+
+            ! only have imaginary components if NOT gamma-point/real-only
+            if( .not. params%isGamma ) then
+              j = j + 1
+              call MPI_IRECV( current_site%wvfn%imag_wvfn( 1, start_band, i ), npts*num_bands, &
+                              MPI_DOUBLE_PRECISION, targetID, itag+1, comm, recv_list( j ), ierr )
+              if( ierr .ne. 0 ) return
+            endif
+          else
+            call MPI_IRECV( current_site%wvfn%wvfn( 1, start_band, i ), npts*num_bands, & 
+                            MPI_DOUBLE_COMPLEX, targetID, itag, comm, recv_list( j ), ierr )
+            if( ierr .ne. 0 ) return
+          endif
           start_band = start_band + num_bands
 
         enddo
@@ -231,7 +257,8 @@ module screen_wvfn_converter
 
   subroutine swl_convertAndSend( pinfo, ikpt, ispin, ngvecs, nbands, input_gvecs, input_uofg, &
                                  nsites, all_sites, ierr )
-    use ocean_mpi, only : myid, comm, MPI_DOUBLE_COMPLEX, MPI_REQUEST_NULL, MPI_STATUSES_IGNORE
+    use ocean_mpi, only : myid, comm, MPI_DOUBLE_COMPLEX, MPI_REQUEST_NULL, MPI_STATUSES_IGNORE, &
+                          MPI_DOUBLE_PRECISION
     use screen_system, only : system_parameters, params, screen_system_returnKvec, &
                               physical_system, psys
     use screen_sites, only : site
@@ -257,16 +284,16 @@ module screen_wvfn_converter
     type( screen_wvfn ), allocatable :: temp_wavefunctions(:)
     real(DP) :: kpoints(3), qcart(3)
 !    integer :: uofxDims(3), boundaries(3,2)
-    integer :: isite, j, isend, itag, destID
+    integer :: isite, j, isend, itag, destID, iwvfn
     integer :: npts, nProcsPerPool, iproc
     integer :: pts_start, num_pts, band_start, num_band, kpts_start, num_kpts
 #ifdef MPI_F08
     type( MPI_DATATYPE ) :: newType
-    type( MPI_DATATYPE ), allocatable :: typeList(:,:)
+!    type( MPI_DATATYPE ), allocatable :: typeList(:,:)
     type( MPI_REQUEST ), allocatable :: send_list(:)
 #else
     integer :: newType
-    integer, allocatable :: typeList(:,:)
+!    integer, allocatable :: typeList(:,:)
     integer, allocatable :: send_list(:)
 #endif
 
@@ -274,6 +301,9 @@ module screen_wvfn_converter
 
     call screen_tk_start( "swl_convertAndSend_Init" )
     kpoints = screen_system_returnKvec( params, ikpt )
+
+    iwvfn = 1
+    if( params%isSplit .and. .not. params%isGamma ) iwvfn = 2
 
     qcart(:) = 0.0_DP
     do j = 1, 3
@@ -290,7 +320,7 @@ module screen_wvfn_converter
 
 
     nprocsPerPool = pinfo%nprocs
-    allocate( send_list( nsites * nprocsPerPool ), typeList( 0:nprocsPerPool, nsites ) )
+    allocate( send_list( nsites * nprocsPerPool * iwvfn ) ) !, typeList( 0:nprocsPerPool, nsites ) )
     isend = 0
 
     write(1000+myid,'(A,3(1X,I0))') '*** Convert and Send ***', ikpt, ispin, nbands
@@ -340,8 +370,10 @@ module screen_wvfn_converter
       call screen_tk_stop( "swl_DoAugment" )
   
       call screen_tk_start( "swl_convertAndSend_Send" )
-      itag = ( isite - 1 ) * ( ikpt + ( ispin - 1 ) * params%nkpts ) &
-           + ( ispin - 1 ) * params%nkpts + ikpt
+!      itag = ( isite - 1 ) * ( ikpt + ( ispin - 1 ) * params%nkpts ) &
+!           + ( ispin - 1 ) * params%nkpts + ikpt
+      itag = ( isite - 1 ) * params%nkpts * params%nspin * iwvfn &
+           + ( ispin - 1 ) * params%nkpts * iwvfn + ( ikpt - 1 ) * iwvfn
       do iproc = 0, nprocsPerPool - 1
         isend = isend + 1
         destID = screen_paral_siteIndexID2procID( pinfo, isite, iproc )
@@ -349,7 +381,11 @@ module screen_wvfn_converter
         call screen_wvfn_map_procID( destID, isite, pinfo, all_sites( isite )%grid, &
                                      pts_start, num_pts, band_start, num_band, kpts_start, num_kpts )
 
-        call MPI_TYPE_VECTOR( nbands, num_pts, npts, MPI_DOUBLE_COMPLEX, newType, ierr )
+        if( params%isSplit ) then
+          call MPI_TYPE_VECTOR( nbands, num_pts, npts, MPI_DOUBLE_PRECISION, newType, ierr )
+        else
+          call MPI_TYPE_VECTOR( nbands, num_pts, npts, MPI_DOUBLE_COMPLEX, newType, ierr )
+        endif
         if( ierr .ne. 0 ) return
         call MPI_TYPE_COMMIT( newType, ierr )
         if( ierr .ne. 0 ) return
@@ -360,10 +396,21 @@ module screen_wvfn_converter
           write(1000+myid,'(A,7(1X,I8))') '   Send converted:', destID, itag, pts_start, num_pts,  &
                                           band_start, num_band, isite
         if( num_pts .gt. 0 ) then
+          if( params%isSplit ) then
+            call MPI_ISEND( temp_wavefunctions(isite)%real_wvfn( pts_start, band_start, 1 ), 1, &
+                            newType, destID, itag, comm, send_list( isend ), ierr )
+            ! only have imaginary components if NOT gamma-point/real-only
+            if( .not. params%isGamma ) then
+              isend = isend + 1
+              call MPI_ISEND( temp_wavefunctions(isite)%imag_wvfn( pts_start, band_start, 1 ), 1, &
+                              newType, destID, itag+1, comm, send_list( isend ), ierr )
+            endif
+          else
 !          call MPI_ISEND( temp_wavefunctions(isite)%wvfn( pts_start, band_start, 1 ), num_pts * num_band, &
 !                          MPI_DOUBLE_COMPLEX, destID, itag, comm, send_list( isend ), ierr )
-          call MPI_ISEND( temp_wavefunctions(isite)%wvfn( pts_start, band_start, 1 ), 1, &
-                          newType, destID, itag, comm, send_list( isend ), ierr )
+            call MPI_ISEND( temp_wavefunctions(isite)%wvfn( pts_start, band_start, 1 ), 1, &
+                            newType, destID, itag, comm, send_list( isend ), ierr )
+          endif
         else
 !          write(6,*) 'Empty!', ikpt, ispin, iproc
           send_list( isend ) = MPI_REQUEST_NULL
@@ -421,7 +468,7 @@ module screen_wvfn_converter
     enddo
     call screen_tk_stop( "screen_wvfn_kill" )
 
-    deallocate( temp_wavefunctions, send_list, typeList )
+    deallocate( temp_wavefunctions, send_list )
 
 !    write( 6, * ) 'Convert and send', ikpt, ispin
 

@@ -287,13 +287,14 @@ module ocean_qe54_files
   end subroutine qe54_clean
 
   ! Read the universal little files
-  subroutine qe54_read_init( comm, ierr )
+  subroutine qe54_read_init( comm, isGamma, ierr )
     use ocean_mpi, only : MPI_INTEGER, MPI_CHARACTER, MPI_LOGICAL
 #ifdef MPI_F08
     type( MPI_COMM ), intent( in ) :: comm
 #else
     integer, intent( in ) :: comm
 #endif
+    logical, intent( out ) :: isGamma
     integer, intent( inout ) :: ierr
     !
     integer :: i, brange(4)
@@ -373,6 +374,7 @@ module ocean_qe54_files
 
 !    write(6,*) 'qe54_read_init was successful'
     is_init = .true.
+    isGamma = is_gamma
   
   end subroutine  qe54_read_init 
 
