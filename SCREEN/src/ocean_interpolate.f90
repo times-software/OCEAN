@@ -116,7 +116,7 @@ module ocean_interpolate
   subroutine cMakeLagrange( order, ix, iy, iz, d, p )
     integer, intent( in ) :: order, ix, iy,iz
     complex(dp), intent( in ) :: d(:,:,:)
-    complex(dp), intent( out ) :: p(:)
+    complex(dp), intent( out ) :: p(1:order)
 
     complex(dp) :: contiguousD( order )
     integer :: iix, iiy, iiz, i
@@ -142,7 +142,7 @@ module ocean_interpolate
       iiz = iiz - nz
     enddo
 
-    iix = ix
+    iix = ix - 1
     do while( iix .lt. 1 ) 
       iix = iix + nx 
     enddo

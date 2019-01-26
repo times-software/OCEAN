@@ -1040,7 +1040,11 @@ module screen_wvfn_converter
         boundaries(:,1) = minval( gvecs, 2 )
         boundaries(:,2) = maxval( gvecs, 2 )
         uofxDims(:) = boundaries(:,2) - boundaries(:,1) + 1 
-        uofxDims(:) = uofxDims(:) * 1.25
+
+        write(1000+myid,'(A,3(X,I0))') 'Initial: ', uofxDims(:)
+!        uofxDims(:) = (uofxDims(:) -1)*2
+        uofxDims(:) = (uofxDims(:))*2
+        write(1000+myid,'(A,3(X,I0))') 'Final  : ', uofxDims(:)
 
         ! This changes the FFT grid to factor to reasonably small primes
         do i = 1, 3
@@ -1545,7 +1549,7 @@ module screen_wvfn_converter
     !
     complex(DP) :: R
     real(DP) :: dx, dy, dz, rvec(3), i2pi, phse
-    integer :: dims(3), ib, ip, i, j, ix, iy, iz, iyy, izz
+    integer :: dims(3), ib, ip, i, j, ix, iy, iz, iyy, izz, offset
 
 
     allocate( pointMap( 3, npts ), distanceMap( 3, npts ), phase( npts ), stat=ierr )
@@ -1589,6 +1593,15 @@ module screen_wvfn_converter
                         / real(dims( : ), DP )
     enddo
 
+    ! Need to find the offset
+    ! pointMap should point to the central value, which is round to nearest for odd-order, but
+    ! round to floor for even. 
+    if( mod( order, 2 ) .eq. 1 ) then
+      offset = order / 2
+    else
+      offset = order / 2 - 1
+    endif
+
     ! These two, isInitGrid and PGrid, allow for the possiblity of re-use at the cost of storage
     ! The amount of computation and data fetching is greatly reduced if we can re-use, and the 
     ! re-used array is in order (whereas sometimes we'll wander around the PBC of the Bloch functions).
@@ -1605,12 +1618,14 @@ module screen_wvfn_converter
       do ip = 1, npts
 
         do iz = 0, order - 1
-          izz = pointMap( 3, ip ) + iz
+          izz = pointMap( 3, ip ) + iz - offset
           if( izz .gt. dims( 3 ) ) izz = izz - dims( 3 )
+          if( izz .lt. 1 ) izz = izz + dims( 3 )
 
           do iy = 0, order - 1
-            iyy = pointMap( 2, ip ) + iy
+            iyy = pointMap( 2, ip ) + iy - offset
             if( iyy .gt. dims( 2 ) ) iyy = iyy - dims( 2 )
+            if( iyy .lt. 1 ) iyy = iyy + dims( 2 )
 
             if( .not. isInitGrid( pointMap( 1, ip ), iyy, izz ) ) then
               
@@ -1623,12 +1638,14 @@ module screen_wvfn_converter
         enddo ! iz
 
         do iz = 1, order
-          izz = pointMap( 3, ip ) + iz - 1
+          izz = pointMap( 3, ip ) + iz - 1 - offset
           if( izz .gt. dims( 3 ) ) izz = izz - dims( 3 )
+          if( izz .lt. 1 ) izz = izz + dims( 3 )
 
           do iy = 1, order
-            iyy = pointMap( 2, ip ) + iy - 1
+            iyy = pointMap( 2, ip ) + iy - 1 - offset
             if( iyy .gt. dims( 2 ) ) iyy = iyy - dims( 2 )
+            if( iyy .lt. 1 ) iyy = iyy + dims( 2 )
 
             P(iy,iz) = evalLagrange( order, distanceMap( 1, ip ), dx, Pgrid( :, pointMap( 1, ip ), iyy, izz ) )
           enddo
