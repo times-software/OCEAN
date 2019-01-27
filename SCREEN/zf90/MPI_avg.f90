@@ -1,4 +1,4 @@
-! Copyright (C) 2015, 2017 OCEAN collaboration
+! Copyright (C) 2015, 2017-2019 OCEAN collaboration
 !
 ! This file is part of the OCEAN project and distributed under the terms 
 ! of the University of Illinois/NCSA Open Source License. See the file 
@@ -16,11 +16,12 @@ program avg
             radius,gr,greal(3), magi
   real(kind=kind(1.d0)), allocatable :: rhogr(:),rhogi(:),modrealgvec(:)
   real(kind=kind(1.d0)), allocatable :: modrealgvec2(:), tau(:,:)
-  integer :: gmax( 3 ), ngmax, iter, rad_int, dumi
+  integer :: gmax( 3 ), ngmax, iter, rad_int, dumi, xmesh(3), ix, iy, iz
   real(kind=kind(1.d0)) :: gmodmax( 3 ), sgmodmax, rad_step
 
   character(len=2), allocatable :: elname(:)
   character(len=9) :: avgname
+  character(len=4) :: mode
 
   real(kind=kind(1.d0)), allocatable :: Vdenr(:), Vdeni(:)
 
@@ -158,21 +159,65 @@ program avg
 !      write(70,*) modrealgvec(i), dsqrt(modrealgvec2(i))
     enddo !ng
     modrealgvec( 1 : ng ) = dsqrt( modrealgvec2( 1 : ng ) )
+
+    inquire(file='screen.mode', exist=ex )
+    if( ex ) then
+      open( unit=99, file='screen.mode', form='formatted', status='old' )
+      read( 99, * ) mode
+      close( 99 )
+    else
+      mode = ''
+    endif
+    select case ( mode )
+      case( 'core', 'grid' )
+      case default
+        write(6,*) 'Using default for screen.mode!'
+        write(6,*) '  screen.mode = core'
+        mode = 'core'
+    end select
+
     
-    open(unit=98,file='sitelist',form='formatted',status='old')
-    read(98,*)numsites
-    allocate( tau(3,numsites), elname(numsites), elnum(numsites) )
-    do i = 1, numsites
-      read(98,*)elname(i),dumi,elnum(i)
-      call snatch( elname(i),elnum(i), tau(:,i) )
-    enddo
-    close(98)
+    select case( mode )
+      case( 'core' )
+        open(unit=98,file='sitelist',form='formatted',status='old')
+        read(98,*)numsites
+        allocate( tau(3,numsites), elname(numsites), elnum(numsites) )
+        do i = 1, numsites
+          read(98,*)elname(i),dumi,elnum(i)
+          call snatch( elname(i),elnum(i), tau(:,i) )
+        enddo
+        close(98)
+        xmesh(:) = 0
+      case( 'grid' )
+        open(unit=98,file='xmesh.ipt',form='formatted',status='old')
+        read(98,*) xmesh(:)
+        close( 98 )
+        numsites = product( xmesh(:) )
+        allocate( tau(3,numsites), elname(numsites), elnum(numsites) )
+        elnum(:) = 0
+        elname(:) = 'xx'
+        i = 1
+        do ix = 0, xmesh(1)-1
+          do iy = 0, xmesh(2)-1
+            do iz = 0, xmesh(3)-1
+              tau(1,i) = dble(ix)/dble(xmesh(1))
+              tau(2,i) = dble(iy)/dble(xmesh(2))
+              tau(3,i) = dble(iz)/dble(xmesh(3))
+!              write(6,*) tau(:,i)
+              i = i + 1
+            enddo
+          enddo
+        enddo
+
+    end select
 
   endif
 
   if( pool_size .gt. 1 .or. num_pools .gt. 1 ) then
     call MPI_BCAST( ng, 1, MPI_INTEGER, 0, MPI_COMM_WORLD, ierr )
     call MPI_BCAST( numsites, 1, MPI_INTEGER, 0, MPI_COMM_WORLD, ierr )
+!    call MPI_BCAST( xmesh, 3, MPI_INTEGER, 0, MPI_COMM_WORLD, ierr )
+!    call MPI_BCAST( mode, 4, MPI_CHARACTER,  0, MPI_COMM_WORLD, ierr )
 
     if( myrank .ne. 0 .or. mypool .ne. 0 ) then
       allocate( rhogr( ng ), rhogi( ng ), gvec( 3, ng ), modrealgvec( ng ) )
@@ -264,7 +309,12 @@ program avg
   enddo
 
   if( my_poolrank .eq. 0 ) then
-    write(avgname,"(a3,a2,i4.4)")"avg",elname(i),elnum(i)
+    select case( mode )
+      case( 'core' )
+        write(avgname,"(a3,a2,i4.4)")"avg",elname(i),elnum(i)
+      case( 'grid' )
+        write(avgname,"(a3,i6.6)")"avg",i
+    end select 
     open(unit=97,file=avgname,form='formatted',status='unknown')
     do rad_int = 0, max_rad-1
       radius = 0.00001d0 + dble( rad_int ) * rad_step
