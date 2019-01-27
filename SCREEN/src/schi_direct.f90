@@ -332,18 +332,18 @@ module schi_direct
 
     call screen_tk_start( "dgemm" )
      
-  k = 0
-  temp(:,:) = 0.0_DP
-  do ilm = 1, nlm
-    do ir = 1, nr
-      k = k + 1
-      do i = 1, nang
-        do j = 1, npt
-          temp( j, k ) = temp( j, k ) + FullSpace( j, (ir-1)*nang + i ) * slice_ymu( i, ilm )
+    k = 0
+    temp(:,:) = 0.0_DP
+    do ilm = 1, nlm
+      do ir = 1, nr
+        k = k + 1
+        do i = 1, nang
+          do j = 1, npt
+            temp( j, k ) = temp( j, k ) + FullSpace( j, (ir-1)*nang + i ) * slice_ymu( i, ilm )
+          enddo
         enddo
       enddo
-    enddo
-  enddo   
+    enddo   
 !    do i = 1, dimTemp
 !      call DGEMM( 'T', 'N', nr, nLM, nang, d_One, FullSpace( i, : ), npt*nang, slice_ymu, nang, d_zero, &
 !                  temp( i, : ), npt*nr )
