@@ -73,16 +73,19 @@ module screen_grid
 
   contains
 
-  subroutine screen_grid_dumpFullGrid( g, elname, elindx, ierr )
+!  subroutine screen_grid_dumpFullGrid( g, elname, elindx, ierr )
+  subroutine screen_grid_dumpFullGrid( g, gsuffix, ierr )
     type( sgrid ), intent( in ) :: g
-    character( len=2 ), intent( in ) :: elname
-    integer, intent( in ) :: elindx
+!    character( len=2 ), intent( in ) :: elname
+!    integer, intent( in ) :: elindx
+    character( len=6 ), intent( in ) :: gsuffix
     integer, intent( inout ) :: ierr
 
     character( len=12 ) :: filnam
 
-    write( filnam, '(A,A2,I4.4)' ) 'grid', elname, elindx
-    write(6,*) filnam
+    write( filnam, '(A,A)' ) 'grid', gsuffix
+!    write( filnam, '(A,A2,I4.4)' ) 'grid', elname, elindx
+!    write(6,*) filnam
 
     open( unit=99, file=filnam, form='unformatted', status='unknown', iostat=ierr, err=100 )
     rewind( 99 )

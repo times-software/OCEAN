@@ -155,6 +155,7 @@ module screen_wvfn_converter
           
           call swl_convertAndSend( pinfo, ikpt, ispin, ngvecs, nbands, input_gvecs, input_uofg, &
                                    nsites, all_sites, ierr )
+          if( ierr .ne. 0 ) return
 
           deallocate( input_gvecs, input_uofg )
 
@@ -331,6 +332,7 @@ module screen_wvfn_converter
     isend = 0
 
     write(1000+myid,'(A,3(1X,I0))') '*** Convert and Send ***', ikpt, ispin, nbands
+    flush(1000+myid)
 
     call swl_checkConvert( input_gvecs, uofx%dims, ierr )
 !    if( ierr .ne. 0 ) return
@@ -352,7 +354,6 @@ module screen_wvfn_converter
     call screen_tk_stop( "swl_DoConvert" )
     
     do isite = 1, nsites
-
       call screen_tk_start( "singleKInit" )
       call screen_wvfn_singleKInit( all_sites( isite )%grid, temp_wavefunctions( isite ), ierr )
       if( ierr .ne. 0 ) return
@@ -362,6 +363,7 @@ module screen_wvfn_converter
 !             size(temp_wavefunctions( isite )%wvfn,2), nbands
       write(1000+myid,'(A,4(1X,I8))') '   Site:', isite, & 
                                       screen_wvfn_returnWavefunctionDims( temp_wavefunctions( isite )), nbands
+      flush(1000+myid)
 
       npts = all_sites( isite )%grid%Npt
 

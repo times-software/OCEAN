@@ -82,7 +82,113 @@ module screen_sites
 
   end subroutine
 
+!> @brief load the info for all the sites. Redirects to either the core or grid versions
   subroutine screen_sites_load( n_sites, all_sites, ierr )
+    use screen_system, only : screen_system_mode
+    !
+    integer, intent( in ) :: n_sites
+    type( site ), intent( inout ) :: all_sites( : )
+    integer, intent( inout ) :: ierr
+    !
+    select case( screen_system_mode() )
+
+      case( 'core' )
+        call screen_sites_load_core( n_sites, all_sites, ierr )
+      case( 'grid' )
+        call screen_sites_load_grid( n_sites, all_sites, ierr )
+      case default
+        ierr = 1
+    end select 
+
+  end subroutine screen_sites_load
+
+!> @brief Sets up sites on the FFT grid xmesh which is used by the BSE
+!! @todo Move the xmesh file read up somewhere else so it is done only once (currently twice)
+  subroutine screen_sites_load_grid( n_sites, all_sites, ierr )
+    use screen_system, only : tau2xcoord
+    use screen_grid, only : screen_grid_init
+    use screen_paral, only : screen_paral_init
+    use screen_wavefunction, only : screen_wvfn_init
+    !
+    integer, intent( in ) :: n_sites
+    type( site ), intent( inout ) :: all_sites( : )
+    integer, intent( inout ) :: ierr
+    !
+    real( DP ) :: tau( 3 ), xcoord( 3 )
+    integer :: i, ix, iy, iz, nshells, xmesh(3)
+    real(DP), allocatable :: shells(:)
+
+    call count_shells( nshells, ierr )
+    if( ierr .ne. 0 ) return
+    allocate( shells( nshells ) )
+    call read_shells( nshells, shells, ierr )
+    if( ierr .ne. 0 ) return
+
+    call get_xmesh( xmesh, ierr )
+    if( ierr .ne. 0 ) return
+
+    i = 0
+    do ix = 1, xmesh( 1 )
+      tau( 1 ) = real( ix - 1, DP ) / real( xmesh( 1 ), DP )
+      do iy = 1, xmesh( 2 )
+        tau( 2 ) = real( iy - 1, DP ) / real( xmesh( 2 ), DP )
+        do iz = 1, xmesh( 3 )
+          tau( 3 ) = real( iz - 1, DP ) / real( xmesh( 3 ), DP )
+          i = i + 1
+!         do i = 1, n_sites
+          all_sites( i )%info%indx = i
+          all_sites( i )%info%elname = '__'
+          all_sites( i )%info%z = 0
+      
+          allocate( all_sites( i )%shells( nshells ) )
+          all_sites( i )%shells( : ) = shells( 1 : nshells )
+
+          ! convert tau to xcoord
+!          xcoord = matmul( psys%avecs, tau )
+          xcoord = tau2xcoord( tau )
+          ! After the first grid just copy all the initialization data instead of reading from file
+          if( i .eq. 1 ) then
+            call screen_grid_init( all_sites( i )%grid, xcoord, ierr )
+          else
+            call screen_grid_init( all_sites( i )%grid, xcoord, ierr, all_sites( 1 )%grid )
+          endif
+          if( ierr .ne. 0 ) return
+        enddo
+      enddo
+    enddo
+
+    call screen_paral_init( n_sites, pinfo, ierr )
+
+    do i = 1, n_sites
+      call screen_wvfn_init( pinfo, all_sites( i )%grid, all_sites( i )%wvfn, i, ierr )
+      if( ierr .ne. 0 ) return
+    enddo
+
+    deallocate( shells )
+
+  end subroutine screen_sites_load_grid
+
+!> @brief loads xmesh, which might be better moved to system at some point
+  subroutine get_xmesh( xmesh, ierr )
+    use ocean_mpi, only : myid, root, comm, MPI_INTEGER
+    !
+    integer, intent( out ) :: xmesh( 3 )
+    integer, intent( inout ) :: ierr
+    !
+
+    if( myid .eq. root ) then
+      open( unit=99, file='xmesh.ipt', form='formatted', status='old' )
+      read( 99, * ) xmesh( : )
+      close( 99 )
+    endif
+
+#ifdef MPI
+    call MPI_BCAST( xmesh, 3, MPI_INTEGER, root, comm, ierr )
+#endif
+
+  end subroutine get_xmesh
+
+  subroutine screen_sites_load_core( n_sites, all_sites, ierr )
     use OCEAN_mpi
     use screen_system, only : screen_system_snatch
     use screen_grid, only : screen_grid_init
@@ -153,29 +259,56 @@ module screen_sites
       if( ierr .ne. 0 ) return
     enddo
 
-  end subroutine screen_sites_load
+  end subroutine screen_sites_load_core
 
-
+!> @brief Returns a count of unique sites for calculating the screening. Either the number of
+!> atomic sites that are being screened, or the count of xmesh for valence code
   subroutine count_sitelist( nsites, ierr )
     use OCEAN_mpi, only : myid, root, comm, MPI_INTEGER
+    use screen_system, only : screen_system_mode
     !
     integer, intent( out ) :: nsites
     integer, intent( inout ) :: ierr
     !
-    integer :: ierr_
+    integer :: ierr_, xmesh(3)
     !
     if( myid .eq. root ) then
-      open( unit=99, file='sitelist', form='formatted', status='old', iostat=ierr, action='read' )
-      if( ierr .ne. 0 ) then
-        write(6,*) 'Failed to open sitelist'
-        goto 10
-      endif
 
-      rewind(99)
-      read( 99, *, iostat=ierr ) nsites
-      if( ierr .ne. 0 ) write(6,*) 'Failed to read sitelist'
-      close( 99 )
+      select case( screen_system_mode() )
 
+        case( 'core' ) 
+
+          open( unit=99, file='sitelist', form='formatted', status='old', iostat=ierr, action='read' )
+          if( ierr .ne. 0 ) then
+            write(6,*) 'Failed to open sitelist'
+            goto 10
+          endif
+
+          rewind(99)
+          read( 99, *, iostat=ierr ) nsites
+          if( ierr .ne. 0 ) write(6,*) 'Failed to read sitelist'
+          close( 99 )
+
+        case( 'grid' )
+
+          open( unit=99, file='xmesh.ipt', form='formatted', status='old', iostat=ierr, action='read' )
+          if( ierr .ne. 0 ) then
+            write(6,*) 'Failed to open xmesh.ipt'
+            goto 10
+          endif
+
+          rewind(99)
+          read( 99, *, iostat=ierr ) xmesh(:)
+          if( ierr .ne. 0 ) then 
+            write(6,*) 'Failed to read xmesh'
+          else
+            nsites = product( xmesh )
+          endif
+          close( 99 )
+
+        case default
+          ierr = 1
+      end select
     endif
 
 10  continue

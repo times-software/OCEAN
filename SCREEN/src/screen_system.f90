@@ -45,8 +45,10 @@ module screen_system
     character(len=4) :: convertStyle = 'real'
     character(len=4) :: chi0Integrand = 'half'
     character(len=6) :: inversionStyle 
+    character(len=4) :: mode
     integer :: QuadOrder = 16
     logical :: do_augment = .true.
+    integer :: lbounds(2) = 0
   end type calculation_parameters
 
   type( physical_system ), save :: psys
@@ -60,8 +62,8 @@ module screen_system
   public :: screen_system_convertStyle, screen_system_chi0Integrand
   public :: screen_system_invStyle, screen_system_QuadOrder
   public :: screen_system_convertInterpolateStyle, screen_system_convertInterpolateOrder
-  public :: screen_system_doAugment
-  public :: screen_system_setGamma
+  public :: screen_system_doAugment, screen_system_lbounds, screen_system_mode
+  public :: screen_system_setGamma, tau2xcoord
 
   contains 
 
@@ -110,10 +112,20 @@ module screen_system
     is = calcParams%inversionStyle
   end function screen_system_invStyle
 
+  pure function screen_system_mode() result(is)
+    character(len=4) :: is
+    is = calcParams%mode
+  end function screen_system_mode
+
   pure function screen_system_convertStyle() result (cs)
     character(len=4) :: cs
     cs = calcParams%convertStyle
   end function screen_system_convertStyle
+
+  pure function screen_system_lbounds() result (lb)
+    integer :: lb(2)
+    lb(:) = calcParams%lbounds
+  end function screen_system_lbounds
 
   pure function screen_system_returnKvec( sp, ikpt ) result( Kvec )
     type( system_parameters ), intent( in ) :: sp
@@ -132,6 +144,13 @@ module screen_system
     Kvec(3) = ( sp%kshift(3) + real( mod( i, sp%kmesh(3) ), DP ) ) / real( sp%kmesh(3), DP )
     
   end function screen_system_returnKvec
+
+  pure function tau2xcoord( tau ) result( xcoord )
+    real(DP), intent( in ) :: tau(3)
+    real(DP) :: xcoord( 3 )
+    
+    xcoord = matmul( psys%avecs, tau )
+  end function tau2xcoord
 
   subroutine screen_system_summarize( ierr )
     use OCEAN_mpi, only : myid, root
@@ -251,10 +270,16 @@ module screen_system
     call MPI_BCAST( calcParams%inversionStyle, 6, MPI_CHARACTER, root, comm, ierr )
     if( ierr .ne. MPI_SUCCESS ) return
 
+    call MPI_BCAST( calcParams%mode, 4, MPI_CHARACTER, root, comm, ierr )
+    if( ierr .ne. MPI_SUCCESS ) return
+
     call MPI_BCAST( calcParams%QuadOrder, 1, MPI_INTEGER, root, comm, ierr )
     if( ierr .ne. MPI_SUCCESS ) return
 
     call MPI_BCAST( calcParams%do_augment, 1, MPI_LOGICAL, root, comm, ierr )
+    if( ierr .ne. MPI_SUCCESS ) return
+
+    call MPI_BCAST( calcParams%lbounds, 2, MPI_INTEGER, root, comm, ierr )
     if( ierr .ne. MPI_SUCCESS ) return
 #endif
   end subroutine share_calcParams
@@ -353,6 +378,28 @@ module screen_system
 
     ignoreErrors = 0
 
+    inquire( file='screen.lbounds', exist=ex )
+    if( ex ) then
+      open( unit=99, file='screen.lbounds', form='formatted', status='old' )
+      read( 99, *, IOSTAT=ignoreErrors ) calcParams%lbounds(:)
+      close( 99 )
+      if( ignoreErrors .ne. 0 ) then
+        write(6,*) 'Error reading screen.lbounds: ', ignoreErrors
+      endif
+    else
+      calcParams%lbounds(:) = 0
+    endif
+    if( calcParams%lbounds(1) .lt. 0 ) then
+      write(6,*) 'Illegal lower bound for angular momentum:', calcParams%lbounds(1)
+      calcParams%lbounds(1) = 0
+    endif
+    if( calcParams%lbounds(2) .lt. calcParams%lbounds(1) ) then
+      write(6,*) 'Illegal upper bound for angular momentum:', calcParams%lbounds(2)
+      calcParams%lbounds(2) = calcParams%lbounds(1)
+    endif
+    write(6,'(A,I5,I5)') 'Angular momentum bounds are: ', calcParams%lbounds(:)
+
+
     inquire( file='screen.convertstyle', exist=ex )
     if( ex ) then
       open( unit=99, file='screen.convertstyle', form='formatted', status='old' )
@@ -413,6 +460,25 @@ module screen_system
         calcParams%inversionStyle = 'sinqr'
     end select
 
+    inquire( file='screen.mode', exist=ex )
+    if( ex ) then
+      open( unit=99, file='screen.mode', form='formatted', status='old' )
+      read( 99, *, IOSTAT=ignoreErrors ) calcParams%mode
+      close( 99 )
+      if( ignoreErrors .ne. 0 ) then
+        write(6,*) 'Error reading screen.mode: ', ignoreErrors
+      endif
+    else
+      calcParams%mode = ''
+    endif
+    select case ( calcParams%mode )
+      case( 'core', 'grid' )
+      case default 
+        write(6,*) 'Using default for screen.mode!'
+        write(6,*) '  screen.mode = core'
+        calcParams%mode = 'core'
+    end select
+
     inquire( file='screen.quadorder', exist=ex )
     if( ex ) then
       open( unit=99, file='screen.quadorder', form='formatted', status='old' )
@@ -434,6 +500,11 @@ module screen_system
     if( ex .eqv. .false. .or. ignoreErrors .ne. 0 ) then
       write( 6, * ) 'Using default for screen.augment!'
       write( 6, * ) '  screen.augment = false'
+      calcParams%do_augment = .false.
+    endif
+    ! augment is NOT compatible with grid
+    if( calcParams%mode .eq. 'grid' .and. calcParams%do_augment ) then
+      write( 6, * ) 'Augmentation not allowed for mode=grid. Setting to false'
       calcParams%do_augment = .false.
     endif
 

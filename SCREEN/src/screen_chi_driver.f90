@@ -1,4 +1,4 @@
-! Copyright (C) 2017 OCEAN collaboration
+! Copyright (C) 2017-2018 OCEAN collaboration
 !
 ! This file is part of the OCEAN project and distributed under the terms 
 ! of the University of Illinois/NCSA Open Source License. See the file 
@@ -38,6 +38,7 @@ module screen_chi_driver
     use screen_grid, only : screen_grid_dumpFullGrid
     use ocean_mpi, only : myid
     use screen_timekeeper, only : screen_tk_start, screen_tk_stop
+    use screen_system, only : screen_system_mode
     integer, intent( in ) :: nsites
     type( site ), intent( in ) :: all_sites( nsites )
     integer, intent( inout ) :: ierr
@@ -47,6 +48,7 @@ module screen_chi_driver
     integer :: isite, dims(2), NLM, NR
 
     character( len=4 ) :: chiPrefix
+    character( len=6 ) :: gridSuffix
 
     NLM = screen_chi_NLM()
     if( NLM .lt. 1 ) then
@@ -104,8 +106,15 @@ module screen_chi_driver
           if( ierr .ne. 0 ) return
 
           write( 6,*) 'Dump grid'
-          call screen_grid_dumpFullGrid( all_sites( isite )%grid, all_sites( isite )%info%elname, &
-                                         all_sites( isite )%info%indx, ierr )
+          select case( screen_system_mode() )
+            case( 'grid' )
+              write(gridsuffix,'(I6.6)') all_sites( isite )%info%indx
+            case default
+              write(gridsuffix,'(A2,I4.4)') all_sites( isite )%info%elname, all_sites( isite )%info%indx
+          end select
+          call screen_grid_dumpFullGrid( all_sites( isite )%grid, gridsuffix, ierr )
+!          call screen_grid_dumpFullGrid( all_sites( isite )%grid, all_sites( isite )%info%elname, &
+!                                         all_sites( isite )%info%indx, ierr )
           if( ierr .ne. 0 ) return
         endif
 
@@ -127,6 +136,7 @@ module screen_chi_driver
 
   subroutine driver_write_chi( SiteInfo, chiPrefix, Chi, ierr )
     use screen_sites, only : site_info
+    use screen_system, only : screen_system_mode
 
     type( site_info ), intent( in ) :: siteInfo
     character(len=4), intent( in ) :: chiPrefix
@@ -135,7 +145,13 @@ module screen_chi_driver
     !
     character(len=80) :: filnam
 
-    write( filnam, '(A,A2,I4.4)' ) trim( chiPrefix ), siteInfo%elname, siteInfo%indx
+    select case( screen_system_mode() )
+      case( 'grid' )
+        write( filnam, '(A,I6.6)' ) trim( chiPrefix ), siteInfo%indx
+      case default
+        write( filnam, '(A,A2,I4.4)' ) trim( chiPrefix ), siteInfo%elname, siteInfo%indx
+    end select
+
     open( unit=99, file=filnam, form='unformatted', status='unknown' )
     rewind( 99 )
     write(99) size(Chi,1), size(Chi,2)
