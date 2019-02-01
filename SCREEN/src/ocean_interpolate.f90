@@ -148,7 +148,7 @@ module ocean_interpolate
     enddo
     do i = 1, order 
       do while( iix .gt. nx )
-        iix = iix - nz
+        iix = iix - nx
       enddo
       contiguousD( i ) = d(iix,iiy,iiz)
       iix = iix + 1
@@ -193,7 +193,7 @@ module ocean_interpolate
     enddo
     do i = 1, order
       do while( iix .gt. nx )
-        iix = iix - nz
+        iix = iix - nx
       enddo
       contiguousD( i ) = d(iix,iiy,iiz)
       iix = iix + 1
