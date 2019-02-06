@@ -80,8 +80,8 @@ screen_chi_driver.o:   screen_chi_driver.f90 screen_chi0.mod screen_chi.mod scre
 screen_chi_driver.mod: screen_chi_driver.f90 screen_chi0.mod screen_chi.mod screen_centralpotential.mod \
                        screen_grid.mod screen_timekeeper.mod
 
-screen_centralpotential.o:   screen_centralpotential.f90 ai_kinds.mod ocean_mpi.mod
-screen_centralpotential.mod: screen_centralpotential.f90 ai_kinds.mod ocean_mpi.mod
+screen_centralpotential.o:   screen_centralpotential.f90 ai_kinds.mod ocean_mpi.mod screen_system.mod
+screen_centralpotential.mod: screen_centralpotential.f90 ai_kinds.mod ocean_mpi.mod screen_system.mod
 
 schi_sinqr.o:   schi_sinqr.f90 ai_kinds.mod screen_centralpotential.mod
 schi_sinqr.mod: schi_sinqr.f90 ai_kinds.mod screen_centralpotential.mod
