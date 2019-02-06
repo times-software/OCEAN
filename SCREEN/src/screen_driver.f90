@@ -61,22 +61,22 @@ program screen_driver
   call screen_energy_init( ierr )
   if( ierr .ne. 0 ) goto 111
   ! 
-  write(6,*) 'screen_sites_prep'
+!  write(6,*) 'screen_sites_prep'
   call screen_sites_prep( nsites, ierr )
   if( ierr .ne. 0 ) goto 111
   allocate( all_sites( nsites ), stat=ierr )
   if( ierr .ne. 0 ) goto 111
-  write(6,*) 'screen_sites_load'
+!  write(6,*) 'screen_sites_load'
   call screen_sites_load( nsites, all_sites, ierr )
   if( ierr .ne. 0 ) goto 111
   !
 
-  write(6,*) 'screen_centralPotential_loadInternal'
+!  write(6,*) 'screen_centralPotential_loadInternal'
 !  ! load up potentials to be screened later
   call screen_centralPotential_loadInternal( ierr )
   if( ierr .ne. 0 ) goto 111
 
-  write(6,*) 'screen_opf_loadAll'
+!  write(6,*) 'screen_opf_loadAll'
   ! load up all the augmentation options
   call screen_opf_loadAll( ierr )
   if( ierr .ne. 0 ) goto 111

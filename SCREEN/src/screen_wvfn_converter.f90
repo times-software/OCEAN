@@ -77,9 +77,10 @@ module screen_wvfn_converter
     call screen_wvfn_converter_loader( pinfo, nsites, all_sites, ierr )
     if( ierr .ne. 0 ) return
 
-!#ifdef DEBUG
+#ifdef DEBUG
+    call MPI_BARRIER( comm, ierr )
     write(6,*) 'Wait on RECVs'
-!#endif
+#endif
 
     call screen_tk_start( "wc_driver_waitSiteRecvs" )
     do i = 1, siteSize
@@ -93,7 +94,12 @@ module screen_wvfn_converter
 !    enddo
 
     deallocate( recvArray )
+    call MPI_BARRIER( comm, ierr )
+#ifdef DEBUG
     write(6,*) 'converter_driver done'
+#else
+    if( myid .eq. 0 ) write(6,*) 'converter_driver done'
+#endif
 
 
   end subroutine screen_wvfn_converter_driver
@@ -405,7 +411,7 @@ module screen_wvfn_converter
           write(1000+myid,'(A,7(A9))') '   Send converted:', 'DestID', 'Tag', 'P-start', 'P-num', &
                                        'B-start', 'B-num', 'Site'
           write(1000+myid,'(A,7(1X,I8))') '   Send converted:', destID, itag, pts_start, num_pts,  &
-                                          band_start, num_band, isite
+                                          band_start, nbands, isite
         flush(1000+myid)
         if( num_pts .gt. 0 ) then
           if( params%isSplit ) then

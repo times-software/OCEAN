@@ -410,6 +410,7 @@ module ocean_qe54_files
       do i = 2, inter_nproc
         if( mod( inter_nproc, i ) .eq. 0 ) then
           if( inter_myid .eq. 0 ) write(6,*) i, inter_nproc
+          write(1000+inter_myid,*)  i, inter_nproc, nfiles
           if( nfiles .ge. (inter_nproc/i) ) then
             npool = inter_nproc/i
             mypool = inter_myid/ i 
@@ -460,7 +461,9 @@ module ocean_qe54_files
     endif
 
     if( pool_myid .eq. pool_root ) then
-      open( unit=99,file=qe54_gkvFile( ikpt, ispin ), form='unformatted', status='old' )
+      write(myid+1000,*) 'Opening file', trim(qe54_gkvFile( ikpt, ispin ))
+      flush(myid+1000)
+      open( unit=99,file=trim(qe54_gkvFile( ikpt, ispin )), form='unformatted', status='old' )
       do i = 1, 12
         read( 99 )
       enddo
