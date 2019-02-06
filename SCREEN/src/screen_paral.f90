@@ -82,14 +82,14 @@ module screen_paral
     endif
 
 
-    call write_paral_summary( myid, pinfo )
+    call write_paral_summary( myid, pinfo, n_sites )
 
   end subroutine screen_paral_init
 
 
-  subroutine write_paral_summary( myid, pinfo )
+  subroutine write_paral_summary( myid, pinfo, n_sites )
     type( site_parallel_info ), intent( in ) :: pinfo
-    integer, intent( in ) :: myid
+    integer, intent( in ) :: myid, n_sites
 
     write(1000+myid,*) "### SCREEN_PARAL Summary ###"
     write(1000+myid,*) "############################"
@@ -98,6 +98,7 @@ module screen_paral
     write(1000+myid,*) "Num groups =   ", pinfo%num_groups
     write(1000+myid,*) "My group =     ", pinfo%mygroup
     write(1000+myid,*) "My ID =        ", pinfo%myid
+    write(1000+myid,*) "My N sites =   ", screen_paral_NumLocalSites( pinfo, n_sites )
     write(1000+myid,*) "############################"
 
   end subroutine write_paral_summary
@@ -144,13 +145,18 @@ module screen_paral
     integer, intent( in ) :: nsites
     integer :: NumLocalSites
 
-    integer :: i, j
+    integer :: i!, j
 
-    j = nsites
-    do i = 0, pinfo%mygroup
-      NumLocalSites = j / ( pinfo%num_groups - i )
-      j = j - NumLocalSites
+!    j = nsites
+!    do i = 0, pinfo%mygroup
+!      NumLocalSites = j / ( pinfo%num_groups - i )
+!      j = j - NumLocalSites
+!    enddo
+    NumLocalSites = 0
+    do i = 1, nsites
+      if( screen_paral_siteIndex2groupIndex( pinfo, i ) .eq. pinfo%mygroup ) NumLocalSites = NumLocalSites + 1
     enddo
+
   end function screen_paral_NumLocalSites
 
   pure function screen_paral_procID2groupIndex( pinfo, procID ) result( groupIndex )
