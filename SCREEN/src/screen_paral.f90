@@ -190,7 +190,7 @@ module screen_paral
     integer, intent( out ) :: ngroups
     !
     real( DP ) :: score, best_score, mismatch
-    integer :: i, j, best_ngroup
+    integer :: i, j, best_ngroup, k, maxSites
 
     if( n_sites .eq. 1 .or. nproc .eq. 1 ) then
       ngroups = 1
@@ -220,11 +220,14 @@ module screen_paral
         score = score * real( mod( n_sites, i ), DP ) / real( i, DP )
       endif
 #else
+#if 0
       ! i is the number of processors per pool
       ! j is the number of groups
       j = nproc / i
+      ! k counts the actual number of procs in use
+      k = min( j, n_sites )
       ! score is percentage processors in use
-      score = real( j * i, DP ) / real( nproc, DP )
+      score = real( k * i, DP ) / real( nproc, DP )
       ! then score is scaled down by the pool size
       score = score / sqrt( real( i, DP ) )
       ! then score is scaled again by mismatch
@@ -233,6 +236,27 @@ module screen_paral
       ! floor / ceiling gives 1 if the same, gives fraction if not
       ! adding one to avoid 0 v 1 problems
       score = score * real( floor( mismatch ) + 1, DP ) / real( ceiling( mismatch ) + 1, DP )
+#else
+
+      ! i is the number of processors per pool
+      ! j is the number of groups
+      j = nproc / i
+      ! k is the true number of groups in use
+      k = min( j, n_sites )
+      ! what is the max number of sites per group?
+      if( j .lt. n_sites ) then
+        if( mod( n_sites, j ) .eq. 0 ) then
+          maxSites = n_sites / j
+        else
+          maxSites = ceiling( real( n_sites, DP ) / real( j, DP ) )
+        endif
+      else
+        maxSites = 1
+      endif
+      score = real( k * i, DP ) / real( maxSites, DP )
+      ! then score is scaled down by the pool size
+      score = score / sqrt( real( i, DP ) )
+#endif      
 #endif
 
       if( score .gt. best_score ) then
