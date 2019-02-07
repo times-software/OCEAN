@@ -202,7 +202,9 @@ module screen_chi0
     call screen_tk_start( "chi0_runSite: Init" )
 
     if( ierr .ne. 0 ) return
+#ifdef DEBUG
     if( pinfo%myid .eq. pinfo%root ) write(6,*) 'Running Schi_runSite'
+#endif
     
     dims = screen_sites_returnWavefunctionDims( singleSite )
     write(1000+myid,*) 'Chi dims:', dims(:)
@@ -240,21 +242,29 @@ module screen_chi0
     call screen_tk_stop( "chi0_runSite: Init" )
 
     call screen_tk_start( "chi0_runSite: Post MPI" )
+#ifdef DEBUG
     if( pinfo%myid .eq. pinfo%root ) write(6,*) 'postRecvSpareWvfn'
+#endif
     call postRecvSpareWvfn( pinfo, spareWvfnRecvs, spareWavefunctions, ierr )
     if( ierr .ne. 0 ) return
 
+#ifdef DEBUG
     if( pinfo%myid .eq. pinfo%root ) write(6,*) 'postRecvChi'
+#endif
     call postRecvChi( pinfo, spareWavefunctions, chiRecvs, FullChi0, ierr )
     if( ierr .ne. 0 ) return
 
+#ifdef DEBUG
     if( pinfo%myid .eq. pinfo%root ) write(6,*) 'postSendSpareWvfn'
+#endif
     call postSendSpareWvfn( pinfo, spareWvfnSends, singleSite%wvfn, ierr )
     if( ierr .ne. 0 ) return
     call screen_tk_stop( "chi0_runSite: Post MPI" )
 
     call screen_tk_start( "chi0_runSite: calcChi" )
+#ifdef DEBUG
     if( pinfo%myid .eq. pinfo%root ) write(6,*) 'calcChi'
+#endif
 
     call calcChi( pinfo, singleSite%wvfn, spareWavefunctions, chi, spareWvfnRecvs, ierr )
 
@@ -262,7 +272,9 @@ module screen_chi0
     call screen_tk_stop( "chi0_runSite: calcChi" )
 
     call screen_tk_start( "chi0_runSite: sendChi" )
+#ifdef DEBUG
     if( pinfo%myid .eq. pinfo%root ) write(6,*) 'SendChi'
+#endif
     call SendChi( pinfo, chi, chiSends(1), ierr )
     if( ierr .ne. 0 ) return
     call screen_tk_stop( "chi0_runSite: sendChi" )
@@ -293,7 +305,9 @@ module screen_chi0
 #ifdef MPI
     if( ierr .ne. 0 ) return
 #endif
+#ifdef DEBUG
     if( pinfo%myid .eq. pinfo%root ) write(6,*) 'Done with Schi_runSite'
+#endif
     call screen_tk_stop( "chi0_runSite: Clean" )
 
   end subroutine screen_chi0_runSite
@@ -388,7 +402,7 @@ module screen_chi0
 
     ! This is the diagonal piece
     write(1000+myid,*) pinfo%myid, pinfo%myid, CurPts
-    write(1000+myid,*) "SPLIT: ", MyWvfn%isSplit
+    write(1000+myid,*) "SPLIT: ", MyWvfn%isSplit, MyWvfn%isGamma
     call screen_tk_start( "calcSingleChiBuffer1" )
     if( MyWvfn%isSplit ) then
       if( MyWvfn%isGamma ) then
@@ -576,7 +590,7 @@ module screen_chi0
   end subroutine calcChiPassThrough
 
 
-  subroutine calcSingleChiBuffer_split( LWvfn, RWvfn, chi, ierr, imag_LWvfn, imag_RWvfn )
+  subroutine calcSingleChiBuffer_Split( LWvfn, RWvfn, chi, ierr, imag_LWvfn, imag_RWvfn )
     use screen_system, only : physical_system, system_parameters, psys, params
     use screen_energy, only : mu_ryd, energies
     use ocean_constants, only : pi_dp
@@ -811,7 +825,7 @@ module screen_chi0
     deallocate( ReEnergyDenom, ImEnergyDenom )
 
 
-  end subroutine calcSingleChiBuffer_split
+  end subroutine calcSingleChiBuffer_Split
   
 
   ! currently each proc has subset of real-space points and ALL of k-points and spins
