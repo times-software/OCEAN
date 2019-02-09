@@ -642,6 +642,8 @@ else
             print OUT ".false.\n$screen_data_files{'final.dr'} $final_nr\n";
             close OUT;
             system( "$ENV{'OCEAN_BIN'}/rscombine.x < ipt1 > ropt_false") == 0 or die;
+            move( "rpot", "rpot_false" ) or die "rpot\n$!";
+            move( "rpothires", "rpothires_false" ) or die "rpothires\n$!";
           }
           # Fake reconstruction using atomic all-electron/pseudo difference
           else
@@ -668,6 +670,7 @@ else
 
         }
         
+        # back out 3 levels
         $rundir = catfile( updir(), updir(),updir() );
         chdir $rundir;
       }
