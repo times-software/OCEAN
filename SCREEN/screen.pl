@@ -103,6 +103,19 @@ foreach my $filename (@ScreenFiles)
     $screen_data_files{ "$store_name" } = $string;
 }
 
+# Attempt to parse and copy in angular grid file
+if( $screen_data_files{ 'grid.ang' } =~ m/(\w+)\s+(\d+)/ )
+{
+  my $angularGridFile = $1 . '.' . $2;
+  if( -e  "$ENV{'OCEAN_BIN'}/$angularGridFile" )
+  {
+    copy( "$ENV{'OCEAN_BIN'}/$angularGridFile", "$angularGridFile" );
+  }
+  else
+  {
+    print "Couldn't find requestd angular grid file: $angularGridFile\n";
+  }
+}
 
 if( open CALC, "calc" )
 {
