@@ -35,9 +35,9 @@ my @CommonFiles = ("znucl", "opf.hfkgrid", "opf.fill", "opf.opts", "pplist", "sc
 
 my @ScreenFiles = ("screen.grid.scheme", "screen.grid.rmode", "screen.grid.ninter", 
                    "screen.grid.shells", "screen.grid.xyz", "screen.grid.rmax", "screen.grid.ang",
-                   "screen.grid.lmax", "screen.grid.nb", "screen.grid.nr", "screen.final.rmax", 
+                   "screen.lmax", "screen.grid.nb", "screen.grid.nr", "screen.final.rmax", 
                    "screen.final.dr", "screen.legacy", "screen.model.dq", "screen.model.qmax", 
-                   "screen.augment", "screen.wvfn" );
+                   "screen.augment", "screen.wvfn", "screen.convertstyle", "screen.inversionstyle" );
 
 my @DenDipFiles = ("rhoofg", "bvecs", "efermiinrydberg.ipt");
 my @DenDipFiles2 = ( "masterwfile", "listwfile", "enkfile", "kmesh.ipt", "brange.ipt" );

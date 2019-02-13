@@ -55,8 +55,8 @@ module ocean_sphericalHarmonics
             ylm = pref * sqrt(15.0_DP) * y * z
 !          case( -2 )
           case( 0 )
-!            ylm = pref * sqrt(5.0_DP)/2.0_DP * ( 2.0_DP * z**2 - x**2 -y**2 )
-            ylm = pref * sqrt(5.0_DP)/2.0_DP * ( 3.0_DP * z**2 - 1.0_DP )
+            ylm = pref * sqrt(5.0_DP)/2.0_DP * ( 2.0_DP * z**2 - x**2 -y**2 )
+!            ylm = pref * sqrt(5.0_DP)/2.0_DP * ( 3.0_DP * z**2 - 1.0_DP )
           case( 1 )
             ylm = pref * sqrt(15.0_DP) * z * x
 !          case( -1 )

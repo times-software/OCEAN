@@ -1,4 +1,4 @@
-! Copyright (C) 2017 OCEAN collaboration
+! Copyright (C) 2017 - 2019 OCEAN collaboration
 !
 ! This file is part of the OCEAN project and distributed under the terms 
 ! of the University of Illinois/NCSA Open Source License. See the file 
@@ -39,15 +39,15 @@ module schi_direct
     real(DP) :: rgt, coul, r2dr, rlt
     integer :: nLM, nR, i, j, ilm, lpol
 
-#ifdef DEBUG
+!#ifdef DEBUG
     character(len=30) :: fmtstmt
     character(len=8)  :: filnam
-#endif
+!#endif
 
     nr = grid%nr
     nLM = size( FullChi, 2 )
 
-#ifdef DEBUG
+!#ifdef DEBUG
     do ilm = 1, nlm
       write(filnam,'(A6,I1,I1)') 'zmunu.', ilm, ilm
       open( unit=99, file=filnam, form='formatted', status='unknown' )
@@ -59,7 +59,7 @@ module schi_direct
       enddo
       close( 99 )
     enddo
-#endif
+!#endif
 
     allocate( vipt( nr ) )
     call Newmkvipt( nr, grid%rad, pot%rad, pot%pot, vipt )
@@ -169,6 +169,7 @@ module schi_direct
     cMat = 0.0_DP
     FourPi = 4.0_DP * PI_DP
 
+#if 0
 !    lpol = 0
     do i = 1, nr
         coulfac = FourPi / grid%rad( i )
@@ -189,6 +190,20 @@ module schi_direct
         cMat( j, 1, i, 1 ) = grid%drad( i ) * grid%rad( i ) ** 2 * grid%drad( j ) * grid%rad( j ) ** 2 * coulfac
       enddo
     end do
+#else
+    Cmat( 1, 1, 1, 1 ) = grid%drad( 1 ) **2 * grid%rad( 1 ) **3 *  FourPi
+    do i = 2, nr
+      coulfac = FourPi * grid%drad( i ) * grid%rad( i )
+      do j = 1, i
+        Cmat( j, 1, i, 1 ) = coulfac * grid%drad( j ) * grid%rad( j ) ** 2
+      enddo
+
+      coulfac = FourPi * grid%drad( i ) * grid%rad( i )**2
+      do j = i + 1, nr
+        Cmat( j, 1, i, 1 ) = coulfac * grid%drad( j ) * grid%rad( j )
+      enddo
+    enddo
+#endif
   
     if( nLM .eq. 1 ) return
 
@@ -199,6 +214,7 @@ module schi_direct
       return
     endif
 
+#if 0
     do ilm = 2, 4
       jlm = ilm
       do i = 1, nr
@@ -218,6 +234,24 @@ module schi_direct
 !        enddo
       enddo
     enddo
+#else
+    do ilm = 2, 4
+      jlm = ilm
+      Cmat( 1, jlm, 1, ilm ) = FourPi * grid%drad( 1 ) **2 * grid%rad( 1 ) **3 / 3.0_DP
+
+      do i = 2, nr
+        coulfac = FourPi * grid%drad( i ) 
+        do j = 1, i
+          Cmat( j, jlm, i, ilm ) = coulfac * grid%drad( j ) * grid%rad(j ) ** 3
+        enddo
+
+        coulfac = FourPi * grid%drad( i ) * grid%rad( i ) ** 3
+        do j = i+1, nr
+          Cmat( j, jlm, i, ilm ) = coulfac * grid%drad( j )
+        enddo
+      enddo
+    enddo
+#endif
 
     if( nLM .eq. 4 ) return
 
@@ -227,6 +261,8 @@ module schi_direct
       return
     endif
 
+
+#if 0
     do iLM = 5, 9
       jlm = ilm
       do i = 1, nr
@@ -246,6 +282,26 @@ module schi_direct
  !       end do
       enddo
     enddo
+#else
+
+    do iLM = 5, 9
+      jLM = iLM
+      ! r^2 dr * r^2 dr * 1/r
+      Cmat( 1, jlm, 1, ilm ) = FourPi * grid%drad( 1 ) ** 2 * grid%rad( 1 ) ** 3 / 5.0_DP
+      do i = 2, nr
+        coulfac = FourPi * grid%drad( i ) / grid%rad( i )
+        do j = 1, i
+          Cmat( j, jlm, i, ilm ) = coulfac * grid%drad( j ) * grid%rad( j ) ** 4
+        enddo
+        
+        coulfac = FourPi * grid%drad( i ) * grid%rad( i )**4
+        do j = i + 1, nr
+          Cmat( j, jlm, i, ilm ) = coulfac * grid%drad( j ) / grid%rad( j )
+        enddo
+      enddo
+
+    enddo
+#endif
 
 
   end subroutine schi_direct_buildCoulombMatrix
@@ -270,9 +326,9 @@ module schi_direct
 
     real(DP), parameter :: d_zero = 0.0_DP
     real(DP), parameter :: d_one = 1.0_DP
-#ifdef DEBUG
+!#ifdef DEBUG
     character(len=8) :: filnam
-#endif
+!#endif
 
     npt = size( FullSpace, 1 )
     nbasis = size( ProjectedSpace, 1 )
@@ -282,19 +338,19 @@ module schi_direct
     nr = grid%Nr
 
     if( ( npt .ne. size( FullSpace, 2 ) ) .or. ( npt .ne. grid%npt ) ) then
-      write(myid+1000,'(A,3(I10))') 'schi_project_sinqr', npt, size( FullSpace, 2 ), grid%npt
+      write(myid+1000,'(A,3(I10))') 'schi_direct_project', npt, size( FullSpace, 2 ), grid%npt
       ierr = 1
       return
     endif
 
     if( nbasis .ne. size( ProjectedSpace, 3 ) ) then
-      write(myid+1000,'(A,2(I10))') 'schi_project_sinqr', nbasis, size( ProjectedSpace, 3 )
+      write(myid+1000,'(A,2(I10))') 'schi_direct_project', nbasis, size( ProjectedSpace, 3 )
       ierr = 2
       return
     endif
 
     if( nLM .ne. size( ProjectedSpace, 4 ) ) then
-      write(myid+1000,'(A,2(I10))') 'schi_project_sinqr', nLM, size( ProjectedSpace, 4 )
+      write(myid+1000,'(A,2(I10))') 'schi_direct_project', nLM, size( ProjectedSpace, 4 )
       ierr = 3
       return
     endif
@@ -348,22 +404,24 @@ module schi_direct
 !      call DGEMM( 'T', 'N', nr, nLM, nang, d_One, FullSpace( i, : ), npt*nang, slice_ymu, nang, d_zero, &
 !                  temp( i, : ), npt*nr )
 !    enddo
-!  ProjectedSpace(:,:,:,:) = 0.0_DP
-!  do ilm = 1, nlm
-!    do ir = 1, nr
-!      l = 0
-!      do jlm = 1, nlm
-!        k = 0
-!        do jr = 1, nr
-!          do i = 1, nang
-!            k = k + 1
-!            ProjectedSpace(jr,jlm,ir,ilm) = ProjectedSpace(jr,jlm,ir,ilm) &
-!                  + temp( k, ir + (ilm-1)*nr ) * slice_ymu( i, jlm )
-!          enddo
-!        enddo
-!      enddo
- !   enddo
-!  enddo
+
+  ProjectedSpace(:,:,:,:) = 0.0_DP
+  do ilm = 1, nlm
+    do ir = 1, nr
+      l = 0
+      do jlm = 1, nlm
+        k = 0
+        do jr = 1, nr
+          do i = 1, nang
+            k = k + 1
+            ProjectedSpace(jr,jlm,ir,ilm) = ProjectedSpace(jr,jlm,ir,ilm) &
+                  + temp( k, ir + (ilm-1)*nr ) * slice_ymu( i, jlm )
+          enddo
+        enddo
+      enddo
+    enddo
+  enddo
+#if 0
     j = 1
     do ilm = 1, nLM
       do i = 1, nr
@@ -374,12 +432,13 @@ module schi_direct
         j = j + 1
       enddo
     enddo
+#endif
     call screen_tk_stop( "dgemm" )
 
     deallocate( temp, slice_ymu )
 !    deallocate( ymu )
 
-#ifdef DEBUG
+!#ifdef DEBUG
     do ilm = 1, nlm
       write(filnam,'(A6,I1,I1)') 'ymunu.', ilm, ilm
       open( unit=99, file=filnam, form='formatted', status='unknown' )
@@ -391,7 +450,7 @@ module schi_direct
       enddo
       close( 99 )
     enddo
-#endif
+!#endif
 
   end subroutine schi_direct_project
 

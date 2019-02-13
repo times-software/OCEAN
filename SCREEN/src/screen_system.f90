@@ -34,7 +34,7 @@ module screen_system
     integer :: nspin
     integer :: nbands
     real( DP ) :: kshift( 3 )
-    logical :: isGamma = .false.
+    logical :: isGamma = .true.
     ! This is not meant to be permanent!!!
     ! Depending on benchmarks, this will likely be moved to always true, read: removed
     ! But for now it makes sense to store it with the isGamma flag
@@ -378,21 +378,20 @@ module screen_system
 
     ignoreErrors = 0
 
-    inquire( file='screen.lbounds', exist=ex )
+    calcParams%lbounds(:) = 0
+    inquire( file='screen.lmax', exist=ex )
     if( ex ) then
-      open( unit=99, file='screen.lbounds', form='formatted', status='old' )
-      read( 99, *, IOSTAT=ignoreErrors ) calcParams%lbounds(:)
+      open( unit=99, file='screen.lmax', form='formatted', status='old' )
+      read( 99, *, IOSTAT=ignoreErrors ) calcParams%lbounds(2)
       close( 99 )
       if( ignoreErrors .ne. 0 ) then
-        write(6,*) 'Error reading screen.lbounds: ', ignoreErrors
+        write(6,*) 'Error reading screen.lmax ', ignoreErrors
       endif
-    else
-      calcParams%lbounds(:) = 0
     endif
-    if( calcParams%lbounds(1) .lt. 0 ) then
-      write(6,*) 'Illegal lower bound for angular momentum:', calcParams%lbounds(1)
-      calcParams%lbounds(1) = 0
-    endif
+!    if( calcParams%lbounds(1) .lt. 0 ) then
+!      write(6,*) 'Illegal lower bound for angular momentum:', calcParams%lbounds(1)
+!      calcParams%lbounds(1) = 0
+!    endif
     if( calcParams%lbounds(2) .lt. calcParams%lbounds(1) ) then
       write(6,*) 'Illegal upper bound for angular momentum:', calcParams%lbounds(2)
       calcParams%lbounds(2) = calcParams%lbounds(1)
