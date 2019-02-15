@@ -17,6 +17,11 @@ module screen_wvfn_converter
     complex(dp), allocatable :: cUofX(:,:,:,:)
     real(dp), allocatable :: rUofX(:,:,:,:)
 
+    complex(dp), allocatable :: cPgrid(:,:,:,:,:)
+    real(dp), allocatable :: rPgrid(:,:,:,:,:)
+
+    logical, allocatable :: isInitGrid(:,:,:,:)
+
     integer :: dims(3)
     logical :: isReal ! not sure about this guy
   end type xHolder
@@ -274,7 +279,7 @@ module screen_wvfn_converter
     use ocean_mpi, only : myid, comm, MPI_DOUBLE_COMPLEX, MPI_REQUEST_NULL, MPI_STATUSES_IGNORE, &
                           MPI_DOUBLE_PRECISION
     use screen_system, only : system_parameters, params, screen_system_returnKvec, &
-                              physical_system, psys
+                              physical_system, psys, screen_system_convertInterpolateOrder
     use screen_sites, only : site
     use screen_grid, only : sgrid
     use screen_wavefunction, only : screen_wvfn, screen_wvfn_map_procID, screen_wvfn_singleKInit, &
@@ -299,7 +304,7 @@ module screen_wvfn_converter
     real(DP) :: kpoints(3), qcart(3)
 !    integer :: uofxDims(3), boundaries(3,2)
     integer :: isite, j, isend, itag, destID, iwvfn
-    integer :: npts, nProcsPerPool, iproc
+    integer :: npts, nProcsPerPool, iproc, nbandChunk, iband, nbandUse
     integer :: pts_start, num_pts, band_start, num_band, kpts_start, num_kpts
 #ifdef MPI_F08
     type( MPI_DATATYPE ) :: newType
@@ -324,12 +329,8 @@ module screen_wvfn_converter
       qcart( : ) = qcart( : ) + psys%bvecs( :, j ) * kpoints( j )
     enddo
 
-    ! this will break if sites vary in Npts
-!    npts = all_sites( 1 )%grid%Npt
-
 
     ! Should be array of screen_wvfn objects
-!    allocate( temp_wavefunctions( npts, nbands, nsites ) )
     allocate( temp_wavefunctions( nsites ) )
 
 
@@ -337,48 +338,75 @@ module screen_wvfn_converter
     allocate( send_list( nsites * nprocsPerPool * iwvfn ) ) !, typeList( 0:nprocsPerPool, nsites ) )
     isend = 0
 
-    write(1000+myid,'(A,3(1X,I0))') '*** Convert and Send ***', ikpt, ispin, nbands
-    flush(1000+myid)
 
     call swl_checkConvert( input_gvecs, uofx%dims, ierr )
-!    if( ierr .ne. 0 ) return
-!    write(1000+myid,'(A,3(1X,I8))') '   ', uofxDims(:)
-!    write(1000+myid,'(A,3(1X,I8))') '   ', boundaries(:,1)
-!    write(1000+myid,'(A,3(1X,I8))') '   ', boundaries(:,2)
-!
-!    allocate( uofx( uofxDims(1), uofxDims(2), uofxDims(3), nbands ), STAT=ierr )
     if( ierr .ne. 0 ) return
 
-    call swl_allocateUofX( params%isGamma, nbands, uofx, ierr )
+    nbandChunk = 1
+    if( uofx%dims(1) .gt. 0 ) then
+      j = screen_system_convertInterpolateOrder() 
+      ! First testing, force 1 so it chunks
+      nbandChunk = floor( 134217728_DP / & !This should be 2GB
+                      ( real( uofx%dims(1), DP ) * real( uofx%dims(2), DP ) & 
+                       * real( uofx%dims(3), DP ) * real( j, DP )  ) ) 
+      nbandChunk = max( nbandChunk, 1 )
+      nbandChunk = min( nbandChunk, nbands )
+    endif
+    write(1000+myid,'(A,4(1X,I0))') '*** Convert and Send ***', ikpt, ispin, nbands, nbandChunk
+    flush(1000+myid)
+
+!    call swl_allocateUofX( params%isGamma, nbands, uofx, ierr )
+    call swl_allocateUofX( params%isGamma, nbandChunk, uofx, ierr )
     if( ierr .ne. 0 ) return
 
     call screen_tk_stop( "swl_convertAndSend_Init" )
 
-    call screen_tk_start( "swl_DoConvert" )
-    call swl_doConvert( nbands, ngvecs, input_gvecs, input_uofg, uofx )
-    if( ierr .ne. 0 ) return
-    call screen_tk_stop( "swl_DoConvert" )
-    
     do isite = 1, nsites
       call screen_tk_start( "singleKInit" )
       call screen_wvfn_singleKInit( all_sites( isite )%grid, temp_wavefunctions( isite ), ierr )
       if( ierr .ne. 0 ) return
       call screen_tk_stop( "singleKInit" )
+    enddo
+    
 
-!      write(1000+myid,'(A,4(1X,I8))') '   Site:', isite, size(temp_wavefunctions( isite )%wvfn,1), &
-!             size(temp_wavefunctions( isite )%wvfn,2), nbands
-      write(1000+myid,'(A,4(1X,I8))') '   Site:', isite, & 
+    do iband = 1, nbands, nbandChunk
+      nbandUse = min( nbandChunk, nbands - iband + 1 )
+      uofx%isInitGrid = .false.
+
+      call screen_tk_start( "swl_DoConvert" )
+!      call swl_doConvert( nbands, ngvecs, input_gvecs, input_uofg, uofx )
+      call swl_doConvert( nbandUse, ngvecs, input_gvecs, input_uofg(:,iband:), uofx )
+      if( ierr .ne. 0 ) return
+      call screen_tk_stop( "swl_DoConvert" )
+    
+      do isite = 1, nsites
+  !      call screen_tk_start( "singleKInit" )
+  !      call screen_wvfn_singleKInit( all_sites( isite )%grid, temp_wavefunctions( isite ), ierr )
+  !      if( ierr .ne. 0 ) return
+  !      call screen_tk_stop( "singleKInit" )
+
+!        write(1000+myid,'(A,4(1X,I8))') '   Site:', isite, & 
+!                                        screen_wvfn_returnWavefunctionDims( temp_wavefunctions( isite )), nbands
+!        flush(1000+myid)
+
+        npts = all_sites( isite )%grid%Npt
+
+        call screen_tk_start( "swl_DoProject" )
+        ! For this site project from u(G)/u(x) to u( r ), the atom-centered basis we use for screening
+  !      call swl_DoProject( ngvecs, npts, nbands, input_uofg, input_gvecs, psys%bvecs, qcart, & 
+        call swl_DoProject( ngvecs, npts, nbandUse, iband, input_uofg(:,iband:), input_gvecs, psys%bvecs, qcart, & 
+                            all_sites( isite )%grid%posn, uofx, temp_wavefunctions( isite ), ierr )
+        if( ierr .ne. 0 ) return
+        call screen_tk_stop( "swl_DoProject" )
+      enddo
+    enddo
+
+    call swl_cleanUofX( uofx )
+
+    do isite = 1, nsites
+      write(1000+myid,'(A,4(1X,I8))') '   Site:', isite, &
                                       screen_wvfn_returnWavefunctionDims( temp_wavefunctions( isite )), nbands
       flush(1000+myid)
-
-      npts = all_sites( isite )%grid%Npt
-
-      call screen_tk_start( "swl_DoProject" )
-      ! For this site project from u(G)/u(x) to u( r ), the atom-centered basis we use for screening
-      call swl_DoProject( ngvecs, npts, nbands, input_uofg, input_gvecs, psys%bvecs, qcart, & 
-                          all_sites( isite )%grid%posn, uofx, temp_wavefunctions( isite ), ierr )
-      if( ierr .ne. 0 ) return
-      call screen_tk_stop( "swl_DoProject" )
 
       call screen_tk_start( "swl_DoAugment" )
       ! Augment using the OPFs to give the all-electron character
@@ -420,7 +448,7 @@ module screen_wvfn_converter
             ! only have imaginary components if NOT gamma-point/real-only
             if( .not. params%isGamma ) then
               write(1000+myid,'(A,7(1X,I8))') '   Send converted:', destID, itag+1, pts_start, num_pts,  &
-                                              band_start, num_band, isite
+                                              band_start, nbands, isite
               flush(1000+myid)
               isend = isend + 1
               call MPI_ISEND( temp_wavefunctions(isite)%imag_wvfn( pts_start, band_start, 1 ), 1, &
@@ -457,31 +485,7 @@ module screen_wvfn_converter
     call screen_tk_stop( "swl_convertAndSend_Wait" )
 
 
-    ! You are supposed to be able to free the type immediately after the isend call
-!    do isite = 1, nsites
-!      do iproc = 0, nprocsPerPool - 1
-!        call MPI_TYPE_FREE( typeList( iproc, isite ), ierr )
-!      enddo
-!    enddo
-    
-
-!    if( ikpt .eq. 1 .and. ispin .eq. 1 ) then
-!      write(6,*) 'TEST WVFN with myid=', myid, npts, nbands
-!!      write(7000,*) real(temp_wavefunctions(1)%wvfn(1:225,1:2,1),DP)
-!!      write(7001,*) real(temp_wavefunctions(1)%wvfn(226:450,1:2,1),DP)
-!!      write(7002,*) real(temp_wavefunctions(1)%wvfn(451:675,1:2,1),DP)
-!!      write(7003,*) real(temp_wavefunctions(1)%wvfn(676:900,1:2,1),DP)
-!      do i = 1, 2
-!        do j = 1, 225
-!          write(7050+myid,'(2E20.11)') real(temp_wavefunctions(1)%wvfn(j,i,1),DP), &
-!                             aimag( temp_wavefunctions(1)%wvfn(j,i,1))
-!        enddo
-!      enddo
-!      write(8000+myid,*) real(input_uofg(:,2),DP)
-!      write(9000+myid,*) all_sites( 1 )%grid%posn(:,:)
-!    endif
-!     deallocate( uofx )
-    call swl_cleanUofX( uofx )
+!    call swl_cleanUofX( uofx )
 
     call screen_tk_start( "screen_wvfn_kill" )
     do isite = 1, nsites
@@ -491,10 +495,6 @@ module screen_wvfn_converter
 
     deallocate( temp_wavefunctions, send_list )
 
-!    write( 6, * ) 'Convert and send', ikpt, ispin
-
-
-!    ierr = 1
 
     call screen_tk_stop( "swl_convertAndSend" )
   end subroutine swl_convertAndSend
@@ -1151,17 +1151,17 @@ module screen_wvfn_converter
   end subroutine FinishAugment_split
 
 
-  subroutine swl_DoProject( ngvecs, npts, nbands, uofg, gvecs, bvecs, qcart, &
+  subroutine swl_DoProject( ngvecs, npts, nbands, iband, uofg, gvecs, bvecs, qcart, &
                             posn, uofx, wvfn, ierr )
     use screen_system, only : screen_system_convertStyle, params
     use screen_wavefunction, only : screen_wvfn
-    integer, intent( in ) :: ngvecs, npts, nbands
+    integer, intent( in ) :: ngvecs, npts, nbands, iband
     integer, intent( in ) :: gvecs( 3, ngvecs )
     real(DP), intent( in ) :: bvecs(3,3), qcart(3)
-    complex(DP), intent( in ) :: uofg( ngvecs, nbands )
+    complex(DP), intent( in ) :: uofg( :, : )
     real(DP), intent( in ) :: posn( 3, npts )
 !    complex(DP), intent( in ) :: uofx(:,:,:,:)
-    type( xHolder ), intent( in ) :: uofx
+    type( xHolder ), intent( inout ) :: uofx
     type( screen_wvfn ), intent( inout ) :: wvfn
 !    complex(DP), intent( out ) :: wavefunctions( npts, nbands )
     integer, intent( inout ) :: ierr
@@ -1175,14 +1175,14 @@ module screen_wvfn_converter
           if( params%isGamma ) then
             ! if gamma, don't pass in imag_wvfn
             call realu2_split( ngvecs, npts, nbands, uofg, gvecs, bvecs, qcart, &
-                               posn, wvfn%real_wvfn(:,:,1) )
+                               posn, wvfn%real_wvfn(:,iband,1) )
           else
             call realu2_split( ngvecs, npts, nbands, uofg, gvecs, bvecs, qcart, &
-                               posn, wvfn%real_wvfn(:,:,1), wvfn%imag_wvfn(:,:,1) )
+                               posn, wvfn%real_wvfn(:,iband,1), wvfn%imag_wvfn(:,iband,1) )
           endif
         else
           call realu2( ngvecs, npts, nbands, uofg, gvecs, bvecs, qcart, &
-                       posn, wvfn%wvfn(:,:,1) )
+                       posn, wvfn%wvfn(:,iband,1) )
         endif
 
       case('fft2')
@@ -1201,7 +1201,7 @@ module screen_wvfn_converter
         call swl_Lagrange6th( npts, nbands, uofx%cUofX, bvecs, qcart, posn, wvfn%wvfn(:,:,1), ierr )
 
       case('intp')
-        call swl_DoInterpolate( npts, nbands, uofx, bvecs, qcart, posn, wvfn, ierr )
+        call swl_DoInterpolate( npts, nbands, iband, uofx, bvecs, qcart, posn, wvfn, ierr )
 
       case default
         write(6,*) 'unrecognized conversion style'
@@ -1210,14 +1210,14 @@ module screen_wvfn_converter
 
   end subroutine swl_DoProject
 
-  subroutine swl_DoInterpolate( npts, nbands, uofx, bvecs, qcart, posn, wvfn, ierr )
+  subroutine swl_DoInterpolate( npts, nbands, iband, uofx, bvecs, qcart, posn, wvfn, ierr )
     use screen_system, only : screen_system_convertInterpolateStyle, &
                               screen_system_convertInterpolateOrder
     use screen_wavefunction, only : screen_wvfn
-    integer, intent( in ) :: npts, nbands
+    integer, intent( in ) :: npts, nbands, iband
     real(DP), intent( in ) :: bvecs(3,3), qcart(3)
     real(DP), intent( in ) :: posn( 3, npts )
-    type( xHolder ), intent( in ) :: uofx
+    type( xHolder ), intent( inout ) :: uofx
     type( screen_wvfn ), intent( inout ) :: wvfn
 !    complex(DP), intent( out ) :: wavefunctions( npts, nbands )
     integer, intent( inout ) :: ierr
@@ -1228,8 +1228,8 @@ module screen_wvfn_converter
         if( uofx%isReal ) then
 
         else
-          call swl_ComplexDoLagrange( screen_system_convertInterpolateOrder(), npts, nbands, & 
-                               uofx%cUofX, bvecs, qcart, posn, wvfn, ierr )
+          call swl_ComplexDoLagrange( screen_system_convertInterpolateOrder(), npts, nbands, iband, & 
+                               uofx%cUofX, uofx%cPgrid, uofx%isInitGrid, bvecs, qcart, posn, wvfn, ierr )
         endif
       case default
         ierr = 1
@@ -1356,18 +1356,27 @@ module screen_wvfn_converter
 
 
   subroutine swl_allocateUofX( isGamma, nbands, uofx, ierr )
+    use screen_system, only : screen_system_convertInterpolateOrder
+    !
     logical, intent( in ) :: isGamma
     integer, intent( in ) :: nbands
     type( xHolder ), intent( inout ) :: uofx
     integer, intent( inout ) :: ierr
 
+    integer :: i
+
+    i = screen_system_convertInterpolateOrder()
     ! For now, force complex version
     if( .false. ) then !isGamma ) then
       uofx%isReal = .true.
-      allocate( uofx%rUofX( uofx%dims(1), uofx%dims(2), uofx%dims(3), nbands ), STAT=ierr )
+      allocate( uofx%rUofX( uofx%dims(1), uofx%dims(2), uofx%dims(3), nbands ), & 
+                uofx%rPgrid( i, uofx%dims(1), uofx%dims(2), uofx%dims(3), nbands ), &
+                uofx%isInitGrid( uofx%dims(1), uofx%dims(2), uofx%dims(3), nbands ), STAT=ierr )
     else
       uofx%isReal = .false.
-      allocate( uofx%cUofX( uofx%dims(1), uofx%dims(2), uofx%dims(3), nbands ), STAT=ierr )
+      allocate( uofx%cUofX( uofx%dims(1), uofx%dims(2), uofx%dims(3), nbands ), &
+                uofx%cPgrid( i, uofx%dims(1), uofx%dims(2), uofx%dims(3), nbands ), &
+                uofx%isInitGrid( uofx%dims(1), uofx%dims(2), uofx%dims(3), nbands ), STAT=ierr )
     endif
 
   end subroutine swl_allocateUofX
@@ -1377,6 +1386,9 @@ module screen_wvfn_converter
 
     if( allocated( uofx%cUofX ) ) deallocate ( uofx%cUofX )
     if( allocated( uofx%rUofX ) ) deallocate ( uofx%rUofX )
+    if( allocated( uofx%cPgrid ) ) deallocate ( uofx%cPgrid )
+    if( allocated( uofx%rPgrid ) ) deallocate ( uofx%rPgrid )
+    if( allocated( uofx%isinitGrid ) ) deallocate ( uofx%isInitGrid )
   end subroutine swl_cleanUofX
 
   subroutine swl_checkConvert( gvecs, uofxDims, ierr )
@@ -1893,24 +1905,27 @@ module screen_wvfn_converter
   end subroutine swl_RealDoLagrange
     
 
-  subroutine swl_ComplexDoLagrange( order, npts, nbands, uofx, bvecs, qcart, posn, wvfn, ierr )
+  subroutine swl_ComplexDoLagrange( order, npts, nbands, iband, uofx, Pgrid, isInitGrid, & 
+                                    bvecs, qcart, posn, wvfn, ierr )
     use ocean_constants, only : pi_dp
     use ocean_mpi, only : myid
     use ocean_interpolate
     use screen_wavefunction, only : screen_wvfn
-    integer, intent( in ) :: order, npts, nbands
+    integer, intent( in ) :: order, npts, nbands, iband
     real(DP), intent( in ) :: bvecs(3,3), qcart(3)
     complex(DP), intent( in ) :: uofx( :, :, :, : )
+    compleX(DP), intent( inout ) :: Pgrid( :, :, :, :, : )
+    logical, intent( inout ) :: isInitGrid( :, :, :, : )
     real(DP), intent( in ) :: posn( 3, npts )
     type( screen_wvfn ), intent( inout ) :: wvfn
 !    complex(DP), intent( out ) :: wavefunctions( npts, nbands )
     integer, intent( inout ) :: ierr
     !
 !    complex(DP), allocatable :: temp_wavefunctions( :, : )
-    complex(DP), allocatable :: phase(:), P(:,:), QGrid(:,:), Q(:), RGrid(:), PGrid(:,:,:,:)
+    complex(DP), allocatable :: phase(:), P(:,:), QGrid(:,:), Q(:), RGrid(:) !, PGrid(:,:,:,:)
     real(DP), allocatable :: distanceMap(:,:) 
     integer, allocatable :: pointMap(:,:)
-    logical, allocatable :: isInitGrid(:,:,:)
+!    logical, allocatable :: isInitGrid(:,:,:)
     !
     complex(DP) :: R, C
     real(DP) :: dx, dy, dz, rvec(3), i2pi, phse
@@ -1926,7 +1941,7 @@ module screen_wvfn_converter
     dims(2) = size( uofx, 2 )
     dims(3) = size( uofx, 3 )
 
-    write(1000+myid,'(A,3(I8,1X))') 'x-dims', dims(:)
+    if( iband .eq. 1 ) write(1000+myid,'(A,3(I8,1X))') 'x-dims', dims(:)
     do ip = 1, npts
       rvec(:) = i2pi * matmul( bvecs, posn(:,ip) )
 
@@ -1970,7 +1985,7 @@ module screen_wvfn_converter
     ! These two, isInitGrid and PGrid, allow for the possiblity of re-use at the cost of storage
     ! The amount of computation and data fetching is greatly reduced if we can re-use, and the 
     ! re-used array is in order (whereas sometimes we'll wander around the PBC of the Bloch functions).
-    allocate( isInitGrid( dims(1), dims(2), dims(3) ), PGrid( order, dims(1), dims(2), dims(3) ) )
+!    allocate( isInitGrid( dims(1), dims(2), dims(3) ), PGrid( order, dims(1), dims(2), dims(3) ) )
     allocate( P(order,order), QGrid(order,order), Q(order), RGrid(order) )
     dx = 1.0_dp / dims( 1 )
     dy = 1.0_dp / dims( 2 )
@@ -1978,7 +1993,7 @@ module screen_wvfn_converter
 
     do ib = 1, nbands
       ! New band, nothing is correct
-      isInitGrid(:,:,:) = .false.
+!      isInitGrid(:,:,:) = .false.
 !      if( .not. wvfn%isSplit ) wavefunctions(:) => wvfn%wvfn(:,ib,1)
 
       do ip = 1, npts
@@ -1993,11 +2008,11 @@ module screen_wvfn_converter
             if( iyy .gt. dims( 2 ) ) iyy = iyy - dims( 2 )
             if( iyy .lt. 1 ) iyy = iyy + dims( 2 )
 
-            if( .not. isInitGrid( pointMap( 1, ip ), iyy, izz ) ) then
+            if( .not. isInitGrid( pointMap( 1, ip ), iyy, izz, ib ) ) then
               
               call MakeLagrange( order, pointMap( 1, ip ), iyy, izz, uofx(:,:,:,ib), & 
-                              Pgrid( :, pointMap( 1, ip ), iyy, izz ) )
-              isInitGrid( pointMap( 1, ip ), iyy, izz ) = .true.
+                              Pgrid( :, pointMap( 1, ip ), iyy, izz, ib ) )
+              isInitGrid( pointMap( 1, ip ), iyy, izz, ib ) = .true.
             endif
 
           enddo ! iy
@@ -2013,7 +2028,8 @@ module screen_wvfn_converter
             if( iyy .gt. dims( 2 ) ) iyy = iyy - dims( 2 )
             if( iyy .lt. 1 ) iyy = iyy + dims( 2 )
 
-            P(iy,iz) = evalLagrange( order, distanceMap( 1, ip ), dx, Pgrid( :, pointMap( 1, ip ), iyy, izz ) )
+            P(iy,iz) = evalLagrange( order, distanceMap( 1, ip ), dx, & 
+                       Pgrid( :, pointMap( 1, ip ), iyy, izz, ib ) )
           enddo
         enddo
 
@@ -2028,10 +2044,10 @@ module screen_wvfn_converter
 
         if( wvfn%isSplit ) then
           C = R * phase( ip )
-          wvfn%real_wvfn( ip, ib, 1 ) = real( C, DP )
-          if( .not. wvfn%isGamma ) wvfn%imag_wvfn( ip, ib, 1 ) = aimag( C )
+          wvfn%real_wvfn( ip, ib + iband - 1, 1 ) = real( C, DP )
+          if( .not. wvfn%isGamma ) wvfn%imag_wvfn( ip, ib + iband - 1, 1 ) = aimag( C )
         else
-          wvfn%wvfn( ip, ib, 1 ) = R * phase( ip )
+          wvfn%wvfn( ip, ib + iband - 1, 1 ) = R * phase( ip )
         endif
 !        wavefunctions( ip, ib ) = R * phase( ip )
 !        wavefunctions( ip ) = R * phase( ip )
@@ -2041,7 +2057,7 @@ module screen_wvfn_converter
     enddo ! ib
 
     deallocate( P, Q, QGrid, RGrid )
-    deallocate( isInitGrid, PGrid, pointMap, phase )
+    deallocate( pointMap, phase )
 
 
 
