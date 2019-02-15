@@ -504,8 +504,10 @@ module ocean_qe54_files
     integer :: test_gvec, itarg, nbands_to_send, nr, ierr_, nbands, id, start_band, crap, i, j, k
 #ifdef MPI_F08
     type( MPI_REQUEST ), allocatable :: requests( : )
+    type( MPI_DATATYPE ) :: newType
 #else
     integer, allocatable :: requests( : )
+    integer :: newType
 #endif
 
     if( qe54_getPoolIndex( ispin, ikpt ) .ne. mypool ) return
@@ -565,7 +567,8 @@ module ocean_qe54_files
 #ifdef MPI
       call MPI_IBCAST( gvecs, 3*test_gvec, MPI_INTEGER, pool_root, pool_comm, requests( nr ), ierr )
 #endif
-      allocate( cmplx_wvfn( ngvecs, nbands ) )
+!      allocate( cmplx_wvfn( ngvecs, nbands ) )
+      allocate( cmplx_wvfn( test_gvec, nbands ) )
 
       write(1000+myid,*) '***Reading k-point: ', ikpt, ispin
       write(1000+myid,*) '   Ngvecs: ', ngvecs
@@ -602,7 +605,8 @@ module ocean_qe54_files
         ! don't send if I am me
         if( id .ne. pool_myid ) then
           write(1000+myid,'(A,3(1X,I8))') '   Sending ...', id, start_band, nbands_to_send
-          call MPI_IRSEND( cmplx_wvfn( 1, start_band ), nbands_to_send*ngvecs, MPI_DOUBLE_COMPLEX, &
+!          call MPI_IRSEND( cmplx_wvfn( 1, start_band ), nbands_to_send*ngvecs, MPI_DOUBLE_COMPLEX, &
+          call MPI_IRSEND( cmplx_wvfn( 1, start_band ), nbands_to_send*test_gvec, MPI_DOUBLE_COMPLEX, &
                          id, 1, pool_comm, requests( id ), ierr )
           ! this might not sync up
           if( ierr .ne. 0 ) return
@@ -620,7 +624,7 @@ module ocean_qe54_files
       nr=nr+1
     else
       nr = 2
-      allocate( requests( nr ), cmplx_wvfn( 1, 1 ) )
+      allocate( requests( nr ), cmplx_wvfn(1,1) )
       requests(:) = MPI_REQUEST_NULL
       write(1000+myid,*) '***Receiving k-point: ', ikpt, ispin
       write(1000+myid,*) '   Ngvecs: ', ngvecs
@@ -628,13 +632,39 @@ module ocean_qe54_files
 
       if( is_gamma ) then
         test_gvec = ( ngvecs + 1 ) / 2
+!        allocate( cmplx_wvfn( test_gvec, my_bands ) )
       else
         test_gvec = ngvecs 
+!        allocate( cmplx_wvfn( 1, 1 ) )
       endif
 
+      write(1000+myid,*) '   Ngvecs: ', test_gvec
+      write(1000+myid,*) '   Gamma : ', is_gamma
+
 #ifdef MPI
-      call MPI_IRECV( wfns, ngvecs*my_bands, MPI_DOUBLE_COMPLEX, pool_root, 1, pool_comm, & 
-                      requests( 1 ), ierr )
+      call MPI_TYPE_VECTOR( my_bands, test_gvec, ngvecs, MPI_DOUBLE_COMPLEX, newType, ierr )
+      if( ierr .ne. 0 ) return
+      call MPI_TYPE_COMMIT( newType, ierr )
+      if( ierr .ne. 0 ) return
+
+
+      !TODO ADD MPI_VECTOR thing to recieve directly into wvfn for gamma  
+!      if( is_gamma ) then
+!        call MPI_IRECV( cmplx_wvfn, test_gvec*my_bands, MPI_DOUBLE_COMPLEX, pool_root, 1, pool_comm, &
+!                        requests( 1 ), ierr ) 
+!        wfns( 1 : test_gvec, : ) = cmplx_wvfn( 1 : test_gvec, : )
+!      else
+!        write(6,*) '!!!'
+!        ierr = 1010101
+!        return
+!      call MPI_IRECV( wfns, ngvecs*my_bands, MPI_DOUBLE_COMPLEX, pool_root, 1, pool_comm, & 
+!                      requests( 1 ), ierr )
+!      endif
+
+      call MPI_IRECV( wfns, 1, newType, pool_root, 1, pool_comm, requests( 1 ), ierr )
+      if( ierr .ne. 0 ) return
+      call MPI_TYPE_FREE( newType, ierr )
+      if( ierr .ne. 0 ) return
 
       call MPI_IBCAST( gvecs, 3*test_gvec, MPI_INTEGER, pool_root, pool_comm, requests( 2 ), ierr )
       call MPI_BCAST( ierr, 1, MPI_INTEGER, pool_root, pool_comm, ierr_ )
