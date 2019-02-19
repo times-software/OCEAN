@@ -77,16 +77,25 @@ module screen_wavefunction
     endif
   end subroutine sw_alloc_wvfn
 
-  subroutine screen_wvfn_singleKInit( grid, wvfn, ierr )
+  subroutine screen_wvfn_singleKInit( grid, wvfn, ierr, nbands )
     use screen_system, only : system_parameters, params
     
     type( sgrid ), intent( in ) :: grid
     type( screen_wvfn ), intent( inout ) :: wvfn
     integer, intent( inout ) :: ierr
+    integer, intent( in ), optional :: nbands
 
     wvfn%npts = grid%npt
     wvfn%mypts = grid%npt
-    wvfn%mybands = params%nbands
+    if( present( nbands ) ) then
+      if( nbands .lt. 1 ) then
+        ierr = 2
+        return
+      endif
+      wvfn%mybands = nbands
+    else
+      wvfn%mybands = params%nbands
+    endif
     wvfn%mykpts = 1
     wvfn%band_start = 1
     wvfn%kpts_start = 1

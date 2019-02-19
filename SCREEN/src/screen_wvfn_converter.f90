@@ -353,7 +353,7 @@ module screen_wvfn_converter
       nbandChunk = max( nbandChunk, 1 )
       nbandChunk = min( nbandChunk, nbands )
     endif
-    write(1000+myid,'(A,4(1X,I0))') '*** Convert and Send ***', ikpt, ispin, nbands, nbandChunk
+    write(1000+myid,'(A,4(1X,I0),L2)') '*** Convert and Send ***', ikpt, ispin, nbands, nbandChunk, params%isGamma
     flush(1000+myid)
 
 !    call swl_allocateUofX( params%isGamma, nbands, uofx, ierr )
@@ -364,7 +364,7 @@ module screen_wvfn_converter
 
     do isite = 1, nsites
       call screen_tk_start( "singleKInit" )
-      call screen_wvfn_singleKInit( all_sites( isite )%grid, temp_wavefunctions( isite ), ierr )
+      call screen_wvfn_singleKInit( all_sites( isite )%grid, temp_wavefunctions( isite ), ierr, nbands )
       if( ierr .ne. 0 ) return
       call screen_tk_stop( "singleKInit" )
     enddo
@@ -1471,6 +1471,14 @@ module screen_wvfn_converter
                 write(1000+myid,*) '   ', j
               enddo
             enddo
+            if( mod( test, 11 ) .eq. 0 ) then
+              test = test / 11
+              write(1000+myid,*) '   ', 11
+            endif
+            if( mod( test, 13 ) .eq. 0 ) then
+              test = test / 13
+              write(1000+myid,*) '   ', 13
+            endif
             if( test .eq. 1 ) then
               uofxDims(i) = uofxDims(i) + k
               write(1000+myid,*) 'FINAL:    ', uofxDims(i)
@@ -1854,7 +1862,7 @@ module screen_wvfn_converter
     dims(2) = size( uofx, 2 )
     dims(3) = size( uofx, 3 )
 
-    if( iband .eq. 1 ) write(1000+myid,'(A,3(I8,1X))') 'x-dims', dims(:)
+!    if( iband .eq. 1 ) write(1000+myid,'(A,3(I8,1X))') 'x-dims', dims(:)
     do ip = 1, npts
       rvec(:) = i2pi * matmul( bvecs, posn(:,ip) )
 
@@ -1951,7 +1959,7 @@ module screen_wvfn_converter
     enddo ! ib
 
 
-    deallocate( P, Q, QGrid, RGrid, pointMap )
+    deallocate( P, Q, QGrid, RGrid, pointMap, distanceMap )
 
   end subroutine swl_RealDoLagrange
     
@@ -1992,7 +2000,7 @@ module screen_wvfn_converter
     dims(2) = size( uofx, 2 )
     dims(3) = size( uofx, 3 )
 
-    if( iband .eq. 1 ) write(1000+myid,'(A,3(I8,1X))') 'x-dims', dims(:)
+!    if( iband .eq. 1 ) write(1000+myid,'(A,3(I8,1X))') 'x-dims', dims(:)
     do ip = 1, npts
       rvec(:) = i2pi * matmul( bvecs, posn(:,ip) )
 
