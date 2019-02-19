@@ -346,7 +346,8 @@ module screen_wvfn_converter
     if( uofx%dims(1) .gt. 0 ) then
       j = screen_system_convertInterpolateOrder() 
       ! First testing, force 1 so it chunks
-      nbandChunk = floor( 134217728_DP / & !This should be 2GB
+!      nbandChunk = floor( 134217728_DP / & !This should be 2GB
+      nbandChunk = floor( 74217728_DP / & !This should be 2GB
                       ( real( uofx%dims(1), DP ) * real( uofx%dims(2), DP ) & 
                        * real( uofx%dims(3), DP ) * real( j, DP )  ) ) 
       nbandChunk = max( nbandChunk, 1 )
@@ -718,9 +719,15 @@ module screen_wvfn_converter
     enddo  
 
     if( wavefunctions%isSplit ) then
-      call FinishAugment_Split( isite, npts, nbands, iq, ncutoff, maxnproj, lmin, lmax, &
-                                psproj, diffProj, psProj_hold, aMat, & 
-                                wavefunctions%real_wvfn(:,:,1), ierr, wavefunctions%imag_wvfn(:,:,1) )
+      if( wavefunctions%isGamma ) then
+        call FinishAugment_Split( isite, npts, nbands, iq, ncutoff, maxnproj, lmin, lmax, &
+                                  psproj, diffProj, psProj_hold, aMat, & 
+                                  wavefunctions%real_wvfn(:,:,1), ierr )
+      else
+        call FinishAugment_Split( isite, npts, nbands, iq, ncutoff, maxnproj, lmin, lmax, &
+                                  psproj, diffProj, psProj_hold, aMat, & 
+                                  wavefunctions%real_wvfn(:,:,1), ierr, wavefunctions%imag_wvfn(:,:,1) )
+      endif
     else
       call FinishAugment( isite, npts, nbands, iq, ncutoff, maxnproj, lmin, lmax, &
                           psproj, diffProj, psProj_hold, aMat, wavefunctions%wvfn(:,:,1), ierr )
@@ -919,7 +926,7 @@ module screen_wvfn_converter
   end subroutine FinishAugment
 
 
-  subroutine FinishAugment_split( isite, npts, nbands, iq, ncutoff, maxnproj, lmin, lmax, &
+  subroutine FinishAugment_Split( isite, npts, nbands, iq, ncutoff, maxnproj, lmin, lmax, &
                             psproj, diffProj, psProj_hold, aMat, wavefunctions, ierr, imag_wvfn )
     use screen_sites, only : site
     use screen_opf
@@ -1226,7 +1233,8 @@ module screen_wvfn_converter
 
       case( 'lagrange' )
         if( uofx%isReal ) then
-
+          call swl_RealDoLagrange( screen_system_convertInterpolateOrder(), npts, nbands, iband, &
+                               uofx%rUofX, uofx%rPgrid, uofx%isInitGrid, bvecs, qcart, posn, wvfn, ierr )
         else
           call swl_ComplexDoLagrange( screen_system_convertInterpolateOrder(), npts, nbands, iband, & 
                                uofx%cUofX, uofx%cPgrid, uofx%isInitGrid, bvecs, qcart, posn, wvfn, ierr )
@@ -1324,6 +1332,7 @@ module screen_wvfn_converter
 !    bplan = fftw_plan_many_dft( 3, dims, nbands, uofx, 
 
     allocate( tempC( dims(1), dims(2), dims(3) ) )
+#if 0
 
     do ib = 1, nbands
       bplan = fftw_plan_dft_c2r_3d( dims(3), dims(2), dims(1), tempC(:,:,:), uofx(:,:,:,ib), FFTW_PATIENT )
@@ -1346,6 +1355,30 @@ module screen_wvfn_converter
 
       call fftw_destroy_plan( bplan )
     enddo
+#else
+    bplan = fftw_plan_dft_3d( dims(3), dims(2), dims(1), tempC, tempC, FFTW_BACKWARD, FFTW_ESTIMATE )
+    do ib = 1, nbands
+      tempC(:,:,:) = 0.0_DP
+      do ig = 1, ngvecs
+        i = 1 + gvecs(1,ig)
+        j = 1 + gvecs(2,ig)
+        k = 1 + gvecs(3,ig)
+        if( i .le. 0 ) i = i + dims(1)
+        if( j .le. 0 ) j = j + dims(2)
+        if( k .le. 0 ) k = k + dims(3)
+
+       tempC( i, j, k ) = uofg( ig, ib )
+      enddo
+
+
+      call fftw_execute_dft( bplan, tempC, tempC )
+
+      uofx(:,:,:,ib) = tempC(:,:,:)
+    enddo
+    call fftw_destroy_plan( bplan )
+
+#endif
+
     deallocate( tempC )
 
 #else
@@ -1367,7 +1400,8 @@ module screen_wvfn_converter
 
     i = screen_system_convertInterpolateOrder()
     ! For now, force complex version
-    if( .false. ) then !isGamma ) then
+    if( isGamma ) then
+!    if( .false. ) then
       uofx%isReal = .true.
       allocate( uofx%rUofX( uofx%dims(1), uofx%dims(2), uofx%dims(3), nbands ), & 
                 uofx%rPgrid( i, uofx%dims(1), uofx%dims(2), uofx%dims(3), nbands ), &
@@ -1789,24 +1823,26 @@ module screen_wvfn_converter
 
   end subroutine  swl_Lagrange3rd
 
-  subroutine swl_RealDoLagrange( order, npts, nbands, uofx, bvecs, qcart, posn, wavefunctions, ierr )
+  subroutine swl_RealDoLagrange( order, npts, nbands, iband, uofx, Pgrid, isInitGrid, &
+                                 bvecs, qcart, posn, wvfn, ierr )
     use ocean_constants, only : pi_dp
     use ocean_mpi, only : myid
     use ocean_interpolate
-    integer, intent( in ) :: order, npts, nbands
+    use screen_wavefunction, only : screen_wvfn
+    integer, intent( in ) :: order, npts, nbands, iband
     real(DP), intent( in ) :: bvecs(3,3), qcart(3)
     real(DP), intent( in ) :: uofx( :, :, :, : )
+    real(DP), intent( inout ) :: Pgrid( :, :, :, :, : )
+    logical, intent( inout ) :: isInitGrid( :, :, :, : )
     real(DP), intent( in ) :: posn( 3, npts )
-    ! to-fix!
-    complex(DP), intent( out ) :: wavefunctions( npts, nbands )
+    type( screen_wvfn ), intent( inout ) :: wvfn
     integer, intent( inout ) :: ierr
 
-    real(DP), allocatable :: distanceMap(:,:), P(:,:), QGrid(:,:), Q(:), RGrid(:), PGrid(:,:,:,:)
+    real(DP), allocatable :: distanceMap(:,:), P(:,:), QGrid(:,:), Q(:), RGrid(:)
     integer, allocatable :: pointMap(:,:)
-    logical, allocatable :: isInitGrid(:,:,:)
 
     real(DP) :: R, dx, dy, dz, rvec(3), i2pi
-    integer :: dims(3), ib, ip, i, j, ix, iy, iz, iyy, izz
+    integer :: dims(3), ib, ip, i, j, ix, iy, iz, iyy, izz, offset
 
     allocate( pointMap( 3, npts ), distanceMap( 3, npts ), stat=ierr )
     if( ierr .ne. 0 ) return
@@ -1818,7 +1854,7 @@ module screen_wvfn_converter
     dims(2) = size( uofx, 2 )
     dims(3) = size( uofx, 3 )
 
-    write(1000+myid,'(A,3(I8,1X))') 'x-dims', dims(:)
+    if( iband .eq. 1 ) write(1000+myid,'(A,3(I8,1X))') 'x-dims', dims(:)
     do ip = 1, npts
       rvec(:) = i2pi * matmul( bvecs, posn(:,ip) )
 
@@ -1841,8 +1877,16 @@ module screen_wvfn_converter
                         / real(dims( : ), DP )
     enddo
 
-    allocate( P(order,order), QGrid(order,order), Q(order), RGrid(order), &
-              isInitGrid( dims(1), dims(2), dims(3) ), PGrid( order, dims(1), dims(2), dims(3) ), STAT=ierr )
+    ! Need to find the offset
+    ! pointMap should point to the central value, which is round to nearest for odd-order, but
+    ! round to floor for even. 
+    if( mod( order, 2 ) .eq. 1 ) then
+      offset = order / 2
+    else
+      offset = order / 2 - 1
+    endif
+
+    allocate( P(order,order), QGrid(order,order), Q(order), RGrid(order) )
     if( ierr .ne. 0 ) return
     dx = 1.0_dp / dims( 1 )
     dy = 1.0_dp / dims( 2 )
@@ -1850,37 +1894,41 @@ module screen_wvfn_converter
 
     do ib = 1, nbands
       ! New band, nothing is correct
-      isInitGrid(:,:,:) = .false.
 
       do ip = 1, npts
 
         do iz = 0, order - 1
-          izz = pointMap( 3, ip ) + iz
+          izz = pointMap( 3, ip ) + iz - offset
           if( izz .gt. dims( 3 ) ) izz = izz - dims( 3 )
+          if( izz .lt. 1 ) izz = izz + dims( 3 )
 
           do iy = 0, order - 1
-            iyy = pointMap( 2, ip ) + iy
+            iyy = pointMap( 2, ip ) + iy - offset
             if( iyy .gt. dims( 2 ) ) iyy = iyy - dims( 2 )
+            if( iyy .lt. 1 ) iyy = iyy + dims( 2 )
 
-            if( .not. isInitGrid( pointMap( 1, ip ), iyy, izz ) ) then
+            if( .not. isInitGrid( pointMap( 1, ip ), iyy, izz, ib ) ) then
 
               call MakeLagrange( order, pointMap( 1, ip ), iyy, izz, uofx(:,:,:,ib), &
-                              Pgrid( :, pointMap( 1, ip ), iyy, izz ) )
-              isInitGrid( pointMap( 1, ip ), iyy, izz ) = .true.
+                              Pgrid( :, pointMap( 1, ip ), iyy, izz, ib ) )
+              isInitGrid( pointMap( 1, ip ), iyy, izz, ib ) = .true.
             endif
 
           enddo ! iy
         enddo ! iz
 
         do iz = 1, order
-          izz = pointMap( 3, ip ) + iz - 1
+          izz = pointMap( 3, ip ) + iz - 1 - offset
           if( izz .gt. dims( 3 ) ) izz = izz - dims( 3 )
+          if( izz .lt. 1 ) izz = izz + dims( 3 )
 
           do iy = 1, order
-            iyy = pointMap( 2, ip ) + iy - 1
+            iyy = pointMap( 2, ip ) + iy - 1 - offset
             if( iyy .gt. dims( 2 ) ) iyy = iyy - dims( 2 )
+            if( iyy .lt. 1 ) iyy = iyy + dims( 2 )
 
-            P(iy,iz) = evalLagrange( order, distanceMap( 1, ip ), dx, Pgrid( :, pointMap( 1, ip ), iyy, izz ) )
+            P(iy,iz) = evalLagrange( order, distanceMap( 1, ip ), dx, & 
+                                     Pgrid( :, pointMap( 1, ip ), iyy, izz, ib ) )
           enddo
         enddo
 
@@ -1892,15 +1940,18 @@ module screen_wvfn_converter
 
         call makeLagrange( order, Q, RGrid )
         R = evalLagrange( order, distanceMap( 3, ip ), dz, Rgrid )
-
-        wavefunctions( ip, ib ) = R 
+!
+        if( wvfn%isSplit ) then
+          wvfn%real_wvfn( ip, ib + iband - 1, 1 ) = R
+        else
+          wvfn%wvfn( ip, ib + iband - 1, 1 ) = R
+        endif
 
       enddo ! ip
     enddo ! ib
 
 
-    deallocate( P, Q, QGrid, RGrid )
-    deallocate( isInitGrid, PGrid, pointMap )
+    deallocate( P, Q, QGrid, RGrid, pointMap )
 
   end subroutine swl_RealDoLagrange
     

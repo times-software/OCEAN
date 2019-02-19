@@ -187,7 +187,7 @@ module ocean_interpolate
       iiz = iiz - nz
     enddo
 
-    iix = ix
+    iix = ix - 1
     do while( iix .lt. 1 )
       iix = iix + nx
     enddo

@@ -113,7 +113,6 @@ program screen_driver
   if( ierr .ne. 0 ) goto 111
   call screen_chi_driver_run( nsites, all_sites, ierr )
   if( ierr .ne. 0 ) goto 111
-  call screen_tk_stop( "chi" )
 
   call screen_grid_dumpRBfile( all_sites( 1 )%grid, ierr )
   if( ierr .ne. 0 ) goto 111
@@ -124,6 +123,7 @@ program screen_driver
   call screen_tk_start("wait at end")
   call MPI_BARRIER( comm, ierr )
   call screen_tk_stop("wait at end")
+  call screen_tk_stop( "chi" )
 111 continue
 !  if( ierr .ne. 0 ) call MPI_ABORT( comm, ierr, ierr_ )
   call ocean_mpi_finalize( ierr )
