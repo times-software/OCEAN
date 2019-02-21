@@ -177,8 +177,8 @@ module screen_centralPotential
     call screen_centralPotential_share( Pot, myid, root, comm, ierr )
     if( ierr .ne. 0 ) return
 
-      write(3000+myid, * ) pot%z, pot%n, pot%l
-      flush(3000+myid)
+!      write(3000+myid, * ) pot%z, pot%n, pot%l
+!      flush(3000+myid)
 
 
   end subroutine screen_centralPotential_loadSingle
@@ -351,7 +351,7 @@ module screen_centralPotential
       endif
     enddo
 
-!#ifdef DEBUG
+#ifdef DEBUG
     write(6,*) 'newScreenShell', rad, newPot%rad( size( newPot%rad ) )
     write(filename,'(A,F4.2)') 'vpert.', rad
     open(unit=99,file=filename, form='formatted' )
@@ -359,7 +359,7 @@ module screen_centralPotential
       write(99,* ) newPot%rad( i ), newPot%pot( i ), pot%pot( i )
     enddo
     close( 99 )
-!#endif
+#endif
 
     newPot%z = pot%z
     newPot%n = pot%n

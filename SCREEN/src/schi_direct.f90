@@ -39,15 +39,15 @@ module schi_direct
     real(DP) :: rgt, coul, r2dr, rlt
     integer :: nLM, nR, i, j, ilm, lpol
 
-!#ifdef DEBUG
+#ifdef DEBUG
     character(len=30) :: fmtstmt
     character(len=8)  :: filnam
-!#endif
+#endif
 
     nr = grid%nr
     nLM = size( FullChi, 2 )
 
-!#ifdef DEBUG
+#ifdef DEBUG
     do ilm = 1, nlm
       write(filnam,'(A6,I1,I1)') 'zmunu.', ilm, ilm
       open( unit=99, file=filnam, form='formatted', status='unknown' )
@@ -59,7 +59,7 @@ module schi_direct
       enddo
       close( 99 )
     enddo
-!#endif
+#endif
 
     allocate( vipt( nr ) )
     call Newmkvipt( nr, grid%rad, pot%rad, pot%pot, vipt )
@@ -326,9 +326,9 @@ module schi_direct
 
     real(DP), parameter :: d_zero = 0.0_DP
     real(DP), parameter :: d_one = 1.0_DP
-!#ifdef DEBUG
+#ifdef DEBUG
     character(len=8) :: filnam
-!#endif
+#endif
 
     npt = size( FullSpace, 1 )
     nbasis = size( ProjectedSpace, 1 )
@@ -438,7 +438,7 @@ module schi_direct
     deallocate( temp, slice_ymu )
 !    deallocate( ymu )
 
-!#ifdef DEBUG
+#ifdef DEBUG
     do ilm = 1, nlm
       write(filnam,'(A6,I1,I1)') 'ymunu.', ilm, ilm
       open( unit=99, file=filnam, form='formatted', status='unknown' )
@@ -450,7 +450,7 @@ module schi_direct
       enddo
       close( 99 )
     enddo
-!#endif
+#endif
 
   end subroutine schi_direct_project
 
