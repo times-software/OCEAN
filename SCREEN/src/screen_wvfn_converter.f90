@@ -1261,6 +1261,7 @@ module screen_wvfn_converter
   end subroutine swl_doConvert
 
   subroutine swl_doConvertComplex( nbands, ngvecs, gvecs, uofg, uofx )
+    use ocean_dft_files, only : odf_isFullStorage
 #ifdef __FFTW3
     use iso_c_binding
     include 'fftw3.f03'
@@ -1294,6 +1295,20 @@ module screen_wvfn_converter
 
         uofx( i, j, k, ib ) = uofg( ig, ib )
       enddo
+      if( .not. odf_isFullStorage() ) then
+        do ig = 1, ngvecs
+          i = 1 - gvecs(1,ig)
+          j = 1 - gvecs(2,ig)
+          k = 1 - gvecs(3,ig)
+          if( i .le. 0 ) i = i + dims(1)
+          if( j .le. 0 ) j = j + dims(2)
+          if( k .le. 0 ) k = k + dims(3)
+
+          uofx( i, j, k, ib ) = conjg( uofg( ig, ib ) )
+        enddo
+      endif
+      
+
 !    enddo
 
 !    do j = 1, nbands
@@ -1310,6 +1325,7 @@ module screen_wvfn_converter
   end subroutine swl_doConvertComplex
 
   subroutine swl_doConvertGamma( nbands, ngvecs, gvecs, uofg, uofx )
+    use ocean_dft_files, only : odf_isFullStorage
 #ifdef __FFTW3
     use iso_c_binding
     include 'fftw3.f03'
@@ -1367,8 +1383,21 @@ module screen_wvfn_converter
         if( j .le. 0 ) j = j + dims(2)
         if( k .le. 0 ) k = k + dims(3)
 
-       tempC( i, j, k ) = uofg( ig, ib )
+        tempC( i, j, k ) = uofg( ig, ib )
       enddo
+      if( .not. odf_isFullStorage() ) then
+        do ig = 1, ngvecs
+          i = 1 - gvecs(1,ig)
+          j = 1 - gvecs(2,ig)
+          k = 1 - gvecs(3,ig)
+          if( i .le. 0 ) i = i + dims(1)
+          if( j .le. 0 ) j = j + dims(2)
+          if( k .le. 0 ) k = k + dims(3)
+
+          tempC( i, j, k ) = conjg( uofg( ig, ib ) )
+        enddo
+
+      endif
 
 
       call fftw_execute_dft( bplan, tempC, tempC )
@@ -1447,6 +1476,10 @@ module screen_wvfn_converter
 #endif
         boundaries(:,1) = minval( gvecs, 2 )
         boundaries(:,2) = maxval( gvecs, 2 )
+        do i = 1, 3
+          if( (-boundaries(i,2)) .lt. boundaries(i,1) ) boundaries(i,1) = -boundaries(i,2)
+          if( (-boundaries(i,1)) .gt. boundaries(i,2) ) boundaries(i,2) = -boundaries(i,1)
+        enddo
         uofxDims(:) = boundaries(:,2) - boundaries(:,1) + 1 
 
         write(1000+myid,'(A,3(X,I0))') 'Initial: ', uofxDims(:)

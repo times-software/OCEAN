@@ -25,6 +25,7 @@ module ocean_dft_files
   public :: LEGACY_FLAVOR, QE54_FLAVOR
 
   logical :: isGamma = .false.
+  logical :: isFullStorage
 
 
   
@@ -33,7 +34,7 @@ module ocean_dft_files
   public :: odf_nprocPerPool, odf_getPoolIndex, odf_getBandsForPoolID, odf_returnGlobalID
   public :: odf_return_my_bands, odf_is_my_kpt, odf_get_ngvecs_at_kpt
   public :: odf_read_at_kpt 
-  public :: odf_isGamma
+  public :: odf_isGamma, odf_isFullStorage
 
   contains 
 
@@ -42,6 +43,12 @@ module ocean_dft_files
     isGamma_ = isGamma
     return
   end function odf_isGamma
+
+  pure function odf_isFullStorage() result( FS )
+    logical :: FS
+    FS = isFullStorage
+    return
+  end function odf_isFullStorage
     
 
   pure function odf_getPoolIndex( ispin, ikpt ) result( poolIndex )
@@ -238,10 +245,11 @@ module ocean_dft_files
 
         call olf_read_init( comm, ierr )
         isGamma = .false.
+        isFullStorage = .true.
 
       case( QE54_FLAVOR )
   
-        call qe54_read_init( comm, isGamma, ierr )
+        call qe54_read_init( comm, isGamma, isFullStorage, ierr )
 
       case default
         ierr = 1

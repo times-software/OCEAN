@@ -20,6 +20,7 @@ module ocean_qe54_files
 
   logical :: is_init = .false.
   logical :: is_gamma
+  logical, parameter :: GammaFullStorage = .false.
   character( len=128 ) :: prefix
 
   integer :: bands(2)
@@ -287,14 +288,14 @@ module ocean_qe54_files
   end subroutine qe54_clean
 
   ! Read the universal little files
-  subroutine qe54_read_init( comm, isGamma, ierr )
+  subroutine qe54_read_init( comm, isGamma, isFullStorage, ierr )
     use ocean_mpi, only : MPI_INTEGER, MPI_CHARACTER, MPI_LOGICAL
 #ifdef MPI_F08
     type( MPI_COMM ), intent( in ) :: comm
 #else
     integer, intent( in ) :: comm
 #endif
-    logical, intent( out ) :: isGamma
+    logical, intent( out ) :: isGamma, isFullStorage
     integer, intent( inout ) :: ierr
     !
     integer :: i, brange(4)
@@ -375,6 +376,12 @@ module ocean_qe54_files
 !    write(6,*) 'qe54_read_init was successful'
     is_init = .true.
     isGamma = is_gamma
+
+    if( isGamma ) then
+      isFullStorage = gammaFullStorage
+    else
+      isFullStorage = .true.
+    endif
   
   end subroutine  qe54_read_init 
 
@@ -469,7 +476,8 @@ module ocean_qe54_files
       enddo
       read(99) crap, gvecs
       close( 99 )
-      if( is_gamma ) gvecs = 2 * gvecs - 1
+      ! Do we want to expand the coeffs inside this module?
+      if( gammaFullStorage .and. is_gamma ) gvecs = 2 * gvecs - 1
     endif
 
 !    write(6,*) 'gvecs', pool_root, pool_comm
@@ -496,6 +504,7 @@ module ocean_qe54_files
                           MPI_STATUS_IGNORE, MPI_UNDEFINED
 !    use OCEAN_mpi
 #endif
+    use SCREEN_timekeeper, only : SCREEN_tk_start, SCREEN_tk_stop
     integer, intent( in ) :: ikpt, ispin, ngvecs, my_bands
     integer, intent( out ) :: gvecs( 3, ngvecs )
     complex( DP ), intent( out ) :: wfns( ngvecs, my_bands )
@@ -528,7 +537,8 @@ module ocean_qe54_files
         read( 99 )
       enddo
       read(99) crap, test_gvec
-      if( is_gamma ) then
+      ! Are we expanding the wave functions here?
+      if( gammaFullStorage .and. is_gamma ) then
         if( ( 2 * test_gvec - 1 ) .ne. ngvecs ) then
           ierr = -2
           write(6,*) (2*test_gvec-1), ngvecs
@@ -568,7 +578,8 @@ module ocean_qe54_files
       !
       ! no more than 8GB @ 16Byte/complex
 !      bufferSize = floor( 36870912.0_DP /  ( real( test_gvec, DP ) * real( maxBands, DP ) ) )
-      bufferSize = floor( 536870912.0_DP /  ( real( test_gvec, DP ) * real( maxBands, DP ) ) )
+!      bufferSize = floor( 536870912.0_DP /  ( real( test_gvec, DP ) * real( maxBands, DP ) ) )
+      bufferSize = floor( 1073741824.0_DP /  ( real( test_gvec, DP ) * real( maxBands, DP ) ) )
       bufferSize = max( bufferSize, 1 )
       bufferSize = min( bufferSize, pool_nproc - 1 )
       allocate( cmplx_wvfn( test_gvec, maxBands, bufferSize ) )
@@ -608,6 +619,7 @@ module ocean_qe54_files
 
         ! If mine, read directly to wvfn
         if( id .eq. pool_myid ) then
+          call SCREEN_tk_start("dft-read")
           do i = 1, nbands_to_send
             read(99)
             read(99)
@@ -615,6 +627,7 @@ module ocean_qe54_files
             read(99)
             read(99)
           enddo
+          call SCREEN_tk_stop("dft-read")
         
         ! IF not mine, find open buffer, read to buffer, send buffer
         else
@@ -632,6 +645,7 @@ module ocean_qe54_files
           endif
           
 
+          call SCREEN_tk_start("dft-read")
           do i = 1, nbands_to_send
             read(99)
             read(99)
@@ -639,6 +653,7 @@ module ocean_qe54_files
             read(99)
             read(99)
           enddo
+          call SCREEN_tk_stop("dft-read")
 
           write(1000+myid,'(A,3(1X,I8))') '   Sending ...', id, start_band, nbands_to_send
           call MPI_IRSEND( cmplx_wvfn( 1, 1, j ), nbands_to_send*test_gvec, MPI_DOUBLE_COMPLEX, &
@@ -679,7 +694,7 @@ module ocean_qe54_files
       write(1000+myid,*) '   Ngvecs: ', ngvecs
       write(1000+myid,*) '   Nbands: ', nbands
 
-      if( is_gamma ) then
+      if( gammaFullStorage .and. is_gamma ) then
         test_gvec = ( ngvecs + 1 ) / 2
       else
         test_gvec = ngvecs 
@@ -720,7 +735,7 @@ module ocean_qe54_files
 
     deallocate( cmplx_wvfn, requests )
 
-    if( is_gamma ) then
+    if( gammaFullStorage .and. is_gamma ) then
       j = test_gvec
       do i = 1, test_gvec
         if( gvecs(1,i) .eq. 0 .and. gvecs(2,i) .eq. 0 .and. gvecs(3,i) .eq. 0 ) then
