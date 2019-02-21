@@ -185,12 +185,31 @@ module screen_paral
   end function screen_paral_procID2groupID
 
   subroutine how_many_groups( n_sites, nproc, ngroups )
-    use OCEAN_mpi, only : myid, root
+    use OCEAN_mpi, only : myid, root, MPI_INTEGER, comm
     integer, intent( in ) :: n_sites, nproc 
     integer, intent( out ) :: ngroups
     !
     real( DP ) :: score, best_score, mismatch
-    integer :: i, j, best_ngroup, k, maxSites
+    integer :: i, j, best_ngroup, k, maxSites, ierr
+    logical :: ex
+
+    if( myid .eq. root ) then
+      inquire(file='screen.ngroups',exist=ex)
+      if( ex ) then
+        open(unit=99,file='screen.ngroups',form='formatted',status='old')
+        read(99,*) i
+        close(99)
+      else
+        i = 0
+      endif
+    endif
+    call MPI_BCAST( i, 1, MPI_INTEGER, root, comm, ierr )
+    
+    if( i .gt. 0 ) then
+      ngroups = i
+      return
+    endif
+      
 
     if( n_sites .eq. 1 .or. nproc .eq. 1 ) then
       ngroups = 1
