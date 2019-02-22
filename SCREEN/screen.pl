@@ -1,5 +1,5 @@
 #!/usr/bin/perl
-# Copyright (C) 2010, 2013 - 2018 OCEAN collaboration
+# Copyright (C) 2010, 2013 - 2019 OCEAN collaboration
 #
 # This file is part of the OCEAN project and distributed under the terms 
 # of the University of Illinois/NCSA Open Source License. See the file 
@@ -10,13 +10,19 @@
 use strict;
 use File::Copy;
 use File::Spec::Functions;
+use File::Compare;
+use Cwd 'abs_path';
+
 use POSIX;
 
 ###########################
 if (! $ENV{"OCEAN_BIN"} ) {
   $0 =~ m/(.*)\/screen\.pl/;
-  $ENV{"OCEAN_BIN"} = $1;
-  print "OCEAN_BIN not set. Setting it to $1\n";
+#   my $test = File::Spec->rel2abs( $0 );
+#  my $test = abs_path( $1 );
+  $ENV{"OCEAN_BIN"} = abs_path( $1 );
+#  print "OCEAN_BIN not set. Setting it to $1\n";
+  print "OCEAN_BIN not set. Setting it to $ENV{'OCEAN_BIN'}\n";
 }
 if (! $ENV{"OCEAN_WORKDIR"}){ $ENV{"OCEAN_WORKDIR"} = `pwd` . "../" ; }
 ###########################
@@ -24,14 +30,14 @@ if (! $ENV{"OCEAN_WORKDIR"}){ $ENV{"OCEAN_WORKDIR"} = `pwd` . "../" ; }
 
 my @CommonFiles = ("znucl", "opf.hfkgrid", "opf.fill", "opf.opts", "pplist", "screen.shells", 
                    "ntype", "natoms", "typat", "taulist", "nedges", "edges", "caution", "epsilon", 
-                   "k0.ipt", "scfac", "core_offset", "dft", "avecsinbohr.ipt", 
+                   "screen.k0", "scfac", "core_offset", "dft", "avecsinbohr.ipt", 
                    "para_prefix", "nspin", "calc", "prefix" );
 
 my @ScreenFiles = ("screen.grid.scheme", "screen.grid.rmode", "screen.grid.ninter", 
                    "screen.grid.shells", "screen.grid.xyz", "screen.grid.rmax", "screen.grid.ang",
-                   "screen.grid.lmax", "screen.grid.nb", "screen.grid.nr", "screen.final.rmax", 
+                   "screen.lmax", "screen.grid.nb", "screen.grid.nr", "screen.final.rmax", 
                    "screen.final.dr", "screen.legacy", "screen.model.dq", "screen.model.qmax", 
-                   "screen.augment", "screen.wvfn" );
+                   "screen.augment", "screen.wvfn", "screen.convertstyle", "screen.inversionstyle" );
 
 my @DenDipFiles = ("rhoofg", "bvecs", "efermiinrydberg.ipt");
 my @DenDipFiles2 = ( "masterwfile", "listwfile", "enkfile", "kmesh.ipt", "brange.ipt" );
@@ -44,7 +50,10 @@ my $runSCREEN = 1;
 if (-e "../PREP/PAW/old" && -e "done" ) {
   $runSCREEN = 0;
   foreach (@CommonFiles) {
-    if (`diff -q $_ ../Common/$_`) {
+#    if (`diff -q $_ ../Common/$_`) {
+    if( compare("$_", "../Common/$_" ) != 0 )   # should get diff or non-exist
+    {
+      print "$_ differs\n";
       $runSCREEN = 1;
       last;
     }
@@ -53,11 +62,25 @@ if (-e "../PREP/PAW/old" && -e "done" ) {
   {
     foreach (@ScreenFiles)
     {
-      if (`diff -q $_ ../Common/$_`) {
+#      if (`diff -q $_ ../Common/$_`) {
+    if( compare("$_", "../Common/$_" ) != 0 )   # should get diff or non-exist
+    {
+        print "$_ differs\n";
         $runSCREEN = 1;
         last;
       }
     }
+  }
+}
+else
+{
+  if( -e "done" )
+  {
+    print "PREP was updated. Will re-run\n";
+  }
+  else
+  {
+    print "Screening wasn't previously completed\n";
   }
 }
 
@@ -72,6 +95,8 @@ if ($runSCREEN == 0 ) {
 foreach (@CommonFiles) {
   copy( "../Common/$_", $_ ) or die "Failed to get $_ from Common/\n$!";
 }
+
+copy( "screen.k0", "k0.ipt") or die "$!";
 
 my %screen_data_files = {};
 foreach my $filename (@ScreenFiles)
@@ -91,6 +116,19 @@ foreach my $filename (@ScreenFiles)
     $screen_data_files{ "$store_name" } = $string;
 }
 
+# Attempt to parse and copy in angular grid file
+if( $screen_data_files{ 'grid.ang' } =~ m/(\w+)\s+(\d+)/ )
+{
+  my $angularGridFile = $1 . '.' . $2;
+  if( -e  "$ENV{'OCEAN_BIN'}/$angularGridFile" )
+  {
+    copy( "$ENV{'OCEAN_BIN'}/$angularGridFile", "$angularGridFile" );
+  }
+  else
+  {
+    print "Couldn't find requestd angular grid file: $angularGridFile\n";
+  }
+}
 
 if( open CALC, "calc" )
 {
@@ -613,6 +651,8 @@ else
           for( my $i = 0; $i < $len; $i++ )
           {
             print OUT "$vc_bare{ $currentEdge[1] }[0][$i]  $vc_bare{ $currentEdge[1] }[1][$i]\n";
+#            my $inv = -1 / $vc_bare{ $currentEdge[1] }[0][$i];
+#            print OUT "$vc_bare{ $currentEdge[1] }[0][$i]  $inv\n";
           }
 
           # True reconstruction of wavefunctions
@@ -628,6 +668,8 @@ else
             print OUT ".false.\n$screen_data_files{'final.dr'} $final_nr\n";
             close OUT;
             system( "$ENV{'OCEAN_BIN'}/rscombine.x < ipt1 > ropt_false") == 0 or die;
+            move( "rpot", "rpot_false" ) or die "rpot\n$!";
+            move( "rpothires", "rpothires_false" ) or die "rpothires\n$!";
           }
           # Fake reconstruction using atomic all-electron/pseudo difference
           else
@@ -654,6 +696,7 @@ else
 
         }
         
+        # back out 3 levels
         $rundir = catfile( updir(), updir(),updir() );
         chdir $rundir;
       }

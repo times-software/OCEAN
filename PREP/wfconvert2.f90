@@ -13,7 +13,7 @@
 program wfconvert
       IMPLICIT NONE
 
-      integer :: nkpt(2),nspinor(2),nsppol(2),isppol
+      integer :: nkpt(2),nspinor(2),nsppol(2),isppol,gpt(2)
       integer :: nband(2), fh
       double precision :: dummy
       integer :: iband,ikpt,maxnpw(2),un_npw,sh_npw 
@@ -147,11 +147,13 @@ program wfconvert
           endif
 #else
           open(unit=99,file='qe_data.txt',form='formatted',status='old')
-          read(99,*) maxband(1), maxnpw(1), nsppol(1), nspinor(1), nkpt(1)
+          read(99,*) maxband(1), maxnpw(1), nsppol(1), nspinor(1), nkpt(1), gpt(1)
           if( split_dft ) then
-            read(99,*) maxband(2), maxnpw(2), nsppol(2), nspinor(2), nkpt(2)
+            read(99,*) maxband(2), maxnpw(2), nsppol(2), nspinor(2), nkpt(2), gpt(2)
           endif
           close(99)
+          if( gpt(1) .eq. 2 ) maxnpw(1) = maxnpw(1) * 2 - 1
+          if( gpt(2) .eq. 2 ) maxnpw(2) = maxnpw(2) * 2 - 1
 #endif
           if( nsppol(1) .ne. nspin ) then
             write(6,'(a,i1.1,a,i1.1)' ) 'Was expecting spin=',nspin, ' but found spin=', nsppol
@@ -261,7 +263,7 @@ program wfconvert
 #else
             write( dir_and_prefix, '(a,a,a)' ) 'Out/', trim(prefix), '.save/'
             if( qe_kpt .le. 2 ) write( 6, * ) dir_and_prefix
-            call qe_grabwf_noiotk(qe_kpt, isppol, nsppol(1), maxband(1), maxnpw(1), dir_and_prefix, kg_unshift,  &
+            call qe_grabwf_noiotk(qe_kpt, isppol, nsppol(1), maxband(1), maxnpw(1), gpt(1), dir_and_prefix, kg_unshift,  &
      &                     eigen_un, cg_un, un_npw, ierr)
 #endif
             if( ierr .ne. 0 ) then
@@ -283,7 +285,7 @@ program wfconvert
                 write( dir_and_prefix, '(a,a,a)' ) 'Out/', trim(prefix), '.save/'
               endif
               if( qe_kpt .le. 2 ) write( 6, * ) dir_and_prefix
-              call qe_grabwf_noiotk(qe_kpt, isppol, nsppol(2), maxband(2), maxnpw(2), dir_and_prefix, kg_shift,  &
+              call qe_grabwf_noiotk(qe_kpt, isppol, nsppol(2), maxband(2), maxnpw(2), gpt(2), dir_and_prefix, kg_shift,  &
      &                     eigen_sh, cg_sh, sh_npw, ierr)
 #endif
               if( ierr .ne. 0 ) then

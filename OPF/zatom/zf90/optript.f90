@@ -1,4 +1,4 @@
-! Copyright (C) 2010,2016 OCEAN collaboration
+! Copyright (C) 2010,2016,2018 OCEAN collaboration
 !
 ! This file is part of the OCEAN project and distributed under the terms 
 ! of the University of Illinois/NCSA Open Source License. See the file 
@@ -21,6 +21,17 @@ subroutine optript( nr, r, vcg, vcx, addend, key )
   character * 11 :: hnam
   character * 3 :: s3
   !
+  write ( gnam, '(1a7,1a10)' ) key, addend
+  open( unit=62, file=gnam, form='formatted', status='unknown' )
+  do j = 1, nr
+    write ( 62, '(2(1x,1e22.15))' ) r( j ), vcx( j ) - vcg( j )
+  end do
+  close( unit=62)
+
+  return
+  ! For now we are just skipping over this 
+  ! TODO remove 
+
   open( unit=99, file='shells', form='formatted', status='unknown' )
   rewind 99
   read ( 99, * ) nrsh

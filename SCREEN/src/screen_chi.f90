@@ -172,13 +172,20 @@ module screen_chi
   end subroutine screen_chi_writeW
 
   pure function screen_chi_getOutputPrefix( elname, indx, N, L, rad ) result( Prefix )
+    use screen_system, only : screen_system_mode
+    !
     character(len=2), intent( in ) :: elname
     integer, intent( in ) :: indx, N, L
     real(DP), intent( in ) :: rad
     character( len=40 ) :: Prefix
     ! zTi0001_n02l01/
-    write(Prefix,'(A1,A2,I4.4,A2,I2.2,A1,I2.2,A3,F4.2)') & 
-                'z', elname, indx, '_n', N, 'l', L, '.zR', rad
+    select case( screen_system_mode() )
+      case( 'grid' )
+        write(Prefix,'(A1,I6.6,A3,F4.2)') 'x', indx, '.zR', rad
+      case default 
+        write(Prefix,'(A1,A2,I4.4,A2,I2.2,A1,I2.2,A3,F4.2)') & 
+                    'z', elname, indx, '_n', N, 'l', L, '.zR', rad
+    end select
   end function screen_chi_getOutputPrefix
                         
 
@@ -384,31 +391,36 @@ module screen_chi
 
 
   subroutine screen_chi_init( ierr )
-    use ocean_mpi, only : myid, root, comm, MPI_INTEGER, MPI_CHARACTER
-    use screen_system, only : screen_system_invStyle
+!    use ocean_mpi, only : myid, root, comm, MPI_INTEGER, MPI_CHARACTER
+    use screen_system, only : screen_system_invStyle, screen_system_lbounds
     integer, intent( inout ) :: ierr
+
+    integer :: els(2)
 
     if( is_init ) return
 
 
-    if( myid .eq. root ) then
+!    if( myid .eq. root ) then
 !      invStyle = 'direct'
       invStyle = screen_system_invStyle()
-      lmin = 0
-      lmax = 0
+      els(:) = screen_system_lbounds()
+      lmin = els(1)
+      lmax = els(2)
 
       if( invStyle .eq. 'sinqr' ) then
         lmin = 0
         lmax = 0
       endif
-    endif
+!    endif
 
+#if 0
     call MPI_BCAST( lmin, 1, MPI_INTEGER, root, comm, ierr )
     if( ierr .ne. 0 ) return
     call MPI_BCAST( lmax, 1, MPI_INTEGER, root, comm, ierr )
     if( ierr .ne. 0 ) return
     call MPI_BCAST( invStyle, LenInvStyle, MPI_CHARACTER, root, comm, ierr )
     if( ierr .ne. 0 ) return
+#endif
 
 
     is_init = .true.

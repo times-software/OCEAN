@@ -14,6 +14,7 @@ my $NKPT = 0;
 my $NBND = 0;
 my $NSPN = 0;
 my $NSPINOR = 0;
+my $GAMMA = 0;
 
 
 open IN, $ARGV[0] or die "$!";
@@ -46,7 +47,7 @@ while( my $line=<IN> )
   }
   elsif( $line =~m/<NON-COLINEAR_CALCULATION/ )
   {
-    if( <IN> eq 'T' )
+    if( <IN> =~ m/T/ )
     {
       $NSPINOR = 2;
     }
@@ -55,13 +56,26 @@ while( my $line=<IN> )
       $NSPINOR = 1;
     }
   }
+  elsif( $line =~m/<GAMMA_ONLY/ )
+  {
+    if( <IN> =~ m/T/ )
+    {
+      $GAMMA = 2;
+    }
+    else
+    {
+      $GAMMA = 1 ;
+    }
+  }
 
-  last if( $MNGKV * $NKPT * $NBND * $NSPN * $NSPINOR > 0 );
+
+  last if( $GAMMA * $MNGKV * $NKPT * $NBND * $NSPN * $NSPINOR > 0 );
 }
 close IN;
 
+
 open OUT, ">qe_data.txt" or die "$!";
-print OUT "$NBND $MNGKV $NSPN $NSPINOR $NKPT\n";
+print OUT "$NBND $MNGKV $NSPN $NSPINOR $NKPT $GAMMA\n";
 
 if( scalar @ARGV > 1 )
 {
@@ -101,7 +115,7 @@ if( scalar @ARGV > 1 )
     }
     elsif( $line =~m/<NON-COLINEAR_CALCULATION/ )
     {
-      if( <IN> eq 'T' )
+      if( <IN> =~ m/T/ )
       {
         $NSPINOR = 2;
       }
@@ -110,14 +124,27 @@ if( scalar @ARGV > 1 )
         $NSPINOR = 1;
       }
     }
+    elsif( $line =~m/<GAMMA_ONLY/ )
+    {
+      if( <IN> =~ m/T/ )
+      {
+        $GAMMA = 2;
+      }
+      else
+      {
+        $GAMMA = 1 ;
+      }
+    }
 
-  last if( $MNGKV * $NKPT * $NBND * $NSPN * $NSPINOR > 0 );
+
+    last if( $GAMMA * $MNGKV * $NKPT * $NBND * $NSPN * $NSPINOR > 0 );
+
   }
   close IN;
 }
 
 # print two lines regardless (if only one DFT then this will be a duplicate)
-print OUT "$NBND $MNGKV $NSPN $NSPINOR $NKPT\n";
+print OUT "$NBND $MNGKV $NSPN $NSPINOR $NKPT $GAMMA\n";
 close OUT;
 
 exit 0;

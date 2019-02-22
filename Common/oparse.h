@@ -179,6 +179,10 @@ screen.nkpt
 {
 -1
 } screen.nkpt
+screen.k0
+{
+0.125 0.250 0.375
+} screen.k0
 screen.nbands
 {
 0
@@ -325,7 +329,7 @@ undefined
 } tmp_dir
 den.kshift
 {
-0 0 0
+1 1 1
 } den.kshift
 core_offset
 {
@@ -458,12 +462,12 @@ screen.grid.nr
 } screen.grid.nr
 screen.grid.ang
 {
-lebdev 5
+specpnt 5
 } screen.grid.ang
-screen.grid.lmax
+screen.lmax
 {
 0
-} screen.grid.lmax
+} screen.lmax
 screen.grid.nb
 {
 24
@@ -496,3 +500,11 @@ screen.wvfn
 {
 legacy
 } screen.wvfn
+screen.convertstyle
+{
+intp
+} screen.convertstyle
+screen.inversionstyle
+{
+sinqr
+} screen.inversionstyle

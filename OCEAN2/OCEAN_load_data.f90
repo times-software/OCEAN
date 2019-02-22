@@ -119,6 +119,8 @@ subroutine OCEAN_load_data( sys, hay_vec, ierr )
     call OCEAN_psi_pnorm( sys, hay_vec, ierr )
     if( ierr .ne. 0 ) return
 !    endif
+!    call OCEAN_energies_resetAllow( ierr )
+!    if( ierr .ne. 0 ) return
 
     if( sys%mult ) then
       if( myid .eq. root ) write(6,*) 'Init mult'

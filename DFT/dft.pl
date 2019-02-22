@@ -1,5 +1,5 @@
 #!/usr/bin/perl
-# Copyright (C) 2015 - 2017 OCEAN collaboration
+# Copyright (C) 2015 - 2019 OCEAN collaboration
 #
 # This file is part of the OCEAN project and distributed under the terms 
 # of the University of Illinois/NCSA Open Source License. See the file 
@@ -11,6 +11,7 @@
 use strict;
 use File::Copy;
 use Cwd 'abs_path';
+use File::Compare;
 
 if (! $ENV{"OCEAN_BIN"} ) {
   $0 =~ m/(.*)\/dft\.pl/;
@@ -33,11 +34,12 @@ if (! $ENV{"OCEAN_ESPRESSO_OBF_PP"} )
 my $RunKGen = 0;
 my $RunPP = 0;
 my $RunESPRESSO = 0;
-my $nscfRUN = 1;
+my $nscfRUN = 0;
+my $run_screen = 0;
 
 my @GeneralFiles = ("para_prefix", "calc");
 
-my @KgenFiles = ("nkpt", "k0.ipt", "qinunitsofbvectors.ipt", "screen.nkpt");
+my @KgenFiles = ("nkpt", "k0.ipt", "qinunitsofbvectors.ipt", "screen.nkpt", "screen.k0");
 my @BandFiles = ("nbands", "screen.nbands");
 my @EspressoFiles = ( "coord", "degauss", "ecut", "etol", "fband", "ibrav", 
     "isolated", "mixing", "natoms", "ngkpt", "noncolin", "nrun", "ntype", 
@@ -52,7 +54,8 @@ my @OtherFiles = ("epsilon", "pool_control");
 
 foreach (@PPFiles) {
   if ( -e $_ ) {
-    if ( `diff -q $_ ../Common/$_` ) {
+    if( compare( "$_", "../Common/$_") != 0 )
+    {
       $RunPP = 1;
       print "$_ differs\n";
       last;
@@ -71,7 +74,8 @@ if ( $RunPP ) {
 else {
   foreach (@EspressoFiles) {
     if ( -e $_ ) {
-      if ( `diff -q $_ ../Common/$_` ) {
+      if( compare( "$_", "../Common/$_") != 0 )
+      {
         $RunESPRESSO = 1;
         last;
       }
@@ -97,10 +101,36 @@ if ($RunESPRESSO) {
 #    `rm -r $file`;
   }
   $RunPP = 1;
+  $nscfRUN = 1;
+  $run_screen = 1;
 }
 else {
   `touch old`;
 }
+
+unless( $nscfRUN )
+{
+  foreach( "nkpt", "k0.ipt", "qinunitsofbvectors.ipt", "nbands" )
+  {
+    if( compare( "$_", "../Common/$_") != 0 )
+    {
+      $nscfRUN = 1;
+      last;
+    }
+  }
+}
+unless( $run_screen )
+{
+  foreach( "screen.nkpt", "screen.k0", "screen.nbands" )
+  {
+    if( compare( "$_", "../Common/$_") != 0 )
+    {
+      $run_screen = 1;
+      last;
+    }
+  }
+}
+
 
 
 open GOUT, ">dft.stat" or die;
@@ -150,7 +180,6 @@ open IN, "calc" or die "Failed to open calc\n";
 <IN> =~m/(\w+)/ or die "Failed to parse calc\n";
 my $calc = $1;
 close IN;
-my $run_screen = 1;
 if( $calc =~ m/val/i )
 {
   $run_screen = 0;
@@ -316,7 +345,30 @@ if ($RunESPRESSO) {
   $qe_data_files{'calctype'} = 'scf';
   $qe_data_files{'print kpts'} = "K_POINTS automatic\n$qe_data_files{'ngkpt'} $qe_data_files{'den.kshift'}\n";
   $qe_data_files{'print nbands'} = -1;
+  if( $obf == 1 ) 
+  {
+    $qe_data_files{'nosym'} = '.true.';
+    $qe_data_files{'noinv'} = '.true.';
+  }
+  else
+  {
+    $qe_data_files{'nosym'} = '.false.';
+    $qe_data_files{'noinv'} = '.false.';
+  }
 
+  # Check for Gamma-only, and over-write 'print kpts'
+  $qe_data_files{'ngkpt'} =~ m/(\d+)\s+(\d+)\s+(\d+)/ or die "$qe_data_files{'ngkpt'}";
+  if( $1 * $2 * $3 == 1 )
+  {
+    $qe_data_files{'den.kshift'} =~ m/(\S+)\s+(\S+)\s+(\S+)/ or die "$qe_data_files{'den.kshift'}";
+    unless ( abs($1) > 0.000001 || abs($2) > 0.000001 || abs($3) > 0.000001 )
+    {
+      $qe_data_files{'print kpts'} = "K_POINTS gamma\n";
+    }
+    else { print "KSHIFT: $1  $2  $3\n"; }
+  }
+  else
+  { print "KPOINTS: $1  $2  $3\n"; }
 
   &print_qe( $QE, %qe_data_files );
 
@@ -379,9 +431,64 @@ if ($RunESPRESSO) {
   }
   else
   {
-    $qe_data_files{'dft.ndiag'} = $ncpus;
+    $qe_data_files{'dft.ndiag'} = 4;
   }
 
+  if( $obf != 1 ) 
+  {
+    my $ser_prefix = $para_prefix;
+    $ser_prefix =~ s/\d+/1/;
+    open TMP, '>', "$qe_data_files{'prefix'}.EXIT" or die "Failed to open file $qe_data_files{'prefix'}.EXIT\n$!";
+    close TMP;
+    if( $qe_redirect )
+    {
+      print  "$ser_prefix $ENV{'OCEAN_ESPRESSO_PW'} < scf.in > scf.out 2>&1\n";
+      system("$ser_prefix $ENV{'OCEAN_ESPRESSO_PW'} < scf.in > scf.out 2>&1");
+    }
+    else
+    {
+      print  "$ser_prefix $ENV{'OCEAN_ESPRESSO_PW'} -inp scf.in > scf.out 2>&1\n";
+      system("$ser_prefix $ENV{'OCEAN_ESPRESSO_PW'} -inp scf.in > scf.out 2>&1");
+    }
+
+    if( open TMP, "scf.out" )
+    {
+      my $actualKpts = -1;
+      while (<TMP>)
+      {
+        if( $_ =~ m/number of k points=\s+(\d+)/ )
+        {
+          $actualKpts = $1;
+          last;
+        }
+      }
+      close TMP;
+      if( $actualKpts == -1 )
+      {
+        print "Had trouble parsing scf.out\nDidn't find number of k points\n";
+      }
+      else
+      {
+        if( $actualKpts > $ncpus )
+        {
+          $npool = $ncpus;
+        }
+        else
+#        if( $npool > $actualKpts )
+        {
+          for( my $i = 1; $i <= $actualKpts; $i++ )
+          {
+            $npool = $i if(  $ncpus % $i == 0 );
+          }
+        }
+        print "SCF has $actualKpts k-points\nWill use $npool pools\n";
+      }
+    }
+    else
+    {
+      print "Had trouble parsing scf.out\n. Will attempt to continue.\n";
+    }
+  }
 
  ### the SCF run for initial density
  ##
@@ -831,6 +938,8 @@ if ( $nscfRUN ) {
 
     # Set the flags that change for each input/dft run
     $qe_data_files{'calctype'} = 'nscf';
+    $qe_data_files{'nosym'} = '.true.';
+    $qe_data_files{'noinv'} = '.true.';
     my $kpt_text = "K_POINTS crystal\n";
     open IN, "nkpts" or die;
     my $nkpts = <IN>;
@@ -1010,11 +1119,8 @@ if( $obf == 0 && $run_screen == 1 )
 
   # kpts
   copy "../screen.nkpt", "nkpt";
-  copy "../k0.ipt", "k0.ipt";
+  copy "../screen.k0", "k0.ipt";
 
-#  copy "../acell", "acell";
-#  copy "../atompp", "atompp";
-#  copy "../coords", "coords";
 
   # QINB is 0 for screening
   open OUT, ">qinunitsofbvectors.ipt" or die;
@@ -1027,18 +1133,42 @@ if( $obf == 0 && $run_screen == 1 )
 
   open my $QE, ">nscf.in" or die "Failed to open nscf.in\n$!";
 
+
   $qe_data_files{'calctype'} = 'nscf';
-  my $kpt_text = "K_POINTS crystal\n";
-  open IN, "nkpts" or die;
-  my $nkpts = <IN>;
+  $qe_data_files{'nosym'} = '.true.';
+  $qe_data_files{'noinv'} = '.true.';
+
+  my $gamma = 1;
+
+  open IN, "nkpt" or die "Failed to open nkpt (screening)\n$!";
+  <IN> =~ m/(\d+)\s+(\d+)\s+(\d+)/ or die "Failed to parse screen.nkpt.\n";
+  $gamma *= 0 if ( $1 * $2 * $3 > 1 ); 
   close IN;
-  $kpt_text .= $nkpts;
-  open IN, "kpts4qe.0001" or die;
-  while(<IN>)
+
+  open IN, "k0.ipt"  or die "Failed to open k0.ipt (screening)\n$!";
+  <IN> =~ m/(\S+)\s+(\S+)\s+(\S+)/ or die "Failed to parse k0.ipt\n";
+  $gamma *= 0 if( abs($1) > 0.000001 || abs($2) > 0.000001 || abs($3) > 0.000001 );
+  close IN;
+
+  my $kpt_text;
+  if( $gamma == 1 ) 
   {
-    $kpt_text .= $_;
+    $kpt_text = "K_POINTS gamma\n";
   }
-  close IN;
+  else
+  {
+    $kpt_text = "K_POINTS crystal\n";
+    open IN, "nkpts" or die;
+    my $nkpts = <IN>;
+    close IN;
+    $kpt_text .= $nkpts;
+    open IN, "kpts4qe.0001" or die;
+    while(<IN>)
+    {
+      $kpt_text .= $_;
+    }
+    close IN;
+  }
   
   $qe_data_files{'print kpts'} = $kpt_text;
   $qe_data_files{'print nbands'} = $qe_data_files{'screen.nbands'};
@@ -1155,8 +1285,10 @@ sub print_qe
         .  "  degauss = $inputs{'degauss'}\n"
         .  "  nspin  = $inputs{'nspin'}\n"
         .  "  tot_charge  = $inputs{'tot_charge'}\n"
-        .  "  nosym = .true.\n"
-        .  "  noinv = .true.\n";
+        .  "  nosym = $inputs{'nosym'}\n"
+        .  "  noinv = $inputs{'noinv'}\n";
+#        .  "  nosym = .true.\n"
+#        .  "  noinv = .true.\n";
   if( $inputs{'print nbands'} > 0 ) # for scf no nbnd is set. 
                                     # Therefore -1 is passed in and nothing is written to the input file
   {

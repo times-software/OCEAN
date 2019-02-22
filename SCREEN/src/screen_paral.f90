@@ -82,14 +82,14 @@ module screen_paral
     endif
 
 
-    call write_paral_summary( myid, pinfo )
+    call write_paral_summary( myid, pinfo, n_sites )
 
   end subroutine screen_paral_init
 
 
-  subroutine write_paral_summary( myid, pinfo )
+  subroutine write_paral_summary( myid, pinfo, n_sites )
     type( site_parallel_info ), intent( in ) :: pinfo
-    integer, intent( in ) :: myid
+    integer, intent( in ) :: myid, n_sites
 
     write(1000+myid,*) "### SCREEN_PARAL Summary ###"
     write(1000+myid,*) "############################"
@@ -98,6 +98,7 @@ module screen_paral
     write(1000+myid,*) "Num groups =   ", pinfo%num_groups
     write(1000+myid,*) "My group =     ", pinfo%mygroup
     write(1000+myid,*) "My ID =        ", pinfo%myid
+    write(1000+myid,*) "My N sites =   ", screen_paral_NumLocalSites( pinfo, n_sites )
     write(1000+myid,*) "############################"
 
   end subroutine write_paral_summary
@@ -144,13 +145,18 @@ module screen_paral
     integer, intent( in ) :: nsites
     integer :: NumLocalSites
 
-    integer :: i, j
+    integer :: i!, j
 
-    j = nsites
-    do i = 0, pinfo%mygroup
-      NumLocalSites = j / ( pinfo%num_groups - i )
-      j = j - NumLocalSites
+!    j = nsites
+!    do i = 0, pinfo%mygroup
+!      NumLocalSites = j / ( pinfo%num_groups - i )
+!      j = j - NumLocalSites
+!    enddo
+    NumLocalSites = 0
+    do i = 1, nsites
+      if( screen_paral_siteIndex2groupIndex( pinfo, i ) .eq. pinfo%mygroup ) NumLocalSites = NumLocalSites + 1
     enddo
+
   end function screen_paral_NumLocalSites
 
   pure function screen_paral_procID2groupIndex( pinfo, procID ) result( groupIndex )
@@ -179,12 +185,31 @@ module screen_paral
   end function screen_paral_procID2groupID
 
   subroutine how_many_groups( n_sites, nproc, ngroups )
-    use OCEAN_mpi, only : myid, root
+    use OCEAN_mpi, only : myid, root, MPI_INTEGER, comm
     integer, intent( in ) :: n_sites, nproc 
     integer, intent( out ) :: ngroups
     !
-    real( DP ) :: score, best_score
-    integer :: i, j, best_ngroup
+    real( DP ) :: score, best_score, mismatch
+    integer :: i, j, best_ngroup, k, maxSites, ierr
+    logical :: ex
+
+    if( myid .eq. root ) then
+      inquire(file='screen.ngroups',exist=ex)
+      if( ex ) then
+        open(unit=99,file='screen.ngroups',form='formatted',status='old')
+        read(99,*) i
+        close(99)
+      else
+        i = 0
+      endif
+    endif
+    call MPI_BCAST( i, 1, MPI_INTEGER, root, comm, ierr )
+    
+    if( i .gt. 0 ) then
+      ngroups = i
+      return
+    endif
+      
 
     if( n_sites .eq. 1 .or. nproc .eq. 1 ) then
       ngroups = 1
@@ -204,7 +229,8 @@ module screen_paral
     best_ngroup = 1
     best_score = 0.0_DP
 
-    do i = 1, n_sites
+    do i = 1, nproc
+#if 0
       ! i groups, j per group, i * j being used
       j = nproc / i
       score = real( j * i, DP ) / real( nproc, DP )
@@ -212,10 +238,52 @@ module screen_paral
       if( mod( n_sites, i ) .ne. 0 ) then
         score = score * real( mod( n_sites, i ), DP ) / real( i, DP )
       endif
+#else
+#if 0
+      ! i is the number of processors per pool
+      ! j is the number of groups
+      j = nproc / i
+      ! k counts the actual number of procs in use
+      k = min( j, n_sites )
+      ! score is percentage processors in use
+      score = real( k * i, DP ) / real( nproc, DP )
+      ! then score is scaled down by the pool size
+      score = score / sqrt( real( i, DP ) )
+      ! then score is scaled again by mismatch
+      ! mismatch is actually the float sites per pool
+      mismatch = real( n_sites, DP ) / real( j, DP )
+      ! floor / ceiling gives 1 if the same, gives fraction if not
+      ! adding one to avoid 0 v 1 problems
+      score = score * real( floor( mismatch ) + 1, DP ) / real( ceiling( mismatch ) + 1, DP )
+#else
+
+      ! i is the number of processors per pool
+      ! j is the number of groups
+      j = nproc / i
+      ! k is the true number of groups in use
+      k = min( j, n_sites )
+      ! what is the max number of sites per group?
+      if( j .lt. n_sites ) then
+        if( mod( n_sites, j ) .eq. 0 ) then
+          maxSites = n_sites / j
+        else
+          maxSites = ceiling( real( n_sites, DP ) / real( j, DP ) )
+        endif
+      else
+        maxSites = 1
+      endif
+      score = real( k * i, DP ) / real( maxSites, DP )
+      ! then score is scaled down by the pool size
+      score = score / sqrt( real( i, DP ) )
+#endif      
+#endif
 
       if( score .gt. best_score ) then
         best_score = score
-        best_ngroup = i
+        best_ngroup = j
+      endif
+      if( myid .eq. 0 ) then
+        write(myid+1000,'(3(I6,X),2F24.12)') i, j, best_ngroup, score, best_score
       endif
     enddo
 

@@ -563,6 +563,14 @@ module ocean_legacy_files
           write(1000+myid,'(A,3(1X,I8))') "   Don't Send: ", start_band, nbands_to_send, my_bands
         endif
 
+        if( mod( id+1, 16 ) .eq. 0 ) then
+          call MPI_WAITALL( 16, requests( id-15 ), MPI_STATUSES_IGNORE, ierr )
+          ! this might not sync up
+          if( ierr .ne. 0 ) return
+          write(1000+myid, '(A,1X,I8)' ) '   triggered intermediate send', id
+        endif
+
+
         start_band = start_band + nbands_to_send
       enddo
 #endif
@@ -590,6 +598,13 @@ module ocean_legacy_files
                          id, 2, pool_comm, requests( id + pool_nproc - 1), ierr )
           ! this might not sync up
           if( ierr .ne. 0 ) return
+        endif
+
+        if( mod( id+1, 16 ) .eq. 0 ) then
+          call MPI_WAITALL( 16, requests( id + pool_nproc - 16 ), MPI_STATUSES_IGNORE, ierr )
+          ! this might not sync up
+          if( ierr .ne. 0 ) return
+          write(1000+myid, '(A,1X,I8)' ) '   triggered intermediate send', id
         endif
 
         start_band = start_band + nbands_to_send
