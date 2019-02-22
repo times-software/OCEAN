@@ -1,5 +1,5 @@
 #!/usr/bin/perl
-# Copyright (C) 2015 - 2017 OCEAN collaboration
+# Copyright (C) 2015 - 2019 OCEAN collaboration
 #
 # This file is part of the OCEAN project and distributed under the terms 
 # of the University of Illinois/NCSA Open Source License. See the file 
@@ -11,6 +11,7 @@
 use strict;
 use File::Copy;
 use Cwd 'abs_path';
+use File::Compare;
 
 if (! $ENV{"OCEAN_BIN"} ) {
   $0 =~ m/(.*)\/dft\.pl/;
@@ -33,7 +34,8 @@ if (! $ENV{"OCEAN_ESPRESSO_OBF_PP"} )
 my $RunKGen = 0;
 my $RunPP = 0;
 my $RunESPRESSO = 0;
-my $nscfRUN = 1;
+my $nscfRUN = 0;
+my $run_screen = 0;
 
 my @GeneralFiles = ("para_prefix", "calc");
 
@@ -52,7 +54,8 @@ my @OtherFiles = ("epsilon", "pool_control");
 
 foreach (@PPFiles) {
   if ( -e $_ ) {
-    if ( `diff -q $_ ../Common/$_` ) {
+    if( compare( "$_", "../Common/$_") != 0 )
+    {
       $RunPP = 1;
       print "$_ differs\n";
       last;
@@ -71,7 +74,8 @@ if ( $RunPP ) {
 else {
   foreach (@EspressoFiles) {
     if ( -e $_ ) {
-      if ( `diff -q $_ ../Common/$_` ) {
+      if( compare( "$_", "../Common/$_") != 0 )
+      {
         $RunESPRESSO = 1;
         last;
       }
@@ -97,10 +101,36 @@ if ($RunESPRESSO) {
 #    `rm -r $file`;
   }
   $RunPP = 1;
+  $nscfRUN = 1;
+  $run_screen = 1;
 }
 else {
   `touch old`;
 }
+
+unless( $nscfRUN )
+{
+  foreach( "nkpt", "k0.ipt", "qinunitsofbvectors.ipt", "nbands" )
+  {
+    if( compare( "$_", "../Common/$_") != 0 )
+    {
+      $nscfRUN = 1;
+      last;
+    }
+  }
+}
+unless( $run_screen )
+{
+  foreach( "screen.nkpt", "screen.k0", "screen.nbands" )
+  {
+    if( compare( "$_", "../Common/$_") != 0 )
+    {
+      $run_screen = 1;
+      last;
+    }
+  }
+}
+
 
 
 open GOUT, ">dft.stat" or die;
@@ -150,7 +180,6 @@ open IN, "calc" or die "Failed to open calc\n";
 <IN> =~m/(\w+)/ or die "Failed to parse calc\n";
 my $calc = $1;
 close IN;
-my $run_screen = 1;
 if( $calc =~ m/val/i )
 {
   $run_screen = 0;

@@ -53,6 +53,7 @@ if (-e "../PREP/PAW/old" && -e "done" ) {
 #    if (`diff -q $_ ../Common/$_`) {
     if( compare("$_", "../Common/$_" ) != 0 )   # should get diff or non-exist
     {
+      print "$_ differs\n";
       $runSCREEN = 1;
       last;
     }
@@ -64,10 +65,22 @@ if (-e "../PREP/PAW/old" && -e "done" ) {
 #      if (`diff -q $_ ../Common/$_`) {
     if( compare("$_", "../Common/$_" ) != 0 )   # should get diff or non-exist
     {
+        print "$_ differs\n";
         $runSCREEN = 1;
         last;
       }
     }
+  }
+}
+else
+{
+  if( -e "done" )
+  {
+    print "PREP was updated. Will re-run\n";
+  }
+  else
+  {
+    print "Screening wasn't previously completed\n";
   }
 }
 
@@ -83,7 +96,7 @@ foreach (@CommonFiles) {
   copy( "../Common/$_", $_ ) or die "Failed to get $_ from Common/\n$!";
 }
 
-move( "screen.k0", "k0.ipt") or die "$!";
+copy( "screen.k0", "k0.ipt") or die "$!";
 
 my %screen_data_files = {};
 foreach my $filename (@ScreenFiles)

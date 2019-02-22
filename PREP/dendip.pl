@@ -9,6 +9,7 @@
 
 use strict;
 use Cwd 'abs_path';
+use File::Compare;
 
 ###########################
 if (! $ENV{"OCEAN_BIN"} ) {
@@ -114,7 +115,7 @@ chdir "../";
 }
 else {
   `touch PAW/old`;
-  print  "Nothing needed for PAW wfns\n";
+  print  "Nothing needed for SCREEN wfns\n";
 }
 
 ## process bse wf files ##
@@ -126,6 +127,30 @@ close NKPT;
 
 $rundir = sprintf("../DFT/%03u%03u%03u", $nkpt[0], $nkpt[1], $nkpt[2]);
 
+if( -e "BSE/done" && -e "${rundir}/old" )
+{
+  foreach( "qinunitsofbvectors.ipt", "bvecs", "dft", "nspin", 
+           "nelectron", "dft.split", "xmesh.ipt", "avecsinbohr.ipt" )
+  {
+    if( compare( "$_", "BSE/$_" ) != 0 )
+    {
+      print "Differences found in $_\nWill re-run BSE prep\n";
+      unlink "BSE/done";
+      last;
+    }
+  }
+  foreach ("kmesh.ipt", "brange.ipt") 
+  {
+    if( compare( "$rundir/$_", "BSE/$_" ) != 0 )
+    {
+      print "Differences found in $_\nWill re-run BSE prep\n";
+      unlink "BSE/done";
+      last;
+    }
+  }
+}
+
+  
 unless( -e "BSE/done" && -e "${rundir}/old" ) {
 `rm -r BSE` if (-e "BSE");
 mkdir "BSE";
