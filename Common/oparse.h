@@ -462,12 +462,12 @@ screen.grid.nr
 } screen.grid.nr
 screen.grid.ang
 {
-lebdev 5
+specpnt 5
 } screen.grid.ang
-screen.grid.lmax
+screen.lmax
 {
 0
-} screen.grid.lmax
+} screen.lmax
 screen.grid.nb
 {
 24
@@ -500,3 +500,11 @@ screen.wvfn
 {
 legacy
 } screen.wvfn
+screen.convertstyle
+{
+intp
+} screen.convertstyle
+screen.inversionstyle
+{
+sinqr
+} screen.inversionstyle
