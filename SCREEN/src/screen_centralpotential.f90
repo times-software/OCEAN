@@ -1,3 +1,10 @@
+! Copyright (C) 2017 - 2019 OCEAN collaboration
+!
+! This file is part of the OCEAN project and distributed under the terms 
+! of the University of Illinois/NCSA Open Source License. See the file 
+! `License' in the root directory of the present distribution.
+!
+!
 module screen_centralPotential
   use ai_kinds, only : DP
 
@@ -383,8 +390,11 @@ module screen_centralPotential
     pot%l = l
 !    pot%deltaR = 0.02_DP
     
-    if( z .lt. 1 ) then
+    if( z .lt. 0 ) then
       call screen_centralPotential_makeBare( z, pot, ierr )
+      return
+    elseif( z .eq. 0 ) then
+      call screen_centralPotential_makeValence( z, pot, ierr )
       return
     endif
 
@@ -491,5 +501,55 @@ module screen_centralPotential
     end do
 
   end subroutine screen_centralPotential_makeBare
+
+  subroutine screen_centralPotential_makeValence( z, pot, ierr )
+    use screen_system, only : screen_system_Volume, screen_system_xmesh
+    use ocean_constants, only : PI_DP
+    integer, intent( in ) :: z
+    type( potential ), intent( out ) :: pot
+    integer, intent( inout ) :: ierr
+
+    real(DP) :: rat, xrat, dl, valRadius, invR, invR2
+    integer :: i, xmesh(3), temp
+    real(DP), parameter :: rmin = 0.00000001d0
+    real(DP), parameter :: rmax = 800.d0
+    integer, parameter :: nr = 4096
+
+
+    allocate( pot%rad( nr ), pot%pot( nr ), stat=ierr )
+    if( ierr .ne. 0 ) return
+
+    xmesh(:) = screen_system_xmesh()
+    i = product( xmesh(:) )
+    if( i .lt. 1 ) then
+      ierr = -5
+      return
+    endif
+    ! V = 4 pi / 3 R^3
+    ! R = ( 3 V / 4 pi ) ^(1/3)
+    valRadius = ( 0.75_DP * screen_system_Volume() ) / ( PI_DP * real( i, DP ) )
+    valRadius = valRadius ** (1.0_DP/3.0_DP)
+    
+
+    rat=rmax/rmin
+    dl=dlog(rat)/dble(nr)
+    xrat=dexp(dl)
+!    xr1=dsqrt(xrat)-dsqrt(1.d0/xrat)
+
+    invR = 0.5_DP / valRadius
+    invR2 = 1.0_DP / ( valRadius**2)
+    temp = floor( ( log( valRadius ) - log( rmin ) ) / dl )
+    temp = min( temp, nr )
+    ! V = - 1 / (2 R ) *( 3 - r^2/R^2)
+    do i=1,temp
+      pot%rad(i)=rmin*xrat**dble(i)
+      pot%pot(i)= -invR * ( 3.0_DP - invR2 * pot%rad(i)**2 )
+    end do
+    do i=temp,nr
+      pot%rad(i)=rmin*xrat**dble(i)
+      pot%pot(i)=-1.0_dp / pot%rad(i)
+    end do
+
+  end subroutine screen_centralPotential_makeValence
 
 end module screen_centralPotential

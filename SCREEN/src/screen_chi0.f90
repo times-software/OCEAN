@@ -596,6 +596,7 @@ module screen_chi0
     use ocean_constants, only : pi_dp
     use screen_timekeeper, only : screen_tk_start, screen_tk_stop
     use ocean_mpi, only : myid
+    use ifport, only : sleepqq
     real(DP), intent( in ), dimension(:,:,:) :: LWvfn, RWvfn
     real(DP), intent( inout ) :: chi(:,:)
     integer, intent( inout ) :: ierr
@@ -606,6 +607,7 @@ module screen_chi0
     real(DP) :: pref, denr, deni, spinfac, pref2
     integer :: Lpts, Rpts, nbands, nKptsAndSpin, ispin, ikpt, iband, it, i, j, iks, ib, ibstop, ii, jj
     integer :: ichunk, jchunk, istart, istop, jstart, jstop, NRchunks, NLchunks, nthreads, iwidth
+    integer :: isleep
     integer, parameter :: icSize = 16
     integer, parameter :: jcSize = 16
     integer, parameter :: bandBuf = 8
@@ -684,7 +686,7 @@ module screen_chi0
 !$OMP& SHARED ( params, NRchunks, NLchunks, Rpts, Lpts, nbands, NImagEnergies ) &
 !$OMP& SHARED ( chi, spinfac, weightImagEnergies, LWvfn, RWvfn, imag_LWvfn, imag_RWvfn, ReEnergyDenom, ImEnergyDenom ) &
 !$OMP& PRIVATE( ispin, ichunk, istart, istop, jchunk, jstart, jstop, iks, ib, ibstop, iband, i, j, it, pref2, ii, jj ) &
-!$OMP& PRIVATE( ReGreen, ImGreen, temp, iwidth )
+!$OMP& PRIVATE( ReGreen, ImGreen, temp, iwidth, isleep )
 
 
     allocate( ReGreen( jcSize, icSize, NImagEnergies ), ImGreen( jcSize, icSize, NImagEnergies ),  &
@@ -692,6 +694,7 @@ module screen_chi0
 
 ! Want to divide by ichunk & jchunk to avoid any conflicts on the true chi
     do ispin = 1, params%nspin
+      isleep = 0
 
 !$OMP DO COLLAPSE( 2 ) SCHEDULE( STATIC )
       do ichunk = 1, NRchunks
@@ -700,6 +703,7 @@ module screen_chi0
           istart = ( ichunk - 1 ) * icSize + 1
           istop = min( ichunk * icSize, Rpts )
 
+          isleep = isleep + 1
 
 ! !$OMP SINGLE
 !           call screen_tk_start( "calcSingleChiBuffer Greens" )
@@ -811,6 +815,10 @@ module screen_chi0
 ! !$OMP END SINGLE
 !$OMP END PARALLEL
 !          deallocate( real_LWvfn, imag_LWvfn, real_RWvfn, imag_RWvfn )
+
+#ifdef __INTEL_COMPILER
+          if( mod( isleep, 32 ) .eq. 0 ) call sleepqq( 1 )
+#endif
 
         enddo
       enddo

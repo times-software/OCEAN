@@ -578,8 +578,8 @@ module ocean_qe54_files
       !
       ! no more than 8GB @ 16Byte/complex
 !      bufferSize = floor( 36870912.0_DP /  ( real( test_gvec, DP ) * real( maxBands, DP ) ) )
-!      bufferSize = floor( 536870912.0_DP /  ( real( test_gvec, DP ) * real( maxBands, DP ) ) )
-      bufferSize = floor( 1073741824.0_DP /  ( real( test_gvec, DP ) * real( maxBands, DP ) ) )
+      bufferSize = floor( 536870912.0_DP /  ( real( test_gvec, DP ) * real( maxBands, DP ) ) )
+!      bufferSize = floor( 1073741824.0_DP /  ( real( test_gvec, DP ) * real( maxBands, DP ) ) )
       bufferSize = max( bufferSize, 1 )
       bufferSize = min( bufferSize, pool_nproc - 1 )
       allocate( cmplx_wvfn( test_gvec, maxBands, bufferSize ) )

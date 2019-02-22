@@ -30,6 +30,7 @@ module screen_system
   type system_parameters
     integer :: bands( 2 )
     integer :: kmesh( 3 )
+    integer :: xmesh( 3 )
     integer :: nkpts
     integer :: nspin
     integer :: nbands
@@ -64,8 +65,19 @@ module screen_system
   public :: screen_system_convertInterpolateStyle, screen_system_convertInterpolateOrder
   public :: screen_system_doAugment, screen_system_lbounds, screen_system_mode
   public :: screen_system_setGamma, tau2xcoord
+  public :: screen_system_volume, screen_system_xmesh
 
   contains 
+
+  pure function screen_system_volume() result( vol )
+    real(DP) :: vol
+    vol = psys%celvol
+  end function screen_system_volume
+
+  pure function screen_system_xmesh() result( xmesh )
+    integer :: xmesh(3)
+    xmesh(:) = params%xmesh(:)
+  end function  screen_system_xmesh
 
   subroutine screen_system_setGamma( newGamma )
     use ocean_mpi, only : myid
@@ -297,6 +309,9 @@ module screen_system
     if( ierr .ne. MPI_SUCCESS ) return
 
     call MPI_BCAST( params%kmesh, 3, MPI_INTEGER, root, comm, ierr )
+    if( ierr .ne. MPI_SUCCESS ) return
+
+    call MPI_BCAST( params%xmesh, 3, MPI_INTEGER, root, comm, ierr )
     if( ierr .ne. MPI_SUCCESS ) return
 
     call MPI_BCAST( params%nspin, 1, MPI_INTEGER, root, comm, ierr )
@@ -623,6 +638,28 @@ module screen_system
     else
       params%isSplit = .false.
     endif
+
+    inquire(file='xmesh.ipt', exist=ex )
+    if( ex ) then
+      open(unit=99, file='xmesh.ipt', form='formatted', status='old', IOSTAT=ierr )
+      if( ierr .ne. 0 ) then
+        write( 6, * ) 'FATAL ERROR: Failed to open xmesh.ipt', ierr
+        return
+      endif
+      read( 99, *, IOSTAT=ierr ) params%xmesh(:)
+      if( ierr .ne. 0 ) then
+        write( 6, * ) 'FATAL ERROR: Failed to read xmesh.ipt', ierr
+        return
+      endif
+      close( 99, IOSTAT=ierr)
+      if( ierr .ne. 0 ) then
+        write( 6, * ) 'FATAL ERROR: Failed to close xmesh.ipt', ierr
+        return
+      endif
+    else
+      params%xmesh(:) = 0
+    endif
+
 
   end subroutine load_params
 

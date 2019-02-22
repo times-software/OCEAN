@@ -49,8 +49,8 @@ ocean_prep.mod: ocean_prep.f90 ocean_legacy_files.mod ai_kinds.mod ocean_mpi.mod
 ocean_legacy_files.o: ocean_legacy_files.f90 ai_kinds.mod ocean_mpi.mod 
 ocean_legacy_files.mod: ocean_legacy_files.f90 ai_kinds.mod ocean_mpi.mod
 
-ocean_qe54_files.o:   ai_kinds.mod ocean_mpi.mod
-ocean_qe54_files.mod: ai_kinds.mod ocean_mpi.mod
+ocean_qe54_files.o:   ai_kinds.mod ocean_mpi.mod screen_timekeeper.mod
+ocean_qe54_files.mod: ai_kinds.mod ocean_mpi.mod screen_timekeeper.mod
 
 ocean_dft_files.o: ocean_dft_files.f90 ai_kinds.mod ocean_mpi.mod ocean_legacy_files.mod ocean_qe54_files.mod
 ocean_dft_files.mod: ocean_dft_files.f90 ai_kinds.mod ocean_mpi.mod ocean_legacy_files.mod ocean_qe54_files.mod
