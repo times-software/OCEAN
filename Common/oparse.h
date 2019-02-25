@@ -508,3 +508,7 @@ screen.inversionstyle
 {
 sinqr
 } screen.inversionstyle
+screen.mode
+{
+core
+} screen.mode

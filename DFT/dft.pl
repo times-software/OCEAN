@@ -49,7 +49,7 @@ my @EspressoFiles = ( "coord", "degauss", "ecut", "etol", "fband", "ibrav",
     "nspin", "smag", "ldau", "qe_scissor", "zsymb", "dft.calc_stress", "dft.calc_force", "dft.split", "dft",
     "dft.startingwfc", "dft.diagonalization", "dft.qe_redirect", "dft.ndiag" );
 my @PPFiles = ("pplist", "znucl");
-my @OtherFiles = ("epsilon", "pool_control");
+my @OtherFiles = ("epsilon", "pool_control", "screen.mode");
 
 
 foreach (@PPFiles) {
@@ -108,24 +108,26 @@ else {
   `touch old`;
 }
 
-unless( $nscfRUN )
+unless( $nscfRUN == 1)
 {
   foreach( "nkpt", "k0.ipt", "qinunitsofbvectors.ipt", "nbands" )
   {
     if( compare( "$_", "../Common/$_") != 0 )
     {
       $nscfRUN = 1;
+      print "Difference found in $_\n";
       last;
     }
   }
 }
-unless( $run_screen )
+unless( $run_screen == 1)
 {
   foreach( "screen.nkpt", "screen.k0", "screen.nbands" )
   {
     if( compare( "$_", "../Common/$_") != 0 )
     {
       $run_screen = 1;
+      print "Difference found in $_\n";
       last;
     }
   }
@@ -154,9 +156,50 @@ if( $RunPP == 1 )
   }
 }
 
+open IN, "calc" or die "Failed to open calc\n";
+<IN> =~m/(\w+)/ or die "Failed to parse calc\n";
+my $calc = $1;
+close IN;
+
+my $old_screen_mode;
+if( -e "screen.mode" )
+{
+  open IN, "screen.mode" or die "Failed to open screen.mode\n$!";
+  <IN> =~m/(\w+)/ or die "Failed to parse screen.mode\n";
+  $old_screen_mode = $1;
+  close IN;
+}
+else
+{
+  $old_screen_mode = '';
+}
+
+
 foreach (@EspressoFiles, @OtherFiles) {
   system("cp ../Common/$_ .") == 0 or die;
 } 
+
+open IN, "screen.mode" or die "Failed to open screen.mode";
+<IN> =~m/(\w+)/ or die "Failed to parse screen.mode\n";
+my $screen_mode = $1;
+close IN;
+
+open IN, "screen.mode" or die "Failed to open screen.mode\n";
+<IN> =~m/(\w+)/ or die "Failed to parse screen.mode\n";
+my $screen_mode = $1;
+close IN;
+if( $calc =~ m/val/i )
+{
+  $run_screen = 0 unless( $screen_mode =~ m/grid/i );
+}
+if( $run_screen == 0 && $screen_mode =~ m/grid/i )
+{
+  unless( $old_screen_mode =~ m/grid/i )
+  {
+    print "Need screening for valence: $old_screen_mode\n";
+    $run_screen = 1;
+  }
+}
 
 #############################################
 
@@ -176,14 +219,6 @@ else
   print "Running DFT calculation using QE\n";
 }
 
-open IN, "calc" or die "Failed to open calc\n";
-<IN> =~m/(\w+)/ or die "Failed to parse calc\n";
-my $calc = $1;
-close IN;
-if( $calc =~ m/val/i )
-{
-  $run_screen = 0;
-}
 
 # Input to QE can be done via redirect (legacy) or -inp (more stable)
 open IN, "dft.qe_redirect" or die "Failed to open dft.qe_redirect\n$!";
@@ -1081,6 +1116,15 @@ if ( $nscfRUN ) {
     chdir "../";
   }
 }
+else
+{
+  my $bseDIR = sprintf("%03u%03u%03u", split( /\s+/,$qe_data_files{'nkpt'}));
+  die "Problem with $bseDIR\n" unless( chdir $bseDIR );
+  open OUT, ">", "old";
+  print OUT "old\n";
+  close OUT;
+  chdir "../";
+}
 
 if( $obf == 0 && $run_screen == 1 )
 {
@@ -1248,6 +1292,15 @@ if( $obf == 0 && $run_screen == 1 )
 
   copy "nkpt", "kmesh.ipt";
 
+  chdir "../";
+}
+else
+{
+  my $bseDIR = "SCREEN";
+  die "Problem with $bseDIR\n" unless( chdir $bseDIR );
+  open OUT, ">", "old";
+  print OUT "old\n";
+  close OUT;
   chdir "../";
 }
 

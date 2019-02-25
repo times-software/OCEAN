@@ -31,7 +31,8 @@ $oldden = 1 if (-e "../DFT/old");
 
 my @QEFiles     = ( "rhoofr", "efermiinrydberg.ipt" );
 my @CommonFiles = ( "screen.nkpt", "nkpt", "qinunitsofbvectors.ipt", "avecsinbohr.ipt", "dft", 
-                    "nspin", "xmesh.ipt", "dft.split", "prefix", "calc", "screen.wvfn", "screen.legacy" );
+                    "nspin", "xmesh.ipt", "dft.split", "prefix", "calc", "screen.wvfn", "screen.legacy", 
+                    "screen.mode");
 
 foreach (@QEFiles) {
   system("cp ../DFT/$_ .") == 0 or die "Failed to copy $_\n";
@@ -61,10 +62,15 @@ open IN, "calc" or die "Failed to open calc\n";
 <IN> =~ m/(\w+)/ or die "Failed to parse calc\n";
 my $calc = $1;
 close IN;
+
+open IN, "screen.mode" or die "Failed to open screen.mode\n";
+<IN> =~ m/(\w+)/ or die "Failed to parse screen.mode\n";
+my $screen_mode = $1;
+close IN;
 my $run_screen = 1;
 if( $calc =~ m/val/i )
 {
-  $run_screen = 0;
+  $run_screen = 0 unless( $screen_mode =~ m/grid/i );
 }
 
 open IN, "screen.wvfn" or die "Failed to open screen.wvfn\n$!";
@@ -158,7 +164,11 @@ if( $run_screen == 1 )
   }
 
 
-  print "Done with PAW files\n";
+  print "Done with SCREEN files\n";
+}
+else
+{
+  print "Nothing needed for SCREEN wvfn\n";
 }
 
 
