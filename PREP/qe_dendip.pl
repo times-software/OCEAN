@@ -10,6 +10,8 @@
 use strict;
 use File::Path qw( rmtree );
 use Cwd 'abs_path';
+use File::Compare;
+use File::Copy;
 
 ###########################
 if (! $ENV{"OCEAN_BIN"} ) {
@@ -160,7 +162,7 @@ if( $run_screen == 1 )
   }
   else {
     `touch PAW/old`;
-    print  "Nothing needed for PAW wfns\n";
+    print  "Nothing needed for SCREEN wfns\n";
   }
 
 
@@ -190,8 +192,39 @@ close NKPT;
 
 $rundir = sprintf("../DFT/%03u%03u%03u", $nkpt[0], $nkpt[1], $nkpt[2]);
 
-unless( -e "BSE/done" && -e "${rundir}/old" ) {
+my @BSECommonFiles = ( "qinunitsofbvectors.ipt", "bvecs", "dft", "nelectron", "avecsinbohr.ipt", 
+                       "xmesh.ipt", "nspin", "dft.split", "prefix" );
+my @rundirFiles = ( "kmesh.ipt", "brange.ipt", "umklapp" );
+#Checks for BSE prep
+my $runBSE = 1;
+if( -e "BSE/done" && -e "${rundir}/old" )
+{
+  $runBSE = 0;
+  foreach (@BSECommonFiles)
+  {
+    if( compare( "$_", "BSE/$_") != 0 )
+    {
+      $runBSE = 1;
+      print "Difference found in $_\n";
+      last;
+    }
+  }
+  if( $runBSE == 0 )
+  {
+    foreach( @rundirFiles )
+    {
+      if( compare( "${rundir}/$_", "BSE/$_") != 0 )
+      {
+        $runBSE = 1;
+        print "Difference found in $_\n";
+        last;
+      }
+    }
+  }
+}
 
+if( $runBSE != 0 )
+{
   `rm -r BSE` if (-e "BSE");
   mkdir "BSE";
   chdir "BSE";
@@ -200,20 +233,28 @@ unless( -e "BSE/done" && -e "${rundir}/old" ) {
   print NKPT $nkpt[0]*$nkpt[1]*$nkpt[2] . "\n";
   close NKPT;
 
-  foreach ("kmesh.ipt", "brange.ipt") {
-    system("cp ../${rundir}/$_ .") == 0 or die "Failed to copy $_\n";
+  foreach( @rundirFiles )
+  {
+    copy( "../${rundir}/$_", $_ );
   }
-  `cp ../qinunitsofbvectors.ipt .`;
-  `cp ../bvecs .`;
-  `cp ../dft .`;
-  `cp ../nelectron .`;
-  `cp ../avecsinbohr.ipt .`;
-  `cp ../xmesh.ipt .`;
-  `cp ../nspin .`;
-  `cp ../${rundir}/umklapp .`;
-  `cp ../dft.split .`;
-  `cp ../prefix .`;
-#  my $Nfiles = `cat Nfiles`;
+  foreach( @BSECommonFiles )
+  {
+    copy ( "../$_", $_ );
+  }
+#  foreach ("kmesh.ipt", "brange.ipt") {
+#    system("cp ../${rundir}/$_ .") == 0 or die "Failed to copy $_\n";
+#  }
+#  `cp ../qinunitsofbvectors.ipt .`;
+#  `cp ../bvecs .`;
+#  `cp ../dft .`;
+#  `cp ../nelectron .`;
+#  `cp ../avecsinbohr.ipt .`;
+#  `cp ../xmesh.ipt .`;
+#  `cp ../nspin .`;
+#  `cp ../${rundir}/umklapp .`;
+#  `cp ../dft.split .`;
+#  `cp ../prefix .`;
+##  my $Nfiles = `cat Nfiles`;
 
   my $prefix;
   open PREFIX, "prefix" or die "$!\n";

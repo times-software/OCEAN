@@ -39,6 +39,29 @@ if( <IN> =~ m/val/i )
 {
   close IN;
   print "No edges for a valence calculation\n";
+
+  my $overwriteEdges = 0;
+  if( -e "screen.mode" )
+  {
+    open MODE, "screen.mode" or die "Failed to open screen.mode\n$!";
+    if( <MODE> =~ m/grid/i )
+    {
+      $overwriteEdges = 1;
+    }
+    close MODE;
+  }
+  
+  if( $overwriteEdges == 1 || not -e "edges" )
+  {
+    print "Over-writing edges\n";
+    open OUT, ">nedges" or die "Failed to open edges for writing\n$!";
+    print OUT "1\n";
+    close OUT;
+
+    open OUT, ">edges" or die "Failed to open edges for writing\n$!";
+    print OUT "0 0 0\n";
+    close OUT;
+  }
   exit 0;
 }
 close IN;

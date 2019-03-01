@@ -1297,11 +1297,14 @@ if( $obf == 0 && $run_screen == 1 )
 else
 {
   my $bseDIR = "SCREEN";
-  die "Problem with $bseDIR\n" unless( chdir $bseDIR );
-  open OUT, ">", "old";
-  print OUT "old\n";
-  close OUT;
-  chdir "../";
+  if( -d $bseDIR )
+  {
+    die "Problem with $bseDIR\n" unless( chdir $bseDIR );
+    open OUT, ">", "old";
+    print OUT "old\n";
+    close OUT;
+    chdir "../";
+  }
 }
 
 
