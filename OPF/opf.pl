@@ -9,6 +9,7 @@
 
 use strict;
 use File::Copy;
+use File::Compare;
 use Cwd;
 use Cwd 'abs_path';
 
@@ -31,23 +32,94 @@ my @CommonFiles = ("znucl", "opf.hfkgrid", "opf.fill", "opf.opts", "pplist",
 
 
 
-my $runOBF = 1;
+my $runOPF = 1;
 if (-e "done" ) {
-  $runOBF = 0;
+  $runOPF = 0;
   foreach (@CommonFiles) {
-    if (`diff -q $_ ../Common/$_`) {
-      $runOBF = 1;
+#    if (`diff -q $_ ../Common/$_`) {
+    if( compare("$_", "../Common/$_" ) != 0 )   # should get diff or non-exist
+    {
+      print "$_ differs\n";
+      $runOPF = 1;
       last;
     }
   }
 }
 
-if ($runOBF == 0 ) {
+# Two very different ways of doing things depending on which wether we use ONCVPSP or Shirley codes
+my $program = 'shirley';
+open IN, "opf.program" or die "Failed to open opf.program: $!\n";
+if( <IN> =~ m/hamann/i )
+{
+  $program = 'hamann';
+  print "Will run OPF using the oncvpsp.x code\n";
+}
+else
+{
+  print "Will run OPF using hfk.x\n";
+}
+close IN;
+
+# test additional files
+if( $runOPF == 0 )
+{
+  if( $program eq 'hamann' )
+  {
+    print "hamann\n";
+
+  }
+  else
+  {
+    # This might grab too much when we fix multi-element runs
+    open IN, "opf.fill" or die "Failed to open opf.fill\n$!";
+    while( my $line = <IN> )
+    {
+      if( $line =~ m/\d+\s+(\S+)/ )
+      {
+        my $file = $1;
+        chomp $file;
+        if( compare("$file", "../$file" ) != 0 )
+        {
+          print "$file differs\n";
+          $runOPF = 1;
+          last;
+        }
+      }
+      else
+      { print $line; }
+    }
+
+    if( $runOPF == 0 )
+    {
+      open IN, "opf.opts" or die "Failed to open opf.opts\n$!";
+      while( my $line = <IN> )
+      {
+        if( $line =~ m/\d+\s+(\S+)/ )
+        {
+          my $file = $1;
+          chomp $file;
+          if( compare("$file", "../$file" ) != 0 )
+          {
+            print "$file differs\n";
+            $runOPF = 1;
+            last;
+          }
+        }
+      }
+    }
+  }
+}
+
+if ($runOPF == 0 ) {
   print "Nothing new needed for OBF stage\n";
+  open OUT, ">", "old" or die;
+  print OUT "1\n";
+  close OUT;
   exit 0;
 }
 
 unlink "done";
+unlink "old";
 
 
 foreach (@CommonFiles) {
@@ -66,19 +138,6 @@ if( open CALC, "calc" )
   close CALC;
 }
 
-# Two very different ways of doing things depending on which wether we use ONCVPSP or Shirley codes
-my $program = 'shirley';
-open IN, "opf.program" or die "Failed to open opf.program: $!\n";
-if( <IN> =~ m/hamann/i )
-{
-  $program = 'hamann';
-  print "Will run OPF using the oncvpsp.x code\n";
-}
-else
-{
-  print "Will run OPF using hfk.x\n";
-}
-close IN;
 
 ###################################
 # Quickcheck

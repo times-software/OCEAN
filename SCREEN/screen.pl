@@ -103,12 +103,30 @@ if( $runSCREEN == 0 )
   close IN;
 }
 
+# OPF check
+if( $runSCREEN == 0 )
+{
+  open IN, "screen.augment" or die "Failed to open screen.augment\n";
+  if( <IN> =~ m/t/i )
+  {
+    unless( -e "../OPF/old" )
+    {
+      print "OPFs were updated recently. Will re-run\n";
+      $runSCREEN = 1;
+    }
+  }
+}
+
 if ($runSCREEN == 0 ) {
   print "Nothing new needed for SCREEN stage\n";
+  open OUT, ">", "old" or die;
+  print OUT "1\n";
+  close OUT;  
   exit 0;
 }
 
-`rm -f done`;
+unlink "done";
+unlink "old";
 
 
 foreach (@CommonFiles) {
@@ -700,8 +718,7 @@ else
     }
     close ZEELIST;
 
-
-
+    print "$para_prefix $ENV{'OCEAN_BIN'}/screen_driver.x\n";
     system("$para_prefix $ENV{'OCEAN_BIN'}/screen_driver.x") == 0 or die "$!\nFailed to run screen_driver.x\n";
     print "screen_driver.x done\n";
 

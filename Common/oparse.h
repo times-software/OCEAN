@@ -135,6 +135,14 @@ dft.ndiag
 {
 -1
 } dft.ndiag
+dft.functional
+{
+none
+} dft.functional
+dft.exx.qmesh
+{
+1 1 1 
+} dft.exx.qmesh
 verbatim
 {
 #
@@ -313,7 +321,7 @@ dft.calc_stress
 } dft.calc_stress
 dft.calc_force
 {
-.false.
+.true.
 } dft.calc_force
 spinorb
 {

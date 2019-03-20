@@ -47,9 +47,17 @@ my @EspressoFiles = ( "coord", "degauss", "ecut", "etol", "fband", "ibrav",
     "spinorb", "taulist", "typat", "verbatim", "work_dir", "tmp_dir", "wftol", 
     "den.kshift", "obkpt.ipt", "trace_tol", "ham_kpoints", "obf.nbands","tot_charge", 
     "nspin", "smag", "ldau", "qe_scissor", "zsymb", "dft.calc_stress", "dft.calc_force", "dft.split", "dft",
-    "dft.startingwfc", "dft.diagonalization", "dft.qe_redirect", "dft.ndiag" );
+    "dft.startingwfc", "dft.diagonalization", "dft.qe_redirect", "dft.ndiag", "dft.functional", "dft.exx.qmesh" );
 my @PPFiles = ("pplist", "znucl");
 my @OtherFiles = ("epsilon", "pool_control", "screen.mode");
+
+my @SCFBonus = ("charge-density.kin.dat");
+my @exx = ("hse");
+
+unless( -e "scf.stat" )
+{
+  $RunPP = 1;
+}
 
 
 foreach (@PPFiles) {
@@ -86,13 +94,7 @@ else {
     }
   }
 }
-unless ($RunESPRESSO) {
- $RunESPRESSO = 1;
-  if (open STATUS, "espresso.stat") {
-    if (<STATUS> == 1) { $RunESPRESSO = 0; }
-  }
-  close STATUS;
-}
+
 if ($RunESPRESSO) {
   print "Differences found for density run. Clearing all old data\n";
   my @dirlisting = <*>;
@@ -103,6 +105,7 @@ if ($RunESPRESSO) {
   $RunPP = 1;
   $nscfRUN = 1;
   $run_screen = 1;
+  unlink "scf.stat";
 }
 else {
   `touch old`;
@@ -133,11 +136,14 @@ unless( $run_screen == 1)
   }
 }
 
-
-
-open GOUT, ">dft.stat" or die;
-print GOUT "0";
-close GOUT;
+if( $nscfRUN == 0 )
+{
+  $nscfRUN = 1 unless( -e "bse.stat" );
+}
+if( $run_screen == 0 )
+{
+  $run_screen = 1 unless( -e "screen.stat" );
+}
 
 foreach (@GeneralFiles) {
   system("cp ../Common/$_ .") == 0 or die;
@@ -201,6 +207,14 @@ if( $run_screen == 0 && $screen_mode =~ m/grid/i )
   }
 }
 
+if( $nscfRUN == 1 )
+{
+  unlink "bse.stat";
+}
+if( $run_screen == 1 )
+{
+   unlink "screen.stat";
+}
 #############################################
 
 open DFT, "dft" or die "Failed to open dft\n";
@@ -278,7 +292,7 @@ my @qe_data_files = ('prefix', 'ppdir', 'work_dir', 'tmp_dir', 'ibrav', 'natoms'
                      'trace_tol', 'tot_charge', 'nspin', 'ngkpt', 'k0.ipt', 'metal',
                      'den.kshift', 'obkpt.ipt', 'obf.nbands', 'nkpt', 'nbands', 'screen.nbands',
                      'screen.nkpt', 'dft.calc_stress', 'dft.calc_force', 'dft.startingwfc', 
-                     'dft.diagonalization', 'dft.ndiag' );
+                     'dft.diagonalization', 'dft.ndiag', 'dft.functional' );
 
 
 
@@ -309,6 +323,8 @@ $qe_data_files{ "celldm1" } = $celldm1;
 $qe_data_files{ "celldm2" } = $celldm2;
 $qe_data_files{ "celldm3" } = $celldm3;
 
+#Set startingpot
+$qe_data_files{ "dft.startingpot" } = 'atomic';
 
 # Switch ppdir to absolute path
 $qe_data_files{ "ppdir" } = abs_path( $qe_data_files{ "ppdir" } ) . "/";
@@ -329,6 +345,14 @@ foreach my $file_name (@qe_opt_files)
     close IN;
     $qe_data_files{ "$file_name" } = $string;
 }
+
+# Load up qmesh for EXX
+open EXX, "dft.exx.qmesh" or die "Failed to open dft.exx.qmesh\n$!";
+<EXX> =~ m/(\d+)\s+(\d+)\s+(\d+)/ or die "Failed to parse dft.exx.qmesh\n";
+$qe_data_files{'nqx1'} = $1;
+$qe_data_files{'nqx2'} = $2;
+$qe_data_files{'nqx3'} = $3;
+close EXX;
 ##################
 
 # Map QE/Abinit occupation options
@@ -372,6 +396,7 @@ $QE_smear[7] = "'gaussian'";     # ABINIT = Gaussian
 if ($RunESPRESSO) {
 
 
+  unlink "scf.stat";
  ### write SCF input card for initial density
 
   open my $QE, ">scf.in" or die "Failed to open scf.in.\n$!";
@@ -619,7 +644,7 @@ if ($RunESPRESSO) {
     or die "Failed to convert potential\n$!\n";
 
 
-  open STATUS, ">espresso.stat" or die;
+  open STATUS, ">scf.stat" or die;
   print STATUS "1";
   close STATUS;
 
@@ -889,6 +914,8 @@ if ( $nscfRUN ) {
     mkdir $bseDIR unless ( -d $bseDIR );
     chdir $bseDIR;
 
+    unlink "old" if( -e "old" );
+
     # kpts
     copy "../nkpt", "nkpt";
     copy "../qinunitsofbvectors.ipt", "qinunitsofbvectors.ipt";
@@ -957,6 +984,11 @@ if ( $nscfRUN ) {
           copy "../Out/$qe_data_files{'prefix'}.occup", "Out/$qe_data_files{$prefix}.occup";
         }
       }
+      foreach my $bonusFile ( @SCFBonus )
+      {
+        my $tempFile = "../Out/$qe_data_files{'prefix'}.save/$bonusFile";
+        copy $tempFile, "Out/$qe_data_files{$prefix}.save/$bonusFile" if( -e $tempFile );
+      }
       $prefix = "prefix_shift";
     }
 
@@ -973,6 +1005,21 @@ if ( $nscfRUN ) {
 
     # Set the flags that change for each input/dft run
     $qe_data_files{'calctype'} = 'nscf';
+    $qe_data_files{'dft.startingpot'} = 'file';
+    # if have exact exchange flip back to scf
+    print "$qe_data_files{'dft.functional'}\n";
+
+    # some of this needs to be moved up
+    foreach( @exx )
+    {
+      print "$_\n";
+      if( $qe_data_files{'dft.functional'} =~ m/$_/i )
+      {
+        $qe_data_files{'calctype'} = 'scf';
+        $qe_data_files{'nscfEXX'} = 1;
+        last;
+      }
+    }
     $qe_data_files{'nosym'} = '.true.';
     $qe_data_files{'noinv'} = '.true.';
     my $kpt_text = "K_POINTS crystal\n";
@@ -1114,6 +1161,10 @@ if ( $nscfRUN ) {
     copy "nkpt", "kmesh.ipt";
 
     chdir "../";
+
+    open OUT, ">", "bse.stat" or die;
+    print OUT "1\n";
+    close OUT;
   }
 }
 else
@@ -1160,6 +1211,12 @@ if( $obf == 0 && $run_screen == 1 )
     }
   }
 
+  foreach my $bonusFile ( @SCFBonus )
+  {
+    my $tempFile = "../Out/$qe_data_files{'prefix'}.save/$bonusFile";
+    copy $tempFile, "Out/$qe_data_files{'prefix'}.save/$bonusFile" if( -e $tempFile );
+  }
+
 
   # kpts
   copy "../screen.nkpt", "nkpt";
@@ -1179,6 +1236,16 @@ if( $obf == 0 && $run_screen == 1 )
 
 
   $qe_data_files{'calctype'} = 'nscf';
+  $qe_data_files{'dft.startingpot'} = 'file';
+  # if have exact exchange flip back to scf
+  foreach( @exx )
+  {
+    if( $qe_data_files{'dft.functional'} =~ m/$_/i )
+    {
+      $qe_data_files{'calctype'} = 'scf';
+    }
+  }
+
   $qe_data_files{'nosym'} = '.true.';
   $qe_data_files{'noinv'} = '.true.';
 
@@ -1293,6 +1360,10 @@ if( $obf == 0 && $run_screen == 1 )
   copy "nkpt", "kmesh.ipt";
 
   chdir "../";
+
+  open OUT, ">", "screen.stat" or die;
+  print OUT "1\n";
+  close OUT;
 }
 else
 {
@@ -1345,6 +1416,21 @@ sub print_qe
         .  "  noinv = $inputs{'noinv'}\n";
 #        .  "  nosym = .true.\n"
 #        .  "  noinv = .true.\n";
+  unless( $inputs{'dft.functional'} =~ m/none/ )
+  {
+    print $fh "  input_dft = \'$inputs{'dft.functional'}\'\n";
+    foreach( @exx )
+    {
+      if( $inputs{'dft.functional'} =~ m/$_/i )
+      {
+        print $fh "  nqx1 = $inputs{'nqx1'}, nqx2 = $inputs{'nqx2'}, nqx3 = $inputs{'nqx3'}\n";
+        last;
+      }
+    }
+  }
+    
+
+
   if( $inputs{'print nbands'} > 0 ) # for scf no nbnd is set. 
                                     # Therefore -1 is passed in and nothing is written to the input file
   {
@@ -1371,9 +1457,16 @@ sub print_qe
         .  "  conv_thr = $inputs{'etol'}\n"
         .  "  mixing_beta = $inputs{'mixing'}\n"
         .  "  electron_maxstep = $inputs{'nrun'}\n"
-        .  "  startingwfc = \'$qe_data_files{'dft.startingwfc'}\'\n"
-        .  "  diagonalization = \'$qe_data_files{'dft.diagonalization'}\'\n"
-        .  "/\n"
+        .  "  startingwfc = \'$inputs{'dft.startingwfc'}\'\n"
+        .  "  startingpot = \'$inputs{'dft.startingpot'}\'\n"
+        .  "  diagonalization = \'$inputs{'dft.diagonalization'}\'\n";
+  if( $inputs{'nscfEXX'} == 1 )
+  {
+    # Since (at the moment) we are loading the SCF density
+    #  don't converge the density for the first iteration w/o EXX
+    print $fh "  adaptive_thr = .true., conv_thr_init = 1\n";
+  }
+  print $fh "/\n"
         .  "&ions\n"
         .  "/\n";
 
