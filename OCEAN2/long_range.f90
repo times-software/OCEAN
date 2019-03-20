@@ -890,8 +890,8 @@ module ocean_long_range
 
       deallocate( scratch )
 
-#ifdef BLAS
       do ikpt = 1, my_kpts
+#ifdef BLAS
         call DAXPY( sys%num_bands, -xwrkr(ikpt), re_bloch_state(1,ikpt,xiter,val_spin), 1, &
                     hpr(1,ikpt), 1 )
         call DAXPY( sys%num_bands, -xwrki(ikpt), im_bloch_state(1,ikpt,xiter,val_spin), 1, &
