@@ -48,7 +48,7 @@ if (-e "done" ) {
 
 # Two very different ways of doing things depending on which wether we use ONCVPSP or Shirley codes
 my $program = 'shirley';
-open IN, "opf.program" or die "Failed to open opf.program: $!\n";
+open IN, "../Common/opf.program" or die "Failed to open opf.program: $!\n";
 if( <IN> =~ m/hamann/i )
 {
   $program = 'hamann';
