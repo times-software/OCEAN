@@ -12,6 +12,7 @@ use strict;
 use File::Copy;
 use Cwd 'abs_path';
 use File::Compare;
+use File::Spec::Functions;
 
 if (! $ENV{"OCEAN_BIN"} ) {
   $0 =~ m/(.*)\/dft\.pl/;
@@ -654,11 +655,14 @@ if ($RunESPRESSO) {
   my $nelectron = 'no';
   my $units;
 
-  # First attempt to grab from outfile
-  my $data_file = $qe_data_files{'work_dir'} . "/" . $qe_data_files{'prefix'} . ".save/data-file.xml";
-  print "Looking for $data_file \n";
-  if( open SCF, $data_file )
+  # First attempt to grab from outfile (works for 5.4 >= QE <= 6.2 (OLD_XML) )
+  my $qe54_file = catfile( $qe_data_files{'work_dir'}, $qe_data_files{'prefix'} . ".save", "data-file.xml" );
+  my $qe62_file = catfile( $qe_data_files{'work_dir'}, $qe_data_files{'prefix'} . ".xml" );
+#  my $data_file = $qe_data_files{'work_dir'} . "/" . $qe_data_files{'prefix'} . ".save/data-file.xml";
+  if( -e $qe54_file )
   {
+    print "Looking for $qe54_file \n";
+    open SCF, $qe54_file or die "Failed to open $qe54_file\n$!";
     while( my $scf_line = <SCF> )
     {
       if( $scf_line =~ m/\<UNITS_FOR_ENERGIES UNITS=\"(\w+)/ )
@@ -679,9 +683,49 @@ if ($RunESPRESSO) {
       }
     }
     close SCF;
+    if( $units =~ m/hartree/i )
+    {
+      $fermi *= 2;
+    }
+    elsif( $units =~ m/eV/i )
+    {
+      $fermi /= 13.60569253;
+    }
   }
-  
-  if( $fermi =~ m/no/ || $nelectron =~ m/no/ )
+  elsif( -e $qe62_file )
+  {
+    print "$qe62_file\n";
+    open SCF, $qe62_file or die "Failed to open $qe62_file\n$!";
+
+    #Assume Hartree!
+    my $highest = 0;
+    my $lowest = 'cow';
+    while( my $scf_line = <SCF> )
+    { 
+      if( $scf_line =~ m/\<highestOccupiedLevel\>([-+]?\d+\.\d+[Ee]?[-+]?(\d+)?)/ )
+      {
+        $highest = $1; 
+      }
+      elsif( $scf_line =~ m/\<lowestUnoccupiedLevel\>([-+]?\d+\.\d+[Ee]?[-+]?(\d+)?)/ )
+      {
+        $lowest = $1;
+      }
+      elsif( $scf_line =~ m/\<nelec\>([-+]?\d+\.\d+[Ee]?[-+]?(\d+)?)/ )
+      {
+        $nelectron = $1;
+      }
+    }
+    close SCF;
+    if( $lowest eq 'cow' )
+    { # Assumed Hartree
+      $fermi = $highest * 2
+    }
+    else
+    {
+      $fermi = $highest + $lowest;
+    }
+  }
+  else # last shot
   {
     open SCF, "scf.out" or die "$!";
     while( my $line = <SCF> )
@@ -699,19 +743,9 @@ if ($RunESPRESSO) {
     }
     close SCF;
   }
-  else
-  {
-    if( $units =~ m/hartree/i )
-    {
-      $fermi *= 2;
-    }
-    elsif( $units =~ m/eV/i )
-    {
-      $fermi /= 13.60569253;
-    }
-    my $eVfermi = $fermi * 13.60569253;
-    print "Fermi level found at $eVfermi eV\n";
-  }
+
+  my $eVfermi = $fermi * 13.60569253;
+  print "Fermi level found at $eVfermi eV\n";
 
   die "Fermi level not found in scf.out\n" if( $fermi eq 'no' ) ;
   die "Number of electrons not found in scf.out\n" if( $nelectron eq 'no' );
@@ -951,7 +985,10 @@ if ( $nscfRUN ) {
 
     $qe_data_files{'prefix_shift'} = $qe_data_files{'prefix'} . "_shift";
 
-    mkdir "Out" unless ( -d "Out" );
+    my $qeVersion;
+#    mkdir "Out" unless ( -d "Out" );
+ 
+    mkdir $qe_data_files{'work_dir'} unless( -d $qe_data_files{'work_dir'} );
 
     # This will loop back and do everything for prefix_shift if we have split
     my $repeat = 0;
@@ -959,11 +996,33 @@ if ( $nscfRUN ) {
     my $prefix = 'prefix';
     for( my $i = 0; $i <= $repeat; $i++ )
     {
-      mkdir "Out/$qe_data_files{$prefix}.save" unless ( -d "Out/$qe_data_files{$prefix}.save" );
+      my $savedir = catdir( $qe_data_files{'work_dir'}, $qe_data_files{$prefix} . ".save" ); 
+#      mkdir "Out/$qe_data_files{$prefix}.save" unless ( -d "Out/$qe_data_files{$prefix}.save" );
+      mkdir $savedir unless( -d $savedir );
 
-      copy "../Out/$qe_data_files{'prefix'}.save/charge-density.dat", "Out/$qe_data_files{$prefix}.save/charge-density.dat";
-      copy "../Out/$qe_data_files{'prefix'}.save/data-file.xml", "Out/$qe_data_files{$prefix}.save/data-file.xml";
+      my $chargeDensity = catfile( updir(), $qe_data_files{'work_dir'}, $qe_data_files{'prefix'} . ".save", 
+                                   "charge-density.dat" );
 
+      die "Couldn't find SCF charge density: $chargeDensity" unless( -e $chargeDensity );
+      copy $chargeDensity, catfile( $savedir, "charge-density.dat");
+#      copy "../Out/$qe_data_files{'prefix'}.save/charge-density.dat", "Out/$qe_data_files{$prefix}.save/charge-density.dat";
+
+      if( -e catfile( updir(), $qe_data_files{'work_dir'}, $qe_data_files{'prefix'} . ".save", "data-file.xml" ) )
+      {
+        copy "../Out/$qe_data_files{'prefix'}.save/data-file.xml", "Out/$qe_data_files{$prefix}.save/data-file.xml";
+        $qeVersion = 54;
+      }
+      elsif( -e catfile( updir(), $qe_data_files{'work_dir'}, $qe_data_files{'prefix'} . ".save", 
+                         "data-file-schema.xml" ) )
+      {
+        copy catfile( updir(), $qe_data_files{'work_dir'}, $qe_data_files{'prefix'} . ".save", 
+                         "data-file-schema.xml" ), $savedir;
+        $qeVersion = 62;
+      }
+      else
+      {
+        die "Couldn't find data-file or data-file-schema\n";
+      }
 
       if( $qe_data_files{'nspin'} == 2 )
       {
@@ -1145,8 +1204,18 @@ if ( $nscfRUN ) {
     print "BSE NSCF complete\n";
 
     ## find the top of the valence bance
-    system("$ENV{'OCEAN_BIN'}/qeband.pl") == 0
-       or die "Failed to count bands\n$!\n";
+    if( $qeVersion == 54 )
+    {
+      system("$ENV{'OCEAN_BIN'}/qeband.pl") == 0
+         or die "Failed to count bands\n$!\n";
+    }
+    elsif( $qeVersion == 62 )
+    {
+      system("$ENV{'OCEAN_BIN'}/qe62band.pl") == 0
+         or die "Failed to count bands\n$!\n";
+    }
+    else
+    { die "qeVersion wasn't set\n"; }
 
     open IN, "brange.stub" or die;
     open OUT, ">brange.ipt" or die;
@@ -1188,8 +1257,40 @@ if( $obf == 0 && $run_screen == 1 )
   mkdir "Out" unless ( -d "Out" );
   mkdir "Out/$qe_data_files{'prefix'}.save" unless ( -d "Out/$qe_data_files{'prefix'}.save" );
 
-  copy "../Out/$qe_data_files{'prefix'}.save/charge-density.dat", "Out/$qe_data_files{'prefix'}.save/charge-density.dat";
-  copy "../Out/$qe_data_files{'prefix'}.save/data-file.xml", "Out/$qe_data_files{'prefix'}.save/data-file.xml";
+#  copy "../Out/$qe_data_files{'prefix'}.save/charge-density.dat", "Out/$qe_data_files{'prefix'}.save/charge-density.dat";
+#  copy "../Out/$qe_data_files{'prefix'}.save/data-file.xml", "Out/$qe_data_files{'prefix'}.save/data-file.xml";
+
+
+  my $savedir = catdir( $qe_data_files{'work_dir'}, $qe_data_files{'prefix'} . ".save" );
+#      mkdir "Out/$qe_data_files{$prefix}.save" unless ( -d "Out/$qe_data_files{$prefix}.save" );
+  mkdir $savedir unless( -d $savedir );
+
+  my $qeVersion;
+
+  my $chargeDensity = catfile( updir(), $qe_data_files{'work_dir'}, $qe_data_files{'prefix'} . ".save",
+                               "charge-density.dat" );
+
+  die "Couldn't find SCF charge density: $chargeDensity" unless( -e $chargeDensity );
+  copy $chargeDensity, catfile( $savedir, "charge-density.dat");
+#      copy "../Out/$qe_data_files{'prefix'}.save/charge-density.dat", "Out/$qe_data_files{$prefix}.save/charge-density.dat";
+
+  if( -e catfile( updir(), $qe_data_files{'work_dir'}, $qe_data_files{'prefix'} . ".save", "data-file.xml" ) )
+  {
+    copy "../Out/$qe_data_files{'prefix'}.save/data-file.xml", "Out/$qe_data_files{'prefix'}.save/data-file.xml";
+    $qeVersion = 54;
+  }
+  elsif( -e catfile( updir(), $qe_data_files{'work_dir'}, $qe_data_files{'prefix'} . ".save",
+                     "data-file-schema.xml" ) )
+  {
+    copy catfile( updir(), $qe_data_files{'work_dir'}, $qe_data_files{'prefix'} . ".save",
+                     "data-file-schema.xml" ), $savedir;
+    $qeVersion = 62;
+  }
+  else
+  {
+    die "Couldn't find data-file or data-file-schema\n";
+  }
+
 
   if( $qe_data_files{'nspin'} == 2 )
   {
@@ -1343,9 +1444,19 @@ if( $obf == 0 && $run_screen == 1 )
   close OUT;
   print "Screening NSCF complete\n";
 
-    ## find the top of the valence bance
+  ## find the top of the valence bands
+  if( $qeVersion == 54 )
+  {
     system("$ENV{'OCEAN_BIN'}/qeband.pl") == 0
        or die "Failed to count bands\n$!\n";
+  }
+  elsif( $qeVersion == 62 )
+  {
+    system("$ENV{'OCEAN_BIN'}/qe62band.pl") == 0
+       or die "Failed to count bands\n$!\n";
+  }
+  else
+  { die "qeVersion wasn't set\n"; }
 
   open IN, "brange.stub" or die;
   open OUT, ">brange.ipt" or die;
