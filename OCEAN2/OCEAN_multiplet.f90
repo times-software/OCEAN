@@ -1577,6 +1577,8 @@ module OCEAN_multiplet
               so_r( sys%cur_run%nalpha, sys%cur_run%nalpha ), &
               so_i( sys%cur_run%nalpha, sys%cur_run%nalpha ), STAT=ierr )
     if( ierr .ne. 0 ) return
+    ampr = 0.0_DP
+    ampi = 0.0_DP
 
     allocate( pwr( itot, lmin:lmax ), pwi( itot, lmin:lmax ), &
               hpwr( itot, lmin:lmax ), hpwi( itot, lmin:lmax ), STAT=ierr )
@@ -1609,6 +1611,7 @@ module OCEAN_multiplet
 !$OMP& PRIVATE( ialpha, ispn, k_stop, el, em, nu, ihd, ikpt, ibnd, ii, jj, j1 ) &
 !$OMP& FIRSTPRIVATE( core_store_size_remain, k_start )
 
+#if 0
 !   Need to zero out all of ampr and ampi
 !   Do it in the same order as the next loop to get first touch memory locations?
     do ialpha = 1, sys%cur_run%nalpha
@@ -1619,13 +1622,16 @@ module OCEAN_multiplet
         el = ceiling( sqrt( dble(ihd) ) ) - 1
         em = ihd - (el+1)*(el+1) + el
           do nu = 1, nproj( el )
-            ampr( nu, (el+1)*(el+1)+em-el, ialpha ) = 0.0_DP
-            ampi( nu, (el+1)*(el+1)+em-el, ialpha ) = 0.0_DP
+!            ampr( nu, (el+1)*(el+1)+em-el, ialpha ) = 0.0_DP
+!            ampi( nu, (el+1)*(el+1)+em-el, ialpha ) = 0.0_DP
+            ampr( nu, ihd, ialpha ) = 0.0_DP
+            ampi( nu, ihd, ialpha ) = 0.0_DP
           enddo
 !        enddo
       enddo
 !$OMP END DO
     enddo
+#endif
 
 
     do ialpha = in_vec%core_a_start, a_stop
