@@ -140,7 +140,7 @@ if( $run_screen == 1 )
   symlink ("../$rundir/Out", "Out") == 1 or die "Failed to link Out\n$!";
 
   # New methods for skipping wfconvert
-  if( $screenWvfn =~ m/qe54/ && $screenLegacy == 0 )
+  if( $screenWvfn =~ m/qe\d+/ && $screenLegacy == 0 )
   {
     print "Don't convert DFT. Using new method for screening wavefunctions\n";
     `touch listwfile masterwfile enkfile`;

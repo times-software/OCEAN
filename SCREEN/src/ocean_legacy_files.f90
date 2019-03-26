@@ -53,8 +53,15 @@ module ocean_legacy_files
             olf_read_energies_single
   public :: olf_kpts_and_spins, olf_return_my_bands, olf_is_my_kpt
   public :: olf_nprocPerPool, olf_getPoolIndex, olf_getBandsForPoolID, olf_returnGlobalID
+  public :: olf_npool, olf_universal2KptAndSpin
 
   contains
+
+  pure function olf_npool() result( npool_ )
+    integer :: npool_
+
+    npool_ = npool
+  end function olf_npool
 
   pure function olf_nprocPerPool() result( nproc )
     integer :: nproc
@@ -92,6 +99,26 @@ module ocean_legacy_files
 
     globalID = poolIndex * pool_nproc + poolID
   end function olf_returnGlobalID
+
+  subroutine olf_universal2KptAndSpin( uni, ispin, ikpt )
+    integer, intent( in ) :: uni
+    integer, intent( out ) :: ispin, ikpt
+    !
+    integer :: i, ierr
+    logical :: is_kpt
+
+    i = 0
+    do ispin = 1, nspin
+      do ikpt = 1, product(kpts(:))
+        call olf_is_my_kpt( ikpt, ispin, is_kpt, ierr )
+        if( is_kpt ) i = i +1
+        if( uni .eq. i ) return
+      enddo
+    enddo
+
+    ikpt = 0
+    ispin = 0
+  end subroutine olf_universal2KptAndSpin
 
   subroutine olf_is_my_kpt( ikpt, ispin, is_kpt, ierr )
     integer, intent( in ) :: ikpt, ispin

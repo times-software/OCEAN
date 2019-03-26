@@ -1,4 +1,4 @@
-! Copyright (C) 2018 OCEAN collaboration
+! Copyright (C) 2018 - 2019 OCEAN collaboration
 !
 ! This file is part of the OCEAN project and distributed under the terms 
 ! of the University of Illinois/NCSA Open Source License. See the file 
@@ -6,7 +6,9 @@
 !
 !
 ! John Vinson
-module ocean_qe54_files
+!
+! This is beginning as a straight up copy of the QE54 file.
+module ocean_qe62_files
   use ai_kinds, only : DP
 #ifdef MPI_F08
   use mpi_f08, only : MPI_COMM, MPI_REQUEST
@@ -24,6 +26,7 @@ module ocean_qe54_files
   character( len=128 ) :: prefix
 
   integer :: bands(2)
+  integer :: brange(4)
   integer :: kpts(3)
   integer :: nspin 
   integer :: nfiles
@@ -48,72 +51,41 @@ module ocean_qe54_files
   integer, parameter :: pool_root = 0
   
   integer :: pool_nbands
+  integer :: pool_val_nbands
+  integer :: pool_con_nbands
 
-  public :: qe54_read_init, qe54_read_at_kpt, qe54_clean, qe54_read_energies, qe54_get_ngvecs_at_kpt, &
-            qe54_read_energies_single
-  public :: qe54_kpts_and_spins, qe54_return_my_bands, qe54_is_my_kpt
-  public :: qe54_nprocPerPool, qe54_getPoolIndex, qe54_getBandsForPoolID, qe54_returnGlobalID
-  public :: qe54_npool, qe54_universal2KptAndSpin, qe54_poolID, qe54_poolComm
+  public :: qe62_read_init, qe62_read_at_kpt, qe62_clean, qe62_get_ngvecs_at_kpt, &
+            qe62_read_energies_single
+  public :: qe62_kpts_and_spins, qe62_return_my_bands, qe62_return_my_val_bands, qe62_return_my_con_bands, &
+            qe62_is_my_kpt
+  public :: qe62_nprocPerPool, qe62_getPoolIndex, qe62_getBandsForPoolID, qe62_returnGlobalID
+  public :: qe62_npool, qe62_universal2KptAndSpin
 
   contains
 
-  pure function qe54_poolComm()
-#ifdef MPI_F08
-    type( MPI_COMM ) :: qe54_poolComm
-#else
-    integer :: qe54_poolComm
-#endif
-
-    qe54_poolComm = pool_comm
-  end function qe54_poolComm
-
-  pure function qe54_npool() result( npool_ )
+  pure function qe62_npool() result( npool_ )
     integer :: npool_
-    npool_ = npool
-  end function qe54_npool
 
-  pure function qe54_nprocPerPool() result( nproc )
+    npool_ = npool
+  end function qe62_npool
+ 
+
+  pure function qe62_nprocPerPool() result( nproc )
     integer :: nproc
     
     nproc = pool_nproc
-  end function qe54_nprocPerPool
+  end function qe62_nprocPerPool
 
-  pure function qe54_poolID() result( pid )
-    integer :: pid
-    
-    pid = pool_myid
-  end function qe54_poolID
-
-  pure function qe54_getPoolIndex( ispin, ikpt ) result( poolIndex )
+  pure function qe62_getPoolIndex( ispin, ikpt ) result( poolIndex )
     integer, intent( in ) :: ispin, ikpt
     integer :: poolIndex
     integer :: kptCounter
     !
     kptCounter = ikpt + ( ispin - 1 ) * product(kpts(:))
     poolIndex = mod( kptCounter, npool )
-  end function qe54_getPoolIndex
+  end function qe62_getPoolIndex
 
-  subroutine qe54_universal2KptAndSpin( uni, ispin, ikpt )
-    integer, intent( in ) :: uni
-    integer, intent( out ) :: ispin, ikpt
-    !
-    integer :: i, ierr
-    logical :: is_kpt
-
-    i = 0
-    do ispin = 1, nspin
-      do ikpt = 1, product(kpts(:))
-        call qe54_is_my_kpt( ikpt, ispin, is_kpt, ierr )
-        if( is_kpt ) i = i +1
-        if( uni .eq. i ) return
-      enddo
-    enddo
-
-    ikpt = 0
-    ispin = 0
-  end subroutine qe54_universal2KptAndSpin
-
-  pure function qe54_getBandsForPoolID( poolID ) result(nbands)
+  pure function qe62_getBandsForPoolID( poolID ) result(nbands)
     integer, intent( in ) :: poolID
     integer :: nbands
     integer :: bands_remain, i
@@ -125,16 +97,37 @@ module ocean_qe54_files
       bands_remain = bands_remain - nbands
     enddo
 
-  end function qe54_getBandsForPoolID
+  end function qe62_getBandsForPoolID
 
-  pure function qe54_returnGlobalID( poolIndex, poolID ) result( globalID )
+  pure function qe62_returnGlobalID( poolIndex, poolID ) result( globalID )
     integer, intent( in ) :: poolIndex, poolID
     integer :: globalID
 
     globalID = poolIndex * pool_nproc + poolID
-  end function qe54_returnGlobalID
+  end function qe62_returnGlobalID
 
-  subroutine qe54_is_my_kpt( ikpt, ispin, is_kpt, ierr )
+
+  subroutine qe62_universal2KptAndSpin( uni, ispin, ikpt )
+    integer, intent( in ) :: uni
+    integer, intent( out ) :: ispin, ikpt
+    !
+    integer :: i, ierr
+    logical :: is_kpt
+
+    i = 0
+    do ispin = 1, nspin
+      do ikpt = 1, product(kpts(:))
+        call qe62_is_my_kpt( ikpt, ispin, is_kpt, ierr )
+        if( is_kpt ) i = i + 1
+        if( uni .eq. i ) return
+      enddo
+    enddo
+
+    ikpt = 0
+    ispin = 0
+  end subroutine qe62_universal2KptAndSpin
+
+  subroutine qe62_is_my_kpt( ikpt, ispin, is_kpt, ierr )
     integer, intent( in ) :: ikpt, ispin
     logical, intent( out ) :: is_kpt
     integer, intent( inout ) :: ierr
@@ -153,28 +146,44 @@ module ocean_qe54_files
     endif
 
 !    if( mod( ikpt + (ispin-1)*product(kpts(:)), npool ) .eq. mypool ) then
-    if( qe54_getPoolIndex( ispin, ikpt ) .eq. mypool ) then
+    if( qe62_getPoolIndex( ispin, ikpt ) .eq. mypool ) then
       is_kpt = .true.
     else
       is_kpt = .false.
     endif
 
-  end subroutine qe54_is_my_kpt
+  end subroutine qe62_is_my_kpt
 
-  subroutine qe54_return_my_bands( nbands, ierr )
+  subroutine qe62_return_my_bands( nbands, ierr )
     integer, intent( out ) :: nbands
     integer, intent( inout ) :: ierr
     
     if( .not. is_init ) ierr = 1
     nbands = pool_nbands
-  end subroutine qe54_return_my_bands
+  end subroutine qe62_return_my_bands
 
-  integer function qe54_kpts_and_spins()
-    qe54_kpts_and_spins = product(kpts(:)) * nspin / npool
+  subroutine qe62_return_my_val_bands( nbands, ierr )
+    integer, intent( out ) :: nbands
+    integer, intent( inout ) :: ierr
+
+    if( .not. is_init ) ierr = 1
+    nbands = pool_val_nbands
+  end subroutine qe62_return_my_val_bands
+
+  subroutine qe62_return_my_con_bands( nbands, ierr )
+    integer, intent( out ) :: nbands
+    integer, intent( inout ) :: ierr
+
+    if( .not. is_init ) ierr = 1
+    nbands = pool_con_nbands
+  end subroutine qe62_return_my_con_bands
+
+  integer function qe62_kpts_and_spins()
+    qe62_kpts_and_spins = product(kpts(:)) * nspin / npool
     return
-  end function qe54_kpts_and_spins
+  end function qe62_kpts_and_spins
 
-  subroutine qe54_read_energies_single( myid, root, comm, energies, ierr )
+  subroutine qe62_read_energies_single( myid, root, comm, energies, ierr )
 #ifdef MPI
     use ocean_mpi, only : MPI_DOUBLE_PRECISION
 #endif
@@ -192,49 +201,38 @@ module ocean_qe54_files
     character(len=128) :: lineBurn
 
     if( is_init .eqv. .false. ) then
-      write(6,*) 'qe54_read_energies_single called but was not initialized'
+      write(6,*) 'qe62_read_energies_single called but was not initialized'
       ierr = 4
       return
     endif 
 
     if( size( energies, 1 ) .lt. ( bands(2)-bands(1)+1 ) ) then
-      write(6,*) 'Error! Band dimension of energies too small in qe54_read_energies_single'
+      write(6,*) 'Error! Band dimension of energies too small in qe62_read_energies_single'
       ierr = 1
       return
     endif
     if( size( energies, 2 ) .lt. product(kpts(:)) ) then
-      write(6,*) 'Error! K-point dimension of energies too small in qe54_read_energies_single'
+      write(6,*) 'Error! K-point dimension of energies too small in qe62_read_energies_single'
       ierr = 2
       return
     endif
     if( size( energies, 3 ) .lt. nspin ) then
-      write(6,*) 'Error! Spin dimension of energies too small in qe54_read_energies_single'
+      write(6,*) 'Error! Spin dimension of energies too small in qe62_read_energies_single'
       ierr = 3
       return
     endif
 
     if( myid .eq. root ) then
-      bstop2  = bands(2) - bands(1) + 1
+
+      open( unit=99, file='enkfile', form='formatted', status='old' )
 
       do ispn = 1, nspin
         do ikpt = 1, product(kpts(:))
-
-          open( unit=99, file=qe54_eigFile(ikpt,ispn), form='formatted', status='old' )
-          do i = 1, 9
-            read(99,*) !lineBurn
-!            write(6,*) lineBurn
-          enddo
-!          do i = 1, bands( 1 ) - 1
-!            read(99,*) dumf
-!            write(6,*) dumf
-!          enddo
-          do i = 1, bstop2
-            read(99,*) energies( i, ikpt, ispn )
-          enddo
-
-          close( 99 )
+          read(99,*) energies( :, ikpt, ispn )
         enddo
       enddo
+
+      close( 99 )
       energies(:,:,:) = energies(:,:,:) * 2.0_DP
     endif
 
@@ -242,9 +240,26 @@ module ocean_qe54_files
     call MPI_BCAST( energies, size(energies), MPI_DOUBLE_PRECISION, root, comm, ierr )
 #endif
 
-  end subroutine qe54_read_energies_single
+  end subroutine qe62_read_energies_single
 
-  pure function qe54_eigFile( ikpt, ispin ) result( fileName )
+  pure function qe62_wfcFile( ikpt, ispin ) result( fileName )
+    integer, intent ( in ) :: ikpt, ispin
+
+    integer :: totKpt
+    character(len=512) :: fileName
+
+    if( ispin .gt. 1 ) then
+      totKpt = ikpt + product( kpts(:) )
+    else
+      totKpt = ikpt
+    endif
+
+    write( fileName, '(a,a3,i0,a4)' ) trim( prefix ), 'wfc', totKpt, '.dat'
+
+  end function qe62_wfcFile
+
+#if 0
+  pure function qe62_eigFile( ikpt, ispin ) result( fileName )
     integer, intent ( in ) :: ikpt, ispin
     character(len=512) :: fileName
 
@@ -256,17 +271,17 @@ module ocean_qe54_files
       write( fileName, '(a,a1,i5.5,a1,a)' ) trim( prefix ), 'K', ikpt, '/', 'eigenval2.xml'
     endif
 
-  end function qe54_eigFile
+  end function qe62_eigFile
 
-  pure function qe54_gkvFile( ikpt, ispin ) result( fileName )
+  pure function qe62_gkvFile( ikpt, ispin ) result( fileName )
     integer, intent ( in ) :: ikpt, ispin
     character(len=512) :: fileName
 
     write( fileName, '(a,a1,i5.5,a1,a)' ) trim( prefix ), 'K', ikpt, '/', 'gkvectors.dat'
 
-  end function qe54_gkvFile
+  end function qe62_gkvFile
 
-  pure function qe54_evcFile( ikpt, ispin ) result( fileName )
+  pure function qe62_evcFile( ikpt, ispin ) result( fileName )
     integer, intent ( in ) :: ikpt, ispin
     character(len=512) :: fileName
 
@@ -278,9 +293,11 @@ module ocean_qe54_files
       write( fileName, '(a,a1,i5.5,a1,a)' ) trim( prefix ), 'K', ikpt, '/', 'evc2.dat'
     endif
 
-  end function qe54_evcFile
+  end function qe62_evcFile
+#endif
 
-  subroutine qe54_read_energies( myid, root, comm, nbv, nbc, nkpts, nspns, val_energies, con_energies, ierr )
+#if 0
+  subroutine qe62_read_energies( myid, root, comm, nbv, nbc, nkpts, nspns, val_energies, con_energies, ierr )
 #ifdef MPI
     use ocean_mpi, only : MPI_DOUBLE_PRECISION
 #endif
@@ -311,11 +328,11 @@ module ocean_qe54_files
     call MPI_BCAST( con_energies, nbc*nkpts*nspns, MPI_DOUBLE_PRECISION, root, comm, ierr )
 #endif
 
-  end subroutine qe54_read_energies
+  end subroutine qe62_read_energies
+#endif
 
 
-
-  subroutine qe54_clean( ierr )
+  subroutine qe62_clean( ierr )
     integer, intent( inout ) :: ierr
     !
     nfiles = 0
@@ -327,10 +344,10 @@ module ocean_qe54_files
     if( ierr .ne. 0 ) return
 #endif
 
-  end subroutine qe54_clean
+  end subroutine qe62_clean
 
   ! Read the universal little files
-  subroutine qe54_read_init( comm, isGamma, isFullStorage, ierr )
+  subroutine qe62_read_init( comm, isGamma, isFullStorage, ierr )
     use ocean_mpi, only : MPI_INTEGER, MPI_CHARACTER, MPI_LOGICAL
 #ifdef MPI_F08
     type( MPI_COMM ), intent( in ) :: comm
@@ -415,7 +432,7 @@ module ocean_qe54_files
 
     call writeDiagnostics( )
 
-!    write(6,*) 'qe54_read_init was successful'
+!    write(6,*) 'qe62_read_init was successful'
     is_init = .true.
     isGamma = is_gamma
 
@@ -425,7 +442,7 @@ module ocean_qe54_files
       isFullStorage = .true.
     endif
   
-  end subroutine  qe54_read_init 
+  end subroutine  qe62_read_init 
 
   subroutine writeDiagnostics( )
     if( inter_myid .eq. inter_root ) then
@@ -482,7 +499,7 @@ module ocean_qe54_files
     if( ierr .ne. 0 ) return
 
 
-    pool_nbands = qe54_getBandsForPoolID( pool_myid )
+    pool_nbands = qe62_getBandsForPoolID( pool_myid )
 !    nbands_left = brange(4)-brange(3)+brange(2)-brange(1)+2
 !    do i = 0, pool_nproc-1
 !      nbands = nbands_left / ( pool_nproc - i )
@@ -493,7 +510,7 @@ module ocean_qe54_files
   end subroutine set_pools
 
 
-  subroutine qe54_get_ngvecs_at_kpt( ikpt, ispin, gvecs, ierr )
+  subroutine qe62_get_ngvecs_at_kpt( ikpt, ispin, gvecs, ierr )
     use OCEAN_mpi
     integer, intent( in ) :: ikpt, ispin
     integer, intent( out ) :: gvecs
@@ -502,7 +519,7 @@ module ocean_qe54_files
     integer :: i, crap
     logical :: is_kpt
 
-    call qe54_is_my_kpt( ikpt, ispin, is_kpt, ierr )
+    call qe62_is_my_kpt( ikpt, ispin, is_kpt, ierr )
     if( ierr .ne. 0 ) return
     if( is_kpt .eqv. .false. ) then 
       gvecs = 0
@@ -510,12 +527,10 @@ module ocean_qe54_files
     endif
 
     if( pool_myid .eq. pool_root ) then
-      write(myid+1000,*) 'Opening file', trim(qe54_gkvFile( ikpt, ispin ))
+      write(myid+1000,*) 'Opening file', trim(qe62_wfcFile( ikpt, ispin ))
       flush(myid+1000)
-      open( unit=99,file=trim(qe54_gkvFile( ikpt, ispin )), form='unformatted', status='old' )
-      do i = 1, 12
-        read( 99 )
-      enddo
+      open( unit=99,file=trim(qe62_wfcFile( ikpt, ispin )), form='unformatted', status='old' )
+      read( 99 )
       read(99) crap, gvecs
       close( 99 )
       ! Do we want to expand the coeffs inside this module?
@@ -538,9 +553,9 @@ module ocean_qe54_files
 #endif
 !    write(6,*) 'gvecs', pool_root, pool_comm
 
-  end subroutine qe54_get_ngvecs_at_kpt
+  end subroutine qe62_get_ngvecs_at_kpt
 
-  subroutine qe54_read_at_kpt( ikpt, ispin, ngvecs, my_bands, gvecs, wfns, ierr )
+  subroutine qe62_read_at_kpt( ikpt, ispin, ngvecs, my_bands, gvecs, wfns, ierr )
 #ifdef MPI
     use OCEAN_mpi, only : MPI_INTEGER, MPI_DOUBLE_COMPLEX, MPI_STATUSES_IGNORE, myid, MPI_REQUEST_NULL, &
                           MPI_STATUS_IGNORE, MPI_UNDEFINED
@@ -553,7 +568,10 @@ module ocean_qe54_files
     integer, intent( inout ) :: ierr
     !
     complex( DP ), allocatable, dimension( :, :, : ) :: cmplx_wvfn
+    real( DP ) :: bvecs(3,3), kpt(3), scal
     integer :: test_gvec, itarg, nbands_to_send, nr, ierr_, nbands, id, start_band, crap, i, j, k, bufferSize, maxBands
+    integer :: ikpt_, ispin_, dumi, npolar, my_bands_
+    logical :: is_gamma_
 #ifdef MPI_F08
     type( MPI_REQUEST ), allocatable :: requests( : )
     type( MPI_DATATYPE ) :: newType
@@ -562,9 +580,9 @@ module ocean_qe54_files
     integer :: newType
 #endif
 
-    if( qe54_getPoolIndex( ispin, ikpt ) .ne. mypool ) return
+    if( qe62_getPoolIndex( ispin, ikpt ) .ne. mypool ) return
     !
-    if( qe54_getBandsForPoolID( pool_myid ) .ne. my_bands ) then
+    if( qe62_getBandsForPoolID( pool_myid ) .ne. my_bands ) then
       ierr = 1
       return
     endif
@@ -574,11 +592,9 @@ module ocean_qe54_files
     if( pool_myid .eq. pool_root ) then
     
       ! get gvecs first
-      open( unit=99, file=qe54_gkvFile( ikpt, ispin), form='unformatted', status='old' )
-      do i = 1, 12
-        read( 99 )
-      enddo
-      read(99) crap, test_gvec
+      open( unit=99, file=qe62_wfcFile( ikpt, ispin), form='unformatted', status='old' )
+      read( 99 ) ikpt_, kpt, ispin_, is_gamma_, scal
+      read( 99 ) dumi, test_gvec, npolar, my_bands_
       ! Are we expanding the wave functions here?
       if( gammaFullStorage .and. is_gamma ) then
         if( ( 2 * test_gvec - 1 ) .ne. ngvecs ) then
@@ -593,9 +609,8 @@ module ocean_qe54_files
           return
         endif
       endif
-      do i = 1, 5
-        read(99)
-      enddo
+
+      write(6,*) dumi, test_gvec, npolar, my_bands_
 
       ! Error synch. Also ensures that the other procs have posted their recvs
       call MPI_BCAST( ierr, 1, MPI_INTEGER, pool_root, pool_comm, ierr_ )
@@ -605,17 +620,19 @@ module ocean_qe54_files
         return
       endif
 
-      do i = 1, 19
-        read( 99 )
-      enddo
+      if( npolar .ne. 1 ) then
+        write(6,*) 'Polarization ne 1 not yet allowed'
+        ierr = 10
+        return
+      endif
 
       ! Using test_gvec for gamma support
-      read( 99 ) crap, gvecs( :, 1:test_gvec )
-      close( 99 )
+      read( 99 ) bvecs( :, : )
+      read( 99 ) gvecs( :, 1:test_gvec )
 
-      maxBands = qe54_getBandsForPoolID( 0 )
+      maxBands = qe62_getBandsForPoolID( 0 )
       do id = 1, pool_nproc - 1
-        maxBands = max( maxBands, qe54_getBandsForPoolID( id ) )
+        maxBands = max( maxBands, qe62_getBandsForPoolID( id ) )
       enddo
       !
       ! no more than 8GB @ 16Byte/complex
@@ -640,11 +657,6 @@ module ocean_qe54_files
       write(1000+myid,*) '   Nbands: ', nbands
       write(1000+myid,*) '   Nbuffer:', bufferSize
 
-      open( unit=99, file=qe54_evcFile( ikpt, ispin), form='unformatted', status='old' )
-      do i = 1, 12
-        read(99)
-      enddo
-
       ! if we are skipping bands, do that here
 !      do i = 1, bands(1)-1
 !        read( 99 ) crap, cmplx_wvfn( 1, 1 )
@@ -657,17 +669,13 @@ module ocean_qe54_files
 #ifdef MPI
       ! loop over each proc in this pool to send wavefunctions
       do id = 0, pool_nproc - 1
-        nbands_to_send = qe54_getBandsForPoolID( id )
+        nbands_to_send = qe62_getBandsForPoolID( id )
 
         ! If mine, read directly to wvfn
         if( id .eq. pool_myid ) then
           call SCREEN_tk_start("dft-read")
           do i = 1, nbands_to_send
-            read(99)
-            read(99)
-            read( 99 ) crap, wfns( 1:test_gvec, i )
-            read(99)
-            read(99)
+            read( 99 ) wfns( 1:test_gvec * npolar, i )
           enddo
           call SCREEN_tk_stop("dft-read")
         
@@ -689,11 +697,7 @@ module ocean_qe54_files
 
           call SCREEN_tk_start("dft-read")
           do i = 1, nbands_to_send
-            read(99)
-            read(99)
-            read( 99 ) crap, cmplx_wvfn( 1:test_gvec, i, j )
-            read(99)
-            read(99)
+            read( 99 ) cmplx_wvfn( 1:test_gvec, i, j )
           enddo
           call SCREEN_tk_stop("dft-read")
 
@@ -799,8 +803,8 @@ module ocean_qe54_files
     write(1000+myid,*) '***Finishing k-point: ', ikpt, ispin
     call MPI_BARRIER( pool_comm, ierr )
 
-  end subroutine qe54_read_at_kpt
+  end subroutine qe62_read_at_kpt
 
 
 
-end module ocean_qe54_files
+end module ocean_qe62_files
