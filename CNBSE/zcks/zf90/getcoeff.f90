@@ -1,4 +1,4 @@
-! Copyright (C) 2011 OCEAN collaboration
+! Copyright (C) 2011, 2018 OCEAN collaboration
 !
 ! This file is part of the OCEAN project and distributed under the terms 
 ! of the University of Illinois/NCSA Open Source License. See the file 
@@ -24,17 +24,29 @@ subroutine getcoeff( l, ng, nbd, ck, tauphs, ylmfac, coeff, lmax, npmax, seanfq,
        ffactor = 1.d0 - 1.d0 / ( exp( ( ww( ibd ) - efermi ) / temperature ) + 1 )
        write(6,*) ffactor, ww( ibd )
      else
-       ffactor = 1
+       if( ww( ibd ) - efermi .gt. 0.0d0 ) then
+         ffactor = 1.0d0
+       else
+         ffactor = 1.0d0
+       endif
      endif
-     do iproj = 1, nproj
+     if( ffactor .lt. 0.00000000001d0 ) then
+       do iproj = 1, nproj
         do m = -l, l
-           su = 0
-           do ig = 1, ng
-              su = su + ylmfac( m, ig ) * tauphs( ig ) * ck( ig, ibd ) * seanfq( ig, iproj )
-           end do
-           coeff( m, ibd, iproj ) = su * ffactor
-        end do
-     end do
+          coeff( m, ibd, iproj ) = 0.0d0
+        enddo
+       enddo
+     else
+       do iproj = 1, nproj
+          do m = -l, l
+             su = 0
+             do ig = 1, ng
+                su = su + ylmfac( m, ig ) * tauphs( ig ) * ck( ig, ibd ) * seanfq( ig, iproj )
+             end do
+             coeff( m, ibd, iproj ) = su * ffactor
+          end do
+       end do
+     endif
   end do
   !
   return

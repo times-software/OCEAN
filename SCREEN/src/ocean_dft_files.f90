@@ -24,14 +24,32 @@ module ocean_dft_files
   integer, parameter :: QE54_FLAVOR = 1
   public :: LEGACY_FLAVOR, QE54_FLAVOR
 
+  logical :: isGamma = .false.
+  logical :: isFullStorage
+
+
   
 
   public :: odf_init, odf_read_energies_single, odf_clean
   public :: odf_nprocPerPool, odf_getPoolIndex, odf_getBandsForPoolID, odf_returnGlobalID
   public :: odf_return_my_bands, odf_is_my_kpt, odf_get_ngvecs_at_kpt
   public :: odf_read_at_kpt 
+  public :: odf_isGamma, odf_isFullStorage
 
   contains 
+
+  pure function odf_isGamma() result( isGamma_ )
+    logical :: isGamma_
+    isGamma_ = isGamma
+    return
+  end function odf_isGamma
+
+  pure function odf_isFullStorage() result( FS )
+    logical :: FS
+    FS = isFullStorage
+    return
+  end function odf_isFullStorage
+    
 
   pure function odf_getPoolIndex( ispin, ikpt ) result( poolIndex )
     use ocean_legacy_files, only : olf_getPoolIndex
@@ -226,16 +244,19 @@ module ocean_dft_files
       case( LEGACY_FLAVOR )
 
         call olf_read_init( comm, ierr )
+        isGamma = .false.
+        isFullStorage = .true.
 
       case( QE54_FLAVOR )
   
-        call qe54_read_init( comm, ierr )
+        call qe54_read_init( comm, isGamma, isFullStorage, ierr )
 
       case default
         ierr = 1
         if( myid .eq. root ) write(6,*) 'Incorrect DFT flavor. Probably a bug?'
     end select
     return
+
 
   end subroutine odf_init
 

@@ -1,4 +1,4 @@
-! Copyright (C) 2017 OCEAN collaboration
+! Copyright (C) 2017-2018 OCEAN collaboration
 !
 ! This file is part of the OCEAN project and distributed under the terms 
 ! of the University of Illinois/NCSA Open Source License. See the file 
@@ -36,6 +36,9 @@ module screen_chi_driver
     use screen_sites, only : site, pinfo, screen_sites_returnWavefunctionDims
     use screen_paral, only : site_parallel_info, screen_paral_isMySite
     use screen_grid, only : screen_grid_dumpFullGrid
+    use ocean_mpi, only : myid
+    use screen_timekeeper, only : screen_tk_start, screen_tk_stop
+    use screen_system, only : screen_system_mode
     integer, intent( in ) :: nsites
     type( site ), intent( in ) :: all_sites( nsites )
     integer, intent( inout ) :: ierr
@@ -45,6 +48,7 @@ module screen_chi_driver
     integer :: isite, dims(2), NLM, NR
 
     character( len=4 ) :: chiPrefix
+    character( len=6 ) :: gridSuffix
 
     NLM = screen_chi_NLM()
     if( NLM .lt. 1 ) then
@@ -56,6 +60,11 @@ module screen_chi_driver
 
       if( screen_paral_isMySite( pinfo, isite ) ) then
 
+
+        call MPI_BARRIER( pinfo%comm, ierr )
+        if( ierr .ne. 0 ) return 
+        write(1000+myid,*) 'Chi Driver site: ', isite
+
         NR = screen_chi_NR( all_sites( isite )%grid )
         dims = screen_sites_returnWavefunctionDims( all_sites( isite ) )
         allocate( ProjectedChi0( NR, NLM, NR, NLM), stat=ierr )
@@ -63,9 +72,12 @@ module screen_chi_driver
         allocate( FullChi0( dims(2), dims(2) ), STAT=ierr )
         if( ierr .ne. 0 ) return
 
+        call screen_tk_start( "screen_chi0_runSite" )
         call screen_chi0_runSite( all_sites( isite ), FullChi0, ierr )
         if( ierr .ne. 0 ) return
+        call screen_tk_stop( "screen_chi0_runSite" )
 
+        call screen_tk_start( "screen_chi_project" )
         if( pinfo%myid .eq. pinfo%root ) then
           call screen_chi_project( all_sites( isite )%grid, FullChi0, ProjectedChi0, ierr )
           if( ierr .ne. 0 ) return
@@ -74,6 +86,7 @@ module screen_chi_driver
           call driver_write_chi( all_sites( isite )%info, chiPrefix, ProjectedChi0, ierr )
           if( ierr .ne. 0 ) return
         endif
+        call screen_tk_stop( "screen_chi_project" )
 
         deallocate( FullChi0 )
 
@@ -93,8 +106,15 @@ module screen_chi_driver
           if( ierr .ne. 0 ) return
 
           write( 6,*) 'Dump grid'
-          call screen_grid_dumpFullGrid( all_sites( isite )%grid, all_sites( isite )%info%elname, &
-                                         all_sites( isite )%info%indx, ierr )
+          select case( screen_system_mode() )
+            case( 'grid' )
+              write(gridsuffix,'(I6.6)') all_sites( isite )%info%indx
+            case default
+              write(gridsuffix,'(A2,I4.4)') all_sites( isite )%info%elname, all_sites( isite )%info%indx
+          end select
+          call screen_grid_dumpFullGrid( all_sites( isite )%grid, gridsuffix, ierr )
+!          call screen_grid_dumpFullGrid( all_sites( isite )%grid, all_sites( isite )%info%elname, &
+!                                         all_sites( isite )%info%indx, ierr )
           if( ierr .ne. 0 ) return
         endif
 
@@ -116,6 +136,7 @@ module screen_chi_driver
 
   subroutine driver_write_chi( SiteInfo, chiPrefix, Chi, ierr )
     use screen_sites, only : site_info
+    use screen_system, only : screen_system_mode
 
     type( site_info ), intent( in ) :: siteInfo
     character(len=4), intent( in ) :: chiPrefix
@@ -124,7 +145,13 @@ module screen_chi_driver
     !
     character(len=80) :: filnam
 
-    write( filnam, '(A,A2,I4.4)' ) trim( chiPrefix ), siteInfo%elname, siteInfo%indx
+    select case( screen_system_mode() )
+      case( 'grid' )
+        write( filnam, '(A,I6.6)' ) trim( chiPrefix ), siteInfo%indx
+      case default
+        write( filnam, '(A,A2,I4.4)' ) trim( chiPrefix ), siteInfo%elname, siteInfo%indx
+    end select
+
     open( unit=99, file=filnam, form='unformatted', status='unknown' )
     rewind( 99 )
     write(99) size(Chi,1), size(Chi,2)

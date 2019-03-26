@@ -1,6 +1,6 @@
 #!/usr/bin/perl
 
-# Copyright (C) 2015 - 2017 OCEAN collaboration
+# Copyright (C) 2015 - 2017, 2019 OCEAN collaboration
 #
 # This file is part of the OCEAN project and distributed under the terms 
 # of the University of Illinois/NCSA Open Source License. See the file 
@@ -11,6 +11,7 @@
 
 use strict;
 use File::Copy;
+use File::Spec::Functions;
 use POSIX;
 
 if (! $ENV{"OCEAN_BIN"} ) {
@@ -39,7 +40,15 @@ my @WFNFiles = ("kmesh.ipt",  "efermiinrydberg.ipt", "qinunitsofbvectors.ipt", "
                 "wvfcninfo", "wvfvainfo", "obf_control", "ibeg.h", "q.out", "tmels.info", 
                 "val_energies.dat", "con_energies.dat" );
 
+my @ScreenFiles = ( "screen.mode", "screen.lmax", "screen.final.rmax", "screen.final.dr", 
+                    "cnbse.rad" );
+
 foreach (@CommonFiles) {
+  copy( "../Common/$_", $_ ) or die "Failed to get Common/$_\n$!";
+}
+
+foreach (@ScreenFiles)
+{
   copy( "../Common/$_", $_ ) or die "Failed to get Common/$_\n$!";
 }
 
@@ -197,6 +206,30 @@ else  # We are using abi/qe path w/o obfs
     system("$ENV{'OCEAN_BIN'}/orthog.x > orthog.log") == 0 or die;
   }
 }
+
+open MODE, "screen.mode" or die "Failed to open screen.mode\n$!";
+if( <MODE> =~ m/grid/i )
+{
+  open XMESH, "xmesh.ipt" or die "Failed to open xmesh.ipt\n$!";
+  <XMESH> =~ m/(\d+)\s+(\d+)\s+(\d+)/ or die "Failed to parse xmesh.ipt\n$_";
+  my $nx = $1*$2*$3;
+  close XMESH;
+
+  open RAD, "cnbse.rad" or die "Failed to open cnbse.rad\n$!";
+  <RAD> =~ m/(\d+\.?\d*)/ or die "Failed to parse cnbse.rad\n$_";
+  my $rad = sprintf "zR%03.2f", $1;
+  close RAD;
+
+  for( my $i=1; $i <= $nx; $i++ )
+  {
+    my $xdir = sprintf "x%06i", $i;
+    my $targfile = catfile( updir(), "SCREEN", $xdir, $rad, "rpot" );
+    my $destfile = sprintf "rpotx%06i", $i;
+    copy( $targfile, $destfile ) or die "Failed to copy $targfile to $destfile\n";
+  }
+
+}
+close MODE;
 
 my $gamma0 = `cat cnbse.broaden`;
 chomp($gamma0);

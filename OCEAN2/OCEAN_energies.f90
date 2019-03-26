@@ -1,4 +1,4 @@
-! Copyright (C) 2015 - 2017 OCEAN collaboration
+! Copyright (C) 2015 - 2018 OCEAN collaboration
 !
 ! This file is part of the OCEAN project and distributed under the terms 
 ! of the University of Illinois/NCSA Open Source License. See the file 
@@ -26,6 +26,7 @@ module OCEAN_energies
 
   public :: OCEAN_energies_allow, OCEAN_energies_val_sfact, OCEAN_energies_val_act, &
             OCEAN_energies_val_load, OCEAN_energies_act, OCEAN_energies_init, OCEAN_energies_load
+  public :: OCEAN_energies_resetAllow
   
   contains
 
@@ -41,6 +42,14 @@ module OCEAN_energies
     !
     call OCEAN_psi_2element_mult( psi, allow, ierr, is_real_only=.true. )
   end subroutine
+
+  subroutine OCEAN_energies_resetAllow( ierr )
+    use OCEAN_psi, only : OCEAN_psi_one_full
+    !
+    integer, intent( inout ) :: ierr
+    call OCEAN_psi_one_full( allow, ierr )
+
+  end subroutine OCEAN_energies_resetAllow
 
   subroutine OCEAN_energies_val_sfact( sys, psi, ierr )
     use OCEAN_system
@@ -221,7 +230,16 @@ module OCEAN_energies
     n = shape( ener )
     allocate( allowArray( n(1), n(2), n(3) ) )
 
-    call core_allow_ff( sys, allowArray, ener, metal, efermi )
+    select case( sys%occupationType )
+      case( 'fermi' )
+        call core_allow_ff( sys, allowArray, ener, metal, efermi, sys%occupationValue )
+
+      case( 'fixed' )
+        call core_allow_fixed( sys, allowArray, ener, metal, efermi, sys%occupationValue )
+      
+      case default
+        call core_allow_fixed( sys, allowArray, ener, metal, efermi  )
+    end select
 
     call stubby( sys, allow, allowArray )
 
@@ -229,6 +247,73 @@ module OCEAN_energies
     deallocate( allowArray )
 
   end subroutine core_make_allow
+
+
+!> brief Makes the core-level allow array using a Fermi-factor
+  subroutine core_allow_fixed(  sys, allowArray, ener, metal, efermi, temp )
+    use OCEAN_system, only : O_system
+    use OCEAN_mpi, only : myid, root
+    !
+    type(O_system), intent( in ) :: sys
+    real(DP), intent( out ) :: allowArray(:,:,:)
+    real(DP), intent( in ) :: ener(:,:,:)
+    logical, intent( in ) :: metal
+    real(DP), intent( in ) :: efermi
+    real(DP), intent( in ), optional :: temp
+    !
+    real(DP) :: con, val, occVal
+    integer :: i, j, k, n(3)
+
+    if( present( temp ) ) then
+      write(6,'(A,F9.3)') 'Modifying occupations by ', temp
+      occVal = temp
+    else
+      occVal = 0.0_dp
+    endif
+
+    select case( sys%cur_run%calc_type )
+
+      case( 'XAS' )
+        con = 1.0_DP
+        val = occVal
+
+      case( 'XES' )
+        con = occVal
+        val = 1.0_DP
+
+      case default
+        con = 1.0_DP
+        val = occVal
+
+    end select
+
+    n = shape( ener )
+
+    if( myid .eq. root ) write(6,*) 'Dim:', n(:)
+
+    do k = 1, n(3)
+      do j = 1, n(2)
+        do i = 1, n(1)
+          if( ener( i, j, k ) .ge. efermi ) then
+            allowArray(i,j,k) = con
+          else
+            allowArray(i,j,k) = val
+          endif
+        enddo
+      enddo
+    enddo
+
+    open(unit=99,file='allow.txt',form='formatted', status='unknown')
+    do k = 1, n(3)
+      do j = 1, n(2)
+        do i = 1, n(1)
+          write(99,*) i,j,k,allowArray(i,j,k)
+        enddo
+      enddo
+    enddo
+    close(99)
+
+  end subroutine core_allow_fixed
 
 
 !> brief Makes the core-level allow array using a Fermi-factor
@@ -255,7 +340,7 @@ module OCEAN_energies
 
       case( 'XAS' )
         con = 1.0_DP
-        val = 0.0_DP
+        val = 0.1_DP
 
       case( 'XES' )
         con = 0.0_DP
@@ -272,13 +357,32 @@ module OCEAN_energies
     if( myid .eq. root ) write(6,*) 'Dim:', n(:)
 
     if( present( temp ) ) then
-      do k = 1, n(3)
-        do j = 1, n(2)
-          do i = 1, n(1)
-            allowArray(i,j,k) = 1.0_dp / ( exp( ener(i,j,k) * itemp + scaledFermi ) + 1.0_dp )
+      select case( sys%cur_run%calc_type )
+      case( 'XES' )
+        do k = 1, n(3)
+          do j = 1, n(2)
+            do i = 1, n(1)
+              allowArray(i,j,k) = 1.0_dp / ( exp( ener(i,j,k) * itemp - scaledFermi ) + 1.0_dp )
+            enddo
           enddo
         enddo
-      enddo
+      case default 
+        do k = 1, n(3)
+          do j = 1, n(2)
+            do i = 1, n(1)
+              allowArray(i,j,k) = 1.0_DP - 1.0_dp / ( exp( ( ener(i,j,k) - efermi )*itemp ) + 1.0_dp )
+!              if(  ener(i,j,k) .gt. efermi ) then
+!                 allowArray(i,j,k) = 1.0_dp
+!              else
+!                 allowArray(i,j,k) = 0.10_DP
+!              endif
+              write(9000,'(4(E24.12,X))') allowArray(i,j,k), ener(i,j,k), efermi, itemp
+!              allowArray(i,j,k) = 1.0_DP - 1.0_dp / ( exp( ener(i,j,k) * itemp - scaledFermi ) + 1.0_dp )
+            enddo
+          enddo
+        enddo
+        flush(9000)
+      end select
     else
       do k = 1, n(3)
         do j = 1, n(2)
@@ -993,8 +1097,8 @@ module OCEAN_energies
   
     real(DP), allocatable :: sorted_energies(:)
     logical :: useFermiFromFile, doping, overrideFermi
-    real(DP) :: per_electron_dope, homo, lumo, fullyOccupiedElectrons
-    integer :: n_electron_dope, bandOverlap, tot_electron
+    real(DP) :: per_electron_dope, homo, lumo
+    integer :: n_electron_dope, bandOverlap, tot_electron, fullyOccupiedElectrons
 
     
 
@@ -1015,7 +1119,7 @@ module OCEAN_energies
           n_electron_dope = floor( per_electron_dope * dble( sys%nkpts * sys%nspn ) / 2.d0 )
           write( 6, * ) 'Doping option:'
           write( 6, * ) 'Percent doping: ', per_electron_dope
-          write( 6, * ) 'Modifying electron number by ', n_electron_dope
+          write( 6, * ) 'Modifying electron number by ', n_electron_dope, sys%nelectron * sys%nkpts * sys%nspn
           write( 6, * ) 'Effective doping percent: ', dble( n_electron_dope ) * 2.d0 / ( sys%nkpts * sys%nspn)
         endif
       endif
@@ -1043,13 +1147,39 @@ module OCEAN_energies
       if( overrideFermi ) then
         allocate( sorted_energies( sys%num_bands * sys%nkpts * sys%nspn ) )
         sorted_energies = reshape( ener, (/ sys%num_bands * sys%nkpts * sys%nspn /) )
-        call do_sort( sorted_energies )
-        tot_electron = sys%nelectron * sys%nkpts * sys%nspn
-        tot_electron = tot_electron / 2 + n_electron_dope
+        write(6, '(8(F12.6,X))' ) sorted_energies(1:4), &
+          sorted_energies( sys%num_bands * sys%nkpts * sys%nspn-3:sys%num_bands * sys%nkpts * sys%nspn )
+        call do_sort2( sorted_energies )
+
+        write(6, '(8(F12.6,X))' ) sorted_energies(1:4), &
+          sorted_energies( sys%num_bands * sys%nkpts * sys%nspn-3:sys%num_bands * sys%nkpts * sys%nspn )
+
+
+        tot_electron = sys%nelectron * sys%nkpts * sys%nspn / 2.0_dp
+!        tot_electron = tot_electron / 2 + n_electron_dope
 
         fullyOccupiedElectrons = ( sys%brange(3) - 1 ) * sys%nkpts * sys%nspn
+        
+        write(6,'(5I8)') tot_electron, fullyOccupiedElectrons, tot_electron - fullyOccupiedElectrons, &
+                         tot_electron - fullyOccupiedElectrons + n_electron_dope, &
+                         sys%num_bands * sys%nkpts * sys%nspn
+
         tot_electron = tot_electron - fullyOccupiedElectrons
 
+
+!        homo = sorted_energies( tot_electron )
+!        lumo = sorted_energies( tot_electron + 1 )
+!
+!        efermi = (homo+lumo) / 2.0_dp
+!        write( 6, '(A,2(F12.6,1X),E21.14)') 'Old Fermi:      ', lumo, homo, efermi
+        open(unit=99, file='efermiinrydberg.ipt', form='formatted', status='old' )
+        read(99,*) efermi
+        close( 99 )
+        efermi = efermi / 2.0_dp
+        write( 6, '(A,A26,E21.14)') 'Old Fermi:      ', '', efermi
+
+
+        tot_electron = tot_electron + n_electron_dope
         homo = sorted_energies( tot_electron )
         lumo = sorted_energies( tot_electron + 1 )
     
@@ -1075,6 +1205,47 @@ module OCEAN_energies
 #endif
 
   end subroutine core_find_fermi
+
+  subroutine do_sort2( array )
+    real(DP), intent(inout) :: array(:)
+    !
+    real(DP) :: rra
+    integer :: n, i, ir, j, l
+
+    n = size( array )
+
+    l = n/2 + 1
+    ir = n
+    do
+      if( l .gt. 1 ) then
+        l = l -1
+        rra = array(l)
+      else
+        rra = array(ir)
+        array(ir) = array(1)
+        ir = ir - 1
+        if( ir .eq. 1 ) then
+          array(1) = rra
+          return
+        endif
+      endif
+      i=l
+      j=l+l
+      do while( j .le. ir )
+        if( j .lt. ir ) then
+          if(array(j) .lt. array(j+1) ) j = j + 1
+        endif
+        if( rra .lt. array(j) ) then
+          array( i ) = array( j )
+          i = j
+          j = j + j
+        else
+          j = ir + 1
+        endif
+      end do
+      array( i ) = rra
+    enddo
+  end subroutine do_sort2
 
   subroutine do_sort( array )
     real(DP), intent(inout) :: array(:)

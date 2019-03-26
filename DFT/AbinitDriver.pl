@@ -1,5 +1,5 @@
 #!/usr/bin/perl
-# Copyright (C) 2015 - 2017 OCEAN collaboration
+# Copyright (C) 2015 - 2019 OCEAN collaboration
 #
 # This file is part of the OCEAN project and distributed under the terms 
 # of the University of Illinois/NCSA Open Source License. See the file 
@@ -9,11 +9,13 @@
 
 use strict;
 use POSIX qw(ceil);
+use Cwd 'abs_path';
 
 if (! $ENV{"OCEAN_BIN"} ) {
   $0 =~ m/(.*)\/AbinitDriver\.pl/;
-  $ENV{"OCEAN_BIN"} = $1;
-  print "OCEAN_BIN not set. Setting it to $1\n";
+#  $ENV{"OCEAN_BIN"} = $1;
+  $ENV{"OCEAN_BIN"} = abs_path( $1 );
+  print "OCEAN_BIN not set. Setting it to $ENV{'OCEAN_BIN'}\n";
 }
 if (! $ENV{"OCEAN_WORKDIR"}){ $ENV{"OCEAN_WORKDIR"} = `pwd` . "../" ; }
 if (!$ENV{"OCEAN_VERSION"}) {$ENV{"OCEAN_VERSION"} = `cat $ENV{"OCEAN_BIN"}/Version`; }
@@ -526,6 +528,7 @@ if ($RunABINIT) {
   $test_prefix = $para_prefix;
   $test_prefix =~ s/\d+/$new_ncpu/;
   print "Self-Consistent Density Run\n";
+  print "$test_prefix $ENV{'OCEAN_ABINIT'} < denout.files > density.log 2> density.err\n";
   system("$test_prefix $ENV{'OCEAN_ABINIT'} < denout.files > density.log 2> density.err") == 0
     or die "Failed to run initial density stage\n$test_prefix $ENV{'OCEAN_ABINIT'}\n";
   `echo 1 > den.stat`;

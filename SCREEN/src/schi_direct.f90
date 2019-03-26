@@ -1,4 +1,4 @@
-! Copyright (C) 2017 OCEAN collaboration
+! Copyright (C) 2017 - 2019 OCEAN collaboration
 !
 ! This file is part of the OCEAN project and distributed under the terms 
 ! of the University of Illinois/NCSA Open Source License. See the file 
@@ -117,9 +117,11 @@ module schi_direct
     enddo
 
 
+    lpol = 1
     do ilm = 2, nLM
-      if( ilm .le. 4 ) lpol = 1
+!      if( ilm .le. 4 ) lpol = 1
       if( ilm .gt. 4 ) lpol = 2
+      if( ilm .gt. 10 ) lpol = 3
       do i = 1, nr
         r2dr = grid%rad(i)**2 * grid%drad(i)
         do j = 1, nr
@@ -167,6 +169,7 @@ module schi_direct
     cMat = 0.0_DP
     FourPi = 4.0_DP * PI_DP
 
+#if 0
 !    lpol = 0
     do i = 1, nr
         coulfac = FourPi / grid%rad( i )
@@ -187,6 +190,20 @@ module schi_direct
         cMat( j, 1, i, 1 ) = grid%drad( i ) * grid%rad( i ) ** 2 * grid%drad( j ) * grid%rad( j ) ** 2 * coulfac
       enddo
     end do
+#else
+    Cmat( 1, 1, 1, 1 ) = grid%drad( 1 ) **2 * grid%rad( 1 ) **3 *  FourPi
+    do i = 2, nr
+      coulfac = FourPi * grid%drad( i ) * grid%rad( i )
+      do j = 1, i
+        Cmat( j, 1, i, 1 ) = coulfac * grid%drad( j ) * grid%rad( j ) ** 2
+      enddo
+
+      coulfac = FourPi * grid%drad( i ) * grid%rad( i )**2
+      do j = i + 1, nr
+        Cmat( j, 1, i, 1 ) = coulfac * grid%drad( j ) * grid%rad( j )
+      enddo
+    enddo
+#endif
   
     if( nLM .eq. 1 ) return
 
@@ -197,6 +214,7 @@ module schi_direct
       return
     endif
 
+#if 0
     do ilm = 2, 4
       jlm = ilm
       do i = 1, nr
@@ -216,6 +234,24 @@ module schi_direct
 !        enddo
       enddo
     enddo
+#else
+    do ilm = 2, 4
+      jlm = ilm
+      Cmat( 1, jlm, 1, ilm ) = FourPi * grid%drad( 1 ) **2 * grid%rad( 1 ) **3 / 3.0_DP
+
+      do i = 2, nr
+        coulfac = FourPi * grid%drad( i ) 
+        do j = 1, i
+          Cmat( j, jlm, i, ilm ) = coulfac * grid%drad( j ) * grid%rad(j ) ** 3
+        enddo
+
+        coulfac = FourPi * grid%drad( i ) * grid%rad( i ) ** 3
+        do j = i+1, nr
+          Cmat( j, jlm, i, ilm ) = coulfac * grid%drad( j )
+        enddo
+      enddo
+    enddo
+#endif
 
     if( nLM .eq. 4 ) return
 
@@ -225,6 +261,8 @@ module schi_direct
       return
     endif
 
+
+#if 0
     do iLM = 5, 9
       jlm = ilm
       do i = 1, nr
@@ -244,6 +282,26 @@ module schi_direct
  !       end do
       enddo
     enddo
+#else
+
+    do iLM = 5, 9
+      jLM = iLM
+      ! r^2 dr * r^2 dr * 1/r
+      Cmat( 1, jlm, 1, ilm ) = FourPi * grid%drad( 1 ) ** 2 * grid%rad( 1 ) ** 3 / 5.0_DP
+      do i = 2, nr
+        coulfac = FourPi * grid%drad( i ) / grid%rad( i )
+        do j = 1, i
+          Cmat( j, jlm, i, ilm ) = coulfac * grid%drad( j ) * grid%rad( j ) ** 4
+        enddo
+        
+        coulfac = FourPi * grid%drad( i ) * grid%rad( i )**4
+        do j = i + 1, nr
+          Cmat( j, jlm, i, ilm ) = coulfac * grid%drad( j ) / grid%rad( j )
+        enddo
+      enddo
+
+    enddo
+#endif
 
 
   end subroutine schi_direct_buildCoulombMatrix
@@ -254,6 +312,8 @@ module schi_direct
     use ocean_constants, only : PI_DP
     use ocean_mpi, only : myid
     use ocean_sphericalHarmonics, only : ocean_sphH_getylm
+!    use ocean_ylm, only : realYLM3
+    use screen_timekeeper, only : screen_tk_start, screen_tk_stop
     type( sgrid ), intent( in ) :: grid
     real(DP), intent( in ) :: FullSpace(:,:)
     real(DP), intent( out ) :: ProjectedSpace(:,:,:,:)
@@ -262,10 +322,13 @@ module schi_direct
     real(DP), allocatable :: ymu( :, :, :, : ), slice_ymu( :, : ), temp( :, : ), test_ymu( :, : )
 
     integer :: npt, nbasis, nLM, fullSize, nang, nr, dimTemp
-    integer :: i, j, iLM, l, m
+    integer :: i, j, iLM, l, m, ir, jr, jlm, k, lmax
 
     real(DP), parameter :: d_zero = 0.0_DP
     real(DP), parameter :: d_one = 1.0_DP
+#ifdef DEBUG
+    character(len=8) :: filnam
+#endif
 
     npt = size( FullSpace, 1 )
     nbasis = size( ProjectedSpace, 1 )
@@ -275,79 +338,105 @@ module schi_direct
     nr = grid%Nr
 
     if( ( npt .ne. size( FullSpace, 2 ) ) .or. ( npt .ne. grid%npt ) ) then
-      write(myid+1000,'(A,3(I10))') 'schi_project_sinqr', npt, size( FullSpace, 2 ), grid%npt
+      write(myid+1000,'(A,3(I10))') 'schi_direct_project', npt, size( FullSpace, 2 ), grid%npt
       ierr = 1
       return
     endif
 
     if( nbasis .ne. size( ProjectedSpace, 3 ) ) then
-      write(myid+1000,'(A,2(I10))') 'schi_project_sinqr', nbasis, size( ProjectedSpace, 3 )
+      write(myid+1000,'(A,2(I10))') 'schi_direct_project', nbasis, size( ProjectedSpace, 3 )
       ierr = 2
       return
     endif
 
     if( nLM .ne. size( ProjectedSpace, 4 ) ) then
-      write(myid+1000,'(A,2(I10))') 'schi_project_sinqr', nLM, size( ProjectedSpace, 4 )
+      write(myid+1000,'(A,2(I10))') 'schi_direct_project', nLM, size( ProjectedSpace, 4 )
       ierr = 3
       return
     endif
 
-    ! Build ymu basis functions
-    allocate( ymu( nang, nr, nr, nLM ), slice_ymu( nang, nLM ), test_ymu( nang, nLM ), stat=ierr )
+    ! 
+    lmax = anint( sqrt( real( nLM, DP ) ) ) - 1
+!    write(6,*) lmax
+    allocate( slice_ymu( nang, nLM ), test_ymu( nang, nLM ), STAT=ierr )
     if( ierr .ne. 0 ) return
-    ymu = 0.0_DP
-
-    call formreytab( grid%agrid%angles, slice_ymu, nLM, ierr )
-    if( ierr .ne. 0 ) return
-
-    do iLM = 1, nLM
-      l = floor( sqrt( real( iLM, DP ) - 0.99_DP ) )
-      m = iLM + l - (l+1)**2
-      write(6,*) ilm, l, m
-    enddo
-
-    do iLM = 1, nLM
-      l = floor( sqrt( real( iLM, DP ) - 0.99_DP ) )
-      m = iLM + l - (l+1)**2
-      do j = 1, nang
-        test_ymu( j, iLM ) = ocean_sphH_getylm( grid%agrid%angles( :, j ), l, m )
-      enddo
-    enddo
-
-    open( unit=99, file='sphere.test' )
-    do iLM = 1, nLM 
-      l = floor( sqrt( real( iLM, DP ) - 0.99_DP ) )
-      m = iLM + l - (l+1)**2
-      do j = 1, nang
-        write(99, '(2I8,2E25.15)' ) l, m, slice_ymu( j, iLM ), test_ymu( j, iLM )
-      enddo
-    enddo
-    close( 99 )
-    deallocate( test_ymu )
     
-    do iLM = 1, nLM
-!      ii = 0
-      do i = 1, nr
+    iLM = 0
+    do l = 0, lmax
+      do m = -l, l
+        iLM = iLM + 1
+        write(6,*) iLM, l, m
         do j = 1, nang
-!          ii = ii + 1
-          ymu( j, i, i, iLM ) = slice_ymu( j, iLM ) * grid%agrid%weights( j )
+          slice_ymu( j, iLM ) = ocean_sphH_getylm( grid%agrid%angles( :, j ), l, m )
         enddo
       enddo
     enddo
+!    call formreytab( grid%agrid%angles, slice_ymu, nLM, ierr )
+!    if( ierr .ne. 0 ) return
 
-    ! Is this matrix math still wrong for nLM > 1?
-    deallocate( slice_ymu )
+    deallocate( test_ymu )
+
+
+    do iLM = 1, nLM
+      do j = 1, nang
+        slice_ymu( j, iLM ) = slice_ymu( j, iLM ) * grid%agrid%weights( j )
+      enddo
+    enddo
     dimTemp = nr*nLM
     allocate( temp( npt, dimTemp ), stat=ierr )
     if( ierr .ne. 0 ) return
+
+    call screen_tk_start( "dgemm" )
      
-    call DGEMM( 'N', 'N', npt, dimTemp, npt, d_One, FullSpace, npt, ymu, npt, d_zero, temp, npt )
+    k = 0
+    temp(:,:) = 0.0_DP
+    do ilm = 1, nlm
+      do ir = 1, nr
+        k = k + 1
+        do i = 1, nang
+          do j = 1, npt
+            temp( j, k ) = temp( j, k ) + FullSpace( j, (ir-1)*nang + i ) * slice_ymu( i, ilm )
+          enddo
+        enddo
+      enddo
+    enddo   
+!    do i = 1, dimTemp
+!      call DGEMM( 'T', 'N', nr, nLM, nang, d_One, FullSpace( i, : ), npt*nang, slice_ymu, nang, d_zero, &
+!                  temp( i, : ), npt*nr )
+!    enddo
 
-    call DGEMM( 'T', 'N', dimTemp, dimTemp, npt, d_One, ymu, npt, temp, npt, d_zero, & 
-                ProjectedSpace, dimTemp )
+  ProjectedSpace(:,:,:,:) = 0.0_DP
+  do ilm = 1, nlm
+    do ir = 1, nr
+      l = 0
+      do jlm = 1, nlm
+        k = 0
+        do jr = 1, nr
+          do i = 1, nang
+            k = k + 1
+            ProjectedSpace(jr,jlm,ir,ilm) = ProjectedSpace(jr,jlm,ir,ilm) &
+                  + temp( k, ir + (ilm-1)*nr ) * slice_ymu( i, jlm )
+          enddo
+        enddo
+      enddo
+    enddo
+  enddo
+#if 0
+    j = 1
+    do ilm = 1, nLM
+      do i = 1, nr
+!        call DGEMM( 'T', 'N', nr, nLM, nang, d_One, slice_ymu, nang, temp( :, j ), nang, d_zero, &
+!                    ProjectedSpace( :, :, i, ilm ), nr )
+        call DGEMM( 'T', 'N', nr, nLM, nang, d_One, temp( :, j ), nang, slice_ymu, nang, d_zero, &
+                    ProjectedSpace( :, :, i, ilm ), nr )
+        j = j + 1
+      enddo
+    enddo
+#endif
+    call screen_tk_stop( "dgemm" )
 
-    deallocate( temp )
-    deallocate( ymu )
+    deallocate( temp, slice_ymu )
+!    deallocate( ymu )
 
 #ifdef DEBUG
     do ilm = 1, nlm

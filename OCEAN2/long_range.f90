@@ -890,8 +890,8 @@ module ocean_long_range
 
       deallocate( scratch )
 
-#ifdef BLAS
       do ikpt = 1, my_kpts
+#ifdef BLAS
         call DAXPY( sys%num_bands, -xwrkr(ikpt), re_bloch_state(1,ikpt,xiter,val_spin), 1, &
                     hpr(1,ikpt), 1 )
         call DAXPY( sys%num_bands, -xwrki(ikpt), im_bloch_state(1,ikpt,xiter,val_spin), 1, &
@@ -1345,9 +1345,11 @@ module ocean_long_range
     integer, intent( inout ) :: ierr
 
 
-    real( DP ) :: epsi, ptab( 100 ), avec( 3, 3 ), amet( 3, 3 ), bvec(3,3), bmet(3,3)
+    real( DP ) :: epsi, avec( 3, 3 ), amet( 3, 3 ), bvec(3,3), bmet(3,3)
     real( DP ) :: fr( 3 ), xk( 3 ), alf( 3 ), r, frac, potn
-    integer :: ix, iy, iz, k1, k2, k3, kk1, kk2, kk3, xiter, kiter, i, ii, j
+    real(DP), allocatable :: ptab(:), rtab(:)
+    integer :: ix, iy, iz, k1, k2, k3, kk1, kk2, kk3, xiter, kiter, i, ii, j, nptab
+    character(len=1) :: dumc
 
 
     if( myid .eq. 0 ) then
@@ -1360,8 +1362,11 @@ module ocean_long_range
 
       open(unit=99,file='rpottrim',form='formatted',status='old' )
       rewind( 99 ) 
-      do i = 1, 100
-        read(99,*) ptab( i )
+      read(99,*) dumc, nptab
+      allocate( ptab( nptab ), rtab( nptab ) )
+!      do i = 1, 100
+      do i = 1, nptab
+        read(99,*) ptab( i ), rtab( i )
 !        write(200,*) ptab(i)
       enddo
       close( 99 )
@@ -1434,12 +1439,14 @@ module ocean_long_range
                   r = sqrt( dot_product( alf, matmul( amet, alf ) ) )
                   if( isolated .and. r .gt. iso_cut ) then
                     potn = 0.0_DP
-                  elseif ( r .ge. 9.9d0 ) then
+!                  elseif ( r .ge. 9.9d0 ) then
+                  elseif( r .gt. rtab( nptab ) ) then  ! If we are off scale
                      potn = epsi / r
                   else
-                     ii = 1.0d0 + 10.0d0 * r
-                     frac = 10.d0 * ( r - 0.1d0 * dble( ii - 1 ) )
-                     potn = ptab( ii ) + frac * ( ptab( ii + 1 ) - ptab( ii ) )
+!                     ii = 1.0d0 + 10.0d0 * r
+!                     frac = 10.d0 * ( r - 0.1d0 * dble( ii - 1 ) )
+!                     potn = ptab( ii ) + frac * ( ptab( ii + 1 ) - ptab( ii ) )
+                    call intval( nptab, rtab, ptab, r, potn, 'cap', 'cap' )
                   end if
                   W( kiter, xiter - my_start_nx + 1 ) =  potn
                 end do
@@ -1449,6 +1456,8 @@ module ocean_long_range
         enddo
       enddo
     enddo
+
+    deallocate( ptab, rtab )
 
 
 !    do xiter = 1, sys%nxpts
@@ -1470,15 +1479,23 @@ module ocean_long_range
     integer, intent( inout ) :: ierr
     
     
-    real( DP ) :: epsi, ptab( 100 ), avec( 3, 3 ), amet( 3, 3 ), bvec(3,3), bmet(3,3)
+    real( DP ) :: epsi, avec( 3, 3 ), amet( 3, 3 ), bvec(3,3), bmet(3,3)
     real( DP ) :: fr( 3 ), xk( 3 ), alf( 3 ), r, frac, potn, pbc_prefac(3)
-    integer :: ix, iy, iz, k1, k2, k3, kk1, kk2, kk3, xiter, kiter, i, ii, j
+    real( DP ), allocatable :: ptab( : ), rtab( : )
+    integer :: ix, iy, iz, k1, k2, k3, kk1, kk2, kk3, xiter, kiter, i, ii, j, nptab
     integer :: xtarg, ytarg, ztarg, pbc( 3 )
     logical :: have_pbc
     
     character(len=24) :: rpotName
+    character(len=1) :: dumc
     
     epsi = 1.d0 / sys%epsilon0
+
+    do i = 1, 3
+      do j = 1, 3
+        amet( i , j ) = dot_product( sys%avec( :, i ), sys%avec( :, j ) )
+      enddo
+    enddo
 
     if( myid .eq. 0 ) then
 
@@ -1486,20 +1503,12 @@ module ocean_long_range
                      sys%cur_run%indx, '_n', sys%cur_run%ZNL(2), 'l', sys%cur_run%ZNL(3)
       open(unit=99,file=rpotName,form='formatted',status='old' )
       rewind( 99 ) 
-      do i = 1, 100
-        read(99,*) ptab( i )
+      read( 99, * ) dumc, nptab
+      allocate( ptab( nptab ), rtab( nptab ) )
+      do i = 1, nptab
+        read(99,*) ptab( i ), rtab( i )
       enddo
       close( 99 )
-
-       open( unit=99, file='avecsinbohr.ipt', form='formatted', status='old' )
-      rewind( 99 )
-      read( 99, * ) avec( :, : )
-      close( 99 )
-      do i = 1, 3
-        do j = 1, 3
-         amet( i , j ) = dot_product( avec( :, i ), avec( :, j ) )
-        enddo
-      enddo
 
 
       inquire(file='isolated.inp',exist=isolated)
@@ -1530,9 +1539,12 @@ module ocean_long_range
     endif
 
 #ifdef MPI    
-    call MPI_BCAST( ptab, 100, MPI_DOUBLE_PRECISION, 0, comm, ierr )
+    call MPI_BCAST( nptab, 1, MPI_INTEGER, 0, comm, ierr )
     if( ierr /= 0 ) goto 111
-    call MPI_BCAST( amet, 9, MPI_DOUBLE_PRECISION, 0, comm, ierr )
+    if( myid .ne. 0 ) allocate( ptab( nptab ), rtab( nptab ) )
+    call MPI_BCAST( ptab, nptab, MPI_DOUBLE_PRECISION, 0, comm, ierr )
+    if( ierr /= 0 ) goto 111
+    call MPI_BCAST( rtab, nptab, MPI_DOUBLE_PRECISION, 0, comm, ierr )
     if( ierr /= 0 ) goto 111
     call MPI_BCAST( iso_cut, 1, MPI_DOUBLE_PRECISION, 0, comm, ierr )
     if( ierr /= 0 ) goto 111
@@ -1611,12 +1623,13 @@ module ocean_long_range
                   r = sqrt( dot_product( alf, matmul( amet, alf ) ) )
                   if( isolated .and. r .gt. iso_cut ) then
                     potn = 0.0_DP
-                  elseif ( r .ge. 9.9d0 ) then
+                  elseif ( r .gt. rtab( nptab ) ) then
                     potn = epsi / r
                   else
-                    ii = 1.0d0 + 10.0d0 * r
-                    frac = 10.d0 * ( r - 0.1d0 * dble( ii - 1 ) )
-                    potn = ptab( ii ) + frac * ( ptab( ii + 1 ) - ptab( ii ) )
+!                    ii = 1.0d0 + 10.0d0 * r
+!                    frac = 10.d0 * ( r - 0.1d0 * dble( ii - 1 ) )
+!                    potn = ptab( ii ) + frac * ( ptab( ii + 1 ) - ptab( ii ) )
+                    call intval( nptab, rtab, ptab, r, potn, 'cap', 'cap' )
                   end if
                   W( kiter, xiter - my_start_nx + 1 ) =  potn * pbc_prefac(3)
                 end do
@@ -1626,6 +1639,8 @@ module ocean_long_range
         enddo
       enddo
     enddo
+
+    deallocate( ptab, rtab )
 
 111 continue
 

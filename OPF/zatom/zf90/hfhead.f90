@@ -216,6 +216,8 @@ program hartfock
       case( 'mkcorcon' )
         call mkcorcon( alfa, rel, zorig, zc, rcocc, rsocc, .false. )  
         write ( 6, '(1a12,4f10.4)' ) 'refconocc = ', rcocc( : )
+      case( 'fakel')
+        read( 5, * ) lmin, lmax
       case ( 'C' )
         call vpscpp( nr, r, r2, vi )
       case ( 'v' )

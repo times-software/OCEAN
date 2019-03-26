@@ -1,4 +1,4 @@
-! Copyright (C) 2017 OCEAN collaboration
+! Copyright (C) 2017 - 2018 OCEAN collaboration
 !
 ! This file is part of the OCEAN project and distributed under the terms 
 ! of the University of Illinois/NCSA Open Source License. See the file 
@@ -73,16 +73,19 @@ module screen_grid
 
   contains
 
-  subroutine screen_grid_dumpFullGrid( g, elname, elindx, ierr )
+!  subroutine screen_grid_dumpFullGrid( g, elname, elindx, ierr )
+  subroutine screen_grid_dumpFullGrid( g, gsuffix, ierr )
     type( sgrid ), intent( in ) :: g
-    character( len=2 ), intent( in ) :: elname
-    integer, intent( in ) :: elindx
+!    character( len=2 ), intent( in ) :: elname
+!    integer, intent( in ) :: elindx
+    character( len=6 ), intent( in ) :: gsuffix
     integer, intent( inout ) :: ierr
 
     character( len=12 ) :: filnam
 
-    write( filnam, '(A,A2,I4.4)' ) 'grid', elname, elindx
-    write(6,*) filnam
+    write( filnam, '(A,A)' ) 'grid', gsuffix
+!    write( filnam, '(A,A2,I4.4)' ) 'grid', elname, elindx
+!    write(6,*) filnam
 
     open( unit=99, file=filnam, form='unformatted', status='unknown', iostat=ierr, err=100 )
     rewind( 99 )
@@ -375,15 +378,22 @@ module screen_grid
     !
     if( myid .eq. root ) then
 
-      inquire( file='agrid.ipt', exist=ex )
+      inquire( file='screen.grid.ang', exist=ex )
       if( ex ) then
-        open( unit=99, file='agrid.ipt', form='formatted', status='old' )
+        open( unit=99, file='screen.grid.ang', form='formatted', status='old' )
         read( 99, *, iostat=i ) g%agrid%angle_type, g%agrid%lmax
         if( i .ne. 0 ) then
           ex = .false.
         endif
         close( 99 )
+        if( ex ) then
+          write( i_char, '(I2)' ) g%agrid%lmax
+          write( filnam, '(A7,A1,A)' ) g%agrid%angle_type, '.', trim( adjustl( i_char ) )
+          write(6,*) filnam
+          inquire( file=filnam, exist=ex )
+        endif
       endif
+      ! ex can be false from no screen.grid.ang, bad read, or bad filename
       if( ex .eqv. .false. ) then
         g%agrid%angle_type = 'specpnt'
         g%agrid%lmax = 5

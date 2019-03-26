@@ -79,11 +79,13 @@ module screen_opf
     integer, intent( in ) :: zee, targ
     logical :: isright
 
-    if( targ .lt. 0 .or. targ .gt. size( FullTable ) ) then
+    if( targ .lt. 1 .or. targ .gt. size( FullTable ) ) then
       isRight = .false.
-    else
-      isRight = ( zee .eq. FullTable( targ )%Zee )
+      return
     endif
+
+    isRight = ( zee .eq. FullTable( targ )%Zee )
+
   end function
     
   pure function getRightTarg( zee ) result( targ )
@@ -300,6 +302,7 @@ module screen_opf
     integer, intent( inout ) :: ierr
     integer, intent( inout ), optional :: itarg
     !
+    real(DP), allocatable :: TransposeProj( :, : )
     integer :: targ, i, p
     character(len=20 ) :: filnam
     character(len=100) :: formatting
@@ -337,21 +340,28 @@ module screen_opf
     enddo
 
     if( myid .eq. root ) then
+      allocate( TransposeProj( size( psProj, 2 ), size( psProj, 1 ) ) )
+      TransposeProj = transpose( psProj )
       write(filnam, '(A,I2.2,I1.1)' ) 'test1.', zee, l
       write(formatting, '("("I0"(F20.10))")' ) FullTable( targ )%nprojPerChannel( l )+1
       open(unit=99,file=filnam)
       do i = 1, size( psProj, 1 )
-        write( 99, formatting ) rad(i), psProj( i, : )
+!        write( 99, formatting ) rad(i), psProj( i, : )
+        write( 99, formatting ) rad(i), TransposeProj( :, i )
       enddo
       close( 99 )
 
+      TransposeProj = transpose( diffProj )
       write(filnam, '(A,I2.2,I1.1)' ) 'test2.', zee, l
       write(formatting, '("("I0"(F20.10))")' ) FullTable( targ )%nprojPerChannel( l )+1
       open(unit=99,file=filnam)
       do i = 1, size( psProj, 1 )
-        write( 99, formatting ) rad(i), diffProj( i, : )
+!        write( 99, formatting ) rad(i), diffProj( i, : )
+        write( 99, formatting ) rad(i), TransposeProj( :, i )
       enddo
       close( 99 )
+
+      deallocate( TransposeProj )
 
     endif
 

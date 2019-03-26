@@ -1,5 +1,5 @@
 #!/usr/bin/perl
-# Copyright (C) 2014, 2016 - 2018 OCEAN collaboration
+# Copyright (C) 2014, 2016 - 2019 OCEAN collaboration
 #
 # This file is part of the OCEAN project and distributed under the terms 
 # of the University of Illinois/NCSA Open Source License. See the file 
@@ -9,12 +9,16 @@
 
 use strict;
 use File::Path qw( rmtree );
+use Cwd 'abs_path';
+use File::Compare;
+use File::Copy;
 
 ###########################
 if (! $ENV{"OCEAN_BIN"} ) {
   $0 =~ m/(.*)\/qe_dendip\.pl/;
-  $ENV{"OCEAN_BIN"} = $1;
-  print "OCEAN_BIN not set. Setting it to $1\n";
+#  $ENV{"OCEAN_BIN"} = $1;
+  $ENV{"OCEAN_BIN"} = abs_path( $1 );
+  print "OCEAN_BIN not set. Setting it to $ENV{'OCEAN_BIN'}\n";
 }
 if (! $ENV{"OCEAN_WORKDIR"}){ $ENV{"OCEAN_WORKDIR"} = `pwd` . "../" ; }
 ###########################
@@ -29,7 +33,8 @@ $oldden = 1 if (-e "../DFT/old");
 
 my @QEFiles     = ( "rhoofr", "efermiinrydberg.ipt" );
 my @CommonFiles = ( "screen.nkpt", "nkpt", "qinunitsofbvectors.ipt", "avecsinbohr.ipt", "dft", 
-                    "nspin", "xmesh.ipt", "dft.split", "prefix", "calc", "screen.wvfn", "screen.legacy" );
+                    "nspin", "xmesh.ipt", "dft.split", "prefix", "calc", "screen.wvfn", "screen.legacy", 
+                    "screen.mode");
 
 foreach (@QEFiles) {
   system("cp ../DFT/$_ .") == 0 or die "Failed to copy $_\n";
@@ -59,10 +64,15 @@ open IN, "calc" or die "Failed to open calc\n";
 <IN> =~ m/(\w+)/ or die "Failed to parse calc\n";
 my $calc = $1;
 close IN;
+
+open IN, "screen.mode" or die "Failed to open screen.mode\n";
+<IN> =~ m/(\w+)/ or die "Failed to parse screen.mode\n";
+my $screen_mode = $1;
+close IN;
 my $run_screen = 1;
 if( $calc =~ m/val/i )
 {
-  $run_screen = 0;
+  $run_screen = 0 unless( $screen_mode =~ m/grid/i );
 }
 
 open IN, "screen.wvfn" or die "Failed to open screen.wvfn\n$!";
@@ -152,11 +162,15 @@ if( $run_screen == 1 )
   }
   else {
     `touch PAW/old`;
-    print  "Nothing needed for PAW wfns\n";
+    print  "Nothing needed for SCREEN wfns\n";
   }
 
 
-  print "Done with PAW files\n";
+  print "Done with SCREEN files\n";
+}
+else
+{
+  print "Nothing needed for SCREEN wvfn\n";
 }
 
 
@@ -178,8 +192,39 @@ close NKPT;
 
 $rundir = sprintf("../DFT/%03u%03u%03u", $nkpt[0], $nkpt[1], $nkpt[2]);
 
-unless( -e "BSE/done" && -e "${rundir}/old" ) {
+my @BSECommonFiles = ( "qinunitsofbvectors.ipt", "bvecs", "dft", "nelectron", "avecsinbohr.ipt", 
+                       "xmesh.ipt", "nspin", "dft.split", "prefix" );
+my @rundirFiles = ( "kmesh.ipt", "brange.ipt", "umklapp" );
+#Checks for BSE prep
+my $runBSE = 1;
+if( -e "BSE/done" && -e "${rundir}/old" )
+{
+  $runBSE = 0;
+  foreach (@BSECommonFiles)
+  {
+    if( compare( "$_", "BSE/$_") != 0 )
+    {
+      $runBSE = 1;
+      print "Difference found in $_\n";
+      last;
+    }
+  }
+  if( $runBSE == 0 )
+  {
+    foreach( @rundirFiles )
+    {
+      if( compare( "${rundir}/$_", "BSE/$_") != 0 )
+      {
+        $runBSE = 1;
+        print "Difference found in $_\n";
+        last;
+      }
+    }
+  }
+}
 
+if( $runBSE != 0 )
+{
   `rm -r BSE` if (-e "BSE");
   mkdir "BSE";
   chdir "BSE";
@@ -188,20 +233,28 @@ unless( -e "BSE/done" && -e "${rundir}/old" ) {
   print NKPT $nkpt[0]*$nkpt[1]*$nkpt[2] . "\n";
   close NKPT;
 
-  foreach ("kmesh.ipt", "brange.ipt") {
-    system("cp ../${rundir}/$_ .") == 0 or die "Failed to copy $_\n";
+  foreach( @rundirFiles )
+  {
+    copy( "../${rundir}/$_", $_ );
   }
-  `cp ../qinunitsofbvectors.ipt .`;
-  `cp ../bvecs .`;
-  `cp ../dft .`;
-  `cp ../nelectron .`;
-  `cp ../avecsinbohr.ipt .`;
-  `cp ../xmesh.ipt .`;
-  `cp ../nspin .`;
-  `cp ../${rundir}/umklapp .`;
-  `cp ../dft.split .`;
-  `cp ../prefix .`;
-#  my $Nfiles = `cat Nfiles`;
+  foreach( @BSECommonFiles )
+  {
+    copy ( "../$_", $_ );
+  }
+#  foreach ("kmesh.ipt", "brange.ipt") {
+#    system("cp ../${rundir}/$_ .") == 0 or die "Failed to copy $_\n";
+#  }
+#  `cp ../qinunitsofbvectors.ipt .`;
+#  `cp ../bvecs .`;
+#  `cp ../dft .`;
+#  `cp ../nelectron .`;
+#  `cp ../avecsinbohr.ipt .`;
+#  `cp ../xmesh.ipt .`;
+#  `cp ../nspin .`;
+#  `cp ../${rundir}/umklapp .`;
+#  `cp ../dft.split .`;
+#  `cp ../prefix .`;
+##  my $Nfiles = `cat Nfiles`;
 
   my $prefix;
   open PREFIX, "prefix" or die "$!\n";

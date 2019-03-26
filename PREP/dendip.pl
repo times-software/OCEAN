@@ -1,5 +1,5 @@
 #!/usr/bin/perl
-# Copyright (C) 2014, 2016, 2017 OCEAN collaboration
+# Copyright (C) 2014, 2016, 2017, 2019 OCEAN collaboration
 #
 # This file is part of the OCEAN project and distributed under the terms 
 # of the University of Illinois/NCSA Open Source License. See the file 
@@ -8,12 +8,15 @@
 #
 
 use strict;
+use Cwd 'abs_path';
+use File::Compare;
 
 ###########################
 if (! $ENV{"OCEAN_BIN"} ) {
   $0 =~ m/(.*)\/dendip\.pl/;
-  $ENV{"OCEAN_BIN"} = $1;
-  print "OCEAN_BIN not set. Setting it to $1\n";
+#  $ENV{"OCEAN_BIN"} = $1;
+  $ENV{"OCEAN_BIN"} = abs_path( $1 );
+  print "OCEAN_BIN not set. Setting it to $ENV{'OCEAN_BIN'}\n";
 }
 if (! $ENV{"OCEAN_WORKDIR"}){ $ENV{"OCEAN_WORKDIR"} = `pwd` . "../" ; }
 ###########################
@@ -112,7 +115,7 @@ chdir "../";
 }
 else {
   `touch PAW/old`;
-  print  "Nothing needed for PAW wfns\n";
+  print  "Nothing needed for SCREEN wfns\n";
 }
 
 ## process bse wf files ##
@@ -124,6 +127,30 @@ close NKPT;
 
 $rundir = sprintf("../DFT/%03u%03u%03u", $nkpt[0], $nkpt[1], $nkpt[2]);
 
+if( -e "BSE/done" && -e "${rundir}/old" )
+{
+  foreach( "qinunitsofbvectors.ipt", "bvecs", "dft", "nspin", 
+           "nelectron", "dft.split", "xmesh.ipt", "avecsinbohr.ipt" )
+  {
+    if( compare( "$_", "BSE/$_" ) != 0 )
+    {
+      print "Differences found in $_\nWill re-run BSE prep\n";
+      unlink "BSE/done";
+      last;
+    }
+  }
+  foreach ("kmesh.ipt", "brange.ipt") 
+  {
+    if( compare( "$rundir/$_", "BSE/$_" ) != 0 )
+    {
+      print "Differences found in $_\nWill re-run BSE prep\n";
+      unlink "BSE/done";
+      last;
+    }
+  }
+}
+
+  
 unless( -e "BSE/done" && -e "${rundir}/old" ) {
 `rm -r BSE` if (-e "BSE");
 mkdir "BSE";

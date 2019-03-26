@@ -9,6 +9,7 @@
 !
 !  creates the site list based upon the inputs
 !
+!TODO This should really be moved to scripts
 program pawsetup
 
       use periodic
@@ -21,6 +22,8 @@ program pawsetup
       real(kind=kind(1.d0)), allocatable :: xred(:,:)
       character(len=50), allocatable :: pplist(:),ppopts(:),ppfill(:)
       character(len=50) :: atemp1, atemp2
+      character(len=4) :: smode
+      logical :: ex, val
 !
       character(len=9), parameter :: f9='formatted'
 !
@@ -65,6 +68,16 @@ program pawsetup
      &                               xred(:,counter)
       enddo
       close(99)
+
+      val = .false.
+      inquire(file='screen.mode',exist=ex)
+      if( ex ) then
+        open(unit=99, file='screen.mode', form=f9, status='old' )
+        read(99,*) smode
+        close( 99 )
+        if( smode .eq. 'grid' ) val = .true.
+      endif
+      if( val ) goto 111
 !
       allocate(sites(natom),sitenum(natom),pspused(ntypat))
       sites(:) = 0
@@ -156,6 +169,7 @@ program pawsetup
       close(99)
 !
       deallocate(znucl,typat,xred,edges,sites,atomcount, pplist,sitenum)
+111   continue
 !
 end program pawsetup 
 !!!!!!!!
