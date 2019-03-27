@@ -381,21 +381,29 @@ module prep_system
       return
     endif
 
-    open( unit=99, file='k0.ipt', form='formatted', status='old', IOSTAT=ierr )
-    if( ierr .ne. 0 ) then
-      write( 6, * ) 'FATAL ERROR: Failed to open k0.ipt', ierr
-      return
+    inquire( file='k0.ipt', exist=ex ) 
+    if( ex ) then
+      open( unit=99, file='k0.ipt', form='formatted', status='old', IOSTAT=ierr )
+      if( ierr .ne. 0 ) then
+        write( 6, * ) 'FATAL ERROR: Failed to open k0.ipt', ierr
+        return
+      endif
+      read( 99, *, IOSTAT=ierr ) params%kshift( : )
+      if( ierr .ne. 0 ) then
+        write( 6, * ) 'FATAL ERROR: Failed to read k0.ipt', ierr
+        return
+      endif
+      close( 99, IOSTAT=ierr)
+      if( ierr .ne. 0 ) then
+        write( 6, * ) 'FATAL ERROR: Failed to close k0.ipt', ierr
+        return
+      endif
+    else
+      params%kshift( 1 ) = 0.125_DP
+      params%kshift( 2 ) = 0.25_DP
+      params%kshift( 3 ) = 0.375_DP
     endif
-    read( 99, *, IOSTAT=ierr ) params%kshift( : )
-    if( ierr .ne. 0 ) then
-      write( 6, * ) 'FATAL ERROR: Failed to read k0.ipt', ierr
-      return
-    endif
-    close( 99, IOSTAT=ierr)
-    if( ierr .ne. 0 ) then
-      write( 6, * ) 'FATAL ERROR: Failed to close k0.ipt', ierr
-      return
-    endif
+
 
     if( abs( params%kshift( 1 ) ) + abs( params%kshift( 2 ) ) + abs( params%kshift( 3 ) ) &
         < tol ) then
@@ -504,6 +512,14 @@ module prep_system
     integer, intent( inout ) :: ierr
     !
     integer :: ii
+    logical :: ex
+
+    inquire( file='xyz.wyck', exist=ex )
+    if( ex .eqv. .false. ) then
+      psys%natoms = 0
+      allocate( psys%atom_list( 0 ) )
+      return
+    endif
 
     open( unit=99, file='xyz.wyck', form='formatted', status='old', IOSTAT=ierr )
     if( ierr .ne. 0 ) then
