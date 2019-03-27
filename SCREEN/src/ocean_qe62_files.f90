@@ -58,23 +58,38 @@ module ocean_qe62_files
             qe62_read_energies_single
   public :: qe62_kpts_and_spins, qe62_return_my_bands, qe62_return_my_val_bands, qe62_return_my_con_bands, &
             qe62_is_my_kpt
-  public :: qe62_nprocPerPool, qe62_getPoolIndex, qe62_getBandsForPoolID, qe62_returnGlobalID
-  public :: qe62_npool, qe62_universal2KptAndSpin
+  public :: qe62_nprocPerPool, qe62_getPoolIndex, qe62_returnGlobalID
+  public :: qe62_getAllBandsForPoolID, qe62_getValenceBandsForPoolID, qe62_getConductionBandsForPoolID
+  public :: qe62_npool, qe62_universal2KptAndSpin, qe62_poolComm, qe62_poolID
 
   contains
 
+  pure function qe62_poolComm()
+#ifdef MPI_F08
+    type( MPI_COMM ) :: qe62_poolComm
+#else
+    integer :: qe62_poolComm
+#endif
+
+    qe62_poolComm = pool_comm
+  end function qe62_poolComm
+
   pure function qe62_npool() result( npool_ )
     integer :: npool_
-
     npool_ = npool
   end function qe62_npool
- 
 
   pure function qe62_nprocPerPool() result( nproc )
     integer :: nproc
-    
+
     nproc = pool_nproc
   end function qe62_nprocPerPool
+
+  pure function qe62_poolID() result( pid )
+    integer :: pid
+
+    pid = pool_myid
+  end function qe62_poolID
 
   pure function qe62_getPoolIndex( ispin, ikpt ) result( poolIndex )
     integer, intent( in ) :: ispin, ikpt
@@ -85,7 +100,7 @@ module ocean_qe62_files
     poolIndex = mod( kptCounter, npool )
   end function qe62_getPoolIndex
 
-  pure function qe62_getBandsForPoolID( poolID ) result(nbands)
+  pure function qe62_getAllBandsForPoolID( poolID ) result(nbands)
     integer, intent( in ) :: poolID
     integer :: nbands
     integer :: bands_remain, i
@@ -97,7 +112,37 @@ module ocean_qe62_files
       bands_remain = bands_remain - nbands
     enddo
 
-  end function qe62_getBandsForPoolID
+  end function qe62_getAllBandsForPoolID
+
+  pure function qe62_getValenceBandsForPoolID( poolID ) result(nbands)
+    integer, intent( in ) :: poolID
+    integer :: nbands
+    integer :: bands_remain, i
+
+!    bands_remain = brange(4)-brange(3)+brange(2)-brange(1)+2
+    bands_remain = brange(2) - brange(1) + 1
+
+    do i = 0, poolID
+      nbands = bands_remain / ( pool_nproc - i )
+      bands_remain = bands_remain - nbands
+    enddo
+
+  end function qe62_getValenceBandsForPoolID
+
+  pure function qe62_getConductionBandsForPoolID( poolID ) result(nbands)
+    integer, intent( in ) :: poolID
+    integer :: nbands
+    integer :: bands_remain, i
+    
+!    bands_remain = brange(4)-brange(3)+brange(2)-brange(1)+2
+    bands_remain = brange(4) - brange(3) + 1
+  
+    do i = 0, poolID
+      nbands = bands_remain / ( pool_nproc - i )
+      bands_remain = bands_remain - nbands
+    enddo
+
+  end function qe62_getConductionBandsForPoolID
 
   pure function qe62_returnGlobalID( poolIndex, poolID ) result( globalID )
     integer, intent( in ) :: poolIndex, poolID
@@ -357,7 +402,7 @@ module ocean_qe62_files
     logical, intent( out ) :: isGamma, isFullStorage
     integer, intent( inout ) :: ierr
     !
-    integer :: i, brange(4)
+    integer :: i
     logical :: ex
     character(len=128) :: tmp
     !
@@ -376,15 +421,19 @@ module ocean_qe62_files
       close( 99 )
       write( prefix, '(a,a,a)' ) 'Out/', trim(tmp), '.save/'
 
+      open(unit=99,file='brange.ipt', form='formatted', status='old' )
+      read(99,*) brange(:)
+      close(99)
+
       inquire( file='bands.ipt', exist=ex )
       if( ex ) then
         open(unit=99,file='bands.ipt', form='formatted', status='old' )
         read(99,*) bands(:)
         close(99)
       else
-        open(unit=99,file='brange.ipt', form='formatted', status='old' )
-        read(99,*) brange(:)
-        close(99)
+!        open(unit=99,file='brange.ipt', form='formatted', status='old' )
+!        read(99,*) brange(:)
+!        close(99)
         bands(2) = brange(4)
         bands(1) = brange(1)
       endif
@@ -499,7 +548,7 @@ module ocean_qe62_files
     if( ierr .ne. 0 ) return
 
 
-    pool_nbands = qe62_getBandsForPoolID( pool_myid )
+    pool_nbands = qe62_getAllBandsForPoolID( pool_myid )
 !    nbands_left = brange(4)-brange(3)+brange(2)-brange(1)+2
 !    do i = 0, pool_nproc-1
 !      nbands = nbands_left / ( pool_nproc - i )
@@ -582,7 +631,7 @@ module ocean_qe62_files
 
     if( qe62_getPoolIndex( ispin, ikpt ) .ne. mypool ) return
     !
-    if( qe62_getBandsForPoolID( pool_myid ) .ne. my_bands ) then
+    if( qe62_getAllBandsForPoolID( pool_myid ) .ne. my_bands ) then
       ierr = 1
       return
     endif
@@ -630,9 +679,9 @@ module ocean_qe62_files
       read( 99 ) bvecs( :, : )
       read( 99 ) gvecs( :, 1:test_gvec )
 
-      maxBands = qe62_getBandsForPoolID( 0 )
+      maxBands = qe62_getAllBandsForPoolID( 0 )
       do id = 1, pool_nproc - 1
-        maxBands = max( maxBands, qe62_getBandsForPoolID( id ) )
+        maxBands = max( maxBands, qe62_getAllBandsForPoolID( id ) )
       enddo
       !
       ! no more than 8GB @ 16Byte/complex
@@ -669,7 +718,7 @@ module ocean_qe62_files
 #ifdef MPI
       ! loop over each proc in this pool to send wavefunctions
       do id = 0, pool_nproc - 1
-        nbands_to_send = qe62_getBandsForPoolID( id )
+        nbands_to_send = qe62_getAllBandsForPoolID( id )
 
         ! If mine, read directly to wvfn
         if( id .eq. pool_myid ) then

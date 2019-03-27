@@ -24,6 +24,7 @@ module ocean_qe54_files
   character( len=128 ) :: prefix
 
   integer :: bands(2)
+  integer :: brange(4)
   integer :: kpts(3)
   integer :: nspin 
   integer :: nfiles
@@ -52,7 +53,8 @@ module ocean_qe54_files
   public :: qe54_read_init, qe54_read_at_kpt, qe54_clean, qe54_read_energies, qe54_get_ngvecs_at_kpt, &
             qe54_read_energies_single
   public :: qe54_kpts_and_spins, qe54_return_my_bands, qe54_is_my_kpt
-  public :: qe54_nprocPerPool, qe54_getPoolIndex, qe54_getBandsForPoolID, qe54_returnGlobalID
+  public :: qe54_nprocPerPool, qe54_getPoolIndex, qe54_returnGlobalID
+  public :: qe54_getAllBandsForPoolID, qe54_getValenceBandsForPoolID, qe54_getConductionBandsForPoolID
   public :: qe54_npool, qe54_universal2KptAndSpin, qe54_poolID, qe54_poolComm
 
   contains
@@ -113,7 +115,7 @@ module ocean_qe54_files
     ispin = 0
   end subroutine qe54_universal2KptAndSpin
 
-  pure function qe54_getBandsForPoolID( poolID ) result(nbands)
+  pure function qe54_getAllBandsForPoolID( poolID ) result(nbands)
     integer, intent( in ) :: poolID
     integer :: nbands
     integer :: bands_remain, i
@@ -125,7 +127,37 @@ module ocean_qe54_files
       bands_remain = bands_remain - nbands
     enddo
 
-  end function qe54_getBandsForPoolID
+  end function qe54_getAllBandsForPoolID
+
+  pure function qe54_getValenceBandsForPoolID( poolID ) result(nbands)
+    integer, intent( in ) :: poolID
+    integer :: nbands
+    integer :: bands_remain, i
+
+!    bands_remain = brange(4)-brange(3)+brange(2)-brange(1)+2
+    bands_remain = brange(2) - brange(1) + 1
+
+    do i = 0, poolID
+      nbands = bands_remain / ( pool_nproc - i )
+      bands_remain = bands_remain - nbands
+    enddo
+
+  end function qe54_getValenceBandsForPoolID
+
+  pure function qe54_getConductionBandsForPoolID( poolID ) result(nbands)
+    integer, intent( in ) :: poolID
+    integer :: nbands
+    integer :: bands_remain, i
+    
+!    bands_remain = brange(4)-brange(3)+brange(2)-brange(1)+2
+    bands_remain = brange(4) - brange(3) + 1
+  
+    do i = 0, poolID
+      nbands = bands_remain / ( pool_nproc - i )
+      bands_remain = bands_remain - nbands
+    enddo
+
+  end function qe54_getConductionBandsForPoolID
 
   pure function qe54_returnGlobalID( poolIndex, poolID ) result( globalID )
     integer, intent( in ) :: poolIndex, poolID
@@ -340,7 +372,7 @@ module ocean_qe54_files
     logical, intent( out ) :: isGamma, isFullStorage
     integer, intent( inout ) :: ierr
     !
-    integer :: i, brange(4)
+    integer :: i
     logical :: ex
     character(len=128) :: tmp
     !
@@ -359,15 +391,19 @@ module ocean_qe54_files
       close( 99 )
       write( prefix, '(a,a,a)' ) 'Out/', trim(tmp), '.save/'
 
+      open(unit=99,file='brange.ipt', form='formatted', status='old' )
+      read(99,*) brange(:)
+      close(99)
+
       inquire( file='bands.ipt', exist=ex )
       if( ex ) then
         open(unit=99,file='bands.ipt', form='formatted', status='old' )
         read(99,*) bands(:)
         close(99)
       else
-        open(unit=99,file='brange.ipt', form='formatted', status='old' )
-        read(99,*) brange(:)
-        close(99)
+!        open(unit=99,file='brange.ipt', form='formatted', status='old' )
+!        read(99,*) brange(:)
+!        close(99)
         bands(2) = brange(4)
         bands(1) = brange(1)
       endif
@@ -482,7 +518,7 @@ module ocean_qe54_files
     if( ierr .ne. 0 ) return
 
 
-    pool_nbands = qe54_getBandsForPoolID( pool_myid )
+    pool_nbands = qe54_getAllBandsForPoolID( pool_myid )
 !    nbands_left = brange(4)-brange(3)+brange(2)-brange(1)+2
 !    do i = 0, pool_nproc-1
 !      nbands = nbands_left / ( pool_nproc - i )
@@ -564,7 +600,7 @@ module ocean_qe54_files
 
     if( qe54_getPoolIndex( ispin, ikpt ) .ne. mypool ) return
     !
-    if( qe54_getBandsForPoolID( pool_myid ) .ne. my_bands ) then
+    if( qe54_getAllBandsForPoolID( pool_myid ) .ne. my_bands ) then
       ierr = 1
       return
     endif
@@ -613,9 +649,9 @@ module ocean_qe54_files
       read( 99 ) crap, gvecs( :, 1:test_gvec )
       close( 99 )
 
-      maxBands = qe54_getBandsForPoolID( 0 )
+      maxBands = qe54_getAllBandsForPoolID( 0 )
       do id = 1, pool_nproc - 1
-        maxBands = max( maxBands, qe54_getBandsForPoolID( id ) )
+        maxBands = max( maxBands, qe54_getAllBandsForPoolID( id ) )
       enddo
       !
       ! no more than 8GB @ 16Byte/complex
@@ -657,7 +693,7 @@ module ocean_qe54_files
 #ifdef MPI
       ! loop over each proc in this pool to send wavefunctions
       do id = 0, pool_nproc - 1
-        nbands_to_send = qe54_getBandsForPoolID( id )
+        nbands_to_send = qe54_getAllBandsForPoolID( id )
 
         ! If mine, read directly to wvfn
         if( id .eq. pool_myid ) then

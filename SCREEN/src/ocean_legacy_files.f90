@@ -51,11 +51,44 @@ module ocean_legacy_files
 
   public :: olf_read_init, olf_read_at_kpt, olf_clean, olf_read_energies, olf_get_ngvecs_at_kpt, &
             olf_read_energies_single
-  public :: olf_kpts_and_spins, olf_return_my_bands, olf_is_my_kpt
-  public :: olf_nprocPerPool, olf_getPoolIndex, olf_getBandsForPoolID, olf_returnGlobalID
-  public :: olf_npool, olf_universal2KptAndSpin
+  public :: olf_read_at_kpt_split
+  public :: olf_kpts_and_spins, olf_is_my_kpt
+  public :: olf_return_my_bands, olf_return_my_val_bands, olf_return_my_con_bands
+  public :: olf_nprocPerPool, olf_getPoolIndex, olf_returnGlobalID
+  public :: olf_getAllBandsForPoolID, olf_getValenceBandsForPoolID, olf_getConductionBandsForPoolID
+  public :: olf_npool, olf_universal2KptAndSpin, olf_poolID, olf_poolComm
 
   contains
+
+  subroutine olf_return_my_val_bands( nb, ierr)
+    integer, intent( out ) :: nb
+    integer, intent( inout ) :: ierr
+    if( .not. is_init ) then
+      ierr = 1
+      return
+    endif
+    nb = olf_getValenceBandsForPoolID( pool_myid )
+  end subroutine olf_return_my_val_bands
+
+  subroutine olf_return_my_con_bands( nb, ierr)
+    integer, intent( out ) :: nb
+    integer, intent( inout ) :: ierr
+    if( .not. is_init ) then
+      ierr = 1
+      return
+    endif
+    nb = olf_getConductionBandsForPoolID( pool_myid )
+  end subroutine olf_return_my_con_bands
+
+  pure function olf_poolComm()
+#ifdef MPI_F08
+    type( MPI_COMM ) :: olf_poolComm
+#else
+    integer :: olf_poolComm
+#endif
+
+    olf_poolComm = pool_comm
+  end function olf_poolComm
 
   pure function olf_npool() result( npool_ )
     integer :: npool_
@@ -69,6 +102,13 @@ module ocean_legacy_files
     nproc = pool_nproc
   end function olf_nprocPerPool
 
+  pure function olf_poolID() result( pid )
+    integer :: pid
+
+    pid = pool_myid
+  end function olf_poolID
+
+
   pure function olf_getPoolIndex( ispin, ikpt ) result( poolIndex )
     integer, intent( in ) :: ispin, ikpt
     integer :: poolIndex
@@ -78,7 +118,7 @@ module ocean_legacy_files
     poolIndex = mod( kptCounter, npool )
   end function olf_getPoolIndex
 
-  pure function olf_getBandsForPoolID( poolID ) result(nbands)
+  pure function olf_getAllBandsForPoolID( poolID ) result(nbands)
     integer, intent( in ) :: poolID
     integer :: nbands
     integer :: bands_remain, i
@@ -91,7 +131,37 @@ module ocean_legacy_files
       bands_remain = bands_remain - nbands
     enddo
 
-  end function olf_getBandsForPoolID
+  end function olf_getAllBandsForPoolID
+
+  pure function olf_getValenceBandsForPoolID( poolID ) result(nbands)
+    integer, intent( in ) :: poolID
+    integer :: nbands
+    integer :: bands_remain, i
+
+!    bands_remain = brange(4)-brange(3)+brange(2)-brange(1)+2
+    bands_remain = brange(2) - brange(1) + 1
+
+    do i = 0, poolID
+      nbands = bands_remain / ( pool_nproc - i )
+      bands_remain = bands_remain - nbands
+    enddo
+
+  end function olf_getValenceBandsForPoolID
+
+  pure function olf_getConductionBandsForPoolID( poolID ) result(nbands)
+    integer, intent( in ) :: poolID
+    integer :: nbands
+    integer :: bands_remain, i
+
+!    bands_remain = brange(4)-brange(3)+brange(2)-brange(1)+2
+    bands_remain = brange(4) - brange(3) + 1
+
+    do i = 0, poolID
+      nbands = bands_remain / ( pool_nproc - i )
+      bands_remain = bands_remain - nbands
+    enddo
+
+  end function olf_getConductionBandsForPoolID
 
   pure function olf_returnGlobalID( poolIndex, poolID ) result( globalID )
     integer, intent( in ) :: poolIndex, poolID
@@ -419,7 +489,7 @@ module ocean_legacy_files
     if( ierr .ne. 0 ) return
 
 
-    pool_nbands = olf_getBandsForPoolID( pool_myid )
+    pool_nbands = olf_getAllBandsForPoolID( pool_myid )
 !    nbands_left = brange(4)-brange(3)+brange(2)-brange(1)+2
 !    do i = 0, pool_nproc-1
 !      nbands = nbands_left / ( pool_nproc - i )
@@ -511,7 +581,7 @@ module ocean_legacy_files
 
     if( olf_getPoolIndex( ispin, ikpt ) .ne. mypool ) return
     !
-    if( olf_getBandsForPoolID( pool_myid ) .ne. my_bands ) then
+    if( olf_getAllBandsForPoolID( pool_myid ) .ne. my_bands ) then
       ierr = 1
       return
     endif
@@ -577,7 +647,7 @@ module ocean_legacy_files
 #ifdef MPI
       ! loop over each proc in this pool to send wavefunctions
       do id = 0, pool_nproc - 1
-        nbands_to_send = olf_getBandsForPoolID( id )
+        nbands_to_send = olf_getAllBandsForPoolID( id )
 
         ! don't send if I am me
         if( id .ne. pool_myid ) then
@@ -617,7 +687,7 @@ module ocean_legacy_files
 #ifdef MPI
      ! loop over each proc in this pool to send imag wavefunctions
       do id = 0, pool_nproc - 1
-        nbands_to_send = olf_getBandsForPoolID( id )
+        nbands_to_send = olf_getAllBandsForPoolID( id )
 
         ! don't send if I am me
         if( id .ne. pool_myid ) then
@@ -686,6 +756,265 @@ module ocean_legacy_files
     call MPI_BARRIER( pool_comm, ierr )
 
   end subroutine olf_read_at_kpt
+
+
+
+  subroutine olf_read_at_kpt_split( ikpt, ispin, valNGvecs, conNGvecs, valBands, conBands, &
+                                    valGvecs, conGvecs, valUofG, conUofG, ierr )
+
+#ifdef MPI
+    use OCEAN_mpi, only : MPI_INTEGER,MPI_DOUBLE_PRECISION, MPI_STATUSES_IGNORE, myid, & 
+                          MPI_REQUEST_NULL, MPI_STATUS_IGNORE
+#endif
+    integer, intent( in ) :: ikpt, ispin, valNGvecs, conNGvecs, valBAnds, conBands
+    integer, intent( out ) :: valGvecs( 3, valNgvecs ), conGvecs( 3, conNgvecs )
+    complex( DP ), intent( out ) :: valUofG( valNGvecs, valBands ), conUofG( conNGvecs, conBands )
+    integer, intent( inout ) :: ierr
+    !
+    real( DP ), allocatable, dimension( :, : ) :: re_wvfn, im_wvfn
+    integer, allocatable, dimension( :, : ) :: trans_gvecs
+    integer :: test_gvec, itarg, nbands_to_send, nr, ierr_, nbands_to_read, id, start_band, &
+               stop_band, band_overlap, i
+#ifdef MPI_F08
+    type( MPI_REQUEST ), allocatable :: requests( :, : )
+    type( MPI_REQUEST ) :: gvecReq
+#else
+    integer, allocatable :: requests( :, : )
+    integer :: gvecReq
+#endif
+
+    ! Test to make sure I'm in the right place
+    if( olf_getPoolIndex( ispin, ikpt ) .ne. mypool ) return
+    !
+    ! Check input consistency
+    if( olf_getValenceBandsForPoolID( pool_myid ) .ne. valBands ) then
+      write(1000+myid,*) 'Valence-band mismatch', olf_getValenceBandsForPoolID( pool_myid ), valBands
+      ierr = 1
+      return
+    endif
+    if( olf_getConductionBandsForPoolID( pool_myid ) .ne. conBands ) then
+      ierr = 2
+      return
+    endif
+    if( valNGvecs .ne. conNGvecs ) then
+      ierr = 3
+      return
+    endif
+
+    ! includes any overlap
+    nbands_to_read = brange(4)-brange(3)+brange(2)-brange(1)+2
+
+    if( pool_myid .eq. pool_root ) then
+      itarg = wvfn_file_indx( ikpt, ispin )
+      if( itarg .lt. 1 ) then
+        ierr = -1
+        goto 10
+      endif
+
+      open( unit=99, file=file_names( itarg ), form='unformatted', status='old' )
+      read( 99 ) test_gvec
+      if( test_gvec .ne. valNGvecs ) then
+        ierr = -2
+      endif
+
+      ! Error synch. Also ensures that the other procs have posted their recvs
+10    continue
+      call MPI_BCAST( ierr, 1, MPI_INTEGER, pool_root, pool_comm, ierr_ )
+      if( ierr .ne. 0 ) return
+      if( ierr_ .ne. 0 ) then
+        ierr = ierr_
+        return
+      endif
+
+      allocate( trans_gvecs( valNGvecs, 3 ) )
+      read( 99 ) trans_gvecs
+      valgvecs = transpose( trans_gvecs )
+      deallocate( trans_gvecs )
+
+!      nr = 2 * ( pool_nproc - 1 ) + 1
+      nr = 2 * pool_nproc 
+      allocate( requests( 0:nr-1, 2 ) )
+      requests(:,:) = MPI_REQUEST_NULL
+#ifdef MPI
+      call MPI_IBCAST( valGvecs, 3*valNGvecs, MPI_INTEGER, pool_root, pool_comm, gvecReq, ierr )
+#endif
+      allocate( re_wvfn( valNGvecs, nbands_to_read ), im_wvfn( valNGvecs, nbands_to_read ) )
+
+      write(1000+myid,*) '***Reading k-point: ', ikpt, ispin
+      write(1000+myid,*) '   Ngvecs: ', valNGvecs
+      write(1000+myid,*) '   Nbands: ', nbands_to_read
+
+
+      read( 99 ) re_wvfn
+
+      ! don't delete any overlap for split
+!      ! slow way, but easy to program
+!      stop_band = 1
+!      if( brange( 2 ) .ge. brange( 3 ) ) then
+!        start_band = brange(2) - brange(1) + 1
+!        band_overlap = brange(2) - brange(3) + 1
+!        stop_band = brange(1) + band_overlap
+!        do i = start_band, stop_band, - 1
+!          write(1000+myid,*) 'Sending', i-band_overlap, 'to' , i
+!          re_wvfn( :, i ) = re_wvfn( :, i - band_overlap )
+!        enddo
+!      endif
+
+      start_band = 1
+#ifdef MPI
+      ! loop over each proc in this pool to send wavefunctions
+
+      ! first do the valence bands
+      do i = 1, 2
+        do id = 0, pool_nproc - 1
+  !        nbands_to_send = olf_getAllBandsForPoolID( id )
+          if( i .eq. 1 ) then
+            nbands_to_send = olf_getValenceBandsForPoolID( id )
+          else
+            nbands_to_send = olf_getConductionBandsForPoolID( id )
+          endif
+
+          ! don't send if I am me
+          if( id .ne. pool_myid ) then
+            write(1000+myid,'(A,3(1X,I8))') '   Sending ...', id, start_band, nbands_to_send
+            call MPI_IRSEND( re_wvfn( 1, start_band ), nbands_to_send*valngvecs, MPI_DOUBLE_PRECISION, &
+                           id, i, pool_comm, requests( id, i ), ierr )
+            ! this might not sync up
+            if( ierr .ne. 0 ) return
+          else
+            if( i .eq. 1 ) then
+              write(1000+myid,'(A,3(1X,I8))') "   Don't Send: ", start_band, nbands_to_send, valBands
+            else
+              write(1000+myid,'(A,3(1X,I8))') "   Don't Send: ", start_band, nbands_to_send, conBands
+            endif
+          endif
+
+          if( mod( id+1, 16 ) .eq. 0 ) then
+            call MPI_WAITALL( 16, requests( id-15, i ), MPI_STATUSES_IGNORE, ierr )
+            ! this might not sync up
+            if( ierr .ne. 0 ) return
+            write(1000+myid, '(A,1X,I8)' ) '   triggered intermediate send', id
+          endif
+
+
+          start_band = start_band + nbands_to_send
+        enddo
+      enddo
+#endif
+
+      read( 99 ) im_wvfn
+!      stop_band = 1
+!      if( brange( 2 ) .ge. brange( 3 ) ) then
+!        start_band = brange(2) - brange(1) + 1
+!        band_overlap = brange(2) - brange(3) + 1
+!        stop_band = brange(1) + band_overlap
+!        do i = start_band, stop_band, - 1
+!          im_wvfn( :, i ) = im_wvfn( :, i - band_overlap )
+!        enddo
+!      endif
+!      start_band = stop_band
+
+#ifdef MPI
+     ! loop over each proc in this pool to send imag wavefunctions
+      start_band = 1
+      do i = 1, 2
+        do id = 0, pool_nproc - 1
+!          nbands_to_send = olf_getAllBandsForPoolID( id )
+          if( i .eq. 1 ) then
+            nbands_to_send = olf_getValenceBandsForPoolID( id )
+          else
+            nbands_to_send = olf_getConductionBandsForPoolID( id )
+          endif
+
+          ! don't send if I am me
+          if( id .ne. pool_myid ) then
+            call MPI_IRSEND( im_wvfn( 1, start_band ), nbands_to_send*valngvecs, MPI_DOUBLE_PRECISION, &
+                           id, 2+i, pool_comm, requests( id + pool_nproc - 1, i), ierr )
+            ! this might not sync up
+            if( ierr .ne. 0 ) return
+          endif
+
+          if( mod( id+1, 16 ) .eq. 0 ) then
+            call MPI_WAITALL( 16, requests( id + pool_nproc - 16, i ), MPI_STATUSES_IGNORE, ierr )
+            ! this might not sync up
+            if( ierr .ne. 0 ) return
+            write(1000+myid, '(A,1X,I8)' ) '   triggered intermediate send', id
+          endif
+
+          start_band = start_band + nbands_to_send
+        enddo
+      enddo
+#endif
+
+      close( 99 )
+
+      else
+      nr = 2
+      allocate( requests( nr,2 ) )
+      requests(:,:) = MPI_REQUEST_NULL
+      write(1000+myid,*) '***Receiving k-point: ', ikpt, ispin
+      write(1000+myid,*) '   Ngvecs: ', valNGvecs
+      write(1000+myid,*) '   Nbands: ', valBands, conBands
+
+
+      allocate( re_wvfn( valngvecs, valBands + conBands ), im_wvfn( valngvecs, valBands + conBands ) )
+#ifdef MPI
+      call MPI_IRECV( re_wvfn, valngvecs*valBands, MPI_DOUBLE_PRECISION, pool_root, 1, pool_comm, &
+                      requests( 1, 1 ), ierr )
+      call MPI_IRECV( re_wvfn(1,valBands+1), valngvecs*conBands, MPI_DOUBLE_PRECISION, pool_root, 2, pool_comm, &
+                      requests( 1, 2 ), ierr )
+      call MPI_IRECV( im_wvfn, valngvecs*valBands, MPI_DOUBLE_PRECISION, pool_root, 3, pool_comm, &
+                      requests( 2, 1 ), ierr )
+      call MPI_IRECV( im_wvfn(1,valBands+1), valngvecs*conBands, MPI_DOUBLE_PRECISION, pool_root, 4, pool_comm, &
+                      requests( 2, 2 ), ierr )
+
+      call MPI_BCAST( ierr, 1, MPI_INTEGER, pool_root, pool_comm, ierr_ )
+      if( ierr .ne. 0 .or. ierr_ .ne. 0 ) then
+        call MPI_CANCEL( requests( 1, 1 ) , ierr )
+        call MPI_CANCEL( requests( 1, 2 ) , ierr )
+        call MPI_CANCEL( requests( 2, 1 ) , ierr )
+        call MPI_CANCEL( requests( 2, 2 ) , ierr )
+        ierr = 5
+        return
+      endif
+
+      call MPI_IBCAST( valgvecs, 3*valngvecs, MPI_INTEGER, pool_root, pool_comm, gvecReq, ierr )
+#endif
+
+
+    endif
+
+
+    call MPI_WAITALL( nr*2, requests, MPI_STATUSES_IGNORE, ierr )
+    if( ierr .ne. 0 ) return
+
+    ! legacy version has uniform G-vector lists, copy val to con
+    call MPI_WAIT( gvecReq, MPI_STATUS_IGNORE, ierr )
+    if( ierr .ne. 0 ) return
+    conGvecs(:,:) = valGvecs(:,:)
+
+    if( pool_myid .eq. pool_root ) then
+!      wfns( :, : ) = cmplx( re_wvfn( :, stop_band:my_bands+stop_band-1 ), &
+!                            im_wvfn( :, stop_band:my_bands+stop_band-1 ), DP )
+      valUofG( :, : ) = cmplx( re_wvfn( :, 1 : valBands ), im_wvfn( :, 1 : valBands ), DP )
+      start_band = brange(2) - brange(1) + 2
+      stop_band = start_band + conBands - 1
+      conUofG( :, : ) = cmplx( re_wvfn( :, start_band:stop_band ), &
+                               im_wvfn( :, start_band:stop_band ), DP )
+    else
+!      wfns( :, : ) = cmplx( re_wvfn( :, 1:my_bands ), im_wvfn( :, 1:my_bands ), DP )
+      valUofG( :, : ) = cmplx( re_wvfn( :, 1 : valBands ), im_wvfn( :, 1 : valBands ), DP )
+      start_band = valBands + 1
+      stop_band = start_band + conBands - 1
+      conUofG( :, : ) = cmplx( re_wvfn( :, start_band:stop_band ), &
+                               im_wvfn( :, start_band:stop_band ), DP )
+    endif
+    deallocate( re_wvfn, im_wvfn, requests )
+
+    write(1000+myid,*) '***Finishing k-point: ', ikpt, ispin
+    call MPI_BARRIER( pool_comm, ierr )
+
+  end subroutine olf_read_at_kpt_split
 
 
   integer function wvfn_file_indx( ikpt_, ispin_ )
