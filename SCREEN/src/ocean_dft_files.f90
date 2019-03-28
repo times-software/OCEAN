@@ -42,9 +42,9 @@ module ocean_dft_files
   public :: odf_init, odf_read_energies_single, odf_clean
   public :: odf_nprocPerPool, odf_getPoolIndex, odf_getBandsForPoolID, odf_returnGlobalID
   public :: odf_return_my_bands, odf_is_my_kpt, odf_get_ngvecs_at_kpt
-  public :: odf_read_at_kpt 
+  public :: odf_read_at_kpt, odf_read_at_kpt_split
   public :: odf_isGamma, odf_isFullStorage, odf_isDualFile
-  public :: odf_npool, odf_universal2KptAndSpin
+  public :: odf_npool, odf_universal2KptAndSpin, odf_poolComm, odf_poolID
 
 
   interface odf_get_ngvecs_at_kpt
@@ -52,6 +52,45 @@ module ocean_dft_files
   end interface odf_get_ngvecs_at_kpt
 
   contains 
+  
+  pure function odf_poolComm() 
+    use ocean_mpi, only : MPI_COMM_NULL
+    use ocean_legacy_files, only : olf_poolComm
+    use ocean_qe54_files, only : qe54_poolComm
+    use ocean_qe62_files, only : qe62_poolComm
+#ifdef MPI_F08
+    type( MPI_COMM ) :: odf_poolComm
+#else
+    integer :: odf_poolComm
+#endif
+    select case( flavor )
+      case( LEGACY_FLAVOR )
+        odf_poolComm = olf_poolComm()
+      case( QE54_FLAVOR )
+        odf_poolComm = qe54_poolComm()
+      case( QE62_FLAVOR )
+        odf_poolComm = qe62_poolComm()
+      case default
+        odf_poolComm = MPI_COMM_NULL
+    end select
+  end function odf_poolComm
+
+  pure function odf_poolID() result( pid )
+    use ocean_legacy_files, only : olf_poolID
+    use ocean_qe54_files, only : qe54_poolID
+    use ocean_qe62_files, only : qe62_poolID
+    integer :: pid
+    select case( flavor )
+      case( LEGACY_FLAVOR )
+        pid = olf_poolID()
+      case( QE54_FLAVOR )
+        pid = qe54_poolID()
+      case( QE62_FLAVOR )
+        pid = qe62_poolID()
+      case default
+        pid = -1
+    end select
+  end function odf_poolID
 
   pure function odf_isGamma() result( isGamma_ )
     logical :: isGamma_
@@ -128,23 +167,83 @@ module ocean_dft_files
     end select
   end function odf_getPoolIndex
 
-  pure function odf_getBandsForPoolID( poolID ) result(nbands)
-    use ocean_legacy_files, only : olf_getBandsForPoolID
-    use ocean_qe54_files, only : qe54_getBandsForPoolID
-    use ocean_qe62_files, only : qe62_getBandsForPoolID
+  pure function odf_getBandsForPoolID( poolID, odfFlag ) result(nbands)
+    integer, intent( in ) :: poolID
+    integer, intent( in ), optional :: odfFlag
+    integer :: nbands
+    integer :: of
+
+    of = ODF_ALL
+    if( present( odfFlag ) ) of = odfFlag
+
+    select case( of )
+      case( ODF_VALENCE )
+        nbands = odf_getValenceBandsForPoolID( poolID )
+      case( ODF_CONDUCTION ) 
+        nbands = odf_getConductionBandsForPoolID( poolID )
+      case default
+        nbands = odf_getAllBandsForPoolID( poolID )
+    end select
+    
+  end function odf_getBandsForPoolID
+
+
+  pure function odf_getValenceBandsForPoolID( poolID ) result(nbands)
+    use ocean_legacy_files, only : olf_getValenceBandsForPoolID
+    use ocean_qe54_files, only : qe54_getValenceBandsForPoolID
+    use ocean_qe62_files, only : qe62_getValenceBandsForPoolID
     integer, intent( in ) :: poolID
     integer :: nbands
+
     select case( flavor )
       case( LEGACY_FLAVOR )
-        nbands = olf_getBandsForPoolID( poolID ) 
+        nbands = olf_getValenceBandsForPoolID( poolID ) 
       case( QE54_FLAVOR )
-        nbands = qe54_getBandsForPoolID( poolID ) 
+        nbands = qe54_getValenceBandsForPoolID( poolID ) 
       case( QE62_FLAVOR )
-        nbands = qe62_getBandsForPoolID( poolID )
+        nbands = qe62_getValenceBandsForPoolID( poolID )
       case default
         nbands = -1
     end select
-  end function odf_getBandsForPoolID
+  end function odf_getValenceBandsForPoolID
+
+  pure function odf_getConductionBandsForPoolID( poolID ) result(nbands)
+    use ocean_legacy_files, only : olf_getConductionBandsForPoolID
+    use ocean_qe54_files, only : qe54_getConductionBandsForPoolID
+    use ocean_qe62_files, only : qe62_getConductionBandsForPoolID
+    integer, intent( in ) :: poolID
+    integer :: nbands
+
+    select case( flavor )
+      case( LEGACY_FLAVOR )
+        nbands = olf_getConductionBandsForPoolID( poolID )  
+      case( QE54_FLAVOR )
+        nbands = qe54_getConductionBandsForPoolID( poolID ) 
+      case( QE62_FLAVOR )
+        nbands = qe62_getConductionBandsForPoolID( poolID )
+      case default
+        nbands = -1
+    end select 
+  end function odf_getConductionBandsForPoolID
+
+  pure function odf_getAllBandsForPoolID( poolID ) result(nbands)
+    use ocean_legacy_files, only : olf_getAllBandsForPoolID
+    use ocean_qe54_files, only : qe54_getAllBandsForPoolID
+    use ocean_qe62_files, only : qe62_getAllBandsForPoolID
+    integer, intent( in ) :: poolID
+    integer :: nbands
+
+    select case( flavor )
+      case( LEGACY_FLAVOR )
+        nbands = olf_getAllBandsForPoolID( poolID )  
+      case( QE54_FLAVOR )
+        nbands = qe54_getAllBandsForPoolID( poolID ) 
+      case( QE62_FLAVOR )
+        nbands = qe62_getAllBandsForPoolID( poolID )
+      case default
+        nbands = -1
+    end select 
+  end function odf_getAllBandsForPoolID
 
   pure function odf_returnGlobalID( poolIndex, poolID ) result( globalID )
     use ocean_legacy_files, only : olf_returnGlobalID
@@ -210,7 +309,7 @@ module ocean_dft_files
   end subroutine odf_return_my_bands
 
   subroutine return_con_bands( nbands, ierr )
-!    use ocean_legacy_files, only : olf_return_my_bands
+    use ocean_legacy_files, only : olf_return_my_con_bands
 !    use ocean_qe54_files, only : qe54_return_my_bands
     use ocean_qe62_files, only : qe62_return_my_con_bands
 
@@ -219,7 +318,7 @@ module ocean_dft_files
 
     select case( flavor )
       case( LEGACY_FLAVOR )
-!        call olf_return_my_bands( nbands, ierr )
+        call olf_return_my_con_bands( nbands, ierr )
       case( QE54_FLAVOR )
 !        call qe54_return_my_bands( nbands, ierr )
       case( QE62_FLAVOR )
@@ -231,7 +330,7 @@ module ocean_dft_files
   end subroutine return_con_bands
 
   subroutine return_val_bands( nbands, ierr )
-!    use ocean_legacy_files, only : olf_return_my_bands
+    use ocean_legacy_files, only : olf_return_my_val_bands
 !    use ocean_qe54_files, only : qe54_return_my_bands
     use ocean_qe62_files, only : qe62_return_my_val_bands
 
@@ -240,7 +339,7 @@ module ocean_dft_files
 
     select case( flavor )
       case( LEGACY_FLAVOR )
-!        call olf_return_my_bands( nbands, ierr )
+        call olf_return_my_val_bands( nbands, ierr )
       case( QE54_FLAVOR )
 !        call qe54_return_my_bands( nbands, ierr )
       case( QE62_FLAVOR )
@@ -357,6 +456,24 @@ module ocean_dft_files
         ierr = -1
     end select
   end subroutine odf_read_at_kpt
+
+  subroutine odf_read_at_kpt_split( ikpt, ispin, valNGvecs, conNGvecs, valBands, conBands, &
+                                    valGvecs, conGvecs, valUofG, conUofG, ierr )
+    use ocean_legacy_files, only : olf_read_at_kpt_split
+    integer, intent( in ) :: ikpt, ispin, valNgvecs, conNGvecs, valBands, conBands
+    integer, intent( out ) :: valgvecs( 3, valngvecs ), congvecs( 3, conngvecs )
+    complex( DP ), intent( out ) :: valUofG( valngvecs, valbands ), conUofG( conNGvecs, conBands )
+    integer, intent( inout ) :: ierr
+
+    select case( flavor )
+      case( LEGACY_FLAVOR )
+        call olf_read_at_kpt_split( ikpt, ispin, valNGvecs, conNGvecs, valBands, conBands, &
+                                    valGvecs, conGvecs, valUofG, conUofG, ierr )
+      case default
+        ierr = -2
+    end select
+  end subroutine odf_read_at_kpt_split
+
 
   subroutine odf_clean( ierr )
     use ocean_legacy_files, only : olf_clean

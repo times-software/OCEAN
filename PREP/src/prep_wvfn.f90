@@ -39,7 +39,7 @@ module prep_wvfn
 
     integer :: ispin, ikpt, nprocPool, nuni, iuni, npool
     integer :: valNgvecs, conNgves, valBands, conBands, ngvecs(2), odf_flag
-    integer :: nG, nbands, fftGrid(3), allBands, nX
+    integer :: nG, nbands, fftGrid(3), allBands, nX, vType, cType
 
     integer :: conFH, valFH, fileHandle, poolID, i, testFH
     logical :: is_kpt, wantCKS, wantU2
@@ -64,14 +64,21 @@ module prep_wvfn
 !!    nX = product( param%xmesh(:) )
 !!    allBands = params%brange(2) - params%brange(1) + 1
 
-    call prep_wvfn_openU2( 'val', valFH, ierr )
-    if( ierr .ne. 0 ) return
-    call prep_wvfn_openU2( 'con', conFH, ierr )
-    if( ierr .ne. 0 ) return
 
     npool = odf_npool()
     nprocPool = odf_nprocPerPool()
     poolID = odf_poolID()
+
+    ! The more correct thing to do would be to make a fancier derived type, such that each 
+    ! pool would also have an offset based on k-point and then the offset when writing would 
+    ! be only dependent on iuni not ikpt
+    allBands = params%nkpts * params%nspin * ( params%brange(2) - params%brange(1) + 1 )
+    nx = product( params%xmesh(:) )
+    call prep_wvfn_openU2( 'val', valFH, allBands, nx, poolID, nprocPool, ierr, vtype )
+    if( ierr .ne. 0 ) return
+    allBands = params%nkpts * params%nspin * ( params%brange(4) - params%brange(3) + 1 )
+    call prep_wvfn_openU2( 'con', conFH, allBands, nx, poolID, nprocPool, ierr, ctype )
+    if( ierr .ne. 0 ) return
 
     ! need to set the number of x-points proc should epxect locally
     ! probably subroutines/functions in this module
@@ -255,13 +262,14 @@ module prep_wvfn
     enddo ! iuni ( combined spin and kpt )
 
 
-    call prep_wvfn_closeU2( valFH, ierr )
-    call prep_wvfn_closeU2( conFH, ierr )
+    call prep_wvfn_closeU2( valFH, ierr, vtype )
+    call prep_wvfn_closeU2( conFH, ierr, ctype )
     
     if( wantU2 ) then
       if( nproc .eq. 1 ) then
         call prep_wvfn_closeLegacy( testFH, ierr )
         if( ierr .ne. 0 ) return
+        call prep_wvfn_doLegacyParallel( ierr )
       else
         call prep_wvfn_doLegacyParallel( ierr )
       endif
@@ -303,19 +311,26 @@ module prep_wvfn
 
 
 !  subroutine prep_wvfn_openU2( prefix, nxpts, myBands, totalBands, FH, arrayType, ierr )
-  subroutine prep_wvfn_openU2( prefix, FH, ierr )
+  subroutine prep_wvfn_openU2( prefix, FH, nb, nx, poolID, nprocPerPool, ierr, fileType )
     use ocean_mpi, only : myid, comm, &
                           MPI_MODE_WRONLY, MPI_MODE_CREATE, MPI_MODE_UNIQUE_OPEN, MPI_INFO_NULL, & 
-                          MPI_OFFSET_KIND, MPI_DOUBLE_COMPLEX
+                          MPI_OFFSET_KIND, MPI_DOUBLE_COMPLEX, MPI_SIZEOF
     
     character(len=*), intent( in ) :: prefix
 !    integer, intent( in ) :: nxpts, myBands, totalBands
     integer, intent( out ) :: FH  !, arrayType
+    integer, intent( in ) :: nb, nx, poolID, nprocPerPool
     integer, intent( inout ) :: ierr
 
     character(len=128) :: filnam
     integer( MPI_OFFSET_KIND ) :: offset
-    integer :: fflags
+    integer :: fflags, sizeofcomplex, i, myx
+    complex(DP) :: dumz
+#ifdef MPI_F08
+    type( MPI_DATATYPE ):: fileType
+#else
+    integer :: fileType
+#endif
 
     write( filnam, '(A,A)' ) trim( prefix ), '.u2.dat'
 
@@ -325,8 +340,27 @@ module prep_wvfn
     call MPI_FILE_OPEN( comm, filnam, fflags, MPI_INFO_NULL, fh, ierr )
     if( ierr .ne. 0 ) return
 
+    
+
+    myx = prep_wvfn_divideXmesh( nx, nprocPerPool, poolID )
+    call MPI_TYPE_VECTOR( nb, myx, nx, MPI_DOUBLE_COMPLEX, fileType, ierr )
+    if( ierr .ne. 0 ) return
+    call MPI_TYPE_COMMIT( fileType, ierr )
+    if( ierr .ne. 0 ) return
+    write(1000+myid,*) 'FILE TYPE'
+    write(1000+myid,*) nb, myx, nx
+    
     offset = 0
-    call MPI_FILE_SET_VIEW( fh, offset, MPI_DOUBLE_COMPLEX, MPI_DOUBLE_COMPLEX, "native", MPI_INFO_NULL, ierr )
+    do i = 0, poolID - 1
+      offset = offset + prep_wvfn_divideXmesh( nx, nprocPerPool, i )
+    enddo
+    call MPI_SIZEOF( dumz, sizeofcomplex, ierr )
+    if( ierr .ne. 0 ) return
+    offset = offset *  sizeofcomplex
+    write(1000+myid, * ) 'offset', offset, sizeofcomplex
+      
+!    call MPI_FILE_SET_VIEW( fh, offset, MPI_DOUBLE_COMPLEX, MPI_DOUBLE_COMPLEX, "native", MPI_INFO_NULL, ierr )
+    call MPI_FILE_SET_VIEW( fh, offset, MPI_DOUBLE_COMPLEX, fileType, "native", MPI_INFO_NULL, ierr )
     if( ierr .ne. 0 ) return
 #else
     open( file=filnam, form='unformatted', status='unknown', newunit=fh )
@@ -334,12 +368,13 @@ module prep_wvfn
 
   end subroutine prep_wvfn_openU2
 
-  subroutine prep_wvfn_closeU2( FH, ierr )
+  subroutine prep_wvfn_closeU2( FH, ierr, fileType )
     integer, intent( out ) :: FH 
-    integer, intent( inout ) :: ierr
+    integer, intent( inout ) :: ierr, fileType
 
 #ifdef MPI
     call MPI_FILE_CLOSE( fh, ierr )
+    call MPI_TYPE_FREE( fileType )
 #else
    close( fh )
 #endif
@@ -347,6 +382,7 @@ module prep_wvfn
   
 
   subroutine prep_wvfn_u1( wvfn, UofX, ierr )
+    use ocean_mpi, only : myid
     complex(DP), intent( in ) :: wvfn(:,:,:,:)
     complex(DP), intent( out ) :: UofX(:,:,:,:)
     integer, intent( inout ) :: ierr
@@ -419,6 +455,8 @@ module prep_wvfn
       res = 1.0_DP / res
       call zdscal( nOut, res, UofX(:,:,:,iband), 1 )
       ! end normalize
+
+      write(1000+myid, * ) ' !', iband, dznrm2( nOut, UofX(:,:,:,iband), 1 )
     enddo
 
   end subroutine prep_wvfn_u1
@@ -486,6 +524,7 @@ module prep_wvfn
       if( ierr .ne. 0 ) return
 
       write(1000+myid,*) 'UofX2 sends:', iprocPool, nx, nband
+      write(1000+myid,*) '            ', ix, iy, iz
       call MPI_ISEND( UofX( ix, iy, iz, 1 ), 1, newType, iprocPool, 1, pool_comm, req( iprocPool, 2 ), ierr )
       if( ierr .ne. 0 ) return
 
@@ -506,17 +545,31 @@ module prep_wvfn
     flush(1000+myid)
     call MPI_WAITALL( nprocPool * 2, req, MPI_STATUSES_IGNORE, ierr )
     if( ierr .ne. 0 ) return
-    deallocate( req )
 
+    deallocate( req )
     nband = size( UofX2, 2 )
-    ! we've already normalized the un-orthogonalized ones, so skip band 1 
     allocate( coeff( nband ) )
+
+#if 0
+!TEST
+    do iband = 1, nband
+      coeff(iband) = dot_product( UofX2(:,iband), UofX2(:,iband) )
+    enddo
+    call MPI_ALLREDUCE( MPI_IN_PLACE, coeff, nband, MPI_DOUBLE_COMPLEX, MPI_SUM, pool_comm, ierr )
+    do iband = 1, nband
+      write(1000+myid, * ) '!!!', coeff(iband)
+    enddo
+!\TEST
+#endif
+
+    ! we've already normalized the un-orthogonalized ones, so skip band 1 
     do iband = 2, nband
       do jband = 1, iband - 1
         coeff( jband ) = dot_product( UofX2(:,jband), UofX2(:,iband) )
       enddo
       call MPI_ALLREDUCE( MPI_IN_PLACE, coeff, iband-1, MPI_DOUBLE_COMPLEX, MPI_SUM, pool_comm, ierr )
       if( ierr .ne. 0 ) return 
+ !     write(1000+myid,*) coeff(1:iband-1)
 
       do jband = 1, iband - 1
         UofX2(:,iband) = UofX2(:,iband) - coeff( jband ) * UofX2(:,jband)
@@ -535,12 +588,12 @@ module prep_wvfn
 
   subroutine prep_wvfn_writeU2( ikpt, ispin, UofX2, fileHandle, ierr )
     use prep_system, only : system_parameters, params
-    use ocean_dft_files, only : odf_poolID, odf_npool
+    use ocean_dft_files, only : odf_poolID, odf_nprocPerPool
     use ocean_mpi, only : & 
 #ifdef MPI_F08
                           MPI_Datatype, &
 #endif
-                          MPI_DOUBLE_COMPLEX, MPI_OFFSET_KIND, MPI_STATUS_IGNORE
+                          MPI_DOUBLE_COMPLEX, MPI_OFFSET_KIND, MPI_STATUS_IGNORE, myid, MPI_STATUS_SIZE, MPI_INFO_NULL
 
     integer, intent( in ) :: ikpt, ispin, fileHandle
     complex(DP), intent( in ) :: UofX2(:,:)
@@ -549,36 +602,58 @@ module prep_wvfn
 #ifdef MPI_F08
     type( MPI_DATATYPE ):: newType
 #else
-    integer :: newType
+    integer :: newType, stat( MPI_STATUS_SIZE)
 #endif
     integer(MPI_OFFSET_KIND) :: offset
-    integer :: ix, i
+    integer :: ix, i, myPoolID, nprocPerPool, nx, myx, nb
 
     ! offset for k-point
     offset = max( ikpt - 1 + ( ispin - 1 ) * params%nkpts, 0 )
-    offset = offset * int( product( params%xmesh(:) ), MPI_OFFSET_KIND ) & 
-           * int( size( UofX2, 2 ), MPI_OFFSET_KIND )
+    offset = offset * int( size( UofX2, 1 ), MPI_OFFSET_KIND ) * int( size( UofX2, 2 ), MPI_OFFSET_KIND )
+!    offset = offset * int( product( params%xmesh(:) ), MPI_OFFSET_KIND ) & 
+!           * int( size( UofX2, 2 ), MPI_OFFSET_KIND )
+
+
+    myPoolID = odf_poolID()
+    nprocPerPool = odf_nprocPerPool()
 
     ! offset for x position within k-point
     ix = 0
-    do i = 0, odf_poolID() - 1
-      ix = ix + prep_wvfn_divideXmesh( product( params%xmesh(:) ), odf_npool, i )
+    do i = 0, myPoolID - 1
+      ix = ix + prep_wvfn_divideXmesh( product( params%xmesh(:) ), nprocPerPool, i )
     enddo
-    offset = offset + ix
+!    offset = offset + ix
 
-    call MPI_TYPE_VECTOR( size( UofX2, 2 ), size( UofX2, 1), product( params%xmesh(:) ), & 
-                          MPI_DOUBLE_COMPLEX, newType, ierr )
+    nb = size( UofX2, 2 )
+    myx = size( UofX2, 1)
+    nx = product( params%xmesh(:) )
+
+    call MPI_TYPE_VECTOR( nb, myx, nx, MPI_DOUBLE_COMPLEX, newType, ierr )
+!    call MPI_TYPE_VECTOR( size( UofX2, 2 ), size( UofX2, 1), product( params%xmesh(:) ), & 
+!                          MPI_DOUBLE_COMPLEX, newType, ierr )
     if( ierr .ne. 0 ) return
     call MPI_TYPE_COMMIT( newType, ierr )
     if( ierr .ne. 0 ) return
 
+
     if( ikpt .eq. 0 ) then
       i = 0
     else
-      i = 1
+      i = myx*nb
     endif
-    call MPI_FILE_WRITE_AT_ALL( fileHandle, offset, UofX2, i, newType, MPI_STATUS_IGNORE, ierr )
+    write(1000+myid,'(6(I12))') ikpt, offset, size( UofX2, 2 ), size( UofX2, 1), & 
+          offset*16, ( offset + size( UofX2, 2 ) * size( UofX2, 1) ) * 16
+!    call MPI_FILE_SET_VIEW( fileHandle, offset, MPI_DOUBLE_COMPLEX, newType, "native", MPI_INFO_NULL, ierr )
+!    if( ierr .ne. 0 ) return
+!    call MPI_FILE_WRITE_ALL( fileHandle,  UofX2, i, newType, stat, ierr )
+!
+!!    call MPI_FILE_WRITE_AT_ALL( fileHandle, offset, UofX2, i, newType, MPI_STATUS_IGNORE, ierr )
+!    call MPI_FILE_WRITE_AT_ALL( fileHandle, offset, UofX2, i, newType, stat, ierr )
+    call MPI_FILE_WRITE_AT_ALL( fileHandle, offset, UofX2, i, MPI_DOUBLE_COMPLEX, stat, ierr )
     if( ierr .ne. 0 ) return
+
+    call MPI_GET_COUNT( stat, MPI_DOUBLE_COMPLEX, i, ierr )
+    write(1000+myid,*) i
   
     call MPI_TYPE_FREE( newType, ierr )
     if( ierr .ne. 0 ) return
@@ -644,6 +719,7 @@ module prep_wvfn
 
   subroutine prep_wvfn_doFFT( gvecs, UofG, UofX )
     use ocean_dft_files, only : odf_isFullStorage
+    use ocean_mpi, only : myid
 #ifdef __FFTW3
     use iso_c_binding
     include 'fftw3.f03'
@@ -656,6 +732,7 @@ module prep_wvfn
     type(C_PTR) :: bplan
     integer :: dims(3), nbands, ngvecs
     integer :: i, j, k, ig, ib
+    real(DP), external :: dznrm2
 
     dims(1) = size( uofx, 1 )
     dims(2) = size( uofx, 2 )
@@ -695,6 +772,8 @@ module prep_wvfn
       call fftw_execute_dft( bplan, uofx(:,:,:,ib), uofx(:,:,:,ib) )
 
       call fftw_destroy_plan( bplan )
+
+      write(1000+myid, * ) '  ', ib, dznrm2( product( dims(1:3) ), uofx(:,:,:,ib), 1 )
     enddo
 
 #else
@@ -710,7 +789,9 @@ module prep_wvfn
     integer, intent( inout ) :: ierr
 
     complex(DP), allocatable :: val_wvfn(:,:), con_wvfn(:,:)
-    integer :: ik, ix, ib, vb, cb, nb, nx
+    complex(DP) :: old
+    integer :: ik, ix, ib, vb, cb, nb, nx, dumi(3)
+    logical :: ex
 
     if( myid .eq. root ) then
 
@@ -719,10 +800,13 @@ module prep_wvfn
     cb = params%brange(4) - params%brange(3) + 1
     nb = vb + cb
     write(6,*) vb, cb, nx
+    write(1000,*) 'FINAL'
 
     open( unit=99, file='val.u2.dat', form='unformatted', access='stream' )
     open( unit=98, file='con.u2.dat', form='unformatted', access='stream' )
 
+    inquire( file='oldu2.dat', exist = ex )
+    if( ex ) open( unit=96, file='oldu2.dat',form='unformatted' )
     open( unit=97, file='u2.dat', form='unformatted', status='unknown' )
     rewind( 97 )
 
@@ -733,15 +817,39 @@ module prep_wvfn
       do ib = 1, vb
         do ix = 1, nx
           write(97) ib, ik, ix, val_wvfn( ix, ib )
+          if( ex ) then
+            read( 96 ) dumi(:), old
+            write(1000,'(4(E25.16))') val_wvfn( ix, ib ), old
+            write(2000,'(3I8,2E25.8)') ib, ik, ix, val_wvfn( ix, ib )
+            write(3000,'(3I8,2E25.8)') ib, ik, ix, old
+
+          endif
         enddo
       enddo
 
       read(98) con_wvfn
       do ib = 1, cb
         do ix = 1, nx
-          write(97) ib, ik, ix, con_wvfn( ix, ib )
+          write(97) ib+vb, ik, ix, con_wvfn( ix, ib )
+          if( ex ) then
+            read( 96 ) dumi(:), old
+            write(1000,'(4(E25.16))') con_wvfn( ix, ib ), old
+            write(2001,'(3I8,2E25.8)') ib+vb, ik, ix, con_wvfn( ix, ib )
+            write(3001,'(3I8,2E25.8)') ib+vb, ik, ix, old
+          endif
         enddo
       enddo
+
+      if( ex ) write(1000,*) '!##!', ik
+
+!      if( ik .eq. 1 ) then
+        do ib = 1, vb
+          write(6,*) ib, dot_product( val_wvfn( :, ib), val_wvfn( :, ib) )
+        enddo
+        do ib = 1, cb
+          write(6,*) ib+vb, dot_product( con_wvfn( :, ib), con_wvfn( :, ib) )
+        enddo
+!      endif
     enddo
     deallocate( val_wvfn, con_wvfn )
     close( 99 )

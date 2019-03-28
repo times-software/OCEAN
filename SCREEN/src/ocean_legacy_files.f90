@@ -479,6 +479,9 @@ module ocean_legacy_files
       enddo
 11    continue
     endif
+
+    npool = 1
+    mypool = 0
     
     call MPI_COMM_SPLIT( inter_comm, mypool, inter_myid, pool_comm, ierr )
     if( ierr .ne. 0 ) return
