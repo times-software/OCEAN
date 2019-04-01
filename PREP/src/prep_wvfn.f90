@@ -456,7 +456,7 @@ module prep_wvfn
       call zdscal( nOut, res, UofX(:,:,:,iband), 1 )
       ! end normalize
 
-      write(1000+myid, * ) ' !', iband, dznrm2( nOut, UofX(:,:,:,iband), 1 )
+!      write(1000+myid, * ) ' !', iband, dznrm2( nOut, UofX(:,:,:,iband), 1 )
     enddo
 
   end subroutine prep_wvfn_u1
@@ -773,7 +773,7 @@ module prep_wvfn
 
       call fftw_destroy_plan( bplan )
 
-      write(1000+myid, * ) '  ', ib, dznrm2( product( dims(1:3) ), uofx(:,:,:,ib), 1 )
+!      write(1000+myid, * ) '  ', ib, dznrm2( product( dims(1:3) ), uofx(:,:,:,ib), 1 )
     enddo
 
 #else
@@ -799,14 +799,14 @@ module prep_wvfn
     vb = params%brange(2) - params%brange(1) + 1
     cb = params%brange(4) - params%brange(3) + 1
     nb = vb + cb
-    write(6,*) vb, cb, nx
-    write(1000,*) 'FINAL'
+!    write(6,*) vb, cb, nx
+!    write(1000,*) 'FINAL'
 
     open( unit=99, file='val.u2.dat', form='unformatted', access='stream' )
     open( unit=98, file='con.u2.dat', form='unformatted', access='stream' )
 
-    inquire( file='oldu2.dat', exist = ex )
-    if( ex ) open( unit=96, file='oldu2.dat',form='unformatted' )
+!    inquire( file='oldu2.dat', exist = ex )
+!    if( ex ) open( unit=96, file='oldu2.dat',form='unformatted' )
     open( unit=97, file='u2.dat', form='unformatted', status='unknown' )
     rewind( 97 )
 
@@ -817,13 +817,13 @@ module prep_wvfn
       do ib = 1, vb
         do ix = 1, nx
           write(97) ib, ik, ix, val_wvfn( ix, ib )
-          if( ex ) then
-            read( 96 ) dumi(:), old
-            write(1000,'(4(E25.16))') val_wvfn( ix, ib ), old
-            write(2000,'(3I8,2E25.8)') ib, ik, ix, val_wvfn( ix, ib )
-            write(3000,'(3I8,2E25.8)') ib, ik, ix, old
-
-          endif
+!          if( ex ) then
+!            read( 96 ) dumi(:), old
+!            write(1000,'(4(E25.16))') val_wvfn( ix, ib ), old
+!            write(2000,'(3I8,2E25.8)') ib, ik, ix, val_wvfn( ix, ib )
+!            write(3000,'(3I8,2E25.8)') ib, ik, ix, old
+!
+!          endif
         enddo
       enddo
 
@@ -831,25 +831,25 @@ module prep_wvfn
       do ib = 1, cb
         do ix = 1, nx
           write(97) ib+vb, ik, ix, con_wvfn( ix, ib )
-          if( ex ) then
-            read( 96 ) dumi(:), old
-            write(1000,'(4(E25.16))') con_wvfn( ix, ib ), old
-            write(2001,'(3I8,2E25.8)') ib+vb, ik, ix, con_wvfn( ix, ib )
-            write(3001,'(3I8,2E25.8)') ib+vb, ik, ix, old
-          endif
+!          if( ex ) then
+!            read( 96 ) dumi(:), old
+!            write(1000,'(4(E25.16))') con_wvfn( ix, ib ), old
+!            write(2001,'(3I8,2E25.8)') ib+vb, ik, ix, con_wvfn( ix, ib )
+!            write(3001,'(3I8,2E25.8)') ib+vb, ik, ix, old
+!          endif
         enddo
       enddo
 
-      if( ex ) write(1000,*) '!##!', ik
+!      if( ex ) write(1000,*) '!##!', ik
 
-!      if( ik .eq. 1 ) then
-        do ib = 1, vb
-          write(6,*) ib, dot_product( val_wvfn( :, ib), val_wvfn( :, ib) )
-        enddo
-        do ib = 1, cb
-          write(6,*) ib+vb, dot_product( con_wvfn( :, ib), con_wvfn( :, ib) )
-        enddo
-!      endif
+!!      if( ik .eq. 1 ) then
+!        do ib = 1, vb
+!          write(6,*) ib, dot_product( val_wvfn( :, ib), val_wvfn( :, ib) )
+!        enddo
+!        do ib = 1, cb
+!          write(6,*) ib+vb, dot_product( con_wvfn( :, ib), con_wvfn( :, ib) )
+!        enddo
+!!      endif
     enddo
     deallocate( val_wvfn, con_wvfn )
     close( 99 )

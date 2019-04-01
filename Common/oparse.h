@@ -520,3 +520,7 @@ screen.mode
 {
 core
 } screen.mode
+bse.wvfn
+{
+legacy
+} bse.wvfn

@@ -34,7 +34,7 @@ $oldden = 1 if (-e "../DFT/old");
 my @QEFiles     = ( "rhoofr", "efermiinrydberg.ipt" );
 my @CommonFiles = ( "screen.nkpt", "nkpt", "qinunitsofbvectors.ipt", "avecsinbohr.ipt", "dft", 
                     "nspin", "xmesh.ipt", "dft.split", "prefix", "calc", "screen.wvfn", "screen.legacy", 
-                    "screen.mode");
+                    "screen.mode", "bse.wvfn");
 
 foreach (@QEFiles) {
   system("cp ../DFT/$_ .") == 0 or die "Failed to copy $_\n";
@@ -82,6 +82,10 @@ close IN;
 open IN, "screen.legacy" or die "Failed to open screen.legacy\n$!";
 my $screenLegacy = <IN>;
 chomp $screenLegacy;
+close IN;
+
+open IN, "bse.wvfn" or die "Failed to open bse.wvfn\n$!";
+my $bseWvfn = <IN>;
 close IN;
 
 my $rundir;
@@ -140,10 +144,17 @@ if( $run_screen == 1 )
   symlink ("../$rundir/Out", "Out") == 1 or die "Failed to link Out\n$!";
 
   # New methods for skipping wfconvert
-  if( $screenWvfn =~ m/qe\d+/ && $screenLegacy == 0 )
+  if( $screenWvfn =~ m/qe(\d+)/ && $screenLegacy == 0 )
   {
-    print "Don't convert DFT. Using new method for screening wavefunctions\n";
+    my $qeVersion = $1;
+    print "Don't convert DFT. Using new method for screening wavefunctions: $qeVersion\n";
     `touch listwfile masterwfile enkfile`;
+    if( $qeVersion == 62 )
+    {
+#      print "../$rundir/enkfile\n";
+      copy "../$rundir/enkfile", "enkfile";
+    }
+#    else{ print $qeVersion . "\n"; }
   }
   else  # old method, run wfconvert
   {
@@ -222,6 +233,8 @@ if( -e "BSE/done" && -e "${rundir}/old" )
     }
   }
 }
+
+$runBSE = 0 if( $bseWvfn =~ m/qe62/ );
 
 if( $runBSE != 0 )
 {
