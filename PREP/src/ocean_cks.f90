@@ -21,20 +21,205 @@ module ocean_cks
     character( len=2 ) :: elname
     integer :: indx
     integer :: z
-    real(DP) :: tau( 3 )
+!    real(DP) :: xred( 3 )
+    real(DP) :: xcoord( 3 )
   end type site_info
+
+  type cks_holder
+    complex(DP), allocatable :: con(:,:,:)
+    complex(DP), allocatable :: val(:,:,:)
+  end type cks_holder
 
 
   type( site_info ), allocatable :: allSites(:)
+  type( cks_holder ), allocatable :: allCksHolders(:)
   real(DP), allocatable :: angularGrid( :, : )
   real(DP), allocatable :: angularWeights( : )
-  real(DP), allocatable :: weightedYlmStar(:,:)
+  complex(DP), allocatable :: weightedYlmStar(:,:)
+
+  integer :: ylmMax
   
+  public :: ocean_cks_init, buildCKS
+
+  public :: ocean_cks_nsites
 
   contains
 
-  subroutine ocean_cks_init()
-    ylmMax = 5
+  subroutine ocean_cks_makeCksHolders( myValBands, myConBands, myKpts, ierr )
+    integer, intent( in ) :: myValBands, myConBands, myKpts
+    integer, intent( inout ) :: ierr
+    !
+    integer :: nsites, i, np, itarg, lmin, lmax, l, nptot
+
+    nsites = ocean_cks_nsites( )
+
+    allocate( allCksHolders( nsites ), stat=ierr )
+    if( ierr .ne. 0 ) return
+
+    itarg = 0
+    do i = 1, nsites
+      call screen_opf_lbounds( allSites( i )%z, lmin, lmax, ierr, itarg )
+      if( ierr .ne. 0 ) return
+      
+      nptot = 0
+      do l = lmin, lmax
+        call screen_opf_nprojForChannel( allSites( i )%z, l, np, ierr, itarg )
+        if( ierr .ne. 0 ) return
+
+        nptot = nptot + np * ( 2*l + 1 )
+      enddo
+      
+      allocate( allCksHolders( i )%con( nptot, myConBands, myKpts ), &
+                allCksHolders( i )%val( nptot, myValBands, myKpts ), stat=ierr )
+      if( ierr .ne. 0 ) return
+
+    enddo
+
+  end subroutine ocean_cks_makeCksHolders
+      
+
+  pure function ocean_cks_nsites( )
+    integer :: ocean_cks_nsites
+
+    if( allocated( allSites ) ) then
+      ocean_cks_nsites = size( allSites )
+    else
+      ocean_cks_nsites = 0 
+    endif
+  end function ocean_cks_nsites
+
+  subroutine load_angularGrid( lMax, ierr )
+    use ocean_mpi, only : myid, root, comm, MPI_INTEGER, MPI_DOUBLE_PRECISION
+    use ocean_constants, only  : PI_DP
+    integer, intent( in ) :: lMax
+    integer, intent( inout ) :: ierr
+
+    real(DP) :: su, su2
+    integer :: i, n
+
+    ! in the future we could choose our anuglar grid. At the moment all specpnt.5 all the time
+    if( myid .eq. root ) then
+      open( unit=99, file='specpnt.5', form='formatted', status='old' )
+      read( 99, * ) n
+      allocate( angularGrid( 3, n ), angularWeights( n ) )
+
+      su = 0.0_DP
+      do i = 1, n
+        read(99,*) angularGrid( :, i ), angularWeights( i )
+        su = su + angularWeights( i )
+        su2 = dot_product( angularGrid( :, i ), angularGrid( :, i ) )
+        su2 = 1.0_DP / sqrt( su2 )
+        angularGrid( :, i ) = angularGrid( :, i ) * su2
+      enddo
+      su = 4.0_DP * PI_DP / su
+      angularWeights( : ) = angularWeights( : ) * su
+      close( 99 )
+    endif
+
+    call MPI_BCAST( n, 1, MPI_INTEGER, root, comm, ierr )
+    if( ierr .ne. 0 ) return
+    call MPI_BCAST( angularGrid, 3*n, MPI_DOUBLE_PRECISION, root, comm, ierr )
+    if( ierr .ne. 0 ) return
+    call MPI_BCAST( angularWeights, n, MPI_DOUBLE_PRECISION, root, comm, ierr )
+    if( ierr .ne. 0 ) return
+
+  end subroutine
+
+
+  subroutine ocean_cks_init( ierr )
+    use prep_system, only : physical_system, atoms, psys
+    use ocean_mpi, only : myid, root, comm, MPI_LOGICAL
+    use screen_opf, only : screen_opf_loadAll, screen_opf_largestL
+    integer, intent( inout ) :: ierr
+
+    integer :: nL, totLM, il, l, m, i, j, totSites, reason
+    logical, allocatable :: tempEdgeList(:)
+    real(DP), allocatable :: prefs(:)
+
+    if( psys%natoms .lt. 1 ) then
+      if( myid .eq. root ) write(6,*) 'Tried to run cks, but no atoms! Possibly xyz.wyck was missing'
+      ierr = 10
+      return
+    endif
+
+    ! only need unique sites
+    allocate( tempEdgeList( psys%natoms ) )
+    tempEdgeList(:) = .false.
+    if( myid .eq. root ) then
+      open( unit=99, file='edges', form='formatted', status='old' )
+      do 
+        ! edge format: site index, principle quantum, angular quantum 
+        !               (but I don't care about the second two )
+        read( 99, *, iostat=reason ) j, l, m
+        if( reason > 0 ) then
+          write(6,*) 'Problem reading edges'
+          ierr = 11
+          exit
+        elseif( reason < 0 ) then
+          exit
+        else
+          if( j .lt. 0 .or. j .gt. psys%natoms ) then
+            ierr = 12
+            return
+          endif
+          tempEdgeList( j ) = .true.
+        endif
+      enddo
+      close( 99 )
+      if( ierr .ne. 0 ) return
+
+    endif
+
+    call MPI_BCAST( tempEdgeList, psys%natoms, MPI_LOGICAL, root, comm, ierr )
+    if( ierr .ne. 0 ) return
+
+    totSites = 0
+    do j = 1, psys%natoms
+      if( tempEdgeList( j ) ) totSites = totSites + 1
+    enddo
+        
+    if( totSites .eq. 0 ) then
+      if( myid .eq. root ) write(6,*) 'Edge count came up empty, but cks was requested!'
+      ierr = 13
+      return
+    endif
+
+    allocate( allSites( totSites ) )
+
+    i = 0
+    do j = 1, psys%natoms
+      if( tempEdgeList( j ) ) then
+        i = i + 1
+        allSites( i )%elname = psys%atom_list( j )%el_name
+        allSites( i )%indx = psys%atom_list( j )%indx
+        allSites( i )%z = psys%atom_list( j )%z
+!        allSites( i )%xred(:) = psys%atom_list( j )%reduced_coord(:)
+        allSites( i )%xcoord( : ) = matmul( psys%avecs, psys%atom_list( j )%reduced_coord(:) )
+      endif
+    enddo
+
+    deallocate( tempEdgeList )
+    ! done making list of unique sites
+
+    ! now load up the projector information for each unique z
+    call screen_opf_loadAll( ierr )
+    if( ierr .ne. 0 ) return
+
+    ! done loading projectors
+
+    ! Find largest L in any of the projectors. 
+    ! This will determine ylmMax and it will set the angular grid we need (but probably just specpnt.5)
+
+    ylmMax = screen_opf_largestL()
+
+    ! set up angular grid and pre-load Ylm information
+    call load_AngularGrid( ylmMax, ierr )
+    if( ierr .ne. 0 ) return
+     
+
+
+    
+
     nL = size( angularGrid, 2 ) 
     totLM = ( ylmMax + 1 ) **2
     allocate( prefs(0:1000), weightedYlmStar( nL, totLM ) )
@@ -52,7 +237,10 @@ module ocean_cks
       enddo
     enddo
     deallocate( prefs )
-  end subroutine
+
+    ! done with angular grid and YLM
+
+  end subroutine ocean_cks_init
 
 
 ! This is designed to be inside a loop over k-points/spin. Therefore we only need a single k-point for cks
@@ -61,7 +249,9 @@ module ocean_cks
 ! qkVec : the k (or k+q) point
 ! deltaR : minimum spacing for radial grid
   subroutine buildCKS( cksArray, wvfn, kqVec, deltaR, avecs, ierr )
-!    use screen_opf
+    use screen_opf, only : screen_opf_lbounds, screen_opf_maxnproj, screen_opf_nprojforchannel, &
+                           screen_opf_interppsprojs, screen_opf_makeamat, screen_opf_getrmax, &
+                           screen_opf_nprojforchannel
 
     ! cks( nprojectors_total (max over all sites), ntot = nband, sites )
     complex(DP), intent(out) :: cksArray( :, :, : )
@@ -72,12 +262,23 @@ module ocean_cks
 
     real(DP) :: rmax, trueDeltaR
     logical, allocatable :: isInitGrid( :, :, : ) 
-    integer :: itarg, zee, nR, nL, ir, il, lmin, lmax, maxNproj, ylmMax
-    complex(DP), allocatable :: localWvfn( :, : ), Pgrid( :, :, :, : ), waveByLM( :, : )
-    real(DP), allocatable :: uniSphericalGrid( :, :, : ), SphericalGrid( :, :, : )
+    integer :: itarg, zee, nR, nL, ir, il, lmin, lmax, maxNproj, dims(3), nband, order, isite, nsites, iband
+    integer :: i, m, l, nproj, ip, j, iang, k
+    complex(DP), allocatable :: localWvfn( :, : ), Pgrid( :, :, :, : ), waveByLM( :, : ), Smat(:,:), Cmat(:,:)
+    real(DP), allocatable :: uniSphericalGrid( :, :, : ), SphericalGrid( :, :, : ), radGrid( : )
+    real(DP), allocatable :: psproj( :, :, : ), amat( :, :, : ), deltaRadGrid(:)
 
     ! 
-    allocate( isInitGrid( :, :, : ), Pgrid() )
+    dims(1) = size( wvfn, 1 )
+    dims(2) = size( wvfn, 2 )
+    dims(3) = size( wvfn, 3 )
+    nband = size( wvfn, 4 )
+!    nsites = size( allSites, 1 )
+    nsites = ocean_cks_nsites()
+
+    !JTV at some point order could be an input, but 4 is nice
+    order = 4
+    allocate( isInitGrid( dims(1), dims(2), dims(3) ), Pgrid( order, dims(1), dims(2), dims(3)) )
 
     nL = size( angularGrid, 2 )
 
@@ -106,8 +307,10 @@ module ocean_cks
 
           ! allocate wvfn holder
           ! 
-          allocate( localWvfn( nL, nR ), uniSphericalGrid( 3, nL, nR ), SphericalGrid( 3, nL, nR ) )
+          allocate( localWvfn( nL, nR ), uniSphericalGrid( 3, nL, nR ), SphericalGrid( 3, nL, nR ), &
+                    radGrid( nr ), deltaRadGrid( nr ) )
 
+          deltaRadGrid( : ) = trueDeltaR
           do ir = 1, nR
             radGrid( ir ) = trueDeltaR * real( ir, DP )
             uniSphericalGrid( :, :, ir ) = angularGrid( :, : ) * radGrid( ir )
@@ -115,9 +318,10 @@ module ocean_cks
 
         endif
 
+
         do ir = 1, nR
           do il = 1, nl
-            SphericalGrid( :, il, ir ) = uniSphericalGrid( :, il, ir ) + tau(:)
+            SphericalGrid( :, il, ir ) = uniSphericalGrid( :, il, ir ) + allSites( isite )%xcoord(:)
           enddo
         enddo
 
@@ -133,8 +337,6 @@ module ocean_cks
         call screen_opf_maxNproj( zee, maxNproj, ierr, itarg )
         if( ierr .ne. 0 ) return
 
-        totLM = ( lmax + 1 ) ** 2
-
 
         allocate( psproj( nR, maxNproj, lmin:lmax ), amat( maxNproj, maxNproj, lmin:lmax ) )
         psproj = 0.0_DP
@@ -143,10 +345,10 @@ module ocean_cks
           call screen_opf_nprojForChannel( zee, l, nproj, ierr, itarg )
           if( ierr .ne. 0 ) return
 
-          call screen_opf_interpPSProj( zee, l, radGrid, psproj(:,:,l), ierr, itarg )
+          call screen_opf_interpPSProjs( zee, l, radGrid, psproj(:,:,l), ierr, itarg )
           if( ierr .ne. 0 ) return
 
-          call screen_opf_makeAMat( nproj, nR, radGrid, trueDeltaR, psproj(:,:,l), amat(:,:,l), ierr )
+          call screen_opf_makeAMat( nproj, nR, radGrid, deltaRadGrid, psproj(:,:,l), amat(:,:,l), ierr )
           if( ierr .ne. 0 ) return
 
           ! precompute r^2 dr on the ps projector
@@ -237,7 +439,7 @@ module ocean_cks
     logical, intent( inout ) :: isInitGrid(:,:,:)
     real(DP), intent( in ) :: avecs(3,3), qcart(3)
     real(DP), intent( in ) :: posn(:,:,:)
-    complex(DP), intent( out ) :: wvfnInSphere
+    complex(DP), intent( out ) :: wvfnInSphere(:,:)
     integer, intent( inout ) :: ierr
 
 
@@ -251,7 +453,7 @@ module ocean_cks
     integer :: dims(3), il, ir, i, j, ix, iy, iz, iyy, izz, offset, order, pointMap( 3 )
 
 
-    order = 4
+    order = size( Pgrid, 1 )
     
 !    allocate( pointMap( 3, npts ), distanceMap( 3, npts ), phase( npts ), stat=ierr )
 !    if( ierr .ne. 0 ) return
@@ -486,5 +688,36 @@ module ocean_cks
   end subroutine ylmeval
 
 
+    subroutine inv3x3( inMat, outMat, ierr )
+
+    real(dp), intent(in) :: inMat(3,3)
+    real(dp), intent(out) :: outMat(3,3)
+    integer, intent( inout ) :: ierr
+    !
+    real(dp) :: det
+
+    outMat(1,1) = inMat(2,2) * inMat(3,3) - inMat(3,2) * inMat(2,3)
+    outMat(2,1) = inMat(3,2) * inMat(1,3) - inMat(1,2) * inMat(3,3)
+    outMat(3,1) = inMat(1,2) * inMat(2,3) - inMat(2,2) * inMat(1,3)
+    det  = inMat(1,1) * outMat(1,1) + inMat(2,1) * outMat(2,1) + inMat(3,1) * outMat(3,1)
+
+    if (abs(det)>0.000000001) then
+      det = 1.0_dp / det
+    else
+      outMat = 0.0_DP
+      ierr = 9
+      return
+    end if
+
+    outMat(1,2) = inMat(3,1) * inMat(2,3) - inMat(2,1) * inMat(3,3)
+    outMat(2,2) = inMat(1,1) * inMat(3,3) - inMat(3,1) * inMat(1,3)
+    outMat(3,2) = inMat(2,1) * inMat(1,3) - inMat(1,1) * inMat(2,3)
+    outMat(1,3) = inMat(2,1) * inMat(3,2) - inMat(3,1) * inMat(2,2)
+    outMat(2,3) = inMat(3,1) * inMat(1,2) - inMat(1,1) * inMat(3,2)
+    outMat(3,3) = inMat(1,1) * inMat(2,2) - inMat(2,1) * inMat(1,2)
+
+    outMat(:,:) = outMat(:,:) * det
+
+  end subroutine inv3x3
 
 end module ocean_cks

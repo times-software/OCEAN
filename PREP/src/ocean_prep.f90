@@ -14,6 +14,7 @@ program ocean_prep
 
   use prep_system, only : prep_system_load, prep_system_summarize
   use prep_wvfn, only : prep_wvfn_driver
+  use ocean_cks, only : ocean_cks_init
 
   implicit none
 
@@ -42,6 +43,8 @@ program ocean_prep
   if( ierr .ne. 0 ) goto 111
 
   ! Step two we will be checking and loading the OPFs here for the matrix elements
+  call ocean_cks_init( ierr )
+  if( ierr .ne. 0 ) goto 111
 
 
   call prep_wvfn_driver( ierr )

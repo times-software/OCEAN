@@ -6,7 +6,7 @@
 !
 !
 ! by John Vinson 03-2019
-! Large sections taken from SCREEN/src/screen_system.f90
+! Large sections taken from SCREEN/src/screen_system.'formatted'0
 !
 module prep_system
   use ai_kinds, only : DP
@@ -17,6 +17,8 @@ module prep_system
   type atoms
     real( DP ) :: reduced_coord( 3 )
     character( len=2 ) :: el_name
+    integer :: indx
+    integer :: z
   end type atoms
 
   type physical_system
@@ -34,7 +36,8 @@ module prep_system
     integer :: nkpts
     integer :: nspin
     integer :: nbands
-    real( DP ) :: kshift( 3 )
+    real( DP ) :: k0( 3 )
+    real( DP ) :: qshift( 3 )
     logical :: isSplit !is the DFT run separated into k and k+q?
     logical :: haveShift
   end type system_parameters
@@ -60,10 +63,33 @@ module prep_system
   public :: psys, params
 
 
-  public :: prep_system_load, prep_system_summarize
+  public :: prep_system_load, prep_system_summarize, prep_system_snatch
+
+  public ::  prep_system_ikpt2kvec
 
   contains
 
+  subroutine prep_system_ikpt2kvec( ikpt, addShift, kvec )
+    integer, intent( in ) :: ikpt
+    logical, intent( in ) :: addShift
+    real(DP), intent( out ) :: kvec(3)
+    !
+    integer :: ikx, iky, ikz, ik
+
+    ikx = ( ikpt - 1 ) / ( params%kmesh( 3 ) * params%kmesh( 2 ) )
+    ik = ikpt - ikx * params%kmesh( 3 ) * params%kmesh( 2 ) 
+
+    iky = ( ik - 1 ) / params%kmesh( 3 )
+    ikz = ik - iky * params%kmesh( 3 )
+
+    
+    kvec( 1 ) = ( params%k0( 1 ) + real( ikx, DP ) ) / real( params%kmesh( 1 ), DP )
+    kvec( 2 ) = ( params%k0( 2 ) + real( iky, DP ) ) / real( params%kmesh( 2 ), DP )
+    kvec( 3 ) = ( params%k0( 3 ) + real( ikz, DP ) ) / real( params%kmesh( 3 ), DP )
+
+    if( addShift ) kvec(:) = kvec(:) + params%qshift(:)
+
+  end subroutine prep_system_ikpt2kvec
 
   subroutine prep_system_load( ierr )
     use OCEAN_mpi, only : myid, root, comm, nproc, MPI_INTEGER, MPI_SUCCESS
@@ -76,7 +102,8 @@ module prep_system
 
 
     if( myid .eq. root ) then
-      call load_xyz( ierr )
+      call load_atomList( ierr )
+!      call load_xyz( ierr )
       if( ierr .ne. 0 ) goto 111
 
       call load_abvecs( ierr )
@@ -170,7 +197,7 @@ module prep_system
     if( nproc .eq. 1 ) return
     !
 #ifdef MPI
-    call MPI_BCAST( params%kshift, 3, MPI_DOUBLE_PRECISION, root, comm, ierr )
+    call MPI_BCAST( params%k0, 3, MPI_DOUBLE_PRECISION, root, comm, ierr )
     if( ierr .ne. MPI_SUCCESS ) return
 
     call MPI_BCAST( params%brange, 4, MPI_INTEGER, root, comm, ierr )
@@ -220,6 +247,7 @@ module prep_system
     !
     real( DP ), allocatable :: temp_coords( :, : )
     character( len=2 ), allocatable :: temp_names( : )
+    integer, allocatable :: zeeAndIndx( :, : )
     integer :: ii
     !
     if( nproc .eq. 1 ) return
@@ -228,12 +256,14 @@ module prep_system
     if( ierr .ne. MPI_SUCCESS ) return
     !
     if( myid .ne. root ) allocate( psys%atom_list( psys%natoms ) )
-    allocate( temp_names( psys%natoms ), temp_coords( 3, psys%natoms ) )
+    allocate( temp_names( psys%natoms ), temp_coords( 3, psys%natoms ), zeeAndIndx( 2, psys%natoms ) )
 
     if( myid .eq. root ) then
       do ii = 1, psys%natoms
         temp_names( ii ) = psys%atom_list( ii )%el_name
         temp_coords( :, ii ) = psys%atom_list( ii )%reduced_coord( : )
+        zeeAndIndx( 1, ii ) = psys%atom_list( ii )%z
+        zeeAndIndx( 2, ii ) = psys%atom_list( ii )%indx
       enddo
     endif
 
@@ -243,14 +273,19 @@ module prep_system
     call MPI_BCAST( temp_coords, 3 * psys%natoms, MPI_DOUBLE_PRECISION, root, comm, ierr )
     if( ierr .ne. MPI_SUCCESS ) return
 
+    call MPI_BCAST( zeeAndIndx, 2 * psys%natoms, MPI_INTEGER, root, comm, ierr )
+    if( ierr .ne. MPI_SUCCESS ) return
+
     if( myid .ne. root ) then
       do ii = 1, psys%natoms
         psys%atom_list( ii )%el_name = temp_names( ii )
         psys%atom_list( ii )%reduced_coord( : ) = temp_coords( :, ii )
+        psys%atom_list( ii )%z = zeeAndIndx( 1, ii )
+        psys%atom_list( ii )%indx = zeeAndIndx( 2, ii )
       enddo
     endif
 
-    deallocate( temp_names, temp_coords )
+    deallocate( temp_names, temp_coords, zeeAndIndx )
 
     return
 
@@ -388,7 +423,7 @@ module prep_system
         write( 6, * ) 'FATAL ERROR: Failed to open k0.ipt', ierr
         return
       endif
-      read( 99, *, IOSTAT=ierr ) params%kshift( : )
+      read( 99, *, IOSTAT=ierr ) params%k0( : )
       if( ierr .ne. 0 ) then
         write( 6, * ) 'FATAL ERROR: Failed to read k0.ipt', ierr
         return
@@ -399,13 +434,35 @@ module prep_system
         return
       endif
     else
-      params%kshift( 1 ) = 0.125_DP
-      params%kshift( 2 ) = 0.25_DP
-      params%kshift( 3 ) = 0.375_DP
+      params%k0( 1 ) = 0.125_DP
+      params%k0( 2 ) = 0.25_DP
+      params%k0( 3 ) = 0.375_DP
     endif
 
 
-    if( abs( params%kshift( 1 ) ) + abs( params%kshift( 2 ) ) + abs( params%kshift( 3 ) ) &
+    inquire( file='qinunitsofbvectors.ipt', exist=ex )
+    if( ex ) then
+      open( unit=99, file='qinunitsofbvectors.ipt', form='formatted', status='old', IOSTAT=ierr )
+      if( ierr .ne. 0 ) then
+        write( 6, * ) 'FATAL ERROR: Failed to open qinunitsofbvectors.ipt', ierr
+        return
+      endif
+      read( 99, *, IOSTAT=ierr ) params%qshift( : )
+      if( ierr .ne. 0 ) then
+        write( 6, * ) 'FATAL ERROR: Failed to read qinunitsofbvectors.ipt', ierr
+        return
+      endif
+      close( 99, IOSTAT=ierr)
+      if( ierr .ne. 0 ) then
+        write( 6, * ) 'FATAL ERROR: Failed to close qinunitsofbvectors.ipt', ierr
+        return
+      endif
+    else
+      params%qshift( : ) = 0.0_DP
+    endif
+
+
+    if( abs( params%qshift( 1 ) ) + abs( params%qshift( 2 ) ) + abs( params%qshift( 3 ) ) &
         < tol ) then
       params%haveShift = .false.
     else
@@ -508,6 +565,59 @@ module prep_system
   end subroutine load_abvecs
 
   ! NOT MPI SAFE ( in so much as it will let every process hit the filesystem )
+  subroutine load_atomList( ierr )
+    use periodic, only : getsymbol_underscore 
+    integer, intent( inout ) :: ierr
+
+    real(DP), allocatable :: xred(:,:)
+    integer :: ntypat, natom, i
+    integer, allocatable :: znucl(:), typat(:), tempIndx(:)
+
+    open(unit=99,file='ntype',form='formatted',status='old')
+    read(99,*) ntypat
+    close(99)
+    !
+    open(unit=99,file='natoms',form='formatted',status='old')
+    read(99,*) natom
+    close(99)
+    !
+    allocate(znucl(ntypat),typat(natom),xred(3,natom))
+
+    open(unit=99,file='znucl',form='formatted',status='old')
+    read(99,*) znucl(:)
+    close(99)
+
+    allocate(typat(natom))
+    open(unit=99,file='typat',form='formatted',status='old')
+    read(99,*) typat(:)
+    close(99)
+
+    allocate(xred(3,natom))
+    open(unit=99,file='taulist',form='formatted',status='old')
+    read(99,*) xred(:,:)
+    close(99)
+
+    ! must be less than 160 elements
+    allocate( tempIndx( 160 ) )
+    tempIndx(:) = 0
+
+    psys%natoms = natom
+    allocate( psys%atom_list( natom ) )
+
+    do i = 1, psys%natoms
+      psys%atom_list( i )%reduced_coord( : ) = xred( :, i )
+!      psys%atom_list( i )%el_name = elements(znucl(typat( i ) ) )
+      call getsymbol_underscore( znucl(typat( i ) ), psys%atom_list( i )%el_name )
+      psys%atom_list( i )%z = znucl( typat( i ) )
+      tempIndx( psys%atom_list( i )%z ) = tempIndx( psys%atom_list( i )%z ) + 1
+      psys%atom_list( i )%indx = tempIndx( psys%atom_list( i )%z )
+    enddo
+
+    deallocate( tempIndx, znucl, typat, xred )
+
+  end subroutine load_atomList
+  
+  ! NOT MPI SAFE ( in so much as it will let every process hit the filesystem )
   subroutine load_xyz( ierr )
     integer, intent( inout ) :: ierr
     !
@@ -575,5 +685,35 @@ module prep_system
     !
     return
   end subroutine getomega
+
+    subroutine prep_system_snatch( element, indx, tau, xcoord, ierr )
+    character( len=2 ), intent( in ) :: element
+    integer, intent( in ) :: indx
+    real( DP ), intent( out ) :: tau( 3 )
+    real( DP ), intent( out ) :: xcoord( 3 )
+    integer, intent( inout ) :: ierr
+    !
+    integer :: ii, nmatch
+
+    nmatch = 0
+    do ii = 1, psys%natoms
+      if( element .eq. psys%atom_list( ii )%el_name ) then
+        nmatch = nmatch + 1
+        if( nmatch .eq. indx ) then
+          tau( : ) = psys%atom_list( ii )%reduced_coord(: )
+          goto 111
+        endif
+      endif
+    enddo
+
+    write( 6, * ) 'Atom coord not found!'
+    ierr = -1
+    return
+
+111 continue
+
+    xcoord = matmul( psys%avecs, tau )
+
+  end subroutine prep_system_snatch
 
 end module prep_system

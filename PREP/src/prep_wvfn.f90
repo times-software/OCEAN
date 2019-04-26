@@ -23,28 +23,33 @@ module prep_wvfn
 
 
   subroutine prep_wvfn_driver( ierr )
-    use prep_system, only : system_parameters, params
+    use prep_system, only : system_parameters, params, psys, prep_system_ikpt2kvec
     use ocean_mpi, only : myid, root, nproc
     use ocean_dft_files, only : odf_is_my_kpt, odf_return_my_bands, odf_nprocPerPool, odf_poolID, &
                                 ODF_VALENCE, ODF_CONDUCTION, odf_universal2KptandSpin, &
                                 odf_get_ngvecs_at_kpt, odf_read_at_kpt_split, odf_npool
+    use ocean_cks, only : buildCKS, ocean_cks_nsites
+    use screen_opf, only : screen_opf_largestLMNproj
     integer, intent( inout ) :: ierr
 
     complex(DP), allocatable, target :: valUofG(:,:), conUofG(:,:), wvfn(:,:,:,:), UofX(:,:,:,:) , UofX2(:,:)
           !valUofX(:,:,:,:), conUofX(:,:,:,:)
-    complex(DP), pointer :: UofGPointer(:,:) !, UofXpointer(:,:,:,:)
+    complex(DP), pointer :: UofGPointer(:,:), cksPointer(:,:,:) !, UofXpointer(:,:,:,:)
+    complex(DP), allocatable, target :: cksValArray(:,:,:,:), cksConArray(:,:,:,:)
+
+    real(DP) :: kqVec(3), deltaR
 
     integer, allocatable, target :: valGvecs(:,:), conGvecs(:,:)
     integer, pointer :: gvecPointer(:,:)
 
-    integer :: ispin, ikpt, nprocPool, nuni, iuni, npool
+    integer :: ispin, ikpt, nprocPool, nuni, iuni, npool, nsites, nprojSpacer
     integer :: valNgvecs, conNgves, valBands, conBands, ngvecs(2), odf_flag
     integer :: nG, nbands, fftGrid(3), allBands, nX, vType, cType
 
     integer :: conFH, valFH, fileHandle, poolID, i, testFH
-    logical :: is_kpt, wantCKS, wantU2
+    logical :: is_kpt, wantCKS, wantU2, addShift
 
-    wantCKS = .false.
+    wantCKS = .true.
     wantU2 = .true.
 
 
@@ -58,6 +63,8 @@ module prep_wvfn
   
     call odf_return_my_bands( conBands, ierr, ODF_CONDUCTION )
     if( ierr .ne. 0 ) return
+
+    nsites = ocean_cks_nsites()
 
 !    isDualFile =  odf_isDualFile()
 !!!prefix, nxpts, myBands, totalBands, FH, arrayType, ierr )
@@ -86,6 +93,18 @@ module prep_wvfn
     nX = prep_wvfn_divideXmesh( product( params%xmesh ), nprocPool, poolID )
 
     nuni = ceiling( real( params%nspin * params%nkpts, DP ) / real( npool, DP ) )
+
+
+
+    if( wantCKS ) then
+      nprojSpacer = screen_opf_largestLMNproj()
+      allocate( cksValArray( nprojSpacer, valBands, nsites, nuni ), &
+                cksConArray( nprojSpacer, conBands, nsites, nuni ) )
+    else
+      nprojSpacer = 0
+      allocate( cksValArray(0,0,0,0), cksConArray(0,0,0,0) )
+    endif
+
 !    ! loop over spin and kpt
 !    do ispin = 1, params%nspin
 !      do ikpt = 1, params%nkpts
@@ -153,7 +172,7 @@ module prep_wvfn
       ! the tmels for only their subset of unoccupied states  <----
 
 
-      else
+      else  ! ikpt == 0, the process isn't doing anything 
         ! This makes sure we don't assign pointers to un-allocated arrays
         allocate( valGvecs( 0, 0 ), conGvecs( 0, 0 ), valUofG( 0, 0 ), conUofG( 0, 0 ) )
       endif
@@ -167,6 +186,7 @@ module prep_wvfn
       nG = ngvecs(1)
       fileHandle = valFH
       odf_flag = ODF_VALENCE
+      cksPointer => cksValArray(:,:,:,iuni)
 
       !JTV
       ! need to set the complete band range for valence/conduction
@@ -238,6 +258,12 @@ module prep_wvfn
 
           ! call CKS
 !            call prep_wvfn_cks( 
+          ! deltaR is the min real-space spacing for the overlap, should make it an input
+          deltaR = 0.1_DP
+          addShift = (i .eq. 1 )
+          call prep_system_ikpt2kvec( ikpt, addShift, kqVec ) 
+          write(1000+myid, '(I8,3(X,E24.16))' ) ikpt, kqVec(:)
+          call buildCKS( cksPointer, wvfn, kqVec, deltaR, psys%avecs, ierr )
 
           ! call write CKS
 
@@ -254,6 +280,7 @@ module prep_wvfn
         fileHandle = conFH
         allBands = params%brange(4) - params%brange(3) + 1
         odf_flag = ODF_CONDUCTION
+        cksPointer => cksConArray(:,:,:,iuni)
       
       enddo ! i
 
@@ -274,6 +301,12 @@ module prep_wvfn
         call prep_wvfn_doLegacyParallel( ierr )
       endif
     endif
+
+  if( wantCKS ) then
+    if( nproc .eq. 1 ) then
+      call prep_wvfn_cksWriteLegacy( cksValArray, cksConArray )
+    endif
+  endif
 
   end subroutine prep_wvfn_driver
 
