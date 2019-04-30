@@ -28,14 +28,15 @@ module prep_wvfn
     use ocean_dft_files, only : odf_is_my_kpt, odf_return_my_bands, odf_nprocPerPool, odf_poolID, &
                                 ODF_VALENCE, ODF_CONDUCTION, odf_universal2KptandSpin, &
                                 odf_get_ngvecs_at_kpt, odf_read_at_kpt_split, odf_npool
-    use ocean_cks, only : buildCKS, ocean_cks_nsites
+    use ocean_cks, only : ocean_cks_build, ocean_cks_nsites, ocean_cks_writeCksHolders, & 
+                          ocean_cks_makeCksHolders, ocean_cks_doLegacyCks
     use screen_opf, only : screen_opf_largestLMNproj
     integer, intent( inout ) :: ierr
 
     complex(DP), allocatable, target :: valUofG(:,:), conUofG(:,:), wvfn(:,:,:,:), UofX(:,:,:,:) , UofX2(:,:)
           !valUofX(:,:,:,:), conUofX(:,:,:,:)
-    complex(DP), pointer :: UofGPointer(:,:), cksPointer(:,:,:) !, UofXpointer(:,:,:,:)
-    complex(DP), allocatable, target :: cksValArray(:,:,:,:), cksConArray(:,:,:,:)
+    complex(DP), pointer :: UofGPointer(:,:)!, cksPointer(:,:,:) !, UofXpointer(:,:,:,:)
+!    complex(DP), allocatable, target :: cksValArray(:,:,:,:), cksConArray(:,:,:,:)
 
     real(DP) :: kqVec(3), deltaR
 
@@ -94,16 +95,17 @@ module prep_wvfn
 
     nuni = ceiling( real( params%nspin * params%nkpts, DP ) / real( npool, DP ) )
 
+    call ocean_cks_makeCksHolders( ValBands, ConBands, nuni, ierr )
 
 
-    if( wantCKS ) then
-      nprojSpacer = screen_opf_largestLMNproj()
-      allocate( cksValArray( nprojSpacer, valBands, nsites, nuni ), &
-                cksConArray( nprojSpacer, conBands, nsites, nuni ) )
-    else
-      nprojSpacer = 0
-      allocate( cksValArray(0,0,0,0), cksConArray(0,0,0,0) )
-    endif
+!    if( wantCKS ) then
+!      nprojSpacer = screen_opf_largestLMNproj()
+!      allocate( cksValArray( nprojSpacer, valBands, nsites, nuni ), &
+!                cksConArray( nprojSpacer, conBands, nsites, nuni ) )
+!    else
+!      nprojSpacer = 0
+!      allocate( cksValArray(0,0,0,0), cksConArray(0,0,0,0) )
+!    endif
 
 !    ! loop over spin and kpt
 !    do ispin = 1, params%nspin
@@ -186,7 +188,7 @@ module prep_wvfn
       nG = ngvecs(1)
       fileHandle = valFH
       odf_flag = ODF_VALENCE
-      cksPointer => cksValArray(:,:,:,iuni)
+!      cksPointer => cksValArray(:,:,:,iuni)
 
       !JTV
       ! need to set the complete band range for valence/conduction
@@ -259,11 +261,11 @@ module prep_wvfn
           ! call CKS
 !            call prep_wvfn_cks( 
           ! deltaR is the min real-space spacing for the overlap, should make it an input
-          deltaR = 0.1_DP
-          addShift = (i .eq. 1 )
+          deltaR = 0.01_DP
+          addShift = (i .eq. 2 )
           call prep_system_ikpt2kvec( ikpt, addShift, kqVec ) 
-          write(1000+myid, '(I8,3(X,E24.16))' ) ikpt, kqVec(:)
-          call buildCKS( cksPointer, wvfn, kqVec, deltaR, psys%avecs, ierr )
+          write(1000+myid, '(A,I8,3(X,E24.16))' ) 'kqVec', ikpt, kqVec(:)
+          call ocean_cks_build( wvfn, kqVec, deltaR, psys%avecs, (i.eq.1), iuni,  ierr )
 
           ! call write CKS
 
@@ -280,7 +282,7 @@ module prep_wvfn
         fileHandle = conFH
         allBands = params%brange(4) - params%brange(3) + 1
         odf_flag = ODF_CONDUCTION
-        cksPointer => cksConArray(:,:,:,iuni)
+!        cksPointer => cksConArray(:,:,:,iuni)
       
       enddo ! i
 
@@ -303,9 +305,12 @@ module prep_wvfn
     endif
 
   if( wantCKS ) then
-    if( nproc .eq. 1 ) then
-      call prep_wvfn_cksWriteLegacy( cksValArray, cksConArray )
-    endif
+!    if( nproc .eq. 1 ) then
+!      call prep_wvfn_cksWriteLegacy( cksValArray, cksConArray )
+!    endif
+    call ocean_cks_writeCksHolders( ierr )
+    call ocean_cks_doLegacyCks( ierr )
+    if( ierr .ne. 0 ) return
   endif
 
   end subroutine prep_wvfn_driver

@@ -80,7 +80,7 @@ module prep_system
     ik = ikpt - ikx * params%kmesh( 3 ) * params%kmesh( 2 ) 
 
     iky = ( ik - 1 ) / params%kmesh( 3 )
-    ikz = ik - iky * params%kmesh( 3 )
+    ikz = ik - iky * params%kmesh( 3 ) - 1
 
     
     kvec( 1 ) = ( params%k0( 1 ) + real( ikx, DP ) ) / real( params%kmesh( 1 ), DP )
@@ -587,12 +587,10 @@ module prep_system
     read(99,*) znucl(:)
     close(99)
 
-    allocate(typat(natom))
     open(unit=99,file='typat',form='formatted',status='old')
     read(99,*) typat(:)
     close(99)
 
-    allocate(xred(3,natom))
     open(unit=99,file='taulist',form='formatted',status='old')
     read(99,*) xred(:,:)
     close(99)

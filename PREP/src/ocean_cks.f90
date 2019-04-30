@@ -39,13 +39,252 @@ module ocean_cks
 
   integer :: ylmMax
   
-  public :: ocean_cks_init, buildCKS
+  public :: ocean_cks_init, ocean_cks_build
 
   public :: ocean_cks_nsites
 
+  public :: ocean_cks_makeCksHolders, ocean_cks_cleanCksHolders, ocean_cks_writeCksHolders, ocean_cks_doLegacyCks
+
   contains
 
+  subroutine ocean_cks_doLegacyCks( ierr )
+    use ocean_mpi
+    use prep_system, only : params
+    integer, intent( inout ) :: ierr
+
+    complex(DP), allocatable :: cksIn(:)
+    real(DP), allocatable :: reCksOut(:), imCksOut(:)
+    integer :: isite, i, nbands, nkpts, nspin, nproj
+    character( len=14 ) :: parFilnam
+    character( len=11 ) :: filnam
+
+    if( myid .ne. root ) then
+      call MPI_BARRIER( comm, ierr )
+      return
+    endif
+
+
+    do isite = 1, size( allSites )
+      nproj = size( allCksHolders( isite )%con, 1 )
+      nbands = params%brange(4)-params%brange(3)+1
+      nkpts = product( params%kmesh(:) )
+      nspin = params%nspin
+
+      allocate( cksIn( nproj * nbands * nkpts * nspin ), reCksOut( nproj * nbands * nkpts * nspin ), &
+                imCksOut( nproj * nbands * nkpts * nspin ) )
+
+      write( parFilnam, '(A8,A2,I4.4)' ) 'parcksc.', allSites( isite )%elname, allSites( isite )%indx
+      open( unit=99, file=parFilnam, form='unformatted', access='stream', status='old' )
+      read(99) cksIn
+      close( 99 )
+
+      do i = 1, nproj * nbands * nkpts * nspin
+        reCksOut(i) = real( cksIn(i), DP )
+        imCksOut(i) = aimag( cksIn(i) )
+      enddo
+
+      write( filnam, '(A5,A2,I4.4)' ) 'cksc.', allSites( isite )%elname, allSites( isite )%indx
+      open( unit=99, file=filnam, form='unformatted', status='unknown' )
+      write(99) nproj, nbands*nkpts, nspin
+      write(99) allSites( isite )%xcoord(:)  ! this should be xred?
+      write(99) reCksOut
+      write(99) imCksOut
+      close( 99 )
+
+      deallocate( cksIn, reCksOut, imCksOut )
+
+      nbands = params%brange(2)-params%brange(1)+1
+      allocate( cksIn( nproj * nbands * nkpts * nspin ), reCksOut( nproj * nbands * nkpts * nspin ), &
+                imCksOut( nproj * nbands * nkpts * nspin ) )
+      
+      write( parFilnam, '(A8,A2,I4.4)' ) 'parcksv.', allSites( isite )%elname, allSites( isite )%indx
+      open( unit=99, file=parFilnam, form='unformatted', access='stream', status='old' )
+      read(99) cksIn
+      close( 99 )
+
+      do i = 1, nproj * nbands * nkpts * nspin
+        reCksOut(i) = real( cksIn(i), DP )
+        imCksOut(i) = aimag( cksIn(i) )
+      enddo
+
+      write( filnam, '(A5,A2,I4.4)' ) 'cksv.', allSites( isite )%elname, allSites( isite )%indx
+      open( unit=99, file=filnam, form='unformatted', status='unknown' )
+      write(99) nproj, nbands*nkpts, nspin
+      write(99) allSites( isite )%xcoord(:)  ! this should be xred?
+      write(99) reCksOut
+      write(99) imCksOut
+      close( 99 )
+
+      deallocate( cksIn, reCksOut, imCksOut )
+
+    enddo
+
+    call MPI_BARRIER( comm, ierr )
+  end subroutine ocean_cks_doLegacyCks
+
+  subroutine ocean_cks_writeCksHolders( ierr )
+    use ocean_mpi
+    use ocean_dft_files, only : odf_universal2KptandSpin, odf_npool, odf_poolID, odf_getBandsForPoolID, &
+                                ODF_VALENCE, ODF_CONDUCTION 
+    use prep_system, only : system_parameters, params
+    integer, intent( inout ) :: ierr
+
+
+    integer :: ikpt, ispin, fh, npool, nsites, isite, nproj, cband, vband, myk, nuni, poolID, bandOffset, fflags, stride, i, sizeofcomplex
+    character( len=14 ) :: filnam
+    complex(DP) :: dumz
+    integer( MPI_OFFSET_KIND) :: offset, offKpt
+#ifdef MPI_F08
+    type( MPI_DATATYPE ):: projVector
+#else
+    integer :: projVector
+#endif
+
+    ! For each site (and conduction/valence)
+    ! Each processor has a subset of k-points (could be all)
+    !   For each k-point a proc has, it'll have a subset of bands (could be all)
+    !     For the subset of k-point/bands the proc will have ALL projectors ( v l m )
+
+    ! To write out to file each processor maps the file to be nproj * myBands, repeating every 
+    ! nproj * totalBands * npool (which is the k-point skip)
+
+    ! how many pools are there for reading the wave functions?
+    nPool = odf_npool()
+
+    ! Figure out the offset
+    call odf_universal2KptandSpin( 1, ispin, ikpt )
+
+    if( ispin .eq. 2 ) ikpt = ikpt + product( params%kmesh )
+
+    offKpt = ikpt - 1
+      
+    nuni = ceiling( real( params%nspin * params%nkpts, DP ) / real( nPool, DP ) )
+
+    nsites = ocean_cks_nsites()
+    poolID = odf_poolID()
+
+    fflags = IOR( MPI_MODE_WRONLY, MPI_MODE_CREATE )
+    fflags = IOR( fflags, MPI_MODE_UNIQUE_OPEN )
+
+    call MPI_SIZEOF( dumz, sizeofcomplex, ierr )
+    if( ierr .ne. 0 ) return
+
+    do isite = 1, nsites
+
+      nproj = size( allCksHolders( isite )%con, 1 )
+      cband = size( allCksHolders( isite )%con, 2 )
+      vband = size( allCksHolders( isite )%val, 2 )
+      myk = size( allCksHolders( isite )%con, 3 )
+      write( filnam, '(A8,A2,I4.4)' ) 'parcksc.', allSites( isite )%elname, allSites( isite )%indx
+
+      call MPI_FILE_OPEN( comm, filnam, fflags, MPI_INFO_NULL, fh, ierr )
+      if( ierr .ne. 0 ) return
+      
+      ! See instructions above
+      stride = nproj * ( params%brange(4) - params%brange(3) + 1 ) * nPool
+      call MPI_TYPE_VECTOR( myk, nproj*cband, stride, MPI_DOUBLE_COMPLEX, projVector, ierr )
+      if( ierr .ne. 0 ) return
+
+      call MPI_TYPE_COMMIT( projVector, ierr )
+      if( ierr .ne. 0 ) return
+
+      ! get offset
+      offset = offKpt * nproj * ( params%brange(4) - params%brange(3) + 1 )
+      do i = 0, poolID - 1
+        bandOffset = odf_getBandsForPoolID( i, ODF_CONDUCTION )
+        offset = offset + bandOffset * nproj
+      enddo
+
+      offset = offset *  sizeofcomplex
+      
+
+      write( 1000+myid, * ) nproj, cband, myk, npool, stride, offset
+
+      call MPI_FILE_SET_VIEW( fh, offset, MPI_DOUBLE_COMPLEX, projVector, "native", MPI_INFO_NULL, ierr )
+      if( ierr .ne. 0 ) return
+
+
+!      do iuni = 1, nuni
+!        call odf_universal2KptandSpin( iuni, ispin, ikpt )
+!
+!        if( ikpt .gt. 0 ) then
+!          i = nproj*cband
+!        else
+!          i = 0
+!      enddo
+
+!      i = 1 
+!      call MPI_FILE_WRITE_ALL( fh, allCksHolders( isite )%con, i, projVector, MPI_STATUS_IGNORE, ierr )
+      i = nproj * cband * myk
+      call MPI_FILE_WRITE_ALL( fh, allCksHolders( isite )%con, i, MPI_DOUBLE_COMPLEX, MPI_STATUS_IGNORE, ierr )
+      if( ierr .ne. 0 ) return
+
+      call MPI_TYPE_FREE( projVEctor, ierr )
+      if( ierr .ne. 0 ) return
+
+      call MPI_FILE_CLOSE( fh, ierr )
+      if( ierr .ne. 0 ) return
+
+
+      write( filnam, '(A8,A2,I4.4)' ) 'parcksv.', allSites( isite )%elname, allSites( isite )%indx
+
+      call MPI_FILE_OPEN( comm, filnam, fflags, MPI_INFO_NULL, fh, ierr )
+      if( ierr .ne. 0 ) return
+
+      ! See instructions above
+      stride = nproj * ( params%brange(2) - params%brange(1) + 1 ) * nPool
+      call MPI_TYPE_VECTOR( myk, nproj*vband, stride, MPI_DOUBLE_COMPLEX, projVector, ierr )
+      if( ierr .ne. 0 ) return
+
+      call MPI_TYPE_COMMIT( projVector, ierr )
+      if( ierr .ne. 0 ) return
+
+      ! get offset
+      offset = offKpt * nproj * ( params%brange(2) - params%brange(1) + 1 )
+      do i = 0, poolID - 1
+        bandOffset = odf_getBandsForPoolID( i, ODF_VALENCE )
+        offset = offset + bandOffset * nproj
+      enddo
+
+      offset = offset *  sizeofcomplex
+
+      call MPI_FILE_SET_VIEW( fh, offset, MPI_DOUBLE_COMPLEX, projVector, "native", MPI_INFO_NULL, ierr )
+      if( ierr .ne. 0 ) return
+
+!      i = 1
+!      call MPI_FILE_WRITE_ALL( fh, allCksHolders( isite )%val, i, projVector, MPI_STATUS_IGNORE, ierr )
+      i = nproj * vband * myk
+      call MPI_FILE_WRITE_ALL( fh, allCksHolders( isite )%val, i, MPI_DOUBLE_COMPLEX, MPI_STATUS_IGNORE, ierr )
+      if( ierr .ne. 0 ) return
+
+      call MPI_TYPE_FREE( projVEctor, ierr )
+      if( ierr .ne. 0 ) return
+
+      call MPI_FILE_CLOSE( fh, ierr )
+      if( ierr .ne. 0 ) return
+      
+
+    enddo
+
+
+  end subroutine
+
+  subroutine ocean_cks_cleanCksHolders( )
+    integer :: nsites, i
+    
+    if( .not. allocated( allCksHolders ) ) return
+
+    nsites = ocean_cks_nsites( )
+
+    do i = 1, nsites
+      deallocate( allCksHolders( i )%val, allCksHolders( i )%con )
+    enddo
+    deallocate( allCksHolders )
+  end subroutine ocean_cks_cleanCksHolders
+      
+
   subroutine ocean_cks_makeCksHolders( myValBands, myConBands, myKpts, ierr )
+    use screen_opf, only : screen_opf_lbounds, screen_opf_nprojForChannel
     integer, intent( in ) :: myValBands, myConBands, myKpts
     integer, intent( inout ) :: ierr
     !
@@ -72,6 +311,8 @@ module ocean_cks
       allocate( allCksHolders( i )%con( nptot, myConBands, myKpts ), &
                 allCksHolders( i )%val( nptot, myValBands, myKpts ), stat=ierr )
       if( ierr .ne. 0 ) return
+      allCksHolders( i )%con(:,:,:) = 0.0_DP
+      allCksHolders( i )%val(:,:,:) = 0.0_DP
 
     enddo
 
@@ -118,6 +359,10 @@ module ocean_cks
 
     call MPI_BCAST( n, 1, MPI_INTEGER, root, comm, ierr )
     if( ierr .ne. 0 ) return
+
+    if( myid .ne. root ) then
+      allocate( angularGrid( 3, n ), angularWeights( n ) )
+    endif
     call MPI_BCAST( angularGrid, 3*n, MPI_DOUBLE_PRECISION, root, comm, ierr )
     if( ierr .ne. 0 ) return
     call MPI_BCAST( angularWeights, n, MPI_DOUBLE_PRECISION, root, comm, ierr )
@@ -132,8 +377,9 @@ module ocean_cks
     use screen_opf, only : screen_opf_loadAll, screen_opf_largestL
     integer, intent( inout ) :: ierr
 
-    integer :: nL, totLM, il, l, m, i, j, totSites, reason
+    integer :: nL, totLM, il, l, m, i, j, totSites, reason, nzee
     logical, allocatable :: tempEdgeList(:)
+    integer, allocatable :: zeeFirstPass(:), zeeList(:)
     real(DP), allocatable :: prefs(:)
 
     if( psys%natoms .lt. 1 ) then
@@ -172,10 +418,21 @@ module ocean_cks
 
     call MPI_BCAST( tempEdgeList, psys%natoms, MPI_LOGICAL, root, comm, ierr )
     if( ierr .ne. 0 ) return
+    allocate( zeeFirstPass( psys%natoms ) )
+    zeeFirstPass(:) = 0
 
+    Nzee = 0
     totSites = 0
     do j = 1, psys%natoms
-      if( tempEdgeList( j ) ) totSites = totSites + 1
+      if( tempEdgeList( j ) ) then
+        totSites = totSites + 1
+        do i = 1, Nzee
+          if( zeeFirstPass( i ) .eq. psys%atom_list( j )%z ) goto 10
+        enddo
+        Nzee = Nzee + 1
+        zeeFirstPass( Nzee ) = psys%atom_list( j )%z
+10      continue
+      endif
     enddo
         
     if( totSites .eq. 0 ) then
@@ -183,6 +440,9 @@ module ocean_cks
       ierr = 13
       return
     endif
+  
+    allocate( zeeList( Nzee ) )
+    zeeList( : ) = zeeFirstPass(1:Nzee)
 
     allocate( allSites( totSites ) )
 
@@ -198,12 +458,13 @@ module ocean_cks
       endif
     enddo
 
-    deallocate( tempEdgeList )
+    deallocate( tempEdgeList, zeeFirstPass )
     ! done making list of unique sites
 
     ! now load up the projector information for each unique z
-    call screen_opf_loadAll( ierr )
+    call screen_opf_loadAll( ierr, zeeList )
     if( ierr .ne. 0 ) return
+    deallocate(zeeList)
 
     ! done loading projectors
 
@@ -248,16 +509,19 @@ module ocean_cks
 !
 ! qkVec : the k (or k+q) point
 ! deltaR : minimum spacing for radial grid
-  subroutine buildCKS( cksArray, wvfn, kqVec, deltaR, avecs, ierr )
+  subroutine ocean_cks_build( wvfn, kqVec, deltaR, avecs, isValence, localKpt, ierr )
+    use ocean_mpi, only : myid
     use screen_opf, only : screen_opf_lbounds, screen_opf_maxnproj, screen_opf_nprojforchannel, &
                            screen_opf_interppsprojs, screen_opf_makeamat, screen_opf_getrmax, &
                            screen_opf_nprojforchannel
 
     ! cks( nprojectors_total (max over all sites), ntot = nband, sites )
-    complex(DP), intent(out) :: cksArray( :, :, : )
+!    complex(DP), intent(out) :: cksArray( :, :, : )
     ! wvfn( fft(1), fft(2), fft(3), nbands )
     complex(DP), intent( in ) :: wvfn( :, :, :, : )
     real(DP), intent( in ) :: kqVec(3), deltaR, avecs(3,3)
+    logical, intent( in ) :: isValence
+    integer, intent( in ) :: localKpt
     integer, intent( inout ) :: ierr
 
     real(DP) :: rmax, trueDeltaR
@@ -304,6 +568,11 @@ module ocean_cks
 
           ! from cut-off, determine number of radial points
           
+          if( iband .eq. 1 ) then
+            write(1000+myid, * ) 'cks'
+            write(1000+myid, * ) zee, rmax, deltaR
+            write(1000+myid, * ) nR, trueDeltaR
+          endif
 
           ! allocate wvfn holder
           ! 
@@ -350,6 +619,7 @@ module ocean_cks
 
           call screen_opf_makeAMat( nproj, nR, radGrid, deltaRadGrid, psproj(:,:,l), amat(:,:,l), ierr )
           if( ierr .ne. 0 ) return
+!          if( iband .eq. 1 ) write(1000+myid,*) amat(:,:,l)
 
           ! precompute r^2 dr on the ps projector
           do i = 1, nproj
@@ -406,17 +676,27 @@ module ocean_cks
           enddo 
         
           
-          do i = 1, 2*l + 1
-            do j = 1, nproj
-              ip = ip + 1
-              cksArray( ip, iband, isite ) = Cmat( j, i )
+          if( isValence ) then
+            do i = 1, 2*l + 1
+              do j = 1, nproj
+                ip = ip + 1
+!              cksArray( ip, iband, isite ) = Cmat( j, i )
+                allCksHolders( isite )%val( ip, iband, localKpt ) = Cmat( j, i )
+              enddo
             enddo
-          enddo
+          else
+            do i = 1, 2*l + 1
+              do j = 1, nproj
+                ip = ip + 1
+                allCksHolders( isite )%con( ip, iband, localKpt ) = Cmat( j, i )
+              enddo
+            enddo
+          endif
 
           il = il + 2*l + 1
 
         enddo ! l
-        deallocate( Smat, Cmat, waveByLM )
+        deallocate( Smat, Cmat, waveByLM, psproj, amat )
 
 
       enddo ! isite
@@ -425,7 +705,7 @@ module ocean_cks
     
 
 
-  end subroutine buildCKS
+  end subroutine ocean_cks_build
 
 
 
