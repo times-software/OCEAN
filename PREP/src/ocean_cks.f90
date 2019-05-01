@@ -340,7 +340,7 @@ module ocean_cks
 
     ! in the future we could choose our anuglar grid. At the moment all specpnt.5 all the time
     if( myid .eq. root ) then
-      open( unit=99, file='specpnt.5', form='formatted', status='old' )
+      open( unit=99, file='specpnt.7', form='formatted', status='old' )
       read( 99, * ) n
       allocate( angularGrid( 3, n ), angularWeights( n ) )
 
@@ -455,6 +455,9 @@ module ocean_cks
         allSites( i )%z = psys%atom_list( j )%z
 !        allSites( i )%xred(:) = psys%atom_list( j )%reduced_coord(:)
         allSites( i )%xcoord( : ) = matmul( psys%avecs, psys%atom_list( j )%reduced_coord(:) )
+        write(1000+myid, * ) allSites( i )%elname, allSites( i )%indx , allSites( i )%z
+        write(1000+myid, * ) allSites( i )%xcoord( : ) 
+        write(1000+myid, * ) psys%atom_list( j )%reduced_coord(:)
       endif
     enddo
 
@@ -493,7 +496,7 @@ module ocean_cks
         do j = 1, nL
           call ylmeval( l, m, angularGrid(1,j), angularGrid(2,j), angularGrid(3,j), &
                         weightedYlmStar(j,il), prefs )
-          weightedYlmStar(j,il) = angularWeights( j ) * conjg( weightedYlmStar(j,il) )
+          weightedYlmStar(j,il) = angularWeights( j ) * conjg( weightedYlmStar(j,il) ) 
         enddo
       enddo
     enddo
@@ -509,7 +512,7 @@ module ocean_cks
 !
 ! qkVec : the k (or k+q) point
 ! deltaR : minimum spacing for radial grid
-  subroutine ocean_cks_build( wvfn, kqVec, deltaR, avecs, isValence, localKpt, ierr )
+  subroutine ocean_cks_build( wvfn, kqVec, deltaR, avecs, isValence, localKpt, ierr, gvecs, UofG )
     use ocean_mpi, only : myid
     use screen_opf, only : screen_opf_lbounds, screen_opf_maxnproj, screen_opf_nprojforchannel, &
                            screen_opf_interppsprojs, screen_opf_makeamat, screen_opf_getrmax, &
@@ -523,6 +526,8 @@ module ocean_cks
     logical, intent( in ) :: isValence
     integer, intent( in ) :: localKpt
     integer, intent( inout ) :: ierr
+    integer, intent( in ), optional :: gvecs(:,:)
+    complex(DP), intent( in ), optional :: UofG(:,:)
 
     real(DP) :: rmax, trueDeltaR
     logical, allocatable :: isInitGrid( :, :, : ) 
@@ -542,10 +547,16 @@ module ocean_cks
 
     !JTV at some point order could be an input, but 4 is nice
     order = 4
-    allocate( isInitGrid( dims(1), dims(2), dims(3) ), Pgrid( order, dims(1), dims(2), dims(3)) )
-
     nL = size( angularGrid, 2 )
 
+! $OMP PARALLEL DEFAULT( NONE ) &
+! $OMP SHARED( dims, nsites, order, nL, nband, deltaR, wvfn ) &
+! $OMP PRIVATE( zee, iband isite, nR, rmax, itarg, 
+! $OMP REDUCTION (+ierr)
+
+    allocate( isInitGrid( dims(1), dims(2), dims(3) ), Pgrid( order, dims(1), dims(2), dims(3)) )
+
+    itarg = 1
     zee = 0
     allocate( localWvfn( 0, 0 ), uniSphericalGrid( 0, 0, 0 ), SphericalGrid( 0, 0, 0 ) )
 
@@ -595,8 +606,12 @@ module ocean_cks
         enddo
 
         ! interpolation step with phase
-        call cks_ComplexDoLagrange( nl, nr, wvfn(:,:,:,iband), Pgrid, isInitGrid, avecs, kqVec, &
-                                    SphericalGrid, localWvfn, ierr )
+!        if( present( gvecs ) ) then
+!          call cks_realu2( nbands, gvecs, uofg, bvecs, kqVec, 
+!        else
+          call cks_ComplexDoLagrange( nl, nr, wvfn(:,:,:,iband), Pgrid, isInitGrid, avecs, kqVec, &
+                                      SphericalGrid, localWvfn, ierr )
+!        endif
 
         ! step 2
           ! loop over projectors and integrate
@@ -633,6 +648,13 @@ module ocean_cks
         allocate( waveByLM( nR, (lmax+1)**2 ) )
         waveByLM = 0.0_DP
         il = 0
+        ! Ylms are tabulated starting at 0
+        do l = 0, lmin - 1
+          do m = -l, l
+            il = il + 1
+          enddo
+        enddo
+        ! end skip
         do l = lmin, lmax
           do m = -l, l
             il = il + 1
@@ -707,6 +729,9 @@ module ocean_cks
 
   end subroutine ocean_cks_build
 
+
+  subroutine cks_realConvert( )
+  end subroutine cks_realConvert
 
 
   subroutine cks_ComplexDoLagrange( nl, nr, wvfnOnGrid, Pgrid, isInitGrid, avecs, qcart, posn, & 

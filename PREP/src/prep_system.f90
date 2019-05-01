@@ -43,6 +43,9 @@ module prep_system
   end type system_parameters
 
   type calculation_parameters
+    logical :: legacyFiles
+
+    ! Need to standardize these and then acccess them from the other routines
     logical :: tmels
     logical :: makeU2
     logical :: makeCKS
@@ -51,6 +54,7 @@ module prep_system
     character(len=128) :: outdir
     character(len=128) :: shiftOutdir
 
+    ! I'm not sure about these 
     character(len=2), allocatable :: nameCKS( : )
     integer, allocatable :: indxCKS( : )
   end type calculation_parameters
@@ -69,12 +73,12 @@ module prep_system
 
   contains
 
-  subroutine prep_system_ikpt2kvec( ikpt, addShift, kvec )
+  subroutine prep_system_ikpt2kvec( ikpt, addShift, kvec, kvecCart )
     integer, intent( in ) :: ikpt
     logical, intent( in ) :: addShift
-    real(DP), intent( out ) :: kvec(3)
+    real(DP), intent( out ) :: kvec(3), kvecCart(3)
     !
-    integer :: ikx, iky, ikz, ik
+    integer :: ikx, iky, ikz, ik, i
 
     ikx = ( ikpt - 1 ) / ( params%kmesh( 3 ) * params%kmesh( 2 ) )
     ik = ikpt - ikx * params%kmesh( 3 ) * params%kmesh( 2 ) 
@@ -88,6 +92,11 @@ module prep_system
     kvec( 3 ) = ( params%k0( 3 ) + real( ikz, DP ) ) / real( params%kmesh( 3 ), DP )
 
     if( addShift ) kvec(:) = kvec(:) + params%qshift(:)
+
+    kvecCart(:) =  0
+    do i = 1, 3
+      kvecCart( : ) = kvecCart( : ) + psys%bvecs( :, i ) * kvec( i )
+    enddo
 
   end subroutine prep_system_ikpt2kvec
 

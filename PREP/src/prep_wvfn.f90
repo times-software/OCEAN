@@ -38,7 +38,7 @@ module prep_wvfn
     complex(DP), pointer :: UofGPointer(:,:)!, cksPointer(:,:,:) !, UofXpointer(:,:,:,:)
 !    complex(DP), allocatable, target :: cksValArray(:,:,:,:), cksConArray(:,:,:,:)
 
-    real(DP) :: kqVec(3), deltaR
+    real(DP) :: kqVec(3), deltaR, kqVecCart(3)
 
     integer, allocatable, target :: valGvecs(:,:), conGvecs(:,:)
     integer, pointer :: gvecPointer(:,:)
@@ -54,10 +54,10 @@ module prep_wvfn
     wantU2 = .true.
 
 
-    if( wantU2 .and. nproc .eq. 1 ) then
-      call prep_wvfn_openLegacy( testFH, ierr )
-      if( ierr .ne. 0 ) return
-    endif
+!    if( wantU2 .and. nproc .eq. 1 ) then
+!      call prep_wvfn_openLegacy( testFH, ierr )
+!      if( ierr .ne. 0 ) return
+!    endif
 
     call odf_return_my_bands( valBands, ierr, ODF_VALENCE )
     if( ierr .ne. 0 ) return
@@ -211,12 +211,12 @@ module prep_wvfn
           allocate( wvfn( 0, 0, 0, 0 ) )
         endif
 
-        ! deallocate as-read wvfn
-        if( i .eq. 1 ) then
-          deallocate( valGvecs, valUofG )
-        else
-          deallocate( conGvecs, conUofG )
-        endif
+!        ! deallocate as-read wvfn
+!        if( i .eq. 1 ) then
+!          deallocate( valGvecs, valUofG )
+!        else
+!          deallocate( conGvecs, conUofG )
+!        endif
 
 
         if( wantU2 ) then
@@ -245,10 +245,10 @@ module prep_wvfn
           call prep_wvfn_writeU2( ikpt, ispin, UofX2, fileHandle, ierr )
           if( ierr .ne. 0 ) return
 
-          if( wantU2 .and. nproc .eq. 1 ) then
-            call prep_wvfn_writeLegacy( testFH, ikpt, UofX2, ierr )
-            if( ierr .ne. 0 ) return
-          endif
+!          if( wantU2 .and. nproc .eq. 1 ) then
+!            call prep_wvfn_writeLegacy( testFH, ikpt, UofX2, ierr )
+!            if( ierr .ne. 0 ) return
+!          endif
 
           deallocate( UofX, UofX2 )
 
@@ -263,12 +263,19 @@ module prep_wvfn
           ! deltaR is the min real-space spacing for the overlap, should make it an input
           deltaR = 0.01_DP
           addShift = (i .eq. 2 )
-          call prep_system_ikpt2kvec( ikpt, addShift, kqVec ) 
-          write(1000+myid, '(A,I8,3(X,E24.16))' ) 'kqVec', ikpt, kqVec(:)
-          call ocean_cks_build( wvfn, kqVec, deltaR, psys%avecs, (i.eq.1), iuni,  ierr )
+          call prep_system_ikpt2kvec( ikpt, addShift, kqVec, kqVecCart ) 
+          write(1000+myid, '(A,I8,6(X,E24.16))' ) 'kqVec', ikpt, kqVecCart(:), kqVec(:)
+          call ocean_cks_build( wvfn, kqVecCart, deltaR, psys%avecs, (i.eq.1), iuni, ierr, gvecPointer, UofGPointer )
 
           ! call write CKS
 
+        endif
+
+        ! For realu2 option for cks conversion
+        if( i .eq. 1 ) then
+          deallocate( valGvecs, valUofG )
+        else
+          deallocate( conGvecs, conUofG )
         endif
 
         ! deallocate FFT wvfn
@@ -295,13 +302,13 @@ module prep_wvfn
     call prep_wvfn_closeU2( conFH, ierr, ctype )
     
     if( wantU2 ) then
-      if( nproc .eq. 1 ) then
-        call prep_wvfn_closeLegacy( testFH, ierr )
-        if( ierr .ne. 0 ) return
+!      if( nproc .eq. 1 ) then
+!        call prep_wvfn_closeLegacy( testFH, ierr )
+!        if( ierr .ne. 0 ) return
+!        call prep_wvfn_doLegacyParallel( ierr )
+!      else
         call prep_wvfn_doLegacyParallel( ierr )
-      else
-        call prep_wvfn_doLegacyParallel( ierr )
-      endif
+!      endif
     endif
 
   if( wantCKS ) then
@@ -723,7 +730,7 @@ module prep_wvfn
     integer, intent( inout ) :: ierr
     !
     integer :: boundaries( 3, 2 )
-    integer :: i, j
+    integer :: i, j, k, test
 
     boundaries(:,1) = minval( gvecs, 2 )
     boundaries(:,2) = maxval( gvecs, 2 )
@@ -737,19 +744,54 @@ module prep_wvfn
     if( wantCKS ) fftGrid(:) = fftGrid(:) * 2
     write(1000+myid,'(A,3(X,I8))') 'FFT grid', fftGrid(:)
 
-    do i = 1, 3
-      do j = 0, 40
-        if( mod( fftGrid( i ), params%xmesh( i ) ) .eq. 0 ) then
-          exit
-        else
-          fftGrid( i ) = fftGrid( i ) + 1
+    if( wantU2 ) then
+      do i = 1, 3
+        do j = 0, 40
+          if( mod( fftGrid( i ), params%xmesh( i ) ) .eq. 0 ) then
+            exit
+          else
+            fftGrid( i ) = fftGrid( i ) + 1
+          endif
+        enddo
+        if( mod( fftGrid( i ), params%xmesh( i ) ) .ne. 0 ) then
+          ierr = i
+          return
         endif
       enddo
-      if( mod( fftGrid( i ), params%xmesh( i ) ) .ne. 0 ) then
-        ierr = i
-        return
-      endif
-    enddo
+    else
+      do i = 1, 3
+        do k = 0, 5
+          test = fftGrid(i) + k
+          write(1000+myid,*) 'TESTING: ', test
+          do
+            if( mod( test, 2 ) .ne. 0 ) exit
+            test = test / 2
+            write(1000+myid,*) '   ', 2
+          enddo
+          do j = 7, 3, -2
+            do
+              if( mod( test, j ) .ne. 0 ) exit
+              test = test / j
+              write(1000+myid,*) '   ', j
+            enddo
+          enddo
+          if( mod( test, 11 ) .eq. 0 ) then
+            test = test / 11
+            write(1000+myid,*) '   ', 11
+          endif
+          if( mod( test, 13 ) .eq. 0 ) then
+            test = test / 13
+            write(1000+myid,*) '   ', 13
+          endif
+          if( test .eq. 1 ) then
+            fftGrid(i) = fftGrid(i) + k
+            write(1000+myid,*) 'TESTING:    ', fftGrid(i)
+            exit
+          endif
+
+        enddo
+      enddo
+    endif
     write(1000+myid,'(A,3(X,I8))') 'FFT grid', fftGrid(:)
 
   end subroutine prep_wvfn_checkFFT
@@ -767,7 +809,7 @@ module prep_wvfn
     complex(DP), intent( inout ) :: uofx(:,:,:,:)
     !
 #ifdef __FFTW3
-    type(C_PTR) :: bplan
+    type(C_PTR), allocatable :: bplan( : )  
     integer :: dims(3), nbands, ngvecs
     integer :: i, j, k, ig, ib
     real(DP), external :: dznrm2
@@ -781,8 +823,17 @@ module prep_wvfn
     ! almost certainly need to reverse dims
 !    bplan = fftw_plan_many_dft( 3, dims, nbands, uofx, 
 
+    allocate( bplan( nbands ) )
+    ! should be moved to plan many or something
     do ib = 1, nbands
-      bplan = fftw_plan_dft_3d( dims(3), dims(2), dims(1), uofx(:,:,:,ib), uofx(:,:,:,ib), FFTW_BACKWARD, FFTW_PATIENT )
+      bplan(ib) = fftw_plan_dft_3d( dims(3), dims(2), dims(1), uofx(:,:,:,ib), uofx(:,:,:,ib), &
+                  FFTW_BACKWARD, FFTW_PATIENT )
+    enddo
+
+!$OMP PARALLEL DO DEFAULT( NONE ) &
+!$OMP SHARED( nbands, dims, ngvecs, gvecs, uofx, uofg, bplan ) &
+!$OMP PRIVATE( ib, ig, i, j, k )
+    do ib = 1, nbands
       uofx(:,:,:,ib) = 0.0_DP
       do ig = 1, ngvecs
         i = 1 + gvecs(1,ig)
@@ -807,12 +858,18 @@ module prep_wvfn
         enddo
       endif
 
-      call fftw_execute_dft( bplan, uofx(:,:,:,ib), uofx(:,:,:,ib) )
+      call fftw_execute_dft( bplan( ib ), uofx(:,:,:,ib), uofx(:,:,:,ib) )
 
-      call fftw_destroy_plan( bplan )
+!      call fftw_destroy_plan( bplan )
 
 !      write(1000+myid, * ) '  ', ib, dznrm2( product( dims(1:3) ), uofx(:,:,:,ib), 1 )
     enddo
+!$OMP END PARALLEL DO
+
+    do ib = 1, nbands
+      call fftw_destroy_plan( bplan( ib ) )
+    enddo
+    deallocate( bplan )
 
 #else
     ! To keep the compiler happy
