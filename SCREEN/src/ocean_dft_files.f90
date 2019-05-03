@@ -24,6 +24,8 @@ module ocean_dft_files
   integer, parameter :: QE54_FLAVOR = 1
   integer, parameter :: QE62_FLAVOR = 2
 
+  character(len=6), parameter   :: flavorToText(0:2) = [ 'legacy', 'qe54', 'qe62' ]
+
   public :: LEGACY_FLAVOR, QE54_FLAVOR, QE62_FLAVOR
 
   integer, parameter :: ODF_VALENCE = 0
@@ -310,7 +312,7 @@ module ocean_dft_files
 
   subroutine return_con_bands( nbands, ierr )
     use ocean_legacy_files, only : olf_return_my_con_bands
-!    use ocean_qe54_files, only : qe54_return_my_bands
+    use ocean_qe54_files, only : qe54_return_my_con_bands
     use ocean_qe62_files, only : qe62_return_my_con_bands
 
     integer, intent( out ) :: nbands
@@ -320,7 +322,7 @@ module ocean_dft_files
       case( LEGACY_FLAVOR )
         call olf_return_my_con_bands( nbands, ierr )
       case( QE54_FLAVOR )
-!        call qe54_return_my_bands( nbands, ierr )
+        call qe54_return_my_con_bands( nbands, ierr )
       case( QE62_FLAVOR )
         call qe62_return_my_con_bands( nbands, ierr )
       case default
@@ -331,7 +333,7 @@ module ocean_dft_files
 
   subroutine return_val_bands( nbands, ierr )
     use ocean_legacy_files, only : olf_return_my_val_bands
-!    use ocean_qe54_files, only : qe54_return_my_bands
+    use ocean_qe54_files, only : qe54_return_my_val_bands
     use ocean_qe62_files, only : qe62_return_my_val_bands
 
     integer, intent( out ) :: nbands
@@ -341,7 +343,7 @@ module ocean_dft_files
       case( LEGACY_FLAVOR )
         call olf_return_my_val_bands( nbands, ierr )
       case( QE54_FLAVOR )
-!        call qe54_return_my_bands( nbands, ierr )
+        call qe54_return_my_val_bands( nbands, ierr )
       case( QE62_FLAVOR )
         call qe62_return_my_val_bands( nbands, ierr )
       case default
@@ -416,7 +418,7 @@ module ocean_dft_files
 
   subroutine odf_get_ngvecs_at_kpt_split( ikpt, ispin, gvecs, ierr )
     use ocean_legacy_files, only : olf_get_ngvecs_at_kpt
-    use ocean_qe54_files, only : qe54_get_ngvecs_at_kpt
+    use ocean_qe54_files, only : qe54_get_ngvecs_at_kpt_split
     use ocean_qe62_files, only : qe62_get_ngvecs_at_kpt
     !
     integer, intent( in ) :: ikpt, ispin
@@ -428,7 +430,7 @@ module ocean_dft_files
         call olf_get_ngvecs_at_kpt( ikpt, ispin, gvecs(1), ierr )
         gvecs(2) = gvecs(1)
       case( QE54_FLAVOR )
-!        call qe54_get_ngvecs_at_kpt( ikpt, ispin, gvecs, ierr )
+        call qe54_get_ngvecs_at_kpt_split( ikpt, ispin, gvecs, ierr )
       case( QE62_FLAVOR )
 !        call qe62_get_ngvecs_at_kpt( ikpt, ispin, gvecs, ierr )
       case default
@@ -460,6 +462,7 @@ module ocean_dft_files
   subroutine odf_read_at_kpt_split( ikpt, ispin, valNGvecs, conNGvecs, valBands, conBands, &
                                     valGvecs, conGvecs, valUofG, conUofG, ierr )
     use ocean_legacy_files, only : olf_read_at_kpt_split
+    use ocean_qe54_files, only : qe54_read_at_kpt_split
     integer, intent( in ) :: ikpt, ispin, valNgvecs, conNGvecs, valBands, conBands
     integer, intent( out ) :: valgvecs( 3, valngvecs ), congvecs( 3, conngvecs )
     complex( DP ), intent( out ) :: valUofG( valngvecs, valbands ), conUofG( conNGvecs, conBands )
@@ -468,6 +471,9 @@ module ocean_dft_files
     select case( flavor )
       case( LEGACY_FLAVOR )
         call olf_read_at_kpt_split( ikpt, ispin, valNGvecs, conNGvecs, valBands, conBands, &
+                                    valGvecs, conGvecs, valUofG, conUofG, ierr )
+      case( QE54_FLAVOR )
+        call qe54_read_at_kpt_split( ikpt, ispin, valNGvecs, conNGvecs, valBands, conBands, &
                                     valGvecs, conGvecs, valUofG, conUofG, ierr )
       case default
         ierr = -2
@@ -535,7 +541,7 @@ module ocean_dft_files
       else
         flavor = LEGACY_FLAVOR
       endif
-      write(6,*) 'Wavefunction format:', flavor
+      write(6,*) 'Wavefunction format:', flavorToText(flavor)
     endif
     call MPI_BCAST( flavor, 1, MPI_INTEGER, root, comm, ierr )
 

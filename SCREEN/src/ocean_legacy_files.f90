@@ -170,7 +170,7 @@ module ocean_legacy_files
     globalID = poolIndex * pool_nproc + poolID
   end function olf_returnGlobalID
 
-  subroutine olf_universal2KptAndSpin( uni, ispin, ikpt )
+  subroutine olf_universal2KptAndSpin( uni, ikpt, ispin )
     integer, intent( in ) :: uni
     integer, intent( out ) :: ispin, ikpt
     !

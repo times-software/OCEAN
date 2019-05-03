@@ -35,6 +35,8 @@ my @QEFiles     = ( "rhoofr", "efermiinrydberg.ipt" );
 my @CommonFiles = ( "screen.nkpt", "nkpt", "qinunitsofbvectors.ipt", "avecsinbohr.ipt", "dft", 
                     "nspin", "xmesh.ipt", "dft.split", "prefix", "calc", "screen.wvfn", "screen.legacy", 
                     "screen.mode", "bse.wvfn");
+my @NewMethodFiles = ( "ntype", "typat", "natoms", "znucl", "taulist", "edges" );
+my @ExtraFiles = ("specpnt.5");
 
 foreach (@QEFiles) {
   system("cp ../DFT/$_ .") == 0 or die "Failed to copy $_\n";
@@ -42,6 +44,11 @@ foreach (@QEFiles) {
 foreach (@CommonFiles) {
   system("cp ../Common/$_ .") == 0 or die "Failed to copy $_\n";
 }
+foreach (@NewMethodFiles) {
+  system("cp ../Common/$_ .") == 0 or die "Failed to copy $_\n";
+}
+
+
 system("mv nkpt bse.nkpt") == 0 or die "Failed to rename nkpt $_\n";
 print "$stat  $oldden\n";
 unless ($stat && $oldden) {
@@ -204,7 +211,7 @@ close NKPT;
 $rundir = sprintf("../DFT/%03u%03u%03u", $nkpt[0], $nkpt[1], $nkpt[2]);
 
 my @BSECommonFiles = ( "qinunitsofbvectors.ipt", "bvecs", "dft", "nelectron", "avecsinbohr.ipt", 
-                       "xmesh.ipt", "nspin", "dft.split", "prefix" );
+                       "xmesh.ipt", "nspin", "dft.split", "prefix", "natoms", "typat", "ntype","znucl", "taulist", "edges" );
 my @rundirFiles = ( "kmesh.ipt", "brange.ipt", "umklapp" );
 #Checks for BSE prep
 my $runBSE = 1;
@@ -234,7 +241,7 @@ if( -e "BSE/done" && -e "${rundir}/old" )
   }
 }
 
-$runBSE = 0 if( $bseWvfn =~ m/qe62/ );
+#$runBSE = 0 if( $bseWvfn =~ m/qe62/ );
 
 if( $runBSE != 0 )
 {
@@ -254,20 +261,6 @@ if( $runBSE != 0 )
   {
     copy ( "../$_", $_ );
   }
-#  foreach ("kmesh.ipt", "brange.ipt") {
-#    system("cp ../${rundir}/$_ .") == 0 or die "Failed to copy $_\n";
-#  }
-#  `cp ../qinunitsofbvectors.ipt .`;
-#  `cp ../bvecs .`;
-#  `cp ../dft .`;
-#  `cp ../nelectron .`;
-#  `cp ../avecsinbohr.ipt .`;
-#  `cp ../xmesh.ipt .`;
-#  `cp ../nspin .`;
-#  `cp ../${rundir}/umklapp .`;
-#  `cp ../dft.split .`;
-#  `cp ../prefix .`;
-##  my $Nfiles = `cat Nfiles`;
 
   my $prefix;
   open PREFIX, "prefix" or die "$!\n";
@@ -277,7 +270,6 @@ if( $runBSE != 0 )
 
 
 
-#  `cp -r ../${rundir}/Out .`;
   if( -l "Out" )  # Out is an existing link
   {
     unlink "Out" or die "Problem cleaning old 'Out' link\n$!";
@@ -293,37 +285,53 @@ if( $runBSE != 0 )
   print "../$rundir/Out\n";
   symlink ("../$rundir/Out", "Out") == 1 or die "Failed to link Out\n$!";
 
-  if( $split_dft ) 
+  if( $bseWvfn =~ m/qe/ )
   {
-    print "$ENV{'OCEAN_BIN'}/qe_data_file.pl Out/$prefix.save/data-file.xml Out/${prefix}_shift.save/data-file.xml\n";
-    system("$ENV{'OCEAN_BIN'}/qe_data_file.pl Out/$prefix.save/data-file.xml Out/${prefix}_shift.save/data-file.xml") == 0
-      or die "Failed to run qe_data_file.pl\n$!";
+    copy "../bse.wvfn", "wvfn.ipt";
+    symlink ("../../OPF/zpawinfo", "zpawinfo" ) == 1 or die "Failed to link zpawinfo\n$!";
+
+    foreach( @ExtraFiles )
+    {
+      copy("$ENV{'OCEAN_BIN'}/$_", $_ ) or die;
+    }
+
+    system( "/users/jtv1/cluster/Software/OCEAN/PREP/src/ocean_prep.x" );
   }
   else
   {
-    print "$ENV{'OCEAN_BIN'}/qe_data_file.pl Out/$prefix.save/data-file.xml\n";
-    system("$ENV{'OCEAN_BIN'}/qe_data_file.pl Out/$prefix.save/data-file.xml") == 0
-      or die "Failed to run qe_data_file.pl\n$!";
+    if( $split_dft ) 
+    {
+      print "$ENV{'OCEAN_BIN'}/qe_data_file.pl Out/$prefix.save/data-file.xml Out/${prefix}_shift.save/data-file.xml\n";
+      system("$ENV{'OCEAN_BIN'}/qe_data_file.pl Out/$prefix.save/data-file.xml Out/${prefix}_shift.save/data-file.xml") == 0
+        or die "Failed to run qe_data_file.pl\n$!";
+    }
+    else
+    {
+      print "$ENV{'OCEAN_BIN'}/qe_data_file.pl Out/$prefix.save/data-file.xml\n";
+      system("$ENV{'OCEAN_BIN'}/qe_data_file.pl Out/$prefix.save/data-file.xml") == 0
+        or die "Failed to run qe_data_file.pl\n$!";
+    }
+
+    system("$ENV{'OCEAN_BIN'}/wfconvert.x system") == 0 
+      or die "Failed to run wfconvert.x\n";
+
+    system("$ENV{'OCEAN_BIN'}/ofermi.pl") == 0
+      or die "Failed to run ofermi.pl\n";
+
+    `cp eshift.ipt ../`;
+    system("cp ../efermiinrydberg.ipt ./") == 0 
+      or die "Failed to copy efermiinrydberg.ipt\n";
+
+    print "Running setup\n";
+    system("$ENV{'OCEAN_BIN'}/setup2.x > setup.log") == 0
+      or die "Failed to run setup\n";
+
+    print "conugtoux\n";
+    system("$ENV{'OCEAN_BIN'}/conugtoux.x > conugtoux.log");# == 0 or die;
+    print "orthog\n";
+    system("$ENV{'OCEAN_BIN'}/orthog.x > orthog.log") == 0 or die;
+
   }
-
-  system("$ENV{'OCEAN_BIN'}/wfconvert.x system") == 0 
-    or die "Failed to run wfconvert.x\n";
-
-  system("$ENV{'OCEAN_BIN'}/ofermi.pl") == 0
-    or die "Failed to run ofermi.pl\n";
-
-  `cp eshift.ipt ../`;
-  system("cp ../efermiinrydberg.ipt ./") == 0 
-    or die "Failed to copy efermiinrydberg.ipt\n";
-
-  print "Running setup\n";
-  system("$ENV{'OCEAN_BIN'}/setup2.x > setup.log") == 0
-    or die "Failed to run setup\n";
-
-  print "conugtoux\n";
-  system("$ENV{'OCEAN_BIN'}/conugtoux.x > conugtoux.log");# == 0 or die;
-  print "orthog\n";
-  system("$ENV{'OCEAN_BIN'}/orthog.x > orthog.log") == 0 or die;
 
   `touch done`;
   chdir "../";

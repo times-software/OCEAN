@@ -24,7 +24,7 @@ module prep_wvfn
 
   subroutine prep_wvfn_driver( ierr )
     use prep_system, only : system_parameters, params, psys, prep_system_ikpt2kvec
-    use ocean_mpi, only : myid, root, nproc
+    use ocean_mpi, only : myid, root, nproc, comm
     use ocean_dft_files, only : odf_is_my_kpt, odf_return_my_bands, odf_nprocPerPool, odf_poolID, &
                                 ODF_VALENCE, ODF_CONDUCTION, odf_universal2KptandSpin, &
                                 odf_get_ngvecs_at_kpt, odf_read_at_kpt_split, odf_npool
@@ -65,6 +65,8 @@ module prep_wvfn
     call odf_return_my_bands( conBands, ierr, ODF_CONDUCTION )
     if( ierr .ne. 0 ) return
 
+    write(6,*) valBands, conBands
+
     nsites = ocean_cks_nsites()
 
 !    isDualFile =  odf_isDualFile()
@@ -95,7 +97,7 @@ module prep_wvfn
 
     nuni = ceiling( real( params%nspin * params%nkpts, DP ) / real( npool, DP ) )
 
-    call ocean_cks_makeCksHolders( ValBands, ConBands, nuni, ierr )
+    call ocean_cks_makeCksHolders( valBands, conBands, nuni, ierr )
 
 
 !    if( wantCKS ) then
@@ -112,7 +114,7 @@ module prep_wvfn
 !      do ikpt = 1, params%nkpts
     do iuni = 1, nuni
 
-      call odf_universal2KptandSpin( iuni, ispin, ikpt )
+      call odf_universal2KptandSpin( iuni, ikpt, ispin )
       write(1000+myid,*) iuni, ikpt, ispin
 
       ! universal2KptandSpin returns 0,0 if on the last trip and un-equal distribution of k-points
@@ -160,7 +162,7 @@ module prep_wvfn
       ! need to ensure bounds are appropriately enforced 
       ! this means for shifted calcs keep only occ/unocc
 
-        call odf_read_at_kpt_split( ikpt, ispin, ngvecs(1), ngvecs(2), valBAnds, conBands, &
+        call odf_read_at_kpt_split( ikpt, ispin, ngvecs(1), ngvecs(2), valBands, conBands, &
                                     valGvecs, conGvecs, valUofG, conUofG, ierr )
         if( ierr .ne. 0 ) then
           write(1000+myid,*) 'Failed to read k-point', ierr
@@ -198,6 +200,7 @@ module prep_wvfn
         
       do i = 1, 2
 
+#if 0
         if( ikpt .ne. 0 ) then
           call prep_wvfn_checkFFT( nG, gvecPointer, wantCKS, wantU2, fftGrid, ierr )
 
@@ -210,6 +213,7 @@ module prep_wvfn
         else
           allocate( wvfn( 0, 0, 0, 0 ) )
         endif
+#endif
 
 !        ! deallocate as-read wvfn
 !        if( i .eq. 1 ) then
@@ -220,10 +224,16 @@ module prep_wvfn
 
 
         if( wantU2 ) then
-        
-
           
           if( ikpt .ne. 0 ) then
+
+            call prep_wvfn_checkFFT( nG, gvecPointer, .false., wantU2, fftGrid, ierr )
+
+            allocate( wvfn( fftGrid(1), fftGrid(2), fftGrid(3), nbands ) )
+
+            call prep_wvfn_doFFT( gvecPointer, UofGPointer, wvfn )
+
+
             !JTV
             ! This reversal is currently in the code, but we need to remove at some point
             allocate( UofX( params%xmesh(3), params%xmesh(2), params%xmesh(1), nbands ), &
@@ -238,7 +248,7 @@ module prep_wvfn
             if( ierr .ne. 0 ) return
           
           else
-            allocate( UofX( 0, 0, 0, 0 ), UofX2( 0, 0 ) )
+            allocate( UofX( 0, 0, 0, 0 ), UofX2( 0, 0 ), wvfn(0,0,0,0) )
           endif
 
           ! save subsampled xmesh
@@ -251,24 +261,37 @@ module prep_wvfn
 !          endif
 
           deallocate( UofX, UofX2 )
+          deallocate( wvfn )
 
         endif
 
         ! if doing CKS then compute matrix elements here
         if( wantCKS ) then
+
+          if( ikpt .ne. 0 ) then
+
+            call prep_wvfn_checkFFT( nG, gvecPointer, wantCKS, .false., fftGrid, ierr )
+
+            allocate( wvfn( fftGrid(1), fftGrid(2), fftGrid(3), nbands ) )
+
+            call prep_wvfn_doFFT( gvecPointer, UofGPointer, wvfn )
+
           ! allocate CKS holder which requires queries for sites, maybe loop over all sites? need all the FHs
 
           ! call CKS
 !            call prep_wvfn_cks( 
           ! deltaR is the min real-space spacing for the overlap, should make it an input
-          deltaR = 0.01_DP
-          addShift = (i .eq. 2 )
-          call prep_system_ikpt2kvec( ikpt, addShift, kqVec, kqVecCart ) 
-          write(1000+myid, '(A,I8,6(X,E24.16))' ) 'kqVec', ikpt, kqVecCart(:), kqVec(:)
-          call ocean_cks_build( wvfn, kqVecCart, deltaR, psys%avecs, (i.eq.1), iuni, ierr, gvecPointer, UofGPointer )
+            deltaR = 0.02_DP
+            addShift = (i .eq. 2 )
+            call prep_system_ikpt2kvec( ikpt, addShift, kqVec, kqVecCart ) 
+            write(1000+myid, '(A,I8,6(X,E24.16))' ) 'kqVec', ikpt, kqVecCart(:), kqVec(:)
+            call ocean_cks_build( wvfn, kqVecCart, deltaR, psys%avecs, (i.eq.1), iuni, ierr )
+
+            deallocate( wvfn )
 
           ! call write CKS
 
+          endif
         endif
 
         ! For realu2 option for cks conversion
@@ -278,8 +301,8 @@ module prep_wvfn
           deallocate( conGvecs, conUofG )
         endif
 
-        ! deallocate FFT wvfn
-        deallocate( wvfn )
+!        ! deallocate FFT wvfn
+!        deallocate( wvfn )
 
         gvecPointer => conGvecs
         UofGPointer => conUofG
@@ -300,6 +323,8 @@ module prep_wvfn
 
     call prep_wvfn_closeU2( valFH, ierr, vtype )
     call prep_wvfn_closeU2( conFH, ierr, ctype )
+
+    call MPI_BARRIER( comm, ierr )
     
     if( wantU2 ) then
 !      if( nproc .eq. 1 ) then
@@ -686,7 +711,7 @@ module prep_wvfn
     else
       i = myx*nb
     endif
-    write(1000+myid,'(6(I12))') ikpt, offset, size( UofX2, 2 ), size( UofX2, 1), & 
+    write(1000+myid,'(A2,X,6(I12))') 'OF', ikpt, offset, size( UofX2, 2 ), size( UofX2, 1), & 
           offset*16, ( offset + size( UofX2, 2 ) * size( UofX2, 1) ) * 16
 !    call MPI_FILE_SET_VIEW( fileHandle, offset, MPI_DOUBLE_COMPLEX, newType, "native", MPI_INFO_NULL, ierr )
 !    if( ierr .ne. 0 ) return

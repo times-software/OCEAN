@@ -152,16 +152,19 @@ module ocean_cks
     nPool = odf_npool()
 
     ! Figure out the offset
-    call odf_universal2KptandSpin( 1, ispin, ikpt )
+    call odf_universal2KptandSpin( 1, ikpt, ispin )
 
     if( ispin .eq. 2 ) ikpt = ikpt + product( params%kmesh )
 
     offKpt = ikpt - 1
+    write( 1000+myid, * ) ikpt, ispin, offKpt
       
     nuni = ceiling( real( params%nspin * params%nkpts, DP ) / real( nPool, DP ) )
 
     nsites = ocean_cks_nsites()
     poolID = odf_poolID()
+    write(1000+myid, * ) nuni, nsites, poolID, nPool
+    
 
     fflags = IOR( MPI_MODE_WRONLY, MPI_MODE_CREATE )
     fflags = IOR( fflags, MPI_MODE_UNIQUE_OPEN )
@@ -198,7 +201,7 @@ module ocean_cks
       offset = offset *  sizeofcomplex
       
 
-      write( 1000+myid, * ) nproj, cband, myk, npool, stride, offset
+      if( isite .eq. 1 ) write( 1000+myid, * ) nproj, cband, myk, npool, stride, offset
 
       call MPI_FILE_SET_VIEW( fh, offset, MPI_DOUBLE_COMPLEX, projVector, "native", MPI_INFO_NULL, ierr )
       if( ierr .ne. 0 ) return
@@ -340,7 +343,7 @@ module ocean_cks
 
     ! in the future we could choose our anuglar grid. At the moment all specpnt.5 all the time
     if( myid .eq. root ) then
-      open( unit=99, file='specpnt.7', form='formatted', status='old' )
+      open( unit=99, file='specpnt.5', form='formatted', status='old' )
       read( 99, * ) n
       allocate( angularGrid( 3, n ), angularWeights( n ) )
 

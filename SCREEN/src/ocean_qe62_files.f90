@@ -152,7 +152,7 @@ module ocean_qe62_files
   end function qe62_returnGlobalID
 
 
-  subroutine qe62_universal2KptAndSpin( uni, ispin, ikpt )
+  subroutine qe62_universal2KptAndSpin( uni, ikpt, ispin )
     integer, intent( in ) :: uni
     integer, intent( out ) :: ispin, ikpt
     !
