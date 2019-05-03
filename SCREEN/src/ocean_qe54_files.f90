@@ -1,4 +1,4 @@
-! Copyright (C) 2018 OCEAN collaboration
+! Copyright (C) 2018 - 2019 OCEAN collaboration
 !
 ! This file is part of the OCEAN project and distributed under the terms 
 ! of the University of Illinois/NCSA Open Source License. See the file 
@@ -57,6 +57,7 @@ module ocean_qe54_files
 
   public :: qe54_read_init, qe54_read_at_kpt, qe54_clean, qe54_read_energies, qe54_get_ngvecs_at_kpt, &
             qe54_read_energies_single, qe54_get_ngvecs_at_kpt_split, qe54_read_at_kpt_split
+  public :: qe54_read_energies_split
   public :: qe54_kpts_and_spins, qe54_return_my_bands, qe54_return_my_val_bands, qe54_return_my_con_bands, &
             qe54_is_my_kpt 
   public :: qe54_nprocPerPool, qe54_getPoolIndex, qe54_returnGlobalID
@@ -228,6 +229,150 @@ module ocean_qe54_files
     return
   end function qe54_kpts_and_spins
 
+  subroutine qe54_read_energies_split( myid, root, valEnergies, conEnergies, ierr, comm )
+#ifdef MPI
+    use ocean_mpi, only : MPI_DOUBLE_PRECISION
+#endif
+    integer, intent( in ) :: myid, root
+    real( DP ), intent( out ), dimension( :, :, : ) :: valEnergies, conEnergies
+    integer, intent( inout ) :: ierr
+#ifdef MPI_F08
+    type( MPI_COMM ), intent( in ), optional :: comm
+#else
+    integer, intent( in ), optional :: comm
+#endif
+    real(DP), allocatable :: spareEnergies( :, :, : ) 
+    integer :: ispn, ikpt, i, bstop, bstartMinusOne, j
+    real(DP) :: dumf
+    character(len=128) :: lineBurn
+    logical :: isConduction
+
+    if( is_init .eqv. .false. ) then
+      write(6,*) 'qe54_read_energies_single called but was not initialized'
+      ierr = 4
+      return
+    endif
+
+    if( size( valEnergies, 1 ) .lt. ( brange(2)-brange(1)+1 ) ) then
+      write(6,*) 'Error! Band dimension of valence energies too small in qe54_read_energies_single'
+      ierr = 1
+      return
+    endif
+    if( size( valEnergies, 2 ) .lt. product(kpts(:)) ) then
+      write(6,*) 'Error! K-point dimension of valence energies too small in qe54_read_energies_single'
+      ierr = 2
+      return
+    endif
+    if( size( valEnergies, 3 ) .lt. nspin ) then
+      write(6,*) 'Error! Spin dimension of valence energies too small in qe54_read_energies_single'
+      ierr = 3
+      return
+    endif
+    if( size( conEnergies, 1 ) .lt. ( brange(4)-brange(3)+1 ) ) then
+      write(6,*) 'Error! Band dimension of conduction energies too small in qe54_read_energies_single'
+      ierr = 5
+      return
+    endif
+    if( size( conEnergies, 2 ) .lt. product(kpts(:)) ) then
+      write(6,*) 'Error! K-point dimension of conduction energies too small in qe54_read_energies_single'
+      ierr = 6
+      return
+    endif
+    if( size( conEnergies, 3 ) .lt. nspin ) then
+      write(6,*) 'Error! Spin dimension of conduction energies too small in qe54_read_energies_single'
+      ierr = 7
+      return
+    endif
+
+
+    ! only root proc does the reading
+    if( myid .eq. root ) then
+
+      ! if there is a difference between valence and conduction 
+      if( is_shift ) then
+
+        !
+        bstop = brange(2) - brange(1) + 1
+        bstartMinusOne = brange(1) - 1
+        isconduction = .false.
+
+        do j = 1, 2
+          do ispn = 1, nspin
+            do ikpt = 1, product( kpts(:) )
+
+              open( unit=99, file=qe54_eigFile(ikpt,ispn, isconduction), form='formatted', status='old' )
+              do i = 1, 9
+                read(99,*) !lineBurn
+              enddo
+
+              ! skip bands below
+              do i = 1, brange(1)-1
+                read(99,*) dumf
+              enddo
+
+              if( j .eq. 1 ) then
+                do i = 1, bstop
+                  read( 99, * ) valEnergies( i, ikpt, ispn )
+                enddo
+              else
+                do i = 1, bstop
+                  read( 99, * ) conEnergies( i, ikpt, ispn )
+                enddo
+              endif
+            enddo
+          enddo
+
+          bstop = brange(4) - brange(3) + 1
+          bstartMinusOne = brange(3) - 1
+          isConduction = .true.
+        enddo
+
+      else
+        allocate( spareEnergies( brange(4)-brange(1)+1, product(kpts(:)), nspin ) )
+        bstop = brange(4)-brange(1)+1
+        do ispn = 1, nspin
+          do ikpt = 1, product( kpts(:) )
+
+            open( unit=99, file=qe54_eigFile(ikpt,ispn, isconduction), form='formatted', status='old' )
+            do i = 1, 9
+              read(99,*) !lineBurn
+            enddo
+
+            ! skip bands below
+            do i = 1, brange(1)-1
+              read(99,*) dumf
+            enddo
+
+            do i = 1, bstop
+              read( 99, * ) spareEnergies( i, ikpt, ispn )
+            enddo
+          enddo
+        enddo
+
+        bstop = brange(2)-brange(1)+1
+        valEnergies( 1:bstop, :, : ) = spareEnergies( 1:bstop, :, : )
+        bstop = brange(4)-brange(1)+1
+        j = brange(3)-brange(1)+1
+        i = brange(4)-brange(3)+1
+        conEnergies( 1:i, :, : ) = spareEnergies( j:bstop, :, : )
+
+        deallocate( spareEnergies )
+
+      endif
+
+    endif
+
+
+
+    if( present( comm ) ) then
+      call MPI_BCAST( valEnergies, size(valEnergies), MPI_DOUBLE_PRECISION, root, comm, ierr )
+      if( ierr .ne. 0 ) return
+      call MPI_BCAST( conEnergies, size(conEnergies), MPI_DOUBLE_PRECISION, root, comm, ierr )
+    endif
+
+
+  end subroutine qe54_read_energies_split
+
   subroutine qe54_read_energies_single( myid, root, comm, energies, ierr )
 #ifdef MPI
     use ocean_mpi, only : MPI_DOUBLE_PRECISION
@@ -298,16 +443,40 @@ module ocean_qe54_files
 
   end subroutine qe54_read_energies_single
 
-  pure function qe54_eigFile( ikpt, ispin ) result( fileName )
+  pure function qe54_eigFile( ikpt, ispin, isConduction ) result( fileName )
     integer, intent ( in ) :: ikpt, ispin
+    logical, intent( in ), optional :: isConduction
     character(len=512) :: fileName
 
+    integer :: ik
+    logical :: is_
+    character(len=12) :: eigString
+
+    is_ = .false.
+    if( present( isConduction ) ) is_ = isConduction
+
     if( nspin .eq. 1 ) then
-      write( fileName, '(a,a1,i5.5,a1,a)' ) trim( prefix ), 'K', ikpt, '/', 'eigenval.xml' 
+      eigString = 'eigenval.xml'
     elseif( ispin .eq. 1 ) then
-      write( fileName, '(a,a1,i5.5,a1,a)' ) trim( prefix ), 'K', ikpt, '/', 'eigenval1.xml'
+      eigString = 'eigenval1.dat'
     else
-      write( fileName, '(a,a1,i5.5,a1,a)' ) trim( prefix ), 'K', ikpt, '/', 'eigenval2.xml'
+      eigString = 'eigenval2.dat'
+    endif
+
+    if( is_shift ) then
+      if( is_split ) then  ! Different directories, k-point counting is correct!
+        if( is_ ) then
+          write( fileName, '(a,a1,i5.5,a1,a)' ) trim( prefixSplit ), 'K', ikpt, '/', trim(eigString)
+        else
+          write( fileName, '(a,a1,i5.5,a1,a)' ) trim( prefix ), 'K', ikpt, '/', trim(eigString)
+        endif
+      else  ! same directory, k-points are lies! 
+        ik = ( ikpt * 2 ) - 1
+        if( is_ ) ik = ik + 1
+        write( fileName, '(a,a1,i5.5,a1,a)' ) trim( prefix ), 'K', ik, '/', trim(eigString)
+      endif
+    else
+      write( fileName, '(a,a1,i5.5,a1,a)' ) trim( prefix ), 'K', ikpt, '/', trim(eigString)
     endif
 
   end function qe54_eigFile

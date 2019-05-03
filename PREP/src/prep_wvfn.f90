@@ -48,10 +48,11 @@ module prep_wvfn
     integer :: nG, nbands, fftGrid(3), allBands, nX, vType, cType
 
     integer :: conFH, valFH, fileHandle, poolID, i, testFH
-    logical :: is_kpt, wantCKS, wantU2, addShift
+    logical :: is_kpt, wantCKS, wantU2, addShift, wantLegacy
 
     wantCKS = .true.
     wantU2 = .true.
+    wantLegacy = .false.
 
 
 !    if( wantU2 .and. nproc .eq. 1 ) then
@@ -327,13 +328,13 @@ module prep_wvfn
     call MPI_BARRIER( comm, ierr )
     
     if( wantU2 ) then
-!      if( nproc .eq. 1 ) then
-!        call prep_wvfn_closeLegacy( testFH, ierr )
-!        if( ierr .ne. 0 ) return
-!        call prep_wvfn_doLegacyParallel( ierr )
-!      else
-        call prep_wvfn_doLegacyParallel( ierr )
-!      endif
+!!      if( nproc .eq. 1 ) then
+!!        call prep_wvfn_closeLegacy( testFH, ierr )
+!!        if( ierr .ne. 0 ) return
+!!        call prep_wvfn_doLegacyParallel( ierr )
+!!      else
+        if( wantLegacy ) call prep_wvfn_doLegacyParallel( ierr )
+!!      endif
     endif
 
   if( wantCKS ) then
@@ -341,12 +342,89 @@ module prep_wvfn
 !      call prep_wvfn_cksWriteLegacy( cksValArray, cksConArray )
 !    endif
     call ocean_cks_writeCksHolders( ierr )
-    call ocean_cks_doLegacyCks( ierr )
+    if( wantLegacy ) call ocean_cks_doLegacyCks( ierr )
     if( ierr .ne. 0 ) return
   endif
 
+
+    call prep_wvfn_writeEnergies( ierr )
+
   end subroutine prep_wvfn_driver
 
+  subroutine prep_wvfn_writeEnergies( ierr )
+    use ocean_mpi, only : myid, root
+    use ocean_dft_files, only : odf_read_energies_split
+    use prep_system, only : params
+    use ocean_constants, only : eV2Hartree
+    integer, intent( inout ) :: ierr
+
+    real(DP), allocatable :: conEnergies(:,:,:), valEnergies(:,:,:) 
+
+    real(DP) :: eshift
+    integer :: nbc, nbv, nk, ioerr
+    logical :: zero_lumo, have_core_offset, ex, noshiftlumo
+
+    nbc = params%brange(4)-params%brange(3)+1
+    nbv = params%brange(2)-params%brange(1)+1
+    nk = product( params%kmesh(:) )
+    allocate( conEnergies( nbc, nk, params%nspin ), valEnergies( nbv, nk, params%nspin ) )
+
+    ! don't bother sharing
+    call odf_read_energies_split( myid, root, valEnergies, conEnergies, ierr )
+    if( ierr .ne. 0 ) return
+
+    if( myid .eq. root ) then
+
+      zero_lumo = .false.
+      open( unit=99, file='core_offset', form='formatted', status='old')
+      rewind 99
+      ! might be true/false, but might be a number (which means true)
+      read( 99, *, IOSTAT=ioerr ) have_core_offset
+      close( 99 )
+      if( ioerr .ne. 0 ) have_core_offset = .true.
+      ! if we are doing a core-level shift, then we don't zero the lumo
+      if( have_core_offset ) zero_lumo = .false.
+
+      ! Allow an override option
+      inquire( file='noshift_lumo',exist=ex)
+      if( ex ) then
+        open(unit=99,file='noshift_lumo',form='formatted',status='old')
+        read( 99, * ) noshiftlumo
+        close( 99 )
+        if( noshiftlumo ) then
+          zero_lumo = .false.
+        else
+          zero_lumo = .true.
+        endif
+        write(6,*) 'LUMO shift from no_lumoshiftt:', zero_lumo
+      endif
+
+      if( zero_lumo ) then
+        open( unit=99, file='eshift.ipt', form='formatted', status='old' )
+        rewind 99
+        read ( 99, * ) eshift
+        close( 99 )
+        eshift = eshift * eV2Hartree
+
+        valEnergies(:,:,:) = valEnergies(:,:,:) + eshift
+        conEnergies(:,:,:) = conEnergies(:,:,:) + eshift
+      endif
+
+      open(unit=99, file='wvfvainfo', form='unformatted', status='unknown' )
+      rewind( 99 )
+      write( 99 ) nbv, nk, params%nspin
+      write( 99 ) valEnergies
+      close( 99 ) 
+
+      open(unit=99, file='wvfcninfo', form='unformatted', status='unknown' )
+      rewind( 99 )
+      write( 99 ) nbc, nk, params%nspin
+      write( 99 ) conEnergies
+      close( 99 )
+    endif
+
+    deallocate( valEnergies, conEnergies )
+  end subroutine prep_wvfn_writeEnergies
 
   subroutine prep_wvfn_openLegacy( fh, ierr )
     integer, intent( out ) :: FH 

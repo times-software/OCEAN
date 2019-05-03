@@ -1,4 +1,4 @@
-! Copyright (C) 2017-2018 OCEAN collaboration
+! Copyright (C) 2017-2019 OCEAN collaboration
 !
 ! This file is part of the OCEAN project and distributed under the terms 
 ! of the University of Illinois/NCSA Open Source License. See the file 
@@ -44,7 +44,7 @@ module ocean_dft_files
   public :: odf_init, odf_read_energies_single, odf_clean
   public :: odf_nprocPerPool, odf_getPoolIndex, odf_getBandsForPoolID, odf_returnGlobalID
   public :: odf_return_my_bands, odf_is_my_kpt, odf_get_ngvecs_at_kpt
-  public :: odf_read_at_kpt, odf_read_at_kpt_split
+  public :: odf_read_at_kpt, odf_read_at_kpt_split, odf_read_energies_split
   public :: odf_isGamma, odf_isFullStorage, odf_isDualFile
   public :: odf_npool, odf_universal2KptAndSpin, odf_poolComm, odf_poolID
 
@@ -608,5 +608,51 @@ module ocean_dft_files
     return
 
   end subroutine odf_read_energies_single
+
+  subroutine odf_read_energies_split( myid, root, valEnergies, conEnergies, ierr, comm )
+!    use ocean_legacy_files, only : olf_read_energies_split
+    use ocean_qe54_files, only : qe54_read_energies_split
+!    use ocean_qe62_files, only : qe62_read_energies_split
+    integer, intent( in ) :: myid, root
+    real(DP), intent(out), dimension(:,:,:) :: valEnergies, conEnergies
+    integer, intent(inout) :: ierr
+#ifdef MPI_F08
+    type( MPI_COMM ), intent( in ), optional :: comm
+#else
+    integer, intent( in ), optional :: comm
+#endif
+    !
+    select case( flavor )
+
+      case( LEGACY_FLAVOR )
+        ierr =1023179
+!        call olf_read_energies_single( myid, root, comm, energies, ierr )
+
+      case( QE54_FLAVOR )
+        if( present( comm ) ) then
+          call qe54_read_energies_split( myid, root, valEnergies, conEnergies, ierr, comm )
+        else
+          call qe54_read_energies_split( myid, root, valEnergies, conEnergies, ierr )
+        endif
+
+      case( QE62_FLAVOR )
+        ierr = 32579023
+!        call qe62_read_energies_single( myid, root, comm, energies, ierr )
+
+      case default
+        ierr = 1
+        if( myid .eq. root ) then
+          write(6,*) 'Incorrect DFT flavor in odf_read_energies_single.'
+          write(6,*) 'Probably a bug?'
+        endif
+    end select
+    return
+
+  end subroutine odf_read_energies_split
+
+
+
+
+
 
 end module ocean_dft_files
