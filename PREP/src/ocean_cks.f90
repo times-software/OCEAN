@@ -54,7 +54,7 @@ module ocean_cks
 
     complex(DP), allocatable :: cksIn(:)
     real(DP), allocatable :: reCksOut(:), imCksOut(:)
-    integer :: isite, i, nbands, nkpts, nspin, nproj
+    integer :: isite, i, nbands, nkpts, nspin, nproj, nproj_, ntot_, nspin_
     character( len=14 ) :: parFilnam
     character( len=11 ) :: filnam
 
@@ -75,9 +75,13 @@ module ocean_cks
 
       write( parFilnam, '(A8,A2,I4.4)' ) 'parcksc.', allSites( isite )%elname, allSites( isite )%indx
       open( unit=99, file=parFilnam, form='unformatted', access='stream', status='old' )
+      read(99) nproj_, ntot_, nspin_
       read(99) cksIn
       close( 99 )
 
+      write(6,*) nproj_, nproj
+      write(6,*) ntot_, nkpts*nbands
+      write(6,*) nspin_, nspin
       do i = 1, nproj * nbands * nkpts * nspin
         reCksOut(i) = real( cksIn(i), DP )
         imCksOut(i) = aimag( cksIn(i) )
@@ -99,6 +103,7 @@ module ocean_cks
       
       write( parFilnam, '(A8,A2,I4.4)' ) 'parcksv.', allSites( isite )%elname, allSites( isite )%indx
       open( unit=99, file=parFilnam, form='unformatted', access='stream', status='old' )
+      read(99) nproj_, ntot_, nspin_
       read(99) cksIn
       close( 99 )
 
@@ -130,7 +135,8 @@ module ocean_cks
     integer, intent( inout ) :: ierr
 
 
-    integer :: ikpt, ispin, fh, npool, nsites, isite, nproj, cband, vband, myk, nuni, poolID, bandOffset, fflags, stride, i, sizeofcomplex
+    integer :: ikpt, ispin, fh, npool, nsites, isite, nproj, cband, vband, myk, nuni,  &
+               poolID, bandOffset, fflags, stride, i, sizeofcomplex, sizeofinteger, dumi(3)
     character( len=14 ) :: filnam
     complex(DP) :: dumz
     integer( MPI_OFFSET_KIND) :: offset, offKpt
@@ -171,6 +177,8 @@ module ocean_cks
 
     call MPI_SIZEOF( dumz, sizeofcomplex, ierr )
     if( ierr .ne. 0 ) return
+    call MPI_SIZEOF( i, sizeofinteger, ierr )
+    if( ierr .ne. 0 ) return
 
     do isite = 1, nsites
 
@@ -182,6 +190,16 @@ module ocean_cks
 
       call MPI_FILE_OPEN( comm, filnam, fflags, MPI_INFO_NULL, fh, ierr )
       if( ierr .ne. 0 ) return
+
+      offset = 0
+      call MPI_FILE_SET_VIEW( fh, offset, MPI_INTEGER, MPI_INTEGER, "native", MPI_INFO_NULL, ierr )
+      if( myid .eq. 0 ) then
+        dumi(1) = nproj
+        dumi(2) = ( params%brange(4) - params%brange(3) + 1 ) * params%nkpts
+        dumi(3) = params%nspin
+        
+        call MPI_FILE_WRITE( fh, dumi, 3, MPI_INTEGER, MPI_STATUS_IGNORE, ierr )
+      endif
       
       ! See instructions above
       stride = nproj * ( params%brange(4) - params%brange(3) + 1 ) * nPool
@@ -198,7 +216,8 @@ module ocean_cks
         offset = offset + bandOffset * nproj
       enddo
 
-      offset = offset *  sizeofcomplex
+      offset = offset *  sizeofcomplex + 3 * sizeofinteger
+      
       
 
       if( isite .eq. 1 ) write( 1000+myid, * ) nproj, cband, myk, npool, stride, offset
@@ -207,17 +226,6 @@ module ocean_cks
       if( ierr .ne. 0 ) return
 
 
-!      do iuni = 1, nuni
-!        call odf_universal2KptandSpin( iuni, ispin, ikpt )
-!
-!        if( ikpt .gt. 0 ) then
-!          i = nproj*cband
-!        else
-!          i = 0
-!      enddo
-
-!      i = 1 
-!      call MPI_FILE_WRITE_ALL( fh, allCksHolders( isite )%con, i, projVector, MPI_STATUS_IGNORE, ierr )
       i = nproj * cband * myk
       call MPI_FILE_WRITE_ALL( fh, allCksHolders( isite )%con, i, MPI_DOUBLE_COMPLEX, MPI_STATUS_IGNORE, ierr )
       if( ierr .ne. 0 ) return
@@ -229,10 +237,23 @@ module ocean_cks
       if( ierr .ne. 0 ) return
 
 
+      !!!!!!!!!!!!!!!!!!!!!!!!!!!
+
+
+
       write( filnam, '(A8,A2,I4.4)' ) 'parcksv.', allSites( isite )%elname, allSites( isite )%indx
 
       call MPI_FILE_OPEN( comm, filnam, fflags, MPI_INFO_NULL, fh, ierr )
       if( ierr .ne. 0 ) return
+      offset = 0
+      call MPI_FILE_SET_VIEW( fh, offset, MPI_INTEGER, MPI_INTEGER, "native", MPI_INFO_NULL, ierr )
+      if( myid .eq. 0 ) then
+        dumi(1) = nproj
+        dumi(2) = ( params%brange(2) - params%brange(1) + 1 ) * params%nkpts
+        dumi(3) = params%nspin
+
+        call MPI_FILE_WRITE( fh, dumi, 3, MPI_INTEGER, MPI_STATUS_IGNORE, ierr )
+      endif
 
       ! See instructions above
       stride = nproj * ( params%brange(2) - params%brange(1) + 1 ) * nPool
@@ -249,7 +270,7 @@ module ocean_cks
         offset = offset + bandOffset * nproj
       enddo
 
-      offset = offset *  sizeofcomplex
+      offset = offset *  sizeofcomplex + 3 * sizeofinteger
 
       call MPI_FILE_SET_VIEW( fh, offset, MPI_DOUBLE_COMPLEX, projVector, "native", MPI_INFO_NULL, ierr )
       if( ierr .ne. 0 ) return

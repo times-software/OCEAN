@@ -1386,7 +1386,7 @@ module OCEAN_psi
     endif
     if( have_val ) then
       if( (.not. x%val_standard_order) .or. ( .not. y%val_standard_order ) ) then
-        ierr = -12
+        ierr = -12001
         return
       endif
     endif
@@ -1471,7 +1471,7 @@ module OCEAN_psi
     endif
     if( have_val ) then
       if( (.not. x%val_standard_order) .or. ( .not. y%val_standard_order ) ) then
-        ierr = -12
+        ierr = -120
         return
       endif
     endif
@@ -1570,7 +1570,7 @@ module OCEAN_psi
     if( have_val ) then
       if( (.not. x%val_standard_order) .or. ( .not. y%val_standard_order ) .or. &
          ( .not. z%val_standard_order )) then
-        ierr = -12
+        ierr = -19
         return
       endif
     endif
@@ -1582,7 +1582,7 @@ module OCEAN_psi
     !  and so if full exists, but not min we will create it here
     if( IAND( x%valid_store, PSI_STORE_MIN ) .eq. 0 ) then
       if( IAND( x%valid_store, PSI_STORE_FULL ) .eq. 0 ) then
-        ierr = -1
+        ierr = -10005
 !        call OCEAN_psi_write2store( x, ierr)
         if( ierr .ne. 0 ) return
       else
@@ -2372,9 +2372,9 @@ module OCEAN_psi
     endif
 
     if( present( im_core ) ) then
-      if( size( im_core, 1 ) .gt. psi_bands_pad ) ierr = -11
-      if( size( im_core, 2 ) .ne. psi_kpts_actual ) ierr = -12
-      if( size( im_core, 3 ) .ne. psi_core_alpha ) ierr = -13
+      if( size( im_core, 1 ) .gt. psi_bands_pad ) ierr = -111
+      if( size( im_core, 2 ) .ne. psi_kpts_actual ) ierr = -121
+      if( size( im_core, 3 ) .ne. psi_core_alpha ) ierr = -131
       if( ierr .ne. 0 ) return
 
       min_band = min( psi_bands_pad, size( im_core, 1 ) )
@@ -2787,7 +2787,7 @@ module OCEAN_psi
     logical :: do_conjugate
     !
     if( present( is_conjugate ) ) then
-      do_conjugate = .true.
+      do_conjugate = is_conjugate
     else
       do_conjugate = .false.
     endif
@@ -5197,7 +5197,9 @@ module OCEAN_psi
     real(DP) :: tau( 3 ), rr, ri, ir, ii
     real(DP), allocatable, dimension(:,:,:) :: pcr, pci
     real(DP), allocatable, dimension(:,:) :: mer, mei
+    complex(DP), allocatable, dimension(:,:,:) :: pcTemp
     integer :: nptot, ntot, ialpha, icms, ivms, icml, ikpt, iband, iter, nspn
+    logical :: ex
 
     character (LEN=127) :: cks_filename
     character (LEN=5) :: cks_prefix
@@ -5212,23 +5214,48 @@ module OCEAN_psi
     case default
       cks_prefix = 'cksc.'
     end select
-    write(cks_filename,'(A5,A2,I4.4)' ) cks_prefix, sys%cur_run%elname, sys%cur_run%indx
 
-    open(unit=99,file=cks_filename,form='unformatted',status='old')
-    rewind( 99 )
-    read ( 99 ) nptot, ntot, nspn
-    read ( 99 ) tau( : )
-    allocate( pcr( nptot, ntot, nspn ), pci( nptot, ntot, nspn ) )
-    read ( 99 ) pcr
-    read ( 99 ) pci
-    close( unit=99 )
+    write(cks_filename, '(A3,A5,A2,I4.4)' ) 'par', cks_prefix, sys%cur_run%elname, sys%cur_run%indx
+    inquire( file=cks_filename, exist=ex )
+    if( ex ) then
+      write(6,*) 'Using parallel cks: ', trim(cks_filename)
+      open(unit=99, file=cks_filename, form='unformatted', status='old', access='stream' )
+      read(99) nptot, ntot, nspn
+!      read ( 99 ) tau( : )
+      allocate( pcr( nptot, ntot, nspn ), pci( nptot, ntot, nspn ), pcTemp( nptot, ntot, nspn ) )
+      read( 99 ) pcTemp(:,:,:)
+      close( 99 )
 
+      do ivms = 1, nspn
+        do iter = 1, ntot
+          pcr(:,iter,ivms) = real( pcTemp(:,iter,ivms), DP )
+          pci(:,iter,ivms) = aimag( pcTemp(:,iter,ivms) )
+        enddo
+      enddo
+      deallocate( pcTemp )
 
-    if( nspn .ne. sys%nspn ) then
-      ierr = -1
-      write(6,*) 'Spin mismatch is fatal'
-      return
+    else
+      write(cks_filename,'(A5,A2,I4.4)' ) cks_prefix, sys%cur_run%elname, sys%cur_run%indx
+      write(6,*) 'Using legacy cks: ', trim(cks_filename)
+
+      open(unit=99,file=cks_filename,form='unformatted',status='old')
+      rewind( 99 )
+      read ( 99 ) nptot, ntot, nspn
+      read ( 99 ) tau( : )
+      allocate( pcr( nptot, ntot, nspn ), pci( nptot, ntot, nspn ) )
+      read ( 99 ) pcr
+      read ( 99 ) pci
+      close( unit=99 )
+  
+      if( nspn .ne. sys%nspn ) then
+        ierr = -1
+        write(6,*) 'Spin mismatch is fatal'
+        return
+      endif
+
     endif
+
+
 
     allocate( mer( nptot, -sys%cur_run%ZNL(3): sys%cur_run%ZNL(3) ),  &
               mei( nptot, -sys%cur_run%ZNL(3): sys%cur_run%ZNL(3) ) )

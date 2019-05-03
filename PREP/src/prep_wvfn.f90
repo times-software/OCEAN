@@ -52,7 +52,7 @@ module prep_wvfn
 
     wantCKS = .true.
     wantU2 = .true.
-    wantLegacy = .false.
+    wantLegacy = .true.
 
 
 !    if( wantU2 .and. nproc .eq. 1 ) then
@@ -236,8 +236,10 @@ module prep_wvfn
 
 
             !JTV
-            ! This reversal is currently in the code, but we need to remove at some point
-            allocate( UofX( params%xmesh(3), params%xmesh(2), params%xmesh(1), nbands ), &
+!            ! This reversal is currently in the code, but we need to remove at some point
+            ! This is reversed in the legacy u2.dat. That reversal is removed here, but
+            ! taken into account in the legacy writer
+            allocate( UofX( params%xmesh(1), params%xmesh(2), params%xmesh(3), nbands ), &
                       UofX2( nX, allBands ) )
 
             call prep_wvfn_u1( wvfn, UofX, ierr )
@@ -545,9 +547,9 @@ module prep_wvfn
     zIn = size( wvfn, 3 ) 
     nbands = size( wvfn, 4 ) 
 
-    xOut = size( UofX, 3 )
+    xOut = size( UofX, 1 )
     yOut = size( UofX, 2 )
-    zOut = size( UofX, 1 )
+    zOut = size( UofX, 3 )
     nbands_ = size( UofX, 4 )
 
     nOut = xOut * yOut * zOut
@@ -577,24 +579,24 @@ module prep_wvfn
 
     do iband = 1, nbands
       !JTV
-      ! This reversal is currently in the code, but we need to remove at some point
-      iix = 1
-      do ix = 1, xOut
+! NO LONGER      ! This reversal is currently in the code, but we need to remove at some point
+      iiz = 1
+      do iz = 1, zOut
 
         iiy = 1
         do iy = 1, yOut
 
-          iiz = 1
-          do iz = 1, zOut
+          iix = 1
+          do ix = 1, xOut
             
-            UofX( iz, iy, ix, iband ) = wvfn( iix, iiy, iiz, iband )
-            iiz = iiz + zSkip
+            UofX( ix, iy, iz, iband ) = wvfn( iix, iiy, iiz, iband )
+            iix = iix + xSkip
           enddo
           
           iiy = iiy + ySkip
         enddo
     
-        iix = iix + xSkip
+        iiz = iiz + zSkip
       enddo
 
 
@@ -986,14 +988,17 @@ module prep_wvfn
      
     integer, intent( inout ) :: ierr
 
-    complex(DP), allocatable :: val_wvfn(:,:), con_wvfn(:,:)
+    complex(DP), allocatable :: val_wvfn(:,:,:,:), con_wvfn(:,:,:,:)
     complex(DP) :: old
-    integer :: ik, ix, ib, vb, cb, nb, nx, dumi(3)
+    integer :: ik, ix, ib, vb, cb, nb, nx, dumi(3), ny, nz, iy, iz, iix
     logical :: ex
 
     if( myid .eq. root ) then
 
-    nx = product( params%xmesh(:) )
+!    nx = product( params%xmesh(:) )
+    nx = params%xmesh(1)
+    ny = params%xmesh(2)
+    nz = params%xmesh(3)
     vb = params%brange(2) - params%brange(1) + 1
     cb = params%brange(4) - params%brange(3) + 1
     nb = vb + cb
@@ -1008,13 +1013,17 @@ module prep_wvfn
     open( unit=97, file='u2.dat', form='unformatted', status='unknown' )
     rewind( 97 )
 
-    allocate( val_wvfn( nx, vb ), con_wvfn( nx, cb ) )
+    allocate( val_wvfn( nx, ny, nz, vb ), con_wvfn( nx, ny, nz, cb ) )
     do ik = 1, params%nkpts
       read(99) val_wvfn
 
       do ib = 1, vb
+        iix = 0
         do ix = 1, nx
-          write(97) ib, ik, ix, val_wvfn( ix, ib )
+          do iy = 1, ny
+            do iz = 1, nz
+              iix = iix + 1
+              write(97) ib, ik, iix, val_wvfn( ix, iy, iz, ib )
 !          if( ex ) then
 !            read( 96 ) dumi(:), old
 !            write(1000,'(4(E25.16))') val_wvfn( ix, ib ), old
@@ -1022,19 +1031,27 @@ module prep_wvfn
 !            write(3000,'(3I8,2E25.8)') ib, ik, ix, old
 !
 !          endif
+            enddo
+          enddo
         enddo
       enddo
 
       read(98) con_wvfn
       do ib = 1, cb
+        iix = 0
         do ix = 1, nx
-          write(97) ib+vb, ik, ix, con_wvfn( ix, ib )
+          do iy = 1, ny
+            do iz = 1, nz
+              iix = iix + 1
+              write(97) ib+vb, ik, iix, con_wvfn( ix, iy, iz, ib )
 !          if( ex ) then
 !            read( 96 ) dumi(:), old
 !            write(1000,'(4(E25.16))') con_wvfn( ix, ib ), old
 !            write(2001,'(3I8,2E25.8)') ib+vb, ik, ix, con_wvfn( ix, ib )
 !            write(3001,'(3I8,2E25.8)') ib+vb, ik, ix, old
 !          endif
+            enddo
+          enddo
         enddo
       enddo
 

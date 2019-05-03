@@ -1652,7 +1652,7 @@ module ocean_long_range
 
 
 
-
+#if 0
   subroutine lr_populate_bloch( sys, ierr )
     use OCEAN_mpi!, only : myid, nproc, comm, root
 !    use mpi
@@ -1952,6 +1952,7 @@ module ocean_long_range
 
 
   end subroutine lr_populate_bloch
+#endif
 
 
   subroutine lr_fill_values( ierr )
