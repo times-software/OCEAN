@@ -101,7 +101,8 @@ module ocean_interpolate
     complex(dp), intent( in ) :: p(:)
     complex(dp) :: cEvalLagrange4
     !
-    cEvalLagrange4 = p(1) + x * p(2) + x*x*p(3) + x*x*x*p(4)
+!    cEvalLagrange4 = p(1) + x * p(2) + x*x*p(3) + x*x*x*p(4)
+    cEvalLagrange4 = p(1) + x * ( p(2) + x * ( p(3) + x * p(4) ) )
   end function cEvalLagrange4
 
   function rEvalLagrange4( x, p )
