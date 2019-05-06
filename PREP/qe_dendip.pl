@@ -35,7 +35,7 @@ my @QEFiles     = ( "rhoofr", "efermiinrydberg.ipt" );
 my @CommonFiles = ( "screen.nkpt", "nkpt", "qinunitsofbvectors.ipt", "avecsinbohr.ipt", "dft", 
                     "nspin", "xmesh.ipt", "dft.split", "prefix", "calc", "screen.wvfn", "screen.legacy", 
                     "screen.mode", "bse.wvfn");
-my @NewMethodFiles = ( "ntype", "typat", "natoms", "znucl", "taulist", "edges" );
+my @NewMethodFiles = ( "ntype", "typat", "natoms", "znucl", "taulist", "edges", "core_offset" );
 my @ExtraFiles = ("specpnt.5");
 
 foreach (@QEFiles) {
