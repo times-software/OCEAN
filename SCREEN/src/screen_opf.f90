@@ -1,4 +1,4 @@
-! Copyright (C) 2018 OCEAN collaboration
+! Copyright (C) 2018-2019 OCEAN collaboration
 !
 ! This file is part of the OCEAN project and distributed under the terms 
 ! of the University of Illinois/NCSA Open Source License. See the file 
@@ -33,9 +33,39 @@ module screen_opf
 
   public :: screen_opf_init, screen_opf_clean, screen_opf_makeNew, screen_opf_loadAll, &
             screen_opf_lbounds, screen_opf_getNCutoff, screen_opf_nprojForChannel, &
-            screen_opf_interpProjs, screen_opf_makeAMat, screen_opf_maxNproj, screen_opf_AltInterpProjs
+            screen_opf_interpProjs, screen_opf_makeAMat, screen_opf_maxNproj, screen_opf_AltInterpProjs, &
+            screen_opf_largestL, screen_opf_getRMax, screen_opf_interpPSProjs
 
+  public :: screen_opf_largestLMNproj
+  
   contains
+
+  pure function screen_opf_largestLMNproj()
+    integer :: screen_opf_largestLMNproj
+    integer :: i, n, np, l
+
+    screen_opf_largestLMNproj = 0
+    if( .not. allocated( FullTable ) ) return
+
+    n = size( FullTable )
+    do i = 1, n
+      np = 0
+      do l = FullTable( i )%lmin, FullTable( i )%lmax
+        np = np + (2*l + 1 )*FullTable( i )%nprojPerChannel( l ) 
+      enddo
+      screen_opf_largestLMNproj = max( screen_opf_largestLMNproj, np )
+    enddo
+  end function screen_opf_largestLMNproj
+
+  pure function screen_opf_largestL( )
+    integer :: screen_opf_largestL
+    integer :: i
+
+    screen_opf_largestL = 0
+    do i = 1, size( FullTable )
+      screen_opf_largestL = max( screen_opf_largestL, FullTable( i )%lMax )
+    enddo
+  end function screen_opf_largestL
 
   subroutine screen_opf_makeAMat( np, nr, rad, drad, proj, amat, ierr )
     integer, intent( in ) :: np, nr
@@ -129,6 +159,31 @@ module screen_opf
     ! zero means something has gone horribly wrong
     if( maxNproj .eq. 0 ) ierr = 1
   end subroutine screen_opf_maxNproj
+
+  subroutine screen_opf_getRMax( zee, rmax, ierr, itarg )
+    integer, intent( in ) :: zee
+    real(DP), intent( out ) :: rmax
+    integer, intent( inout ) :: ierr
+    integer, intent( inout ), optional :: itarg
+    !
+    integer :: targ
+
+
+    if( present( itarg ) ) then
+      if( isRightTarg( zee, itarg ) ) then
+        targ = itarg
+      else
+        targ = getRightTarg( zee )
+      endif
+    else
+      targ = getRightTarg( zee )
+    endif
+
+    rmax = FullTable( targ )%rMax
+    
+    ! zero means something has gone horribly wrong
+    if( rmax .lt. 0.0_DP ) ierr = 1
+  end subroutine screen_opf_getRMax
     
 
   subroutine screen_opf_lbounds( zee, lmin, lmax, ierr, itarg )
@@ -251,6 +306,46 @@ module screen_opf
     endif
   end subroutine screen_opf_getNCutoff
 
+  subroutine screen_opf_interpPSProjs(  zee, l, rad, psproj, ierr, itarg )
+    integer, intent( in ) :: zee, l
+    real(DP), intent( in ) :: rad( : )
+    real(DP), intent( out ) :: psproj( :, : )
+    integer, intent( inout ) :: ierr
+    integer, intent( inout ), optional :: itarg
+    !
+    integer :: targ, i, p
+
+    if( present( itarg ) ) then
+      if( isRightTarg( zee, itarg ) ) then
+        targ = itarg
+      else
+        targ = getRightTarg( zee )
+      endif
+    else
+      targ = getRightTarg( zee )
+    endif
+
+    if( targ .lt. 1 ) then
+      ierr = 1
+      return
+    endif
+
+    if( present( itarg ) ) itarg = targ
+
+    if( size( psProj, 2 ) .lt. FullTable( targ )%nprojPerChannel( l ) ) then
+      ierr = 2
+      return
+    endif
+
+    do p = 1, FullTable( targ )%nprojPerChannel( l )
+      do i = 1, size( psProj, 1 )
+        call intval( FullTable( targ )%nrad, FullTable( targ )%rad, FullTable( targ )%psProj( :, p, l ), &
+                     rad( i ), psProj( i, p ), 'err', 'err' )
+      enddo
+    enddo
+
+  end subroutine screen_opf_interpPSProjs
+
   subroutine screen_opf_altinterpProjs(  zee, l, rad, psproj, aeproj, ierr, itarg )
     integer, intent( in ) :: zee, l
     real(DP), intent( in ) :: rad( : )
@@ -367,40 +462,52 @@ module screen_opf
 
   end subroutine screen_opf_interpProjs
 
-  subroutine screen_opf_loadAll( ierr )
+  subroutine screen_opf_loadAll( ierr, zeelist )
     use OCEAN_mpi, only : myid, root, comm, MPI_INTEGER
     integer, intent( inout ) :: ierr
+    integer, optional, intent( in ) :: zeelist(:)
 
     integer :: maxUnique, Zee, i
 
-    if( myid .eq. root ) then
-      open(unit=99,file='zeelist',form='formatted',status='old')
-      read(99,*) maxUnique
-    endif
+    if( present( zeelist ) ) then
+      maxUnique = size( zeelist )
+    else
+
+      if( myid .eq. root ) then
+        open(unit=99,file='zeelist',form='formatted',status='old')
+        read(99,*) maxUnique
+      endif
 #ifdef MPI
-    call MPI_BARRIER( comm, ierr )
-    call MPI_BCAST( maxUnique, 1, MPI_INTEGER, root, comm, ierr )
-    if( ierr .ne. 0 ) return
+      call MPI_BARRIER( comm, ierr )
+      call MPI_BCAST( maxUnique, 1, MPI_INTEGER, root, comm, ierr )
+      if( ierr .ne. 0 ) return
 #endif
+    endif
 
     call screen_opf_init( maxUnique, ierr )
     if( ierr .ne. 0 ) return
 
     do i = 1, maxUnique
-      if( myid .eq. root ) then
-        read(99,*) Zee
-      endif
+      if( present( zeelist ) ) then
+        Zee = zeelist( i )
+      else
+        if( myid .eq. root ) then
+          read(99,*) Zee
+        endif
 #ifdef MPI
-      call MPI_BARRIER( comm, ierr )
-      call MPI_BCAST( Zee, 1, MPI_INTEGER, root, comm, ierr )
-      if( ierr .ne. 0 ) return
+        call MPI_BARRIER( comm, ierr )
+        call MPI_BCAST( Zee, 1, MPI_INTEGER, root, comm, ierr )
+        if( ierr .ne. 0 ) return
 #endif
+      endif
 
       call screen_opf_makeNew( Zee, ierr )
       if( ierr .ne. 0 ) return
     enddo
 
-    if( myid .eq. root ) close( 99 )
+    if( .not. present( zeelist ) ) then
+      if( myid .eq. root ) close( 99 )
+    endif
 
   end subroutine screen_opf_loadAll
 
