@@ -1,3 +1,10 @@
+! Copyright (C) 2016, 2017, 2019 OCEAN collaboration
+!
+! This file is part of the OCEAN project and distributed under the terms 
+! of the University of Illinois/NCSA Open Source License. See the file 
+! `License' in the root directory of the present distribution.
+!
+!
 module OCEAN_hyb_louie_levine
   use AI_kinds
   use OCEAN_constants, only : eV2Rydberg, eV2Hartree, Hartree2eV
@@ -16,11 +23,12 @@ module OCEAN_hyb_louie_levine
   real(dp), parameter :: rh = 80.d0
   real(dp), parameter :: rl = 0.01d0
 
-  public :: OS_hyb_louie_levin
+  public :: OS_hyb_louie_levine
 
   contains
 
-  subroutine OS_hyb_louie_levin( sys, nkpts_pad, nxpts_pad, nypts, ladder, nx, nx_start, nkret, kret, ierr, ladcap, kk )
+  subroutine OS_hyb_louie_levine( sys, nkpts_pad, nxpts_pad, nypts, ladder, nx, nx_start, nkret, & 
+                                  kret, ierr, ladcap, kk )
     use OCEAN_system
     use OCEAN_mpi
     use, intrinsic :: ieee_arithmetic, only: ieee_is_nan
@@ -111,7 +119,7 @@ module OCEAN_hyb_louie_levine
     endif
     call MPI_BCAST( decut, 1, MPI_DOUBLE_PRECISION, root, comm, ierr )
     if( ierr .ne. 0 ) return
-    call MPI_BCAST( clip, 1, MPI_DOUBLE_PRECISION, root, comm, ierr )
+    call MPI_BCAST( clip, 1, MPI_INTEGER, root, comm, ierr )
     if( ierr .ne. 0 ) return
 #endif
     
@@ -352,7 +360,7 @@ module OCEAN_hyb_louie_levine
     if( myid .eq. root ) write( 6, * ) 'Hybertsen-Louie-Levine model W constructed'
 
 
-  end subroutine OS_hyb_louie_levin
+  end subroutine OS_hyb_louie_levine
 
 
 
