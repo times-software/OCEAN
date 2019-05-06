@@ -596,7 +596,9 @@ module screen_chi0
     use ocean_constants, only : pi_dp
     use screen_timekeeper, only : screen_tk_start, screen_tk_stop
     use ocean_mpi, only : myid
+#ifdef __INTEL_COMPILER
     use ifport, only : sleepqq
+#endif
     real(DP), intent( in ), dimension(:,:,:) :: LWvfn, RWvfn
     real(DP), intent( inout ) :: chi(:,:)
     integer, intent( inout ) :: ierr

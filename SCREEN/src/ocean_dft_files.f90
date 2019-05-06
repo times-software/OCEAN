@@ -24,7 +24,7 @@ module ocean_dft_files
   integer, parameter :: QE54_FLAVOR = 1
   integer, parameter :: QE62_FLAVOR = 2
 
-  character(len=6), parameter   :: flavorToText(0:2) = [ 'legacy', 'qe54', 'qe62' ]
+  character(len=6), parameter   :: flavorToText(0:2) = [ 'legacy', 'qe54  ', 'qe62  ' ]
 
   public :: LEGACY_FLAVOR, QE54_FLAVOR, QE62_FLAVOR
 
