@@ -15,7 +15,7 @@ module OCEAN_val_energy
     use OCEAN_system
     use OCEAN_psi
     use OCEAN_mpi
-    use OCEAN_constants, only : Hartree2eV
+    use OCEAN_constants, only : Hartree2eV, eV2Hartree
     implicit none
     !
     type( O_system ), intent( in ) :: sys
@@ -24,7 +24,7 @@ module OCEAN_val_energy
     !
 
 
-    real( DP ), allocatable, dimension(:,:,:) :: val_energies, con_energies, im_val_energies, im_con_energies
+    real( DP ), allocatable, dimension(:,:,:) :: val_energies, con_energies, im_val_energies, im_con_energies, tmp_e
     real( DP ) :: efermi, homo, lumo, cliph
     integer :: ik, ibv, ibc, fh, ispn, jspn, ibeta, i, j
     logical :: metal, have_imaginary, did_gw_correction
@@ -36,7 +36,8 @@ module OCEAN_val_energy
 !    real(DP), parameter :: Ha_to_eV = 27.21138386_dp
 
 
-    allocate( val_energies( sys%cur_run%val_bands, sys%nkpts, sys%nspn ),  &
+!    allocate( val_energies( sys%cur_run%val_bands, sys%nkpts, sys%nspn ),  &
+    allocate( val_energies( sys%brange(2), sys%nkpts, sys%nspn ),  &
               con_energies( sys%cur_run%num_bands, sys%nkpts, sys%nspn ), STAT=ierr )
     if( ierr .ne. 0 ) return
 
@@ -58,7 +59,8 @@ module OCEAN_val_energy
              enddo  !ispn
           endif
 #ifdef MPI
-          call MPI_BCAST( val_energies, sys%cur_run%val_bands*sys%nkpts*sys%nspn, MPI_DOUBLE_PRECISION, root, comm, ierr )
+          call MPI_BCAST( val_energies, sys%brange(2)*sys%nkpts*sys%nspn, MPI_DOUBLE_PRECISION, root, comm, ierr )
+!          call MPI_BCAST( val_energies, sys%cur_run%val_bands*sys%nkpts*sys%nspn, MPI_DOUBLE_PRECISION, root, comm, ierr )
           if( ierr .ne. MPI_SUCCESS ) return
           call MPI_BCAST( con_energies, sys%cur_run%num_bands*sys%nkpts*sys%nspn, MPI_DOUBLE_PRECISION, root, comm, ierr )
           if( ierr .ne. MPI_SUCCESS ) return
@@ -137,7 +139,8 @@ module OCEAN_val_energy
     endif
 !   call GW corrections time
 
-    allocate( im_val_energies( sys%cur_run%val_bands, sys%nkpts, sys%nspn ), & 
+!    allocate( im_val_energies( sys%cur_run%val_bands, sys%nkpts, sys%nspn ), & 
+    allocate( im_val_energies( sys%brange(2), sys%nkpts, sys%nspn ), & 
               im_con_energies( sys%cur_run%num_bands, sys%nkpts, sys%nspn ), STAT=ierr )
     if( ierr .ne. 0 ) return
 
@@ -158,6 +161,24 @@ module OCEAN_val_energy
     endif
 
     if( myid .eq. 0 ) write(6,*) val_energies(:,1,1)
+    ! move this nonsense back
+    if( sys%cur_run%val_bands .ne. sys%brange(2) ) then
+      allocate(tmp_e( sys%cur_run%val_bands, sys%nkpts, sys%nspn ) )
+      tmp_e( 1:sys%cur_run%val_bands, :, : ) = val_energies( sys%brange(1):sys%brange(2), :, : )
+      deallocate( val_energies )
+      allocate( val_energies( sys%cur_run%val_bands, sys%nkpts, sys%nspn ) )
+      val_energies( :, : ,: ) = tmp_e( :, :, : )
+      if( have_imaginary ) then
+!        write( 6, * ) sys%brange(1), sys%brange(2)
+!        write(6,*) im_val_energies( 1:sys%brange(1), 1, 1 ) * Hartree2eV
+!        write(6,*) im_val_energies( sys%brange(1):sys%brange(2), 1, 1)*Hartree2eV
+        tmp_e( 1:sys%cur_run%val_bands, :, : ) = im_val_energies( sys%brange(1):sys%brange(2), :, : )
+        deallocate( im_val_energies )
+        allocate( im_val_energies( sys%cur_run%val_bands, sys%nkpts, sys%nspn ) )
+        im_val_energies( :, : ,: ) = tmp_e( :, :, : )
+      endif
+      deallocate( tmp_e )
+    endif
     call energies_allow( sys, val_energies, con_energies, sys%nelectron, efermi, cliph, &
                                 allow, metal, ierr )
     if( ierr .ne. 0 ) return
@@ -180,6 +201,7 @@ module OCEAN_val_energy
        enddo  !jspn
     enddo  !ispn
     if( have_imaginary ) then
+       if( myid .eq. 0 ) write(6,*) 'HAVE IMAG'
        ibeta=0
        do i=1,sys%valence_ham_spin
           ispn = min( i, sys%nspn )
@@ -189,7 +211,13 @@ module OCEAN_val_energy
              do ik = 1, sys%nkpts
                 do ibv = 1, sys%cur_run%val_bands
                    do ibc = 1, sys%cur_run%num_bands
-                      p_energy%vali( ibc, ibv, ik, ibeta ) = im_con_energies( ibc, ik, jspn ) - im_val_energies( ibv, ik, ispn )
+                      p_energy%vali( ibc, ibv, ik, ibeta ) = -(im_con_energies( ibc, ik, jspn ) - im_val_energies( ibv, ik, ispn ) )
+
+!                      if( p_energy%vali( ibc, ibv, ik, ibeta ) .gt. -0.0001_dp ) then
+                      if( myid .eq. 0 .and. ik .eq. 1 ) then
+                        write(80,'(3(I8,X),3(F24.6))') ik, ibv, ibc, Hartree2eV*p_energy%vali( ibc, ibv, ik, ibeta ), &
+                             Hartree2eV*im_val_energies( ibv, ik, ispn ), HArtree2eV*im_con_energies( ibc, ik, jspn )
+                      endif
                    enddo
                 enddo
              enddo
@@ -198,10 +226,12 @@ module OCEAN_val_energy
     else
       p_energy%vali( :, :, :, : ) = 0.0_dp
     endif
+!    p_energy%vali( :, :, :, : ) = -0.05_dp * eV2Hartree
 
 
     deallocate( val_energies, con_energies, im_val_energies, im_con_energies )
     
+     if( myid .eq. 0 ) write(6,*) 'Done with energies'
 
 
   end subroutine OCEAN_read_energies
@@ -216,7 +246,8 @@ module OCEAN_val_energy
     implicit none
     type( O_system ), intent( in ) :: sys
     real( DP ), intent( in ) :: homo, lumo
-    real( DP ), intent( inout ), dimension( sys%cur_run%val_bands, sys%nkpts,sys%nspn ) :: &
+!    real( DP ), intent( inout ), dimension( sys%cur_run%val_bands, sys%nkpts,sys%nspn ) :: &
+    real( DP ), intent( inout ), dimension( :, :, : ) :: &
         val_energies, im_val_energies
     real( DP ), intent( inout ), dimension( sys%cur_run%num_bands, sys%nkpts, sys%nspn ) :: &
         con_energies, im_con_energies
@@ -248,6 +279,7 @@ module OCEAN_val_energy
         case( 'ibnd' )
           call val_gw_by_band( sys, val_energies, con_energies, ierr, .true., &
                                im_val_energies, im_con_energies )
+          have_imaginary = .true.
         case( 'cstr' )
           call val_gw_stretch( sys, homo, lumo, val_energies, con_energies, ierr )
         case default
@@ -261,9 +293,15 @@ module OCEAN_val_energy
     call MPI_BCAST( have_gw, 1, MPI_LOGICAL, root, comm, ierr )
     if( ierr .ne. MPI_SUCCESS ) return
     if( have_gw ) then
-      call MPI_BCAST( val_energies, sys%cur_run%val_bands * sys%nkpts, MPI_DOUBLE_PRECISION, & 
+!      call MPI_BCAST( val_energies, sys%cur_run%val_bands * sys%nkpts, MPI_DOUBLE_PRECISION, & 
+      call MPI_BCAST( val_energies, sys%brange(2) * sys%nkpts, MPI_DOUBLE_PRECISION, & 
                       root, comm, ierr )
       call MPI_BCAST( con_energies, sys%cur_run%num_bands * sys%nkpts, MPI_DOUBLE_PRECISION, & 
+                      root, comm, ierr )
+      call MPI_BCAST( have_imaginary, 1, MPI_LOGICAL, root, comm, ierr )
+      call MPI_BCAST( im_val_energies, sys%brange(2) * sys%nkpts, MPI_DOUBLE_PRECISION, &
+                      root, comm, ierr )
+      call MPI_BCAST( im_con_energies, sys%cur_run%num_bands * sys%nkpts, MPI_DOUBLE_PRECISION, &
                       root, comm, ierr )
     endif
 #endif
@@ -277,11 +315,12 @@ module OCEAN_val_energy
     implicit none
     !
     type( O_system ), intent( in ) :: sys
-    real( DP ), intent( inout ), dimension( sys%cur_run%val_bands, sys%nkpts, sys%nspn ) :: val_energies
-    real( DP ), intent( inout ), dimension( sys%cur_run%num_bands, sys%nkpts, sys%nspn ) :: con_energies
+!    real( DP ), intent( inout ), dimension( sys%cur_run%val_bands, sys%nkpts, sys%nspn ) :: val_energies
+!    real( DP ), intent( inout ), dimension( sys%cur_run%num_bands, sys%nkpts, sys%nspn ) :: con_energies
+    real( DP ), intent( inout ), dimension( :, :, : ) :: val_energies, con_energies
     integer, intent( inout ) :: ierr
-    logical, intent( in ), optional :: keep_imag
-    real( DP ), intent( inout ), optional, dimension( sys%cur_run%val_bands, sys%nkpts, sys%nspn ) :: im_val_energies
+    logical, intent( in ) :: keep_imag
+    real( DP ), intent( inout ), optional, dimension( sys%brange(2), sys%nkpts, sys%nspn ) :: im_val_energies
     real( DP ), intent( inout ), optional, dimension( sys%cur_run%num_bands, sys%nkpts, sys%nspn ) :: im_con_energies
     !
     integer :: nbands, iter, ispn, ikpt
@@ -300,6 +339,7 @@ module OCEAN_val_energy
     read(99,*) nbands
     allocate( re_se( nbands ), im_se( nbands ) )
     if( keep_imag ) then
+      write(6,*) 'Reading IMAG'
       do iter = 1, nbands
         read(99,*) re_se( iter ), im_se( iter )
       enddo
@@ -316,12 +356,41 @@ module OCEAN_val_energy
 
     do ispn = 1, sys%nspn
       do ikpt = 1, sys%nkpts
-        do iter = 1, min( nbands, sys%cur_run%val_bands )
+        do iter = 1, min( nbands, sys%brange(2) )
           val_energies( iter, ikpt, ispn ) = val_energies( iter, ikpt, ispn ) + re_se( iter )
-          im_val_energies ( iter, ikpt, ispn ) = im_se( iter )
+!          im_val_energies ( iter, ikpt, ispn ) = im_se( iter )
+        enddo
+        do iter = sys%brange(3), min( sys%brange(4), nbands )
+          con_energies( iter-sys%brange(3)+1, ikpt, ispn ) = con_energies( iter-sys%brange(3)+1, ikpt, ispn ) + re_se( iter )
         enddo
       enddo
     enddo
+
+    if( keep_imag ) then
+      if( present( im_val_energies ) ) then
+        write(6,*) 'Store VAL IMAG'
+        do ispn = 1, sys%nspn
+          do ikpt = 1, sys%nkpts
+!            do iter = 1, min( nbands, sys%cur_run%val_bands )
+            do iter = 1, min( nbands, sys%brange(2) )
+!            do iter = sys%brange(1), min(sys%brange(2),nbands)
+!              im_val_energies ( iter-sys%brange(1)+1, ikpt, ispn ) = im_se( iter )
+              im_val_energies ( iter, ikpt, ispn ) = im_se( iter )
+            enddo   
+          enddo
+        enddo
+      endif
+      if( present( im_con_energies ) ) then
+        write(6,*) 'Store CON IMAG'
+        do ispn = 1, sys%nspn
+          do ikpt = 1, sys%nkpts
+            do iter = sys%brange(3), min( sys%brange(4), nbands )
+              im_con_energies( iter-sys%brange(3)+1, ikpt, ispn ) = im_se( iter )
+            enddo
+          enddo
+        enddo
+      endif
+    endif
 
     deallocate( re_se, im_se )
 
@@ -541,7 +610,8 @@ module OCEAN_val_energy
     type( O_system ), intent( in ) :: sys
     integer, intent( in ) :: nelectron 
     real(dp), intent( in ) :: con_energies( sys%cur_run%num_bands, sys%nkpts, sys%nspn ), &
-                              val_energies( sys%cur_run%val_bands, sys%nkpts, sys%nspn )
+                              val_energies( sys%brange(2), sys%nkpts, sys%nspn )
+!                              val_energies( sys%cur_run%val_bands, sys%nkpts, sys%nspn )
     real(dp), intent( out ) :: efermi, homo, lumo, cliph
     logical, intent( out ) :: metal
     logical, intent( in ) :: dft_flag

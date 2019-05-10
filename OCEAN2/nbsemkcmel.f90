@@ -126,7 +126,7 @@ subroutine nbsemkcmel( add04, add14 )
   write(rpotModFilename, '(A10,A14)') 'rpottrim.z', add14
   open( unit=99, file=rpotModfilename, form='formatted', status='unknown' )
   rewind 99
-  write(99, '(A,I)' ) '#', nv
+  write(99, '(A,I8)' ) '#', nv
   do i = 1, nv !100
      write ( 99, '(E24.16,X,E24.16)' ) vtrim( i ), rv( i )
   end do

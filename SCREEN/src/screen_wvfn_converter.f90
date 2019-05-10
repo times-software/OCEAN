@@ -12,6 +12,7 @@ module screen_wvfn_converter
   use AI_kinds, only : DP
 
   implicit none
+  private
 
   type xHolder
     complex(dp), allocatable :: cUofX(:,:,:,:)
