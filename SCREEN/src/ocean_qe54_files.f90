@@ -127,6 +127,7 @@ module ocean_qe54_files
     integer :: nbands
     integer :: bands_remain, i
 
+    nbands = 0
     bands_remain = bands(2)-bands(1)+1
 
     do i = 0, poolID
@@ -143,6 +144,7 @@ module ocean_qe54_files
 
 !    bands_remain = brange(4)-brange(3)+brange(2)-brange(1)+2
     bands_remain = brange(2) - brange(1) + 1
+    nbands = 0
 
     do i = 0, poolID
       nbands = bands_remain / ( pool_nproc - i )
@@ -156,6 +158,7 @@ module ocean_qe54_files
     integer :: nbands
     integer :: bands_remain, i
     
+    nbands = 0
 !    bands_remain = brange(4)-brange(3)+brange(2)-brange(1)+2
     bands_remain = brange(4) - brange(3) + 1
   
@@ -450,7 +453,7 @@ module ocean_qe54_files
 
     integer :: ik
     logical :: is_
-    character(len=12) :: eigString
+    character(len=13) :: eigString
 
     is_ = .false.
     if( present( isConduction ) ) is_ = isConduction

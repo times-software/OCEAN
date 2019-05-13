@@ -31,6 +31,7 @@ module prep_wvfn
     use ocean_cks, only : ocean_cks_build, ocean_cks_nsites, ocean_cks_writeCksHolders, & 
                           ocean_cks_makeCksHolders, ocean_cks_doLegacyCks
     use screen_opf, only : screen_opf_largestLMNproj
+    use screen_timekeeper, only : screen_tk_start, screen_tk_stop
     integer, intent( inout ) :: ierr
 
     complex(DP), allocatable, target :: valUofG(:,:), conUofG(:,:), wvfn(:,:,:,:), UofX(:,:,:,:) , UofX2(:,:)
@@ -328,6 +329,9 @@ module prep_wvfn
     call prep_wvfn_closeU2( conFH, ierr, ctype )
 
     call MPI_BARRIER( comm, ierr )
+
+    call screen_tk_stop( "main" )
+    call screen_tk_start( "legacy" )
     
     if( wantU2 ) then
 !!      if( nproc .eq. 1 ) then
@@ -335,21 +339,44 @@ module prep_wvfn
 !!        if( ierr .ne. 0 ) return
 !!        call prep_wvfn_doLegacyParallel( ierr )
 !!      else
-        if( wantLegacy ) call prep_wvfn_doLegacyParallel( ierr )
+        if( wantLegacy ) then
+          write(1000+myid, * ) 'Calling Legacy Parallel'
+          flush(1000+myid)
+          call prep_wvfn_doLegacyParallel( ierr )
+          call MPI_BARRIER( comm, ierr )
+          write(1000+myid, * ) 'Finished Legacy Parallel'
+          flush(1000+myid)
+        endif
 !!      endif
     endif
 
-  if( wantCKS ) then
-!    if( nproc .eq. 1 ) then
-!      call prep_wvfn_cksWriteLegacy( cksValArray, cksConArray )
-!    endif
-    call ocean_cks_writeCksHolders( ierr )
-    if( wantLegacy ) call ocean_cks_doLegacyCks( ierr )
-    if( ierr .ne. 0 ) return
-  endif
+    if( wantCKS ) then
+  !    if( nproc .eq. 1 ) then
+  !      call prep_wvfn_cksWriteLegacy( cksValArray, cksConArray )
+  !    endif
+      call ocean_cks_writeCksHolders( ierr )
+      if( ierr .ne. 0 ) return
+      call MPI_BARRIER( comm, ierr )
+      if( ierr .ne. 0 ) return
+      if( wantLegacy ) then
+        write(1000+myid, * ) 'Calling Legacy CKS'
+        flush(1000+myid)
+        call ocean_cks_doLegacyCks( ierr )
+        call MPI_BARRIER( comm, ierr )
+        write(1000+myid, * ) 'Finished Legacy CKS'
+        flush(1000+myid)
+      endif
+    endif
 
+    call screen_tk_stop( "legacy" )
+    call screen_tk_start( "main" )
 
+    write(1000+myid, * ) 'Calling Energies'
+    flush(1000+myid)
     call prep_wvfn_writeEnergies( ierr )
+    call MPI_BARRIER( comm, ierr )
+    write(1000+myid, * ) 'Finished Energies'
+    flush(1000+myid)
 
   end subroutine prep_wvfn_driver
 
@@ -817,6 +844,7 @@ module prep_wvfn
 
     integer :: remain, i
 
+    myx = 0
     remain = nx
 
     do i = 0, myid 

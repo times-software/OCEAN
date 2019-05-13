@@ -46,8 +46,8 @@ ocean_interpolate.mod: ocean_interpolate.f90 ai_kinds.mod
 screen_opf.o:   screen_opf.f90 ai_kinds.mod ocean_mpi.mod  
 screen_opf.mod: screen_opf.f90 ai_kinds.mod ocean_mpi.mod
 
-prep_wvfn.o:   prep_wvfn.f90 ocean_dft_files.mod ocean_mpi.mod ai_kinds.mod screen_opf.mod ocean_cks.mod
-prep_wvfn.mod: prep_wvfn.f90 ocean_dft_files.mod ocean_mpi.mod ai_kinds.mod screen_opf.mod ocean_cks.mod
+prep_wvfn.o:   prep_wvfn.f90 ocean_dft_files.mod ocean_mpi.mod ai_kinds.mod screen_opf.mod ocean_cks.mod screen_timekeeper.mod
+prep_wvfn.mod: prep_wvfn.f90 ocean_dft_files.mod ocean_mpi.mod ai_kinds.mod screen_opf.mod ocean_cks.mod screen_timekeeper.mod
 
 ocean_cks.o:   ocean_cks.f90 ai_kinds.mod ocean_interpolate.mod screen_opf.mod
 ocean_cks.mod: ocean_cks.f90 ai_kinds.mod ocean_interpolate.mod screen_opf.mod

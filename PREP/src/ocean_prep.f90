@@ -24,13 +24,14 @@ program ocean_prep
 
   ierr = 0
 
-  call screen_tk_init()
-  call screen_tk_start( "prep" )
-
-  call screen_tk_start( "init" )
   call ocean_mpi_init( ierr )
   if( ierr .ne. 0 ) goto 111
 
+  call screen_tk_init()
+
+  call screen_tk_start( "prep" )
+
+  call screen_tk_start( "init" )
   
   call prep_system_load( ierr )
   if( ierr .ne. 0 ) goto 111
@@ -45,18 +46,29 @@ program ocean_prep
   ! Step two we will be checking and loading the OPFs here for the matrix elements
   call ocean_cks_init( ierr )
   if( ierr .ne. 0 ) goto 111
+  call screen_tk_stop( "init" )
 
 
+  call screen_tk_start( "main" )
   call prep_wvfn_driver( ierr )
   write(6,*) ierr
   if( ierr .ne. 0 ) goto 111
+  call screen_tk_stop( "main" )
 
-  call odf_clean( ierr )
+  call screen_tk_start( "clean" )
+!  call odf_clean( ierr )
   if( ierr .ne. 0 ) goto 111
   
 
-  call ocean_mpi_finalize( ierr )
+  call screen_tk_stop( "clean" )
+  call screen_tk_stop( "prep" )
+!  if( ierr .ne. 0 ) call screen_tk_printtimes( myid )
+  call screen_tk_printtimes( myid )
+  call MPI_BARRIER( comm, ierr )
+  if( myid .eq. 0 ) write(6,*) '*** OCEAN_prep is done ***', ierr
+  call MPI_BARRIER( comm, ierr )
   
+  call ocean_mpi_finalize( ierr )
 
 111 continue
 
