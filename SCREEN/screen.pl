@@ -31,7 +31,9 @@ if (! $ENV{"OCEAN_WORKDIR"}){ $ENV{"OCEAN_WORKDIR"} = `pwd` . "../" ; }
 my @CommonFiles = ("znucl", "opf.hfkgrid", "opf.fill", "opf.opts", "pplist", "screen.shells", 
                    "ntype", "natoms", "typat", "taulist", "nedges", "edges", "caution", "epsilon", 
                    "screen.k0", "scfac", "core_offset", "dft", "avecsinbohr.ipt", 
-                   "para_prefix", "nspin", "calc", "prefix" );
+                   "nspin", "prefix" );
+
+my @CommonFiles2 = ("para_prefix", "calc" );
 
 my @ScreenFiles = ("screen.grid.scheme", "screen.grid.rmode", "screen.grid.ninter", 
                    "screen.grid.shells", "screen.grid.xyz", "screen.grid.rmax", "screen.grid.ang",
@@ -165,6 +167,12 @@ if( $screen_data_files{ 'grid.ang' } =~ m/(\w+)\s+(\d+)/ )
   {
     print "Couldn't find requested angular grid file: $angularGridFile\n";
   }
+}
+
+# Need calc
+foreach( @CommonFiles2 )
+{
+  copy( "../Common/$_", "$_" ) or die "Failed to copy $_ from Common\n$!";
 }
 
 my $valenceGrid;

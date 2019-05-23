@@ -28,8 +28,8 @@ if (! $ENV{"OCEAN_WORKDIR"}){ $ENV{"OCEAN_WORKDIR"} = `pwd` . "../" ; }
 
 my @CommonFiles = ("znucl", "opf.hfkgrid", "opf.fill", "opf.opts", "pplist", 
                    "ntype", "natoms", "typat", "taulist", "nedges", "edges", "caution", 
-                   "scfac", "calc", "opf.program" );
-
+                   "scfac", "opf.program" );
+my @ExtraFiles = ("calc");
 
 
 my $runOPF = 1;
@@ -118,9 +118,15 @@ if ($runOPF == 0 ) {
   exit 0;
 }
 
+
 unlink "done";
 unlink "old";
 
+
+foreach(@ExtraFiles)
+{
+  copy( "../Common/$_", "$_" ) == 1 or die "Failed to get $_ from Common/\n";
+}
 
 foreach (@CommonFiles) {
   copy( "../Common/$_", "$_") == 1 or die "Failed to get $_ from Common/\n";
