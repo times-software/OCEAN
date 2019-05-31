@@ -1254,6 +1254,8 @@ if( $obf == 0 && $run_screen == 1 )
   mkdir $bseDIR unless ( -d $bseDIR );
   chdir $bseDIR;
 
+  unlink "old";
+
   mkdir "Out" unless ( -d "Out" );
   mkdir "Out/$qe_data_files{'prefix'}.save" unless ( -d "Out/$qe_data_files{'prefix'}.save" );
 
