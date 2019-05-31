@@ -340,7 +340,7 @@ if( $valenceGrid == 1 ) # valence grid, must use screen_driver.x
   print ZEELIST "0\n";
   close ZEELIST;
 
-  system("$para_prefix $ENV{'OCEAN_BIN'}/screen_driver.x") == 0 or die "$!\nFailed to run screen_driver.x\n";
+  system("$para_prefix $ENV{'OCEAN_BIN'}/screen_driver.x > screen_driver.log") == 0 or die "$!\nFailed to run screen_driver.x\n";
   print "screen_driver.x done\n";
 
   system("$ENV{'OCEAN_BIN'}/vhommod.x") == 0 or die "$!\nFailed to run vhommod.x\n";
