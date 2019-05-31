@@ -1065,13 +1065,13 @@ if ( $nscfRUN ) {
     # Set the flags that change for each input/dft run
     $qe_data_files{'calctype'} = 'nscf';
     $qe_data_files{'dft.startingpot'} = 'file';
-    # if have exact exchange flip back to scf
-    print "$qe_data_files{'dft.functional'}\n";
+#    # if have exact exchange flip back to scf
+#    print "$qe_data_files{'dft.functional'}\n";
 
     # some of this needs to be moved up
     foreach( @exx )
     {
-      print "$_\n";
+#      print "$_\n";
       if( $qe_data_files{'dft.functional'} =~ m/$_/i )
       {
         $qe_data_files{'calctype'} = 'scf';
@@ -1253,6 +1253,8 @@ if( $obf == 0 && $run_screen == 1 )
   my $bseDIR = "SCREEN";
   mkdir $bseDIR unless ( -d $bseDIR );
   chdir $bseDIR;
+
+  unlink "old";
 
   mkdir "Out" unless ( -d "Out" );
   mkdir "Out/$qe_data_files{'prefix'}.save" unless ( -d "Out/$qe_data_files{'prefix'}.save" );
@@ -1489,6 +1491,92 @@ else
   }
 }
 
+# For occopt = 1, the SCF run only gives the highest occupied
+# With a sparse k-point grid this doesn't give a good position for the Fermi
+# So, if we have re-run any segment then figure out a better Fermi level
+# We do this by taking the highest occupied from SCREEN and BSE and the lowest unoccupied
+# and then setting the Fermi to be the midpoint
+if( $qe_data_files{ "occopt" } == 1 && ( $RunESPRESSO + $nscfRUN + $run_screen > 0 ) )
+{
+  print "Fixing Fermi level for occopt=1, insulating system\n";
+
+  my $valenceE;
+  my $conductionE;
+
+  if( -e "SCREEN/nscf.out" )
+  {
+    open IN, "SCREEN/nscf.out" or die "Failed to open SCREEN/nscf.out\n$!";
+    while( my $line = <IN> )
+    {
+      if( $line =~ m/highest occupied, lowest unoccupied level\s\S+\s+(-?\d+\.\d+)\s+(-?\d+\.\d+)/ )
+      {
+        $valenceE = $1;
+        $conductionE = $2;
+        print "$valenceE\t$conductionE\n";
+        last;
+      }
+    }
+    close IN;
+  }
+  my $bseDIR = sprintf("%03u%03u%03u", split( /\s+/,$qe_data_files{'nkpt'}));
+  if( -e "$bseDIR/nscf.out" )
+  {
+    open IN, "$bseDIR/nscf.out" or die "Failed to open $bseDIR/nscf.out\n$!";
+    while( my $line = <IN> )
+    {
+      if( $line =~ m/highest occupied, lowest unoccupied level\s\S+\s+(-?\d+\.\d+)\s+(-?\d+\.\d+)/ )
+      {
+        print $line;
+        my $v = $1;
+        my $c = $2;
+        unless( defined( $valenceE ) )
+        {
+          $valenceE = $v;
+          $conductionE = $c;
+        }
+        else
+        { 
+          $valenceE = $v if( $v > $valenceE );
+          $conductionE = $c if( $c < $conductionE );
+        }
+        last;
+        print "$valenceE\t$conductionE\n";
+      }
+    }
+    close IN;
+  }
+  else
+  {
+    print "Couldn't fine $bseDIR/nscf.out\n";
+  }
+
+  unless( defined( $valenceE ) )
+  {
+    print "Failed to correct Fermi level!\nLikely DFT runs didn't finish correctly!!";
+  }
+  else
+  {
+    if( $valenceE > $conductionE )
+    {
+      print "WARNING!!!! Highest occupied is greater than lowest unoccupied!\n";
+      print "Likely you specified metal = .false. for a metallic system or your structure is incorrect\n";
+      print "OCEAN will continue, but the results are probably bad!\nWARNING!!!!!\n";
+    }
+    else
+    {
+      print "$valenceE\t$conductionE\n";
+      my $eVfermi = ( $valenceE + $conductionE ) / 2;
+      my $fermi = $eVfermi / 13.60569253;
+      print "Fermi level found at $eVfermi eV\n";
+
+      open FERMI, ">efermiinrydberg.ipt" or die "Failed to open efermiinrydberg\n$!";
+      print FERMI "$fermi\n";
+      close FERMI;
+
+    }
+  }
+}
+  
 
 
 print "Espresso stage complete\n";

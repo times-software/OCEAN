@@ -107,76 +107,78 @@ if( $run_screen == 1 )
   close NKPT;
   $rundir = "../DFT/SCREEN";
 
-  unless( -e "PAW/done" && -e "${rundir}/old" ) {
-  `rm -r PAW` if (-e "PAW");
-  mkdir "PAW"; 
-  chdir "PAW";
-
-  open NKPTS, ">nkpts" or die "Failed to open nkpts for writing\n";
-  print NKPTS $nkpt[0]*$nkpt[1]*$nkpt[2] . "\n";
-  close NKPTS;
-
-
-  foreach ("kmesh.ipt", "brange.ipt", "qinunitsofbvectors.ipt" ) {
-    system("cp ../${rundir}/$_ .") == 0 or die "Failed to copy $_\n";
-  }
-  #`cp ../qinunitsofbvectors.ipt .`;
-  `cp ../bvecs .`;
-  `cp ../dft .`;
-  `cp ../nspin .`;
-  `cp ../${rundir}/umklapp .`;
-  `cp ../prefix .`;
-
-  my $prefix;
-  open PREFIX, "prefix";
-  $prefix = <PREFIX>;
-  close (PREFIX);
-  chomp( $prefix );
-
-
-  #`cp -r ../${rundir}/Out .`;
-  if( -l "Out" )  # Out is an existing link
+  unless( -e "PAW/done" && -e "${rundir}/old" ) 
   {
-    unlink "Out" or die "Problem cleaning old 'Out' link\n$!";
-  }
-  elsif(  -d "Out" ) #or Out is existing directory
-  {
-    rmtree( "Out" );
-  }
-  elsif( -e "Out" ) #or Out is some other file
-  {
-    unlink "Out";
-  }
-  print "../$rundir/Out\n";
-  symlink ("../$rundir/Out", "Out") == 1 or die "Failed to link Out\n$!";
+    `rm -r PAW` if (-e "PAW");
+    mkdir "PAW"; 
+    chdir "PAW";
 
-  # New methods for skipping wfconvert
-  if( $screenWvfn =~ m/qe(\d+)/ && $screenLegacy == 0 )
-  {
-    my $qeVersion = $1;
-    print "Don't convert DFT. Using new method for screening wavefunctions: $qeVersion\n";
-    `touch listwfile masterwfile enkfile`;
-    if( $qeVersion == 62 )
-    {
-#      print "../$rundir/enkfile\n";
-      copy "../$rundir/enkfile", "enkfile";
+    open NKPTS, ">nkpts" or die "Failed to open nkpts for writing\n";
+    print NKPTS $nkpt[0]*$nkpt[1]*$nkpt[2] . "\n";
+    close NKPTS;
+
+
+    foreach ("kmesh.ipt", "brange.ipt", "qinunitsofbvectors.ipt" ) {
+      system("cp ../${rundir}/$_ .") == 0 or die "Failed to copy $_\n";
     }
-#    else{ print $qeVersion . "\n"; }
-  }
-  else  # old method, run wfconvert
-  {
-    print "$screenWvfn $screenLegacy\n";
-    print "$ENV{'OCEAN_BIN'}/qe_data_file.pl Out/$prefix.save/data-file.xml\n";
-    system("$ENV{'OCEAN_BIN'}/qe_data_file.pl Out/$prefix.save/data-file.xml") == 0 
-      or die "Failed to run qe_data_file.pl\n$!";
+    #`cp ../qinunitsofbvectors.ipt .`;
+    `cp ../bvecs .`;
+    `cp ../dft .`;
+    `cp ../nspin .`;
+    `cp ../${rundir}/umklapp .`;
+    `cp ../prefix .`;
 
-    system("$ENV{'OCEAN_BIN'}/wfconvert.x") == 0 
-      or die "Failed to run wfconvert.x\n$!";
-  }
+    my $prefix;
+    open PREFIX, "prefix";
+    $prefix = <PREFIX>;
+    close (PREFIX);
+    chomp( $prefix );
 
 
-  `touch done`;
-  chdir "../";
+    #`cp -r ../${rundir}/Out .`;
+    if( -l "Out" )  # Out is an existing link
+    {
+      unlink "Out" or die "Problem cleaning old 'Out' link\n$!";
+    }
+    elsif(  -d "Out" ) #or Out is existing directory
+    {
+      rmtree( "Out" );
+    }
+    elsif( -e "Out" ) #or Out is some other file
+    {
+      unlink "Out";
+    }
+    print "../$rundir/Out\n";
+    symlink ("../$rundir/Out", "Out") == 1 or die "Failed to link Out\n$!";
+
+    # New methods for skipping wfconvert
+    if( $screenWvfn =~ m/qe(\d+)/ && $screenLegacy == 0 )
+    {
+      unlink "PAW/old";
+      my $qeVersion = $1;
+      print "Don't convert DFT. Using new method for screening wavefunctions: $qeVersion\n";
+      `touch listwfile masterwfile enkfile`;
+      if( $qeVersion == 62 )
+      {
+  #      print "../$rundir/enkfile\n";
+        copy "../$rundir/enkfile", "enkfile";
+      }
+  #    else{ print $qeVersion . "\n"; }
+    }
+    else  # old method, run wfconvert
+    {
+      print "$screenWvfn $screenLegacy\n";
+      print "$ENV{'OCEAN_BIN'}/qe_data_file.pl Out/$prefix.save/data-file.xml\n";
+      system("$ENV{'OCEAN_BIN'}/qe_data_file.pl Out/$prefix.save/data-file.xml") == 0 
+        or die "Failed to run qe_data_file.pl\n$!";
+
+      system("$ENV{'OCEAN_BIN'}/wfconvert.x") == 0 
+        or die "Failed to run wfconvert.x\n$!";
+    }
+
+
+    `touch done`;
+    chdir "../";
   }
   else {
     `touch PAW/old`;

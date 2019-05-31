@@ -41,7 +41,8 @@ module screen_paral
 
 
   subroutine screen_paral_init( n_sites, pinfo, ierr )
-    use OCEAN_mpi, only : myid, comm, nproc, MPI_SUCCESS, MPI_COMM_SPLIT, MPI_COMM_RANK, MPI_COMM_SIZE
+    use OCEAN_mpi, only : myid, comm, nproc, MPI_SUCCESS
+    ! This might be needed later for F08?, MPI_COMM_SPLIT, MPI_COMM_RANK, MPI_COMM_SIZE
     !
     integer, intent( in ) :: n_sites
     type( site_parallel_info ), intent( out ) :: pinfo

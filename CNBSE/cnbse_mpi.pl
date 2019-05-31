@@ -653,9 +653,9 @@ while (<EDGE>) {
   # If we don't want CLS then make sure the file is not here
   if( $core_offset =~ m/false/i )
   {
-    if( -e "cls.${zstring}" ) 
+    if( -e "cls.${compactZstring}" ) 
     {
-      unlink "cls.${zstring}" or die "Failed to remove cls.${zstring}\n$!";
+      unlink "cls.${compactZstring}" or die "Failed to remove cls.${compactZstring}\n$!";
     }
   }
   else

@@ -461,9 +461,9 @@ module ocean_qe54_files
     if( nspin .eq. 1 ) then
       eigString = 'eigenval.xml'
     elseif( ispin .eq. 1 ) then
-      eigString = 'eigenval1.dat'
+      eigString = 'eigenval1.xml'
     else
-      eigString = 'eigenval2.dat'
+      eigString = 'eigenval2.xml'
     endif
 
     if( is_shift ) then
