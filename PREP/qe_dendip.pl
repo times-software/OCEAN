@@ -34,9 +34,10 @@ $oldden = 1 if (-e "../DFT/old");
 my @QEFiles     = ( "rhoofr", "efermiinrydberg.ipt" );
 my @CommonFiles = ( "screen.nkpt", "nkpt", "qinunitsofbvectors.ipt", "avecsinbohr.ipt", "dft", 
                     "nspin", "xmesh.ipt", "dft.split", "prefix", "calc", "screen.wvfn", "screen.legacy", 
-                    "screen.mode", "bse.wvfn");
-my @NewMethodFiles = ( "ntype", "typat", "natoms", "znucl", "taulist", "edges", "core_offset" );
-my @ExtraFiles = ("specpnt.5");
+                    "screen.mode", "bse.wvfn", "k0.ipt" );
+my @NewMethodFiles = ( "ntype", "typat", "natoms", "znucl", "taulist", "edges", "core_offset", "metal", "cksshift", 
+                       "cksstretch", "nedges", "edges", "pplist", "opf.opts", "opf.fill" );
+my @ExtraFiles = ("specpnt.5", "Pquadrature", "sphpts" );
 
 foreach (@QEFiles) {
   system("cp ../DFT/$_ .") == 0 or die "Failed to copy $_\n";
@@ -47,6 +48,10 @@ foreach (@CommonFiles) {
 foreach (@NewMethodFiles) {
   system("cp ../Common/$_ .") == 0 or die "Failed to copy $_\n";
 }
+
+#JTV
+( copy "../OPF/hfinlist", "hfinlist" ) == 1 or die "Failed to copy hfinlist\n$!";
+( copy "../OPF/xyz.wyck", "xyz.wyck" ) == 1 or die "Failed to copy hfinlist\n$!";
 
 
 system("mv nkpt bse.nkpt") == 0 or die "Failed to rename nkpt $_\n";
@@ -213,8 +218,10 @@ close NKPT;
 $rundir = sprintf("../DFT/%03u%03u%03u", $nkpt[0], $nkpt[1], $nkpt[2]);
 
 my @BSECommonFiles = ( "qinunitsofbvectors.ipt", "bvecs", "dft", "nelectron", "avecsinbohr.ipt", 
-                       "xmesh.ipt", "nspin", "dft.split", "prefix", "natoms", "typat", "ntype","znucl", "taulist", "edges" );
+                       "nspin", "dft.split", "prefix", "natoms", "typat", "ntype","znucl", "taulist", 
+                       "edges", "k0.ipt", "core_offset", "metal", "cksshift", "cksstretch" );
 my @rundirFiles = ( "kmesh.ipt", "brange.ipt", "umklapp" );
+my @BSEBonusFiles = ("xmesh.ipt", "calc", "hfinlist", "xyz.wyck" );
 #Checks for BSE prep
 my $runBSE = 1;
 if( -e "BSE/done" && -e "${rundir}/old" )
@@ -241,14 +248,27 @@ if( -e "BSE/done" && -e "${rundir}/old" )
       }
     }
   }
+  # Check xmesh changes only
+  if( $runBSE == 0 )
+  {
+    $runBSE = 2 if( compare( "xmesh.ipt", "BSE/xmesh.ipt" ) != 0 );
+    if( compare( "hfinlist", "BSE/hfinlist" ) != 0 || compare( "calc", "BSE/calc" ) != 0 )
+    {
+      $runBSE = 3;
+    }
+  }
 }
 
 #$runBSE = 0 if( $bseWvfn =~ m/qe62/ );
 
 if( $runBSE != 0 )
 {
-  `rm -r BSE` if (-e "BSE");
-  mkdir "BSE";
+  unlink "BSE/done";
+  if( $runBSE == 1 )
+  {
+    rmtree( "BSE" ) if (-e "BSE");
+    mkdir "BSE";
+  }
   chdir "BSE";
 
   open NKPT, ">nkpts" or die "Failed to open nkpts for writing\n";
@@ -260,6 +280,10 @@ if( $runBSE != 0 )
     copy( "../${rundir}/$_", $_ );
   }
   foreach( @BSECommonFiles )
+  {
+    copy ( "../$_", $_ );
+  }
+  foreach( @BSEBonusFiles )
   {
     copy ( "../$_", $_ );
   }
@@ -301,28 +325,170 @@ if( $runBSE != 0 )
   }
   else
   {
-    if( $split_dft ) 
+
+    foreach( @ExtraFiles )
     {
-      print "$ENV{'OCEAN_BIN'}/qe_data_file.pl Out/$prefix.save/data-file.xml Out/${prefix}_shift.save/data-file.xml\n";
-      system("$ENV{'OCEAN_BIN'}/qe_data_file.pl Out/$prefix.save/data-file.xml Out/${prefix}_shift.save/data-file.xml") == 0
-        or die "Failed to run qe_data_file.pl\n$!";
+      copy("$ENV{'OCEAN_BIN'}/$_", $_ ) or die;
     }
-    else
+    if( $runBSE == 1 )
     {
-      print "$ENV{'OCEAN_BIN'}/qe_data_file.pl Out/$prefix.save/data-file.xml\n";
-      system("$ENV{'OCEAN_BIN'}/qe_data_file.pl Out/$prefix.save/data-file.xml") == 0
-        or die "Failed to run qe_data_file.pl\n$!";
+      if( $split_dft ) 
+      {
+        print "$ENV{'OCEAN_BIN'}/qe_data_file.pl Out/$prefix.save/data-file.xml Out/${prefix}_shift.save/data-file.xml\n";
+        system("$ENV{'OCEAN_BIN'}/qe_data_file.pl Out/$prefix.save/data-file.xml Out/${prefix}_shift.save/data-file.xml") == 0
+          or die "Failed to run qe_data_file.pl\n$!";
+      }
+      else
+      {
+        print "$ENV{'OCEAN_BIN'}/qe_data_file.pl Out/$prefix.save/data-file.xml\n";
+        system("$ENV{'OCEAN_BIN'}/qe_data_file.pl Out/$prefix.save/data-file.xml") == 0
+          or die "Failed to run qe_data_file.pl\n$!";
+      }
+
+      system("$ENV{'OCEAN_BIN'}/wfconvert.x system") == 0 
+        or die "Failed to run wfconvert.x\n";
+
+      system("$ENV{'OCEAN_BIN'}/ofermi.pl") == 0
+        or die "Failed to run ofermi.pl\n";
+
+      `cp eshift.ipt ../`;
+      system("cp ../efermiinrydberg.ipt ./") == 0 
+        or die "Failed to copy efermiinrydberg.ipt\n";
     }
 
-    system("$ENV{'OCEAN_BIN'}/wfconvert.x system") == 0 
-      or die "Failed to run wfconvert.x\n";
+    if( $runBSE == 1 || $runBSE == 3 )
+    {
+      copy( "kmesh.ipt", "kgrid" ) or die "$!";
+      copy( "k0.ipt", "scaledkzero.ipt" ) or die "$!";
+      copy( "qinunitsofbvectors.ipt", "cksdq" ) or die "$!";
+      my $is_xas;
+      open TMPFILE, "calc" or die "Failed to open calc\n";
+      my $mode = <TMPFILE>;
+      close TMPFILE;
+      chomp($mode);
+      if( lc($mode) =~ m/xes/ )
+      {
+        print "Calculating XES\n";
+        $is_xas = 0;
+      }
+      elsif( lc($mode) =~ m/xas/ )
+      {
+        print "Calculating XAS\n";
+        $is_xas = 1;
+      }
+      else
+      {
+        print "Unrecognized mode. Calculating XAS\n";
+        $is_xas = 1;
+      }
 
-    system("$ENV{'OCEAN_BIN'}/ofermi.pl") == 0
-      or die "Failed to run ofermi.pl\n";
+      open TMPFILE, ">cks.normal" or die "Failed to open cks.normal for writing\n$!";
+      if( $is_xas == 1 )
+      {
+        print TMPFILE ".true.\n";
+      }
+      else
+      {
+        print TMPFILE ".false.\n";
+      }
+      close TMPFILE;
 
-    `cp eshift.ipt ../`;
-    system("cp ../efermiinrydberg.ipt ./") == 0 
-      or die "Failed to copy efermiinrydberg.ipt\n";
+#      open CKS, ">cks.in" or die "Failed to open cks.in\n";
+      my $znl_string = 0;
+      my $ncks = 0;
+      my $cks_string;
+
+      my %unique_z;
+      open EDGE, "hfinlist" or die "Failed to open hfinlist\n$!";
+      while (<EDGE>) 
+      {
+        $_ =~ m/(\S+)\s+(\d+)\s+(\d+)\s+(\d+)\s+(\S+)\s+(\d+)/ or die;
+        my $ppname = $1;
+        my $znum = $2;
+        my $nnum = $3;
+        my $lnum = $4;
+        my $elname = $5;
+        my $elnum = $6;
+      
+        my $cks;
+        if( $is_xas == 1  ) {
+          $cks = "cksc.${elname}";
+        }
+        else {
+          $cks = "cksv.${elname}"
+        }
+
+        # For each unique Z we need to grab some files from OPF
+        unless( exists $unique_z{ "$znum" } )
+        {
+          my $zstring = sprintf("z%03in%02il%02i", $znum, $nnum, $lnum);
+          print $zstring ."\n";
+
+          `ln -sf ../../OPF/zpawinfo/gk*${zstring} .`;
+          `ln -sf ../../OPF/zpawinfo/fk*${zstring} .`;
+          `ln -sf ../../OPF/zpawinfo/melfile${zstring} .`;
+          `ln -sf ../../OPF/zpawinfo/coreorb${zstring} .`;
+
+
+          my $z3 = sprintf("z%03i", $znum);
+          `ln -sf ../../OPF/zpawinfo/phrc?${z3} .`;
+          `ln -sf ../../OPF/zpawinfo/prjfile${z3} .`;
+          `ln -sf ../../OPF/zpawinfo/ft?${z3} .`;
+          `ln -sf ../../OPF/zpawinfo/ae?${z3} .`;
+          `ln -sf ../../OPF/zpawinfo/ps?${z3} .`;
+          `ln -sf ../../OPF/zpawinfo/corezeta${z3} .`;
+          `ln -sf ../../OPF/zpawinfo/radfile${z3} .`;
+
+        }
+
+        print "CKS NAME = $cks\n";
+        my $temp_znl = sprintf "%i  %i  %i", $znum, $nnum, $lnum;
+        if( $znl_string == 0 )
+        { 
+          $znl_string = $temp_znl;
+          open ZNL, ">ZNL" or die;
+          print ZNL "$znl_string\n";
+          close ZNL;
+        }
+        
+        if( $znl_string eq $temp_znl )
+        { 
+          $ncks++;
+          $cks_string .= "$elname  $elnum  $cks\n";
+        }
+        else
+        { 
+          print "New ZNL!\nRunning $ncks through cks\n";
+          unless ( $ncks == 0 )
+          { 
+            open CKSIN, ">cks.in" or die "Failed to open cks.in\n";
+            print CKSIN "$ncks\n$cks_string";
+            close CKSIN;
+            print "cks\n";
+            system("$ENV{'OCEAN_BIN'}/cks.x < cks.in > cks.log") == 0 or die;
+          }
+          $znl_string = $temp_znl;
+          open ZNL, ">ZNL" or die;
+          print ZNL "$znl_string\n";
+          close ZNL;
+          $ncks = 1;
+          $cks_string = "$elname  $elnum  $cks\n";
+        }
+
+      }
+      close EDGE;
+      
+      unless ( $ncks == 0 )
+      {
+        print "Final cks: $ncks\n";
+        open CKSIN, ">cks.in" or die "Failed to open cks.in\n";
+        print CKSIN "$ncks\n$cks_string";
+        close CKSIN;
+        print "cks\n";
+        system("$ENV{'OCEAN_BIN'}/cks.x < cks.in > cks.log") == 0 or die;
+      }
+
+    }
 
     print "Running setup\n";
     system("$ENV{'OCEAN_BIN'}/setup2.x > setup.log") == 0
