@@ -384,13 +384,13 @@ module prep_wvfn
     use ocean_mpi, only : myid, root
     use ocean_dft_files, only : odf_read_energies_split
     use prep_system, only : params
-    use ocean_constants, only : eV2Hartree
+    use ocean_constants, only : eV2Hartree, Hartree2eV
     integer, intent( inout ) :: ierr
 
     real(DP), allocatable :: conEnergies(:,:,:), valEnergies(:,:,:) 
 
-    real(DP) :: eshift
-    integer :: nbc, nbv, nk, ioerr
+    real(DP) :: eshift, efermi
+    integer :: nbc, nbv, nk, ioerr, ib, ik, ispin
     logical :: zero_lumo, have_core_offset, ex, noshiftlumo
 
     nbc = params%brange(4)-params%brange(3)+1
@@ -403,6 +403,25 @@ module prep_wvfn
     if( ierr .ne. 0 ) return
 
     if( myid .eq. root ) then
+
+      open( unit=99, file='efermiinrydberg.ipt', form='formatted', status='old')
+      read( 99, * ) efermi
+      close( 99 )
+      efermi = efermi * 0.5_DP
+      eshift = conEnergies( nbc, 1, 1 )
+      do ispin = 1, params%nspin 
+        do ik = 1, nk
+          do ib = 1, nbc
+            if( conEnergies( ib, ik, ispin ) .ge. efermi ) then
+              if( eshift .gt. conEnergies( ib, ik, ispin ) ) then
+                eshift = conEnergies( ib, ik, ispin )
+              endif  
+              exit
+            endif
+          enddo
+        enddo
+      enddo
+      eshift = -eshift
 
       zero_lumo = .false.
       open( unit=99, file='core_offset', form='formatted', status='old')
@@ -429,15 +448,19 @@ module prep_wvfn
       endif
 
       if( zero_lumo ) then
-        open( unit=99, file='eshift.ipt', form='formatted', status='old' )
-        rewind 99
-        read ( 99, * ) eshift
-        close( 99 )
-        eshift = eshift * eV2Hartree
+!        open( unit=99, file='eshift.ipt', form='formatted', status='old' )
+!        rewind 99
+!        read ( 99, * ) eshift
+!        close( 99 )
+!        eshift = eshift * eV2Hartree
 
         valEnergies(:,:,:) = valEnergies(:,:,:) + eshift
         conEnergies(:,:,:) = conEnergies(:,:,:) + eshift
       endif
+
+      open( unit=99, file='eshift.ipt', form='formatted', status='unknown' )
+      write(99, * ) eshift * Hartree2eV
+      close( 99 )
 
       open(unit=99, file='wvfvainfo', form='unformatted', status='unknown' )
       rewind( 99 )

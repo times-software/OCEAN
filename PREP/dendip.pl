@@ -394,15 +394,18 @@ if( $runBSE != 0 )
 
   }
 
+  # 3 is cks-only option, 1 & 2 will make new u2
+  unless( $runBSE == 3 )
+  {
+    print "Running setup\n";
+    system("$ENV{'OCEAN_BIN'}/setup2.x > setup.log") == 0
+      or die "Failed to run setup\n";
 
-  print "Running setup\n";
-  system("$ENV{'OCEAN_BIN'}/setup2.x > setup.log") == 0
-    or die "Failed to run setup\n";
-
-  print "conugtoux\n";
-  system("$ENV{'OCEAN_BIN'}/conugtoux.x > conugtoux.log");# == 0 or die;
-  print "orthog\n";
-  system("$ENV{'OCEAN_BIN'}/orthog.x > orthog.log") == 0 or die;
+    print "conugtoux\n";
+    system("$ENV{'OCEAN_BIN'}/conugtoux.x > conugtoux.log");# == 0 or die;
+    print "orthog\n";
+    system("$ENV{'OCEAN_BIN'}/orthog.x > orthog.log") == 0 or die;
+  }
 
   `touch done`;
   chdir "../";

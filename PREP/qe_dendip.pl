@@ -314,6 +314,8 @@ if( $runBSE != 0 )
   if( $bseWvfn =~ m/qe/ )
   {
     copy "../bse.wvfn", "wvfn.ipt";
+    system("cp ../efermiinrydberg.ipt ./") == 0 
+      or die "Failed to copy efermiinrydberg.ipt\n";
     symlink ("../../OPF/zpawinfo", "zpawinfo" ) == 1 or die "Failed to link zpawinfo\n$!";
 
     foreach( @ExtraFiles )
@@ -321,7 +323,10 @@ if( $runBSE != 0 )
       copy("$ENV{'OCEAN_BIN'}/$_", $_ ) or die;
     }
 
-    system( "/users/jtv1/cluster/Software/OCEAN/PREP/src/ocean_prep.x" );
+#    system( "/users/jtv1/cluster/Software/OCEAN/PREP/src/ocean_prep.x" );
+    print "$ENV{'OCEAN_BIN'}/ocean_prep.x > ocean_prep.log 2>&1\n";
+    system("$ENV{'OCEAN_BIN'}/ocean_prep.x > ocean_prep.log 2>&1" ) == 0
+          or die "Failed to run ocean_prep.x\n$!";
   }
   else
   {
@@ -490,14 +495,18 @@ if( $runBSE != 0 )
 
     }
 
-    print "Running setup\n";
-    system("$ENV{'OCEAN_BIN'}/setup2.x > setup.log") == 0
-      or die "Failed to run setup\n";
+    # 3 is cks-only option, 1 & 2 will make new u2
+    unless( $runBSE == 3 )
+    {
+      print "Running setup\n";
+      system("$ENV{'OCEAN_BIN'}/setup2.x > setup.log") == 0
+        or die "Failed to run setup\n";
 
-    print "conugtoux\n";
-    system("$ENV{'OCEAN_BIN'}/conugtoux.x > conugtoux.log");# == 0 or die;
-    print "orthog\n";
-    system("$ENV{'OCEAN_BIN'}/orthog.x > orthog.log") == 0 or die;
+      print "conugtoux\n";
+      system("$ENV{'OCEAN_BIN'}/conugtoux.x > conugtoux.log");# == 0 or die;
+      print "orthog\n";
+      system("$ENV{'OCEAN_BIN'}/orthog.x > orthog.log") == 0 or die;
+    }
 
   }
 
