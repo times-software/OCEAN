@@ -27,14 +27,17 @@ module prep_wvfn
     use ocean_mpi, only : myid, root, nproc, comm
     use ocean_dft_files, only : odf_is_my_kpt, odf_return_my_bands, odf_nprocPerPool, odf_poolID, &
                                 ODF_VALENCE, ODF_CONDUCTION, odf_universal2KptandSpin, &
-                                odf_get_ngvecs_at_kpt, odf_read_at_kpt_split, odf_npool
+                                odf_get_ngvecs_at_kpt, odf_read_at_kpt_split, odf_npool, &
+                                odf_getBandsForPoolID
     use ocean_cks, only : ocean_cks_build, ocean_cks_nsites, ocean_cks_writeCksHolders, & 
                           ocean_cks_makeCksHolders, ocean_cks_doLegacyCks
     use screen_opf, only : screen_opf_largestLMNproj
     use screen_timekeeper, only : screen_tk_start, screen_tk_stop
+    use ocean_tmels, only : ocean_tmels_open, ocean_tmels_close, ocean_tmels_calc
     integer, intent( inout ) :: ierr
 
     complex(DP), allocatable, target :: valUofG(:,:), conUofG(:,:), wvfn(:,:,:,:), UofX(:,:,:,:) , UofX2(:,:)
+    complex(DP), allocatable :: spareValUofG( :, : )
           !valUofX(:,:,:,:), conUofX(:,:,:,:)
     complex(DP), pointer :: UofGPointer(:,:)!, cksPointer(:,:,:) !, UofXpointer(:,:,:,:)
 !    complex(DP), allocatable, target :: cksValArray(:,:,:,:), cksConArray(:,:,:,:)
@@ -45,15 +48,16 @@ module prep_wvfn
     integer, pointer :: gvecPointer(:,:)
 
     integer :: ispin, ikpt, nprocPool, nuni, iuni, npool, nsites, nprojSpacer
-    integer :: valNgvecs, conNgves, valBands, conBands, ngvecs(2), odf_flag
-    integer :: nG, nbands, fftGrid(3), allBands, nX, vType, cType
+    integer :: valNgvecs, conNgves, valBands, conBands, ngvecs(2), odf_flag, totConBands
+    integer :: nG, nbands, fftGrid(3), allBands, nX, vType, cType, totValBands, myConBandStart, kStride
 
     integer :: conFH, valFH, fileHandle, poolID, i, testFH
-    logical :: is_kpt, wantCKS, wantU2, addShift, wantLegacy
+    logical :: is_kpt, wantCKS, wantU2, addShift, wantLegacy, wantTmels
 
     wantCKS = .true.
     wantU2 = .true.
     wantLegacy = .true.
+    wantTmels = .true.
 
 
 !    if( wantU2 .and. nproc .eq. 1 ) then
@@ -100,6 +104,25 @@ module prep_wvfn
     nuni = ceiling( real( params%nspin * params%nkpts, DP ) / real( npool, DP ) )
 
     call ocean_cks_makeCksHolders( valBands, conBands, nuni, ierr )
+
+  
+    kStride = odf_npool()
+    call odf_universal2KptandSpin( 1, ikpt, ispin )
+    if( ispin .gt. 1 ) ikpt = ikpt + params%nkpts
+
+    myConBandStart = 1
+    do i = 0, odf_poolID() - 1
+      myConBandStart = myConBandStart + odf_getBandsForPoolID( i, ODF_CONDUCTION )
+    enddo
+    totValBands = params%brange(2) - params%brange(1) + 1
+    totConBAnds = params%brange(4) - params%brange(3) + 1
+
+    if( wantTmels ) then
+      write(myid+1000,*) totValBands, totConBands, conBands, myConBandStart, nuni, ikpt, kStride
+      flush(myid+1000)
+      call ocean_tmels_open( totValBands, totConBands, conBands, myConBandStart, nuni, ikpt, kStride, ierr )
+    endif
+
 
 
 !    if( wantCKS ) then
@@ -177,10 +200,30 @@ module prep_wvfn
       ! B) Everybody gets the occupied states, possibly band by band, and then calculates
       ! the tmels for only their subset of unoccupied states  <----
 
+        if( wantTmels ) then
+          totValBands = params%brange(2) - params%brange(1) + 1
+!          totConBands = params%brange(4) - params%brange(3) + 1
+          ! If we have more than one proc per k-point, share the valence bands
+          if( odf_nprocPerPool() .gt. 1 ) then
+            allocate( spareValUofG( ngvecs(1), totValBands ) )
+            call shareValence( valUofG, spareValUofG, ierr )
+            if( ierr .ne. 0 ) return
+            call ocean_tmels_calc( ikpt, ispin, totValBands, conBands, valGvecs, conGvecs, &
+                                   spareValUofG, conUofG, ierr )
+            deallocate( spareValUofG )
+          else
+            call ocean_tmels_calc( ikpt, ispin, totValBands, conBands, valGvecs, conGvecs, &
+                                   ValUofG, conUofG, ierr )
+          endif
+        endif
 
       else  ! ikpt == 0, the process isn't doing anything 
         ! This makes sure we don't assign pointers to un-allocated arrays
         allocate( valGvecs( 0, 0 ), conGvecs( 0, 0 ), valUofG( 0, 0 ), conUofG( 0, 0 ) )
+        if( wantTmels ) then
+          call ocean_tmels_calc( ikpt, ispin, totValBands, conBands, valGvecs, conGvecs, &
+                                 spareValUofG, conUofG, ierr )
+        endif
       endif
 
       ! Loop over conversion
@@ -368,6 +411,8 @@ module prep_wvfn
       endif
     endif
 
+    if( wantTmels ) call ocean_tmels_close( ierr )
+
     call screen_tk_stop( "legacy" )
     call screen_tk_start( "main" )
 
@@ -403,6 +448,15 @@ module prep_wvfn
     if( ierr .ne. 0 ) return
 
     if( myid .eq. root ) then
+
+      open(unit=99, file='enkfile', form='formatted', status='unknown' )
+      do ispin = 1, params%nspin 
+        do ik = 1, nk
+          write(99, * ) valEnergies(:,ik, ispin)*2.0_DP
+          write(99, * ) conEnergies(:,ik, ispin)*2.0_DP
+        enddo
+      enddo
+      close(99)
 
       open( unit=99, file='efermiinrydberg.ipt', form='formatted', status='old')
       read( 99, * ) efermi
@@ -574,7 +628,7 @@ module prep_wvfn
 
 #ifdef MPI
     call MPI_FILE_CLOSE( fh, ierr )
-    call MPI_TYPE_FREE( fileType )
+    call MPI_TYPE_FREE( fileType, ierr )
 #else
    close( fh )
 #endif
@@ -1128,6 +1182,45 @@ module prep_wvfn
 
   
 
-  
+  ! everybody (that is working on this k-point) gets a complete copy (all bands) of the valence
+  subroutine shareValence( valUofG, spareValUofG, ierr )
+#ifdef MPI_F08
+    use ocean_mpi, only : MPI_DOUBLE_COMPLEX, MPI_COMM
+#else
+    use ocean_mpi, only : MPI_DOUBLE_COMPLEX
+#endif
+    use ocean_dft_files, only : odf_poolComm, odf_nprocPerPool, odf_poolID, odf_getBandsForPoolID, ODF_VALENCE
+    complex(DP), intent( in ) :: valUofG( :, : )
+    complex(DP), intent( out ) :: spareValUofG( :, : )
+    integer, intent( inout ) :: ierr
+
+    integer :: nproc, i, nbands, ng, iband, myid_
+#ifdef MPI_F08
+    type( MPI_COMM ) :: myComm
+#else
+    integer :: myComm
+#endif
+
+    myComm = odf_poolComm()
+    nproc = odf_nprocPerPool()
+    ng = size( valUofG, 1 )
+    myid_ = odf_poolID()
+
+    iband = 1
+    do i = 0, nproc - 1
+      nbands = odf_getBandsForPoolID( i, ODF_VALENCE )
+
+      if( i .eq. myid_ ) then
+        spareValUofG( :, iband : iband+nbands-1 ) = valUofG(:,:)
+      endif
+
+      call MPI_BCAST( spareValUofG( :, iband : iband+nbands-1 ), ng*nbands, MPI_DOUBLE_COMPLEX, & 
+                      i, myComm, ierr )
+      if( ierr .ne. 0 ) return
+
+    enddo
+
+
+  end subroutine shareValence
 
 end module prep_wvfn
