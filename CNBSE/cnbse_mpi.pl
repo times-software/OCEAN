@@ -487,8 +487,12 @@ else  # We are using abi/qe path w/o obfs
 #    system("ln -sf ../PREP/BSE/$2 .") == 0 or die "Failed to link $2\n";
 #  }  
 
-
-  if (-e "../PREP/BSE/u2.dat")
+  if( -e "../PREP/BSE/con.u2.dat" )
+  {
+    `ln -s ../PREP/BSE/con.u2.dat`;
+    `ln -s ../PREP/BSE/val.u2.dat`;
+  }
+  elsif (-e "../PREP/BSE/u2.dat")
   {
     `ln -s ../PREP/BSE/u2.dat`;
   }
