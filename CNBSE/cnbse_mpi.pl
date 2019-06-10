@@ -32,7 +32,8 @@ my @CommonFiles = ("epsilon", "xmesh.ipt", "nedges", "k0.ipt", "nbuse.ipt",
 
 my @DFTFiles = ("nelectron");
 
-my @DenDipFiles = ("kmesh.ipt", "efermiinrydberg.ipt", "qinunitsofbvectors.ipt", "brange.ipt", "nelectron", "eshift.ipt" );
+my @DenDipFiles = ("kmesh.ipt", "efermiinrydberg.ipt", "qinunitsofbvectors.ipt", "brange.ipt", 
+                   "nelectron", "eshift.ipt", "enkfile" );
 
 my @WFNFiles = ("kmesh.ipt",  "efermiinrydberg.ipt", "qinunitsofbvectors.ipt", "brange.ipt", 
                 "wvfcninfo", "wvfvainfo", "obf_control", "ibeg.h", "q.out");
