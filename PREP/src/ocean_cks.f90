@@ -945,7 +945,7 @@ module ocean_cks
     if ( l .gt. 5 ) stop 'l .gt. 5 not yet allowed'
     !
     r = sqrt( x ** 2 + y ** 2 + z ** 2 )
-    if ( r .eq. 0.d0 ) r = 1
+    if ( r .lt. 0.0000000001_dp ) r = 1
     rinv = 1 / r
     xred = x * rinv
     yred = y * rinv

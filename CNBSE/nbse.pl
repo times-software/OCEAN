@@ -28,13 +28,18 @@ my @CommonFiles = ("epsilon", "xmesh.ipt", "k0.ipt", "nbuse.ipt",
   "cnbse.solver", "cnbse.gmres.elist", "cnbse.gmres.erange", "cnbse.gmres.nloop", 
   "cnbse.gmres.gprc", "cnbse.gmres.ffff", "cnbse.write_rhs", "spin_orbit", "nspin", 
   "niter", "backf", "aldaf", "bwflg", "bande", "bflag", "lflag", "decut", "spect.h", 
-  "gw_control", "gwcstr", "gwvstr", "gwgap" );
+  "gw_control", "gwcstr", "gwvstr", "gwgap", "bse.wvfn" );
 
 my @DFTFiles = ("nelectron", "rhoofr");
 
-my @DenDipFiles = ("kmesh.ipt", "masterwfile", "listwfile", "efermiinrydberg.ipt", 
-                   "qinunitsofbvectors.ipt", "brange.ipt", "enkfile", "tmels", "nelectron", 
+my @DenDipFiles = ("kmesh.ipt", "efermiinrydberg.ipt", 
+                   "qinunitsofbvectors.ipt", "brange.ipt", "enkfile", "nelectron", 
                    "eshift.ipt" );
+
+my @LegacyPrepFiles = ( "masterwfile", "listwfile", "tmels", "enkfile" );
+
+my @OceanPrepFiles = ( "ptmels.dat", "enkfile", "tmels.info" );
+
 
 my @WFNFiles = ("kmesh.ipt",  "efermiinrydberg.ipt", "qinunitsofbvectors.ipt", "brange.ipt", 
                 "wvfcninfo", "wvfvainfo", "obf_control", "ibeg.h", "q.out", "tmels.info", 
@@ -66,6 +71,10 @@ else
   $obf = 0;
 }
 
+open IN, "bse.wvfn" or die "Failed to open bse.wvfn\n$!";
+my $bseWvfn = <IN>;
+close IN;
+
 
 if( $obf == 1 ) 
 {
@@ -94,16 +103,55 @@ else
   foreach (@DenDipFiles) {
     copy( "../PREP/BSE/$_", $_ ) or die "Failed to get PREP/BSE/$_\n$!" ;
   }
-  open OUT, ">tmel_selector" or die;
-  print OUT "0\n";
-  close OUT;
-  open OUT, ">enk_selector" or die;
-  print OUT "0\n";
-  close OUT;
-  open OUT, ">bloch_selector" or die;
-  print OUT "0\n";
-  close OUT;
-
+  if( $bseWvfn =~ m/legacy/ )
+  {
+    foreach (@LegacyPrepFiles)
+    {
+      copy( "../PREP/BSE/$_", $_ ) or die "Failed to get PREP/BSE/$_\n$!" ;
+    }
+    open OUT, ">tmel_selector" or die;
+    print OUT "0\n";
+    close OUT;
+    open OUT, ">enk_selector" or die;
+    print OUT "0\n";
+    close OUT;
+    open OUT, ">bloch_selector" or die;
+    print OUT "0\n";
+    close OUT;
+    if (-e "../PREP/BSE/u2.dat")
+    {
+      `ln -s ../PREP/BSE/u2.dat`;
+    }
+    else
+    {
+      die "Required file ../PREP/BSE/u2.dat is missing!\n";
+    }
+  }
+  else  #### THIS SECTION STILL NEEDS WORK
+        #### MAKE SURE LEGACY AND NEW ARE PULLING IN CORRECT FILES
+  {
+    foreach (@OceanPrepFiles)
+    {
+      copy( "../PREP/BSE/$_", $_ ) or die "Failed to get PREP/BSE/$_\n$!" ;
+    }
+    if (-e "../PREP/BSE/u2.dat")
+    {
+      `ln -s ../PREP/BSE/u2.dat`;
+    }
+    else
+    {
+      die "Required file ../PREP/BSE/u2.dat is missing!\n";
+    }
+    open OUT, ">tmel_selector" or die;
+    print OUT "1\n";
+    close OUT;
+    open OUT, ">enk_selector" or die;
+    print OUT "0\n";
+    close OUT;
+    open OUT, ">bloch_selector" or die;
+    print OUT "0\n";
+    close OUT;
+  }
 }
 
 
@@ -181,30 +229,30 @@ if( $obf == 1 )
 }
 else  # We are using abi/qe path w/o obfs
 {
-  # grab .Psi
-  `touch .Psi`;
-  system("rm .Psi*");
-  open LISTW, "listwfile" or die "Failed to open listwfile\n";
-  while (<LISTW>) 
-  {
-    $_ =~ m/(\d+)\s+(\S+)/ or die "Failed to parse listwfile\n";
-    system("ln -sf ../PREP/BSE/$2 .") == 0 or die "Failed to link $2\n";
-  }  
-
-  print "Running setup\n";
-  system("$ENV{'OCEAN_BIN'}/setup2.x > setup.log") == 0 or die "Setup failed\n";
-
-  if (-e "../PREP/BSE/u2.dat")
-  {
-    `ln -s ../PREP/BSE/u2.dat`;
-  }
-  else
-  {
-    print "conugtoux\n";
-    system("$ENV{'OCEAN_BIN'}/conugtoux.x > conugtoux.log");# == 0 or die;
-    print "orthog\n";
-    system("$ENV{'OCEAN_BIN'}/orthog.x > orthog.log") == 0 or die;
-  }
+#  # grab .Psi
+#  `touch .Psi`;
+#  system("rm .Psi*");
+#  open LISTW, "listwfile" or die "Failed to open listwfile\n";
+#  while (<LISTW>) 
+#  {
+#    $_ =~ m/(\d+)\s+(\S+)/ or die "Failed to parse listwfile\n";
+#    system("ln -sf ../PREP/BSE/$2 .") == 0 or die "Failed to link $2\n";
+#  }  
+#
+#  print "Running setup\n";
+#  system("$ENV{'OCEAN_BIN'}/setup2.x > setup.log") == 0 or die "Setup failed\n";
+#
+#  if (-e "../PREP/BSE/u2.dat")
+#  {
+#    `ln -s ../PREP/BSE/u2.dat`;
+#  }
+#  else
+#  {
+#    print "conugtoux\n";
+#    system("$ENV{'OCEAN_BIN'}/conugtoux.x > conugtoux.log");# == 0 or die;
+#    print "orthog\n";
+#    system("$ENV{'OCEAN_BIN'}/orthog.x > orthog.log") == 0 or die;
+#  }
 }
 
 open MODE, "screen.mode" or die "Failed to open screen.mode\n$!";

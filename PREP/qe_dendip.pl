@@ -219,7 +219,7 @@ $rundir = sprintf("../DFT/%03u%03u%03u", $nkpt[0], $nkpt[1], $nkpt[2]);
 
 my @BSECommonFiles = ( "qinunitsofbvectors.ipt", "bvecs", "dft", "nelectron", "avecsinbohr.ipt", 
                        "nspin", "dft.split", "prefix", "natoms", "typat", "ntype","znucl", "taulist", 
-                       "edges", "k0.ipt", "core_offset", "metal", "cksshift", "cksstretch" );
+                       "edges", "k0.ipt", "core_offset", "metal", "cksshift", "cksstretch", "bse.wvfn" );
 my @rundirFiles = ( "kmesh.ipt", "brange.ipt", "umklapp" );
 my @BSEBonusFiles = ("xmesh.ipt", "calc", "hfinlist", "xyz.wyck" );
 #Checks for BSE prep
@@ -316,7 +316,10 @@ if( $runBSE != 0 )
     copy "../bse.wvfn", "wvfn.ipt";
     system("cp ../efermiinrydberg.ipt ./") == 0 
       or die "Failed to copy efermiinrydberg.ipt\n";
-    symlink ("../../OPF/zpawinfo", "zpawinfo" ) == 1 or die "Failed to link zpawinfo\n$!";
+    unless( -e "zpawinfo" )
+    {
+      symlink ("../../OPF/zpawinfo", "zpawinfo" ) == 1 or die "Failed to link zpawinfo\n$!";
+    }
 
     foreach( @ExtraFiles )
     {
@@ -360,8 +363,15 @@ if( $runBSE != 0 )
       system("cp ../efermiinrydberg.ipt ./") == 0 
         or die "Failed to copy efermiinrydberg.ipt\n";
     }
+    
+    open TMPFILE, "calc" or die "Failed to open calc\n";
+    my $mode = <TMPFILE>;
+    close TMPFILE;
+    chomp($mode);
+    my $runCKS = 1;
+    $runCKS = 0 if( lc($mode) =~ m/val/ );
 
-    if( $runBSE == 1 || $runBSE == 3 )
+    if( ( $runBSE == 1 || $runBSE == 3 ) && ( $runCKS == 1 ) )
     {
       copy( "kmesh.ipt", "kgrid" ) or die "$!";
       copy( "k0.ipt", "scaledkzero.ipt" ) or die "$!";

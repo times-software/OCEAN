@@ -123,6 +123,61 @@ module OCEAN_val_energy
           if( myid .eq. root ) write(6,*) 'MPI required for OBF-style!'
           return
 #endif
+
+       case( 2 )
+
+          if( myid .eq. root ) then
+            open(unit=99,file='wvfvainfo',form='unformatted',status='old')
+            read(99) ibc, ik, ispn
+            if( ibc .lt. sys%brange(2) .or. ik .ne. sys%nkpts .or. ispn .ne. sys%nspn ) then
+              write( 6, * ) 'Problem with size of wvfvainfo!!!'
+              write( 6, * ) 'Expected: ', sys%brange(2), sys%nkpts, sys%nspn
+              write( 6, * ) 'Found   : ', ibc, ik, ispn
+              ierr = 129412
+              close( 99 )
+              return
+            endif
+            ! Allow the number of bands to be too big
+            if( ibc .ne. sys%brange(2) ) then
+              allocate( tmp_e( ibc, sys%nkpts, sys%nspn ) )
+              read(99) tmp_e
+              val_energies( 1 : sys%brange(2), :, : ) = tmp_e( 1 : sys%brange(2), :, : )
+              deallocate( tmp_e )
+            else
+              read(99) val_energies
+            endif
+            close( 99 )
+
+            open(unit=99,file='wvfcninfo',form='unformatted',status='old')
+            read(99) ibc, ik, ispn
+            if( ibc .lt. sys%cur_run%num_bands .or. ik .ne. sys%nkpts .or. ispn .ne. sys%nspn ) then
+              write( 6, * ) 'Problem with size of wvfcninfo!!!'
+              write( 6, * ) 'Expected: ', sys%cur_run%num_bands, sys%nkpts, sys%nspn
+              write( 6, * ) 'Found   : ', ibc, ik, ispn
+              ierr = 129413
+              close( 99 )
+              return
+            endif
+            ! Allow the number of bands to be too big
+            if( ibc .ne. sys%cur_run%num_bands ) then
+              allocate( tmp_e( ibc, sys%nkpts, sys%nspn ) )
+              read(99) tmp_e
+              con_energies( 1 : sys%cur_run%num_bands, :, : ) = tmp_e( 1 : sys%cur_run%num_bands, :, : ) 
+              deallocate( tmp_e ) 
+            else
+              read(99) con_energies
+            endif
+            close( 99 )
+          endif
+#ifdef MPI
+          call MPI_BCAST( val_energies, sys%brange(2)*sys%nkpts*sys%nspn, MPI_DOUBLE_PRECISION, root, comm, ierr )
+!          call MPI_BCAST( val_energies, sys%cur_run%val_bands*sys%nkpts*sys%nspn, MPI_DOUBLE_PRECISION, root, comm, ierr )
+          if( ierr .ne. MPI_SUCCESS ) return
+          call MPI_BCAST( con_energies, sys%cur_run%num_bands*sys%nkpts*sys%nspn, MPI_DOUBLE_PRECISION, root, comm, ierr )
+          if( ierr .ne. MPI_SUCCESS ) return
+#endif
+
+
           
        case default
           ierr = -2

@@ -60,7 +60,7 @@ subroutine OCEAN_read_tmels( sys, p, file_selector, ierr )
       open(unit=99,file='tmels.info',form='formatted',status='old')
       read(99,*) nbv, nbc(1), nbc(2), nk
       close(99)
-      if( nk .ne. sys%nkpts*2 ) then
+      if( nk .ne. sys%nkpts ) then
         write(6,*) 'tmels.info mismatch: nkpts', nk, sys%nkpts
         ierr = -1
         return
@@ -80,7 +80,7 @@ subroutine OCEAN_read_tmels( sys, p, file_selector, ierr )
                             'native', MPI_INFO_NULL, ierr)
     if( ierr .ne. MPI_SUCCESS ) return
 #else
-    open( unit=99,file='ptmels.dat',form='binary',status='old')
+    open( unit=99,file='ptmels.dat',form='unformatted',status='old',access='stream')
 #endif
     allocate( psi_in( nbv, nbc(1):nbc(2) ), psi_transpose( sys%cur_run%val_bands, sys%cur_run%num_bands ) )
 
@@ -103,7 +103,7 @@ subroutine OCEAN_read_tmels( sys, p, file_selector, ierr )
 
       psi_transpose( :, : ) = inv_qlength &
                             * real( aimag( psi_in( sys%brange(1):sys%brange(2), sys%brange(3):sys%brange(4) ) ), DP )
-      p%vali(1:sys%cur_run%num_bands,1:sys%cur_run%val_bands,ik,1) = transpose( psi_transpose )
+      p%vali(1:sys%cur_run%num_bands,1:sys%cur_run%val_bands,ik,1) = -transpose( psi_transpose )
 
 
       max_psi = max( max_psi, maxval( p%valr(1:sys%cur_run%num_bands,1:sys%cur_run%val_bands,ik,1) ) )

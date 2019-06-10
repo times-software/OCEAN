@@ -94,6 +94,7 @@ module ocean_tmels
         do k = 1, nGV
           if( gVecMap( k ) .ne. 0 ) then
             tmels( j, i ) = tmels( j, i ) + conUofG( gVecMap( k ), i ) * conjg( valUofG( k, j ) )
+!            tmels( j, i ) = tmels( j, i ) + conjg( conUofG( gVecMap( k ), i ) ) * valUofG( k, j )
           endif
         enddo
       enddo
@@ -121,6 +122,7 @@ module ocean_tmels
     use ocean_mpi, only : myid, comm, &
                           MPI_MODE_WRONLY, MPI_MODE_CREATE, MPI_MODE_UNIQUE_OPEN, MPI_INFO_NULL, &
                           MPI_OFFSET_KIND, MPI_DOUBLE_COMPLEX, MPI_SIZEOF
+    use prep_system, only : system_parameters, params
 
     integer, intent( in ) :: nValBands, nConBands, myConBands, myConBandStart, myNK, myKStart, kStride
     integer, intent( inout ) :: ierr
@@ -135,10 +137,15 @@ module ocean_tmels
     complex(DP) :: dumz
 
 
+    if( myid .eq. 0 ) then
+      open(unit=99, file='tmels.info', form='formatted', status='unknown' )
+      write(99,*) params%brange(2)-params%brange(1)+1, params%brange(3), params%brange(4), params%nkpts, params%nspin
+      close(99)
+    endif
 #ifdef MPI
     fflags = IOR( MPI_MODE_WRONLY, MPI_MODE_CREATE )
     fflags = IOR( fflags, MPI_MODE_UNIQUE_OPEN )
-    call MPI_FILE_OPEN( comm, "ptmels", fflags, MPI_INFO_NULL, tmelsFH, ierr )
+    call MPI_FILE_OPEN( comm, "ptmels.dat", fflags, MPI_INFO_NULL, tmelsFH, ierr )
     if( ierr .ne. 0 ) return
 
     vcBandBlock = nValBands * myConBands
