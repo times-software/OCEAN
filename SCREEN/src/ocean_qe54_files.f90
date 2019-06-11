@@ -1151,7 +1151,7 @@ module ocean_qe54_files
         if( id .eq. pool_myid ) then
           call SCREEN_tk_start("dft-read")
           do i = 1, nbands_to_send
-            if( start_band + i - 1 .lt. overlapBands ) then
+            if( start_band + i - 1 .le. overlapBands ) then
               conUofG( 1:test_gvec, i ) = overlap_wvfn( :, start_band + i - 1 )
             else
               read(99)

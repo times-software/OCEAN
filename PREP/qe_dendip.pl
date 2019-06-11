@@ -311,9 +311,27 @@ if( $runBSE != 0 )
   print "../$rundir/Out\n";
   symlink ("../$rundir/Out", "Out") == 1 or die "Failed to link Out\n$!";
 
-  if( $bseWvfn =~ m/qe/ )
+  if( $bseWvfn =~ m/qe/ || $bseWvfn =~ m/new/ )
   {
-    copy "../bse.wvfn", "wvfn.ipt";
+    if( -e "Out/$prefix.save/data-file.xml" )
+    {
+      print "Detected QE54-style DFT run\n";
+      open TMP, ">", "wvfn.ipt" or die "Failed to open wvfn.ipt for writing\n$!";
+      print TMP "qe54\n";
+      close TMP;
+    }
+    elsif( -e "Out/$prefix.save/data-file-schema.xml" )
+    {
+      print "Detected QE62-style DFT run\n";
+      open TMP, ">", "wvfn.ipt" or die "Failed to open wvfn.ipt for writing\n$!";
+      print TMP "qe62\n";
+      close TMP;
+    }
+    else
+    { 
+      print "WARNING! Failed to detect style of QE output\nWill attempt to continue\n";
+      copy "../bse.wvfn", "wvfn.ipt";
+    }
     system("cp ../efermiinrydberg.ipt ./") == 0 
       or die "Failed to copy efermiinrydberg.ipt\n";
     unless( -e "zpawinfo" )
