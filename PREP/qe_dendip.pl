@@ -34,7 +34,7 @@ $oldden = 1 if (-e "../DFT/old");
 my @QEFiles     = ( "rhoofr", "efermiinrydberg.ipt" );
 my @CommonFiles = ( "screen.nkpt", "nkpt", "qinunitsofbvectors.ipt", "avecsinbohr.ipt", "dft", 
                     "nspin", "xmesh.ipt", "dft.split", "prefix", "calc", "screen.wvfn", "screen.legacy", 
-                    "screen.mode", "bse.wvfn", "k0.ipt" );
+                    "screen.mode", "bse.wvfn", "k0.ipt", "work_dir" );
 my @NewMethodFiles = ( "ntype", "typat", "natoms", "znucl", "taulist", "edges", "core_offset", "metal", "cksshift", 
                        "cksstretch", "nedges", "edges", "pplist", "opf.opts", "opf.fill" );
 my @ExtraFiles = ("specpnt.5", "Pquadrature", "sphpts" );
@@ -326,6 +326,9 @@ if( $runBSE != 0 )
       open TMP, ">", "wvfn.ipt" or die "Failed to open wvfn.ipt for writing\n$!";
       print TMP "qe62\n";
       close TMP;
+
+#      system( "$ENV{'OCEAN_BIN'}/qe62band.pl") == 0 or die "Failed to run qe62band.pl\n$!";
+      copy("../$rundir/enkfile", "enkfile") or die "Failed to grab enkfile\n$!";
     }
     else
     { 

@@ -31,7 +31,7 @@ if (! $ENV{"OCEAN_WORKDIR"}){ $ENV{"OCEAN_WORKDIR"} = `pwd` . "../" ; }
 my @CommonFiles = ("znucl", "opf.hfkgrid", "opf.fill", "opf.opts", "pplist", "screen.shells", 
                    "ntype", "natoms", "typat", "taulist", "nedges", "edges", "caution", "epsilon", 
                    "screen.k0", "scfac", "core_offset", "dft", "avecsinbohr.ipt", 
-                   "nspin", "prefix" );
+                   "nspin", "prefix", "work_dir" );
 
 my @CommonFiles2 = ("para_prefix", "calc" );
 
@@ -219,6 +219,28 @@ if( $dft =~ m/qe/i )
   `ln -s ../DFT/SCREEN/Out .`;
 }
 
+# Detect qe version ( or, in the future, abinit )
+if( $screen_data_files{ 'wvfn' } =~ m/qe/ || $screen_data_files{ 'wvfn' } =~ m/new/ )
+{
+  open IN, "prefix" or die "Failed to open prefix\n$!";
+  my $prefix = <IN>;
+  chomp( $prefix );
+  if( -e "Out/$prefix.save/data-file.xml" )
+  {
+    print "Detected QE54-style DFT run\n";
+    $screen_data_files{ 'wvfn' } = "qe54";
+  }
+  elsif( -e "Out/$prefix.save/data-file-schema.xml" )
+  {
+    print "Detected QE62-style DFT run\n";
+    $screen_data_files{ 'wvfn' } = "qe62";
+    copy "../DFT/SCREEN/enkfile", "enkfile";
+  }
+  else
+  {
+    print "WARNING! Failed to detect style of QE output\nWill attempt to continue\n";
+  }
+}
 open WVFN, ">", "wvfn.ipt" or die "Failed to open wvfn.ipt for writing\n$!";
 print WVFN $screen_data_files{ 'wvfn' } . "\n";
 close WVFN;
