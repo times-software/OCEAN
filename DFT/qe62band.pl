@@ -88,7 +88,7 @@ my $nkpt = 0;
 
 while( my $line = <IN> )
 {
-  if( $metal != 0 && $line =~ m/<occupations size=\"\d+\">/ ) #([\s\d\.eE+-]+)<\/occupations>/ )
+  if( $line =~ m/<occupations size=\"\d+\">/ ) #([\s\d\.eE+-]+)<\/occupations>/ )
   {
     my $occs = '';
     $line = <IN>;
@@ -147,7 +147,6 @@ while( my $line = <IN> )
 }
 
 
-
 close IN;
 print "Found $nkpt k-points\n";
 print $band_max . "\t" . $band_min . "\n";
@@ -165,6 +164,8 @@ for( my $k = 0; $k < $nkpt; $k++ )
   my $stop = $band_max ;
   my $delim = " ";
   my @eslice = @{ $energies[$k] }[ $start .. $stop ];
+  # move to Ryd
+  foreach my $x (@eslice) { $x = $x * 2; }
 #    while (my @x = splice @{ $energies[$k] }, 1, $n) {
   while (my @x = splice @eslice, 1, $n) 
   {
@@ -176,6 +177,8 @@ for( my $k = 0; $k < $nkpt; $k++ )
   my $start = $band_min - 1;
   my $stop = scalar @{ $energies[$k] };
   @eslice = @{ $energies[$k] }[ $start .. $stop ];
+  # move to Ryd
+  foreach my $x (@eslice) { $x = $x * 2; }
   while (my @x = splice @eslice, 1, $n) 
   {
     print ENK join($delim, @x), "\n";
