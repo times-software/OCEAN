@@ -527,6 +527,14 @@ module prep_wvfn
       write( 99 ) nbc, nk, params%nspin
       write( 99 ) conEnergies
       close( 99 )
+
+#if 0
+      open(unit=99, file='wvfcninfo2', form='formatted', status='unknown' )
+      rewind( 99 )
+      write( 99, * ) nbc, nk, params%nspin
+      write( 99, * ) conEnergies
+      close( 99 )
+#endif
     endif
 
     deallocate( valEnergies, conEnergies )

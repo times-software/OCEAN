@@ -55,7 +55,7 @@ module ocean_qe54_files
   integer :: pool_val_nbands
   integer :: pool_con_nbands
 
-  public :: qe54_read_init, qe54_read_at_kpt, qe54_clean, qe54_read_energies, qe54_get_ngvecs_at_kpt, &
+  public :: qe54_read_init, qe54_read_at_kpt, qe54_clean, qe54_get_ngvecs_at_kpt, &
             qe54_read_energies_single, qe54_get_ngvecs_at_kpt_split, qe54_read_at_kpt_split
   public :: qe54_read_energies_split
   public :: qe54_kpts_and_spins, qe54_return_my_bands, qe54_return_my_val_bands, qe54_return_my_con_bands, &
@@ -437,7 +437,7 @@ module ocean_qe54_files
           close( 99 )
         enddo
       enddo
-      energies(:,:,:) = energies(:,:,:) * 2.0_DP
+!      energies(:,:,:) = energies(:,:,:) * 2.0_DP
     endif
 
 #ifdef MPI
@@ -552,6 +552,7 @@ module ocean_qe54_files
 
   end function qe54_evcFile
 
+#if 0
   subroutine qe54_read_energies( myid, root, comm, nbv, nbc, nkpts, nspns, val_energies, con_energies, ierr )
 #ifdef MPI
     use ocean_mpi, only : MPI_DOUBLE_PRECISION
@@ -584,7 +585,7 @@ module ocean_qe54_files
 #endif
 
   end subroutine qe54_read_energies
-
+#endif
 
 
   subroutine qe54_clean( ierr )
@@ -1181,7 +1182,7 @@ module ocean_qe54_files
 
           call SCREEN_tk_start("dft-read")
           do i = 1, nbands_to_send
-            if( start_band + i - 1 .lt. overlapBands ) then
+            if( start_band + i - 1 .le. overlapBands ) then
               cmplx_wvfn( 1:test_gvec, i, j ) = overlap_wvfn( :, start_band + i - 1 )
             else
               read(99)

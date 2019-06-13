@@ -58,7 +58,7 @@ module ocean_qe62_files
   integer :: pool_val_nbands
   integer :: pool_con_nbands
 
-  public :: qe62_read_init, qe62_read_at_kpt, qe62_clean, qe62_read_energies, qe62_get_ngvecs_at_kpt, &
+  public :: qe62_read_init, qe62_read_at_kpt, qe62_clean, qe62_get_ngvecs_at_kpt, &
             qe62_read_energies_single, qe62_get_ngvecs_at_kpt_split, qe62_read_at_kpt_split
   public :: qe62_read_energies_split
   public :: qe62_kpts_and_spins, qe62_return_my_bands, qe62_return_my_val_bands, qe62_return_my_con_bands, &
@@ -431,6 +431,7 @@ module ocean_qe62_files
 
   end function qe62_evcFile
 
+#if 0
   subroutine qe62_read_energies( myid, root, comm, nbv, nbc, nkpts, nspns, val_energies, con_energies, ierr )
 #ifdef MPI
     use ocean_mpi, only : MPI_DOUBLE_PRECISION
@@ -463,6 +464,7 @@ module ocean_qe62_files
 #endif
 
   end subroutine qe62_read_energies
+#endif
 
 
 
@@ -583,6 +585,9 @@ module ocean_qe62_files
         enddo
       enddo
       close(99)
+      ! Internal rep in Ha
+      internal_val_energies( :, :, : ) = internal_val_energies( :, :, : ) * 0.5_DP
+      internal_con_energies( :, :, : ) = internal_con_energies( :, :, : ) * 0.5_DP
     endif
 
 #ifdef MPI
@@ -1060,7 +1065,7 @@ module ocean_qe62_files
 
           call SCREEN_tk_start("dft-read")
           do i = 1, nbands_to_send
-            if( start_band + i - 1 .lt. overlapBands ) then
+            if( start_band + i - 1 .le. overlapBands ) then
               cmplx_wvfn( 1:test_gvec, i, j ) = overlap_wvfn( :, start_band + i - 1 )
             else
               read( 99 ) cmplx_wvfn( 1:test_gvec, i, j )

@@ -161,6 +161,8 @@ module screen_energy
     integer, intent( inout ) :: ierr
     
     call odf_read_energies_single( myid, root, comm, energies, ierr )
+    ! energies come in Ryd, but are used in Ha.
+    energies(:,:,:) = energies(:,:,:) * 2.0_DP
 
   end subroutine screen_energy_load
 
