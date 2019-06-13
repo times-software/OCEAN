@@ -657,7 +657,7 @@ if ($RunESPRESSO) {
 
   # First attempt to grab from outfile (works for 5.4 >= QE <= 6.2 (OLD_XML) )
   my $qe54_file = catfile( $qe_data_files{'work_dir'}, $qe_data_files{'prefix'} . ".save", "data-file.xml" );
-  my $qe62_file = catfile( $qe_data_files{'work_dir'}, $qe_data_files{'prefix'} . ".xml" );
+  my $qe62_file = catfile( $qe_data_files{'work_dir'}, $qe_data_files{'prefix'} . ".save", "data-file-schema.xml" );
 #  my $data_file = $qe_data_files{'work_dir'} . "/" . $qe_data_files{'prefix'} . ".save/data-file.xml";
   if( -e $qe54_file )
   {
@@ -698,8 +698,8 @@ if ($RunESPRESSO) {
     open SCF, $qe62_file or die "Failed to open $qe62_file\n$!";
 
     #Assume Hartree!
-    my $highest = 0;
-    my $lowest = 'cow';
+    my $highest;
+    my $lowest;
     while( my $scf_line = <SCF> )
     { 
       if( $scf_line =~ m/\<highestOccupiedLevel\>([-+]?\d+\.\d+[Ee]?[-+]?(\d+)?)/ )
@@ -710,19 +710,31 @@ if ($RunESPRESSO) {
       {
         $lowest = $1;
       }
+      elsif( $scf_line =~ m/\<fermi_energy\>([-+]?\d+\.\d+[Ee]?[-+]?(\d+)?)/ )
+      {
+        $fermi = $1;
+      }
       elsif( $scf_line =~ m/\<nelec\>([-+]?\d+\.\d+[Ee]?[-+]?(\d+)?)/ )
       {
         $nelectron = $1;
       }
     }
     close SCF;
-    if( $lowest eq 'cow' )
-    { # Assumed Hartree
-      $fermi = $highest * 2
+    if( $fermi eq 'no' )
+    {
+      if( $lowest eq 'cow' )
+      { # Assumed Hartree
+        $fermi = $highest * 2
+      }
+      else
+      {
+        $fermi = $highest + $lowest;
+      }
     }
     else
     {
-      $fermi = $highest + $lowest;
+      # Move from Ha to Ry
+      $fermi *= 2;
     }
   }
   else # last shot
