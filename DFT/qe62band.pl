@@ -175,7 +175,7 @@ for( my $k = 0; $k < $nkpt; $k++ )
   
   
   my $start = $band_min - 1;
-  my $stop = scalar @{ $energies[$k] };
+  my $stop = scalar @{ $energies[$k] } - 1;
   @eslice = @{ $energies[$k] }[ $start .. $stop ];
   # move to Ryd
   foreach my $x (@eslice) { $x = $x * 2; }
