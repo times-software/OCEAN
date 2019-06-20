@@ -208,10 +208,10 @@ module screen_wvfn_converter
 
     dims(:) = screen_wvfn_returnWavefunctionDims( current_site%wvfn )
 
-    write(1000+myid,*) 'Running swl_postSiteRecvs'
-    write(1000+myid,'(A3,2(1x,I8))') '   ', dims(:) !size(current_site%wvfn%wvfn,1), size(current_site%wvfn%wvfn,2)
-    write(1000+myid,'(A3,8A9)') '   ', 'Npts', 'Start', 'Nbands', 'Sender', 'iKpts', 'iSpin', 'Tag', 'Site'
-    flush(1000+myid)
+!    write(1000+myid,*) 'Running swl_postSiteRecvs'
+!    write(1000+myid,'(A3,2(1x,I8))') '   ', dims(:) !size(current_site%wvfn%wvfn,1), size(current_site%wvfn%wvfn,2)
+!    write(1000+myid,'(A3,8A9)') '   ', 'Npts', 'Start', 'Nbands', 'Sender', 'iKpts', 'iSpin', 'Tag', 'Site'
+!    flush(1000+myid)
     
     nprocPerKpt = odf_nprocPerPool()
 !    npts = size( current_site%wvfn%wvfn, 1 )
@@ -242,7 +242,7 @@ module screen_wvfn_converter
           num_bands = odf_getBandsForPoolID( poolID )
           targetID = odf_returnGlobalID( poolIndex, poolID )
       
-          write(1000+myid,'(A,8(1X,I8))') '   ', npts, start_band, num_bands, targetID, ikpt, ispin, itag, isite
+!          write(1000+myid,'(A,8(1X,I8))') '   ', npts, start_band, num_bands, targetID, ikpt, ispin, itag, isite
 
           if( params%isSplit ) then
             call MPI_IRECV( current_site%wvfn%real_wvfn( 1, start_band, i ), npts*num_bands, &
@@ -251,7 +251,7 @@ module screen_wvfn_converter
 
             ! only have imaginary components if NOT gamma-point/real-only
             if( .not. params%isGamma ) then
-              write(1000+myid,'(A,8(1X,I8))') '   ', npts, start_band, num_bands, targetID, ikpt, ispin, itag+1, isite
+!              write(1000+myid,'(A,8(1X,I8))') '   ', npts, start_band, num_bands, targetID, ikpt, ispin, itag+1, isite
               j = j + 1
               call MPI_IRECV( current_site%wvfn%imag_wvfn( 1, start_band, i ), npts*num_bands, &
                               MPI_DOUBLE_PRECISION, targetID, itag+1, comm, recv_list( j ), ierr )
@@ -267,7 +267,7 @@ module screen_wvfn_converter
         enddo
       enddo
     enddo
-    flush(1000+myid)
+!    flush(1000+myid)
 
 
 
@@ -354,8 +354,8 @@ module screen_wvfn_converter
       nbandChunk = max( nbandChunk, 1 )
       nbandChunk = min( nbandChunk, nbands )
     endif
-    write(1000+myid,'(A,4(1X,I0),L2)') '*** Convert and Send ***', ikpt, ispin, nbands, nbandChunk, params%isGamma
-    flush(1000+myid)
+!    write(1000+myid,'(A,4(1X,I0),L2)') '*** Convert and Send ***', ikpt, ispin, nbands, nbandChunk, params%isGamma
+!    flush(1000+myid)
 
 !    call swl_allocateUofX( params%isGamma, nbands, uofx, ierr )
     call swl_allocateUofX( params%isGamma, nbandChunk, uofx, ierr )
@@ -407,9 +407,9 @@ module screen_wvfn_converter
     call swl_cleanUofX( uofx )
 
     do isite = 1, nsites
-      write(1000+myid,'(A,4(1X,I8))') '   Site:', isite, &
-                                      screen_wvfn_returnWavefunctionDims( temp_wavefunctions( isite )), nbands
-      flush(1000+myid)
+!      write(1000+myid,'(A,4(1X,I8))') '   Site:', isite, &
+!                                      screen_wvfn_returnWavefunctionDims( temp_wavefunctions( isite )), nbands
+!      flush(1000+myid)
 
       call screen_tk_start( "swl_DoAugment" )
       ! Augment using the OPFs to give the all-electron character
@@ -438,21 +438,20 @@ module screen_wvfn_converter
         call MPI_TYPE_COMMIT( newType, ierr )
         if( ierr .ne. 0 ) return
 
-!        write(6,*) ikpt, ispin, isend, destID, num_pts, num_band, itag
-          write(1000+myid,'(A,7(A9))') '   Send converted:', 'DestID', 'Tag', 'P-start', 'P-num', &
-                                       'B-start', 'B-num', 'Site'
-          write(1000+myid,'(A,7(1X,I8))') '   Send converted:', destID, itag, pts_start, num_pts,  &
-                                          band_start, nbands, isite
-        flush(1000+myid)
+!          write(1000+myid,'(A,7(A9))') '   Send converted:', 'DestID', 'Tag', 'P-start', 'P-num', &
+!                                       'B-start', 'B-num', 'Site'
+!          write(1000+myid,'(A,7(1X,I8))') '   Send converted:', destID, itag, pts_start, num_pts,  &
+!                                          band_start, nbands, isite
+!        flush(1000+myid)
         if( num_pts .gt. 0 ) then
           if( params%isSplit ) then
             call MPI_ISEND( temp_wavefunctions(isite)%real_wvfn( pts_start, band_start, 1 ), 1, &
                             newType, destID, itag, comm, send_list( isend ), ierr )
             ! only have imaginary components if NOT gamma-point/real-only
             if( .not. params%isGamma ) then
-              write(1000+myid,'(A,7(1X,I8))') '   Send converted:', destID, itag+1, pts_start, num_pts,  &
-                                              band_start, nbands, isite
-              flush(1000+myid)
+!              write(1000+myid,'(A,7(1X,I8))') '   Send converted:', destID, itag+1, pts_start, num_pts,  &
+!                                              band_start, nbands, isite
+!              flush(1000+myid)
               isend = isend + 1
               call MPI_ISEND( temp_wavefunctions(isite)%imag_wvfn( pts_start, band_start, 1 ), 1, &
                               newType, destID, itag+1, comm, send_list( isend ), ierr )
@@ -1385,8 +1384,17 @@ module screen_wvfn_converter
 
       call fftw_destroy_plan( bplan )
     enddo
+    deallocate( tempC )
 #else
     bplan = fftw_plan_dft_3d( dims(3), dims(2), dims(1), tempC, tempC, FFTW_BACKWARD, FFTW_ESTIMATE )
+
+    deallocate( tempC )
+!$OMP PARALLEL DEFAULT( NONE ) &
+!$OMP SHARED( bplan, nbands, ngvecs, dims, uofg, uofx, gvecs ) &
+!$OMP PRIVATE( ib, ig, i, j, k, tempC )
+
+    allocate( tempC( dims(1), dims(2), dims(3) ) )
+!$OMP DO SCHEDULE( STATIC )
     do ib = 1, nbands
       tempC(:,:,:) = 0.0_DP
       do ig = 1, ngvecs
@@ -1418,11 +1426,14 @@ module screen_wvfn_converter
 
       uofx(:,:,:,ib) = tempC(:,:,:)
     enddo
+!$OMP END DO
+    deallocate( tempC )
+!$OMP END PARALLEL
+
     call fftw_destroy_plan( bplan )
 
 #endif
 
-    deallocate( tempC )
 
 #else
     ! To keep the compiler happy
@@ -1944,12 +1955,19 @@ module screen_wvfn_converter
       offset = order / 2 - 1
     endif
 
-    allocate( P(order,order), QGrid(order,order), Q(order), RGrid(order) )
-    if( ierr .ne. 0 ) return
     dx = 1.0_dp / dims( 1 )
     dy = 1.0_dp / dims( 2 )
     dz = 1.0_dp / dims( 3 )
 
+!$OMP PARALLEL DEFAULT( NONE ) &
+!$OMP SHARED( order, nbands, npts, pointMap, offset, dx, dy, dz, isInitGrid, uofx, Pgrid, wvfn, distanceMap, iband, dims ) &
+!$OMP PRIVATE( P, QGrid, Q, RGrid ) &
+!$OMP PRIVATE( ib, ip, iz, iy, izz, iyy, R )
+
+    allocate( P(order,order), QGrid(order,order), Q(order), RGrid(order) )
+!    if( ierr .ne. 0 ) return
+
+!$OMP DO SCHEDULE( STATIC )
     do ib = 1, nbands
       ! New band, nothing is correct
 
@@ -2007,9 +2025,14 @@ module screen_wvfn_converter
 
       enddo ! ip
     enddo ! ib
+!$OMP END DO NOWAIT
 
+    deallocate( P, Q, Qgrid, Rgrid )
+!$OMP END PARALLEL
 
-    deallocate( P, Q, QGrid, RGrid, pointMap, distanceMap )
+    deallocate( pointMap, distanceMap )
+!    deallocate( P, Q, QGrid, RGrid, pointMap, distanceMap )
+
 
   end subroutine swl_RealDoLagrange
     

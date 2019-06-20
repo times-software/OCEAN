@@ -36,7 +36,7 @@ module screen_chi_driver
     use screen_sites, only : site, pinfo, screen_sites_returnWavefunctionDims
     use screen_paral, only : site_parallel_info, screen_paral_isMySite
     use screen_grid, only : screen_grid_dumpFullGrid
-    use ocean_mpi, only : myid
+    use ocean_mpi, only : myid, comm
     use screen_timekeeper, only : screen_tk_start, screen_tk_stop
     use screen_system, only : screen_system_mode
     integer, intent( in ) :: nsites
@@ -55,6 +55,9 @@ module screen_chi_driver
       ierr = 1
       return
     endif
+
+    call MPI_BARRIER( comm, ierr )
+    if( ierr .ne. 0 ) return
 
     do isite = 1, nsites
 
@@ -96,16 +99,16 @@ module screen_chi_driver
 
         if( pinfo%myid .eq. pinfo%root ) then
 
-          write(6,*) 'Start screen_chi_runSite'
+!          write(6,*) 'Start screen_chi_runSite'
           call screen_chi_runSite( all_sites( isite )%grid, FullChi, ProjectedChi0, ierr )
           if( ierr .ne. 0 ) return
-          write(6,*) 'Done with screen_chi_runSite'
+!          write(6,*) 'Done with screen_chi_runSite'
 
           chiPrefix = 'chi'
           call driver_write_chi( all_sites( isite )%info, chiPrefix, FullChi, ierr )
           if( ierr .ne. 0 ) return
 
-          write( 6,*) 'Dump grid'
+!          write( 6,*) 'Dump grid'
           select case( screen_system_mode() )
             case( 'grid' )
               write(gridsuffix,'(I6.6)') all_sites( isite )%info%indx
@@ -120,10 +123,10 @@ module screen_chi_driver
 
 
         if( pinfo%myid .eq. pinfo%root ) then
-          write(6,*) 'Start screen_chi_makeW'
+!          write(6,*) 'Start screen_chi_makeW'
           call screen_chi_makeW( all_sites( isite ), FullChi, ProjectedChi0, ierr )
           if( ierr .ne. 0 ) return
-          write(6,*) 'Done with screen_chi_makeW'
+!          write(6,*) 'Done with screen_chi_makeW'
         endif
 
         deallocate( ProjectedChi0, FullChi )

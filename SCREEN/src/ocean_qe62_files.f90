@@ -669,7 +669,7 @@ module ocean_qe62_files
 
 
     write(1000+inter_myid, '(A)' ) "    #############################"
-    flush(1000+inter_myid)
+!    flush(1000+inter_myid)
   end subroutine 
 
   subroutine set_pools( ierr )
@@ -739,7 +739,7 @@ module ocean_qe62_files
 
     if( pool_myid .eq. pool_root ) then
       write(myid+1000,*) 'Opening file ', trim(qe62_gkvFile( ikpt, ispin ))
-      flush(myid+1000)
+!      flush(myid+1000)
       open( unit=99,file=trim(qe62_gkvFile( ikpt, ispin )), form='unformatted', status='old' )
       read( 99 )
       read(99) crap, gvecs
@@ -788,7 +788,7 @@ module ocean_qe62_files
 
     if( pool_myid .eq. pool_root ) then
       write(myid+1000,*) 'Opening file ', trim(qe62_gkvFile( ikpt, ispin, .false. ))
-      flush(myid+1000)
+!      flush(myid+1000)
       open( unit=99,file=trim(qe62_gkvFile( ikpt, ispin, .false. )), form='unformatted', status='old' )
       read( 99 )
       read(99) crap, gvecs(1)
@@ -798,7 +798,7 @@ module ocean_qe62_files
 
       if( is_shift ) then
         write(myid+1000,*) 'Opening file ', trim(qe62_gkvFile( ikpt, ispin, .true. ))
-        flush(myid+1000)
+!        flush(myid+1000)
         open( unit=99,file=trim(qe62_gkvFile( ikpt, ispin, .true. )), form='unformatted', status='old' )
         read( 99 )
         read(99) crap, gvecs(2)

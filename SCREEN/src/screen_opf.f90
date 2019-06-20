@@ -434,6 +434,7 @@ module screen_opf
       enddo
     enddo
 
+#if 0
     if( myid .eq. root ) then
       allocate( TransposeProj( size( psProj, 2 ), size( psProj, 1 ) ) )
       TransposeProj = transpose( psProj )
@@ -459,6 +460,7 @@ module screen_opf
       deallocate( TransposeProj )
 
     endif
+#endif
 
   end subroutine screen_opf_interpProjs
 
