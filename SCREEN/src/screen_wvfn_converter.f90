@@ -526,8 +526,9 @@ module screen_wvfn_converter
     call screen_opf_lbounds( isite%info%z, lmin, lmax, ierr, itarg )
     if( ierr .ne. 0 ) return
 
-   
-    call screen_opf_getNCutoff( isite%info%z, ncutoff, isite%grid%rad, ierr, itarg )
+    ! Currently only will attempt to do projection using the first radial grid!!
+    !TODO fix this to allow multi grids augmentation
+    call screen_opf_getNCutoff( isite%info%z, ncutoff, isite%grid%rgrid(1)%rad, ierr, itarg )
     if( ierr .ne. 0 ) return
 
     call screen_opf_maxNproj( isite%info%z, maxNproj, ierr, itarg )
@@ -535,7 +536,8 @@ module screen_wvfn_converter
 
     totLM = ( lmax + 1 ) ** 2
 
-    allocate( Ylm( isite%grid%nang, totLM ), phi( ncutoff ), chg( ncutoff ), fit( ncutoff ) )
+    !TODO, same as above, only works for 1 grid subset
+    allocate( Ylm( isite%grid%agrid(1)%nang, totLM ), phi( ncutoff ), chg( ncutoff ), fit( ncutoff ) )
 
     allocate( prefs(0:1000) )
     call getprefs( prefs )
@@ -543,10 +545,10 @@ module screen_wvfn_converter
     do l = lmin, lmax
       do m = -l, l
         il = il + 1
-        do j = 1, isite%grid%nang
+        do j = 1, isite%grid%agrid(1)%nang
 
-          call ylmeval( l, m, isite%grid%agrid%angles(1,j), isite%grid%agrid%angles(2,j), &
-                        isite%grid%agrid%angles(3,j), ylm(j,il), prefs )
+          call ylmeval( l, m, isite%grid%agrid(1)%angles(1,j), isite%grid%agrid(1)%angles(2,j), &
+                        isite%grid%agrid(1)%angles(3,j), ylm(j,il), prefs )
         enddo
       enddo
     enddo
@@ -563,10 +565,11 @@ module screen_wvfn_converter
 
         allocate( psproj( ncutoff, nproj ), aeproj( ncutoff, nproj ), amat( nproj, nproj ), s( nproj ) )
 
-        call screen_opf_AltInterpProjs( isite%info%z, l, isite%grid%rad, psproj, aeproj, ierr, itarg )
+        call screen_opf_AltInterpProjs( isite%info%z, l, isite%grid%rgrid(1)%rad, psproj, aeproj, ierr, itarg )
         if( ierr .ne. 0 ) return
 
-        call screen_opf_makeAMat( nproj, ncutoff, isite%grid%rad, isite%grid%drad, psproj, amat, ierr )
+        call screen_opf_makeAMat( nproj, ncutoff, isite%grid%rgrid(1)%rad, isite%grid%rgrid(1)%drad, & 
+                                  psproj, amat, ierr )
         if( ierr .ne. 0 ) return
 
         do m = -l, l
@@ -575,16 +578,18 @@ module screen_wvfn_converter
           phi( : ) = 0.0_DP
           k = 0
           do i = 1, ncutoff
-            do j = 1, isite%grid%nang
+            do j = 1, isite%grid%agrid(1)%nang
               k = k + 1
-              phi( i ) = phi( i )+ isite%grid%agrid%weights( j ) * conjg( Ylm( j, il ) ) * wavefunctions( k, ib )
+              !TODO This should be hoisted up above to make a new matrix of Weights*Conjg(Ylm)
+              phi( i ) = phi( i )+ isite%grid%agrid(1)%weights( j ) * conjg( Ylm( j, il ) ) * wavefunctions( k, ib )
             enddo
           enddo
 
           s(:) = 0.0_DP
           do j = 1, nproj
             do k = 1, ncutoff
-              s(j) = s(j) + isite%grid%drad( k ) * isite%grid%rad( k ) ** 2 * psproj( k, j ) * phi( k )
+              s(j) = s(j) + isite%grid%rgrid(1)%drad( k ) * isite%grid%rgrid(1)%rad( k ) ** 2 &
+                          * psproj( k, j ) * phi( k )
             enddo
           enddo
 
@@ -603,7 +608,7 @@ module screen_wvfn_converter
 
           k = 0
           do i = 1, ncutoff
-            do j = 1, isite%grid%nang
+            do j = 1, isite%grid%agrid(1)%nang
               k = k + 1
               wavefunctions( k, ib ) = wavefunctions( k, ib ) + chg( i ) * ylm( j, il )
             enddo
@@ -620,7 +625,7 @@ module screen_wvfn_converter
             write( 99, formatting ) '#', amat( :, k )
           enddo
           do k = 1, ncutoff
-            write ( 99, '(7(E20.12))' ) isite%grid%rad( k ), fit( k ) , phi(k ), chg( k )
+            write ( 99, '(7(E20.12))' ) isite%grid%rgrid(1)%rad( k ), fit( k ) , phi(k ), chg( k )
           enddo
           close( 99 )
           if( iq .eq. 1 .and. ib .eq. 100 .and. l .eq. 0 ) then
@@ -668,7 +673,10 @@ module screen_wvfn_converter
     call screen_opf_lbounds( isite%info%z, lmin, lmax, ierr, itarg )
     if( ierr .ne. 0 ) return
 
-    call screen_opf_getNCutoff( isite%info%z, ncutoff, isite%grid%rad, ierr, itarg )
+    !TODO fix so we can run with more than the first grid
+    ! right now requires that the first set of radial/angular points have a radius that covers 
+    ! the augmentation radius
+    call screen_opf_getNCutoff( isite%info%z, ncutoff, isite%grid%rgrid(1)%rad, ierr, itarg )
     if( ierr .ne. 0 ) return
 
     call screen_opf_maxNproj( isite%info%z, maxNproj, ierr, itarg )
@@ -690,17 +698,19 @@ module screen_wvfn_converter
       call screen_opf_nprojForChannel( isite%info%z, l, nproj, ierr, itarg )
       if( ierr .ne. 0 ) return
 
-      call screen_opf_interpProjs( isite%info%z, l, isite%grid%rad, psproj(:,:,l), diffproj(:,:,l), ierr, itarg )
+      call screen_opf_interpProjs( isite%info%z, l, isite%grid%rgrid(1)%rad, psproj(:,:,l), &
+                                   diffproj(:,:,l), ierr, itarg )
       if( ierr .ne. 0 ) return
 
-      call screen_opf_makeAMat( nproj, ncutoff, isite%grid%rad, isite%grid%drad, psproj(:,:,l), amat(:,:,l), ierr )
+      call screen_opf_makeAMat( nproj, ncutoff, isite%grid%rgrid(1)%rad, isite%grid%rgrid(1)%drad, &
+                                psproj(:,:,l), amat(:,:,l), ierr )
       if( ierr .ne. 0 ) return
 
       ! precompute r^2 dr on the ps projector
       do i = 1, nproj
         do j = 1, ncutoff
           psproj_hold( j, i, l ) = psproj( j, i, l )
-          psproj( j, i, l ) = psproj( j, i, l ) * isite%grid%rad( j ) ** 2 * isite%grid%drad( j )
+          psproj( j, i, l ) = psproj( j, i, l ) * isite%grid%rgrid(1)%rad( j ) ** 2 * isite%grid%rgrid(1)%drad( j )
         enddo
       enddo
 
@@ -763,8 +773,8 @@ module screen_wvfn_converter
     totLM = ( lmax + 1 ) ** 2
     
     ! allocate space and carry out preliminary projector prep
-    allocate( ylm( isite%grid%nang, totLM ), waveByLM( ncutoff, totLM ), Delta( totLM, ncutoff ), &
-              weightedYlmStar( isite%grid%nang, totLM ), fit( ncutoff, totLM ), su( totLM ), STAT=ierr )
+    allocate( ylm( isite%grid%agrid(1)%nang, totLM ), waveByLM( ncutoff, totLM ), Delta( totLM, ncutoff ), &
+              weightedYlmStar( isite%grid%agrid(1)%nang, totLM ), fit( ncutoff, totLM ), su( totLM ), STAT=ierr )
     if( ierr .ne. 0 ) return
 
     ! prep Ylm's
@@ -775,11 +785,11 @@ module screen_wvfn_converter
     do l = lmin, lmax
       do m = -l, l
         il = il + 1
-        do j = 1, isite%grid%nang
+        do j = 1, isite%grid%agrid(1)%nang
           
-          call ylmeval( l, m, isite%grid%agrid%angles(1,j), isite%grid%agrid%angles(2,j), & 
-                        isite%grid%agrid%angles(3,j), ylm(j,il), prefs )
-          weightedYlmStar( j, il ) = isite%grid%agrid%weights(j) * conjg( ylm(j,il) )
+          call ylmeval( l, m, isite%grid%agrid(1)%angles(1,j), isite%grid%agrid(1)%angles(2,j), & 
+                        isite%grid%agrid(1)%angles(3,j), ylm(j,il), prefs )
+          weightedYlmStar( j, il ) = isite%grid%agrid(1)%weights(j) * conjg( ylm(j,il) )
         enddo
       enddo
     enddo
@@ -798,10 +808,10 @@ module screen_wvfn_converter
           il = il + 1
           k = 0
           do i = 1, ncutoff
-            do j = 1, isite%grid%nang
+            do j = 1, isite%grid%agrid(1)%nang
               k = k + 1
               waveByLM( i, il ) = waveByLM( i, il ) & 
-                                + wavefunctions( k, ib ) * conjg( ylm( j, il ) ) * isite%grid%agrid%weights(j)
+                                + wavefunctions( k, ib ) * conjg( ylm( j, il ) ) * isite%grid%agrid(1)%weights(j)
             enddo
           enddo
         enddo
@@ -892,7 +902,7 @@ module screen_wvfn_converter
 !          write ( 99, '(A1,X,16(E20.12))' ) '#', su(:)
           write(formatting, '("("I"(F20.10))")' ) 5+nproj
           do k = 1, ncutoff
-            write ( 99, formatting ) isite%grid%rad( k ), fit( k, i ) , waveByLM(k,i), psProj_hold( k, :, l )
+            write ( 99, formatting ) isite%grid%rgrid(1)%rad( k ), fit( k, i ) , waveByLM(k,i), psProj_hold( k, :, l )
 !            write ( 99, '(5(E20.12))' ) isite%grid%rad( k ), fit( k, i ) , waveByLM(k,i)
           enddo
           close( 99 )
@@ -909,7 +919,7 @@ module screen_wvfn_converter
           il = il + 1
           k = 0
           do i = 1, ncutoff
-            do j = 1, isite%grid%nang
+            do j = 1, isite%grid%agrid(1)%nang
               k = k + 1
               wavefunctions( k, ib ) = wavefunctions( k, ib ) + Delta( il, i ) * ylm( j, il )
             enddo
@@ -953,8 +963,8 @@ module screen_wvfn_converter
     totLM = ( lmax + 1 ) ** 2
 
     ! allocate space and carry out preliminary projector prep
-    allocate( ylm( isite%grid%nang, totLM ), waveByLM( ncutoff, totLM ), Delta( totLM, ncutoff ), &
-              weightedYlmStar( isite%grid%nang, totLM ), STAT=ierr ) !fit( ncutoff, totLM ), STAT=ierr )
+    allocate( ylm( isite%grid%agrid(1)%nang, totLM ), waveByLM( ncutoff, totLM ), Delta( totLM, ncutoff ), &
+              weightedYlmStar( isite%grid%agrid(1)%nang, totLM ), STAT=ierr ) !fit( ncutoff, totLM ), STAT=ierr )
     if( ierr .ne. 0 ) return
 
     if( present( imag_wvfn ) ) then
@@ -970,11 +980,11 @@ module screen_wvfn_converter
     do l = lmin, lmax
       do m = -l, l
         il = il + 1
-        do j = 1, isite%grid%nang
+        do j = 1, isite%grid%agrid(1)%nang
 
-          call real_ylmeval( l, m, isite%grid%agrid%angles(1,j), isite%grid%agrid%angles(2,j), &
-                             isite%grid%agrid%angles(3,j), ylm(j,il) )
-          weightedYlmStar( j, il ) = isite%grid%agrid%weights(j) * ylm(j,il)
+          call real_ylmeval( l, m, isite%grid%agrid(1)%angles(1,j), isite%grid%agrid(1)%angles(2,j), &
+                             isite%grid%agrid(1)%angles(3,j), ylm(j,il) )
+          weightedYlmStar( j, il ) = isite%grid%agrid(1)%weights(j) * ylm(j,il)
           if( ylm(j, il ) .ne. ylm( j, il ) ) then
             write(6,*) 'YLM gives NAN'
             ierr = 1
@@ -999,10 +1009,10 @@ module screen_wvfn_converter
           il = il + 1
           k = 0
           do i = 1, ncutoff
-            do j = 1, isite%grid%nang
+            do j = 1, isite%grid%agrid(1)%nang
               k = k + 1
               waveByLM( i, il ) = waveByLM( i, il ) &
-                                + wavefunctions( k, ib ) * ylm( j, il ) * isite%grid%agrid%weights(j)
+                                + wavefunctions( k, ib ) * ylm( j, il ) * isite%grid%agrid(1)%weights(j)
             enddo
           enddo
         enddo
@@ -1016,10 +1026,10 @@ module screen_wvfn_converter
             il = il + 1
             k = 0
             do i = 1, ncutoff
-              do j = 1, isite%grid%nang
+              do j = 1, isite%grid%agrid(1)%nang
                 k = k + 1
                 imag_waveByLM( i, il ) = imag_waveByLM( i, il ) &
-                                       + imag_wvfn( k, ib ) * ylm( j, il ) * isite%grid%agrid%weights(j)
+                                       + imag_wvfn( k, ib ) * ylm( j, il ) * isite%grid%agrid(1)%weights(j)
               enddo
             enddo
           enddo
@@ -1124,7 +1134,7 @@ module screen_wvfn_converter
           il = il + 1
           k = 0
           do i = 1, ncutoff
-            do j = 1, isite%grid%nang
+            do j = 1, isite%grid%agrid(1)%nang
               k = k + 1
               wavefunctions( k, ib ) = wavefunctions( k, ib ) + Delta( il, i ) * ylm( j, il )
             enddo
@@ -1139,7 +1149,7 @@ module screen_wvfn_converter
             il = il + 1
             k = 0
             do i = 1, ncutoff
-              do j = 1, isite%grid%nang
+              do j = 1, isite%grid%agrid(1)%nang
                 k = k + 1
                 imag_wvfn( k, ib ) = imag_wvfn( k, ib ) + imag_Delta( il, i ) * ylm( j, il )
               enddo

@@ -319,10 +319,10 @@ module schi_direct
     real(DP), intent( out ) :: ProjectedSpace(:,:,:,:)
     integer, intent( inout ) :: ierr
 
-    real(DP), allocatable :: ymu( :, :, :, : ), slice_ymu( :, : ), temp( :, : ), test_ymu( :, : )
+    real(DP), allocatable :: slice_ymu( :, : ), temp( :, :, : )
 
     integer :: npt, nbasis, nLM, fullSize, nang, nr, dimTemp
-    integer :: i, j, iLM, l, m, ir, jr, jlm, k, lmax
+    integer :: i, j, iLM, l, m, ir, jr, jlm, k, lmax, ipt, iir, inter
 
     real(DP), parameter :: d_zero = 0.0_DP
     real(DP), parameter :: d_one = 1.0_DP
@@ -334,8 +334,7 @@ module schi_direct
     nbasis = size( ProjectedSpace, 1 )
     nLM = size( ProjectedSpace, 2 )
     fullSize = nbasis * nLM
-    nang = grid%Nang
-    nr = grid%Nr
+!    nang = grid%Nang
 
     if( ( npt .ne. size( FullSpace, 2 ) ) .or. ( npt .ne. grid%npt ) ) then
       write(myid+1000,'(A,3(I10))') 'schi_direct_project', npt, size( FullSpace, 2 ), grid%npt
@@ -358,25 +357,111 @@ module schi_direct
     ! 
     lmax = anint( sqrt( real( nLM, DP ) ) ) - 1
 !    write(6,*) lmax
-    allocate( slice_ymu( nang, nLM ), test_ymu( nang, nLM ), STAT=ierr )
+
+
+
+    ! iterate over grids
+    ! each grid can have a unique number of radial and angular parts
+    ! 
+
+    nr = grid%Nr
+    allocate( temp( npt, nr, nLM ), STAT=ierr )
     if( ierr .ne. 0 ) return
+    temp( :, :, : ) = 0.0_DP
+
+    ! ipt stores universal location
+    ipt = 0
+    ! iir stores universal radius
+    iir = 0
+    do inter = 1, grid%ninter
+  
+      nang = grid%agrid(inter)%nang
+      nr = grid%rgrid(inter)%nr
+
+      allocate( slice_ymu( nang, nLM ), STAT=ierr )
+      if( ierr .ne. 0 ) return
     
-    iLM = 0
-    do l = 0, lmax
-      do m = -l, l
-        iLM = iLM + 1
-        write(6,*) iLM, l, m
-        do j = 1, nang
-          slice_ymu( j, iLM ) = ocean_sphH_getylm( grid%agrid%angles( :, j ), l, m )
+      iLM = 0
+      do l = 0, lmax
+        do m = -l, l
+          iLM = iLM + 1
+!          write(6,*) iLM, l, m
+          do j = 1, nang
+            slice_ymu( j, iLM ) = ocean_sphH_getylm( grid%agrid(inter)%angles( :, j ), l, m ) &
+                                * grid%agrid(inter)%weights( j )
+          enddo
         enddo
       enddo
+
+!      k = 0
+      do ilm = 1, nlm
+        do ir = 1, nr
+!          k = k + 1
+          do i = 1, nang
+            do j = 1, npt
+              ! ipt
+              temp( j, ir+iir, ilm ) = temp( j, ir+iir, ilm ) & 
+                                     + FullSpace( j, (ir-1)*nang + i + ipt ) * slice_ymu( i, ilm )
+            enddo
+          enddo
+        enddo
+      enddo
+
+      ipt = ipt + nang*nr
+      iir = iir + nr
+  
+      deallocate( slice_ymu )
     enddo
-!    call formreytab( grid%agrid%angles, slice_ymu, nLM, ierr )
-!    if( ierr .ne. 0 ) return
+      
+    iir = 0
+    ipt = 0
+    ProjectedSpace(:,:,:,:) = 0.0_DP
 
-    deallocate( test_ymu )
+    do inter = 1, grid%ninter
 
+      nang = grid%agrid(inter)%nang
+      nr = grid%rgrid(inter)%nr
 
+      
+      allocate( slice_ymu( nang, nLM ), STAT=ierr )
+      if( ierr .ne. 0 ) return
+      ! could store up slice_ymu instead of re-calculating
+      iLM = 0
+      do l = 0, lmax
+        do m = -l, l
+          iLM = iLM + 1
+          do j = 1, nang
+            slice_ymu( j, iLM ) = ocean_sphH_getylm( grid%agrid(inter)%angles( :, j ), l, m ) &
+                                * grid%agrid(inter)%weights( j )
+          enddo
+        enddo
+      enddo
+
+      do ilm = 1, nlm
+        do ir = 1, grid%nr
+
+          do jlm = 1, nlm
+            k = 0
+            do jr = 1, nr
+              do i = 1, nang
+                k = k + 1
+                ProjectedSpace(jr+iir,jlm,ir,ilm) = ProjectedSpace(jr+iir,jlm,ir,ilm) &
+                  + temp( k+ipt, ir, ilm ) * slice_ymu( i, jlm )
+              enddo
+            enddo
+          enddo
+        enddo
+      enddo
+
+      ipt = ipt + nang*nr
+      iir = iir + nr
+
+      deallocate( slice_ymu )
+    enddo
+
+    deallocate( temp )
+
+#if 0
     do iLM = 1, nLM
       do j = 1, nang
         slice_ymu( j, iLM ) = slice_ymu( j, iLM ) * grid%agrid%weights( j )
@@ -437,6 +522,7 @@ module schi_direct
 
     deallocate( temp, slice_ymu )
 !    deallocate( ymu )
+#endif    
 
 #ifdef DEBUG
     do ilm = 1, nlm
