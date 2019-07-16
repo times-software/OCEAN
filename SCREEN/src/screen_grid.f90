@@ -663,7 +663,7 @@ module screen_grid
       write( 6, * ) 'Legendre order: ', rg%nr
       call ocean_quadrature_loadLegendre( rg%nr, rg%rad, rg%drad, ierr )
     endif
-#ifdef __MPI
+#ifdef MPI
     call MPI_BCAST( rg%rad, rg%nr, MPI_DOUBLE_PRECISION, root, comm, ierr )
     call MPI_BCAST( rg%drad, rg%nr, MPI_DOUBLE_PRECISION, root, comm, ierr )
 #endif
