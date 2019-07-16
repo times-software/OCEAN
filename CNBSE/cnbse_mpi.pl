@@ -623,7 +623,14 @@ while (<EDGE>) {
       $ncks++;
       $cks_string .= "$elname  $elnum  $cks\n";
       my $cks_file = $cks . sprintf "%04u", $elnum;
-      ( copy "../PREP/BSE/$cks_file", $cks_file ) == 1 or die "Failed to grab ../PREP/BSE/$cks_file\n$!";
+      if( -e "../PREP/BSE/par$cks_file" )
+      {
+        ( copy "../PREP/BSE/par$cks_file", "par$cks_file" ) == 1 or die "Failed to grab ../PREP/BSE/par$cks_file\n$!";
+      }
+      else
+      {
+        ( copy "../PREP/BSE/$cks_file", $cks_file ) == 1 or die "Failed to grab ../PREP/BSE/$cks_file\n$!";
+      }
     }
     else
     {
@@ -643,7 +650,14 @@ while (<EDGE>) {
       $ncks = 1;
       $cks_string = "$elname  $elnum  $cks\n";
       my $cks_file = $cks . sprintf "%04u", $elnum;
-      ( copy "../PREP/BSE/$cks_file", $cks_file ) == 1 or die "Failed to grab ../PREP/BSE/$cks_file\n$!";
+      if( -e "../PREP/BSE/par$cks_file" )
+      { 
+        ( copy "../PREP/BSE/par$cks_file", "par$cks_file" ) == 1 or die "Failed to grab ../PREP/BSE/par$cks_file\n$!";
+      }
+      else
+      {
+        ( copy "../PREP/BSE/$cks_file", $cks_file ) == 1 or die "Failed to grab ../PREP/BSE/$cks_file\n$!";
+      }
     }
 
 #    open CKSIN, ">cks.in" or die "Failed to open cks.in\n";

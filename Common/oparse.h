@@ -453,8 +453,8 @@ screen.grid.ninter
 } screen.grid.ninter
 screen.grid.shells
 {
-4 16
-8 16
+4 
+8 
 } screen.grid.shells
 screen.grid.xyz
 {
@@ -472,6 +472,10 @@ screen.grid.ang
 {
 specpnt 5
 } screen.grid.ang
+screen.grid.deltar
+{
+0.2
+} screen.grid.deltar
 screen.lmax
 {
 0

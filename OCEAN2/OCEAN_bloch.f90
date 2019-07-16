@@ -987,7 +987,8 @@ module OCEAN_bloch
     type( o_system ), intent( in ) :: sys
     integer, intent( inout ) :: ierr
 
-    complex(DP), allocatable, dimension(:,:) :: tempU2, transposeU2
+    complex(DP), allocatable, dimension(:,:) ::  transposeU2
+    complex(DP), allocatable, dimension(:,:,:,:) :: tempU2
     complex(DP) :: dumz
     integer :: fflags, fh, myX, nx_start, nx_left, i, ispin, ikpt, sizeofcomplex
     logical :: loadConductionBands
@@ -1023,6 +1024,8 @@ module OCEAN_bloch
       myX = nx_left / ( nproc - i )
       nx_left = nx_left - myX
     enddo
+    call MPI_File_set_atomicity( fh, 0, ierr )
+    if( ierr .ne. 0 ) return
 
     call MPI_TYPE_VECTOR( sys%num_bands * sys%nkpts * sys%nspn, myX, sys%nxpts, & 
                           MPI_DOUBLE_COMPLEX, fileType, ierr )
@@ -1038,15 +1041,17 @@ module OCEAN_bloch
     call MPI_FILE_SET_VIEW( fh, offset, MPI_DOUBLE_COMPLEX, fileType, "native", MPI_INFO_NULL, ierr )
     if( ierr .ne. 0 ) return
 
-    allocate( tempU2( myX, sys%num_bands ), transposeU2( sys%num_bands, myX ) )
+    allocate( tempU2( myX, sys%num_bands, sys%nkpts, sys%nspn ), transposeU2( sys%num_bands, myX ) )
+
+!    do ispin = 1, sys%nspn
+!      do ikpt = 1, sys%nkpts
+      
+        call MPI_FILE_READ_ALL( fh, tempU2, myX*sys%num_bands*sys%nspn*sys%nkpts, MPI_DOUBLE_COMPLEX, MPI_STATUS_IGNORE, ierr )  
+        if( ierr .ne. 0 ) return
 
     do ispin = 1, sys%nspn
       do ikpt = 1, sys%nkpts
-      
-        call MPI_FILE_READ_ALL( fh, tempU2, myX*sys%num_bands, MPI_DOUBLE_COMPLEX, MPI_STATUS_IGNORE, ierr )  
-        if( ierr .ne. 0 ) return
-
-        transposeU2 = transpose( tempU2 )
+        transposeU2 = transpose( tempU2( :, :, ikpt, ispin ) )
         do i = 1, myX
           re_bloch_state(:, ikpt, i, ispin ) = real( transposeU2(:,i), DP )
           im_bloch_state(:, ikpt, i, ispin ) = aimag( transposeU2(:,i) )

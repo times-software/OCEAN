@@ -40,10 +40,11 @@ if( $metal_line =~ m/true/i )
 }
 
 # Spin=2 needs to use the metals version
+my $spin;
 if( $metal == 0 )
 {
   open IN, "../nspin" or die "Failed to open nspin\n$!\n";
-  my $spin = <IN>;
+  $spin = <IN>;
   close IN;
   $metal = 2 if( $spin =~ m/2/ );
 }
@@ -83,6 +84,7 @@ if( $metal == 0 )
 }
 
 my @energies;
+my @energiesSpin2;
 
 my $nkpt = 0;
 
@@ -99,24 +101,42 @@ while( my $line = <IN> )
       $occs .= $line . ' ';
       $line = <IN>;
     }
-    my @occs = split( ' ', $occs );
 
     my $count = 0;
     my $min_count = 0;
-#    foreach my $occ (@occs )
-#    {
-#      $count++ if( $occ > $tolerance );
-#      $min_count++ if( $occ > 1-$tolerance );
-#    }
-    for( my $i = 0; $i < scalar @occs; $i++ )
+
+    if( $spin == 2 )
     {
-      $count = $i + 1 if( $occs[$i] > $tolerance );
-    }
-    for( my $i = scalar @occs - 1; $i >= 0; $i-- )
+      # for spin=2 things are stored stupidly
+      my @occs = split( ' ', $occs );
+
+      my $occSize = scalar @occs / 2;
+      for( my $i = 0; $i < $occSize; $i++ )
+      {
+        $count = $i + 1 if( $occs[$i] > $tolerance );
+      }
+      for( my $i = $occSize; $i < 2*$occSize; $i++ )
+      {
+        $count = $i + 1 - $occSize if( $occs[$i] > $tolerance );
+      }
+      for( my $i = 2*$occSize - 1; $i >= $occSize; $i-- )
+      {
+        $min_count = $i + 1 - $occSize if( $occs[$i] < $tolerance );
+      }
+    } 
+    else
     {
-      $min_count = $i + 1 if( $occs[$i] < $tolerance );
-#      if( $nkpt == 0 ) { print "$occs[$i]\t$min_count\t$i\n"; }
+      my @occs = split( ' ', $occs );
+      for( my $i = 0; $i < scalar @occs; $i++ )
+      {
+        $count = $i + 1 if( $occs[$i] > $tolerance );
+      }
+      for( my $i = scalar @occs - 1; $i >= 0; $i-- )
+      {
+        $min_count = $i + 1 if( $occs[$i] < $tolerance );
+      }
     }
+
     $nkpt ++;
     $band_max = $count if( $count > $band_max );
     if( $band_min > 0 )
@@ -158,6 +178,7 @@ close OUT;
 
 open ENK, ">", "enkfile" or die "Failed to open enkfile for writing\n";
 for( my $k = 0; $k < $nkpt; $k++ )
+#  for( my $k = 0; $k<1; $k++ )
 {
   my $n = 3;
   my $start = 0;
@@ -172,10 +193,18 @@ for( my $k = 0; $k < $nkpt; $k++ )
      print ENK join($delim, @x), "\n";
   }   
 #  print "\n";
+#    print ENK "\n";
   
   
-  my $start = $band_min - 1;
-  my $stop = scalar @{ $energies[$k] } - 1;
+  $start = $band_min - 1;
+  if( $spin == 2 )
+  {
+    $stop = scalar @{ $energies[$k] }/2 ;
+  }
+  else
+  {
+    $stop = scalar @{ $energies[$k] } - 1;
+  }
   @eslice = @{ $energies[$k] }[ $start .. $stop ];
   # move to Ryd
   foreach my $x (@eslice) { $x = $x * 2; }
@@ -183,7 +212,40 @@ for( my $k = 0; $k < $nkpt; $k++ )
   {
     print ENK join($delim, @x), "\n";
   }   
-#  print "\n";
+#    print ENK "\n";
+}
+
+if( $spin == 2 )
+{
+  for( my $k = 0; $k < $nkpt; $k++ )
+#  for( my $k = 0; $k<1; $k++ )
+  {
+    my $n = 3;
+    my $start = scalar @{ $energies[$k] }/2 ;
+    my $stop = $band_max + $start ;
+    my $delim = " ";
+    my @eslice = @{ $energies[$k] }[ $start .. $stop ];
+    # move to Ryd
+    foreach my $x (@eslice) { $x = $x * 2; }
+  #    while (my @x = splice @{ $energies[$k] }, 1, $n) {
+    while (my @x = splice @eslice, 1, $n) 
+    {   
+       print ENK join($delim, @x), "\n";
+    }   
+#    print ENK "\n"; 
+        
+        
+    $start += $band_min-1 ;
+    $stop = scalar @{ $energies[$k] } - 1; 
+    @eslice = @{ $energies[$k] }[ $start .. $stop ];
+    # move to Ryd
+    foreach my $x (@eslice) { $x = $x * 2; }
+    while (my @x = splice @eslice, 1, $n)
+    {   
+      print ENK join($delim, @x), "\n";
+    }     
+#    print ENK "\n";
+  } 
 }
 close ENK;
 
