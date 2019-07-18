@@ -31,10 +31,10 @@ my $oldden = 0;
 $oldden = 1 if (-e "../DFT/old");
 
 
-my @QEFiles     = ( "rhoofr", "efermiinrydberg.ipt" );
+my @QEFiles     = ( "rhoofr", "efermiinrydberg.ipt", "dftVersion" );
 my @CommonFiles = ( "screen.nkpt", "nkpt", "qinunitsofbvectors.ipt", "avecsinbohr.ipt", "dft", 
                     "nspin", "xmesh.ipt", "dft.split", "prefix", "calc", "screen.wvfn", "screen.legacy", 
-                    "screen.mode", "bse.wvfn", "k0.ipt", "work_dir" );
+                    "screen.mode", "bse.wvfn", "k0.ipt", "work_dir", "para_prefix" );
 my @NewMethodFiles = ( "ntype", "typat", "natoms", "znucl", "taulist", "edges", "core_offset", "metal", "cksshift", 
                        "cksstretch", "nedges", "edges", "pplist", "opf.opts", "opf.fill" );
 my @ExtraFiles = ("specpnt.5", "Pquadrature", "sphpts" );
@@ -49,9 +49,19 @@ foreach (@NewMethodFiles) {
   system("cp ../Common/$_ .") == 0 or die "Failed to copy $_\n";
 }
 
-#JTV
-( copy "../OPF/hfinlist", "hfinlist" ) == 1 or die "Failed to copy hfinlist\n$!";
-( copy "../OPF/xyz.wyck", "xyz.wyck" ) == 1 or die "Failed to copy hfinlist\n$!";
+
+### load up the para_prefix
+my $para_prefix = "";
+if( open PARA_PREFIX, "para_prefix" )
+{
+  $para_prefix = <PARA_PREFIX>;
+  chomp($para_prefix);
+  close( PARA_PREFIX);
+} else
+{
+  print "Failed to open para_prefix. Error: $!\nRunning serially\n";
+}
+
 
 
 system("mv nkpt bse.nkpt") == 0 or die "Failed to rename nkpt $_\n";
@@ -85,11 +95,29 @@ my $run_screen = 1;
 if( $calc =~ m/val/i )
 {
   $run_screen = 0 unless( $screen_mode =~ m/grid/i );
+  `touch hfinlist`;
+  `touch xyz.wyck`;
 }
+else
+{
+  #JTV
+  ( copy "../OPF/hfinlist", "hfinlist" ) == 1 or die "Failed to copy hfinlist\n$!";
+  ( copy "../OPF/xyz.wyck", "xyz.wyck" ) == 1 or die "Failed to copy hfinlist\n$!";
+}
+
+open IN, "dftVersion" or die "Failed to open dftVersion\n$!";
+<IN> =~ m/qe(\d+)/ or die "Failed to match dftVersion\n$!";
+my $qeVersion = $1;
+close IN;
 
 open IN, "screen.wvfn" or die "Failed to open screen.wvfn\n$!";
 my $screenWvfn = <IN>;
 close IN;
+# rename new to correct version
+if( $screenWvfn =~ m/new/i )
+{
+  $screenWvfn = 'qe' . $qeVersion;
+}
 
 open IN, "screen.legacy" or die "Failed to open screen.legacy\n$!";
 my $screenLegacy = <IN>;
@@ -99,6 +127,10 @@ close IN;
 open IN, "bse.wvfn" or die "Failed to open bse.wvfn\n$!";
 my $bseWvfn = <IN>;
 close IN;
+if( $bseWvfn =~ m/new/i )
+{
+  $bseWvfn = 'qe' . $qeVersion;
+}
 
 my $rundir;
 my @nkpt;
@@ -160,7 +192,7 @@ if( $run_screen == 1 )
     if( $screenWvfn =~ m/qe(\d+)/ && $screenLegacy == 0 )
     {
       unlink "PAW/old";
-      my $qeVersion = $1;
+#      my $qeVersion = $1;
       print "Don't convert DFT. Using new method for screening wavefunctions: $qeVersion\n";
       `touch listwfile masterwfile enkfile`;
       if( $qeVersion == 62 )
@@ -347,9 +379,29 @@ if( $runBSE != 0 )
       copy("$ENV{'OCEAN_BIN'}/$_", $_ ) or die;
     }
 
+    # no CKS, yes tmels
+    if( $calc =~ m/val/i )
+    {
+      open OUT, ">", "prep.tmels" or die "Failed to open prep.tmels for writing\n$!";
+      print OUT "T\n";
+      close OUT;
+      open OUT, ">", "prep.cks" or die "Failed top open prep.cks for writing\n$!";
+      print OUT "0\n";
+      close OUT;
+    }
+    else
+    {
+      open OUT, ">", "prep.tmels" or die "Failed to open prep.tmels for writing\n$!";
+      print OUT "F\n";
+      close OUT;
+      open OUT, ">", "prep.cks" or die "Failed top open prep.cks for writing\n$!";
+      print OUT "1\nNA 1";  # right now this functionality doesn't work!
+      close OUT;
+    }
+
 #    system( "/users/jtv1/cluster/Software/OCEAN/PREP/src/ocean_prep.x" );
-    print "$ENV{'OCEAN_BIN'}/ocean_prep.x > ocean_prep.log 2>&1\n";
-    system("$ENV{'OCEAN_BIN'}/ocean_prep.x > ocean_prep.log 2>&1" ) == 0
+    print "$para_prefix $ENV{'OCEAN_BIN'}/ocean_prep.x > ocean_prep.log 2>&1\n";
+    system("$para_prefix $ENV{'OCEAN_BIN'}/ocean_prep.x > ocean_prep.log 2>&1" ) == 0
           or die "Failed to run ocean_prep.x\n$!";
   }
   else

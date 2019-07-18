@@ -12,7 +12,7 @@ program ocean_prep
   use ocean_dft_files, only : odf_init, odf_clean, odf_isGamma
   use screen_timekeeper, only : screen_tk_init, screen_tk_printtimes, screen_tk_start, screen_tk_stop
 
-  use prep_system, only : prep_system_load, prep_system_summarize
+  use prep_system, only : prep_system_load, prep_system_summarize, calcParams, calculation_parameters
   use prep_wvfn, only : prep_wvfn_driver
   use ocean_cks, only : ocean_cks_init
 
@@ -44,7 +44,7 @@ program ocean_prep
   if( ierr .ne. 0 ) goto 111
 
   ! Step two we will be checking and loading the OPFs here for the matrix elements
-  call ocean_cks_init( ierr )
+  if( calcParams%makeCKS ) call ocean_cks_init( ierr )
   if( ierr .ne. 0 ) goto 111
   call screen_tk_stop( "init" )
 

@@ -691,6 +691,10 @@ if ($RunESPRESSO) {
     {
       $fermi /= 13.60569253;
     }
+
+    open OUT, '>', 'dftVersion' or die "Failed to open dftVersion for writing\n$!";
+    print OUT "qe54\n";
+    close OUT;
   }
   elsif( -e $qe62_file )
   {
@@ -699,7 +703,7 @@ if ($RunESPRESSO) {
 
     #Assume Hartree!
     my $highest;
-    my $lowest;
+    my $lowest = 'cow';
     while( my $scf_line = <SCF> )
     { 
       if( $scf_line =~ m/\<highestOccupiedLevel\>([-+]?\d+\.\d+[Ee]?[-+]?(\d+)?)/ )
@@ -736,6 +740,9 @@ if ($RunESPRESSO) {
       # Move from Ha to Ry
       $fermi *= 2;
     }
+    open OUT, '>', 'dftVersion' or die "Failed to open dftVersion for writing\n$!";
+    print OUT "qe62\n";
+    close OUT;
   }
   else # last shot
   {
@@ -1106,7 +1113,18 @@ if ( $nscfRUN ) {
     close IN;
 
     $qe_data_files{'print kpts'} = $kpt_text;
-    unless( $split_dft ) 
+    # QE behaves cnoverges incorrectly if only give occupied states
+    if( $split_dft && $qe_data_files{ "occopt" } == 1 && 1 == 2) 
+    {
+      open NEL, "../nelectron" or die "Failed top open ../nelectron for reading\n$!";
+      my $nelectron = <NEL>;
+      close NEL;
+      my $tempBand = $nelectron / 2 + 1;
+      $tempBand++ if( $tempBand%2 == 1 );
+      $qe_data_files{'print nbands'} = $tempBand;
+    }
+    else
+#    unless( $split_dft ) 
     {
       $qe_data_files{'print nbands'} = $qe_data_files{'nbands'};
     }
@@ -1531,6 +1549,32 @@ if( $qe_data_files{ "occopt" } == 1 && ( $RunESPRESSO + $nscfRUN + $run_screen >
     close IN;
   }
   my $bseDIR = sprintf("%03u%03u%03u", split( /\s+/,$qe_data_files{'nkpt'}));
+  if( -e "$bseDIR/nscf_shift.out" )
+  {
+    open IN, "$bseDIR/nscf_shift.out" or die "Failed to open $bseDIR/nscf_shift.out\n$!";
+    while( my $line = <IN> )
+    {
+      if( $line =~ m/highest occupied, lowest unoccupied level\s\S+\s+(-?\d+\.\d+)\s+(-?\d+\.\d+)/ )
+      {
+        print $line;
+        my $v = $1;
+        my $c = $2;
+        unless( defined( $valenceE ) )
+        {
+          $valenceE = $v;
+          $conductionE = $c;
+        }
+        else
+        {
+          $valenceE = $v if( $v > $valenceE );
+          $conductionE = $c if( $c < $conductionE );
+        }
+        last;
+        print "$valenceE\t$conductionE\n";
+      }
+    }
+    close IN;
+  }
   if( -e "$bseDIR/nscf.out" )
   {
     open IN, "$bseDIR/nscf.out" or die "Failed to open $bseDIR/nscf.out\n$!";

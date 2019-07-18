@@ -23,7 +23,7 @@ module prep_wvfn
 
 
   subroutine prep_wvfn_driver( ierr )
-    use prep_system, only : system_parameters, params, psys, prep_system_ikpt2kvec
+    use prep_system, only : system_parameters, params, psys, prep_system_ikpt2kvec, calcParams, calculation_parameters
     use ocean_mpi, only : myid, root, nproc, comm
     use ocean_dft_files, only : odf_is_my_kpt, odf_return_my_bands, odf_nprocPerPool, odf_poolID, &
                                 ODF_VALENCE, ODF_CONDUCTION, odf_universal2KptandSpin, &
@@ -54,10 +54,10 @@ module prep_wvfn
     integer :: conFH, valFH, fileHandle, poolID, i, testFH
     logical :: is_kpt, wantCKS, wantU2, addShift, wantLegacy, wantTmels
 
-    wantCKS = .true.
-    wantU2 = .true.
+    wantCKS = calcParams%makeCKS
+    wantU2 = calcParams%makeU2
     wantLegacy = .true.
-    wantTmels = .true.
+    wantTmels = calcParams%makeTmels
 
 
 !    if( wantU2 .and. nproc .eq. 1 ) then
@@ -73,7 +73,11 @@ module prep_wvfn
 
     write(6,*) valBands, conBands
 
-    nsites = ocean_cks_nsites()
+    if( wantCKS ) then
+      nsites = ocean_cks_nsites()
+    else
+      nsites = 0
+    endif
 
 !    isDualFile =  odf_isDualFile()
 !!!prefix, nxpts, myBands, totalBands, FH, arrayType, ierr )
@@ -103,7 +107,9 @@ module prep_wvfn
 
     nuni = ceiling( real( params%nspin * params%nkpts, DP ) / real( npool, DP ) )
 
-    call ocean_cks_makeCksHolders( valBands, conBands, nuni, ierr )
+    if( wantCKS ) then
+      call ocean_cks_makeCksHolders( valBands, conBands, nuni, ierr )
+    endif
 
   
     kStride = odf_npool()

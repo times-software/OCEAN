@@ -470,7 +470,7 @@ screen.grid.nr
 } screen.grid.nr
 screen.grid.ang
 {
-specpnt 5
+5
 } screen.grid.ang
 screen.grid.deltar
 {
@@ -510,7 +510,7 @@ screen.augment
 } screen.augment
 screen.wvfn
 {
-legacy
+new
 } screen.wvfn
 screen.convertstyle
 {
@@ -526,5 +526,5 @@ core
 } screen.mode
 bse.wvfn
 {
-legacy
+new
 } bse.wvfn

@@ -46,7 +46,7 @@ module prep_system
     logical :: legacyFiles
 
     ! Need to standardize these and then acccess them from the other routines
-    logical :: tmels
+    logical :: makeTmels
     logical :: makeU2
     logical :: makeCKS
 
@@ -63,8 +63,8 @@ module prep_system
   type( system_parameters ), save :: params
   type( calculation_parameters ), save :: calcParams
 
-  public :: physical_system, atoms, system_parameters
-  public :: psys, params
+  public :: physical_system, atoms, system_parameters, calculation_parameters
+  public :: psys, params, calcParams
 
 
   public :: prep_system_load, prep_system_summarize, prep_system_snatch
@@ -164,7 +164,7 @@ module prep_system
     integer :: nCKS
     if( nproc .eq. 1 ) return
 #ifdef MPI
-    call MPI_BCAST( calcParams%tmels, 1, MPI_LOGICAL, root, comm, ierr )
+    call MPI_BCAST( calcParams%makeTmels, 1, MPI_LOGICAL, root, comm, ierr )
     if( ierr .ne. MPI_SUCCESS ) return
 
     call MPI_BCAST( calcParams%makeU2, 1, MPI_LOGICAL, root, comm, ierr )
@@ -325,10 +325,10 @@ module prep_system
     inquire( file='prep.tmels', exist=ex )
     if( ex ) then
       open( unit=99, file='prep.tmels', form='formatted', status='old' )
-      read( 99, * ) calcParams%tmels
+      read( 99, * ) calcParams%makeTmels
       close( 99 )
     else
-      calcParams%tmels = .true.
+      calcParams%makeTmels = .true.
     endif
 
     inquire( file='prep.u2', exist=ex )
