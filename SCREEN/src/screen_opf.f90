@@ -157,7 +157,7 @@ module screen_opf
     enddo
 
     ! zero means something has gone horribly wrong
-    if( maxNproj .eq. 0 ) ierr = 1
+    if( maxNproj .eq. 0 ) ierr = 14136
   end subroutine screen_opf_maxNproj
 
   subroutine screen_opf_getRMax( zee, rmax, ierr, itarg )
@@ -182,7 +182,7 @@ module screen_opf
     rmax = FullTable( targ )%rMax
     
     ! zero means something has gone horribly wrong
-    if( rmax .lt. 0.0_DP ) ierr = 1
+    if( rmax .lt. 0.0_DP ) ierr = 1754273
   end subroutine screen_opf_getRMax
     
 
@@ -212,7 +212,7 @@ module screen_opf
       endif
     enddo
     if( targ .eq. 0 ) then
-      ierr = 1
+      ierr = 35628
     else
 #endif
 
@@ -227,7 +227,7 @@ module screen_opf
     endif
     
     if( targ .lt. 1 ) then
-      ierr = 1
+      ierr = 21975
       return
     else
       lmin = FullTable( targ )%lMin
@@ -256,7 +256,7 @@ module screen_opf
     endif
 
     if( targ .lt. 1 ) then
-      ierr = 1
+      ierr = 91275
       return
     else
       if( l .lt. FullTable( targ )%lMin .or. l .gt. FullTable( targ )%lMax ) then
@@ -276,7 +276,7 @@ module screen_opf
     integer, intent( inout ) :: ierr
     integer, intent( inout ), optional :: itarg
     !
-    integer :: targ, i
+    integer :: targ, i, rstop
 
     if( present( itarg ) ) then
       if( isRightTarg( zee, itarg ) ) then
@@ -289,20 +289,22 @@ module screen_opf
     endif
 
     if( targ .lt. 1 ) then
-      ierr = 1
+      ierr = 9327571
       return
     else
       if( present( itarg ) ) itarg = targ
 
-      nr = -1
-      do i = 1, size( rad )
+      rstop = size( rad )
+      nr = rstop
+
+      do i = 1, rstop
         if( rad( i ) .gt. FullTable( targ )%rMax ) then
-          nr = i - 1
+          nr = i 
           exit
         endif
       enddo
 
-      if( nr .eq. -1 ) ierr = 1
+      if( nr .eq. -1 ) ierr = 999
     endif
   end subroutine screen_opf_getNCutoff
 
@@ -340,7 +342,7 @@ module screen_opf
     do p = 1, FullTable( targ )%nprojPerChannel( l )
       do i = 1, size( psProj, 1 )
         call intval( FullTable( targ )%nrad, FullTable( targ )%rad, FullTable( targ )%psProj( :, p, l ), &
-                     rad( i ), psProj( i, p ), 'err', 'err' )
+                     rad( i ), psProj( i, p ), 'cap', 'zer' )
       enddo
     enddo
 
@@ -380,9 +382,9 @@ module screen_opf
     do p = 1, FullTable( targ )%nprojPerChannel( l )
       do i = 1, size( psProj, 1 )
         call intval( FullTable( targ )%nrad, FullTable( targ )%rad, FullTable( targ )%psProj( :, p, l ), &
-                     rad( i ), psProj( i, p ), 'err', 'err' )
+                     rad( i ), psProj( i, p ), 'cap', 'zer' )
         call intval( FullTable( targ )%nrad, FullTable( targ )%rad, FullTable( targ )%aeProj( :, p, l ), &
-                     rad( i ), aeProj( i, p ), 'err', 'err' )
+                     rad( i ), aeProj( i, p ), 'cap', 'zer' )
       enddo
     enddo
 
@@ -427,13 +429,14 @@ module screen_opf
     do p = 1, FullTable( targ )%nprojPerChannel( l )
       do i = 1, size( psProj, 1 )
         call intval( FullTable( targ )%nrad, FullTable( targ )%rad, FullTable( targ )%psProj( :, p, l ), &
-                     rad( i ), psProj( i, p ), 'err', 'err' )
+                     rad( i ), psProj( i, p ), 'cap', 'zer' )
         call intval( FullTable( targ )%nrad, FullTable( targ )%rad, FullTable( targ )%aeProj( :, p, l ), &
-                     rad( i ), diffProj( i, p ), 'err', 'err' )
+                     rad( i ), diffProj( i, p ), 'cap', 'zer' )
         diffProj( i, p ) = diffProj( i, p ) - psProj( i, p )
       enddo
     enddo
 
+#if 0
     if( myid .eq. root ) then
       allocate( TransposeProj( size( psProj, 2 ), size( psProj, 1 ) ) )
       TransposeProj = transpose( psProj )
@@ -459,6 +462,7 @@ module screen_opf
       deallocate( TransposeProj )
 
     endif
+#endif
 
   end subroutine screen_opf_interpProjs
 
@@ -947,6 +951,8 @@ module screen_opf
              y = ytab( n )
           case( 'err' )
              stop 'error ... we are above!'
+          case( 'zer' )
+             y = 0.0_DP
           end select
        end if
     else

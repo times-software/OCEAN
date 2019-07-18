@@ -1,4 +1,4 @@
-! Copyright (C) 2016 - 2017 OCEAN collaboration
+! Copyright (C) 2017 - 2019 OCEAN collaboration
 !
 ! This file is part of the OCEAN project and distributed under the terms 
 ! of the University of Illinois/NCSA Open Source License. See the file 
@@ -168,7 +168,7 @@ program OCEAN_exciton_plot
     do icml = -ZNL(3), ZNL(3)
       do ivms = 1, 2
         i = i + 1
-          cond_exciton(:,:,ivms) = cond_exciton(:,:,ivms) + su * exciton(:,:,i)
+          cond_exciton(:,:,max(ivms,nspn)) = cond_exciton(:,:,max(ivms,nspn)) + su * exciton(:,:,i)
       enddo
     enddo
   enddo

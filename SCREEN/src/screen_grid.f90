@@ -1,4 +1,4 @@
-! Copyright (C) 2017 - 2018 OCEAN collaboration
+! Copyright (C) 2017 - 2019 OCEAN collaboration
 !
 ! This file is part of the OCEAN project and distributed under the terms 
 ! of the University of Illinois/NCSA Open Source License. See the file 
@@ -19,20 +19,25 @@ module screen_grid
   ! Information to create/recreate grid
   !   All of it is read in from file
   !   Each scheme/mode will use a different subset
-  type sgrid_info
+  type radial_grid
 
-    real(DP), allocatable :: rend(:)
-    integer, allocatable :: nrad(:)
+!    real(DP), allocatable :: rend(:)
+!    integer, allocatable :: nrad(:)
 
-    integer :: ninter
+!    integer :: ninter
     integer :: nr
+
     real(DP) :: rmax
+    real(DP) :: rmin
     real(DP) :: dr
+
+    real(DP), allocatable :: rad( : )
+    real(DP), allocatable :: drad( : )
   
-    character(len=10) :: scheme
+!    character(len=10) :: scheme
     character(len=10) :: rmode
 
-  end type sgrid_info
+  end type radial_grid
 
 
   type angular_grid
@@ -42,7 +47,7 @@ module screen_grid
     integer :: nang
     integer :: lmax != 7
     character(len=7) :: angle_type != 'specpnt'
-    logical :: is_init = .false.
+!    logical :: is_init = .false.
 
   end type angular_grid
 
@@ -57,12 +62,12 @@ module screen_grid
     real(DP) :: center( 3 )
     real(DP) :: rmax
 
+    integer :: Ninter
     integer :: Npt
     integer :: Nr
-    integer :: Nang
     
-    type( sgrid_info ) :: info
-    type( angular_grid ) :: agrid
+    type( radial_grid ), allocatable :: rgrid(:)
+    type( angular_grid ), allocatable :: agrid(:)
 
   end type sgrid
 
@@ -89,7 +94,7 @@ module screen_grid
 
     open( unit=99, file=filnam, form='unformatted', status='unknown', iostat=ierr, err=100 )
     rewind( 99 )
-    write(99) g%npt, g%nr, g%nang, g%rmax, g%center
+    write(99) g%npt, g%nr, g%rmax, g%center
     write(99) g%posn
     write(99) g%wpt
     write(99) g%drel
@@ -127,13 +132,14 @@ module screen_grid
   end subroutine screen_grid_dumpRBfile
 
 
-  subroutine new_sgrid_info( g, ierr )
+  subroutine new_radial_grid( g, ierr )
     use OCEAN_mpi
     implicit none
     type( sgrid ), intent( out ) :: g
     integer, intent( inout ) :: ierr
     !
     integer :: ii, ierr_
+    real(DP) :: rmin
 
     if( myid .eq. root ) then
       open( unit=99, file='mkrb_control', form='formatted', status='old', IOSTAT=ierr )
@@ -146,8 +152,33 @@ module screen_grid
         goto 111
       endif
 
-      read( 99, *, IOSTAT=ierr, ERR=10 ) g%info%rmax, g%info%nr, g%info%ninter
-      read( 99, *, IOSTAT=ierr, ERR=10 ) g%info%scheme, g%info%rmode
+      read( 99, *, IOSTAT=ierr, ERR=10 ) g%rmax, g%ninter
+
+      if( g%rmax .le. 0 ) then
+        write( 6, * ) 'Rmax must be positive', g%rmax
+        ierr = 105317
+        goto 111
+      endif
+
+      if( g%ninter .lt. 1 ) then
+        write( 6, * ) 'Ninter must be at least 1', g%ninter
+        ierr = 7935792
+        goto 111
+      endif
+
+      allocate( g%rgrid( g%ninter ), g%agrid( g%ninter ), STAT=ierr )
+      if( ierr .ne. 0 ) then
+        write( 6, * ) 'Trouble allocating sgrid rgrid/agrid'
+        goto 111
+      endif
+
+      rmin = 0.0_DP
+      do ii = 1, g%ninter
+        read( 99, *, IOSTAT=ierr, ERR=10 ) g%rgrid( ii )%rmode, g%rgrid( ii )%rmax, g%rgrid( ii )%dr, &
+                                           g%agrid( ii )%lmax, g%agrid( ii )%angle_type
+        g%rgrid( ii )%rmin = rmin
+        rmin = g%rgrid( ii )%rmax
+      enddo
 
       close( 99, IOSTAT=ierr )
       if( ierr .ne. 0 ) then
@@ -162,44 +193,6 @@ module screen_grid
         goto 111
       endif
 
-      if( g%info%ninter .gt. 0 ) then
-        allocate( g%info%rend( 0 : g%info%ninter ), g%info%nrad( g%info%ninter ), STAT=ierr )
-        if( ierr .ne. 0 ) then
-          write( 6, * ) 'FATAL ERROR: Allocation error in new_sgrid_info on root'
-          goto 111
-        endif
-        g%info%rend( 0 ) = 0.0_DP
-
-        open( unit=99, file='screen.grid.shells', form='formatted', status='old' , IOSTAT=ierr  )
-!        if( ierr .eq. FOR$IOS_FILENOTFOU ) then
-!          write( 6, * ) 'FATAL ERROR: The file screen.grid.shells was not found.'
-!          goto 111
-!        elseif( ierr .ne. 0 ) then
-        if( ierr .ne. 0 ) then
-          write( 6, * ) 'FATAL ERROR: Problem opening screen.grid.shells ', ierr 
-          goto 111
-        endif
-
-        rewind 99
-        do ii = 1, g%info%ninter
-          read ( 99, *, IOSTAT=ierr, ERR=11 ) g%info%rend( ii ), g%info%nrad( ii )
-!#ifdef DEBUG
-!          write ( 6, * ) rend( ii ), nrad( ii )
-!#endif
-        enddo
-        close( 99, IOSTAT=ierr )
-        if( ierr .ne. 0 ) then
-          write( 6, * ) 'FATAL ERROR: problem closing screen.grid.shells'
-          goto 111
-        endif
-
-11      continue
-        if( ierr .ne. 0 ) then
-          write( 6, * ) 'FATAL ERROR: Problem reading screen.grid.shells'
-          goto 111
-        endif
-        
-      endif
     endif
 
 111   continue
@@ -208,42 +201,46 @@ module screen_grid
       call MPI_BCAST( ierr, 1, MPI_INTEGER, root, comm, ierr_ )
       if( ierr .ne. 0 .or. ierr_ .ne. MPI_SUCCESS ) return
 
-      call MPI_BCAST( g%info%rmax, 1, MPI_DOUBLE_PRECISION, root, comm, ierr )
+      call MPI_BCAST( g%rmax, 1, MPI_DOUBLE_PRECISION, root, comm, ierr )
       if( ierr .ne. MPI_SUCCESS ) return
 
-      call MPI_BCAST( g%info%nr, 1, MPI_INTEGER, root, comm, ierr )
+      call MPI_BCAST( g%ninter, 1, MPI_INTEGER, root, comm, ierr )
       if( ierr .ne. MPI_SUCCESS ) return
 
-      call MPI_BCAST( g%info%ninter, 1, MPI_INTEGER, root, comm, ierr )
-      if( ierr .ne. MPI_SUCCESS ) return
-
-      call MPI_BCAST( g%info%scheme, 10, MPI_CHARACTER, root, comm, ierr )
-      if( ierr .ne. MPI_SUCCESS ) return
-
-      call MPI_BCAST( g%info%rmode, 10, MPI_CHARACTER, root, comm, ierr )
-      if( ierr .ne. MPI_SUCCESS ) return
-
-      if( g%info%ninter .gt. 0 ) then
-        if( myid .ne. 0 ) then 
-          allocate( g%info%rend( 0 : g%info%ninter ), g%info%nrad( g%info%ninter ) )
-        endif
-
-        call MPI_BCAST( g%info%rend, g%info%ninter+1, MPI_DOUBLE_PRECISION, root, comm, ierr )
-        if( ierr .ne. MPI_SUCCESS ) return
-
-        call MPI_BCAST( g%info%nrad, g%info%ninter, MPI_INTEGER, root, comm, ierr )
-        if( ierr .ne. MPI_SUCCESS ) return
+      if( myid .ne. 0 ) then 
+        allocate( g%rgrid( g%ninter ), g%agrid( g%ninter ) )
       endif
+
+      do ii = 1, g%ninter
+        call MPI_BCAST( g%rgrid(ii)%rmax, 1, MPI_DOUBLE_PRECISION, root, comm, ierr )
+        if( ierr .ne. MPI_SUCCESS ) return
+
+        call MPI_BCAST( g%rgrid(ii)%rmin, 1, MPI_DOUBLE_PRECISION, root, comm, ierr )
+        if( ierr .ne. MPI_SUCCESS ) return
+
+        call MPI_BCAST( g%rgrid(ii)%dr, 1, MPI_DOUBLE_PRECISION, root, comm, ierr )
+        if( ierr .ne. MPI_SUCCESS ) return
+
+        call MPI_BCAST( g%rgrid(ii)%rmode, 10, MPI_CHARACTER, root, comm, ierr )
+        if( ierr .ne. MPI_SUCCESS ) return
+
+        call MPI_BCAST( g%agrid(ii)%lmax, 1, MPI_INTEGER, root, comm, ierr )
+                if( ierr .ne. MPI_SUCCESS ) return
+      
+        call MPI_BCAST( g%agrid(ii)%angle_type, 7, MPI_CHARACTER, root, comm, ierr )
+        if( ierr .ne. MPI_SUCCESS ) return
+      enddo
+
     endif
 #endif
 
     if( ierr .ne. 0 ) return
-    if( myid .eq. root ) write( 6, * ) 'Finished reading in info for new sgrid'
+    if( myid .eq. root ) write( 6, * ) 'Finished reading in rgrid for new sgrid'
 
 
     return
 
-  end subroutine new_sgrid_info
+  end subroutine new_radial_grid
 
   
   ! Creates a new grid centered at new_center
@@ -257,18 +254,19 @@ module screen_grid
     integer, intent( inout ) :: ierr
 
     if( present( old_g ) ) then
-      call copy_sgrid_info( new_g, old_g, ierr )
+      call copy_entire_grid( new_g, old_g, new_center, ierr )
       if( ierr .ne. 0 ) return
     else
-      call new_sgrid_info( new_g, ierr )
+      call new_radial_grid( new_g, ierr )
       if( ierr .ne. 0 ) return
-    endif
+!    endif
 
-    new_g%center( : ) = new_center( : )
-    call mkmesh( new_g, ierr )
-!    if( ierr .eq. restart_mkmesh ) call mkmesh( new_g, ierr )
-    if( ierr .ne. 0 ) return
-!    write(103,*) new_g%posn
+      new_g%center( : ) = new_center( : )
+      call mkmesh( new_g, ierr )
+!!    if( ierr .eq. restart_mkmesh ) call mkmesh( new_g, ierr )
+      if( ierr .ne. 0 ) return
+!!    write(103,*) new_g%posn
+    endif
 
   end subroutine screen_grid_init
 
@@ -278,57 +276,69 @@ module screen_grid
     type( sgrid ), intent( inout ) :: new_g
     integer, intent( inout ) :: ierr
     !
-    logical :: restart
+    real(DP), allocatable :: wr(:)
+    integer :: i, ipt, ii, jj, ir
+    
+    
+    new_g%npt = 0
+    new_g%nr = 0
+    do i = 1, new_g%ninter
 
-10  continue
-    restart = .false.
-
-    select case( new_g%info%scheme )
-      
-    case( 'central' )
-
-      select case( new_g%info%rmode )
-        case( 'regint' )
-          call make_regint( new_g, ierr )
-        case( 'gauss16' )
-          call make_gauss16( new_g, ierr )
+      select case( trim( new_g%rgrid(i)%rmode ) )
+        case( 'legendre' )
+          call make_legendre( new_g%rgrid(i), ierr )
         case( 'uniform' )
-          call make_uniform( new_g, ierr )
+          call make_uniform( new_g%rgrid(i), ierr )
         case default 
           if( myid .eq. root ) then 
-            write(6,*) 'Unrecognized rmode: ', new_g%info%rmode
+            write(6,*) 'Unrecognized rmode: ', new_g%rgrid(i)%rmode
             write(6,*) '  Will continue using: uniform'
           endif
-          new_g%info%rmode = 'uniform'
-          call make_uniform( new_g, ierr )
+          new_g%rgrid(i)%rmode = 'uniform'
+          call make_uniform( new_g%rgrid(i), ierr )
       end select
-
-      if( myid .eq. root ) write(6,'(A,3F20.14)') 'central point:', new_g%center(:)
-      call mkcmesh( new_g, ierr )
       if( ierr .ne. 0 ) return
 
-    case( 'xyzgrid' )
-      ierr = -1
-  
-    case default
+      call fill_angular_grid( new_g%agrid(i), ierr )
+      if( ierr .ne. 0 ) return
 
-      ! quit out and then re-call
-      if( myid .eq. root ) then 
-        write(6,*) 'Unrecognized scheme: ', new_g%info%scheme
-        write(6,*) '  Will continue using: central'
-      endif
-      new_g%info%scheme = 'central'
-      restart = .true.
+      new_g%npt = new_g%npt + new_g%rgrid(i)%nr * new_g%agrid(i)%nang
+      new_g%nr = new_g%nr + new_g%rgrid(i)%nr 
+    enddo
 
-    end select
+    if( myid .eq. root ) write(6,'(A,3F20.14)') 'central point:', new_g%center(:)
 
-    if( restart ) goto 10
+    allocate( new_g%posn( 3, new_g%npt ), new_g%wpt( new_g%npt ), new_g%drel( new_g%npt ), &
+              new_g%rad( new_g%nr ), new_g%drad( new_g%nr ), STAT=ierr )
+    if( ierr .ne. 0 ) return
 
-    return
+    ir = 0
+    ipt = 0
+    do i = 1, new_g%ninter
+      allocate( wr( new_g%rgrid(i)%nr ) )
+      do ii = 1, new_g%rgrid(i)%nr
+        wr( ii ) = new_g%rgrid(i)%drad( ii ) * new_g%rgrid(i)%rad( ii )**2
+      enddo
+
+      do ii = 1, new_g%rgrid(i)%nr
+        do jj = 1, new_g%agrid(i)%nang
+          ipt = ipt + 1
+          new_g%drel( ipt ) = new_g%rgrid(i)%rad( ii )
+          new_g%wpt( ipt ) = wr( ii ) * new_g%agrid(i)%weights( jj )
+          new_g%posn( :, ipt ) = new_g%center( : ) &
+                               + new_g%rgrid(i)%rad( ii ) * new_g%agrid(i)%angles( :, jj )
+        enddo
+
+        ir = ir + 1
+        new_g%rad( ir )  = new_g%rgrid(i)%rad( ii )
+        new_g%drad( ir ) = new_g%rgrid(i)%drad( ii )
+      enddo
+      deallocate( wr )
+    enddo
 
   end subroutine mkmesh
 
-
+#if 0
   subroutine mkcmesh( g, ierr )
     type( sgrid ), intent( inout ) :: g
     integer, intent( inout ) :: ierr
@@ -360,73 +370,63 @@ module screen_grid
     deallocate( wr )
 
   end subroutine mkcmesh
+#endif
 
-  subroutine fill_angular_grid( g, ierr )
-    use OCEAN_mpi
+  subroutine fill_angular_grid( ag, ierr )
+    use OCEAN_mpi, only : comm, myid, root, MPI_DOUBLE_PRECISION, MPI_INTEGER, MPI_SUCCESS, MPI_SUM
     use OCEAN_constants, only : PI_DP
-    type( sgrid ), intent( inout ) :: g
+    type( angular_grid ), intent( inout ) :: ag
     integer, intent( inout ) :: ierr
     !
     real( DP ) :: su, tmp
     integer :: i, ierr_, abserr
 
-    character( len=2 ) :: i_char
     character( len=11 ) :: filnam
     logical :: ex
     !
-    if( g%agrid%is_init ) return
-    !
     if( myid .eq. root ) then
 
-      inquire( file='screen.grid.ang', exist=ex )
-      if( ex ) then
-        open( unit=99, file='screen.grid.ang', form='formatted', status='old' )
-        read( 99, *, iostat=i ) g%agrid%angle_type, g%agrid%lmax
-        if( i .ne. 0 ) then
-          ex = .false.
-        endif
-        close( 99 )
+      write( filnam, '(A7,A1,I0)' ) ag%angle_type, '.', ag%lmax
+      inquire( file=filnam, exist=ex )
+      if( .not. ex ) then
+        write(6, * ) trim(filnam), 'not found'
+        ag%angle_type = 'specpnt'
+        ag%lmax = 5
+        write( filnam, '(A7,A1,I0)' ) ag%angle_type, '.', ag%lmax
+        inquire( file=filnam, exist=ex )
         if( ex ) then
-          write( i_char, '(I2)' ) g%agrid%lmax
-          write( filnam, '(A7,A1,A)' ) g%agrid%angle_type, '.', trim( adjustl( i_char ) )
-          write(6,*) filnam
-          inquire( file=filnam, exist=ex )
+          write( 6, * ) 'WARNING! Resetting angular grid to specpnt.5'
+        else
+          write( 6, * ) 'No angular grid file found!'
+          ierr = 1258
+          goto 11
         endif
       endif
-      ! ex can be false from no screen.grid.ang, bad read, or bad filename
-      if( ex .eqv. .false. ) then
-        g%agrid%angle_type = 'specpnt'
-        g%agrid%lmax = 5
-      endif
-
-      write( i_char, '(I2)' ) g%agrid%lmax
-      write( filnam, '(A7,A1,A)' ) g%agrid%angle_type, '.', trim( adjustl( i_char ) )
     
       open( unit=99, file=filnam, form='formatted', status='old', IOSTAT=ierr, ERR=10 )
 
-      read( 99, * ) g%agrid%nang
-      if( g%agrid%nang .le. 0 ) then
+      read( 99, * ) ag%nang
+      if( ag%nang .le. 0 ) then
         ierr = -7
         goto 10
       endif
 
-      write(6,*) '  ', filnam, g%agrid%nang
+      write(6,*) '  ', filnam, ag%nang
 
-      allocate( g%agrid%angles( 3, g%agrid%nang ), g%agrid%weights( g%agrid%nang ), &
-                STAT=ierr )
+      allocate( ag%angles( 3, ag%nang ), ag%weights( ag%nang ), STAT=ierr )
       if( ierr .ne. 0 ) goto 11
 
       su = 0.0_DP
-      do i = 1, g%agrid%nang
-        read( 99, * ) g%agrid%angles( :, i ), g%agrid%weights( i )
-        su = su + g%agrid%weights( i )
-        tmp = dot_product( g%agrid%angles( :, i ), g%agrid%angles( :, i ) )
+      do i = 1, ag%nang
+        read( 99, * ) ag%angles( :, i ), ag%weights( i )
+        su = su + ag%weights( i )
+        tmp = dot_product( ag%angles( :, i ), ag%angles( :, i ) )
         tmp = 1.0_DP / dsqrt( tmp )
-        g%agrid%angles( :, i ) = g%agrid%angles( :, i ) * tmp
+        ag%angles( :, i ) = ag%angles( :, i ) * tmp
       enddo
 
       su = 4.0_DP * PI_DP / su
-      g%agrid%weights( : ) = g%agrid%weights( : ) * su
+      ag%weights( : ) = ag%weights( : ) * su
 
       close( 99 )
     endif        
@@ -444,64 +444,117 @@ module screen_grid
     ! done checking against errors from root
 
     ! share from root across all 
-    call MPI_BCAST( g%agrid%nang, 1, MPI_INTEGER, root, comm, ierr )
-    if( ierr .ne. MPI_SUCCESS ) return
-    call MPI_BCAST( g%agrid%lmax, 1, MPI_INTEGER, root, comm, ierr )
-    if( ierr .ne. MPI_SUCCESS ) return
-    call MPI_BCAST( g%agrid%angle_type, 7, MPI_CHARACTER, root, comm, ierr )
+    call MPI_BCAST( ag%nang, 1, MPI_INTEGER, root, comm, ierr )
     if( ierr .ne. MPI_SUCCESS ) return
 
 
     if( myid .ne. root ) then
-      allocate( g%agrid%angles( 3, g%agrid%nang ), g%agrid%weights( g%agrid%nang ), &
+      allocate( ag%angles( 3, ag%nang ), ag%weights( ag%nang ), &
                 STAT=ierr )
     endif
     abserr = abs( ierr )
     call MPI_ALLREDUCE( ierr, abserr, 1, MPI_INTEGER, MPI_SUM, comm, ierr_ )
     if( ierr .ne. 0 .or. ierr_ .ne. MPI_SUCCESS ) return
 
-    call MPI_BCAST( g%agrid%angles, 3 * g%agrid%nang, MPI_DOUBLE_PRECISION, root, comm, ierr )
+    call MPI_BCAST( ag%angles, 3 * ag%nang, MPI_DOUBLE_PRECISION, root, comm, ierr )
     if( ierr .ne. MPI_SUCCESS ) return
-    call MPI_BCAST( g%agrid%weights, g%agrid%nang, MPI_DOUBLE_PRECISION, root, comm, ierr )
+    call MPI_BCAST( ag%weights, ag%nang, MPI_DOUBLE_PRECISION, root, comm, ierr )
     if( ierr .ne. MPI_SUCCESS ) return
 #endif
 
-    g%nang = g%agrid%nang
-
   end subroutine fill_angular_grid
 
-  subroutine copy_sgrid_info( g, o, ierr )
+  subroutine copy_entire_grid( g, o, center, ierr )
     type( sgrid ), intent( out ) :: g
     type( sgrid ), intent( in ) :: o
+    real(DP), intent( in ) :: center(3)
     integer, intent( inout ) :: ierr
     !
-    g%info%ninter = o%info%ninter
-    g%info%nr = o%info%nr
-    g%info%rmax = o%info%rmax
-    g%info%dr = o%info%dr
-    g%info%scheme = o%info%scheme
-    g%info%rmode = o%info%rmode
-    if( g%info%ninter .gt. 0 ) then
-      allocate( g%info%rend( 0 : g%info%ninter ), g%info%nrad( g%info%ninter ), STAT=ierr )
+    real(DP) :: delta(3)
+    integer :: i
+
+    delta(:) = center(:) - o%center(:)
+    g%rmax = o%rmax
+    g%center(:) = center(:)
+    g%ninter = o%ninter
+    g%npt = o%npt
+    g%nr = o%nr
+
+    allocate( g%rgrid( o%ninter ), g%agrid( o%ninter ), g%posn( 3, o%npt ), g%wpt( o%npt ), & 
+              g%drel( o%npt ), g%rad( o%nr ), g%drad( o%nr ), STAT=ierr )
+    if( ierr .ne. 0 ) return
+
+    do i = 1, o%npt
+      g%posn(:,i) = o%posn(:,i) + delta(:)
+    enddo
+
+    g%wpt(:)  = o%wpt(:)
+    g%drel(:) = o%drel(:)
+    g%rad(:)  = o%rad(:)
+    g%drad(:) = g%drad(:)
+
+    do i = 1, o%ninter
+      !copy rgrid and agrid stuff here
+      call copy_radial_grid( g%rgrid( i ), o%rgrid( i ), ierr )
       if( ierr .ne. 0 ) return
-      g%info%rend( : ) = o%info%rend( : )
-      g%info%nrad( : ) = o%info%nrad( : )
+      call copy_angular_grid( g%agrid( i ), o%agrid( i ), ierr )
+      if( ierr .ne. 0 ) return
+      
+
+    enddo
+
+  end subroutine copy_entire_grid
+
+  subroutine copy_angular_grid( aout, ain, ierr )
+    type( angular_grid ), intent( inout ) :: aout
+    type( angular_grid ), intent( in ) :: ain
+    integer, intent( inout ) :: ierr
+
+    aout%nang = ain%nang
+    aout%lmax = ain%lmax
+    aout%angle_type = ain%angle_type
+
+    if( ain%nang .lt. 1 ) then
+      ierr = 2358  
+      return
     endif
-    !
-    g%agrid%lmax = o%agrid%lmax
-    g%agrid%angle_type = o%agrid%angle_type
-    if( o%agrid%is_init ) then
-      g%agrid%nang = o%agrid%nang
-      allocate( g%agrid%angles( 3, g%agrid%nang ), &
-                g%agrid%weights( g%agrid%nang ), STAT=ierr )
-      if( ierr .ne. 0 ) return
-      g%agrid%angles( :, : ) = o%agrid%angles( :, : )
-      g%agrid%weights( : ) = o%agrid%weights( : )
-      g%agrid%is_init = .true.
+    
+    allocate( aout%angles( 3, ain%nang ), aout%weights( ain%nang ), STAT=ierr )
+    if( ierr .ne. 0 ) return
+
+    aout%angles( :, : ) = ain%angles( :, : )
+    aout%weights( : )   = ain%weights( : )
+    
+  end subroutine copy_angular_grid
+  
+
+  subroutine copy_radial_grid( rout, rin, ierr )
+    type( radial_grid ), intent( inout ) :: rout
+    type( radial_grid ), intent( in ) :: rin
+    integer, intent( inout ) :: ierr
+
+    rout%nr   = rin%nr
+    rout%rmax = rin%rmax
+    rout%rmin = rin%rmin
+    rout%dr   = rin%dr
+
+    if( rin%nr .lt. 1 ) then
+      ierr = 1249
+      return
     endif
 
-  end subroutine copy_sgrid_info
+    allocate( rout%rad( rin%nr ), rout%drad( rin%nr ), STAT=ierr )
+    if( ierr .ne. 0 ) return
 
+    rout%rad( : )  = rin%rad( : )
+    rout%drad( : ) = rin%drad( : )
+
+    rout%rmode = rin%rmode
+
+  end subroutine copy_radial_grid
+  
+
+#if 0
   subroutine make_regint( g, ierr )
     use OCEAN_mpi, only : myid, root !, comm, MPI_BCAST, MPI_SUCCESS
     type( sgrid ), intent( inout ) :: g
@@ -510,23 +563,23 @@ module screen_grid
     real(DP) :: rbase, dr
     integer :: ii, jj, iter
     
-    if( g%info%ninter .eq. 0 ) then
+    if( g%rgrid%ninter .eq. 0 ) then
       ierr = -2
       if( myid .eq. root ) write(6,*) 'Regint requested, but ninter = 0. Cannot recover'
       return
     endif
     !
-    g%nr = sum( g%info%nrad(:) )
-    g%info%rend( 0 ) = 0.0_DP
+    g%nr = sum( g%rgrid%nrad(:) )
+    g%rgrid%rend( 0 ) = 0.0_DP
     iter = 0
     !
     allocate( g%rad( g%nr ), g%drad( g%nr ), STAT=ierr )
     if( ierr .ne. 0 ) return
 
-    do ii = 1, g%info%ninter
-      rbase = g%info%rend( ii - 1 )
-      dr = ( g%info%rend( ii ) - g%info%rend( ii - 1 ) ) / real( g%info%nrad( ii ), DP )
-      do jj = 1, g%info%nrad( ii )
+    do ii = 1, g%rgrid%ninter
+      rbase = g%rgrid%rend( ii - 1 )
+      dr = ( g%rgrid%rend( ii ) - g%rgrid%rend( ii - 1 ) ) / real( g%rgrid%nrad( ii ), DP )
+      do jj = 1, g%rgrid%nrad( ii )
         iter = iter + 1
         g%rad( iter ) = rbase + 0.5_DP * dr
         g%drad( iter ) = dr
@@ -561,22 +614,22 @@ module screen_grid
     integer :: ii, jj, iter
     integer, parameter :: npt = 16
 
-    if( g%info%ninter .eq. 0 ) then
+    if( g%rgrid%ninter .eq. 0 ) then
       ierr = -2 
       if( myid .eq. root ) write(6,*) 'Gauss16 requested, but ninter = 0. Cannot recover'
       return
     endif
 
-    g%rmax = g%info%rmax
-    g%nr = npt * g%info%ninter
+    g%rmax = g%rgrid%rmax
+    g%nr = npt * g%rgrid%ninter
     !
     allocate( g%rad( g%nr ), g%drad( g%nr ), STAT=ierr )
     if( ierr .ne. 0 ) return
 
     iter = 0
     rbase = 0.0_DP
-    rinter = g%rmax / real( g%info%ninter, DP )
-    do ii = 1, g%info%ninter
+    rinter = g%rmax / real( g%rgrid%ninter, DP )
+    do ii = 1, g%rgrid%ninter
       do jj = 1, npt
         iter = iter + 1
         g%rad( iter ) = rbase + rinter * 0.5_DP * ( 1.0_DP + xpt( jj ) ) 
@@ -588,36 +641,66 @@ module screen_grid
     return
 
   end subroutine make_gauss16
+#endif
+  subroutine make_legendre( rg, ierr )
+    use ocean_quadrature, only : ocean_quadrature_loadLegendre
+    use ocean_mpi, only : myid, comm, root, MPI_DOUBLE_PRECISION
 
-  subroutine make_uniform( g, ierr )
-    use OCEAN_mpi, only : myid, root !, comm, MPI_BCAST, MPI_SUCCESS
-    type( sgrid ), intent( inout ) :: g
+    type( radial_grid ), intent( inout ) :: rg
     integer, intent( inout ) :: ierr
     !
-    real( DP ) :: dr
+    real(DP) :: halfWidth
     integer :: ii
 
-    if( g%info%nr .lt. 1 ) then
-      if( myid .eq. root ) write(6,*) 'Uniform requested, but nr less than 1'
-      ierr = -3
-      return
+    rg%nr = ceiling( ( rg%rmax - rg%rmin ) / rg%dr )
+    if( mod( rg%nr, 2 ) .eq. 1 ) rg%nr = rg%nr + 1
+
+    allocate( rg%rad( rg%nr ), rg%drad( rg%nr ), STAT=ierr )
+    if( ierr .ne. 0 ) return
+
+    halfWidth = 0.5_DP * ( rg%rmax - rg%rmin )
+    if( myid .eq. root ) then
+      write( 6, * ) 'Legendre order: ', rg%nr
+      call ocean_quadrature_loadLegendre( rg%nr, rg%rad, rg%drad, ierr )
     endif
-    if( g%info%rmax .le. 0 ) then
-      if( myid .eq. root ) write(6,*) 'Uniform requested, but rmax less than/equal to 0'
-      ierr = -4
-      return
+#ifdef MPI
+    call MPI_BCAST( rg%rad, rg%nr, MPI_DOUBLE_PRECISION, root, comm, ierr )
+    call MPI_BCAST( rg%drad, rg%nr, MPI_DOUBLE_PRECISION, root, comm, ierr )
+#endif
+
+    do ii = 1, rg%nr
+      rg%rad( ii ) = rg%rmin + halfWidth * ( 1.0_DP + rg%rad( ii ) )
+      rg%drad( ii ) = rg%drad( ii ) * halfWidth
+    enddo
+ 
+  end subroutine make_legendre
+    
+
+  subroutine make_uniform( rg, ierr )
+    use ocean_mpi, only : myid, root
+    type( radial_grid ), intent( inout ) :: rg
+    integer, intent( inout ) :: ierr
+    !
+    real(DP) :: delta
+    integer :: ii
+
+    ! redefine dr from requested to a possibly smaller version that divides evenly
+    delta = rg%dr
+    rg%nr = ceiling( ( rg%rmax - rg%rmin ) / rg%dr )
+    rg%dr = ( rg%rmax - rg%rmin ) / real( rg%nr, DP )
+
+    if( myid .eq. root ) then
+      write(6,*) delta, rg%dr, rg%nr
+      write(6,*) rg%rmax, rg%rmin
     endif
     
-    g%rmax = g%info%rmax
-    g%nr = g%info%nr
-    dr = g%info%rmax / real( g%info%nr, DP )
-    
-    allocate( g%rad( g%nr ), g%drad( g%nr ), STAT=ierr )
+    allocate( rg%rad( rg%nr ), rg%drad( rg%nr ), STAT=ierr )
     if( ierr .ne. 0 ) return
     
-    do ii = 1, g%nr
-      g%rad( ii ) = g%rmax * real( 2 * ii - 1, DP ) / real( 2 * g%nr, DP )
-      g%drad( ii ) = dr
+    delta = ( rg%rmax - rg%rmin )
+    do ii = 1, rg%nr
+      rg%rad( ii ) = rg%rmin + delta * real( 2 * ii - 1, DP ) / real( 2 * rg%nr, DP )
+      rg%drad( ii ) = rg%dr
     enddo
 
   end subroutine make_uniform

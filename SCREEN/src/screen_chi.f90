@@ -69,14 +69,14 @@ module screen_chi
     character( len=40 ) :: Prefix
     
     potIndex = 0
-    write( 6, * ) 'screen_chi_makeW'
+!    write( 6, * ) 'screen_chi_makeW'
     
     nPots = screen_centralPotential_countByZ( mySite%info%Z )
-    write(6,*) 'nPots', nPots, mySite%info%Z
+!    write(6,*) 'nPots', nPots, mySite%info%Z
     if( nPots .lt. 1 ) return
 
     nShell = size( mySite%shells )
-    write(6,*) 'Shell', nShell
+!    write(6,*) 'Shell', nShell
     if( nShell .lt. 1 ) return 
 
     nLM = size( FullChi, 2 ) 
@@ -85,7 +85,7 @@ module screen_chi
               Ninduced( mySite%grid%Nr, nLM ), N0induced( mySite%grid%Nr, nLM ), stat=ierr )
     if( ierr .ne. 0 ) return
 
-    write(6,*) ' ', nPots, nShell
+!    write(6,*) ' ', nPots, nShell
     do iPots = 1 , nPots
       call screen_centralPotential_findNextByZ( mySite%info%Z, potIndex, temp_Pots, ierr )
 
@@ -97,7 +97,7 @@ module screen_chi
         Prefix = screen_chi_getOutputPrefix( mySite%info%elname, mySite%info%indx, Pot%N, Pot%L, &
                                          mySite%shells( iShell ) )
 
-        write(6,*) Prefix
+!        write(6,*) Prefix
 
         call screen_chi_calcW( mySite%grid, Pot, FullChi, FullChi0, FullW, FullW0, Ninduced, N0induced, ierr )
         if( ierr .ne. 0 ) return
@@ -285,10 +285,10 @@ module screen_chi
       enddo
     enddo
 
-    write(6,*) nbasis, nLM, fullsize
-    write(6,'(4(I8))') size(chi0,1), size(chi0,2),size(chi0,3),size(chi0,4)
-    write(6,'(4(I8))') size(cmat,1), size(cmat,2),size(cmat,3),size(cmat,4)
-    write(6,'(4(I8))') size(temp,1), size(temp,2),size(temp,3),size(temp,4)
+!    write(6,*) nbasis, nLM, fullsize
+!    write(6,'(4(I8))') size(chi0,1), size(chi0,2),size(chi0,3),size(chi0,4)
+!    write(6,'(4(I8))') size(cmat,1), size(cmat,2),size(cmat,3),size(cmat,4)
+!    write(6,'(4(I8))') size(temp,1), size(temp,2),size(temp,3),size(temp,4)
     call DGEMM( 'N', 'N', fullsize, fullsize, fullsize, minusOne, chi0, fullsize, cmat, fullsize, &
                 one, temp, fullsize )
             

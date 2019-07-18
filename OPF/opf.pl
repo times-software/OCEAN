@@ -28,8 +28,8 @@ if (! $ENV{"OCEAN_WORKDIR"}){ $ENV{"OCEAN_WORKDIR"} = `pwd` . "../" ; }
 
 my @CommonFiles = ("znucl", "opf.hfkgrid", "opf.fill", "opf.opts", "pplist", 
                    "ntype", "natoms", "typat", "taulist", "nedges", "edges", "caution", 
-                   "scfac", "calc", "opf.program" );
-
+                   "scfac", "opf.program" );
+my @ExtraFiles = ("calc");
 
 
 my $runOPF = 1;
@@ -111,16 +111,22 @@ if( $runOPF == 0 )
 }
 
 if ($runOPF == 0 ) {
-  print "Nothing new needed for OBF stage\n";
+  print "Nothing new needed for OPF stage\n";
   open OUT, ">", "old" or die;
   print OUT "1\n";
   close OUT;
   exit 0;
 }
 
+
 unlink "done";
 unlink "old";
 
+
+foreach(@ExtraFiles)
+{
+  copy( "../Common/$_", "$_" ) == 1 or die "Failed to get $_ from Common/\n";
+}
 
 foreach (@CommonFiles) {
   copy( "../Common/$_", "$_") == 1 or die "Failed to get $_ from Common/\n";
@@ -162,7 +168,7 @@ if( $program =~ m/shirley/ )
 
 # Setup
 ###################################
-print "Running OBF Setup\n";
+print "Running OPF Setup\n";
 system("$ENV{'OCEAN_BIN'}/pawsetup.x") == 0 or die "Failed to run pawsetup.x\n";
 
 unless( -d "zpawinfo" )
@@ -338,7 +344,7 @@ if( $program =~ m/shirley/ )
         move( $file, "zpawinfo/$dest" );
       }
       elsif( ( $file =~ m/^melfilez\w$/ ) or ( $file =~ m/^(sm|am|di|pr|psft|aeft)\w$/ ) or
-             ( $file =~ m/^(mt|dif)\w\w$/ ) or ( $file =~ m/^(map|ex)/ ) or ( $file =~ /hfin/ ) or
+             ( $file =~ m/^(mt|dif)\w\w$/ ) or ( $file =~ m/^(map|ex)/ ) or ( $file =~ /hfin\d/ ) or
              ( $file =~ m/hfk.+log/ ) or ( $file =~ m/aetotal/ ) or ( $file =~ m/radf/ ) )
       {
         move( $file, "zdiag_${znucl}" );
@@ -525,7 +531,7 @@ else  # oncvpsp method
         move( $file, "zpawinfo/$dest" );
       }
       elsif( ( $file =~ m/^melfilez\w$/ ) or ( $file =~ m/^(sm|am|di|pr|psft|aeft)\w$/ ) or
-             ( $file =~ m/^(mt|dif)\w\w$/ ) or ( $file =~ m/^(map|ex)/ ) or ( $file =~ /hfin/ ) or
+             ( $file =~ m/^(mt|dif)\w\w$/ ) or ( $file =~ m/^(map|ex)/ ) or ( $file =~ /hfin\d/ ) or
              ( $file =~ m/hfk.+log/ ) or ( $file =~ m/aetotal/ ) or ( $file =~ m/radf/ ) )
       {
         move( $file, "$zdiag" );
@@ -553,7 +559,7 @@ else  # oncvpsp method
 
 }
 ######################################
-print "OBF section done\n";
+print "OPF section done\n";
 
 open DONE, ">done" or exit 0;
 print DONE "1\n";

@@ -1,7 +1,7 @@
 include ../Makefile.arch
 
 # Currently BLAS and MPI are *not* optional
-FLAGS = $(OPTIONS) #-Wall -finit-real=nan
+FLAGS = $(OPTIONS) -I../SCREEN/src
 
 CNBSE = ../CNBSE/zcmsnmult/zf90
 
@@ -16,7 +16,8 @@ OCEANOBJS = AI_kinds.o OCEAN_mpi.o OCEAN_system.o OCEAN_bloch.o OCEAN_obf.o OCEA
             OCEAN_read_tmels.o OCEAN_val_states.o OCEAN_bubble.o \
             OCEAN_get_rho.o optim.o OCEAN_hyb_louie_levine.o OCEAN_ladder.o \
 						OCEAN_pfy.o OCEAN_rixs_holder.o OCEAN_corewidths.o OCEAN_action.o \
-						OCEAN_driver.o OCEAN_gmres.o OCEAN_filenames.o $(FFT_WRAPPER_OBJS) $(CAIN_OBJS)
+						OCEAN_driver.o OCEAN_gmres.o OCEAN_filenames.o $(FFT_WRAPPER_OBJS) $(CAIN_OBJS) \
+            OCEAN_WRR.o ../SCREEN/src/ocean_sphericalharmonics.o
 
 KINDS = AI_kinds.o
 
@@ -161,7 +162,8 @@ optim.o: optim.f90
 OCEAN_hyb_louie_levine.o: OCEAN_hyb_louie_levine.f90 OCEAN_constants.o AI_kinds.o OCEAN_system.o OCEAN_mpi.o 
 	$(MPIFORT) $(FLAGS) -c -o OCEAN_hyb_louie_levine.o OCEAN_hyb_louie_levine.f90
 
-OCEAN_ladder.o: OCEAN_ladder.f90 OCEAN_psi.o OCEAN_mpi.o OCEAN_val_states.o OCEAN_system.o OCEAN_hyb_louie_levine.o 
+OCEAN_ladder.o: OCEAN_ladder.f90 OCEAN_psi.o OCEAN_mpi.o OCEAN_val_states.o OCEAN_system.o OCEAN_hyb_louie_levine.o \
+                OCEAN_WRR.o
 	$(MPIFORT) $(FLAGS) -c -o OCEAN_ladder.o OCEAN_ladder.f90 $(FFT_WRAPPER_INCL) $(OPENMP)
 
 OCEAN_pfy.o: OCEAN_pfy.f90 OCEAN_psi.o OCEAN_mpi.o OCEAN_system.o OCEAN_constants.o AI_kinds.o 
@@ -182,6 +184,9 @@ OCEAN_gmres.o: OCEAN_gmres.f90 AI_kinds.o OCEAN_psi.o OCEAN_system.o OCEAN_mpi.o
 
 OCEAN_filenames.o: OCEAN_filenames.f90 OCEAN_system.o
 	$(MPIFORT) $(FLAGS) -c -o OCEAN_filenames.o OCEAN_filenames.f90
+
+OCEAN_WRR.o: OCEAN_WRR.f90 OCEAN_constants.o OCEAN_system.o OCEAN_mpi.o
+	$(MPIFORT) $(FLAGS) -c -o OCEAN_WRR.o OCEAN_WRR.f90
 
 clean:
 	rm -f *.o *.mod ocean.x o_spect.x rixs_plane.x

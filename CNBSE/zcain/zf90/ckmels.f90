@@ -14,6 +14,7 @@ subroutine ckmels( nr, zz, lc, lmin, lmax, npmax, nproj, phae, phps, r, dl, wc, 
   real( kind = kind( 1.0d0 ) ), allocatable, dimension( :, : ) :: meltab
   character( len=8 ) :: s8
   character( len=80 ) :: fnam
+  logical :: ex
   !
   allocate( dr( nr ), coeff( npmax ) )
   dr( : ) = 0
@@ -27,6 +28,11 @@ subroutine ckmels( nr, zz, lc, lmin, lmax, npmax, nproj, phae, phps, r, dl, wc, 
   !
   do l = lmin, lmax
      write ( fnam, '(1a4,1i1,1a1,1i3.3)' ) 'phrc', l, 'z', zz
+     inquire( file=fnam, exist=ex )
+     if( ex .eqv. .false. ) then
+        write(6,*) trim(fnam), ' not found. Will skip ckmels.'
+        return
+     endif
      open( unit=99, file=fnam, form='formatted', status='old' )
      rewind 99
      read ( 99, * ) s8, nener, idum

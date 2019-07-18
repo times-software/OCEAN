@@ -193,12 +193,14 @@ module ocean_cks
 
       offset = 0
       call MPI_FILE_SET_VIEW( fh, offset, MPI_INTEGER, MPI_INTEGER, "native", MPI_INFO_NULL, ierr )
+      if( ierr .ne. 0 ) return
       if( myid .eq. 0 ) then
         dumi(1) = nproj
         dumi(2) = ( params%brange(4) - params%brange(3) + 1 ) * params%nkpts
         dumi(3) = params%nspin
         
         call MPI_FILE_WRITE( fh, dumi, 3, MPI_INTEGER, MPI_STATUS_IGNORE, ierr )
+        if( ierr .ne. 0 ) return
       endif
       
       ! See instructions above
@@ -226,9 +228,10 @@ module ocean_cks
       if( ierr .ne. 0 ) return
 
 
-      i = nproj * cband * myk
+      i = max( nproj * cband * myk, 0)
       call MPI_FILE_WRITE_ALL( fh, allCksHolders( isite )%con, i, MPI_DOUBLE_COMPLEX, MPI_STATUS_IGNORE, ierr )
       if( ierr .ne. 0 ) return
+      
 
       call MPI_TYPE_FREE( projVEctor, ierr )
       if( ierr .ne. 0 ) return
@@ -277,7 +280,7 @@ module ocean_cks
 
 !      i = 1
 !      call MPI_FILE_WRITE_ALL( fh, allCksHolders( isite )%val, i, projVector, MPI_STATUS_IGNORE, ierr )
-      i = nproj * vband * myk
+      i = max( nproj * vband * myk, 0 )
       call MPI_FILE_WRITE_ALL( fh, allCksHolders( isite )%val, i, MPI_DOUBLE_COMPLEX, MPI_STATUS_IGNORE, ierr )
       if( ierr .ne. 0 ) return
 
@@ -599,7 +602,7 @@ module ocean_cks
 
           call screen_opf_getRMax( zee, rmax, ierr, itarg )
           nR = ceiling( rmax / deltaR )
-          trueDeltaR = rmax / real( nR, DP )
+          trueDeltaR = (rmax-0.0000001_DP) / real( nR, DP )
 
           ! from cut-off, determine number of radial points
           
@@ -942,7 +945,7 @@ module ocean_cks
     if ( l .gt. 5 ) stop 'l .gt. 5 not yet allowed'
     !
     r = sqrt( x ** 2 + y ** 2 + z ** 2 )
-    if ( r .eq. 0.d0 ) r = 1
+    if ( r .lt. 0.0000000001_dp ) r = 1
     rinv = 1 / r
     xred = x * rinv
     yred = y * rinv
@@ -999,6 +1002,8 @@ module ocean_cks
     case( 05 )
        f =   ( 63 * u5 - 70 * u3 + 15 * u ) / 8      !50
        !
+    case default
+       f = 0.0_DP
     end select
     !
     ylm = prefs( lam ) * f

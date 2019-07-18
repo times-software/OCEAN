@@ -102,7 +102,7 @@ module OCEAN_action
 
 
 
-          call OCEAN_energies_val_act( sys, psi, psi_i, ierr )
+          call OCEAN_energies_val_act( sys, psi, psi_i, ierr, back )
           if( ierr .ne. 0 ) return
   !        call OCEAN_energies_val_sfact( sys, psi_i, ierr )
   !        if( ierr .ne. 0 ) return

@@ -55,7 +55,7 @@ module ocean_qe54_files
   integer :: pool_val_nbands
   integer :: pool_con_nbands
 
-  public :: qe54_read_init, qe54_read_at_kpt, qe54_clean, qe54_read_energies, qe54_get_ngvecs_at_kpt, &
+  public :: qe54_read_init, qe54_read_at_kpt, qe54_clean, qe54_get_ngvecs_at_kpt, &
             qe54_read_energies_single, qe54_get_ngvecs_at_kpt_split, qe54_read_at_kpt_split
   public :: qe54_read_energies_split
   public :: qe54_kpts_and_spins, qe54_return_my_bands, qe54_return_my_val_bands, qe54_return_my_con_bands, &
@@ -127,6 +127,7 @@ module ocean_qe54_files
     integer :: nbands
     integer :: bands_remain, i
 
+    nbands = 0
     bands_remain = bands(2)-bands(1)+1
 
     do i = 0, poolID
@@ -143,6 +144,7 @@ module ocean_qe54_files
 
 !    bands_remain = brange(4)-brange(3)+brange(2)-brange(1)+2
     bands_remain = brange(2) - brange(1) + 1
+    nbands = 0
 
     do i = 0, poolID
       nbands = bands_remain / ( pool_nproc - i )
@@ -156,6 +158,7 @@ module ocean_qe54_files
     integer :: nbands
     integer :: bands_remain, i
     
+    nbands = 0
 !    bands_remain = brange(4)-brange(3)+brange(2)-brange(1)+2
     bands_remain = brange(4) - brange(3) + 1
   
@@ -306,7 +309,7 @@ module ocean_qe54_files
               enddo
 
               ! skip bands below
-              do i = 1, brange(1)-1
+              do i = 1, bstartMinusOne
                 read(99,*) dumf
               enddo
 
@@ -434,7 +437,7 @@ module ocean_qe54_files
           close( 99 )
         enddo
       enddo
-      energies(:,:,:) = energies(:,:,:) * 2.0_DP
+!      energies(:,:,:) = energies(:,:,:) * 2.0_DP
     endif
 
 #ifdef MPI
@@ -450,7 +453,7 @@ module ocean_qe54_files
 
     integer :: ik
     logical :: is_
-    character(len=12) :: eigString
+    character(len=13) :: eigString
 
     is_ = .false.
     if( present( isConduction ) ) is_ = isConduction
@@ -458,9 +461,9 @@ module ocean_qe54_files
     if( nspin .eq. 1 ) then
       eigString = 'eigenval.xml'
     elseif( ispin .eq. 1 ) then
-      eigString = 'eigenval1.dat'
+      eigString = 'eigenval1.xml'
     else
-      eigString = 'eigenval2.dat'
+      eigString = 'eigenval2.xml'
     endif
 
     if( is_shift ) then
@@ -549,6 +552,7 @@ module ocean_qe54_files
 
   end function qe54_evcFile
 
+#if 0
   subroutine qe54_read_energies( myid, root, comm, nbv, nbc, nkpts, nspns, val_energies, con_energies, ierr )
 #ifdef MPI
     use ocean_mpi, only : MPI_DOUBLE_PRECISION
@@ -581,7 +585,7 @@ module ocean_qe54_files
 #endif
 
   end subroutine qe54_read_energies
-
+#endif
 
 
   subroutine qe54_clean( ierr )
@@ -612,6 +616,8 @@ module ocean_qe54_files
     integer :: i
     logical :: ex
     character(len=128) :: tmp
+    real(DP) :: qinb(3)
+    real(DP), parameter :: tol = 0.0000001_DP
     !
     ! Set the comms for file handling
     call MPI_COMM_DUP( comm, inter_comm, ierr )
@@ -627,6 +633,7 @@ module ocean_qe54_files
       read(99,*)  tmp
       close( 99 )
       write( prefix, '(a,a,a)' ) 'Out/', trim(tmp), '.save/'
+      write( prefixSplit, '(a,a,a)' ) 'Out/', trim(tmp), '_shift.save/'
 
       open(unit=99,file='brange.ipt', form='formatted', status='old' )
       read(99,*) brange(:)
@@ -660,6 +667,27 @@ module ocean_qe54_files
         is_gamma = .false.
       endif
 
+
+      inquire( file='qinunitsofbvectors.ipt', exist=ex )
+      if( ex ) then
+        open( unit=99, file='qinunitsofbvectors.ipt', form='formatted', status='old')
+        read( 99 , * ) qinb(:)
+        close( 99 )
+        if( abs( qinb(1) ) + abs( qinb(2) ) + abs( qinb(3) ) > tol ) is_shift = .true.
+      else
+        is_shift = .false.
+      endif
+
+      is_split = .false.
+      if( is_shift ) then 
+        inquire( file='dft.split', exist=ex )
+        if( ex ) then
+          open( unit=99, file='dft.split', form='formatted', status='old')
+          read( 99, * ) is_split
+          close( 99 )
+        endif
+      endif
+
       nfiles = nspin * product(kpts(:) )
     endif
 
@@ -682,7 +710,16 @@ module ocean_qe54_files
     call MPI_BCAST( prefix, len(prefix), MPI_CHARACTER, inter_root, inter_comm, ierr )
     if( ierr .ne. 0 ) return
 
+    call MPI_BCAST( prefixSplit, len(prefixSplit), MPI_CHARACTER, inter_root, inter_comm, ierr )
+    if( ierr .ne. 0 ) return
+
     call MPI_BCAST( is_gamma, 1, MPI_LOGICAL, inter_root, inter_comm, ierr )
+    if( ierr .ne. 0 ) return
+
+    call MPI_BCAST( is_shift, 1, MPI_LOGICAL, inter_root, inter_comm, ierr )
+    if( ierr .ne. 0 ) return
+
+    call MPI_BCAST( is_split, 1, MPI_LOGICAL, inter_root, inter_comm, ierr )
     if( ierr .ne. 0 ) return
 #endif
 
@@ -790,7 +827,7 @@ module ocean_qe54_files
     endif
 
     if( pool_myid .eq. pool_root ) then
-      write(myid+1000,*) 'Opening file', trim(qe54_gkvFile( ikpt, ispin ))
+      write(myid+1000,*) 'Opening file ', trim(qe54_gkvFile( ikpt, ispin ))
       flush(myid+1000)
       open( unit=99,file=trim(qe54_gkvFile( ikpt, ispin )), form='unformatted', status='old' )
       do i = 1, 12
@@ -841,7 +878,7 @@ module ocean_qe54_files
     endif
 
     if( pool_myid .eq. pool_root ) then
-      write(myid+1000,*) 'Opening file', trim(qe54_gkvFile( ikpt, ispin, .false. ))
+      write(myid+1000,*) 'Opening file ', trim(qe54_gkvFile( ikpt, ispin, .false. ))
       flush(myid+1000)
       open( unit=99,file=trim(qe54_gkvFile( ikpt, ispin, .false. )), form='unformatted', status='old' )
       do i = 1, 12
@@ -853,7 +890,7 @@ module ocean_qe54_files
       if( gammaFullStorage .and. is_gamma ) gvecs(1) = 2 * gvecs(1) - 1
 
       if( is_shift ) then
-        write(myid+1000,*) 'Opening file', trim(qe54_gkvFile( ikpt, ispin, .true. ))
+        write(myid+1000,*) 'Opening file ', trim(qe54_gkvFile( ikpt, ispin, .true. ))
         flush(myid+1000)
         open( unit=99,file=trim(qe54_gkvFile( ikpt, ispin, .true. )), form='unformatted', status='old' )
         do i = 1, 12
@@ -909,9 +946,8 @@ module ocean_qe54_files
     
     ! Do we have different val and con states from DFT?
     if( is_shift ) then
-!      call shift_read_at_kpt_split( ikpt, ispin, valNGvecs, conNGvecs, valBands, conBands, &
-!                                    valGvecs, conGvecs, valUofG, conUofG, ierr )
-      ierr = 13259752
+      call shift_read_at_kpt_split( ikpt, ispin, valNGvecs, conNGvecs, valBands, conBands, &
+                                    valGvecs, conGvecs, valUofG, conUofG, ierr )
     else
       call read_at_kpt_split( ikpt, ispin, valNGvecs, conNGvecs, valBands, conBands, &
                                     valGvecs, conGvecs, valUofG, conUofG, ierr )
@@ -1116,7 +1152,7 @@ module ocean_qe54_files
         if( id .eq. pool_myid ) then
           call SCREEN_tk_start("dft-read")
           do i = 1, nbands_to_send
-            if( start_band + i - 1 .lt. overlapBands ) then
+            if( start_band + i - 1 .le. overlapBands ) then
               conUofG( 1:test_gvec, i ) = overlap_wvfn( :, start_band + i - 1 )
             else
               read(99)
@@ -1146,7 +1182,7 @@ module ocean_qe54_files
 
           call SCREEN_tk_start("dft-read")
           do i = 1, nbands_to_send
-            if( start_band + i - 1 .lt. overlapBands ) then
+            if( start_band + i - 1 .le. overlapBands ) then
               cmplx_wvfn( 1:test_gvec, i, j ) = overlap_wvfn( :, start_band + i - 1 )
             else
               read(99)
@@ -1249,6 +1285,376 @@ module ocean_qe54_files
 
 
   end subroutine read_at_kpt_split
+
+  subroutine shift_read_at_kpt_split( ikpt, ispin, valNGvecs, conNGvecs, valBands, conBands, &
+                                      valGvecs, conGvecs, valUofG, conUofG, ierr )
+    use SCREEN_timekeeper, only : SCREEN_tk_start, SCREEN_tk_stop
+#ifdef MPI
+    use OCEAN_mpi, only : MPI_INTEGER, MPI_DOUBLE_COMPLEX, MPI_STATUSES_IGNORE, myid, &
+                          MPI_REQUEST_NULL, MPI_STATUS_IGNORE, MPI_UNDEFINED
+#endif
+    integer, intent( in ) :: ikpt, ispin, valNGvecs, conNGvecs, valBAnds, conBands
+    integer, intent( out ) :: valGvecs( 3, valNgvecs ), conGvecs( 3, conNgvecs )
+    complex( DP ), intent( out ) :: valUofG( valNGvecs, valBands ), conUofG( conNGvecs, conBands )
+    integer, intent( inout ) :: ierr
+    !
+    complex( DP ), allocatable, dimension( :, :, : ) :: cmplx_wvfn
+    integer :: test_gvec, itarg, nbands_to_send, nr, ierr_, nbands_to_read, id, start_band, &
+               stop_band, i, crap, j, indexOverlapBand, maxBands, bufferSize, k, &
+               test_gvec2
+#ifdef MPI_F08
+    type( MPI_REQUEST ), allocatable :: requests( : )
+    type( MPI_DATATYPE ) :: valType, conType
+#else
+    integer, allocatable :: requests( : )
+    integer :: valType, conType
+#endif
+
+    nbands_to_read = brange(4)-brange(3)+brange(2)-brange(1)+2
+
+    if( pool_myid .eq. pool_root ) then
+
+      ! get gvecs first
+      open( unit=99, file=qe54_gkvFile( ikpt, ispin), form='unformatted', status='old' )
+      do i = 1, 12
+        read( 99 )
+      enddo
+      read(99) crap, test_gvec
+      ! Are we expanding the wave functions here?
+      if( gammaFullStorage .and. is_gamma ) then
+        if( ( 2 * test_gvec - 1 ) .ne. valngvecs ) then
+          ierr = -2
+          write(6,*) (2*test_gvec-1), valngvecs
+          return
+        endif
+      else
+        if( test_gvec .ne. valngvecs ) then
+          ierr = -2
+          write(6,*) test_gvec, valngvecs
+          return
+        endif
+      endif
+      do i = 1, 5
+        read(99)
+      enddo
+
+      ! Error synch. Also ensures that the other procs have posted their recvs
+      call MPI_BCAST( ierr, 1, MPI_INTEGER, pool_root, pool_comm, ierr_ )
+      if( ierr .ne. 0 ) return
+      if( ierr_ .ne. 0 ) then
+        ierr = ierr_
+        return
+      endif
+
+      do i = 1, 19
+        read( 99 )
+      enddo
+
+      ! Using test_gvec for gamma support
+      read( 99 ) crap, valGvecs( :, 1:test_gvec )
+      close( 99 )
+
+      ! now get conduction band g-vecs
+      open( unit=99, file=qe54_gkvFile( ikpt, ispin, .true. ), form='unformatted', status='old' )
+      do i = 1, 12
+        read( 99 )
+      enddo
+      read(99) crap, test_gvec2
+      ! Are we expanding the wave functions here?
+      if( gammaFullStorage .and. is_gamma ) then
+        if( ( 2 * test_gvec2 - 1 ) .ne. conngvecs ) then
+          ierr = -2
+          write(6,*) (2*test_gvec2-1), conngvecs
+          return
+        endif
+      else
+        if( test_gvec2 .ne. conngvecs ) then
+          ierr = -2
+          write(6,*) test_gvec2, conngvecs
+          return
+        endif
+      endif
+      do i = 1, 5
+        read(99)
+      enddo
+
+      ! Error synch. Also ensures that the other procs have posted their recvs
+      call MPI_BCAST( ierr, 1, MPI_INTEGER, pool_root, pool_comm, ierr_ )
+      if( ierr .ne. 0 ) return
+      if( ierr_ .ne. 0 ) then
+        ierr = ierr_
+        return
+      endif
+
+      do i = 1, 19
+        read( 99 )
+      enddo
+
+      ! Using test_gvec for gamma support
+      read( 99 ) crap, conGvecs( :, 1:test_gvec2 )
+      close( 99 )
+
+
+!      maxBands = qe54_getConductionBandsForPoolID( 0 )
+      maxBands = qe54_getValenceBandsForPoolID( 0 )
+      do id = 1, pool_nproc - 1
+!        maxBands = max( maxBands, qe54_getConductionBandsForPoolID( id ) )
+        maxBands = max( maxBands, qe54_getValenceBandsForPoolID( id ) )
+      enddo
+
+      bufferSize = floor( 536870912.0_DP /  ( real( test_gvec, DP ) * real( maxBands, DP ) ) )
+      bufferSize = min( bufferSize, pool_nproc - 1 )
+      bufferSize = max( bufferSize, 1 )
+      allocate( cmplx_wvfn( test_gvec, maxBands, bufferSize ) )
+
+
+      nr = bufferSize
+      allocate( requests( -1:nr ) )
+      requests = MPI_REQUEST_NULL
+#ifdef MPI
+      call MPI_IBCAST( valGvecs, 3*test_gvec, MPI_INTEGER, pool_root, pool_comm, requests( 0 ), ierr )
+      call MPI_IBCAST( conGvecs, 3*test_gvec2, MPI_INTEGER, pool_root, pool_comm, requests( -1 ), ierr )
+#endif
+      write(1000+myid,*) '***Reading k-point: ', ikpt, ispin
+      write(1000+myid,*) '   Ngvecs: ', valngvecs
+      write(1000+myid,*) '   Ngvecs: ', conngvecs
+      write(1000+myid,*) '   Nbands: ', brange(4)-brange(1)+1
+      write(1000+myid,*) '   Nbuffer:', bufferSize
+
+      open( unit=99, file=qe54_evcFile( ikpt, ispin), form='unformatted', status='old' )
+      do i = 1, 12
+        read(99)
+      enddo
+
+      start_band = 1
+
+      do id = 0, pool_nproc - 1
+        nbands_to_send = qe54_getValenceBandsForPoolID( id )
+
+        if( id .eq. pool_myid ) then
+          call SCREEN_tk_start("dft-read")
+          do i = 1, nbands_to_send
+            read(99)
+            read(99)
+            read( 99 ) crap, valUofG( 1:test_gvec, i )
+            read(99)
+            read(99)
+          enddo
+          call SCREEN_tk_stop("dft-read")
+
+        ! IF not mine, find open buffer, read to buffer, send buffer
+        else
+          j = 0
+          do i = 1, bufferSize
+            if( requests( i ) .eq. MPI_REQUEST_NULL ) then
+              j = i
+              exit
+            endif
+          enddo
+          if( j .eq. 0 ) then
+            call MPI_WAITANY( bufferSize, requests(1:bufferSize), j, MPI_STATUS_IGNORE, ierr )
+            write(1000+myid, * ) 'Waited for buffer:', j
+            if( j .eq. MPI_UNDEFINED ) j = 1
+          endif
+
+
+          call SCREEN_tk_start("dft-read")
+          do i = 1, nbands_to_send
+            read(99)
+            read(99)
+            read( 99 ) crap, cmplx_wvfn( 1:test_gvec, i, j )
+            read(99)
+            read(99)
+          enddo
+          call SCREEN_tk_stop("dft-read")
+
+          write(1000+myid,'(A,3(1X,I8))') '   Sending ...', id, start_band, nbands_to_send
+          call MPI_IRSEND( cmplx_wvfn( 1, 1, j ), nbands_to_send*test_gvec, MPI_DOUBLE_COMPLEX, &
+                         id, 1, pool_comm, requests( j ), ierr )
+          if( ierr .ne. 0 ) return
+
+        endif
+
+        start_band = start_band + nbands_to_send
+      enddo
+      close( 99 )
+      call MPI_WAITALL( bufferSize, requests(1:bufferSize), MPI_STATUSES_IGNORE, ierr )
+
+      deallocate( cmplx_wvfn )
+      maxBands = qe54_getConductionBandsForPoolID( 0 )
+      do id = 1, pool_nproc - 1
+        maxBands = max( maxBands, qe54_getConductionBandsForPoolID( id ) )
+      enddo
+
+      bufferSize = floor( 536870912.0_DP /  ( real( test_gvec2, DP ) * real( maxBands, DP ) ) )
+      bufferSize = min( bufferSize, pool_nproc - 1 )
+      bufferSize = max( bufferSize, 1 )
+      allocate( cmplx_wvfn( test_gvec2, maxBands, bufferSize ) )
+
+      open( unit=99, file=qe54_evcFile( ikpt, ispin, .true.), form='unformatted', status='old' )
+      do i = 1, 12
+        read(99)
+      enddo
+      start_band = brange(3)
+      do i = 1, start_band - 1
+        read(99)
+        read(99)
+        read(99)
+        read(99)
+        read(99)
+      enddo
+
+      do id = 0, pool_nproc - 1
+        nbands_to_send = qe54_getConductionBandsForPoolID( id )
+
+        ! If mine, read directly to wvfn
+        if( id .eq. pool_myid ) then
+          call SCREEN_tk_start("dft-read")
+          do i = 1, nbands_to_send
+            read(99)
+            read(99)
+            read( 99 ) crap, conUofG( 1:test_gvec2, i )
+            read(99)
+            read(99)
+          enddo
+          call SCREEN_tk_stop("dft-read")
+
+        ! IF not mine, find open buffer, read to buffer, send buffer
+        else
+          j = 0
+          do i = 1, bufferSize
+            if( requests( i ) .eq. MPI_REQUEST_NULL ) then
+              j = i
+              exit
+            endif
+          enddo
+          if( j .eq. 0 ) then
+            call MPI_WAITANY( bufferSize, requests(1:bufferSize), j, MPI_STATUS_IGNORE, ierr )
+            write(1000+myid, * ) 'Waited for buffer:', j
+            if( j .eq. MPI_UNDEFINED ) j = 1
+          endif
+          call SCREEN_tk_start("dft-read")
+          do i = 1, nbands_to_send
+            read(99)
+            read(99)
+            read( 99 ) crap, cmplx_wvfn( 1:test_gvec2, i, j )
+            read(99)
+            read(99)
+          enddo
+          call SCREEN_tk_stop("dft-read")
+
+          write(1000+myid,'(A,3(1X,I8))') '   Sending ...', id, start_band, nbands_to_send
+          call MPI_IRSEND( cmplx_wvfn( 1, 1, j ), nbands_to_send*test_gvec2, MPI_DOUBLE_COMPLEX, &
+                         id, 2, pool_comm, requests( j ), ierr )
+          if( ierr .ne. 0 ) return
+
+        endif
+
+        start_band = start_band + nbands_to_send
+      enddo
+
+
+      close( 99 )
+      nr = nr+2
+    else
+      nr = 4
+      allocate( requests( nr ), cmplx_wvfn(1,1,1) )
+      requests(:) = MPI_REQUEST_NULL
+      write(1000+myid,*) '***Receiving k-point: ', ikpt, ispin
+      write(1000+myid,*) '   Ngvecs: ', valngvecs
+      write(1000+myid,*) '   Ngvecs: ', conngvecs
+      write(1000+myid,*) '   Nbands: ', brange(4)-brange(1)+1
+
+      if( gammaFullStorage .and. is_gamma ) then
+        test_gvec = ( valngvecs + 1 ) / 2
+      else
+        test_gvec = valngvecs
+      endif
+
+      write(1000+myid,*) '   Ngvecs: ', test_gvec
+      write(1000+myid,*) '   Gamma : ', is_gamma
+
+      call MPI_TYPE_VECTOR( valBands, test_gvec, valngvecs, MPI_DOUBLE_COMPLEX, valType, ierr )
+      if( ierr .ne. 0 ) return
+      call MPI_TYPE_COMMIT( valType, ierr )
+      if( ierr .ne. 0 ) return
+      call MPI_IRECV( valUofG, 1, valType, pool_root, 1, pool_comm, requests( 1 ), ierr )
+      if( ierr .ne. 0 ) return
+      call MPI_TYPE_FREE( valType, ierr )
+      if( ierr .ne. 0 ) return
+
+      call MPI_TYPE_VECTOR( conBands, test_gvec, conngvecs, MPI_DOUBLE_COMPLEX, conType, ierr )
+      if( ierr .ne. 0 ) return
+      call MPI_TYPE_COMMIT( conType, ierr )
+      if( ierr .ne. 0 ) return
+      call MPI_IRECV( conUofG, 1, conType, pool_root, 2, pool_comm, requests( 2 ), ierr )
+      if( ierr .ne. 0 ) return
+      call MPI_TYPE_FREE( valType, ierr )
+      if( ierr .ne. 0 ) return
+
+      call MPI_IBCAST( valGvecs, 3*test_gvec, MPI_INTEGER, pool_root, pool_comm, requests( 3 ), ierr )
+      call MPI_BCAST( ierr, 1, MPI_INTEGER, pool_root, pool_comm, ierr_ )
+      if( ierr .ne. 0 .or. ierr_ .ne. 0 ) then
+        call MPI_CANCEL( requests( 1 ) , ierr )
+        call MPI_CANCEL( requests( 2 ) , ierr )
+        ierr = 5
+        return
+      endif
+      call MPI_BCAST( conGvecs, 3*test_gvec2, MPI_INTEGER, pool_root, pool_comm, requests( 4 ), ierr )
+      call MPI_BCAST( ierr, 1, MPI_INTEGER, pool_root, pool_comm, ierr_ )
+      if( ierr .ne. 0 .or. ierr_ .ne. 0 ) then
+        call MPI_CANCEL( requests( 1 ) , ierr )
+        call MPI_CANCEL( requests( 2 ) , ierr )
+        ierr = 5
+        return
+      endif
+
+    endif ! root or not
+
+    call MPI_WAITALL( nr, requests, MPI_STATUSES_IGNORE, ierr )
+    if( ierr .ne. 0 ) return
+
+    deallocate( cmplx_wvfn, requests )
+    if( gammaFullStorage .and. is_gamma ) then
+      j = test_gvec
+      do i = 1, test_gvec
+        if( valgvecs(1,i) .eq. 0 .and. valgvecs(2,i) .eq. 0 .and. valgvecs(3,i) .eq. 0 ) then
+          k = i + 1
+          exit
+        endif
+        j = j + 1
+        valgvecs(:,j) = -valgvecs(:,i)
+        valUofG(j,:) = conjg( valUofG(i,:) )
+      enddo
+
+      do i = k, test_gvec
+        j = j + 1
+        valgvecs(:,j) = -valgvecs(:,i)
+        valUofG(j,:) = conjg( valUofG(i,:) )
+      enddo
+      j = test_gvec2
+      do i = 1, test_gvec2
+        if( congvecs(1,i) .eq. 0 .and. congvecs(2,i) .eq. 0 .and. congvecs(3,i) .eq. 0 ) then
+          k = i + 1
+          exit
+        endif
+        j = j + 1
+        congvecs(:,j) = -congvecs(:,i)
+        conUofG(j,:) = conjg( conUofG(i,:) )
+      enddo
+
+      do i = k, test_gvec2
+        j = j + 1
+        congvecs(:,j) = -congvecs(:,i)
+        conUofG(j,:) = conjg( conUofG(i,:) )
+      enddo
+    endif
+
+    write(1000+myid,*) '***Finishing k-point: ', ikpt, ispin
+    call MPI_BARRIER( pool_comm, ierr )
+
+
+  end subroutine shift_read_at_kpt_split
 
 
   subroutine qe54_read_at_kpt( ikpt, ispin, ngvecs, my_bands, gvecs, wfns, ierr )
