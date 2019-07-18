@@ -1114,7 +1114,7 @@ if ( $nscfRUN ) {
 
     $qe_data_files{'print kpts'} = $kpt_text;
     # QE behaves cnoverges incorrectly if only give occupied states
-    if( $split_dft && $qe_data_files{ "occopt" } == 1 && 1 == 2) 
+    if( $split_dft && $qe_data_files{ "occopt" } == 1 ) 
     {
       open NEL, "../nelectron" or die "Failed top open ../nelectron for reading\n$!";
       my $nelectron = <NEL>;
