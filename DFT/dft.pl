@@ -1123,7 +1123,7 @@ if ( $nscfRUN ) {
       $tempBand++ if( $tempBand%2 == 1 );
       $qe_data_files{'print nbands'} = $tempBand;
     }
-    else
+    elsif( $split_dft == 0)
 #    unless( $split_dft ) 
     {
       $qe_data_files{'print nbands'} = $qe_data_files{'nbands'};
