@@ -84,29 +84,33 @@ subroutine OCEAN_read_tmels( sys, p, file_selector, ierr )
 #endif
     allocate( psi_in( nbv, nbc(1):nbc(2) ), psi_transpose( sys%cur_run%val_bands, sys%cur_run%num_bands ) )
 
-    do ik = 1, sys%nkpts
-      ! Read in the tmels
+!JTV if we want to allow spin-flipping transitions we'll need to do it here
+    do ispn = 1, min( sys%nspn, sys%valence_ham_spin )
+      ibeta = ispn * ispn
+      do ik = 1, sys%nkpts
+        ! Read in the tmels
 #ifdef MPI
-      offset = nbv * ( nbc(2) - nbc(1) + 1 ) * ( ik - 1 )
-      elements = nbv * ( nbc(2) - nbc(1) + 1 )
-      call MPI_FILE_READ_AT_ALL( FH, offset, psi_in, elements, &
-                                 MPI_DOUBLE_COMPLEX, MPI_STATUS_IGNORE, ierr )
-      if( ierr .ne. MPI_SUCCESS) return
+        offset = nbv * ( nbc(2) - nbc(1) + 1 ) * ( ik - 1 )
+        elements = nbv * ( nbc(2) - nbc(1) + 1 )
+        call MPI_FILE_READ_AT_ALL( FH, offset, psi_in, elements, &
+                                   MPI_DOUBLE_COMPLEX, MPI_STATUS_IGNORE, ierr )
+        if( ierr .ne. MPI_SUCCESS) return
 #else
-      read(99) psi_in
+        read(99) psi_in
 #endif
 
-!      max_psi = max( max_psi, maxval( real(psi_in(:,:) ) ) )
+  !      max_psi = max( max_psi, maxval( real(psi_in(:,:) ) ) )
 
-      psi_transpose( :, : ) = inv_qlength * real( psi_in( sys%brange(1):sys%brange(2), sys%brange(3):sys%brange(4) ), DP )
-      p%valr(1:sys%cur_run%num_bands,1:sys%cur_run%val_bands,ik,1) = transpose( psi_transpose )
+        psi_transpose( :, : ) = inv_qlength * real( psi_in( sys%brange(1):sys%brange(2), sys%brange(3):sys%brange(4) ), DP )
+        p%valr(1:sys%cur_run%num_bands,1:sys%cur_run%val_bands,ik,ibeta) = transpose( psi_transpose )
 
-      psi_transpose( :, : ) = inv_qlength &
-                            * real( aimag( psi_in( sys%brange(1):sys%brange(2), sys%brange(3):sys%brange(4) ) ), DP )
-      p%vali(1:sys%cur_run%num_bands,1:sys%cur_run%val_bands,ik,1) = -transpose( psi_transpose )
+        psi_transpose( :, : ) = inv_qlength &
+                              * real( aimag( psi_in( sys%brange(1):sys%brange(2), sys%brange(3):sys%brange(4) ) ), DP )
+        p%vali(1:sys%cur_run%num_bands,1:sys%cur_run%val_bands,ik,ibeta) = -transpose( psi_transpose )
 
 
-      max_psi = max( max_psi, maxval( p%valr(1:sys%cur_run%num_bands,1:sys%cur_run%val_bands,ik,1) ) )
+        max_psi = max( max_psi, maxval( p%valr(1:sys%cur_run%num_bands,1:sys%cur_run%val_bands,ik,ibeta) ) )
+      enddo
     enddo
 
 #ifdef MPI
