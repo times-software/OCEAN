@@ -107,7 +107,7 @@ if( $metal == 0 )
   }
   $band_min = $band_max + 1;
 #  close IN;
-#  print $band_max . "\t" . $band_min . "\n";
+  print $band_max . "\t" . $band_min . "\n";
 }
 
 my @energies;
@@ -278,10 +278,12 @@ for( my $isplit = 0; $isplit <= $dft_split; $isplit++ )
   {
     my $datafileSplit = $work_dir . '/' . $prefix . "_shift.save/data-file-schema.xml";
     open IN, $datafileSplit or die "Failed to open $datafileSplit\n$!";
+    print "$datafileSplit\n";
   }
 }
 
 
+$nkpt /= 2 if( $dft_split == 1 );
 print "Found $nkpt k-points\n";
 print $band_max . "\t" . $band_min . "\n";
 
@@ -289,7 +291,6 @@ open OUT, ">brange.stub" or die "Failed to open brange.stub for writing\n$!";
 print OUT "1    $band_max\n$band_min    ";
 close OUT;
 
-$nkpt /= 2 if( $dft_split == 1 );
 
 open ENK, ">", "enkfile" or die "Failed to open enkfile for writing\n";
 for( my $k = 0; $k < $nkpt; $k++ )
@@ -358,8 +359,10 @@ if( $spin == 2 )
     {   
        print ENK join($delim, @x), "\n";
     }   
+    print "$k $energies[$k][$start] $start ";
         
     my $kk = $k;
+    $start += $band_min-1 ;
     if( $dft_shift == 1 )
     {
       if( $dft_split == 0 )
@@ -370,10 +373,10 @@ if( $spin == 2 )
       else
       { 
         $kk = $k + $nkpt;
+        $start = $band_min-1+ (scalar @{ $energies[$kk] }/2) ;
       }
     }
         
-    $start += $band_min-1 ;
     $stop = scalar @{ $energies[$kk] } - 1; 
     @eslice = @{ $energies[$kk] }[ $start .. $stop ];
     # move to Ryd
@@ -382,6 +385,7 @@ if( $spin == 2 )
     {   
       print ENK join($delim, @x), "\n";
     }     
+    print "  $energies[$kk][$start] $start\n";
   } 
 }
 close ENK;
