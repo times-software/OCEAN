@@ -337,7 +337,7 @@ module prep_wvfn
             deltaR = 0.02_DP
             addShift = (i .eq. 2 )
             call prep_system_ikpt2kvec( ikpt, addShift, kqVec, kqVecCart ) 
-            write(1000+myid, '(A,I8,6(X,E24.16))' ) 'kqVec', ikpt, kqVecCart(:), kqVec(:)
+            write(1000+myid, '(A,I8,6(X,E24.16),X,L2,I2)' ) 'kqVec', ikpt, kqVecCart(:), kqVec(:), addShift, i
             call ocean_cks_build( wvfn, kqVecCart, deltaR, psys%avecs, (i.eq.1), iuni, ierr )
 
             deallocate( wvfn )
@@ -1109,7 +1109,7 @@ module prep_wvfn
 
     complex(DP), allocatable :: val_wvfn(:,:,:,:), con_wvfn(:,:,:,:)
     complex(DP) :: old
-    integer :: ik, ix, ib, vb, cb, nb, nx, dumi(3), ny, nz, iy, iz, iix
+    integer :: ik, ix, ib, vb, cb, nb, nx, dumi(3), ny, nz, iy, iz, iix, is
     logical :: ex
 
     if( myid .eq. root ) then
@@ -1133,6 +1133,7 @@ module prep_wvfn
     rewind( 97 )
 
     allocate( val_wvfn( nx, ny, nz, vb ), con_wvfn( nx, ny, nz, cb ) )
+    do is = 1, params%nspin
     do ik = 1, params%nkpts
       read(99) val_wvfn
 
@@ -1184,6 +1185,7 @@ module prep_wvfn
 !          write(6,*) ib+vb, dot_product( con_wvfn( :, ib), con_wvfn( :, ib) )
 !        enddo
 !!      endif
+    enddo
     enddo
     deallocate( val_wvfn, con_wvfn )
     close( 99 )

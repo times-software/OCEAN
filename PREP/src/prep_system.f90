@@ -226,6 +226,9 @@ module prep_system
 
     call MPI_BCAST( params%haveShift, 1, MPI_LOGICAL, root, comm, ierr )
     if( ierr .ne. MPI_SUCCESS ) return
+
+    call MPI_BCAST( params%qshift, 3, MPI_DOUBLE_PRECISION, root, comm, ierr )
+    if( ierr .ne. MPI_SUCCESS ) return
 #endif
 
 
@@ -477,6 +480,8 @@ module prep_system
     else
       params%haveShift = .true.
     endif
+
+    write(6,*) params%qshift( : ), params%haveShift
 
     open( unit=99, file='brange.ipt', form='formatted', status='old', IOSTAT=ierr )
     if( ierr .ne. 0 ) then
