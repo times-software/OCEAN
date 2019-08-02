@@ -1,4 +1,4 @@
-## v. 2.9.0
+## v. 2.9.1
 
 ### This is the pre-release/test run for 3.0
 
@@ -6,6 +6,7 @@
  1. Support for D. R. Hamann's Optimized Norm-conserving Vanderbilt pseudopotentials
  2. Improvements to parallelism
    1. Screening calculation is faster
+   2. Prep stage is faster too
 
 #### Minor Features
  1. OPF calculation should be slightly more robust, but noticeable differences are unlikely

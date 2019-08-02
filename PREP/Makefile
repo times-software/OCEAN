@@ -18,9 +18,11 @@ endif
 .SUFFIXES: .f .x .f90
 
 all: wfconvert.x nelectron.x rhoofg.x 
+	cd src; make
 
 install:
 	cp $(SCRIPTS) $(FILESF90) $(INSTDIR)
+	cd src; make install
 
 instdev:
 	for F in $(SCRIPTS); do ln -fs $(PWD)/$$F $(INSTDEVDIR); done;
@@ -28,6 +30,7 @@ instdev:
 
 clean: 
 	rm -f *.o *.x *__genmod.mod *__genmod.f90
+	cd src; make clean
 
 .f.x:
 	$(FC) $(OPTIONS) -o $*.x $*.f
