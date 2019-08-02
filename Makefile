@@ -12,6 +12,7 @@ all:
 	perl append_git.pl
 	cd Common;       make 
 	cd zbridge;      make 
+	cd Modules;      make
 	cd DFT;          make 
 	cd PREP;         make 
 	cd OPF;          make 
@@ -23,6 +24,7 @@ all:
 
 clean:
 	cd Common;       make clean
+	cd Modules;      make clean
 	cd DFT;          make clean
 	cd PREP;         make clean
 	cd SCREEN;       make clean
