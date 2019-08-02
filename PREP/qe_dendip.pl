@@ -369,10 +369,6 @@ if( $runBSE != 0 )
     }
     system("cp ../efermiinrydberg.ipt ./") == 0 
       or die "Failed to copy efermiinrydberg.ipt\n";
-    unless( -e "zpawinfo" )
-    {
-      symlink ("../../OPF/zpawinfo", "zpawinfo" ) == 1 or die "Failed to link zpawinfo\n$!";
-    }
 
     foreach( @ExtraFiles )
     {
@@ -397,6 +393,10 @@ if( $runBSE != 0 )
       open OUT, ">", "prep.cks" or die "Failed top open prep.cks for writing\n$!";
       print OUT "1\nNA 1";  # right now this functionality doesn't work!
       close OUT;
+      unless( -e "zpawinfo" )
+      {
+        symlink ("../../OPF/zpawinfo", "zpawinfo" ) == 1 or die "Failed to link zpawinfo\n$!";
+      }
     }
 
 #    system( "/users/jtv1/cluster/Software/OCEAN/PREP/src/ocean_prep.x" );
