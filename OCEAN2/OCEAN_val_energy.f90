@@ -794,6 +794,7 @@ module OCEAN_val_energy
       homo =  val_energies( i_band, 1 , 1)
       do kiter = 2, sys%nkpts
         homo = max( val_energies( i_band, kiter , 1), homo )
+        if( sys%nspn .eq. 2 ) homo = max( val_energies( i_band, kiter , 2), homo )
       enddo
       i_band = nelectron / 2 - sys%brange( 3 ) + 2
 !      i_band = nelectron / 2 + 1
@@ -801,6 +802,7 @@ module OCEAN_val_energy
       lumo = con_energies( i_band, 1 , 1)
       do kiter = 2, sys%nkpts
         lumo = min( con_energies( i_band, kiter , 1), lumo )
+        if( sys%nspn .eq. 2 ) lumo = min( con_energies( i_band, kiter , 1), lumo )
       enddo
       efermi = ( lumo + homo ) / 2.d0
     endif
