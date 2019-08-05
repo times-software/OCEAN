@@ -143,6 +143,10 @@ dft.exx.qmesh
 {
 1 1 1 
 } dft.exx.qmesh
+dft.nscf.poolsize
+{
+-1
+} dft.nscf.poolsize
 verbatim
 {
 #

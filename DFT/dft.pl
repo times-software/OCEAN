@@ -495,6 +495,7 @@ if ($RunESPRESSO) {
     $qe_data_files{'dft.ndiag'} = 4;
   }
 
+  my $scf_prefix = $para_prefix;
   if( $obf != 1 ) 
   {
     my $ser_prefix = $para_prefix;
@@ -515,8 +516,13 @@ if ($RunESPRESSO) {
     if( open TMP, "scf.out" )
     {
       my $actualKpts = -1;
+      my $numKS;
       while (<TMP>)
       {
+        if( $_ =~ m/number of Kohn-Sham states=\s+(\d+)/ )
+        {
+          $numKS = $1;
+        }
         if( $_ =~ m/number of k points=\s+(\d+)/ )
         {
           $actualKpts = $1;
@@ -544,6 +550,15 @@ if ($RunESPRESSO) {
         }
         print "SCF has $actualKpts k-points\nWill use $npool pools\n";
       }
+      if( defined( $numKS ) )
+      {
+        my $maxProcs = $numKS * $npool;
+        print "   $ncpus  $maxProcs\n";
+        if( $maxProcs < $ncpus )
+        {
+          $scf_prefix =~ s/\d+/$maxProcs/;
+        }
+      }
     }
     else
     {
@@ -559,14 +574,14 @@ if ($RunESPRESSO) {
   {
     if( $qe_redirect ) 
     {
-      print  "$para_prefix $ENV{'OCEAN_ESPRESSO_OBF_PW'} $qeCommandLine < scf.in > scf.out 2>&1\n";
-      system("$para_prefix $ENV{'OCEAN_ESPRESSO_OBF_PW'} $qeCommandLine < scf.in > scf.out 2>&1") == 0
+      print  "$scf_prefix $ENV{'OCEAN_ESPRESSO_OBF_PW'} $qeCommandLine < scf.in > scf.out 2>&1\n";
+      system("$scf_prefix $ENV{'OCEAN_ESPRESSO_OBF_PW'} $qeCommandLine < scf.in > scf.out 2>&1") == 0
           or die "Failed to run scf stage for Density\n";
     }
     else
     {
-      print  "$para_prefix $ENV{'OCEAN_ESPRESSO_OBF_PW'} $qeCommandLine -inp scf.in > scf.out 2>&1\n";
-      system("$para_prefix $ENV{'OCEAN_ESPRESSO_OBF_PW'} $qeCommandLine -inp scf.in > scf.out 2>&1") == 0
+      print  "$scf_prefix $ENV{'OCEAN_ESPRESSO_OBF_PW'} $qeCommandLine -inp scf.in > scf.out 2>&1\n";
+      system("$scf_prefix $ENV{'OCEAN_ESPRESSO_OBF_PW'} $qeCommandLine -inp scf.in > scf.out 2>&1") == 0
           or die "Failed to run scf stage for Density\n";
     }
   }
@@ -574,14 +589,14 @@ if ($RunESPRESSO) {
   {
     if( $qe_redirect )
     {    
-      print  "$para_prefix $ENV{'OCEAN_ESPRESSO_PW'} $qeCommandLine < scf.in > scf.out 2>&1\n";
-      system("$para_prefix $ENV{'OCEAN_ESPRESSO_PW'} $qeCommandLine < scf.in > scf.out 2>&1") == 0
+      print  "$scf_prefix $ENV{'OCEAN_ESPRESSO_PW'} $qeCommandLine < scf.in > scf.out 2>&1\n";
+      system("$scf_prefix $ENV{'OCEAN_ESPRESSO_PW'} $qeCommandLine < scf.in > scf.out 2>&1") == 0
           or die "Failed to run scf stage for Density\n";
     } 
     else
     {
-      print  "$para_prefix $ENV{'OCEAN_ESPRESSO_PW'} $qeCommandLine -inp scf.in > scf.out 2>&1\n";
-      system("$para_prefix $ENV{'OCEAN_ESPRESSO_PW'} $qeCommandLine -inp scf.in > scf.out 2>&1") == 0
+      print  "$scf_prefix $ENV{'OCEAN_ESPRESSO_PW'} $qeCommandLine -inp scf.in > scf.out 2>&1\n";
+      system("$scf_prefix $ENV{'OCEAN_ESPRESSO_PW'} $qeCommandLine -inp scf.in > scf.out 2>&1") == 0
           or die "Failed to run scf stage for Density\n";
     }
   }
