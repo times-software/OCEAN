@@ -40,6 +40,7 @@ module OCEAN_system
     integer          :: tmel_selector
     integer          :: enk_selector
     integer          :: bloch_selector
+    integer          :: screening_method
 
     logical          :: e0
     logical          :: mult
@@ -141,6 +142,7 @@ module OCEAN_system
     logical :: file_exist
 
     logical :: exst
+    character(len=4) :: mode
 
     if( myid .eq. root ) then
 
@@ -282,6 +284,15 @@ module OCEAN_system
       read(99,*) sys%bloch_selector
       close(99)
 
+      sys%screening_method = 1
+      inquire(file='screen.mode', exist=exst )
+      if( exst ) then
+        open(unit=99,file='screen.mode',form='formatted',status='old')
+        read(99,*) mode
+        close(99)
+        if( mode .eq. 'grid' ) sys%screening_method = 2
+      endif
+
       inquire(file='nXES_photon.ipt', exist=exst )
       if( exst ) then
         open(unit=99,file='nXES_photon.ipt',form='formatted',status='old')
@@ -382,6 +393,8 @@ module OCEAN_system
     call MPI_BCAST( sys%enk_selector, 1, MPI_INTEGER, root, comm, ierr )
     if( ierr .ne. MPI_SUCCESS ) goto 111
     call MPI_BCAST( sys%bloch_selector, 1, MPI_INTEGER, root, comm, ierr )
+    if( ierr .ne. MPI_SUCCESS ) goto 111
+    call MPI_BCAST( sys%screening_method, 1, MPI_INTEGER, root, comm, ierr )
     if( ierr .ne. MPI_SUCCESS ) goto 111
     call MPI_BCAST( sys%nXES_photon, 1, MPI_INTEGER, root, comm, ierr )
     if( ierr .ne. MPI_SUCCESS ) goto 111

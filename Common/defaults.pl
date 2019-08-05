@@ -179,8 +179,22 @@ else
   die "FAILED TO CORRECTLY PARSE nkpt\n";
 }
 
-my $ideal_npools = 1;
+
 my $min_nscf_pool_size = $volume / 1400;
+my $ideal_npools = 1;
+if( -e "dft.nscf.poolsize" )
+{
+  open INPUT, "dft.nscf.poolsize";
+  if( <INPUT> =~ m/(-?\d+)/ )
+  {
+    my $t = $1;
+    $min_nscf_pool_size = $t if( $t > 0 );
+  }
+  $min_nscf_pool_size = $ncpus if( $min_nscf_pool_size > $ncpus );
+  close INPUT;
+}
+print "Min pool size: $min_nscf_pool_size\n";
+  
 foreach (@cpu_factors)
 {
   if( $ncpus / $_ > $min_nscf_pool_size )

@@ -10,7 +10,7 @@ program vhommod
   integer, parameter :: stdin = 5, stdout = 6
   integer, parameter :: dp = kind( 1.0d0 )
   !
-  integer :: i, j, k, nr, nq, idum, nshells, nsites, isite, ierr
+  integer :: i, j, k, nr, nq, idum, nshells, nsites, isite, ierr, xmesh( 3 )
   integer, allocatable :: siteIndex( : )
   real( kind=dp ) :: epsq0, qf, wpsqd, wf, lam, pi, eps
   real( kind=dp ) :: qq, q, dq, qmax, r1, r2, dr, rmax
@@ -21,11 +21,12 @@ program vhommod
   real( kind=dp ), allocatable :: tab1( :, : ), bq( : ), shells( : )
   !
   character(len=2), allocatable :: siteSymbol( : )
+  character(len=4) :: smode
   character(len=80) :: avgName, reoptName
   !
   real( kind=dp ), external :: levlou, sphj0, sphj1
   !
-  logical :: havenav
+  logical :: havenav, valenceGrid
   character(len=80) :: dummy
   !
   pi = 4.d0 * datan( 1.d0 )
@@ -41,13 +42,34 @@ program vhommod
     read( 99, * ) shells( i )
   enddo
   close( 99 )
-  open( unit=99, file='sitelist', form='formatted', status='old' )
-  read( 99, * ) nsites
-  allocate( siteSymbol( nsites ), siteIndex( nsites ) )
-  do i = 1, nsites
-    read( 99, * ) siteSymbol( i ), idum, siteIndex( i )
-  enddo
-  close( 99 )
+
+  inquire(file='screen.mode', exist=valenceGrid )
+  if( valenceGrid ) then
+    open( unit=99, file='screen.mode', form='formatted', status='old' )
+    read( 99, * ) smode
+    close( 99 )
+    if( smode .eq. 'grid' ) then
+      valenceGrid = .true.
+    else
+      valenceGrid = .false.
+    endif
+  endif
+
+  if( valenceGrid ) then
+    open( unit=99, file='xmesh.ipt', form='formatted', status='old' )
+    read( 99, * ) xmesh(:)
+    close( 99 )
+    nsites = product( xmesh( : ) )
+    allocate( siteSymbol( 0 ), siteIndex( 0 ) )
+  else  !core-level
+    open( unit=99, file='sitelist', form='formatted', status='old' )
+    read( 99, * ) nsites
+    allocate( siteSymbol( nsites ), siteIndex( nsites ) )
+    do i = 1, nsites
+      read( 99, * ) siteSymbol( i ), idum, siteIndex( i )
+    enddo
+    close( 99 )
+  endif
 
   open( unit=99, file='screen.final.rmax', form='formatted', status='old' )
   rewind 99
@@ -133,14 +155,18 @@ program vhommod
     s = 0.00001d0
     ds = 0.10d0
 
-    if( isite .ge. 1 ) then
+    if( isite .gt. 1 ) then
       v( :, : ) = vh( :, : )
     endif
 
-    write( avgName, '(A3,A2,I4.4)' ) 'avg', siteSymbol( isite ), siteIndex( isite )
-    write( 6, * ) avgName
+    if( valenceGrid ) then
+      write( avgName, '(A3,I6.6)' ) 'avg', isite
+    else
+      write( avgName, '(A3,A2,I4.4)' ) 'avg', siteSymbol( isite ), siteIndex( isite )
+    endif
+    write( 6, * ) trim( avgName )
 
-    open( unit=99, file=avgName, form='formatted', status='old' )
+    open( unit=99, file=trim(avgName), form='formatted', status='old' )
     rewind 99
 
     do 
@@ -183,8 +209,13 @@ program vhommod
     close( 99 )
 
     do k = 1, nshells
-      write( reoptName, '(A5,A2,I4.4,A2,F4.2)' ) 'reopt', siteSymbol( isite ), siteIndex( isite ), &
-                                                 '.R', shells( k )
+      if( valenceGrid ) then
+        write( reoptName, '(A5,I6.6,A2,F4.2)' ) 'reopt', isite, &
+                                                   '.R', shells( k )
+      else
+        write( reoptName, '(A5,A2,I4.4,A2,F4.2)' ) 'reopt', siteSymbol( isite ), siteIndex( isite ), &
+                                                   '.R', shells( k )
+      endif
 
       open( unit=99, file=reoptName, form='formatted', status='unknown' )
       rewind( 99 )

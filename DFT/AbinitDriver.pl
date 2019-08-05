@@ -1,5 +1,5 @@
 #!/usr/bin/perl
-# Copyright (C) 2015 - 2017 OCEAN collaboration
+# Copyright (C) 2015 - 2019 OCEAN collaboration
 #
 # This file is part of the OCEAN project and distributed under the terms 
 # of the University of Illinois/NCSA Open Source License. See the file 
@@ -528,6 +528,7 @@ if ($RunABINIT) {
   $test_prefix = $para_prefix;
   $test_prefix =~ s/\d+/$new_ncpu/;
   print "Self-Consistent Density Run\n";
+  print "$test_prefix $ENV{'OCEAN_ABINIT'} < denout.files > density.log 2> density.err\n";
   system("$test_prefix $ENV{'OCEAN_ABINIT'} < denout.files > density.log 2> density.err") == 0
     or die "Failed to run initial density stage\n$test_prefix $ENV{'OCEAN_ABINIT'}\n";
   `echo 1 > den.stat`;

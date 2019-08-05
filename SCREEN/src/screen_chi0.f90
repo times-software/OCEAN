@@ -596,7 +596,9 @@ module screen_chi0
     use ocean_constants, only : pi_dp
     use screen_timekeeper, only : screen_tk_start, screen_tk_stop
     use ocean_mpi, only : myid
+#ifdef __INTEL_COMPILER
     use ifport, only : sleepqq
+#endif
     real(DP), intent( in ), dimension(:,:,:) :: LWvfn, RWvfn
     real(DP), intent( inout ) :: chi(:,:)
     integer, intent( inout ) :: ierr
@@ -605,12 +607,13 @@ module screen_chi0
     real(DP), allocatable :: temp(:,:,:)
     real(DP), allocatable :: ReGreen(:,:,:), ImGreen(:,:,:), ReEnergyDenom(:,:,:), ImEnergyDenom(:,:,:)
     real(DP) :: pref, denr, deni, spinfac, pref2
-    integer :: Lpts, Rpts, nbands, nKptsAndSpin, ispin, ikpt, iband, it, i, j, iks, ib, ibstop, ii, jj
-    integer :: ichunk, jchunk, istart, istop, jstart, jstop, NRchunks, NLchunks, nthreads, iwidth
+    integer :: Lpts, Rpts, nbands, nKptsAndSpin, ispin, ikpt, iband, it, i, j, iks, ib, ibstop, ii, jj, energyDim
+    integer :: ichunk, jchunk, istart, istop, jstart, jstop, NRchunks, NLchunks, nthreads, nthreads2, iwidth
     integer :: isleep
     integer, parameter :: icSize = 16
     integer, parameter :: jcSize = 16
-    integer, parameter :: bandBuf = 8
+!    integer, parameter :: bandBuf = 8
+    integer :: bandBuf
     complex(DP), parameter :: cone = 1.0_DP
 !$  integer, external :: omp_get_max_threads
 
@@ -636,6 +639,17 @@ module screen_chi0
 !    chi(:,1:RPts) = 0.0_DP
 !   s is Geometric mean in Ryd
 !   mu is EFermi in Ryd
+    
+    nthreads = 1
+    nthreads2 = 1
+    bandBuf = 8
+!$  nthreads = OMP_GET_MAX_THREADS()
+    if( nthreads .gt. 2 .and. mod( nthreads, 2 ) .eq. 0 ) then
+      nthreads = nthreads / 2
+      nthreads2 = 2
+      bandBuf = 16
+    endif
+!$    write(1000+myid,*) 'OMP: ', nthreads, nthreads2
     ibstop = ( ( ( nbands - 1 ) / bandBuf ) + 1 ) * bandBuf
 
     allocate( & !ReGreen( jcSize, icSize, NImagEnergies ), ImGreen( jcSize, icSize, NImagEnergies ), &
@@ -679,14 +693,12 @@ module screen_chi0
 !$OMP END PARALLEL
     call screen_tk_stop( "calcSingleChiBuffer Init" )
 
-!$  nthreads = OMP_GET_MAX_THREADS()
-!    write(1000+myid,*) 'OMP: ', nthreads
 
-!$OMP  PARALLEL DEFAULT( NONE )  &
-!$OMP& SHARED ( params, NRchunks, NLchunks, Rpts, Lpts, nbands, NImagEnergies ) &
+!$OMP  PARALLEL DEFAULT( NONE ) NUM_THREADS( nthreads ) &
+!$OMP& SHARED ( params, NRchunks, NLchunks, Rpts, Lpts, nbands, NImagEnergies, nthreads2, bandBuf ) &
 !$OMP& SHARED ( chi, spinfac, weightImagEnergies, LWvfn, RWvfn, imag_LWvfn, imag_RWvfn, ReEnergyDenom, ImEnergyDenom ) &
 !$OMP& PRIVATE( ispin, ichunk, istart, istop, jchunk, jstart, jstop, iks, ib, ibstop, iband, i, j, it, pref2, ii, jj ) &
-!$OMP& PRIVATE( ReGreen, ImGreen, temp, iwidth, isleep )
+!$OMP& PRIVATE( ReGreen, ImGreen, temp, iwidth, isleep, energyDim )
 
 
     allocate( ReGreen( jcSize, icSize, NImagEnergies ), ImGreen( jcSize, icSize, NImagEnergies ),  &
@@ -709,10 +721,10 @@ module screen_chi0
 !           call screen_tk_start( "calcSingleChiBuffer Greens" )
 ! !$OMP END SINGLE NOWAIT
 
-!$OMP  PARALLEL DEFAULT( NONE )  &
-!$OMP& SHARED ( params, NRchunks, NLchunks, Rpts, Lpts, nbands, NImagEnergies ) &
+!$OMP  PARALLEL DEFAULT( NONE ) NUM_THREADS( nthreads2 ) &
+!$OMP& SHARED ( params, NRchunks, NLchunks, Rpts, Lpts, nbands, NImagEnergies, bandBuf ) &
 !$OMP& SHARED ( chi, spinfac, weightImagEnergies, LWvfn, RWvfn, imag_LWvfn, imag_RWvfn, ReEnergyDenom, ImEnergyDenom ) &
-!$OMP& PRIVATE( jstart, jstop, iks, ib, ibstop, iband, i, j, it, pref2, ii, jj, iwidth ) &
+!$OMP& PRIVATE( jstart, jstop, iks, ib, ibstop, iband, i, j, it, pref2, ii, jj, iwidth, energyDim ) &
 !$OMP& SHARED( ReGreen, ImGreen, temp, ichunk, jchunk, istart, istop, ispin )
 
 
@@ -775,14 +787,19 @@ module screen_chi0
 #endif
 
 
-              ibstop = ( ( ( nbands - 1 ) / bandBuf ) + 1 ) * bandBuf
+!              ibstop = ( ( ( nbands - 1 ) / bandBuf ) + 1 ) * bandBuf
+              ibstop = min( bandBuf, nbands-ib+1)
+              energyDim = ( ( ( nbands - 1 ) / bandBuf ) + 1 ) * bandBuf
+              !JTV!!! Shouldn't this be ibstop and not bandBuf below?
 !$OMP SINGLE
-              call DGEMM( 'N', 'N', jcsize * icsize, NImagEnergies, bandBuf, 1.0_DP, temp, jcsize * icsize, &
-                          ReEnergyDenom( ib, 1, iks ), ibstop, 1.0_DP, ReGreen, jcsize * icsize )
+!              call DGEMM( 'N', 'N', jcsize * icsize, NImagEnergies, bandBuf, 1.0_DP, temp, jcsize * icsize, &
+!                          ReEnergyDenom( ib, 1, iks ), ibstop, 1.0_DP, ReGreen, jcsize * icsize )
+              call DGEMM( 'N', 'N', jcsize * icsize, NImagEnergies, ibstop, 1.0_DP, temp, jcsize * icsize, &
+                          ReEnergyDenom( ib, 1, iks ), energyDim, 1.0_DP, ReGreen, jcsize * icsize )
 !$OMP END SINGLE NOWAIT
 !$OMP SINGLE
-              call DGEMM( 'N', 'N', jcsize * icsize, NImagEnergies, bandBuf, 1.0_DP, temp, jcsize * icsize, &
-                          ImEnergyDenom( ib, 1, iks ), ibstop, 1.0_DP, ImGreen, jcsize * icsize )
+              call DGEMM( 'N', 'N', jcsize * icsize, NImagEnergies, ibstop, 1.0_DP, temp, jcsize * icsize, &
+                          ImEnergyDenom( ib, 1, iks ), energyDim, 1.0_DP, ImGreen, jcsize * icsize )
 !$OMP END SINGLE
 
 
@@ -817,7 +834,7 @@ module screen_chi0
 !          deallocate( real_LWvfn, imag_LWvfn, real_RWvfn, imag_RWvfn )
 
 #ifdef __INTEL_COMPILER
-          if( mod( isleep, 32 ) .eq. 0 ) call sleepqq( 1 )
+          if( mod( isleep, 64 ) .eq. 0 ) call sleepqq( 1 )
 #endif
 
         enddo

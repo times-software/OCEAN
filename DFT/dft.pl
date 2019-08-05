@@ -12,6 +12,7 @@ use strict;
 use File::Copy;
 use Cwd 'abs_path';
 use File::Compare;
+use File::Spec::Functions;
 
 if (! $ENV{"OCEAN_BIN"} ) {
   $0 =~ m/(.*)\/dft\.pl/;
@@ -47,9 +48,17 @@ my @EspressoFiles = ( "coord", "degauss", "ecut", "etol", "fband", "ibrav",
     "spinorb", "taulist", "typat", "verbatim", "work_dir", "tmp_dir", "wftol", 
     "den.kshift", "obkpt.ipt", "trace_tol", "ham_kpoints", "obf.nbands","tot_charge", 
     "nspin", "smag", "ldau", "qe_scissor", "zsymb", "dft.calc_stress", "dft.calc_force", "dft.split", "dft",
-    "dft.startingwfc", "dft.diagonalization", "dft.qe_redirect", "dft.ndiag" );
+    "dft.startingwfc", "dft.diagonalization", "dft.qe_redirect", "dft.ndiag", "dft.functional", "dft.exx.qmesh" );
 my @PPFiles = ("pplist", "znucl");
-my @OtherFiles = ("epsilon", "pool_control");
+my @OtherFiles = ("epsilon", "pool_control", "screen.mode");
+
+my @SCFBonus = ("charge-density.kin.dat");
+my @exx = ("hse");
+
+unless( -e "scf.stat" )
+{
+  $RunPP = 1;
+}
 
 
 foreach (@PPFiles) {
@@ -86,13 +95,7 @@ else {
     }
   }
 }
-unless ($RunESPRESSO) {
- $RunESPRESSO = 1;
-  if (open STATUS, "espresso.stat") {
-    if (<STATUS> == 1) { $RunESPRESSO = 0; }
-  }
-  close STATUS;
-}
+
 if ($RunESPRESSO) {
   print "Differences found for density run. Clearing all old data\n";
   my @dirlisting = <*>;
@@ -103,39 +106,45 @@ if ($RunESPRESSO) {
   $RunPP = 1;
   $nscfRUN = 1;
   $run_screen = 1;
+  unlink "scf.stat";
 }
 else {
   `touch old`;
 }
 
-unless( $nscfRUN )
+unless( $nscfRUN == 1)
 {
   foreach( "nkpt", "k0.ipt", "qinunitsofbvectors.ipt", "nbands" )
   {
     if( compare( "$_", "../Common/$_") != 0 )
     {
       $nscfRUN = 1;
+      print "Difference found in $_\n";
       last;
     }
   }
 }
-unless( $run_screen )
+unless( $run_screen == 1)
 {
   foreach( "screen.nkpt", "screen.k0", "screen.nbands" )
   {
     if( compare( "$_", "../Common/$_") != 0 )
     {
       $run_screen = 1;
+      print "Difference found in $_\n";
       last;
     }
   }
 }
 
-
-
-open GOUT, ">dft.stat" or die;
-print GOUT "0";
-close GOUT;
+if( $nscfRUN == 0 )
+{
+  $nscfRUN = 1 unless( -e "bse.stat" );
+}
+if( $run_screen == 0 )
+{
+  $run_screen = 1 unless( -e "screen.stat" );
+}
 
 foreach (@GeneralFiles) {
   system("cp ../Common/$_ .") == 0 or die;
@@ -154,10 +163,59 @@ if( $RunPP == 1 )
   }
 }
 
+open IN, "calc" or die "Failed to open calc\n";
+<IN> =~m/(\w+)/ or die "Failed to parse calc\n";
+my $calc = $1;
+close IN;
+
+my $old_screen_mode;
+if( -e "screen.mode" )
+{
+  open IN, "screen.mode" or die "Failed to open screen.mode\n$!";
+  <IN> =~m/(\w+)/ or die "Failed to parse screen.mode\n";
+  $old_screen_mode = $1;
+  close IN;
+}
+else
+{
+  $old_screen_mode = '';
+}
+
+
 foreach (@EspressoFiles, @OtherFiles) {
   system("cp ../Common/$_ .") == 0 or die;
 } 
 
+open IN, "screen.mode" or die "Failed to open screen.mode";
+<IN> =~m/(\w+)/ or die "Failed to parse screen.mode\n";
+my $screen_mode = $1;
+close IN;
+
+open IN, "screen.mode" or die "Failed to open screen.mode\n";
+<IN> =~m/(\w+)/ or die "Failed to parse screen.mode\n";
+my $screen_mode = $1;
+close IN;
+if( $calc =~ m/val/i )
+{
+  $run_screen = 0 unless( $screen_mode =~ m/grid/i );
+}
+if( $run_screen == 0 && $screen_mode =~ m/grid/i )
+{
+  unless( $old_screen_mode =~ m/grid/i )
+  {
+    print "Need screening for valence: $old_screen_mode\n";
+    $run_screen = 1;
+  }
+}
+
+if( $nscfRUN == 1 )
+{
+  unlink "bse.stat";
+}
+if( $run_screen == 1 )
+{
+   unlink "screen.stat";
+}
 #############################################
 
 open DFT, "dft" or die "Failed to open dft\n";
@@ -176,14 +234,6 @@ else
   print "Running DFT calculation using QE\n";
 }
 
-open IN, "calc" or die "Failed to open calc\n";
-<IN> =~m/(\w+)/ or die "Failed to parse calc\n";
-my $calc = $1;
-close IN;
-if( $calc =~ m/val/i )
-{
-  $run_screen = 0;
-}
 
 # Input to QE can be done via redirect (legacy) or -inp (more stable)
 open IN, "dft.qe_redirect" or die "Failed to open dft.qe_redirect\n$!";
@@ -243,7 +293,7 @@ my @qe_data_files = ('prefix', 'ppdir', 'work_dir', 'tmp_dir', 'ibrav', 'natoms'
                      'trace_tol', 'tot_charge', 'nspin', 'ngkpt', 'k0.ipt', 'metal',
                      'den.kshift', 'obkpt.ipt', 'obf.nbands', 'nkpt', 'nbands', 'screen.nbands',
                      'screen.nkpt', 'dft.calc_stress', 'dft.calc_force', 'dft.startingwfc', 
-                     'dft.diagonalization', 'dft.ndiag' );
+                     'dft.diagonalization', 'dft.ndiag', 'dft.functional' );
 
 
 
@@ -274,6 +324,8 @@ $qe_data_files{ "celldm1" } = $celldm1;
 $qe_data_files{ "celldm2" } = $celldm2;
 $qe_data_files{ "celldm3" } = $celldm3;
 
+#Set startingpot
+$qe_data_files{ "dft.startingpot" } = 'atomic';
 
 # Switch ppdir to absolute path
 $qe_data_files{ "ppdir" } = abs_path( $qe_data_files{ "ppdir" } ) . "/";
@@ -294,6 +346,14 @@ foreach my $file_name (@qe_opt_files)
     close IN;
     $qe_data_files{ "$file_name" } = $string;
 }
+
+# Load up qmesh for EXX
+open EXX, "dft.exx.qmesh" or die "Failed to open dft.exx.qmesh\n$!";
+<EXX> =~ m/(\d+)\s+(\d+)\s+(\d+)/ or die "Failed to parse dft.exx.qmesh\n";
+$qe_data_files{'nqx1'} = $1;
+$qe_data_files{'nqx2'} = $2;
+$qe_data_files{'nqx3'} = $3;
+close EXX;
 ##################
 
 # Map QE/Abinit occupation options
@@ -337,6 +397,7 @@ $QE_smear[7] = "'gaussian'";     # ABINIT = Gaussian
 if ($RunESPRESSO) {
 
 
+  unlink "scf.stat";
  ### write SCF input card for initial density
 
   open my $QE, ">scf.in" or die "Failed to open scf.in.\n$!";
@@ -434,6 +495,7 @@ if ($RunESPRESSO) {
     $qe_data_files{'dft.ndiag'} = 4;
   }
 
+  my $scf_prefix = $para_prefix;
   if( $obf != 1 ) 
   {
     my $ser_prefix = $para_prefix;
@@ -454,8 +516,13 @@ if ($RunESPRESSO) {
     if( open TMP, "scf.out" )
     {
       my $actualKpts = -1;
+      my $numKS;
       while (<TMP>)
       {
+        if( $_ =~ m/number of Kohn-Sham states=\s+(\d+)/ )
+        {
+          $numKS = $1;
+        }
         if( $_ =~ m/number of k points=\s+(\d+)/ )
         {
           $actualKpts = $1;
@@ -483,6 +550,15 @@ if ($RunESPRESSO) {
         }
         print "SCF has $actualKpts k-points\nWill use $npool pools\n";
       }
+      if( defined( $numKS ) )
+      {
+        my $maxProcs = $numKS * $npool;
+        print "   $ncpus  $maxProcs\n";
+        if( $maxProcs < $ncpus )
+        {
+          $scf_prefix =~ s/\d+/$maxProcs/;
+        }
+      }
     }
     else
     {
@@ -498,14 +574,14 @@ if ($RunESPRESSO) {
   {
     if( $qe_redirect ) 
     {
-      print  "$para_prefix $ENV{'OCEAN_ESPRESSO_OBF_PW'} $qeCommandLine < scf.in > scf.out 2>&1\n";
-      system("$para_prefix $ENV{'OCEAN_ESPRESSO_OBF_PW'} $qeCommandLine < scf.in > scf.out 2>&1") == 0
+      print  "$scf_prefix $ENV{'OCEAN_ESPRESSO_OBF_PW'} $qeCommandLine < scf.in > scf.out 2>&1\n";
+      system("$scf_prefix $ENV{'OCEAN_ESPRESSO_OBF_PW'} $qeCommandLine < scf.in > scf.out 2>&1") == 0
           or die "Failed to run scf stage for Density\n";
     }
     else
     {
-      print  "$para_prefix $ENV{'OCEAN_ESPRESSO_OBF_PW'} $qeCommandLine -inp scf.in > scf.out 2>&1\n";
-      system("$para_prefix $ENV{'OCEAN_ESPRESSO_OBF_PW'} $qeCommandLine -inp scf.in > scf.out 2>&1") == 0
+      print  "$scf_prefix $ENV{'OCEAN_ESPRESSO_OBF_PW'} $qeCommandLine -inp scf.in > scf.out 2>&1\n";
+      system("$scf_prefix $ENV{'OCEAN_ESPRESSO_OBF_PW'} $qeCommandLine -inp scf.in > scf.out 2>&1") == 0
           or die "Failed to run scf stage for Density\n";
     }
   }
@@ -513,14 +589,14 @@ if ($RunESPRESSO) {
   {
     if( $qe_redirect )
     {    
-      print  "$para_prefix $ENV{'OCEAN_ESPRESSO_PW'} $qeCommandLine < scf.in > scf.out 2>&1\n";
-      system("$para_prefix $ENV{'OCEAN_ESPRESSO_PW'} $qeCommandLine < scf.in > scf.out 2>&1") == 0
+      print  "$scf_prefix $ENV{'OCEAN_ESPRESSO_PW'} $qeCommandLine < scf.in > scf.out 2>&1\n";
+      system("$scf_prefix $ENV{'OCEAN_ESPRESSO_PW'} $qeCommandLine < scf.in > scf.out 2>&1") == 0
           or die "Failed to run scf stage for Density\n";
     } 
     else
     {
-      print  "$para_prefix $ENV{'OCEAN_ESPRESSO_PW'} $qeCommandLine -inp scf.in > scf.out 2>&1\n";
-      system("$para_prefix $ENV{'OCEAN_ESPRESSO_PW'} $qeCommandLine -inp scf.in > scf.out 2>&1") == 0
+      print  "$scf_prefix $ENV{'OCEAN_ESPRESSO_PW'} $qeCommandLine -inp scf.in > scf.out 2>&1\n";
+      system("$scf_prefix $ENV{'OCEAN_ESPRESSO_PW'} $qeCommandLine -inp scf.in > scf.out 2>&1") == 0
           or die "Failed to run scf stage for Density\n";
     }
   }
@@ -584,7 +660,7 @@ if ($RunESPRESSO) {
     or die "Failed to convert potential\n$!\n";
 
 
-  open STATUS, ">espresso.stat" or die;
+  open STATUS, ">scf.stat" or die;
   print STATUS "1";
   close STATUS;
 
@@ -594,11 +670,14 @@ if ($RunESPRESSO) {
   my $nelectron = 'no';
   my $units;
 
-  # First attempt to grab from outfile
-  my $data_file = $qe_data_files{'work_dir'} . "/" . $qe_data_files{'prefix'} . ".save/data-file.xml";
-  print "Looking for $data_file \n";
-  if( open SCF, $data_file )
+  # First attempt to grab from outfile (works for 5.4 >= QE <= 6.2 (OLD_XML) )
+  my $qe54_file = catfile( $qe_data_files{'work_dir'}, $qe_data_files{'prefix'} . ".save", "data-file.xml" );
+  my $qe62_file = catfile( $qe_data_files{'work_dir'}, $qe_data_files{'prefix'} . ".save", "data-file-schema.xml" );
+#  my $data_file = $qe_data_files{'work_dir'} . "/" . $qe_data_files{'prefix'} . ".save/data-file.xml";
+  if( -e $qe54_file )
   {
+    print "Looking for $qe54_file \n";
+    open SCF, $qe54_file or die "Failed to open $qe54_file\n$!";
     while( my $scf_line = <SCF> )
     {
       if( $scf_line =~ m/\<UNITS_FOR_ENERGIES UNITS=\"(\w+)/ )
@@ -619,9 +698,68 @@ if ($RunESPRESSO) {
       }
     }
     close SCF;
+    if( $units =~ m/hartree/i )
+    {
+      $fermi *= 2;
+    }
+    elsif( $units =~ m/eV/i )
+    {
+      $fermi /= 13.60569253;
+    }
+
+    open OUT, '>', 'dftVersion' or die "Failed to open dftVersion for writing\n$!";
+    print OUT "qe54\n";
+    close OUT;
   }
-  
-  if( $fermi =~ m/no/ || $nelectron =~ m/no/ )
+  elsif( -e $qe62_file )
+  {
+    print "$qe62_file\n";
+    open SCF, $qe62_file or die "Failed to open $qe62_file\n$!";
+
+    #Assume Hartree!
+    my $highest;
+    my $lowest = 'cow';
+    while( my $scf_line = <SCF> )
+    { 
+      if( $scf_line =~ m/\<highestOccupiedLevel\>([-+]?\d+\.\d+[Ee]?[-+]?(\d+)?)/ )
+      {
+        $highest = $1; 
+      }
+      elsif( $scf_line =~ m/\<lowestUnoccupiedLevel\>([-+]?\d+\.\d+[Ee]?[-+]?(\d+)?)/ )
+      {
+        $lowest = $1;
+      }
+      elsif( $scf_line =~ m/\<fermi_energy\>([-+]?\d+\.\d+[Ee]?[-+]?(\d+)?)/ )
+      {
+        $fermi = $1;
+      }
+      elsif( $scf_line =~ m/\<nelec\>([-+]?\d+\.\d+[Ee]?[-+]?(\d+)?)/ )
+      {
+        $nelectron = $1;
+      }
+    }
+    close SCF;
+    if( $fermi eq 'no' )
+    {
+      if( $lowest eq 'cow' )
+      { # Assumed Hartree
+        $fermi = $highest * 2
+      }
+      else
+      {
+        $fermi = $highest + $lowest;
+      }
+    }
+    else
+    {
+      # Move from Ha to Ry
+      $fermi *= 2;
+    }
+    open OUT, '>', 'dftVersion' or die "Failed to open dftVersion for writing\n$!";
+    print OUT "qe62\n";
+    close OUT;
+  }
+  else # last shot
   {
     open SCF, "scf.out" or die "$!";
     while( my $line = <SCF> )
@@ -639,19 +777,9 @@ if ($RunESPRESSO) {
     }
     close SCF;
   }
-  else
-  {
-    if( $units =~ m/hartree/i )
-    {
-      $fermi *= 2;
-    }
-    elsif( $units =~ m/eV/i )
-    {
-      $fermi /= 13.60569253;
-    }
-    my $eVfermi = $fermi * 13.60569253;
-    print "Fermi level found at $eVfermi eV\n";
-  }
+
+  my $eVfermi = $fermi * 13.60569253;
+  print "Fermi level found at $eVfermi eV\n";
 
   die "Fermi level not found in scf.out\n" if( $fermi eq 'no' ) ;
   die "Number of electrons not found in scf.out\n" if( $nelectron eq 'no' );
@@ -854,6 +982,8 @@ if ( $nscfRUN ) {
     mkdir $bseDIR unless ( -d $bseDIR );
     chdir $bseDIR;
 
+    unlink "old" if( -e "old" );
+
     # kpts
     copy "../nkpt", "nkpt";
     copy "../qinunitsofbvectors.ipt", "qinunitsofbvectors.ipt";
@@ -889,7 +1019,10 @@ if ( $nscfRUN ) {
 
     $qe_data_files{'prefix_shift'} = $qe_data_files{'prefix'} . "_shift";
 
-    mkdir "Out" unless ( -d "Out" );
+    my $qeVersion;
+#    mkdir "Out" unless ( -d "Out" );
+ 
+    mkdir $qe_data_files{'work_dir'} unless( -d $qe_data_files{'work_dir'} );
 
     # This will loop back and do everything for prefix_shift if we have split
     my $repeat = 0;
@@ -897,11 +1030,33 @@ if ( $nscfRUN ) {
     my $prefix = 'prefix';
     for( my $i = 0; $i <= $repeat; $i++ )
     {
-      mkdir "Out/$qe_data_files{$prefix}.save" unless ( -d "Out/$qe_data_files{$prefix}.save" );
+      my $savedir = catdir( $qe_data_files{'work_dir'}, $qe_data_files{$prefix} . ".save" ); 
+#      mkdir "Out/$qe_data_files{$prefix}.save" unless ( -d "Out/$qe_data_files{$prefix}.save" );
+      mkdir $savedir unless( -d $savedir );
 
-      copy "../Out/$qe_data_files{'prefix'}.save/charge-density.dat", "Out/$qe_data_files{$prefix}.save/charge-density.dat";
-      copy "../Out/$qe_data_files{'prefix'}.save/data-file.xml", "Out/$qe_data_files{$prefix}.save/data-file.xml";
+      my $chargeDensity = catfile( updir(), $qe_data_files{'work_dir'}, $qe_data_files{'prefix'} . ".save", 
+                                   "charge-density.dat" );
 
+      die "Couldn't find SCF charge density: $chargeDensity" unless( -e $chargeDensity );
+      copy $chargeDensity, catfile( $savedir, "charge-density.dat");
+#      copy "../Out/$qe_data_files{'prefix'}.save/charge-density.dat", "Out/$qe_data_files{$prefix}.save/charge-density.dat";
+
+      if( -e catfile( updir(), $qe_data_files{'work_dir'}, $qe_data_files{'prefix'} . ".save", "data-file.xml" ) )
+      {
+        copy "../Out/$qe_data_files{'prefix'}.save/data-file.xml", "Out/$qe_data_files{$prefix}.save/data-file.xml";
+        $qeVersion = 54;
+      }
+      elsif( -e catfile( updir(), $qe_data_files{'work_dir'}, $qe_data_files{'prefix'} . ".save", 
+                         "data-file-schema.xml" ) )
+      {
+        copy catfile( updir(), $qe_data_files{'work_dir'}, $qe_data_files{'prefix'} . ".save", 
+                         "data-file-schema.xml" ), $savedir;
+        $qeVersion = 62;
+      }
+      else
+      {
+        die "Couldn't find data-file or data-file-schema\n";
+      }
 
       if( $qe_data_files{'nspin'} == 2 )
       {
@@ -922,6 +1077,11 @@ if ( $nscfRUN ) {
           copy "../Out/$qe_data_files{'prefix'}.occup", "Out/$qe_data_files{$prefix}.occup";
         }
       }
+      foreach my $bonusFile ( @SCFBonus )
+      {
+        my $tempFile = "../Out/$qe_data_files{'prefix'}.save/$bonusFile";
+        copy $tempFile, "Out/$qe_data_files{$prefix}.save/$bonusFile" if( -e $tempFile );
+      }
       $prefix = "prefix_shift";
     }
 
@@ -938,6 +1098,21 @@ if ( $nscfRUN ) {
 
     # Set the flags that change for each input/dft run
     $qe_data_files{'calctype'} = 'nscf';
+    $qe_data_files{'dft.startingpot'} = 'file';
+#    # if have exact exchange flip back to scf
+#    print "$qe_data_files{'dft.functional'}\n";
+
+    # some of this needs to be moved up
+    foreach( @exx )
+    {
+#      print "$_\n";
+      if( $qe_data_files{'dft.functional'} =~ m/$_/i )
+      {
+        $qe_data_files{'calctype'} = 'scf';
+        $qe_data_files{'nscfEXX'} = 1;
+        last;
+      }
+    }
     $qe_data_files{'nosym'} = '.true.';
     $qe_data_files{'noinv'} = '.true.';
     my $kpt_text = "K_POINTS crystal\n";
@@ -953,7 +1128,18 @@ if ( $nscfRUN ) {
     close IN;
 
     $qe_data_files{'print kpts'} = $kpt_text;
-    unless( $split_dft ) 
+    # QE behaves cnoverges incorrectly if only give occupied states
+    if( $split_dft && $qe_data_files{ "occopt" } == 1 ) 
+    {
+      open NEL, "../nelectron" or die "Failed top open ../nelectron for reading\n$!";
+      my $nelectron = <NEL>;
+      close NEL;
+      my $tempBand = $nelectron / 2 + 1;
+      $tempBand++ if( $tempBand%2 == 1 );
+      $qe_data_files{'print nbands'} = $tempBand;
+    }
+    elsif( $split_dft == 0)
+#    unless( $split_dft ) 
     {
       $qe_data_files{'print nbands'} = $qe_data_files{'nbands'};
     }
@@ -1063,8 +1249,18 @@ if ( $nscfRUN ) {
     print "BSE NSCF complete\n";
 
     ## find the top of the valence bance
-    system("$ENV{'OCEAN_BIN'}/qeband.pl") == 0
-       or die "Failed to count bands\n$!\n";
+    if( $qeVersion == 54 )
+    {
+      system("$ENV{'OCEAN_BIN'}/qeband.pl") == 0
+         or die "Failed to count bands\n$!\n";
+    }
+    elsif( $qeVersion == 62 )
+    {
+      system("$ENV{'OCEAN_BIN'}/qe62band.pl") == 0
+         or die "Failed to count bands\n$!\n";
+    }
+    else
+    { die "qeVersion wasn't set\n"; }
 
     open IN, "brange.stub" or die;
     open OUT, ">brange.ipt" or die;
@@ -1079,7 +1275,20 @@ if ( $nscfRUN ) {
     copy "nkpt", "kmesh.ipt";
 
     chdir "../";
+
+    open OUT, ">", "bse.stat" or die;
+    print OUT "1\n";
+    close OUT;
   }
+}
+else
+{
+  my $bseDIR = sprintf("%03u%03u%03u", split( /\s+/,$qe_data_files{'nkpt'}));
+  die "Problem with $bseDIR\n" unless( chdir $bseDIR );
+  open OUT, ">", "old";
+  print OUT "old\n";
+  close OUT;
+  chdir "../";
 }
 
 if( $obf == 0 && $run_screen == 1 )
@@ -1090,11 +1299,45 @@ if( $obf == 0 && $run_screen == 1 )
   mkdir $bseDIR unless ( -d $bseDIR );
   chdir $bseDIR;
 
+  unlink "old";
+
   mkdir "Out" unless ( -d "Out" );
   mkdir "Out/$qe_data_files{'prefix'}.save" unless ( -d "Out/$qe_data_files{'prefix'}.save" );
 
-  copy "../Out/$qe_data_files{'prefix'}.save/charge-density.dat", "Out/$qe_data_files{'prefix'}.save/charge-density.dat";
-  copy "../Out/$qe_data_files{'prefix'}.save/data-file.xml", "Out/$qe_data_files{'prefix'}.save/data-file.xml";
+#  copy "../Out/$qe_data_files{'prefix'}.save/charge-density.dat", "Out/$qe_data_files{'prefix'}.save/charge-density.dat";
+#  copy "../Out/$qe_data_files{'prefix'}.save/data-file.xml", "Out/$qe_data_files{'prefix'}.save/data-file.xml";
+
+
+  my $savedir = catdir( $qe_data_files{'work_dir'}, $qe_data_files{'prefix'} . ".save" );
+#      mkdir "Out/$qe_data_files{$prefix}.save" unless ( -d "Out/$qe_data_files{$prefix}.save" );
+  mkdir $savedir unless( -d $savedir );
+
+  my $qeVersion;
+
+  my $chargeDensity = catfile( updir(), $qe_data_files{'work_dir'}, $qe_data_files{'prefix'} . ".save",
+                               "charge-density.dat" );
+
+  die "Couldn't find SCF charge density: $chargeDensity" unless( -e $chargeDensity );
+  copy $chargeDensity, catfile( $savedir, "charge-density.dat");
+#      copy "../Out/$qe_data_files{'prefix'}.save/charge-density.dat", "Out/$qe_data_files{$prefix}.save/charge-density.dat";
+
+  if( -e catfile( updir(), $qe_data_files{'work_dir'}, $qe_data_files{'prefix'} . ".save", "data-file.xml" ) )
+  {
+    copy "../Out/$qe_data_files{'prefix'}.save/data-file.xml", "Out/$qe_data_files{'prefix'}.save/data-file.xml";
+    $qeVersion = 54;
+  }
+  elsif( -e catfile( updir(), $qe_data_files{'work_dir'}, $qe_data_files{'prefix'} . ".save",
+                     "data-file-schema.xml" ) )
+  {
+    copy catfile( updir(), $qe_data_files{'work_dir'}, $qe_data_files{'prefix'} . ".save",
+                     "data-file-schema.xml" ), $savedir;
+    $qeVersion = 62;
+  }
+  else
+  {
+    die "Couldn't find data-file or data-file-schema\n";
+  }
+
 
   if( $qe_data_files{'nspin'} == 2 )
   {
@@ -1116,6 +1359,12 @@ if( $obf == 0 && $run_screen == 1 )
     }
   }
 
+  foreach my $bonusFile ( @SCFBonus )
+  {
+    my $tempFile = "../Out/$qe_data_files{'prefix'}.save/$bonusFile";
+    copy $tempFile, "Out/$qe_data_files{'prefix'}.save/$bonusFile" if( -e $tempFile );
+  }
+
 
   # kpts
   copy "../screen.nkpt", "nkpt";
@@ -1135,6 +1384,16 @@ if( $obf == 0 && $run_screen == 1 )
 
 
   $qe_data_files{'calctype'} = 'nscf';
+  $qe_data_files{'dft.startingpot'} = 'file';
+  # if have exact exchange flip back to scf
+  foreach( @exx )
+  {
+    if( $qe_data_files{'dft.functional'} =~ m/$_/i )
+    {
+      $qe_data_files{'calctype'} = 'scf';
+    }
+  }
+
   $qe_data_files{'nosym'} = '.true.';
   $qe_data_files{'noinv'} = '.true.';
 
@@ -1232,9 +1491,19 @@ if( $obf == 0 && $run_screen == 1 )
   close OUT;
   print "Screening NSCF complete\n";
 
-    ## find the top of the valence bance
+  ## find the top of the valence bands
+  if( $qeVersion == 54 )
+  {
     system("$ENV{'OCEAN_BIN'}/qeband.pl") == 0
        or die "Failed to count bands\n$!\n";
+  }
+  elsif( $qeVersion == 62 )
+  {
+    system("$ENV{'OCEAN_BIN'}/qe62band.pl") == 0
+       or die "Failed to count bands\n$!\n";
+  }
+  else
+  { die "qeVersion wasn't set\n"; }
 
   open IN, "brange.stub" or die;
   open OUT, ">brange.ipt" or die;
@@ -1249,8 +1518,136 @@ if( $obf == 0 && $run_screen == 1 )
   copy "nkpt", "kmesh.ipt";
 
   chdir "../";
+
+  open OUT, ">", "screen.stat" or die;
+  print OUT "1\n";
+  close OUT;
+}
+else
+{
+  my $bseDIR = "SCREEN";
+  if( -d $bseDIR )
+  {
+    die "Problem with $bseDIR\n" unless( chdir $bseDIR );
+    open OUT, ">", "old";
+    print OUT "old\n";
+    close OUT;
+    chdir "../";
+  }
 }
 
+# For occopt = 1, the SCF run only gives the highest occupied
+# With a sparse k-point grid this doesn't give a good position for the Fermi
+# So, if we have re-run any segment then figure out a better Fermi level
+# We do this by taking the highest occupied from SCREEN and BSE and the lowest unoccupied
+# and then setting the Fermi to be the midpoint
+if( $qe_data_files{ "occopt" } == 1 && ( $RunESPRESSO + $nscfRUN + $run_screen > 0 ) )
+{
+  print "Fixing Fermi level for occopt=1, insulating system\n";
+
+  my $valenceE;
+  my $conductionE;
+
+  if( -e "SCREEN/nscf.out" )
+  {
+    open IN, "SCREEN/nscf.out" or die "Failed to open SCREEN/nscf.out\n$!";
+    while( my $line = <IN> )
+    {
+      if( $line =~ m/highest occupied, lowest unoccupied level\s\S+\s+(-?\d+\.\d+)\s+(-?\d+\.\d+)/ )
+      {
+        $valenceE = $1;
+        $conductionE = $2;
+        print "$valenceE\t$conductionE\n";
+        last;
+      }
+    }
+    close IN;
+  }
+  my $bseDIR = sprintf("%03u%03u%03u", split( /\s+/,$qe_data_files{'nkpt'}));
+  if( -e "$bseDIR/nscf_shift.out" )
+  {
+    open IN, "$bseDIR/nscf_shift.out" or die "Failed to open $bseDIR/nscf_shift.out\n$!";
+    while( my $line = <IN> )
+    {
+      if( $line =~ m/highest occupied, lowest unoccupied level\s\S+\s+(-?\d+\.\d+)\s+(-?\d+\.\d+)/ )
+      {
+        print $line;
+        my $v = $1;
+        my $c = $2;
+        unless( defined( $valenceE ) )
+        {
+          $valenceE = $v;
+          $conductionE = $c;
+        }
+        else
+        {
+          $valenceE = $v if( $v > $valenceE );
+          $conductionE = $c if( $c < $conductionE );
+        }
+        last;
+        print "$valenceE\t$conductionE\n";
+      }
+    }
+    close IN;
+  }
+  if( -e "$bseDIR/nscf.out" )
+  {
+    open IN, "$bseDIR/nscf.out" or die "Failed to open $bseDIR/nscf.out\n$!";
+    while( my $line = <IN> )
+    {
+      if( $line =~ m/highest occupied, lowest unoccupied level\s\S+\s+(-?\d+\.\d+)\s+(-?\d+\.\d+)/ )
+      {
+        print $line;
+        my $v = $1;
+        my $c = $2;
+        unless( defined( $valenceE ) )
+        {
+          $valenceE = $v;
+          $conductionE = $c;
+        }
+        else
+        { 
+          $valenceE = $v if( $v > $valenceE );
+          $conductionE = $c if( $c < $conductionE );
+        }
+        last;
+        print "$valenceE\t$conductionE\n";
+      }
+    }
+    close IN;
+  }
+  else
+  {
+    print "Couldn't fine $bseDIR/nscf.out\n";
+  }
+
+  unless( defined( $valenceE ) )
+  {
+    print "Failed to correct Fermi level!\nLikely DFT runs didn't finish correctly!!";
+  }
+  else
+  {
+    if( $valenceE > $conductionE )
+    {
+      print "WARNING!!!! Highest occupied is greater than lowest unoccupied!\n";
+      print "Likely you specified metal = .false. for a metallic system or your structure is incorrect\n";
+      print "OCEAN will continue, but the results are probably bad!\nWARNING!!!!!\n";
+    }
+    else
+    {
+      print "$valenceE\t$conductionE\n";
+      my $eVfermi = ( $valenceE + $conductionE ) / 2;
+      my $fermi = $eVfermi / 13.60569253;
+      print "Fermi level found at $eVfermi eV\n";
+
+      open FERMI, ">efermiinrydberg.ipt" or die "Failed to open efermiinrydberg\n$!";
+      print FERMI "$fermi\n";
+      close FERMI;
+
+    }
+  }
+}
+  
 
 
 print "Espresso stage complete\n";
@@ -1289,6 +1686,21 @@ sub print_qe
         .  "  noinv = $inputs{'noinv'}\n";
 #        .  "  nosym = .true.\n"
 #        .  "  noinv = .true.\n";
+  unless( $inputs{'dft.functional'} =~ m/none/ )
+  {
+    print $fh "  input_dft = \'$inputs{'dft.functional'}\'\n";
+    foreach( @exx )
+    {
+      if( $inputs{'dft.functional'} =~ m/$_/i )
+      {
+        print $fh "  nqx1 = $inputs{'nqx1'}, nqx2 = $inputs{'nqx2'}, nqx3 = $inputs{'nqx3'}\n";
+        last;
+      }
+    }
+  }
+    
+
+
   if( $inputs{'print nbands'} > 0 ) # for scf no nbnd is set. 
                                     # Therefore -1 is passed in and nothing is written to the input file
   {
@@ -1315,9 +1727,16 @@ sub print_qe
         .  "  conv_thr = $inputs{'etol'}\n"
         .  "  mixing_beta = $inputs{'mixing'}\n"
         .  "  electron_maxstep = $inputs{'nrun'}\n"
-        .  "  startingwfc = \'$qe_data_files{'dft.startingwfc'}\'\n"
-        .  "  diagonalization = \'$qe_data_files{'dft.diagonalization'}\'\n"
-        .  "/\n"
+        .  "  startingwfc = \'$inputs{'dft.startingwfc'}\'\n"
+        .  "  startingpot = \'$inputs{'dft.startingpot'}\'\n"
+        .  "  diagonalization = \'$inputs{'dft.diagonalization'}\'\n";
+  if( $inputs{'nscfEXX'} == 1 )
+  {
+    # Since (at the moment) we are loading the SCF density
+    #  don't converge the density for the first iteration w/o EXX
+    print $fh "  adaptive_thr = .true., conv_thr_init = 1\n";
+  }
+  print $fh "/\n"
         .  "&ions\n"
         .  "/\n";
 

@@ -135,6 +135,18 @@ dft.ndiag
 {
 -1
 } dft.ndiag
+dft.functional
+{
+none
+} dft.functional
+dft.exx.qmesh
+{
+1 1 1 
+} dft.exx.qmesh
+dft.nscf.poolsize
+{
+-1
+} dft.nscf.poolsize
 verbatim
 {
 #
@@ -313,7 +325,7 @@ dft.calc_stress
 } dft.calc_stress
 dft.calc_force
 {
-.false.
+.true.
 } dft.calc_force
 spinorb
 {
@@ -445,8 +457,8 @@ screen.grid.ninter
 } screen.grid.ninter
 screen.grid.shells
 {
-4 16
-8 16
+4 
+8 
 } screen.grid.shells
 screen.grid.xyz
 {
@@ -462,8 +474,12 @@ screen.grid.nr
 } screen.grid.nr
 screen.grid.ang
 {
-specpnt 5
+5
 } screen.grid.ang
+screen.grid.deltar
+{
+0.2
+} screen.grid.deltar
 screen.lmax
 {
 0
@@ -498,7 +514,7 @@ screen.augment
 } screen.augment
 screen.wvfn
 {
-legacy
+new
 } screen.wvfn
 screen.convertstyle
 {
@@ -508,3 +524,11 @@ screen.inversionstyle
 {
 sinqr
 } screen.inversionstyle
+screen.mode
+{
+core
+} screen.mode
+bse.wvfn
+{
+new
+} bse.wvfn

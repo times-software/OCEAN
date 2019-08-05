@@ -665,6 +665,15 @@ module OCEAN_val_states
 
       
         if( myid .eq. root ) then
+          do ibd = 1, brange(1) - 1
+            do ix = 1, sys%xmesh(1)
+              do iy = 1, sys%xmesh(2)
+                do iz = 1, sys%xmesh(3)
+                  read ( fhu2 ) 
+                end do
+              end do
+            end do
+          enddo
           do ibd = 1, brange(2)-brange(1) + 1
             do ix = 1, sys%xmesh(1)
               do iy = 1, sys%xmesh(2)

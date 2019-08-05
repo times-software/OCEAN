@@ -191,7 +191,7 @@ my $run_screen;
 if( $calc =~ m/val/i )
 {
   $run_opf = 0;
-  $run_screen = 0;
+  $run_screen = 1;
 }
 else
 {

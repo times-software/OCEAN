@@ -63,7 +63,7 @@ module OCEAN_energies
     call OCEAN_psi_mult( psi, allow, .false. )
   end subroutine
 
-  subroutine OCEAN_energies_val_act( sys, psi, hpsi, ierr )
+  subroutine OCEAN_energies_val_act( sys, psi, hpsi, ierr, backwards_ )
     use OCEAN_system
     use OCEAN_psi, only : OCEAN_vector, OCEAN_psi_f2m_3element_mult
     implicit none
@@ -72,9 +72,11 @@ module OCEAN_energies
     type(O_system), intent( in ) :: sys
     type(OCEAN_vector), intent( in ) :: psi
     type(OCEAN_vector), intent( inout ) :: hpsi
+    logical, optional, intent( in ) :: backwards_
     !
     logical :: backwards
     backwards = .false.
+    if( present( backwards_ ) ) backwards = backwards_
 !    if( psi%val_myid .eq. 0 ) then
 !      call OCEAN_psi_cmult( psi, hpsi, p_energy, .false. )
 !    endif
@@ -899,7 +901,7 @@ module OCEAN_energies
     endif
     close( 99 )
     re_se( : ) = re_se( : ) * eV2Hartree !/ 27.21138506_DP
-    im_se( : ) = -im_se( : ) * eV2Hartree !/ ( 27.21138506_DP ) 
+    im_se( : ) = -im_se( : ) * eV2Hartree*0 !/ ( 27.21138506_DP ) 
 
 
     do ispn = 1, sys%nspn

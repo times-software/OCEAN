@@ -890,8 +890,8 @@ module ocean_long_range
 
       deallocate( scratch )
 
-#ifdef BLAS
       do ikpt = 1, my_kpts
+#ifdef BLAS
         call DAXPY( sys%num_bands, -xwrkr(ikpt), re_bloch_state(1,ikpt,xiter,val_spin), 1, &
                     hpr(1,ikpt), 1 )
         call DAXPY( sys%num_bands, -xwrki(ikpt), im_bloch_state(1,ikpt,xiter,val_spin), 1, &
@@ -1652,7 +1652,7 @@ module ocean_long_range
 
 
 
-
+#if 0
   subroutine lr_populate_bloch( sys, ierr )
     use OCEAN_mpi!, only : myid, nproc, comm, root
 !    use mpi
@@ -1952,6 +1952,7 @@ module ocean_long_range
 
 
   end subroutine lr_populate_bloch
+#endif
 
 
   subroutine lr_fill_values( ierr )

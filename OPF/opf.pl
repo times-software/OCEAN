@@ -9,6 +9,7 @@
 
 use strict;
 use File::Copy;
+use File::Compare;
 use Cwd;
 use Cwd 'abs_path';
 
@@ -27,28 +28,105 @@ if (! $ENV{"OCEAN_WORKDIR"}){ $ENV{"OCEAN_WORKDIR"} = `pwd` . "../" ; }
 
 my @CommonFiles = ("znucl", "opf.hfkgrid", "opf.fill", "opf.opts", "pplist", 
                    "ntype", "natoms", "typat", "taulist", "nedges", "edges", "caution", 
-                   "scfac", "calc", "opf.program" );
+                   "scfac", "opf.program" );
+my @ExtraFiles = ("calc");
 
 
-
-my $runOBF = 1;
+my $runOPF = 1;
 if (-e "done" ) {
-  $runOBF = 0;
+  $runOPF = 0;
   foreach (@CommonFiles) {
-    if (`diff -q $_ ../Common/$_`) {
-      $runOBF = 1;
+#    if (`diff -q $_ ../Common/$_`) {
+    if( compare("$_", "../Common/$_" ) != 0 )   # should get diff or non-exist
+    {
+      print "$_ differs\n";
+      $runOPF = 1;
       last;
     }
   }
 }
 
-if ($runOBF == 0 ) {
-  print "Nothing new needed for OBF stage\n";
+# Two very different ways of doing things depending on which wether we use ONCVPSP or Shirley codes
+my $program = 'shirley';
+open IN, "../Common/opf.program" or die "Failed to open opf.program: $!\n";
+if( <IN> =~ m/hamann/i )
+{
+  $program = 'hamann';
+  print "Will run OPF using the oncvpsp.x code\n";
+}
+else
+{
+  print "Will run OPF using hfk.x\n";
+}
+close IN;
+
+# test additional files
+if( $runOPF == 0 )
+{
+  if( $program eq 'hamann' )
+  {
+    print "hamann\n";
+
+  }
+  else
+  {
+    # This might grab too much when we fix multi-element runs
+    open IN, "opf.fill" or die "Failed to open opf.fill\n$!";
+    while( my $line = <IN> )
+    {
+      if( $line =~ m/\d+\s+(\S+)/ )
+      {
+        my $file = $1;
+        chomp $file;
+        if( compare("$file", "../$file" ) != 0 )
+        {
+          print "$file differs\n";
+          $runOPF = 1;
+          last;
+        }
+      }
+      else
+      { print $line; }
+    }
+
+    if( $runOPF == 0 )
+    {
+      open IN, "opf.opts" or die "Failed to open opf.opts\n$!";
+      while( my $line = <IN> )
+      {
+        if( $line =~ m/\d+\s+(\S+)/ )
+        {
+          my $file = $1;
+          chomp $file;
+          if( compare("$file", "../$file" ) != 0 )
+          {
+            print "$file differs\n";
+            $runOPF = 1;
+            last;
+          }
+        }
+      }
+    }
+  }
+}
+
+if ($runOPF == 0 ) {
+  print "Nothing new needed for OPF stage\n";
+  open OUT, ">", "old" or die;
+  print OUT "1\n";
+  close OUT;
   exit 0;
 }
 
-unlink "done";
 
+unlink "done";
+unlink "old";
+
+
+foreach(@ExtraFiles)
+{
+  copy( "../Common/$_", "$_" ) == 1 or die "Failed to get $_ from Common/\n";
+}
 
 foreach (@CommonFiles) {
   copy( "../Common/$_", "$_") == 1 or die "Failed to get $_ from Common/\n";
@@ -66,19 +144,6 @@ if( open CALC, "calc" )
   close CALC;
 }
 
-# Two very different ways of doing things depending on which wether we use ONCVPSP or Shirley codes
-my $program = 'shirley';
-open IN, "opf.program" or die "Failed to open opf.program: $!\n";
-if( <IN> =~ m/hamann/i )
-{
-  $program = 'hamann';
-  print "Will run OPF using the oncvpsp.x code\n";
-}
-else
-{
-  print "Will run OPF using hfk.x\n";
-}
-close IN;
 
 ###################################
 # Quickcheck
@@ -103,7 +168,7 @@ if( $program =~ m/shirley/ )
 
 # Setup
 ###################################
-print "Running OBF Setup\n";
+print "Running OPF Setup\n";
 system("$ENV{'OCEAN_BIN'}/pawsetup.x") == 0 or die "Failed to run pawsetup.x\n";
 
 unless( -d "zpawinfo" )
@@ -279,7 +344,7 @@ if( $program =~ m/shirley/ )
         move( $file, "zpawinfo/$dest" );
       }
       elsif( ( $file =~ m/^melfilez\w$/ ) or ( $file =~ m/^(sm|am|di|pr|psft|aeft)\w$/ ) or
-             ( $file =~ m/^(mt|dif)\w\w$/ ) or ( $file =~ m/^(map|ex)/ ) or ( $file =~ /hfin/ ) or
+             ( $file =~ m/^(mt|dif)\w\w$/ ) or ( $file =~ m/^(map|ex)/ ) or ( $file =~ /hfin\d/ ) or
              ( $file =~ m/hfk.+log/ ) or ( $file =~ m/aetotal/ ) or ( $file =~ m/radf/ ) )
       {
         move( $file, "zdiag_${znucl}" );
@@ -466,7 +531,7 @@ else  # oncvpsp method
         move( $file, "zpawinfo/$dest" );
       }
       elsif( ( $file =~ m/^melfilez\w$/ ) or ( $file =~ m/^(sm|am|di|pr|psft|aeft)\w$/ ) or
-             ( $file =~ m/^(mt|dif)\w\w$/ ) or ( $file =~ m/^(map|ex)/ ) or ( $file =~ /hfin/ ) or
+             ( $file =~ m/^(mt|dif)\w\w$/ ) or ( $file =~ m/^(map|ex)/ ) or ( $file =~ /hfin\d/ ) or
              ( $file =~ m/hfk.+log/ ) or ( $file =~ m/aetotal/ ) or ( $file =~ m/radf/ ) )
       {
         move( $file, "$zdiag" );
@@ -494,7 +559,7 @@ else  # oncvpsp method
 
 }
 ######################################
-print "OBF section done\n";
+print "OPF section done\n";
 
 open DONE, ">done" or exit 0;
 print DONE "1\n";

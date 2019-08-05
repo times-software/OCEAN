@@ -1,4 +1,4 @@
-! Copyright (C) 2016 - 2017 OCEAN collaboration
+! Copyright (C) 2016 - 2017, 2019 OCEAN collaboration
 !
 ! This file is part of the OCEAN project and distributed under the terms 
 ! of the University of Illinois/NCSA Open Source License. See the file 
@@ -35,7 +35,7 @@ module OCEAN_ladder
 !  integer :: nxpts_pad
 !  integer :: val_pad
 
-  integer :: screening_method = 1
+!  integer :: screening_method = 2
 
   INTEGER, PARAMETER :: CACHE_DOUBLE = 1
 
@@ -561,7 +561,8 @@ end subroutine OCEAN_ladder_act
     use OCEAN_system
     use OCEAN_val_states, only : max_nxpts, nxpts_pad, nxpts, startx, val_pad
     use OCEAN_mpi
-    use OCEAN_hyb_louie_levine
+!    use OCEAN_hyb_louie_levine, only : OS_hyb_louie_levine
+    use OCEAN_WRR, only : OCEAN_WRR_generate
     implicit none
 
     type(O_system), intent(in) :: sys
@@ -585,16 +586,20 @@ end subroutine OCEAN_ladder_act
     allocate( kk( sys%nkpts, 3 ), STAT=ierr ) 
     if( ierr .ne. 0 ) return
 
-    select case( screening_method )
-    case( 1 )
-      call OS_hyb_louie_levin( sys, nkpts_pad, nxpts_pad, nypts, ladder, nxpts, startx, nkret, kret, ierr, ladcap, kk )
-      if( ierr .ne. 0 ) return
+    call OCEAN_WRR_generate( sys, sys%screening_method, nkpts_pad, nxpts_pad, nypts, ladder, nxpts, & 
+                             startx, nkret, kret, ierr, ladcap, kk )
+    if( ierr .ne. 0 ) return
 
-    case default
-      ierr = -1
-      return
-
-    end select
+!    select case( screening_method )
+!    case( 1 )
+!      call OS_hyb_louie_levine( sys, nkpts_pad, nxpts_pad, nypts, ladder, nxpts, startx, nkret, kret, ierr, ladcap, kk )
+!      if( ierr .ne. 0 ) return
+!
+!    case default
+!      ierr = -1
+!      return
+!
+!    end select
 
 
 

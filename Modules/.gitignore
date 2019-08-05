@@ -1,0 +1,5 @@
+*.mod
+*.o
+*__genmod.f90
+doxygen*tmp
+doxygen_sqlite3.db
