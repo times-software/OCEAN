@@ -149,6 +149,11 @@ while( my $line =<IN> )
     $fermi = $1;
     last;
   }
+  elsif( $line =~ m/\<two_fermi_energies\>([-+]?\d+\.\d+[Ee]?[-+]?(\d+)?)\s+([-+]?\d+\.\d+[Ee]?[-+]?(\d+)?)/ )
+  {
+    $fermi = ($1+$3)/2;
+    last;
+  }
 }
 
 #print "Fermi energy: $fermi\n";

@@ -733,6 +733,11 @@ if ($RunESPRESSO) {
       {
         $fermi = $1;
       }
+      # We just average the two for spin=2 
+      elsif( $scf_line =~ m/\<two_fermi_energies\>([-+]?\d+\.\d+[Ee]?[-+]?(\d+)?)\s+([-+]?\d+\.\d+[Ee]?[-+]?(\d+)?)/ )
+      {
+        $fermi = ($1+$3)/2;
+      }
       elsif( $scf_line =~ m/\<nelec\>([-+]?\d+\.\d+[Ee]?[-+]?(\d+)?)/ )
       {
         $nelectron = $1;
@@ -767,6 +772,12 @@ if ($RunESPRESSO) {
       if( $line  =~  m/the Fermi energy is\s+([+-]?\d+\.?\d+)/ )
       {
         $fermi = $1;
+        print "Fermi level found at $fermi eV\n";
+        $fermi = $fermi/13.60569253;
+      }
+      elsif( $line  =~  m/Fermi energies are\s+([+-]?\d+\.?\d+)\s+([+-]?\d+\.?\d+)/ )
+      {
+        $fermi = ($1+$2)/2;
         print "Fermi level found at $fermi eV\n";
         $fermi = $fermi/13.60569253;
       }
