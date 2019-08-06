@@ -197,7 +197,7 @@ print "Min pool size: $min_nscf_pool_size\n";
   
 foreach (@cpu_factors)
 {
-  if( $ncpus / $_ > $min_nscf_pool_size )
+  if( $ncpus / $_ >= $min_nscf_pool_size )
   {
     $ideal_npools = $_ unless( $kpt_tot % $_ );
   }
@@ -207,7 +207,7 @@ if( $kpt_tot > (1.9*$ideal_npools ) && $ncpus / $ideal_npools > 6 )  # if ideal 
 {
   foreach (@cpu_factors)
   {
-    if( $ncpus / $_ > $min_nscf_pool_size )
+    if( $ncpus / $_ >= $min_nscf_pool_size )
     {
       $ideal_npools = $_;
     }

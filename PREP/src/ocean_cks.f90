@@ -175,10 +175,15 @@ module ocean_cks
     fflags = IOR( MPI_MODE_WRONLY, MPI_MODE_CREATE )
     fflags = IOR( fflags, MPI_MODE_UNIQUE_OPEN )
 
+#ifdef SIZEOF
     call MPI_SIZEOF( dumz, sizeofcomplex, ierr )
     if( ierr .ne. 0 ) return
     call MPI_SIZEOF( i, sizeofinteger, ierr )
     if( ierr .ne. 0 ) return
+#else
+    sizeofcomplex = 16
+    sizeofinteger = 4
+#endif
 
     do isite = 1, nsites
 

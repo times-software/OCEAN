@@ -622,7 +622,11 @@ module prep_wvfn
     do i = 0, poolID - 1
       offset = offset + prep_wvfn_divideXmesh( nx, nprocPerPool, i )
     enddo
+#ifdef SIZEOF
     call MPI_SIZEOF( dumz, sizeofcomplex, ierr )
+#else
+    sizeofcomplex = 16
+#endif
     if( ierr .ne. 0 ) return
     offset = offset *  sizeofcomplex
     write(1000+myid, * ) 'offset', offset, sizeofcomplex

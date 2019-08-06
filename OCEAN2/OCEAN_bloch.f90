@@ -1034,7 +1034,11 @@ module OCEAN_bloch
     if( ierr .ne. 0 ) return
 
     offset = ( nx_start - 1 )
+#ifdef SIZEOF
     call MPI_SIZEOF( dumz, sizeofcomplex, ierr )
+#else
+    sizeofcomplex = 16
+#endif
     if( ierr .ne. 0 ) return
     offset = offset *  sizeofcomplex
 
