@@ -28,6 +28,7 @@ module screen_centralPotential
   public :: screen_centralPotential_prepAll, screen_centralPotential_freePot
   public :: screen_centralPotential_loadInternal, screen_centralPotential_freeInternal
   public :: screen_centralPotential_findNextByZ, screen_centralPotential_countByZ
+  public :: screen_centralPotential_dumplog
 !  public :: screen_centralPotential_NOutGrid, screen_centralPotential_MakeOutGrid
 
   contains
@@ -230,13 +231,14 @@ module screen_centralPotential
   end subroutine screen_centralPotential_loadAll
 
   subroutine screen_centralPotential_dumpLog( pot, myid )
-    type( potential ), intent( in ) :: pot( : )
+    type( potential ), intent( in ) :: pot
     integer, intent( in ) :: myid
     integer :: i
 
-    write(1000+myid, * ) 'Central Potential: ', size( pot, 1 )
-    do i = 1, size( pot, 1 )
-      write(1000+myid, * ) pot( i )%z, pot( i )%n, pot( i )%l
+    write(1000+myid, * ) 'Central Potential: ', size( pot%pot, 1 )
+    write(1000+myid, * ) pot%z, pot%n, pot%l
+    do i = 1, size( pot%pot, 1 )
+      write(1000+myid, * ) pot%rad(i), pot%pot(i)
     enddo
   end subroutine screen_centralPotential_dumpLog
 
