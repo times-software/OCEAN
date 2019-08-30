@@ -916,7 +916,7 @@ module ocean_qe54_files
       return
     endif
 
-    call MPI_BCAST( gvecs, 1, MPI_INTEGER, pool_root, pool_comm, ierr )
+    call MPI_BCAST( gvecs, 2, MPI_INTEGER, pool_root, pool_comm, ierr )
     if( ierr .ne. 0 ) return
 #endif
 
@@ -1240,7 +1240,7 @@ module ocean_qe54_files
       if( ierr .ne. 0 ) return
       call MPI_IRECV( conUofG, 1, conType, pool_root, 2, pool_comm, requests( 2 ), ierr )
       if( ierr .ne. 0 ) return
-      call MPI_TYPE_FREE( valType, ierr )
+      call MPI_TYPE_FREE( conType, ierr )
       if( ierr .ne. 0 ) return
 
       call MPI_IBCAST( valGvecs, 3*test_gvec, MPI_INTEGER, pool_root, pool_comm, requests( 3 ), ierr )

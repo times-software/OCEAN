@@ -822,7 +822,7 @@ module ocean_qe62_files
       return
     endif
 
-    call MPI_BCAST( gvecs, 1, MPI_INTEGER, pool_root, pool_comm, ierr )
+    call MPI_BCAST( gvecs, 2, MPI_INTEGER, pool_root, pool_comm, ierr )
     if( ierr .ne. 0 ) return
 #endif
 
@@ -1019,6 +1019,8 @@ module ocean_qe62_files
       enddo
 
       call MPI_WAITALL( bufferSize, requests(1:bufferSize), MPI_STATUSES_IGNORE, ierr )
+      if( ierr .ne. 0 ) return
+      requests(1:bufferSize) = MPI_REQUEST_NULL
       
       deallocate( cmplx_wvfn )
       maxBands = qe62_getConductionBandsForPoolID( 0 )
@@ -1074,7 +1076,7 @@ module ocean_qe62_files
           enddo
           call SCREEN_tk_stop("dft-read")
 
-          write(1000+myid,'(A,3(1X,I8))') '   Sending ...', id, start_band, nbands_to_send
+          write(1000+myid,'(A,4(1X,I8))') '   Sending ...', id, start_band, nbands_to_send, j
           call MPI_IRSEND( cmplx_wvfn( 1, 1, j ), nbands_to_send*test_gvec, MPI_DOUBLE_COMPLEX, &
                          id, 2, pool_comm, requests( j ), ierr )
           if( ierr .ne. 0 ) return
@@ -1120,7 +1122,7 @@ module ocean_qe62_files
       if( ierr .ne. 0 ) return
       call MPI_IRECV( conUofG, 1, conType, pool_root, 2, pool_comm, requests( 2 ), ierr )
       if( ierr .ne. 0 ) return
-      call MPI_TYPE_FREE( valType, ierr )
+      call MPI_TYPE_FREE( conType, ierr )
       if( ierr .ne. 0 ) return
 
       call MPI_IBCAST( valGvecs, 3*test_gvec, MPI_INTEGER, pool_root, pool_comm, requests( 3 ), ierr )
