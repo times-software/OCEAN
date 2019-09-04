@@ -20,7 +20,7 @@ module schi_direct
 
   contains
 
-  subroutine schi_direct_calcW( grid, Pot, FullChi, FullChi0, FullW, FullW0, Nind, Nind0, ierr )
+  subroutine schi_direct_calcW( grid, Pot, FullChi, FullChi0, FullW, FullW0, Nind, Nind0, intInduced, ierr )
     use ocean_constants, only : PI_DP
     ! THIS IS A HACK, NEEDS TO BE EXTERNAL TO BOTH OR INTERNAL TO BOTH
     use schi_sinqr, only : Newmkvipt
@@ -31,6 +31,7 @@ module schi_direct
     real(DP), intent( in ) :: FullChi(:,:,:,:)
     real(DP), intent( in ) :: FullChi0(:,:,:,:)
     real(DP), intent( out ) :: FullW(:,:), FullW0(:,:), NINd(:,:), Nind0(:,:)
+    real(DP), intent( out ) :: intInduced
     integer, intent( inout ) :: ierr
 
     real(DP), parameter :: d_one = 1.0_DP
@@ -68,7 +69,6 @@ module schi_direct
     ! Only treating the first (l=0) beacuse vipt is only that long and we are only starting with l=0 external pot
 !    call DGEMV( 'N', nr*nLM, nr, d_one, FullChi, nr*nLM, vipt, 1, d_zero, FullW, 1 )
 
-    allocate( transpNind( nLM, nr ) )
     NInd = 0.0_DP
     Nind0 = 0.0_DP
     do j = 1, nr
@@ -82,6 +82,7 @@ module schi_direct
 
 #ifdef DEBUG
 
+    allocate( transpNind( nLM, nr ) )
     transpNind = transpose( Nind )
     open( unit=99, file='ninduced.test', form='formatted', status='unknown' )
     rewind 99
@@ -100,9 +101,14 @@ module schi_direct
         write ( 99, fmtstmt ) grid%rad( i ), transpNind(:,i ) !NInd(i,:)
     end do
     close( unit=99 )
+    deallocate( transpNind )
 #endif
 
-    deallocate( transpNind )
+    intInduced = 0.0_DP
+    do i = 1, nr
+      intInduced = intInduced + NInd( i, 1 ) * grid%rad(i)**2 * grid%drad(i)
+    enddo
+    
     
     FullW(:,:) = 0.0_DP
     FullW0(:,:) = 0.0_DP
