@@ -79,6 +79,15 @@ module schi_direct
         enddo
       enddo
     enddo
+!#ifdef DEBUG
+!    open(unit=99,file='vpert.test', form='formatted')
+!    do i = 1, nr
+!      write(99,*) grid%rad(i), vipt(i)
+!    enddo
+!    close( 99 )
+!#endif
+
+    deallocate( vipt )
 
 #ifdef DEBUG
 
@@ -109,9 +118,9 @@ module schi_direct
       intInduced = intInduced + NInd( i, 1 ) * grid%rad(i)**2 * grid%drad(i)
     enddo
     
-    
     FullW(:,:) = 0.0_DP
     FullW0(:,:) = 0.0_DP
+#if 0    
     do i = 1, nr
       r2dr = grid%rad(i)**2 * grid%drad(i)
       do j = 1, nr
@@ -139,17 +148,77 @@ module schi_direct
         enddo
       enddo
     enddo
+#else
+
+    
+    ! The 
+    FullW( 1, 1 )  = 4.0_DP * PI_DP * grid%rad(1) * grid%drad(1) * Nind( i, 1 )
+    FullW0( 1, 1 ) = 4.0_DP * PI_DP * grid%rad(1) * grid%drad(1) * Nind0( i, 1 )
+
+    do i = 2, nr
+      coul = grid%rad(i) * grid%drad(i) * 4.0_DP * PI_DP
+      do j = 1, i
+        FullW( j, 1 ) = FullW( j, 1 ) + coul * Nind( i, 1 )
+        FullW0( j, 1 ) = FullW0( j, 1 ) + coul * Nind0( i, 1 )
+      enddo
+
+      coul = coul * grid%rad(i)
+      do j = i+1, nr
+        FullW( j, 1 ) = FullW( j, 1 ) + coul * Nind( i, 1 ) / grid%rad(j)
+        FullW0( j, 1 ) = FullW0( j, 1 ) + coul * Nind0( i, 1 ) / grid%rad(j)
+      enddo
+    enddo
+
+    if( nLM .lt. 2 ) return
+
+    ! l = 1 r(i)**2 * dr(i) * rlt / rgt**2
+    ! i>j :-> dr(i) * r(j)
+    ! j>i :-> dr(i) * r(i)**3 / r(j)**2
+    do iLM = 2, 4
+      FullW( 1, ilm )  = 4.0_DP * PI_DP * grid%rad(1) * grid%drad(1) * Nind( i, ilm )
+      FullW0( 1, ilm ) = 4.0_DP * PI_DP * grid%rad(1) * grid%drad(1) * Nind0( i, ilm )
+      do i = 2, nr
+        coul = grid%drad(i) * 4.0_DP * PI_DP
+        do j = 1, i
+          FullW( j, ilm ) = FullW( j, ilm ) + coul * Nind( i, ilm ) * grid%rad(j)
+          FullW0( j, ilm ) = FullW0( j, ilm ) + coul * Nind0( i, ilm ) * grid%rad(j)
+        enddo
+
+        coul = coul * grid%rad(i)**3
+        do j = i+1, nr
+          FullW( j, ilm ) = FullW( j, ilm ) + coul * Nind( i, ilm ) / grid%rad(j)**2
+          FullW0( j, ilm ) = FullW0( j, ilm ) + coul * Nind0( i, ilm ) / grid%rad(j)**2
+        enddo
+      enddo
+    enddo
+
+    if( nlm .lt. 5 ) return
+
+    ! l = 2 r(i)**2 * dr(i) * rlt**2 / rgt**3
+    ! i=j=1 : dr(1) * r(1)
+    ! i>j :-> dr(i) * r(j)**2 / r(i)
+    ! j>i :-> dr(i) * r(i)**4 / r(j)**3
+    do iLM = 5, 9
+      FullW( 1, ilm )  = 4.0_DP * PI_DP * grid%rad(1) * grid%drad(1) * Nind( i, ilm )
+      FullW0( 1, ilm ) = 4.0_DP * PI_DP * grid%rad(1) * grid%drad(1) * Nind0( i, ilm )
+      do i = 2, nr
+        coul = grid%drad(i) * 4.0_DP * PI_DP / grid%rad(i)
+        do j = 1, i
+          FullW( j, ilm ) = FullW( j, ilm ) + coul * Nind( i, ilm ) * grid%rad(j)**2
+          FullW0( j, ilm ) = FullW0( j, ilm ) + coul * Nind0( i, ilm ) * grid%rad(j)**2
+        enddo
+
+        coul = coul * grid%rad(i)**4
+        do j = i+1, nr
+          FullW( j, ilm ) = FullW( j, ilm ) + coul * Nind( i, ilm ) / grid%rad(j)**3
+          FullW0( j, ilm ) = FullW0( j, ilm ) + coul * Nind0( i, ilm ) / grid%rad(j)**3
+        enddo
+      enddo
+    enddo
+
+#endif
     
 
-!#ifdef DEBUG
-!    open(unit=99,file='vpert.test', form='formatted')
-!    do i = 1, nr
-!      write(99,*) grid%rad(i), vipt(i)
-!    enddo
-!    close( 99 )
-!#endif
-
-    deallocate( vipt )
 
   end subroutine schi_direct_calcW
 
