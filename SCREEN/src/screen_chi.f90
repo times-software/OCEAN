@@ -64,7 +64,7 @@ module screen_chi
     integer, intent( inout ) :: ierr
     !
     real(DP), allocatable :: FullW( :, : ), FullW0( :, : ), Ninduced( :, : ), N0induced( :, : )
-    real(DP) :: intInduced
+    real(DP) :: intInduced(2)
     type( potential ), pointer :: temp_Pots
     type( potential ) :: Pot
     integer :: nPots, iPots, iShell, nShell, potIndex, nLM
@@ -105,7 +105,7 @@ module screen_chi
                                intInduced, ierr )
         if( ierr .ne. 0 ) return
 
-        write(1000+myid,*) Prefix, intInduced
+        write(1000+myid,'(A,1X,E24.16,1X,E24.16)') Prefix, intInduced(:)
         
         call screen_chi_writeW( mySite%grid, Prefix, FullW, FullW0, Ninduced, N0induced )
 
@@ -342,12 +342,14 @@ module screen_chi
     real(DP), intent( in ) :: FullChi(:,:,:,:)
     real(DP), intent( in ) :: FullChi0(:,:,:,:)
     real(DP), intent( out ), dimension(:,:) :: FullW, FullW0, Ninduced, N0induced
-    real(DP), intent( out ) :: intInduced
+    real(DP), intent( out ) :: intInduced(2)
     integer, intent( inout ) :: ierr
 
     select case ( invStyle )
       case( 'sinqr' )
-        intInduced = 0.0_DP
+        ! I think this is actually definitional in the sinqr formulation, but possibly not
+        !  should go and check
+        intInduced(:) = 0.0_DP
         call schi_sinqr_calcW( grid, Pot, FullChi, FullChi0, FullW, FullW0, Ninduced, N0induced, ierr )
 !        FullW0 = 0.0_DP 
 !        Ninduced = 0.0_DP
