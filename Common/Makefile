@@ -1,6 +1,6 @@
 include ../Makefile.arch
 FILES   =
-SCRIPTS = ocean.pl par_ocean.pl parse defaults.pl defaults.h parse.pl edges.pl structure.pl
+SCRIPTS = ocean.pl par_ocean.pl parse defaults.pl defaults.h parse.pl edges.pl structure.pl psp_parser.pl
 AUX = oparse.h Pquadrature specpnt sphpts EvenQuadHalf.txt
 SPECPNT = specpnt.5 specpnt.6 specpnt.7 specpnt.8 specpnt.9 specpnt.10 \
           specpnt.11 specpnt.12 specpnt.13 specpnt.14 specpnt.15 \
