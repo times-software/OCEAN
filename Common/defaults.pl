@@ -622,6 +622,22 @@ if( $input_content =~ m/VAL/i || $input_content =~ m/RXS/i )
 }
 
 
+# epsilon can't be 1
+open EPS, "epsilon" or die "Failed to open epsilon\n$!";
+my $epsilon = <EPS>;
+chomp $epsilon;
+close EPS;
+if( $epsilon < 1.000001 )
+{
+  print "Use of model dielectric requires that epsilon be greater than 1!\n";
+  print "Input diemac too low: $epsilon\n";
+  $epsilon = 1.000001;
+  open EPS, ">", "epsilon" or die "Failed to open epsilon\n$!";
+  print EPS "$epsilon\n";
+  close EPS;
+}
+
+
 
 exit;
 

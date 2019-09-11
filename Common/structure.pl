@@ -27,7 +27,7 @@ open ZNUCL, "znucl" or die "Failed to open znucl\n$!";
 while (<ZNUCL>)
 {
   chomp;
-  push @znucl, split / /;
+  push @znucl, split ' ';
 }
 close ZNUCL;
 
@@ -41,7 +41,7 @@ open TYPAT, "typat" or die "Failed to open typat\n$!";
 while (<TYPAT>)
 {
   chomp;
-  push @typat, split / /;
+  push @typat, split ' ';
 }
 close TYPAT;
 
