@@ -544,7 +544,9 @@ module ocean_cks
 !
 ! qkVec : the k (or k+q) point
 ! deltaR : minimum spacing for radial grid
-  subroutine ocean_cks_build( wvfn, kqVec, deltaR, avecs, isValence, localKpt, ierr, gvecs, UofG )
+! bandOffset : because the input wvfn might be a subset of bands to save memory, this tells us where to 
+!              store into cks
+  subroutine ocean_cks_build( wvfn, kqVec, deltaR, avecs, isValence, localKpt, bandOffset, ierr, gvecs, UofG )
     use ocean_mpi, only : myid
     use screen_opf, only : screen_opf_lbounds, screen_opf_maxnproj, screen_opf_nprojforchannel, &
                            screen_opf_interppsprojs, screen_opf_makeamat, screen_opf_getrmax, &
@@ -557,6 +559,7 @@ module ocean_cks
     real(DP), intent( in ) :: kqVec(3), deltaR, avecs(3,3)
     logical, intent( in ) :: isValence
     integer, intent( in ) :: localKpt
+    integer, intent( in ) :: bandOffset
     integer, intent( inout ) :: ierr
     integer, intent( in ), optional :: gvecs(:,:)
     complex(DP), intent( in ), optional :: UofG(:,:)
@@ -581,17 +584,23 @@ module ocean_cks
     order = 4
     nL = size( angularGrid, 2 )
 
-! $OMP PARALLEL DEFAULT( NONE ) &
-! $OMP SHARED( dims, nsites, order, nL, nband, deltaR, wvfn ) &
-! $OMP PRIVATE( zee, iband isite, nR, rmax, itarg, 
-! $OMP REDUCTION (+ierr)
+!$OMP PARALLEL DEFAULT( NONE ) &
+!$OMP SHARED( dims, nsites, order, nL, nband, deltaR, wvfn, allSites, bandOffset, angularGrid ) &
+!$OMP SHARED( avecs, kqVec, weightedYlmStar, allCksHolders ) &
+!$OMP PRIVATE( zee, iband isite, nR, rmax, itarg, ir, il, lmin, lmax, maxNproj, l, nproj, m, ip ) &
+!$OMP PRIVATE( isInitGrid, Pgrid, localWvfn, uniSphericalGrid, SphericalGrid, radGrid, deltaRadGrid ) &
+!$OMP PRIVATE( waveByLM, Smat, Cmat, psproj, amat )
+!$OMP REDUCTION (+ierr)
 
     allocate( isInitGrid( dims(1), dims(2), dims(3) ), Pgrid( order, dims(1), dims(2), dims(3)) )
 
+    ! For later on to support multiple elements, pre-allocate empty, will deallocate in first trip through
     itarg = 1
     zee = 0
-    allocate( localWvfn( 0, 0 ), uniSphericalGrid( 0, 0, 0 ), SphericalGrid( 0, 0, 0 ) )
+    allocate( localWvfn( 0, 0 ), uniSphericalGrid( 0, 0, 0 ), SphericalGrid( 0, 0, 0 ), &
+              radGrid( 0 ), deltaRadGrid( 0 ) )
 
+!$OMP DO SCHEDULE( STATIC )
     do iband = 1, nband
       isInitGrid = .false. 
 
@@ -603,19 +612,20 @@ module ocean_cks
         ! cache some of this nonsense ?
         if( zee .ne. allSites( isite )%z ) then
           zee = allSites( isite )%z 
-          deallocate( localWvfn, uniSphericalGrid, SphericalGrid )
+          deallocate( localWvfn, uniSphericalGrid, SphericalGrid, radGrid, deltaRadGrid )
 
           call screen_opf_getRMax( zee, rmax, ierr, itarg )
           nR = ceiling( rmax / deltaR )
           trueDeltaR = (rmax-0.0000001_DP) / real( nR, DP )
 
           ! from cut-off, determine number of radial points
-          
-          if( iband .eq. 1 ) then
+!$OMP MASTER          
+          if( iband .eq. 1 .and. bandOffset .eq. 0 ) then
             write(1000+myid, * ) 'cks'
             write(1000+myid, * ) zee, rmax, deltaR
             write(1000+myid, * ) nR, trueDeltaR
           endif
+!$OMP END MASTER
 
           ! allocate wvfn holder
           ! 
@@ -735,14 +745,14 @@ module ocean_cks
               do j = 1, nproj
                 ip = ip + 1
 !              cksArray( ip, iband, isite ) = Cmat( j, i )
-                allCksHolders( isite )%val( ip, iband, localKpt ) = Cmat( j, i )
+                allCksHolders( isite )%val( ip, iband + bandOffset, localKpt ) = Cmat( j, i )
               enddo
             enddo
           else
             do i = 1, 2*l + 1
               do j = 1, nproj
                 ip = ip + 1
-                allCksHolders( isite )%con( ip, iband, localKpt ) = Cmat( j, i )
+                allCksHolders( isite )%con( ip, iband + bandOffset, localKpt ) = Cmat( j, i )
               enddo
             enddo
           endif
@@ -756,6 +766,12 @@ module ocean_cks
       enddo ! isite
 
     enddo  ! iband
+!$OMP END DO NOWAIT
+
+    deallocate( localWvfn, uniSphericalGrid, SphericalGrid, radGrid, deltaRadGrid )
+    deallocate( isInitGrid, Pgrid )
+
+!$OMP END PARALLEL
     
 
 

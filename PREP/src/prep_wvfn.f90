@@ -42,7 +42,7 @@ module prep_wvfn
     complex(DP), pointer :: UofGPointer(:,:)!, cksPointer(:,:,:) !, UofXpointer(:,:,:,:)
 !    complex(DP), allocatable, target :: cksValArray(:,:,:,:), cksConArray(:,:,:,:)
 
-    real(DP) :: kqVec(3), deltaR, kqVecCart(3)
+    real(DP) :: kqVec(3), deltaR, kqVecCart(3), memEstimate
 
     integer, allocatable, target :: valGvecs(:,:), conGvecs(:,:)
     integer, pointer :: gvecPointer(:,:)
@@ -51,12 +51,12 @@ module prep_wvfn
     integer :: valNgvecs, conNgves, valBands, conBands, ngvecs(2), odf_flag, totConBands
     integer :: nG, nbands, fftGrid(3), allBands, nX, vType, cType, totValBands, myConBandStart, kStride
 
-    integer :: conFH, valFH, fileHandle, poolID, i, testFH
+    integer :: conFH, valFH, fileHandle, poolID, i, testFH, iband, bandChunk, omp_threads
     logical :: is_kpt, wantCKS, wantU2, addShift, wantLegacy, wantTmels
 
     wantCKS = calcParams%makeCKS
     wantU2 = calcParams%makeU2
-    wantLegacy = .true.
+    wantLegacy = .false.
     wantTmels = calcParams%makeTmels
 
 
@@ -325,20 +325,44 @@ module prep_wvfn
 
             call prep_wvfn_checkFFT( nG, gvecPointer, wantCKS, .false., fftGrid, ierr )
 
-            allocate( wvfn( fftGrid(1), fftGrid(2), fftGrid(3), nbands ) )
+            memEstimate = real( fftGrid(1), DP ) * real( fftGrid(2), DP ) * real( fftGrid(3), DP ) 
+            bandChunk = max( floor( 67108864_DP / memEstimate ), 1 )
+            omp_threads = 1
+!$          omp_threads = omp_get_max_threads()
+            
+            bandChunk = max( bandChunk, omp_threads )
+            bandChunk = max( 1, bandChunk/omp_threads ) * omp_threads 
 
-            call prep_wvfn_doFFT( gvecPointer, UofGPointer, wvfn )
+            bandChunk = min( bandChunk, nbands )
+
+            write(1000+myid, '(3I8,E24.16)' ) omp_threads, bandChunk, nbands, memEstimate/67108864_DP
+
+!            allocate( wvfn( fftGrid(1), fftGrid(2), fftGrid(3), nbands ) )
+            allocate( wvfn( fftGrid(1), fftGrid(2), fftGrid(3), bandChunk ) )
+
+            do iband = 1, nbands, bandChunk
+
+              if( nbands - iband + 1 .lt. bandChunk ) then
+                deallocate( wvfn )
+                allocate( wvfn( fftGrid(1), fftGrid(2), fftGrid(3), nbands - iband + 1 ) )
+              endif
+
+              call prep_wvfn_doFFT( gvecPointer, UofGPointer(:,iband:), wvfn )
 
           ! allocate CKS holder which requires queries for sites, maybe loop over all sites? need all the FHs
 
           ! call CKS
 !            call prep_wvfn_cks( 
           ! deltaR is the min real-space spacing for the overlap, should make it an input
-            deltaR = 0.02_DP
-            addShift = (i .eq. 2 )
-            call prep_system_ikpt2kvec( ikpt, addShift, kqVec, kqVecCart ) 
-            write(1000+myid, '(A,I8,6(X,E24.16),X,L2,I2)' ) 'kqVec', ikpt, kqVecCart(:), kqVec(:), addShift, i
-            call ocean_cks_build( wvfn, kqVecCart, deltaR, psys%avecs, (i.eq.1), iuni, ierr )
+              deltaR = 0.02_DP
+              addShift = (i .eq. 2 )
+              call prep_system_ikpt2kvec( ikpt, addShift, kqVec, kqVecCart ) 
+              if( iband .eq. 1 ) then
+                write(1000+myid, '(A,I8,6(X,E24.16),X,L2,I2)' ) 'kqVec', ikpt, kqVecCart(:), & 
+                                                                kqVec(:), addShift, i
+              endif
+              call ocean_cks_build( wvfn, kqVecCart, deltaR, psys%avecs, (i.eq.1), iuni, iband-1, ierr )
+            enddo
 
             deallocate( wvfn )
 
@@ -631,8 +655,8 @@ module prep_wvfn
     offset = offset *  sizeofcomplex
     write(1000+myid, * ) 'offset', offset, sizeofcomplex
       
-!    call MPI_FILE_SET_VIEW( fh, offset, MPI_DOUBLE_COMPLEX, MPI_DOUBLE_COMPLEX, "native", MPI_INFO_NULL, ierr )
-    call MPI_FILE_SET_VIEW( fh, offset, MPI_DOUBLE_COMPLEX, fileType, "native", MPI_INFO_NULL, ierr )
+    call MPI_FILE_SET_VIEW( fh, offset, MPI_DOUBLE_COMPLEX, MPI_DOUBLE_COMPLEX, "native", MPI_INFO_NULL, ierr )
+!    call MPI_FILE_SET_VIEW( fh, offset, MPI_DOUBLE_COMPLEX, fileType, "native", MPI_INFO_NULL, ierr )
     if( ierr .ne. 0 ) return
 #else
     open( file=filnam, form='unformatted', status='unknown', newunit=fh )
