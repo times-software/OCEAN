@@ -2,7 +2,7 @@ include ../../Makefile.arch
 
 #OPTIONS += -prof-gen
 #OPTIONS += -prof-use 
-OPTIONS += -march=haswell -fopenmp 
+#OPTIONS += -march=haswell -prec-div -prec-sqrt
 #OPTIONS += -check all -g -traceback
 
 

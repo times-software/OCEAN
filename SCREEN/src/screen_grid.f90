@@ -92,6 +92,17 @@ module screen_grid
 !    write( filnam, '(A,A2,I4.4)' ) 'grid', elname, elindx
 !    write(6,*) filnam
 
+#ifdef DEBUG
+    open( unit=99, file=filnam, form='formatted', status='unknown', iostat=ierr, err=100 )
+    rewind( 99 )
+    write(99,*) g%npt, g%nr, g%rmax, g%center
+    write(99,*) g%posn
+    write(99,*) g%wpt
+    write(99,*) g%drel
+    write(99,*) g%rad
+    write(99,*) g%drad
+    close(99)
+#else
     open( unit=99, file=filnam, form='unformatted', status='unknown', iostat=ierr, err=100 )
     rewind( 99 )
     write(99) g%npt, g%nr, g%rmax, g%center
@@ -101,6 +112,7 @@ module screen_grid
     write(99) g%rad
     write(99) g%drad
     close(99)
+#endif
 
 100 continue
 
@@ -491,7 +503,7 @@ module screen_grid
     g%wpt(:)  = o%wpt(:)
     g%drel(:) = o%drel(:)
     g%rad(:)  = o%rad(:)
-    g%drad(:) = g%drad(:)
+    g%drad(:) = o%drad(:)
 
     do i = 1, o%ninter
       !copy rgrid and agrid stuff here

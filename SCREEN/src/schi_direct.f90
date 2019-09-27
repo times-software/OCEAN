@@ -7,7 +7,7 @@
 !
 ! John Vinson
 module schi_direct
-  use ai_kinds, only : DP
+  use ai_kinds, only : DP, QP
 
   implicit none
   private
@@ -20,7 +20,7 @@ module schi_direct
 
   contains
 
-  subroutine schi_direct_calcW( grid, Pot, FullChi, FullChi0, FullW, FullW0, Nind, Nind0, ierr )
+  subroutine schi_direct_calcW( grid, Pot, FullChi, FullChi0, FullW, FullW0, Nind, Nind0, intInduced, ierr )
     use ocean_constants, only : PI_DP
     ! THIS IS A HACK, NEEDS TO BE EXTERNAL TO BOTH OR INTERNAL TO BOTH
     use schi_sinqr, only : Newmkvipt
@@ -31,12 +31,13 @@ module schi_direct
     real(DP), intent( in ) :: FullChi(:,:,:,:)
     real(DP), intent( in ) :: FullChi0(:,:,:,:)
     real(DP), intent( out ) :: FullW(:,:), FullW0(:,:), NINd(:,:), Nind0(:,:)
+    real(DP), intent( out ) :: intInduced(2)
     integer, intent( inout ) :: ierr
 
     real(DP), parameter :: d_one = 1.0_DP
     real(DP), parameter :: d_zero = 0.0_DP
     real(DP), allocatable :: vipt( : ), transpNind(:,:)
-    real(DP) :: rgt, coul, r2dr, rlt
+    real(DP) :: rgt, coul, r2dr, rlt, rescaleNInduced
     integer :: nLM, nR, i, j, ilm, lpol
 
 #ifdef DEBUG
@@ -68,7 +69,6 @@ module schi_direct
     ! Only treating the first (l=0) beacuse vipt is only that long and we are only starting with l=0 external pot
 !    call DGEMV( 'N', nr*nLM, nr, d_one, FullChi, nr*nLM, vipt, 1, d_zero, FullW, 1 )
 
-    allocate( transpNind( nLM, nr ) )
     NInd = 0.0_DP
     Nind0 = 0.0_DP
     do j = 1, nr
@@ -79,9 +79,19 @@ module schi_direct
         enddo
       enddo
     enddo
+!#ifdef DEBUG
+!    open(unit=99,file='vpert.test', form='formatted')
+!    do i = 1, nr
+!      write(99,*) grid%rad(i), vipt(i)
+!    enddo
+!    close( 99 )
+!#endif
+
+    deallocate( vipt )
 
 #ifdef DEBUG
 
+    allocate( transpNind( nLM, nr ) )
     transpNind = transpose( Nind )
     open( unit=99, file='ninduced.test', form='formatted', status='unknown' )
     rewind 99
@@ -100,12 +110,31 @@ module schi_direct
         write ( 99, fmtstmt ) grid%rad( i ), transpNind(:,i ) !NInd(i,:)
     end do
     close( unit=99 )
+    deallocate( transpNind )
 #endif
 
-    deallocate( transpNind )
+    intInduced(:) = 0.0_DP
+    do i = 1, nr
+      intInduced(1) = intInduced(1) + NInd( i, 1 ) * grid%rad(i)**2 * grid%drad(i)
+    enddo
+    
+    ! Force charge conservation
+    if( .true. ) then
+      rescaleNInduced = ( 3.0_DP * intInduced(1) ) / ( grid%rmax**3 )
+      NInd(:,1) = Nind(:,1) - rescaleNInduced
+
+      do i = 1, nr
+        intInduced(2) = intInduced(2) + NInd( i, 1 ) * grid%rad(i)**2 * grid%drad(i)
+      enddo
+    else
+      intInduced(2) = intInduced(1)
+    endif
+    
+    intInduced(:) = intInduced(:) * 4.0_DP * PI_DP
     
     FullW(:,:) = 0.0_DP
     FullW0(:,:) = 0.0_DP
+#if 0    
     do i = 1, nr
       r2dr = grid%rad(i)**2 * grid%drad(i)
       do j = 1, nr
@@ -133,17 +162,77 @@ module schi_direct
         enddo
       enddo
     enddo
+#else
+
+    
+    ! The 
+    FullW( 1, 1 )  = 4.0_DP * PI_DP * grid%rad(1) * grid%drad(1) * Nind( i, 1 )
+    FullW0( 1, 1 ) = 4.0_DP * PI_DP * grid%rad(1) * grid%drad(1) * Nind0( i, 1 )
+
+    do i = 2, nr
+      coul = grid%rad(i) * grid%drad(i) * 4.0_DP * PI_DP
+      do j = 1, i
+        FullW( j, 1 ) = FullW( j, 1 ) + coul * Nind( i, 1 )
+        FullW0( j, 1 ) = FullW0( j, 1 ) + coul * Nind0( i, 1 )
+      enddo
+
+      coul = coul * grid%rad(i)
+      do j = i+1, nr
+        FullW( j, 1 ) = FullW( j, 1 ) + coul * Nind( i, 1 ) / grid%rad(j)
+        FullW0( j, 1 ) = FullW0( j, 1 ) + coul * Nind0( i, 1 ) / grid%rad(j)
+      enddo
+    enddo
+
+    if( nLM .lt. 2 ) return
+
+    ! l = 1 r(i)**2 * dr(i) * rlt / rgt**2
+    ! i>j :-> dr(i) * r(j)
+    ! j>i :-> dr(i) * r(i)**3 / r(j)**2
+    do iLM = 2, 4
+      FullW( 1, ilm )  = 4.0_DP * PI_DP * grid%rad(1) * grid%drad(1) * Nind( i, ilm )
+      FullW0( 1, ilm ) = 4.0_DP * PI_DP * grid%rad(1) * grid%drad(1) * Nind0( i, ilm )
+      do i = 2, nr
+        coul = grid%drad(i) * 5.0_DP * PI_DP / 3.0_DP
+        do j = 1, i
+          FullW( j, ilm ) = FullW( j, ilm ) + coul * Nind( i, ilm ) * grid%rad(j)
+          FullW0( j, ilm ) = FullW0( j, ilm ) + coul * Nind0( i, ilm ) * grid%rad(j)
+        enddo
+
+        coul = coul * grid%rad(i)**3
+        do j = i+1, nr
+          FullW( j, ilm ) = FullW( j, ilm ) + coul * Nind( i, ilm ) / grid%rad(j)**2
+          FullW0( j, ilm ) = FullW0( j, ilm ) + coul * Nind0( i, ilm ) / grid%rad(j)**2
+        enddo
+      enddo
+    enddo
+
+    if( nlm .lt. 5 ) return
+
+    ! l = 2 r(i)**2 * dr(i) * rlt**2 / rgt**3
+    ! i=j=1 : dr(1) * r(1)
+    ! i>j :-> dr(i) * r(j)**2 / r(i)
+    ! j>i :-> dr(i) * r(i)**4 / r(j)**3
+    do iLM = 5, 9
+      FullW( 1, ilm )  = 4.0_DP * PI_DP * grid%rad(1) * grid%drad(1) * Nind( i, ilm )
+      FullW0( 1, ilm ) = 4.0_DP * PI_DP * grid%rad(1) * grid%drad(1) * Nind0( i, ilm )
+      do i = 2, nr
+        coul = grid%drad(i) * 4.0_DP * PI_DP / grid%rad(i) / 5.0_DP
+        do j = 1, i
+          FullW( j, ilm ) = FullW( j, ilm ) + coul * Nind( i, ilm ) * grid%rad(j)**2
+          FullW0( j, ilm ) = FullW0( j, ilm ) + coul * Nind0( i, ilm ) * grid%rad(j)**2
+        enddo
+
+        coul = coul * grid%rad(i)**4
+        do j = i+1, nr
+          FullW( j, ilm ) = FullW( j, ilm ) + coul * Nind( i, ilm ) / grid%rad(j)**3
+          FullW0( j, ilm ) = FullW0( j, ilm ) + coul * Nind0( i, ilm ) / grid%rad(j)**3
+        enddo
+      enddo
+    enddo
+
+#endif
     
 
-!#ifdef DEBUG
-!    open(unit=99,file='vpert.test', form='formatted')
-!    do i = 1, nr
-!      write(99,*) grid%rad(i), vipt(i)
-!    enddo
-!    close( 99 )
-!#endif
-
-    deallocate( vipt )
 
   end subroutine schi_direct_calcW
 
@@ -309,7 +398,7 @@ module schi_direct
 
   subroutine schi_direct_project( grid, FullSpace, ProjectedSpace, ierr )
     use screen_grid, only : sgrid
-    use ocean_constants, only : PI_DP
+    use ocean_constants, only : PI_DP, PI_QP
     use ocean_mpi, only : myid
     use ocean_sphericalHarmonics, only : ocean_sphH_getylm
 !    use ocean_ylm, only : realYLM3
@@ -320,6 +409,7 @@ module schi_direct
     integer, intent( inout ) :: ierr
 
     real(DP), allocatable :: slice_ymu( :, : ), temp( :, :, : )
+    real(DP) :: su
 
     integer :: npt, nbasis, nLM, fullSize, nang, nr, dimTemp
     integer :: i, j, iLM, l, m, ir, jr, jlm, k, lmax, ipt, iir, inter
@@ -381,8 +471,14 @@ module schi_direct
       allocate( slice_ymu( nang, nLM ), STAT=ierr )
       if( ierr .ne. 0 ) return
     
-      iLM = 0
-      do l = 0, lmax
+      iLM = 1
+
+      su = 1.0_QP / sqrt( 4.0_QP * PI_QP )
+      do j = 1, nang
+        slice_ymu( j, 1 ) = su * grid%agrid(inter)%weights( j )
+      enddo
+
+      do l = 1, lmax
         do m = -l, l
           iLM = iLM + 1
 !          write(6,*) iLM, l, m
@@ -412,6 +508,7 @@ module schi_direct
   
       deallocate( slice_ymu )
     enddo
+
       
     iir = 0
     ipt = 0
@@ -426,8 +523,14 @@ module schi_direct
       allocate( slice_ymu( nang, nLM ), STAT=ierr )
       if( ierr .ne. 0 ) return
       ! could store up slice_ymu instead of re-calculating
-      iLM = 0
-      do l = 0, lmax
+
+      su = 1.0_QP / sqrt( 4.0_QP * PI_QP )
+      do j = 1, nang
+        slice_ymu( j, 1 ) = su * grid%agrid(inter)%weights( j )
+      enddo
+
+      iLM = 1
+      do l = 1, lmax
         do m = -l, l
           iLM = iLM + 1
           do j = 1, nang
@@ -443,11 +546,14 @@ module schi_direct
           do jlm = 1, nlm
             k = 0
             do jr = 1, nr
+              su = 0.0_DP
               do i = 1, nang
                 k = k + 1
-                ProjectedSpace(jr+iir,jlm,ir,ilm) = ProjectedSpace(jr+iir,jlm,ir,ilm) &
-                  + temp( k+ipt, ir, ilm ) * slice_ymu( i, jlm )
+!                ProjectedSpace(jr+iir,jlm,ir,ilm) = ProjectedSpace(jr+iir,jlm,ir,ilm) &
+!                  + temp( k+ipt, ir, ilm ) * slice_ymu( i, jlm )
+                su = su + temp( k+ipt, ir, ilm ) * slice_ymu( i, jlm )
               enddo
+              ProjectedSpace(jr+iir,jlm,ir,ilm) = su
             enddo
           enddo
         enddo

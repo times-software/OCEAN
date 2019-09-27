@@ -494,9 +494,10 @@ module ocean_qe62_files
     logical, intent( out ) :: isGamma, isFullStorage
     integer, intent( inout ) :: ierr
     !
-    integer :: i, j, nkpts, nbv, nbc
+    integer :: i, j, nkpts, nbv, nbc, eBandStart, eBandStop, eNkpt, eNspin, ierr_
     logical :: ex
     character(len=128) :: tmp
+    real(DP), allocatable :: temp_energies( :, : , : ) 
     real(DP) :: qinb(3)
     real(DP), parameter :: tol = 0.0000001_DP
     !
@@ -574,24 +575,64 @@ module ocean_qe62_files
 
       ! For QE62 we parse the energies using a perl script because xml is the worst
       ! We just read it in once and store it forever
+      open( unit=99, file='eig62.txt', form='formatted', status='old')
+      read( 99, * ) eBandStart, eBandStop, eNkpt, eNspin
+      if( brange( 1 ) .lt. eBandStart ) then
+        ierr = 701
+      endif
+      if( brange( 4 ) .gt. eBandStop ) then
+        ierr = 702
+      endif
+      if( eNkpt .ne. product( kpts(:) ) ) then
+        ierr = 703
+      endif
+      if( eNspin .ne. nspin ) then
+        ierr = 704 
+      endif
+
+      if( ierr .ne. 0 ) then
+        close( 99 )
+#ifdef MPI
+        call MPI_BCAST( ierr, 1, MPI_INTEGER, inter_root, inter_comm, ierr_ )
+        return
+      endif
+#endif
+
+      allocate( temp_energies( eBandStart : eBandStop, eNkpt, eNspin ) )
+      read( 99, * ) temp_energies( :, :, : )
+      
+
       nkpts = product(kpts(:) )
       nbv = brange(2)-brange(1) + 1
       nbc = brange(4)-brange(3) + 1
       allocate( internal_val_energies( nbv, nkpts, nspin ), internal_con_energies( nbc, nkpts, nspin ) )
-      open( unit=99, file='enkfile', form='formatted', status='old')
-      do j = 1, nspin
-        do i = 1, nkpts
-          read(99,*) internal_val_energies( :, i, j )
-          read(99,*) internal_con_energies( :, i, j )
-        enddo
-      enddo
-      close(99)
-      ! Internal rep in Ha
-      internal_val_energies( :, :, : ) = internal_val_energies( :, :, : ) * 0.5_DP
-      internal_con_energies( :, :, : ) = internal_con_energies( :, :, : ) * 0.5_DP
-    endif
+!      open( unit=99, file='enkfile', form='formatted', status='old')
+!      do j = 1, nspin
+!        do i = 1, nkpts
+!          read(99,*) internal_val_energies( :, i, j )
+!          read(99,*) internal_con_energies( :, i, j )
+!        enddo
+!      enddo
+!      close(99)
 
+      ! Internal rep in Ha
+      internal_val_energies( :, :, : ) = temp_energies( brange(1):brange(2), :, : ) * 0.5_DP
+      internal_con_energies( :, :, : ) = temp_energies( brange(3):brange(4), :, : ) * 0.5_DP
+      
+      deallocate( temp_energies )
+
+!
+!      internal_val_energies( :, :, : ) = internal_val_energies( :, :, : ) * 0.5_DP
+!      internal_con_energies( :, :, : ) = internal_con_energies( :, :, : ) * 0.5_DP
+    endif
 #ifdef MPI
+      call MPI_BCAST( ierr, 1, MPI_INTEGER, inter_root, inter_comm, ierr_ )
+      if( ierr .ne. 0 ) return
+      if( ierr_ .ne. 0 ) then
+        ierr = ierr_
+        return
+      endif
+
     call MPI_BCAST( nfiles, 1, MPI_INTEGER, inter_root, inter_comm, ierr )
     if( ierr .ne. 0 ) return
 
@@ -822,7 +863,7 @@ module ocean_qe62_files
       return
     endif
 
-    call MPI_BCAST( gvecs, 1, MPI_INTEGER, pool_root, pool_comm, ierr )
+    call MPI_BCAST( gvecs, 2, MPI_INTEGER, pool_root, pool_comm, ierr )
     if( ierr .ne. 0 ) return
 #endif
 
@@ -1019,6 +1060,8 @@ module ocean_qe62_files
       enddo
 
       call MPI_WAITALL( bufferSize, requests(1:bufferSize), MPI_STATUSES_IGNORE, ierr )
+      if( ierr .ne. 0 ) return
+      requests(1:bufferSize) = MPI_REQUEST_NULL
       
       deallocate( cmplx_wvfn )
       maxBands = qe62_getConductionBandsForPoolID( 0 )
@@ -1074,7 +1117,7 @@ module ocean_qe62_files
           enddo
           call SCREEN_tk_stop("dft-read")
 
-          write(1000+myid,'(A,3(1X,I8))') '   Sending ...', id, start_band, nbands_to_send
+          write(1000+myid,'(A,4(1X,I8))') '   Sending ...', id, start_band, nbands_to_send, j
           call MPI_IRSEND( cmplx_wvfn( 1, 1, j ), nbands_to_send*test_gvec, MPI_DOUBLE_COMPLEX, &
                          id, 2, pool_comm, requests( j ), ierr )
           if( ierr .ne. 0 ) return
@@ -1120,7 +1163,7 @@ module ocean_qe62_files
       if( ierr .ne. 0 ) return
       call MPI_IRECV( conUofG, 1, conType, pool_root, 2, pool_comm, requests( 2 ), ierr )
       if( ierr .ne. 0 ) return
-      call MPI_TYPE_FREE( valType, ierr )
+      call MPI_TYPE_FREE( conType, ierr )
       if( ierr .ne. 0 ) return
 
       call MPI_IBCAST( valGvecs, 3*test_gvec, MPI_INTEGER, pool_root, pool_comm, requests( 3 ), ierr )

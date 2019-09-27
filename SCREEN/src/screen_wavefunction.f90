@@ -208,10 +208,10 @@ module screen_wavefunction
     integer, intent( in ) :: siteIndex
     integer, intent( inout ) :: ierr
   
-    integer :: groupIndex
+!    integer :: groupIndex
 
 
-    groupIndex = screen_paral_siteIndex2groupIndex( pinfo, siteIndex )
+!    groupIndex = screen_paral_siteIndex2groupIndex( pinfo, siteIndex )
 !    write(6,*) 'WVFN_INIT:', groupIndex, pinfo%mygroup, siteIndex
 
     if( screen_paral_isMySite( pinfo, siteIndex ) ) then

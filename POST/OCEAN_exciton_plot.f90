@@ -91,6 +91,7 @@ program OCEAN_exciton_plot
   read(99,*) bloch_selector
   close(99)
 
+
   open(unit=99,file='ZNL',form='formatted',status='old')
   read(99,*) ZNL(:)
   close(99)
@@ -168,7 +169,7 @@ program OCEAN_exciton_plot
     do icml = -ZNL(3), ZNL(3)
       do ivms = 1, 2
         i = i + 1
-          cond_exciton(:,:,max(ivms,nspn)) = cond_exciton(:,:,max(ivms,nspn)) + su * exciton(:,:,i)
+          cond_exciton(:,:,min(ivms,nspn)) = cond_exciton(:,:,min(ivms,nspn)) + su * exciton(:,:,i)
       enddo
     enddo
   enddo
@@ -185,6 +186,19 @@ program OCEAN_exciton_plot
   kiter_break = nkpts / 20
 
   select case( bloch_selector )
+
+  case( 2 )
+    deallocate( u2 )
+    allocate( u2( NX, nband) )
+    open( unit=99,file='con.u2.dat',access='stream',status='old',form='unformatted' )
+    do ispin = 1, nspn
+      do kiter = 1, nkpts
+        read(99) u2
+        call ZGEMV( 'N', NX, nband, one, u2, NX, cond_exciton( 1, kiter, ispin ), 1, &
+                     one, rk_exciton( 1, kiter, ispin ), 1 )
+      enddo
+    enddo
+    close( 99 )
   
   case( 1 )
     open(unit=99,file='u2par.dat',access='stream',status='old',form='unformatted' )
@@ -243,6 +257,9 @@ program OCEAN_exciton_plot
   deallocate( u2, cond_exciton )
 
 
+  select case( bloch_selector )
+
+  case( 0 , 1 )
 ! Add in phases for rk_exciton
   kiter = 0
   do ikx = 0, kmesh(1)-1
@@ -275,6 +292,42 @@ program OCEAN_exciton_plot
     enddo
   enddo
 
+  ! new con.u2.dat and val.u2.dat are (x,y,z), not (z,y,x)
+  case( 2 )
+  kiter = 0
+  do ikx = 0, kmesh(1)-1
+    qvec(1) = qinb(1) + (k0(1) + dble(ikx))/dble(kmesh(1))
+    do iky = 0, kmesh(2)-1
+      qvec(2) = qinb(2) + (k0(2) + dble(iky))/dble(kmesh(2))
+      do ikz = 0, kmesh(3)-1
+        kiter = kiter + 1
+        qvec(3) = qinb(3) + (k0(3) + dble(ikz))/dble(kmesh(3))
+
+        xiter = 0
+        do iz = 0, xmesh(3)-1
+          Rvec(3) = twopi * (dble(iz)/dble(xmesh(3)) - tau(3))
+          zphs = Rvec(3) * qvec(3)
+          do iy = 0, xmesh(2)-1
+            Rvec(2) = twopi * (dble(iy)/dble(xmesh(2)) - tau(2))
+            yphs = Rvec(2) * qvec(2) + zphs
+            do ix = 0, xmesh(1)-1
+              xiter = xiter + 1
+              Rvec(1) = twopi * (dble(ix)/dble(xmesh(1)) - tau(1))
+              xphs = Rvec(1) * qvec(1) + yphs
+              cphs = cmplx( cos( xphs ), sin( xphs ) )
+              ! Not sure how bad the cost of out-of-order memory will be
+              rk_exciton( xiter, kiter, : ) = rk_exciton( xiter, kiter, : ) * cphs
+
+            enddo
+          enddo
+        enddo
+      enddo
+    enddo
+  enddo
+
+
+
+  end select
   write(6,*) 'Done with rk exciton'
 
 
@@ -387,6 +440,9 @@ program OCEAN_exciton_plot
 
   allocate( z_stripe( xmesh(3) * Rmesh(3) ) )
 
+  select case( bloch_selector )
+
+  case( 0, 1 )
   Riter = 0
   do iRx = 1, Rmesh(1)
     do ix = 1, xmesh(1)
@@ -418,6 +474,44 @@ program OCEAN_exciton_plot
 
     enddo
   enddo              
+
+  case( 2 )
+    Riter = 0
+    do iRx = 1, Rmesh(1)
+      do ix = 1, xmesh(1)
+
+        do iRy = 1, Rmesh(2)
+          do iy = 1, xmesh(2)
+!            Xiter = ( iy - 1 ) * xmesh(3) + ( ix - 1 ) * xmesh(3) * xmesh(2)
+
+
+            izz = 0
+            do iRz = 1, Rmesh(3)
+              Riter = iRz + ( iRy - 1 ) * Rmesh(3) + ( iRx - 1 ) * Rmesh(3) * Rmesh(2)
+
+              do iz = 1, xmesh(3)
+
+                Xiter = ix + (iy - 1 ) * xmesh(1) + (iz-1) * xmesh(1)*xmesh(2)
+                izz = izz + 1
+                z_stripe( izz ) = 0.0_DP
+                do ispin = 1, nspn
+                  z_stripe( izz ) = z_stripe( izz ) &
+                                  + (Rspace_exciton( Xiter, Riter, ispin )) &
+                                   *conjg(Rspace_exciton( Xiter, Riter, ispin  ))
+                enddo
+              enddo
+            enddo
+
+            write(99,'(5(E13.6,X))') z_stripe(:)
+
+          enddo
+        enddo
+
+      enddo
+    enddo
+
+
+  end select
   
   close( 99 )
 

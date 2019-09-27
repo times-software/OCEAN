@@ -69,17 +69,22 @@ module screen_paral
     !
     call MPI_COMM_SIZE( pinfo%comm, test_size, ierr )
     if( ierr .ne. MPI_SUCCESS ) return
-    if( test_size .ne. pinfo%nprocs ) then
-      write( 6, * ) 'Problems creating site comms', myid, test_size, pinfo%nprocs
-      ierr = -101
-      return
-    endif
+
+    ! If mygroup == num_groups it is because this proc is extra
+    !  It should do nothing in the sites part of screening
+    if( pinfo%mygroup .lt. pinfo%num_groups ) then
+      if( test_size .ne. pinfo%nprocs ) then
+        write( 6, * ) 'Problems creating site comms', myid, test_size, pinfo%nprocs
+        ierr = -101
+        return
+      endif
     
     
-    if( pinfo%myid .ne. screen_paral_procID2groupID( pinfo, myid ) ) then
-      write( 6, * ) 'Failure with screen_paral_procID2groupID:'
-      write(6,*) myid, pinfo%myid, screen_paral_procID2groupID( pinfo, myid )
-      ierr = 1
+      if( pinfo%myid .ne. screen_paral_procID2groupID( pinfo, myid ) ) then
+        write( 6, * ) 'Failure with screen_paral_procID2groupID:'
+        write(6,*) myid, pinfo%myid, screen_paral_procID2groupID( pinfo, myid )
+        ierr = -102
+      endif
     endif
 
 
@@ -167,7 +172,7 @@ module screen_paral
 
     groupIndex = procID / pinfo%nprocs
 
-    if( groupIndex .ge. pinfo%num_groups ) groupIndex = -1
+    if( groupIndex .ge. pinfo%num_groups ) groupIndex = pinfo%num_groups
 
   end function screen_paral_procID2groupIndex
 
