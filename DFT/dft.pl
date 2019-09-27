@@ -1741,6 +1741,10 @@ sub print_qe
         .  "  startingwfc = \'$inputs{'dft.startingwfc'}\'\n"
         .  "  startingpot = \'$inputs{'dft.startingpot'}\'\n"
         .  "  diagonalization = \'$inputs{'dft.diagonalization'}\'\n";
+  if( $inputs{'print nbands'} > 100 && $inputs{'calctype'} =~ m/nscf/i )
+  {
+    print $fh "  diago_david_ndim = 2\n";
+  }
   if( $inputs{'nscfEXX'} == 1 )
   {
     # Since (at the moment) we are loading the SCF density
