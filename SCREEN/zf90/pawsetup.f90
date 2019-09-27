@@ -110,7 +110,7 @@ program pawsetup
       ppfill(:) = ''
       open(unit=99,file='opf.opts',form=f9,status='old')
       do counter=1, ntypat
-        read(99,*,end=100) inppopts(counter), ppopts(counter)
+        read(99,*,end=100,err=100) inppopts(counter), ppopts(counter)
       enddo
   100 continue
       close(99)
@@ -118,7 +118,7 @@ program pawsetup
 ! Gets the psp fillinpaw details
       open(unit=99,file='opf.fill',form=f9,status='old')
       do counter=1, ntypat
-        read(99,*,end=101) inppfill(counter), ppfill(counter)
+        read(99,*,end=101,err=101) inppfill(counter), ppfill(counter)
       enddo
   101 continue
       close(99)
