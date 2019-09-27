@@ -50,6 +50,7 @@ my $spin;
 #{
   open IN, "../nspin" or die "Failed to open nspin\n$!\n";
   $spin = <IN>;
+  chomp( $spin );
   close IN;
   $metal = 2 if( $spin =~ m/2/ );
 #}
@@ -296,6 +297,17 @@ open OUT, ">brange.stub" or die "Failed to open brange.stub for writing\n$!";
 print OUT "1    $band_max\n$band_min    ";
 close OUT;
 
+open EIG, ">", "eig62.txt" or die "Failed to open eig62.txt for writing\n";
+my $numBands;
+if( $spin == 2 )
+{
+  $numBands = scalar @{ $energies[0] }/2;
+}
+else
+{
+  $numBands = scalar @{ $energies[0] };
+}
+print EIG "1 $numBands  $nkpt  $spin\n";
 
 open ENK, ">", "enkfile" or die "Failed to open enkfile for writing\n";
 for( my $k = 0; $k < $nkpt; $k++ )
@@ -309,7 +321,7 @@ for( my $k = 0; $k < $nkpt; $k++ )
   foreach my $x (@eslice) { $x = $x * 2; }
   while (my @x = splice @eslice, 0, $n) 
   {
-     print ENK join($delim, @x), "\n";
+    print ENK join($delim, @x), "\n";
   }   
 #  print "\n";
 #    print ENK "\n";
@@ -344,6 +356,15 @@ for( my $k = 0; $k < $nkpt; $k++ )
   {
     print ENK join($delim, @x), "\n";
   }   
+
+  @eslice = @{ $energies[$kk] }[ 0 .. $stop ];
+  # move to Ryd
+  foreach my $x (@eslice) { $x = $x * 2; }
+  while (my @x = splice @eslice, 0, $n)
+  { 
+    print EIG join($delim, @x), "\n";
+  }
+
 }
 
 
@@ -364,7 +385,7 @@ if( $spin == 2 )
     {   
        print ENK join($delim, @x), "\n";
     }   
-    print "$k $energies[$k][$start] $start ";
+#    print "$k $energies[$k][$start] $start ";
         
     my $kk = $k;
     $start += $band_min-1 ;
@@ -390,10 +411,21 @@ if( $spin == 2 )
     {   
       print ENK join($delim, @x), "\n";
     }     
-    print "  $energies[$kk][$start] $start\n";
+
+    $start = scalar @{ $energies[$k] }/2 ;
+    @eslice = @{ $energies[$kk] }[ $start .. $stop ];
+    # move to Ryd
+    foreach my $x (@eslice) { $x = $x * 2; }
+    while (my @x = splice @eslice, 0, $n)
+    {
+      print EIG join($delim, @x), "\n";
+    }
+
+#    print "  $energies[$kk][$start] $start\n";
   } 
 }
 close ENK;
+close EIG;
 
 open ENK, ">", "enk_un" or die "Failed top open enk_un\n$!";
 for( my $k = 0; $k < $nkpt; $k++ )
