@@ -197,7 +197,7 @@ print "Min pool size: $min_nscf_pool_size\n";
   
 foreach (@cpu_factors)
 {
-  if( $ncpus / $_ > $min_nscf_pool_size )
+  if( $ncpus / $_ >= $min_nscf_pool_size )
   {
     $ideal_npools = $_ unless( $kpt_tot % $_ );
   }
@@ -207,7 +207,7 @@ if( $kpt_tot > (1.9*$ideal_npools ) && $ncpus / $ideal_npools > 6 )  # if ideal 
 {
   foreach (@cpu_factors)
   {
-    if( $ncpus / $_ > $min_nscf_pool_size )
+    if( $ncpus / $_ >= $min_nscf_pool_size )
     {
       $ideal_npools = $_;
     }
@@ -336,6 +336,13 @@ foreach (@cpu_factors)
 print "OBKPTS: $kpt_tot, ideal pools: $ideal_npools\n";
 print QE_POOL "obf\t$ideal_npools\n";
 
+my $nelectrons = -1;
+if( -f "nelectrons" )
+{
+  open NE, "nelectrons" or die "Failed to open nelectrons\n$!";
+  my $ne = <NE>;
+  $nelectrons = sprintf "%.0f", $ne;
+}
 
 # Need to figure out the number of bands to use (for the BSE states)
 # 1) User has asked for NBANDS
@@ -355,10 +362,17 @@ if( $nbands <= 0 )
   print "Default requested for nbands. Energy range is $erange eV.\n";
   # First guess N conduction electrons
   $erange = $erange / 13.605;
-  $nbands = 0.018 * $volume * ( $erange**(3/2) );
-#  print "      $nbands\n";
+  $nbands = 0.019 * $volume * ( $erange**(3/2) );
+  print "      $nbands\n";
   # Then add a guess for valence
-  $nbands += 0.036 * $volume;
+  if( $nelectrons < 1 ) 
+  {
+    $nbands += 0.036 * $volume;
+  }
+  else
+  {
+    $nbands += ($nelectrons/2);
+  }
 #  print "      $nbands\n";
   # 1.05 is a padding factor
   $nbands *= 1.05;
@@ -389,9 +403,16 @@ if( $screen_nbands <= 0 )
   print "Default requested for screen.nbands. Energy range is $erange eV.\n";
   $erange = $erange / 13.605;
   # First guess N conduction electrons
-  $screen_nbands = 0.018 * $volume * ( $erange**(3/2) );
+  $screen_nbands = 0.019 * $volume * ( $erange**(3/2) );
   # Then add a guess for valence
-  $screen_nbands += 0.036 * $volume;
+  if( $nelectrons < 1 )
+  {
+    $screen_nbands += 0.036 * $volume;
+  }
+  else
+  {
+    $screen_nbands += ($nelectrons/2);
+  }
   # 1.05 is a padding factor
   $screen_nbands *= 1.05;
   $screen_nbands = int($screen_nbands);
@@ -619,6 +640,22 @@ if( $input_content =~ m/VAL/i || $input_content =~ m/RXS/i )
     print QIN "0.001 0.0 0.0\n";
     close QIN;
   }
+}
+
+
+# epsilon can't be 1
+open EPS, "epsilon" or die "Failed to open epsilon\n$!";
+my $epsilon = <EPS>;
+chomp $epsilon;
+close EPS;
+if( $epsilon < 1.000001 )
+{
+  print "Use of model dielectric requires that epsilon be greater than 1!\n";
+  print "Input diemac too low: $epsilon\n";
+  $epsilon = 1.000001;
+  open EPS, ">", "epsilon" or die "Failed to open epsilon\n$!";
+  print EPS "$epsilon\n";
+  close EPS;
 }
 
 

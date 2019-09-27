@@ -51,6 +51,7 @@ module screen_chi
 
 
   subroutine screen_chi_makeW( mySite, fullChi, fullChi0, ierr )
+    use ocean_mpi, only : myid
     use screen_sites, only : site
     use screen_grid, only : sgrid
     use screen_sites, only : site_info
@@ -63,6 +64,7 @@ module screen_chi
     integer, intent( inout ) :: ierr
     !
     real(DP), allocatable :: FullW( :, : ), FullW0( :, : ), Ninduced( :, : ), N0induced( :, : )
+    real(DP) :: intInduced(2)
     type( potential ), pointer :: temp_Pots
     type( potential ) :: Pot
     integer :: nPots, iPots, iShell, nShell, potIndex, nLM
@@ -99,8 +101,11 @@ module screen_chi
 
 !        write(6,*) Prefix
 
-        call screen_chi_calcW( mySite%grid, Pot, FullChi, FullChi0, FullW, FullW0, Ninduced, N0induced, ierr )
+        call screen_chi_calcW( mySite%grid, Pot, FullChi, FullChi0, FullW, FullW0, Ninduced, N0induced, &
+                               intInduced, ierr )
         if( ierr .ne. 0 ) return
+
+        write(1000+myid,'(A,1X,E24.16,1X,E24.16)') Prefix, intInduced(:)
         
         call screen_chi_writeW( mySite%grid, Prefix, FullW, FullW0, Ninduced, N0induced )
 
@@ -326,7 +331,8 @@ module screen_chi
 
   end subroutine schi_makeChi
 
-  subroutine screen_chi_calcW( grid, Pot, FullChi, FullChi0, FullW, FullW0, Ninduced, N0induced, ierr )
+  subroutine screen_chi_calcW( grid, Pot, FullChi, FullChi0, FullW, FullW0, Ninduced, N0induced, &
+                               intInduced, ierr )
     use screen_grid, only : sgrid
     use schi_sinqr, only : schi_sinqr_calcW
     use schi_direct, only : schi_direct_calcW
@@ -336,16 +342,20 @@ module screen_chi
     real(DP), intent( in ) :: FullChi(:,:,:,:)
     real(DP), intent( in ) :: FullChi0(:,:,:,:)
     real(DP), intent( out ), dimension(:,:) :: FullW, FullW0, Ninduced, N0induced
+    real(DP), intent( out ) :: intInduced(2)
     integer, intent( inout ) :: ierr
 
     select case ( invStyle )
       case( 'sinqr' )
+        ! I think this is actually definitional in the sinqr formulation, but possibly not
+        !  should go and check
+        intInduced(:) = 0.0_DP
         call schi_sinqr_calcW( grid, Pot, FullChi, FullChi0, FullW, FullW0, Ninduced, N0induced, ierr )
 !        FullW0 = 0.0_DP 
 !        Ninduced = 0.0_DP
 !        N0induced = 0.0_DP
       case( 'direct' )
-        call schi_direct_calcW( grid, Pot, FullChi, FullChi0, FullW, FullW0, Ninduced, N0induced, ierr )
+        call schi_direct_calcW( grid, Pot, FullChi, FullChi0, FullW, FullW0, Ninduced, N0induced, intInduced, ierr )
       case default
         ierr = 1
     end select
