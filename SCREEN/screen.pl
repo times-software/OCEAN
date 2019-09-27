@@ -156,9 +156,14 @@ foreach my $filename (@ScreenFiles)
 }
 
 # Attempt to parse and copy in angular grid file
-if( $screen_data_files{ 'grid.ang' } =~ m/(\w+)\s+(\d+)/ )
+#if( $screen_data_files{ 'grid.ang' } =~ m/(\w+)\s+(\d+)/ )
+#{
+#  my $angularGridFile = $1 . '.' . $2;
+
+my @angList    = split ' ', $screen_data_files{'grid.ang'};
+foreach (@angList)
 {
-  my $angularGridFile = $1 . '.' . $2;
+  my $angularGridFile = 'specpnt.' . $_;
   if( -e  "$ENV{'OCEAN_BIN'}/$angularGridFile" )
   {
     copy( "$ENV{'OCEAN_BIN'}/$angularGridFile", "$angularGridFile" );
@@ -168,6 +173,7 @@ if( $screen_data_files{ 'grid.ang' } =~ m/(\w+)\s+(\d+)/ )
     print "Couldn't find requested angular grid file: $angularGridFile\n";
   }
 }
+  
 
 # Need calc
 foreach( @CommonFiles2 )
@@ -234,7 +240,7 @@ if( $screen_data_files{ 'wvfn' } =~ m/qe/ || $screen_data_files{ 'wvfn' } =~ m/n
   {
     print "Detected QE62-style DFT run\n";
     $screen_data_files{ 'wvfn' } = "qe62";
-    copy "../DFT/SCREEN/enkfile", "enkfile";
+    copy "../DFT/SCREEN/eig62.txt", "eig62.txt";
   }
   else
   {
@@ -721,7 +727,9 @@ else
     for( my $i = 1; $i < $ninter; $i++ )
     {
       $angList[$i] = 7 if( $angList[$i] < 0 || ! $angList[$i] =~ m/\d/ || scalar @angList <= $i );
-      $deltarList[$i] = $deltarList[$i-1] if( $deltarList[$i] < 0 || scalar @deltarList[$i] <= $i );
+      print "$deltarList[$i] !!  ";
+      $deltarList[$i] = $deltarList[$i-1] if( $deltarList[$i] < 0 || scalar @deltarList <= $i );
+      print "$deltarList[$i]\n";
       $rmodeList[$i] = 'uniform' unless( $rmodeList[$i] =~ m/legendre/ || $rmodeList[$i] =~ m/uniform/ );
 
       if( $shellsList[$i] < 0 || $shellsList[$i] <= $shellsList[$i-1] 

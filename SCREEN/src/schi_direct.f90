@@ -118,7 +118,8 @@ module schi_direct
       intInduced(1) = intInduced(1) + NInd( i, 1 ) * grid%rad(i)**2 * grid%drad(i)
     enddo
     
-    if( .true. )
+    ! Force charge conservation
+    if( .true. ) then
       rescaleNInduced = ( 3.0_DP * intInduced(1) ) / ( grid%rmax**3 )
       NInd(:,1) = Nind(:,1) - rescaleNInduced
 
