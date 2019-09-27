@@ -457,7 +457,7 @@ screen.grid.ninter
 } screen.grid.ninter
 screen.grid.shells
 {
-4 
+-1 
 8 
 } screen.grid.shells
 screen.grid.xyz
@@ -478,6 +478,7 @@ screen.grid.ang
 } screen.grid.ang
 screen.grid.deltar
 {
+0.1
 0.2
 } screen.grid.deltar
 screen.lmax
@@ -522,7 +523,7 @@ intp
 } screen.convertstyle
 screen.inversionstyle
 {
-sinqr
+direct
 } screen.inversionstyle
 screen.mode
 {
