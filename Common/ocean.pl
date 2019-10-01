@@ -20,9 +20,10 @@ print "Welcome to OCEAN\n";
 
 ##########################################
 #???
-my $ColWidth = sprintf('%i',`tput cols` );
-if ($ColWidth < 0 ) { $ColWidth=10; }
-if ($ColWidth > 100 ) { $ColWidth=100; }
+#my $ColWidth = sprintf('%i',`tput cols` );
+#if ($ColWidth < 0 ) { $ColWidth=10; }
+#if ($ColWidth > 100 ) { $ColWidth=100; }
+my $ColWidth = 80;
 my $Separator =  "";
 for (my $i = 0; $i < $ColWidth; $i++ ) {
   $Separator  .= "#";

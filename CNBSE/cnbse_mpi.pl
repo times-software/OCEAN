@@ -938,8 +938,8 @@ else
 {
   $ENV{"OMP_NUM_THREADS"}=1;
 
-  print "time $para_prefix $ENV{'OCEAN_BIN'}/ocean.x > cm.log";
-  system("time $para_prefix $ENV{'OCEAN_BIN'}/ocean.x > cm.log") == 0 or die "Failed to finish\n"; 
+  print "$para_prefix $ENV{'OCEAN_BIN'}/ocean.x > cm.log";
+  system("$para_prefix $ENV{'OCEAN_BIN'}/ocean.x > cm.log") == 0 or die "Failed to finish\n"; 
 }
 
 exit 0;

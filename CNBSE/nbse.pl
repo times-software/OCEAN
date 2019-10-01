@@ -331,8 +331,8 @@ close INFILE;
 `echo 0 0 0 > ZNL`;
 
 print "Running valence\n";
-print "time $para_prefix $ENV{'OCEAN_BIN'}/ocean.x > val.log";
-system("time $para_prefix $ENV{'OCEAN_BIN'}/ocean.x > val.log") == 0 or die "Failed to finish\n";
+print "$para_prefix $ENV{'OCEAN_BIN'}/ocean.x > val.log";
+system("$para_prefix $ENV{'OCEAN_BIN'}/ocean.x > val.log") == 0 or die "Failed to finish\n";
 
 
 exit 0;
