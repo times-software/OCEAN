@@ -1680,6 +1680,7 @@ sub print_qe
         .  "  tstress = $inputs{'dft.calc_stress'}\n"
         .  "  tprnfor = $inputs{'dft.calc_force'}\n"
         .  "  wf_collect = .true.\n"
+        .  "  disk_io = 'low'\n"
         .  "/\n";
   print $fh "&system\n"
         .  "  ibrav = $inputs{'ibrav'}\n"
