@@ -43,11 +43,14 @@ module ocean_dft_files
 
   public :: odf_init, odf_read_energies_single, odf_clean
   public :: odf_nprocPerPool, odf_getPoolIndex, odf_getBandsForPoolID, odf_returnGlobalID
-  public :: odf_return_my_bands, odf_is_my_kpt, odf_get_ngvecs_at_kpt
+  public :: odf_return_my_bands, odf_is_my_kpt, odf_get_ngvecs_at_kpt, odf_read_gvecs_at_kpt
   public :: odf_read_at_kpt, odf_read_at_kpt_split, odf_read_energies_split
   public :: odf_isGamma, odf_isFullStorage, odf_isDualFile
   public :: odf_npool, odf_universal2KptAndSpin, odf_poolComm, odf_poolID
 
+  interface odf_read_gvecs_at_kpt
+    module procedure odf_read_gvecs_at_kpt_unified
+  end interface odf_read_gvecs_at_kpt
 
   interface odf_get_ngvecs_at_kpt
     module procedure odf_get_ngvecs_at_kpt_unified, odf_get_ngvecs_at_kpt_split
@@ -393,6 +396,23 @@ module ocean_dft_files
         ierr = -1
     end select
   end subroutine odf_is_my_kpt
+
+  subroutine odf_read_gvecs_at_kpt_unified( ikpt, ispin, gvecs, ierr )
+    use ocean_qe62_files, only : qe62_read_gvecs_at_kpt
+    !
+    integer, intent( in ) :: ikpt, ispin
+    integer, intent( out ) :: gvecs(:,:)
+    integer, intent( inout ) :: ierr
+
+    select case( flavor )
+      case( QE62_FLAVOR )
+        call qe62_read_gvecs_at_kpt( ikpt, ispin, gvecs, ierr )
+      case default
+        write(6,*) "John hasn't implemented this"
+        ierr = 215052
+    end select
+
+  end subroutine odf_read_gvecs_at_kpt_unified
   
   subroutine odf_get_ngvecs_at_kpt_unified( ikpt, ispin, gvecs, ierr )
     use ocean_legacy_files, only : olf_get_ngvecs_at_kpt

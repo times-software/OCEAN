@@ -66,6 +66,7 @@ module ocean_qe62_files
   public :: qe62_nprocPerPool, qe62_getPoolIndex, qe62_returnGlobalID
   public :: qe62_getAllBandsForPoolID, qe62_getValenceBandsForPoolID, qe62_getConductionBandsForPoolID
   public :: qe62_npool, qe62_universal2KptAndSpin, qe62_poolID, qe62_poolComm
+  public :: qe62_read_gvecs_at_kpt
 
   contains
 
@@ -761,6 +762,72 @@ module ocean_qe62_files
 !    enddo
 
   end subroutine set_pools
+
+  subroutine qe62_read_gvecs_at_kpt( ikpt, ispin, gvecs, ierr )
+    use OCEAN_mpi
+    integer, intent( in ) :: ikpt, ispin
+    integer, intent( out ) :: gvecs(:,:)
+    integer, intent( inout ) :: ierr
+    !
+    integer :: i, crap, ngvecs, j, k
+    logical :: is_kpt
+
+    call qe62_is_my_kpt( ikpt, ispin, is_kpt, ierr )
+    if( ierr .ne. 0 ) return
+    if( is_kpt .eqv. .false. ) then
+      return
+    endif
+
+    if( pool_myid .eq. pool_root ) then
+      write(myid+1000,*) 'Opening file ', trim(qe62_gkvFile( ikpt, ispin ))
+!      flush(myid+1000)
+      open( unit=99,file=trim(qe62_gkvFile( ikpt, ispin )), form='unformatted', status='old' )
+      read( 99 )
+      read(99) crap, ngvecs
+      ! Miller indicies
+      read( 99 )
+      ! Using test_gvec for gamma support
+      read( 99 ) gvecs( :, 1:ngvecs )
+      close( 99 )
+
+      ! Expand and grab the -gvecs too, except for 0,0,0 where there is no -
+      if( gammaFullStorage .and. is_gamma ) then
+        j = ngvecs
+        do i = 1, ngvecs
+          if( gvecs(1,i) .eq. 0 .and. gvecs(2,i) .eq. 0 .and. gvecs(3,i) .eq. 0 ) then
+            k = i + 1
+            exit
+          endif
+          j = j + 1
+          gvecs(:,j) = -gvecs(:,i)
+        enddo
+        do i = k, ngvecs
+          j = j + 1
+          gvecs(:,j) = -gvecs(:,i)
+        enddo
+        ngvecs = 2 * ngvecs - 1
+      endif 
+    endif
+
+!    write(6,*) 'gvecs', pool_root, pool_comm
+111 continue
+
+#ifdef MPI
+    call MPI_BCAST( ierr, 1, MPI_INTEGER, pool_root, pool_comm, i )
+    if( ierr .ne. 0 ) return
+    if( i .ne. 0 ) then
+      ierr = i
+      return
+    endif
+
+    call MPI_BCAST( ngvecs, 1, MPI_INTEGER, pool_root, pool_comm, ierr )
+    if( ierr .ne. 0 ) return
+    call MPI_BCAST( gvecs, 3*ngvecs, MPI_INTEGER, pool_root, pool_comm, ierr )
+    if( ierr .ne. 0 ) return
+#endif
+!    write(6,*) 'gvecs', pool_root, pool_comm
+
+  end subroutine qe62_read_gvecs_at_kpt
 
 
   subroutine qe62_get_ngvecs_at_kpt( ikpt, ispin, gvecs, ierr )
