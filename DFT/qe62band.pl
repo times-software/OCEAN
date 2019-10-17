@@ -197,15 +197,17 @@ for( my $isplit = 0; $isplit <= $dft_split; $isplit++ )
 
     if( $line =~ m/<eigenvalues size=\"\d+\">/ )
     {
+      $line =~ s/<eigenvalues size=\"\d+\">//;
       $nkpt ++;
-      my $eigs = '';
-      $line = <IN>;
+      chomp $line;
+      my $eigs = $line . ' ';
       until( $line =~ m/eigenvalues/ )
       {
+        $line = <IN>;
         chomp $line;
         $eigs .= $line . ' ';
-        $line = <IN>;
       }
+      $eigs =~ s/\s+<\/eigenvalues>//;
 
       my @eigs = split( ' ', $eigs );
       push @energies, \@eigs;
