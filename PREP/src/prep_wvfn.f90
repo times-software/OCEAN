@@ -882,6 +882,72 @@ module prep_wvfn
 
   end subroutine prep_wvfn_u2
 
+  subroutine prep_wvfn_writeU2_perKpt( ikpt, ispin, UofX2, fileHandle, ierr )
+    use prep_system, only : system_parameters, params
+    use ocean_dft_files, only : odf_poolID, odf_nprocPerPool, odf_poolComm
+    use ocean_mpi, only : &
+#ifdef MPI_F08
+                          MPI_Datatype, &
+#endif
+                          MPI_DOUBLE_COMPLEX, MPI_OFFSET_KIND, MPI_STATUS_IGNORE, myid, MPI_STATUS_SIZE, MPI_INFO_NULL
+
+    integer, intent( in ) :: ikpt, ispin, fileHandle
+    complex(DP), intent( in ) :: UofX2(:,:)
+    integer, intent( inout ) :: ierr
+
+    complex(DP), allocatable :: writeBuffer(:)
+
+#ifdef MPI_F08
+    type( MPI_DATATYPE ):: newType
+#else
+    integer :: newType, stat( MPI_STATUS_SIZE)
+#endif
+    integer(MPI_OFFSET_KIND) :: offset
+    integer :: ix, i, myPoolID, nprocPerPool, nx, myx, nb, poolComm, id, ib, xstart, xstop
+
+    ! offset for k-point
+    offset = max( ikpt - 1 + ( ispin - 1 ) * params%nkpts, 0 )
+    offset = offset * int( size( UofX2, 1 ), MPI_OFFSET_KIND ) * int( size( UofX2, 2 ), MPI_OFFSET_KIND )
+
+
+    myPoolID = odf_poolID()
+    nprocPerPool = odf_nprocPerPool()
+    poolComm = odf_poolComm()
+
+    nb = size( UofX2, 2 )
+    myx = size( UofX2, 1)
+    nx = product( params%xmesh(:) )
+
+    if( myPoolID .eq. 0 ) then
+      allocate( writeBuffer( nx ) )
+      do ib = 1, nb
+
+        xstart = 1
+        xstop = prep_wvfn_divideXmesh( nx, nprocPerPool, 0 )
+        writeBuffer( xstart:xstop ) = UofX2( :, ib )
+        do id = 1, nprocPerPool
+          xstart = xstop+1
+          myx = prep_wvfn_divideXmesh( nx, nprocPerPool, id )
+          xstop = xstart + myx - 1
+          call MPI_RECV( writeBuffer( xstart:xstop), myx, MPI_DOUBLE_COMPLEX, 1, poolComm, MPI_STATUS_IGNORE, ierr )
+          if( ierr .ne. 0 ) return
+        enddo
+
+        call MPI_FILE_WRITE_AT( fileHandle, offset, writeBuffer, nx, MPI_DOUBLE_COMPLEX, MPI_STATUS_IGNORE, ierr )
+        if( ierr .ne. 0 ) return
+        offset = offset + nx
+      enddo      
+      deallocate( writeBuffer )
+    else
+      do ib = 1, nb
+        call MPI_SEND( UofX2( :, ib ), myx, MPI_DOUBLE_COMPLEX, 1, poolComm, MPI_STATUS_IGNORE, ierr )
+        if( ierr .ne. 0 ) return
+      enddo
+    endif
+    
+
+  end subroutine prep_wvfn_writeU2_perKpt
+
   subroutine prep_wvfn_writeU2( ikpt, ispin, UofX2, fileHandle, ierr )
     use prep_system, only : system_parameters, params
     use ocean_dft_files, only : odf_poolID, odf_nprocPerPool
