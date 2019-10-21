@@ -716,11 +716,32 @@ module ocean_qe62_files
   end subroutine 
 
   subroutine set_pools( ierr )
+    use ocean_mpi, only : MPI_INTEGER
     integer, intent( inout ) :: ierr
     !
     integer :: i
+    logical :: ex
 
-    if( nfiles .ge. inter_nproc ) then
+    npool = 0
+    if( inter_myid .eq. 0 ) then
+      inquire( file='npool', exist=ex )
+      if( ex ) then
+        open( unit=99, file='npool', form='formatted', status='old')
+        read(99,*) npool
+        close(99)
+        if( npool .gt. inter_nproc .or. mod( inter_nproc, npool ) .ne. 0 ) npool = 0
+      endif
+    endif
+    call MPI_BCAST( npool, 1, MPI_INTEGER, 0, inter_comm, ierr )
+    if( ierr .ne. 0 ) return
+
+    if( npool .ne. 0 ) then
+      i = inter_nproc / npool
+      mypool = inter_myid/ i 
+      if( inter_myid .eq. 0 ) write(6,*) i, inter_nproc
+      write(1000+inter_myid,*)  i, inter_nproc, nfiles
+
+    elseif( nfiles .ge. inter_nproc ) then
       mypool = inter_myid
       npool = inter_nproc
 

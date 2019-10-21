@@ -925,14 +925,15 @@ module prep_wvfn
         xstart = 1
         xstop = prep_wvfn_divideXmesh( nx, nprocPerPool, 0 )
         writeBuffer( xstart:xstop ) = UofX2( :, ib )
-        do id = 1, nprocPerPool
+        do id = 1, nprocPerPool-1
           xstart = xstop+1
           myx = prep_wvfn_divideXmesh( nx, nprocPerPool, id )
           xstop = xstart + myx - 1
-          call MPI_RECV( writeBuffer( xstart:xstop), myx, MPI_DOUBLE_COMPLEX, 1, poolComm, MPI_STATUS_IGNORE, ierr )
+          call MPI_RECV( writeBuffer( xstart:xstop), myx, MPI_DOUBLE_COMPLEX, id, 1, poolComm, MPI_STATUS_IGNORE, ierr )
           if( ierr .ne. 0 ) return
         enddo
 
+        write(1000+myid,'(A2,X,3(I12))') 'OF', ikpt, ib, offset
         call MPI_FILE_WRITE_AT( fileHandle, offset, writeBuffer, nx, MPI_DOUBLE_COMPLEX, MPI_STATUS_IGNORE, ierr )
         if( ierr .ne. 0 ) return
         offset = offset + nx
@@ -940,7 +941,7 @@ module prep_wvfn
       deallocate( writeBuffer )
     else
       do ib = 1, nb
-        call MPI_SEND( UofX2( :, ib ), myx, MPI_DOUBLE_COMPLEX, 1, poolComm, MPI_STATUS_IGNORE, ierr )
+        call MPI_SEND( UofX2( :, ib ), myx, MPI_DOUBLE_COMPLEX, 0, 1, poolComm, MPI_STATUS_IGNORE, ierr )
         if( ierr .ne. 0 ) return
       enddo
     endif
