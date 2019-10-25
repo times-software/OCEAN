@@ -305,7 +305,7 @@ module prep_wvfn
           endif
 
           ! save subsampled xmesh
-          call prep_wvfn_writeU2( ikpt, ispin, UofX2, fileHandle, ierr )
+          call prep_wvfn_writeU2_perKpt( ikpt, ispin, UofX2, fileHandle, ierr )
           if( ierr .ne. 0 ) return
 
 !          if( wantU2 .and. nproc .eq. 1 ) then
@@ -334,8 +334,10 @@ module prep_wvfn
             bandChunk = max( 1, bandChunk/omp_threads ) * omp_threads 
 
             bandChunk = min( bandChunk, nbands )
+            bandChunk = max( bandChunk, 1 )
 
             write(1000+myid, '(3I8,E24.16)' ) omp_threads, bandChunk, nbands, memEstimate/67108864_DP
+            write(1000+myid,*) nbands, bandchunk
 
 !            allocate( wvfn( fftGrid(1), fftGrid(2), fftGrid(3), nbands ) )
             allocate( wvfn( fftGrid(1), fftGrid(2), fftGrid(3), bandChunk ) )
@@ -846,14 +848,14 @@ module prep_wvfn
     nband = size( UofX2, 2 )
     allocate( coeff( nband ) )
 
-#if 0
+#if 1
 !TEST
     do iband = 1, nband
       coeff(iband) = dot_product( UofX2(:,iband), UofX2(:,iband) )
     enddo
     call MPI_ALLREDUCE( MPI_IN_PLACE, coeff, nband, MPI_DOUBLE_COMPLEX, MPI_SUM, pool_comm, ierr )
     do iband = 1, nband
-      write(1000+myid, * ) '!!!', coeff(iband)
+      write(1000+myid, * ) '!!!', real(coeff(iband),DP), size( UofX2,1)
     enddo
 !\TEST
 #endif
@@ -905,9 +907,6 @@ module prep_wvfn
     integer(MPI_OFFSET_KIND) :: offset
     integer :: ix, i, myPoolID, nprocPerPool, nx, myx, nb, poolComm, id, ib, xstart, xstop
 
-    ! offset for k-point
-    offset = max( ikpt - 1 + ( ispin - 1 ) * params%nkpts, 0 )
-    offset = offset * int( size( UofX2, 1 ), MPI_OFFSET_KIND ) * int( size( UofX2, 2 ), MPI_OFFSET_KIND )
 
 
     myPoolID = odf_poolID()
@@ -917,6 +916,11 @@ module prep_wvfn
     nb = size( UofX2, 2 )
     myx = size( UofX2, 1)
     nx = product( params%xmesh(:) )
+
+    ! offset for k-point
+    offset = max( ikpt - 1 + ( ispin - 1 ) * params%nkpts, 0 )
+!    offset = offset * int( size( UofX2, 1 ), MPI_OFFSET_KIND ) * int( size( UofX2, 2 ), MPI_OFFSET_KIND )
+    offset = offset * int( nb, MPI_OFFSET_KIND ) * int( nx, MPI_OFFSET_KIND )
 
     if( myPoolID .eq. 0 ) then
       allocate( writeBuffer( nx ) )
