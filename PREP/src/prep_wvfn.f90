@@ -14,6 +14,7 @@ module prep_wvfn
   implicit none
   private
 
+  logical, parameter :: perKptU2 = .true.
 
   public :: prep_wvfn_driver
 
@@ -305,7 +306,11 @@ module prep_wvfn
           endif
 
           ! save subsampled xmesh
-          call prep_wvfn_writeU2_perKpt( ikpt, ispin, UofX2, fileHandle, ierr )
+          if( perKptU2 ) then
+            call prep_wvfn_writeU2_perKpt( ikpt, ispin, UofX2, fileHandle, ierr )
+          else
+            call prep_wvfn_writeU2( ikpt, ispin, UofX2, fileHandle, ierr )
+          endif
           if( ierr .ne. 0 ) return
 
 !          if( wantU2 .and. nproc .eq. 1 ) then
@@ -657,8 +662,12 @@ module prep_wvfn
     offset = offset *  sizeofcomplex
     write(1000+myid, * ) 'offset', offset, sizeofcomplex
       
-    call MPI_FILE_SET_VIEW( fh, offset, MPI_DOUBLE_COMPLEX, MPI_DOUBLE_COMPLEX, "native", MPI_INFO_NULL, ierr )
-!    call MPI_FILE_SET_VIEW( fh, offset, MPI_DOUBLE_COMPLEX, fileType, "native", MPI_INFO_NULL, ierr )
+    ! We have two options for writing this out
+    if( perKptU2 ) then
+      call MPI_FILE_SET_VIEW( fh, offset, MPI_DOUBLE_COMPLEX, MPI_DOUBLE_COMPLEX, "native", MPI_INFO_NULL, ierr )
+    else
+      call MPI_FILE_SET_VIEW( fh, offset, MPI_DOUBLE_COMPLEX, fileType, "native", MPI_INFO_NULL, ierr )
+    endif
     if( ierr .ne. 0 ) return
 #else
     open( file=filnam, form='unformatted', status='unknown', newunit=fh )
