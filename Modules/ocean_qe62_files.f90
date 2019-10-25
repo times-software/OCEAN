@@ -134,6 +134,11 @@ module ocean_qe62_files
     nbands = 0
     bands_remain = bands(2)-bands(1)+1
 
+    if( pool_nproc .gt. bands_remain ) then
+      if( poolID .lt. bands_remain ) nbands = 1
+      return
+    endif
+
     do i = 0, poolID
       nbands = bands_remain / ( pool_nproc - i )
       bands_remain = bands_remain - nbands
@@ -150,6 +155,11 @@ module ocean_qe62_files
     bands_remain = brange(2) - brange(1) + 1
     nbands = 0
 
+    if( pool_nproc .gt. bands_remain ) then
+      if( poolID .lt. bands_remain ) nbands = 1
+      return
+    endif
+
     do i = 0, poolID
       nbands = bands_remain / ( pool_nproc - i )
       bands_remain = bands_remain - nbands
@@ -165,6 +175,11 @@ module ocean_qe62_files
     nbands = 0
 !    bands_remain = brange(4)-brange(3)+brange(2)-brange(1)+2
     bands_remain = brange(4) - brange(3) + 1
+
+    if( pool_nproc .gt. bands_remain ) then
+      if( poolID .lt. bands_remain ) nbands = 1
+      return
+    endif
   
     do i = 0, poolID
       nbands = bands_remain / ( pool_nproc - i )
