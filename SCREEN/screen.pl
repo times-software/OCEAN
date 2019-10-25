@@ -726,7 +726,8 @@ else
 
     for( my $i = 1; $i < $ninter; $i++ )
     {
-      $angList[$i] = 7 if( $angList[$i] < 0 || ! $angList[$i] =~ m/\d/ || scalar @angList <= $i );
+      $angList[$i] = $angList[$i-1] if( scalar @angList <= $i );
+      $angList[$i] = 7 if( $angList[$i] < 0 || ! $angList[$i] =~ m/\d/ ); #|| scalar @angList <= $i );
       print "$deltarList[$i] !!  ";
       $deltarList[$i] = $deltarList[$i-1] if( $deltarList[$i] < 0 || scalar @deltarList <= $i );
       print "$deltarList[$i]\n";
