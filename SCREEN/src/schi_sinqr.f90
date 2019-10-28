@@ -71,8 +71,8 @@ module schi_sinqr
         else
 !          basfcn( j, i ) = grid%rad( j )**2 * grid%drad( j )* pref * (1.0_DP - arg**2/4.0_DP )
 !          basfcn( j, i ) = weight( j ) * pref * (1.0_DP - arg**2/4.0_DP )
-          basfcn( j, i ) = pref * (1.0_DP - arg**2/4.0_DP )
-          potfcn( j, i ) = pref * coul * ( 1.0_DP - arg**2/4.0_DP - cterm )
+          basfcn( j, i ) = pref * (1.0_DP - arg**2/6.0_DP )
+          potfcn( j, i ) = pref * coul * ( 1.0_DP - arg**2/6.0_DP - cterm )
         endif
       enddo
 !      do j = 1, nr
