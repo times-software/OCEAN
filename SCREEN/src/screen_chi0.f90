@@ -615,7 +615,9 @@ module screen_chi0
 !    integer, parameter :: bandBuf = 8
     integer :: bandBuf
     complex(DP), parameter :: cone = 1.0_DP
+    logical :: ompNested
 !$  integer, external :: omp_get_max_threads
+!$  logical, external :: omp_get_nested
 
 !dir$ attributes align:64 :: ReGreen, ImGreen, ReEnergyDenom, ImEnergyDenom, temp
 
@@ -644,7 +646,9 @@ module screen_chi0
     nthreads2 = 1
     bandBuf = 8
 !$  nthreads = OMP_GET_MAX_THREADS()
-    if( nthreads .gt. 2 .and. mod( nthreads, 2 ) .eq. 0 ) then
+    ompNested = .false.
+!$  ompNested = omp_get_nested()
+    if( nthreads .gt. 2 .and. mod( nthreads, 2 ) .eq. 0 .and. ompNested ) then
       nthreads = nthreads / 2
       nthreads2 = 2
       bandBuf = 16
