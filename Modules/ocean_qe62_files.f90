@@ -599,6 +599,11 @@ module ocean_qe62_files
       if( brange( 4 ) .gt. eBandStop ) then
         ierr = 702
       endif
+!      if( is_shift ) then
+!        if( eNkpt .ne. 2 * product( kpts(:) ) ) then
+!          ierr = 705
+!        endif
+!      elseif( eNkpt .ne. product( kpts(:) ) ) then
       if( eNkpt .ne. product( kpts(:) ) ) then
         ierr = 703
       endif
@@ -632,8 +637,13 @@ module ocean_qe62_files
 !      close(99)
 
       ! Internal rep in Ha
-      internal_val_energies( :, :, : ) = temp_energies( brange(1):brange(2), :, : ) * 0.5_DP
-      internal_con_energies( :, :, : ) = temp_energies( brange(3):brange(4), :, : ) * 0.5_DP
+     internal_val_energies( :, :, : ) = temp_energies( brange(1):brange(2), :, : ) * 0.5_DP
+!     internal_val_energies( :, :, : ) = temp_energies( brange(1):brange(2), 1:nkpts, : ) * 0.5_DP
+!      if( is_split ) then
+!        internal_con_energies( :, :, : ) = temp_energies( brange(3):brange(4), nkpts+1:2*nkpts, : ) * 0.5_DP
+!      else
+        internal_con_energies( :, :, : ) = temp_energies( brange(3):brange(4), :, : ) * 0.5_DP
+!      endif
       
       deallocate( temp_energies )
 
@@ -1637,11 +1647,136 @@ module ocean_qe62_files
 
   end subroutine shift_read_at_kpt_split
 
+  subroutine qe62_read_at_kpt_mpi( ikpt, ispin, ngvecs, my_bands, gvecs, wfns, ierr )
+#ifdef MPI
+    use OCEAN_mpi, only : MPI_INTEGER, MPI_DOUBLE_COMPLEX, MPI_STATUSES_IGNORE, myid, MPI_REQUEST_NULL, &
+                          MPI_STATUS_IGNORE, MPI_UNDEFINED, MPI_OFFSET_KIND, MPI_MODE_RDONLY, MPI_INFO_NULL, &
+                          MPI_STATUS_SIZE
+!    use OCEAN_mpi
+#endif
+    use SCREEN_timekeeper, only : SCREEN_tk_start, SCREEN_tk_stop
+    integer, intent( in ) :: ikpt, ispin, ngvecs, my_bands
+    integer, intent( out ) :: gvecs( 3, ngvecs )
+    complex( DP ), intent( out ) :: wfns( ngvecs, my_bands )
+    integer, intent( inout ) :: ierr
+    !
+    integer :: fh, i, j, k,  nbands, nbands_to_send, id, test_gvec
+    integer(MPI_OFFSET_KIND ) :: offset
+#ifdef MPI_F08
+    TYPE(MPI_Status) :: stats
+#else
+    integer :: stats( MPI_STATUS_SIZE )
+#endif
+
+#ifndef MPI
+    call qe62_read_at_kpt( ikpt, ispin, ngvecs, my_bands, gvecs, wfns, ierr )
+    return
+#endif
+
+#ifdef MPI
+    if( qe62_getPoolIndex( ispin, ikpt ) .ne. mypool ) return
+    !
+    if( qe62_getAllBandsForPoolID( pool_myid ) .ne. my_bands ) then
+      ierr = 1
+      return
+    endif
+
+    nbands = bands(2)-bands(1)+1
+
+
+    call SCREEN_tk_start("dft-read")
+    call MPI_FILE_OPEN( pool_comm, qe62_gkvFile( ikpt, ispin), MPI_MODE_RDONLY, MPI_INFO_NULL, fh, ierr )
+    if( ierr .ne. 0 ) return
+
+    offset = 6 * 4 + 1 * 4 + 4 * 8
+    call MPI_FILE_READ_AT_ALL( fh, offset, test_gvec, 1, MPI_INTEGER, MPI_STATUS_IGNORE, ierr )
+    if( ierr .ne. 0 ) return
+    offset = offset + 4 * 4
+
+    ! Are we expanding the wave functions here?
+    if( gammaFullStorage .and. is_gamma ) then
+      if( ( 2 * test_gvec - 1 ) .ne. ngvecs ) then
+        ierr = -2
+        write(6,*) (2*test_gvec-1), ngvecs
+        return
+      endif
+    else
+      if( test_gvec .ne. ngvecs ) then
+        ierr = -2
+        write(6,*) test_gvec, ngvecs
+        return
+      endif
+    endif
+
+
+    ! read 9 doubles
+    offset = offset + 2 * 4 + 9 * 8
+    offset = offset + 4
+    call MPI_FILE_READ_AT_ALL( fh, offset, gvecs, 3 * test_gvec, MPI_INTEGER, MPI_STATUS_IGNORE, ierr )
+    if( ierr .ne. 0 ) return
+    ! 12 = 3 * 4
+    offset = offset + int( test_gvec * 12, MPI_OFFSET_KIND )
+    
+    write(1000+myid,*) '***Reading k-point: ', ikpt, ispin
+    write(1000+myid,*) '   Ngvecs: ', ngvecs
+    write(1000+myid,*) '   Nbands: ', nbands
+
+    ! loop over each proc in this pool to read wavefunctions
+    do id = 0, pool_nproc - 1
+      nbands_to_send = qe62_getAllBandsForPoolID( id )
+    
+      if( pool_myid .eq. id ) then
+        j = 0
+        write(1000+myid,*) '***Reading', offset, j
+        do i = 1, nbands_to_send
+          offset = offset + 2 * 4
+!          call MPI_FILE_READ_AT( fh, offset, wfns(:,i), test_gvec, MPI_DOUBLE_COMPLEX, MPI_STATUS_IGNORE, ierr )
+          call MPI_FILE_READ_AT( fh, offset, wfns(:,i), test_gvec, MPI_DOUBLE_COMPLEX, stats, ierr )
+          if( ierr .ne. 0 ) return
+          call MPI_GET_COUNT( stats, MPI_DOUBLE_COMPLEX, k, ierr )
+          j = j + k
+          offset = offset + int( test_gvec * 16, MPI_OFFSET_KIND )
+        enddo
+        write(1000+myid,*) '***       ', offset, j
+      else
+        do i = 1, nbands_to_send
+          ! two ints for stop/start and then the double complex coeffs
+          offset = offset + int( 8 + test_gvec * 16, MPI_OFFSET_KIND )
+        enddo
+      endif
+    enddo
+
+    call MPI_FILE_CLOSE( fh, ierr )
+    call SCREEN_tk_stop("dft-read")
+    if( gammaFullStorage .and. is_gamma ) then
+      j = test_gvec
+      do i = 1, test_gvec
+        if( gvecs(1,i) .eq. 0 .and. gvecs(2,i) .eq. 0 .and. gvecs(3,i) .eq. 0 ) then
+          k = i + 1
+          exit
+        endif
+        j = j + 1
+        gvecs(:,j) = -gvecs(:,i)
+        wfns(j,:) = conjg( wfns(i,:) )
+      enddo
+
+      do i = k, test_gvec
+        j = j + 1
+        gvecs(:,j) = -gvecs(:,i)
+        wfns(j,:) = conjg( wfns(i,:) )
+      enddo
+    endif
+    write(1000+myid,*) '***Finishing k-point: ', ikpt, ispin
+    call MPI_BARRIER( pool_comm, ierr )
+
+
+#endif
+  end subroutine qe62_read_at_kpt_mpi
 
   subroutine qe62_read_at_kpt( ikpt, ispin, ngvecs, my_bands, gvecs, wfns, ierr )
 #ifdef MPI
     use OCEAN_mpi, only : MPI_INTEGER, MPI_DOUBLE_COMPLEX, MPI_STATUSES_IGNORE, myid, MPI_REQUEST_NULL, &
-                          MPI_STATUS_IGNORE, MPI_UNDEFINED
+                          MPI_STATUS_IGNORE, MPI_UNDEFINED, MPI_OFFSET_KIND, MPI_MODE_RDONLY, MPI_INFO_NULL
 !    use OCEAN_mpi
 #endif
     use SCREEN_timekeeper, only : SCREEN_tk_start, SCREEN_tk_stop
@@ -1652,12 +1787,29 @@ module ocean_qe62_files
     !
     complex( DP ), allocatable, dimension( :, :, : ) :: cmplx_wvfn
     integer :: test_gvec, itarg, nbands_to_send, nr, ierr_, nbands, id, start_band, crap, i, j, k, bufferSize, maxBands
+    integer :: igb, jgb, doubleBufferLoop, gb
 #ifdef MPI_F08
     type( MPI_REQUEST ), allocatable :: requests( : )
     type( MPI_DATATYPE ) :: newType
 #else
     integer, allocatable :: requests( : )
     integer :: newType
+#endif
+    ! intentionally 2MB in double complex
+    ! 1MB, 512k
+    integer, parameter :: dblBufSize = 65536 ! 131072
+
+    integer :: fh
+    integer(MPI_OFFSET_KIND ) :: offset
+    integer, allocatable :: iread(:)
+    real(DP), allocatable :: dread(:)
+    logical :: lread, ioWorkaround
+
+#ifdef MPI
+    if( ngvecs .gt. dblBufSize ) then
+      call qe62_read_at_kpt_mpi( ikpt, ispin, ngvecs, my_bands, gvecs, wfns, ierr )
+      return
+    endif
 #endif
 
     if( qe62_getPoolIndex( ispin, ikpt ) .ne. mypool ) return
@@ -1669,12 +1821,63 @@ module ocean_qe62_files
 
     nbands = bands(2)-bands(1)+1
 
+    if( gammaFullStorage .and. is_gamma ) then
+      test_gvec = ( ngvecs + 1 ) / 2
+    else
+      test_gvec = ngvecs
+    endif
+
+    if( test_gvec .gt. dblBufSize ) then
+      ioWorkaround = .true.
+    else
+      ioWorkaround = .false.
+    endif
+    ioWorkaround = .true.
+!# define TRYMPI
+#ifdef TRYMPI
+    if( ioWorkaround ) then
+      call MPI_FILE_OPEN( pool_comm, qe62_gkvFile( ikpt, ispin), MPI_MODE_RDONLY, MPI_INFO_NULL, fh, ierr )
+      if( ierr .ne. 0 ) return 
+    endif
+#endif
+
+
     if( pool_myid .eq. pool_root ) then
+!      if( gammaFullStorage .and. is_gamma ) then
+!        test_gvec = ( ngvecs + 1 ) / 2
+!      else
+!        test_gvec = ngvecs 
+!      endif
+!
+!      if( test_gvec .gt. dblBufSize ) then
+!        ioWorkaround = .true.
+!      else
+!        ioWorkaround = .false.
+!      endif
+!      ioworkaround = .false.
     
       ! get gvecs first
-      open( unit=99, file=qe62_gkvFile( ikpt, ispin), form='unformatted', status='old' )
-      read( 99 )
-      read(99) crap, test_gvec
+      if( ioWorkaround ) then
+#ifdef TRYMPI
+        ! Right now the file is in byte mode
+        offset = 6 * 4 + 1 * 4 + 4 * 8 
+        call MPI_FILE_READ_AT( fh, offset, test_gvec, 1, MPI_INTEGER, MPI_STATUS_IGNORE, ierr )
+        if( ierr .ne. 0 ) return
+        offset = offset + 4 * 4
+#else
+        open( unit=99, file=qe62_gkvFile( ikpt, ispin), form='unformatted', status='old', &
+              access='stream',READONLY )
+        ! int, real(3), int, logical, real
+        allocate( iread(4), dread(4) )
+        read( 99 ) iread(:), dread(:), lread
+        read( 99 ) crap, crap, test_gvec, crap, crap, crap
+        deallocate( iread, dread )
+#endif
+      else
+        open( unit=99, file=qe62_gkvFile( ikpt, ispin), form='unformatted', status='old' )
+        read( 99 )
+        read(99) crap, test_gvec
+      endif
       ! Are we expanding the wave functions here?
       if( gammaFullStorage .and. is_gamma ) then
         if( ( 2 * test_gvec - 1 ) .ne. ngvecs ) then
@@ -1690,6 +1893,7 @@ module ocean_qe62_files
         endif
       endif
 
+
       ! Error synch. Also ensures that the other procs have posted their recvs
       call MPI_BCAST( ierr, 1, MPI_INTEGER, pool_root, pool_comm, ierr_ )
       if( ierr .ne. 0 ) return
@@ -1699,9 +1903,25 @@ module ocean_qe62_files
       endif
 
 
-      read(99)
-      ! Using test_gvec for gamma support
-      read( 99 ) gvecs( :, 1:test_gvec )
+      if( ioWorkaround ) then
+#ifdef TRYMPI
+        offset = offset + 2 * 4 + 9 * 8
+        call MPI_FILE_READ_AT( fh, offset, gvecs, 3 * test_gvec, MPI_INTEGER, MPI_STATUS_IGNORE, ierr )
+        if( ierr .ne. 0 ) return
+        ! 12 = 3 * 4
+        offset = offset + int( test_gvec * 12, MPI_OFFSET_KIND )
+#else
+        allocate( dread( 9 ) )
+        read( 99 ) crap, dread(:), crap
+        deallocate( dread )
+        read( 99 ) crap, gvecs( :, 1:test_gvec )! , crap
+        ! delay reading the record end statement to reduce number of read calls
+#endif
+      else
+        read(99)
+        ! Using test_gvec for gamma support
+        read( 99 ) gvecs( :, 1:test_gvec )
+      endif
 
       maxBands = qe62_getAllBandsForPoolID( 0 )
       do id = 1, pool_nproc - 1
@@ -1736,6 +1956,18 @@ module ocean_qe62_files
 !        read( 99 ) crap, cmplx_wvfn( 1, 1 )
 !      enddo
 
+      ! Keep the reads under 4MB chunks 
+      !  on test cluster 4MB seems to trigger some double buffering or something
+      !  should move to MPI READ calls instead of fortran
+      if( test_gvec .gt. dblBufSize ) then
+        ! 
+        doubleBufferLoop = (test_gvec-1) / dblBufSize
+      else
+        doubleBufferLoop = 0
+      endif
+      doubleBufferLoop = 0
+
+      write(1000+myid,*) '   DBLbuf: ', doubleBufferLoop, ioworkaround
 
 
       start_band = 1
@@ -1749,7 +1981,43 @@ module ocean_qe62_files
         if( id .eq. pool_myid ) then
           call SCREEN_tk_start("dft-read")
           do i = 1, nbands_to_send
-            read( 99 ) wfns( 1:test_gvec, i )
+#if 0
+            igb = 1
+            jgb = dblBufsize
+            do gb = 1, doubleBufferLoop
+              read( 99 ) wfns( igb : jgb, i )
+              igb = igb + dblBufsize
+              jgb = jgb + dblBufsize
+            enddo
+!            read( 99 ) wfns( 1:test_gvec, i )
+            read( 99 ) wfns( igb:test_gvec, i )
+#else 
+#if 0
+            do gb = 1, test_gvec, dblBufsize
+              jgb = min( gb + dblBufSize - 1, test_gvec )
+              read( 99 ) wfns( gb : jgb, i )
+            enddo
+#else
+            if( ioWorkaround ) then
+#ifdef TRYMPI
+              offset = offset + 2 * 4
+              call MPI_FILE_READ_AT( fh, offset, wfns(:,i), test_gvec, MPI_DOUBLE_COMPLEX, MPI_STATUS_IGNORE, ierr )
+              if( ierr .ne. 0 ) return
+              offset = offset + int( test_gvec * 16, MPI_OFFSET_KIND )
+#else
+              read( 99 ) crap, crap
+              do gb = 1, test_gvec, dblBufsize
+                jgb = min( gb + dblBufSize - 1, test_gvec )
+                read( 99 ) wfns( gb : jgb, i )
+              enddo
+!              read( 99 ) crap
+!              read( 99 ) crap, wfns( 1:test_gvec, i ), crap
+#endif
+            else
+              read( 99 ) wfns( 1:test_gvec, i )
+            endif
+#endif
+#endif  
           enddo
           call SCREEN_tk_stop("dft-read")
         
@@ -1771,7 +2039,44 @@ module ocean_qe62_files
 
           call SCREEN_tk_start("dft-read")
           do i = 1, nbands_to_send
-            read( 99 ) cmplx_wvfn( 1:test_gvec, i, j )
+#if 0
+            igb = 1
+            jgb = dblBufsize
+            do gb = 1, doubleBufferLoop
+              read( 99 ) cmplx_wvfn( igb : jgb, i, j )
+              igb = igb + dblBufsize
+              jgb = jgb + dblBufsize
+            enddo
+            read( 99 ) cmplx_wvfn( igb : test_gvec, i, j )
+!            read( 99 ) cmplx_wvfn( 1:test_gvec, i, j )
+#else
+#if 0
+            do gb = 1, test_gvec, dblBufsize
+              jgb = min( gb + dblBufSize - 1, test_gvec )
+              read( 99 ) cmplx_wvfn( gb : jgb, i, j )
+            enddo
+#else
+            if( ioWorkaround ) then
+#ifdef TRYMPI
+              offset = offset + 2 * 4
+              call MPI_FILE_READ_AT( fh, offset, cmplx_wvfn(:,i,j), test_gvec, MPI_DOUBLE_COMPLEX, &
+                                     MPI_STATUS_IGNORE, ierr )
+              if( ierr .ne. 0 ) return
+              offset = offset + int( test_gvec * 16, MPI_OFFSET_KIND )
+#else
+              read( 99 ) crap, crap
+              do gb = 1, test_gvec, dblBufsize
+                jgb = min( gb + dblBufSize - 1, test_gvec )
+                read( 99 ) cmplx_wvfn( gb : jgb, i, j )
+              enddo
+!              read( 99 ) crap
+!              read( 99 ) crap, cmplx_wvfn( 1:test_gvec, i, j ), crap
+#endif
+            else
+              read( 99 ) cmplx_wvfn( 1:test_gvec, i, j )
+            endif
+#endif
+#endif
           enddo
           call SCREEN_tk_stop("dft-read")
 
@@ -1803,7 +2108,14 @@ module ocean_qe62_files
       enddo
 #endif
 
+      if( ioworkaround ) then
+#ifndef TRYMPI
       close( 99 )
+#endif
+      else
+        close( 99 )
+      endif
+      
 
       nr=nr+1
     else
