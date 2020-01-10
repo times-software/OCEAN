@@ -292,7 +292,9 @@ for( my $isplit = 0; $isplit <= $dft_split; $isplit++ )
 
 
 $nkpt /= 2 if( $dft_split == 1 );
-print "Found $nkpt k-points\n";
+my $printNkpt = $nkpt;
+$printNkpt /= 2 if( $dft_shift == 1 );
+print "Found $printNkpt k-points\n";
 print $band_max . "\t" . $band_min . "\n";
 
 open OUT, ">brange.stub" or die "Failed to open brange.stub for writing\n$!";
@@ -309,7 +311,7 @@ else
 {
   $numBands = scalar @{ $energies[0] };
 }
-print EIG "1 $numBands  $nkpt  $spin\n";
+print EIG "1 $numBands  $printNkpt  $spin\n";
 
 open ENK, ">", "enkfile" or die "Failed to open enkfile for writing\n";
 for( my $k = 0; $k < $nkpt; $k++ )
