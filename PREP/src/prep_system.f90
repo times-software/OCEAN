@@ -485,7 +485,7 @@ module prep_system
 
     open( unit=99, file='brange.ipt', form='formatted', status='old', IOSTAT=ierr )
     if( ierr .ne. 0 ) then
-      write( 6, * ) 'FATAL ERROR: Failed to open kmesh.ipt', ierr
+      write( 6, * ) 'FATAL ERROR: Failed to open brange.ipt', ierr
       return
     endif
     read( 99, *, IOSTAT=ierr ) params%brange( : )
