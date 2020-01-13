@@ -657,7 +657,7 @@ end subroutine OCEAN_ladder_act
     integer :: ierr
     
     if( .not. is_loaded ) return
-    deallocate( ladder, kret, re_bstate, im_bstate )
+    deallocate( ladder, kret, kk, re_bstate, im_bstate )
     is_loaded = .false.
 
 #ifdef MPI
