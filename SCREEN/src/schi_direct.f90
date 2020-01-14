@@ -165,9 +165,11 @@ module schi_direct
 #else
 
     
-    ! The 
-    FullW( 1, 1 )  = 4.0_DP * PI_DP * grid%rad(1) * grid%drad(1) * Nind( i, 1 )
-    FullW0( 1, 1 ) = 4.0_DP * PI_DP * grid%rad(1) * grid%drad(1) * Nind0( i, 1 )
+      
+
+  
+    FullW( 1, 1 )  = 4.0_DP * PI_DP * grid%rad(1) * grid%drad(1) * Nind( 1, 1 )
+    FullW0( 1, 1 ) = 4.0_DP * PI_DP * grid%rad(1) * grid%drad(1) * Nind0( 1, 1 )
 
     do i = 2, nr
       coul = grid%rad(i) * grid%drad(i) * 4.0_DP * PI_DP
@@ -182,6 +184,7 @@ module schi_direct
         FullW0( j, 1 ) = FullW0( j, 1 ) + coul * Nind0( i, 1 ) / grid%rad(j)
       enddo
     enddo
+
 
     if( nLM .lt. 2 ) return
 
@@ -239,13 +242,19 @@ module schi_direct
   subroutine schi_direct_buildCoulombMatrix( grid, cMat, ierr )
     use screen_grid, only : sgrid
     use ocean_constants, only : PI_DP
+    use screen_kxc, only : dftder3
+    use screen_system, only : screen_system_appx
     type( sgrid ), intent( in ) :: grid
     real(DP), intent( out ) :: cMat(:,:,:,:)
     integer, intent( inout ) :: ierr
 
+    real(DP), allocatable :: kxc(:), atrad(:), atden(:), temp(:)
+    real(DP) :: r, r1, r2, r3, r4, d1, d2, d3, d4, nofr, frac1, frac2, fxc, nexc, vxc
     real(DP) :: coulfac, FourPi
     integer :: i, j, iLM, jLM
-    integer :: nLM, nr
+    integer :: nLM, nr, cur, numr, dumi
+    character(len=2) :: dumc
+    character(len=3) :: appx 
 
     nr = size( cMat, 1 )
     nLM = size( cMat, 2 )
@@ -257,6 +266,66 @@ module schi_direct
 
     cMat = 0.0_DP
     FourPi = 4.0_DP * PI_DP
+
+    appx = screen_system_appx()
+    if( appx .eq. 'LDA' ) then
+
+      open( unit=99, file='avden', form='formatted', status='unknown' )
+      numr = 400
+      allocate( atrad( 0 : numr ), atden( 0 : numr ) )
+      cur = 1
+120   continue
+      do i = cur, numr
+        read( 99, * , IOSTAT=j, ERR=100 ) dumc, dumi, atrad( i ), atden( i )
+      enddo
+      goto 100
+      cur = numr+1
+      allocate( temp( 0 : numr ) )
+      temp( : ) = atrad( : )
+      deallocate( atrad )
+      allocate( atrad( 0 : 2*numr ) )
+      atrad( 0:numr ) = temp(:)
+      temp( : ) = atden( : )
+      deallocate( atden )
+      allocate( atden( 0 : 2*numr ) )
+      atden( 0:numr ) = temp(:)
+      numr = 2*numr
+      deallocate(temp)
+      goto 120
+
+100   continue
+      numr = i - 1
+      write(6,*) 'avden length: ', numr
+      close(99)
+
+      frac1 = atrad( 1 ) ** 2
+      frac2 = atrad( 2 ) ** 2
+      atden( 1 ) = atden( 1 ) + frac1 / ( frac2 - frac1 ) * ( atden( 1 ) - atden( 2 ) )
+      atden( 0 ) = atden( 2 )
+      atrad( 1 ) = 0.0d0
+      atrad( 0 ) = -atrad( 2 )
+
+      
+      allocate( kxc( nr ) )
+
+      do i = 1, nr
+        j = 1
+        do while ( grid%rad( i ) .ge. atrad( j + 1 ) )
+           j = j + 1
+        end do
+        r = grid%rad( i )
+        r1 = atrad( j - 1 ); r2 = atrad( j ); r3 = atrad( j + 1 ); r4 = atrad( j + 2 )
+        d1 = atden( j - 1 ); d2 = atden( j ); d3 = atden( j + 1 ); d4 = atden( j + 2 )
+        nofr = &
+             d1 * ( r - r2 ) * ( r - r3 ) * ( r - r4 ) / ( ( r1 - r2 ) * ( r1 - r3 ) * ( r1 - r4 ) ) + &
+             d2 * ( r - r1 ) * ( r - r3 ) * ( r - r4 ) / ( ( r2 - r1 ) * ( r2 - r3 ) * ( r2 - r4 ) ) + &
+             d3 * ( r - r1 ) * ( r - r2 ) * ( r - r4 ) / ( ( r3 - r1 ) * ( r3 - r2 ) * ( r3 - r4 ) ) + &
+             d4 * ( r - r1 ) * ( r - r2 ) * ( r - r3 ) / ( ( r4 - r1 ) * ( r4 - r2 ) * ( r4 - r3 ) )
+        call dftder3( nofr, nexc, vxc, kxc(i), fxc )
+        kxc(i) = kxc(i) * grid%drad( i ) * grid%rad( i ) ** 2
+!        vcoul( i, i ) = vcoul( i, i ) + drad( i ) * rad( i ) ** 2 * kxc
+      enddo
+    endif
 
 #if 0
 !    lpol = 0
@@ -293,6 +362,14 @@ module schi_direct
       enddo
     enddo
 #endif
+
+    if( appx .eq. 'LDA' ) then
+      do i = 1, nr
+        Cmat( i, 1, i, 1 ) = Cmat( i, 1, i, 1 ) + kxc(i)
+      enddo
+
+      deallocate( kxc )
+    endif
   
     if( nLM .eq. 1 ) return
 

@@ -50,6 +50,7 @@ module screen_system
     integer :: QuadOrder = 16
     logical :: do_augment = .true.
     integer :: lbounds(2) = 0
+    character(len=3) :: appx
   end type calculation_parameters
 
   type( physical_system ), save :: psys
@@ -65,7 +66,7 @@ module screen_system
   public :: screen_system_convertInterpolateStyle, screen_system_convertInterpolateOrder
   public :: screen_system_doAugment, screen_system_lbounds, screen_system_mode
   public :: screen_system_setGamma, tau2xcoord
-  public :: screen_system_volume, screen_system_xmesh
+  public :: screen_system_volume, screen_system_xmesh, screen_system_appx
 
   contains 
 
@@ -138,6 +139,11 @@ module screen_system
     integer :: lb(2)
     lb(:) = calcParams%lbounds
   end function screen_system_lbounds
+
+  pure function screen_system_appx() result (appx)
+    character(len=3) :: appx
+    appx = calcParams%appx
+  end function screen_system_appx
 
   pure function screen_system_returnKvec( sp, ikpt ) result( Kvec )
     type( system_parameters ), intent( in ) :: sp
@@ -293,6 +299,9 @@ module screen_system
 
     call MPI_BCAST( calcParams%lbounds, 2, MPI_INTEGER, root, comm, ierr )
     if( ierr .ne. MPI_SUCCESS ) return
+
+    call MPI_BCAST( calcParams%appx, 3, MPI_CHARACTER, root, comm, ierr )
+    if( ierr .ne. MPI_SUCCESS ) return
 #endif
   end subroutine share_calcParams
 
@@ -412,6 +421,17 @@ module screen_system
       calcParams%lbounds(2) = calcParams%lbounds(1)
     endif
     write(6,'(A,I5,I5)') 'Angular momentum bounds are: ', calcParams%lbounds(:)
+
+    calcParams%appx = 'RPA'
+    inquire( file='screen.appx', exist=ex )
+    if( ex ) then
+      open( unit=99, file='screen.appx', form='formatted', status='old' )
+      read( 99, *, IOSTAT=ignoreErrors ) calcParams%appx
+      close( 99 )
+      if( ignoreErrors .ne. 0 ) then
+        write(6,*) 'Error reading screen.appx ', ignoreErrors
+      endif
+    endif
 
 
     inquire( file='screen.convertstyle', exist=ex )
