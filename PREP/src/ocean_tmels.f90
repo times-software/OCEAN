@@ -14,18 +14,19 @@ module ocean_tmels
   implicit none
   private
 
-  
+  logical, save :: fancyFileView = .false.
   logical, save :: is_init = .false.
   integer, save :: tmelsFH
 
-  public :: ocean_tmels_open, ocean_tmels_close, ocean_tmels_calc
+  public :: ocean_tmels_open, ocean_tmels_close, ocean_tmels_calc, ocean_tmels_legacy
 
   contains
 
 
   subroutine ocean_tmels_calc( ikpt, ispin, nValBands, nConBands, valGvecs, conGvecs, &
-                               ValUofG, conUofG, ierr )
-    integer, intent( in ) :: ikpt, ispin, nValBands, nConBands, valGvecs(:,:), conGvecs(:,:)
+                               ValUofG, conUofG, nkpts, totValBand, totConBand, startVal, startCon, ierr )
+    integer, intent( in ) :: ikpt, ispin, nValBands, nConBands, valGvecs(:,:), conGvecs(:,:), &
+                             nkpts, totValBand, totConBand, startVal, startCon
     complex(DP), intent( in ) :: ValUofG(:,:), conUofG(:,:)
     integer, intent(inout) :: ierr
 
@@ -36,7 +37,7 @@ module ocean_tmels
 
     if( .true. ) then
       call tmelsCalc( ikpt, ispin, nValBands, nConBanDs, valGvecs, conGvecs, &
-                       ValUofG, conUofG, ierr )
+                       ValUofG, conUofG, nkpts, totValBand, totConBand, startVal, startCon, ierr )
 
     else
 !      call tmelsCalcUmklapp
@@ -46,20 +47,25 @@ module ocean_tmels
 
 
   subroutine tmelsCalc( ikpt, ispin, nValBands, nConBands, valGvecs, conGvecs, &
-                               ValUofG, conUofG, ierr )
-    use ocean_mpi, only : MPI_DOUBLE_COMPLEX, MPI_STATUS_IGNORE
-    integer, intent( in ) :: ikpt, ispin, nValBands, nConBands, valGvecs(:,:), conGvecs(:,:)
+                        ValUofG, conUofG, nkpts, totValBand, totConBand, startVal, startCon, ierr )
+    use ocean_mpi, only : MPI_DOUBLE_COMPLEX, MPI_STATUS_IGNORE, MPI_OFFSET_KIND
+    use prep_system, only : psys, params, physical_system, system_parameters
+    integer, intent( in ) :: ikpt, ispin, nValBands, nConBands, valGvecs(:,:), conGvecs(:,:), &
+                             nkpts, totValBand, totConBand, startVal, startCon
     complex(DP), intent( in ) :: ValUofG(:,:), conUofG(:,:)
     integer, intent(inout) :: ierr
 
     complex(DP), allocatable :: tmels(:,:)
     integer, allocatable :: gVecMap(:)
     integer :: i, j, k, nGV, nGC
+    integer(MPI_OFFSET_KIND) :: offset
 
     if( ikpt .lt. 1 ) then
       i = 0
       ! zero length write, but do need a valid buffer
-      call MPI_FILE_WRITE_ALL( tmelsFH, valUofG, i, MPI_DOUBLE_COMPLEX, MPI_STATUS_IGNORE, ierr )
+      if( fancyFileView ) then
+        call MPI_FILE_WRITE_ALL( tmelsFH, valUofG, i, MPI_DOUBLE_COMPLEX, MPI_STATUS_IGNORE, ierr )
+      endif
       return
     endif
 
@@ -103,7 +109,24 @@ module ocean_tmels
 
     deallocate( gVecMap )
     i = nValBands * nConBands
-    call MPI_FILE_WRITE_ALL( tmelsFH, tmels, i, MPI_DOUBLE_COMPLEX, MPI_STATUS_IGNORE, ierr )
+    if( fancyFileView ) then
+      call MPI_FILE_WRITE_ALL( tmelsFH, tmels, i, MPI_DOUBLE_COMPLEX, MPI_STATUS_IGNORE, ierr )
+    else
+      offset = ( ( ispin - 1 ) * nkpts + ikpt - 1 ) * totValBand * totConBand
+      offset = offset + ( startCon - 1 ) * totValBand
+!      offset = offset * 16
+      write(6,*) ikpt, offset
+      call MPI_FILE_WRITE_AT( tmelsFH, offset, tmels, i, MPI_DOUBLE_COMPLEX, MPI_STATUS_IGNORE, ierr )
+
+#if 0
+      do i = 1, nConBands
+        do j = 1, nValBands
+          write(999,*) real(tmels(j,i)), aimag(tmels(j,i))
+        enddo
+      enddo
+#endif
+
+    endif
   
     deallocate( tmels ) 
 
@@ -168,7 +191,11 @@ module ocean_tmels
     write(1000+myid, * ) 'offset', offset
     flush(1000+myid)
 
-    call MPI_FILE_SET_VIEW( tmelsFH, offset, MPI_DOUBLE_COMPLEX, fileType, "native", MPI_INFO_NULL, ierr )
+    if( fancyFileView ) then
+      call MPI_FILE_SET_VIEW( tmelsFH, offset, MPI_DOUBLE_COMPLEX, fileType, "native", MPI_INFO_NULL, ierr )
+    else
+      call MPI_FILE_SET_VIEW( tmelsFH, offset, MPI_DOUBLE_COMPLEX, MPI_DOUBLE_COMPLEX, "native", MPI_INFO_NULL, ierr )
+    endif
     if( ierr .ne. 0 ) return
 
     call MPI_TYPE_FREE( fileType, ierr )
@@ -191,5 +218,60 @@ module ocean_tmels
     is_init = .false.
   end subroutine
 
+
+!# define TESTMPI
+  subroutine ocean_tmels_legacy( nv, nc, nk, nspin, ierr )
+    use ocean_mpi
+    integer, intent( in ) :: nv, nc, nk, nspin
+    integer, intent( inout ) :: ierr
+
+    complex(dp), allocatable :: ttt( :, : )
+    integer :: ispn, ik, fh, elements
+    integer(8) :: offset
+
+#ifdef TESTMPI
+    call MPI_FILE_OPEN( comm, 'ptmels.dat', MPI_MODE_RDONLY, MPI_INFO_NULL, fh, ierr )
+    if( ierr .ne. MPI_SUCCESS ) return
+    offset = 0
+    call MPI_FILE_SET_VIEW( fh, offset, MPI_DOUBLE_COMPLEX, MPI_DOUBLE_COMPLEX, &
+                            'native', MPI_INFO_NULL, ierr)
+    if( ierr .ne. MPI_SUCCESS ) return
+#else
+    if( myid .eq. root ) open(unit=98, form='unformatted', access='stream', file='ptmels.dat')
+#endif
+    allocate( ttt( nv, nc ) )
+
+    if( myid .eq. root ) then
+    open( unit=99, file='tmels', form='formatted' )
+!JTV if we want to allow spin-flipping transitions we'll need to do it here
+    do ispn = 1, nspin
+      do ik = 1, nk
+        ! Read in the tmels
+        offset = nv * nc  * ( ik - 1 )
+        elements = nv * nc
+#ifdef TESTMPI
+        call MPI_FILE_READ_AT( FH, offset, ttt, elements, &
+                                   MPI_DOUBLE_COMPLEX, MPI_STATUS_IGNORE, ierr )
+        if( ierr .ne. MPI_SUCCESS) return
+#else
+        read(98) ttt
+#endif
+
+        write(99, '(2E23.15)' ) ttt(:,:)
+
+      enddo
+    enddo
+
+    close(99)
+    endif
+
+#ifdef TESTMPI
+    call MPI_FILE_CLOSE( fh, ierr )
+    if( ierr .ne. MPI_SUCCESS ) return
+#else
+    if( myid .eq. root )close(98)
+#endif
+
+  end subroutine ocean_tmels_legacy
 
 end module ocean_tmels

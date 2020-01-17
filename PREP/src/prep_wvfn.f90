@@ -34,7 +34,7 @@ module prep_wvfn
                           ocean_cks_makeCksHolders, ocean_cks_doLegacyCks
     use screen_opf, only : screen_opf_largestLMNproj
     use screen_timekeeper, only : screen_tk_start, screen_tk_stop
-    use ocean_tmels, only : ocean_tmels_open, ocean_tmels_close, ocean_tmels_calc
+    use ocean_tmels, only : ocean_tmels_open, ocean_tmels_close, ocean_tmels_calc, ocean_tmels_legacy
     integer, intent( inout ) :: ierr
 
     complex(DP), allocatable, target :: valUofG(:,:), conUofG(:,:), wvfn(:,:,:,:), UofX(:,:,:,:) , UofX2(:,:)
@@ -50,9 +50,9 @@ module prep_wvfn
 
     integer :: ispin, ikpt, nprocPool, nuni, iuni, npool, nsites, nprojSpacer
     integer :: valNgvecs, conNgves, valBands, conBands, ngvecs(2), odf_flag, totConBands
-    integer :: nG, nbands, fftGrid(3), allBands, nX, vType, cType, totValBands, myConBandStart, kStride
+    integer :: nG, nbands, fftGrid(3), allBands, nX, vType, cType, totValBands, myConBandStart, myValBandStart
 
-    integer :: conFH, valFH, fileHandle, poolID, i, testFH, iband, bandChunk, omp_threads
+    integer :: conFH, valFH, fileHandle, poolID, i, testFH, iband, bandChunk, omp_threads, kStride
     logical :: is_kpt, wantCKS, wantU2, addShift, wantLegacy, wantTmels
 
     wantCKS = calcParams%makeCKS
@@ -212,15 +212,18 @@ module prep_wvfn
 !          totConBands = params%brange(4) - params%brange(3) + 1
           ! If we have more than one proc per k-point, share the valence bands
           if( odf_nprocPerPool() .gt. 1 ) then
+            myValBandStart = 1
             allocate( spareValUofG( ngvecs(1), totValBands ) )
             call shareValence( valUofG, spareValUofG, ierr )
             if( ierr .ne. 0 ) return
             call ocean_tmels_calc( ikpt, ispin, totValBands, conBands, valGvecs, conGvecs, &
-                                   spareValUofG, conUofG, ierr )
+                                   spareValUofG, conUofG, params%nkpts, totValBands, totConBands, &
+                                   myValBandStart, myConBandStart, ierr )
             deallocate( spareValUofG )
           else
             call ocean_tmels_calc( ikpt, ispin, totValBands, conBands, valGvecs, conGvecs, &
-                                   ValUofG, conUofG, ierr )
+                                   ValUofG, conUofG, params%nkpts, totValBands, totConBands, &
+                                   myValBandStart, myConBandStart, ierr )
           endif
         endif
 
@@ -229,7 +232,8 @@ module prep_wvfn
         allocate( valGvecs( 0, 0 ), conGvecs( 0, 0 ), valUofG( 0, 0 ), conUofG( 0, 0 ) )
         if( wantTmels ) then
           call ocean_tmels_calc( ikpt, ispin, totValBands, conBands, valGvecs, conGvecs, &
-                                 spareValUofG, conUofG, ierr )
+                                 spareValUofG, conUofG, params%nkpts, totValBands, totConBands, &
+                                 myValBandStart, myConBandStart, ierr )
         endif
       endif
 
@@ -448,7 +452,10 @@ module prep_wvfn
       endif
     endif
 
-    if( wantTmels ) call ocean_tmels_close( ierr )
+    if( wantTmels ) then 
+      call ocean_tmels_close( ierr )
+      if( wantLegacy ) call ocean_tmels_legacy( totValBands, totConBands, params%nkpts, params%nspin, ierr )
+    endif
 
     call screen_tk_stop( "legacy" )
     call screen_tk_start( "main" )
