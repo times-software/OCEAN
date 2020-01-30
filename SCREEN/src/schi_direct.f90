@@ -192,8 +192,8 @@ module schi_direct
     ! i>j :-> dr(i) * r(j)
     ! j>i :-> dr(i) * r(i)**3 / r(j)**2
     do iLM = 2, 4
-      FullW( 1, ilm )  = 4.0_DP * PI_DP * grid%rad(1) * grid%drad(1) * Nind( i, ilm )
-      FullW0( 1, ilm ) = 4.0_DP * PI_DP * grid%rad(1) * grid%drad(1) * Nind0( i, ilm )
+      FullW( 1, ilm )  = 4.0_DP * PI_DP * grid%rad(1) * grid%drad(1) * Nind( 1, ilm )
+      FullW0( 1, ilm ) = 4.0_DP * PI_DP * grid%rad(1) * grid%drad(1) * Nind0( 1, ilm )
       do i = 2, nr
         coul = grid%drad(i) * 5.0_DP * PI_DP / 3.0_DP
         do j = 1, i
@@ -216,8 +216,8 @@ module schi_direct
     ! i>j :-> dr(i) * r(j)**2 / r(i)
     ! j>i :-> dr(i) * r(i)**4 / r(j)**3
     do iLM = 5, 9
-      FullW( 1, ilm )  = 4.0_DP * PI_DP * grid%rad(1) * grid%drad(1) * Nind( i, ilm )
-      FullW0( 1, ilm ) = 4.0_DP * PI_DP * grid%rad(1) * grid%drad(1) * Nind0( i, ilm )
+      FullW( 1, ilm )  = 4.0_DP * PI_DP * grid%rad(1) * grid%drad(1) * Nind( 1, ilm )
+      FullW0( 1, ilm ) = 4.0_DP * PI_DP * grid%rad(1) * grid%drad(1) * Nind0( 1, ilm )
       do i = 2, nr
         coul = grid%drad(i) * 4.0_DP * PI_DP / grid%rad(i) / 5.0_DP
         do j = 1, i
@@ -239,16 +239,18 @@ module schi_direct
 
   end subroutine schi_direct_calcW
 
-  subroutine schi_direct_buildCoulombMatrix( grid, cMat, ierr )
+  ! isite is the site index of the local processor not of the whole system
+  subroutine schi_direct_buildCoulombMatrix( grid, cMat, isite, ierr )
     use screen_grid, only : sgrid
     use ocean_constants, only : PI_DP
-    use screen_kxc, only : dftder3
+    use screen_kxc, only : dftder3, localFxcBySite, DensityBySite
     use screen_system, only : screen_system_appx
     type( sgrid ), intent( in ) :: grid
     real(DP), intent( out ) :: cMat(:,:,:,:)
+    integer, intent( in ) :: isite
     integer, intent( inout ) :: ierr
 
-    real(DP), allocatable :: kxc(:), atrad(:), atden(:), temp(:)
+    real(DP), allocatable :: kxc(:,:), atrad(:), atden(:), temp(:)
     real(DP) :: r, r1, r2, r3, r4, d1, d2, d3, d4, nofr, frac1, frac2, fxc, nexc, vxc
     real(DP) :: coulfac, FourPi
     integer :: i, j, iLM, jLM
@@ -268,7 +270,10 @@ module schi_direct
     FourPi = 4.0_DP * PI_DP
 
     appx = screen_system_appx()
+    appx = '   '
+
     if( appx .eq. 'LDA' ) then
+#if 0
 
       open( unit=99, file='avden', form='formatted', status='unknown' )
       numr = 400
@@ -306,7 +311,7 @@ module schi_direct
       atrad( 0 ) = -atrad( 2 )
 
       
-      allocate( kxc( nr ) )
+      allocate( kxc( nr, nLM ) )
 
       do i = 1, nr
         j = 1
@@ -321,10 +326,36 @@ module schi_direct
              d2 * ( r - r1 ) * ( r - r3 ) * ( r - r4 ) / ( ( r2 - r1 ) * ( r2 - r3 ) * ( r2 - r4 ) ) + &
              d3 * ( r - r1 ) * ( r - r2 ) * ( r - r4 ) / ( ( r3 - r1 ) * ( r3 - r2 ) * ( r3 - r4 ) ) + &
              d4 * ( r - r1 ) * ( r - r2 ) * ( r - r3 ) / ( ( r4 - r1 ) * ( r4 - r2 ) * ( r4 - r3 ) )
-        call dftder3( nofr, nexc, vxc, kxc(i), fxc )
-        kxc(i) = kxc(i) * grid%drad( i ) * grid%rad( i ) ** 2
+        call dftder3( nofr, nexc, vxc, kxc(i,1), fxc )
+        write(2222,*) grid%rad( i ), kxc(i,1)
+        kxc(i,1) = kxc(i,1) * grid%drad( i ) * grid%rad( i ) ** 2
 !        vcoul( i, i ) = vcoul( i, i ) + drad( i ) * rad( i ) ** 2 * kxc
       enddo
+
+#else
+      allocate( kxc( nr, nLM ) )
+
+      call schi_direct_project1d( grid, DensityBySite(:,isite), kxc, ierr )
+      if( ierr .ne. 0 ) return
+      open(unit=2223,form='formatted')
+      do i = 1, nr
+        write(2223,*) grid%rad( i ), kxc(i,1)
+      enddo
+
+      close(2223)
+
+      call schi_direct_project1d( grid, LocalFxcBySite(:,isite), kxc, ierr )
+      if( ierr .ne. 0 ) return
+      open(unit=2222,form='formatted')
+
+      do i = 1, nr
+        write(2222,*) grid%rad( i ), kxc(i,1)
+        kxc(i,1) = kxc(i,1) * grid%drad( i ) * grid%rad( i ) ** 2
+      enddo
+    
+      close(2222)
+
+#endif
     endif
 
 #if 0
@@ -363,15 +394,9 @@ module schi_direct
     enddo
 #endif
 
-    if( appx .eq. 'LDA' ) then
-      do i = 1, nr
-        Cmat( i, 1, i, 1 ) = Cmat( i, 1, i, 1 ) + kxc(i)
-      enddo
 
-      deallocate( kxc )
-    endif
   
-    if( nLM .eq. 1 ) return
+    if( nLM .eq. 1 ) goto 10
 
     ! Have to have 2l + 1 for each l
     ! so we need 2, 3, and 4
@@ -419,7 +444,7 @@ module schi_direct
     enddo
 #endif
 
-    if( nLM .eq. 4 ) return
+    if( nLM .eq. 4 ) goto 10
 
     ! just like above we need all 5 m's for l=2
     if( nLM .lt. 9 ) then
@@ -469,9 +494,98 @@ module schi_direct
     enddo
 #endif
 
+10  continue
+    if( appx .eq. 'LDA' ) then
+      do ilm = 1, nlm
+        do i = 1, nr
+          Cmat( i, ilm, i, ilm ) = Cmat( i, ilm, i, ilm ) + kxc(i,ilm)
+        enddo
+      enddo
+      deallocate( kxc )
+    endif
 
   end subroutine schi_direct_buildCoulombMatrix
 
+! This needs to all get moved into some other place, maybe in grid??
+  subroutine schi_direct_project1d( grid, FullSpace, ProjectedSpace, ierr )
+    use screen_grid, only : sgrid
+    use ocean_constants, only : PI_DP, PI_QP
+    use ocean_mpi, only : myid
+    use ocean_sphericalHarmonics, only : ocean_sphH_getylm
+
+    type( sgrid ), intent( in ) :: grid
+    real(DP), intent( in ) :: FullSpace(:)
+    real(DP), intent( out ) :: ProjectedSpace(:,:)
+    integer, intent( inout ) :: ierr
+
+    real(DP), allocatable :: slice_ymu( :, : )
+    real(DP) :: su
+    integer :: npt, nbasis, nLM, fullSize, nang, nr, dimTemp
+    integer :: i, j, iLM, l, m, ir, jr, jlm, k, lmax, ipt, iir, inter
+
+    npt = size( FullSpace, 1 )
+    nbasis = size( ProjectedSpace, 1 )
+    nLM = size( ProjectedSpace, 2 )
+    fullSize = nbasis * nLM
+
+    lmax = anint( sqrt( real( nLM, DP ) ) ) - 1
+
+    if( nbasis .ne. grid%NR ) then
+      write(myid+1000,'(A,2(I10))') 'schi_direct_project1d', nbasis, grid%NR
+      ierr = 10
+      return
+    endif
+
+    ! ipt stores universal location
+    ipt = 0
+    ! iir stores universal radius
+    iir = 0
+
+    ProjectedSpace(:,:) = 0.0_DP
+
+    do inter = 1, grid%ninter
+
+      nang = grid%agrid(inter)%nang
+      nr = grid%rgrid(inter)%nr
+
+      allocate( slice_ymu( nang, nLM ), STAT=ierr )
+      if( ierr .ne. 0 ) return
+
+      su = 1.0_QP / ( 4.0_QP * PI_QP )
+!      su = 1.0_QP / sqrt( 4.0_QP * PI_QP )
+      do j = 1, nang
+        slice_ymu( j, 1 ) = su * grid%agrid(inter)%weights( j )
+      enddo
+
+      ! we already did l=0 (ilm=1)
+      iLM = 1
+      do l = 1, lmax
+        do m = -l, l
+          iLM = iLM + 1
+          do j = 1, nang
+            slice_ymu( j, iLM ) = ocean_sphH_getylm( grid%agrid(inter)%angles( :, j ), l, m ) &
+                                * grid%agrid(inter)%weights( j )
+          enddo
+        enddo
+      enddo
+
+      do ilm = 1, nlm
+        do ir = 1, nr
+          do i = 1, nang
+            ProjectedSpace( ir+iir, ilm ) = ProjectedSpace( ir+iir, ilm ) &
+                                          + FullSpace( (ir-1)*nang+i+ipt ) * slice_ymu( i, ilm )
+          enddo
+        enddo
+      enddo
+
+      ipt = ipt + nang*nr
+      iir = iir + nr
+
+      deallocate( slice_ymu )
+    enddo
+            
+  end subroutine schi_direct_project1d
+    
 
   subroutine schi_direct_project( grid, FullSpace, ProjectedSpace, ierr )
     use screen_grid, only : sgrid

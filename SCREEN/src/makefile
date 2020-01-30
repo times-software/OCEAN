@@ -4,6 +4,7 @@ include ../../Makefile.arch
 #OPTIONS += -prof-use 
 #OPTIONS += -march=haswell -prec-div -prec-sqrt
 #OPTIONS += -check all -g -traceback
+OPTIONS += -qopenmp
 
 
 all: screen_driver.x
@@ -24,8 +25,8 @@ install:
 %.o %.mod: %.f90
 	$(MPIFORT) $(OPTIONS) -c -o $*.o $< $(FFTWI) -I../../Modules
 
-screen_kxc.o:   screen_kxc.f90 ../../Modules/ai_kinds.mod
-screen_kxc.mod: screen_kxc.f90 ../../Modules/ai_kinds.mod
+screen_kxc.o:   screen_kxc.f90 ../../Modules/ai_kinds.mod screen_grid.mod screen_sites.mod ../../Modules/ocean_interpolate.mod
+screen_kxc.mod: screen_kxc.f90 ../../Modules/ai_kinds.mod screen_grid.mod screen_sites.mod ../../Modules/ocean_interpolate.mod
 
 screen_grid.o: screen_grid.f90 ../../Modules/ai_kinds.mod ../../Modules/ocean_constants.mod ../../Modules/ocean_mpi.mod ocean_quadrature.mod
 screen_grid.mod: screen_grid.f90 ../../Modules/ai_kinds.mod ../../Modules/ocean_constants.mod ../../Modules/ocean_mpi.mod ocean_quadrature.mod
@@ -68,9 +69,9 @@ screen_chi.mod: screen_chi.f90 ../../Modules/ai_kinds.mod screen_grid.mod ../../
                 screen_centralpotential.mod schi_direct.mod
 
 screen_chi_driver.o:   screen_chi_driver.f90 screen_chi0.mod screen_chi.mod screen_centralpotential.mod \
-                       screen_grid.mod ../../Modules/screen_timekeeper.mod
+                       screen_grid.mod ../../Modules/screen_timekeeper.mod screen_kxc.mod
 screen_chi_driver.mod: screen_chi_driver.f90 screen_chi0.mod screen_chi.mod screen_centralpotential.mod \
-                       screen_grid.mod ../../Modules/screen_timekeeper.mod
+                       screen_grid.mod ../../Modules/screen_timekeeper.mod screen_kxc.mod
 
 screen_centralpotential.o:   screen_centralpotential.f90 ../../Modules/ai_kinds.mod ../../Modules/ocean_mpi.mod screen_system.mod
 screen_centralpotential.mod: screen_centralpotential.f90 ../../Modules/ai_kinds.mod ../../Modules/ocean_mpi.mod screen_system.mod

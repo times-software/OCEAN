@@ -226,12 +226,14 @@ module screen_chi
   end function screen_chi_NR
 
 
-  subroutine screen_chi_runSite( grid, FullChi, projectedChi0, ierr )
+  subroutine screen_chi_runSite( grid, FullChi, projectedChi0, isite, ierr, projectedChi0Fxc )
     use screen_grid, only : sgrid
     type( sgrid ), intent( in ) :: grid
 !    real(DP), intent( in ) :: FullChi0(:,:)
     real(DP), intent( out ) :: FullChi(:,:,:,:)
     real(DP), intent( in ) :: projectedchi0(:,:,:,:)
+    real(DP), intent( in ), optional :: projectedChi0Fxc(:,:,:,:)
+    integer, intent( in ) :: isite
     integer, intent( inout ) :: ierr
     !
 !    real(DP), allocatable :: projectedChi0(:,:,:,:)
@@ -247,10 +249,14 @@ module screen_chi
     allocate( coulombMatrix( size(FullChi,1), size(FullChi,2), size(FullChi,3), size(FullChi,4) ), STAT=ierr )
     if( ierr .ne. 0 ) return
 
-    call schi_buildCoulombMatrix( grid, coulombMatrix, ierr )
+    call schi_buildCoulombMatrix( grid, coulombMatrix, isite, ierr )
     if( ierr .ne. 0 ) return
 
-    call schi_makeChi( projectedChi0, coulombMatrix, FullChi, ierr )
+    if( present( projectedChi0Fxc ) ) then
+      call schi_makeChi( projectedChi0, coulombMatrix, FullChi, ierr )
+    else
+      call schi_makeChi( projectedChi0, coulombMatrix, FullChi, ierr, projectedChi0Fxc )
+    endif
     if( ierr .ne. 0 ) return
 
 !    deallocate( projectedChi0, coulombMatrix )
@@ -259,10 +265,11 @@ module screen_chi
   end subroutine screen_chi_runSite
 
 
-  subroutine schi_makeChi( Chi0, cMat, Chi, ierr )
+  subroutine schi_makeChi( Chi0, cMat, Chi, ierr, pChi0Fxc )
     real(DP), intent( in ), dimension(:,:,:,:) :: chi0, cMat
     real(DP), intent( out ), dimension(:,:,:,:) :: Chi
     integer, intent( inout ) :: ierr
+    real(DP), intent( in ), optional, dimension(:,:,:,:) :: pChi0Fxc
 
     real(DP), allocatable :: temp(:,:,:,:)
     real(DP), allocatable :: work(:)
@@ -289,6 +296,10 @@ module screen_chi
         temp( i, j, i, j ) = 1.0_DP
       enddo
     enddo
+
+    if( present( pChi0Fxc ) ) then
+      temp(:,:,:,:) = temp(:,:,:,:) - pChi0Fxc(:,:,:,:)
+    endif
 
 !    write(6,*) nbasis, nLM, fullsize
 !    write(6,'(4(I8))') size(chi0,1), size(chi0,2),size(chi0,3),size(chi0,4)
@@ -381,19 +392,20 @@ module screen_chi
     end select
   end subroutine screen_chi_project
 
-  subroutine schi_buildCoulombMatrix( grid, cMat, ierr )
+  subroutine schi_buildCoulombMatrix( grid, cMat, isite, ierr )
     use screen_grid, only : sgrid
     use schi_sinqr, only : schi_sinqr_buildCoulombMatrix
     use schi_direct, only : schi_direct_buildCoulombMatrix
     type( sgrid ), intent( in ) :: grid
     real(DP), intent( out ) :: cMat(:,:,:,:)
+    integer, intent( in ) :: isite
     integer, intent( inout ) :: ierr
 
     select case ( invStyle )
       case( 'sinqr' )
         call schi_sinqr_buildCoulombMatrix( grid, cMat, ierr )
       case( 'direct' )
-        call schi_direct_buildCoulombMatrix( grid, cMat, ierr )
+        call schi_direct_buildCoulombMatrix( grid, cMat, isite, ierr )
       case default
         ierr = 1
     end select

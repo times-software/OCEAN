@@ -51,6 +51,7 @@ module screen_system
     logical :: do_augment = .true.
     integer :: lbounds(2) = 0
     character(len=3) :: appx
+    logical :: doFXC = .false.
   end type calculation_parameters
 
   type( physical_system ), save :: psys
@@ -66,7 +67,7 @@ module screen_system
   public :: screen_system_convertInterpolateStyle, screen_system_convertInterpolateOrder
   public :: screen_system_doAugment, screen_system_lbounds, screen_system_mode
   public :: screen_system_setGamma, tau2xcoord
-  public :: screen_system_volume, screen_system_xmesh, screen_system_appx
+  public :: screen_system_volume, screen_system_xmesh, screen_system_appx, screen_system_doFxc
 
   contains 
 
@@ -144,6 +145,11 @@ module screen_system
     character(len=3) :: appx
     appx = calcParams%appx
   end function screen_system_appx
+
+  pure function screen_system_doFxc() result ( fxc )
+    logical :: fxc
+    fxc = calcParams%doFxc
+  end function
 
   pure function screen_system_returnKvec( sp, ikpt ) result( Kvec )
     type( system_parameters ), intent( in ) :: sp
@@ -302,6 +308,9 @@ module screen_system
 
     call MPI_BCAST( calcParams%appx, 3, MPI_CHARACTER, root, comm, ierr )
     if( ierr .ne. MPI_SUCCESS ) return
+
+    call MPI_BCAST( calcParams%doFxc, 1, MPI_LOGICAL, root, comm, ierr )
+    if( ierr .ne. MPI_SUCCESS ) return
 #endif
   end subroutine share_calcParams
 
@@ -432,6 +441,15 @@ module screen_system
         write(6,*) 'Error reading screen.appx ', ignoreErrors
       endif
     endif
+
+    select case( calcParams%appx )
+      case( 'RPA' )
+        calcParams%doFXC = .false.
+      case( 'LDA' )
+        calcParams%doFXC = .true.
+      case default
+        calcParams%doFXC = .false.
+    end select
 
 
     inquire( file='screen.convertstyle', exist=ex )

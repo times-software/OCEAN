@@ -37,7 +37,7 @@ module schi_sinqr
     integer :: i, j ,ii
     integer :: nbasis, npt, nr
 
-    nbasis = size( FullChi, 1 ) 
+    nbasis = size( FullChi, 1 ) - 2
     npt = grid%npt
     nr = grid%nr
 
