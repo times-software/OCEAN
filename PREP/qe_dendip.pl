@@ -345,14 +345,7 @@ if( $runBSE != 0 )
 
   if( $bseWvfn =~ m/qe/ || $bseWvfn =~ m/new/ )
   {
-    if( -e "Out/$prefix.save/data-file.xml" )
-    {
-      print "Detected QE54-style DFT run\n";
-      open TMP, ">", "wvfn.ipt" or die "Failed to open wvfn.ipt for writing\n$!";
-      print TMP "qe54\n";
-      close TMP;
-    }
-    elsif( -e "Out/$prefix.save/data-file-schema.xml" )
+    if( -e "Out/$prefix.save/data-file-schema.xml" )
     {
       print "Detected QE62-style DFT run\n";
       open TMP, ">", "wvfn.ipt" or die "Failed to open wvfn.ipt for writing\n$!";
@@ -361,6 +354,13 @@ if( $runBSE != 0 )
 
 #      system( "$ENV{'OCEAN_BIN'}/qe62band.pl") == 0 or die "Failed to run qe62band.pl\n$!";
       copy("../$rundir/eig62.txt", "eig62.txt") or die "Failed to grab enkfile\n$!";
+    }
+    elsif( -e "Out/$prefix.save/data-file.xml" )
+    {
+      print "Detected QE54-style DFT run\n";
+      open TMP, ">", "wvfn.ipt" or die "Failed to open wvfn.ipt for writing\n$!";
+      print TMP "qe54\n";
+      close TMP;
     }
     else
     { 
