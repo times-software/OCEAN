@@ -10,7 +10,19 @@
 
 use strict;
 
-my $dataFile = "data-file-schema.xml";
+my $allowTranslate = $ARGV[0];
+
+my $dataFile;
+if( -e "data-file-schema.xml" ) 
+{
+  $dataFile = "data-file-schema.xml";
+}
+elsif( -e "data-file.xml" )
+{
+  $dataFile = "data-file.xml";
+}
+else
+{  die;  }
 open IN, "$dataFile" or die "Failed to open $dataFile\n$!";
 
 my $translateTol = 0.000001;
@@ -28,26 +40,31 @@ while( my $line = <IN> )
     $nsym = $1;
     print $nsym . "\n";
   }
-  if( $line =~ m/<symmetry>/ )
+  if( $line =~ m/<symmetry>/ || $line =~ m/<SYMM\.\d+>/ )
   {
     my @tmp;
     my $condense;
-    until( $line =~ m/\/symmetry/ )
+    until( $line =~ m/\/symmetry/ || $line =~ m/<\/SYMM\.\d+>/)
     {
 #      print $line;
       chomp($line);
       $condense .= $line . " ";
       $line = <IN> or die;
     }
+    my $translate = 0;
 #    print "$condense\n";
-    die "Fractional translation fail\n$condense\n" 
-      unless( $condense =~ m/fractional\_translation>\s*(-?\d+\.\d+([eE][+-]?\d+)?)\s+(-?\d+\.\d+([eE][+-]?\d+)?)\s+(-?\d+\.\d+([eE][+-]?\d+)?)</ );
-    print "$1 $3 $5\n";
-    if( abs($1) > $translateTol || abs($3) > $translateTol || abs($5) > $translateTol )
-    {
-      print "Translation detected\n";
+#    die "Fractional translation fail\n$condense\n" 
+      if( $condense =~ m/fractional\_translation>\s*(-?\d+\.\d+([eE][+-]?\d+)?)\s+(-?\d+\.\d+([eE][+-]?\d+)?)\s+(-?\d+\.\d+([eE][+-]?\d+)?)</ ||
+          $condense =~ m/FRACTIONAL\_TRANSLATION[^>]*>\s*(-?\d+\.\d+([eE][+-]?\d+)?)\s+(-?\d+\.\d+([eE][+-]?\d+)?)\s+(-?\d+\.\d+([eE][+-]?\d+)?)\s+</ ){
+      print "$1 $3 $5\n";
+      if( abs($1) > $translateTol || abs($3) > $translateTol || abs($5) > $translateTol )
+      {
+        print "Translation detected\n";
+        $translate = 1;
+        $translate = 0 if( $allowTranslate == 1 );
+      }
     }
-    else
+    if( $translate == 0 ) 
     {
       if( 0 ) 
       {
@@ -66,7 +83,7 @@ while( my $line = <IN> )
       }
       else
       {
-      die "Rotation fail\n$condense\n" unless( $condense =~ m/>([\d\s-+eE\.]*)<\/rotation>/ );
+      die "Rotation fail\n$condense\n" unless( $condense =~ m/>([\d\s-+eE\.]*)<\/rotation>/i );
       my $rot = $1;
 #      print $rot . "\n";
       @tmp = split ' ', $rot;

@@ -76,6 +76,8 @@ my @rscale = ($1, $4, $7);
 print "$1\t$4\t$7\n";
 close RSCALE;
 
+my @alength;
+my @avec;
 open RPRIM, "rprim" or die;
 open AVECS, ">avecsinbohr.ipt" or die;
 for (my $i = 0; $i < 3; $i++ ) 
@@ -84,25 +86,29 @@ for (my $i = 0; $i < 3; $i++ )
   chomp( $tline );
   $tline =~  m/([+-]?(\d+)?\.?\d+([eEfF][+-]?\d+)?)\s+([+-]?(\d+)?\.?\d+([eEfF][+-]?\d+)?)\s+([+-]?(\d+)?\.?\d+([eEfF][+-]?\d+)?)\s*$/ 
       or die "Failed to parse a line of rprim!\n$tline\n";
+  $avec[0][$i] = $1*$rscale[0];
+  $avec[1][$i] = $4*$rscale[1];
+  $avec[2][$i] = $7*$rscale[2];
+  $alength[$i] = sqrt( $avec[0][$i]**2 + $avec[1][$i]**2 + $avec[2][$i]**2 );
   print AVECS $1*$rscale[0] . "  " . $4*$rscale[1] .  "  " . $7*$rscale[2] . "\n";
   print "$1\t$4\t$7\n";
 }
 close RPRIM;
 close AVECS;
 
-my @alength;
-my @avec;
-open AVECS, "avecsinbohr.ipt" or die "Failed to open avecsinbohr.ipt\n$!\n";
-<AVECS> =~ m/(-?\d+\.?\d*)\s+(-?\d+\.?\d*)\s+(-?\d+\.?\d*)/ or die "$_\n";
-$alength[0] = sqrt( $1*$1 + $2*$2 + $3*$3 );
-$avec[0][0] = $1; $avec[1][0] = $2; $avec[2][0] = $3;
-<AVECS> =~ m/(-?\d+\.?\d*)\s+(-?\d+\.?\d*)\s+(-?\d+\.?\d*)/ or die "$_\n";
-$alength[1] = sqrt( $1*$1 + $2*$2 + $3*$3 );
-$avec[0][1] = $1; $avec[1][1] = $2; $avec[2][1] = $3;
-<AVECS> =~ m/(-?\d+\.?\d*)\s+(-?\d+\.?\d*)\s+(-?\d+\.?\d*)/ or die "$_\n";
-$alength[2] = sqrt( $1*$1 + $2*$2 + $3*$3 );
-$avec[0][2] = $1; $avec[1][2] = $2; $avec[2][2] = $3;
-close AVECS;
+#open AVECS, "avecsinbohr.ipt" or die "Failed to open avecsinbohr.ipt\n$!\n";
+#<AVECS> =~ m/(-?\d+\.?\d*)\s+(-?\d+\.?\d*)\s+(-?\d+\.?\d*)/ or die "$_\n";
+#$alength[0] = sqrt( $1*$1 + $2*$2 + $3*$3 );
+#print "!!!\n";
+#$avec[0][0] = $1; $avec[1][0] = $2; $avec[2][0] = $3;
+#<AVECS> =~ m/(-?\d+\.?\d*)\s+(-?\d+\.?\d*)\s+(-?\d+\.?\d*)/ or die "$_\n";
+#$alength[1] = sqrt( $1*$1 + $2*$2 + $3*$3 );
+#$avec[0][1] = $1; $avec[1][1] = $2; $avec[2][1] = $3;
+#<AVECS> =~ m/(-?\d+\.?\d*)\s+(-?\d+\.?\d*)\s+(-?\d+\.?\d*)/ or die "$_\n";
+#$alength[2] = sqrt( $1*$1 + $2*$2 + $3*$3 );
+#$avec[0][2] = $1; $avec[1][2] = $2; $avec[2][2] = $3;
+#close AVECS;
+
 
 my $volume = $avec[0][0] * ($avec[1][1] * $avec[2][2] - $avec[2][1] * $avec[1][2] )
            - $avec[1][0] * ($avec[0][1] * $avec[2][2] - $avec[2][1] * $avec[0][2] )

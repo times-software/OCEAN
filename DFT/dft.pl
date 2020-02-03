@@ -711,7 +711,7 @@ if ($RunESPRESSO) {
     print OUT "qe54\n";
     close OUT;
   }
-  elsif( -e $qe62_file )
+  if( -e $qe62_file )  # Starting in QE6.5 it looks like both xml files are written 
   {
     print "$qe62_file\n";
     open SCF, $qe62_file or die "Failed to open $qe62_file\n$!";
@@ -1057,7 +1057,7 @@ if ( $nscfRUN ) {
         copy "../Out/$qe_data_files{'prefix'}.save/data-file.xml", "Out/$qe_data_files{$prefix}.save/data-file.xml";
         $qeVersion = 54;
       }
-      elsif( -e catfile( updir(), $qe_data_files{'work_dir'}, $qe_data_files{'prefix'} . ".save", 
+      if( -e catfile( updir(), $qe_data_files{'work_dir'}, $qe_data_files{'prefix'} . ".save", 
                          "data-file-schema.xml" ) )
       {
         copy catfile( updir(), $qe_data_files{'work_dir'}, $qe_data_files{'prefix'} . ".save", 
@@ -1337,7 +1337,7 @@ if( $obf == 0 && $run_screen == 1 )
     copy "../Out/$qe_data_files{'prefix'}.save/data-file.xml", "Out/$qe_data_files{'prefix'}.save/data-file.xml";
     $qeVersion = 54;
   }
-  elsif( -e catfile( updir(), $qe_data_files{'work_dir'}, $qe_data_files{'prefix'} . ".save",
+  if( -e catfile( updir(), $qe_data_files{'work_dir'}, $qe_data_files{'prefix'} . ".save",
                      "data-file-schema.xml" ) )
   {
     copy catfile( updir(), $qe_data_files{'work_dir'}, $qe_data_files{'prefix'} . ".save",

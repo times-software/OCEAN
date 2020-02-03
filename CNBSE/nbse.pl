@@ -333,6 +333,7 @@ close INFILE;
 print "Running valence\n";
 print "$para_prefix $ENV{'OCEAN_BIN'}/ocean.x > val.log";
 system("$para_prefix $ENV{'OCEAN_BIN'}/ocean.x > val.log") == 0 or die "Failed to finish\n";
+print "\n";
 
 
 exit 0;
