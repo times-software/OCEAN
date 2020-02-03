@@ -28,8 +28,10 @@ install:
 screen_kxc.o:   screen_kxc.f90 ../../Modules/ai_kinds.mod screen_grid.mod screen_sites.mod ../../Modules/ocean_interpolate.mod
 screen_kxc.mod: screen_kxc.f90 ../../Modules/ai_kinds.mod screen_grid.mod screen_sites.mod ../../Modules/ocean_interpolate.mod
 
-screen_grid.o: screen_grid.f90 ../../Modules/ai_kinds.mod ../../Modules/ocean_constants.mod ../../Modules/ocean_mpi.mod ocean_quadrature.mod
-screen_grid.mod: screen_grid.f90 ../../Modules/ai_kinds.mod ../../Modules/ocean_constants.mod ../../Modules/ocean_mpi.mod ocean_quadrature.mod
+screen_grid.o: screen_grid.f90 ../../Modules/ai_kinds.mod ../../Modules/ocean_constants.mod ../../Modules/ocean_mpi.mod \
+						   ocean_quadrature.mod ocean_sphericalharmonics.mod
+screen_grid.mod: screen_grid.f90 ../../Modules/ai_kinds.mod ../../Modules/ocean_constants.mod ../../Modules/ocean_mpi.mod \
+						   ocean_quadrature.mod ocean_sphericalharmonics.mod
 
 screen_system.o: screen_system.f90 ../../Modules/ai_kinds.mod ../../Modules/ocean_mpi.mod
 screen_system.mod: screen_system.f90 ../../Modules/ai_kinds.mod ../../Modules/ocean_mpi.mod

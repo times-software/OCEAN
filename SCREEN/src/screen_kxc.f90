@@ -84,7 +84,7 @@ module screen_kxc
     use screen_paral, only : site_parallel_info, &
                              screen_paral_NumLocalSites, screen_paral_isMySite
     use screen_sites, only : site, pinfo
-    use screen_system, only : physical_system, psys
+    use screen_system, only : physical_system, psys, screen_system_appx
 
     integer, intent( in ) :: nsites
     type( site ), intent( in ) :: all_sites( nsites )
@@ -139,11 +139,31 @@ module screen_kxc
     deallocate( pgrid, isInitGrid, RealSpaceBuffer )
 
     allocate( localFxcBySite( npt, siteSize ) )
-    do i = 1, siteSize
-      do j = 1, npt
-        call dftder3( DensityBySite(j,i), nexc, vxc, kxc, fxc )
-        localFxcBySite( j, i ) = kxc
-      enddo
+
+    ! Here we need to decide which approximation is being used
+    ! Loop over all sites so we can pass in the grids for them that needs
+    i = 0
+    do isite = 1, nsites
+      if( screen_paral_isMySite( pinfo, isite ) ) then
+        i = i + 1
+
+        select case ( screen_system_appx() )
+          case( 'LDA' )
+            call kxc_lda_Full( DensityBySite(:,i), localFxcBySite(:,i) )
+          case( 'LD1' )
+            call kxc_lda_avgDen( all_sites( isite )%grid, DensityBySite(:,i), localFxcBySite(:,i) )
+          case( 'LD2' )
+            call kxc_lda_avgFxc( all_sites( isite )%grid, DensityBySite(:,i), localFxcBySite(:,i) )
+
+          case default
+!          do i = 1, siteSize
+            do j = 1, npt
+              call dftder3( DensityBySite(j,i), nexc, vxc, kxc, fxc )
+              localFxcBySite( j, i ) = kxc
+            enddo
+!          enddo
+        end select
+      endif
     enddo
 
   end subroutine screen_kxc_loadRealSpace
@@ -437,5 +457,91 @@ module screen_kxc
 
   end subroutine inv3x3
 
+  ! adiabatic LDA, just take the densities and put the fxc value
+  subroutine kxc_lda_Full( Den, Fxc )
+    real(DP), intent( in ) :: Den(:)
+    real(DP), intent( out ) :: Fxc(:)
 
+    real(DP) :: nexc, vxc, kxc, fxc2
+    integer :: i, npt
+    
+    npt = size( Den )
+    
+    do i = 1, npt
+      call dftder3( Den(i), nexc, vxc, kxc, fxc2 )
+      Fxc(i) = kxc
+    enddo
+  end subroutine kxc_lda_Full
+
+  subroutine kxc_lda_avgDen( grid, Den, Fxc )
+    use screen_grid, only : sgrid
+    use ocean_constants, only : pi_DP
+    type(sgrid), intent( in ) :: grid
+    real(DP), intent( in ) :: Den(:)
+    real(DP), intent( out ) :: Fxc(:)
+
+    real(DP) :: denOfR, nexc, vxc, kxc, fxc2
+    real(DP), parameter :: pf = 1.0_DP / ( 4.0_DP * PI_DP )
+    integer :: ipt, inter, ir, iang, nang, nr
+
+    ipt = 0
+    do inter = 1, grid%ninter
+      nang = grid%agrid(inter)%nang
+      nr = grid%rgrid(inter)%nr
+
+      do ir = 1, nr
+        denOfR = 0.0_DP
+        do iang = 1, nang
+          ipt = ipt + 1
+          denOfR = denOfR + Den( ipt ) * grid%agrid(inter)%weights( iang )
+        enddo
+        denOfR = denOfR * pf
+        call dftder3( denOfR, nexc, vxc, kxc, fxc2 )
+
+        ipt = ipt - nang
+        do iang = 1, nang
+          ipt = ipt + 1
+          Fxc(ipt) = kxc
+        enddo
+      enddo
+    enddo
+
+  end subroutine kxc_lda_avgDen
+
+  subroutine kxc_lda_avgFxc( grid, Den, Fxc )
+    use screen_grid, only : sgrid
+    use ocean_constants, only : pi_DP
+    type(sgrid), intent( in ) :: grid
+    real(DP), intent( in ) :: Den(:)
+    real(DP), intent( out ) :: Fxc(:)
+
+    real(DP) :: avgFxc
+    real(DP), parameter :: pf = 1.0_DP / ( 4.0_DP * PI_DP )
+    integer :: ipt, inter, ir, iang, nang, nr
+
+    call kxc_lda_Full( Den, Fxc )
+
+    ipt = 0
+    do inter = 1, grid%ninter
+      nang = grid%agrid(inter)%nang
+      nr = grid%rgrid(inter)%nr
+
+      do ir = 1, nr
+        avgFxc = 0.0_DP
+        do iang = 1, nang
+          ipt = ipt + 1
+          avgFxc = avgFxc + Fxc( ipt ) * grid%agrid(inter)%weights( iang )
+        enddo
+        avgFxc = avgFxc * pf
+
+        ipt = ipt - nang
+        do iang = 1, nang
+          ipt = ipt + 1
+          Fxc(ipt) = avgFxc
+        enddo
+      enddo
+    enddo
+
+  end subroutine kxc_lda_avgFxc
+      
 end module screen_kxc
