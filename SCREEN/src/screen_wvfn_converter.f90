@@ -1566,9 +1566,9 @@ module screen_wvfn_converter
         ierr = -1
     end select
 
-    write(1000+myid,'(A,3(1X,I8))') '   ', uofxDims(:)
-    write(1000+myid,'(A,3(1X,I8))') '   ', boundaries(:,1)
-    write(1000+myid,'(A,3(1X,I8))') '   ', boundaries(:,2)
+    write(1000+myid,'(A,3(1X,I10))') '   ', uofxDims(:)
+    write(1000+myid,'(A,3(1X,I10))') '   ', boundaries(:,1)
+    write(1000+myid,'(A,3(1X,I10))') '   ', boundaries(:,2)
 
   end subroutine swl_checkConvert
 

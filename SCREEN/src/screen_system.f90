@@ -445,11 +445,13 @@ module screen_system
     select case( calcParams%appx )
       case( 'RPA' )
         calcParams%doFXC = .false.
-      case( 'LDA' )
+      case( 'LDA', 'LD1', 'LD2' )
         calcParams%doFXC = .true.
       case default
         calcParams%doFXC = .false.
     end select
+
+    if( calcParams%doFXC ) write(6,*) '    ', calcParams%appx
 
 
     inquire( file='screen.convertstyle', exist=ex )

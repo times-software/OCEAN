@@ -253,9 +253,9 @@ module screen_chi
     if( ierr .ne. 0 ) return
 
     if( present( projectedChi0Fxc ) ) then
-      call schi_makeChi( projectedChi0, coulombMatrix, FullChi, ierr )
-    else
       call schi_makeChi( projectedChi0, coulombMatrix, FullChi, ierr, projectedChi0Fxc )
+    else
+      call schi_makeChi( projectedChi0, coulombMatrix, FullChi, ierr )
     endif
     if( ierr .ne. 0 ) return
 
