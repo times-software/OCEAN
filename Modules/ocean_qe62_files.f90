@@ -1866,7 +1866,7 @@ module ocean_qe62_files
         offset = offset + 4 * 4
 #else
         open( unit=99, file=qe62_gkvFile( ikpt, ispin), form='unformatted', status='old', &
-              access='stream',READONLY )
+              access='stream' )!,READONLY )
         ! int, real(3), int, logical, real
         allocate( iread(4), dread(4) )
         read( 99 ) iread(:), dread(:), lread
