@@ -281,6 +281,8 @@ module ocean_legacy_files
         enddo
       enddo
       close( 99 )
+      ! We are using Hartree
+      energies( :, :, : ) = 0.5_dp * energies( :, :, : )
     endif
 
 #ifdef MPI
@@ -315,6 +317,9 @@ module ocean_legacy_files
         enddo
       enddo
       close( 99 )
+      ! We are using Hartree
+      val_energies( :, :, : ) = 0.5_dp * val_energies( :, :, : )
+      con_energies( :, :, : ) = 0.5_dp * con_energies( :, :, : )
     endif
 
 #ifdef MPI
