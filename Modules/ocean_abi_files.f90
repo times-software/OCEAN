@@ -1,4 +1,3 @@
-#if 1
 ! Copyright (C) 2018 - 2019 OCEAN collaboration
 !
 ! This file is part of the OCEAN project and distributed under the terms 
@@ -37,20 +36,20 @@ module ocean_abi_files
   integer :: nspin
 
   ! Bands by k-point should be uniform in situations ocean encouters
-  ! is indexed by kpoint and spin
-  integer, allocatable :: bandsByK( :, : )
+  ! is indexed by kpoint and spin and split (different files )
+  integer, allocatable :: bandsByK( :, :, : )
   ! Planewaves are only indexed by k-point (same for spin up and down)
-  integer, allocatable :: planewavesByK( : )
+  integer, allocatable :: planewavesByK( :, : )
   ! offsets, which should be of size MPI_OFFSET_KIND
   ! gives file location (including offset for header ) for the start of each
   !  indexed by k-point and spin
-  integer( MPI_OFFSET_KIND ), allocatable :: gVecOffsets( :, : )
-  integer( MPI_OFFSET_KIND ), allocatable :: eigenOffsets( :, : )
-  integer( MPI_OFFSET_KIND ), allocatable :: wvfOffsets( :, : )
+  integer( MPI_OFFSET_KIND ), allocatable :: gVecOffsets( :, :, : )
+  integer( MPI_OFFSET_KIND ), allocatable :: eigenOffsets( :, :, : )
+  integer( MPI_OFFSET_KIND ), allocatable :: wvfOffsets( :, :, : )
 
 
 #ifdef MPI_F08
-  type( MPI_COMM ) :: inter_comm
+  type( MPI_vCOMM ) :: inter_comm
   type( MPI_COMM ) :: pool_comm
 #else
   integer :: inter_comm
@@ -73,11 +72,101 @@ module ocean_abi_files
 
   integer :: WFK_FH, WFK_splitFH
   
-  public :: abi_read_init
+  public :: abi_read_init, abi_clean
+!  public :: abi_read_at_kpt
   public :: abi_getAllBandsForPoolID, abi_getValenceBandsForPoolID, abi_getConductionBandsForPoolID
+  public :: abi_nprocPerPool, abi_getPoolIndex, abi_returnGlobalID
+  public :: abi_return_my_bands, abi_is_my_kpt
+  public :: abi_get_ngvecs_at_kpt, abi_get_ngvecs_at_kpt_split
+  public :: abi_read_energies_single
 
   contains
 
+!> @author John Vinson, NIST
+!> @brief Function returns the the number of processors in each pool. 
+!> The processors are divided into pools to read in the wavefunction file. 
+!> @return nproc
+  pure function abi_nprocPerPool() result( nproc )
+    integer :: nproc
+    nproc = pool_nproc
+  end function
+
+!> @author John Vinson, NIST
+!> @brief Function that returns the index of which pool a given wavefunction belongs to
+!> as referenced by k-point and spin
+!> @param[in] ispin
+!> @param[in] ikpt
+!> return poolIndex
+  pure function abi_getPoolIndex( ispin, ikpt ) result( poolIndex )
+    integer, intent( in ) :: ispin, ikpt
+    integer :: poolIndex
+    integer :: kptCounter
+    !
+    kptCounter = ikpt + ( ispin - 1 ) * product(kpts(:))
+    poolIndex = mod( kptCounter, npool )
+  end function abi_getPoolIndex
+
+!> @author John Vinson, NIST
+!> @brief Gives the global MPI id (from MPI_COMM_WORLD) given a pool index and poolID
+!> @param[in] poolIndex
+!> @param[in] poolID
+!> return globalID
+  pure function abi_returnGlobalID( poolIndex, poolID ) result( globalID )
+    integer, intent( in ) :: poolIndex, poolID
+    integer :: globalID
+
+    globalID = poolIndex * pool_nproc + poolID
+  end function abi_returnGlobalID
+
+!> @author John Vinson, NIST
+!> @brief subroutine returns the number of total bands being read by this processor
+!> @param[out] nbands
+!> @param[inout] ierr
+  subroutine abi_return_my_bands( nbands, ierr )
+    integer, intent( out ) :: nbands
+    integer, intent( inout ) :: ierr
+
+    if( .not. is_init ) ierr = 1
+    nbands = pool_nbands
+  end subroutine abi_return_my_bands
+
+!> @author John Vinson, NIST
+!> @brief Determines if a given kpt and spin will be read by the pool this processor 
+!> belongs to.
+!> @param[in] ikpt
+!> @param[in] ispin
+!> @param[out] is_kpt
+!> @param[inout] ierr
+  subroutine abi_is_my_kpt( ikpt, ispin, is_kpt, ierr )
+    integer, intent( in ) :: ikpt, ispin
+    logical, intent( out ) :: is_kpt
+    integer, intent( inout ) :: ierr
+    !
+    if( .not. is_init ) then
+      ierr = 2
+      return
+    endif
+    if( ispin .lt. 1 .or. ispin .gt. nspin ) then
+      ierr = 3
+      return
+    endif
+    if( ikpt .lt. 1 .or. ikpt .gt. product(kpts(:)) ) then
+      ierr = 4
+      return
+    endif
+
+    if( abi_getPoolIndex( ispin, ikpt ) .eq. mypool ) then
+      is_kpt = .true.
+    else
+      is_kpt = .false.
+    endif
+
+  end subroutine abi_is_my_kpt
+
+!> @author John Vinson, NIST
+!> @brief Given the ID of a processor in my pool, returns the number of bands
+!> @param[in] poolID
+!> @result nbands
   pure function abi_getAllBandsForPoolID( poolID ) result(nbands)
     integer, intent( in ) :: poolID
     integer :: nbands
@@ -86,12 +175,19 @@ module ocean_abi_files
     nbands = 0
     bands_remain = bands(2)-bands(1)+1
 
+    if( pool_nproc .gt. bands_remain ) then
+      if( poolID .lt. bands_remain ) nbands = 1
+      return
+    endif
+
     do i = 0, poolID
       nbands = bands_remain / ( pool_nproc - i )
       bands_remain = bands_remain - nbands
     enddo
 
   end function abi_getAllBandsForPoolID
+
+
 
   pure function abi_getValenceBandsForPoolID( poolID ) result(nbands)
     integer, intent( in ) :: poolID
@@ -123,6 +219,101 @@ module ocean_abi_files
 
   end function abi_getConductionBandsForPoolID
 
+
+!> @author John Vinson, NIST
+!> @brief Gives the number of g-vectors at a given k-point and spin. 
+!> Currently in ABINIT the spin up and spin down have the same number.
+!> @param[in] ikpt
+!> @param[in] ispin
+!> @param[out] gvecs
+!> @param[inout] ierr
+  subroutine abi_get_ngvecs_at_kpt( ikpt, ispin, gvecs, ierr )
+    integer, intent( in ) :: ikpt, ispin
+    integer, intent( out ) :: gvecs
+    integer, intent( inout ) :: ierr
+
+    if( ikpt .gt. nkpt .or. ikpt .lt. 1 ) then
+      ierr = 12957
+      return
+    endif
+    gvecs = planewavesByK( ikpt, 1 )
+  end subroutine abi_get_ngvecs_at_kpt
+
+!> @author John Vinson, NIST
+!> @brief Gives the number of g-vectors at a given k-point and spin. 
+!> Currently in ABINIT the spin up and spin down have the same number.
+!> @param[in] ikpt
+!> @param[in] ispin
+!> @param[out] gvecs
+!> @param[inout] ierr
+  subroutine abi_get_ngvecs_at_kpt_split( ikpt, ispin, gvecs, ierr )
+    integer, intent( in ) :: ikpt, ispin
+    integer, intent( out ) :: gvecs(2)
+    integer, intent( inout ) :: ierr
+  
+    if( ikpt .gt. nkpt .or. ikpt .lt. 1 ) then
+      ierr = 12957
+      return
+    endif
+    gvecs(1) = planewavesByK( ikpt, 1 )
+    gvecs(2) = planewavesByK( ikpt, 2 )
+  end subroutine abi_get_ngvecs_at_kpt_split
+
+
+!> @author John Vinson, NIST
+!> @brief Read in the energies by band, kpt, and spin, and pass them back in a single array
+!> param[out] energies
+!> @param[inout] ierr
+  subroutine abi_read_energies_single( energies, ierr )
+#ifdef MPI
+    use ocean_mpi, only : MPI_DOUBLE_PRECISION, myid, comm, root, MPI_STATUS_IGNORE
+#endif
+    real( DP ), intent(out) :: energies(:,:,:)
+    integer, intent( inout ) :: ierr
+
+    integer :: nbands, offAdjust
+    integer :: ispin, ikpt
+
+    if( is_split ) then
+      ierr = 94241
+      return
+    endif
+
+    if( myid .eq. root ) then
+      nbands = brange(4) - brange(1) + 1
+      offAdjust = 0
+      do ispin = 1, nspin
+        do ikpt = 1, nkpt
+          call MPI_FILE_READ_AT( WFK_FH, eigenOffsets( ikpt, ispin, 1 ), &
+                                 energies(:,ikpt,ispin), nbands, MPI_DOUBLE_PRECISION, &
+                                 MPI_STATUS_IGNORE, ierr )
+          if( ierr .ne. 0 ) return
+        enddo
+      enddo
+    endif
+
+    call MPI_BCAST( energies, size( energies ), MPI_DOUBLE_PRECISION, root, comm, ierr )
+
+  end subroutine abi_read_energies_single
+    
+
+#if 0
+  subroutine abi_read_at_kpt( ikpt, ispin, ngvecs, my_bands, gvecs, wvfns, ierr )
+#ifdef MPI
+    use OCEAN_mpi, only : MPI_INTEGER, MPI_DOUBLE_COMPLEX, MPI_STATUSES_IGNORE, myid, MPI_REQUEST_NULL, &
+                          MPI_STATUS_IGNORE, MPI_UNDEFINED, MPI_OFFSET_KIND, MPI_MODE_RDONLY, MPI_INFO_NULL, &
+                          MPI_STATUS_SIZE
+!    use OCEAN_mpi
+#endif
+
+    integer, intent( in ) :: ikpt, ispin, ngvecs, my_bands
+    integer, intent( out ) :: gvecs( 3, ngvecs )
+    complex( DP ), intent( out ) :: wfns( ngvecs, my_bands )
+    integer, intent( inout ) :: ierr
+    !
+#endif
+
+
 ! At the moment we aren't parsing the header of the second WFK file if the run was split valence/conduction for kshifted
   subroutine abi_read_init( comm, ierr )
     use ai_kinds, only : sizeChar
@@ -143,6 +334,7 @@ module ocean_abi_files
     integer( MPI_OFFSET_KIND ) :: pos, pos2
 
     logical :: isSplit
+    integer :: nSplit, i
 !    real(dp) :: d1(20)
 
     ! Set the comms for file handling
@@ -156,17 +348,28 @@ module ocean_abi_files
     call load_ocean_inputs( ierr )
     if( ierr .ne. 0 ) return
 
+    call allocate_global_arrays( ierr )
+    if( ierr .ne. 0 ) return
+
     if( inter_myid .eq. inter_root ) then
       
       ! Get file name(s)
       isSplit = .false.
-      call get_fileName( filnam, isSplit )
-      
-      open( unit=99, file=filnam, form='unformatted', status='old' )
+      if( is_split ) then
+        nSplit = 2
+      else
+        nSplit = 1
+      endif
+      do i = 1, nSplit
+        call get_fileName( filnam, isSplit )
+        
+        open( unit=99, file=filnam, form='unformatted', status='old' )
 
-      call parseHeader( 99, pos, ierr )
+        call parseHeader( 99, pos, i, ierr )
 
-      close( 99 )
+        close( 99 )
+        isSplit = .true.
+      enddo
 
 !      call MPI_FILE_OPEN( MPI_COMM_WORLD, "filnam", MPI_MODE_RDONLY, MPI_INFO_NULL, fh, ierr )
 !      pos2 = 4
@@ -207,48 +410,88 @@ module ocean_abi_files
 
     call writeDiagnostics( )
 
+    is_init = .true.
 
 
   end subroutine abi_read_init
 
+!---------------------------------------------------------------------------
+!> @author John Vinson, NIST
+!> @brief
+!> Method to clean up everything in the module. 
+!> Deallocate the global arrays and close all file handles. 
+!
+!> @param[inout] ierr
+!---------------------------------------------------------------------------
+  subroutine abi_clean( ierr )
+    integer, intent( inout ) :: ierr
+    !
+    if( allocated( bandsByK ) ) deallocate( bandsByK )
+    if( allocated( planewavesByK ) ) deallocate( planewavesByK )
+    if( allocated( gVecOffsets ) ) deallocate( gVecOffsets )
+    if( allocated( eigenOffsets ) ) deallocate( eigenOffsets )
+    if( allocated( wvfOffsets ) ) deallocate( wvfOffsets )
+
+    call MPI_FILE_CLOSE( WFK_FH, ierr )
+    if( ierr .ne. 0 ) return
+    if( is_split ) then
+      call MPI_FILE_CLOSE( WFK_FH, ierr )
+      if( ierr .ne. 0 ) return
+    endif
+
+  end subroutine abi_clean
 
   ! shares the important info from the header, like planewaves and offsets
+!---------------------------------------------------------------------------
+!> @author John Vinson, NIST
+!> @brief
+!> Uses MPI to share the important header information to all processors
+!> @param[inout] ierr
+!---------------------------------------------------------------------------
   subroutine share_init( ierr )
     use ocean_mpi, only : comm, root, myid, MPI_INTEGER, MPI_OFFSET
     
     integer, intent( inout ) :: ierr
 
-    if( myid .ne. root ) then
-      allocate( gVecOffsets( nkpt, nspin ), eigenOffsets( nkpt, nspin ), wvfOffsets( nkpt, nspin ), &
-                bandsByK( nkpt, nspin ), planewavesByK( nkpt ) )
+    integer :: nSplit
+
+    if( is_split ) then
+      nSplit = 2
+    else
+      nSplit = 1
     endif
-    call MPI_BCAST( bands, 2, MPI_INTEGER, inter_root, inter_comm, ierr )
+    
+!    if( myid .ne. root ) then
+!      allocate( gVecOffsets( nkpt, nspin, nSplit ), eigenOffsets( nkpt, nspin, nSplit ), &
+!                wvfOffsets( nkpt, nspin, nSplit ), bandsByK( nkpt, nspin, nSplit ), &
+!                planewavesByK( nkpt, nSplit ) )
+!    endif
+
+    call MPI_BCAST( bandsByK, nkpt*nspin*nSplit, MPI_INTEGER, inter_root, inter_comm, ierr )
     if( ierr .ne. 0 ) return
 
-    call MPI_BCAST( bandsByK, nkpt*nspin, MPI_INTEGER, inter_root, inter_comm, ierr )
+    call MPI_BCAST( planewavesByK, nkpt*nSplit, MPI_INTEGER, inter_root, inter_comm, ierr )
     if( ierr .ne. 0 ) return
 
-    call MPI_BCAST( planewavesByK, nkpt, MPI_INTEGER, inter_root, inter_comm, ierr )
+    call MPI_BCAST( gVecOffsets, nkpt*nspin*nSplit, MPI_OFFSET, inter_root, inter_comm, ierr )
     if( ierr .ne. 0 ) return
 
-    call MPI_BCAST( gVecOffsets, nkpt*nspin, MPI_OFFSET, inter_root, inter_comm, ierr )
+    call MPI_BCAST( eigenOffsets, nkpt*nspin*nSplit, MPI_OFFSET, inter_root, inter_comm, ierr )
     if( ierr .ne. 0 ) return
 
-    call MPI_BCAST( eigenOffsets, nkpt*nspin, MPI_OFFSET, inter_root, inter_comm, ierr )
-    if( ierr .ne. 0 ) return
-
-    call MPI_BCAST( wvfOffsets, nkpt*nspin, MPI_OFFSET, inter_root, inter_comm, ierr )
+    call MPI_BCAST( wvfOffsets, nkpt*nspin*nSplit, MPI_OFFSET, inter_root, inter_comm, ierr )
     if( ierr .ne. 0 ) return
 
   end subroutine share_init
 
   ! Determines the position of the start of info (after the header ) in the file
   ! Also returns the important info about the file 
-  subroutine parseHeader( iun, pos, ierr )
+  subroutine parseHeader( iun, pos, ia, ierr )
     use ai_kinds, only : sizeInt, sizeChar, sizeDouble, sizeRecord
 
     integer, intent( in ) :: iun
     integer(MPI_OFFSET_KIND), intent( out ) :: pos
+    integer, intent( in ) :: ia
     integer, intent( inout ) :: ierr
 
 
@@ -329,9 +572,9 @@ module ocean_abi_files
     write(6,*) maxband
 
 
-    allocate( wavefunctionStorageByK( nkpt ), bandsByK( nkpt, nspin ), planewavesByK( nkpt ) )
+    allocate( wavefunctionStorageByK( nkpt ) ) !, bandsByK( nkpt, nspin ), planewavesByK( nkpt ) )
    
-    read( iun ) wavefunctionStorageByK(:), bandsByK(:,:), planewavesByK(:)!, i1(1:2)
+    read( iun ) wavefunctionStorageByK(:), bandsByK(:,:,ia), planewavesByK(:,ia)!, i1(1:2)
 !    write(6,*) i1(1:2)
 !    write(6,*) bandsByK(:)
     ! not read
@@ -394,19 +637,19 @@ module ocean_abi_files
       write(6,*) title
     enddo
 
-    allocate( gVecOffsets( nkpt, nspin ), eigenOffsets( nkpt, nspin ), wvfOffsets( nkpt, nspin ) )
+!    allocate( gVecOffsets( nkpt, nspin ), eigenOffsets( nkpt, nspin ), wvfOffsets( nkpt, nspin ) )
 
     offset = pos
     do i = 1, nspin
       do k = 1, nkpt
         offset = offset + 2 * sizeRecord + 3 * sizeInt
-        gVecOffsets( k, i ) = offset
-        offset = offset + 2 * sizeRecord + 3 * planewavesByK( k ) * sizeInt
-        eigenOffsets( k, i ) = offset
-        offset = offset + 2 * sizeRecord + 2 * bandsByK( k, i ) * sizeDouble
-        wvfOffsets( k, i ) = offset
-        do j = 1, bandsByK( k, i )
-          offset = offset + 2 * sizeRecord + 2 * planewavesByK( k ) * sizeDouble * noncollinear
+        gVecOffsets( k, i, ia ) = offset
+        offset = offset + 2 * sizeRecord + 3 * planewavesByK( k, ia ) * sizeInt
+        eigenOffsets( k, i, ia ) = offset
+        offset = offset + 2 * sizeRecord + 2 * bandsByK( k, i, ia ) * sizeDouble
+        wvfOffsets( k, i, ia ) = offset
+        do j = 1, bandsByK( k, i, ia )
+          offset = offset + 2 * sizeRecord + 2 * planewavesByK( k, ia ) * sizeDouble * noncollinear
         enddo
 !        m_wfk.F90 :3435
       enddo
@@ -602,6 +845,26 @@ module ocean_abi_files
     endif
   end subroutine get_fileName
     
+!---------------------------------------------------------------------------
+!> @author John Vinson, NIST
+!> @brief
+!> Method to clean up everything in the module. 
+!> Allocate the global arrays. Sizes are set by the already defined global scalars
+!> @param[inout] ierr
+!---------------------------------------------------------------------------
+ subroutine allocate_global_arrays( ierr )
+  integer, intent( inout ) :: ierr
+  integer :: nSplit
+
+  if( is_split ) then
+    nSplit = 2
+  else
+    nSplit = 1
+  endif
+
+  allocate( gVecOffsets( nkpt, nspin, nSplit ), eigenOffsets( nkpt, nspin, nSplit ), &
+                  wvfOffsets( nkpt, nspin, nSplit ), bandsByK( nkpt, nspin, nSplit ), &
+                  planewavesByK( nkpt, nSplit ), STAT=ierr )
+ end subroutine allocate_global_arrays
 
 end module ocean_abi_files
-#endif

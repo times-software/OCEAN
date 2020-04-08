@@ -23,8 +23,9 @@ module ocean_dft_files
   integer, parameter :: LEGACY_FLAVOR = 0
   integer, parameter :: QE54_FLAVOR = 1
   integer, parameter :: QE62_FLAVOR = 2
+  integer, parameter :: ABINIT_FLAVOR = 3
 
-  character(len=6), parameter   :: flavorToText(0:2) = [ 'legacy', 'qe54  ', 'qe62  ' ]
+  character(len=6), parameter   :: flavorToText(0:3) = [ 'legacy', 'qe54  ', 'qe62  ', 'abinit' ]
 
   public :: LEGACY_FLAVOR, QE54_FLAVOR, QE62_FLAVOR
 
@@ -158,6 +159,7 @@ module ocean_dft_files
     use ocean_legacy_files, only : olf_getPoolIndex
     use ocean_qe54_files, only : qe54_getPoolIndex
     use ocean_qe62_files, only : qe62_getPoolIndex
+    use ocean_abi_files, only : abi_getPoolIndex
     integer, intent( in ) :: ispin, ikpt
     integer :: poolIndex
     select case( flavor )
@@ -167,6 +169,8 @@ module ocean_dft_files
         poolIndex = qe54_getPoolIndex( ispin, ikpt )
       case( QE62_FLAVOR )
         poolIndex = qe62_getPoolIndex( ispin, ikpt )
+      case( ABINIT_FLAVOR )
+        poolIndex = abi_getPoolIndex( ispin, ikpt )
       case default
         poolIndex = -1
     end select
@@ -235,6 +239,7 @@ module ocean_dft_files
     use ocean_legacy_files, only : olf_getAllBandsForPoolID
     use ocean_qe54_files, only : qe54_getAllBandsForPoolID
     use ocean_qe62_files, only : qe62_getAllBandsForPoolID
+    use ocean_abi_files, only : abi_getAllBandsForPoolID
     integer, intent( in ) :: poolID
     integer :: nbands
 
@@ -245,6 +250,8 @@ module ocean_dft_files
         nbands = qe54_getAllBandsForPoolID( poolID ) 
       case( QE62_FLAVOR )
         nbands = qe62_getAllBandsForPoolID( poolID )
+      case( ABINIT_FLAVOR )
+        nbands = abi_getAllBandsForPoolID( poolID )
       case default
         nbands = -1
     end select 
@@ -254,6 +261,7 @@ module ocean_dft_files
     use ocean_legacy_files, only : olf_returnGlobalID
     use ocean_qe54_files, only : qe54_returnGlobalID
     use ocean_qe62_files, only : qe62_returnGlobalID
+    use ocean_abi_files, only : abi_returnGlobalID
     integer, intent( in ) :: poolIndex, poolID
     integer :: globalID
     select case( flavor )
@@ -263,6 +271,8 @@ module ocean_dft_files
         globalID = qe54_returnGlobalID( poolIndex, poolID )
       case( QE62_FLAVOR )
         globalID = qe62_returnGlobalID( poolIndex, poolID )
+      case( ABINIT_FLAVOR )
+        globalID = abi_returnGlobalID( poolIndex, poolID )
       case default
         globalID = -1
     end select
@@ -272,6 +282,7 @@ module ocean_dft_files
     use ocean_legacy_files, only : olf_nprocPerPool
     use ocean_qe54_files, only : qe54_nprocPerPool
     use ocean_qe62_files, only : qe62_nprocPerPool
+    use ocean_abi_files, only : abi_nprocPerPool
     integer :: nproc
 
     select case( flavor )
@@ -282,6 +293,8 @@ module ocean_dft_files
         nproc = qe54_nprocPerPool()
       case( QE62_FLAVOR )
         nproc = qe62_nprocPerPool()
+      case( ABINIT_FLAVOR )
+        nproc = abi_nprocPerPool()
       case default
         nproc = -1
     end select
@@ -359,6 +372,7 @@ module ocean_dft_files
     use ocean_legacy_files, only : olf_return_my_bands
     use ocean_qe54_files, only : qe54_return_my_bands
     use ocean_qe62_files, only : qe62_return_my_bands
+    use ocean_abi_files, only : abi_return_my_bands
 
     integer, intent( out ) :: nbands
     integer, intent( inout ) :: ierr
@@ -370,6 +384,8 @@ module ocean_dft_files
         call qe54_return_my_bands( nbands, ierr )
       case( QE62_FLAVOR )
         call qe62_return_my_bands( nbands, ierr )
+      case( ABINIT_FLAVOR )
+        call abi_return_my_bands( nbands, ierr )
       case default
         ierr = -1
     end select
@@ -381,6 +397,7 @@ module ocean_dft_files
     use ocean_legacy_files, only : olf_is_my_kpt
     use ocean_qe54_files, only : qe54_is_my_kpt
     use ocean_qe62_files, only : qe62_is_my_kpt
+    use ocean_abi_files, only : abi_is_my_kpt
     integer, intent( in ) :: ikpt, ispin
     logical, intent( out ) :: is_kpt
     integer, intent( inout ) :: ierr
@@ -392,6 +409,8 @@ module ocean_dft_files
         call qe54_is_my_kpt( ikpt, ispin, is_kpt, ierr )
       case( QE62_FLAVOR )
         call qe62_is_my_kpt( ikpt, ispin, is_kpt, ierr )
+      case( ABINIT_FLAVOR )
+        call abi_is_my_kpt( ikpt, ispin, is_kpt, ierr )
       case default
         ierr = -1
     end select
@@ -418,6 +437,7 @@ module ocean_dft_files
     use ocean_legacy_files, only : olf_get_ngvecs_at_kpt
     use ocean_qe54_files, only : qe54_get_ngvecs_at_kpt
     use ocean_qe62_files, only : qe62_get_ngvecs_at_kpt
+    use ocean_abi_files, only : abi_get_ngvecs_at_kpt
     !
     integer, intent( in ) :: ikpt, ispin
     integer, intent( out ) :: gvecs
@@ -430,6 +450,8 @@ module ocean_dft_files
         call qe54_get_ngvecs_at_kpt( ikpt, ispin, gvecs, ierr )
       case( QE62_FLAVOR )
         call qe62_get_ngvecs_at_kpt( ikpt, ispin, gvecs, ierr )
+      case( ABINIT_FLAVOR )
+        call abi_get_ngvecs_at_kpt( ikpt, ispin, gvecs, ierr )
       case default
         ierr = -1
     end select
@@ -440,6 +462,7 @@ module ocean_dft_files
     use ocean_legacy_files, only : olf_get_ngvecs_at_kpt
     use ocean_qe54_files, only : qe54_get_ngvecs_at_kpt_split
     use ocean_qe62_files, only : qe62_get_ngvecs_at_kpt_split
+    use ocean_abi_files, only : abi_get_ngvecs_at_kpt_split
     !
     integer, intent( in ) :: ikpt, ispin
     integer, intent( out ) :: gvecs( 2 )
@@ -453,6 +476,8 @@ module ocean_dft_files
         call qe54_get_ngvecs_at_kpt_split( ikpt, ispin, gvecs, ierr )
       case( QE62_FLAVOR )
         call qe62_get_ngvecs_at_kpt_split( ikpt, ispin, gvecs, ierr )
+      case( ABINIT_FLAVOR )
+        call abi_get_ngvecs_at_kpt_split( ikpt, ispin, gvecs, ierr )
       case default
         ierr = -1
     end select
@@ -524,6 +549,9 @@ module ocean_dft_files
       case ( QE62_FLAVOR )
         call qe62_clean( ierr )
 
+      case ( ABINIT_FLAVOR )
+        call abi_clean( ierr )
+
       case default
       
         ierr = 1
@@ -536,6 +564,7 @@ module ocean_dft_files
     use ocean_legacy_files, only : olf_read_init
     use ocean_qe54_files, only : qe54_read_init
     use ocean_qe62_files, only : qe62_read_init
+    use ocean_abi_files, only : abi_read_init
     use ocean_mpi, only : MPI_INTEGER
     integer, intent( in ) :: myid, root
 #ifdef MPI_F08
@@ -559,6 +588,8 @@ module ocean_dft_files
             flavor = QE54_FLAVOR
           case ('qe62')
             flavor = QE62_FLAVOR
+          case ('abinit', 'abi')
+            flavor = ABINIT_FLAVOR
           case default
             flavor = LEGACY_FLAVOR
         end select
@@ -585,6 +616,10 @@ module ocean_dft_files
 
         call qe62_read_init( comm, isGamma, isFullStorage, ierr )
 
+      case( ABINIT_FLAVOR )
+  
+        call abi_read_init( comm, ierr )
+        
       case default
         ierr = 1
         if( myid .eq. root ) write(6,*) 'Incorrect DFT flavor. Probably a bug?'
@@ -594,11 +629,12 @@ module ocean_dft_files
 
   end subroutine odf_init
 
-
+!> todo Don't pass in mpi info?
   subroutine odf_read_energies_single( myid, root, comm, energies, ierr )
     use ocean_legacy_files, only : olf_read_energies_single
     use ocean_qe54_files, only : qe54_read_energies_single
     use ocean_qe62_files, only : qe62_read_energies_single
+    use ocean_abi_files, only : abi_read_energies_single
     integer, intent( in ) :: myid, root
 #ifdef MPI_F08
     type( MPI_COMM ), intent( in ) :: comm
@@ -621,6 +657,10 @@ module ocean_dft_files
       case( QE62_FLAVOR )
 
         call qe62_read_energies_single( myid, root, comm, energies, ierr )
+
+      case( ABINIT_FLAVOR )
+  
+        call abi_read_energies_single( energies, ierr )
 
       case default
         ierr = 1
