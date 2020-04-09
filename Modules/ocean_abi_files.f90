@@ -73,7 +73,7 @@ module ocean_abi_files
   integer :: WFK_FH, WFK_splitFH
   
   public :: abi_read_init, abi_clean
-!  public :: abi_read_at_kpt
+  public :: abi_read_at_kpt
   public :: abi_getAllBandsForPoolID, abi_getValenceBandsForPoolID, abi_getConductionBandsForPoolID
   public :: abi_nprocPerPool, abi_getPoolIndex, abi_returnGlobalID
   public :: abi_return_my_bands, abi_is_my_kpt
@@ -296,22 +296,59 @@ module ocean_abi_files
 
   end subroutine abi_read_energies_single
     
-
-#if 0
-  subroutine abi_read_at_kpt( ikpt, ispin, ngvecs, my_bands, gvecs, wvfns, ierr )
+!> @author John Vinson, NIST
+!> @brief Read in the wavefunctions at a given kpoint and spin. 
+!> The bands will be distributed across the pool
+!> param[in] ikpt
+!> param[in] ispin
+!> param[in] ngvecs
+!> param[in] my_bands
+!> param[out] gvecs
+!> param[out] wvfns
+!> @param[inout] ierr
+  subroutine abi_read_at_kpt( ikpt, ispin, ngvecs, my_bands, gvecs, wfns, ierr )
 #ifdef MPI
-    use OCEAN_mpi, only : MPI_INTEGER, MPI_DOUBLE_COMPLEX, MPI_STATUSES_IGNORE, myid, MPI_REQUEST_NULL, &
-                          MPI_STATUS_IGNORE, MPI_UNDEFINED, MPI_OFFSET_KIND, MPI_MODE_RDONLY, MPI_INFO_NULL, &
-                          MPI_STATUS_SIZE
-!    use OCEAN_mpi
+    use OCEAN_mpi, only : MPI_INTEGER, MPI_DOUBLE_COMPLEX, MPI_STATUS_IGNORE, MPI_OFFSET_KIND, &
+                          myid
 #endif
-
+    use ai_kinds, only : sizeDoubleComplex
     integer, intent( in ) :: ikpt, ispin, ngvecs, my_bands
     integer, intent( out ) :: gvecs( 3, ngvecs )
     complex( DP ), intent( out ) :: wfns( ngvecs, my_bands )
     integer, intent( inout ) :: ierr
     !
+#ifdef MPI
+    integer( MPI_OFFSET_KIND ) :: offset
 #endif
+    integer :: iShift, id, nbands
+
+#ifndef MPI
+    ierr = -10
+    return
+#else
+
+    ! Since we are reading a unified file only with this routine
+    iShift = 1
+    ! first read the gvectors which are shared
+    ! but must be read by only the master since the file is opened by every pool
+    offset = gVecOffsets( ikpt, ispin, iShift )
+    if( pool_myid .eq. pool_root ) then
+      call MPI_FILE_READ_AT( WFK_FH, offset, gvecs, 3*ngvecs, MPI_INTEGER, MPI_STATUS_IGNORE, ierr )
+    endif
+    call MPI_BCAST( gvecs, 3*ngvecs, MPI_INTEGER, pool_root, pool_comm, ierr )
+
+    ! next have every processor read in their bands
+    offset = wvfOffsets( ikpt, ispin, iShift )
+    do id = 0, pool_myid - 1
+      nbands = abi_getAllBandsForPoolID( id ) * sizeDoubleComplex
+      offset = offset + int( ngvecs, MPI_OFFSET_KIND ) * int( nbands, MPI_OFFSET_KIND )
+    enddo
+
+    call MPI_FILE_READ_AT( WFK_FH, offset, wfns, ngvecs*my_bands, MPI_DOUBLE_COMPLEX, &
+                           MPI_STATUS_IGNORE, ierr )
+
+#endif
+  end subroutine abi_read_at_kpt
 
 
 ! At the moment we aren't parsing the header of the second WFK file if the run was split valence/conduction for kshifted
@@ -639,7 +676,8 @@ module ocean_abi_files
 
 !    allocate( gVecOffsets( nkpt, nspin ), eigenOffsets( nkpt, nspin ), wvfOffsets( nkpt, nspin ) )
 
-    offset = pos
+    ! JTV
+    offset = pos + sizeRecord
     do i = 1, nspin
       do k = 1, nkpt
         offset = offset + 2 * sizeRecord + 3 * sizeInt

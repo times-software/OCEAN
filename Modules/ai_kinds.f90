@@ -33,6 +33,7 @@ module AI_kinds
   !
   integer, parameter :: sizeInt = 4
   integer, parameter :: sizeDouble = 8
+  integer, parameter :: sizeDoubleComplex = 16
   integer, parameter :: sizeChar = 1
   integer, parameter :: sizeRecord = 4
   !
