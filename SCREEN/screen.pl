@@ -224,6 +224,10 @@ if( $dft =~ m/qe/i )
   `ln -s ../DFT/Out SCF`;
   `ln -s ../DFT/SCREEN/Out .`;
 }
+elsif( $dft =~ m/abi/i )
+{
+  `ln -s ../DFT/SCREEN/RUN0001_WFK .`;
+}
 
 # Detect qe version ( or, in the future, abinit )
 if( $screen_data_files{ 'wvfn' } =~ m/qe/ || $screen_data_files{ 'wvfn' } =~ m/new/ )

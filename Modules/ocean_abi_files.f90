@@ -272,7 +272,7 @@ module ocean_abi_files
     integer, intent( inout ) :: ierr
 
     integer :: nbands, offAdjust
-    integer :: ispin, ikpt
+    integer :: ispin, ikpt, j
 
     if( is_split ) then
       ierr = 94241
@@ -290,6 +290,13 @@ module ocean_abi_files
           if( ierr .ne. 0 ) return
         enddo
       enddo
+
+      open(unit=99, file='enkfile.test', form='formatted' )
+      do ikpt = 1, nkpt
+        write(99,*) (2*energies(j,ikpt,1),j=brange(1),brange(2))
+        write(99,*) (2*energies(j,ikpt,1),j=brange(3),brange(4))
+      enddo
+      close(99)
     endif
 
     call MPI_BCAST( energies, size( energies ), MPI_DOUBLE_PRECISION, root, comm, ierr )
@@ -309,9 +316,9 @@ module ocean_abi_files
   subroutine abi_read_at_kpt( ikpt, ispin, ngvecs, my_bands, gvecs, wfns, ierr )
 #ifdef MPI
     use OCEAN_mpi, only : MPI_INTEGER, MPI_DOUBLE_COMPLEX, MPI_STATUS_IGNORE, MPI_OFFSET_KIND, &
-                          myid
+                          myid, MPI_ADDRESS_KIND, MPI_DATATYPE
 #endif
-    use ai_kinds, only : sizeDoubleComplex
+    use ai_kinds, only : sizeDoubleComplex, sizeRecord
     integer, intent( in ) :: ikpt, ispin, ngvecs, my_bands
     integer, intent( out ) :: gvecs( 3, ngvecs )
     complex( DP ), intent( out ) :: wfns( ngvecs, my_bands )
@@ -319,8 +326,15 @@ module ocean_abi_files
     !
 #ifdef MPI
     integer( MPI_OFFSET_KIND ) :: offset
+    integer( MPI_ADDRESS_KIND ) :: stride
+    type( MPI_DATATYPE ) :: my_hvec
 #endif
-    integer :: iShift, id, nbands
+    integer :: iShift, id, nbands, ib, j, ndumg
+    real(DP) :: denom
+    complex( DP ) :: su
+    real(DP), allocatable :: dumre(:,:), dumim(:,:)
+    integer, allocatable :: dumg(:,:)
+    character(len=12) :: filnam
 
 #ifndef MPI
     ierr = -10
@@ -333,6 +347,8 @@ module ocean_abi_files
     ! but must be read by only the master since the file is opened by every pool
     offset = gVecOffsets( ikpt, ispin, iShift )
     if( pool_myid .eq. pool_root ) then
+      write(1000+myid,*) '***Reading gvectors', offset
+      flush(1000+myid)
       call MPI_FILE_READ_AT( WFK_FH, offset, gvecs, 3*ngvecs, MPI_INTEGER, MPI_STATUS_IGNORE, ierr )
     endif
     call MPI_BCAST( gvecs, 3*ngvecs, MPI_INTEGER, pool_root, pool_comm, ierr )
@@ -341,18 +357,91 @@ module ocean_abi_files
     offset = wvfOffsets( ikpt, ispin, iShift )
     do id = 0, pool_myid - 1
       nbands = abi_getAllBandsForPoolID( id ) * sizeDoubleComplex
-      offset = offset + int( ngvecs, MPI_OFFSET_KIND ) * int( nbands, MPI_OFFSET_KIND )
+      offset = offset &
+             + int( ngvecs, MPI_OFFSET_KIND ) * int( nbands, MPI_OFFSET_KIND ) & 
+                * int( sizeDoubleComplex, MPI_OFFSET_KIND ) &
+             + int( 2 * sizeRecord * nbands, MPI_OFFSET_KIND )
     enddo
+    stride = int( ngvecs, MPI_ADDRESS_KIND ) * int( sizeDoubleComplex, MPI_ADDRESS_KIND ) &
+           + int( sizeRecord*2, MPI_ADDRESS_KIND )
+    write(6,*) stride, ngvecs*sizeDoubleComplex
+!    call MPI_TYPE_CREATE_HVECTOR( my_bands, ngvecs, stride, MPI_DOUBLE_COMPLEX, my_hvec, ierr )
+!    call MPI_TYPE_COMMIT( my_hvec, ierr )
+    wfns(:,:) = 0.0
+    write(1000+myid,*) '***Reading', offset, my_bands
+    flush(1000+myid)
+    do ib = 1, my_bands
+      call MPI_FILE_READ_AT( WFK_FH, offset, wfns(:,ib), ngvecs, MPI_DOUBLE_COMPLEX, &
+                             MPI_STATUS_IGNORE, ierr )
+      offset = offset + int( ngvecs, MPI_OFFSET_KIND ) * int( sizeDoubleComplex, MPI_OFFSET_KIND ) &
+             + int( sizeRecord*2, MPI_OFFSET_KIND )
+    enddo
+!    call MPI_FILE_READ_AT( WFK_FH, offset, wfns, 1, my_hvec, &
+!                           MPI_STATUS_IGNORE, ierr )
+!    call MPI_TYPE_FREE( my_hvec, ierr )
+!    write(6,*) wfns(1:2,2)
+!    write(6,*) wfns(ngvecs-1:ngvecs,2)
+!    write(6,*) wfns(1:2,my_bands)
 
-    call MPI_FILE_READ_AT( WFK_FH, offset, wfns, ngvecs*my_bands, MPI_DOUBLE_COMPLEX, &
-                           MPI_STATUS_IGNORE, ierr )
+#if 0
+    su = dot_product( wfns(:,1), wfns(:,2) )
+    write(6,*) su
+    su = dot_product( wfns(:,1), wfns(:,1) )
+    write(6,*) su
+
+
+!    if( ikpt .eq. 2 ) then
+      allocate( dumre( ngvecs, 200 ), dumim( ngvecs, 200 ), dumg( ngvecs, 3 ) )
+      write( filnam, '(A,I6.6)' ) '.Psi1.', ikpt
+!      open( unit=99, file='.Psi1.000002', form='unformatted', status='old' )
+      open( unit=99, file=filnam, form='unformatted', status='old' )
+      read(99) ndumg
+      read(99) dumg
+      read(99) dumre
+      read(99) dumim
+
+      if( ndumg .ne. ngvecs ) write(6,*) 'MISMATCH:', ndumg, ngvecs
+      do id = 1, ngvecs
+        do ib = 1, ngvecs
+          if( dumg( ib, 1 ) .eq. gvecs( 1, id ) .and. &
+              dumg( ib, 2 ) .eq. gvecs( 2, id ) .and. &
+              dumg( ib, 3 ) .eq. gvecs( 3, id ) ) then
+            do j = 1, 200
+!            write( 6, * ) real(wfns( id, 1 )), aimag( wfns( id, 1 ))
+!            write( 6, * ) dumre( ib, 1 ), dumim( ib, 1 )
+!            write( 6, * ) real(wfns( id, 200 )), aimag( wfns( id, 200 ))
+!            write( 6, * ) dumre( ib, 200 ), dumim( ib, 200 )
+!            cycle
+              denom = sqrt( real(wfns(id,j)*conjg(wfns(id,j) ) ) )
+              if( abs( (real(wfns( id, j )) - dumre( ib, j ) )/ denom ) .gt. 0.000000000001_DP .or. &
+                  abs( (aimag(wfns( id, j )) - dumim( ib, j ) )/ denom ) .gt. 0.0000000001_DP  ) then
+                write( 6, * ) j, gvecs(:,id )
+                write( 6, * ) real(wfns( id, j )), aimag( wfns( id, j ))
+                write( 6, * ) dumre( ib, j ), dumim( ib, j )
+              endif
+            enddo
+            goto 10
+          endif
+        enddo
+        write( 6, * ) 'No match', gvecs(:,id )
+10      continue
+      enddo
+
+      gvecs = transpose( dumg )
+      do ib = 1, my_bands
+        wfns(:,ib) = cmplx( dumre( :, ib ), dumim( :, ib ), DP )
+      enddo 
+      deallocate( dumre, dumim, dumg )
+!    endif
+#endif
+    
 
 #endif
   end subroutine abi_read_at_kpt
 
 
 ! At the moment we aren't parsing the header of the second WFK file if the run was split valence/conduction for kshifted
-  subroutine abi_read_init( comm, ierr )
+  subroutine abi_read_init( comm, isGamma, isFullStorage, ierr )
     use ai_kinds, only : sizeChar
     use ocean_mpi, only : MPI_INTEGER, MPI_CHARACTER, MPI_LOGICAL, MPI_DOUBLE_PRECISION, &
                           MPI_MODE_RDONLY, MPI_INFO_NULL, MPI_COMM_WORLD, MPI_STATUS_IGNORE, &
@@ -362,6 +451,7 @@ module ocean_abi_files
 #else
     integer, intent( in ) :: comm
 #endif
+    logical, intent( out ) :: isGamma, isFullStorage
     integer, intent( inout ) :: ierr
 
     character(len=6) :: codvsn
@@ -373,6 +463,10 @@ module ocean_abi_files
     logical :: isSplit
     integer :: nSplit, i
 !    real(dp) :: d1(20)
+
+    ! at the moment no gamma-point support for abinit
+    isGamma = .false.
+    isFullStorage = .true.
 
     ! Set the comms for file handling
     call MPI_COMM_DUP( comm, inter_comm, ierr )

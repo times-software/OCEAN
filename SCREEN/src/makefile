@@ -6,7 +6,6 @@ include ../../Makefile.arch
 #OPTIONS += -check all -g -traceback
 #OPTIONS += -qopenmp
 
-
 all: screen_driver.x
 
 OBJS = screen_driver.o screen_grid.o screen_system.o screen_sites.o screen_paral.o \
@@ -17,7 +16,8 @@ OBJS = screen_driver.o screen_grid.o screen_system.o screen_sites.o screen_paral
 MODOBJS = ../../Modules/ocean_mpi.o ../../Modules/ai_kinds.o ../../Modules/ocean_constants.o \
           ../../Modules/ocean_interpolate.o ../../Modules/periodic.o ../../Modules/screen_timekeeper.o \
           ../../Modules/ocean_legacy_files.o ../../Modules/ocean_qe54_files.o \
-          ../../Modules/ocean_qe62_files.o ../../Modules/ocean_dft_files.o ../../Modules/screen_opf.o
+          ../../Modules/ocean_qe62_files.o ../../Modules/ocean_dft_files.o ../../Modules/ocean_abi_files.o \
+          ../../Modules/screen_opf.o 
 
 install:
 	cp screen_driver.x $(INSTDIR)/

@@ -487,6 +487,7 @@ module ocean_dft_files
     use ocean_legacy_files, only : olf_read_at_kpt
     use ocean_qe54_files, only : qe54_read_at_kpt
     use ocean_qe62_files, only : qe62_read_at_kpt
+    use ocean_abi_files, only : abi_read_at_kpt
     integer, intent( in ) :: ikpt, ispin, ngvecs, my_bands
     integer, intent( out ) :: gvecs( 3, ngvecs )
     complex( DP ), intent( out ) :: wfns( ngvecs, my_bands )
@@ -499,6 +500,8 @@ module ocean_dft_files
         call qe54_read_at_kpt( ikpt, ispin, ngvecs, my_bands, gvecs, wfns, ierr )
       case( QE62_FLAVOR )
         call qe62_read_at_kpt( ikpt, ispin, ngvecs, my_bands, gvecs, wfns, ierr )
+      case( ABINIT_FLAVOR )
+        call abi_read_at_kpt( ikpt, ispin, ngvecs, my_bands, gvecs, wfns, ierr )
       case default
         ierr = -1
     end select
@@ -534,6 +537,7 @@ module ocean_dft_files
     use ocean_legacy_files, only : olf_clean
     use ocean_qe54_files, only : qe54_clean
     use ocean_qe62_files, only : qe62_clean
+    use ocean_abi_files, only : abi_clean
     integer, intent( inout ) :: ierr
     !
 
@@ -618,7 +622,7 @@ module ocean_dft_files
 
       case( ABINIT_FLAVOR )
   
-        call abi_read_init( comm, ierr )
+        call abi_read_init( comm, isGamma, isFullStorage, ierr )
         
       case default
         ierr = 1
