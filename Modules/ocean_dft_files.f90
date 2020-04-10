@@ -64,6 +64,7 @@ module ocean_dft_files
     use ocean_legacy_files, only : olf_poolComm
     use ocean_qe54_files, only : qe54_poolComm
     use ocean_qe62_files, only : qe62_poolComm
+    use ocean_abi_files, only : abi_poolComm
 #ifdef MPI_F08
     type( MPI_COMM ) :: odf_poolComm
 #else

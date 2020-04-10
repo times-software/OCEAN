@@ -79,11 +79,25 @@ module ocean_abi_files
   public :: abi_return_my_bands, abi_is_my_kpt
   public :: abi_get_ngvecs_at_kpt, abi_get_ngvecs_at_kpt_split
   public :: abi_read_energies_single
+  public :: abi_poolComm
 
   contains
 
+
 !> @author John Vinson, NIST
-!> @brief Function returns the the number of processors in each pool. 
+!> @brief Function returns the comunicator that connects all the processors within a pool
+  pure function abi_poolComm()
+#ifdef MPI_F08
+    type( MPI_COMM ) :: abi_poolComm
+#else
+    integer :: abi_poolComm
+#endif
+
+    abi_poolComm = pool_comm
+  end function abi_poolComm
+
+!> @author John Vinson, NIST
+!> @brief Function returns the number of processors in each pool. 
 !> The processors are divided into pools to read in the wavefunction file. 
 !> @return nproc
   pure function abi_nprocPerPool() result( nproc )
@@ -356,18 +370,18 @@ module ocean_abi_files
     ! next have every processor read in their bands
     offset = wvfOffsets( ikpt, ispin, iShift )
     do id = 0, pool_myid - 1
-      nbands = abi_getAllBandsForPoolID( id ) * sizeDoubleComplex
+      nbands = abi_getAllBandsForPoolID( id ) !* sizeDoubleComplex
       offset = offset &
              + int( ngvecs, MPI_OFFSET_KIND ) * int( nbands, MPI_OFFSET_KIND ) & 
                 * int( sizeDoubleComplex, MPI_OFFSET_KIND ) &
              + int( 2 * sizeRecord * nbands, MPI_OFFSET_KIND )
     enddo
-    stride = int( ngvecs, MPI_ADDRESS_KIND ) * int( sizeDoubleComplex, MPI_ADDRESS_KIND ) &
-           + int( sizeRecord*2, MPI_ADDRESS_KIND )
-    write(6,*) stride, ngvecs*sizeDoubleComplex
+!    stride = int( ngvecs, MPI_ADDRESS_KIND ) * int( sizeDoubleComplex, MPI_ADDRESS_KIND ) &
+!           + int( sizeRecord*2, MPI_ADDRESS_KIND )
+!    write(6,*) stride, ngvecs*sizeDoubleComplex
 !    call MPI_TYPE_CREATE_HVECTOR( my_bands, ngvecs, stride, MPI_DOUBLE_COMPLEX, my_hvec, ierr )
 !    call MPI_TYPE_COMMIT( my_hvec, ierr )
-    wfns(:,:) = 0.0
+!    wfns(:,:) = 0.0
     write(1000+myid,*) '***Reading', offset, my_bands
     flush(1000+myid)
     do ib = 1, my_bands
