@@ -73,7 +73,7 @@ module ocean_abi_files
   integer :: WFK_FH, WFK_splitFH
   
   public :: abi_read_init, abi_clean
-  public :: abi_read_at_kpt
+  public :: abi_read_at_kpt, abi_read_at_kpt_split
   public :: abi_getAllBandsForPoolID, abi_getValenceBandsForPoolID, abi_getConductionBandsForPoolID
   public :: abi_nprocPerPool, abi_getPoolIndex, abi_returnGlobalID
   public :: abi_return_my_bands, abi_is_my_kpt
@@ -328,7 +328,11 @@ module ocean_abi_files
       return
     endif
     gvecs(1) = planewavesByK( ikpt, 1 )
-    gvecs(2) = planewavesByK( ikpt, 2 )
+    if( is_split ) then
+      gvecs(2) = planewavesByK( ikpt, 2 )
+    else
+      gvecs(2) = gvecs(1)
+    endif
   end subroutine abi_get_ngvecs_at_kpt_split
 
 
@@ -620,7 +624,7 @@ module ocean_abi_files
 
 
     !!!! Time for the conduction bands !!!
-    iShift = 2
+    if( is_shift ) iShift = 2
     ! if no shift these are identical
     if( is_shift ) then
       offset = gVecOffsets( ikpt, ispin, iShift )
@@ -935,6 +939,7 @@ module ocean_abi_files
 
 
     if( is_shift .and. .not. is_split ) then
+      write(6,*) 'Is shift, not split'
       allocate( wavefunctionStorageByK( nkpt*2 ), tempBandsByK(nkpt*2,nspin), tempPlanewavesByK(nkpt*2) )
       read( iun ) wavefunctionStorageByK(:), tempBandsByK(:,:), tempPlanewavesByK(:) 
       do i = 1, nspin
@@ -1126,11 +1131,35 @@ module ocean_abi_files
   end subroutine load_ocean_inputs
 
   subroutine set_pools( ierr )
+    use ocean_mpi, only : myid, root, comm, MPI_LOGICAL, MPI_INTEGER
     integer, intent( inout ) :: ierr
     !
     integer :: i, nks
+    logical :: ex
 
     nks = nkpt * nspin
+
+    if(myid .eq. root ) then
+      inquire( file='npools.override', exist=ex)
+      call MPI_BCAST( ex, 1, MPI_LOGICAL, root, comm, ierr )
+      if( ex ) then 
+        open( unit=99, file='npools.override', form='formatted', status='old' )
+        read( 99, * ) npool
+        close( 99 )
+        write(6,*) '****** override: ', npool
+      endif
+    else
+      call MPI_BCAST( ex, 1, MPI_LOGICAL, root, comm, ierr )
+    endif
+
+    if( ex ) then
+      call MPI_BCAST( npool, 1, MPI_INTEGER, root, comm, ierr )
+      i = inter_nproc / npool
+      mypool = 0
+      if( i .gt. 0 ) mypool = inter_myid/ i
+      goto 11
+    endif
+
 
     if( nks .ge. inter_nproc ) then
       mypool = inter_myid
@@ -1151,8 +1180,8 @@ module ocean_abi_files
           endif
         endif
       enddo
-11    continue
     endif
+11  continue
 
     call MPI_COMM_SPLIT( inter_comm, mypool, inter_myid, pool_comm, ierr )
     if( ierr .ne. 0 ) return

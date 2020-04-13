@@ -594,6 +594,7 @@ module ocean_dft_files
     use ocean_legacy_files, only : olf_read_at_kpt_split
     use ocean_qe54_files, only : qe54_read_at_kpt_split
     use ocean_qe62_files, only : qe62_read_at_kpt_split
+    use ocean_abi_files, only : abi_read_at_kpt_split
     integer, intent( in ) :: ikpt, ispin, valNgvecs, conNGvecs, valBands, conBands
     integer, intent( out ) :: valgvecs( 3, valngvecs ), congvecs( 3, conngvecs )
     complex( DP ), intent( out ) :: valUofG( valngvecs, valbands ), conUofG( conNGvecs, conBands )
@@ -608,6 +609,9 @@ module ocean_dft_files
                                     valGvecs, conGvecs, valUofG, conUofG, ierr )
       case( QE62_FLAVOR )
         call qe62_read_at_kpt_split( ikpt, ispin, valNGvecs, conNGvecs, valBands, conBands, &
+                                    valGvecs, conGvecs, valUofG, conUofG, ierr )
+      case( ABINIT_FLAVOR )
+        call abi_read_at_kpt_split( ikpt, ispin, valNGvecs, conNGvecs, valBands, conBands, &
                                     valGvecs, conGvecs, valUofG, conUofG, ierr )
       case default
         ierr = -2
