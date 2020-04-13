@@ -44,21 +44,23 @@ module ocean_dft_files
 
   public :: odf_init, odf_read_energies_single, odf_clean
   public :: odf_nprocPerPool, odf_getPoolIndex, odf_getBandsForPoolID, odf_returnGlobalID
-  public :: odf_return_my_bands, odf_is_my_kpt, odf_get_ngvecs_at_kpt, odf_read_gvecs_at_kpt
+  public :: odf_return_my_bands, odf_is_my_kpt, odf_get_ngvecs_at_kpt!, odf_read_gvecs_at_kpt
   public :: odf_read_at_kpt, odf_read_at_kpt_split, odf_read_energies_split
   public :: odf_isGamma, odf_isFullStorage, odf_isDualFile
   public :: odf_npool, odf_universal2KptAndSpin, odf_poolComm, odf_poolID
 
-  interface odf_read_gvecs_at_kpt
-    module procedure odf_read_gvecs_at_kpt_unified
-  end interface odf_read_gvecs_at_kpt
+!  interface odf_read_gvecs_at_kpt
+!    module procedure odf_read_gvecs_at_kpt_unified
+!  end interface odf_read_gvecs_at_kpt
 
   interface odf_get_ngvecs_at_kpt
     module procedure odf_get_ngvecs_at_kpt_unified, odf_get_ngvecs_at_kpt_split
   end interface odf_get_ngvecs_at_kpt
 
   contains 
-  
+
+!> @author John Vinson, NIST
+!> @brief Function returns the MPI comunicator that connects all the processors within a pool
   pure function odf_poolComm() 
     use ocean_mpi, only : MPI_COMM_NULL
     use ocean_legacy_files, only : olf_poolComm
@@ -77,15 +79,20 @@ module ocean_dft_files
         odf_poolComm = qe54_poolComm()
       case( QE62_FLAVOR )
         odf_poolComm = qe62_poolComm()
+      case( ABINIT_FLAVOR )
+        odf_poolComm = abi_poolComm()
       case default
         odf_poolComm = MPI_COMM_NULL
     end select
   end function odf_poolComm
 
+!> @author John Vinson, NIST
+!> @brief Returns the processor's ID within a pool
   pure function odf_poolID() result( pid )
     use ocean_legacy_files, only : olf_poolID
     use ocean_qe54_files, only : qe54_poolID
     use ocean_qe62_files, only : qe62_poolID
+    use ocean_abi_files, only : abi_poolID
     integer :: pid
     select case( flavor )
       case( LEGACY_FLAVOR )
@@ -94,33 +101,45 @@ module ocean_dft_files
         pid = qe54_poolID()
       case( QE62_FLAVOR )
         pid = qe62_poolID()
+      case( ABINIT_FLAVOR )
+        pid = abi_poolID()
       case default
         pid = -1
     end select
   end function odf_poolID
 
+!> @author John Vinson, NIST
+!> @brief Returns true if we have a gamma-point calculation
   pure function odf_isGamma() result( isGamma_ )
     logical :: isGamma_
     isGamma_ = isGamma
     return
   end function odf_isGamma
 
+!> @author John Vinson, NIST
+!> @brief Returns true if we have a full storage (ie, every planewave is defined) 
+!> In contrast, for a gamma-point calculation we might only return half the plane-wave 
+!> coefficients. 
   pure function odf_isFullStorage() result( FS )
     logical :: FS
     FS = isFullStorage
     return
   end function odf_isFullStorage
 
+!> @brief Currently a stub/not used
   pure function odf_isDualFile() result( isDualFile_ )
     logical :: isDualFile_
     isDualFile_ = isDualFile
     return
   end function odf_isDualFile
     
+!> @author John Vinson, NIST
+!> @brief Returns the number of processor pools that are being used to read in the wave functions
   pure function odf_npool() result( npool_ )
     use ocean_legacy_files, only : olf_npool
     use ocean_qe54_files, only : qe54_npool
     use ocean_qe62_files, only : qe62_npool
+    use ocean_abi_files, only : abi_npool
     integer :: npool_
 
     select case( flavor )
@@ -130,15 +149,25 @@ module ocean_dft_files
         npool_= qe54_npool()
       case( QE62_FLAVOR )
         npool_ = qe62_npool()
+      case( ABINIT_FLAVOR )
+        npool_ = abi_npool()
       case default
         npool_ = -1
     end select
   end function odf_npool
 
+!> @author John Vinson, NIST
+!> @brief Each processor pool will be assigned a certain number of k-points and spins. 
+!> This routine returns the k-point and spin of the uni-th wavefunction 
+!> or (0,0) if the pool doesn't have that many wavefunctions assigned
+!> param[in] uni
+!> param[out] ikpt
+!> param[out] ispin
   subroutine odf_universal2KptAndSpin( uni, ikpt, ispin )
     use ocean_legacy_files, only : olf_universal2KptAndSpin
     use ocean_qe54_files, only : qe54_universal2KptAndSpin
     use ocean_qe62_files, only : qe62_universal2KptAndSpin
+    use ocean_abi_files, only : abi_universal2KptAndSpin
     
     integer, intent( in ) :: uni
     integer, intent( out ) :: ikpt, ispin
@@ -150,6 +179,8 @@ module ocean_dft_files
         call qe54_universal2KptAndSpin( uni, ikpt, ispin )
       case( QE62_FLAVOR )
         call qe62_universal2KptAndSpin( uni, ikpt, ispin )
+      case( ABINIT_FLAVOR )
+        call abi_universal2KptAndSpin( uni, ikpt, ispin )
       case default
         ikpt = -1
         ispin = -1
@@ -177,6 +208,9 @@ module ocean_dft_files
     end select
   end function odf_getPoolIndex
 
+!> @author John Vinson, NIST
+!> @brief Given an pool ID (ID within the pool communicator) this returns the number 
+!> of bands with options to select all, valence, or conduction. The default is all. 
   pure function odf_getBandsForPoolID( poolID, odfFlag ) result(nbands)
     integer, intent( in ) :: poolID
     integer, intent( in ), optional :: odfFlag
@@ -197,11 +231,14 @@ module ocean_dft_files
     
   end function odf_getBandsForPoolID
 
-
+!> @author John Vinson, NIST
+!> @brief Given an pool ID (ID within the pool communicator) this returns the number 
+!> of valence bands (can be zero)
   pure function odf_getValenceBandsForPoolID( poolID ) result(nbands)
     use ocean_legacy_files, only : olf_getValenceBandsForPoolID
     use ocean_qe54_files, only : qe54_getValenceBandsForPoolID
     use ocean_qe62_files, only : qe62_getValenceBandsForPoolID
+    use ocean_abi_files, only : abi_getValenceBandsForPoolID
     integer, intent( in ) :: poolID
     integer :: nbands
 
@@ -212,15 +249,21 @@ module ocean_dft_files
         nbands = qe54_getValenceBandsForPoolID( poolID ) 
       case( QE62_FLAVOR )
         nbands = qe62_getValenceBandsForPoolID( poolID )
+      case( ABINIT_FLAVOR )
+        nbands = abi_getValenceBandsForPoolID( poolID )
       case default
         nbands = -1
     end select
   end function odf_getValenceBandsForPoolID
 
+!> @author John Vinson, NIST
+!> @brief Given an pool ID (ID within the pool communicator) this returns the number 
+!> of conduction bands (can be zero)
   pure function odf_getConductionBandsForPoolID( poolID ) result(nbands)
     use ocean_legacy_files, only : olf_getConductionBandsForPoolID
     use ocean_qe54_files, only : qe54_getConductionBandsForPoolID
     use ocean_qe62_files, only : qe62_getConductionBandsForPoolID
+    use ocean_abi_files, only : abi_getConductionBandsForPoolID
     integer, intent( in ) :: poolID
     integer :: nbands
 
@@ -231,11 +274,16 @@ module ocean_dft_files
         nbands = qe54_getConductionBandsForPoolID( poolID ) 
       case( QE62_FLAVOR )
         nbands = qe62_getConductionBandsForPoolID( poolID )
+      case( ABINIT_FLAVOR )
+        nbands = abi_getConductionBandsForPoolID( poolID )
       case default
         nbands = -1
     end select 
   end function odf_getConductionBandsForPoolID
 
+!> @author John Vinson, NIST
+!> @brief Given an pool ID (ID within the pool communicator) this returns the number 
+!> of bands (valence+conduction combined, can be zero)
   pure function odf_getAllBandsForPoolID( poolID ) result(nbands)
     use ocean_legacy_files, only : olf_getAllBandsForPoolID
     use ocean_qe54_files, only : qe54_getAllBandsForPoolID
@@ -258,6 +306,8 @@ module ocean_dft_files
     end select 
   end function odf_getAllBandsForPoolID
 
+!> @author John Vinson
+!> @brief Given a pool index and pool ID returns the global ID (world comm id)
   pure function odf_returnGlobalID( poolIndex, poolID ) result( globalID )
     use ocean_legacy_files, only : olf_returnGlobalID
     use ocean_qe54_files, only : qe54_returnGlobalID
@@ -279,6 +329,9 @@ module ocean_dft_files
     end select
   end function odf_returnGlobalID
 
+!> @author John Vinson
+!> @brief Returns the number of processors assigned to each pool. 
+!> Each pool always has the same number of processors and spares are just left out. 
   pure function odf_nprocPerPool() result( nproc )
     use ocean_legacy_files, only : olf_nprocPerPool
     use ocean_qe54_files, only : qe54_nprocPerPool
@@ -311,6 +364,16 @@ module ocean_dft_files
     integer, intent( in ), optional :: sel
 
     integer :: sel_
+
+    ! JTV attempt to reduce this redundancy
+    ! Might just want to make poolID optional to odf_getBandsForPoolID()
+    if( present( sel ) ) then
+      nbands = odf_getBandsForPoolID( odf_poolID(), sel ) 
+    else
+      nbands = odf_getBandsForPoolID( odf_poolID() ) 
+    endif
+    if( nbands .lt. 0 ) ierr = -1
+    return
 
     sel_ = ODF_ALL
     if( present( sel ) ) sel_ = sel
@@ -393,7 +456,9 @@ module ocean_dft_files
 
   end subroutine return_all_bands
 
-
+!> @author John Vinson, NIST
+!> @brief For a given input kpt and spin sets is_kpt to true if the calling processor 
+!> belongs to the pool that will read this wave function
   subroutine odf_is_my_kpt( ikpt, ispin, is_kpt, ierr )
     use ocean_legacy_files, only : olf_is_my_kpt
     use ocean_qe54_files, only : qe54_is_my_kpt
@@ -417,6 +482,7 @@ module ocean_dft_files
     end select
   end subroutine odf_is_my_kpt
 
+#if 0
   subroutine odf_read_gvecs_at_kpt_unified( ikpt, ispin, gvecs, ierr )
     use ocean_qe62_files, only : qe62_read_gvecs_at_kpt
     !
@@ -433,7 +499,10 @@ module ocean_dft_files
     end select
 
   end subroutine odf_read_gvecs_at_kpt_unified
+#endif
   
+!> @author John Vinson, NIST
+!> @brief Grabs the number of gvectors for a given kpt and spin
   subroutine odf_get_ngvecs_at_kpt_unified( ikpt, ispin, gvecs, ierr )
     use ocean_legacy_files, only : olf_get_ngvecs_at_kpt
     use ocean_qe54_files, only : qe54_get_ngvecs_at_kpt
@@ -458,7 +527,11 @@ module ocean_dft_files
     end select
   end subroutine odf_get_ngvecs_at_kpt_unified
 
-
+!> @author John Vinson, NIST
+!> @brief Grabs the number of gvectors for a given kpt and spin, but can return
+!> different values for valence and conduction bands. When there are different 
+!> k-point grids for the valence and conduction (finite q) the gvectors can be 
+!> different.
   subroutine odf_get_ngvecs_at_kpt_split( ikpt, ispin, gvecs, ierr )
     use ocean_legacy_files, only : olf_get_ngvecs_at_kpt
     use ocean_qe54_files, only : qe54_get_ngvecs_at_kpt_split
@@ -484,6 +557,10 @@ module ocean_dft_files
     end select
   end subroutine odf_get_ngvecs_at_kpt_split
 
+!> @author John Vinson, NIST
+!> @brief A given kpoint and spin is read by its processor pool. The wave functions 
+!> are distributed among the processors in the pool by band. Each processor has a 
+!> single continguous chunk. Valence and conduction are not separated.
   subroutine odf_read_at_kpt( ikpt, ispin, ngvecs, my_bands, gvecs, wfns, ierr )
     use ocean_legacy_files, only : olf_read_at_kpt
     use ocean_qe54_files, only : qe54_read_at_kpt
@@ -508,6 +585,10 @@ module ocean_dft_files
     end select
   end subroutine odf_read_at_kpt
 
+!> @author John Vinson, NIST
+!> @brief A given kpoint and spin is read by its processor pool. The wave functions 
+!> are distributed among the processors in the pool by band. Each processor has a 
+!> single continguous chunk. Valence and conduction are treated separately.
   subroutine odf_read_at_kpt_split( ikpt, ispin, valNGvecs, conNGvecs, valBands, conBands, &
                                     valGvecs, conGvecs, valUofG, conUofG, ierr )
     use ocean_legacy_files, only : olf_read_at_kpt_split
