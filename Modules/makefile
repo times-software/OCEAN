@@ -27,6 +27,9 @@ ocean_qe54_files.mod: ai_kinds.mod ocean_mpi.mod screen_timekeeper.mod
 ocean_qe62_files.o:   ai_kinds.mod ocean_mpi.mod screen_timekeeper.mod
 ocean_qe62_files.mod: ai_kinds.mod ocean_mpi.mod screen_timekeeper.mod
 
+ocean_abi_files.o:    ai_kinds.mod ocean_mpi.mod screen_timekeeper.mod
+ocean_abi_files.mod:  ai_kinds.mod ocean_mpi.mod screen_timekeeper.mod
+
 ocean_dft_files.o:   ai_kinds.mod ocean_mpi.mod ocean_legacy_files.mod ocean_qe54_files.mod \
                      ocean_qe62_files.mod
 ocean_dft_files.mod: ai_kinds.mod ocean_mpi.mod ocean_legacy_files.mod ocean_qe54_files.mod \
