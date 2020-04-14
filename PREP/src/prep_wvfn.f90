@@ -463,6 +463,7 @@ module prep_wvfn
     write(1000+myid, * ) 'Calling Energies'
     flush(1000+myid)
     call prep_wvfn_writeEnergies( ierr )
+    if( ierr .ne. 0 ) return
     call MPI_BARRIER( comm, ierr )
     write(1000+myid, * ) 'Finished Energies'
     flush(1000+myid)

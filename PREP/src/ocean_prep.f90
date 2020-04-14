@@ -56,7 +56,7 @@ program ocean_prep
   call screen_tk_stop( "main" )
 
   call screen_tk_start( "clean" )
-!  call odf_clean( ierr )
+  call odf_clean( ierr )
   if( ierr .ne. 0 ) goto 111
   
 

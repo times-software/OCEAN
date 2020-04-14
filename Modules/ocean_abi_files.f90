@@ -78,7 +78,7 @@ module ocean_abi_files
   public :: abi_nprocPerPool, abi_getPoolIndex, abi_returnGlobalID
   public :: abi_return_my_bands, abi_is_my_kpt
   public :: abi_get_ngvecs_at_kpt, abi_get_ngvecs_at_kpt_split
-  public :: abi_read_energies_single
+  public :: abi_read_energies_single, abi_read_energies_split
   public :: abi_poolComm, abi_poolID, abi_npool, abi_universal2KptAndSpin
 
   contains
@@ -347,7 +347,7 @@ module ocean_abi_files
     real( DP ), intent(out) :: energies(:,:,:)
     integer, intent( inout ) :: ierr
 
-    integer :: nbands, offAdjust
+    integer :: nbands
     integer :: ispin, ikpt, j
 
     if( is_split ) then
@@ -355,9 +355,9 @@ module ocean_abi_files
       return
     endif
 
+#ifdef MPI
     if( myid .eq. root ) then
       nbands = brange(4) - brange(1) + 1
-      offAdjust = 0
       do ispin = 1, nspin
         do ikpt = 1, nkpt
           call MPI_FILE_READ_AT( WFK_FH, eigenOffsets( ikpt, ispin, 1 ), &
@@ -376,8 +376,66 @@ module ocean_abi_files
     endif
 
     call MPI_BCAST( energies, size( energies ), MPI_DOUBLE_PRECISION, root, comm, ierr )
+#endif
 
   end subroutine abi_read_energies_single
+
+!> @author John Vinson, NIST
+!> @brief Read in the energies by band, kpt, and spin, and pass them back in a single array
+!> param[out] energies
+!> @param[inout] ierr
+  subroutine abi_read_energies_split( valEnergies, conEnergies, ierr )
+#ifdef MPI
+    use ocean_mpi, only : MPI_DOUBLE_PRECISION, myid, comm, root, MPI_STATUS_IGNORE
+#endif
+    use ai_kinds, only : sizeDouble
+    real( DP ), intent(out) :: valEnergies(:,:,:), conEnergies(:,:,:)
+    integer, intent( inout ) :: ierr
+#ifdef MPI
+    integer( MPI_OFFSET_KIND ) :: offset, offSkip
+#endif
+    integer :: nbands, ispin, ikpt, nShift
+
+
+#ifdef MPI
+    if( myid .eq. root ) then
+      nbands = brange(2) - brange(1) + 1
+      do ispin = 1, nspin
+        do ikpt = 1, nkpt
+          call MPI_FILE_READ_AT( WFK_FH, eigenOffsets( ikpt, ispin, 1 ), &
+                                 valEnergies(:,ikpt,ispin), nbands, MPI_DOUBLE_PRECISION, &
+                                 MPI_STATUS_IGNORE, ierr )
+          if( ierr .ne. 0 ) return
+        enddo
+      enddo
+
+      if( is_shift ) then
+        nshift = 2
+      else
+        nShift = 1
+      endif
+!       write( 6, * ) eigenOffsets( 1,1,1 ), eigenOffsets(1,1,nshift)
+      offSkip = ( brange(3)-1 ) * sizeDouble
+      nbands = brange(4)-brange(3) + 1
+      do ispin = 1, nspin
+        do ikpt = 1, nkpt
+          offset = eigenOffsets( ikpt, ispin, nShift ) + offSkip
+          call MPI_FILE_READ_AT( WFK_splitFH, offset, &
+                                 conEnergies(:,ikpt,ispin), nbands, MPI_DOUBLE_PRECISION, &
+                                 MPI_STATUS_IGNORE, ierr )
+          if( ierr .ne. 0 ) return
+        enddo
+      enddo
+    endif
+
+    call MPI_BCAST( valEnergies, size( valEnergies ), MPI_DOUBLE_PRECISION, root, comm, ierr )
+    if( ierr .ne. 0 ) return
+    call MPI_BCAST( conEnergies, size( conEnergies ), MPI_DOUBLE_PRECISION, root, comm, ierr )
+
+#endif
+
+  end subroutine abi_read_energies_split
+
     
 !> @author John Vinson, NIST
 !> @brief Read in the wavefunctions at a given kpoint and spin. 
@@ -811,7 +869,7 @@ module ocean_abi_files
 
     integer :: nSplit
 
-    if( is_split ) then
+    if( is_shift ) then
       nSplit = 2
     else
       nSplit = 1
@@ -1268,7 +1326,7 @@ module ocean_abi_files
   integer, intent( inout ) :: ierr
   integer :: nSplit
 
-  if( is_split ) then
+  if( is_shift ) then
     nSplit = 2
   else
     nSplit = 1

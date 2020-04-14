@@ -767,6 +767,7 @@ module ocean_dft_files
 !    use ocean_legacy_files, only : olf_read_energies_split
     use ocean_qe54_files, only : qe54_read_energies_split
     use ocean_qe62_files, only : qe62_read_energies_split
+    use ocean_abi_files, only : abi_read_energies_split
     integer, intent( in ) :: myid, root
     real(DP), intent(out), dimension(:,:,:) :: valEnergies, conEnergies
     integer, intent(inout) :: ierr
@@ -791,6 +792,10 @@ module ocean_dft_files
 
       case( QE62_FLAVOR )
         call qe62_read_energies_split( myid, root, valEnergies, conEnergies, ierr )
+
+      case( ABINIT_FLAVOR )
+
+        call abi_read_energies_split( valEnergies, conEnergies, ierr )
 
       case default
         ierr = 1
