@@ -921,7 +921,7 @@ module ocean_abi_files
     character(len=6) :: codvsn
     character(len=132) :: title
     integer :: headform, fform, maxband, noncollinear, numSyms, numPsps, &
-               numAtomTypes, natoms, numkshifts, i, k, j, iia, ia, na
+               numAtomTypes, natoms, numkshifts, i, k, j, iia, ia, na, testNkpt
     integer( MPI_OFFSET_KIND ) :: offset
 
     pos = 0
@@ -964,7 +964,9 @@ module ocean_abi_files
       return
     endif
  
-    if( nkpt .ne. i1( 9 ) ) then
+    testNkpt = nkpt
+    if( is_shift .and. .not. is_split ) testNkpt = 2 * nkpt
+    if( testNkpt .ne. i1( 9 ) ) then
       write(6,*) "K-points in abinit file don't match other inputs"
       ierr = 2148
       return
@@ -1030,11 +1032,11 @@ module ocean_abi_files
     ! znucltypat -- ntypat
     ! wtk -- nkpt
 
-    pos = pos + sizeRecord + 2 * nkpt * sizeInt + nkpt * nspin * sizeInt
+    pos = pos + sizeRecord + 2 * testNkpt * sizeInt + testNkpt * nspin * sizeInt
     
-    pos = pos + numPsps * sizeInt + 10 * numSyms * sizeInt + natoms * sizeInt + 3 * nkpt * sizeDouble &
-        + maxband * nkpt * nspin * sizeDouble + 3 * numSyms * sizeDouble &
-        + numAtomTypes * sizeDouble + nkpt * sizeDouble
+    pos = pos + numPsps * sizeInt + 10 * numSyms * sizeInt + natoms * sizeInt + 3 * testNkpt * sizeDouble &
+        + maxband * testNkpt * nspin * sizeDouble + 3 * numSyms * sizeDouble &
+        + numAtomTypes * sizeDouble + testNkpt * sizeDouble
 
     pos = pos + sizeRecord
 
@@ -1084,7 +1086,7 @@ module ocean_abi_files
     offset = pos + sizeRecord
     do i = 1, nspin
       do k = 1, nkpt
-        do iia = ia, na
+        do iia = ia, na  ! This loops if we have a double grid in a single file, ie shift but not split
           offset = offset + 2 * sizeRecord + 3 * sizeInt
           gVecOffsets( k, i, iia ) = offset
           offset = offset + 2 * sizeRecord + 3 * planewavesByK( k, iia ) * sizeInt

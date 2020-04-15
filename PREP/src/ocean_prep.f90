@@ -71,5 +71,6 @@ program ocean_prep
   call ocean_mpi_finalize( ierr )
 
 111 continue
+  if( ierr .ne. 0 ) stop ierr
 
 end program ocean_prep

@@ -130,7 +130,7 @@ close IN;
 # rename new to correct version
 if( $screenWvfn =~ m/new/i )
 {
-  $screenWvfn = 'abi'
+  $screenWvfn = 'abinit'
 }
 open IN, "screen.legacy" or die "Failed to open screen.legacy\n$!";
 my $screenLegacy = <IN>;
@@ -182,7 +182,7 @@ if( $run_screen == 1 )
     $runfile = sprintf("../${rundir}/RUN%04u_WFK", 1 );
     system("ln -s $runfile .") == 0  or die "Failed to link $runfile\n";
 
-    if(  $screenWvfn =~ m/qe(\d+)/ && $screenLegacy == 0 )
+    if(  $screenWvfn =~ m/abi(\d+)/ && $screenLegacy == 0 )
     {
       print "Don't convert DFT. Using new method for screening wavefunctions.\n";
       `touch listwfile masterwfile enkfile`;
@@ -377,6 +377,10 @@ if( $runBSE != 0 )
       {
         print "Calculating XAS\n";
         $is_xas = 1;
+      }
+      elsif( lc($mode) =~ m/val/ )
+      {
+        $is_xas = 0; # doesn't matter, but don't announce we are doing XAS
       }
       else
       {

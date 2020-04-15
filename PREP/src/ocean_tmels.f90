@@ -194,6 +194,7 @@ module ocean_tmels
     if( fancyFileView ) then
       call MPI_FILE_SET_VIEW( tmelsFH, offset, MPI_DOUBLE_COMPLEX, fileType, "native", MPI_INFO_NULL, ierr )
     else
+      offset = 0
       call MPI_FILE_SET_VIEW( tmelsFH, offset, MPI_DOUBLE_COMPLEX, MPI_DOUBLE_COMPLEX, "native", MPI_INFO_NULL, ierr )
     endif
     if( ierr .ne. 0 ) return
