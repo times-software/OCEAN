@@ -849,7 +849,7 @@ module ocean_abi_files
     call MPI_FILE_CLOSE( WFK_FH, ierr )
     if( ierr .ne. 0 ) return
     if( is_split ) then
-      call MPI_FILE_CLOSE( WFK_FH, ierr )
+      call MPI_FILE_CLOSE( WFK_splitFH, ierr )
       if( ierr .ne. 0 ) return
     endif
 
