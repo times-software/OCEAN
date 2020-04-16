@@ -79,7 +79,7 @@ if ( $RunPP ) {
   $RunABINIT = 1;
 }
 else {
-  foreach (@AbinitFiles) {
+  foreach (@AbinitFiles,@KgenFiles) {
     if ( -e $_ ) {
       if ( `diff -q $_ ../Common/$_` ) {
         $RunABINIT = 1;
