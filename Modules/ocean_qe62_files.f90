@@ -595,19 +595,16 @@ module ocean_qe62_files
       read( 99, * ) eBandStart, eBandStop, eNkpt, eNspin
       if( brange( 1 ) .lt. eBandStart ) then
         ierr = 701
-      endif
-      if( brange( 4 ) .gt. eBandStop ) then
+      else if( brange( 4 ) .gt. eBandStop ) then
         ierr = 702
-      endif
 !      if( is_shift ) then
 !        if( eNkpt .ne. 2 * product( kpts(:) ) ) then
 !          ierr = 705
 !        endif
 !      elseif( eNkpt .ne. product( kpts(:) ) ) then
-      if( eNkpt .ne. product( kpts(:) ) ) then
+      elseif( eNkpt .ne. product( kpts(:) ) ) then
         ierr = 703
-      endif
-      if( eNspin .ne. nspin ) then
+      elseif( eNspin .ne. nspin ) then
         ierr = 704 
       endif
 
@@ -616,8 +613,8 @@ module ocean_qe62_files
 #ifdef MPI
         call MPI_BCAST( ierr, 1, MPI_INTEGER, inter_root, inter_comm, ierr_ )
         return
-      endif
 #endif
+      endif
 
       allocate( temp_energies( eBandStart : eBandStop, eNkpt, eNspin ) )
       read( 99, * ) temp_energies( :, :, : )

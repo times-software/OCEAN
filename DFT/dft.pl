@@ -1057,7 +1057,7 @@ if ( $nscfRUN ) {
         copy "../Out/$qe_data_files{'prefix'}.save/data-file.xml", "Out/$qe_data_files{$prefix}.save/data-file.xml";
         $qeVersion = 54;
       }
-      if( -e catfile( updir(), $qe_data_files{'work_dir'}, $qe_data_files{'prefix'} . ".save", 
+      elsif( -e catfile( updir(), $qe_data_files{'work_dir'}, $qe_data_files{'prefix'} . ".save", 
                          "data-file-schema.xml" ) )
       {
         copy catfile( updir(), $qe_data_files{'work_dir'}, $qe_data_files{'prefix'} . ".save", 
