@@ -35,7 +35,7 @@ my $RunABINIT = 0;
 my $screenRUN = 0;
 my $bseRUN = 0;
 
-my @GeneralFiles = ("para_prefix", "ser_prefix" );
+my @GeneralFiles = ("para_prefix", "ser_prefix", "calc" );
 
 my @KgenFiles = ("nkpt", "k0.ipt", "qinunitsofbvectors.ipt", "screen.nkpt");
 my @BandFiles = ("nbands", "screen.nbands");
@@ -44,7 +44,7 @@ my @AbinitFiles = ( "rscale", "rprim", "ntype", "natoms", "typat",
     "fband", "occopt", "ngkpt", "abpad", "nspin", "smag", "metal", "degauss", 
     "dft.calc_stress", "dft.calc_force", "tot_charge", "dft.split", "dft");
 my @PPFiles = ("pplist", "znucl");
-my @OtherFiles = ("epsilon");
+my @OtherFiles = ("epsilon", "screen.mode");
 
 my $AbiVersion = 0;
 my $AbiMinorV = -1;
@@ -177,11 +177,30 @@ close SER;
 #`echo "1" > pp.stat`;
 #}
 
+open IN, "calc" or die "Failed to open calc\n";
+<IN> =~m/(\w+)/ or die "Failed to parse calc\n";
+my $calc = $1;
+close IN;
+
+my $old_screen_mode;
+if( -e "screen.mode" )
+{
+  open IN, "screen.mode" or die "Failed to open screen.mode\n$!";
+  <IN> =~m/(\w+)/ or die "Failed to parse screen.mode\n";
+  $old_screen_mode = $1;
+  close IN;
+}
+else
+{
+  $old_screen_mode = '';
+}
+
 #if ($RunABINIT) {
   foreach (@AbinitFiles, @OtherFiles) {
     system("cp ../Common/$_ .") == 0 or die;
   } 
 #}
+
 
 #############################################
 my $ecut = `cat ecut`;
@@ -288,6 +307,27 @@ if ( -d $screenDIR ) {
 else {
   $screenRUN = 1;
 }
+open IN, "screen.mode" or die "Failed to open screen.mode";
+<IN> =~m/(\w+)/ or die "Failed to parse screen.mode\n";
+my $screen_mode = $1;
+close IN;
+
+open IN, "screen.mode" or die "Failed to open screen.mode\n";
+<IN> =~m/(\w+)/ or die "Failed to parse screen.mode\n";
+my $screen_mode = $1;
+close IN;
+if( $calc =~ m/val/i )
+{
+  $screenRUN = 0 unless( $screen_mode =~ m/grid/i );
+}
+if( $screenRUN == 0 && $screen_mode =~ m/grid/i )
+{
+  unless( $old_screen_mode =~ m/grid/i )
+  {
+    print "Need screening for valence: $old_screen_mode\n";
+    $screenRUN = 1;
+  }
+}
 
 if ($screenRUN == 1) {
   print "Need to run for SCREENING\n";
@@ -296,6 +336,7 @@ if ($screenRUN == 1) {
   mkdir $screenDIR;
 }
 else {
+  `mkdir -p  $screenDIR`;
   `touch $screenDIR/old`;
 }
 
