@@ -37,12 +37,12 @@ my $bseRUN = 0;
 
 my @GeneralFiles = ("para_prefix", "ser_prefix", "calc" );
 
-my @KgenFiles = ("nkpt", "k0.ipt", "qinunitsofbvectors.ipt", "screen.nkpt");
+my @KgenFiles = ("nkpt", "k0.ipt", "qinunitsofbvectors.ipt", "screen.nkpt", "dft.split");
 my @BandFiles = ("nbands", "screen.nbands");
 my @AbinitFiles = ( "rscale", "rprim", "ntype", "natoms", "typat",
     "verbatim", "coord", "taulist", "ecut", "etol", "nrun", "wftol", 
     "fband", "occopt", "ngkpt", "abpad", "nspin", "smag", "metal", "degauss", 
-    "dft.calc_stress", "dft.calc_force", "tot_charge", "dft.split", "dft");
+    "dft.calc_stress", "dft.calc_force", "tot_charge", "dft");
 my @PPFiles = ("pplist", "znucl");
 my @OtherFiles = ("epsilon", "screen.mode");
 
@@ -357,6 +357,10 @@ if ( -d $bseDIR) {
   else {
     $bseRUN = 1;
   }
+  if( $bseRUN == 0 )
+  {
+    $bseRUN = 2 if ( `diff -q qinunitsofbvectors.ipt ../qinunitsofbvectors.ipt` );
+  }
   chdir "../"
 }
 else {
@@ -374,7 +378,12 @@ if ($bseRUN == 1 ) {
   `rm -rf $bseDIR`;
   mkdir $bseDIR;
 }
-else {
+elsif( $bseRUN == 2 ) 
+{
+  print "Need run occupied states for the BSE\n"; 
+}
+else
+{
   `touch $bseDIR/old`;
 }
 
@@ -426,9 +435,9 @@ if ($RunABINIT) {
   `cat occopt >> abfile`;
   `echo "$tsmear" >> abfile`;
   `echo 'npfft 1' >> abfile`;
-  `echo -n 'charge ' >> abfile`;
+  `echo  'charge ' >> abfile`;
   `cat tot_charge >> abfile`;
-  `echo -n 'nsppol ' >> abfile`;
+  `echo  'nsppol ' >> abfile`;
   `cat nspin >> abfile`;
   if( $nspn == 2 )
   {
@@ -860,7 +869,7 @@ if ( $bseRUN ) {
   foreach ( @GeneralFiles, @AbinitFiles, @PPFiles, @OtherFiles) {
     system("cp ../$_ .") == 0 or die "Failed to copy $_\n";
   }
-  foreach ( "nkpt", "nbands", "k0.ipt", "qinunitsofbvectors.ipt", "finalpplist", "core" ) {
+  foreach ( "nkpt", "nbands", "k0.ipt", "qinunitsofbvectors.ipt", "finalpplist", "core", "dft.split" ) {
     system("cp ../$_ .") == 0 or die "Failed to copy $_\n";
   }
  # run KGEN
@@ -903,6 +912,11 @@ if ( $bseRUN ) {
       {
         $nfiles = 2;
         print "DFT will be split up\n";
+        if( $bseRUN == 2 )
+        {
+          $nfiles = 1;
+          print "  conduction bands re-used\n";
+        }
       }
       else
       {
@@ -911,6 +925,7 @@ if ( $bseRUN ) {
     }
     close IN;
   }
+
 
 
   for (my $runcount = 1; $runcount <= $nfiles; $runcount++ )

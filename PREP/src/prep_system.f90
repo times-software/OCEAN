@@ -74,6 +74,7 @@ module prep_system
   contains
 
   subroutine prep_system_ikpt2kvec( ikpt, addShift, kvec, kvecCart )
+    use ai_kinds, only : QP
     integer, intent( in ) :: ikpt
     logical, intent( in ) :: addShift
     real(DP), intent( out ) :: kvec(3), kvecCart(3)
@@ -87,11 +88,13 @@ module prep_system
     ikz = ik - iky * params%kmesh( 3 ) - 1
 
     
-    kvec( 1 ) = ( params%k0( 1 ) + real( ikx, DP ) ) / real( params%kmesh( 1 ), DP )
-    kvec( 2 ) = ( params%k0( 2 ) + real( iky, DP ) ) / real( params%kmesh( 2 ), DP )
-    kvec( 3 ) = ( params%k0( 3 ) + real( ikz, DP ) ) / real( params%kmesh( 3 ), DP )
+    kvec( 1 ) = ( params%k0( 1 ) + real( ikx, QP ) ) / real( params%kmesh( 1 ), QP )
+    kvec( 2 ) = ( params%k0( 2 ) + real( iky, QP ) ) / real( params%kmesh( 2 ), QP )
+    kvec( 3 ) = ( params%k0( 3 ) + real( ikz, QP ) ) / real( params%kmesh( 3 ), QP )
 
-    if( addShift ) kvec(:) = kvec(:) + params%qshift(:)
+!    if( addShift ) kvec(:) = kvec(:) + params%qshift(:)
+    ! Moving the occupied to the shifted grid by shifting them back with respect to the unocc
+    if( .not. addShift ) kvec(:) = kvec(:) - params%qshift(:)
 
     kvecCart(:) =  0
     do i = 1, 3
@@ -446,6 +449,8 @@ module prep_system
         return
       endif
     else
+      ierr = 124712
+      return
       params%k0( 1 ) = 0.125_DP
       params%k0( 2 ) = 0.25_DP
       params%k0( 3 ) = 0.375_DP

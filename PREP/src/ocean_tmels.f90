@@ -75,17 +75,19 @@ module ocean_tmels
     nGV = size( valGvecs, 2 )
     nGC = size( conGvecs, 2 )
 
+
+
     allocate( gVecMap( nGV ) )
     do i = 1, nGV
       do j = i, nGC
-        if( valGvecs( 1, i ) .eq. conGvecs( 1, j ) .and. valGvecs( 2, j ) .eq. conGvecs( 2, j ) & 
+        if( valGvecs( 1, i ) .eq. conGvecs( 1, j ) .and. valGvecs( 2, i ) .eq. conGvecs( 2, j ) & 
             .and. valGvecs( 3, i ) .eq. conGvecs( 3, j ) ) then
           gVecMap( i ) = j
           goto 11
         endif
       enddo
       do j = 1, i - 1
-        if( valGvecs( 1, i ) .eq. conGvecs( 1, j ) .and. valGvecs( 2, j ) .eq. conGvecs( 2, j ) &
+        if( valGvecs( 1, i ) .eq. conGvecs( 1, j ) .and. valGvecs( 2, i ) .eq. conGvecs( 2, j ) &
             .and. valGvecs( 3, i ) .eq. conGvecs( 3, j ) ) then
           gVecMap( i ) = j
           goto 11
