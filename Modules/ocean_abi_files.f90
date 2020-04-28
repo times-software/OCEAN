@@ -328,7 +328,7 @@ module ocean_abi_files
       return
     endif
     gvecs(1) = planewavesByK( ikpt, 1 )
-    if( is_split ) then
+    if( is_shift ) then
       gvecs(2) = planewavesByK( ikpt, 2 )
     else
       gvecs(2) = gvecs(1)
@@ -571,51 +571,6 @@ module ocean_abi_files
 
 #endif
   end subroutine abi_read_at_kpt
-
-#if 0
-!> @author John Vinson, NIST
-!> @brief Stub for reading in wavefunctions with separate valence and conduction. 
-!> Calls actual routines depending on wether there is finite q and multiple files
-  subroutine abi_read_at_kpt_split( ikpt, ispin, valNGvecs, conNGvecs, valBands, conBands, &
-                                    valGvecs, conGvecs, valUofG, conUofG, ierr )
-    use ocean_mpi, only : myid
-
-    integer, intent( in ) :: ikpt, ispin, valNGvecs, conNGvecs, valBands, conBands
-    integer, intent( out ) :: valGvecs( 3, valNgvecs ), conGvecs( 3, conNgvecs )
-    complex( DP ), intent( out ) :: valUofG( valNGvecs, valBands ), conUofG( conNGvecs, conBands )
-    integer, intent( inout ) :: ierr
-    !
-    if( abi_getPoolIndex( ispin, ikpt ) .ne. mypool ) return
-    !
-    if( abi_getValenceBandsForPoolID( pool_myid ) .ne. valBands ) then
-      write(1000+myid, * ) 'Valence band mismatch:', abi_getValenceBandsForPoolID( pool_myid ), valBands
-      ierr = 1
-      return
-    endif
-    if( abi_getConductionBandsForPoolID( pool_myid ) .ne. conBands ) then
-      write(1000+myid, * ) 'Conduction band mismatch:', abi_getConductionBandsForPoolID( pool_myid ), conBands
-      ierr = 2
-      return
-    endif
-
-    ! Do we have different val and con states from DFT?
-    if( is_shift ) then
-      if( is_split ) then
-!        call shift_read_at_kpt_shift( ikpt, ispin, valNGvecs, conNGvecs, valBands, conBands, &
-!                                      valGvecs, conGvecs, valUofG, conUofG, ierr )
-        ierr = 953672
-      else
-!        call shift_read_at_kpt_split( ikpt, ispin, valNGvecs, conNGvecs, valBands, conBands, &
-!                                      valGvecs, conGvecs, valUofG, conUofG, ierr )
-        ierr = 953673
-      endif
-    else
-      call read_at_kpt_split( ikpt, ispin, valNGvecs, conNGvecs, valBands, conBands, &
-                                    valGvecs, conGvecs, valUofG, conUofG, ierr )
-    endif
-
-  end subroutine abi_read_at_kpt_split
-#endif
 
 
 !> @author John Vinson, NIST
@@ -921,7 +876,7 @@ module ocean_abi_files
     character(len=6) :: codvsn
     character(len=132) :: title
     integer :: headform, fform, maxband, noncollinear, numSyms, numPsps, &
-               numAtomTypes, natoms, numkshifts, i, k, j, iia, ia, na, testNkpt
+               numAtomTypes, natoms, numkshifts, i, k, j, iia, ia, na, testNkpt, testBand
     integer( MPI_OFFSET_KIND ) :: offset
 
     pos = 0
@@ -930,9 +885,12 @@ module ocean_abi_files
     if( is_shift .and. .not. is_split ) then
       na = 2
       ia = 1
+      testBand = bands(2)
     else
       ia = ia_
       na = ia_
+      testBand = bands(2)
+      if( is_shift .and. ia_ .eq. 1 ) testBand = brange(2)
     endif
 
     read( iun ) codvsn,headform,fform
@@ -958,7 +916,8 @@ module ocean_abi_files
 
     numKshifts = i3(3)
     maxband = i3( 4 )
-    if( maxband .lt. bands(2) ) then
+!    if( maxband .lt. bands(2) ) then
+    if( maxband .lt. testBand ) then
       write(6,*) "Abinit file has too few bands"
       ierr = 2147
       return
@@ -1009,7 +968,7 @@ module ocean_abi_files
         enddo
       enddo
       do k = 1, nkpt
-        planewavesByK(k,1) = tempPlanewavesByK((1+(k-1)*2))
+        planewavesByK(k,1) = tempPlanewavesByK(1+(k-1)*2)
         planewavesByK(k,2) = tempPlanewavesByK(k*2)
       enddo
       deallocate( tempBandsByK, tempPlanewavesByK )

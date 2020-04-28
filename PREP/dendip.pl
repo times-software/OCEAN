@@ -1,5 +1,5 @@
 #!/usr/bin/perl
-# Copyright (C) 2014, 2016, 2017, 2019 OCEAN collaboration
+# Copyright (C) 2014, 2016, 2017, 2019, 2020 OCEAN collaboration
 #
 # This file is part of the OCEAN project and distributed under the terms 
 # of the University of Illinois/NCSA Open Source License. See the file 
@@ -231,6 +231,7 @@ if( -e "BSE/done" && -e "${rundir}/old" )
     if( compare( "$_", "BSE/$_" ) != 0 )
     {
       print "Differences found in $_\nWill re-run BSE prep\n";
+      $runBSE = 1;
       last;
     }
   }
@@ -241,6 +242,7 @@ if( -e "BSE/done" && -e "${rundir}/old" )
       if( compare( "$rundir/$_", "BSE/$_" ) != 0 )
       {
         print "Differences found in $_\nWill re-run BSE prep\n";
+        $runBSE = 1;
         last;
       }
     }
