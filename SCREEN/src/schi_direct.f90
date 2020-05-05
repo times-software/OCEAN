@@ -270,10 +270,10 @@ module schi_direct
     FourPi = 4.0_DP * PI_DP
 
     appx = screen_system_appx()
-    appx = '   '
+!    appx = '   '
 
-    if( appx .eq. 'LDA' ) then
-#if 0
+    if( appx .eq. 'LD3' ) then
+#if 1
 
       open( unit=99, file='avden', form='formatted', status='unknown' )
       numr = 400
@@ -327,7 +327,7 @@ module schi_direct
              d3 * ( r - r1 ) * ( r - r2 ) * ( r - r4 ) / ( ( r3 - r1 ) * ( r3 - r2 ) * ( r3 - r4 ) ) + &
              d4 * ( r - r1 ) * ( r - r2 ) * ( r - r3 ) / ( ( r4 - r1 ) * ( r4 - r2 ) * ( r4 - r3 ) )
         call dftder3( nofr, nexc, vxc, kxc(i,1), fxc )
-        write(2222,*) grid%rad( i ), kxc(i,1)
+        write(2222,*) grid%rad( i ), kxc(i,1) * grid%drad( i ) * grid%rad( i ) ** 2, kxc(i,1), nofr
         kxc(i,1) = kxc(i,1) * grid%drad( i ) * grid%rad( i ) ** 2
 !        vcoul( i, i ) = vcoul( i, i ) + drad( i ) * rad( i ) ** 2 * kxc
       enddo
@@ -495,7 +495,7 @@ module schi_direct
 #endif
 
 10  continue
-    if( appx .eq. 'LDA' ) then
+    if( appx .eq. 'LD3' ) then
       do ilm = 1, nlm
         do i = 1, nr
           Cmat( i, ilm, i, ilm ) = Cmat( i, ilm, i, ilm ) + kxc(i,ilm)

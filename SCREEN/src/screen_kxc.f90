@@ -42,6 +42,8 @@ module screen_kxc
                              screen_paral_NumLocalSites, screen_paral_isMySite
     use screen_sites, only : site, pinfo
     use screen_grid, only : sgrid, screen_grid_project2d
+    use ocean_constants, only : pi_dp
+    use ocean_mpi, only :myid
 
     integer, intent( in ) :: isite
     type( sgrid ), intent( in ) :: grid
@@ -51,6 +53,10 @@ module screen_kxc
     !
     real(DP), allocatable :: tempMatrix(:,:)
     integer :: i, j, curSite, npt
+    integer :: inter, ir, iang, iir, ipt
+    real(DP) :: su2, pf
+
+    pf = 1.0_DP / (4.0_DP * pi_dp )
 
     npt = size( FullChi0, 1 )
     allocate( tempMatrix( npt, npt ) )
@@ -64,17 +70,43 @@ module screen_kxc
       ierr = 9521
       return
     endif
-  
-    do i = 1, npt
-      do j = 1, npt
-        tempMatrix( j, i ) = LocalFxcBySite( j, curSite ) * FullChi0( j, i )
+
+
+
+    
+    ProjectedChi0Fxc( :,:,:,:) = 0.0_DP
+    ipt = 0
+    iir = 0
+    do inter = 1, grid%ninter
+      do ir = 1, grid%rgrid(inter)%nr
+        iir = iir + 1 
+
+        su2 = 0.0_DP
+        do iang = 1, grid%agrid(inter)%nang
+          ipt = ipt + 1
+          su2 = su2 + LocalFxcBySite( ipt, curSite ) * pf * grid%agrid(inter)%weights( iang )
+        enddo
+        
+        ProjectedChi0Fxc( iir, 1, iir, 1 ) = su2! * grid%rad(iir)**2*grid%drad(iir)
+
+        
       enddo
     enddo
-    
-! Here need to project down
-    call screen_grid_project2d( grid, tempMatrix, ProjectedChi0Fxc, ierr )
 
-    deallocate( tempMatrix )
+#ifdef DEBUG
+    if( myid .eq. 0 ) then
+      open( unit=99, file='testFxc' )
+      do i = 1, grid%nr
+        write(99,*) grid%rad( i ), ProjectedChi0Fxc(i,1,i,1), ProjectedChi0Fxc(i,1,i,1)*grid%rad(i)**2*grid%drad(i)
+      enddo
+      close(99)
+    endif
+#endif
+
+    do i = 1, size( ProjectedChi0Fxc, 1 )
+      ProjectedChi0Fxc( i, 1, i, 1 ) = ProjectedChi0Fxc( i, 1, i, 1 ) * grid%rad(i)**2*grid%drad(i)
+    enddo
+
 
   end subroutine screen_kxc_makechi0fxc
 
@@ -476,6 +508,7 @@ module screen_kxc
   subroutine kxc_lda_avgDen( grid, Den, Fxc )
     use screen_grid, only : sgrid
     use ocean_constants, only : pi_DP
+    
     type(sgrid), intent( in ) :: grid
     real(DP), intent( in ) :: Den(:)
     real(DP), intent( out ) :: Fxc(:)

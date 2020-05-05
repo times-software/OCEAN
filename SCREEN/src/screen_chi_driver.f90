@@ -118,7 +118,8 @@ module screen_chi_driver
 
 !          write(6,*) 'Start screen_chi_runSite'
           if( screen_system_doFxc() ) then
-            call screen_chi_runSite( all_sites( isite )%grid, FullChi, ProjectedChi0, mySiteIndex, ierr, ProjectedChi0Fxc )
+            call screen_chi_runSite( all_sites( isite )%grid, FullChi, ProjectedChi0, mySiteIndex, &
+                                     ierr, ProjectedChi0Fxc )
           else
             call screen_chi_runSite( all_sites( isite )%grid, FullChi, ProjectedChi0, mySiteIndex, ierr )
           endif

@@ -265,6 +265,10 @@ module screen_chi
   end subroutine screen_chi_runSite
 
 
+! \chi = ( 1 - v \chi_0 )^{-1} \chi_0
+! \chi = ( 1- ( v + f_{xc} ) \chi_0 )^{-1} \chi_0
+! In the case of f_xc, we are passing in f_xc * \chi0, so the actual experssion is
+!   [ 1 - pChi0Fxc - v \chi_0 ]^{-1} \chi_0
   subroutine schi_makeChi( Chi0, cMat, Chi, ierr, pChi0Fxc )
     real(DP), intent( in ), dimension(:,:,:,:) :: chi0, cMat
     real(DP), intent( out ), dimension(:,:,:,:) :: Chi
@@ -297,16 +301,27 @@ module screen_chi
       enddo
     enddo
 
+!
+!    if( present( pChi0Fxc ) ) then
+!      temp(:,:,:,:) = temp(:,:,:,:) - pChi0Fxc(:,:,:,:)
+!    endif
+!
     if( present( pChi0Fxc ) ) then
-      temp(:,:,:,:) = temp(:,:,:,:) - pChi0Fxc(:,:,:,:)
-    endif
+      chi(:,:,:,:) = cmat(:,:,:,:) + pchi0Fxc(:,:,:,:)
+    
+      call DGEMM( 'N', 'N', fullsize, fullsize, fullsize, minusOne, chi0, fullsize, chi, fullsize, &
+                one, temp, fullsize )
+    else
 
 !    write(6,*) nbasis, nLM, fullsize
 !    write(6,'(4(I8))') size(chi0,1), size(chi0,2),size(chi0,3),size(chi0,4)
 !    write(6,'(4(I8))') size(cmat,1), size(cmat,2),size(cmat,3),size(cmat,4)
 !    write(6,'(4(I8))') size(temp,1), size(temp,2),size(temp,3),size(temp,4)
+
+    ! temp += - chi0 * cmat, where cmat is the coulomb matrix and diagonal so it commutes 
     call DGEMM( 'N', 'N', fullsize, fullsize, fullsize, minusOne, chi0, fullsize, cmat, fullsize, &
                 one, temp, fullsize )
+    endif
             
 
     allocate( ipiv( fullsize ) )

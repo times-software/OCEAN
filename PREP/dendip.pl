@@ -75,18 +75,18 @@ if( open PARA_PREFIX, "para_prefix" )
 }
 
 
+open IN, "dft.split" or die "Failed to open dft.split\n$!";
+if( <IN> =~ m/t/i )
+{
+  $split_dft = 1;
+  print "DFT has been split into to runs\n";
+}
 
 print "$stat  $oldden\n";
 unless ($stat && $oldden) {
   -e "../DFT/SCx_DEN" or die "SCx_DEN not found\n";
   `ln -sf ../DFT/SCx_DEN SCx_DEN`;
 
-  open IN, "dft.split" or die "Failed to open dft.split\n$!";
-  if( <IN> =~ m/t/i )
-  {
-    $split_dft = 1;
-    print "DFT has been split into to runs\n";
-  }
 
   #`ln -sf ../DFT/RUN????_WFK .`;
 
@@ -326,7 +326,8 @@ if( $runBSE != 0 )
 
     $Nfiles = 2 if( $split_dft == 1);
 
-    for (my $i = 1; $i <= $Nfiles; $i++) {
+    for (my $i = 1; $i <= $Nfiles; $i++) 
+    {
       $runfile = sprintf("../${rundir}/RUN%04u_WFK", $i );
       system("ln -s $runfile .") == 0 or die "Failed to link $runfile\n";
     }
