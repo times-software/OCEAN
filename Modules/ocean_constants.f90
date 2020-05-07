@@ -1,4 +1,4 @@
-! Copyright (C) 2016, 2017 OCEAN collaboration
+! Copyright (C) 2016, 2017, 2020 OCEAN collaboration
 !
 ! This file is part of the OCEAN project and distributed under the terms 
 ! of the University of Illinois/NCSA Open Source License. See the file 
@@ -14,6 +14,8 @@ module OCEAN_constants
   real(DP), parameter :: Rydberg2eV = 13.60569253_DP  !(30) 2010 CODATA
   real(DP), parameter :: eV2Hartree = 0.036749323777346887_DP
   real(DP), parameter :: Hartree2eV = 27.21138506_DP
+
+  real(DP), parameter :: angstrom2bohr = 0.529177210903_DP ! (80) 2018 CODATA
 
   ! older data from Rev Mod Phys 80 633 (2008 )
 !  real(DP), parameter :: eV2Hartree = 0.0367493253979623245294_DP 

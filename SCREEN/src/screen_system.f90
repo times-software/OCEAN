@@ -706,6 +706,7 @@ module screen_system
 
   ! NOT MPI SAFE ( in so much as it will let every process hit the filesystem )
   subroutine load_abvecs( ierr )
+    use ocean_phys, only : ophys_getBvecs
     integer, intent( inout ) :: ierr
     !
     open( unit=99, file='avecsinbohr.ipt', form='formatted', status='old', IOSTAT=ierr )
@@ -723,6 +724,10 @@ module screen_system
       write( 6, * ) 'FATAL ERROR: Failed to close avecsinbohr.ipt', ierr
       return
     endif
+
+    call ophys_getBvecs( psys%avecs, psys%bvecs, psys%celvol )
+
+#if 0
     call getomega( psys%avecs, psys%celvol )
 
     open( unit=99, file='bvecs', form='formatted', status='old', IOSTAT=ierr )
@@ -740,6 +745,7 @@ module screen_system
       write( 6, * ) 'FATAL ERROR: Failed to close bvecs', ierr
       return
     endif
+#endif
 
   end subroutine load_abvecs
 
@@ -786,6 +792,7 @@ module screen_system
     return
   end subroutine load_xyz
 
+#if 0
   subroutine getomega( avec, omega )
     !
     real(DP), intent( in ) :: avec( 3, 3 )
@@ -805,6 +812,7 @@ module screen_system
     !
     return
   end subroutine getomega
+#endif
 
 
 end module screen_system

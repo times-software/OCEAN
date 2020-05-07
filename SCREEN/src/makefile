@@ -17,7 +17,7 @@ MODOBJS = ../../Modules/ocean_mpi.o ../../Modules/ai_kinds.o ../../Modules/ocean
           ../../Modules/ocean_interpolate.o ../../Modules/periodic.o ../../Modules/screen_timekeeper.o \
           ../../Modules/ocean_legacy_files.o ../../Modules/ocean_qe54_files.o \
           ../../Modules/ocean_qe62_files.o ../../Modules/ocean_dft_files.o ../../Modules/ocean_abi_files.o \
-          ../../Modules/screen_opf.o 
+          ../../Modules/screen_opf.o ../../Modules/ocean_phys.o
 
 install:
 	cp screen_driver.x $(INSTDIR)/
@@ -33,8 +33,8 @@ screen_grid.o: screen_grid.f90 ../../Modules/ai_kinds.mod ../../Modules/ocean_co
 screen_grid.mod: screen_grid.f90 ../../Modules/ai_kinds.mod ../../Modules/ocean_constants.mod ../../Modules/ocean_mpi.mod \
 						   ocean_quadrature.mod ocean_sphericalharmonics.mod
 
-screen_system.o: screen_system.f90 ../../Modules/ai_kinds.mod ../../Modules/ocean_mpi.mod
-screen_system.mod: screen_system.f90 ../../Modules/ai_kinds.mod ../../Modules/ocean_mpi.mod
+screen_system.o: screen_system.f90 ../../Modules/ai_kinds.mod ../../Modules/ocean_mpi.mod ../../Modules/ocean_phys.mod
+screen_system.mod: screen_system.f90 ../../Modules/ai_kinds.mod ../../Modules/ocean_mpi.mod ../../Modules/ocean_phys.mod
 
 screen_paral.o: screen_paral.f90 ../../Modules/ai_kinds.mod ../../Modules/ocean_mpi.mod
 screen_paral.mod: screen_paral.f90 ../../Modules/ai_kinds.mod ../../Modules/ocean_mpi.mod

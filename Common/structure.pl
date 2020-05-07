@@ -68,6 +68,8 @@ unless( $natoms =~ m/\A\+?[0-9]*[1-9][0-9]*\z/ )
 # Later add some detection to make sure that the indices in typat are within the number of elements
 # specfied by znucl
 
+exit 0;
+if( 0 ) {
 #This section is just the beginning for trying to add in support for 
 # specifying coordinates in real units instead of crystal/reduced coordinates.
 # It won't really work yet, but it also won't break anything (since it wouldn't have worked anyway)
@@ -158,6 +160,7 @@ if( $coord =~ m/bohr/i ) #later match angstrom too, but would need to correct ot
   }
   close OUT;
 
+}
 }
 
 exit 0;

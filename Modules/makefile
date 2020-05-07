@@ -38,6 +38,9 @@ ocean_dft_files.mod: ai_kinds.mod ocean_mpi.mod ocean_legacy_files.mod ocean_qe5
 screen_opf.o:   ai_kinds.mod ocean_mpi.mod
 screen_opf.mod: ai_kinds.mod ocean_mpi.mod
 
+ocean_phys.o:   ai_kinds.mod ocean_constants.mod
+ocean_phys.mod: ai_kinds.mod ocean_constants.mod
+
 .PHONY: clean
 clean:
 	rm -f $(obj) $(mod)

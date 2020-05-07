@@ -16,6 +16,7 @@ module prep_system
 
   type atoms
     real( DP ) :: reduced_coord( 3 )
+    real( DP ) :: xcoord( 3 )
     character( len=2 ) :: el_name
     integer :: indx
     integer :: z
@@ -114,11 +115,11 @@ module prep_system
 
 
     if( myid .eq. root ) then
-      call load_atomList( ierr )
-!      call load_xyz( ierr )
+      call load_abvecs( ierr )
       if( ierr .ne. 0 ) goto 111
 
-      call load_abvecs( ierr )
+      call load_atomList( ierr )
+!      call load_xyz( ierr )
       if( ierr .ne. 0 ) goto 111
 
       call load_params( ierr )
@@ -260,7 +261,7 @@ module prep_system
     use OCEAN_mpi
     integer, intent( inout ) :: ierr
     !
-    real( DP ), allocatable :: temp_coords( :, : )
+    real( DP ), allocatable :: temp_reduced( :, : ), temp_xcoord( :, : )
     character( len=2 ), allocatable :: temp_names( : )
     integer, allocatable :: zeeAndIndx( :, : )
     integer :: ii
@@ -271,12 +272,14 @@ module prep_system
     if( ierr .ne. MPI_SUCCESS ) return
     !
     if( myid .ne. root ) allocate( psys%atom_list( psys%natoms ) )
-    allocate( temp_names( psys%natoms ), temp_coords( 3, psys%natoms ), zeeAndIndx( 2, psys%natoms ) )
+    allocate( temp_names( psys%natoms ), temp_reduced( 3, psys%natoms ), &
+              zeeAndIndx( 2, psys%natoms ), temp_xcoord( 3, psys%natoms ) )
 
     if( myid .eq. root ) then
       do ii = 1, psys%natoms
         temp_names( ii ) = psys%atom_list( ii )%el_name
-        temp_coords( :, ii ) = psys%atom_list( ii )%reduced_coord( : )
+        temp_reduced( :, ii ) = psys%atom_list( ii )%reduced_coord( : )
+        temp_xcoord( :, ii ) = psys%atom_list( ii )%xcoord( : )
         zeeAndIndx( 1, ii ) = psys%atom_list( ii )%z
         zeeAndIndx( 2, ii ) = psys%atom_list( ii )%indx
       enddo
@@ -285,7 +288,10 @@ module prep_system
     call MPI_BCAST( temp_names, 2 * psys%natoms, MPI_CHARACTER, root, comm, ierr )
     if( ierr .ne. MPI_SUCCESS ) return
 
-    call MPI_BCAST( temp_coords, 3 * psys%natoms, MPI_DOUBLE_PRECISION, root, comm, ierr )
+    call MPI_BCAST( temp_reduced, 3 * psys%natoms, MPI_DOUBLE_PRECISION, root, comm, ierr )
+    if( ierr .ne. MPI_SUCCESS ) return
+
+    call MPI_BCAST( temp_xcoord, 3 * psys%natoms, MPI_DOUBLE_PRECISION, root, comm, ierr )
     if( ierr .ne. MPI_SUCCESS ) return
 
     call MPI_BCAST( zeeAndIndx, 2 * psys%natoms, MPI_INTEGER, root, comm, ierr )
@@ -294,13 +300,17 @@ module prep_system
     if( myid .ne. root ) then
       do ii = 1, psys%natoms
         psys%atom_list( ii )%el_name = temp_names( ii )
-        psys%atom_list( ii )%reduced_coord( : ) = temp_coords( :, ii )
+        psys%atom_list( ii )%reduced_coord( : ) = temp_reduced( :, ii )
+        psys%atom_list( ii )%xcoord( : ) = temp_xcoord( :, ii )
         psys%atom_list( ii )%z = zeeAndIndx( 1, ii )
         psys%atom_list( ii )%indx = zeeAndIndx( 2, ii )
+        write(1000+myid,*) psys%atom_list( ii )%el_name, psys%atom_list( ii )%z, psys%atom_list( ii )%indx
+        write(1000+myid,*) psys%atom_list( ii )%reduced_coord( : )
+        write(1000+myid,*) psys%atom_list( ii )%xcoord( : )
       enddo
     endif
 
-    deallocate( temp_names, temp_coords, zeeAndIndx )
+    deallocate( temp_names, temp_reduced, zeeAndIndx )
 
     return
 
@@ -546,6 +556,7 @@ module prep_system
 
   ! NOT MPI SAFE ( in so much as it will let every process hit the filesystem )
   subroutine load_abvecs( ierr )
+    use ocean_phys, only : ophys_getBvecs
     integer, intent( inout ) :: ierr
     !
     open( unit=99, file='avecsinbohr.ipt', form='formatted', status='old', IOSTAT=ierr )
@@ -563,6 +574,10 @@ module prep_system
       write( 6, * ) 'FATAL ERROR: Failed to close avecsinbohr.ipt', ierr
       return
     endif
+
+    call ophys_getBvecs( psys%avecs, psys%bvecs, psys%celvol )
+
+#if 0
     call getomega( psys%avecs, psys%celvol )
 
     open( unit=99, file='bvecs', form='formatted', status='old', IOSTAT=ierr )
@@ -580,17 +595,21 @@ module prep_system
       write( 6, * ) 'FATAL ERROR: Failed to close bvecs', ierr
       return
     endif
+#endif
 
   end subroutine load_abvecs
 
   ! NOT MPI SAFE ( in so much as it will let every process hit the filesystem )
+  ! must be called after abvec are loaded
   subroutine load_atomList( ierr )
     use periodic, only : getsymbol_underscore 
+    use ocean_phys, only : ophys_fixCoords
     integer, intent( inout ) :: ierr
 
-    real(DP), allocatable :: xred(:,:)
+    real(DP), allocatable :: xinput(:,:), xred(:,:), xcoord(:,:)
     integer :: ntypat, natom, i
     integer, allocatable :: znucl(:), typat(:), tempIndx(:)
+    character(len=8) :: coord
 
     open(unit=99,file='ntype',form='formatted',status='old')
     read(99,*) ntypat
@@ -600,7 +619,7 @@ module prep_system
     read(99,*) natom
     close(99)
     !
-    allocate(znucl(ntypat),typat(natom),xred(3,natom))
+    allocate(znucl(ntypat),typat(natom),xinput(3,natom))
 
     open(unit=99,file='znucl',form='formatted',status='old')
     read(99,*) znucl(:)
@@ -611,8 +630,16 @@ module prep_system
     close(99)
 
     open(unit=99,file='taulist',form='formatted',status='old')
-    read(99,*) xred(:,:)
+    read(99,*) xinput(:,:)
     close(99)
+
+    open(unit=99,file='coord',form='formatted',status='old')
+    read(99,*) coord
+    close(99)
+
+    allocate( xred( 3,natom), xcoord(3,natom) )
+    call ophys_fixCoords( psys%avecs, coord, xinput, xred, xcoord, ierr )
+    if( ierr .ne. 0 ) return
 
     ! must be less than 160 elements
     allocate( tempIndx( 160 ) )
@@ -623,6 +650,7 @@ module prep_system
 
     do i = 1, psys%natoms
       psys%atom_list( i )%reduced_coord( : ) = xred( :, i )
+      psys%atom_list( i )%xcoord( : ) = xcoord( :, i )
 !      psys%atom_list( i )%el_name = elements(znucl(typat( i ) ) )
       call getsymbol_underscore( znucl(typat( i ) ), psys%atom_list( i )%el_name )
       psys%atom_list( i )%z = znucl( typat( i ) )
@@ -630,7 +658,7 @@ module prep_system
       psys%atom_list( i )%indx = tempIndx( psys%atom_list( i )%z )
     enddo
 
-    deallocate( tempIndx, znucl, typat, xred )
+    deallocate( tempIndx, znucl, typat, xred, xcoord, xinput )
 
   end subroutine load_atomList
   
@@ -718,6 +746,7 @@ module prep_system
         nmatch = nmatch + 1
         if( nmatch .eq. indx ) then
           tau( : ) = psys%atom_list( ii )%reduced_coord(: )
+          xcoord( : ) = psys%atom_list( ii )%xcoord(: )
           goto 111
         endif
       endif
@@ -729,7 +758,7 @@ module prep_system
 
 111 continue
 
-    xcoord = matmul( psys%avecs, tau )
+!    xcoord = matmul( psys%avecs, tau )
 
   end subroutine prep_system_snatch
 

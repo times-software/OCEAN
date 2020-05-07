@@ -43,7 +43,7 @@ my @AbFiles = ( "rhoofr", "density.out", "nkpt", "screen.nkpt", "qinunitsofbvect
 my @CommonFiles = ( "avecsinbohr.ipt", "nspin", "xmesh.ipt", "dft", "nspin", "dft.split", 
                     "screen.mode", "bse.wvfn", "k0.ipt", "calc", "screen.wvfn", "screen.legacy", "para_prefix" );
 my @NewMethodFiles = ( "ntype", "typat", "natoms", "znucl", "taulist", "edges", "core_offset", "metal", "cksshift",
-                       "cksstretch", "nedges", "edges", "pplist", "opf.opts", "opf.fill" );
+                       "cksstretch", "nedges", "edges", "pplist", "opf.opts", "opf.fill", "coord" );
 my @ExtraFiles = ("specpnt.5", "Pquadrature", "sphpts" );
 #my @OPFFiles = ("hfinlist", "xyz.wyck");
 
@@ -218,7 +218,7 @@ close NKPT;
 $rundir = sprintf("../DFT/%03u%03u%03u", $nkpt[0], $nkpt[1], $nkpt[2]);
 my @BSECommonFiles = ( "qinunitsofbvectors.ipt", "bvecs", "dft", "nelectron", "avecsinbohr.ipt",
                        "nspin", "dft.split", "prefix", "natoms", "typat", "ntype","znucl", "taulist",
-                       "edges", "k0.ipt", "core_offset", "metal", "cksshift", "cksstretch" );
+                       "edges", "k0.ipt", "core_offset", "metal", "cksshift", "cksstretch", "coord" );
 my @rundirFiles = ( "kmesh.ipt", "brange.ipt", "umklapp" );
 my @BSEBonusFiles = ("xmesh.ipt", "calc", "hfinlist", "xyz.wyck" );
 

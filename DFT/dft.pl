@@ -907,7 +907,7 @@ if ( $nscfRUN ) {
     {
       print QE "ATOMIC_POSITIONS angstrom\n";
     }
-    elsif( $coord_type =~ m/bohr/ )
+    elsif( $coord_type =~ m/bohr/ || $coord_type =~ m/xcart/ )
     {
       print QE "ATOMIC_POSITIONS bohr\n";
     }
@@ -1794,7 +1794,7 @@ sub print_qe
   {
     print $fh "ATOMIC_POSITIONS angstrom\n";
   }
-  elsif( $coord_type =~ m/bohr/ )
+  elsif( $coord_type =~ m/bohr/ || $coord_type =~ m/cart/ )
   {
     print $fh "ATOMIC_POSITIONS bohr\n";
   }

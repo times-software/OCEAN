@@ -30,7 +30,7 @@ if (! $ENV{"OCEAN_WORKDIR"}){ $ENV{"OCEAN_WORKDIR"} = `pwd` . "../" ; }
 
 my @CommonFiles = ("znucl", "opf.hfkgrid", "opf.fill", "opf.opts", "pplist", "screen.shells", 
                    "ntype", "natoms", "typat", "taulist", "nedges", "edges", "caution", "epsilon", 
-                   "screen.k0", "scfac", "core_offset", "dft", "avecsinbohr.ipt", 
+                   "screen.k0", "scfac", "core_offset", "dft", "avecsinbohr.ipt", "coord", 
                    "nspin", "prefix", "work_dir" );
 
 my @CommonFiles2 = ("para_prefix", "calc" );

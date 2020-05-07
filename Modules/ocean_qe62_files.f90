@@ -577,15 +577,15 @@ module ocean_qe62_files
       endif
 
       is_split = .false.
-!      if( is_shift ) then 
+      if( is_shift ) then 
         inquire( file='dft.split', exist=ex )
         if( ex ) then
           open( unit=99, file='dft.split', form='formatted', status='old')
           read( 99, * ) is_split
           close( 99 )
         endif
-!      endif
-      if( is_split ) is_shift = .true.
+      endif
+!      if( is_split ) is_shift = .true.
 
       nfiles = nspin * product(kpts(:) )
 
