@@ -210,8 +210,10 @@ program o_spect
     enddo
 
     else
+      write( 99, '(A,1i5,A,1e15.8,A,1e15.8)' ) '#   iter=', iter, '   gam=', gam0, '   kpref=', kpref
+      write( 99, '(5(A15,1x))' ) '#   Energy', 'Spect', 'Spect(0)', 'SPKK', 'SPKK(0)'
       ii = 0
-      do ie = 1, 2 * ne, 2
+      do ie = 0, 2 * ne, 2
          ii = ii + 1
          e = el + ( eh - el ) * dble( ie ) / dble( 2 * ne )
          do jdamp = 0, 1 
@@ -249,7 +251,8 @@ program o_spect
          ener = ( e + ebase ) * Hartree2eV
 !         if( ebase .gt. 0.01d0 ) spkk = spkk + kpref * mdr / ( mdr ** 2 + mdi ** 2 )
          spkk = - real( eps, DP )
-         write ( 99, '(4(1e15.8,1x),1i5,1x,2(1e15.8,1x),1i5)' ) ener, spct( 1 ), spct( 0 ), spkk, iter, gam, kpref, ne
+!         write ( 99, '(5(1e15.8,1x),1i5,1x,2(1e15.8,1x),1i5)' ) ener, spct( 1 ), spct( 0 ), spkk, iter, gam, kpref, ne
+         write ( 99, '(5(1e15.8,1x))' ) ener, spct( 1 ), spct( 0 ), spkk( 1 ), spkk( 0 )
          if( do_avg ) then
            total_spectrum(1,ii) = ener
            total_spectrum(2,ii) = total_spectrum(2,ii) + spkk(0)*avgWeight

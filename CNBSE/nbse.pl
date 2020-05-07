@@ -329,6 +329,10 @@ print INFILE "hay\n";
 print INFILE "$num_haydock_iterations  $spectrange  $gamma0  0.000\n";
 close INFILE;
 
+open INFILE, ">", "spect.in" or die "Failed to open spect.in for writing\n$!";
+print INFILE "$spectrange  $gamma0  0.000\n";
+close INFILE;
+
 `cat bse.in`;
 
 `echo 0 0 0 > ZNL`;

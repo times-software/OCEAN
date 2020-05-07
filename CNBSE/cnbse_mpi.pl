@@ -862,6 +862,9 @@ else
 }
 close INFILE;
 
+open INFILE, ">", "spect.in" or die "Failed to open spect.in for writing\n$!";
+print INFILE "$spectrange  $gamma0  0.000\n";
+close INFILE;
 
 
 #Provide here the legacy serial option

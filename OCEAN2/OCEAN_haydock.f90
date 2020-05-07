@@ -1724,9 +1724,9 @@ module OCEAN_haydock
 
     open(unit=99,file=lanc_filename,form='formatted',status='unknown')
     rewind 99
-    write ( 99, '(1i5,1e26.15)' ) n, kpref
+    write ( 99, '(1i8,1x,1ES24.17)' ) n, kpref
     if( complex_haydock ) then
-      write ( 99, '(2x,2f20.10)' ) real_a( 0 ), imag_a( 0 )
+      write ( 99, '(2(2x,ES24.17))' ) real_a( 0 ), imag_a( 0 )
       do i = 1, n
         write ( 99, '(2x,6f20.10)' ) real_a( i ), imag_a( i ), real_b( i ), imag_b( i ), & 
                                      real_c( i ), imag_c( i )
@@ -1734,9 +1734,9 @@ module OCEAN_haydock
     else
       do i = 0, n
         if ( i .eq. 0 ) then
-          write ( 99, '(2x,1f20.10)' ) real_a( i )
+          write ( 99, '(2x,ES24.17)' ) real_a( i )
         else
-          write ( 99, '(2x,2f20.10)' ) real_a( i ), real_b( i )
+          write ( 99, '(2(2x,ES24.17))' ) real_a( i ), real_b( i )
         end if
       end do
     endif
