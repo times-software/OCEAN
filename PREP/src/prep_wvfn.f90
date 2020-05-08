@@ -24,7 +24,8 @@ module prep_wvfn
 
 
   subroutine prep_wvfn_driver( ierr )
-    use prep_system, only : system_parameters, params, psys, prep_system_ikpt2kvec, calcParams, calculation_parameters
+    use prep_system, only : system_parameters, params, psys, prep_system_ikpt2kvec, calcParams, &
+                            calculation_parameters, prep_system_umklapp
     use ocean_mpi, only : myid, root, nproc, comm
     use ocean_dft_files, only : odf_is_my_kpt, odf_return_my_bands, odf_nprocPerPool, odf_poolID, &
                                 ODF_VALENCE, ODF_CONDUCTION, odf_universal2KptandSpin, &
@@ -51,6 +52,7 @@ module prep_wvfn
     integer :: ispin, ikpt, nprocPool, nuni, iuni, npool, nsites, nprojSpacer
     integer :: valNgvecs, conNgves, valBands, conBands, ngvecs(2), odf_flag, totConBands
     integer :: nG, nbands, fftGrid(3), allBands, nX, vType, cType, totValBands, myConBandStart, myValBandStart
+    integer :: umklapp(3)
 
     integer :: conFH, valFH, fileHandle, poolID, i, testFH, iband, bandChunk, omp_threads, kStride
     logical :: is_kpt, wantCKS, wantU2, addShift, wantLegacy, wantTmels
@@ -199,6 +201,23 @@ module prep_wvfn
         if( ierr .ne. 0 ) then
           write(1000+myid,*) 'Failed to read k-point', ierr
           return
+        endif
+
+
+        ! Check for Umklapp -- if the actual k-point was outside [0,1] (or maybe [-1,1])
+        ! the calculated k-point was *not* made at the requested k-point, but was shifted 
+        ! to be inside the BZ
+        call prep_system_umklapp( ikpt, .false., umklapp )
+        if( umklapp(1) .ne. 0 .or. umklapp(2) .ne. 0 .or. umklapp(3) .ne. 0 ) then
+          do i = 1, ngvecs(1)
+          valGvecs(:,i) = valGvecs(:,i) - umklapp(:)
+          enddo
+        endif
+        call prep_system_umklapp( ikpt, .true., umklapp )
+        if( umklapp(1) .ne. 0 .or. umklapp(2) .ne. 0 .or. umklapp(3) .ne. 0 ) then
+          do i = 1, ngvecs(2)
+          conGvecs(:,i) = conGvecs(:,i) - umklapp(:)
+          enddo
         endif
 
     ! If doing TMELS for valence, start by figuring that out

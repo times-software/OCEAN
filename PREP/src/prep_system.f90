@@ -70,7 +70,7 @@ module prep_system
 
   public :: prep_system_load, prep_system_summarize, prep_system_snatch
 
-  public ::  prep_system_ikpt2kvec
+  public ::  prep_system_ikpt2kvec, prep_system_umklapp
 
   contains
 
@@ -103,6 +103,32 @@ module prep_system
     enddo
 
   end subroutine prep_system_ikpt2kvec
+
+  subroutine prep_system_umklapp( ikpt, addshift, umklapp )
+    integer, intent( in ) :: ikpt
+    logical, intent( in ) :: addShift
+    integer, intent( out ) :: umklapp( 3 )
+
+    real(DP) :: kvec(3), kvecCart(3)
+    integer :: i
+
+    call prep_system_ikpt2kvec( ikpt, addShift, kvec, kvecCart )
+
+    umklapp(:) = 0
+    do i = 1, 3
+
+      do while( kvec(i) .lt. -1.0_DP )
+        kvec(i) = kvec(i) + 1.0_DP
+        umklapp(i) = umklapp(i) - 1
+      enddo
+
+      do while( kvec(i) .gt. 1.0_DP )
+        kvec(i) = kvec(i) - 1.0_DP
+        umklapp(i) = umklapp(i) + 1
+      enddo
+    enddo
+
+  end subroutine prep_system_umklapp
 
   subroutine prep_system_load( ierr )
     use OCEAN_mpi, only : myid, root, comm, nproc, MPI_INTEGER, MPI_SUCCESS

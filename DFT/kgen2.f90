@@ -115,16 +115,42 @@ program kgen
           kkpt = k0(3)/real(nkpt(3),QP) + real(ikz,QP)/real(nkpt(3),QP) 
         endif
 
-        write(99,'(e19.10,e19.10,e19.10)') ikpt, jkpt, kkpt
-        write(97,'(e19.10,e19.10,e19.10,f19.11)') ikpt, jkpt, kkpt, ( 1.0_QP / real(kpttotal,QP) )
+          qpoint(1) = ikpt
+          qpoint(2) = jkpt
+          qpoint(3) = kkpt
+          umklapp(:) = 0
+          do iter=1,3
+  !          change = .false.
+            do
+              change = .false.
+              if (qpoint(iter) .gt. 1.d0) then
+                change = .true.
+                umklapp(iter) = umklapp(iter) + 1
+                qpoint(iter) = qpoint(iter) - 1
+              elseif  (qpoint(iter) .lt. -1.d0) then
+                change = .true.
+                umklapp(iter) = umklapp(iter) - 1
+                qpoint(iter) = qpoint(iter) + 1
+              endif
+              if (.not. change) goto 10
+            enddo
+10          continue
+          enddo
+
+
+!        write(99,'(e19.10,e19.10,e19.10)') ikpt, jkpt, kkpt
+!        write(97,'(e19.10,e19.10,e19.10,f19.11)') ikpt, jkpt, kkpt, ( 1.0_QP / real(kpttotal,QP) )
+        write(99,'(e19.10,e19.10,e19.10)') qpoint(:)
+        write(97,'(e19.10,e19.10,e19.10,f19.11)') qpoint(:), ( 1.0_QP / real(kpttotal,QP) )
 
 
         if( have_shift ) then
 
-          umklapp(:) = 0
+!          umklapp(:) = 0
           qpoint(1) = ikpt+qvec(1)
           qpoint(2) = jkpt+qvec(2)
           qpoint(3) = kkpt+qvec(3)
+!           qpoint(:) = qpoint(:) + qvec(:)
 
           do iter=1,3
   !          change = .false.
@@ -134,14 +160,14 @@ program kgen
                 change = .true.
                 umklapp(iter) = umklapp(iter) + 1
                 qpoint(iter) = qpoint(iter) - 1
-              elseif  (qpoint(iter) .lt. 0.d0) then
+              elseif  (qpoint(iter) .lt. -1.d0) then
                 change = .true.
                 umklapp(iter) = umklapp(iter) - 1
                 qpoint(iter) = qpoint(iter) + 1
               endif
-              if (.not. change) goto 10
+              if (.not. change) goto 20
             enddo
-10          continue
+20          continue
           enddo
 
           write(shift_fh, '(e19.10,e19.10,e19.10)' ) qpoint(:)
