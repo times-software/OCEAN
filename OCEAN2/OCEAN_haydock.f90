@@ -31,6 +31,8 @@ module OCEAN_haydock
   REAL(DP) :: e_start, e_stop, e_step
   REAL(DP), ALLOCATABLE :: e_list( : )
 
+  real(DP) :: eps1Conv( 3 )
+
   
   INTEGER  :: haydock_niter = 0
   INTEGER  :: ne
@@ -164,11 +166,13 @@ module OCEAN_haydock
   end subroutine OCEAN_haydock_nonHerm_do
 
 
-  subroutine OCEAN_haydock_do( sys, hay_vec, ierr )
+  subroutine OCEAN_haydock_do( sys, hay_vec, restartBSE, newEps, ierr )
     use OCEAN_system, only : o_system
     use OCEAN_psi, only : ocean_vector
 
     integer, intent( inout ) :: ierr
+    logical, intent( inout ) :: restartBSE
+    real(DP), intent( inout ) :: newEps
     type( o_system ), intent( in ) :: sys
     !JTV need to figure out a work-around. Right now hay_vec is inout because of
     ! a depndency tracing back to calling copy and possibly copy_min, and
@@ -179,13 +183,13 @@ module OCEAN_haydock
     if( complex_haydock ) then
       call OCEAN_haydock_nonHerm_do( sys, hay_vec, ierr )
     else
-      call OCEAN_haydock_Herm_do( sys, hay_vec, ierr )
+      call OCEAN_haydock_Herm_do( sys, hay_vec,  restartBSE, newEps, ierr )
     endif
 
   end subroutine OCEAN_haydock_do
 
 
-  subroutine OCEAN_haydock_Herm_do( sys, hay_vec, ierr )
+  subroutine OCEAN_haydock_Herm_do( sys, hay_vec, restartBSE, newEps, ierr )
     use AI_kinds
     use OCEAN_mpi
     use OCEAN_system
@@ -198,6 +202,8 @@ module OCEAN_haydock
 
     implicit none
     integer, intent( inout ) :: ierr
+    logical, intent( inout ) :: restartBSE
+    real(DP), intent( inout ) :: newEps
     type( o_system ), intent( in ) :: sys
     !JTV need to figure out a work-around. Right now hay_vec is inout because of
     ! a depndency tracing back to calling copy and possibly copy_min, and
@@ -253,14 +259,17 @@ module OCEAN_haydock
 
 
       ! This should be hoisted back up here
-      call ocean_hay_ab( sys, psi, new_psi, old_psi, iter, ierr )
+      call ocean_hay_ab( sys, psi, new_psi, old_psi, iter, restartBSE, newEps, ierr )
+      if( restartBSE ) goto 11
 
     enddo
+
+11  continue
 
     call OCEAN_tk_stop( tk_psisum )
     call MPI_BARRIER( comm, ierr )
 
-    if( myid .eq. 0 ) then
+    if( myid .eq. 0 .and. .not. restartBSE ) then
 !      write(lanc_filename, '(A8,A2,A1,I4.4,A1,A2,A1,I2.2)' ) 'lanceig_', sys%cur_run%elname, &
 !        '.', sys%cur_run%indx, '_', sys%cur_run%corelevel, '_', sys%cur_run%photon
       call haydump( haydock_niter, sys, hay_vec%kpref, ierr )
@@ -650,7 +659,7 @@ module OCEAN_haydock
 #endif
 
 
-  subroutine OCEAN_hay_ab( sys, psi, hpsi, old_psi, iter, ierr )
+  subroutine OCEAN_hay_ab( sys, psi, hpsi, old_psi, iter, restartBSE, newEps, ierr )
 #ifdef __HAVE_F03
     use, intrinsic :: ieee_arithmetic, only: ieee_is_nan
 #endif
@@ -664,6 +673,8 @@ module OCEAN_haydock
     integer, intent(in) :: iter
     type(O_system), intent( in ) :: sys
     type(OCEAN_vector), intent(inout) :: psi, hpsi, old_psi
+    logical, intent(inout) :: restartBSE
+    real(DP), intent(inout) :: newEps
 
     real(dp) :: btmp, atmp, aitmp
     integer :: ialpha, ikpt, arequest, airequest, brequest
@@ -761,9 +772,16 @@ module OCEAN_haydock
         return
       endif
 
+      if( sys%convEps .and. sys%cur_run%calc_type .eq. 'VAL' ) then
+        call testConvergeEps( iter, sys, psi%kpref, sys%celvol, sys%valence_ham_spin, restartBSE, newEps )
+      endif
 !      call haydump( iter, sys, ierr )
     endif
 
+    if( sys%convEps ) then
+      call MPI_BCAST( restartBSE, 1, MPI_LOGICAL, root, comm, ierr )
+      call MPI_BCAST( newEps, 1, MPI_DOUBLE_PRECISION, root, comm, ierr )
+    endif
 
     ! Might be moved up & out?
     call OCEAN_psi_finish_min2full( psi, ierr )
@@ -1706,9 +1724,9 @@ module OCEAN_haydock
 
     open(unit=99,file=lanc_filename,form='formatted',status='unknown')
     rewind 99
-    write ( 99, '(1i5,1e26.15)' ) n, kpref
+    write ( 99, '(1i8,1x,1ES24.17)' ) n, kpref
     if( complex_haydock ) then
-      write ( 99, '(2x,2f20.10)' ) real_a( 0 ), imag_a( 0 )
+      write ( 99, '(2(2x,ES24.17))' ) real_a( 0 ), imag_a( 0 )
       do i = 1, n
         write ( 99, '(2x,6f20.10)' ) real_a( i ), imag_a( i ), real_b( i ), imag_b( i ), & 
                                      real_c( i ), imag_c( i )
@@ -1716,9 +1734,9 @@ module OCEAN_haydock
     else
       do i = 0, n
         if ( i .eq. 0 ) then
-          write ( 99, '(2x,1f20.10)' ) real_a( i )
+          write ( 99, '(2x,ES24.17)' ) real_a( i )
         else
-          write ( 99, '(2x,2f20.10)' ) real_a( i ), real_b( i )
+          write ( 99, '(2(2x,ES24.17))' ) real_a( i ), real_b( i )
         end if
       end do
     endif
@@ -1786,6 +1804,90 @@ module OCEAN_haydock
   end subroutine write_projected_absspct
 #endif
 
+  subroutine testConvergeEps( iter, sys, kpref, ucvol, val_ham_spin, restartBSE, newEps )
+    use OCEAN_system, only : o_system
+    use OCEAN_constants, only : PI_DP
+    implicit none
+    type( o_system ), intent( in ) :: sys
+    integer, intent( in ) :: iter, val_ham_spin
+    real(DP), intent( in ) :: kpref, ucvol
+    logical, intent( inout ) :: restartBSE
+    real(DP), intent( out ) :: newEps
 
+    complex(DP) :: ctmp, arg, rrr, rp, rm, al, be, eps
+    real(DP) :: tcEps, fact, oldEps, epsErr
+    integer :: i
+
+    fact = kpref * real( 2 / val_ham_spin, DP ) * ucvol
+    ctmp = cmplx( 0, gam0, DP )
+
+    arg = real_a( iter - 1 )** 2 - 4.0_dp * real_b( iter ) ** 2
+    arg = sqrt( arg )
+  
+    rp = 0.5_dp * ( - real_a( iter - 1 ) + arg )
+    rm = 0.5_dp * ( - real_a( iter - 1 ) - arg )
+    if( aimag( rp ) .lt. 0.0_dp ) then
+      rrr = rp
+    else
+      rrr = rm
+    endif
+
+    al = ctmp - real_a( iter - 1 ) - rrr
+    be = -ctmp - real_a( iter - 1 ) - rrr
+
+    do i = iter-1, 0, -1
+      al = ctmp - cmplx( real_a( i ), imag_a( i ), DP ) &
+         - cmplx( real_b( i+1 ), imag_b( i+1 ), DP ) * cmplx( real_c( i+1 ), -imag_c( i+1 ), DP ) / al
+      be = -ctmp - cmplx( real_a( i ), imag_a( i ), DP ) &
+         - cmplx( real_b( i+1 ), imag_b( i+1 ), DP ) * cmplx( real_c( i+1 ), -imag_c( i+1 ), DP ) / be
+    enddo
+
+    eps = 1.0_dp - fact / al - fact / be
+
+    tcEps = dble( eps )
+
+    if( iter .lt. 3 ) then
+      eps1Conv( iter ) = tcEps
+!      write(6,*) 'Estimated eps1(0): ', tcEps
+    else
+      eps1Conv( 1 ) = eps1Conv( 2 )
+      eps1Conv( 2 ) = eps1Conv( 3 )
+      eps1Conv( 3 ) = tcEps
+
+      tcEps = sum(eps1Conv(:)) / 3.0_DP
+      if( max( sys%epsilon0, eps1Conv( 3 ) ) .lt. 100.0d0 ) then
+        write(6,'(3(A,F9.4,X))') 'Est. eps1(0): ', eps1Conv( 3 ), ';  Avg: ', tcEps, ';  Current: ', sys%epsilon0
+      else
+        write(6,'(3(A,E9.1,X))') 'Est. eps1(0): ', eps1Conv( 3 ), ';  Avg: ', tcEps, ';  Current: ', sys%epsilon0
+      endif
+
+      ! change to percentage
+      if( ( maxval(eps1Conv(:)) - minval(eps1Conv(:)) )/tcEps .gt. 0.05_dp ) return
+
+      if( abs( sys%epsilon0 - tcEps ) .gt. ( maxval(eps1Conv(:)) - minval(eps1Conv(:)) ) .and. &
+          abs( sys%epsilon0 - tcEps ) / ( sys%epsilon0 + tcEps - 2.0_dp ) & 
+                  .gt. 0.5_DP * sys%epsConvergeThreshold ) then  
+        newEps = ( 2.0_DP * eps1Conv( 3 ) + eps1Conv(2) ) / 3.0_DP
+#if 0
+        if( abs( newEps - sys%epsilon0 )/( newEps + sys%epsilon0 ) .gt. 0.15_dp ) then
+          newEps = 0.95_dp * newEps + 0.05_DP * sys%epsilon0
+        elseif( abs( newEps - sys%epsilon0 )/( newEps + sys%epsilon0 ) .gt. 0.02_dp ) then
+          newEps = 0.98_dp * newEps + 0.02_DP * sys%epsilon0
+        endif
+#else
+        epsErr = 20.0_dp * abs( newEps - sys%epsilon0 )/( newEps + sys%epsilon0 - 2.0_dp )
+        epsErr = ( 0.2_DP / PI_DP ) * atan( epsErr )
+        write(6,*) newEps, sys%epsilon0, epsErr
+        newEps = (1.0_DP-epsErr)*newEps + epsErr * sys%epsilon0
+#endif
+        
+        
+        restartBSE = .true.
+        write(6,*) 'Restart eps1(0): ', newEps, sys%epsilon0
+        return
+      endif
+    endif
+
+  end subroutine testConvergeEps
 
 end module OCEAN_haydock

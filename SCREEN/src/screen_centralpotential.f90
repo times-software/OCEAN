@@ -329,17 +329,25 @@ module screen_centralPotential
     ierr = 1
   end subroutine 
 
-  subroutine screen_centralPotential_newScreenShell( pot, newPot, rad, ierr )
+  subroutine screen_centralPotential_newScreenShell( pot, newPot, rad, ierr, width )
     type( potential ), intent( in ) :: pot
     type( potential ), intent( out ) :: newPot
     real(DP), intent( in ) :: rad
     integer, intent( inout ) :: ierr
+    real(DP), intent( in ), optional :: width
 
     integer :: i
-    real(DP) :: invRad
+    real(DP) :: invRad, ww, denom, f3, f4, f5, x
 !#ifdef DEBUG
     character(len=10) :: filename
 !#endif
+  
+    if( present( width ) ) then
+      ww = width
+      if( ww .lt. 0.0 ) ww = 0.0_DP
+    else
+      ww = 0.0_DP
+    endif
 
     if( ( .not. allocated( pot%pot ) ) .or. ( .not. allocated( pot%rad ) ) ) then
       ierr = 5
@@ -349,18 +357,41 @@ module screen_centralPotential
     allocate( newPot%pot( size( pot%pot ) ), newPot%rad( size( pot%rad ) ) )
     newPot%rad(:) = pot%rad(:)
 
-    
+
     invRad = 1.0_DP / rad
+
+    if( ww .gt. 0.0_DP ) then
+      denom = 4.0_DP * rad * ww**2 
+      denom = denom * ( rad + ww )**3
+      denom = 1.0_DP / denom
+      f3 = ( rad**2 + 4.0_DP * rad*ww + 5.0_DP*ww**2 ) * denom
+
+      denom = denom / ( 4.0_DP * ww )
+      f4 = ( rad + 3.0_DP * ww ) * ( rad + 5.0_DP * ww ) * denom
+      f5 = ( rad + 3.0_DP * ww ) * denom
+    else
+      f3 = 0.0_DP
+      f4 = 0.0_DP
+      f5 = 0.0_DP
+    endif
+    
     do i = 1, size( pot%pot ) 
-      if( newPot%rad( i ) .lt. rad ) then
+      if( newPot%rad( i ) .lt. rad - ww) then
         newPot%pot( i ) = pot%pot( i ) + invRad
+      elseif( newPot%rad( i ) .le. rad + ww ) then
+        x = newPot%rad( i ) - ( rad - ww )
+        newPot%pot( i ) = x*f5
+        newPot%pot( i ) = x*( f4 - newPot%pot( i ) )
+        newPot%pot( i ) = x**3 * ( f3 - newPot%pot( i ) )
+        newPot%pot( i ) = pot%pot( i ) + invRad - newPot%pot( i )
+        ! 
       else
         newPot%pot( i : size( newPot%pot ) ) = 0.0_DP
         exit
       endif
     enddo
 
-#ifdef DEBUG
+!#ifdef DEBUG
     write(6,*) 'newScreenShell', rad, newPot%rad( size( newPot%rad ) )
     write(filename,'(A,F4.2)') 'vpert.', rad
     open(unit=99,file=filename, form='formatted' )
@@ -368,7 +399,7 @@ module screen_centralPotential
       write(99,* ) newPot%rad( i ), newPot%pot( i ), pot%pot( i )
     enddo
     close( 99 )
-#endif
+!#endif
 
     newPot%z = pot%z
     newPot%n = pot%n

@@ -1,4 +1,4 @@
-! Copyright (C) 2016, 2017 OCEAN collaboration
+! Copyright (C) 2016, 2017, 2020 OCEAN collaboration
 !
 ! This file is part of the OCEAN project and distributed under the terms 
 ! of the University of Illinois/NCSA Open Source License. See the file 
@@ -15,6 +15,8 @@ module OCEAN_constants
   real(DP), parameter :: eV2Hartree = 0.036749323777346887_DP
   real(DP), parameter :: Hartree2eV = 27.21138506_DP
 
+  real(DP), parameter :: angstrom2bohr = 0.529177210903_DP ! (80) 2018 CODATA
+
   ! older data from Rev Mod Phys 80 633 (2008 )
 !  real(DP), parameter :: eV2Hartree = 0.0367493253979623245294_DP 
 !  real(DP), parameter :: Hartree2eV = 27.21138386_DP
@@ -25,6 +27,8 @@ module OCEAN_constants
   real(DP), parameter :: PI_DP = 3.1415926535897932384626433832795028841971693993751_DP
   real(DP), parameter :: PI = 4.0_DP * ATAN( 1.0_DP )
   real(QP), parameter :: PI_QP = 3.1415926535897932384626433832795028841971693993751_QP
+  real(QP), parameter :: invSqrt4PI_QP = 0.282094791773878143474039725780386293_QP
+  real(DP), parameter :: invSqrt4PI_DP = 0.282094791773878143474039725780386293_DP
 
 
   integer, parameter  :: CACHE_DOUBLE = 1

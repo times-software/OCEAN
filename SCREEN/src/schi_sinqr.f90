@@ -37,7 +37,7 @@ module schi_sinqr
     integer :: i, j ,ii
     integer :: nbasis, npt, nr
 
-    nbasis = size( FullChi, 1 ) 
+    nbasis = size( FullChi, 1 ) - 2
     npt = grid%npt
     nr = grid%nr
 
@@ -71,8 +71,8 @@ module schi_sinqr
         else
 !          basfcn( j, i ) = grid%rad( j )**2 * grid%drad( j )* pref * (1.0_DP - arg**2/4.0_DP )
 !          basfcn( j, i ) = weight( j ) * pref * (1.0_DP - arg**2/4.0_DP )
-          basfcn( j, i ) = pref * (1.0_DP - arg**2/4.0_DP )
-          potfcn( j, i ) = pref * coul * ( 1.0_DP - arg**2/4.0_DP - cterm )
+          basfcn( j, i ) = pref * (1.0_DP - arg**2/6.0_DP )
+          potfcn( j, i ) = pref * coul * ( 1.0_DP - arg**2/6.0_DP - cterm )
         endif
       enddo
 !      do j = 1, nr

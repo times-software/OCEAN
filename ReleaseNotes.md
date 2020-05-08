@@ -1,4 +1,4 @@
-## v. 2.9.1
+## v. 2.9.6
 
 ### This is the pre-release/test run for 3.0
 
@@ -7,9 +7,11 @@
  2. Improvements to parallelism
    1. Screening calculation is faster
    2. Prep stage is faster too
+ 3. The DFT calculations for the BSE are split in two whenever there is finite-q
 
 #### Minor Features
  1. OPF calculation should be slightly more robust, but noticeable differences are unlikely
+ 2. Large finite-q valence calculations should be working again
 
 ## v. 2.5.2
 

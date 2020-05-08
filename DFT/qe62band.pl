@@ -197,15 +197,17 @@ for( my $isplit = 0; $isplit <= $dft_split; $isplit++ )
 
     if( $line =~ m/<eigenvalues size=\"\d+\">/ )
     {
+      $line =~ s/<eigenvalues size=\"\d+\">//;
       $nkpt ++;
-      my $eigs = '';
-      $line = <IN>;
+      chomp $line;
+      my $eigs = $line . ' ';
       until( $line =~ m/eigenvalues/ )
       {
+        $line = <IN>;
         chomp $line;
         $eigs .= $line . ' ';
-        $line = <IN>;
       }
+      $eigs =~ s/\s+<\/eigenvalues>//;
 
       my @eigs = split( ' ', $eigs );
       push @energies, \@eigs;
@@ -290,7 +292,9 @@ for( my $isplit = 0; $isplit <= $dft_split; $isplit++ )
 
 
 $nkpt /= 2 if( $dft_split == 1 );
-print "Found $nkpt k-points\n";
+my $printNkpt = $nkpt;
+$printNkpt /= 2 if( $dft_shift == 1 && $dft_split != 1 );
+print "Found $printNkpt k-points\n";
 print $band_max . "\t" . $band_min . "\n";
 
 open OUT, ">brange.stub" or die "Failed to open brange.stub for writing\n$!";
@@ -301,13 +305,13 @@ open EIG, ">", "eig62.txt" or die "Failed to open eig62.txt for writing\n";
 my $numBands;
 if( $spin == 2 )
 {
-  $numBands = scalar @{ $energies[0] }/2;
+  $numBands = scalar @{ $energies[-1] }/2;
 }
 else
 {
-  $numBands = scalar @{ $energies[0] };
+  $numBands = scalar @{ $energies[-1] };
 }
-print EIG "1 $numBands  $nkpt  $spin\n";
+print EIG "1 $numBands  $printNkpt  $spin\n";
 
 open ENK, ">", "enkfile" or die "Failed to open enkfile for writing\n";
 for( my $k = 0; $k < $nkpt; $k++ )
@@ -322,6 +326,7 @@ for( my $k = 0; $k < $nkpt; $k++ )
   while (my @x = splice @eslice, 0, $n) 
   {
     print ENK join($delim, @x), "\n";
+    print EIG join($delim, @x), "\n";
   }   
 #  print "\n";
 #    print ENK "\n";
@@ -355,6 +360,7 @@ for( my $k = 0; $k < $nkpt; $k++ )
   while (my @x = splice @eslice, 0, $n) 
   {
     print ENK join($delim, @x), "\n";
+    print EIG join($delim, @x), "\n";
   }   
 
   @eslice = @{ $energies[$kk] }[ 0 .. $stop ];
@@ -362,7 +368,7 @@ for( my $k = 0; $k < $nkpt; $k++ )
   foreach my $x (@eslice) { $x = $x * 2; }
   while (my @x = splice @eslice, 0, $n)
   { 
-    print EIG join($delim, @x), "\n";
+#    print EIG join($delim, @x), "\n";
   }
 
 }
@@ -384,6 +390,7 @@ if( $spin == 2 )
     while (my @x = splice @eslice, 0, $n) 
     {   
        print ENK join($delim, @x), "\n";
+       print EIG join($delim, @x), "\n";
     }   
 #    print "$k $energies[$k][$start] $start ";
         
@@ -410,6 +417,7 @@ if( $spin == 2 )
     while (my @x = splice @eslice, 0, $n)
     {   
       print ENK join($delim, @x), "\n";
+      print EIG join($delim, @x), "\n";
     }     
 
     $start = scalar @{ $energies[$k] }/2 ;
@@ -418,7 +426,7 @@ if( $spin == 2 )
     foreach my $x (@eslice) { $x = $x * 2; }
     while (my @x = splice @eslice, 0, $n)
     {
-      print EIG join($delim, @x), "\n";
+#      print EIG join($delim, @x), "\n";
     }
 
 #    print "  $energies[$kk][$start] $start\n";

@@ -16,8 +16,8 @@ zexe/mkrbfile_mult.x: $(MKRB)
 zexe/mkrbfile.x: zobj/mkrbfile.o zobj/mkcmesh.o zobj/snatch.o
 	$(COMP) $(OPTS) zobj/mkrbfile.o zobj/mkcmesh.o zobj/snatch.o -o zexe/mkrbfile.x
 
-zexe/pawsetup.x: pawsetup.f90 zobj/periodic.o
-	$(COMP) $(OPTS) pawsetup.f90 zobj/periodic.o -o zexe/pawsetup.x
+zexe/pawsetup.x: pawsetup.f90 zobj/periodic.o ../../Modules/ocean_phys.mod 
+	$(COMP) $(OPTS) -I../../Modules pawsetup.f90 zobj/periodic.o ../../Modules/ocean_phys.o -o zexe/pawsetup.x 
 
 zexe/avg.x: $(AVG)
 	$(COMP) $(OPTS) $(AVG) -o zexe/avg.x

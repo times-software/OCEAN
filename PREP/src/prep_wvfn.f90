@@ -14,6 +14,7 @@ module prep_wvfn
   implicit none
   private
 
+  logical, parameter :: perKptU2 = .true.
 
   public :: prep_wvfn_driver
 
@@ -23,7 +24,8 @@ module prep_wvfn
 
 
   subroutine prep_wvfn_driver( ierr )
-    use prep_system, only : system_parameters, params, psys, prep_system_ikpt2kvec, calcParams, calculation_parameters
+    use prep_system, only : system_parameters, params, psys, prep_system_ikpt2kvec, calcParams, &
+                            calculation_parameters, prep_system_umklapp
     use ocean_mpi, only : myid, root, nproc, comm
     use ocean_dft_files, only : odf_is_my_kpt, odf_return_my_bands, odf_nprocPerPool, odf_poolID, &
                                 ODF_VALENCE, ODF_CONDUCTION, odf_universal2KptandSpin, &
@@ -33,7 +35,7 @@ module prep_wvfn
                           ocean_cks_makeCksHolders, ocean_cks_doLegacyCks
     use screen_opf, only : screen_opf_largestLMNproj
     use screen_timekeeper, only : screen_tk_start, screen_tk_stop
-    use ocean_tmels, only : ocean_tmels_open, ocean_tmels_close, ocean_tmels_calc
+    use ocean_tmels, only : ocean_tmels_open, ocean_tmels_close, ocean_tmels_calc, ocean_tmels_legacy
     integer, intent( inout ) :: ierr
 
     complex(DP), allocatable, target :: valUofG(:,:), conUofG(:,:), wvfn(:,:,:,:), UofX(:,:,:,:) , UofX2(:,:)
@@ -49,9 +51,10 @@ module prep_wvfn
 
     integer :: ispin, ikpt, nprocPool, nuni, iuni, npool, nsites, nprojSpacer
     integer :: valNgvecs, conNgves, valBands, conBands, ngvecs(2), odf_flag, totConBands
-    integer :: nG, nbands, fftGrid(3), allBands, nX, vType, cType, totValBands, myConBandStart, kStride
+    integer :: nG, nbands, fftGrid(3), allBands, nX, vType, cType, totValBands, myConBandStart, myValBandStart
+    integer :: umklapp(3)
 
-    integer :: conFH, valFH, fileHandle, poolID, i, testFH, iband, bandChunk, omp_threads
+    integer :: conFH, valFH, fileHandle, poolID, i, testFH, iband, bandChunk, omp_threads, kStride
     logical :: is_kpt, wantCKS, wantU2, addShift, wantLegacy, wantTmels
 
     wantCKS = calcParams%makeCKS
@@ -200,6 +203,23 @@ module prep_wvfn
           return
         endif
 
+
+        ! Check for Umklapp -- if the actual k-point was outside [0,1] (or maybe [-1,1])
+        ! the calculated k-point was *not* made at the requested k-point, but was shifted 
+        ! to be inside the BZ
+        call prep_system_umklapp( ikpt, .false., umklapp )
+        if( umklapp(1) .ne. 0 .or. umklapp(2) .ne. 0 .or. umklapp(3) .ne. 0 ) then
+          do i = 1, ngvecs(1)
+          valGvecs(:,i) = valGvecs(:,i) - umklapp(:)
+          enddo
+        endif
+        call prep_system_umklapp( ikpt, .true., umklapp )
+        if( umklapp(1) .ne. 0 .or. umklapp(2) .ne. 0 .or. umklapp(3) .ne. 0 ) then
+          do i = 1, ngvecs(2)
+          conGvecs(:,i) = conGvecs(:,i) - umklapp(:)
+          enddo
+        endif
+
     ! If doing TMELS for valence, start by figuring that out
       ! A) possibly at the same time as read in redistribute slices of G-points?
       ! but then also need to ensure uniformity of G
@@ -211,15 +231,18 @@ module prep_wvfn
 !          totConBands = params%brange(4) - params%brange(3) + 1
           ! If we have more than one proc per k-point, share the valence bands
           if( odf_nprocPerPool() .gt. 1 ) then
+            myValBandStart = 1
             allocate( spareValUofG( ngvecs(1), totValBands ) )
             call shareValence( valUofG, spareValUofG, ierr )
             if( ierr .ne. 0 ) return
             call ocean_tmels_calc( ikpt, ispin, totValBands, conBands, valGvecs, conGvecs, &
-                                   spareValUofG, conUofG, ierr )
+                                   spareValUofG, conUofG, params%nkpts, totValBands, totConBands, &
+                                   myValBandStart, myConBandStart, ierr )
             deallocate( spareValUofG )
           else
             call ocean_tmels_calc( ikpt, ispin, totValBands, conBands, valGvecs, conGvecs, &
-                                   ValUofG, conUofG, ierr )
+                                   ValUofG, conUofG, params%nkpts, totValBands, totConBands, &
+                                   myValBandStart, myConBandStart, ierr )
           endif
         endif
 
@@ -228,7 +251,8 @@ module prep_wvfn
         allocate( valGvecs( 0, 0 ), conGvecs( 0, 0 ), valUofG( 0, 0 ), conUofG( 0, 0 ) )
         if( wantTmels ) then
           call ocean_tmels_calc( ikpt, ispin, totValBands, conBands, valGvecs, conGvecs, &
-                                 spareValUofG, conUofG, ierr )
+                                 spareValUofG, conUofG, params%nkpts, totValBands, totConBands, &
+                                 myValBandStart, myConBandStart, ierr )
         endif
       endif
 
@@ -305,7 +329,11 @@ module prep_wvfn
           endif
 
           ! save subsampled xmesh
-          call prep_wvfn_writeU2( ikpt, ispin, UofX2, fileHandle, ierr )
+          if( perKptU2 ) then
+            call prep_wvfn_writeU2_perKpt( ikpt, ispin, UofX2, fileHandle, ierr )
+          else
+            call prep_wvfn_writeU2( ikpt, ispin, UofX2, fileHandle, ierr )
+          endif
           if( ierr .ne. 0 ) return
 
 !          if( wantU2 .and. nproc .eq. 1 ) then
@@ -334,8 +362,10 @@ module prep_wvfn
             bandChunk = max( 1, bandChunk/omp_threads ) * omp_threads 
 
             bandChunk = min( bandChunk, nbands )
+            bandChunk = max( bandChunk, 1 )
 
             write(1000+myid, '(3I8,E24.16)' ) omp_threads, bandChunk, nbands, memEstimate/67108864_DP
+            write(1000+myid,*) nbands, bandchunk
 
 !            allocate( wvfn( fftGrid(1), fftGrid(2), fftGrid(3), nbands ) )
             allocate( wvfn( fftGrid(1), fftGrid(2), fftGrid(3), bandChunk ) )
@@ -441,7 +471,10 @@ module prep_wvfn
       endif
     endif
 
-    if( wantTmels ) call ocean_tmels_close( ierr )
+    if( wantTmels ) then 
+      call ocean_tmels_close( ierr )
+      if( wantLegacy ) call ocean_tmels_legacy( totValBands, totConBands, params%nkpts, params%nspin, ierr )
+    endif
 
     call screen_tk_stop( "legacy" )
     call screen_tk_start( "main" )
@@ -449,6 +482,7 @@ module prep_wvfn
     write(1000+myid, * ) 'Calling Energies'
     flush(1000+myid)
     call prep_wvfn_writeEnergies( ierr )
+    if( ierr .ne. 0 ) return
     call MPI_BARRIER( comm, ierr )
     write(1000+myid, * ) 'Finished Energies'
     flush(1000+myid)
@@ -655,8 +689,12 @@ module prep_wvfn
     offset = offset *  sizeofcomplex
     write(1000+myid, * ) 'offset', offset, sizeofcomplex
       
-    call MPI_FILE_SET_VIEW( fh, offset, MPI_DOUBLE_COMPLEX, MPI_DOUBLE_COMPLEX, "native", MPI_INFO_NULL, ierr )
-!    call MPI_FILE_SET_VIEW( fh, offset, MPI_DOUBLE_COMPLEX, fileType, "native", MPI_INFO_NULL, ierr )
+    ! We have two options for writing this out
+    if( perKptU2 ) then
+      call MPI_FILE_SET_VIEW( fh, offset, MPI_DOUBLE_COMPLEX, MPI_DOUBLE_COMPLEX, "native", MPI_INFO_NULL, ierr )
+    else
+      call MPI_FILE_SET_VIEW( fh, offset, MPI_DOUBLE_COMPLEX, fileType, "native", MPI_INFO_NULL, ierr )
+    endif
     if( ierr .ne. 0 ) return
 #else
     open( file=filnam, form='unformatted', status='unknown', newunit=fh )
@@ -846,14 +884,14 @@ module prep_wvfn
     nband = size( UofX2, 2 )
     allocate( coeff( nband ) )
 
-#if 0
+#if 1
 !TEST
     do iband = 1, nband
       coeff(iband) = dot_product( UofX2(:,iband), UofX2(:,iband) )
     enddo
     call MPI_ALLREDUCE( MPI_IN_PLACE, coeff, nband, MPI_DOUBLE_COMPLEX, MPI_SUM, pool_comm, ierr )
     do iband = 1, nband
-      write(1000+myid, * ) '!!!', coeff(iband)
+      write(1000+myid, * ) '!!!', real(coeff(iband),DP), size( UofX2,1)
     enddo
 !\TEST
 #endif
@@ -881,6 +919,75 @@ module prep_wvfn
     deallocate( coeff )
 
   end subroutine prep_wvfn_u2
+
+  subroutine prep_wvfn_writeU2_perKpt( ikpt, ispin, UofX2, fileHandle, ierr )
+    use prep_system, only : system_parameters, params
+    use ocean_dft_files, only : odf_poolID, odf_nprocPerPool, odf_poolComm
+    use ocean_mpi, only : &
+#ifdef MPI_F08
+                          MPI_Datatype, &
+#endif
+                          MPI_DOUBLE_COMPLEX, MPI_OFFSET_KIND, MPI_STATUS_IGNORE, myid, MPI_STATUS_SIZE, MPI_INFO_NULL
+
+    integer, intent( in ) :: ikpt, ispin, fileHandle
+    complex(DP), intent( in ) :: UofX2(:,:)
+    integer, intent( inout ) :: ierr
+
+    complex(DP), allocatable :: writeBuffer(:)
+
+#ifdef MPI_F08
+    type( MPI_DATATYPE ):: newType
+#else
+    integer :: newType, stat( MPI_STATUS_SIZE)
+#endif
+    integer(MPI_OFFSET_KIND) :: offset
+    integer :: ix, i, myPoolID, nprocPerPool, nx, myx, nb, poolComm, id, ib, xstart, xstop
+
+
+
+    myPoolID = odf_poolID()
+    nprocPerPool = odf_nprocPerPool()
+    poolComm = odf_poolComm()
+
+    nb = size( UofX2, 2 )
+    myx = size( UofX2, 1)
+    nx = product( params%xmesh(:) )
+
+    ! offset for k-point
+    offset = max( ikpt - 1 + ( ispin - 1 ) * params%nkpts, 0 )
+!    offset = offset * int( size( UofX2, 1 ), MPI_OFFSET_KIND ) * int( size( UofX2, 2 ), MPI_OFFSET_KIND )
+    offset = offset * int( nb, MPI_OFFSET_KIND ) * int( nx, MPI_OFFSET_KIND )
+
+    if( myPoolID .eq. 0 ) then
+      allocate( writeBuffer( nx ) )
+      do ib = 1, nb
+
+        xstart = 1
+        xstop = prep_wvfn_divideXmesh( nx, nprocPerPool, 0 )
+        writeBuffer( xstart:xstop ) = UofX2( :, ib )
+        do id = 1, nprocPerPool-1
+          xstart = xstop+1
+          myx = prep_wvfn_divideXmesh( nx, nprocPerPool, id )
+          xstop = xstart + myx - 1
+          call MPI_RECV( writeBuffer( xstart:xstop), myx, MPI_DOUBLE_COMPLEX, id, 1, poolComm, MPI_STATUS_IGNORE, ierr )
+          if( ierr .ne. 0 ) return
+        enddo
+
+        write(1000+myid,'(A2,X,3(I12))') 'OF', ikpt, ib, offset
+        call MPI_FILE_WRITE_AT( fileHandle, offset, writeBuffer, nx, MPI_DOUBLE_COMPLEX, MPI_STATUS_IGNORE, ierr )
+        if( ierr .ne. 0 ) return
+        offset = offset + nx
+      enddo      
+      deallocate( writeBuffer )
+    else
+      do ib = 1, nb
+        call MPI_SEND( UofX2( :, ib ), myx, MPI_DOUBLE_COMPLEX, 0, 1, poolComm, MPI_STATUS_IGNORE, ierr )
+        if( ierr .ne. 0 ) return
+      enddo
+    endif
+    
+
+  end subroutine prep_wvfn_writeU2_perKpt
 
   subroutine prep_wvfn_writeU2( ikpt, ispin, UofX2, fileHandle, ierr )
     use prep_system, only : system_parameters, params

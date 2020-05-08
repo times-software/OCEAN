@@ -40,14 +40,14 @@ my $run_screen = 0;
 
 my @GeneralFiles = ("para_prefix", "calc");
 
-my @KgenFiles = ("nkpt", "k0.ipt", "qinunitsofbvectors.ipt", "screen.nkpt", "screen.k0");
+my @KgenFiles = ("nkpt", "k0.ipt", "qinunitsofbvectors.ipt", "screen.nkpt", "screen.k0", "dft.split");
 my @BandFiles = ("nbands", "screen.nbands");
 my @EspressoFiles = ( "coord", "degauss", "ecut", "etol", "fband", "ibrav", 
     "isolated", "mixing", "natoms", "ngkpt", "noncolin", "nrun", "ntype", 
     "occopt", "prefix", "ppdir", "rprim", "rscale", "metal",
     "spinorb", "taulist", "typat", "verbatim", "work_dir", "tmp_dir", "wftol", 
     "den.kshift", "obkpt.ipt", "trace_tol", "ham_kpoints", "obf.nbands","tot_charge", 
-    "nspin", "smag", "ldau", "qe_scissor", "zsymb", "dft.calc_stress", "dft.calc_force", "dft.split", "dft",
+    "nspin", "smag", "ldau", "qe_scissor", "zsymb", "dft.calc_stress", "dft.calc_force", "dft",
     "dft.startingwfc", "dft.diagonalization", "dft.qe_redirect", "dft.ndiag", "dft.functional", "dft.exx.qmesh" );
 my @PPFiles = ("pplist", "znucl");
 my @OtherFiles = ("epsilon", "pool_control", "screen.mode");
@@ -114,13 +114,21 @@ else {
 
 unless( $nscfRUN == 1)
 {
-  foreach( "nkpt", "k0.ipt", "qinunitsofbvectors.ipt", "nbands" )
+  foreach( "nkpt", "k0.ipt", "nbands" )
   {
     if( compare( "$_", "../Common/$_") != 0 )
     {
       $nscfRUN = 1;
       print "Difference found in $_\n";
       last;
+    }
+  }
+  unless( $nscfRUN == 1 )
+  {
+    if( compare( "qinunitsofbvectors.ipt", "../Common/qinunitsofbvectors.ipt" ) != 0 )
+    {
+      $nscfRUN = 2;
+      print "Difference found in qinunitsofbvectors.ipt\n";
     }
   }
 }
@@ -208,7 +216,7 @@ if( $run_screen == 0 && $screen_mode =~ m/grid/i )
   }
 }
 
-if( $nscfRUN == 1 )
+if( $nscfRUN != 0 )
 {
   unlink "bse.stat";
 }
@@ -711,7 +719,7 @@ if ($RunESPRESSO) {
     print OUT "qe54\n";
     close OUT;
   }
-  elsif( -e $qe62_file )
+  if( -e $qe62_file )  # Starting in QE6.5 it looks like both xml files are written 
   {
     print "$qe62_file\n";
     open SCF, $qe62_file or die "Failed to open $qe62_file\n$!";
@@ -899,7 +907,7 @@ if ( $nscfRUN ) {
     {
       print QE "ATOMIC_POSITIONS angstrom\n";
     }
-    elsif( $coord_type =~ m/bohr/ )
+    elsif( $coord_type =~ m/bohr/ || $coord_type =~ m/xcart/ )
     {
       print QE "ATOMIC_POSITIONS bohr\n";
     }
@@ -1001,7 +1009,7 @@ if ( $nscfRUN ) {
     copy "../k0.ipt", "k0.ipt";
     copy "../dft.split", "dft.split";
 
-    my $split_dft;
+    my $split_dft = 0;
     if( open IN, "dft.split" )
     {
       $split_dft = 0;
@@ -1039,7 +1047,11 @@ if ( $nscfRUN ) {
     my $repeat = 0;
     $repeat = 1 if( $split_dft );
     my $prefix = 'prefix';
-    for( my $i = 0; $i <= $repeat; $i++ )
+    my $startRepeat = 0;
+
+    $startRepeat = 1 if( $nscfRUN == 2 );
+
+    for( my $i = $startRepeat; $i <= $repeat; $i++ )
     {
       my $savedir = catdir( $qe_data_files{'work_dir'}, $qe_data_files{$prefix} . ".save" ); 
 #      mkdir "Out/$qe_data_files{$prefix}.save" unless ( -d "Out/$qe_data_files{$prefix}.save" );
@@ -1211,7 +1223,11 @@ if ( $nscfRUN ) {
     }
 
 
-    if( $split_dft )
+    if( $split_dft && $nscfRUN == 2 )
+    {
+      print "Unoccupied states re-used from previous calculation\n";
+    }
+    elsif( $split_dft )
     {
       open my $QE, ">nscf_shift.in" or die "Failed to open nscf_shift.in\n$!";
 
@@ -1680,6 +1696,7 @@ sub print_qe
         .  "  tstress = $inputs{'dft.calc_stress'}\n"
         .  "  tprnfor = $inputs{'dft.calc_force'}\n"
         .  "  wf_collect = .true.\n"
+        .  "  disk_io = 'low'\n"
         .  "/\n";
   print $fh "&system\n"
         .  "  ibrav = $inputs{'ibrav'}\n"
@@ -1777,7 +1794,7 @@ sub print_qe
   {
     print $fh "ATOMIC_POSITIONS angstrom\n";
   }
-  elsif( $coord_type =~ m/bohr/ )
+  elsif( $coord_type =~ m/bohr/ || $coord_type =~ m/cart/ )
   {
     print $fh "ATOMIC_POSITIONS bohr\n";
   }

@@ -1,4 +1,4 @@
-! Copyright (C) 2015 - 2017 OCEAN collaboration
+! Copyright (C) 2015 - 2017, 2019 OCEAN collaboration
 !
 ! This file is part of the OCEAN project and distributed under the terms 
 ! of the University of Illinois/NCSA Open Source License. See the file 
@@ -85,40 +85,55 @@ module OCEAN_action
       if( loud_valence ) then
         !JTV
         ! Loud valence hasn't been tested in a while!!
-        ierr = 1
-        if( myid .eq. root ) write(6,*) 'This code pathway is currently disabled'
-        return
+        if( sys%cur_run%have_core ) then
+          ierr = 1
+          if( myid .eq. root ) write(6,*) 'This code pathway is currently disabled'
+          return
+        endif
   !      call OCEAN_energies_allow( sys, psi, ierr )
   !      if( ierr .ne. 0 ) return
         call OCEAN_psi_new( psi_o, ierr, psi )
         call OCEAN_psi_new( psi_i, ierr )
 
         if( sys%cur_run%bande ) then
-          call OCEAN_psi_zero_full( psi_i, ierr )
-          call OCEAN_psi_ready_buffer( psi_i, ierr )
+!          call OCEAN_psi_zero_full( psi_i, ierr )
+!          call OCEAN_psi_ready_buffer( psi_i, ierr )
+!          if( ierr .ne. 0 ) return
+!          call OCEAN_psi_zero_min( psi_i, ierr )
+!          if( ierr .ne. 0 ) return
+
+
+
+!          call OCEAN_energies_val_act( sys, psi, psi_i, ierr, back )
+!          if( ierr .ne. 0 ) return
+!  !        call OCEAN_energies_val_sfact( sys, psi_i, ierr )
+!  !        if( ierr .ne. 0 ) return
+!          call OCEAN_psi_send_buffer( psi_i, ierr )
+!          if( ierr .ne. 0 ) return
+!          call OCEAN_psi_buffer2min( psi_i, ierr )
+!          if( ierr .ne. 0 ) return
+
+          ! Might as well go ahead and put these on the correct new_psi min to start
+          call  OCEAN_tk_start( tk_e0 )
+          call ocean_energies_act( sys, psi, new_psi, back, ierr )
           if( ierr .ne. 0 ) return
-          call OCEAN_psi_zero_min( psi_i, ierr )
+          call OCEAN_tk_stop( tk_e0 )
+
+          ! Then just to be sure, use the allow (should've been done before psi was passed in)
+          call OCEAN_energies_allow( sys, new_psi, ierr )
           if( ierr .ne. 0 ) return
 
 
-
-          call OCEAN_energies_val_act( sys, psi, psi_i, ierr, back )
-          if( ierr .ne. 0 ) return
-  !        call OCEAN_energies_val_sfact( sys, psi_i, ierr )
-  !        if( ierr .ne. 0 ) return
-          call OCEAN_psi_send_buffer( psi_i, ierr )
-          if( ierr .ne. 0 ) return
-          call OCEAN_psi_buffer2min( psi_i, ierr )
-          if( ierr .ne. 0 ) return
-
-
-
-          call OCEAN_psi_dot( psi_o, psi_i, rrequest, rval, ierr, irequest, ival )
+!          call OCEAN_psi_dot( psi_o, psi_i, rrequest, rval, ierr, irequest, ival )
+          call OCEAN_psi_dot( psi_o, new_psi, rrequest, rval, ierr, irequest, ival )
           call MPI_WAIT( rrequest, MPI_STATUS_IGNORE, ierr )
           call MPI_WAIT( irequest, MPI_STATUS_IGNORE, ierr )
           if( myid .eq. root ) write(6,'(A6,4X,E22.15,1X,E22.15)') 'one-el',rval*Hartree2eV, ival*Hartree2eV
           rval = 1.0_dp
-          call OCEAN_psi_axpy( rval, psi_i, new_psi, ierr )
+!          call OCEAN_psi_axpy( rval, psi_i, new_psi, ierr )
+        else
+          call OCEAN_psi_zero_min( new_psi, ierr )
+          if( ierr .ne. 0 ) return
         endif
 
         if( sys%cur_run%bflag ) then
@@ -131,14 +146,14 @@ module OCEAN_action
 
           call AI_bubble_act( sys, psi, psi_i, ierr )
           if( ierr .ne. 0 ) return
-          call OCEAN_energies_allow( sys, psi_i, ierr )
-          if( ierr .ne. 0 ) return
 
           call OCEAN_psi_send_buffer( psi_i, ierr )
           if( ierr .ne. 0 ) return
           call OCEAN_psi_buffer2min( psi_i, ierr )
           if( ierr .ne. 0 ) return
 
+          call OCEAN_energies_allow( sys, psi_i, ierr )
+          if( ierr .ne. 0 ) return
         
           call OCEAN_psi_dot( psi_o, psi_i, rrequest, rval, ierr, irequest, ival )
           call MPI_WAIT( rrequest, MPI_STATUS_IGNORE, ierr )
@@ -162,15 +177,14 @@ module OCEAN_action
 
           call OCEAN_ladder_act( sys, psi, psi_i, ierr )
           if( ierr .ne. 0 ) return
-          call OCEAN_energies_allow( sys, psi_i, ierr )
-          if( ierr .ne. 0 ) return
 
           call OCEAN_psi_send_buffer( psi_i, ierr )
           if( ierr .ne. 0 ) return
           call OCEAN_psi_buffer2min( psi_i, ierr )
           if( ierr .ne. 0 ) return
 
-
+          call OCEAN_energies_allow( sys, psi_i, ierr )
+          if( ierr .ne. 0 ) return
 
           call OCEAN_psi_dot( psi_o, psi_i, rrequest, rval, ierr, irequest, ival )
           call MPI_WAIT( rrequest, MPI_STATUS_IGNORE, ierr )
@@ -185,6 +199,10 @@ module OCEAN_action
         ! clean up aux psi vectors
         call OCEAN_psi_kill( psi_o, ierr )
         call OCEAN_psi_kill( psi_i, ierr )
+
+        ! Need to do a better job figuring out what is shared between core/valence
+        ! and what is then repeated between loud/quiet valence
+        return
 
       else  ! loud_valence = false
         ! Option 2 doesn't give per-BSE hamiltonian values for E0, direct, and
@@ -234,7 +252,11 @@ module OCEAN_action
 !     endif
 !    if( ierr .ne. 0 ) return
 
-    ! Right now this energy action is only for the core, but we will roll valence in later
+
+
+!   After this step the min storage component of new_psi contains the one-electron energy component.
+!   The contents of new_psi's min storage are overwritten.
+!   Or if one-e is disabled, the min storage is zeroed out.
     if( ( sys%e0 .and. sys%cur_run%have_core ) .or. ( sys%cur_run%bande .and. sys%cur_run%have_val ) ) then
       call OCEAN_tk_start( tk_e0 )
       call ocean_energies_act( sys, psi, new_psi, back, ierr )
@@ -244,13 +266,13 @@ module OCEAN_action
       if( ierr .ne. 0 ) return
     endif
 
-
+!   The data sitting in new_psi's buffer are added to the min 
     call OCEAN_psi_buffer2min( new_psi, ierr )
     if( ierr .ne. 0 ) return
     call OCEAN_tk_stop( tk_psisum )
 
 
-    
+!   The min storage is multiplied by the allow matrix (this enforces the Fermi-Dirac occpations at 0K)
     call OCEAN_energies_allow( sys, new_psi, ierr )
     if( ierr .ne. 0 ) return
 

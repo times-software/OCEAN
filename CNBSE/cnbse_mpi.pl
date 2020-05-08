@@ -478,34 +478,40 @@ if( $obf == 1 )
 }
 else  # We are using abi/qe path w/o obfs
 {
-  # grab .Psi
-#  `touch .Psi`;
-#  system("rm .Psi*");
-#  open LISTW, "listwfile" or die "Failed to open listwfile\n";
-#  while (<LISTW>) 
-#  {
-#    $_ =~ m/(\d+)\s+(\S+)/ or die "Failed to parse listwfile\n";
-#    system("ln -sf ../PREP/BSE/$2 .") == 0 or die "Failed to link $2\n";
-#  }  
+
+  my $symlink_exists = eval { symlink("",""); 1 };
+
+  unlink( "con.u2.dat" ) if( -e "con.u2.dat" );
+  unlink( "val.u2.dat" ) if( -e "val.u2.dat" );
+  unlink( "u2.dat" ) if( -e "u2.dat" );
 
   if( -e "../PREP/BSE/con.u2.dat" )
   {
-    `ln -s ../PREP/BSE/con.u2.dat`;
-    `ln -s ../PREP/BSE/val.u2.dat`;
+    if( $symlink_exists == 1 )
+    {
+      symlink( "../PREP/BSE/con.u2.dat", "con.u2.dat" ) or die "Failed to link ../PREP/BSE/con.u2.dat\n$!";
+      symlink( "../PREP/BSE/val.u2.dat", "val.u2.dat" ) or die "Failed to link ../PREP/BSE/val.u2.dat\n$!";
+    }
+    else
+    {
+      copy( "../PREP/BSE/con.u2.dat", "con.u2.dat" ) or die "Failed to copy ../PREP/BSE/con.u2.dat\n$!";
+      copy( "../PREP/BSE/val.u2.dat", "val.u2.dat" ) or die "Failed to copy ../PREP/BSE/val.u2.dat\n$!";
+    }
   }
   elsif (-e "../PREP/BSE/u2.dat")
   {
-    `ln -s ../PREP/BSE/u2.dat`;
+    if( $symlink_exists == 1 )
+    {
+      symlink( "../PREP/BSE/u2.dat", "u2.dat" ) or die "Failed to link ../PREP/BSE/u2.dat\n$!";
+    }
+    else
+    {
+      copy( "../PREP/BSE/u2.dat", "u2.dat" ) or die "Failed to copy ../PREP/BSE/u2.dat\n$!";
+    }
   }
   else
   {
-#    print "Running setup\n";
-#    system("$ENV{'OCEAN_BIN'}/setup2.x > setup.log") == 0 or die "Setup failed\n";
-#    print "conugtoux\n";
-#    system("$ENV{'OCEAN_BIN'}/conugtoux.x > conugtoux.log");# == 0 or die;
-#    print "orthog\n";
-#    system("$ENV{'OCEAN_BIN'}/orthog.x > orthog.log") == 0 or die;
-    die "Failed to get ../PREP/BSE/u2.dat";
+    die "Failed to get electron wave functions from PREP/BSE\n";
   }
 }
 
@@ -856,6 +862,9 @@ else
 }
 close INFILE;
 
+open INFILE, ">", "spect.in" or die "Failed to open spect.in for writing\n$!";
+print INFILE "$spectrange  $gamma0  0.000\n";
+close INFILE;
 
 
 #Provide here the legacy serial option
@@ -938,8 +947,9 @@ else
 {
   $ENV{"OMP_NUM_THREADS"}=1;
 
-  print "time $para_prefix $ENV{'OCEAN_BIN'}/ocean.x > cm.log";
-  system("time $para_prefix $ENV{'OCEAN_BIN'}/ocean.x > cm.log") == 0 or die "Failed to finish\n"; 
+  print "$para_prefix $ENV{'OCEAN_BIN'}/ocean.x > cm.log";
+  system("$para_prefix $ENV{'OCEAN_BIN'}/ocean.x > cm.log") == 0 or die "Failed to finish\n"; 
+  print "\n";
 }
 
 exit 0;

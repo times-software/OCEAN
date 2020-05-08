@@ -100,18 +100,28 @@ sub upfParser
   my $n = -1;
   while( my $line = <$pp> )
   {
-    if( $line =~ m/z_valence=\"\s*(\d+.?\d*)\s*\"/i )
+#    if( $line =~ m/z_valence=\"\s*(\d+.?\d*)\s*\"/i  || 
+#        $line =~ m/z\s+valence=\"\s*(\d+.?\d*)\s*\"/i )
+    if( $line =~ m/z_valence/i || $line =~ m/z valence/i )
     {
+      
+      if( $line =~ m/(\d+.?\d*)/ )
+      {
 #      print $line;
-      $n = $1;
+        $n = $1;
+      }
+      else
+      {
+        $n = -2;
+      }
       last;
     }
-    elsif( $line =~ m/z_valence/i )
-    {
-      print $line;
-      $n = -2;
-      last;
-    }
+#    elsif( $line =~ m/z_valence/i )
+#    {
+#      print $line;
+#      $n = -2;
+#      last;
+#    }
   }
 
   return $n;

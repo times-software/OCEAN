@@ -82,7 +82,7 @@ subroutine baregrip( l, lmin, lmax, nr, irc, ntest, north, dl, rel, zorig, emax,
      e2 = et( j2 ); a2 = angae( j2 )
      do ii = 1, 13
 !        if( mod( ii, 2 ) .eq. 0 ) then
-        if( ii .gt. 6 ) then
+        if( ii .gt. 3 ) then
           ee = ( e1 * ( a2 - angps( i ) ) + e2 * ( angps( i ) - a1 ) ) / ( a2 - a1 )
         else
           ee = 0.5d0 * ( e1 + e2 )
@@ -99,7 +99,7 @@ subroutine baregrip( l, lmin, lmax, nr, irc, ntest, north, dl, rel, zorig, emax,
            phibest( : ) = phi1
            abest = ang1
            slpae = slp
-           if( abs( abest - angps( i ) ) .lt. 3.0d-12 ) then
+           if( abs( abest - angps( i ) ) .lt. 3.0d-14 ) then
               exit
            endif
         end if

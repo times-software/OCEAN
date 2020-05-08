@@ -9,20 +9,21 @@
 !
 !  creates the site list based upon the inputs
 !
-!TODO This should really be moved to scripts
+!TODO This should really be moved to a subroutine 
 program pawsetup
-
+      use ocean_phys, only : ophys_fixCoords
       use periodic
       implicit none
 !
-      integer :: ntypat, natom, nedges, counter, counter2, uniquepsp
+      integer :: ntypat, natom, nedges, counter, counter2, uniquepsp, ierr
       integer, allocatable :: znucl(:), typat(:), edges(:,:), sites(:), &
      &    atomcount(:), sitenum(:), pspused(:),inppopts(:), inppfill(:)
-!      real(kind=kind(1.d0)) ::
-      real(kind=kind(1.d0)), allocatable :: xred(:,:)
+      real(kind=kind(1.d0)) :: avecs(3,3)
+      real(kind=kind(1.d0)), allocatable :: xred(:,:), xinput(:,:), xcoord(:,:)
       character(len=50), allocatable :: pplist(:),ppopts(:),ppfill(:)
       character(len=50) :: atemp1, atemp2
       character(len=4) :: smode
+      character(len=8) :: coordFormat
       logical :: ex, val
 !
       character(len=9), parameter :: f9='formatted'
@@ -45,10 +46,20 @@ program pawsetup
       read(99,*) typat(:)
       close(99)
 !
-      allocate(xred(3,natom))
+      allocate(xinput(3,natom), xcoord(3, natom), xred(3,natom))
       open(unit=99,file='taulist',form=f9,status='old')
-      read(99,*) xred(:,:)
+      read(99,*) xinput(:,:)
       close(99)
+!
+      open(unit=99,file='coord',form=f9,status='old')
+      read(99,*) coordFormat
+      close(99)
+!
+      open(unit=99,file='avecsinbohr.ipt',form=f9,status='old')
+      read(99,*) avecs(:,:)
+      close(99)
+!
+      call ophys_fixCoords( avecs, coordFormat, xinput, xred, xcoord, ierr )
 !
       open(unit=99,file='nedges',form=f9,status='old')
       read(99,*) nedges
@@ -168,7 +179,7 @@ program pawsetup
       enddo
       close(99)
 !
-      deallocate(znucl,typat,xred,edges,sites,atomcount, pplist,sitenum)
+      deallocate(znucl,typat,xred,xinput,xcoord,edges,sites,atomcount, pplist,sitenum)
 111   continue
 !
 end program pawsetup 

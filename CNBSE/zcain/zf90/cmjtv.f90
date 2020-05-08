@@ -80,7 +80,7 @@ subroutine cmjtv( nsphpt, xsph, ysph, zsph, wsph, prefs )
      ! nothing needs to be done!!!
   case( 'ldos2' )
      ! nothing needs to be done!!!
-  case( 'qRaman' )
+  case( 'qRaman', 'qRs', 'qRp', 'qRd', 'qRf' )
      ! nothing needs to be done!!!
 
   case default

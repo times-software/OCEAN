@@ -486,7 +486,8 @@ module ocean_cks
         allSites( i )%indx = psys%atom_list( j )%indx
         allSites( i )%z = psys%atom_list( j )%z
 !        allSites( i )%xred(:) = psys%atom_list( j )%reduced_coord(:)
-        allSites( i )%xcoord( : ) = matmul( psys%avecs, psys%atom_list( j )%reduced_coord(:) )
+!        allSites( i )%xcoord( : ) = matmul( psys%avecs, psys%atom_list( j )%reduced_coord(:) )
+        allSites( i )%xcoord( : ) = psys%atom_list( j )%xcoord(:)
         write(1000+myid, * ) allSites( i )%elname, allSites( i )%indx , allSites( i )%z
         write(1000+myid, * ) allSites( i )%xcoord( : ) 
         write(1000+myid, * ) psys%atom_list( j )%reduced_coord(:)

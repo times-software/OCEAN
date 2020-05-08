@@ -816,8 +816,8 @@ close INFILE;
 $ENV{"OMP_NUM_THREADS"}=1;
 
 print "Running XAS through GMRES\n";
-print "time $para_prefix $ENV{'OCEAN_BIN'}/ocean.x > core.log";
-system("time $para_prefix $ENV{'OCEAN_BIN'}/ocean.x > core.log") == 0 or die "Failed to finish\n"; 
+print "$para_prefix $ENV{'OCEAN_BIN'}/ocean.x > core.log";
+system("$para_prefix $ENV{'OCEAN_BIN'}/ocean.x > core.log") == 0 or die "Failed to finish\n"; 
 
 
 # Set up for running the valence pathway for RIXS
@@ -944,8 +944,8 @@ close INFILE;
 
 
 print "Running valence for RIXS\n";
-print "time $para_prefix $ENV{'OCEAN_BIN'}/ocean.x > val.log";
-system("time $para_prefix $ENV{'OCEAN_BIN'}/ocean.x > val.log") == 0 or die "Failed to finish\n";
+print "$para_prefix $ENV{'OCEAN_BIN'}/ocean.x > val.log";
+system("$para_prefix $ENV{'OCEAN_BIN'}/ocean.x > val.log") == 0 or die "Failed to finish\n";
 
 
 exit 0;

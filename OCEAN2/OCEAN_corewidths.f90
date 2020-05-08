@@ -143,6 +143,9 @@ module OCEAN_corewidths
 
     lifetime = coreWidths( indx, ZZ )
 
+    ! Table is recommended fullwidth
+    lifetime = 0.5_DP * lifetime
+
   end subroutine returnLifetime
 
 end module OCEAN_corewidths

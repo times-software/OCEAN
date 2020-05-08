@@ -10,7 +10,8 @@ program screen_driver
   use ai_kinds
   use ocean_mpi, only : ocean_mpi_init, ocean_mpi_finalize, comm, myid, root
 !  use screen_grid
-  use screen_system, only : screen_system_load, screen_system_summarize, screen_system_setGamma
+  use screen_system, only : screen_system_load, screen_system_summarize, screen_system_setGamma, &
+                            screen_system_appx
   use screen_sites, only : screen_sites_load, screen_sites_prep, &
                            site
   use screen_energy, only : screen_energy_init, screen_energy_load, screen_energy_find_fermi
@@ -24,6 +25,7 @@ program screen_driver
   use screen_centralPotential, only : screen_centralPotential_loadInternal
   use screen_opf, only : screen_opf_loadAll
   use screen_timekeeper, only : screen_tk_init, screen_tk_printtimes, screen_tk_start, screen_tk_stop
+  use screen_kxc, only : screen_kxc_loadRealSpace, screen_kxc_dumpRealSpace
 
   implicit none
 
@@ -81,6 +83,14 @@ program screen_driver
   call screen_opf_loadAll( ierr )
   if( ierr .ne. 0 ) goto 111
   ! 
+
+  if( screen_system_appx() .ne. 'RPA' ) then
+    call screen_kxc_loadRealSpace( nsites, all_sites, ierr )
+    if( ierr .ne. 0 ) goto 111
+    call screen_kxc_dumpRealSpace( nsites, all_sites, ierr )
+!    goto 111
+  endif
+
   call screen_tk_stop( "init" )
 
 

@@ -304,7 +304,7 @@ module screen_wvfn_converter
     type( screen_wvfn ), allocatable :: temp_wavefunctions(:)
     real(DP) :: kpoints(3), qcart(3)
 !    integer :: uofxDims(3), boundaries(3,2)
-    integer :: isite, j, isend, itag, destID, iwvfn
+    integer :: isite, j, isend, itag, destID, iwvfn, nthreads
     integer :: npts, nProcsPerPool, iproc, nbandChunk, iband, nbandUse
     integer :: pts_start, num_pts, band_start, num_band, kpts_start, num_kpts
 #ifdef MPI_F08
@@ -316,6 +316,7 @@ module screen_wvfn_converter
 !    integer, allocatable :: typeList(:,:)
     integer, allocatable :: send_list(:)
 #endif
+!$  integer, external :: omp_get_max_threads
 
     call screen_tk_start( "swl_convertAndSend" )
 
@@ -352,9 +353,12 @@ module screen_wvfn_converter
                       ( real( uofx%dims(1), DP ) * real( uofx%dims(2), DP ) & 
                        * real( uofx%dims(3), DP ) * real( j, DP )  ) ) 
       nbandChunk = max( nbandChunk, 1 )
+      nthreads = 1
+!$    nthreads = omp_get_max_threads()
+      nbandChunk = nbandChunk * nthreads
       nbandChunk = min( nbandChunk, nbands )
     endif
-!    write(1000+myid,'(A,4(1X,I0),L2)') '*** Convert and Send ***', ikpt, ispin, nbands, nbandChunk, params%isGamma
+    write(1000+myid,'(A,4(1X,I0),L2)') '*** Convert and Send ***', ikpt, ispin, nbands, nbandChunk, params%isGamma
 !    flush(1000+myid)
 
 !    call swl_allocateUofX( params%isGamma, nbands, uofx, ierr )
@@ -1562,9 +1566,9 @@ module screen_wvfn_converter
         ierr = -1
     end select
 
-    write(1000+myid,'(A,3(1X,I8))') '   ', uofxDims(:)
-    write(1000+myid,'(A,3(1X,I8))') '   ', boundaries(:,1)
-    write(1000+myid,'(A,3(1X,I8))') '   ', boundaries(:,2)
+    write(1000+myid,'(A,3(1X,I10))') '   ', uofxDims(:)
+    write(1000+myid,'(A,3(1X,I10))') '   ', boundaries(:,1)
+    write(1000+myid,'(A,3(1X,I10))') '   ', boundaries(:,2)
 
   end subroutine swl_checkConvert
 
@@ -1930,7 +1934,29 @@ module screen_wvfn_converter
     dims(2) = size( uofx, 2 )
     dims(3) = size( uofx, 3 )
 
+    ! Need to find the offset
+    ! pointMap should point to the central value, which is round to nearest for odd-order, but
+    ! round to floor for even. 
+    if( mod( order, 2 ) .eq. 1 ) then
+      offset = order / 2
+    else
+      offset = order / 2 - 1
+    endif
+
+    dx = 1.0_dp / dims( 1 )
+    dy = 1.0_dp / dims( 2 )
+    dz = 1.0_dp / dims( 3 )
+
 !    if( iband .eq. 1 ) write(1000+myid,'(A,3(I8,1X))') 'x-dims', dims(:)
+
+!$OMP PARALLEL DEFAULT( NONE ) &
+!$OMP SHARED( order, nbands, npts, pointMap, offset, dx, dy, dz, isInitGrid, uofx, Pgrid ) &
+!$OMP SHARED( wvfn, distanceMap, iband, dims, posn, invAvecs ) &
+!$OMP PRIVATE( P, QGrid, Q, RGrid ) &
+!$OMP PRIVATE( ib, ip, iz, iy, izz, iyy, R, j, i ) &
+!$OMP PRIVATE( rvec )
+
+!$OMP DO SCHEDULE( STATIC )
     do ip = 1, npts
 !      rvec(:) = i2pi * matmul( bvecs, posn(:,ip) )
       do j = 1, 3
@@ -1955,24 +1981,13 @@ module screen_wvfn_converter
       distanceMap(:,ip) = ( rvec( : ) * real( dims(:), DP ) - floor( rvec( : ) * real( dims(:), DP ) ) ) &
                         / real(dims( : ), DP )
     enddo
+!$OMP END DO
 
-    ! Need to find the offset
-    ! pointMap should point to the central value, which is round to nearest for odd-order, but
-    ! round to floor for even. 
-    if( mod( order, 2 ) .eq. 1 ) then
-      offset = order / 2
-    else
-      offset = order / 2 - 1
-    endif
 
-    dx = 1.0_dp / dims( 1 )
-    dy = 1.0_dp / dims( 2 )
-    dz = 1.0_dp / dims( 3 )
-
-!$OMP PARALLEL DEFAULT( NONE ) &
-!$OMP SHARED( order, nbands, npts, pointMap, offset, dx, dy, dz, isInitGrid, uofx, Pgrid, wvfn, distanceMap, iband, dims ) &
-!$OMP PRIVATE( P, QGrid, Q, RGrid ) &
-!$OMP PRIVATE( ib, ip, iz, iy, izz, iyy, R )
+! $OMP PARALLEL DEFAULT( NONE ) &
+! $OMP SHARED( order, nbands, npts, pointMap, offset, dx, dy, dz, isInitGrid, uofx, Pgrid, wvfn, distanceMap, iband, dims ) &
+! $OMP PRIVATE( P, QGrid, Q, RGrid ) &
+! $OMP PRIVATE( ib, ip, iz, iy, izz, iyy, R )
 
     allocate( P(order,order), QGrid(order,order), Q(order), RGrid(order) )
 !    if( ierr .ne. 0 ) return
