@@ -1,7 +1,7 @@
 include ../Makefile.arch
 
 COMP = $(FC)
-OPTS = $(OPTIONS)
+OPTS = $(OPTIONS) $(LEGACY_REAL)
 
 all:
 	cd ppmod; make "COMP = $(COMP)" "OPTS = $(OPTS)"
@@ -12,6 +12,10 @@ install:
 	cd zatom; make "INSTDIR = $(INSTDIR)" install
 	cp opf.pl $(INSTDIR)/ 
 	cp validate_opts.pl $(INSTDIR)/
+	@if [ -f '$(ONCVPSP_DIR)/src/oncvpsp.x' ] ; \
+	then \
+     cp $(ONCVPSP_DIR)/src/oncvpsp.x $(INSTDIR) ; \
+	fi
 
 clean:
 	cd ppmod; make clean

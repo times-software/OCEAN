@@ -1,6 +1,6 @@
 #!/usr/bin/perl
 
-# Copyright (C) 2015 - 2017 OCEAN collaboration
+# Copyright (C) 2015 - 2017, 2019 OCEAN collaboration
 #
 # This file is part of the OCEAN project and distributed under the terms 
 # of the University of Illinois/NCSA Open Source License. See the file 
@@ -11,6 +11,7 @@
 
 use strict;
 use File::Copy;
+use File::Spec::Functions;
 use POSIX;
 
 if (! $ENV{"OCEAN_BIN"} ) {
@@ -27,19 +28,32 @@ my @CommonFiles = ("epsilon", "xmesh.ipt", "k0.ipt", "nbuse.ipt",
   "cnbse.solver", "cnbse.gmres.elist", "cnbse.gmres.erange", "cnbse.gmres.nloop", 
   "cnbse.gmres.gprc", "cnbse.gmres.ffff", "cnbse.write_rhs", "spin_orbit", "nspin", 
   "niter", "backf", "aldaf", "bwflg", "bande", "bflag", "lflag", "decut", "spect.h", 
-  "gw_control", "gwcstr", "gwvstr", "gwgap" );
+  "gw_control", "gwcstr", "gwvstr", "gwgap", "bse.wvfn" );
 
 my @DFTFiles = ("nelectron", "rhoofr");
 
-my @DenDipFiles = ("kmesh.ipt", "masterwfile", "listwfile", "efermiinrydberg.ipt", 
-                   "qinunitsofbvectors.ipt", "brange.ipt", "enkfile", "tmels", "nelectron", 
+my @DenDipFiles = ("kmesh.ipt", "efermiinrydberg.ipt", 
+                   "qinunitsofbvectors.ipt", "brange.ipt", "enkfile", "nelectron", 
                    "eshift.ipt" );
+
+my @LegacyPrepFiles = ( "masterwfile", "listwfile", "tmels", "enkfile" );
+
+my @OceanPrepFiles = ( "ptmels.dat", "enkfile", "tmels.info" );
+
 
 my @WFNFiles = ("kmesh.ipt",  "efermiinrydberg.ipt", "qinunitsofbvectors.ipt", "brange.ipt", 
                 "wvfcninfo", "wvfvainfo", "obf_control", "ibeg.h", "q.out", "tmels.info", 
                 "val_energies.dat", "con_energies.dat" );
 
+my @ScreenFiles = ( "screen.mode", "screen.lmax", "screen.final.rmax", "screen.final.dr", 
+                    "cnbse.rad" );
+
 foreach (@CommonFiles) {
+  copy( "../Common/$_", $_ ) or die "Failed to get Common/$_\n$!";
+}
+
+foreach (@ScreenFiles)
+{
   copy( "../Common/$_", $_ ) or die "Failed to get Common/$_\n$!";
 }
 
@@ -56,6 +70,10 @@ else
 {
   $obf = 0;
 }
+
+open IN, "bse.wvfn" or die "Failed to open bse.wvfn\n$!";
+my $bseWvfn = <IN>;
+close IN;
 
 
 if( $obf == 1 ) 
@@ -85,16 +103,58 @@ else
   foreach (@DenDipFiles) {
     copy( "../PREP/BSE/$_", $_ ) or die "Failed to get PREP/BSE/$_\n$!" ;
   }
-  open OUT, ">tmel_selector" or die;
-  print OUT "0\n";
-  close OUT;
-  open OUT, ">enk_selector" or die;
-  print OUT "0\n";
-  close OUT;
-  open OUT, ">bloch_selector" or die;
-  print OUT "0\n";
-  close OUT;
-
+  if( $bseWvfn =~ m/legacy/ )
+  {
+    foreach (@LegacyPrepFiles)
+    {
+      copy( "../PREP/BSE/$_", $_ ) or die "Failed to get PREP/BSE/$_\n$!" ;
+    }
+    open OUT, ">tmel_selector" or die;
+    print OUT "0\n";
+    close OUT;
+    open OUT, ">enk_selector" or die;
+    print OUT "0\n";
+    close OUT;
+    open OUT, ">bloch_selector" or die;
+    print OUT "0\n";
+    close OUT;
+    if (-e "../PREP/BSE/u2.dat")
+    {
+      `ln -s ../PREP/BSE/u2.dat`;
+    }
+    else
+    {
+      die "Required file ../PREP/BSE/u2.dat is missing!\n";
+    }
+  }
+  else  #### THIS SECTION STILL NEEDS WORK
+        #### MAKE SURE LEGACY AND NEW ARE PULLING IN CORRECT FILES
+  {
+    foreach (@OceanPrepFiles)
+    {
+      copy( "../PREP/BSE/$_", $_ ) or die "Failed to get PREP/BSE/$_\n$!" ;
+    }
+    foreach( "val.u2.dat", "con.u2.dat" )
+    {
+      if (-e "../PREP/BSE/$_" )
+      {
+        symlink( "../PREP/BSE/$_", $_ );
+      }
+      else
+      {
+        die "Required file ../PREP/BSE/$_ is missing!\n";
+      }
+    }
+    open OUT, ">tmel_selector" or die;
+    print OUT "1\n";
+    close OUT;
+    open OUT, ">enk_selector" or die;
+    print OUT "0\n";
+    close OUT;
+    open OUT, ">bloch_selector" or die;
+    print OUT "3\n";
+    close OUT;
+  }
 }
 
 
@@ -172,31 +232,55 @@ if( $obf == 1 )
 }
 else  # We are using abi/qe path w/o obfs
 {
-  # grab .Psi
-  `touch .Psi`;
-  system("rm .Psi*");
-  open LISTW, "listwfile" or die "Failed to open listwfile\n";
-  while (<LISTW>) 
-  {
-    $_ =~ m/(\d+)\s+(\S+)/ or die "Failed to parse listwfile\n";
-    system("ln -sf ../PREP/BSE/$2 .") == 0 or die "Failed to link $2\n";
-  }  
-
-  print "Running setup\n";
-  system("$ENV{'OCEAN_BIN'}/setup2.x > setup.log") == 0 or die "Setup failed\n";
-
-  if (-e "../PREP/BSE/u2.dat")
-  {
-    `ln -s ../PREP/BSE/u2.dat`;
-  }
-  else
-  {
-    print "conugtoux\n";
-    system("$ENV{'OCEAN_BIN'}/conugtoux.x > conugtoux.log");# == 0 or die;
-    print "orthog\n";
-    system("$ENV{'OCEAN_BIN'}/orthog.x > orthog.log") == 0 or die;
-  }
+#  # grab .Psi
+#  `touch .Psi`;
+#  system("rm .Psi*");
+#  open LISTW, "listwfile" or die "Failed to open listwfile\n";
+#  while (<LISTW>) 
+#  {
+#    $_ =~ m/(\d+)\s+(\S+)/ or die "Failed to parse listwfile\n";
+#    system("ln -sf ../PREP/BSE/$2 .") == 0 or die "Failed to link $2\n";
+#  }  
+#
+#  print "Running setup\n";
+#  system("$ENV{'OCEAN_BIN'}/setup2.x > setup.log") == 0 or die "Setup failed\n";
+#
+#  if (-e "../PREP/BSE/u2.dat")
+#  {
+#    `ln -s ../PREP/BSE/u2.dat`;
+#  }
+#  else
+#  {
+#    print "conugtoux\n";
+#    system("$ENV{'OCEAN_BIN'}/conugtoux.x > conugtoux.log");# == 0 or die;
+#    print "orthog\n";
+#    system("$ENV{'OCEAN_BIN'}/orthog.x > orthog.log") == 0 or die;
+#  }
 }
+
+open MODE, "screen.mode" or die "Failed to open screen.mode\n$!";
+if( <MODE> =~ m/grid/i )
+{
+  open XMESH, "xmesh.ipt" or die "Failed to open xmesh.ipt\n$!";
+  <XMESH> =~ m/(\d+)\s+(\d+)\s+(\d+)/ or die "Failed to parse xmesh.ipt\n$_";
+  my $nx = $1*$2*$3;
+  close XMESH;
+
+  open RAD, "cnbse.rad" or die "Failed to open cnbse.rad\n$!";
+  <RAD> =~ m/(\d+\.?\d*)/ or die "Failed to parse cnbse.rad\n$_";
+  my $rad = sprintf "zR%03.2f", $1;
+  close RAD;
+
+  for( my $i=1; $i <= $nx; $i++ )
+  {
+    my $xdir = sprintf "x%06i", $i;
+    my $targfile = catfile( updir(), "SCREEN", $xdir, $rad, "rpot" );
+    my $destfile = sprintf "rpotx%06i", $i;
+    copy( $targfile, $destfile ) or die "Failed to copy $targfile to $destfile\n";
+  }
+
+}
+close MODE;
 
 my $gamma0 = `cat cnbse.broaden`;
 chomp($gamma0);
@@ -245,13 +329,18 @@ print INFILE "hay\n";
 print INFILE "$num_haydock_iterations  $spectrange  $gamma0  0.000\n";
 close INFILE;
 
+open INFILE, ">", "spect.in" or die "Failed to open spect.in for writing\n$!";
+print INFILE "$spectrange  $gamma0  0.000\n";
+close INFILE;
+
 `cat bse.in`;
 
 `echo 0 0 0 > ZNL`;
 
 print "Running valence\n";
-print "time $para_prefix $ENV{'OCEAN_BIN'}/ocean.x > val.log";
-system("time $para_prefix $ENV{'OCEAN_BIN'}/ocean.x > val.log") == 0 or die "Failed to finish\n";
+print "$para_prefix $ENV{'OCEAN_BIN'}/ocean.x > val.log";
+system("$para_prefix $ENV{'OCEAN_BIN'}/ocean.x > val.log") == 0 or die "Failed to finish\n";
+print "\n";
 
 
 exit 0;

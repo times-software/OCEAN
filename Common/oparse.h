@@ -20,7 +20,7 @@ photon_q
 } qinunitsofbvectors.ipt
 dft.split
 {
-.false.
+.true.
 } dft.split
 dft.qe_redirect
 {
@@ -131,6 +131,22 @@ dft.diagonalization
 {
 david
 } dft.diagonalization
+dft.ndiag
+{
+-1
+} dft.ndiag
+dft.functional
+{
+none
+} dft.functional
+dft.exx.qmesh
+{
+1 1 1 
+} dft.exx.qmesh
+dft.nscf.poolsize
+{
+-1
+} dft.nscf.poolsize
 verbatim
 {
 #
@@ -167,10 +183,18 @@ opf.opts
 {
 !
 } opf.opts
+opf.program
+{
+shirley
+} opf.program
 screen.nkpt
 {
 -1
 } screen.nkpt
+screen.k0
+{
+0.125 0.250 0.375
+} screen.k0
 screen.nbands
 {
 0
@@ -301,7 +325,7 @@ dft.calc_stress
 } dft.calc_stress
 dft.calc_force
 {
-.false.
+.true.
 } dft.calc_force
 spinorb
 {
@@ -317,7 +341,7 @@ undefined
 } tmp_dir
 den.kshift
 {
-0 0 0
+1 1 1
 } den.kshift
 core_offset
 {
@@ -433,8 +457,8 @@ screen.grid.ninter
 } screen.grid.ninter
 screen.grid.shells
 {
-4 16
-8 16
+-1 
+8 
 } screen.grid.shells
 screen.grid.xyz
 {
@@ -450,12 +474,17 @@ screen.grid.nr
 } screen.grid.nr
 screen.grid.ang
 {
-lebdev 5
+5
 } screen.grid.ang
-screen.grid.lmax
+screen.grid.deltar
+{
+0.1
+0.2
+} screen.grid.deltar
+screen.lmax
 {
 0
-} screen.grid.lmax
+} screen.lmax
 screen.grid.nb
 {
 24
@@ -486,5 +515,21 @@ screen.augment
 } screen.augment
 screen.wvfn
 {
-legacy
+new
 } screen.wvfn
+screen.convertstyle
+{
+intp
+} screen.convertstyle
+screen.inversionstyle
+{
+direct
+} screen.inversionstyle
+screen.mode
+{
+core
+} screen.mode
+bse.wvfn
+{
+new
+} bse.wvfn

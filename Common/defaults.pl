@@ -63,7 +63,7 @@ foreach (@square_cpu_factors)
 { print "$_\n"; }
 
 
-open QE_POOL, ">pool_control" or die "Failed to open qe_pool_control for writing\n$!\n";
+open QE_POOL, ">pool_control" or die "Failed to open pool_control for writing\n$!\n";
 
 
 my $tline;
@@ -76,6 +76,8 @@ my @rscale = ($1, $4, $7);
 print "$1\t$4\t$7\n";
 close RSCALE;
 
+my @alength;
+my @avec;
 open RPRIM, "rprim" or die;
 open AVECS, ">avecsinbohr.ipt" or die;
 for (my $i = 0; $i < 3; $i++ ) 
@@ -84,25 +86,29 @@ for (my $i = 0; $i < 3; $i++ )
   chomp( $tline );
   $tline =~  m/([+-]?(\d+)?\.?\d+([eEfF][+-]?\d+)?)\s+([+-]?(\d+)?\.?\d+([eEfF][+-]?\d+)?)\s+([+-]?(\d+)?\.?\d+([eEfF][+-]?\d+)?)\s*$/ 
       or die "Failed to parse a line of rprim!\n$tline\n";
+  $avec[0][$i] = $1*$rscale[0];
+  $avec[1][$i] = $4*$rscale[1];
+  $avec[2][$i] = $7*$rscale[2];
+  $alength[$i] = sqrt( $avec[0][$i]**2 + $avec[1][$i]**2 + $avec[2][$i]**2 );
   print AVECS $1*$rscale[0] . "  " . $4*$rscale[1] .  "  " . $7*$rscale[2] . "\n";
   print "$1\t$4\t$7\n";
 }
 close RPRIM;
 close AVECS;
 
-my @alength;
-my @avec;
-open AVECS, "avecsinbohr.ipt" or die "Failed to open avecsinbohr.ipt\n$!\n";
-<AVECS> =~ m/(-?\d+\.?\d*)\s+(-?\d+\.?\d*)\s+(-?\d+\.?\d*)/ or die "$_\n";
-$alength[0] = sqrt( $1*$1 + $2*$2 + $3*$3 );
-$avec[0][0] = $1; $avec[1][0] = $2; $avec[2][0] = $3;
-<AVECS> =~ m/(-?\d+\.?\d*)\s+(-?\d+\.?\d*)\s+(-?\d+\.?\d*)/ or die "$_\n";
-$alength[1] = sqrt( $1*$1 + $2*$2 + $3*$3 );
-$avec[0][1] = $1; $avec[1][1] = $2; $avec[2][1] = $3;
-<AVECS> =~ m/(-?\d+\.?\d*)\s+(-?\d+\.?\d*)\s+(-?\d+\.?\d*)/ or die "$_\n";
-$alength[2] = sqrt( $1*$1 + $2*$2 + $3*$3 );
-$avec[0][2] = $1; $avec[1][2] = $2; $avec[2][2] = $3;
-close AVECS;
+#open AVECS, "avecsinbohr.ipt" or die "Failed to open avecsinbohr.ipt\n$!\n";
+#<AVECS> =~ m/(-?\d+\.?\d*)\s+(-?\d+\.?\d*)\s+(-?\d+\.?\d*)/ or die "$_\n";
+#$alength[0] = sqrt( $1*$1 + $2*$2 + $3*$3 );
+#print "!!!\n";
+#$avec[0][0] = $1; $avec[1][0] = $2; $avec[2][0] = $3;
+#<AVECS> =~ m/(-?\d+\.?\d*)\s+(-?\d+\.?\d*)\s+(-?\d+\.?\d*)/ or die "$_\n";
+#$alength[1] = sqrt( $1*$1 + $2*$2 + $3*$3 );
+#$avec[0][1] = $1; $avec[1][1] = $2; $avec[2][1] = $3;
+#<AVECS> =~ m/(-?\d+\.?\d*)\s+(-?\d+\.?\d*)\s+(-?\d+\.?\d*)/ or die "$_\n";
+#$alength[2] = sqrt( $1*$1 + $2*$2 + $3*$3 );
+#$avec[0][2] = $1; $avec[1][2] = $2; $avec[2][2] = $3;
+#close AVECS;
+
 
 my $volume = $avec[0][0] * ($avec[1][1] * $avec[2][2] - $avec[2][1] * $avec[1][2] )
            - $avec[1][0] * ($avec[0][1] * $avec[2][2] - $avec[2][1] * $avec[0][2] )
@@ -179,10 +185,39 @@ else
   die "FAILED TO CORRECTLY PARSE nkpt\n";
 }
 
+
+my $min_nscf_pool_size = $volume / 1400;
 my $ideal_npools = 1;
+if( -e "dft.nscf.poolsize" )
+{
+  open INPUT, "dft.nscf.poolsize";
+  if( <INPUT> =~ m/(-?\d+)/ )
+  {
+    my $t = $1;
+    $min_nscf_pool_size = $t if( $t > 0 );
+  }
+  $min_nscf_pool_size = $ncpus if( $min_nscf_pool_size > $ncpus );
+  close INPUT;
+}
+print "Min pool size: $min_nscf_pool_size\n";
+  
 foreach (@cpu_factors)
 {
-  $ideal_npools = $_ unless( $kpt_tot % $_ );
+  if( $ncpus / $_ >= $min_nscf_pool_size )
+  {
+    $ideal_npools = $_ unless( $kpt_tot % $_ );
+  }
+}
+print "NKPTS: $kpt_tot, ideal pools: $ideal_npools\n";
+if( $kpt_tot > (1.9*$ideal_npools ) && $ncpus / $ideal_npools > 6 )  # if ideal is too inefficient
+{
+  foreach (@cpu_factors)
+  {
+    if( $ncpus / $_ >= $min_nscf_pool_size )
+    {
+      $ideal_npools = $_;
+    }
+  }
 }
 print "NKPTS: $kpt_tot, ideal pools: $ideal_npools\n";
 print QE_POOL "nscf\t$ideal_npools\n";
@@ -307,6 +342,13 @@ foreach (@cpu_factors)
 print "OBKPTS: $kpt_tot, ideal pools: $ideal_npools\n";
 print QE_POOL "obf\t$ideal_npools\n";
 
+my $nelectrons = -1;
+if( -f "nelectrons" )
+{
+  open NE, "nelectrons" or die "Failed to open nelectrons\n$!";
+  my $ne = <NE>;
+  $nelectrons = sprintf "%.0f", $ne;
+}
 
 # Need to figure out the number of bands to use (for the BSE states)
 # 1) User has asked for NBANDS
@@ -326,10 +368,17 @@ if( $nbands <= 0 )
   print "Default requested for nbands. Energy range is $erange eV.\n";
   # First guess N conduction electrons
   $erange = $erange / 13.605;
-  $nbands = 0.018 * $volume * ( $erange**(3/2) );
-#  print "      $nbands\n";
+  $nbands = 0.019 * $volume * ( $erange**(3/2) );
+  print "      $nbands\n";
   # Then add a guess for valence
-  $nbands += 0.036 * $volume;
+  if( $nelectrons < 1 ) 
+  {
+    $nbands += 0.036 * $volume;
+  }
+  else
+  {
+    $nbands += ($nelectrons/2);
+  }
 #  print "      $nbands\n";
   # 1.05 is a padding factor
   $nbands *= 1.05;
@@ -360,9 +409,16 @@ if( $screen_nbands <= 0 )
   print "Default requested for screen.nbands. Energy range is $erange eV.\n";
   $erange = $erange / 13.605;
   # First guess N conduction electrons
-  $screen_nbands = 0.018 * $volume * ( $erange**(3/2) );
+  $screen_nbands = 0.019 * $volume * ( $erange**(3/2) );
   # Then add a guess for valence
-  $screen_nbands += 0.036 * $volume;
+  if( $nelectrons < 1 )
+  {
+    $screen_nbands += 0.036 * $volume;
+  }
+  else
+  {
+    $screen_nbands += ($nelectrons/2);
+  }
   # 1.05 is a padding factor
   $screen_nbands *= 1.05;
   $screen_nbands = int($screen_nbands);
@@ -554,6 +610,7 @@ if( $pool_size == -1 )
 }
 print "PAW: $kpt_tot, obf pool size: $pool_size\n";
 print QE_POOL "interpolate screen\t$pool_size\n";
+print QE_POOL "total\t$ncpus\n";
 
 
 close QE_POOL;
@@ -589,6 +646,22 @@ if( $input_content =~ m/VAL/i || $input_content =~ m/RXS/i )
     print QIN "0.001 0.0 0.0\n";
     close QIN;
   }
+}
+
+
+# epsilon can't be 1
+open EPS, "epsilon" or die "Failed to open epsilon\n$!";
+my $epsilon = <EPS>;
+chomp $epsilon;
+close EPS;
+if( $epsilon < 1.000001 )
+{
+  print "Use of model dielectric requires that epsilon be greater than 1!\n";
+  print "Input diemac too low: $epsilon\n";
+  $epsilon = 1.000001;
+  open EPS, ">", "epsilon" or die "Failed to open epsilon\n$!";
+  print EPS "$epsilon\n";
+  close EPS;
 }
 
 

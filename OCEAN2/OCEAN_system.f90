@@ -18,6 +18,8 @@ module OCEAN_system
     real(DP)         :: bmet(3,3)
     real(DP)         :: qinunitsofbvectors(3)
     real(DP)         :: epsilon0
+    real(DP)         :: occupationValue
+    real(DP)         :: epsConvergeThreshold
     integer( S_INT ) :: nkpts
     integer( S_INT ) :: nxpts
     integer( S_INT ) :: nalpha
@@ -39,6 +41,7 @@ module OCEAN_system
     integer          :: tmel_selector
     integer          :: enk_selector
     integer          :: bloch_selector
+    integer          :: screening_method
 
     logical          :: e0
     logical          :: mult
@@ -53,7 +56,10 @@ module OCEAN_system
     logical          :: write_rhs 
     logical          :: complex_bse
     logical          :: legacy_ibeg 
+    logical          :: convEps
 !    character(len=5) :: calc_type
+
+    character(len=5) :: occupationType
 
     type(o_run), pointer :: cur_run => null()
 
@@ -138,6 +144,7 @@ module OCEAN_system
     logical :: file_exist
 
     logical :: exst
+    character(len=4) :: mode
 
     if( myid .eq. root ) then
 
@@ -279,6 +286,15 @@ module OCEAN_system
       read(99,*) sys%bloch_selector
       close(99)
 
+      sys%screening_method = 1
+      inquire(file='screen.mode', exist=exst )
+      if( exst ) then
+        open(unit=99,file='screen.mode',form='formatted',status='old')
+        read(99,*) mode
+        close(99)
+        if( mode .eq. 'grid' ) sys%screening_method = 2
+      endif
+
       inquire(file='nXES_photon.ipt', exist=exst )
       if( exst ) then
         open(unit=99,file='nXES_photon.ipt',form='formatted',status='old')
@@ -311,6 +327,28 @@ module OCEAN_system
       else
         sys%complex_bse = .false.
       endif
+
+      inquire(file='occupation.ipt', exist=exst )
+      if( exst ) then
+        open( unit=99, file='occupation.ipt', form='formatted',status='old')
+        read( 99, * ) sys%occupationType, sys%occupationValue
+        write(6,*) 'occupation', sys%occupationType, sys%occupationValue
+        close( 99 )
+      else
+        sys%occupationType = 'none'
+        sys%occupationValue = 0.0_dp
+      endif
+      
+      inquire(file='conveps.ipt', exist=exst )
+      if( exst ) then
+        open( unit=99, file='conveps.ipt', form='formatted', status='old')
+        read(99, * ) sys%epsConvergeThreshold
+        close( 99 )
+        if( sys%epsConvergeThreshold .gt. 0.0d0 ) sys%convEps = .true.
+      else
+        sys%convEps = .false.
+      endif
+
       
     endif
 #ifdef MPI
@@ -329,6 +367,8 @@ module OCEAN_system
     call MPI_BCAST( sys%qinunitsofbvectors, 3, MPI_DOUBLE_PRECISION, root, comm, ierr )
     if( ierr .ne. MPI_SUCCESS ) goto 111
     call MPI_BCAST( sys%epsilon0, 1, MPI_DOUBLE_PRECISION, root, comm, ierr )
+    if( ierr .ne. MPI_SUCCESS ) goto 111
+    call MPI_BCAST( sys%occupationValue, 1, MPI_DOUBLE_PRECISION, root, comm, ierr )
     if( ierr .ne. MPI_SUCCESS ) goto 111
 
     call MPI_BCAST( sys%nkpts, 1, MPI_INTEGER, root, comm, ierr )
@@ -365,6 +405,8 @@ module OCEAN_system
     if( ierr .ne. MPI_SUCCESS ) goto 111
     call MPI_BCAST( sys%bloch_selector, 1, MPI_INTEGER, root, comm, ierr )
     if( ierr .ne. MPI_SUCCESS ) goto 111
+    call MPI_BCAST( sys%screening_method, 1, MPI_INTEGER, root, comm, ierr )
+    if( ierr .ne. MPI_SUCCESS ) goto 111
     call MPI_BCAST( sys%nXES_photon, 1, MPI_INTEGER, root, comm, ierr )
     if( ierr .ne. MPI_SUCCESS ) goto 111
 
@@ -389,6 +431,8 @@ module OCEAN_system
     call MPI_BCAST( sys%complex_bse, 1, MPI_LOGICAL, root, comm, ierr )
     if( ierr .ne. MPI_SUCCESS ) goto 111
 
+    call MPI_BCAST( sys%occupationType, 5, MPI_CHARACTER, root, comm, ierr )
+    if( ierr .ne. MPI_SUCCESS ) goto 111
 !    call MPI_BCAST( sys%calc_type, 5, MPI_CHARACTER, root, comm, ierr )
 !    if( ierr .ne. MPI_SUCCESS ) goto 111
 
@@ -656,7 +700,6 @@ module OCEAN_system
 
     
   end subroutine OCEAN_runlist_init
-
 
     
 end module OCEAN_system

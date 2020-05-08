@@ -119,6 +119,8 @@ subroutine OCEAN_load_data( sys, hay_vec, ierr )
     call OCEAN_psi_pnorm( sys, hay_vec, ierr )
     if( ierr .ne. 0 ) return
 !    endif
+!    call OCEAN_energies_resetAllow( ierr )
+!    if( ierr .ne. 0 ) return
 
     if( sys%mult ) then
       if( myid .eq. root ) write(6,*) 'Init mult'
@@ -156,3 +158,62 @@ subroutine OCEAN_load_data( sys, hay_vec, ierr )
 
 
 end subroutine OCEAN_load_data
+
+subroutine OCEAN_reload_val( sys, hay_vec, ierr )
+  use OCEAN_system
+  use OCEAN_psi
+  use OCEAN_energies
+  use OCEAN_mpi
+  use OCEAN_multiplet
+  use OCEAN_long_range
+  use OCEAN_val_states, only : OCEAN_val_states_load, OCEAN_val_states_init
+  use OCEAN_bubble, only : AI_bubble_prep
+  use OCEAN_ladder, only : OCEAN_ladder_init, OCEAN_ladder_new, OCEAN_ladder_kill
+
+  implicit none
+  integer, intent( inout ) :: ierr
+  type( o_system ), intent( inout ) :: sys
+  type(ocean_vector), intent( inout ) :: hay_vec
+
+  if( sys%cur_run%have_val) then
+
+#ifdef MPI
+!    write(6,*) myid, root
+    call MPI_BARRIER( comm, ierr )
+#endif
+
+    call ocean_psi_load( sys, hay_vec, ierr )
+    if( ierr .ne. 0 ) return
+
+    if( myid .eq. root ) write(6,*) 'Trim & scale matrix elements'
+    ! Now trim the hay_vec by the allow array 
+    !  This 1) cuts off over-lapped states valence above Fermi/conduction below
+    !       2) Uniform energy cutoff for upper bands
+    call OCEAN_energies_allow( sys, hay_vec, ierr )
+    if( ierr .ne. 0 ) return
+    call OCEAN_psi_pnorm( sys, hay_vec, ierr )
+    if( ierr .ne. 0 ) return
+    if( myid .eq. root ) write(6,*) 'Trim & scale complete'
+#ifdef MPI
+!    write(6,*) myid, root
+    call MPI_BARRIER( comm, ierr )
+#endif
+    
+    if( sys%cur_run%lflag ) then
+      call OCEAN_ladder_kill()
+      if( myid .eq. root ) write(6,*) 'Init ladder'
+      call OCEAN_ladder_init( sys, ierr )
+      if( ierr .ne. 0 ) return
+      if( myid .eq. root ) write(6,*) 'Load ladder'
+      call OCEAN_ladder_new( sys, ierr )
+      if( ierr .ne. 0 ) return
+      if( myid .eq. root ) write(6,*) 'Ladder loaded'
+
+    endif
+
+
+  else
+    return
+  endif
+
+end subroutine OCEAN_reload_val

@@ -37,11 +37,11 @@ module schi_sinqr
     integer :: i, j ,ii
     integer :: nbasis, npt, nr
 
-    nbasis = size( FullChi, 1 ) 
+    nbasis = size( FullChi, 1 ) - 2
     npt = grid%npt
     nr = grid%nr
 
-    write(6,*) 'mkvipt'
+!    write(6,*) 'mkvipt'
     allocate( vipt( nr ), basfcn( nr, nbasis ), qtab( nbasis ), rhs( nbasis ), & 
               potfcn( nr, nbasis ), weight( nr ) )
 !    call Newmkvipt( npt, grid%drel, pot%rad, pot%pot, vipt )
@@ -51,7 +51,7 @@ module schi_sinqr
       weight( i ) = grid%rad( i )**2 * grid%drad( i ) * 4.0_DP * PI_DP
     enddo
 
-    write(6,*) 'basis'
+!    write(6,*) 'basis'
     do i = 1, nbasis
       q = PI_DP * real( i, DP ) / grid%rmax
       pref = 2.0_DP * PI_DP * grid%rmax / q**2
@@ -71,8 +71,8 @@ module schi_sinqr
         else
 !          basfcn( j, i ) = grid%rad( j )**2 * grid%drad( j )* pref * (1.0_DP - arg**2/4.0_DP )
 !          basfcn( j, i ) = weight( j ) * pref * (1.0_DP - arg**2/4.0_DP )
-          basfcn( j, i ) = pref * (1.0_DP - arg**2/4.0_DP )
-          potfcn( j, i ) = pref * coul * ( 1.0_DP - arg**2/4.0_DP - cterm )
+          basfcn( j, i ) = pref * (1.0_DP - arg**2/6.0_DP )
+          potfcn( j, i ) = pref * coul * ( 1.0_DP - arg**2/6.0_DP - cterm )
         endif
       enddo
 !      do j = 1, nr
@@ -368,7 +368,7 @@ module schi_sinqr
     npt = grid%npt
     nr = grid%nr
 
-    write(6,*) 'mkvipt'
+!    write(6,*) 'mkvipt'
     allocate( vipt( npt ), basfcn( npt, nbasis ), qtab( nbasis ), rhs( nbasis ) )
     call mkvipt( npt, grid%drel, vipt )
 

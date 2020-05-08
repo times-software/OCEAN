@@ -1,4 +1,4 @@
-! Copyright (C) 2015 OCEAN collaboration
+! Copyright (C) 2015, 2017 - 2018 OCEAN collaboration
 !
 ! This file is part of the OCEAN project and distributed under the terms 
 ! of the University of Illinois/NCSA Open Source License. See the file 
@@ -36,8 +36,8 @@ subroutine cainkset( avec, bvec, bmet, prefs )
   !
   character * 2 :: element
   character * 4 :: add04
-  character * 5 :: fnroot
-  character * 9, allocatable, dimension( : ) :: fntau
+  character * 7 :: fnroot
+  character * 11, allocatable, dimension( : ) :: fntau
   character * 10 :: add10, infoname
   character * 12, allocatable, dimension( :, : ) :: wnam
   !
@@ -210,12 +210,13 @@ subroutine cainkset( avec, bvec, bmet, prefs )
   open( unit=99, file='cksdq', form=f9, status='old')
   read( 99, * ) dq( : )
   close( 99 )
+  ! Changing so that conduction bands are at k0 and valence at k-q
   if (conduct) then
-    do i = 1, 3
-      dbeta( i ) = sum( dq( : ) * avec( :, i ) ) / ( 2.0d0 * pi )
-    end do
-  else
     dbeta(:) = 0.0d0
+  else
+    do i = 1, 3
+      dbeta( i ) = -sum( dq( : ) * avec( :, i ) ) / ( 2.0d0 * pi )
+    end do
   endif
   !
   allocate( iq( 3, nktot ), qphys( 3, nktot ), e0( ntot ), eraw( ntot ) )
@@ -243,7 +244,7 @@ subroutine cainkset( avec, bvec, bmet, prefs )
      read ( stdin, * ) element, indx, fnroot
 !     read( 99, * ) element, indx
      call snatch( element, indx, tau( 1, itau ) )
-     write ( fntau( itau ), '(1a5,1i4.4)' ) fnroot, itau
+     write ( fntau( itau ), '(1a7,1i4.4)' ) trim(fnroot), itau
   end do
 !  close(99)
   !

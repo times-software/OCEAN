@@ -20,9 +20,10 @@ print "Welcome to OCEAN\n";
 
 ##########################################
 #???
-my $ColWidth = sprintf('%i',`tput cols` );
-if ($ColWidth < 0 ) { $ColWidth=10; }
-if ($ColWidth > 100 ) { $ColWidth=100; }
+#my $ColWidth = sprintf('%i',`tput cols` );
+#if ($ColWidth < 0 ) { $ColWidth=10; }
+#if ($ColWidth > 100 ) { $ColWidth=100; }
+my $ColWidth = 80;
 my $Separator =  "";
 for (my $i = 0; $i < $ColWidth; $i++ ) {
   $Separator  .= "#";
@@ -172,6 +173,9 @@ else
   $script_pre = 'abi';
 }
 
+# For now we will attempt to recove if psp_parser fails
+system("$ENV{'OCEAN_BIN'}/psp_parser.pl") == 0 or print "Failed to run psp_parser.pl\n$!";
+
 system("$ENV{'OCEAN_BIN'}/defaults.pl") == 0 or die "Failed to run defaults.pl\n$!";
 
 system("$ENV{'OCEAN_BIN'}/structure.pl") == 0 or die "Failed to run structure.pl\n$!";
@@ -191,7 +195,7 @@ my $run_screen;
 if( $calc =~ m/val/i )
 {
   $run_opf = 0;
-  $run_screen = 0;
+  $run_screen = 1;
 }
 else
 {

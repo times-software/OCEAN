@@ -375,6 +375,8 @@ module OCEAN_val_states
         call load_old_u2( sys, sys%brange, ierr )
       case( 2 )
         call load_raw( sys, ierr )
+      case( 3 )
+        call load_single_prefixu2dat( sys, ierr )
       case default
         ierr = 500
         if( myid .eq. root ) write(6,*) 'Unsupported bloch_selector:', sys%bloch_selector
@@ -382,6 +384,170 @@ module OCEAN_val_states
     end select 
 
   end subroutine OCEAN_val_states_read
+
+!> @brief Read in con.u2.dat and val.u2.dat from a single master processor and share to all
+  subroutine load_single_prefixu2dat( sys, ierr )
+    use OCEAN_system
+    use OCEAN_mpi
+    implicit none
+
+    type(O_system), intent( in ) :: sys
+    integer, intent( inout ) :: ierr
+
+    complex(DP), allocatable :: readU2(:), transposeU2(:,:,:), share_buffer(:,:,:)
+    integer :: ispn, iq, ibd, ii, ix, iy, iz, iproc
+#ifdef MPI__F08
+    type( MPI_REQUEST ), allocatable :: request(:)
+#else
+    integer, allocatable :: request(:)
+#endif
+
+
+    if( myid .eq. root ) then
+      open(unit=99, file='val.u2.dat', form='unformatted', status='old', access='stream' )
+    endif
+
+    if( myid .eq. root ) then
+      allocate( readU2( sys%nxpts ), transposeU2( sys%xmesh(3), sys%xmesh(2), sys%xmesh(1) ), &
+                share_buffer( max_nxpts, max(nbv,nbc), 0:nproc-1 ), request(0:nproc), STAT=ierr )
+      request(:) = MPI_REQUEST_NULL
+    else
+      allocate( share_buffer( max_nxpts, max(nbv,nbc), 1 ) )
+    endif
+    if( ierr .ne. 0 ) return
+
+
+    do ispn = 1, sys%nspn
+      do iq = 1, sys%nkpts
+
+        if( myid .eq. root ) then
+          ! currently the valence code expects the real-space to be stored (z,y,x)!
+          ! con.u2.dat and val.u2.dat store it (x,y,z)
+          do ibd = 1, nbv
+            read( 99 ) readU2
+            ii = 0
+            do iz = 1, sys%xmesh(3)
+              do iy = 1, sys%xmesh(2)
+                do ix = 1, sys%xmesh(1)
+                  ii = ii + 1
+                  transposeU2( iz, iy, ix ) = readU2( ii )
+                enddo
+              enddo
+            enddo
+
+            iproc = 0
+            ii = 0
+            do ix = 1, sys%xmesh(1)
+              do iy = 1, sys%xmesh(2)
+                do iz = 1, sys%xmesh(3)
+                  ii = ii + 1
+                  if( ii .gt. nxpts_by_mpiID( iproc ) ) then
+                    iproc = iproc + 1
+                    ii = 1
+                  endif 
+                  share_buffer( ii, ibd, iproc ) = transposeU2( iz, iy, ix )
+                enddo
+              enddo
+            enddo
+
+          enddo ! ibd
+        endif
+
+        if( myid .eq. root ) then
+          do iproc = 0, nproc-1
+            if( iproc .ne. myid ) then
+              call MPI_ISEND( share_buffer(:,:,iproc), max_nxpts*nbv, MPI_DOUBLE_COMPLEX, &
+                              iproc, 1, comm, request( iproc ), ierr )
+            endif
+          enddo
+          do ibd = 1, nbv
+            re_val( 1:nxpts, ibd, iq, ispn ) = real( share_buffer( 1:nxpts, ibd, myid ), DP )
+            im_val( 1:nxpts, ibd, iq, ispn ) = aimag( share_buffer( 1:nxpts, ibd, myid ) )
+          enddo
+          call MPI_WAITALL( nproc, request, MPI_STATUSES_IGNORE, ierr )
+        else
+          call MPI_RECV( share_buffer, max_nxpts*nbv, MPI_DOUBLE_COMPLEX, &
+                         root, 1, comm, MPI_STATUS_IGNORE, ierr )
+          do ibd = 1, nbv
+            re_val( 1:nxpts, ibd, iq, ispn ) = real( share_buffer( 1:nxpts, ibd, 1 ), DP )
+            im_val( 1:nxpts, ibd, iq, ispn ) = aimag( share_buffer( 1:nxpts, ibd, 1 ) )
+          enddo
+        endif
+      enddo
+    enddo
+
+    if( myid .eq. root ) then
+      close(99)
+      open(unit=99, file='con.u2.dat', form='unformatted', status='old', access='stream' )
+    endif
+
+    do ispn = 1, sys%nspn
+      do iq = 1, sys%nkpts
+
+        if( myid .eq. root ) then
+          ! currently the valence code expects the real-space to be stored (z,y,x)!
+          ! con.u2.dat and val.u2.dat store it (x,y,z)
+          do ibd = 1, nbc
+            read( 99 ) readU2
+            ii = 0
+            do iz = 1, sys%xmesh(3)
+              do iy = 1, sys%xmesh(2)
+                do ix = 1, sys%xmesh(1)
+                  ii = ii + 1
+                  transposeU2( iz, iy, ix ) = readU2( ii )
+                enddo
+              enddo
+            enddo
+
+            iproc = 0
+            ii = 0
+            do ix = 1, sys%xmesh(1)
+              do iy = 1, sys%xmesh(2)
+                do iz = 1, sys%xmesh(3)
+                  ii = ii + 1
+                  if( ii .gt. nxpts_by_mpiID( iproc ) ) then
+                    iproc = iproc + 1
+                    ii = 1
+                  endif
+                  share_buffer( ii, ibd, iproc ) = transposeU2( iz, iy, ix )
+                enddo
+              enddo
+            enddo
+
+          enddo ! ibd
+        endif
+
+        if( myid .eq. root ) then
+          do iproc = 0, nproc-1
+            if( iproc .ne. myid ) then
+              call MPI_ISEND( share_buffer(:,:,iproc), max_nxpts*nbc, MPI_DOUBLE_COMPLEX, &
+                              iproc, 1, comm, request( iproc ), ierr )
+            endif
+          enddo
+          do ibd = 1, nbc
+            re_con( 1:nxpts, ibd, iq, ispn ) = real( share_buffer( 1:nxpts, ibd, myid ), DP )
+            im_con( 1:nxpts, ibd, iq, ispn ) = aimag( share_buffer( 1:nxpts, ibd, myid ) )
+          enddo
+          call MPI_WAITALL( nproc, request, MPI_STATUSES_IGNORE, ierr )
+        else
+          call MPI_RECV( share_buffer, max_nxpts*nbc, MPI_DOUBLE_COMPLEX, &
+                         root, 1, comm, MPI_STATUS_IGNORE, ierr )
+          do ibd = 1, nbc
+            re_con( 1:nxpts, ibd, iq, ispn ) = real( share_buffer( 1:nxpts, ibd, 1 ), DP )
+            im_con( 1:nxpts, ibd, iq, ispn ) = aimag( share_buffer( 1:nxpts, ibd, 1 ) )
+          enddo
+        endif
+      enddo
+    enddo
+
+    deallocate( share_buffer )
+    if( myid .eq. 0 ) then
+      close(99)
+      deallocate( readU2, transposeU2, request )
+    endif
+  
+
+  end subroutine load_single_prefixu2dat
 
 !> @brief Read in DFT states directly from u(G) form instead of u(x)
   subroutine load_raw( sys, ierr )
@@ -665,6 +831,15 @@ module OCEAN_val_states
 
       
         if( myid .eq. root ) then
+          do ibd = 1, brange(1) - 1
+            do ix = 1, sys%xmesh(1)
+              do iy = 1, sys%xmesh(2)
+                do iz = 1, sys%xmesh(3)
+                  read ( fhu2 ) 
+                end do
+              end do
+            end do
+          enddo
           do ibd = 1, brange(2)-brange(1) + 1
             do ix = 1, sys%xmesh(1)
               do iy = 1, sys%xmesh(2)

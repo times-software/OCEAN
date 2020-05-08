@@ -462,6 +462,8 @@ module OCEAN_bloch
         bloch_type = 'old'
         invert_xmesh = .true.
       endif
+      inquire( file="con.u2.dat", exist=ex )
+      if( ex ) bloch_type = 'par'
 
       nbd = sys%num_bands 
       if ( nbd .gt. 1 + ( ich - icl ) ) stop 'loadux ... nbd mismatch -- cf brange.ipt...'
@@ -650,6 +652,10 @@ module OCEAN_bloch
       
 
 #endif
+    case( 'par' )
+      call single_load_prefixu2dat( sys, ierr )
+      sul = 1.0; suh = 1.0
+      if( ierr .ne. 0 ) return
 
 !!!!!!!!!!!!!!!
     case default
@@ -970,5 +976,206 @@ module OCEAN_bloch
 
 
   end subroutine load_new_u2
+
+  subroutine single_load_prefixu2dat( sys, ierr )
+    use OCEAN_mpi, only : myid, nproc, root, comm, &
+                          MPI_DOUBLE_COMPLEX, MPI_STATUS_IGNORE, MPI_MODE_RDONLY, MPI_MODE_UNIQUE_OPEN, &
+                          MPI_OFFSET_KIND, MPI_INFO_NULL, MPI_SIZEOF, MPI_REQUEST_NULL, MPI_STATUSES_IGNORE
+    use OCEAN_system
+    implicit none
+
+    type( o_system ), intent( in ) :: sys
+    integer, intent( inout ) :: ierr
+
+    complex(DP), allocatable, dimension(:,:) ::  transposeU2, tempU2
+    complex(DP), allocatable, dimension(:) :: readU2
+    complex(DP) :: dumz
+    integer :: fflags, fh, myX, nx_start, nx_left, i, ispin, ikpt, sizeofcomplex, ib, curX
+    logical :: loadConductionBands
+
+    character(len=10) :: filnam
+    integer(MPI_OFFSET_KIND) :: offset
+#ifdef MPI_F08
+    type( MPI_DATATYPE ) :: fileType
+    type( MPI_REQUEST ), allocatable :: requests(:)
+#else
+    integer :: fileType
+    integer, allocatable :: requests(:)
+#endif
+
+    loadConductionBands = .true.
+    if( sys%cur_run%calc_type .eq. 'XES' ) loadConductionBands = .false.
+
+    if( loadConductionBands ) then
+      filnam = 'con.u2.dat'
+    else
+      filnam = 'val.u2.dat'
+    endif
+
+    if( myid .eq. root ) then
+      write( 6, * ) 'Opening ', filnam
+      write( 6, * ) '   File read on master only'
+
+      open( unit=99, file=filnam, form='unformatted', status='old', access='stream' )
+
+      allocate( requests( 0 : nproc-1 ) )
+      requests(:) = MPI_REQUEST_NULL
+      
+      allocate( readU2( sys%nxpts ) )
+    endif
+
+    nx_left = sys%nxpts
+    nx_start = 1
+    myX = 0
+    do i = 0, myid
+      nx_start = nx_start + myX
+      myX = nx_left / ( nproc - i )
+      nx_left = nx_left - myX
+    enddo
+
+    allocate ( tempU2( myX, sys%num_bands ),  transposeU2( sys%num_bands, myX ) )
+
+
+    ! refactor for reading multiple bands at a time, fewer total sends?
+    do ispin = 1, sys%nspn
+      do ikpt = 1, sys%nkpts
+
+        do ib = 1, sys%num_bands
+          if( myid .eq. root ) then
+            read( 99 ) readU2
+            nx_left = sys%nxpts
+            nx_start = 1
+            curX = 0
+            do i = 0, nproc - 1
+              nx_start = nx_start + curX
+              curX = nx_left / ( nproc - i )
+              nx_left = nx_left - curX
+              if( myid .eq. i ) then
+                tempU2( :, ib ) = readU2( nx_start: nx_start + curX - 1 )
+              else
+                call MPI_ISEND( readU2( nx_start ), curX,  MPI_DOUBLE_COMPLEX, i, 1, comm, requests(i), ierr )
+              endif
+            enddo
+
+            call MPI_WAITALL( nproc, requests, MPI_STATUSES_IGNORE, ierr )
+            
+          else
+            call MPI_RECV( tempU2( :, ib ), myX, MPI_DOUBLE_COMPLEX, root, 1, comm, MPI_STATUS_IGNORE, ierr )
+            if( ierr .ne. 0 ) return
+          endif
+
+        enddo
+
+        transposeU2 = transpose( tempU2( :, : ) )
+        do i = 1, myX
+          re_bloch_state(:, ikpt, i, ispin ) = real( transposeU2(:,i), DP )
+          im_bloch_state(:, ikpt, i, ispin ) = aimag( transposeU2(:,i) )
+        enddo
+      enddo
+    enddo
+    
+
+    deallocate( tempU2, transposeU2 )
+
+    if( myid .eq. root ) then
+      deallocate( readU2 )
+      close( 99 )
+    endif
+
+
+  end subroutine single_load_prefixu2dat
+
+  subroutine load_prefixu2dat( sys, ierr )
+    use OCEAN_mpi, only : myid, nproc, root, comm, & 
+                          MPI_DOUBLE_COMPLEX, MPI_STATUS_IGNORE, MPI_MODE_RDONLY, MPI_MODE_UNIQUE_OPEN, & 
+                          MPI_OFFSET_KIND, MPI_INFO_NULL, MPI_SIZEOF
+    use OCEAN_system
+    implicit none
+
+    type( o_system ), intent( in ) :: sys
+    integer, intent( inout ) :: ierr
+
+    complex(DP), allocatable, dimension(:,:) ::  transposeU2
+    complex(DP), allocatable, dimension(:,:,:,:) :: tempU2
+    complex(DP) :: dumz
+    integer :: fflags, fh, myX, nx_start, nx_left, i, ispin, ikpt, sizeofcomplex
+    logical :: loadConductionBands
+
+    character(len=10) :: filnam
+    integer(MPI_OFFSET_KIND) :: offset
+#ifdef MPI_F08
+    type( MPI_DATATYPE ):: fileType
+#else
+    integer :: fileType
+#endif
+
+    loadConductionBands = .true.
+    if( sys%cur_run%calc_type .eq. 'XES' ) loadConductionBands = .false.
+    
+    if( loadConductionBands ) then
+      filnam = 'con.u2.dat'
+    else
+      filnam = 'val.u2.dat'
+    endif
+
+    if( myid .eq. root ) write( 6, * ) 'Opening ', filnam
+
+    fflags = IOR( MPI_MODE_RDONLY, MPI_MODE_UNIQUE_OPEN )
+    call MPI_FILE_OPEN( comm, filnam, fflags, MPI_INFO_NULL, fh, ierr )
+    if( ierr .ne. 0 ) return
+
+    nx_left = sys%nxpts
+    nx_start = 1
+    myX = 0
+    do i = 0, myid
+      nx_start = nx_start + myX
+      myX = nx_left / ( nproc - i )
+      nx_left = nx_left - myX
+    enddo
+    call MPI_File_set_atomicity( fh, 0, ierr )
+    if( ierr .ne. 0 ) return
+
+    call MPI_TYPE_VECTOR( sys%num_bands * sys%nkpts * sys%nspn, myX, sys%nxpts, & 
+                          MPI_DOUBLE_COMPLEX, fileType, ierr )
+    if( ierr .ne. 0 ) return
+    call MPI_TYPE_COMMIT( fileType, ierr )
+    if( ierr .ne. 0 ) return
+
+    offset = ( nx_start - 1 )
+#ifdef SIZEOF
+    call MPI_SIZEOF( dumz, sizeofcomplex, ierr )
+#else
+    sizeofcomplex = 16
+#endif
+    if( ierr .ne. 0 ) return
+    offset = offset *  sizeofcomplex
+
+    call MPI_FILE_SET_VIEW( fh, offset, MPI_DOUBLE_COMPLEX, fileType, "native", MPI_INFO_NULL, ierr )
+    if( ierr .ne. 0 ) return
+
+    allocate( tempU2( myX, sys%num_bands, sys%nkpts, sys%nspn ), transposeU2( sys%num_bands, myX ) )
+
+!    do ispin = 1, sys%nspn
+!      do ikpt = 1, sys%nkpts
+      
+        call MPI_FILE_READ_ALL( fh, tempU2, myX*sys%num_bands*sys%nspn*sys%nkpts, MPI_DOUBLE_COMPLEX, MPI_STATUS_IGNORE, ierr )  
+        if( ierr .ne. 0 ) return
+
+    do ispin = 1, sys%nspn
+      do ikpt = 1, sys%nkpts
+        transposeU2 = transpose( tempU2( :, :, ikpt, ispin ) )
+        do i = 1, myX
+          re_bloch_state(:, ikpt, i, ispin ) = real( transposeU2(:,i), DP )
+          im_bloch_state(:, ikpt, i, ispin ) = aimag( transposeU2(:,i) )
+        enddo
+      enddo
+    enddo
+
+    deallocate( transposeU2, tempU2 )
+
+    call MPI_FILE_CLOSE( fh, ierr )
+    call MPI_TYPE_FREE( fileType, ierr )
+
+  end subroutine
 
 end module OCEAN_bloch

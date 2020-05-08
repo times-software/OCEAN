@@ -60,7 +60,7 @@ subroutine OCEAN_read_tmels( sys, p, file_selector, ierr )
       open(unit=99,file='tmels.info',form='formatted',status='old')
       read(99,*) nbv, nbc(1), nbc(2), nk
       close(99)
-      if( nk .ne. sys%nkpts*2 ) then
+      if( nk .ne. sys%nkpts ) then
         write(6,*) 'tmels.info mismatch: nkpts', nk, sys%nkpts
         ierr = -1
         return
@@ -80,33 +80,50 @@ subroutine OCEAN_read_tmels( sys, p, file_selector, ierr )
                             'native', MPI_INFO_NULL, ierr)
     if( ierr .ne. MPI_SUCCESS ) return
 #else
-    open( unit=99,file='ptmels.dat',form='binary',status='old')
+    open( unit=99,file='ptmels.dat',form='unformatted',status='old',access='stream')
 #endif
     allocate( psi_in( nbv, nbc(1):nbc(2) ), psi_transpose( sys%cur_run%val_bands, sys%cur_run%num_bands ) )
 
-    do ik = 1, sys%nkpts
-      ! Read in the tmels
+!JTV if we want to allow spin-flipping transitions we'll need to do it here
+    do ispn = 1, min( sys%nspn, sys%valence_ham_spin )
+      ibeta = ispn * ispn
+      do ik = 1, sys%nkpts
+        ! Read in the tmels
 #ifdef MPI
-      offset = nbv * ( nbc(2) - nbc(1) + 1 ) * ( ik - 1 )
-      elements = nbv * ( nbc(2) - nbc(1) + 1 )
-      call MPI_FILE_READ_AT_ALL( FH, offset, psi_in, elements, &
-                                 MPI_DOUBLE_COMPLEX, MPI_STATUS_IGNORE, ierr )
-      if( ierr .ne. MPI_SUCCESS) return
+        offset = nbv * ( nbc(2) - nbc(1) + 1 ) * ( ik - 1 )
+        elements = nbv * ( nbc(2) - nbc(1) + 1 )
+        call MPI_FILE_READ_AT_ALL( FH, offset, psi_in, elements, &
+                                   MPI_DOUBLE_COMPLEX, MPI_STATUS_IGNORE, ierr )
+        if( ierr .ne. MPI_SUCCESS) return
 #else
-      read(99) psi_in
+        read(99) psi_in
 #endif
 
-!      max_psi = max( max_psi, maxval( real(psi_in(:,:) ) ) )
+  !      max_psi = max( max_psi, maxval( real(psi_in(:,:) ) ) )
 
-      psi_transpose( :, : ) = inv_qlength * real( psi_in( sys%brange(1):sys%brange(2), sys%brange(3):sys%brange(4) ), DP )
-      p%valr(1:sys%cur_run%num_bands,1:sys%cur_run%val_bands,ik,1) = transpose( psi_transpose )
+        psi_transpose( :, : ) = inv_qlength * real( psi_in( sys%brange(1):sys%brange(2), sys%brange(3):sys%brange(4) ), DP )
+        p%valr(1:sys%cur_run%num_bands,1:sys%cur_run%val_bands,ik,ibeta) = transpose( psi_transpose )
 
-      psi_transpose( :, : ) = inv_qlength &
-                            * real( aimag( psi_in( sys%brange(1):sys%brange(2), sys%brange(3):sys%brange(4) ) ), DP )
-      p%vali(1:sys%cur_run%num_bands,1:sys%cur_run%val_bands,ik,1) = transpose( psi_transpose )
+        psi_transpose( :, : ) = inv_qlength &
+                              * real( aimag( psi_in( sys%brange(1):sys%brange(2), sys%brange(3):sys%brange(4) ) ), DP )
+        p%vali(1:sys%cur_run%num_bands,1:sys%cur_run%val_bands,ik,ibeta) = -transpose( psi_transpose )
 
 
-      max_psi = max( max_psi, maxval( p%valr(1:sys%cur_run%num_bands,1:sys%cur_run%val_bands,ik,1) ) )
+        max_psi = max( max_psi, maxval( p%valr(1:sys%cur_run%num_bands,1:sys%cur_run%val_bands,ik,ibeta) ) )
+      enddo
+      su = 0.0_DP
+  
+       do ik = 1, sys%nkpts
+            do i = 1, sys%cur_run%val_bands
+               do j = 1, sys%cur_run%num_bands
+                  su = su + p%valr( j, i, ik, ibeta )**2 + p%vali( j, i, ik, ibeta )**2
+               end do
+            end do
+         end do
+
+         su = sqrt( su )
+         write(6,*) 'pnorm=', su, sys%cur_run%val_bands, sys%cur_run%num_bands, ispn, ibeta
+
     enddo
 
 #ifdef MPI
@@ -116,6 +133,23 @@ subroutine OCEAN_read_tmels( sys, p, file_selector, ierr )
     close(99)
 #endif
     deallocate( psi_in, psi_transpose )
+
+#if DEBUG
+    if( myid .eq. 0 ) then
+      open(unit=99,file='tmels.test',form='formatted',status='unknown')
+      do ik = 1, sys%nkpts
+        do j = 1, sys%brange(4)-sys%brange(3)+1
+           do i = 1, sys%brange(2)-sys%brange(1) + 1
+             write(99,*) p%valr( j, i, ik, ibeta ), -p%vali( j, i, ik, ibeta ) 
+           enddo
+        enddo
+      enddo
+        close(99)
+    endif
+#endif
+
+
+
   case( 0 )
 
     if( myid .eq. root ) then
@@ -168,6 +202,8 @@ subroutine OCEAN_read_tmels( sys, p, file_selector, ierr )
 
          su = sqrt( su )
          write(6,*) 'pnorm=', su, sys%cur_run%val_bands, sys%cur_run%num_bands, ispn, ibeta
+
+         max_psi = max( max_psi, maxval( abs(p%valr(1:sys%cur_run%num_bands,1:sys%cur_run%val_bands,ik,ibeta) ) ) )
 
       end do
 

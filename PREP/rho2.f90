@@ -11,7 +11,6 @@ program rhotest
   implicit none
 !
 !      include 'fftw3.f'
-  complex(kind=kind(1.d0)), allocatable :: rhoofr(:,:,:)
   complex(kind=kind(1.d0)), allocatable ::  rhoofg(:,:,:)
   real( kind=kind(1.d0)), allocatable ::  trhoofg(:,:,:)
   integer :: dims(3), counter1, counter2, counter3, dumint, cter1, cter2, cter3, natom
@@ -35,8 +34,7 @@ program rhotest
       read(99,*) lineburn      
     enddo
 
-    allocate(rhoofr(dims(1),dims(2),dims(3)),rhoofg(dims(1),          &
- &          dims(2),dims(3)))
+    allocate(rhoofg(dims(1),dims(2),dims(3)))
     call FFT_wrapper_init( dims, fo, rhoofg )
     allocate(trhoofg(dims(3),dims(2),dims(1)))
     read(99,*) trhoofg
@@ -55,9 +53,8 @@ program rhotest
     read(99,*) dims(:)
     close(99)
 !
-    allocate(rhoofr(dims(1),dims(2),dims(3)),rhoofg(dims(1),          &
- &          dims(2),dims(3)))
-    call FFT_wrapper_init( dims, fo, rhoofg )
+    allocate(rhoofg(dims(1),dims(2),dims(3)))
+    call FFT_wrapper_init( dims, fo, rhoofg, 6 )
 !
 
     open(unit=99,file='rhoofr',form='formatted',status='old')
@@ -123,5 +120,5 @@ program rhotest
   enddo
   close(99)
 
-  deallocate(rhoofr,rhoofg)
+  deallocate(rhoofg)
 end program rhotest

@@ -112,6 +112,8 @@ module OCEAN_rixs_holder
 
     allocate( rex( sys%num_bands, sys%nkpts, 4*(2*sys%ZNL(3)+1) ) ) 
 
+    p_vec(:,:,:,:) = 0.0_DP
+
     do edge_iter = 1, sys%nedges
 
       call OCEAN_filenames_read_ehamp( sys, echamp_file, edge_iter, ierr )

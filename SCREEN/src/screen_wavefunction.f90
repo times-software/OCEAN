@@ -1,4 +1,4 @@
-! Copyright (C) 2017 OCEAN collaboration
+! Copyright (C) 2017, 2018 OCEAN collaboration
 !
 ! This file is part of the OCEAN project and distributed under the terms 
 ! of the University of Illinois/NCSA Open Source License. See the file 
@@ -19,6 +19,8 @@ module screen_wavefunction
 
   type screen_wvfn
     complex(DP), allocatable :: wvfn( :, :, : )
+    real(DP), allocatable :: real_wvfn( :, :, : )
+    real(DP), allocatable :: imag_wvfn( :, :, : )
 
     integer :: npts
     integer :: mypts
@@ -27,6 +29,9 @@ module screen_wavefunction
     integer :: band_start
     integer :: kpts_start
     integer :: pts_start
+
+    logical :: isGamma
+    logical :: isSplit
   
   end type screen_wvfn
 
@@ -35,25 +40,72 @@ module screen_wavefunction
   public :: screen_wvfn_diagnostic
   public :: screen_wvfn_kill
   public :: screen_wvfn_singleKInit
+  public :: screen_wvfn_returnWavefunctionDims, screen_wvfn_returnWavefunctionBK
 
   contains
 
-  subroutine screen_wvfn_singleKInit( grid, wvfn, ierr )
+  pure function screen_wvfn_returnWavefunctionDims( a ) result( dims )
+    type( screen_wvfn ), intent( in ) :: a
+    integer :: dims(2)
+
+    dims(1) = a%mypts
+    dims(2) = a%npts
+  end function screen_wvfn_returnWavefunctionDims
+
+  pure function screen_wvfn_returnWavefunctionBK( a ) result( dims )
+    type( screen_wvfn ), intent( in ) :: a
+    integer :: dims(2)
+
+    dims(1) = a%mybands
+    dims(2) = a%mykpts
+  end function screen_wvfn_returnWavefunctionBK
+
+  subroutine sw_alloc_wvfn( wvfn, ierr )
+    type( screen_wvfn ), intent( inout ) :: wvfn
+    integer, intent( inout ) :: ierr
+
+    if( wvfn%isSplit ) then
+      allocate( wvfn%real_wvfn( wvfn%mypts, wvfn%mybands, wvfn%mykpts ), wvfn%wvfn(1,1,1), STAT=ierr )
+      if( ierr .ne. 0 ) return
+      if( .not. wvfn%isGamma ) then
+        allocate( wvfn%imag_wvfn( wvfn%mypts, wvfn%mybands, wvfn%mykpts ), STAT=ierr )
+        if( ierr .ne. 0 ) return
+      endif
+    else
+      allocate( wvfn%wvfn( wvfn%mypts, wvfn%mybands, wvfn%mykpts ), STAT=ierr )
+      if( ierr .ne. 0 ) return
+    endif
+  end subroutine sw_alloc_wvfn
+
+  subroutine screen_wvfn_singleKInit( grid, wvfn, ierr, nbands )
     use screen_system, only : system_parameters, params
     
     type( sgrid ), intent( in ) :: grid
     type( screen_wvfn ), intent( inout ) :: wvfn
     integer, intent( inout ) :: ierr
+    integer, intent( in ), optional :: nbands
 
     wvfn%npts = grid%npt
     wvfn%mypts = grid%npt
-    wvfn%mybands = params%nbands
+    if( present( nbands ) ) then
+      if( nbands .lt. 1 ) then
+        ierr = 2
+        return
+      endif
+      wvfn%mybands = nbands
+    else
+      wvfn%mybands = params%nbands
+    endif
     wvfn%mykpts = 1
     wvfn%band_start = 1
     wvfn%kpts_start = 1
     wvfn%pts_start = 1
+    wvfn%isGamma = params%isGamma
+    wvfn%isSplit = params%isSplit
 
-    allocate( wvfn%wvfn( wvfn%mypts, wvfn%mybands, wvfn%mykpts ), STAT=ierr )    
+    call sw_alloc_wvfn( wvfn, ierr )
+
+!    allocate( wvfn%wvfn( wvfn%mypts, wvfn%mybands, wvfn%mykpts ), STAT=ierr )    
 
   end subroutine screen_wvfn_singleKInit
 
@@ -61,6 +113,8 @@ module screen_wavefunction
     type( screen_wvfn ), intent( inout ) :: wvfn
 
     if( allocated( wvfn%wvfn ) ) deallocate( wvfn%wvfn ) 
+    if( allocated( wvfn%real_wvfn ) ) deallocate( wvfn%real_wvfn ) 
+    if( allocated( wvfn%imag_wvfn ) ) deallocate( wvfn%imag_wvfn ) 
     wvfn%mypts = 0
     wvfn%mybands = 0
     wvfn%mykpts = 0
@@ -133,7 +187,10 @@ module screen_wavefunction
                       params%nbands, wvfn%band_start, wvfn%mybands, &
                       params%nkpts, params%nspin, wvfn%kpts_start, wvfn%mykpts )
 
-    allocate( wvfn%wvfn( wvfn%mypts, wvfn%mybands, wvfn%mykpts ), STAT=ierr )
+    wvfn%isGamma = params%isGamma
+    wvfn%isSplit = params%isSplit
+    call sw_alloc_wvfn( wvfn, ierr )
+!    allocate( wvfn%wvfn( wvfn%mypts, wvfn%mybands, wvfn%mykpts ), STAT=ierr )
 
   end subroutine screen_wvfn_initForGroupID
 
@@ -151,10 +208,10 @@ module screen_wavefunction
     integer, intent( in ) :: siteIndex
     integer, intent( inout ) :: ierr
   
-    integer :: groupIndex
+!    integer :: groupIndex
 
 
-    groupIndex = screen_paral_siteIndex2groupIndex( pinfo, siteIndex )
+!    groupIndex = screen_paral_siteIndex2groupIndex( pinfo, siteIndex )
 !    write(6,*) 'WVFN_INIT:', groupIndex, pinfo%mygroup, siteIndex
 
     if( screen_paral_isMySite( pinfo, siteIndex ) ) then

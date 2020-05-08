@@ -1,5 +1,5 @@
 #!/usr/bin/perl
-# Copyright (C) 2015 - 2017 OCEAN collaboration
+# Copyright (C) 2015 - 2020 OCEAN collaboration
 #
 # This file is part of the OCEAN project and distributed under the terms 
 # of the University of Illinois/NCSA Open Source License. See the file 
@@ -9,11 +9,14 @@
 
 use strict;
 use POSIX qw(ceil);
+use Cwd 'abs_path';
+use File::Compare;
 
 if (! $ENV{"OCEAN_BIN"} ) {
   $0 =~ m/(.*)\/AbinitDriver\.pl/;
-  $ENV{"OCEAN_BIN"} = $1;
-  print "OCEAN_BIN not set. Setting it to $1\n";
+#  $ENV{"OCEAN_BIN"} = $1;
+  $ENV{"OCEAN_BIN"} = abs_path( $1 );
+  print "OCEAN_BIN not set. Setting it to $ENV{'OCEAN_BIN'}\n";
 }
 if (! $ENV{"OCEAN_WORKDIR"}){ $ENV{"OCEAN_WORKDIR"} = `pwd` . "../" ; }
 if (!$ENV{"OCEAN_VERSION"}) {$ENV{"OCEAN_VERSION"} = `cat $ENV{"OCEAN_BIN"}/Version`; }
@@ -33,16 +36,16 @@ my $RunABINIT = 0;
 my $screenRUN = 0;
 my $bseRUN = 0;
 
-my @GeneralFiles = ("para_prefix", "ser_prefix" );
+my @GeneralFiles = ("para_prefix", "ser_prefix", "calc" );
 
-my @KgenFiles = ("nkpt", "k0.ipt", "qinunitsofbvectors.ipt", "screen.nkpt");
+my @KgenFiles = ("nkpt", "k0.ipt", "qinunitsofbvectors.ipt", "screen.nkpt", "screen.k0", "dft.split");
 my @BandFiles = ("nbands", "screen.nbands");
 my @AbinitFiles = ( "rscale", "rprim", "ntype", "natoms", "typat",
     "verbatim", "coord", "taulist", "ecut", "etol", "nrun", "wftol", 
     "fband", "occopt", "ngkpt", "abpad", "nspin", "smag", "metal", "degauss", 
-    "dft.calc_stress", "dft.calc_force", "tot_charge", "dft.split", "dft");
+    "dft.calc_stress", "dft.calc_force", "tot_charge", "dft");
 my @PPFiles = ("pplist", "znucl");
-my @OtherFiles = ("epsilon");
+my @OtherFiles = ("epsilon", "screen.mode");
 
 my $AbiVersion = 0;
 my $AbiMinorV = -1;
@@ -175,11 +178,30 @@ close SER;
 #`echo "1" > pp.stat`;
 #}
 
+open IN, "calc" or die "Failed to open calc\n";
+<IN> =~m/(\w+)/ or die "Failed to parse calc\n";
+my $calc = $1;
+close IN;
+
+my $old_screen_mode;
+if( -e "screen.mode" )
+{
+  open IN, "screen.mode" or die "Failed to open screen.mode\n$!";
+  <IN> =~m/(\w+)/ or die "Failed to parse screen.mode\n";
+  $old_screen_mode = $1;
+  close IN;
+}
+else
+{
+  $old_screen_mode = '';
+}
+
 #if ($RunABINIT) {
   foreach (@AbinitFiles, @OtherFiles) {
     system("cp ../Common/$_ .") == 0 or die;
   } 
 #}
+
 
 #############################################
 my $ecut = `cat ecut`;
@@ -276,7 +298,8 @@ if ( -d $screenDIR ) {
       close NBANDS;
       $screenRUN = 1 if ( $tmpnbands < $screennbands);
     }
-    $screenRUN = 1 if ( `diff -q k0.ipt ../k0.ipt` );
+    $screenRUN = 1 if ( `diff -q k0.ipt ../screen.k0` );
+    $screenRUN = 1 if ( `diff -q nkpt ../screen.nkpt` );
   }
   else {
     $screenRUN = 1;
@@ -286,6 +309,27 @@ if ( -d $screenDIR ) {
 else {
   $screenRUN = 1;
 }
+open IN, "screen.mode" or die "Failed to open screen.mode";
+<IN> =~m/(\w+)/ or die "Failed to parse screen.mode\n";
+my $screen_mode = $1;
+close IN;
+
+open IN, "screen.mode" or die "Failed to open screen.mode\n";
+<IN> =~m/(\w+)/ or die "Failed to parse screen.mode\n";
+my $screen_mode = $1;
+close IN;
+if( $calc =~ m/val/i )
+{
+  $screenRUN = 0 unless( $screen_mode =~ m/grid/i );
+}
+if( $screenRUN == 0 && $screen_mode =~ m/grid/i )
+{
+  unless( $old_screen_mode =~ m/grid/i )
+  {
+    print "Need screening for valence: $old_screen_mode\n";
+    $screenRUN = 1;
+  }
+}
 
 if ($screenRUN == 1) {
   print "Need to run for SCREENING\n";
@@ -294,6 +338,7 @@ if ($screenRUN == 1) {
   mkdir $screenDIR;
 }
 else {
+  `mkdir -p  $screenDIR`;
   `touch $screenDIR/old`;
 }
 
@@ -301,18 +346,32 @@ else {
 my $bseDIR = sprintf("%03u%03u%03u", $nkpt[0], $nkpt[1], $nkpt[2] );
 if ( -d $bseDIR) {
   chdir $bseDIR;
-  if (-e "abinit.stat") {
-    if ( `diff -q nbands ../nbands`) {
+  if (-e "abinit.stat") 
+  {
+    foreach ( "nkpt", "k0.ipt", "dft.split" )
+    {
+      if( compare( "$_", "../$_") != 0 )
+      {
+        $bseRUN = 1;
+        print "$_ differs\n";
+        last;
+      }
+    }
+    if ( `diff -q nbands ../nbands`) 
+    {
       open NBANDS, "nbands" or die "Failed to open `pwd`/nbands\n";
       <NBANDS> =~ m/(\d+)/ or die "Failed to parse nbands\n";
       my $tmpnbands = $1;
       close NBANDS;
       $bseRUN = 1 if ( $tmpnbands < $nbands);
     }
-    $bseRUN = 1 if ( `diff -q k0.ipt ../k0.ipt` );
   }
   else {
     $bseRUN = 1;
+  }
+  if( $bseRUN == 0 )
+  {
+    $bseRUN = 2 if ( `diff -q qinunitsofbvectors.ipt ../qinunitsofbvectors.ipt` );
   }
   chdir "../"
 }
@@ -331,7 +390,12 @@ if ($bseRUN == 1 ) {
   `rm -rf $bseDIR`;
   mkdir $bseDIR;
 }
-else {
+elsif( $bseRUN == 2 ) 
+{
+  print "Need run occupied states for the BSE\n"; 
+}
+else
+{
   `touch $bseDIR/old`;
 }
 
@@ -383,9 +447,9 @@ if ($RunABINIT) {
   `cat occopt >> abfile`;
   `echo "$tsmear" >> abfile`;
   `echo 'npfft 1' >> abfile`;
-  `echo -n 'charge ' >> abfile`;
+  `echo  'charge ' >> abfile`;
   `cat tot_charge >> abfile`;
-  `echo -n 'nsppol ' >> abfile`;
+  `echo  'nsppol ' >> abfile`;
   `cat nspin >> abfile`;
   if( $nspn == 2 )
   {
@@ -526,6 +590,7 @@ if ($RunABINIT) {
   $test_prefix = $para_prefix;
   $test_prefix =~ s/\d+/$new_ncpu/;
   print "Self-Consistent Density Run\n";
+  print "$test_prefix $ENV{'OCEAN_ABINIT'} < denout.files > density.log 2> density.err\n";
   system("$test_prefix $ENV{'OCEAN_ABINIT'} < denout.files > density.log 2> density.err") == 0
     or die "Failed to run initial density stage\n$test_prefix $ENV{'OCEAN_ABINIT'}\n";
   `echo 1 > den.stat`;
@@ -643,9 +708,10 @@ if ( $screenRUN ) {
   foreach ( @GeneralFiles, @AbinitFiles, @PPFiles, @OtherFiles) {
     system("cp ../$_ .") == 0 or die "Failed to copy $_\n";
   }
-  foreach ( "screen.nkpt", "screen.nbands", "k0.ipt", "qinunitsofbvectors.ipt", "finalpplist", "core" ) {
+  foreach ( "screen.nkpt", "screen.nbands", "screen.k0", "qinunitsofbvectors.ipt", "finalpplist", "core" ) {
     system("cp ../$_ .") == 0 or die "Failed to copy $_\n";
   }
+  `cp screen.k0 k0.ipt`;
   `cp screen.nkpt nkpt`;
   `cp screen.nbands nbands`;
  # run KGEN
@@ -816,7 +882,7 @@ if ( $bseRUN ) {
   foreach ( @GeneralFiles, @AbinitFiles, @PPFiles, @OtherFiles) {
     system("cp ../$_ .") == 0 or die "Failed to copy $_\n";
   }
-  foreach ( "nkpt", "nbands", "k0.ipt", "qinunitsofbvectors.ipt", "finalpplist", "core" ) {
+  foreach ( "nkpt", "nbands", "k0.ipt", "qinunitsofbvectors.ipt", "finalpplist", "core", "dft.split" ) {
     system("cp ../$_ .") == 0 or die "Failed to copy $_\n";
   }
  # run KGEN
@@ -830,9 +896,10 @@ if ( $bseRUN ) {
   my $abpad = <ABPAD>;
   close ABPAD;
   my $temp_band = $nbands + $abpad; 
+  my $valBandString = "fband " .  `cat fband`;
   
-  `echo "nband $temp_band" >> abfile`;
-  `echo "nbdbuf $abpad" >> abfile`;
+#  `echo "nband $temp_band" >> abfile`;
+#  `echo "nbdbuf $abpad" >> abfile`;
   `echo 'iscf -2' >> abfile`;
   `echo 'tolwfr ' >> abfile`;
   `cat wftol >> abfile`;
@@ -859,6 +926,11 @@ if ( $bseRUN ) {
       {
         $nfiles = 2;
         print "DFT will be split up\n";
+        if( $bseRUN == 2 )
+        {
+          $nfiles = 1;
+          print "  conduction bands re-used\n";
+        }
       }
       else
       {
@@ -869,10 +941,23 @@ if ( $bseRUN ) {
   }
 
 
+
   for (my $runcount = 1; $runcount <= $nfiles; $runcount++ )
   {
     my $abfilename = sprintf("inabinit.%04i", $runcount );
     `cp abfile "$abfilename"`;
+
+    if( $runcount < $nfiles ) 
+    {
+      chomp $valBandString;
+      `echo $valBandString >> $abfilename`;
+    }
+    else
+    {
+      `echo "nband $temp_band" >> $abfilename`;
+      `echo "nbdbuf $abpad" >> $abfilename`;
+    }
+
     my $kptfile =  sprintf("kpts.%04i", $runcount);
     `cat $kptfile >> $abfilename`;
   

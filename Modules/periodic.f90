@@ -25,7 +25,7 @@ module periodic
 
   subroutine getsymbol( zatom, satom )
     integer, intent( in ) :: zatom
-    character(len=3), intent(out) :: satom
+    character(len=2), intent(out) :: satom
 
     satom = elements( zatom )
     if( satom(2:2) .eq. '_' ) satom(2:2) = ' '
@@ -35,7 +35,7 @@ module periodic
 
   subroutine getsymbol_underscore( zatom, satom )
     integer, intent( in ) :: zatom
-    character(len=3), intent(out) :: satom
+    character(len=2), intent(out) :: satom
 
     satom = elements( zatom )
 !    satom(3) = ' '

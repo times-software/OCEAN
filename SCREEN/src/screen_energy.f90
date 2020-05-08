@@ -44,7 +44,7 @@ module screen_energy
   !   to make it as far as possible from any poles. 
   subroutine screen_energy_find_fermi( ierr )
     use ocean_mpi, only : myid, root
-    use ocean_constants, only : Rydberg2eV
+    use ocean_constants, only : Rydberg2eV, eV2Rydberg
     integer, intent( inout ) :: ierr
     !
     real( DP ) :: vlryd, vhryd, clryd, chryd
@@ -90,6 +90,7 @@ module screen_energy
 
     mu_ryd = ( clryd + vhryd ) / 2.0_DP
     mindiff = min( mu_ryd - vhryd, clryd - mu_ryd )
+    mindiff = sqrt( mindiff**2 + ( 0.5_DP*eV2Rydberg )**2 )
     maxdiff = max( mu_ryd - vlryd, chryd - mu_ryd )
     geodiff = sqrt( mindiff * maxdiff )
 
@@ -161,6 +162,8 @@ module screen_energy
     integer, intent( inout ) :: ierr
     
     call odf_read_energies_single( myid, root, comm, energies, ierr )
+    ! energies come in Ryd, but are used in Ha.
+    energies(:,:,:) = energies(:,:,:) * 2.0_DP
 
   end subroutine screen_energy_load
 

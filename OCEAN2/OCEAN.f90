@@ -6,7 +6,7 @@
 !
 !
 program ocean
-!  use AI_kinds
+  use AI_kinds, only : DP
   use OCEAN_mpi, only : myid, root, nproc, comm, &
                         OCEAN_mpi_init, OCEAN_mpi_finalize
   use OCEAN_system, only : o_system, OCEAN_sys_init, OCEAN_sys_update
@@ -23,7 +23,9 @@ program ocean
   type( o_system ) :: sys
   type(ocean_vector) :: hay_vec
 
+  real(DP) :: newEps
   integer :: iter
+  logical :: restartBSE
 
 ! $ OMP not tested. This line designed to fail
 
@@ -57,7 +59,19 @@ program ocean
 
 !!!!!    call ocean_haydock( sys, hay_vec, ierr )
 !    call OCEAN_action_run( sys, hay_vec, ierr )
-    call OCEAN_driver_run( sys, hay_vec, ierr )
+
+    restartBSE = .true.
+
+    do while( restartBSE )
+      restartBSE = .false.
+      call OCEAN_driver_run( sys, hay_vec, restartBSE, newEps, ierr )
+
+      if( restartBSE ) then
+        sys%epsilon0 = newEps
+        call ocean_reload_val( sys, hay_vec, ierr )
+        if( ierr .ne. 0 ) goto 111
+      endif
+    end do
 
 !    call OCEAN_exact_diagonalize( sys, hay_vec, ierr )
     if( ierr .ne. 0 ) goto 111

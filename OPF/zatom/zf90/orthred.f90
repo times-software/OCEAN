@@ -1,4 +1,4 @@
-! Copyright (C) 2016 OCEAN collaboration
+! Copyright (C) 2016, 2018 OCEAN collaboration
 !
 ! This file is part of the OCEAN project and distributed under the terms 
 ! of the University of Illinois/NCSA Open Source License. See the file 
@@ -14,7 +14,7 @@ subroutine orthred( nr, irc, ntot, nnew, dl, r, pheps, pheae, pspr, aepr, prec )
   real( kind = kind( 1.0d0 ) ) :: prec
   !
   integer :: i, j, ierr
-  real( kind = kind( 1.0d0 ) ) :: tmp, tmp1, tmp2, err1, err2, err3
+  real( kind = kind( 1.0d0 ) ) :: tmp, tmp1, tmp2, err1, err2, err3, targ
   real( kind = kind( 1.0d0 ) ) :: w( ntot ), fv1( ntot ), fv2( ntot ), fm1( 2 * ntot )
   real( kind = kind( 1.0d0 ) ), allocatable, dimension( :, : ) :: ar, ai, zr, zi
   !
@@ -37,11 +37,16 @@ subroutine orthred( nr, irc, ntot, nnew, dl, r, pheps, pheae, pspr, aepr, prec )
   call elsch( ntot, ntot, ar, ai, w, 1, zr, zi, fv1, fv2, fm1, ierr )
   !
   nnew = 0
+  ! specify prec in %
+  targ = ntot * ( 1.0d0 - ( prec * 0.01d0 ) )
   do i = 1, ntot
-     if ( abs( w( i ) ) .gt. prec ) nnew = nnew + 1
+!      if ( abs( w( i ) ) .gt. prec ) nnew = nnew + 1
+     targ = targ - abs( w( i ) )
+     nnew = nnew + 1
+     if( targ .lt. 0.0d0 ) exit
   end do
   write ( 6, '(6(1x,1e15.8))' ) w( 1 : nnew )
-  write ( 6, '(2x,1a9,1f10.4)' ) 'runsu = ', sum( w( : ) )
+  write ( 6, '(2x,1a9,1f10.4,1x,1f10.4)' ) 'runsu = ', sum( w( 1: nnew ) ), sum( w( : ) )
   !
   err1 = 0.0d0; err2 = 0.d0; err3 = 0.0d0
   do i = 1, ntot

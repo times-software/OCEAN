@@ -51,6 +51,7 @@ module screen_chi
 
 
   subroutine screen_chi_makeW( mySite, fullChi, fullChi0, ierr )
+    use ocean_mpi, only : myid
     use screen_sites, only : site
     use screen_grid, only : sgrid
     use screen_sites, only : site_info
@@ -63,20 +64,21 @@ module screen_chi
     integer, intent( inout ) :: ierr
     !
     real(DP), allocatable :: FullW( :, : ), FullW0( :, : ), Ninduced( :, : ), N0induced( :, : )
+    real(DP) :: intInduced(2)
     type( potential ), pointer :: temp_Pots
     type( potential ) :: Pot
     integer :: nPots, iPots, iShell, nShell, potIndex, nLM
     character( len=40 ) :: Prefix
     
     potIndex = 0
-    write( 6, * ) 'screen_chi_makeW'
+!    write( 6, * ) 'screen_chi_makeW'
     
     nPots = screen_centralPotential_countByZ( mySite%info%Z )
-    write(6,*) 'nPots', nPots, mySite%info%Z
+!    write(6,*) 'nPots', nPots, mySite%info%Z
     if( nPots .lt. 1 ) return
 
     nShell = size( mySite%shells )
-    write(6,*) 'Shell', nShell
+!    write(6,*) 'Shell', nShell
     if( nShell .lt. 1 ) return 
 
     nLM = size( FullChi, 2 ) 
@@ -85,7 +87,7 @@ module screen_chi
               Ninduced( mySite%grid%Nr, nLM ), N0induced( mySite%grid%Nr, nLM ), stat=ierr )
     if( ierr .ne. 0 ) return
 
-    write(6,*) ' ', nPots, nShell
+!    write(6,*) ' ', nPots, nShell
     do iPots = 1 , nPots
       call screen_centralPotential_findNextByZ( mySite%info%Z, potIndex, temp_Pots, ierr )
 
@@ -97,10 +99,13 @@ module screen_chi
         Prefix = screen_chi_getOutputPrefix( mySite%info%elname, mySite%info%indx, Pot%N, Pot%L, &
                                          mySite%shells( iShell ) )
 
-        write(6,*) Prefix
+!        write(6,*) Prefix
 
-        call screen_chi_calcW( mySite%grid, Pot, FullChi, FullChi0, FullW, FullW0, Ninduced, N0induced, ierr )
+        call screen_chi_calcW( mySite%grid, Pot, FullChi, FullChi0, FullW, FullW0, Ninduced, N0induced, &
+                               intInduced, ierr )
         if( ierr .ne. 0 ) return
+
+        write(1000+myid,'(A,1X,E24.16,1X,E24.16)') Prefix, intInduced(:)
         
         call screen_chi_writeW( mySite%grid, Prefix, FullW, FullW0, Ninduced, N0induced )
 
@@ -172,13 +177,20 @@ module screen_chi
   end subroutine screen_chi_writeW
 
   pure function screen_chi_getOutputPrefix( elname, indx, N, L, rad ) result( Prefix )
+    use screen_system, only : screen_system_mode
+    !
     character(len=2), intent( in ) :: elname
     integer, intent( in ) :: indx, N, L
     real(DP), intent( in ) :: rad
     character( len=40 ) :: Prefix
     ! zTi0001_n02l01/
-    write(Prefix,'(A1,A2,I4.4,A2,I2.2,A1,I2.2,A3,F4.2)') & 
-                'z', elname, indx, '_n', N, 'l', L, '.zR', rad
+    select case( screen_system_mode() )
+      case( 'grid' )
+        write(Prefix,'(A1,I6.6,A3,F4.2)') 'x', indx, '.zR', rad
+      case default 
+        write(Prefix,'(A1,A2,I4.4,A2,I2.2,A1,I2.2,A3,F4.2)') & 
+                    'z', elname, indx, '_n', N, 'l', L, '.zR', rad
+    end select
   end function screen_chi_getOutputPrefix
                         
 
@@ -214,12 +226,14 @@ module screen_chi
   end function screen_chi_NR
 
 
-  subroutine screen_chi_runSite( grid, FullChi, projectedChi0, ierr )
+  subroutine screen_chi_runSite( grid, FullChi, projectedChi0, isite, ierr, projectedChi0Fxc )
     use screen_grid, only : sgrid
     type( sgrid ), intent( in ) :: grid
 !    real(DP), intent( in ) :: FullChi0(:,:)
     real(DP), intent( out ) :: FullChi(:,:,:,:)
     real(DP), intent( in ) :: projectedchi0(:,:,:,:)
+    real(DP), intent( in ), optional :: projectedChi0Fxc(:,:,:,:)
+    integer, intent( in ) :: isite
     integer, intent( inout ) :: ierr
     !
 !    real(DP), allocatable :: projectedChi0(:,:,:,:)
@@ -235,10 +249,14 @@ module screen_chi
     allocate( coulombMatrix( size(FullChi,1), size(FullChi,2), size(FullChi,3), size(FullChi,4) ), STAT=ierr )
     if( ierr .ne. 0 ) return
 
-    call schi_buildCoulombMatrix( grid, coulombMatrix, ierr )
+    call schi_buildCoulombMatrix( grid, coulombMatrix, isite, ierr )
     if( ierr .ne. 0 ) return
 
-    call schi_makeChi( projectedChi0, coulombMatrix, FullChi, ierr )
+    if( present( projectedChi0Fxc ) ) then
+      call schi_makeChi( projectedChi0, coulombMatrix, FullChi, ierr, projectedChi0Fxc )
+    else
+      call schi_makeChi( projectedChi0, coulombMatrix, FullChi, ierr )
+    endif
     if( ierr .ne. 0 ) return
 
 !    deallocate( projectedChi0, coulombMatrix )
@@ -247,10 +265,15 @@ module screen_chi
   end subroutine screen_chi_runSite
 
 
-  subroutine schi_makeChi( Chi0, cMat, Chi, ierr )
+! \chi = ( 1 - v \chi_0 )^{-1} \chi_0
+! \chi = ( 1- ( v + f_{xc} ) \chi_0 )^{-1} \chi_0
+! In the case of f_xc, we are passing in f_xc * \chi0, so the actual experssion is
+!   [ 1 - pChi0Fxc - v \chi_0 ]^{-1} \chi_0
+  subroutine schi_makeChi( Chi0, cMat, Chi, ierr, pChi0Fxc )
     real(DP), intent( in ), dimension(:,:,:,:) :: chi0, cMat
     real(DP), intent( out ), dimension(:,:,:,:) :: Chi
     integer, intent( inout ) :: ierr
+    real(DP), intent( in ), optional, dimension(:,:,:,:) :: pChi0Fxc
 
     real(DP), allocatable :: temp(:,:,:,:)
     real(DP), allocatable :: work(:)
@@ -278,12 +301,27 @@ module screen_chi
       enddo
     enddo
 
-    write(6,*) nbasis, nLM, fullsize
-    write(6,'(4(I8))') size(chi0,1), size(chi0,2),size(chi0,3),size(chi0,4)
-    write(6,'(4(I8))') size(cmat,1), size(cmat,2),size(cmat,3),size(cmat,4)
-    write(6,'(4(I8))') size(temp,1), size(temp,2),size(temp,3),size(temp,4)
+!
+!    if( present( pChi0Fxc ) ) then
+!      temp(:,:,:,:) = temp(:,:,:,:) - pChi0Fxc(:,:,:,:)
+!    endif
+!
+    if( present( pChi0Fxc ) ) then
+      chi(:,:,:,:) = cmat(:,:,:,:) + pchi0Fxc(:,:,:,:)
+    
+      call DGEMM( 'N', 'N', fullsize, fullsize, fullsize, minusOne, chi0, fullsize, chi, fullsize, &
+                one, temp, fullsize )
+    else
+
+!    write(6,*) nbasis, nLM, fullsize
+!    write(6,'(4(I8))') size(chi0,1), size(chi0,2),size(chi0,3),size(chi0,4)
+!    write(6,'(4(I8))') size(cmat,1), size(cmat,2),size(cmat,3),size(cmat,4)
+!    write(6,'(4(I8))') size(temp,1), size(temp,2),size(temp,3),size(temp,4)
+
+    ! temp += - chi0 * cmat, where cmat is the coulomb matrix and diagonal so it commutes 
     call DGEMM( 'N', 'N', fullsize, fullsize, fullsize, minusOne, chi0, fullsize, cmat, fullsize, &
                 one, temp, fullsize )
+    endif
             
 
     allocate( ipiv( fullsize ) )
@@ -319,7 +357,8 @@ module screen_chi
 
   end subroutine schi_makeChi
 
-  subroutine screen_chi_calcW( grid, Pot, FullChi, FullChi0, FullW, FullW0, Ninduced, N0induced, ierr )
+  subroutine screen_chi_calcW( grid, Pot, FullChi, FullChi0, FullW, FullW0, Ninduced, N0induced, &
+                               intInduced, ierr )
     use screen_grid, only : sgrid
     use schi_sinqr, only : schi_sinqr_calcW
     use schi_direct, only : schi_direct_calcW
@@ -329,16 +368,20 @@ module screen_chi
     real(DP), intent( in ) :: FullChi(:,:,:,:)
     real(DP), intent( in ) :: FullChi0(:,:,:,:)
     real(DP), intent( out ), dimension(:,:) :: FullW, FullW0, Ninduced, N0induced
+    real(DP), intent( out ) :: intInduced(2)
     integer, intent( inout ) :: ierr
 
     select case ( invStyle )
       case( 'sinqr' )
+        ! I think this is actually definitional in the sinqr formulation, but possibly not
+        !  should go and check
+        intInduced(:) = 0.0_DP
         call schi_sinqr_calcW( grid, Pot, FullChi, FullChi0, FullW, FullW0, Ninduced, N0induced, ierr )
 !        FullW0 = 0.0_DP 
 !        Ninduced = 0.0_DP
 !        N0induced = 0.0_DP
       case( 'direct' )
-        call schi_direct_calcW( grid, Pot, FullChi, FullChi0, FullW, FullW0, Ninduced, N0induced, ierr )
+        call schi_direct_calcW( grid, Pot, FullChi, FullChi0, FullW, FullW0, Ninduced, N0induced, intInduced, ierr )
       case default
         ierr = 1
     end select
@@ -364,19 +407,20 @@ module screen_chi
     end select
   end subroutine screen_chi_project
 
-  subroutine schi_buildCoulombMatrix( grid, cMat, ierr )
+  subroutine schi_buildCoulombMatrix( grid, cMat, isite, ierr )
     use screen_grid, only : sgrid
     use schi_sinqr, only : schi_sinqr_buildCoulombMatrix
     use schi_direct, only : schi_direct_buildCoulombMatrix
     type( sgrid ), intent( in ) :: grid
     real(DP), intent( out ) :: cMat(:,:,:,:)
+    integer, intent( in ) :: isite
     integer, intent( inout ) :: ierr
 
     select case ( invStyle )
       case( 'sinqr' )
         call schi_sinqr_buildCoulombMatrix( grid, cMat, ierr )
       case( 'direct' )
-        call schi_direct_buildCoulombMatrix( grid, cMat, ierr )
+        call schi_direct_buildCoulombMatrix( grid, cMat, isite, ierr )
       case default
         ierr = 1
     end select
@@ -384,31 +428,36 @@ module screen_chi
 
 
   subroutine screen_chi_init( ierr )
-    use ocean_mpi, only : myid, root, comm, MPI_INTEGER, MPI_CHARACTER
-    use screen_system, only : screen_system_invStyle
+!    use ocean_mpi, only : myid, root, comm, MPI_INTEGER, MPI_CHARACTER
+    use screen_system, only : screen_system_invStyle, screen_system_lbounds
     integer, intent( inout ) :: ierr
+
+    integer :: els(2)
 
     if( is_init ) return
 
 
-    if( myid .eq. root ) then
+!    if( myid .eq. root ) then
 !      invStyle = 'direct'
       invStyle = screen_system_invStyle()
-      lmin = 0
-      lmax = 0
+      els(:) = screen_system_lbounds()
+      lmin = els(1)
+      lmax = els(2)
 
       if( invStyle .eq. 'sinqr' ) then
         lmin = 0
         lmax = 0
       endif
-    endif
+!    endif
 
+#if 0
     call MPI_BCAST( lmin, 1, MPI_INTEGER, root, comm, ierr )
     if( ierr .ne. 0 ) return
     call MPI_BCAST( lmax, 1, MPI_INTEGER, root, comm, ierr )
     if( ierr .ne. 0 ) return
     call MPI_BCAST( invStyle, LenInvStyle, MPI_CHARACTER, root, comm, ierr )
     if( ierr .ne. 0 ) return
+#endif
 
 
     is_init = .true.

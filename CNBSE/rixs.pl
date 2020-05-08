@@ -1,6 +1,6 @@
 #!/usr/bin/perl
 
-# Copyright (C) 2015 - 2017 OCEAN collaboration
+# Copyright (C) 2015 - 2019 OCEAN collaboration
 #
 # This file is part of the OCEAN project and distributed under the terms 
 # of the University of Illinois/NCSA Open Source License. See the file 
@@ -11,11 +11,13 @@
 use strict;
 use File::Copy;
 use POSIX;
+use Cwd 'abs_path';
 
 if (! $ENV{"OCEAN_BIN"} ) {
   $0 =~ m/(.*)\/rixs\.pl/;
-  $ENV{"OCEAN_BIN"} = $1;
-  print "OCEAN_BIN not set. Setting it to $1\n";
+#  $ENV{"OCEAN_BIN"} = $1;
+  $ENV{"OCEAN_BIN"} = abs_path( $1 );
+  print "OCEAN_BIN not set. Setting it to $ENV{'OCEAN_BIN'}\n";
 }
 if (! $ENV{"OCEAN_WORKDIR"}){ $ENV{"OCEAN_WORKDIR"} = `pwd` . "../" ; }
 
@@ -814,8 +816,8 @@ close INFILE;
 $ENV{"OMP_NUM_THREADS"}=1;
 
 print "Running XAS through GMRES\n";
-print "time $para_prefix $ENV{'OCEAN_BIN'}/ocean.x > core.log";
-system("time $para_prefix $ENV{'OCEAN_BIN'}/ocean.x > core.log") == 0 or die "Failed to finish\n"; 
+print "$para_prefix $ENV{'OCEAN_BIN'}/ocean.x > core.log";
+system("$para_prefix $ENV{'OCEAN_BIN'}/ocean.x > core.log") == 0 or die "Failed to finish\n"; 
 
 
 # Set up for running the valence pathway for RIXS
@@ -942,8 +944,8 @@ close INFILE;
 
 
 print "Running valence for RIXS\n";
-print "time $para_prefix $ENV{'OCEAN_BIN'}/ocean.x > val.log";
-system("time $para_prefix $ENV{'OCEAN_BIN'}/ocean.x > val.log") == 0 or die "Failed to finish\n";
+print "$para_prefix $ENV{'OCEAN_BIN'}/ocean.x > val.log";
+system("$para_prefix $ENV{'OCEAN_BIN'}/ocean.x > val.log") == 0 or die "Failed to finish\n";
 
 
 exit 0;

@@ -175,11 +175,17 @@ elsif( $metal == 1 || $metal == 2 )
       $band_max = $count if( $count > $band_max );
       if( $band_min > 0 )
       {
-        $band_min = $min_count if( $min_count < $band_min );
+#        $band_min = $min_count if( $min_count < $band_min );
+        if( $min_count < $band_min )
+        {
+          $band_min = $min_count;
+          print "$band_min\t$file_stub\n";
+        }
       }
       else
       {
         $band_min = $min_count;
+          print "$band_min\t$file_stub\n";
       }
     }
     else  # Was able to load the fermi level
@@ -210,7 +216,7 @@ elsif( $metal == 1 || $metal == 2 )
           print "0\t$i\n" if ( $i < $fermi );
           print "1\t$i\n" if ( $i > $fermi );
         }
-        $count++ if( $i < $fermi );
+        $count++ if( $i <= $fermi );
 #        $min_count++ if( $i > $fermi );
       }
       # for compatibility with occ verison
@@ -219,11 +225,17 @@ elsif( $metal == 1 || $metal == 2 )
       $band_max = $count if( $count > $band_max );
       if( $band_min > 0 )
       {
-        $band_min = $min_count if( $min_count < $band_min );
+#        $band_min = $min_count if( $min_count < $band_min );
+        if( $min_count < $band_min )
+        { 
+          $band_min = $min_count;
+          print "$band_min\t$file_stub\n";
+        }
       }
       else
       {
         $band_min = $min_count;
+          print "$band_min\t$file_stub\n";
       }
 
     }
@@ -237,7 +249,7 @@ elsif( $metal == 1 || $metal == 2 )
   #   band_min  total bands
 
   # pad band_max by 1
-  $band_max;
+#  $band_max;
   print $band_max . "\t" . $band_min . "\n";
 }
 else

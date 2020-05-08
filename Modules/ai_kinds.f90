@@ -1,4 +1,4 @@
-! Copyright (C) 2015, 2016 OCEAN collaboration
+! Copyright (C) 2015, 2016, 2019 OCEAN collaboration
 !
 ! This file is part of the OCEAN project and distributed under the terms 
 ! of the University of Illinois/NCSA Open Source License. See the file 
@@ -31,9 +31,16 @@ module AI_kinds
   integer, parameter :: I2  = selected_int_kind(4)
   integer, parameter :: I1  = selected_int_kind(1)
   !
+  integer, parameter :: sizeInt = 4
+  integer, parameter :: sizeDouble = 8
+  integer, parameter :: sizeDoubleComplex = 16
+  integer, parameter :: sizeChar = 1
+  integer, parameter :: sizeRecord = 4
+  !
 !  integer, parameter :: AI_LOG = MPI_LOGICAL
   public :: QP, DP, SP, I4, I8, I2, S_INT !, AI_LOG
   !
+  public :: sizeInt, sizeDouble, sizeChar, sizeRecord
   !
 contains
   subroutine print_kind_info

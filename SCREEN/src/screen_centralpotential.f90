@@ -1,3 +1,10 @@
+! Copyright (C) 2017 - 2019 OCEAN collaboration
+!
+! This file is part of the OCEAN project and distributed under the terms 
+! of the University of Illinois/NCSA Open Source License. See the file 
+! `License' in the root directory of the present distribution.
+!
+!
 module screen_centralPotential
   use ai_kinds, only : DP
 
@@ -21,6 +28,7 @@ module screen_centralPotential
   public :: screen_centralPotential_prepAll, screen_centralPotential_freePot
   public :: screen_centralPotential_loadInternal, screen_centralPotential_freeInternal
   public :: screen_centralPotential_findNextByZ, screen_centralPotential_countByZ
+  public :: screen_centralPotential_dumplog
 !  public :: screen_centralPotential_NOutGrid, screen_centralPotential_MakeOutGrid
 
   contains
@@ -177,8 +185,8 @@ module screen_centralPotential
     call screen_centralPotential_share( Pot, myid, root, comm, ierr )
     if( ierr .ne. 0 ) return
 
-      write(3000+myid, * ) pot%z, pot%n, pot%l
-      flush(3000+myid)
+!      write(3000+myid, * ) pot%z, pot%n, pot%l
+!      flush(3000+myid)
 
 
   end subroutine screen_centralPotential_loadSingle
@@ -223,13 +231,14 @@ module screen_centralPotential
   end subroutine screen_centralPotential_loadAll
 
   subroutine screen_centralPotential_dumpLog( pot, myid )
-    type( potential ), intent( in ) :: pot( : )
+    type( potential ), intent( in ) :: pot
     integer, intent( in ) :: myid
     integer :: i
 
-    write(1000+myid, * ) 'Central Potential: ', size( pot, 1 )
-    do i = 1, size( pot, 1 )
-      write(1000+myid, * ) pot( i )%z, pot( i )%n, pot( i )%l
+    write(1000+myid, * ) 'Central Potential: ', size( pot%pot, 1 )
+    write(1000+myid, * ) pot%z, pot%n, pot%l
+    do i = 1, size( pot%pot, 1 )
+      write(1000+myid, * ) pot%rad(i), pot%pot(i)
     enddo
   end subroutine screen_centralPotential_dumpLog
 
@@ -270,11 +279,20 @@ module screen_centralPotential
 
   subroutine screen_centralPotential_prepAll( znl, n, ierr )
     use ocean_mpi, only : myid, root, comm, MPI_INTEGER
+    use screen_system, only : screen_system_mode
     integer, intent( out ) :: znl(:,:)
     integer, intent( out ) :: n
     integer, intent( inout ) :: ierr
 
     integer :: i, maxSize, j
+
+    if( screen_system_mode() .eq. 'grid' ) then
+      n = 1
+      znl(1,1) = 0
+      znl(2,1) = 0
+      znl(3,1) = 0
+      return
+    endif
 
     if( myid .ne. root ) then
 #ifdef MPI
@@ -311,14 +329,25 @@ module screen_centralPotential
     ierr = 1
   end subroutine 
 
-  subroutine screen_centralPotential_newScreenShell( pot, newPot, rad, ierr )
+  subroutine screen_centralPotential_newScreenShell( pot, newPot, rad, ierr, width )
     type( potential ), intent( in ) :: pot
     type( potential ), intent( out ) :: newPot
     real(DP), intent( in ) :: rad
     integer, intent( inout ) :: ierr
+    real(DP), intent( in ), optional :: width
 
     integer :: i
-    real(DP) :: invRad
+    real(DP) :: invRad, ww, denom, f3, f4, f5, x
+!#ifdef DEBUG
+    character(len=10) :: filename
+!#endif
+  
+    if( present( width ) ) then
+      ww = width
+      if( ww .lt. 0.0 ) ww = 0.0_DP
+    else
+      ww = 0.0_DP
+    endif
 
     if( ( .not. allocated( pot%pot ) ) .or. ( .not. allocated( pot%rad ) ) ) then
       ierr = 5
@@ -328,18 +357,41 @@ module screen_centralPotential
     allocate( newPot%pot( size( pot%pot ) ), newPot%rad( size( pot%rad ) ) )
     newPot%rad(:) = pot%rad(:)
 
-    
+
     invRad = 1.0_DP / rad
+
+    if( ww .gt. 0.0_DP ) then
+      denom = 4.0_DP * rad * ww**2 
+      denom = denom * ( rad + ww )**3
+      denom = 1.0_DP / denom
+      f3 = ( rad**2 + 4.0_DP * rad*ww + 5.0_DP*ww**2 ) * denom
+
+      denom = denom / ( 4.0_DP * ww )
+      f4 = ( rad + 3.0_DP * ww ) * ( rad + 5.0_DP * ww ) * denom
+      f5 = ( rad + 3.0_DP * ww ) * denom
+    else
+      f3 = 0.0_DP
+      f4 = 0.0_DP
+      f5 = 0.0_DP
+    endif
+    
     do i = 1, size( pot%pot ) 
-      if( newPot%rad( i ) .lt. rad ) then
+      if( newPot%rad( i ) .lt. rad - ww) then
         newPot%pot( i ) = pot%pot( i ) + invRad
+      elseif( newPot%rad( i ) .le. rad + ww ) then
+        x = newPot%rad( i ) - ( rad - ww )
+        newPot%pot( i ) = x*f5
+        newPot%pot( i ) = x*( f4 - newPot%pot( i ) )
+        newPot%pot( i ) = x**3 * ( f3 - newPot%pot( i ) )
+        newPot%pot( i ) = pot%pot( i ) + invRad - newPot%pot( i )
+        ! 
       else
         newPot%pot( i : size( newPot%pot ) ) = 0.0_DP
         exit
       endif
     enddo
 
-#ifdef DEBUG
+!#ifdef DEBUG
     write(6,*) 'newScreenShell', rad, newPot%rad( size( newPot%rad ) )
     write(filename,'(A,F4.2)') 'vpert.', rad
     open(unit=99,file=filename, form='formatted' )
@@ -347,7 +399,7 @@ module screen_centralPotential
       write(99,* ) newPot%rad( i ), newPot%pot( i ), pot%pot( i )
     enddo
     close( 99 )
-#endif
+!#endif
 
     newPot%z = pot%z
     newPot%n = pot%n
@@ -371,6 +423,14 @@ module screen_centralPotential
     pot%l = l
 !    pot%deltaR = 0.02_DP
     
+    if( z .lt. 0 ) then
+      call screen_centralPotential_makeBare( z, pot, ierr )
+      return
+    elseif( z .eq. 0 ) then
+      call screen_centralPotential_makeValence( z, pot, ierr )
+      return
+    endif
+
     write(fileName,'(A17,I3.3,A1,I2.2,A1,I2.2)') 'zpawinfo/vc_barez', z, 'n', n, 'l', l
     fh = 99
     open( unit=fh, file=fileName, form='formatted', status='old' )
@@ -448,5 +508,81 @@ module screen_centralPotential
     enddo
 
   end subroutine doRead
+
+  subroutine screen_centralPotential_makeBare( z, pot, ierr )
+    integer, intent( in ) :: z
+    type( potential ), intent( out ) :: pot
+    integer, intent( inout ) :: ierr
+
+    real(DP) :: rat, xrat, xr1, dl
+    integer :: i
+    real(DP), parameter :: rmin = 0.00000001d0
+    real(DP), parameter :: rmax = 800.d0
+    integer, parameter :: nr = 4096
+
+    
+    allocate( pot%rad( nr ), pot%pot( nr ), stat=ierr )
+    if( ierr .ne. 0 ) return
+
+    rat=rmax/rmin
+    dl=dlog(rat)/dble(nr)
+    xrat=dexp(dl)
+    xr1=dsqrt(xrat)-dsqrt(1.d0/xrat)
+    do i=1,nr
+      pot%rad(i)=rmin*xrat**dble(i)
+      pot%pot(i)=-1.0_dp / pot%rad(i)
+    end do
+
+  end subroutine screen_centralPotential_makeBare
+
+  subroutine screen_centralPotential_makeValence( z, pot, ierr )
+    use screen_system, only : screen_system_Volume, screen_system_xmesh
+    use ocean_constants, only : PI_DP
+    integer, intent( in ) :: z
+    type( potential ), intent( out ) :: pot
+    integer, intent( inout ) :: ierr
+
+    real(DP) :: rat, xrat, dl, valRadius, invR, invR2
+    integer :: i, xmesh(3), temp
+    real(DP), parameter :: rmin = 0.00000001d0
+    real(DP), parameter :: rmax = 800.d0
+    integer, parameter :: nr = 4096
+
+
+    allocate( pot%rad( nr ), pot%pot( nr ), stat=ierr )
+    if( ierr .ne. 0 ) return
+
+    xmesh(:) = screen_system_xmesh()
+    i = product( xmesh(:) )
+    if( i .lt. 1 ) then
+      ierr = -5
+      return
+    endif
+    ! V = 4 pi / 3 R^3
+    ! R = ( 3 V / 4 pi ) ^(1/3)
+    valRadius = ( 0.75_DP * screen_system_Volume() ) / ( PI_DP * real( i, DP ) )
+    valRadius = valRadius ** (1.0_DP/3.0_DP)
+    
+
+    rat=rmax/rmin
+    dl=dlog(rat)/dble(nr)
+    xrat=dexp(dl)
+!    xr1=dsqrt(xrat)-dsqrt(1.d0/xrat)
+
+    invR = 0.5_DP / valRadius
+    invR2 = 1.0_DP / ( valRadius**2)
+    temp = floor( ( log( valRadius ) - log( rmin ) ) / dl )
+    temp = min( temp, nr )
+    ! V = - 1 / (2 R ) *( 3 - r^2/R^2)
+    do i=1,temp
+      pot%rad(i)=rmin*xrat**dble(i)
+      pot%pot(i)= -invR * ( 3.0_DP - invR2 * pot%rad(i)**2 )
+    end do
+    do i=temp,nr
+      pot%rad(i)=rmin*xrat**dble(i)
+      pot%pot(i)=-1.0_dp / pot%rad(i)
+    end do
+
+  end subroutine screen_centralPotential_makeValence
 
 end module screen_centralPotential

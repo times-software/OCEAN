@@ -13,10 +13,11 @@ subroutine nbsemkcmel( add04, add14 )
   character(len=4) :: add04
   character(len=14) :: add14
   !
-  integer :: lmin, lmax, nr, i, l, ix, mu, nu, ii, j, nrmax
-  real( DP ) :: dl, err, rmax, su, su1, tmp, vrun, x
-  real( DP ) :: v( 100 ), rv( 100 )
-  real( DP ) :: vtrim( 100 ), vdiff( 100 ), bwgt( 0 : 3 )
+  integer :: lmin, lmax, nr, i, l, ix, mu, nu, ii, j, nrmax, k, nv, nvMax, ierr
+  real( DP ) :: dl, err, rmax, su, su1, tmp, vrun, x, bwgt( 0 : 3 ), vtmp, rtmp
+  real( DP ), allocatable :: v( : ), rv( : ), vtrim( : ), vdiff( : ), tmpArray( : )
+!  real( DP ) :: v( 100 ), rv( 100 )
+!  real( DP ) :: vtrim( 100 ), vdiff( 100 ), bwgt( 0 : 3 )
   character(len=5) :: s5
   character(len=7) :: s7
   character(len=11) :: s11
@@ -45,32 +46,96 @@ subroutine nbsemkcmel( add04, add14 )
 !  open( unit=99, file='rpotfull', form='formatted', status='unknown' )
   open( unit=99, file=rpot_filename, form='formatted', status='unknown' )
   rewind 99
-  do i = 1, 100
-     read ( 99, * ) v( i ), rv( i )
-  end do
-  close( unit=99 )
-  do i = 100, 1, -1
-     if ( rv( i ) .gt. rmax ) then
-        vrun = v( i )
-        vtrim( i ) = v( i )
-        vdiff( i ) = 0
-     else
-        vtrim( i ) = vrun
-        vdiff( i ) = v( i ) - vtrim( i )
-     end if     
-  end do
+
+  nvMax = 1000
+  nv = 0
+  allocate( v( nvMax ), rv( nvMax ) )
+  do
+    read( 99, *, iostat=ierr ) vtmp, rtmp
+    ! If the read is successful
+    if( ierr .eq. 0 ) then
+      nv = nv + 1
+      ! If we have run out of space, make v and rv bigger
+      if( nv .gt. nvMax ) then
+        allocate( tmpArray( nvMax ) )
+        ! Don't see needing more than 1000, really
+        nvMax = nvMax + nvMax
+        tmpArray(:) = v(:)
+        deallocate( v )
+        allocate( v( nvMax ) )
+        v( 1 : nv ) = tmpArray(:)
+        tmpArray(:) = rv(:)
+        deallocate( rv )
+        allocate( rv( nvMax ) )
+        rv( 1 : nv ) = tmpArray(:)
+        deallocate( tmpArray )
+      endif
+      v( nv ) = vtmp
+      rv( nv ) = rtmp
+    ! end of file
+    elseif( ierr < 0 ) then
+      exit
+    else
+      exit
+      ! need to add error handling to this subroutine
+    endif
+  enddo
+  close( 99 )
+
+  allocate( vtrim( nv ), vdiff( nv ) )
+  j = 1
+  k = nv
+  do while ( j .lt. k )
+    i = ( j + k ) / 2 
+    if( rv( i ) .lt. rmax ) then
+      j = i + 1
+    elseif( rv( i ) .gt. rmax ) then
+      k = i - 1 
+    else
+      exit
+    endif
+  enddo
+  if( rv( j ) .lt. rmax ) j = j + 1
+
+  write(6,*) 'BINARY'
+  write(6,*) i, j, k 
+  write(6,*) rv( j - 1 ), rmax, rv( j )
+  vrun = v( j )
+  do i = 1, j - 1
+    vtrim( i ) = vrun
+    vdiff( i ) = v( i ) - vrun
+  enddo
+  do i = j, nv
+    vtrim( i ) = v( i )
+    vdiff( i ) = 0
+  enddo
+!  do i = 1, 100
+!     read ( 99, * ) v( i ), rv( i )
+!  end do
+!  close( unit=99 )
+!  do i = 100, 1, -1
+!     if ( rv( i ) .gt. rmax ) then
+!        vrun = v( i )
+!        vtrim( i ) = v( i )
+!        vdiff( i ) = 0
+!     else
+!        vtrim( i ) = vrun
+!        vdiff( i ) = v( i ) - vtrim( i )
+!     end if     
+!  end do
   write(rpotModFilename, '(A10,A14)') 'rpottrim.z', add14
   open( unit=99, file=rpotModfilename, form='formatted', status='unknown' )
   rewind 99
-  do i = 1, 100
-     write ( 99, '(2f10.5)' ) vtrim( i ), rv( i )
+  write(99, '(A,I8)' ) '#', nv
+  do i = 1, nv !100
+     write ( 99, '(E24.16,X,E24.16)' ) vtrim( i ), rv( i )
   end do
   close( unit=99 )
   
   write(rpotModFilename, '(A10,A14)') 'rpotdiff.z', add14
   open( unit=99, file=rpotModfilename, form='formatted', status='unknown' )
   rewind 99
-  do i = 1, 100
+  do i = 1, nv !100
      write ( 99, '(2f10.5)' ) vdiff( i ), rv( i )
   end do
   close( unit=99 )
@@ -103,7 +168,7 @@ subroutine nbsemkcmel( add04, add14 )
      end do
      dr( ix ) = 0.5d0 * dl * rad( ix )
      do i = 1, ix
-        call intval( 100, rv, vdiff, rad( i ), val( i ), 'err', 'err' )
+        call intval( nv, rv, vdiff, rad( i ), val( i ), 'err', 'err' )
      end do
      do nu = 1, nnu( l )
         do mu = 1, nnu( l )
@@ -129,6 +194,8 @@ subroutine nbsemkcmel( add04, add14 )
      close( unit=99 )
      deallocate( cmel, nmel, rad, phi, dr, val )
   end do
+
+  deallocate( v, rv, vdiff, vtrim )
   !
   return
 end subroutine nbsemkcmel

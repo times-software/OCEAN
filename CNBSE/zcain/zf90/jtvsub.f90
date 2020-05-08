@@ -49,7 +49,7 @@ subroutine jtvsub( lmin, lmax, nproj, npmax, lc, nbsemel, powmax, ifcn, stext, e
   end if
   !
   write ( 6, * ) 'ck1'
-  if ( spcttype .eq. 'qRaman' .or. .true.) call jlmatfetch( lc, lmin, lmax, npmax, nproj, qmag, jlmel, powmax )
+  if ( spcttype(1:2) .eq. 'qR' ) call jlmatfetch( lc, lmin, lmax, npmax, nproj, qmag, jlmel, powmax )
   write ( 6, * ) 'ck2'
   !
   ! We will need powers of ( -i q )
@@ -117,8 +117,16 @@ subroutine jtvsub( lmin, lmax, nproj, npmax, lc, nbsemel, powmax, ifcn, stext, e
                  nbsemel( :, m, l, mc ) = nbsemel( :, m, l, mc ) + csu(j) * ifcn( :, j, l ) 
               enddo
               !
-           case( 'qRaman' )
+           case( 'qRaman', 'qRs', 'qRp', 'qRd', 'qRf' )
               nbsemel( :, m, l, mc ) = 0
+
+              if( spcttype .ne. 'qRaman' ) then
+                if( l .ne. 0 .and. spcttype .eq. 'qRs' ) cycle
+                if( l .ne. 1 .and. spcttype .eq. 'qRp' ) cycle
+                if( l .ne. 2 .and. spcttype .eq. 'qRd' ) cycle
+                if( l .ne. 3 .and. spcttype .eq. 'qRf' ) cycle
+              endif
+              
               mip = 1.0d0
               do lt = 0, lc + l
                  cpr = mip * dble( 2 * lt + 1 )
