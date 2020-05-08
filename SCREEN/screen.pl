@@ -30,7 +30,7 @@ if (! $ENV{"OCEAN_WORKDIR"}){ $ENV{"OCEAN_WORKDIR"} = `pwd` . "../" ; }
 
 my @CommonFiles = ("znucl", "opf.hfkgrid", "opf.fill", "opf.opts", "pplist", "screen.shells", 
                    "ntype", "natoms", "typat", "taulist", "nedges", "edges", "caution", "epsilon", 
-                   "screen.k0", "scfac", "core_offset", "dft", "avecsinbohr.ipt", 
+                   "screen.k0", "scfac", "core_offset", "dft", "avecsinbohr.ipt", "coord", 
                    "nspin", "prefix", "work_dir" );
 
 my @CommonFiles2 = ("para_prefix", "calc" );
@@ -223,6 +223,10 @@ if( $dft =~ m/qe/i )
 {
   `ln -s ../DFT/Out SCF`;
   `ln -s ../DFT/SCREEN/Out .`;
+}
+elsif( $dft =~ m/abi/i )
+{
+  `ln -s ../DFT/SCREEN/RUN0001_WFK .`;
 }
 
 # Detect qe version ( or, in the future, abinit )
@@ -595,7 +599,7 @@ else
           copy( "ximat_small", "${edgename}/zR${fullrad}/ximat_small" ) or die "Failed to copy ximat to ${edgename}/\n$!";
 
           `echo "$screen_data_files{'grid.nb'}" > ipt`;
-          `time $ENV{'OCEAN_BIN'}/xipps.x < ipt`;
+          `$ENV{'OCEAN_BIN'}/xipps.x < ipt`;
           move( "ninduced", "nin" ) or die "Failed to move ninduced.\n$!";
   #        `echo $fullrad > ipt`;
   #        `cat ibase epsilon >> ipt`;
@@ -622,7 +626,7 @@ else
           copy( "ipt", "ipt1" ) or die;
           `echo .false. >> ipt1`;
           `echo 0.1 100 >> ipt1`;
-          `time $ENV{'OCEAN_BIN'}/rscombine.x < ipt1 > ./${edgename}/zRXF${fullrad}/ropt`;
+          `$ENV{'OCEAN_BIN'}/rscombine.x < ipt1 > ./${edgename}/zRXF${fullrad}/ropt`;
           move( "rpot", "$edgename/zRXF$fullrad/" ) or die "Failed to move rpot\n$!";
           move( "rpothires", "$edgename/zRXF$fullrad/" ) or die "Failed to move rpothires\n$!";
 
@@ -634,7 +638,7 @@ else
           `wc zpawinfo/vvallel${edgename2} >> ipt1`;
           `cat zpawinfo/vvallel${edgename2} >> ipt1`;
           `echo "$screen_data_files{'final.dr'} $final_nr" >> ipt1`;
-          `time $ENV{'OCEAN_BIN'}/rscombine.x < ipt1 > ./${edgename}/zRXT${fullrad}/ropt`;
+          `$ENV{'OCEAN_BIN'}/rscombine.x < ipt1 > ./${edgename}/zRXT${fullrad}/ropt`;
           move( "rpot", "$edgename/zRXT$fullrad/" ) or die "Failed to move rpot\n$!";
           move( "rpothires", "$edgename/zRXT$fullrad/" ) or die "Failed to move rpothires\n$!";
           copy( $reoptName, "$edgename/zRXT$fullrad/rom" ) or die "Failed to copy rom\n$!";
@@ -645,7 +649,7 @@ else
           # Now use ximat_small
           move( "ximat_small", "ximat" ) or die "$!";
           `echo "$screen_data_files{'grid.nb'}" > ipt`;
-          `time $ENV{'OCEAN_BIN'}/xipps.x < ipt`;
+          `$ENV{'OCEAN_BIN'}/xipps.x < ipt`;
           move( "ninduced", "nin" ) or die "Failed to move ninduced.\n$!";
   #        `echo $fullrad > ipt`;
   #        `cat ibase epsilon >> ipt`;
@@ -670,7 +674,7 @@ else
           `wc zpawinfo/vvallel${edgename2} >> ipt1`;
           `cat zpawinfo/vvallel${edgename2} >> ipt1`;
           `echo "$screen_data_files{'final.dr'} $final_nr" >> ipt1`;
-          `time $ENV{'OCEAN_BIN'}/rscombine.x < ipt1 > ./${edgename}/zRXS${fullrad}/ropt`;
+          `$ENV{'OCEAN_BIN'}/rscombine.x < ipt1 > ./${edgename}/zRXS${fullrad}/ropt`;
           move( "rpot", "$edgename/zRXS$fullrad/" ) or die "Failed to move rpot\n$!";
           move( "rpothires", "$edgename/zRXS$fullrad/" ) or die "Failed to move rpothires\n$!";
   #        move( "rom", "$edgename/zRXS$fullrad/" ) or die "Failed to move rom\n$!";
@@ -726,7 +730,8 @@ else
 
     for( my $i = 1; $i < $ninter; $i++ )
     {
-      $angList[$i] = 7 if( $angList[$i] < 0 || ! $angList[$i] =~ m/\d/ || scalar @angList <= $i );
+      $angList[$i] = $angList[$i-1] if( scalar @angList <= $i );
+      $angList[$i] = 7 if( $angList[$i] < 0 || ! $angList[$i] =~ m/\d/ ); #|| scalar @angList <= $i );
       print "$deltarList[$i] !!  ";
       $deltarList[$i] = $deltarList[$i-1] if( $deltarList[$i] < 0 || scalar @deltarList <= $i );
       print "$deltarList[$i]\n";
@@ -828,8 +833,8 @@ else
     }
     close ZEELIST;
 
-    print "$para_prefix $ENV{'OCEAN_BIN'}/screen_driver.x\n";
-    system("$para_prefix $ENV{'OCEAN_BIN'}/screen_driver.x") == 0 or die "$!\nFailed to run screen_driver.x\n";
+    print "$para_prefix $ENV{'OCEAN_BIN'}/screen_driver.x > screen_driver.log 2>&1\n";
+    system("$para_prefix $ENV{'OCEAN_BIN'}/screen_driver.x > screen_driver.log 2>&1") == 0 or die "$!\nFailed to run screen_driver.x\n";
     print "screen_driver.x done\n";
 
     system("$ENV{'OCEAN_BIN'}/vhommod.x") == 0 or die "$!\nFailed to run vhommod.x\n";
@@ -1085,7 +1090,7 @@ else
     `rm core_shift.txt` if( -e "core_shift.txt" );
   } else
   {
-    `time perl $ENV{'OCEAN_BIN'}/core_shift.pl > core_shift.log`;
+    `perl $ENV{'OCEAN_BIN'}/core_shift.pl > core_shift.log`;
   }
 }
 

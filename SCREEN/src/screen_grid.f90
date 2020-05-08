@@ -75,6 +75,7 @@ module screen_grid
   public :: screen_grid_init
   public :: screen_grid_dumpRBfile
   public :: screen_grid_dumpFullGrid
+  public :: screen_grid_project2d
 
   contains
 
@@ -717,5 +718,167 @@ module screen_grid
 
   end subroutine make_uniform
 
+  subroutine screen_grid_project2d( grid, Full, Projected, ierr )
+    use ai_kinds, only : qp
+    use ocean_mpi, only : myid
+    use ocean_constants, only : PI_DP, PI_QP
+    use ocean_sphericalHarmonics, only : ocean_sphH_getylm
+    
+    type( sgrid ), intent( in ) :: grid
+    real(DP), intent( in ) :: Full(:,:)
+    real(DP), intent( out ) :: Projected(:,:,:,:)
+    integer, intent( inout ) :: ierr
+
+    real(DP), allocatable :: slice_ymu( :, : ), temp( :, :, : )
+    real(DP) :: su
+
+    integer :: npt, nbasis, nLM, fullSize, nang, nr, dimTemp
+    integer :: i, j, iLM, l, m, ir, jr, jlm, k, lmax, ipt, iir, inter
+
+    npt = size( Full, 1 )
+    nbasis = size( Projected, 1 )
+    nLM = size( Projected, 2 )
+    fullSize = nbasis * nLM
+!    nang = grid%Nang
+
+    if( ( npt .ne. size( Full, 2 ) ) .or. ( npt .ne. grid%npt ) ) then
+      write(myid+1000,'(A,3(I10))') 'screen_grid_project', npt, size( Full, 2 ), grid%npt
+      ierr = 1
+      return
+    endif
+
+    if( nbasis .ne. size( Projected, 3 ) ) then
+      write(myid+1000,'(A,2(I10))') 'screen_grid_project', nbasis, size( Projected, 3 )
+      ierr = 2
+      return
+    endif
+
+    if( nLM .ne. size( Projected, 4 ) ) then
+      write(myid+1000,'(A,2(I10))') 'screen_grid_project', nLM, size( Projected, 4 )
+      ierr = 3
+      return
+    endif
+
+    ! 
+    lmax = anint( sqrt( real( nLM, DP ) ) ) - 1
+
+    ! iterate over grids
+    ! each grid can have a unique number of radial and angular parts
+    ! 
+
+    nr = grid%Nr
+    allocate( temp( npt, nr, nLM ), STAT=ierr )
+    if( ierr .ne. 0 ) return
+    temp( :, :, : ) = 0.0_DP
+
+    ! ipt stores universal location
+    ipt = 0
+    ! iir stores universal radius
+    iir = 0
+    do inter = 1, grid%ninter
+
+      nang = grid%agrid(inter)%nang
+      nr = grid%rgrid(inter)%nr
+
+      allocate( slice_ymu( nang, nLM ), STAT=ierr )
+      if( ierr .ne. 0 ) return
+
+      iLM = 1
+
+      su = 1.0_QP / sqrt( 4.0_QP * PI_QP )
+      do j = 1, nang
+        slice_ymu( j, 1 ) = su * grid%agrid(inter)%weights( j )
+      enddo
+
+      do l = 1, lmax
+        do m = -l, l
+          iLM = iLM + 1
+!          write(6,*) iLM, l, m
+          do j = 1, nang
+            slice_ymu( j, iLM ) = ocean_sphH_getylm( grid%agrid(inter)%angles( :, j ), l, m ) &
+                                * grid%agrid(inter)%weights( j )
+          enddo
+        enddo
+      enddo
+
+!      k = 0
+      do ilm = 1, nlm
+        do ir = 1, nr
+!          k = k + 1
+          do i = 1, nang
+            do j = 1, npt
+              ! ipt
+              temp( j, ir+iir, ilm ) = temp( j, ir+iir, ilm ) &
+                                     + Full( j, (ir-1)*nang + i + ipt ) * slice_ymu( i, ilm )
+            enddo
+          enddo
+        enddo
+      enddo
+
+      ipt = ipt + nang*nr
+      iir = iir + nr
+
+      deallocate( slice_ymu )
+    enddo
+
+
+    iir = 0
+    ipt = 0
+    Projected(:,:,:,:) = 0.0_DP
+
+    do inter = 1, grid%ninter
+
+      nang = grid%agrid(inter)%nang
+      nr = grid%rgrid(inter)%nr
+
+
+      allocate( slice_ymu( nang, nLM ), STAT=ierr )
+      if( ierr .ne. 0 ) return
+      ! could store up slice_ymu instead of re-calculating
+
+      su = 1.0_QP / sqrt( 4.0_QP * PI_QP )
+      do j = 1, nang
+        slice_ymu( j, 1 ) = su * grid%agrid(inter)%weights( j )
+      enddo
+
+      iLM = 1
+      do l = 1, lmax
+        do m = -l, l
+          iLM = iLM + 1
+          do j = 1, nang
+            slice_ymu( j, iLM ) = ocean_sphH_getylm( grid%agrid(inter)%angles( :, j ), l, m ) &
+                                * grid%agrid(inter)%weights( j )
+          enddo
+        enddo
+      enddo
+
+      do ilm = 1, nlm
+        do ir = 1, grid%nr
+
+          do jlm = 1, nlm
+            k = 0
+            do jr = 1, nr
+              su = 0.0_DP
+              do i = 1, nang
+                k = k + 1
+!                Projected(jr+iir,jlm,ir,ilm) = Projected(jr+iir,jlm,ir,ilm) &
+!                  + temp( k+ipt, ir, ilm ) * slice_ymu( i, jlm )
+                su = su + temp( k+ipt, ir, ilm ) * slice_ymu( i, jlm )
+              enddo
+              Projected(jr+iir,jlm,ir,ilm) = su
+            enddo
+          enddo
+        enddo
+      enddo
+
+      ipt = ipt + nang*nr
+      iir = iir + nr
+
+      deallocate( slice_ymu )
+    enddo
+
+    deallocate( temp )
+  
+  end subroutine screen_grid_project2d
 
 end module screen_grid

@@ -19,6 +19,7 @@ module OCEAN_system
     real(DP)         :: qinunitsofbvectors(3)
     real(DP)         :: epsilon0
     real(DP)         :: occupationValue
+    real(DP)         :: epsConvergeThreshold
     integer( S_INT ) :: nkpts
     integer( S_INT ) :: nxpts
     integer( S_INT ) :: nalpha
@@ -55,6 +56,7 @@ module OCEAN_system
     logical          :: write_rhs 
     logical          :: complex_bse
     logical          :: legacy_ibeg 
+    logical          :: convEps
 !    character(len=5) :: calc_type
 
     character(len=5) :: occupationType
@@ -337,6 +339,15 @@ module OCEAN_system
         sys%occupationValue = 0.0_dp
       endif
       
+      inquire(file='conveps.ipt', exist=exst )
+      if( exst ) then
+        open( unit=99, file='conveps.ipt', form='formatted', status='old')
+        read(99, * ) sys%epsConvergeThreshold
+        close( 99 )
+        if( sys%epsConvergeThreshold .gt. 0.0d0 ) sys%convEps = .true.
+      else
+        sys%convEps = .false.
+      endif
 
       
     endif
@@ -689,7 +700,6 @@ module OCEAN_system
 
     
   end subroutine OCEAN_runlist_init
-
 
     
 end module OCEAN_system

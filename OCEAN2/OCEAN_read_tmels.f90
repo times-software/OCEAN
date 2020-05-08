@@ -111,6 +111,19 @@ subroutine OCEAN_read_tmels( sys, p, file_selector, ierr )
 
         max_psi = max( max_psi, maxval( p%valr(1:sys%cur_run%num_bands,1:sys%cur_run%val_bands,ik,ibeta) ) )
       enddo
+      su = 0.0_DP
+  
+       do ik = 1, sys%nkpts
+            do i = 1, sys%cur_run%val_bands
+               do j = 1, sys%cur_run%num_bands
+                  su = su + p%valr( j, i, ik, ibeta )**2 + p%vali( j, i, ik, ibeta )**2
+               end do
+            end do
+         end do
+
+         su = sqrt( su )
+         write(6,*) 'pnorm=', su, sys%cur_run%val_bands, sys%cur_run%num_bands, ispn, ibeta
+
     enddo
 
 #ifdef MPI
@@ -120,6 +133,23 @@ subroutine OCEAN_read_tmels( sys, p, file_selector, ierr )
     close(99)
 #endif
     deallocate( psi_in, psi_transpose )
+
+#if DEBUG
+    if( myid .eq. 0 ) then
+      open(unit=99,file='tmels.test',form='formatted',status='unknown')
+      do ik = 1, sys%nkpts
+        do j = 1, sys%brange(4)-sys%brange(3)+1
+           do i = 1, sys%brange(2)-sys%brange(1) + 1
+             write(99,*) p%valr( j, i, ik, ibeta ), -p%vali( j, i, ik, ibeta ) 
+           enddo
+        enddo
+      enddo
+        close(99)
+    endif
+#endif
+
+
+
   case( 0 )
 
     if( myid .eq. root ) then
@@ -172,6 +202,8 @@ subroutine OCEAN_read_tmels( sys, p, file_selector, ierr )
 
          su = sqrt( su )
          write(6,*) 'pnorm=', su, sys%cur_run%val_bands, sys%cur_run%num_bands, ispn, ibeta
+
+         max_psi = max( max_psi, maxval( abs(p%valr(1:sys%cur_run%num_bands,1:sys%cur_run%val_bands,ik,ibeta) ) ) )
 
       end do
 

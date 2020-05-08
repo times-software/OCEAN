@@ -20,7 +20,7 @@ photon_q
 } qinunitsofbvectors.ipt
 dft.split
 {
-.false.
+.true.
 } dft.split
 dft.qe_redirect
 {

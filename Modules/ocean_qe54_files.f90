@@ -130,6 +130,11 @@ module ocean_qe54_files
     nbands = 0
     bands_remain = bands(2)-bands(1)+1
 
+    if( pool_nproc .gt. bands_remain ) then
+      if( poolID .lt. bands_remain ) nbands = 1
+      return
+    endif
+
     do i = 0, poolID
       nbands = bands_remain / ( pool_nproc - i )
       bands_remain = bands_remain - nbands

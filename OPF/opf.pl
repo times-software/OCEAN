@@ -28,7 +28,7 @@ if (! $ENV{"OCEAN_WORKDIR"}){ $ENV{"OCEAN_WORKDIR"} = `pwd` . "../" ; }
 
 my @CommonFiles = ("znucl", "opf.hfkgrid", "opf.fill", "opf.opts", "pplist", 
                    "ntype", "natoms", "typat", "taulist", "nedges", "edges", "caution", 
-                   "scfac", "opf.program" );
+                   "scfac", "opf.program", "coord", "avecsinbohr.ipt" );
 my @ExtraFiles = ("calc");
 
 

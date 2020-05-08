@@ -6,7 +6,7 @@
 !
 !
 module OCEAN_driver
-
+  use ai_kinds, only : dp
   implicit none
   private
   save
@@ -22,7 +22,7 @@ module OCEAN_driver
 
   end subroutine OCEAN_driver_clean
   
-  subroutine OCEAN_driver_run( sys, hay_vec, ierr )
+  subroutine OCEAN_driver_run( sys, hay_vec, restartBSE, newEps, ierr )
     use OCEAN_mpi, only : myid, root
     use OCEAN_system, only : o_system
     use OCEAN_psi, only : ocean_vector
@@ -31,11 +31,13 @@ module OCEAN_driver
     !
     type( o_system ), intent( in ) :: sys
     type( ocean_vector ), intent( inout ) :: hay_vec
+    logical, intent( inout ) :: restartBSE
+    real(DP), intent( out ) :: newEps
     integer, intent( inout ) :: ierr
 
     select case ( style )
       case('hay')
-        call OCEAN_haydock_do( sys, hay_vec, ierr )
+        call OCEAN_haydock_do( sys, hay_vec, restartBSE, newEps, ierr )
       case('inv')
         call OCEAN_gmres_do( sys, hay_vec, ierr )
       case default

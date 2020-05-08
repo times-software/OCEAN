@@ -36,7 +36,7 @@ my @CommonFiles = ( "screen.nkpt", "nkpt", "qinunitsofbvectors.ipt", "avecsinboh
                     "nspin", "xmesh.ipt", "dft.split", "prefix", "calc", "screen.wvfn", "screen.legacy", 
                     "screen.mode", "bse.wvfn", "k0.ipt", "work_dir", "para_prefix" );
 my @NewMethodFiles = ( "ntype", "typat", "natoms", "znucl", "taulist", "edges", "core_offset", "metal", "cksshift", 
-                       "cksstretch", "nedges", "edges", "pplist", "opf.opts", "opf.fill" );
+                       "cksstretch", "nedges", "edges", "pplist", "opf.opts", "opf.fill", "coord" );
 my @ExtraFiles = ("specpnt.5", "Pquadrature", "sphpts" );
 
 foreach (@QEFiles) {
@@ -250,7 +250,7 @@ close NKPT;
 $rundir = sprintf("../DFT/%03u%03u%03u", $nkpt[0], $nkpt[1], $nkpt[2]);
 
 my @BSECommonFiles = ( "qinunitsofbvectors.ipt", "bvecs", "dft", "nelectron", "avecsinbohr.ipt", 
-                       "nspin", "dft.split", "prefix", "natoms", "typat", "ntype","znucl", "taulist", 
+                       "nspin", "dft.split", "prefix", "natoms", "typat", "ntype","znucl", "taulist", "coord", 
                        "edges", "k0.ipt", "core_offset", "metal", "cksshift", "cksstretch", "bse.wvfn" );
 my @rundirFiles = ( "kmesh.ipt", "brange.ipt", "umklapp" );
 my @BSEBonusFiles = ("xmesh.ipt", "calc", "hfinlist", "xyz.wyck" );
@@ -345,14 +345,7 @@ if( $runBSE != 0 )
 
   if( $bseWvfn =~ m/qe/ || $bseWvfn =~ m/new/ )
   {
-    if( -e "Out/$prefix.save/data-file.xml" )
-    {
-      print "Detected QE54-style DFT run\n";
-      open TMP, ">", "wvfn.ipt" or die "Failed to open wvfn.ipt for writing\n$!";
-      print TMP "qe54\n";
-      close TMP;
-    }
-    elsif( -e "Out/$prefix.save/data-file-schema.xml" )
+    if( -e "Out/$prefix.save/data-file-schema.xml" )
     {
       print "Detected QE62-style DFT run\n";
       open TMP, ">", "wvfn.ipt" or die "Failed to open wvfn.ipt for writing\n$!";
@@ -361,6 +354,13 @@ if( $runBSE != 0 )
 
 #      system( "$ENV{'OCEAN_BIN'}/qe62band.pl") == 0 or die "Failed to run qe62band.pl\n$!";
       copy("../$rundir/eig62.txt", "eig62.txt") or die "Failed to grab enkfile\n$!";
+    }
+    elsif( -e "Out/$prefix.save/data-file.xml" )
+    {
+      print "Detected QE54-style DFT run\n";
+      open TMP, ">", "wvfn.ipt" or die "Failed to open wvfn.ipt for writing\n$!";
+      print TMP "qe54\n";
+      close TMP;
     }
     else
     { 

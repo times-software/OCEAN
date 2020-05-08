@@ -134,13 +134,16 @@ else
     {
       copy( "../PREP/BSE/$_", $_ ) or die "Failed to get PREP/BSE/$_\n$!" ;
     }
-    if (-e "../PREP/BSE/u2.dat")
+    foreach( "val.u2.dat", "con.u2.dat" )
     {
-      `ln -s ../PREP/BSE/u2.dat`;
-    }
-    else
-    {
-      die "Required file ../PREP/BSE/u2.dat is missing!\n";
+      if (-e "../PREP/BSE/$_" )
+      {
+        symlink( "../PREP/BSE/$_", $_ );
+      }
+      else
+      {
+        die "Required file ../PREP/BSE/$_ is missing!\n";
+      }
     }
     open OUT, ">tmel_selector" or die;
     print OUT "1\n";
@@ -149,7 +152,7 @@ else
     print OUT "0\n";
     close OUT;
     open OUT, ">bloch_selector" or die;
-    print OUT "0\n";
+    print OUT "3\n";
     close OUT;
   }
 }
@@ -326,13 +329,18 @@ print INFILE "hay\n";
 print INFILE "$num_haydock_iterations  $spectrange  $gamma0  0.000\n";
 close INFILE;
 
+open INFILE, ">", "spect.in" or die "Failed to open spect.in for writing\n$!";
+print INFILE "$spectrange  $gamma0  0.000\n";
+close INFILE;
+
 `cat bse.in`;
 
 `echo 0 0 0 > ZNL`;
 
 print "Running valence\n";
-print "time $para_prefix $ENV{'OCEAN_BIN'}/ocean.x > val.log";
-system("time $para_prefix $ENV{'OCEAN_BIN'}/ocean.x > val.log") == 0 or die "Failed to finish\n";
+print "$para_prefix $ENV{'OCEAN_BIN'}/ocean.x > val.log";
+system("$para_prefix $ENV{'OCEAN_BIN'}/ocean.x > val.log") == 0 or die "Failed to finish\n";
+print "\n";
 
 
 exit 0;

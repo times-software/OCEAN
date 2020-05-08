@@ -16,9 +16,10 @@ program vhommod
   real( kind=dp ) :: qq, q, dq, qmax, r1, r2, dr, rmax
   real( kind=dp ) :: jqr1, jqr2, tj1, tj2, th1, th2, j1, s
   real( kind=dp ) :: nav, ds, ss, dn, n, avec( 3, 3 ), omega, nel
+  real( kind=dp ) :: d2, d3, rd3, q2, q3, q4, q5, delta, sinqr, sinqd, cosqd
   !
   real( kind=dp ), allocatable :: v( :, : ), vh( :, : ), dv( : )
-  real( kind=dp ), allocatable :: tab1( :, : ), bq( : ), shells( : )
+  real( kind=dp ), allocatable :: tab1( :, : ), bq( : ), shells( : ), tabjqr2( :, : )
   !
   character(len=2), allocatable :: siteSymbol( : )
   character(len=4) :: smode
@@ -26,7 +27,7 @@ program vhommod
   !
   real( kind=dp ), external :: levlou, sphj0, sphj1
   !
-  logical :: havenav, valenceGrid
+  logical :: havenav, valenceGrid, thickShell
   character(len=80) :: dummy
   !
   pi = 4.d0 * datan( 1.d0 )
@@ -52,6 +53,18 @@ program vhommod
       valenceGrid = .true.
     else
       valenceGrid = .false.
+    endif
+  endif
+
+  delta = 0.0_DP
+  inquire( file='screen.shellwidth', exist=thickShell )
+  if( thickShell ) then
+    open( unit=99, file='screen.shellwidth', form='formatted', status='old' )
+    read( 99, * ) delta
+    close( 99 )
+    if( delta .lt. 0.000001_dp .or. delta .gt. maxval( shells ) ) then
+      delta = 0.0_dp
+      thickShell = .false.
     endif
   endif
 
@@ -121,21 +134,63 @@ program vhommod
   !
   nq = qmax / dq
   dq = qf * dq
-  allocate( tab1( nr, nq ), bq( nq ) )
+  allocate( tab1( nr, nq ), bq( nq ), tabjqr2( nq, nshells ) )
+  !
+  if( thickShell ) then
+    d2 = delta * delta
+    d3 = delta * d2
+    do k = 1, nshells
+      r2 = shells( k )
+      rd3 = ( r2 + delta ) ** 3
+      do i = 1, nq
+        q = dq * ( i - 0.5d0 )
+        cosqd = cos( q * delta )
+        sinqr = sin( q * r2 )
+        sinqd = sin( q * delta )
+        q2 = q * q
+        q3 = q2 * q
+        q4 = q2 * q2
+        q5 = q3 * q2
+
+        tabjqr2( i, k ) = -3.0_dp * cosqd * sinqr / ( q3 * rd3 ) &
+                        - 90.0_dp * cosqd * sinqr / ( q5 * d2 * rd3 ) &
+                        - 3.0_dp * r2**2 * cosqd * sinqr / ( q3 * d2 * rd3 ) &
+                        - 270.0_dp * cosqd * sinqr / ( q5 * r2 * delta * rd3 ) &
+                        - 9.0_DP * r2 * cosqd * sinqr / (q3 * delta * rd3 ) &
+                        + 15.0_DP * delta * sinqr * cosqd / ( q3 * r2 * rd3 ) &
+                        - 105.0_DP * sinqr * sinqd / ( q4 * r2 * rd3 ) &
+                        + 90.0_dp * sinqr * sinqd / ( q3 * q3 * d3 * rd3 ) &
+                        + 3.0_DP * r2**2 * sinqr * sinqd / ( q4 * d3 * rd3 ) &
+                        + 270.0_DP * sinqr * sinqd / ( q3 * q3 * r2 * d2 * rd3 ) &
+                        + 9.0_DP * r2 * sinqr * sinqd / ( q4 * d2 * rd3 ) &
+                        - 27.0_DP * sinqr * sinqd / ( q4 * delta * rd3 )
+        write(6,*) tabjqr2( i, k ), sphj0( q * r2 )
+      enddo
+    enddo
+  else
+    do k = 1, nshells
+      r2 = shells( k )
+      do i = 1, nq
+        q = dq * ( i - 0.5d0 )
+        tabjqr2( i, k ) = sphj0( q * r2 )
+      enddo
+    enddo
+  endif
   !
   v( :, : ) = 0
   do k = 1, nshells
     r2 = shells( k )
     do i = 1, nq
        q = dq * ( i - 0.5d0 )
-       jqr2 = sphj0( q * r2 )
+!       jqr2 = sphj0( q * r2 )
        qq = q / qf
        eps = 1 / levlou( qq, qf, lam )
        bq( i ) = ( 1 - 1 / eps ) / ( 4 * pi )
        r1 = dr / 2
        do j = 1, nr
           jqr1 = sphj0( q * r1 )
-          v( j, k ) = v( j, k ) + 8 * dq * bq( i ) * jqr1 * jqr2
+!          v( j, k ) = v( j, k ) + 8 * dq * bq( i ) * jqr1 * jqr2
+          v( j, k ) = v( j, k ) + 8 * dq * bq( i ) * jqr1 * tabjqr2( i, k )
           r1 = r1 + dr
        end do
     end do
@@ -181,22 +236,36 @@ program vhommod
       endif
 
       do k = 1, nshells
-        r2 = shells( k )
+        r2 = shells( k ) + delta
         th2 = 0
-        if ( s .gt. r2 ) th2 = 1
+        if( s .gt. r2 ) then
+          th2 = 1.0_DP
+        elseif( thickShell .and. ( s .gt. (shells(k) - delta ) ) ) then
+          th2 = 3.0_DP * r2**2 + 12.0_DP * r2 * delta + 5.0_DP * delta**2 
+          th2 = 3.0_DP * ( r2 + delta ) * th2
+          th2 = th2 - 2.0_DP * s * ( r2 + 3.0_DP * delta ) * ( 7.0_DP * r2 + 5.0_DP * delta )
+          th2 = th2 + 5.0_DP * s**2 * ( r2 + 3.0_DP * delta )
+          th2 = th2 * s**2 * ( s + delta - r2 )**2
+          th2 = th2 / ( 16.0_DP * r2 * delta**3 * (r2 + delta )**3 )
+        endif
+        if( th2 .lt. 0.0_DP .or. th2 .gt. 1.0_DP ) then
+          write(6,*) 'bad th2', th2, r2, s
+          stop
+        endif
         dv = 0
         do i = 1, nq
           q = dq * ( i - 0.5d0 )
           j1 = sphj1( q * s )
           tj2 = j1 * th2
-          jqr2 = sphj0( q * r2 )
+!          jqr2 = sphj0( q * r2 )
           r1 = dr / 2
           do j = 1, nr
             th1 = 0
             if ( s .gt. r1 ) th1 = 1
             tj1 = j1 * th1
             jqr1 = tab1( j, i )
-            dv( j ) = dv( j ) + q * bq( i ) * ( tj1 * jqr2 + tj2 * jqr1 )
+            dv( j ) = dv( j ) + q * bq( i ) * ( tj1 * tabjqr2( i, k ) + tj2 * jqr1 )
+!            dv( j ) = dv( j ) + q * bq( i ) * ( tj1 * jqr2 + tj2 * jqr1 )
             r1 = r1 + dr
           end do
         end do

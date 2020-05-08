@@ -210,12 +210,13 @@ subroutine cainkset( avec, bvec, bmet, prefs )
   open( unit=99, file='cksdq', form=f9, status='old')
   read( 99, * ) dq( : )
   close( 99 )
+  ! Changing so that conduction bands are at k0 and valence at k-q
   if (conduct) then
-    do i = 1, 3
-      dbeta( i ) = sum( dq( : ) * avec( :, i ) ) / ( 2.0d0 * pi )
-    end do
-  else
     dbeta(:) = 0.0d0
+  else
+    do i = 1, 3
+      dbeta( i ) = -sum( dq( : ) * avec( :, i ) ) / ( 2.0d0 * pi )
+    end do
   endif
   !
   allocate( iq( 3, nktot ), qphys( 3, nktot ), e0( ntot ), eraw( ntot ) )

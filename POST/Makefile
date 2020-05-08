@@ -25,4 +25,4 @@ install:
 	cp exciton_plot.x val_exciton_plot.x $(INSTDIR)/
 
 clean:
-	rm *.o *.x
+	rm *.o *.x *.mod

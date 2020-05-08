@@ -38,14 +38,16 @@ module screen_chi_driver
     use screen_grid, only : screen_grid_dumpFullGrid
     use ocean_mpi, only : myid, comm
     use screen_timekeeper, only : screen_tk_start, screen_tk_stop
-    use screen_system, only : screen_system_mode
+    use screen_system, only : screen_system_mode, screen_system_doFxc
+    use screen_kxc, only : screen_kxc_makechi0fxc
     integer, intent( in ) :: nsites
     type( site ), intent( in ) :: all_sites( nsites )
     integer, intent( inout ) :: ierr
     !
     real(DP), allocatable :: FullChi0(:,:)
     real(DP), allocatable :: FullChi(:,:,:,:), ProjectedChi0(:,:,:,:)
-    integer :: isite, dims(2), NLM, NR
+    real(DP), allocatable :: ProjectedChi0Fxc(:,:,:,:)
+    integer :: isite, dims(2), NLM, NR, mySiteIndex
 
     character( len=4 ) :: chiPrefix
     character( len=6 ) :: gridSuffix
@@ -59,10 +61,13 @@ module screen_chi_driver
     call MPI_BARRIER( comm, ierr )
     if( ierr .ne. 0 ) return
 
+    mySiteIndex = 0
+
     do isite = 1, nsites
 
       if( screen_paral_isMySite( pinfo, isite ) ) then
 
+        mySiteIndex = mySiteIndex + 1
 
         call MPI_BARRIER( pinfo%comm, ierr )
         if( ierr .ne. 0 ) return 
@@ -74,6 +79,12 @@ module screen_chi_driver
         if( ierr .ne. 0 ) return
         allocate( FullChi0( dims(2), dims(2) ), STAT=ierr )
         if( ierr .ne. 0 ) return
+
+        if( screen_system_doFxc() ) then
+          allocate( ProjectedChi0Fxc( NR, NLM, NR, NLM), stat=ierr ) 
+        else
+          allocate( ProjectedChi0Fxc( 1, 1, 1, 1 ), stat=ierr )
+        endif
 
         call screen_tk_start( "screen_chi0_runSite" )
         call screen_chi0_runSite( all_sites( isite ), FullChi0, ierr )
@@ -88,6 +99,12 @@ module screen_chi_driver
           chiPrefix = 'chi0'
           call driver_write_chi( all_sites( isite )%info, chiPrefix, ProjectedChi0, ierr )
           if( ierr .ne. 0 ) return
+
+          if( screen_system_doFxc() ) then
+            call screen_kxc_makechi0fxc( isite, all_sites( isite )%grid, FullChi0, ProjectedChi0Fxc, ierr )
+            if( ierr .ne. 0 ) return
+          endif
+
         endif
         call screen_tk_stop( "screen_chi_project" )
 
@@ -100,7 +117,13 @@ module screen_chi_driver
         if( pinfo%myid .eq. pinfo%root ) then
 
 !          write(6,*) 'Start screen_chi_runSite'
-          call screen_chi_runSite( all_sites( isite )%grid, FullChi, ProjectedChi0, ierr )
+          if( screen_system_doFxc() ) then
+            call screen_chi_runSite( all_sites( isite )%grid, FullChi, ProjectedChi0, mySiteIndex, &
+                                     ierr, ProjectedChi0Fxc )
+          else
+            call screen_chi_runSite( all_sites( isite )%grid, FullChi, ProjectedChi0, mySiteIndex, ierr )
+          endif
+
           if( ierr .ne. 0 ) return
 !          write(6,*) 'Done with screen_chi_runSite'
 
@@ -129,7 +152,7 @@ module screen_chi_driver
 !          write(6,*) 'Done with screen_chi_makeW'
         endif
 
-        deallocate( ProjectedChi0, FullChi )
+        deallocate( ProjectedChi0, FullChi, ProjectedChi0Fxc )
 
       endif
 
