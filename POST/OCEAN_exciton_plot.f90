@@ -16,9 +16,10 @@ program OCEAN_exciton_plot
   real(DP) :: qinb(3), avecs(3,3), su, k0(3), qvec(3), Rvec(3), xphs, yphs, zphs, twopi, tau(3), ur, ui
 
   integer, allocatable :: ibeg(:,:)
-  integer :: Rmesh(3), kmesh(3), nband, nalpha, nkpts, NR, Riter, kiter, xmesh(3), nspn, ispin, ivh2
+  integer :: Rmesh(3), kmesh(3), nband, nalpha, nkpts, NR, Riter, kiter, xmesh(3), nspn, ispin, ivh2, icl2
   integer :: ikx, iky, ikz, iRx, iRy, iRz, NX, i, ix, x_count, xiter, iy, iz, izz, bloch_selector
   integer :: brange(4), u2size, u2start, Rshift(3), natom, kiter_break, Rstart(3), idum(3)
+  character(len=3) :: calc
   character(len=25) :: filname
   character(len=128) :: outname
   character(len=2), allocatable :: elname(:)
@@ -30,6 +31,10 @@ program OCEAN_exciton_plot
   complex(DP), parameter :: zero = 0.0_dp
 
   twopi = 2.0_dp * 4.0_dp * atan( 1.0_dp )
+
+  open(unit=99,file='calc',form='formatted',status='old')
+  read(99,*) calc
+  close(99)
 
   open(unit=99,file='exciton_plot.ipt',form='formatted',status='old')
   read(99,*) filname
@@ -47,6 +52,10 @@ program OCEAN_exciton_plot
   open(unit=99,file='brange.ipt',form='formatted',status='old')
   read(99,*) brange(1:4)
   close(99)
+
+!  if ( calc .eq. 'xes' ) then
+!     nband = brange(4) - nband
+!  end if
 
   open(unit=99,file='kmesh.ipt',form='formatted',status='old')
   read(99,*) kmesh(:)
@@ -124,6 +133,7 @@ program OCEAN_exciton_plot
   else
     allocate( ibeg( 1, 1 ) )
     ivh2 = brange( 2 )
+    icl2 = brange( 3 )
   endif
 
 !JTV!
@@ -153,9 +163,19 @@ program OCEAN_exciton_plot
     cond_exciton(:,:) = cond_exciton(:,:) + su * exciton(:,:,i)
   enddo
 
- 
+  write(6,*) "##############################"
+  write(6,*) "U2 loop limits"
+  write(6,*) "1, ", ivh2-brange(1)+1
+  write(6,*) "1, ", nband
+  write(6,*) ivh2+nband+1, brange(2)-brange(1)+brange(4)-brange(3)+2
+  write(6,*) "##############################" 
+
   u2size = brange(4)-brange(3)+brange(2)-brange(1)+2
-  u2start = brange(2)-brange(1)+2
+  if ( calc .eq. 'xas' ) then
+     u2start = brange(2)-brange(1)+2
+  else if ( calc .eq. 'xes' ) then
+     u2start = brange(1)
+  end if
   write(6,*) u2size, u2start, nband
   allocate( u2( NX, u2size ) )
   allocate( rk_exciton( NX, nkpts ) )
@@ -182,30 +202,67 @@ program OCEAN_exciton_plot
 
   case( 0 )
     open(unit=99,file='u2.dat',form='unformatted',status='old')
-    do kiter = 1, nkpts
-      if( mod( kiter, kiter_break ) .eq. 0 ) write(6,*) kiter
-      if( metal ) ivh2 = ibeg( kiter, 1 ) - 1
-      do i = 1, ivh2 - brange( 1 ) + 1 !brange(2)-brange(1)+1
-        do ix = 1, NX
-          read(99) 
-        enddo
-      enddo
-      do i = 1, nband
-        do ix =1, NX
-          read(99) idum(1:3), ur, ui
-          u2( ix, i ) = cmplx( ur, ui, DP )
-        enddo
-      enddo
-      do i = ivh2 + nband + 1, brange(2)-brange(1)+brange(4)-brange(3) + 2
-        do ix = 1, NX
-           read ( 99 )
-        end do
-      enddo
 
-      call ZGEMV( 'N', NX, nband, one, u2, NX, cond_exciton( 1, kiter ), 1, &
-                   one, rk_exciton( 1, kiter ), 1 )
-    enddo
-    close( 99 )
+    select case( calc )
+
+    case( 'xas' )
+      do kiter = 1, nkpts
+        if( mod( kiter, kiter_break ) .eq. 0 ) write(6,*) kiter
+        if( metal ) ivh2 = ibeg( kiter, 1 ) - 1
+        do i = 1, ivh2 - brange( 1 ) + 1 !brange(2)-brange(1)+1
+          do ix = 1, NX
+            read(99) 
+          enddo
+        enddo
+        do i = 1, nband
+          do ix =1, NX
+            read(99) idum(1:3), ur, ui
+            u2( ix, i ) = cmplx( ur, ui, DP )
+          enddo
+        enddo
+        do i = ivh2 + nband + 1, brange(2)-brange(1)+brange(4)-brange(3) + 2
+          do ix = 1, NX
+             read ( 99 )
+          end do
+        enddo
+
+        call ZGEMV( 'N', NX, nband, one, u2, NX, cond_exciton( 1, kiter ), 1, &
+                     one, rk_exciton( 1, kiter ), 1 )
+      enddo
+      close( 99 )
+
+    case( 'xes' )
+      do kiter = 1, nkpts
+        if( mod( kiter, kiter_break ) .eq. 0 ) write(6,*) kiter
+        if( metal ) ivh2 = ibeg( kiter, 1 ) - 1
+!        do i = 1, ivh2 - brange( 1 ) + 1 !brange(2)-brange(1)+1
+        do i = 1, nband
+          do ix = 1, NX
+            read(99) idum(1:3), ur, ui
+            u2( ix, i ) = cmplx( ur, ui, DP )
+          enddo
+        enddo
+!        do i = 1, nband
+        do i = 1, brange( 4 ) - icl2 + 1 
+          do ix =1, NX
+            read(99)
+          enddo
+        enddo
+        do i = ivh2 + nband + 1, brange(2)-brange(1)+brange(4)-brange(3) + 2
+          do ix = 1, NX
+             read ( 99 )
+          end do
+        enddo
+
+        call ZGEMV( 'N', NX, nband, one, u2, NX, cond_exciton( 1, kiter ), 1, &
+                     one, rk_exciton( 1, kiter ), 1 )
+      enddo
+      close( 99 )
+
+    case default
+      stop
+    end select
+
   case default
     stop
   end select

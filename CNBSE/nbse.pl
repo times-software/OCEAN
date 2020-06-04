@@ -26,6 +26,7 @@ my @CommonFiles = ("epsilon", "xmesh.ipt", "k0.ipt", "nbuse.ipt",
   "para_prefix", "cnbse.strength", "serbse", "core_offset", "avecsinbohr.ipt", 
   "cnbse.solver", "cnbse.gmres.elist", "cnbse.gmres.erange", "cnbse.gmres.nloop", 
   "cnbse.gmres.gprc", "cnbse.gmres.ffff", "cnbse.write_rhs", "spin_orbit", "nspin", 
+  "vnbse.solver", "vnbse.broaden", "vnbse.gmres.elist", "vnbse.gmres.erange",
   "niter", "backf", "aldaf", "bwflg", "bande", "bflag", "lflag", "decut", "spect.h", 
   "gw_control", "gwcstr", "gwvstr", "gwgap" );
 
@@ -98,7 +99,7 @@ else
 }
 
 ##### Determine which solver to use
-open IN, "cnbse.solver" or die "Failed to open cnbse.solver!\n$!";
+open IN, "vnbse.solver" or die "Failed to open vnbse.solver!\n$!";
 my $line = <IN>;
 close IN;
 my $solver;
@@ -113,7 +114,7 @@ elsif( lc($line) =~ m/gmres/ )
 }
 else
 {
-  print "Trouble parsing cnbse.solver!!\n*** Will default to  Haydock recursion ***\n";
+  print "Trouble parsing vnbse.solver!!\n*** Will default to  Haydock recursion ***\n";
   $solver = 'hay';
 }
 ## If gmres we need to further parse the inputs
@@ -126,7 +127,7 @@ if( $solver eq 'gmres' )
   chomp $line;
   my $gmres_header = $line;
 
-  open IN, "cnbse.broaden" or die "Failed to open cnbse.broaden\n$!";
+  open IN, "vnbse.broaden" or die "Failed to open vnbse.broaden\n$!";
   $line = <IN>;
   close IN;
   chomp $line;
@@ -149,7 +150,7 @@ if( $solver eq 'gmres' )
 
   my $have_elist = 0;
   my $have_erange = 0;
-  open IN, "cnbse.gmres.elist" or die "Failed to open cnbse.gmres.elist\n$!";
+  open IN, "vnbse.gmres.elist" or die "Failed to open vnbse.gmres.elist\n$!";
   $line = <IN>;
   if( $line =~ m/false/ )
   {
@@ -171,7 +172,7 @@ if( $solver eq 'gmres' )
     close IN;
   }
 
-  open IN, "cnbse.gmres.erange" or die "Failed to open cnbse.gmres.erange\n$!";
+  open IN, "vnbse.gmres.erange" or die "Failed to open vnbse.gmres.erange\n$!";
   $line = <IN>;
   if( $line =~ m/false/ )
   {
@@ -296,7 +297,7 @@ else  # We are using abi/qe path w/o obfs
   }
 }
 
-my $gamma0 = `cat cnbse.broaden`;
+my $gamma0 = `cat vnbse.broaden`;
 chomp($gamma0);
 
 open TMPFILE, "cnbse.niter" or die "Failed to open cnbse.niter\n$!";

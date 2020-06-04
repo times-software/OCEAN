@@ -26,7 +26,7 @@ periodic.o: periodic.f90
 
 install:
 	cp exciton_plot.x val_exciton_plot.x makewyck.x $(INSTDIR)/
-	cp core-exciton.pl val-exciton.pl $(INSTDIR)/
+	cp core-exciton.pl optical-exc.pl rixs-val-exc.pl rixs_exc.pl $(INSTDIR)/
 
 clean:
 	rm *.o *.x

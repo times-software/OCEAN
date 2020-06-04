@@ -251,6 +251,14 @@ cnbse.gmres.ffff
 {
 0.00000005
 } cnbse.gmres.ffff
+vnbse.solver
+{
+haydock
+} vnbse.solver
+vnbse.broaden
+{
+0.1
+} vnbse.broaden
 vnbse.gmres.elist
 {
 false

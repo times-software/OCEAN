@@ -227,6 +227,10 @@ if( $excp =~ m/true/i )
     {
         $run_core_exc = 1;
     }
+    elsif( $calc =~ m/xes/i )
+    {
+        $run_core_exc = 1;
+    }
     elsif( $calc =~ m/rixs/i )
     {
         $run_core_exc = 1;
@@ -465,7 +469,7 @@ if( $calc =~ m/val/ )
     print "Entering NBSE stage\n";
     chdir "NBSE";
     print_status(0);
-    system("$OCEAN_BIN/nbse.pl") == 0 or die "CNBSE stage failed\n$!";
+    system("$OCEAN_BIN/nbse.pl") == 0 or die "NBSE stage failed\n$!";
     print_status(1);
     chdir "../";
   }
@@ -535,7 +539,14 @@ if( $run_val_exc == 1 )
   `mkdir -p EXCITON`;
   chdir "EXCITON";
 #  print_status(0);
-  system("$OCEAN_BIN/val-exciton.pl > exciton.log") == 0 or die "EXCITON stage failed\n$!";
+  if( $calc =~ m/val/i )
+  {
+    system("$OCEAN_BIN/optical-exc.pl > exciton.log") == 0 or die "EXCITON stage failed\n$!";
+  }
+  elsif( $calc =~ m/rixs/i )
+  {
+    system("$OCEAN_BIN/rixs-val-exc.pl > exciton.log") == 0 or die "EXCITON stage failed\n$!";
+  }
 #  print_status(1);
   chdir "../";
 }

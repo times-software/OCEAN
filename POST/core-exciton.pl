@@ -44,9 +44,9 @@ if( $calc =~ m/rixs/i )
    }
    move("runlist.xas","runlist");
 }
-elsif( $calc =~ m/xas/i )
+elsif( $calc =~ m/xas/i || $calc =~ m/xes/i )
 {
-   print "Found calc is XAS\n";
+   print "Found calc is XAS or XES\n";
 # check cnbse.solver in CNBSE
    open SOLV, "../CNBSE/cnbse.solver" or die "Failed to open file cnbse.solver: $!\n";
    <SOLV> =~ m/(\w+)/ or die "Failed to read file cnbse.solver\n";
@@ -58,7 +58,14 @@ elsif( $calc =~ m/xas/i )
       print "Found sovler is GMRES\n";
       chdir "../CNBSE";
       map { copy($_, "../EXCITON/$_") or die "Failed to copy echamp" } glob("echamp_*");
-      map { copy($_, "../EXCITON/$_") or die "Failed to copy absspct" } glob("abss*");
+      if ( $calc =~ m/xas/i )
+      {
+          map { copy($_, "../EXCITON/$_") or die "Failed to copy absspct" } glob("abss*");
+      }
+      else
+      {
+          map { copy($_, "../EXCITON/$_") or die "Failed to copy xesspct" } glob("xess*");
+      }
       chdir "../EXCITON";
       my @BseFiles = ("avecsinbohr.ipt", "bloch_selector", "brange.ipt", "kmesh.ipt", "k0.ipt", "nspin", "nbuse.ipt", "qinunitsofbvectors.ipt", "runlist", "u2.dat", "xmesh.ipt", "xyz.wyck", "ZNL" );
       foreach (@BseFiles) {
@@ -111,7 +118,14 @@ my $zj;
 # get the number of exciton energies
 $zsite = sprintf("%04d_",$site[0]);
 $zph = sprintf("%02d",$ph[0]);
-`wc -l < absspct_$elm[0].$zsite$core[0]_$zph > nexc`;
+if ( $calc =~ m/xas/i || $calc =~ m/rixs/i )
+{
+    `wc -l < absspct_$elm[0].$zsite$core[0]_$zph > nexc`;
+}
+else
+{
+    `wc -l < xesspct_$elm[0].$zsite$core[0]_$zph > nexc`;
+}
 
 open NEX, "nexc" or die "Failed to open nexc\n$!";
 my $line = <NEX>;
@@ -133,7 +147,9 @@ my @tau;
 
 ## presently hole part is not supported for core excitons
 #  runs electron part instead
-
+my $irun=0;
+if ( $irun )
+{
 for( my $j = 1; $j <= $nexc; $j++ )
 {
    for( my $i = 1; $i <= $nspec; $i++ )
@@ -169,6 +185,7 @@ for( my $j = 1; $j <= $nexc; $j++ )
 #      `mv exciton_plot.ipt exc_$label.ipt`;
 
    }
+}
 }
 
 
