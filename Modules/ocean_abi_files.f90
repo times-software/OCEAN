@@ -450,7 +450,7 @@ module ocean_abi_files
   subroutine abi_read_at_kpt( ikpt, ispin, ngvecs, my_bands, gvecs, wfns, ierr )
 #ifdef MPI
     use OCEAN_mpi, only : MPI_INTEGER, MPI_DOUBLE_COMPLEX, MPI_STATUS_IGNORE, MPI_OFFSET_KIND, &
-                          myid, MPI_ADDRESS_KIND, MPI_DATATYPE
+                          myid
 #endif
     use ai_kinds, only : sizeDoubleComplex, sizeRecord
     integer, intent( in ) :: ikpt, ispin, ngvecs, my_bands
@@ -460,7 +460,6 @@ module ocean_abi_files
     !
 #ifdef MPI
     integer( MPI_OFFSET_KIND ) :: offset
-    integer( MPI_ADDRESS_KIND ) :: stride
 #endif
     integer :: iShift, id, nbands, ib, j, ndumg
     real(DP) :: denom
