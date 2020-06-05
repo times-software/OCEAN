@@ -17,7 +17,7 @@ MODOBJS = ../../Modules/ocean_mpi.o ../../Modules/ai_kinds.o ../../Modules/ocean
           ../../Modules/ocean_interpolate.o ../../Modules/periodic.o ../../Modules/screen_timekeeper.o \
           ../../Modules/ocean_legacy_files.o ../../Modules/ocean_qe54_files.o \
           ../../Modules/ocean_qe62_files.o ../../Modules/ocean_dft_files.o ../../Modules/ocean_abi_files.o \
-          ../../Modules/screen_opf.o ../../Modules/ocean_phys.o
+          ../../Modules/screen_opf.o ../../Modules/ocean_phys.o ../../Modules/FFT_wrapper.o ../../Modules/jlmfft.o
 
 install:
 	cp screen_driver.x $(INSTDIR)/
