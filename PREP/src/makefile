@@ -10,7 +10,8 @@ MODOBJS = ../../Modules/ocean_mpi.o ../../Modules/ai_kinds.o ../../Modules/ocean
           ../../Modules/ocean_interpolate.o ../../Modules/periodic.o ../../Modules/screen_timekeeper.o \
           ../../Modules/ocean_legacy_files.o ../../Modules/ocean_qe54_files.o \
           ../../Modules/ocean_qe62_files.o ../../Modules/ocean_dft_files.o ../../Modules/screen_opf.o \
-          ../../Modules/ocean_abi_files.o ../../Modules/ocean_phys.o
+          ../../Modules/ocean_abi_files.o ../../Modules/ocean_phys.o ../../Modules/FFT_wrapper.o \
+          ../../Modules/jlmfft.o
 
 install:
 	cp ocean_prep.x $(INSTDIR)/
@@ -24,7 +25,7 @@ prep_wvfn.o:   prep_wvfn.f90 ../../Modules/ocean_dft_files.mod ../../Modules/oce
                ../../Modules/screen_timekeeper.mod ocean_tmels.mod
 prep_wvfn.mod: prep_wvfn.f90 ../../Modules/ocean_dft_files.mod ../../Modules/ocean_mpi.mod \
                ../../Modules/ai_kinds.mod ../../Modules/screen_opf.mod ocean_cks.mod \
-               ../../Modules/screen_timekeeper.mod ocean_tmels.mod
+               ../../Modules/screen_timekeeper.mod ocean_tmels.mod ../../Modules/fft_wrapper.mod
 
 ocean_cks.o:   ocean_cks.f90 ../../Modules/ai_kinds.mod ../../Modules/ocean_interpolate.mod \
                ../../Modules/screen_opf.mod prep_system.mod

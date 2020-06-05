@@ -4,7 +4,7 @@ src = $(wildcard *.f90)
 obj = $(src:.f90=.o)
 mod = $(src:.f90=.mod)
 
-all: $(obj) $(mod)
+all: $(obj) $(mod) jlmfft.o
 
 %.o %.mod: %.f90
 	$(MPIFORT) $(OPTIONS) -c -o $*.o $< $(FFTWI)
@@ -41,6 +41,9 @@ screen_opf.mod: ai_kinds.mod ocean_mpi.mod
 ocean_phys.o:   ai_kinds.mod ocean_constants.mod
 ocean_phys.mod: ai_kinds.mod ocean_constants.mod
 
+jlmfft.o: jlmfft.f
+	$(MPIFORT) $(OPTIONS) -c -o jlmfft.o jlmfft.f
+
 .PHONY: clean
 clean:
-	rm -f $(obj) $(mod)
+	rm -f $(obj) $(mod) jlmfft.o

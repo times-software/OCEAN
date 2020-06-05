@@ -86,7 +86,7 @@ getomega.o: $(CNBSE)/getomega.f90
 gamfcn.o: $(CNBSE)/gamfcn.f90
 	$(MPIFORT) $(FLAGS) -c -o gamfcn.o $(CNBSE)/gamfcn.f90
 
-long_range.o: long_range.f90 OCEAN_system.o OCEAN_mpi.o OCEAN_obf.o
+long_range.o: long_range.f90 OCEAN_system.o OCEAN_mpi.o OCEAN_obf.o OCEAN_psi.o
 	$(MPIFORT) $(FLAGS) -c -o long_range.o long_range.f90 $(OPENMP) $(FFT_WRAPPER_INCL)
 
 #jlmfft.o: $(CNBSE)/../zstd/jlmfft.f
@@ -185,7 +185,7 @@ OCEAN_gmres.o: OCEAN_gmres.f90 AI_kinds.o OCEAN_psi.o OCEAN_system.o OCEAN_mpi.o
 OCEAN_filenames.o: OCEAN_filenames.f90 OCEAN_system.o
 	$(MPIFORT) $(FLAGS) -c -o OCEAN_filenames.o OCEAN_filenames.f90
 
-OCEAN_WRR.o: OCEAN_WRR.f90 OCEAN_constants.o OCEAN_system.o OCEAN_mpi.o
+OCEAN_WRR.o: OCEAN_WRR.f90 OCEAN_constants.o OCEAN_system.o OCEAN_mpi.o OCEAN_hyb_louie_levine.o
 	$(MPIFORT) $(FLAGS) -c -o OCEAN_WRR.o OCEAN_WRR.f90
 
 clean:
