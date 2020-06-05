@@ -1289,16 +1289,20 @@ module screen_wvfn_converter
 
   subroutine swl_doConvertComplex( nbands, ngvecs, gvecs, uofg, uofx )
     use ocean_dft_files, only : odf_isFullStorage
-#ifdef __FFTW3
-    use iso_c_binding
-    include 'fftw3.f03'
-#endif
+    use FFT_wrapper, only : fft_wrapper_init, fft_obj, FFT_wrapper_single, OCEAN_BACKWARD, &
+                            FFT_wrapper_delete
+    use ocean_mpi, only : myid
+!#ifdef __FFTW3
+!    use iso_c_binding
+!    include 'fftw3.f03'
+!#endif
     integer, intent( in ) :: ngvecs, nbands
     integer, intent( in ) :: gvecs( :,: )
     complex(DP), intent( in ) :: uofg( :, : )
     complex(DP), intent( out ) :: uofx( :, :, :, : )
-#ifdef __FFTW3
-    type(C_PTR) :: bplan
+!#ifdef __FFTW3
+!    type(C_PTR) :: bplan
+    type( fft_obj ), allocatable :: bplan( : )
     integer :: dims(3)
     integer :: i, j, k, ig, ib
 
@@ -1308,9 +1312,20 @@ module screen_wvfn_converter
     if( dims(1) .lt. 1 ) return
     ! almost certainly need to reverse dims
 !    bplan = fftw_plan_many_dft( 3, dims, nbands, uofx, 
-
+    allocate( bplan( nbands ) )
+    ib = 1
+    call FFT_wrapper_init( dims, bplan( ib ), uofx(:,:,:,ib), 1000+myid )
+    do ib = 2, nbands
+      call FFT_wrapper_init( dims, bplan( ib ), uofx(:,:,:,ib) )
+    enddo
+    
+#ifdef __FFTW3
+!$OMP PARALLEL DO DEFAULT( NONE ) &
+!$OMP SHARED( nbands, dims, ngvecs, gvecs, uofx, uofg, bplan ) &
+!$OMP PRIVATE( ib, ig, i, j, k )
+#endif
     do ib = 1, nbands
-      bplan = fftw_plan_dft_3d( dims(3), dims(2), dims(1), uofx(:,:,:,ib), uofx(:,:,:,ib), FFTW_BACKWARD, FFTW_PATIENT )
+!      bplan = fftw_plan_dft_3d( dims(3), dims(2), dims(1), uofx(:,:,:,ib), uofx(:,:,:,ib), FFTW_BACKWARD, FFTW_PATIENT )
       uofx(:,:,:,ib) = 0.0_DP
       do ig = 1, ngvecs
         i = 1 + gvecs(1,ig)
@@ -1336,34 +1351,48 @@ module screen_wvfn_converter
       endif
       
 
+      call  FFT_wrapper_single( uofx(:,:,:,ib), OCEAN_BACKWARD, bplan(ib), .false. )
 !    enddo
 
 !    do j = 1, nbands
-      call fftw_execute_dft( bplan, uofx(:,:,:,ib), uofx(:,:,:,ib) )
+!      call fftw_execute_dft( bplan, uofx(:,:,:,ib), uofx(:,:,:,ib) )
 !    enddo
     
-      call fftw_destroy_plan( bplan )
+!      call fftw_destroy_plan( bplan )
     enddo
-
-#else
-    ! To keep the compiler happy
-    uofx = 0.0_DP
+#ifdef __FFTW3
+!$OMP END PARALLEL DO
 #endif
+    
+    do ib = 1, nbands
+      call FFT_wrapper_delete( bplan( ib ) )
+    enddo
+    deallocate( bplan )
+
+!#else
+!    ! To keep the compiler happy
+!    uofx = 0.0_DP
+!#endif
   end subroutine swl_doConvertComplex
 
   subroutine swl_doConvertGamma( nbands, ngvecs, gvecs, uofg, uofx )
     use ocean_dft_files, only : odf_isFullStorage
-#ifdef __FFTW3
-    use iso_c_binding
-    include 'fftw3.f03'
-#endif
+    use FFT_wrapper, only : fft_wrapper_init, fft_obj, FFT_wrapper_single, OCEAN_BACKWARD, &
+                            FFT_wrapper_delete
+    use ocean_mpi, only : myid
+!#ifdef __FFTW3
+!    use iso_c_binding
+!    include 'fftw3.f03'
+!#endif
     integer, intent( in ) :: ngvecs, nbands
     integer, intent( in ) :: gvecs( :,: )
     complex(DP), intent( in ) :: uofg( :, : )
     real(DP), intent( out ) :: uofx( :, :, :, : )
-#ifdef __FFTW3
+!#ifdef __FFTW3
     complex(DP), allocatable :: tempC(:,:,:)
-    type(C_PTR) :: bplan
+!    type(C_PTR) :: bplan
+    type(fft_obj) :: bplan
+
     integer :: dims(3)
     integer :: i, j, k, ig, ib, flags
 
@@ -1400,17 +1429,22 @@ module screen_wvfn_converter
     enddo
     deallocate( tempC )
 #else
-    bplan = fftw_plan_dft_3d( dims(3), dims(2), dims(1), tempC, tempC, FFTW_BACKWARD, FFTW_ESTIMATE )
+!    bplan = fftw_plan_dft_3d( dims(3), dims(2), dims(1), tempC, tempC, FFTW_BACKWARD, FFTW_ESTIMATE )
 
-    deallocate( tempC )
-!$OMP PARALLEL DEFAULT( NONE ) &
+    call FFT_wrapper_init( dims, bplan, tempC, 1000+myid )
+
+
+#ifdef __FFTW3
+!$    deallocate( tempC )
+!$OMP PARALLEL DEFAULT( NONE ) 
 !$OMP SHARED( bplan, nbands, ngvecs, dims, uofg, uofx, gvecs ) &
 !$OMP PRIVATE( ib, ig, i, j, k, tempC )
-
-    allocate( tempC( dims(1), dims(2), dims(3) ) )
-!$OMP DO SCHEDULE( STATIC )
+!$    allocate( tempC( ( dims(1), dims(2), dims(3) ) )
+!$OMP DO
+#endif
     do ib = 1, nbands
       tempC(:,:,:) = 0.0_DP
+!      uofx(:,:,:,ib) = 0.0_DP
       do ig = 1, ngvecs
         i = 1 + gvecs(1,ig)
         j = 1 + gvecs(2,ig)
@@ -1419,6 +1453,7 @@ module screen_wvfn_converter
         if( j .le. 0 ) j = j + dims(2)
         if( k .le. 0 ) k = k + dims(3)
 
+!        uofx( i, j, k, ib ) = uofg( ig, ib )
         tempC( i, j, k ) = uofg( ig, ib )
       enddo
       if( .not. odf_isFullStorage() ) then
@@ -1430,29 +1465,36 @@ module screen_wvfn_converter
           if( j .le. 0 ) j = j + dims(2)
           if( k .le. 0 ) k = k + dims(3)
 
+!          uofx( i, j, k, ib ) = conjg( uofg( ig, ib ) )
           tempC( i, j, k ) = conjg( uofg( ig, ib ) )
         enddo
 
       endif
 
-
-      call fftw_execute_dft( bplan, tempC, tempC )
+!      call  FFT_wrapper_single( uofx(:,:,:,ib), OCEAN_BACKWARD, bplan(ib), .false. )
+      call  FFT_wrapper_single( tempC, OCEAN_BACKWARD, bplan, .false. )
+!      call fftw_execute_dft( bplan, tempC, tempC )
 
       uofx(:,:,:,ib) = tempC(:,:,:)
     enddo
+#ifdef __FFTW3
 !$OMP END DO
     deallocate( tempC )
-!$OMP END PARALLEL
-
-    call fftw_destroy_plan( bplan )
-
-#endif
-
-
+!$OMP END PARLLEL
 #else
-    ! To keep the compiler happy
-    uofx = 0.0_DP
+    deallocate( tempC )
 #endif
+
+!    call fftw_destroy_plan( bplan )
+    call FFT_wrapper_delete( bplan )
+
+#endif
+
+
+!#else
+!    ! To keep the compiler happy
+!    uofx = 0.0_DP
+!#endif
   end subroutine swl_doConvertGamma
 
 
@@ -1509,10 +1551,10 @@ module screen_wvfn_converter
         uofxDims(:) = 0
         boundaries(:,:) = 0
       case('fft2', 'fft3', 'fft4', 'fft5', 'fft6', 'intp' )
-#ifndef __FFTW3
-        ierr = -1
-        write(6,*) 'FFT-based conversion requires FFTW3 support'
-#endif
+!#ifndef __FFTW3
+!        ierr = -1
+!        write(6,*) 'FFT-based conversion requires FFTW3 support'
+!#endif
         boundaries(:,1) = minval( gvecs, 2 )
         boundaries(:,2) = maxval( gvecs, 2 )
         do i = 1, 3
@@ -1536,12 +1578,18 @@ module screen_wvfn_converter
               test = test / 2
               write(1000+myid,*) '   ', 2
             enddo
-            do j = 7, 3, -2
+            do j = 5, 3, -2
               do
                 if( mod( test, j ) .ne. 0 ) exit
                 test = test / j
                 write(1000+myid,*) '   ', j
               enddo
+            enddo
+#ifdef __FFTW3
+            do 
+              if( mod( test, 7 ) .ne. 0 ) exit
+              test = test / 7
+              write(1000+myid,*) '   ', 7
             enddo
             if( mod( test, 11 ) .eq. 0 ) then
               test = test / 11
@@ -1551,6 +1599,7 @@ module screen_wvfn_converter
               test = test / 13
               write(1000+myid,*) '   ', 13
             endif
+#endif
             if( test .eq. 1 ) then
               uofxDims(i) = uofxDims(i) + k
               write(1000+myid,*) 'FINAL:    ', uofxDims(i)

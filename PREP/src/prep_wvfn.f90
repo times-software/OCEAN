@@ -1127,12 +1127,18 @@ module prep_wvfn
             test = test / 2
             write(1000+myid,*) '   ', 2
           enddo
-          do j = 7, 3, -2
+          do j = 5, 3, -2
             do
               if( mod( test, j ) .ne. 0 ) exit
               test = test / j
               write(1000+myid,*) '   ', j
             enddo
+          enddo
+#ifdef __FFTW3
+          do
+            if( mod( test, 7 ) .ne. 0 ) exit
+            test = test / 7
+            write(1000+myid,*) '   ', 7
           enddo
           if( mod( test, 11 ) .eq. 0 ) then
             test = test / 11
@@ -1142,6 +1148,7 @@ module prep_wvfn
             test = test / 13
             write(1000+myid,*) '   ', 13
           endif
+#endif
           if( test .eq. 1 ) then
             fftGrid(i) = fftGrid(i) + k
             write(1000+myid,*) 'TESTING:    ', fftGrid(i)
@@ -1159,16 +1166,19 @@ module prep_wvfn
   subroutine prep_wvfn_doFFT( gvecs, UofG, UofX )
     use ocean_dft_files, only : odf_isFullStorage
     use ocean_mpi, only : myid
-#ifdef __FFTW3
-    use iso_c_binding
-    include 'fftw3.f03'
-#endif
+    use FFT_wrapper, only : fft_wrapper_init, fft_obj, FFT_wrapper_single, OCEAN_BACKWARD, &
+                            FFT_wrapper_delete
+!#ifdef __FFTW3
+!    use iso_c_binding
+!    include 'fftw3.f03'
+!#endif
     integer, intent( in ) :: gvecs( :,: )
     complex(DP), intent( in ) :: uofg( :, : )
     complex(DP), intent( inout ) :: uofx(:,:,:,:)
     !
-#ifdef __FFTW3
-    type(C_PTR), allocatable :: bplan( : )  
+!#ifdef __FFTW3
+!    type(C_PTR), allocatable :: bplan( : )  
+    type(fft_obj), allocatable :: bplan(:)
     integer :: dims(3), nbands, ngvecs
     integer :: i, j, k, ig, ib
     real(DP), external :: dznrm2
@@ -1184,14 +1194,19 @@ module prep_wvfn
 
     allocate( bplan( nbands ) )
     ! should be moved to plan many or something
-    do ib = 1, nbands
-      bplan(ib) = fftw_plan_dft_3d( dims(3), dims(2), dims(1), uofx(:,:,:,ib), uofx(:,:,:,ib), &
-                  FFTW_BACKWARD, FFTW_PATIENT )
+    ib = 1
+    call FFT_wrapper_init( dims, bplan( ib ), uofx(:,:,:,ib), 1000+myid )
+    do ib = 2, nbands
+!      bplan(ib) = fftw_plan_dft_3d( dims(3), dims(2), dims(1), uofx(:,:,:,ib), uofx(:,:,:,ib), &
+!                  FFTW_BACKWARD, FFTW_PATIENT )
+      call FFT_wrapper_init( dims, bplan( ib ), uofx(:,:,:,ib) )
     enddo
 
+#ifdef __FFTW3
 !$OMP PARALLEL DO DEFAULT( NONE ) &
 !$OMP SHARED( nbands, dims, ngvecs, gvecs, uofx, uofg, bplan ) &
 !$OMP PRIVATE( ib, ig, i, j, k )
+#endif
     do ib = 1, nbands
       uofx(:,:,:,ib) = 0.0_DP
       do ig = 1, ngvecs
@@ -1217,23 +1232,27 @@ module prep_wvfn
         enddo
       endif
 
-      call fftw_execute_dft( bplan( ib ), uofx(:,:,:,ib), uofx(:,:,:,ib) )
+!      call fftw_execute_dft( bplan( ib ), uofx(:,:,:,ib), uofx(:,:,:,ib) )
+      call  FFT_wrapper_single( uofx(:,:,:,ib), OCEAN_BACKWARD, bplan(ib), .false. )
 
 !      call fftw_destroy_plan( bplan )
 
 !      write(1000+myid, * ) '  ', ib, dznrm2( product( dims(1:3) ), uofx(:,:,:,ib), 1 )
     enddo
+#ifdef __FFTW3
 !$OMP END PARALLEL DO
+#endif
 
     do ib = 1, nbands
-      call fftw_destroy_plan( bplan( ib ) )
+!      call fftw_destroy_plan( bplan( ib ) )
+      call FFT_wrapper_delete( bplan( ib ) )
     enddo
     deallocate( bplan )
 
-#else
-    ! To keep the compiler happy
-    uofx = 0.0_DP
-#endif
+!#else
+!    ! To keep the compiler happy
+!    uofx = 0.0_DP
+!#endif
   end subroutine prep_wvfn_doFFT
 
   subroutine prep_wvfn_doLegacyParallel( ierr )

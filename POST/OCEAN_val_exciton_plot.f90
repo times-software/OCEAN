@@ -373,7 +373,8 @@ program OCEAN_val_exciton_plot
             do iRz = Rstart(3), Rstart(3) + Rmesh(3) - 1
               Riter = Riter + 1
               zphs = yphs + dble( iRz ) * qvec(3)
-              cphs = cmplx( cos( twopi * -zphs ), sin( twopi * -zphs ) )
+              zphs = -zphs
+              cphs = cmplx( cos( twopi * zphs ), sin( twopi * zphs ) )
 !JTV PHASE!!
               ! phase info is wrong here
               do xiter = 1, NX

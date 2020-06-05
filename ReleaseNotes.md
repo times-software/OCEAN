@@ -5,8 +5,8 @@
 #### Major Features
  1. Support for D. R. Hamann's Optimized Norm-conserving Vanderbilt pseudopotentials
  2. Improvements to parallelism
-   1. Screening calculation is faster
-   2. Prep stage is faster too
+    1. Screening calculation is faster
+    2. Prep stage is faster too
  3. The DFT calculations for the BSE are split in two whenever there is finite-q
 
 #### Minor Features
