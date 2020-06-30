@@ -397,6 +397,21 @@ else  # oncvpsp method
       die;
     }
     copy( "../$oncvpspInputFile", $oncvpspInputFile);
+    my $targRad = -1;
+    if( -e "overrideRadius" )
+    {
+      open IN, "overrideRadius" or die "$!";
+      $targRad = <IN>;
+      chomp $targRad;
+      close IN;
+    }
+    open IN, "scfac" or die "$!";
+    my $scfac = <IN>;
+    chomp $scfac;
+    close IN;
+    open IN, ">>", $oncvpspInputFile or die "Failed to open $oncvpspInputFile\n$!";
+    print IN ".true.\n$targRad   $scfac\n";
+    close IN;
 
     my @oncvpsp;
     open IN, $oncvpspInputFile or die "Failed to open $oncvpspInputFile\n$!";
