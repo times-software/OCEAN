@@ -980,7 +980,7 @@ module OCEAN_bloch
   subroutine single_load_prefixu2dat( sys, ierr )
     use OCEAN_mpi, only : myid, nproc, root, comm, &
                           MPI_DOUBLE_COMPLEX, MPI_STATUS_IGNORE, MPI_MODE_RDONLY, MPI_MODE_UNIQUE_OPEN, &
-                          MPI_OFFSET_KIND, MPI_INFO_NULL, MPI_SIZEOF, MPI_REQUEST_NULL, MPI_STATUSES_IGNORE
+                          MPI_OFFSET_KIND, MPI_INFO_NULL, MPI_REQUEST_NULL, MPI_STATUSES_IGNORE
     use OCEAN_system
     implicit none
 
@@ -1088,7 +1088,10 @@ module OCEAN_bloch
   subroutine load_prefixu2dat( sys, ierr )
     use OCEAN_mpi, only : myid, nproc, root, comm, & 
                           MPI_DOUBLE_COMPLEX, MPI_STATUS_IGNORE, MPI_MODE_RDONLY, MPI_MODE_UNIQUE_OPEN, & 
-                          MPI_OFFSET_KIND, MPI_INFO_NULL, MPI_SIZEOF
+#ifdef SIZEOF
+                          MPI_SIZEOF, &
+#endif
+                          MPI_OFFSET_KIND, MPI_INFO_NULL
     use OCEAN_system
     implicit none
 

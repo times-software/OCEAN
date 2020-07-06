@@ -640,7 +640,7 @@ module prep_wvfn
   subroutine prep_wvfn_openU2( prefix, FH, nb, nx, poolID, nprocPerPool, ierr, fileType )
     use ocean_mpi, only : myid, comm, &
                           MPI_MODE_WRONLY, MPI_MODE_CREATE, MPI_MODE_UNIQUE_OPEN, MPI_INFO_NULL, & 
-                          MPI_OFFSET_KIND, MPI_DOUBLE_COMPLEX, MPI_SIZEOF
+                          MPI_OFFSET_KIND, MPI_DOUBLE_COMPLEX
     
     character(len=*), intent( in ) :: prefix
 !    integer, intent( in ) :: nxpts, myBands, totalBands
