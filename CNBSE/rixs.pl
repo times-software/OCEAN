@@ -29,13 +29,17 @@ my @CommonFiles = ("epsilon", "xmesh.ipt", "nedges", "k0.ipt", "nbuse.ipt",
   "para_prefix", "cnbse.strength", "serbse", "core_offset", "avecsinbohr.ipt", 
   "cnbse.solver", "cnbse.gmres.elist", "cnbse.gmres.erange", "cnbse.gmres.nloop", 
   "cnbse.gmres.gprc", "cnbse.gmres.ffff", "cnbse.write_rhs", "spin_orbit", "nspin", 
-  "niter", "backf", "aldaf", "bwflg", "bande", "bflag", "lflag", "decut", "spect.h", "calc" );
+  "niter", "backf", "aldaf", "bwflg", "bande", "bflag", "lflag", "decut", "spect.h", 
+  "gw_control", "gwcstr", "gwvstr", "gwgap", "bse.wvfn", "calc" );
 
 my @DFTFiles = ("nelectron", "rhoofr");
 
-my @DenDipFiles = ("kmesh.ipt", "masterwfile", "listwfile", "efermiinrydberg.ipt", 
-                   "qinunitsofbvectors.ipt", "brange.ipt", "enkfile", "tmels", "nelectron", 
-                   "eshift.ipt" );
+my @DenDipFiles = ("kmesh.ipt", "efermiinrydberg.ipt", "qinunitsofbvectors.ipt", "brange.ipt", 
+                   "enkfile", "eshift.ipt", "wvfcninfo", "wvfvainfo" );
+
+my @LegacyPrepFiles = ( "masterwfile", "listwfile", "tmels", "enkfile" );
+
+my @OceanPrepFiles = ( "ptmels.dat", "enkfile", "tmels.info" );
 
 my @WFNFiles = ("kmesh.ipt",  "efermiinrydberg.ipt", "qinunitsofbvectors.ipt", "brange.ipt", 
                 "wvfcninfo", "wvfvainfo", "obf_control", "ibeg.h", "q.out", "tmels.info", 
@@ -62,6 +66,10 @@ else
 {
   $obf = 0;
 }
+
+open IN, "bse.wvfn" or die "Failed to open bse.wvfn\n$!";
+my $bseWvfn = <IN>;
+close IN;
 
 open IN, "calc" or die "Failed to open calc\n$!";
 my $calc = <IN>;
@@ -101,16 +109,58 @@ else
   foreach (@DenDipFiles) {
     copy( "../PREP/BSE/$_", $_ ) or die "Failed to get PREP/BSE/$_\n$!" ;
   }
-  open OUT, ">tmel_selector" or die;
-  print OUT "0\n";
-  close OUT;
-  open OUT, ">enk_selector" or die;
-  print OUT "0\n";
-  close OUT;
-  open OUT, ">bloch_selector" or die;
-  print OUT "0\n";
-  close OUT;
-
+  if( $bseWvfn =~ m/legacy/ )
+  {
+    foreach (@LegacyPrepFiles)
+    {
+      copy( "../PREP/BSE/$_", $_ ) or die "Failed to get PREP/BSE/$_\n$!" ;
+    }
+    open OUT, ">tmel_selector" or die;
+    print OUT "0\n";
+    close OUT;
+    open OUT, ">enk_selector" or die;
+    print OUT "0\n";
+    close OUT;
+    open OUT, ">bloch_selector" or die;
+    print OUT "0\n";
+    close OUT;
+    if (-e "../PREP/BSE/u2.dat")
+    {
+      `ln -s ../PREP/BSE/u2.dat`;
+    }
+    else
+    {
+      die "Required file ../PREP/BSE/u2.dat is missing!\n";
+    }
+  }
+  else  #### THIS SECTION STILL NEEDS WORK
+        #### MAKE SURE LEGACY AND NEW ARE PULLING IN CORRECT FILES
+  {
+    foreach (@OceanPrepFiles)
+    {
+      copy( "../PREP/BSE/$_", $_ ) or die "Failed to get PREP/BSE/$_\n$!" ;
+    }
+    foreach( "val.u2.dat", "con.u2.dat" )
+    {
+      if (-e "../PREP/BSE/$_" )
+      {
+        symlink( "../PREP/BSE/$_", $_ );
+      }
+      else
+      {
+        die "Required file ../PREP/BSE/$_ is missing!\n";
+      }
+    }
+    open OUT, ">tmel_selector" or die;
+    print OUT "1\n";
+    close OUT;
+    open OUT, ">enk_selector" or die;
+    print OUT "0\n";
+    close OUT;
+    open OUT, ">bloch_selector" or die;
+    print OUT "3\n";
+    close OUT;
+  }
 }
 
 foreach (@ExtraFiles) {
@@ -496,29 +546,40 @@ if( $obf == 1 )
 }
 else  # We are using abi/qe path w/o obfs
 {
-  # grab .Psi
-  `touch .Psi`;
-  system("rm .Psi*");
-  open LISTW, "listwfile" or die "Failed to open listwfile\n";
-  while (<LISTW>) 
-  {
-    $_ =~ m/(\d+)\s+(\S+)/ or die "Failed to parse listwfile\n";
-    system("ln -sf ../PREP/BSE/$2 .") == 0 or die "Failed to link $2\n";
-  }  
 
-  print "Running setup\n";
-  system("$ENV{'OCEAN_BIN'}/setup2.x > setup.log") == 0 or die "Setup failed\n";
+  my $symlink_exists = eval { symlink("",""); 1 };
 
-  if (-e "../PREP/BSE/u2.dat")
+  unlink( "con.u2.dat" ) if( -e "con.u2.dat" );
+  unlink( "val.u2.dat" ) if( -e "val.u2.dat" );
+  unlink( "u2.dat" ) if( -e "u2.dat" );
+
+  if( -e "../PREP/BSE/con.u2.dat" )
   {
-    `ln -s ../PREP/BSE/u2.dat`;
+    if( $symlink_exists == 1 )
+    {
+      symlink( "../PREP/BSE/con.u2.dat", "con.u2.dat" ) or die "Failed to link ../PREP/BSE/con.u2.dat\n$!";
+      symlink( "../PREP/BSE/val.u2.dat", "val.u2.dat" ) or die "Failed to link ../PREP/BSE/val.u2.dat\n$!";
+    }
+    else
+    {
+      copy( "../PREP/BSE/con.u2.dat", "con.u2.dat" ) or die "Failed to copy ../PREP/BSE/con.u2.dat\n$!";
+      copy( "../PREP/BSE/val.u2.dat", "val.u2.dat" ) or die "Failed to copy ../PREP/BSE/val.u2.dat\n$!";
+    }
+  }
+  elsif (-e "../PREP/BSE/u2.dat")
+  {
+    if( $symlink_exists == 1 )
+    {
+      symlink( "../PREP/BSE/u2.dat", "u2.dat" ) or die "Failed to link ../PREP/BSE/u2.dat\n$!";
+    }
+    else
+    {
+      copy( "../PREP/BSE/u2.dat", "u2.dat" ) or die "Failed to copy ../PREP/BSE/u2.dat\n$!";
+    }
   }
   else
   {
-    print "conugtoux\n";
-    system("$ENV{'OCEAN_BIN'}/conugtoux.x > conugtoux.log");# == 0 or die;
-    print "orthog\n";
-    system("$ENV{'OCEAN_BIN'}/orthog.x > orthog.log") == 0 or die;
+    die "Failed to get electron wave functions from PREP/BSE\n";
   }
 }
 
@@ -570,6 +631,9 @@ $hfinlength *= ($#xas_photon_files + 1 );
 print "$hfinlength\n";
 print RUNLIST "$hfinlength\n";
 
+my $znl_string = 0;
+my $ncks = 0;
+my $cks_string;
 
 my $cls_average = 0;
 my $cls_count = 0;
@@ -617,53 +681,43 @@ while (<EDGE>) {
 
   }
 
-  for( my $cks_iter = 1; $cks_iter <= 2; $cks_iter++ )
+  if( $obf == 1 )
   {
-    my $cks;
-    if( $cks_iter == 2  ) {
-      $cks = sprintf("cksc.${elname}%04u", $elnum );
-    } 
-    else {
-      $cks = sprintf("cksv.${elname}%04u", $elnum );
-    }
-    print "CKS NAME = $cks\n";
-    if( $obf == 1 )
+    my $cks = sprintf("cksc.${elname}%04u", $elnum );
+    copy( "../zWFN/$cks", $cks ) or die "Failed to grab $cks\n$!";
+    $cks = sprintf("cksv.${elname}%04u", $elnum );
+    copy( "../zWFN/$cks", $cks ) or die "Failed to grab $cks\n$!";
+  }
+  else # qe/abi w/o obf need to calculate cainkset
+  {
+    my $temp_znl = sprintf "%i  %i  %i", $znum, $nnum, $lnum;
+    if( $znl_string == 0 )
     {
-      copy( "../zWFN/$cks", $cks ) or die "Failed to grab $cks\n$!";
-    }
-    else # qe/abi w/o obf need to calculate cainkset
-    {
-      if( $cks_iter == 2  ) {
-      open CKSNORM, ">cks.normal" or die "Failed to open cks.normal\n$!";
-      print CKSNORM ".true.\n";
-      close CKSNORM;
-      $nbuse = $brange[3] - $brange[2] + 1;
-
-      }
-      else {
-        open CKSNORM, ">cks.normal" or die "Failed to open cks.normal\n$!";
-        print CKSNORM ".false.\n";
-        close CKSNORM;
-        $nbuse = $brange[1] - $brange[0] + 1;
-      }
-
-      open NBUSE, ">nbuse.ipt" or die "Failed to open nbuse.ipt\n";
-      print NBUSE "$nbuse\n";
-      close NBUSE;
-
-
+      $znl_string = $temp_znl;
       open ZNL, ">ZNL" or die;
-      print ZNL "$znum  $nnum  $lnum\n";
+      print ZNL "$znl_string\n";
       close ZNL;
+    }
 
-      open CKSIN, ">cks.in" or die "Failed to open cks.in\n";
-      print CKSIN "1\n$elname  $elnum  cbinf\n";
-      close CKSIN;
-
-
-      print "cks\n";
-      system("$ENV{'OCEAN_BIN'}/cks.x < cks.in > cks.log") == 0 or die;
-      move( "cbinf0001", $cks ) or die "Failed to move cbinf0001 to $cks\n$!";
+    my $cks;
+    $ncks++;
+    for( my $i = 0; $i<2; $i++ )
+    {
+      if( $i == 0 ) { $cks = "cksc.${elname}"; }
+      else { $cks = "cksv.${elname}"; }
+  
+      $cks_string .= "$elname  $elnum  $cks\n";
+      my $cks_file = $cks . sprintf "%04u", $elnum;
+      if( -e "../PREP/BSE/par$cks_file" )
+      {
+        ( copy "../PREP/BSE/par$cks_file", "par$cks_file" ) == 1 
+            or die "Failed to grab ../PREP/BSE/par$cks_file\n$!";
+      }
+      else
+      {
+        ( copy "../PREP/BSE/$cks_file", $cks_file ) == 1 
+            or die "Failed to grab ../PREP/BSE/$cks_file\n$!";
+      }
     }
   }
 
@@ -946,6 +1000,7 @@ close INFILE;
 print "Running valence for RIXS\n";
 print "$para_prefix $ENV{'OCEAN_BIN'}/ocean.x > val.log";
 system("$para_prefix $ENV{'OCEAN_BIN'}/ocean.x > val.log") == 0 or die "Failed to finish\n";
+print "\n";
 
 
 exit 0;

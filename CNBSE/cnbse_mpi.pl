@@ -549,7 +549,7 @@ else
   
 
 
-open CKS, ">cks.in" or die "Failed to open cks.in\n";
+#open CKS, ">cks.in" or die "Failed to open cks.in\n";
 my $znl_string = 0;
 my $ncks = 0;
 my $cks_string;
@@ -582,7 +582,7 @@ while (<EDGE>) {
   } 
   else {
 #    $cks = sprintf("cksv.${elname}%04u", $elnum );
-    $cks = "cksv.${elname}"
+    $cks = "cksv.${elname}";
   }
 
   # For each unique Z we need to grab some files from OPF
@@ -611,6 +611,7 @@ while (<EDGE>) {
   print "CKS NAME = $cks\n";
   if( $obf == 1 )
   {
+    $cks .= sprintf("%04u", $elnum );
     copy( "../zWFN/$cks", $cks ) or die "Failed to grab $cks\n$!";
   }
   else # qe/abi w/o obf need to calculate cainkset
