@@ -1,5 +1,5 @@
 calc val
-pp_list {14si.pspnc}
+pp_list { si.fhi}
 # Control
 control 0
 
@@ -79,3 +79,5 @@ NBSE.lflag 1
 
 # niter
 NBSE.niter 100
+
+nbse.spect_range { 500 0 20 }

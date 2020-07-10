@@ -1,12 +1,8 @@
-# Control
-control 0
+dft qe
+# The pseudopotentials are in the main run directory
 ppdir {'../'}
 
-# The pseudopotentials are in the main run directory
-# ppdir {'../'}
-
 #assumes you want to try and run abinit on 1 core
-core 1
 para_prefix{ mpirun -n 12 }
 
 # Kpt mesh for final states
@@ -56,7 +52,6 @@ xred {
 
 # Kinetic Enery cutoff
 ecut 140
-#ecut 70
 
 # Energy tol
 toldfe 1.1d-6
