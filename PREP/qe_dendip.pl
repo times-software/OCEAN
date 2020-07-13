@@ -421,10 +421,28 @@ if( $runBSE != 0 )
       }
     }
 
-#    system( "/users/jtv1/cluster/Software/OCEAN/PREP/src/ocean_prep.x" );
     print "$para_prefix $ENV{'OCEAN_BIN'}/ocean_prep.x > ocean_prep.log 2>&1\n";
-    system("$para_prefix $ENV{'OCEAN_BIN'}/ocean_prep.x > ocean_prep.log 2>&1" ) == 0
-          or die "Failed to run ocean_prep.x\n$!";
+#    system("$para_prefix $ENV{'OCEAN_BIN'}/ocean_prep.x > ocean_prep.log 2>&1" ) == 0
+#          or die "Failed to run ocean_prep.x\n$!";
+    system("$para_prefix $ENV{'OCEAN_BIN'}/ocean_prep.x > ocean_prep.log 2>&1" );
+    if ($? == -1) {
+        print "failed to execute: $!\n";
+        die;
+    }
+    elsif ($? & 127) {
+        printf "ocean_prep died with signal %d, %s coredump\n",
+        ($? & 127),  ($? & 128) ? 'with' : 'without';
+        die;
+    }
+    else {
+        my $errorCode = $? >> 8;
+        if( $errorCode != 0 ) {
+          die "CALCULATION FAILED\n  ocean_prep exited with value $errorCode\n";
+        }
+        else {
+          printf "ocean_prep exited successfully with value %d\n", $errorCode;
+        }
+    }
   }
   else
   {
