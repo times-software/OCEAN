@@ -326,7 +326,7 @@ for( my $k = 0; $k < $nkpt; $k++ )
   while (my @x = splice @eslice, 0, $n) 
   {
     print ENK join($delim, @x), "\n";
-    print EIG join($delim, @x), "\n";
+#    print EIG join($delim, @x), "\n";
   }   
 #  print "\n";
 #    print ENK "\n";
@@ -360,7 +360,7 @@ for( my $k = 0; $k < $nkpt; $k++ )
   while (my @x = splice @eslice, 0, $n) 
   {
     print ENK join($delim, @x), "\n";
-    print EIG join($delim, @x), "\n";
+#    print EIG join($delim, @x), "\n";
   }   
 
   @eslice = @{ $energies[$kk] }[ 0 .. $stop ];
@@ -368,7 +368,7 @@ for( my $k = 0; $k < $nkpt; $k++ )
   foreach my $x (@eslice) { $x = $x * 2; }
   while (my @x = splice @eslice, 0, $n)
   { 
-#    print EIG join($delim, @x), "\n";
+    print EIG join($delim, @x), "\n";
   }
 
 }
@@ -390,7 +390,7 @@ if( $spin == 2 )
     while (my @x = splice @eslice, 0, $n) 
     {   
        print ENK join($delim, @x), "\n";
-       print EIG join($delim, @x), "\n";
+#       print EIG join($delim, @x), "\n";
     }   
 #    print "$k $energies[$k][$start] $start ";
         
@@ -417,7 +417,7 @@ if( $spin == 2 )
     while (my @x = splice @eslice, 0, $n)
     {   
       print ENK join($delim, @x), "\n";
-      print EIG join($delim, @x), "\n";
+#      print EIG join($delim, @x), "\n";
     }     
 
     $start = scalar @{ $energies[$k] }/2 ;
@@ -426,7 +426,7 @@ if( $spin == 2 )
     foreach my $x (@eslice) { $x = $x * 2; }
     while (my @x = splice @eslice, 0, $n)
     {
-#      print EIG join($delim, @x), "\n";
+      print EIG join($delim, @x), "\n";
     }
 
 #    print "  $energies[$kk][$start] $start\n";
