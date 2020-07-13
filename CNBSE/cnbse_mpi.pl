@@ -1,6 +1,6 @@
 #!/usr/bin/perl
 
-# Copyright (C) 2015 - 2019 OCEAN collaboration
+# Copyright (C) 2015 - 2020 OCEAN collaboration
 #
 # This file is part of the OCEAN project and distributed under the terms 
 # of the University of Illinois/NCSA Open Source License. See the file 
@@ -487,6 +487,9 @@ else  # We are using abi/qe path w/o obfs
 
   if( -e "../PREP/BSE/con.u2.dat" )
   {
+    open OUT, ">bloch_selector" or die;
+    print OUT "3\n";
+    close OUT;
     if( $symlink_exists == 1 )
     {
       symlink( "../PREP/BSE/con.u2.dat", "con.u2.dat" ) or die "Failed to link ../PREP/BSE/con.u2.dat\n$!";

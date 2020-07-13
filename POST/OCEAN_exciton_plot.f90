@@ -1,4 +1,4 @@
-! Copyright (C) 2017 - 2019 OCEAN collaboration
+! Copyright (C) 2017 - 2020 OCEAN collaboration
 !
 ! This file is part of the OCEAN project and distributed under the terms 
 ! of the University of Illinois/NCSA Open Source License. See the file 
@@ -187,7 +187,7 @@ program OCEAN_exciton_plot
 
   select case( bloch_selector )
 
-  case( 2 )
+  case( 2, 3 )
     deallocate( u2 )
     allocate( u2( NX, nband) )
     open( unit=99,file='con.u2.dat',access='stream',status='old',form='unformatted' )

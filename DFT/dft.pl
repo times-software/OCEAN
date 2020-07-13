@@ -506,22 +506,23 @@ if ($RunESPRESSO) {
   my $scf_prefix = $para_prefix;
   if( $obf != 1 ) 
   {
+    print "Testing parallel QE execution\n";
     my $ser_prefix = $para_prefix;
     $ser_prefix =~ s/\d+/1/;
     open TMP, '>', "$qe_data_files{'prefix'}.EXIT" or die "Failed to open file $qe_data_files{'prefix'}.EXIT\n$!";
     close TMP;
     if( $qe_redirect )
     {
-      print  "$ser_prefix $ENV{'OCEAN_ESPRESSO_PW'} < scf.in > scf.out 2>&1\n";
-      system("$ser_prefix $ENV{'OCEAN_ESPRESSO_PW'} < scf.in > scf.out 2>&1");
+      print  "$ser_prefix $ENV{'OCEAN_ESPRESSO_PW'} < scf.in > test.out 2>&1\n";
+      system("$ser_prefix $ENV{'OCEAN_ESPRESSO_PW'} < scf.in >test.out 2>&1");
     }
     else
     {
-      print  "$ser_prefix $ENV{'OCEAN_ESPRESSO_PW'} -inp scf.in > scf.out 2>&1\n";
-      system("$ser_prefix $ENV{'OCEAN_ESPRESSO_PW'} -inp scf.in > scf.out 2>&1");
+      print  "$ser_prefix $ENV{'OCEAN_ESPRESSO_PW'} -inp scf.in > test.out 2>&1\n";
+      system("$ser_prefix $ENV{'OCEAN_ESPRESSO_PW'} -inp scf.in > test.out 2>&1");
     }
 
-    if( open TMP, "scf.out" )
+    if( open TMP, "test.out" )
     {
       my $actualKpts = -1;
       my $numKS;
@@ -540,7 +541,7 @@ if ($RunESPRESSO) {
       close TMP;
       if( $actualKpts == -1 )
       {
-        print "Had trouble parsing scf.out\nDidn't find number of k points\n";
+        print "Had trouble parsing test.out\nDidn't find number of k points\n";
       }
       else
       {
@@ -570,7 +571,7 @@ if ($RunESPRESSO) {
     }
     else
     {
-      print "Had trouble parsing scf.out\n. Will attempt to continue.\n";
+      print "Had trouble parsing test.out\n. Will attempt to continue.\n";
     }
   }
 
