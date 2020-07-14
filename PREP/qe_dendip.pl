@@ -303,6 +303,15 @@ if( -e "BSE/done" && -e "${rundir}/old" )
     }
   }
 }
+# OPF check
+if( $runBSE == 0 )
+{
+  unless( -e "../OPF/old" )
+  {
+    print "OPFs were updated recently. Will re-run\n";
+    $runBSE = 3;
+  }
+}
 
 #$runBSE = 0 if( $bseWvfn =~ m/qe62/ );
 
