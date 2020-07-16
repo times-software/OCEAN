@@ -1728,7 +1728,7 @@ module OCEAN_haydock
     if( complex_haydock ) then
       write ( 99, '(2(2x,ES24.17))' ) real_a( 0 ), imag_a( 0 )
       do i = 1, n
-        write ( 99, '(2x,6f20.10)' ) real_a( i ), imag_a( i ), real_b( i ), imag_b( i ), & 
+        write ( 99, '(2x,6ES24.17)' ) real_a( i ), imag_a( i ), real_b( i ), imag_b( i ), & 
                                      real_c( i ), imag_c( i )
       enddo
     else

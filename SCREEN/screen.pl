@@ -223,6 +223,7 @@ if( $dft =~ m/qe/i )
 {
   `ln -s ../DFT/Out SCF`;
   `ln -s ../DFT/SCREEN/Out .`;
+  copy( "../DFT/SCREEN/gamma", "gamma" ) if -e "../DFT/SCREEN/gamma";
 }
 elsif( $dft =~ m/abi/i )
 {

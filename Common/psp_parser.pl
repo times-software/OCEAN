@@ -105,7 +105,7 @@ sub upfParser
     if( $line =~ m/z_valence/i || $line =~ m/z valence/i )
     {
       
-      if( $line =~ m/(\d+.?\d*)/ )
+      if( $line =~ m/(\d+.?\d*[Ee]?\+?\d*)/ )
       {
 #      print $line;
         $n = $1;

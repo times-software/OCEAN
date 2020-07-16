@@ -300,29 +300,62 @@ module OCEAN_rixs_holder
     integer, intent( inout ) :: ierr
 
     real(DP), allocatable, dimension(:,:) :: mer, mei, pcr, pci
+    complex(DP), allocatable :: pcTemp(:,:,:)
     real(DP) :: rr, ri, ir, ii, tau(3)
-    integer :: nptot, ntot, nptot_check
-    integer :: icml, iter, ik, i, edge_iter
+    integer :: nptot, ntot, nptot_check, nspn
+    integer :: icml, iter, ik, i, edge_iter, ivms
 
-    character(len=11) :: cks_filename
+    character(len=127) :: cks_filename
     character(len=18) :: mel_filename
+
+    logical :: ex
 
     select case ( file_selector )
 
     case( 1 )
       
       do edge_iter = 1, sys%nedges
-        write(6,'(A5,A2,I4.4)' ) 'cksv.', sys%cur_run%elname, edge_iter
-        write(cks_filename,'(A5,A2,I4.4)' ) 'cksv.', sys%cur_run%elname, edge_iter
-        open(unit=99,file=cks_filename,form='unformatted',status='old')
-        rewind( 99 )
-        read ( 99 ) nptot, ntot
-        read ( 99 ) tau( : )
-        write(6,*) tau(:)
-        if( edge_iter .eq. 1 ) allocate( pcr( nptot, ntot ), pci( nptot, ntot ) )
-        read ( 99 ) pcr
-        read ( 99 ) pci
-        close( unit=99 )
+
+        write(cks_filename, '(A8,A2,I4.4)' ) 'parcksv.', sys%cur_run%elname, edge_iter
+        inquire( file=cks_filename, exist=ex )
+        if( ex ) then
+          write(6,*) 'Using parallel cks: ', trim(cks_filename)
+          open(unit=99, file=cks_filename, form='unformatted', status='old', access='stream' )
+          read(99) nptot, ntot, nspn
+          if( nspn .ne. 1 ) then
+            ierr = -125
+            write(6,*) 'Spin RIXS not yet supported'
+            close(99)
+            return
+          endif
+          if( edge_iter .eq. 1 ) allocate( pcr( nptot, ntot ), pci( nptot, ntot ) )
+          allocate( pcTemp( nptot, ntot, nspn ) )
+          read( 99 ) pcTemp(:,:,:)
+          close(99)
+          do ivms = 1, nspn
+            do iter = 1, ntot
+!              pcr(:,iter,ivms) = real( pcTemp(:,iter,ivms), DP )
+!              pci(:,iter,ivms) = aimag( pcTemp(:,iter,ivms) )
+              pcr(:,iter) = real( pcTemp(:,iter,ivms), DP )
+              pci(:,iter) = aimag( pcTemp(:,iter,ivms) )
+            enddo
+          enddo
+          deallocate( pcTemp )
+
+        else
+    
+          write(6,'(A5,A2,I4.4)' ) 'cksv.', sys%cur_run%elname, edge_iter
+          write(cks_filename,'(A5,A2,I4.4)' ) 'cksv.', sys%cur_run%elname, edge_iter
+          open(unit=99,file=cks_filename,form='unformatted',status='old')
+          rewind( 99 )
+          read ( 99 ) nptot, ntot
+          if( edge_iter .eq. 1 ) allocate( pcr( nptot, ntot ), pci( nptot, ntot ) )
+          read ( 99 ) tau( : )
+          write(6,*) tau(:)
+          read ( 99 ) pcr
+          read ( 99 ) pci
+          close( unit=99 )
+        endif
 
         ! check ntot
         if( ntot .ne. sys%nkpts * sys%val_bands ) then

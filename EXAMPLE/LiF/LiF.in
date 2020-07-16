@@ -1,27 +1,22 @@
-# The pseudopotentials are in the main run directory
-ppdir {'../'}
-# Select to run with QE
+# Set this for your own computer/cluster
+para_prefix{ mpirun -n 8 }
+
 dft qe
-# Set this
-para_prefix{ mpirun -n 16 --map-by ppr:8:socket }
-# Legacy, must be here for now and should be 1
-control 0
 
 ##############################
 # Convergence Params
-# Number of bands to use (includes valence right now, so we will have 36 unoccupied)
-nbands 40
+# Number of bands to use (includes valence right now, so we will have 20 unoccupied)
+nbands 25
 # k-point sampling, if not here will use defaults (could be higher)
 nkpt { 10 10 10 }
-ngkpt{ 4 4 4 }
 # k-point sampling for calculating W (\chi)
 # Because we are interested in a limited region of real-space
 #  2x2x2 is good enough almost always
 screen.nkpt{ 2 2 2 }
 # Number of bands to use for the screening calculation (could be higher)
-screen.nbands 200
+screen.nbands 100
 # Real-space sampling for calcualting the action of W on a wave function
-cnbse.xmesh{ 10 10 10 }
+cnbse.xmesh{ 8 8 8 }
 
 
 ##############################
@@ -40,10 +35,11 @@ pp_list{
 09-f.lda.fhi
 }
 
-ntypat 2
+opf.fill{ 9 f.fill }
+opf.opts{ 9 f.opts }
+
 znucl { 3 9 }
 
-natom 2
 typat { 1 2 }
 
 xred {
@@ -53,22 +49,17 @@ xred {
 
 ecut 100
 
-
 diemac 1.92
 
-opf.fill{ 9 f.fill }
-opf.opts{ 9 f.opts }
-
-#edge information
-nedges 1
-edges{ 2 1 0 }
+#edge information (run the F 1s )
+edges{ -9 1 0 }
 
 # radius for shell of charge in screening
 screen.shells{ 4.0 }
 cnbse.rad{ 4.0 }
 
 # spectral broadening in eV
-cnbse.broaden{ 0.544 }
+cnbse.broaden{ 0.5 }
 
-#Scaling Factor
-scfac 1.00
+# Use all-electron projectors to augment electron orbitals for screening. By default = true
+screen.augment .true.
