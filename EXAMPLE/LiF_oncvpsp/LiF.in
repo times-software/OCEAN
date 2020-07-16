@@ -1,5 +1,5 @@
 # Set this for your own computer/cluster
-para_prefix{ mpirun -n 8 -hosts localhost }
+para_prefix{ mpirun -n 8 }
 
 dft qe
 opf.program hamann
