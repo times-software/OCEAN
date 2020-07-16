@@ -16,6 +16,7 @@ subroutine core2coreme( nr, ntot, indx, nc, lc, npowr, dl, zorig, r, coreorb )
   integer :: i, lv, ll, lh, idum, irc, ipwr
   real( kind = kind( 1.0d0 ) ) :: rc, dum
   character(len=14) :: filnam14
+  character(len=80) :: stmt
   !
   real( kind = kind( 1.0d0 ) ), allocatable :: rmel( :, : )
   !
@@ -31,8 +32,10 @@ subroutine core2coreme( nr, ntot, indx, nc, lc, npowr, dl, zorig, r, coreorb )
   open( unit=99, file=filnam14, form='formatted', status='unknown' )
   rewind 99
   write ( 99, '(1i5)' ) npowr 
+  write( stmt, '(A,I0,A)' ) '(', npowr+1, '(1x,1e15.8),2(1x,I3))' 
   do i = 1, indx
-      write ( 99, '(3(1x,1e15.8),2(1x,I3))' ) rmel( :, i), nc(i), lc(i)
+!      write ( 99, '(3(1x,1e15.8),2(1x,I3))' ) rmel( :, i), nc(i), lc(i)
+      write ( 99, stmt ) rmel( :, i), nc(i), lc(i)
   end do
   close( unit=99 )
   !

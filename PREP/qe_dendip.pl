@@ -239,6 +239,19 @@ if( <IN> =~ m/t/i )
   $split_dft = 1;
 }
 close IN;
+if( $split_dft == 1 )
+{
+  open IN, "qinunitsofbvectors.ipt" or die "$!\n";
+  my @q = split ' ', <IN>;
+  close IN;
+# To test parsing of qinb
+#  for( my $i=0; $i<3; $i++ )
+#  {
+#    print "$q[0]\n";
+#  }
+  $split_dft = 0 if( (abs($q[0])+abs($q[0])+abs($q[0])) < 0.0000000001 );
+}
+
 
 
 
@@ -288,6 +301,15 @@ if( -e "BSE/done" && -e "${rundir}/old" )
     {
       $runBSE = 3;
     }
+  }
+}
+# OPF check
+if( $runBSE == 0 )
+{
+  unless( -e "../OPF/old" )
+  {
+    print "OPFs were updated recently. Will re-run\n";
+    $runBSE = 3;
   }
 }
 
@@ -387,9 +409,18 @@ if( $runBSE != 0 )
     }
     else
     {
-      open OUT, ">", "prep.tmels" or die "Failed to open prep.tmels for writing\n$!";
-      print OUT "F\n";
-      close OUT;
+      if( $calc =~ m/rxs/i )
+      {
+        open OUT, ">", "prep.tmels" or die "Failed to open prep.tmels for writing\n$!";
+        print OUT "T\n";
+        close OUT;
+      }
+      else
+      {
+        open OUT, ">", "prep.tmels" or die "Failed to open prep.tmels for writing\n$!";
+        print OUT "F\n";
+        close OUT;
+      }
       open OUT, ">", "prep.cks" or die "Failed top open prep.cks for writing\n$!";
       print OUT "1\nNA 1";  # right now this functionality doesn't work!
       close OUT;
@@ -399,10 +430,28 @@ if( $runBSE != 0 )
       }
     }
 
-#    system( "/users/jtv1/cluster/Software/OCEAN/PREP/src/ocean_prep.x" );
     print "$para_prefix $ENV{'OCEAN_BIN'}/ocean_prep.x > ocean_prep.log 2>&1\n";
-    system("$para_prefix $ENV{'OCEAN_BIN'}/ocean_prep.x > ocean_prep.log 2>&1" ) == 0
-          or die "Failed to run ocean_prep.x\n$!";
+#    system("$para_prefix $ENV{'OCEAN_BIN'}/ocean_prep.x > ocean_prep.log 2>&1" ) == 0
+#          or die "Failed to run ocean_prep.x\n$!";
+    system("$para_prefix $ENV{'OCEAN_BIN'}/ocean_prep.x > ocean_prep.log 2>&1" );
+    if ($? == -1) {
+        print "failed to execute: $!\n";
+        die;
+    }
+    elsif ($? & 127) {
+        printf "ocean_prep died with signal %d, %s coredump\n",
+        ($? & 127),  ($? & 128) ? 'with' : 'without';
+        die;
+    }
+    else {
+        my $errorCode = $? >> 8;
+        if( $errorCode != 0 ) {
+          die "CALCULATION FAILED\n  ocean_prep exited with value $errorCode\n";
+        }
+        else {
+          printf "ocean_prep exited successfully with value %d\n", $errorCode;
+        }
+    }
   }
   else
   {
@@ -450,6 +499,7 @@ if( $runBSE != 0 )
       copy( "k0.ipt", "scaledkzero.ipt" ) or die "$!";
       copy( "qinunitsofbvectors.ipt", "cksdq" ) or die "$!";
       my $is_xas;
+      my $is_xes;
       open TMPFILE, "calc" or die "Failed to open calc\n";
       my $mode = <TMPFILE>;
       close TMPFILE;
@@ -458,16 +508,25 @@ if( $runBSE != 0 )
       {
         print "Calculating XES\n";
         $is_xas = 0;
+        $is_xes = 1;
       }
       elsif( lc($mode) =~ m/xas/ )
       {
         print "Calculating XAS\n";
         $is_xas = 1;
+        $is_xes = 0;
+      }
+      elsif( lc($mode) =~ m/rxs/ )
+      {
+        print "Calculating RIXS\n";
+        $is_xas = 1;
+        $is_xes = 1;
       }
       else
       {
         print "Unrecognized mode. Calculating XAS\n";
         $is_xas = 1;
+        $is_xes = 0;
       }
 
       open TMPFILE, ">cks.normal" or die "Failed to open cks.normal for writing\n$!";
@@ -482,11 +541,30 @@ if( $runBSE != 0 )
       close TMPFILE;
 
 #      open CKS, ">cks.in" or die "Failed to open cks.in\n";
-      my $znl_string = 0;
-      my $ncks = 0;
-      my $cks_string;
 
       my %unique_z;
+
+      for( my $ckscycle = 0; $ckscycle<2; $ckscycle++ )
+      {
+        my $ncks = 0;
+        my $znl_string = 0;
+        my $cks_string;
+        if(  $ckscycle == 0 )
+        {
+          next if( $is_xes == 0 );
+          open TMPFILE, ">cks.normal" or die "Failed to open cks.normal for writing\n$!";
+          print TMPFILE ".false.\n";
+          close TMPFILE;
+        }
+        else
+        {
+          next if( $is_xas == 0 );
+          open TMPFILE, ">cks.normal" or die "Failed to open cks.normal for writing\n$!";
+          print TMPFILE ".true.\n";
+          close TMPFILE;
+        }
+
+
       open EDGE, "hfinlist" or die "Failed to open hfinlist\n$!";
       while (<EDGE>) 
       {
@@ -499,7 +577,7 @@ if( $runBSE != 0 )
         my $elnum = $6;
       
         my $cks;
-        if( $is_xas == 1  ) {
+        if( $ckscycle == 1  ) {
           $cks = "cksc.${elname}";
         }
         else {
@@ -553,7 +631,7 @@ if( $runBSE != 0 )
             print CKSIN "$ncks\n$cks_string";
             close CKSIN;
             print "cks\n";
-            system("$ENV{'OCEAN_BIN'}/cks.x < cks.in > cks.log") == 0 or die;
+            system("$ENV{'OCEAN_BIN'}/cks.x < cks.in > cks.log.$ckscycle") == 0 or die;
           }
           $znl_string = $temp_znl;
           open ZNL, ">ZNL" or die;
@@ -573,9 +651,10 @@ if( $runBSE != 0 )
         print CKSIN "$ncks\n$cks_string";
         close CKSIN;
         print "cks\n";
-        system("$ENV{'OCEAN_BIN'}/cks.x < cks.in > cks.log") == 0 or die;
+        system("$ENV{'OCEAN_BIN'}/cks.x < cks.in > cks.log.$ckscycle") == 0 or die;
       }
 
+    }
     }
 
     # 3 is cks-only option, 1 & 2 will make new u2

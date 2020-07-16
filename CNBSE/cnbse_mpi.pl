@@ -1,6 +1,6 @@
 #!/usr/bin/perl
 
-# Copyright (C) 2015 - 2019 OCEAN collaboration
+# Copyright (C) 2015 - 2020 OCEAN collaboration
 #
 # This file is part of the OCEAN project and distributed under the terms 
 # of the University of Illinois/NCSA Open Source License. See the file 
@@ -487,6 +487,9 @@ else  # We are using abi/qe path w/o obfs
 
   if( -e "../PREP/BSE/con.u2.dat" )
   {
+    open OUT, ">bloch_selector" or die;
+    print OUT "3\n";
+    close OUT;
     if( $symlink_exists == 1 )
     {
       symlink( "../PREP/BSE/con.u2.dat", "con.u2.dat" ) or die "Failed to link ../PREP/BSE/con.u2.dat\n$!";
@@ -549,7 +552,7 @@ else
   
 
 
-open CKS, ">cks.in" or die "Failed to open cks.in\n";
+#open CKS, ">cks.in" or die "Failed to open cks.in\n";
 my $znl_string = 0;
 my $ncks = 0;
 my $cks_string;
@@ -582,7 +585,7 @@ while (<EDGE>) {
   } 
   else {
 #    $cks = sprintf("cksv.${elname}%04u", $elnum );
-    $cks = "cksv.${elname}"
+    $cks = "cksv.${elname}";
   }
 
   # For each unique Z we need to grab some files from OPF
@@ -611,6 +614,7 @@ while (<EDGE>) {
   print "CKS NAME = $cks\n";
   if( $obf == 1 )
   {
+    $cks .= sprintf("%04u", $elnum );
     copy( "../zWFN/$cks", $cks ) or die "Failed to grab $cks\n$!";
   }
   else # qe/abi w/o obf need to calculate cainkset

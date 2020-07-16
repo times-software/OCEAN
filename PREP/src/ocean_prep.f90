@@ -20,7 +20,7 @@ program ocean_prep
 
   
 
-  integer :: ierr
+  integer :: ierr, ierr_
 
   ierr = 0
 
@@ -64,13 +64,16 @@ program ocean_prep
   call screen_tk_stop( "prep" )
 !  if( ierr .ne. 0 ) call screen_tk_printtimes( myid )
   call screen_tk_printtimes( myid )
+
+111 continue
+  if( ierr .ne. 0 ) call MPI_ABORT( comm, ierr, ierr_ )
+
   call MPI_BARRIER( comm, ierr )
   if( myid .eq. 0 ) write(6,*) '*** OCEAN_prep is done ***', ierr
   call MPI_BARRIER( comm, ierr )
   
   call ocean_mpi_finalize( ierr )
-
-111 continue
-  if( ierr .ne. 0 ) stop
+  
+  if( ierr .ne. 0 ) stop 1
 
 end program ocean_prep

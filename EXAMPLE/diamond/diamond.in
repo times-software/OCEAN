@@ -1,5 +1,6 @@
 dft qe
 para_prefix { mpirun -n 8 --map-by ppr:4:socket }
+calc rxs
 ppdir{ ../ }
 ngkpt { 8 8 8 }
 obkpt{ 4 4 4 }

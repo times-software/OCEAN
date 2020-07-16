@@ -1,4 +1,5 @@
 control 0
+screen.augment .false.
 #core 4
 nkpt {12 12 12 }
 screen.nkpt{ 4 4 4 }

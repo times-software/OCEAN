@@ -145,7 +145,7 @@ module ocean_tmels
   subroutine ocean_tmels_open( nValBands, nConBands, myConBands, myConBandStart, myNK, myKStart, kStride, ierr )
     use ocean_mpi, only : myid, comm, &
                           MPI_MODE_WRONLY, MPI_MODE_CREATE, MPI_MODE_UNIQUE_OPEN, MPI_INFO_NULL, &
-                          MPI_OFFSET_KIND, MPI_DOUBLE_COMPLEX, MPI_SIZEOF
+                          MPI_OFFSET_KIND, MPI_DOUBLE_COMPLEX
     use prep_system, only : system_parameters, params
 
     integer, intent( in ) :: nValBands, nConBands, myConBands, myConBandStart, myNK, myKStart, kStride

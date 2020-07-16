@@ -506,22 +506,23 @@ if ($RunESPRESSO) {
   my $scf_prefix = $para_prefix;
   if( $obf != 1 ) 
   {
+    print "Testing parallel QE execution\n";
     my $ser_prefix = $para_prefix;
     $ser_prefix =~ s/\d+/1/;
     open TMP, '>', "$qe_data_files{'prefix'}.EXIT" or die "Failed to open file $qe_data_files{'prefix'}.EXIT\n$!";
     close TMP;
     if( $qe_redirect )
     {
-      print  "$ser_prefix $ENV{'OCEAN_ESPRESSO_PW'} < scf.in > scf.out 2>&1\n";
-      system("$ser_prefix $ENV{'OCEAN_ESPRESSO_PW'} < scf.in > scf.out 2>&1");
+      print  "$ser_prefix $ENV{'OCEAN_ESPRESSO_PW'} < scf.in > test.out 2>&1\n";
+      system("$ser_prefix $ENV{'OCEAN_ESPRESSO_PW'} < scf.in >test.out 2>&1");
     }
     else
     {
-      print  "$ser_prefix $ENV{'OCEAN_ESPRESSO_PW'} -inp scf.in > scf.out 2>&1\n";
-      system("$ser_prefix $ENV{'OCEAN_ESPRESSO_PW'} -inp scf.in > scf.out 2>&1");
+      print  "$ser_prefix $ENV{'OCEAN_ESPRESSO_PW'} -inp scf.in > test.out 2>&1\n";
+      system("$ser_prefix $ENV{'OCEAN_ESPRESSO_PW'} -inp scf.in > test.out 2>&1");
     }
 
-    if( open TMP, "scf.out" )
+    if( open TMP, "test.out" )
     {
       my $actualKpts = -1;
       my $numKS;
@@ -540,7 +541,7 @@ if ($RunESPRESSO) {
       close TMP;
       if( $actualKpts == -1 )
       {
-        print "Had trouble parsing scf.out\nDidn't find number of k points\n";
+        print "Had trouble parsing test.out\nDidn't find number of k points\n";
       }
       else
       {
@@ -570,7 +571,7 @@ if ($RunESPRESSO) {
     }
     else
     {
-      print "Had trouble parsing scf.out\n. Will attempt to continue.\n";
+      print "Had trouble parsing test.out\n. Will attempt to continue.\n";
     }
   }
 
@@ -1531,6 +1532,54 @@ if( $obf == 0 && $run_screen == 1 )
   }
   else
   { die "qeVersion wasn't set\n"; }
+
+  # Figure out Gamma point usage within QE
+  my $dataFileName;
+  my $workdir = $qe_data_files{"work_dir"};
+  $workdir =~ s/\'//g;
+  $workdir =~ s/^\.//;
+  $workdir =~ s/^\///;
+  my $prefix = $qe_data_files{"prefix"};
+  if(  $qeVersion == 54 )
+  {
+    $dataFileName = $workdir . '/' . $prefix . ".save/data-file.xml";
+  }
+  else
+  {
+    $dataFileName = $workdir . '/' . $prefix . ".save/data-file-schema.xml";
+  }
+  
+  open IN, $dataFileName or die "Failed to open $dataFileName\n$!\n";
+  open GAMMA, ">", "gamma" or die "$!";
+
+  while (my $line = <IN>)
+  {
+
+    if ( $line =~ m/GAMMA_ONLY/i )
+    {
+      chomp($line);
+      $line .= <IN>;
+      chomp($line);
+      $line .= <IN>;
+      chomp($line);
+
+      if( $line =~ m/>([ft])(alse)?(rue)?\s*</i )
+      {
+        my $gamma = $1;
+        print $gamma . "\n";
+        print GAMMA $gamma . "\n";
+      }
+      else
+      {
+        print "Nope!\n$line\n";
+        print GAMMA "F" . "\n";
+      }
+
+    last;
+    }
+  }
+  close IN;
+  close GAMMA;
 
   open IN, "brange.stub" or die;
   open OUT, ">brange.ipt" or die;

@@ -1,4 +1,5 @@
 control 0
+screen.augment .false.
 #core 4
 #para_prefix{ mpirun -n 12 }
 nkpt {12 12 12 }
