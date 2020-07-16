@@ -1533,6 +1533,54 @@ if( $obf == 0 && $run_screen == 1 )
   else
   { die "qeVersion wasn't set\n"; }
 
+  # Figure out Gamma point usage within QE
+  my $dataFileName;
+  my $workdir = $qe_data_files{"work_dir"};
+  $workdir =~ s/\'//g;
+  $workdir =~ s/^\.//;
+  $workdir =~ s/^\///;
+  my $prefix = $qe_data_files{"prefix"};
+  if(  $qeVersion == 54 )
+  {
+    $dataFileName = $workdir . '/' . $prefix . ".save/data-file.xml";
+  }
+  else
+  {
+    $dataFileName = $workdir . '/' . $prefix . ".save/data-file-schema.xml";
+  }
+  
+  open IN, $dataFileName or die "Failed to open $dataFileName\n$!\n";
+  open GAMMA, ">", "gamma" or die "$!";
+
+  while (my $line = <IN>)
+  {
+
+    if ( $line =~ m/GAMMA_ONLY/i )
+    {
+      chomp($line);
+      $line .= <IN>;
+      chomp($line);
+      $line .= <IN>;
+      chomp($line);
+
+      if( $line =~ m/>([ft])(alse)?(rue)?\s*</i )
+      {
+        my $gamma = $1;
+        print $gamma . "\n";
+        print GAMMA $gamma . "\n";
+      }
+      else
+      {
+        print "Nope!\n$line\n";
+        print GAMMA "F" . "\n";
+      }
+
+    last;
+    }
+  }
+  close IN;
+  close GAMMA;
+
   open IN, "brange.stub" or die;
   open OUT, ">brange.ipt" or die;
   while(<IN>)
