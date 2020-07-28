@@ -55,6 +55,7 @@ module screen_kxc
     integer :: i, j, curSite, npt
     integer :: inter, ir, iang, iir, ipt
     real(DP) :: su2, pf
+    character(len=64) :: fxcFile
 
     pf = 1.0_DP / (4.0_DP * pi_dp )
 
@@ -63,8 +64,9 @@ module screen_kxc
 
     curSite = 0
     do i = 1, isite
-      if( screen_paral_isMySite( pinfo, isite ) ) curSite = curSite + 1 
+      if( screen_paral_isMySite( pinfo, i ) ) curSite = curSite + 1 
     enddo
+    write(1000+myid,*) 'Fxc storage site :', curSite, isite
 
     if( curSite .lt. 1 ) then
       ierr = 9521
@@ -95,7 +97,9 @@ module screen_kxc
 
 #ifdef DEBUG
     if( myid .eq. 0 ) then
-      open( unit=99, file='testFxc' )
+      write( fxcFile, '(A,I4.4)' ) 'testFxc', isite
+!      open( unit=99, file='testFxc' )
+      open( unit=99, file=fxcFile )
       do i = 1, grid%nr
         write(99,*) grid%rad( i ), ProjectedChi0Fxc(i,1,i,1), ProjectedChi0Fxc(i,1,i,1)*grid%rad(i)**2*grid%drad(i)
       enddo
@@ -178,6 +182,8 @@ module screen_kxc
     do isite = 1, nsites
       if( screen_paral_isMySite( pinfo, isite ) ) then
         i = i + 1
+
+        write(1000+myid,*) 'Local site :', i, isite, screen_system_appx()
 
         select case ( screen_system_appx() )
           case( 'LDA' )
