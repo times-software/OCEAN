@@ -1,3 +1,11 @@
+#!/usr/bin/perl
+# Copyright (C) 2020 OCEAN collaboration
+#
+# This file is part of the OCEAN project and distributed under the terms 
+# of the University of Illinois/NCSA Open Source License. See the file 
+# `License' in the root directory of the present distribution.
+#
+#
 use strict;
 
 use JSON::PP;
@@ -58,7 +66,7 @@ for( my $i = 1; $i < scalar @ARGV; $i++ )
     $oncvOut =~ m/Begin PSP_UPF(.*)END_PSP/s;
     $pspData->{"pseudopotentials"}{ "$basename" }{ "upf" } = $1;
 
-    last;
+#    last;
   }
 }
 
