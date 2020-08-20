@@ -9,9 +9,12 @@
 use strict;
 
 use JSON::PP;
+use Compress::Zlib;
+use MIME::Base64;
 
 use File::Spec::Functions;
 use File::Path qw(make_path);
+use Cwd 'abs_path';
 
 if (! $ENV{"OCEAN_BIN"} ) {
   abs_path($0) =~ m/(.*)\/extractPsp\.pl/;
@@ -43,8 +46,9 @@ if( open( IN, "pplist" ) ) {
   exit 0 unless( <IN> =~ m/NULL/ );
 }
 else {
-  die "Failed to open pplisy\n";
+  die "Failed to open pplist\n";
 }
+
 
 #my $filename = $ARGV[0];
 open( IN, "ppdatabase" ) or die "Failed to open ppdatabase\n$!";
@@ -75,7 +79,15 @@ foreach my $z (@znucl)
   $uniquePsp{ "$z"} = $el;
 }
 
-
+my $pspFormat;
+open( IN, "dft" ) or die "Failed to open dft\n$!";
+my $dft = <IN>;
+close( IN );
+if( $dft =~ m/abi/i ) {
+  $pspFormat = 'psp8';
+} else {
+  $pspFormat = 'upf';
+}
 
 
 if( open( my $json_stream, $filename ))
@@ -176,25 +188,8 @@ if( scalar @zsymb < scalar @znucl )
   }
 #  close OUT;
 }
-open OUT, ">", "atompp";
-open AB, ">", "psp8.pplist";
-open UPF, ">", "upf.pplist";
-open PP, ">", "pplist";
-for( my $i = 0; $i < scalar @znucl; $i++ )
-{
-  my $z = $znucl[$i];
-  print "$z   $psp{ $z }\n";
-  print AB  $psp{ $z } . ".psp8\n";
-  print UPF $psp{ $z } . ".UPF\n";
-  print OUT "$zsymb[$i]   0.0   $psp{ $z }.UPF\n";
-  print PP $psp{ $z } . "\n";
-}
-close AB;
-close UPF;
-close OUT;
-close PP;
 
-my $filename =  $data->{ "dojo_info" }{ "dojo_dir" } . ".json";
+my $filename =  $data->{ "dojo_info" }{ "dojo_dir" } . ".$pspFormat.json";
 $filename = catdir( $ENV{"OCEAN_BIN"}, $filename );
 if( open( my $json_stream, $filename ))
 { 
@@ -227,15 +222,22 @@ foreach my $b (@basename)
   print OUT $data->{ "pseudopotentials" }{ $b }{ "input" };
   close OUT;
 
-  $outfile = catfile( 'psp', $file . ".psp8");
-  open OUT, ">", "$outfile";
-  print OUT $data->{ "pseudopotentials" }{ $b }{ "psp8" };
-  close OUT;
+  my $b64;
 
-  $outfile = catfile( 'psp', $file . ".UPF");
-  open OUT, ">", "$outfile";
-  print OUT $data->{ "pseudopotentials" }{ $b }{ "upf" };
-  close OUT;
+  if( $pspFormat eq 'psp8' ) {
+    $outfile = catfile( 'psp', $file . ".psp8");
+    open OUT, ">", "$outfile";
+    $b64 = $data->{ "pseudopotentials" }{ $b }{ "psp8" };
+    print OUT uncompress( decode_base64( $b64 ) );
+    close OUT;
+  }
+  elsif( $pspFormat eq 'upf' ) {
+    $outfile = catfile( 'psp', $file . ".UPF");
+    open OUT, ">", "$outfile";
+    $b64 = $data->{ "pseudopotentials" }{ $b }{ "upf" };
+    print OUT uncompress( decode_base64( $b64 ) );
+    close OUT;
+  }
 }
 
 $PspText .= "--------------------------------------------\n";
@@ -259,3 +261,21 @@ open OUT, ">", "ppdir";
 print OUT "$ppdir\n";
 close OUT;
 
+
+open OUT, ">", "atompp";
+open AB, ">", "psp8.pplist";
+open UPF, ">", "upf.pplist";
+open PP, ">", "pplist";
+for( my $i = 0; $i < scalar @znucl; $i++ )
+{
+  my $z = $znucl[$i];
+  print "$z   $psp{ $z }\n";
+  print AB  $psp{ $z } . ".psp8\n";
+  print UPF $psp{ $z } . ".UPF\n";
+  print OUT "$zsymb[$i]   0.0   $psp{ $z }.UPF\n";
+  print PP $psp{ $z } . "\n";
+}
+close AB;
+close UPF;
+close OUT;
+close PP;

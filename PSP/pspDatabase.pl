@@ -9,7 +9,9 @@
 use strict;
 
 use JSON::PP;
-use File::Spec::Functions;
+#use File::Spec::Functions;
+use Compress::Zlib;
+use MIME::Base64;
 
 # line returns and indents
 my $json = JSON::PP->new->pretty;
@@ -17,10 +19,11 @@ my $json = JSON::PP->new->pretty;
 my $enable = 1;
 $json = $json->canonical([$enable]);
 
-my $outfile;
+my $outroot;
 #my $oncvEXE = "/Users/jtv1/Documents/Code/oncvpsp/src/oncvpsp.x";
 my $oncvEXE = $ARGV[0];
-my $pspData->{"pseudopotentials"};
+my $upfData->{"pseudopotentials"};
+my $psp8Data->{"pseudopotentials"};
 
 for( my $i = 1; $i < scalar @ARGV; $i++ )
 {
@@ -36,13 +39,13 @@ for( my $i = 1; $i < scalar @ARGV; $i++ )
   }
 
   #Maken this into a consistency check
-  if( defined $outfile ) {
+  if( defined $outroot ) {
     my $testName = $data->{ "dojo_info" }{"dojo_dir"};
-    die "Name convention mismatch between input jsons!\n  $testName  $outfile\n" 
-      unless( $testName eq $outfile );
+    die "Name convention mismatch between input jsons!\n  $testName  $outroot\n" 
+      unless( $testName eq $outroot );
   }
   else {
-    $outfile = $data->{ "dojo_info" }{"dojo_dir"};
+    $outroot = $data->{ "dojo_info" }{"dojo_dir"};
   }
 
   my @elements = keys $data->{ "pseudos_metadata" };
@@ -50,7 +53,7 @@ for( my $i = 1; $i < scalar @ARGV; $i++ )
   {
     # only do new things
     my $basename = $data->{ "pseudos_metadata" }{ $element }{ "basename" };
-    next if(exists $pspData->{"pseudopotentials"}{ "$basename" } );
+    next if(exists $upfData->{"pseudopotentials"}{ "$basename" } );
     
 
     open OUT, ">", "oncv.inp" or die;
@@ -60,11 +63,19 @@ for( my $i = 1; $i < scalar @ARGV; $i++ )
     print "$oncvOut";
   #  exit 0;
 
-    $pspData->{"pseudopotentials"}{ "$basename" }{ "input" } = $data->{ "pseudos_metadata" }{ $element }{ "input" };
+    $upfData->{"pseudopotentials"}{ "$basename" }{ "input" } = $data->{ "pseudos_metadata" }{ $element }{ "input" };
+    $psp8Data->{"pseudopotentials"}{ "$basename" }{ "input" } = $data->{ "pseudos_metadata" }{ $element }{ "input" };
+
     $oncvOut =~ m/Begin PSPCODE8\s*\n*(.*)END_PSP.*Begin PSP_UPF/s;
-    $pspData->{"pseudopotentials"}{ "$basename" }{ "psp8" } = $1;
+    my $temp = $1;
+    chomp( $temp );
+    my $compressed = compress( $temp );
+    $psp8Data->{"pseudopotentials"}{ "$basename" }{ "psp8" } = encode_base64( $compressed );
     $oncvOut =~ m/Begin PSP_UPF\s*\n*(.*)END_PSP/s;
-    $pspData->{"pseudopotentials"}{ "$basename" }{ "upf" } = $1;
+    my $temp = $1;
+    chomp( $temp );
+    my $compressed = compress( $temp );
+    $upfData->{"pseudopotentials"}{ "$basename" }{ "upf" } = encode_base64( $compressed );
 
 #    last;
   }
@@ -81,17 +92,19 @@ if( open( my $json_stream, $filename ))
       $headerData = $json->decode(<$json_stream>);
       close($json_stream);
 }
-$pspData->{ "psp_info" } = $headerData;
+$upfData->{ "psp_info" } = $headerData;
+$psp8Data->{ "psp_info" } = $headerData;
 
-#open OUT, ">", "test2.djson";
-#print OUT $json->encode($pspData);
-#close OUT;
-
-$outfile .= ".json";
+my $outfile;
+$outfile = $outroot . ".upf.json";
 print "$outfile\n";
-
-#exit 0;
-#my $filename = $data->{ "dojo_info" }{"dojo_dir"} . ".json";
 open OUT, ">", "$outfile";
-print OUT $json->encode($pspData);
+print OUT $json->encode($upfData);
 close OUT;
+
+$outfile = $outroot . ".psp8.json";
+print "$outfile\n";
+open OUT, ">", "$outfile";
+print OUT $json->encode($psp8Data);
+close OUT;
+
