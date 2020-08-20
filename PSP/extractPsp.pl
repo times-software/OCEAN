@@ -21,6 +21,7 @@ if (! $ENV{"OCEAN_BIN"} ) {
   $ENV{"OCEAN_BIN"} = $1;
 }
 my $OCEAN_BIN = $ENV{"OCEAN_BIN"};
+my $oncvEXE = catdir( $ENV{"OCEAN_BIN"}, "oncvpsp.x" );
 
 # line returns and indents
 #my $json = JSON::PP->new->pretty;
@@ -189,72 +190,121 @@ if( scalar @zsymb < scalar @znucl )
 #  close OUT;
 }
 
+my @runFreshBase;
+make_path( "psp");
+
+my $pspData;
 my $filename =  $data->{ "dojo_info" }{ "dojo_dir" } . ".$pspFormat.json";
 $filename = catdir( $ENV{"OCEAN_BIN"}, $filename );
 if( open( my $json_stream, $filename ))
 { 
   local $/ = undef;
-  $data = $json->decode(<$json_stream>);
+  $pspData = $json->decode(<$json_stream>);
   close($json_stream);
   print "$filename parsed\n";
+
+
+  foreach my $b (@basename)
+  {
+  #  die "Missing pseudo $b from database $filename!\n"
+  #    unless( defined $data->{ "pseudopotentials" }{ $b } );
+    unless( defined $pspData->{ "pseudopotentials" }{ $b } ) {
+      push @runFreshBase, $b;
+      print "Missing $b from database $filename!\n";
+    }
+
+    my $file = $b;
+    $file =~ s/\.in//;
+    my $outfile = catfile( 'psp', $file . ".in" );
+    open OUT, ">", "$outfile";
+    print OUT $pspData->{ "pseudopotentials" }{ $b }{ "input" };
+    close OUT;
+
+    my $b64;
+
+    if( $pspFormat eq 'psp8' ) {
+      $outfile = catfile( 'psp', $file . ".psp8");
+      open OUT, ">", "$outfile";
+      $b64 = $pspData->{ "pseudopotentials" }{ $b }{ "psp8" };
+      print OUT uncompress( decode_base64( $b64 ) );
+      close OUT;
+    }
+    elsif( $pspFormat eq 'upf' ) {
+      $outfile = catfile( 'psp', $file . ".UPF");
+      open OUT, ">", "$outfile";
+      $b64 = $pspData->{ "pseudopotentials" }{ $b }{ "upf" };
+      print OUT uncompress( decode_base64( $b64 ) );
+      close OUT;
+    }
+  }
+  $PspText .= "--------------------------------------------\n";
+  $PspText .= $pspData->{ "psp_info" }{ "attribution" };
+  $PspText .= "  ONCVPSP version ";
+  $PspText .= $pspData->{ "psp_info" }{ "Version" };
+  $PspText .= ", OCEAN mod ";
+  $PspText .= $pspData->{ "psp_info" }{ "OCEAN version" } . "\n";
+  $PspText .= "Please cite the following paper: \n";
+  for( my $i = 0; $i < scalar @{ $pspData->{ "psp_info" }{ "citation" } }; $i++ ) {
+    foreach my $key (sort(keys $pspData->{ "psp_info" }{ "citation" }[ $i ]))
+    {
+      $PspText .= "    $key = \"" . $pspData->{ "psp_info" }{ "citation" }[ $i ]{ $key } . "\"\n";
+    }
+  }
+  $PspText .= "--------------------------------------------\n";
+  print $PspText;
 } 
 else
 {
-  die "Failed to open requested psp database: $filename\n";
+  print "Failed to open requested psp database: $filename\nWill run oncvpsp.x\n";
+  @runFreshBase = @basename;
 }
 
-#foreach basename, then write out input, psp8, and upf
-#
-make_path( "psp");
-
-foreach my $b (@basename)
+#If we need to run oncv, it happens now
+if( scalar @runFreshBase > 0 )
 {
-  die "Missing pseudo $b from database $filename!\n"
-    unless( defined $data->{ "pseudopotentials" }{ $b } );
-#  my $input = $data->{ "pseudopotentials" }{ $b }{ "input" };
-#  my $psp8 = $data->{ "pseudopotentials" }{ $b }{ "psp8" };
-#  my $upf = $data->{ "pseudopotentials" }{ $b }{ "upf" };
-
-  my $file = $b;
-  $file =~ s/\.in//;
-  my $outfile = catfile( 'psp', $file . ".in" );
-  open OUT, ">", "$outfile";
-  print OUT $data->{ "pseudopotentials" }{ $b }{ "input" };
-  close OUT;
-
-  my $b64;
-
-  if( $pspFormat eq 'psp8' ) {
-    $outfile = catfile( 'psp', $file . ".psp8");
-    open OUT, ">", "$outfile";
-    $b64 = $data->{ "pseudopotentials" }{ $b }{ "psp8" };
-    print OUT uncompress( decode_base64( $b64 ) );
-    close OUT;
-  }
-  elsif( $pspFormat eq 'upf' ) {
-    $outfile = catfile( 'psp', $file . ".UPF");
-    open OUT, ">", "$outfile";
-    $b64 = $data->{ "pseudopotentials" }{ $b }{ "upf" };
-    print OUT uncompress( decode_base64( $b64 ) );
-    close OUT;
-  }
-}
-
-$PspText .= "--------------------------------------------\n";
-$PspText .= $data->{ "psp_info" }{ "attribution" };
-$PspText .= "  ONCVPSP version ";
-$PspText .= $data->{ "psp_info" }{ "Version" };
-$PspText .= ", OCEAN mod ";
-$PspText .= $data->{ "psp_info" }{ "OCEAN version" } . "\n";
-$PspText .= "Please cite the following paper: \n";
-for( my $i = 0; $i < scalar @{ $data->{ "psp_info" }{ "citation" } }; $i++ ) {
-  foreach my $key (sort(keys $data->{ "psp_info" }{ "citation" }[ $i ]))
+  $PspText .= "--------------------------------------------\n";
+  $PspText .= "Running oncvpsp.x with installed version\n Please cite accordingly\n";
+  $PspText .= "--------------------------------------------\n";
+  chdir "psp";
+  foreach my $b (@runFreshBase)
   {
-    $PspText .= "    $key = \"" . $data->{ "psp_info" }{ "citation" }[ $i ]{ $key } . "\"\n";
+    my $file = $b;
+    $file =~ s/\.in//;
+#    my $outfile = catfile( 'psp', $file . ".in" );
+    my $outfile = $file . ".in";
+    open OUT, ">", "$outfile";
+    foreach my $key (keys %uniquePsp )
+    {
+      my $a = $psp{ $key } . ".in";
+      if( $a eq $b )
+      {
+        print OUT $data->{"pseudos_metadata"}{ $uniquePsp{ $key } }{ "input" };
+        last;
+      }
+    }
+    close OUT;
+    my $oncvOut = `$oncvEXE < $outfile`;
+    my $pspText;
+    if( $pspFormat eq 'psp8' ) {
+      $oncvOut =~ m/Begin PSPCODE8\s*\n*(.*)END_PSP.*Begin PSP_UPF/s;
+      $pspText = $1;
+      chomp $pspText;
+      $outfile = $file . ".psp8";
+    }
+    elsif( $pspFormat eq 'upf' ) {
+      $oncvOut =~ m/Begin PSP_UPF\s*\n*(.*)END_PSP/s;
+      my $pspText = $1;
+      chomp( $pspText );
+      $outfile = $file . ".UPF";
+    }
+    open OUT, ">", $outfile;
+    print OUT $pspText;
+    close OUT;
   }
+  chdir updir;
 }
-$PspText .= "--------------------------------------------\n";
-print $PspText;
+
+
 
 my $ppdir = catdir( updir(), 'Common', 'psp' );
 open OUT, ">", "ppdir";
