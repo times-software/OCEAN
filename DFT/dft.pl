@@ -290,9 +290,14 @@ print "making acell";
 system("$ENV{'OCEAN_BIN'}/makeacell.x") == 0
     or die "Failed to make acell\n";
 
-print "making atompp";
-system("$ENV{'OCEAN_BIN'}/makeatompp.x") == 0
-   or die "Failed to make acell\n";
+if( -e "../Common/atompp" ) {
+  copy "../Common/atompp", "atompp";
+}
+else {
+  print "making atompp";
+  system("$ENV{'OCEAN_BIN'}/makeatompp.x") == 0
+     or die "Failed to make acell\n";
+}
 
 
 

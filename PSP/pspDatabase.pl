@@ -61,9 +61,9 @@ for( my $i = 1; $i < scalar @ARGV; $i++ )
   #  exit 0;
 
     $pspData->{"pseudopotentials"}{ "$basename" }{ "input" } = $data->{ "pseudos_metadata" }{ $element }{ "input" };
-    $oncvOut =~ m/Begin PSPCODE8(.*)END_PSP/s;
+    $oncvOut =~ m/Begin PSPCODE8\s*\n*(.*)END_PSP.*Begin PSP_UPF/s;
     $pspData->{"pseudopotentials"}{ "$basename" }{ "psp8" } = $1;
-    $oncvOut =~ m/Begin PSP_UPF(.*)END_PSP/s;
+    $oncvOut =~ m/Begin PSP_UPF\s*\n*(.*)END_PSP/s;
     $pspData->{"pseudopotentials"}{ "$basename" }{ "upf" } = $1;
 
 #    last;
@@ -83,14 +83,14 @@ if( open( my $json_stream, $filename ))
 }
 $pspData->{ "psp_info" } = $headerData;
 
-open OUT, ">", "test2.djson";
-print OUT $json->encode($pspData);
-close OUT;
+#open OUT, ">", "test2.djson";
+#print OUT $json->encode($pspData);
+#close OUT;
 
 $outfile .= ".json";
 print "$outfile\n";
 
-exit 0;
+#exit 0;
 #my $filename = $data->{ "dojo_info" }{"dojo_dir"} . ".json";
 open OUT, ">", "$outfile";
 print OUT $json->encode($pspData);

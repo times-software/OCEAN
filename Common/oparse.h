@@ -94,6 +94,10 @@ pp_list
 {
 NULL
 } pplist
+pp_database
+{
+ONCVPSP-PBE-PDv0.4-stringent
+} ppdatabase
 natom
 {
 -1

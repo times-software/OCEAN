@@ -13,6 +13,12 @@ use JSON::PP;
 use File::Spec::Functions;
 use File::Path qw(make_path);
 
+if (! $ENV{"OCEAN_BIN"} ) {
+  abs_path($0) =~ m/(.*)\/extractPsp\.pl/;
+  $ENV{"OCEAN_BIN"} = $1;
+}
+my $OCEAN_BIN = $ENV{"OCEAN_BIN"};
+
 # line returns and indents
 #my $json = JSON::PP->new->pretty;
 my $json = JSON::PP->new;
@@ -30,6 +36,24 @@ my @Elements = ( 'H_', 'He', 'Li', 'Be', 'B_', 'C_', 'N_', 'O_', 'F_', 'Ne',
      'Bi', 'Po', 'At', 'Rn', 'Fr', 'Ra', 'Ac', 'Th', 'Pa', 'U_', 'Np', 'Pu',
      'Am', 'Cm', 'Bk', 'Cf', 'Es', 'Fm', 'Md', 'No', 'Lr', 'Rf', 'Db', 'Sg',
      'Bh', 'Hs', 'Mt' );
+
+# Need to patch up the abinit re-run detection
+unlink "psp8.pplist";
+if( open( IN, "pplist" ) ) {
+  exit 0 unless( <IN> =~ m/NULL/ );
+}
+else {
+  die "Failed to open pplisy\n";
+}
+
+#my $filename = $ARGV[0];
+open( IN, "ppdatabase" ) or die "Failed to open ppdatabase\n$!";
+my $filename = <IN>;
+chomp $filename;
+$filename .= ".json";
+$filename = catdir( $ENV{"OCEAN_BIN"}, $filename );
+
+my $data;
 
 my @znucl;
 my %uniquePsp;
@@ -52,8 +76,6 @@ foreach my $z (@znucl)
 }
 
 
-my $filename = $ARGV[0];
-my $data;
 
 
 if( open( my $json_stream, $filename ))
@@ -109,9 +131,23 @@ foreach my $key (keys %uniquePsp )
 #Hartree to Ryd
 $ecut *= 2;
 print "ECUT: $ecut\n";
-foreach (@basename)
+if( open( IN, "ecut" ) )
 {
-  print "$_\n";
+  my $oldEcut = <IN>;
+  close IN;
+  if( $oldEcut < 0 )
+  {
+    open OUT, ">", "ecut";
+    print OUT "$ecut\n";
+    close OUT;
+  }
+  elsif( $oldEcut < $ecut ) {
+    print "WARNING: Input file has ecut that is less than recommended for the psps!\n";
+    print "   $oldEcut < $ecut \n";
+  }
+}
+else {
+  die "Failed to open ecut\n$!";
 }
 
 my @zsymb;
@@ -126,18 +162,24 @@ if( open( IN, "zsymb" ) )
 else {
   die "Failed to open zsymb\n$!";
 }
+#print scalar @zsymb . "\n";
 if( scalar @zsymb < scalar @znucl )
 {
-  open OUT, ">", "zsymb";
+  @zsymb = ();
+#  open OUT, ">", "zsymb";
   foreach my $z (@znucl)
   {
-    print OUT "$Elements[$z-1]\n";
+    my $el = $Elements[$z-1];
+    $el =~ s/_//;
+    push @zsymb, $el;
+#    print OUT "$Elements[$z-1]\n";
   }
-  close OUT;
+#  close OUT;
 }
 open OUT, ">", "atompp";
 open AB, ">", "psp8.pplist";
 open UPF, ">", "upf.pplist";
+open PP, ">", "pplist";
 for( my $i = 0; $i < scalar @znucl; $i++ )
 {
   my $z = $znucl[$i];
@@ -145,12 +187,15 @@ for( my $i = 0; $i < scalar @znucl; $i++ )
   print AB  $psp{ $z } . ".psp8\n";
   print UPF $psp{ $z } . ".UPF\n";
   print OUT "$zsymb[$i]   0.0   $psp{ $z }.UPF\n";
+  print PP $psp{ $z } . "\n";
 }
 close AB;
 close UPF;
 close OUT;
+close PP;
 
 my $filename =  $data->{ "dojo_info" }{ "dojo_dir" } . ".json";
+$filename = catdir( $ENV{"OCEAN_BIN"}, $filename );
 if( open( my $json_stream, $filename ))
 { 
   local $/ = undef;
