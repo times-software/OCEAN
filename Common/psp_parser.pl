@@ -53,7 +53,7 @@ if( $dft =~ m/qe/i )
 my @electrons;
 foreach my $ppfile (@psp)
 {
-  $ppfile .= $sufix;
+  $ppfile .= $sufix unless( $ppfile =~ m/$sufix$/ );
   my $pp;
   open $pp, "../$ppfile" or die "Failed to open ../$ppfile\n$!";
 

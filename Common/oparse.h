@@ -321,7 +321,7 @@ system
 } prefix
 ppdir
 {
-'../'
+../
 } ppdir
 dft.calc_stress
 {

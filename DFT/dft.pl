@@ -295,8 +295,20 @@ if( -e "../Common/atompp" ) {
 }
 else {
   print "making atompp";
+  move( "pplist", "pplist.hold");
+  open IN, "pplist.hold" or die;
+  open OUT, ">", "pplist" or die;
+  while( my $line = <IN> )
+  {
+    chomp $line;
+    $line =~ s/.upf$//i;
+    print OUT $line . "\n";
+  }
+  close OUT;
+  close IN;
   system("$ENV{'OCEAN_BIN'}/makeatompp.x") == 0
      or die "Failed to make acell\n";
+  move( "pplist.hold", "pplist");
 }
 
 

@@ -1,0 +1,18 @@
+{
+  "Version": "3.3.1",
+  "OCEAN version": "3",
+  "citation": [
+    { "title": "Optimized norm-conserving Vanderbilt pseudopotentials",
+      "author" : "Hamann, D. R.",
+      "journal" : "Phys. Rev. B",
+      "volume" : "88",
+      "issue" : "8",
+      "pages" : "085117",
+      "year" : "2013",
+      "month" : "Aug",
+      "publisher" : "American Physical Society",
+      "doi" : "10.1103/PhysRevB.88.085117" }
+  ],
+  "attribution": "Pseudopotentials created using the ONCVPSP program, modified for OCEAN. See http://www.mat-simresearch.com and https://github.com/jtv3/oncvpsp"
+}
+

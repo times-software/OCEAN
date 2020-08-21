@@ -60,6 +60,8 @@ my @Elements = ( 'H_', 'He', 'Li', 'Be', 'B_', 'C_', 'N_', 'O_', 'F_', 'Ne',
 
 # Need to patch up the abinit re-run detection
 unlink "psp8.pplist";
+unlink "upf.pplist";
+unlink "atompp";
 if( open( IN, "pplist" ) ) {
   exit 0 unless( <IN> =~ m/NULL/ );
 #  my $line = <IN>;
@@ -269,23 +271,29 @@ if( open( my $json_stream, $filename ))
       $outfile = catfile( 'psp', $file . ".UPF");
       open OUT, ">", "$outfile";
       $b64 = $pspData->{ "pseudopotentials" }{ $b }{ "upf" };
+#      my $upfText = uncompress( decode_base64( $b64 ) );
+#      $upfText =~ s/SLA\s+PW\s+NOGX\s+NOGC/PW/g;
       print OUT uncompress( decode_base64( $b64 ) );
+#      print OUT $upfText;
       close OUT;
     }
   }
   $PspText .= "--------------------------------------------\n";
-  $PspText .= $pspData->{ "psp_info" }{ "attribution" };
-  $PspText .= "  ONCVPSP version ";
-  $PspText .= $pspData->{ "psp_info" }{ "Version" };
-  $PspText .= ", OCEAN mod ";
-  $PspText .= $pspData->{ "psp_info" }{ "OCEAN version" } . "\n";
-  $PspText .= "Please cite the following paper: \n";
-  for( my $i = 0; $i < scalar @{ $pspData->{ "psp_info" }{ "citation" } }; $i++ ) {
-    foreach my $key (sort(keys %{ $pspData->{ "psp_info" }{ "citation" }[ $i ]} ))
-    {
-      $PspText .= "    $key = \"" . $pspData->{ "psp_info" }{ "citation" }[ $i ]{ $key } . "\",\n";
+  if( defined $pspData->{ "psp_info" } )
+  {
+    $PspText .= $pspData->{ "psp_info" }{ "attribution" };
+    $PspText .= "  ONCVPSP version ";
+    $PspText .= $pspData->{ "psp_info" }{ "Version" };
+    $PspText .= ", OCEAN mod ";
+    $PspText .= $pspData->{ "psp_info" }{ "OCEAN version" } . "\n";
+    $PspText .= "Please cite the following paper: \n";
+    for( my $i = 0; $i < scalar @{ $pspData->{ "psp_info" }{ "citation" } }; $i++ ) {
+      foreach my $key (sort(keys %{ $pspData->{ "psp_info" }{ "citation" }[ $i ]} ))
+      {
+        $PspText .= "    $key = \"" . $pspData->{ "psp_info" }{ "citation" }[ $i ]{ $key } . "\",\n";
+      }
+      chop $PspText; chop $PspText; $PspText .= "\n";
     }
-    chop $PspText; chop $PspText; $PspText .= "\n";
   }
   $PspText .= "--------------------------------------------\n";
   print $PspText;

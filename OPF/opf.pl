@@ -396,7 +396,9 @@ else  # oncvpsp method
   ###################################
   foreach  my $znucl (keys %psplist )
   {
-    my $oncvpspInputFile = $psplist{"$znucl"} . ".in";
+    my $oncvpspInputFile = $psplist{"$znucl"};
+    $oncvpspInputFile =~ s/.upf$//i;
+    $oncvpspInputFile .= ".in";
     my $targ = catdir( "$ppdir", "$oncvpspInputFile" );
     unless( -e $targ )
     {
