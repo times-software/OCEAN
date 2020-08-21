@@ -1,4 +1,4 @@
-#!/usr/bin/perl
+#!/usr/bin/env perl
 # Copyright (C) 2020 OCEAN collaboration
 #
 # This file is part of the OCEAN project and distributed under the terms 
@@ -8,7 +8,19 @@
 #
 use strict;
 
-use JSON::PP;
+use Module::Load::Conditional qw[can_load];
+my $module_list = { JSON => undef };
+my $goodJSON = can_load( modules=> $module_list );
+if( $goodJSON ) {
+  require JSON;
+  print "JSON\n";
+  JSON->import;
+} else {
+  require JSON::PP;
+  JSON::PP->import;
+}
+#use JSON::PP;
+
 use Compress::Zlib;
 use MIME::Base64;
 
@@ -25,7 +37,12 @@ my $oncvEXE = catdir( $ENV{"OCEAN_BIN"}, "oncvpsp.x" );
 
 # line returns and indents
 #my $json = JSON::PP->new->pretty;
-my $json = JSON::PP->new;
+my $json;
+if( $goodJSON) {
+  $json = JSON->new;
+} else {
+  $json = JSON::PP->new;
+}
 # Sort the keys before dumping the file
 #my $enable = 1;
 #$json = $json->canonical([$enable]);
@@ -45,6 +62,24 @@ my @Elements = ( 'H_', 'He', 'Li', 'Be', 'B_', 'C_', 'N_', 'O_', 'F_', 'Ne',
 unlink "psp8.pplist";
 if( open( IN, "pplist" ) ) {
   exit 0 unless( <IN> =~ m/NULL/ );
+#  my $line = <IN>;
+#  unless( $line =~ m/NULL/ ) 
+#  {
+#    open AB, ">", "psp8.pplist";
+#    open UPF, ">", "upf.pplist";
+#    do {
+#      print $line;
+#      print AB  $line;
+#      chomp( $line );
+#      $line =~ s/\.[\d\w]+$//;
+#      print UPF $line . ".UPF\n";
+#    } while( $line = <IN> );
+#    close AB;
+#    close UPF;
+#
+#    exit 0;
+#  }
+  close IN;
 }
 else {
   die "Failed to open pplist\n";
@@ -113,10 +148,11 @@ else {
   $PspText .= "Please cite the following papers: \n";
 }
 for( my $i = 0; $i < scalar @{ $data->{ "dojo_info" }{ "citation" } }; $i++ ) {
-  foreach my $key (sort(keys $data->{ "dojo_info" }{ "citation" }[ $i ]))
+  foreach my $key (sort(keys %{ $data->{ "dojo_info" }{ "citation" }[ $i ]} ))
   {
-    $PspText .= "    $key = \"" . $data->{ "dojo_info" }{ "citation" }[ $i ]{ $key } . "\"\n";
+    $PspText .= "    $key = \"" . $data->{ "dojo_info" }{ "citation" }[ $i ]{ $key } . "\",\n";
   }
+  chop $PspText; chop $PspText; $PspText .= "\n";
 }
 
 
@@ -245,10 +281,11 @@ if( open( my $json_stream, $filename ))
   $PspText .= $pspData->{ "psp_info" }{ "OCEAN version" } . "\n";
   $PspText .= "Please cite the following paper: \n";
   for( my $i = 0; $i < scalar @{ $pspData->{ "psp_info" }{ "citation" } }; $i++ ) {
-    foreach my $key (sort(keys $pspData->{ "psp_info" }{ "citation" }[ $i ]))
+    foreach my $key (sort(keys %{ $pspData->{ "psp_info" }{ "citation" }[ $i ]} ))
     {
-      $PspText .= "    $key = \"" . $pspData->{ "psp_info" }{ "citation" }[ $i ]{ $key } . "\"\n";
+      $PspText .= "    $key = \"" . $pspData->{ "psp_info" }{ "citation" }[ $i ]{ $key } . "\",\n";
     }
+    chop $PspText; chop $PspText; $PspText .= "\n";
   }
   $PspText .= "--------------------------------------------\n";
   print $PspText;

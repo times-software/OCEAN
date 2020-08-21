@@ -48,8 +48,8 @@ for( my $i = 1; $i < scalar @ARGV; $i++ )
     $outroot = $data->{ "dojo_info" }{"dojo_dir"};
   }
 
-  my @elements = keys $data->{ "pseudos_metadata" };
-  foreach my $element (keys $data->{ "pseudos_metadata" })
+#  my @elements = keys %{$data->{ "pseudos_metadata" }};
+  foreach my $element (keys %{$data->{ "pseudos_metadata" }})
   {
     # only do new things
     my $basename = $data->{ "pseudos_metadata" }{ $element }{ "basename" };

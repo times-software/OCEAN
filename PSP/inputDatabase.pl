@@ -11,6 +11,8 @@ use strict;
 use JSON::PP;
 use File::Spec::Functions;
 
+print "Usage: djson bonus\n" if scalar @ARGV < 1;
+
 my $filename = $ARGV[0];
 #print "$ARGV[1]\n" if( scalar @ARGV > 1 ) ;
 my $bonusTag = '';
@@ -41,8 +43,8 @@ print $data->{ "dojo_info" }{ "pp_type" } . "\n";
 #print OUT $json->encode($data);
 #close OUT;
 
-my @elements = keys $data->{ "pseudos_metadata" };
-foreach my $element (keys $data->{ "pseudos_metadata" })
+my @elements = keys %{$data->{ "pseudos_metadata" }};
+foreach my $element (keys %{$data->{ "pseudos_metadata" }})
 {
 #  print "$element ";
   my $baseName = $data->{ "pseudos_metadata" }{ "$element" }{ "basename" };
@@ -79,8 +81,8 @@ if( open( my $json_stream, $filename ))
       local $/ = undef;
       $headerData = $json->decode(<$json_stream>);
       close($json_stream);
+      $data->{ "dojo_info" } = $headerData->{ "dojo_info" };
 }
-$data->{ "dojo_info" } = $headerData->{ "dojo_info" };
 
 my $filename = $data->{ "dojo_info" }{"dojo_dir"} . "$bonusTag" . ".json";
 open OUT, ">", "$filename";
