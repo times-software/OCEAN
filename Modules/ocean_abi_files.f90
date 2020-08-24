@@ -730,7 +730,7 @@ module ocean_abi_files
       endif
       do i = 1, nSplit
         call get_fileName( filnam, isSplit )
-        
+!        write(6,*) filnam
         open( unit=99, file=filnam, form='unformatted', status='old' )
 
         call parseHeader( 99, pos, i, ierr )
@@ -1110,13 +1110,14 @@ module ocean_abi_files
 
   
       is_split = .false.
-      inquire( file='dft.split', exist=ex )
-      if( ex ) then
-        open( unit=99, file='dft.split', form='formatted', status='old')
-        read( 99, * ) is_split
-        close( 99 )
+      if( is_shift ) then
+        inquire( file='dft.split', exist=ex )
+        if( ex ) then
+          open( unit=99, file='dft.split', form='formatted', status='old')
+          read( 99, * ) is_split
+          close( 99 )
+        endif
       endif
-      if( is_split ) is_shift = .true.
     endif
 
     call MPI_BCAST( bands, 2, MPI_INTEGER, inter_root, inter_comm, ierr )
