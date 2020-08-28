@@ -52,6 +52,7 @@ module screen_system
     integer :: lbounds(2) = 0
     character(len=3) :: appx
     logical :: doFXC = .false.
+    logical :: allAug = .false.
   end type calculation_parameters
 
   type( physical_system ), save :: psys
@@ -60,14 +61,15 @@ module screen_system
 
   public :: physical_system, atoms, system_parameters
   public :: psys, params
-  public :: screen_system_load, screen_system_snatch, screen_system_summarize
+  public :: screen_system_load, screen_system_snatch, screen_system_summarize, screen_system_grab
   public :: screen_system_returnKvec
   public :: screen_system_convertStyle, screen_system_chi0Integrand
   public :: screen_system_invStyle, screen_system_QuadOrder
   public :: screen_system_convertInterpolateStyle, screen_system_convertInterpolateOrder
   public :: screen_system_doAugment, screen_system_lbounds, screen_system_mode
   public :: screen_system_setGamma, tau2xcoord
-  public :: screen_system_volume, screen_system_xmesh, screen_system_appx, screen_system_doFxc
+  public :: screen_system_volume, screen_system_xmesh, screen_system_appx, screen_system_doFxc, screen_system_allAug
+  public :: screen_system_natoms
 
   contains 
 
@@ -151,6 +153,16 @@ module screen_system
     fxc = calcParams%doFxc
   end function
 
+  pure function screen_system_allAug() result ( aa )
+    logical :: aa
+    aa = calcParams%allAug
+  end function
+
+  pure function screen_system_natoms() result( n )
+    integer :: n
+    n = psys%natoms
+  end function
+
   pure function screen_system_returnKvec( sp, ikpt ) result( Kvec )
     type( system_parameters ), intent( in ) :: sp
     integer, intent( in ) :: ikpt
@@ -228,6 +240,33 @@ module screen_system
     xcoord = matmul( psys%avecs, tau )
 
   end subroutine screen_system_snatch
+
+  subroutine screen_system_grab( iatom, element, indx, tau, xcoord, ierr )
+    integer, intent( in ) :: iatom
+    character( len=2 ), intent( out ) :: element
+    integer, intent( out ) :: indx
+    real( DP ), intent( out ) :: tau( 3 )
+    real( DP ), intent( out ) :: xcoord( 3 )
+    integer, intent( inout ) :: ierr
+
+    integer :: ii
+    
+    if( iatom .gt. psys%natoms ) then
+      ierr = 8935
+      return
+    endif
+    element = psys%atom_list( iatom )%el_name 
+    indx = 0
+    do ii = 1, iatom
+      if( element .eq. psys%atom_list( ii )%el_name ) then
+        indx = indx + 1
+      endif
+    enddo
+    tau( : ) = psys%atom_list( iatom )%reduced_coord(: )
+    xcoord = matmul( psys%avecs, tau )
+
+  end subroutine screen_system_grab
+
 
   subroutine screen_system_load( ierr )
     use OCEAN_mpi, only : myid, root, comm, nproc, MPI_INTEGER, MPI_SUCCESS
@@ -310,6 +349,9 @@ module screen_system
     if( ierr .ne. MPI_SUCCESS ) return
 
     call MPI_BCAST( calcParams%doFxc, 1, MPI_LOGICAL, root, comm, ierr )
+    if( ierr .ne. MPI_SUCCESS ) return
+
+    call MPI_BCAST( calcParams%allAug, 1, MPI_LOGICAL, root, comm, ierr )
     if( ierr .ne. MPI_SUCCESS ) return
 #endif
   end subroutine share_calcParams
@@ -453,6 +495,17 @@ module screen_system
 
     if( calcParams%doFXC ) write(6,*) '    ', calcParams%appx
 
+    calcParams%allAug = .false.
+    inquire( file='screen.allaug', exist=ex )
+    if( ex ) then
+      open( unit=99, file='screen.allaug', form='formatted', status='old' )
+      read( 99, *, IOSTAT=ignoreErrors ) calcParams%allAug
+      close( 99 )
+      if( ignoreErrors .ne. 0 ) then
+        write(6,*) 'Error reading screen.allaug ', ignoreErrors
+      endif
+    endif
+    if( calcParams%allAug ) write( 6, * ) 'Augmenting all atomic sites!'
 
     inquire( file='screen.convertstyle', exist=ex )
     if( ex ) then
@@ -561,6 +614,11 @@ module screen_system
       write( 6, * ) 'Augmentation not allowed for mode=grid. Setting to false'
       calcParams%do_augment = .false.
     endif
+    if( calcParams%do_augment .and. calcParams%allaug ) then
+      write( 6, * ) 'On-site Augmentation not allowed when All-Aug=true. Setting to false'
+      calcParams%do_augment = .false.
+    endif
+
 
   end subroutine load_calcParams
 

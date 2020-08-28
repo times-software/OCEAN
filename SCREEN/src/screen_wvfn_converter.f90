@@ -31,7 +31,7 @@ module screen_wvfn_converter
 
   contains
 
-  subroutine screen_wvfn_converter_driver( nsites, all_sites, ierr )
+  subroutine screen_wvfn_converter_driver( nsites, all_sites, natoms, all_atoms, ierr )
     use screen_paral, only : site_parallel_info, & 
                              screen_paral_NumLocalSites, screen_paral_isMySite
     use screen_system, only : system_parameters, params
@@ -41,8 +41,8 @@ module screen_wvfn_converter
     use screen_timekeeper, only : screen_tk_start, screen_tk_stop
     
 !    type( site_parallel_info ), intent( in ) :: pinfo
-    integer, intent( in ) :: nsites
-    type( site ), intent( inout ) :: all_sites( nsites )
+    integer, intent( in ) :: nsites, natoms
+    type( site ), intent( inout ) :: all_sites( nsites ), all_atoms( natoms )
     integer, intent( inout ) :: ierr
 
 #ifdef MPI_F08
@@ -80,7 +80,7 @@ module screen_wvfn_converter
     enddo
     call screen_tk_stop( "wc_driver_postSiteRecvs" )
 
-    call screen_wvfn_converter_loader( pinfo, nsites, all_sites, ierr )
+    call screen_wvfn_converter_loader( pinfo, nsites, all_sites, natoms, all_atoms, ierr )
     if( ierr .ne. 0 ) return
 
 #ifdef DEBUG
@@ -110,7 +110,7 @@ module screen_wvfn_converter
 
   end subroutine screen_wvfn_converter_driver
 
-  subroutine screen_wvfn_converter_loader( pinfo, nsites, all_sites, ierr )
+  subroutine screen_wvfn_converter_loader( pinfo, nsites, all_sites, natoms, all_atoms, ierr )
     use screen_system, only : system_parameters, params
     use screen_sites, only : site
     use screen_paral, only : site_parallel_info
@@ -120,8 +120,8 @@ module screen_wvfn_converter
     use screen_timekeeper, only : screen_tk_start, screen_tk_stop
 
     type( site_parallel_info ), intent( in ) :: pinfo
-    integer, intent( in ) :: nsites
-    type( site ), intent( in ) :: all_sites( nsites )
+    integer, intent( in ) :: nsites, natoms
+    type( site ), intent( in ) :: all_sites( nsites ), all_atoms( natoms )
     integer, intent( inout ) :: ierr
 
     complex(DP), allocatable :: input_uofg(:,:)
@@ -166,7 +166,7 @@ module screen_wvfn_converter
           call screen_tk_stop( "odf_read_at_kpt" )
           
           call swl_convertAndSend( pinfo, ikpt, ispin, ngvecs, nbands, input_gvecs, input_uofg, &
-                                   nsites, all_sites, ierr )
+                                   nsites, all_sites, natoms, all_atoms, ierr )
           if( ierr .ne. 0 ) return
 
           deallocate( input_gvecs, input_uofg )
@@ -276,23 +276,25 @@ module screen_wvfn_converter
 
 
   subroutine swl_convertAndSend( pinfo, ikpt, ispin, ngvecs, nbands, input_gvecs, input_uofg, &
-                                 nsites, all_sites, ierr )
+                                 nsites, all_sites, natoms, all_atoms, ierr )
     use ocean_mpi, only : myid, comm, MPI_DOUBLE_COMPLEX, MPI_REQUEST_NULL, MPI_STATUSES_IGNORE, &
                           MPI_DOUBLE_PRECISION
     use screen_system, only : system_parameters, params, screen_system_returnKvec, &
-                              physical_system, psys, screen_system_convertInterpolateOrder
+                              physical_system, psys, screen_system_convertInterpolateOrder, &
+                              screen_system_allAug
     use screen_sites, only : site
     use screen_grid, only : sgrid
     use screen_wavefunction, only : screen_wvfn, screen_wvfn_map_procID, screen_wvfn_singleKInit, &
                                     screen_wvfn_kill, screen_wvfn_returnWavefunctionDims
     use screen_paral, only : site_parallel_info, screen_paral_siteIndexID2procID
     use screen_timekeeper, only : screen_tk_start, screen_tk_stop
+    use screen_opf
 
     type( site_parallel_info ), intent( in ) :: pinfo
-    integer, intent( in ) :: ikpt, ispin, ngvecs, nbands, nsites
+    integer, intent( in ) :: ikpt, ispin, ngvecs, nbands, nsites, natoms
     integer, intent( in ) :: input_gvecs( 3, ngvecs )
     complex(DP), intent( in ) :: input_uofg( ngvecs, nbands )
-    type( site ), intent( in ) :: all_sites( nsites )
+    type( site ), intent( in ) :: all_sites( nsites ), all_atoms( natoms )
     integer, intent( inout ) :: ierr
 
 
@@ -302,11 +304,16 @@ module screen_wvfn_converter
     type(xHolder) :: uofx
 !     complex(DP), allocatable :: uofx( :, :, :, : )
     type( screen_wvfn ), allocatable :: temp_wavefunctions(:)
-    real(DP) :: kpoints(3), qcart(3)
+    type( screen_wvfn ), allocatable :: atom_wavefunctions(:)
+    complex(DP), allocatable :: BetaMatrix(:,:,:)
+    real(DP) :: kpoints(3), qcart(3), fakeq(3)
 !    integer :: uofxDims(3), boundaries(3,2)
     integer :: isite, j, isend, itag, destID, iwvfn, nthreads
     integer :: npts, nProcsPerPool, iproc, nbandChunk, iband, nbandUse
     integer :: pts_start, num_pts, band_start, num_band, kpts_start, num_kpts
+    integer :: lmin, lmax, nproj, l, nprojSite, nprojMax, iiband, itarg
+    integer, allocatable :: atomLookup(:,:,:)
+    real(DP), allocatable :: atomVec(:,:,:,:)
 #ifdef MPI_F08
     type( MPI_DATATYPE ) :: newType
 !    type( MPI_DATATYPE ), allocatable :: typeList(:,:)
@@ -334,6 +341,7 @@ module screen_wvfn_converter
 
     ! Should be array of screen_wvfn objects
     allocate( temp_wavefunctions( nsites ) )
+    allocate( atom_wavefunctions( natoms ) )
 
 
     nprocsPerPool = pinfo%nprocs
@@ -375,7 +383,52 @@ module screen_wvfn_converter
     enddo
     
 
+    ! For valence augmentation or every-site augmentation, make phased projectors here
+    ! call ocean_opf_fullGridInitAtK( uofx%dims, psys%avecs, qcart, ierr )
+
+    
+    if( screen_system_allAug() ) then
+      nprojMax = 0
+      do isite = 1, natoms
+        call screen_tk_start( "singleKInit" )
+        ! FIX THIS MEMORY HOG?
+        call screen_wvfn_singleKInit( all_atoms( isite )%grid, atom_wavefunctions( isite ), ierr, nbands )
+        if( ierr .ne. 0 ) return
+        call screen_tk_stop( "singleKInit" )
+        if( all_atoms( isite )%grid%npt .eq. 0 ) cycle
+
+        itarg = 0
+        nprojSite = 0
+        call screen_opf_lbounds( all_atoms( isite )%info%z, lmin, lmax, ierr, itarg )
+        if( ierr .ne. 0 ) then  ! If element isn't in zeelist, ignore and keep on going
+          ierr = 0
+          cycle
+        endif
+        do l = lmin, lmax
+          call screen_opf_nprojForChannel( all_atoms(isite)%info%z, l, nproj, ierr, itarg )
+          if( ierr .ne. 0 ) return
+          nprojSite = nprojSite + nproj * ( 2*l + 1 )
+        enddo
+        if( nprojSite .gt. nprojMax ) nprojMax = nprojSite
+
+      enddo
+      allocate( betaMatrix( nprojMax, nbandChunk, natoms ) )
+      allocate( atomLookup( uofx%dims(1), uofx%dims(2), uofx%dims(3) ), &
+                atomVec( 3, uofx%dims(1), uofx%dims(2), uofx%dims(3) ) )
+      atomLookup(:,:,:) = 0
+      call swl_atomMap( uofx%dims, natoms, all_atoms, psys%avecs, atomLookup, atomVec )
+    else
+      allocate( betaMatrix(0,0,0), atomLookup(0,0,0), atomVec(0,0,0,0) )
+    endif
+
+    ! 1. preliminary OPF stuff
+    ! 2. secondary temp_wavefunctions, only need single band for now
+    ! 3. Need Inverse A matrixes per site (or assume diagonal for starts), do later regarless??
+    ! 4. Need Beta for each atom, see notes
+
     do iband = 1, nbands, nbandChunk
+      betaMatrix(:,:,:) = 0.0_DP
+
       nbandUse = min( nbandChunk, nbands - iband + 1 )
       uofx%isInitGrid = .false.
 
@@ -384,6 +437,42 @@ module screen_wvfn_converter
       call swl_doConvert( nbandUse, ngvecs, input_gvecs, input_uofg(:,iband:), uofx )
       if( ierr .ne. 0 ) return
       call screen_tk_stop( "swl_DoConvert" )
+
+      ! For valence augmentation or every-site augmentation, make augmentation here
+      ! Alternate approaches
+      ! 1. use FFT grid
+      ! 2. use a second set of sites, one per atom, custom made to match the OPFs
+      !   a. but would still need to project onto the FFT grid
+
+      ! 1. do_project, but with atom sites and temp wave functions
+      ! 2. do modified aug, saving
+      if( screen_system_allAug() ) then
+!        do iiband = iband, iband + nbandUse - 1
+          do isite = 1, natoms
+
+            npts = all_atoms( isite )%grid%Npt
+            if( npts .eq. 0 ) cycle
+
+            fakeq(:) = 0.0_DP
+            call screen_tk_start( "swl_DoProject" )
+            call swl_DoProject( ngvecs, npts, nbandUse, iband, input_uofg(:,iband:), input_gvecs, &
+                                psys%bvecs, psys%avecs, fakeq, &
+                                all_atoms( isite )%grid%posn, uofx, atom_wavefunctions( isite ), ierr )
+            if( ierr .ne. 0 ) return
+            call screen_tk_stop( "swl_DoProject" )
+
+            call swl_DoAugOverlap( all_atoms( isite ), npts, nbandUse, atom_wavefunctions( isite ), & 
+                                   betaMatrix(:,:,isite), ierr, ikpt )
+            if( ierr .ne. 0 ) return
+          enddo
+!        enddo
+    
+        call swl_AugUofX( nbandUse, natoms, all_atoms, betaMatrix, atomLookup, atomVec, uofx, &
+                          psys%avecs, fakeq, ierr )
+        if( ierr .ne. 0 ) return
+      endif
+      uofx%isInitGrid = .false.
+      
     
       do isite = 1, nsites
   !      call screen_tk_start( "singleKInit" )
@@ -405,8 +494,20 @@ module screen_wvfn_converter
                             all_sites( isite )%grid%posn, uofx, temp_wavefunctions( isite ), ierr )
         if( ierr .ne. 0 ) return
         call screen_tk_stop( "swl_DoProject" )
+
+
+        ! augment atoms here, requires exp[ i k r ] phase
+        ! have beta matrix(:,site, bands) 
+          ! 1. Flip sites, bands for beta
+          ! 2. use integer math to segment the cell by the largest augmentation radius
+          ! 3. Loop over all r in site
+          !   4. 
+!        call swl_DoAugAll( nbandUse, iband, psys%avecs, qcart, betaMatrix, &
+!                           natoms, all_atoms, all_sites( isite )%grid, temp_wavefunctions( isite ), ierr )
       enddo
     enddo
+
+    deallocate( betaMatrix, atomLookup, atomVec )
 
     call swl_cleanUofX( uofx )
 
@@ -524,6 +625,10 @@ module screen_wvfn_converter
     integer :: l, m, lmin, lmax, itarg, nproj, maxNproj, ncutoff
     integer :: i, j, k, il, totLM, ib
 
+#ifdef DEBUG
+    character(len=64) :: formatting, fnam
+#endif
+
     if( .not. screen_system_doAugment() ) return
 
     ! gather projector information
@@ -622,7 +727,7 @@ module screen_wvfn_converter
           write ( fnam, '(1a4,2i5.5,1i2.2)' ) '.aug', iq, ib, 10 * l + ( m + l )
           open( unit=99, file=fnam, form='formatted', status='unknown' )
           rewind 99
-          write(formatting, '("(A,"I"(F20.10))")' ) nproj
+          write(formatting, '("(A,"I0"(F20.10))")' ) nproj
           write( 99, formatting ) '#', real(s( : ), DP)
           write( 99, formatting ) '#', aimag(s( : ))
           do k = 1, nproj
@@ -652,6 +757,7 @@ module screen_wvfn_converter
     use screen_sites, only : site
     use screen_opf
     use screen_wavefunction, only : screen_wvfn
+    use ocean_mpi, only : myid, root
 
     type( site ), intent( in ) :: isite
     integer, intent( in ) :: npts, nbands, iq
@@ -669,6 +775,10 @@ module screen_wvfn_converter
     
     integer :: l, m, lmin, lmax, itarg, nproj, maxNproj, ncutoff
     integer :: i, j, k, il, nl, totLM, ib
+
+#ifdef DEBUG
+    character(len=64) :: formatting, filnam
+#endif
 
     if( .not. screen_system_doAugment() ) return
 !    write(6,*) 'Start Augment'
@@ -721,7 +831,7 @@ module screen_wvfn_converter
 #ifdef DEBUG
       if( myid .eq. root ) then
         write(filnam, '(A,I2.2,I1.1)' ) 'amat.', isite%info%z, l
-        write(formatting, '("("I"(F20.10))")' ) nproj
+        write(formatting, '("("I0"(F20.10))")' ) nproj
         open(unit=99,file=filnam) 
         rewind( 99 )
         do i = 1, nproj
@@ -753,7 +863,7 @@ module screen_wvfn_converter
   end subroutine swl_DoAugment_2
 
   subroutine FinishAugment( isite, npts, nbands, iq, ncutoff, maxnproj, lmin, lmax, &
-                            psproj, diffProj, psProj_hold, aMat, wavefunctions, ierr )
+                            psproj, diffProj, psProj_hold, aMat, wavefunctions, ierr, beta, doAug_ )
     use screen_sites, only : site
     use screen_opf
 
@@ -763,6 +873,8 @@ module screen_wvfn_converter
     real(DP), intent( in ), dimension( maxnproj, maxnproj, lmin:lmax ) :: aMat
     complex(DP), intent( inout ) :: wavefunctions( npts, nbands )
     integer, intent( inout ) :: ierr
+    complex(DP), intent( inout ), optional :: beta(:,:)
+    logical, intent( in ), optional :: doAug_
 
     complex(DP), allocatable, dimension( :, : ) :: waveByLM, Delta, Ylm, Smat, Cmat, TCmat, weightedYlmStar, fit
     complex(DP), allocatable :: su(:)
@@ -772,7 +884,19 @@ module screen_wvfn_converter
     complex(DP), parameter :: zero = 0.0_DP
 
     integer :: l, m, itarg, nproj, totLM
-    integer :: i, j, k, il, nl, ib
+    integer :: i, j, k, il, nl, ib, ibeta
+
+    logical :: saveBeta
+    logical :: doAug
+
+#ifdef DEBUG
+    character(len=64) :: fnam, formatting
+#endif
+
+    saveBeta = .false.
+    doAug = .true.
+    if( present( beta ) ) saveBeta = .true.
+    if( present(doAug_ ) ) doAug = doAug_
 
     totLM = ( lmax + 1 ) ** 2
     
@@ -802,6 +926,7 @@ module screen_wvfn_converter
 
     ! loop over bands
     do ib = 1, nbands
+      ibeta = 0
 !      write( 6, * ) ib
 !      call ZGEMM( 'T', 'N', ncutoff, totLM, isite%grid%nang, zone, wavefunctions( :, ib ), &
 !                  isite%grid%nang, weightedYlmStar, isite%grid%nang, zero, waveByLM, ncutoff )
@@ -856,20 +981,32 @@ module screen_wvfn_converter
           enddo
         enddo
 
+        if( saveBeta ) then
+          do i = il, nl
+            do k = 1, nproj
+              ibeta = ibeta + 1
+              beta( ibeta, ib ) = Cmat( k, i )
+              Smat( k, i ) = beta( ibeta, ib )
+            enddo
+          enddo
+        endif
+
 !        ! The conjg is becuase we originially took the star of the wavefunctions and not Ylm
 !        TCmat(:,:) = conjg( transpose( Cmat ) )
 !        TCmat(:,:) = transpose( Cmat )
 
-        ! last time for mixed real/complex
-        do j = 1, nproj
-          do k = 1, ncutoff
-            do i = il, nl
-!              Delta( i, k ) = Delta( i, k ) + TCmat( i, j ) * diffProj( k, j, l )
-              Delta( i, k ) = Delta( i, k ) + Cmat( j, i ) * diffProj( k, j, l )
-              fit( k, i ) = fit( k, i ) + Cmat( j, i ) * psProj_hold( k, j, l )
+        if( doAug ) then
+          ! last time for mixed real/complex
+          do j = 1, nproj
+            do k = 1, ncutoff
+              do i = il, nl
+  !              Delta( i, k ) = Delta( i, k ) + TCmat( i, j ) * diffProj( k, j, l )
+                Delta( i, k ) = Delta( i, k ) + Cmat( j, i ) * diffProj( k, j, l )
+                fit( k, i ) = fit( k, i ) + Cmat( j, i ) * psProj_hold( k, j, l )
+              enddo
             enddo
           enddo
-        enddo
+        endif
 
 #if 0
         do i = il, nl
@@ -882,9 +1019,10 @@ module screen_wvfn_converter
 #endif
             
 #ifdef DEBUG
-        write(formatting, '("(I5,X,I3,"I"(F20.10))")' ) 2*nproj
+        write(formatting, '("(I5,X,I3,"I0"(F20.10))")' ) 2*nproj
         do i = il, nl
         write(5000+iq, formatting ) ib, i, Cmat( :, i )
+        write(5000+iq, formatting ) ib, i, Smat( :, i )
         enddo
 #endif
 
@@ -904,7 +1042,7 @@ module screen_wvfn_converter
           open( unit=99, file=fnam, form='formatted', status='unknown' )
           rewind 99
 !          write ( 99, '(A1,X,16(E20.12))' ) '#', su(:)
-          write(formatting, '("("I"(F20.10))")' ) 5+nproj
+          write(formatting, '("("I0"(F20.10))")' ) 5+nproj
           do k = 1, ncutoff
             write ( 99, formatting ) isite%grid%rgrid(1)%rad( k ), fit( k, i ) , waveByLM(k,i), psProj_hold( k, :, l )
 !            write ( 99, '(5(E20.12))' ) isite%grid%rad( k ), fit( k, i ) , waveByLM(k,i)
@@ -917,20 +1055,21 @@ module screen_wvfn_converter
       ! now augment
 !      call ZGEMM( 'N', 'N', isite%grid%nang, ncutoff, totLM, zone, ylm, isite%grid%nang, &
 !                  Delta, totLM, zone, wavefunctions(:,ib), isite%grid%nang )
-      il = 0
-      do l = lmin, lmax
-        do m = -l, l
-          il = il + 1
-          k = 0
-          do i = 1, ncutoff
-            do j = 1, isite%grid%agrid(1)%nang
-              k = k + 1
-              wavefunctions( k, ib ) = wavefunctions( k, ib ) + Delta( il, i ) * ylm( j, il )
+      if( doAug ) then
+        il = 0
+        do l = lmin, lmax
+          do m = -l, l
+            il = il + 1
+            k = 0
+            do i = 1, ncutoff
+              do j = 1, isite%grid%agrid(1)%nang
+                k = k + 1
+                wavefunctions( k, ib ) = wavefunctions( k, ib ) + Delta( il, i ) * ylm( j, il )
+              enddo
             enddo
           enddo
         enddo
-      enddo
-
+      endif
     enddo
 
 !    deallocate( psproj, diffproj, amat, su )
@@ -942,7 +1081,8 @@ module screen_wvfn_converter
 
 
   subroutine FinishAugment_Split( isite, npts, nbands, iq, ncutoff, maxnproj, lmin, lmax, &
-                            psproj, diffProj, psProj_hold, aMat, wavefunctions, ierr, imag_wvfn )
+                            psproj, diffProj, psProj_hold, aMat, wavefunctions, ierr, imag_wvfn, &
+                            beta, doAug_ )
     use screen_sites, only : site
     use screen_opf
 
@@ -953,6 +1093,8 @@ module screen_wvfn_converter
     real(DP), intent( inout ) :: wavefunctions( npts, nbands )
     integer, intent( inout ) :: ierr
     real(DP), intent( inout ), optional :: imag_wvfn( npts, nbands )
+    complex(DP), intent( inout ), optional :: beta(:,:)
+    logical, intent( in ), optional :: doAug_
 
     real(DP), allocatable, dimension( :, : ) :: waveByLM, Delta, Ylm, imag_waveByLM, imag_Delta
     real(DP), allocatable, dimension( :, : ) :: Smat, Cmat, imag_Smat, imag_Cmat, weightedYlmStar
@@ -962,8 +1104,17 @@ module screen_wvfn_converter
     real(DP), parameter :: zero = 0.0_DP
 
     integer :: l, m, itarg, nproj, totLM
-    integer :: i, j, k, il, nl, ib
+    integer :: i, j, k, il, nl, ib, ibeta
 
+    logical :: saveBeta
+    logical :: doAug
+
+    saveBeta = .false.
+    doAug = .true.
+    if( present( beta ) ) saveBeta = .true.
+    if( present(doAug_ ) ) doAug = doAug_
+
+    ibeta = 0
     totLM = ( lmax + 1 ) ** 2
 
     ! allocate space and carry out preliminary projector prep
@@ -1097,26 +1248,43 @@ module screen_wvfn_converter
           enddo
         endif
 
-
-        ! last time for mixed real/complex
-        do j = 1, nproj
-          do k = 1, ncutoff
-            do i = il, nl
-              Delta( i, k ) = Delta( i, k ) + Cmat( j, i ) * diffProj( k, j, l )
-!              fit( k, i ) = fit( k, i ) + Cmat( j, i ) * psProj_hold( k, j, l )
-            enddo
+        if( saveBeta ) then
+          do i = il, nl
+            do k = 1, nproj
+              ibeta = ibeta + 1
+              if( present( imag_wvfn ) ) then
+                beta( ibeta, ib ) = cmplx( Cmat( k, i ), imag_Cmat( k, i ) )
+              else
+                beta( ibeta, ib ) = Cmat( k, i ) 
+              endif
+            enddo 
           enddo
-        enddo
+        endif
 
-        if( present( imag_wvfn ) ) then
+
+        if( doAug ) then
+
+          ! last time for mixed real/complex
           do j = 1, nproj
             do k = 1, ncutoff
               do i = il, nl
-                imag_Delta( i, k ) = imag_Delta( i, k ) + imag_Cmat( j, i ) * diffProj( k, j, l )
-!                imag_fit( k, i ) = imag_fit( k, i ) + imag_Cmat( j, i ) * psProj_hold( k, j, l )
+                Delta( i, k ) = Delta( i, k ) + Cmat( j, i ) * diffProj( k, j, l )
+  !              fit( k, i ) = fit( k, i ) + Cmat( j, i ) * psProj_hold( k, j, l )
               enddo
             enddo
           enddo
+
+          if( present( imag_wvfn ) ) then
+            do j = 1, nproj
+              do k = 1, ncutoff
+                do i = il, nl
+                  imag_Delta( i, k ) = imag_Delta( i, k ) + imag_Cmat( j, i ) * diffProj( k, j, l )
+  !                imag_fit( k, i ) = imag_fit( k, i ) + imag_Cmat( j, i ) * psProj_hold( k, j, l )
+                enddo
+              enddo
+            enddo
+          endif
+
         endif
 
 
@@ -1132,21 +1300,8 @@ module screen_wvfn_converter
       ! now augment
 !      call ZGEMM( 'N', 'N', isite%grid%nang, ncutoff, totLM, zone, ylm, isite%grid%nang, &
 !                  Delta, totLM, zone, wavefunctions(:,ib), isite%grid%nang )
-      il = 0
-      do l = lmin, lmax
-        do m = -l, l
-          il = il + 1
-          k = 0
-          do i = 1, ncutoff
-            do j = 1, isite%grid%agrid(1)%nang
-              k = k + 1
-              wavefunctions( k, ib ) = wavefunctions( k, ib ) + Delta( il, i ) * ylm( j, il )
-            enddo
-          enddo
-        enddo
-      enddo
 
-      if( present( imag_wvfn ) ) then
+      if( doAug ) then
         il = 0
         do l = lmin, lmax
           do m = -l, l
@@ -1155,13 +1310,29 @@ module screen_wvfn_converter
             do i = 1, ncutoff
               do j = 1, isite%grid%agrid(1)%nang
                 k = k + 1
-                imag_wvfn( k, ib ) = imag_wvfn( k, ib ) + imag_Delta( il, i ) * ylm( j, il )
+                wavefunctions( k, ib ) = wavefunctions( k, ib ) + Delta( il, i ) * ylm( j, il )
               enddo
             enddo
           enddo
         enddo
-      endif
 
+        if( present( imag_wvfn ) ) then
+          il = 0
+          do l = lmin, lmax
+            do m = -l, l
+              il = il + 1
+              k = 0
+              do i = 1, ncutoff
+                do j = 1, isite%grid%agrid(1)%nang
+                  k = k + 1
+                  imag_wvfn( k, ib ) = imag_wvfn( k, ib ) + imag_Delta( il, i ) * ylm( j, il )
+                enddo
+              enddo
+            enddo
+          enddo
+        endif
+
+      endif !doAug
     enddo
 
     if( present( imag_wvfn ) ) deallocate( imag_Delta, imag_waveByLM )
@@ -1565,7 +1736,7 @@ module screen_wvfn_converter
 
         write(1000+myid,'(A,3(X,I0))') 'Initial: ', uofxDims(:)
 !        uofxDims(:) = (uofxDims(:) -1)*2
-        uofxDims(:) = (uofxDims(:))*2
+        uofxDims(:) = (uofxDims(:))*4
         write(1000+myid,'(A,3(X,I0))') 'Final  : ', uofxDims(:)
 
         ! This changes the FFT grid to factor to reasonably small primes
@@ -2274,6 +2445,12 @@ module screen_wvfn_converter
     deallocate( P, Q, QGrid, RGrid )
     deallocate( pointMap, phase )
 
+
+!#ifdef DEBUG
+!    write( fnam, '' ) '.wvfn', iq, ib + iband -1
+!    open(unit=99, file=fnam, form='formatted', status='unknown' )
+!    rad = posn(
+!#endif
 
 
   end subroutine swl_ComplexDoLagrange
@@ -3450,7 +3627,7 @@ module screen_wvfn_converter
         ylm = 0.0_DP
     end select
 
-  end subroutine
+  end subroutine real_ylmeval
 
   subroutine OLD_real_ylmeval( l, m, x, y, z, ylm, prefs )
     implicit none
@@ -3630,5 +3807,540 @@ module screen_wvfn_converter
 
   end subroutine inv3x3
 
+  subroutine swl_DoAugOverlap( isite, npts, nbands, wavefunctions, betaMatrix, ierr, iq )
+    use screen_system, only : screen_system_allaug
+    use screen_sites, only : site
+    use screen_opf
+    use screen_wavefunction, only : screen_wvfn
+
+    type( site ), intent( in ) :: isite
+    integer, intent( in ) :: npts, iq
+    integer, intent( in ) :: nbands
+    type( screen_wvfn ), intent( inout ) :: wavefunctions
+    complex(DP), intent( inout ) :: betaMatrix( :, : )
+    integer, intent( inout ) :: ierr
+
+
+    real(DP), allocatable, dimension( :, :, : ) :: psproj, diffproj, amat, psproj_hold
+
+    integer :: l, m, lmin, lmax, itarg, nproj, maxNproj, ncutoff
+    integer :: i, j, k, il, nl, totLM, ib
+
+
+    if( .not. screen_system_allaug() ) return
+    if( isite%grid%npt .eq. 0 ) return
+
+    call screen_opf_lbounds( isite%info%z, lmin, lmax, ierr, itarg )
+    if( ierr .ne. 0 ) return
+    call screen_opf_getNCutoff( isite%info%z, ncutoff, isite%grid%rgrid(1)%rad, ierr, itarg )
+    if( ierr .ne. 0 ) return
+
+    call screen_opf_maxNproj( isite%info%z, maxNproj, ierr, itarg )
+    if( ierr .ne. 0 ) return
+
+    totLM = ( lmax + 1 ) ** 2
+
+    allocate( psproj( ncutoff, maxnproj, lmin:lmax ), diffproj( ncutoff, maxnproj, lmin:lmax ), &
+              amat( maxnproj, maxnproj, lmin:lmax ), psproj_hold( ncutoff, maxnproj, lmin:lmax ), stat=ierr )
+    if( ierr .ne. 0 ) return
+    psproj = 0.0_DP
+    psproj_hold = 0.0_DP
+
+    do l = lmin, lmax
+      call screen_opf_nprojForChannel( isite%info%z, l, nproj, ierr, itarg )
+      if( ierr .ne. 0 ) return
+
+      call screen_opf_interpProjs( isite%info%z, l, isite%grid%rgrid(1)%rad, psproj(:,:,l), &
+                                   diffproj(:,:,l), ierr, itarg )
+      if( ierr .ne. 0 ) return
+
+      call screen_opf_makeAMat( nproj, ncutoff, isite%grid%rgrid(1)%rad, isite%grid%rgrid(1)%drad, &
+                                psproj(:,:,l), amat(:,:,l), ierr )
+      if( ierr .ne. 0 ) return
+
+      ! precompute r^2 dr on the ps projector
+      do i = 1, nproj
+        do j = 1, ncutoff
+          psproj_hold( j, i, l ) = psproj( j, i, l )
+          psproj( j, i, l ) = psproj( j, i, l ) * isite%grid%rgrid(1)%rad( j ) ** 2 * isite%grid%rgrid(1)%drad( j )
+        enddo
+      enddo
+    enddo
+
+    if( wavefunctions%isSplit ) then
+      if( wavefunctions%isGamma ) then
+        ierr = -124
+      else
+        call FinishAugment_Split( isite, npts, nbands, iq, ncutoff, maxnproj, lmin, lmax, &
+                                  psproj, diffProj, psProj_hold, aMat, &
+                                  wavefunctions%real_wvfn(:,:,1), ierr, wavefunctions%imag_wvfn(:,:,1), & 
+                                  betaMatrix, .false. )
+      endif
+    else
+        call FinishAugment( isite, npts, nbands, iq, ncutoff, maxnproj, lmin, lmax, &
+                                  psproj, diffProj, psProj_hold, aMat, &
+                                  wavefunctions%wvfn(:,:,1), ierr, betaMatrix, .false. )
+    endif
+
+    deallocate( psproj, diffproj, amat, psProj_hold )
+
+  end subroutine swl_DoAugOverlap
+
+#if 0
+  subroutine swl_DoAugAll( nbandUse, iband, avecs, qcart, betaMatrix, &
+                           natoms, all_atoms, grid, wvfn, ierr )
+    use ocean_constants, only : pi_dp
+    use ocean_mpi, only : myid
+    use screen_wavefunction, only : screen_wvfn
+    use screen_sites, only : site
+    use screen_grid, only : sgrid
+
+    integer, intent( in ) :: nbandUse, iband, natoms
+    real( DP ), intent( in ) :: avecs(3,3), qcart(3)
+    complex( DP ), intent( in ) :: betaMatrix(:,:,:)
+    type( site ), intent( in ) :: all_atoms( natoms )
+    type( sgrid ), intent( in ) :: grid
+    type( screen_wvfn ), intent( inout ) :: wvfn
+    integer, intent( inout ) :: ierr
+
+    complex(DP), allocatable :: phase(:)
+    real(DP) :: rvec(3), phse, invAvecs(3,3), shiftedPosn(3), tempAtom(3), vec(3), rmax, dist, &
+                deltaR, deltaAng
+    integer :: ip, iatom, i, j, k, itarg, npt, nang, ir, iang, iinter
+    logical :: found
+    real(DP), allocatable :: prefs(:)
+
+    if( natoms .lt. 1 ) return
+
+    npt = grid%npt
+
+    call inv3x3( avecs, invAvecs, ierr )
+    if( ierr .ne. 0 ) return
+
+    allocate( phase( npt ), stat=ierr )
+    if( ierr .ne. 0 ) return
+
+    allocate( prefs(0:1000) )
+    call getprefs( prefs )
+
+    do ip = 1, npt
+      phse = dot_product( qcart(:), grid%posn(:,ip) )
+      phase( ip ) = cmplx( dcos(phse), dsin(phse), DP )
+    enddo
+
+    totLM = 0
+    maxNproj = 0
+    icount = 0
+    minr = grid%rmax
+    do iatom = 1, natoms
+      if( all_atoms( iatom )%grid%npt .eq. 0 ) cycle
+      icount = icount + 1
+      call screen_opf_lbounds( all_atoms(iatom)%info%z, lmin, lmax, ierr, itarg )
+      if( ierr .ne. 0 ) return
+      if( (lmax+1)**2 .gt. totLM ) totLM = (lmax+1)**2
+      call screen_opf_maxNproj( all_atoms(iatom)%info%z, Nproj, ierr, itarg )
+      if( Nproj .gt. maxNproj ) maxNproj = Nproj
+      if( minr .gt. all_atoms(iatom)%grid%rmax ) minr = all_atoms(iatom)%grid%rmax
+    enddo
+    if( maxNproj .eq. 0 ) return
+
+!    maxAtoms = icount * 27
+    maxAtoms = 0.06 * 4.0_DP * (grid%rmax-minr)**3 + 10
+!    allocate( amat( maxNproj, maxNproj, totLM, maxAtoms ) )
+    
+    !JTV here we should test for distance possibilities
+    icount = 0
+    do iatom = 1, natoms
+      call screen_opf_lbounds( all_atoms(iatom)%info%z, lmin, lmax, ierr, itarg )
+      if( ierr .ne. 0 ) return
+      
+      do ix = -2, 2
+        do iy = -2, 2
+          do iz = -2, 2
+            tempAtom(:) = all_atoms( iatom )%grid%center(:) &
+                        + dble(ix) * avecs(:,1) + dble(iy) * avecs(:,2) + dble(iz) * avecs(:,3)
+            dist = ( tempAtom(1) - grid%center(1) ) ** 2 &
+                 + ( tempAtom(2) - grid%center(2) ) ** 2 &
+                 + ( tempAtom(3) - grid%center(3) ) ** 2
+            if( dist .lt. ( grid%rmax - all_atoms( iatom )%grid%rmax ) ) then
+              icount = icount + 1
+!              call screen_opf_offSiteMakeAmat( all_atoms( iatom ), tempAtom, &
+!                  grid%posn, amat(:,:,:,icount), norm, ierr )
+              atomlist(icount) = iatom
+              atomcenterlist( :, icount ) = tempAtom(:)
+!              if( norm .gt. 0.2) icount = icount - 1 ! if the amat is too terrible, don't augment
+!              call screen_opf_offSiteNormalize( all_atoms( iatom ), tempAtom, &
+!                   grid%posn, norm(:,:), jcount
+
+            endif
+          enddo
+        enddo
+      enddo
+    enddo
+
+  end subroutine DoAugAll
+#endif
+
+#if 0
+  subroutine swl_DoAugAll_prev( nbandUse, iband, avecs, qcart, betaMatrix, &
+                           natoms, all_atoms, grid, wvfn, ierr )
+    use ocean_constants, only : pi_dp
+    use ocean_mpi, only : myid
+    use screen_wavefunction, only : screen_wvfn
+    use screen_sites, only : site
+    use screen_grid, only : radial_grid, angular_grid, sgrid
+    
+    integer, intent( in ) :: nbandUse, iband, natoms
+    real( DP ), intent( in ) :: avecs(3,3), qcart(3)
+    complex( DP ), intent( in ) :: betaMatrix(:,:,:)
+    type( site ), intent( in ) :: all_atoms( natoms )
+!    real( DP ), intent( in ) :: posn( 3, npts )
+    type( screen_sgrid ), intent( in ) :: grid
+    type( screen_wvfn ), intent( inout ) :: wvfn
+    integer, intent( inout ) :: ierr
+
+    complex(DP), allocatable :: phase(:)
+    real(DP) :: rvec(3), phse, invAvecs(3,3), shiftedPosn(3), tempAtom(3), vec(3), rmax, dist, &
+                deltaR, deltaAng
+    integer :: ip, iatom, i, j, k, itarg, npt, nang, ir, iang, iinter
+    logical :: found
+    real(DP), allocatable :: prefs(:)
+
+    if( natoms .lt. 1 ) return
+
+    npt = grid%npt
+
+    call inv3x3( avecs, invAvecs, ierr )
+    if( ierr .ne. 0 ) return
+
+    allocate( phase( npt ), stat=ierr )
+    if( ierr .ne. 0 ) return
+
+    allocate( prefs(0:1000) )
+    call getprefs( prefs )
+
+    do ip = 1, npt
+!      do j = 1, 3
+!        rvec( j ) = dot_product( invAvecs( :, j ), posn( :, ip ) )
+!      enddo
+
+      phse = dot_product( qcart(:), posn(:,ip) )
+      phase( ip ) = cmplx( dcos(phse), dsin(phse), DP )
+    enddo
+    
+  
+    ! Here if the cell were larger we'd grid the atomic sites
+    rmax = 0.0_DP
+    do iatom = 1, natoms
+      if( all_atoms( iatom )%grid%rmax .gt. rmax ) rmax = all_atoms( iatom )%grid%rmax
+    enddo
+    if( rmax .eq. 0.0_DP ) return  ! all sites are empty!
+
+    itarg = 0
+    
+!    do ip = 1, npt
+    ip = 0
+    do iinter = 1, grid%ninter
+      deltaAng = 2.0_DP / real( grid%agrid(iinter)%nang, DP )
+      do ir = 1, grid%rgrid(iinter)%nr
+        do iang = 1, grid%agrid(iinter)%nang
+          ip = ip + 1
+
+      do j = 1, 3
+        rvec( j ) = dot_product( invAvecs( :, j ), grid%posn( :, ip ) )
+        do while( rvec(j) .gt. 1.0_DP )
+          rvec(j) = rvec(j) - 1.0_DP
+        enddo
+        do while( rvec(j) .lt. 1.0_DP )
+          rvec(j) = rvec(j) + 1.0_DP
+        enddo
+      enddo
+      
+      shiftedPosn( : ) = matmul( avecs, rvec )
+      if( mod( ip, 20 ) .eq. 0 ) write(1000+myid,*) grid%posn(:,ip), shiftedPosn(:)
+
+      do iatom = 1, natoms
+
+        ! skip empty sites
+        if( all_atoms( iatom )%grid%npt .eq. 0 ) cycle
+
+        found = .false.
+        
+        do i = -1, 1
+          do j = -1, 1
+            do k = -1, 1
+              tempAtom(:) = all_atoms( iatom )%grid%center(:) & 
+                          + dble( i ) * avecs(:,1) + dble( j ) * avecs(:,2) + dble(k) * avecs(:,3)
+              dist = ( tempAtom(1) - shiftedPosn(1) ) ** 2 &
+                   + ( tempAtom(2) - shiftedPosn(2) ) ** 2 &
+                   + ( tempAtom(3) - shiftedPosn(3) ) ** 2 
+              if( sqrt( dist ) .lt. all_atoms( iatom )%grid%rmax ) then
+                found = .true.
+                goto 135
+              endif
+            enddo 
+          enddo
+        enddo
+
+135     continue
+        if( found ) then
+          ! if the smapling is too rough, skip augmentation
+          scaleRmax = 0.25_DP * all_atoms( iatom )%grid%rmax
+          if( deltaAng * grid%rad( ir ) .lt. scaleRmax .and. grid%drad( ir ) .lt. scaleRmax ) then
+            vec(:) = tempAtom(:) - grid%posn(:,ip)
+            call AugAtPosn( ip, nbandUse, iband, qcart, vec, dist, phase( ip ), &
+                            all_atoms( iatom ), wvfn, itarg, prefs, betamatrix(:,:,iatom), ierr )
+          endif
+        endif
+      enddo
+    enddo
+
+    deallocate( phase, prefs )
+  end subroutine swl_DoAugAll_prev
+#endif
+
+
+  subroutine AugAtPosn( ip, nbandUse, iband, qcart, vec, dist, phase, isite, wavefunctions, itarg, prefs, betamatrix, ierr )
+    use screen_sites, only : site
+    use screen_opf, only : screen_opf_lbounds, screen_opf_maxNproj, screen_opf_interpSingleDelta, &
+                           screen_opf_nprojForChannel
+    use screen_wavefunction, only : screen_wvfn
+
+    integer, intent( in ) :: ip, nbandUse, iband
+    real(DP), intent( in ) :: qcart(3), vec(3), dist
+    type( site ), intent( in ) :: isite
+    type( screen_wvfn ), intent( inout ) :: wavefunctions
+    integer, intent( inout) :: itarg
+    real(DP), intent( in )  :: prefs(:)
+    complex(DP), intent( in ) :: betamatrix(:,:), phase
+    integer, intent( inout ) :: ierr
+
+    complex(DP), allocatable :: ylm(:)
+    complex(DP) :: tmp
+    real(DP), allocatable :: delta(:,:)
+
+    integer :: lmin, lmax, maxNproj, nproj, l, m, n, i, il, ib
+
+    call screen_opf_lbounds( isite%info%z, lmin, lmax, ierr, itarg )
+    if( ierr .ne. 0 ) return
+    call screen_opf_maxNproj( isite%info%z, maxNproj, ierr, itarg )
+    if( ierr .ne. 0 ) return
+
+    
+    allocate( ylm((lmax+1)**2), delta( maxNproj, lmin:lmax ) )
+    i = 0
+    do l = lmin, lmax
+      do m = -l, l
+        i = i + 1
+        call ylmeval( l, m, vec(1), vec(2), vec(3), ylm(i), prefs )
+      enddo
+    enddo
+
+    
+    do l = lmin, lmax
+      call screen_opf_interpSingleDelta( isite%info%z, l, dist, delta(:,l), ierr, itarg )
+    enddo
+
+
+    do ib = iband, iband+nbandUse-1
+      tmp = 0.0_DP
+      i = 0
+      il = 0
+      do l = lmin, lmax
+        call screen_opf_nprojForChannel( isite%info%z, l, nproj, ierr, itarg )
+        do m = -l, l
+          il = il + 1
+          do n = 1, nproj
+            i = i + 1
+            tmp = tmp + ylm(il) * delta(n,l) * betamatrix( i, ib - iband+1 )
+          enddo
+        enddo
+      enddo
+      tmp = tmp * phase
+
+      if( wavefunctions%isSplit ) then
+        wavefunctions%real_wvfn( ip, ib, 1 ) = wavefunctions%real_wvfn( ip, ib, 1 ) + real( tmp, DP )
+        if( .not. wavefunctions%isGamma ) then
+          wavefunctions%imag_wvfn( ip, ib, 1 ) = wavefunctions%imag_wvfn( ip, ib, 1 ) + aimag( tmp )
+        endif
+      else
+        wavefunctions%wvfn( ip, ib, 1 ) = wavefunctions%wvfn( ip, ib, 1 ) + tmp
+      endif
+    enddo
+
+    deallocate( ylm, delta )
+
+  end subroutine AugAtPosn
+  
+  subroutine swl_atomMap( dims, natoms, all_atoms, avecs, atomLookup, atomVec )
+    use screen_sites, only : site
+
+    integer, intent( in ) :: dims(3), natoms
+    type( site ), intent( in ) :: all_atoms( natoms )
+    real(DP), intent( in ) :: avecs(3,3)
+    integer, intent( inout ) :: atomLookup( dims(1), dims(2), dims(3) )
+    real(DP), intent( inout ) :: atomVec( 3, dims(1), dims(2), dims(3) )
+
+    integer :: ix, iy, iz, iix, iiy, iiz, iatom, i
+    real(DP) :: xcoord(3), tempAtom(3), vec(3), dist
+
+    do iz = 1, dims(3)
+!      xcoord(3) = real( iz - 1, DP )/real(dims(3),DP)
+      do iy = 1, dims(2)
+!        xcoord(2) = real( iy - 1, DP )/real(dims(2),DP)
+        do ix = 1, dims(1)
+!          xcoord(1) = real( ix - 1, DP )/real(dims(1),DP)
+          xcoord(:) = 0.0_DP
+          do i = 1, 3
+            xcoord(i) = xcoord(i) + real( ix - 1, DP )/real(dims(1),DP) * avecs(i,1) &
+                      + real( iy - 1, DP )/real(dims(2),DP) * avecs(i,2) &
+                      + real( iz - 1, DP )/real(dims(3),DP) * avecs(i,3) 
+          enddo
+
+          do iatom = 1, natoms
+            if( all_atoms( iatom )%grid%npt .eq. 0 ) cycle
+            do iix = 0, 0 !-1, 1
+              do iiy = 0, 0 !-1, 1
+                do iiz = 0, 0 !-1, 1
+
+                  tempAtom(:) = all_atoms( iatom )%grid%center(:) &
+                              + real(iix,DP) * avecs(:,1) + real(iiy,DP) * avecs(:,2) &
+                              + real(iiz,DP) * avecs(:,3)
+                  vec(:) = tempAtom(:) - xcoord(:)
+                  dist = sqrt( vec(1)**2 + vec(2)**2 + vec(3)**2 )
+                  if( dist .lt. all_atoms( iatom )%grid%rmax ) then
+                    atomLookup(ix,iy,iz) = iatom
+                    atomVec(:,ix,iy,iz) = vec(:)
+                    goto 2020
+                  endif
+                enddo
+              enddo
+            enddo
+          enddo
+
+2020      continue
+        enddo
+      enddo
+    enddo
+  end subroutine swl_atomMap
+
+
+  subroutine swl_AugUofX( nbandUse, natoms, all_atoms, betaMatrix, atomLookup, atomVec, uofx, &
+                          avecs, qcart, ierr )
+    use screen_sites, only : site
+    use screen_opf, only : screen_opf_lbounds, screen_opf_nprojForChannel, screen_opf_interpSingleDelta
+
+    integer, intent( in ) :: nbandUse, natoms
+    type( site ), intent( in ) :: all_atoms( natoms )
+    complex(DP), intent( in ) :: betaMatrix(:,:,:)
+    integer, intent( in ) :: atomLookup(:,:,:)
+    real(DP), intent( in ) :: atomVec(:,:,:,:)
+    type( xHolder ), intent( inout ) :: uofx
+    real(DP), intent( in ) :: avecs(3,3), qcart(3)
+    integer, intent( inout ) :: ierr
+
+
+    integer :: xchunk, iz, iy, ix, iix, i, l, m, ip, ib, itarg, xstop, lmin, lmax, nproj
+    complex(DP) :: dephase
+    complex(DP), allocatable :: delta(:,:), TD(:,:)
+    real(DP), allocatable :: projDelta(:)
+    real(DP) :: ylm, rad, phse,posn(3)
+
+    
+    xchunk = min( 32, uofx%dims(1) )
+
+    if( uofx%dims(1) .lt. 1 ) return
+
+
+    allocate( delta( xchunk, nbandUse ), projDelta( size(betaMAtrix,1) ) )
+    allocate( TD( nbandUse, xchunk ) )
+    itarg = 0
+!    write(6,*) betaMatrix(:,1,2)
+
+    do iz = 1, uofx%dims(3)
+      do iy = 1, uofx%dims(2)
+        do ix = 1, uofx%dims(1), xchunk
+          xstop = min( ix + xchunk-1, uofx%dims(1) )
+          TD(:,:) = 0.0_DP
+          do iix = ix, xstop
+            if( atomLookup( iix, iy, iz ) .eq. 0 ) cycle
+
+            posn(:) = real( iix - 1, DP )/real( uofx%dims(1), DP ) * avecs(:,1) &
+                    + real( iy - 1, DP )/real( uofx%dims(2), DP ) * avecs(:,2) &
+                    + real( iz - 1, DP )/real( uofx%dims(3), DP ) * avecs(:,3)
+            phse = dot_product( qcart(:), posn(:) )
+            dephase = cmplx( dcos(phse), -dsin(phse), DP )
+  
+            ! Get delta as a function of projectors for this site
+            call screen_opf_lbounds( all_atoms( atomLookup( iix, iy, iz ) )%info%z, lmin, lmax, ierr, itarg )
+            if( ierr .ne. 0 ) return
+
+            rad = sqrt( atomVec(1,iix,iy,iz)**2 + atomVec(2,iix,iy,iz)**2 + atomVec(3,iix,iy,iz)**2 )
+            i = 0
+            do l = lmin, lmax
+              call screen_opf_nprojForChannel( all_atoms( atomLookup( iix, iy, iz ) )%info%z, &
+                                               l, nproj, ierr, itarg )
+              if( ierr .ne. 0 ) return
+
+              call screen_opf_interpSingleDelta( all_atoms( atomLookup( iix, iy, iz ) )%info%z, &
+                                                 l, rad, projDelta, ierr, itarg )
+              if( ierr .ne. 0 ) return
+
+              do m = -l, l
+                call real_ylmeval( l, m, atomVec(1,iix,iy,iz), atomVec(2,iix,iy,iz), &
+                                   atomVec(3,iix,iy,iz), ylm )
+                do ip = 1, nproj
+                  i = i + 1
+                  do ib = 1, nbandUse !JTV fix the loop orderings
+!                    delta( iix - ix + 1, ib ) = delta( iix, ix + 1, ib ) &
+                    TD( ib, iix - ix + 1 ) = TD( ib, iix - ix + 1 ) &
+                                           + projDelta(ip) * ylm * betaMatrix( i, ib, atomLookup( iix, iy, iz ) ) &
+                                           * dephase 
+                  enddo
+                enddo
+              enddo
+            enddo
+!            write(6, * ) iix, iy, iz, TD( :, iix - ix + 1 ) 
+!                        sqrt( real( TD( 1, iix-ix+1 )*conjg(TD( 1, iix-ix+1 )),DP) / &
+!                              real( uofx%cUofX(iix,iy,iz,1) * conjg(uofx%cUofX(iix,iy,iz,1)), DP ) )
+!                                      all_atoms( atomLookup( iix, iy, iz ) )%info%z, &
+!                         TD( 1, iix-ix+1 ), uofx%cUofX(iix,iy,iz,1)
+          enddo
+          delta = transpose( TD )
+          do ib = 1, nbandUse
+            do iix = ix, xstop
+!              rad = real(delta( iix-ix+1, ib )*conjg(delta( iix-ix+1, ib )),DP)
+!              if( rad .gt. 0.01_DP ) then
+!                write(6,*) uofx%cUofX(iix,iy,iz,ib)
+!                write(6,*) delta( iix-ix+1, ib ), TD( ib,  iix-ix+1 )
+!              endif
+              uofx%cUofX(iix,iy,iz,ib) = uofx%cUofX(iix,iy,iz,ib) + delta( iix-ix+1, ib ) 
+!              if( rad .gt. 0.01_DP ) then
+!                write(6,*) uofx%cUofX(iix,iy,iz,ib), iix, iy, iz, ib
+!              endif
+            enddo
+          enddo
+
+        enddo
+      enddo
+    enddo
+
+    call screen_opf_lbounds( all_atoms(2)%info%z, lmin, lmax, ierr, itarg )
+    do ib = 1, nbandUse
+      i = 0
+      do l = lmin, lmax
+        call screen_opf_nprojForChannel( all_atoms(2)%info%z, l, nproj, ierr, itarg )
+        do m = -l, l
+          do ip = 1, nproj
+            i = i + 1
+            write(6000,*) ib, 2*l+m+1, betaMatrix( i, ib, 2 )
+          enddo
+        enddo
+      enddo
+    enddo
+
+    deallocate( delta, projDelta )
+
+  end subroutine swl_AugUofX
 
 end module screen_wvfn_converter

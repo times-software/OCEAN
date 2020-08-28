@@ -11,9 +11,9 @@ program screen_driver
   use ocean_mpi, only : ocean_mpi_init, ocean_mpi_finalize, comm, myid, root
 !  use screen_grid
   use screen_system, only : screen_system_load, screen_system_summarize, screen_system_setGamma, &
-                            screen_system_appx
+                            screen_system_appx, screen_system_natoms, screen_system_allAug
   use screen_sites, only : screen_sites_load, screen_sites_prep, &
-                           site
+                           site, screen_sites_load_atom
   use screen_energy, only : screen_energy_init, screen_energy_load, screen_energy_find_fermi
   use ocean_dft_files, only : odf_init, odf_clean, odf_isGamma
   use screen_wvfn_converter, only : screen_wvfn_converter_driver
@@ -30,12 +30,14 @@ program screen_driver
   implicit none
 
   type( site ), allocatable :: all_sites( : )
+  type( site ), allocatable :: all_atoms( : )
 !  type( potential ), allocatable :: znlPotentials( : )
 
 !  integer, allocatable :: tmp_znl( :, : )
 
   integer :: ierr
   integer :: nsites
+  integer :: natoms
 !  integer :: znlLength
 
 
@@ -72,6 +74,15 @@ program screen_driver
   call screen_sites_load( nsites, all_sites, ierr )
   if( ierr .ne. 0 ) goto 111
   !
+  if( screen_system_allAug() ) then
+    natoms = screen_system_natoms()
+    allocate( all_atoms( natoms ) )
+    call screen_sites_load_atom( natoms, all_atoms, ierr )
+    if( ierr .ne. 0 ) goto 111
+  else
+    natoms = 0
+    allocate( all_atoms( 0 ) )
+  endif
 
 !  write(6,*) 'screen_centralPotential_loadInternal'
 !  ! load up potentials to be screened later
@@ -105,7 +116,7 @@ program screen_driver
   if( ierr .ne. 0 ) goto 111
 
   
-  call screen_wvfn_converter_driver( nsites, all_sites, ierr )
+  call screen_wvfn_converter_driver( nsites, all_sites, natoms, all_atoms, ierr )
   if( ierr .ne. 0 ) goto 111
 
   call odf_clean( ierr )
