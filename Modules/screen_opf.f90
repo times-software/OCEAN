@@ -34,7 +34,7 @@ module screen_opf
   public :: screen_opf_init, screen_opf_clean, screen_opf_makeNew, screen_opf_loadAll, &
             screen_opf_lbounds, screen_opf_getNCutoff, screen_opf_nprojForChannel, &
             screen_opf_interpProjs, screen_opf_makeAMat, screen_opf_maxNproj, screen_opf_AltInterpProjs, &
-            screen_opf_largestL, screen_opf_getRMax, screen_opf_interpPSProjs
+            screen_opf_largestL, screen_opf_getRMax, screen_opf_interpPSProjs, screen_opf_interpSingleDelta
 
   public :: screen_opf_largestLMNproj
   
@@ -465,6 +465,54 @@ module screen_opf
 #endif
 
   end subroutine screen_opf_interpProjs
+
+
+  subroutine screen_opf_interpSingleDelta(  zee, l, rad, delta, ierr, itarg, psout, aeout )
+    use OCEAN_mpi, only : myid, root
+    integer, intent( in ) :: zee, l
+    real(DP), intent( in ) :: rad
+    real(DP), intent( out ) :: delta(:)
+    integer, intent( inout ) :: ierr
+    integer, intent( inout ), optional :: itarg
+    real(DP), intent( out ), optional :: psout(:), aeout(:)
+    !
+    integer :: targ, i, p
+    real(DP) :: ps, ae
+
+    if( present( itarg ) ) then
+      if( isRightTarg( zee, itarg ) ) then
+        targ = itarg
+      else
+        targ = getRightTarg( zee )
+      endif
+    else
+      targ = getRightTarg( zee )
+    endif
+
+    if( targ .lt. 1 ) then
+      ierr = 1
+      return
+    endif
+
+    if( present( itarg ) ) itarg = targ
+
+    if( size( delta ) .lt. FullTable( targ )%nprojPerChannel( l ) ) then
+      ierr = 2
+      return
+    endif
+
+    do p = 1, FullTable( targ )%nprojPerChannel( l )
+      call intval( FullTable( targ )%nrad, FullTable( targ )%rad, FullTable( targ )%psProj( :, p, l ), &
+                   rad, ps, 'cap', 'zer' )
+      call intval( FullTable( targ )%nrad, FullTable( targ )%rad, FullTable( targ )%aeProj( :, p, l ), &
+                   rad, ae, 'cap', 'zer' )
+      delta(p) = ae - ps
+      if( present( psout ) ) psout(p) = ps  
+      if( present( aeout ) ) aeout(p) = ae
+    enddo
+
+  end subroutine screen_opf_interpSingleDelta
+
 
   subroutine screen_opf_loadAll( ierr, zeelist )
     use OCEAN_mpi, only : myid, root, comm, MPI_INTEGER
@@ -972,10 +1020,26 @@ module screen_opf
           ii = ii + 1
        end do
     end if
-    if ( interp ) then
-       rat = ( x - xtab( ii ) ) / ( xtab( ii + 1 ) - xtab( ii ) )
-       y = ytab( ii ) + rat * ( ytab( ii + 1 ) - ytab( ii ) )
-    end if
+!    if ( interp ) then
+!    end if
+    if( interp ) then
+      if( ( xtab( ii + 1 ) - xtab( ii ) ) .lt. 0.0000001_dp ) then
+          y = ( ytab( ii ) + ytab( ii + 1 ) ) / 2.0_dp
+      elseif( ii .eq. 1 .or. ii + 1 .eq. n .or. ( xtab( ii + 1 ) - xtab( ii ) ) .lt. 9.0001_DP ) then
+         rat = ( x - xtab( ii ) ) / ( xtab( ii + 1 ) - xtab( ii ) )
+         y = ytab( ii ) + rat * ( ytab( ii + 1 ) - ytab( ii ) )
+      else
+         y = ytab(ii-1) * ( x - xtab(ii) ) * ( x - xtab(ii+1) ) * (x-xtab(ii+2)) &
+                        / ((xtab(ii-1) - xtab(ii))*(xtab(ii-1)-xtab(ii+1))*(xtab(ii-1)-xtab(ii+2))) &
+           + ytab(ii) * (x-xtab(ii-1))*(x-xtab(ii+1))*(x-xtab(ii+2)) &
+                      / ((xtab(ii) - xtab(ii-1))*(xtab(ii)-xtab(ii+1))*(xtab(ii)-xtab(ii+2))) &
+           + ytab(ii+1) * (x-xtab(ii-1))*(x-xtab(ii))*(x-xtab(ii+2)) &
+                        / ((xtab(ii+1) - xtab(ii-1))*(xtab(ii+1)-xtab(ii))*(xtab(ii+1)-xtab(ii+2))) &
+           + ytab(ii+2) * (x-xtab(ii-1))*(x-xtab(ii))*(x-xtab(ii+1)) &
+                        / ((xtab(ii+2) - xtab(ii-1))*(xtab(ii+2)-xtab(ii))*(xtab(ii+2)-xtab(ii+1)))
+
+      endif
+    endif
     !
     return
   end subroutine intval

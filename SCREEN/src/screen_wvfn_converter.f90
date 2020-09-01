@@ -862,6 +862,113 @@ module screen_wvfn_converter
 
   end subroutine swl_DoAugment_2
 
+#if 0
+  subroutine swl_DoAugment_offSite( isite, npts, nbands, iq, wavefunctions, natoms, all_atoms, avecs, ierr )
+    use screen_system, only : screen_system_allaug
+    use screen_sites, only : site
+    use screen_opf
+    use screen_wavefunction, only : screen_wvfn
+    use ocean_mpi, only : myid, root
+
+    type( site ), intent( in ) :: isite, all_atoms( natoms )  ! using this for the atom list is a hack
+    ! should be replaced
+    integer, intent( in ) :: npts, nbands, iq, natoms
+    type( screen_wvfn ), intent( inout ) :: wavefunctions
+    real( DP ), intent( in ) :: avecs(3,3)
+    integer, intent( inout ) :: ierr
+
+
+    real(DP), allocatable :: psproj, diffproj
+
+    real(DP) :: maxDist, dist, temp_atom(3)
+    integer :: iatom, iz, iy, ix, ipt
+    integer :: itarg, lmin, lmax, nproj
+
+    if( not. screen_system_allaug() ) return
+
+    itarg = 0
+    
+    do iatom = 1, natoms
+      ! This tests if we do augmentation for this atom type
+      if( all_atoms( iatom )%grid%npt .eq. 0 ) cycle
+
+      ! Only include atoms that are fully contained within grid
+      maxDist = isite%grid%rmax - 2.0_DP * all_atoms( iatom )%grid%rmax
+
+
+      call screen_opf_lbounds( isite%info%z, lmin, lmax, ierr, itarg )
+      if( ierr .ne. 0 ) return
+
+
+      !JTV make more robust at some point
+      do iz = -2, 2
+        do iy = -2, 2
+          do ix = -2, 2
+      
+            temp_atom(:) = all_atoms( iatom )%grid%center + avecs(:,1)*real(ix,DP) &
+                         + avecs(:,2)*real(iy,DP) + avecs(:,3)*real(iz,DP)
+
+            dist = sqrt( (temp_atom(1)-isite%grid%center(1))**2 + (temp_atom(2)-isite%grid%center(2))**2 
+                        + (temp_atom(3)-isite%grid%center(3))**2 )
+
+            if( dist .lt. maxDist ) then
+
+              do l = lmin, lmax
+                call screen_opf_nprojForChannel( isite%info%z, l, nproj, ierr, itarg )
+                if( ierr .ne. 0 ) return
+
+                allocate( psproj( isite%grid%npts, nproj*( 2*l + 1 ) ), &
+                        diffproj( isite%grid%npts, nproj*( 2*l + 1 ) ), &
+                            amat( nproj*( 2*l + 1 ), nproj*( 2*l + 1 ) ), &
+                            delta( nproj ), psout( nproj ) )
+
+                psproj( :, : ) = 0.0_DP
+                diffproj( :, : ) = 0.0_DP
+
+                ipt = 0
+                do inter = 1, isite%grid%ninter
+                  if( isite%grid%rgrid( inter )%rmax .lt. ( dist - all_atoms( iatom )%grid%rmax ) ) then
+                    ipt = ipt + isite%grid%rgrid( inter )%nr*isite%grid%agrid( inter )%nang 
+                    cycle
+                  endif
+                  if( isite%grid%rgrid( inter )%rmin .gt. ( dist + all_atoms( iatom )%grid%rmax ) ) exit
+
+                  allocate( theta( isite%grid%agrid( inter )%nang ), &
+                              phi( isite%grid%agrid( inter )%nang ) )
+                  do iang = 1, isite%grid%agrid( inter )%nang
+                    theta( iang ) = acos( isite%grid%agrid( inter )%angles(3,iang) )
+                    phi( iang ) = atan2( isite%grid%agrid( inter )%angles(2,iang), &
+                                         isite%grid%agrid( inter )%angles(1,iang) )
+                  enddo
+                  deltaAng = 2.0_DP / real( isite%grid%agrid( inter )%nang, DP )
+
+                  do ir = 1, isite%grid%rgrid( inter )%nr
+                    if( isite%grid%rgrid( inter )%rad(ir) + isite%grid%rgrid( inter )%dr & 
+                        .lt. ( dist - all_atoms( iatom )%grid%rmax ) ) then
+                      ipt = ipt + isite%grid%agrid( inter )%nang
+                      cycle
+                    endif
+                    if( if( isite%grid%rgrid( inter )%rad(ir) - isite%grid%rgrid( inter )%dr & 
+                        .gt. ( dist + all_atoms( iatom )%grid%rmax ) ) exit
+                    do iang = 1, isite%grid%agrid( inter )%nang
+                      ipt = ipt + 1
+                      tempPosn(:) = isite%grid%posn(:,ipt)
+                      vec(:) = temp_atom(:) - tempPosn(:)
+                      vecLength = sqrt( vec(1)**2 + vec(2)**2 + vec(3)**3 )
+                      call screen_opf_interpSingleDelta( all_atoms( iatom )%info%z, l, vecLength, &
+                                                         delta, ierr, itarg, psout )
+                      do m = -l, l
+                        call ylmeval( l, m, vec(1), vec(2), vec(3), ylm, pr
+                    enddo
+              
+
+          enddo
+        enddo
+      enddo
+    enddo
+#endif
+
+
   subroutine FinishAugment( isite, npts, nbands, iq, ncutoff, maxnproj, lmin, lmax, &
                             psproj, diffProj, psProj_hold, aMat, wavefunctions, ierr, beta, doAug_ )
     use screen_sites, only : site
@@ -1736,7 +1843,7 @@ module screen_wvfn_converter
 
         write(1000+myid,'(A,3(X,I0))') 'Initial: ', uofxDims(:)
 !        uofxDims(:) = (uofxDims(:) -1)*2
-        uofxDims(:) = (uofxDims(:))*4
+        uofxDims(:) = (uofxDims(:))*6
         write(1000+myid,'(A,3(X,I0))') 'Final  : ', uofxDims(:)
 
         ! This changes the FFT grid to factor to reasonably small primes
@@ -4241,12 +4348,14 @@ module screen_wvfn_converter
 
 
     integer :: xchunk, iz, iy, ix, iix, i, l, m, ip, ib, itarg, xstop, lmin, lmax, nproj
-    complex(DP) :: dephase
+    complex(DP) :: dephase, ylm
     complex(DP), allocatable :: delta(:,:), TD(:,:)
-    real(DP), allocatable :: projDelta(:)
-    real(DP) :: ylm, rad, phse,posn(3)
+    real(DP), allocatable :: projDelta(:), prefs(:)
+    real(DP) :: rad, phse,posn(3)
 
     
+    allocate( prefs(0:1000) )
+    call getprefs( prefs )
     xchunk = min( 32, uofx%dims(1) )
 
     if( uofx%dims(1) .lt. 1 ) return
@@ -4287,14 +4396,16 @@ module screen_wvfn_converter
               if( ierr .ne. 0 ) return
 
               do m = -l, l
-                call real_ylmeval( l, m, atomVec(1,iix,iy,iz), atomVec(2,iix,iy,iz), &
-                                   atomVec(3,iix,iy,iz), ylm )
+!                call real_ylmeval( l, m, atomVec(1,iix,iy,iz), atomVec(2,iix,iy,iz), &
+!                                   atomVec(3,iix,iy,iz), ylm )
+                call ylmeval( l, m, atomVec(1,iix,iy,iz), atomVec(2,iix,iy,iz), &
+                                    atomVec(3,iix,iy,iz), ylm, prefs )
                 do ip = 1, nproj
                   i = i + 1
                   do ib = 1, nbandUse !JTV fix the loop orderings
 !                    delta( iix - ix + 1, ib ) = delta( iix, ix + 1, ib ) &
                     TD( ib, iix - ix + 1 ) = TD( ib, iix - ix + 1 ) &
-                                           + projDelta(ip) * ylm * betaMatrix( i, ib, atomLookup( iix, iy, iz ) ) &
+                                           + projDelta(ip) * conjg(ylm) * betaMatrix( i, ib, atomLookup( iix, iy, iz ) ) &
                                            * dephase 
                   enddo
                 enddo
