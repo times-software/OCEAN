@@ -455,7 +455,7 @@ module screen_wvfn_converter
 
             fakeq(:) = 0.0_DP
             call screen_tk_start( "swl_DoProject" )
-            call swl_DoProject( ngvecs, npts, nbandUse, iband, input_uofg(:,iband:), input_gvecs, &
+            call swl_DoProject( ngvecs, npts, nbandUse, 1, input_uofg(:,iband:), input_gvecs, &
                                 psys%bvecs, psys%avecs, fakeq, &
                                 all_atoms( isite )%grid%posn, uofx, atom_wavefunctions( isite ), ierr )
             if( ierr .ne. 0 ) return
@@ -467,6 +467,7 @@ module screen_wvfn_converter
           enddo
 !        enddo
     
+            fakeq(:) = 0.0_DP
         call swl_AugUofX( nbandUse, natoms, all_atoms, betaMatrix, atomLookup, atomVec, uofx, &
                           psys%avecs, fakeq, ierr )
         if( ierr .ne. 0 ) return
@@ -1843,7 +1844,7 @@ module screen_wvfn_converter
 
         write(1000+myid,'(A,3(X,I0))') 'Initial: ', uofxDims(:)
 !        uofxDims(:) = (uofxDims(:) -1)*2
-        uofxDims(:) = (uofxDims(:))*6
+        uofxDims(:) = (uofxDims(:))*3
         write(1000+myid,'(A,3(X,I0))') 'Final  : ', uofxDims(:)
 
         ! This changes the FFT grid to factor to reasonably small primes
@@ -4306,9 +4307,9 @@ module screen_wvfn_converter
 
           do iatom = 1, natoms
             if( all_atoms( iatom )%grid%npt .eq. 0 ) cycle
-            do iix = 0, 0 !-1, 1
-              do iiy = 0, 0 !-1, 1
-                do iiz = 0, 0 !-1, 1
+            do iix = -1, 1
+              do iiy = -1, 1
+                do iiz = -1, 1
 
                   tempAtom(:) = all_atoms( iatom )%grid%center(:) &
                               + real(iix,DP) * avecs(:,1) + real(iiy,DP) * avecs(:,2) &

@@ -1025,7 +1025,7 @@ module screen_opf
     if( interp ) then
       if( ( xtab( ii + 1 ) - xtab( ii ) ) .lt. 0.0000001_dp ) then
           y = ( ytab( ii ) + ytab( ii + 1 ) ) / 2.0_dp
-      elseif( ii .eq. 1 .or. ii + 1 .eq. n .or. ( xtab( ii + 1 ) - xtab( ii ) ) .lt. 9.0001_DP ) then
+      elseif( ii .eq. 1 .or. ii + 1 .eq. n .or. ( xtab( ii + 1 ) - xtab( ii ) ) .lt. 0.0001_DP ) then
          rat = ( x - xtab( ii ) ) / ( xtab( ii + 1 ) - xtab( ii ) )
          y = ytab( ii ) + rat * ( ytab( ii + 1 ) - ytab( ii ) )
       else

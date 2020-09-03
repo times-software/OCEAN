@@ -276,6 +276,7 @@ module screen_grid
       else
         g%rmax = 0.0_DP
       endif
+      write(6,*) fname, g%rmax
 
       g%ninter = 1
       allocate( g%rgrid( g%ninter ), g%agrid( g%ninter ) )
@@ -284,7 +285,7 @@ module screen_grid
       g%rgrid( 1 )%rmax = g%rmax
       g%rgrid( 1 )%rmin = 0.0_DP
 !      g%rgrid( 1 )%dr = 0.05_DP
-      g%rgrid( 1 )%dr = g%rmax / 63.0_DP  ! use 32-point legendre polynomial -- probably overkill
+      g%rgrid( 1 )%dr = g%rmax / 31.0_DP  ! use 32-point legendre polynomial -- probably overkill
       g%agrid( 1 )%lmax = 7
       g%agrid( 1 )%angle_type = 'specpnt'
     endif
