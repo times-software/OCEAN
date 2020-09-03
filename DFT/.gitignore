@@ -3,3 +3,4 @@
 *.mod
 *.MOD
 *__genmod.f90
+*.dSYM

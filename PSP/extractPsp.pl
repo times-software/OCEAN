@@ -92,6 +92,7 @@ else {
 open( IN, "ppdatabase" ) or die "Failed to open ppdatabase\n$!";
 my $filename = <IN>;
 chomp $filename;
+$filename =~ s/\s*$//;
 $filename .= ".json";
 $filename = catdir( $ENV{"OCEAN_BIN"}, $filename );
 
@@ -162,6 +163,16 @@ for( my $i = 0; $i < scalar @{ $data->{ "dojo_info" }{ "citation" } }; $i++ ) {
 my @basename;
 my $ecut = -1;
 my $ecutQuality = "normal";
+if( open IN, "ecut.qualtiy" )
+{
+  $ecutQuality = <IN>;
+  chomp $ecutQuality;
+  $ecutQuality =~ s/\s*$//;
+  $ecutQuality = "normal" unless( $ecutQuality =~ m/high/i || $ecutQuality =~ m/low/i || $ecutQuality =~ m/normal/i );
+  lc( $ecutQuality );
+  close IN;
+}
+
 my %psp;
 #for( my $i = 1; $i < scalar @ARGV; $i++ )
 foreach my $key (keys %uniquePsp )
