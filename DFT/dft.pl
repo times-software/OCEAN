@@ -498,7 +498,7 @@ if ($RunESPRESSO) {
   my $oldSCFEnergy = 0;
   my $SCFEnergy;
 
-  my $scfcountmax = 0;
+  my $scfcountmax = 1;
   if( open INPUT, "ngkpt.auto" )
   {
     $scfcountmax = 6 if( <INPUT> =~ m/T/i );
@@ -667,7 +667,7 @@ if ($RunESPRESSO) {
     my @acell = split ' ', $qe_data_files{'acell'};
     my $kgden;
     my $testden;
-    print "$qe_data_files{'ngkpt'}\n$ngkpt[0]  $ngkpt[1]  $ngkpt[2]\n";
+#    print "$qe_data_files{'ngkpt'}\n$ngkpt[0]  $ngkpt[1]  $ngkpt[2]\n";
     # Length of bvector is 1/avector (ignoring 2pi)
     # denisty is Ng / length(b) = Ng * length(a)
     $testden = $ngkpt[0] * sqrt( $acell[0]**2 + $acell[1]**2 + $acell[2]**2 );
@@ -681,10 +681,12 @@ if ($RunESPRESSO) {
     $ngkpt[1] = ceil( $kgden/sqrt( $acell[3]**2 + $acell[4]**2 + $acell[5]**2 ) );
     $ngkpt[2] = ceil( $kgden/sqrt( $acell[6]**2 + $acell[7]**2 + $acell[8]**2 ) );
     $qe_data_files{'ngkpt'} = "$ngkpt[0] $ngkpt[1] $ngkpt[2]";
-#    copy( "scf.out", "scf.out.$scfcount" );
-#    copy( "scf.in", "scf.in.$scfcount" );
+
+
     $qe_data_files{'dft.startingpot'} = 'file';
-    print "Re-running SCF: " . abs( $SCFEnergy - $oldSCFEnergy ) . "   $scfConv\n";
+    if( $scfcount < $scfcountmax - 1 ) {
+      print "Re-running SCF: " . abs( $SCFEnergy - $oldSCFEnergy ) . "   $scfConv\n";
+    }
     $oldSCFEnergy = $SCFEnergy;
   }
   open OUT, ">scf.stat" or die "Failed to open scf.stat\n$!";
