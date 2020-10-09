@@ -14,6 +14,10 @@ ngkpt
 {
 -1
 } ngkpt
+ngkpt.auto
+{
+F
+} ngkpt.auto
 photon_q
 {
 0.00 0.00 0.00
@@ -94,6 +98,14 @@ pp_list
 {
 NULL
 } pplist
+pp_database
+{
+ONCVPSP-PBE-PDv0.4-stringent
+} ppdatabase
+ecut.quality
+{
+normal
+} ecut.qualtiy
 natom
 {
 -1
@@ -245,7 +257,7 @@ cnbse.spect_range
 } cnbse.spect_range
 cnbse.broaden
 {
-0.1
+-1
 } cnbse.broaden
 cnbse.strength
 {
@@ -317,7 +329,7 @@ system
 } prefix
 ppdir
 {
-'../'
+../
 } ppdir
 dft.calc_stress
 {

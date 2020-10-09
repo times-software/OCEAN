@@ -79,7 +79,7 @@
        has_wfc="F"
        has_gipaw="F"
        core_correction="T"
-       functional="SLA PW NOGX NOGC" 
+       functional="SLA  PW   NOGX NOGC"
        z_valence="    7.00"
        total_psenergy="  -4.77075840293E+01"
        rho_cutoff="   8.23000000000E+00"

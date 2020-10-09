@@ -1,0 +1,6 @@
+This is a copy of the standard LiF example.
+
+We have replaced with FHI-style psp with ones from PseduoPojo (v0.4).
+The oncvpsp input files have been modified so that the psp format is UPF. To run using QE and ONCV psps from PseudoDojo you'll need to do this and then run oncvpsp.x and the extract script included in the oncv distribution. This of course only needs to be done once and then the pseduopotentials can be saved somewhere. 
+
+This example shows how the pseudo database can be used to automicatically load the ONCV psps from PseudoDojo

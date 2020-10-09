@@ -129,7 +129,7 @@ if (-e "Common") {
 else {
   print "No previous run found\n";
   foreach (@OceanFolders) {
-    `rm -r $_`;
+    `rm -r $_` if( -d $_ );
   }
 }
 
@@ -181,6 +181,8 @@ system("$ENV{'OCEAN_BIN'}/defaults.pl") == 0 or die "Failed to run defaults.pl\n
 system("$ENV{'OCEAN_BIN'}/structure.pl") == 0 or die "Failed to run structure.pl\n$!";
 
 system("$ENV{'OCEAN_BIN'}/edges.pl") == 0 or die "Failed to run edges.pl\n$!";
+
+system("$ENV{'OCEAN_BIN'}/extractPsp.pl") == 0 or die "Failed to run extractPsp.pl\n$!";
 
 ### CALC ###
 
