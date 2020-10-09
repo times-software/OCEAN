@@ -31,7 +31,7 @@ rprim {
  0.5 0.5 0.0
 }
 
-pp_database ONCVPSP-PBE-PDv0.4-stringent
+pp_database ONCVPSP-PW-PDv0.4-stringent
 ecut.quality high
 
 znucl { 3 9 }
