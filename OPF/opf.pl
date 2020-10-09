@@ -10,6 +10,7 @@
 use strict;
 use File::Copy;
 use File::Compare;
+use File::Spec::Functions;
 use Cwd;
 use Cwd 'abs_path';
 
@@ -26,7 +27,7 @@ if (! $ENV{"OCEAN_WORKDIR"}){ $ENV{"OCEAN_WORKDIR"} = `pwd` . "../" ; }
 ###########################
 
 
-my @CommonFiles = ("znucl", "opf.hfkgrid", "opf.fill", "opf.opts", "pplist", 
+my @CommonFiles = ("znucl", "opf.hfkgrid", "opf.fill", "opf.opts", "pplist", "ppdir", 
                    "ntype", "natoms", "typat", "taulist", "nedges", "edges", "caution", 
                    "scfac", "opf.program", "coord", "avecsinbohr.ipt" );
 my @ExtraFiles = ("calc");
@@ -387,16 +388,26 @@ else  # oncvpsp method
   chomp $grid;
   close GRID;
 
+  open IN, "ppdir" or die "Failed to open ppdir\n$!";
+  my $ppdir = <IN>;
+  chomp $ppdir;
+  close IN;
+
   ###################################
   foreach  my $znucl (keys %psplist )
   {
-    my $oncvpspInputFile = $psplist{"$znucl"} . ".in";
-    unless( -e "../$oncvpspInputFile" ) 
+    my $oncvpspInputFile = $psplist{"$znucl"};
+    $oncvpspInputFile =~ s/.upf$//i;
+    $oncvpspInputFile .= ".in";
+    my $targ = catdir( "$ppdir", "$oncvpspInputFile" );
+    unless( -e $targ )
     {
-      print "Was trying to find input for $psplist{'$znucl'}:\t$oncvpspInputFile\n";
+      print "Was trying to find input for $psplist{$znucl}:\t$oncvpspInputFile\n";
+      print "$targ\n";
       die;
     }
-    copy( "../$oncvpspInputFile", $oncvpspInputFile);
+    # ppdir
+    copy( $targ, $oncvpspInputFile);
     my $targRad = -1;
     if( -e "overrideRadius" )
     {
