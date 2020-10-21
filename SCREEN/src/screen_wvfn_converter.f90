@@ -313,7 +313,7 @@ module screen_wvfn_converter
     integer :: pts_start, num_pts, band_start, num_band, kpts_start, num_kpts
     integer :: lmin, lmax, nproj, l, nprojSite, nprojMax, iiband, itarg
     integer, allocatable :: atomLookup(:,:,:)
-    real(DP), allocatable :: atomVec(:,:,:,:)
+    real(DP), allocatable :: atomVec(:,:,:,:), umklapp(:,:,:,:)
 #ifdef MPI_F08
     type( MPI_DATATYPE ) :: newType
 !    type( MPI_DATATYPE ), allocatable :: typeList(:,:)
@@ -414,11 +414,12 @@ module screen_wvfn_converter
       enddo
       allocate( betaMatrix( nprojMax, nbandChunk, natoms ) )
       allocate( atomLookup( uofx%dims(1), uofx%dims(2), uofx%dims(3) ), &
-                atomVec( 3, uofx%dims(1), uofx%dims(2), uofx%dims(3) ) )
+                atomVec( 3, uofx%dims(1), uofx%dims(2), uofx%dims(3) ), &
+                umklapp( 3, uofx%dims(1), uofx%dims(2), uofx%dims(3) ) )
       atomLookup(:,:,:) = 0
-      call swl_atomMap( uofx%dims, natoms, all_atoms, psys%avecs, atomLookup, atomVec )
+      call swl_atomMap( uofx%dims, natoms, all_atoms, psys%avecs, atomLookup, atomVec, umklapp )
     else
-      allocate( betaMatrix(0,0,0), atomLookup(0,0,0), atomVec(0,0,0,0) )
+      allocate( betaMatrix(0,0,0), atomLookup(0,0,0), atomVec(0,0,0,0), umklapp(0,0,0,0) )
     endif
 
     ! 1. preliminary OPF stuff
@@ -468,7 +469,7 @@ module screen_wvfn_converter
 !        enddo
     
             fakeq(:) = qcart(:)
-        call swl_AugUofX( nbandUse, natoms, all_atoms, betaMatrix, atomLookup, atomVec, uofx, &
+        call swl_AugUofX( nbandUse, natoms, all_atoms, betaMatrix, atomLookup, atomVec, umklapp, uofx, &
                           psys%avecs, fakeq, ierr )
         if( ierr .ne. 0 ) return
       endif
@@ -508,7 +509,7 @@ module screen_wvfn_converter
       enddo
     enddo
 
-    deallocate( betaMatrix, atomLookup, atomVec )
+    deallocate( betaMatrix, atomLookup, atomVec, umklapp )
 
     call swl_cleanUofX( uofx )
 
@@ -4285,7 +4286,7 @@ module screen_wvfn_converter
 
   end subroutine AugAtPosn
   
-  subroutine swl_atomMap( dims, natoms, all_atoms, avecs, atomLookup, atomVec )
+  subroutine swl_atomMap( dims, natoms, all_atoms, avecs, atomLookup, atomVec, umklapp )
     use screen_sites, only : site
 
     integer, intent( in ) :: dims(3), natoms
@@ -4293,7 +4294,7 @@ module screen_wvfn_converter
     real(DP), intent( in ) :: avecs(3,3)
     integer, intent( inout ) :: atomLookup( dims(1), dims(2), dims(3) )
     real(DP), intent( inout ) :: atomVec( 3, dims(1), dims(2), dims(3) )
-!    integer, intent( inout ) :: umklapp( 3, dims(1), dims(2), dims(3) )
+    real(DP), intent( inout ) :: umklapp( 3, dims(1), dims(2), dims(3) )
 
     integer :: ix, iy, iz, iix, iiy, iiz, iatom, i
     real(DP) :: xcoord(3), tempAtom(3), vec(3), dist
@@ -4306,9 +4307,9 @@ module screen_wvfn_converter
 !          xcoord(1) = real( ix - 1, DP )/real(dims(1),DP)
           xcoord(:) = 0.0_DP
           do i = 1, 3
-            xcoord(i) = xcoord(i) + real( ix - 1, DP )/real(dims(1),DP) * avecs(1,i) &
-                      + real( iy - 1, DP )/real(dims(2),DP) * avecs(2,i) &
-                      + real( iz - 1, DP )/real(dims(3),DP) * avecs(3,i) 
+            xcoord(i) = xcoord(i) + real( ix - 1, DP )/real(dims(1),DP) * avecs(i,1) &
+                      + real( iy - 1, DP )/real(dims(2),DP) * avecs(i,2) &
+                      + real( iz - 1, DP )/real(dims(3),DP) * avecs(i,3) 
           enddo
 
           do iatom = 1, natoms
@@ -4327,7 +4328,10 @@ module screen_wvfn_converter
                   if( dist .lt. all_atoms( iatom )%grid%rmax ) then
                     atomLookup(ix,iy,iz) = iatom
                     atomVec(:,ix,iy,iz) = vec(:)
-!                    umklapp(1,ix,iy,iz) = iix
+                    ! umklap in cartesian since the k-point will be too
+                    umklapp(1,ix,iy,iz) = iix*avecs(1,1) + iiy*avecs(1,2) + iiz*avecs(1,3)
+                    umklapp(2,ix,iy,iz) = iix*avecs(2,1) + iiy*avecs(2,2) + iiz*avecs(2,3)
+                    umklapp(3,ix,iy,iz) = iix*avecs(3,1) + iiy*avecs(3,2) + iiz*avecs(3,3)
 !                    umklapp(2,ix,iy,iz) = iiy
 !                    umklapp(3,ix,iy,iz) = iiz
 !                    write(9000,*) ix, iy, iz, vec(:), dist,  all_atoms( iatom )%grid%rmax
@@ -4345,7 +4349,7 @@ module screen_wvfn_converter
   end subroutine swl_atomMap
 
 
-  subroutine swl_AugUofX( nbandUse, natoms, all_atoms, betaMatrix, atomLookup, atomVec, uofx, &
+  subroutine swl_AugUofX( nbandUse, natoms, all_atoms, betaMatrix, atomLookup, atomVec, umklapp, uofx, &
                           avecs, qcart, ierr )
     use screen_sites, only : site
     use screen_opf, only : screen_opf_lbounds, screen_opf_nprojForChannel, screen_opf_interpSingleDelta
@@ -4355,6 +4359,7 @@ module screen_wvfn_converter
     complex(DP), intent( in ) :: betaMatrix(:,:,:)
     integer, intent( in ) :: atomLookup(:,:,:)
     real(DP), intent( in ) :: atomVec(:,:,:,:)
+    real(DP), intent( in ) :: umklapp(:,:,:,:)
     type( xHolder ), intent( inout ) :: uofx
     real(DP), intent( in ) :: avecs(3,3), qcart(3)
     integer, intent( inout ) :: ierr
@@ -4390,6 +4395,7 @@ module screen_wvfn_converter
             posn(:) = real( iix - 1, DP )/real( uofx%dims(1), DP ) * avecs(:,1) &
                     + real( iy - 1, DP )/real( uofx%dims(2), DP ) * avecs(:,2) &
                     + real( iz - 1, DP )/real( uofx%dims(3), DP ) * avecs(:,3)
+            posn(:) = posn(:) - umklapp(:,iix, iy, iz ) 
             phse = dot_product( qcart(:), posn(:) )
             dephase = cmplx( dcos(phse), -dsin(phse), DP )
   
