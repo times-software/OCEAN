@@ -453,7 +453,7 @@ module screen_wvfn_converter
             npts = all_atoms( isite )%grid%Npt
             if( npts .eq. 0 ) cycle
 
-            fakeq(:) = 0.0_DP
+            fakeq(:) = qcart(:)
             call screen_tk_start( "swl_DoProject" )
             call swl_DoProject( ngvecs, npts, nbandUse, 1, input_uofg(:,iband:), input_gvecs, &
                                 psys%bvecs, psys%avecs, fakeq, &
@@ -467,7 +467,7 @@ module screen_wvfn_converter
           enddo
 !        enddo
     
-            fakeq(:) = 0.0_DP
+            fakeq(:) = qcart(:)
         call swl_AugUofX( nbandUse, natoms, all_atoms, betaMatrix, atomLookup, atomVec, uofx, &
                           psys%avecs, fakeq, ierr )
         if( ierr .ne. 0 ) return
@@ -1817,6 +1817,7 @@ module screen_wvfn_converter
   subroutine swl_checkConvert( gvecs, uofxDims, ierr )
     use screen_system, only : screen_system_convertStyle
     use ocean_mpi, only : myid
+    use screen_system, only : screen_system_allaug
     integer, intent( in ) :: gvecs( :, : )
     integer, intent( out ) :: uofxDims(3)
     integer, intent( inout ) :: ierr
@@ -1844,7 +1845,11 @@ module screen_wvfn_converter
 
         write(1000+myid,'(A,3(X,I0))') 'Initial: ', uofxDims(:)
 !        uofxDims(:) = (uofxDims(:) -1)*2
-        uofxDims(:) = (uofxDims(:))*3
+        if( screen_system_allaug() ) then
+          uofxDims(:) = (uofxDims(:))*4
+        else 
+          uofxDims(:) = (uofxDims(:))*2
+        endif
         write(1000+myid,'(A,3(X,I0))') 'Final  : ', uofxDims(:)
 
         ! This changes the FFT grid to factor to reasonably small primes
@@ -4288,6 +4293,7 @@ module screen_wvfn_converter
     real(DP), intent( in ) :: avecs(3,3)
     integer, intent( inout ) :: atomLookup( dims(1), dims(2), dims(3) )
     real(DP), intent( inout ) :: atomVec( 3, dims(1), dims(2), dims(3) )
+!    integer, intent( inout ) :: umklapp( 3, dims(1), dims(2), dims(3) )
 
     integer :: ix, iy, iz, iix, iiy, iiz, iatom, i
     real(DP) :: xcoord(3), tempAtom(3), vec(3), dist
@@ -4300,9 +4306,9 @@ module screen_wvfn_converter
 !          xcoord(1) = real( ix - 1, DP )/real(dims(1),DP)
           xcoord(:) = 0.0_DP
           do i = 1, 3
-            xcoord(i) = xcoord(i) + real( ix - 1, DP )/real(dims(1),DP) * avecs(i,1) &
-                      + real( iy - 1, DP )/real(dims(2),DP) * avecs(i,2) &
-                      + real( iz - 1, DP )/real(dims(3),DP) * avecs(i,3) 
+            xcoord(i) = xcoord(i) + real( ix - 1, DP )/real(dims(1),DP) * avecs(1,i) &
+                      + real( iy - 1, DP )/real(dims(2),DP) * avecs(2,i) &
+                      + real( iz - 1, DP )/real(dims(3),DP) * avecs(3,i) 
           enddo
 
           do iatom = 1, natoms
@@ -4314,11 +4320,17 @@ module screen_wvfn_converter
                   tempAtom(:) = all_atoms( iatom )%grid%center(:) &
                               + real(iix,DP) * avecs(:,1) + real(iiy,DP) * avecs(:,2) &
                               + real(iiz,DP) * avecs(:,3)
-                  vec(:) = tempAtom(:) - xcoord(:)
+                  vec(:) = -tempAtom(:) + xcoord(:)
                   dist = sqrt( vec(1)**2 + vec(2)**2 + vec(3)**2 )
+                  ! Need to add in something that tracks the phase based on the atom 
+                  ! coming from a neighboring cell
                   if( dist .lt. all_atoms( iatom )%grid%rmax ) then
                     atomLookup(ix,iy,iz) = iatom
                     atomVec(:,ix,iy,iz) = vec(:)
+!                    umklapp(1,ix,iy,iz) = iix
+!                    umklapp(2,ix,iy,iz) = iiy
+!                    umklapp(3,ix,iy,iz) = iiz
+!                    write(9000,*) ix, iy, iz, vec(:), dist,  all_atoms( iatom )%grid%rmax
                     goto 2020
                   endif
                 enddo
@@ -4406,7 +4418,7 @@ module screen_wvfn_converter
                   do ib = 1, nbandUse !JTV fix the loop orderings
 !                    delta( iix - ix + 1, ib ) = delta( iix, ix + 1, ib ) &
                     TD( ib, iix - ix + 1 ) = TD( ib, iix - ix + 1 ) &
-                                           + projDelta(ip) * conjg(ylm) * betaMatrix( i, ib, atomLookup( iix, iy, iz ) ) &
+                                           + projDelta(ip) * (ylm) * betaMatrix( i, ib, atomLookup( iix, iy, iz ) ) &
                                            * dephase 
                   enddo
                 enddo
