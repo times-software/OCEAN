@@ -292,6 +292,9 @@ module OCEAN_WRR
        r0( : ) = r0( : ) + avec( :, i ) * ( x( i ) - y( i ) - r( i ) )
     end do
     dsqd = r0( 1 ) ** 2 + r0( 2 ) ** 2 + r0( 3 ) ** 2
+    if( dsqd .lt. 0.000001_DP ) then
+      xred(:) = 0.0_DP
+    endif
     xred(:) = r0(:)
     do iix = -clip, clip
        r1( : ) = r0( : ) + iix * nkx * avec( :, 1 )
