@@ -1847,7 +1847,7 @@ module screen_wvfn_converter
         write(1000+myid,'(A,3(X,I0))') 'Initial: ', uofxDims(:)
 !        uofxDims(:) = (uofxDims(:) -1)*2
         if( screen_system_allaug() ) then
-          uofxDims(:) = (uofxDims(:))*4
+          uofxDims(:) = (uofxDims(:))*3
         else 
           uofxDims(:) = (uofxDims(:))*2
         endif
@@ -4455,6 +4455,7 @@ module screen_wvfn_converter
       enddo
     enddo
 
+#if 0
     call screen_opf_lbounds( all_atoms(2)%info%z, lmin, lmax, ierr, itarg )
     do ib = 1, nbandUse
       i = 0
@@ -4468,6 +4469,7 @@ module screen_wvfn_converter
         enddo
       enddo
     enddo
+#endif
 
     deallocate( delta, projDelta )
 

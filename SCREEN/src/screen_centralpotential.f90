@@ -118,7 +118,7 @@ module screen_centralPotential
     if( myid .eq. root ) then
       allocate( tmp_znl( 3, 2000 ), stat=ierr )
     else
-      allocate( tmp_znl( 1, 1 ), stat=ierr )
+      allocate( tmp_znl( 3, 1 ), stat=ierr )
     endif
     call screen_centralPotential_prepAll( tmp_znl, znlLength, ierr )
     if( ierr .ne. 0 ) return
@@ -286,6 +286,7 @@ module screen_centralPotential
 
     integer :: i, maxSize, j
 
+    n = 0
     if( screen_system_mode() .eq. 'grid' ) then
       n = 1
       znl(1,1) = 0
@@ -327,7 +328,7 @@ module screen_centralPotential
 
     write(6,'(A,I8)') 'Too many unique edges! Greater than: ', maxSize
     ierr = 1
-  end subroutine 
+  end subroutine screen_centralPotential_prepAll
 
   subroutine screen_centralPotential_newScreenShell( pot, newPot, rad, ierr, width )
     type( potential ), intent( in ) :: pot
