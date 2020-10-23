@@ -133,16 +133,29 @@ foreach (@CommonFiles) {
   copy( "../Common/$_", "$_") == 1 or die "Failed to get $_ from Common/\n";
 }
 
+my $allaug = 0;
+if( -e "../Common/screen.allaug" ) {
+  copy( "../Common/screen.allaug", "screen.allaug" )  == 1 or die "Failed to get screen.allaug from Common/\n";
+  if( open IN, "screen.allaug" ) {
+    if( <IN> =~ m/T/i )
+    { $allaug = 1; }
+    close IN;
+  }
+}
 
 if( open CALC, "calc" )
 {
   if( <CALC> =~ m/VAL/i )
   {
-    print "No OPF calc for valence run\n";
+    if( $allaug == 0 ) {
+      print "No OPF calc for valence run\n";
+      close CALC;
+      exit 0;
+    }
     close CALC;
-    exit 0;
+    ## need OPF run for all sites for all aug
+
   }
-  close CALC;
 }
 
 
