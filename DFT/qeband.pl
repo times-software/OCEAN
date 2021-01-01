@@ -36,6 +36,12 @@ my $prefix = <IN>;
 close IN;
 chomp $prefix;
 
+
+open IN, "../bshift" or die "Failed to open bshift\n$!";
+my $bshift = <IN>;
+close IN;
+chomp $bshift;
+
 # Different behavior for metals/nonmetals
 open IN, "../metal" or die "Failed to open metal\n$!";
 my $metal_line = <IN>;
@@ -175,17 +181,11 @@ elsif( $metal == 1 || $metal == 2 )
       $band_max = $count if( $count > $band_max );
       if( $band_min > 0 )
       {
-#        $band_min = $min_count if( $min_count < $band_min );
-        if( $min_count < $band_min )
-        {
-          $band_min = $min_count;
-          print "$band_min\t$file_stub\n";
-        }
+        $band_min = $min_count if( $min_count < $band_min );
       }
       else
       {
         $band_min = $min_count;
-          print "$band_min\t$file_stub\n";
       }
     }
     else  # Was able to load the fermi level
@@ -216,7 +216,7 @@ elsif( $metal == 1 || $metal == 2 )
           print "0\t$i\n" if ( $i < $fermi );
           print "1\t$i\n" if ( $i > $fermi );
         }
-        $count++ if( $i <= $fermi );
+        $count++ if( $i < $fermi );
 #        $min_count++ if( $i > $fermi );
       }
       # for compatibility with occ verison
@@ -225,17 +225,11 @@ elsif( $metal == 1 || $metal == 2 )
       $band_max = $count if( $count > $band_max );
       if( $band_min > 0 )
       {
-#        $band_min = $min_count if( $min_count < $band_min );
-        if( $min_count < $band_min )
-        { 
-          $band_min = $min_count;
-          print "$band_min\t$file_stub\n";
-        }
+        $band_min = $min_count if( $min_count < $band_min );
       }
       else
       {
         $band_min = $min_count;
-          print "$band_min\t$file_stub\n";
       }
 
     }
@@ -249,15 +243,16 @@ elsif( $metal == 1 || $metal == 2 )
   #   band_min  total bands
 
   # pad band_max by 1
-#  $band_max;
+  $band_max;
   print $band_max . "\t" . $band_min . "\n";
 }
 else
 {
   die "Error in metal flag. Programmer is to blame\n";
 }
-
-
+# AK -- drop band index to include an 'occupied' valence band in the conduction list. 
+$band_max=$band_max-$bshift;
+$band_min=$band_min-$bshift;
 open OUT, ">brange.stub" or die "Failed to open brange.stub for writing\n$!";
 print OUT "1    $band_max\n$band_min    ";
 close OUT;

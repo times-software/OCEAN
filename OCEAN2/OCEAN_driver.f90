@@ -34,12 +34,15 @@ module OCEAN_driver
     logical, intent( inout ) :: restartBSE
     real(DP), intent( out ) :: newEps
     integer, intent( inout ) :: ierr
-
+    integer :: nhflag(6) 
+    open(unit=99, file='hamnum',status='old') 
+    read(99,*) nhflag
+    close(99)
     select case ( style )
       case('hay')
-        call OCEAN_haydock_do( sys, hay_vec, restartBSE, newEps, ierr )
-      case('inv')
-        call OCEAN_gmres_do( sys, hay_vec, ierr )
+      call OCEAN_haydock_do(sys, hay_vec, restartBSE, newEps, ierr, nhflag)
+        case('inv')
+         call OCEAN_gmres_do( sys, hay_vec, ierr, nhflag )
       case default
         if( myid .eq. root ) write(6,*) 'Unrecognized calc style:', style
     end select

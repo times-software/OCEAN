@@ -254,19 +254,16 @@ module OCEAN_multiplet
     integer, intent( inout ) :: ierr
 
     integer :: lv, ic, icms, icml, ivms, ii, ivml, jj, nu, i, iband, ikpt, ip, ispn
-    integer :: l, m, tmp_n, dumi(3)
-    real(DP) :: dumf(3)
+    integer :: l, m, tmp_n
     real( DP ), allocatable :: pcr(:,:,:,:), pci(:,:,:,:), list(:)
-    complex( DP ), allocatable :: pcTemp(:,:,:,:)
     
-    logical :: ex
     character(len=4) :: add04
     character(len=10) :: add10
     character(len=14) :: add14
     character(len=11) :: s11
     character(len=5) :: s5
 
-    character(len=14) :: cks_filename
+    character(len=11) :: cks_filename
     character(len=5) :: cks_prefix
 
     ierr = 0
@@ -414,42 +411,14 @@ module OCEAN_multiplet
       case default
         cks_prefix = 'cksc.'
       end select
-
-      write(cks_filename, '(A3,A5,A2,I4.4)' ) 'par', cks_prefix, sys%cur_run%elname, sys%cur_run%indx
-      inquire( file=cks_filename, exist=ex )
-      if( ex ) then
-        write(6,*) 'Using parallel cks: ', trim(cks_filename)
-        open(unit=99, file=cks_filename, form='unformatted', status='old', access='stream' )
-        read(99) dumi(:)  ! need explicit reads for stream
-!        read( 99 ) dumf( : )
-        allocate(  pcTemp( nptot, sys%num_bands, sys%nkpts, sys%nspn ) )
-        read( 99 ) pcTemp
-        close( 99 )
-
-        do ispn = 1, sys%nspn
-          do ikpt = 1, sys%nkpts
-            do iband = 1, sys%num_bands
-              pcr(:,iband,ikpt,ispn) = real( pcTemp(:,iband,ikpt,ispn), DP )
-              pci(:,iband,ikpt,ispn) = aimag( pcTemp(:,iband,ikpt,ispn) )
-            enddo
-          enddo
-        enddo
-        deallocate( pcTemp )
-      else
-
-        write(cks_filename,'(A5,A2,I4.4)' ) cks_prefix, sys%cur_run%elname, sys%cur_run%indx
-        write(6,*) 'Using legacy cks: ', trim(cks_filename)
-        open(unit=99,file=trim(cks_filename),form='unformatted', status='old' )
-        rewind 99
-        read ( 99 )
-        read ( 99 )
-        read ( 99 ) pcr 
-        read ( 99 ) pci
-        close( unit=99 )
-      endif
-
-
-
+      write(cks_filename,'(A5,A2,I4.4)' ) cks_prefix, sys%cur_run%elname, sys%cur_run%indx
+      open(unit=99,file=cks_filename,form='unformatted', status='old' )
+!      open( unit=99, file='ufmi', form='unformatted', status='old' )
+      rewind 99
+      read ( 99 )
+      read ( 99 )
+      read ( 99 ) pcr 
+      read ( 99 ) pci
       do ispn = 1, sys%nspn
         do ikpt = 1, sys%nkpts
         do iband = 1, sys%num_bands 
@@ -466,6 +435,7 @@ module OCEAN_multiplet
         end do
         enddo
       enddo
+      close( unit=99 )
       deallocate( pcr, pci )
       write ( 6, * ) 'projector coefficients have been read in'
       !
@@ -665,7 +635,7 @@ module OCEAN_multiplet
   end subroutine OCEAN_soprep
     
   
-  subroutine OCEAN_mult_act( sys, inter, in_vec, out_vec, backwards )
+  subroutine OCEAN_mult_act( sys, inter, in_vec, out_vec, backwards, hflag )
     use OCEAN_system
     use OCEAN_psi, only : OCEAN_vector
     use OCEAN_mpi
@@ -677,6 +647,7 @@ module OCEAN_multiplet
     type( ocean_vector ), intent( inout ) :: out_vec
     logical, intent( in ) :: backwards
     integer :: ierr
+    integer, intent( in ) :: hflag(6)
     ierr = 0
 
 !    integer :: take_longer
@@ -688,24 +659,31 @@ module OCEAN_multiplet
 
 #if 0
     if( do_staggered_sum ) then
-      call OCEAN_ctact_dist( sys, inter, in_vec, out_vec )
+     if(hflag(4).eq.1)&
+         call OCEAN_ctact_dist( sys, inter, in_vec, out_vec )
 !      call OCEAN_ctact_dist( sys, inter, in_vec%r, in_vec%i, out_vec%r, out_vec%i )
-      call fgact_dist( sys, inter, in_vec, out_vec )
+     if(hflag(5).eq.1) call fgact_dist( sys, inter, in_vec, out_vec )
       if( sys%ZNL(2) .gt. 0 ) then
-        call OCEAN_soact_dist( sys, in_vec, out_vec )
+     if(hflag(6).eq.1) call OCEAN_soact_dist( sys, in_vec, out_vec )
       endif
     elseif (myid .eq. 0 ) then
-      call OCEAN_ctact( sys, inter, in_vec, out_vec )
-      call fgact( sys, inter, in_vec, out_vec )
+      if(hflag(4).eq.1)&
+         call OCEAN_ctact( sys, inter, in_vec, out_vec )
+      if(hflag(5).eq.1) call fgact( sys, inter, in_vec, out_vec )
       if( sys%ZNL(2) .gt. 0 ) then
-        call OCEAN_soact( sys, in_vec, out_vec )
+      if(hflag(6).eq.1) call OCEAN_soact( sys, in_vec, out_vec )
       endif
     endif
 !    call OCEAN_soact( sys, in_vec, out_vec )
 #else
-    call OCEAN_fg_combo( sys, inter, in_vec, out_vec, ierr )
-    call OCEAN_new_soact( sys, in_vec, out_vec, backwards )
-
+    if(hflag(5).eq.1)  call OCEAN_fg_combo( sys, inter, in_vec, out_vec, ierr )
+    !AK - Write out vecs before and after these calls 
+   ! open(unit=90,file='OCEAN_mult_act_fg_combo_in_vec.dat',form='formatted',status='new')
+   ! write(90,*) in_vec
+   ! close(90)
+    !this threw unallocated error
+ if(hflag(6).eq.1) call OCEAN_new_soact( sys, in_vec, out_vec, backwards )
+    
 !    if( myid .eq. 0 ) then
 !      call fgact( sys, inter, in_vec, out_vec )
 !      if( sys%ZNL(2) .gt. 0 ) then
@@ -1519,7 +1497,7 @@ module OCEAN_multiplet
 
     integer :: ic, jc, ikpt, ibnd, i
     
-
+    
     if( backwards ) then  ! someli -> - someli
       do i = 1, in_vec%core_store_size
           ! This silly accounting is to help OMP later atm it is breaking if put in the next loop
@@ -1555,12 +1533,25 @@ module OCEAN_multiplet
             out_vec%i( ibnd, ikpt, ic ) = out_vec%i( ibnd, ikpt, ic )  &
                                     + somelr( ic, jc ) * in_vec%i( ibnd, ikpt, jc ) &
                                     + someli( ic, jc ) * in_vec%r( ibnd, ikpt, jc )
-          enddo
+          
+       ! open(unit=90,file='OCEAN_new_soact_outVec.dat',form='formatted',status='unknown',access='append')
+        !write(90, *) 'start1'
+        !write(90, *) out_vec%r
+        !write(90, *) 'end1'
+        !close(90)
+        enddo
 
         enddo
       enddo
-    endif
-
+   ! endif
+        !it makes sense that a write command would go here because the above
+        !operations on out_vec imply that the out_vec has been allocated -- AK
+   !     open(unit=90,file='OCEAN_new_soact_outVec.dat',form='formatted',status='unknown',access='append')
+    !    write(90, *) 'start'
+     !   write(90, *) out_vec%r
+     !   write(90,*) 'end'
+     !   close(90)
+endif
   end subroutine OCEAN_new_soact
 
 
@@ -1607,8 +1598,6 @@ module OCEAN_multiplet
               so_r( sys%cur_run%nalpha, sys%cur_run%nalpha ), &
               so_i( sys%cur_run%nalpha, sys%cur_run%nalpha ), STAT=ierr )
     if( ierr .ne. 0 ) return
-    ampr = 0.0_DP
-    ampi = 0.0_DP
 
     allocate( pwr( itot, lmin:lmax ), pwi( itot, lmin:lmax ), &
               hpwr( itot, lmin:lmax ), hpwi( itot, lmin:lmax ), STAT=ierr )
@@ -1641,7 +1630,6 @@ module OCEAN_multiplet
 !$OMP& PRIVATE( ialpha, ispn, k_stop, el, em, nu, ihd, ikpt, ibnd, ii, jj, j1 ) &
 !$OMP& FIRSTPRIVATE( core_store_size_remain, k_start )
 
-#if 0
 !   Need to zero out all of ampr and ampi
 !   Do it in the same order as the next loop to get first touch memory locations?
     do ialpha = 1, sys%cur_run%nalpha
@@ -1652,16 +1640,13 @@ module OCEAN_multiplet
         el = ceiling( sqrt( dble(ihd) ) ) - 1
         em = ihd - (el+1)*(el+1) + el
           do nu = 1, nproj( el )
-!            ampr( nu, (el+1)*(el+1)+em-el, ialpha ) = 0.0_DP
-!            ampi( nu, (el+1)*(el+1)+em-el, ialpha ) = 0.0_DP
-            ampr( nu, ihd, ialpha ) = 0.0_DP
-            ampi( nu, ihd, ialpha ) = 0.0_DP
+            ampr( nu, (el+1)*(el+1)+em-el, ialpha ) = 0.0_DP
+            ampi( nu, (el+1)*(el+1)+em-el, ialpha ) = 0.0_DP
           enddo
 !        enddo
       enddo
 !$OMP END DO
     enddo
-#endif
 
 
     do ialpha = in_vec%core_a_start, a_stop
