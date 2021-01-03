@@ -1,6 +1,6 @@
 #!/usr/bin/perl
 
-# Copyright (C) 2015 - 2017 OCEAN collaboration
+# Copyright (C) 2015 - 2020 OCEAN collaboration
 #
 # This file is part of the OCEAN project and distributed under the terms 
 # of the University of Illinois/NCSA Open Source License. See the file 
@@ -10,11 +10,13 @@
 
 use strict;
 use File::Copy;
+use Cwd 'abs_path';
 
 if (! $ENV{"OCEAN_BIN"} ) {
   $0 =~ m/(.*)\/cnbse_mpi\.pl/;
-  $ENV{"OCEAN_BIN"} = $1;
-  print "OCEAN_BIN not set. Setting it to $1\n";
+#  $ENV{"OCEAN_BIN"} = $1;
+  $ENV{"OCEAN_BIN"} = abs_path( $1 );
+  print "OCEAN_BIN not set. Setting it to $ENV{'OCEAN_BIN'}\n";
 }
 if (! $ENV{"OCEAN_WORKDIR"}){ $ENV{"OCEAN_WORKDIR"} = `pwd` . "../" ; }
 
@@ -26,11 +28,12 @@ my @CommonFiles = ("epsilon", "xmesh.ipt", "nedges", "k0.ipt", "nbuse.ipt",
   "para_prefix", "cnbse.strength", "serbse", "core_offset", "avecsinbohr.ipt", 
   "cnbse.solver", "cnbse.gmres.elist", "cnbse.gmres.erange", "cnbse.gmres.nloop", 
   "cnbse.gmres.gprc", "cnbse.gmres.ffff", "cnbse.write_rhs", "spin_orbit", "nspin",
-  "gwcstr", "gw_control","hamnum","echamp.inp" );
+  "gwcstr", "gw_control", "hamnum", "echamp.inp" );
 
 my @DFTFiles = ("nelectron");
 
-my @DenDipFiles = ("kmesh.ipt", "masterwfile", "listwfile", "efermiinrydberg.ipt", "qinunitsofbvectors.ipt", "brange.ipt", "enkfile", "tmels", "nelectron", "eshift.ipt" );
+my @DenDipFiles = ("kmesh.ipt", "efermiinrydberg.ipt", "qinunitsofbvectors.ipt", "brange.ipt", 
+                   "nelectron", "eshift.ipt", "enkfile" );
 
 my @WFNFiles = ("kmesh.ipt",  "efermiinrydberg.ipt", "qinunitsofbvectors.ipt", "brange.ipt", 
                 "wvfcninfo", "wvfvainfo", "obf_control", "ibeg.h", "q.out");
@@ -201,7 +204,7 @@ if( $solver eq 'gmres' )
 
 ##### Trigger serial bse fallback here
 # later we should remove this and fold these two perl scripts together
-my $run_serial = 1;
+my $run_serial = 0;
 if( -e "serbse" )
 {
   open IN, "serbse" or die "$!";
@@ -475,29 +478,43 @@ if( $obf == 1 )
 }
 else  # We are using abi/qe path w/o obfs
 {
-  # grab .Psi
-  `touch .Psi`;
-  system("rm .Psi*");
-  open LISTW, "listwfile" or die "Failed to open listwfile\n";
-  while (<LISTW>) 
-  {
-    $_ =~ m/(\d+)\s+(\S+)/ or die "Failed to parse listwfile\n";
-    system("ln -sf ../PREP/BSE/$2 .") == 0 or die "Failed to link $2\n";
-  }  
 
+  my $symlink_exists = eval { symlink("",""); 1 };
 
-  if (-e "../PREP/BSE/u2.dat")
+  unlink( "con.u2.dat" ) if( -e "con.u2.dat" );
+  unlink( "val.u2.dat" ) if( -e "val.u2.dat" );
+  unlink( "u2.dat" ) if( -e "u2.dat" );
+
+  if( -e "../PREP/BSE/con.u2.dat" )
   {
-    `ln -s ../PREP/BSE/u2.dat`;
+    open OUT, ">bloch_selector" or die;
+    print OUT "3\n";
+    close OUT;
+    if( $symlink_exists == 1 )
+    {
+      symlink( "../PREP/BSE/con.u2.dat", "con.u2.dat" ) or die "Failed to link ../PREP/BSE/con.u2.dat\n$!";
+      symlink( "../PREP/BSE/val.u2.dat", "val.u2.dat" ) or die "Failed to link ../PREP/BSE/val.u2.dat\n$!";
+    }
+    else
+    {
+      copy( "../PREP/BSE/con.u2.dat", "con.u2.dat" ) or die "Failed to copy ../PREP/BSE/con.u2.dat\n$!";
+      copy( "../PREP/BSE/val.u2.dat", "val.u2.dat" ) or die "Failed to copy ../PREP/BSE/val.u2.dat\n$!";
+    }
+  }
+  elsif (-e "../PREP/BSE/u2.dat")
+  {
+    if( $symlink_exists == 1 )
+    {
+      symlink( "../PREP/BSE/u2.dat", "u2.dat" ) or die "Failed to link ../PREP/BSE/u2.dat\n$!";
+    }
+    else
+    {
+      copy( "../PREP/BSE/u2.dat", "u2.dat" ) or die "Failed to copy ../PREP/BSE/u2.dat\n$!";
+    }
   }
   else
   {
-    print "Running setup\n";
-    system("$ENV{'OCEAN_BIN'}/setup2.x > setup.log") == 0 or die "Setup failed\n";
-    print "conugtoux\n";
-    system("$ENV{'OCEAN_BIN'}/conugtoux.x > conugtoux.log");# == 0 or die;
-    print "orthog\n";
-    system("$ENV{'OCEAN_BIN'}/orthog.x > orthog.log") == 0 or die;
+    die "Failed to get electron wave functions from PREP/BSE\n";
   }
 }
 
@@ -524,6 +541,21 @@ $hfinlength *= ($#photon_files + 1 );
 print "$hfinlength\n";
 print RUNLIST "$hfinlength\n";
 
+if( $is_xas == 1 )
+{
+  ( copy "../PREP/BSE/wvfcninfo", "wvfcninfo" ) == 1 or die "Failed to copy wvfcninfo\n$!";
+}
+else
+{
+  ( copy "../PREP/BSE/wvfvainfo", "wvfvainfo" ) == 1 or die "Failed to copy wvfvainfo\n$!";
+}
+  
+
+
+#open CKS, ">cks.in" or die "Failed to open cks.in\n";
+my $znl_string = 0;
+my $ncks = 0;
+my $cks_string;
 
 my $cls_average = 0;
 my $cls_count = 0;
@@ -548,10 +580,12 @@ while (<EDGE>) {
 
   my $cks;
   if( $is_xas == 1  ) {
-    $cks = sprintf("cksc.${elname}%04u", $elnum );
+#    $cks = sprintf("cksc.${elname}%04u", $elnum );
+    $cks = "cksc.${elname}";
   } 
   else {
-    $cks = sprintf("cksv.${elname}%04u", $elnum );
+#    $cks = sprintf("cksv.${elname}%04u", $elnum );
+    $cks = "cksv.${elname}";
   }
 
   # For each unique Z we need to grab some files from OPF
@@ -580,23 +614,71 @@ while (<EDGE>) {
   print "CKS NAME = $cks\n";
   if( $obf == 1 )
   {
+    $cks .= sprintf("%04u", $elnum );
     copy( "../zWFN/$cks", $cks ) or die "Failed to grab $cks\n$!";
   }
   else # qe/abi w/o obf need to calculate cainkset
   {
-    open ZNL, ">ZNL" or die;
-    print ZNL "$znum  $nnum  $lnum\n";
-    close ZNL;
+    my $temp_znl = sprintf "%i  %i  %i", $znum, $nnum, $lnum;
+    if( $znl_string == 0 ) 
+    {
+      $znl_string = $temp_znl;
+      open ZNL, ">ZNL" or die;
+      print ZNL "$znl_string\n";
+      close ZNL;
+    }
 
-    open CKSIN, ">cks.in" or die "Failed to open cks.in\n";
-    print CKSIN "1\n$elname  $elnum  cbinf\n";
-    close CKSIN;
+    if( $znl_string eq $temp_znl )
+    {
+      $ncks++;
+      $cks_string .= "$elname  $elnum  $cks\n";
+      my $cks_file = $cks . sprintf "%04u", $elnum;
+      if( -e "../PREP/BSE/par$cks_file" )
+      {
+        ( copy "../PREP/BSE/par$cks_file", "par$cks_file" ) == 1 or die "Failed to grab ../PREP/BSE/par$cks_file\n$!";
+      }
+      else
+      {
+        ( copy "../PREP/BSE/$cks_file", $cks_file ) == 1 or die "Failed to grab ../PREP/BSE/$cks_file\n$!";
+      }
+    }
+    else
+    {
+      print "New ZNL!\nRunning $ncks through cks\n";
+      unless ( $ncks == 0 ) 
+      {
+        open CKSIN, ">cks.in" or die "Failed to open cks.in\n";
+        print CKSIN "$ncks\n$cks_string";
+        close CKSIN;
+        print "skip cks\n";
+#        system("$ENV{'OCEAN_BIN'}/cks.x < cks.in > cks.log") == 0 or die;
+      }
+      $znl_string = $temp_znl;
+      open ZNL, ">ZNL" or die;
+      print ZNL "$znl_string\n";
+      close ZNL;
+      $ncks = 1;
+      $cks_string = "$elname  $elnum  $cks\n";
+      my $cks_file = $cks . sprintf "%04u", $elnum;
+      if( -e "../PREP/BSE/par$cks_file" )
+      { 
+        ( copy "../PREP/BSE/par$cks_file", "par$cks_file" ) == 1 or die "Failed to grab ../PREP/BSE/par$cks_file\n$!";
+      }
+      else
+      {
+        ( copy "../PREP/BSE/$cks_file", $cks_file ) == 1 or die "Failed to grab ../PREP/BSE/$cks_file\n$!";
+      }
+    }
+
+#    open CKSIN, ">cks.in" or die "Failed to open cks.in\n";
+#    print CKSIN "1\n$elname  $elnum  cbinf\n";
+#    close CKSIN;
 
 
-    print "cks\n";
-    system("$ENV{'OCEAN_BIN'}/cks.x < cks.in > cks.log") == 0 or die;
-    move( "cbinf0001", $cks ) or die "Failed to move cbinf0001 to $cks\n$!";
-#    `mv cbinf0001 $cks`;
+#    print "cks\n";
+#    system("$ENV{'OCEAN_BIN'}/cks.x < cks.in > cks.log") == 0 or die;
+#    move( "cbinf0001", $cks ) or die "Failed to move cbinf0001 to $cks\n$!";
+##    `mv cbinf0001 $cks`;
   }
 
 #  my $add10_zstring = sprintf("z%03un%02ul%02u", $znum, $nnum, $lnum);
@@ -616,9 +698,9 @@ while (<EDGE>) {
   # If we don't want CLS then make sure the file is not here
   if( $core_offset =~ m/false/i )
   {
-    if( -e "cls.${zstring}" ) 
+    if( -e "cls.${compactZstring}" ) 
     {
-      unlink "cls.${zstring}" or die "Failed to remove cls.${zstring}\n$!";
+      unlink "cls.${compactZstring}" or die "Failed to remove cls.${compactZstring}\n$!";
     }
   }
   else
@@ -639,6 +721,21 @@ while (<EDGE>) {
 }
 close EDGE;
 close RUNLIST;
+
+
+unless ( $ncks == 0 )
+{
+  print "Final cks: $ncks\n";
+  open CKSIN, ">cks.in" or die "Failed to open cks.in\n";
+  print CKSIN "$ncks\n$cks_string";
+  close CKSIN;
+  print "skip cks\n";
+#  ( copy "../PREP/BSE/$cks_string", $cks_string ) == 1 or die "Failed to grab ../PREP/BSE/$cks_string\n$!";
+#  system("$ENV{'OCEAN_BIN'}/cks.x < cks.in > cks.log") == 0 or die;
+}
+
+
+
 if( $cls_count > 0 )
 {
   $cls_average /= $cls_count;
@@ -769,14 +866,17 @@ else
 }
 close INFILE;
 
+open INFILE, ">", "spect.in" or die "Failed to open spect.in for writing\n$!";
+print INFILE "$spectrange  $gamma0  0.000\n";
+close INFILE;
 
 
 #Provide here the legacy serial option
+
+#force parallel run
 my $run_serial = 0;
 
 if( $run_serial == 1)
-
-#if( 1==1)
 {
 
   open RUNLIST, "runlist" or die;
@@ -855,9 +955,9 @@ else
 {
   $ENV{"OMP_NUM_THREADS"}=1;
 
-  print "time $para_prefix $ENV{'OCEAN_BIN'}/ocean.x > cm.log";
-  system("time $para_prefix $ENV{'OCEAN_BIN'}/ocean.x > cm.log") == 0 or die "Failed to finish\n"; 
+  print "$para_prefix $ENV{'OCEAN_BIN'}/ocean.x > cm.log";
+  system("$para_prefix $ENV{'OCEAN_BIN'}/ocean.x > cm.log") == 0 or die "Failed to finish\n"; 
+  print "\n";
 }
 
 exit 0;
-
