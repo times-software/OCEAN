@@ -157,13 +157,13 @@ module OCEAN_haydock
   end subroutine OCEAN_haydock_nonHerm_do
 
 
-  subroutine OCEAN_haydock_do( sys, hay_vec, restartBSE, newEps,  ierr, hflag )
+  subroutine OCEAN_haydock_do( sys, hay_vec, restartBSE, newEps,  ierr )
     use OCEAN_system, only : o_system
     use OCEAN_psi, only : ocean_vector
 
     integer, intent( inout ) :: ierr
     type( o_system ), intent( in ) :: sys
-    integer, intent(in):: hflag(6)
+!    integer, intent(in):: hflag(6)
     logical, intent( inout ) :: restartBSE
     real(DP), intent( inout ) :: newEps
     !JTV need to figure out a work-around. Right now hay_vec is inout because of
@@ -173,9 +173,9 @@ module OCEAN_haydock
 
 
     if( complex_haydock ) then
-      call OCEAN_haydock_nonHerm_do( sys, hay_vec, ierr, hflag)
+      call OCEAN_haydock_nonHerm_do( sys, hay_vec, ierr, sys%nhflag)
     else
-      call OCEAN_haydock_Herm_do( sys, hay_vec, restartBSE, newEps, ierr, hflag )
+      call OCEAN_haydock_Herm_do( sys, hay_vec, restartBSE, newEps, ierr, sys%nhflag )
     endif
 
   end subroutine OCEAN_haydock_do

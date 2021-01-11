@@ -339,7 +339,7 @@ module OCEAN_gmres
   end subroutine update_gmres
 
 
-  subroutine OCEAN_gmres_do( sys, hay_vec, ierr, nhflag )
+  subroutine OCEAN_gmres_do( sys, hay_vec, ierr )
     use OCEAN_psi
     use OCEAN_system
     use OCEAN_action, only : OCEAN_xact, OCEAN_action_h1
@@ -376,8 +376,10 @@ module OCEAN_gmres
     integer :: na = 0
     integer :: nlim
     
-    integer, intent(in) :: nhflag(6)
-    include 'mkl_vml.f90'
+    integer :: nhflag(6)
+    nhflag(:) = sys%nhflag
+
+!    include 'mkl_vml.f90'
         requests( : ) = MPI_REQUEST_NULL
     
     !AK 

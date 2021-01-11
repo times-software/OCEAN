@@ -46,6 +46,17 @@ if( $metal_line =~ m/true/i )
   $metal = 1;
 }
 
+# Load up bshift
+my $bshift = 0;
+if( -e "../bshift" )
+{
+  open IN, "../bshift" or die "Failed to open bshift\n$!";
+  if( <IN> =~ m/(-?\d+)/) {
+    $bshift = $1;
+  }
+  close IN;
+}
+
 # Spin=2 needs to use the metals version
 if( $metal == 0 )
 {
