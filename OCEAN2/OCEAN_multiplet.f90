@@ -1,4 +1,4 @@
-! Copyright (C) 2015 - 2017 OCEAN collaboration
+! Copyright (C) 2015 - 2021 OCEAN collaboration
 !
 ! This file is part of the OCEAN project and distributed under the terms 
 ! of the University of Illinois/NCSA Open Source License. See the file 
@@ -254,16 +254,19 @@ module OCEAN_multiplet
     integer, intent( inout ) :: ierr
 
     integer :: lv, ic, icms, icml, ivms, ii, ivml, jj, nu, i, iband, ikpt, ip, ispn
-    integer :: l, m, tmp_n
+    integer :: l, m, tmp_n, dumi(3)
+    real(DP) :: dumf(3)
     real( DP ), allocatable :: pcr(:,:,:,:), pci(:,:,:,:), list(:)
+    complex( DP ), allocatable :: pcTemp(:,:,:,:)
     
+    logical :: ex
     character(len=4) :: add04
     character(len=10) :: add10
     character(len=14) :: add14
     character(len=11) :: s11
     character(len=5) :: s5
 
-    character(len=11) :: cks_filename
+    character(len=14) :: cks_filename
     character(len=5) :: cks_prefix
 
     ierr = 0
@@ -411,14 +414,42 @@ module OCEAN_multiplet
       case default
         cks_prefix = 'cksc.'
       end select
-      write(cks_filename,'(A5,A2,I4.4)' ) cks_prefix, sys%cur_run%elname, sys%cur_run%indx
-      open(unit=99,file=cks_filename,form='unformatted', status='old' )
-!      open( unit=99, file='ufmi', form='unformatted', status='old' )
-      rewind 99
-      read ( 99 )
-      read ( 99 )
-      read ( 99 ) pcr 
-      read ( 99 ) pci
+
+      write(cks_filename, '(A3,A5,A2,I4.4)' ) 'par', cks_prefix, sys%cur_run%elname, sys%cur_run%indx
+      inquire( file=cks_filename, exist=ex )
+      if( ex ) then
+        write(6,*) 'Using parallel cks: ', trim(cks_filename)
+        open(unit=99, file=cks_filename, form='unformatted', status='old', access='stream' )
+        read(99) dumi(:)  ! need explicit reads for stream
+!        read( 99 ) dumf( : )
+        allocate(  pcTemp( nptot, sys%num_bands, sys%nkpts, sys%nspn ) )
+        read( 99 ) pcTemp
+        close( 99 )
+
+        do ispn = 1, sys%nspn
+          do ikpt = 1, sys%nkpts
+            do iband = 1, sys%num_bands
+              pcr(:,iband,ikpt,ispn) = real( pcTemp(:,iband,ikpt,ispn), DP )
+              pci(:,iband,ikpt,ispn) = aimag( pcTemp(:,iband,ikpt,ispn) )
+            enddo
+          enddo
+        enddo
+        deallocate( pcTemp )
+      else
+
+        write(cks_filename,'(A5,A2,I4.4)' ) cks_prefix, sys%cur_run%elname, sys%cur_run%indx
+        write(6,*) 'Using legacy cks: ', trim(cks_filename)
+        open(unit=99,file=cks_filename,form='unformatted', status='old' )
+        rewind 99
+        read ( 99 )
+        read ( 99 )
+        read ( 99 ) pcr 
+        read ( 99 ) pci
+        close( unit=99 )
+      endif
+
+
+
       do ispn = 1, sys%nspn
         do ikpt = 1, sys%nkpts
         do iband = 1, sys%num_bands 
@@ -435,7 +466,6 @@ module OCEAN_multiplet
         end do
         enddo
       enddo
-      close( unit=99 )
       deallocate( pcr, pci )
       write ( 6, * ) 'projector coefficients have been read in'
       !
@@ -682,7 +712,7 @@ module OCEAN_multiplet
    ! write(90,*) in_vec
    ! close(90)
     !this threw unallocated error
- if(hflag(6).eq.1) call OCEAN_new_soact( sys, in_vec, out_vec, backwards )
+    if(hflag(6).eq.1) call OCEAN_new_soact( sys, in_vec, out_vec, backwards )
     
 !    if( myid .eq. 0 ) then
 !      call fgact( sys, inter, in_vec, out_vec )
@@ -1551,7 +1581,7 @@ module OCEAN_multiplet
      !   write(90, *) out_vec%r
      !   write(90,*) 'end'
      !   close(90)
-endif
+    endif
   end subroutine OCEAN_new_soact
 
 
@@ -1598,6 +1628,8 @@ endif
               so_r( sys%cur_run%nalpha, sys%cur_run%nalpha ), &
               so_i( sys%cur_run%nalpha, sys%cur_run%nalpha ), STAT=ierr )
     if( ierr .ne. 0 ) return
+    ampr = 0.0_DP
+    ampi = 0.0_DP
 
     allocate( pwr( itot, lmin:lmax ), pwi( itot, lmin:lmax ), &
               hpwr( itot, lmin:lmax ), hpwi( itot, lmin:lmax ), STAT=ierr )
@@ -1630,6 +1662,7 @@ endif
 !$OMP& PRIVATE( ialpha, ispn, k_stop, el, em, nu, ihd, ikpt, ibnd, ii, jj, j1 ) &
 !$OMP& FIRSTPRIVATE( core_store_size_remain, k_start )
 
+#if 0
 !   Need to zero out all of ampr and ampi
 !   Do it in the same order as the next loop to get first touch memory locations?
     do ialpha = 1, sys%cur_run%nalpha
@@ -1647,6 +1680,7 @@ endif
       enddo
 !$OMP END DO
     enddo
+#endif
 
 
     do ialpha = in_vec%core_a_start, a_stop
