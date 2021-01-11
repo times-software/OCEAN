@@ -39,7 +39,7 @@ module OCEAN_driver
       case('hay')
         call OCEAN_haydock_do( sys, hay_vec, restartBSE, newEps, ierr )
       case('inv')
-         call OCEAN_gmres_do( sys, hay_vec, ierr )
+        call OCEAN_gmres_do( sys, hay_vec, ierr )
       case default
         if( myid .eq. root ) write(6,*) 'Unrecognized calc style:', style
     end select

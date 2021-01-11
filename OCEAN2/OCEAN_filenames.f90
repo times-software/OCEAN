@@ -12,7 +12,8 @@ module OCEAN_filenames
   save
 
   public :: OCEAN_filenames_spectrum, OCEAN_filenames_lanc, OCEAN_filenames_energy, &
-        OCEAN_filenames_ehamp, OCEAN_filenames_read_ehamp
+            OCEAN_filenames_ehamp, OCEAN_filenames_read_ehamp
+  
 
   contains
 
@@ -115,29 +116,32 @@ module OCEAN_filenames
     integer, intent( in ) :: iter
     integer, intent( inout ) :: ierr
     integer, intent( in ) :: hflag(6)
-    character(len=3000) :: hamname
-    integer :: stringLen
-    integer :: last, actual
-    write(hamname,*) hflag
-    stringLen = len(hamname)
-    last = 1
-    actual = 1
-    do while (actual < stringLen)
-    if( hamname(last:last)==' ') then
-    actual = actual + 1
-    hamname(last:last)=hamname(actual:actual)
-    hamname(actual:actual)=' '
-    else
-    last = last + 1
-    if( actual < last) &
-    actual = last
-    endif 
-    end do
+    character(len=6) :: hamname
+!    character(len=3000) :: hamname
+!    integer :: stringLen
+!    integer :: last, actual
+!    write(hamname,*) hflag
+!    stringLen = len(hamname)
+!    last = 1
+!    actual = 1
+!    do while (actual < stringLen)
+!    if( hamname(last:last)==' ') then
+!    actual = actual + 1
+!    hamname(last:last)=hamname(actual:actual)
+!    hamname(actual:actual)=' '
+!    else
+!    last = last + 1
+!    if( actual < last) &
+!    actual = last
+!    endif 
+!    end do
+
+    write( hamname, '(6(I1.1))' ) hflag(:)
 
     select case( sys%cur_run%calc_type )
 
       case( 'RXS' )
-        if( len( filename ) < 28 ) then
+        if( len( filename ) < 35 ) then
           ierr = 6
           return
         endif
@@ -147,14 +151,14 @@ module OCEAN_filenames
             iter,'.',trim(hamname)
 
       case( 'VAL' )
-        if( len( filename ) < 10 ) then
+        if( len( filename ) < 17 ) then
           ierr = 6
           return
         endif
-        write(filename, '(A6,I4.4)' ) 'ehamp_', iter
+        write(filename, '(A6,I4.4,A1,A6)' ) 'ehamp_', iter, '.', hamname
         
       case( 'XAS', 'XES' )
-        if( len( filename ) < 25 ) then
+        if( len( filename ) < 32 ) then
           ierr = 6
           return
         endif
@@ -163,7 +167,7 @@ module OCEAN_filenames
                  iter,'.',trim(hamname)
 
       case default ! Currently XAS/XES option
-        if( len( filename ) < 25 ) then
+        if( len( filename ) < 32 ) then
           ierr = 6
           return
         endif
