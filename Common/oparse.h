@@ -1,15 +1,3 @@
-hamnum
-{
-1 1 1 1 1 1
-} hamnum
-echamp
-{
-.true.
-} echamp.inp
-bshift
-{
-0
-} bshift
 calc
 {
 xas
@@ -26,13 +14,17 @@ ngkpt
 {
 -1
 } ngkpt
+ngkpt.auto
+{
+F
+} ngkpt.auto
 photon_q
 {
 0.00 0.00 0.00
 } qinunitsofbvectors.ipt
 dft.split
 {
-.false.
+.true.
 } dft.split
 dft.qe_redirect
 {
@@ -106,6 +98,14 @@ pp_list
 {
 NULL
 } pplist
+pp_database
+{
+ONCVPSP-PBE-PDv0.4-stringent
+} ppdatabase
+ecut.quality
+{
+normal
+} ecut.qualtiy
 natom
 {
 -1
@@ -143,6 +143,22 @@ dft.diagonalization
 {
 david
 } dft.diagonalization
+dft.ndiag
+{
+-1
+} dft.ndiag
+dft.functional
+{
+none
+} dft.functional
+dft.exx.qmesh
+{
+1 1 1 
+} dft.exx.qmesh
+dft.nscf.poolsize
+{
+-1
+} dft.nscf.poolsize
 verbatim
 {
 #
@@ -187,6 +203,10 @@ screen.nkpt
 {
 -1
 } screen.nkpt
+screen.k0
+{
+0.125 0.250 0.375
+} screen.k0
 screen.nbands
 {
 0
@@ -237,7 +257,7 @@ cnbse.spect_range
 } cnbse.spect_range
 cnbse.broaden
 {
-0.1
+-1
 } cnbse.broaden
 cnbse.strength
 {
@@ -309,7 +329,7 @@ system
 } prefix
 ppdir
 {
-'../'
+../
 } ppdir
 dft.calc_stress
 {
@@ -317,7 +337,7 @@ dft.calc_stress
 } dft.calc_stress
 dft.calc_force
 {
-.false.
+.true.
 } dft.calc_force
 spinorb
 {
@@ -333,7 +353,7 @@ undefined
 } tmp_dir
 den.kshift
 {
-0 0 0
+1 1 1
 } den.kshift
 core_offset
 {
@@ -449,8 +469,8 @@ screen.grid.ninter
 } screen.grid.ninter
 screen.grid.shells
 {
-4 16
-8 16
+-1
+8
 } screen.grid.shells
 screen.grid.xyz
 {
@@ -466,12 +486,17 @@ screen.grid.nr
 } screen.grid.nr
 screen.grid.ang
 {
-lebdev 5
+5
 } screen.grid.ang
-screen.grid.lmax
+screen.grid.deltar
+{
+0.1
+0.2
+} screen.grid.deltar
+screen.lmax
 {
 0
-} screen.grid.lmax
+} screen.lmax
 screen.grid.nb
 {
 24
@@ -520,3 +545,15 @@ bse.wvfn
 {
 new
 } bse.wvfn
+hamnum
+{
+1 1 1 1 1 1
+} hamnum
+echamp
+{
+.true.
+} echamp.inp
+bshift
+{
+0
+} bshift
