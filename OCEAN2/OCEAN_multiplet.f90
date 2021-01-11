@@ -1,4 +1,4 @@
-! Copyright (C) 2015 - 2021 OCEAN collaboration
+! Copyright (C) 2015 - 2017, 2019, 2021 OCEAN collaboration
 !
 ! This file is part of the OCEAN project and distributed under the terms 
 ! of the University of Illinois/NCSA Open Source License. See the file 
@@ -439,7 +439,7 @@ module OCEAN_multiplet
 
         write(cks_filename,'(A5,A2,I4.4)' ) cks_prefix, sys%cur_run%elname, sys%cur_run%indx
         write(6,*) 'Using legacy cks: ', trim(cks_filename)
-        open(unit=99,file=cks_filename,form='unformatted', status='old' )
+        open(unit=99,file=trim(cks_filename),form='unformatted', status='old' )
         rewind 99
         read ( 99 )
         read ( 99 )
@@ -1673,8 +1673,10 @@ module OCEAN_multiplet
         el = ceiling( sqrt( dble(ihd) ) ) - 1
         em = ihd - (el+1)*(el+1) + el
           do nu = 1, nproj( el )
-            ampr( nu, (el+1)*(el+1)+em-el, ialpha ) = 0.0_DP
-            ampi( nu, (el+1)*(el+1)+em-el, ialpha ) = 0.0_DP
+!            ampr( nu, (el+1)*(el+1)+em-el, ialpha ) = 0.0_DP
+!            ampi( nu, (el+1)*(el+1)+em-el, ialpha ) = 0.0_DP
+            ampr( nu, ihd, ialpha ) = 0.0_DP
+            ampi( nu, ihd, ialpha ) = 0.0_DP
           enddo
 !        enddo
       enddo
