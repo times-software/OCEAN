@@ -134,7 +134,7 @@ module OCEAN_psi
 
   public :: OCEAN_psi_init, OCEAN_psi_kill, OCEAN_psi_load,  &
             OCEAN_psi_write, OCEAN_psi_pnorm,  &
-            OCEAN_psi_dot, OCEAN_psi_dot_write, OCEAN_psi_nrm, OCEAN_psi_scal, &
+            OCEAN_psi_dot, OCEAN_psi_nrm, OCEAN_psi_scal, &
             OCEAN_psi_axpy, OCEAN_psi_axmy, OCEAN_psi_axmz, &
             OCEAN_psi_new, OCEAN_psi_cmult, OCEAN_psi_mult, &
             OCEAN_psi_zero_full, OCEAN_psi_zero_min, OCEAN_psi_one_full, &
@@ -4843,10 +4843,12 @@ subroutine OCEAN_psi_dot_write( p, q, outvec, rrequest, rval, ierr, irequest, iv
       call OCEAN_psi_free_full( p, ierr )
       if( ierr .ne. 0 ) return
     endif
+
     if( IAND( p%alloc_store, PSI_STORE_EXTRA ) .ne. 0 ) then
       call OCEAN_psi_free_extra( p, ierr )
       if( ierr .ne. 0 ) return
     endif
+
 !   Buffer takes care of the comms layer atm
     if( IAND( p%alloc_store, PSI_STORE_BUFFER ) .ne. 0 ) then
       call OCEAN_psi_free_buffer( p, ierr )
@@ -4857,6 +4859,7 @@ subroutine OCEAN_psi_dot_write( p, q, outvec, rrequest, rval, ierr, irequest, iv
       call OCEAN_psi_free_min( p, ierr )
       if( ierr .ne. 0 ) return
     endif
+
 #ifdef MPI
     if( have_val ) then
       call MPI_COMM_FREE( p%val_comm, ierr )
@@ -4867,6 +4870,7 @@ subroutine OCEAN_psi_dot_write( p, q, outvec, rrequest, rval, ierr, irequest, iv
       if( ierr .ne. MPI_SUCCESS ) return
     endif
 #endif
+
     if( allocated(p%r) ) then
       ierr = 5550
     elseif( allocated( p%i ) ) then
@@ -5450,7 +5454,6 @@ subroutine OCEAN_psi_dot_write( p, q, outvec, rrequest, rval, ierr, irequest, iv
     case default
       cks_prefix = 'cksc.'
     end select
-    write(cks_filename,'(A5,A2,I4.4)' ) cks_prefix, sys%cur_run%elname, sys%cur_run%indx
 
     write(cks_filename, '(A3,A5,A2,I4.4)' ) 'par', cks_prefix, sys%cur_run%elname, sys%cur_run%indx
     inquire( file=cks_filename, exist=ex )
@@ -5470,6 +5473,7 @@ subroutine OCEAN_psi_dot_write( p, q, outvec, rrequest, rval, ierr, irequest, iv
         enddo
       enddo
       deallocate( pcTemp )
+
     else
       write(cks_filename,'(A5,A2,I4.4)' ) cks_prefix, sys%cur_run%elname, sys%cur_run%indx
       write(6,*) 'Using legacy cks: ', trim(cks_filename)
@@ -5482,12 +5486,14 @@ subroutine OCEAN_psi_dot_write( p, q, outvec, rrequest, rval, ierr, irequest, iv
       read ( 99 ) pcr
       read ( 99 ) pci
       close( unit=99 )
-
+  
       if( nspn .ne. sys%nspn ) then
         ierr = -1
         write(6,*) 'Spin mismatch is fatal'
         return
       endif
+
+    endif
 
 
     allocate( mer( nptot, -sys%cur_run%ZNL(3): sys%cur_run%ZNL(3) ),  &

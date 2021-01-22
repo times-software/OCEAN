@@ -473,7 +473,7 @@ end subroutine OCEAN_action_h1
           call OCEAN_tk_stop( tk_mult )
         endif
 
-        if( sys%cur_run%lflag .and. (flag(2).eq.1)) then
+        if( sys%cur_run%lflag .and. (hflag(2).eq.1)) then
           ! For now re-use lr timing for ladder
           call OCEAN_tk_start( tk_lr )
           call OCEAN_ladder_act( sys, psi, new_psi, ierr )
