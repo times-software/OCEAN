@@ -1386,7 +1386,7 @@ module OCEAN_psi
     endif
     if( have_val ) then
       if( (.not. x%val_standard_order) .or. ( .not. y%val_standard_order ) ) then
-        ierr = -12
+        ierr = -12001
         return
       endif
     endif
@@ -1471,7 +1471,7 @@ module OCEAN_psi
     endif
     if( have_val ) then
       if( (.not. x%val_standard_order) .or. ( .not. y%val_standard_order ) ) then
-        ierr = -12
+        ierr = -120
         return
       endif
     endif
@@ -1570,7 +1570,7 @@ module OCEAN_psi
     if( have_val ) then
       if( (.not. x%val_standard_order) .or. ( .not. y%val_standard_order ) .or. &
          ( .not. z%val_standard_order )) then
-        ierr = -12
+        ierr = -19
         return
       endif
     endif
@@ -1582,7 +1582,7 @@ module OCEAN_psi
     !  and so if full exists, but not min we will create it here
     if( IAND( x%valid_store, PSI_STORE_MIN ) .eq. 0 ) then
       if( IAND( x%valid_store, PSI_STORE_FULL ) .eq. 0 ) then
-        ierr = -1
+        ierr = -10005
 !        call OCEAN_psi_write2store( x, ierr)
         if( ierr .ne. 0 ) return
       else
@@ -1923,7 +1923,6 @@ module OCEAN_psi
     if( .not. p%standard_order .or. .not. q%standard_order ) then
       rrequest = MPI_UNDEFINED
       if( present( ival ) then
-        !!AK - no OCEAN_psi_dot_full
         call OCEAN_psi_dot_full( p, q, rval, ierr, ival )
         irequest = MPI_UNDEFINED
       else
@@ -2050,6 +2049,7 @@ module OCEAN_psi
     
   end subroutine OCEAN_psi_dot
 
+#if 0
 !> @author John Vinson, NIST
 !
 !> @brief Calculates dot_product bewteen two ocean_vectors
@@ -2287,6 +2287,7 @@ subroutine OCEAN_psi_dot_write( p, q, outvec, rrequest, rval, ierr, irequest, iv
     endif
     
   end subroutine OCEAN_psi_dot_write
+#endif
 
 !> @brief Allocates the buffer space (core only) and arrays for mpi requests for the ocean_vector
 !
@@ -2562,13 +2563,11 @@ subroutine OCEAN_psi_dot_write( p, q, outvec, rrequest, rval, ierr, irequest, iv
 
     if( a%inflight ) then
       ierr = -1
-      write(6, *) ierr
       return
     endif
 
     if( a%update ) then
       ierr = -22
-      write(6, *) ierr
       return
     endif
 
@@ -2613,9 +2612,9 @@ subroutine OCEAN_psi_dot_write( p, q, outvec, rrequest, rval, ierr, irequest, iv
     endif
 
     if( present( im_core ) ) then
-      if( size( im_core, 1 ) .gt. psi_bands_pad ) ierr = -11
-      if( size( im_core, 2 ) .ne. psi_kpts_actual ) ierr = -12
-      if( size( im_core, 3 ) .ne. psi_core_alpha ) ierr = -13
+      if( size( im_core, 1 ) .gt. psi_bands_pad ) ierr = -111
+      if( size( im_core, 2 ) .ne. psi_kpts_actual ) ierr = -121
+      if( size( im_core, 3 ) .ne. psi_core_alpha ) ierr = -131
       if( ierr .ne. 0 ) return
 
       min_band = min( psi_bands_pad, size( im_core, 1 ) )
@@ -3028,7 +3027,7 @@ subroutine OCEAN_psi_dot_write( p, q, outvec, rrequest, rval, ierr, irequest, iv
     logical :: do_conjugate
     !
     if( present( is_conjugate ) ) then
-      do_conjugate = .true.
+      do_conjugate = is_conjugate
     else
       do_conjugate = .false.
     endif
@@ -4408,10 +4407,7 @@ subroutine OCEAN_psi_dot_write( p, q, outvec, rrequest, rval, ierr, irequest, iv
 
 !   min store must be valid
     if( IAND( p%valid_store, PSI_STORE_MIN ) .eq. 0 ) then
-      !!AK!!
-      !temporarily change ierr from 1000 to 2000 for testing purposes
       ierr = 1000
-      !ierr = 2000
       return
     endif
 
@@ -4843,53 +4839,34 @@ subroutine OCEAN_psi_dot_write( p, q, outvec, rrequest, rval, ierr, irequest, iv
     type(OCEAN_vector), intent( inout ) :: p
 
     p%valid_store = 0
-    write(6,*) 'p%alloc_store: ',p%alloc_store
     if( IAND( p%alloc_store, PSI_STORE_FULL ) .ne. 0 ) then
       call OCEAN_psi_free_full( p, ierr )
-      write(6, *) 'pk1: ', ierr
       if( ierr .ne. 0 ) return
     endif
-    write(6, *) 'pk2: ', ierr
     if( IAND( p%alloc_store, PSI_STORE_EXTRA ) .ne. 0 ) then
-write(6, *) 'pk5: ', ierr
       call OCEAN_psi_free_extra( p, ierr )
-write(6, *) 'pk4: ', ierr    
-  if( ierr .ne. 0 ) return
+      if( ierr .ne. 0 ) return
     endif
-    write(6, *) 'pk3: ', ierr
 !   Buffer takes care of the comms layer atm
-
-
     if( IAND( p%alloc_store, PSI_STORE_BUFFER ) .ne. 0 ) then
-write(6, *) 'pk6: ', ierr
       call OCEAN_psi_free_buffer( p, ierr )
-write(6, *) 'pk7: ', ierr
       if( ierr .ne. 0 ) return
-write(6, *) 'pk8: ', ierr
     endif
-write(6, *) 'pk9.0: ', ierr
+
     if( IAND( p%alloc_store, PSI_STORE_MIN ) .ne. 0 ) then
-write(6,*) 'pk9.01: ', ierr      
-call OCEAN_psi_free_min( p, ierr )
-write(6,*) 'pk9.02: ', ierr
+      call OCEAN_psi_free_min( p, ierr )
       if( ierr .ne. 0 ) return
     endif
-write(6,*) 'pk 8.1: ', ierr
 #ifdef MPI
     if( have_val ) then
       call MPI_COMM_FREE( p%val_comm, ierr )
-write(6,*) 'pk, 8.2: ', ierr
       if( ierr .ne. MPI_SUCCESS ) return
     endif
     if( have_core ) then
-write(6,*) 'pk 8.3: ', ierr
-write(6,*) 'pk 8.3 core_comm: ', p%core_comm
       call MPI_COMM_FREE( p%core_comm, ierr )
-write(6,*) 'pk 8.4: ', ierr
       if( ierr .ne. MPI_SUCCESS ) return
     endif
 #endif
-write(6, *) 'pk9 :', ierr
     if( allocated(p%r) ) then
       ierr = 5550
     elseif( allocated( p%i ) ) then
@@ -5456,7 +5433,9 @@ write(6, *) 'pk9 :', ierr
     real(DP) :: tau( 3 ), rr, ri, ir, ii
     real(DP), allocatable, dimension(:,:,:) :: pcr, pci
     real(DP), allocatable, dimension(:,:) :: mer, mei
+    complex(DP), allocatable, dimension(:,:,:) :: pcTemp
     integer :: nptot, ntot, ialpha, icms, ivms, icml, ikpt, iband, iter, nspn
+    logical :: ex
 
     character (LEN=127) :: cks_filename
     character (LEN=5) :: cks_prefix
@@ -5473,21 +5452,43 @@ write(6, *) 'pk9 :', ierr
     end select
     write(cks_filename,'(A5,A2,I4.4)' ) cks_prefix, sys%cur_run%elname, sys%cur_run%indx
 
-    open(unit=99,file=cks_filename,form='unformatted',status='old')
-    rewind( 99 )
-    read ( 99 ) nptot, ntot, nspn
-    read ( 99 ) tau( : )
-    allocate( pcr( nptot, ntot, nspn ), pci( nptot, ntot, nspn ) )
-    read ( 99 ) pcr
-    read ( 99 ) pci
-    close( unit=99 )
+    write(cks_filename, '(A3,A5,A2,I4.4)' ) 'par', cks_prefix, sys%cur_run%elname, sys%cur_run%indx
+    inquire( file=cks_filename, exist=ex )
+    if( ex ) then
+      write(6,*) 'Using parallel cks: ', trim(cks_filename)
+      open(unit=99, file=cks_filename, form='unformatted', status='old', access='stream' )
+      read(99) nptot, ntot, nspn
+!      read ( 99 ) tau( : )
+      allocate( pcr( nptot, ntot, nspn ), pci( nptot, ntot, nspn ), pcTemp( nptot, ntot, nspn ) )
+      read( 99 ) pcTemp(:,:,:)
+      close( 99 )
 
+      do ivms = 1, nspn
+        do iter = 1, ntot
+          pcr(:,iter,ivms) = real( pcTemp(:,iter,ivms), DP )
+          pci(:,iter,ivms) = aimag( pcTemp(:,iter,ivms) )
+        enddo
+      enddo
+      deallocate( pcTemp )
+    else
+      write(cks_filename,'(A5,A2,I4.4)' ) cks_prefix, sys%cur_run%elname, sys%cur_run%indx
+      write(6,*) 'Using legacy cks: ', trim(cks_filename)
 
-    if( nspn .ne. sys%nspn ) then
-      ierr = -1
-      write(6,*) 'Spin mismatch is fatal'
-      return
-    endif
+      open(unit=99,file=cks_filename,form='unformatted',status='old')
+      rewind( 99 )
+      read ( 99 ) nptot, ntot, nspn
+      read ( 99 ) tau( : )
+      allocate( pcr( nptot, ntot, nspn ), pci( nptot, ntot, nspn ) )
+      read ( 99 ) pcr
+      read ( 99 ) pci
+      close( unit=99 )
+
+      if( nspn .ne. sys%nspn ) then
+        ierr = -1
+        write(6,*) 'Spin mismatch is fatal'
+        return
+      endif
+
 
     allocate( mer( nptot, -sys%cur_run%ZNL(3): sys%cur_run%ZNL(3) ),  &
               mei( nptot, -sys%cur_run%ZNL(3): sys%cur_run%ZNL(3) ) )
