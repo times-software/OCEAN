@@ -47,9 +47,9 @@ install:
 	cd zbridge;      make install
 	cd INTERPOLATE;  make install
 	cd OCEAN2;       make install
-	chmod u+x $(INSTDIR)/*.pl
 	cd POST;				 make install
 	cd PSP;					 make install
+	chmod u+x $(INSTDIR)/*.pl
 
 instdev:
 	for F in $(SCRIPTS) $(AUX); do ln -fs $(PWD)/$$F $(INSTDEVDIR); done;
