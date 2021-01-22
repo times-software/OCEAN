@@ -377,10 +377,7 @@ end subroutine OCEAN_action_h1
           call MPI_WAIT( rrequest, MPI_STATUS_IGNORE, ierr )
           call MPI_WAIT( irequest, MPI_STATUS_IGNORE, ierr )
           if(myid.eq.root) write(6,'(A6,4X,E22.15,1X,E22.15)') 'one-el',rval*Hartree2eV, ival*Hartree2eV
-        !  rval = 1.0_dp
-        
-         rval = 1.0_dp
-
+          rval = 1.0_dp
 !          call OCEAN_psi_axpy( rval, psi_i, new_psi, ierr )
         else
           call OCEAN_psi_zero_min( new_psi, ierr )
@@ -511,16 +508,10 @@ end subroutine OCEAN_action_h1
 !   The contents of new_psi's min storage are overwritten.
 !   Or if one-e is disabled, the min storage is zeroed out.
     if( ( sys%e0 .and. sys%cur_run%have_core ) .or. ( sys%cur_run%bande .and. sys%cur_run%have_val ) ) then
-     if((sys%e0 .and. sys%cur_run%have_core))then
-        endif
-     if((sys%cur_run%bande .and. sys%cur_run%have_val))then
-        
-        endif
-        call OCEAN_tk_start( tk_e0 )
+      call OCEAN_tk_start( tk_e0 )
       call ocean_energies_act( sys, psi, new_psi, back, ierr )
       call OCEAN_tk_stop( tk_e0 )
     else
-
       call OCEAN_psi_zero_min( new_psi, ierr )
       if( ierr .ne. 0 ) return
     endif
@@ -534,6 +525,7 @@ end subroutine OCEAN_action_h1
 !   The min storage is multiplied by the allow matrix (this enforces the Fermi-Dirac occpations at 0K)
     call OCEAN_energies_allow( sys, new_psi, ierr )
     if( ierr .ne. 0 ) return
+
 
   end subroutine OCEAN_xact
 
