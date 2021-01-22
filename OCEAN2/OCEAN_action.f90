@@ -283,7 +283,7 @@ end subroutine OCEAN_action_h1
 
 ! On entrance psi needs to be the same everywhere
 ! On exit new_psi is stored in min everywhere
-  subroutine OCEAN_xact( sys, inter_scale, psi, new_psi, ierr, backwards )
+  subroutine OCEAN_xact( sys, inter_scale, psi, new_psi, ierr, backwards, nhflag )
     use OCEAN_mpi
     use OCEAN_system
     use OCEAN_energies
@@ -301,6 +301,7 @@ end subroutine OCEAN_action_h1
     type(OCEAN_vector), intent(inout) :: new_psi
     integer, intent(inout) :: ierr
     logical, optional :: backwards
+    integer, optional :: nhflag(6)
     !
     type(OCEAN_vector) :: psi_o, psi_i
     integer :: rrequest, irequest
@@ -309,7 +310,11 @@ end subroutine OCEAN_action_h1
     logical :: back 
     integer :: hflag(6)
 
-    hflag(:) = sys%nhflag(:)
+    if( present( nhflag ) ) then
+      hflag(:) = nhflag(:)
+    else
+      hflag(:) = sys%nhflag(:)
+    endif
 
     if( present( backwards ) ) then
       back = backwards

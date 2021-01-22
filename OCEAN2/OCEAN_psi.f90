@@ -2082,7 +2082,7 @@ subroutine OCEAN_psi_dot_write( p, q, outvec, rrequest, rval, ierr, irequest, iv
     integer :: my_comm
     real(dp), external :: DDOT
     
-    include 'mkl_vml.f90'
+!    include 'mkl_vml.f90'
     ! This would be a programming error. No reason to allow recovery
     if( present( ival ) .neqv. present( irequest ) ) then
       ierr = -1
@@ -2180,10 +2180,10 @@ subroutine OCEAN_psi_dot_write( p, q, outvec, rrequest, rval, ierr, irequest, iv
 ! what we really want to do here is to spread this part out. do a ddot of p%min_r (cores) times each of q%min, and then collect for each
 ! we can then write this out using a processor id and recover later, or can use gather after the fact to get new variable.
 ! size of p%min_r is bands * projector for both hayvec and exciton vector. So want to multiply each of these with component but not sum
+#if 0      
     if( have_core .and. p%core_store_size .gt. 0 ) then
       ! Need to do dot product here
       !  Everything should be in store/min
-      
       
     call vdmul(psi_bands_pad*p%core_store_size,p%min_r,q%min_r,outvec1%min_r)
     call vdmul(psi_bands_pad*p%core_store_size,p%min_i,q%min_i,outvec2%min_r)
@@ -2223,6 +2223,10 @@ subroutine OCEAN_psi_dot_write( p, q, outvec, rrequest, rval, ierr, irequest, iv
 
         endif
     endif
+#else
+      ierr = 12509712
+      return
+#endif
     ! There is no "else rval=0" here because it is taken care of above for core
 
     ! If we have dest we call MPI_REDUCE onto dest
