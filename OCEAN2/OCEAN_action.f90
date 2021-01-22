@@ -305,9 +305,12 @@ end subroutine OCEAN_action_h1
     type(OCEAN_vector) :: psi_o, psi_i
     integer :: rrequest, irequest
     real(dp) :: rval, ival
-    logical :: loud_valence = .true.
+    logical :: loud_valence = .false.
     logical :: back 
     integer :: hflag(6)
+
+    hflag(:) = sys%nhflag(:)
+
     if( present( backwards ) ) then
       back = backwards
     else
@@ -333,7 +336,7 @@ end subroutine OCEAN_action_h1
         call OCEAN_tk_stop( tk_mult )
         endif
 
-      if( sys%long_range ) then
+      if( sys%long_range .and. (hflag(1).eq.1) ) then
         
         call OCEAN_tk_start( tk_lr )
        
@@ -359,23 +362,6 @@ end subroutine OCEAN_action_h1
         call OCEAN_psi_new( psi_i, ierr )
 
         if( sys%cur_run%bande ) then
-!          call OCEAN_psi_zero_full( psi_i, ierr )
-!          call OCEAN_psi_ready_buffer( psi_i, ierr )
-!          if( ierr .ne. 0 ) return
-!          call OCEAN_psi_zero_min( psi_i, ierr )
-!          if( ierr .ne. 0 ) return
-
-
-
-!          call OCEAN_energies_val_act( sys, psi, psi_i, ierr, back )
-!          if( ierr .ne. 0 ) return
-!  !        call OCEAN_energies_val_sfact( sys, psi_i, ierr )
-!  !        if( ierr .ne. 0 ) return
-!          call OCEAN_psi_send_buffer( psi_i, ierr )
-!          if( ierr .ne. 0 ) return
-!          call OCEAN_psi_buffer2min( psi_i, ierr )
-!          if( ierr .ne. 0 ) return
-
           ! Might as well go ahead and put these on the correct new_psi min to start
           call  OCEAN_tk_start( tk_e0 )
           call ocean_energies_act( sys, psi, new_psi, back, ierr )
@@ -409,8 +395,10 @@ end subroutine OCEAN_action_h1
           if( ierr .ne. 0 ) return
 
 
-          call AI_bubble_act( sys, psi, psi_i, ierr )
-          if( ierr .ne. 0 ) return
+          if( hflag(3) .eq. 1 ) then
+            call AI_bubble_act( sys, psi, psi_i, ierr )
+            if( ierr .ne. 0 ) return
+          endif
 
           call OCEAN_psi_send_buffer( psi_i, ierr )
           if( ierr .ne. 0 ) return
@@ -438,9 +426,10 @@ end subroutine OCEAN_action_h1
           call OCEAN_psi_zero_min( psi_i, ierr )
           if( ierr .ne. 0 ) return
 
-
-          call OCEAN_ladder_act( sys, psi, psi_i, ierr )
-          if( ierr .ne. 0 ) return
+          if(hflag(2).eq.1) then
+            call OCEAN_ladder_act( sys, psi, psi_i, ierr )
+            if( ierr .ne. 0 ) return
+          endif
 
           call OCEAN_psi_send_buffer( psi_i, ierr )
           if( ierr .ne. 0 ) return
@@ -473,7 +462,7 @@ end subroutine OCEAN_action_h1
         ! exchange. This should be faster because less communication needed.
         ! Only share the psi vectors at the end like in the core case.
     
-        if( sys%cur_run%bflag ) then
+        if( sys%cur_run%bflag .and. (hflag(3).eq.1) ) then
           ! For now re-use mult timing for bubble
           call OCEAN_tk_start( tk_mult )
           call AI_bubble_act( sys, psi, new_psi, ierr )
@@ -482,7 +471,7 @@ end subroutine OCEAN_action_h1
           call OCEAN_tk_stop( tk_mult )
         endif
 
-        if( sys%cur_run%lflag ) then
+        if( sys%cur_run%lflag .and. (flag(2).eq.1)) then
           ! For now re-use lr timing for ladder
           call OCEAN_tk_start( tk_lr )
           call OCEAN_ladder_act( sys, psi, new_psi, ierr )
