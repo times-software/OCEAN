@@ -354,7 +354,17 @@ module OCEAN_bubble
           if ( ixx .le. 0 ) ixx = ixx + sys%xmesh( 1 )
           if ( iyy .le. 0 ) iyy = iyy + sys%xmesh( 2 )
           if ( izz .le. 0 ) izz = izz + sys%xmesh( 3 )
-          iter = izz + sys%xmesh(3)*(iyy-1) + sys%xmesh(3)*sys%xmesh(2)*(ixx-1) 
+!          iter = izz + sys%xmesh(3)*(iyy-1) + sys%xmesh(3)*sys%xmesh(2)*(ixx-1) 
+!          if( gsqd .lt. 100.0_DP * tiny( gsqd ) ) then
+          if( gsqd .lt. ( 8.0_DP * pi_dp**3 / (sys%celvol * real( product(sys%xmesh(1:3)), DP ) ) ) ) then
+            write(6,*) 'WARNING -- vanishing q not handled correctly!!'
+!            mul = 4.0_dp * pi_dp / ( sys%celvol * dble(sys%nkpts) ) &
+!                * product( sys%xmesh(1:3) ) / ( 8.0_DP * pi_dp**3 / sys%celvol )
+            write(6,*) '  ', gsqd, 8.0_DP * pi_dp**3 / (sys%celvol * real( product(sys%xmesh(1:3)), DP ) )
+            gsqd = 8.0_DP * pi_dp**3 / (sys%celvol * real( product(sys%xmesh(1:3)), DP ) ) 
+          endif
+
+
           if( gvec_length( temp_gvec, sys%bvec ) .ge. length ) then
             mul = 0.0_dp
 !            write(6,*) ix, iy, iz, gvec_length( temp_gvec, sys%bvec ), .false.
@@ -366,6 +376,7 @@ module OCEAN_bubble
 !            write(6,*) ix, iy, iz, gvec_length( temp_gvec, sys%bvec ), .true.
           endif
           Tdbubble( izz, iyy, ixx ) = mul
+!          write(6,*) ix, iy, iz, gsqd, mul
 !          write(103,'(6I5,X,E22.7,E22.7)') ix, iy,iz, ixx, iyy, izz, mul * 27.2114d0, gsqd
           !  bubble( iter ) = mul
         enddo
