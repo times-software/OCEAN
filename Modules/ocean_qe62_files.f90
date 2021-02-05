@@ -589,6 +589,7 @@ module ocean_qe62_files
 
       nfiles = nspin * product(kpts(:) )
 
+#if 0
       ! For QE62 we parse the energies using a perl script because xml is the worst
       ! We just read it in once and store it forever
       open( unit=99, file='eig62.txt', form='formatted', status='old')
@@ -618,21 +619,25 @@ module ocean_qe62_files
 
       allocate( temp_energies( eBandStart : eBandStop, eNkpt, eNspin ) )
       read( 99, * ) temp_energies( :, :, : )
+#endif
       
 
       nkpts = product(kpts(:) )
       nbv = brange(2)-brange(1) + 1
       nbc = brange(4)-brange(3) + 1
       allocate( internal_val_energies( nbv, nkpts, nspin ), internal_con_energies( nbc, nkpts, nspin ) )
-!      open( unit=99, file='enkfile', form='formatted', status='old')
-!      do j = 1, nspin
-!        do i = 1, nkpts
-!          read(99,*) internal_val_energies( :, i, j )
-!          read(99,*) internal_con_energies( :, i, j )
-!        enddo
-!      enddo
-!      close(99)
+      open( unit=99, file='enkfile_raw', form='formatted', status='old')
+      do j = 1, nspin
+        do i = 1, nkpts
+          read(99,*) internal_val_energies( :, i, j )
+          read(99,*) internal_con_energies( :, i, j )
+        enddo
+      enddo
+      close(99)
+      internal_val_energies( :, :, : ) = internal_val_energies( :, :, : ) * 0.5_DP
+      internal_con_energies( :, :, : ) = internal_con_energies( :, :, : ) * 0.5_DP
 
+#if 0
       ! Internal rep in Ha
      internal_val_energies( :, :, : ) = temp_energies( brange(1):brange(2), :, : ) * 0.5_DP
 !     internal_val_energies( :, :, : ) = temp_energies( brange(1):brange(2), 1:nkpts, : ) * 0.5_DP
@@ -643,6 +648,7 @@ module ocean_qe62_files
 !      endif
       
       deallocate( temp_energies )
+#endif
 
 !
 !      internal_val_energies( :, :, : ) = internal_val_energies( :, :, : ) * 0.5_DP
