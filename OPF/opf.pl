@@ -451,7 +451,7 @@ else  # oncvpsp method
 
     open OUT, ">atomoptions" or die "Failed to open atomoptions for writing\n";
 
-    $oncvpsp[0] =~ m/(\w+)\s+(\d+)\s+(\d+)\s+(\d+)\s+(-?\d+)\s+\w+/ 
+    $oncvpsp[0] =~ m/(\w+)\s+(\d+\.?\d*)\s+(\d+)\s+(\d+)\s+(-?\d+)\s+\w+/ 
       or die "Failed reading $oncvpspInputFile\t$oncvpsp[0]\n";
     my $zee = $2;
     my $nc = $3;
