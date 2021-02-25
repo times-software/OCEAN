@@ -514,24 +514,35 @@ module screen_opf
   end subroutine screen_opf_interpSingleDelta
 
 
-  subroutine screen_opf_loadAll( ierr, zeelist )
+  subroutine screen_opf_loadAll( ierr, zeelist_ )
     use OCEAN_mpi, only : myid, root, comm, MPI_INTEGER
     integer, intent( inout ) :: ierr
-    integer, optional, intent( in ) :: zeelist(:)
+    integer, optional, intent( in ) :: zeelist_(:)
 
     integer :: maxUnique, Zee, i
+    integer, allocatable :: zeelist(:)
 
-    if( present( zeelist ) ) then
-      maxUnique = size( zeelist )
+    if( present( zeelist_ ) ) then
+      maxUnique = size( zeelist_ )
+      allocate( zeelist( maxUnique ) )
+      zeelist(:) = zeelist_(:)
     else
 
       if( myid .eq. root ) then
         open(unit=99,file='zeelist',form='formatted',status='old')
         read(99,*) maxUnique
+        allocate( zeelist( maxUnique ) )
+        do i = 1, maxUnique
+          read(99,*) zeelist(i)
+        enddo
+        close(99)
       endif
 #ifdef MPI
       call MPI_BARRIER( comm, ierr )
       call MPI_BCAST( maxUnique, 1, MPI_INTEGER, root, comm, ierr )
+      if( ierr .ne. 0 ) return
+      if( myid .ne. 0 ) allocate( zeelist( maxUnique ) )
+      call MPI_BCAST(zeelist, maxUnique, MPI_INTEGER, root, comm, ierr )
       if( ierr .ne. 0 ) return
 #endif
     endif
@@ -540,26 +551,27 @@ module screen_opf
     if( ierr .ne. 0 ) return
 
     do i = 1, maxUnique
-      if( present( zeelist ) ) then
+!      if( present( zeelist ) ) then
         Zee = zeelist( i )
-      else
-        if( myid .eq. root ) then
-          read(99,*) Zee
-        endif
-#ifdef MPI
-        call MPI_BARRIER( comm, ierr )
-        call MPI_BCAST( Zee, 1, MPI_INTEGER, root, comm, ierr )
-        if( ierr .ne. 0 ) return
-#endif
-      endif
+!      else
+!        if( myid .eq. root ) then
+!          read(99,*) Zee
+!        endif
+!#ifdef MPI
+!        call MPI_BARRIER( comm, ierr )
+!        call MPI_BCAST( Zee, 1, MPI_INTEGER, root, comm, ierr )
+!        if( ierr .ne. 0 ) return
+!#endif
+!      endif
 
       call screen_opf_makeNew( Zee, ierr )
       if( ierr .ne. 0 ) return
     enddo
 
-    if( .not. present( zeelist ) ) then
-      if( myid .eq. root ) close( 99 )
-    endif
+!    if( .not. present( zeelist ) ) then
+!      if( myid .eq. root ) close( 99 )
+!    endif
+    deallocate( zeelist )
 
   end subroutine screen_opf_loadAll
 

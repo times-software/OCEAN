@@ -348,6 +348,12 @@ module OCEAN_bubble
               gsqd = gsqd + qq( ij ) * qq( ik ) * bmet( ij, ik )
             enddo
           enddo
+          if( gsqd .lt. ( 8.0_DP * pi_dp**3 / (sys%celvol * real( product(sys%xmesh(1:3)), DP ) ) ) ) then
+            write(6,*) 'WARNING -- vanishing q not handled correctly!!'
+            write(6,*) '  ', gsqd, 8.0_DP * pi_dp**3 / (sys%celvol * real( product(sys%xmesh(1:3)), DP ) )
+            gsqd = 8.0_DP * pi_dp**3 / (sys%celvol * real( product(sys%xmesh(1:3)), DP ) )
+          endif
+
           ixx = 1 + ix
           iyy = 1 + iy
           izz = 1 + iz
@@ -357,10 +363,12 @@ module OCEAN_bubble
 !          iter = izz + sys%xmesh(3)*(iyy-1) + sys%xmesh(3)*sys%xmesh(2)*(ixx-1) 
 !          if( gsqd .lt. 100.0_DP * tiny( gsqd ) ) then
           if( gsqd .lt. ( 8.0_DP * pi_dp**3 / (sys%celvol * real( product(sys%xmesh(1:3)), DP ) ) ) ) then
-            write(6,*) 'WARNING -- vanishing q not handled correctly!!'
+            if( ( ixx .ne. 1 ) .and. ( iyy .ne. 1 ) .and. ( izz .ne. 1 ) ) then
+              write(6,*) 'WARNING -- vanishing q not handled correctly!!'
 !            mul = 4.0_dp * pi_dp / ( sys%celvol * dble(sys%nkpts) ) &
 !                * product( sys%xmesh(1:3) ) / ( 8.0_DP * pi_dp**3 / sys%celvol )
-            write(6,*) '  ', gsqd, 8.0_DP * pi_dp**3 / (sys%celvol * real( product(sys%xmesh(1:3)), DP ) )
+              write(6,*) '  ', gsqd, 8.0_DP * pi_dp**3 / (sys%celvol * real( product(sys%xmesh(1:3)), DP ) )
+            endif
             gsqd = 8.0_DP * pi_dp**3 / (sys%celvol * real( product(sys%xmesh(1:3)), DP ) ) 
           endif
 

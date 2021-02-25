@@ -1858,6 +1858,7 @@ module screen_wvfn_converter
           do k = 0, 5
             test = uofxDims(i) + k
             write(1000+myid,*) 'TESTING: ', test
+            if( mod( test, 4 ) .ne. 0 ) cycle
             do 
               if( mod( test, 2 ) .ne. 0 ) exit
               test = test / 2
@@ -4288,6 +4289,7 @@ module screen_wvfn_converter
   
   subroutine swl_atomMap( dims, natoms, all_atoms, avecs, atomLookup, atomVec, umklapp )
     use screen_sites, only : site
+!    use ocean_mpi, only : myid
 
     integer, intent( in ) :: dims(3), natoms
     type( site ), intent( in ) :: all_atoms( natoms )
@@ -4334,7 +4336,7 @@ module screen_wvfn_converter
                     umklapp(3,ix,iy,iz) = iix*avecs(3,1) + iiy*avecs(3,2) + iiz*avecs(3,3)
 !                    umklapp(2,ix,iy,iz) = iiy
 !                    umklapp(3,ix,iy,iz) = iiz
-!                    write(9000,*) ix, iy, iz, vec(:), dist,  all_atoms( iatom )%grid%rmax
+!                    if( myid .eq. 0 ) write(9000,'(3I10,4F16.6,I5)') ix, iy, iz, vec(:), dist,  iatom !all_atoms( iatom )%grid%rmax
                     goto 2020
                   endif
                 enddo

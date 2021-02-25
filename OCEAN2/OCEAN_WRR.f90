@@ -73,9 +73,9 @@ module OCEAN_WRR
     integer, intent( in ) :: kk( sys%nkpts, 3 )
     integer, intent( inout ) :: ierr
 
-    real(DP), allocatable :: valencePots(:,:,:), tempPot(:,:), r_array(:,:), x_array(:,:)
-    real(DP) :: decut, valRadius, rmax, dr, wx, wy, w0, cutoff, fcn, dx, f1, f2, qde, q, xred(3), ww, de
-    integer :: err, clip, lmax, nLM, nr, ir, iLM, ix, iy, l, m, iter1
+    real(DP), allocatable :: valencePots(:,:,:), tempPot(:,:), r_array(:,:), x_array(:,:), LMvalencePots(:,:,:)
+    real(DP) :: decut, valRadius, rmax, dr, wx, wy, w0, cutoff, fcn, dx, f1, f2, qde, q, xred(3), ww, de, ff1, wold, woldx, woldy
+    integer :: err, clip, lmax, nLM, nr, ir, iLM, ix, iy, l, m, iter1, vindLen
 
     character(len=128) :: filnam
 
@@ -117,6 +117,18 @@ module OCEAN_WRR
       read( 99, * ) cutoff
       close( 99 )
 
+      if( lmax > 0 ) then
+        open( unit=99, file='vind.length', form='formatted', status='old', IOSTAT=err )
+        if( err .ne. 0 ) then
+          vindLen = 0
+        else
+          read( 99, * ) vindLen
+          close( 99 )
+        endif
+      else
+        vindLen = 0
+      endif
+
 111 continue
     endif
 
@@ -137,6 +149,8 @@ module OCEAN_WRR
     if( ierr .ne. 0 ) return
     call MPI_BCAST( lmax, 1, MPI_INTEGER, root, comm, ierr )
     if( ierr .ne. 0 ) return
+    call MPI_BCAST( vindLen, 1, MPI_INTEGER, root, comm, ierr )
+    if( ierr .ne. 0 ) return
 #endif
 
     q = ( 6.0d0 * pi_DP ** 2 / ( sys%celvol * dble( sys%nkpts ) ) ) ** ( 1.0d0 / 3.0d0 )
@@ -149,7 +163,7 @@ module OCEAN_WRR
     ! In the future, each processor should only store its own, and then some sharing must be done to symmetrize
 
     if( myid .eq. 0 ) write(6,*) 'VAL RADIUS:', valRadius
-    allocate( valencePots( nLM+1, nr, sys%nxpts ) )
+    allocate( valencePots( 2, nr, sys%nxpts ), LMvalencePots( vindLen, nLM+1, sys%nxpts ) )
     if( myid .eq. root ) then
       do ix = 1, sys%nxpts
         write(filnam, '(A5,I6.6)' ) 'rpotx', ix
@@ -159,11 +173,23 @@ module OCEAN_WRR
            read(99,*) valencePots( 2, ir, ix ), valencePots( 1, ir, ix )
         enddo
         close(99)
+        if( vindLen > 0 ) then
+          write(filnam, '(A5,I6.6)' ) 'vindx', ix
+          open( unit=99, file=trim(filnam), form='formatted', status='old' )
+          do ir = 1, vindLen
+            read(99,*) LMvalencePots( ir, :, ix )
+          enddo
+          close(99)
+        endif
       enddo
     endif
 #ifdef MPI
-    call MPI_BCAST( valencePots, (nLM+1)*nr*sys%nxpts, MPI_DOUBLE_PRECISION, root, comm, ierr )
+    call MPI_BCAST( valencePots, 2*nr*sys%nxpts, MPI_DOUBLE_PRECISION, root, comm, ierr )
     if( ierr .ne. 0 ) return
+    if( vindLen > 0 ) then
+      call MPI_BCAST( LMvalencePots, (nLM+1)*vindLen*sys%nxpts, MPI_DOUBLE_PRECISION, root, comm, ierr )
+      if( ierr .ne. 0 ) return
+    endif
 #endif
 
     allocate( x_array( 3, sys%nxpts ), r_array( 3, sys%nkpts ) )
@@ -175,7 +201,7 @@ module OCEAN_WRR
     ! Loop over my sites
     do ix = nx_start, nx_start+nx-1
 
-      tempPot = transpose( valencePots( :, :, ix ) )
+!      tempPot = transpose( valencePots( :, :, ix ) )
 
 !      call integratePot( tempPot, valRadius, W0 )
       call integratePot( valencePots( :, :, ix ), valRadius, W0 )
@@ -207,38 +233,60 @@ module OCEAN_WRR
               ! Do x -> y
               f1 = 0.0_DP
               f2 = 0.0_DP
-              ! valencePots start with radius
-              iLM = 1
-              do l = 0, lmax
-                do m = -l, l
-                  iLM = iLM + 1
-                  f1 = f1 + ocean_sphH_getylm( xred, l, m ) * valencePots( iLM, ir, ix )
-                  f2 = f2 + ocean_sphH_getylm( xred, l, m ) * valencePots( iLM, ir+1, ix )
-                enddo
-              enddo
 
-              wx = f2 * ( de - valencePots( 1, ir, ix ) ) / dr &
-                 + f1 * ( valencePots( 1, ir+1, ix ) - de ) / dr
+              f1 = valencePots( 2, ir, ix ) / (2.0_DP * sqrt( pi_dp ) )
+              f2 = valencePots( 2, ir+1, ix ) / (2.0_DP * sqrt( pi_dp ) )
+
+              ! valencePots start with radius
+              wx = 0.0_DP
+              if( de .le. LMvalencePots( vindLen, 1, ix ) ) then
+                iLM = 2
+                do l = 1, lmax
+                  do m = -l, l
+                    iLM = iLM + 1
+                    call intval( vindLen, LMvalencePots( :, 1, ix ), LMvalencePots( :, iLM, ix ), &
+                                 de, ff1, 'cap', 'cap' )
+                    wx = wx - ocean_sphH_getylm( xred, l, m ) * ff1
+                  enddo
+                enddo
+              endif
+
+              wx = wx + f2 * ( de - valencePots( 1, ir, ix ) ) / dr &
+                      + f1 * ( valencePots( 1, ir+1, ix ) - de ) / dr
+              woldx = f2 * ( de - valencePots( 1, ir, ix ) ) / dr &
+                      + f1 * ( valencePots( 1, ir+1, ix ) - de ) / dr
 
               ! now do y -> x
               xred(:) = -xred(:)
               f1 = 0.0_DP
               f2 = 0.0_DP
               ! valencePots start with radius
-              iLM = 1
-              do l = 0, lmax
-                do m = -l, l
-                  iLM = iLM + 1
-                  f1 = f1 + ocean_sphH_getylm( xred, l, m ) * valencePots( iLM, ir, iy )
-                  f2 = f2 + ocean_sphH_getylm( xred, l, m ) * valencePots( iLM, ir+1, iy )
-                enddo
-              enddo
 
-              wy = f2 * ( de - valencePots( 1, ir, iy ) ) / dr &
-                 + f1 * ( valencePots( 1, ir+1, iy ) - de ) / dr
+              f1 = valencePots( 2, ir, iy ) / (2.0_DP * sqrt( pi_dp ) )
+              f2 = valencePots( 2, ir+1, iy ) / (2.0_DP * sqrt( pi_dp ) )
+
+              wy = 0.0_DP
+              if( de .le. LMvalencePots( vindLen, 1, iy ) ) then
+                iLM = 2
+                do l = 1, lmax
+                  do m = -l, l
+                    iLM = iLM + 1
+                    call intval( vindLen, LMvalencePots( :, 1, iy ), LMvalencePots( :, iLM, iy ), &
+                                 de, ff1, 'cap', 'cap' )
+                    wy = wy - ocean_sphH_getylm( xred, l, m ) * ff1
+                  enddo
+                enddo
+              endif
+
+              
+              wy = wy + f2 * ( de - valencePots( 1, ir, iy ) ) / dr &
+                      + f1 * ( valencePots( 1, ir+1, iy ) - de ) / dr
+              woldy = f2 * ( de - valencePots( 1, ir, iy ) ) / dr &
+                      + f1 * ( valencePots( 1, ir+1, iy ) - de ) / dr
 
 !              ww = 0.5_DP * ( wx + wy )
               ww = sqrt( pi_dp ) * ( wx + wy )
+              wold = sqrt( pi_dp ) * (woldx + woldy )
 
             endif
             
@@ -248,8 +296,8 @@ module OCEAN_WRR
             else
               fcn = 1.0d0 - 0.1d0 * qde ** 2
             end if
-            write(5000+myid,'(3(X,I6),3(X,E24.16))') iter1, ix, iy, de, ladder( iter1, ix - nx_start + 1, iy ), &
-                ww * fcn**2 
+            write(5000+myid,'(3(X,I6),4(X,E24.16))') iter1, ix, iy, de, ladder( iter1, ix - nx_start + 1, iy ), &
+                ww * fcn**2, wold * fcn**2
 
             ! already in Ha.
             ladder( iter1, ix - nx_start + 1, iy ) = ww * fcn**2 
@@ -262,7 +310,7 @@ module OCEAN_WRR
     enddo
 
     flush( 5000+myid )
-    deallocate( valencePots, tempPot, r_array, x_array )
+    deallocate( valencePots, tempPot, r_array, x_array, LMvalencePots )
 
     
     ! NEED some scalable way of symmetrizing W(r,r') = W(r'r)

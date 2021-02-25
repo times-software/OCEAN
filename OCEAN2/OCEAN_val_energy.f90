@@ -542,7 +542,7 @@ module OCEAN_val_energy
 
   end subroutine val_list_gw
 
-  subroutine energies_allow( sys, val_energies, con_energies, nelectron, efermi, cliph, &
+  subroutine energies_allow( sys, val_energies, con_energies, nelectron, efermi, cliph_, &
                                   allow, metal, ierr )
     use OCEAN_mpi
     use OCEAN_system
@@ -553,18 +553,20 @@ module OCEAN_val_energy
     integer, intent( in ) :: nelectron
     real( DP ), intent( in ) :: con_energies( sys%cur_run%num_bands, sys%nkpts, sys%nspn ), &
                                 val_energies( sys%cur_run%val_bands, sys%nkpts, sys%nspn ),  &
-                                efermi, cliph
+                                efermi, cliph_
     logical, intent( in ) :: metal
     integer, intent( inout ) :: ierr
     !
     integer :: kiter, biter1, biter2, ibeta, i, ispn, j, jspn
-    logical :: have_clipl
-    real(dp) :: clipl
+    logical :: have_clipl, have_cliph
+    real(dp) :: clipl, cliph
     !
     !
     ! Already zero'd
     allow%valr = 0.0_dp
     allow%vali = 0.0_dp
+
+    cliph = cliph_
 
     if( myid .eq. root ) then
       inquire(file='clipl',exist=have_clipl )
@@ -578,6 +580,18 @@ module OCEAN_val_energy
     endif
     call MPI_BCAST( have_clipl, 1, MPI_LOGICAL, root, comm, ierr )
     call MPI_BCAST( clipl, 1, MPI_DOUBLE_PRECISION, root, comm, ierr )
+
+
+    if( myid .eq. root ) then
+      inquire(file='cliph',exist=have_cliph)
+      if(have_cliph) then
+        open(unit=99,file='cliph',form='formatted',status='old' )
+        read(99,*) cliph
+        close(99)
+      endif
+    endif
+    call MPI_BCAST( cliph, 1, MPI_DOUBLE_PRECISION, root, comm, ierr )
+
 
     if( myid .eq. root ) write(6,*) 'clipl: ', clipl, val_energies( 1, 1, 1 )
 
