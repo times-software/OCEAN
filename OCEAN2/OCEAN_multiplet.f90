@@ -1,4 +1,4 @@
-! Copyright (C) 2015 - 2017 OCEAN collaboration
+! Copyright (C) 2015 - 2017, 2019, 2021 OCEAN collaboration
 !
 ! This file is part of the OCEAN project and distributed under the terms 
 ! of the University of Illinois/NCSA Open Source License. See the file 
@@ -665,7 +665,7 @@ module OCEAN_multiplet
   end subroutine OCEAN_soprep
     
   
-  subroutine OCEAN_mult_act( sys, inter, in_vec, out_vec, backwards )
+  subroutine OCEAN_mult_act( sys, inter, in_vec, out_vec, backwards, hflag )
     use OCEAN_system
     use OCEAN_psi, only : OCEAN_vector
     use OCEAN_mpi
@@ -677,6 +677,7 @@ module OCEAN_multiplet
     type( ocean_vector ), intent( inout ) :: out_vec
     logical, intent( in ) :: backwards
     integer :: ierr
+    integer, intent( in ) :: hflag(6)
     ierr = 0
 
 !    integer :: take_longer
@@ -688,24 +689,31 @@ module OCEAN_multiplet
 
 #if 0
     if( do_staggered_sum ) then
-      call OCEAN_ctact_dist( sys, inter, in_vec, out_vec )
+     if(hflag(4).eq.1)&
+         call OCEAN_ctact_dist( sys, inter, in_vec, out_vec )
 !      call OCEAN_ctact_dist( sys, inter, in_vec%r, in_vec%i, out_vec%r, out_vec%i )
-      call fgact_dist( sys, inter, in_vec, out_vec )
+     if(hflag(5).eq.1) call fgact_dist( sys, inter, in_vec, out_vec )
       if( sys%ZNL(2) .gt. 0 ) then
-        call OCEAN_soact_dist( sys, in_vec, out_vec )
+     if(hflag(6).eq.1) call OCEAN_soact_dist( sys, in_vec, out_vec )
       endif
     elseif (myid .eq. 0 ) then
-      call OCEAN_ctact( sys, inter, in_vec, out_vec )
-      call fgact( sys, inter, in_vec, out_vec )
+      if(hflag(4).eq.1)&
+         call OCEAN_ctact( sys, inter, in_vec, out_vec )
+      if(hflag(5).eq.1) call fgact( sys, inter, in_vec, out_vec )
       if( sys%ZNL(2) .gt. 0 ) then
-        call OCEAN_soact( sys, in_vec, out_vec )
+      if(hflag(6).eq.1) call OCEAN_soact( sys, in_vec, out_vec )
       endif
     endif
 !    call OCEAN_soact( sys, in_vec, out_vec )
 #else
-    call OCEAN_fg_combo( sys, inter, in_vec, out_vec, ierr )
-    call OCEAN_new_soact( sys, in_vec, out_vec, backwards )
-
+    if(hflag(5).eq.1)  call OCEAN_fg_combo( sys, inter, in_vec, out_vec, ierr )
+    !AK - Write out vecs before and after these calls 
+   ! open(unit=90,file='OCEAN_mult_act_fg_combo_in_vec.dat',form='formatted',status='new')
+   ! write(90,*) in_vec
+   ! close(90)
+    !this threw unallocated error
+    if(hflag(6).eq.1) call OCEAN_new_soact( sys, in_vec, out_vec, backwards )
+    
 !    if( myid .eq. 0 ) then
 !      call fgact( sys, inter, in_vec, out_vec )
 !      if( sys%ZNL(2) .gt. 0 ) then
@@ -1519,7 +1527,7 @@ module OCEAN_multiplet
 
     integer :: ic, jc, ikpt, ibnd, i
     
-
+    
     if( backwards ) then  ! someli -> - someli
       do i = 1, in_vec%core_store_size
           ! This silly accounting is to help OMP later atm it is breaking if put in the next loop
@@ -1555,12 +1563,25 @@ module OCEAN_multiplet
             out_vec%i( ibnd, ikpt, ic ) = out_vec%i( ibnd, ikpt, ic )  &
                                     + somelr( ic, jc ) * in_vec%i( ibnd, ikpt, jc ) &
                                     + someli( ic, jc ) * in_vec%r( ibnd, ikpt, jc )
-          enddo
+          
+       ! open(unit=90,file='OCEAN_new_soact_outVec.dat',form='formatted',status='unknown',access='append')
+        !write(90, *) 'start1'
+        !write(90, *) out_vec%r
+        !write(90, *) 'end1'
+        !close(90)
+        enddo
 
         enddo
       enddo
+   ! endif
+        !it makes sense that a write command would go here because the above
+        !operations on out_vec imply that the out_vec has been allocated -- AK
+   !     open(unit=90,file='OCEAN_new_soact_outVec.dat',form='formatted',status='unknown',access='append')
+    !    write(90, *) 'start'
+     !   write(90, *) out_vec%r
+     !   write(90,*) 'end'
+     !   close(90)
     endif
-
   end subroutine OCEAN_new_soact
 
 

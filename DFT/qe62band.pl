@@ -55,6 +55,17 @@ my $spin;
   $metal = 2 if( $spin =~ m/2/ );
 #}
 
+# Load up bshift
+my $bshift = 0;
+if( -e "../bshift" )
+{
+  open IN, "../bshift" or die "Failed to open bshift\n$!";
+  if( <IN> =~ m/(-?\d+)/) {
+    $bshift = $1;
+  }
+  close IN;
+}
+
 
 my $dft_split = 0;
 if( -e "dft.split" )
@@ -297,6 +308,9 @@ $printNkpt /= 2 if( $dft_shift == 1 && $dft_split != 1 );
 print "Found $printNkpt k-points\n";
 print $band_max . "\t" . $band_min . "\n";
 
+# Use bshift
+$band_max=$band_max-$bshift;
+$band_min=$band_min-$bshift;
 open OUT, ">brange.stub" or die "Failed to open brange.stub for writing\n$!";
 print OUT "1    $band_max\n$band_min    ";
 close OUT;

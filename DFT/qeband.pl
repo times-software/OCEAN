@@ -46,6 +46,17 @@ if( $metal_line =~ m/true/i )
   $metal = 1;
 }
 
+# Load up bshift
+my $bshift = 0;
+if( -e "../bshift" )
+{
+  open IN, "../bshift" or die "Failed to open bshift\n$!";
+  if( <IN> =~ m/(-?\d+)/) {
+    $bshift = $1;
+  }
+  close IN;
+}
+
 # Spin=2 needs to use the metals version
 if( $metal == 0 )
 {
@@ -257,10 +268,11 @@ else
   die "Error in metal flag. Programmer is to blame\n";
 }
 
-
+# AK -- drop band index to include an 'occupied' valence band in the conduction list. 
+$band_max=$band_max-$bshift;
+$band_min=$band_min-$bshift;
 open OUT, ">brange.stub" or die "Failed to open brange.stub for writing\n$!";
 print OUT "1    $band_max\n$band_min    ";
 close OUT;
 
 exit 0;
-

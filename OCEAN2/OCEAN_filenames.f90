@@ -11,7 +11,9 @@ module OCEAN_filenames
   private
   save
 
-  public :: OCEAN_filenames_spectrum, OCEAN_filenames_lanc, OCEAN_filenames_ehamp, OCEAN_filenames_read_ehamp
+  public :: OCEAN_filenames_spectrum, OCEAN_filenames_lanc, OCEAN_filenames_energy, &
+            OCEAN_filenames_ehamp, OCEAN_filenames_read_ehamp
+  
 
   contains
 
@@ -104,6 +106,78 @@ module OCEAN_filenames
     !
   end subroutine OCEAN_filenames_lanc
 
+  ! The Electron--(core)-Hole energy files 
+  subroutine OCEAN_filenames_energy( sys, filename, iter, hflag, ierr)
+
+    use OCEAN_system, only : o_system
+    !
+    type( o_system ), intent( in ) :: sys
+    character(len=*), intent( out ) :: filename
+    integer, intent( in ) :: iter
+    integer, intent( inout ) :: ierr
+    integer, intent( in ) :: hflag(6)
+    character(len=6) :: hamname
+!    character(len=3000) :: hamname
+!    integer :: stringLen
+!    integer :: last, actual
+!    write(hamname,*) hflag
+!    stringLen = len(hamname)
+!    last = 1
+!    actual = 1
+!    do while (actual < stringLen)
+!    if( hamname(last:last)==' ') then
+!    actual = actual + 1
+!    hamname(last:last)=hamname(actual:actual)
+!    hamname(actual:actual)=' '
+!    else
+!    last = last + 1
+!    if( actual < last) &
+!    actual = last
+!    endif 
+!    end do
+
+    write( hamname, '(6(I1.1))' ) hflag(:)
+
+    select case( sys%cur_run%calc_type )
+
+      case( 'RXS' )
+        if( len( filename ) < 35 ) then
+          ierr = 6
+          return
+        endif
+        write(filename, '(A6,A2,A1,A2,A1,I2.2,A1,I5.5,A1,I2.2,A1,I4.4,A1,A6)' ) 'ehamp_', & 
+            sys%cur_run%elname, '.', sys%cur_run%corelevel, '_', sys%cur_run%photon, '.', &
+            sys%cur_run%rixs_energy, '.', sys%cur_run%rixs_pol, '.',&
+            iter,'.',trim(hamname)
+
+      case( 'VAL' )
+        if( len( filename ) < 17 ) then
+          ierr = 6
+          return
+        endif
+        write(filename, '(A6,I4.4,A1,A6)' ) 'ehamp_', iter, '.', hamname
+        
+      case( 'XAS', 'XES' )
+        if( len( filename ) < 32 ) then
+          ierr = 6
+          return
+        endif
+        write(filename,'(A7,A2,A1,I4.4,A1,A2,A1,I2.2,A1,I4.4,A1,A6)' ) 'echamp_', sys%cur_run%elname, &
+              '.', sys%cur_run%indx, '_', sys%cur_run%corelevel, '_', sys%cur_run%photon, '.',&
+                 iter,'.',trim(hamname)
+
+      case default ! Currently XAS/XES option
+        if( len( filename ) < 32 ) then
+          ierr = 6
+          return
+        endif
+        write(filename,'(A7,A2,A1,I4.4,A1,A2,A1,I2.2,A1,I4.4,A1,A6)' ) 'echamp_', sys%cur_run%elname, &
+              '.', sys%cur_run%indx, '_', sys%cur_run%corelevel, '_', sys%cur_run%photon, '.',&
+                 iter,'.',trim(hamname)
+
+    end select
+    !
+  end subroutine OCEAN_filenames_energy
 
   ! The Electron--(Core)-Hole AMPlitude files 
   subroutine OCEAN_filenames_ehamp( sys, filename, iter, ierr )

@@ -2049,6 +2049,246 @@ module OCEAN_psi
     
   end subroutine OCEAN_psi_dot
 
+#if 0
+!> @author John Vinson, NIST
+!
+!> @brief Calculates dot_product bewteen two ocean_vectors
+!
+!> @details
+!! Determines the dot_product between p and q. 
+!! The values (r and i) are reduced via non-blocking with requests (r/irequest)
+!! A wait call is necessary before using them! The imaginary part is optional
+!! and only calculated if irequest and ival are passed in. 
+!! If both core and val exist then the code will *ADD* the two.
+!! Optionally you can pass in dest which will trigger REDUCE instead of ALLREDUCE.
+  
+!!AK - this computes p dot q and stores it in q, it operates only over the min
+!of core and valence separately. 
+subroutine OCEAN_psi_dot_write( p, q, outvec, rrequest, rval, ierr, irequest, ival, dest )
+!    use mpi
+    use OCEAN_mpi!, only : root, myid
+    implicit none
+    real(DP), intent( inout ) :: rval  ! must be inout for mpi_in_place
+    integer, intent( out ) :: rrequest
+    type(OCEAN_vector), intent( inout ) :: p
+    type(OCEAN_vector), intent( inout ) :: q
+    type(OCEAN_vector), intent( inout ) :: outvec
+    type(OCEAN_vector) :: outvec1, outvec2
+    integer, intent( inout ) :: ierr
+    integer, intent( out ), optional :: irequest
+    real(DP), intent( inout ), optional :: ival  ! must be inout for mpi_in_place
+    integer, intent( in ), optional :: dest
+    !
+    integer :: my_comm
+    real(dp), external :: DDOT
+    
+!    include 'mkl_vml.f90'
+    ! This would be a programming error. No reason to allow recovery
+    if( present( ival ) .neqv. present( irequest ) ) then
+      ierr = -1
+      return
+    endif
+
+    ! If neither store nor full then need to call write2store
+    !   This has the side effect of throwing an error if store_min is also invalid
+    !
+    ! Making the call that we would very rarely not want to create/use min
+    !  and so if full exists, but not min we will create it here
+    !
+!JTV make this routine
+#ifdef FALSE
+    ! If for some reason standard_order isn't true then we must go through full
+    !  using full there is no outstanding summation over procs for rval/ival and
+    !  so we go ahead and set the requests to be already completed
+    if( .not. p%standard_order .or. .not. q%standard_order ) then
+      rrequest = MPI_UNDEFINED
+      if( present( ival ) then
+        call OCEAN_psi_dot_full( p, q, rval, ierr, ival )
+        irequest = MPI_UNDEFINED
+      else
+        call OCEAN_psi_dot_full( p, q, rval, ierr )
+      endif
+      
+      return
+    endif
+#endif
+    !
+
+
+    if( IAND( p%valid_store, PSI_STORE_MIN ) .eq. 0 ) then 
+      if( IAND( p%valid_store, PSI_STORE_FULL ) .eq. 0 ) then
+        !JTV in future attempt to recover by trying to move from buffer to min,
+        !but for the present we will crash
+        ierr = -1
+!        call OCEAN_psi_write2store( p, ierr)
+        if( ierr .ne. 0 ) return
+      else
+        call OCEAN_psi_full2min( p, ierr )
+        if( ierr .ne. 0 ) return
+      endif
+    endif
+  
+    ! repeat for q
+    if( IAND( q%valid_store, PSI_STORE_MIN ) .eq. 0 ) then
+      if( IAND( q%valid_store, PSI_STORE_FULL ) .eq. 0 ) then
+        !JTV same as above
+        ierr = -1
+!        call OCEAN_psi_write2store( q, ierr)
+        if( ierr .ne. 0 ) return
+      else
+        call OCEAN_psi_full2min( q, ierr )
+        if( ierr .ne. 0 ) return
+      endif
+    endif
+   
+    ! repeat for q
+    if( IAND( outvec%valid_store, PSI_STORE_MIN ) .eq. 0 ) then
+      if( IAND( outvec%valid_store, PSI_STORE_FULL ) .eq. 0 ) then
+        !JTV same as above
+        ierr = -1
+!        call OCEAN_psi_write2store( q, ierr)
+        if( ierr .ne. 0 ) return
+      else
+        call OCEAN_psi_full2min( outvec, ierr )
+        if( ierr .ne. 0 ) return
+      endif
+    endif
+!!!!DONT DO THAT!!!!
+! if( IAND( outvec1%valid_store, PSI_STORE_MIN ) .eq. 0 ) then
+!      if( IAND( outvec1%valid_store, PSI_STORE_FULL ) .eq. 0 ) then
+!        !JTV same as above
+!        ierr = -1
+!        call OCEAN_psi_write2store( q, ierr)
+!        if( ierr .ne. 0 ) return
+!      else
+!        call OCEAN_psi_full2min( outvec1, ierr )
+!        if( ierr .ne. 0 ) return
+!      endif
+!    endif
+!!!OR THIS!!!!
+ !if( IAND( outvec2%valid_store, PSI_STORE_MIN ) .eq. 0 ) then
+ !     if( IAND( outvec2%valid_store, PSI_STORE_FULL ) .eq. 0 ) then
+ !       !JTV same as above
+ !       ierr = -1
+!        call OCEAN_psi_write2store( q, ierr)
+   !     if( ierr .ne. 0 ) return
+    !  else
+    !    call OCEAN_psi_full2min( outvec2, ierr )
+    !    if( ierr .ne. 0 ) return
+    !  endif
+    !endif
+! what we really want to do here is to spread this part out. do a ddot of p%min_r (cores) times each of q%min, and then collect for each
+! we can then write this out using a processor id and recover later, or can use gather after the fact to get new variable.
+! size of p%min_r is bands * projector for both hayvec and exciton vector. So want to multiply each of these with component but not sum
+#if 0      
+    if( have_core .and. p%core_store_size .gt. 0 ) then
+      ! Need to do dot product here
+      !  Everything should be in store/min
+      
+    call vdmul(psi_bands_pad*p%core_store_size,p%min_r,q%min_r,outvec1%min_r)
+    call vdmul(psi_bands_pad*p%core_store_size,p%min_i,q%min_i,outvec2%min_r)
+    call vdadd(psi_bands_pad*p%core_store_size,outvec1%min_r,&
+    outvec2%min_r,outvec%min_r)    
+        if( present( ival ) ) then
+      call vdmul(psi_bands_pad*p%core_store_size,p%min_r,q%min_i,outvec1%min_i)
+      call vdmul(psi_bands_pad*p%core_store_size,p%min_i,q%min_r,outvec2%min_i)
+      call vdsub(psi_bands_pad*p%core_store_size,outvec1%min_i,outvec2%min_i,&
+      outvec%min_i)   
+!   outvec%min_i = outvec%min_i - outvec1%min_i
+        endif
+    else
+      rval = 0.0_dp
+      if( present( ival ) ) ival = 0.0_dp
+    endif
+
+    my_comm = p%core_comm
+    if( have_val ) then
+      my_comm = p%val_comm
+      ! rval is either 0 or core
+      call vdmul(psi_bands_pad * p%val_store_size, p%val_min_r, q%val_min_r,&
+      outvec1%val_min_r )
+      call vdmul(psi_bands_pad * p%val_store_size,p%val_min_i,q%val_min_i,&
+      outvec2%val_min_r)
+      call vdadd(psi_bands_pad * p%val_store_size,outvec1%val_min_r,outvec2%val_min_r,&
+      outvec%val_min_r)
+        if( present( ival ) ) then
+     call vdmul(psi_bands_pad*p%val_store_size,p%val_min_r,q%val_min_i,&
+     outvec1%val_min_i)
+     call vdmul(psi_bands_pad*p%val_store_size,p%val_min_i,q%val_min_r,&
+     outvec2%val_min_i)
+     call vdsub(psi_bands_pad*p%val_store_size,outvec1%val_min_i,&
+     outvec2%val_min_r,outvec%val_min_i)
+       
+!outvec%val_min_i = outvec%val_min_i - outvec1%val_min_i
+
+        endif
+    endif
+#else
+      ierr = 12509712
+      return
+#endif
+    ! There is no "else rval=0" here because it is taken care of above for core
+
+    ! If we have dest we call MPI_REDUCE onto dest
+    if( present( dest ) ) then
+#ifdef MPI
+      ! Using P as the comm channel
+      ! JTV should make a subcomm that only has procs with core_store_size > 0 for
+      ! cases with large unit cells where NX is large and NK is very small
+#ifdef __OLD_MPI
+      call MPI_REDUCE( MPI_IN_PLACE, rval, 1, MPI_DOUBLE_PRECISION, MPI_SUM, dest, my_comm, &
+                          ierr )
+      rrequest = MPI_REQUEST_NULL
+#else
+      call MPI_IREDUCE( MPI_IN_PLACE, rval, 1, MPI_DOUBLE_PRECISION, MPI_SUM, dest, my_comm, &
+                           rrequest, ierr )
+#endif
+      if( ierr .ne. 0 ) return
+
+      if( present( ival ) ) then
+#ifdef __OLD_MPI
+        call MPI_REDUCE( MPI_IN_PLACE, ival, 1, MPI_DOUBLE_PRECISION, MPI_SUM, dest, my_comm, &
+                            ierr )
+        irequest = MPI_REQUEST_NULL
+#else
+        call MPI_IREDUCE( MPI_IN_PLACE, ival, 1, MPI_DOUBLE_PRECISION, MPI_SUM, dest, my_comm, &
+                             irequest, ierr )
+#endif
+        if( ierr .ne. 0 ) return
+      endif
+#endif
+    else
+#ifdef MPI
+      ! Using P as the comm channel
+      ! JTV should make a subcomm that only has procs with core_store_size > 0 for
+      ! cases with large unit cells where NX is large and NK is very small
+#ifdef __OLD_MPI
+      call MPI_ALLREDUCE( MPI_IN_PLACE, rval, 1, MPI_DOUBLE_PRECISION, MPI_SUM, my_comm, &
+                          ierr )
+      rrequest = MPI_REQUEST_NULL
+#else
+      call MPI_IALLREDUCE( MPI_IN_PLACE, rval, 1, MPI_DOUBLE_PRECISION, MPI_SUM, my_comm, &
+                           rrequest, ierr )
+#endif
+      if( ierr .ne. 0 ) return
+
+      if( present( ival ) ) then
+#ifdef __OLD_MPI
+        call MPI_ALLREDUCE( MPI_IN_PLACE, ival, 1, MPI_DOUBLE_PRECISION, MPI_SUM, my_comm, &
+                            ierr )
+        irequest = MPI_REQUEST_NULL
+#else
+        call MPI_IALLREDUCE( MPI_IN_PLACE, ival, 1, MPI_DOUBLE_PRECISION, MPI_SUM, my_comm, &
+                             irequest, ierr )
+#endif
+        if( ierr .ne. 0 ) return
+      endif
+#endif
+    endif
+    
+  end subroutine OCEAN_psi_dot_write
+#endif
+
 !> @brief Allocates the buffer space (core only) and arrays for mpi requests for the ocean_vector
 !
 !> @details The core-level exciton can use buffer storage. Both the core and 
@@ -5254,7 +5494,6 @@ module OCEAN_psi
       endif
 
     endif
-
 
 
     allocate( mer( nptot, -sys%cur_run%ZNL(3): sys%cur_run%ZNL(3) ),  &

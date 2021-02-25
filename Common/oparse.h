@@ -469,8 +469,8 @@ screen.grid.ninter
 } screen.grid.ninter
 screen.grid.shells
 {
--1 
-8 
+-1
+8
 } screen.grid.shells
 screen.grid.xyz
 {
@@ -545,3 +545,15 @@ bse.wvfn
 {
 new
 } bse.wvfn
+hamnum
+{
+1 1 1 1 1 1
+} hamnum
+echamp
+{
+.true.
+} echamp.inp
+bshift
+{
+0
+} bshift
