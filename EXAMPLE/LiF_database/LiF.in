@@ -33,6 +33,7 @@ rprim {
 
 pp_database ONCVPSP-PW-PDv0.4-stringent
 ecut.quality high
+ecut -1
 
 znucl { 3 9 }
 
@@ -42,8 +43,6 @@ xred {
 0.5 0.5 0.5
 0  0   0
 }
-
-ecut 100
 
 diemac 1.92
 
