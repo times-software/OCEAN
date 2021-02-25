@@ -209,7 +209,7 @@ foreach (@cpu_factors)
   }
 }
 print "NKPTS: $kpt_tot, ideal pools: $ideal_npools\n";
-if( $kpt_tot > (1.9*$ideal_npools ) && $ncpus / $ideal_npools > 6 )  # if ideal is too inefficient
+if( $kpt_tot > (1.9*$ideal_npools ) && $ncpus / $ideal_npools > 4 )  # if ideal is too inefficient
 {
   foreach (@cpu_factors)
   {
