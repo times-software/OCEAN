@@ -28,9 +28,15 @@ subroutine OCEAN_get_rho( xmesh, celvol, rho, ierr )
   integer :: igl(3), igh(3), powlist(3), mul(3), c_nfft(3), iter, offset(3)
   character(len=1) :: fstr
 
+#ifdef __FFTW3
+  integer, parameter :: fac(5) = (/ 2, 3, 5, 7, 11 /)
+  integer, parameter :: hicap(5) = (/ 20, 12, 8, 6, 1 /)
+  integer, parameter :: nfac = 5
+#else
   integer, parameter :: fac(3) = (/ 2, 3, 5 /)
   integer, parameter :: hicap(3) = (/ 20, 8, 4 /)
   integer, parameter :: nfac = 3
+#endif
 
   integer, external :: optim
 
