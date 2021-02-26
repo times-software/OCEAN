@@ -58,7 +58,7 @@ xred {
      0.4915748997335849  0.4915748997335849 -0.0167085603988046 }
 
 # Kinetic Energy cutoff (in Ry for QE)
-ecut 80
+ecut 100
 
 # SCF Energy tolerance
 toldfe 1.1d-8

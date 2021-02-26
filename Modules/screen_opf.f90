@@ -392,17 +392,13 @@ module screen_opf
 
 
   subroutine screen_opf_interpProjs(  zee, l, rad, psproj, diffproj, ierr, itarg )
-    use OCEAN_mpi, only : myid, root
     integer, intent( in ) :: zee, l
     real(DP), intent( in ) :: rad( : )
     real(DP), intent( out ) :: psproj( :, : ), diffproj( :, : )
     integer, intent( inout ) :: ierr
     integer, intent( inout ), optional :: itarg
     !
-    real(DP), allocatable :: TransposeProj( :, : )
     integer :: targ, i, p
-    character(len=20 ) :: filnam
-    character(len=100) :: formatting
 
     if( present( itarg ) ) then
       if( isRightTarg( zee, itarg ) ) then
@@ -468,7 +464,6 @@ module screen_opf
 
 
   subroutine screen_opf_interpSingleDelta(  zee, l, rad, delta, ierr, itarg, psout, aeout )
-    use OCEAN_mpi, only : myid, root
     integer, intent( in ) :: zee, l
     real(DP), intent( in ) :: rad
     real(DP), intent( out ) :: delta(:)
@@ -476,7 +471,7 @@ module screen_opf
     integer, intent( inout ), optional :: itarg
     real(DP), intent( out ), optional :: psout(:), aeout(:)
     !
-    integer :: targ, i, p
+    integer :: targ, p
     real(DP) :: ps, ae
 
     if( present( itarg ) ) then

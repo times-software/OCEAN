@@ -8,6 +8,7 @@ all: $(obj) $(mod) jlmfft.o
 
 %.o %.mod: %.f90
 	$(MPIFORT) $(OPTIONS) -c -o $*.o $< $(FFTWI)
+	touch $*.mod
 
 ocean_constants.o: ai_kinds.mod
 ocean_constants.mod: ai_kinds.mod
