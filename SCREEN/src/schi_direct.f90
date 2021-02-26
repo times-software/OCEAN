@@ -192,10 +192,10 @@ module schi_direct
     ! i>j :-> dr(i) * r(j)
     ! j>i :-> dr(i) * r(i)**3 / r(j)**2
     do iLM = 2, 4
-      FullW( 1, ilm )  = 4.0_DP * PI_DP * grid%rad(1) * grid%drad(1) * Nind( 1, ilm )
-      FullW0( 1, ilm ) = 4.0_DP * PI_DP * grid%rad(1) * grid%drad(1) * Nind0( 1, ilm )
+      FullW( 1, ilm )  = 4.0_DP * PI_DP * grid%rad(1) * grid%drad(1) * Nind( 1, ilm ) / 3.0_DP
+      FullW0( 1, ilm ) = 4.0_DP * PI_DP * grid%rad(1) * grid%drad(1) * Nind0( 1, ilm ) / 3.0_DP
       do i = 2, nr
-        coul = grid%drad(i) * 5.0_DP * PI_DP / 3.0_DP
+        coul = grid%drad(i) * 4.0_DP * PI_DP / 3.0_DP
         do j = 1, i
           FullW( j, ilm ) = FullW( j, ilm ) + coul * Nind( i, ilm ) * grid%rad(j)
           FullW0( j, ilm ) = FullW0( j, ilm ) + coul * Nind0( i, ilm ) * grid%rad(j)
@@ -209,29 +209,68 @@ module schi_direct
       enddo
     enddo
 
-    if( nlm .lt. 5 ) return
+    if( nlm .lt. 9 ) return
 
     ! l = 2 r(i)**2 * dr(i) * rlt**2 / rgt**3
     ! i=j=1 : dr(1) * r(1)
     ! i>j :-> dr(i) * r(j)**2 / r(i)
     ! j>i :-> dr(i) * r(i)**4 / r(j)**3
     do iLM = 5, 9
-      FullW( 1, ilm )  = 4.0_DP * PI_DP * grid%rad(1) * grid%drad(1) * Nind( 1, ilm )
-      FullW0( 1, ilm ) = 4.0_DP * PI_DP * grid%rad(1) * grid%drad(1) * Nind0( 1, ilm )
+      FullW( 1, ilm )  = 4.0_DP * PI_DP * grid%rad(1) * grid%drad(1) * Nind( 1, ilm ) / 5.0_DP
+      FullW0( 1, ilm ) = 4.0_DP * PI_DP * grid%rad(1) * grid%drad(1) * Nind0( 1, ilm ) / 5.0_DP
       do i = 2, nr
         coul = grid%drad(i) * 4.0_DP * PI_DP / grid%rad(i) / 5.0_DP
-        do j = 1, i
+        do j = 1, i-1
           FullW( j, ilm ) = FullW( j, ilm ) + coul * Nind( i, ilm ) * grid%rad(j)**2
           FullW0( j, ilm ) = FullW0( j, ilm ) + coul * Nind0( i, ilm ) * grid%rad(j)**2
         enddo
+        ! i == j
+        FullW( i, ilm ) = FullW( i, ilm ) &
+                        + Nind( i, ilm ) * grid%drad(i) * grid%rad(i) * 4.0_DP * PI_DP / 5.0_DP
+        FullW0( i, ilm ) = FullW0( i, ilm ) &
+                         + Nind0( i, ilm ) * grid%drad(i) * grid%rad(i) * 4.0_DP * PI_DP / 5.0_DP
 
-        coul = coul * grid%rad(i)**4
+!        coul = coul * grid%rad(i)**4
+        coul = grid%drad(i) * 4.0_DP * PI_DP * grid%rad(i)**4 / 5.0_DP
         do j = i+1, nr
           FullW( j, ilm ) = FullW( j, ilm ) + coul * Nind( i, ilm ) / grid%rad(j)**3
           FullW0( j, ilm ) = FullW0( j, ilm ) + coul * Nind0( i, ilm ) / grid%rad(j)**3
         enddo
       enddo
     enddo
+
+
+    if( nlm .lt. 16 ) return
+
+    ! l = 3 r(i)**2 * dr(i) * rlt**3 / rgt**4
+    ! i=j=1 : dr(1) * r(1)
+    ! i>j :-> dr(i) * r(j)**3 / r(i)**2
+    ! j>i :-> dr(i) * r(i)**5 / r(j)**4
+
+    do iLM = 10, 16
+      FullW( 1, ilm )  = 4.0_DP * PI_DP * grid%rad(1) * grid%drad(1) * Nind( 1, ilm ) / 7.0_DP
+      FullW0( 1, ilm ) = 4.0_DP * PI_DP * grid%rad(1) * grid%drad(1) * Nind0( 1, ilm ) / 7.0_DP
+      do i = 2, nr
+        coul = grid%drad(i) * 4.0_DP * PI_DP / grid%rad(i)**2 / 7.0_DP
+        do j = 1, i-1
+          FullW( j, ilm ) = FullW( j, ilm ) + coul * Nind( i, ilm ) * grid%rad(j)**3
+          FullW0( j, ilm ) = FullW0( j, ilm ) + coul * Nind0( i, ilm ) * grid%rad(j)**3
+        enddo
+        ! i == j
+        FullW( i, ilm ) = FullW( i, ilm ) &
+                        + Nind( i, ilm ) * grid%drad(i) * grid%rad(i) * 4.0_DP * PI_DP / 7.0_DP
+        FullW0( i, ilm ) = FullW0( i, ilm ) &
+                         + Nind0( i, ilm ) * grid%drad(i) * grid%rad(i) * 4.0_DP * PI_DP / 7.0_DP
+
+!        coul = coul * grid%rad(i)**4
+        coul = grid%drad(i) * 4.0_DP * PI_DP * grid%rad(i)**5 / 7.0_DP
+        do j = i+1, nr
+          FullW( j, ilm ) = FullW( j, ilm ) + coul * Nind( i, ilm ) / grid%rad(j)**4
+          FullW0( j, ilm ) = FullW0( j, ilm ) + coul * Nind0( i, ilm ) / grid%rad(j)**4
+        enddo
+      enddo
+    enddo
+
 
 #endif
     
@@ -431,12 +470,12 @@ module schi_direct
       Cmat( 1, jlm, 1, ilm ) = FourPi * grid%drad( 1 ) **2 * grid%rad( 1 ) **3 / 3.0_DP
 
       do i = 2, nr
-        coulfac = FourPi * grid%drad( i ) 
+        coulfac = FourPi * grid%drad( i ) / 3.0_DP
         do j = 1, i
           Cmat( j, jlm, i, ilm ) = coulfac * grid%drad( j ) * grid%rad(j ) ** 3
         enddo
 
-        coulfac = FourPi * grid%drad( i ) * grid%rad( i ) ** 3
+        coulfac = FourPi * grid%drad( i ) * grid%rad( i ) ** 3 / 3.0_DP
         do j = i+1, nr
           Cmat( j, jlm, i, ilm ) = coulfac * grid%drad( j )
         enddo
@@ -475,24 +514,90 @@ module schi_direct
     enddo
 #else
 
+#if 1
     do iLM = 5, 9
       jLM = iLM
       ! r^2 dr * r^2 dr * 1/r
       Cmat( 1, jlm, 1, ilm ) = FourPi * grid%drad( 1 ) ** 2 * grid%rad( 1 ) ** 3 / 5.0_DP
       do i = 2, nr
-        coulfac = FourPi * grid%drad( i ) / grid%rad( i )
-        do j = 1, i
+        coulfac = FourPi * grid%drad( i ) / grid%rad( i ) / 5.0_DP
+        do j = 1, i-1
           Cmat( j, jlm, i, ilm ) = coulfac * grid%drad( j ) * grid%rad( j ) ** 4
         enddo
+
+        Cmat( i, jlm, i, ilm ) = FourPi * grid%drad( i )**2 * grid%rad( i )**3 / 5.0_DP
         
-        coulfac = FourPi * grid%drad( i ) * grid%rad( i )**4
+        coulfac = FourPi * grid%drad( i ) * grid%rad( i )**4 / 5.0_DP
         do j = i + 1, nr
           Cmat( j, jlm, i, ilm ) = coulfac * grid%drad( j ) / grid%rad( j )
         enddo
       enddo
 
     enddo
+#else
+
+    do i = 1, nr
+      do j = 1, i-1
+        Cmat( j, 5, i, 5 ) = Cmat( j, 2, i, 2 ) * ( grid%rad( j ) / grid%rad( i ) ) * ( 3.0_DP / 5.0_DP )
+      enddo
+      Cmat( i, 5, i, 5 ) = Cmat( i, 2, i, 2 ) * ( 3.0_DP / 5.0_DP )
+      do j = i+1, nr
+        Cmat( j, 5, i, 5 ) = Cmat( j, 2, i, 2 ) * ( grid%rad( i ) / grid%rad( j ) ) * ( 3.0_DP / 5.0_DP )
+      enddo
+    enddo
+    do ilm = 6, 9
+      Cmat( :, ilm, :, ilm ) = Cmat( :, 5, :, 5 )
+    enddo
+
 #endif
+#endif
+
+    if( nLM .eq. 9 ) goto 10
+    if( nLM .lt. 16 ) then
+      ierr = 4
+      return
+    endif
+
+#if 1
+    do iLM = 10, 16
+      jLM = iLM
+      ! r^2 dr * r^2 dr * 1/r
+      Cmat( 1, jlm, 1, ilm ) = FourPi * grid%drad( 1 ) ** 2 * grid%rad( 1 ) ** 3 / 7.0_DP
+      do i = 2, nr
+        coulfac = FourPi * grid%drad( i ) / grid%rad( i )**2 / 7.0_DP
+        do j = 1, i-1
+          Cmat( j, jlm, i, ilm ) = coulfac * grid%drad( j ) * grid%rad( j ) ** 5
+        enddo
+
+        Cmat( i, jlm, i, ilm ) = FourPi * grid%drad( i )**2 * grid%rad( i )**3 / 7.0_DP
+
+        coulfac = FourPi * grid%drad( i ) * grid%rad( i )**5 / 7.0_DP
+        do j = i + 1, nr
+          Cmat( j, jlm, i, ilm ) = coulfac * grid%drad( j ) / grid%rad( j )**2
+        enddo
+      enddo
+
+    enddo
+#else
+    ! add a power of r< / r> and rescale the (2l+1)
+    ilm = 10
+    jlm = 10
+    do i = 1, nr
+      do j = 1, i-1
+        Cmat( j, jlm, i, ilm ) = Cmat( j, 5, i, 5 ) * ( grid%rad( j ) / grid%rad( i ) ) * ( 5.0_DP / 7.0_DP )
+      enddo
+      Cmat( i, jlm, i, ilm ) = Cmat( i, 5, i, 5 ) * ( 5.0_DP / 7.0_DP )
+      do j = i+1, nr
+        Cmat( j, jlm, i, ilm ) = Cmat( j, 5, i, 5 ) * ( grid%rad( i ) / grid%rad( j ) ) * ( 5.0_DP / 7.0_DP )
+      enddo
+    enddo
+    do ilm = 11, 16
+      Cmat( :, ilm, :, ilm ) = Cmat( :, 11, :, 11 )
+    enddo
+#endif
+
+
+
 
 10  continue
     if( appx .eq. 'LD3' ) then

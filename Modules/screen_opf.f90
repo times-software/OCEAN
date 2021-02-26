@@ -34,7 +34,7 @@ module screen_opf
   public :: screen_opf_init, screen_opf_clean, screen_opf_makeNew, screen_opf_loadAll, &
             screen_opf_lbounds, screen_opf_getNCutoff, screen_opf_nprojForChannel, &
             screen_opf_interpProjs, screen_opf_makeAMat, screen_opf_maxNproj, screen_opf_AltInterpProjs, &
-            screen_opf_largestL, screen_opf_getRMax, screen_opf_interpPSProjs
+            screen_opf_largestL, screen_opf_getRMax, screen_opf_interpPSProjs, screen_opf_interpSingleDelta
 
   public :: screen_opf_largestLMNproj
   
@@ -392,17 +392,13 @@ module screen_opf
 
 
   subroutine screen_opf_interpProjs(  zee, l, rad, psproj, diffproj, ierr, itarg )
-    use OCEAN_mpi, only : myid, root
     integer, intent( in ) :: zee, l
     real(DP), intent( in ) :: rad( : )
     real(DP), intent( out ) :: psproj( :, : ), diffproj( :, : )
     integer, intent( inout ) :: ierr
     integer, intent( inout ), optional :: itarg
     !
-    real(DP), allocatable :: TransposeProj( :, : )
     integer :: targ, i, p
-    character(len=20 ) :: filnam
-    character(len=100) :: formatting
 
     if( present( itarg ) ) then
       if( isRightTarg( zee, itarg ) ) then
@@ -466,24 +462,82 @@ module screen_opf
 
   end subroutine screen_opf_interpProjs
 
-  subroutine screen_opf_loadAll( ierr, zeelist )
+
+  subroutine screen_opf_interpSingleDelta(  zee, l, rad, delta, ierr, itarg, psout, aeout )
+    integer, intent( in ) :: zee, l
+    real(DP), intent( in ) :: rad
+    real(DP), intent( out ) :: delta(:)
+    integer, intent( inout ) :: ierr
+    integer, intent( inout ), optional :: itarg
+    real(DP), intent( out ), optional :: psout(:), aeout(:)
+    !
+    integer :: targ, p
+    real(DP) :: ps, ae
+
+    if( present( itarg ) ) then
+      if( isRightTarg( zee, itarg ) ) then
+        targ = itarg
+      else
+        targ = getRightTarg( zee )
+      endif
+    else
+      targ = getRightTarg( zee )
+    endif
+
+    if( targ .lt. 1 ) then
+      ierr = 1
+      return
+    endif
+
+    if( present( itarg ) ) itarg = targ
+
+    if( size( delta ) .lt. FullTable( targ )%nprojPerChannel( l ) ) then
+      ierr = 2
+      return
+    endif
+
+    do p = 1, FullTable( targ )%nprojPerChannel( l )
+      call intval( FullTable( targ )%nrad, FullTable( targ )%rad, FullTable( targ )%psProj( :, p, l ), &
+                   rad, ps, 'cap', 'zer' )
+      call intval( FullTable( targ )%nrad, FullTable( targ )%rad, FullTable( targ )%aeProj( :, p, l ), &
+                   rad, ae, 'cap', 'zer' )
+      delta(p) = ae - ps
+      if( present( psout ) ) psout(p) = ps  
+      if( present( aeout ) ) aeout(p) = ae
+    enddo
+
+  end subroutine screen_opf_interpSingleDelta
+
+
+  subroutine screen_opf_loadAll( ierr, zeelist_ )
     use OCEAN_mpi, only : myid, root, comm, MPI_INTEGER
     integer, intent( inout ) :: ierr
-    integer, optional, intent( in ) :: zeelist(:)
+    integer, optional, intent( in ) :: zeelist_(:)
 
     integer :: maxUnique, Zee, i
+    integer, allocatable :: zeelist(:)
 
-    if( present( zeelist ) ) then
-      maxUnique = size( zeelist )
+    if( present( zeelist_ ) ) then
+      maxUnique = size( zeelist_ )
+      allocate( zeelist( maxUnique ) )
+      zeelist(:) = zeelist_(:)
     else
 
       if( myid .eq. root ) then
         open(unit=99,file='zeelist',form='formatted',status='old')
         read(99,*) maxUnique
+        allocate( zeelist( maxUnique ) )
+        do i = 1, maxUnique
+          read(99,*) zeelist(i)
+        enddo
+        close(99)
       endif
 #ifdef MPI
       call MPI_BARRIER( comm, ierr )
       call MPI_BCAST( maxUnique, 1, MPI_INTEGER, root, comm, ierr )
+      if( ierr .ne. 0 ) return
+      if( myid .ne. 0 ) allocate( zeelist( maxUnique ) )
+      call MPI_BCAST(zeelist, maxUnique, MPI_INTEGER, root, comm, ierr )
       if( ierr .ne. 0 ) return
 #endif
     endif
@@ -492,26 +546,27 @@ module screen_opf
     if( ierr .ne. 0 ) return
 
     do i = 1, maxUnique
-      if( present( zeelist ) ) then
+!      if( present( zeelist ) ) then
         Zee = zeelist( i )
-      else
-        if( myid .eq. root ) then
-          read(99,*) Zee
-        endif
-#ifdef MPI
-        call MPI_BARRIER( comm, ierr )
-        call MPI_BCAST( Zee, 1, MPI_INTEGER, root, comm, ierr )
-        if( ierr .ne. 0 ) return
-#endif
-      endif
+!      else
+!        if( myid .eq. root ) then
+!          read(99,*) Zee
+!        endif
+!#ifdef MPI
+!        call MPI_BARRIER( comm, ierr )
+!        call MPI_BCAST( Zee, 1, MPI_INTEGER, root, comm, ierr )
+!        if( ierr .ne. 0 ) return
+!#endif
+!      endif
 
       call screen_opf_makeNew( Zee, ierr )
       if( ierr .ne. 0 ) return
     enddo
 
-    if( .not. present( zeelist ) ) then
-      if( myid .eq. root ) close( 99 )
-    endif
+!    if( .not. present( zeelist ) ) then
+!      if( myid .eq. root ) close( 99 )
+!    endif
+    deallocate( zeelist )
 
   end subroutine screen_opf_loadAll
 
@@ -972,10 +1027,26 @@ module screen_opf
           ii = ii + 1
        end do
     end if
-    if ( interp ) then
-       rat = ( x - xtab( ii ) ) / ( xtab( ii + 1 ) - xtab( ii ) )
-       y = ytab( ii ) + rat * ( ytab( ii + 1 ) - ytab( ii ) )
-    end if
+!    if ( interp ) then
+!    end if
+    if( interp ) then
+      if( ( xtab( ii + 1 ) - xtab( ii ) ) .lt. 0.0000001_dp ) then
+          y = ( ytab( ii ) + ytab( ii + 1 ) ) / 2.0_dp
+      elseif( ii .eq. 1 .or. ii + 1 .eq. n .or. ( xtab( ii + 1 ) - xtab( ii ) ) .lt. 0.0001_DP ) then
+         rat = ( x - xtab( ii ) ) / ( xtab( ii + 1 ) - xtab( ii ) )
+         y = ytab( ii ) + rat * ( ytab( ii + 1 ) - ytab( ii ) )
+      else
+         y = ytab(ii-1) * ( x - xtab(ii) ) * ( x - xtab(ii+1) ) * (x-xtab(ii+2)) &
+                        / ((xtab(ii-1) - xtab(ii))*(xtab(ii-1)-xtab(ii+1))*(xtab(ii-1)-xtab(ii+2))) &
+           + ytab(ii) * (x-xtab(ii-1))*(x-xtab(ii+1))*(x-xtab(ii+2)) &
+                      / ((xtab(ii) - xtab(ii-1))*(xtab(ii)-xtab(ii+1))*(xtab(ii)-xtab(ii+2))) &
+           + ytab(ii+1) * (x-xtab(ii-1))*(x-xtab(ii))*(x-xtab(ii+2)) &
+                        / ((xtab(ii+1) - xtab(ii-1))*(xtab(ii+1)-xtab(ii))*(xtab(ii+1)-xtab(ii+2))) &
+           + ytab(ii+2) * (x-xtab(ii-1))*(x-xtab(ii))*(x-xtab(ii+1)) &
+                        / ((xtab(ii+2) - xtab(ii-1))*(xtab(ii+2)-xtab(ii))*(xtab(ii+2)-xtab(ii+1)))
+
+      endif
+    endif
     !
     return
   end subroutine intval

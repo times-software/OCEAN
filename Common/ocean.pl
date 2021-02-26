@@ -14,7 +14,7 @@ use File::Copy;
 use strict;
 
 
-my @OceanFolders = ("Common", "DFT", "zWFN", "OPF", "SCREEN", "CNBSE", "PREP", "NBSE");
+my @OceanFolders = ("Common", "DFT", "OPF", "SCREEN", "CNBSE", "PREP", "NBSE");
 
 print "Welcome to OCEAN\n";
 
@@ -256,6 +256,7 @@ else
 ##########################################
 if( $script_pre eq 'OBF' ) 
 {
+  mkdir "zWFN";
 	print "$Separator\n";
 	print "Entering zWFN stage\n";
 	chdir "zWFN" or die "$!\n";

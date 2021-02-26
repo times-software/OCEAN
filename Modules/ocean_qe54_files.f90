@@ -252,7 +252,6 @@ module ocean_qe54_files
     real(DP), allocatable :: spareEnergies( :, :, : ) 
     integer :: ispn, ikpt, i, bstop, bstartMinusOne, j
     real(DP) :: dumf
-    character(len=128) :: lineBurn
     logical :: isConduction
 
     if( is_init .eqv. .false. ) then
@@ -395,8 +394,6 @@ module ocean_qe54_files
     integer, intent( inout ) :: ierr
     !
     integer :: ispn, ikpt, i, bstop2 !bstop1, bstart2, bstop2
-    real(DP) :: dumf
-    character(len=128) :: lineBurn
 
     if( is_init .eqv. .false. ) then
       write(6,*) 'qe54_read_energies_single called but was not initialized'
@@ -618,7 +615,6 @@ module ocean_qe54_files
     logical, intent( out ) :: isGamma, isFullStorage
     integer, intent( inout ) :: ierr
     !
-    integer :: i
     logical :: ex
     character(len=128) :: tmp
     real(DP) :: qinb(3)
@@ -845,7 +841,7 @@ module ocean_qe54_files
     endif
 
 !    write(6,*) 'gvecs', pool_root, pool_comm
-111 continue
+!111 continue
     
 #ifdef MPI
     call MPI_BCAST( ierr, 1, MPI_INTEGER, pool_root, pool_comm, i )
@@ -911,7 +907,7 @@ module ocean_qe54_files
 
     endif
 
-111 continue
+!111 continue
 
 #ifdef MPI
     call MPI_BCAST( ierr, 1, MPI_INTEGER, pool_root, pool_comm, i )
@@ -974,8 +970,8 @@ module ocean_qe54_files
     !
     complex( DP ), allocatable, dimension( :, :, : ) :: cmplx_wvfn
     complex( DP ), allocatable, dimension( :, : ) :: overlap_wvfn
-    integer :: test_gvec, itarg, nbands_to_send, nr, ierr_, nbands_to_read, id, start_band, & 
-               stop_band, i, crap, overlapBands, j, indexOverlapBand, maxBands, bufferSize, k
+    integer :: test_gvec, nbands_to_send, nr, ierr_, nbands_to_read, id, start_band, & 
+               i, crap, overlapBands, j, indexOverlapBand, maxBands, bufferSize, k
 #ifdef MPI_F08
     type( MPI_REQUEST ), allocatable :: requests( : )
     type( MPI_DATATYPE ) :: valType, conType
@@ -1304,8 +1300,8 @@ module ocean_qe54_files
     integer, intent( inout ) :: ierr
     !
     complex( DP ), allocatable, dimension( :, :, : ) :: cmplx_wvfn
-    integer :: test_gvec, itarg, nbands_to_send, nr, ierr_, nbands_to_read, id, start_band, &
-               stop_band, i, crap, j, indexOverlapBand, maxBands, bufferSize, k, &
+    integer :: test_gvec, nbands_to_send, nr, ierr_, nbands_to_read, id, start_band, &
+               i, crap, j, maxBands, bufferSize, k, &
                test_gvec2
 #ifdef MPI_F08
     type( MPI_REQUEST ), allocatable :: requests( : )
@@ -1675,7 +1671,7 @@ module ocean_qe54_files
     integer, intent( inout ) :: ierr
     !
     complex( DP ), allocatable, dimension( :, :, : ) :: cmplx_wvfn
-    integer :: test_gvec, itarg, nbands_to_send, nr, ierr_, nbands, id, start_band, crap, i, j, k, bufferSize, maxBands
+    integer :: test_gvec, nbands_to_send, nr, ierr_, nbands, id, start_band, crap, i, j, k, bufferSize, maxBands
 #ifdef MPI_F08
     type( MPI_REQUEST ), allocatable :: requests( : )
     type( MPI_DATATYPE ) :: newType

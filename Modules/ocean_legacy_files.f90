@@ -782,7 +782,7 @@ module ocean_legacy_files
     real( DP ), allocatable, dimension( :, : ) :: re_wvfn, im_wvfn
     integer, allocatable, dimension( :, : ) :: trans_gvecs
     integer :: test_gvec, itarg, nbands_to_send, nr, ierr_, nbands_to_read, id, start_band, &
-               stop_band, band_overlap, i
+               stop_band, i
 #ifdef MPI_F08
     type( MPI_REQUEST ), allocatable :: requests( :, : )
     type( MPI_REQUEST ) :: gvecReq

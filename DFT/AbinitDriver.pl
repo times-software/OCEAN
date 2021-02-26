@@ -963,7 +963,7 @@ if ( $bseRUN ) {
       }
       else
       {
-        print "DFT split requested, but q=0!\n";
+        print "DFT split requested, but q=0! (This is not a problem)\n";
       }
     }
     close IN;

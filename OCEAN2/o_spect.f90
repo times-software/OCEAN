@@ -201,7 +201,8 @@ program o_spect
       indabs = sqrt( rad ) * sin( theta )
 
       refrac = sqrt(eps)
-      reflct = abs((refrac-1.0d0)/(refrac+1.0d0))**2
+!      reflct = abs((refrac-1.0d0)/(refrac+1.0d0))**2
+      reflct = (refrac-1.0d0)/(refrac+1.0d0) * conjg( (refrac-1.0d0)/(refrac+1.0d0) )
       mu = 2.0d0 * ere * Hartree2eV * aimag(refrac) / ( bohr * alphainv * 1000 )
 
 !      write(99,'(8(1E24.16,1X))') ere*Hartree2eV, reeps, imeps, refrac-1.0d0, mu, reflct, lossf

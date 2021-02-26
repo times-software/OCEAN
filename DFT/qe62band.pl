@@ -138,6 +138,7 @@ while( my $line =<IN> )
 
   if( $line =~ m/\<highestOccupiedLevel\>([-+]?\d+\.\d+[Ee]?[-+]?(\d+)?)/ )
   {
+    $fermi = 'no';
     $highest = $1;
     last if( $dft_split == 1 );
     unless( $lowest eq 'no' )
@@ -148,6 +149,7 @@ while( my $line =<IN> )
   }
   elsif( $line =~ m/\<lowestUnoccupiedLevel\>([-+]?\d+\.\d+[Ee]?[-+]?(\d+)?)/ )
   {
+    $fermi = 'no';
     next if( $dft_split == 1 );
     $lowest = $1;
     unless( $highest eq 'no' )
@@ -159,7 +161,7 @@ while( my $line =<IN> )
   elsif( $line =~ m/\<fermi_energy\>([-+]?\d+\.\d+[Ee]?[-+]?(\d+)?)/ )
   {
     $fermi = $1;
-    last;
+#    last;
   }
   elsif( $line =~ m/\<two_fermi_energies\>([-+]?\d+\.\d+[Ee]?[-+]?(\d+)?)\s+([-+]?\d+\.\d+[Ee]?[-+]?(\d+)?)/ )
   {
