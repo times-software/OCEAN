@@ -807,7 +807,7 @@ module screen_grid
     real(DP), allocatable :: slice_ymu( :, : ), temp( :, :, : )
     real(DP) :: su
 
-    integer :: npt, nbasis, nLM, fullSize, nang, nr, dimTemp
+    integer :: npt, nbasis, nLM, fullSize, nang, nr
     integer :: i, j, iLM, l, m, ir, jr, jlm, k, lmax, ipt, iir, inter
 
     npt = size( Full, 1 )

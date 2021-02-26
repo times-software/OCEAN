@@ -184,7 +184,7 @@ module screen_wvfn_converter
 #ifdef MPI_F08
                           MPI_REQUEST, &
 #endif
-                          MPI_DOUBLE_COMPLEX, MPI_DOUBLE_PRECISION, comm, myid
+                          MPI_DOUBLE_COMPLEX, MPI_DOUBLE_PRECISION, comm
     use screen_system, only : system_parameters, params
     use screen_sites, only : site
     use screen_wavefunction, only : screen_wvfn, screen_wvfn_returnWavefunctionDims
@@ -311,7 +311,7 @@ module screen_wvfn_converter
     integer :: isite, j, isend, itag, destID, iwvfn, nthreads
     integer :: npts, nProcsPerPool, iproc, nbandChunk, iband, nbandUse
     integer :: pts_start, num_pts, band_start, num_band, kpts_start, num_kpts
-    integer :: lmin, lmax, nproj, l, nprojSite, nprojMax, iiband, itarg
+    integer :: lmin, lmax, nproj, l, nprojSite, nprojMax, itarg
     integer, allocatable :: atomLookup(:,:,:)
     real(DP), allocatable :: atomVec(:,:,:,:), umklapp(:,:,:,:)
 #ifdef MPI_F08
@@ -759,7 +759,9 @@ module screen_wvfn_converter
     use screen_sites, only : site
     use screen_opf
     use screen_wavefunction, only : screen_wvfn
+#ifdef DEBUG
     use ocean_mpi, only : myid, root
+#endif
 
     type( site ), intent( in ) :: isite
     integer, intent( in ) :: npts, nbands, iq
@@ -775,8 +777,8 @@ module screen_wvfn_converter
     complex(DP), parameter :: zone = 1.0_DP
     complex(DP), parameter :: zero = 0.0_DP
     
-    integer :: l, m, lmin, lmax, itarg, nproj, maxNproj, ncutoff
-    integer :: i, j, k, il, nl, totLM, ib
+    integer :: l, lmin, lmax, itarg, nproj, maxNproj, ncutoff
+    integer :: i, j, totLM
 
 #ifdef DEBUG
     character(len=64) :: formatting, filnam
@@ -1674,7 +1676,7 @@ module screen_wvfn_converter
     type(fft_obj) :: bplan
 
     integer :: dims(3)
-    integer :: i, j, k, ig, ib, flags
+    integer :: i, j, k, ig, ib
 
     dims(1) = size( uofx, 1 )
     dims(2) = size( uofx, 2 )
@@ -2053,7 +2055,7 @@ module screen_wvfn_converter
  
 !    complex(DP) :: c00, c01, c10, c11, c0, c1, c
     real(DP) :: P11, P12, P13, P21, P22, P23, P31, P32, P33, Q1, Q2, Q3, R, dx, dy, dz
-    real(DP) :: rvec(3), i2pi, phse, dxtemp, dytemp
+    real(DP) :: rvec(3), i2pi, phse
     integer :: dims(3), ib, ip, i, j
 
     real(DP), allocatable :: distanceMap( :, : )
@@ -2241,7 +2243,6 @@ module screen_wvfn_converter
   subroutine swl_RealDoLagrange( order, npts, nbands, iband, uofx, Pgrid, isInitGrid, &
                                  avecs, qcart, posn, wvfn, ierr )
     use ocean_constants, only : pi_dp
-    use ocean_mpi, only : myid
     use ocean_interpolate
     use screen_wavefunction, only : screen_wvfn
     integer, intent( in ) :: order, npts, nbands, iband
@@ -2257,7 +2258,7 @@ module screen_wvfn_converter
     integer, allocatable :: pointMap(:,:)
 
     real(DP) :: R, dx, dy, dz, rvec(3), invAvecs(3,3)
-    integer :: dims(3), ib, ip, i, j, ix, iy, iz, iyy, izz, offset
+    integer :: dims(3), ib, ip, i, j, iy, iz, iyy, izz, offset
 
     allocate( pointMap( 3, npts ), distanceMap( 3, npts ), stat=ierr )
     if( ierr .ne. 0 ) return
@@ -2421,7 +2422,7 @@ module screen_wvfn_converter
     !
     complex(DP) :: R, C
     real(DP) :: dx, dy, dz, rvec(3), phse, invAvecs(3,3)
-    integer :: dims(3), ib, ip, i, j, ix, iy, iz, iyy, izz, offset
+    integer :: dims(3), ib, ip, i, j, iy, iz, iyy, izz, offset
 
 
     allocate( pointMap( 3, npts ), distanceMap( 3, npts ), phase( npts ), stat=ierr )
@@ -2583,7 +2584,7 @@ module screen_wvfn_converter
 !    complex(DP) :: c00, c01, c10, c11, c0, c1, c
     complex(DP) :: R, Rgrid(4), Q(4), QGrid(4,4), P(4,4)
     real(DP) :: dx, dy, dz
-    real(DP) :: rvec(3), i2pi, phse, dxtemp, dytemp
+    real(DP) :: rvec(3), i2pi, phse
     integer :: dims(3), ib, ip, i, j, iy, iz
 
     real(DP), allocatable :: distanceMap( :, : )
@@ -2591,7 +2592,6 @@ module screen_wvfn_converter
     integer, allocatable :: pointMap( :, :, : )
 !    logical , allocatable :: phaseMap( : )
     logical, allocatable :: isInitGrid( :, : ,: )
-    character(len=12) :: wvfnfile
 
     allocate( pointMap( 3, 4, npts ), distanceMap( 3, npts ), phase( npts ), stat=ierr )
     if( ierr .ne. 0 ) return
@@ -2726,7 +2726,7 @@ module screen_wvfn_converter
 !    complex(DP) :: c00, c01, c10, c11, c0, c1, c
     complex(DP) :: R, Rgrid(5), Q(5), QGrid(5,5), P(5,5)
     real(DP) :: dx, dy, dz
-    real(DP) :: rvec(3), i2pi, phse, dxtemp, dytemp
+    real(DP) :: rvec(3), i2pi, phse, dxtemp
     integer :: dims(3), ib, ip, i, j, iy, iz
 
     real(DP), allocatable :: distanceMap( :, : )
@@ -2868,8 +2868,7 @@ module screen_wvfn_converter
 
 !    complex(DP) :: c00, c01, c10, c11, c0, c1, c
     complex(DP) :: R, Rgrid(6), Q(6), QGrid(6,6), P(6,6)
-    real(DP) :: dx, dy, dz
-    real(DP) :: rvec(3), i2pi, phse, dxtemp, dytemp
+    real(DP) :: rvec(3), i2pi, phse
     integer :: dims(3), ib, ip, i, j, iy, iz
 
     real(DP), allocatable :: distanceMap( :, : )
@@ -3362,7 +3361,6 @@ module screen_wvfn_converter
     !
     real(DP) :: prefac
     real(DP), allocatable, dimension(:,:) :: phse2, gplusq2, cos_phases, sin_phases, real_uofg, imag_uofg
-    real(DP) :: gcart(3), gplusq(3), phse
     integer :: i, j, blockFactor, ii, ig_start, ig_stop, ig_width
     real(DP), parameter :: done = 1.0_DP
     real(DP), parameter :: mone = -1.0_DP
@@ -3444,7 +3442,6 @@ module screen_wvfn_converter
     complex(DP), allocatable :: phases(:,:)
     complex(DP) :: prefac
     real(DP), allocatable :: phse2(:,:), gplusq2(:,:)
-    real(DP) :: gcart(3), gplusq(3), phse
     integer :: i, j, blockFactor, ii, ig_start, ig_stop, ig_width
     complex(DP), parameter :: cone = 1.0_DP
     complex(DP), parameter :: czero = 0.0_DP
@@ -3452,7 +3449,6 @@ module screen_wvfn_converter
     real(DP), parameter :: dzero = 0.0_DP
 
     integer, parameter :: blockParameter = 512
-    character(len=12) :: wvfnfile
 
     prefac = czero
     blockFactor = min( blockParameter, ngvecs )
@@ -3938,8 +3934,8 @@ module screen_wvfn_converter
 
     real(DP), allocatable, dimension( :, :, : ) :: psproj, diffproj, amat, psproj_hold
 
-    integer :: l, m, lmin, lmax, itarg, nproj, maxNproj, ncutoff
-    integer :: i, j, k, il, nl, totLM, ib
+    integer :: l, lmin, lmax, itarg, nproj, maxNproj, ncutoff
+    integer :: i, j, totLM
 
 
     if( .not. screen_system_allaug() ) return
