@@ -195,7 +195,7 @@ module screen_paral
     integer, intent( in ) :: n_sites, nproc 
     integer, intent( out ) :: ngroups
     !
-    real( DP ) :: score, best_score, mismatch
+    real( DP ) :: score, best_score
     integer :: i, j, best_ngroup, k, maxSites, ierr
     logical :: ex
 
