@@ -375,7 +375,7 @@ if( $runBSE != 0 )
       close TMP;
 
 #      system( "$ENV{'OCEAN_BIN'}/qe62band.pl") == 0 or die "Failed to run qe62band.pl\n$!";
-      copy("../$rundir/eig62.txt", "eig62.txt") or die "Failed to grab enkfile\n$!";
+      copy("../$rundir/enkfile", "enkfile_raw") or die "Failed to grab enkfile\n$!";
     }
     elsif( -e "Out/$prefix.save/data-file.xml" )
     {

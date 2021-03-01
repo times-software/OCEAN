@@ -1,0 +1,6 @@
+This is a copy of the standard LiF example.
+
+We have replaced with FHI-style psp with ones from PseduoPojo (v0.4).
+The oncvpsp input files have been modified so that the psp format is UPF. 
+
+This example shows how the pseudo database can be used to automicatically load the ONCV psps from PseudoDojo

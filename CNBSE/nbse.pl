@@ -277,6 +277,10 @@ if( <MODE> =~ m/grid/i )
     my $targfile = catfile( updir(), "SCREEN", $xdir, $rad, "rpot" );
     my $destfile = sprintf "rpotx%06i", $i;
     copy( $targfile, $destfile ) or die "Failed to copy $targfile to $destfile\n";
+
+    $targfile = catfile( updir(), "SCREEN", $xdir, $rad, "vind" );
+    $destfile = sprintf "vindx%06i", $i;
+    copy( $targfile, $destfile ) or die "Failed to copy $targfile to $destfile\n";
   }
 
 }

@@ -55,6 +55,17 @@ my $spin;
   $metal = 2 if( $spin =~ m/2/ );
 #}
 
+# Load up bshift
+my $bshift = 0;
+if( -e "../bshift" )
+{
+  open IN, "../bshift" or die "Failed to open bshift\n$!";
+  if( <IN> =~ m/(-?\d+)/) {
+    $bshift = $1;
+  }
+  close IN;
+}
+
 
 my $dft_split = 0;
 if( -e "dft.split" )
@@ -127,6 +138,7 @@ while( my $line =<IN> )
 
   if( $line =~ m/\<highestOccupiedLevel\>([-+]?\d+\.\d+[Ee]?[-+]?(\d+)?)/ )
   {
+    $fermi = 'no';
     $highest = $1;
     last if( $dft_split == 1 );
     unless( $lowest eq 'no' )
@@ -137,6 +149,7 @@ while( my $line =<IN> )
   }
   elsif( $line =~ m/\<lowestUnoccupiedLevel\>([-+]?\d+\.\d+[Ee]?[-+]?(\d+)?)/ )
   {
+    $fermi = 'no';
     next if( $dft_split == 1 );
     $lowest = $1;
     unless( $highest eq 'no' )
@@ -148,7 +161,7 @@ while( my $line =<IN> )
   elsif( $line =~ m/\<fermi_energy\>([-+]?\d+\.\d+[Ee]?[-+]?(\d+)?)/ )
   {
     $fermi = $1;
-    last;
+#    last;
   }
   elsif( $line =~ m/\<two_fermi_energies\>([-+]?\d+\.\d+[Ee]?[-+]?(\d+)?)\s+([-+]?\d+\.\d+[Ee]?[-+]?(\d+)?)/ )
   {
@@ -297,6 +310,9 @@ $printNkpt /= 2 if( $dft_shift == 1 && $dft_split != 1 );
 print "Found $printNkpt k-points\n";
 print $band_max . "\t" . $band_min . "\n";
 
+# Use bshift
+$band_max=$band_max-$bshift;
+$band_min=$band_min-$bshift;
 open OUT, ">brange.stub" or die "Failed to open brange.stub for writing\n$!";
 print OUT "1    $band_max\n$band_min    ";
 close OUT;

@@ -14,7 +14,7 @@ use File::Copy;
 use strict;
 
 
-my @OceanFolders = ("Common", "DFT", "zWFN", "OPF", "SCREEN", "CNBSE", "PREP", "NBSE");
+my @OceanFolders = ("Common", "DFT", "OPF", "SCREEN", "CNBSE", "PREP", "NBSE");
 
 print "Welcome to OCEAN\n";
 
@@ -129,7 +129,7 @@ if (-e "Common") {
 else {
   print "No previous run found\n";
   foreach (@OceanFolders) {
-    `rm -r $_`;
+    `rm -r $_` if( -d $_ );
   }
 }
 
@@ -181,6 +181,8 @@ system("$ENV{'OCEAN_BIN'}/defaults.pl") == 0 or die "Failed to run defaults.pl\n
 system("$ENV{'OCEAN_BIN'}/structure.pl") == 0 or die "Failed to run structure.pl\n$!";
 
 system("$ENV{'OCEAN_BIN'}/edges.pl") == 0 or die "Failed to run edges.pl\n$!";
+
+system("$ENV{'OCEAN_BIN'}/extractPsp.pl") == 0 or die "Failed to run extractPsp.pl\n$!";
 
 ### CALC ###
 
@@ -254,6 +256,7 @@ else
 ##########################################
 if( $script_pre eq 'OBF' ) 
 {
+  mkdir "zWFN";
 	print "$Separator\n";
 	print "Entering zWFN stage\n";
 	chdir "zWFN" or die "$!\n";

@@ -255,31 +255,105 @@ module screen_grid
 
   end subroutine new_radial_grid
 
+  subroutine new_radial_grid_atom( g, z, ierr )
+    use OCEAN_mpi
+    implicit none
+    type( sgrid ), intent( out ) :: g
+    integer, intent( in ) :: z
+    integer, intent( inout ) :: ierr
+
+    character(len=20) :: fname
+    logical :: ex
+
+    if( myid .eq. root ) then
+      write( fname, '(A,I3.3)' ) 'zpawinfo/radfilez', z
+      write(6,*) fname
+      inquire( file=fname, exist=ex )
+      if( ex ) then
+        open( unit=99, file=fname, form='formatted', status='old' )
+        read( 99, * )  g%rmax
+        close( 99 )
+      else
+        g%rmax = 0.0_DP
+      endif
+      write(6,*) fname, g%rmax
+
+      g%ninter = 1
+      allocate( g%rgrid( g%ninter ), g%agrid( g%ninter ) )
+
+      g%rgrid( 1 )%rmode = 'legendre'
+      g%rgrid( 1 )%rmax = g%rmax
+      g%rgrid( 1 )%rmin = 0.0_DP
+!      g%rgrid( 1 )%dr = 0.05_DP
+      g%rgrid( 1 )%dr = g%rmax / 31.0_DP  ! use 32-point legendre polynomial -- probably overkill
+      g%agrid( 1 )%lmax = 7
+      g%agrid( 1 )%angle_type = 'specpnt'
+    endif
+
+#ifdef MPI
+    if( nproc .gt. 1 ) then
+
+      call MPI_BCAST( g%rmax, 1, MPI_DOUBLE_PRECISION, root, comm, ierr )
+      if( ierr .ne. MPI_SUCCESS ) return
+
+      call MPI_BCAST( g%ninter, 1, MPI_INTEGER, root, comm, ierr )
+      if( ierr .ne. MPI_SUCCESS ) return
+
+      if( myid .ne. 0 ) then
+        allocate( g%rgrid( g%ninter ), g%agrid( g%ninter ) )
+      endif
+
+      call MPI_BCAST( g%rgrid(1)%rmax, 1, MPI_DOUBLE_PRECISION, root, comm, ierr )
+      if( ierr .ne. MPI_SUCCESS ) return
+
+      call MPI_BCAST( g%rgrid(1)%rmin, 1, MPI_DOUBLE_PRECISION, root, comm, ierr )
+      if( ierr .ne. MPI_SUCCESS ) return
+
+      call MPI_BCAST( g%rgrid(1)%dr, 1, MPI_DOUBLE_PRECISION, root, comm, ierr )
+      if( ierr .ne. MPI_SUCCESS ) return
+
+      call MPI_BCAST( g%rgrid(1)%rmode, 10, MPI_CHARACTER, root, comm, ierr )
+      if( ierr .ne. MPI_SUCCESS ) return
+
+      call MPI_BCAST( g%agrid(1)%lmax, 1, MPI_INTEGER, root, comm, ierr )
+              if( ierr .ne. MPI_SUCCESS ) return
+
+      call MPI_BCAST( g%agrid(1)%angle_type, 7, MPI_CHARACTER, root, comm, ierr )
+      if( ierr .ne. MPI_SUCCESS ) return
+
+    endif
+#endif
+
+  end subroutine new_radial_grid_atom
+        
+        
+
   
   ! Creates a new grid centered at new_center
   ! If old_g is present then all the settings will be copied
   ! Otherwise will go an read the input files
-  subroutine screen_grid_init( new_g, new_center, ierr, old_g )
+  subroutine screen_grid_init( new_g, new_center, ierr, old_g, Z )
     implicit none
     type( sgrid ), intent( out ) :: new_g
     type( sgrid ), intent( in ), optional :: old_g
     real(DP), intent( in ) :: new_center( 3 )
     integer, intent( inout ) :: ierr
+    integer, intent( in ), optional :: z
 
     if( present( old_g ) ) then
       call copy_entire_grid( new_g, old_g, new_center, ierr )
+      return
+    elseif( present( z ) ) then
+      call new_radial_grid_atom( new_g, z, ierr )
       if( ierr .ne. 0 ) return
     else
       call new_radial_grid( new_g, ierr )
       if( ierr .ne. 0 ) return
-!    endif
-
-      new_g%center( : ) = new_center( : )
-      call mkmesh( new_g, ierr )
-!!    if( ierr .eq. restart_mkmesh ) call mkmesh( new_g, ierr )
-      if( ierr .ne. 0 ) return
-!!    write(103,*) new_g%posn
     endif
+
+    new_g%center( : ) = new_center( : )
+    call mkmesh( new_g, ierr )
+    if( ierr .ne. 0 ) return
 
   end subroutine screen_grid_init
 
@@ -295,6 +369,7 @@ module screen_grid
     
     new_g%npt = 0
     new_g%nr = 0
+    if( new_g%rmax .lt. 0.000000001_DP ) return
     do i = 1, new_g%ninter
 
       select case( trim( new_g%rgrid(i)%rmode ) )
@@ -732,7 +807,7 @@ module screen_grid
     real(DP), allocatable :: slice_ymu( :, : ), temp( :, :, : )
     real(DP) :: su
 
-    integer :: npt, nbasis, nLM, fullSize, nang, nr, dimTemp
+    integer :: npt, nbasis, nLM, fullSize, nang, nr
     integer :: i, j, iLM, l, m, ir, jr, jlm, k, lmax, ipt, iir, inter
 
     npt = size( Full, 1 )

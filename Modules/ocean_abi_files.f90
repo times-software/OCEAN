@@ -22,7 +22,7 @@ module ocean_abi_files
 
 
   logical :: is_init = .false.
-  logical :: is_gamma
+!  logical :: is_gamma
   logical :: is_shift  ! Is there actually a difference between val and con?
   logical :: is_split  ! Are val and con in different dft runs?
   logical, parameter :: GammaFullStorage = .false.
@@ -461,12 +461,7 @@ module ocean_abi_files
 #ifdef MPI
     integer( MPI_OFFSET_KIND ) :: offset
 #endif
-    integer :: iShift, id, nbands, ib, j, ndumg
-    real(DP) :: denom
-    complex( DP ) :: su
-    real(DP), allocatable :: dumre(:,:), dumim(:,:)
-    integer, allocatable :: dumg(:,:)
-    character(len=12) :: filnam
+    integer :: iShift, id, nbands, ib
 
 #ifndef MPI
     ierr = -10
@@ -593,12 +588,7 @@ module ocean_abi_files
 #ifdef MPI
     integer( MPI_OFFSET_KIND ) :: offset
 #endif
-    integer :: iShift, id, nbands, ib, j, ndumg
-    real(DP) :: denom
-    complex( DP ) :: su
-    real(DP), allocatable :: dumre(:,:), dumim(:,:)
-    integer, allocatable :: dumg(:,:)
-    character(len=12) :: filnam
+    integer :: iShift, id, nbands, ib
 
 #ifndef MPI
     ierr = -10
@@ -691,11 +681,9 @@ module ocean_abi_files
     logical, intent( out ) :: isGamma, isFullStorage
     integer, intent( inout ) :: ierr
 
-    character(len=6) :: codvsn
-    character(len=132) :: title
     character(len=132) :: filnam
-    integer :: ierr_, fh, idum(8)
-    integer( MPI_OFFSET_KIND ) :: pos, pos2
+    integer :: ierr_
+    integer( MPI_OFFSET_KIND ) :: pos
 
     logical :: isSplit
     integer :: nSplit, i
@@ -730,7 +718,7 @@ module ocean_abi_files
       endif
       do i = 1, nSplit
         call get_fileName( filnam, isSplit )
-        
+!        write(6,*) filnam
         open( unit=99, file=filnam, form='unformatted', status='old' )
 
         call parseHeader( 99, pos, i, ierr )
@@ -759,7 +747,7 @@ module ocean_abi_files
     endif
 
     ! Error sync
-111 continue
+!111 continue
     call MPI_BCAST( ierr, 1, MPI_INTEGER, inter_root, inter_comm, ierr_ )
     if( ierr .ne. 0 ) return
     if( ierr_ .ne. 0 ) then
@@ -817,7 +805,7 @@ module ocean_abi_files
 !> @param[inout] ierr
 !---------------------------------------------------------------------------
   subroutine share_init( ierr )
-    use ocean_mpi, only : comm, root, myid, MPI_INTEGER, MPI_OFFSET
+    use ocean_mpi, only : MPI_INTEGER, MPI_OFFSET
     
     integer, intent( inout ) :: ierr
 
@@ -1110,13 +1098,14 @@ module ocean_abi_files
 
   
       is_split = .false.
-      inquire( file='dft.split', exist=ex )
-      if( ex ) then
-        open( unit=99, file='dft.split', form='formatted', status='old')
-        read( 99, * ) is_split
-        close( 99 )
+      if( is_shift ) then
+        inquire( file='dft.split', exist=ex )
+        if( ex ) then
+          open( unit=99, file='dft.split', form='formatted', status='old')
+          read( 99, * ) is_split
+          close( 99 )
+        endif
       endif
-      if( is_split ) is_shift = .true.
     endif
 
     call MPI_BCAST( bands, 2, MPI_INTEGER, inter_root, inter_comm, ierr )

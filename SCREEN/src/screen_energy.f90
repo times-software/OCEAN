@@ -48,7 +48,7 @@ module screen_energy
     integer, intent( inout ) :: ierr
     !
     real( DP ) :: vlryd, vhryd, clryd, chryd
-    integer :: padder, ispn, ik, ib
+    integer :: ispn, ik, ib
     !
     call screen_energy_read_fermi( ierr )
     if( ierr .ne. 0 ) return

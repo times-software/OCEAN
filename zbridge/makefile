@@ -119,7 +119,7 @@ zobj/facpowfind.o: zf90/facpowfind.f90
 	$(COMP) $(OPTS) -c zf90/facpowfind.f90 -o zobj/facpowfind.o
 zobj/formx.o: zf90/formx.f90
 	$(COMP) $(OPTS) -c zf90/formx.f90 -o zobj/formx.o
-zobj/gentoreal.o: zf90/gentoreal.f90
+zobj/gentoreal.o: zf90/gentoreal.f90 zobj/FFT_wrapper.o
 	$(COMP) $(OPTS) -c zf90/gentoreal.f90 -o zobj/gentoreal.o
 zobj/ipack.o: zf90/ipack.f90
 	$(COMP) $(OPTS) -c zf90/ipack.f90 -o zobj/ipack.o

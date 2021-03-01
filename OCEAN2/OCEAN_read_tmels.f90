@@ -73,7 +73,7 @@ subroutine OCEAN_read_tmels( sys, p, file_selector, ierr )
     call MPI_BCAST( nbv, 1, MPI_INTEGER, 0, comm, ierr )
     if( ierr .ne. 0 ) return
 
-    call MPI_FILE_OPEN( comm, 'ptmels.dat', MPI_MODE_RDONLY, MPI_INFO_NULL, fh, ierr )
+    call MPI_FILE_OPEN( comm, 'ptmels.dat', IOR(MPI_MODE_RDONLY, MPI_MODE_UNIQUE_OPEN ), MPI_INFO_NULL, fh, ierr )
     if( ierr .ne. MPI_SUCCESS ) return
     offset = 0
     call MPI_FILE_SET_VIEW( fh, offset, MPI_DOUBLE_COMPLEX, MPI_DOUBLE_COMPLEX, & 

@@ -43,6 +43,8 @@ module OCEAN_system
     integer          :: bloch_selector
     integer          :: screening_method
 
+    integer          :: nhflag(6)
+
     logical          :: e0
     logical          :: mult
     logical          :: long_range
@@ -349,6 +351,13 @@ module OCEAN_system
         sys%convEps = .false.
       endif
 
+      sys%nhflag(:) = 1
+      inquire(file='nhflag', exist=exst )
+      if( exst ) then
+        open( unit=99, file='nhflag', form='formatted', status='old' )
+        read(99,* ) sys%nhflag(:)
+        close( 99 )
+      endif
       
     endif
 #ifdef MPI
@@ -410,6 +419,8 @@ module OCEAN_system
     call MPI_BCAST( sys%nXES_photon, 1, MPI_INTEGER, root, comm, ierr )
     if( ierr .ne. MPI_SUCCESS ) goto 111
 
+    call MPI_BCAST( sys%nhflag, 6, MPI_INTEGER, root, comm, ierr )
+    if( ierr .ne. MPI_SUCCESS ) goto 111
 
 
     call MPI_BCAST( sys%e0, 1, MPI_LOGICAL, root, comm, ierr )

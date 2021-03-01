@@ -28,7 +28,7 @@ my @CommonFiles = ("epsilon", "xmesh.ipt", "nedges", "k0.ipt", "nbuse.ipt",
   "para_prefix", "cnbse.strength", "serbse", "core_offset", "avecsinbohr.ipt", 
   "cnbse.solver", "cnbse.gmres.elist", "cnbse.gmres.erange", "cnbse.gmres.nloop", 
   "cnbse.gmres.gprc", "cnbse.gmres.ffff", "cnbse.write_rhs", "spin_orbit", "nspin",
-  "gwcstr", "gw_control" );
+  "gwcstr", "gw_control", "hamnum", "echamp.inp" );
 
 my @DFTFiles = ("nelectron");
 
@@ -872,6 +872,10 @@ close INFILE;
 
 
 #Provide here the legacy serial option
+
+#force parallel run
+my $run_serial = 0;
+
 if( $run_serial == 1)
 {
 
@@ -957,4 +961,3 @@ else
 }
 
 exit 0;
-

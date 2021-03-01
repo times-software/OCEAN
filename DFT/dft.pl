@@ -13,6 +13,7 @@ use File::Copy;
 use Cwd 'abs_path';
 use File::Compare;
 use File::Spec::Functions;
+use POSIX;
 
 if (! $ENV{"OCEAN_BIN"} ) {
   $0 =~ m/(.*)\/dft\.pl/;
@@ -48,7 +49,8 @@ my @EspressoFiles = ( "coord", "degauss", "ecut", "etol", "fband", "ibrav",
     "spinorb", "taulist", "typat", "verbatim", "work_dir", "tmp_dir", "wftol", 
     "den.kshift", "obkpt.ipt", "trace_tol", "ham_kpoints", "obf.nbands","tot_charge", 
     "nspin", "smag", "ldau", "qe_scissor", "zsymb", "dft.calc_stress", "dft.calc_force", "dft",
-    "dft.startingwfc", "dft.diagonalization", "dft.qe_redirect", "dft.ndiag", "dft.functional", "dft.exx.qmesh" );
+    "dft.startingwfc", "dft.diagonalization", "dft.qe_redirect", "dft.ndiag", "dft.functional", "dft.exx.qmesh", 
+    "ngkpt.auto", "bshift" );
 my @PPFiles = ("pplist", "znucl");
 my @OtherFiles = ("epsilon", "pool_control", "screen.mode");
 
@@ -290,9 +292,26 @@ print "making acell";
 system("$ENV{'OCEAN_BIN'}/makeacell.x") == 0
     or die "Failed to make acell\n";
 
-print "making atompp";
-system("$ENV{'OCEAN_BIN'}/makeatompp.x") == 0
-   or die "Failed to make acell\n";
+if( -e "../Common/atompp" ) {
+  copy "../Common/atompp", "atompp";
+}
+else {
+  print "making atompp";
+  move( "pplist", "pplist.hold");
+  open IN, "pplist.hold" or die;
+  open OUT, ">", "pplist" or die;
+  while( my $line = <IN> )
+  {
+    chomp $line;
+    $line =~ s/.upf$//i;
+    print OUT $line . "\n";
+  }
+  close OUT;
+  close IN;
+  system("$ENV{'OCEAN_BIN'}/makeatompp.x") == 0
+     or die "Failed to make acell\n";
+  move( "pplist.hold", "pplist");
+}
 
 
 
@@ -406,42 +425,6 @@ if ($RunESPRESSO) {
 
 
   unlink "scf.stat";
- ### write SCF input card for initial density
-
-  open my $QE, ">scf.in" or die "Failed to open scf.in.\n$!";
-
-  # Set the flags that change for each input/dft run
-  $qe_data_files{'calctype'} = 'scf';
-  $qe_data_files{'print kpts'} = "K_POINTS automatic\n$qe_data_files{'ngkpt'} $qe_data_files{'den.kshift'}\n";
-  $qe_data_files{'print nbands'} = -1;
-  if( $obf == 1 ) 
-  {
-    $qe_data_files{'nosym'} = '.true.';
-    $qe_data_files{'noinv'} = '.true.';
-  }
-  else
-  {
-    $qe_data_files{'nosym'} = '.false.';
-    $qe_data_files{'noinv'} = '.false.';
-  }
-
-  # Check for Gamma-only, and over-write 'print kpts'
-  $qe_data_files{'ngkpt'} =~ m/(\d+)\s+(\d+)\s+(\d+)/ or die "$qe_data_files{'ngkpt'}";
-  if( $1 * $2 * $3 == 1 )
-  {
-    $qe_data_files{'den.kshift'} =~ m/(\S+)\s+(\S+)\s+(\S+)/ or die "$qe_data_files{'den.kshift'}";
-    unless ( abs($1) > 0.000001 || abs($2) > 0.000001 || abs($3) > 0.000001 )
-    {
-      $qe_data_files{'print kpts'} = "K_POINTS gamma\n";
-    }
-    else { print "KSHIFT: $1  $2  $3\n"; }
-  }
-  else
-  { print "KPOINTS: $1  $2  $3\n"; }
-
-  &print_qe( $QE, %qe_data_files );
-
-  close $QE;
 
 
  ## SCF PP initialize and set defaults
@@ -503,111 +486,208 @@ if ($RunESPRESSO) {
     $qe_data_files{'dft.ndiag'} = 4;
   }
 
-  my $scf_prefix = $para_prefix;
-  if( $obf != 1 ) 
+  my $scfConv = 0.0000073502388828 * $qe_data_files{'natoms'};
+  if( $qe_data_files{'etol'} =~ m/(\d+\.?\d?([edED][+-]?\d+)?)/ )
   {
-    print "Testing parallel QE execution\n";
-    my $ser_prefix = $para_prefix;
-    $ser_prefix =~ s/\d+/1/;
-    open TMP, '>', "$qe_data_files{'prefix'}.EXIT" or die "Failed to open file $qe_data_files{'prefix'}.EXIT\n$!";
-    close TMP;
-    if( $qe_redirect )
+    my $conv_thr = $1;
+    $conv_thr =~ s/d/e/i;
+    print "$conv_thr\n";
+    $scfConv = 20.0*$conv_thr if ( $scfConv < 20.0*$conv_thr );
+  }
+  print "$scfConv\n";
+  my $oldSCFEnergy = 0;
+  my $SCFEnergy;
+
+  my $scfcountmax = 1;
+  if( open INPUT, "ngkpt.auto" )
+  {
+    $scfcountmax = 6 if( <INPUT> =~ m/T/i );
+    close INPUT;
+  }
+
+  for( my $scfcount = 0; $scfcount < $scfcountmax; $scfcount++ )
+  {
+   ### write SCF input card for initial density
+
+    open my $QE, ">scf.in" or die "Failed to open scf.in.\n$!";
+
+    # Set the flags that change for each input/dft run
+    $qe_data_files{'calctype'} = 'scf';
+    $qe_data_files{'print kpts'} = "K_POINTS automatic\n$qe_data_files{'ngkpt'} $qe_data_files{'den.kshift'}\n";
+    $qe_data_files{'print nbands'} = -1;
+    if( $obf == 1 ) 
     {
-      print  "$ser_prefix $ENV{'OCEAN_ESPRESSO_PW'} < scf.in > test.out 2>&1\n";
-      system("$ser_prefix $ENV{'OCEAN_ESPRESSO_PW'} < scf.in >test.out 2>&1");
+      $qe_data_files{'nosym'} = '.true.';
+      $qe_data_files{'noinv'} = '.true.';
     }
     else
     {
-      print  "$ser_prefix $ENV{'OCEAN_ESPRESSO_PW'} -inp scf.in > test.out 2>&1\n";
-      system("$ser_prefix $ENV{'OCEAN_ESPRESSO_PW'} -inp scf.in > test.out 2>&1");
+      $qe_data_files{'nosym'} = '.false.';
+      $qe_data_files{'noinv'} = '.false.';
     }
 
-    if( open TMP, "test.out" )
+    # Check for Gamma-only, and over-write 'print kpts'
+    $qe_data_files{'ngkpt'} =~ m/(\d+)\s+(\d+)\s+(\d+)/ or die "$qe_data_files{'ngkpt'}";
+    if( $1 * $2 * $3 == 1 )
     {
-      my $actualKpts = -1;
-      my $numKS;
-      while (<TMP>)
+      $qe_data_files{'den.kshift'} =~ m/(\S+)\s+(\S+)\s+(\S+)/ or die "$qe_data_files{'den.kshift'}";
+      unless ( abs($1) > 0.000001 || abs($2) > 0.000001 || abs($3) > 0.000001 )
       {
-        if( $_ =~ m/number of Kohn-Sham states=\s+(\d+)/ )
-        {
-          $numKS = $1;
-        }
-        if( $_ =~ m/number of k points=\s+(\d+)/ )
-        {
-          $actualKpts = $1;
-          last;
-        }
+        $qe_data_files{'print kpts'} = "K_POINTS gamma\n";
       }
+      else { print "KSHIFT: $1  $2  $3\n"; }
+    }
+    else
+    { print "KPOINTS: $1  $2  $3\n"; }
+
+    &print_qe( $QE, %qe_data_files );
+
+    close $QE;
+
+
+
+    my $scf_prefix = $para_prefix;
+    if( $obf != 1 ) 
+    {
+      print "Testing parallel QE execution\n";
+      my $ser_prefix = $para_prefix;
+      $ser_prefix =~ s/\d+/1/;
+      open TMP, '>', "$qe_data_files{'prefix'}.EXIT" or die "Failed to open file $qe_data_files{'prefix'}.EXIT\n$!";
       close TMP;
-      if( $actualKpts == -1 )
+      if( $qe_redirect )
       {
-        print "Had trouble parsing test.out\nDidn't find number of k points\n";
+        print  "$ser_prefix $ENV{'OCEAN_ESPRESSO_PW'} < scf.in > test.out 2>&1\n";
+        system("$ser_prefix $ENV{'OCEAN_ESPRESSO_PW'} < scf.in >test.out 2>&1");
       }
       else
       {
-        if( $actualKpts > $ncpus )
+        print  "$ser_prefix $ENV{'OCEAN_ESPRESSO_PW'} -inp scf.in > test.out 2>&1\n";
+        system("$ser_prefix $ENV{'OCEAN_ESPRESSO_PW'} -inp scf.in > test.out 2>&1");
+      }
+
+      if( open TMP, "test.out" )
+      {
+        my $actualKpts = -1;
+        my $numKS;
+        while (<TMP>)
         {
-          $npool = $ncpus;
-        }
-        else
-#        if( $npool > $actualKpts )
-        {
-          for( my $i = 1; $i <= $actualKpts; $i++ )
+          if( $_ =~ m/number of Kohn-Sham states=\s+(\d+)/ )
           {
-            $npool = $i if(  $ncpus % $i == 0 );
+            $numKS = $1;
+          }
+          if( $_ =~ m/number of k points=\s+(\d+)/ )
+          {
+            $actualKpts = $1;
+            last;
           }
         }
-        print "SCF has $actualKpts k-points\nWill use $npool pools\n";
-      }
-      if( defined( $numKS ) )
-      {
-        my $maxProcs = $numKS * $npool;
-        print "   $ncpus  $maxProcs\n";
-        if( $maxProcs < $ncpus )
+        close TMP;
+        if( $actualKpts == -1 )
         {
-          $scf_prefix =~ s/\d+/$maxProcs/;
+          print "Had trouble parsing test.out\nDidn't find number of k points\n";
+        }
+        else
+        {
+          if( $actualKpts > $ncpus )
+          {
+            $npool = $ncpus;
+          }
+          else
+  #        if( $npool > $actualKpts )
+          {
+            for( my $i = 1; $i <= $actualKpts; $i++ )
+            {
+              $npool = $i if(  $ncpus % $i == 0 );
+            }
+          }
+          print "SCF has $actualKpts k-points\nWill use $npool pools\n";
+        }
+        if( defined( $numKS ) )
+        {
+          my $maxProcs = $numKS * $npool;
+          print "   $ncpus  $maxProcs\n";
+          if( $maxProcs < $ncpus )
+          {
+            $scf_prefix =~ s/\d+/$maxProcs/;
+          }
         }
       }
+      else
+      {
+        print "Had trouble parsing test.out\n. Will attempt to continue.\n";
+      }
     }
-    else
-    {
-      print "Had trouble parsing test.out\n. Will attempt to continue.\n";
-    }
-  }
 
- ### the SCF run for initial density
- ##
-  print "Density SCF Run\n";
-  my $qeCommandLine = "-ndiag $qe_data_files{'dft.ndiag'} -npool $npool";
-  if( $obf == 1 )
-  {
-    if( $qe_redirect ) 
+   ### the SCF run for initial density
+   ##
+    print "Density SCF Run\n";
+    my $qeCommandLine = "-ndiag $qe_data_files{'dft.ndiag'} -npool $npool";
+    if( $obf == 1 )
     {
-      print  "$scf_prefix $ENV{'OCEAN_ESPRESSO_OBF_PW'} $qeCommandLine < scf.in > scf.out 2>&1\n";
-      system("$scf_prefix $ENV{'OCEAN_ESPRESSO_OBF_PW'} $qeCommandLine < scf.in > scf.out 2>&1") == 0
-          or die "Failed to run scf stage for Density\n";
+      if( $qe_redirect ) 
+      {
+        print  "$scf_prefix $ENV{'OCEAN_ESPRESSO_OBF_PW'} $qeCommandLine < scf.in > scf.out 2>&1\n";
+        system("$scf_prefix $ENV{'OCEAN_ESPRESSO_OBF_PW'} $qeCommandLine < scf.in > scf.out 2>&1") == 0
+            or die "Failed to run scf stage for Density\n";
+      }
+      else
+      {
+        print  "$scf_prefix $ENV{'OCEAN_ESPRESSO_OBF_PW'} $qeCommandLine -inp scf.in > scf.out 2>&1\n";
+        system("$scf_prefix $ENV{'OCEAN_ESPRESSO_OBF_PW'} $qeCommandLine -inp scf.in > scf.out 2>&1") == 0
+            or die "Failed to run scf stage for Density\n";
+      }
     }
     else
     {
-      print  "$scf_prefix $ENV{'OCEAN_ESPRESSO_OBF_PW'} $qeCommandLine -inp scf.in > scf.out 2>&1\n";
-      system("$scf_prefix $ENV{'OCEAN_ESPRESSO_OBF_PW'} $qeCommandLine -inp scf.in > scf.out 2>&1") == 0
-          or die "Failed to run scf stage for Density\n";
+      if( $qe_redirect )
+      {    
+        print  "$scf_prefix $ENV{'OCEAN_ESPRESSO_PW'} $qeCommandLine < scf.in > scf.out 2>&1\n";
+        system("$scf_prefix $ENV{'OCEAN_ESPRESSO_PW'} $qeCommandLine < scf.in > scf.out 2>&1") == 0
+            or die "Failed to run scf stage for Density\n";
+      } 
+      else
+      {
+        print  "$scf_prefix $ENV{'OCEAN_ESPRESSO_PW'} $qeCommandLine -inp scf.in > scf.out 2>&1\n";
+        system("$scf_prefix $ENV{'OCEAN_ESPRESSO_PW'} $qeCommandLine -inp scf.in > scf.out 2>&1") == 0
+            or die "Failed to run scf stage for Density\n";
+      }
     }
-  }
-  else
-  {
-    if( $qe_redirect )
-    {    
-      print  "$scf_prefix $ENV{'OCEAN_ESPRESSO_PW'} $qeCommandLine < scf.in > scf.out 2>&1\n";
-      system("$scf_prefix $ENV{'OCEAN_ESPRESSO_PW'} $qeCommandLine < scf.in > scf.out 2>&1") == 0
-          or die "Failed to run scf stage for Density\n";
-    } 
-    else
+
+#    my $SCFEnergy = `grep ! scf.out`;
+    `grep ! scf.out` =~ m/(-?\d+\.\d+)\s+Ry/ or die "Failed to parse scf.out\n";
+    $SCFEnergy = $1;
+    copy( "scf.out", "scf.out.$scfcount" );
+    copy( "scf.in", "scf.in.$scfcount" );
+    if( $scfcount > 1 && abs( $SCFEnergy - $oldSCFEnergy ) < $scfConv )
     {
-      print  "$scf_prefix $ENV{'OCEAN_ESPRESSO_PW'} $qeCommandLine -inp scf.in > scf.out 2>&1\n";
-      system("$scf_prefix $ENV{'OCEAN_ESPRESSO_PW'} $qeCommandLine -inp scf.in > scf.out 2>&1") == 0
-          or die "Failed to run scf stage for Density\n";
+      print abs( $SCFEnergy - $oldSCFEnergy ) . "   $scfConv\n";
+      last;
     }
+    my @ngkpt = split ' ', $qe_data_files{'ngkpt'};
+    my @acell = split ' ', $qe_data_files{'acell'};
+    my $kgden;
+    my $testden;
+#    print "$qe_data_files{'ngkpt'}\n$ngkpt[0]  $ngkpt[1]  $ngkpt[2]\n";
+    # Length of bvector is 1/avector (ignoring 2pi)
+    # denisty is Ng / length(b) = Ng * length(a)
+    $testden = $ngkpt[0] * sqrt( $acell[0]**2 + $acell[1]**2 + $acell[2]**2 );
+    $kgden = $testden;
+    $testden = $ngkpt[1] * sqrt( $acell[3]**2 + $acell[4]**2 + $acell[5]**2 );
+    $kgden = $testden if( $testden > $kgden );
+    $testden = $ngkpt[2] * sqrt( $acell[6]**2 + $acell[7]**2 + $acell[8]**2 );
+    $kgden = $testden if( $testden > $kgden );
+    $kgden += 0.1;
+    $ngkpt[0] = ceil( $kgden/sqrt( $acell[0]**2 + $acell[1]**2 + $acell[2]**2 ) );
+    $ngkpt[1] = ceil( $kgden/sqrt( $acell[3]**2 + $acell[4]**2 + $acell[5]**2 ) );
+    $ngkpt[2] = ceil( $kgden/sqrt( $acell[6]**2 + $acell[7]**2 + $acell[8]**2 ) );
+    $qe_data_files{'ngkpt'} = "$ngkpt[0] $ngkpt[1] $ngkpt[2]";
+
+
+    $qe_data_files{'dft.startingpot'} = 'file';
+    if( $scfcount < $scfcountmax - 1 ) {
+      print "Re-running SCF: " . abs( $SCFEnergy - $oldSCFEnergy ) . "   $scfConv\n";
+    }
+    $oldSCFEnergy = $SCFEnergy;
   }
   open OUT, ">scf.stat" or die "Failed to open scf.stat\n$!";
   print OUT "1\n";
@@ -1859,5 +1939,3 @@ sub print_qe
   print $fh $inputs{'print kpts'};
 
 }
-
-  

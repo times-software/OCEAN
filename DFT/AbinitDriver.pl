@@ -11,6 +11,7 @@ use strict;
 use POSIX qw(ceil);
 use Cwd 'abs_path';
 use File::Compare;
+use File::Spec::Functions;
 
 if (! $ENV{"OCEAN_BIN"} ) {
   $0 =~ m/(.*)\/AbinitDriver\.pl/;
@@ -44,7 +45,7 @@ my @AbinitFiles = ( "rscale", "rprim", "ntype", "natoms", "typat",
     "verbatim", "coord", "taulist", "ecut", "etol", "nrun", "wftol", 
     "fband", "occopt", "ngkpt", "abpad", "nspin", "smag", "metal", "degauss", 
     "dft.calc_stress", "dft.calc_force", "tot_charge", "dft");
-my @PPFiles = ("pplist", "znucl");
+my @PPFiles = ("pplist", "znucl", "ppdir");
 my @OtherFiles = ("epsilon", "screen.mode");
 
 my $AbiVersion = 0;
@@ -63,6 +64,16 @@ foreach (@PPFiles) {
     $RunPP = 1;
     print "$_ not found\n";
     last;
+  }
+}
+unless( $RunPP )
+{
+  if( -e '../Common/psp8.pplist' )
+  {
+    if ( `diff -q psp8.pplist ../Common/psp8.pplist` )
+    {
+      $RunPP = 1;
+    }
   }
 }
 unless ($RunPP) {
@@ -407,8 +418,26 @@ else
 #}
 
 if ($RunPP) {
-  system("$ENV{'OCEAN_BIN'}/pp.pl znucl pplist finalpplist") == 0
-    or die "Failed to run pp.pl\n";
+  if( -e '../Common/psp8.pplist' )
+  {
+    `cp ../Common/psp8.pplist .`;
+    open IN, "psp8.pplist" or die;
+    open OUT, ">", "finalpplist";
+    while( my $line = <IN> )
+    {
+      chomp $line;
+      $line = catdir( updir, "Common", "psp", $line );
+      $line = abs_path( $line );
+      print OUT $line . "\n";
+    }
+    close OUT;
+    close IN;
+  }
+  else
+  {
+    system("$ENV{'OCEAN_BIN'}/pp.pl znucl pplist finalpplist") == 0
+      or die "Failed to run pp.pl\n";
+  }
   `echo "1" > pp.stat`;
 }
 
@@ -934,7 +963,7 @@ if ( $bseRUN ) {
       }
       else
       {
-        print "DFT split requested, but q=0!\n";
+        print "DFT split requested, but q=0! (This is not a problem)\n";
       }
     }
     close IN;

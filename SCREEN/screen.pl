@@ -246,6 +246,7 @@ if( $screen_data_files{ 'wvfn' } =~ m/qe/ || $screen_data_files{ 'wvfn' } =~ m/n
     print "Detected QE62-style DFT run\n";
     $screen_data_files{ 'wvfn' } = "qe62";
     copy "../DFT/SCREEN/eig62.txt", "eig62.txt";
+    copy "../DFT/SCREEN/enkfile", "enkfile_raw";
   }
   else
   {
@@ -341,13 +342,96 @@ print "Final grid: " . $screen_data_files{'final.dr'} . " " . $final_nr . "\n";
 
 if( $valenceGrid == 1 ) # valence grid, must use screen_driver.x
 {
-  copy "specpnt", "specpnt.5";
+
+  ###MOVE up to universal at some point ###
+  my %requiredSpecpnt;
+
+  # Start putting together defaults
+  #By default 2 shells, one for OPF and one for the rest
+  my $ninter = 2;
+  my @angList    = split ' ', $screen_data_files{'grid.ang'};
+  $ninter = scalar @angList if( scalar @angList > $ninter );
+
+  my @rmodeList  = split ' ', $screen_data_files{'grid.rmode'};
+  $ninter = scalar @rmodeList if( scalar @rmodeList > $ninter );
+
+  my @deltarList = split ' ', $screen_data_files{'grid.deltar'};
+  $ninter = scalar @rmodeList if( scalar @deltarList > $ninter );
+
+  my @shellsList = split ' ', $screen_data_files{'grid.shells'};
+  $ninter = scalar @shellsList if( scalar @shellsList > $ninter );
+
+  # 
+  if( $shellsList[0] <= 0 )
+  { 
+    open IN, "hfinlist" or die;
+    <IN> =~ m/^\s*\S+\s+(\d+)/ or die;
+    my $zee = $1;
+    close IN;
+    my $zeeName = sprintf("z%03i",$zee);
+    open IN, "zpawinfo/radfile$zeeName" or die;
+    <IN> =~ m/^\s+(\S+)/ or die;
+    $shellsList[0] = $1;
+  }
+
+  unless( $rmodeList[0] =~ m/legendre/ || $rmodeList[0] =~ m/uniform/ )
+  {
+    $rmodeList[0] = 'legendre';
+  }
+
+  $angList[0] = 5 if( $angList[0] < 0 );
+  $deltarList[0] = 0.2 if( $deltarList[0] < 0 );
+
+  for( my $i = 1; $i < $ninter; $i++ )
+  {
+    $angList[$i] = $angList[$i-1] if( scalar @angList <= $i );
+    $angList[$i] = 7 if( $angList[$i] < 0 || ! $angList[$i] =~ m/\d/ ); #|| scalar @angList <= $i );
+    print "$deltarList[$i] !!  ";
+    $deltarList[$i] = $deltarList[$i-1] if( $deltarList[$i] < 0 || scalar @deltarList <= $i );
+    print "$deltarList[$i]\n";
+    $rmodeList[$i] = 'uniform' unless( $rmodeList[$i] =~ m/legendre/ || $rmodeList[$i] =~ m/uniform/ );
+
+    if( $shellsList[$i] < 0 || $shellsList[$i] <= $shellsList[$i-1]
+                            || $shellsList[$i] >= ( $screen_data_files{'grid.rmax'} - $deltarList[$i]/2 ) )
+    {
+      print "Ran out of shells, might be making fewer than expected!\n";
+      $shellsList[$i] = $screen_data_files{'grid.rmax'};
+      $ninter = $i+1;
+      last;
+    }
+  }
+  print "$ninter\n\n";
+
+  for( my $i = 0; $i < $ninter; $i++ )
+  {
+    $requiredSpecpnt{"$angList[$i]"} = 1;
+  }
+  foreach my $key (sort(keys %requiredSpecpnt))
+  {
+    print "specpnt.$key\n";
+    copy( "$ENV{'OCEAN_BIN'}/specpnt.$key", "specpnt.$key" ) or die "Failed to get specpnt.$key\n";
+  }
+
   open MKRB, ">", "mkrb_control" or die "Failed to open mkrb_control for writing\n$!";
-#  print MKRB "$screen_data_files{'grid.rmax'} $screen_data_files{'grid.nr'} $screen_data_files{'grid.ninter'}\n"
-#           . "$screen_data_files{'grid.scheme'} $screen_data_files{'grid.rmode'}\n";
-  print MKRB "$screen_data_files{'grid.rmax'} 1\n" 
-           . "$screen_data_files{'grid.rmode'}  $screen_data_files{'grid.rmax'} 0.1 5 specpnt\n";
+#    print MKRB "$screen_data_files{'grid.rmax'} $screen_data_files{'grid.nr'} $screen_data_files{'grid.ninter'}\n" 
+#             . "$screen_data_files{'grid.scheme'} $screen_data_files{'grid.rmode'}\n";
+#    close MKRB;
+  print MKRB "$screen_data_files{'grid.rmax'} $ninter\n";
+  for( my $i = 0; $i < $ninter; $i++ )
+  {
+    print MKRB "$rmodeList[$i] $shellsList[$i] $deltarList[$i] $angList[$i] specpnt\n";
+  }
   close MKRB;
+
+
+
+#  copy "specpnt", "specpnt.5";
+#  open MKRB, ">", "mkrb_control" or die "Failed to open mkrb_control for writing\n$!";
+##  print MKRB "$screen_data_files{'grid.rmax'} $screen_data_files{'grid.nr'} $screen_data_files{'grid.ninter'}\n"
+##           . "$screen_data_files{'grid.scheme'} $screen_data_files{'grid.rmode'}\n";
+#  print MKRB "$screen_data_files{'grid.rmax'} 1\n" 
+#           . "$screen_data_files{'grid.rmode'}  $screen_data_files{'grid.rmax'} 0.1 5 specpnt\n";
+#  close MKRB;
 
   # Make directory structure
   open XMESH, "xmesh.ipt" or die "Failed to open xmesh.ipt\n$!";
@@ -370,9 +454,20 @@ if( $valenceGrid == 1 ) # valence grid, must use screen_driver.x
     }
   }
   
-
+  my $allaug = 0;
+  if( -e "screen.allaug" ) {
+    open IN, "screen.allaug" or die;
+    if( <IN> =~ m/t/i ) {
+      $allaug = 1;
+    }
+    close IN;
+  }
   open ZEELIST, ">", "zeelist" or die "Failed to open zeelist for writing\n$!";
-  print ZEELIST "0\n";
+  if( $allaug == 0 ) {
+    print ZEELIST "0\n";
+  }
+  else
+  { print ZEELIST "1\n9"; }
   close ZEELIST;
 
   system("$para_prefix $ENV{'OCEAN_BIN'}/screen_driver.x > screen_driver.log") == 0 or die "$!\nFailed to run screen_driver.x\n";

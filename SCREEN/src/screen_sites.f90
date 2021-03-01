@@ -53,7 +53,7 @@ module screen_sites
 !  character( len=2 ), allocatable :: tmp_elnames( : )
 
   public :: site, site_info
-  public :: screen_sites_load, screen_sites_prep
+  public :: screen_sites_load, screen_sites_prep, screen_sites_load_atom
   public :: screen_sites_returnWavefunctionDims, screen_sites_returnWavefunctionBK
 
   contains
@@ -260,6 +260,39 @@ module screen_sites
     enddo
 
   end subroutine screen_sites_load_core
+
+  subroutine screen_sites_load_atom( n_sites, all_sites, ierr )
+    use OCEAN_mpi
+    use screen_system, only : screen_system_grab
+    use screen_grid, only : screen_grid_init
+    use periodic, only : get_atom_number
+    !
+    integer, intent( in ) :: n_sites
+    type( site ), intent( inout ) :: all_sites( : )
+    integer, intent( inout ) :: ierr
+
+    real( DP ) :: tau( 3 ), xcoord( 3 )
+    integer :: i
+
+    do i = 1, n_sites
+      call screen_system_grab( i, all_sites( i )%info%elname, all_sites( i )%info%indx, tau, xcoord, ierr )
+      if( ierr .ne. 0 ) return
+
+      call get_atom_number( all_sites( i )%info%z, all_sites( i )%info%elname )
+      
+      if( i .eq. 1 ) then
+        call screen_grid_init( all_sites( i )%grid, xcoord, ierr, Z=all_sites( i )%info%z )
+      elseif( all_sites( i )%info%z .eq. all_sites( i-1 )%info%z ) then
+        call screen_grid_init( all_sites( i )%grid, xcoord, ierr, all_sites( i-1 )%grid )
+      else
+        call screen_grid_init( all_sites( i )%grid, xcoord, ierr, Z=all_sites( i )%info%z )
+      endif
+
+    enddo
+
+  end subroutine screen_sites_load_atom
+
+      
 
 !> @brief Returns a count of unique sites for calculating the screening. Either the number of
 !> atomic sites that are being screened, or the count of xmesh for valence code

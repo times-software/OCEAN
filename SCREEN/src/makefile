@@ -24,6 +24,7 @@ install:
 
 %.o %.mod: %.f90
 	$(MPIFORT) $(OPTIONS) -c -o $*.o $< $(FFTWI) -I../../Modules
+	touch $*.mod
 
 screen_kxc.o:   screen_kxc.f90 ../../Modules/ai_kinds.mod screen_grid.mod screen_sites.mod ../../Modules/ocean_interpolate.mod
 screen_kxc.mod: screen_kxc.f90 ../../Modules/ai_kinds.mod screen_grid.mod screen_sites.mod ../../Modules/ocean_interpolate.mod

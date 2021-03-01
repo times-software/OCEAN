@@ -293,7 +293,7 @@ program OCEAN_exciton_plot
   enddo
 
   ! new con.u2.dat and val.u2.dat are (x,y,z), not (z,y,x)
-  case( 2 )
+  case( 2, 3 )
   kiter = 0
   do ikx = 0, kmesh(1)-1
     qvec(1) = qinb(1) + (k0(1) + dble(ikx))/dble(kmesh(1))
