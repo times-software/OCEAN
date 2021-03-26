@@ -62,8 +62,19 @@ subroutine intval( n, xtab, ytab, x, y, lopt, hopt )
      if( ( xtab( ii + 1 ) - xtab( ii ) ) .lt. 0.00001d0 ) then
         y = ( ytab( ii ) + ytab( ii + 1 ) ) / 2.0d0
      else
-       rat = ( x - xtab( ii ) ) / ( xtab( ii + 1 ) - xtab( ii ) )
-       y = ytab( ii ) + rat * ( ytab( ii + 1 ) - ytab( ii ) ) 
+       if( ii .gt. 1 .and. ii .lt. n-2 ) then
+         y = ytab(ii-1) * (x-xtab(ii))*(x-xtab(ii+1))*(x-xtab(ii+2)) &
+                        /((xtab(ii-1)-xtab(ii))*(xtab(ii-1)-xtab(ii+1))*(xtab(ii-1)-xtab(ii+2)) ) &
+           + ytab(ii) * ( x-xtab(ii-1) )*(x-xtab(ii+1))*(x-xtab(ii+2)) &
+                        /((xtab(ii)-xtab(ii-1))*(xtab(ii)-xtab(ii+1))*(xtab(ii)-xtab(ii+2)) ) &
+           + ytab(ii+1) * ( x-xtab(ii-1) )*(x-xtab(ii))*(x-xtab(ii+2)) &
+                        /((xtab(ii+1)-xtab(ii-1))*(xtab(ii+1)-xtab(ii))*(xtab(ii+1)-xtab(ii+2)) ) &
+           + ytab(ii+2) * ( x-xtab(ii-1) )*(x-xtab(ii))*(x-xtab(ii+1)) &
+                        /((xtab(ii+2)-xtab(ii-1))*(xtab(ii+2)-xtab(ii))*(xtab(ii+2)-xtab(ii+1)) )  
+       else
+         rat = ( x - xtab( ii ) ) / ( xtab( ii + 1 ) - xtab( ii ) )
+         y = ytab( ii ) + rat * ( ytab( ii + 1 ) - ytab( ii ) ) 
+      endif
       endif
   end if
   !
