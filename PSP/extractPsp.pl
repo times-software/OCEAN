@@ -184,6 +184,9 @@ foreach my $key (keys %uniquePsp )
   my $e = $data->{"pseudos_metadata"}{ $z }{ "hints" }{ $ecutQuality }{ "ecut" };
   $ecut = $e if ( $e > $ecut );
     
+  my $basename = $data->{"pseudos_metadata"}{ $z }{ "basename" };
+  die "ERROR! Could not find pseudopotential for $z\n  Will exit!\n" if( length($basename) < 1 );
+  
   push @basename, $data->{"pseudos_metadata"}{ $z }{ "basename" };
 
   $psp{ $key } = $data->{"pseudos_metadata"}{ $z }{ "basename" };
