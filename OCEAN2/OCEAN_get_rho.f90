@@ -152,10 +152,10 @@ subroutine OCEAN_get_rho( xmesh, celvol, rho, ierr )
         do k = 0, xmesh( 3 ) - 1
           rho( k+1, j+1, i+1 ) = real(rhoofg( i*mul(1)+1, j*mul(2)+1, k*mul(3)+1 ), DP )
 !          rho( k+1, j+1, i+1 ) = norm * real(rhoofg( i*mul(1)+1, j*mul(2)+1, k*mul(3)+1 ), DP )
-          if( rho( k+1, j+1, i+1 ) .le. 0.0d0 ) then
+          if( rho( k+1, j+1, i+1 ) .le. .000001 ) then
             write(6,*) 'low density', rho( k+1, j+1, i+1 ), k+1, j+1, i+1, rhoofg( i*mul(1)+1, j*mul(2)+1, k*mul(3)+1 )
             if( rho( k+1, j+1, i+1 ) .gt. -1.0d-12 ) then
-              rho( k+1, j+1, i+1 ) = 0.d0
+              rho( k+1, j+1, i+1 ) = .000001
             else
               write(6,*) 'Negative density found!', rho( k+1, j+1, i+1 ), k+1, j+1, i+1
               ierr = 11
