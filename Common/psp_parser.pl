@@ -50,12 +50,20 @@ if( $dft =~ m/qe/i )
   $sufix = '.UPF';
 }
 
+open PPDIR, "ppdir" or die "Failed to open file ppdir\n$!";
+my $ppdir = <PPDIR>;
+close PPDIR;
+chomp $ppdir;
+$ppdir =~ s/'//g;
+$ppdir .= '/';
+
 my @electrons;
 foreach my $ppfile (@psp)
 {
   $ppfile .= $sufix unless( $ppfile =~ m/$sufix$/ );
   my $pp;
-  open $pp, "../$ppfile" or die "Failed to open ../$ppfile\n$!";
+#  open $pp, "../$ppfile" or die "Failed to open ../$ppfile\n$!";
+  open $pp, $ppdir . $ppfile or die "Failed to open $ppdir" . "$ppfile\n$!";
 
   my $nelectron = -1;
   if( $sufix eq '' )

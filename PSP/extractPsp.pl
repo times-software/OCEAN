@@ -388,3 +388,7 @@ close AB;
 close UPF;
 close OUT;
 close PP;
+
+open OUT, ">", "opf.program" or die;
+print OUT "hamann\n";
+close OUT;
