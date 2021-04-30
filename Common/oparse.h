@@ -8,11 +8,11 @@ abinit
 } dft
 nkpt
 {
--1
+old
 } nkpt
 ngkpt
 {
--1
+old
 } ngkpt
 ngkpt.auto
 {
@@ -201,7 +201,7 @@ shirley
 } opf.program
 screen.nkpt
 {
--1
+old
 } screen.nkpt
 screen.k0
 {

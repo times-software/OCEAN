@@ -1513,8 +1513,10 @@ module ocean_qe62_files
 
       if( gammaFullStorage .and. is_gamma ) then
         test_gvec = ( valngvecs + 1 ) / 2
+        test_gvec2 = ( conngvecs + 1 ) / 2
       else
         test_gvec = valngvecs
+        test_gvec2 = conngvecs
       endif
 
       write(1000+myid,*) '   Ngvecs: ', test_gvec
@@ -1535,7 +1537,7 @@ module ocean_qe62_files
       if( ierr .ne. 0 ) return
       call MPI_IRECV( conUofG, 1, conType, pool_root, 2, pool_comm, requests( 2 ), ierr )
       if( ierr .ne. 0 ) return
-      call MPI_TYPE_FREE( valType, ierr )
+      call MPI_TYPE_FREE( conType, ierr )
       if( ierr .ne. 0 ) return
 
       call MPI_IBCAST( valGvecs, 3*test_gvec, MPI_INTEGER, pool_root, pool_comm, requests( 3 ), ierr )

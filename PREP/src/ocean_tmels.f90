@@ -177,10 +177,12 @@ module ocean_tmels
     write(1000+myid, * ) myNK, vcBandBlock, vectorStride
     flush(1000+myid)
     call MPI_BARRIER( comm, ierr )
-    call MPI_TYPE_VECTOR( myNK, vcBandBlock, vectorStride, MPI_DOUBLE_COMPLEX, fileType, ierr )
-    if( ierr .ne. 0 ) return
-    call MPI_TYPE_COMMIT( fileType, ierr )
-    if( ierr .ne. 0 ) return
+    if( fancyFileView ) then
+      call MPI_TYPE_VECTOR( myNK, vcBandBlock, vectorStride, MPI_DOUBLE_COMPLEX, fileType, ierr )
+      if( ierr .ne. 0 ) return
+      call MPI_TYPE_COMMIT( fileType, ierr )
+      if( ierr .ne. 0 ) return
+    endif
 
 
     offset = ( myKStart - 1 ) * int( nValBands, MPI_OFFSET_KIND ) * int( nConBands, MPI_OFFSET_KIND )
@@ -200,7 +202,9 @@ module ocean_tmels
     endif
     if( ierr .ne. 0 ) return
 
-    call MPI_TYPE_FREE( fileType, ierr )
+    if( fancyFileView ) then
+      call MPI_TYPE_FREE( fileType, ierr )
+    endif
 
 #else
     open( file='ptmels', form='unformatted', status='unknown', newunit=fh, access='stream' )

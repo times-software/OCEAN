@@ -86,34 +86,36 @@ for (my $i = 0; $i < 3; $i++ )
   chomp( $tline );
   $tline =~  m/([+-]?(\d+)?\.?\d+([eEfF][+-]?\d+)?)\s+([+-]?(\d+)?\.?\d+([eEfF][+-]?\d+)?)\s+([+-]?(\d+)?\.?\d+([eEfF][+-]?\d+)?)\s*$/ 
       or die "Failed to parse a line of rprim!\n$tline\n";
-  $avec[0][$i] = $1*$rscale[0];
-  $avec[1][$i] = $4*$rscale[1];
-  $avec[2][$i] = $7*$rscale[2];
-  $alength[$i] = sqrt( $avec[0][$i]**2 + $avec[1][$i]**2 + $avec[2][$i]**2 );
-  print AVECS $1*$rscale[0] . "  " . $4*$rscale[1] .  "  " . $7*$rscale[2] . "\n";
+  $avec[$i][0] = $1*$rscale[$i];
+  $avec[$i][1] = $4*$rscale[$i];
+  $avec[$i][2] = $7*$rscale[$i];
+  $alength[$i] = sqrt( $avec[$i][0]**2 + $avec[$i][1]**2 + $avec[$i][2]**2 );
+#  print AVECS $1*$rscale[0] . "  " . $4*$rscale[1] .  "  " . $7*$rscale[2] . "\n";
+  printf AVECS "%.15f  %.15f  %.15f\n", $avec[$i][0], $avec[$i][1], $avec[$i][2];
   print "$1\t$4\t$7\n";
 }
 close RPRIM;
 close AVECS;
 
-#open AVECS, "avecsinbohr.ipt" or die "Failed to open avecsinbohr.ipt\n$!\n";
-#<AVECS> =~ m/(-?\d+\.?\d*)\s+(-?\d+\.?\d*)\s+(-?\d+\.?\d*)/ or die "$_\n";
-#$alength[0] = sqrt( $1*$1 + $2*$2 + $3*$3 );
-#print "!!!\n";
-#$avec[0][0] = $1; $avec[1][0] = $2; $avec[2][0] = $3;
-#<AVECS> =~ m/(-?\d+\.?\d*)\s+(-?\d+\.?\d*)\s+(-?\d+\.?\d*)/ or die "$_\n";
-#$alength[1] = sqrt( $1*$1 + $2*$2 + $3*$3 );
-#$avec[0][1] = $1; $avec[1][1] = $2; $avec[2][1] = $3;
-#<AVECS> =~ m/(-?\d+\.?\d*)\s+(-?\d+\.?\d*)\s+(-?\d+\.?\d*)/ or die "$_\n";
-#$alength[2] = sqrt( $1*$1 + $2*$2 + $3*$3 );
-#$avec[0][2] = $1; $avec[1][2] = $2; $avec[2][2] = $3;
-#close AVECS;
 
-
+# det(A) = det(A^T)
 my $volume = $avec[0][0] * ($avec[1][1] * $avec[2][2] - $avec[2][1] * $avec[1][2] )
            - $avec[1][0] * ($avec[0][1] * $avec[2][2] - $avec[2][1] * $avec[0][2] )
            + $avec[2][0] * ($avec[0][1] * $avec[1][2] - $avec[1][1] * $avec[0][2] );
 print "Volume:\t$volume\n";
+
+my @bvec;
+my @blen;
+
+my $pref = 2*4*atan2(1,1)/$volume;
+
+for (my $i = 0; $i < 3; $i++ ) {
+  for (my $j = 0; $j < 3; $j++ ) {
+    $bvec[$i][$j] = $pref * ($avec[$i-2][$j-2] * $avec[$i-1][$j-1] - $avec[$i-2][$j-1] * $avec[$i-1][$j-2]) ;
+  }
+  $blen[$i] = sqrt( $bvec[$i][0]**2 + $bvec[$i][1]**2 + $bvec[$i][2]**2 );
+}
+
 
 my %defaults;
 
@@ -159,7 +161,7 @@ while (<INPUT>)
 $input_content =~ s/\n/ /g;
 close INPUT;
 my $kpt_tot;
-if( $input_content =~ m/^\s*-1/ )
+if( $input_content =~ m/old/i )
 {
   my @output;
   print "Defaults requested for kmesh.ipt\n";
@@ -175,14 +177,68 @@ if( $input_content =~ m/^\s*-1/ )
   close INPUT;
   print "Defaults chosen for kmesh.ipt:\t$output[0]\t$output[1]\t$output[2]\n";
   $kpt_tot = $output[0]*$output[1]*$output[2];
+  $input_content = "$output[0]  $output[1]  $output[2]";
 } 
-elsif ( $input_content =~ m/^\s*(\d+)\s+(\d+)\s+(\d+)/ )
+elsif ( $input_content =~ m/^\s*(-(?=\.\d|\d)(?:0|[1-9]\d*)?(?:\.\d*)?(?:\d[eE][+\-]?\d+)?)/ ) {
+  my $kden = $1;
+  $kden *= -0.99999;
+  my @kpt;
+  printf  "Using kden=%.3f to determine k-mesh\n", $kden;
+  my $klen = 3*$kden;
+  for( my $i=0; $i<3; $i++ ) {
+    print "$blen[$i]\n";
+    $kpt[$i] = int( $kden * $blen[$i]) + 1;
+    while( isAllowed( $kpt[$i] ) == 0 )
+    {
+      $kpt[$i]++;
+    }
+    $klen = $kpt[$i] / $blen[$i] if( $kpt[$i] / $blen[$i] < $klen );
+  }
+  printf "%3i  %3i  %3i  %16.5f\n", $kpt[0], $kpt[1], $kpt[2], $klen;
+
+  $input_content = "$kpt[0]  $kpt[1]  $kpt[2]";
+  open INPUT, ">nkpt" or die "$!\n";
+  print INPUT "$kpt[0]  $kpt[1]  $kpt[2]\n";
+  close INPUT;
+  print "Defaults chosen for kmesh.ipt:\t$kpt[0]\t$kpt[1]\t$kpt[2]\n";
+}
+
+my @kpt;
+if ( $input_content =~ m/^\s*(\d+)\s+(\d+)\s+(\d+)/ )
 {
   $kpt_tot = $1*$2*$3;
+  $kpt[0] = $1;
+  $kpt[1] = $2;
+  $kpt[2] = $3;
 }
 else
 {
   die "FAILED TO CORRECTLY PARSE nkpt\n";
+}
+
+if ( 0 ) {
+  my @supervec;
+  for( my $i =0; $i<3; $i++) {
+    $supervec[$i][0] = $avec[$i][0] * $kpt[$i];
+    $supervec[$i][1] = $avec[$i][1] * $kpt[$i];
+    $supervec[$i][2] = $avec[$i][2] * $kpt[$i];
+    print "$supervec[$i][0]  $supervec[$i][1]  $supervec[$i][2]\n";
+  }
+  my $rmax = sqrt( $supervec[0][0]**2 + $supervec[0][1]**2 + $supervec[0][2]**2 );
+  for( my $i=0; $i<3; $i++ ) {
+    my @tmp;
+    $tmp[0] = $supervec[$i-2][1]*$supervec[$i-1][2] - $supervec[$i-1][1]*$supervec[$i-2][2];
+    $tmp[1] = -$supervec[$i-2][0]*$supervec[$i-1][2] + $supervec[$i-1][0]*$supervec[$i-2][2];
+    $tmp[2] = $supervec[$i-2][0]*$supervec[$i-1][1] - $supervec[$i-1][0]*$supervec[$i-2][1];
+    print "$tmp[0] $tmp[1] $tmp[2]\n";
+    my $tlen = sqrt( $tmp[0]**2 + $tmp[1]**2 + $tmp[2]**2 );
+    my $r = $supervec[$i][0] * $tmp[0] + $supervec[$i][1] * $tmp[1] + $supervec[$i][2] * $tmp[2];
+    $r /= $tlen;
+    print "$i: $r\n";
+    $rmax = $r if ( $r < $rmax );
+  }
+  $rmax /= 2;
+  print "Max radius $rmax\n";
 }
 
 
@@ -265,7 +321,7 @@ while (<INPUT>)
   }
 $input_content =~ s/\n/ /g;
 close INPUT;
-if( $input_content =~ m/^\s*-1/ )
+if( $input_content =~ m/old/i )
 {
   my @output;
   print "Defaults requested for ngkpt\n";
@@ -281,8 +337,33 @@ if( $input_content =~ m/^\s*-1/ )
   close INPUT;
   print "Defaults chosen for ngkpt:\t$output[0]\t$output[1]\t$output[2]\n";
   $kpt_tot = $output[0]*$output[1]*$output[2];
+  $input_content = "$output[0]  $output[1]  $output[2]";
 }
-elsif ( $input_content =~ m/^\s*(\d+)\s+(\d+)\s+(\d+)/ )
+elsif ( $input_content =~ m/^\s*(-(?=\.\d|\d)(?:0|[1-9]\d*)?(?:\.\d*)?(?:\d[eE][+\-]?\d+)?)/ ) {
+  my $kden = $1;
+  $kden *= -0.99999;
+  my @kpt;
+  printf  "Using kden=%.3f to determine ngkpt\n", $kden;
+  my $klen = 3*$kden;
+  for( my $i=0; $i<3; $i++ ) {
+    print "$blen[$i]\n";
+    $kpt[$i] = int( $kden * $blen[$i]) + 1;
+    while( isAllowed( $kpt[$i] ) == 0 )
+    {
+      $kpt[$i]++;
+    }
+    $klen = $kpt[$i] / $blen[$i] if( $kpt[$i] / $blen[$i] < $klen );
+  }
+  printf "%3i  %3i  %3i  %16.5f\n", $kpt[0], $kpt[1], $kpt[2], $klen;
+
+  $input_content = "$kpt[0]  $kpt[1]  $kpt[2]";
+  open INPUT, ">ngkpt" or die "$!\n";
+  print INPUT "$kpt[0]  $kpt[1]  $kpt[2]\n";
+  close INPUT;
+  print "Defaults chosen for ngkpt:\t$kpt[0]\t$kpt[1]\t$kpt[2]\n";
+}
+
+if ( $input_content =~ m/^\s*(\d+)\s+(\d+)\s+(\d+)/ )
 {
   $kpt_tot = $1*$2*$3;
 }
@@ -466,7 +547,7 @@ while (<INPUT>)
   }
 $input_content =~ s/\n/ /g;
 close INPUT;
-if( $input_content =~ m/^\s*-1/ )
+if( $input_content =~ m/old/i )
 {
   my @output;
   print "Defaults requested for xmesh.ipt\n";
@@ -482,6 +563,32 @@ if( $input_content =~ m/^\s*-1/ )
   close INPUT;
   print "Defaults chosen for xmesh.ipt:\t$output[0]\t$output[1]\t$output[2]\n";
   $input_content = "$output[0]  $output[1]  $output[2]";
+}
+else{
+  $input_content =~ m/^\s*(-?\d+)/ or die "Failed to parse xmesh.ipt\n$input_content\n";
+  my $xden = $1;
+  if( $xden < 1 ) {
+    $xden *= -0.99999;
+    my @xpt;
+    printf "Using xden=%.3f to determine x-mesh\n", $xden;
+    my $xlen = 3*$xden;
+    for( my $i=0; $i<3; $i++ ) {
+#      my $alen = sqrt( $avec[$i][0]**2 + $avec[$i][1]**2 + $avec[$i][2]**2 );
+      $xpt[$i] = int( $xden * $alength[$i]) + 1;
+      while( isAllowed( $xpt[$i] ) == 0 )
+      {
+        $xpt[$i]++;
+      }
+      $xlen = $xpt[$i] / $alength[$i] if( $xpt[$i] / $alength[$i] < $xlen );
+    }
+    printf "%3i  %3i  %3i  %16.5f\n", $xpt[0], $xpt[1], $xpt[2], $xlen;
+
+    $input_content = "$xpt[0]  $xpt[1]  $xpt[2]";
+    open INPUT, ">xmesh.ipt" or die "$!\n";
+    print INPUT "$xpt[0]  $xpt[1]  $xpt[2]\n";
+    close INPUT;
+    print "Defaults chosen for xmesh.ipt:\t$xpt[0]\t$xpt[1]\t$xpt[2]\n";
+  }
 }
 # Now test xmesh to make sure it is large enough for the number of bands requested
 $input_content =~ m/(\d+)\s+(\d+)\s+(\d+)/ or die "Xmesh parsing failed!\n$input_content\n";
@@ -549,7 +656,7 @@ while (<INPUT>)
   }
 $input_content =~ s/\n/ /g;
 close INPUT;
-if( $input_content =~ m/^\s*-1/ )
+if( $input_content =~ m/old/i )
 {
   my @output;
   print "Defaults requested for screen.nkpt\n";
@@ -565,8 +672,33 @@ if( $input_content =~ m/^\s*-1/ )
   close INPUT;
   print "Defaults chosen for screen.nkpt:\t$output[0]\t$output[1]\t$output[2]\n";
   $kpt_tot = $output[0]*$output[1]*$output[2];
+  $input_content = "$output[0]  $output[1]  $output[2]";
 }
-elsif ( $input_content =~ m/^\s*(\d+)\s+(\d+)\s+(\d+)/ )
+elsif ( $input_content =~ m/^\s*(-(?=\.\d|\d)(?:0|[1-9]\d*)?(?:\.\d*)?(?:\d[eE][+\-]?\d+)?)/ ) {
+  my $kden = $1;
+  $kden *= -0.99999;
+  my @kpt;
+  printf  "Using kden=%.3f to determine screen.nkpt\n", $kden;
+  my $klen = 3*$kden;
+  for( my $i=0; $i<3; $i++ ) {
+    print "$blen[$i]\n";
+    $kpt[$i] = int( $kden * $blen[$i]) + 1;
+    while( isAllowed( $kpt[$i] ) == 0 )
+    {
+      $kpt[$i]++;
+    }
+    $klen = $kpt[$i] / $blen[$i] if( $kpt[$i] / $blen[$i] < $klen );
+  }
+  printf "%3i  %3i  %3i  %16.5f\n", $kpt[0], $kpt[1], $kpt[2], $klen;
+
+  $input_content = "$kpt[0]  $kpt[1]  $kpt[2]";
+  open INPUT, ">screen.nkpt" or die "$!\n";
+  print INPUT "$kpt[0]  $kpt[1]  $kpt[2]\n";
+  close INPUT;
+  print "Defaults chosen for screen.nkpt:\t$kpt[0]\t$kpt[1]\t$kpt[2]\n";
+}
+
+if ( $input_content =~ m/^\s*(\d+)\s+(\d+)\s+(\d+)/ )
 {
   $kpt_tot = $1*$2*$3;
 }
@@ -683,3 +815,21 @@ sub findval
   }
   return $out;
 }
+
+sub isAllowed {
+  my $n = $_[0];
+
+  for( my $i=2; $i <= 7; $i++ )
+  {
+    while(  $n % $i == 0 )
+    {
+      $n /= $i;
+    }
+  }
+  if( $n == 1 || $n == 11 || $n == 13 )
+  {
+    return 1;
+  }
+  return 0;
+}
+

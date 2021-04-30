@@ -174,6 +174,8 @@ else
 }
 
 # For now we will attempt to recove if psp_parser fails
+system("$ENV{'OCEAN_BIN'}/extractPsp.pl") == 0 or die "Failed to run extractPsp.pl\n$!";
+
 system("$ENV{'OCEAN_BIN'}/psp_parser.pl") == 0 or print "Failed to run psp_parser.pl\n$!";
 
 system("$ENV{'OCEAN_BIN'}/defaults.pl") == 0 or die "Failed to run defaults.pl\n$!";
@@ -182,7 +184,6 @@ system("$ENV{'OCEAN_BIN'}/structure.pl") == 0 or die "Failed to run structure.pl
 
 system("$ENV{'OCEAN_BIN'}/edges.pl") == 0 or die "Failed to run edges.pl\n$!";
 
-system("$ENV{'OCEAN_BIN'}/extractPsp.pl") == 0 or die "Failed to run extractPsp.pl\n$!";
 
 ### CALC ###
 

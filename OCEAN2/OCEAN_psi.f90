@@ -5164,7 +5164,7 @@ subroutine OCEAN_psi_dot_write( p, q, outvec, rrequest, rval, ierr, irequest, iv
       do ikpt = 1, sys%nkpts
         nrm = nrm + sum(p%r(:,ikpt,ialpha)**2 + p%i(:,ikpt,ialpha)**2)
       enddo
-      write( 6, '(1a12,1i4,1x,1e15.8)' ) 'channel dot', ialpha, nrm
+      if( myid .eq. root ) write( 6, '(1a12,1i4,1x,1e15.8)' ) 'channel dot', ialpha, nrm
       val = val +  nrm
     enddo
     val = sqrt(val)
