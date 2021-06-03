@@ -12,6 +12,7 @@ use File::Copy;
 
 my $Ry2eV = 13.605698066;
 my $debug = 0;
+my $legacyWShift = 0;
 
 ###########################
 if (! $ENV{"OCEAN_BIN"} ) {
@@ -471,6 +472,26 @@ else
 
 print "\nDone looping over sites.\n\n";
 
+my @newWsum;
+my @newWshift;
+unless( $legacyWShift )
+{
+  system("$ENV{'OCEAN_BIN'}/projectW.pl") == 0 or die "Failed to run projectW.pl\n$!";
+  open IN, "W.txt" or die "Failed to open W.txt\n$!";
+
+
+  for( my $i = 0; $i < scalar @hfin; $i++ )
+  {
+    for( my $j = 0; $j < scalar @rads; $j++ )
+    {
+      $line = <IN> or die "W.txt was not long enough!";
+      $line =~ m/^\s*(\S+)/ or die "Failed to parse W.txt\n$line";
+      $newWshift[$i][$j] = $1;
+      $newWsum[$j] += $1;
+    }
+  }
+  close IN;
+}
 
 
 # Loop over radii and then hfin
@@ -483,14 +504,18 @@ for( my $i = 0; $i < scalar @rads; $i++ )
   # If we are averaging, new shift by radius
   if( $control =~ m/true/ )
   {
-    $offset = -( $Vsum + $Wsum[$i] ) * $Ry2eV / ( scalar @hfin );
+    if( $legacyWShift ) {
+      $offset = -( $Vsum + $Wsum[$i] ) * $Ry2eV / ( scalar @hfin );
+    } else {
+      $offset = -( $Vsum + $newWsum[$i] ) * $Ry2eV / ( scalar @hfin );
+    }
 #    print "$rad_dir\t$offset\n";
     print "  core_offset was set to true. Now set to $offset  \n";
   }
 
-  print  "Site index    Total potential   New potential    1/2 Screening      core_offset       total offset\n";
-  print  "                    (eV)            (eV)              (eV)              (eV)              (eV)\n";
-# print  "   iiiiiii  -xxxxx.yyyyyyyyy  -xxxxx.yyyyyyyyy  -xxxx.yyyyyyyyy  -xxxx.yyyyyyyyy  -xxxx.yyyyyyyyy\n";
+  print  "Site index    Total potential   New potential    1/2 Screening   new1/2 Screening   core_offset       total offset\n";
+  print  "                    (eV)            (eV)              (eV)             (eV)              (eV)              (eV)\n";
+# print  "   iiiiiii  -xxxxx.yyyyyyyyy  -xxxxx.yyyyyyyyy  -xxxx.yyyyyyyyy  -xxxx.yyyyyyyyy  -xxxx.yyyyyyyyy  -xxxx.yyyyyyyyy\n";
 
   # Loop over each atom in hfin
   for( my $j = 0; $j < scalar @hfin; $j++ )
@@ -502,11 +527,16 @@ for( my $i = 0; $i < scalar @rads; $i++ )
 
     # Wshift is actually in Ha (convert to Ryd and multiply by 1/2 and nothing happens)
 #    my $shift = ( $Vshift[$j] + $Wshift[$j][$i] ) * $Ry2eV;
-    my $shift = ( $newPot[$j] + $Wshift[$j][$i] ) * $Ry2eV;
+    my $shift;
+    if( $legacyWShift ) {
+      $shift = ( $newPot[$j] + $Wshift[$j][$i] ) * $Ry2eV;
+    } else {
+      $shift = ( $newPot[$j] + $newWshift[$j][$i] ) * $Ry2eV;
+    }
 
     $shift += $offset;
     $shift *= -1;
-    printf "   %7i   %16.9f  %16.9f  %15.9f  %15.9f  %16.7f\n", $el_rank, $Vshift[$j]*$Ry2eV, $newPot[$j]*$Ry2eV, $Wshift[$j][$i]*$Ry2eV, $offset, $shift;
+    printf "   %7i   %16.9f  %16.9f  %15.9f  %15.9f  %15.9f  %16.7f\n", $el_rank, $Vshift[$j]*$Ry2eV, $newPot[$j]*$Ry2eV, $Wshift[$j][$i]*$Ry2eV, $newWshift[$j][$i]*$Ry2eV, $offset, $shift;
 #    print "$el_rank\t$Vshift[$j]\t$Wshift[$j][$i]\t$shift\n";
 
     my $string = sprintf("z%s%04d/n%02dl%02d",$el, $el_rank,$nn,$ll);
