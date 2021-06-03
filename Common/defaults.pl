@@ -271,7 +271,7 @@ if( $kpt_tot > (1.9*$ideal_npools ) && $ncpus / $ideal_npools > 4 )  # if ideal 
   {
     if( $ncpus / $_ >= $min_nscf_pool_size )
     {
-      $ideal_npools = $_;
+      $ideal_npools = $_ if( $_ <= $kpt_tot );
     }
   }
 }
@@ -444,7 +444,22 @@ chomp($nbands);
 close NBANDS;
 die "Either dft_energy_range or nbands must be specified\n" 
     if( $erange <= 0 && $nbands <= 0);
-if( $nbands <= 0 )
+if( $nbands <= -2 )
+{
+  $nbands = abs( $nbands );
+  if ( $nelectrons < 1 ) 
+  {
+    $nbands += 0.036 * $volume;
+  }
+  else
+  {
+    $nbands += ($nelectrons/2);
+  }
+  open NBANDS, ">nbands" or die "Failed to open nbands for writing.\n$!";
+  print NBANDS "$nbands\n";
+  close NBANDS;
+}
+if( $nbands <= 0 || $nbands =~ m/range/i )
 {
   print "Default requested for nbands. Energy range is $erange eV.\n";
   # First guess N conduction electrons

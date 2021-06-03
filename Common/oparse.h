@@ -32,7 +32,7 @@ dft.qe_redirect
 } dft.qe_redirect
 nbands
 {
--1
+range
 } nbands
 dft_energy_range
 {
@@ -251,6 +251,10 @@ cnbse.niter
 {
 100
 } cnbse.niter
+haydock_convergence
+{
+-0.001 5 
+} haydockconv.ipt
 cnbse.spect_range
 {
 1200 -40.817 68.028
