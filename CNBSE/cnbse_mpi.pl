@@ -42,8 +42,14 @@ my @ExtraFiles = ("Pquadrature", "sphpts" );
 
 my @PawFiles = ("hfinlist" , "xyz.wyck");
 
+my @NewFiles = ("haydockconv.ipt");
+
 foreach (@CommonFiles) {
   copy( "../Common/$_", $_ ) or die "Failed to get Common/$_\n$!";
+}
+
+foreach (@NewFiles) {
+  copy( "../Common/$_", $_ ) or die "Failed to get Common/$_\n$!" if( -e "../Common/$_" );
 }
 
 open DFT, "dft" or die "Failed to open dft\n";
