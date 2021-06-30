@@ -243,7 +243,7 @@ if( $dft eq 'qe' || $dft eq 'obf' )
     {
       $taustring = $coords[$j];
       # For each element = small_el iterate count
-      $count++ if( $taustring =~ m/$small_el/ );
+      $count++ if( $taustring eq $small_el); #=~ m/$small_el/ );
       last if ( $count == $el_rank );
     }
 #  my $taustring = `grep $small_el xyz.alat |  head -n $el_rank | tail -n 1`;
