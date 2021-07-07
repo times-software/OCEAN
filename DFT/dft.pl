@@ -50,7 +50,7 @@ my @EspressoFiles = ( "coord", "degauss", "ecut", "etol", "fband", "ibrav",
     "den.kshift", "obkpt.ipt", "trace_tol", "ham_kpoints", "obf.nbands","tot_charge", 
     "nspin", "smag", "ldau", "qe_scissor", "zsymb", "dft.calc_stress", "dft.calc_force", "dft",
     "dft.startingwfc", "dft.diagonalization", "dft.qe_redirect", "dft.ndiag", "dft.functional", "dft.exx.qmesh", 
-    "ngkpt.auto", "bshift" );
+    "ngkpt.auto", "bshift", "nelectrons" );
 my @PPFiles = ("pplist", "znucl");
 my @OtherFiles = ("epsilon", "pool_control", "screen.mode");
 
@@ -420,6 +420,25 @@ $QE_smear[6] = "'methfessel-paxton'";  # ABINIT = Methfessel and Paxton PRB 40, 
 $QE_smear[7] = "'gaussian'";     # ABINIT = Gaussian
 
 
+$qe_data_files{ "scf nbands" } = -1;
+if( $qe_data_files{ 'occopt' } == 1 )
+{
+  open IN, "nelectrons" or die "Failed to open nelectrons\n$!";
+  if( <IN> =~ m/(-?\d+)/ )
+  {
+    my $nbands = $1;
+    if( $nbands > 0 )
+    {
+      # include 1 or 2 unoccupied
+      $qe_data_files{ "scf nbands" } = $nbands / 2 + 1;
+      $qe_data_files{ "scf nbands" } ++ if( $qe_data_files{ "scf nbands" } % 2 == 1 );
+    }
+  }
+  close IN;
+}
+
+
+
 
 if ($RunESPRESSO) {
 
@@ -514,7 +533,8 @@ if ($RunESPRESSO) {
     # Set the flags that change for each input/dft run
     $qe_data_files{'calctype'} = 'scf';
     $qe_data_files{'print kpts'} = "K_POINTS automatic\n$qe_data_files{'ngkpt'} $qe_data_files{'den.kshift'}\n";
-    $qe_data_files{'print nbands'} = -1;
+#    $qe_data_files{'print nbands'} = -1;
+    $qe_data_files{'print nbands'} = $qe_data_files{'scf nbands'};
     if( $obf == 1 ) 
     {
       $qe_data_files{'nosym'} = '.true.';
