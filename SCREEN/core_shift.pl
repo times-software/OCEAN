@@ -13,6 +13,12 @@ use File::Copy;
 my $Ry2eV = 13.605698066;
 my $debug = 0;
 my $legacyWShift = 0;
+my $printLegacyWShift = 0;
+
+if( $legacyWShift != 0 )
+{
+   $printLegacyWShift = $legacyWShift;
+}
 
 ###########################
 if (! $ENV{"OCEAN_BIN"} ) {
@@ -223,92 +229,97 @@ if( $dft eq 'qe' || $dft eq 'obf' )
   close IN;
   chdir "../";
 
-  print "Looping over each atomic site to get total potential\n";
-  for( my $i = 0; $i < scalar @hfin; $i++ )
+  if( $printLegacyWShift != 0 ) 
   {
-    print $i+1 . ":\n";
-  
-    my $nn = $hfin[$i][0];
-    my $ll = $hfin[$i][1];
-    my $el = $hfin[$i][2];
-    my $el_rank = $hfin[$i][3];
-
-#  my $taustring = `grep $el xyz.wyck | head -n $el_rank | tail -n 1`;
-    my $small_el = $el;
-    $small_el =~ s/_//;
-
-    my $taustring;
-    my $count = 0;
-    for( my $j = 0; $j < scalar @coords; $j++ )
+    print "Looping over each atomic site to get total potential\n";
+    for( my $i = 0; $i < scalar @hfin; $i++ )
     {
-      $taustring = $coords[$j];
-      # For each element = small_el iterate count
-      $count++ if( $taustring eq $small_el); #=~ m/$small_el/ );
-      last if ( $count == $el_rank );
-    }
-#  my $taustring = `grep $small_el xyz.alat |  head -n $el_rank | tail -n 1`;
-#    print "$el_rank, $small_el, $taustring\n";
-    chomp( $taustring );
-    print "    $el_rank    $taustring\n";
-    $taustring =~ m/\S+\s+(\S+)\s+(\S+)\s+(\S+)/;
-    my $x = $1;
-    my $y = $2;
-    my $z = $3;
-#    print "$x\t$y\t$z\n";
+      print $i+1 . ":\n";
+    
+      my $nn = $hfin[$i][0];
+      my $ll = $hfin[$i][1];
+      my $el = $hfin[$i][2];
+      my $el_rank = $hfin[$i][3];
 
-    open OUT, ">pot.in" ;
-    print OUT   "&inputpp\n/\n&plot\n"
-     .  "  nfile = 1\n"
-     .  "  filepp(1) = 'system.pot', weight(1) = 1\n"
-     .  "  iflag = 1\n"
-     .  "  output_format = 0\n"
-     .  "  fileout = 'system.pot.$el_rank'\n"
-     .  "  e1(1) = 0, e1(2) = 0, e1(3) = 1\n"
-     .  "  x0(1) = $x"
-     .  "  x0(2) = $y"
-     .  "  x0(3) = $z"
-     .  "  nx = 2\n"
-     .  "/\n";
-    close OUT;
-   
-    `cp pot.in pot.in.$el_rank`;
-    if( $dft eq 'qe' )
-    {
-      system("$para_prefix $ENV{'OCEAN_BIN'}/pp.x < pot.in > pot.out.$el_rank") == 0
-          or die "Failed to run pp.x for $el_rank\n$!";
-    }
-    else
-    {
-      system("$para_prefix $ENV{'OCEAN_BIN'}/obf_pp.x < pot.in > pot.out.$el_rank") == 0
-          or die "Failed to run pp.x for $el_rank\n$!";
-    }
+  #  my $taustring = `grep $el xyz.wyck | head -n $el_rank | tail -n 1`;
+      my $small_el = $el;
+      $small_el =~ s/_//;
 
-  # Vshift here is in Rydberg
-    $Vshift[$i] = `head -n 1 system.pot.$el_rank | awk '{print \$2}'`;
-    chomp( $Vshift[$i] );
-#    $Vsum += $Vshift[$i];
+      my $taustring;
+      my $count = 0;
+      for( my $j = 0; $j < scalar @coords; $j++ )
+      {
+        $taustring = $coords[$j];
+        # For each element = small_el iterate count
+        $count++ if( $taustring eq $small_el); #=~ m/$small_el/ );
+        last if ( $count == $el_rank );
+      }
+  #  my $taustring = `grep $small_el xyz.alat |  head -n $el_rank | tail -n 1`;
+  #    print "$el_rank, $small_el, $taustring\n";
+      chomp( $taustring );
+      print "    $el_rank    $taustring\n";
+      $taustring =~ m/\S+\s+(\S+)\s+(\S+)\s+(\S+)/;
+      my $x = $1;
+      my $y = $2;
+      my $z = $3;
+  #    print "$x\t$y\t$z\n";
 
-    printf "    Total potential at the core site is %8.5f Ryd.\n", $Vshift[$i];
+      open OUT, ">pot.in" ;
+      print OUT   "&inputpp\n/\n&plot\n"
+       .  "  nfile = 1\n"
+       .  "  filepp(1) = 'system.pot', weight(1) = 1\n"
+       .  "  iflag = 1\n"
+       .  "  output_format = 0\n"
+       .  "  fileout = 'system.pot.$el_rank'\n"
+       .  "  e1(1) = 0, e1(2) = 0, e1(3) = 1\n"
+       .  "  x0(1) = $x"
+       .  "  x0(2) = $y"
+       .  "  x0(3) = $z"
+       .  "  nx = 2\n"
+       .  "/\n";
+      close OUT;
+     
+      `cp pot.in pot.in.$el_rank`;
+      if( $dft eq 'qe' )
+      {
+        system("$para_prefix $ENV{'OCEAN_BIN'}/pp.x < pot.in > pot.out.$el_rank") == 0
+            or die "Failed to run pp.x for $el_rank\n$!";
+      }
+      else
+      {
+        system("$para_prefix $ENV{'OCEAN_BIN'}/obf_pp.x < pot.in > pot.out.$el_rank") == 0
+            or die "Failed to run pp.x for $el_rank\n$!";
+      }
 
-    my $string = sprintf("z%s%04d/n%02dl%02d",$el, $el_rank,$nn,$ll);
-    if( $debug != 0 )
-    {
-      print "$string\n";
-    }
-  # W shift is in Ha., but we want to multiple by 1/2 anyway, so the units work out
+    # Vshift here is in Rydberg
+      $Vshift[$i] = `head -n 1 system.pot.$el_rank | awk '{print \$2}'`;
+      chomp( $Vshift[$i] );
+  #    $Vsum += $Vshift[$i];
 
-    for( my $j = 0; $j < scalar @rads; $j++ )
-    {
-      my $rad_dir = sprintf("zR%03.2f", $rads[$j] );
-      my $temp = `head -n 1 $string/$rad_dir/ropt | awk '{print \$4}'`;
-      chomp( $temp );
-      $Wshift[$i][$j] = $temp;
-      $Wsum[$j] += $temp;
+      printf "    Total potential at the core site is %8.5f Ryd.\n", $Vshift[$i];
+
+      my $string = sprintf("z%s%04d/n%02dl%02d",$el, $el_rank,$nn,$ll);
+      if( $debug != 0 )
+      {
+        print "$string\n";
+      }
+    # W shift is in Ha., but we want to multiple by 1/2 anyway, so the units work out
+
+      for( my $j = 0; $j < scalar @rads; $j++ )
+      {
+        my $rad_dir = sprintf("zR%03.2f", $rads[$j] );
+        my $temp = `head -n 1 $string/$rad_dir/ropt | awk '{print \$4}'`;
+        chomp( $temp );
+        $Wshift[$i][$j] = $temp;
+        $Wsum[$j] += $temp;
+      }
     }
   }
 }
 else
 {
+  $legacyWShift = 1;
+  $printLegacyWShift = 1;
   #### OLD WAY ####
   copy( "../DFT/SCx_POT", "SCx_POT" );
   copy( "../DFT/density.log", "density.log");
@@ -513,8 +524,15 @@ for( my $i = 0; $i < scalar @rads; $i++ )
     print "  core_offset was set to true. Now set to $offset  \n";
   }
 
-  print  "Site index    Total potential   New potential    1/2 Screening   new1/2 Screening   core_offset       total offset\n";
-  print  "                    (eV)            (eV)              (eV)             (eV)              (eV)              (eV)\n";
+  if( $printLegacyWShift == 0 )
+  {
+    print  "Site index    New potential   new1/2 Screening   core_offset       total offset\n";
+    print  "                  (eV)             (eV)              (eV)              (eV)\n";
+  } else
+  {
+    print  "Site index    Total potential   New potential    1/2 Screening   new1/2 Screening   core_offset       total offset\n";
+    print  "                    (eV)            (eV)              (eV)             (eV)              (eV)              (eV)\n";
+  }
 # print  "   iiiiiii  -xxxxx.yyyyyyyyy  -xxxxx.yyyyyyyyy  -xxxx.yyyyyyyyy  -xxxx.yyyyyyyyy  -xxxx.yyyyyyyyy  -xxxx.yyyyyyyyy\n";
 
   # Loop over each atom in hfin
@@ -536,8 +554,13 @@ for( my $i = 0; $i < scalar @rads; $i++ )
 
     $shift += $offset;
     $shift *= -1;
-    printf "   %7i   %16.9f  %16.9f  %15.9f  %15.9f  %15.9f  %16.7f\n", $el_rank, $Vshift[$j]*$Ry2eV, $newPot[$j]*$Ry2eV, $Wshift[$j][$i]*$Ry2eV, $newWshift[$j][$i]*$Ry2eV, $offset, $shift;
-#    print "$el_rank\t$Vshift[$j]\t$Wshift[$j][$i]\t$shift\n";
+    if( $printLegacyWShift == 0 )
+    {
+      printf "   %7i   %16.9f  %15.9f  %15.9f  %16.7f\n", $el_rank, $newPot[$j]*$Ry2eV, $newWshift[$j][$i]*$Ry2eV, $offset, $shift;
+    } else
+    {
+      printf "   %7i   %16.9f  %16.9f  %15.9f  %15.9f  %15.9f  %16.7f\n", $el_rank, $Vshift[$j]*$Ry2eV, $newPot[$j]*$Ry2eV, $Wshift[$j][$i]*$Ry2eV, $newWshift[$j][$i]*$Ry2eV, $offset, $shift;
+    }
 
     my $string = sprintf("z%s%04d/n%02dl%02d",$el, $el_rank,$nn,$ll);
     open OUT, ">$string/$rad_dir/cls" or die "Failed to open $string/$rad_dir/cls\n$!";
