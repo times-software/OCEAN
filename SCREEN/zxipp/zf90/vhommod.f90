@@ -282,8 +282,13 @@ program vhommod
         write( reoptName, '(A5,I6.6,A2,F4.2)' ) 'reopt', isite, &
                                                    '.R', shells( k )
       else
-        write( reoptName, '(A5,A2,I4.4,A2,F4.2)' ) 'reopt', siteSymbol( isite ), siteIndex( isite ), &
-                                                   '.R', shells( k )
+        if( NINT( shells(k) * 100 ) < 1000 ) then
+          write( reoptName, '(A5,A2,I4.4,A2,F4.2)' ) 'reopt', siteSymbol( isite ), siteIndex( isite ), &
+                                                     '.R', shells( k )
+        else
+          write( reoptName, '(A5,A2,I4.4,A2,F5.2)' ) 'reopt', siteSymbol( isite ), siteIndex( isite ), &
+                                                     '.R', shells( k )
+        endif
       endif
 
       open( unit=99, file=reoptName, form='formatted', status='unknown' )
