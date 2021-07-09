@@ -610,14 +610,15 @@ $input_content =~ m/(\d+)\s+(\d+)\s+(\d+)/ or die "Xmesh parsing failed!\n$input
 my $nxpts = $1*$2*$3;
 my @orig_x;
 $orig_x[0] = $1; $orig_x[1] = $2; $orig_x[2] = $3;
-if( $nxpts < $nbands )
+if( $nxpts < 1.8 * $nbands )
 {
   print "Warning! Requested xmesh is too small for requested bands.\nAttempting to increase xmesh.\n";
   print "Due to orthogonalization the number of x-points must be larger than the number of bands.\n";
+  print "OCEAN will increase the xmesh until the ratio exceeds 1.8.\n";
 
   my $scale = 1.1;
   my @output;
-  while( $nxpts < $nbands )
+  while( $nxpts < 1.8 * $nbands )
   {
     for( my $i = 0; $i < 3; $i++ )
     {
@@ -819,7 +820,8 @@ sub findval
 {
   my $target = $_[0];
   my $out = 1000;
-  my @val_list = ( 1, 2, 3, 4, 5, 6, 8, 9, 10, 12, 15, 16, 18, 20, 24, 25, 30, 32, 36, 40, 45, 48, 50, 100, 1000 );
+  my @val_list = ( 1, 2, 3, 4, 5, 6, 8, 9, 10, 12, 15, 16, 18, 20, 24, 25, 30, 32, 36, 40, 45, 48, 50, 
+                   54, 60, 64, 72, 75, 80, 81, 90, 100, 1000 );
   foreach (@val_list)
   {
     if( $_ >= $target )
