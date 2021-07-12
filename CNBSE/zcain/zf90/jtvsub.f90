@@ -37,6 +37,14 @@ subroutine jtvsub( lmin, lmax, nproj, npmax, lc, nbsemel, powmax, ifcn, stext, e
      spcttype = 'NRIXS'
      lpick = 2
   end if
+  select case( spcttype(1:2) )
+    case( 's-' )
+      lpick = 0
+    case( 'p-' )
+      lpick = 1
+    case( 'd-' )
+      lpick = 2
+  end select
   if ( lpick .ge. 0 ) then
      do l = lmin, lmax
         if ( l .ne. lpick ) then
@@ -65,7 +73,7 @@ subroutine jtvsub( lmin, lmax, nproj, npmax, lc, nbsemel, powmax, ifcn, stext, e
         do m = -l, l
            select case( spcttype )
               !
-           case( 'dipole' )
+           case( 'dipole', 's-dipole', 'p-dipole', 'd-dipole' )
               csu(:) = 0
               do i = 1, nsphpt
                  call getylm( lc, mc, xsph( i ), ysph( i ), zsph( i ), ylcmc, prefs )
@@ -75,7 +83,7 @@ subroutine jtvsub( lmin, lmax, nproj, npmax, lc, nbsemel, powmax, ifcn, stext, e
               end do
               nbsemel( 1 : nproj( l ), m, l, mc ) = csu(1) * ifcn( 1 : nproj( l ), 1, l )
               !
-           case( 'quad' )
+           case( 'quad', 's-quad', 'p-quad', 'd-quad' )
               csu(:) = 0
               do i = 1, nsphpt
                  call getylm( lc, mc, xsph( i ), ysph( i ), zsph( i ),  ylcmc, prefs )
@@ -88,7 +96,7 @@ subroutine jtvsub( lmin, lmax, nproj, npmax, lc, nbsemel, powmax, ifcn, stext, e
               nbsemel( 1 : nproj( l ), m, l, mc ) = csu( 1 ) * ifcn( 1 : nproj( l ), 1, l ) + &
                    csu( 2 ) * ifcn( 1 : nproj( l ), 2, l ) * 0.5d0 ! Joly factor
               !
-           case( 'quadalone' )
+           case( 'quadalone', 's-quadalone', 'p-quadalone', 'd-quadalone' )
               csu(:) = 0
               do i = 1, nsphpt
                  call getylm( lc, mc, xsph( i ), ysph( i ), zsph( i ), ylcmc, prefs )
