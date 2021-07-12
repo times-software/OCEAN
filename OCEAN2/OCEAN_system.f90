@@ -18,6 +18,7 @@ module OCEAN_system
     real(DP)         :: bmet(3,3)
     real(DP)         :: qinunitsofbvectors(3)
     real(DP)         :: epsilon0
+    real(DP)         :: epsilon3D(3)
     real(DP)         :: occupationValue
     real(DP)         :: epsConvergeThreshold
     real(DP)         :: haydockConvergeThreshold
@@ -63,6 +64,7 @@ module OCEAN_system
     logical          :: convEps
 !    character(len=5) :: calc_type
     logical          :: earlyExit = .false.
+    logical          :: have3dEpsilon
 
     character(len=5) :: occupationType
 
@@ -279,6 +281,17 @@ module OCEAN_system
       read(99,*) sys%epsilon0
       close( 99 )
 
+      inquire(file='epsilon3D', exist=exst )
+      if( exst ) then
+        open(unit=99, file='epsilon3D', form='formatted', status='old' )
+        read(99,*) sys%epsilon3D(:)
+        close(99)
+        sys%have3dEpsilon = .true.
+      else
+        sys%epsilon3D(:) = sys%epsilon0
+        sys%have3dEpsilon = .false.
+      endif
+
       open(unit=99,file='tmel_selector',form='formatted',status='old')
       read(99,*) sys%tmel_selector
       close(99)
@@ -393,6 +406,8 @@ module OCEAN_system
     if( ierr .ne. MPI_SUCCESS ) goto 111
     call MPI_BCAST( sys%epsilon0, 1, MPI_DOUBLE_PRECISION, root, comm, ierr )
     if( ierr .ne. MPI_SUCCESS ) goto 111
+    call MPI_BCAST( sys%epsilon3D, 3, MPI_DOUBLE_PRECISION, root, comm, ierr )
+    if( ierr .ne. MPI_SUCCESS ) goto 111
     call MPI_BCAST( sys%occupationValue, 1, MPI_DOUBLE_PRECISION, root, comm, ierr )
     if( ierr .ne. MPI_SUCCESS ) goto 111
     call MPI_BCAST( sys%epsConvergeThreshold, 1, MPI_DOUBLE_PRECISION, root, comm, ierr )
@@ -466,6 +481,8 @@ module OCEAN_system
     call MPI_BCAST( sys%earlyExit, 1, MPI_LOGICAL, root, comm, ierr )
     if( ierr .ne. MPI_SUCCESS ) goto 111
     call MPI_BCAST( sys%complex_bse, 1, MPI_LOGICAL, root, comm, ierr )
+    if( ierr .ne. MPI_SUCCESS ) goto 111
+    call MPI_BCAST( sys%have3dEpsilon, 1, MPI_LOGICAL, root, comm, ierr )
     if( ierr .ne. MPI_SUCCESS ) goto 111
 
     call MPI_BCAST( sys%occupationType, 5, MPI_CHARACTER, root, comm, ierr )
