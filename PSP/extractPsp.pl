@@ -144,18 +144,20 @@ my $PspText = "--------------------------------------------\n";
 $PspText .= $data->{ "dojo_info" }{ "attribution" } . "\n";
 $PspText .= "Version: " . $data->{ "dojo_info" }{ "dojo_dir" } . "\n";
 $PspText .= "License info: " . $data->{ "dojo_info" }{ "license" } . "\n";
-if( scalar @{ $data->{ "dojo_info" }{ "citation" } } == 1 ) {
-  $PspText .= "Please cite the following paper: \n";
-}
-else {
-  $PspText .= "Please cite the following papers: \n";
-}
-for( my $i = 0; $i < scalar @{ $data->{ "dojo_info" }{ "citation" } }; $i++ ) {
-  foreach my $key (sort(keys %{ $data->{ "dojo_info" }{ "citation" }[ $i ]} ))
-  {
-    $PspText .= "    $key = \"" . $data->{ "dojo_info" }{ "citation" }[ $i ]{ $key } . "\",\n";
+if( exists( $data->{ "dojo_info" }{ "citation" } ) ) {
+  if( scalar @{ $data->{ "dojo_info" }{ "citation" } } == 1 ) {
+    $PspText .= "Please cite the following paper: \n";
   }
-  chop $PspText; chop $PspText; $PspText .= "\n";
+  else {
+    $PspText .= "Please cite the following papers: \n";
+  }
+  for( my $i = 0; $i < scalar @{ $data->{ "dojo_info" }{ "citation" } }; $i++ ) {
+    foreach my $key (sort(keys %{ $data->{ "dojo_info" }{ "citation" }[ $i ]} ))
+    {
+      $PspText .= "    $key = \"" . $data->{ "dojo_info" }{ "citation" }[ $i ]{ $key } . "\",\n";
+    }
+    chop $PspText; chop $PspText; $PspText .= "\n";
+  }
 }
 
 

@@ -1480,7 +1480,7 @@ module ocean_long_range
     
     
     real( DP ) :: epsi, avec( 3, 3 ), amet( 3, 3 ), bvec(3,3), bmet(3,3)
-    real( DP ) :: fr( 3 ), xk( 3 ), alf( 3 ), r, frac, potn, pbc_prefac(3)
+    real( DP ) :: fr( 3 ), xk( 3 ), alf( 3 ), r, frac, potn, pbc_prefac(3), dir(3)
     real( DP ), allocatable :: ptab( : ), rtab( : )
     integer :: ix, iy, iz, k1, k2, k3, kk1, kk2, kk3, xiter, kiter, i, ii, j, nptab
     integer :: xtarg, ytarg, ztarg, pbc( 3 )
@@ -1624,16 +1624,25 @@ module ocean_long_range
                   kiter = kiter + 1
                   alf( : ) = xk( : ) + fr( : ) - my_tau( : )
                   r = sqrt( dot_product( alf, matmul( amet, alf ) ) )
+                  dir( : ) = matmul( sys%avec(:,:), alf(:) ) / r
                   if( isolated .and. r .gt. iso_cut ) then
                     potn = 0.0_DP
                   elseif ( r .gt. rtab( nptab ) ) then
-                    potn = epsi / r
+
+                    if( sys%have3dEpsilon ) then
+                      potn = ( dir(1)**2/sys%epsilon3D(1) + dir(2)**2/sys%epsilon3D(2) &
+                             + dir(3)**2/sys%epsilon3D(3) ) / r
+                      if( r .lt. rtab( nptab ) + 5.0_DP ) then
+                        potn = potn * ( r - rtab( nptab ) ) / 5.0_DP &
+                             + ( rtab( nptab ) + 5.0_DP - r ) * epsi / ( 5.0_DP * r )
+                      endif
+                    else
+                      potn = epsi / r
+                    endif
                   else
-!                    ii = 1.0d0 + 10.0d0 * r
-!                    frac = 10.d0 * ( r - 0.1d0 * dble( ii - 1 ) )
-!                    potn = ptab( ii ) + frac * ( ptab( ii + 1 ) - ptab( ii ) )
                     call intval( nptab, rtab, ptab, r, potn, 'cap', 'cap' )
                   end if
+!                  if( myid .eq. root ) write(997,'(2E24.12,3F16.8)') r, potn, dir(:)!, sys%epsilon3D(:)
                   W( kiter, xiter - my_start_nx + 1 ) =  potn * pbc_prefac(3)
                 end do
               end do
