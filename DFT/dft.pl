@@ -26,6 +26,7 @@ if (! $ENV{"OCEAN_WORKDIR"}){ $ENV{"OCEAN_WORKDIR"} = `pwd` . "../" ; }
 if (! $ENV{"OCEAN_VERSION"}) {$ENV{"OCEAN_VERSION"} = `cat $ENV{"OCEAN_BIN"}/Version`; }
 if (! $ENV{"OCEAN_ESPRESSO_PW"} ) {$ENV{"OCEAN_ESPRESSO_PW"} = $ENV{"OCEAN_BIN"} . "/pw.x"; }
 if (! $ENV{"OCEAN_ESPRESSO_PP"} ) {$ENV{"OCEAN_ESPRESSO_PP"} = $ENV{"OCEAN_BIN"} . "/pp.x"; }
+if (! $ENV{"OCEAN_ESPRESSO_PH"} ) {$ENV{"OCEAN_ESPRESSO_PH"} = $ENV{"OCEAN_BIN"} . "/ph.x"; }
 if (! $ENV{"OCEAN_ESPRESSO_OBF_PW"} ) 
     {$ENV{"OCEAN_ESPRESSO_OBF_PW"} = $ENV{"OCEAN_BIN"} . "/obf_pw.x"; }
 if (! $ENV{"OCEAN_ESPRESSO_OBF_PP"} ) 
@@ -36,8 +37,10 @@ if (! $ENV{"OCEAN_ESPRESSO_OBF_PP"} )
 my $RunKGen = 0;
 my $RunPP = 0;
 my $RunESPRESSO = 0;
+my $RunDenPP = 0;
 my $nscfRUN = 0;
 my $run_screen = 0;
+my $RunPH = 0;
 
 my @GeneralFiles = ("para_prefix", "calc");
 
@@ -108,7 +111,11 @@ if ($RunESPRESSO) {
   $RunPP = 1;
   $nscfRUN = 1;
   $run_screen = 1;
+  $RunDenPP = 1;
+  $RunPH = 1;
   unlink "scf.stat";
+  unlink "den.stat";
+  unlink "ph.stat";
 }
 else {
   `touch old`;
@@ -155,6 +162,14 @@ if( $run_screen == 0 )
 {
   $run_screen = 1 unless( -e "screen.stat" );
 }
+if( $RunDenPP == 0 )
+{
+  $RunDenPP = 1 unless( -e "den.stat" );
+}
+if( $RunPH == 0 )
+{
+  $RunPH = 1  unless( -e "ph.stat" );
+}
 
 foreach (@GeneralFiles) {
   system("cp ../Common/$_ .") == 0 or die;
@@ -195,6 +210,12 @@ else
 foreach (@EspressoFiles, @OtherFiles) {
   system("cp ../Common/$_ .") == 0 or die;
 } 
+
+open IN, "epsilon" or die "Failed to open epsilon\n$!";
+unless( <IN> =~ m/dfpt/i )
+{
+  $RunPH = 0;
+}
 
 open IN, "screen.mode" or die "Failed to open screen.mode";
 <IN> =~m/(\w+)/ or die "Failed to parse screen.mode\n";
@@ -440,7 +461,7 @@ if( $qe_data_files{ 'occopt' } == 1 )
 
 
 
-if ($RunESPRESSO) {
+if ($RunESPRESSO ) {
 
 
   unlink "scf.stat";
@@ -713,7 +734,28 @@ if ($RunESPRESSO) {
   print OUT "1\n";
   close OUT;
   print "SCF complete\n";
+}
 
+my $npool = 1;
+my $nnode = 1;
+if( $RunDenPP || $RunPH )
+{
+  unlink "den.stat";
+  open IN, "scf.out" or die "Failed to open scf.out\n$!";
+  while (<IN>)
+  {
+    $nnode = $1 if( $_ =~ m/(\d+)\s+nodes/ );
+    if( $_ =~ m/npool\s+=\s+(\d+)/ )
+    {
+      $npool = $1;
+      last;
+    }
+  }
+  close IN;
+}
+
+if( $RunDenPP )
+{
   print "Density PP Run\n";
   if( $obf == 1 )
   {  
@@ -741,21 +783,21 @@ if ($RunESPRESSO) {
     {  
       print  "$para_prefix $ENV{'OCEAN_ESPRESSO_PP'}  -npool $npool < pp.in > pp.out 2>&1\n";
       system("$para_prefix $ENV{'OCEAN_ESPRESSO_PP'} -npool $npool < pp.in > pp.out 2>&1") == 0
-         or die "Failed to run density stage for SCREENING\n";
+         or die "Failed to run pp.in\n";
       print  "$para_prefix $ENV{'OCEAN_ESPRESSO_PP'}  -npool $npool < pp2.in > pp2.out 2>&1\n";
       system("$para_prefix $ENV{'OCEAN_ESPRESSO_PP'} -npool $npool < pp2.in > pp2.out 2>&1") == 0
-         or die "Failed to run density stage for SCREENING\n";
+         or die "Failed to run pp2.in\n";
     } else
     {
       print  "$para_prefix $ENV{'OCEAN_ESPRESSO_PP'}  -npool $npool -inp pp.in > pp.out 2>&1\n";
       system("$para_prefix $ENV{'OCEAN_ESPRESSO_PP'} -npool $npool -inp pp.in > pp.out 2>&1") == 0
-         or die "Failed to run density stage for SCREENING\n";
+         or die "Failed to run pp.in\n";
       print  "$para_prefix $ENV{'OCEAN_ESPRESSO_PP'}  -npool $npool -inp pp2.in > pp2.out 2>&1\n";
       system("$para_prefix $ENV{'OCEAN_ESPRESSO_PP'} -npool $npool -inp pp2.in > pp2.out 2>&1") == 0
-         or die "Failed to run density stage for SCREENING\n";
+         or die "Failed to run pp2.in\n";
     }
   }
-  open OUT, ">den.stat" or die "Failed to open scf.stat\n$!";
+  open OUT, ">den.stat" or die "Failed to open den.stat\n$!";
   print OUT "1\n";
   close OUT;
 
@@ -767,13 +809,60 @@ if ($RunESPRESSO) {
   print "Potential conversion\n";
   system("$ENV{'OCEAN_BIN'}/qe2rhoofr.pl system.pot potofr" ) == 0
     or die "Failed to convert potential\n$!\n";
+}
 
 
-  open STATUS, ">scf.stat" or die;
-  print STATUS "1";
-  close STATUS;
+if( $RunPH == 1 )
+{
+  open OUT, ">", "ph.in" or die "Failed to open ph.out for writing\n$!";
+  print OUT "title\n&INPUTPH\n"
+      .  "  prefix = \'$qe_data_files{'prefix'}\'\n"
+      .  "  outdir = \'$qe_data_files{'work_dir'}\'\n"
+      .  "  epsil = .true.\n"
+      .  "  start_irr = 1\n"
+      .  "  last_irr = 0\n"
+      .  "  trans = .false\n"
+      .  "/\n0 0 0\n";
+  close OUT;
+  my $n = $nnode;
+  $n = $npool if( $npool < $nnode );
+  print  "$para_prefix $ENV{'OCEAN_ESPRESSO_PH'} -npool $n  -inp ph.in > ph.out 2>&1\n";
+  system("$para_prefix $ENV{'OCEAN_ESPRESSO_PH'} -npool $n  -inp ph.in > ph.out 2>&1\n") == 0
+    or die "Failed to run ph.x\n";
+  open IN, "ph.out" or die;
+
+  my @epsilon;
+  while (<IN>)
+  {
+    if( $_ =~ m/Dielectric constant in cartesian axis/ )
+    {
+      <IN>;
+      <IN> =~ m/(-?\d+\.\d+)\s+(-?\d+\.\d+)\s+(-?\d+\.\d+)/;
+      $epsilon[0] = $1;
+      <IN> =~ m/(-?\d+\.\d+)\s+(-?\d+\.\d+)\s+(-?\d+\.\d+)/;
+      $epsilon[1] = $2;
+      <IN> =~ m/(-?\d+\.\d+)\s+(-?\d+\.\d+)\s+(-?\d+\.\d+)/;
+      $epsilon[2] = $3;
+      last;
+    }
+  }
+  close IN;
+  open OUT, ">", "epsilon" or die "Failed to open epsilon for writing\n";
+  my $e = ( $epsilon[0] + $epsilon[1] + $epsilon[2] ) /3 ;
+  print OUT "$e\n";
+  close OUT;
+  open OUT, ">", "epsilon3D" or die "Failed to open epsilon for writing\n";
+  print OUT "$epsilon[0]   $epsilon[1]   $epsilon[2]\n";
+  close OUT;
+
+  open OUT, ">", "ph.stat" or die "Failed to open ph.stat\n$!";
+  print OUT "1\n";
+  close OUT;
+}
 
 
+if( $RunESPRESSO )
+{
   # Find Fermi level and number of electrons
   my $fermi = 'no';
   my $nelectron = 'no';
@@ -911,9 +1000,9 @@ if ($RunESPRESSO) {
   open NELECTRON, ">nelectron" or die "Failed to open nelectron\n$!";
   print NELECTRON "$nelectron\n";
   close NELECTRON;
+}
 
-
-} # end SCF for density
+# end SCF for density
       
 
 

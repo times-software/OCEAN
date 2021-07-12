@@ -22,7 +22,7 @@ if (! $ENV{"OCEAN_WORKDIR"}){ $ENV{"OCEAN_WORKDIR"} = `pwd` . "../" ; }
 
 my %alphal = ( "0" => "s", "1" => "p", "2" => "d", "3" => "f" );
 
-my @CommonFiles = ("epsilon", "xmesh.ipt", "nedges", "k0.ipt", "nbuse.ipt", 
+my @CommonFiles = ("xmesh.ipt", "nedges", "k0.ipt", "nbuse.ipt", 
   "cnbse.rad", "metal", "cksshift", "cksstretch",  
   "cnbse.niter", "cnbse.spect_range", "cnbse.broaden", "calc", "nphoton", "dft", 
   "para_prefix", "cnbse.strength", "serbse", "core_offset", "avecsinbohr.ipt", 
@@ -40,7 +40,7 @@ my @WFNFiles = ("kmesh.ipt",  "efermiinrydberg.ipt", "qinunitsofbvectors.ipt", "
 
 my @ExtraFiles = ("Pquadrature", "sphpts" );
 
-my @PawFiles = ("hfinlist" , "xyz.wyck");
+my @PawFiles = ("hfinlist" , "xyz.wyck", "epsilon");
 
 my @NewFiles = ("haydockconv.ipt");
 

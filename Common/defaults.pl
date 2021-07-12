@@ -802,7 +802,7 @@ open EPS, "epsilon" or die "Failed to open epsilon\n$!";
 my $epsilon = <EPS>;
 chomp $epsilon;
 close EPS;
-if( $epsilon < 1.000001 )
+unless( $epsilon > 1.000001 || $epsilon =~ m/dfpt/i )
 {
   print "Use of model dielectric requires that epsilon be greater than 1!\n";
   print "Input diemac too low: $epsilon\n";

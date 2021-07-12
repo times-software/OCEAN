@@ -29,7 +29,7 @@ if (! $ENV{"OCEAN_WORKDIR"}){ $ENV{"OCEAN_WORKDIR"} = `pwd` . "../" ; }
 
 
 my @CommonFiles = ("znucl", "opf.hfkgrid", "opf.fill", "opf.opts", "pplist", "screen.shells", 
-                   "ntype", "natoms", "typat", "taulist", "nedges", "edges", "caution", "epsilon", 
+                   "ntype", "natoms", "typat", "taulist", "nedges", "edges", "caution",  
                    "screen.k0", "scfac", "core_offset", "dft", "avecsinbohr.ipt", "coord", 
                    "nspin", "prefix", "work_dir" );
 
@@ -42,7 +42,7 @@ my @ScreenFiles = ("screen.grid.scheme", "screen.grid.rmode", "screen.grid.ninte
                    "screen.augment", "screen.wvfn", "screen.convertstyle", "screen.inversionstyle", 
                    "screen.mode", "screen.grid.deltar" );
 
-my @DenDipFiles = ("rhoofg", "bvecs", "efermiinrydberg.ipt", "xmesh.ipt");
+my @DenDipFiles = ("rhoofg", "bvecs", "efermiinrydberg.ipt", "xmesh.ipt", "epsilon");
 my @DenDipFiles2 = ( "masterwfile", "listwfile", "enkfile", "kmesh.ipt", "brange.ipt" );
 
 my @ExtraFiles = ("specpnt", "Pquadrature", "hqp", "lqp", "EvenQuadHalf.txt" );
@@ -116,6 +116,15 @@ if( $runSCREEN == 0 )
       print "OPFs were updated recently. Will re-run\n";
       $runSCREEN = 1;
     }
+  }
+}
+
+if( $runSCREEN == 0 )
+{
+  if( compare("epsilon", "../PREP/epsilon" ) != 0 )
+  {
+    print "epsilon has change";
+    $runSCREEN = 1;
   }
 }
 
