@@ -50,7 +50,7 @@ my @ExtraFiles = ("specpnt", "Pquadrature", "hqp", "lqp", "EvenQuadHalf.txt" );
 my @DFTFiles = ( "potofr" );
 
 my $runSCREEN = 1;
-if (-e "../PREP/PAW/old" && -e "done" ) {
+if (-e "../PREP/SCREEN/old" && -e "done" ) {
   $runSCREEN = 0;
   foreach (@CommonFiles) {
 #    if (`diff -q $_ ../Common/$_`) {
@@ -220,7 +220,7 @@ foreach (@DenDipFiles) {
   copy( "../PREP/$_", $_ ) or die "Failed to get $_ from PREP/\n$!";
 }
 foreach (@DenDipFiles2) {
-  copy( "../PREP/PAW/$_", $_ ) or die "Failed to get $_ from PREP/PAW/\n$!";
+  copy( "../PREP/SCREEN/$_", $_ ) or die "Failed to get $_ from PREP/SCREEN/\n$!";
 }
 
 foreach (@ExtraFiles) {
@@ -269,7 +269,7 @@ close WVFN;
 open LISTW, "listwfile" or die "Failed to open listwfile\n";
 while (<LISTW> ) {
   m/(\d+)\s+(\S+)/ or die "Malformed listwfile\n";
-  `ln -sf ../PREP/PAW/$2 $2`;
+  `ln -sf ../PREP/SCREEN/$2 $2`;
 }
 
 unless( -e 'clipbands' ) {
@@ -296,7 +296,7 @@ if( open PARA_PREFIX, "para_prefix" )
 
 # Setup
 ###################################
-print "Running PAW Setup\n";
+print "Running SCREEN Setup\n";
 system("$ENV{'OCEAN_BIN'}/pawsetup.x") == 0 or die "Failed to run pawsetup.x\n";
 
 `ln -sf ../OPF/zpawinfo zpawinfo`;
