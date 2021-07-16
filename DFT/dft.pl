@@ -212,7 +212,11 @@ foreach (@EspressoFiles, @OtherFiles) {
 } 
 
 open IN, "epsilon" or die "Failed to open epsilon\n$!";
-unless( <IN> =~ m/dfpt/i )
+if( <IN> =~ m/dfpt/i )
+{
+  copy "epsilon.calc", "epsilon" if( $RunPH == 0 && -e "epsilon.calc" );
+}
+else
 {
   $RunPH = 0;
 }
@@ -825,7 +829,7 @@ if( $RunPH == 1 )
       .  "/\n0 0 0\n";
   close OUT;
   my $n = $nnode;
-  $n = $npool if( $npool < $nnode );
+  $n = $npool if( $npool > $nnode );
   print  "$para_prefix $ENV{'OCEAN_ESPRESSO_PH'} -npool $n  -inp ph.in > ph.out 2>&1\n";
   system("$para_prefix $ENV{'OCEAN_ESPRESSO_PH'} -npool $n  -inp ph.in > ph.out 2>&1\n") == 0
     or die "Failed to run ph.x\n";
@@ -847,10 +851,11 @@ if( $RunPH == 1 )
     }
   }
   close IN;
-  open OUT, ">", "epsilon" or die "Failed to open epsilon for writing\n";
+  open OUT, ">", "epsilon.calc" or die "Failed to open epsilon for writing\n";
   my $e = ( $epsilon[0] + $epsilon[1] + $epsilon[2] ) /3 ;
   print OUT "$e\n";
   close OUT;
+  copy "epsilon.calc", "epsilon";
   open OUT, ">", "epsilon3D" or die "Failed to open epsilon for writing\n";
   print OUT "$epsilon[0]   $epsilon[1]   $epsilon[2]\n";
   close OUT;
