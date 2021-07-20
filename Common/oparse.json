@@ -1,0 +1,182 @@
+{
+    "calc": {
+        "mode": "xas",
+        "edges" : "",
+        "photon_q": [ 0.0, 0.0, 0.0 ]
+    },
+    "structure": {
+        "rscale": [ 1.0, 1.0, 1.0 ],
+        "rprim": "NULL",
+        "typat": "NULL",
+        "znucl": "NULL",
+        "zsymb": [],
+        "coord": "xred",
+        "taulist": "NULL",
+        "epsilon": "dfpt",
+        "metal": false
+    },
+    "psp": {
+        "ppdir": "",
+        "pp_list": "",
+        "pp_database": "ONCVPSP-PBE-PDv0.4-stringent",
+        "ecut_quality": "normal"
+    },
+    "computer": {
+        "para_prefix": "#",
+        "ser_prefix": "!"
+    },
+    "bse": {
+        "nbands": "range",
+        "dft_energy_range": 50,
+        "kmesh": -3,
+        "kshift": [ 0.125, 0.250, 0.375 ],
+        "xmesh": -1,
+        "core": {
+            "broaden": -1,
+            "screen_radius": -3.5,
+            "strength": 1.0,
+            "spect_range": "2000 -20.0 80",
+            "solver": "haydock",
+            "scfac" : 1.0,
+            "write_rhs": false,
+            "haydock": {
+                "niter": 100,
+                "converge": "-0.001 5"
+            },
+            "gmres": {
+                "elist": false,
+                "erange": false,
+                "nloop": 80,
+                "gprc": 13.605,
+                "ffff": 0.00000005,
+                "echamp": true
+            },
+            "gw": {
+                "control": "none"
+            },
+            "spin_orbit": -1
+        },
+        "val": {
+            "broaden": 0.1,
+            "spect_range": "2000 0.0 100",
+            "solver": "haydock",
+            "haydock": {
+                "niter": 100,
+                "converge": "-0.001 5"
+            },
+            "gmres": {
+                "elist": false,
+                "erange": false,
+                "nloop": 80,
+                "gprc": 13.605,
+                "ffff": 0.00000005
+            },
+            "gw": {
+                "control": "none"
+            },
+            "backf": false,
+            "aldaf": false,
+            "qpflg": true,
+            "bwflg": false,
+            "bande": true,
+            "bflag": true,
+            "lflag": true,
+            "decut": "10 2"
+        }
+    },
+    "dft": {
+        "verbatim": "",
+        "ecut": "NULL",
+        "program": "abinit",
+        "occopt": 1,
+        "fband": 0.125,
+        "mixing": 0.7,
+        "toldfe": 1.0e-10,
+        "tolwfr": 1.0e-12,
+        "nstep": 50,
+        "startingwfc": "atomic+random",
+        "diagonalization": "david",
+        "functional": "default",
+        "ndiag": -1,
+        "exx": {
+            "qmesh": [ 1, 1, 1 ]
+        },
+        "abpad": 4,
+        "degauss": 0.02,
+        "noncolin": false,
+        "calc_stress": false,
+        "calc_force": true,
+        "spinorb": false,
+        "tmp_dir": "undefined",
+        "redirect": false,
+        "tot_charge": 0.0,
+        "nspin": 1,
+        "smag": 0,
+        "ldau": {
+            "enable": false,
+            "lda_plus_u_kind": 0,
+            "Hubbard_U": "",
+            "Hubbard_J0": "",
+            "Hubbard_V": "",
+            "Hubbard_J": "",
+            "U_projection_type": "atomic"
+        },
+        "den": {
+            "toldfe": -1,
+            "kmesh": -3,
+            "kshift": [ 1, 1, 1 ],
+            "auto": false,
+            "poolsize": -1
+        },
+        "bse": {
+            "toldfe": -1,
+            "split": true,
+            "poolsize": -1
+        },
+        "screen": {
+            "toldfe": -1,
+            "poolsize": -1
+        }
+    },
+    "screen": {
+        "nbands": "range",
+        "core_offset": true,
+        "kmesh": -2.55,
+        "kshift": [ 0.125, 0.250, 0.375 ],
+        "energy_range": 100,
+        "shells": [3.5],
+        "mode": "core",
+        "augment": true,
+        "inversionstyle": "direct",
+        "convertstyle": "intp",
+        "grid": {
+            "rmode": [ "lagrange", "uniform" ],
+            "scheme": "central",
+            "shells": [ -1, 8.0 ],
+            "rmax": 8.0,
+            "ang": [ 5, 7 ],
+            "deltar": [ 0.1, 0.2 ],
+            "lmax": 0
+        },
+        "final": {
+            "rmax": 10.0,
+            "dr": 0.1
+        },
+        "model": {
+            "flavor" : "SLL",
+            "SLL": {
+                "dq": 0.01,
+                "qmax": 10
+            }
+        }
+    },
+    "opf": {
+        "program": "shirley",
+        "shirley": {
+            "hfkgrid": [ 2000, 32 ],
+            "fill": "!",
+            "opts": "!",
+            "caution" : false
+        }
+    }
+}
