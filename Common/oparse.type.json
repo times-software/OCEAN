@@ -1,0 +1,194 @@
+{
+   "bse" : {
+      "core" : {
+         "broaden" : "f",
+         "gmres" : {
+            "echamp" : "b",
+            "elist" : "b",
+            "erange" : "b",
+            "ffff" : "f",
+            "gprc" : "f",
+            "nloop" : "i"
+         },
+         "gw" : {
+            "control" : "s"
+         },
+         "haydock" : {
+            "converge" : {
+               "spacing" : "i",
+               "thresh" : "f"
+            },
+            "niter" : "i"
+         },
+         "plot" : {
+            "points" : "i",
+            "range" : "af"
+         },
+         "scfac" : "f",
+         "screen_radius" : "f",
+         "solver" : "s",
+         "spin_orbit" : "f",
+         "strength" : "f",
+         "write_rhs" : "b"
+      },
+      "dft_energy_range" : "f",
+      "kmesh" : "af",
+      "kshift" : "af",
+      "nbands" : "i",
+      "val" : {
+         "aldaf" : "b",
+         "backf" : "b",
+         "bande" : "b",
+         "bflag" : "b",
+         "broaden" : "f",
+         "bwflg" : "b",
+         "decut" : "f",
+         "gmres" : {
+            "elist" : "b",
+            "erange" : "b",
+            "ffff" : "f",
+            "gprc" : "f",
+            "nloop" : "i"
+         },
+         "gw" : {
+            "control" : "s"
+         },
+         "haydock" : {
+            "converge" : {
+               "spacing" : "i", 
+               "thresh" : "f"
+            },
+            "niter" : "i"
+         },
+         "lflag" : "b",
+         "plot" : {
+            "points" : "i",
+            "range" : "af"
+         },
+         "qpflg" : "b",
+         "solver" : "s"
+      },
+      "xmesh" : "af"
+   },
+   "calc" : {
+      "edges" : "ai",
+      "mode" : "s",
+      "photon_q" : "af"
+   },
+   "computer" : {
+      "para_prefix" : "s",
+      "ser_prefix" : "s"
+   },
+   "dft" : {
+      "abpad" : "i",
+      "bse" : {
+         "poolsize" : "i",
+         "split" : "b",
+         "toldfe" : "f"
+      },
+      "calc_force" : "b",
+      "calc_stress" : "b",
+      "degauss" : "f",
+      "den" : {
+         "auto" : "b",
+         "kmesh" : "ai",
+         "kshift" : "af",
+         "poolsize" : "i",
+         "toldfe" : "f"
+      },
+      "diagonalization" : "s",
+      "ecut" : "f",
+      "exx" : {
+         "qmesh" : "ai"
+      },
+      "fband" : "f",
+      "functional" : "s",
+      "ldau" : {
+         "Hubbard_J" : "s",
+         "Hubbard_J0" : "s",
+         "Hubbard_U" : "s",
+         "Hubbard_V" : "s",
+         "U_projection_type" : "s",
+         "enable" : "b",
+         "lda_plus_u_kind" : "i"
+      },
+      "mixing" : "f",
+      "ndiag" : "i",
+      "noncolin" : "b",
+      "nspin" : "i",
+      "nstep" : "i",
+      "occopt" : "i",
+      "program" : "s",
+      "redirect" : "b",
+      "screen" : {
+         "poolsize" : "i",
+         "toldfe" : "f"
+      },
+      "smag" : "i",
+      "spinorb" : "b",
+      "startingwfc" : "s",
+      "tmp_dir" : "s",
+      "toldfe" : "f",
+      "tolwfr" : "f",
+      "tot_charge" : "f",
+      "verbatim" : "s"
+   },
+   "opf" : {
+      "program" : "s",
+      "shirley" : {
+         "caution" : "b",
+         "fill" : "s",
+         "hfkgrid" : "ai",
+         "opts" : "s"
+      }
+   },
+   "psp" : {
+      "ecut_quality" : "s",
+      "pp_database" : "s",
+      "pp_list" : "s",
+      "ppdir" : "s"
+   },
+   "screen" : {
+      "augment" : "b",
+      "convertstyle" : "s",
+      "core_offset" : "b",
+      "dft_energy_range" : "f",
+      "final" : {
+         "dr" : "f",
+         "rmax" : "f"
+      },
+      "grid" : {
+         "ang" : "ai",
+         "deltar" : "af",
+         "lmax" : "i",
+         "rmax" : "f",
+         "rmode" : "as",
+         "scheme" : "s",
+         "shells" : "af"
+      },
+      "inversionstyle" : "s",
+      "kmesh" : "af",
+      "kshift" : "af",
+      "mode" : "s",
+      "model" : {
+         "SLL" : {
+            "dq" : "f",
+            "qmax" : "f"
+         },
+         "flavor" : "s"
+      },
+      "nbands" : "i",
+      "shells" : "af"
+   },
+   "structure" : {
+      "coord" : "s",
+      "epsilon" : "s",
+      "metal" : "b",
+      "rprim" : "af",
+      "rscale" : "af",
+      "taulist" : "af",
+      "typat" : "ai",
+      "znucl" : "ai",
+      "zsymb" : "as"
+   }
+}

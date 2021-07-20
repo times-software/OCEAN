@@ -1,182 +1,251 @@
 {
-    "calc": {
-        "mode": "xas",
-        "edges" : "",
-        "photon_q": [ 0.0, 0.0, 0.0 ]
-    },
-    "structure": {
-        "rscale": [ 1.0, 1.0, 1.0 ],
-        "rprim": "NULL",
-        "typat": "NULL",
-        "znucl": "NULL",
-        "zsymb": [],
-        "coord": "xred",
-        "taulist": "NULL",
-        "epsilon": "dfpt",
-        "metal": false
-    },
-    "psp": {
-        "ppdir": "",
-        "pp_list": "",
-        "pp_database": "ONCVPSP-PBE-PDv0.4-stringent",
-        "ecut_quality": "normal"
-    },
-    "computer": {
-        "para_prefix": "#",
-        "ser_prefix": "!"
-    },
-    "bse": {
-        "nbands": "range",
-        "dft_energy_range": 50,
-        "kmesh": -3,
-        "kshift": [ 0.125, 0.250, 0.375 ],
-        "xmesh": -1,
-        "core": {
-            "broaden": -1,
-            "screen_radius": -3.5,
-            "strength": 1.0,
-            "spect_range": "2000 -20.0 80",
-            "solver": "haydock",
-            "scfac" : 1.0,
-            "write_rhs": false,
-            "haydock": {
-                "niter": 100,
-                "converge": "-0.001 5"
+   "bse" : {
+      "core" : {
+         "broaden" : -1,
+         "gmres" : {
+            "echamp" : true,
+            "elist" : false,
+            "erange" : false,
+            "ffff" : 5e-08,
+            "gprc" : 13.605,
+            "nloop" : 80
+         },
+         "gw" : {
+            "control" : "none"
+         },
+         "haydock" : {
+            "converge" : {
+               "spacing" : 5,
+               "thresh" : -0.001
             },
-            "gmres": {
-                "elist": false,
-                "erange": false,
-                "nloop": 80,
-                "gprc": 13.605,
-                "ffff": 0.00000005,
-                "echamp": true
+            "niter" : 100
+         },
+         "plot" : {
+            "points" : 2000,
+            "range" : [
+               -20,
+               80
+            ]
+         },
+         "scfac" : 1,
+         "screen_radius" : -3.5,
+         "solver" : "haydock",
+         "spin_orbit" : -1,
+         "strength" : 1,
+         "write_rhs" : false
+      },
+      "dft_energy_range" : 50,
+      "kmesh" : [
+         -3
+      ],
+      "kshift" : [
+         0.125,
+         0.25,
+         0.375
+      ],
+      "nbands" : 0,
+      "val" : {
+         "aldaf" : false,
+         "backf" : false,
+         "bande" : true,
+         "bflag" : true,
+         "broaden" : 0.1,
+         "bwflg" : false,
+         "decut" : 10,
+         "gmres" : {
+            "elist" : false,
+            "erange" : false,
+            "ffff" : 5e-08,
+            "gprc" : 13.605,
+            "nloop" : 80
+         },
+         "gw" : {
+            "control" : "none"
+         },
+         "haydock" : {
+            "converge" : {
+               "spacing" : 5,
+               "thresh" : -0.001
             },
-            "gw": {
-                "control": "none"
-            },
-            "spin_orbit": -1
-        },
-        "val": {
-            "broaden": 0.1,
-            "spect_range": "2000 0.0 100",
-            "solver": "haydock",
-            "haydock": {
-                "niter": 100,
-                "converge": "-0.001 5"
-            },
-            "gmres": {
-                "elist": false,
-                "erange": false,
-                "nloop": 80,
-                "gprc": 13.605,
-                "ffff": 0.00000005
-            },
-            "gw": {
-                "control": "none"
-            },
-            "backf": false,
-            "aldaf": false,
-            "qpflg": true,
-            "bwflg": false,
-            "bande": true,
-            "bflag": true,
-            "lflag": true,
-            "decut": "10 2"
-        }
-    },
-    "dft": {
-        "verbatim": "",
-        "ecut": "NULL",
-        "program": "abinit",
-        "occopt": 1,
-        "fband": 0.125,
-        "mixing": 0.7,
-        "toldfe": 1.0e-10,
-        "tolwfr": 1.0e-12,
-        "nstep": 50,
-        "startingwfc": "atomic+random",
-        "diagonalization": "david",
-        "functional": "default",
-        "ndiag": -1,
-        "exx": {
-            "qmesh": [ 1, 1, 1 ]
-        },
-        "abpad": 4,
-        "degauss": 0.02,
-        "noncolin": false,
-        "calc_stress": false,
-        "calc_force": true,
-        "spinorb": false,
-        "tmp_dir": "undefined",
-        "redirect": false,
-        "tot_charge": 0.0,
-        "nspin": 1,
-        "smag": 0,
-        "ldau": {
-            "enable": false,
-            "lda_plus_u_kind": 0,
-            "Hubbard_U": "",
-            "Hubbard_J0": "",
-            "Hubbard_V": "",
-            "Hubbard_J": "",
-            "U_projection_type": "atomic"
-        },
-        "den": {
-            "toldfe": -1,
-            "kmesh": -3,
-            "kshift": [ 1, 1, 1 ],
-            "auto": false,
-            "poolsize": -1
-        },
-        "bse": {
-            "toldfe": -1,
-            "split": true,
-            "poolsize": -1
-        },
-        "screen": {
-            "toldfe": -1,
-            "poolsize": -1
-        }
-    },
-    "screen": {
-        "nbands": "range",
-        "core_offset": true,
-        "kmesh": -2.55,
-        "kshift": [ 0.125, 0.250, 0.375 ],
-        "energy_range": 100,
-        "shells": [3.5],
-        "mode": "core",
-        "augment": true,
-        "inversionstyle": "direct",
-        "convertstyle": "intp",
-        "grid": {
-            "rmode": [ "lagrange", "uniform" ],
-            "scheme": "central",
-            "shells": [ -1, 8.0 ],
-            "rmax": 8.0,
-            "ang": [ 5, 7 ],
-            "deltar": [ 0.1, 0.2 ],
-            "lmax": 0
-        },
-        "final": {
-            "rmax": 10.0,
-            "dr": 0.1
-        },
-        "model": {
-            "flavor" : "SLL",
-            "SLL": {
-                "dq": 0.01,
-                "qmax": 10
-            }
-        }
-    },
-    "opf": {
-        "program": "shirley",
-        "shirley": {
-            "hfkgrid": [ 2000, 32 ],
-            "fill": "!",
-            "opts": "!",
-            "caution" : false
-        }
-    }
+            "niter" : 100
+         },
+         "lflag" : true,
+         "plot" : {
+            "points" : 2000,
+            "range" : [
+               0,
+               100
+            ]
+         },
+         "qpflg" : true,
+         "solver" : "haydock"
+      },
+      "xmesh" : [ 
+          -1 
+      ]
+   },
+   "calc" : {
+      "edges" : [
+         0
+      ],
+      "mode" : "xas",
+      "photon_q" : [
+         0,
+         0,
+         0
+      ]
+   },
+   "computer" : {
+      "para_prefix" : "#",
+      "ser_prefix" : "!"
+   },
+   "dft" : {
+      "abpad" : 4,
+      "bse" : {
+         "poolsize" : -1,
+         "split" : true,
+         "toldfe" : -1
+      },
+      "calc_force" : true,
+      "calc_stress" : false,
+      "degauss" : 0.02,
+      "den" : {
+         "auto" : false,
+         "kmesh" : [
+            -3
+         ],
+         "kshift" : [
+            1,
+            1,
+            1
+         ],
+         "poolsize" : -1,
+         "toldfe" : -1
+      },
+      "diagonalization" : "david",
+      "ecut" : null,
+      "exx" : {
+         "qmesh" : [
+            1,
+            1,
+            1
+         ]
+      },
+      "fband" : 0.125,
+      "functional" : "default",
+      "ldau" : {
+         "Hubbard_J" : "",
+         "Hubbard_J0" : "",
+         "Hubbard_U" : "",
+         "Hubbard_V" : "",
+         "U_projection_type" : "atomic",
+         "enable" : false,
+         "lda_plus_u_kind" : 0
+      },
+      "mixing" : 0.7,
+      "ndiag" : -1,
+      "noncolin" : false,
+      "nspin" : 1,
+      "nstep" : 50,
+      "occopt" : 1,
+      "program" : "abinit",
+      "redirect" : false,
+      "screen" : {
+         "poolsize" : -1,
+         "toldfe" : -1
+      },
+      "smag" : 0,
+      "spinorb" : false,
+      "startingwfc" : "atomic+random",
+      "tmp_dir" : "undefined",
+      "toldfe" : 1e-10,
+      "tolwfr" : 1e-12,
+      "tot_charge" : 0,
+      "verbatim" : ""
+   },
+   "opf" : {
+      "program" : "shirley",
+      "shirley" : {
+         "caution" : false,
+         "fill" : "!",
+         "hfkgrid" : [
+            2000,
+            32
+         ],
+         "opts" : "!"
+      }
+   },
+   "psp" : {
+      "ecut_quality" : "normal",
+      "pp_database" : "ONCVPSP-PBE-PDv0.4-stringent",
+      "pp_list" : "",
+      "ppdir" : ""
+   },
+   "screen" : {
+      "augment" : true,
+      "convertstyle" : "intp",
+      "core_offset" : true,
+      "energy_range" : 100,
+      "final" : {
+         "dr" : 0.1,
+         "rmax" : 10
+      },
+      "grid" : {
+         "ang" : [
+            5,
+            7
+         ],
+         "deltar" : [
+            0.1,
+            0.2
+         ],
+         "lmax" : 0,
+         "rmax" : 8,
+         "rmode" : [
+            "lagrange",
+            "uniform"
+         ],
+         "scheme" : "central",
+         "shells" : [
+            -1,
+            8
+         ]
+      },
+      "inversionstyle" : "direct",
+      "kmesh" : [
+         -2.55
+      ],
+      "kshift" : [
+         0.125,
+         0.25,
+         0.375
+      ],
+      "mode" : "core",
+      "model" : {
+         "SLL" : {
+            "dq" : 0.01,
+            "qmax" : 10
+         },
+         "flavor" : "SLL"
+      },
+      "nbands" : 0,
+      "shells" : [
+         3.5
+      ]
+   },
+   "structure" : {
+      "coord" : "xred",
+      "epsilon" : "dfpt",
+      "metal" : false,
+      "rprim" : null,
+      "rscale" : [
+         1,
+         1,
+         1
+      ],
+      "taulist" : null,
+      "typat" : null,
+      "znucl" : null,
+      "zsymb" : []
+   }
 }
