@@ -58,7 +58,7 @@
                "spacing" : "i", 
                "thresh" : "f"
             },
-            "niter" : "i"
+            "niter" : "ii"
          },
          "lflag" : "b",
          "plot" : {
@@ -76,8 +76,8 @@
       "photon_q" : "af"
    },
    "computer" : {
-      "para_prefix" : "s",
-      "ser_prefix" : "s"
+      "para_prefix" : "S",
+      "ser_prefix" : "S"
    },
    "dft" : {
       "abpad" : "i",
@@ -101,14 +101,21 @@
       "exx" : {
          "qmesh" : "ai"
       },
+      "epsilon" : {
+         "metal_max" : "f",
+         "metal_min" : "f",
+         "method" : "s",
+         "min_gap" : "f",
+         "thresh" : "f"
+      },
       "fband" : "f",
       "functional" : "s",
       "ldau" : {
-         "Hubbard_J" : "s",
-         "Hubbard_J0" : "s",
-         "Hubbard_U" : "s",
-         "Hubbard_V" : "s",
-         "U_projection_type" : "s",
+         "Hubbard_J" : "S",
+         "Hubbard_J0" : "S",
+         "Hubbard_U" : "S",
+         "Hubbard_V" : "S",
+         "U_projection_type" : "S",
          "enable" : "b",
          "lda_plus_u_kind" : "i"
       },
@@ -124,29 +131,29 @@
          "poolsize" : "i",
          "toldfe" : "f"
       },
-      "smag" : "i",
+      "smag" : "S",
       "spinorb" : "b",
-      "startingwfc" : "s",
-      "tmp_dir" : "s",
+      "startingwfc" : "S",
+      "tmp_dir" : "S",
       "toldfe" : "f",
       "tolwfr" : "f",
       "tot_charge" : "f",
-      "verbatim" : "s"
+      "verbatim" : "S"
    },
    "opf" : {
       "program" : "s",
       "shirley" : {
          "caution" : "b",
-         "fill" : "s",
+         "fill" : "S",
          "hfkgrid" : "ai",
-         "opts" : "s"
+         "opts" : "S"
       }
    },
    "psp" : {
       "ecut_quality" : "s",
-      "pp_database" : "s",
-      "pp_list" : "s",
-      "ppdir" : "s"
+      "pp_database" : "S",
+      "pp_list" : "S",
+      "ppdir" : "S"
    },
    "screen" : {
       "augment" : "b",
@@ -182,7 +189,7 @@
    },
    "structure" : {
       "coord" : "s",
-      "epsilon" : "s",
+      "epsilon" : "f",
       "metal" : "b",
       "rprim" : "af",
       "rscale" : "af",

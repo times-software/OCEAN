@@ -30,7 +30,19 @@ if( open( my $in, "oparse.json" ))
 } 
 else
 {
-  die "Failed to open oparse.json which should have been copied in from the OCEAN install directory!\m$!";
+  die "Failed to open oparse.json which should have been copied in from the OCEAN install directory!\n$!";
+}
+
+my $typeDef;
+if( open( my $in, "oparse.type.json" ))
+{
+  local $/ = undef;
+  $typeDef = $json->decode(<$in>);
+  close($in);
+}
+else
+{
+  die "Failed to open oparse.type.json\n$!";
 }
 
 my %decoder = (
@@ -117,7 +129,7 @@ my %decoder = (
   'degauss' => 'dft.degauss',
   'ibrav' => 'nope.ibrav',
   'isolated' => 'nope.isolated',
-  'noncolin' => 'dft.isolated',
+  'noncolin' => 'dft.noncolin',
   'prefix' => 'nope.prefix',
   'ppdir' => 'psp.ppdir',
   'dft.calc_stress' => 'dft.calc_stress',
@@ -197,10 +209,166 @@ if( 0 )
   }
 }
 
-my $enable = 1;
-$json->canonical([$enable]);
-$json->pretty([$enable]);
+if( 1 )
+{
+  my $enable = 1;
+  $json->canonical([$enable]);
+  $json->pretty([$enable]);
 
-open OUT, ">", "json.test" or die;
-print OUT $json->encode($input);
-close OUT;
+  open OUT, ">", "json.test" or die;
+  print OUT $json->encode($input);
+  close OUT;
+}
+
+
+print $typeDef->{'calc'} . "\n";
+print $typeDef->{'calc'}->{'mode'} . "\n";
+
+foreach my $key (keys %decoder)
+{
+  print "$key: ";
+  die "Failed to find $key\n" unless -e $key;
+  my $value ="";
+  if( open( my $in, $key ))
+  {
+    local $/ = undef;
+    $value .= <$in>;
+    $value =~ s/\n/ /g;
+    close($in);
+  }
+  else
+  {
+    die "Failed to open $key!\n$!";
+  }
+  my $newKey = $decoder{ $key };
+  my @newKey = split /\./, $newKey;
+  foreach my $i (@newKey )
+  {
+    print "$i ";
+  }
+  print "\n";
+
+  
+  my $type;
+  my $hashref;
+  if( $newKey[0] =~ m/nope/ )
+  {
+    $type = 's';
+  }
+  else
+  {
+    $type = $typeDef;
+    for( my $i = 0; $i < scalar @newKey; $i++ )
+    {
+      $type = $type->{$newKey[$i]} ;
+    }
+    print "   $type ";
+    $hashref = $input;
+    for( my $i = 0; $i < scalar @newKey - 1; $i++ )
+    {
+      $hashref = $hashref->{$newKey[$i]};
+    }
+  }
+  die "Failed! >$type<\n" unless( $type =~ m/\As|S|i|f|b|as|ai|af\Z/ );
+
+
+  my $regex;
+  $regex = '^(-?\d+)' if( $type =~ m/i/ );
+  $regex = '^(-?\d*\.?\d+([eEdD][+-]?\d+)?)' if( $type =~ m/f/ );
+  $regex = '^([\w\S\s]+)$' if ( $type =~ m/s|S/ );
+
+
+  # if array
+  if( $type =~ m/a/ )
+  {
+    my @rawArray = split ' ', $value;
+    foreach my $i (@rawArray)
+    {
+      die "Failed to match: $i of type $type\n" unless( $i =~ m/$regex/ );
+      print "$i ";
+    }
+    if( $type =~ m/[if]/ )
+    {
+      for( my $i = 0; $i < scalar @rawArray; $i++ )
+      { $rawArray[$i] *= 1 }
+    }
+    elsif( $type =~ m/s/ )
+    {
+      for( my $i = 0; $i < scalar @rawArray; $i++ )
+      { $rawArray[$i] = lc $rawArray[$i] }
+    }
+    
+
+    # Fix incompatible!
+    if( $key =~ m/spect\.h|cnbse\.spect_range/ )
+    {
+      shift @rawArray;
+    }
+    # end fix
+    $hashref->{$newKey[-1]} = [@rawArray];
+  }
+  else
+  {
+    unless( $value eq ' ' )
+    {
+      $value =~ s/^\s+//;
+      $value =~ s/\s+$//;
+    }
+
+    # fix incompatible!
+    if( $key =~ m/epsilon/ )
+    {
+      if( $value =~ m/dfpt/ )
+      {
+         $value = 0;
+         $input->{'dft'}->{'epsilon'}->{'method'} = 'dfpt'
+      }
+      else
+      {
+         $input->{'dft'}->{'epsilon'}->{'method'} = 'input'
+      }
+    }
+    # end fix  
+
+    if( $type =~ m/b/ )
+    {
+      if( $value =~ m/t|true|1/i )
+      {
+        $value = $JSON::PP::true
+      }
+      elsif( $value =~ m/f|false|0/i )
+      {
+        $value = $JSON::PP::false
+      }
+      else  
+      {
+        die "Failed to match: $value of type $type\n";
+      }
+    }
+    else
+    {
+      if( $value =~ m/$regex/ )
+      {
+        $value = $1;
+        $value *= 1 if( $type =~ m/[if]/ );
+        $value = lc $value if( $type =~ m/s/ );
+      }
+      else
+      {
+        die "Failed to match: $value of type $type\n";
+      }
+    }
+    print "$value ";
+    $hashref->{$newKey[-1]} = $value;
+  }
+  print "\n";
+}
+  
+
+  my $enable = 1;
+  $json->canonical([$enable]);
+  $json->pretty([$enable]);
+
+  open OUT, ">", "jsonOut.test" or die;
+  print OUT $json->encode($input);
+  close OUT;

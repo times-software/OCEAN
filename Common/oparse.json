@@ -43,7 +43,7 @@
          0.25,
          0.375
       ],
-      "nbands" : 0,
+      "nbands" : "range",
       "val" : {
          "aldaf" : false,
          "backf" : false,
@@ -80,14 +80,10 @@
          "qpflg" : true,
          "solver" : "haydock"
       },
-      "xmesh" : [ 
-          -1 
-      ]
+      "xmesh" : -1
    },
    "calc" : {
-      "edges" : [
-         0
-      ],
+      "edges" : "",
       "mode" : "xas",
       "photon_q" : [
          0,
@@ -124,6 +120,13 @@
       },
       "diagonalization" : "david",
       "ecut" : null,
+      "epsilon" : {
+         "metal_max" : 10000,
+         "metal_min" : 100,
+         "method" : "dfpt",
+         "min_gap" : 0.2,
+         "thresh" : 1e-12
+      },
       "exx" : {
          "qmesh" : [
             1,
@@ -154,7 +157,7 @@
          "poolsize" : -1,
          "toldfe" : -1
       },
-      "smag" : 0,
+      "smag" : "",
       "spinorb" : false,
       "startingwfc" : "atomic+random",
       "tmp_dir" : "undefined",
@@ -228,7 +231,7 @@
          },
          "flavor" : "SLL"
       },
-      "nbands" : 0,
+      "nbands" : "range",
       "shells" : [
          3.5
       ]
