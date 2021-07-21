@@ -269,7 +269,7 @@ foreach my $key (keys %decoder)
       $hashref = $hashref->{$newKey[$i]};
     }
   }
-  die "Failed! >$type<\n" unless( $type =~ m/\As|S|i|f|b|as|ai|af\Z/ );
+  die "Failed! >$type<\n" unless( $type =~ m/\As|S|i|f|b|as|aS|ai|af\Z/ );
 
 
   my $regex;
@@ -303,6 +303,10 @@ foreach my $key (keys %decoder)
     if( $key =~ m/spect\.h|cnbse\.spect_range/ )
     {
       shift @rawArray;
+    }
+    if( $key =~ m/pplist/ )
+    {
+      $input->{'psp'}->{'source'} = 'manual' if( scalar @rawArray > 0 );
     }
     # end fix
     $hashref->{$newKey[-1]} = [@rawArray];

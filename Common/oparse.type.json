@@ -152,8 +152,9 @@
    "psp" : {
       "ecut_quality" : "s",
       "pp_database" : "S",
-      "pp_list" : "S",
-      "ppdir" : "S"
+      "pp_list" : "aS",
+      "ppdir" : "S",
+      "source" : "s"
    },
    "screen" : {
       "augment" : "b",

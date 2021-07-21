@@ -181,8 +181,9 @@
    "psp" : {
       "ecut_quality" : "normal",
       "pp_database" : "ONCVPSP-PBE-PDv0.4-stringent",
-      "pp_list" : "",
-      "ppdir" : ""
+      "pp_list" : [],
+      "ppdir" : "",
+      "source" : "database"
    },
    "screen" : {
       "augment" : true,
