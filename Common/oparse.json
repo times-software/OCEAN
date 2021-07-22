@@ -239,7 +239,7 @@
    },
    "structure" : {
       "coord" : "xred",
-      "epsilon" : "dfpt",
+      "epsilon" : 0,
       "metal" : false,
       "rprim" : null,
       "rscale" : [
