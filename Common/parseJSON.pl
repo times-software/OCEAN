@@ -231,25 +231,31 @@ my $tag = 1;
 my $curly = 0;
 my $key = '';
 my $val = '';
+my $errorBuffer = '';
 while( $i < scalar @inputFile )
 {
   if( $tag == 1 )
   {
-    die "Misplaced braces when expecting a tag\n" if( $inputFile[$i] =~ m/\{|\}/ );
+    $errorBuffer .= $inputFile[$i] . "\n";
+    die "Misplaced braces when expecting a tag\n>>>>\n$errorBuffer<<<<<\n" if( $inputFile[$i] =~ m/\{|\}/ );
 #    print "$inputFile[$i] >>>> ";
     $tag = 0;
     $key = $inputFile[$i];
     $val = '';
+    $errorBuffer = '';
+    $errorBuffer .= $inputFile[$i-1] . "\n" if( $i > 0 );
+    $errorBuffer .= $inputFile[$i] . "\n";
   }
   elsif ( $curly == 0 ) 
   {
+    $errorBuffer .= $inputFile[$i] . "\n";
     if( $inputFile[$i] =~ m/\{/ )
     {
       $curly = 1;
     }
     elsif( $inputFile[$i] =~ m/\}/ )
     {
-      die "Close brace when not expected\n";
+      die "Close brace when not expected\n>>>>\n$errorBuffer<<<<<\n";
     }
     else
     {
@@ -259,7 +265,8 @@ while( $i < scalar @inputFile )
     }
   } else
   {
-    die "Second open {\n" if( $inputFile[$i] =~ m/\{/ );
+    $errorBuffer .= $inputFile[$i] . "\n";
+    die "Second open {\n>>>>\n$errorBuffer<<<<<\n" if( $inputFile[$i] =~ m/\{/ );
     if( $inputFile[$i] =~ m/\}/ )
     {
       $curly = 0;
