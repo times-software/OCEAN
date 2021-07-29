@@ -1,5 +1,5 @@
 #!/usr/bin/perl
-# Copyright (C) 2015-2018 OCEAN collaboration
+# Copyright (C) 2015-2021 OCEAN collaboration
 #
 # This file is part of the OCEAN project and distributed under the terms 
 # of the University of Illinois/NCSA Open Source License. See the file 
@@ -8,6 +8,8 @@
 #
 
 use strict;
+require JSON::PP;
+JSON::PP->import;
 
 if (! $ENV{"OCEAN_BIN"} ) {
   $0 =~ m/(.*)\/defaults\.pl/;
@@ -21,6 +23,29 @@ if (!$ENV{"OCEAN_VERSION"}) {$ENV{"OCEAN_VERSION"} = `cat $ENV{"OCEAN_BIN"}/Vers
 print `pwd`;
 
 
+my $dataFile = "oceanDatafile";
+if( -e $dataFile )
+{
+  my $json = JSON::PP->new;
+  my $oceanData;
+  if( open( my $in, "<", $dataFile ))
+  {
+    local $/ = undef;
+    $oceanData = $json->decode(<$in>);
+    close($in);
+  }
+  else
+  {
+    die "Failed to open config file $dataFile\n$!";
+  }
+
+  my $ncpus = parse_para_prefix( $oceanData );
+  print "$ncpus\n";
+  my $ncpus = parse_para_prefix( );
+  print "$ncpus\n";
+
+  exit 0;
+}
 # We can't currently default a blank in the input so fake it.
 my $ncpus = 1;
 open PARA_PREFIX, "para_prefix" or die "$!";
@@ -850,3 +875,30 @@ sub isAllowed {
   return 0;
 }
 
+sub parse_para_prefix( ) 
+{
+  my $para_prefix;
+  my $ncpus = 1;
+  if( scalar @_ > 0 )
+  {
+    $para_prefix = $_[0]->{'computer'}->{'para_prefix'};
+  }
+  else
+  {
+    open PARA_PREFIX, "para_prefix" or die "$!";
+    $para_prefix = <PARA_PREFIX>;
+    if( $para_prefix =~ m/\#/ )
+    {
+      close PARA_PREFIX;
+      open PARA_PREFIX, ">para_prefix" or die "$!";
+      print PARA_PREFIX "";
+    }
+    close PARA_PREFIX;
+  }
+  if ( $para_prefix =~ m/^\D*(\d+)/ )
+  {
+    $ncpus = $1; 
+    print "GRABBED $ncpus as the number of cpus to run with!\n";
+  } 
+  return $ncpus;
+}
