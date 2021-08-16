@@ -91,7 +91,7 @@
       "degauss" : "f",
       "den" : {
          "auto" : "b",
-         "kmesh" : "ai",
+         "kmesh" : "af",
          "kshift" : "af",
          "poolsize" : "i",
          "toldfe" : "f"

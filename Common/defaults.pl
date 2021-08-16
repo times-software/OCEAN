@@ -10,6 +10,7 @@
 use strict;
 require JSON::PP;
 JSON::PP->import;
+use POSIX;
 
 if (! $ENV{"OCEAN_BIN"} ) {
   $0 =~ m/(.*)\/defaults\.pl/;
@@ -39,10 +40,29 @@ if( -e $dataFile )
     die "Failed to open config file $dataFile\n$!";
   }
 
-  my $ncpus = parse_para_prefix( $oceanData );
-  print "$ncpus\n";
-  my $ncpus = parse_para_prefix( );
-  print "$ncpus\n";
+  $oceanData->{'computer'}->{'ncpus'} = parse_para_prefix( $oceanData );
+  add_cpuFactorsAndSquare( $oceanData );
+  abVecsVolume( $oceanData ); 
+
+  checkKpoints( $oceanData, $oceanData->{'dft'}->{'den'}->{'kmesh'} );
+  checkKpoints( $oceanData, $oceanData->{'bse'}->{'kmesh'} );
+  checkKpoints( $oceanData, $oceanData->{'screen'}->{'kmesh'} );
+
+  checkBands( $oceanData, $oceanData->{'screen'}, $oceanData->{'screen'}->{'energy_range'} );
+  checkBands( $oceanData, $oceanData->{'bse'}, $oceanData->{'bse'}->{'energy_range'} );
+
+  checkXpoints( $oceanData, $oceanData->{'bse'}->{'xmesh'} );
+
+  checkQ( $oceanData );
+
+  checkEpsilon( $oceanData );
+  
+  my $enable = 1;
+  $json->canonical([$enable]);
+  $json->pretty([$enable]);
+  open OUT, ">", "postDefaultsOceanDatafile" or die;
+  print OUT $json->encode($oceanData);
+  close OUT;
 
   exit 0;
 }
@@ -902,3 +922,253 @@ sub parse_para_prefix( )
   } 
   return $ncpus;
 }
+
+sub add_cpuFactorsAndSquare( )
+{
+  my $hashRef = $_[0];
+  my $ncpus = $hashRef->{'computer'}->{'ncpus'};
+  my @cpu_factors;
+  for( my $i =1; $i <= $ncpus; $i++ )
+  {
+    push( @cpu_factors, $i ) unless ( $ncpus % $i );
+  }
+  if( scalar @cpu_factors == 1 )
+  {
+    print "$ncpus has ", $#cpu_factors + 1, " factor\n";
+  }
+  else
+  {
+    print "$ncpus has ", $#cpu_factors + 1, " factors\n";
+  }
+  foreach (@cpu_factors)
+  { print "$_\n"; }
+  $hashRef->{'computer'}->{'cpu_factors'} = [@cpu_factors];
+
+  my @square_cpu_factors;
+  foreach my $cpu_count (@cpu_factors)
+  {
+    push @square_cpu_factors, $cpu_count if( int(sqrt($cpu_count)) ** 2 == $cpu_count );
+  }
+  foreach (@square_cpu_factors)
+  { print "$_\n"; }
+  $hashRef->{'computer'}->{'cpu_square_factors'} = [@square_cpu_factors];
+}
+
+sub abVecsVolume
+{
+  my $hashRef = $_[0];
+  my @avec; my @alen; my @bvec; my @blen;
+  for( my $i = 0; $i < 3; $i++ )
+  {
+    for( my $j = 0; $j< 3; $j++ )
+    {
+      $avec[$i][$j] = $hashRef->{'structure'}->{'rprim'}[$i*3+$j] 
+                    * $hashRef->{'structure'}->{'rscale'}[$i];
+    }
+#  print "$avec[$i][0]  $avec[$i][1]  $avec[$i][2]\n";
+  }
+  my $volume = $avec[0][0] * ($avec[1][1] * $avec[2][2] - $avec[2][1] * $avec[1][2] )
+             - $avec[1][0] * ($avec[0][1] * $avec[2][2] - $avec[2][1] * $avec[0][2] )
+             + $avec[2][0] * ($avec[0][1] * $avec[1][2] - $avec[1][1] * $avec[0][2] );
+  print "Volume:\t$volume\n";
+
+  
+  my $pref = 2*4*atan2(1,1)/$volume;
+
+  for (my $i = 0; $i < 3; $i++ ) {
+    for (my $j = 0; $j < 3; $j++ ) {
+      $bvec[$i][$j] = $pref * ($avec[$i-2][$j-2] * $avec[$i-1][$j-1] - $avec[$i-2][$j-1] * $avec[$i-1][$j-2]) ;
+    }
+    $blen[$i] = sqrt( $bvec[$i][0]**2 + $bvec[$i][1]**2 + $bvec[$i][2]**2 );
+    $alen[$i] = sqrt( $avec[$i][0]**2 + $avec[$i][1]**2 + $avec[$i][2]**2 );
+  }
+
+  $hashRef->{'structure'}->{'volume'} = $volume;
+  $hashRef->{'structure'}->{'avecs'} = [@avec];
+  $hashRef->{'structure'}->{'alen'} = [@alen];
+  $hashRef->{'structure'}->{'bvecs'} = [@bvec];
+  $hashRef->{'structure'}->{'blen'} = [@blen];
+}
+
+
+sub checkKpoints
+{
+  my $hashRef = $_[0];
+  my $kpointref = $_[1];
+
+  for( my $i = 0; $i < scalar @{ $kpointref }; $i++ )
+  {
+    print ${$kpointref}[$i] . "\n";
+  }
+
+  return -1 if( scalar @{ $kpointref } < 1 );
+  for( my $i = scalar @{ $kpointref }; $i < 3; $i++ )
+  {
+    ${$kpointref}[$i] = ${$kpointref}[$i-1];
+  }
+
+  for( my $i = 0; $i < 3; $i++ )
+  {
+    ${$kpointref}[$i] = int(${$kpointref}[$i]) if( ${$kpointref}[$i] > 0 );
+    ${$kpointref}[$i] = -3 if( ${$kpointref}[$i] == 0 );
+  }
+
+  for( my $i = 0; $i < 3; $i++ )
+  {
+    if( ${$kpointref}[$i] < 0 )
+    {
+      ${$kpointref}[$i] = int( ${$kpointref}[$i] * -0.999 * $hashRef->{'structure'}->{'blen'}[$i] ) + 1;
+      while( isAllowed( ${$kpointref}[$i] ) == 0 )
+      {
+        ${$kpointref}[$i]++;
+      }
+    }
+  }
+}
+
+sub checkXpoints
+{
+  my $hashRef = $_[0];
+  my $xpointref = $_[1];
+
+  for( my $i = 0; $i < scalar @{ $xpointref }; $i++ )
+  {
+    print ${$xpointref}[$i] . "\n";
+  }
+
+  return -1 if( scalar @{ $xpointref } < 1 );
+  for( my $i = scalar @{ $xpointref }; $i < 3; $i++ )
+  {
+    ${$xpointref}[$i] = ${$xpointref}[$i-1];
+  }
+
+  for( my $i = 0; $i < 3; $i++ )
+  {
+    ${$xpointref}[$i] = int(${$xpointref}[$i]) if( ${$xpointref}[$i] > 0 );
+    ${$xpointref}[$i] = -.82 if( ${$xpointref}[$i] == 0 );
+  }
+
+  my $totalXmesh = 0;
+  my $minXtotal = 2 * $hashRef->{'bse'}->{'nbands'};
+  my $warnFlag = 1;
+  
+#  while( $totalXmesh < $minXtotal )
+  do
+  {
+    $totalXmesh = 1;
+    for( my $i = 0; $i < 3; $i++ )
+    {
+      if( ${$xpointref}[$i] < 0 )
+      {
+        ${$xpointref}[$i] = int( ${$xpointref}[$i] * -0.999 * $hashRef->{'structure'}->{'alen'}[$i] ) + 1;
+        while( isAllowed( ${$xpointref}[$i] ) == 0 )
+        {
+          ${$xpointref}[$i]++;
+        }
+      }
+      $totalXmesh *= ${$xpointref}[$i];
+    }
+    unless( $totalXmesh > $minXtotal )
+    {
+      if( $warnFlag != 0 )
+      {
+        print "Requested xmesh density too low!\n";
+        print "  Need twice as many x-points as bands\n";
+        $warnFlag = 0;
+      }
+      print "   " . ${$xpointref}[0] . " " . ${$xpointref}[1] . " " . ${$xpointref}[2] . "\n";
+      my $currentDen = (${$xpointref}[0] + 1 )/ $hashRef->{'structure'}->{'alen'}[0];
+      for( my $i = 1; $i < 3; $i++ )
+      {
+        if( $currentDen > (${$xpointref}[$i] + 1 )/ $hashRef->{'structure'}->{'alen'}[$i] )
+        {
+          $currentDen =  (${$xpointref}[$i] + 1 )/ $hashRef->{'structure'}->{'alen'}[$i];
+        }
+      }
+      for( my $i = 0; $i < 3; $i++ )
+      {
+        ${$xpointref}[$i] = - $currentDen;
+      }
+    }
+  } until( $totalXmesh > $minXtotal );
+  print "   " . ${$xpointref}[0] . " " . ${$xpointref}[1] . " " . ${$xpointref}[2] . "\n";
+}
+
+
+sub checkBands
+{
+  my $hashRef = $_[0];
+  my $bandRef = $_[1];
+  my $energyRef = $_[2];
+  my $nb = $bandRef->{'nbands'};
+  print "$nb\n";
+
+  # Do nothing if we have a positive number of bands
+  return if( $nb > 0); 
+
+  # Not zero means add to total valence bands, continue but WARN if no electron count
+  my $flag = 0;
+  if( $nb < 0 )
+  {
+    $flag = 1;
+    $nb = abs( $nb );
+  }
+  else
+  {
+    $nb = 0.019 * $hashRef->{'structure'}->{'volume'} * ( ($energyRef/13.605)**(3/2) );
+  }
+
+  if( $hashRef->{'structure'}->{'valence_electrons'} < 1 )
+  {
+    if( $flag ) {
+      print "WARNING! A specific number of conduction bands was requested, " .
+            "but electrons were not parsed from the pseudopotentials.\n" .
+            "  Will continue using an estimate.\n";
+    }
+    $nb += 0.036 * $hashRef->{'structure'}->{'volume'};
+  }
+  else
+  {
+    $nb += floor( ($hashRef->{'structure'}->{'valence_electrons'}+1)/2);
+  }
+  $nb = floor( ( 2 * $nb + 1 ) / 2 );
+  $bandRef->{'nbands'} = $nb;
+  print "$nb\n";
+}
+
+
+sub checkQ
+{
+  my $hashRef = $_[0];
+  if( $hashRef->{'calc'}->{'mode'} =~ m/VAL/i || $hashRef->{'calc'}->{'mode'} =~ m/RXS/i )
+  {
+    my $q = 0;
+    for( my $i = 0; $i < 3; $i++ )
+    {
+      $q += abs( $hashRef->{'calc'}->{'photon_q'}[$i] );
+    }
+    if( $q < 0.0000000001 )
+    {
+      print "Valence or RIXS calculation requires non-zero q-vector\n";
+      print "Assigning default q-vec of ( 0.001, 0, 0 ). You should edit your input\n";
+      $hashRef->{'calc'}->{'photon_q'}[0] = 0.001;
+      $hashRef->{'calc'}->{'photon_q'}[1] = 0.0;
+      $hashRef->{'calc'}->{'photon_q'}[2] = 0.0;
+    }
+  }
+}
+
+sub checkEpsilon
+{
+  my $hashRef = $_[0];
+  if( $hashRef->{'dft'}->{'epsilon'}->{'method'} =~ m/input/ )
+  {
+    if( $hashRef->{'structure'}->{'epsilon'} < 1.000001 )
+    {
+      print "Use of model dielectric requires that epsilon be greater than 1!\n";
+      print "Input diemac too low: " . $hashRef->{'structure'}->{'epsilon'} . "\n";
+      $hashRef->{'structure'}->{'epsilon'} = 1.000001;
+    }
+  }
+}
+

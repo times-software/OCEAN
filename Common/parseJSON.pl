@@ -313,7 +313,7 @@ if( $haveLegacy == 1 )
     my $newKey = $decoder{ $key };
     print "$key : $newKey  $inputHash{ $key }\n";
     $inputHash{ $newKey } = $inputHash{ $key };
-    delete( $inputHash{ $key } );
+    delete( $inputHash{ $key } ) unless( $key eq $newKey );
     $rawInputFile =~ s/$key/$newKey/;
     my @newKey = split /\./, $newKey;
     my $ref = $config;
@@ -342,10 +342,10 @@ print "Storing parsed data\n\n";
 foreach my $key ( keys %inputHash )
 {
   my $value = $inputHash{ $key };
+  print "$key $value\n";
   my @newKey = split /\./, $key;
   next if( $newKey[0] eq 'nope' );
 
-  print "$key $value\n";
 
   my $type = $typeDef;
   for( my $i = 0; $i < scalar @newKey; $i++ )
