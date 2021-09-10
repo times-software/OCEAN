@@ -57,7 +57,7 @@ my @EspressoFiles = ( "coord", "degauss", "ecut", "etol", "fband", "ibrav",
 my @PPFiles = ("pplist", "znucl");
 my @OtherFiles = ("epsilon", "pool_control", "screen.mode");
 
-my @SCFBonus = ("charge-density.kin.dat");
+my @SCFBonus = ("charge-density.kin.dat", "ekin-density.dat");
 my @exx = ("hse");
 
 unless( -e "scf.stat" )
