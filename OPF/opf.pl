@@ -13,6 +13,10 @@ use File::Compare;
 use File::Spec::Functions;
 use Cwd;
 use Cwd 'abs_path';
+require JSON::PP;
+JSON::PP->import;
+use Storable qw(dclone);
+
 
 ###########################
 if (! $ENV{"OCEAN_BIN"} ) {
@@ -25,6 +29,205 @@ if (! $ENV{"OCEAN_BIN"} ) {
 my $dir = getcwd;
 if (! $ENV{"OCEAN_WORKDIR"}){ $ENV{"OCEAN_WORKDIR"} = `pwd` . "../" ; }
 ###########################
+
+my $dataFile = "../Common/postDefaultsOceanDatafile";
+if( -e $dataFile )
+{
+  my $json = JSON::PP->new;
+  my $commonOceanData;
+  if( open( my $in, "<", $dataFile ))
+  {
+    local $/ = undef;
+    $commonOceanData = $json->decode(<$in>);
+    close($in);
+  }
+  else
+  {
+    die "Failed to open config file $dataFile\n$!";
+  }
+
+
+  my %todoHash;
+  my %todoPsp;
+  my %todoZNL;
+  if( $commonOceanData->{'calc'}->{'mode'} =~ m/val/i )
+  {
+    print "Valence run! Valence screening augmentation is not automatic!\n";
+    exit 0;
+    #TODO Would need to add every unique z to a list, and maybe try and disable calculating the core response?
+  }
+  else
+  {
+    foreach my $edge ( @{$commonOceanData->{'calc'}->{'edges'}} )
+    {
+      $edge =~ m/(\d+)\s(\d)\s(\d)/ or die;
+      my $site = $1;
+      my $N = $2;
+      my $L = $3;
+
+      # change from 1-index to 0-index
+      my $type = @{$commonOceanData->{'structure'}->{'typat'}}[$site-1];
+      my $Z = @{$commonOceanData->{'structure'}->{'znucl'}}[$type-1];
+      my $psp_hash = @{$commonOceanData->{'psp'}->{'pphash'}}[$type-1];
+      my $psp_name = @{$commonOceanData->{'psp'}->{'pp_list'}}[$type-1];
+
+      print "$Z $N $L $psp_hash\n";
+      
+      $todoHash{ $Z } = $psp_hash;
+      $todoPsp{ $Z } = $psp_name;
+      
+      my $nl = "$N $L";
+      if( exists $todoZNL{ $Z } )
+      {
+        $todoZNL{ $Z }{ $nl } = 1;
+      }
+      else
+      {
+        $todoZNL{ $Z } = {};
+        $todoZNL{ $Z }{ $nl } = 1;
+      }
+    }
+    foreach my $Z (keys %todoHash )
+    {
+      print "$todoHash{ $Z } ";
+      foreach (keys %{$todoZNL{ $Z }} )
+      {
+        print "$_ ";
+      }
+      print "\n";
+    }
+  }
+
+  my $runClean = 1;
+  my $opfData;
+  $dataFile = "opf.json";
+  if( -e $dataFile && open( my $in, "<", $dataFile ))
+  {
+    local $/ = undef;
+    $opfData = $json->decode(<$in>);
+    close($in);
+
+    #TODO checks for other opf options as they are added in
+    goto CLEAN if( $commonOceanData->{'opf'}->{'program'} ne $opfData->{'program'} );
+    if( $commonOceanData->{'opf'}->{'program'} eq "shirley" )
+    {
+      if( ( $commonOceanData->{'opf'}->{'shirley'}->{'caution'} && ! $opfData->{'shirley'}->{'caution'} ) 
+       || ( ! $commonOceanData->{'opf'}->{'shirley'}->{'caution'} && $opfData->{'shirley'}->{'caution'} ) )
+      {
+        goto CLEAN;
+      }
+      if( $commonOceanData->{'opf'}->{'shirley'}->{'hfkgrid'}[0] != $opfData->{'shirley'}->{'hfkgrid'}[0] 
+       || $commonOceanData->{'opf'}->{'shirley'}->{'hfkgrid'}[1] != $opfData->{'shirley'}->{'hfkgrid'}[1] )
+      {
+        goto CLEAN;
+      }
+    }
+
+    $runClean = 0;
+  }
+  CLEAN:
+    
+  if( $runClean )
+  {
+    print "Clean run is necessary!!\n";
+    $opfData = dclone $commonOceanData->{'opf'};
+    my $enable = 1;
+    $json->canonical([$enable]);
+    $json->pretty([$enable]);
+    open OUT, ">", "opf.json" or die;
+    print OUT $json->encode($opfData);
+    close OUT;
+  }
+
+
+  if( exists $opfData->{'completed'} )
+  {
+    print "Previous run detected\n";
+
+    foreach my $Z (keys %{$opfData->{'completed'}} )
+    { 
+      next unless( exists $todoHash{ $Z } );
+#      print "$todoHash{ $Z }  ---  $opfData->{'completed'}->{$Z}->{'psp_hash'}\n";
+      if( $todoHash{ $Z } eq $opfData->{'completed'}->{$Z}->{'psp_hash'} )
+      {
+        foreach my $nl ( @{$opfData->{'completed'}->{$Z}->{'NL'}} )
+        {
+#          print "   $nl\n";
+ #         foreach my $i ( keys %{$todoZNL{ $Z }} )
+ #         {  print "   $i\n";
+ #         }
+          delete $todoZNL{ $Z }{ $nl } if( exists $todoZNL{ $Z }{ $nl } );
+        }
+      }
+      else
+      {
+        delete $opfData->{'completed'}->{ $Z };
+      }
+    }
+  }
+  
+  foreach my $Z ( keys %todoZNL )
+  {
+    if( scalar keys %{$todoZNL{ $Z }} == 0 )
+    {
+      delete $todoZNL{ $Z };
+      delete $todoHash{ $Z };
+    }
+    else
+    {
+      my $j = scalar keys %{$todoZNL{ $Z }};
+      print "### $j\n";
+      print "$Z: ";
+      foreach my $i ( keys %{$todoZNL{ $Z }} )
+      { print "$i ";
+      }
+      print "\n";
+    }
+  }
+   
+  # write out new opf.json here!
+  # only needed if we didn't already clean everything
+  unless( $runClean )
+  {
+    my $enable = 1;
+    $json->canonical([$enable]);
+    $json->pretty([$enable]);
+    open OUT, ">", "opf.json" or die;
+    print OUT $json->encode($opfData);
+    close OUT;
+  }
+
+  $opfData->{'completed'} = {}  unless( exists $opfData->{'completed'} );
+  # then fake the doing and write out result for testing
+  foreach my $Z (keys %todoHash )
+  {
+    next unless( scalar keys %{$todoZNL{ $Z }} > 0 );
+
+    print "Need to run Z = $Z with hash $todoHash{ $Z }\n" if( scalar keys %{$todoZNL{ $Z }} > 0 );
+    $opfData->{'completed'}->{$Z} = {} unless( exists $opfData->{'completed'}->{$Z} );
+    # FAKE
+    if( $opfData->{'program'} =~ m/shirley/ )
+    {
+      runShirley( $Z, $todoPsp{ $Z }, $commonOceanData ); 
+    }
+    # Can just write over since we already checked that they're the same
+    $opfData->{'completed'}->{$Z}->{'psp_hash'} = $todoHash{ $Z };
+    $opfData->{'completed'}->{$Z}->{'NL'} = [] unless( exists $opfData->{'completed'}->{'NL'} );
+    foreach my $nl (keys %{$todoZNL{ $Z }} )
+    {
+      print "  Run for NL: $nl\n";
+      push @{$opfData->{'completed'}->{$Z}->{'NL'}}, $nl;
+    }
+  }
+
+  my $enable = 1;
+  $json->canonical([$enable]);
+  $json->pretty([$enable]);
+  open OUT, ">", "opf.json" or die;
+  print OUT $json->encode($opfData);
+  close OUT;
+  exit 0;
+}
 
 
 my @CommonFiles = ("znucl", "opf.hfkgrid", "opf.fill", "opf.opts", "pplist", "ppdir", 
@@ -605,3 +808,353 @@ print DONE "1\n";
 close DONE;
 
 exit 0;
+
+
+sub runShirley
+{
+  my $Z = $_[0];
+  my $pspFile = $_[1];
+  my $hashRef = $_[2];
+
+  my $targ = catdir( $hashRef->{'psp'}->{'ppdir'}, $pspFile );
+  copy( $targ, $pspFile ) == 1 or die "Failed to copy $pspFile\n   $targ\n$!";;
+  print "Converting $pspFile\n";
+  my $ppmodname = $pspFile . ".mod";
+  system("echo '$pspFile\n$ppmodname' | $ENV{'OCEAN_BIN'}/fhi2eric.x") == 0
+      or die "Failed to convert psp file $pspFile\n";
+
+  print "Starting HFK section\n";
+
+  # DELETE in future
+  open OUT, ">", "scfac" or die;
+  print OUT "1.0\n";
+  close OUT;
+  
+  ### multi-opt hack
+  my $optionfilename;
+  my @opts = split ' ', $hashRef->{'opf'}->{'shirley'}->{'opts'};
+  for( my $i = 0; $i<scalar @opts; $i+=2 )
+  {
+    print "$opts[$i] $opts[$i+1]\n";
+    if( $opts[$i] == $Z )
+    {
+      $optionfilename = catdir( updir(), $opts[$i+1] );
+      last;
+    }
+  }
+  die "Failed to find opts file\n" unless( defined $optionfilename );
+  copy( $optionfilename, "atomoptions" ) == 1 or die "Failed to copy $optionfilename to atomoptions\n$!";
+  copy( "${pspFile}.mod", "ppot" ) == 1 or die "Failed to copy ${pspFile}.mod to ppot\n$!";
+
+  system( "$ENV{'OCEAN_BIN'}/validate_opts.pl ${pspFile} atomoptions" ) == 0
+        or die "Failed to validate options file\nCheck $optionfilename\n"; 
+
+  my $fillFileName;
+  my @fill = split ' ', $hashRef->{'opf'}->{'shirley'}->{'fill'};
+  for( my $i = 0; $i<scalar @fill; $i+=2 )
+  { 
+#    print "$fill[$i] $fill[$i+1]\n";
+    if( $fill[$i] == $Z )
+    { 
+      $fillFileName = catdir( updir(), $fill[$i+1] );
+      last;
+    }
+  }
+  die "Failed to find fill file\n" unless( defined $fillFileName );
+  my $fill;
+  {
+    open IN, "<", "$fillFileName" or die "Failed to open fill file: $fillFileName\n$!";
+    local $/ = undef;
+    $fill = <IN>; 
+    close IN;
+  }
+  
+  my $grid = $hashRef->{'opf'}->{'shirley'}->{'hfkgrid'}[0] . " " . $hashRef->{'opf'}->{'shirley'}->{'hfkgrid'}[1];
+
+
+  open HFIN, ">", "hfin1" or die;
+  print HFIN "initgrid\n";
+  print HFIN "$Z $grid\n";
+  print HFIN "ppload\nmkcorcon\nscreencore\nquit\n";
+  close HFIN;    
+
+  open HFIN, ">hfin2" or die;
+  print HFIN "initgrid\n";
+  print HFIN "$Z $grid\n";
+  print HFIN "ppload\nmkcorcon\ncalcso\nquit\n";
+  close HFIN;
+
+  open HFIN, ">hfin3" or die;
+  print HFIN "initgrid\n";
+  print HFIN "$Z $grid\n";
+  print HFIN "ppload\nmkcorcon\nspartanfip\n";
+  print HFIN $fill;
+  print HFIN "quit\n";
+  close HFIN;
+
+  open OUT, ">", "caution" or die "Failed to open caution\n$!";
+  if( $hashRef->{'opf'}->{'shirley'}->{'caution'} )
+  {
+    print OUT "true\n";
+  }
+  else
+  {
+    print OUT "false\n";
+  }
+#  print OUT $hashRef->{'opf'}->{'shirley'}->{'caution'} . "\n";
+  close OUT;
+
+  print "Running hfk.x: $Z\n";
+
+  #change Z -> 0-padded znucl in what follows
+  my $znucl = sprintf "%03i", $Z;
+
+  system("$ENV{'OCEAN_BIN'}/hfk.x < hfin1 > hfk.${znucl}.1.log") == 0 or die;
+  # Check the end of the log to see if we are ok
+  my $hfk_status = `tail -n 1 hfk.${znucl}.1.log`;
+  unless( $hfk_status =~ m/terminus/ )
+  {
+    die "The program hfk.x has exited incorrectly for hfin1.\nExiting ...\n";
+  }
+
+  system("$ENV{'OCEAN_BIN'}/hfk.x < hfin2 > hfk.${znucl}.2.log") == 0 or die;
+  my $hfk_status = `tail -n 1 hfk.${znucl}.2.log`;
+  unless( $hfk_status =~ m/terminus/ )
+  {
+    die "The program hfk.x has exited incorrectly for hfin2.\nExiting ...\n";
+  }
+
+  system("$ENV{'OCEAN_BIN'}/hfk.x < hfin3 > hfk.${znucl}.3.log") == 0 or die;
+  my $hfk_status = `tail -n 1 hfk.${znucl}.3.log`;
+  unless( $hfk_status =~ m/terminus/ )
+  {
+    die "The program hfk.x has exited incorrectly for hfin3.\nExiting ...\n";
+  }
+
+  unless( -d "zdiag_${znucl}" )
+  {
+    ( mkdir "zdiag_${znucl}" ) or die "$!";
+  }
+  unless( -d "zpawinfo" )
+  {
+    mkdir "zpawinfo" or die "$!";
+  }
+
+  my $dir = getcwd;
+
+# Wander through the directory making some changes
+  opendir DIR, $dir;
+  while( my $file = readdir(DIR) )
+  {
+    if( ( $file =~ m/^[fg]k/ ) or ( $file =~ m/^(ae|ft|ps).z/ ) or
+        ( $file =~ m/^(deflin|melfile|corez)/ ) or ( $file =~ m/^(rad|prj)filez/ ) or
+        ( $file =~ m/^(vcallel|vvallel|vc_bare|vpseud|valence)/ ) or
+        ( $file =~ m/^coreorb/ ) or ( $file =~m/^c2cz/ ) )
+    {
+      move( $file, "zpawinfo" );
+    }
+    elsif( $file =~ m/^phr/ )
+    {
+      my $dest = sprintf( "${file}z%03i", $Z );
+      move( $file, "zpawinfo/$dest" );
+    }
+    elsif( ( $file =~ m/^melfilez\w$/ ) or ( $file =~ m/^(sm|am|di|pr|psft|aeft)\w$/ ) or
+           ( $file =~ m/^(mt|dif)\w\w$/ ) or ( $file =~ m/^(map|ex)/ ) or ( $file =~ /hfin\d/ ) or
+           ( $file =~ m/hfk.+log/ ) or ( $file =~ m/aetotal/ ) or ( $file =~ m/radf/ ) or 
+           ( $file =~ m/z${znucl}l/ ) or ( $file =~m/(scfac|caution|atomoptions)/  ) )
+    {
+      move( $file, "zdiag_${znucl}" );
+    }
+    elsif( ( $file =~ m/^angs\d$/ ) or ( $file =~ m/^ldep\d$/ ) or ( $file =~ m/^shellR\d\.\d\d$/ ) )
+    {
+      unlink $file;
+    }
+  }
+
+  my @paw_files_to_kill = ( 'radpot', 'hapot', 'hfpot', 'config', 'corcon', 'valcon', 'chgsum',
+                            'atmf99', 'skip', 'psld', 'rslt', 'tmp', 'aprog', 'vxcofr', 'xifile',
+                            'actual', 'ppot' );
+  foreach (@paw_files_to_kill)
+  {
+    unlink $_;
+  }
+}
+
+sub runONCV
+{
+  my $Z = $_[0];
+  my $pspFile = $_[1];
+  my $hashRef = $_[2];
+
+  
+  my $oncvpspInputFile = $pspFile;
+  $oncvpspInputFile =~ s/.upf$//i;
+  $oncvpspInputFile .= ".in";
+  my $targ = catdir( $hashRef->{'psp'}->{'ppdir'}, "$oncvpspInputFile" );
+
+  unless( -e $targ )
+  {
+    print "Was trying to find input for $pspFile:\t$oncvpspInputFile\n";
+    print "$targ\n";
+    die;
+  }
+
+  copy( $targ, $oncvpspInputFile);
+
+  my $targRad = -1;
+  my $scfac = 1;
+  open IN, ">>", $oncvpspInputFile or die "Failed to open $oncvpspInputFile\n$!";
+  print IN ".true.\n$targRad   $scfac\n";
+  close IN;
+
+  my @oncvpsp;
+  open IN, $oncvpspInputFile or die "Failed to open $oncvpspInputFile\n$!";
+  while( my $line = <IN> )
+  {
+    unless( $line =~ m/^\s*#/ )
+    {
+      chomp $line;
+      push @oncvpsp, $line;
+    }
+  }
+  close IN;
+
+  open OUT, ">atomoptions" or die "Failed to open atomoptions for writing\n";
+
+  $oncvpsp[0] =~ m/(\w+)\s+(\d+\.?\d*)\s+(\d+)\s+(\d+)\s+(-?\d+)\s+\w+/
+      or die "Failed reading $oncvpspInputFile\t$oncvpsp[0]\n";
+  my $zee = $2;
+  my $nc = $3;
+  my $nv = $4;
+  if( $zee != $Z )
+  { 
+    print "Mismatch between Z in psp.in and Z in input file\n$zee\t$Z\n";
+    die;
+  }
+  print OUT "$zee\n";
+
+  my $lmax = 0;
+  my @spdf;
+  $spdf[0] = 0; $spdf[1] = 0; $spdf[2] = 0; $spdf[3] = 0;
+  for( my $i = 1; $i <= $nc; $i++ )
+  { 
+    print "CORE: $oncvpsp[$i]\n";
+    $oncvpsp[$i] =~ m/^\s*(\d+)\s+(\d+)/ 
+        or die "Failed reading core levels of $oncvpspInputFile\t$oncvpsp[$i]\n";
+    $spdf[$2]++;
+    $lmax = $2 if( $2 > $lmax );
+  }
+
+  print OUT "$spdf[0]   $spdf[1]   $spdf[2]   $spdf[3]\n";
+
+  $spdf[0] = 0; $spdf[1] = 0; $spdf[2] = 0; $spdf[3] = 0;
+  print OUT "scalar\nrel\nlda\n";
+  for( my $i = $nc+1; $i <= $nc+$nv; $i++ )
+  {
+    print "    : $oncvpsp[$i]\n";
+    $oncvpsp[$i] =~ m/^\s*(\d+)\s+(\d+)\s+(\S+)/
+        or die "Failed reading core levels of $oncvpspInputFile\t$oncvpsp[$i]\n";
+    $spdf[$2] += $3;
+    if( $3 > 0.000001 )
+    {
+      $lmax = $2 if( $2 > $lmax );
+    }
+  }
+  close IN;
+
+  # reset to max per principal
+  $spdf[0] = 2  if( $spdf[0] > 2 );
+  $spdf[1] = 6  if( $spdf[1] > 6 );
+  $spdf[2] = 10 if( $spdf[2] > 10 );
+  $spdf[3] = 14 if( $spdf[3] > 14 );
+
+
+  # This hack is because, currently, hfk.x is used to screen the core
+  #  and for some neutral atoms it doesn't work. 
+  for( my $i = 0; $i <=3; $i++ )
+  {
+    $spdf[$i] *= 0.95;
+  }
+
+  print OUT "$spdf[0]   $spdf[1]   $spdf[2]   $spdf[3]\n";
+  print OUT "$spdf[0]   $spdf[1]   $spdf[2]   $spdf[3]\n";
+
+
+  my $log = $pspFile . ".log";
+  system("$ENV{'OCEAN_BIN'}/oncvpsp.x < $oncvpspInputFile > $log") == 0 or die;
+  move( "ocean.mod", "ppot" ) or die;
+
+  open HFIN, ">hfin1" or die;
+  print HFIN "initgrid\n";
+  print HFIN "$Z $hashRef->{'opf'}->{'shirley'}->{'hfkgrid'}[0] $hashRef->{'opf'}->{'shirley'}->{'hfkgrid'}[1]\n";
+#    print HFIN "fakel\n0 $lmax\n";
+  print HFIN "ppload\n";
+  print HFIN "mkcorcon\nscreencore\nmkcorcon\ncalcso\nquit\n";
+  close HFIN;
+
+  print "Running hfk.x\n";
+  system("$ENV{'OCEAN_BIN'}/hfk.x < hfin1 > hfk.${Z}.1.log") == 0 or die;
+  # Check the end of the log to see if we are ok
+  my $hfk_status = `tail -n 1 hfk.${Z}.1.log`;
+  unless( $hfk_status =~ m/terminus/ )
+  {
+    die "The program hfk.x has exited incorrectly for hfin1.\nExiting ...\n";
+  }
+
+  my $corezfile = sprintf("corezetaz%03i",$Z);
+  move("xifile","$corezfile");
+
+
+# Diagnostics
+  my $zdiag = sprintf "zdiagz%3.3i", $Z;
+  print $zdiag . "\n";
+
+  unless( -d "$zdiag" )
+  {
+    ( mkdir $zdiag ) or die "$!";
+  }
+
+  my $zee = sprintf "z%3.3i", $Z;
+
+  # Wander through the directory making some changes
+  opendir DIR, $dir;
+  while( my $file = readdir(DIR) )
+  { 
+    if( ( $file =~ m/^[fg]k/ ) or ( $file =~ m/^(ae|ft|ps).z/ ) or
+        ( $file =~ m/^(deflin|melfile|corez)/ ) or ( $file =~ m/^(rad|prj)filez/ ) or
+        ( $file =~ m/^(vcallel|vvallel|vc_bare|vpseud|valence)/ ) or
+        ( $file =~ m/^coreorb/ ) )
+    { 
+      move( $file, "zpawinfo" );
+    }
+    elsif( $file =~ m/^phr/ )
+    { 
+      my $dest = sprintf( "${file}z%03i", $Z );
+      move( $file, "zpawinfo/$dest" );
+    }
+    elsif( ( $file =~ m/^melfilez\w$/ ) or ( $file =~ m/^(sm|am|di|pr|psft|aeft)\w$/ ) or
+           ( $file =~ m/^(mt|dif)\w\w$/ ) or ( $file =~ m/^(map|ex)/ ) or ( $file =~ /hfin\d/ ) or
+           ( $file =~ m/hfk.+log/ ) or ( $file =~ m/aetotal/ ) or ( $file =~ m/radf/ ) )
+    { 
+      move( $file, "$zdiag" );
+    }
+    elsif( ( $file =~ m/^angs\d$/ ) or ( $file =~ m/^ldep\d$/ ) or ( $file =~ m/^shellR\d\.\d\d$/ ) )
+    { 
+      unlink $file;
+    }
+    elsif( $file =~ m/${zee}/ )
+    { 
+      move( $file, "$zdiag/" );
+    }
+  }
+
+  my @paw_files_to_kill = ( 'radpot', 'hapot', 'hfpot', 'config', 'corcon', 'valcon', 'chgsum',
+                            'atmf99', 'skip', 'psld', 'rslt', 'tmp', 'aprog', 'vxcofr', 'xifile',
+                            'actual', 'ppot' );
+  foreach (@paw_files_to_kill)
+  {
+    unlink $_;
+  }
+
+
+}
