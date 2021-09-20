@@ -11,6 +11,7 @@ use strict;
 require JSON::PP;
 JSON::PP->import;
 use POSIX;
+use Math::BigFloat;
 
 if (! $ENV{"OCEAN_BIN"} ) {
   $0 =~ m/(.*)\/defaults\.pl/;
@@ -56,6 +57,10 @@ if( -e $dataFile )
   checkQ( $oceanData );
 
   checkEpsilon( $oceanData );
+
+  makeEdges( $oceanData );
+  fixCoords( $oceanData );
+  ## xred sub to go from bohr/ang to red
   
   my $enable = 1;
   $json->canonical([$enable]);
@@ -1172,3 +1177,279 @@ sub checkEpsilon
   }
 }
 
+sub makeEdges
+{
+  my $hashRef = $_[0];
+  return if( $hashRef->{'calc'}->{'mode'} =~ m/val/i );
+
+
+  unless( scalar @{$hashRef->{'calc'}->{'edges'}} % 3 == 0 )
+  {
+    die "Malformed calc.edges input\n";
+  } 
+
+  my %SitesByZ;
+  for( my $j = 0; $j < scalar @{$hashRef->{'structure'}->{'typat'}}; $j++ )
+  {
+    my $i = $hashRef->{'structure'}->{'typat'}[$j] - 1;
+    my $z = $hashRef->{'structure'}->{'znucl'}[$i];
+    push @{ $SitesByZ{ $z } }, $j+1;
+  }
+
+  foreach my $key ( keys %SitesByZ )
+  {
+    print $key . ":\n";
+    foreach my $site ( @{ $SitesByZ{ $key } } )
+    {
+      print "  $site";
+    }
+    print "\n";
+  }
+
+  foreach (@{$hashRef->{'calc'}->{'edges'}} )
+  {
+    print "$_\n";
+  }
+
+
+  # Create a hash of Z
+  #   which stores hash NL
+  #     which has array of sites
+
+  # When writing out edges we want to group by this, and sort sites into numerical order
+
+  #TODO sort on Z as well
+  my %FullEdges;
+
+  for( my $i = 0; $i < scalar @{$hashRef->{'calc'}->{'edges'}}; $i+=3 )
+  {
+    my $Z = $hashRef->{'calc'}->{'edges'}[$i];
+    my $N = $hashRef->{'calc'}->{'edges'}[$i+1];
+    my $L = $hashRef->{'calc'}->{'edges'}[$i+2];
+
+    if( $Z == 0 )
+    {
+      die "Illegal Z value in edges:\t$Z\n";
+    }
+    if( $N < 1 || $N > 7 )
+    {
+      die "Illegal principle qunatum number:\t$N\n";
+    }
+    if( $L < 0 || $L > 4 )
+    {
+      die "Illegal angular quantum number:\t$L\n";
+    }
+
+    # Are we selecting all Z?
+    if( $Z < 0 )
+    {
+      my $ZEE = abs( $Z );
+      unless( exists $SitesByZ{ $ZEE } )
+      {
+        die "Requested Z in edges that is not present in znucl/typat:\t$Z\t$ZEE\n";
+      }
+      foreach my $site ( @{ $SitesByZ{ $ZEE } } )
+      {
+        $FullEdges{ $ZEE }{ "$N $L" }{ $site } = 1;
+      }
+    }
+    else
+    {
+      # Z is the site number
+      if ( $Z > scalar @{ $hashRef->{'structure'}->{'typat'}}  )
+      {
+        die "Site requested in edges is larger than the number of site:\t$Z\n";
+      }
+      my $ZEE = $hashRef->{'structure'}->{'typat'}[ $Z - 1 ];
+      my $site = $Z;
+      $FullEdges{ $ZEE }{ "$N $L" }{ $site } = 1;
+    }
+  }
+
+  my @edges;
+  foreach my $ZEE ( keys %FullEdges )
+  {
+    foreach my $NL ( keys %{ $FullEdges{ $ZEE } } )
+    {
+      my @tempsite;
+      foreach my $site ( keys %{ $FullEdges{ $ZEE }{ $NL } } )
+      {
+        push @tempsite, $site;
+      }
+
+      my @sortsite = sort { $a <=> $b } @tempsite;
+      foreach my $site ( @sortsite )
+      {
+        push @edges, "$site $NL";
+        if( 0 ) {
+          # multiply by 1 to force number instead of string context for JSON
+          my $Z = $ZEE * 1;
+          $NL =~ m/(\d)\s(\d)/;
+          my $N = $1 * 1;
+          my $L = $2 * 1;
+          my @tmp = ( $site, $Z, $N, $L );
+          push @edges, [ @tmp ];
+        }
+      }
+    }
+  }
+
+  $hashRef->{'calc'}->{'edges'} = [ @edges ];
+    
+}
+
+
+sub invertAvecs
+{
+  my $hashRef = $_[0];
+  my @a = @{$hashRef->{'structure'}->{'avecs'}};
+
+  my $det = $a[0][0] * ( $a[1][1] * $a[2][2] - $a[2][1] * $a[1][2] )
+          - $a[0][1] * ( $a[1][0] * $a[2][2] - $a[1][2] * $a[2][0] )
+          + $a[0][2] * ( $a[1][0] * $a[2][1] - $a[1][1] * $a[2][0] );
+
+
+  my @invA;
+  $invA[0][0] = ( $a[1][1] * $a[2][2] - $a[2][1] * $a[1][2] ) / $det;
+  $invA[0][1] = ( $a[0][2] * $a[2][1] - $a[0][1] * $a[2][2] ) / $det;
+  $invA[0][2] = ( $a[0][1] * $a[1][2] - $a[0][2] * $a[1][1] ) / $det;
+
+  $invA[1][0] = ( $a[1][2] * $a[2][0] - $a[1][0] * $a[2][2] ) / $det;
+  $invA[1][1] = ( $a[0][0] * $a[2][2] - $a[0][2] * $a[2][0] ) / $det;
+  $invA[1][2] = ( $a[1][0] * $a[0][2] - $a[0][0] * $a[1][2] ) / $det;
+
+  $invA[2][0] = ( $a[1][0] * $a[2][1] - $a[2][0] * $a[1][1] ) / $det;
+  $invA[2][1] = ( $a[2][0] * $a[0][1] - $a[0][0] * $a[2][1] ) / $det;
+  $invA[2][2] = ( $a[0][0] * $a[1][1] - $a[1][0] * $a[0][1] ) / $det;
+
+  $hashRef->{'structure'}->{'invA'} = [ @invA ];
+
+#  my $n = 30;
+#  Math::BigFloat->accuracy($n);
+
+#  my $x00 = Math::BigFloat->new($a[0][0]);
+#  my $x01 = Math::BigFloat->new($a[0][1]);
+#  my $x02 = Math::BigFloat->new($a[0][2]);
+#  my $x10 = Math::BigFloat->new($a[1][0]);
+#  my $x11 = Math::BigFloat->new($a[1][1]);
+#  my $x12 = Math::BigFloat->new($a[1][2]);
+#  my $x20 = Math::BigFloat->new($a[2][0]);
+#  my $x21 = Math::BigFloat->new($a[2][1]);
+#  my $x22 = Math::BigFloat->new($a[2][2]);
+  
+#  my $det = $x00->copy();
+}
+
+sub fixCoords
+{
+  my $hashRef = $_[0];
+
+  my $bohr = 0.529177210903; #CODATA 2018
+
+  invertAvecs( $hashRef );
+
+  my @newReduced;
+  my @newRealspace;
+
+  my $tauLength = scalar @{$hashRef->{'structure'}->{'xred'}};
+  my $realLength = scalar @{$hashRef->{'structure'}->{'xbohr'}};
+  my $angLength = scalar @{$hashRef->{'structure'}->{'xangst'}};
+
+  if( $tauLength > 0 )
+  {
+    print "CAUTION: Both xred and xbohr were supplied, but xred will be used!\n" if( $realLength > 0 );
+    print "CAUTION: Both xred and xangst were supplied, but xred will be used!\n" if( $angLength > 0 );
+    if( $tauLength % 3 != 0 )
+    {
+      die "Malformed xred in input\n";
+    }
+
+    $tauLength /= 3;
+    for( my $i = 0; $i < $tauLength; $i++ )
+    {
+      $newReduced[$i][0] = $hashRef->{'structure'}->{'xred'}[3*$i];
+      $newReduced[$i][1] = $hashRef->{'structure'}->{'xred'}[3*$i+1];
+      $newReduced[$i][2] = $hashRef->{'structure'}->{'xred'}[3*$i+2];
+    }
+
+    for( my $i = 0; $i < $tauLength; $i++ )
+    {
+      $newRealspace[$i][0] = $hashRef->{'structure'}->{'avecs'}[0][0] * $newReduced[$i][0] 
+                           + $hashRef->{'structure'}->{'avecs'}[0][1] * $newReduced[$i][1]
+                           + $hashRef->{'structure'}->{'avecs'}[0][2] * $newReduced[$i][2];
+
+      $newRealspace[$i][1] = $hashRef->{'structure'}->{'avecs'}[1][0] * $newReduced[$i][0]
+                           + $hashRef->{'structure'}->{'avecs'}[1][1] * $newReduced[$i][1]
+                           + $hashRef->{'structure'}->{'avecs'}[1][2] * $newReduced[$i][2];
+
+      $newRealspace[$i][2] = $hashRef->{'structure'}->{'avecs'}[2][0] * $newReduced[$i][0]
+                           + $hashRef->{'structure'}->{'avecs'}[2][1] * $newReduced[$i][1]
+                           + $hashRef->{'structure'}->{'avecs'}[2][2] * $newReduced[$i][2];
+    }
+  }
+  else  
+  {
+    if( $angLength > 0 )
+    {
+      if( $realLength > 0 )
+      {
+        print "CAUTION: Both xangst and xbohr were supplied, but xbohr will be used!\n";
+      }
+      else
+      {
+        #COPY angst over with scaling factor
+        for( my $i = 0; $i < $angLength; $i++ )
+        {
+          $hashRef->{'structure'}->{'xbohr'}[$i] = $hashRef->{'structure'}->{'xangst'}[$1] / $bohr;
+        }
+      }
+    }
+    
+
+    if( $realLength % 3 != 0 )
+    {
+      die "Malformed xbohr in input\n";
+    }
+
+    $realLength /= 3;
+
+    for( my $i = 0; $i < $tauLength; $i++ )
+    { 
+      $newRealspace[$i][0] = $hashRef->{'structure'}->{'xbohr'}[3*$i];
+      $newRealspace[$i][1] = $hashRef->{'structure'}->{'xbohr'}[3*$i+1];
+      $newRealspace[$i][2] = $hashRef->{'structure'}->{'xbohr'}[3*$i+2];
+    }
+    
+    for( my $i = 0; $i < $tauLength; $i++ )
+    { 
+      $newReduced[$i][0] = $hashRef->{'structure'}->{'invA'}[0][0] * $newRealspace[$i][0]
+                         + $hashRef->{'structure'}->{'invA'}[0][1] * $newRealspace[$i][1]
+                         + $hashRef->{'structure'}->{'invA'}[0][2] * $newRealspace[$i][2];
+      
+      $newReduced[$i][1] = $hashRef->{'structure'}->{'invA'}[1][0] * $newRealspace[$i][0]
+                         + $hashRef->{'structure'}->{'invA'}[1][1] * $newRealspace[$i][1]
+                         + $hashRef->{'structure'}->{'invA'}[1][2] * $newRealspace[$i][2];
+      
+      $newReduced[$i][2] = $hashRef->{'structure'}->{'invA'}[2][0] * $newRealspace[$i][0]
+                         + $hashRef->{'structure'}->{'invA'}[2][1] * $newRealspace[$i][1]
+                         + $hashRef->{'structure'}->{'invA'}[2][2] * $newRealspace[$i][2];
+    }
+
+
+  }
+
+  $hashRef->{'structure'}->{'xred'} = [ @newReduced ];
+  $hashRef->{'structure'}->{'xbohr'} = [ @newRealspace ];
+
+
+  my @a;
+  for( my $i = 0; $i < scalar @newRealspace; $i++ )
+  {
+    $a[$i][0] = $newRealspace[$i][0] * $bohr;
+    $a[$i][1] = $newRealspace[$i][1] * $bohr;
+    $a[$i][2] = $newRealspace[$i][2] * $bohr;
+  }
+
+  $hashRef->{'structure'}->{'xangst'} = [ @a ];
+
+}

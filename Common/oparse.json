@@ -186,6 +186,7 @@
       "source" : "database"
    },
    "screen" : {
+      "all_augment" : false,
       "augment" : true,
       "convertstyle" : "intp",
       "core_offset" : true,
@@ -238,7 +239,6 @@
       ]
    },
    "structure" : {
-      "coord" : "xred",
       "epsilon" : 0,
       "metal" : false,
       "rprim" : null,
@@ -247,8 +247,10 @@
          1,
          1
       ],
-      "taulist" : null,
       "typat" : null,
+      "xangst" : [],
+      "xbohr" : [],
+      "xred" : [],
       "znucl" : null,
       "zsymb" : []
    }

@@ -9,6 +9,7 @@
 use strict;
 require JSON::PP;
 JSON::PP->import;
+use File::Copy;
 
 
 my $input_filename = $ARGV[0];
@@ -83,8 +84,8 @@ my %decoder = (
   'pp_database' => 'psp.pp_database',
   'ecut.qualtiy' => 'psp.ecut_quality',
   'natom' => 'nope.natoms',
-  'coord' => 'structure.coord',
-  'xred' => 'structure.taulist',
+  'coord' => 'nope.structure.coord',
+  'xred' => 'structure.xred',
   'ecut' => 'dft.ecut',
   'diemac' => 'structure.epsilon',
   'toldfe' => 'dft.toldfe',
@@ -462,7 +463,14 @@ print OUT $json->encode($config);
 close OUT;
 
 
+copy( "parsedInputFile", "oceanDatafile") ;
 
 
+##### REMOVE IN FUTURE
+open OUT, ">", "dft" or die;
+print OUT $config->{'dft'}->{'program'} . "\n";
+close OUT;
 
-
+open OUT, ">", "calc" or die;
+print OUT $config->{'calc'}->{'mode'} . "\n";
+close OUT;

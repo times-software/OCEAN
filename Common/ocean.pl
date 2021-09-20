@@ -147,8 +147,15 @@ chdir "Common";
 #`cp ../$InputFile .`;
 copy("../$InputFile","$InputFile");
 
+if( -e "$ENV{'OCEAN_BIN'}/parseJSON.pl" )
+{
+  system("$ENV{'OCEAN_BIN'}/parseJSON.pl $InputFile $ENV{'OCEAN_BIN'}/oparse.json $ENV{'OCEAN_BIN'}/oparse.type.json") == 0
+    or die "Failed to parse the input file\n$!";
+}
+else {
 system("$ENV{'OCEAN_BIN'}/parse.pl --all $InputFile $ENV{'OCEAN_BIN'}/oparse.h") == 0 
   or die "Failed to parse the input file\n$!";
+}
 
 open DFT_TYPE, "dft";
 <DFT_TYPE> =~ m/(\w+)/ or die;

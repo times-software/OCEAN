@@ -157,6 +157,7 @@
       "source" : "s"
    },
    "screen" : {
+      "all_augment" : "b",
       "augment" : "b",
       "convertstyle" : "s",
       "core_offset" : "b",
@@ -189,13 +190,14 @@
       "shells" : "af"
    },
    "structure" : {
-      "coord" : "s",
       "epsilon" : "f",
       "metal" : "b",
       "rprim" : "af",
       "rscale" : "af",
-      "taulist" : "af",
       "typat" : "ai",
+      "xangst" : "af",
+      "xbohr" : "af",
+      "xred" : "af",
       "znucl" : "ai",
       "zsymb" : "as"
    }

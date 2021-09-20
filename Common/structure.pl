@@ -17,6 +17,12 @@ if (! $ENV{"OCEAN_BIN"} ) {
 if (! $ENV{"OCEAN_WORKDIR"}){ $ENV{"OCEAN_WORKDIR"} = `pwd` . "../" ; }
 if (!$ENV{"OCEAN_VERSION"}) {$ENV{"OCEAN_VERSION"} = `cat $ENV{"OCEAN_BIN"}/Version`; }
 
+if( -e "postDefaultsOceanDatafile" )
+{
+  print "New JSON detected. Not running structure.pl\n";
+  exit 0;
+}
+
 open NTYPE, "ntype" or die "Failed to open ntype\n$!";
 my $ntype = <NTYPE>;
 close NTYPE;
