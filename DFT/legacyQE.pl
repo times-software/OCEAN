@@ -16,7 +16,7 @@ use File::Spec::Functions;
 use POSIX;
 
 if (! $ENV{"OCEAN_BIN"} ) {
-  $0 =~ m/(.*)\/dft\.pl/;
+  $0 =~ m/(.*)\/legacyQE\.pl/;
   $ENV{"OCEAN_BIN"} = abs_path($1);
   print "OCEAN_BIN not set. Setting it to $ENV{'OCEAN_BIN'}\n";
 }
