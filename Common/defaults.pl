@@ -60,6 +60,7 @@ if( -e $dataFile )
 
   makeEdges( $oceanData );
   fixCoords( $oceanData );
+  makeZsymb( $oceanData );
   ## xred sub to go from bohr/ang to red
   
   my $enable = 1;
@@ -1451,5 +1452,52 @@ sub fixCoords
   }
 
   $hashRef->{'structure'}->{'xangst'} = [ @a ];
+
+}
+
+
+sub makeZsymb
+{
+  my $hashRef = $_[0];
+
+  # If zsymb is the correct length, assume it is fine
+  return if( scalar @{$hashRef->{'structure'}->{'zsymb'}} == scalar @{$hashRef->{'structure'}->{'znucl'}} );
+
+  my @z2symb =          ( '', 'H' , 'He', 'Li', 'Be', 'B' , 'C' , 'N' ,                  
+      'O' , 'F' , 'Ne', 'Na', 'Mg', 'Al', 'Si', 'P' , 'S' , 'Cl', 'Ar',
+      'K' , 'Ca', 'Sc', 'Ti', 'V' , 'Cr', 'Mn', 'Fe', 'Co', 'Ni', 'Cu',
+      'Zn', 'Ga', 'Ge', 'As', 'Se', 'Br', 'Kr', 'Rb', 'Sr', 'Y' , 'Zr',
+      'Nb', 'Mo', 'Tc', 'Ru', 'Rh', 'Pd', 'Ag', 'Cd', 'In', 'Sn', 'Sb',
+      'Te', 'I' , 'Xe', 'Cs', 'Ba', 'La', 'Ce', 'Pr', 'Nd', 'Pm',      
+      'Sm', 'Eu', 'Gd', 'Tb', 'Dy', 'Ho', 'Er', 'Tm', 'Yb', 'Lu', 'Hf',
+      'Ta', 'W' , 'Re', 'Os', 'Ir', 'Pt', 'Au', 'Hg', 'Tl', 'Pb', 'Bi',
+      'Po', 'At', 'Rn', 'Fr', 'Ra', 'Ac', 'Th', 'Pa', 'U' , 'Np', 'Pu',
+      'Am', 'Cm', 'Bk', 'Cf', 'Es', 'Fm', 'Md', 'No', 'Lr', 'Rf', 'Db',
+      'Sg', 'Bh', 'Hs', 'Mt' );
+
+  # Only add number after symbol if required
+  my %zsymbTracker;
+  for( my $i = 0; $i < scalar @{$hashRef->{'structure'}->{'znucl'}}; $i++ )
+  {
+    if( exists $zsymbTracker{ $hashRef->{'structure'}->{'znucl'}[$i] } )
+    {
+      $zsymbTracker{ $hashRef->{'structure'}->{'znucl'}[$i] } = 1;
+    }
+    else
+    {
+      $zsymbTracker{ $hashRef->{'structure'}->{'znucl'}[$i] } = 0;
+    }
+  }
+
+  for( my $i = 0; $i < scalar @{$hashRef->{'structure'}->{'znucl'}}; $i++ )
+  {
+    my $symb = $z2symb[ $hashRef->{'structure'}->{'znucl'}[$i] ];
+    if( $zsymbTracker{ $hashRef->{'structure'}->{'znucl'}[$i] } > 0 )
+    {
+      $symb .= sprintf "%i", $zsymbTracker{ $hashRef->{'structure'}->{'znucl'}[$i] };
+      $zsymbTracker{ $hashRef->{'structure'}->{'znucl'}[$i] }++;
+    }
+    $hashRef->{'structure'}->{'zsymb'}[$i] = $symb;
+  }
 
 }
