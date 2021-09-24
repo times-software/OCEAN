@@ -58,6 +58,8 @@ if( -e $dataFile )
 
   checkEpsilon( $oceanData );
 
+  checkDFTconvergence( $oceanData );
+
   makeEdges( $oceanData );
   fixCoords( $oceanData );
   makeZsymb( $oceanData );
@@ -1176,6 +1178,21 @@ sub checkEpsilon
       $hashRef->{'structure'}->{'epsilon'} = 1.000001;
     }
   }
+}
+
+sub checkDFTconvergence
+{
+  my $hashRef = $_[0];
+  
+  $hashRef->{'dft'}->{'den'}->{'toldfe'} = $hashRef->{'dft'}->{'toldfe'} 
+      if( $hashRef->{'dft'}->{'den'}->{'toldfe'} <= 0 );
+  $hashRef->{'dft'}->{'bse'}->{'toldfe'} = $hashRef->{'dft'}->{'tolwfr'}    
+      if( $hashRef->{'dft'}->{'bse'}->{'toldfe'} <= 0 );
+  $hashRef->{'dft'}->{'screen'}->{'toldfe'} = $hashRef->{'dft'}->{'tolwfr'}    
+      if( $hashRef->{'dft'}->{'screen'}->{'toldfe'} <= 0 );
+
+  delete $hashRef->{'dft'}->{'toldfe'};
+  delete $hashRef->{'dft'}->{'tolwfr'};
 }
 
 sub makeEdges
