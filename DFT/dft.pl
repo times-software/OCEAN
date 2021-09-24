@@ -306,62 +306,10 @@ sub copyAndCompare
       next;
     }
 
-    if( 0 ) {
-    if( scalar @{$newRef->{ $t }} != scalar @{$oldRef->{ $t }} )
-    {
-      $complete->{'complete'} = JSON::PP::false;
-      next;
-    }
-  
-    my $x = $newRef->{ $t }[0];
-    if( ref( @{$newRef->{ $t }}[0] ) eq 'ARRAY' )
-    {
-      $x = $newRef->{$t}[0][0];
-    }
-    if( looks_like_number( $x ) )
-    {
-      $comp = sub { $_[0] == $_[1] }; 
-    }
-    else
-    {
-      $comp = sub { $_[0] eq $_[1] };
-    }
-    
-    # Should change this to recursive unwrapping subroutine for any order nests?
-    COMPARE_LOOP:
-    for( my $i=0; $i < scalar @{$newRef->{ $t }}; $i++ )
-    {
-      if( ref( @{$newRef->{ $t }}[$i] ) eq 'ARRAY' ) 
-      {
-        for( my $j = 0; $j < scalar @{@{$newRef->{ $t }}[$i]}; $j++ )
-        {
-          print "###  $newRef->{$t}[$i][$j]  $oldRef->{$t}[$i][$j]  ";#  \n";
-#          unless( $newRef->{$t}[$i][$j] == $oldRef->{$t}[$i][$j] )
-          unless( $comp->( $newRef->{$t}[$i][$j], $oldRef->{$t}[$i][$j] ) )
-          {
-            $complete->{'complete'} = JSON::PP::false;
-            last COMPARE_LOOP;
-          }
-        }
-      }
-      else
-      {
-        print "###  $newRef->{$t}[$i]  $oldRef->{$t}[$i]  ";#  \n";
-        print "\n";
-#        unless( $newRef->{$t}[$i] == $oldRef->{$t}[$i] )
-        unless( $comp->( $newRef->{$t}[$i], $oldRef->{$t}[$i] ) )
-        {
-          $complete->{'complete'} = JSON::PP::false;
-          last COMPARE_LOOP;
-        }
-      }
-    }
-    }
     recursiveCompare( $newRef->{$t}, $oldRef->{$t}, $complete);
   }
 
 }
-
 
 
 sub recursiveCompare
