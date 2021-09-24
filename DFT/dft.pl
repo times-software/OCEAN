@@ -18,6 +18,9 @@ use File::Spec::Functions;
 use Storable qw(dclone);
 use Scalar::Util qw( looks_like_number ); 
 
+use FindBin;
+use lib $FindBin::Bin;
+require 'QEdriver.pl';
 
 ###########################
 if (! $ENV{"OCEAN_BIN"} ) {
@@ -25,6 +28,9 @@ if (! $ENV{"OCEAN_BIN"} ) {
   $ENV{"OCEAN_BIN"} = abs_path( $1 );
   print "OCEAN_BIN not set. Setting it to $ENV{'OCEAN_BIN'}\n";
 }
+
+#my $driver = catdir( $ENV{"OCEAN_BIN"}, "QEdriver.pl" );
+#require "$driver";
 
 my $dir = getcwd;
 if (! $ENV{"OCEAN_WORKDIR"}){ $ENV{"OCEAN_WORKDIR"} = abs_path( catdir( updir(), $dir ) ); }
@@ -76,40 +82,161 @@ $newDftData->{'scf'}->{'complete'} = JSON::PP::false
 # (build the structure and check )
 $newDftData->{'scf'}->{'complete'} = JSON::PP::false unless( exists $dftData->{'structure'} );
 
-my @structureNumericalList = ( "typat", "xred", "znucl" );
-my @structure2DNumericalList = ( "avecs" );
-my @structureStringList = ( "zsymb" );
-
-if( 0 ) {
-foreach my $tag (@structureNumericalList)
-{
-  $newDftData->{'structure'}->{ $tag } = dclone $commonOceanData->{'structure'}->{ $tag };
-
-  # Don't bother checking if we've already decided to re-run
-  next unless( $newDftData->{'scf'}->{'complete'} );
-  if( scalar @{$commonOceanData->{'structure'}->{ $tag }} != scalar @{$dftData->{'structure'}->{ $tag }} )
-  {
-    $newDftData->{'scf'}->{'complete'} = JSON::PP::false;
-    next;
-  }
-  for( my $i=0; $i < scalar @{$commonOceanData->{'structure'}->{ $tag }}; $i++ )
-  {
-    unless( $commonOceanData->{'structure'}->{ $tag }[$i] == $dftData->{'structure'}->{ $tag }[$i] )
-    {
-      $newDftData->{'scf'}->{'complete'} = JSON::PP::false;
-      last;
-    }
-  }
-}
-}
-
 $newDftData->{'structure'} = {};
 
 my @structureList = ( "typat", "xred", "znucl", "avecs", "zsymb" );
 copyAndCompare( $newDftData->{'structure'}, $commonOceanData->{'structure'}, $dftData->{'structure'}, 
                 $newDftData->{'scf'}, \@structureList );
 
+$newDftData->{'psp'} = {};
+my @pspList = ( "pphash" );
+copyAndCompare( $newDftData->{'psp'}, $commonOceanData->{'psp'}, $dftData->{'psp'},
+                $newDftData->{'scf'}, \@pspList );
 
+my $fake->{ 'complete' } = JSON::PP::false;
+@pspList = ( "pp_list", "ppdir" );
+copyAndCompare( $newDftData->{'psp'}, $commonOceanData->{'psp'}, $dftData->{'psp'},
+                $fake, \@pspList );
+
+# Now do the general DFT parts
+
+# Only check the first list against previous runs
+my @generalList = ( "degauss", "ecut", "fband", "functional", "noncolin", "nspin", "occopt", 
+                    "program", "smag", "spinorb", "tot_charge", "verbatim" );
+my @generalSecondaryList = ( "calc_force", "calc_stress", "diagonalization", "mixing", 
+                             "nstep", "redirect", "startingwfc", "tmp_dir" );
+$newDftData->{'general'} = {};
+copyAndCompare( $newDftData->{'general'}, $commonOceanData->{'dft'}, $dftData->{'general'},
+                $newDftData->{'scf'}, \@generalList );
+copyAndCompare( $newDftData->{'general'}, $commonOceanData->{'dft'}, $dftData->{'general'},
+                $fake, \@generalSecondaryList );
+
+# EXX if functional is specified 
+if( $newDftData->{'general'}->{'functional'} ne 'default' )
+{
+  $newDftData->{'general'}->{'exx'} = {};
+  copyAndCompare( $newDftData->{'general'}->{'exx'}, $commonOceanData->{'dft'}->{'exx'}, 
+                  $dftData->{'general'}->{'exx'},
+                  $newDftData->{'scf'}, [ 'qmesh' ] );
+}
+
+# LDA+U
+$newDftData->{'general'}->{'ldau'} = {};
+copyAndCompare( $newDftData->{'general'}->{'ldau'}, $commonOceanData->{'dft'}->{'ldau'}, 
+                $dftData->{'general'}->{'ldau'},
+                $newDftData->{'scf'}, [ 'enable' ] );
+if( $newDftData->{'general'}->{'ldau'}->{'enable'} )
+{
+  my @ldauList = ( "Hubbard_J", "Hubbard_J0", "Hubbard_U", "Hubbard_V", "U_projection_type", "lda_plus_u_kind" );
+  copyAndCompare( $newDftData->{'general'}->{'ldau'}, $commonOceanData->{'dft'}->{'ldau'},
+                $dftData->{'general'}->{'ldau'}, $newDftData->{'scf'}, \@ldauList );
+}
+
+
+# and finally density run information
+my @scfList = ( "auto", "kmesh", "kshift", "toldfe" );
+my @scfSecondaryList = ( "poolsize" );
+
+copyAndCompare( $newDftData->{'scf'}, $commonOceanData->{'dft'}->{'den'}, $dftData->{'scf'}, 
+                $newDftData->{'scf'}, \@scfList );
+copyAndCompare( $newDftData->{'scf'}, $commonOceanData->{'dft'}->{'den'}, $dftData->{'scf'},
+                $fake, \@scfSecondaryList );
+
+# At this point SCF is sorted out
+# all subsequent stages can be complete if SCF isn't being re-run
+$newDftData->{'density'}->{'complete'} = JSON::PP::false;
+$newDftData->{'potential'}->{'complete'} = JSON::PP::false;
+$newDftData->{'epsilon'}->{'complete'} = JSON::PP::false;
+$newDftData->{'screen'}->{'complete'} = JSON::PP::false;
+$newDftData->{'bse'}->{'complete'} = JSON::PP::false;
+
+if( $newDftData->{'scf'}->{'complete'} ) {
+  print "Re-using previous SCF run\n";
+  
+  $newDftData->{'density'}->{'complete'} = $dftData->{'density'}->{'complete'} 
+      if( exists $dftData->{'density'}->{'complete'} );
+  $newDftData->{'potential'}->{'complete'} = $dftData->{'potential'}->{'complete'}
+      if( exists $dftData->{'potential'}->{'complete'} );
+  $newDftData->{'epsilon'}->{'complete'} = $dftData->{'epsilon'}->{'complete'}
+      if( exists $dftData->{'epsilon'}->{'complete'} );
+  $newDftData->{'screen'}->{'complete'} = $dftData->{'screen'}->{'complete'}
+      if( exists $dftData->{'screen'}->{'complete'} );
+  $newDftData->{'bse'}->{'complete'} = $dftData->{'bse'}->{'complete'}
+      if( exists $dftData->{'bse'}->{'complete'} );
+
+} else {
+  print "Need SCF run\n";
+}
+
+
+### Determining epsilon w/ DFPT
+my @epsList = ( "metal_max", "metal_min", "method", "min_gap", "thresh" );
+copyAndCompare( $newDftData->{'epsilon'}, $commonOceanData->{'dft'}->{'epsilon'}, $dftData->{'epsilon'},
+                $newDftData->{'epsilon'}, \@epsList );
+$newDftData->{'epsilon'}->{'complete'} = JSON::PP::true if( $newDftData->{'epsilon'}->{'method'} eq "input" );
+
+
+
+### BSE
+my @bseList = ( "split", "toldfe" );
+my @bseSecondaryList = ( "poolsize" );
+
+copyAndCompare( $newDftData->{'bse'}, $commonOceanData->{'dft'}->{'bse'}, $dftData->{'bse'},
+                $newDftData->{'bse'}, \@bseList );
+copyAndCompare( $newDftData->{'bse'}, $commonOceanData->{'dft'}->{'bse'}, $dftData->{'bse'},
+                $fake, \@bseSecondaryList );
+
+@bseList = ( "kmesh", "kshift" );
+copyAndCompare( $newDftData->{'bse'}, $commonOceanData->{'bse'}, $dftData->{'bse'},
+                $newDftData->{'bse'}, \@bseList );
+
+# Last item for BSE -- if bands requested is less than those done don't re-run!
+$newDftData->{'bse'}->{'nbands'} = $commonOceanData->{'bse'}->{'nbands'};
+if( $newDftData->{'bse'}->{'complete'} )
+{
+  if( exists $dftData->{'bse'}->{'nbands'} && 
+      $dftData->{'bse'}->{'nbands'}  >= $commonOceanData->{'bse'}->{'nbands'} )
+  {
+    $newDftData->{'bse'}->{'nbands'} = $dftData->{'bse'}->{'nbands'}
+  }
+  else
+  {
+    $newDftData->{'bse'}->{'complete'} = JSON::PP::false;
+  }
+}
+
+
+### SCREEN
+my @screenList = ( "toldfe" );
+my @screenSecondaryList = ( "poolsize" );
+
+copyAndCompare( $newDftData->{'screen'}, $commonOceanData->{'dft'}->{'screen'}, $dftData->{'screen'},
+                $newDftData->{'screen'}, \@screenList );
+copyAndCompare( $newDftData->{'screen'}, $commonOceanData->{'dft'}->{'screen'}, $dftData->{'screen'},
+                $fake, \@screenSecondaryList );
+
+@screenList = ( "kmesh", "kshift" );
+copyAndCompare( $newDftData->{'screen'}, $commonOceanData->{'screen'}, $dftData->{'screen'},
+                $newDftData->{'screen'}, \@screenList );
+
+# Last item for screen -- if bands requested is less than those done don't re-run!
+$newDftData->{'screen'}->{'nbands'} = $commonOceanData->{'screen'}->{'nbands'};
+if( $newDftData->{'screen'}->{'complete'} )
+{
+  if( exists $dftData->{'screen'}->{'nbands'} &&    
+      $dftData->{'screen'}->{'nbands'}  >= $commonOceanData->{'screen'}->{'nbands'} )
+  {
+    $newDftData->{'screen'}->{'nbands'} = $dftData->{'screen'}->{'nbands'}
+  }
+  else
+  {
+    $newDftData->{'screen'}->{'complete'} = JSON::PP::false;
+  }
+}
+
+print "Done parsing input for DFT stage\n";
+
+# Save current outlook
 my $enable = 1;
 $json->canonical([$enable]);
 $json->pretty([$enable]);
@@ -117,16 +244,19 @@ open OUT, ">", "dft.json" or die;
 print OUT $json->encode($newDftData);
 close OUT;
 
-my $condition = 1;
-EXIT_IF: {
-  if ($condition) {
 
-     last EXIT_IF; # break from code block
-
-     print "never get's executed\n";
-  }
+#call density stage
+my $errorCode = 0;
+if( $newDftData->{'general'}->{'program'} eq "qe" ) {
+  $errorCode = QErunDensity( $newDftData );
+  print "$errorCode\n";
+} else {
+  $errorCode = 1;
 }
+exit $errorCode if( $errorCode != 0 ) ;
 
+
+exit 1;
 
 # 4) various convergence parameters match 
 
@@ -159,10 +289,24 @@ sub copyAndCompare
 
   foreach my $t (@tags)
   {
-    $newRef->{ $t } = dclone $commonRef->{ $t };
+    if( ref( $commonRef->{ $t } ) eq '' )
+    {
+#      print "$commonRef->{ $t } ---\n";
+      $newRef->{ $t } = $commonRef->{ $t };
+    }
+    else
+    {
+      $newRef->{ $t } = dclone $commonRef->{ $t };
+    }
     
     next unless( $complete->{'complete'} );
-    next unless( exists $oldRef->{ $t } );
+    unless( exists $oldRef->{ $t } )
+    {
+      $complete->{'complete'} = JSON::PP::false;
+      next;
+    }
+
+    if( 0 ) {
     if( scalar @{$newRef->{ $t }} != scalar @{$oldRef->{ $t }} )
     {
       $complete->{'complete'} = JSON::PP::false;
@@ -212,6 +356,47 @@ sub copyAndCompare
         }
       }
     }
+    }
+    recursiveCompare( $newRef->{$t}, $oldRef->{$t}, $complete);
   }
 
 }
+
+
+
+sub recursiveCompare
+{
+  my $newRef = $_[0];
+  my $oldRef = $_[1];
+  my $complete = $_[2];
+
+  return unless( $complete->{'complete'} );
+
+  
+  if( ref( $newRef ) eq 'ARRAY' )
+  {
+    if( scalar @{ $newRef } != scalar @{ $oldRef } )
+    {
+      $complete->{'complete'} = JSON::PP::false;
+      return;
+    }
+    for( my $i = 0; $i < scalar @{ $newRef }; $i++ )
+    {
+      recursiveCompare( @{$newRef}[$i], @{$oldRef}[$i], $complete );
+      return unless( $complete->{'complete'} );
+    }
+  }
+  else
+  {
+    print "#!  $newRef  $oldRef\n";
+    if( looks_like_number( $newRef ) )
+    {
+      $complete->{'complete'} = JSON::PP::false unless( $newRef == $oldRef );
+    }
+    else
+    {
+      $complete->{'complete'} = JSON::PP::false unless( $newRef eq $oldRef );
+    }
+  }
+}
+
