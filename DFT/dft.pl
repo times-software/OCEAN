@@ -28,6 +28,9 @@ if (! $ENV{"OCEAN_BIN"} ) {
   $ENV{"OCEAN_BIN"} = abs_path( $1 );
   print "OCEAN_BIN not set. Setting it to $ENV{'OCEAN_BIN'}\n";
 }
+if (! $ENV{"OCEAN_ESPRESSO_PW"} ) {$ENV{"OCEAN_ESPRESSO_PW"} = $ENV{"OCEAN_BIN"} . "/pw.x"; }
+if (! $ENV{"OCEAN_ESPRESSO_PP"} ) {$ENV{"OCEAN_ESPRESSO_PP"} = $ENV{"OCEAN_BIN"} . "/pp.x"; }
+if (! $ENV{"OCEAN_ESPRESSO_PH"} ) {$ENV{"OCEAN_ESPRESSO_PH"} = $ENV{"OCEAN_BIN"} . "/ph.x"; }
 
 #my $driver = catdir( $ENV{"OCEAN_BIN"}, "QEdriver.pl" );
 #require "$driver";
@@ -77,14 +80,14 @@ $newDftData->{'scf'}->{'complete'} = JSON::PP::true;
 
 # (was previous run done)
 $newDftData->{'scf'}->{'complete'} = JSON::PP::false 
-    unless( exists $dftData->{'scf'} && exists $dftData->{'scf'}->{'complete'} );
+    unless( exists $dftData->{'scf'} && exists $dftData->{'scf'}->{'complete'} && $dftData->{'scf'}->{'complete'});
 
 # (build the structure and check )
 $newDftData->{'scf'}->{'complete'} = JSON::PP::false unless( exists $dftData->{'structure'} );
 
 $newDftData->{'structure'} = {};
 
-my @structureList = ( "typat", "xred", "znucl", "avecs", "zsymb" );
+my @structureList = ( "typat", "xred", "znucl", "avecs", "zsymb", "valence_electrons" );
 copyAndCompare( $newDftData->{'structure'}, $commonOceanData->{'structure'}, $dftData->{'structure'}, 
                 $newDftData->{'scf'}, \@structureList );
 
@@ -141,6 +144,12 @@ copyAndCompare( $newDftData->{'scf'}, $commonOceanData->{'dft'}->{'den'}, $dftDa
                 $newDftData->{'scf'}, \@scfList );
 copyAndCompare( $newDftData->{'scf'}, $commonOceanData->{'dft'}->{'den'}, $dftData->{'scf'},
                 $fake, \@scfSecondaryList );
+
+# Computer information
+$newDftData->{'computer'} = {};
+my @computerList = ( "cpu_factors", "cpu_square_factors", "ncpus", "para_prefix", "ser_prefix" );
+copyAndCompare( $newDftData->{'computer'}, $commonOceanData->{'computer'}, $dftData->{'computer'},
+                $fake, \@computerList );
 
 # At this point SCF is sorted out
 # all subsequent stages can be complete if SCF isn't being re-run
@@ -246,15 +255,26 @@ close OUT;
 
 
 #call density stage
-my $errorCode = 0;
-if( $newDftData->{'general'}->{'program'} eq "qe" ) {
-  $errorCode = QErunDensity( $newDftData );
-  print "$errorCode\n";
-} else {
-  $errorCode = 1;
-}
-exit $errorCode if( $errorCode != 0 ) ;
+unless( $newDftData->{'scf'}->{'complete'} )
+{
+  my $errorCode = 0;
+  my $totEnergy;
+  if( $newDftData->{'general'}->{'program'} eq "qe" ) {
+    ($errorCode, $totEnergy ) = QErunDensity( $newDftData );
+    print "$errorCode\n";
+  } else {
+    $errorCode = 1;
+  }
+  exit $errorCode if( $errorCode != 0 ) ;
 
+  $newDftData->{'scf'}->{'complete'} = JSON::PP::true;
+
+  print "$totEnergy\n";
+
+  open OUT, ">", "dft.json" or die;
+  print OUT $json->encode($newDftData);
+  close OUT;
+}
 
 exit 1;
 

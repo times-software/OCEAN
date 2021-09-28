@@ -60,6 +60,8 @@ if( -e $dataFile )
 
   checkDFTconvergence( $oceanData );
 
+  fixSerPrefix( $oceanData );
+
   makeEdges( $oceanData );
   fixCoords( $oceanData );
   makeZsymb( $oceanData );
@@ -1193,6 +1195,16 @@ sub checkDFTconvergence
 
   delete $hashRef->{'dft'}->{'toldfe'};
   delete $hashRef->{'dft'}->{'tolwfr'};
+}
+
+sub fixSerPrefix
+{
+  my $hashRef = $_[0];
+  if( $hashRef->{'computer'}->{'ser_prefix'} eq "!" )
+  {
+    $hashRef->{'computer'}->{'ser_prefix'} = $hashRef->{'computer'}->{'para_prefix'};
+    $hashRef->{'computer'}->{'ser_prefix'} =~ s/\d+/1/;
+  }
 }
 
 sub makeEdges
