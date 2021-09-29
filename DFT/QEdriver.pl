@@ -9,6 +9,72 @@
 
 use strict;
 use POSIX;
+use File::Spec;
+use File::Copy;
+
+#TODO: generalize to not just be BSE (should work for SCREEN too!)
+sub QErunNSCF
+{
+  my ( $hashRef, $shift ) = @_;
+
+  my $dirname = "k" . $hashRef->{'bse'}->{'kmesh'}[0] . '_' . $hashRef->{'bse'}->{'kmesh'}[1] . '_' 
+              . $hashRef->{'bse'}->{'kmesh'}[2] . "q" . $hashRef->{'bse'}->{'kshift'}[0] . '_' 
+              . $hashRef->{'bse'}->{'kshift'}[1] . '_'  . $hashRef->{'bse'}->{'kshift'}[2];
+
+  print "$dirname\n";
+
+  mkdir "BSE" unless( -d "BSE" );
+  chdir "BSE";
+  mkdir $dirname unless( -d $dirname );
+  chdir $dirname;
+
+  QEsetupNSCF( $shift );
+
+
+  # open input file
+  my $fileName = "nscf.in";
+  $fileName = "nscf_shift.in" if( $shift );
+
+  open my $fh, ">", $fileName or die "Failed to open $fileName.\n$!";
+
+  my $calcFlag = 0;
+
+  my $nk = $hashRef->{'bse'}->{'kmesh'}[0] * $hashRef->{'bse'}->{'kmesh'}[1] 
+         * $hashRef->{'bse'}->{'kmesh'}[2];
+  $nk *=2  if( $hashRef->{'bse'}->{'nonzero_q'} && not $hashRef->{'bse'}->{'split'});
+  my $kptString = "K_POINTS crystal\n  $nk\n" . kptGen( $hashRef->{'bse'}, $shift );  
+
+  # Modify QEprintInput to take two different hashes and a string 
+  QEprintInput( $fh, $hashRef, $hashRef->{'bse'}, $calcFlag, $kptString ) ;
+  
+
+}
+
+sub QEsetupNSCF
+{
+  my ($shift ) = @_;
+
+  my $outDir = "Out";
+  $outDir = "Out_shift" if ( $shift );
+    
+  mkdir $outDir unless( -d $outDir );
+  $outDir = catdir( $outDir, "system.save" );
+  mkdir $outDir unless( -d $outDir );
+  
+  my $targDir = catdir( updir(), updir(), "Out", "system.save" );
+  print "$targDir   $outDir\n";
+  print `pwd`;
+  my @fileList = ( "charge-density.dat", "spin-polarization.dat", "occup.txt", 
+                   "charge-density.kin.dat", "ekin-density.dat", 
+                   "data-file.xml", "data-file-schema.xml" );
+
+  foreach my $f (@fileList) {
+    my $file = catfile( $targDir, $f );
+    if( -e $file ) {
+      copy $file, catfile( $outDir, $f );
+    }
+  }
+}
 
 sub QErunDensity
 {
@@ -90,6 +156,8 @@ sub QErunDensity
   # full run
 
   print "$ncpus  $npool\n";
+  $hashRef->{'scf'}->{'ncpus'} = $ncpus;
+  $hashRef->{'scf'}->{'npool'} = $npool;
 
   my $prefix = $hashRef->{'computer'}->{'para_prefix'};
   $prefix =~ s/$hashRef->{'computer'}->{'ncpus'}/$ncpus/ if( $hashRef->{'computer'}->{'ncpus'} != $ncpus );
@@ -99,38 +167,209 @@ sub QErunDensity
   QErunPW( $hashRef->{'general'}->{'redirect'}, $prefix, $cmdLine, "scf.in", "scf.out" );
 
 
-  my ($errorCode, $energy ) = QEparseOut( "scf.out" );
+  my $errorCode = QEparseOut( "scf.out", $hashRef->{'scf'} );
 
-  return ( $errorCode, $energy );
+  return $errorCode;
 }
 
 
+# parse various info from the 
 sub QEparseOut
 {
-  my $outFile = $_[0];
+  my( $outFile, $hashRef ) = @_;
 
   my $errorCode = 1;
-  my $totEnergy = "";
+  
 
-  open OUTFILE, "<", $outFile or die "Failed to open $outFile\n";
-  while( my $line=<OUTFILE> )
-  {
-    if( $line =~ m/!\s+total energy\s+=\s+(-?\d+\.\d+)/ )
+  my $fermi;
+  my $highest;
+  my $lowest;
+  my $xmlFile = catfile( "Out", "system.save", "data-file-schema.xml" );
+  if( -e $xmlFile ) {
+    open SCF, "<", $xmlFile or die "Failed to open $xmlFile\n";
+
+    print "QE62!!\n";
+    $hashRef->{'version'} = '62';
+
+    while( my $scf_line = <SCF> )
     {
-      $totEnergy = $1;
-#      print ">>>>> $totEnergy\n";
+      if( $scf_line =~ m/\<highestOccupiedLevel\>([-+]?\d+\.\d+[Ee]?[-+]?(\d+)?)/ )
+      {
+        $highest = $1;
+        $hashRef->{'highest'} = $1;
+      }
+      elsif( $scf_line =~ m/\<lowestUnoccupiedLevel\>([-+]?\d+\.\d+[Ee]?[-+]?(\d+)?)/ )
+      {
+        $lowest = $1;
+        $hashRef->{'lowest'} = $1;
+      }
+      elsif( $scf_line =~ m/\<fermi_energy\>([-+]?\d+\.\d+[Ee]?[-+]?(\d+)?)/ )
+      {
+        $fermi = $1;
+      }
+      # We just average the two for spin=2 
+      elsif( $scf_line =~ m/\<two_fermi_energies\>([-+]?\d+\.\d+[Ee]?[-+]?(\d+)?)\s+([-+]?\d+\.\d+[Ee]?[-+]?(\d+)?)/ )
+      {
+        $fermi = ($1+$3)/2;
+      }
+      elsif( $scf_line =~ m/NAME=\"PWSCF\" VERSION=\"([\d\.\w]+)\">/ )
+      {
+        $hashRef->{'version'} = $1;
+      }
+      elsif( $scf_line =~ m/wall>(\d+\.\d+[eE]?\d+)/ )
+      {
+        $hashRef->{'time'} = $1;
+      }
+      elsif( $scf_line =~ m/etot>(-?\d+\.\d+[eE]?\d?)/ )
+      {
+        $hashRef->{'etot'} = $1;
+      }
+      elsif( $scf_line =~ m/convergence_achieved>(\w+)/ )
+      {
+        $errorCode = 0 if( $1 =~ m/t/i );
+      }
+      elsif( $scf_line =~ m/<calculation>nscf/ )
+      {
+        $errorCode = 0;
+      }
     }
-    elsif( $line =~ m/convergence has been achieved/ )
+    close SCF;
+    unless( defined $fermi ) {
+      unless( defined $lowest ) {
+        $fermi = 'none';
+      } else {
+        $fermi = $highest + $lowest; # Move from Ha to Ryd
+      }
+    } else {
+      $fermi *= 2; # Move from Ha to Ryd
+    }
+
+    $hashRef->{'fermi'} = $fermi;
+    print "Convergence not achieved\n" if( $errorCode == 1 );
+    return $errorCode; 
+  } elsif( -e catfile( "Out", "system.save", "data-file.xml" ) ) {
+
+    my $units;
+
+    open SCF, "<", catfile( "Out", "system.save", "data-file.xml" ) or die "Failed to open $xmlFile\n";
+
+    while( my $scf_line = <SCF> )
     {
-      $errorCode = 0;
+      if( $scf_line =~ m/\<UNITS_FOR_ENERGIES UNITS=\"(\w+)/ )
+      {
+        $units = $1;
+      }
+      if( $scf_line =~ m/\<FERMI_ENERGY/ )
+      {
+        $scf_line = <SCF>;
+        $scf_line =~ m/([-+]?\d+\.\d+[Ee]?[-+]?(\d+)?)/ or die "$scf_line";
+        $fermi = $1;
+      }
     }
-    elsif( $line =~ m/End of band/ )
+    close SCF;
+    if( $units =~ m/hartree/i )
     {
-      $errorCode = 0;
+      $fermi *= 2;
     }
+    elsif( $units =~ m/eV/i )
+    {
+      $fermi /= 13.60569253;
+    }
+
+    $hashRef->{'fermi'} = $fermi;
+    $errorCode = 0;
+  } else {
+
+    open OUTFILE, "<", $outFile or die "Failed to open $outFile\n";
+    while( my $line=<OUTFILE> )
+    {
+      if( $line =~ m/!\s+total energy\s+=\s+(-?\d+\.\d+)/ )
+      {
+        $hashRef->{'etot'} = $1;
+#        $totEnergy = $1;
+  #      print ">>>>> $totEnergy\n";
+      }
+      elsif( $line =~ m/convergence has been achieved/ )
+      {
+        $errorCode = 0;
+      }
+      elsif( $line =~ m/End of band/ )
+      {
+        $errorCode = 0;
+      }
+      elsif( $line  =~  m/the Fermi energy is\s+([+-]?\d+\.?\d+)/ )
+      {
+        $fermi = $1;
+        print "Fermi level found at $fermi eV\n";
+        $fermi = $fermi/13.60569253;
+      }
+      elsif( $line  =~  m/Fermi energies are\s+([+-]?\d+\.?\d+)\s+([+-]?\d+\.?\d+)/ )
+      {
+        $fermi = ($1+$2)/2;
+        print "Fermi level found at $fermi eV\n";
+        $fermi = $fermi/13.60569253;
+      }
+      elsif( $line =~ m/highest occupied, lowest unoccupied level (ev):\s+([+-]?\d+\.?\d+)\s+([+-]?\d+\.?\d+)/ )
+      {
+        $fermi = ($1+$2)/2;
+        $hashRef->{'highest'} = $1;
+        $hashRef->{'lowest'} = $2;
+        print "Fermi level found at $fermi eV\n";
+        $fermi = $fermi/13.60569253;
+      }
+      $hashRef->{'fermi'} = $fermi;
+    }
+    close OUTFILE;
   }
-  close OUTFILE;
-  return ( $errorCode, $totEnergy );
+
+  return $errorCode;
+}
+
+
+sub QEparseDensityPotential
+{
+  my ($hashRef, $type ) = @_;
+
+  my $flag;
+  my $filplot;
+  my $infile;
+  if( $type eq 'density' ) {
+    $flag = 0;
+    $filplot = 'system.rho';
+    $infile = 'pp.in';
+  } elsif( $type eq 'potential' ) {
+    $flag = 1;
+    $filplot = 'system.pot';
+    $infile = 'pp2.in';
+  } else {
+    return 1;
+  }
+
+  my $npool = 1;
+  my $ncpus = $hashRef->{'computer'}->{'ncpus'};
+  $ncpus = $hashRef->{'scf'}->{'ncpus'} if( exists $hashRef->{'scf'}->{'ncpus'} && $hashRef->{'scf'}->{'ncpus'} >= 1 );
+  $npool = $hashRef->{'scf'}->{'npool'} if( exists $hashRef->{'scf'}->{'npool'} && $hashRef->{'scf'}->{'npool'} >= 1 );
+
+  ### write PP input card for density
+  open PP, ">", "$infile" or die "$!";
+  print PP "&inputpp\n"
+          . "  prefix = \'system\'\n"
+          . "  outdir = \'Out\'\n"
+          . "  filplot= \'$filplot\'\n"
+          . "  plot_num = $flag\n"
+          . "/\n";
+  close PP;
+
+  my $prefix = $hashRef->{'computer'}->{'para_prefix'};
+  $prefix =~ s/$hashRef->{'computer'}->{'ncpus'}/$ncpus/ if( $hashRef->{'computer'}->{'ncpus'} != $ncpus );
+
+  my $cmdLine = " -npool $npool ";
+
+  my $outfile = $infile;
+  $outfile =~ s/\.in/.out/;
+  QErunPP( $hashRef->{'general'}->{'redirect'}, $prefix, $cmdLine, "$infile", "$outfile" );
+
+  return 0;
 }
 
 
@@ -193,6 +432,25 @@ sub QErunPW
   {
     print  "$prefix $ENV{'OCEAN_ESPRESSO_PW'} $cmdLine -inp $in > $out 2>&1\n";
     system("$prefix $ENV{'OCEAN_ESPRESSO_PW'} $cmdLine -inp $in > $out 2>&1");
+  }
+}
+
+
+# subroutine to handle running each QE step
+# make one of these for ph too!
+sub QErunPP
+{
+  my( $redirect, $prefix, $cmdLine, $in, $out ) = @_;
+
+  if( $redirect )
+  {
+    print  "$prefix $ENV{'OCEAN_ESPRESSO_PP'} $cmdLine < $in > $out 2>&1\n";
+    system("$prefix $ENV{'OCEAN_ESPRESSO_PP'} $cmdLine < $in > $out 2>&1");
+  }
+  else
+  {
+    print  "$prefix $ENV{'OCEAN_ESPRESSO_PP'} $cmdLine -inp $in > $out 2>&1\n";
+    system("$prefix $ENV{'OCEAN_ESPRESSO_PP'} $cmdLine -inp $in > $out 2>&1");
   }
 }
 
@@ -365,5 +623,40 @@ sub QEprintInput
 
 }
 
+#Move this to standalone at some point for re-use with ABINIT
+sub kptGen
+{
+  my ( $hashRef, $split ) = @_;
+
+  my $kptText = "";
+  my @q = ( 0, 0, 0 );
+  if( $hashRef->{'nonzero_q'} && not $split ) {
+    $q[0] = $hashRef->{'photon_q'}[0];
+    $q[1] = $hashRef->{'photon_q'}[1];
+    $q[2] = $hashRef->{'photon_q'}[2];
+  }
+
+ 
+  for( my $x = 0; $x < $hashRef->{'kmesh'}[0]; $x++ ) {
+    my $xk = $hashRef->{'kshift'}[0]/$hashRef->{'kmesh'}[0] + $x/$hashRef->{'kmesh'}[0] - $q[0];
+    while( $xk > 1 ) { $xk -= 1.0; }
+    while( $xk < -1 ) { $xk += 1.0; }
+    for( my $y = 0; $y < $hashRef->{'kmesh'}[1]; $y++ ) {
+      my $yk = $hashRef->{'kshift'}[1]/$hashRef->{'kmesh'}[1] + $y/$hashRef->{'kmesh'}[1] - $q[1];
+      while( $yk > 1 ) { $yk -= 1.0; }
+      while( $yk < -1 ) { $yk += 1.0; }
+      for( my $z = 0; $z < $hashRef->{'kmesh'}[2]; $z++ ) {
+        my $zk = $hashRef->{'kshift'}[2]/$hashRef->{'kmesh'}[2] + $z/$hashRef->{'kmesh'}[2] - $q[2];
+        while( $zk > 1 ) { $zk -= 1.0; }
+        while( $zk < -1 ) { $zk += 1.0; }
+
+        $kptText .= sprintf "%19.15f  %19.15f  %19.15f  1\n", $xk, $yk, $zk;
+      }
+    }
+  }
+
+  
+  return $kptText;
+}
 
 1;

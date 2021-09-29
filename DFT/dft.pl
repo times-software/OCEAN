@@ -159,6 +159,7 @@ $newDftData->{'epsilon'}->{'complete'} = JSON::PP::false;
 $newDftData->{'screen'}->{'complete'} = JSON::PP::false;
 $newDftData->{'bse'}->{'complete'} = JSON::PP::false;
 
+
 if( $newDftData->{'scf'}->{'complete'} ) {
   print "Re-using previous SCF run\n";
   
@@ -172,6 +173,14 @@ if( $newDftData->{'scf'}->{'complete'} ) {
       if( exists $dftData->{'screen'}->{'complete'} );
   $newDftData->{'bse'}->{'complete'} = $dftData->{'bse'}->{'complete'}
       if( exists $dftData->{'bse'}->{'complete'} );
+
+  # If SCF already run, copy additional info from previous time
+  my @scfCopyList = ( "npool", "ncpus" );
+  copyAndCompare( $newDftData->{'scf'}, $dftData->{'scf'}, $dftData->{'scf'}, $fake, \@scfCopyList );
+
+#  my @bseCopyList = ( "")
+  
+  copyAndCompare( $newDftData->{'bse'}, $dftData->{'bse'}, $dftData->{'bse'}, $fake, [ "completed" ] );
 
 } else {
   print "Need SCF run\n";
@@ -198,6 +207,9 @@ copyAndCompare( $newDftData->{'bse'}, $commonOceanData->{'dft'}->{'bse'}, $dftDa
 @bseList = ( "kmesh", "kshift" );
 copyAndCompare( $newDftData->{'bse'}, $commonOceanData->{'bse'}, $dftData->{'bse'},
                 $newDftData->{'bse'}, \@bseList );
+
+copyAndCompare( $newDftData->{'bse'}, $commonOceanData->{'calc'}, $dftData->{'bse'},
+                $newDftData->{'bse'}, [ 'photon_q', 'nonzero_q' ] );
 
 # Last item for BSE -- if bands requested is less than those done don't re-run!
 $newDftData->{'bse'}->{'nbands'} = $commonOceanData->{'bse'}->{'nbands'};
@@ -253,14 +265,18 @@ open OUT, ">", "dft.json" or die;
 print OUT $json->encode($newDftData);
 close OUT;
 
+### Need to write abstraction to support multiple DFT codes
+unless( $newDftData->{'general'}->{'program'} eq "qe" ) {
+  print "Only QE supported at the moment!\n";
+  exit 1;
+}
 
 #call density stage
 unless( $newDftData->{'scf'}->{'complete'} )
 {
   my $errorCode = 0;
-  my $totEnergy;
   if( $newDftData->{'general'}->{'program'} eq "qe" ) {
-    ($errorCode, $totEnergy ) = QErunDensity( $newDftData );
+    $errorCode = QErunDensity( $newDftData );
     print "$errorCode\n";
   } else {
     $errorCode = 1;
@@ -269,11 +285,46 @@ unless( $newDftData->{'scf'}->{'complete'} )
 
   $newDftData->{'scf'}->{'complete'} = JSON::PP::true;
 
-  print "$totEnergy\n";
-
   open OUT, ">", "dft.json" or die;
   print OUT $json->encode($newDftData);
   close OUT;
+  print "SCF stage complete, total energy: $newDftData->{'scf'}->{'etot'}\n";
+}
+
+# Re-format density
+unless( $newDftData->{'density'}->{'complete'} ) {
+  print "Exporting density from SCF\n";
+  my $errorCode = QEparseDensityPotential( $newDftData, "density" );
+  exit $errorCode if( $errorCode != 0 );
+
+  $newDftData->{'density'}->{'complete'} = JSON::PP::true;
+  open OUT, ">", "dft.json" or die;
+  print OUT $json->encode($newDftData);
+  close OUT;
+  print "Density export complete\n";
+}
+
+# Re-format potential
+unless( $newDftData->{'potential'}->{'complete'} ) {
+  print "Exporting potential from SCF\n";
+  my $errorCode = QEparseDensityPotential( $newDftData, "potential" );
+  exit $errorCode if( $errorCode != 0 );
+
+  $newDftData->{'potential'}->{'complete'} = JSON::PP::true;
+  open OUT, ">", "dft.json" or die;
+  print OUT $json->encode($newDftData);
+  close OUT;
+  print "Potential export complete\n";
+}
+
+
+# Time for BSE final states
+unless( $newDftData->{'bse'}->{'complete'} ) {
+  print "Running DFT for BSE basis states\n";
+
+  
+  QErunNSCF($newDftData, 0 );
+  
 }
 
 exit 1;

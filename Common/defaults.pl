@@ -9,7 +9,8 @@
 
 use strict;
 require JSON::PP;
-JSON::PP->import;
+#JSON::PP->import;
+use JSON::PP;
 use POSIX;
 use Math::BigFloat;
 
@@ -1150,6 +1151,7 @@ sub checkBands
 sub checkQ
 {
   my $hashRef = $_[0];
+  my $minQ = 0.0000000001;
   if( $hashRef->{'calc'}->{'mode'} =~ m/VAL/i || $hashRef->{'calc'}->{'mode'} =~ m/RXS/i )
   {
     my $q = 0;
@@ -1157,7 +1159,7 @@ sub checkQ
     {
       $q += abs( $hashRef->{'calc'}->{'photon_q'}[$i] );
     }
-    if( $q < 0.0000000001 )
+    if( $q < $minQ )
     {
       print "Valence or RIXS calculation requires non-zero q-vector\n";
       print "Assigning default q-vec of ( 0.001, 0, 0 ). You should edit your input\n";
@@ -1166,6 +1168,18 @@ sub checkQ
       $hashRef->{'calc'}->{'photon_q'}[2] = 0.0;
     }
   }
+  
+  my $q = 0;
+  for( my $i = 0; $i < 3; $i++ )
+  {
+    $q += abs( $hashRef->{'calc'}->{'photon_q'}[$i] );
+  }
+  if( $q < $minQ ) {
+    $hashRef->{'calc'}->{'nonzero_q'} = JSON::PP::false;
+  } else {
+    $hashRef->{'calc'}->{'nonzero_q'} = JSON::PP::true;
+  }
+  $hashRef->{'dft'}->{'bse'}->{'split'} = JSON::PP::false unless( $hashRef->{'calc'}->{'nonzero_q'} );
 }
 
 sub checkEpsilon
