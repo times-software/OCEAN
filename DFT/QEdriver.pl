@@ -12,19 +12,17 @@ use POSIX;
 use File::Spec;
 use File::Copy;
 
-#TODO: generalize to not just be BSE (should work for SCREEN too!)
+#TODO: should loop here over split if we have it
 sub QErunNSCF
 {
-  my ( $hashRef, $shift ) = @_;
+  my ( $hashRef, $specificHashRef, $shift ) = @_;
 
-  my $dirname = "k" . $hashRef->{'bse'}->{'kmesh'}[0] . '_' . $hashRef->{'bse'}->{'kmesh'}[1] . '_' 
-              . $hashRef->{'bse'}->{'kmesh'}[2] . "q" . $hashRef->{'bse'}->{'kshift'}[0] . '_' 
-              . $hashRef->{'bse'}->{'kshift'}[1] . '_'  . $hashRef->{'bse'}->{'kshift'}[2];
+  my $dirname = "k" . $specificHashRef->{'kmesh'}[0] . '_' . $specificHashRef->{'kmesh'}[1] . '_' 
+              . $specificHashRef->{'kmesh'}[2] . "q" . $specificHashRef->{'kshift'}[0] . '_' 
+              . $specificHashRef->{'kshift'}[1] . '_'  . $specificHashRef->{'kshift'}[2];
 
   print "$dirname\n";
 
-  mkdir "BSE" unless( -d "BSE" );
-  chdir "BSE";
   mkdir $dirname unless( -d $dirname );
   chdir $dirname;
 
@@ -39,15 +37,49 @@ sub QErunNSCF
 
   my $calcFlag = 0;
 
-  my $nk = $hashRef->{'bse'}->{'kmesh'}[0] * $hashRef->{'bse'}->{'kmesh'}[1] 
-         * $hashRef->{'bse'}->{'kmesh'}[2];
-  $nk *=2  if( $hashRef->{'bse'}->{'nonzero_q'} && not $hashRef->{'bse'}->{'split'});
-  my $kptString = "K_POINTS crystal\n  $nk\n" . kptGen( $hashRef->{'bse'}, $shift );  
+  my $kptString;
+  if( $specificHashRef->{'isGamma'} ) 
+  {
+    $kptString = "K_POINTS gamma\n";
+  }
+  else 
+  {
+    my $nk = $specificHashRef->{'kmesh'}[0] * $specificHashRef->{'kmesh'}[1] 
+           * $specificHashRef->{'kmesh'}[2];
+    $nk *=2  if( $specificHashRef->{'nonzero_q'} && not $specificHashRef->{'split'});
+    $kptString = "K_POINTS crystal\n  $nk\n" . kptGen( $specificHashRef, $shift );  
+  }
 
   # Modify QEprintInput to take two different hashes and a string 
-  QEprintInput( $fh, $hashRef, $hashRef->{'bse'}, $calcFlag, $kptString ) ;
+  QEprintInput( $fh, $hashRef, $specificHashRef, $calcFlag, $kptString ) ;
   
+  close $fh;
 
+  my ($ncpus, $npool) = QErunTest( $hashRef, "nscf.in" );
+
+  QEsetupNSCF( $shift );
+
+  # full run
+
+  print "$ncpus  $npool\n";
+  $specificHashRef->{'ncpus'} = $ncpus;
+  $specificHashRef->{'npool'} = $npool;
+
+  my $prefix = $hashRef->{'computer'}->{'para_prefix'};
+  $prefix =~ s/$hashRef->{'computer'}->{'ncpus'}/$ncpus/ if( $hashRef->{'computer'}->{'ncpus'} != $ncpus );
+
+  my $cmdLine = " -npool $npool ";
+
+  QErunPW( $hashRef->{'general'}->{'redirect'}, $prefix, $cmdLine, "nscf.in", "nscf.out" );
+
+
+  my $errorCode = QEparseOut( "nscf.out", $specificHashRef );
+  return $errorCode if( $errorCode );
+
+  $errorCode = QEparseEnergies( $hashRef, $specificHashRef );
+
+  chdir updir();
+  return $errorCode;
 }
 
 sub QEsetupNSCF
@@ -61,7 +93,7 @@ sub QEsetupNSCF
   $outDir = catdir( $outDir, "system.save" );
   mkdir $outDir unless( -d $outDir );
   
-  my $targDir = catdir( updir(), updir(), "Out", "system.save" );
+  my $targDir = catdir( updir(), "Out", "system.save" );
   print "$targDir   $outDir\n";
   print `pwd`;
   my @fileList = ( "charge-density.dat", "spin-polarization.dat", "occup.txt", 
@@ -104,54 +136,54 @@ sub QErunDensity
 
   close $fh;
 
-  # test run for k-points
-  print "Testing parallel QE execution\n";
-  open TMP, '>', "system.EXIT" or die "Failed to open file system.EXIT\n$!";
-  close TMP;
+#  # test run for k-points
+#  print "Testing parallel QE execution\n";
+#  open TMP, '>', "system.EXIT" or die "Failed to open file system.EXIT\n$!";
+#  close TMP;
+#
+#  QErunPW( $hashRef->{'general'}->{'redirect'}, $hashRef->{'computer'}->{'ser_prefix'}, "" , "scf.in", "test.out" );
+#  
+#  # parse test results
+#  my $npool = 1;
+#  my $ncpus = $hashRef->{'computer'}->{'ncpus'};
+#  if( open TMP, "test.out" )
+#  {
+#    my $actualKpts = -1;
+#    my $numKS = -1;
+#    my $mem = -1;
+#    while (<TMP>)
+#    {
+#      if( $_ =~ m/number of Kohn-Sham states=\s+(\d+)/ )
+#      {
+#        $numKS = $1;
+#      }
+#      elsif( $_ =~ m/number of k points=\s+(\d+)/ )
+#      {
+#        $actualKpts = $1;
+#      }
+#      elsif( $_ =~ m/Estimated max dynamical RAM per process\s+>\s+(\d+\.\d+)/ )
+#      {
+#        $mem = $1;
+#      }
+#      last if( $actualKpts > 0 && $numKS > 0 && $mem > 0 );
+#    }
+#    close TMP;
+#
+#    if( $actualKpts == -1 )
+#    {
+#      print "Had trouble parsing test.out\nDidn't find number of k points\n";
+#    }
+#    else
+#    {
+#      ($ncpus, $npool) = QEPoolControl( $actualKpts, $numKS, $mem, $hashRef->{'computer'} );
+#    }
+#  }
+#  else
+#  {
+#    print "Had trouble parsing test.out\n. Will attempt to continue.\n";
+#  }
 
-  QErunPW( $hashRef->{'general'}->{'redirect'}, $hashRef->{'computer'}->{'ser_prefix'}, "" , "scf.in", "test.out" );
-  
-  # parse test results
-  my $npool = 1;
-  my $ncpus = $hashRef->{'computer'}->{'ncpus'};
-  if( open TMP, "test.out" )
-  {
-    my $actualKpts = -1;
-    my $numKS = -1;
-    my $mem = -1;
-    while (<TMP>)
-    {
-      if( $_ =~ m/number of Kohn-Sham states=\s+(\d+)/ )
-      {
-        $numKS = $1;
-      }
-      elsif( $_ =~ m/number of k points=\s+(\d+)/ )
-      {
-        $actualKpts = $1;
-      }
-      elsif( $_ =~ m/Estimated max dynamical RAM per process\s+>\s+(\d+\.\d+)/ )
-      {
-        $mem = $1;
-      }
-      last if( $actualKpts > 0 && $numKS > 0 && $mem > 0 );
-    }
-    close TMP;
-
-    if( $actualKpts == -1 )
-    {
-      print "Had trouble parsing test.out\nDidn't find number of k points\n";
-    }
-    else
-    {
-      ($ncpus, $npool) = QEPoolControl( $actualKpts, $numKS, $mem, $hashRef->{'computer'} );
-    }
-  }
-  else
-  {
-    print "Had trouble parsing test.out\n. Will attempt to continue.\n";
-  }
-
-  
+  my ($ncpus, $npool) = QErunTest( $hashRef, "scf.in" );
 
   # full run
 
@@ -172,6 +204,58 @@ sub QErunDensity
   return $errorCode;
 }
 
+sub QErunTest
+{
+  my ( $hashRef, $fileName ) = @_;
+    # test run for k-points
+  print "Testing parallel QE execution\n";
+  open TMP, '>', "system.EXIT" or die "Failed to open file system.EXIT\n$!";
+  close TMP;
+
+  QErunPW( $hashRef->{'general'}->{'redirect'}, $hashRef->{'computer'}->{'ser_prefix'}, "" , $fileName, "test.out" );
+
+  # parse test results
+  my $npool = 1;
+  my $ncpus = $hashRef->{'computer'}->{'ncpus'};
+  if( open TMP, "test.out" )
+  { 
+    my $actualKpts = -1;
+    my $numKS = -1;
+    my $mem = -1;
+    while (<TMP>)
+    { 
+      if( $_ =~ m/number of Kohn-Sham states=\s+(\d+)/ )
+      { 
+        $numKS = $1;
+      }
+      elsif( $_ =~ m/number of k points=\s+(\d+)/ )
+      { 
+        $actualKpts = $1;
+      }
+      elsif( $_ =~ m/Estimated max dynamical RAM per process\s+>\s+(\d+\.\d+)/ )
+      { 
+        $mem = $1;
+      }
+      last if( $actualKpts > 0 && $numKS > 0 && $mem > 0 );
+    }
+    close TMP;
+    
+    if( $actualKpts == -1 )
+    { 
+      print "Had trouble parsing test.out\nDidn't find number of k points\n";
+    }
+    else
+    { 
+      ($ncpus, $npool) = QEPoolControl( $actualKpts, $numKS, $mem, $hashRef->{'computer'} );
+    }
+  }
+  else
+  {
+    print "Had trouble parsing test.out\n. Will attempt to continue.\n";
+  }
+
+  return ( $ncpus, $npool);
+}
 
 # parse various info from the 
 sub QEparseOut
@@ -196,12 +280,12 @@ sub QEparseOut
       if( $scf_line =~ m/\<highestOccupiedLevel\>([-+]?\d+\.\d+[Ee]?[-+]?(\d+)?)/ )
       {
         $highest = $1;
-        $hashRef->{'highest'} = $1;
+        $hashRef->{'highest'} = $1*1;
       }
       elsif( $scf_line =~ m/\<lowestUnoccupiedLevel\>([-+]?\d+\.\d+[Ee]?[-+]?(\d+)?)/ )
       {
         $lowest = $1;
-        $hashRef->{'lowest'} = $1;
+        $hashRef->{'lowest'} = $1*1;
       }
       elsif( $scf_line =~ m/\<fermi_energy\>([-+]?\d+\.\d+[Ee]?[-+]?(\d+)?)/ )
       {
@@ -218,11 +302,11 @@ sub QEparseOut
       }
       elsif( $scf_line =~ m/wall>(\d+\.\d+[eE]?\d+)/ )
       {
-        $hashRef->{'time'} = $1;
+        $hashRef->{'time'} = $1*1;
       }
       elsif( $scf_line =~ m/etot>(-?\d+\.\d+[eE]?\d?)/ )
       {
-        $hashRef->{'etot'} = $1;
+        $hashRef->{'etot'} = $1*1;
       }
       elsif( $scf_line =~ m/convergence_achieved>(\w+)/ )
       {
@@ -232,16 +316,20 @@ sub QEparseOut
       {
         $errorCode = 0;
       }
+      elsif( $scf_line =~ m/<nelec>(\d\.\d+[eE]?\d?)/ )
+      {
+        $hashRef->{'nelec'} = $1*1;
+      }
     }
     close SCF;
     unless( defined $fermi ) {
       unless( defined $lowest ) {
         $fermi = 'none';
       } else {
-        $fermi = $highest + $lowest; # Move from Ha to Ryd
+        $fermi = ($highest + $lowest)/2; # Move from Ha to Ryd
       }
     } else {
-      $fermi *= 2; # Move from Ha to Ryd
+      $fermi *= 1; # Move from Ha to Ryd
     }
 
     $hashRef->{'fermi'} = $fermi;
@@ -285,7 +373,7 @@ sub QEparseOut
     {
       if( $line =~ m/!\s+total energy\s+=\s+(-?\d+\.\d+)/ )
       {
-        $hashRef->{'etot'} = $1;
+        $hashRef->{'etot'} = $1*1;
 #        $totEnergy = $1;
   #      print ">>>>> $totEnergy\n";
       }
@@ -301,26 +389,31 @@ sub QEparseOut
       {
         $fermi = $1;
         print "Fermi level found at $fermi eV\n";
-        $fermi = $fermi/13.60569253;
+        $fermi = $fermi/13.60569253/2;
       }
       elsif( $line  =~  m/Fermi energies are\s+([+-]?\d+\.?\d+)\s+([+-]?\d+\.?\d+)/ )
       {
         $fermi = ($1+$2)/2;
         print "Fermi level found at $fermi eV\n";
-        $fermi = $fermi/13.60569253;
+        $fermi = $fermi/13.60569253/2;
       }
       elsif( $line =~ m/highest occupied, lowest unoccupied level (ev):\s+([+-]?\d+\.?\d+)\s+([+-]?\d+\.?\d+)/ )
       {
         $fermi = ($1+$2)/2;
-        $hashRef->{'highest'} = $1;
-        $hashRef->{'lowest'} = $2;
+        $hashRef->{'highest'} = $1/13.60569253/2;
+        $hashRef->{'lowest'} = $2/13.60569253/2;
         print "Fermi level found at $fermi eV\n";
-        $fermi = $fermi/13.60569253;
+        $fermi = $fermi/13.60569253/2;
       }
-      $hashRef->{'fermi'} = $fermi;
+      elsif( $line =~ m/number of electrons\s+=\s+(\d+\.\d+)/ )
+      {
+        $hashRef->{'nelec'} = $1*1;
+      }
     }
+    $hashRef->{'fermi'} = $fermi;
     close OUTFILE;
   }
+  print "$hashRef->{'fermi'}\n";
 
   return $errorCode;
 }
@@ -389,7 +482,7 @@ sub QEPoolControl
   for( my $j = $hashRef->{'ncpus'}; $j > 0; $j-- )
   {
     # i is number of pools
-    for( my $i = 1; $i <= sqrt( $j+.1); $i++ )
+    for( my $i = 1; $i <= $j; $i++ )
     {
       # gotta be an even factor
       next if ( $j % $i );
@@ -401,7 +494,7 @@ sub QEPoolControl
       my $cpuPerPool = $j / $i;
       my $kPerPool = ceil( $actualKpts / $i );
       my $cost = $kPerPool / ( $cpuPerPool * ( 0.98**$cpuPerPool ) );
-#      print "$j  $i  $kPerPool  $cost\n";
+      print "$j  $i  $kPerPool  $cost\n";
       $cpusAndPools{ $cost } = [ $j, $i ];
     }
   }
@@ -657,6 +750,237 @@ sub kptGen
 
   
   return $kptText;
+}
+
+sub QEparseEnergies
+{
+  my ($hashRef, $specificHashRef ) = @_;
+
+  my $spin = $hashRef->{'general'}->{'nspin'};
+  my $occopt = $hashRef->{'general'}->{'occopt'};
+  my $insulator = 1;
+  $insulator = 0 if( $spin > 1 || $occopt != 1 );
+  my $split = $specificHashRef->{'split'};
+#  $split = 1 if ( $split );
+  my $nonzero_q = $specificHashRef->{'nonzero_q'};
+
+  my $fermi = $hashRef->{'scf'}->{'fermi'};
+
+  my @energies;
+  
+  my $qe62File = catfile( "Out", "system.save", "data-file-schema.xml" );
+  
+  if( -e $qe62File )
+  {
+    my $splitFile = $qe62File;
+    $splitFile = catfile( "Out_shift", "system.save", "data-file-schema.xml" ) if( $split );
+    @energies = QEparseEnergies62( $qe62File, $splitFile );
+  }
+  else 
+  {
+    return 1;
+  }
+
+  my $nks = $spin * $specificHashRef->{'kmesh'}[0] * $specificHashRef->{'kmesh'}[1]
+                  * $specificHashRef->{'kmesh'}[2];
+  $nks *=2 if( $nonzero_q );
+
+  if( $nks != scalar @energies )
+  {
+    print "Wrong number of spins and k-points!  Expected: $nks . Found: " . scalar @energies . "\n";
+    return 2;
+  }
+
+  my @b;
+  $b[0] = 1;
+  if( scalar @energies > 1 )
+  {
+    $b[3] = scalar @{$energies[1]};
+  } else {
+    $b[3] = scalar @{$energies[0]};
+  }
+
+  if( $insulator )
+  {
+    my $nelec = sprintf "%.0f", $hashRef->{'scf'}->{'nelec'};
+    die "Fractional nuber of electrons, but fixed occupations\n" 
+        if( abs( $nelec - $hashRef->{'scf'}->{'nelec'} ) > 0.001 );
+    die "Odd electrons, but fixed occupations\n" if( $nelec % 2 );
+    $b[1] = $nelec / 2 ;
+    $b[2] = $b[1] + 1;
+  }
+  else
+  {
+    $b[1] = 1;
+    $b[2] = $b[3];
+
+    for( my $k = 0; $k < scalar @energies; $k++ )
+    {
+      my $temp = $b[1] - 1;
+      for( my $i = $temp; $i < scalar @{$energies[$k]}; $i++ )
+      {
+        $b[2] = $i+1 if( $energies[$k][$i] < $fermi );
+        last if( $energies[$k][$i] > $fermi );
+      }
+
+      $temp = $b[2] - 1;
+      for( my $i = $temp; $i >= 0; $i-- )
+      {
+        $b[2] = $i+1 if( $energies[$k][$i] > $fermi );
+        last if( $energies[$k][$i] < $fermi );
+      }
+    }
+  }
+
+  
+  
+  open OUT, ">", "QE_EIGS.txt" or die;
+  my $nk = $specificHashRef->{'kmesh'}[0] * $specificHashRef->{'kmesh'}[1] * $specificHashRef->{'kmesh'}[2];
+  printf OUT "%i %i %i %i %i %i\n", $b[0], $b[1], $b[2], $b[3], $nk, $spin;
+
+  my $delim = " ";
+  my $n = 3;
+  my $ik = 0;
+  my $nq = 0;
+  $nq ++ if( $nonzero_q );
+  for( my $s = 0; $s < $spin; $s++ )
+  {
+    for( my $k = 0; $k < $nk; $k++ )
+    {
+      my @eslice = @{ $energies[$ik] }[ $b[0]-1 .. $b[1]-1 ];
+      foreach my $x (@eslice) { $x = $x * 2; }
+      while (my @x = splice @eslice, 0, $n)
+      {
+        print OUT join($delim, @x), "\n";
+      }
+      $ik++ if( $nonzero_q );
+      my @eslice = @{ $energies[$ik] }[ $b[2]-1 .. $b[3]-1 ];
+      foreach my $x (@eslice) { $x = $x * 2; } 
+      while (my @x = splice @eslice, 0, $n)
+      { 
+        print OUT join($delim, @x), "\n";
+      } 
+      $ik++;
+    }
+  }
+  close OUT;
+  
+  
+
+  return 0;
+}
+
+sub QEparseEnergies62
+{
+  my ($f1, $f2, $spin) = @_;
+
+  my $split = 0;
+  open my $fh1, "<", $f1 or die "Failed to open $f1\n$!";
+
+  my @energies1;
+  my @energies1_spin;
+
+  while( my $line = <$fh1> )
+  {
+
+    if( $line =~ m/<eigenvalues size=\"\d+\">/ )
+    {
+      $line =~ s/<eigenvalues size=\"\d+\">//;
+      chomp $line;
+      my $eigs = $line . ' ';
+      until( $line =~ m/eigenvalues/ )
+      { 
+        $line = <$fh1>;
+        chomp $line;
+        $eigs .= $line . ' ';
+      }
+      $eigs =~ s/\s+<\/eigenvalues>//;
+
+      my @eigs = split( ' ', $eigs );
+      if( $spin == 2 )
+      {
+        my $half = scalar @eigs / 2;
+        my @t1 = @eigs[ 0, $half-1 ];
+        push @energies1, \@t1;
+        my @t2 = @eigs[ $half, scalar @eigs-1 ];
+        push @energies1_spin, \@t2;
+      }
+      else
+      {
+        push @energies1, \@eigs;
+      }
+    }
+  }
+  close $fh1;
+
+  unless( $f1 ne $f2 )
+  {
+    push @energies1, @energies1_spin if( $spin == 2 );
+    return @energies1;
+  }
+
+
+  
+  open my $fh2, "<", $f2 or die "Failed to open $f2\n$!";
+  my @energies2;
+  my @energies2_spin;
+
+  while( my $line = <$fh2> )
+  {
+    
+    if( $line =~ m/<eigenvalues size=\"\d+\">/ )
+    { 
+      $line =~ s/<eigenvalues size=\"\d+\">//;
+      chomp $line;
+      my $eigs = $line . ' ';
+      until( $line =~ m/eigenvalues/ )
+      { 
+        $line = <$fh2>;
+        chomp $line;
+        $eigs .= $line . ' ';
+      }
+      $eigs =~ s/\s+<\/eigenvalues>//;
+      
+      my @eigs = split( ' ', $eigs );
+      if( $spin == 2 )
+      {
+        my $half = scalar @eigs / 2;
+        my @t1 = @eigs[ 0, $half-1 ];
+        push @energies2, \@t1;
+        my @t2 = @eigs[ $half, scalar @eigs-1 ];
+        push @energies2_spin, \@t2;
+      }
+      else
+      {
+        push @energies2, \@eigs;
+      }
+    }
+  }
+  close $fh2;
+
+  if( scalar @energies1 != scalar @energies2 )
+  { 
+    die "K-point mismatch between split DFT runs\n";
+  }
+  my @energies;
+  for( my $i = 0; $i < scalar @energies1; $i++ )
+  {
+    #TODO: Not sure this is necessary or even works
+    push @energies, \@{ $energies1[$i] };
+    push @energies, \@{ $energies2[$i] };
+  }
+  if( $spin == 2 )
+  {
+    for( my $i = 0; $i < scalar @energies1; $i++ )
+    {
+      #TODO: Not sure this is necessary or even works
+      push @energies, \@{ $energies1_spin[$i] };
+      push @energies, \@{ $energies2_spin[$i] };
+    }
+  }
+
+  return @energies;
+  
 }
 
 1;

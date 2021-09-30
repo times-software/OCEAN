@@ -145,6 +145,7 @@ copyAndCompare( $newDftData->{'scf'}, $commonOceanData->{'dft'}->{'den'}, $dftDa
 copyAndCompare( $newDftData->{'scf'}, $commonOceanData->{'dft'}->{'den'}, $dftData->{'scf'},
                 $fake, \@scfSecondaryList );
 
+checkSetGamma( $newDftData->{'scf'} );
 # Computer information
 $newDftData->{'computer'} = {};
 my @computerList = ( "cpu_factors", "cpu_square_factors", "ncpus", "para_prefix", "ser_prefix" );
@@ -175,7 +176,7 @@ if( $newDftData->{'scf'}->{'complete'} ) {
       if( exists $dftData->{'bse'}->{'complete'} );
 
   # If SCF already run, copy additional info from previous time
-  my @scfCopyList = ( "npool", "ncpus" );
+  my @scfCopyList = ( "npool", "ncpus", "fermi", "etot", "time", "version", "nelec", "lowest", "highest" );
   copyAndCompare( $newDftData->{'scf'}, $dftData->{'scf'}, $dftData->{'scf'}, $fake, \@scfCopyList );
 
 #  my @bseCopyList = ( "")
@@ -211,6 +212,8 @@ copyAndCompare( $newDftData->{'bse'}, $commonOceanData->{'bse'}, $dftData->{'bse
 copyAndCompare( $newDftData->{'bse'}, $commonOceanData->{'calc'}, $dftData->{'bse'},
                 $newDftData->{'bse'}, [ 'photon_q', 'nonzero_q' ] );
 
+checkSetGamma( $newDftData->{'bse'} );
+
 # Last item for BSE -- if bands requested is less than those done don't re-run!
 $newDftData->{'bse'}->{'nbands'} = $commonOceanData->{'bse'}->{'nbands'};
 if( $newDftData->{'bse'}->{'complete'} )
@@ -226,6 +229,12 @@ if( $newDftData->{'bse'}->{'complete'} )
   }
 }
 
+if( $newDftData->{'bse'}->{'complete'} )
+{   
+  my @bseCopyList = ( "npool", "ncpus", "fermi", "etot", "time", "version", "nelec", "lowest", "highest" );
+  copyAndCompare( $newDftData->{'bse'}, $dftData->{'bse'}, $dftData->{'bse'}, $fake, \@bseCopyList );
+}
+
 
 ### SCREEN
 my @screenList = ( "toldfe" );
@@ -239,6 +248,7 @@ copyAndCompare( $newDftData->{'screen'}, $commonOceanData->{'dft'}->{'screen'}, 
 @screenList = ( "kmesh", "kshift" );
 copyAndCompare( $newDftData->{'screen'}, $commonOceanData->{'screen'}, $dftData->{'screen'},
                 $newDftData->{'screen'}, \@screenList );
+checkSetGamma( $newDftData->{'screen'} );
 
 # Last item for screen -- if bands requested is less than those done don't re-run!
 $newDftData->{'screen'}->{'nbands'} = $commonOceanData->{'screen'}->{'nbands'};
@@ -253,6 +263,18 @@ if( $newDftData->{'screen'}->{'complete'} )
   {
     $newDftData->{'screen'}->{'complete'} = JSON::PP::false;
   }
+}
+
+if( $newDftData->{'screen'}->{'complete'} )
+{
+  my @screenCopyList = ( "npool", "ncpus", "fermi", "etot", "time", "version", "nelec", "lowest", "highest" );
+  copyAndCompare( $newDftData->{'screen'}, $dftData->{'screen'}, $dftData->{'screen'}, $fake, \@screenCopyList );
+}
+
+$newDftData->{'screen'}->{'enable'} = JSON::PP::true;
+if( $commonOceanData->{'calc'}->{'mode'} eq 'val' )
+{
+  $newDftData->{'screen'}->{'enable'} = JSON::PP::false unless( $commonOceanData->{'screen'}->{'mode'} eq 'grid' );
 }
 
 print "Done parsing input for DFT stage\n";
@@ -318,13 +340,63 @@ unless( $newDftData->{'potential'}->{'complete'} ) {
 }
 
 
+# Time for SCREENING states
+if( $newDftData->{'screen'}->{'enable'} ) {
+  unless( $newDftData->{'screen'}->{'complete'} ) {
+    print "Running DFT for screening states\n";
+
+    my $errorCode = QErunNSCF($newDftData, $newDftData->{'screen'}, 0 );
+    
+    exit $errorCode if( $errorCode );
+
+    $newDftData->{'screen'}->{'complete'} = JSON::PP::true;
+
+    open OUT, ">", "dft.json" or die;
+    print OUT $json->encode($newDftData);
+    close OUT;
+    print "DFT for screening states complete\n";
+  }
+}
+
+
 # Time for BSE final states
 unless( $newDftData->{'bse'}->{'complete'} ) {
   print "Running DFT for BSE basis states\n";
 
   
-  QErunNSCF($newDftData, 0 );
+  my $errorCode = QErunNSCF($newDftData, $newDftData->{'bse'}, 0 );
   
+  exit $errorCode if( $errorCode );
+
+  $newDftData->{'bse'}->{'complete'} = JSON::PP::true;
+
+  open OUT, ">", "dft.json" or die;
+  print OUT $json->encode($newDftData);
+  close OUT;
+  print "DFT for BSE final states complete\n";
+}
+
+
+# touch up Fermi if insulator
+if( $newDftData->{'general'}->{'occopt'} == 1 )
+{
+  my $low = $newDftData->{'scf'}->{'lowest'};
+  $low = $newDftData->{'bse'}->{'lowest'} if ( $newDftData->{'bse'}->{'lowest'} < $low );
+
+  my $high = $newDftData->{'scf'}->{'highest'};
+  $high = $newDftData->{'bse'}->{'highest'} if ( $newDftData->{'bse'}->{'highest'} > $high );
+
+  if( $newDftData->{'screen'}->{'enable'} )
+  {
+    $low = $newDftData->{'screen'}->{'lowest'} if ( $newDftData->{'screen'}->{'lowest'} < $low );
+    $high = $newDftData->{'screen'}->{'highest'} if ( $newDftData->{'screen'}->{'highest'} > $high );
+  }
+
+  $newDftData->{'scf'}->{'fermi'} = ($low + $high)/2;
+  open OUT, ">", "dft.json" or die;
+  print OUT $json->encode($newDftData);
+  close OUT;
+  print "DFT for BSE final states complete\n";
 }
 
 exit 1;
@@ -378,6 +450,7 @@ sub copyAndCompare
     }
 
     recursiveCompare( $newRef->{$t}, $oldRef->{$t}, $complete);
+    print "DIFF:   $t\n" unless( $complete->{'complete'} );
   }
 
 }
@@ -407,7 +480,7 @@ sub recursiveCompare
   }
   else
   {
-    print "#!  $newRef  $oldRef\n";
+#    print "#!  $newRef  $oldRef\n";
     if( looks_like_number( $newRef ) )
     {
       $complete->{'complete'} = JSON::PP::false unless( $newRef == $oldRef );
@@ -419,3 +492,21 @@ sub recursiveCompare
   }
 }
 
+sub checkSetGamma
+{
+  my $hashRef = $_[0];
+
+  my $minQ = 0.0000001;
+
+  if( $hashRef->{'kmesh'}[0] == 1 && $hashRef->{'kmesh'}[1] == 1 && $hashRef->{'kmesh'}[1] == 1 
+      && abs($hashRef->{'kshift'}[0]) < $minQ && abs($hashRef->{'kshift'}[1]) < $minQ 
+      && abs($hashRef->{'kshift'}[0]) < $minQ )
+  {
+    $hashRef->{'isGamma'} = JSON::PP::true;
+  } 
+  else
+  {
+    $hashRef->{'isGamma'} = JSON::PP::false;
+  }
+
+}
