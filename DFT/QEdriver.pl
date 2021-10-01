@@ -426,14 +426,17 @@ sub QEparseDensityPotential
   my $flag;
   my $filplot;
   my $infile;
+  my $convert;
   if( $type eq 'density' ) {
     $flag = 0;
     $filplot = 'system.rho';
     $infile = 'pp.in';
+    $convert = "system.rho rhoofr";
   } elsif( $type eq 'potential' ) {
     $flag = 1;
     $filplot = 'system.pot';
     $infile = 'pp2.in';
+    $convert = "system.pot potofr";
   } else {
     return 1;
   }
@@ -461,6 +464,9 @@ sub QEparseDensityPotential
   my $outfile = $infile;
   $outfile =~ s/\.in/.out/;
   QErunPP( $hashRef->{'general'}->{'redirect'}, $prefix, $cmdLine, "$infile", "$outfile" );
+
+  system("$ENV{'OCEAN_BIN'}/qe2rhoofr.pl $convert" ) == 0 
+    or die "Failed to convert $type\n$!\n";
 
   return 0;
 }
@@ -832,7 +838,7 @@ sub QEparseEnergies
     }
   }
 
-  
+  $specificHashRef->{'brange'} = \@b ;
   
   open OUT, ">", "QE_EIGS.txt" or die;
   my $nk = $specificHashRef->{'kmesh'}[0] * $specificHashRef->{'kmesh'}[1] * $specificHashRef->{'kmesh'}[2];

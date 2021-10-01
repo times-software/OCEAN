@@ -17,6 +17,7 @@ use Cwd;
 use File::Spec::Functions;
 use Storable qw(dclone);
 use Scalar::Util qw( looks_like_number ); 
+use Digest::MD5 qw(md5_hex);
 
 use FindBin;
 use lib $FindBin::Bin;
@@ -307,6 +308,14 @@ unless( $newDftData->{'scf'}->{'complete'} )
 
   $newDftData->{'scf'}->{'complete'} = JSON::PP::true;
 
+  my $s = $json->encode($newDftData->{'psp'}->{'pphash'});
+  foreach ( 'general', 'scf', 'structure' )
+  {
+    $s .= $json->encode($newDftData->{$_});
+  }
+#  print "$s\n\n\n";
+  $newDftData->{'scf'}->{'hash'} = md5_hex( $s );
+
   open OUT, ">", "dft.json" or die;
   print OUT $json->encode($newDftData);
   close OUT;
@@ -318,6 +327,33 @@ unless( $newDftData->{'density'}->{'complete'} ) {
   print "Exporting density from SCF\n";
   my $errorCode = QEparseDensityPotential( $newDftData, "density" );
   exit $errorCode if( $errorCode != 0 );
+
+
+  open OUT, ">", "avecsinbohr.ipt" or die "Failed to open avecsinbohr.ipt\n$!";
+  for( my $i = 0; $i < 3; $i++ )
+  {
+    printf  OUT "%s  %s  %s\n", $commonOceanData->{'structure'}->{'avecs'}[$i][0], 
+                                $commonOceanData->{'structure'}->{'avecs'}[$i][1], 
+                                $commonOceanData->{'structure'}->{'avecs'}[$i][2];
+  }
+  close OUT;
+
+  open OUT, ">", "bvecs" or die "Failed to open bvecs\n$!";
+  for( my $i = 0; $i < 3; $i++ )
+  {
+    printf  OUT "%s  %s  %s\n", $commonOceanData->{'structure'}->{'bvecs'}[$i][0], 
+                                $commonOceanData->{'structure'}->{'bvecs'}[$i][1], 
+                                $commonOceanData->{'structure'}->{'bvecs'}[$i][2];
+  }
+  close OUT;
+
+  system("$ENV{'OCEAN_BIN'}/rhoofg.x") == 0  or die "Failed to run rhoofg.x\n";
+  system("wc -l rhoG2 > rhoofg") == 0 or die "$!\n";
+  system("sort -n -k 6 rhoG2 >> rhoofg") == 0 or die "$!\n";
+
+  unlink( "avecsinbohr.ipt" );
+  unlink( "bvecs" );
+  unlink( "rhoG2" );
 
   $newDftData->{'density'}->{'complete'} = JSON::PP::true;
   open OUT, ">", "dft.json" or die;
@@ -331,6 +367,7 @@ unless( $newDftData->{'potential'}->{'complete'} ) {
   print "Exporting potential from SCF\n";
   my $errorCode = QEparseDensityPotential( $newDftData, "potential" );
   exit $errorCode if( $errorCode != 0 );
+
 
   $newDftData->{'potential'}->{'complete'} = JSON::PP::true;
   open OUT, ">", "dft.json" or die;
@@ -350,6 +387,13 @@ if( $newDftData->{'screen'}->{'enable'} ) {
     exit $errorCode if( $errorCode );
 
     $newDftData->{'screen'}->{'complete'} = JSON::PP::true;
+    my $s = $json->encode($newDftData->{'psp'}->{'pphash'});
+    foreach ( 'general', 'screen', 'structure', 'scf' )
+    {
+      $s .= $json->encode($newDftData->{$_});
+    }
+#    print "$s\n\n\n";
+    $newDftData->{'screen'}->{'hash'} = md5_hex( $s );
 
     open OUT, ">", "dft.json" or die;
     print OUT $json->encode($newDftData);
@@ -369,6 +413,14 @@ unless( $newDftData->{'bse'}->{'complete'} ) {
   exit $errorCode if( $errorCode );
 
   $newDftData->{'bse'}->{'complete'} = JSON::PP::true;
+
+  my $s = $json->encode($newDftData->{'psp'}->{'pphash'});
+  foreach ( 'general', 'bse', 'structure', 'scf' )
+  {
+    $s .= $json->encode($newDftData->{$_});
+  }
+#  print "$s\n\n\n";
+  $newDftData->{'bse'}->{'hash'} = md5_hex( $s );
 
   open OUT, ">", "dft.json" or die;
   print OUT $json->encode($newDftData);
