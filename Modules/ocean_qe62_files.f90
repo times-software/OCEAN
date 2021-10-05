@@ -511,8 +511,10 @@ module ocean_qe62_files
     integer, intent( inout ) :: ierr
     !
     integer :: i, j, nkpts, nbv, nbc, ierr_
+    integer :: test_brange(4), test_nk, test_nspin
     logical :: ex
     character(len=128) :: tmp
+    real(DP), allocatable :: tve(:,:,:), tce(:,:,:)
     real(DP) :: qinb(3)
     real(DP), parameter :: tol = 0.0000001_DP
     !
@@ -594,16 +596,51 @@ module ocean_qe62_files
       nbv = brange(2)-brange(1) + 1
       nbc = brange(4)-brange(3) + 1
       allocate( internal_val_energies( nbv, nkpts, nspin ), internal_con_energies( nbc, nkpts, nspin ) )
-      open( unit=99, file='enkfile_raw', form='formatted', status='old')
-      do j = 1, nspin
-        do i = 1, nkpts
-          read(99,*) internal_val_energies( :, i, j )
-          read(99,*) internal_con_energies( :, i, j )
+
+      inquire( file='enkfile_raw', exist=ex )
+      if( ex ) then
+        open( unit=99, file='enkfile_raw', form='formatted', status='old')
+        do j = 1, nspin
+          do i = 1, nkpts
+            read(99,*) internal_val_energies( :, i, j )
+            read(99,*) internal_con_energies( :, i, j )
+          enddo
         enddo
-      enddo
-      close(99)
-      internal_val_energies( :, :, : ) = internal_val_energies( :, :, : ) * 0.5_DP
-      internal_con_energies( :, :, : ) = internal_con_energies( :, :, : ) * 0.5_DP
+        close(99)
+        internal_val_energies( :, :, : ) = internal_val_energies( :, :, : ) * 0.5_DP
+        internal_con_energies( :, :, : ) = internal_con_energies( :, :, : ) * 0.5_DP
+      else
+        inquire( file='QE_EIGS.txt', exist=ex )
+        if( .not. ex ) then
+          ierr = 6572
+          return
+        endif
+
+        open( unit=99, file='QE_EIGS.txt', form='formatted', status='old')
+        read(99,*) test_brange(:), test_nk, test_nspin
+        if( test_brange(1) .gt. brange(1) ) ierr = 6573
+        if( test_brange(2) .lt. brange(2) ) ierr = 6574
+        if( test_brange(3) .gt. brange(3) ) ierr = 6575
+        if( test_brange(4) .lt. brange(4) ) ierr = 6576
+        if( test_nk .ne. nkpts ) ierr = 6577
+        if( test_nspin .ne. nspin ) ierr = 6578
+        if( ierr .ne. 0 ) return
+
+        allocate( tve( test_brange(1):test_brange(2), nkpts, nspin ),  &
+                  tce( test_brange(3):test_brange(4), nkpts, nspin ) )
+        do j = 1, nspin
+          do i = 1, nkpts
+            read(99,*) tve( :, i, j )
+            read(99,*) tve( :, i, j )
+          enddo
+        enddo
+        close( 99 )
+        internal_val_energies( :, :, : ) = tve( brange(1):brange(2), :, : )
+        internal_con_energies( :, :, : ) = tce( brange(3):brange(4), :, : )
+        deallocate( tve, tce )
+
+
+      endif
 
     endif
 #ifdef MPI

@@ -1,5 +1,5 @@
 #!/usr/bin/perl
-# Copyright (C) 2014, 2016 - 2019 OCEAN collaboration
+# Copyright (C) 2021 OCEAN collaboration
 #
 # This file is part of the OCEAN project and distributed under the terms 
 # of the University of Illinois/NCSA Open Source License. See the file 
@@ -15,6 +15,7 @@ use JSON::PP;
 use Cwd 'abs_path';
 use Cwd;
 use File::Spec::Functions;
+use File::Copy;
 use Storable qw(dclone);
 use Scalar::Util qw( looks_like_number );
 
@@ -84,8 +85,22 @@ $newPrepData->{'bse'}->{'complete'} = JSON::PP::false
     unless( exists $prepData->{'bse'} && exists $prepData->{'bse'}->{'complete'} 
             && $prepData->{'bse'}->{'complete'});
 
+copyAndCompare( $newPrepData->{'bse'}, $commonOceanData->{'dft'}, $prepData->{'bse'},
+                $newPrepData->{'bse'}, [ 'program' ] );
+
 copyAndCompare( $newPrepData->{'bse'}, $dftData->{'bse'}, $prepData->{'bse'},
                 $newPrepData->{'bse'}, [ 'hash' ] );
+
+copyAndCompare( $newPrepData->{'bse'}, $dftData->{'scf'}, $prepData->{'bse'},
+                $newPrepData->{'bse'}, [ 'fermi' ] );
+
+copyAndCompare( $newPrepData->{'bse'}, $commonOceanData->{'screen'}, $prepData->{'bse'},
+                $newPrepData->{'bse'}, [ 'core_offset' ] );
+
+my $fake->{ 'complete' } = JSON::PP::false;
+copyAndCompare( $newPrepData->{'bse'}, $commonOceanData->{'computer'}, $prepData->{'bse'},
+                $newPrepData->{'bse'}, [ 'para_prefix' ] );
+
 
 
 ##### currently needed files
@@ -151,10 +166,10 @@ if( $tmels )
   $newPrepData->{'bse'}->{'tmels'} = JSON::PP::true;
 }
 
-# prep.tmels
-# prep.cks
 
-# prep.u2  ## TODO: non-interacting spectra don't need u2, but do need cks or tmels
+open OUT, ">", "prep.json" or die;
+print OUT $json->encode($newPrepData);
+close OUT;
 
 unless( $newPrepData->{'bse'}->{'complete'} )
 {
@@ -164,9 +179,66 @@ unless( $newPrepData->{'bse'}->{'complete'} )
 
   writeOceanPrepInput( $newPrepData->{'bse'});
 
+  my @extraFiles = ("specpnt.5", "Pquadrature", "sphpts" );
+  foreach( @extraFiles )
+  {
+    copy( catfile( $ENV{'OCEAN_BIN'},$_), $_ ) or die $!;
+  }
+
+  if( $newPrepData->{'bse'}->{'program'} eq 'qe' )
+  {
+    copyLinkQE( $newPrepData->{'bse'});
+  }
+  else
+  {
+    die "Bad DFT: $newPrepData->{'program'}\n";
+  }
+
+#######
+  #Stupid zpa
+  if( -l "zpawinfo" )  # zpawinfo is an existing link
+  { 
+    unlink "zpawinfo" or die "Problem cleaning old 'zpawinfo' link\n$!";
+  }
+  elsif(  -d "zpawinfo" ) #or zpawinfo is existing directory
+  { 
+    rmtree( "zpawinfo" );
+  }
+  elsif( -e "zpawinfo" ) #or zpawinfo is some other file
+  { 
+    unlink "zpawinfo";
+  }
+  if( $newPrepData->{'bse'}->{'cks'} )
+  {
+    print catdir( updir(), updir(), "OPF", "zpawinfo" ) . "\n";
+    symlink( catdir( updir(), updir(), "OPF", "zpawinfo" ), "zpawinfo" ) == 1 or die "Failed to link zpawinfo\n$!";
+  }
+
+
+  print "$newPrepData->{'bse'}->{'para_prefix'} $ENV{'OCEAN_BIN'}/ocean_prep.x > ocean_prep.log 2>&1\n";
+  system("$newPrepData->{'bse'}->{'para_prefix'} $ENV{'OCEAN_BIN'}/ocean_prep.x > ocean_prep.log 2>&1" );
+  if ($? == -1) {
+      print "failed to execute: $!\n";
+      die;
+  }
+  elsif ($? & 127) {
+      printf "ocean_prep died with signal %d, %s coredump\n",
+      ($? & 127),  ($? & 128) ? 'with' : 'without';
+      die;
+  }
+  else {
+    my $errorCode = $? >> 8;
+    if( $errorCode != 0 ) {
+      die "CALCULATION FAILED\n  ocean_prep exited with value $errorCode\n";
+    }
+    else {
+      printf "ocean_prep exited successfully with value %d\n", $errorCode;
+    }
+  }
+
+
 
   chdir updir();
-#######
   
   
 
@@ -177,6 +249,58 @@ unless( $newPrepData->{'bse'}->{'complete'} )
 
 
 exit 1;
+
+
+sub copyLinkQE
+{
+  my ($hashRef) = @_;
+
+  if( -l "Out" )  # Out is an existing link
+  {
+    unlink "Out" or die "Problem cleaning old 'Out' link\n$!";
+  }
+  elsif(  -d "Out" ) #or Out is existing directory
+  {
+    rmtree( "Out" );
+  }
+  elsif( -e "Out" ) #or Out is some other file
+  {
+    unlink "Out";
+  }
+
+  my $rundir = "k" . $hashRef->{'kmesh'}[0] . '_' . $hashRef->{'kmesh'}[1] . '_'
+             . $hashRef->{'kmesh'}[2] . "q" . $hashRef->{'kshift'}[0] . '_'
+             . $hashRef->{'kshift'}[1] . '_'  . $hashRef->{'kshift'}[2];
+  my $dirname = catdir( updir(), updir(), "DFT", $rundir, "Out" );
+  symlink ($dirname, "Out") == 1 or die "Failed to link Out\n$!";
+
+  if( -e catfile( "Out", "system.save", "data-file-schema.xml" ) )
+  {
+    print "Detected QE62-style DFT run\n";
+    open TMP, ">", "wvfn.ipt" or die "Failed to open wvfn.ipt for writing\n$!";
+    print TMP "qe62\n";
+    close TMP;
+
+    copy( catfile( updir(), updir(), "DFT", $rundir, "QE_EIGS.txt"), "QE_EIGS.txt" );
+#    copy("../$rundir/enkfile", "enkfile_raw") or die "Failed to grab enkfile\n$!";
+  }
+  elsif( -e catfile( "Out", "system.save", "data-file.xml" ) )
+  {
+    print "Detected QE54-style DFT run\n";
+    open TMP, ">", "wvfn.ipt" or die "Failed to open wvfn.ipt for writing\n$!";
+    print TMP "qe54\n";
+    close TMP;
+  }
+  else
+  {
+    die "Failed to detect QE style!\n";
+  }
+
+  open TMP, ">", "prefix" or die $!;
+  print TMP "system\n";
+  close TMP;
+
+}
 
 sub writeOceanPrepInput
 {
@@ -280,9 +404,9 @@ sub writeOceanPrepInput
 
   open OUT, ">", "prep.cks" or die $!;
   if( $hashRef->{'cks'} ) {
-    print OUT ".true.\n";
+    print OUT "1\nNA 1\n";
   } else {
-    print OUT ".false.\n";
+    print OUT "0\n";
   } 
   close OUT;
 
@@ -294,8 +418,21 @@ sub writeOceanPrepInput
 #    {
 #      printf IN "%i  %i  %i\n", $hashRef->{'edges'}[$i][0], $hashRef->{'edges'}[$i][1], $hashRef->{'edges'}[$i][2];
 #    }
+    for( my $i = 0; $i < scalar @{$hashRef->{'edges'}}; $i++ )
+    {
+      print IN $hashRef->{'edges'}[$i] . "\n";
+    }
     close IN;
   }
+
+  open OUT, ">", "efermiinrydberg.ipt" or die $!;
+  print OUT $hashRef->{'fermi'}*2 . "\n";
+  close OUT;
+
+  open OUT, ">", "core_offset" or die $!;
+  print OUT $hashRef->{'core_offset'} . "\n";
+  close OUT;
+   
 }
 sub copyAndCompare
 { 

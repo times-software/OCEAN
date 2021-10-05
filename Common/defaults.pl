@@ -1332,13 +1332,13 @@ sub makeEdges
           my $N = $1 * 1;
           my $L = $2 * 1;
           my @tmp = ( $site, $Z, $N, $L );
-          push @edges, [ @tmp ];
+          push @edges, \@tmp;
         }
       }
     }
   }
 
-  $hashRef->{'calc'}->{'edges'} = [ @edges ];
+  $hashRef->{'calc'}->{'edges'} = \@edges;
     
 }
 
