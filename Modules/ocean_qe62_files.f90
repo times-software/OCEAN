@@ -631,12 +631,12 @@ module ocean_qe62_files
         do j = 1, nspin
           do i = 1, nkpts
             read(99,*) tve( :, i, j )
-            read(99,*) tve( :, i, j )
+            read(99,*) tce( :, i, j )
           enddo
         enddo
         close( 99 )
-        internal_val_energies( :, :, : ) = tve( brange(1):brange(2), :, : )
-        internal_con_energies( :, :, : ) = tce( brange(3):brange(4), :, : )
+        internal_val_energies( :, :, : ) = tve( brange(1):brange(2), :, : ) * 0.5_DP
+        internal_con_energies( :, :, : ) = tce( brange(3):brange(4), :, : ) * 0.5_DP
         deallocate( tve, tce )
 
 
