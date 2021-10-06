@@ -177,12 +177,12 @@ if( $newDftData->{'scf'}->{'complete'} ) {
       if( exists $dftData->{'bse'}->{'complete'} );
 
   # If SCF already run, copy additional info from previous time
-  my @scfCopyList = ( "npool", "ncpus", "fermi", "etot", "time", "version", "nelec", "lowest", "highest" );
+  my @scfCopyList = ( "npool", "ncpus", "fermi", "etot", "time", "version", "nelec", "lowest", "highest", "hash" );
   copyAndCompare( $newDftData->{'scf'}, $dftData->{'scf'}, $dftData->{'scf'}, $fake, \@scfCopyList );
 
 #  my @bseCopyList = ( "")
   
-  copyAndCompare( $newDftData->{'bse'}, $dftData->{'bse'}, $dftData->{'bse'}, $fake, [ "completed" ] );
+#  copyAndCompare( $newDftData->{'bse'}, $dftData->{'bse'}, $dftData->{'bse'}, $fake, [ "completed" ] );
 
 } else {
   print "Need SCF run\n";
@@ -232,7 +232,7 @@ if( $newDftData->{'bse'}->{'complete'} )
 
 if( $newDftData->{'bse'}->{'complete'} )
 {   
-  my @bseCopyList = ( "npool", "ncpus", "fermi", "etot", "time", "version", "nelec", "lowest", "highest" );
+  my @bseCopyList = ( "npool", "ncpus", "fermi", "etot", "time", "version", "nelec", "lowest", "highest", "hash", "brange" );
   copyAndCompare( $newDftData->{'bse'}, $dftData->{'bse'}, $dftData->{'bse'}, $fake, \@bseCopyList );
 }
 
@@ -268,7 +268,7 @@ if( $newDftData->{'screen'}->{'complete'} )
 
 if( $newDftData->{'screen'}->{'complete'} )
 {
-  my @screenCopyList = ( "npool", "ncpus", "fermi", "etot", "time", "version", "nelec", "lowest", "highest" );
+  my @screenCopyList = ( "npool", "ncpus", "fermi", "etot", "time", "version", "nelec", "lowest", "highest", "hash", "brange" );
   copyAndCompare( $newDftData->{'screen'}, $dftData->{'screen'}, $dftData->{'screen'}, $fake, \@screenCopyList );
 }
 
@@ -492,6 +492,7 @@ sub copyAndCompare
     else
     {
       $newRef->{ $t } = dclone $commonRef->{ $t };
+#      recursiveTouch( $newRef->{ $t }  );
     }
     
     next unless( $complete->{'complete'} );
@@ -505,6 +506,22 @@ sub copyAndCompare
     print "DIFF:   $t\n" unless( $complete->{'complete'} );
   }
 
+}
+
+sub recursiveTouch
+{
+  my $newRef = $_[0];
+  if( ref( $newRef ) eq 'ARRAY' )
+  {
+    for( my $i = 0; $i < scalar @{ $newRef }; $i++ )
+    {
+      recursiveTouch( @{$newRef}[$i] );
+    }
+  }
+  else
+  {
+    $newRef*=1 if( looks_like_number( $newRef ) );
+  }
 }
 
 

@@ -17,9 +17,14 @@ sub QErunNSCF
 {
   my ( $hashRef, $specificHashRef, $shift ) = @_;
 
-  my $dirname = "k" . $specificHashRef->{'kmesh'}[0] . '_' . $specificHashRef->{'kmesh'}[1] . '_' 
-              . $specificHashRef->{'kmesh'}[2] . "q" . $specificHashRef->{'kshift'}[0] . '_' 
-              . $specificHashRef->{'kshift'}[1] . '_'  . $specificHashRef->{'kshift'}[2];
+#  my $dirname = "k" . $specificHashRef->{'kmesh'}[0] . '_' . $specificHashRef->{'kmesh'}[1] . '_' 
+#              . $specificHashRef->{'kmesh'}[2] . "q" . $specificHashRef->{'kshift'}[0] . '_' 
+#              . $specificHashRef->{'kshift'}[1] . '_'  . $specificHashRef->{'kshift'}[2];
+
+  my $dirname = sprintf "k%i_%i_%iq%f_%f_%f", $specificHashRef->{'kmesh'}[0], 
+                    $specificHashRef->{'kmesh'}[1], $specificHashRef->{'kmesh'}[2], 
+                    $specificHashRef->{'kshift'}[0], $specificHashRef->{'kshift'}[1],
+                    $specificHashRef->{'kshift'}[2];
 
   print "$dirname\n";
 
@@ -62,8 +67,8 @@ sub QErunNSCF
   # full run
 
   print "$ncpus  $npool\n";
-  $specificHashRef->{'ncpus'} = $ncpus;
-  $specificHashRef->{'npool'} = $npool;
+  $specificHashRef->{'ncpus'} = $ncpus*1;
+  $specificHashRef->{'npool'} = $npool*1;
 
   my $prefix = $hashRef->{'computer'}->{'para_prefix'};
   $prefix =~ s/$hashRef->{'computer'}->{'ncpus'}/$ncpus/ if( $hashRef->{'computer'}->{'ncpus'} != $ncpus );
@@ -188,8 +193,8 @@ sub QErunDensity
   # full run
 
   print "$ncpus  $npool\n";
-  $hashRef->{'scf'}->{'ncpus'} = $ncpus;
-  $hashRef->{'scf'}->{'npool'} = $npool;
+  $hashRef->{'scf'}->{'ncpus'} = $ncpus*1;
+  $hashRef->{'scf'}->{'npool'} = $npool*1;
 
   my $prefix = $hashRef->{'computer'}->{'para_prefix'};
   $prefix =~ s/$hashRef->{'computer'}->{'ncpus'}/$ncpus/ if( $hashRef->{'computer'}->{'ncpus'} != $ncpus );
@@ -628,12 +633,16 @@ sub QEprintInput
         .  "  ntyp = " . scalar @{$generalRef->{'structure'}->{'typat'}} . "\n"
         .  "  noncolin = $noncolin\n" 
         .  "  lspinorb = $spinorb\n"
-        .  "  ecutwfc = $generalRef->{'general'}->{'ecut'}\n"
+#        .  "  ecutwfc = $generalRef->{'general'}->{'ecut'}\n"
+        . (sprintf "  ecutwfc = %i\n", $generalRef->{'general'}->{'ecut'})
         .  "  occupations = \'$occopt\'\n"
         .  "  smearing = $QE_smear[$generalRef->{'general'}->{'occopt'}]\n"
-        .  "  degauss = $generalRef->{'general'}->{'degauss'}\n"
-        .  "  nspin  = $generalRef->{'general'}->{'nspin'}\n"
-        .  "  tot_charge  = $generalRef->{'general'}->{'tot_charge'}\n"
+        . (sprintf "  degauss = %g\n  nspin  = %i\n  tot_charge = %g\n", 
+              $generalRef->{'general'}->{'degauss'}, $generalRef->{'general'}->{'nspin'},
+              $generalRef->{'general'}->{'tot_charge'})
+#        .  "  degauss = $generalRef->{'general'}->{'degauss'}\n"
+#        .  "  nspin  = $generalRef->{'general'}->{'nspin'}\n"
+#        .  "  tot_charge  = $generalRef->{'general'}->{'tot_charge'}\n"
         .  "  nosym = $nosyminv\n"
         .  "  noinv = $nosyminv\n";
   unless( $generalRef->{'general'}->{'functional'} =~ m/default/ )
@@ -674,9 +683,11 @@ sub QEprintInput
 #  }
   print $fh "/\n"
         .  "&electrons\n"
-        .  "  conv_thr = $specificRef->{'toldfe'}\n"
-        .  "  mixing_beta = $generalRef->{'general'}->{'mixing'}\n"
-        .  "  electron_maxstep = $generalRef->{'general'}->{'nstep'}\n"
+#        .  "  conv_thr = $specificRef->{'toldfe'}\n"
+        .  (sprintf "  conv_thr = %g\n", $specificRef->{'toldfe'})
+#        .  "  mixing_beta = $generalRef->{'general'}->{'mixing'}\n"
+        . (sprintf "  electron_maxstep = %i\n", $generalRef->{'general'}->{'nstep'})
+#        .  "  electron_maxstep = $generalRef->{'general'}->{'nstep'}\n"
         .  "  startingwfc = \'$generalRef->{'general'}->{'startingwfc'}\'\n"
         .  "  startingpot = \'$startingPot\'\n"
         .  "  diagonalization = \'$generalRef->{'general'}->{'diagonalization'}\'\n"
