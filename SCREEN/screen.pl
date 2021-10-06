@@ -1,5 +1,5 @@
 #!/usr/bin/perl
-# Copyright (C) 2010, 2013 - 2019 OCEAN collaboration
+# Copyright (C) 2010, 2013 - 2021 OCEAN collaboration
 #
 # This file is part of the OCEAN project and distributed under the terms 
 # of the University of Illinois/NCSA Open Source License. See the file 
@@ -15,6 +15,11 @@ use Cwd 'abs_path';
 
 use POSIX;
 
+require JSON::PP;
+use JSON::PP;
+use Storable qw(dclone);
+use Scalar::Util qw( looks_like_number );
+
 ###########################
 if (! $ENV{"OCEAN_BIN"} ) {
   $0 =~ m/(.*)\/screen\.pl/;
@@ -26,6 +31,191 @@ if (! $ENV{"OCEAN_BIN"} ) {
 }
 if (! $ENV{"OCEAN_WORKDIR"}){ $ENV{"OCEAN_WORKDIR"} = `pwd` . "../" ; }
 ###########################
+
+
+my $dataFile = catfile( updir(), "Common", "postDefaultsOceanDatafile" );
+if( -e $dataFile )
+{
+  my $json = JSON::PP->new;
+  $json->canonical([1]);
+  $json->pretty([1]);
+
+
+  my $commonOceanData;
+  if( open( my $in, "<", $dataFile ))
+  {
+    local $/ = undef;
+    $commonOceanData = $json->decode(<$in>);
+    close($in);
+  }
+  else
+  {
+    die "Failed to open config file $dataFile\n$!";
+  }
+
+  $dataFile = catfile( updir(), "DFT", "dft.json" );
+  my $dftData;
+  if( open( my $in, "<", $dataFile ))
+  {
+    local $/ = undef;
+    $dftData = $json->decode(<$in>);
+    close($in);
+  }
+  else
+  {
+    die "Failed to open config file $dataFile\n$!";
+  }
+  #TODO: add in PREP stage for legacy wave function file support here
+
+  my $screenData;
+  $dataFile = "screen.json";
+  if( -e $dataFile && open( my $in, "<", $dataFile ) )
+  {
+    local $/ = undef;
+    $screenData = $json->decode(<$in>);
+    close($in);
+  }
+
+
+  # Quit if a normal valence calculation (no need for RPA screening)
+  if( $commonOceanData->{'calc'}->{'mode'} eq 'val' )
+  {
+    unless( $commonOceanData->{'screen'}->{'mode'} eq 'grid' ) 
+    {
+      print "SCREEN stage not needed for valence w/ HLL screening\n";
+      exit 0;
+    }
+  }
+
+
+  #TODO:: cut this down and make it better
+  my @ExtraFiles = ("specpnt", "Pquadrature", "hqp", "lqp", "EvenQuadHalf.txt" );
+  foreach my $f (@ExtraFiles)
+  {
+    copy( catfile( $ENV{"OCEAN_BIN"}, $f ), $f );
+  }
+
+  my $newScreenData;
+
+
+  my $fake->{ 'complete' } = JSON::PP::false;
+  $newScreenData->{'computer'} = {};
+  copyAndCompare( $newScreenData->{'computer'}, $commonOceanData->{'computer'}, $screenData->{'computer'},
+                  $fake, [ 'para_prefix' ] );
+
+  $newScreenData->{'structure'} = {};
+  my @structList = ( 'avecs', 'bvecs', 'xred', 'znucl', 'typat', 'sites', 'elname' );
+  copyAndCompare( $newScreenData->{'structure'}, $commonOceanData->{'structure'}, $screenData->{'structure'},
+                  $fake, \@structList );
+
+  $newScreenData->{'general'} = {};
+  my $general->{'complete'} = JSON::PP::true;
+  copyAndCompare( $newScreenData->{'general'}, $commonOceanData->{'screen'},  $screenData->{'general'},
+                  $general, [ 'mode' ] );
+#  if( $newScreenData->{'general'}->{'mode'} eq 'core' ) {
+    copyAndCompare( $newScreenData->{'general'}, $commonOceanData->{'calc'},  $screenData->{'general'},
+                    $general, [ 'edges' ] );
+    copyAndCompare( $newScreenData->{'general'}, $commonOceanData->{'bse'},  $screenData->{'general'},
+                    $general, [ 'xmesh' ] );
+    buildSiteEdgeWyck( $newScreenData->{'general'}, $newScreenData->{'structure'} );
+#  } elsif( $newScreenData->{'general'}->{'mode'} eq 'grid' ) {
+
+#  } else {
+#    die "Malformed screening mode: $newScreenData->{'general'}->{'mode'}\n";
+#  }
+  
+  copyAndCompare( $newScreenData->{'general'}, $commonOceanData->{'dft'}, $screenData->{'general'},
+                  $general, ['program'] );
+
+
+  #### Site/xmesh density average
+  $newScreenData->{'density'}->{'complete'} = JSON::PP::true;
+  $newScreenData->{'density'}->{'complete'} = JSON::PP::false
+    unless( exists $screenData->{'density'}->{'complete'} && $screenData->{'density'}->{'complete'} );
+
+  copyAndCompare( $newScreenData->{'density'}, $dftData->{'scf'}, $screenData->{'density'},
+                  $newScreenData->{'density'}, [ 'hash' ] );
+
+  copyAndCompare( $newScreenData->{'density'}, $commonOceanData->{'screen'},  $screenData->{'density'},
+                  $newScreenData->{'density'}, [ 'mode' ] );
+  if( $newScreenData->{'density'}->{'mode'} eq 'core' )
+  {
+    copyAndCompare( $newScreenData->{'density'}, $commonOceanData->{'calc'},  $screenData->{'density'},
+                  $newScreenData->{'density'}, [ 'edges' ] )
+  } elsif( $newScreenData->{'density'}->{'mode'} eq 'grid' ) {
+    copyAndCompare( $newScreenData->{'density'}, $commonOceanData->{'bse'},  $screenData->{'density'},
+                  $newScreenData->{'density'}, [ 'xmesh' ] )
+
+  } else {
+    die "Malformed screening mode: $newScreenData->{'density'}->{'mode'}\n";
+  }
+  
+  if( $newScreenData->{'density'}->{'complete'} )
+  {
+    print "Skipping MPI_avg not enabled yet! The dev needs more coffee\n";
+    $newScreenData->{'density'}->{'complete'} = JSON::PP::false;
+  } 
+  #### Site/xmesh density average
+
+  #### SCREEN calculation
+  $newScreenData->{'screen'}->{'complete'} = JSON::PP::true;
+  $newScreenData->{'screen'}->{'complete'} = JSON::PP::false
+    unless( exists $screenData->{'screen'}->{'complete'} && $screenData->{'screen'}->{'complete'} );
+
+  my @screenList = ( "all_augment", "augment", "convertstyle", "grid", "inversionstyle", "kmesh", 
+                     "kshift", "mode", "nbands", "shells" );
+  copyAndCompare( $newScreenData->{'screen'}, $commonOceanData->{'screen'}, $screenData->{'screen'},
+                  $newScreenData->{'screen'}, \@screenList );
+
+  copyAndCompare( $newScreenData->{'screen'}, $dftData->{'screen'}, $screenData->{'screen'},
+                  $newScreenData->{'screen'}, [ 'hash', 'isGamma', 'brange', 'nspin' ] );
+  copyAndCompare( $newScreenData->{'screen'}, $commonOceanData->{'calc'},  $screenData->{'screen'},
+                  $newScreenData->{'screen'}, [ 'edges' ] ) ;
+  copyAndCompare( $newScreenData->{'screen'}, $dftData->{'scf'}, $screenData->{'screen'},
+                  $newScreenData->{'screen'}, [ 'fermi' ] );
+  copyAndCompare( $newScreenData->{'screen'}, $dftData->{'general'}, $screenData->{'screen'},
+                  $newScreenData->{'screen'}, [ 'nspin' ] );
+  
+
+  #### RPA calculation
+
+  open OUT, ">", "screen.json" or die;
+  print OUT $json->encode($newScreenData);
+  close OUT;
+
+  unless( $newScreenData->{'density'}->{'complete'} )
+  {
+    my $errorCode = runDensityAverage( $newScreenData );
+    if( $errorCode )
+    { 
+      die "Failed in runDensityAverage with code: $errorCode\n";
+    }
+
+    $newScreenData->{'density'}->{'complete'} = JSON::PP::true;
+    open OUT, ">", "screen.json" or die;
+    print OUT $json->encode($newScreenData);
+    close OUT;
+  }
+  
+
+
+  unless( $newScreenData->{'screen'}->{'complete'} )
+  {
+    print "SCREEN\n";
+    grabOPF();
+    buildMKRB( $newScreenData->{'screen'}, $newScreenData->{'general'} );
+    grabAngFile( $newScreenData->{'screen'} );
+    prepWvfn(  $newScreenData->{'screen'},  $newScreenData->{'general'} );
+    writeExtraFiles( $newScreenData->{'structure'}, $newScreenData->{'screen'}, $newScreenData->{'general'} );
+
+    open OUT, ">", "screen.json" or die;
+    print OUT $json->encode($newScreenData);
+    close OUT;
+  } 
+
+  exit 1;
+}
+
 
 
 my @CommonFiles = ("znucl", "opf.hfkgrid", "opf.fill", "opf.opts", "pplist", "screen.shells", 
@@ -1235,3 +1425,482 @@ sub interp
                         / (${ $xInRef }[$xstop] - ${ $xInRef }[$xstart] ) * $run;
   }
 }
+
+sub buildSiteEdgeWyck
+{
+  my ($genRef, $structRef) = @_;
+
+  $genRef->{'sitelist'} = [];
+  $genRef->{'edgelist'} = [];
+  $genRef->{'wyck'} = [];
+
+
+  my %countByName;
+  my @index;
+  for( my $i=0; $i< scalar @{$structRef->{'typat'}}; $i++ )
+  {
+    my $s = sprintf " %s %20.16f %20.16f %20.16f", $structRef->{'elname'}[$structRef->{'typat'}[$i]-1], 
+                  $structRef->{'xred'}[$i][0], $structRef->{'xred'}[$i][1], $structRef->{'xred'}[$i][2];
+    push @{$genRef->{'wyck'}}, $s;
+    if( exists $countByName{$structRef->{'elname'}[$structRef->{'typat'}[$i]-1]} )
+    {
+      $countByName{$structRef->{'elname'}[$structRef->{'typat'}[$i]-1]}++;
+    } else
+    {  
+      $countByName{$structRef->{'elname'}[$structRef->{'typat'}[$i]-1]}=1;
+    }
+    push @index, $countByName{$structRef->{'elname'}[$structRef->{'typat'}[$i]-1]};
+    print "$structRef->{'typat'}[$i]  $structRef->{'elname'}[$structRef->{'typat'}[$i]-1]  $countByName{$structRef->{'elname'}[$structRef->{'typat'}[$i]-1]}\n";
+    print $index[$i] . "\n";
+  }
+
+  my %edges;
+  my %sites;
+  foreach( @{$genRef->{'edges'}} )
+  {
+    $_ =~ m/^(\d+)\s+(\d+)\s+(\d+)/;
+    $sites{ $1 } = $structRef->{'znucl'}[$structRef->{'typat'}[$1-1]-1];
+    my $s = sprintf "%i %i %i", $structRef->{'znucl'}[$structRef->{'typat'}[$1-1]-1], $2, $3;
+    $edges{ $s } = 1;
+  }
+  foreach  my $key ( sort { $a <=> $b } keys %sites )
+  {
+#    push $genRef->{'sitelist'}, sprintf "%s    %s   %s %s %s",  $structRef->{'sites'}[$key-1],
+#    push $genRef->{'sitelist'}, sprintf "%s    %s   %s %s %s", $index[$key-1], 
+#            $sites{ $key }, $structRef->{'xred'}[$key-1][0],
+#            $structRef->{'xred'}[$key-1][1], $structRef->{'xred'}[$key-1][2];
+    push $genRef->{'sitelist'}, sprintf "%s %s %s", $structRef->{'elname'}[$structRef->{'typat'}[$key-1]-1],
+            $structRef->{'znucl'}[$structRef->{'typat'}[$key]-1], $index[$key-1];
+    print "$key\n";
+  }
+
+  my %zee;
+  foreach  my $key ( sort { $a <=> $b } keys %edges )
+  {
+    push $genRef->{'edgelist'}, $key;
+    $key =~ m/^(\d+)/;
+    $zee{$1} = 1;
+  }
+
+
+  ######
+  open OUT, ">", "sitelist" or die $!;
+  print OUT scalar @{$genRef->{'sitelist'}};
+  print OUT "\n";
+  foreach (@{$genRef->{'sitelist'}}) {
+    print OUT $_ . "\n";
+  }
+  close OUT;
+
+  open OUT, ">", "edgelist" or die $!;
+  foreach (@{$genRef->{'edgelist'}}) {
+    print OUT $_ . "\n";
+  }
+  close OUT;
+
+  open OUT, ">", "xyz.wyck" or die $!;
+  print OUT scalar @{$genRef->{'wyck'}};
+  print OUT "\n";
+  foreach (@{$genRef->{'wyck'}}) {
+    print OUT $_ . "\n";
+  }
+  close OUT;
+
+  open OUT, ">", "zeelist" or die $!;
+  print OUT ( scalar keys %zee ) . "\n";
+  foreach my $zee (keys %zee )
+  {
+    print OUT "$zee\n";
+  }
+  close OUT;
+}
+
+sub runDensityAverage
+{
+  my ($hashRef) = @_;
+
+  print "!!!!! Move file handling to correct order!!!!!\n";
+  open OUT, ">", "avecsinbohr.ipt" or die "Failed to open avecsinbohr.ipt\n$!";
+  for( my $i = 0; $i < 3; $i++ )
+  {
+    printf  OUT "%s  %s  %s\n", $hashRef->{'structure'}->{'avecs'}[$i][0],
+                                $hashRef->{'structure'}->{'avecs'}[$i][1],
+                                $hashRef->{'structure'}->{'avecs'}[$i][2];
+
+  }
+  close OUT;
+
+  open OUT, ">", "bvecs" or die "Failed to open bvecs\n$!";
+  for( my $i = 0; $i < 3; $i++ )
+  {
+    printf  OUT "%s  %s  %s\n", $hashRef->{'structure'}->{'bvecs'}[$i][0],
+                                $hashRef->{'structure'}->{'bvecs'}[$i][1],
+                                $hashRef->{'structure'}->{'bvecs'}[$i][2];
+
+  }
+  close OUT;
+
+  open OUT, ">", "screen.mode" or die $!;
+  print OUT $hashRef->{'density'}->{'mode'} . "\n";
+  close OUT;
+
+  if( $hashRef->{'density'}->{'mode'} eq 'core' ) {
+    my %sites;
+    foreach( @{$hashRef->{'density'}->{'edges'}} )
+    {
+      $_ =~ m/^(\d+)/;
+      $sites{ $1 } = 1;
+    }
+#    open OUT, ">", "sitelist.new" or die $!;
+#    my $n = keys %sites;
+#    print OUT "$n\n";
+#    foreach  my $key ( sort { $a <=> $b } keys %sites )
+#    {
+#      printf OUT "%s    %s %s %s\n",  $hashRef->{'structure'}->{'sites'}[$key-1], 
+#            $hashRef->{'structure'}->{'xred'}[$key-1][0], 
+#            $hashRef->{'structure'}->{'xred'}[$key-1][1], $hashRef->{'structure'}->{'xred'}[$key-1][2];
+#    }
+#    close OUT;
+    
+  } elsif ( $hashRef->{'density'}->{'mode'} eq 'grid' ) {
+    open OUT, ">", "xmesh.ipt" or die $!;
+    printf OUT "%i  %i  %i\n", $hashRef->{'density'}->{'xmesh'}[0], 
+            $hashRef->{'density'}->{'xmesh'}[1], $hashRef->{'density'}->{'xmesh'}[2];
+    close OUT;
+  }
+  else {
+    return 101;
+  }
+
+  copy( catfile( updir(), "DFT", "rhoofg" ), "rhoofg" );
+
+  print "$hashRef->{'computer'}->{'para_prefix'} $ENV{'OCEAN_BIN'}/mpi_avg.x > mpi_avg.log 2>&1\n";
+  system("$hashRef->{'computer'}->{'para_prefix'} $ENV{'OCEAN_BIN'}/mpi_avg.x > mpi_avg.log 2>&1" );
+  if ($? == -1) {
+      print "failed to execute: $!\n";
+      die;
+  }
+  elsif ($? & 127) {
+      printf "mpi_avg died with signal %d, %s coredump\n",
+      ($? & 127),  ($? & 128) ? 'with' : 'without';
+      die;
+  }
+  else {
+    my $errorCode = $? >> 8;
+    if( $errorCode != 0 ) {
+      die "CALCULATION FAILED\n  mpi_avg exited with value $errorCode\n";
+    }
+    else {
+      printf "mpi_avg exited successfully with value %d\n", $errorCode;
+    }
+  }
+  
+
+  return 0;
+}
+
+sub buildMKRB
+{
+  my ($hashRef, $genRef) = @_;
+
+  my $n = 0;
+  $n = scalar @{$hashRef->{'grid'}->{'ang'}} if( scalar @{$hashRef->{'grid'}->{'ang'}} > $n );
+  $n = scalar @{$hashRef->{'grid'}->{'deltar'}} if( scalar @{$hashRef->{'grid'}->{'deltar'}} > $n );
+  $n = scalar @{$hashRef->{'grid'}->{'rmode'}} if( scalar @{$hashRef->{'grid'}->{'rmode'}} > $n );
+  $n = scalar @{$hashRef->{'grid'}->{'shells'}} if( scalar @{$hashRef->{'grid'}->{'shells'}} > $n );
+
+  #TODO: Move this into screen_driver to support multiple Z's in a single run
+  if( $hashRef->{'grid'}->{'shells'}[0] <= 0 )
+  {
+    if( $hashRef->{'screen'}->{'mode'} eq 'grid' )
+    {
+      print "Warning. Negative value in screen.grid.shells doesn't make sense with valence grid calculation\n";
+      $hashRef->{'grid'}->{'shells'}[0] = 2 if( $hashRef->{'grid'}->{'shells'}[1] > 2 );
+      $hashRef->{'grid'}->{'shells'}[0] = $hashRef->{'grid'}->{'shells'}[1]/2
+        if( $hashRef->{'grid'}->{'shells'}[1] <= 2 );
+      print "   Used default of $hashRef->{'grid'}->{'shells'}[0]\n";
+    }
+    else
+    {
+      $genRef->{'edgelist'}[0] =~ m/^(\d+)/ or die;
+      my $zeeName = sprintf "radfilez%03i", $1;
+#      print catfile( "zpawinfo", $zeeName ) . "\n";
+      open IN, "<", catfile( "zpawinfo", $zeeName ) or die $!;
+      <IN> =~ m/^\s+(\S+)/ or die;
+      $hashRef->{'grid'}->{'shells'}[0] = $1;
+    }
+  }
+
+  unless( $hashRef->{'grid'}->{'rmode'}[0] =~ m/legendre/ || $hashRef->{'grid'}->{'rmode'}[0] =~ m/uniform/ )
+  {
+    $hashRef->{'grid'}->{'rmode'}[0] = 'legendre';
+  }
+
+  $hashRef->{'grid'}->{'ang'}[0] = 5 if( $hashRef->{'grid'}->{'ang'} < 5 );
+  $hashRef->{'grid'}->{'deltar'}[0] = 0.2 if( $hashRef->{'grid'}->{'deltar'} < 0 );
+
+  for( my $i = 1; $i < $n; $i++ )
+  {
+    $hashRef->{'grid'}->{'ang'}[$i] = $hashRef->{'grid'}->{'ang'}[$i-1] 
+        if( scalar @{$hashRef->{'grid'}->{'ang'}} <= $i );
+    $hashRef->{'grid'}->{'ang'}[$i] = 7
+        if( $hashRef->{'grid'}->{'ang'}[$i] < 0 || ! $hashRef->{'grid'}->{'ang'}[$i] =~ m/\d/ );
+    $hashRef->{'grid'}->{'deltar'}[$i] = $hashRef->{'grid'}->{'deltar'}[$i-1]
+        if( scalar @{$hashRef->{'grid'}->{'deltar'}} <= $i || $hashRef->{'grid'}->{'deltar'}[$i] <= 0 );
+    $hashRef->{'grid'}->{'rmode'}[$i] = 'uniform'
+        unless( $hashRef->{'grid'}->{'rmode'} =~ m/uniform/ || $hashRef->{'grid'}->{'rmode'} =~ m/legendre/);
+
+    if( scalar @{$hashRef->{'grid'}->{'shells'}} <= $i || $hashRef->{'grid'}->{'shells'}[$i] < 0
+        || $hashRef->{'grid'}->{'shells'}[$i] 
+              >= ( $hashRef->{'grid'}->{'rmax'} - $hashRef->{'grid'}->{'deltar'}[$i]/2) ) 
+    {
+      print "Ran out of shells, might be making fewer than expected!\n";
+      $hashRef->{'grid'}->{'shells'}[$i] = $hashRef->{'grid'}->{'rmax'};
+      $n = $i+1;
+      last;
+    }
+  }
+  while( scalar @{$hashRef->{'grid'}->{'shells'}} > $n ) { pop @{$hashRef->{'grid'}->{'shells'}} }
+  while( scalar @{$hashRef->{'grid'}->{'ang'}} > $n ) { pop @{$hashRef->{'grid'}->{'ang'}} }
+  while( scalar @{$hashRef->{'grid'}->{'deltar'}} > $n ) { pop @{$hashRef->{'grid'}->{'deltar'}} }
+  while( scalar @{$hashRef->{'grid'}->{'ang'}} > $n ) { pop @{$hashRef->{'grid'}->{'ang'}} }
+
+  open OUT, ">", "mkrb_control" or die "Failed to open mkrb_control for writing\n$!";
+  print OUT "$hashRef->{'grid'}->{'rmax'}  $n\n";
+  for( my $i = 0; $i < $n; $i++ )
+  {
+    print OUT "$hashRef->{'grid'}->{'rmode'}[$i] $hashRef->{'grid'}->{'shells'}[$i] "
+            . "$hashRef->{'grid'}->{'deltar'}[$i] $hashRef->{'grid'}->{'ang'}[$i] specpnt\n";
+  }
+  close OUT;
+
+  return 0;
+}
+
+sub grabAngFile
+{
+  my ($hashRef) = @_;
+
+  my %ang;
+  foreach( @{$hashRef->{'grid'}->{'ang'}} )
+  {
+    $ang{ $_ } = 1;
+  }
+  foreach my $key (keys %ang)
+  {
+    copy( catfile( $ENV{'OCEAN_BIN'}, "specpnt.$key"), "specpnt.$key" ) or die "Failed to get specpnt.$key\n";
+  }
+
+  return 0;
+}
+
+sub prepWvfn
+{
+  my ($screenHash, $genHash ) = @_;
+
+  my $dirname = sprintf "k%i_%i_%iq%f_%f_%f", $screenHash->{'kmesh'}[0], $screenHash->{'kmesh'}[1],
+                $screenHash->{'kmesh'}[2], $screenHash->{'kshift'}[0],
+                $screenHash->{'kshift'}[1], $screenHash->{'kshift'}[2];
+
+  $dirname = catdir( updir(), "DFT", $dirname );
+
+  if( $genHash->{'program'} eq 'qe' )
+  {
+    unlink "Out" if( -l "Out" );
+    symlink( catdir( $dirname, "Out" ), "Out" );
+    if( $screenHash->{'isGamma'} )
+    {
+      open OUT, ">", "gamma" or die $!;
+      print OUT "T\n";
+      close OUT;
+    }
+    copy( catfile( $dirname, "wvfn.ipt" ), "wvfn.ipt" );
+    copy( catfile( $dirname, "QE_EIGS.txt" ), "QE_EIGS.txt" );
+
+    open OUT, ">", "prefix" or die $!;
+    print OUT "system\n";
+    close OUT;
+  }
+  else
+  {
+    symlink( catfile( $dirname, "RUN0001_WFK"), "RUN0001_WFK" ); 
+  }
+}
+
+sub grabOPF
+{
+  symlink( catdir( updir(), "OPF", "zpawinfo" ), "zpawinfo" )
+}
+
+sub writeExtraFiles
+{
+  my ($structureRef, $screenRef, $genRef) = @_;
+
+  open OUT, ">", "avecsinbohr.ipt" or die "Failed to open avecsinbohr.ipt\n$!";
+  for( my $i = 0; $i < 3; $i++ )
+  {
+    printf  OUT "%.16g  %.16g  %.16g\n", $structureRef->{'avecs'}[$i][0],
+                                $structureRef->{'avecs'}[$i][1],
+                                $structureRef->{'avecs'}[$i][2];
+
+  }
+  close OUT;
+
+  open OUT, ">", "bvecs" or die "Failed to open bvecs\n$!";
+  for( my $i = 0; $i < 3; $i++ )
+  {
+    printf  OUT "%.16g  %.16g  %.16g\n", $structureRef->{'bvecs'}[$i][0],
+                                $structureRef->{'bvecs'}[$i][1],
+                                $structureRef->{'bvecs'}[$i][2];
+
+  }
+  close OUT;
+  
+  open OUT, ">", "xmesh.ipt" or die "Failed to open xmesh.ipt\n$!";
+  printf OUT "%i  %i  %i\n", $genRef->{'xmesh'}[0],
+                                $genRef->{'xmesh'}[1],
+                                $genRef->{'xmesh'}[2];
+  close OUT;
+
+  open OUT, ">", "brange.ipt" or die $!;
+  printf OUT "%i  %i\n%i  %i\n", $screenRef->{'brange'}[0], $screenRef->{'brange'}[1],
+                                 $screenRef->{'brange'}[2], $screenRef->{'brange'}[3];
+  close OUT;
+
+  open OUT, ">", "bands.ipt" or die $!;
+  printf OUT "1  %i\n", $screenRef->{'nbands'};
+  close OUT;
+
+  open OUT, ">", "k0.ipt" or die $!;
+  printf OUT "%f %f %f\n", $screenRef->{'kshift'}[0], $screenRef->{'kshift'}[1], $screenRef->{'kshift'}[2];
+  close OUT;
+
+  open OUT, ">", "kmesh.ipt" or die $!;
+  printf OUT "%i %i %i\n", $screenRef->{'kmesh'}[0], $screenRef->{'kmesh'}[1], $screenRef->{'kmesh'}[2];
+  close OUT;
+
+  open OUT, ">", "nspin" or die $!;
+  printf OUT "%i\n", $screenRef->{'nspin'};
+  close OUT;
+  
+  open OUT, ">", "screen.augment" or die $!;
+  if( $screenRef->{'augment'}) {
+    print OUT ".true.\n";
+  } else {
+    print OUT ".false.\n";
+  }
+  close OUT;
+
+  open OUT, ">", "screen.mode" or die $!;
+  print OUT $genRef->{'mode'} . "\n";
+  close OUT;
+
+  open OUT, ">", "screen.inversionstyle" or die $!;
+  print OUT ($screenRef->{'inversionstyle'}) ."\n";
+  close OUT;
+
+  open OUT, ">", "screen.convertstyle" or die $!;
+  print OUT ($screenRef->{'convertstyle'}) ."\n";
+  close OUT;
+
+  open OUT, ">", 'screen.allaug' or die $!;
+  if( $screenRef->{'all_augment'}) {
+    print OUT ".true.\n";
+  } else {
+    print OUT ".false.\n";
+  }
+  close OUT;
+
+  open OUT, ">", 'screen.lmax' or die $!;
+  printf OUT "%i\n", $screenRef->{'lmax'};
+  close OUT;
+
+  open OUT, ">", 'shells' or die $!;
+  printf OUT "%i\n", scalar @{$screenRef->{'shells'}};
+  foreach ( @{$screenRef->{'shells'}} )
+  {
+    printf OUT "%f\n", $_;
+  }
+  close OUT;
+
+  open OUT, ">", "efermiinrydberg.ipt" or die $!;
+  print OUT ( $screenRef->{'fermi'} * 2 ) . "\n";
+  close OUT;
+
+
+  # 'screen.quadorder' 'screen.chi0integrand'  'screen.appx'
+  
+}
+
+sub copyAndCompare
+{
+  my $newRef = $_[0];
+  my $commonRef = $_[1];
+  my $oldRef = $_[2];
+  my $complete = $_[3];
+  my @tags = @{$_[4]};
+
+  my $comp;# = sub { $_[0] == $_[1] }; 
+
+  foreach my $t (@tags)
+  {
+    if( ref( $commonRef->{ $t } ) eq '' )
+    {
+#      print "$commonRef->{ $t } ---\n"; 
+      $newRef->{ $t } = $commonRef->{ $t };
+    }
+    else
+    {
+      $newRef->{ $t } = dclone $commonRef->{ $t };
+    }
+
+    next unless( $complete->{'complete'} );
+    unless( exists $oldRef->{ $t } )
+    {
+      $complete->{'complete'} = JSON::PP::false;
+      next;
+    }
+
+    recursiveCompare( $newRef->{$t}, $oldRef->{$t}, $complete);
+    print "DIFF:   $t\n" unless( $complete->{'complete'} );
+  }
+
+}
+
+
+sub recursiveCompare
+{
+  my $newRef = $_[0];
+  my $oldRef = $_[1];
+  my $complete = $_[2];
+
+  return unless( $complete->{'complete'} );
+
+
+  if( ref( $newRef ) eq 'ARRAY' )
+  {
+    if( scalar @{ $newRef } != scalar @{ $oldRef } )
+    {
+      $complete->{'complete'} = JSON::PP::false;
+      return;
+    }
+    for( my $i = 0; $i < scalar @{ $newRef }; $i++ )
+    {
+      recursiveCompare( @{$newRef}[$i], @{$oldRef}[$i], $complete );
+      return unless( $complete->{'complete'} );
+    }
+  }
+  else
+  {
+#    print "#!  $newRef  $oldRef\n";
+    if( looks_like_number( $newRef ) )
+    {
+      $complete->{'complete'} = JSON::PP::false unless( $newRef == $oldRef );
+    }
+    else
+    {
+      $complete->{'complete'} = JSON::PP::false unless( $newRef eq $oldRef );
+    }
+  }
+}
+

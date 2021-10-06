@@ -1,5 +1,5 @@
 #!/usr/bin/perl
-# Copyright (C) 2014, 2016-2019 OCEAN collaboration
+# Copyright (C) 2014, 2016-2021 OCEAN collaboration
 #
 # This file is part of the OCEAN project and distributed under the terms 
 # of the University of Illinois/NCSA Open Source License. See the file 
@@ -815,6 +815,8 @@ sub runShirley
   my $Z = $_[0];
   my $pspFile = $_[1];
   my $hashRef = $_[2];
+
+  $pspFile =~ s/\.upf$//i;
 
   my $targ = catdir( $hashRef->{'psp'}->{'ppdir'}, $pspFile );
   copy( $targ, $pspFile ) == 1 or die "Failed to copy $pspFile\n   $targ\n$!";;

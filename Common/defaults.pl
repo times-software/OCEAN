@@ -65,7 +65,7 @@ if( -e $dataFile )
 
   makeEdges( $oceanData );
   fixCoords( $oceanData );
-  makeZsymb( $oceanData );
+  makeSitesZsymb( $oceanData );
   ## xred sub to go from bohr/ang to red
   
   my $enable = 1;
@@ -1499,12 +1499,11 @@ sub fixCoords
 }
 
 
-sub makeZsymb
+sub makeSitesZsymb
 {
   my $hashRef = $_[0];
 
-  # If zsymb is the correct length, assume it is fine
-  return if( scalar @{$hashRef->{'structure'}->{'zsymb'}} == scalar @{$hashRef->{'structure'}->{'znucl'}} );
+  # First make fancy site list for later
 
   my @z2symb =          ( '', 'H' , 'He', 'Li', 'Be', 'B' , 'C' , 'N' ,                  
       'O' , 'F' , 'Ne', 'Na', 'Mg', 'Al', 'Si', 'P' , 'S' , 'Cl', 'Ar',
@@ -1518,6 +1517,32 @@ sub makeZsymb
       'Am', 'Cm', 'Bk', 'Cf', 'Es', 'Fm', 'Md', 'No', 'Lr', 'Rf', 'Db',
       'Sg', 'Bh', 'Hs', 'Mt' );
 
+#  $hashRef->{'structure'}->{'sites'} = [];
+#  my %Z;
+#  foreach( @{$hashRef->{'structure'}->{'typat'}} )
+#  {
+#    my $Z = $hashRef->{'structure'}->{'znucl'}[$_-1];
+#    if( exists $Z{$Z} )
+#    {
+#      $Z{$Z}++;
+#    } else {
+#      $Z{$Z} = 1;
+#    }
+#    my $s = $z2symb[$Z] . '_';
+#    push @{$hashRef->{'structure'}->{'sites'}}, sprintf "%.2s  %i", $s, $Z{$Z};
+#  }
+  
+
+  $hashRef->{'structure'}->{'elname'} = [];
+  foreach( @{$hashRef->{'structure'}->{'znucl'}} )
+  {
+    my $s = sprintf "%.2s", $z2symb[$_] . '_';
+    push @{$hashRef->{'structure'}->{'elname'}}, $s;
+  }
+
+
+  # If zsymb is the correct length, assume it is fine
+  return if( scalar @{$hashRef->{'structure'}->{'zsymb'}} == scalar @{$hashRef->{'structure'}->{'znucl'}} );
   # Only add number after symbol if required
   my %zsymbTracker;
   for( my $i = 0; $i < scalar @{$hashRef->{'structure'}->{'znucl'}}; $i++ )

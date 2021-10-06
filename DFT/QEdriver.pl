@@ -280,6 +280,10 @@ sub QEparseOut
     print "QE62!!\n";
     $hashRef->{'version'} = '62';
 
+    open OUT, ">", "wvfn.ipt" or die $!;
+    print OUT "qe62\n";
+    close OUT;
+
     while( my $scf_line = <SCF> )
     {
       if( $scf_line =~ m/\<highestOccupiedLevel\>([-+]?\d+\.\d+[Ee]?[-+]?(\d+)?)/ )
