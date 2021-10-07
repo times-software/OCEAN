@@ -104,7 +104,7 @@ if( -e $dataFile )
                   $fake, [ 'para_prefix' ] );
 
   $newScreenData->{'structure'} = {};
-  my @structList = ( 'avecs', 'bvecs', 'xred', 'znucl', 'typat', 'sites', 'elname' );
+  my @structList = ( 'avecs', 'bvecs', 'xred', 'znucl', 'typat', 'sites', 'elname', 'epsilon' );
   copyAndCompare( $newScreenData->{'structure'}, $commonOceanData->{'structure'}, $screenData->{'structure'},
                   $fake, \@structList );
 
@@ -149,6 +149,10 @@ if( -e $dataFile )
   } else {
     die "Malformed screening mode: $newScreenData->{'density'}->{'mode'}\n";
   }
+
+  copyAndCompare( $newScreenData->{'density'}, $commonOceanData->{'screen'}, $screenData->{'density'},
+                  $newScreenData->{'density'}, [ "model" ] );
+
   
   if( $newScreenData->{'density'}->{'complete'} )
   {
@@ -163,7 +167,7 @@ if( -e $dataFile )
     unless( exists $screenData->{'screen'}->{'complete'} && $screenData->{'screen'}->{'complete'} );
 
   my @screenList = ( "all_augment", "augment", "convertstyle", "grid", "inversionstyle", "kmesh", 
-                     "kshift", "mode", "nbands", "shells" );
+                     "kshift", "mode", "nbands", "shells", "final" );
   copyAndCompare( $newScreenData->{'screen'}, $commonOceanData->{'screen'}, $screenData->{'screen'},
                   $newScreenData->{'screen'}, \@screenList );
 
@@ -183,12 +187,18 @@ if( -e $dataFile )
   print OUT $json->encode($newScreenData);
   close OUT;
 
+  writeExtraFiles( $newScreenData->{'structure'}, $newScreenData->{'screen'}, $newScreenData->{'general'} );
+
   unless( $newScreenData->{'density'}->{'complete'} )
   {
     my $errorCode = runDensityAverage( $newScreenData );
     if( $errorCode )
     { 
       die "Failed in runDensityAverage with code: $errorCode\n";
+    }
+
+    if( $newScreenData->{'density'}->{'model'}->{'flavor'} eq 'SLL') {
+      runVhommod($newScreenData->{'density'}->{'model'}->{'SLL'}) 
     }
 
     $newScreenData->{'density'}->{'complete'} = JSON::PP::true;
@@ -206,12 +216,13 @@ if( -e $dataFile )
     buildMKRB( $newScreenData->{'screen'}, $newScreenData->{'general'} );
     grabAngFile( $newScreenData->{'screen'} );
     prepWvfn(  $newScreenData->{'screen'},  $newScreenData->{'general'} );
-    writeExtraFiles( $newScreenData->{'structure'}, $newScreenData->{'screen'}, $newScreenData->{'general'} );
 
     open OUT, ">", "screen.json" or die;
     print OUT $json->encode($newScreenData);
     close OUT;
   } 
+
+
 
   exit 1;
 }
@@ -1519,26 +1530,26 @@ sub runDensityAverage
 {
   my ($hashRef) = @_;
 
-  print "!!!!! Move file handling to correct order!!!!!\n";
-  open OUT, ">", "avecsinbohr.ipt" or die "Failed to open avecsinbohr.ipt\n$!";
-  for( my $i = 0; $i < 3; $i++ )
-  {
-    printf  OUT "%s  %s  %s\n", $hashRef->{'structure'}->{'avecs'}[$i][0],
-                                $hashRef->{'structure'}->{'avecs'}[$i][1],
-                                $hashRef->{'structure'}->{'avecs'}[$i][2];
-
-  }
-  close OUT;
-
-  open OUT, ">", "bvecs" or die "Failed to open bvecs\n$!";
-  for( my $i = 0; $i < 3; $i++ )
-  {
-    printf  OUT "%s  %s  %s\n", $hashRef->{'structure'}->{'bvecs'}[$i][0],
-                                $hashRef->{'structure'}->{'bvecs'}[$i][1],
-                                $hashRef->{'structure'}->{'bvecs'}[$i][2];
-
-  }
-  close OUT;
+#  print "!!!!! Move file handling to correct order!!!!!\n";
+#  open OUT, ">", "avecsinbohr.ipt" or die "Failed to open avecsinbohr.ipt\n$!";
+#  for( my $i = 0; $i < 3; $i++ )
+#  {
+#    printf  OUT "%s  %s  %s\n", $hashRef->{'structure'}->{'avecs'}[$i][0],
+#                                $hashRef->{'structure'}->{'avecs'}[$i][1],
+#                                $hashRef->{'structure'}->{'avecs'}[$i][2];
+#
+#  }
+#  close OUT;
+#
+#  open OUT, ">", "bvecs" or die "Failed to open bvecs\n$!";
+#  for( my $i = 0; $i < 3; $i++ )
+#  {
+#    printf  OUT "%s  %s  %s\n", $hashRef->{'structure'}->{'bvecs'}[$i][0],
+#                                $hashRef->{'structure'}->{'bvecs'}[$i][1],
+#                                $hashRef->{'structure'}->{'bvecs'}[$i][2];
+#
+#  }
+#  close OUT;
 
   open OUT, ">", "screen.mode" or die $!;
   print OUT $hashRef->{'density'}->{'mode'} . "\n";
@@ -1827,9 +1838,55 @@ sub writeExtraFiles
   print OUT ( $screenRef->{'fermi'} * 2 ) . "\n";
   close OUT;
 
+  open OUT, ">", "screen.final.rmax" or die $!;
+  print OUT ($screenRef->{'final'}->{'rmax'}) . "\n";
+  close OUT;
+
+  open OUT, ">", "screen.final.dr" or die $!;
+  print OUT ($screenRef->{'final'}->{'dr'}) . "\n";
+  close OUT;
+
+  open OUT, ">", "epsilon" or die $!;
+  print OUT ($structureRef->{'epsilon'}) . "\n";
+  close OUT;
 
   # 'screen.quadorder' 'screen.chi0integrand'  'screen.appx'
   
+}
+
+
+sub runVhommod
+{
+  my $ref = $_[0];
+  open OUT, ">", 'screen.model.dq' or die;
+  print OUT ($ref->{'dq'}) ."\n";
+  close OUT;
+
+
+  open OUT, ">", 'screen.model.qmax' or die;
+  print OUT ($ref->{'qmax'}) ."\n";
+  close OUT;
+
+  print "$ENV{'OCEAN_BIN'}/vhommod.x\n";
+  system("$ENV{'OCEAN_BIN'}/vhommod.x" );
+  if ($? == -1) {
+      print "failed to execute: $!\n";
+      die;
+  }
+  elsif ($? & 127) {
+      printf "vhommod died with signal %d, %s coredump\n",
+      ($? & 127),  ($? & 128) ? 'with' : 'without';
+      die;
+  }
+  else {
+    my $errorCode = $? >> 8;
+    if( $errorCode != 0 ) {
+      die "CALCULATION FAILED\n  vhommod exited with value $errorCode\n";
+    }
+    else {
+      printf "vhommod exited successfully with value %d\n", $errorCode;
+    }
+  }
 }
 
 sub copyAndCompare
