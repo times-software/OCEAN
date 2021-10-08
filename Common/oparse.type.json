@@ -160,7 +160,13 @@
       "all_augment" : "b",
       "augment" : "b",
       "convertstyle" : "s",
+      "core_offset" : {
+         "enable" : "b",
+         "average" : "b",
+         "energy" : "af"
+      },
       "core_offset" : "b",
+      "core_offset_energy" : "f",
       "dft_energy_range" : "f",
       "final" : {
          "dr" : "f",

@@ -189,7 +189,11 @@
       "all_augment" : false,
       "augment" : true,
       "convertstyle" : "intp",
-      "core_offset" : true,
+      "core_offset" : {
+         "enable" : false,
+         "average" : true,
+         "energy" : null
+      },
       "energy_range" : 100,
       "final" : {
          "dr" : 0.1,
@@ -207,7 +211,7 @@
          "lmax" : 0,
          "rmax" : 8,
          "rmode" : [
-            "lagrange",
+            "legendre",
             "uniform"
          ],
          "scheme" : "central",

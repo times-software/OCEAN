@@ -147,7 +147,7 @@ my %decoder = (
   'work_dir' => 'nope.wordir',
   'tmp_dir' => 'dft.tmp_dir',
   'den.kshift' => 'dft.den.kshift',
-  'core_offset' => 'screen.core_offset',
+  'core_offset' => 'screen.core_offset.enable',
   'ham_kpoints' => 'nope.ham_kpoints',
   'nbse.niter' => 'bse.val.haydock.niter',
   'nbse.backf' => 'bse.val.backf',
@@ -420,6 +420,14 @@ foreach my $key ( keys %inputHash )
       else
       {
          $config->{'dft'}->{'epsilon'}->{'method'} = 'input'
+      }
+    }
+    elsif( $key =~ m/core_offset/ )
+    {
+      if( $value =~ m/\d/ )
+      {
+        $config->{'screen'}->{'core_offset'}->{'energy'} = $value;
+        $value = 'true';
       }
     }
     # end fix  
