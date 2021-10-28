@@ -89,7 +89,9 @@ for( my $k = 1; $k <= $ngz; $k++ )
 
 close OUT;
 
-open OUT, ">", "nfft" or die $!;
+my $fftFile = "nfft";
+$fftFile = "nfft.pot" if( $outfile =~ m/potofr/ );
+open OUT, ">", $fftFile or die $!;
 printf OUT "%8i %8i %8i\n", $ngx, $ngy, $ngz;
 close OUT;
 exit 0;

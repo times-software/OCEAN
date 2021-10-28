@@ -98,8 +98,8 @@ copyAndCompare( $newPrepData->{'bse'}, $commonOceanData->{'screen'}, $prepData->
                 $newPrepData->{'bse'}, [ 'core_offset' ] );
 
 my $fake->{ 'complete' } = JSON::PP::false;
-copyAndCompare( $newPrepData->{'bse'}, $commonOceanData->{'computer'}, $prepData->{'bse'},
-                $newPrepData->{'bse'}, [ 'para_prefix' ] );
+copyAndCompare( $newPrepData->{'computer'}, $commonOceanData->{'computer'}, $prepData->{'computer'},
+                $fake, [ 'para_prefix' ] );
 
 
 
@@ -215,8 +215,8 @@ unless( $newPrepData->{'bse'}->{'complete'} )
   }
 
 
-  print "$newPrepData->{'bse'}->{'para_prefix'} $ENV{'OCEAN_BIN'}/ocean_prep.x > ocean_prep.log 2>&1\n";
-  system("$newPrepData->{'bse'}->{'para_prefix'} $ENV{'OCEAN_BIN'}/ocean_prep.x > ocean_prep.log 2>&1" );
+  print "$newPrepData->{'computer'}->{'para_prefix'} $ENV{'OCEAN_BIN'}/ocean_prep.x > ocean_prep.log 2>&1\n";
+  system("$newPrepData->{'computer'}->{'para_prefix'} $ENV{'OCEAN_BIN'}/ocean_prep.x > ocean_prep.log 2>&1" );
   if ($? == -1) {
       print "failed to execute: $!\n";
       die;
