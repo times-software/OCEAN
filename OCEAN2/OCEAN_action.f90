@@ -333,11 +333,16 @@ end subroutine OCEAN_action_h1
 
     if( sys%cur_run%have_core ) then
        
+      call OCEAN_psi_new( psi_o, ierr, psi )
+      if( ierr .ne. 0 ) return
+      call OCEAN_energies_allow_full( sys, psi_o, ierr )
+      if( ierr .ne. 0 ) return
+
 !      if( sys%e0 .and. myid .eq. 0) then
 
       if( sys%mult ) then
         call OCEAN_tk_start( tk_mult )
-        call OCEAN_mult_act( sys, inter_scale, psi, new_psi, back, hflag )
+        call OCEAN_mult_act( sys, inter_scale, psi_o, new_psi, back, hflag )
         call OCEAN_tk_stop( tk_mult )
         endif
 
@@ -345,9 +350,14 @@ end subroutine OCEAN_action_h1
         
         call OCEAN_tk_start( tk_lr )
        
-        call lr_act( sys, psi, new_psi, ierr )
+        call lr_act( sys, psi_o, new_psi, ierr )
         call OCEAN_tk_stop( tk_lr )
       endif
+
+      call OCEAN_energies_allow_full( sys, new_psi, ierr )
+      if( ierr .ne. 0 ) return
+      call OCEAN_psi_kill( psi_o, ierr )
+      if( ierr .ne. 0 ) return
 
     endif  ! sys%cur_run%have_core
      !write OCEAN_vec after mult after all of the if statements to hopefully get
@@ -528,8 +538,8 @@ end subroutine OCEAN_action_h1
 
 
 !   The min storage is multiplied by the allow matrix (this enforces the Fermi-Dirac occpations at 0K)
-    call OCEAN_energies_allow( sys, new_psi, ierr )
-    if( ierr .ne. 0 ) return
+!    call OCEAN_energies_allow( sys, new_psi, ierr )
+!    if( ierr .ne. 0 ) return
 
 
   end subroutine OCEAN_xact
