@@ -216,7 +216,10 @@ module OCEAN_haydock
 !    character( LEN=21 ) :: lanc_filename
 
     type( ocean_vector ) :: psi, old_psi, new_psi
+
+    logical :: prevConv
     
+    prevConv = .false.
 
 !    if( myid .eq. root ) write(6,*) 'entering haydock'
 
@@ -271,11 +274,16 @@ module OCEAN_haydock
         call MPI_BCAST( relArea, 1, MPI_DOUBLE_PRECISION, root, comm, ierr )
         
         if( relArea .lt. sys%haydockConvergeThreshold ) then
-          if( myid .eq. root ) write(6,*) 'Convergence: ', iter, maxDiff, relArea
-          haydock_niter_actual = iter
-          goto 11
+          if( prevConv ) then
+            if( myid .eq. root ) write(6,*) 'Convergence: ', iter, maxDiff, relArea
+            haydock_niter_actual = iter
+            goto 11
+          else
+            prevConv = .true.
+          endif
         else
           if( myid .eq. root ) write(6,*) 'Not converged', iter, maxDiff, relArea
+          prevConv = .false.
         endif
       endif
       haydock_niter_actual = iter
@@ -1332,8 +1340,8 @@ module OCEAN_haydock
         call calc_spect_core( sp1, iter1, kpref )
         call calc_spect_core( sp2, iter2, kpref )
       case( 'VAL', 'RXS' )
-!        call calc_spect_val( sp1, iter1, kpref, sys%celvol, sys%valence_ham_spin )
-!        call calc_spect_val( sp2, iter2, kpref, sys%celvol, sys%valence_ham_spin )
+        call calc_spect_val( sp1, iter1, kpref, sys%celvol, sys%valence_ham_spin )
+        call calc_spect_val( sp2, iter2, kpref, sys%celvol, sys%valence_ham_spin )
 
       case default
         call calc_spect_core( sp1, iter1, kpref )
@@ -1350,12 +1358,21 @@ module OCEAN_haydock
       diff = abs(sp1(3,i) - sp2(3,i) )
       if( diff .gt. maxDiff ) maxDiff = diff
       relArea = relArea + diff
-      area1 = area1 + sp1(3,i)
-      area2 = area2 + sp2(3,i)
+      area1 = area1 + abs(sp1(3,i))
+      area2 = area2 + abs(sp2(3,i))
     enddo
 
+    write(6,*) relArea, area1, area2
     relArea = 2.0_DP * relArea / ( area1 + area2 )
 
+
+!    open(unit=99,file='check.txt',form='formatted', status='unknown')
+!    do i = 1, ne
+!      write(99,*) sp1(1,i), sp1(3,i), sp2(3,i)
+!    enddo
+!    close(99)
+  
+    deallocate( sp1, sp2 )
 
   end subroutine check_convergence
 
@@ -1581,7 +1598,7 @@ module OCEAN_haydock
 
       dr = delta
       di = abs( aimag( delta ) )
-      sp(1,ie) = ebase + Hartree2eV * 2
+      sp(1,ie) = ebase + Hartree2eV * e
       sp(2,ie) = kpref * dr / ( dr ** 2 + di ** 2 )
       sp(3,ie) = kpref * di / ( dr ** 2 + di ** 2 )
     enddo
@@ -1589,6 +1606,59 @@ module OCEAN_haydock
   
 
   end subroutine calc_spect_core
+
+  subroutine calc_spect_val( sp, iter, kpref, celvol, nspin )
+    use OCEAN_constants, only : Hartree2eV, eV2Hartree
+    implicit none
+    real(DP), intent( out ) :: sp(:,:)
+    integer, intent( in ) :: iter
+    real(DP), intent( in ) :: kpref
+    real(DP), intent( in ) :: celvol
+    integer, intent( in ) :: nspin
+
+    integer :: ie, jj, i
+    real(DP) :: e, dr, di, fact
+    complex(DP) :: ctmp, disc, delta, arg, rp, rm , rrr, al, be, eps
+
+    fact = kpref * real( 2 / nspin, DP ) * celvol
+
+    do ie = 1, ne
+      e = el + ( eh - el ) * real( 2*(ie-1)+1, DP ) / real( 2 * ne, DP )
+
+      ctmp = cmplx( e, gam0, DP )
+      arg =  ( e - real_a( iter - 1 ) )**2 - 4.0_dp * real_b( iter ) ** 2 
+      arg = sqrt(arg)
+
+      rp = 0.5_dp * ( e - real_a( iter - 1 ) + arg )
+      rm = 0.5_dp * ( e - real_a( iter - 1 ) - arg )
+      if( aimag( rp ) .lt. 0.0_dp ) then
+        rrr = rp
+      else
+        rrr = rm
+      endif 
+      al =  ctmp - real_a( iter - 1 ) - rrr
+      be = -ctmp - real_a( iter - 1 ) - rrr
+
+      do i = iter-1, 0, -1
+        al = ctmp - cmplx( real_a( i ), imag_a( i ), DP ) &
+           - cmplx( real_b( i+1 ), imag_b( i+1 ), DP ) * cmplx( real_c( i+1 ), -imag_c( i+1 ), DP ) / al
+        be = -ctmp - cmplx( real_a( i ), imag_a( i ), DP ) &
+           - cmplx( real_b( i+1 ), imag_b( i+1 ), DP ) * cmplx( real_c( i+1 ), -imag_c( i+1 ), DP ) / be
+      enddo
+
+      eps = 1.0_dp - fact / al - fact / be
+      dr = real( eps, DP )
+      di = aimag( eps ) 
+      sp(1,ie) = ebase + Hartree2eV * e
+      sp(2,ie) = dr
+      sp(3,ie) = di
+!      sp(2,ie) = fact * dr / ( dr ** 2 + di ** 2 )
+!      sp(3,ie) = fact * di / ( dr ** 2 + di ** 2 )
+    enddo
+
+    
+
+  end subroutine calc_spect_val
 
   subroutine OCEAN_haydock_setup( sys, ierr )
     use OCEAN_mpi

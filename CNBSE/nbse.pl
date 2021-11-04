@@ -48,6 +48,12 @@ my @WFNFiles = ("kmesh.ipt",  "efermiinrydberg.ipt", "qinunitsofbvectors.ipt", "
 my @ScreenFiles = ( "screen.mode", "screen.lmax", "screen.final.rmax", "screen.final.dr", 
                     "cnbse.rad" );
 
+my @NewFiles = ("haydockconv.ipt");
+
+foreach (@NewFiles) {
+  copy( "../Common/$_", $_ ) or die "Failed to get Common/$_\n$!" if( -e "../Common/$_" );
+}
+
 foreach (@CommonFiles) {
   copy( "../Common/$_", $_ ) or die "Failed to get Common/$_\n$!";
 }

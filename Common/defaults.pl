@@ -580,7 +580,7 @@ if( $input_content =~ m/old/i )
   $input_content = "$output[0]  $output[1]  $output[2]";
 }
 else{
-  $input_content =~ m/^\s*(-?\d+)/ or die "Failed to parse xmesh.ipt\n$input_content\n";
+  $input_content =~ m/^\s*(-?\d+\.?\d*)/ or die "Failed to parse xmesh.ipt\n$input_content\n";
   my $xden = $1;
   if( $xden < 1 ) {
     $xden *= -0.99999;
