@@ -451,7 +451,7 @@ if( $newDftData->{'general'}->{'occopt'} == 1 )
   print "DFT for BSE final states complete\n";
 }
 
-exit 1;
+exit 0;
 
 # 4) various convergence parameters match 
 

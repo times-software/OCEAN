@@ -98,6 +98,7 @@ copyAndCompare( $newPrepData->{'bse'}, $commonOceanData->{'screen'}, $prepData->
                 $newPrepData->{'bse'}, [ 'core_offset' ] );
 
 my $fake->{ 'complete' } = JSON::PP::false;
+$newPrepData->{'computer'} = {};
 copyAndCompare( $newPrepData->{'computer'}, $commonOceanData->{'computer'}, $prepData->{'computer'},
                 $fake, [ 'para_prefix' ] );
 
@@ -268,9 +269,9 @@ sub copyLinkQE
     unlink "Out";
   }
 
-  my $rundir = "k" . $hashRef->{'kmesh'}[0] . '_' . $hashRef->{'kmesh'}[1] . '_'
-             . $hashRef->{'kmesh'}[2] . "q" . $hashRef->{'kshift'}[0] . '_'
-             . $hashRef->{'kshift'}[1] . '_'  . $hashRef->{'kshift'}[2];
+  my $rundir = sprintf "k%i_%i_%iq%.6f_%.6f_%.6f", $hashRef->{'kmesh'}[0],  
+                   $hashRef->{'kmesh'}[1], $hashRef->{'kmesh'}[2], $hashRef->{'kshift'}[0],
+                   $hashRef->{'kshift'}[1], $hashRef->{'kshift'}[2];
   my $dirname = catdir( updir(), updir(), "DFT", $rundir, "Out" );
   symlink ($dirname, "Out") == 1 or die "Failed to link Out\n$!";
 

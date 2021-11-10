@@ -21,7 +21,7 @@ sub QErunNSCF
 #              . $specificHashRef->{'kmesh'}[2] . "q" . $specificHashRef->{'kshift'}[0] . '_' 
 #              . $specificHashRef->{'kshift'}[1] . '_'  . $specificHashRef->{'kshift'}[2];
 
-  my $dirname = sprintf "k%i_%i_%iq%f_%f_%f", $specificHashRef->{'kmesh'}[0], 
+  my $dirname = sprintf "k%i_%i_%iq%.6f_%.6f_%.6f", $specificHashRef->{'kmesh'}[0], 
                     $specificHashRef->{'kmesh'}[1], $specificHashRef->{'kmesh'}[2], 
                     $specificHashRef->{'kshift'}[0], $specificHashRef->{'kshift'}[1],
                     $specificHashRef->{'kshift'}[2];
