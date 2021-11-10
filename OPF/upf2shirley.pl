@@ -1,6 +1,22 @@
+#!/usr/bin/perl
+# Copyright (C) 2021 OCEAN collaboration
+#
+# This file is part of the OCEAN project and distributed under the terms 
+# of the University of Illinois/NCSA Open Source License. See the file 
+# `License' in the root directory of the present distribution.
+#
+#
 use strict;
+use File::Basename;
 
-open IN, $ARGV[0] or die "Failed to open $ARGV[0]";
+die "Expected Pseudo file as input" unless( scalar @ARGV > 0 );
+my $fileName = $ARGV[0];
+my $outFileName = $fileName . ".mod";
+if( scalar @ARGV > 1 ) {
+  $outFileName = $ARGV[1];
+}
+
+open IN, $fileName or die "Failed to open $fileName";
 
 my @rad;
 my @local;
@@ -178,9 +194,9 @@ $lmax++ if( scalar @l2 > 0 );
 $lmax++ if( scalar @l3 > 0 );
 $lmax = 4 if ( $lmax > 4 );
 
-open OUT, ">", "psp-test";
-print OUT "# " . $lmax . "   " . (scalar @rad ) ."\n";
-print OUT "#0\n";
+open OUT, ">", $outFileName;
+print OUT "  "  . $lmax . "   " . (scalar @rad ) ."\n";
+print OUT "0\n";
 my $sum = 0;
 for( my $i = 0; $i < scalar @l0; $i++ )
 {
@@ -195,7 +211,7 @@ for( my $i = scalar @l0; $i < scalar @local; $i++ )
   print OUT "$rad[$i]  " . $local[$i]/2 . "\n";
 }
 #print OUT "\n\n";
-print OUT "#1\n";
+print OUT "1\n";
 for( my $i = 0; $i < scalar @l1; $i++ )
 {
   if( $wfc1[$i] > 0.0000000000001 ) {
@@ -209,7 +225,7 @@ for( my $i = scalar @l1; $i < scalar @local; $i++ )
   print OUT "$rad[$i]  " . $local[$i]/2 . "\n";
 }
 #print OUT "\n\n";
-print OUT "#2\n";
+print OUT "2\n";
 for( my $i = 0; $i < scalar @l2; $i++ )
 {
   if( $wfc2[$i] > 0.0000000000001 ) {
@@ -223,7 +239,7 @@ for( my $i = scalar @l2; $i < scalar @local; $i++ )
   print OUT "$rad[$i]  " . $local[$i]/2 . "\n";
 }
 #print OUT "\n\n";
-print OUT "#3\n";
+print OUT "3\n";
 for( my $i = 0; $i < scalar @l3; $i++ )
 {
   if( $wfc3[$i] > 0.0000000000001 ) {

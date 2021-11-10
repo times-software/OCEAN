@@ -816,14 +816,21 @@ sub runShirley
   my $pspFile = $_[1];
   my $hashRef = $_[2];
 
-  $pspFile =~ s/\.upf$//i;
+#  $pspFile =~ s/\.upf$//i;
 
   my $targ = catdir( $hashRef->{'psp'}->{'ppdir'}, $pspFile );
   copy( $targ, $pspFile ) == 1 or die "Failed to copy $pspFile\n   $targ\n$!";;
-  print "Converting $pspFile\n";
   my $ppmodname = $pspFile . ".mod";
-  system("echo '$pspFile\n$ppmodname' | $ENV{'OCEAN_BIN'}/fhi2eric.x") == 0
-      or die "Failed to convert psp file $pspFile\n";
+
+  if( $pspFile =~ m/\.upf$/i ) {
+    print "Converting $pspFile with upf2shirley.pl\n";
+    system( "$ENV{'OCEAN_BIN'}/upf2shirley.pl $pspFile $ppmodname > upf2shirley.log" ) == 0
+      or die "Failed to convert psp file $pspFile\n$!";
+  } else {
+    print "Converting $pspFile with fhi2eric.x\n";
+    system("echo '$pspFile\n$ppmodname' | $ENV{'OCEAN_BIN'}/fhi2eric.x") == 0
+        or die "Failed to convert psp file $pspFile\n";
+  }
 
   print "Starting HFK section\n";
 
