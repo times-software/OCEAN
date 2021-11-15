@@ -933,6 +933,9 @@ sub runShirley
     die "The program hfk.x has exited incorrectly for hfin2.\nExiting ...\n";
   }
 
+  my $corezfile = sprintf("corezetaz%03i",$Z);
+  move("xifile","$corezfile");
+
   system("$ENV{'OCEAN_BIN'}/hfk.x < hfin3 > hfk.${znucl}.3.log") == 0 or die;
   my $hfk_status = `tail -n 1 hfk.${znucl}.3.log`;
   unless( $hfk_status =~ m/terminus/ )

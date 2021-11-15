@@ -106,8 +106,8 @@ if( -e $dataFile )
                   $fake, [ 'para_prefix' ] );
 
   $newScreenData->{'structure'} = {};
-  my @structList = ( 'avecs', 'bvecs', 'xred', 'znucl', 'typat', 'sites', 'elname', 'epsilon' );
-  copyAndCompare( $newScreenData->{'structure'}, $commonOceanData->{'structure'}, $screenData->{'structure'},
+  my @structList = ( 'avecs', 'bvecs', 'xred', 'znucl', 'typat', 'elname', 'epsilon' );
+  copyAndCompare( $newScreenData->{'structure'}, $dftData->{'structure'}, $screenData->{'structure'},
                   $fake, \@structList );
 
   $newScreenData->{'general'} = {};
@@ -126,7 +126,7 @@ if( -e $dataFile )
 #    die "Malformed screening mode: $newScreenData->{'general'}->{'mode'}\n";
 #  }
   
-  copyAndCompare( $newScreenData->{'general'}, $commonOceanData->{'dft'}, $screenData->{'general'},
+  copyAndCompare( $newScreenData->{'general'}, $dftData->{'general'}, $screenData->{'general'},
                   $general, ['program'] );
 
 

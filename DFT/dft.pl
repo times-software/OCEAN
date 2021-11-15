@@ -70,6 +70,7 @@ if( -e $dftDataFile && open( my $in, "<", $dftDataFile ) )
 
 # Build to-do list
 my $newDftData;
+my $fake->{ 'complete' } = JSON::PP::false;
 
 # First we check, using the SCF flag to store result
 # 1) Was previous run?
@@ -88,16 +89,20 @@ $newDftData->{'scf'}->{'complete'} = JSON::PP::false unless( exists $dftData->{'
 
 $newDftData->{'structure'} = {};
 
-my @structureList = ( "typat", "xred", "znucl", "avecs", "zsymb", "valence_electrons" );
+my @structureList = ( "typat", "xred", "znucl", "avecs", "zsymb", "valence_electrons", "bvecs" );
 copyAndCompare( $newDftData->{'structure'}, $commonOceanData->{'structure'}, $dftData->{'structure'}, 
                 $newDftData->{'scf'}, \@structureList );
+
+# Additional items for later stages -- unlikely these changed w/o changing manditory ones, but 
+@structureList = ( "elname" );
+copyAndCompare( $newDftData->{'structure'}, $commonOceanData->{'structure'}, $dftData->{'structure'},
+                $fake, \@structureList );
 
 $newDftData->{'psp'} = {};
 my @pspList = ( "pphash" );
 copyAndCompare( $newDftData->{'psp'}, $commonOceanData->{'psp'}, $dftData->{'psp'},
                 $newDftData->{'scf'}, \@pspList );
 
-my $fake->{ 'complete' } = JSON::PP::false;
 @pspList = ( "pp_list", "ppdir" );
 copyAndCompare( $newDftData->{'psp'}, $commonOceanData->{'psp'}, $dftData->{'psp'},
                 $fake, \@pspList );
@@ -193,7 +198,10 @@ if( $newDftData->{'scf'}->{'complete'} ) {
 my @epsList = ( "metal_max", "metal_min", "method", "min_gap", "thresh" );
 copyAndCompare( $newDftData->{'epsilon'}, $commonOceanData->{'dft'}->{'epsilon'}, $dftData->{'epsilon'},
                 $newDftData->{'epsilon'}, \@epsList );
-$newDftData->{'epsilon'}->{'complete'} = JSON::PP::true if( $newDftData->{'epsilon'}->{'method'} eq "input" );
+if( $newDftData->{'epsilon'}->{'method'} eq "input" ) {
+  $newDftData->{'epsilon'}->{'complete'} = JSON::PP::true; # if( $newDftData->{'epsilon'}->{'method'} eq "input" );
+  $newDftData->{'structure'}->{'epsilon'} = $commonOceanData->{'structure'}->{'epsilon'};
+}
 
 
 

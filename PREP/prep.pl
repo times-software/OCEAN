@@ -89,7 +89,7 @@ copyAndCompare( $newPrepData->{'bse'}, $commonOceanData->{'dft'}, $prepData->{'b
                 $newPrepData->{'bse'}, [ 'program' ] );
 
 copyAndCompare( $newPrepData->{'bse'}, $dftData->{'bse'}, $prepData->{'bse'},
-                $newPrepData->{'bse'}, [ 'hash' ] );
+                $newPrepData->{'bse'}, [ 'hash', 'nelec' ] );
 
 copyAndCompare( $newPrepData->{'bse'}, $dftData->{'scf'}, $prepData->{'bse'},
                 $newPrepData->{'bse'}, [ 'fermi' ] );
@@ -113,9 +113,11 @@ copyAndCompare( $newPrepData->{'computer'}, $commonOceanData->{'computer'}, $pre
 # typat
 # taulist
 # coord = xred
-my @list = ( "avecs", "typat", "znucl", "xred" );
-copyAndCompare( $newPrepData->{'bse'}, $commonOceanData->{'structure'}, $prepData->{'bse'},
+my @list = ( "avecs", "typat", "znucl", "xred", "epsilon", "elname" );
+copyAndCompare( $newPrepData->{'bse'}, $dftData->{'structure'}, $prepData->{'bse'},
                 $newPrepData->{'bse'}, \@list );
+#copyAndCompare( $newPrepData->{'bse'}, $commonOceanData->{'structure'}, $prepData->{'bse'},
+#                $newPrepData->{'bse'}, \@list );
 
 # kmesh.ipt
 # nspin
