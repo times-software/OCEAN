@@ -113,7 +113,7 @@ copyAndCompare( $newPrepData->{'computer'}, $commonOceanData->{'computer'}, $pre
 # typat
 # taulist
 # coord = xred
-my @list = ( "avecs", "typat", "znucl", "xred", "epsilon", "elname" );
+my @list = ( "avecs", "typat", "znucl", "xred", "epsilon", "elname", "bvecs" );
 copyAndCompare( $newPrepData->{'bse'}, $dftData->{'structure'}, $prepData->{'bse'},
                 $newPrepData->{'bse'}, \@list );
 #copyAndCompare( $newPrepData->{'bse'}, $commonOceanData->{'structure'}, $prepData->{'bse'},
