@@ -30,16 +30,16 @@ my $z_eff;
 if( $ARGV[0] =~ m/upf$/i ) {
   while( my $line = <PSP> ) {
 #    print $line;
-    if( $line =~ m/(\w+)\s+Element/ ) {
+    if( $line =~ m/(\w+)\s+Element/i || $line =~ m/element="(\w+)"/i) {
       my $element = $1;
       $z = &symb2z( $element );
       print "$element $z\n";
       last if( defined( $z_eff ) );
-    } elsif( $line =~ m/(\d+\.?\d*)\s+Z valence/i ) {
-      $z_eff = $1;
+    } elsif( $line =~ m/(\d+\.?\d*)\s+Z valence/i || $line =~ m/z_valence="(\d+\.?\d*([Ee][+-]\d+)?)"/i ) {
+      $z_eff = $1*1;
       print "$z_eff\n";
       last if( defined( $z ) );
-    }
+    } 
   }
   die "Failed to parse $ARGV[0]" unless( defined( $z) && defined( $z_eff ) );
 } else {

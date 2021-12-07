@@ -89,7 +89,7 @@ $newDftData->{'scf'}->{'complete'} = JSON::PP::false unless( exists $dftData->{'
 
 $newDftData->{'structure'} = {};
 
-my @structureList = ( "typat", "xred", "znucl", "avecs", "zsymb", "valence_electrons", "bvecs" );
+my @structureList = ( "typat", "xred", "znucl", "avecs", "zsymb", "valence_electrons", "bvecs", "metal" );
 copyAndCompare( $newDftData->{'structure'}, $commonOceanData->{'structure'}, $dftData->{'structure'}, 
                 $newDftData->{'scf'}, \@structureList );
 
