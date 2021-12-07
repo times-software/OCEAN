@@ -540,17 +540,22 @@ module prep_wvfn
           enddo
         enddo
       enddo
-      eshift = -eshift
+!      eshift = -eshift
+
+      open( unit=99, file='cbm.out', form='formatted', status='unknown' )
+      write(99,*) eshift*Hartree2eV
+      close( 99 )
 
       zero_lumo = .false.
-      open( unit=99, file='core_offset', form='formatted', status='old')
-      rewind 99
-      ! might be true/false, but might be a number (which means true)
-      read( 99, *, IOSTAT=ioerr ) have_core_offset
-      close( 99 )
-      if( ioerr .ne. 0 ) have_core_offset = .true.
-      ! if we are doing a core-level shift, then we don't zero the lumo
-      if( have_core_offset ) zero_lumo = .false.
+
+!      open( unit=99, file='core_offset', form='formatted', status='old')
+!      rewind 99
+!      ! might be true/false, but might be a number (which means true)
+!      read( 99, *, IOSTAT=ioerr ) have_core_offset
+!      close( 99 )
+!      if( ioerr .ne. 0 ) have_core_offset = .true.
+!      ! if we are doing a core-level shift, then we don't zero the lumo
+!      if( have_core_offset ) zero_lumo = .false.
 
       ! Allow an override option
       inquire( file='noshift_lumo',exist=ex)

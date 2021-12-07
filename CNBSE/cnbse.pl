@@ -115,10 +115,17 @@ $newBSEdata->{'bse'}->{'complete'} = JSON::PP::false
 #                $newBSEdata->{'bse'}, ["structure"] );
 
 my @list = ( "kmesh", "kshift", "xmesh", "nspin", "photon_q", "brange", "xred", "typat", 
-             "znucl", "elname", "nelec", "avecs", "bvecs", "fermi", "epsilon" );
+             "znucl", "elname", "nelec", "avecs", "bvecs", "fermi", "epsilon", "cbm" );
 copyAndCompare( $newBSEdata->{'bse'}, $prepData->{'bse'}, $bseData->{'bse'},
                 $newBSEdata->{'bse'}, \@list );
 
+
+copyAndCompare( $newBSEdata->{'bse'}, $commonOceanData->{'structure'}, $bseData->{'bse'},
+                $newBSEdata->{'bse'}, ['metal'] );
+my $fake->{'complete'} = JSON::PP::false;
+$newBSEdata->{'computer'} = {};
+copyAndCompare( $newBSEdata->{'computer'}, $commonOceanData->{'computer'}, $bseData->{'computer'},
+                $fake, ['para_prefix'] );
 
 CalcParams( $newBSEdata, $commonOceanData, $bseData );
 
@@ -179,8 +186,41 @@ open OUT, ">", "bse.json" or die;
 print OUT $json->encode($newBSEdata);
 close OUT;
 
+runOCEANx( $newBSEdata );
+
+$newBSEdata->{'bse'}->{'complete'} = JSON::PP::true;
+
+open OUT, ">", "bse.json" or die;
+print OUT $json->encode($newBSEdata);
+close OUT;
+
 exit 0;
 
+sub runOCEANx {
+
+  my ($hashRef) = @_;
+
+  print "$hashRef->{'computer'}->{'para_prefix'} $ENV{'OCEAN_BIN'}/ocean.x > ocean.log 2>&1\n";
+  system("$hashRef->{'computer'}->{'para_prefix'} $ENV{'OCEAN_BIN'}/ocean.x > ocean.log 2>&1" );
+  if ($? == -1) {
+      print "failed to execute: $!\n";
+      die;
+  }
+  elsif ($? & 127) {
+      printf "ocean died with signal %d, %s coredump\n",
+      ($? & 127),  ($? & 128) ? 'with' : 'without';
+      die;
+  }
+  else {
+    my $errorCode = $? >> 8;
+    if( $errorCode != 0 ) {
+      die "CALCULATION FAILED\n  ocean exited with value $errorCode\n";
+    }
+    else {
+      printf "ocean exited successfully with value %d\n", $errorCode;
+    }
+  }
+}
 
 sub grabScreenFiles {
   my ($hashRef) = @_;
@@ -357,8 +397,8 @@ sub grabWaveFunctions {
   copy( catfile( updir(), "PREP", "BSE", "wvfvainfo" ), "wvfvainfo" ) == 1 or die "Failed to copy wvfvainfo\n$!";
 
 
-  copy(  catfile( updir(), "PREP", "BSE", "eshift.ipt" ), "eshift.ipt" ) == 1 or die "Failed to copy eshift.ipt\n$!";
-  print( "FIX ESHIFT\n");
+#  copy(  catfile( updir(), "PREP", "BSE", "eshift.ipt" ), "eshift.ipt" ) == 1 or die "Failed to copy eshift.ipt\n$!";
+#  print( "FIX ESHIFT\n");
   
 }
 
@@ -737,7 +777,14 @@ sub writeAuxFiles {
   close OUT;
 
   open OUT, ">", "metal" or die;
-  print OUT ".false.\n";
+  if( $hashRef->{'bse'}->{'metal'} ) {
+    print OUT ".true.\n";
+  } else {
+    print OUT ".false.\n";
+  }
   close OUT;
-  die "Fix the metal flag!!\n";
+  
+  open OUT, ">", "eshift.ipt" or die "Failed to open eshift.ipt\n$!";
+  printf OUT "%.16f\n", $hashRef->{'bse'}->{'cbm'}*-1;
+  close OUT;
 }

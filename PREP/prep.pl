@@ -94,8 +94,8 @@ copyAndCompare( $newPrepData->{'bse'}, $dftData->{'bse'}, $prepData->{'bse'},
 copyAndCompare( $newPrepData->{'bse'}, $dftData->{'scf'}, $prepData->{'bse'},
                 $newPrepData->{'bse'}, [ 'fermi' ] );
 
-copyAndCompare( $newPrepData->{'bse'}, $commonOceanData->{'screen'}, $prepData->{'bse'},
-                $newPrepData->{'bse'}, [ 'core_offset' ] );
+#copyAndCompare( $newPrepData->{'bse'}, $commonOceanData->{'screen'}, $prepData->{'bse'},
+#                $newPrepData->{'bse'}, [ 'core_offset' ] );
 
 my $fake->{ 'complete' } = JSON::PP::false;
 $newPrepData->{'computer'} = {};
@@ -239,11 +239,15 @@ unless( $newPrepData->{'bse'}->{'complete'} )
     }
   }
 
+  open IN, '<', 'cbm.out' or die "Failed to open cbm.out\n$!";
+  my $eshift = <IN>;
+  close IN;
 
+  $newPrepData->{'bse'}->{'cbm'} = $eshift*1;
 
   chdir updir();
   
-  
+  $newPrepData->{'bse'}->{'complete'} = JSON::PP::true;
 
   open OUT, ">", "prep.json" or die;
   print OUT $json->encode($newPrepData);
@@ -251,7 +255,7 @@ unless( $newPrepData->{'bse'}->{'complete'} )
 }
 
 
-exit 1;
+exit 0;
 
 
 sub copyLinkQE
@@ -432,9 +436,9 @@ sub writeOceanPrepInput
   print OUT $hashRef->{'fermi'}*2 . "\n";
   close OUT;
 
-  open OUT, ">", "core_offset" or die $!;
-  print OUT $hashRef->{'core_offset'} . "\n";
-  close OUT;
+#  open OUT, ">", "core_offset" or die $!;
+#  print OUT $hashRef->{'core_offset'} . "\n";
+#  close OUT;
    
 }
 sub copyAndCompare
