@@ -332,16 +332,17 @@ sub QEparseOut
     }
     close SCF;
     unless( defined $fermi ) {
-      unless( defined $lowest ) {
-        $fermi = 'none';
-      } else {
+      if( defined $lowest ) {
         $fermi = ($highest + $lowest)/2; # Move from Ha to Ryd
+        $hashRef->{'highest'} = $highest;
+        $hashRef->{'lowest'} = $lowest;
+        $hashRef->{'fermi'} = $fermi;
       }
     } else {
       $fermi *= 1; # Move from Ha to Ryd
+      $hashRef->{'fermi'} = $fermi;
     }
 
-    $hashRef->{'fermi'} = $fermi;
     print "Convergence not achieved\n" if( $errorCode == 1 );
     return $errorCode; 
   } elsif( -e catfile( "Out", "system.save", "data-file.xml" ) ) {
@@ -364,17 +365,19 @@ sub QEparseOut
       }
     }
     close SCF;
-    if( $units =~ m/hartree/i )
-    {
-      $fermi *= 2;
-    }
-    elsif( $units =~ m/eV/i )
-    {
-      $fermi /= 13.60569253;
-    }
+    if( defined( $fermi ) ) {
+      if( $units =~ m/hartree/i )
+      {
+        $fermi *= 2;
+      }
+      elsif( $units =~ m/eV/i )
+      {
+        $fermi /= 13.60569253;
+      }
 
-    $hashRef->{'fermi'} = $fermi;
-    $errorCode = 0;
+      $hashRef->{'fermi'} = $fermi;
+      $errorCode = 0;
+    }
   } else {
 
     open OUTFILE, "<", $outFile or die "Failed to open $outFile\n";
@@ -419,11 +422,20 @@ sub QEparseOut
         $hashRef->{'nelec'} = $1*1;
       }
     }
-    $hashRef->{'fermi'} = $fermi;
+    $hashRef->{'fermi'} = $fermi if( defined( $fermi ) );
     close OUTFILE;
   }
+  return 2 unless( defined( $fermi ) );
   print "$hashRef->{'fermi'}\n";
 
+  if( exists( $hashRef->{'lowest'} ) ){
+    if( $hashRef->{'lowest'} >= $hashRef->{'highest'} ) {
+      print "ERROR!!\n  Insulator selected, but there is no gap.\n"
+                    ."  This run will not continue\n";
+      $errorCode = 10;
+      return $errorCode;
+    }
+  }
   return $errorCode;
 }
 
@@ -837,11 +849,13 @@ sub QEparseEnergies
 
     for( my $k = 0; $k < scalar @energies; $k++ )
     {
+#      my $temp = 1; #$b[1] - 1;
       my $temp = $b[1] - 1;
       for( my $i = $temp; $i < scalar @{$energies[$k]}; $i++ )
       {
-        $b[2] = $i+1 if( $energies[$k][$i] < $fermi );
+        $b[1] = $i+1 if( $energies[$k][$i] < $fermi );
         last if( $energies[$k][$i] > $fermi );
+#        print "vvv $b[1]\n";
       }
 
       $temp = $b[2] - 1;
@@ -849,6 +863,7 @@ sub QEparseEnergies
       {
         $b[2] = $i+1 if( $energies[$k][$i] > $fermi );
         last if( $energies[$k][$i] < $fermi );
+#        print "ccc $b[2]\n";
       }
     }
   }
