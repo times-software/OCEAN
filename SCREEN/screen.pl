@@ -112,6 +112,7 @@ if( -e $dataFile )
 
   $newScreenData->{'general'} = {};
   my $general->{'complete'} = JSON::PP::true;
+  $newScreenData->{'general'}->{'complete'} = JSON::PP::true;
   copyAndCompare( $newScreenData->{'general'}, $commonOceanData->{'screen'},  $screenData->{'general'},
                   $general, [ 'mode' ] );
 #  if( $newScreenData->{'general'}->{'mode'} eq 'core' ) {
@@ -129,8 +130,15 @@ if( -e $dataFile )
   copyAndCompare( $newScreenData->{'general'}, $dftData->{'general'}, $screenData->{'general'},
                   $general, ['program'] );
 
+  buildAndCompareSitedir( $newScreenData->{'general'}, $screenData->{'general'} );
+
+  open OUT, ">", "screen.json" or die;
+  print OUT $json->encode($newScreenData);
+  close OUT;
+
 
   #### Site/xmesh density average
+  $newScreenData->{'density'} = {};
   $newScreenData->{'density'}->{'complete'} = JSON::PP::true;
   $newScreenData->{'density'}->{'complete'} = JSON::PP::false
     unless( exists $screenData->{'density'}->{'complete'} && $screenData->{'density'}->{'complete'} );
@@ -138,29 +146,40 @@ if( -e $dataFile )
   copyAndCompare( $newScreenData->{'density'}, $dftData->{'scf'}, $screenData->{'density'},
                   $newScreenData->{'density'}, [ 'hash' ] );
 
-  copyAndCompare( $newScreenData->{'density'}, $commonOceanData->{'screen'},  $screenData->{'density'},
-                  $newScreenData->{'density'}, [ 'mode' ] );
-  if( $newScreenData->{'density'}->{'mode'} eq 'core' )
-  {
-    copyAndCompare( $newScreenData->{'density'}, $commonOceanData->{'calc'},  $screenData->{'density'},
-                  $newScreenData->{'density'}, [ 'edges' ] )
-  } elsif( $newScreenData->{'density'}->{'mode'} eq 'grid' ) {
-    copyAndCompare( $newScreenData->{'density'}, $commonOceanData->{'bse'},  $screenData->{'density'},
-                  $newScreenData->{'density'}, [ 'xmesh' ] )
+#  copyAndCompare( $newScreenData->{'density'}, $commonOceanData->{'screen'},  $screenData->{'density'},
+#                  $newScreenData->{'density'}, [ 'mode' ] );
+#  if( $newScreenData->{'density'}->{'mode'} eq 'core' )
+#  {
+#    copyAndCompare( $newScreenData->{'density'}, $commonOceanData->{'calc'},  $screenData->{'density'},
+#                  $newScreenData->{'density'}, [ 'edges' ] )
+#  } elsif( $newScreenData->{'density'}->{'mode'} eq 'grid' ) {
+#    copyAndCompare( $newScreenData->{'density'}, $commonOceanData->{'bse'},  $screenData->{'density'},
+#                  $newScreenData->{'density'}, [ 'xmesh' ] )
+#
+#  } else {
+#    die "Malformed screening mode: $newScreenData->{'density'}->{'mode'}\n";
+#  }
 
-  } else {
-    die "Malformed screening mode: $newScreenData->{'density'}->{'mode'}\n";
-  }
+  $newScreenData->{'model'} = {};
+  $newScreenData->{'model'}->{'complete'} = $newScreenData->{'density'}->{'complete'};
+#  print "MODEL: " . $newScreenData->{'model'}->{'complete'} . "\n";
+  $newScreenData->{'model'}->{'complete'} = JSON::PP::false
+    unless( exists $screenData->{'model'}->{'complete'} && $screenData->{'model'}->{'complete'} );
+#  print "MODEL: " . $newScreenData->{'model'}->{'complete'} . "\n";
 
-  copyAndCompare( $newScreenData->{'density'}, $commonOceanData->{'screen'}, $screenData->{'density'},
-                  $newScreenData->{'density'}, [ "model" ] );
+  # This is necessary because we are replacing the 'model' section entirely
+  $fake->{ 'complete' } = $newScreenData->{'model'}->{'complete'};
+  copyAndCompare( $newScreenData, $commonOceanData->{'screen'}, $screenData, $fake, ['model'] );
+  $newScreenData->{'model'}->{'complete'} = $fake->{'complete'};
+  
+#  print "MODEL: " . $newScreenData->{'model'}->{'complete'} . "\n";
 
   
-  if( $newScreenData->{'density'}->{'complete'} )
-  {
-    print "Skipping MPI_avg not enabled yet! The dev needs more coffee\n";
-    $newScreenData->{'density'}->{'complete'} = JSON::PP::false;
-  } 
+#  if( $newScreenData->{'density'}->{'complete'} )
+#  {
+#    print "Skipping MPI_avg not enabled yet! The dev needs more coffee\n";
+#    $newScreenData->{'density'}->{'complete'} = JSON::PP::false;
+#  } 
   #### Site/xmesh density average
 
   #### SCREEN calculation
@@ -191,22 +210,34 @@ if( -e $dataFile )
 
   writeExtraFiles( $newScreenData->{'structure'}, $newScreenData->{'screen'}, $newScreenData->{'general'} );
 
+  $newScreenData->{'combine'} = {};
   $newScreenData->{'combine'}->{'complete'} = JSON::PP::true;
-  unless( $newScreenData->{'density'}->{'complete'} && $newScreenData->{'screen'}->{'complete'} 
+  unless( $newScreenData->{'model'}->{'complete'} && $newScreenData->{'screen'}->{'complete'} 
         && exists $screenData->{'combine'}->{'complete'} && $screenData->{'combine'}->{'complete'} )
   {
     $newScreenData->{'combine'}->{'complete'} = JSON::PP::false;
   }
 
   ##TODO:
-  unless( $newScreenData->{'combine'}->{'complete'} && $newScreenData->{'density'}->{'complete'} 
-        && $newScreenData->{'screen'}->{'complete'} )
-  {
-    print "Partial runs not enabled yet!\n";
-    $newScreenData->{'combine'}->{'complete'} = JSON::PP::false;
-    $newScreenData->{'density'}->{'complete'} = JSON::PP::false;
-    $newScreenData->{'screen'}->{'complete'} = JSON::PP::false;
+#  unless( $newScreenData->{'combine'}->{'complete'} && $newScreenData->{'density'}->{'complete'} 
+#        && $newScreenData->{'screen'}->{'complete'} )
+#  {
+#    print "Partial runs not enabled yet!\n";
+#    $newScreenData->{'combine'}->{'complete'} = JSON::PP::false;
+#    $newScreenData->{'density'}->{'complete'} = JSON::PP::false;
+#    $newScreenData->{'screen'}->{'complete'} = JSON::PP::false;
+#  }
+
+  $newScreenData->{'offset'} = {};
+  $newScreenData->{'offset'}->{'complete'} = JSON::PP::true;
+  unless( $newScreenData->{'density'}->{'complete'} && $newScreenData->{'screen'}->{'complete'} 
+        && exists $screenData->{'offset'}->{'complete'} && $screenData->{'offset'}->{'complete'} ) {
+    $newScreenData->{'offset'}->{'complete'} = JSON::PP::false;
   }
+
+  open OUT, ">", "screen.json" or die;
+  print OUT $json->encode($newScreenData);
+  close OUT;
 
   unless( $newScreenData->{'density'}->{'complete'} )
   {
@@ -216,16 +247,28 @@ if( -e $dataFile )
       die "Failed in runDensityAverage with code: $errorCode\n";
     }
 
-    if( $newScreenData->{'density'}->{'model'}->{'flavor'} eq 'SLL') {
-      runVhommod($newScreenData->{'density'}->{'model'}->{'SLL'}) 
+    cleanAverage( $newScreenData->{'general'} );
+    $newScreenData->{'density'}->{'complete'} = JSON::PP::true;
+  }
+  open OUT, ">", "screen.json" or die;
+  print OUT $json->encode($newScreenData);
+  close OUT;
+
+  unless( $newScreenData->{'model'}->{'complete'} )
+  {
+#    print "MODEL: " . $newScreenData->{'model'}->{'complete'} . "\n";
+    if( $newScreenData->{'model'}->{'flavor'} eq 'SLL') {
+      runVhommod($newScreenData->{'model'}->{'SLL'}) 
+    } else {
+      die "Unrecognized model flavor!\n";
     }
 
-    $newScreenData->{'density'}->{'complete'} = JSON::PP::true;
-    open OUT, ">", "screen.json" or die;
-    print OUT $json->encode($newScreenData);
-    close OUT;
+    $newScreenData->{'model'}->{'complete'} = JSON::PP::true;
   }
   
+  open OUT, ">", "screen.json" or die;
+  print OUT $json->encode($newScreenData);
+  close OUT;
 
 
   unless( $newScreenData->{'screen'}->{'complete'} )
@@ -242,18 +285,30 @@ if( -e $dataFile )
 
     $newScreenData->{'screen'}->{'complete'} = JSON::PP::true;
 
+    cleanScreen( $newScreenData->{'general'}, $newScreenData->{'screen'} );
+
     open OUT, ">", "screen.json" or die;
     print OUT $json->encode($newScreenData);
     close OUT;
   } else {
     $newScreenData->{'screen'}->{'grid2'} = dclone $screenData->{'screen'}->{'grid2'};
+    open OUT, ">", "screen.json" or die;
+    print OUT $json->encode($newScreenData);
+    close OUT;
   }
 
   unless( $newScreenData->{'combine'}->{'complete'} )
   {
     print "COMBINE\n";
 
-    cleanScreen( $newScreenData->{'general'}, $newScreenData->{'screen'} );
+#    cleanScreen( $newScreenData->{'general'}, $newScreenData->{'screen'} );
+    finishCorePotentials( $newScreenData->{'general'}, $newScreenData->{'screen'} );
+
+
+    $newScreenData->{'combine'}->{'complete'} = JSON::PP::true;
+    open OUT, ">", "screen.json" or die;
+    print OUT $json->encode($newScreenData);
+    close OUT;
 
   }
 
@@ -261,10 +316,16 @@ if( -e $dataFile )
   {
     print "OFFSET\n";
 
-    runCoreOffset( $newScreenData->{'screen'}, $newScreenData)
+    runCoreOffset( $newScreenData->{'screen'}, $newScreenData);
+
+    $newScreenData->{'offset'}->{'complete'} = JSON::PP::true;
+
+    open OUT, ">", "screen.json" or die;
+    print OUT $json->encode($newScreenData);
+    close OUT;
   }
 
-  exit 1;
+  exit 0;
 }
 
 
@@ -1599,16 +1660,16 @@ sub runDensityAverage
 #  close OUT;
 
   open OUT, ">", "screen.mode" or die $!;
-  print OUT $hashRef->{'density'}->{'mode'} . "\n";
+  print OUT $hashRef->{'general'}->{'mode'} . "\n";
   close OUT;
 
-  if( $hashRef->{'density'}->{'mode'} eq 'core' ) {
-    my %sites;
-    foreach( @{$hashRef->{'density'}->{'edges'}} )
-    {
-      $_ =~ m/^(\d+)/;
-      $sites{ $1 } = 1;
-    }
+  if( $hashRef->{'general'}->{'mode'} eq 'core' ) {
+#    my %sites;
+#    foreach( @{$hashRef->{'density'}->{'edges'}} )
+#    {
+#      $_ =~ m/^(\d+)/;
+#      $sites{ $1 } = 1;
+#    }
 #    open OUT, ">", "sitelist.new" or die $!;
 #    my $n = keys %sites;
 #    print OUT "$n\n";
@@ -1620,10 +1681,10 @@ sub runDensityAverage
 #    }
 #    close OUT;
     
-  } elsif ( $hashRef->{'density'}->{'mode'} eq 'grid' ) {
+  } elsif ( $hashRef->{'general'}->{'mode'} eq 'grid' ) {
     open OUT, ">", "xmesh.ipt" or die $!;
-    printf OUT "%i  %i  %i\n", $hashRef->{'density'}->{'xmesh'}[0], 
-            $hashRef->{'density'}->{'xmesh'}[1], $hashRef->{'density'}->{'xmesh'}[2];
+    printf OUT "%i  %i  %i\n", $hashRef->{'general'}->{'xmesh'}[0], 
+            $hashRef->{'general'}->{'xmesh'}[1], $hashRef->{'general'}->{'xmesh'}[2];
     close OUT;
   }
   else {
@@ -1962,7 +2023,52 @@ sub runVhommod
   }
 }
 
+sub buildAndCompareSitedir {
+  my ($genHash, $oldGenHash) = @_;
+  
+  my @sitelist;
 
+  if( $genHash->{'mode'} eq 'core' ) {
+    foreach my $s ( @{$genHash->{'sitelist'}} ) {
+      $s =~ m/(\S+)\s+\d+\s+(\d+)/ or die;
+      push @sitelist, sprintf("z%2s%04i", $1, $2 );
+    }
+  } elsif( $genHash->{'mode'} eq 'grid' ) {
+    my $nx = $genHash->{'xmesh'}[0]*$genHash->{'xmesh'}[1]*$genHash->{'xmesh'}[2];
+    for( my $i = 1; $i <= $nx; $i++ ) {
+      push @sitelist, sprintf( "x%06i", $i );
+    }
+  } else {
+    die "Bad value of mode in general: $genHash->{'mode'}\n";
+  }
+
+  for( my $i = 0; $i < scalar @sitelist; $i++ ) {
+    my $d = $sitelist[$i];
+    unless( -d $d ) {
+      mkdir $d or die "Failed to make directory $d\n$!";
+    }
+  }
+
+  my $tmpHash->{'sitedir'} = [@sitelist];
+
+  copyAndCompare( $genHash, $tmpHash, $oldGenHash, $genHash, ['sitedir'] );
+}
+
+sub cleanAverage {
+  my ($genHash) = @_;
+
+#  for( my $i = 0; $i < scalar @{$genHash->{'sitedir'}}; $i++ ) {
+#    my $f = substr $sitelist[$i], 1;
+  foreach my $site (@{$genHash->{'sitedir'}}) {
+    my $f = substr $site, 1;
+    move( "avg".$f, catfile( $site, "avg" ) ) or die "$!";
+  }
+}
+
+#TODO hoist avg out of here and put it in cleanAverage routine
+# TODO modify vhommod to look for chi in subfolder
+#TODO make clean screen_driver routine to store chi0, grid, and chi
+#TODO change sitename to just trim first character off of sitelist
 sub cleanScreen
 {
   my ($genHash, $screenHash) = @_;
@@ -2036,7 +2142,7 @@ sub cleanScreen
         }        
       }
 
-      finishCorePotentials( $genHash, $screenHash, \%corelist );
+#      finishCorePotentials( $genHash, $screenHash, \%corelist );
     } else {
       foreach my $r (@{$screenHash->{'shells'}}) {
         my $radNam = sprintf( "zR%.2f", $r );
@@ -2057,11 +2163,24 @@ sub cleanScreen
 
 sub finishCorePotentials
 {
-  my ($genHash, $screenHash, $completeListRef ) = @_;
+  my ($genHash, $screenHash ) = @_;
+
+  #TODO check on valence paths
+  return unless( $genHash->{'mode'} eq 'core' );
+  my %completeList;
+  foreach my $s (@{$genHash->{'fulllist'}}) {
+    $s =~ m/(\S+)\s+(\d+)\s+(\d+)\s+(\d+)\s+(\d+)/ or die;
+    my $site = sprintf( "z%2s%04i", $1, $3 ); 
+    my $edge = sprintf( "n%02il%02i", $4, $5) ;
+    my $entry = sprintf "%3i %2i %2i", $2, $4, $5;
+    $completeList{$site} = [] unless( exists $completeList{ $site} ) ;
+    push @{$completeList{ $site}}, [$edge,$entry];
+  }
+
 
   my $final_nr = sprintf("%.0f", $screenHash->{'final'}->{'rmax'} / $screenHash->{'final'}->{'dr'} );
 
-  my %completeList = %{$completeListRef};
+#  my %completeList = %{$completeListRef};
   print Dumper( %completeList );
   # First load up core-only screened potential files
   #  These are the core-hole potential including the effective screening
