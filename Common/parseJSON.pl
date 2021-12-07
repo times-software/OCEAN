@@ -308,10 +308,24 @@ INPUT: foreach my $key ( keys %inputHash )
 
 if( $haveLegacy == 1 )
 {
+  if( exists $inputHash{ 'ppdir' } ) {
+    if( $inputHash{ 'ppdir' } =~ m/^\s*'(.+)'\s*$/ ) {
+      print $inputHash{ 'ppdir' };
+      $inputHash{ 'ppdir' } = $1;
+      print "  " .$inputHash{ 'ppdir' } . "\n";
+    }
+    if( $inputHash{ 'ppdir' } =~ m/^\.\.\/$/ ) {
+      print $inputHash{ 'ppdir' };
+      $inputHash{ 'ppdir' } = './';
+      print "  " .$inputHash{ 'ppdir' } . "\n";
+    }
+  }
   foreach my $key ( keys %inputHash )
   {
-    die "Unrecognized input flag: $key\n No recovery possible!" unless( exists $decoder{$key} );
-    my $newKey = $decoder{ $key };
+    my $lckey = lc($key);
+#    $key = lc($key) unless( exists $decoder{$key} );
+    die "Unrecognized input flag: $key\n No recovery possible!" unless( exists $decoder{$lckey} );
+    my $newKey = $decoder{ $lckey };
     print "$key : $newKey  $inputHash{ $key }\n";
     $inputHash{ $newKey } = $inputHash{ $key };
     delete( $inputHash{ $key } ) unless( $key eq $newKey );
@@ -377,7 +391,9 @@ foreach my $key ( keys %inputHash )
     if( $type =~ m/[if]/ )
     {
       for( my $i = 0; $i < scalar @rawArray; $i++ )
-      { $rawArray[$i] *= 1 }
+      { 
+        $rawArray[$i] =~ s/[dD]/e/; # won't matter for int
+        $rawArray[$i] *= 1 }
     }
     elsif( $type =~ m/s/ )
     {
@@ -404,6 +420,14 @@ foreach my $key ( keys %inputHash )
   }
   else
   {
+#    if( $key =~ m/tol/ ) {
+#      print "STOP" . $value . "\n" . $regex . "\n";
+#      $value =~ s/d/e/;
+#      $value =~ m/$regex/;
+#      print $1 . "\n";
+#      print $1*1 . "\n";
+#      exit 1;
+#    }
     unless( $value eq ' ' )
     {
       $value =~ s/^\s+//;
@@ -451,6 +475,7 @@ foreach my $key ( keys %inputHash )
       if( $value =~ m/$regex/ )
       {
         $value = $1;
+        $value =~ s/d/e/ if( $type =~ m/f/ );
         $value *= 1 if( $type =~ m/[if]/ );
         $value = lc $value if( $type =~ m/s/ );
       }

@@ -277,7 +277,7 @@ else
 	chdir "PREP" or die "$!\n";
 	if( $script_pre eq 'qe' )
 	{
-  		system("$OCEAN_BIN/qe_dendip.pl") == 0 or die "PREP Stage Failed\n$!";
+  		system("$OCEAN_BIN/prep.pl") == 0 or die "PREP Stage Failed\n$!";
 	}
 	else
 	{
@@ -317,7 +317,7 @@ else
 {
   print "Entering CNBSE stage\n";
   chdir "../CNBSE";
-  system("$OCEAN_BIN/cnbse_mpi.pl") == 0 or die "CNBSE stage failed\n$!";
+  system("$OCEAN_BIN/cnbse.pl") == 0 or die "CNBSE stage failed\n$!";
 }
 
 ##########################################

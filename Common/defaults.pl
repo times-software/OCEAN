@@ -42,6 +42,9 @@ if( -e $dataFile )
     die "Failed to open config file $dataFile\n$!";
   }
 
+  $oceanData->{'warnings'} = {} unless( exists $oceanData->{'warnings'} );
+  $oceanData->{'warnings'}->{'defaults.pl'} = [] unless( exists $oceanData->{'warnings'}->{'defaults.pl'} );
+
   $oceanData->{'computer'}->{'ncpus'} = parse_para_prefix( $oceanData );
   add_cpuFactorsAndSquare( $oceanData );
   abVecsVolume( $oceanData ); 
@@ -60,6 +63,8 @@ if( -e $dataFile )
   checkEpsilon( $oceanData );
 
   checkDFTconvergence( $oceanData );
+
+  checkDFToccopt( $oceanData );
 
   fixSerPrefix( $oceanData );
 
@@ -1209,6 +1214,59 @@ sub checkDFTconvergence
 
   delete $hashRef->{'dft'}->{'toldfe'};
   delete $hashRef->{'dft'}->{'tolwfr'};
+}
+
+sub checkDFToccopt
+{
+  my $hashRef = $_[0];
+
+  if( $hashRef->{'structure'}->{'valence_electrons'} > 0 ) {
+    if( $hashRef->{'structure'}->{'valence_electrons'} % 2 ) {
+      $hashRef->{'structure'}->{'metal'} = JSON::PP::true unless( defined( $hashRef->{'structure'}->{'metal'} ) );
+      unless( $hashRef->{'structure'}->{'metal'} ) {
+        print "WARN!!\n"
+            . "System was not set to metallic, but it has an odd number of electrons\n";
+        my $s = "Metal flag changed from false to true";
+        print "  $s\n";
+        $hashRef->{'warnings'} = {} unless( exists $hashRef->{'warnings'} );
+        $hashRef->{'warnings'}->{'defaults.pl'} = [] unless( exists $hashRef->{'warnings'}->{'defaults.pl'} );
+        push @{$hashRef->{'warnings'}->{'defaults.pl'}}, $s;
+      }
+    }
+  }
+
+  unless( defined( $hashRef->{'structure'}->{'metal'} ) ) {
+    if( $hashRef->{'dft'}->{'occopt'} == 1 ) {
+      $hashRef->{'structure'}->{'metal'} = JSON::PP::false;
+    } else {
+      $hashRef->{'structure'}->{'metal'} = JSON::PP::true;
+    }
+  }
+
+  if( $hashRef->{'structure'}->{'metal'} ) {
+    if( $hashRef->{'dft'}->{'occopt'} == 1 ) {
+      print "WARN!!\n  System was set to metallic, but occopt was set to 1\n" .
+                    "  Consider adjusting both occopt and degauss to match your needs.\n" .
+                    "  This affects the DFT SCF calculation\n";
+      $hashRef->{'warnings'} = {} unless( exists $hashRef->{'warnings'} );
+      $hashRef->{'warnings'}->{'defaults.pl'} = [] unless( exists $hashRef->{'warnings'}->{'defaults.pl'} );
+      my $s = "Occopt changed from 1 to 3";
+      $hashRef->{'dft'}->{'occopt'} = 3;
+      push @{$hashRef->{'warnings'}->{'defaults.pl'}}, $s;
+      print "$s\n";
+    }
+  } else {
+    if( $hashRef->{'dft'}->{'occopt'} != 1 ) {
+      print "WARN!!\n  System was set to insulating, but occopt was set to not be 1\n";
+      my $s = sprintf "Occopt changed from %i to 1", $hashRef->{'dft'}->{'occopt'};
+      $hashRef->{'dft'}->{'occopt'} = 1;
+      $hashRef->{'warnings'} = {} unless( exists $hashRef->{'warnings'} );
+      $hashRef->{'warnings'}->{'defaults.pl'} = [] unless( exists $hashRef->{'warnings'}->{'defaults.pl'} );
+      push @{$hashRef->{'warnings'}->{'defaults.pl'}}, $s;
+      print "$s\n";
+    }
+  }
+
 }
 
 sub fixSerPrefix
