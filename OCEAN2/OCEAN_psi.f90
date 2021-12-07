@@ -146,7 +146,7 @@ module OCEAN_psi
             OCEAN_psi_vtor, OCEAN_psi_rtov, OCEAN_psi_size_full, & 
             OCEAN_psi_min_set_prec, OCEAN_psi_min2full, OCEAN_psi_size_min
   public :: OCEAN_psi_3element_mult, OCEAN_psi_2element_mult, OCEAN_psi_free_full, OCEAN_psi_divide, &
-            OCEAN_psi_set_full, OCEAN_psi_f2m_3element_mult
+            OCEAN_psi_set_full, OCEAN_psi_f2m_3element_mult, OCEAN_psi_free_fbe
 
   public :: OCEAN_vector
 
@@ -4819,10 +4819,58 @@ subroutine OCEAN_psi_dot_write( p, q, outvec, rrequest, rval, ierr, irequest, iv
     if( allocated( p%valr ) ) deallocate( p%valr )
     if( allocated( p%vali ) ) deallocate( p%vali )
 
+!    if( allocated( p%buffer_r ) ) deallocate( p%buffer_r )
+!    if( allocated( p%buffer_i ) ) deallocate( p%buffer_i )
+
+!    if( allocated( p%extra_r ) ) deallocate( p%extra_r )
+!    if( allocated( p%extra_i ) ) deallocate( p%extra_i )
+
     p%valid_store = IAND( p%valid_store, NOT( PSI_STORE_FULL ) )
     p%alloc_store = IAND( p%alloc_store, NOT( PSI_STORE_FULL ) )
 
   end subroutine
+
+!> @author John Vinson, NIST
+!     
+!> @brief Deallocates the alll stores for both valence and core, except min. 
+!! Will succeed even if neither are currently allocated. If full is valid 
+!! and min is not will first save data to min. 
+  subroutine OCEAN_psi_free_fbe( p, ierr )
+    implicit none
+    integer, intent(inout) :: ierr
+    type(OCEAN_vector), intent( inout ) :: p
+
+    if( IAND( p%valid_store, PSI_STORE_FULL ) .eq. PSI_STORE_FULL ) then
+      if( IAND( p%valid_store, PSI_STORE_MIN ) .ne. PSI_STORE_MIN ) then
+        call OCEAN_psi_full2min( p, ierr )
+        if( ierr .ne. 0 ) return
+      endif
+    endif 
+    
+    call OCEAN_psi_free_full(p,ierr)
+    if( ierr .ne. 0 ) return
+    
+    call OCEAN_psi_free_buffer( p, ierr )
+    if( ierr .ne. 0 ) return
+
+    call OCEAN_psi_free_extra( p, ierr )
+    if( ierr .ne. 0 ) return
+!    if( allocated( p%r ) ) deallocate( p%r )
+!    if( allocated( p%i ) ) deallocate( p%i )
+    
+!    if( allocated( p%valr ) ) deallocate( p%valr )
+!    if( allocated( p%vali ) ) deallocate( p%vali )
+    
+!    if( allocated( p%buffer_r ) ) deallocate( p%buffer_r )
+!    if( allocated( p%buffer_i ) ) deallocate( p%buffer_i )
+
+!    if( allocated( p%extra_r ) ) deallocate( p%extra_r )
+!    if( allocated( p%extra_i ) ) deallocate( p%extra_i )
+
+    p%valid_store = PSI_STORE_MIN 
+    p%alloc_store = PSI_STORE_MIN
+
+  end subroutine OCEAN_psi_free_fbe
 
 !> @author John Vinson, NIST
 !

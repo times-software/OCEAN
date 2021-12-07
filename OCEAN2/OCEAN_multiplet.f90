@@ -471,6 +471,8 @@ module OCEAN_multiplet
       !
       allocate( list( npmax * npmax ), mpm( npmax, npmax, lmin : lmax ) )
       mpm( :, :, : ) = 0.0_DP
+      inquire( file='rpa', exist=ex )
+      if( .not. ex ) then
       do l = lmin, lmax
          if ( l .gt. 9 ) stop 'l exceeds 9 in multip'
          write ( s5, '(1a4,1i1)' ) 'cmel', l
@@ -484,6 +486,7 @@ module OCEAN_multiplet
          end do
          close( unit=99 )
       end do
+      endif
       mpm( :, :, : ) = mpm( :, :, : ) * eV2Hartree !/ 27.2114d0
       deallocate( list )
       write ( 6, * ) 'central projector matrix elements have been read in'

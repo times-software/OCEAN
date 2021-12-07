@@ -257,6 +257,10 @@ module OCEAN_system
         sys%long_range = .false.
       endif
       
+      inquire( file='rpa', exist=exst )
+      if( exst ) then
+        sys%long_range = .false.
+      endif
 
       sys%e0 = .true.
       sys%obf = .false.

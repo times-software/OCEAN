@@ -448,7 +448,10 @@ module OCEAN_gmres
 
       if( do_precondition ) then
         call OCEAN_psi_min_set_prec( ener, gmres_preconditioner, hpsi1, psi_pcdiv, ierr )
-        if( ierr .ne. 0 ) return
+        if( ierr .ne. 0 ) then
+          if( myid .eq. root ) write(6,*) 'OCEAN_psi_min_set_prec failed'
+          return
+        endif
       endif
 !      write(6,*) 'prec:', psi_pcdiv%min_r(1,1), psi_pcdiv%min_i(1,1)
 
@@ -456,7 +459,10 @@ module OCEAN_gmres
 
       ! do we start with x = 0 or with x = previous or something else?
       call set_initial_vector( sys, step_iter, psi_x, psi_g, psi_ax, hay_vec, ierr , nhflag)
-      if( ierr .ne. 0 ) return
+      if( ierr .ne. 0 ) then
+        if( myid .eq. root ) write( 6,*) 'set_initial_vector failed'
+        return
+      endif
 
 !      write(6,*) hay_vec%r(1,1,1), hay_vec%i(1,1,1)
 !      write(6,*) psi_g%min_r(1,1), psi_g%min_i(1,1)
@@ -492,7 +498,10 @@ module OCEAN_gmres
           else
             call OCEAN_psi_copy_min( psi_pg, psi_g, ierr )
           endif
-          if( ierr .ne. 0 ) return
+          if( ierr .ne. 0 ) then
+            if( myid .eq. root ) write(6,*) 'do_precondition failed'
+            return
+          endif
 
           call OCEAN_psi_min2full( psi_pg, ierr )
           if( ierr .ne. 0 ) return
@@ -508,9 +517,9 @@ module OCEAN_gmres
           ! apg = (e+iG) * pg - apg
           call OCEAN_psi_axmy( psi_pg, psi_apg, ierr, ener, gmres_resolution )
           if( ierr .ne. 0 ) return
-          call OCEAN_psi_free_full( psi_pg, ierr )
+          call OCEAN_psi_free_fbe( psi_pg, ierr )
           if( ierr .ne. 0 ) return
-          call OCEAN_psi_free_full( psi_apg, ierr )
+          call OCEAN_psi_free_fbe( psi_apg, ierr )
           if( ierr .ne. 0 ) return
 
 
@@ -552,9 +561,9 @@ module OCEAN_gmres
                     gval, gmres_convergence, ener
             endif
           endif
-          if( myid.eq.root) write(*,*) 'conv check'
+!          if( myid.eq.root) write(*,*) 'conv check'
           if( gval .lt. gmres_convergence ) goto 200 ! if convergered goto 200
-          if(myid.eq.root) write(*,*) 'no conv: ', step_iter
+!          if(myid.eq.root) write(*,*) 'no conv: ', step_iter
         enddo
 
 
@@ -586,8 +595,9 @@ module OCEAN_gmres
 !        call MPI_WAITALL( 2, requests, MPI_STATUSES_IGNORE, ierr )
 !        if( ierr .ne. 0 ) return
 
-        call write_out_energy(sys, step_iter, hay_psi_x, nhflag, ierr)
-        if( ierr .ne. 0 ) return
+!JTV
+!        call write_out_energy(sys, step_iter, hay_psi_x, nhflag, ierr)
+!        if( ierr .ne. 0 ) return
       endif
 
  
