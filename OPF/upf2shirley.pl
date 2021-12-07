@@ -76,9 +76,78 @@ while( my $line = <IN> )
     my $line2;
     do {
       $line2 = <IN>;
+      if( $line2 =~ m/\s*</ ) {
+        until( $line2 =~ m/>/) {
+          chomp $line2;
+          $line2 .= ' ' . <IN>;
+        }
+      }
       $val .= $line2;
-#      print "$tag  $line2";
+#      print "$tag  $line2" if( $tag =~ m/PP_PSWFC/ ) ;
     } until( $line2 =~ m/<(.*)>/ );
+#    print "------- $line2";
+
+    ### PP_CHI
+    if( $line2 =~ m/PP_CHI/ ) {
+#      print "!!!!!!!!!!!!!!!!\n";
+      my $line3;
+      do {
+        $tag = "PP_CHI";
+        if( $line2 =~ m/\s*</ ) {
+          until( $line2 =~ m/>/) {
+            chomp $line2;
+            $line2 .= ' ' . <IN>;
+          }
+        }
+        $line2 =~ m/l="(\d+)"/ or die "parse failed\n$line2";
+        my $el = $1;
+#        print $line2;
+        $val = '';
+        do {
+          $line3 = <IN>;
+          $val .= $line3;
+        } until( $line3 =~  m/<(.*)>/ );
+#        print "$el -------- $line3";
+
+        my @temp = split ' ', $val;
+        my $i = 0;
+        if( $el == 0 && scalar @wfc0 == 0 ) { 
+#          print "   l = 0\n";
+          while( $temp[$i] =~ m/\d\.\d+/ )
+          {
+            push @wfc0, $temp[$i];
+            $i++;
+          }
+        } elsif( $el == 1 && scalar @wfc1 == 0 ) {
+#          print "   l = 1\n" . scalar @temp . "\n$temp[0] $temp[10] 10\n";
+#          print $val;
+          while( $temp[$i] =~ m/\d\.\d+/ )
+          {
+            push @wfc1, $temp[$i];
+            $i++;
+          }
+        } elsif( $el == 2 && scalar @wfc2 == 0 ) {
+#          print "   l = 2\n";
+          while( $temp[$i] =~ m/\d\.\d+/ )
+          {
+            push @wfc2, $temp[$i];
+            $i++;
+          }
+        } elsif( $el == 3 && scalar @wfc3 == 0 ) {
+#          print "   l = 3\n";
+          while( $temp[$i] =~ m/\d\.\d+/ )
+          {
+            push @wfc3, $temp[$i];
+            $i++;
+          }
+        } 
+        $line2 = <IN>;
+
+      } while ( $line2 =~ m/PP_CHI/);
+
+    }
+  
+
     if ( $tag =~ m/PP_R$|PP_R\s/ )
     {
       @rad = split ' ', $val;
@@ -93,7 +162,7 @@ while( my $line = <IN> )
     {
       my @temp = split ' ', $val;
       my $l;
-      if( $tag =~ m/angular_momentum="(\d)/ )
+      if( $tag =~ m/angular_momentum="(\d)"/ )
       {
         $l = $1;
         print "### angular $l\n";
@@ -137,6 +206,7 @@ while( my $line = <IN> )
     }
     elsif( $tag =~ m/PP_PSWFC/ )
     {
+      print "####### PP_PSWFC\n";
       my @temp = split ' ', $val;
       my $i = 0;
       do
@@ -193,6 +263,9 @@ $lmax++ if( scalar @l1 > 0 );
 $lmax++ if( scalar @l2 > 0 );
 $lmax++ if( scalar @l3 > 0 );
 $lmax = 4 if ( $lmax > 4 );
+
+
+print scalar @wfc1 . "\n";
 
 open OUT, ">", $outFileName;
 print OUT "  "  . $lmax . "   " . (scalar @rad ) ."\n";
