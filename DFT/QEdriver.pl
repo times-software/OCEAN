@@ -701,6 +701,7 @@ sub QEprintInput
         .  "&electrons\n"
 #        .  "  conv_thr = $specificRef->{'toldfe'}\n"
         .  (sprintf "  conv_thr = %g\n", $specificRef->{'toldfe'})
+        .  (sprintf "  mixing_beta = %g\n", $generalRef->{'general'}->{'mixing'}) 
 #        .  "  mixing_beta = $generalRef->{'general'}->{'mixing'}\n"
         . (sprintf "  electron_maxstep = %i\n", $generalRef->{'general'}->{'nstep'})
 #        .  "  electron_maxstep = $generalRef->{'general'}->{'nstep'}\n"
