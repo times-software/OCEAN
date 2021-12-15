@@ -31,7 +31,7 @@
          "screen_radius" : -3.5,
          "solver" : "haydock",
          "spin_orbit" : -1,
-         "strength" : 1,
+         "strength" : -1,
          "write_rhs" : false
       },
       "dft_energy_range" : 50,
@@ -239,7 +239,7 @@
       },
       "nbands" : "range",
       "shells" : [
-         3.5
+         -1
       ]
    },
    "structure" : {

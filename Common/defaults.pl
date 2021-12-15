@@ -72,6 +72,8 @@ if( -e $dataFile )
   fixCoords( $oceanData );
   makeSitesZsymb( $oceanData );
   ## xred sub to go from bohr/ang to red
+
+  fixCNBSE( $oceanData );
   
   my $enable = 1;
   $json->canonical([$enable]);
@@ -1626,4 +1628,40 @@ sub makeSitesZsymb
     $hashRef->{'structure'}->{'zsymb'}[$i] = $symb;
   }
 
+}
+
+sub fixCNBSE
+{
+  my $hashRef = $_[0];
+
+  if( $hashRef->{'bse'}->{'core'}->{'strength'} < 0 ) {
+    if( $hashRef->{'calc'}->{'mode'} eq 'xes' ) {
+      $hashRef->{'bse'}->{'core'}->{'strength'} = 0;
+    } else {
+      $hashRef->{'bse'}->{'core'}->{'strength'} = 1;
+    }
+  }
+
+  if( $hashRef->{'bse'}->{'core'}->{'screen_radius'} < 0 ) {
+    if( $hashRef->{'screen'}->{'shells'}[-1] > 0 ) {
+      $hashRef->{'bse'}->{'core'}->{'screen_radius'} = $hashRef->{'screen'}->{'shells'}[-1];
+    } else {
+      $hashRef->{'bse'}->{'core'}->{'screen_radius'} = abs( $hashRef->{'bse'}->{'core'}->{'screen_radius'} );
+    }
+  }
+
+  my @tmp;
+  my $found = 0;
+  foreach my $r (@{$hashRef->{'screen'}->{'shells'}}) {
+    if( abs( $hashRef->{'bse'}->{'core'}->{'screen_radius'} - $r ) < 0.01 ) {
+      $found = 1;
+    }
+    push @tmp, $r if( $r > 0 );
+  }
+
+  $hashRef->{'screen'}->{'shells'} = \@tmp;
+
+  if( $found == 0 ) {
+    push @{$hashRef->{'screen'}->{'shells'}}, $hashRef->{'bse'}->{'core'}->{'screen_radius'};
+  }
 }
