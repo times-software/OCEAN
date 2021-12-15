@@ -1,7 +1,7 @@
 include ../Makefile.arch
 
 FILES   = avec.x kgen2.x makecoords.x makeatompp.x makeacell.x 
-SCRIPTS = AbinitDriver.pl pp.pl par_ab2.pl qe2rhoofr.pl dft.pl qeband.pl qe62band.pl QEdriver.pl
+SCRIPTS = AbinitDriver.pl pp.pl par_ab2.pl qe2rhoofr.pl dft.pl qeband.pl qe62band.pl QEdriver.pl ABIdriver.pl
 AUX = $(ABINIT_EXE) $(CUT3D_EXE) $(PW_EXE) $(PP_EXE)
 
 

@@ -22,6 +22,7 @@ use Digest::MD5 qw(md5_hex);
 use FindBin;
 use lib $FindBin::Bin;
 require 'QEdriver.pl';
+require 'ABIdriver.pl';
 
 ###########################
 if (! $ENV{"OCEAN_BIN"} ) {
@@ -32,6 +33,8 @@ if (! $ENV{"OCEAN_BIN"} ) {
 if (! $ENV{"OCEAN_ESPRESSO_PW"} ) {$ENV{"OCEAN_ESPRESSO_PW"} = $ENV{"OCEAN_BIN"} . "/pw.x"; }
 if (! $ENV{"OCEAN_ESPRESSO_PP"} ) {$ENV{"OCEAN_ESPRESSO_PP"} = $ENV{"OCEAN_BIN"} . "/pp.x"; }
 if (! $ENV{"OCEAN_ESPRESSO_PH"} ) {$ENV{"OCEAN_ESPRESSO_PH"} = $ENV{"OCEAN_BIN"} . "/ph.x"; }
+if (! $ENV{"OCEAN_ABINIT"} ) {$ENV{"OCEAN_ABINIT"} = $ENV{"OCEAN_BIN"} . "/abinit"; }
+if (! $ENV{"OCEAN_CUT3D"} ) {$ENV{"OCEAN_CUT3D"} = $ENV{"OCEAN_BIN"} . "/cut3d"; }
 
 #my $driver = catdir( $ENV{"OCEAN_BIN"}, "QEdriver.pl" );
 #require "$driver";
@@ -297,7 +300,8 @@ print OUT $json->encode($newDftData);
 close OUT;
 
 ### Need to write abstraction to support multiple DFT codes
-unless( $newDftData->{'general'}->{'program'} eq "qe" ) {
+unless( $newDftData->{'general'}->{'program'} eq "qe" ||
+        $newDftData->{'general'}->{'program'} eq "abi" ) {
   print "Only QE supported at the moment!\n";
   exit 1;
 }
@@ -308,6 +312,9 @@ unless( $newDftData->{'scf'}->{'complete'} )
   my $errorCode = 0;
   if( $newDftData->{'general'}->{'program'} eq "qe" ) {
     $errorCode = QErunDensity( $newDftData );
+    print "$errorCode\n";
+  } elsif ( $newDftData->{'general'}->{'program'} eq "abi" ) {
+    $errorCode = ABIrunDensity( $newDftData );
     print "$errorCode\n";
   } else {
     $errorCode = 1;
@@ -333,7 +340,12 @@ unless( $newDftData->{'scf'}->{'complete'} )
 # Re-format density
 unless( $newDftData->{'density'}->{'complete'} ) {
   print "Exporting density from SCF\n";
-  my $errorCode = QEparseDensityPotential( $newDftData, "density" );
+  my $errorCode;
+  if( $newDftData->{'general'}->{'program'} eq "qe" ) {
+     $errorCode = QEparseDensityPotential( $newDftData, "density" );
+  } elsif ( $newDftData->{'general'}->{'program'} eq "abi" ) {
+     $errorCode = ABIparseDensityPotential( $newDftData, "density" );
+  }
   exit $errorCode if( $errorCode != 0 );
 
 
@@ -370,10 +382,17 @@ unless( $newDftData->{'density'}->{'complete'} ) {
   print "Density export complete\n";
 }
 
+
 # Re-format potential
 unless( $newDftData->{'potential'}->{'complete'} ) {
   print "Exporting potential from SCF\n";
-  my $errorCode = QEparseDensityPotential( $newDftData, "potential" );
+#  my $errorCode = QEparseDensityPotential( $newDftData, "potential" );
+  my $errorCode;
+  if( $newDftData->{'general'}->{'program'} eq "qe" ) {
+     $errorCode = QEparseDensityPotential( $newDftData, "potential" );
+  } elsif ( $newDftData->{'general'}->{'program'} eq "abi" ) {
+     $errorCode = ABIparseDensityPotential( $newDftData, "potential" );
+  }
   exit $errorCode if( $errorCode != 0 );
 
 
@@ -384,6 +403,7 @@ unless( $newDftData->{'potential'}->{'complete'} ) {
   print "Potential export complete\n";
 }
 
+exit 10 if( $newDftData->{'general'}->{'program'} eq "abi" );
 
 # Time for SCREENING states
 if( $newDftData->{'screen'}->{'enable'} ) {
