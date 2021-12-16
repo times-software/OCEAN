@@ -12,8 +12,56 @@ use POSIX;
 use File::Spec;
 use File::Copy;
 
-#sub QErunNSCF {}
-#sub QEsetupNSCF {}
+sub ABIrunNSCF 
+{
+  my ( $hashRef, $specificHashRef, $shift ) = @_;
+
+  my $dirname = sprintf "k%i_%i_%iq%.6f_%.6f_%.6f", $specificHashRef->{'kmesh'}[0],
+                    $specificHashRef->{'kmesh'}[1], $specificHashRef->{'kmesh'}[2],
+                    $specificHashRef->{'kshift'}[0], $specificHashRef->{'kshift'}[1],
+                    $specificHashRef->{'kshift'}[2];
+
+  print "$dirname\n";
+
+  mkdir $dirname unless( -d $dirname );
+  chdir $dirname;
+  
+  ABIsetupNSCF();
+
+  my $nk = $specificHashRef->{'kmesh'}[0] * $specificHashRef->{'kmesh'}[1]
+           * $specificHashRef->{'kmesh'}[2];
+  $nk *=2  if( $specificHashRef->{'nonzero_q'} && not $specificHashRef->{'split'});
+  my $kptString = sprintf "kptopt 0\nnkpt %i\nkpt\n", $nk;
+  $kptString .= kptGen( $specificHashRef, $shift );
+
+  open my $input, ">", "nscf.in" or die "Failed to open nscf.in.\n$!";
+  open my $files, ">", "nscf.files" or die "Failed to open nscf.files\n$!";
+
+  my $calcFlag = 0;
+  ABIprintFiles( $files, $hashRef, $calcFlag );
+  ABIprintInput( $input, $hashRef, $specificHashRef, $calcFlag, "nscf", $kptString ) ;
+
+  close $input;
+  close $files;
+
+  ABIrunABINIT( $hashRef->{'computer'}->{'para_prefix'}, "nscf.files", "nscf.log" );
+
+  my $errorCode = ABIparseOut( "nscf.log", $specificHashRef );
+  return $errorCode if( $errorCode );
+
+  chdir updir();
+  return $errorCode;
+}
+
+sub ABIsetupNSCF 
+{
+  my $prefix = 'SCFx_';
+  my @fileList = ( 'DEN' );
+
+  foreach my $f (@fileList) {
+    copy catfile( updir(), $prefix . $f ), $prefix . $f or die "Failed to copy ${prefix}${f}\n$!";
+  }
+}
 
 sub ABIrunDensity 
 {
@@ -24,8 +72,20 @@ sub ABIrunDensity
 
   my $calcFlag = 1;
 
+  my $kptString = sprintf "ngkpt %i %i %i\nnshiftk 1\nshiftk", $hashRef->{'scf'}->{'kmesh'}[0],
+                        $hashRef->{'scf'}->{'kmesh'}[1], $hashRef->{'scf'}->{'kmesh'}[2];
+  for( my $i = 0; $i < 3; $i++ ) {
+    if( $hashRef->{'scf'}->{'kshift'}[$i]==1 ) {
+      $kptString .= " 0.5";
+    } else {
+      $kptString .= " 0.0";
+    }
+  }
+  $kptString .= "\n";
+
   # Modify QEprintInput to take two different hashes and a string 
-  ABIprintInput( $input, $files, $hashRef, $hashRef->{'scf'}, $calcFlag, "scf" ) ;
+  ABIprintFiles( $files, $hashRef, $calcFlag );
+  ABIprintInput( $input, $hashRef, $hashRef->{'scf'}, $calcFlag, "scf", $kptString ) ;
 
   close $input;
   close $files;
@@ -67,9 +127,10 @@ sub ABIparseOut
     { 
       $hashRef->{'etot'} = $1*1;
     }
-    elsif( $scf_line =~ m/is converged/ )
+#    elsif( $scf_line =~ m/is converged/ )
+    elsif( $scf_line =~ m/Delivered\s+(\d+)\s+WARNING/ )
     {
-      $errorCode = 0;
+      $errorCode = $1;
     }
     elsif( $scf_line =~ m/nelect=\s+(\d+\.?\d*)/ ) 
     {
@@ -161,17 +222,31 @@ sub ABIrunABINIT
 
 #sub QErunPP {} 
 
-sub ABIprintInput 
+sub ABIprintFiles
 {
-  my ($input, $files, $generalRef, $specificRef, $calcFlag, $baseString ) = @_;
+  my ($files, $generalRef, $calcFlag ) = @_;
 
-
-  print $files $baseString . ".in\n" . $baseString . ".out\n" 
-          . uc($baseString) . "\n" . uc($baseString) . "x\n" 
-          . uc($baseString) . "xx\n";
+  if( $calcFlag == 1 ) {
+    print $files "scf.in\nscf.out\nSCF\nSCFx\nSCFxx\n"; 
+  } else {
+    print $files "nscf.in\nnscf.out\nSCFx\nNSCFx\nNSCFxx\n";
+  }
   foreach my $p ( @{$generalRef->{'psp'}->{'pp_list'}}) {
     print $files catfile( $generalRef->{'psp'}->{'ppdir'}, $p ) . "\n";
   }
+}
+
+sub ABIprintInput 
+{
+  my ($input, $generalRef, $specificRef, $calcFlag, $baseString, $kptString ) = @_;
+
+
+#  print $files $baseString . ".in\n" . $baseString . ".out\n" 
+#          . uc($baseString) . "\n" . uc($baseString) . "x\n" 
+#          . uc($baseString) . "xx\n";
+#  foreach my $p ( @{$generalRef->{'psp'}->{'pp_list'}}) {
+#    print $files catfile( $generalRef->{'psp'}->{'ppdir'}, $p ) . "\n";
+#  }
   
 
   print $input "symmorphi 0\nautoparal 1\nchksymbreak 0\n"
@@ -219,16 +294,16 @@ sub ABIprintInput
   if( $calcFlag == 1 ) {
     printf $input "fband %g\n", $generalRef->{'general'}->{'fband'};
     print $input "prtden 1\nprtpot 1\nkptopt 1\n";
-    printf $input "ngkpt %i %i %i\nnshiftk 1\nshiftk", $specificRef->{'kmesh'}[0], 
-          $specificRef->{'kmesh'}[1], $specificRef->{'kmesh'}[2];
-    for( my $i = 0; $i < 3; $i++ ) {
-      if( $specificRef->{'kshift'}[$i]==1 ) {
-        print $input " 0.5";  
-      } else {
-        print $input " 0.0";
-      }
-    }
-    print $input "\n";
+#    printf $input "ngkpt %i %i %i\nnshiftk 1\nshiftk", $specificRef->{'kmesh'}[0], 
+#          $specificRef->{'kmesh'}[1], $specificRef->{'kmesh'}[2];
+#    for( my $i = 0; $i < 3; $i++ ) {
+#      if( $specificRef->{'kshift'}[$i]==1 ) {
+#        print $input " 0.5";  
+#      } else {
+#        print $input " 0.0";
+#      }
+#    }
+#    print $input "\n";
 
     printf $input "toldfe  %g\n", $specificRef->{'toldfe'};
     if( $generalRef->{'calc_stress'} ) {
@@ -244,12 +319,48 @@ sub ABIprintInput
     }
 
   } else {
-
+    # NOTE difference in definition between QE and ABINIT for tolerance leads to square here
+    printf $input "nband %i\ntolwfr %g\n", $specificRef->{'nbands'}, $specificRef->{'toldfe'};
+    print $input "iscf -2\ngetden -1\nistwfk *1\nnbdbuf 4\n";
   }
 
+  print $input $kptString;
 }
 
-#sub kptGen {}
+sub kptGen
+{
+  my ( $hashRef, $split ) = @_;
+      
+  my $kptText = "";
+  my @q = ( 0, 0, 0 ); 
+  if( $hashRef->{'nonzero_q'} && not $split ) {
+    $q[0] = $hashRef->{'photon_q'}[0];
+    $q[1] = $hashRef->{'photon_q'}[1];
+    $q[2] = $hashRef->{'photon_q'}[2];
+  } 
+  
+
+  for( my $x = 0; $x < $hashRef->{'kmesh'}[0]; $x++ ) {
+    my $xk = $hashRef->{'kshift'}[0]/$hashRef->{'kmesh'}[0] + $x/$hashRef->{'kmesh'}[0] - $q[0];
+    while( $xk > 1 ) { $xk -= 1.0; }
+    while( $xk < -1 ) { $xk += 1.0; }
+    for( my $y = 0; $y < $hashRef->{'kmesh'}[1]; $y++ ) {
+      my $yk = $hashRef->{'kshift'}[1]/$hashRef->{'kmesh'}[1] + $y/$hashRef->{'kmesh'}[1] - $q[1];
+      while( $yk > 1 ) { $yk -= 1.0; }
+      while( $yk < -1 ) { $yk += 1.0; }
+      for( my $z = 0; $z < $hashRef->{'kmesh'}[2]; $z++ ) {
+        my $zk = $hashRef->{'kshift'}[2]/$hashRef->{'kmesh'}[2] + $z/$hashRef->{'kmesh'}[2] - $q[2];
+        while( $zk > 1 ) { $zk -= 1.0; }
+        while( $zk < -1 ) { $zk += 1.0; }
+
+        $kptText .= sprintf "%19.15f  %19.15f  %19.15f\n", $xk, $yk, $zk;
+      }
+    }
+  }
+
+
+  return $kptText;
+}
 #sub QEparseEnergies {}
 #sub QEparseEnergies62  {}
 

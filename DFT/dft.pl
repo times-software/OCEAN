@@ -403,14 +403,18 @@ unless( $newDftData->{'potential'}->{'complete'} ) {
   print "Potential export complete\n";
 }
 
-exit 10 if( $newDftData->{'general'}->{'program'} eq "abi" );
 
 # Time for SCREENING states
 if( $newDftData->{'screen'}->{'enable'} ) {
   unless( $newDftData->{'screen'}->{'complete'} ) {
     print "Running DFT for screening states\n";
 
-    my $errorCode = QErunNSCF($newDftData, $newDftData->{'screen'}, 0 );
+    my $errorCode;
+    if( $newDftData->{'general'}->{'program'} eq "qe" ) {
+       $errorCode = QErunNSCF($newDftData, $newDftData->{'screen'}, 0 );
+    } elsif ( $newDftData->{'general'}->{'program'} eq "abi" ) {
+       $errorCode = ABIrunNSCF($newDftData, $newDftData->{'screen'}, 0 );
+    }
     
     exit $errorCode if( $errorCode );
 
@@ -436,7 +440,13 @@ unless( $newDftData->{'bse'}->{'complete'} ) {
   print "Running DFT for BSE basis states\n";
 
   
-  my $errorCode = QErunNSCF($newDftData, $newDftData->{'bse'}, 0 );
+  my $errorCode;
+  if( $newDftData->{'general'}->{'program'} eq "qe" ) {
+    $errorCode = QErunNSCF($newDftData, $newDftData->{'bse'}, 0 );
+  } elsif ( $newDftData->{'general'}->{'program'} eq "abi" ) {
+    $errorCode = ABIrunNSCF($newDftData, $newDftData->{'bse'}, 0 );
+  }
+
   
   exit $errorCode if( $errorCode );
 
