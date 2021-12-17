@@ -242,12 +242,12 @@ if( $script_pre eq 'OBF' )
 	system("$OCEAN_BIN/dft.pl") == 0 or die "DFT Stage Failed\n$!";
 	chdir "../";
 } 
-elsif( $script_pre eq 'qe' )
+elsif( $script_pre eq 'qe' || 1 )
 {
 	print "$Separator\n";
-  print "Entering QESPRESSO stage\n";
+  print "Entering DFT stage\n";
   chdir "DFT";
-  system("$OCEAN_BIN/dft.pl") == 0 or die "Qespresso Stage Failed\n";
+  system("$OCEAN_BIN/dft.pl") == 0 or die "DFT Stage Failed\n";
   chdir "../";
 }
 else
@@ -275,14 +275,14 @@ else
 	print "$Separator\n";
 	print "Entering PREP stage\n";
 	chdir "PREP" or die "$!\n";
-	if( $script_pre eq 'qe' )
-	{
+#	if( $script_pre eq 'qe' )
+#	{
   		system("$OCEAN_BIN/prep.pl") == 0 or die "PREP Stage Failed\n$!";
-	}
-	else
-	{
-		system("$OCEAN_BIN/dendip.pl") == 0 or die "PREP Stage Failed\n$!";
-	}
+#	}
+#	else
+#	{
+#		system("$OCEAN_BIN/dendip.pl") == 0 or die "PREP Stage Failed\n$!";
+#	}
 }
 ##########################################
 #

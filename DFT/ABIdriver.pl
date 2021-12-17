@@ -32,7 +32,7 @@ sub ABIrunNSCF
            * $specificHashRef->{'kmesh'}[2];
   $nk *=2  if( $specificHashRef->{'nonzero_q'} && not $specificHashRef->{'split'});
   my $kptString = sprintf "kptopt 0\nnkpt %i\nkpt\n", $nk;
-  $kptString .= kptGen( $specificHashRef, $shift );
+  $kptString .= kptGenAbi( $specificHashRef, $shift );
 
   open my $input, ">", "nscf.in" or die "Failed to open nscf.in.\n$!";
   open my $files, ">", "nscf.files" or die "Failed to open nscf.files\n$!";
@@ -46,10 +46,18 @@ sub ABIrunNSCF
 
   ABIrunABINIT( $hashRef->{'computer'}->{'para_prefix'}, "nscf.files", "nscf.log" );
 
-  my $errorCode = ABIparseOut( "nscf.log", $specificHashRef );
+  $specificHashRef->{'nelec'} = $hashRef->{'scf'}->{'nelec'};
+  $specificHashRef->{'fermi'} = $hashRef->{'scf'}->{'fermi'};
+
+  my $errorCode = ABIparseOut( "nscf.out", $specificHashRef );
   return $errorCode if( $errorCode );
 
+  $errorCode = ABIbrange( "NSCFx_EIG", $specificHashRef );
+
   chdir updir();
+
+
+
   return $errorCode;
 }
 
@@ -92,13 +100,59 @@ sub ABIrunDensity
 
   ABIrunABINIT( $hashRef->{'computer'}->{'para_prefix'}, "scf.files", "scf.log" );
 
-  my $errorCode = ABIparseOut( "scf.log", $hashRef->{'scf'} );
+  my $errorCode = ABIparseOut( "scf.out", $hashRef->{'scf'} );
   return $errorCode;
 #  return 1;
 }
 
 
 #sub QErunTest {}
+
+sub ABIbrange
+{
+  my ($file, $specificHashRef ) = @_;
+  
+  my $nkpt = $specificHashRef->{'kmesh'}[0]*$specificHashRef->{'kmesh'}[1]*$specificHashRef->{'kmesh'}[2];
+  open IN, "<", $file or die "Failed to open $file\n$!";
+  <IN> =~ m/nkpt=\s+(\d+)/ or die "Failed to parse $file\n";
+  if( $1 != $nkpt ) {
+    print "Mismatch between k-points in $file and expected $nkpt\n";
+    return 11;
+  }
+  my @brange;
+  $brange[0] = 1;
+  $brange[1] = 1;
+  
+  <IN>;
+  for( my $k = 0; $k < $nkpt; $k++ ) {
+    my @eig;
+    while( my $line = <IN> ) {
+      last if ($line =~ m/kpt/ );
+      @eig = (@eig, split ' ', $line );
+    }
+    if( $k==0 ) {
+      $brange[2] = scalar @eig;
+      $brange[3] = scalar @eig;
+    }
+    for( my $i = $brange[1]-1; $i < $brange[3]; $i++ ) {
+      if( $eig[$i] < $specificHashRef->{'fermi'} ) {
+        $brange[1] = $i+1;
+      } else { 
+        last; 
+      }
+    }
+    for( my $i = $brange[2]-1; $i >= 0; $i-- ) {
+      if( $eig[$i] > $specificHashRef->{'fermi'} ) {
+        $brange[2] = $i+1;
+      } else {
+        last;
+      }
+    }
+  }
+
+  $specificHashRef->{'brange'} = \@brange;
+  return 0;
+}
 
 sub ABIparseOut 
 {
@@ -107,6 +161,8 @@ sub ABIparseOut
   my $errorCode = 1;
 
   my $fermi = 'no';
+  my @occ;
+  my $nband;
 
   open SCF, "<", $outFile or die "Failed to open $outFile\n$!";
 
@@ -114,7 +170,7 @@ sub ABIparseOut
   { 
     if( $scf_line  =~  m/Fermi \(or HOMO\) energy \(hartree\) =\s+([+-]?\d+\.?\d+)/ )
     {
-      $fermi = $1 * 2;
+      $fermi = $1;
       $hashRef->{'fermi'} = $fermi;
     }
     elsif( $scf_line =~ m/Version\s+(\d+\.\d+\.\d+)\s+of ABINIT/ ) {
@@ -132,14 +188,35 @@ sub ABIparseOut
     {
       $errorCode = $1;
     }
-    elsif( $scf_line =~ m/nelect=\s+(\d+\.?\d*)/ ) 
+    elsif( $scf_line =~ m/nband\s+(\d+)/ )
     {
-      $hashRef->{'nelec'} = $1*1;
+      $nband = $1;
     }
+    elsif( $scf_line =~ m/occ\s+\d/ && scalar @occ == 0 )
+    {
+      @occ = split ' ', $scf_line;
+      shift @occ;
+      $scf_line = <SCF>;
+      while( $scf_line =~ m/^\s+\d/ ) {
+        @occ = (@occ, split ' ', $scf_line );
+        $scf_line = <SCF>;
+      }
+    }
+#    elsif( $scf_line =~ m/nelect=\s+(\d+\.?\d*)/ ) 
+#    {
+#      $hashRef->{'nelec'} = $1*1;
+#    }
 
   }
 
   close SCF;
+
+  if( scalar @occ > 0 ) {
+    $hashRef->{'nelec'} = 0;
+    for( my $i = 0; $i<$nband; $i++ ) {
+      $hashRef->{'nelec'} += $occ[$i];
+    }
+  }
 
   return $errorCode;
 }
@@ -152,16 +229,19 @@ sub ABIparseDensityPotential
   my $datafile;
   my $outfile;
   my $logfile;
+  my $nfft;
   if( $type eq 'density' ) {
     $infile = "cut3d.in";
     $datafile = "SCFx_DEN";
     $outfile = "rhoofr";
-    $logfile = 'cut3d.log'
+    $logfile = 'cut3d.log';
+    $nfft = "nfft";
   } elsif( $type eq 'potential' ) {
     $infile = "cut3d2.in";
     $datafile = "SCFx_POT";
     $outfile = "potofr";
-    $logfile = 'cut3d2.log'
+    $logfile = 'cut3d2.log';
+    $nfft = "nfft.pot";
   } else {
     return 1;
   }
@@ -204,6 +284,12 @@ sub ABIparseDensityPotential
     print "Failed to run cut3d\n";
     return 2;
   }
+
+  unless( system( "tail -n 1 $outfile > $nfft" ) == 0 ) {
+    print "Failed to make $nfft\n";
+    return 3;
+  }
+   
       
   return 0;
 }
@@ -327,7 +413,7 @@ sub ABIprintInput
   print $input $kptString;
 }
 
-sub kptGen
+sub kptGenAbi
 {
   my ( $hashRef, $split ) = @_;
       

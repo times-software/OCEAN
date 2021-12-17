@@ -1842,7 +1842,11 @@ sub prepWvfn
   }
   else
   {
-    symlink( catfile( $dirname, "RUN0001_WFK"), "RUN0001_WFK" ); 
+    unlink "RUN0001_WFK" if( -l "RUN0001_WFK" || -e "RUN0001_WFK" );
+    symlink( catfile( $dirname, "NSCFx_WFK"), "RUN0001_WFK" ); 
+    open OUT, ">", "wvfn.ipt";
+    print OUT "abinit\n";
+    close OUT;
   }
 }
 

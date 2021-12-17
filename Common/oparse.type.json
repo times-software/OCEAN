@@ -21,6 +21,9 @@
             "niter" : "i"
          },
          "plot" : {
+            "auto" : "b",
+            "delta" : "f",
+            "pad" : "f",
             "points" : "i",
             "range" : "af"
          },

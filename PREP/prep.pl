@@ -89,10 +89,10 @@ copyAndCompare( $newPrepData->{'bse'}, $commonOceanData->{'dft'}, $prepData->{'b
                 $newPrepData->{'bse'}, [ 'program' ] );
 
 copyAndCompare( $newPrepData->{'bse'}, $dftData->{'bse'}, $prepData->{'bse'},
-                $newPrepData->{'bse'}, [ 'hash', 'nelec' ] );
+                $newPrepData->{'bse'}, [ 'hash' ] );
 
 copyAndCompare( $newPrepData->{'bse'}, $dftData->{'scf'}, $prepData->{'bse'},
-                $newPrepData->{'bse'}, [ 'fermi' ] );
+                $newPrepData->{'bse'}, [ 'fermi', 'nelec' ] );
 
 #copyAndCompare( $newPrepData->{'bse'}, $commonOceanData->{'screen'}, $prepData->{'bse'},
 #                $newPrepData->{'bse'}, [ 'core_offset' ] );
@@ -191,9 +191,9 @@ unless( $newPrepData->{'bse'}->{'complete'} )
   if( $newPrepData->{'bse'}->{'program'} eq 'qe' )
   {
     copyLinkQE( $newPrepData->{'bse'});
-  }
-  else
-  {
+  } elsif ( $newPrepData->{'bse'}->{'program'} eq 'abi' ) {
+    copyLinkABI( $newPrepData->{'bse'});
+  } else {
     die "Bad DFT: $newPrepData->{'program'}\n";
   }
 
@@ -307,6 +307,35 @@ sub copyLinkQE
   print TMP "system\n";
   close TMP;
 
+}
+
+sub copyLinkABI
+{
+  my ($hashRef) = @_;
+
+
+  my $rundir = sprintf "k%i_%i_%iq%.6f_%.6f_%.6f", $hashRef->{'kmesh'}[0],
+                   $hashRef->{'kmesh'}[1], $hashRef->{'kmesh'}[2], $hashRef->{'kshift'}[0],
+                   $hashRef->{'kshift'}[1], $hashRef->{'kshift'}[2];
+
+  my $file = "NSCFx_WFK";
+  my $targ = "RUN0001_WFK";
+  if( -l $targ )  # Out is an existing link
+  {
+    unlink $targ or die "Problem cleaning old $targ link\n$!";
+  }
+  elsif( -e $targ ) #or Out is some other file
+  {
+    unlink $targ;
+  }
+  my $dirname = catdir( updir(), updir(), "DFT", $rundir, $file );
+  symlink ($dirname, $targ) == 1 or die "Failed to link $targ\n$!";
+
+  
+
+  open TMP, ">", "wvfn.ipt" or die "Failed to open wvfn.ipt for writing\n$!";
+  print TMP "abinit\n";
+  close TMP;
 }
 
 sub writeOceanPrepInput
