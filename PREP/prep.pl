@@ -169,6 +169,8 @@ if( $tmels )
   $newPrepData->{'bse'}->{'tmels'} = JSON::PP::true;
 }
 
+$newPrepData->{'bse'}->{'complete'} = JSON::PP::false unless( exists $prepData->{'bse'}->{'cbm'} );
+$newPrepData->{'bse'}->{'cbm'} = $prepData->{'bse'}->{'cbm'} if( $newPrepData->{'bse'}->{'complete'} );
 
 open OUT, ">", "prep.json" or die;
 print OUT $json->encode($newPrepData);
@@ -252,7 +254,7 @@ unless( $newPrepData->{'bse'}->{'complete'} )
   open OUT, ">", "prep.json" or die;
   print OUT $json->encode($newPrepData);
   close OUT;
-}
+} 
 
 
 exit 0;
@@ -344,7 +346,7 @@ sub writeOceanPrepInput
   open OUT, ">", "avecsinbohr.ipt" or die "Failed to open avecsinbohr.ipt\n$!";
   for( my $i = 0; $i < 3; $i++ )
   {
-    printf  OUT "%s  %s  %s\n", $hashRef->{'avecs'}[$i][0],
+    printf  OUT "% .16g  % .16g  % .16g\n", $hashRef->{'avecs'}[$i][0],
                                 $hashRef->{'avecs'}[$i][1],
                                 $hashRef->{'avecs'}[$i][2];
 
@@ -352,31 +354,31 @@ sub writeOceanPrepInput
   close OUT;
 
   open OUT, ">", "ntype" or die "$!";
-  print OUT scalar @{$hashRef->{'znucl'}} . "\n";
+  printf OUT "%i\n", scalar @{$hashRef->{'znucl'}};
   close OUT;
 
   open OUT, ">", "typat" or die "$!";
   for( my $i = 0; $i< scalar @{$hashRef->{'typat'}}; $i++ )
   {
-    print OUT $hashRef->{'typat'}[$i] . "\n";
+    printf OUT "%i\n", $hashRef->{'typat'}[$i];
   }
   close OUT;
 
   open OUT, ">", "natoms" or die "$!";
-  print OUT scalar @{$hashRef->{'typat'}} . "\n";
+  printf OUT "%i\n", scalar @{$hashRef->{'typat'}};
   close OUT;
 
   open OUT, ">", "znucl" or die "$!";
   for( my $i = 0; $i< scalar @{$hashRef->{'znucl'}}; $i++ )
   {
-    print OUT $hashRef->{'znucl'}[$i] . "\n";
+    printf OUT "%i\n", $hashRef->{'znucl'}[$i];
   }
   close OUT;
 
   open OUT, ">", "taulist" or die "$!";
   for( my $i = 0; $i< scalar @{$hashRef->{'xred'}}; $i++ )
   {
-    printf  OUT "%s  %s  %s\n", $hashRef->{'xred'}[$i][0],
+    printf  OUT "% .16g  % .16g  % .16g\n", $hashRef->{'xred'}[$i][0],
                                 $hashRef->{'xred'}[$i][1],
                                 $hashRef->{'xred'}[$i][2];
   }
@@ -388,25 +390,25 @@ sub writeOceanPrepInput
 
 
   open OUT, ">", "kmesh.ipt" or die $!;
-  printf  OUT "%s  %s  %s\n", $hashRef->{'kmesh'}[0],
+  printf  OUT "%i  %i  %i\n", $hashRef->{'kmesh'}[0],
                               $hashRef->{'kmesh'}[1],
                               $hashRef->{'kmesh'}[2];
   close OUT;
 
   open OUT, ">", "k0.ipt" or die $!;
-  printf  OUT "%s  %s  %s\n", $hashRef->{'kshift'}[0],
+  printf  OUT "% .16g  % .16g  % .16g\n", $hashRef->{'kshift'}[0],
                               $hashRef->{'kshift'}[1],
                               $hashRef->{'kshift'}[2];
   close OUT;
 
   open OUT, ">", "qinunitsofbvectors.ipt" or die $!;
-  printf  OUT "%s  %s  %s\n", $hashRef->{'photon_q'}[0],
+  printf  OUT "% .16g  % .16g  % .16g\n", $hashRef->{'photon_q'}[0],
                               $hashRef->{'photon_q'}[1],
                               $hashRef->{'photon_q'}[2];
   close OUT;
 
   open OUT, ">", "xmesh.ipt" or die $!;
-  printf  OUT "%s  %s  %s\n", $hashRef->{'xmesh'}[0],
+  printf  OUT "%i  %i  %i\n", $hashRef->{'xmesh'}[0],
                               $hashRef->{'xmesh'}[1],
                               $hashRef->{'xmesh'}[2];
   close OUT;
@@ -418,7 +420,7 @@ sub writeOceanPrepInput
   close OUT;
 
   open OUT, ">", "nspin" or die $!;
-  print OUT $hashRef->{'nspin'} . "\n";
+  printf OUT "%i\n", $hashRef->{'nspin'};
   close OUT;
 
   open OUT, ">", "dft.split" or die $!;
@@ -462,7 +464,7 @@ sub writeOceanPrepInput
   }
 
   open OUT, ">", "efermiinrydberg.ipt" or die $!;
-  print OUT $hashRef->{'fermi'}*2 . "\n";
+  printf OUT "% .16g\n", $hashRef->{'fermi'}*2;
   close OUT;
 
 #  open OUT, ">", "core_offset" or die $!;

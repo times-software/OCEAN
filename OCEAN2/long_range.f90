@@ -1720,7 +1720,7 @@ module ocean_long_range
         open( unit=36, file='ibeg.h', form='formatted', status='old' )
       endif
       
-      if ( nbd .gt. 1 + ( ich - icl ) ) stop 'loadux ... nbd mismatch -- cf brange.ipt...'
+      if ( nbd .gt. 1 + ( ich - icl ) ) stop 'longrange ... nbd mismatch -- cf brange.ipt...'
       open( unit=u2dat, file='u2.dat', form='unformatted', status='unknown' )
       rewind u2dat
       write(6,*) 'nspn: ', sys%nspn

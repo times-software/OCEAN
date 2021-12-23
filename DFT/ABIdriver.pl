@@ -171,7 +171,7 @@ sub ABIparseOut
     if( $scf_line  =~  m/Fermi \(or HOMO\) energy \(hartree\) =\s+([+-]?\d+\.?\d+)/ )
     {
       $fermi = $1;
-      $hashRef->{'fermi'} = $fermi;
+      $hashRef->{'fermi'} = $fermi*1;
     }
     elsif( $scf_line =~ m/Version\s+(\d+\.\d+\.\d+)\s+of ABINIT/ ) {
       $hashRef->{'version'} = $1;
@@ -358,19 +358,19 @@ sub ABIprintInput
         $generalRef->{'structure'}->{'xred'}[$i][1], $generalRef->{'structure'}->{'xred'}[$i][2];
   }
 
-  printf $input "ecut %g Ry\n", $generalRef->{'general'}->{'ecut'};
+  printf $input "ecut % .16g Ry\n", $generalRef->{'general'}->{'ecut'};
   printf $input "nstep %i\n", $generalRef->{'general'}->{'nstep'};
   if( $generalRef->{'epsilon'}->{'method'} eq "input" ) {
-    printf $input "diemac %g\n", $generalRef->{'structure'}->{'epsilon'};
+    printf $input "diemac % .16g\n", $generalRef->{'structure'}->{'epsilon'};
   } else {  # If no input dielectric then need to guess
     print $input "diemac 10\n";
   }
 
-  printf $input "occopt %i\ntsmear %g Ry\n", 
+  printf $input "occopt %i\ntsmear % .16g Ry\n", 
       $generalRef->{'general'}->{'occopt'}, $generalRef->{'general'}->{'degauss'};
 
   print $input "npfft 1\n";
-  printf $input "charge %g\n", $generalRef->{'general'}->{'tot_charge'};
+  printf $input "charge % .16g\n", $generalRef->{'general'}->{'tot_charge'};
   
   printf $input "nsppol %i\n", $generalRef->{'general'}->{'nspin'};
   if( $generalRef->{'general'}->{'nspin'} != 1 ) {
@@ -378,7 +378,7 @@ sub ABIprintInput
   }
 
   if( $calcFlag == 1 ) {
-    printf $input "fband %g\n", $generalRef->{'general'}->{'fband'};
+    printf $input "fband % .16g\n", $generalRef->{'general'}->{'fband'};
     print $input "prtden 1\nprtpot 1\nkptopt 1\n";
 #    printf $input "ngkpt %i %i %i\nnshiftk 1\nshiftk", $specificRef->{'kmesh'}[0], 
 #          $specificRef->{'kmesh'}[1], $specificRef->{'kmesh'}[2];
@@ -391,7 +391,7 @@ sub ABIprintInput
 #    }
 #    print $input "\n";
 
-    printf $input "toldfe  %g\n", $specificRef->{'toldfe'};
+    printf $input "toldfe  % .16g\n", $specificRef->{'toldfe'};
     if( $generalRef->{'calc_stress'} ) {
       print $input "optstress 1\n";
     } else {
@@ -406,7 +406,7 @@ sub ABIprintInput
 
   } else {
     # NOTE difference in definition between QE and ABINIT for tolerance leads to square here
-    printf $input "nband %i\ntolwfr %g\n", $specificRef->{'nbands'}, $specificRef->{'toldfe'};
+    printf $input "nband %i\ntolwfr % .16g\n", $specificRef->{'nbands'}, $specificRef->{'toldfe'};
     print $input "iscf -2\ngetden -1\nistwfk *1\nnbdbuf 4\n";
   }
 

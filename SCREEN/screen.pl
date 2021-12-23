@@ -1737,7 +1737,7 @@ sub buildMKRB
       $hashRef->{'grid2'}->{'shells'}[0] = 2 if( $hashRef->{'grid2'}->{'shells'}[1] > 2 );
       $hashRef->{'grid2'}->{'shells'}[0] = $hashRef->{'grid2'}->{'shells'}[1]/2
         if( $hashRef->{'grid2'}->{'shells'}[1] <= 2 );
-      print "   Used default of $hashRef->{'grid2'}->{'shells'}[0]\n";
+      printf "   Used default of %.2f\n", $hashRef->{'grid2'}->{'shells'}[0];
     }
     else
     {
@@ -1746,7 +1746,7 @@ sub buildMKRB
 #      print catfile( "zpawinfo", $zeeName ) . "\n";
       open IN, "<", catfile( "zpawinfo", $zeeName ) or die $!;
       <IN> =~ m/^\s+(\S+)/ or die;
-      $hashRef->{'grid2'}->{'shells'}[0] = $1;
+      $hashRef->{'grid2'}->{'shells'}[0] = $1*1;
     }
   }
 
@@ -1785,11 +1785,14 @@ sub buildMKRB
   while( scalar @{$hashRef->{'grid2'}->{'ang'}} > $n ) { pop @{$hashRef->{'grid2'}->{'ang'}} }
 
   open OUT, ">", "mkrb_control" or die "Failed to open mkrb_control for writing\n$!";
-  print OUT "$hashRef->{'grid2'}->{'rmax'}  $n\n";
+  printf OUT "%.16g  %i\n", $hashRef->{'grid2'}->{'rmax'}, $n;
   for( my $i = 0; $i < $n; $i++ )
   {
-    print OUT "$hashRef->{'grid2'}->{'rmode'}[$i] $hashRef->{'grid2'}->{'shells'}[$i] "
-            . "$hashRef->{'grid2'}->{'deltar'}[$i] $hashRef->{'grid2'}->{'ang'}[$i] specpnt\n";
+    printf OUT "%s %.16g %.16g %i specpnt\n", $hashRef->{'grid2'}->{'rmode'}[$i], 
+              $hashRef->{'grid2'}->{'shells'}[$i], $hashRef->{'grid2'}->{'deltar'}[$i], 
+              $hashRef->{'grid2'}->{'ang'}[$i];
+#    print OUT "$hashRef->{'grid2'}->{'rmode'}[$i] $hashRef->{'grid2'}->{'shells'}[$i] "
+#            . "$hashRef->{'grid2'}->{'deltar'}[$i] $hashRef->{'grid2'}->{'ang'}[$i] specpnt\n";
   }
   close OUT;
 
@@ -2265,7 +2268,8 @@ sub finishCorePotentials
         my @vindRad; my @vindPot;
 
         my $radName = sprintf("zR%03.2f",$screenHash->{'shells'}[$r]) ;
-        print "\t\t$radName\t$screenHash->{'shells'}[$r]\t$r\n";
+#        print "\t\t$radName\t$screenHash->{'shells'}[$r]\t$r\n";
+        printf "\t\t%s\t%.16g\t%i\n", $radName, $screenHash->{'shells'}[$r], $r;
 
         my $vindName = catfile( $currentSite, $currentEdge[0], $radName, "vind" );
 #        print "vind: $vindName\n";

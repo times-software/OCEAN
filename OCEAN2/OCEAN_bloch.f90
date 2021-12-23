@@ -466,7 +466,7 @@ module OCEAN_bloch
       if( ex ) bloch_type = 'par'
 
       nbd = sys%num_bands 
-      if ( nbd .gt. 1 + ( ich - icl ) ) stop 'loadux ... nbd mismatch -- cf brange.ipt...'
+      if ( nbd .gt. 1 + ( ich - icl ) ) stop 'Bloch ... nbd mismatch -- cf brange.ipt...'
 
       write(6,*) 'nspn: ', sys%nspn
 !      if( sys%nspn .ne. 1 ) then

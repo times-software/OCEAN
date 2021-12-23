@@ -468,7 +468,7 @@ unless( $newDftData->{'bse'}->{'complete'} ) {
 
 
 # touch up Fermi if insulator
-if( $newDftData->{'general'}->{'occopt'} == 1 )
+if( $newDftData->{'general'}->{'occopt'} == 1 && $newDftData->{'general'}->{'program'} eq "qe" )
 {
   my $low = $newDftData->{'scf'}->{'lowest'};
   $low = $newDftData->{'bse'}->{'lowest'} if ( $newDftData->{'bse'}->{'lowest'} < $low );
