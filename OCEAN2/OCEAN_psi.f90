@@ -5486,7 +5486,7 @@ subroutine OCEAN_psi_dot_write( p, q, outvec, rrequest, rval, ierr, irequest, iv
     real(DP), allocatable, dimension(:,:,:) :: pcr, pci
     real(DP), allocatable, dimension(:,:) :: mer, mei
     complex(DP), allocatable, dimension(:,:,:) :: pcTemp
-    integer :: nptot, ntot, ialpha, icms, ivms, icml, ikpt, iband, iter, nspn
+    integer :: nptot, ntot, ialpha, icms, ivms, icml, ikpt, iband, iter, nspn, bandsInFile
     logical :: ex
 
     character (LEN=127) :: cks_filename
@@ -5497,10 +5497,13 @@ subroutine OCEAN_psi_dot_write( p, q, outvec, rrequest, rval, ierr, irequest, iv
     select case ( sys%cur_run%calc_type)
     case( 'XES' )
       cks_prefix = 'cksv.'
+      bandsInFile = sys%brange(2)-sys%brange(1)+1
     case( 'XAS' )
       cks_prefix = 'cksc.'
+      bandsInFile = sys%brange(4)-sys%brange(3)+1
     case default
       cks_prefix = 'cksc.'
+      bandsInFile = sys%brange(4)-sys%brange(3)+1
     end select
 
     write(cks_filename, '(A3,A5,A2,I4.4)' ) 'par', cks_prefix, sys%cur_run%elname, sys%cur_run%indx
@@ -5560,6 +5563,8 @@ subroutine OCEAN_psi_dot_write( p, q, outvec, rrequest, rval, ierr, irequest, iv
 !    enddo
     close( 99 )
 
+!    write(6,*) 'RRR', (bandsInFile - sys%cur_run%num_bands), bandsInFile, sys%cur_run%num_bands
+
     ialpha = 0
     if( sys%nspn == 1 ) then
       do icms = -1, 1, 2
@@ -5578,6 +5583,7 @@ subroutine OCEAN_psi_dot_write( p, q, outvec, rrequest, rval, ierr, irequest, iv
                   p%r(iband,ikpt,ialpha) = rr - ii
                   p%i(iband,ikpt,ialpha) = -ri - ir
                 enddo
+                iter = iter + (bandsInFile - sys%cur_run%num_bands )
               enddo
             endif
           enddo
@@ -5600,6 +5606,7 @@ subroutine OCEAN_psi_dot_write( p, q, outvec, rrequest, rval, ierr, irequest, iv
                   p%r(iband,ikpt,ialpha) = rr - ii
                   p%i(iband,ikpt,ialpha) = -ri - ir
                 enddo
+                iter = iter + (bandsInFile - sys%cur_run%num_bands)
               enddo
             endif
           enddo

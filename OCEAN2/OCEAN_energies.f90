@@ -455,7 +455,7 @@ module OCEAN_energies
         read ( 99 ) nbd, nq
         nspn = 1
       endif
-      if( nbd .ne. sys%num_bands ) then
+      if( nbd .lt. sys%num_bands ) then
         write(6,*) 'Band mismatch!', sys%num_bands, nbd
         ierr = 1
         goto 111
@@ -469,10 +469,10 @@ module OCEAN_energies
         goto 111
       endif
 
-      allocate( tmp_e0( sys%num_bands,  sys%nkpts, sys%nspn ), STAT=ierr )
+      allocate( tmp_e0( nbd,  sys%nkpts, sys%nspn ), STAT=ierr )
       if( ierr .ne. 0 ) return
       read(99) tmp_e0
-      energies( 1 : sys%num_bands, 1 : sys%nkpts, : ) = tmp_e0( :, :, : )
+      energies( 1 : sys%num_bands, 1 : sys%nkpts, : ) = tmp_e0( 1:sys%num_bands, :, : )
       deallocate( tmp_e0 )
 !      read(99) energies( 1 : sys%num_bands, 1 : sys%nkpts, : )
 
