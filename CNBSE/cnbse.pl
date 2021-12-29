@@ -435,6 +435,8 @@ sub BSEParams {
     die "Unrecongnized calculations type: " . $newRef->{'calc'}->{'mode'} . "\n";
   }
 
+  push @type, "nbands";
+
   copyAndCompare( $newRef->{'bse'}, $commonRef->{'bse'}, $oldRef->{'bse'},
                   $newRef->{'bse'}, \@type );
 }
@@ -673,7 +675,11 @@ sub writeAuxFiles {
 
   my $nb;
   if ( $hashRef->{'calc'}->{'mode'} eq 'xas' || $hashRef->{'calc'}->{'mode'} eq 'rxs' ) {
-    $nb = $hashRef->{'bse'}->{'brange'}[3] - $hashRef->{'bse'}->{'brange'}[2] + 1;
+    if( $hashRef->{'bse'}->{'nbands'} < $hashRef->{'bse'}->{'brange'}[3] ) {
+      $nb = $hashRef->{'bse'}->{'nbands'} - $hashRef->{'bse'}->{'brange'}[2] + 1;
+    } else {
+      $nb = $hashRef->{'bse'}->{'brange'}[3] - $hashRef->{'bse'}->{'brange'}[2] + 1;
+    }
   } else {
     $nb = $hashRef->{'bse'}->{'brange'}[1] - $hashRef->{'bse'}->{'brange'}[0] + 1;
   }
