@@ -469,10 +469,11 @@ module OCEAN_energies
         goto 111
       endif
 
+!      write(6,*) 'EEE', nbd, sys%num_bands
       allocate( tmp_e0( nbd,  sys%nkpts, sys%nspn ), STAT=ierr )
       if( ierr .ne. 0 ) return
       read(99) tmp_e0
-      energies( 1 : sys%num_bands, 1 : sys%nkpts, : ) = tmp_e0( 1:sys%num_bands, :, : )
+      energies( 1 : sys%num_bands, 1 : sys%nkpts, : ) = tmp_e0( 1:sys%num_bands, 1:sys%nkpts, : )
       deallocate( tmp_e0 )
 !      read(99) energies( 1 : sys%num_bands, 1 : sys%nkpts, : )
 

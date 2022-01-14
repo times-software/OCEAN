@@ -5583,7 +5583,7 @@ subroutine OCEAN_psi_dot_write( p, q, outvec, rrequest, rval, ierr, irequest, iv
                   p%r(iband,ikpt,ialpha) = rr - ii
                   p%i(iband,ikpt,ialpha) = -ri - ir
                 enddo
-                iter = iter + (bandsInFile - sys%cur_run%num_bands )
+                iter = iter + (bandsInFile - sys%cur_run%num_bands)
               enddo
             endif
           enddo

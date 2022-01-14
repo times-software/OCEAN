@@ -254,7 +254,7 @@ module OCEAN_multiplet
     integer, intent( inout ) :: ierr
 
     integer :: lv, ic, icms, icml, ivms, ii, ivml, jj, nu, i, iband, ikpt, ip, ispn
-    integer :: l, m, tmp_n, dumi(3)
+    integer :: l, m, tmp_n, dumi(3), nbd
     real(DP) :: dumf(3)
     real( DP ), allocatable :: pcr(:,:,:,:), pci(:,:,:,:), list(:)
     complex( DP ), allocatable :: pcTemp(:,:,:,:)
@@ -421,8 +421,14 @@ module OCEAN_multiplet
         write(6,*) 'Using parallel cks: ', trim(cks_filename)
         open(unit=99, file=cks_filename, form='unformatted', status='old', access='stream' )
         read(99) dumi(:)  ! need explicit reads for stream
+        nbd = dumi(2) / sys%nkpts
+        if( ( dumi(2) .ne. nbd * sys%nkpts ) .or. ( nbd .lt. sys%num_bands ) ) then
+          write(6,*) 'Badly formed cks'
+          ierr = 107
+          return
+        endif
 !        read( 99 ) dumf( : )
-        allocate(  pcTemp( nptot, sys%num_bands, sys%nkpts, sys%nspn ) )
+        allocate(  pcTemp( nptot, nbd, sys%nkpts, sys%nspn ) )
         read( 99 ) pcTemp
         close( 99 )
 
