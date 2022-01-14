@@ -2386,8 +2386,12 @@ sub runCoreOffset
   unlink( "core_shift.txt") if( -e "core_shift.txt" );
   return unless( $screenRef->{'core_offset'}->{'enable'} );
 
-  if( $hashRef->{'general'}->{'program'} ne 'qe' ) {
-    print "WARNING!!!! Possibly units are wrong for Vxc for ABINIT!!!\n\n";
+#  if( $hashRef->{'general'}->{'program'} ne 'qe' ) {
+#    print "WARNING!!!! Possibly units are wrong for Vxc for ABINIT!!!\n\n";
+#  }
+  my $vxc_factor = 1;
+  if( $hashRef->{'general'}->{'program'} eq 'abi' ) {
+    $vxc_factor = 2;
   }
 
   unless( -d "vxc_test" ) {
@@ -2452,8 +2456,9 @@ sub runCoreOffset
   while( my $line = <IN> )
   {
     $line =~ m/^\s*(\S+)/ or die "Failed to parse pot.txt\n$line";
-    push @newPot, $1;
-    $Vsum += $1;
+    my $tmpPot = $1 * $vxc_factor;
+    push @newPot, $tmpPot;
+    $Vsum += $tmpPot;
   }
   close IN;
   chdir updir();
