@@ -50,9 +50,12 @@ sub ABIrunNSCF
   $specificHashRef->{'fermi'} = $hashRef->{'scf'}->{'fermi'};
 
   my $errorCode = ABIparseOut( "nscf.out", $specificHashRef );
-  return $errorCode if( $errorCode );
+  if( $errorCode != 0 ) {
+    print "NSCF stage has error:  $errorCode\n";
+    return $errorCode;
+  }
 
-  $errorCode = ABIbrange( "NSCFx_EIG", $specificHashRef );
+  $errorCode = ABIbrange( "NSCFx_EIG", $specificHashRef, $hashRef->{'general'}->{'abpad'} );
 
   chdir updir();
 
@@ -110,7 +113,7 @@ sub ABIrunDensity
 
 sub ABIbrange
 {
-  my ($file, $specificHashRef ) = @_;
+  my ($file, $specificHashRef, $pad ) = @_;
   
   my $nkpt = $specificHashRef->{'kmesh'}[0]*$specificHashRef->{'kmesh'}[1]*$specificHashRef->{'kmesh'}[2];
   open IN, "<", $file or die "Failed to open $file\n$!";
@@ -132,7 +135,7 @@ sub ABIbrange
     }
     if( $k==0 ) {
       $brange[2] = scalar @eig;
-      $brange[3] = scalar @eig;
+      $brange[3] = scalar @eig - $pad;
     }
     for( my $i = $brange[1]-1; $i < $brange[3]; $i++ ) {
       if( $eig[$i] < $specificHashRef->{'fermi'} ) {
@@ -406,8 +409,10 @@ sub ABIprintInput
 
   } else {
     # NOTE difference in definition between QE and ABINIT for tolerance leads to square here
-    printf $input "nband %i\ntolwfr % .16g\n", $specificRef->{'nbands'}, $specificRef->{'toldfe'};
-    print $input "iscf -2\ngetden -1\nistwfk *1\nnbdbuf 4\n";
+    printf $input "nband %i\ntolwfr % .16g\n", $specificRef->{'nbands'}+$generalRef->{'general'}->{'abpad'}, 
+                                               $specificRef->{'toldfe'};
+    printf $input "iscf -2\ngetden -1\nistwfk *1\nnbdbuf %i\n", $generalRef->{'general'}->{'abpad'};
+    printf $input "wfoptalg 114\n";
   }
 
   print $input $kptString;

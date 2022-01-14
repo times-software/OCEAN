@@ -116,7 +116,7 @@ copyAndCompare( $newDftData->{'psp'}, $commonOceanData->{'psp'}, $dftData->{'psp
 my @generalList = ( "degauss", "ecut", "fband", "functional", "noncolin", "nspin", "occopt", 
                     "program", "smag", "spinorb", "tot_charge", "verbatim" );
 my @generalSecondaryList = ( "calc_force", "calc_stress", "diagonalization", "mixing", 
-                             "nstep", "redirect", "startingwfc", "tmp_dir" );
+                             "nstep", "redirect", "startingwfc", "tmp_dir", "abpad" );
 $newDftData->{'general'} = {};
 copyAndCompare( $newDftData->{'general'}, $commonOceanData->{'dft'}, $dftData->{'general'},
                 $newDftData->{'scf'}, \@generalList );
@@ -302,7 +302,7 @@ close OUT;
 ### Need to write abstraction to support multiple DFT codes
 unless( $newDftData->{'general'}->{'program'} eq "qe" ||
         $newDftData->{'general'}->{'program'} eq "abi" ) {
-  print "Only QE supported at the moment!\n";
+  print "Only QE and ABINIT supported at the moment!\t\t" . $newDftData->{'general'}->{'program'} . "\n";
   exit 1;
 }
 
