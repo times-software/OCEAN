@@ -97,6 +97,7 @@ module screen_paral
     type( site_parallel_info ), intent( in ) :: pinfo
     integer, intent( in ) :: myid, n_sites
 
+#ifdef PRINTLOG
     write(1000+myid,*) "### SCREEN_PARAL Summary ###"
     write(1000+myid,*) "############################"
     write(1000+myid,*) "Total procs =  ", pinfo%total_procs
@@ -106,6 +107,7 @@ module screen_paral
     write(1000+myid,*) "My ID =        ", pinfo%myid
     write(1000+myid,*) "My N sites =   ", screen_paral_NumLocalSites( pinfo, n_sites )
     write(1000+myid,*) "############################"
+#endif
 
   end subroutine write_paral_summary
 
@@ -288,9 +290,11 @@ module screen_paral
         best_score = score
         best_ngroup = j
       endif
+#ifdef PRINTLOG
       if( myid .eq. 0 ) then
         write(myid+1000,'(3(I6,X),2F24.12)') i, j, best_ngroup, score, best_score
       endif
+#endif
     enddo
 
 

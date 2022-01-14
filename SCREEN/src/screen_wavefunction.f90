@@ -169,7 +169,9 @@ module screen_wavefunction
 !      write(5000+myid,*) real(wvfn%wvfn(1:225,1:2,1),DP)
     endif
 
+#ifdef PRINTLOG
     write(1000+myid,*) 'TEST WVFN SIZING:', size(wvfn%wvfn,1), size(wvfn%wvfn,2)
+#endif
 
   end subroutine screen_wvfn_diagnostic
 

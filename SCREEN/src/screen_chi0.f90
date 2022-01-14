@@ -207,7 +207,9 @@ module screen_chi0
 #endif
     
     dims = screen_sites_returnWavefunctionDims( singleSite )
+#ifdef PRINTLOG
     write(1000+myid,*) 'Chi dims:', dims(:)
+#endif
     allocate( chi( dims(1), dims(2) ), STAT=ierr )
     if( ierr .ne. 0 ) then
       write(6,*) 'Failed to allocate chi in Schi_runSite', ierr
@@ -401,8 +403,10 @@ module screen_chi0
     enddo
 
     ! This is the diagonal piece
+#ifdef PRINTLOG
     write(1000+myid,*) pinfo%myid, pinfo%myid, CurPts
     write(1000+myid,*) "SPLIT: ", MyWvfn%isSplit, MyWvfn%isGamma
+#endif
     call screen_tk_start( "calcSingleChiBuffer1" )
     if( MyWvfn%isSplit ) then
       if( MyWvfn%isGamma ) then
@@ -420,7 +424,9 @@ module screen_chi0
 
     do id = pinfo%myid + 1, pinfo%nprocs - 1
       stopPts = curPts + spareWavefunctions(id)%mypts - 1
+#ifdef PRINTLOG
       write(1000+myid,'(A,4(1X,I8))') '  ', pinfo%myid, id, CurPts, stopPts
+#endif
       call screen_tk_start( "calcChi Wait" )
       call MPI_WAIT( spareWvfnRecvs(id), MPI_STATUS_IGNORE, ierr )
       if( ierr .ne. 0 ) return
@@ -448,7 +454,9 @@ module screen_chi0
     curPts = 1
     do id = 0, pinfo%myid - 1
       stopPts = curPts + spareWavefunctions(id)%mypts - 1
+#ifdef PRINTLOG
       write(1000+myid,'(A,4(1X,I8))') '  ', pinfo%myid, id, CurPts, stopPts
+#endif
       call screen_tk_start( "calcChi Wait" )
       call MPI_WAIT( spareWvfnRecvs(id), MPI_STATUS_IGNORE, ierr )
       if( ierr .ne. 0 ) return
@@ -509,7 +517,9 @@ module screen_chi0
     enddo
 
     ! This is the diagonal piece
+#ifdef PRINTLOG
     write(1000+myid,*) pinfo%myid, pinfo%myid, CurPts
+#endif
     call screen_tk_start( "calcSingleChiBuffer1" )
     call calcSingleChiBuffer1( MyWvfn%wvfn, MyWvfn%wvfn, chi(:,CurPts:), ierr, .true. )
     if( ierr .ne. 0 ) return
@@ -518,7 +528,9 @@ module screen_chi0
 
     do id = pinfo%myid + 1, pinfo%nprocs - 1
       stopPts = curPts + spareWavefunctions(id)%mypts - 1
+#ifdef PRINTLOG
       write(1000+myid,'(A,4(1X,I8))') '  ', pinfo%myid, id, CurPts, stopPts
+#endif
       call screen_tk_start( "calcChi Wait" )
       call MPI_WAIT( spareWvfnRecvs(id), MPI_STATUS_IGNORE, ierr )
       if( ierr .ne. 0 ) return
@@ -535,7 +547,9 @@ module screen_chi0
     curPts = 1
     do id = 0, pinfo%myid - 1
       stopPts = curPts + spareWavefunctions(id)%mypts - 1
+#ifdef PRINTLOG
       write(1000+myid,'(A,4(1X,I8))') '  ', pinfo%myid, id, CurPts, stopPts
+#endif
       call screen_tk_start( "calcChi Wait" )
       call MPI_WAIT( spareWvfnRecvs(id), MPI_STATUS_IGNORE, ierr )
       if( ierr .ne. 0 ) return
@@ -653,7 +667,9 @@ module screen_chi0
       nthreads2 = 2
       bandBuf = 16
     endif
+#ifdef PRINTLOG
 !$    write(1000+myid,*) 'OMP: ', nthreads, nthreads2
+#endif
     ibstop = ( ( ( nbands - 1 ) / bandBuf ) + 1 ) * bandBuf
 
     allocate( & !ReGreen( jcSize, icSize, NImagEnergies ), ImGreen( jcSize, icSize, NImagEnergies ), &
@@ -1520,7 +1536,9 @@ module screen_chi0
 
     integer :: id, i, istart, istop, j
 
+#ifdef PRINTLOG
     write(1000+myid,*) 'Posting Sends for Spare Wavefunctions'
+#endif
     
     istart = pinfo%myid + 1
     istop = pinfo%nprocs - 1
@@ -1530,8 +1548,10 @@ module screen_chi0
 
     do j = 0, 1
       do id = istart, istop
+#ifdef PRINTLOG
         write(1000+myid,'(A,6(1X,I8))') '   ', id, Wavefunction%mypts, Wavefunction%mybands, &
                                         Wavefunction%mykpts, i, TagWvfn
+#endif
         if( Wavefunction%isSplit ) then
           call MPI_ISEND( Wavefunction%real_wvfn, i, MPI_DOUBLE_PRECISION, id, TagWvfn, pinfo%comm, &
                           spareWvfnSends(id), ierr )
@@ -1624,7 +1644,9 @@ module screen_chi0
 
     integer :: id, i
 
+#ifdef PRINTLOG
     write(1000+myid,*) 'Posting Recvs for Spare Wavefunctions'
+#endif
 
     do id = 0, pinfo%nprocs - 1
 
@@ -1638,8 +1660,10 @@ module screen_chi0
 
 
       i = spareWavefunction(id)%mypts * spareWavefunction(id)%mybands * spareWavefunction(id)%mykpts
+#ifdef PRINTLOG
       write(1000+myid,'(A,6(1X,I8))') '   ', id, spareWavefunction(id)%mypts, spareWavefunction(id)%mybands, &
                                       spareWavefunction(id)%mykpts, i, TagWvfn
+#endif
       if( spareWavefunction(id)%isSplit ) then
         call MPI_IRECV( spareWavefunction(id)%real_wvfn, i, MPI_DOUBLE_PRECISION, id, TagWvfn, pinfo%comm, &
                         spareWvfnRecvs(id), ierr )
