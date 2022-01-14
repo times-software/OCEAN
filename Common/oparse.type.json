@@ -168,7 +168,6 @@
          "average" : "b",
          "energy" : "af"
       },
-      "core_offset" : "b",
       "core_offset_energy" : "f",
       "dft_energy_range" : "f",
       "final" : {

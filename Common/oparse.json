@@ -154,7 +154,7 @@
       "nspin" : 1,
       "nstep" : 50,
       "occopt" : 1,
-      "program" : "abinit",
+      "program" : "abi",
       "redirect" : false,
       "screen" : {
          "poolsize" : -1,
