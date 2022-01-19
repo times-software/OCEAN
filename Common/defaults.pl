@@ -53,8 +53,8 @@ if( -e $dataFile )
   checkKpoints( $oceanData, $oceanData->{'bse'}->{'kmesh'} );
   checkKpoints( $oceanData, $oceanData->{'screen'}->{'kmesh'} );
 
-  checkBands( $oceanData, $oceanData->{'screen'}, $oceanData->{'screen'}->{'energy_range'} );
-  checkBands( $oceanData, $oceanData->{'bse'}, $oceanData->{'bse'}->{'energy_range'} );
+  checkBands( $oceanData, $oceanData->{'screen'}, $oceanData->{'screen'}->{'dft_energy_range'} );
+  checkBands( $oceanData, $oceanData->{'bse'}, $oceanData->{'bse'}->{'dft_energy_range'} );
 
   checkXpoints( $oceanData, $oceanData->{'bse'}->{'xmesh'} );
 
@@ -1122,7 +1122,9 @@ sub checkBands
   print "$nb\n";
 
   # Do nothing if we have a positive number of bands
-  return if( $nb > 0); 
+  if( $nb =~ m/^\s*(-?\d+)/s*$/ ) {
+    return if( $nb > 0); 
+  }
 
   # Not zero means add to total valence bands, continue but WARN if no electron count
   my $flag = 0;
@@ -1134,6 +1136,8 @@ sub checkBands
   else
   {
     $nb = 0.019 * $hashRef->{'structure'}->{'volume'} * ( ($energyRef/13.605)**(3/2) );
+    $nb = 1 if ($nb < 1 );
+    print "$nb  $hashRef->{'structure'}->{'volume'} $energyRef\n";
   }
 
   if( $hashRef->{'structure'}->{'valence_electrons'} < 1 )

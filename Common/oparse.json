@@ -197,7 +197,7 @@
          "average" : true,
          "energy" : null
       },
-      "energy_range" : 100,
+      "dft_energy_range" : 100,
       "final" : {
          "dr" : 0.1,
          "rmax" : 10
