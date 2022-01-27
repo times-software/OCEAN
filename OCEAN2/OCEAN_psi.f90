@@ -2822,12 +2822,13 @@ subroutine OCEAN_psi_dot_write( p, q, outvec, rrequest, rval, ierr, irequest, iv
 #endif
 
 
-  subroutine OCEAN_psi_min_set_prec( energy, gprc, psi_in, psi_out, ierr )
+  subroutine OCEAN_psi_min_set_prec( energy, gprc, psi_in, psi_out, ierr, prev_energy )
     implicit none
     real( DP ), intent( in ) :: energy, gprc
     type(OCEAN_vector), intent(inout) :: psi_in
     type(OCEAN_vector), intent(inout) :: psi_out
     integer, intent( inout ) :: ierr
+    real( DP ), intent( in ), optional :: prev_energy
     !
     real( DP ) :: gprc_sqd, denom
     complex(DP) :: ctemp, ctemp2
@@ -2859,9 +2860,27 @@ subroutine OCEAN_psi_dot_write( p, q, outvec, rrequest, rval, ierr, irequest, iv
           psi_out%min_r( j, i ) = ( energy - psi_in%min_r( j, i ) ) * denom
           psi_out%min_i( j, i ) = - ( gprc + psi_in%min_i( j, i ) ) * denom
 #else
-          ctemp = cmplx( psi_in%min_r( j, i ), psi_in%min_i( j, i ), DP )
-          ctemp = ( energy - ctemp ) ** 2 + gprc_sqd
-          ctemp2 = (energy - cmplx( psi_in%min_r( j, i ), psi_in%min_i( j, i ) + gprc, DP ) ) /  ctemp
+          if( present( prev_energy ) ) then
+            if( abs(energy - prev_energy )/gprc .lt. 0.0001_DP ) then
+              ctemp = 1.0_DP / ( prev_energy - cmplx( psi_in%min_r( j, i ), psi_in%min_i( j, i ) - gprc, DP ) )
+              ctemp2 = 1.0_DP + ( energy - prev_energy ) * ctemp 
+              ctemp2 = 1.0_DP + ( energy - prev_energy ) * ctemp * ctemp2
+              ctemp2 = 1.0_DP + ( energy - prev_energy ) * ctemp * ctemp2
+            else
+              ctemp2 = ( prev_energy - cmplx( psi_in%min_r( j, i ), psi_in%min_i( j, i ) - gprc, DP ) ) &
+                     / ( energy - cmplx( psi_in%min_r( j, i ), psi_in%min_i( j, i ) - gprc, DP ) )
+            endif
+!            ctemp = cmplx( psi_in%min_r( j, i ), psi_in%min_i( j, i ), DP )
+!            ctemp = ( energy - ctemp ) ** 2 + gprc_sqd
+!            ctemp2 = (energy - cmplx( psi_in%min_r( j, i ), psi_in%min_i( j, i ) + gprc, DP ) ) /  ctemp
+!            ctemp = (prev_energy - cmplx( psi_in%min_r( j, i ), psi_in%min_i( j, i ), DP )) **2 + gprc_sqd
+!            ctemp = (prev_energy - cmplx( psi_in%min_r( j, i ), psi_in%min_i( j, i ) + gprc, DP ) ) /  ctemp
+!            ctemp2 = ctemp2/ctemp
+          else
+            ctemp = cmplx( psi_in%min_r( j, i ), psi_in%min_i( j, i ), DP )
+            ctemp = ( energy - ctemp ) ** 2 + gprc_sqd
+            ctemp2 = (energy - cmplx( psi_in%min_r( j, i ), psi_in%min_i( j, i ) + gprc, DP ) ) /  ctemp
+          endif
           psi_out%min_r( j, i ) = real( ctemp2, DP )
           psi_out%min_i( j, i ) = aimag( ctemp2 )
 #endif
@@ -2870,6 +2889,11 @@ subroutine OCEAN_psi_dot_write( p, q, outvec, rrequest, rval, ierr, irequest, iv
     endif
 
     if( have_val .and. psi_in%val_store_size .gt. 0 ) then
+      if( present( prev_energy ) ) then
+        write(6,*) 'ERROR OCEAN_psi_min_set_prec incomplete for valence!!'
+        ierr = 9215
+        return
+      endif
       do i = 1, psi_in%val_store_size
         do j = 1, psi_bands_pad
           denom = ( energy - psi_in%val_min_r( j, i ) ) ** 2  &

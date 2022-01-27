@@ -1536,6 +1536,7 @@ module OCEAN_multiplet
 
     integer :: ic, jc, ikpt, ibnd, i
     
+!TODO: fix loop order
     
     if( backwards ) then  ! someli -> - someli
       do i = 1, in_vec%core_store_size
@@ -1600,6 +1601,7 @@ module OCEAN_multiplet
     use OCEAN_system
     use OCEAN_psi, only : OCEAN_vector
     use OCEAN_mpi
+    use OCEAN_constants, only : eV2Hartree
     implicit none
     !
     type( O_system ), intent( in ) :: sys
@@ -1611,11 +1613,24 @@ module OCEAN_multiplet
     real(DP), allocatable :: ampr(:,:,:), ampi(:,:,:), hampr(:,:,:), hampi(:,:,:), so_r(:,:), so_i(:,:)
     real( DP ), allocatable, dimension( :,: ) :: pwr, pwi, hpwr, hpwi
     real(DP) :: mul
-    integer :: LandM, el, em, ialpha, nu, ispn, ihd, ikpt, ibnd, ii, jj, j1
+    integer :: LandM, el, em, ialpha, nu, ispn, ihd, ikpt, ibnd, ii, jj, j1, jhd, jel, jem
     integer :: a_stop, k_start, k_stop, core_store_size_remain
     integer :: zero_elem
+#define __DBROADEN
+#ifdef __DBROADEN
+    real(DP) :: dbroaden(5,5), db
+#endif
 
     mul = inter / ( dble( sys%nkpts ) * sys%celvol )
+#ifdef __DBROADEN
+    db = 0.5_DP * ev2Hartree
+    dbroaden(:,:) = 0.0_DP
+    dbroaden(1,1) = 0.5_DP * db
+    dbroaden(5,1) = 0.5_DP * db
+    dbroaden(3,3) = db
+    dbroaden(1,5) = 0.5_DP * db
+    dbroaden(5,5) = 0.5_DP * db
+#endif
 
     ! If we aren't starting at lmin = 0 then we need
     zero_elem = 0
@@ -1777,6 +1792,23 @@ module OCEAN_multiplet
           hampi( 1:nproj(el), ihd, ialpha ) = hampi( 1:nproj(el), ihd, ialpha ) &
                                             - mpm( 1:nproj(el), nu, el ) * ampi( nu, ihd, ialpha )
         enddo
+
+#ifdef __DBROADEN
+        ! if lmin != 0 this will be junk
+        if( el .eq. 2 ) then
+        do jhd = 5, 9
+          jel = 2
+!          jem = jhd - (jel+1)*(jel+1) + jel
+          jem = jhd - 4
+          do nu = 1, nproj( el )
+            hampr( nu, ihd, ialpha ) = hampr( nu, ihd, ialpha )  &
+                                              + dbroaden(em+el+1,jem) * ampi( nu, jhd, ialpha )
+            hampi( nu, ihd, ialpha ) = hampi( nu, ihd, ialpha )  &
+                                              - dbroaden(em+el+1,jem) * ampr( nu, jhd, ialpha )
+          enddo
+        enddo
+        endif
+#endif
         hampr( :, ihd, ialpha ) = hampr( :, ihd, ialpha ) * mul
         hampi( :, ihd, ialpha ) = hampi( :, ihd, ialpha ) * mul
         
@@ -1928,10 +1960,10 @@ module OCEAN_multiplet
     !
     integer :: i, i1, i2, nu1, nu2
     integer :: l1, m1, s1, l2, m2, s2, l3, m3, s3, l4, m4, s4, k, mk, maxll
-    real( DP ) :: ggk, ffk
+    real( DP ) :: ggk, ffk, scfac
     complex( DP ) :: f1, f2, ctmp
     logical, parameter :: no = .false., yes = .true.
-    logical :: tdlda
+    logical :: tdlda, ex
     !
     character(len=10) :: add10
     character(len=15) :: filnam
@@ -1970,6 +2002,15 @@ module OCEAN_multiplet
     if( tdlda ) then
       open(unit=99, file='tdlda', form='formatted', status='old' )
       read( 99, * ) tdlda
+      close( 99 )
+    endif
+    !
+    ! ScFac
+    scfac = 1.0_DP
+    inquire( file='scfac', exist=ex )
+    if( ex ) then
+      open(unit=99, file='scfac', form='formatted', status='old' )
+      read( 99, * ) scfac
       close( 99 )
     endif
     kfh = min( 2 * lc, 2 * lv )
@@ -2032,7 +2073,7 @@ module OCEAN_multiplet
                 if ( m1 + m2 .eq. m3 + m4 ) then
                    do k = kfl, kfh, 2
                       if ( abs( mk ) .le. k ) then
-                         ffk = scfk( k ) * fk( nu1, nu2, k ) 
+                         ffk = scfk( k ) * fk( nu1, nu2, k ) * scfac
                          call threey( l1, m1, k, mk, l3, m3, no, npt, x, w, yp, f1 )
                          call threey( l2, m2, k, mk, l4, m4, yes, npt, x, w, yp, f2 )
                          ctmp = - ffk * f1 * f2 * ( 4 * pi / ( 2 * k + 1 ) )
@@ -2054,7 +2095,7 @@ module OCEAN_multiplet
                 if ( m1 + m2 .eq. m3 + m4 ) then
                    do k = kgl, kgh, 2
                       if ( abs( mk ) .le. k ) then
-                         ggk = scgk( k ) * gk( nu1, nu2, k ) 
+                         ggk = scgk( k ) * gk( nu1, nu2, k ) * scfac
                          call threey( l1, m1, k, mk, l3, m3, no, npt, x, w, yp, f1 )
                          call threey( l2, m2, k, mk, l4, m4, yes, npt, x, w, yp, f2 )
                          ctmp = ggk * f1 * f2 * ( 4 * pi / ( 2 * k + 1 ) )
@@ -2069,6 +2110,9 @@ module OCEAN_multiplet
        end do
     end do
     !
+    if( kfh .ge. kfl ) deallocate( fk, scfk )
+    if( kgh .ge. kgl ) deallocate( gk, scgk )
+    deallocate( x, w )
     return
   end subroutine nbsemhsetup2
 
