@@ -113,9 +113,11 @@ copyAndCompare( $newPrepData->{'computer'}, $commonOceanData->{'computer'}, $pre
 # typat
 # taulist
 # coord = xred
-my @list = ( "avecs", "typat", "znucl", "xred", "epsilon", "elname", "bvecs" );
+my @list = ( "avecs", "typat", "znucl", "xred", "elname", "bvecs" );
 copyAndCompare( $newPrepData->{'bse'}, $dftData->{'structure'}, $prepData->{'bse'},
                 $newPrepData->{'bse'}, \@list );
+copyAndCompare( $newPrepData->{'bse'}, $dftData->{'structure'}, $prepData->{'bse'},
+                $fake, [ "epsilon"] );
 #copyAndCompare( $newPrepData->{'bse'}, $commonOceanData->{'structure'}, $prepData->{'bse'},
 #                $newPrepData->{'bse'}, \@list );
 
@@ -535,11 +537,17 @@ sub recursiveCompare
 #    print "#!  $newRef  $oldRef\n";
     if( looks_like_number( $newRef ) )
     {
-      $complete->{'complete'} = JSON::PP::false unless( $newRef == $oldRef );
+      $complete->{'complete'} = JSON::PP::false unless( fcomp($newRef, $oldRef ) );
+#      $complete->{'complete'} = JSON::PP::false unless( $newRef == $oldRef );
     }
     else
     {
       $complete->{'complete'} = JSON::PP::false unless( $newRef eq $oldRef );
     }
   }
+}
+
+sub fcomp {
+  my ($a, $b ) = @_;
+  return sprintf("%.12g", $a) eq sprintf("%.12g", $b); 
 }
