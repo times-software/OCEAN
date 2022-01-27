@@ -191,6 +191,7 @@ system("$ENV{'OCEAN_BIN'}/structure.pl") == 0 or die "Failed to run structure.pl
 
 system("$ENV{'OCEAN_BIN'}/edges.pl") == 0 or die "Failed to run edges.pl\n$!";
 
+system("$ENV{'OCEAN_BIN'}/photon.pl") == 0 or die "Failed to run photon.pl\n$!";
 
 ### CALC ###
 

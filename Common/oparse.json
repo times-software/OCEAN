@@ -30,7 +30,7 @@
                80
             ]
          },
-         "scfac" : 1,
+         "scfac" : -1,
          "screen_radius" : -3.5,
          "solver" : "haydock",
          "spin_orbit" : -1,
@@ -83,7 +83,9 @@
          "qpflg" : true,
          "solver" : "haydock"
       },
-      "xmesh" : -1
+      "xmesh" : [
+        -1
+      ]
    },
    "calc" : {
       "edges" : "",

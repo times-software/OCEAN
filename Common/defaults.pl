@@ -1014,6 +1014,10 @@ sub checkKpoints
   my $hashRef = $_[0];
   my $kpointref = $_[1];
 
+  
+  unless( ref($kpointref) == 'ARRAY' ) {
+    $kpointref = [ $kpointref ];
+  }
   for( my $i = 0; $i < scalar @{ $kpointref }; $i++ )
   {
     print ${$kpointref}[$i] . "\n";
@@ -1049,6 +1053,9 @@ sub checkXpoints
   my $hashRef = $_[0];
   my $xpointref = $_[1];
 
+  unless( ref($xpointref) == 'ARRAY') {
+    $xpointref = [ $xpointref ];
+  }
   for( my $i = 0; $i < scalar @{ $xpointref }; $i++ )
   {
     print ${$xpointref}[$i] . "\n";
@@ -1119,10 +1126,10 @@ sub checkBands
   my $bandRef = $_[1];
   my $energyRef = $_[2];
   my $nb = $bandRef->{'nbands'};
-  print "$nb\n";
+  print "Bands: $nb\n";
 
   # Do nothing if we have a positive number of bands
-  if( $nb =~ m/^\s*(-?\d+)/s*$/ ) {
+  if( $nb =~ m/^\s*(-?\d+)\s*$/ ) {
     return if( $nb > 0); 
   }
 
@@ -1237,6 +1244,7 @@ sub checkDFToccopt
         $hashRef->{'warnings'} = {} unless( exists $hashRef->{'warnings'} );
         $hashRef->{'warnings'}->{'defaults.pl'} = [] unless( exists $hashRef->{'warnings'}->{'defaults.pl'} );
         push @{$hashRef->{'warnings'}->{'defaults.pl'}}, $s;
+        $hashRef->{'structure'}->{'metal'} = JSON::PP::true;
       }
     }
   }
