@@ -181,6 +181,7 @@ writeRunlist( $newBSEdata, \@photon_files );
 writeBSEin( $newBSEdata );
 
 writeAuxFiles( $newBSEdata );
+writeScFac( $newBSEdata );
 
 open OUT, ">", "bse.json" or die;
 print OUT $json->encode($newBSEdata);
@@ -261,7 +262,7 @@ sub grabCoreScreenFiles {
     $tmp[0] = $hashRef->{'bse'}->{'elname'}[$hashRef->{'bse'}->{'typat'}[$i]-1];
     $tmp[1] = $hashRef->{'bse'}->{'znucl'}[$hashRef->{'bse'}->{'typat'}[$i]-1];
     $tmp[2] = $countByName{$hashRef->{'bse'}->{'elname'}[$hashRef->{'bse'}->{'typat'}[$i]-1]};
-    push $hashRef->{'calc'}->{'sitelist'}, \@tmp;
+    push @{$hashRef->{'calc'}->{'sitelist'}}, \@tmp;
     print "$tmp[0]  $tmp[1]  $tmp[2]  \n";
   }
 
@@ -327,10 +328,32 @@ sub grabPhotonFiles {
     }
     closedir DIR;
   }
+
   if( $#photon_files == -1 )
   {
-    print "!!!  Could not find any photon files  !!!\n  Will have to quit :(\n";
-    exit 1;
+    opendir DIR, "../Common" or die $!;
+    my @tmp;
+    while( my $file = readdir( DIR ) )
+    {
+      if( $file =~ m/^default_photon\d+$/ )
+      {
+        $file =~ s/default_//;
+        push @tmp, $file;
+      }
+    }
+    closedir DIR;
+    if( $#tmp == -1 ) { 
+      print "!!!  Could not find any photon files  !!!\n  Will have to quit :(\n";
+      exit 1;
+    }
+    print "  Using default photon files!\n";
+    my @sorted_photon_files = sort { ($a =~ /(\d+)/)[0] <=> ($b =~ /(\d+)/)[0] } @tmp;
+    foreach( @sorted_photon_files )
+    {
+      print "        $_\n";
+      copy( catfile( updir(), "Common", 'default_' . $_), $_ ) or die "$!";
+    }
+    return @sorted_photon_files;
   }
   else
   {
@@ -347,8 +370,10 @@ sub grabPhotonFiles {
     my @sorted_photon_files = sort { ($a =~ /(\d+)/)[0] <=> ($b =~ /(\d+)/)[0] } @photon_files;
     foreach( @sorted_photon_files )
     {
-      print "        $_\n";
-      copy( "../$_", $_ ) or die "$!";
+      my $targ = basename($_);
+      $targ =~ s/default_//;
+      print "        ../$_ $targ\n";
+      copy( "../$_", $targ ) or die "$!";
     }
     return @sorted_photon_files;
   }
@@ -793,4 +818,24 @@ sub writeAuxFiles {
   open OUT, ">", "eshift.ipt" or die "Failed to open eshift.ipt\n$!";
   printf OUT "%.16f\n", $hashRef->{'bse'}->{'cbm'}*-1;
   close OUT;
+}
+
+sub writeScFac {
+  my ($hashRef) = @_;
+
+  my $scfac = 1;
+  if( $hashRef->{'calc'}->{'mode'} eq 'xas' || $hashRef->{'calc'}->{'mode'} eq 'rxs' ) {
+    $scfac = $hashRef->{'bse'}->{'core'}->{'scfac'};
+    if( $scfac < 0 ) {
+      my @tmp = split( ' ', $hashRef->{'calc'}->{'edges'}[0] );
+      my $z = @{$hashRef->{'bse'}->{'znucl'}}[@{$hashRef->{'bse'}->{'typat'}}[@tmp[0]-1]-1];
+      print "SCFAC: $z\n";
+      $scfac = 0.8;
+      $scfac = 0.7 if( $z >= 55 );
+    }
+  }
+  open OUT, ">", "scfac" or die "Failed to open scfac\n$!";
+  printf OUT "%g\n", $scfac;
+  close OUT;
+
 }
