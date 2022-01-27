@@ -171,8 +171,12 @@ if( -e $dataFile )
   $fake->{ 'complete' } = $newScreenData->{'model'}->{'complete'};
   copyAndCompare( $newScreenData, $commonOceanData->{'screen'}, $screenData, $fake, ['model'] );
   $newScreenData->{'model'}->{'complete'} = $fake->{'complete'};
+  copyAndCompare( $newScreenData->{'model'}, $commonOceanData->{'screen'}, $screenData->{'model'},
+                  $newScreenData->{'model'}, [ "shells" ] );
+  copyAndCompare( $newScreenData->{'model'}, $newScreenData->{'structure'}, $screenData->{'model'},
+                  $newScreenData->{'model'}, [ "epsilon" ] );
   
-#  print "MODEL: " . $newScreenData->{'model'}->{'complete'} . "\n";
+  print "MODEL: " . $newScreenData->{'model'}->{'complete'} . "\n";
 
   
 #  if( $newScreenData->{'density'}->{'complete'} )
@@ -2137,6 +2141,7 @@ sub cleanScreen
         foreach my $r (@{$screenHash->{'shells'}}) {
           my $radNam = sprintf( "zR%.2f", $r );
           my $radDir = catdir( $d, $e[0], $radNam );
+          print sprintf("reopt%s.R%.2f", $sitename[$i], $r ) . "\n";
           move( sprintf("reopt%s.R%.2f", $sitename[$i], $r ), catfile( $d, sprintf("reopt.R%.2f",$r) ) );
           unless( -d $radDir ) {
             mkdir $radDir or die $!;
