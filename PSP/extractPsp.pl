@@ -76,9 +76,11 @@ if( -e $dataFile )
   }
 }
 
+my $filename;
 if( $new )
 {
   exit 0 unless( $oceanData->{'psp'}->{'source'} eq 'database');
+  $filename = catdir( $ENV{"OCEAN_BIN"}, $oceanData->{'psp'}->{'pp_database'} . '.json' );
 }
 else
 {
@@ -93,15 +95,15 @@ else
   else {
     die "Failed to open pplist\n";
   }
-}
+  #my $filename = $ARGV[0];
+  open( IN, "ppdatabase" ) or die "Failed to open ppdatabase\n$!";
+  my $filename = <IN>;
+  chomp $filename;
+  $filename =~ s/\s*$//;
+  $filename .= ".json";
+  $filename = catdir( $ENV{"OCEAN_BIN"}, $filename );
 
-#my $filename = $ARGV[0];
-open( IN, "ppdatabase" ) or die "Failed to open ppdatabase\n$!";
-my $filename = <IN>;
-chomp $filename;
-$filename =~ s/\s*$//;
-$filename .= ".json";
-$filename = catdir( $ENV{"OCEAN_BIN"}, $filename );
+}
 
 my $data;
 
@@ -235,23 +237,32 @@ foreach my $key (keys %uniquePsp )
 #Hartree to Ryd
 $ecut *= 2;
 print "ECUT: $ecut\n";
-if( open( IN, "ecut" ) )
-{
-  my $oldEcut = <IN>;
-  close IN;
-  if( $oldEcut < 0 )
-  {
-    open OUT, ">", "ecut";
-    print OUT "$ecut\n";
-    close OUT;
-  }
-  elsif( $oldEcut < $ecut ) {
+if( $new ) {
+  if( !(defined($oceanData->{'dft'}->{'ecut'})) || $oceanData->{'dft'}->{'ecut'} < 0  ) {
+    $oceanData->{'dft'}->{'ecut'} = $ecut;
+  } elsif( $oceanData->{'dft'}->{'ecut'} < $ecut ) {
     print "WARNING: Input file has ecut that is less than recommended for the psps!\n";
-    print "   $oldEcut < $ecut \n";
+    printf "   %g < %g \n", $oceanData->{'dft'}->{'ecut'}, $ecut;
   }
-}
-else {
-  die "Failed to open ecut\n$!";
+} else {
+  if( open( IN, "ecut" ) )
+  {
+    my $oldEcut = <IN>;
+    close IN;
+    if( $oldEcut < 0 )
+    {
+      open OUT, ">", "ecut";
+      print OUT "$ecut\n";
+      close OUT;
+    }
+    elsif( $oldEcut < $ecut ) {
+      print "WARNING: Input file has ecut that is less than recommended for the psps!\n";
+      print "   $oldEcut < $ecut \n";
+    }
+  }
+  else {
+    die "Failed to open ecut\n$!";
+  }
 }
 
 my @zsymb;

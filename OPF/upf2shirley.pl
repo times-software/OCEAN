@@ -172,6 +172,7 @@ while( my $line = <IN> )
         my $beta = shift @temp;
         $l = shift @temp;
         shift @temp; shift @temp; shift @temp;
+        print "### angular2 $l\n";
       }
       if( $l == 0 )
       {
@@ -208,11 +209,13 @@ while( my $line = <IN> )
     {
       print "####### PP_PSWFC\n";
       my @temp = split ' ', $val;
+      print scalar @temp . "\n";
       my $i = 0;
       do
       {
-        if( $temp[$i] =~ m/^s/ && scalar @wfc0 == 0 )
+        if( $temp[$i] =~ m/^\d*s/ && scalar @wfc0 == 0 )
         {
+          print "Gabbed s pswfn\n";
           $i++; $i++; $i++; $i++;
           while( $temp[$i] =~ /\d\.\d+/ )
           {
@@ -220,8 +223,9 @@ while( my $line = <IN> )
             $i++;
           }
         }
-        elsif( $temp[$i] =~ m/^p/ && scalar @wfc1 == 0 )
+        elsif( $temp[$i] =~ m/^\d*p/ && scalar @wfc1 == 0 )
         {
+          print "Gabbed p pswfn\n";
           $i++; $i++; $i++; $i++;
           while( $temp[$i] =~ /\d\.\d+/ )
           {
@@ -229,8 +233,9 @@ while( my $line = <IN> )
             $i++;
           }
         }
-        elsif($temp[$i] =~ m/^d/ && scalar @wfc2 == 0 )
+        elsif($temp[$i] =~ m/^\d*d/ && scalar @wfc2 == 0 )
         {
+          print "Gabbed d pswfn\n";
           $i++; $i++; $i++; $i++;
           while( $temp[$i] =~ /\d\.\d+/ )
           {
@@ -238,7 +243,7 @@ while( my $line = <IN> )
             $i++;
           }
         }
-        elsif($temp[$i] =~ m/^f/ && scalar @wfc3 == 0 )
+        elsif($temp[$i] =~ m/^\d*f/ && scalar @wfc3 == 0 )
         {
           $i++; $i++; $i++; $i++;
           while( $temp[$i] =~ /\d\.\d+/ )
@@ -326,3 +331,6 @@ for( my $i = scalar @l3; $i < scalar @local; $i++ )
   print OUT "$rad[$i]  " . $local[$i]/2 . "\n";
 }
 close OUT;
+
+
+

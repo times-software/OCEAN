@@ -210,6 +210,14 @@ if( -e $dataFile )
     {
       runShirley( $Z, $todoPsp{ $Z }, $commonOceanData ); 
     }
+    elsif( $opfData->{'program'} =~ m/ham/ )
+    { 
+      runONCV( $Z, $todoPsp{ $Z }, $commonOceanData );
+    }
+    else 
+    {   
+      die "Unsupported opf aux program\n";
+    }
     # Can just write over since we already checked that they're the same
     $opfData->{'completed'}->{$Z}->{'psp_hash'} = $todoHash{ $Z };
     $opfData->{'completed'}->{$Z}->{'NL'} = [] unless( exists $opfData->{'completed'}->{'NL'} );
@@ -1014,7 +1022,7 @@ sub runONCV
   copy( $targ, $oncvpspInputFile);
 
   my $targRad = -1;
-  my $scfac = 1;
+  my $scfac = 1.;
   open IN, ">>", $oncvpspInputFile or die "Failed to open $oncvpspInputFile\n$!";
   print IN ".true.\n$targRad   $scfac\n";
   close IN;
@@ -1104,6 +1112,18 @@ sub runONCV
   print HFIN "mkcorcon\nscreencore\nmkcorcon\ncalcso\nquit\n";
   close HFIN;
 
+  open OUT, ">", "caution" or die "Failed to open caution\n$!";
+  if( $hashRef->{'opf'}->{'shirley'}->{'caution'} )
+  {
+    print OUT "true\n";
+  }
+  else
+  {
+    print OUT "false\n";
+  }
+#  print OUT $hashRef->{'opf'}->{'shirley'}->{'caution'} . "\n";
+  close OUT;
+
   print "Running hfk.x\n";
   system("$ENV{'OCEAN_BIN'}/hfk.x < hfin1 > hfk.${Z}.1.log") == 0 or die;
   # Check the end of the log to see if we are ok
@@ -1124,6 +1144,10 @@ sub runONCV
   unless( -d "$zdiag" )
   {
     ( mkdir $zdiag ) or die "$!";
+  }
+  unless( -d "zpawinfo" )
+  {
+    mkdir "zpawinfo" or die "$!";
   }
 
   my $zee = sprintf "z%3.3i", $Z;

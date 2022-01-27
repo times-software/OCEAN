@@ -486,12 +486,76 @@ sub QEparseDensityPotential
   $outfile =~ s/\.in/.out/;
   QErunPP( $hashRef->{'general'}->{'redirect'}, $prefix, $cmdLine, "$infile", "$outfile" );
 
+  # Check for NaN with metaGGA
+  if( $type eq 'potential' ) {
+    my $error = QEfixPP( $hashRef->{'general'}->{'redirect'}, $prefix, $cmdLine, "$infile", "$outfile" );
+    return $error if( $error != 0 );
+  }
+
   system("$ENV{'OCEAN_BIN'}/qe2rhoofr.pl $convert" ) == 0 
     or die "Failed to convert $type\n$!\n";
 
   return 0;
 }
 
+sub QEfixPP
+{
+  my ( $redirect, $prefix, $cmdLine, $infile, $outfile ) = @_;
+
+  open IN, "<", $outfile or die "Failed to open $outfile\n$!";
+  my $NAN = 0;
+  while( my $line = <IN> ) {
+    if( $line =~ m/nan/i ) {
+      $NAN = 1;
+      last;
+    }
+  }
+  close IN;
+  return 0 if( $NAN == 0 );
+
+  my $qe62File = catfile( "Out", "system.save", "data-file-schema.xml" );
+  if( -e $qe62File ) {
+    my @file;
+    open IN, "<", $qe62File or die "$!";
+    while (<IN>) {
+      push @file, $_;
+    }
+    close IN;
+    my $funct;
+    open OUT, ">", $qe62File or die "$!";
+    foreach my $line (@file) {
+      if( $line =~ m/<functional>(.*)<\/functional>/ ) {
+        my $funct = $1;
+        $line =~ s/$funct/PBE/;
+      }
+      print OUT $line;
+    }
+    close OUT;
+
+    QErunPP( $redirect, $prefix, $cmdLine, $infile, $outfile );
+
+    open IN, "<", $outfile or die "Failed to open $outfile\n$!";
+    $NAN = 0;
+    while( my $line = <IN> ) {
+      if( $line =~ m/nan/i ) {
+        $NAN = 1;
+        last;
+      }
+    }
+    close IN;
+  
+    open OUT, ">", $qe62File or die "$!";
+    foreach my $line (@file) {
+      if( $line =~ m/<functional>PBE<\/functional>/ ) {
+        $line =~ s/PBE/$funct/;
+      }
+      print OUT $line;
+    }
+    close OUT;
+  }
+
+  return $NAN;
+}
 
 # Figure out how many pools to run with
 sub QEPoolControl
@@ -646,7 +710,7 @@ sub QEprintInput
   print $fh "&system\n"
         .  "  ibrav = 0\n"
         .  "  nat = " . scalar @{$generalRef->{'structure'}->{'xred'}} . "\n"
-        .  "  ntyp = " . scalar @{$generalRef->{'structure'}->{'typat'}} . "\n"
+        .  "  ntyp = " . scalar @{$generalRef->{'structure'}->{'znucl'}} . "\n"
         .  "  noncolin = $noncolin\n" 
         .  "  lspinorb = $spinorb\n"
 #        .  "  ecutwfc = $generalRef->{'general'}->{'ecut'}\n"
