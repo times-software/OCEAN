@@ -1616,7 +1616,6 @@ module OCEAN_multiplet
     integer :: LandM, el, em, ialpha, nu, ispn, ihd, ikpt, ibnd, ii, jj, j1, jhd, jel, jem
     integer :: a_stop, k_start, k_stop, core_store_size_remain
     integer :: zero_elem
-#define __DBROADEN
 #ifdef __DBROADEN
     real(DP) :: dbroaden(5,5), db
 #endif
