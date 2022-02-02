@@ -1593,7 +1593,7 @@ sub buildSiteEdgeWyck
 #            $sites{ $key }, $structRef->{'xred'}[$key-1][0],
 #            $structRef->{'xred'}[$key-1][1], $structRef->{'xred'}[$key-1][2];
     push $genRef->{'sitelist'}, sprintf "%s %i %i", $structRef->{'elname'}[$structRef->{'typat'}[$key-1]-1],
-            $structRef->{'znucl'}[$structRef->{'typat'}[$key]-1], $index[$key-1];
+            $structRef->{'znucl'}[$structRef->{'typat'}[$key-1]-1], $index[$key-1];
     print "$key\n";
   }
 

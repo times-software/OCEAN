@@ -3562,7 +3562,7 @@ module screen_wvfn_converter
 
 #endif
 
-#ifdef DEBUG
+#ifdef DEBUG2
         do j = 1, nbands
           write(wvfnfile, '(A,I8.8)' ) 'real', j
           open( unit=99, file=wvfnfile, form='formatted' )

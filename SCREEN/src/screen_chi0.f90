@@ -336,7 +336,7 @@ module screen_chi0
       enddo
       close(99)
 
-#ifdef DEBUG
+#ifdef DEBUG1
       write(chiNameText,'(A,A2,I4.4,A4)' ) 'ximat_', siteInfo%elname, siteInfo%indx, '.txt'
       open(unit=99, file=chiNameText, form='formatted', status='unknown' )
       rewind(99)
