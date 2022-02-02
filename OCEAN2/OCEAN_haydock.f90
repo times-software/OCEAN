@@ -131,7 +131,7 @@ module OCEAN_haydock
       if( ierr .ne. 0 ) return
 
       ! This should be hoisted back up here
-      call haydock_abc( sys, psi, new_psi, old_psi, back_psi, back_new_psi, back_old_psi, & 
+      call haydock_abc_1( sys, psi, new_psi, old_psi, back_psi, back_new_psi, back_old_psi, & 
                           iter, ierr )
 
     enddo
@@ -1001,6 +1001,153 @@ module OCEAN_haydock
     integer :: irequest, rrequest
 
 
+    ! Following 
+    ! Inner product (x,y) = \sum_{i=1}^{m} x_i \bar{y}_i
+    !  This means that (x,y) = \langle y \vert x \rangle
+
+    ! step 0, enforce allow
+    call OCEAN_energies_allow( sys, hpsi, ierr )
+    if( ierr .ne. 0 ) return
+    call OCEAN_energies_allow( sys, back_hpsi, ierr )
+    if( ierr .ne. 0 ) return
+
+
+    ! step 2:  New vector  ! HERE THERE IS A DIFFERENCE, beta index
+    ! step 2A) r = A v_j - \beta_{j-1} v_{j-1}
+    atmp = - real_c( iter - 1 )
+    btmp = - imag_c( iter - 1 )
+    call OCEAN_psi_axpy( atmp, old_psi, hpsi, ierr, btmp )
+
+    ! step 2B) s= A^* u_j - \beta^*_{j-1} u_{j-1}
+    atmp = - real_b( iter - 1 )
+    btmp =   imag_b( iter - 1 )
+    call OCEAN_psi_axpy( atmp, back_old_psi, back_hpsi, ierr, btmp )
+
+    ! $ \alpha_j = u_j^* r
+    call OCEAN_psi_dot( back_hpsi, hpsi, rrequest, rtmp, ierr, irequest, itmp )
+    ! Now need to make sure alpha is done
+    call MPI_WAIT( rrequest, MPI_STATUS_IGNORE, ierr )
+    if( ierr .ne. 0 ) return
+    call MPI_WAIT( irequest, MPI_STATUS_IGNORE, ierr )
+    if( ierr .ne. 0 ) return
+
+    ! r = r - alpha v_j
+    atmp = -rtmp
+    btmp = -itmp
+    call OCEAN_psi_axpy( atmp, psi, hpsi, ierr, btmp )
+    if( ierr .ne. 0 ) return
+    ! s = s - alpha^* u_j
+    atmp = -rtmp
+    btmp =  itmp
+    call OCEAN_psi_axpy( atmp, back_psi, back_hpsi, ierr, btmp )
+    if( ierr .ne. 0 ) return
+
+    real_a(iter-1) = rtmp
+    imag_a(iter-1) = itmp
+    call OCEAN_psi_dot( hpsi, back_hpsi, rrequest, rtmp, ierr, irequest, itmp )
+
+    ! get ready for next iteration
+    ! copies psi onto old_psi
+    call OCEAN_psi_copy_min( old_psi, psi, ierr )
+    if( ierr .ne. 0 ) return
+    !
+    call OCEAN_psi_copy_min( back_old_psi, back_psi, ierr )
+    if( ierr .ne. 0 ) return
+
+
+    ! Wait on 4A
+    call MPI_WAIT( rrequest, MPI_STATUS_IGNORE, ierr )
+    if( ierr .ne. 0 ) return
+    !
+    call MPI_WAIT( irequest, MPI_STATUS_IGNORE, ierr )
+    if( ierr .ne. 0 ) return
+
+
+    ctmp = cmplx( rtmp, itmp, DP )
+    ctmp = sqrt( ctmp )
+    real_b(iter) = real(ctmp,DP)
+    imag_b(iter) = aimag(ctmp)
+
+    ctmp = cmplx( rtmp, itmp, DP ) / ctmp
+    real_c(iter) = real(ctmp,DP)
+    imag_c(iter) = -aimag(ctmp)
+    
+    ! step 5 w_{j+1) = w_{j+1} / \beta^*_{j}
+    call OCEAN_psi_divide( hpsi, ierr, real_b(iter), imag_b(iter) )
+    if( ierr .ne. 0 ) return
+
+    ! step 6 v_{j+1} = v_{j+1}/ \delta_j
+    call OCEAN_psi_divide( back_hpsi, ierr, real_c(iter), -imag_c(iter) )
+    if( ierr .ne. 0 ) return
+
+    ! more copies and prep for next iter
+    call OCEAN_psi_copy_min( psi, hpsi, ierr )
+    if( ierr .ne. 0 ) return
+
+    call OCEAN_psi_prep_min2full( psi, ierr )
+    if( ierr .ne. 0 ) return
+
+    call OCEAN_psi_start_min2full( psi, ierr )
+    if( ierr .ne. 0 ) return
+
+    call OCEAN_psi_copy_min( back_psi, back_hpsi, ierr )
+    if( ierr .ne. 0 ) return
+
+    call OCEAN_psi_prep_min2full( back_psi, ierr )
+    if( ierr .ne. 0 ) return
+
+    call OCEAN_psi_start_min2full( back_psi, ierr )
+    if( ierr .ne. 0 ) return
+
+
+    if( myid .eq. 0 ) then
+      write ( 6, '(1x,6(f14.8,2x),i6)' ) real_a(iter-1)*Hartree2eV, imag_a(iter-1) * Hartree2eV, &
+                                                    real_b(iter) * Hartree2eV, imag_b(iter) * Hartree2eV, &
+                                                    real_c(iter) * Hartree2eV, imag_c(iter) * Hartree2eV, iter
+      if( mod( iter, 1 ) .eq. 0 ) call haydump( iter, sys, psi%kpref, ierr )
+#ifdef __HAVE_F03
+      if( ieee_is_nan( real_a(iter-1) ) ) then
+#else
+      if( real_a(iter-1) .ne. real_a(iter-1) ) then
+#endif
+        write(6,*) 'NaN detected'
+        ierr = -1
+        return
+      endif
+
+!      call haydump( iter, sys, ierr )
+    endif
+    ! Might be moved up & out?
+    call OCEAN_psi_finish_min2full( psi, ierr )
+    if( ierr .ne. 0 ) return
+
+    call OCEAN_psi_finish_min2full( back_psi, ierr )
+    if( ierr .ne. 0 ) return
+
+  end subroutine haydock_abc
+
+
+  subroutine haydock_abc_1( sys, psi, hpsi, old_psi, back_psi, back_hpsi, back_old_psi, iter, ierr )
+#ifdef __HAVE_F03
+    use, intrinsic :: ieee_arithmetic, only: ieee_is_nan
+#endif
+    use OCEAN_system, only : o_system
+    use OCEAN_psi
+    use OCEAN_mpi, only : myid, root, MPI_STATUS_IGNORE
+    use OCEAN_constants, only : Hartree2eV
+    use OCEAN_energies, only : OCEAN_energies_allow
+    implicit none
+    integer, intent(inout) :: ierr
+    integer, intent(in) :: iter
+    type(O_system), intent( in ) :: sys
+    type(OCEAN_vector), intent(inout) :: psi, hpsi, old_psi
+    type(OCEAN_vector), intent(inout) :: back_psi, back_hpsi, back_old_psi
+
+    complex(dp) :: ctmp
+    real(dp) :: rtmp, itmp, atmp, btmp
+    integer :: irequest, rrequest
+
+
     ! Following Saad
     ! Inner product (x,y) = \sum_{i=1}^{m} x_i \bar{y}_i
     !  This means that (x,y) = \langle y \vert x \rangle
@@ -1082,7 +1229,24 @@ module OCEAN_haydock
     !
     call MPI_WAIT( irequest, MPI_STATUS_IGNORE, ierr )
     if( ierr .ne. 0 ) return
+
     
+
+    real_c( iter ) = sqrt( (sqrt(rtmp**2 + itmp**2) + rtmp )/2.0_DP) 
+    imag_c( iter ) = sign( sqrt( (sqrt(rtmp**2 + itmp**2) - rtmp )/2.0_DP), itmp)  
+
+    ctmp = cmplx( rtmp, itmp, DP ) / cmplx( real_c( iter ), imag_c( iter ), DP )
+    real_b( iter ) = real( ctmp, DP )
+    imag_b( iter ) = -aimag( ctmp )
+
+!    real_b( iter ) = sqrt( abs( cmplx( rtmp, itmp, DP ) ) )
+!    imag_b( iter ) = 0.0_DP
+
+!    ctmp = cmplx( rtmp, itmp, DP ) / real_b(iter)
+!    real_c = real( ctmp, DP )
+!    imag_c = aimag( ctmp )
+
+#if 0
     ctmp = sqrt( cmplx( rtmp, itmp, DP ) )
     real_c( iter ) = real( ctmp, DP )
     imag_c( iter ) = aimag( ctmp )
@@ -1090,7 +1254,7 @@ module OCEAN_haydock
     ctmp = cmplx( rtmp, itmp, DP )/cmplx( real_c(iter), imag_c(iter), DP )
     real_b( iter ) = real( ctmp, DP )
     imag_b( iter ) = aimag( ctmp )
-
+#endif
 
     ! step 5 w_{j+1) = w_{j+1} / \beta^*_{j}
     call OCEAN_psi_divide( back_hpsi, ierr, real_b(iter), -imag_b(iter) )
@@ -1146,7 +1310,7 @@ module OCEAN_haydock
     call OCEAN_psi_finish_min2full( back_psi, ierr )
     if( ierr .ne. 0 ) return
 
-  end subroutine haydock_abc
+  end subroutine haydock_abc_1
 
 
 
@@ -1529,7 +1693,7 @@ module OCEAN_haydock
 #if(1)
           ctmp = cmplx( e - real_a( iter - 1 ), gam + imag_a( iter - 1 ), DP )  
           disc = sqrt( ctmp ** 2 - 4 * cmplx( real_b( iter ), imag_b( iter ) ) & 
-                                     * cmplx( real_c( iter ), -imag_c( iter ) ) )
+                                     * cmplx( real_c( iter ), imag_c( iter ) ) )
           if( aimag( disc ) .gt. 0.0d0 ) then
             delta = (ctmp + disc ) / 2.0_dp
           else
@@ -1552,7 +1716,7 @@ module OCEAN_haydock
 !           if( .false. ) then
 !             delta = e - real_a( jj ) + rm1 * gam - real_b( jj + 1 ) ** 2 / delta
 !           else
-            ctmp = cmplx( real_b( jj+1 ), imag_b( jj+1 ) ) * cmplx( real_c( jj+1 ), -imag_c( jj+1 ) )
+            ctmp = cmplx( real_b( jj+1 ), imag_b( jj+1 ) ) * cmplx( real_c( jj+1 ), imag_c( jj+1 ) )
             delta = cmplx( e - real_a( jj ), gam + imag_a( jj ) ) - ctmp / delta
 !           endif
           end do
@@ -1827,6 +1991,7 @@ module OCEAN_haydock
   subroutine checkBroadening( sys, broaden, default_broaden )
     use OCEAN_corewidths, only : returnLifetime
     use OCEAN_system
+    use OCEAN_mpi, only : myid, root
     implicit none
     type( o_system ), intent( in ) :: sys
     real(DP), intent( inout ) :: broaden
@@ -1841,6 +2006,7 @@ module OCEAN_haydock
       case( 'XAS' , 'XES', 'RXS' ) 
         call returnLifetime( sys%cur_run%ZNL(1), sys%cur_run%ZNL(2), sys%cur_run%ZNL(3), broaden )
         if( broaden .le. 0 ) broaden = default_broaden
+        if( myid .eq. root ) write(6,*) 'Default broadening used: ', broaden
       case default
         broaden = default_broaden
     end select
