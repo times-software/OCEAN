@@ -324,30 +324,47 @@ if( $haveLegacy == 1 )
   {
     my $lckey = lc($key);
 #    $key = lc($key) unless( exists $decoder{$key} );
-    die "Unrecognized input flag: $key\n No recovery possible!" unless( exists $decoder{$lckey} );
-    my $newKey = $decoder{ $lckey };
-    print "$key : $newKey  $inputHash{ $key }\n";
-    $inputHash{ $newKey } = $inputHash{ $key };
-    delete( $inputHash{ $key } ) unless( $key eq $newKey );
-    $rawInputFile =~ s/$key/$newKey/;
-    my @newKey = split /\./, $newKey;
-    my $ref = $config;
-    next if( $newKey[0] eq 'nope' );
-    for( my $i = 0; $i < scalar @newKey; $i++ )
-    {
-      if( exists $ref->{$newKey[$i]} )
+#    die "Unrecognized input flag: $key\n No recovery possible!" unless( exists $decoder{$lckey} );
+    if( exists $decoder{$lckey} ) {
+      my $newKey = $decoder{ $lckey };
+      print "$key : $newKey  $inputHash{ $key }\n";
+      $inputHash{ $newKey } = $inputHash{ $key };
+      delete( $inputHash{ $key } ) unless( $key eq $newKey );
+      $rawInputFile =~ s/$key/$newKey/;
+      my @newKey = split /\./, $newKey;
+      my $ref = $config;
+      next if( $newKey[0] eq 'nope' );
+      for( my $i = 0; $i < scalar @newKey; $i++ )
       {
-        $ref = $ref->{$newKey[$i]};
+        if( exists $ref->{$newKey[$i]} )
+        {
+          $ref = $ref->{$newKey[$i]};
+        }
+        else
+        {
+          die "Unrecognized input flag: $key\n  Legacy conversion failed\n";
+        }
       }
-      else
+    } else {
+      my @newKey = split /\./, $key;
+      my $ref = $config;
+      for( my $i = 0; $i < scalar @newKey; $i++ )
       {
-        die "Unrecognized input flag: $key\n  Legacy conversion failed\n";
+        if( exists $ref->{$newKey[$i]} )
+        {
+          $ref = $ref->{$newKey[$i]};
+        }
+        else
+        {
+          die "Unsupported input flag. Neither new nor legacy:  $key\n";
+        }
       }
+      print "Comment: Mixed new and legacy input:  $key\n";
     }
   }
 
   my $newInputFile = $input_filename . ".mod3";
-  open OUT, ">", $newInputFile or die "$!";
+  open OUT, ">", $newInputFile or die "Failed to open $newInputFile \n$!";
   print OUT $rawInputFile;
   close OUT;
 }
@@ -491,7 +508,7 @@ foreach my $key ( keys %inputHash )
 my $enable = 1;
 $json->canonical([$enable]);
 $json->pretty([$enable]);
-open OUT, ">", "parsedInputFile" or die;
+open OUT, ">", "parsedInputFile" or die "Failed to open parsedInputFile\n$!";
 print OUT $json->encode($config);
 close OUT;
 

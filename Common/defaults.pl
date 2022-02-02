@@ -73,6 +73,7 @@ if( -e $dataFile )
   makeSitesZsymb( $oceanData );
   ## xred sub to go from bohr/ang to red
 
+  fixCoreShift( $oceanData );
   fixCNBSE( $oceanData );
   
   my $enable = 1;
@@ -1640,6 +1641,27 @@ sub makeSitesZsymb
     $hashRef->{'structure'}->{'zsymb'}[$i] = $symb;
   }
 
+}
+
+sub fixCoreShift 
+{
+  my $hashRef = $_[0];
+  # If enable set, turn on average
+  if( $hashRef->{'screen'}->{'core_offset'}->{'enable'} ) {
+    $hashRef->{'screen'}->{'core_offset'}->{'average'} = JSON::PP::true;
+  }
+
+  # If an energy shift is specified disable average and turn on enable 
+  #  (might undo the previous, but it is simple)
+  if( defined(  $hashRef->{'screen'}->{'core_offset'}->{'energy'} ) ) {
+    $hashRef->{'screen'}->{'core_offset'}->{'average'} = JSON::PP::false;
+    $hashRef->{'screen'}->{'core_offset'}->{'enable'} = JSON::PP::true;
+  }
+
+  # Lastly, if only average set to true, then enable
+  if( $hashRef->{'screen'}->{'core_offset'}->{'average'} ) {
+    $hashRef->{'screen'}->{'core_offset'}->{'enable'} = JSON::PP::true;
+  }
 }
 
 sub fixCNBSE

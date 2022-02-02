@@ -466,6 +466,10 @@ sub QEparseDensityPotential
   my $ncpus = $hashRef->{'computer'}->{'ncpus'};
   $ncpus = $hashRef->{'scf'}->{'ncpus'} if( exists $hashRef->{'scf'}->{'ncpus'} && $hashRef->{'scf'}->{'ncpus'} >= 1 );
   $npool = $hashRef->{'scf'}->{'npool'} if( exists $hashRef->{'scf'}->{'npool'} && $hashRef->{'scf'}->{'npool'} >= 1 );
+  if( $ncpus % $npool == 0 ) {
+    $ncpus = $ncpus / $npool;
+    $npool = 1;
+  }
 
   ### write PP input card for density
   open PP, ">", "$infile" or die "$!";
@@ -488,7 +492,8 @@ sub QEparseDensityPotential
 
   # Check for NaN with metaGGA
   if( $type eq 'potential' ) {
-    my $error = QEfixPP( $hashRef->{'general'}->{'redirect'}, $prefix, $cmdLine, "$infile", "$outfile" );
+    my $error = QEfixPP( $hashRef->{'general'}->{'redirect'}, $prefix, $cmdLine, "$infile", "$outfile", "system.pot" );
+    print "POT: $error\n";
     return $error if( $error != 0 );
   }
 
@@ -500,9 +505,10 @@ sub QEparseDensityPotential
 
 sub QEfixPP
 {
-  my ( $redirect, $prefix, $cmdLine, $infile, $outfile ) = @_;
+  my ( $redirect, $prefix, $cmdLine, $infile, $outfile, $potfile ) = @_;
 
-  open IN, "<", $outfile or die "Failed to open $outfile\n$!";
+  print "QE fix 1 $potfile\n";
+  open IN, "<", $potfile or die "Failed to open $potfile\n$!";
   my $NAN = 0;
   while( my $line = <IN> ) {
     if( $line =~ m/nan/i ) {
@@ -512,6 +518,7 @@ sub QEfixPP
   }
   close IN;
   return 0 if( $NAN == 0 );
+  print "QE fix 2\n";
 
   my $qe62File = catfile( "Out", "system.save", "data-file-schema.xml" );
   if( -e $qe62File ) {
@@ -525,16 +532,17 @@ sub QEfixPP
     open OUT, ">", $qe62File or die "$!";
     foreach my $line (@file) {
       if( $line =~ m/<functional>(.*)<\/functional>/ ) {
-        my $funct = $1;
+        $funct = $1;
         $line =~ s/$funct/PBE/;
       }
       print OUT $line;
     }
     close OUT;
+    print "QE fix $funct\n";
 
     QErunPP( $redirect, $prefix, $cmdLine, $infile, $outfile );
 
-    open IN, "<", $outfile or die "Failed to open $outfile\n$!";
+    open IN, "<", $potfile or die "Failed to open $potfile\n$!";
     $NAN = 0;
     while( my $line = <IN> ) {
       if( $line =~ m/nan/i ) {
@@ -565,6 +573,7 @@ sub QEPoolControl
   my $maxMem = 2000;
   my $minPool = 0.9;
   $minPool = $mem / $maxMem if( $mem > $maxMem );
+  
 
 #  print "$hashRef->{'ncpus'}\n";
 
@@ -573,7 +582,9 @@ sub QEPoolControl
   for( my $j = $hashRef->{'ncpus'}; $j > 0; $j-- )
   {
     # i is number of pools
-    for( my $i = 1; $i <= $j; $i++ )
+    my $maxNpool = $j;
+    $maxNpool = $actualKpts if ( $actualKpts < $j );
+    for( my $i = 1; $i <= $maxNpool; $i++ )
     {
       # gotta be an even factor
       next if ( $j % $i );
@@ -584,7 +595,7 @@ sub QEPoolControl
 
       my $cpuPerPool = $j / $i;
       my $kPerPool = ceil( $actualKpts / $i );
-      my $cost = $kPerPool / ( $cpuPerPool * ( 0.98**$cpuPerPool ) );
+      my $cost = $kPerPool / ( $cpuPerPool * ( 0.999**$cpuPerPool ) );
       print "$j  $i  $kPerPool  $cost\n";
       $cpusAndPools{ $cost } = [ $j, $i ];
     }
@@ -744,13 +755,13 @@ sub QEprintInput
     print $fh "lda_plus_u = true\n" 
             . "lda_plus_u_kind = $generalRef->{'general'}->{'ldau'}->{'lda_plus_u_kind'}\n"
             . "U_projection_type = $generalRef->{'general'}->{'ldau'}->{'U_projection_type'}\n";
-    print $fh "Hubbard_U = $generalRef->{'general'}->{'ldau'}->{'Hubbard_U'}\n" 
+    print $fh "$generalRef->{'general'}->{'ldau'}->{'Hubbard_U'}\n" 
         if( $generalRef->{'general'}->{'ldau'}->{'Hubbard_U'} ne "" );
-    print $fh "Hubbard_V = $generalRef->{'general'}->{'ldau'}->{'Hubbard_V'}\n" 
+    print $fh "$generalRef->{'general'}->{'ldau'}->{'Hubbard_V'}\n" 
         if( $generalRef->{'general'}->{'ldau'}->{'Hubbard_V'} ne "" );
-    print $fh "Hubbard_J = $generalRef->{'general'}->{'ldau'}->{'Hubbard_J'}\n" 
+    print $fh "$generalRef->{'general'}->{'ldau'}->{'Hubbard_J'}\n" 
         if( $generalRef->{'general'}->{'ldau'}->{'Hubbard_J'} ne "" );
-    print $fh "Hubbard_J0 = $generalRef->{'general'}->{'ldau'}->{'Hubbard_J0'}\n" 
+    print $fh "$generalRef->{'general'}->{'ldau'}->{'Hubbard_J0'}\n" 
         if( $generalRef->{'general'}->{'ldau'}->{'Hubbard_J0'} ne "" );
   }
 #  if( $inputs{'qe_scissor'}  ne "" )

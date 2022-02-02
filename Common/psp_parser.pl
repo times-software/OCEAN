@@ -58,6 +58,11 @@ if( -e $dataFile )
     {
       copy( $ppdir . '/' . $p . $suffix, "psp");
       copy( $ppdir . '/' . $p, "psp") if ( $suffix ne '' && -e $ppdir . '/' . $p, "psp" );
+      my $q = $p;
+      $q =~ s/\.psp8$//i;
+      $q =~ s/\.upf$//i;
+      $q .= '.in';
+      copy( $ppdir . '/' . $q, "psp") if( -e  $ppdir . '/' . $q );
     }
   }
   my @electrons;

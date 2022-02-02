@@ -196,7 +196,7 @@
       "convertstyle" : "intp",
       "core_offset" : {
          "enable" : false,
-         "average" : true,
+         "average" : false,
          "energy" : null
       },
       "dft_energy_range" : 100,
