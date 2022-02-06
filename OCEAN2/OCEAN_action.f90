@@ -304,7 +304,7 @@ end subroutine OCEAN_action_h1
     integer, optional :: nhflag(6)
     !
     type(OCEAN_vector) :: psi_o, psi_i
-    integer :: rrequest, irequest
+    integer :: rrequest, irequest, iflg, tempflag(6)
     real(dp) :: rval, ival
     logical :: loud_valence = .false.
     logical :: back 
@@ -342,7 +342,10 @@ end subroutine OCEAN_action_h1
 
       if( sys%mult ) then
         call OCEAN_tk_start( tk_mult )
+        iflg = hflag(6)
+        hflag(6) = 0
         call OCEAN_mult_act( sys, inter_scale, psi_o, new_psi, back, hflag )
+        hflag(6) = iflg
         call OCEAN_tk_stop( tk_mult )
         endif
 
@@ -358,6 +361,12 @@ end subroutine OCEAN_action_h1
       if( ierr .ne. 0 ) return
       call OCEAN_psi_kill( psi_o, ierr )
       if( ierr .ne. 0 ) return
+
+      if( hflag(6) .eq. 1 ) then
+        tempflag(:)=0
+        tempflag(6) = 1
+        call OCEAN_mult_act( sys, inter_scale, psi, new_psi, back, tempflag )
+      endif
 
     endif  ! sys%cur_run%have_core
      !write OCEAN_vec after mult after all of the if statements to hopefully get

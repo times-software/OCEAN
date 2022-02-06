@@ -38,6 +38,11 @@
       "kmesh" : "af",
       "kshift" : "af",
       "nbands" : "i",
+      "occupation" : {
+         "type" : "s",
+         "value" : "f"
+      },
+      "start_band" : "i",
       "val" : {
          "aldaf" : "b",
          "backf" : "b",

@@ -16,6 +16,7 @@ module OCEAN_energies
 
   type( OCEAN_vector ) :: p_energy
   type( OCEAN_vector ) :: allow
+  type( OCEAN_vector ) :: allow_sqrt
 
 
   LOGICAL :: have_selfenergy
@@ -40,7 +41,7 @@ module OCEAN_energies
     type(O_system), intent( in ) :: sys
     type(OCEAN_vector), intent( inout ) :: psi
     !
-    call OCEAN_psi_2element_mult( psi, allow, ierr, is_real_only=.true., use_full=.true. )
+    call OCEAN_psi_2element_mult( psi, allow_sqrt, ierr, is_real_only=.true., use_full=.true. )
   end subroutine
 
   subroutine OCEAN_energies_allow( sys, psi, ierr )
@@ -155,6 +156,8 @@ module OCEAN_energies
       if( ierr .ne. 0 ) return
       call OCEAN_psi_new( allow, ierr )
       if( ierr .ne. 0 ) return
+      call OCEAN_psi_new( allow_sqrt, ierr )
+      if( ierr .ne. 0 ) return
 
       is_init = .true.
     endif
@@ -170,6 +173,7 @@ module OCEAN_energies
 
     call OCEAN_psi_kill( p_energy, ierr )
     call OCEAN_psi_kill( allow, ierr )
+    call OCEAN_psi_kill( allow_sqrt, ierr )
     is_init = .false.
 
   end subroutine OCEAN_energies_kill
@@ -202,6 +206,8 @@ module OCEAN_energies
     if( ierr .ne. 0 ) return
     call OCEAN_psi_zero_full( allow, ierr )
     if( ierr .ne. 0 ) return
+    call OCEAN_psi_zero_full( allow_sqrt, ierr )
+    if( ierr .ne. 0 ) return
 
 
     ! Currently all of this is done only on the root proccess 
@@ -230,6 +236,7 @@ module OCEAN_energies
 
     call OCEAN_psi_bcast_full( root, p_energy, ierr )
     call OCEAN_psi_bcast_full( root, allow, ierr )
+    call OCEAN_psi_bcast_full( root, allow_sqrt, ierr )
 
     deallocate( energies, imag_se )
 
@@ -265,6 +272,8 @@ module OCEAN_energies
     end select
 
     call stubby( sys, allow, allowArray )
+!    allowArray(:,:,:) = sqrt(allowArray(:,:,:))
+    call stubby( sys, allow_sqrt, allowArray )
 
 
     deallocate( allowArray )
@@ -289,7 +298,7 @@ module OCEAN_energies
 
     if( present( temp ) ) then
       write(6,'(A,F9.3)') 'Modifying occupations by ', temp
-      occVal = temp
+      occVal = sqrt(temp)
     else
       occVal = 0.0_dp
     endif
@@ -366,7 +375,7 @@ module OCEAN_energies
 
       case( 'XAS' )
         con = 1.0_DP
-        val = 0.1_DP
+        val = 0.0_DP
 
       case( 'XES' )
         con = 0.0_DP
@@ -434,12 +443,13 @@ module OCEAN_energies
           do j = 1, n(2)
             do i = 1, n(1)
               allowArray(i,j,k) = sqrt( 1.0_DP - 1.0_dp / ( exp( ( ener(i,j,k) - efermi )*itemp ) + 1.0_dp ) )
+!              allowArray(i,j,k) = 1.0_DP
 !              if(  ener(i,j,k) .gt. efermi ) then
 !                 allowArray(i,j,k) = 1.0_dp
 !              else
 !                 allowArray(i,j,k) = 0.10_DP
 !              endif
-              write(9000,'(4(E24.12,X))') allowArray(i,j,k), ener(i,j,k), efermi, itemp
+              write(9000,'(5(E24.12,X))') sqrt(allowArray(i,j,k)), allowArray(i,j,k), ener(i,j,k), efermi, itemp
 !              allowArray(i,j,k) = 1.0_DP - 1.0_dp / ( exp( ener(i,j,k) * itemp - scaledFermi ) + 1.0_dp )
             enddo
           enddo

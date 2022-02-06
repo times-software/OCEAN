@@ -47,6 +47,11 @@
          0.375
       ],
       "nbands" : "range",
+      "occupation" : {
+         "type" : "none",
+         "value" : 0
+      },
+      "start_band" : -1,
       "val" : {
          "aldaf" : false,
          "backf" : false,

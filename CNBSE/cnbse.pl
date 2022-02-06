@@ -452,6 +452,7 @@ sub BSEParams {
   my @type;
   if( $newRef->{'calc'}->{'mode'} eq 'xas' || $newRef->{'calc'}->{'mode'} eq 'xes' ) {
     $type[0] = 'core';
+    push @type, "occupation";
   } elsif ( $newRef->{'calc'}->{'mode'} eq 'val' ) {
     $type[0] = 'val';
   } elsif ( $newRef->{'calc'}->{'mode'} eq 'rxs' ) {
@@ -817,6 +818,14 @@ sub writeAuxFiles {
   
   open OUT, ">", "eshift.ipt" or die "Failed to open eshift.ipt\n$!";
   printf OUT "%.16f\n", $hashRef->{'bse'}->{'cbm'}*-1;
+  close OUT;
+
+  open OUT, ">", "occupation.ipt" or die "Failed to open occupation.ipt\n$!";
+  if( exists $hashRef->{'bse'}->{'occupation'} ) {
+    printf OUT "%s  %.10g\n", $hashRef->{'bse'}->{'occupation'}->{'type'}, $hashRef->{'bse'}->{'occupation'}->{'value'};
+  } else {
+    print OUT "none 0.0\n";
+  }
   close OUT;
 }
 

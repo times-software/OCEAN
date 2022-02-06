@@ -87,6 +87,23 @@ sub QErunNSCF
   return $errorCode;
 }
 
+sub QErunParseEnergies
+{ 
+  my ( $hashRef, $specificHashRef, $shift ) = @_;
+
+  my $dirname = sprintf "k%i_%i_%iq%.6f_%.6f_%.6f", $specificHashRef->{'kmesh'}[0],
+                    $specificHashRef->{'kmesh'}[1], $specificHashRef->{'kmesh'}[2], 
+                    $specificHashRef->{'kshift'}[0], $specificHashRef->{'kshift'}[1],
+                    $specificHashRef->{'kshift'}[2];
+  
+  chdir $dirname;
+
+  my $errorCode = QEparseEnergies( $hashRef, $specificHashRef );
+  
+  chdir updir();
+  return $errorCode;
+}
+
 sub QEsetupNSCF
 {
   my ($shift ) = @_;
@@ -657,7 +674,7 @@ sub QEprintInput
   my ($fh, $generalRef, $specificRef, $calcFlag, $kptString ) = @_;
 
   my $calc;
-  my $tstress = '.false';
+  my $tstress = '.false.';
   my $tprnfor = '.false.';
   my $nosyminv;
   my $startingPot;
@@ -754,7 +771,7 @@ sub QEprintInput
   {
     print $fh "lda_plus_u = true\n" 
             . "lda_plus_u_kind = $generalRef->{'general'}->{'ldau'}->{'lda_plus_u_kind'}\n"
-            . "U_projection_type = $generalRef->{'general'}->{'ldau'}->{'U_projection_type'}\n";
+            . "U_projection_type = '$generalRef->{'general'}->{'ldau'}->{'U_projection_type'}'\n";
     print $fh "$generalRef->{'general'}->{'ldau'}->{'Hubbard_U'}\n" 
         if( $generalRef->{'general'}->{'ldau'}->{'Hubbard_U'} ne "" );
     print $fh "$generalRef->{'general'}->{'ldau'}->{'Hubbard_V'}\n" 
@@ -942,6 +959,10 @@ sub QEparseEnergies
 #        print "ccc $b[2]\n";
       }
     }
+  }
+
+  if( exists( $specificHashRef->{'start_band'} ) ) {
+    $b[2] = $specificHashRef->{'start_band'} if( $specificHashRef->{'start_band'} >= 1 );
   }
 
   $specificHashRef->{'brange'} = \@b ;

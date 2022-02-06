@@ -220,6 +220,8 @@ copyAndCompare( $newDftData->{'bse'}, $commonOceanData->{'dft'}->{'bse'}, $dftDa
 @bseList = ( "kmesh", "kshift" );
 copyAndCompare( $newDftData->{'bse'}, $commonOceanData->{'bse'}, $dftData->{'bse'},
                 $newDftData->{'bse'}, \@bseList );
+copyAndCompare( $newDftData->{'bse'}, $commonOceanData->{'bse'}, $dftData->{'bse'},
+                $fake, ['start_band'] );
 
 copyAndCompare( $newDftData->{'bse'}, $commonOceanData->{'calc'}, $dftData->{'bse'},
                 $newDftData->{'bse'}, [ 'photon_q', 'nonzero_q' ] );
@@ -464,6 +466,17 @@ unless( $newDftData->{'bse'}->{'complete'} ) {
   print OUT $json->encode($newDftData);
   close OUT;
   print "DFT for BSE final states complete\n";
+} elsif( $newDftData->{'bse'}->{'start_band'} != $dftData->{'bse'}->{'start_band'} 
+        && ( defined( $newDftData->{'bse'}->{'start_band'}) || defined($dftData->{'bse'}->{'start_band'} ) ) ) {
+  my $errorCode;
+  if( $newDftData->{'general'}->{'program'} eq "qe" ) {
+    $errorCode = QErunParseEnergies( $newDftData, $newDftData->{'bse'}, 0 );
+  }
+  exit $errorCode if( $errorCode );
+  open OUT, ">", "dft.json" or die;
+  print OUT $json->encode($newDftData);
+  close OUT;
+
 }
 
 
