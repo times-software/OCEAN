@@ -244,6 +244,8 @@ sub QErunTest
     my $actualKpts = -1;
     my $numKS = -1;
     my $mem = -1;
+    my $nspin = 1; 
+    $nspin = $hashRef->{'general'}->{'nspin'} if( exists $hashRef->{'general'}->{'nspin'} );
     while (<TMP>)
     { 
       if( $_ =~ m/number of Kohn-Sham states=\s+(\d+)/ )
@@ -252,7 +254,7 @@ sub QErunTest
       }
       elsif( $_ =~ m/number of k points=\s+(\d+)/ )
       { 
-        $actualKpts = $1;
+        $actualKpts = $1 * $nspin;
       }
       elsif( $_ =~ m/Estimated max dynamical RAM per process\s+>\s+(\d+\.\d+)/ )
       { 
@@ -262,7 +264,7 @@ sub QErunTest
     }
     close TMP;
     
-    if( $actualKpts == -1 )
+    if( $actualKpts < 0 )
     { 
       print "Had trouble parsing test.out\nDidn't find number of k points\n";
     }
@@ -900,7 +902,7 @@ sub QEparseEnergies
   {
     my $splitFile = $qe62File;
     $splitFile = catfile( "Out_shift", "system.save", "data-file-schema.xml" ) if( $split );
-    @energies = QEparseEnergies62( $qe62File, $splitFile );
+    @energies = QEparseEnergies62( $qe62File, $splitFile, $spin );
   }
   else 
   {
@@ -1033,10 +1035,11 @@ sub QEparseEnergies62
       if( $spin == 2 )
       {
         my $half = scalar @eigs / 2;
-        my @t1 = @eigs[ 0, $half-1 ];
+        my @t1 = @eigs[ 0..$half-1 ];
         push @energies1, \@t1;
-        my @t2 = @eigs[ $half, scalar @eigs-1 ];
+        my @t2 = @eigs[ $half..scalar @eigs-1 ];
         push @energies1_spin, \@t2;
+#        print scalar @eigs . "  $half  " . scalar @t1 . "  " .scalar @t2 . "\n";
       }
       else
       {
@@ -1048,7 +1051,16 @@ sub QEparseEnergies62
 
   unless( $f1 ne $f2 )
   {
-    push @energies1, @energies1_spin if( $spin == 2 );
+#    push @energies1, @energies1_spin if( $spin == 2 );
+    
+    if( $spin == 2 ) {
+      print scalar @energies1 . "\n";
+      print scalar @energies1_spin . "\n";
+      for( my $i = 0; $i < scalar @energies1_spin; $i++ ) {
+        push @energies1, \@{ $energies1_spin[$i] };
+      }
+      print scalar @energies1 . "\n";
+    }
     return @energies1;
   }
 
@@ -1078,9 +1090,9 @@ sub QEparseEnergies62
       if( $spin == 2 )
       {
         my $half = scalar @eigs / 2;
-        my @t1 = @eigs[ 0, $half-1 ];
+        my @t1 = @eigs[ 0..$half-1 ];
         push @energies2, \@t1;
-        my @t2 = @eigs[ $half, scalar @eigs-1 ];
+        my @t2 = @eigs[ $half..scalar @eigs-1 ];
         push @energies2_spin, \@t2;
       }
       else
