@@ -16,6 +16,7 @@ use Cwd 'abs_path';
 require JSON::PP;
 JSON::PP->import;
 use Storable qw(dclone);
+use Time::HiRes qw( gettimeofday tv_interval );
 
 
 ###########################
@@ -33,6 +34,8 @@ if (! $ENV{"OCEAN_WORKDIR"}){ $ENV{"OCEAN_WORKDIR"} = `pwd` . "../" ; }
 my $dataFile = "../Common/postDefaultsOceanDatafile";
 if( -e $dataFile )
 {
+  my $t0 = [gettimeofday];
+  my $didAnything = 0;
   my $json = JSON::PP->new;
   my $commonOceanData;
   if( open( my $in, "<", $dataFile ))
@@ -202,6 +205,7 @@ if( -e $dataFile )
   foreach my $Z (keys %todoHash )
   {
     next unless( scalar keys %{$todoZNL{ $Z }} > 0 );
+    $didAnything = 1;
 
     print "Need to run Z = $Z with hash $todoHash{ $Z }\n" if( scalar keys %{$todoZNL{ $Z }} > 0 );
     $opfData->{'completed'}->{$Z} = {} unless( exists $opfData->{'completed'}->{$Z} );
@@ -228,6 +232,9 @@ if( -e $dataFile )
     }
   }
 
+  if( $didAnything ) {
+    $opfData->{'time'} = tv_interval( $t0 );
+  }
   my $enable = 1;
   $json->canonical([$enable]);
   $json->pretty([$enable]);

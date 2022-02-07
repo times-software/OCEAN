@@ -22,6 +22,7 @@ use lib $FindBin::Bin;
 require 'OCEANcompare.pl';
 
 use File::Basename;
+use Time::HiRes qw( gettimeofday tv_interval );
 
 ###########################
 if (! $ENV{"OCEAN_BIN"} ) {
@@ -100,7 +101,11 @@ if( -e $bseDataFile && open( my $in, "<", $bseDataFile ) )
 my $newBSEdata;
 $newBSEdata->{'bse'}={};
 $newBSEdata->{'structure'} = {};
+$newBSEdata->{'time'} = {};
 
+$newBSEdata->{'time'}->{'dft'} = $prepData->{'dft_time'};
+$newBSEdata->{'time'}->{'prep'} = $prepData->{'time'};
+$newBSEdata->{'time'}->{'screen'} = $screenData->{'time'};
 
 $newBSEdata->{'bse'}->{'complete'} = JSON::PP::true;
 
@@ -187,7 +192,15 @@ open OUT, ">", "bse.json" or die;
 print OUT $json->encode($newBSEdata);
 close OUT;
 
+my $t0 = [gettimeofday];
+
 runOCEANx( $newBSEdata );
+
+$newBSEdata->{'time'}->{'bse'} = tv_interval( $t0 );
+$newBSEdata->{'time'}->{'total'} = 0;
+foreach my $sec ('bse', 'prep', 'screen', 'dft' ) {
+  $newBSEdata->{'time'}->{'total'} += $newBSEdata->{'time'}->{$sec};
+}
 
 $newBSEdata->{'bse'}->{'complete'} = JSON::PP::true;
 

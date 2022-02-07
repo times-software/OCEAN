@@ -24,6 +24,11 @@ use lib $FindBin::Bin;
 require 'QEdriver.pl';
 require 'ABIdriver.pl';
 
+use Time::HiRes qw( gettimeofday tv_interval );
+
+print localtime() .  "\n";
+my ( $startSeconds, $startMicroseconds) = gettimeofday;
+
 ###########################
 if (! $ENV{"OCEAN_BIN"} ) {
   $0 =~ m/(.*)\/dft\.pl/;
@@ -38,6 +43,7 @@ if (! $ENV{"OCEAN_CUT3D"} ) {$ENV{"OCEAN_CUT3D"} = $ENV{"OCEAN_BIN"} . "/cut3d";
 
 #my $driver = catdir( $ENV{"OCEAN_BIN"}, "QEdriver.pl" );
 #require "$driver";
+my @timeSections = ( 'scf', 'density', 'potential', 'bse', 'screen' );
 
 my $dir = getcwd;
 if (! $ENV{"OCEAN_WORKDIR"}){ $ENV{"OCEAN_WORKDIR"} = abs_path( catdir( updir(), $dir ) ); }
@@ -74,6 +80,9 @@ if( -e $dftDataFile && open( my $in, "<", $dftDataFile ) )
 # Build to-do list
 my $newDftData;
 my $fake->{ 'complete' } = JSON::PP::false;
+foreach my $sec (@timeSections) {
+  $newDftData->{$sec}->{'time'} = $dftData->{$sec}->{'time'} if( exists $dftData->{$sec}->{'time'} );
+}
 
 # First we check, using the SCF flag to store result
 # 1) Was previous run?
@@ -312,6 +321,7 @@ unless( $newDftData->{'general'}->{'program'} eq "qe" ||
 unless( $newDftData->{'scf'}->{'complete'} )
 {
   my $errorCode = 0;
+  my $t0 = [gettimeofday];
   if( $newDftData->{'general'}->{'program'} eq "qe" ) {
     $errorCode = QErunDensity( $newDftData );
     print "$errorCode\n";
@@ -333,14 +343,19 @@ unless( $newDftData->{'scf'}->{'complete'} )
 #  print "$s\n\n\n";
   $newDftData->{'scf'}->{'hash'} = md5_hex( $s );
 
+  $newDftData->{'scf'}->{'time'} = tv_interval( $t0 );
+
   open OUT, ">", "dft.json" or die;
   print OUT $json->encode($newDftData);
   close OUT;
   print "SCF stage complete, total energy: $newDftData->{'scf'}->{'etot'}\n";
+} else {
+  $newDftData->{'scf'}->{'time'} = $dftData->{'scf'}->{'time'};
 }
 
 # Re-format density
 unless( $newDftData->{'density'}->{'complete'} ) {
+  my $t0 = [gettimeofday];
   print "Exporting density from SCF\n";
   my $errorCode;
   if( $newDftData->{'general'}->{'program'} eq "qe" ) {
@@ -378,15 +393,20 @@ unless( $newDftData->{'density'}->{'complete'} ) {
   unlink( "rhoG2" );
 
   $newDftData->{'density'}->{'complete'} = JSON::PP::true;
+  $newDftData->{'density'}->{'time'} = tv_interval( $t0 );
   open OUT, ">", "dft.json" or die;
   print OUT $json->encode($newDftData);
   close OUT;
   print "Density export complete\n";
+} else {
+  $newDftData->{'density'}->{'time'} = $dftData->{'density'}->{'time'};
 }
+  
 
 
 # Re-format potential
 unless( $newDftData->{'potential'}->{'complete'} ) {
+  my $t0 = [gettimeofday];
   print "Exporting potential from SCF\n";
 #  my $errorCode = QEparseDensityPotential( $newDftData, "potential" );
   my $errorCode;
@@ -399,16 +419,20 @@ unless( $newDftData->{'potential'}->{'complete'} ) {
 
 
   $newDftData->{'potential'}->{'complete'} = JSON::PP::true;
+  $newDftData->{'potential'}->{'time'} = tv_interval( $t0 );
   open OUT, ">", "dft.json" or die;
   print OUT $json->encode($newDftData);
   close OUT;
   print "Potential export complete\n";
+} else {
+  $newDftData->{'potential'}->{'time'} = $dftData->{'potential'}->{'time'};
 }
 
 
 # Time for SCREENING states
 if( $newDftData->{'screen'}->{'enable'} ) {
   unless( $newDftData->{'screen'}->{'complete'} ) {
+    my $t0 = [gettimeofday];
     print "Running DFT for screening states\n";
 
     my $errorCode;
@@ -428,17 +452,22 @@ if( $newDftData->{'screen'}->{'enable'} ) {
     }
 #    print "$s\n\n\n";
     $newDftData->{'screen'}->{'hash'} = md5_hex( $s );
+    $newDftData->{'screen'}->{'time'} = tv_interval( $t0 );
 
     open OUT, ">", "dft.json" or die;
     print OUT $json->encode($newDftData);
     close OUT;
     print "DFT for screening states complete\n";
+  } else {
+    $newDftData->{'screen'}->{'time'} = $dftData->{'screen'}->{'time'};
   }
 }
 
 
 # Time for BSE final states
 unless( $newDftData->{'bse'}->{'complete'} ) {
+
+  my $t0 = [gettimeofday];
   print "Running DFT for BSE basis states\n";
 
   
@@ -461,22 +490,25 @@ unless( $newDftData->{'bse'}->{'complete'} ) {
   }
 #  print "$s\n\n\n";
   $newDftData->{'bse'}->{'hash'} = md5_hex( $s );
+  $newDftData->{'bse'}->{'time'} = tv_interval( $t0 );
 
   open OUT, ">", "dft.json" or die;
   print OUT $json->encode($newDftData);
   close OUT;
   print "DFT for BSE final states complete\n";
-} elsif( $newDftData->{'bse'}->{'start_band'} != $dftData->{'bse'}->{'start_band'} 
+} else {
+  $newDftData->{'bse'}->{'time'} = $dftData->{'bse'}->{'time'};
+  if( $newDftData->{'bse'}->{'start_band'} != $dftData->{'bse'}->{'start_band'} 
         && ( defined( $newDftData->{'bse'}->{'start_band'}) || defined($dftData->{'bse'}->{'start_band'} ) ) ) {
-  my $errorCode;
-  if( $newDftData->{'general'}->{'program'} eq "qe" ) {
-    $errorCode = QErunParseEnergies( $newDftData, $newDftData->{'bse'}, 0 );
+    my $errorCode;
+    if( $newDftData->{'general'}->{'program'} eq "qe" ) {
+      $errorCode = QErunParseEnergies( $newDftData, $newDftData->{'bse'}, 0 );
+    }
+    exit $errorCode if( $errorCode );
+    open OUT, ">", "dft.json" or die;
+    print OUT $json->encode($newDftData);
+    close OUT;
   }
-  exit $errorCode if( $errorCode );
-  open OUT, ">", "dft.json" or die;
-  print OUT $json->encode($newDftData);
-  close OUT;
-
 }
 
 
@@ -501,6 +533,25 @@ if( $newDftData->{'general'}->{'occopt'} == 1 && $newDftData->{'general'}->{'pro
   close OUT;
   print "DFT for BSE final states complete\n";
 }
+my ( $endSeconds, $endMicroseconds) = gettimeofday;
+print localtime() .  "\n";
+
+my $elapsedSeconds = $endSeconds - $startSeconds;
+my $elapsedMicroseconds = $endMicroseconds - $startMicroseconds;
+if( $elapsedMicroseconds < 0 ) {
+  $elapsedMicroseconds += 1000000;
+  $elapsedSeconds -= 1;
+}
+$newDftData->{'time_script'} = sprintf "%i.%06i", $elapsedSeconds, $elapsedMicroseconds;
+$newDftData->{'time'} = 0;
+foreach my $sec ( 'scf', 'density', 'potential', 'bse', 'screen' ) {
+  printf "Time %s: %f\n", $sec, $newDftData->{$sec}->{'time'};
+  $newDftData->{'time'} += $newDftData->{$sec}->{'time'};
+}
+open OUT, ">", "dft.json" or die;
+print OUT $json->encode($newDftData);
+close OUT;
+print "DFT section is complete\n\n";
 
 exit 0;
 
