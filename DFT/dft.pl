@@ -428,6 +428,27 @@ unless( $newDftData->{'potential'}->{'complete'} ) {
   $newDftData->{'potential'}->{'time'} = $dftData->{'potential'}->{'time'};
 }
 
+unless( $newDftData->{'epsilon'}->{'complete'} ) {
+  my $t0 = [gettimeofday];
+
+  my $errorCode;
+  if( $newDftData->{'general'}->{'program'} eq "qe" ) {
+    $errorCode  = QErunDFPT(  $newDftData );
+  } else {
+    die "DFPT not enabled for ABINIT yet\n";
+  }
+
+  $newDftData->{'epsilon'}->{'complete'} = JSON::PP::true;
+  $newDftData->{'epsilon'}->{'time'} = tv_interval( $t0 );
+  open OUT, ">", "dft.json" or die;
+  print OUT $json->encode($newDftData);
+  close OUT;
+  print "Epsilon calculation complete\n";
+} else {
+  $newDftData->{'epsilon'}->{'time'} = $dftData->{'epsilon'}->{'time'};
+}
+
+
 
 # Time for SCREENING states
 if( $newDftData->{'screen'}->{'enable'} ) {
@@ -544,7 +565,7 @@ if( $elapsedMicroseconds < 0 ) {
 }
 $newDftData->{'time_script'} = sprintf "%i.%06i", $elapsedSeconds, $elapsedMicroseconds;
 $newDftData->{'time'} = 0;
-foreach my $sec ( 'scf', 'density', 'potential', 'bse', 'screen' ) {
+foreach my $sec ( 'scf', 'density', 'potential', 'bse', 'screen', 'epsilon' ) {
   printf "Time %s: %f\n", $sec, $newDftData->{$sec}->{'time'};
   $newDftData->{'time'} += $newDftData->{$sec}->{'time'};
 }
