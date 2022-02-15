@@ -2002,6 +2002,8 @@ sub writeExtraFiles
   close OUT;
 
   # 'screen.quadorder' 'screen.chi0integrand'  'screen.appx'
+  copy( catfile( updir(), "DFT", "rhoofr" ), "rhoofr" ) or die $!;
+  copy( catfile( updir(), "DFT", "nfft" ), "nfft" ) or die $!;
   
 }
 
@@ -2526,27 +2528,29 @@ sub runCoreOffset
   }
   close IN;
 
+  open OUT, ">", "core_shift.log" or die "Failed to open core_shift.log\n$!";
+
   # Loop over radii and then hfin
   my $offset;
   for( my $i = 0; $i < scalar @{$screenRef->{'shells'}}; $i++ )
   {
     my $rad_dir = sprintf("zR%03.2f", $screenRef->{'shells'}[$i] );
 
-    printf "\nRadius = %03.2f Bohr\n", $screenRef->{'shells'}[$i];
+    printf OUT "\nRadius = %03.2f Bohr\n", $screenRef->{'shells'}[$i];
 
     # If we are averaging, new shift by radius
     if( $screenRef->{'core_offset'}->{'average'} )
     {
       $offset = -( $Vsum + $newWsum[$i] ) * $Ry2eV / ( scalar @hfin );
   #    print "$rad_dir\t$offset\n";
-      print "  core_offset was set to true. Now set to $offset  \n";
+      print OUT "  core_offset was set to true. Now set to $offset  \n";
     } else
     {
       $offset = $screenRef->{'core_offset'}->{'energy'};
     }
 
-    print  "Site index    New potential   new1/2 Screening   core_offset       total offset\n";
-    print  "                  (eV)             (eV)              (eV)              (eV)\n";
+    print OUT "Site index    New potential   new1/2 Screening   core_offset       total offset\n";
+    print OUT "                  (eV)             (eV)              (eV)              (eV)\n";
   # print  "   iiiiiii  -xxxxx.yyyyyyyyy  -xxxxx.yyyyyyyyy  -xxxx.yyyyyyyyy  -xxxx.yyyyyyyyy  -xxxx.yyyyyyyyy  -xxxx.yyyyyyyyy\n";
 
     # Loop over each atom in hfin
@@ -2564,18 +2568,19 @@ sub runCoreOffset
 
       $shift += $offset;
       $shift *= -1;
-      printf "   %7i   %16.9f  %15.9f  %15.9f  %16.7f\n", $el_rank, $newPot[$j]*$Ry2eV, $newWshift[$j][$i]*$Ry2eV, $offset, $shift;
+      printf OUT "   %7i   %16.9f  %15.9f  %15.9f  %16.7f\n", $el_rank, $newPot[$j]*$Ry2eV, $newWshift[$j][$i]*$Ry2eV, $offset, $shift;
 
       my $string = sprintf("z%s%04d/n%02dl%02d",$el, $el_rank,$nn,$ll);
-      open OUT, ">$string/$rad_dir/cls" or die "Failed to open $string/$rad_dir/cls\n$!";
-      print OUT $shift . "\n";
-      close OUT;
+      open TMP, ">$string/$rad_dir/cls" or die "Failed to open $string/$rad_dir/cls\n$!";
+      print TMP $shift . "\n";
+      close TMP;
     }
 
-    print "\n";
+    print OUT "\n";
 
   }
 
+  close OUT;
 
 
 #  
