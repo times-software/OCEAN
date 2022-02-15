@@ -60,7 +60,7 @@ sub QErunNSCF
   
   close $fh;
 
-  my ($ncpus, $npool) = QErunTest( $hashRef, "nscf.in" );
+  my ($ncpus, $npool, $nbd) = QErunTest( $hashRef, "nscf.in" );
 
   QEsetupNSCF( $shift );
 
@@ -73,7 +73,10 @@ sub QErunNSCF
   my $prefix = $hashRef->{'computer'}->{'para_prefix'};
   $prefix =~ s/$hashRef->{'computer'}->{'ncpus'}/$ncpus/ if( $hashRef->{'computer'}->{'ncpus'} != $ncpus );
 
-  my $cmdLine = " -npool $npool ";
+  my $cmdLine = " -npool $npool";
+  if( $nbd > 1 ) { 
+    $cmdLine .= " -pd true -ntg $nbd";
+  }
 
   QErunPW( $hashRef->{'general'}->{'redirect'}, $prefix, $cmdLine, "nscf.in", "nscf.out" );
 
@@ -205,7 +208,7 @@ sub QErunDensity
 #    print "Had trouble parsing test.out\n. Will attempt to continue.\n";
 #  }
 
-  my ($ncpus, $npool) = QErunTest( $hashRef, "scf.in" );
+  my ($ncpus, $npool, $nbd) = QErunTest( $hashRef, "scf.in" );
 
   # full run
 
@@ -217,6 +220,9 @@ sub QErunDensity
   $prefix =~ s/$hashRef->{'computer'}->{'ncpus'}/$ncpus/ if( $hashRef->{'computer'}->{'ncpus'} != $ncpus );
 
   my $cmdLine = " -npool $npool ";
+  if( $nbd > 1 ) {
+    $cmdLine .= " -pd true -ntg $nbd";
+  }
 
   QErunPW( $hashRef->{'general'}->{'redirect'}, $prefix, $cmdLine, "scf.in", "scf.out" );
 
@@ -239,12 +245,14 @@ sub QErunTest
   # parse test results
   my $npool = 1;
   my $ncpus = $hashRef->{'computer'}->{'ncpus'};
+  my $nbd = 1;
   if( open TMP, "test.out" )
   { 
     my $actualKpts = -1;
     my $numKS = -1;
     my $mem = -1;
     my $nspin = 1; 
+    my $FFT = -1;
     $nspin = $hashRef->{'general'}->{'nspin'} if( exists $hashRef->{'general'}->{'nspin'} );
     while (<TMP>)
     { 
@@ -256,11 +264,15 @@ sub QErunTest
       { 
         $actualKpts = $1 * $nspin;
       }
-      elsif( $_ =~ m/Estimated max dynamical RAM per process\s+>\s+(\d+\.\d+)/ )
+      elsif( $_ =~ m/Estimated max dynamical RAM per process\s+>\s+(\d+\.\d+)\s(\w+)/ )
       { 
         $mem = $1;
+        $mem *= 1000 if (lc($2) eq 'gb' );
       }
-      last if( $actualKpts > 0 && $numKS > 0 && $mem > 0 );
+      elsif( $_ =~ m/FFT dimensions:\s\(\s*(\d+),\s*(\d+),\s*(\d+)/ ) {
+        $FFT = $3;
+      }
+      last if( $actualKpts > 0 && $numKS > 0 && $mem > 0 && $FFT > 0);
     }
     close TMP;
     
@@ -270,7 +282,7 @@ sub QErunTest
     }
     else
     { 
-      ($ncpus, $npool) = QEPoolControl( $actualKpts, $numKS, $mem, $hashRef->{'computer'} );
+      ($ncpus, $npool, $nbd) = QEPoolControl( $actualKpts, $numKS, $mem, $FFT, $hashRef->{'computer'} );
     }
   }
   else
@@ -278,7 +290,7 @@ sub QErunTest
     print "Had trouble parsing test.out\n. Will attempt to continue.\n";
   }
 
-  return ( $ncpus, $npool);
+  return ( $ncpus, $npool, $nbd);
 }
 
 # parse various info from the 
@@ -458,6 +470,68 @@ sub QEparseOut
   return $errorCode;
 }
 
+sub QErunDFPT
+{
+  my ($hashRef) = @_;
+
+  if( $hashRef=>{'structure'}->{'metal'} ) {
+    $hashRef=>{'structure'}->{'epsilon'} = $hashRef=>{'epsilon'}->{'metal_max'};
+    return 0;
+  }
+
+  my $nnode = 1;
+  my $npool = 1;
+  if( open IN, "<", "scf.in" ) {
+    while(<IN>) {
+      $nnode = $1 if( $_ =~ m/(\d+)\s+nodes/ );
+      if( $_ =~ m/npool\s+=\s+(\d+)/ )
+      {
+        $npool = $1;
+        last;
+      }
+    }
+    close IN;
+  }
+
+  open PH, ">", "ph.in" or die "$!";
+  print PH "title\n&inputph\n"
+          . "  prefix = \'system\'\n"
+          . "  outdir = \'Out\'\n"
+          .  "  epsil = .true.\n"
+          .  "  start_irr = 1\n"
+          .  "  last_irr = 0\n"
+          .  "  trans = .false\n"
+          .  "/\n0 0 0\n";
+  close PH;
+
+  my $n = $nnode;
+  my $prefix = $hashRef->{'computer'}->{'para_prefix'};
+  $n = $npool if( $npool > $nnode );
+  print  "$prefix $ENV{'OCEAN_ESPRESSO_PH'} -npool $n  -inp ph.in > ph.out 2>&1\n";
+  system("$prefix $ENV{'OCEAN_ESPRESSO_PH'} -npool $n  -inp ph.in > ph.out 2>&1\n") == 0
+    or die "Failed to run ph.x\n";
+  open IN, "ph.out" or die;
+
+  my @epsilon;
+  while (<IN>)
+  {
+    if( $_ =~ m/Dielectric constant in cartesian axis/ )
+    {
+      <IN>;
+      <IN> =~ m/(-?\d+\.\d+)\s+(-?\d+\.\d+)\s+(-?\d+\.\d+)/;
+      $epsilon[0] = $1;
+      <IN> =~ m/(-?\d+\.\d+)\s+(-?\d+\.\d+)\s+(-?\d+\.\d+)/;
+      $epsilon[1] = $2;
+      <IN> =~ m/(-?\d+\.\d+)\s+(-?\d+\.\d+)\s+(-?\d+\.\d+)/;
+      $epsilon[2] = $3;
+      last;
+    }
+  }
+  close IN;
+  $hashRef=>{'structure'}->{'epsilon'} = ( $epsilon[0] + $epsilon[1] + $epsilon[2] ) / 3;
+
+}
+
 
 sub QEparseDensityPotential
 {
@@ -487,6 +561,11 @@ sub QEparseDensityPotential
   $npool = $hashRef->{'scf'}->{'npool'} if( exists $hashRef->{'scf'}->{'npool'} && $hashRef->{'scf'}->{'npool'} >= 1 );
   if( $ncpus % $npool == 0 ) {
     $ncpus = $ncpus / $npool;
+    $npool = 1;
+    $ncpus = 1;
+  }
+  if( $type eq 'potential' ) {
+    $ncpus = 1;
     $npool = 1;
   }
 
@@ -587,9 +666,9 @@ sub QEfixPP
 # Figure out how many pools to run with
 sub QEPoolControl
 {
-  my ( $actualKpts, $numKS, $mem, $hashRef ) = @_;
+  my ( $actualKpts, $numKS, $mem, $FFT, $hashRef ) = @_;
 
-  my $maxMem = 2000;
+  my $maxMem = 48000;
   my $minPool = 0.9;
   $minPool = $mem / $maxMem if( $mem > $maxMem );
   
@@ -613,22 +692,33 @@ sub QEPoolControl
       next if ( $numKS > 0 && $j / $i > $numKS );
 
       my $cpuPerPool = $j / $i;
+      my $nbd = 1;
+      if( $cpuPerPool > $FFT && $FFT > 0 ) {
+        for( my $ii = 2; $ii <= $cpuPerPool/2; $ii++ ) {
+          next if( $numKS % $ii || $cpuPerPool % $ii);
+          $nbd = $ii;
+          last if( $cpuPerPool/$nbd <= $FFT );
+        }
+        next if( $nbd == 1 );
+      }
+          
       my $kPerPool = ceil( $actualKpts / $i );
       my $cost = $kPerPool / ( $cpuPerPool * ( 0.999**$cpuPerPool ) );
-      print "$j  $i  $kPerPool  $cost\n";
-      $cpusAndPools{ $cost } = [ $j, $i ];
+      print "$j  $i  $nbd $kPerPool  $cost\n";
+      $cpusAndPools{ $cost } = [ $j, $i, $nbd ];
     }
   }
 
-  my $ncpus; my $npool;
+  my $ncpus; my $npool; my $nbd;
   foreach my $i (sort {$b <=> $a} keys %cpusAndPools )
   {
 #    print "$i  $cpusAndPools{$i}[0]  $cpusAndPools{$i}[1]\n";
     $ncpus = $cpusAndPools{$i}[0];
     $npool = $cpusAndPools{$i}[1];
+    $nbd = $cpusAndPools{$i}[2];
   }
 
-  return ( $ncpus, $npool );
+  return ( $ncpus, $npool, $nbd );
 }
 
 # subroutine to handle running each QE step
@@ -665,6 +755,23 @@ sub QErunPP
   {
     print  "$prefix $ENV{'OCEAN_ESPRESSO_PP'} $cmdLine -inp $in > $out 2>&1\n";
     system("$prefix $ENV{'OCEAN_ESPRESSO_PP'} $cmdLine -inp $in > $out 2>&1");
+  }
+}
+
+# subroutine to handle running each QE step
+sub QErunPH
+{
+  my( $redirect, $prefix, $cmdLine, $in, $out ) = @_;
+
+  if( $redirect )
+  {
+    print  "$prefix $ENV{'OCEAN_ESPRESSO_PH'} $cmdLine < $in > $out 2>&1\n";
+    system("$prefix $ENV{'OCEAN_ESPRESSO_PH'} $cmdLine < $in > $out 2>&1");
+  }
+  else
+  {
+    print  "$prefix $ENV{'OCEAN_ESPRESSO_PH'} $cmdLine -inp $in > $out 2>&1\n";
+    system("$prefix $ENV{'OCEAN_ESPRESSO_PH'} $cmdLine -inp $in > $out 2>&1");
   }
 }
 
