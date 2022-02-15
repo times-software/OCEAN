@@ -1273,8 +1273,9 @@ sub checkDFToccopt
   } else {
     if( $hashRef->{'dft'}->{'occopt'} != 1 ) {
       print "WARN!!\n  System was set to insulating, but occopt was set to not be 1\n";
-      my $s = sprintf "Occopt changed from %i to 1", $hashRef->{'dft'}->{'occopt'};
-      $hashRef->{'dft'}->{'occopt'} = 1;
+#      my $s = sprintf "Occopt changed from %i to 1", $hashRef->{'dft'}->{'occopt'};
+      my $s = sprintf "System was set to insulating, but occopt was set to %i not 1", $hashRef->{'dft'}->{'occopt'};
+#      $hashRef->{'dft'}->{'occopt'} = 1;
       $hashRef->{'warnings'} = {} unless( exists $hashRef->{'warnings'} );
       $hashRef->{'warnings'}->{'defaults.pl'} = [] unless( exists $hashRef->{'warnings'}->{'defaults.pl'} );
       push @{$hashRef->{'warnings'}->{'defaults.pl'}}, $s;

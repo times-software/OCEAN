@@ -18,6 +18,7 @@ use File::Spec::Functions;
 use File::Copy;
 use Storable qw(dclone);
 use Scalar::Util qw( looks_like_number );
+use Time::HiRes qw( gettimeofday tv_interval );
 
 ###########################
 if (! $ENV{"OCEAN_BIN"} ) {
@@ -25,6 +26,8 @@ if (! $ENV{"OCEAN_BIN"} ) {
   $ENV{"OCEAN_BIN"} = abs_path( $1 );
   print "OCEAN_BIN not set. Setting it to $ENV{'OCEAN_BIN'}\n";
 }
+
+my $t0 = [gettimeofday];
 
 my $json = JSON::PP->new;
 my $enable = 1;
@@ -173,6 +176,8 @@ if( $tmels )
 
 $newPrepData->{'bse'}->{'complete'} = JSON::PP::false unless( exists $prepData->{'bse'}->{'cbm'} );
 $newPrepData->{'bse'}->{'cbm'} = $prepData->{'bse'}->{'cbm'} if( $newPrepData->{'bse'}->{'complete'} );
+$newPrepData->{'time'} = $prepData->{'time'} if( exists $prepData->{'time'} );
+$newPrepData->{'dft_time'} = $dftData->{'time'};
 
 open OUT, ">", "prep.json" or die;
 print OUT $json->encode($newPrepData);
@@ -252,6 +257,7 @@ unless( $newPrepData->{'bse'}->{'complete'} )
   chdir updir();
   
   $newPrepData->{'bse'}->{'complete'} = JSON::PP::true;
+  $newPrepData->{'time'} = tv_interval( $t0 );
 
   open OUT, ">", "prep.json" or die;
   print OUT $json->encode($newPrepData);

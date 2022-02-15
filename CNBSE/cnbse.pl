@@ -22,6 +22,7 @@ use lib $FindBin::Bin;
 require 'OCEANcompare.pl';
 
 use File::Basename;
+use Time::HiRes qw( gettimeofday tv_interval );
 
 ###########################
 if (! $ENV{"OCEAN_BIN"} ) {
@@ -100,7 +101,11 @@ if( -e $bseDataFile && open( my $in, "<", $bseDataFile ) )
 my $newBSEdata;
 $newBSEdata->{'bse'}={};
 $newBSEdata->{'structure'} = {};
+$newBSEdata->{'time'} = {};
 
+$newBSEdata->{'time'}->{'dft'} = $prepData->{'dft_time'};
+$newBSEdata->{'time'}->{'prep'} = $prepData->{'time'};
+$newBSEdata->{'time'}->{'screen'} = $screenData->{'time'};
 
 $newBSEdata->{'bse'}->{'complete'} = JSON::PP::true;
 
@@ -187,7 +192,15 @@ open OUT, ">", "bse.json" or die;
 print OUT $json->encode($newBSEdata);
 close OUT;
 
+my $t0 = [gettimeofday];
+
 runOCEANx( $newBSEdata );
+
+$newBSEdata->{'time'}->{'bse'} = tv_interval( $t0 );
+$newBSEdata->{'time'}->{'total'} = 0;
+foreach my $sec ('bse', 'prep', 'screen', 'dft' ) {
+  $newBSEdata->{'time'}->{'total'} += $newBSEdata->{'time'}->{$sec};
+}
 
 $newBSEdata->{'bse'}->{'complete'} = JSON::PP::true;
 
@@ -452,6 +465,7 @@ sub BSEParams {
   my @type;
   if( $newRef->{'calc'}->{'mode'} eq 'xas' || $newRef->{'calc'}->{'mode'} eq 'xes' ) {
     $type[0] = 'core';
+    push @type, "occupation";
   } elsif ( $newRef->{'calc'}->{'mode'} eq 'val' ) {
     $type[0] = 'val';
   } elsif ( $newRef->{'calc'}->{'mode'} eq 'rxs' ) {
@@ -817,6 +831,14 @@ sub writeAuxFiles {
   
   open OUT, ">", "eshift.ipt" or die "Failed to open eshift.ipt\n$!";
   printf OUT "%.16f\n", $hashRef->{'bse'}->{'cbm'}*-1;
+  close OUT;
+
+  open OUT, ">", "occupation.ipt" or die "Failed to open occupation.ipt\n$!";
+  if( exists $hashRef->{'bse'}->{'occupation'} ) {
+    printf OUT "%s  %.10g\n", $hashRef->{'bse'}->{'occupation'}->{'type'}, $hashRef->{'bse'}->{'occupation'}->{'value'};
+  } else {
+    print OUT "none 0.0\n";
+  }
   close OUT;
 }
 

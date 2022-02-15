@@ -1005,6 +1005,7 @@ module screen_wvfn_converter
     logical :: doAug
 
 #ifdef DEBUG
+    real(DP), allocatable :: tmpForWrite(:)
     character(len=64) :: fnam, formatting
 #endif
 
@@ -1150,6 +1151,7 @@ module screen_wvfn_converter
 
 #ifdef DEBUG
       i = 0
+      allocate(tmpForWrite(nproj))
       do l = lmin, lmax
         do m = -l, l
           i = i + 1
@@ -1159,12 +1161,15 @@ module screen_wvfn_converter
 !          write ( 99, '(A1,X,16(E20.12))' ) '#', su(:)
           write(formatting, '("("I0"(F20.10))")' ) 5+nproj
           do k = 1, ncutoff
-            write ( 99, formatting ) isite%grid%rgrid(1)%rad( k ), fit( k, i ) , waveByLM(k,i), psProj_hold( k, :, l )
+            tmpForWrite(:) = psProj_hold( k, :, l )
+            write ( 99, formatting ) isite%grid%rgrid(1)%rad( k ), fit( k, i ) , waveByLM(k,i), tmpForWrite(:)
+!            write ( 99, formatting ) isite%grid%rgrid(1)%rad( k ), fit( k, i ) , waveByLM(k,i), psProj_hold( k, :, l )
 !            write ( 99, '(5(E20.12))' ) isite%grid%rad( k ), fit( k, i ) , waveByLM(k,i)
           enddo
           close( 99 )
         enddo
       enddo
+      deallocate(tmpForWrite)
 #endif
 
       ! now augment

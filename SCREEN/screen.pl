@@ -21,6 +21,7 @@ use Storable qw(dclone);
 use Scalar::Util qw( looks_like_number );
 
 use Data::Dumper;
+use Time::HiRes qw( gettimeofday tv_interval );
 
 ###########################
 if (! $ENV{"OCEAN_BIN"} ) {
@@ -33,6 +34,8 @@ if (! $ENV{"OCEAN_BIN"} ) {
 }
 if (! $ENV{"OCEAN_WORKDIR"}){ $ENV{"OCEAN_WORKDIR"} = `pwd` . "../" ; }
 ###########################
+
+my @timeSections = ( 'density', 'model', 'screen', 'combine', 'offset' );
 
 
 my $dataFile = catfile( updir(), "Common", "postDefaultsOceanDatafile" );
@@ -79,6 +82,7 @@ if( -e $dataFile )
   }
 
 
+
   # Quit if a normal valence calculation (no need for RPA screening)
   if( $commonOceanData->{'calc'}->{'mode'} eq 'val' )
   {
@@ -98,6 +102,15 @@ if( -e $dataFile )
   }
 
   my $newScreenData;
+
+  foreach my $sec (@timeSections) {
+    $newScreenData->{$sec}->{'time'} = $screenData->{$sec}->{'time'} if( exists $screenData->{$sec}->{'time'} );
+    if(  exists $screenData->{$sec}->{'time'} ) {
+      printf "%s %f\n", $sec, $screenData->{$sec}->{'time'};
+    } else {
+      printf "%s NULL\n", $sec;
+    }
+  }
 
 
   my $fake->{ 'complete' } = JSON::PP::false;
@@ -138,7 +151,7 @@ if( -e $dataFile )
 
 
   #### Site/xmesh density average
-  $newScreenData->{'density'} = {};
+  $newScreenData->{'density'} = {} unless( exists $newScreenData->{'density'});
   $newScreenData->{'density'}->{'complete'} = JSON::PP::true;
   $newScreenData->{'density'}->{'complete'} = JSON::PP::false
     unless( exists $screenData->{'density'}->{'complete'} && $screenData->{'density'}->{'complete'} );
@@ -160,7 +173,7 @@ if( -e $dataFile )
 #    die "Malformed screening mode: $newScreenData->{'density'}->{'mode'}\n";
 #  }
 
-  $newScreenData->{'model'} = {};
+  $newScreenData->{'model'} = {} unless( exists $newScreenData->{'model'} );
   $newScreenData->{'model'}->{'complete'} = $newScreenData->{'density'}->{'complete'};
 #  print "MODEL: " . $newScreenData->{'model'}->{'complete'} . "\n";
   $newScreenData->{'model'}->{'complete'} = JSON::PP::false
@@ -175,6 +188,7 @@ if( -e $dataFile )
                   $newScreenData->{'model'}, [ "shells" ] );
   copyAndCompare( $newScreenData->{'model'}, $newScreenData->{'structure'}, $screenData->{'model'},
                   $newScreenData->{'model'}, [ "epsilon" ] );
+  $newScreenData->{'model'}->{'time'} = $screenData->{'model'}->{'time'} if( exists $screenData->{'model'}->{'time'});
   
   print "MODEL: " . $newScreenData->{'model'}->{'complete'} . "\n";
 
@@ -214,7 +228,7 @@ if( -e $dataFile )
 
   writeExtraFiles( $newScreenData->{'structure'}, $newScreenData->{'screen'}, $newScreenData->{'general'} );
 
-  $newScreenData->{'combine'} = {};
+  $newScreenData->{'combine'} = {} unless( exists $newScreenData->{'combine'} );
   $newScreenData->{'combine'}->{'complete'} = JSON::PP::true;
   unless( $newScreenData->{'model'}->{'complete'} && $newScreenData->{'screen'}->{'complete'} 
         && exists $screenData->{'combine'}->{'complete'} && $screenData->{'combine'}->{'complete'} )
@@ -232,7 +246,7 @@ if( -e $dataFile )
 #    $newScreenData->{'screen'}->{'complete'} = JSON::PP::false;
 #  }
 
-  $newScreenData->{'offset'} = {};
+  $newScreenData->{'offset'} = {} unless ( exists $newScreenData->{'offset'} );
   $newScreenData->{'offset'}->{'complete'} = JSON::PP::true;
   unless( $newScreenData->{'density'}->{'complete'} && $newScreenData->{'screen'}->{'complete'} 
         && exists $screenData->{'offset'}->{'complete'} && $screenData->{'offset'}->{'complete'} ) {
@@ -245,6 +259,7 @@ if( -e $dataFile )
 
   unless( $newScreenData->{'density'}->{'complete'} )
   {
+    my $t0 = [gettimeofday];
     my $errorCode = runDensityAverage( $newScreenData );
     if( $errorCode )
     { 
@@ -253,13 +268,15 @@ if( -e $dataFile )
 
     cleanAverage( $newScreenData->{'general'} );
     $newScreenData->{'density'}->{'complete'} = JSON::PP::true;
-  }
+    $newScreenData->{'density'}->{'time'} = tv_interval( $t0 );
+  } 
   open OUT, ">", "screen.json" or die;
   print OUT $json->encode($newScreenData);
   close OUT;
 
   unless( $newScreenData->{'model'}->{'complete'} )
   {
+    my $t0 = [gettimeofday];
 #    print "MODEL: " . $newScreenData->{'model'}->{'complete'} . "\n";
     if( $newScreenData->{'model'}->{'flavor'} eq 'SLL') {
       runVhommod($newScreenData->{'model'}->{'SLL'}) 
@@ -268,7 +285,8 @@ if( -e $dataFile )
     }
 
     $newScreenData->{'model'}->{'complete'} = JSON::PP::true;
-  }
+    $newScreenData->{'model'}->{'time'} = tv_interval( $t0 );
+  } 
   
   open OUT, ">", "screen.json" or die;
   print OUT $json->encode($newScreenData);
@@ -277,6 +295,7 @@ if( -e $dataFile )
 
   unless( $newScreenData->{'screen'}->{'complete'} )
   {
+    my $t0 = [gettimeofday];
     print "SCREEN\n";
     grabOPF();
 
@@ -290,6 +309,7 @@ if( -e $dataFile )
     $newScreenData->{'screen'}->{'complete'} = JSON::PP::true;
 
     cleanScreen( $newScreenData->{'general'}, $newScreenData->{'screen'} );
+    $newScreenData->{'screen'}->{'time'} = tv_interval( $t0 );
 
     open OUT, ">", "screen.json" or die;
     print OUT $json->encode($newScreenData);
@@ -303,6 +323,7 @@ if( -e $dataFile )
 
   unless( $newScreenData->{'combine'}->{'complete'} )
   {
+    my $t0 = [gettimeofday];
     print "COMBINE\n";
 
 #    cleanScreen( $newScreenData->{'general'}, $newScreenData->{'screen'} );
@@ -310,6 +331,7 @@ if( -e $dataFile )
 
 
     $newScreenData->{'combine'}->{'complete'} = JSON::PP::true;
+    $newScreenData->{'combine'}->{'time'} = tv_interval( $t0 );
     open OUT, ">", "screen.json" or die;
     print OUT $json->encode($newScreenData);
     close OUT;
@@ -318,16 +340,26 @@ if( -e $dataFile )
 
   unless( $newScreenData->{'offset'}->{'complete'} )
   {
+    my $t0 = [gettimeofday];
     print "OFFSET\n";
 
     runCoreOffset( $newScreenData->{'screen'}, $newScreenData);
 
     $newScreenData->{'offset'}->{'complete'} = JSON::PP::true;
+    $newScreenData->{'offset'}->{'time'} = tv_interval( $t0 );
 
     open OUT, ">", "screen.json" or die;
     print OUT $json->encode($newScreenData);
     close OUT;
   }
+
+  foreach my $sec (@timeSections) {
+    printf "Time %s: %f\n", $sec, $newScreenData->{$sec}->{'time'};
+    $newScreenData->{'time'} += $newScreenData->{$sec}->{'time'};
+  }
+  open OUT, ">", "screen.json" or die;
+  print OUT $json->encode($newScreenData);
+  close OUT;
 
   exit 0;
 }
@@ -1970,6 +2002,8 @@ sub writeExtraFiles
   close OUT;
 
   # 'screen.quadorder' 'screen.chi0integrand'  'screen.appx'
+  copy( catfile( updir(), "DFT", "rhoofr" ), "rhoofr" ) or die $!;
+  copy( catfile( updir(), "DFT", "nfft" ), "nfft" ) or die $!;
   
 }
 
@@ -2494,27 +2528,29 @@ sub runCoreOffset
   }
   close IN;
 
+  open OUT, ">", "core_shift.log" or die "Failed to open core_shift.log\n$!";
+
   # Loop over radii and then hfin
   my $offset;
   for( my $i = 0; $i < scalar @{$screenRef->{'shells'}}; $i++ )
   {
     my $rad_dir = sprintf("zR%03.2f", $screenRef->{'shells'}[$i] );
 
-    printf "\nRadius = %03.2f Bohr\n", $screenRef->{'shells'}[$i];
+    printf OUT "\nRadius = %03.2f Bohr\n", $screenRef->{'shells'}[$i];
 
     # If we are averaging, new shift by radius
     if( $screenRef->{'core_offset'}->{'average'} )
     {
       $offset = -( $Vsum + $newWsum[$i] ) * $Ry2eV / ( scalar @hfin );
   #    print "$rad_dir\t$offset\n";
-      print "  core_offset was set to true. Now set to $offset  \n";
+      print OUT "  core_offset was set to true. Now set to $offset  \n";
     } else
     {
       $offset = $screenRef->{'core_offset'}->{'energy'};
     }
 
-    print  "Site index    New potential   new1/2 Screening   core_offset       total offset\n";
-    print  "                  (eV)             (eV)              (eV)              (eV)\n";
+    print OUT "Site index    New potential   new1/2 Screening   core_offset       total offset\n";
+    print OUT "                  (eV)             (eV)              (eV)              (eV)\n";
   # print  "   iiiiiii  -xxxxx.yyyyyyyyy  -xxxxx.yyyyyyyyy  -xxxx.yyyyyyyyy  -xxxx.yyyyyyyyy  -xxxx.yyyyyyyyy  -xxxx.yyyyyyyyy\n";
 
     # Loop over each atom in hfin
@@ -2532,18 +2568,19 @@ sub runCoreOffset
 
       $shift += $offset;
       $shift *= -1;
-      printf "   %7i   %16.9f  %15.9f  %15.9f  %16.7f\n", $el_rank, $newPot[$j]*$Ry2eV, $newWshift[$j][$i]*$Ry2eV, $offset, $shift;
+      printf OUT "   %7i   %16.9f  %15.9f  %15.9f  %16.7f\n", $el_rank, $newPot[$j]*$Ry2eV, $newWshift[$j][$i]*$Ry2eV, $offset, $shift;
 
       my $string = sprintf("z%s%04d/n%02dl%02d",$el, $el_rank,$nn,$ll);
-      open OUT, ">$string/$rad_dir/cls" or die "Failed to open $string/$rad_dir/cls\n$!";
-      print OUT $shift . "\n";
-      close OUT;
+      open TMP, ">$string/$rad_dir/cls" or die "Failed to open $string/$rad_dir/cls\n$!";
+      print TMP $shift . "\n";
+      close TMP;
     }
 
-    print "\n";
+    print OUT "\n";
 
   }
 
+  close OUT;
 
 
 #  

@@ -251,8 +251,8 @@ module OCEAN_haydock
       if( sys%cur_run%have_val ) then
         if( myid .eq. root ) write(6,*)   " iter. no.", iter-1
       endif
-        call OCEAN_energies_allow( sys, psi, ierr )
-        if( ierr .ne. 0 ) return
+!        call OCEAN_energies_allow( sys, psi, ierr )
+!        if( ierr .ne. 0 ) return
 !      endif
 
       call OCEAN_xact( sys, inter_scale, psi, new_psi, ierr )
@@ -707,8 +707,8 @@ module OCEAN_haydock
     integer :: ialpha, ikpt, arequest, airequest, brequest
 
 !    if( sys%cur_run%have_val ) then
-      call OCEAN_energies_allow( sys, hpsi, ierr )
-      if( ierr .ne. 0 ) return
+!      call OCEAN_energies_allow( sys, hpsi, ierr )
+!      if( ierr .ne. 0 ) return
 !    endif
 
     ! calc ctmp = < hpsi | psi > and begin Iallreduce
@@ -736,8 +736,8 @@ module OCEAN_haydock
 
 
 !    if( sys%cur_run%have_val ) then
-      call OCEAN_energies_allow( sys, hpsi, ierr )
-      if( ierr .ne. 0 ) return
+!      call OCEAN_energies_allow( sys, hpsi, ierr )
+!      if( ierr .ne. 0 ) return
 !    endif
 
     

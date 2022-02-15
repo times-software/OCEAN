@@ -213,7 +213,7 @@ while( my $line = <IN> )
       my $i = 0;
       do
       {
-        if( $temp[$i] =~ m/^\d*s/ && scalar @wfc0 == 0 )
+        if( $temp[$i] =~ m/^\d*s/i && scalar @wfc0 == 0 )
         {
           print "Gabbed s pswfn\n";
           $i++; $i++; $i++; $i++;
@@ -223,7 +223,7 @@ while( my $line = <IN> )
             $i++;
           }
         }
-        elsif( $temp[$i] =~ m/^\d*p/ && scalar @wfc1 == 0 )
+        elsif( $temp[$i] =~ m/^\d*p/i && scalar @wfc1 == 0 )
         {
           print "Gabbed p pswfn\n";
           $i++; $i++; $i++; $i++;
@@ -233,7 +233,7 @@ while( my $line = <IN> )
             $i++;
           }
         }
-        elsif($temp[$i] =~ m/^\d*d/ && scalar @wfc2 == 0 )
+        elsif($temp[$i] =~ m/^\d*d/i && scalar @wfc2 == 0 )
         {
           print "Gabbed d pswfn\n";
           $i++; $i++; $i++; $i++;
@@ -243,7 +243,7 @@ while( my $line = <IN> )
             $i++;
           }
         }
-        elsif($temp[$i] =~ m/^\d*f/ && scalar @wfc3 == 0 )
+        elsif($temp[$i] =~ m/^\d*f/i && scalar @wfc3 == 0 )
         {
           $i++; $i++; $i++; $i++;
           while( $temp[$i] =~ /\d\.\d+/ )

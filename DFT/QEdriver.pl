@@ -60,7 +60,7 @@ sub QErunNSCF
   
   close $fh;
 
-  my ($ncpus, $npool) = QErunTest( $hashRef, "nscf.in" );
+  my ($ncpus, $npool, $nbd) = QErunTest( $hashRef, "nscf.in" );
 
   QEsetupNSCF( $shift );
 
@@ -73,7 +73,10 @@ sub QErunNSCF
   my $prefix = $hashRef->{'computer'}->{'para_prefix'};
   $prefix =~ s/$hashRef->{'computer'}->{'ncpus'}/$ncpus/ if( $hashRef->{'computer'}->{'ncpus'} != $ncpus );
 
-  my $cmdLine = " -npool $npool ";
+  my $cmdLine = " -npool $npool";
+  if( $nbd > 1 ) { 
+    $cmdLine .= " -pd true -ntg $nbd";
+  }
 
   QErunPW( $hashRef->{'general'}->{'redirect'}, $prefix, $cmdLine, "nscf.in", "nscf.out" );
 
@@ -83,6 +86,23 @@ sub QErunNSCF
 
   $errorCode = QEparseEnergies( $hashRef, $specificHashRef );
 
+  chdir updir();
+  return $errorCode;
+}
+
+sub QErunParseEnergies
+{ 
+  my ( $hashRef, $specificHashRef, $shift ) = @_;
+
+  my $dirname = sprintf "k%i_%i_%iq%.6f_%.6f_%.6f", $specificHashRef->{'kmesh'}[0],
+                    $specificHashRef->{'kmesh'}[1], $specificHashRef->{'kmesh'}[2], 
+                    $specificHashRef->{'kshift'}[0], $specificHashRef->{'kshift'}[1],
+                    $specificHashRef->{'kshift'}[2];
+  
+  chdir $dirname;
+
+  my $errorCode = QEparseEnergies( $hashRef, $specificHashRef );
+  
   chdir updir();
   return $errorCode;
 }
@@ -188,7 +208,7 @@ sub QErunDensity
 #    print "Had trouble parsing test.out\n. Will attempt to continue.\n";
 #  }
 
-  my ($ncpus, $npool) = QErunTest( $hashRef, "scf.in" );
+  my ($ncpus, $npool, $nbd) = QErunTest( $hashRef, "scf.in" );
 
   # full run
 
@@ -200,6 +220,9 @@ sub QErunDensity
   $prefix =~ s/$hashRef->{'computer'}->{'ncpus'}/$ncpus/ if( $hashRef->{'computer'}->{'ncpus'} != $ncpus );
 
   my $cmdLine = " -npool $npool ";
+  if( $nbd > 1 ) {
+    $cmdLine .= " -pd true -ntg $nbd";
+  }
 
   QErunPW( $hashRef->{'general'}->{'redirect'}, $prefix, $cmdLine, "scf.in", "scf.out" );
 
@@ -222,11 +245,15 @@ sub QErunTest
   # parse test results
   my $npool = 1;
   my $ncpus = $hashRef->{'computer'}->{'ncpus'};
+  my $nbd = 1;
   if( open TMP, "test.out" )
   { 
     my $actualKpts = -1;
     my $numKS = -1;
     my $mem = -1;
+    my $nspin = 1; 
+    my $FFT = -1;
+    $nspin = $hashRef->{'general'}->{'nspin'} if( exists $hashRef->{'general'}->{'nspin'} );
     while (<TMP>)
     { 
       if( $_ =~ m/number of Kohn-Sham states=\s+(\d+)/ )
@@ -235,23 +262,27 @@ sub QErunTest
       }
       elsif( $_ =~ m/number of k points=\s+(\d+)/ )
       { 
-        $actualKpts = $1;
+        $actualKpts = $1 * $nspin;
       }
-      elsif( $_ =~ m/Estimated max dynamical RAM per process\s+>\s+(\d+\.\d+)/ )
+      elsif( $_ =~ m/Estimated max dynamical RAM per process\s+>\s+(\d+\.\d+)\s(\w+)/ )
       { 
         $mem = $1;
+        $mem *= 1000 if (lc($2) eq 'gb' );
       }
-      last if( $actualKpts > 0 && $numKS > 0 && $mem > 0 );
+      elsif( $_ =~ m/FFT dimensions:\s\(\s*(\d+),\s*(\d+),\s*(\d+)/ ) {
+        $FFT = $3;
+      }
+      last if( $actualKpts > 0 && $numKS > 0 && $mem > 0 && $FFT > 0);
     }
     close TMP;
     
-    if( $actualKpts == -1 )
+    if( $actualKpts < 0 )
     { 
       print "Had trouble parsing test.out\nDidn't find number of k points\n";
     }
     else
     { 
-      ($ncpus, $npool) = QEPoolControl( $actualKpts, $numKS, $mem, $hashRef->{'computer'} );
+      ($ncpus, $npool, $nbd) = QEPoolControl( $actualKpts, $numKS, $mem, $FFT, $hashRef->{'computer'} );
     }
   }
   else
@@ -259,7 +290,7 @@ sub QErunTest
     print "Had trouble parsing test.out\n. Will attempt to continue.\n";
   }
 
-  return ( $ncpus, $npool);
+  return ( $ncpus, $npool, $nbd);
 }
 
 # parse various info from the 
@@ -439,6 +470,68 @@ sub QEparseOut
   return $errorCode;
 }
 
+sub QErunDFPT
+{
+  my ($hashRef) = @_;
+
+  if( $hashRef=>{'structure'}->{'metal'} ) {
+    $hashRef=>{'structure'}->{'epsilon'} = $hashRef=>{'epsilon'}->{'metal_max'};
+    return 0;
+  }
+
+  my $nnode = 1;
+  my $npool = 1;
+  if( open IN, "<", "scf.in" ) {
+    while(<IN>) {
+      $nnode = $1 if( $_ =~ m/(\d+)\s+nodes/ );
+      if( $_ =~ m/npool\s+=\s+(\d+)/ )
+      {
+        $npool = $1;
+        last;
+      }
+    }
+    close IN;
+  }
+
+  open PH, ">", "ph.in" or die "$!";
+  print PH "title\n&inputph\n"
+          . "  prefix = \'system\'\n"
+          . "  outdir = \'Out\'\n"
+          .  "  epsil = .true.\n"
+          .  "  start_irr = 1\n"
+          .  "  last_irr = 0\n"
+          .  "  trans = .false\n"
+          .  "/\n0 0 0\n";
+  close PH;
+
+  my $n = $nnode;
+  my $prefix = $hashRef->{'computer'}->{'para_prefix'};
+  $n = $npool if( $npool > $nnode );
+  print  "$prefix $ENV{'OCEAN_ESPRESSO_PH'} -npool $n  -inp ph.in > ph.out 2>&1\n";
+  system("$prefix $ENV{'OCEAN_ESPRESSO_PH'} -npool $n  -inp ph.in > ph.out 2>&1\n") == 0
+    or die "Failed to run ph.x\n";
+  open IN, "ph.out" or die;
+
+  my @epsilon;
+  while (<IN>)
+  {
+    if( $_ =~ m/Dielectric constant in cartesian axis/ )
+    {
+      <IN>;
+      <IN> =~ m/(-?\d+\.\d+)\s+(-?\d+\.\d+)\s+(-?\d+\.\d+)/;
+      $epsilon[0] = $1;
+      <IN> =~ m/(-?\d+\.\d+)\s+(-?\d+\.\d+)\s+(-?\d+\.\d+)/;
+      $epsilon[1] = $2;
+      <IN> =~ m/(-?\d+\.\d+)\s+(-?\d+\.\d+)\s+(-?\d+\.\d+)/;
+      $epsilon[2] = $3;
+      last;
+    }
+  }
+  close IN;
+  $hashRef=>{'structure'}->{'epsilon'} = ( $epsilon[0] + $epsilon[1] + $epsilon[2] ) / 3;
+
+}
+
 
 sub QEparseDensityPotential
 {
@@ -468,6 +561,11 @@ sub QEparseDensityPotential
   $npool = $hashRef->{'scf'}->{'npool'} if( exists $hashRef->{'scf'}->{'npool'} && $hashRef->{'scf'}->{'npool'} >= 1 );
   if( $ncpus % $npool == 0 ) {
     $ncpus = $ncpus / $npool;
+    $npool = 1;
+    $ncpus = 1;
+  }
+  if( $type eq 'potential' ) {
+    $ncpus = 1;
     $npool = 1;
   }
 
@@ -568,9 +666,9 @@ sub QEfixPP
 # Figure out how many pools to run with
 sub QEPoolControl
 {
-  my ( $actualKpts, $numKS, $mem, $hashRef ) = @_;
+  my ( $actualKpts, $numKS, $mem, $FFT, $hashRef ) = @_;
 
-  my $maxMem = 2000;
+  my $maxMem = 48000;
   my $minPool = 0.9;
   $minPool = $mem / $maxMem if( $mem > $maxMem );
   
@@ -594,22 +692,33 @@ sub QEPoolControl
       next if ( $numKS > 0 && $j / $i > $numKS );
 
       my $cpuPerPool = $j / $i;
+      my $nbd = 1;
+      if( $cpuPerPool > $FFT && $FFT > 0 ) {
+        for( my $ii = 2; $ii <= $cpuPerPool/2; $ii++ ) {
+          next if( $numKS % $ii || $cpuPerPool % $ii);
+          $nbd = $ii;
+          last if( $cpuPerPool/$nbd <= $FFT );
+        }
+        next if( $nbd == 1 );
+      }
+          
       my $kPerPool = ceil( $actualKpts / $i );
       my $cost = $kPerPool / ( $cpuPerPool * ( 0.999**$cpuPerPool ) );
-      print "$j  $i  $kPerPool  $cost\n";
-      $cpusAndPools{ $cost } = [ $j, $i ];
+      print "$j  $i  $nbd $kPerPool  $cost\n";
+      $cpusAndPools{ $cost } = [ $j, $i, $nbd ];
     }
   }
 
-  my $ncpus; my $npool;
+  my $ncpus; my $npool; my $nbd;
   foreach my $i (sort {$b <=> $a} keys %cpusAndPools )
   {
 #    print "$i  $cpusAndPools{$i}[0]  $cpusAndPools{$i}[1]\n";
     $ncpus = $cpusAndPools{$i}[0];
     $npool = $cpusAndPools{$i}[1];
+    $nbd = $cpusAndPools{$i}[2];
   }
 
-  return ( $ncpus, $npool );
+  return ( $ncpus, $npool, $nbd );
 }
 
 # subroutine to handle running each QE step
@@ -649,6 +758,23 @@ sub QErunPP
   }
 }
 
+# subroutine to handle running each QE step
+sub QErunPH
+{
+  my( $redirect, $prefix, $cmdLine, $in, $out ) = @_;
+
+  if( $redirect )
+  {
+    print  "$prefix $ENV{'OCEAN_ESPRESSO_PH'} $cmdLine < $in > $out 2>&1\n";
+    system("$prefix $ENV{'OCEAN_ESPRESSO_PH'} $cmdLine < $in > $out 2>&1");
+  }
+  else
+  {
+    print  "$prefix $ENV{'OCEAN_ESPRESSO_PH'} $cmdLine -inp $in > $out 2>&1\n";
+    system("$prefix $ENV{'OCEAN_ESPRESSO_PH'} $cmdLine -inp $in > $out 2>&1");
+  }
+}
+
 
 # Subroutine to print a QE-style input file
 #   Pass in a file handle and a hashtable
@@ -657,7 +783,7 @@ sub QEprintInput
   my ($fh, $generalRef, $specificRef, $calcFlag, $kptString ) = @_;
 
   my $calc;
-  my $tstress = '.false';
+  my $tstress = '.false.';
   my $tprnfor = '.false.';
   my $nosyminv;
   my $startingPot;
@@ -754,7 +880,7 @@ sub QEprintInput
   {
     print $fh "lda_plus_u = true\n" 
             . "lda_plus_u_kind = $generalRef->{'general'}->{'ldau'}->{'lda_plus_u_kind'}\n"
-            . "U_projection_type = $generalRef->{'general'}->{'ldau'}->{'U_projection_type'}\n";
+            . "U_projection_type = '$generalRef->{'general'}->{'ldau'}->{'U_projection_type'}'\n";
     print $fh "$generalRef->{'general'}->{'ldau'}->{'Hubbard_U'}\n" 
         if( $generalRef->{'general'}->{'ldau'}->{'Hubbard_U'} ne "" );
     print $fh "$generalRef->{'general'}->{'ldau'}->{'Hubbard_V'}\n" 
@@ -883,7 +1009,7 @@ sub QEparseEnergies
   {
     my $splitFile = $qe62File;
     $splitFile = catfile( "Out_shift", "system.save", "data-file-schema.xml" ) if( $split );
-    @energies = QEparseEnergies62( $qe62File, $splitFile );
+    @energies = QEparseEnergies62( $qe62File, $splitFile, $spin );
   }
   else 
   {
@@ -942,6 +1068,10 @@ sub QEparseEnergies
 #        print "ccc $b[2]\n";
       }
     }
+  }
+
+  if( exists( $specificHashRef->{'start_band'} ) ) {
+    $b[2] = $specificHashRef->{'start_band'} if( $specificHashRef->{'start_band'} >= 1 );
   }
 
   $specificHashRef->{'brange'} = \@b ;
@@ -1012,10 +1142,11 @@ sub QEparseEnergies62
       if( $spin == 2 )
       {
         my $half = scalar @eigs / 2;
-        my @t1 = @eigs[ 0, $half-1 ];
+        my @t1 = @eigs[ 0..$half-1 ];
         push @energies1, \@t1;
-        my @t2 = @eigs[ $half, scalar @eigs-1 ];
+        my @t2 = @eigs[ $half..scalar @eigs-1 ];
         push @energies1_spin, \@t2;
+#        print scalar @eigs . "  $half  " . scalar @t1 . "  " .scalar @t2 . "\n";
       }
       else
       {
@@ -1027,7 +1158,16 @@ sub QEparseEnergies62
 
   unless( $f1 ne $f2 )
   {
-    push @energies1, @energies1_spin if( $spin == 2 );
+#    push @energies1, @energies1_spin if( $spin == 2 );
+    
+    if( $spin == 2 ) {
+      print scalar @energies1 . "\n";
+      print scalar @energies1_spin . "\n";
+      for( my $i = 0; $i < scalar @energies1_spin; $i++ ) {
+        push @energies1, \@{ $energies1_spin[$i] };
+      }
+      print scalar @energies1 . "\n";
+    }
     return @energies1;
   }
 
@@ -1057,9 +1197,9 @@ sub QEparseEnergies62
       if( $spin == 2 )
       {
         my $half = scalar @eigs / 2;
-        my @t1 = @eigs[ 0, $half-1 ];
+        my @t1 = @eigs[ 0..$half-1 ];
         push @energies2, \@t1;
-        my @t2 = @eigs[ $half, scalar @eigs-1 ];
+        my @t2 = @eigs[ $half..scalar @eigs-1 ];
         push @energies2_spin, \@t2;
       }
       else
