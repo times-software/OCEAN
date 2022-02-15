@@ -475,7 +475,7 @@ program OCEAN_exciton_plot
     enddo
   enddo              
 
-  case( 2 )
+  case( 2, 3 )
     Riter = 0
     do iRx = 1, Rmesh(1)
       do ix = 1, xmesh(1)
