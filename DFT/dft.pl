@@ -300,6 +300,10 @@ if( $commonOceanData->{'calc'}->{'mode'} eq 'val' )
   $newDftData->{'screen'}->{'enable'} = JSON::PP::false unless( $commonOceanData->{'screen'}->{'mode'} eq 'grid' );
 }
 
+
+#Copy record of all completed NSCF runs
+copyAndCompare( $newDftData, $dftData, $dftData, $fake, [ 'znscf' ] );
+
 print "Done parsing input for DFT stage\n";
 
 # Save current outlook
@@ -344,11 +348,15 @@ unless( $newDftData->{'scf'}->{'complete'} )
   $newDftData->{'scf'}->{'hash'} = md5_hex( $s );
 
   $newDftData->{'scf'}->{'time'} = tv_interval( $t0 );
+  
+  #TODO: clean old nscf runs here
+  $newDftData->{'znscf'} = {};
 
   open OUT, ">", "dft.json" or die;
   print OUT $json->encode($newDftData);
   close OUT;
   print "SCF stage complete, total energy: $newDftData->{'scf'}->{'etot'}\n";
+
 } else {
   $newDftData->{'scf'}->{'time'} = $dftData->{'scf'}->{'time'};
 }
@@ -452,6 +460,21 @@ unless( $newDftData->{'epsilon'}->{'complete'} ) {
 
 # Time for SCREENING states
 if( $newDftData->{'screen'}->{'enable'} ) {
+  # Search for completed runs
+  unless( $newDftData->{'screen'}->{'complete'} ) {
+    my $dirname = sprintf "k%i_%i_%iq%.6f_%.6f_%.6f", $newDftData->{'screen'}->{'kmesh'}[0],
+                    $newDftData->{'screen'}->{'kmesh'}[1], $newDftData->{'screen'}->{'kmesh'}[2],
+                    $newDftData->{'screen'}->{'kshift'}[0], $newDftData->{'screen'}->{'kshift'}[1],
+                    $newDftData->{'screen'}->{'kshift'}[2];
+    if( exists $newDftData->{'znscf'}->{ $dirname } ) {
+      if( $newDftData->{'znscf'}->{ $dirname }->{'toldfe'} <= $newDftData->{'screen'}->{'toldfe'} &&
+          $newDftData->{'znscf'}->{ $dirname }->{'nbands' } >= $newDftData->{'screen'}->{'nbands'} )
+      {
+        print "Found previous DFT NSCF run for the screening\n";
+        $newDftData->{'screen'} = dclone( $newDftData->{'znscf'}->{ $dirname } );
+      }
+    }
+  }
   unless( $newDftData->{'screen'}->{'complete'} ) {
     my $t0 = [gettimeofday];
     print "Running DFT for screening states\n";
@@ -475,13 +498,19 @@ if( $newDftData->{'screen'}->{'enable'} ) {
     $newDftData->{'screen'}->{'hash'} = md5_hex( $s );
     $newDftData->{'screen'}->{'time'} = tv_interval( $t0 );
 
+    my $dirname = sprintf "k%i_%i_%iq%.6f_%.6f_%.6f", $newDftData->{'screen'}->{'kmesh'}[0],
+                    $newDftData->{'screen'}->{'kmesh'}[1], $newDftData->{'screen'}->{'kmesh'}[2],
+                    $newDftData->{'screen'}->{'kshift'}[0], $newDftData->{'screen'}->{'kshift'}[1],
+                    $newDftData->{'screen'}->{'kshift'}[2];
+    $newDftData->{'znscf'}->{ $dirname } = dclone( $newDftData->{'screen'} );
+
     open OUT, ">", "dft.json" or die;
     print OUT $json->encode($newDftData);
     close OUT;
     print "DFT for screening states complete\n";
-  } else {
-    $newDftData->{'screen'}->{'time'} = $dftData->{'screen'}->{'time'};
-  }
+  } #else {
+  #  $newDftData->{'screen'}->{'time'} = $dftData->{'screen'}->{'time'};
+  #}
 }
 
 
@@ -512,6 +541,12 @@ unless( $newDftData->{'bse'}->{'complete'} ) {
 #  print "$s\n\n\n";
   $newDftData->{'bse'}->{'hash'} = md5_hex( $s );
   $newDftData->{'bse'}->{'time'} = tv_interval( $t0 );
+
+  my $dirname = sprintf "k%i_%i_%iq%.6f_%.6f_%.6f", $newDftData->{'bse'}->{'kmesh'}[0],
+                  $newDftData->{'bse'}->{'kmesh'}[1], $newDftData->{'bse'}->{'kmesh'}[2],
+                  $newDftData->{'bse'}->{'kshift'}[0], $newDftData->{'bse'}->{'kshift'}[1],
+                  $newDftData->{'bse'}->{'kshift'}[2];
+  $newDftData->{'znscf'}->{ $dirname } = dclone( $newDftData->{'bse'} );
 
   open OUT, ">", "dft.json" or die;
   print OUT $json->encode($newDftData);

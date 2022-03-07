@@ -30,7 +30,7 @@ my $z_eff;
 if( $ARGV[0] =~ m/upf$/i ) {
   while( my $line = <PSP> ) {
 #    print $line;
-    if( $line =~ m/(\w+)\s+Element/i || $line =~ m/element="(\w+)"/i) {
+    if( $line =~ m/(\w+)\s+Element/i || $line =~ m/element="\s*(\w+)"/i) {
       my $element = $1;
       $z = &symb2z( $element );
       print "$element $z\n";

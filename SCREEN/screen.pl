@@ -1615,7 +1615,7 @@ sub buildSiteEdgeWyck
     $s = sprintf "%s %i %i %i %i", $structRef->{'elname'}[$structRef->{'typat'}[$a-1]-1], 
          $structRef->{'znucl'}[$structRef->{'typat'}[$a-1]-1], $index[$a-1], 
          $n, $l;
-    push $genRef->{'fulllist'}, $s;
+    push @{$genRef->{'fulllist'}}, $s;
         
   }
   foreach  my $key ( sort { $a <=> $b } keys %sites )
@@ -1624,7 +1624,7 @@ sub buildSiteEdgeWyck
 #    push $genRef->{'sitelist'}, sprintf "%s    %s   %s %s %s", $index[$key-1], 
 #            $sites{ $key }, $structRef->{'xred'}[$key-1][0],
 #            $structRef->{'xred'}[$key-1][1], $structRef->{'xred'}[$key-1][2];
-    push $genRef->{'sitelist'}, sprintf "%s %i %i", $structRef->{'elname'}[$structRef->{'typat'}[$key-1]-1],
+    push @{$genRef->{'sitelist'}}, sprintf "%s %i %i", $structRef->{'elname'}[$structRef->{'typat'}[$key-1]-1],
             $structRef->{'znucl'}[$structRef->{'typat'}[$key-1]-1], $index[$key-1];
     print "$key\n";
   }
@@ -1632,7 +1632,7 @@ sub buildSiteEdgeWyck
   my %zee;
   foreach  my $key ( sort { $a <=> $b } keys %edges )
   {
-    push $genRef->{'edgelist'}, $key;
+    push @{$genRef->{'edgelist'}}, $key;
     $key =~ m/^\s+(\d+)/;
     $zee{$1} = 1;
   }
@@ -2669,7 +2669,7 @@ sub recursiveCompare
   }
   elsif( ref( $newRef ) eq 'HASH' )
   {
-    foreach my $key (keys $newRef )
+    foreach my $key (keys %$newRef )
     {
       unless( exists $oldRef->{$key} )
       {
