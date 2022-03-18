@@ -271,7 +271,7 @@ if( $kpt_tot > (1.9*$ideal_npools ) && $ncpus / $ideal_npools > 4 )  # if ideal 
   {
     if( $ncpus / $_ >= $min_nscf_pool_size )
     {
-      $ideal_npools = $_;
+      $ideal_npools = $_ if( $_ <= $kpt_tot );
     }
   }
 }
@@ -444,7 +444,22 @@ chomp($nbands);
 close NBANDS;
 die "Either dft_energy_range or nbands must be specified\n" 
     if( $erange <= 0 && $nbands <= 0);
-if( $nbands <= 0 )
+if( $nbands <= -2 )
+{
+  $nbands = abs( $nbands );
+  if ( $nelectrons < 1 ) 
+  {
+    $nbands += 0.036 * $volume;
+  }
+  else
+  {
+    $nbands += ($nelectrons/2);
+  }
+  open NBANDS, ">nbands" or die "Failed to open nbands for writing.\n$!";
+  print NBANDS "$nbands\n";
+  close NBANDS;
+}
+if( $nbands <= 0 || $nbands =~ m/range/i )
 {
   print "Default requested for nbands. Energy range is $erange eV.\n";
   # First guess N conduction electrons
@@ -595,14 +610,15 @@ $input_content =~ m/(\d+)\s+(\d+)\s+(\d+)/ or die "Xmesh parsing failed!\n$input
 my $nxpts = $1*$2*$3;
 my @orig_x;
 $orig_x[0] = $1; $orig_x[1] = $2; $orig_x[2] = $3;
-if( $nxpts < $nbands )
+if( $nxpts < 1.8 * $nbands )
 {
   print "Warning! Requested xmesh is too small for requested bands.\nAttempting to increase xmesh.\n";
   print "Due to orthogonalization the number of x-points must be larger than the number of bands.\n";
+  print "OCEAN will increase the xmesh until the ratio exceeds 1.8.\n";
 
   my $scale = 1.1;
   my @output;
-  while( $nxpts < $nbands )
+  while( $nxpts < 1.8 * $nbands )
   {
     for( my $i = 0; $i < 3; $i++ )
     {
@@ -786,7 +802,7 @@ open EPS, "epsilon" or die "Failed to open epsilon\n$!";
 my $epsilon = <EPS>;
 chomp $epsilon;
 close EPS;
-if( $epsilon < 1.000001 )
+unless( $epsilon > 1.000001 || $epsilon =~ m/dfpt/i )
 {
   print "Use of model dielectric requires that epsilon be greater than 1!\n";
   print "Input diemac too low: $epsilon\n";
@@ -804,7 +820,8 @@ sub findval
 {
   my $target = $_[0];
   my $out = 1000;
-  my @val_list = ( 1, 2, 3, 4, 5, 6, 8, 9, 10, 12, 15, 16, 18, 20, 24, 25, 30, 32, 36, 40, 45, 48, 50, 100, 1000 );
+  my @val_list = ( 1, 2, 3, 4, 5, 6, 8, 9, 10, 12, 15, 16, 18, 20, 24, 25, 30, 32, 36, 40, 45, 48, 50, 
+                   54, 60, 64, 72, 75, 80, 81, 90, 100, 1000 );
   foreach (@val_list)
   {
     if( $_ >= $target )

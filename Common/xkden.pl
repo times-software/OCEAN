@@ -1,3 +1,4 @@
+#!/usr/bin/perl
 use strict;
 
 my @avec;
@@ -96,12 +97,12 @@ if( $loud == 1 ) {
 }
 
 if( $loud == 1 ) {
-  my $klen = 0;
+  my $klen = 1/$blen[0];
   #for (my $i = 1; $i <= 62; $i++ )
   my @kpt = (1,1,1);
-  for( my $j = 0; $j<3; $j++ ) {
+  for( my $j = 1; $j<3; $j++ ) {
     my $t = $kpt[$j]/$blen[$j];
-    $klen = $t if( $t>$klen);
+    $klen = $t if( $t<$klen);
   }
   my $klenPrevious = $klen;
   print " kx   ky   kz          kden   (inv Bohr)      (inv A)  radius (Bohr)\n";

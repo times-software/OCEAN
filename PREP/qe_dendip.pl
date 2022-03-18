@@ -31,7 +31,7 @@ my $oldden = 0;
 $oldden = 1 if (-e "../DFT/old");
 
 
-my @QEFiles     = ( "rhoofr", "efermiinrydberg.ipt", "dftVersion" );
+my @QEFiles     = ( "rhoofr", "efermiinrydberg.ipt", "dftVersion", "epsilon" );
 my @CommonFiles = ( "screen.nkpt", "nkpt", "qinunitsofbvectors.ipt", "avecsinbohr.ipt", "dft", 
                     "nspin", "xmesh.ipt", "dft.split", "prefix", "calc", "screen.wvfn", "screen.legacy", 
                     "screen.mode", "bse.wvfn", "k0.ipt", "work_dir", "para_prefix" );

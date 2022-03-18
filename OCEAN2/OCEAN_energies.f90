@@ -164,7 +164,7 @@ module OCEAN_energies
     use OCEAN_system, only : O_system
     use OCEAN_mpi, only : myid, root
     use OCEAN_psi, only : OCEAN_psi_zero_full, OCEAN_psi_bcast_full
-    use OCEAN_constants, only : eV2Hartree
+    use OCEAN_constants, only : eV2Hartree, Hartree2eV
 
     implicit none
     type(O_system), intent( in ) :: sys
@@ -172,7 +172,7 @@ module OCEAN_energies
     integer, intent(inout) :: ierr
 
     real(DP), allocatable :: energies(:,:,:), imag_se(:,:,:)
-    real(DP) :: core_offset, efermi
+    real(DP) :: core_offset, efermi, emin, emax
     logical :: metal
 
     if( myid .eq. root ) then
@@ -205,6 +205,13 @@ module OCEAN_energies
 
     if( myid .eq. root ) then
       call stubby( sys, p_energy, energies, imag_se, core_offset )
+      emin = minval( energies )
+      emax = maxval( energies )
+      write(6,'(A,3(X,A16))') 'ENERGIES:', 'Min', 'Fermi', 'Max'
+      write(6,'(A,3(X,F16.8))') '         ', emin* Hartree2eV, efermi* Hartree2eV, emax* Hartree2eV
+      write(6,'(A,3(X,A16))') 'Shifted :', 'Min', 'Fermi', 'Max'
+      write(6,'(A,3(X,F16.8))') '         ', (emin+core_offset)* Hartree2eV, & 
+            (efermi+core_offset)*Hartree2eV, (emax+core_offset)* Hartree2eV
     endif
 
     call OCEAN_psi_bcast_full( root, p_energy, ierr )

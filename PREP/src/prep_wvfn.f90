@@ -19,6 +19,7 @@ module prep_wvfn
   public :: prep_wvfn_driver
 
 
+  logical, parameter :: debug = .false.
 
   contains
 
@@ -128,7 +129,7 @@ module prep_wvfn
 
     if( wantTmels ) then
       write(myid+1000,*) totValBands, totConBands, conBands, myConBandStart, nuni, ikpt, kStride
-      flush(myid+1000)
+!      flush(myid+1000)
       call ocean_tmels_open( totValBands, totConBands, conBands, myConBandStart, nuni, ikpt, kStride, ierr )
     endif
 
@@ -480,12 +481,12 @@ module prep_wvfn
     call screen_tk_start( "main" )
 
     write(1000+myid, * ) 'Calling Energies'
-    flush(1000+myid)
+!    flush(1000+myid)
     call prep_wvfn_writeEnergies( ierr )
     if( ierr .ne. 0 ) return
     call MPI_BARRIER( comm, ierr )
     write(1000+myid, * ) 'Finished Energies'
-    flush(1000+myid)
+!    flush(1000+myid)
 
   end subroutine prep_wvfn_driver
 
@@ -833,7 +834,7 @@ module prep_wvfn
     do iprocPool = 0, nprocPool - 1
       
       nband = odf_getBandsForPoolID( iprocPool, odf_flag )
-      write(1000+myid,*) 'UofX2 recvs:', iprocPool, nx, nband, totdim
+      if( debug ) write(1000+myid,*) 'UofX2 recvs:', iprocPool, nx, nband, totdim
       call MPI_IRECV( UofX2(:,iband:), nX*nband, MPI_DOUBLE_COMPLEX, iprocPool, 1, pool_comm, & 
                       req( iprocPool, 1 ), ierr )
       if( ierr .ne. 0 ) return
@@ -857,8 +858,10 @@ module prep_wvfn
       call MPI_TYPE_COMMIT( newType, ierr )
       if( ierr .ne. 0 ) return
 
-      write(1000+myid,*) 'UofX2 sends:', iprocPool, nx, nband
-      write(1000+myid,*) '            ', ix, iy, iz
+      if( debug ) then
+        write(1000+myid,*) 'UofX2 sends:', iprocPool, nx, nband
+        write(1000+myid,*) '            ', ix, iy, iz
+      endif
       call MPI_ISEND( UofX( ix, iy, iz, 1 ), 1, newType, iprocPool, 1, pool_comm, req( iprocPool, 2 ), ierr )
       if( ierr .ne. 0 ) return
 
@@ -876,7 +879,7 @@ module prep_wvfn
       enddo
     enddo
 
-    flush(1000+myid)
+!    flush(1000+myid)
     call MPI_WAITALL( nprocPool * 2, req, MPI_STATUSES_IGNORE, ierr )
     if( ierr .ne. 0 ) return
 
@@ -884,7 +887,7 @@ module prep_wvfn
     nband = size( UofX2, 2 )
     allocate( coeff( nband ) )
 
-#if 1
+#if 0
 !TEST
     do iband = 1, nband
       coeff(iband) = dot_product( UofX2(:,iband), UofX2(:,iband) )
@@ -973,7 +976,7 @@ module prep_wvfn
           if( ierr .ne. 0 ) return
         enddo
 
-        write(1000+myid,'(A2,X,3(I12))') 'OF', ikpt, ib, offset
+        if( debug ) write(1000+myid,'(A2,X,3(I12))') 'OF', ikpt, ib, offset
         call MPI_FILE_WRITE_AT( fileHandle, offset, writeBuffer, nx, MPI_DOUBLE_COMPLEX, MPI_STATUS_IGNORE, ierr )
         if( ierr .ne. 0 ) return
         offset = offset + nx
@@ -1044,8 +1047,11 @@ module prep_wvfn
     else
       i = myx*nb
     endif
-    write(1000+myid,'(A2,X,6(I12))') 'OF', ikpt, offset, size( UofX2, 2 ), size( UofX2, 1), & 
-          offset*16, ( offset + size( UofX2, 2 ) * size( UofX2, 1) ) * 16
+
+    if( debug ) then
+      write(1000+myid,'(A2,X,6(I12))') 'OF', ikpt, offset, size( UofX2, 2 ), size( UofX2, 1), & 
+            offset*16, ( offset + size( UofX2, 2 ) * size( UofX2, 1) ) * 16
+    endif
 !    call MPI_FILE_SET_VIEW( fileHandle, offset, MPI_DOUBLE_COMPLEX, newType, "native", MPI_INFO_NULL, ierr )
 !    if( ierr .ne. 0 ) return
 !    call MPI_FILE_WRITE_ALL( fileHandle,  UofX2, i, newType, stat, ierr )
@@ -1056,7 +1062,7 @@ module prep_wvfn
     if( ierr .ne. 0 ) return
 
     call MPI_GET_COUNT( stat, MPI_DOUBLE_COMPLEX, i, ierr )
-    write(1000+myid,*) i
+    if( debug ) write(1000+myid,*) i
   
     call MPI_TYPE_FREE( newType, ierr )
     if( ierr .ne. 0 ) return
@@ -1121,37 +1127,37 @@ module prep_wvfn
       do i = 1, 3
         do k = 0, 5
           test = fftGrid(i) + k
-          write(1000+myid,*) 'TESTING: ', test
+          if( debug ) write(1000+myid,*) 'TESTING: ', test
           do
             if( mod( test, 2 ) .ne. 0 ) exit
             test = test / 2
-            write(1000+myid,*) '   ', 2
+            if( debug ) write(1000+myid,*) '   ', 2
           enddo
           do j = 5, 3, -2
             do
               if( mod( test, j ) .ne. 0 ) exit
               test = test / j
-              write(1000+myid,*) '   ', j
+              if( debug ) write(1000+myid,*) '   ', j
             enddo
           enddo
 #ifdef __FFTW3
           do
             if( mod( test, 7 ) .ne. 0 ) exit
             test = test / 7
-            write(1000+myid,*) '   ', 7
+            if( debug ) write(1000+myid,*) '   ', 7
           enddo
           if( mod( test, 11 ) .eq. 0 ) then
             test = test / 11
-            write(1000+myid,*) '   ', 11
+            if( debug ) write(1000+myid,*) '   ', 11
           endif
           if( mod( test, 13 ) .eq. 0 ) then
             test = test / 13
-            write(1000+myid,*) '   ', 13
+            if( debug ) write(1000+myid,*) '   ', 13
           endif
 #endif
           if( test .eq. 1 ) then
             fftGrid(i) = fftGrid(i) + k
-            write(1000+myid,*) 'TESTING:    ', fftGrid(i)
+            if( debug ) write(1000+myid,*) 'TESTING:    ', fftGrid(i)
             exit
           endif
 
