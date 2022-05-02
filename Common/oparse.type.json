@@ -4,8 +4,9 @@
          "broaden" : "f",
          "gmres" : {
             "echamp" : "b",
-            "elist" : "b",
-            "erange" : "b",
+            "elist" : "af",
+            "erange" : "af",
+            "estyle" : "s",
             "ffff" : "f",
             "gprc" : "f",
             "nloop" : "i"
@@ -52,8 +53,10 @@
          "bwflg" : "b",
          "decut" : "f",
          "gmres" : {
-            "elist" : "b",
-            "erange" : "b",
+            "echamp" : "b",
+            "elist" : "af",
+            "erange" : "af",
+            "estyle" : "s",
             "ffff" : "f",
             "gprc" : "f",
             "nloop" : "i"

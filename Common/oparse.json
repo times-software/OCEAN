@@ -4,8 +4,11 @@
          "broaden" : -1,
          "gmres" : {
             "echamp" : true,
-            "elist" : false,
-            "erange" : false,
+            "elist" : [
+               0
+            ],
+            "erange" : [],
+            "estyle" : "list",
             "ffff" : 5e-08,
             "gprc" : 13.605,
             "nloop" : 80
@@ -61,8 +64,12 @@
          "bwflg" : false,
          "decut" : 10,
          "gmres" : {
-            "elist" : false,
-            "erange" : false,
+            "echamp" : true,
+            "elist" : [
+               0
+            ],
+            "erange" : [],
+            "estyle" : "list",
             "ffff" : 5e-08,
             "gprc" : 13.605,
             "nloop" : 80
