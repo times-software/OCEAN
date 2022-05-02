@@ -254,6 +254,7 @@ sub QErunTest
     my $mem = -1;
     my $nspin = 1; 
     my $FFT = -1;
+    my $OMP = -1;
     $nspin = $hashRef->{'general'}->{'nspin'} if( exists $hashRef->{'general'}->{'nspin'} );
     while (<TMP>)
     { 
@@ -273,7 +274,10 @@ sub QErunTest
       elsif( $_ =~ m/FFT dimensions:\s\(\s*(\d+),\s*(\d+),\s*(\d+)/ ) {
         $FFT = $3;
       }
-      last if( $actualKpts > 0 && $numKS > 0 && $mem > 0 && $FFT > 0);
+      elsif( $_ =~ m/Threads\/MPI process:\s+(\d+)/ ) {
+        $OMP = $1;
+      }
+      last if( $actualKpts > 0 && $numKS > 0 && $mem > 0 && $FFT > 0 && $OMP > 0 );
     }
     close TMP;
     
@@ -283,7 +287,7 @@ sub QErunTest
     }
     else
     { 
-      ($ncpus, $npool, $nbd) = QEPoolControl( $actualKpts, $numKS, $mem, $FFT, $hashRef->{'computer'} );
+      ($ncpus, $npool, $nbd) = QEPoolControl( $actualKpts, $numKS, $mem, $FFT, $OMP, $hashRef->{'computer'} );
     }
   }
   else
@@ -667,11 +671,15 @@ sub QEfixPP
 # Figure out how many pools to run with
 sub QEPoolControl
 {
-  my ( $actualKpts, $numKS, $mem, $FFT, $hashRef ) = @_;
+  my ( $actualKpts, $numKS, $mem, $FFT, $OMP, $hashRef ) = @_;
 
-  my $maxMem = 48000;
+  $OMP = 1 if( $OMP < 1 );
+  my $maxMem = 4000*$OMP;
   my $minPool = 0.9;
   $minPool = $mem / $maxMem if( $mem > $maxMem );
+
+  print "Memory estimate $mem\n";
+  print "Min pool size $minPool\n";
   
 
 #  print "$hashRef->{'ncpus'}\n";
@@ -716,6 +724,27 @@ sub QEPoolControl
 #      print "$j  $i  $nbd $kPerPool  $cost\n";
       $cpusAndPools{ $cost } = [ $j, $i, $nbd ];
     }
+  }
+
+  if( scalar keys %cpusAndPools < 1 ) {
+    my $j = $hashRef->{'ncpus'};
+    my $i = 1;
+    my $cpuPerPool = $j;
+    my $nbd = 1;
+    if ( $numKS > 0 && $j / $i > $numKS ) { die "Memory won't fit" }
+    if( $cpuPerPool > $FFT && $FFT > 0 ) {
+      for( my $ii = 2; $ii <= $cpuPerPool/2; $ii++ ) {
+        next if( $numKS % $ii || $cpuPerPool % $ii);
+        $nbd = $ii;
+        last if( $cpuPerPool/$nbd <= $FFT );
+      }
+      next if( $nbd == 1 );
+    }
+
+    my $kPerPool = ceil( $actualKpts / $i );
+    my $cost = $kPerPool / ( $cpuPerPool * ( 0.999**$cpuPerPool ) );
+    print "$j  $i  $nbd $kPerPool  $cost\n";
+    $cpusAndPools{ $cost } = [ $j, $i, $nbd ];
   }
 
   my $ncpus; my $npool; my $nbd;
