@@ -11,6 +11,7 @@ use strict;
 use POSIX;
 use File::Spec;
 use File::Copy;
+use Math::Trig;
 
 #TODO: should loop here over split if we have it
 sub QErunNSCF
@@ -703,8 +704,16 @@ sub QEPoolControl
       }
           
       my $kPerPool = ceil( $actualKpts / $i );
-      my $cost = $kPerPool / ( $cpuPerPool * ( 0.999**$cpuPerPool ) );
-      print "$j  $i  $nbd $kPerPool  $cost\n";
+      my $cost = $kPerPool / $cpuPerPool;
+      # Penalize multi-procs per pool since k-point parallelization is most efficient
+      print "$j  $i  $nbd $kPerPool  $cost";
+      $cost /= ( 0.999**$cpuPerPool );
+      print "  $cost";
+      # Penalize is not many bands per 
+      $cost /= ( atan($numKS/$cpuPerPool) * 2.0/pi());
+      print "  $cost\n";
+#      my $cost = $kPerPool / ( $cpuPerPool * ( 0.999**$cpuPerPool ) );
+#      print "$j  $i  $nbd $kPerPool  $cost\n";
       $cpusAndPools{ $cost } = [ $j, $i, $nbd ];
     }
   }
