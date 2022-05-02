@@ -10,6 +10,9 @@ PSP: ONCVPSP-PW-PDv0.4.upf.json ONCVPSP-PW-PDv0.4.psp8.json \
 
 all: $(PSP)
 
+clean:
+	rm $(PSP)
+
 install:
 	cp *.json $(INSTDIR)
 

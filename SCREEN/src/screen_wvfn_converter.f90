@@ -3946,6 +3946,10 @@ module screen_wvfn_converter
       det = 1.0_dp / det
     else
       outMat = 0.0_DP
+      write(6,*) 'Inv failed'
+      write(6,*) inMat(:,1)
+      write(6,*) inMat(:,2)
+      write(6,*) inMat(:,3)
       ierr = 9
       return
     end if

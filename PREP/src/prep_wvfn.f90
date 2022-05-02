@@ -309,7 +309,7 @@ module prep_wvfn
 
 
             nband_chunk = 1
-!$          nband_chunk = omp_get_max_threads
+! !$          nband_chunk = omp_get_max_threads
 
             allocate( wvfn( fftGrid(1), fftGrid(2), fftGrid(3), nband_chunk ) )
             !JTV
@@ -321,10 +321,11 @@ module prep_wvfn
             nchunk = ( nbands - 1 ) / nband_chunk + 1
             do ichunk = 1, nchunk
               nband_todo = min( nband_chunk, nbands - ( ichunk - 1 )*nband_chunk )
-              call prep_wvfn_doFFT( gvecPointer, UofGPointer, wvfn(:,:,:,1:nband_todo) )
+              ib = (ichunk-1)*nband_chunk+1
+              call prep_wvfn_doFFT( gvecPointer, UofGPointer(:,ib:), wvfn(:,:,:,1:nband_todo) )
 
 
-              ib = 1 + (ichunk-1)*nband_chunk
+!              ib = 1 + (ichunk-1)*nband_chunk
               ib2 = ib + nband_todo - 1
               call prep_wvfn_u1( wvfn(:,:,:,1:nband_todo), UofX(:,:,:,ib:ib2), ierr )
               if( ierr .ne. 0 ) return
