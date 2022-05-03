@@ -19,6 +19,7 @@ program OCEAN_exciton_plot
 
   integer, allocatable :: ibeg(:,:)
   integer :: Rmesh(3), kmesh(3), nband, nalpha, nkpts, NR, Riter, kiter, xmesh(3), nspn, ispin, ivh2
+  integer :: RmeshMin(3), RmeshMax(3)
   integer :: ikx, iky, ikz, iRx, iRy, iRz, NX, i, ix, x_count, xiter, iy, iz, izz, bloch_selector, icms, ivms, icml
   integer :: brange(4), u2size, u2start, Rshift(3), natom, kiter_break, Rstart(3), idum(3), ZNL(3)
   integer :: xmeshOut(3), xtarg(3), natom2, atomTarg, ixx, iyy, ixxx, iyyy, iter, j, k
@@ -34,24 +35,31 @@ program OCEAN_exciton_plot
 
   twopi = 2.0_dp * 4.0_dp * atan( 1.0_dp )
 
-  oldStyle = .false.
-  atomTarg = 4
-  realSpaceBox(1) = 16.0_DP
-  realSpaceBox(2) = 16.0_DP
-  realSpaceBox(3) = 16.0_DP
-  rsDelta = 0.12_DP
-  do i = 1, 3
-    xmeshOut(i) = 1+ realSpaceBox(i) / rsDelta
-  enddo
+!  oldStyle = .false.
+!  atomTarg = 3
+!  realSpaceBox(1) = 16.0_DP
+!  realSpaceBox(2) = 16.0_DP
+!  realSpaceBox(3) = 16.0_DP
+!  rsDelta = 0.12_DP
 
   open(unit=99,file='exciton_plot.ipt',form='formatted',status='old')
   read(99,*) filname
   read(99,*) outname
-  read(99,*) Rmesh(:)
-  read(99,*) Rstart(:)
+  read(99,*) oldStyle
+  if( oldStyle ) then
+    read(99,*) Rmesh(:)
+    read(99,*) Rstart(:)
+  else
+    read(99,*) atomTarg
+    read(99,*) realSpaceBox(:)
+    read(99,*) rsDelta
+    do i = 1, 3
+      xmeshOut(i) = 1+ realSpaceBox(i) / rsDelta
+    enddo
+  endif
 !  read(99,*) tau(:)
-  tau(:) = 0.0_dp
   close(99)
+  tau(:) = 0.0_dp
 
   open(unit=99,file='nbuse.ipt',form='formatted',status='old')
   read(99,*) nband
@@ -153,6 +161,43 @@ program OCEAN_exciton_plot
     allocate( ibeg( 1, 1 ) )
     ivh2 = brange( 2 )
   endif
+
+
+  ! Surely there is a smatter way, but this will be fast enough
+  if( .not. oldStyle ) then
+    RmeshMin(:) = 0
+    RmeshMax(:) = 0
+
+!    do ix = 1, xmeshOut(1)
+!      rvec(1) = dble(ix-1) * rsDelta - realSpaceBox(1)/2.0_DP + atom_loc(1, atomTarg )
+!      do iy = 1, xmeshOut(2)
+!        rvec(2) = dble(iy-1) * rsDelta - realSpaceBox(2)/2.0_DP + atom_loc(2, atomTarg )
+    do ix = 0, 1
+      rvec(1) = dble(ix) * rsDelta * dble( xmeshOut(1)-2) - realSpaceBox(1)/2.0_DP + atom_loc(1, atomTarg )
+      do iy = 0,1
+        rvec(2) = dble(iy) * rsDelta * dble( xmeshOut(2)-2) - realSpaceBox(2)/2.0_DP + atom_loc(2, atomTarg )
+        do iz = 0, 1
+          rvec(3) = dble(iz) * rsDelta * dble( xmeshOut(3) -2 ) - realSpaceBox(3)/2.0_DP + atom_loc(3, atomTarg )
+
+          temp1 = matmul( inverseA, rvec )
+          write(6,*) temp1
+          do i = 1, 3
+            RmeshMin(i) = min( RmeshMin(i), floor( temp1(i) ) )
+            RmeshMax(i) = max( RmeshMax(i), ceiling( temp1(i) ) )
+          enddo
+        enddo
+      enddo
+    enddo
+
+    write(6,*) RmeshMin(:)
+    write(6,*) RmeshMax(:)
+    write(6,*) RmeshMax(:)-RmeshMin(:)+1
+
+    Rmesh(:) = RmeshMax(:)-RmeshMin(:)+1
+    Rstart(:) = RmeshMin(:)
+    
+  endif
+
 
 !JTV!
 !  nalpha = 4
