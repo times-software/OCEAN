@@ -219,7 +219,7 @@ if( $newDftData->{'epsilon'}->{'method'} eq "input" ) {
 
 ### BSE
 my @bseList = ( "split", "toldfe" );
-my @bseSecondaryList = ( "poolsize" );
+my @bseSecondaryList = ( "poolsize", "diagonalization" );
 
 copyAndCompare( $newDftData->{'bse'}, $commonOceanData->{'dft'}->{'bse'}, $dftData->{'bse'},
                 $newDftData->{'bse'}, \@bseList );
@@ -261,7 +261,7 @@ if( $newDftData->{'bse'}->{'complete'} )
 
 ### SCREEN
 my @screenList = ( "toldfe" );
-my @screenSecondaryList = ( "poolsize" );
+my @screenSecondaryList = ( "poolsize", "diagonalization" );
 
 copyAndCompare( $newDftData->{'screen'}, $commonOceanData->{'dft'}->{'screen'}, $dftData->{'screen'},
                 $newDftData->{'screen'}, \@screenList );

@@ -115,6 +115,7 @@
    "dft" : {
       "abpad" : 4,
       "bse" : {
+         "diagonalization" : "ppcg",
          "poolsize" : -1,
          "split" : true,
          "toldfe" : -1
@@ -135,7 +136,7 @@
          "poolsize" : -1,
          "toldfe" : -1
       },
-      "diagonalization" : "david",
+      "diagonalization" : "default",
       "ecut" : null,
       "epsilon" : {
          "metal_max" : 10000,
@@ -171,6 +172,7 @@
       "program" : "abi",
       "redirect" : false,
       "screen" : {
+         "diagonalization" : "ppcg",
          "poolsize" : -1,
          "toldfe" : -1
       },

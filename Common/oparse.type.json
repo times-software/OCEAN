@@ -93,6 +93,7 @@
    "dft" : {
       "abpad" : "i",
       "bse" : {
+         "diagonalization" : "s",
          "poolsize" : "i",
          "split" : "b",
          "toldfe" : "f"
@@ -139,6 +140,7 @@
       "program" : "s",
       "redirect" : "b",
       "screen" : {
+         "diagonalization" : "s",
          "poolsize" : "i",
          "toldfe" : "f"
       },

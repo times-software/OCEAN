@@ -334,7 +334,7 @@ sub QEparseOut
       }
       elsif( $scf_line =~ m/\<fermi_energy\>([-+]?\d+\.\d+[Ee]?[-+]?(\d+)?)/ )
       {
-        $fermi = $1;
+        $fermi = $1*1;
       }
       # We just average the two for spin=2 
       elsif( $scf_line =~ m/\<two_fermi_energies\>([-+]?\d+\.\d+[Ee]?[-+]?(\d+)?)\s+([-+]?\d+\.\d+[Ee]?[-+]?(\d+)?)/ )
@@ -367,13 +367,13 @@ sub QEparseOut
       }
     }
     close SCF;
-    unless( defined $fermi ) {
-      if( defined $lowest ) {
-        $fermi = ($highest + $lowest)/2; # Move from Ha to Ryd
-        $hashRef->{'highest'} = $highest;
-        $hashRef->{'lowest'} = $lowest;
-        $hashRef->{'fermi'} = $fermi;
-      }
+    if( defined $highest && defined $lowest ) {
+      $fermi = ($highest + $lowest)/2; # Move from Ha to Ryd
+      $hashRef->{'highest'} = $highest;
+      $hashRef->{'lowest'} = $lowest;
+      $hashRef->{'fermi'} = $fermi;
+      printf "%g  %g  %g\n", $highest*13.60569253*2, $lowest*13.60569253*2, $fermi*13.60569253*2;
+      printf "%g  %g  %g\n", $highest, $lowest, $fermi;
     } else {
       $fermi *= 1; # Move from Ha to Ryd
       $hashRef->{'fermi'} = $fermi;
@@ -404,11 +404,11 @@ sub QEparseOut
     if( defined( $fermi ) ) {
       if( $units =~ m/hartree/i )
       {
-        $fermi *= 2;
+        $fermi *= 1;
       }
       elsif( $units =~ m/eV/i )
       {
-        $fermi /= 13.60569253;
+        $fermi /= 13.60569253/2;
       }
 
       $hashRef->{'fermi'} = $fermi;
@@ -462,7 +462,7 @@ sub QEparseOut
     close OUTFILE;
   }
   return 2 unless( defined( $fermi ) );
-  print "$hashRef->{'fermi'}\n";
+  print "FERMI: $hashRef->{'fermi'}\n";
 
   if( exists( $hashRef->{'lowest'} ) ){
     if( $hashRef->{'lowest'} >= $hashRef->{'highest'} ) {
@@ -825,6 +825,7 @@ sub QEprintInput
   my $tprnfor = '.false.';
   my $nosyminv;
   my $startingPot;
+  my $diagonalization;
   if( $calcFlag )
   {
     $calc = 'scf';
@@ -832,6 +833,11 @@ sub QEprintInput
     $tprnfor = 'true' if( $generalRef->{'general'}->{'calc_force'} );
     $nosyminv = 'false';
     $startingPot = 'atomic';
+    if( $generalRef->{'general'}->{'diagonalization'} == 'default' ) {
+      $diagonalization = 'david';
+    } else {
+      $diagonalization = $generalRef->{'general'}->{'diagonalization'};
+    }
   }
   else
   {
@@ -840,6 +846,12 @@ sub QEprintInput
     $tprnfor = 'false';
     $nosyminv = 'true';
     $startingPot = 'file';
+    $diagonalization = $specificRef->{'diagonalization'};
+    if( $generalRef->{'scf'}->{'version'} > 0 && $generalRef->{'scf'}->{'version'} < 6.4 ) {
+      $diagonalization = 'david';
+    } else {
+      printf "QE version %g\n", $generalRef->{'scf'}->{'version'};
+    }
   }
 
   my $noncolin = '.false.';
@@ -946,7 +958,8 @@ sub QEprintInput
 #        .  "  electron_maxstep = $generalRef->{'general'}->{'nstep'}\n"
         .  "  startingwfc = \'$generalRef->{'general'}->{'startingwfc'}\'\n"
         .  "  startingpot = \'$startingPot\'\n"
-        .  "  diagonalization = \'$generalRef->{'general'}->{'diagonalization'}\'\n"
+        .  "  diagonalization = \'$diagonalization\'\n"
+#        .  "  diagonalization = \'$generalRef->{'general'}->{'diagonalization'}\'\n"
         .  "/\n";
 #  if( $inputs{'print nbands'} > 100 && $inputs{'calctype'} =~ m/nscf/i )
 #  {
