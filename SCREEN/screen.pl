@@ -2046,6 +2046,14 @@ sub runVhommod
   printf OUT "%g\n", $ref->{'qmax'};
   close OUT;
 
+  if( exists $ref->{'nav'} && $ref->{'nav'} >= 0 ) {
+    open OUT, ">", 'fake_nav.ipt' or die;
+    printf OUT "%g\n", $ref->{'nav'};
+    close OUT;
+  } elsif( -e 'fake_nav.ipt' ) {
+    unlink 'fake_nav.ipt';
+  }
+
   print "$ENV{'OCEAN_BIN'}/vhommod.x\n";
   system("$ENV{'OCEAN_BIN'}/vhommod.x" );
   if ($? == -1) {
