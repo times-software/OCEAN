@@ -401,10 +401,12 @@ module OCEAN_gmres
       enddo
     enddo
 
-    call MPI_WAITALL( iter**2, re_request, MPI_STATUSES_IGNORE, ierr )
-    if( ierr .ne. 0 ) return
-    call MPI_WAITALL( iter**2, im_request, MPI_STATUSES_IGNORE, ierr )
-    if( ierr .ne. 0 ) return
+    do i = 1, iter
+      call MPI_WAITALL( iter, re_request(:,i), MPI_STATUSES_IGNORE, ierr )
+      if( ierr .ne. 0 ) return
+      call MPI_WAITALL( iter, im_request(:,i), MPI_STATUSES_IGNORE, ierr )
+      if( ierr .ne. 0 ) return
+    enddo
     
     allocate( w(iter), z(iter,iter) )
     if( myid .eq. root ) then

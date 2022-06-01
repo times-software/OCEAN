@@ -180,10 +180,15 @@ module SCREEN_timekeeper
 #endif
 
     character(LEN=16) :: filnam
-    integer :: iter, nproc, ierr, stat, i
+    integer :: iter, nproc, ierr, i
     integer(8) :: iavg, imax, imin
     real(DP) :: avg, stddev
     integer(8), allocatable :: allTotal(:,:)
+#ifdef MPI_F08
+    TYPE(MPI_Status) :: stat
+#else
+    integer :: stat(MPI_STATUS_SIZE)
+#endif
 
 !   This can be changed if for some reason we run on all the computers
     if( myid .gt. 999999 ) return 
@@ -201,10 +206,10 @@ module SCREEN_timekeeper
         allocate( allTotal( ndivs, 0:nproc-1) )
         allTotal(:,0) = total(1:ndivs)
         do iter = 1, nproc-1
-          call MPI_RECV( allTotal(:,iter), ndivs, MPI_LONG, iter, 1, comm, stat, ierr )
+          call MPI_RECV( allTotal(:,iter), ndivs, MPI_INTEGER8, iter, 1, comm, stat, ierr )
         enddo
       else
-        call MPI_SEND( total, ndivs, MPI_LONG, 0, 1, comm, stat, ierr )
+        call MPI_SEND( total(:), ndivs, MPI_INTEGER8, 0, 1, comm, ierr )
       endif
 
       if( myid .eq. 0 ) then
