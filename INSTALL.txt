@@ -1,11 +1,40 @@
-You will need to set up Makefile.arch to match your system. 
-Please see the annotated Makefile.arch.example for help.
+# Welcome to the OCEAN installation guide.
 
-To run you will need either ABINIT or QuantumEspresso (or both)
-Optionally you can make use of the FFTW library (fftw.org).
+## Pre-requisites
+There are several required and several recommended external software/libraries. 
+0. Fortran compiler and MPI -- OCEAN is written in fortran and uses MPI for 
+  parallelism. Any reasonably recent version of either should work.
+1. DFT code -- Currently both ABINIT (abinit.org) and QuantumESPRESSO 
+  (quantum-espresso.org) are supported. Visit their respective websites for 
+  downloads and instructions
+2. BLAS -- OCEAN uses a number of vector and matrix subroutines provided by 
+  a BLAS library. Options include the standard netlib.org distribution, open-source 
+  options like ATLAS, or vendor distributions from companies like INTEL, AMD, or CRAY. 
+3. FFTW -- while not required, FFTW is nice to have and easy to install (fftw.org)
+4. ONCVPSP -- To use psuedopotentials from PseudoDojo you must install a modified 
+  version of oncvpsp.x. The modified version can be found at github.com/jtv3/oncvpsp
+  (download the latest release). The original version of this code can be found at 
+  http://www.mat-simresearch.com and all credit for the functionality of the code 
+  belongs to D. R. Hamann Phys. Rev. B 88, 085117 (2013) 
 
+## Building
+You will need to set up Makefile.arch to match your system. Please see the 
+annotated Makefile.arch.example for help. 
 
-After setting up Makefile.arch you will be able to make and then make install.
+Run 'make' in the toplevel OCEAN directory. If there are no errors you can 
+then run 'make install'
 
+Optionally, if you have installed oncvpsp.x (see pre-requisites above), you 
+can add the Pseudo-Dojo pseudopotential database by going into the PSP 
+directory and running 'make database' followed by 'make install'
+
+## First run
 In the EXAMPLES directory are several quick examples and a sample output 
 to check that your install has completed correctly. 
+
+
+1. Go to the LiF example, 'cd EXAMPLE/LiF'. 
+2. Edit the LiF.in file to match your system by changing the flag para_prefix 
+  to use the correct mpi launcher (mpirun, srun, mpiexec) and specify the 
+  correct number of processors available on your computer
+3. Run by invoking ocean.pl: '/path/to/ocean/install/ocean.pl LiF.in'

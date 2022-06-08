@@ -116,10 +116,8 @@ def main():
     edgeElement = input("Select element for XAS: " + ", ".join(set(new_atoms.symbols))  + "\n" ) 
     
     edgeElementNumber = 0 
-#    for idx, el in enumerate(set(new_atoms.symbols)):
     for el in set(new_atoms.symbols):
         if el == edgeElement:
-#            edgeElementNumber = list(set(new_atoms.numbers))[idx]
             edgeElementNumber = Atoms( el ).numbers[0]
             print( "Selected edge element {0} atomic number {1}".format( el, edgeElementNumber) )
         else:
