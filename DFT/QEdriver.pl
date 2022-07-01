@@ -22,10 +22,20 @@ sub QErunNSCF
 #              . $specificHashRef->{'kmesh'}[2] . "q" . $specificHashRef->{'kshift'}[0] . '_' 
 #              . $specificHashRef->{'kshift'}[1] . '_'  . $specificHashRef->{'kshift'}[2];
 
-  my $dirname = sprintf "k%i_%i_%iq%.6f_%.6f_%.6f", $specificHashRef->{'kmesh'}[0], 
+  my $dirname;
+  my $dualKpt = 0;
+  if( $specificHashRef->{'nonzero_q'} && not $specificHashRef->{'split'}) {
+    $dirname = sprintf "ks%i_%i_%iq%.6f_%.6f_%.6f", $specificHashRef->{'kmesh'}[0],
                     $specificHashRef->{'kmesh'}[1], $specificHashRef->{'kmesh'}[2], 
                     $specificHashRef->{'kshift'}[0], $specificHashRef->{'kshift'}[1],
                     $specificHashRef->{'kshift'}[2];
+    $dualKpt = 1;
+  } else {
+    $dirname = sprintf "k%i_%i_%iq%.6f_%.6f_%.6f", $specificHashRef->{'kmesh'}[0], 
+                    $specificHashRef->{'kmesh'}[1], $specificHashRef->{'kmesh'}[2], 
+                    $specificHashRef->{'kshift'}[0], $specificHashRef->{'kshift'}[1],
+                    $specificHashRef->{'kshift'}[2];
+  }
 
   print "$dirname\n";
 
@@ -52,8 +62,8 @@ sub QErunNSCF
   {
     my $nk = $specificHashRef->{'kmesh'}[0] * $specificHashRef->{'kmesh'}[1] 
            * $specificHashRef->{'kmesh'}[2];
-    $nk *=2  if( $specificHashRef->{'nonzero_q'} && not $specificHashRef->{'split'});
-    $kptString = "K_POINTS crystal\n  $nk\n" . kptGen( $specificHashRef, $shift );  
+    $nk *=2  if( $dualKpt );
+    $kptString = "K_POINTS crystal\n  $nk\n" . kptGen( $specificHashRef, $dualKpt );  
   }
 
   # Modify QEprintInput to take two different hashes and a string 
@@ -1005,11 +1015,11 @@ sub QEprintInput
 #Move this to standalone at some point for re-use with ABINIT
 sub kptGen
 {
-  my ( $hashRef, $split ) = @_;
+  my ( $hashRef, $dualKpt ) = @_;
 
   my $kptText = "";
   my @q = ( 0, 0, 0 );
-  if( $hashRef->{'nonzero_q'} && not $split ) {
+  if( $dualKpt ) {
     $q[0] = $hashRef->{'photon_q'}[0];
     $q[1] = $hashRef->{'photon_q'}[1];
     $q[2] = $hashRef->{'photon_q'}[2];
@@ -1020,16 +1030,28 @@ sub kptGen
     my $xk = $hashRef->{'kshift'}[0]/$hashRef->{'kmesh'}[0] + $x/$hashRef->{'kmesh'}[0] - $q[0];
     while( $xk > 1 ) { $xk -= 1.0; }
     while( $xk < -1 ) { $xk += 1.0; }
+    my $xk2 = $hashRef->{'kshift'}[0]/$hashRef->{'kmesh'}[0] + $x/$hashRef->{'kmesh'}[0];
+    while( $xk2 > 1 ) { $xk2 -= 1.0; }
+    while( $xk2 < -1 ) { $xk2 += 1.0; }
     for( my $y = 0; $y < $hashRef->{'kmesh'}[1]; $y++ ) {
       my $yk = $hashRef->{'kshift'}[1]/$hashRef->{'kmesh'}[1] + $y/$hashRef->{'kmesh'}[1] - $q[1];
       while( $yk > 1 ) { $yk -= 1.0; }
       while( $yk < -1 ) { $yk += 1.0; }
+      my $yk2 = $hashRef->{'kshift'}[1]/$hashRef->{'kmesh'}[1] + $y/$hashRef->{'kmesh'}[1];
+      while( $yk2 > 1 ) { $yk2 -= 1.0; }
+      while( $yk2 < -1 ) { $yk2 += 1.0; }
       for( my $z = 0; $z < $hashRef->{'kmesh'}[2]; $z++ ) {
         my $zk = $hashRef->{'kshift'}[2]/$hashRef->{'kmesh'}[2] + $z/$hashRef->{'kmesh'}[2] - $q[2];
         while( $zk > 1 ) { $zk -= 1.0; }
         while( $zk < -1 ) { $zk += 1.0; }
+        my $zk2 = $hashRef->{'kshift'}[2]/$hashRef->{'kmesh'}[2] + $z/$hashRef->{'kmesh'}[2];
+        while( $zk2 > 1 ) { $zk2 -= 1.0; }
+        while( $zk2 < -1 ) { $zk2 += 1.0; }
 
         $kptText .= sprintf "%19.15f  %19.15f  %19.15f  1\n", $xk, $yk, $zk;
+        if( $dualKpt ) { 
+          $kptText .= sprintf "%19.15f  %19.15f  %19.15f  1\n", $xk2, $yk2, $zk2;
+        }
       }
     }
   }

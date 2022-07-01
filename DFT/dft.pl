@@ -175,8 +175,8 @@ copyAndCompare( $newDftData->{'computer'}, $commonOceanData->{'computer'}, $dftD
 $newDftData->{'density'}->{'complete'} = JSON::PP::false;
 $newDftData->{'potential'}->{'complete'} = JSON::PP::false;
 $newDftData->{'epsilon'}->{'complete'} = JSON::PP::false;
-$newDftData->{'screen'}->{'complete'} = JSON::PP::false;
-$newDftData->{'bse'}->{'complete'} = JSON::PP::false;
+#$newDftData->{'screen'}->{'complete'} = JSON::PP::false;
+#$newDftData->{'bse'}->{'complete'} = JSON::PP::false;
 
 
 if( $newDftData->{'scf'}->{'complete'} ) {
@@ -188,10 +188,10 @@ if( $newDftData->{'scf'}->{'complete'} ) {
       if( exists $dftData->{'potential'}->{'complete'} );
   $newDftData->{'epsilon'}->{'complete'} = $dftData->{'epsilon'}->{'complete'}
       if( exists $dftData->{'epsilon'}->{'complete'} );
-  $newDftData->{'screen'}->{'complete'} = $dftData->{'screen'}->{'complete'}
-      if( exists $dftData->{'screen'}->{'complete'} );
-  $newDftData->{'bse'}->{'complete'} = $dftData->{'bse'}->{'complete'}
-      if( exists $dftData->{'bse'}->{'complete'} );
+#  $newDftData->{'screen'}->{'complete'} = $dftData->{'screen'}->{'complete'}
+#      if( exists $dftData->{'screen'}->{'complete'} );
+#  $newDftData->{'bse'}->{'complete'} = $dftData->{'bse'}->{'complete'}
+#      if( exists $dftData->{'bse'}->{'complete'} );
 
   # If SCF already run, copy additional info from previous time
   my @scfCopyList = ( "npool", "ncpus", "fermi", "etot", "time", "version", "nelec", "lowest", "highest", "hash" );
@@ -201,8 +201,12 @@ if( $newDftData->{'scf'}->{'complete'} ) {
   
 #  copyAndCompare( $newDftData->{'bse'}, $dftData->{'bse'}, $dftData->{'bse'}, $fake, [ "completed" ] );
 
+  #Copy record of all completed NSCF runs
+  copyAndCompare( $newDftData, $dftData, $dftData, $fake, [ 'znscf' ] );
+
 } else {
   print "Need SCF run\n";
+  $newDftData->{'znscf'} = {};
 }
 
 
@@ -215,94 +219,170 @@ if( $newDftData->{'epsilon'}->{'method'} eq "input" ) {
   $newDftData->{'structure'}->{'epsilon'} = $commonOceanData->{'structure'}->{'epsilon'};
 }
 
+my @nscf_InitialList = ();
 
+# Step 0 -- what info needs to be available for PREP?
+copyAndCompare( $newDftData->{'bse'}, $commonOceanData->{'calc'}, $dftData->{'bse'},
+                $fake, [ 'photon_q', 'nonzero_q' ] );
+copyAndCompare( $newDftData->{'bse'}, $commonOceanData->{'dft'}->{'bse'}, $dftData->{'bse'},
+                $fake, [ 'split' ] );
+
+#$newDftData->{'bse'}->{'nonzero_q'} = JSON::PP::true;
+#$newDftData->{'bse'}->{'split'} = JSON::PP::true;
+#$newDftData->{'bse'}->{'photon_q'} = [ 0.01, 0.01, 0.01 ];
+$newDftData->{'bse'}->{'directories'} = [];
+
+# Step 1 -- do we have split=false && photon_q ?
+my $niter = 1;
+my $nosplit = 0;
+if( $newDftData->{'bse'}->{'nonzero_q'} ) { 
+  if( $newDftData->{'bse'}->{'split'} ) {
+    $niter = 2;
+  } else {
+    $nosplit = 1;
+  }
+}
+
+#if( $nosplit ) {die "No split not implemented yet\n";}
+
+# Step 1 -- load up general info
+for( my $i = 0; $i < $niter; $i ++ ) {
+
+  push @nscf_InitialList, {};
+  my @bseList = ( "toldfe", "poolsize", "diagonalization" );
+  copyNoCompare( $nscf_InitialList[$i], $commonOceanData->{'dft'}->{'bse'}, \@bseList );
+  @bseList = ( "kmesh", "kshift", "start_band" );
+  copyNoCompare( $nscf_InitialList[$i], $commonOceanData->{'bse'}, \@bseList );
+
+  # First loop is conduction bands, second is valence only on -q grid
+  if( $i == 0 ) {
+    @bseList = ( "nbands" );
+    copyNoCompare( $nscf_InitialList[$i], $commonOceanData->{'bse'}, \@bseList );
+  } else {  
+    @bseList = ( "fband" );
+    copyNoCompare( $nscf_InitialList[$i], $commonOceanData->{'dft'}, \@bseList );
+    printf "%.6f  %.6f  %.6f", $nscf_InitialList[$i]->{'kshift'}[0], 
+                              $nscf_InitialList[$i]->{'kshift'}[1], $nscf_InitialList[$i]->{'kshift'}[2];
+    shiftKpointsByPhoton( $nscf_InitialList[$i], $newDftData->{'bse'}->{'photon_q'} );
+    printf "  %.6f  %.6f  %.6f\n", $nscf_InitialList[$i]->{'kshift'}[0], 
+                              $nscf_InitialList[$i]->{'kshift'}[1], $nscf_InitialList[$i]->{'kshift'}[2];
+  }
+  my $dirname;
+  if( $nosplit ) {
+    $nscf_InitialList[$i]->{'nonzero_q'} = JSON::PP::true;
+    $nscf_InitialList[$i]->{'photon_q'} = $newDftData->{'bse'}->{'photon_q'};
+    $dirname = sprintf "ks%i_%i_%iq%.6f_%.6f_%.6f", $nscf_InitialList[$i]->{'kmesh'}[0],
+                    $nscf_InitialList[$i]->{'kmesh'}[1], $nscf_InitialList[$i]->{'kmesh'}[2],
+                    $nscf_InitialList[$i]->{'kshift'}[0], $nscf_InitialList[$i]->{'kshift'}[1],
+                    $nscf_InitialList[$i]->{'kshift'}[2];
+  } else {
+    $nscf_InitialList[$i]->{'nonzero_q'} = JSON::PP::false;
+    $dirname = sprintf "k%i_%i_%iq%.6f_%.6f_%.6f", $nscf_InitialList[$i]->{'kmesh'}[0],
+                    $nscf_InitialList[$i]->{'kmesh'}[1], $nscf_InitialList[$i]->{'kmesh'}[2],
+                    $nscf_InitialList[$i]->{'kshift'}[0], $nscf_InitialList[$i]->{'kshift'}[1],
+                    $nscf_InitialList[$i]->{'kshift'}[2];
+  }
+  push @{$newDftData->{'bse'}->{'directories'}}, $dirname;
+  checkSetGamma( $nscf_InitialList[$i] );
+}
+$newDftData->{'bse'}->{'brange'} = [ 0, 0, 0, $commonOceanData->{'bse'}->{'nbands'} ];
+
+# repeat but with screen info, $niter is location of last item in InitalList
+unless( $commonOceanData->{'calc'}->{'mode'} eq 'val' && ! ( $commonOceanData->{'screen'}->{'mode'} eq 'grid' ) )
+{
+  push @nscf_InitialList, {};
+  my $i = $niter;
+  my @bseList = ( "toldfe", "poolsize", "diagonalization" );
+  copyNoCompare( $nscf_InitialList[$i], $commonOceanData->{'dft'}->{'screen'}, \@bseList );
+  @bseList = ( "kmesh", "kshift", "nbands" );
+  copyNoCompare( $nscf_InitialList[$i], $commonOceanData->{'screen'}, \@bseList );
+  my $dirname = sprintf "k%i_%i_%iq%.6f_%.6f_%.6f", $nscf_InitialList[$i]->{'kmesh'}[0],
+                    $nscf_InitialList[$i]->{'kmesh'}[1], $nscf_InitialList[$i]->{'kmesh'}[2],
+                    $nscf_InitialList[$i]->{'kshift'}[0], $nscf_InitialList[$i]->{'kshift'}[1],
+                    $nscf_InitialList[$i]->{'kshift'}[2];
+  $newDftData->{'screen'}->{'directories'} = [ $dirname ];
+  $newDftData->{'screen'}->{'enable'} = JSON::PP::true;
+  $newDftData->{'screen'}->{'brange'} = [ 0, 0, 0, $commonOceanData->{'screen'}->{'nbands'} ];
+} else {
+  $newDftData->{'screen'}->{'enable'} = JSON::PP::false;
+}
+
+my $nscf_TodoList = {};
+foreach my $hashRef (@nscf_InitialList) {
+  my $dirname = sprintf "%i_%i_%iq%.6f_%.6f_%.6f", $hashRef->{'kmesh'}[0],
+                    $hashRef->{'kmesh'}[1], $hashRef->{'kmesh'}[2],
+                    $hashRef->{'kshift'}[0], $hashRef->{'kshift'}[1],
+                    $hashRef->{'kshift'}[2];
+  if( $hashRef->{'nonzero_q'} ) {
+    $dirname = 'ks' . $dirname;
+  } else {
+    $dirname = 'k' . $dirname;
+  }
+
+  my $addThisCalculation = 1;
+  if( defined $newDftData->{'znscf'}->{$dirname} ) {
+    print "$dirname exists\n";
+    if( $newDftData->{'znscf'}->{ $dirname }->{'toldfe'} <= $hashRef->{'toldfe'} &&
+        $newDftData->{'znscf'}->{ $dirname }->{'nbands' } >= $hashRef->{'nbands'} ) {
+      $addThisCalculation = 0;
+    }
+  } else {
+    print "$dirname is new\n";
+  }
+  if( $addThisCalculation ) {
+    print "Will run $dirname\n";
+    if( defined( $nscf_TodoList->{ $dirname } ) ) {
+      print "Condensing two runs\n";
+      $hashRef->{'toldfe'} = $nscf_TodoList->{ $dirname }->{'toldfe'} 
+          if( $nscf_TodoList->{ $dirname }->{'toldfe'} < $hashRef->{'toldfe'} );
+      $hashRef->{'nbands'} = $nscf_TodoList->{ $dirname }->{'nbands'} 
+          if( $nscf_TodoList->{ $dirname }->{'nbands'} > $hashRef->{'nbands'} );
+    }
+    $nscf_TodoList->{ $dirname } = dclone( $hashRef );
+  }
+}
+my $enable = 1;
+$json->canonical([$enable]);
+$json->pretty([$enable]);
+open OUT, ">", "derp.json" or die;
+print OUT $json->encode($nscf_TodoList);
+close OUT;
+
+
+my $enable = 1;
+$json->canonical([$enable]);
+$json->pretty([$enable]);
+open OUT, ">", "dft2.json" or die;
+print OUT $json->encode($newDftData);
+close OUT;
+
+#exit 0;
 
 ### BSE
-my @bseList = ( "split", "toldfe" );
-my @bseSecondaryList = ( "poolsize", "diagonalization" );
 
-copyAndCompare( $newDftData->{'bse'}, $commonOceanData->{'dft'}->{'bse'}, $dftData->{'bse'},
-                $newDftData->{'bse'}, \@bseList );
-copyAndCompare( $newDftData->{'bse'}, $commonOceanData->{'dft'}->{'bse'}, $dftData->{'bse'},
-                $fake, \@bseSecondaryList );
 
-@bseList = ( "kmesh", "kshift" );
-copyAndCompare( $newDftData->{'bse'}, $commonOceanData->{'bse'}, $dftData->{'bse'},
-                $newDftData->{'bse'}, \@bseList );
-copyAndCompare( $newDftData->{'bse'}, $commonOceanData->{'bse'}, $dftData->{'bse'},
-                $fake, ['start_band'] );
-
-copyAndCompare( $newDftData->{'bse'}, $commonOceanData->{'calc'}, $dftData->{'bse'},
-                $newDftData->{'bse'}, [ 'photon_q', 'nonzero_q' ] );
-
-checkSetGamma( $newDftData->{'bse'} );
-
-# Last item for BSE -- if bands requested is less than those done don't re-run!
-$newDftData->{'bse'}->{'nbands'} = $commonOceanData->{'bse'}->{'nbands'};
-if( $newDftData->{'bse'}->{'complete'} )
-{
-  if( exists $dftData->{'bse'}->{'nbands'} && 
-      $dftData->{'bse'}->{'nbands'}  >= $commonOceanData->{'bse'}->{'nbands'} )
-  {
-    $newDftData->{'bse'}->{'nbands'} = $dftData->{'bse'}->{'nbands'}
-  }
-  else
-  {
-    $newDftData->{'bse'}->{'complete'} = JSON::PP::false;
-  }
-}
-
-if( $newDftData->{'bse'}->{'complete'} )
-{   
-  my @bseCopyList = ( "npool", "ncpus", "fermi", "etot", "time", "version", "nelec", "lowest", "highest", "hash", "brange" );
-  copyAndCompare( $newDftData->{'bse'}, $dftData->{'bse'}, $dftData->{'bse'}, $fake, \@bseCopyList );
-}
+#if( $newDftData->{'bse'}->{'complete'} )
+#{   
+#  my @bseCopyList = ( "npool", "ncpus", "fermi", "etot", "time", "version", "nelec", "lowest", "highest", "hash", "brange" );
+#  copyAndCompare( $newDftData->{'bse'}, $dftData->{'bse'}, $dftData->{'bse'}, $fake, \@bseCopyList );
+#}
 
 
 ### SCREEN
-my @screenList = ( "toldfe" );
-my @screenSecondaryList = ( "poolsize", "diagonalization" );
 
-copyAndCompare( $newDftData->{'screen'}, $commonOceanData->{'dft'}->{'screen'}, $dftData->{'screen'},
-                $newDftData->{'screen'}, \@screenList );
-copyAndCompare( $newDftData->{'screen'}, $commonOceanData->{'dft'}->{'screen'}, $dftData->{'screen'},
-                $fake, \@screenSecondaryList );
-
-@screenList = ( "kmesh", "kshift" );
-copyAndCompare( $newDftData->{'screen'}, $commonOceanData->{'screen'}, $dftData->{'screen'},
-                $newDftData->{'screen'}, \@screenList );
-checkSetGamma( $newDftData->{'screen'} );
-
-# Last item for screen -- if bands requested is less than those done don't re-run!
-$newDftData->{'screen'}->{'nbands'} = $commonOceanData->{'screen'}->{'nbands'};
-if( $newDftData->{'screen'}->{'complete'} )
-{
-  if( exists $dftData->{'screen'}->{'nbands'} &&    
-      $dftData->{'screen'}->{'nbands'}  >= $commonOceanData->{'screen'}->{'nbands'} )
-  {
-    $newDftData->{'screen'}->{'nbands'} = $dftData->{'screen'}->{'nbands'}
-  }
-  else
-  {
-    $newDftData->{'screen'}->{'complete'} = JSON::PP::false;
-  }
-}
-
-if( $newDftData->{'screen'}->{'complete'} )
-{
-  my @screenCopyList = ( "npool", "ncpus", "fermi", "etot", "time", "version", "nelec", "lowest", "highest", "hash", "brange" );
-  copyAndCompare( $newDftData->{'screen'}, $dftData->{'screen'}, $dftData->{'screen'}, $fake, \@screenCopyList );
-}
-
-$newDftData->{'screen'}->{'enable'} = JSON::PP::true;
-if( $commonOceanData->{'calc'}->{'mode'} eq 'val' )
-{
-  $newDftData->{'screen'}->{'enable'} = JSON::PP::false unless( $commonOceanData->{'screen'}->{'mode'} eq 'grid' );
-}
+#if( $newDftData->{'screen'}->{'complete'} )
+#{
+#  my @screenCopyList = ( "npool", "ncpus", "fermi", "etot", "time", "version", "nelec", "lowest", "highest", "hash", "brange" );
+#  copyAndCompare( $newDftData->{'screen'}, $dftData->{'screen'}, $dftData->{'screen'}, $fake, \@screenCopyList );
+#}
+#
+#$newDftData->{'screen'}->{'enable'} = JSON::PP::true;
+#if( $commonOceanData->{'calc'}->{'mode'} eq 'val' )
+#{
+#  $newDftData->{'screen'}->{'enable'} = JSON::PP::false unless( $commonOceanData->{'screen'}->{'mode'} eq 'grid' );
+#}
 
 
-#Copy record of all completed NSCF runs
-copyAndCompare( $newDftData, $dftData, $dftData, $fake, [ 'znscf' ] );
 
 print "Done parsing input for DFT stage\n";
 
@@ -457,7 +537,35 @@ unless( $newDftData->{'epsilon'}->{'complete'} ) {
 }
 
 
+# Time for NSCF runs
+foreach my $dirname (keys $nscf_TodoList) {
+  print "Running NSCF run for: " . $dirname . "\n";
+  my $t0 = [gettimeofday];
+  my $errorCode;
+  if( $newDftData->{'general'}->{'program'} eq "qe" ) {
+     $errorCode = QErunNSCF($newDftData, $nscf_TodoList->{$dirname}, 0 );
+  } elsif ( $newDftData->{'general'}->{'program'} eq "abi" ) {
+     $errorCode = ABIrunNSCF($newDftData, $nscf_TodoList->{$dirname}, 0 );
+  }
+  
+  exit $errorCode if( $errorCode );
+  my $s = $json->encode($newDftData->{'psp'}->{'pphash'});
+  foreach ( 'general', 'structure', 'scf' )
+  {
+    $s .= $json->encode($newDftData->{$_});
+  }
+  $s .= $json->encode($nscf_TodoList->{$dirname});
+  $nscf_TodoList->{$dirname}->{'hash'} = md5_hex( $s );
+  $nscf_TodoList->{$dirname}->{'time'} = tv_interval( $t0 );
 
+
+  $newDftData->{'znscf'}->{ $dirname } = dclone( $nscf_TodoList->{$dirname} );
+  open OUT, ">", "dft.json" or die;
+  print OUT $json->encode($newDftData);
+  close OUT;
+}
+
+if( 0 ) {
 # Time for SCREENING states
 if( $newDftData->{'screen'}->{'enable'} ) {
   # Search for completed runs
@@ -566,22 +674,26 @@ unless( $newDftData->{'bse'}->{'complete'} ) {
     close OUT;
   }
 }
-
+}
 
 # touch up Fermi if insulator
 if( $newDftData->{'general'}->{'occopt'} == 1 && $newDftData->{'general'}->{'program'} eq "qe" )
 {
   my $low = $newDftData->{'scf'}->{'lowest'};
-  $low = $newDftData->{'bse'}->{'lowest'} if ( $newDftData->{'bse'}->{'lowest'} < $low );
-
   my $high = $newDftData->{'scf'}->{'highest'};
-  $high = $newDftData->{'bse'}->{'highest'} if ( $newDftData->{'bse'}->{'highest'} > $high );
-
-  if( $newDftData->{'screen'}->{'enable'} )
-  {
-    $low = $newDftData->{'screen'}->{'lowest'} if ( $newDftData->{'screen'}->{'lowest'} < $low );
-    $high = $newDftData->{'screen'}->{'highest'} if ( $newDftData->{'screen'}->{'highest'} > $high );
+  foreach (@{$newDftData->{'bse'}->{'directories'}} ) {
+    $low = $newDftData->{'znscf'}->{$_}->{'lowest'} if ( $newDftData->{'znscf'}->{$_}->{'lowest'} < $low );
+    $high = $newDftData->{'znscf'}->{$_}->{'highest'} if ( $newDftData->{'znscf'}->{$_}->{'highest'} > $high );
   }
+#  $low = $newDftData->{'bse'}->{'lowest'} if ( $newDftData->{'bse'}->{'lowest'} < $low );
+
+#  $high = $newDftData->{'bse'}->{'highest'} if ( $newDftData->{'bse'}->{'highest'} > $high );
+
+#  if( $newDftData->{'screen'}->{'enable'} )
+##  {
+#    $low = $newDftData->{'screen'}->{'lowest'} if ( $newDftData->{'screen'}->{'lowest'} < $low );
+#    $high = $newDftData->{'screen'}->{'highest'} if ( $newDftData->{'screen'}->{'highest'} > $high );
+#  }
 
   $newDftData->{'scf'}->{'fermi'} = ($low + $high)/2;
   open OUT, ">", "dft.json" or die;
@@ -589,6 +701,31 @@ if( $newDftData->{'general'}->{'occopt'} == 1 && $newDftData->{'general'}->{'pro
   close OUT;
   print "DFT for BSE final states complete\n";
 }
+
+# Fix up brange
+if( $newDftData->{'screen'}->{'enable'} ) {
+  my $d = $newDftData->{'screen'}->{'directories'}[0];
+  for( my $i = 0; $i < 3; $i++ ) {
+    $newDftData->{'screen'}->{'brange'}[$i] = $newDftData->{'znscf'}->{ $d }->{'brange'}[$i];
+  }
+}
+$newDftData->{'bse'}->{'brange'}[0] = $newDftData->{'znscf'}->{$newDftData->{'bse'}->{'directories'}[-1]}->{'brange'}[0];
+$newDftData->{'bse'}->{'brange'}[1] = $newDftData->{'znscf'}->{$newDftData->{'bse'}->{'directories'}[-1]}->{'brange'}[1];
+$newDftData->{'bse'}->{'brange'}[2] = $newDftData->{'znscf'}->{$newDftData->{'bse'}->{'directories'}[0]}->{'brange'}[2];
+
+# Grab times and hashes
+$newDftData->{'screen'}->{'time'} = $newDftData->{'znscf'}->{ $newDftData->{'screen'}->{'directories'}[0] }->{'time'};
+$newDftData->{'screen'}->{'hash'} = $newDftData->{'znscf'}->{ $newDftData->{'screen'}->{'directories'}[0] }->{'hash'};
+$newDftData->{'bse'}->{'time'} = 0;
+$newDftData->{'bse'}->{'hash'} = '';
+foreach (@{$newDftData->{'bse'}->{'directories'}} ) {
+  $newDftData->{'bse'}->{'time'} += $newDftData->{'znscf'}->{ $_ }->{'time'};
+  $newDftData->{'bse'}->{'hash'} .= $newDftData->{'znscf'}->{ $_ }->{'hash'};
+  if( $newDftData->{'screen'}->{'directories'}[0] eq $_ ) {
+    $newDftData->{'screen'}->{'time'} = 0;
+  } 
+}
+
 my ( $endSeconds, $endMicroseconds) = gettimeofday;
 print localtime() .  "\n";
 
@@ -666,6 +803,26 @@ sub copyAndCompare
 
 }
 
+sub copyNoCompare
+{
+  my $newRef = $_[0];
+  my $commonRef = $_[1];
+  my @tags = @{$_[2]};
+
+  foreach my $t (@tags)
+  {
+    if( ref( $commonRef->{ $t } ) eq '' )
+    {
+      $newRef->{ $t } = $commonRef->{ $t };
+    }
+    else
+    {
+      $newRef->{ $t } = dclone $commonRef->{ $t };
+    }
+  }
+}
+
+
 sub recursiveTouch
 {
   my $newRef = $_[0];
@@ -736,4 +893,19 @@ sub checkSetGamma
     $hashRef->{'isGamma'} = JSON::PP::false;
   }
 
+}
+
+sub shiftKpointsByPhoton 
+{
+  my $hashRef = $_[0];
+  my $photon_q = $_[1];
+  
+  for( my $i = 0; $i < 3; $i ++ ) {
+    my $kactual = $hashRef->{'kshift'}[$i]/$hashRef->{'kmesh'}[$i];
+    $kactual -= @{$photon_q}[$i];
+    while( $kactual < 0 ) { $kactual += 1; }
+    while( $kactual >= 1 ) { $kactual -= 1; }
+    $kactual *= $hashRef->{'kmesh'}[$i];
+    $hashRef->{'kshift'}[$i] = $kactual;
+  }
 }

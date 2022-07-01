@@ -532,7 +532,7 @@ module ocean_qe62_files
       read(99,*)  tmp
       close( 99 )
       write( prefix, '(a,a,a)' ) 'Out/', trim(tmp), '.save/'
-      write( prefixSplit, '(a,a,a)' ) 'Out/', trim(tmp), '_shift.save/'
+      write( prefixSplit, '(a,a,a)' ) 'Out_shift/', trim(tmp), '.save/'
 
       open(unit=99,file='brange.ipt', form='formatted', status='old' )
       read(99,*) brange(:)
@@ -620,8 +620,10 @@ module ocean_qe62_files
         read(99,*) test_brange(:), test_nk, test_nspin
         if( test_brange(1) .gt. brange(1) ) ierr = 6573
         if( test_brange(2) .lt. brange(2) ) ierr = 6574
-        if( test_brange(3) .gt. brange(3) ) ierr = 6575
-        if( test_brange(4) .lt. brange(4) ) ierr = 6576
+        if( .not. is_split ) then
+          if( test_brange(3) .gt. brange(3) ) ierr = 6575
+          if( test_brange(4) .lt. brange(4) ) ierr = 6576
+        endif
         if( test_nk .ne. nkpts ) ierr = 6577
         if( test_nspin .ne. nspin ) ierr = 6578
         if( ierr .ne. 0 ) return
@@ -636,8 +638,39 @@ module ocean_qe62_files
         enddo
         close( 99 )
         internal_val_energies( :, :, : ) = tve( brange(1):brange(2), :, : ) * 0.5_DP
-        internal_con_energies( :, :, : ) = tce( brange(3):brange(4), :, : ) * 0.5_DP
+        if( .not. is_split ) then
+          internal_con_energies( :, :, : ) = tce( brange(3):brange(4), :, : ) * 0.5_DP
+        endif
         deallocate( tve, tce )
+
+        ! If split then we need to re-read the conductions, 
+        if( is_split ) then
+          inquire( file='QE_EIGS_shift.txt', exist=ex )
+          if( .not. ex ) then
+            ierr = 6579
+            return
+          endif
+            
+          open( unit=99, file='QE_EIGS_shift.txt', form='formatted', status='old')
+          read(99,*) test_brange(:), test_nk, test_nspin
+          if( test_brange(3) .gt. brange(3) ) ierr = 6582
+          if( test_brange(4) .lt. brange(4) ) ierr = 6583
+          if( test_nk .ne. nkpts ) ierr = 6580
+          if( test_nspin .ne. nspin ) ierr = 6581
+          if( ierr .ne. 0 ) return 
+          
+          allocate( tve( test_brange(1):test_brange(2), nkpts, nspin ),  &
+                    tce( test_brange(3):test_brange(4), nkpts, nspin ) )
+          do j = 1, nspin
+            do i = 1, nkpts
+              read(99,*) tve( :, i, j )
+              read(99,*) tce( :, i, j )
+            enddo
+          enddo
+          close( 99 )
+          internal_con_energies( :, :, : ) = tce( brange(3):brange(4), :, : ) * 0.5_DP
+          deallocate( tve, tce )
+        endif
 
 
       endif
@@ -736,11 +769,19 @@ module ocean_qe62_files
     use ocean_mpi, only : MPI_INTEGER
     integer, intent( inout ) :: ierr
     !
-    integer :: i
+    integer :: i, inter_nproc_
     logical :: ex
 
     npool = 0
+    inter_nproc_ = inter_nproc
     if( inter_myid .eq. 0 ) then
+      inquire( file='nproc_wvfn', exist=ex )
+      if( ex ) then
+        open( unit=99, file='nproc_wvfn', form='formatted', status='old')
+!        read(99,*) inter_nproc
+        close(99)
+        write(6,*) 'nproc_wvfn not enabled yet'
+      endif
       inquire( file='npool', exist=ex )
       if( ex ) then
         open( unit=99, file='npool', form='formatted', status='old')
@@ -779,6 +820,9 @@ module ocean_qe62_files
       enddo
 11    continue
     endif
+
+!    ! if we've reduced the number of processors for i/o, then put them in their own comm
+!    if( inter_myid .ge. inter_nproc ) mypool = inter_nproc_
     
     call MPI_COMM_SPLIT( inter_comm, mypool, inter_myid, pool_comm, ierr )
     if( ierr .ne. 0 ) return

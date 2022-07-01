@@ -1,4 +1,4 @@
-# Jvinson 2022
+# John Vinson 2022
 """
 Using ASE and SPGLIB, read a variety of input formats (whatever ASE read 
 supports) and attempt to build an OCEAN input file.

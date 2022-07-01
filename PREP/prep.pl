@@ -272,24 +272,67 @@ sub copyLinkQE
 {
   my ($hashRef) = @_;
 
-  if( -l "Out" )  # Out is an existing link
-  {
-    unlink "Out" or die "Problem cleaning old 'Out' link\n$!";
-  }
-  elsif(  -d "Out" ) #or Out is existing directory
-  {
-    rmtree( "Out" );
-  }
-  elsif( -e "Out" ) #or Out is some other file
-  {
-    unlink "Out";
+  foreach my $d ( "Out", "Out_shift" ) {
+    if( -l $d )  # Out is an existing link
+    {
+      unlink $d or die "Problem cleaning old '$d' link\n$!";
+    }
+    elsif(  -d $d ) #or Out is existing directory
+    {
+      rmtree( $d );
+    }
+    elsif( -e $d ) #or Out is some other file
+    {
+      unlink $d;
+    }
   }
 
-  my $rundir = sprintf "k%i_%i_%iq%.6f_%.6f_%.6f", $hashRef->{'kmesh'}[0],  
+  # Three cases here. Either no finite-q, finite-q single directory, or finite-q two directories
+  # Do the two-directory versions first
+  if( $hashRef->{'split'} ) {
+    my $rundir = sprintf "k%i_%i_%iq%.6f_%.6f_%.6f", $hashRef->{'kmesh'}[0],  
                    $hashRef->{'kmesh'}[1], $hashRef->{'kmesh'}[2], $hashRef->{'kshift'}[0],
                    $hashRef->{'kshift'}[1], $hashRef->{'kshift'}[2];
-  my $dirname = catdir( updir(), updir(), "DFT", $rundir, "Out" );
-  symlink ($dirname, "Out") == 1 or die "Failed to link Out\n$!";
+    my $dirname = catdir( updir(), updir(), "DFT", $rundir, "Out" );
+    symlink ($dirname, "Out_shift") == 1 or die "Failed to link Out\n$!";
+    if( -e catfile( "Out_shift", "system.save", "data-file-schema.xml" ) ) {
+      copy( catfile( updir(), updir(), "DFT", $rundir, "QE_EIGS.txt"), "QE_EIGS_shift.txt" );
+    }
+
+    my @kshift;
+    for( my $i=0; $i<3; $i++ ) {
+      my $kactual = $hashRef->{'kshift'}[$i]/$hashRef->{'kmesh'}[$i];
+      $kactual -= $hashRef->{'photon_q'}[$i];
+      while( $kactual < 0 ) { $kactual += 1; }
+      while( $kactual >= 1 ) { $kactual -= 1; }
+      $kactual *= $hashRef->{'kmesh'}[$i];
+      $kshift[$i] = $kactual;
+    } 
+    my $rundir = sprintf "k%i_%i_%iq%.6f_%.6f_%.6f", $hashRef->{'kmesh'}[0],  
+                   $hashRef->{'kmesh'}[1], $hashRef->{'kmesh'}[2], $kshift[0],
+                   $kshift[1], $kshift[2];
+    my $dirname = catdir( updir(), updir(), "DFT", $rundir, "Out" );
+    symlink ($dirname, "Out") == 1 or die "Failed to link Out\n$!";
+    if( -e catfile( "Out", "system.save", "data-file-schema.xml" ) ) {
+      copy( catfile( updir(), updir(), "DFT", $rundir, "QE_EIGS.txt"), "QE_EIGS.txt" );
+    }
+  } else {
+    my $rundir;
+    if( $hashRef->{'nonzero_q'} ) {
+      $rundir = sprintf "ks%i_%i_%iq%.6f_%.6f_%.6f", $hashRef->{'kmesh'}[0],  
+                       $hashRef->{'kmesh'}[1], $hashRef->{'kmesh'}[2], $hashRef->{'kshift'}[0],
+                       $hashRef->{'kshift'}[1], $hashRef->{'kshift'}[2];
+    } else {
+      $rundir = sprintf "k%i_%i_%iq%.6f_%.6f_%.6f", $hashRef->{'kmesh'}[0],  
+                       $hashRef->{'kmesh'}[1], $hashRef->{'kmesh'}[2], $hashRef->{'kshift'}[0],
+                       $hashRef->{'kshift'}[1], $hashRef->{'kshift'}[2];
+    }
+    my $dirname = catdir( updir(), updir(), "DFT", $rundir, "Out" );
+    symlink ($dirname, "Out") == 1 or die "Failed to link Out\n$!";
+    if( -e catfile( "Out", "system.save", "data-file-schema.xml" ) ) {
+      copy( catfile( updir(), updir(), "DFT", $rundir, "QE_EIGS.txt"), "QE_EIGS.txt" );
+    }
+  }
 
   if( -e catfile( "Out", "system.save", "data-file-schema.xml" ) )
   {
@@ -298,7 +341,7 @@ sub copyLinkQE
     print TMP "qe62\n";
     close TMP;
 
-    copy( catfile( updir(), updir(), "DFT", $rundir, "QE_EIGS.txt"), "QE_EIGS.txt" );
+#    copy( catfile( updir(), updir(), "DFT", $rundir, "QE_EIGS.txt"), "QE_EIGS.txt" );
 #    copy("../$rundir/enkfile", "enkfile_raw") or die "Failed to grab enkfile\n$!";
   }
   elsif( -e catfile( "Out", "system.save", "data-file.xml" ) )
