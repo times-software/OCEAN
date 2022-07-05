@@ -90,6 +90,7 @@ if( -e $dataFile )
     }
     die "Failed to parse $ppfile: $nelectron\n" if( $nelectron < 1 );
 
+    $nelectron *= 1;
     print "$ppfile has $nelectron electrons\n";
     push @electrons, $nelectron;
 
@@ -231,6 +232,7 @@ sub upfParser
       }
       else
       {
+        print "FAILED:   $line\n";
         $n = -2;
       }
       last;
