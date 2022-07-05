@@ -538,7 +538,7 @@ unless( $newDftData->{'epsilon'}->{'complete'} ) {
 
 
 # Time for NSCF runs
-foreach my $dirname (keys $nscf_TodoList) {
+foreach my $dirname (keys %{$nscf_TodoList}) {
   print "Running NSCF run for: " . $dirname . "\n";
   my $t0 = [gettimeofday];
   my $errorCode;
