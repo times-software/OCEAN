@@ -102,6 +102,8 @@
    "calc" : {
       "edges" : "",
       "mode" : "xas",
+      "photon_in" : [],
+      "photon_out" : [],
       "photon_q" : [
          0,
          0,

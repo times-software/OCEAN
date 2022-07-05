@@ -9,6 +9,7 @@
 
 use strict;
 
+use POSIX;
 require JSON::PP;
 use JSON::PP;
 
@@ -170,7 +171,11 @@ foreach (@ExtraFiles) {
 
 # Grab files
 grabWaveFunctions();
-my @photon_files = grabPhotonFiles();
+unless( defined $newBSEdata->{'calc'}->{'photon_in'} ) {
+  print "Undef\n\n";
+  $newBSEdata->{'calc'}->{'photon_in'} = [];
+}
+my @photon_files = grabPhotonFiles( $newBSEdata->{'calc'}->{'photon_in'} );
 
 grabScreenFiles( $newBSEdata );
 
@@ -182,8 +187,8 @@ runMels( $newBSEdata, \@photon_files );
 
 ####
 
-writeRunlist( $newBSEdata, \@photon_files );
-writeBSEin( $newBSEdata );
+writeRunlistCore( $newBSEdata, \@photon_files );
+writeBSEinCore( $newBSEdata );
 
 writeAuxFiles( $newBSEdata );
 writeScFac( $newBSEdata );
@@ -194,7 +199,43 @@ close OUT;
 
 my $t0 = [gettimeofday];
 
-runOCEANx( $newBSEdata );
+#print "Running nothing!\n";
+runOCEANx( $newBSEdata, "ocean.log" );
+
+
+if( $newBSEdata->{'calc'}->{'mode'} eq 'rxs' ) {
+  unless( defined $newBSEdata->{'calc'}->{'photon_out'} ) {
+    print "Undef\n\n";
+    $newBSEdata->{'calc'}->{'photon_out'} = [];
+  }
+  my @photon_out_files = grabPhotonFiles( $newBSEdata->{'calc'}->{'photon_out'} );
+
+  # Need to runMels for any photons we haven't yet
+  my @uniquePhoton;
+  foreach my $a (@photon_out_files) {
+    my $b = 1;
+    foreach (@photon_files) {
+      if ($a eq $_ ) {
+        $b = 0;
+        last;
+      }
+    }
+    push @uniquePhoton, $a if( $b );
+  }
+  runMels( $newBSEdata, \@uniquePhoton );
+
+  move ("runlist", "runlist.xas");
+  move ("bse.in", "bse.in.xas");
+  writeRunlistRIXS( $newBSEdata, \@photon_files, \@photon_out_files );
+  writeBSEinVal( $newBSEdata );
+  writeValAuxFiles( $newBSEdata );
+
+  prepDen( );
+  
+# new aux files
+  
+  runOCEANx( $newBSEdata, "rixs.log" );
+}
 
 $newBSEdata->{'time'}->{'bse'} = tv_interval( $t0 );
 $newBSEdata->{'time'}->{'total'} = 0;
@@ -212,10 +253,10 @@ exit 0;
 
 sub runOCEANx {
 
-  my ($hashRef) = @_;
+  my ($hashRef, $logFileName) = @_;
 
-  print "$hashRef->{'computer'}->{'para_prefix'} $ENV{'OCEAN_BIN'}/ocean.x > ocean.log 2>&1\n";
-  system("$hashRef->{'computer'}->{'para_prefix'} $ENV{'OCEAN_BIN'}/ocean.x > ocean.log 2>&1" );
+  print "$hashRef->{'computer'}->{'para_prefix'} $ENV{'OCEAN_BIN'}/ocean.x > $logFileName 2>&1\n";
+  system("$hashRef->{'computer'}->{'para_prefix'} $ENV{'OCEAN_BIN'}/ocean.x > $logFileName 2>&1" );
   if ($? == -1) {
       print "failed to execute: $!\n";
       die;
@@ -316,15 +357,33 @@ sub grabCoreScreenFiles {
 
 #TODO: option to limit these to some number?
 sub grabPhotonFiles {
+  my $arrayRef = $_[0];
   my @photon_files;
   my $nphoton;
-  print "Looking for available photon files:\n";
+
+  my $haveList = 0;
+  if( scalar @{$arrayRef} > 0 ) {
+    $haveList = 1;
+    print "Photon files specified\n";
+  } else {
+    print "Looking for available photon files:\n";
+  }
   opendir DIR, "../" or die $!;
   while( my $file = readdir( DIR ) )
   {
-    if( $file =~ m/^photon\d+$/ )
+    if( $file =~ m/^photon(\d+)$/ )
     {
-      push @photon_files, $file;
+      my $p = $1;
+      if( $haveList ) {
+        foreach (@{$arrayRef}) {
+          if( $_ == $p ) {
+            push @photon_files, $file;
+            last;
+          }
+        }
+      } else {
+        push @photon_files, $file;
+      }
     }
   }
   closedir DIR;
@@ -336,7 +395,17 @@ sub grabPhotonFiles {
     {
       if( $file =~ m/^jtv\d+$/ )
       {
-        push @photon_files, $file;
+        my $p = $1;
+        if( $haveList ) {
+          foreach (@{$arrayRef}) {
+            if( $_ == $p ) {
+              push @photon_files, $file;
+              last;
+            }
+          }
+        } else {
+          push @photon_files, $file;
+        }
       }
     }
     closedir DIR;
@@ -351,7 +420,17 @@ sub grabPhotonFiles {
       if( $file =~ m/^default_photon\d+$/ )
       {
         $file =~ s/default_//;
-        push @tmp, $file;
+        my $p = $1;
+        if( $haveList ) {
+          foreach (@{$arrayRef}) {
+            if( $_ == $p ) {
+              push @photon_files, $file;
+              last;
+            }
+          }
+        } else {
+          push @tmp, $file;
+        }
       }
     }
     closedir DIR;
@@ -363,7 +442,7 @@ sub grabPhotonFiles {
     my @sorted_photon_files = sort { ($a =~ /(\d+)/)[0] <=> ($b =~ /(\d+)/)[0] } @tmp;
     foreach( @sorted_photon_files )
     {
-      print "        $_\n";
+#      print "        $_\n";
       copy( catfile( updir(), "Common", 'default_' . $_), $_ ) or die "$!";
     }
     return @sorted_photon_files;
@@ -385,7 +464,7 @@ sub grabPhotonFiles {
     {
       my $targ = basename($_);
       $targ =~ s/default_//;
-      print "        ../$_ $targ\n";
+#      print "        ../$_ $targ\n";
       copy( "../$_", $targ ) or die "$!";
     }
     return @sorted_photon_files;
@@ -433,6 +512,7 @@ sub grabWaveFunctions {
 
   copy( catfile( updir(), "PREP", "BSE", "wvfcninfo" ), "wvfcninfo" ) == 1 or die "Failed to copy wvfcninfo\n$!";
   copy( catfile( updir(), "PREP", "BSE", "wvfvainfo" ), "wvfvainfo" ) == 1 or die "Failed to copy wvfvainfo\n$!";
+  copy( catfile( updir(), "PREP", "BSE", "enkfile" ), "enkfile" ) == 1 or die "Failed to copy enkfile\n$!";
 
 
 #  copy(  catfile( updir(), "PREP", "BSE", "eshift.ipt" ), "eshift.ipt" ) == 1 or die "Failed to copy eshift.ipt\n$!";
@@ -450,7 +530,7 @@ sub CalcParams {
   if( $newBSEdata->{'calc'}->{'mode'} eq 'xas' || $newBSEdata->{'calc'}->{'mode'} eq 'xes' 
    || $newBSEdata->{'calc'}->{'mode'} eq 'rxs' ) {
     copyAndCompare( $newBSEdata->{'calc'}, $commonOceanData->{'calc'}, $bseData->{'calc'},
-                  $newBSEdata->{'bse'}, [ 'edges' ] );
+                  $newBSEdata->{'bse'}, [ 'edges', 'photon_in', 'photon_out' ] );
   }
 
   if( $newBSEdata->{'calc'}->{'mode'} eq 'val' || $newBSEdata->{'calc'}->{'mode'} eq 'rxs' ) {
@@ -604,13 +684,14 @@ sub runMels {
 }
 
 
-sub writeRunlist {
+sub writeRunlistCore {
   my ($hashRef, $photon_files ) = @_;
 
   my %alphal = ( "0" => "s", "1" => "p", "2" => "d", "3" => "f" );
 
   my $runLength = 1;
-  if( $hashRef->{'calc'}->{'mode'} eq 'xas' || $hashRef->{'calc'}->{'mode'} eq 'xes' ) {
+  if( $hashRef->{'calc'}->{'mode'} eq 'xas' || $hashRef->{'calc'}->{'mode'} eq 'xes' 
+    || $hashRef->{'calc'}->{'mode'} eq 'rxs' ) {
     $runLength = scalar @{$photon_files} * scalar @{$hashRef->{'calc'}->{'edges'}};
   } else {
     die "Runlist only written for XAS or XES at the moment\n";
@@ -627,6 +708,7 @@ sub writeRunlist {
     my $elname = $hashRef->{'calc'}->{'sitelist'}[$edge[0]-1][0];
     my $elnum = $hashRef->{'calc'}->{'sitelist'}[$edge[0]-1][2];
     my $run_text = uc( $hashRef->{'calc'}->{'mode'} );
+    $run_text = 'XAS' if( $run_text eq 'RXS' );
     foreach my $way (@{$photon_files} ) {
       $way =~ m/(\d+)$/ or die "Malformed photon file name:\t$way\n";
       my $i = $1;
@@ -637,8 +719,68 @@ sub writeRunlist {
   close RUNLIST;
 }
 
+sub writeRunlistRIXS {
+  my ($hashRef, $photon_files, $photon_out_files ) = @_;
 
-sub writeBSEin {
+  my %alphal = ( "0" => "s", "1" => "p", "2" => "d", "3" => "f" );
+
+  my @edge = split ' ', $hashRef->{'calc'}->{'edges'}[0];
+  my $znum = sprintf "%i", $hashRef->{'calc'}->{'sitelist'}[$edge[0]-1][1];
+  my $nnum = $edge[1];
+  my $lnum = $edge[2];
+  my $elname = $hashRef->{'calc'}->{'sitelist'}[$edge[0]-1][0];
+  my $corelevel = "${nnum}$alphal{$lnum}";
+  my $calc = 'RXS';
+
+  my $nphoton = 0;
+  my @photon_combo;
+  foreach my $p_in ( @{$photon_files} ) {
+    $p_in =~ m/(\d+)\s*$/ or die "Malformed photon file name:\t$p_in\n"; 
+    my $i = $1;
+    foreach my $p_out ( @{$photon_out_files}) {
+      $p_out =~ m/(\d+)\s*$/ or die "Malformed photon file name:\t$p_in\n"; 
+      my $j = $1;
+      next if ($p_in eq $p_out );
+      $nphoton ++;
+      push @photon_combo, [$i, $j ]; 
+    }
+  }
+
+  open RUNLIST, ">", "runlist" or die "Failed to open file runlist\n$!";
+  printf RUNLIST "%i\n", $nphoton * $hashRef->{'bse'}->{'core'}->{'gmres'}->{'count'};
+  for( my $e = 1; 
+       $e <= $hashRef->{'bse'}->{'core'}->{'gmres'}->{'count'};
+       $e++ ) {
+    for( my $i = 0; $i < scalar @photon_combo; $i++ ) { 
+      print RUNLIST "$znum $nnum  $lnum  $elname  $corelevel  0  $photon_combo[$i][0]  $calc  $e  $photon_combo[$i][1]\n";
+    }
+  }
+        
+  
+  close RUNLIST;
+}
+
+sub writeBSEinVal {
+  my ($hashRef) = @_;
+
+  open BSE, ">", "bse.in" or die "$!\n";
+  print BSE "0 0 0\n0 0 0\n";
+  
+  if( $hashRef->{'bse'}->{'val'}->{'solver'} eq 'haydock' ) {
+    printf BSE "hay\n%i %i %g %g %g %g\n", 
+      $hashRef->{'bse'}->{'val'}->{'haydock'}->{'niter'},
+      $hashRef->{'bse'}->{'val'}->{'plot'}->{'points'},
+      $hashRef->{'bse'}->{'val'}->{'plot'}->{'range'}[0],
+      $hashRef->{'bse'}->{'val'}->{'plot'}->{'range'}[1],
+      $hashRef->{'bse'}->{'val'}->{'broaden'}, 
+      0.0;
+  } else {
+    die "Non-haydock valence solvers not yet implemented\n";
+  }
+  close BSE;
+}
+
+sub writeBSEinCore {
   my ($hashRef) = @_;
 
   my %alphal = ( "0" => "s", "1" => "p", "2" => "d", "3" => "f" );
@@ -688,10 +830,33 @@ sub writeBSEin {
           $hashRef->{'bse'}->{'core'}->{'plot'}->{'range'}[1],
           $hashRef->{'bse'}->{'core'}->{'broaden'};
       close SP;
-    } else { die "Failed to write gmres in writeBSEin\n"; }
+    } elsif( $hashRef->{'bse'}->{'core'}->{'solver'} eq 'gmres' ) {
+      printf BSE "inv\n%i %g %g %g %g\n", $hashRef->{'bse'}->{'core'}->{'gmres'}->{'nloop'}, 
+          $hashRef->{'bse'}->{'core'}->{'broaden'}, $hashRef->{'bse'}->{'core'}->{'gmres'}->{'gprc'}, 
+          $hashRef->{'bse'}->{'core'}->{'gmres'}->{'ffff'}, 0.0;
+      if( $hashRef->{'bse'}->{'core'}->{'gmres'}->{'estyle'} eq 'list' ) {
+        printf BSE "list\n%i\n", scalar @{$hashRef->{'bse'}->{'core'}->{'gmres'}->{'elist'}};
+        $hashRef->{'bse'}->{'core'}->{'gmres'}->{'count'} = 
+              scalar @{$hashRef->{'bse'}->{'core'}->{'gmres'}->{'elist'}};
+        foreach (@{$hashRef->{'bse'}->{'core'}->{'gmres'}->{'elist'}}) {
+          printf BSE "%g\n", $_;
+        }
+      } elsif( $hashRef->{'bse'}->{'core'}->{'gmres'}->{'estyle'} eq 'range' ) {
+        printf BSE "loop\n%.g %.g %.g\n", 
+                $hashRef->{'bse'}->{'core'}->{'gmres'}->{'erange'}[0],
+                $hashRef->{'bse'}->{'core'}->{'gmres'}->{'erange'}[1],
+                $hashRef->{'bse'}->{'core'}->{'gmres'}->{'erange'}[2];
+        $hashRef->{'bse'}->{'core'}->{'gmres'}->{'count'} =
+            floor( ($hashRef->{'bse'}->{'core'}->{'gmres'}->{'erange'}[1] -
+                    $hashRef->{'bse'}->{'core'}->{'gmres'}->{'erange'}[0] +
+               0.9* $hashRef->{'bse'}->{'core'}->{'gmres'}->{'erange'}[2] ) /
+                   $hashRef->{'bse'}->{'core'}->{'gmres'}->{'erange'}[2] );
+      } else { die "Unsupported estyle in core->gmres\n"; }
+      printf "%i energy steps with GMRES\n", $hashRef->{'bse'}->{'core'}->{'gmres'}->{'count'};
+    } else { die "Failed to write gmres in writeBSEinCore\n"; }
 
 
-  } else { die "Unsupported calc mode in writeBSEin\n"; }
+  } else { die "Unsupported calc mode in writeBSEinCore\n"; }
 
 
   close BSE;
@@ -840,6 +1005,13 @@ sub writeAuxFiles {
     print OUT "none 0.0\n";
   }
   close OUT;
+
+  open OUT, ">", "echamp.inp" or die "Failed to open echamp.inp\n$!";
+  if( $hashRef->{'bse'}->{'core'}->{'gmres'}->{'echamp'} || $hashRef->{'calc'}->{'mode'} eq 'rxs' ) {
+    print OUT ".true.\n";
+  } else {
+    print OUT ".false.\n";
+  }
 }
 
 sub writeScFac {
@@ -859,5 +1031,38 @@ sub writeScFac {
   open OUT, ">", "scfac" or die "Failed to open scfac\n$!";
   printf OUT "%g\n", $scfac;
   close OUT;
+
+}
+
+#TODO fix this up
+sub prepDen {
+  copy ( "../DFT/rhoofr", "rhoofr" ) or die "Failed to get rhoofr\n";
+  `tail -n 1 rhoofr > nfft`;
+}
+
+sub writeValAuxFiles {
+  my ($hashRef) = @_;
+
+  my @files = ( 'aldaf', 'backf', 'bande', 'bflag', 'bwflg', 'lflag', 'qpflg' );
+  foreach my $file (@files) {
+    open OUT, ">", $file or die "Failed to open $file\n$!";
+    if( $hashRef->{'bse'}->{'val'}->{ $file } ) {
+      print OUT "1\n"; 
+    } else {
+      print OUT "0\n";
+    }
+  }
+
+  #TODO GW control
+  open OUT, ">", "decut" or die "Failed to open decut\n$!";
+  print OUT $hashRef->{'bse'}->{'val'}->{'decut'} . "\n";
+  close OUT;
+
+  open OUT, ">", "haydockconv.ipt" or die;
+  printf OUT "%g  %i\n", 
+        $hashRef->{'bse'}->{'val'}->{'haydock'}->{'converge'}->{'thresh'},
+        $hashRef->{'bse'}->{'val'}->{'haydock'}->{'converge'}->{'spacing'};
+  close OUT;
+
 
 }

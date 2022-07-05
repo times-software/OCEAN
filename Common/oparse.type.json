@@ -84,6 +84,8 @@
    "calc" : {
       "edges" : "ai",
       "mode" : "s",
+      "photon_in" : "ai",
+      "photon_out" : "ai",
       "photon_q" : "af"
    },
    "computer" : {
