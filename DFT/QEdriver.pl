@@ -724,12 +724,12 @@ sub QEPoolControl
       my $kPerPool = ceil( $actualKpts / $i );
       my $cost = $kPerPool / $cpuPerPool;
       # Penalize multi-procs per pool since k-point parallelization is most efficient
-      print "$j  $i  $nbd $kPerPool  $cost";
+#      print "$j  $i  $nbd $kPerPool  $cost";
       $cost /= ( 0.999**$cpuPerPool );
-      print "  $cost";
+#      print "  $cost";
       # Penalize is not many bands per 
       $cost /= ( atan($numKS/$cpuPerPool) * 2.0/pi());
-      print "  $cost\n";
+#      print "  $cost\n";
 #      my $cost = $kPerPool / ( $cpuPerPool * ( 0.999**$cpuPerPool ) );
 #      print "$j  $i  $nbd $kPerPool  $cost\n";
       $cpusAndPools{ $cost } = [ $j, $i, $nbd ];
@@ -753,11 +753,17 @@ sub QEPoolControl
 
     my $kPerPool = ceil( $actualKpts / $i );
     my $cost = $kPerPool / ( $cpuPerPool * ( 0.999**$cpuPerPool ) );
-    print "$j  $i  $nbd $kPerPool  $cost\n";
+#    print "$j  $i  $nbd $kPerPool  $cost\n";
     $cpusAndPools{ $cost } = [ $j, $i, $nbd ];
   }
 
   my $ncpus; my $npool; my $nbd;
+  my @sortedCost = sort {$a <=> $b} keys %cpusAndPools;
+  print " N procs     Pool     Band        Cost\n";
+  for( my $i = 0; $i < 5; $i ++ ) {
+    last if( $i >= scalar @sortedCost );
+    printf "%8d %8d %8d       %g\n", $cpusAndPools{$sortedCost[$i]}[0], $cpusAndPools{$sortedCost[$i]}[1], $cpusAndPools{$sortedCost[$i]}[2], $sortedCost[$i]; 
+  }
   foreach my $i (sort {$b <=> $a} keys %cpusAndPools )
   {
 #    print "$i  $cpusAndPools{$i}[0]  $cpusAndPools{$i}[1]\n";
