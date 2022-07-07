@@ -58,6 +58,8 @@ if( -e $dataFile )
 
   checkXpoints( $oceanData, $oceanData->{'bse'}->{'xmesh'} );
 
+  printXKpoints( $oceanData );
+
   checkQ( $oceanData );
 
   checkEpsilon( $oceanData );
@@ -1698,5 +1700,79 @@ sub fixCNBSE
 
   if( $found == 0 ) {
     push @{$hashRef->{'screen'}->{'shells'}}, $hashRef->{'bse'}->{'core'}->{'screen_radius'};
+  }
+}
+
+sub printXKpoints
+{
+#  # Also includes things with more than 1 11 or 13 (11*11, 11*13, and 13*13)
+#  my @primes = ( 17, 19, 23, 29, 31, 37, 41, 43, 47, 53, 59, 61, 67, 
+#                 71, 73, 79, 83, 89, 97, 101, 103, 107, 109, 113, 121, 
+#                 127, 131, 137, 139, 143, 149, 151, 163, 167, 169, 173, 
+#                 179, 181, 191, 193, 197, 199, 211, 223, 227, 229, 233,
+#                 239, 241, 251, 257, 263, 269, 271, 277, 281, 283, 293, 
+#                 307, 311, 313, 317, 331, 347, 349, 353, 359 );
+  my $hashRef = $_[0];
+
+  my @len = ( $hashRef->{'structure'}->{'alen'}[0], 
+              $hashRef->{'structure'}->{'alen'}[1], 
+              $hashRef->{'structure'}->{'alen'}[2] );
+  my @x = ( 1, 1, 1 );
+  my $inv = 0;
+ 
+  open OUT, ">", "x.txt" or die "Failed to open x.txt\n$!";
+  print OUT "#       xmesh            inv-x        x\n";
+  for( my $k = 0; $k < 2; $k++ ) 
+  {
+    for( my $j = 0; $j < 1000; $j ++ ) {
+     
+      my $skip = 0;
+      for( my $i = 0; $i < 3; $i ++ ) {
+        my $a = $x[$i];
+        while( $a % 2 == 0 ) { $a/=2; }
+        while( $a % 3 == 0 ) { $a/=3; }
+        while( $a % 5 == 0 ) { $a/=5; }
+        while( $a % 7 == 0 ) { $a/=7; }
+        if( $a % 11 == 0 ) {
+          $a /= 11;
+        } elsif ( $a % 13 == 0 ) {
+          $a /= 13;
+        }
+        if( $a != 1 ) {
+          $skip = 1;
+#          print ">>>>>> $x[$i]\n";
+          last;
+        }
+      }
+      $inv = $len[0]/$x[0];
+      for( my $i = 1; $i < 3; $i++ ) {
+        $inv = $len[$i]/$x[$i] if( $len[$i]/$x[$i] > $inv );
+      }
+      if( $skip == 0 ) {
+        printf OUT "%5d %5d %5d  %12.6f %12.6f\n", $x[0], $x[1], $x[2], $inv, 1/$inv;
+      }
+      last if ( $inv < 0.02 );
+#      printf OUT "%5d %5d %5d  %12.6f %12.6f %12.6f %12.6f %12.6f\n", $x[0], $x[1], $x[2], $inv, 1/$inv, $len[0]/$x[0], $len[1]/$x[1], $len[2]/$x[2];
+
+      
+#      for( my $i = 0; $i < 3; $i++ ) {
+#        $inv = $len[$i]/$x[$i] if( $len[$i]/$x[$i] < $inv );
+#      }
+      for( my $i = 0; $i<3; $i++ ) {
+        $x[$i] = 1+floor( 1.00000000001 * $len[$i]/$inv );
+      }
+    
+    }
+    close OUT;
+    if( $k==0 ) {
+      @len = ( $hashRef->{'structure'}->{'blen'}[0],
+               $hashRef->{'structure'}->{'blen'}[1],
+               $hashRef->{'structure'}->{'blen'}[2] );
+      @x = ( 1, 1, 1 );
+      $inv = 0;
+      open OUT, ">", "k.txt" or die "Failed to open k.txt\n$!";
+      print OUT "#       kmesh            inv-k        k\n";
+    }
+
   }
 }
