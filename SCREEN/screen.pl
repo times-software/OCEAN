@@ -2410,7 +2410,7 @@ sub finishCorePotentials
             {
               print OUT "$vvallel{ $currentEdge[1] }[0][$i]  $vvallel{ $currentEdge[1] }[1][$i]\n";
             }
-            print OUT "$$screenHash->{'final'}->{'dr'} $final_nr\n";
+            print OUT "$screenHash->{'final'}->{'dr'} $final_nr\n";
             close OUT;
             system( "$ENV{'OCEAN_BIN'}/rscombine.x < ipt1 > ropt") == 0 or die;
           }
