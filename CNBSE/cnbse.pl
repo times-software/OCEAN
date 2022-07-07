@@ -842,7 +842,7 @@ sub writeBSEinCore {
           printf BSE "%g\n", $_;
         }
       } elsif( $hashRef->{'bse'}->{'core'}->{'gmres'}->{'estyle'} eq 'range' ) {
-        printf BSE "loop\n%.g %.g %.g\n", 
+        printf BSE "loop\n%g %g %g\n", 
                 $hashRef->{'bse'}->{'core'}->{'gmres'}->{'erange'}[0],
                 $hashRef->{'bse'}->{'core'}->{'gmres'}->{'erange'}[1],
                 $hashRef->{'bse'}->{'core'}->{'gmres'}->{'erange'}[2];
