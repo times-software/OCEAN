@@ -201,6 +201,7 @@
       "model" : {
          "SLL" : {
             "dq" : "f",
+            "nav" : "f",
             "qmax" : "f"
          },
          "flavor" : "s"
