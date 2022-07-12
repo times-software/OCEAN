@@ -1699,6 +1699,7 @@ sub runDensityAverage
   print OUT $hashRef->{'general'}->{'mode'} . "\n";
   close OUT;
 
+
   if( $hashRef->{'general'}->{'mode'} eq 'core' ) {
 #    my %sites;
 #    foreach( @{$hashRef->{'density'}->{'edges'}} )
@@ -2413,6 +2414,14 @@ sub finishCorePotentials
             print OUT "$screenHash->{'final'}->{'dr'} $final_nr\n";
             close OUT;
             system( "$ENV{'OCEAN_BIN'}/rscombine.x < ipt1 > ropt") == 0 or die;
+          }
+          open IN, ">", "rpot" or die "Failed to open rpot\n$!";
+          while (<IN>) {
+            if( $_ =~ m/^\s*-\d/ ) {
+              print "WARNING bad screening! Repulsive core-hole potentials\n"
+                  . "  BSE stage will fail if this potential is used\n";
+              last;
+            }
           }
 
         }

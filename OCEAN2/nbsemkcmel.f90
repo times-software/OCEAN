@@ -52,6 +52,11 @@ subroutine nbsemkcmel( add04, add14 )
   allocate( v( nvMax ), rv( nvMax ) )
   do
     read( 99, *, iostat=ierr ) vtmp, rtmp
+    if( vtmp .lt. 0.0_DP ) then
+      write(6,'(A,A,A)') 'Core-hole potential, ', rpot_filename, ' has wrong sign!'
+      ierr = 901
+      return
+    endif
     ! If the read is successful
     if( ierr .eq. 0 ) then
       nv = nv + 1
