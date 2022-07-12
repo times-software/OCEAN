@@ -2415,7 +2415,7 @@ sub finishCorePotentials
             close OUT;
             system( "$ENV{'OCEAN_BIN'}/rscombine.x < ipt1 > ropt") == 0 or die;
           }
-          open IN, ">", "rpot" or die "Failed to open rpot\n$!";
+          open IN, "<", "rpot" or die "Failed to open rpot\n$!";
           while (<IN>) {
             if( $_ =~ m/^\s*-\d/ ) {
               print "WARNING bad screening! Repulsive core-hole potentials\n"
