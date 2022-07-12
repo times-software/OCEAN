@@ -538,7 +538,28 @@ unless( $newDftData->{'epsilon'}->{'complete'} ) {
 
 
 # Time for NSCF runs
+my %sorted_nscf_TodoList;
 foreach my $dirname (keys %{$nscf_TodoList}) {
+  my $nb = $nscf_TodoList->{$dirname}->{'nbands'};
+  my $nk = $nscf_TodoList->{$dirname}->{'kmesh'}[0]
+         * $nscf_TodoList->{$dirname}->{'kmesh'}[1]
+         * $nscf_TodoList->{$dirname}->{'kmesh'}[2];
+  my $val = $nb*$nb*$nb*$nk;
+  while( exists $sorted_nscf_TodoList{ $val } ) {
+    $val *= (1 + rand()/50.0);
+  }
+  $sorted_nscf_TodoList{ $val } = $dirname;
+#  print "$dirname:  $val\n";
+}
+foreach my $val (sort {$b <=> $a} keys %sorted_nscf_TodoList ) {
+  my $dirname = $sorted_nscf_TodoList{ $val };
+  print "$dirname:  $val\n";
+}
+
+
+#foreach my $dirname (keys %{$nscf_TodoList}) {
+foreach my $val (sort {$b <=> $a} keys %sorted_nscf_TodoList ) {
+  my $dirname = $sorted_nscf_TodoList{ $val };
   print "Running NSCF run for: " . $dirname . "\n";
   my $t0 = [gettimeofday];
   my $errorCode;

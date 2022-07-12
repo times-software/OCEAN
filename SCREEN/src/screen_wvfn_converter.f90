@@ -63,7 +63,9 @@ module screen_wvfn_converter
 
     siteSize = screen_paral_NumLocalSites( pinfo, nsites )
 
-!    write(6,*) recvSize, siteSize
+#ifdef PRINTLOG
+    write(1000+myid,*) 'recvSize, siteSize:', recvSize, siteSize
+#endif
 
     allocate( recvArray( recvSize, siteSize ) )
     recvArray(:,:) = MPI_REQUEST_NULL
