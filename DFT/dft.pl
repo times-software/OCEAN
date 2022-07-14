@@ -222,6 +222,7 @@ if( $newDftData->{'epsilon'}->{'method'} eq "input" ) {
 my @nscf_InitialList = ();
 
 # Step 0 -- what info needs to be available for PREP?
+$newDftData->{'bse'} = {} unless exists $newDftData->{'bse'};
 copyAndCompare( $newDftData->{'bse'}, $commonOceanData->{'calc'}, $dftData->{'bse'},
                 $fake, [ 'photon_q', 'nonzero_q' ] );
 copyAndCompare( $newDftData->{'bse'}, $commonOceanData->{'dft'}->{'bse'}, $dftData->{'bse'},
@@ -244,6 +245,8 @@ if( $newDftData->{'bse'}->{'nonzero_q'} ) {
 }
 
 #if( $nosplit ) {die "No split not implemented yet\n";}
+
+
 
 # Step 1 -- load up general info
 for( my $i = 0; $i < $niter; $i ++ ) {
