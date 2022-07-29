@@ -346,6 +346,7 @@ if( open my $in, "<", $dataFile ) {
 
 
 exit 0 if( scalar @{$oceanData->{'calc'}->{'edges'}}< 1 );
+exit 0 if( $oceanData->{'calc'}->{'mode'} eq 'val' );
 
 
 $oceanData->{'calc'}->{'edges'}[0] =~ m/(\d+)\s+(\d+)\s+(\d+)/ or die "Malformed calc->edges\n";
