@@ -154,13 +154,13 @@ close OUT;
 #TODO remove/fix
 # These likely only matter for valence calcs, and should be set to those defaults
 open OUT, ">tmel_selector" or die;
-print OUT "0\n";
+print OUT "1\n";
 close OUT;
 open OUT, ">enk_selector" or die;
 print OUT "0\n";
 close OUT;
 open OUT, ">bloch_selector" or die;
-print OUT "0\n";
+print OUT "3\n";
 close OUT;
 
 
@@ -171,27 +171,47 @@ foreach (@ExtraFiles) {
 
 # Grab files
 grabWaveFunctions();
-unless( defined $newBSEdata->{'calc'}->{'photon_in'} ) {
-  print "Undef\n\n";
-  $newBSEdata->{'calc'}->{'photon_in'} = [];
+my @photon_files;
+
+unless( $newBSEdata->{'calc'}->{'mode'} eq 'val' ) {
+  unless( defined $newBSEdata->{'calc'}->{'photon_in'} ) {
+    print "Undef\n\n";
+    $newBSEdata->{'calc'}->{'photon_in'} = [];
+  }
+  @photon_files = grabPhotonFiles( $newBSEdata->{'calc'}->{'photon_in'} );
+
+
+  grabOPF( $newBSEdata );
+  grabCKS( $newBSEdata );
+
+  runMels( $newBSEdata, \@photon_files );
+
+  writeRunlistCore( $newBSEdata, \@photon_files );
+  writeBSEinCore( $newBSEdata );
+
+  writeAuxFiles( $newBSEdata );
+  writeScFac( $newBSEdata );
+} else {
+  writeRunlistVAL( );
+  writeBSEinVal( $newBSEdata );
+  writeAuxFiles( $newBSEdata );
+  writeValAuxFiles( $newBSEdata );
+
+  open OUT, ">", "ZNL" or die "$!";
+  print OUT "0 0 0\n";
+  close OUT;
+
+  prepDen( );
+
 }
-my @photon_files = grabPhotonFiles( $newBSEdata->{'calc'}->{'photon_in'} );
+
 
 grabScreenFiles( $newBSEdata );
-
-grabOPF( $newBSEdata );
-grabCKS( $newBSEdata );
-
-runMels( $newBSEdata, \@photon_files );
-
-
 ####
 
-writeRunlistCore( $newBSEdata, \@photon_files );
-writeBSEinCore( $newBSEdata );
-
-writeAuxFiles( $newBSEdata );
-writeScFac( $newBSEdata );
+#TODO:
+# If statements for core/valence
+# expand writeAux for valence
 
 open OUT, ">", "bse.json" or die;
 print OUT $json->encode($newBSEdata);
@@ -760,6 +780,13 @@ sub writeRunlistRIXS {
   close RUNLIST;
 }
 
+sub writeRunlistVAL {
+  open RUNLIST, ">", "runlist" or die "Failed to open file runlist\n$!";
+  print RUNLIST "1\n0  0  0  __  __  0  0  VAL\n";
+  close RUNLIST;
+}
+
+
 sub writeBSEinVal {
   my ($hashRef) = @_;
 
@@ -778,6 +805,16 @@ sub writeBSEinVal {
     die "Non-haydock valence solvers not yet implemented\n";
   }
   close BSE;
+
+  open SPECT, ">", "spect.in" or die "Failed to open spect.in for writing\n$!";
+  printf SPECT "%i %g %g %g %g %g\n", 
+      $hashRef->{'bse'}->{'val'}->{'plot'}->{'points'},
+      $hashRef->{'bse'}->{'val'}->{'plot'}->{'range'}[0],
+      $hashRef->{'bse'}->{'val'}->{'plot'}->{'range'}[1],
+      $hashRef->{'bse'}->{'val'}->{'broaden'},
+      0.0;
+  close SPECT;
+
 }
 
 sub writeBSEinCore {
@@ -923,18 +960,22 @@ sub writeAuxFiles {
 
   #TODO: cut out of ocean.x
   open OUT, ">", "cks.normal" or die "$!\n";
-  if( $hashRef->{'calc'}->{'mode'} eq 'xas' || $hashRef->{'calc'}->{'mode'} eq 'rxs' ) {
+  if( $hashRef->{'calc'}->{'mode'} eq 'xas' || $hashRef->{'calc'}->{'mode'} eq 'rxs' 
+                                            || $hashRef->{'calc'}->{'mode'} eq 'val' ) {
     print OUT ".true.\n";
   } else {
     print OUT ".false.\n";
   }
   close OUT;
 
-  if( $hashRef->{'calc'}->{'mode'} eq 'val' ) { die "Valence not programed yet\n"; }
+  # For all options that could be either core (or valence!) 
+  my $valORcore = 'core';
+  $valORcore = 'val' if( $hashRef->{'calc'}->{'mode'} eq 'val' );
+#  if( $hashRef->{'calc'}->{'mode'} eq 'val' ) { die "Valence not programed yet\n"; }
   #TODO: this is redundant
   open OUT, ">", "mode" or die "$!";
-  printf OUT "%g %i\n", $hashRef->{'bse'}->{'core'}->{'strength'}, 
-                       $hashRef->{'bse'}->{'core'}->{'haydock'}->{'niter'};
+  printf OUT "%g %i\n", $hashRef->{'bse'}->{$valORcore}->{'strength'}, 
+                       $hashRef->{'bse'}->{$valORcore}->{'haydock'}->{'niter'};
   close OUT;
     
 
@@ -943,14 +984,19 @@ sub writeAuxFiles {
   close OUT;
 
   open OUT, ">", "nedges" or die "$!";
-  printf OUT "%i\n", scalar @{$hashRef->{'calc'}->{'edges'}};
+  if( exists $hashRef->{'calc'}->{'edges'} ) {
+    printf OUT "%i\n", scalar @{$hashRef->{'calc'}->{'edges'}};
+  } else {
+    print OUT "0\n";
+  }
   close OUT;
 
   open OUT, ">", "epsilon" or die "$!";
   printf OUT "%g\n", $hashRef->{'bse'}->{'epsilon'};
   close OUT;
 
-  if( $hashRef->{'calc'}->{'mode'} eq 'val' ) { die "Valence not programed yet\n"; }
+#  if( $hashRef->{'calc'}->{'mode'} eq 'val' ) { die "Valence not programed yet\n"; }
+  # TODO, enable for valence BSE, add to input options
   open OUT, ">", "cnbse.write_rhs" or die "$!";
   if( $hashRef->{'bse'}->{'core'}->{'write_rhs'} ) { 
     print OUT ".true.\n";
@@ -959,10 +1005,10 @@ sub writeAuxFiles {
   }
   close OUT;
 
-  if( $hashRef->{'calc'}->{'mode'} eq 'val' ) { die "Valence not programed yet\n"; }
+#  if( $hashRef->{'calc'}->{'mode'} eq 'val' ) { die "Valence not programed yet\n"; }
   open OUT, ">", "haydockconv.ipt" or die;
-  printf OUT "%g  %i\n", $hashRef->{'bse'}->{'core'}->{'haydock'}->{'converge'}->{'thresh'}, 
-                         $hashRef->{'bse'}->{'core'}->{'haydock'}->{'converge'}->{'spacing'};
+  printf OUT "%g  %i\n", $hashRef->{'bse'}->{$valORcore}->{'haydock'}->{'converge'}->{'thresh'}, 
+                         $hashRef->{'bse'}->{$valORcore}->{'haydock'}->{'converge'}->{'spacing'};
   close OUT;
 
   open OUT, ">", "xyz.wyck" or die "$!";
@@ -1006,6 +1052,8 @@ sub writeAuxFiles {
   }
   close OUT;
 
+  #TODO:
+  # Add option for valence GMRES print out
   open OUT, ">", "echamp.inp" or die "Failed to open echamp.inp\n$!";
   if( $hashRef->{'bse'}->{'core'}->{'gmres'}->{'echamp'} || $hashRef->{'calc'}->{'mode'} eq 'rxs' ) {
     print OUT ".true.\n";

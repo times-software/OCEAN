@@ -1844,7 +1844,7 @@ module OCEAN_haydock
     if( myid .eq. root ) then
       open(unit=99,file='mode',form='formatted',status='old')
       rewind(99)
-      read(99,*) inter_scale, haydock_niter
+      read(99,*) inter_scale
       close(99)
 
 !      open(unit=99,file='calc_control',form='formatted',status='old')
