@@ -10,7 +10,6 @@ para_prefix { mpirun -n 4 }
 calc rxs
 ppdir{ ./ }
 ngkpt { 8 8 8 }
-obkpt{ 4 4 4 }
 photon_q{ 0.0001 0.0001 0.0001 }
 
 # Converged nkpt would be more like 16 16 16
