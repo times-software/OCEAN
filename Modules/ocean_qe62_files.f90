@@ -1155,7 +1155,10 @@ module ocean_qe62_files
 
 !      open( unit=99, file=qe62_evcFile( ikpt, ispin), form='unformatted', status='old' )
 
-      start_band = 1
+      start_band = brange(1)
+      do i = 1, start_band - 1
+        read(99)
+      enddo
       indexOverlapBand = 0
 
       do id = 0, pool_nproc - 1
@@ -1477,7 +1480,10 @@ module ocean_qe62_files
       write(1000+myid,*) '   Nbuffer:', bufferSize
 
 
-      start_band = 1
+      start_band = brange(1)
+      do i = 1, start_band - 1
+        read(99)
+      enddo  
 
       do id = 0, pool_nproc - 1
         nbands_to_send = qe62_getValenceBandsForPoolID( id )

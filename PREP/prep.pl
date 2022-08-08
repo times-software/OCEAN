@@ -134,6 +134,8 @@ copyAndCompare( $newPrepData->{'bse'}, $dftData->{'structure'}, $prepData->{'bse
 @list = ( "kmesh", "kshift", "xmesh" );
 copyAndCompare( $newPrepData->{'bse'}, $commonOceanData->{'bse'}, $prepData->{'bse'},
                 $newPrepData->{'bse'}, \@list );
+copyAndCompare( $newPrepData->{'bse'}, $commonOceanData->{'bse'}, $prepData->{'bse'},
+                $fake, [ "start_band" ] );
 
 copyAndCompare( $newPrepData->{'bse'}, $commonOceanData->{'calc'}, $prepData->{'bse'},
                 $newPrepData->{'bse'}, ["nonzero_q", "photon_q"] );
@@ -142,7 +144,28 @@ copyAndCompare( $newPrepData->{'bse'}, $dftData->{'general'}, $prepData->{'bse'}
                 $newPrepData->{'bse'}, ["nspin"] );
 
 copyAndCompare( $newPrepData->{'bse'}, $dftData->{'bse'}, $prepData->{'bse'},
-                $newPrepData->{'bse'}, ["split", "brange"] );
+                $newPrepData->{'bse'}, ["split"] );
+copyAndCompare( $newPrepData->{'bse'}, $dftData->{'bse'}, $prepData->{'bse'},
+                $fake, [ "brange" ] );
+
+if( $newPrepData->{'bse'}->{'start_band'} > 1 ) {
+  printf "Start band %i\n", $newPrepData->{'bse'}->{'start_band'};
+  $newPrepData->{'bse'}->{'brange'}[0] = $newPrepData->{'bse'}->{'start_band'};
+} else {
+  $newPrepData->{'bse'}->{'brange'}[0] = 1;
+}
+
+if( $newPrepData->{'bse'}->{'complete'} ) {
+  for( my $i = 0; $i < 4; $i++ ) {
+    if( $newPrepData->{'bse'}->{'brange'}[$i] != $prepData->{'bse'}->{'brange'}[$i] ) {
+      $newPrepData->{'bse'}->{'complete'} = JSON::PP::false;
+      printf "Brange doesn't match: %i  %i\n", $newPrepData->{'bse'}->{'brange'}[$i], $prepData->{'bse'}->{'brange'}[$i];
+      last;
+    }
+  }
+}
+
+
 
 
 # Setting tmels and cks requires some logic
