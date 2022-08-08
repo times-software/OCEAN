@@ -1,0 +1,234 @@
+{
+   "." : {
+      "." : "The complete set of OCEAN input parameters, with some references.",
+      "references" : {
+         "Benedict1999" : "https://doi.org/10.1103/PhysRevB.59.5441 (Lorin X. Benedict and Eric L. Shirley)",
+         "Vinson2022" : "https://doi.org/10.1039/D2CP01030E (Vinson)"
+      }
+   },
+   "bse" : {
+      "." : "The BSE section is responsible for generating the spectra using either the valence solver, the core-level solver, or (as for RIXS) both.",
+      "core" : {
+         "." : "Flags that are spcific to only to core-level solver.",
+         "broaden" : "The Lorenztian broadening in eV that is applied to the generated spectra. This parameter directly enters in to the continued fraction for the Haydock (see [Benedict and Shirley (1999)][Benedict1999] Eq. 23 or [Vinson (2022)][Vinson2022] Eq. 16) or as part of the GMRES (see [Benedict and Shirley (1999)][Benedict1999] Eq. 27 or [Vinson (2022)][Vinson2022] Eq. 24)",
+         "gmres" : {
+            "echamp" : "Controls wether or not the excitons are written to disk. Necessary for RIXS or plotting.",
+            "elist" : "A list of what incident photon energies in eV the GMRES should be run at. Note the energies are not those seen in experiment, but are on the same scale as the calculated spectrum, in other worse centered around 0 eV regardless of edge.",
+            "erange" : "Sets a range of energies to calculate the GMRES. The format is 'Start Stop Step', all in eV. Same caveats as for [bse.core.gmres.elist][].",
+            "estyle" : "Select either 'elist' or 'erange' to use [bse.core.gmres.elist][] or [bse.core.gmres.erange][], respectively.",
+            "ffff" : "Target residual for the GMRES, i.e. the Euclidian norm of Ax-b.",
+            "gprc" : "The width of the preconditioner (in eV) that is used for GMRES. See Eq. 27 of [Vinson (2022)][Vinson2022].",
+            "nloop" : "Sets the maximum size of the Krylov space. After this size is reached the GMRES is restarted."
+         },
+         "gw" : {
+            "control" : "Sets the type of GW correction. This functionality is still very manual. Users wishing to use GW corrections should take a look at the relevant setions of the source code within the OCEAN2 sub-directory."
+         },
+         "haydock" : {
+            "converge" : {
+               "." : "The Haydock procedure can exit early, using fewer than [bse.core.haydock.niter][] iterations, if the spectrum is converged.",
+               "spacing" : "Convergence is tested by comparing two spectra -- that generated using the current iteration and that generated using spacing iterations previously. A value of less than one means that no convergence will be tested and the full [bse.core.haydock.niter][] iterations will be carried out.",
+               "thresh" : "The convergence threshold is the total area between the two spectra normalized by the average area under the curve of the two spectra."
+            },
+            "niter" : "The maxmium number of Haydock iterations that will be done."
+         },
+         "plot" : {
+            "auto" : "b",
+            "delta" : "f",
+            "pad" : "f",
+            "points" : "i",
+            "range" : "af"
+         },
+         "scfac" : "f",
+         "screen_radius" : "f",
+         "solver" : "s",
+         "spin_orbit" : "f",
+         "strength" : "f",
+         "write_rhs" : "b"
+      },
+      "dft_energy_range" : "f",
+      "kmesh" : "af",
+      "kshift" : "af",
+      "nbands" : "i",
+      "occupation" : {
+         "type" : "s",
+         "value" : "f"
+      },
+      "start_band" : "i",
+      "val" : {
+         "aldaf" : "b",
+         "backf" : "b",
+         "bande" : "b",
+         "bflag" : "b",
+         "broaden" : "f",
+         "bwflg" : "b",
+         "decut" : "f",
+         "gmres" : {
+            "echamp" : "b",
+            "elist" : "af",
+            "erange" : "af",
+            "estyle" : "s",
+            "ffff" : "f",
+            "gprc" : "f",
+            "nloop" : "i"
+         },
+         "gw" : {
+            "control" : "s"
+         },
+         "haydock" : {
+            "converge" : {
+               "spacing" : "i", 
+               "thresh" : "f"
+            },
+            "niter" : "ii"
+         },
+         "lflag" : "b",
+         "plot" : {
+            "points" : "i",
+            "range" : "af"
+         },
+         "qpflg" : "b",
+         "solver" : "s"
+      },
+      "xmesh" : "af"
+   },
+   "calc" : {
+      "edges" : "ai",
+      "mode" : "s",
+      "photon_in" : "ai",
+      "photon_out" : "ai",
+      "photon_q" : "af"
+   },
+   "computer" : {
+      "para_prefix" : "S",
+      "ser_prefix" : "S"
+   },
+   "dft" : {
+      "abpad" : "i",
+      "bse" : {
+         "diagonalization" : "s",
+         "poolsize" : "i",
+         "split" : "b",
+         "toldfe" : "f"
+      },
+      "calc_force" : "b",
+      "calc_stress" : "b",
+      "degauss" : "f",
+      "den" : {
+         "auto" : "b",
+         "kmesh" : "af",
+         "kshift" : "af",
+         "poolsize" : "i",
+         "toldfe" : "f"
+      },
+      "diagonalization" : "s",
+      "ecut" : "f",
+      "exx" : {
+         "qmesh" : "ai"
+      },
+      "epsilon" : {
+         "metal_max" : "f",
+         "metal_min" : "f",
+         "method" : "s",
+         "min_gap" : "f",
+         "thresh" : "f"
+      },
+      "fband" : "f",
+      "functional" : "s",
+      "ldau" : {
+         "Hubbard_J" : "S",
+         "Hubbard_J0" : "S",
+         "Hubbard_U" : "S",
+         "Hubbard_V" : "S",
+         "U_projection_type" : "S",
+         "enable" : "b",
+         "lda_plus_u_kind" : "i"
+      },
+      "mixing" : "f",
+      "ndiag" : "i",
+      "noncolin" : "b",
+      "nspin" : "i",
+      "nstep" : "i",
+      "occopt" : "i",
+      "program" : "s",
+      "redirect" : "b",
+      "screen" : {
+         "diagonalization" : "s",
+         "poolsize" : "i",
+         "toldfe" : "f"
+      },
+      "smag" : "S",
+      "spinorb" : "b",
+      "startingwfc" : "S",
+      "tmp_dir" : "S",
+      "toldfe" : "f",
+      "tolwfr" : "f",
+      "tot_charge" : "f",
+      "verbatim" : "S"
+   },
+   "opf" : {
+      "program" : "s",
+      "shirley" : {
+         "caution" : "b",
+         "fill" : "S",
+         "hfkgrid" : "ai",
+         "opts" : "S"
+      }
+   },
+   "psp" : {
+      "ecut_quality" : "s",
+      "pp_database" : "S",
+      "pp_list" : "aS",
+      "ppdir" : "S",
+      "source" : "s"
+   },
+   "screen" : {
+      "all_augment" : "b",
+      "augment" : "b",
+      "convertstyle" : "s",
+      "core_offset" : {
+         "enable" : "b",
+         "average" : "b",
+         "energy" : "af"
+      },
+      "dft_energy_range" : "f",
+      "final" : {
+         "dr" : "f",
+         "rmax" : "f"
+      },
+      "grid" : {
+         "ang" : "ai",
+         "deltar" : "af",
+         "lmax" : "i",
+         "rmax" : "f",
+         "rmode" : "as",
+         "scheme" : "s",
+         "shells" : "af"
+      },
+      "inversionstyle" : "s",
+      "kmesh" : "af",
+      "kshift" : "af",
+      "mode" : "s",
+      "model" : {
+         "SLL" : {
+            "dq" : "f",
+            "nav" : "f",
+            "qmax" : "f"
+         },
+         "flavor" : "s"
+      },
+      "nbands" : "i",
+      "shells" : "af"
+   },
+   "structure" : {
+      "epsilon" : "f",
+      "metal" : "b",
+      "rprim" : "af",
+      "rscale" : "af",
+      "typat" : "ai",
+      "xangst" : "af",
+      "xbohr" : "af",
+      "xred" : "af",
+      "znucl" : "ai",
+      "zsymb" : "as"
+   }
+}
