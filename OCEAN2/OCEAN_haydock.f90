@@ -263,6 +263,7 @@ module OCEAN_haydock
 
       ! This should be hoisted back up here
       call ocean_hay_ab( sys, psi, new_psi, old_psi, iter, restartBSE, newEps, ierr )
+      if( ierr .ne. 0 ) return
       if( restartBSE ) goto 11
 
       ! test to check convergence
