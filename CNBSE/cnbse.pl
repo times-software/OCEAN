@@ -180,7 +180,7 @@ unless( $newBSEdata->{'calc'}->{'mode'} eq 'val' ) {
   }
   @photon_files = grabPhotonFiles( $newBSEdata->{'calc'}->{'photon_in'} );
 
-
+  makeSiteList( $newBSEdata );
   grabOPF( $newBSEdata );
   grabCKS( $newBSEdata );
 
@@ -319,27 +319,6 @@ sub grabScreenFiles {
 sub grabCoreScreenFiles {
   my ($hashRef) = @_;
  
-  # step 1, build sitelist
-
-  my %countByName;
-  $hashRef->{'calc'}->{'sitelist'} = [];
-
-  for( my $i=0; $i< scalar @{$hashRef->{'bse'}->{'typat'}}; $i++ ) {
-    if( exists $countByName{$hashRef->{'bse'}->{'elname'}[$hashRef->{'bse'}->{'typat'}[$i]-1]} )
-    {
-      $countByName{$hashRef->{'bse'}->{'elname'}[$hashRef->{'bse'}->{'typat'}[$i]-1]}++;
-    } else
-    {
-      $countByName{$hashRef->{'bse'}->{'elname'}[$hashRef->{'bse'}->{'typat'}[$i]-1]}=1;
-    }
-    my @tmp;
-    $tmp[0] = $hashRef->{'bse'}->{'elname'}[$hashRef->{'bse'}->{'typat'}[$i]-1];
-    $tmp[1] = $hashRef->{'bse'}->{'znucl'}[$hashRef->{'bse'}->{'typat'}[$i]-1];
-    $tmp[2] = $countByName{$hashRef->{'bse'}->{'elname'}[$hashRef->{'bse'}->{'typat'}[$i]-1]};
-    push @{$hashRef->{'calc'}->{'sitelist'}}, \@tmp;
-    print "$tmp[0]  $tmp[1]  $tmp[2]  \n";
-  }
-
   my $pawrad = sprintf "%.2f", $hashRef->{'bse'}->{'core'}->{'screen_radius'};
   for( my $i = 0; $i< scalar @{$hashRef->{'calc'}->{'edges'}}; $i++ ) {
     my @edge = split ' ', $hashRef->{'calc'}->{'edges'}[$i];
@@ -1112,5 +1091,33 @@ sub writeValAuxFiles {
         $hashRef->{'bse'}->{'val'}->{'haydock'}->{'converge'}->{'spacing'};
   close OUT;
 
+
+}
+
+
+sub makeSiteList {
+  my ($hashRef) = @_;
+
+  return unless( $hashRef->{'calc'}->{'mode'} eq 'rxs' || 
+                 $hashRef->{'calc'}->{'mode'} eq 'xas' ||
+                 $hashRef->{'calc'}->{'mode'} eq 'xes' );
+  my %countByName;
+  $hashRef->{'calc'}->{'sitelist'} = [];
+        
+  for( my $i=0; $i< scalar @{$hashRef->{'bse'}->{'typat'}}; $i++ ) {
+    if( exists $countByName{$hashRef->{'bse'}->{'elname'}[$hashRef->{'bse'}->{'typat'}[$i]-1]} )
+    {
+      $countByName{$hashRef->{'bse'}->{'elname'}[$hashRef->{'bse'}->{'typat'}[$i]-1]}++;
+    } else
+    {       
+      $countByName{$hashRef->{'bse'}->{'elname'}[$hashRef->{'bse'}->{'typat'}[$i]-1]}=1;
+    }
+    my @tmp;  
+    $tmp[0] = $hashRef->{'bse'}->{'elname'}[$hashRef->{'bse'}->{'typat'}[$i]-1];
+    $tmp[1] = $hashRef->{'bse'}->{'znucl'}[$hashRef->{'bse'}->{'typat'}[$i]-1];
+    $tmp[2] = $countByName{$hashRef->{'bse'}->{'elname'}[$hashRef->{'bse'}->{'typat'}[$i]-1]};
+    push @{$hashRef->{'calc'}->{'sitelist'}}, \@tmp;
+    print "$tmp[0]  $tmp[1]  $tmp[2]  \n";
+  }
 
 }
