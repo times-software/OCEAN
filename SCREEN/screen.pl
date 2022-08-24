@@ -2392,6 +2392,7 @@ sub finishCorePotentials
             system( "$ENV{'OCEAN_BIN'}/rscombine.x < ipt1 > ropt_false") == 0 or die;
             move( "rpot", "rpot_false" ) or die "rpot\n$!";
             move( "rpothires", "rpothires_false" ) or die "rpothires\n$!";
+            next;
           }
           # Fake reconstruction using atomic all-electron/pseudo difference
           else
