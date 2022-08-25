@@ -71,20 +71,25 @@ else
   die "Failed to open config file $dataFile\n$!";
 }
 
-# Load run info for SCREEN
-$dataFile = catfile( updir(), "SCREEN", "screen.json" );
-die "Failed to find $dataFile\n" unless( -e $dataFile );
-
+my $haveScreen = 1;
+$haveScreen = 0 if( $commonOceanData->{'calc'}->{'mode'} eq 'val' &&
+                    $commonOceanData->{'screen'}->{'mode'} ne 'grid' );
 my $screenData;
-if( open( my $in, "<", $dataFile ))
-{
-  local $/ = undef;
-  $screenData = $json->decode(<$in>);
-  close($in);
-}
-else
-{
-  die "Failed to open config file $dataFile\n$!";
+if( $haveScreen ) {
+  # Load run info for SCREEN
+  $dataFile = catfile( updir(), "SCREEN", "screen.json" );
+  die "Failed to find $dataFile\n" unless( -e $dataFile );
+
+  if( open( my $in, "<", $dataFile ))
+  {
+    local $/ = undef;
+    $screenData = $json->decode(<$in>);
+    close($in);
+  }
+  else
+  {
+    die "Failed to open config file $dataFile\n$!";
+  }
 }
 
 
@@ -106,7 +111,11 @@ $newBSEdata->{'time'} = {};
 
 $newBSEdata->{'time'}->{'dft'} = $prepData->{'dft_time'};
 $newBSEdata->{'time'}->{'prep'} = $prepData->{'time'};
-$newBSEdata->{'time'}->{'screen'} = $screenData->{'time'};
+if( $haveScreen ) {
+  $newBSEdata->{'time'}->{'screen'} = $screenData->{'time'};
+} else {
+  $newBSEdata->{'time'}->{'screen'} = 0;
+}
 
 $newBSEdata->{'bse'}->{'complete'} = JSON::PP::true;
 
@@ -137,7 +146,9 @@ CalcParams( $newBSEdata, $commonOceanData, $bseData );
 
 BSEParams( $newBSEdata, $commonOceanData, $bseData );
 
-screenParams( $newBSEdata, $screenData, $bseData );
+if( $haveScreen ) { 
+  screenParams( $newBSEdata, $screenData, $bseData );
+}
 
 
 #ZNL, cks.normal, mode, nelectron, epsilon, screen.mode, conveps, haydockconv.ipt, xyz.wyck, lflag, bflag
@@ -203,6 +214,7 @@ unless( $newBSEdata->{'calc'}->{'mode'} eq 'val' ) {
 
   prepDen( );
 
+  grabTmels();
 }
 
 
@@ -1120,4 +1132,9 @@ sub makeSiteList {
     print "$tmp[0]  $tmp[1]  $tmp[2]  \n";
   }
 
+}
+
+sub grabTmels {
+  copy( catfile( updir(), "PREP", "BSE", "tmels.info" ), "tmels.info" ) or die "Failed to copy tmels.info\n$!";
+  copy( catfile( updir(), "PREP", "BSE", "ptmels.dat" ), "ptmels.dat" ) or die "Failed to copy ptmels.dat\n$!";
 }

@@ -308,18 +308,18 @@ if( $run_screen)
 # CNBSE stage
 ##########################################
 print "$Separator\n";
-if( $calc =~ m/val/i )
-{
-  print "Entering NBSE stage\n";
-  chdir "../NBSE";
-  system("$OCEAN_BIN/nbse.pl") == 0 or die "CNBSE stage failed\n$!";
-}
-else
-{
-  print "Entering CNBSE stage\n";
-  chdir "../CNBSE";
-  system("$OCEAN_BIN/cnbse.pl") == 0 or die "CNBSE stage failed\n$!";
-}
+#if( $calc =~ m/val/i )
+#{
+#  print "Entering NBSE stage\n";
+#  chdir "../NBSE";
+#  system("$OCEAN_BIN/nbse.pl") == 0 or die "CNBSE stage failed\n$!";
+#}
+#else
+#{
+print "Entering CNBSE stage\n";
+chdir "../CNBSE";
+system("$OCEAN_BIN/cnbse.pl") == 0 or die "CNBSE stage failed\n$!";
+#}
 
 ##########################################
 print "$Separator\n";

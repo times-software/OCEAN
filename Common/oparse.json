@@ -100,7 +100,7 @@
       ]
    },
    "calc" : {
-      "edges" : "",
+      "edges" : [],
       "mode" : "xas",
       "photon_in" : [],
       "photon_out" : [],
