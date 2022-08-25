@@ -26,6 +26,7 @@ subroutine nbsemkcmel( add04, add14 )
   integer, allocatable :: nnu( : )
   real( DP ), allocatable, dimension( :, : ) :: cmel, nmel, phi, tphi
   real( DP ), allocatable, dimension( : ) :: rad, dr, val
+  logical :: coresign
   !
   write ( s11, '(1a7,1a4)' ) 'prjfile', add04
   open( unit=99, file=s11, form='formatted', status='unknown' )
@@ -47,15 +48,17 @@ subroutine nbsemkcmel( add04, add14 )
   open( unit=99, file=rpot_filename, form='formatted', status='unknown' )
   rewind 99
 
+  coresign = .true. 
   nvMax = 1000
   nv = 0
   allocate( v( nvMax ), rv( nvMax ) )
   do
     read( 99, *, iostat=ierr ) vtmp, rtmp
-    if( vtmp .lt. 0.0_DP ) then
+    if( coresign .and. vtmp .lt. 0.0_DP ) then
       write(6,'(A,A,A)') 'Core-hole potential, ', rpot_filename, ' has wrong sign!'
-      ierr = 901
-      return
+      coresign = .false.
+!      ierr = 901
+!      return
     endif
     ! If the read is successful
     if( ierr .eq. 0 ) then

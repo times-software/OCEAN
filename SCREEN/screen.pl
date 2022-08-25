@@ -2420,7 +2420,7 @@ sub finishCorePotentials
           while (<IN>) {
             if( $_ =~ m/^\s*-\d/ ) {
               print "WARNING bad screening! Repulsive core-hole potentials\n"
-                  . "  BSE stage will fail if this potential is used\n";
+                  . "  BSE stage may fail if this potential is used\n";
               last;
             }
           }
