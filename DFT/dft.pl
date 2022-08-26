@@ -254,7 +254,7 @@ for( my $i = 0; $i < $niter; $i ++ ) {
   push @nscf_InitialList, {};
   my @bseList = ( "toldfe", "poolsize", "diagonalization" );
   copyNoCompare( $nscf_InitialList[$i], $commonOceanData->{'dft'}->{'bse'}, \@bseList );
-  @bseList = ( "kmesh", "kshift", "start_band" );
+  @bseList = ( "kmesh", "kshift", "con_start" );
   copyNoCompare( $nscf_InitialList[$i], $commonOceanData->{'bse'}, \@bseList );
 
   # First loop is conduction bands, second is valence only on -q grid
@@ -686,8 +686,8 @@ unless( $newDftData->{'bse'}->{'complete'} ) {
   print "DFT for BSE final states complete\n";
 } else {
   $newDftData->{'bse'}->{'time'} = $dftData->{'bse'}->{'time'};
-  if( $newDftData->{'bse'}->{'start_band'} != $dftData->{'bse'}->{'start_band'} 
-        && ( defined( $newDftData->{'bse'}->{'start_band'}) || defined($dftData->{'bse'}->{'start_band'} ) ) ) {
+  if( $newDftData->{'bse'}->{'con_start'} != $dftData->{'bse'}->{'con_start'} 
+        && ( defined( $newDftData->{'bse'}->{'con_start'}) || defined($dftData->{'bse'}->{'con_start'} ) ) ) {
     my $errorCode;
     if( $newDftData->{'general'}->{'program'} eq "qe" ) {
       $errorCode = QErunParseEnergies( $newDftData, $newDftData->{'bse'}, 0 );

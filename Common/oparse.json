@@ -1,5 +1,6 @@
 {
    "bse" : {
+      "con_start" : -1,
       "core" : {
          "broaden" : -1,
          "gmres" : {
@@ -54,7 +55,6 @@
          "type" : "none",
          "value" : 0
       },
-      "start_band" : -1,
       "val" : {
          "aldaf" : false,
          "backf" : false,
@@ -95,6 +95,7 @@
          "qpflg" : true,
          "solver" : "haydock"
       },
+      "val_start" : 1,
       "xmesh" : [
         -1
       ]

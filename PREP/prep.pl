@@ -135,7 +135,7 @@ copyAndCompare( $newPrepData->{'bse'}, $dftData->{'structure'}, $prepData->{'bse
 copyAndCompare( $newPrepData->{'bse'}, $commonOceanData->{'bse'}, $prepData->{'bse'},
                 $newPrepData->{'bse'}, \@list );
 copyAndCompare( $newPrepData->{'bse'}, $commonOceanData->{'bse'}, $prepData->{'bse'},
-                $fake, [ "start_band" ] );
+                $fake, [ "val_start" ] );
 
 copyAndCompare( $newPrepData->{'bse'}, $commonOceanData->{'calc'}, $prepData->{'bse'},
                 $newPrepData->{'bse'}, ["nonzero_q", "photon_q"] );
@@ -148,9 +148,9 @@ copyAndCompare( $newPrepData->{'bse'}, $dftData->{'bse'}, $prepData->{'bse'},
 copyAndCompare( $newPrepData->{'bse'}, $dftData->{'bse'}, $prepData->{'bse'},
                 $fake, [ "brange" ] );
 
-if( $newPrepData->{'bse'}->{'start_band'} > 1 ) {
-  printf "Start band %i\n", $newPrepData->{'bse'}->{'start_band'};
-  $newPrepData->{'bse'}->{'brange'}[0] = $newPrepData->{'bse'}->{'start_band'};
+if( $newPrepData->{'bse'}->{'val_start'} > 1 ) {
+  printf "Start band %i\n", $newPrepData->{'bse'}->{'val_start'};
+  $newPrepData->{'bse'}->{'brange'}[0] = $newPrepData->{'bse'}->{'val_start'};
 } else {
   $newPrepData->{'bse'}->{'brange'}[0] = 1;
 }

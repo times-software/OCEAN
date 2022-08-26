@@ -1149,8 +1149,8 @@ sub QEparseEnergies
     }
   }
 
-  if( exists( $specificHashRef->{'start_band'} ) ) {
-    $b[2] = $specificHashRef->{'start_band'} if( $specificHashRef->{'start_band'} >= 1 );
+  if( exists( $specificHashRef->{'con_start'} ) ) {
+    $b[2] = $specificHashRef->{'con_start'} if( $specificHashRef->{'con_start'} >= 1 );
   }
 
   $specificHashRef->{'brange'} = \@b ;

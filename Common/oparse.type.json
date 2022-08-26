@@ -1,5 +1,6 @@
 {
    "bse" : {
+      "con_start" : "i",
       "core" : {
          "broaden" : "f",
          "gmres" : {
@@ -43,7 +44,6 @@
          "type" : "s",
          "value" : "f"
       },
-      "start_band" : "i",
       "val" : {
          "aldaf" : "b",
          "backf" : "b",
@@ -79,6 +79,7 @@
          "qpflg" : "b",
          "solver" : "s"
       },
+      "val_start" : "i",
       "xmesh" : "af"
    },
    "calc" : {
