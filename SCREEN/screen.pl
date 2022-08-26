@@ -72,6 +72,18 @@ if( -e $dataFile )
   }
   #TODO: add in PREP stage for legacy wave function file support here
 
+
+  $dataFile = catfile( updir(), "OPF", "opf.json" );
+  my $opfData;
+  if( open( my $in, "<", $dataFile ))
+  {
+    local $/ = undef;
+    $opfData = $json->decode(<$in>);
+    close($in);
+  } else {
+    $opfData = {};
+  }
+
   my $screenData;
   $dataFile = "screen.json";
   if( -e $dataFile && open( my $in, "<", $dataFile ) )
@@ -218,6 +230,54 @@ if( -e $dataFile )
                   $newScreenData->{'screen'}, [ 'fermi' ] );
   copyAndCompare( $newScreenData->{'screen'}, $dftData->{'general'}, $screenData->{'screen'},
                   $newScreenData->{'screen'}, [ 'nspin' ] );
+
+  #### check to make sure OPFs didn't re-run ####
+  if( $newScreenData->{'screen'}->{'complete'} ) {
+    my %Z;
+    if( $newScreenData->{'general'}->{'mode'} eq 'core' ) {
+      foreach my $znl (@{$newScreenData->{'general'}->{'edgelist'}}) {
+        my @znl = split ' ', $znl;
+        my $z = $znl[0]*1;
+        $Z{$z} = 1;
+      }
+    } elsif( $newScreenData->{'general'}->{'mode'} eq 'grid' ) {
+      foreach (@{$newScreenData->{'structure'}->{'znucl'}}) {
+        $Z{$_} = 1;
+      }
+    }
+    if( %Z ) {
+      if( exists $screenData->{'psp'} ) {
+        foreach my $z ( keys %Z ) {
+          unless( exists $opfData->{'completed'} ) {
+            $newScreenData->{'screen'}->{'complete'} = JSON::PP::false;
+            last;
+          }
+          unless( exists $opfData->{'completed'}->{$z} &&
+                  exists $opfData->{'completed'}->{$z}->{'input_hash'} &&
+                  exists $opfData->{'completed'}->{$z}->{'psp_hash'} ) {
+            $newScreenData->{'screen'}->{'complete'} = JSON::PP::false;
+            last;
+          }
+          if( $screenData->{'psp'}->{$z}->{'input_hash'} ne $opfData->{'completed'}->{$z}->{'input_hash'} ||
+              $screenData->{'psp'}->{$z}->{'psp_hash'} ne $opfData->{'completed'}->{$z}->{'psp_hash'} ) {
+            $newScreenData->{'screen'}->{'complete'} = JSON::PP::false;
+            last;
+          }
+        }
+      } else {
+        $newScreenData->{'screen'}->{'complete'} = JSON::PP::false;
+      }
+      #Note, if someone mucks with any single psp input it'll invalidate all the screening runs regardless,
+      # but also that is an edge case
+      $newScreenData->{'psp'} = {};
+      foreach my $z ( keys %Z ) {
+        $newScreenData->{'psp'}->{$z} = {};
+        $newScreenData->{'psp'}->{$z}->{'input_hash'} = $opfData->{'completed'}->{$z}->{'input_hash'};
+        $newScreenData->{'psp'}->{$z}->{'psp_hash'} = $opfData->{'completed'}->{$z}->{'psp_hash'};
+      }
+    }
+      
+  }
   
 
   #### RPA calculation

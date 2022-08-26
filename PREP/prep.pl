@@ -52,8 +52,6 @@ else
 
 # Load info from OPF
 $dataFile = catfile( updir(), "OPF", "opf.json" );
-die "Failed to find $dataFile\n" unless( -e $dataFile );
-
 my $opfData;
 if( open( my $in, "<", $dataFile ))
 {
@@ -63,7 +61,7 @@ if( open( my $in, "<", $dataFile ))
 }
 else
 {
-  die "Failed to open config file $dataFile\n$!";
+  $opfData = {};
 }
 
 # Load run info from DFT
@@ -204,67 +202,56 @@ if( $cks )
 {
   copyAndCompare( $newPrepData->{'bse'}, $commonOceanData->{'calc'}, $prepData->{'bse'},
                 $newPrepData->{'bse'}, ["edges"] );
-#  if( exists( $prepData->{'bse'}->{'cks'}->{'enabled'} ) ) {
+
   if( ref $prepData->{'bse'}->{'cks'} eq ref {} ) { 
-#    $newPrepData->{'bse'}->{'complete'} = JSON::PP::false unless( $prepData->{'bse'}->{'cks'}->{'enabled'} );
     unless( $prepData->{'bse'}->{'cks'}->{'enabled'} ) {
       $newPrepData->{'bse'}->{'complete'} = JSON::PP::false;
-      print "  prev enabled failed\n";
+#      print "  prev enabled failed\n";
     }
   } else {
     $newPrepData->{'bse'}->{'complete'} = JSON::PP::false;
-    print "  ref check failed\n";
+#    print "  ref check failed\n";
   }
-#  $newPrepData->{'bse'}->{'complete'} = JSON::PP::false unless( exists( $prepData->{'bse'}->{'cks'}->{'enabled'} )
-#                    && $prepData->{'bse'}->{'cks'}->{'enabled'} );
   $newPrepData->{'bse'}->{'cks'}->{'enabled'} = JSON::PP::true;
 
-  #
-#  if( $newPrepData->{'bse'}->{'complete'} ) {
-    my $new = 0;
-    unless( exists $prepData->{'bse'}->{'cks'}->{'previous'} ) {
-      $prepData->{'bse'}->{'cks'}->{'previous'} = {};
+  my $new = 0;
+  unless( exists $prepData->{'bse'}->{'cks'}->{'previous'} ) {
+    $prepData->{'bse'}->{'cks'}->{'previous'} = {};
+    $new = 1;
+  }
+  $newPrepData->{'bse'}->{'cks'}->{'previous'} = {};
+
+  my %Zset;
+  foreach (@{$newPrepData->{'bse'}->{'edges'}}) {
+    my @znl = split ' ', $_;
+    $Zset{ $newPrepData->{'bse'}->{'znucl'}[$newPrepData->{'bse'}->{'typat'}[$znl[0]-1]-1] } = 1;
+  }
+  foreach my $z ( keys %Zset ) {
+    if( exists $prepData->{'bse'}->{'cks'}->{'previous'}->{$z} ) {
+      unless( exists $prepData->{'bse'}->{'cks'}->{'previous'}->{$z}->{'psp_hash'} && 
+              $prepData->{'bse'}->{'cks'}->{'previous'}->{$z}->{'psp_hash'} 
+              eq $opfData->{'completed'}->{$z}->{'psp_hash'} ) {
+        print ": psp_hash differs\n" unless( $new);
+        $new = 1;
+      }
+      unless( exists $prepData->{'bse'}->{'cks'}->{'previous'}->{$z}->{'input_hash'} &&
+              $prepData->{'bse'}->{'cks'}->{'previous'}->{$z}->{'input_hash'}
+              eq $opfData->{'completed'}->{$z}->{'input_hash'} ) {
+        print ": input_hash differs\n" unless( $new );
+        $new = 1;
+      }
+    } else {
+#      print "  exists previous fail\n";
       $new = 1;
     }
-    $newPrepData->{'bse'}->{'cks'}->{'previous'} = {};
-
-      my %Zset;
-      foreach (@{$newPrepData->{'bse'}->{'edges'}}) {
-        my @znl = split ' ', $_;
-        $Zset{ $newPrepData->{'bse'}->{'znucl'}[$newPrepData->{'bse'}->{'typat'}[$znl[0]-1]-1] } = 1;
-      }
-      foreach my $z ( keys %Zset ) {
-        print "Need Z $z\n";
-        if( exists $prepData->{'bse'}->{'cks'}->{'previous'}->{$z} ) {
-          unless( exists $prepData->{'bse'}->{'cks'}->{'previous'}->{$z}->{'psp_hash'} && 
-                  $prepData->{'bse'}->{'cks'}->{'previous'}->{$z}->{'psp_hash'} 
-                  eq $opfData->{'completed'}->{$z}->{'psp_hash'} ) {
-            print ": psp_hash differs\n" unless( $new);
-            $new = 1;
-          }
-          unless( exists $prepData->{'bse'}->{'cks'}->{'previous'}->{$z}->{'input_hash'} &&
-                  $prepData->{'bse'}->{'cks'}->{'previous'}->{$z}->{'input_hash'}
-                  eq $opfData->{'completed'}->{$z}->{'input_hash'} ) {
-            print ": input_hash differs\n" unless( $new );
-            $new = 1;
-          }
-        } else {
-          print "  exists previous fail\n";
-          $new = 1;
-        }
-        $newPrepData->{'bse'}->{'cks'}->{'previous'}->{$z} = {};
-        $newPrepData->{'bse'}->{'cks'}->{'previous'}->{$z}->{'psp_hash'} 
-            = $opfData->{'completed'}->{$z}->{'psp_hash'} ;
-        $newPrepData->{'bse'}->{'cks'}->{'previous'}->{$z}->{'input_hash'} 
-            = $opfData->{'completed'}->{$z}->{'input_hash'} ;
-      }
-      $newPrepData->{'bse'}->{'complete'} = JSON::PP::false if( $new );
-      print "   new\n" if( $new );
-#    } else {
-#      print "No previous cks\n";
-#      $newPrepData->{'bse'}->{'complete'} = JSON::PP::false;
-#    }
-#  }
+    $newPrepData->{'bse'}->{'cks'}->{'previous'}->{$z} = {};
+    $newPrepData->{'bse'}->{'cks'}->{'previous'}->{$z}->{'psp_hash'} 
+        = $opfData->{'completed'}->{$z}->{'psp_hash'} ;
+    $newPrepData->{'bse'}->{'cks'}->{'previous'}->{$z}->{'input_hash'} 
+        = $opfData->{'completed'}->{$z}->{'input_hash'} ;
+  }
+  $newPrepData->{'bse'}->{'complete'} = JSON::PP::false if( $new );
+#  print "   new\n" if( $new );
 }
 if( $tmels )
 {
