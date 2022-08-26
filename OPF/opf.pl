@@ -17,6 +17,7 @@ require JSON::PP;
 JSON::PP->import;
 use Storable qw(dclone);
 use Time::HiRes qw( gettimeofday tv_interval );
+use Digest::MD5 qw(md5_hex);
 
 
 ###########################
@@ -53,6 +54,7 @@ if( -e $dataFile )
   my %todoHash;
   my %todoPsp;
   my %todoZNL;
+  my %todoInput;
   if( $commonOceanData->{'calc'}->{'mode'} =~ m/val/i )
   {
     print "Valence run! Valence screening augmentation is not automatic!\n";
@@ -98,6 +100,15 @@ if( -e $dataFile )
         print "$_ ";
       }
       print "\n";
+
+      # input hash
+      if( $commonOceanData->{'opf'}->{'program'} eq 'shirley' ) {
+        $todoInput{ $Z } = &inputHashShirley( $Z, $commonOceanData );
+      } elsif( $commonOceanData->{'opf'}->{'program'} eq 'hamann' ) {
+        $todoInput{ $Z } = &inputHashHamann( $Z, $todoPsp{ $Z }, $commonOceanData );
+      } else { 
+        die "Un-supported opf->program\n";
+      }
     }
   }
 
@@ -150,9 +161,27 @@ if( -e $dataFile )
     foreach my $Z (keys %{$opfData->{'completed'}} )
     { 
       next unless( exists $todoHash{ $Z } );
+      my $delete = 1;
+      unless( $todoHash{ $Z } eq $opfData->{'completed'}->{$Z}->{'psp_hash'} ) {
+        print "Psp hash has changed: " . $todoHash{ $Z } . " " . $opfData->{'completed'}->{$Z}->{'psp_hash'} . "\n";
+        $delete = 0;
+      }
+      if( exists $opfData->{'completed'}->{$Z}->{'input_hash'} ) { 
+        unless( $todoInput{$Z} eq $opfData->{'completed'}->{$Z}->{'input_hash'} ) {
+          print "Psp inputs have changed: " . $todoInput{$Z} . " " . $opfData->{'completed'}->{$Z}->{'input_hash'} . "\n";
+        $delete = 0;
+        }
+      } else { 
+        print "No previous input hash\n";
+        $delete = 0;
+      }
+      
 #      print "$todoHash{ $Z }  ---  $opfData->{'completed'}->{$Z}->{'psp_hash'}\n";
-      if( $todoHash{ $Z } eq $opfData->{'completed'}->{$Z}->{'psp_hash'} )
-      {
+#      if( $todoHash{ $Z } eq $opfData->{'completed'}->{$Z}->{'psp_hash'} && 
+#          exists $opfData->{'completed'}->{$Z}->{'input_hash'} &&
+#          $todoHash{$Z} eq $opfData->{'completed'}->{$Z}->{'input_hash'} )
+#      {
+      if( $delete ) {
         foreach my $nl ( @{$opfData->{'completed'}->{$Z}->{'NL'}} )
         {
 #          print "   $nl\n";
@@ -224,6 +253,7 @@ if( -e $dataFile )
     }
     # Can just write over since we already checked that they're the same
     $opfData->{'completed'}->{$Z}->{'psp_hash'} = $todoHash{ $Z };
+    $opfData->{'completed'}->{$Z}->{'input_hash'} = $todoInput{ $Z };
     $opfData->{'completed'}->{$Z}->{'NL'} = [] unless( exists $opfData->{'completed'}->{'NL'} );
     foreach my $nl (keys %{$todoZNL{ $Z }} )
     {
@@ -1200,4 +1230,69 @@ sub runONCV
   }
 
 
+}
+
+
+sub inputHashShirley
+{
+  my ( $Z, $hashRef ) = @_;
+
+  my $optfill = '';
+  ### multi-opt hack
+  my $filename;
+  my @opts = split ' ', $hashRef->{'opf'}->{'shirley'}->{'opts'};
+  for( my $i = 0; $i<scalar @opts; $i+=2 )
+  {
+    print "$opts[$i] $opts[$i+1]\n";
+    if( $opts[$i] == $Z )
+    {
+      $filename = catdir( updir(), $opts[$i+1] );
+      last;
+    }
+  }
+  {
+     open my $fh, '<', $filename or die;
+     local $/ = undef;
+     $optfill .= <$fh>;
+     close $fh;
+  }
+  my @fill = split ' ', $hashRef->{'opf'}->{'shirley'}->{'fill'};
+  for( my $i = 0; $i<scalar @fill; $i+=2 )
+  {
+    print "$fill[$i] $fill[$i+1]\n";
+    if( $fill[$i] == $Z )
+    {
+      $filename = catdir( updir(), $fill[$i+1] );
+      last;
+    }
+  }
+  {
+     open my $fh, '<', $filename or die;
+     local $/ = undef;
+     $optfill .= <$fh>;
+     close $fh;
+  }
+
+  return md5_hex( $optfill );
+}
+
+
+sub inputHashHamann
+{    
+  my ( $Z, $pspFile, $hashRef ) = @_;
+
+  my $oncvpspInputFile = $pspFile;
+  $oncvpspInputFile =~ s/.upf$//i;
+  $oncvpspInputFile .= ".in";
+  my $filename = catdir( $hashRef->{'psp'}->{'ppdir'}, "$oncvpspInputFile" );
+
+  my $optfill = '';
+  {
+     open my $fh, '<', $filename or die;
+     local $/ = undef;
+     $optfill .= <$fh>;
+     close $fh;
+  }
+
+  return md5_hex( $optfill );
 }
