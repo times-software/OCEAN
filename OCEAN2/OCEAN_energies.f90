@@ -297,8 +297,11 @@ module OCEAN_energies
     integer :: i, j, k, n(3)
 
     if( present( temp ) ) then
-      write(6,'(A,F9.3)') 'Modifying occupations by ', temp
-      occVal = sqrt(temp)
+      occVal = temp
+      if( occVal .lt. 0.0_DP ) occVal = 0.0_DP
+      if( occVal .gt. 1.0_DP ) occVal = 1.0_DP
+      write(6,'(A,F9.3)') 'Modifying occupations by ', occVal
+      occVal = sqrt(occVal)
     else
       occVal = 0.0_dp
     endif
