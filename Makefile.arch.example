@@ -17,6 +17,9 @@ OPTIONS += -D__OLD_MPI
 # We have some preprocessor macros using the "c-style"
 OPTIONS += -cpp 
 
+# For newer gfortran
+# OPTIONS += -fallow-argument-mismatch 
+
 # Some of the legacy routines don't always declare variables well
 # We can force the promotion of single to double
 # For ifort
@@ -62,7 +65,7 @@ PP_EXE = $(ESPRESSO_DIR)/bin/pp.x
 #######################
 
 
-
+# To support newer, oncvpsp pseudopotentials, download the latest release from https://github.com/jtv3/oncvpsp
 #######################
 # ONCVPSP Flags
 ONCVPSP_DIR = /path/to/oncvpsp

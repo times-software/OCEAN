@@ -1,0 +1,9 @@
+Each directory contains an example and a copy of the expected spectra. 
+
+Note, you will need to adjust the input file by changing: dft, para_prefix, 
+and pp_list (when present). This is because you can run with either ABINIT 
+or QuantumESPRESSO (depending on what is installed) and the pseudopotentials 
+must be either fhi or psp8 for ABINIT and upf for QuantumESPRESSO. In addition, 
+the para_prefix is machine specific. 
+
+The perl scripts in the top level are currently not functional

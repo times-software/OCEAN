@@ -1,6 +1,6 @@
 include ../Makefile.arch
 
-SCRIPTS = dendip.pl par_dendip.pl bvecs.pl gvecs2.pl ofermi.pl OBF_wfn.pl qe_dendip.pl qe_data_file.pl jdftx_dendip.pl
+SCRIPTS = dendip.pl par_dendip.pl bvecs.pl gvecs2.pl ofermi.pl OBF_wfn.pl qe_dendip.pl qe_data_file.pl jdftx_dendip.pl prep.pl
 FILESF90 = nelectron.x rhoofg.x wfconvert.x
 WFCONVERTGW_OBJS = wfconvert_gw.o headpar.o grabwf.o wfsubs.o
 FFT_WRAPPER = ../Modules/FFT_wrapper.o -I../Modules ../Modules/jlmfft.o

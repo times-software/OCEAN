@@ -860,10 +860,10 @@ module ocean_abi_files
 !    integer, allocatable, dimension( : ) :: wavefunctionStorageByK, bandsByK, planewavesByK
     real(DP), allocatable, dimension( : ) :: d1, d2
 
-    character(len=6) :: codvsn
+    character(len=8) :: codvsn
     character(len=132) :: title
     integer :: headform, fform, maxband, noncollinear, numSyms, numPsps, &
-               numAtomTypes, natoms, numkshifts, i, k, j, iia, ia, na, testNkpt, testBand
+               numAtomTypes, natoms, numkshifts, i, k, j, iia, ia, na, testNkpt, testBand, io_err
     integer( MPI_OFFSET_KIND ) :: offset
 
     pos = 0
@@ -880,7 +880,41 @@ module ocean_abi_files
       if( is_shift .and. ia_ .eq. 1 ) testBand = brange(2)
     endif
 
-    read( iun ) codvsn,headform,fform
+!    if( .false. ) then
+!    read( iun ) codvsn2(1:6),headform,fform
+!!    write(6,*) 'Abinit version: ', codvsn, headform,fform
+!!    write( codvsn2, '(A)' ) codvsn
+!
+!    if( headform < 80 ) then
+!      write(6,*) 'Unsupported ABINIT version (or file reading earlier)'
+!      ierr = 214907
+!      return
+!    endif
+!
+!    if( headform > 99 ) then
+!      write(6,*) 'Detected ABINIT version 9'
+!      backspace( iun )
+!      read( iun ) codvsn2,headform,fform
+!      pos = pos + 2 * sizeChar
+!    endif
+!    
+!    write(6,*) 'Abinit version: ', codvsn2, headform,fform 
+!    else
+
+    ! 2x sizeRecord per record
+    pos = pos + 2 * sizeRecord + 2 * sizeInt + 8 * sizeChar
+
+    read( iun, iostat=io_err ) codvsn, headform, fform
+    ! Before version 9, the codvsn was only 6 characters
+    ! we can attempt the read a second time
+    if( io_err .ne. 0 ) then
+      backspace( iun )
+      write( codvsn, '(A)' ) ''
+      write(6,*) '   Pre ABINIT 9 detected'
+      read( iun ) codvsn(1:6), headform, fform
+      pos = pos - 2 * sizeChar
+    endif
+
     write(6,*) 'Abinit version: ', codvsn, headform,fform
 
     if( headform < 80 ) then
@@ -888,9 +922,8 @@ module ocean_abi_files
       ierr = 214907
       return
     endif
+!    endif
 
-    ! 2x sizeRecord per record
-    pos = pos + 2 * sizeRecord + 2 * sizeInt + 6 * sizeChar
 
     allocate( i1( 18 ), d1( 7 ), i2( 1 ), d2( 12 ), i3( 4 ) )
     read( iun ) i1, d1, d2, i3

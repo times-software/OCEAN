@@ -1,0 +1,7 @@
+This shows the OCEAN functionality for changing the occupation numbers in the core-level BSE.
+
+The standard way of running the core-level BSE is that the occupation numbers 
+follow from a T=0 Fermi function (0 or 1). 
+
+Currently, two other options are available. You can use a T>0 Fermi function (fermi) or 
+a uniform (fixed) value.

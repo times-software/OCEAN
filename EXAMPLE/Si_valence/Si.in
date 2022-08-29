@@ -1,17 +1,25 @@
-calc val
-pp_list { si.fhi}
-# Control
-control 0
+calc.mode val
+pp_list { si.fhi.UPF }
+para_prefix{ mpirun -n 8 }
+dft qe
+
+nbse.spect_range{ 2000 0 20 }
 
 # Kpt mesh (N1,N2,N3)
-nkpt { 8 8 8 }
-ngkpt{ 4 4 4 }
+nkpt { 16 16 16 }
+ngkpt{ 8 8 8 }
 
 # Photon momentum
 photon_q { 0.0001   0.0001    0.0001 }
+#screen.nkpt{ 2 2 2 }
+#screen.nbands { 200 }
+#screen.mode grid
+#screen.wvfn qe54
+#screen.lmax 0
+#screen.grid.nr 40
+#screen.grid.ang 7
 
-# number of electrons in unit cell
-nelectron 8
+bse.gw.gap { 1.11 T }
 
 # Total bands
 nbands 12
@@ -45,7 +53,7 @@ xred {
 }
 
 # Kinetic Energy cutoff
-ecut 16.0
+ecut 100
 
 # Energy tol
 toldfe 1.0d-6
@@ -54,22 +62,16 @@ toldfe 1.0d-6
 tolwfr 1.0d-16
 
 # iterations
-nstep 21
+nstep 50
 
 # Static dielectric const.
 diemac 11.4
 
-# GW val. stretch
-NBSE.gwvstr 0.0
-
-# GW cond. stretch
-NBSE.gwcstr 0.0
-
 #Brodening
-NBSE.broaden .1
+bse.val.broaden .1
 
 # xmesh
-CNBSE.xmesh { 6  6  6 }
+bse.xmesh { 8  8  8 }
 
 # bflag
 NBSE.bflag 1
@@ -79,5 +81,3 @@ NBSE.lflag 1
 
 # niter
 NBSE.niter 100
-
-nbse.spect_range { 500 0 20 }

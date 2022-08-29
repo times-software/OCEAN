@@ -466,7 +466,7 @@ module OCEAN_bloch
       if( ex ) bloch_type = 'par'
 
       nbd = sys%num_bands 
-      if ( nbd .gt. 1 + ( ich - icl ) ) stop 'loadux ... nbd mismatch -- cf brange.ipt...'
+      if ( nbd .gt. 1 + ( ich - icl ) ) stop 'Bloch ... nbd mismatch -- cf brange.ipt...'
 
       write(6,*) 'nspn: ', sys%nspn
 !      if( sys%nspn .ne. 1 ) then
@@ -990,7 +990,7 @@ module OCEAN_bloch
     complex(DP), allocatable, dimension(:,:) ::  transposeU2, tempU2
     complex(DP), allocatable, dimension(:) :: readU2
     complex(DP) :: dumz
-    integer :: fflags, fh, myX, nx_start, nx_left, i, ispin, ikpt, sizeofcomplex, ib, curX
+    integer :: fflags, fh, myX, nx_start, nx_left, i, ispin, ikpt, sizeofcomplex, ib, curX, bandsInFile
     logical :: loadConductionBands
 
     character(len=10) :: filnam
@@ -1008,8 +1008,10 @@ module OCEAN_bloch
 
     if( loadConductionBands ) then
       filnam = 'con.u2.dat'
+      bandsInFile = sys%brange(4)-sys%brange(3)+1
     else
       filnam = 'val.u2.dat'
+      bandsInFile = sys%brange(2)-sys%brange(1)+1
     endif
 
     if( myid .eq. root ) then
@@ -1066,6 +1068,14 @@ module OCEAN_bloch
 
         enddo
 
+        !TODO better skips
+        do ib = sys%num_bands+1, bandsInFile
+          if( myid .eq. root ) then
+!            write(6,*) 'skips:', ib, ikpt
+            read( 99 ) readU2
+          endif
+        enddo
+
         transposeU2 = transpose( tempU2( :, : ) )
         do i = 1, myX
           re_bloch_state(:, ikpt, i, ispin ) = real( transposeU2(:,i), DP )
@@ -1074,6 +1084,7 @@ module OCEAN_bloch
       enddo
     enddo
     
+    if( myid .eq. root) write(6,*) '!!!!', sys%num_bands
 
     deallocate( tempU2, transposeU2 )
 

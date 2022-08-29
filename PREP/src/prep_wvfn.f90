@@ -54,9 +54,11 @@ module prep_wvfn
     integer :: valNgvecs, conNgves, valBands, conBands, ngvecs(2), odf_flag, totConBands
     integer :: nG, nbands, fftGrid(3), allBands, nX, vType, cType, totValBands, myConBandStart, myValBandStart
     integer :: umklapp(3)
+    integer :: nband_chunk, nchunk, ichunk, nband_todo, ib, ib2
 
     integer :: conFH, valFH, fileHandle, poolID, i, testFH, iband, bandChunk, omp_threads, kStride
     logical :: is_kpt, wantCKS, wantU2, addShift, wantLegacy, wantTmels
+!$  integer, external :: omp_get_max_threads
 
     wantCKS = calcParams%makeCKS
     wantU2 = calcParams%makeU2
@@ -305,20 +307,32 @@ module prep_wvfn
 
             call prep_wvfn_checkFFT( nG, gvecPointer, .false., wantU2, fftGrid, ierr )
 
-            allocate( wvfn( fftGrid(1), fftGrid(2), fftGrid(3), nbands ) )
 
-            call prep_wvfn_doFFT( gvecPointer, UofGPointer, wvfn )
+            nband_chunk = 1
+! !$          nband_chunk = omp_get_max_threads
 
-
+            allocate( wvfn( fftGrid(1), fftGrid(2), fftGrid(3), nband_chunk ) )
             !JTV
 !            ! This reversal is currently in the code, but we need to remove at some point
             ! This is reversed in the legacy u2.dat. That reversal is removed here, but
             ! taken into account in the legacy writer
-            allocate( UofX( params%xmesh(1), params%xmesh(2), params%xmesh(3), nbands ), &
-                      UofX2( nX, allBands ) )
+            allocate( UofX( params%xmesh(1), params%xmesh(2), params%xmesh(3), nbands ) )
 
-            call prep_wvfn_u1( wvfn, UofX, ierr )
-            if( ierr .ne. 0 ) return
+            nchunk = ( nbands - 1 ) / nband_chunk + 1
+            do ichunk = 1, nchunk
+              nband_todo = min( nband_chunk, nbands - ( ichunk - 1 )*nband_chunk )
+              ib = (ichunk-1)*nband_chunk+1
+              call prep_wvfn_doFFT( gvecPointer, UofGPointer(:,ib:), wvfn(:,:,:,1:nband_todo) )
+
+
+!              ib = 1 + (ichunk-1)*nband_chunk
+              ib2 = ib + nband_todo - 1
+              call prep_wvfn_u1( wvfn(:,:,:,1:nband_todo), UofX(:,:,:,ib:ib2), ierr )
+              if( ierr .ne. 0 ) return
+            enddo
+
+            deallocate( wvfn )
+            allocate( UofX2( nX, allBands ) )
 
             ! begin orthogonalization
               ! because we should be nearly orthogonal already, can use non-modified Gram-Schmidt
@@ -326,7 +340,7 @@ module prep_wvfn
             if( ierr .ne. 0 ) return
           
           else
-            allocate( UofX( 0, 0, 0, 0 ), UofX2( 0, 0 ), wvfn(0,0,0,0) )
+            allocate( UofX( 0, 0, 0, 0 ), UofX2( 0, 0 ) )
           endif
 
           ! save subsampled xmesh
@@ -343,7 +357,6 @@ module prep_wvfn
 !          endif
 
           deallocate( UofX, UofX2 )
-          deallocate( wvfn )
 
         endif
 
@@ -540,17 +553,22 @@ module prep_wvfn
           enddo
         enddo
       enddo
-      eshift = -eshift
+!      eshift = -eshift
+
+      open( unit=99, file='cbm.out', form='formatted', status='unknown' )
+      write(99,*) eshift*Hartree2eV
+      close( 99 )
 
       zero_lumo = .false.
-      open( unit=99, file='core_offset', form='formatted', status='old')
-      rewind 99
-      ! might be true/false, but might be a number (which means true)
-      read( 99, *, IOSTAT=ioerr ) have_core_offset
-      close( 99 )
-      if( ioerr .ne. 0 ) have_core_offset = .true.
-      ! if we are doing a core-level shift, then we don't zero the lumo
-      if( have_core_offset ) zero_lumo = .false.
+
+!      open( unit=99, file='core_offset', form='formatted', status='old')
+!      rewind 99
+!      ! might be true/false, but might be a number (which means true)
+!      read( 99, *, IOSTAT=ioerr ) have_core_offset
+!      close( 99 )
+!      if( ioerr .ne. 0 ) have_core_offset = .true.
+!      ! if we are doing a core-level shift, then we don't zero the lumo
+!      if( have_core_offset ) zero_lumo = .false.
 
       ! Allow an override option
       inquire( file='noshift_lumo',exist=ex)
@@ -1111,7 +1129,7 @@ module prep_wvfn
 
     if( wantU2 ) then
       do i = 1, 3
-        do j = 0, 40
+        do j = 0, params%xmesh( i )
           if( mod( fftGrid( i ), params%xmesh( i ) ) .eq. 0 ) then
             exit
           else

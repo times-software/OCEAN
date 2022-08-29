@@ -1,5 +1,7 @@
 include ../Makefile.arch
 
+%.o: %.mod
+
 # Currently BLAS and MPI are *not* optional
 FLAGS = $(OPTIONS) -I../SCREEN/src
 

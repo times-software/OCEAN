@@ -158,11 +158,11 @@ if( $run_screen == 1 )
   close NKPT;
   $rundir = "../DFT/SCREEN";
 
-  unless( -e "PAW/done" && -e "${rundir}/old" ) 
+  unless( -e "SCREEN/done" && -e "${rundir}/old" ) 
   {
-    `rm -r PAW` if (-e "PAW");
-    mkdir "PAW"; 
-    chdir "PAW";
+    `rm -r SCREEN` if (-e "SCREEN");
+    mkdir "SCREEN"; 
+    chdir "SCREEN";
 
     open NKPT, ">nkpts" or die "Failed to open nkpts for writing\n";
     print NKPT $nkpt[0]*$nkpt[1]*$nkpt[2] . "\n";
@@ -198,7 +198,7 @@ if( $run_screen == 1 )
   }
   else 
   {
-    `touch PAW/old`;
+    `touch SCREEN/old`;
     print  "Nothing needed for SCREEN wfns\n";
   }
   print "Done with SCREEN files\n";

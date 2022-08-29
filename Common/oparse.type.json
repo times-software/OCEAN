@@ -1,0 +1,225 @@
+{
+   "bse" : {
+      "con_start" : "i",
+      "core" : {
+         "broaden" : "f",
+         "gmres" : {
+            "echamp" : "b",
+            "elist" : "af",
+            "erange" : "af",
+            "estyle" : "s",
+            "ffff" : "f",
+            "gprc" : "f",
+            "nloop" : "i"
+         },
+         "gw" : {
+            "control" : "s"
+         },
+         "haydock" : {
+            "converge" : {
+               "spacing" : "i",
+               "thresh" : "f"
+            },
+            "niter" : "i"
+         },
+         "plot" : {
+            "auto" : "b",
+            "delta" : "f",
+            "pad" : "f",
+            "points" : "i",
+            "range" : "af"
+         },
+         "scfac" : "f",
+         "screen_radius" : "f",
+         "solver" : "s",
+         "spin_orbit" : "f",
+         "strength" : "f",
+         "write_rhs" : "b"
+      },
+      "dft_energy_range" : "f",
+      "kmesh" : "af",
+      "kshift" : "af",
+      "nbands" : "i",
+      "occupation" : {
+         "type" : "s",
+         "value" : "f"
+      },
+      "val" : {
+         "aldaf" : "b",
+         "backf" : "b",
+         "bande" : "b",
+         "bflag" : "b",
+         "broaden" : "f",
+         "bwflg" : "b",
+         "decut" : "f",
+         "gmres" : {
+            "echamp" : "b",
+            "elist" : "af",
+            "erange" : "af",
+            "estyle" : "s",
+            "ffff" : "f",
+            "gprc" : "f",
+            "nloop" : "i"
+         },
+         "gw" : {
+            "control" : "s"
+         },
+         "haydock" : {
+            "converge" : {
+               "spacing" : "i", 
+               "thresh" : "f"
+            },
+            "niter" : "ii"
+         },
+         "lflag" : "b",
+         "plot" : {
+            "points" : "i",
+            "range" : "af"
+         },
+         "qpflg" : "b",
+         "solver" : "s"
+      },
+      "val_start" : "i",
+      "xmesh" : "af"
+   },
+   "calc" : {
+      "edges" : "ai",
+      "mode" : "s",
+      "photon_in" : "ai",
+      "photon_out" : "ai",
+      "photon_q" : "af"
+   },
+   "computer" : {
+      "para_prefix" : "S",
+      "ser_prefix" : "S"
+   },
+   "dft" : {
+      "abpad" : "i",
+      "bse" : {
+         "diagonalization" : "s",
+         "poolsize" : "i",
+         "split" : "b",
+         "toldfe" : "f"
+      },
+      "calc_force" : "b",
+      "calc_stress" : "b",
+      "degauss" : "f",
+      "den" : {
+         "auto" : "b",
+         "kmesh" : "af",
+         "kshift" : "af",
+         "poolsize" : "i",
+         "toldfe" : "f"
+      },
+      "diagonalization" : "s",
+      "ecut" : "f",
+      "exx" : {
+         "qmesh" : "ai"
+      },
+      "epsilon" : {
+         "metal_max" : "f",
+         "metal_min" : "f",
+         "method" : "s",
+         "min_gap" : "f",
+         "thresh" : "f"
+      },
+      "fband" : "f",
+      "functional" : "s",
+      "ldau" : {
+         "Hubbard_J" : "S",
+         "Hubbard_J0" : "S",
+         "Hubbard_U" : "S",
+         "Hubbard_V" : "S",
+         "U_projection_type" : "S",
+         "enable" : "b",
+         "lda_plus_u_kind" : "i"
+      },
+      "mixing" : "f",
+      "ndiag" : "i",
+      "noncolin" : "b",
+      "nspin" : "i",
+      "nstep" : "i",
+      "occopt" : "i",
+      "program" : "s",
+      "redirect" : "b",
+      "screen" : {
+         "diagonalization" : "s",
+         "poolsize" : "i",
+         "toldfe" : "f"
+      },
+      "smag" : "S",
+      "spinorb" : "b",
+      "startingwfc" : "S",
+      "tmp_dir" : "S",
+      "toldfe" : "f",
+      "tolwfr" : "f",
+      "tot_charge" : "f",
+      "verbatim" : "S"
+   },
+   "opf" : {
+      "program" : "s",
+      "shirley" : {
+         "caution" : "b",
+         "fill" : "S",
+         "hfkgrid" : "ai",
+         "opts" : "S"
+      }
+   },
+   "psp" : {
+      "ecut_quality" : "s",
+      "pp_database" : "S",
+      "pp_list" : "aS",
+      "ppdir" : "S",
+      "source" : "s"
+   },
+   "screen" : {
+      "all_augment" : "b",
+      "augment" : "b",
+      "convertstyle" : "s",
+      "core_offset" : {
+         "enable" : "b",
+         "average" : "b",
+         "energy" : "af"
+      },
+      "dft_energy_range" : "f",
+      "final" : {
+         "dr" : "f",
+         "rmax" : "f"
+      },
+      "grid" : {
+         "ang" : "ai",
+         "deltar" : "af",
+         "lmax" : "i",
+         "rmax" : "f",
+         "rmode" : "as",
+         "scheme" : "s",
+         "shells" : "af"
+      },
+      "inversionstyle" : "s",
+      "kmesh" : "af",
+      "kshift" : "af",
+      "mode" : "s",
+      "model" : {
+         "SLL" : {
+            "dq" : "f",
+            "nav" : "f",
+            "qmax" : "f"
+         },
+         "flavor" : "s"
+      },
+      "nbands" : "i",
+      "shells" : "af"
+   },
+   "structure" : {
+      "epsilon" : "f",
+      "metal" : "b",
+      "rprim" : "af",
+      "rscale" : "af",
+      "typat" : "ai",
+      "xangst" : "af",
+      "xbohr" : "af",
+      "xred" : "af",
+      "znucl" : "ai",
+      "zsymb" : "as"
+   }
+}

@@ -1,0 +1,20 @@
+The PseudoDojo input files have been reformatted into json as the following files:
+1. ONCVPSP-PBE-PDv0.4-standard.json
+2. ONCVPSP-PBE-PDv0.4-stringent.json
+3. ONCVPSP-PBEsol-PDv0.4-standard.json
+4. ONCVPSP-PBEsol-PDv0.4-stringent.json
+5. ONCVPSP-PW-PDv0.4-standard.json
+6. ONCVPSP-PW-PDv0.4-stringent.json
+
+These files are not governed by the OCEAN license. The content of the files was released under the 
+[CC BY 4.0 license](https://creativecommons.org/licenses/by/4.0/legalcode)
+This license lets you distribute, remix, tweak, and build upon our work, even commercially, 
+as long as you credit the PseudoDojo project for the original creation. 
+
+The suggested citations for PseudoDojo are [here](http://www.pseudo-dojo.org/faq.html), 
+and the original publication is: 
+The PseudoDojo: Training and grading a 85 element optimized norm-conserving pseudopotential table
+M. J. van Setten, M. Giantomassi, E. Bousquet, M. J. Verstraete, D. R. Hamann, X. Gonze, G.-M. Rignanese
+Computer Physics Communications 226, 39-54 (2018)
+[10.1016/j.cpc.2018.01.012](https://doi.org/10.1016/j.cpc.2018.01.012)
+[arxiv preprint](https://arxiv.org/abs/1710.10138)

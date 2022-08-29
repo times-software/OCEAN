@@ -32,8 +32,8 @@ rprim {
 }
 
 pp_list{
-Li-s-high.oncvpsp
-F.oncvpsp
+Li-s-high.oncvpsp.UPF
+F.oncvpsp.UPF
 }
 
 znucl { 3 9 }
@@ -58,3 +58,9 @@ cnbse.rad{ 4.0 }
 
 # spectral broadening in eV
 cnbse.broaden{ 0.5 }
+
+# Below are included to match old behavior, but are *not* recommended
+screen.grid.rmode uniform
+screen.grid.ang 5
+ngkpt { 3 3 3 }
+scfac 1.0

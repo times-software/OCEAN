@@ -1,9 +1,8 @@
 dft qe
-para_prefix { mpirun -n 8 --map-by ppr:4:socket }
-calc rxs
-ppdir{ ../ }
+para_prefix { mpirun -n 4 }
+calc xas
+ppdir{ ./ }
 ngkpt { 8 8 8 }
-obkpt{ 4 4 4 }
 photon_q{ 0.0001 0.0001 0.0001 }
 
 # Converged nkpt would be more like 16 16 16
@@ -11,7 +10,7 @@ nkpt { 8 8 8 }
 nbands 24
 screen.nkpt{ 2 2 2 }
 screen.nbands 80
-pp_list{ 06-c.lda.fhi }
+pp_list{ 06-c.lda.fhi.UPF }
 acell { 6.74033 6.74033 6.74033 }
 rprim {
  0.0 0.5 0.5
@@ -45,3 +44,6 @@ cnbse.broaden 0.4
 
 # Convergence criterion for GMRES
 cnbse.gmres.ffff 0.0000005
+
+screen.grid.rmode uniform
+scfac 1

@@ -105,7 +105,9 @@ module screen_chi
                                intInduced, ierr )
         if( ierr .ne. 0 ) return
 
+#ifdef PRINTLOG
         write(1000+myid,'(A,1X,E24.16,1X,E24.16)') Prefix, intInduced(:)
+#endif
         
         call screen_chi_writeW( mySite%grid, Prefix, FullW, FullW0, Ninduced, N0induced )
 

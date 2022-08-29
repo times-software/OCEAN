@@ -144,11 +144,11 @@ if( $run_screen == 1 )
   close NKPT;
   $rundir = "../DFT/SCREEN";
 
-  unless( -e "PAW/done" && -e "${rundir}/old" ) 
+  unless( -e "SCREEN/done" && -e "${rundir}/old" ) 
   {
-    `rm -r PAW` if (-e "PAW");
-    mkdir "PAW"; 
-    chdir "PAW";
+    `rm -r SCREEN` if (-e "SCREEN");
+    mkdir "SCREEN"; 
+    chdir "SCREEN";
 
     open NKPTS, ">nkpts" or die "Failed to open nkpts for writing\n";
     print NKPTS $nkpt[0]*$nkpt[1]*$nkpt[2] . "\n";
@@ -191,7 +191,7 @@ if( $run_screen == 1 )
     # New methods for skipping wfconvert
     if( $screenWvfn =~ m/qe(\d+)/ && $screenLegacy == 0 )
     {
-      unlink "PAW/old";
+      unlink "SCREEN/old";
 #      my $qeVersion = $1;
       print "Don't convert DFT. Using new method for screening wavefunctions: $qeVersion\n";
       `touch listwfile masterwfile enkfile`;
@@ -218,7 +218,7 @@ if( $run_screen == 1 )
     chdir "../";
   }
   else {
-    `touch PAW/old`;
+    `touch SCREEN/old`;
     print  "Nothing needed for SCREEN wfns\n";
   }
 

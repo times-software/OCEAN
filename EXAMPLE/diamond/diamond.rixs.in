@@ -1,0 +1,56 @@
+cnbse.solver gmres
+cnbse.gmres.erange { 0 30 2 }
+bse.core.gmres.estyle range
+calc.photon_in 1
+calc.photon_out 2
+bse.val.broaden 0.4
+
+dft qe
+para_prefix { mpirun -n 4 }
+calc rxs
+ppdir{ ./ }
+ngkpt { 8 8 8 }
+photon_q{ 0.0001 0.0001 0.0001 }
+
+# Converged nkpt would be more like 16 16 16
+nkpt { 8 8 8 }
+nbands 24
+screen.nkpt{ 2 2 2 }
+screen.nbands 80
+pp_list{ 06-c.lda.fhi.UPF }
+acell { 6.74033 6.74033 6.74033 }
+rprim {
+ 0.0 0.5 0.5
+ 0.5 0.0 0.5
+ 0.5 0.5 0.0
+}
+ntypat 1
+znucl { 6 }
+natom 2
+typat { 1 1 }
+xred {
+ 0.00    0.00    0.00
+ 0.25    0.25    0.25
+}
+ecut 45.0
+diemac 5.7
+CNBSE.xmesh { 6  6  6 }
+
+screen.shells{ 3.5 }
+cnbse.rad 3.5
+
+opf.opts{ 6 c.opts }
+opf.fill{ 6 c.fill }
+
+# Run all (both) carbon sites
+edges{ -6 1 0 }
+
+# Broadening should normally be exactly the core-hole lifetime
+#  this is only higher to make the example faster
+cnbse.broaden 0.4
+
+# Convergence criterion for GMRES
+cnbse.gmres.ffff 0.0000005
+
+screen.grid.rmode uniform
+scfac 1

@@ -63,3 +63,9 @@ cnbse.broaden{ 0.5 }
 
 # Use all-electron projectors to augment electron orbitals for screening. By default = true
 screen.augment .true.
+
+# Below are included to match old behavior, but are *not* recommended
+screen.grid.rmode uniform
+screen.grid.ang 5
+ngkpt { 3 3 3 }
+scfac 1.0

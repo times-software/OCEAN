@@ -66,7 +66,9 @@ module screen_kxc
     do i = 1, isite
       if( screen_paral_isMySite( pinfo, i ) ) curSite = curSite + 1 
     enddo
+#ifdef PRINTLOG
     write(1000+myid,*) 'Fxc storage site :', curSite, isite
+#endif
 
     if( curSite .lt. 1 ) then
       ierr = 9521
@@ -183,7 +185,9 @@ module screen_kxc
       if( screen_paral_isMySite( pinfo, isite ) ) then
         i = i + 1
 
+#ifdef PRINTLOG
         write(1000+myid,*) 'Local site :', i, isite, screen_system_appx()
+#endif
 
         select case ( screen_system_appx() )
           case( 'LDA' )
