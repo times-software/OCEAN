@@ -8,6 +8,7 @@
    },
    "bse" : {
       "." : "The BSE section is responsible for generating the spectra using either the valence solver, the core-level solver, or (as for RIXS) both.",
+      "con_start" : "Option to change what band could contain the lowest unoccupied state. Used when changing the occupation numbers see [bse.occupation][].",
       "core" : {
          "." : "Flags that are spcific to only to core-level solver.",
          "broaden" : "The Lorenztian broadening in eV that is applied to the generated spectra. This parameter directly enters in to the continued fraction for the Haydock (see [Benedict and Shirley (1999)][Benedict1999] Eq. 23 or [Vinson (2022)][Vinson2022] Eq. 16) or as part of the GMRES (see [Benedict and Shirley (1999)][Benedict1999] Eq. 27 or [Vinson (2022)][Vinson2022] Eq. 24)",
@@ -32,28 +33,28 @@
             "niter" : "The maxmium number of Haydock iterations that will be done."
          },
          "plot" : {
-            "auto" : "b",
-            "delta" : "f",
-            "pad" : "f",
-            "points" : "i",
-            "range" : "af"
+            "auto" : "Does not work! If true, the code will automatically determine a good plotting range based on spectroscopy, edge, and broadening.",
+            "delta" : "Does not work! Energy spacing of the x-axis in eV for use with auto",
+            "pad" : "Does not work! Sets the amount of padding in eV to add to the code's guess of an ideal plot range.",
+            "points" : "Number of energy points for the x-axis.",
+            "range" : "Lower and upper bound in eV for plotting the spectra."
          },
-         "scfac" : "f",
-         "screen_radius" : "f",
-         "solver" : "s",
-         "spin_orbit" : "f",
-         "strength" : "f",
-         "write_rhs" : "b"
+         "scfac" : "Re-scale the l>0 components of the exchange and direct interaction (F&G). Values less than 0 use code defaults, which are 0.8 for elements Z <= 54 and 0.7 for Z >= 55.",
+         "screen_radius" : "The screening calculation involves a shell of charge placed at some radius from the core site (in Bohr). This value must match one of the values in [screen.shell][].",
+         "solver" : "Specify which solver to use in the BSE. Options are the 'haydock' or the 'gmres'. The Haydock method uses Lanczos tri-diagonalization to solve for the spectra in its entirety, whereas the GMRES method solves at specific energies.",
+         "spin_orbit" : "The spin-orbit splitting between core levels (L23, M45) are calculated in the auxilliary atomic step. Those values can be overridden here (in eV).",
+         "strength" : "Does not work well! Arbitrary control over the strength of certain parts of the BSE.",
+         "write_rhs" : "Determines if the \"Right-hand side\" is written. That is to say the ground-state after the photon operator has acted on it."
       },
-      "dft_energy_range" : "f",
-      "kmesh" : "af",
-      "kshift" : "af",
-      "nbands" : "i",
+      "dft_energy_range" : "Instead of explicitly listing the number of bands [bse.nbands][], request that the code estimate the number of conduction bands such that the conduction bands span a specific energy in eV.",
+      "kmesh" : "The BSE Hamiltonian is calculated using a regular mesh in reciprocal space given by the kmesh. Note that the most likely case is that you want a similar density of points (in reciprocal space), and, therefore, longer reciprocal lattice vectors should have a larger number of k-points in that dimension.",
+      "kshift" : "These three numbers set the origin of the kmesh. For each dimension the starting point is set by kshift/kmesh. Note that this means that the origin moves for each kmesh size (unless the kshift is set to zero).",
+      "nbands" : "The number of bands in the calculation. The total number of bands, including both valence and conduction, are specified with a positive integer. Alternatively, by specifying a negative integer -N, the number of conduction bands is set to N. If set to 0, then the parameter [bse.dft_energy_range][] is used instead.",
       "occupation" : {
-         "type" : "s",
-         "value" : "f"
+         "." : "DFT states are included or excluded from the BSE Hamiltonian based on the Fermi level (for metallic systems [structure.metal][]) or band index for insulators. By default these occupation numbers are either 1 or 0. Several alterantives are available.",
+         "type" : "Current options are 'none', 'fermi', and 'fixed'. For Fermi the occupations come from the standard Fermi distribution, using a temperature set by value. For fixed all of the otherwise forbidden transitions (occupied states for XAS or unoccupied states for XES) are set to have allowed weights of value instead of 0.",
+         "value" : "The control value sets the temperature (in Ha.) for a Fermi distribution or the allowed weight (range between 0 and 1) for 'fixed'."
       },
-      "start_band" : "i",
       "val" : {
          "aldaf" : "b",
          "backf" : "b",
@@ -89,6 +90,7 @@
          "qpflg" : "b",
          "solver" : "s"
       },
+      "val_start" : "",
       "xmesh" : "af"
    },
    "calc" : {

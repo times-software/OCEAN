@@ -108,7 +108,11 @@ sub recursiveJSON  {
       my $refCount = 0;
       foreach my $ref (sort keys %{$hashRef->{"$key"}})  {
         $refCount++;
-        print "$refCount [$ref]: " . $hashRef->{"$key"}->{"$ref"} . "\n";
+        print "$refCount. [$ref]: " . $hashRef->{"$key"}->{"$ref"} . "\n";
+      }
+      foreach my $ref (sort keys %{$hashRef->{"$key"}})  {
+        $refCount++;
+        print "[$ref]: " . $hashRef->{"$key"}->{"$ref"} . "\n";
       }
       print "\n\n";
       next;
