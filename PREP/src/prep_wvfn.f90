@@ -19,6 +19,7 @@ module prep_wvfn
   public :: prep_wvfn_driver
 
 
+  logical, parameter :: debug = .false.
 
   contains
 
@@ -53,9 +54,11 @@ module prep_wvfn
     integer :: valNgvecs, conNgves, valBands, conBands, ngvecs(2), odf_flag, totConBands
     integer :: nG, nbands, fftGrid(3), allBands, nX, vType, cType, totValBands, myConBandStart, myValBandStart
     integer :: umklapp(3)
+    integer :: nband_chunk, nchunk, ichunk, nband_todo, ib, ib2
 
     integer :: conFH, valFH, fileHandle, poolID, i, testFH, iband, bandChunk, omp_threads, kStride
     logical :: is_kpt, wantCKS, wantU2, addShift, wantLegacy, wantTmels
+!$  integer, external :: omp_get_max_threads
 
     wantCKS = calcParams%makeCKS
     wantU2 = calcParams%makeU2
@@ -128,7 +131,7 @@ module prep_wvfn
 
     if( wantTmels ) then
       write(myid+1000,*) totValBands, totConBands, conBands, myConBandStart, nuni, ikpt, kStride
-      flush(myid+1000)
+!      flush(myid+1000)
       call ocean_tmels_open( totValBands, totConBands, conBands, myConBandStart, nuni, ikpt, kStride, ierr )
     endif
 
@@ -304,20 +307,32 @@ module prep_wvfn
 
             call prep_wvfn_checkFFT( nG, gvecPointer, .false., wantU2, fftGrid, ierr )
 
-            allocate( wvfn( fftGrid(1), fftGrid(2), fftGrid(3), nbands ) )
 
-            call prep_wvfn_doFFT( gvecPointer, UofGPointer, wvfn )
+            nband_chunk = 1
+! !$          nband_chunk = omp_get_max_threads
 
-
+            allocate( wvfn( fftGrid(1), fftGrid(2), fftGrid(3), nband_chunk ) )
             !JTV
 !            ! This reversal is currently in the code, but we need to remove at some point
             ! This is reversed in the legacy u2.dat. That reversal is removed here, but
             ! taken into account in the legacy writer
-            allocate( UofX( params%xmesh(1), params%xmesh(2), params%xmesh(3), nbands ), &
-                      UofX2( nX, allBands ) )
+            allocate( UofX( params%xmesh(1), params%xmesh(2), params%xmesh(3), nbands ) )
 
-            call prep_wvfn_u1( wvfn, UofX, ierr )
-            if( ierr .ne. 0 ) return
+            nchunk = ( nbands - 1 ) / nband_chunk + 1
+            do ichunk = 1, nchunk
+              nband_todo = min( nband_chunk, nbands - ( ichunk - 1 )*nband_chunk )
+              ib = (ichunk-1)*nband_chunk+1
+              call prep_wvfn_doFFT( gvecPointer, UofGPointer(:,ib:), wvfn(:,:,:,1:nband_todo) )
+
+
+!              ib = 1 + (ichunk-1)*nband_chunk
+              ib2 = ib + nband_todo - 1
+              call prep_wvfn_u1( wvfn(:,:,:,1:nband_todo), UofX(:,:,:,ib:ib2), ierr )
+              if( ierr .ne. 0 ) return
+            enddo
+
+            deallocate( wvfn )
+            allocate( UofX2( nX, allBands ) )
 
             ! begin orthogonalization
               ! because we should be nearly orthogonal already, can use non-modified Gram-Schmidt
@@ -325,7 +340,7 @@ module prep_wvfn
             if( ierr .ne. 0 ) return
           
           else
-            allocate( UofX( 0, 0, 0, 0 ), UofX2( 0, 0 ), wvfn(0,0,0,0) )
+            allocate( UofX( 0, 0, 0, 0 ), UofX2( 0, 0 ) )
           endif
 
           ! save subsampled xmesh
@@ -342,7 +357,6 @@ module prep_wvfn
 !          endif
 
           deallocate( UofX, UofX2 )
-          deallocate( wvfn )
 
         endif
 
@@ -480,12 +494,12 @@ module prep_wvfn
     call screen_tk_start( "main" )
 
     write(1000+myid, * ) 'Calling Energies'
-    flush(1000+myid)
+!    flush(1000+myid)
     call prep_wvfn_writeEnergies( ierr )
     if( ierr .ne. 0 ) return
     call MPI_BARRIER( comm, ierr )
     write(1000+myid, * ) 'Finished Energies'
-    flush(1000+myid)
+!    flush(1000+myid)
 
   end subroutine prep_wvfn_driver
 
@@ -539,17 +553,22 @@ module prep_wvfn
           enddo
         enddo
       enddo
-      eshift = -eshift
+!      eshift = -eshift
+
+      open( unit=99, file='cbm.out', form='formatted', status='unknown' )
+      write(99,*) eshift*Hartree2eV
+      close( 99 )
 
       zero_lumo = .false.
-      open( unit=99, file='core_offset', form='formatted', status='old')
-      rewind 99
-      ! might be true/false, but might be a number (which means true)
-      read( 99, *, IOSTAT=ioerr ) have_core_offset
-      close( 99 )
-      if( ioerr .ne. 0 ) have_core_offset = .true.
-      ! if we are doing a core-level shift, then we don't zero the lumo
-      if( have_core_offset ) zero_lumo = .false.
+
+!      open( unit=99, file='core_offset', form='formatted', status='old')
+!      rewind 99
+!      ! might be true/false, but might be a number (which means true)
+!      read( 99, *, IOSTAT=ioerr ) have_core_offset
+!      close( 99 )
+!      if( ioerr .ne. 0 ) have_core_offset = .true.
+!      ! if we are doing a core-level shift, then we don't zero the lumo
+!      if( have_core_offset ) zero_lumo = .false.
 
       ! Allow an override option
       inquire( file='noshift_lumo',exist=ex)
@@ -833,7 +852,7 @@ module prep_wvfn
     do iprocPool = 0, nprocPool - 1
       
       nband = odf_getBandsForPoolID( iprocPool, odf_flag )
-      write(1000+myid,*) 'UofX2 recvs:', iprocPool, nx, nband, totdim
+      if( debug ) write(1000+myid,*) 'UofX2 recvs:', iprocPool, nx, nband, totdim
       call MPI_IRECV( UofX2(:,iband:), nX*nband, MPI_DOUBLE_COMPLEX, iprocPool, 1, pool_comm, & 
                       req( iprocPool, 1 ), ierr )
       if( ierr .ne. 0 ) return
@@ -857,8 +876,10 @@ module prep_wvfn
       call MPI_TYPE_COMMIT( newType, ierr )
       if( ierr .ne. 0 ) return
 
-      write(1000+myid,*) 'UofX2 sends:', iprocPool, nx, nband
-      write(1000+myid,*) '            ', ix, iy, iz
+      if( debug ) then
+        write(1000+myid,*) 'UofX2 sends:', iprocPool, nx, nband
+        write(1000+myid,*) '            ', ix, iy, iz
+      endif
       call MPI_ISEND( UofX( ix, iy, iz, 1 ), 1, newType, iprocPool, 1, pool_comm, req( iprocPool, 2 ), ierr )
       if( ierr .ne. 0 ) return
 
@@ -876,7 +897,7 @@ module prep_wvfn
       enddo
     enddo
 
-    flush(1000+myid)
+!    flush(1000+myid)
     call MPI_WAITALL( nprocPool * 2, req, MPI_STATUSES_IGNORE, ierr )
     if( ierr .ne. 0 ) return
 
@@ -884,7 +905,7 @@ module prep_wvfn
     nband = size( UofX2, 2 )
     allocate( coeff( nband ) )
 
-#if 1
+#if 0
 !TEST
     do iband = 1, nband
       coeff(iband) = dot_product( UofX2(:,iband), UofX2(:,iband) )
@@ -973,7 +994,7 @@ module prep_wvfn
           if( ierr .ne. 0 ) return
         enddo
 
-        write(1000+myid,'(A2,X,3(I12))') 'OF', ikpt, ib, offset
+        if( debug ) write(1000+myid,'(A2,X,3(I12))') 'OF', ikpt, ib, offset
         call MPI_FILE_WRITE_AT( fileHandle, offset, writeBuffer, nx, MPI_DOUBLE_COMPLEX, MPI_STATUS_IGNORE, ierr )
         if( ierr .ne. 0 ) return
         offset = offset + nx
@@ -1044,8 +1065,11 @@ module prep_wvfn
     else
       i = myx*nb
     endif
-    write(1000+myid,'(A2,X,6(I12))') 'OF', ikpt, offset, size( UofX2, 2 ), size( UofX2, 1), & 
-          offset*16, ( offset + size( UofX2, 2 ) * size( UofX2, 1) ) * 16
+
+    if( debug ) then
+      write(1000+myid,'(A2,X,6(I12))') 'OF', ikpt, offset, size( UofX2, 2 ), size( UofX2, 1), & 
+            offset*16, ( offset + size( UofX2, 2 ) * size( UofX2, 1) ) * 16
+    endif
 !    call MPI_FILE_SET_VIEW( fileHandle, offset, MPI_DOUBLE_COMPLEX, newType, "native", MPI_INFO_NULL, ierr )
 !    if( ierr .ne. 0 ) return
 !    call MPI_FILE_WRITE_ALL( fileHandle,  UofX2, i, newType, stat, ierr )
@@ -1056,7 +1080,7 @@ module prep_wvfn
     if( ierr .ne. 0 ) return
 
     call MPI_GET_COUNT( stat, MPI_DOUBLE_COMPLEX, i, ierr )
-    write(1000+myid,*) i
+    if( debug ) write(1000+myid,*) i
   
     call MPI_TYPE_FREE( newType, ierr )
     if( ierr .ne. 0 ) return
@@ -1105,7 +1129,7 @@ module prep_wvfn
 
     if( wantU2 ) then
       do i = 1, 3
-        do j = 0, 40
+        do j = 0, params%xmesh( i )
           if( mod( fftGrid( i ), params%xmesh( i ) ) .eq. 0 ) then
             exit
           else
@@ -1121,37 +1145,37 @@ module prep_wvfn
       do i = 1, 3
         do k = 0, 5
           test = fftGrid(i) + k
-          write(1000+myid,*) 'TESTING: ', test
+          if( debug ) write(1000+myid,*) 'TESTING: ', test
           do
             if( mod( test, 2 ) .ne. 0 ) exit
             test = test / 2
-            write(1000+myid,*) '   ', 2
+            if( debug ) write(1000+myid,*) '   ', 2
           enddo
           do j = 5, 3, -2
             do
               if( mod( test, j ) .ne. 0 ) exit
               test = test / j
-              write(1000+myid,*) '   ', j
+              if( debug ) write(1000+myid,*) '   ', j
             enddo
           enddo
 #ifdef __FFTW3
           do
             if( mod( test, 7 ) .ne. 0 ) exit
             test = test / 7
-            write(1000+myid,*) '   ', 7
+            if( debug ) write(1000+myid,*) '   ', 7
           enddo
           if( mod( test, 11 ) .eq. 0 ) then
             test = test / 11
-            write(1000+myid,*) '   ', 11
+            if( debug ) write(1000+myid,*) '   ', 11
           endif
           if( mod( test, 13 ) .eq. 0 ) then
             test = test / 13
-            write(1000+myid,*) '   ', 13
+            if( debug ) write(1000+myid,*) '   ', 13
           endif
 #endif
           if( test .eq. 1 ) then
             fftGrid(i) = fftGrid(i) + k
-            write(1000+myid,*) 'TESTING:    ', fftGrid(i)
+            if( debug ) write(1000+myid,*) 'TESTING:    ', fftGrid(i)
             exit
           endif
 

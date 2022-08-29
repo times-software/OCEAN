@@ -179,6 +179,23 @@
          "input" : "# atsym z nc nv iexc psfile\nBi 83 10 5 -001012 both\n# n l f\n1 0 2.0\n2 0 2.0\n2 1 6.0\n3 0 2.0\n3 1 6.0\n3 2 10.0\n4 0 2.0\n4 1 6.0\n4 2 10.0\n4 3 14.0\n5 0 2.0\n5 1 6.0\n5 2 10.0\n6 0 2.0\n6 1 3.0\n# lmax\n2\n# l rc ep ncon nbas qcut\n0 1.4 0.0 4 8 9.0\n1 1.5 0.0 4 8 8.4\n2 1.4 0.0 4 8 9.0\n# lloc lpopt rc5 dvloc0\n4 5 1.3 0.0\n# l nproj debl\n0 2 1.0\n1 2 1.0\n2 2 2.0\n# icmod fcfact rcfact\n3 6.0 1.34\n# epsh1 epsh2 depsh\n-12.0 12.0 0.02\n# rlmax drl\n6.0 0.01\n 0\n",
          "l_max" : 2
       },
+      "Br" : {
+         "Z_val" : 17,
+         "basename" : "Br-d.in",
+         "hints" : {
+            "high" : {
+               "ecut" : 44
+            },
+            "low" : {
+               "ecut" : 34
+            },
+            "normal" : {
+               "ecut" : 38
+            }
+         },
+         "input" : "# atsym z nc nv iexc psfile\nBr 35 5 3 -001012 both\n# n l f\n1 0 2.0\n2 0 2.0\n2 1 6.0\n3 0 2.0\n3 1 6.0\n3 2 10.0\n4 0 2.0\n4 1 5.0\n# lmax\n2\n# l rc ep ncon nbas qcut\n0 1.8 0.0 4 8 5.8\n1 1.5 0.0 4 8 6.6\n2 1.9 0.0 4 8 8.6\n# lloc lpopt rc5 dvloc0\n4 5 1.5 0.0\n# l nproj debl\n0 2 3.2\n1 2 4.0\n2 2 2.5\n# icmod fcfact rcfact\n3 6.5 1.35\n# epsh1 epsh2 depsh\n-12.0 12.0 0.02\n# rlmax drl\n6.0 0.01\n 0\n",
+         "l_max" : 2
+      },
       "C" : {
          "Z_val" : 4,
          "basename" : "C.in",
@@ -247,6 +264,23 @@
          "input" : "# atsym z nc nv iexc psfile\nCl 17 3 2 -001012 both\n# n l f\n1 0 2.0\n2 0 2.0\n2 1 6.0\n3 0 2.0\n3 1 5.0\n# lmax\n2\n# l rc ep ncon nbas qcut\n0 1.55 0.0 4 9 6.8\n1 1.35 0.0 4 8 8.0\n2 1.75 0.1 4 9 6.8\n# lloc lpopt rc5 dvloc0\n4 5 1.3 0.0\n# l nproj debl\n0 2 2.0\n1 2 2.0\n2 2 1.5\n# icmod fcfact rcfact\n3 8.0 1.23\n# epsh1 epsh2 depsh\n-15.0 12.0 0.02\n# rlmax drl\n6.0 0.01\n 0\n",
          "l_max" : 2
       },
+      "Co" : {
+         "Z_val" : 17,
+         "basename" : "Co-sp-high.in",
+         "hints" : {
+            "high" : {
+               "ecut" : 56
+            },
+            "low" : {
+               "ecut" : 48
+            },
+            "normal" : {
+               "ecut" : 52
+            }
+         },
+         "input" : "# atsym z nc nv iexc psfile\nCo 27 3 4 -001012 both\n# n l f\n1 0 2.0\n2 0 2.0\n2 1 6.0\n3 0 2.0\n3 1 6.0\n3 2 7.0\n4 0 2.0\n# lmax\n2\n# l rc ep ncon nbas qcut\n0 1.2 0.0 4 7 10.0\n1 1.2 0.0 4 7 10.0\n2 1.55 0.0 4 7 10.2\n# lloc lpopt rc5 dvloc0\n4 5 1.2 0.0\n# l nproj debl\n0 2 0.8\n1 2 0.8\n2 2 0.8\n# icmod fcfact\n3 6 1.8\n# epsh1 epsh2 depsh\n-12.0 12.0 0.02\n# rlmax drl\n6.0 0.01\n 0\n",
+         "l_max" : 2
+      },
       "Cr" : {
          "Z_val" : 14,
          "basename" : "Cr-sp-high.in",
@@ -263,6 +297,23 @@
          },
          "input" : "# atsym z nc nv iexc psfile\nCr 24 3 4 -001012 both\n# n l f\n1 0 2.0\n2 0 2.0\n2 1 6.0\n3 0 2.0\n3 1 6.0\n3 2 5.0\n4 0 1.0\n# lmax\n2\n# l rc ep ncon nbas qcut\n0 1.1 0.0 4 8 11.2\n1 1.1 0.0 4 7 11.2\n2 1.4 0.0 4 8 11.2\n# lloc lpopt rc5 dvloc0\n4 5 1.1 0.0\n# l nproj debl\n0 2 1.0\n1 2 1.0\n2 2 1.0\n# icmod fcfact rcfact\n3 4.5 1.6\n# epsh1 epsh2 depsh\n-18.0 12.0 0.02\n# rlmax drl\n6.0 0.01\n 0\n",
          "l_max" : 2
+      },
+      "Cs" : {
+         "Z_val" : 9,
+         "basename" : "Cs-sp.in",
+         "hints" : {
+            "high" : {
+               "ecut" : 29
+            },
+            "low" : {
+               "ecut" : 19
+            },
+            "normal" : {
+               "ecut" : 25
+            }
+         },
+         "input" : "# atsym z nc nv iexc psfile\nCs 55 9 3 -001012 both\n# n l f\n1 0 2.0\n2 0 2.0\n2 1 6.0\n3 0 2.0\n3 1 6.0\n3 2 10.0\n4 0 2.0\n4 1 6.0\n4 2 10.0\n5 0 2.0\n5 1 6.0\n6 0 1.0\n# lmax\n3\n# l rc ep ncon nbas qcut\n0 2.25 0.0 4 7 4.8\n1 1.85 0.0 4 7 6.0\n2 2.0 0.0 4 8 6.2\n3 2.05 0.05 4 7 8.8\n# lloc lpopt rc5 dvloc0\n4 5 1.85 0.0\n# l nproj debl\n0 2 1.0\n1 2 5.0\n2 2 5.0\n3 2 2.0\n# icmod fcfact rcfact\n3 5.0 1.4\n# epsh1 epsh2 depsh\n-12.0 12.0 0.02\n# rlmax drl\n6.0 0.01\n 0\n",
+         "l_max" : 3
       },
       "Cu" : {
          "Z_val" : 19,
@@ -332,6 +383,23 @@
          "input" : "# atsym z nc nv iexc psfile\nGa 31 3 5 -001012 both\n# n l f\n1 0 2.0\n2 0 2.0\n2 1 6.0\n3 0 2.0\n3 1 6.0\n3 2 10.0\n4 0 2.0\n4 1 1.0\n# lmax\n2\n# l rc ep ncon nbas qcut\n0 1.2 0.0 4 7 9.4\n1 1.3 0.0 4 7 10.6\n2 1.5 0.0 4 7 10.6\n# lloc lpopt rc5 dvloc0\n4 5 1.2 0.0\n# l nproj debl\n0 2 1.0\n1 2 1.0\n2 2 3.0\n# icmod fcfact rcfact\n3 3.0 1.5\n# epsh1 epsh2 depsh\n-12.0 12.0 0.02\n# rlmax drl\n6.0 0.01\n 0\n",
          "l_max" : 2
       },
+      "Ge" : {
+         "Z_val" : 22,
+         "basename" : "Ge-spd-high.in",
+         "hints" : {
+            "high" : {
+               "ecut" : 68
+            },
+            "low" : {
+               "ecut" : 56
+            },
+            "normal" : {
+               "ecut" : 62
+            }
+         },
+         "input" : "# atsym z nc nv iexc psfile\nGe 32 3 5 -001012 both\n# n l f\n1 0 2.0\n2 0 2.0\n2 1 6.0\n3 0 2.0\n3 1 6.0\n3 2 10.0\n4 0 2.0\n4 1 2.0\n# lmax\n2\n# l rc ep ncon nbas qcut\n0 1.2 0.0 4 7 9.6\n1 1.3 0.0 4 7 10.5\n2 1.5 0.0 4 7 11.0\n# lloc lpopt rc5 dvloc0\n4 5 1.2 0.0\n# l nproj debl\n0 2 1.0\n1 2 1.5\n2 2 3.0\n# icmod fcfact rcfact\n3 3.0 1.5\n# epsh1 epsh2 depsh\n-12.0 12.0 0.02\n# rlmax drl\n6.0 0.01\n 0\n",
+         "l_max" : 2
+      },
       "H" : {
          "Z_val" : 1,
          "basename" : "H.in",
@@ -399,6 +467,23 @@
          },
          "input" : "# atsym z nc nv iexc psfile\nHg 80 10 4 -001012 both\n# n l f\n1 0 2.0\n2 0 2.0\n2 1 6.0\n3 0 2.0\n3 1 6.0\n3 2 10.0\n4 0 2.0\n4 1 6.0\n4 2 10.0\n4 3 14.0\n5 0 2.0\n5 1 6.0\n5 2 10.0\n6 0 2.0\n# lmax\n3\n# l rc ep ncon nbas qcut\n0 1.6 0.0 4 8 8.0\n1 1.6 0.0 4 8 7.8\n2 1.45 0.0 4 8 8.8\n3 1.6 0.1 4 8 6.8\n# lloc lpopt rc5 dvloc0\n4 5 1.45 0.0\n# l nproj debl\n0 2 1.0\n1 2 2.8\n2 2 1.8\n3 1 1.5\n# icmod fcfact rcfact\n3 5.0 1.37\n# epsh1 epsh2 depsh\n-12.0 12.0 0.02\n# rlmax drl\n6.0 0.01\n 0\n",
          "l_max" : 3
+      },
+      "I" : {
+         "Z_val" : 17,
+         "basename" : "I-d.in",
+         "hints" : {
+            "high" : {
+               "ecut" : 44
+            },
+            "low" : {
+               "ecut" : 34
+            },
+            "normal" : {
+               "ecut" : 38
+            }
+         },
+         "input" : "# atsym z nc nv iexc psfile\nI 53 8 3 -001012 both\n# n l f\n1 0 2.0\n2 0 2.0\n2 1 6.0\n3 0 2.0\n3 1 6.0\n3 2 10.0\n4 0 2.0\n4 1 6.0\n4 2 10.0\n5 0 2.0\n5 1 5.0\n# lmax\n2\n# l rc ep ncon nbas qcut\n0 1.95 0.0 4 7 3.6\n1 1.85 0.0 4 7 4.8\n2 1.85 0.0 4 7 8.4\n# lloc lpopt rc5 dvloc0\n4 5 1.8 0.0\n# l nproj debl\n0 2 2.8\n1 2 2.5\n2 2 2.0\n# icmod fcfact rcfact\n3 8.8 1.25\n# epsh1 epsh2 depsh\n-12.0 12.0 0.02\n# rlmax drl\n6.0 0.01\n 0\n",
+         "l_max" : 2
       },
       "In" : {
          "Z_val" : 21,
@@ -502,6 +587,23 @@
          "input" : "# atsym z nc nv iexc psfile\nMg 12 1 3 -001012 both\n# n l f\n1 0 2.0\n2 0 2.0\n2 1 6.0\n3 0 2.0\n# lmax\n1\n# l rc ep ncon nbas qcut\n0 1.15 0.0 4 8 9.1\n1 1.55 0.0 4 8 9.0\n# lloc lpopt rc5 dvloc0\n4 5 1.1 0.0\n# l nproj debl\n0 2 1.0\n1 2 3.0\n# icmod fcfact rcfact\n0 4.0 1.5\n# epsh1 epsh2 depsh\n-12.0 12.0 0.02\n# rlmax drl\n4.0 0.01\n 0\n",
          "l_max" : 1
       },
+      "Mn" : {
+         "Z_val" : 15,
+         "basename" : "Mn-sp-high.in",
+         "hints" : {
+            "high" : {
+               "ecut" : 69
+            },
+            "low" : {
+               "ecut" : 61
+            },
+            "normal" : {
+               "ecut" : 65
+            }
+         },
+         "input" : "# atsym z nc nv iexc psfile\nMn 25 3 4 -001012 both\n# n l f\n1 0 2.0\n2 0 2.0\n2 1 6.0\n3 0 2.0\n3 1 6.0\n3 2 5.0\n4 0 2.0\n# lmax\n2\n# l rc ep ncon nbas qcut\n0 1.1 0.0 4 7 11.0\n1 1.1 0.0 4 7 10.4\n2 1.35 0.0 4 7 11.4\n# lloc lpopt rc5 dvloc0\n4 5 1.1 0.0\n# l nproj debl\n0 2 1.0\n1 2 1.0\n2 2 1.0\n# icmod fcfact rcfact\n3 4.0 1.75\n# epsh1 epsh2 depsh\n-50.0 12.0 0.02\n# rlmax drl\n6.0 0.01\n 0\n",
+         "l_max" : 2
+      },
       "Mo" : {
          "Z_val" : 14,
          "basename" : "Mo-sp.in",
@@ -586,6 +688,40 @@
          },
          "input" : "# atsym z nc nv iexc psfile\nNe 10 1 2 -001012 both\n# n l f\n1 0 2.0\n2 0 2.0\n2 1 6.0\n# lmax\n1\n# l rc ep ncon nbas qcut\n0 1.3 0.0 4 7 9.0\n1 1.5 0.0 4 7 8.8\n# lloc lpopt rc5 dvloc0\n4 5 1.3 0.0\n# l nproj debl\n0 2 1.5\n1 2 1.5\n# icmod fcfact rcfact\n0 0.05 0.0\n# epsh1 epsh2 depsh\n-12.0 12.0 0.02\n# rlmax drl\n4.0 0.01\n 0\n",
          "l_max" : 1
+      },
+      "Ni" : {
+         "Z_val" : 18,
+         "basename" : "Ni-sp-high.in",
+         "hints" : {
+            "high" : {
+               "ecut" : 58
+            },
+            "low" : {
+               "ecut" : 48
+            },
+            "normal" : {
+               "ecut" : 52
+            }
+         },
+         "input" : "# atsym z nc nv iexc psfile\nNi 28 3 4 -001012 both\n# n l f\n1 0 2.0\n2 0 2.0\n2 1 6.0\n3 0 2.0\n3 1 6.0\n3 2 8.0\n4 0 2.0\n# lmax\n2\n# l rc ep ncon nbas qcut\n0 1.2 0.0 4 8 10.2\n1 1.25 0.0 4 8 10.0\n2 1.55 0.0 4 8 10.0\n# lloc lpopt rc5 dvloc0\n4 5 1.2 0.0\n# l nproj debl\n0 2 1.0\n1 2 2.8\n2 2 1.0\n# icmod fcfact\n3 3 1.7\n# epsh1 epsh2 depsh\n-12.0 12.0 0.02\n# rlmax drl\n6.0 0.01\n 0\n",
+         "l_max" : 2
+      },
+      "O" : {
+         "Z_val" : 6,
+         "basename" : "O-high.in",
+         "hints" : {
+            "high" : {
+               "ecut" : 52
+            },
+            "low" : {
+               "ecut" : 42
+            },
+            "normal" : {
+               "ecut" : 46
+            }
+         },
+         "input" : "# atsym z nc nv iexc psfile\nO 8 1 2 -001012 both\n# n l f\n1 0 2.0\n2 0 2.0\n2 1 4.0\n# lmax\n2\n# l rc ep ncon nbas qcut\n0 1.25 0.0 4 8 8.5\n1 1.35 0.0 4 8 9.4\n2 1.35 0.1 4 8 6.0\n# lloc lpopt rc5 dvloc0\n4 5 1.2 0.0\n# l nproj debl\n0 2 1.0\n1 2 1.0\n2 1 1.0\n# icmod fcfact rcfact\n3 4.0 1.5\n# epsh1 epsh2 depsh\n-12.0 12.0 0.02\n# rlmax drl\n6.0 0.01\n 0\n",
+         "l_max" : 2
       },
       "Os" : {
          "Z_val" : 16,

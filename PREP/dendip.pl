@@ -40,7 +40,7 @@ $oldden = 1 if (-e "../DFT/old");
 
 
 my @AbFiles = ( "rhoofr", "density.out", "nkpt", "screen.nkpt", "qinunitsofbvectors.ipt", "efermiinrydberg.ipt");
-my @CommonFiles = ( "avecsinbohr.ipt", "nspin", "xmesh.ipt", "dft", "nspin", "dft.split", 
+my @CommonFiles = ( "avecsinbohr.ipt", "nspin", "xmesh.ipt", "dft", "nspin", "dft.split", "epsilon",  
                     "screen.mode", "bse.wvfn", "k0.ipt", "calc", "screen.wvfn", "screen.legacy", "para_prefix" );
 my @NewMethodFiles = ( "ntype", "typat", "natoms", "znucl", "taulist", "edges", "core_offset", "metal", "cksshift",
                        "cksstretch", "nedges", "edges", "pplist", "opf.opts", "opf.fill", "coord" );
@@ -158,11 +158,11 @@ if( $run_screen == 1 )
   close NKPT;
   $rundir = "../DFT/SCREEN";
 
-  unless( -e "PAW/done" && -e "${rundir}/old" ) 
+  unless( -e "SCREEN/done" && -e "${rundir}/old" ) 
   {
-    `rm -r PAW` if (-e "PAW");
-    mkdir "PAW"; 
-    chdir "PAW";
+    `rm -r SCREEN` if (-e "SCREEN");
+    mkdir "SCREEN"; 
+    chdir "SCREEN";
 
     open NKPT, ">nkpts" or die "Failed to open nkpts for writing\n";
     print NKPT $nkpt[0]*$nkpt[1]*$nkpt[2] . "\n";
@@ -198,7 +198,7 @@ if( $run_screen == 1 )
   }
   else 
   {
-    `touch PAW/old`;
+    `touch SCREEN/old`;
     print  "Nothing needed for SCREEN wfns\n";
   }
   print "Done with SCREEN files\n";

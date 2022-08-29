@@ -18,8 +18,10 @@ module OCEAN_system
     real(DP)         :: bmet(3,3)
     real(DP)         :: qinunitsofbvectors(3)
     real(DP)         :: epsilon0
+    real(DP)         :: epsilon3D(3)
     real(DP)         :: occupationValue
     real(DP)         :: epsConvergeThreshold
+    real(DP)         :: haydockConvergeThreshold
     integer( S_INT ) :: nkpts
     integer( S_INT ) :: nxpts
     integer( S_INT ) :: nalpha
@@ -44,6 +46,7 @@ module OCEAN_system
     integer          :: screening_method
 
     integer          :: nhflag(6)
+    integer          :: haydockConvergeSpacing
 
     logical          :: e0
     logical          :: mult
@@ -60,6 +63,8 @@ module OCEAN_system
     logical          :: legacy_ibeg 
     logical          :: convEps
 !    character(len=5) :: calc_type
+    logical          :: earlyExit = .false.
+    logical          :: have3dEpsilon
 
     character(len=5) :: occupationType
 
@@ -252,6 +257,10 @@ module OCEAN_system
         sys%long_range = .false.
       endif
       
+      inquire( file='rpa', exist=exst )
+      if( exst ) then
+        sys%long_range = .false.
+      endif
 
       sys%e0 = .true.
       sys%obf = .false.
@@ -275,6 +284,17 @@ module OCEAN_system
       open(unit=99,file='epsilon',form='formatted', status='old' )
       read(99,*) sys%epsilon0
       close( 99 )
+
+      inquire(file='epsilon3D', exist=exst )
+      if( exst ) then
+        open(unit=99, file='epsilon3D', form='formatted', status='old' )
+        read(99,*) sys%epsilon3D(:)
+        close(99)
+        sys%have3dEpsilon = .true.
+      else
+        sys%epsilon3D(:) = sys%epsilon0
+        sys%have3dEpsilon = .false.
+      endif
 
       open(unit=99,file='tmel_selector',form='formatted',status='old')
       read(99,*) sys%tmel_selector
@@ -351,6 +371,19 @@ module OCEAN_system
         sys%convEps = .false.
       endif
 
+      inquire(file='haydockconv.ipt', exist=exst )
+      if( exst ) then
+        open( unit=99, file='haydockconv.ipt', form='formatted', status='old')
+        read(99, * ) sys%haydockConvergeThreshold, sys%haydockConvergeSpacing
+        close( 99 )
+        if( sys%haydockConvergeThreshold .gt. 0.0d0 ) sys%earlyExit = .true.
+      else
+        sys%earlyExit = .false.
+        sys%haydockConvergeThreshold = 0.0_DP
+        sys%haydockConvergeSpacing = 1
+      endif
+
+
       sys%nhflag(:) = 1
       inquire(file='nhflag', exist=exst )
       if( exst ) then
@@ -377,7 +410,13 @@ module OCEAN_system
     if( ierr .ne. MPI_SUCCESS ) goto 111
     call MPI_BCAST( sys%epsilon0, 1, MPI_DOUBLE_PRECISION, root, comm, ierr )
     if( ierr .ne. MPI_SUCCESS ) goto 111
+    call MPI_BCAST( sys%epsilon3D, 3, MPI_DOUBLE_PRECISION, root, comm, ierr )
+    if( ierr .ne. MPI_SUCCESS ) goto 111
     call MPI_BCAST( sys%occupationValue, 1, MPI_DOUBLE_PRECISION, root, comm, ierr )
+    if( ierr .ne. MPI_SUCCESS ) goto 111
+    call MPI_BCAST( sys%epsConvergeThreshold, 1, MPI_DOUBLE_PRECISION, root, comm, ierr )
+    if( ierr .ne. MPI_SUCCESS ) goto 111
+    call MPI_BCAST( sys%haydockConvergeThreshold, 1, MPI_DOUBLE_PRECISION, root, comm, ierr )
     if( ierr .ne. MPI_SUCCESS ) goto 111
 
     call MPI_BCAST( sys%nkpts, 1, MPI_INTEGER, root, comm, ierr )
@@ -421,6 +460,8 @@ module OCEAN_system
 
     call MPI_BCAST( sys%nhflag, 6, MPI_INTEGER, root, comm, ierr )
     if( ierr .ne. MPI_SUCCESS ) goto 111
+    call MPI_BCAST( sys%haydockConvergeSpacing, 1, MPI_INTEGER, root, comm, ierr )
+    if( ierr .ne. MPI_SUCCESS ) goto 111
 
 
     call MPI_BCAST( sys%e0, 1, MPI_LOGICAL, root, comm, ierr )
@@ -439,7 +480,13 @@ module OCEAN_system
     if( ierr .ne. MPI_SUCCESS ) goto 111
     call MPI_BCAST( sys%legacy_ibeg, 1, MPI_LOGICAL, root, comm, ierr )
     if( ierr .ne. MPI_SUCCESS ) goto 111
+    call MPI_BCAST( sys%convEps, 1, MPI_LOGICAL, root, comm, ierr )
+    if( ierr .ne. MPI_SUCCESS ) goto 111
+    call MPI_BCAST( sys%earlyExit, 1, MPI_LOGICAL, root, comm, ierr )
+    if( ierr .ne. MPI_SUCCESS ) goto 111
     call MPI_BCAST( sys%complex_bse, 1, MPI_LOGICAL, root, comm, ierr )
+    if( ierr .ne. MPI_SUCCESS ) goto 111
+    call MPI_BCAST( sys%have3dEpsilon, 1, MPI_LOGICAL, root, comm, ierr )
     if( ierr .ne. MPI_SUCCESS ) goto 111
 
     call MPI_BCAST( sys%occupationType, 5, MPI_CHARACTER, root, comm, ierr )

@@ -81,7 +81,7 @@ module OCEAN_hyb_louie_levine
         write(6,*) 'problem with file decut, iostat=', err
         goto 111
       endif
-      read( 99, * ) decut, clip
+      read( 99, * ) decut
       close( 99 )
 111 continue
     endif
@@ -119,8 +119,8 @@ module OCEAN_hyb_louie_levine
     endif
     call MPI_BCAST( decut, 1, MPI_DOUBLE_PRECISION, root, comm, ierr )
     if( ierr .ne. 0 ) return
-    call MPI_BCAST( clip, 1, MPI_INTEGER, root, comm, ierr )
-    if( ierr .ne. 0 ) return
+!    call MPI_BCAST( clip, 1, MPI_INTEGER, root, comm, ierr )
+!    if( ierr .ne. 0 ) return
 #endif
     
     call brcapper( sys%nxpts, rho, rsmin, rsmax, ierr )
@@ -169,7 +169,7 @@ module OCEAN_hyb_louie_levine
         kret( nkret ) = iter1
         mds = max( mds, rmag + maxxy )
       end if
-      write ( 73, '(2i8,1f20.10)' ) iter1, nkret, rmag
+      if( myid .eq. 0 ) write ( 73, '(2i8,1f20.10)' ) iter1, nkret, rmag
 
     enddo
     if( myid .eq. 0 ) then

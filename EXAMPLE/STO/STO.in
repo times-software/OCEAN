@@ -1,8 +1,8 @@
 #assumes you want to try and run on 8 cores
-#para_prefix { mpirun -n 8 }
+para_prefix { mpirun -n 4 }
 
 # dft solver: abi, qe, obf
-#dft{ qe }
+dft{ qe }
 
 # Kpt mesh for final states
 nkpt { 2 2 2 }
@@ -39,9 +39,9 @@ znucl { 38 22 8 }
 ppdir { '../' }
 
 # pseudopotentials
-pp_list{ 38-sr.lda.fhi
-                ti.fhi 
-          08-o.lda.fhi }
+pp_list{ 38-sr.lda.fhi.UPF
+                ti.fhi.UPF 
+          08-o.lda.fhi.UPF }
 
 # N atoms in unit cell
 natom 5
@@ -73,7 +73,7 @@ nstep 250
 diemac 5.06
 
 # xmesh
-CNBSE.xmesh { 5 5 5 }
+CNBSE.xmesh { 6 6 6 }
 
 # opf control files
 opf.fill{ 22 ti.fill }
@@ -86,7 +86,7 @@ edges{ 2 2 1 }
 # spectral broadening in eV
 cnbse.broaden{ 0.544 }
 # The code will figure out a good plot range
-cnbse.spect_range{ -1 }
+#cnbse.spect_range{ -1 }
 
 # radius for shell for screening
 screen.shells{ 3.5 4.0 }
@@ -95,3 +95,5 @@ cnbse.rad{ 4.0 }
 #Scaling Factor
 scfac 0.80
 
+screen.grid.rmode uniform
+screen.grid.ang 5

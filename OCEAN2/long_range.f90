@@ -1480,7 +1480,7 @@ module ocean_long_range
     
     
     real( DP ) :: epsi, avec( 3, 3 ), amet( 3, 3 ), bvec(3,3), bmet(3,3)
-    real( DP ) :: fr( 3 ), xk( 3 ), alf( 3 ), r, frac, potn, pbc_prefac(3)
+    real( DP ) :: fr( 3 ), xk( 3 ), alf( 3 ), r, frac, potn, pbc_prefac(3), dir(3)
     real( DP ), allocatable :: ptab( : ), rtab( : )
     integer :: ix, iy, iz, k1, k2, k3, kk1, kk2, kk3, xiter, kiter, i, ii, j, nptab
     integer :: xtarg, ytarg, ztarg, pbc( 3 )
@@ -1590,6 +1590,7 @@ module ocean_long_range
           do k1 = 1, sys%kmesh( 1 )
             kk1 = k1 - 1
             if ( kk1 .ge. sys%kmesh( 1 ) / 2 ) kk1 = kk1 - sys%kmesh( 1 )
+            if ( sys%kmesh( 1 ) .eq. 1 ) kk1 = 0
             xk( 1 ) = kk1
             if( kk1 .gt. pbc( 1 ) ) then 
               pbc_prefac(1) = 0.0_DP
@@ -1601,6 +1602,7 @@ module ocean_long_range
             do k2 = 1, sys%kmesh( 2 )
               kk2 = k2 - 1
               if ( kk2 .ge. sys%kmesh( 2 ) / 2 ) kk2 = kk2 - sys%kmesh( 2 )
+              if( sys%kmesh( 2 ) .eq. 1 ) kk2 = 0
               xk( 2 ) = kk2
               if( kk2 .gt. pbc( 2 ) ) then
                 pbc_prefac(2) = 0.0_DP
@@ -1611,6 +1613,7 @@ module ocean_long_range
               do k3 = 1, sys%kmesh( 3 )
                 kk3 = k3 - 1
                 if ( kk3 .ge. sys%kmesh( 3 ) / 2 ) kk3 = kk3 - sys%kmesh( 3 )
+                if( sys%kmesh( 3 ) .eq. 1 ) kk3 = 0
                 xk( 3 ) = kk3
                 if( kk3 .gt. pbc( 3 ) ) then
                   pbc_prefac(3) = 0.0_DP
@@ -1621,16 +1624,28 @@ module ocean_long_range
                   kiter = kiter + 1
                   alf( : ) = xk( : ) + fr( : ) - my_tau( : )
                   r = sqrt( dot_product( alf, matmul( amet, alf ) ) )
+                  dir( : ) = matmul( sys%avec(:,:), alf(:) ) / r
                   if( isolated .and. r .gt. iso_cut ) then
                     potn = 0.0_DP
                   elseif ( r .gt. rtab( nptab ) ) then
-                    potn = epsi / r
+
+                    if( sys%have3dEpsilon ) then
+                      potn = ( dir(1)**2/sys%epsilon3D(1) + dir(2)**2/sys%epsilon3D(2) &
+                             + dir(3)**2/sys%epsilon3D(3) ) / r
+                      if( r .lt. rtab( nptab ) + 5.0_DP ) then
+                        potn = potn * ( r - rtab( nptab ) ) / 5.0_DP &
+                             + ( rtab( nptab ) + 5.0_DP - r ) * epsi / ( 5.0_DP * r )
+                      endif
+                    else
+                      potn = epsi / r
+                    endif
                   else
-!                    ii = 1.0d0 + 10.0d0 * r
-!                    frac = 10.d0 * ( r - 0.1d0 * dble( ii - 1 ) )
-!                    potn = ptab( ii ) + frac * ( ptab( ii + 1 ) - ptab( ii ) )
                     call intval( nptab, rtab, ptab, r, potn, 'cap', 'cap' )
                   end if
+!                  if( myid .eq. root ) then
+!                    write( 11111, '(3I3,5F24.12)' ) nint(xk(:)), alf(:), r, potn*pbc_prefac(3)
+!                  endif
+!                  if( myid .eq. root ) write(997,'(2E24.12,3F16.8)') r, potn, dir(:)!, sys%epsilon3D(:)
                   W( kiter, xiter - my_start_nx + 1 ) =  potn * pbc_prefac(3)
                 end do
               end do
@@ -1708,7 +1723,7 @@ module ocean_long_range
         open( unit=36, file='ibeg.h', form='formatted', status='old' )
       endif
       
-      if ( nbd .gt. 1 + ( ich - icl ) ) stop 'loadux ... nbd mismatch -- cf brange.ipt...'
+      if ( nbd .gt. 1 + ( ich - icl ) ) stop 'longrange ... nbd mismatch -- cf brange.ipt...'
       open( unit=u2dat, file='u2.dat', form='unformatted', status='unknown' )
       rewind u2dat
       write(6,*) 'nspn: ', sys%nspn

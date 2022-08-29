@@ -179,14 +179,25 @@ program avg
     
     select case( mode )
       case( 'core' )
-        open(unit=98,file='sitelist',form='formatted',status='old')
-        read(98,*)numsites
-        allocate( tau(3,numsites), elname(numsites), elnum(numsites) )
-        do i = 1, numsites
-          read(98,*)elname(i),dumi,elnum(i)
-          call snatch( elname(i),elnum(i), tau(:,i) )
-        enddo
-        close(98)
+        inquire( file='sitelist.new', exist=ex )
+        if( ex ) then
+          open(unit=98,file='sitelist.new',form='formatted',status='old')
+          read(98,*)numsites
+          allocate( tau(3,numsites), elname(numsites), elnum(numsites) )
+          do i = 1, numsites
+            read(98,*) elname(i), elnum(i), tau(:,i)
+          enddo
+          close(98)
+        else
+          open(unit=98,file='sitelist',form='formatted',status='old')
+          read(98,*)numsites
+          allocate( tau(3,numsites), elname(numsites), elnum(numsites) )
+          do i = 1, numsites
+            read(98,*)elname(i),dumi,elnum(i)
+            call snatch( elname(i),elnum(i), tau(:,i) )
+          enddo
+          close(98)
+        endif
         xmesh(:) = 0
       case( 'grid' )
         open(unit=98,file='xmesh.ipt',form='formatted',status='old')

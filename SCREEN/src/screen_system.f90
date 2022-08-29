@@ -88,11 +88,15 @@ module screen_system
     logical, intent( in ) :: newGamma
 
     if( params%isGamma .and. .not. newGamma ) then
+#ifdef PRINTLOG
       write(1000+myid,*) 'Gamma-point compatible routines requested, but not supported by underlying DFT calc.'
+#endif 
       params%isGamma = .false.
     endif
 
+#ifdef PRINTLOG
     write(1000+myid,*) 'Gamma point routine support is set to :', params%isGamma
+#endif
 
   end subroutine screen_system_setGamma
 

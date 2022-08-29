@@ -176,22 +176,24 @@ module OCEAN_rixs_holder
     complex(DP), intent( out ) :: p_vec(:,:,:)
     integer, intent( inout ) :: ierr
 
-    complex(DP), allocatable :: rex(:,:,:), mels( : )
-    integer :: edge_iter, ialpha, icms, icml, ivms, ic, ik, j
+    complex(DP), allocatable :: rex(:,:,:), mels(:,:)
+    integer :: edge_iter, ialpha, icms, icml, ivms, ic, ik, j, ialpha_old, icms_old, icml_old
     character(len=50) :: echamp_file
 
+    p_vec(:,:,:) = 0.0_DP
+    write(6,*) 'C2C hack', sys%nedges, sys%cur_run%rixsInputZNL(3), sys%ZNL(3)
     
     ! size of echamp comes from rixsInputZNL
     allocate( rex( sys%num_bands, sys%nkpts, 4*(2*sys%cur_run%rixsInputZNL(3)+1) ) )
 
-    allocate( mels( sys%ZNL(3)*2 + 1 ) )
+    allocate( mels( 2*sys%cur_run%rixsInputZNL(3)+1, sys%ZNL(3)*2 + 1 ) )
 
-    call ctc_mels_hack( mels, sys%cur_run%rixs_pol, ierr )
+    call ctc_mels_hack( sys%cur_run%rixsInputZNL(3), sys%ZNL(3), mels, sys%cur_run%rixs_pol, ierr )
     if( ierr .ne. 0 ) return
 
-!    do edge_iter = 1, sys%nedges
+    do edge_iter = 1, sys%nedges
 
-      edge_iter = sys%cur_run%indx
+!      edge_iter = sys%cur_run%indx
       call OCEAN_filenames_read_ehamp( sys, echamp_file, edge_iter, ierr )
       if( ierr .ne. 0 ) return
       write(6,*) echamp_file
@@ -202,8 +204,11 @@ module OCEAN_rixs_holder
       read(99) rex(:,:,:)
       close(99)
 
-
+#if 0
       !JTV plenty remains to move beyond 1s2p
+
+      ! carefully write out the ordering of rex, mels
+
       ialpha = 0
       do icms = 1, 3, 2
         do icml = 1, sys%cur_run%ZNL(3)*2 + 1
@@ -222,16 +227,45 @@ module OCEAN_rixs_holder
           enddo
         enddo
       enddo
+#endif
 
-!    enddo
 
-      deallocate( mels )
-      deallocate( rex )
+      ialpha_old = 0
+      do icms_old = 1, 2
+        do icml_old = 1, sys%cur_run%rixsInputZNL(3)*2 + 1
+          do ivms = 0, 1
+            ialpha_old = ialpha_old + 1
+
+            do icms = 0, 1
+              do icml = 1, sys%cur_run%ZNL(3)*2 + 1
+                ialpha = 1 + ivms + ( icml - 1 ) * 2 + icms * ( sys%cur_run%ZNL(3)*2 + 1 ) * 2
+
+                do ik = 1, sys%nkpts
+                  do j = 1, sys%num_bands
+                    p_vec( j, ik, ialpha ) = p_vec( j, ik, ialpha ) &
+                                           + rex( j, ik, ialpha_old ) * mels( icml_old, icml )
+                  enddo
+                enddo
+      
+              enddo
+            enddo
+
+          enddo
+        enddo
+      enddo
+
+
+    enddo
+
+    deallocate( mels )
+    deallocate( rex )
 
   end subroutine ctc_rixs_seed
 
-  subroutine ctc_mels_hack( mels, photonNum, ierr )
-    complex(DP), intent( out ) :: mels( 3 )
+  subroutine ctc_mels_hack( l_orig, lc, mels, photonNum, ierr )
+    integer, intent( in ) :: l_orig
+    integer, intent( in ) :: lc
+    complex(DP), intent( out ) :: mels( :, : )
     integer, intent( in ) :: photonNum
     integer, intent( inout ) :: ierr
     !
@@ -239,7 +273,7 @@ module OCEAN_rixs_holder
     real(DP) :: prefs( 0: 1000 ) 
     real(DP) :: su, ehat(3), edot
     complex(DP) :: csu, ylm, ylcmc
-    integer :: nsphpt, i, l_orig, m_orig, lc, mc
+    integer :: nsphpt, i, m_orig, mc
     integer, parameter :: lmax = 5
     character(len=10) :: spcttype
     character(len=255) :: spctfile
@@ -269,21 +303,20 @@ module OCEAN_rixs_holder
     call fancyvector( ehat, su, 99 )
     close( unit=99 )
 
-    l_orig = 0
-    m_orig = 0
-    lc = 1
+
     do mc = -lc, lc
+      do m_orig = - l_orig, l_orig
 
-      csu = 0.0_dp
-      
-      do i = 1, nsphpt
-         call getylm( lc, mc, xsph( i ), ysph( i ), zsph( i ), ylcmc, prefs )
-         call getylm( l_orig, m_orig, xsph( i ), ysph( i ), zsph( i ), ylm, prefs )
-         edot = xsph( i ) * ehat( 1 ) + ysph( i ) * ehat( 2 ) + zsph( i ) * ehat( 3 )
-         csu = csu + conjg(ylcmc) * edot * ylm * wsph(i)
-      end do
-      mels( mc + lc + 1 ) = csu
-
+        csu = 0.0_dp
+        
+        do i = 1, nsphpt
+           call getylm( lc, mc, xsph( i ), ysph( i ), zsph( i ), ylcmc, prefs )
+           call getylm( l_orig, m_orig, xsph( i ), ysph( i ), zsph( i ), ylm, prefs )
+           edot = xsph( i ) * ehat( 1 ) + ysph( i ) * ehat( 2 ) + zsph( i ) * ehat( 3 )
+           csu = csu + conjg(ylcmc) * edot * ylm * wsph(i)
+        end do
+        mels( m_orig + l_orig + 1, mc + lc + 1 ) = csu
+      enddo
     enddo
 
 !    mels(:) = 1.0d0

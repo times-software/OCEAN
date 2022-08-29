@@ -147,10 +147,10 @@ program screen_driver
   call screen_tk_stop( "chi" )
 111 continue
 !  if( ierr .ne. 0 ) call MPI_ABORT( comm, ierr, ierr_ )
-  call ocean_mpi_finalize( ierr )
 
   call screen_tk_stop( "screen" )
-  if( ierr .eq. 0 ) call screen_tk_printtimes( myid )
+  if( ierr .eq. 0 ) call screen_tk_printtimes( myid, comm )
+  call ocean_mpi_finalize( ierr )
   if( myid .eq. 0 ) write(6,*) '*** Screening is done ***'
 
 end program screen_driver

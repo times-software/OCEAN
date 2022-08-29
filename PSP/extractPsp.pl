@@ -1,5 +1,5 @@
 #!/usr/bin/env perl
-# Copyright (C) 2020 OCEAN collaboration
+# Copyright (C) 2020-2021 OCEAN collaboration
 #
 # This file is part of the OCEAN project and distributed under the terms 
 # of the University of Illinois/NCSA Open Source License. See the file 
@@ -58,58 +58,74 @@ my @Elements = ( 'H_', 'He', 'Li', 'Be', 'B_', 'C_', 'N_', 'O_', 'F_', 'Ne',
      'Am', 'Cm', 'Bk', 'Cf', 'Es', 'Fm', 'Md', 'No', 'Lr', 'Rf', 'Db', 'Sg',
      'Bh', 'Hs', 'Mt' );
 
-# Need to patch up the abinit re-run detection
-unlink "psp8.pplist";
-unlink "upf.pplist";
-unlink "atompp";
-if( open( IN, "pplist" ) ) {
-  exit 0 unless( <IN> =~ m/NULL/ );
-#  my $line = <IN>;
-#  unless( $line =~ m/NULL/ ) 
-#  {
-#    open AB, ">", "psp8.pplist";
-#    open UPF, ">", "upf.pplist";
-#    do {
-#      print $line;
-#      print AB  $line;
-#      chomp( $line );
-#      $line =~ s/\.[\d\w]+$//;
-#      print UPF $line . ".UPF\n";
-#    } while( $line = <IN> );
-#    close AB;
-#    close UPF;
-#
-#    exit 0;
-#  }
-  close IN;
-}
-else {
-  die "Failed to open pplist\n";
+my $dataFile = "oceanDatafile";
+my $new = 0;
+my $oceanData;
+if( -e $dataFile )
+{
+  $new = 1;
+  if( open( my $in, "<", $dataFile ))
+  { 
+    local $/ = undef;
+    $oceanData = $json->decode(<$in>);
+    close($in);
+  }
+  else
+  { 
+    die "Failed to open ocean data file: $dataFile\n$!";
+  }
 }
 
+my $filename;
+if( $new )
+{
+  exit 0 unless( $oceanData->{'psp'}->{'source'} eq 'database');
+  $filename = catdir( $ENV{"OCEAN_BIN"}, $oceanData->{'psp'}->{'pp_database'} . '.json' );
+}
+else
+{
+  # Need to patch up the abinit re-run detection
+  unlink "psp8.pplist";
+  unlink "upf.pplist";
+  unlink "atompp";
+  if( open( IN, "pplist" ) ) {
+    exit 0 unless( <IN> =~ m/NULL/ );
+    close IN;
+  }
+  else {
+    die "Failed to open pplist\n";
+  }
+  #my $filename = $ARGV[0];
+  open( IN, "ppdatabase" ) or die "Failed to open ppdatabase\n$!";
+  my $filename = <IN>;
+  chomp $filename;
+  $filename =~ s/\s*$//;
+  $filename .= ".json";
+  $filename = catdir( $ENV{"OCEAN_BIN"}, $filename );
 
-#my $filename = $ARGV[0];
-open( IN, "ppdatabase" ) or die "Failed to open ppdatabase\n$!";
-my $filename = <IN>;
-chomp $filename;
-$filename =~ s/\s*$//;
-$filename .= ".json";
-$filename = catdir( $ENV{"OCEAN_BIN"}, $filename );
+}
 
 my $data;
 
 my @znucl;
 my %uniquePsp;
-if( open( IN, "znucl" ) )
+if( $new == 1 )
 {
-  local $/ = undef;
-  my $znucl = <IN>;
-  $znucl =~ s/\n/ /g;
-  @znucl = split ' ', $znucl;
-  close IN;
-} 
-else {
-  die "Failed to open znucl\n$!";
+  @znucl = @{ $oceanData->{'structure'}->{'znucl'} };
+}
+else
+{
+  if( open( IN, "znucl" ) )
+  {
+    local $/ = undef;
+    my $znucl = <IN>;
+    $znucl =~ s/\n/ /g;
+    @znucl = split ' ', $znucl;
+    close IN;
+  } 
+  else {
+    die "Failed to open znucl\n$!";
+  }
 }
 foreach my $z (@znucl)
 {
@@ -119,13 +135,24 @@ foreach my $z (@znucl)
 }
 
 my $pspFormat;
-open( IN, "dft" ) or die "Failed to open dft\n$!";
-my $dft = <IN>;
-close( IN );
+my $pspSuffix;
+my $dft;
+if( $new == 1 )
+{
+  $dft = $oceanData->{'dft'}->{'program'};
+}
+else
+{
+  open( IN, "dft" ) or die "Failed to open dft\n$!";
+  $dft = <IN>;
+  close( IN );
+}
 if( $dft =~ m/abi/i ) {
   $pspFormat = 'psp8';
+  $pspSuffix = '.psp8';
 } else {
   $pspFormat = 'upf';
+  $pspSuffix = '.UPF';
 }
 
 
@@ -144,18 +171,20 @@ my $PspText = "--------------------------------------------\n";
 $PspText .= $data->{ "dojo_info" }{ "attribution" } . "\n";
 $PspText .= "Version: " . $data->{ "dojo_info" }{ "dojo_dir" } . "\n";
 $PspText .= "License info: " . $data->{ "dojo_info" }{ "license" } . "\n";
-if( scalar @{ $data->{ "dojo_info" }{ "citation" } } == 1 ) {
-  $PspText .= "Please cite the following paper: \n";
-}
-else {
-  $PspText .= "Please cite the following papers: \n";
-}
-for( my $i = 0; $i < scalar @{ $data->{ "dojo_info" }{ "citation" } }; $i++ ) {
-  foreach my $key (sort(keys %{ $data->{ "dojo_info" }{ "citation" }[ $i ]} ))
-  {
-    $PspText .= "    $key = \"" . $data->{ "dojo_info" }{ "citation" }[ $i ]{ $key } . "\",\n";
+if( exists( $data->{ "dojo_info" }{ "citation" } ) ) {
+  if( scalar @{ $data->{ "dojo_info" }{ "citation" } } == 1 ) {
+    $PspText .= "Please cite the following paper: \n";
   }
-  chop $PspText; chop $PspText; $PspText .= "\n";
+  else {
+    $PspText .= "Please cite the following papers: \n";
+  }
+  for( my $i = 0; $i < scalar @{ $data->{ "dojo_info" }{ "citation" } }; $i++ ) {
+    foreach my $key (sort(keys %{ $data->{ "dojo_info" }{ "citation" }[ $i ]} ))
+    {
+      $PspText .= "    $key = \"" . $data->{ "dojo_info" }{ "citation" }[ $i ]{ $key } . "\",\n";
+    }
+    chop $PspText; chop $PspText; $PspText .= "\n";
+  }
 }
 
 
@@ -163,14 +192,26 @@ for( my $i = 0; $i < scalar @{ $data->{ "dojo_info" }{ "citation" } }; $i++ ) {
 my @basename;
 my $ecut = -1;
 my $ecutQuality = "normal";
-if( open IN, "ecut.qualtiy" )
+if( $new == 1 )
 {
-  $ecutQuality = <IN>;
-  chomp $ecutQuality;
-  $ecutQuality =~ s/\s*$//;
-  $ecutQuality = "normal" unless( $ecutQuality =~ m/high/i || $ecutQuality =~ m/low/i || $ecutQuality =~ m/normal/i );
-  lc( $ecutQuality );
-  close IN;
+  $ecutQuality = $oceanData->{'psp'}->{'ecut_quality'};
+  unless( $ecutQuality =~ m/high/i || $ecutQuality =~ m/low/i || $ecutQuality =~ m/normal/i )
+  {
+    $ecutQuality = 'normal';
+    $oceanData->{'psp'}->{'ecut_quality'} = $ecutQuality;
+  }
+}
+else
+{
+  if( open IN, "ecut.qualtiy" )
+  {
+    $ecutQuality = <IN>;
+    chomp $ecutQuality;
+    $ecutQuality =~ s/\s*$//;
+    $ecutQuality = "normal" unless( $ecutQuality =~ m/high/i || $ecutQuality =~ m/low/i || $ecutQuality =~ m/normal/i );
+    lc( $ecutQuality );
+    close IN;
+  }
 }
 
 my %psp;
@@ -184,6 +225,9 @@ foreach my $key (keys %uniquePsp )
   my $e = $data->{"pseudos_metadata"}{ $z }{ "hints" }{ $ecutQuality }{ "ecut" };
   $ecut = $e if ( $e > $ecut );
     
+  my $basename = $data->{"pseudos_metadata"}{ $z }{ "basename" };
+  die "ERROR! Could not find pseudopotential for $z\n  Will exit!\n" if( length($basename) < 1 );
+  
   push @basename, $data->{"pseudos_metadata"}{ $z }{ "basename" };
 
   $psp{ $key } = $data->{"pseudos_metadata"}{ $z }{ "basename" };
@@ -193,36 +237,52 @@ foreach my $key (keys %uniquePsp )
 #Hartree to Ryd
 $ecut *= 2;
 print "ECUT: $ecut\n";
-if( open( IN, "ecut" ) )
-{
-  my $oldEcut = <IN>;
-  close IN;
-  if( $oldEcut < 0 )
-  {
-    open OUT, ">", "ecut";
-    print OUT "$ecut\n";
-    close OUT;
-  }
-  elsif( $oldEcut < $ecut ) {
+if( $new ) {
+  if( !(defined($oceanData->{'dft'}->{'ecut'})) || $oceanData->{'dft'}->{'ecut'} < 0  ) {
+    $oceanData->{'dft'}->{'ecut'} = $ecut;
+  } elsif( $oceanData->{'dft'}->{'ecut'} < $ecut ) {
     print "WARNING: Input file has ecut that is less than recommended for the psps!\n";
-    print "   $oldEcut < $ecut \n";
+    printf "   %g < %g \n", $oceanData->{'dft'}->{'ecut'}, $ecut;
   }
-}
-else {
-  die "Failed to open ecut\n$!";
+} else {
+  if( open( IN, "ecut" ) )
+  {
+    my $oldEcut = <IN>;
+    close IN;
+    if( $oldEcut < 0 )
+    {
+      open OUT, ">", "ecut";
+      print OUT "$ecut\n";
+      close OUT;
+    }
+    elsif( $oldEcut < $ecut ) {
+      print "WARNING: Input file has ecut that is less than recommended for the psps!\n";
+      print "   $oldEcut < $ecut \n";
+    }
+  }
+  else {
+    die "Failed to open ecut\n$!";
+  }
 }
 
 my @zsymb;
-if( open( IN, "zsymb" ) )
+if( $new == 1 )
 {
-  local $/ = undef;
-  my $zsymb = <IN>;
-  $zsymb =~ s/\n/ /g;
-  @zsymb = split ' ', $zsymb;
-  close IN;
+  @zsymb = @{ $oceanData->{'structure'}->{'zsymb'} };
 }
-else {
-  die "Failed to open zsymb\n$!";
+else
+{
+  if( open( IN, "zsymb" ) )
+  {
+    local $/ = undef;
+    my $zsymb = <IN>;
+    $zsymb =~ s/\n/ /g;
+    @zsymb = split ' ', $zsymb;
+    close IN;
+  }
+  else {
+    die "Failed to open zsymb\n$!";
+  }
 }
 #print scalar @zsymb . "\n";
 if( scalar @zsymb < scalar @znucl )
@@ -361,27 +421,54 @@ if( scalar @runFreshBase > 0 )
 }
 
 
-
-my $ppdir = catdir( updir(), 'Common', 'psp' );
-open OUT, ">", "ppdir";
-print OUT "$ppdir\n";
-close OUT;
-
-
-open OUT, ">", "atompp";
-open AB, ">", "psp8.pplist";
-open UPF, ">", "upf.pplist";
-open PP, ">", "pplist";
-for( my $i = 0; $i < scalar @znucl; $i++ )
+if( $new == 1 )
 {
-  my $z = $znucl[$i];
-  print "$z   $psp{ $z }\n";
-  print AB  $psp{ $z } . ".psp8\n";
-  print UPF $psp{ $z } . ".UPF\n";
-  print OUT "$zsymb[$i]   0.0   $psp{ $z }.UPF\n";
-  print PP $psp{ $z } . "\n";
+  $oceanData->{'opf'}->{'program'} = "hamann";
+  my @pplist;
+  for( my $i = 0; $i < scalar @znucl; $i++ )
+  {
+    push @pplist, $psp{ $znucl[$i] } . $pspSuffix ;
+  }
+  $oceanData->{'psp'}->{'pp_list'} = [@pplist];
 }
-close AB;
-close UPF;
-close OUT;
-close PP;
+else
+{
+  my $ppdir = catdir( updir(), 'Common', 'psp' );
+  open OUT, ">", "ppdir";
+  print OUT "$ppdir\n";
+  close OUT;
+
+
+  open OUT, ">", "atompp";
+  open AB, ">", "psp8.pplist";
+  open UPF, ">", "upf.pplist";
+  open PP, ">", "pplist";
+  for( my $i = 0; $i < scalar @znucl; $i++ )
+  {
+    my $z = $znucl[$i];
+    print "$z   $psp{ $z }\n";
+    print AB  $psp{ $z } . ".psp8\n";
+    print UPF $psp{ $z } . ".UPF\n";
+    print OUT "$zsymb[$i]   0.0   $psp{ $z }.UPF\n";
+    print PP $psp{ $z } . "\n";
+  }
+  close AB;
+  close UPF;
+  close OUT;
+  close PP;
+
+  open OUT, ">", "opf.program" or die;
+  print OUT "hamann\n";
+  close OUT;
+}
+
+if( $new == 1 )
+{
+  my $enable = 1;
+  $json->canonical([$enable]);
+  $json->pretty([$enable]);
+  open OUT, ">", $dataFile or die;
+  print OUT $json->encode($oceanData);
+  close OUT;
+}
+print "Finished running extractPsp\n";

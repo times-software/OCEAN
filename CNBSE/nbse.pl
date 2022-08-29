@@ -21,7 +21,7 @@ if (! $ENV{"OCEAN_BIN"} ) {
 }
 if (! $ENV{"OCEAN_WORKDIR"}){ $ENV{"OCEAN_WORKDIR"} = `pwd` . "../" ; }
 
-my @CommonFiles = ("epsilon", "xmesh.ipt", "k0.ipt", "nbuse.ipt", 
+my @CommonFiles = ("xmesh.ipt", "k0.ipt", "nbuse.ipt", 
   "metal", "cksshift", "cksstretch", 
   "cnbse.niter", "cnbse.spect_range", "cnbse.broaden", "dft", 
   "para_prefix", "cnbse.strength", "serbse", "core_offset", "avecsinbohr.ipt", 
@@ -30,7 +30,7 @@ my @CommonFiles = ("epsilon", "xmesh.ipt", "k0.ipt", "nbuse.ipt",
   "niter", "backf", "aldaf", "bwflg", "bande", "bflag", "lflag", "decut", "spect.h", 
   "gw_control", "gwcstr", "gwvstr", "gwgap", "bse.wvfn" );
 
-my @DFTFiles = ("nelectron", "rhoofr");
+my @DFTFiles = ("nelectron", "rhoofr", "epsilon");
 
 my @DenDipFiles = ("kmesh.ipt", "efermiinrydberg.ipt", 
                    "qinunitsofbvectors.ipt", "brange.ipt", "enkfile", "nelectron", 
@@ -47,6 +47,12 @@ my @WFNFiles = ("kmesh.ipt",  "efermiinrydberg.ipt", "qinunitsofbvectors.ipt", "
 
 my @ScreenFiles = ( "screen.mode", "screen.lmax", "screen.final.rmax", "screen.final.dr", 
                     "cnbse.rad" );
+
+my @NewFiles = ("haydockconv.ipt");
+
+foreach (@NewFiles) {
+  copy( "../Common/$_", $_ ) or die "Failed to get Common/$_\n$!" if( -e "../Common/$_" );
+}
 
 foreach (@CommonFiles) {
   copy( "../Common/$_", $_ ) or die "Failed to get Common/$_\n$!";

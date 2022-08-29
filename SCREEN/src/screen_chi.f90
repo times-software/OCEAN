@@ -105,7 +105,9 @@ module screen_chi
                                intInduced, ierr )
         if( ierr .ne. 0 ) return
 
+#ifdef PRINTLOG
         write(1000+myid,'(A,1X,E24.16,1X,E24.16)') Prefix, intInduced(:)
+#endif
         
         call screen_chi_writeW( mySite%grid, Prefix, FullW, FullW0, Ninduced, N0induced )
 
@@ -188,8 +190,13 @@ module screen_chi
       case( 'grid' )
         write(Prefix,'(A1,I6.6,A3,F4.2)') 'x', indx, '.zR', rad
       case default 
-        write(Prefix,'(A1,A2,I4.4,A2,I2.2,A1,I2.2,A3,F4.2)') & 
-                    'z', elname, indx, '_n', N, 'l', L, '.zR', rad
+        if( NINT( rad * 100 ) < 1000 ) then
+          write(Prefix,'(A1,A2,I4.4,A2,I2.2,A1,I2.2,A3,F04.2)') & 
+                      'z', elname, indx, '_n', N, 'l', L, '.zR', rad
+        else
+          write(Prefix,'(A1,A2,I4.4,A2,I2.2,A1,I2.2,A3,F5.2)') & 
+                      'z', elname, indx, '_n', N, 'l', L, '.zR', rad
+        endif
     end select
   end function screen_chi_getOutputPrefix
                         

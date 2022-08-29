@@ -22,6 +22,8 @@ MODOBJS = ../../Modules/ocean_mpi.o ../../Modules/ai_kinds.o ../../Modules/ocean
 install:
 	cp screen_driver.x $(INSTDIR)/
 
+%.o: %.mod
+
 %.o %.mod: %.f90
 	$(MPIFORT) $(OPTIONS) -c -o $*.o $< $(FFTWI) -I../../Modules
 	touch $*.mod

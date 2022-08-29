@@ -147,8 +147,15 @@ chdir "Common";
 #`cp ../$InputFile .`;
 copy("../$InputFile","$InputFile");
 
+if( -e "$ENV{'OCEAN_BIN'}/parseJSON.pl" )
+{
+  system("$ENV{'OCEAN_BIN'}/parseJSON.pl $InputFile $ENV{'OCEAN_BIN'}/oparse.json $ENV{'OCEAN_BIN'}/oparse.type.json") == 0
+    or die "Failed to parse the input file\n$!";
+}
+else {
 system("$ENV{'OCEAN_BIN'}/parse.pl --all $InputFile $ENV{'OCEAN_BIN'}/oparse.h") == 0 
   or die "Failed to parse the input file\n$!";
+}
 
 open DFT_TYPE, "dft";
 <DFT_TYPE> =~ m/(\w+)/ or die;
@@ -174,6 +181,8 @@ else
 }
 
 # For now we will attempt to recove if psp_parser fails
+system("$ENV{'OCEAN_BIN'}/extractPsp.pl") == 0 or die "Failed to run extractPsp.pl\n$!";
+
 system("$ENV{'OCEAN_BIN'}/psp_parser.pl") == 0 or print "Failed to run psp_parser.pl\n$!";
 
 system("$ENV{'OCEAN_BIN'}/defaults.pl") == 0 or die "Failed to run defaults.pl\n$!";
@@ -182,7 +191,7 @@ system("$ENV{'OCEAN_BIN'}/structure.pl") == 0 or die "Failed to run structure.pl
 
 system("$ENV{'OCEAN_BIN'}/edges.pl") == 0 or die "Failed to run edges.pl\n$!";
 
-system("$ENV{'OCEAN_BIN'}/extractPsp.pl") == 0 or die "Failed to run extractPsp.pl\n$!";
+system("$ENV{'OCEAN_BIN'}/photon.pl") == 0 or die "Failed to run photon.pl\n$!";
 
 ### CALC ###
 
@@ -234,12 +243,12 @@ if( $script_pre eq 'OBF' )
 	system("$OCEAN_BIN/dft.pl") == 0 or die "DFT Stage Failed\n$!";
 	chdir "../";
 } 
-elsif( $script_pre eq 'qe' )
+elsif( $script_pre eq 'qe' || 1 )
 {
 	print "$Separator\n";
-  print "Entering QESPRESSO stage\n";
+  print "Entering DFT stage\n";
   chdir "DFT";
-  system("$OCEAN_BIN/dft.pl") == 0 or die "Qespresso Stage Failed\n";
+  system("$OCEAN_BIN/dft.pl") == 0 or die "DFT Stage Failed\n";
   chdir "../";
 }
 else
@@ -267,14 +276,14 @@ else
 	print "$Separator\n";
 	print "Entering PREP stage\n";
 	chdir "PREP" or die "$!\n";
-	if( $script_pre eq 'qe' )
-	{
-  		system("$OCEAN_BIN/qe_dendip.pl") == 0 or die "PREP Stage Failed\n$!";
-	}
-	else
-	{
-		system("$OCEAN_BIN/dendip.pl") == 0 or die "PREP Stage Failed\n$!";
-	}
+#	if( $script_pre eq 'qe' )
+#	{
+  		system("$OCEAN_BIN/prep.pl") == 0 or die "PREP Stage Failed\n$!";
+#	}
+#	else
+#	{
+#		system("$OCEAN_BIN/dendip.pl") == 0 or die "PREP Stage Failed\n$!";
+#	}
 }
 ##########################################
 #
@@ -299,18 +308,18 @@ if( $run_screen)
 # CNBSE stage
 ##########################################
 print "$Separator\n";
-if( $calc =~ m/val/i )
-{
-  print "Entering NBSE stage\n";
-  chdir "../NBSE";
-  system("$OCEAN_BIN/nbse.pl") == 0 or die "CNBSE stage failed\n$!";
-}
-else
-{
-  print "Entering CNBSE stage\n";
-  chdir "../CNBSE";
-  system("$OCEAN_BIN/cnbse_mpi.pl") == 0 or die "CNBSE stage failed\n$!";
-}
+#if( $calc =~ m/val/i )
+#{
+#  print "Entering NBSE stage\n";
+#  chdir "../NBSE";
+#  system("$OCEAN_BIN/nbse.pl") == 0 or die "CNBSE stage failed\n$!";
+#}
+#else
+#{
+print "Entering CNBSE stage\n";
+chdir "../CNBSE";
+system("$OCEAN_BIN/cnbse.pl") == 0 or die "CNBSE stage failed\n$!";
+#}
 
 ##########################################
 print "$Separator\n";

@@ -16,6 +16,7 @@ module OCEAN_energies
 
   type( OCEAN_vector ) :: p_energy
   type( OCEAN_vector ) :: allow
+  type( OCEAN_vector ) :: allow_sqrt
 
 
   LOGICAL :: have_selfenergy
@@ -26,9 +27,22 @@ module OCEAN_energies
 
   public :: OCEAN_energies_allow, OCEAN_energies_val_sfact, OCEAN_energies_val_act, &
             OCEAN_energies_val_load, OCEAN_energies_act, OCEAN_energies_init, OCEAN_energies_load
-  public :: OCEAN_energies_resetAllow
+  public :: OCEAN_energies_resetAllow, OCEAN_energies_allow_full
   
   contains
+
+  subroutine OCEAN_energies_allow_full( sys, psi, ierr )
+    use OCEAN_system, only : O_system
+    use OCEAN_psi, only : OCEAN_vector, OCEAN_psi_2element_mult
+    use OCEAN_mpi, only : myid, root
+    implicit none
+    !
+    integer, intent( inout ) :: ierr
+    type(O_system), intent( in ) :: sys
+    type(OCEAN_vector), intent( inout ) :: psi
+    !
+    call OCEAN_psi_2element_mult( psi, allow_sqrt, ierr, is_real_only=.true., use_full=.true. )
+  end subroutine
 
   subroutine OCEAN_energies_allow( sys, psi, ierr )
     use OCEAN_system, only : O_system
@@ -40,6 +54,7 @@ module OCEAN_energies
     type(O_system), intent( in ) :: sys
     type(OCEAN_vector), intent( inout ) :: psi
     !
+    if( myid .eq. root ) write(6,*) 'old_allow'
     call OCEAN_psi_2element_mult( psi, allow, ierr, is_real_only=.true. )
   end subroutine
 
@@ -141,6 +156,8 @@ module OCEAN_energies
       if( ierr .ne. 0 ) return
       call OCEAN_psi_new( allow, ierr )
       if( ierr .ne. 0 ) return
+      call OCEAN_psi_new( allow_sqrt, ierr )
+      if( ierr .ne. 0 ) return
 
       is_init = .true.
     endif
@@ -156,6 +173,7 @@ module OCEAN_energies
 
     call OCEAN_psi_kill( p_energy, ierr )
     call OCEAN_psi_kill( allow, ierr )
+    call OCEAN_psi_kill( allow_sqrt, ierr )
     is_init = .false.
 
   end subroutine OCEAN_energies_kill
@@ -164,7 +182,7 @@ module OCEAN_energies
     use OCEAN_system, only : O_system
     use OCEAN_mpi, only : myid, root
     use OCEAN_psi, only : OCEAN_psi_zero_full, OCEAN_psi_bcast_full
-    use OCEAN_constants, only : eV2Hartree
+    use OCEAN_constants, only : eV2Hartree, Hartree2eV
 
     implicit none
     type(O_system), intent( in ) :: sys
@@ -172,7 +190,7 @@ module OCEAN_energies
     integer, intent(inout) :: ierr
 
     real(DP), allocatable :: energies(:,:,:), imag_se(:,:,:)
-    real(DP) :: core_offset, efermi
+    real(DP) :: core_offset, efermi, emin, emax
     logical :: metal
 
     if( myid .eq. root ) then
@@ -187,6 +205,8 @@ module OCEAN_energies
     call OCEAN_psi_zero_full( p_energy, ierr )
     if( ierr .ne. 0 ) return
     call OCEAN_psi_zero_full( allow, ierr )
+    if( ierr .ne. 0 ) return
+    call OCEAN_psi_zero_full( allow_sqrt, ierr )
     if( ierr .ne. 0 ) return
 
 
@@ -205,10 +225,18 @@ module OCEAN_energies
 
     if( myid .eq. root ) then
       call stubby( sys, p_energy, energies, imag_se, core_offset )
+      emin = minval( energies )
+      emax = maxval( energies )
+      write(6,'(A,3(X,A16))') 'ENERGIES:', 'Min', 'Fermi', 'Max'
+      write(6,'(A,3(X,F16.8))') '         ', emin* Hartree2eV, efermi* Hartree2eV, emax* Hartree2eV
+      write(6,'(A,3(X,A16))') 'Shifted :', 'Min', 'Fermi', 'Max'
+      write(6,'(A,3(X,F16.8))') '         ', (emin+core_offset)* Hartree2eV, & 
+            (efermi+core_offset)*Hartree2eV, (emax+core_offset)* Hartree2eV
     endif
 
     call OCEAN_psi_bcast_full( root, p_energy, ierr )
     call OCEAN_psi_bcast_full( root, allow, ierr )
+    call OCEAN_psi_bcast_full( root, allow_sqrt, ierr )
 
     deallocate( energies, imag_se )
 
@@ -221,7 +249,7 @@ module OCEAN_energies
     !
     type(O_system), intent( in ) :: sys
     real(DP), intent( in ) :: ener(:,:,:)
-    real(DP), intent( in ) :: efermi
+    real(DP), intent( inout ) :: efermi
     logical, intent( in ) :: metal
     !
     real(DP), allocatable :: allowArray(:,:,:)
@@ -244,6 +272,8 @@ module OCEAN_energies
     end select
 
     call stubby( sys, allow, allowArray )
+!    allowArray(:,:,:) = sqrt(allowArray(:,:,:))
+    call stubby( sys, allow_sqrt, allowArray )
 
 
     deallocate( allowArray )
@@ -267,8 +297,11 @@ module OCEAN_energies
     integer :: i, j, k, n(3)
 
     if( present( temp ) ) then
-      write(6,'(A,F9.3)') 'Modifying occupations by ', temp
       occVal = temp
+      if( occVal .lt. 0.0_DP ) occVal = 0.0_DP
+      if( occVal .gt. 1.0_DP ) occVal = 1.0_DP
+      write(6,'(A,F9.3)') 'Modifying occupations by ', occVal
+      occVal = sqrt(occVal)
     else
       occVal = 0.0_dp
     endif
@@ -327,22 +360,25 @@ module OCEAN_energies
     real(DP), intent( out ) :: allowArray(:,:,:)
     real(DP), intent( in ) :: ener(:,:,:)
     logical, intent( in ) :: metal
-    real(DP), intent( in ) :: efermi
+    real(DP), intent( inout ) :: efermi
     real(DP), intent( in ), optional :: temp
     !
+    logical, parameter :: adjustFermi = .true.
     real(DP) :: itemp, scaledFermi, con, val
     integer :: i, j, k, n(3)
+    real(DP) :: e, ehigh, elow
+    integer :: targN, minN, maxN, curN
 
-    if( present( temp ) ) then
-      itemp = 1.0_dp / temp
-      scaledFermi = - efermi / temp
-    endif
+!    if( present( temp ) ) then
+!      itemp = 1.0_dp / temp
+!      scaledFermi = - efermi / temp
+!    endif
 
     select case( sys%cur_run%calc_type )
 
       case( 'XAS' )
         con = 1.0_DP
-        val = 0.1_DP
+        val = 0.0_DP
 
       case( 'XES' )
         con = 0.0_DP
@@ -359,12 +395,49 @@ module OCEAN_energies
     if( myid .eq. root ) write(6,*) 'Dim:', n(:)
 
     if( present( temp ) ) then
+
+      if( adjustFermi ) then
+        targN = NfromFermi( ener, efermi, 0.0_DP )
+        minN = NfromFermi( ener, ener(1,1,1), temp )
+!        maxN = NfromFermi( ener, ener(n(1),n(2),n(3)), temp )
+        maxN = NfromFermi( ener, huge(0.0_DP), temp )
+        if( myid .eq. root ) write(6,*) minN, targN, maxN
+        if( minN .ge. targN .or. maxN .le. targN ) then
+          if( myid .eq. root ) then
+            write(6,'(A,X,3(I0,X))') 'Unable to move Fermi!!!', minN, targN, maxN
+            write(6,*) efermi,  ener(1,1,1), temp
+          endif
+        else
+          elow = ener(1,1,1)
+          ehigh = ener(n(1),n(2),n(3))
+          e = efermi
+          do i = 1, 100
+            curN = NfromFermi( ener, e, temp )
+            if( myid .eq. root ) write( 6, '(I0,X,I0,X,3(E12.5,X))') i, curN, elow, e, ehigh
+            if( curN > targN ) then
+              ehigh = e
+              e = 0.5_DP * ( ehigh + elow )
+            elseif( curN < targN ) then
+              elow = e
+              e = 0.5_DP * ( ehigh + elow )
+            else
+              exit
+            endif
+          enddo
+          if( myid .eq. root ) write( 6, * ) efermi, e, targN, curN
+          efermi = e
+        endif
+      endif
+
+      itemp = 1.0_dp / temp
+      scaledFermi = - efermi / temp
+
       select case( sys%cur_run%calc_type )
       case( 'XES' )
         do k = 1, n(3)
           do j = 1, n(2)
             do i = 1, n(1)
-              allowArray(i,j,k) = 1.0_dp / ( exp( ener(i,j,k) * itemp - scaledFermi ) + 1.0_dp )
+              allowArray(i,j,k) = sqrt( 1.0_dp / ( exp( ener(i,j,k) * itemp + scaledFermi ) + 1.0_dp ) )
             enddo
           enddo
         enddo
@@ -372,13 +445,14 @@ module OCEAN_energies
         do k = 1, n(3)
           do j = 1, n(2)
             do i = 1, n(1)
-              allowArray(i,j,k) = 1.0_DP - 1.0_dp / ( exp( ( ener(i,j,k) - efermi )*itemp ) + 1.0_dp )
+              allowArray(i,j,k) = sqrt( 1.0_DP - 1.0_dp / ( exp( ( ener(i,j,k) - efermi )*itemp ) + 1.0_dp ) )
+!              allowArray(i,j,k) = 1.0_DP
 !              if(  ener(i,j,k) .gt. efermi ) then
 !                 allowArray(i,j,k) = 1.0_dp
 !              else
 !                 allowArray(i,j,k) = 0.10_DP
 !              endif
-              write(9000,'(4(E24.12,X))') allowArray(i,j,k), ener(i,j,k), efermi, itemp
+              write(9000,'(5(E24.12,X))') sqrt(allowArray(i,j,k)), allowArray(i,j,k), ener(i,j,k), efermi, itemp
 !              allowArray(i,j,k) = 1.0_DP - 1.0_dp / ( exp( ener(i,j,k) * itemp - scaledFermi ) + 1.0_dp )
             enddo
           enddo
@@ -400,15 +474,17 @@ module OCEAN_energies
       enddo
     endif
   
-    open(unit=99,file='allow.txt',form='formatted', status='unknown')
-    do k = 1, n(3)
-      do j = 1, n(2)
-        do i = 1, n(1)
-          write(99,*) i,j,k,allowArray(i,j,k)
+    if( myid .eq. root ) then
+      open(unit=99,file='allow.txt',form='formatted', status='unknown')
+      do k = 1, n(3)
+        do j = 1, n(2)
+          do i = 1, n(1)
+            write(99,*) i,j,k,allowArray(i,j,k)
+          enddo
         enddo
       enddo
-    enddo
-    close(99)
+      close(99)
+    endif
 
   end subroutine core_allow_ff
   
@@ -448,7 +524,7 @@ module OCEAN_energies
         read ( 99 ) nbd, nq
         nspn = 1
       endif
-      if( nbd .ne. sys%num_bands ) then
+      if( nbd .lt. sys%num_bands ) then
         write(6,*) 'Band mismatch!', sys%num_bands, nbd
         ierr = 1
         goto 111
@@ -462,10 +538,11 @@ module OCEAN_energies
         goto 111
       endif
 
-      allocate( tmp_e0( sys%num_bands,  sys%nkpts, sys%nspn ), STAT=ierr )
+!      write(6,*) 'EEE', nbd, sys%num_bands
+      allocate( tmp_e0( nbd,  sys%nkpts, sys%nspn ), STAT=ierr )
       if( ierr .ne. 0 ) return
       read(99) tmp_e0
-      energies( 1 : sys%num_bands, 1 : sys%nkpts, : ) = tmp_e0( :, :, : )
+      energies( 1 : sys%num_bands, 1 : sys%nkpts, : ) = tmp_e0( 1:sys%num_bands, 1:sys%nkpts, : )
       deallocate( tmp_e0 )
 !      read(99) energies( 1 : sys%num_bands, 1 : sys%nkpts, : )
 
@@ -1297,5 +1374,42 @@ module OCEAN_energies
     enddo
 
   end subroutine do_sort
+
+  integer function NfromFermi( ener, ef, temp )
+    real(DP), intent( in ) :: ener(:,:,:)
+    real(DP), intent( in ) :: ef, temp
+
+    real(DP) :: itemp, scaledFermi, x
+    integer :: i, j, k, n(3)
+    real(DP), parameter :: eps = 0.000000000001_DP
+  
+    n = shape(ener)
+    NfromFermi = 0
+
+    if( temp .lt. eps ) then
+      do k = 1, n(3)
+        do j = 1, n(2)
+          do i = 1, n(1)
+            if( ener(i,j,k) .le. ef ) NfromFermi = NfromFermi + 1
+          enddo
+        enddo
+      enddo
+      
+    else
+
+      itemp = 1.0_dp / temp
+!      scaledFermi = - ef / temp
+      x = 0.0_DP
+      do k = 1, n(3)
+        do j = 1, n(2)
+          do i = 1, n(1)
+             x = x + 1.0_dp / ( exp( ( ener(i,j,k) - ef ) * itemp ) + 1.0_dp )
+          enddo
+        enddo
+      enddo
+      NfromFermi =  x
+    endif
+
+  end function NfromFermi
 
 end module OCEAN_energies

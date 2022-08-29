@@ -8,11 +8,11 @@ abinit
 } dft
 nkpt
 {
--1
+old
 } nkpt
 ngkpt
 {
--1
+old
 } ngkpt
 ngkpt.auto
 {
@@ -32,7 +32,7 @@ dft.qe_redirect
 } dft.qe_redirect
 nbands
 {
--1
+range
 } nbands
 dft_energy_range
 {
@@ -201,7 +201,7 @@ shirley
 } opf.program
 screen.nkpt
 {
--1
+old
 } screen.nkpt
 screen.k0
 {
@@ -251,6 +251,10 @@ cnbse.niter
 {
 100
 } cnbse.niter
+haydock_convergence
+{
+-0.001 5 
+} haydockconv.ipt
 cnbse.spect_range
 {
 1200 -40.817 68.028

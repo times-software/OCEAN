@@ -153,26 +153,111 @@ module SCREEN_timekeeper
   end subroutine SCREEN_tk_stop_id
 
 
-  subroutine SCREEN_tk_printtimes( myid )
+  subroutine SCREEN_tk_printtimes( myid, comm )
+#ifdef MPI
+#ifndef __OLD_MPI
+
+#ifdef MPI_F08
+    use mpi_f08
+#else
+    use mpi
+#endif
+
+#endif
+#endif
+    use ai_kinds, only :DP
     implicit none
+#ifdef MPI
+#ifdef __OLD_MPI
+    include 'mpif.h'
+#endif
+#endif
     integer, intent( in ) :: myid
+#ifdef MPI_F08
+    type( MPI_COMM ), optional, intent(in) :: comm
+#else
+    integer, optional, intent(in) :: comm
+#endif
 
     character(LEN=16) :: filnam
-    integer :: iter
+    integer :: iter, nproc, ierr, i
+    integer(8) :: iavg, imax, imin
+    real(DP) :: avg, stddev
+    integer(8), allocatable :: allTotal(:,:)
+#ifdef MPI_F08
+    TYPE(MPI_Status) :: stat
+#else
+    integer :: stat(MPI_STATUS_SIZE)
+#endif
 
 !   This can be changed if for some reason we run on all the computers
     if( myid .gt. 999999 ) return 
 
-    write(filnam,'(A6,I6.6,A4)' ) 'timing', myid, '.txt'
-    open(unit=100+myid,file=filnam,form='formatted',status='unknown')
-    rewind(100+myid)
+    ! New behavior
+    nproc = 1
+    if( present( comm ) ) then
+      call MPI_COMM_SIZE( comm, nproc, ierr )
+      if( ierr .ne. 0) return
+    endif
 
-    do iter = 1, ndivs
-      write(100+myid,'(A,X,I20,X,A,F24.6,X,A)') tk_label( iter ), total( iter ), ' tics', &
-                (dble( total( iter ) )/dble(count_rate)), 'secs'
-    enddo
+    if( nproc .gt. 1 ) then
 
-    close(100+myid)
+      if( myid .eq. 0 ) then
+        allocate( allTotal( ndivs, 0:nproc-1) )
+        allTotal(:,0) = total(1:ndivs)
+        do iter = 1, nproc-1
+          call MPI_RECV( allTotal(:,iter), ndivs, MPI_INTEGER8, iter, 1, comm, stat, ierr )
+        enddo
+      else
+        call MPI_SEND( total(:), ndivs, MPI_INTEGER8, 0, 1, comm, ierr )
+      endif
+
+      if( myid .eq. 0 ) then
+        write(filnam,'(A6,I6.6,A4)' ) 'timing', myid, '.txt'
+        open(unit=99,file=filnam,form='formatted',status='unknown')
+        rewind(99)
+
+        ! 32 + 1 + 20 + 1 + 5
+        write(99,'(A1,A69,A,A22,A17,A17,A17,A17)') '#', '', 'Root', 'Avg', 'StdDev', 'Min', 'Max'
+        do iter = 1, ndivs
+          iavg = allTotal(iter,0)
+          imax = allTotal(iter,0)
+          imin = allTotal(iter,0)
+          do i  =1, nproc-1
+            iavg = iavg + allTotal(iter,i)
+            imax = max( imax, allTotal(iter,i) )
+            imin = min( imin, allTotal(iter,i) )
+          enddo
+          avg = dble( iavg ) / dble( nproc )
+          stddev = 0
+          do i  =0, nproc-1
+            stddev = ( avg - dble( allTotal(iter,i) ) ) **2
+          enddo
+          stddev = sqrt( stddev/dble(nproc ))
+          ! 10 digits before the decimal should get us 10 years in seconds
+          write( 99, '(A,X,I20,X,A5,F16.6,X,A5,X,F16.6,X,F16.6,X,F16.6,X,F16.6)' ) &
+                  tk_label( iter ), allTotal(iter,0), ' tics', &
+                  (dble( allTotal( iter,0 ) )/dble(count_rate)), 'secs', &
+                  avg/dble(count_rate), stddev/dble(count_rate), &
+                  dble(imin)/dble(count_rate), dble(imax)/dble(count_rate)
+        enddo
+        close(99)
+
+        deallocate( allTotal )
+      endif
+
+    else
+      write(filnam,'(A6,I6.6,A4)' ) 'timing', myid, '.txt'
+      open(unit=100+myid,file=filnam,form='formatted',status='unknown')
+      rewind(100+myid)
+
+      do iter = 1, ndivs
+        write(100+myid,'(A,X,I20,X,A,F24.6,X,A)') tk_label( iter ), total( iter ), ' tics', &
+                  (dble( total( iter ) )/dble(count_rate)), 'secs'
+      enddo
+
+      close(100+myid)
+    endif
 
   end subroutine SCREEN_tk_printtimes
 
