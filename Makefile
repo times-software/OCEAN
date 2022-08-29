@@ -5,7 +5,7 @@
 include Makefile.arch
 
 SCRIPTS = 
-AUX = Version Header
+AUX = Version Header Makefile.arch
 AUX_EXE = $(ABINIT_EXE) $(CUT3D_EXE) $(PW_EXE) $(PP_EXE)
 
 all: 

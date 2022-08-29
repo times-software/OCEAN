@@ -63,7 +63,9 @@ module screen_wvfn_converter
 
     siteSize = screen_paral_NumLocalSites( pinfo, nsites )
 
-!    write(6,*) recvSize, siteSize
+#ifdef PRINTLOG
+    write(1000+myid,*) 'recvSize, siteSize:', recvSize, siteSize
+#endif
 
     allocate( recvArray( recvSize, siteSize ) )
     recvArray(:,:) = MPI_REQUEST_NULL
@@ -366,7 +368,9 @@ module screen_wvfn_converter
       nbandChunk = nbandChunk * nthreads
       nbandChunk = min( nbandChunk, nbands )
     endif
+#ifdef PRINTLOG
     write(1000+myid,'(A,4(1X,I0),L2)') '*** Convert and Send ***', ikpt, ispin, nbands, nbandChunk, params%isGamma
+#endif
 !    flush(1000+myid)
 
 !    call swl_allocateUofX( params%isGamma, nbands, uofx, ierr )
@@ -579,7 +583,9 @@ module screen_wvfn_converter
         if( ierr .ne. 0 ) return
 
         if( mod( iproc + 1, 16 ) .eq. 0 ) then
+#ifdef PRINTLOG
           write(1000+myid, '(A,2(1X,I8))' ) 'Triggered intermediate send', iproc, isite
+#endif
           call MPI_WAITALL( 16, send_list( isend-15 ), MPI_STATUSES_IGNORE, ierr )
           if( ierr .ne. 0 ) return
         endif
@@ -1001,6 +1007,7 @@ module screen_wvfn_converter
     logical :: doAug
 
 #ifdef DEBUG
+    real(DP), allocatable :: tmpForWrite(:)
     character(len=64) :: fnam, formatting
 #endif
 
@@ -1146,6 +1153,7 @@ module screen_wvfn_converter
 
 #ifdef DEBUG
       i = 0
+      allocate(tmpForWrite(nproj))
       do l = lmin, lmax
         do m = -l, l
           i = i + 1
@@ -1155,12 +1163,15 @@ module screen_wvfn_converter
 !          write ( 99, '(A1,X,16(E20.12))' ) '#', su(:)
           write(formatting, '("("I0"(F20.10))")' ) 5+nproj
           do k = 1, ncutoff
-            write ( 99, formatting ) isite%grid%rgrid(1)%rad( k ), fit( k, i ) , waveByLM(k,i), psProj_hold( k, :, l )
+            tmpForWrite(:) = psProj_hold( k, :, l )
+            write ( 99, formatting ) isite%grid%rgrid(1)%rad( k ), fit( k, i ) , waveByLM(k,i), tmpForWrite(:)
+!            write ( 99, formatting ) isite%grid%rgrid(1)%rad( k ), fit( k, i ) , waveByLM(k,i), psProj_hold( k, :, l )
 !            write ( 99, '(5(E20.12))' ) isite%grid%rad( k ), fit( k, i ) , waveByLM(k,i)
           enddo
           close( 99 )
         enddo
       enddo
+      deallocate(tmpForWrite)
 #endif
 
       ! now augment
@@ -1846,51 +1857,69 @@ module screen_wvfn_converter
         enddo
         uofxDims(:) = boundaries(:,2) - boundaries(:,1) + 1 
 
+#ifdef PRINTLOG
         write(1000+myid,'(A,3(X,I0))') 'Initial: ', uofxDims(:)
+#endif
 !        uofxDims(:) = (uofxDims(:) -1)*2
         if( screen_system_allaug() ) then
           uofxDims(:) = (uofxDims(:))*3
         else 
           uofxDims(:) = (uofxDims(:))*2
         endif
+#ifdef PRINTLOG
         write(1000+myid,'(A,3(X,I0))') 'Final  : ', uofxDims(:)
+#endif
 
         ! This changes the FFT grid to factor to reasonably small primes
         do i = 1, 3
           do k = 0, 5
             test = uofxDims(i) + k
+#ifdef PRINTLOG
             write(1000+myid,*) 'TESTING: ', test
+#endif
             if( mod( test, 4 ) .ne. 0 ) cycle
             do 
               if( mod( test, 2 ) .ne. 0 ) exit
               test = test / 2
+#ifdef PRINTLOG
               write(1000+myid,*) '   ', 2
+#endif
             enddo
             do j = 5, 3, -2
               do
                 if( mod( test, j ) .ne. 0 ) exit
                 test = test / j
+#ifdef PRINTLOG
                 write(1000+myid,*) '   ', j
+#endif
               enddo
             enddo
 #ifdef __FFTW3
             do 
               if( mod( test, 7 ) .ne. 0 ) exit
               test = test / 7
+#ifdef PRINTLOG
               write(1000+myid,*) '   ', 7
+#endif
             enddo
             if( mod( test, 11 ) .eq. 0 ) then
               test = test / 11
+#ifdef PRINTLOG
               write(1000+myid,*) '   ', 11
+#endif
             endif
             if( mod( test, 13 ) .eq. 0 ) then
               test = test / 13
+#ifdef PRINTLOG
               write(1000+myid,*) '   ', 13
+#endif
             endif
 #endif
             if( test .eq. 1 ) then
               uofxDims(i) = uofxDims(i) + k
+#ifdef PRINTLOG
               write(1000+myid,*) 'FINAL:    ', uofxDims(i)
+#endif
               exit
             endif
             
@@ -1903,9 +1932,11 @@ module screen_wvfn_converter
         ierr = -1
     end select
 
+#ifdef PRINTLOG
     write(1000+myid,'(A,3(1X,I10))') '   ', uofxDims(:)
     write(1000+myid,'(A,3(1X,I10))') '   ', boundaries(:,1)
     write(1000+myid,'(A,3(1X,I10))') '   ', boundaries(:,2)
+#endif
 
   end subroutine swl_checkConvert
 
@@ -1942,7 +1973,9 @@ module screen_wvfn_converter
     dims(2) = size( uofx, 2 )
     dims(3) = size( uofx, 3 )
 
+#ifdef PRINTLOG
     write(1000+myid,'(A,3(I8,1X))') 'x-dims', dims(:)
+#endif
 !    write(2000,'(3(I5,1X))') dims(:)
     do ip = 1, npts
       rvec(:,ip) = i2pi * matmul( bvecs, posn(:,ip) )
@@ -2073,7 +2106,9 @@ module screen_wvfn_converter
     dims(2) = size( uofx, 2 )
     dims(3) = size( uofx, 3 )
 
+#ifdef PRINTLOG
     write(1000+myid,'(A,3(I8,1X))') 'x-dims', dims(:)
+#endif
     do ip = 1, npts
       rvec(:) = i2pi * matmul( bvecs, posn(:,ip) )
 
@@ -2437,7 +2472,9 @@ module screen_wvfn_converter
     dims(3) = size( uofx, 3 )
 
 !    if( iband .eq. 1 ) write(1000+myid,'(A,3(I8,1X))') 'x-dims', dims(:)
+#ifdef PRINTLOG
     if( iband .eq. 1 ) write(1000+myid, '(A,6(F20.14,1X))' ) 'posn', posn(:,1), qcart(:)
+#endif
     do ip = 1, npts
 !      rvec(:) = i2pi * matmul( bvecs, posn(:,ip) )
       do j = 1, 3
@@ -2602,7 +2639,9 @@ module screen_wvfn_converter
     dims(2) = size( uofx, 2 )
     dims(3) = size( uofx, 3 )
 
+#ifdef PRINTLOG
     write(1000+myid,'(A,3(I8,1X))') 'x-dims', dims(:)
+#endif
     do ip = 1, npts
       rvec(:) = i2pi * matmul( bvecs, posn(:,ip) )
 
@@ -2745,7 +2784,9 @@ module screen_wvfn_converter
     dims(2) = size( uofx, 2 )
     dims(3) = size( uofx, 3 )
 
+#ifdef PRINTLOG
     write(1000+myid,'(A,3(I8,1X))') 'x-dims', dims(:)
+#endif
     do ip = 1, npts
       rvec(:) = i2pi * matmul( bvecs, posn(:,ip) )
 
@@ -2887,7 +2928,9 @@ module screen_wvfn_converter
     dims(2) = size( uofx, 2 )
     dims(3) = size( uofx, 3 )
 
+#ifdef PRINTLOG
     write(1000+myid,'(A,3(I8,1X))') 'x-dims', dims(:)
+#endif
     do ip = 1, npts
       rvec(:) = i2pi * matmul( bvecs, posn(:,ip) )
 
@@ -3214,7 +3257,9 @@ module screen_wvfn_converter
     dims(2) = size( uofx, 2 )
     dims(3) = size( uofx, 3 )
 
+#ifdef PRINTLOG
     write(1000+myid,'(A,3(I8,1X))') 'x-dims', dims(:)
+#endif
 !    write(2000,'(3(I5,1X))') dims(:)
     do ip = 1, npts
 !      rvec(:) = i2pi * matmul( transpose(bvecs), posn(:,ip) )
@@ -3524,7 +3569,7 @@ module screen_wvfn_converter
 
 #endif
 
-#ifdef DEBUG
+#ifdef DEBUG2
         do j = 1, nbands
           write(wvfnfile, '(A,I8.8)' ) 'real', j
           open( unit=99, file=wvfnfile, form='formatted' )
@@ -3903,6 +3948,10 @@ module screen_wvfn_converter
       det = 1.0_dp / det
     else
       outMat = 0.0_DP
+      write(6,*) 'Inv failed'
+      write(6,*) inMat(:,1)
+      write(6,*) inMat(:,2)
+      write(6,*) inMat(:,3)
       ierr = 9
       return
     end if
@@ -4168,7 +4217,9 @@ module screen_wvfn_converter
       enddo
       
       shiftedPosn( : ) = matmul( avecs, rvec )
+#ifdef PRINTLOG
       if( mod( ip, 20 ) .eq. 0 ) write(1000+myid,*) grid%posn(:,ip), shiftedPosn(:)
+#endif
 
       do iatom = 1, natoms
 

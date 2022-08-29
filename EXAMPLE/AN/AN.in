@@ -1,6 +1,4 @@
 # J. Phys. Soc. Jpn. 14 1205-16 (1959)  x = .153
-control 0
-ppdir {'../'}
 
 para_prefix{ mpirun -n 8}
 nkpt { 4 4 4}

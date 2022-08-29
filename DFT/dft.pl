@@ -1,2055 +1,935 @@
 #!/usr/bin/perl
-# Copyright (C) 2015 - 2019 OCEAN collaboration
+# Copyright (C) 2021 OCEAN collaboration
 #
 # This file is part of the OCEAN project and distributed under the terms 
 # of the University of Illinois/NCSA Open Source License. See the file 
 # `License' in the root directory of the present distribution.
 #
 #
-
-
 use strict;
-use File::Copy;
-use Cwd 'abs_path';
-use File::Compare;
-use File::Spec::Functions;
-use POSIX;
 
+
+require JSON::PP;
+#JSON::PP->import;
+use JSON::PP;
+use Cwd 'abs_path';
+use Cwd;
+use File::Spec::Functions;
+use Storable qw(dclone);
+use Scalar::Util qw( looks_like_number ); 
+use Digest::MD5 qw(md5_hex);
+
+use FindBin;
+use lib $FindBin::Bin;
+require 'QEdriver.pl';
+require 'ABIdriver.pl';
+
+use Time::HiRes qw( gettimeofday tv_interval );
+
+print localtime() .  "\n";
+my ( $startSeconds, $startMicroseconds) = gettimeofday;
+
+###########################
 if (! $ENV{"OCEAN_BIN"} ) {
   $0 =~ m/(.*)\/dft\.pl/;
-  $ENV{"OCEAN_BIN"} = abs_path($1);
+  $ENV{"OCEAN_BIN"} = abs_path( $1 );
   print "OCEAN_BIN not set. Setting it to $ENV{'OCEAN_BIN'}\n";
 }
-
-
-if (! $ENV{"OCEAN_WORKDIR"}){ $ENV{"OCEAN_WORKDIR"} = `pwd` . "../" ; }
-if (! $ENV{"OCEAN_VERSION"}) {$ENV{"OCEAN_VERSION"} = `cat $ENV{"OCEAN_BIN"}/Version`; }
 if (! $ENV{"OCEAN_ESPRESSO_PW"} ) {$ENV{"OCEAN_ESPRESSO_PW"} = $ENV{"OCEAN_BIN"} . "/pw.x"; }
 if (! $ENV{"OCEAN_ESPRESSO_PP"} ) {$ENV{"OCEAN_ESPRESSO_PP"} = $ENV{"OCEAN_BIN"} . "/pp.x"; }
 if (! $ENV{"OCEAN_ESPRESSO_PH"} ) {$ENV{"OCEAN_ESPRESSO_PH"} = $ENV{"OCEAN_BIN"} . "/ph.x"; }
-if (! $ENV{"OCEAN_ESPRESSO_OBF_PW"} ) 
-    {$ENV{"OCEAN_ESPRESSO_OBF_PW"} = $ENV{"OCEAN_BIN"} . "/obf_pw.x"; }
-if (! $ENV{"OCEAN_ESPRESSO_OBF_PP"} ) 
-    {$ENV{"OCEAN_ESPRESSO_OBF_PP"} = $ENV{"OCEAN_BIN"} . "/obf_pp.x"; }
+if (! $ENV{"OCEAN_ABINIT"} ) {$ENV{"OCEAN_ABINIT"} = $ENV{"OCEAN_BIN"} . "/abinit"; }
+if (! $ENV{"OCEAN_CUT3D"} ) {$ENV{"OCEAN_CUT3D"} = $ENV{"OCEAN_BIN"} . "/cut3d"; }
 
-####################################
+#my $driver = catdir( $ENV{"OCEAN_BIN"}, "QEdriver.pl" );
+#require "$driver";
+my @timeSections = ( 'scf', 'density', 'potential', 'bse', 'screen' );
 
-my $RunKGen = 0;
-my $RunPP = 0;
-my $RunESPRESSO = 0;
-my $RunDenPP = 0;
-my $nscfRUN = 0;
-my $run_screen = 0;
-my $RunPH = 0;
+my $dir = getcwd;
+if (! $ENV{"OCEAN_WORKDIR"}){ $ENV{"OCEAN_WORKDIR"} = abs_path( catdir( updir(), $dir ) ); }
 
-my @GeneralFiles = ("para_prefix", "calc");
+my $json = JSON::PP->new;
 
-my @KgenFiles = ("nkpt", "k0.ipt", "qinunitsofbvectors.ipt", "screen.nkpt", "screen.k0", "dft.split");
-my @BandFiles = ("nbands", "screen.nbands");
-my @EspressoFiles = ( "coord", "degauss", "ecut", "etol", "fband", "ibrav", 
-    "isolated", "mixing", "natoms", "ngkpt", "noncolin", "nrun", "ntype", 
-    "occopt", "prefix", "ppdir", "rprim", "rscale", "metal",
-    "spinorb", "taulist", "typat", "verbatim", "work_dir", "tmp_dir", "wftol", 
-    "den.kshift", "obkpt.ipt", "trace_tol", "ham_kpoints", "obf.nbands","tot_charge", 
-    "nspin", "smag", "ldau", "qe_scissor", "zsymb", "dft.calc_stress", "dft.calc_force", "dft",
-    "dft.startingwfc", "dft.diagonalization", "dft.qe_redirect", "dft.ndiag", "dft.functional", "dft.exx.qmesh", 
-    "ngkpt.auto", "bshift", "nelectrons" );
-my @PPFiles = ("pplist", "znucl");
-my @OtherFiles = ("epsilon", "pool_control", "screen.mode");
+# Load run info from Common
+my $dataFile = "../Common/postDefaultsOceanDatafile";
+die "Failed to find $dataFile\n" unless( -e $dataFile );
 
-my @SCFBonus = ("charge-density.kin.dat", "ekin-density.dat");
-my @exx = ("hse");
-
-unless( -e "scf.stat" )
+my $commonOceanData;
+if( open( my $in, "<", $dataFile ))
 {
-  $RunPP = 1;
-}
-
-
-foreach (@PPFiles) {
-  if ( -e $_ ) {
-    if( compare( "$_", "../Common/$_") != 0 )
-    {
-      $RunPP = 1;
-      print "$_ differs\n";
-      last;
-    }
-  }
-  else {
-    $RunPP = 1;
-    print "$_ not found\n";
-    last;
-  }
-}
-
-if ( $RunPP ) {
-  $RunESPRESSO = 1;
-}
-else {
-  foreach (@EspressoFiles) {
-    if ( -e $_ ) {
-      if( compare( "$_", "../Common/$_") != 0 )
-      {
-        $RunESPRESSO = 1;
-        last;
-      }
-    }
-    else {
-      $RunESPRESSO = 1;
-      last;
-    }
-  }
-}
-
-if ($RunESPRESSO) {
-  print "Differences found for density run. Clearing all old data\n";
-  my @dirlisting = <*>;
-  foreach my $file (@dirlisting) {
-    chomp($file);
-#    `rm -r $file`;
-  }
-  $RunPP = 1;
-  $nscfRUN = 1;
-  $run_screen = 1;
-  $RunDenPP = 1;
-  $RunPH = 1;
-  unlink "scf.stat";
-  unlink "den.stat";
-  unlink "ph.stat";
-}
-else {
-  `touch old`;
-}
-
-unless( $nscfRUN == 1)
-{
-  foreach( "nkpt", "k0.ipt", "nbands" )
-  {
-    if( compare( "$_", "../Common/$_") != 0 )
-    {
-      $nscfRUN = 1;
-      print "Difference found in $_\n";
-      last;
-    }
-  }
-  unless( $nscfRUN == 1 )
-  {
-    if( compare( "qinunitsofbvectors.ipt", "../Common/qinunitsofbvectors.ipt" ) != 0 )
-    {
-      $nscfRUN = 2;
-      print "Difference found in qinunitsofbvectors.ipt\n";
-    }
-  }
-}
-unless( $run_screen == 1)
-{
-  foreach( "screen.nkpt", "screen.k0", "screen.nbands" )
-  {
-    if( compare( "$_", "../Common/$_") != 0 )
-    {
-      $run_screen = 1;
-      print "Difference found in $_\n";
-      last;
-    }
-  }
-}
-
-if( $nscfRUN == 0 )
-{
-  $nscfRUN = 1 unless( -e "bse.stat" );
-}
-if( $run_screen == 0 )
-{
-  $run_screen = 1 unless( -e "screen.stat" );
-}
-if( $RunDenPP == 0 )
-{
-  $RunDenPP = 1 unless( -e "den.stat" );
-}
-if( $RunPH == 0 )
-{
-  $RunPH = 1  unless( -e "ph.stat" );
-}
-
-foreach (@GeneralFiles) {
-  system("cp ../Common/$_ .") == 0 or die;
-}
-foreach (@KgenFiles) {
-  system("cp ../Common/$_ .") == 0 or die;
-}
-foreach (@BandFiles) {
-  system("cp ../Common/$_ .") == 0 or die;
-}
-
-if( $RunPP == 1 )
-{
-  foreach (@PPFiles) {
-    system("cp ../Common/$_ .") == 0 or die;
-  }
-}
-
-open IN, "calc" or die "Failed to open calc\n";
-<IN> =~m/(\w+)/ or die "Failed to parse calc\n";
-my $calc = $1;
-close IN;
-
-my $old_screen_mode;
-if( -e "screen.mode" )
-{
-  open IN, "screen.mode" or die "Failed to open screen.mode\n$!";
-  <IN> =~m/(\w+)/ or die "Failed to parse screen.mode\n";
-  $old_screen_mode = $1;
-  close IN;
+  local $/ = undef;
+  $commonOceanData = $json->decode(<$in>);
+  close($in);
 }
 else
 {
-  $old_screen_mode = '';
+  die "Failed to open config file $dataFile\n$!";
 }
 
 
-foreach (@EspressoFiles, @OtherFiles) {
-  system("cp ../Common/$_ .") == 0 or die;
-} 
-
-open IN, "epsilon" or die "Failed to open epsilon\n$!";
-if( <IN> =~ m/dfpt/i )
+# Grab previous run info if it exists
+my $dftDataFile = "dft.json";
+my $dftData;
+if( -e $dftDataFile && open( my $in, "<", $dftDataFile ) )
 {
-  copy "epsilon.calc", "epsilon" if( $RunPH == 0 && -e "epsilon.calc" );
-}
-else
-{
-  $RunPH = 0;
+  local $/ = undef;
+  $dftData = $json->decode(<$in>);
+  close($in);
 }
 
-open IN, "screen.mode" or die "Failed to open screen.mode";
-<IN> =~m/(\w+)/ or die "Failed to parse screen.mode\n";
-my $screen_mode = $1;
-close IN;
-
-open IN, "screen.mode" or die "Failed to open screen.mode\n";
-<IN> =~m/(\w+)/ or die "Failed to parse screen.mode\n";
-my $screen_mode = $1;
-close IN;
-if( $calc =~ m/val/i )
-{
-  $run_screen = 0 unless( $screen_mode =~ m/grid/i );
+# Build to-do list
+my $newDftData;
+my $fake->{ 'complete' } = JSON::PP::false;
+foreach my $sec (@timeSections) {
+  $newDftData->{$sec}->{'time'} = $dftData->{$sec}->{'time'} if( exists $dftData->{$sec}->{'time'} );
 }
-if( $run_screen == 0 && $screen_mode =~ m/grid/i )
+
+# First we check, using the SCF flag to store result
+# 1) Was previous run?
+# 2) Structure matches
+# 3) PSP matches
+# 
+# Any failures skip future tests and SCF to not done (which in turn, cascades to all futher runs)
+$newDftData->{'scf'}->{'complete'} = JSON::PP::true;
+
+# (was previous run done)
+$newDftData->{'scf'}->{'complete'} = JSON::PP::false 
+    unless( exists $dftData->{'scf'} && exists $dftData->{'scf'}->{'complete'} && $dftData->{'scf'}->{'complete'});
+
+# (build the structure and check )
+$newDftData->{'scf'}->{'complete'} = JSON::PP::false unless( exists $dftData->{'structure'} );
+
+$newDftData->{'structure'} = {};
+
+my @structureList = ( "typat", "xred", "znucl", "avecs", "zsymb", "valence_electrons", "bvecs", "metal" );
+copyAndCompare( $newDftData->{'structure'}, $commonOceanData->{'structure'}, $dftData->{'structure'}, 
+                $newDftData->{'scf'}, \@structureList );
+
+# Additional items for later stages -- unlikely these changed w/o changing manditory ones, but 
+@structureList = ( "elname" );
+copyAndCompare( $newDftData->{'structure'}, $commonOceanData->{'structure'}, $dftData->{'structure'},
+                $fake, \@structureList );
+
+$newDftData->{'psp'} = {};
+my @pspList = ( "pphash" );
+copyAndCompare( $newDftData->{'psp'}, $commonOceanData->{'psp'}, $dftData->{'psp'},
+                $newDftData->{'scf'}, \@pspList );
+
+@pspList = ( "pp_list", "ppdir" );
+copyAndCompare( $newDftData->{'psp'}, $commonOceanData->{'psp'}, $dftData->{'psp'},
+                $fake, \@pspList );
+
+# Now do the general DFT parts
+
+# Only check the first list against previous runs
+my @generalList = ( "degauss", "ecut", "fband", "functional", "noncolin", "nspin", "occopt", 
+                    "program", "smag", "spinorb", "tot_charge", "verbatim" );
+my @generalSecondaryList = ( "calc_force", "calc_stress", "diagonalization", "mixing", 
+                             "nstep", "redirect", "startingwfc", "tmp_dir", "abpad" );
+$newDftData->{'general'} = {};
+copyAndCompare( $newDftData->{'general'}, $commonOceanData->{'dft'}, $dftData->{'general'},
+                $newDftData->{'scf'}, \@generalList );
+copyAndCompare( $newDftData->{'general'}, $commonOceanData->{'dft'}, $dftData->{'general'},
+                $fake, \@generalSecondaryList );
+
+# EXX if functional is specified 
+if( $newDftData->{'general'}->{'functional'} ne 'default' )
 {
-  unless( $old_screen_mode =~ m/grid/i )
-  {
-    print "Need screening for valence: $old_screen_mode\n";
-    $run_screen = 1;
+  $newDftData->{'general'}->{'exx'} = {};
+  copyAndCompare( $newDftData->{'general'}->{'exx'}, $commonOceanData->{'dft'}->{'exx'}, 
+                  $dftData->{'general'}->{'exx'},
+                  $newDftData->{'scf'}, [ 'qmesh' ] );
+}
+
+# LDA+U
+$newDftData->{'general'}->{'ldau'} = {};
+copyAndCompare( $newDftData->{'general'}->{'ldau'}, $commonOceanData->{'dft'}->{'ldau'}, 
+                $dftData->{'general'}->{'ldau'},
+                $newDftData->{'scf'}, [ 'enable' ] );
+if( $newDftData->{'general'}->{'ldau'}->{'enable'} )
+{
+  my @ldauList = ( "Hubbard_J", "Hubbard_J0", "Hubbard_U", "Hubbard_V", "U_projection_type", "lda_plus_u_kind" );
+  copyAndCompare( $newDftData->{'general'}->{'ldau'}, $commonOceanData->{'dft'}->{'ldau'},
+                $dftData->{'general'}->{'ldau'}, $newDftData->{'scf'}, \@ldauList );
+}
+
+
+# and finally density run information
+my @scfList = ( "auto", "kmesh", "kshift", "toldfe" );
+my @scfSecondaryList = ( "poolsize" );
+
+copyAndCompare( $newDftData->{'scf'}, $commonOceanData->{'dft'}->{'den'}, $dftData->{'scf'}, 
+                $newDftData->{'scf'}, \@scfList );
+copyAndCompare( $newDftData->{'scf'}, $commonOceanData->{'dft'}->{'den'}, $dftData->{'scf'},
+                $fake, \@scfSecondaryList );
+
+checkSetGamma( $newDftData->{'scf'} );
+# Computer information
+$newDftData->{'computer'} = {};
+my @computerList = ( "cpu_factors", "cpu_square_factors", "ncpus", "para_prefix", "ser_prefix" );
+copyAndCompare( $newDftData->{'computer'}, $commonOceanData->{'computer'}, $dftData->{'computer'},
+                $fake, \@computerList );
+
+# At this point SCF is sorted out
+# all subsequent stages can be complete if SCF isn't being re-run
+$newDftData->{'density'}->{'complete'} = JSON::PP::false;
+$newDftData->{'potential'}->{'complete'} = JSON::PP::false;
+$newDftData->{'epsilon'}->{'complete'} = JSON::PP::false;
+#$newDftData->{'screen'}->{'complete'} = JSON::PP::false;
+#$newDftData->{'bse'}->{'complete'} = JSON::PP::false;
+
+
+if( $newDftData->{'scf'}->{'complete'} ) {
+  print "Re-using previous SCF run\n";
+  
+  $newDftData->{'density'}->{'complete'} = $dftData->{'density'}->{'complete'} 
+      if( exists $dftData->{'density'}->{'complete'} );
+  $newDftData->{'potential'}->{'complete'} = $dftData->{'potential'}->{'complete'}
+      if( exists $dftData->{'potential'}->{'complete'} );
+  $newDftData->{'epsilon'}->{'complete'} = $dftData->{'epsilon'}->{'complete'}
+      if( exists $dftData->{'epsilon'}->{'complete'} );
+#  $newDftData->{'screen'}->{'complete'} = $dftData->{'screen'}->{'complete'}
+#      if( exists $dftData->{'screen'}->{'complete'} );
+#  $newDftData->{'bse'}->{'complete'} = $dftData->{'bse'}->{'complete'}
+#      if( exists $dftData->{'bse'}->{'complete'} );
+
+  # If SCF already run, copy additional info from previous time
+  my @scfCopyList = ( "npool", "ncpus", "fermi", "etot", "time", "version", "nelec", "lowest", "highest", "hash" );
+  copyAndCompare( $newDftData->{'scf'}, $dftData->{'scf'}, $dftData->{'scf'}, $fake, \@scfCopyList );
+
+#  my @bseCopyList = ( "")
+  
+#  copyAndCompare( $newDftData->{'bse'}, $dftData->{'bse'}, $dftData->{'bse'}, $fake, [ "completed" ] );
+
+  #Copy record of all completed NSCF runs
+  copyAndCompare( $newDftData, $dftData, $dftData, $fake, [ 'znscf' ] );
+
+} else {
+  print "Need SCF run\n";
+  $newDftData->{'znscf'} = {};
+}
+
+
+### Determining epsilon w/ DFPT
+my @epsList = ( "metal_max", "metal_min", "method", "min_gap", "thresh" );
+copyAndCompare( $newDftData->{'epsilon'}, $commonOceanData->{'dft'}->{'epsilon'}, $dftData->{'epsilon'},
+                $newDftData->{'epsilon'}, \@epsList );
+if( $newDftData->{'epsilon'}->{'method'} eq "input" ) {
+  $newDftData->{'epsilon'}->{'complete'} = JSON::PP::true; # if( $newDftData->{'epsilon'}->{'method'} eq "input" );
+  $newDftData->{'structure'}->{'epsilon'} = $commonOceanData->{'structure'}->{'epsilon'};
+}
+
+my @nscf_InitialList = ();
+
+# Step 0 -- what info needs to be available for PREP?
+$newDftData->{'bse'} = {} unless exists $newDftData->{'bse'};
+copyAndCompare( $newDftData->{'bse'}, $commonOceanData->{'calc'}, $dftData->{'bse'},
+                $fake, [ 'photon_q', 'nonzero_q' ] );
+copyAndCompare( $newDftData->{'bse'}, $commonOceanData->{'dft'}->{'bse'}, $dftData->{'bse'},
+                $fake, [ 'split' ] );
+
+#$newDftData->{'bse'}->{'nonzero_q'} = JSON::PP::true;
+#$newDftData->{'bse'}->{'split'} = JSON::PP::true;
+#$newDftData->{'bse'}->{'photon_q'} = [ 0.01, 0.01, 0.01 ];
+$newDftData->{'bse'}->{'directories'} = [];
+
+# Step 1 -- do we have split=false && photon_q ?
+my $niter = 1;
+my $nosplit = 0;
+if( $newDftData->{'bse'}->{'nonzero_q'} ) { 
+  if( $newDftData->{'bse'}->{'split'} ) {
+    $niter = 2;
+  } else {
+    $nosplit = 1;
   }
 }
 
-if( $nscfRUN != 0 )
-{
-  unlink "bse.stat";
+#if( $nosplit ) {die "No split not implemented yet\n";}
+
+
+
+# Step 1 -- load up general info
+for( my $i = 0; $i < $niter; $i ++ ) {
+
+  push @nscf_InitialList, {};
+  my @bseList = ( "toldfe", "poolsize", "diagonalization" );
+  copyNoCompare( $nscf_InitialList[$i], $commonOceanData->{'dft'}->{'bse'}, \@bseList );
+  @bseList = ( "kmesh", "kshift", "con_start" );
+  copyNoCompare( $nscf_InitialList[$i], $commonOceanData->{'bse'}, \@bseList );
+
+  # First loop is conduction bands, second is valence only on -q grid
+  if( $i == 0 ) {
+    @bseList = ( "nbands" );
+    copyNoCompare( $nscf_InitialList[$i], $commonOceanData->{'bse'}, \@bseList );
+  } else {  
+    @bseList = ( "fband" );
+    copyNoCompare( $nscf_InitialList[$i], $commonOceanData->{'dft'}, \@bseList );
+    printf "%.6f  %.6f  %.6f", $nscf_InitialList[$i]->{'kshift'}[0], 
+                              $nscf_InitialList[$i]->{'kshift'}[1], $nscf_InitialList[$i]->{'kshift'}[2];
+    shiftKpointsByPhoton( $nscf_InitialList[$i], $newDftData->{'bse'}->{'photon_q'} );
+    printf "  %.6f  %.6f  %.6f\n", $nscf_InitialList[$i]->{'kshift'}[0], 
+                              $nscf_InitialList[$i]->{'kshift'}[1], $nscf_InitialList[$i]->{'kshift'}[2];
+  }
+  my $dirname;
+  if( $nosplit ) {
+    $nscf_InitialList[$i]->{'nonzero_q'} = JSON::PP::true;
+    $nscf_InitialList[$i]->{'photon_q'} = $newDftData->{'bse'}->{'photon_q'};
+    $dirname = sprintf "ks%i_%i_%iq%.6f_%.6f_%.6f", $nscf_InitialList[$i]->{'kmesh'}[0],
+                    $nscf_InitialList[$i]->{'kmesh'}[1], $nscf_InitialList[$i]->{'kmesh'}[2],
+                    $nscf_InitialList[$i]->{'kshift'}[0], $nscf_InitialList[$i]->{'kshift'}[1],
+                    $nscf_InitialList[$i]->{'kshift'}[2];
+  } else {
+    $nscf_InitialList[$i]->{'nonzero_q'} = JSON::PP::false;
+    $dirname = sprintf "k%i_%i_%iq%.6f_%.6f_%.6f", $nscf_InitialList[$i]->{'kmesh'}[0],
+                    $nscf_InitialList[$i]->{'kmesh'}[1], $nscf_InitialList[$i]->{'kmesh'}[2],
+                    $nscf_InitialList[$i]->{'kshift'}[0], $nscf_InitialList[$i]->{'kshift'}[1],
+                    $nscf_InitialList[$i]->{'kshift'}[2];
+  }
+  push @{$newDftData->{'bse'}->{'directories'}}, $dirname;
+  checkSetGamma( $nscf_InitialList[$i] );
 }
-if( $run_screen == 1 )
-{
-   unlink "screen.stat";
-}
-#############################################
+$newDftData->{'bse'}->{'brange'} = [ 0, 0, 0, $commonOceanData->{'bse'}->{'nbands'} ];
 
-open DFT, "dft" or die "Failed to open dft\n";
-<DFT> =~ m/(\w+)/ or die "Failed to parse dft\n";
-my $dft_type = $1;
-close DTF;
-my $obf;
-if( $dft_type =~ m/obf/i )
+# repeat but with screen info, $niter is location of last item in InitalList
+unless( $commonOceanData->{'calc'}->{'mode'} eq 'val' && ! ( $commonOceanData->{'screen'}->{'mode'} eq 'grid' ) )
 {
-  $obf = 1;
-  print "Running DFT calculation with OBF extension\n"
-}
-else
-{
-  $obf = 0;
-  print "Running DFT calculation using QE\n";
-}
-
-
-# Input to QE can be done via redirect (legacy) or -inp (more stable)
-open IN, "dft.qe_redirect" or die "Failed to open dft.qe_redirect\n$!";
-my $qe_redirect = <IN>;
-close IN;
-chomp( $qe_redirect );
-if( $qe_redirect =~ m/f/i )
-{
-  $qe_redirect = 0;
-}
-elsif( $qe_redirect =~ m/t/i )
-{
-  $qe_redirect = 1;
+  push @nscf_InitialList, {};
+  my $i = $niter;
+  my @bseList = ( "toldfe", "poolsize", "diagonalization" );
+  copyNoCompare( $nscf_InitialList[$i], $commonOceanData->{'dft'}->{'screen'}, \@bseList );
+  @bseList = ( "kmesh", "kshift", "nbands" );
+  copyNoCompare( $nscf_InitialList[$i], $commonOceanData->{'screen'}, \@bseList );
+  my $dirname = sprintf "k%i_%i_%iq%.6f_%.6f_%.6f", $nscf_InitialList[$i]->{'kmesh'}[0],
+                    $nscf_InitialList[$i]->{'kmesh'}[1], $nscf_InitialList[$i]->{'kmesh'}[2],
+                    $nscf_InitialList[$i]->{'kshift'}[0], $nscf_InitialList[$i]->{'kshift'}[1],
+                    $nscf_InitialList[$i]->{'kshift'}[2];
+  $newDftData->{'screen'}->{'directories'} = [ $dirname ];
+  $newDftData->{'screen'}->{'enable'} = JSON::PP::true;
+  $newDftData->{'screen'}->{'brange'} = [ 0, 0, 0, $commonOceanData->{'screen'}->{'nbands'} ];
+} else {
+  $newDftData->{'screen'}->{'enable'} = JSON::PP::false;
 }
 
+my $nscf_TodoList = {};
+foreach my $hashRef (@nscf_InitialList) {
+  my $dirname = sprintf "%i_%i_%iq%.6f_%.6f_%.6f", $hashRef->{'kmesh'}[0],
+                    $hashRef->{'kmesh'}[1], $hashRef->{'kmesh'}[2],
+                    $hashRef->{'kshift'}[0], $hashRef->{'kshift'}[1],
+                    $hashRef->{'kshift'}[2];
+  if( $hashRef->{'nonzero_q'} ) {
+    $dirname = 'ks' . $dirname;
+  } else {
+    $dirname = 'k' . $dirname;
+  }
+
+  my $addThisCalculation = 1;
+  if( defined $newDftData->{'znscf'}->{$dirname} ) {
+    print "$dirname exists\n";
+    if( $newDftData->{'znscf'}->{ $dirname }->{'toldfe'} <= $hashRef->{'toldfe'} &&
+        $newDftData->{'znscf'}->{ $dirname }->{'nbands' } >= $hashRef->{'nbands'} ) {
+      $addThisCalculation = 0;
+    }
+  } else {
+    print "$dirname is new\n";
+  }
+  if( $addThisCalculation ) {
+    print "Will run $dirname\n";
+    if( defined( $nscf_TodoList->{ $dirname } ) ) {
+      print "Condensing two runs\n";
+      $hashRef->{'toldfe'} = $nscf_TodoList->{ $dirname }->{'toldfe'} 
+          if( $nscf_TodoList->{ $dirname }->{'toldfe'} < $hashRef->{'toldfe'} );
+      $hashRef->{'nbands'} = $nscf_TodoList->{ $dirname }->{'nbands'} 
+          if( $nscf_TodoList->{ $dirname }->{'nbands'} > $hashRef->{'nbands'} );
+    }
+    $nscf_TodoList->{ $dirname } = dclone( $hashRef );
+  }
+}
+my $enable = 1;
+$json->canonical([$enable]);
+$json->pretty([$enable]);
+open OUT, ">", "derp.json" or die;
+print OUT $json->encode($nscf_TodoList);
+close OUT;
+
+
+my $enable = 1;
+$json->canonical([$enable]);
+$json->pretty([$enable]);
+open OUT, ">", "dft2.json" or die;
+print OUT $json->encode($newDftData);
+close OUT;
+
+#exit 0;
+
+### BSE
+
+
+#if( $newDftData->{'bse'}->{'complete'} )
+#{   
+#  my @bseCopyList = ( "npool", "ncpus", "fermi", "etot", "time", "version", "nelec", "lowest", "highest", "hash", "brange" );
+#  copyAndCompare( $newDftData->{'bse'}, $dftData->{'bse'}, $dftData->{'bse'}, $fake, \@bseCopyList );
+#}
+
+
+### SCREEN
+
+#if( $newDftData->{'screen'}->{'complete'} )
+#{
+#  my @screenCopyList = ( "npool", "ncpus", "fermi", "etot", "time", "version", "nelec", "lowest", "highest", "hash", "brange" );
+#  copyAndCompare( $newDftData->{'screen'}, $dftData->{'screen'}, $dftData->{'screen'}, $fake, \@screenCopyList );
+#}
+#
+#$newDftData->{'screen'}->{'enable'} = JSON::PP::true;
+#if( $commonOceanData->{'calc'}->{'mode'} eq 'val' )
+#{
+#  $newDftData->{'screen'}->{'enable'} = JSON::PP::false unless( $commonOceanData->{'screen'}->{'mode'} eq 'grid' );
+#}
 
 
 
-#############################################
+print "Done parsing input for DFT stage\n";
 
-### load up the para_prefix
-my $para_prefix = "";
-if( open PARA_PREFIX, "para_prefix" )
-{
-  $para_prefix = <PARA_PREFIX>;
-  chomp($para_prefix);
-  close( PARA_PREFIX);
-} else
-{
-  print "Failed to open para_prefix. Error: $!\nRunning serially\n";
+# Save current outlook
+my $enable = 1;
+$json->canonical([$enable]);
+$json->pretty([$enable]);
+open OUT, ">", "dft.json" or die;
+print OUT $json->encode($newDftData);
+close OUT;
+
+### Need to write abstraction to support multiple DFT codes
+unless( $newDftData->{'general'}->{'program'} eq "qe" ||
+        $newDftData->{'general'}->{'program'} eq "abi" ) {
+  print "Only QE and ABINIT supported at the moment!\t\t" . $newDftData->{'general'}->{'program'} . "\n";
+  exit 1;
 }
 
-my $coord_type = `cat coord`;
-chomp($coord_type);
+#call density stage
+unless( $newDftData->{'scf'}->{'complete'} )
+{
+  my $errorCode = 0;
+  my $t0 = [gettimeofday];
+  if( $newDftData->{'general'}->{'program'} eq "qe" ) {
+    $errorCode = QErunDensity( $newDftData );
+    print "$errorCode\n";
+  } elsif ( $newDftData->{'general'}->{'program'} eq "abi" ) {
+    $errorCode = ABIrunDensity( $newDftData );
+    print "$errorCode\n";
+  } else {
+    $errorCode = 1;
+  }
+  exit $errorCode if( $errorCode != 0 ) ;
 
+  $newDftData->{'scf'}->{'complete'} = JSON::PP::true;
 
-
-# make additional files for QE input card
-
-# Coords are wrong, currently
-print "making the coordinates";
-system("$ENV{'OCEAN_BIN'}/makecoords.x") == 0
-    or die "Failed to make coordinates\n";
-
-print "making acell";
-system("$ENV{'OCEAN_BIN'}/makeacell.x") == 0
-    or die "Failed to make acell\n";
-
-if( -e "../Common/atompp" ) {
-  copy "../Common/atompp", "atompp";
-}
-else {
-  print "making atompp";
-  move( "pplist", "pplist.hold");
-  open IN, "pplist.hold" or die;
-  open OUT, ">", "pplist" or die;
-  while( my $line = <IN> )
+  my $s = $json->encode($newDftData->{'psp'}->{'pphash'});
+  foreach ( 'general', 'scf', 'structure' )
   {
-    chomp $line;
-    $line =~ s/.upf$//i;
-    print OUT $line . "\n";
+    $s .= $json->encode($newDftData->{$_});
+  }
+#  print "$s\n\n\n";
+  $newDftData->{'scf'}->{'hash'} = md5_hex( $s );
+
+  $newDftData->{'scf'}->{'time'} = tv_interval( $t0 );
+  
+  #TODO: clean old nscf runs here
+  $newDftData->{'znscf'} = {};
+
+  open OUT, ">", "dft.json" or die;
+  print OUT $json->encode($newDftData);
+  close OUT;
+  print "SCF stage complete, total energy: $newDftData->{'scf'}->{'etot'}\n";
+
+} else {
+  $newDftData->{'scf'}->{'time'} = $dftData->{'scf'}->{'time'};
+}
+
+# Re-format density
+unless( $newDftData->{'density'}->{'complete'} ) {
+  my $t0 = [gettimeofday];
+  print "Exporting density from SCF\n";
+  my $errorCode;
+  if( $newDftData->{'general'}->{'program'} eq "qe" ) {
+     $errorCode = QEparseDensityPotential( $newDftData, "density" );
+  } elsif ( $newDftData->{'general'}->{'program'} eq "abi" ) {
+     $errorCode = ABIparseDensityPotential( $newDftData, "density" );
+  }
+  exit $errorCode if( $errorCode != 0 );
+
+
+  open OUT, ">", "avecsinbohr.ipt" or die "Failed to open avecsinbohr.ipt\n$!";
+  for( my $i = 0; $i < 3; $i++ )
+  {
+    printf  OUT "%s  %s  %s\n", $commonOceanData->{'structure'}->{'avecs'}[$i][0], 
+                                $commonOceanData->{'structure'}->{'avecs'}[$i][1], 
+                                $commonOceanData->{'structure'}->{'avecs'}[$i][2];
   }
   close OUT;
-  close IN;
-  system("$ENV{'OCEAN_BIN'}/makeatompp.x") == 0
-     or die "Failed to make acell\n";
-  move( "pplist.hold", "pplist");
+
+  open OUT, ">", "bvecs" or die "Failed to open bvecs\n$!";
+  for( my $i = 0; $i < 3; $i++ )
+  {
+    printf  OUT "%s  %s  %s\n", $commonOceanData->{'structure'}->{'bvecs'}[$i][0], 
+                                $commonOceanData->{'structure'}->{'bvecs'}[$i][1], 
+                                $commonOceanData->{'structure'}->{'bvecs'}[$i][2];
+  }
+  close OUT;
+
+  system("$ENV{'OCEAN_BIN'}/rhoofg.x") == 0  or die "Failed to run rhoofg.x\n";
+  system("wc -l rhoG2 > rhoofg") == 0 or die "$!\n";
+  system("sort -n -k 6 rhoG2 >> rhoofg") == 0 or die "$!\n";
+
+  unlink( "avecsinbohr.ipt" );
+  unlink( "bvecs" );
+  unlink( "rhoG2" );
+
+  $newDftData->{'density'}->{'complete'} = JSON::PP::true;
+  $newDftData->{'density'}->{'time'} = tv_interval( $t0 );
+  open OUT, ">", "dft.json" or die;
+  print OUT $json->encode($newDftData);
+  close OUT;
+  print "Density export complete\n";
+} else {
+  $newDftData->{'density'}->{'time'} = $dftData->{'density'}->{'time'};
+}
+  
+
+
+# Re-format potential
+unless( $newDftData->{'potential'}->{'complete'} ) {
+  my $t0 = [gettimeofday];
+  print "Exporting potential from SCF\n";
+#  my $errorCode = QEparseDensityPotential( $newDftData, "potential" );
+  my $errorCode;
+  if( $newDftData->{'general'}->{'program'} eq "qe" ) {
+     $errorCode = QEparseDensityPotential( $newDftData, "potential" );
+  } elsif ( $newDftData->{'general'}->{'program'} eq "abi" ) {
+     $errorCode = ABIparseDensityPotential( $newDftData, "potential" );
+  }
+  exit $errorCode if( $errorCode != 0 );
+
+
+  $newDftData->{'potential'}->{'complete'} = JSON::PP::true;
+  $newDftData->{'potential'}->{'time'} = tv_interval( $t0 );
+  open OUT, ">", "dft.json" or die;
+  print OUT $json->encode($newDftData);
+  close OUT;
+  print "Potential export complete\n";
+} else {
+  $newDftData->{'potential'}->{'time'} = $dftData->{'potential'}->{'time'};
+}
+
+unless( $newDftData->{'epsilon'}->{'complete'} ) {
+  my $t0 = [gettimeofday];
+
+  my $errorCode;
+  if( $newDftData->{'general'}->{'program'} eq "qe" ) {
+    $errorCode  = QErunDFPT(  $newDftData );
+  } else {
+    die "DFPT not enabled for ABINIT yet\n";
+  }
+
+  $newDftData->{'epsilon'}->{'complete'} = JSON::PP::true;
+  $newDftData->{'epsilon'}->{'time'} = tv_interval( $t0 );
+  open OUT, ">", "dft.json" or die;
+  print OUT $json->encode($newDftData);
+  close OUT;
+  print "Epsilon calculation complete\n";
+} else {
+  $newDftData->{'epsilon'}->{'time'} = $dftData->{'epsilon'}->{'time'};
 }
 
 
-
-my @qe_data_files = ('prefix', 'ppdir', 'work_dir', 'tmp_dir', 'ibrav', 'natoms', 'ntype', 'noncolin',
-                     'spinorb', 'ecut', 'degauss', 'etol', 'mixing', 'nrun', 'occopt',
-                     'trace_tol', 'tot_charge', 'nspin', 'ngkpt', 'k0.ipt', 'metal',
-                     'den.kshift', 'obkpt.ipt', 'obf.nbands', 'nkpt', 'nbands', 'screen.nbands',
-                     'screen.nkpt', 'dft.calc_stress', 'dft.calc_force', 'dft.startingwfc', 
-                     'dft.diagonalization', 'dft.ndiag', 'dft.functional' );
-
-
-
-my %qe_data_files = {};
-foreach my $file_name (@qe_data_files)
-{
-    open IN, $file_name or die "$file_name:  $!";
-    my $string = <IN>;
-    chomp $string;
-    # Trim ', " and also leading or trailing spaces
-    $string =~ s/\'//g;
-    $string =~ s/\"//g;
-    $string =~ s/^\s+//g;
-    $string =~ s/\s+$//g;
-    close IN;
-    $qe_data_files{ "$file_name" } = $string;
+# Time for NSCF runs
+my %sorted_nscf_TodoList;
+foreach my $dirname (keys %{$nscf_TodoList}) {
+  my $nb = $nscf_TodoList->{$dirname}->{'nbands'};
+  my $nk = $nscf_TodoList->{$dirname}->{'kmesh'}[0]
+         * $nscf_TodoList->{$dirname}->{'kmesh'}[1]
+         * $nscf_TodoList->{$dirname}->{'kmesh'}[2];
+  my $val = $nb*$nb*$nb*$nk;
+  while( exists $sorted_nscf_TodoList{ $val } ) {
+    $val *= (1 + rand()/50.0);
+  }
+  $sorted_nscf_TodoList{ $val } = $dirname;
+#  print "$dirname:  $val\n";
 }
-my $line = "";
-my $celldm1 = 0;
-my $celldm2 = 0;
-my $celldm3 = 0;
-open(RSCALE, 'rscale') or die "couldn't open rscale\n$!";
-foreach $line (<RSCALE>) {
- ($celldm1, $celldm2, $celldm3) = split(' ' ,$line);
+foreach my $val (sort {$b <=> $a} keys %sorted_nscf_TodoList ) {
+  my $dirname = $sorted_nscf_TodoList{ $val };
+  print "$dirname:  $val\n";
 }
-close(RSCALE);
-$qe_data_files{ "celldm1" } = $celldm1;
-$qe_data_files{ "celldm2" } = $celldm2;
-$qe_data_files{ "celldm3" } = $celldm3;
-
-#Set startingpot
-$qe_data_files{ "dft.startingpot" } = 'atomic';
-
-# Switch ppdir to absolute path
-$qe_data_files{ "ppdir" } = abs_path( $qe_data_files{ "ppdir" } ) . "/";
 
 
-#QE optional files
-my @qe_opt_files = ('acell', 'coords', 'atompp', 'smag', 'ldau', 'qe_scissor' );
-foreach my $file_name (@qe_opt_files)
-{
-    open IN, $file_name or die "$file_name:  $!";
-    my $string;
-    while( my $a = <IN> ) 
-    {
-      $string .= $a;
+#foreach my $dirname (keys %{$nscf_TodoList}) {
+foreach my $val (sort {$b <=> $a} keys %sorted_nscf_TodoList ) {
+  my $dirname = $sorted_nscf_TodoList{ $val };
+  print "Running NSCF run for: " . $dirname . "\n";
+  my $t0 = [gettimeofday];
+  my $errorCode;
+  if( $newDftData->{'general'}->{'program'} eq "qe" ) {
+     $errorCode = QErunNSCF($newDftData, $nscf_TodoList->{$dirname}, 0 );
+  } elsif ( $newDftData->{'general'}->{'program'} eq "abi" ) {
+     $errorCode = ABIrunNSCF($newDftData, $nscf_TodoList->{$dirname}, 0 );
+  }
+  
+  exit $errorCode if( $errorCode );
+  my $s = $json->encode($newDftData->{'psp'}->{'pphash'});
+  foreach ( 'general', 'structure', 'scf' )
+  {
+    $s .= $json->encode($newDftData->{$_});
+  }
+  $s .= $json->encode($nscf_TodoList->{$dirname});
+  $nscf_TodoList->{$dirname}->{'hash'} = md5_hex( $s );
+  $nscf_TodoList->{$dirname}->{'time'} = tv_interval( $t0 );
+
+
+  $newDftData->{'znscf'}->{ $dirname } = dclone( $nscf_TodoList->{$dirname} );
+  open OUT, ">", "dft.json" or die;
+  print OUT $json->encode($newDftData);
+  close OUT;
+}
+
+if( 0 ) {
+# Time for SCREENING states
+if( $newDftData->{'screen'}->{'enable'} ) {
+  # Search for completed runs
+  unless( $newDftData->{'screen'}->{'complete'} ) {
+    my $dirname = sprintf "k%i_%i_%iq%.6f_%.6f_%.6f", $newDftData->{'screen'}->{'kmesh'}[0],
+                    $newDftData->{'screen'}->{'kmesh'}[1], $newDftData->{'screen'}->{'kmesh'}[2],
+                    $newDftData->{'screen'}->{'kshift'}[0], $newDftData->{'screen'}->{'kshift'}[1],
+                    $newDftData->{'screen'}->{'kshift'}[2];
+    if( exists $newDftData->{'znscf'}->{ $dirname } ) {
+      if( $newDftData->{'znscf'}->{ $dirname }->{'toldfe'} <= $newDftData->{'screen'}->{'toldfe'} &&
+          $newDftData->{'znscf'}->{ $dirname }->{'nbands' } >= $newDftData->{'screen'}->{'nbands'} )
+      {
+        print "Found previous DFT NSCF run for the screening\n";
+        $newDftData->{'screen'} = dclone( $newDftData->{'znscf'}->{ $dirname } );
+      }
     }
-    chomp $string;
+  }
+  unless( $newDftData->{'screen'}->{'complete'} ) {
+    my $t0 = [gettimeofday];
+    print "Running DFT for screening states\n";
+
+    my $errorCode;
+    if( $newDftData->{'general'}->{'program'} eq "qe" ) {
+       $errorCode = QErunNSCF($newDftData, $newDftData->{'screen'}, 0 );
+    } elsif ( $newDftData->{'general'}->{'program'} eq "abi" ) {
+       $errorCode = ABIrunNSCF($newDftData, $newDftData->{'screen'}, 0 );
+    }
     
-    close IN;
-    $qe_data_files{ "$file_name" } = $string;
-}
+    exit $errorCode if( $errorCode );
 
-# Load up qmesh for EXX
-open EXX, "dft.exx.qmesh" or die "Failed to open dft.exx.qmesh\n$!";
-<EXX> =~ m/(\d+)\s+(\d+)\s+(\d+)/ or die "Failed to parse dft.exx.qmesh\n";
-$qe_data_files{'nqx1'} = $1;
-$qe_data_files{'nqx2'} = $2;
-$qe_data_files{'nqx3'} = $3;
-close EXX;
-##################
-
-# Map QE/Abinit occupation options
-if( $qe_data_files{ "occopt" } < 1 || $qe_data_files{ "occopt" } > 7 )
-{
-  print "WARNING! Occopt set to a non-sensical value. Changing to 3";
-  $qe_data_files{ "occopt" } = 3;
-}
-# Don't support abinit 2
-$qe_data_files{ "occopt" } = 1 if( $qe_data_files{ "occopt" } == 2 );
-# Override occopt if metal was specified
-if( $qe_data_files{ 'metal' } =~ m/true/i )
-{
-  if( $qe_data_files{ "occopt" } == 1 )
-  {
-    print "WARNING! Mismatch between occopt and metal flags.\n  Setting occopt to 3\n";
-    $qe_data_files{ "occopt" } = 3;
-  }
-}
-
-$qe_data_files{'occtype'} = 'smearing';
-# At the moment we are leaving QE as smearing even if occopt = 1
-#   therefore we want to clamp down the smearing a bunch
-if( $qe_data_files{ "occopt" } == 1 )
-{
-  $qe_data_files{'occtype'} = 'fixed';
-  $qe_data_files{ 'degauss' } = 0.002;
-}
-
-# Array of QE names for smearing by occopt
-my @QE_smear;
-$QE_smear[1] = "'gaussian'";     # Still need to fix to be insulator
-$QE_smear[3] = "'fermi-dirac'";  # ABINIT = fermi-dirac
-$QE_smear[4] = "'marzari-vanderbilt'";  # ABINIT = Marzari cold smearing a = -0.5634
-$QE_smear[5] = "'marzari-vanderbilt'";  # ABINIT = Marzari a = -0.8165
-$QE_smear[6] = "'methfessel-paxton'";  # ABINIT = Methfessel and Paxton PRB 40, 3616 (1989)
-$QE_smear[7] = "'gaussian'";     # ABINIT = Gaussian
-
-
-$qe_data_files{ "scf nbands" } = -1;
-if( $qe_data_files{ 'occopt' } == 1 )
-{
-  open IN, "nelectrons" or die "Failed to open nelectrons\n$!";
-  if( <IN> =~ m/(-?\d+)/ )
-  {
-    my $nbands = $1;
-    if( $nbands > 0 )
+    $newDftData->{'screen'}->{'complete'} = JSON::PP::true;
+    my $s = $json->encode($newDftData->{'psp'}->{'pphash'});
+    foreach ( 'general', 'screen', 'structure', 'scf' )
     {
-      # include 1 or 2 unoccupied
-      $qe_data_files{ "scf nbands" } = $nbands / 2 + 1;
-      $qe_data_files{ "scf nbands" } ++ if( $qe_data_files{ "scf nbands" } % 2 == 1 );
+      $s .= $json->encode($newDftData->{$_});
     }
-  }
-  close IN;
-}
+#    print "$s\n\n\n";
+    $newDftData->{'screen'}->{'hash'} = md5_hex( $s );
+    $newDftData->{'screen'}->{'time'} = tv_interval( $t0 );
 
+    my $dirname = sprintf "k%i_%i_%iq%.6f_%.6f_%.6f", $newDftData->{'screen'}->{'kmesh'}[0],
+                    $newDftData->{'screen'}->{'kmesh'}[1], $newDftData->{'screen'}->{'kmesh'}[2],
+                    $newDftData->{'screen'}->{'kshift'}[0], $newDftData->{'screen'}->{'kshift'}[1],
+                    $newDftData->{'screen'}->{'kshift'}[2];
+    $newDftData->{'znscf'}->{ $dirname } = dclone( $newDftData->{'screen'} );
 
-
-
-if ($RunESPRESSO ) {
-
-
-  unlink "scf.stat";
-
-
- ## SCF PP initialize and set defaults
- 
- ### write PP input card for density
-  open PP, ">pp.in";
-  print PP "&inputpp\n"
-          . "  prefix = \'$qe_data_files{'prefix'}\'\n" 
-          . "  outdir = \'$qe_data_files{'work_dir'}\'\n"
-          . "  filplot= 'system.rho'\n"
-          . "  plot_num = 0\n"
-          . "/\n";
-  close PP;
-
- ### write PP input card for total potential
-  open PP, ">pp2.in";
-  print PP "&inputpp\n"
-          . "  prefix = \'$qe_data_files{'prefix'}\'\n"
-          . "  outdir = \'$qe_data_files{'work_dir'}\'\n"
-          . "  filplot= 'system.pot'\n"
-          . "  plot_num = 1\n"
-          . "/\n";
-  close PP;
-
-
-
-  my $npool = 1;
-  my $ncpus = 1;
-  open INPUT, "pool_control" or die;
-  while (<INPUT>)
-  {
-    if( $_ =~ m/^scf\s+(\d+)/ )
-    {
-      $npool = $1;
-    }
-    elsif( $_ =~ m/^total\s+(\d+)/ )
-    { 
-      $ncpus = $1;
-    }
-
-  }
-  close INPUT;
-
-  print "TEST\n";
-  print $qe_data_files{'dft.ndiag'} . "\n";
-  if( $qe_data_files{'dft.ndiag'} =~ m/(-?\d+)/ )
-  {
-    if( $1 > 0 )
-    {
-      $qe_data_files{'dft.ndiag'} = $1;
-    }
-    else
-    {
-      $qe_data_files{'dft.ndiag'} = $ncpus;
-    }
-  }
-  else
-  {
-    $qe_data_files{'dft.ndiag'} = 4;
-  }
-
-  my $scfConv = 0.0000073502388828 * $qe_data_files{'natoms'};
-  if( $qe_data_files{'etol'} =~ m/(\d+\.?\d?([edED][+-]?\d+)?)/ )
-  {
-    my $conv_thr = $1;
-    $conv_thr =~ s/d/e/i;
-    print "$conv_thr\n";
-    $scfConv = 20.0*$conv_thr if ( $scfConv < 20.0*$conv_thr );
-  }
-  print "$scfConv\n";
-  my $oldSCFEnergy = 0;
-  my $SCFEnergy;
-
-  my $scfcountmax = 1;
-  if( open INPUT, "ngkpt.auto" )
-  {
-    $scfcountmax = 6 if( <INPUT> =~ m/T/i );
-    close INPUT;
-  }
-
-  for( my $scfcount = 0; $scfcount < $scfcountmax; $scfcount++ )
-  {
-   ### write SCF input card for initial density
-
-    open my $QE, ">scf.in" or die "Failed to open scf.in.\n$!";
-
-    # Set the flags that change for each input/dft run
-    $qe_data_files{'calctype'} = 'scf';
-    $qe_data_files{'print kpts'} = "K_POINTS automatic\n$qe_data_files{'ngkpt'} $qe_data_files{'den.kshift'}\n";
-#    $qe_data_files{'print nbands'} = -1;
-    $qe_data_files{'print nbands'} = $qe_data_files{'scf nbands'};
-    if( $obf == 1 ) 
-    {
-      $qe_data_files{'nosym'} = '.true.';
-      $qe_data_files{'noinv'} = '.true.';
-    }
-    else
-    {
-      $qe_data_files{'nosym'} = '.false.';
-      $qe_data_files{'noinv'} = '.false.';
-    }
-
-    # Check for Gamma-only, and over-write 'print kpts'
-    $qe_data_files{'ngkpt'} =~ m/(\d+)\s+(\d+)\s+(\d+)/ or die "$qe_data_files{'ngkpt'}";
-    if( $1 * $2 * $3 == 1 )
-    {
-      $qe_data_files{'den.kshift'} =~ m/(\S+)\s+(\S+)\s+(\S+)/ or die "$qe_data_files{'den.kshift'}";
-      unless ( abs($1) > 0.000001 || abs($2) > 0.000001 || abs($3) > 0.000001 )
-      {
-        $qe_data_files{'print kpts'} = "K_POINTS gamma\n";
-      }
-      else { print "KSHIFT: $1  $2  $3\n"; }
-    }
-    else
-    { print "KPOINTS: $1  $2  $3\n"; }
-
-    &print_qe( $QE, %qe_data_files );
-
-    close $QE;
-
-
-
-    my $scf_prefix = $para_prefix;
-    if( $obf != 1 ) 
-    {
-      print "Testing parallel QE execution\n";
-      my $ser_prefix = $para_prefix;
-      $ser_prefix =~ s/\d+/1/;
-      open TMP, '>', "$qe_data_files{'prefix'}.EXIT" or die "Failed to open file $qe_data_files{'prefix'}.EXIT\n$!";
-      close TMP;
-      if( $qe_redirect )
-      {
-        print  "$ser_prefix $ENV{'OCEAN_ESPRESSO_PW'} < scf.in > test.out 2>&1\n";
-        system("$ser_prefix $ENV{'OCEAN_ESPRESSO_PW'} < scf.in >test.out 2>&1");
-      }
-      else
-      {
-        print  "$ser_prefix $ENV{'OCEAN_ESPRESSO_PW'} -inp scf.in > test.out 2>&1\n";
-        system("$ser_prefix $ENV{'OCEAN_ESPRESSO_PW'} -inp scf.in > test.out 2>&1");
-      }
-
-      if( open TMP, "test.out" )
-      {
-        my $actualKpts = -1;
-        my $numKS;
-        while (<TMP>)
-        {
-          if( $_ =~ m/number of Kohn-Sham states=\s+(\d+)/ )
-          {
-            $numKS = $1;
-          }
-          if( $_ =~ m/number of k points=\s+(\d+)/ )
-          {
-            $actualKpts = $1;
-            last;
-          }
-        }
-        close TMP;
-        if( $actualKpts == -1 )
-        {
-          print "Had trouble parsing test.out\nDidn't find number of k points\n";
-        }
-        else
-        {
-          if( $actualKpts > $ncpus )
-          {
-            $npool = $ncpus;
-          }
-          else
-  #        if( $npool > $actualKpts )
-          {
-            for( my $i = 1; $i <= $actualKpts; $i++ )
-            {
-              $npool = $i if(  $ncpus % $i == 0 );
-            }
-          }
-          print "SCF has $actualKpts k-points\nWill use $npool pools\n";
-        }
-        if( defined( $numKS ) )
-        {
-          my $maxProcs = $numKS * $npool;
-          print "   $ncpus  $maxProcs\n";
-          if( $maxProcs < $ncpus )
-          {
-            $scf_prefix =~ s/\d+/$maxProcs/;
-          }
-        }
-      }
-      else
-      {
-        print "Had trouble parsing test.out\n. Will attempt to continue.\n";
-      }
-    }
-
-   ### the SCF run for initial density
-   ##
-    print "Density SCF Run\n";
-    my $qeCommandLine = "-ndiag $qe_data_files{'dft.ndiag'} -npool $npool";
-    if( $obf == 1 )
-    {
-      if( $qe_redirect ) 
-      {
-        print  "$scf_prefix $ENV{'OCEAN_ESPRESSO_OBF_PW'} $qeCommandLine < scf.in > scf.out 2>&1\n";
-        system("$scf_prefix $ENV{'OCEAN_ESPRESSO_OBF_PW'} $qeCommandLine < scf.in > scf.out 2>&1") == 0
-            or die "Failed to run scf stage for Density\n";
-      }
-      else
-      {
-        print  "$scf_prefix $ENV{'OCEAN_ESPRESSO_OBF_PW'} $qeCommandLine -inp scf.in > scf.out 2>&1\n";
-        system("$scf_prefix $ENV{'OCEAN_ESPRESSO_OBF_PW'} $qeCommandLine -inp scf.in > scf.out 2>&1") == 0
-            or die "Failed to run scf stage for Density\n";
-      }
-    }
-    else
-    {
-      if( $qe_redirect )
-      {    
-        print  "$scf_prefix $ENV{'OCEAN_ESPRESSO_PW'} $qeCommandLine < scf.in > scf.out 2>&1\n";
-        system("$scf_prefix $ENV{'OCEAN_ESPRESSO_PW'} $qeCommandLine < scf.in > scf.out 2>&1") == 0
-            or die "Failed to run scf stage for Density\n";
-      } 
-      else
-      {
-        print  "$scf_prefix $ENV{'OCEAN_ESPRESSO_PW'} $qeCommandLine -inp scf.in > scf.out 2>&1\n";
-        system("$scf_prefix $ENV{'OCEAN_ESPRESSO_PW'} $qeCommandLine -inp scf.in > scf.out 2>&1") == 0
-            or die "Failed to run scf stage for Density\n";
-      }
-    }
-
-#    my $SCFEnergy = `grep ! scf.out`;
-    `grep ! scf.out` =~ m/(-?\d+\.\d+)\s+Ry/ or die "Failed to parse scf.out\n";
-    $SCFEnergy = $1;
-    copy( "scf.out", "scf.out.$scfcount" );
-    copy( "scf.in", "scf.in.$scfcount" );
-    if( $scfcount > 1 && abs( $SCFEnergy - $oldSCFEnergy ) < $scfConv )
-    {
-      print abs( $SCFEnergy - $oldSCFEnergy ) . "   $scfConv\n";
-      last;
-    }
-    my @ngkpt = split ' ', $qe_data_files{'ngkpt'};
-    my @acell = split ' ', $qe_data_files{'acell'};
-    my $kgden;
-    my $testden;
-#    print "$qe_data_files{'ngkpt'}\n$ngkpt[0]  $ngkpt[1]  $ngkpt[2]\n";
-    # Length of bvector is 1/avector (ignoring 2pi)
-    # denisty is Ng / length(b) = Ng * length(a)
-    $testden = $ngkpt[0] * sqrt( $acell[0]**2 + $acell[1]**2 + $acell[2]**2 );
-    $kgden = $testden;
-    $testden = $ngkpt[1] * sqrt( $acell[3]**2 + $acell[4]**2 + $acell[5]**2 );
-    $kgden = $testden if( $testden > $kgden );
-    $testden = $ngkpt[2] * sqrt( $acell[6]**2 + $acell[7]**2 + $acell[8]**2 );
-    $kgden = $testden if( $testden > $kgden );
-    $kgden += 0.1;
-    $ngkpt[0] = ceil( $kgden/sqrt( $acell[0]**2 + $acell[1]**2 + $acell[2]**2 ) );
-    $ngkpt[1] = ceil( $kgden/sqrt( $acell[3]**2 + $acell[4]**2 + $acell[5]**2 ) );
-    $ngkpt[2] = ceil( $kgden/sqrt( $acell[6]**2 + $acell[7]**2 + $acell[8]**2 ) );
-    $qe_data_files{'ngkpt'} = "$ngkpt[0] $ngkpt[1] $ngkpt[2]";
-
-
-    $qe_data_files{'dft.startingpot'} = 'file';
-    if( $scfcount < $scfcountmax - 1 ) {
-      print "Re-running SCF: " . abs( $SCFEnergy - $oldSCFEnergy ) . "   $scfConv\n";
-    }
-    $oldSCFEnergy = $SCFEnergy;
-  }
-  open OUT, ">scf.stat" or die "Failed to open scf.stat\n$!";
-  print OUT "1\n";
-  close OUT;
-  print "SCF complete\n";
-}
-
-my $npool = 1;
-my $nnode = 1;
-if( $RunDenPP || $RunPH )
-{
-  unlink "den.stat";
-  open IN, "scf.out" or die "Failed to open scf.out\n$!";
-  while (<IN>)
-  {
-    $nnode = $1 if( $_ =~ m/(\d+)\s+nodes/ );
-    if( $_ =~ m/npool\s+=\s+(\d+)/ )
-    {
-      $npool = $1;
-      last;
-    }
-  }
-  close IN;
-}
-
-if( $RunDenPP )
-{
-  print "Density PP Run\n";
-  if( $obf == 1 )
-  {  
-    if( $qe_redirect )
-    {
-      print  "$para_prefix $ENV{'OCEAN_ESPRESSO_OBF_PP'}  -npool $npool < pp.in > pp.out 2>&1\n";
-      system("$para_prefix $ENV{'OCEAN_ESPRESSO_OBF_PP'} -npool $npool < pp.in > pp.out 2>&1") == 0
-         or die "Failed to run density stage for SCREENING\n";
-      print  "$para_prefix $ENV{'OCEAN_ESPRESSO_OBF_PP'}  -npool $npool < pp2.in > pp2.out 2>&1\n";
-      system("$para_prefix $ENV{'OCEAN_ESPRESSO_OBF_PP'} -npool $npool < pp2.in > pp2.out 2>&1") == 0
-         or die "Failed to run density stage for SCREENING\n";
-    } else
-    {
-      print  "$para_prefix $ENV{'OCEAN_ESPRESSO_OBF_PP'}  -npool $npool -inp pp.in > pp.out 2>&1\n";
-      system("$para_prefix $ENV{'OCEAN_ESPRESSO_OBF_PP'} -npool $npool -inp pp.in > pp.out 2>&1") == 0
-         or die "Failed to run density stage for SCREENING\n";
-      print  "$para_prefix $ENV{'OCEAN_ESPRESSO_OBF_PP'}  -npool $npool -inp pp2.in > pp2.out 2>&1\n";
-      system("$para_prefix $ENV{'OCEAN_ESPRESSO_OBF_PP'} -npool $npool -inp pp2.in > pp2.out 2>&1") == 0
-         or die "Failed to run density stage for SCREENING\n";
-    }
-  }
-  else
-  {
-    if( $qe_redirect )
-    {  
-      print  "$para_prefix $ENV{'OCEAN_ESPRESSO_PP'}  -npool $npool < pp.in > pp.out 2>&1\n";
-      system("$para_prefix $ENV{'OCEAN_ESPRESSO_PP'} -npool $npool < pp.in > pp.out 2>&1") == 0
-         or die "Failed to run pp.in\n";
-      print  "$para_prefix $ENV{'OCEAN_ESPRESSO_PP'}  -npool $npool < pp2.in > pp2.out 2>&1\n";
-      system("$para_prefix $ENV{'OCEAN_ESPRESSO_PP'} -npool $npool < pp2.in > pp2.out 2>&1") == 0
-         or die "Failed to run pp2.in\n";
-    } else
-    {
-      print  "$para_prefix $ENV{'OCEAN_ESPRESSO_PP'}  -npool $npool -inp pp.in > pp.out 2>&1\n";
-      system("$para_prefix $ENV{'OCEAN_ESPRESSO_PP'} -npool $npool -inp pp.in > pp.out 2>&1") == 0
-         or die "Failed to run pp.in\n";
-      print  "$para_prefix $ENV{'OCEAN_ESPRESSO_PP'}  -npool $npool -inp pp2.in > pp2.out 2>&1\n";
-      system("$para_prefix $ENV{'OCEAN_ESPRESSO_PP'} -npool $npool -inp pp2.in > pp2.out 2>&1") == 0
-         or die "Failed to run pp2.in\n";
-    }
-  }
-  open OUT, ">den.stat" or die "Failed to open den.stat\n$!";
-  print OUT "1\n";
-  close OUT;
-
-  ## convert the density file to proper format
-  print "Density conversion\n";
-  system("$ENV{'OCEAN_BIN'}/qe2rhoofr.pl system.rho rhoofr" ) == 0 
-    or die "Failed to convert density\n$!\n";
-
-  print "Potential conversion\n";
-  system("$ENV{'OCEAN_BIN'}/qe2rhoofr.pl system.pot potofr" ) == 0
-    or die "Failed to convert potential\n$!\n";
-}
-
-
-if( $RunPH == 1 )
-{
-  open OUT, ">", "ph.in" or die "Failed to open ph.out for writing\n$!";
-  print OUT "title\n&INPUTPH\n"
-      .  "  prefix = \'$qe_data_files{'prefix'}\'\n"
-      .  "  outdir = \'$qe_data_files{'work_dir'}\'\n"
-      .  "  epsil = .true.\n"
-      .  "  start_irr = 1\n"
-      .  "  last_irr = 0\n"
-      .  "  trans = .false\n"
-      .  "/\n0 0 0\n";
-  close OUT;
-  my $n = $nnode;
-  $n = $npool if( $npool > $nnode );
-  print  "$para_prefix $ENV{'OCEAN_ESPRESSO_PH'} -npool $n  -inp ph.in > ph.out 2>&1\n";
-  system("$para_prefix $ENV{'OCEAN_ESPRESSO_PH'} -npool $n  -inp ph.in > ph.out 2>&1\n") == 0
-    or die "Failed to run ph.x\n";
-  open IN, "ph.out" or die;
-
-  my @epsilon;
-  while (<IN>)
-  {
-    if( $_ =~ m/Dielectric constant in cartesian axis/ )
-    {
-      <IN>;
-      <IN> =~ m/(-?\d+\.\d+)\s+(-?\d+\.\d+)\s+(-?\d+\.\d+)/;
-      $epsilon[0] = $1;
-      <IN> =~ m/(-?\d+\.\d+)\s+(-?\d+\.\d+)\s+(-?\d+\.\d+)/;
-      $epsilon[1] = $2;
-      <IN> =~ m/(-?\d+\.\d+)\s+(-?\d+\.\d+)\s+(-?\d+\.\d+)/;
-      $epsilon[2] = $3;
-      last;
-    }
-  }
-  close IN;
-  open OUT, ">", "epsilon.calc" or die "Failed to open epsilon for writing\n";
-  my $e = ( $epsilon[0] + $epsilon[1] + $epsilon[2] ) /3 ;
-  print OUT "$e\n";
-  close OUT;
-  copy "epsilon.calc", "epsilon";
-  open OUT, ">", "epsilon3D" or die "Failed to open epsilon for writing\n";
-  print OUT "$epsilon[0]   $epsilon[1]   $epsilon[2]\n";
-  close OUT;
-
-  open OUT, ">", "ph.stat" or die "Failed to open ph.stat\n$!";
-  print OUT "1\n";
-  close OUT;
-}
-
-
-if( $RunESPRESSO )
-{
-  # Find Fermi level and number of electrons
-  my $fermi = 'no';
-  my $nelectron = 'no';
-  my $units;
-
-  # First attempt to grab from outfile (works for 5.4 >= QE <= 6.2 (OLD_XML) )
-  my $qe54_file = catfile( $qe_data_files{'work_dir'}, $qe_data_files{'prefix'} . ".save", "data-file.xml" );
-  my $qe62_file = catfile( $qe_data_files{'work_dir'}, $qe_data_files{'prefix'} . ".save", "data-file-schema.xml" );
-#  my $data_file = $qe_data_files{'work_dir'} . "/" . $qe_data_files{'prefix'} . ".save/data-file.xml";
-  if( -e $qe54_file )
-  {
-    print "Looking for $qe54_file \n";
-    open SCF, $qe54_file or die "Failed to open $qe54_file\n$!";
-    while( my $scf_line = <SCF> )
-    {
-      if( $scf_line =~ m/\<UNITS_FOR_ENERGIES UNITS=\"(\w+)/ )
-      {
-        $units = $1;
-      }
-      if( $scf_line =~ m/\<FERMI_ENERGY/ )
-      {
-        $scf_line = <SCF>;
-        $scf_line =~ m/([-+]?\d+\.\d+[Ee]?[-+]?(\d+)?)/ or die "$scf_line";
-        $fermi = $1;
-      }
-      if( $scf_line =~m/\<NUMBER_OF_ELECTRONS/ )
-      {
-        $scf_line = <SCF>;
-        $scf_line =~ m/(\d+\.\d+[Ee]?[-+]?(\d+)?)/ or die "$scf_line";
-        $nelectron = $1;
-      }
-    }
-    close SCF;
-    if( $units =~ m/hartree/i )
-    {
-      $fermi *= 2;
-    }
-    elsif( $units =~ m/eV/i )
-    {
-      $fermi /= 13.60569253;
-    }
-
-    open OUT, '>', 'dftVersion' or die "Failed to open dftVersion for writing\n$!";
-    print OUT "qe54\n";
+    open OUT, ">", "dft.json" or die;
+    print OUT $json->encode($newDftData);
     close OUT;
-  }
-  if( -e $qe62_file )  # Starting in QE6.5 it looks like both xml files are written 
-  {
-    print "$qe62_file\n";
-    open SCF, $qe62_file or die "Failed to open $qe62_file\n$!";
-
-    #Assume Hartree!
-    my $highest;
-    my $lowest = 'cow';
-    while( my $scf_line = <SCF> )
-    { 
-      if( $scf_line =~ m/\<highestOccupiedLevel\>([-+]?\d+\.\d+[Ee]?[-+]?(\d+)?)/ )
-      {
-        $highest = $1; 
-      }
-      elsif( $scf_line =~ m/\<lowestUnoccupiedLevel\>([-+]?\d+\.\d+[Ee]?[-+]?(\d+)?)/ )
-      {
-        $lowest = $1;
-      }
-      elsif( $scf_line =~ m/\<fermi_energy\>([-+]?\d+\.\d+[Ee]?[-+]?(\d+)?)/ )
-      {
-        $fermi = $1;
-      }
-      # We just average the two for spin=2 
-      elsif( $scf_line =~ m/\<two_fermi_energies\>([-+]?\d+\.\d+[Ee]?[-+]?(\d+)?)\s+([-+]?\d+\.\d+[Ee]?[-+]?(\d+)?)/ )
-      {
-        $fermi = ($1+$3)/2;
-      }
-      elsif( $scf_line =~ m/\<nelec\>([-+]?\d+\.\d+[Ee]?[-+]?(\d+)?)/ )
-      {
-        $nelectron = $1;
-      }
-    }
-    close SCF;
-    if( $fermi eq 'no' )
-    {
-      if( $lowest eq 'cow' )
-      { # Assumed Hartree
-        $fermi = $highest * 2
-      }
-      else
-      {
-        $fermi = $highest + $lowest;
-      }
-    }
-    else
-    {
-      # Move from Ha to Ry
-      $fermi *= 2;
-    }
-    open OUT, '>', 'dftVersion' or die "Failed to open dftVersion for writing\n$!";
-    print OUT "qe62\n";
-    close OUT;
-  }
-  else # last shot
-  {
-    open SCF, "scf.out" or die "$!";
-    while( my $line = <SCF> )
-    {
-      if( $line  =~  m/the Fermi energy is\s+([+-]?\d+\.?\d+)/ )
-      {
-        $fermi = $1;
-        print "Fermi level found at $fermi eV\n";
-        $fermi = $fermi/13.60569253;
-      }
-      elsif( $line  =~  m/Fermi energies are\s+([+-]?\d+\.?\d+)\s+([+-]?\d+\.?\d+)/ )
-      {
-        $fermi = ($1+$2)/2;
-        print "Fermi level found at $fermi eV\n";
-        $fermi = $fermi/13.60569253;
-      }
-      if( $line =~ m/number of electrons\s+=\s+(\d+)/ )
-      {
-        $nelectron = $1;
-      }
-    }
-    close SCF;
-  }
-
-  my $eVfermi = $fermi * 13.60569253;
-  print "Fermi level found at $eVfermi eV\n";
-
-  die "Fermi level not found in scf.out\n" if( $fermi eq 'no' ) ;
-  die "Number of electrons not found in scf.out\n" if( $nelectron eq 'no' );
-
-  open FERMI, ">efermiinrydberg.ipt" or die "Failed to open efermiinrydberg\n$!";
-  print FERMI "$fermi\n";
-  close FERMI;
-
-  open NELECTRON, ">nelectron" or die "Failed to open nelectron\n$!";
-  print NELECTRON "$nelectron\n";
-  close NELECTRON;
+    print "DFT for screening states complete\n";
+  } #else {
+  #  $newDftData->{'screen'}->{'time'} = $dftData->{'screen'}->{'time'};
+  #}
 }
 
-# end SCF for density
-      
 
+# Time for BSE final states
+unless( $newDftData->{'bse'}->{'complete'} ) {
 
+  my $t0 = [gettimeofday];
+  print "Running DFT for BSE basis states\n";
 
-### Do NSCF run
-
-if ( $nscfRUN ) {
-  print "NSCF run\n";
-
-#JTV
-  my $line = "";
-
-  #IF( OBF ) then "Single run, main directory"
-
-  #ELSE( is QE ) then "2 runs for screening and BSE wavefunctions
-
-  my $nbands = $qe_data_files{'obf.nbands'};
-  $nbands = $qe_data_files{'nbands'} if ( $nbands < 1 );
   
-  if( $obf == 1 )
-  {
-    open QE, ">nscf.in" or die "Failed to open nscf.in\n$!";
-    print QE "&control\n"
-          .  "  calculation = 'nscf'\n"
-          .  "  prefix = \'$qe_data_files{'prefix'}\'\n"
-          .  "  pseudo_dir = \'$qe_data_files{'ppdir'}\'\n"
-          .  "  outdir = \'$qe_data_files{'work_dir'}\'\n"
-          .  "  wfcdir = \'$qe_data_files{'tmp_dir'}\'\n"
-#          .  "  tstress = $qe_data_files{'dft.calc_stress'}\n"
-#          .  "  tprnfor = $qe_data_files{'dft.calc_force'}\n"
-          .  "  wf_collect = .true.\n"
-  #        .  "  disk_io = 'low'\n"
-          .  "/\n";
-    print QE "&system\n"
-          .  "  ibrav = $qe_data_files{'ibrav'}\n"
-          .  "  nat = $qe_data_files{'natoms'}\n"
-          .  "  ntyp = $qe_data_files{'ntype'}\n"
-          .  "  noncolin = $qe_data_files{'noncolin'}\n"
-          .  "  lspinorb = $qe_data_files{'spinorb'}\n"
-          .  "  ecutwfc = $qe_data_files{'ecut'}\n"
-          .  "  occupations = '$qe_data_files{'occtype'}'\n"
-          .  "  degauss = $qe_data_files{'degauss'}\n"
-          .  "  nspin  = $qe_data_files{'nspin'}\n"
-          .  "  tot_charge  = $qe_data_files{'tot_charge'}\n"
-          .  "  nosym = .true.\n"
-          .  "  noinv = .true.\n"
-          .  "  nbnd = $nbands\n";
-    if( $qe_data_files{'smag'}  ne "" )
-    {
-      print QE "$qe_data_files{'smag'}\n";
-    }
-    if( $qe_data_files{'ldau'}  ne "" )
-    {
-      print QE "$qe_data_files{'ldau'}\n";
-    }
-    if( $qe_data_files{'qe_scissor'}  ne "" )
-    {
-      print QE "$qe_data_files{'qe_scissor'}\n";
-    }
-    if( $qe_data_files{'ibrav'} != 0 )
-    {
-      print QE "  celldim(1) = ${celldm1}\n";
-    }
-    print QE "/\n"
-          .  "&electrons\n"
-          .  "  conv_thr = $qe_data_files{'etol'}\n"
-          .  "  mixing_beta = $qe_data_files{'mixing'}\n"
-          .  "  electron_maxstep = $qe_data_files{'nrun'}\n"
-          .  "  startingwfc = \'$qe_data_files{'dft.startingwfc'}\'\n"
-          .  "  diagonalization = \'$qe_data_files{'dft.diagonalization'}\'\n"
-          .  "/\n"
-          .  "&ions\n"
-          .  "/\n";
-
-    open IN, "atompp" or die "$!";
-    my $atompp;
-    while (<IN>) { $atompp .= $_; }
-    close IN;
-    chomp $atompp;
-    print QE "ATOMIC_SPECIES\n" . $atompp . "\n";
-
-    if ($qe_data_files{'ibrav'} == 0) {
-      open IN, "acell" or die "$!";
-      my $acell;
-      while (<IN>) { $acell .= $_; }
-      close IN;
-      chomp $acell;
-      print QE "CELL_PARAMETERS cubic\n" . $acell . "\n";
-    }
-
-    if( $coord_type =~ m/angst/ )
-    {
-      print QE "ATOMIC_POSITIONS angstrom\n";
-    }
-    elsif( $coord_type =~ m/bohr/ || $coord_type =~ m/xcart/ )
-    {
-      print QE "ATOMIC_POSITIONS bohr\n";
-    }
-    else
-    {
-      print QE "ATOMIC_POSITIONS crystal\n";
-    }
-    open IN, "coords" or die;
-    while (<IN>) { print QE $_;}
-    close IN;
-
-    print QE  "K_POINTS automatic\n"
-            . "$qe_data_files{'obkpt.ipt'} 0 0 0\n";
-    close QE;
-
-    my $npool = 1;
-    open INPUT, "pool_control" or die;
-    while (<INPUT>)
-    {
-      if( $_ =~ m/obf\s+(\d+)/ )
-      {
-        $npool = $1;
-        last;
-      }
-    }
-    close INPUT;
-
-    if( $qe_redirect )
-    {  
-      print  "$para_prefix $ENV{'OCEAN_ESPRESSO_OBF_PW'} -npool $npool < nscf.in > nscf.out 2>&1\n";
-      system("$para_prefix $ENV{'OCEAN_ESPRESSO_OBF_PW'} -npool $npool < nscf.in > nscf.out 2>&1") == 0
-         or die "Failed to run nscf stage for OBFs\n";
-    } else
-    {
-      print  "$para_prefix $ENV{'OCEAN_ESPRESSO_OBF_PW'} -npool $npool -inp nscf.in > nscf.out 2>&1\n";
-      system("$para_prefix $ENV{'OCEAN_ESPRESSO_OBF_PW'} -npool $npool -inp nscf.in > nscf.out 2>&1") == 0
-         or die "Failed to run nscf stage for OBFs\n";
-    }
-    print "NSCF complete\n";
-
-    open OUT, ">nscf.stat" or die "Failed to open nscf.stat\n$!";
-    print OUT "1\n";
-    close OUT;
-
-    print "Create Basis\n";
-    open BASIS, ">basis.in" or die "Failed top open basis.in\n$!";
-    print BASIS "&input\n"
-             .  "  prefix = \'$qe_data_files{'prefix'}\'\n"
-             .  "  outdir = \'$qe_data_files{'work_dir'}\'\n";
-    unless( $qe_data_files{'tmp_dir'} =~ m/undefined/ )
-    {
-#      print "$qe_data_files{'tmp_dir'}\n";
-      print BASIS "  wfcdir = \'$qe_data_files{'tmp_dir'}\'\n";
-    }
-    print BASIS "  trace_tol = $qe_data_files{'trace_tol'}\n"
-             .  "/\n";
-    close BASIS;
-
-    system("$para_prefix $ENV{'OCEAN_BIN'}/shirley_basis.x  < basis.in > basis.out 2>&1") == 0
-          or die "Failed to run shirley_basis.x\n$!";
-
-    my $ham_kpoints = `cat ham_kpoints`;
-    chomp $ham_kpoints;
-
-    print "Create Shirley Hamiltonian\n";
-    open HAM, ">ham.in" or die "Failed to open ham.in\n$!";
-    print HAM "&input\n"
-            . "  prefix = 'system_opt'\n"
-            . "  outdir = \'$qe_data_files{'work_dir'}\'\n";
-    unless( $qe_data_files{'tmp_dir'} =~ m/undefined/ )
-    {
-#      print "$qe_data_files{'tmp_dir'}\n";
-      print HAM "  wfcdir = \'$qe_data_files{'tmp_dir'}\'\n";
-    }
-    print HAM "  updatepp = .false.\n"
-            . "  ncpp = .true.\n"
-            . "  nspin_ham = $qe_data_files{'nspin'}\n"
-            . "/\n"
-            . "K_POINTS\n"
-            . "$ham_kpoints 0 0 0\n";
-    close HAM;
-
-    system("$para_prefix $ENV{'OCEAN_BIN'}/shirley_ham_o.x  < ham.in > ham.out 2>&1") == 0
-          or die "Failed to run shirley_ham_o.x\n$!";
-
+  my $errorCode;
+  if( $newDftData->{'general'}->{'program'} eq "qe" ) {
+    $errorCode = QErunNSCF($newDftData, $newDftData->{'bse'}, 0 );
+  } elsif ( $newDftData->{'general'}->{'program'} eq "abi" ) {
+    $errorCode = ABIrunNSCF($newDftData, $newDftData->{'bse'}, 0 );
   }
-  else
-  {
 
-    my $bseDIR = sprintf("%03u%03u%03u", split( /\s+/,$qe_data_files{'nkpt'})); 
-    mkdir $bseDIR unless ( -d $bseDIR );
-    chdir $bseDIR;
-
-    unlink "old" if( -e "old" );
-
-    # kpts
-    copy "../nkpt", "nkpt";
-    copy "../qinunitsofbvectors.ipt", "qinunitsofbvectors.ipt";
-    copy "../k0.ipt", "k0.ipt";
-    copy "../dft.split", "dft.split";
-
-    my $split_dft = 0;
-    if( open IN, "dft.split" )
-    {
-      $split_dft = 0;
-      if( <IN> =~ m/t/i )
-      {
-        $split_dft = 1;
-      }
-      close IN;
-      # Only makes sense if we have q
-      if( $split_dft )
-      {
-        open IN, "qinunitsofbvectors.ipt" or die "Failed to open qinunitofbvectors\n$!";
-        <IN> =~ m/([+-]?\d+\.?\d*([eE][+-]?\d+)?)\s+([+-]?\d+\.?\d*([eE][+-]?\d+)?)\s+([+-]?\d+\.?\d*([eE][+-]?\d+)?)/ 
-                    or die "Failed to parse qinunitsofbvectors.ipt\n";
-        my $fake_qmag = abs($1) + abs($3) + abs($5);
-        close IN;
-        $split_dft = 0 if( $fake_qmag < 0.000000001 );
-      }
-    }
-    else
-    {
-      $split_dft = 0;
-    } 
-
-    print "DFT runs will be split\n" if( $split_dft );
-
-    $qe_data_files{'prefix_shift'} = $qe_data_files{'prefix'} . "_shift";
-
-    my $qeVersion;
-#    mkdir "Out" unless ( -d "Out" );
- 
-    mkdir $qe_data_files{'work_dir'} unless( -d $qe_data_files{'work_dir'} );
-
-    # This will loop back and do everything for prefix_shift if we have split
-    my $repeat = 0;
-    $repeat = 1 if( $split_dft );
-    my $prefix = 'prefix';
-    my $startRepeat = 0;
-
-    $startRepeat = 1 if( $nscfRUN == 2 );
-
-    for( my $i = $startRepeat; $i <= $repeat; $i++ )
-    {
-      my $savedir = catdir( $qe_data_files{'work_dir'}, $qe_data_files{$prefix} . ".save" ); 
-#      mkdir "Out/$qe_data_files{$prefix}.save" unless ( -d "Out/$qe_data_files{$prefix}.save" );
-      mkdir $savedir unless( -d $savedir );
-
-      my $chargeDensity = catfile( updir(), $qe_data_files{'work_dir'}, $qe_data_files{'prefix'} . ".save", 
-                                   "charge-density.dat" );
-
-      die "Couldn't find SCF charge density: $chargeDensity" unless( -e $chargeDensity );
-      copy $chargeDensity, catfile( $savedir, "charge-density.dat");
-#      copy "../Out/$qe_data_files{'prefix'}.save/charge-density.dat", "Out/$qe_data_files{$prefix}.save/charge-density.dat";
-
-      if( -e catfile( updir(), $qe_data_files{'work_dir'}, $qe_data_files{'prefix'} . ".save", "data-file.xml" ) )
-      {
-        copy "../Out/$qe_data_files{'prefix'}.save/data-file.xml", "Out/$qe_data_files{$prefix}.save/data-file.xml";
-        $qeVersion = 54;
-      }
-      elsif( -e catfile( updir(), $qe_data_files{'work_dir'}, $qe_data_files{'prefix'} . ".save", 
-                         "data-file-schema.xml" ) )
-      {
-        copy catfile( updir(), $qe_data_files{'work_dir'}, $qe_data_files{'prefix'} . ".save", 
-                         "data-file-schema.xml" ), $savedir;
-        $qeVersion = 62;
-      }
-      else
-      {
-        die "Couldn't find data-file or data-file-schema\n";
-      }
-
-      if( $qe_data_files{'nspin'} == 2 )
-      {
-        copy "../Out/$qe_data_files{'prefix'}.save/spin-polarization.dat", 
-             "Out/$qe_data_files{$prefix}.save/spin-polarization.dat";
-      }
-
-      if( $qe_data_files{'ldau'}  ne "" )
-      {
-        # Starting w/ QE-6.0 this is the DFT+U info from the SCF
-        if( -e "../Out/$qe_data_files{'prefix'}.save/occup.txt" )
-        {
-          copy "../Out/$qe_data_files{'prefix'}.save/occup.txt", "Out/$qe_data_files{$prefix}.save/occup.txt";
-        }
-        # QE 4.3-5.x
-        elsif( -e "../Out/$qe_data_files{'prefix'}.occup" )
-        {
-          copy "../Out/$qe_data_files{'prefix'}.occup", "Out/$qe_data_files{$prefix}.occup";
-        }
-      }
-      foreach my $bonusFile ( @SCFBonus )
-      {
-        my $tempFile = "../Out/$qe_data_files{'prefix'}.save/$bonusFile";
-        copy $tempFile, "Out/$qe_data_files{$prefix}.save/$bonusFile" if( -e $tempFile );
-      }
-      $prefix = "prefix_shift";
-    }
-
-
-#    copy "../acell", "acell";
-#    copy "../atompp", "atompp";
-#    copy "../coords", "coords";
-#    open OUT, ">core" or die;
-#    print OUT "1\n";
-#    close OUT;
-    system("$ENV{'OCEAN_BIN'}/kgen2.x") == 0 or die "KGEN.X Failed\n";
-
-    open my $QE, ">nscf.in" or die "Failed to open nscf.in\n$!";
-
-    # Set the flags that change for each input/dft run
-    $qe_data_files{'calctype'} = 'nscf';
-    $qe_data_files{'dft.startingpot'} = 'file';
-#    # if have exact exchange flip back to scf
-#    print "$qe_data_files{'dft.functional'}\n";
-
-    # some of this needs to be moved up
-    foreach( @exx )
-    {
-#      print "$_\n";
-      if( $qe_data_files{'dft.functional'} =~ m/$_/i )
-      {
-        $qe_data_files{'calctype'} = 'scf';
-        $qe_data_files{'nscfEXX'} = 1;
-        last;
-      }
-    }
-    $qe_data_files{'nosym'} = '.true.';
-    $qe_data_files{'noinv'} = '.true.';
-    my $kpt_text = "K_POINTS crystal\n";
-    open IN, "nkpts" or die;
-    my $nkpts = <IN>;
-    close IN;
-    $kpt_text .= $nkpts;
-    open IN, "kpts4qe.0001" or die;
-    while(<IN>)
-    {
-      $kpt_text .= $_;
-    }
-    close IN;
-
-    $qe_data_files{'print kpts'} = $kpt_text;
-    # QE behaves cnoverges incorrectly if only give occupied states
-    if( $split_dft && $qe_data_files{ "occopt" } == 1 ) 
-    {
-      open NEL, "../nelectron" or die "Failed top open ../nelectron for reading\n$!";
-      my $nelectron = <NEL>;
-      close NEL;
-      my $tempBand = $nelectron / 2 + 1;
-      $tempBand++ if( $tempBand%2 == 1 );
-      $qe_data_files{'print nbands'} = $tempBand;
-    }
-    elsif( $split_dft == 0)
-#    unless( $split_dft ) 
-    {
-      $qe_data_files{'print nbands'} = $qe_data_files{'nbands'};
-    }
-
-    &print_qe( $QE, %qe_data_files );
-
-    close $QE;
-
-    my $npool = 1;
-    my $ncpus = 1;
-    open INPUT, "../pool_control" or die;
-    while (<INPUT>)
-    {
-      if( $_ =~ m/^nscf\s+(\d+)/ )
-      {
-        $npool = $1;
-      }
-      elsif( $_ =~ m/^total\s+(\d+)/ )
-      {
-        $ncpus = $1;
-      }
-
-    }
-    close INPUT;
-
-    print "TEST\n";
-    print $qe_data_files{'dft.ndiag'} . "\n";
-    if( $qe_data_files{'dft.ndiag'} =~ m/(-?\d+)/ )
-    {
-      if( $1 > 0 )
-      {
-        $qe_data_files{'dft.ndiag'} = $1;
-      }
-      else
-      {
-        $qe_data_files{'dft.ndiag'} = $ncpus;
-      }
-    }
-    else
-    {
-      $qe_data_files{'dft.ndiag'} = $ncpus;
-    }
-
-
-    my $qeCommandLine = "-ndiag $qe_data_files{'dft.ndiag'} -npool $npool";
-
-    print "BSE NSCF Run\n";
-    if( $qe_redirect )
-    {  
-      print  "$para_prefix $ENV{'OCEAN_ESPRESSO_PW'} $qeCommandLine < nscf.in > nscf.out 2>&1\n";
-      system("$para_prefix $ENV{'OCEAN_ESPRESSO_PW'} $qeCommandLine < nscf.in > nscf.out 2>&1") == 0
-          or die "Failed to run nscf stage for BSE wavefunctions\n";
-    } else
-    {
-      print  "$para_prefix $ENV{'OCEAN_ESPRESSO_PW'} $qeCommandLine -inp nscf.in > nscf.out 2>&1\n";
-      system("$para_prefix $ENV{'OCEAN_ESPRESSO_PW'} $qeCommandLine -inp nscf.in > nscf.out 2>&1") == 0
-          or die "Failed to run nscf stage for BSE wavefunctions\n";
-    }
-
-
-    if( $split_dft && $nscfRUN == 2 )
-    {
-      print "Unoccupied states re-used from previous calculation\n";
-    }
-    elsif( $split_dft )
-    {
-      open my $QE, ">nscf_shift.in" or die "Failed to open nscf_shift.in\n$!";
-
-      $prefix = $qe_data_files{'prefix'};
-      $qe_data_files{'prefix'} = $qe_data_files{'prefix_shift'};
-
-      $kpt_text = "K_POINTS crystal\n";
-      open IN, "nkpts" or die;
-      my $nkpts = <IN>;
-      close IN;
-      $kpt_text .= $nkpts;
-      open IN, "kpts4qe.0002" or die;
-      while(<IN>)
-      {
-        $kpt_text .= $_;
-      }
-      close IN;
-      $qe_data_files{'print kpts'} = $kpt_text;
-      $qe_data_files{'print nbands'} = $qe_data_files{'nbands'};
-
-      &print_qe( $QE, %qe_data_files );
-
-      close $QE;
-
-      if( $qe_redirect )
-      {  
-        print  "$para_prefix $ENV{'OCEAN_ESPRESSO_PW'} $qeCommandLine < nscf_shift.in > nscf_shift.out 2>&1\n";
-        system("$para_prefix $ENV{'OCEAN_ESPRESSO_PW'} $qeCommandLine < nscf_shift.in > nscf_shift.out 2>&1") == 0
-            or die "Failed to run nscf stage for shifted BSE wavefunctions\n";
-      } else
-      {
-        print  "$para_prefix $ENV{'OCEAN_ESPRESSO_PW'} $qeCommandLine -inp nscf_shift.in > nscf_shift.out 2>&1\n";
-        system("$para_prefix $ENV{'OCEAN_ESPRESSO_PW'} $qeCommandLine -inp nscf_shift.in > nscf_shift.out 2>&1") == 0
-            or die "Failed to run nscf stage for shifted BSE wavefunctions\n";
-      }
-
-      $qe_data_files{'prefix'} = $prefix;
-
-    }
-
-
-
-    open OUT, ">nscf.stat" or die "Failed to open nscf.stat\n$!";
-    print OUT "1\n";
-    close OUT;
-    print "BSE NSCF complete\n";
-
-    ## find the top of the valence bance
-    if( $qeVersion == 54 )
-    {
-      system("$ENV{'OCEAN_BIN'}/qeband.pl") == 0
-         or die "Failed to count bands\n$!\n";
-    }
-    elsif( $qeVersion == 62 )
-    {
-      system("$ENV{'OCEAN_BIN'}/qe62band.pl") == 0
-         or die "Failed to count bands\n$!\n";
-    }
-    else
-    { die "qeVersion wasn't set\n"; }
-
-    open IN, "brange.stub" or die;
-    open OUT, ">brange.ipt" or die;
-    while(<IN>)
-    {
-      print OUT $_;
-    }
-    print OUT "$qe_data_files{'nbands'}\n";
-    close IN;
-    close OUT;
-
-    copy "nkpt", "kmesh.ipt";
-
-    chdir "../";
-
-    open OUT, ">", "bse.stat" or die;
-    print OUT "1\n";
-    close OUT;
-  }
-}
-else
-{
-  my $bseDIR = sprintf("%03u%03u%03u", split( /\s+/,$qe_data_files{'nkpt'}));
-  die "Problem with $bseDIR\n" unless( chdir $bseDIR );
-  open OUT, ">", "old";
-  print OUT "old\n";
-  close OUT;
-  chdir "../";
-}
-
-if( $obf == 0 && $run_screen == 1 )
-{
   
-#  my $bseDIR = sprintf("%03u%03u%03u", split( /\s+/,$qe_data_files{'screen.nkpt'}));
-  my $bseDIR = "SCREEN";
-  mkdir $bseDIR unless ( -d $bseDIR );
-  chdir $bseDIR;
+  exit $errorCode if( $errorCode );
 
-  unlink "old";
+  $newDftData->{'bse'}->{'complete'} = JSON::PP::true;
 
-  mkdir "Out" unless ( -d "Out" );
-  mkdir "Out/$qe_data_files{'prefix'}.save" unless ( -d "Out/$qe_data_files{'prefix'}.save" );
-
-#  copy "../Out/$qe_data_files{'prefix'}.save/charge-density.dat", "Out/$qe_data_files{'prefix'}.save/charge-density.dat";
-#  copy "../Out/$qe_data_files{'prefix'}.save/data-file.xml", "Out/$qe_data_files{'prefix'}.save/data-file.xml";
-
-
-  my $savedir = catdir( $qe_data_files{'work_dir'}, $qe_data_files{'prefix'} . ".save" );
-#      mkdir "Out/$qe_data_files{$prefix}.save" unless ( -d "Out/$qe_data_files{$prefix}.save" );
-  mkdir $savedir unless( -d $savedir );
-
-  my $qeVersion;
-
-  my $chargeDensity = catfile( updir(), $qe_data_files{'work_dir'}, $qe_data_files{'prefix'} . ".save",
-                               "charge-density.dat" );
-
-  die "Couldn't find SCF charge density: $chargeDensity" unless( -e $chargeDensity );
-  copy $chargeDensity, catfile( $savedir, "charge-density.dat");
-#      copy "../Out/$qe_data_files{'prefix'}.save/charge-density.dat", "Out/$qe_data_files{$prefix}.save/charge-density.dat";
-
-  if( -e catfile( updir(), $qe_data_files{'work_dir'}, $qe_data_files{'prefix'} . ".save", "data-file.xml" ) )
+  my $s = $json->encode($newDftData->{'psp'}->{'pphash'});
+  foreach ( 'general', 'bse', 'structure', 'scf' )
   {
-    copy "../Out/$qe_data_files{'prefix'}.save/data-file.xml", "Out/$qe_data_files{'prefix'}.save/data-file.xml";
-    $qeVersion = 54;
+    $s .= $json->encode($newDftData->{$_});
   }
-  elsif( -e catfile( updir(), $qe_data_files{'work_dir'}, $qe_data_files{'prefix'} . ".save",
-                     "data-file-schema.xml" ) )
-  {
-    copy catfile( updir(), $qe_data_files{'work_dir'}, $qe_data_files{'prefix'} . ".save",
-                     "data-file-schema.xml" ), $savedir;
-    $qeVersion = 62;
-  }
-  else
-  {
-    die "Couldn't find data-file or data-file-schema\n";
-  }
+#  print "$s\n\n\n";
+  $newDftData->{'bse'}->{'hash'} = md5_hex( $s );
+  $newDftData->{'bse'}->{'time'} = tv_interval( $t0 );
 
+  my $dirname = sprintf "k%i_%i_%iq%.6f_%.6f_%.6f", $newDftData->{'bse'}->{'kmesh'}[0],
+                  $newDftData->{'bse'}->{'kmesh'}[1], $newDftData->{'bse'}->{'kmesh'}[2],
+                  $newDftData->{'bse'}->{'kshift'}[0], $newDftData->{'bse'}->{'kshift'}[1],
+                  $newDftData->{'bse'}->{'kshift'}[2];
+  $newDftData->{'znscf'}->{ $dirname } = dclone( $newDftData->{'bse'} );
 
-  if( $qe_data_files{'nspin'} == 2 )
-  {
-    copy "../Out/$qe_data_files{'prefix'}.save/spin-polarization.dat", 
-         "Out/$qe_data_files{'prefix'}.save/spin-polarization.dat";
-  }
-
-  if( $qe_data_files{'ldau'}  ne "" )
-  {
-    # Starting w/ QE-6.0 this is the DFT+U info from the SCF
-    if( -e "../Out/$qe_data_files{'prefix'}.save/occup.txt" )
-    {
-      copy "../Out/$qe_data_files{'prefix'}.save/occup.txt", "Out/$qe_data_files{'prefix'}.save/occup.txt";
-    }
-    # QE 4.3-5.x
-    elsif( -e "../Out/$qe_data_files{'prefix'}.occup" )
-    {
-      copy "../Out/$qe_data_files{'prefix'}.occup", "Out/$qe_data_files{'prefix'}.occup";
-    }
-  }
-
-  foreach my $bonusFile ( @SCFBonus )
-  {
-    my $tempFile = "../Out/$qe_data_files{'prefix'}.save/$bonusFile";
-    copy $tempFile, "Out/$qe_data_files{'prefix'}.save/$bonusFile" if( -e $tempFile );
-  }
-
-
-  # kpts
-  copy "../screen.nkpt", "nkpt";
-  copy "../screen.k0", "k0.ipt";
-
-
-  # QINB is 0 for screening
-  open OUT, ">qinunitsofbvectors.ipt" or die;
-  print OUT "0.0 0.0 0.0\n";
+  open OUT, ">", "dft.json" or die;
+  print OUT $json->encode($newDftData);
   close OUT;
-  open OUT, ">core" or die;
-  print OUT "1\n";
-  close OUT;
-  system("$ENV{'OCEAN_BIN'}/kgen2.x") == 0 or die "KGEN.X Failed\n";
-
-  open my $QE, ">nscf.in" or die "Failed to open nscf.in\n$!";
-
-
-  $qe_data_files{'calctype'} = 'nscf';
-  $qe_data_files{'dft.startingpot'} = 'file';
-  # if have exact exchange flip back to scf
-  foreach( @exx )
-  {
-    if( $qe_data_files{'dft.functional'} =~ m/$_/i )
-    {
-      $qe_data_files{'calctype'} = 'scf';
+  print "DFT for BSE final states complete\n";
+} else {
+  $newDftData->{'bse'}->{'time'} = $dftData->{'bse'}->{'time'};
+  if( $newDftData->{'bse'}->{'con_start'} != $dftData->{'bse'}->{'con_start'} 
+        && ( defined( $newDftData->{'bse'}->{'con_start'}) || defined($dftData->{'bse'}->{'con_start'} ) ) ) {
+    my $errorCode;
+    if( $newDftData->{'general'}->{'program'} eq "qe" ) {
+      $errorCode = QErunParseEnergies( $newDftData, $newDftData->{'bse'}, 0 );
     }
-  }
-
-  $qe_data_files{'nosym'} = '.true.';
-  $qe_data_files{'noinv'} = '.true.';
-
-  my $gamma = 1;
-
-  open IN, "nkpt" or die "Failed to open nkpt (screening)\n$!";
-  <IN> =~ m/(\d+)\s+(\d+)\s+(\d+)/ or die "Failed to parse screen.nkpt.\n";
-  $gamma *= 0 if ( $1 * $2 * $3 > 1 ); 
-  close IN;
-
-  open IN, "k0.ipt"  or die "Failed to open k0.ipt (screening)\n$!";
-  <IN> =~ m/(\S+)\s+(\S+)\s+(\S+)/ or die "Failed to parse k0.ipt\n";
-  $gamma *= 0 if( abs($1) > 0.000001 || abs($2) > 0.000001 || abs($3) > 0.000001 );
-  close IN;
-
-  my $kpt_text;
-  if( $gamma == 1 ) 
-  {
-    $kpt_text = "K_POINTS gamma\n";
-  }
-  else
-  {
-    $kpt_text = "K_POINTS crystal\n";
-    open IN, "nkpts" or die;
-    my $nkpts = <IN>;
-    close IN;
-    $kpt_text .= $nkpts;
-    open IN, "kpts4qe.0001" or die;
-    while(<IN>)
-    {
-      $kpt_text .= $_;
-    }
-    close IN;
-  }
-  
-  $qe_data_files{'print kpts'} = $kpt_text;
-  $qe_data_files{'print nbands'} = $qe_data_files{'screen.nbands'};
-
-  &print_qe( $QE, %qe_data_files );
-
-  close QE;
-
-  my $npool = 1;
-  my $ncpus = 1;
-  open INPUT, "../pool_control" or die;
-  while (<INPUT>)
-  {
-    if( $_ =~ m/^screen\s+(\d+)/ )
-    {
-      $npool = $1;
-    }
-    elsif( $_ =~ m/^total\s+(\d+)/ )
-    {
-      $ncpus = $1;
-    }
-
-  }
-  close INPUT;
-
-  print "TEST\n";
-  print $qe_data_files{'dft.ndiag'} . "\n";
-  if( $qe_data_files{'dft.ndiag'} =~ m/(-?\d+)/ )
-  {
-    if( $1 > 0 )
-    {
-      $qe_data_files{'dft.ndiag'} = $1;
-    }
-    else
-    {
-      $qe_data_files{'dft.ndiag'} = $ncpus;
-    }
-  }
-  else
-  {
-    $qe_data_files{'dft.ndiag'} = $ncpus;
-  }
-
-
-  my $qeCommandLine = "-ndiag $qe_data_files{'dft.ndiag'} -npool $npool";
-
-  print "Screening NSCF Run\n";
-  if( $qe_redirect )
-  {  
-    print  "$para_prefix $ENV{'OCEAN_ESPRESSO_PW'} $qeCommandLine < nscf.in > nscf.out 2>&1\n";
-    system("$para_prefix $ENV{'OCEAN_ESPRESSO_PW'} $qeCommandLine < nscf.in > nscf.out 2>&1") == 0
-        or die "Failed to run nscf stage for SCREENing wavefunctions\n";
-  } else
-  {
-    print  "$para_prefix $ENV{'OCEAN_ESPRESSO_PW'} $qeCommandLine -inp nscf.in > nscf.out 2>&1\n";
-    system("$para_prefix $ENV{'OCEAN_ESPRESSO_PW'} $qeCommandLine -inp nscf.in > nscf.out 2>&1") == 0
-        or die "Failed to run nscf stage for SCREENing wavefunctions\n";
-  }
-  open OUT, ">nscf.stat" or die "Failed to open nscf.stat\n$!";
-  print OUT "1\n";
-  close OUT;
-  print "Screening NSCF complete\n";
-
-  ## find the top of the valence bands
-  if( $qeVersion == 54 )
-  {
-    system("$ENV{'OCEAN_BIN'}/qeband.pl") == 0
-       or die "Failed to count bands\n$!\n";
-  }
-  elsif( $qeVersion == 62 )
-  {
-    system("$ENV{'OCEAN_BIN'}/qe62band.pl") == 0
-       or die "Failed to count bands\n$!\n";
-  }
-  else
-  { die "qeVersion wasn't set\n"; }
-
-  # Figure out Gamma point usage within QE
-  my $dataFileName;
-  my $workdir = $qe_data_files{"work_dir"};
-  $workdir =~ s/\'//g;
-  $workdir =~ s/^\.//;
-  $workdir =~ s/^\///;
-  my $prefix = $qe_data_files{"prefix"};
-  if(  $qeVersion == 54 )
-  {
-    $dataFileName = $workdir . '/' . $prefix . ".save/data-file.xml";
-  }
-  else
-  {
-    $dataFileName = $workdir . '/' . $prefix . ".save/data-file-schema.xml";
-  }
-  
-  open IN, $dataFileName or die "Failed to open $dataFileName\n$!\n";
-  open GAMMA, ">", "gamma" or die "$!";
-
-  while (my $line = <IN>)
-  {
-
-    if ( $line =~ m/GAMMA_ONLY/i )
-    {
-      chomp($line);
-      $line .= <IN>;
-      chomp($line);
-      $line .= <IN>;
-      chomp($line);
-
-      if( $line =~ m/>([ft])(alse)?(rue)?\s*</i )
-      {
-        my $gamma = $1;
-        print $gamma . "\n";
-        print GAMMA $gamma . "\n";
-      }
-      else
-      {
-        print "Nope!\n$line\n";
-        print GAMMA "F" . "\n";
-      }
-
-    last;
-    }
-  }
-  close IN;
-  close GAMMA;
-
-  open IN, "brange.stub" or die;
-  open OUT, ">brange.ipt" or die;
-  while(<IN>)
-  {
-    print OUT $_;
-  }
-  print OUT "$qe_data_files{'screen.nbands'}\n";
-  close IN;
-  close OUT;
-
-  copy "nkpt", "kmesh.ipt";
-
-  chdir "../";
-
-  open OUT, ">", "screen.stat" or die;
-  print OUT "1\n";
-  close OUT;
-}
-else
-{
-  my $bseDIR = "SCREEN";
-  if( -d $bseDIR )
-  {
-    die "Problem with $bseDIR\n" unless( chdir $bseDIR );
-    open OUT, ">", "old";
-    print OUT "old\n";
+    exit $errorCode if( $errorCode );
+    open OUT, ">", "dft.json" or die;
+    print OUT $json->encode($newDftData);
     close OUT;
-    chdir "../";
   }
 }
+}
 
-# For occopt = 1, the SCF run only gives the highest occupied
-# With a sparse k-point grid this doesn't give a good position for the Fermi
-# So, if we have re-run any segment then figure out a better Fermi level
-# We do this by taking the highest occupied from SCREEN and BSE and the lowest unoccupied
-# and then setting the Fermi to be the midpoint
-if( $qe_data_files{ "occopt" } == 1 && ( $RunESPRESSO + $nscfRUN + $run_screen > 0 ) )
+# touch up Fermi if insulator
+if( $newDftData->{'general'}->{'occopt'} == 1 && $newDftData->{'general'}->{'program'} eq "qe" )
 {
-  print "Fixing Fermi level for occopt=1, insulating system\n";
-
-  my $valenceE;
-  my $conductionE;
-
-  if( -e "SCREEN/nscf.out" )
-  {
-    open IN, "SCREEN/nscf.out" or die "Failed to open SCREEN/nscf.out\n$!";
-    while( my $line = <IN> )
-    {
-      if( $line =~ m/highest occupied, lowest unoccupied level\s\S+\s+(-?\d+\.\d+)\s+(-?\d+\.\d+)/ )
-      {
-        $valenceE = $1;
-        $conductionE = $2;
-        print "$valenceE\t$conductionE\n";
-        last;
-      }
-    }
-    close IN;
+  my $low = $newDftData->{'scf'}->{'lowest'};
+  my $high = $newDftData->{'scf'}->{'highest'};
+  foreach (@{$newDftData->{'bse'}->{'directories'}} ) {
+    $low = $newDftData->{'znscf'}->{$_}->{'lowest'} if ( $newDftData->{'znscf'}->{$_}->{'lowest'} < $low );
+    $high = $newDftData->{'znscf'}->{$_}->{'highest'} if ( $newDftData->{'znscf'}->{$_}->{'highest'} > $high );
   }
-  my $bseDIR = sprintf("%03u%03u%03u", split( /\s+/,$qe_data_files{'nkpt'}));
-  if( -e "$bseDIR/nscf_shift.out" )
-  {
-    open IN, "$bseDIR/nscf_shift.out" or die "Failed to open $bseDIR/nscf_shift.out\n$!";
-    while( my $line = <IN> )
-    {
-      if( $line =~ m/highest occupied, lowest unoccupied level\s\S+\s+(-?\d+\.\d+)\s+(-?\d+\.\d+)/ )
-      {
-        print $line;
-        my $v = $1;
-        my $c = $2;
-        unless( defined( $valenceE ) )
-        {
-          $valenceE = $v;
-          $conductionE = $c;
-        }
-        else
-        {
-          $valenceE = $v if( $v > $valenceE );
-          $conductionE = $c if( $c < $conductionE );
-        }
-        last;
-        print "$valenceE\t$conductionE\n";
-      }
-    }
-    close IN;
-  }
-  if( -e "$bseDIR/nscf.out" )
-  {
-    open IN, "$bseDIR/nscf.out" or die "Failed to open $bseDIR/nscf.out\n$!";
-    while( my $line = <IN> )
-    {
-      if( $line =~ m/highest occupied, lowest unoccupied level\s\S+\s+(-?\d+\.\d+)\s+(-?\d+\.\d+)/ )
-      {
-        print $line;
-        my $v = $1;
-        my $c = $2;
-        unless( defined( $valenceE ) )
-        {
-          $valenceE = $v;
-          $conductionE = $c;
-        }
-        else
-        { 
-          $valenceE = $v if( $v > $valenceE );
-          $conductionE = $c if( $c < $conductionE );
-        }
-        last;
-        print "$valenceE\t$conductionE\n";
-      }
-    }
-    close IN;
-  }
-  else
-  {
-    print "Couldn't fine $bseDIR/nscf.out\n";
-  }
+#  $low = $newDftData->{'bse'}->{'lowest'} if ( $newDftData->{'bse'}->{'lowest'} < $low );
 
-  unless( defined( $valenceE ) )
-  {
-    print "Failed to correct Fermi level!\nLikely DFT runs didn't finish correctly!!";
-  }
-  else
-  {
-    if( $valenceE > $conductionE )
-    {
-      print "WARNING!!!! Highest occupied is greater than lowest unoccupied!\n";
-      print "Likely you specified metal = .false. for a metallic system or your structure is incorrect\n";
-      print "OCEAN will continue, but the results are probably bad!\nWARNING!!!!!\n";
-    }
-    else
-    {
-      print "$valenceE\t$conductionE\n";
-      my $eVfermi = ( $valenceE + $conductionE ) / 2;
-      my $fermi = $eVfermi / 13.60569253;
-      print "Fermi level found at $eVfermi eV\n";
+#  $high = $newDftData->{'bse'}->{'highest'} if ( $newDftData->{'bse'}->{'highest'} > $high );
 
-      open FERMI, ">efermiinrydberg.ipt" or die "Failed to open efermiinrydberg\n$!";
-      print FERMI "$fermi\n";
-      close FERMI;
+#  if( $newDftData->{'screen'}->{'enable'} )
+##  {
+#    $low = $newDftData->{'screen'}->{'lowest'} if ( $newDftData->{'screen'}->{'lowest'} < $low );
+#    $high = $newDftData->{'screen'}->{'highest'} if ( $newDftData->{'screen'}->{'highest'} > $high );
+#  }
 
-    }
+  $newDftData->{'scf'}->{'fermi'} = ($low + $high)/2;
+  open OUT, ">", "dft.json" or die;
+  print OUT $json->encode($newDftData);
+  close OUT;
+  print "DFT for BSE final states complete\n";
+}
+
+# Fix up brange
+if( $newDftData->{'screen'}->{'enable'} ) {
+  my $d = $newDftData->{'screen'}->{'directories'}[0];
+  for( my $i = 0; $i < 3; $i++ ) {
+    $newDftData->{'screen'}->{'brange'}[$i] = $newDftData->{'znscf'}->{ $d }->{'brange'}[$i];
   }
 }
-  
+$newDftData->{'bse'}->{'brange'}[0] = $newDftData->{'znscf'}->{$newDftData->{'bse'}->{'directories'}[-1]}->{'brange'}[0];
+$newDftData->{'bse'}->{'brange'}[1] = $newDftData->{'znscf'}->{$newDftData->{'bse'}->{'directories'}[-1]}->{'brange'}[1];
+$newDftData->{'bse'}->{'brange'}[2] = $newDftData->{'znscf'}->{$newDftData->{'bse'}->{'directories'}[0]}->{'brange'}[2];
 
+# Grab times and hashes
+$newDftData->{'screen'}->{'time'} = $newDftData->{'znscf'}->{ $newDftData->{'screen'}->{'directories'}[0] }->{'time'};
+$newDftData->{'screen'}->{'hash'} = $newDftData->{'znscf'}->{ $newDftData->{'screen'}->{'directories'}[0] }->{'hash'};
+$newDftData->{'bse'}->{'time'} = 0;
+$newDftData->{'bse'}->{'hash'} = '';
+foreach (@{$newDftData->{'bse'}->{'directories'}} ) {
+  $newDftData->{'bse'}->{'time'} += $newDftData->{'znscf'}->{ $_ }->{'time'};
+  $newDftData->{'bse'}->{'hash'} .= $newDftData->{'znscf'}->{ $_ }->{'hash'};
+  if( $newDftData->{'screen'}->{'directories'}[0] eq $_ ) {
+    $newDftData->{'screen'}->{'time'} = 0;
+  } 
+}
 
-print "Espresso stage complete\n";
+my ( $endSeconds, $endMicroseconds) = gettimeofday;
+print localtime() .  "\n";
+
+my $elapsedSeconds = $endSeconds - $startSeconds;
+my $elapsedMicroseconds = $endMicroseconds - $startMicroseconds;
+if( $elapsedMicroseconds < 0 ) {
+  $elapsedMicroseconds += 1000000;
+  $elapsedSeconds -= 1;
+}
+$newDftData->{'time_script'} = sprintf "%i.%06i", $elapsedSeconds, $elapsedMicroseconds;
+$newDftData->{'time'} = 0;
+foreach my $sec ( 'scf', 'density', 'potential', 'bse', 'screen', 'epsilon' ) {
+  printf "Time %s: %f\n", $sec, $newDftData->{$sec}->{'time'};
+  $newDftData->{'time'} += $newDftData->{$sec}->{'time'};
+}
+open OUT, ">", "dft.json" or die;
+print OUT $json->encode($newDftData);
+close OUT;
+print "DFT section is complete\n\n";
+
 exit 0;
 
+# 4) various convergence parameters match 
 
-# Subroutine to print a QE-style input file
-#   Pass in a file handle and a hashtable
-sub print_qe 
+# Build SCF complete list from input
+
+# Check to-do list againt done list (including what system was done)
+
+
+#NOTE
+# 1. Update done list (dft.json) after each individual step
+
+# SCF
+
+# SCF post-processing steps
+
+# BSE final states
+
+# Screen
+
+
+sub copyAndCompare
 {
-  my ($fh, %inputs ) = @_;
+  my $newRef = $_[0];
+  my $commonRef = $_[1];
+  my $oldRef = $_[2];
+  my $complete = $_[3];
+  my @tags = @{$_[4]};
 
-  print $fh "&control\n"
-        .  "  calculation = \'$inputs{'calctype'}\'\n"
-        .  "  prefix = \'$inputs{'prefix'}\'\n"
-        .  "  pseudo_dir = \'$inputs{'ppdir'}\'\n"
-        .  "  outdir = \'$inputs{'work_dir'}\'\n"
-        .  "  wfcdir = \'$inputs{'tmp_dir'}\'\n"
-        .  "  tstress = $inputs{'dft.calc_stress'}\n"
-        .  "  tprnfor = $inputs{'dft.calc_force'}\n"
-        .  "  wf_collect = .true.\n"
-        .  "  disk_io = 'low'\n"
-        .  "/\n";
-  print $fh "&system\n"
-        .  "  ibrav = $inputs{'ibrav'}\n"
-        .  "  nat = $inputs{'natoms'}\n"
-        .  "  ntyp = $inputs{'ntype'}\n"
-        .  "  noncolin = $inputs{'noncolin'}\n"
-        .  "  lspinorb = $inputs{'spinorb'}\n"
-        .  "  ecutwfc = $inputs{'ecut'}\n"
-        .  "  occupations = '$inputs{'occtype'}'\n"
-        .  "  smearing = $QE_smear[$inputs{'occopt'}]\n"
-        .  "  degauss = $inputs{'degauss'}\n"
-        .  "  nspin  = $inputs{'nspin'}\n"
-        .  "  tot_charge  = $inputs{'tot_charge'}\n"
-        .  "  nosym = $inputs{'nosym'}\n"
-        .  "  noinv = $inputs{'noinv'}\n";
-#        .  "  nosym = .true.\n"
-#        .  "  noinv = .true.\n";
-  unless( $inputs{'dft.functional'} =~ m/none/ )
+  my $comp;# = sub { $_[0] == $_[1] }; 
+
+  foreach my $t (@tags)
   {
-    print $fh "  input_dft = \'$inputs{'dft.functional'}\'\n";
-    foreach( @exx )
+    if( ref( $commonRef->{ $t } ) eq '' )
     {
-      if( $inputs{'dft.functional'} =~ m/$_/i )
-      {
-        print $fh "  nqx1 = $inputs{'nqx1'}, nqx2 = $inputs{'nqx2'}, nqx3 = $inputs{'nqx3'}\n";
-        last;
-      }
+#      print "$commonRef->{ $t } ---\n";
+      $newRef->{ $t } = $commonRef->{ $t };
+    }
+    else
+    {
+      $newRef->{ $t } = dclone $commonRef->{ $t };
+#      recursiveTouch( $newRef->{ $t }  );
+    }
+    
+    next unless( $complete->{'complete'} );
+    unless( exists $oldRef->{ $t } )
+    {
+      $complete->{'complete'} = JSON::PP::false;
+      next;
+    }
+
+    recursiveCompare( $newRef->{$t}, $oldRef->{$t}, $complete);
+    print "DIFF:   $t\n" unless( $complete->{'complete'} );
+  }
+
+}
+
+sub copyNoCompare
+{
+  my $newRef = $_[0];
+  my $commonRef = $_[1];
+  my @tags = @{$_[2]};
+
+  foreach my $t (@tags)
+  {
+    if( ref( $commonRef->{ $t } ) eq '' )
+    {
+      $newRef->{ $t } = $commonRef->{ $t };
+    }
+    else
+    {
+      $newRef->{ $t } = dclone $commonRef->{ $t };
     }
   }
-    
+}
 
 
-  if( $inputs{'print nbands'} > 0 ) # for scf no nbnd is set. 
-                                    # Therefore -1 is passed in and nothing is written to the input file
+sub recursiveTouch
+{
+  my $newRef = $_[0];
+  if( ref( $newRef ) eq 'ARRAY' )
   {
-    print $fh "  nbnd = $inputs{'print nbands'}\n";
-  }
-  if( $inputs{'smag'}  ne "" )
-  {
-    print $fh "$inputs{'smag'}\n";
-  }
-  if( $inputs{'ldau'}  ne "" )
-  {
-    print $fh "$inputs{'ldau'}\n";
-  }
-  if( $inputs{'qe_scissor'}  ne "" )
-  {
-    print $fh "$inputs{'qe_scissor'}\n";
-  }
-  if( $inputs{'ibrav'} != 0 )
-  {
-    print $fh "  celldim(1) = $inputs{'celldm1'}\n";
-  }
-  print $fh "/\n"
-        .  "&electrons\n"
-        .  "  conv_thr = $inputs{'etol'}\n"
-        .  "  mixing_beta = $inputs{'mixing'}\n"
-        .  "  electron_maxstep = $inputs{'nrun'}\n"
-        .  "  startingwfc = \'$inputs{'dft.startingwfc'}\'\n"
-        .  "  startingpot = \'$inputs{'dft.startingpot'}\'\n"
-        .  "  diagonalization = \'$inputs{'dft.diagonalization'}\'\n";
-  if( $inputs{'print nbands'} > 100 && $inputs{'calctype'} =~ m/nscf/i )
-  {
-    print $fh "  diago_david_ndim = 2\n";
-  }
-  if( $inputs{'nscfEXX'} == 1 )
-  {
-    # Since (at the moment) we are loading the SCF density
-    #  don't converge the density for the first iteration w/o EXX
-    print $fh "  adaptive_thr = .true., conv_thr_init = 1\n";
-  }
-  print $fh "/\n"
-        .  "&ions\n"
-        .  "/\n";
-
-#  open IN, "atompp" or die "$!";
-#  my $atompp;
-#  while (<IN>) { $atompp .= $_; }
-#  close IN;
-#  chomp $atompp;
-#  print $fh "ATOMIC_SPECIES\n" . $atompp . "\n";
-  print $fh "ATOMIC_SPECIES\n" . $inputs{'atompp'} . "\n";
-
-  if ($inputs{'ibrav'} == 0) {
-#    open IN, "acell" or die "$!";
-#    my $acell;
-#    while (<IN>) { $acell .= $_; }
-#    close IN;
-#    chomp $acell;
-#    print $fh "CELL_PARAMETERS cubic\n" . $acell . "\n";
-    print $fh "CELL_PARAMETERS cubic\n" . $inputs{'acell'} . "\n";
-  }
-
-  if( $coord_type =~ m/angst/ )
-  {
-    print $fh "ATOMIC_POSITIONS angstrom\n";
-  }
-  elsif( $coord_type =~ m/bohr/ || $coord_type =~ m/cart/ )
-  {
-    print $fh "ATOMIC_POSITIONS bohr\n";
+    for( my $i = 0; $i < scalar @{ $newRef }; $i++ )
+    {
+      recursiveTouch( @{$newRef}[$i] );
+    }
   }
   else
   {
-    print $fh "ATOMIC_POSITIONS crystal\n";
+    $newRef*=1 if( looks_like_number( $newRef ) );
   }
-#  open IN, "coords" or die;
-#  while (<IN>) { print $fh $_;}
-#  close IN;
-  print $fh $inputs{'coords'} . "\n";
+}
 
-  print $fh $inputs{'print kpts'};
 
+sub recursiveCompare
+{
+  my $newRef = $_[0];
+  my $oldRef = $_[1];
+  my $complete = $_[2];
+
+  return unless( $complete->{'complete'} );
+
+  
+  if( ref( $newRef ) eq 'ARRAY' )
+  {
+    if( scalar @{ $newRef } != scalar @{ $oldRef } )
+    {
+      $complete->{'complete'} = JSON::PP::false;
+      return;
+    }
+    for( my $i = 0; $i < scalar @{ $newRef }; $i++ )
+    {
+      recursiveCompare( @{$newRef}[$i], @{$oldRef}[$i], $complete );
+      return unless( $complete->{'complete'} );
+    }
+  }
+  else
+  {
+#    print "#!  $newRef  $oldRef\n";
+    if( looks_like_number( $newRef ) )
+    {
+      $complete->{'complete'} = JSON::PP::false unless( $newRef == $oldRef );
+    }
+    else
+    {
+      $complete->{'complete'} = JSON::PP::false unless( $newRef eq $oldRef );
+    }
+  }
+}
+
+sub checkSetGamma
+{
+  my $hashRef = $_[0];
+
+  my $minQ = 0.0000001;
+
+  if( $hashRef->{'kmesh'}[0] == 1 && $hashRef->{'kmesh'}[1] == 1 && $hashRef->{'kmesh'}[1] == 1 
+      && abs($hashRef->{'kshift'}[0]) < $minQ && abs($hashRef->{'kshift'}[1]) < $minQ 
+      && abs($hashRef->{'kshift'}[0]) < $minQ )
+  {
+    $hashRef->{'isGamma'} = JSON::PP::true;
+  } 
+  else
+  {
+    $hashRef->{'isGamma'} = JSON::PP::false;
+  }
+
+}
+
+sub shiftKpointsByPhoton 
+{
+  my $hashRef = $_[0];
+  my $photon_q = $_[1];
+  
+  for( my $i = 0; $i < 3; $i ++ ) {
+    my $kactual = $hashRef->{'kshift'}[$i]/$hashRef->{'kmesh'}[$i];
+    $kactual -= @{$photon_q}[$i];
+    while( $kactual < 0 ) { $kactual += 1; }
+    while( $kactual >= 1 ) { $kactual -= 1; }
+    $kactual *= $hashRef->{'kmesh'}[$i];
+    $hashRef->{'kshift'}[$i] = $kactual;
+  }
 }

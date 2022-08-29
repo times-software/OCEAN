@@ -81,7 +81,7 @@ program ocean
     call ocean_sys_update( sys, ierr )
   enddo
 
-  call OCEAN_tk_printtimes( myid )
+  call OCEAN_tk_printtimes( myid, comm )
 
   call ocean_mpi_finalize( ierr )
 

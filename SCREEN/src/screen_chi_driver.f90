@@ -71,7 +71,9 @@ module screen_chi_driver
 
         call MPI_BARRIER( pinfo%comm, ierr )
         if( ierr .ne. 0 ) return 
+#ifdef PRINTLOG
         write(1000+myid,*) 'Chi Driver site: ', isite
+#endif
 
         NR = screen_chi_NR( all_sites( isite )%grid )
         dims = screen_sites_returnWavefunctionDims( all_sites( isite ) )

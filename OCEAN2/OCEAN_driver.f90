@@ -27,7 +27,7 @@ module OCEAN_driver
     use OCEAN_system, only : o_system
     use OCEAN_psi, only : ocean_vector
     use OCEAN_haydock, only : OCEAN_haydock_do
-    use OCEAN_gmres, only : OCEAN_gmres_do
+    use OCEAN_gmres, only : OCEAN_gmres_do, OCEAN_gmres_do_recycle
     !
     type( o_system ), intent( in ) :: sys
     type( ocean_vector ), intent( inout ) :: hay_vec
@@ -39,7 +39,8 @@ module OCEAN_driver
       case('hay')
         call OCEAN_haydock_do( sys, hay_vec, restartBSE, newEps, ierr )
       case('inv')
-        call OCEAN_gmres_do( sys, hay_vec, ierr )
+!        call OCEAN_gmres_do( sys, hay_vec, ierr )
+        call OCEAN_gmres_do_recycle( sys, hay_vec, ierr )
       case default
         if( myid .eq. root ) write(6,*) 'Unrecognized calc style:', style
     end select

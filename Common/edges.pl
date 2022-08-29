@@ -34,6 +34,12 @@ if (! $ENV{"OCEAN_BIN"} ) {
 if (! $ENV{"OCEAN_WORKDIR"}){ $ENV{"OCEAN_WORKDIR"} = `pwd` . "../" ; }
 if (!$ENV{"OCEAN_VERSION"}) {$ENV{"OCEAN_VERSION"} = `cat $ENV{"OCEAN_BIN"}/Version`; }
 
+if( -e "postDefaultsOceanDatafile" )
+{
+  print "New JSON detected. Not running edges.pl\n";
+  exit 0;
+}
+
 open IN, "calc" or die "Failed to open calc: $!\n";
 if( <IN> =~ m/val/i )
 {

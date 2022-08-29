@@ -27,8 +27,9 @@ program vhommod
   !
   real( kind=dp ), external :: levlou, sphj0, sphj1
   !
-  logical :: havenav, valenceGrid, thickShell
+  logical :: havenav, valenceGrid, thickShell, ex
   character(len=80) :: dummy
+  character(len=1), parameter :: delim_ = '/'
   !
   pi = 4.d0 * datan( 1.d0 )
   !
@@ -216,8 +217,16 @@ program vhommod
 
     if( valenceGrid ) then
       write( avgName, '(A3,I6.6)' ) 'avg', isite
+      inquire( file=avgName, exist=ex )
+      if( .not. ex ) then
+        write( avgName, '(A1,I6.6,A1,A3)' ) 'x', isite, delim_, 'avg' 
+      endif
     else
       write( avgName, '(A3,A2,I4.4)' ) 'avg', siteSymbol( isite ), siteIndex( isite )
+      inquire( file=avgName, exist=ex )
+      if( .not. ex ) then
+        write( avgName, '(A1,A2,I4.4,A1,A3)' ) 'z', siteSymbol(isite), siteIndex( isite ), delim_, 'avg'
+      endif
     endif
     write( 6, * ) trim( avgName )
 

@@ -1,0 +1,70 @@
+para_prefix{ mpirun -n 8 -hosts localhost }
+
+# Sets the DFT and PREP stage to consider bands starting at band 5 as possible 
+# conduction bands states. Note that the Cu psp has semi-core 3s (band 1 ) and 
+# 3p states (bands 2-4).
+bse.con_start 5
+
+# For the standard run no bse.occupation flags should be set
+# 
+
+# To set the electronic temperature (for occupation numbers only) 
+# to 0.025 Ha (about 8000 K) un-comment the next two lines
+# bse.occupation.type fermi
+# bse.occupation.value 0.025
+
+# Or you can set all the occupation numbers of previously occupied states
+# to all be the same by un-commenting the next two lines
+bse.occupation.type fixed
+bse.occupation.value 1.0
+
+dft qe
+dft.ldau.enable .true.
+dft.ldau.Hubbard_U { Hubbard_U(1) = 2.0 }
+#core_offset 217.633391064229
+core_offset .true.
+cnbse.spect_range { 5000 -30 70 }
+screen.grid.ang { 5 11 11 9 }
+screen.grid.deltar { 0.10 0.15 0.25 0.25 }
+screen.grid.shells { -1 4 6 10  }
+screen.grid.rmax 10
+calc xas
+metal .true.
+nkpt { 16 16 16 }
+cnbse.niter 200
+screen.nkpt{ 4 4 4 }
+ngkpt{ 10 10 10 }
+fband 3
+occopt 3
+nbands 20
+screen.nbands 100
+acell { 6.821910819 6.821910819 6.821910819 } 
+# 3.61 Angstroms, Ashcrof & Mermin
+rprim {
+0.0 0.5 0.5
+0.5 0.0 0.5
+0.5 0.5 0.0 }
+ntypat 1
+znucl { 29 }
+natom 1
+typat { 1  }
+xred {  0      0      0 }
+
+ecut -1
+toldfe 1.1d-10
+tolwfr 1.1d-10
+nstep 50
+diemac 100000
+CNBSE.xmesh { 8 8 8 }
+
+#edge information
+nedges 1
+edges{ 1 1 0  }
+
+# radius for shell for screening
+screen.shells{ 6.0 }
+cnbse.rad{ 6.0 }
+
+#Scaling Factor
+scfac 0.80
+#cnbse.broaden 0.5

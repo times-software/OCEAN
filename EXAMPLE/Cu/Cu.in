@@ -6,7 +6,6 @@ ngkpt{ 10 10 10 }
 fband 3
 occopt 3
 nbands 35
-cnbse.nbuse 25
 screen.nbands 100
 acell { 6.821910819 6.821910819 6.821910819 } 
 # 3.61 Angstroms, Ashcrof & Mermin

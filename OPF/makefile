@@ -11,6 +11,7 @@ install:
 	cd ppmod; make "INSTDIR = $(INSTDIR)" install
 	cd zatom; make "INSTDIR = $(INSTDIR)" install
 	cp opf.pl $(INSTDIR)/ 
+	cp upf2shirley.pl $(INSTDIR)/
 	cp validate_opts.pl $(INSTDIR)/
 	@if [ -f '$(ONCVPSP_DIR)/src/oncvpsp.x' ] ; \
 	then \

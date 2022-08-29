@@ -1,11 +1,7 @@
-# The pseudopotentials are in the main run directory
-ppdir {'../'}
 # Select to run the OBF version 
 #dft abi
 # Set this
 #para_prefix{ mpirun -n 64 --map-by ppr:8:socket }
-# Legacy, must be here for now and should be 1
-control 0
 
 ##############################
 # Convergence Params

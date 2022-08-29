@@ -800,7 +800,7 @@ module ocean_dft_files
       case default
         ierr = 1
         if( myid .eq. root ) then
-          write(6,*) 'Incorrect DFT flavor in odf_read_energies_single.'
+          write(6,*) 'Incorrect DFT flavor in odf_read_energies_split.'
           write(6,*) 'Probably a bug?'
         endif
     end select

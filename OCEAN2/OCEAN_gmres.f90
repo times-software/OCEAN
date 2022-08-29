@@ -30,8 +30,10 @@ module OCEAN_gmres
   logical :: echamp
   logical :: do_precondition = .true.
   logical :: allow_reuse_x = .true.
+  logical :: force_reuse_x = .true.
+  logical :: allow_recycle = .true.
 
-  public :: OCEAN_gmres_do, OCEAN_gmres_setup, OCEAN_gmres_clean
+  public :: OCEAN_gmres_do, OCEAN_gmres_setup, OCEAN_gmres_clean, OCEAN_gmres_do_recycle
 
   contains
 
@@ -203,6 +205,35 @@ module OCEAN_gmres
 
   end subroutine initialize_gmres_storage
 
+  subroutine make_recycle( current_iter, ener, prev_ener, gprc, hpsi1, psi_pcdiv, ierr )
+    use OCEAN_psi, only : OCEAN_psi_axpy, OCEAN_psi_min_set_prec, OCEAN_psi_3element_mult
+    integer, intent( in ) :: current_iter
+    real(DP), intent( in ) :: ener, prev_ener, gprc
+    type(OCEAN_vector), intent(inout) :: hpsi1
+    type(OCEAN_vector), intent(inout) :: psi_pcdiv
+    integer, intent( inout ) :: ierr
+    !
+    integer :: i
+    real(DP) :: delta
+
+    delta = ener - prev_ener
+
+    do i = 1, current_iter
+      call OCEAN_psi_axpy( delta, u_matrix( i ), au_matrix( i ), ierr )
+      if( ierr .ne. 0 ) return
+    enddo
+
+    !JTv think this is not correct
+!    call OCEAN_psi_min_set_prec( ener, gprc, hpsi1, psi_pcdiv, ierr, prev_ener )
+!    do i = 1, current_iter
+!      call OCEAN_psi_3element_mult( u_matrix(i), u_matrix(i), psi_pcdiv, ierr )
+!      if( ierr .ne. 0 ) return
+!      call OCEAN_psi_3element_mult( au_matrix(i), au_matrix(i), psi_pcdiv, ierr )
+!      if( ierr .ne. 0 ) return
+!    enddo
+    
+
+  end subroutine make_recycle
 
   subroutine update_gmres( current_iter, psi_g, psi_x, psi_ax, ierr)
     use OCEAN_mpi
@@ -337,6 +368,512 @@ module OCEAN_gmres
     !
   end subroutine update_gmres
 
+  subroutine eigensystem_gmres( iter, keep, ierr )
+!    use ocean_mpi, only : root, myid, MPI_REQUEST_NULL,  MPI_STATUSES_IGNORE
+    use ocean_mpi
+    use OCEAN_psi
+    integer, intent( in ) :: iter
+    integer, intent( inout ) :: keep
+    integer, intent( inout ) :: ierr
+
+    complex(DP), allocatable :: hess( :,: ), w(:), z(:,:), work(:), vl(:,:), vr(:,:)
+    real(DP), allocatable :: re_hess(:,:), im_hess(:,:), re_coeff_vec(:), im_coeff_vec(:), rwork(:)
+    integer, allocatable :: re_request(:,:), im_request(:,:), keep_list(:)
+    real(DP) :: itmp, rtmp
+    integer :: i, j, lwork, k, l, iter_start, ldvl
+    type(ocean_vector), allocatable :: new_u(:)
+
+    
+    allocate( re_hess( iter, iter ), im_hess( iter, iter ),  &
+              re_request( iter, iter ), im_request( iter, iter ), STAT=ierr )
+    if( ierr .ne. 0 ) return
+
+    re_hess = 0.0_DP
+    im_hess = 0.0_DP
+    re_request(:,:) = MPI_REQUEST_NULL
+    im_request(:,:) = MPI_REQUEST_NULL
+    
+    do i = 1, iter
+      do j = 1, min( i+1,iter)
+        call OCEAN_psi_dot( u_matrix( j ), au_matrix( i ), &
+                            re_request(j,i), re_hess( j,i ), ierr, &
+                            im_request( j,i ), im_hess( j,i ) )
+      enddo
+    enddo
+
+    do i = 1, iter
+      call MPI_WAITALL( iter, re_request(:,i), MPI_STATUSES_IGNORE, ierr )
+      if( ierr .ne. 0 ) return
+      call MPI_WAITALL( iter, im_request(:,i), MPI_STATUSES_IGNORE, ierr )
+      if( ierr .ne. 0 ) return
+    enddo
+    
+    allocate( w(iter), z(iter,iter) )
+    if( myid .eq. root ) then
+      lwork = iter * 12
+      allocate( hess( iter, iter ), work( lwork ) )
+      hess(:,:) = cmplx( re_hess(:,:), im_hess(:,:), DP )
+
+      call zhseqr('S', 'I', iter, 1, iter, hess, iter, w, z, iter, work, lwork, ierr )
+      if( ierr .ne. 0 ) then
+        keep = 0 
+      endif
+      ldvl = iter
+      allocate( vl(iter,iter), vr( iter, iter ), rwork( iter ) )
+      call ztrevc( 'R', 'A', .true., iter, z, iter, vl, ldvl, vr, iter, iter, l, work, rwork, ierr)
+      ierr = 0
+      z(:,:) = vr(:,:)
+      deallocate( hess, work, vl, vr )
+    endif
+    call MPI_BCAST( w, iter, MPI_DOUBLE_COMPLEX, root, comm, ierr )
+    if( ierr .ne. 0 ) return
+    call MPI_BCAST( z, iter*iter, MPI_DOUBLE_COMPLEX, root, comm, ierr )
+    if( ierr .ne. 0 ) return
+    call MPI_BCAST( keep, 1, MPI_INTEGER, root, comm, ierr )
+    if( ierr .ne. 0 ) return
+
+    keep = min( keep, iter )
+    allocate( keep_list( keep ) )
+    write(6,*) myid, keep, iter
+    keep_list(:) = 1
+    do i = 2, keep
+      k = i
+      do j = 1, i-1
+        if( abs(w(k)) .lt. abs(w(keep_list(j))) ) then
+          l = keep_list(j)
+          keep_list( j ) = k
+          k = l
+        endif
+      enddo
+      keep_list( i ) = k
+    enddo
+
+    do i = keep+1, iter
+      k = i
+      do j = 1, keep
+        if( abs(w(k)) .lt. abs(w(keep_list(j))) ) then
+          keep_list( j ) = k
+          k = j
+        endif
+      enddo
+    enddo
+
+
+    do j = 1, keep
+      i = keep_list(j)
+      if( myid .eq. root ) write(6,*) 'EIG-S:', i, real(abs(w(i)))
+       write(6,*) 'EIG-S:', myid, i, real(abs(w(i)))
+    enddo
+
+    call MPI_BARRIER( comm, ierr )
+
+    allocate( new_u(keep) )
+    do j = 1, keep
+      call OCEAN_psi_new( new_u( j ), ierr )
+      call OCEAN_psi_zero_min( new_u(j), ierr )
+      if( ierr .ne. 0 ) return
+      k = keep_list(j)
+      do i = 1, iter
+        if( k.lt.1 .or. k.gt.iter ) write(6,*) myid, j, k, keep_list(:)
+        rtmp = real( z(i,k), DP )
+        itmp = aimag( z(i,k) )
+        call OCEAN_psi_axpy( rtmp, u_matrix(i), new_u(j), ierr, itmp )
+        if( ierr .ne. 0 ) return
+      enddo
+    enddo
+
+    ! update u and au 
+    do j = 1, keep
+      call OCEAN_psi_copy_min( u_matrix(j), new_u(j), ierr )
+      if( ierr .ne. 0 ) return
+      call OCEAN_psi_zero_min( au_matrix(j), ierr )
+      if( ierr .ne. 0 ) return
+      rtmp = real( w(keep_list(j) ), DP )
+      itmp = aimag( w(keep_list(j) ) )
+      call OCEAN_psi_axpy( rtmp, new_u(j), au_matrix(j), ierr, itmp )
+      if( ierr .ne. 0 ) return
+      
+    enddo
+
+    deallocate(keep_list, new_u)
+    deallocate( re_hess, im_hess, re_request, im_request, w, z )
+
+    keep = 1
+    return
+    allocate( re_coeff_vec(keep), im_coeff_vec(keep), re_request(keep,1), im_request(keep,1) )
+    re_request(:,:) = MPI_REQUEST_NULL
+    im_request(:,:) = MPI_REQUEST_NULL
+    do j = 1, keep
+      re_coeff_vec(:) = 0.0_DP
+      im_coeff_vec(:) = 0.0_DP
+      do i = 1, j-1
+        call OCEAN_psi_dot( au_matrix( j ), au_matrix( i ), &
+                          re_request( i,1 ), re_coeff_vec( i ), ierr, &
+                          im_request( i,1 ), im_coeff_vec( i ) )
+      enddo
+      call OCEAN_psi_nrm( re_coeff_vec( j ), au_matrix( j ), ierr, &
+                        re_request( j,1 ) )
+      call MPI_WAITALL( j, re_request(1:j,1), MPI_STATUSES_IGNORE, ierr )
+      if( ierr .ne. 0 ) return
+      call MPI_WAITALL( j, im_request(1:j,1), MPI_STATUSES_IGNORE, ierr )
+      if( ierr .ne. 0 ) return
+      iter_start = ( j * ( j - 1 ) ) / 2
+      do i = 1, j
+        c_matrix( i + iter_start ) = cmplx( re_coeff_vec( i ), -im_coeff_vec( i ), DP )
+      enddo
+    enddo
+
+    deallocate( re_coeff_vec, im_coeff_vec, re_request, im_request )
+
+  end subroutine eigensystem_gmres
+
+  subroutine OCEAN_gmres_do_recycle( sys, hay_vec, ierr )
+    use OCEAN_psi
+    use OCEAN_system
+    use OCEAN_action, only : OCEAN_xact, OCEAN_action_h1
+    use OCEAN_constants, only : eV2Hartree, Hartree2eV
+    use OCEAN_mpi, only : myid, root, comm, MPI_STATUSES_IGNORE, MPI_REQUEST_NULL, MPI_INTEGER
+    use OCEAN_energies, only : OCEAN_energies_allow
+    use OCEAN_filenames, only : OCEAN_filenames_spectrum
+    !
+    type( o_system ), intent( in ) :: sys
+    type( ocean_vector ), intent( inout ) :: hay_vec
+    integer, intent( inout ) :: ierr
+    !
+    type( ocean_vector ) :: psi_x, psi_ax, hpsi1, psi_g, psi_pcdiv
+    type( ocean_vector), pointer :: psi_pg, psi_apg
+    !
+    real(DP) :: ener, rval, ival, gval, rel_error, fact, prev_energy
+    real(dp), parameter :: one = 1.0_dp
+    integer :: iter, step_iter, complete_iter, requests( 2 ), ierr_, prev_iter, global_iter, keep, i
+    logical :: loud = .false.
+    character( len=25 ) :: abs_filename
+    integer, parameter :: abs_fh = 76
+    type( ocean_vector ) :: hay_psi_x
+
+    integer :: nhflag(6)
+    nhflag(:) = sys%nhflag
+
+    requests( : ) = MPI_REQUEST_NULL
+
+    if( sys%cur_run%have_val ) then
+      fact = hay_vec%kpref * 2.0_dp * sys%celvol
+    else
+      fact = hay_vec%kpref
+    endif
+
+    if( myid .eq. root ) then
+
+      write ( 6, '(2x,1a8,1e15.8)' ) ' mult = ', hay_vec%kpref
+
+      call OCEAN_filenames_spectrum( sys, abs_filename, ierr )
+      open( unit=abs_fh,file=abs_filename,form='formatted',status='unknown' )
+      rewind( abs_fh )
+
+    endif
+    call MPI_BCAST( ierr, 1, MPI_INTEGER, root, comm, ierr_ )
+    if( ierr .ne. 0 ) return
+    if( ierr_ .ne. 0 ) then
+      ierr = ierr_
+      return
+    endif
+
+
+    ! Create all the psi vectors we need
+    call OCEAN_psi_new( psi_x, ierr )
+    if( ierr .ne. 0 ) return
+    !
+    call OCEAN_psi_new( psi_ax, ierr )
+    if( ierr .ne. 0 ) return
+    !
+    call OCEAN_psi_new( hpsi1, ierr )
+    if( ierr .ne. 0 ) return
+    call OCEAN_psi_new( psi_g, ierr )
+    if( ierr .ne. 0 ) return
+    !
+    call OCEAN_psi_new( psi_pcdiv, ierr )
+    if( ierr .ne. 0 ) return
+    !
+    call OCEAN_psi_new( hay_psi_x, ierr )
+    if( ierr .ne. 0 ) return
+    !!!!
+
+
+    ! Create the psi_min_arrays we will need
+    ! AX etc
+
+    ! Keep around H * (1,0) for making pcdiv for each loop
+    call OCEAN_psi_one_full( psi_x, ierr )
+    if( ierr .ne. 0 ) return
+
+    if( sys%cur_run%have_val ) then
+      call OCEAN_energies_allow( sys, psi_x, ierr )
+      if( ierr .ne. 0 ) return
+    endif
+
+    call OCEAN_xact( sys, interaction_scale, psi_x, hpsi1, ierr,.false. , nhflag)
+    if( ierr .ne. 0 ) return
+    
+
+    global_iter = 0
+    prev_iter = 0
+    prev_energy = -huge(prev_energy)
+
+    do step_iter = 1, gmres_nsteps
+      complete_iter = 0
+
+!      ener = e_list( iter ) * eV2Hartree 
+      ener = gmres_energy_list( step_iter ) * eV2Hartree
+      if( myid .eq. root ) write(6,'(F20.8)') ener * Hartree2eV
+
+
+      ! are we new or recycling?
+      !   need to tune when we throw out because the preconditioner is no longer valid
+      if( do_precondition .and. prev_iter .eq. 0 ) then 
+        prev_energy = ener
+        call OCEAN_psi_min_set_prec( ener, gmres_preconditioner, hpsi1, psi_pcdiv, ierr )
+        if( ierr .ne. 0 ) then
+          if( myid .eq. root ) write(6,*) 'OCEAN_psi_min_set_prec failed'
+          return
+        endif
+      endif
+
+      if( .not. allow_recycle ) then
+        prev_iter = 0
+      endif
+
+      if( prev_iter .eq. 0 ) then
+!        if( myid .eq. root ) write( 6, * ) 'no recycle: '
+        call set_initial_vector( sys, step_iter, psi_x, psi_g, psi_ax, hay_vec, ierr , nhflag)
+        if( ierr .ne. 0 ) then
+          if( myid .eq. root ) write( 6,*) 'set_initial_vector failed'
+          return
+        endif
+        if( loud ) then
+          call OCEAN_psi_nrm( gval, psi_g, ierr )  ! non-blocking wouldn't do any good
+          if( ierr .ne. 0 ) return
+
+          call OCEAN_psi_dot( hay_vec, psi_x, requests(1), rval, ierr, requests(2), ival )
+          if( ierr .ne. 0 ) return
+          call MPI_WAITALL( 2, requests, MPI_STATUSES_IGNORE, ierr )
+          if( ierr .ne. 0 ) return
+          if( myid .eq. 0 ) then
+            write ( 6, '(1p,2x,3i5,5(1x,1e15.8))' ) complete_iter, prev_iter, gmres_depth, &
+                  gval, gmres_convergence, ener, (1.0_dp - rval), -ival
+          endif
+        endif
+      else
+        ! recycle au_matrix
+        if( myid .eq. root ) write( 6, * ) 'recycle: ', prev_iter, (gmres_energy_list( step_iter ) - gmres_energy_list( step_iter -1))* eV2Hartree, (ener - prev_energy)
+        call make_recycle( prev_iter, gmres_energy_list( step_iter ) * ev2Hartree, & 
+                           gmres_energy_list( step_iter -1)* eV2Hartree, gmres_preconditioner, &
+                           hpsi1, psi_pcdiv, ierr)
+        if( ierr .ne. 0 ) return
+!        call OCEAN_psi_min_set_prec( ener, gmres_preconditioner, hpsi1, psi_pcdiv, ierr )
+!        if( ierr .ne. 0 ) then
+!          if( myid .eq. root ) write(6,*) 'OCEAN_psi_min_set_prec failed'
+!          return
+!        endif
+!        prev_energy = ener
+        call set_initial_vector( sys, step_iter, psi_x, psi_g, psi_ax, hay_vec, ierr , nhflag)
+        if( ierr .ne. 0 ) return
+        do iter = 1, prev_iter
+          call update_gmres( iter, psi_g, psi_x, psi_ax, ierr )
+          if( ierr .ne. 0 ) return
+          call OCEAN_psi_axmz( psi_ax, psi_g, hay_vec, ierr )
+        enddo
+          !
+
+        call OCEAN_psi_nrm( gval, psi_g, ierr )  ! non-blocking wouldn't do any good
+        if( ierr .ne. 0 ) return
+        if( loud ) then
+          call OCEAN_psi_dot( hay_vec, psi_x, requests(1), rval, ierr, requests(2), ival )
+          if( ierr .ne. 0 ) return
+          call MPI_WAITALL( 2, requests, MPI_STATUSES_IGNORE, ierr )
+          if( ierr .ne. 0 ) return
+          if( myid .eq. 0 ) then
+            write ( 6, '(1p,2x,3i5,5(1x,1e15.8))' ) complete_iter, iter, gmres_depth, &
+                  gval, gmres_convergence, ener, (1.0_dp - rval), -ival
+          endif
+        else
+          if( myid .eq. 0 ) then
+            write ( 6, '(1p,2x,3i5,3(1x,1e15.8),i8)' ) complete_iter, iter, gmres_depth, &
+                  gval, gmres_convergence, ener, global_iter
+          endif
+        endif
+!          if( myid.eq.root) write(*,*) 'conv check'
+        if( gval .lt. gmres_convergence ) then
+          goto 200 ! if convergered goto 200
+        endif
+        if( abs( prev_energy - ener ) > gmres_preconditioner/4.0_DP ) then
+          if( myid .eq. root ) write(6,*) 'PRECONDITIONER OUT OF RANGE'
+          prev_iter = 0
+          prev_energy = ener
+          call OCEAN_psi_min_set_prec( ener, gmres_preconditioner, hpsi1, psi_pcdiv, ierr )
+          if( ierr .ne. 0 ) then
+            if( myid .eq. root ) write(6,*) 'OCEAN_psi_min_set_prec failed'
+            return
+          endif
+        endif
+        !
+      endif
+
+      do ! outerloop for restarted GMRES
+      
+        do iter = prev_iter+1, gmres_depth
+          complete_iter = complete_iter + 1
+          global_iter = global_iter + 1
+          psi_pg => u_matrix( iter )
+          psi_apg => au_matrix( iter )
+          ! pg = g * pcdiv
+          if( do_precondition) then
+            call OCEAN_psi_3element_mult( psi_pg, psi_g, psi_pcdiv, ierr )
+          else
+            call OCEAN_psi_copy_min( psi_pg, psi_g, ierr )
+          endif
+          if( ierr .ne. 0 ) then
+            if( myid .eq. root ) write(6,*) 'do_precondition failed'
+            return
+          endif
+
+          call OCEAN_psi_min2full( psi_pg, ierr )
+          if( ierr .ne. 0 ) return
+
+          ! apg = H . pg
+          call OCEAN_xact( sys, interaction_scale, psi_pg, psi_apg, ierr )
+          if( ierr .ne. 0 ) return
+
+          ! apg = (e+iG) * pg - apg
+          call OCEAN_psi_axmy( psi_pg, psi_apg, ierr, ener, gmres_resolution )
+          if( ierr .ne. 0 ) return
+          call OCEAN_psi_free_fbe( psi_pg, ierr )
+          if( ierr .ne. 0 ) return
+          call OCEAN_psi_free_fbe( psi_apg, ierr )
+          if( ierr .ne. 0 ) return
+
+
+          call update_gmres( iter, psi_g, psi_x, psi_ax, ierr )
+
+          if( iter .eq. gmres_depth ) then
+            call OCEAN_psi_min2full( psi_x, ierr )
+            if( ierr .ne. 0 ) return
+            ! newi2loop section here
+            call OCEAN_xact( sys, interaction_scale, psi_x, psi_ax, ierr )
+            if( ierr .ne. 0 ) return
+
+            ! psi_ax = (ener + iG ) * psi_x - psi_ax
+            call OCEAN_psi_axmy( psi_x, psi_ax, ierr, ener, gmres_resolution )
+            if( ierr .ne. 0 ) return
+            !
+            if( ener .ne. prev_energy ) then
+              call OCEAN_psi_min_set_prec( ener, gmres_preconditioner, hpsi1, psi_pcdiv, ierr )
+              if( ierr .ne. 0 ) then
+                if( myid .eq. root ) write(6,*) 'OCEAN_psi_min_set_prec failed'
+                return
+              endif
+              prev_energy = ener
+            endif
+
+            ! find approximate eigenvectors/values
+!            keep = 5
+!            call eigensystem_gmres( iter, keep, ierr )
+!            prev_iter = keep
+!            do i = 1, prev_iter
+!              call update_gmres( i, psi_g, psi_x, psi_ax, ierr )
+!              if( ierr .ne. 0 ) return
+!              call OCEAN_psi_axmz( psi_ax, psi_g, hay_vec, ierr )
+!            enddo
+!            if( myid .eq. 0 ) write( 6, * ) 'eigen'
+            prev_iter = 0
+          endif
+
+          ! get new g
+          ! g = ax - b   !!! y = x - z
+          call OCEAN_psi_axmz( psi_ax, psi_g, hay_vec, ierr )
+          !
+
+          call OCEAN_psi_nrm( gval, psi_g, ierr )  ! non-blocking wouldn't do any good
+          if( ierr .ne. 0 ) return
+          if( loud ) then
+            call OCEAN_psi_dot( hay_vec, psi_x, requests(1), rval, ierr, requests(2), ival )
+            if( ierr .ne. 0 ) return
+            call MPI_WAITALL( 2, requests, MPI_STATUSES_IGNORE, ierr )
+            if( ierr .ne. 0 ) return
+            if( myid .eq. 0 ) then
+              write ( 6, '(1p,2x,3i5,5(1x,1e15.8))' ) complete_iter, iter, gmres_depth, &
+                    gval, gmres_convergence, ener, (1.0_dp - rval), -ival
+            endif
+          else
+            if( myid .eq. 0 ) then
+              write ( 6, '(1p,2x,3i5,3(1x,1e15.8),i8)' ) complete_iter, iter, gmres_depth, &
+                    gval, gmres_convergence, ener, global_iter
+            endif
+          endif
+!          if( myid.eq.root) write(*,*) 'conv check'
+          if( gval .lt. gmres_convergence ) then 
+            prev_iter = iter
+            if( iter .eq. gmres_depth ) prev_iter = 0 
+            goto 200 ! if convergered goto 200
+          endif
+!          if(myid.eq.root) write(*,*) 'no conv: ', step_iter
+        enddo
+
+
+      enddo
+
+!     Exit to here if we have converged
+200   continue
+!      prev_iter = iter
+
+      call OCEAN_psi_dot( hay_vec, psi_x, requests(1), rval, ierr, requests(2), ival )
+      if( ierr .ne. 0 ) return
+      call MPI_WAITALL( 2, requests, MPI_STATUSES_IGNORE, ierr )
+      if( ierr .ne. 0 ) return
+      if(myid.eq. root) then
+        rel_error = -gval / ival
+        write( abs_fh, '(1p,4(1e15.8,1x),1i6,x,i10)' ) ener * Hartree2eV, &
+                    (1.0_dp - rval )*fact, -ival*fact, rel_error, complete_iter, global_iter
+        flush(abs_fh)
+      endif
+
+      ! TODO: make this a separate flag
+      if ( echamp ) then
+
+        rval = 0.0_DP
+        call OCEAN_psi_3element_mult( hay_psi_x, hay_vec, psi_x, ierr, rval, .true. )
+        if( ierr .ne. 0 ) return
+!JTV
+!        call write_out_energy(sys, step_iter, hay_psi_x, nhflag, ierr)
+!        if( ierr .ne. 0 ) return
+      endif
+
+      if( echamp ) then
+
+        call write_out_echamp(sys, step_iter, psi_x, ierr)
+        if( ierr .ne. 0 ) return
+      endif
+    enddo
+!enddo 
+   ! Create all the psi vectors we need
+
+    call OCEAN_psi_kill( hay_psi_x, ierr )
+    if( ierr .ne. 0 ) return
+    call OCEAN_psi_kill( psi_x, ierr )
+       if( ierr .ne. 0 ) return
+    call OCEAN_psi_kill( psi_ax, ierr )
+    if( ierr .ne. 0 ) return
+    call OCEAN_psi_kill( hpsi1, ierr )
+    if( ierr .ne. 0 ) return
+    call OCEAN_psi_kill( psi_g, ierr )
+    if( ierr .ne. 0 ) return
+    call OCEAN_psi_kill( psi_pcdiv, ierr )
+    if( ierr .ne. 0 ) return
+
+
+    if( myid .eq. root ) close( abs_fh )
+
+
+  end subroutine OCEAN_gmres_do_recycle
 
   subroutine OCEAN_gmres_do( sys, hay_vec, ierr )
     use OCEAN_psi
@@ -580,6 +1117,7 @@ module OCEAN_gmres
         rel_error = -gval / ival
         write( abs_fh, '(1p,4(1e15.8,1x),1i6)' ) ener * Hartree2eV, & 
                     (1.0_dp - rval )*fact, -ival*fact, rel_error, complete_iter
+        flush(abs_fh)
       endif
 
       ! TODO: make this a separate flag
@@ -655,6 +1193,7 @@ module OCEAN_gmres
                 .lt. 3.0_DP * gmres_resolution ) then
           initial = 'keep'
         endif
+        if( force_reuse_x ) initial = 'keep'
       endif
     endif
 

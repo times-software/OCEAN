@@ -222,11 +222,13 @@ module screen_centralPotential
     enddo
     
 !    call screen_centralPotential_dumpLog( znlPot, myid )
+#ifdef PRINTLOG
     write(1000+myid, * ) 'Central Potential: ', Nznl
 
     do i = 1, Nznl
       write(1000+myid, * ) znlpot( i )%z, znlpot( i )%n, znlpot( i )%l
     enddo
+#endif
 
   end subroutine screen_centralPotential_loadAll
 
@@ -235,11 +237,13 @@ module screen_centralPotential
     integer, intent( in ) :: myid
     integer :: i
 
+#ifdef PRINTLOG
     write(1000+myid, * ) 'Central Potential: ', size( pot%pot, 1 )
     write(1000+myid, * ) pot%z, pot%n, pot%l
     do i = 1, size( pot%pot, 1 )
       write(1000+myid, * ) pot%rad(i), pot%pot(i)
     enddo
+#endif
   end subroutine screen_centralPotential_dumpLog
 
 
@@ -392,7 +396,7 @@ module screen_centralPotential
       endif
     enddo
 
-!#ifdef DEBUG
+#ifdef DEBUG
     write(6,*) 'newScreenShell', rad, newPot%rad( size( newPot%rad ) )
     write(filename,'(A,F4.2)') 'vpert.', rad
     open(unit=99,file=filename, form='formatted' )
@@ -400,7 +404,7 @@ module screen_centralPotential
       write(99,* ) newPot%rad( i ), newPot%pot( i ), pot%pot( i )
     enddo
     close( 99 )
-!#endif
+#endif
 
     newPot%z = pot%z
     newPot%n = pot%n

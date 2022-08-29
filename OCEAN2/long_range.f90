@@ -1642,6 +1642,9 @@ module ocean_long_range
                   else
                     call intval( nptab, rtab, ptab, r, potn, 'cap', 'cap' )
                   end if
+!                  if( myid .eq. root ) then
+!                    write( 11111, '(3I3,5F24.12)' ) nint(xk(:)), alf(:), r, potn*pbc_prefac(3)
+!                  endif
 !                  if( myid .eq. root ) write(997,'(2E24.12,3F16.8)') r, potn, dir(:)!, sys%epsilon3D(:)
                   W( kiter, xiter - my_start_nx + 1 ) =  potn * pbc_prefac(3)
                 end do
@@ -1720,7 +1723,7 @@ module ocean_long_range
         open( unit=36, file='ibeg.h', form='formatted', status='old' )
       endif
       
-      if ( nbd .gt. 1 + ( ich - icl ) ) stop 'loadux ... nbd mismatch -- cf brange.ipt...'
+      if ( nbd .gt. 1 + ( ich - icl ) ) stop 'longrange ... nbd mismatch -- cf brange.ipt...'
       open( unit=u2dat, file='u2.dat', form='unformatted', status='unknown' )
       rewind u2dat
       write(6,*) 'nspn: ', sys%nspn
