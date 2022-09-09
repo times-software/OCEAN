@@ -1113,7 +1113,7 @@ module prep_wvfn
     integer, intent( inout ) :: ierr
     !
     integer :: boundaries( 3, 2 )
-    integer :: i, j, k, test
+    integer :: i, j, k, test, tx
 
     boundaries(:,1) = minval( gvecs, 2 )
     boundaries(:,2) = maxval( gvecs, 2 )
@@ -1127,24 +1127,34 @@ module prep_wvfn
     if( wantCKS ) fftGrid(:) = fftGrid(:) * 2
     write(1000+myid,'(A,3(X,I8))') 'FFT grid', fftGrid(:)
 
-    if( wantU2 ) then
+!    if( wantU2 ) then
+!      do i = 1, 3
+!        do j = 0, params%xmesh( i )
+!          if( mod( fftGrid( i ), params%xmesh( i ) ) .eq. 0 ) then
+!            exit
+!          else
+!            fftGrid( i ) = fftGrid( i ) + 1
+!          endif
+!        enddo
+!        if( mod( fftGrid( i ), params%xmesh( i ) ) .ne. 0 ) then
+!          ierr = i
+!          return
+!        endif
+!      enddo
+!    else
+      tx = 1
       do i = 1, 3
-        do j = 0, params%xmesh( i )
-          if( mod( fftGrid( i ), params%xmesh( i ) ) .eq. 0 ) then
-            exit
-          else
-            fftGrid( i ) = fftGrid( i ) + 1
-          endif
-        enddo
-        if( mod( fftGrid( i ), params%xmesh( i ) ) .ne. 0 ) then
-          ierr = i
-          return
-        endif
-      enddo
-    else
-      do i = 1, 3
-        do k = 0, 5
+        if( wantU2 ) tx = params%xmesh( i )
+! 60 is the largest gap in the 5-smooth numbers below 1000
+! for 7-smooth this drops to 45, but FFTW3 can do any factor
+!  with FFTW3 support, only check a few larger options before moving on
+#ifdef __FFTW3 
+        do k = 0, 5 + tx
+#else
+        do k = 0, 60 + tx
+#endif
           test = fftGrid(i) + k
+          if( mod( test, tx ) .ne. 0 ) cycle 
           if( debug ) write(1000+myid,*) 'TESTING: ', test
           do
             if( mod( test, 2 ) .ne. 0 ) exit
@@ -1164,24 +1174,45 @@ module prep_wvfn
             test = test / 7
             if( debug ) write(1000+myid,*) '   ', 7
           enddo
-          if( mod( test, 11 ) .eq. 0 ) then
-            test = test / 11
-            if( debug ) write(1000+myid,*) '   ', 11
-          endif
-          if( mod( test, 13 ) .eq. 0 ) then
-            test = test / 13
-            if( debug ) write(1000+myid,*) '   ', 13
-          endif
+! by default FFTW3 is best on 7-smooth numbers 
+!          if( mod( test, 11 ) .eq. 0 ) then
+!            test = test / 11
+!            if( debug ) write(1000+myid,*) '   ', 11
+!          endif
+!          if( mod( test, 13 ) .eq. 0 ) then
+!            test = test / 13
+!            if( debug ) write(1000+myid,*) '   ', 13
+!          endif
 #endif
           if( test .eq. 1 ) then
             fftGrid(i) = fftGrid(i) + k
-            if( debug ) write(1000+myid,*) 'TESTING:    ', fftGrid(i)
+            if( debug ) write(1000+myid,*) 'TESTING:    ', fftGrid(i), tx
             exit
           endif
 
         enddo
+        
+        ! If we need U2 then we need an FFT grid that is compatible
+        !  if we have't found one we can recover for FFTW since
+        !  it allows arbitrary lengths. 
+        if( mod( fftGrid(i), tx ) .ne. 0 ) then
+#ifdef __FFTW3
+          do k = 0, params%xmesh( i )
+            if( mod( fftGrid( i ), params%xmesh( i ) ) .eq. 0 ) then
+              exit
+            else
+              fftGrid( i ) = fftGrid( i ) + 1
+            endif
+          enddo
+#else
+          write(1000+myid,*) 'Failed to find acceptable FFT grid', fftGrid(i), tx
+          ierr = 101
+          return
+#endif
+        endif
+
       enddo
-    endif
+!    endif
     write(1000+myid,'(A,3(X,I8))') 'FFT grid', fftGrid(:)
 
   end subroutine prep_wvfn_checkFFT
