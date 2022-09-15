@@ -50,6 +50,7 @@
          0.25,
          0.375
       ],
+      "mimic_exciting_bands" : false,
       "nbands" : "range",
       "occupation" : {
          "type" : "none",

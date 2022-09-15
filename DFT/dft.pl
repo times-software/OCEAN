@@ -737,6 +737,11 @@ $newDftData->{'bse'}->{'brange'}[0] = $newDftData->{'znscf'}->{$newDftData->{'bs
 $newDftData->{'bse'}->{'brange'}[1] = $newDftData->{'znscf'}->{$newDftData->{'bse'}->{'directories'}[-1]}->{'brange'}[1];
 $newDftData->{'bse'}->{'brange'}[2] = $newDftData->{'znscf'}->{$newDftData->{'bse'}->{'directories'}[0]}->{'brange'}[2];
 
+if( $commonOceanData->{'bse'}->{'mimic_exciting_bands'} ) {
+  $newDftData->{'bse'}->{'brange'}[3] = $newDftData->{'bse'}->{'brange'}[2] 
+                                      + $commonOceanData->{'bse'}->{'mimic_exciting_bands'} - 1;
+}
+
 # Grab times and hashes
 $newDftData->{'screen'}->{'time'} = $newDftData->{'znscf'}->{ $newDftData->{'screen'}->{'directories'}[0] }->{'time'};
 $newDftData->{'screen'}->{'hash'} = $newDftData->{'znscf'}->{ $newDftData->{'screen'}->{'directories'}[0] }->{'hash'};

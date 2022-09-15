@@ -1133,7 +1133,12 @@ sub checkBands
 
   # Do nothing if we have a positive number of bands
   if( $nb =~ m/^\s*(-?\d+)\s*$/ ) {
-    return if( $nb > 0); 
+    if( $nb > 0) {
+      if( exists $bandRef->{'mimic_exciting_bands'} ) {
+        $bandRef->{'mimic_exciting_bands'} = JSON::PP::false;
+      }
+      return
+    }
   }
 
   # Not zero means add to total valence bands, continue but WARN if no electron count
@@ -1142,12 +1147,18 @@ sub checkBands
   {
     $flag = 1;
     $nb = abs( $nb );
+    if( exists $bandRef->{'mimic_exciting_bands'} ) {
+      if( $bandRef->{'mimic_exciting_bands'} ) {
+        $bandRef->{'mimic_exciting_bands'} = $nb;
+      }
+    }
   }
   else
   {
     $nb = 0.019 * $hashRef->{'structure'}->{'volume'} * ( ($energyRef/13.605)**(3/2) );
     $nb = 1 if ($nb < 1 );
     print "$nb  $hashRef->{'structure'}->{'volume'} $energyRef\n";
+    $bandRef->{'mimic_exciting_bands'} = JSON::PP::false;
   }
 
   if( $hashRef->{'structure'}->{'valence_electrons'} < 1 )
