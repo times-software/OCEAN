@@ -39,6 +39,7 @@
       "dft_energy_range" : "f",
       "kmesh" : "af",
       "kshift" : "af",
+      "mimic_exciting_bands" : "b",
       "nbands" : "i",
       "occupation" : {
          "type" : "s",
