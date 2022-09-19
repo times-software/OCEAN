@@ -262,7 +262,7 @@ module OCEAN_haydock
 
 
       ! This should be hoisted back up here
-      call ocean_hay_ab( sys, psi, new_psi, old_psi, iter, restartBSE, newEps, ierr )
+      call ocean_hay_ab_twoterm( sys, psi, new_psi, old_psi, iter, restartBSE, newEps, ierr )
       if( ierr .ne. 0 ) return
       if( restartBSE ) goto 11
 
@@ -817,6 +817,113 @@ module OCEAN_haydock
     
 
   end subroutine OCEAN_hay_ab
+
+  subroutine OCEAN_hay_ab_twoterm( sys, psi, hpsi, old_psi, iter, restartBSE, newEps, ierr )
+#ifdef __HAVE_F03
+    use, intrinsic :: ieee_arithmetic, only: ieee_is_nan
+#endif
+    use OCEAN_system, only : O_system
+    use OCEAN_psi
+    use OCEAN_mpi, only : root, myid, comm, &
+                          MPI_DOUBLE_PRECISION, MPI_LOGICAL, MPI_INTEGER, MPI_STATUS_IGNORE
+    use OCEAN_constants, only : Hartree2eV
+
+    implicit none
+    integer, intent(inout) :: ierr                  
+    integer, intent(in) :: iter                     
+    type(O_system), intent( in ) :: sys
+    type(OCEAN_vector), intent(inout) :: psi, hpsi, old_psi 
+    logical, intent(inout) :: restartBSE
+    real(DP), intent(inout) :: newEps
+
+    real(dp) :: btmp, atmp, aitmp
+    integer :: ialpha, ikpt, arequest, airequest, brequest 
+   
+    ! hpsi -= b(i-1) * psi^{i-1}
+    btmp = -real_b(iter-1)
+    ! y:= a*x + y
+    call OCEAN_psi_axpy( btmp, old_psi, hpsi, ierr )
+    if( ierr .ne. 0 ) return
+
+    ! calc ctmp = < hpsi | psi > and begin Iallreduce
+    call OCEAN_psi_dot( hpsi, psi, arequest, atmp, ierr, airequest, aitmp )
+    if( ierr .ne. 0 ) return
+
+    ! finish allreduce to get atmp
+    ! we want iatmp too (for output/diagnostics), but that can wait
+    call MPI_WAIT( arequest, MPI_STATUS_IGNORE, ierr )
+    if( ierr .ne. 0 ) return
+    real_a(iter-1) = atmp
+
+    ! hpsi -= a(i) * psi^{i}
+    atmp = -atmp
+    call OCEAN_psi_axpy( atmp, psi, hpsi, ierr )
+    if( ierr .ne. 0 ) return
+
+    !
+    call OCEAN_psi_dot( hpsi, hpsi, brequest, btmp, ierr )
+    if( ierr .ne. 0 ) return
+
+    ! copies psi onto old_psi
+    call OCEAN_psi_copy_min( old_psi, psi, ierr )
+    if( ierr .ne. 0 ) return
+
+    call MPI_WAIT( brequest, MPI_STATUS_IGNORE, ierr )
+    if( ierr .ne. 0 ) return
+
+    real_b(iter) = sqrt( btmp )
+    real_c(iter) = real_b(iter)
+    btmp = 1.0_dp / real_b( iter )
+    call OCEAN_psi_scal( btmp, hpsi, ierr )
+    if( ierr .ne. 0 ) return
+
+    ! copies hpsi onto psi
+    call OCEAN_psi_copy_min( psi, hpsi, ierr )
+    if( ierr .ne. 0 ) return
+
+    call OCEAN_psi_prep_min2full( psi, ierr )
+    if( ierr .ne. 0 ) return
+
+    call OCEAN_psi_start_min2full( psi, ierr )
+    if( ierr .ne. 0 ) return
+
+    call MPI_WAIT( airequest, MPI_STATUS_IGNORE, ierr )
+    if( ierr .ne. 0 ) return
+    imag_a(iter-1) = aitmp
+
+    if( myid .eq. 0 ) then
+      write ( 6, '(1x,6(f20.13,2x),i6)' ) real_a(iter-1)*Hartree2eV, imag_a(iter-1) * Hartree2eV, &
+                                                    real_b(iter) * Hartree2eV, imag_b(iter) * Hartree2eV, &
+                                                    real_c(iter) * Hartree2eV, imag_c(iter) * Hartree2eV, iter
+
+      if( mod( iter, 10 ) .eq. 0 ) call haydump( iter, sys, psi%kpref, ierr )
+#ifdef __HAVE_F03
+      if( ieee_is_nan( real_a(iter-1) ) ) then
+#else
+      if( real_a(iter-1) .ne. real_a(iter-1) ) then
+#endif
+        write(6,*) 'NaN detected'
+        ierr = -1
+        return
+      endif
+
+      if( sys%convEps .and. sys%cur_run%calc_type .eq. 'VAL' ) then
+        call testConvergeEps( iter, sys, psi%kpref, sys%celvol, sys%valence_ham_spin, restartBSE, newEps )
+      endif
+!      call haydump( iter, sys, ierr )
+    endif
+
+    if( sys%convEps ) then
+      call MPI_BCAST( restartBSE, 1, MPI_LOGICAL, root, comm, ierr )
+      call MPI_BCAST( newEps, 1, MPI_DOUBLE_PRECISION, root, comm, ierr )
+    endif
+
+    ! Might be moved up & out?
+    call OCEAN_psi_finish_min2full( psi, ierr )
+    if( ierr .ne. 0 ) return
+
+
+  end subroutine  OCEAN_hay_ab_twoterm
 
 #if 0
 ! Alternate ordering of orthogonalization as given originially by Chris Paige
