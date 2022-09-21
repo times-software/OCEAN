@@ -700,6 +700,16 @@ unless( $newDftData->{'bse'}->{'complete'} ) {
 }
 }
 
+if( -e "redo_energies" ) {
+  print "Re-calculating energies\n";
+  foreach (@{$newDftData->{'bse'}->{'directories'}}) {
+    QErunParseEnergies( $newDftData, $newDftData->{'znscf'}->{$_}, 0 );
+  }
+  QErunParseEnergies( $newDftData, $newDftData->{'znscf'}->{$newDftData->{'screen'}->{'directories'}[0]}, 0 );
+#  QErunParseEnergies( $newDftData, $newDftData->{'bse'}, 0 );
+#  QErunParseEnergies( $newDftData, $newDftData->{'screen'}, 0 );
+}
+
 # touch up Fermi if insulator
 if( $newDftData->{'general'}->{'occopt'} == 1 && $newDftData->{'general'}->{'program'} eq "qe" )
 {

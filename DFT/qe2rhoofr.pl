@@ -35,10 +35,13 @@ if( $ngx < 0 )
   die "Failed to parse $infile\n";
 }
 
-<IN>; # lattice info
-<IN>; # unit vec x
-<IN>; # unit vec y
-<IN>; # unit vec z
+# lattice info
+<IN> =~ m/^\s*(\d+)/ or die "Failed to parse lattice line in $infile\n";
+if( $1 == 0 ) {
+  <IN>; # unit vec x
+  <IN>; # unit vec y
+  <IN>; # unit vec z
+}
 <IN>; # volume, nelectron, nbands? something?
 
 for( my $i = 0; $i < $ntypat; $i++ )
