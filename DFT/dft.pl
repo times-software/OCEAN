@@ -101,7 +101,7 @@ $newDftData->{'scf'}->{'complete'} = JSON::PP::false unless( exists $dftData->{'
 
 $newDftData->{'structure'} = {};
 
-my @structureList = ( "typat", "xred", "znucl", "avecs", "zsymb", "valence_electrons", "bvecs", "metal" );
+my @structureList = ( "typat", "xred", "znucl", "avecs", "zsymb", "valence_electrons", "bvecs", "metal", "charge" );
 copyAndCompare( $newDftData->{'structure'}, $commonOceanData->{'structure'}, $dftData->{'structure'}, 
                 $newDftData->{'scf'}, \@structureList );
 
@@ -123,7 +123,7 @@ copyAndCompare( $newDftData->{'psp'}, $commonOceanData->{'psp'}, $dftData->{'psp
 
 # Only check the first list against previous runs
 my @generalList = ( "degauss", "ecut", "fband", "functional", "noncolin", "nspin", "occopt", 
-                    "program", "smag", "spinorb", "tot_charge", "verbatim" );
+                    "program", "smag", "spinorb", "verbatim" );
 my @generalSecondaryList = ( "calc_force", "calc_stress", "diagonalization", "mixing", 
                              "nstep", "redirect", "startingwfc", "tmp_dir", "abpad" );
 $newDftData->{'general'} = {};

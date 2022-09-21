@@ -922,10 +922,7 @@ sub QEprintInput
         .  "  smearing = $QE_smear[$generalRef->{'general'}->{'occopt'}]\n"
         . (sprintf "  degauss = %g\n  nspin  = %i\n  tot_charge = %g\n", 
               $generalRef->{'general'}->{'degauss'}, $generalRef->{'general'}->{'nspin'},
-              $generalRef->{'general'}->{'tot_charge'})
-#        .  "  degauss = $generalRef->{'general'}->{'degauss'}\n"
-#        .  "  nspin  = $generalRef->{'general'}->{'nspin'}\n"
-#        .  "  tot_charge  = $generalRef->{'general'}->{'tot_charge'}\n"
+              $generalRef->{'structure'}->{'charge'})
         .  "  nosym = $nosyminv\n"
         .  "  noinv = $nosyminv\n";
   unless( $generalRef->{'general'}->{'functional'} =~ m/default/ )

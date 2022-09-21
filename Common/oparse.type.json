@@ -154,7 +154,6 @@
       "tmp_dir" : "S",
       "toldfe" : "f",
       "tolwfr" : "f",
-      "tot_charge" : "f",
       "verbatim" : "S"
    },
    "opf" : {
@@ -212,6 +211,7 @@
       "shells" : "af"
    },
    "structure" : {
+      "charge" : "f",
       "epsilon" : "f",
       "metal" : "b",
       "rprim" : "af",
