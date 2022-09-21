@@ -19,6 +19,9 @@ module ocean_long_range
   real( DP ), pointer :: re_bloch_state( :, :, :, : )
   real( DP ), pointer :: im_bloch_state( :, :, :, : )
   real( DP ), pointer :: W( :, : )
+  real( SP ), pointer :: re_bloch_state_sp( :, :, :, : )
+  real( SP ), pointer :: im_bloch_state_sp( :, :, :, : )
+  real( SP ), pointer :: W_sp( :, : )
 
   real( DP ) :: my_tau( 3 )
   integer :: my_xshift( 3 )
@@ -39,6 +42,8 @@ module ocean_long_range
 
   real( DP ) :: iso_cut = 0.0_DP
   logical :: isolated = .false.
+
+  logical :: use_sp = .true.
   
   type(fft_obj) :: fo
 
@@ -170,11 +175,19 @@ module ocean_long_range
 !      call c_f_pointer( cptr, im_bloch_state, [my_num_bands, my_kpts, my_xpts, sys%nspn] )
 
 !      cptr = fftw_alloc_real( int( my_kpts * my_xpts, C_SIZE_T) )
-!      call c_f_pointer( cptr, W, [ my_kpts, my_xpts ] )
+!      call c_f_pointer( cptr, n, [ my_kpts, my_xpts ] )
 
-      allocate( re_bloch_state( my_num_bands, my_kpts, my_xpts, sys%nspn ), &
-                im_bloch_state( my_num_bands, my_kpts, my_xpts, sys%nspn ), &
-                W( my_kpts, my_xpts ) )
+      if( use_sp ) then
+        allocate( re_bloch_state_sp( my_num_bands, my_kpts, my_xpts, sys%nspn ), &
+                  im_bloch_state_sp( my_num_bands, my_kpts, my_xpts, sys%nspn ), &
+                  W( my_kpts, my_xpts ), &
+                  re_bloch_state(0,0,0,0), im_bloch_state(0,0,0,0) )
+      else 
+        allocate( re_bloch_state( my_num_bands, my_kpts, my_xpts, sys%nspn ), &
+                  im_bloch_state( my_num_bands, my_kpts, my_xpts, sys%nspn ), &
+                  W( my_kpts, my_xpts ), &
+                  re_bloch_state_sp(0,0,0,0), im_bloch_state_sp(0,0,0,0) )
+      endif
 
       ! The states are arranged with z being the fast axis
       kmesh( 1 ) = sys%kmesh( 3 )
@@ -209,6 +222,11 @@ module ocean_long_range
       my_tau( : ) = sys%cur_run%tau( : )
       
       if( use_obf ) then
+        if( use_sp ) then
+          ierr = 9823
+          write(6,*) 'use_sp and use_obf not implemented'
+          return
+        endif
 !JTV for now populate lr from obf
         if( use_fake_obf ) then
           if( myid .eq. root ) write( 6,*) 'Calling obf_lrLOAD'
@@ -221,7 +239,8 @@ module ocean_long_range
 !       call OCEAN_obf_lrLOAD( sys, my_tau, my_xshift, ierr )
 !      if( use_obf .eqv. .false. ) then
       else
-        call OCEAN_bloch_lrLOAD( sys, my_tau, my_xshift, re_bloch_state, im_bloch_state, ierr )
+        call OCEAN_bloch_lrLOAD( sys, my_tau, my_xshift, re_bloch_state, im_bloch_state, &
+                                 re_bloch_state_sp, im_bloch_state_sp, use_sp, ierr )
         if( ierr .ne. 0 ) return
       endif
 
@@ -755,6 +774,8 @@ module ocean_long_range
     !
     !
     real( DP ), allocatable :: xwrkr( : ), xwrki( : )
+    real( SP ), allocatable :: xwrkr_sp( : ), xwrki_sp( : ), hpr_holder(:,:), hpi_holder(:,:)
+    real( SP ), allocatable :: pr_holder(:,:), pi_holder(:,:)
     integer :: ialpha, ikpt, xiter, val_spin( sys%nalpha ), icms, icml, ivms
     integer :: nthread, nthread2, max_thread
     character(len=1) :: loop_type
@@ -764,6 +785,7 @@ module ocean_long_range
 
 #ifdef __INTEL_COMPILER
 ! DIR$ attributes align: 64 :: xwrkr, xwrki
+! DIR$ attributes align: 64 :: xwrkr_sp, xwrki_sp
 #endif
 
 
@@ -797,23 +819,51 @@ module ocean_long_range
 
 !$OMP PARALLEL DEFAULT( NONE ) NUM_THREADS( nthread ) &
 !$OMP& SHARED( W, hp, re_bloch_state, im_bloch_state, p, sys, val_spin, my_kpts, my_xpts, fo ) &
-!$OMP& PRIVATE( xwrkr, xwrki, ikpt, ialpha, xiter ) 
+!$OMP& SHARED( use_sp, re_bloch_state_sp, im_bloch_state_sp ) &
+!$OMP& PRIVATE( xwrkr, xwrki, ikpt, ialpha, xiter, xwrkr_sp, xwrki_sp, hpr_holder, hpi_holder ) &
+!$OMP& PRIVATE( pr_holder, pi_holder )
 
-    allocate( xwrkr( sys%nkpts ), xwrki( sys%nkpts ) )
+    if( use_sp ) then
+      allocate( xwrkr_sp( sys%nkpts ), xwrki_sp( sys%nkpts ) )
+      allocate( hpr_holder(size(hp%r,1),size(hp%r,2) ), hpi_holder(size(hp%r,1),size(hp%r,2)), &
+                pr_holder(size(hp%r,1),size(hp%r,2) ), pi_holder(size(hp%r,1),size(hp%r,2)) )
 
 !  Collapsing the loop over x will require a reduction on hp%r/hp%i
 !$OMP DO COLLAPSE( 1 ) SCHEDULE( STATIC )
-    do ialpha = 1, sys%nalpha
-      do xiter = 1, my_xpts
+      do ialpha = 1, sys%nalpha
+        pr_holder(:,:) = p%r(:,:,ialpha)
+        pi_holder(:,:) = p%i(:,:,ialpha)
+        hpr_holder(:,:) = 0.0_SP
+        hpi_holder(:,:) = 0.0_SP
+        do xiter = 1, my_xpts
 
-        call lr_kernel( sys, p, hp%r(:,:,ialpha), hp%i(:,:,ialpha), & 
-                        xwrkr, xwrki, ialpha, xiter, val_spin(ialpha))
+          call lr_kernel_sp( sys, pr_holder, pi_holder, hpr_holder, hpi_holder, &
+                          xwrkr_sp, xwrki_sp, ialpha, xiter, val_spin(ialpha))
 
+        enddo
+        hp%r(:,:,ialpha) = hp%r(:,:,ialpha) + real( hpr_holder(:,:), DP )
+        hp%i(:,:,ialpha) = hp%i(:,:,ialpha) + real( hpi_holder(:,:), DP )
       enddo
-    enddo
+!$OMP END DO NOWAIT
+      deallocate( hpr_holder, hpi_holder, pr_holder, pi_holder )
+      deallocate( xwrkr_sp, xwrki_sp )
+    else
+      allocate( xwrkr( sys%nkpts ), xwrki( sys%nkpts ) )
+
+!  Collapsing the loop over x will require a reduction on hp%r/hp%i
+!$OMP DO COLLAPSE( 1 ) SCHEDULE( STATIC )
+      do ialpha = 1, sys%nalpha
+        do xiter = 1, my_xpts
+
+          call lr_kernel( sys, p, hp%r(:,:,ialpha), hp%i(:,:,ialpha), & 
+                          xwrkr, xwrki, ialpha, xiter, val_spin(ialpha))
+
+        enddo
+      enddo
 !$OMP END DO NOWAIT
 
-    deallocate( xwrkr, xwrki )
+      deallocate( xwrkr, xwrki )
+    endif
 
 !$OMP END PARALLEL
 
@@ -912,6 +962,140 @@ module ocean_long_range
 
   end subroutine lr_kernel
 
+  subroutine lr_kernel_sp( sys, pr, pi, hpr, hpi, xwrkr, xwrki, ialpha, xiter, val_spin )
+    use OCEAN_system
+    use OCEAN_psi   
+    use FFT_wrapper, only : OCEAN_FORWARD, OCEAN_BACKWARD, FFT_wrapper_split, FFT_wrapper_single
+    implicit none
+    !
+    type( o_system ), intent( in ) :: sys
+    real(SP), dimension(sys%num_bands, sys%nkpts ), intent( in ) :: pr, pi
+    real(SP), dimension(sys%num_bands, sys%nkpts ), intent( inout ) :: hpr, hpi
+    real(SP), dimension( sys%nkpts ), intent( out ) :: xwrkr, xwrki
+    integer, intent( in ) :: ialpha, xiter, val_spin
+    complex(DP), allocatable :: scratch(:)
+    complex(SP), allocatable :: psi_temp(:), psi_temp_i(:)
+    
+    real(SP), external :: SDOT
+    !
+    real( SP ), parameter :: one = 1.0_DP
+    real( SP ), parameter :: minusone = -1.0_DP
+    real( SP ), parameter :: zero = 0.0_DP
+
+    integer :: ikpt,i 
+    integer :: max_threads = 1
+!$  integer, external :: omp_get_max_threads
+    
+!$  max_threads = omp_get_max_threads()
+
+    xwrkr(:) = 0.0_SP
+    xwrki(:) = 0.0_SP
+
+    allocate( scratch( fo%dims(4) ) )
+
+!$OMP PARALLEL DEFAULT( NONE ) NUM_THREADS( nthread ) &
+!$OMP& SHARED( sys, pr, pi, hpr, hpi, xwrkr, xwrki, ialpha, xiter, val_spin, scratch ) &
+!$OMP& PRIVATE( psi_temp, psi_temp_i, ikpt, i )
+
+    allocate( psi_temp( sys%num_bands ), psi_temp_i( sys%num_bands) )
+
+
+!$OMP DO
+    do ikpt = 1, my_kpts
+#ifdef BLAS
+#if 1
+      xwrkr( ikpt ) = SDOT( sys%num_bands, pr(1,ikpt), 1, &
+                            re_bloch_state_sp(1,ikpt,xiter,val_spin), 1 ) &
+                    - SDOT( sys%num_bands, pi(1,ikpt), 1, &
+                            im_bloch_state_sp(1,ikpt,xiter,val_spin), 1 )
+      xwrki( ikpt ) = SDOT( sys%num_bands, pr(1,ikpt), 1, &
+                            im_bloch_state_sp(1,ikpt,xiter,val_spin), 1 ) &
+                    + SDOT( sys%num_bands, pi(1,ikpt), 1, &
+                            re_bloch_state_sp(1,ikpt,xiter,val_spin), 1 )
+
+#else
+      do i = 1, sys%num_bands
+!        psi_temp(i) = real( p%r(i,ikpt,ialpha), SP )
+!        psi_temp_i(i) = real( p%i(i,ikpt,ialpha), SP )
+        xwrkr( ikpt ) = xwrkr( ikpt ) &
+                      + pr( i, ikpt ) * re_bloch_state_sp( i, ikpt,xiter,val_spin) &
+                      - pi( i, ikpt ) * im_bloch_state_sp(i,ikpt,xiter,val_spin)
+        xwrki( ikpt ) = xwrki( ikpt ) &
+                      + pi( i, ikpt ) * re_bloch_state_sp( i, ikpt,xiter,val_spin) &
+                      + pr( i, ikpt ) * im_bloch_state_sp(i,ikpt,xiter,val_spin)
+      enddo
+#endif
+#else
+      psi_temp(:) = real( p%r(:,ikpt,ialpha), SP )
+      xwrkr( ikpt ) = dot_product(psi_temp(:), re_bloch_state_sp(:,ikpt,xiter,val_spin))
+      xwrki( ikpt ) = dot_product(psi_temp(:), im_bloch_state_sp(:,ikpt,xiter,val_spin)) 
+
+      psi_temp(:) = real( p%i(:,ikpt,ialpha), SP )
+      xwrkr( ikpt ) = xwrkr( ikpt ) &
+                    - dot_product(psi_temp(:), im_bloch_state_sp(:,ikpt,xiter,val_spin))
+      xwrki( ikpt ) = xwrki( ikpt ) &
+                    + dot_product(psi_temp(:), re_bloch_state_sp(:,ikpt,xiter,val_spin))
+#endif
+    enddo
+!$OMP END DO
+
+#ifndef __FFTW3
+!$OMP CRITICAL
+#endif 
+!$OMP SINGLE
+
+    scratch( : ) = cmplx( xwrkr( : ), xwrki( : ), DP )
+
+    call FFT_wrapper_single( scratch, OCEAN_BACKWARD, fo, .false. )
+    scratch( : ) = scratch( : ) * W( :, xiter )
+    call FFT_wrapper_single( scratch, OCEAN_FORWARD, fo, .false. )
+
+    xwrkr(:) = real(scratch(:) * fo%norm,SP)
+    xwrki(:) = real(aimag(scratch(:))  * fo%norm,SP)
+
+!$OMP END SINGLE
+#ifndef __FFTW3
+!$OMP END CRITICAL
+#endif
+
+!$OMP DO
+    do ikpt = 1, my_kpts
+#ifdef BLAS
+      call SAXPY( sys%num_bands, -xwrkr(ikpt), re_bloch_state_sp(1,ikpt,xiter,val_spin), 1, &
+                  hpr(1,ikpt), 1 )
+      call SAXPY( sys%num_bands, -xwrki(ikpt), im_bloch_state_sp(1,ikpt,xiter,val_spin), 1, &
+                  hpr(1,ikpt), 1 )
+      call SAXPY( sys%num_bands, -xwrki(ikpt), re_bloch_state_sp(1,ikpt,xiter,val_spin), 1, &
+                  hpi(1,ikpt), 1 )
+      call SAXPY( sys%num_bands, xwrkr(ikpt), im_bloch_state_sp(1,ikpt,xiter,val_spin), 1, &
+                  hpi(1,ikpt), 1 )
+#else
+#if 1
+      do i = 1, sys%num_bands
+        psi_temp(i) = re_bloch_state_sp(i,ikpt,xiter,val_spin) * xwrkr(ikpt) &
+                    + im_bloch_state_sp(i,ikpt,xiter,val_spin) * xwrki(ikpt)
+        psi_temp_i(i) = re_bloch_state_sp(i,ikpt,xiter,val_spin) * xwrki(ikpt) &
+                      - im_bloch_state_sp(i,ikpt,xiter,val_spin) * xwrkr(ikpt)
+      enddo
+      hpr(:,ikpt) = hpr(:,ikpt) - psi_temp(:)
+      hpi(:,ikpt) = hpi(:,ikpt) - psi_temp_i(:)
+#else
+      psi_temp(:) = re_bloch_state_sp(:,ikpt,xiter,val_spin) * xwrkr(ikpt) &
+                  + im_bloch_state_sp(:,ikpt,xiter,val_spin) * xwrki(ikpt)
+      hpr(:,ikpt) = hpr(:,ikpt) - real(psi_temp(:),DP)
+      psi_temp(:) = re_bloch_state_sp(:,ikpt,xiter,val_spin) * xwrki(ikpt) &
+                  - im_bloch_state_sp(:,ikpt,xiter,val_spin) * xwrkr(ikpt)
+      hpi(:,ikpt) = hpi(:,ikpt) - real(psi_temp(:),DP)
+#endif
+#endif
+    enddo
+!$OMP END DO NOWAIT
+
+    deallocate( psi_temp, psi_temp_i )
+!$OMP END PARALLEL
+    deallocate( scratch )
+
+  end subroutine lr_kernel_sp
 
 
   subroutine lr_act_cache( sys, p, hp, ierr )
