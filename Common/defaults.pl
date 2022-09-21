@@ -1544,14 +1544,14 @@ sub fixCoords
 
     $realLength /= 3;
 
-    for( my $i = 0; $i < $tauLength; $i++ )
+    for( my $i = 0; $i < $realLength; $i++ )
     { 
       $newRealspace[$i][0] = $hashRef->{'structure'}->{'xbohr'}[3*$i];
       $newRealspace[$i][1] = $hashRef->{'structure'}->{'xbohr'}[3*$i+1];
       $newRealspace[$i][2] = $hashRef->{'structure'}->{'xbohr'}[3*$i+2];
     }
     
-    for( my $i = 0; $i < $tauLength; $i++ )
+    for( my $i = 0; $i < $realLength; $i++ )
     { 
       $newReduced[$i][0] = $hashRef->{'structure'}->{'invA'}[0][0] * $newRealspace[$i][0]
                          + $hashRef->{'structure'}->{'invA'}[0][1] * $newRealspace[$i][1]
