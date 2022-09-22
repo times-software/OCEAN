@@ -20,6 +20,8 @@ module OCEAN_ladder
   real(DP), allocatable :: ladder( :, :, : )  !> The value of the ladder interactions in real-space (R,x,y)
   real(DP), allocatable :: re_bstate( :, :, :, : ) 
   real(DP), allocatable :: im_bstate( :, :, :, : )
+  real(SP), allocatable :: re_bstate_sp( :, :, :, : ) 
+  real(SP), allocatable :: im_bstate_sp( :, :, :, : )
 
   integer, allocatable :: kret( : )
 !  integer, allocatable :: nxpts_by_mpiID( : )
@@ -54,6 +56,8 @@ module OCEAN_ladder
 !  integer*8 :: bplan
   type(fft_obj) :: fo
 
+!  logical :: use_sp = .true.
+  logical :: use_resort_ladder = .false.
 
 !JTV legacy, to be removed
   integer :: ladcap(2,3)
@@ -79,6 +83,7 @@ module OCEAN_ladder
 subroutine OCEAN_ladder_act( sys, psi, psi_out, ierr )
   use OCEAN_psi
   use OCEAN_system
+  use OCEAN_val_states, only : use_sp
   implicit none
   !
   type(o_system), intent( in ) :: sys
@@ -95,7 +100,11 @@ subroutine OCEAN_ladder_act( sys, psi, psi_out, ierr )
       cspn = min( j, sys%nspn )
       ibeta = ibeta + 1
       
-      call OCEAN_ladder_act_single( sys, psi, psi_out, ibeta, cspn, vspn, ierr )
+      if( use_sp ) then 
+        call OCEAN_ladder_act_single_sp( sys, psi, psi_out, ibeta, cspn, vspn, ierr )
+      else
+        call OCEAN_ladder_act_single( sys, psi, psi_out, ibeta, cspn, vspn, ierr )
+      endif
       if( ierr .ne. 0 ) return
 
     enddo
@@ -556,10 +565,308 @@ end subroutine OCEAN_ladder_act
   end subroutine OCEAN_ladder_act_single
 
 
+!> @author John Vinson, NIST
+!
+!> @brief Acts the direct (ladder) part of the valence Hamiltonian on psi, 
+!! returning psi_out for a single spin combination in single precision
+!> @details Gives $\psi_{\textrm{out}} = \hat{K}^d \psi + \psi_{\textrm{out}}$ .
+!! We don't zero out psi_out because we are allowing multiple parts of the 
+!! Hamiltonian to be calculated before trying to sync the disparate 
+!! ocean_vectors. The direct interaction is diagonal in spin space, however, 
+!! we allow for the ocean_vectors to be spin-dependent (RIXS of L-edges) while 
+!! the DFT basis is not, hence we have decoupled the psi_spn from cspn and vspn.
+!!
+!! Includes OMP-level parallelism to improve scaling performance. The direct 
+!! interaction for the valence scales as the number of x-points squared and can 
+!! become very large.
+  subroutine OCEAN_ladder_act_single_sp( sys, psi, psi_out, psi_spn, cspn, vspn, ierr )
+    use OCEAN_psi
+    use OCEAN_mpi
+    use OCEAN_val_states, only : nxpts, nxpts_pad, re_val_sp, im_val_sp, re_con_sp, im_con_sp, &
+                                 nbv, nbc, max_nxpts, nxpts_by_mpiID, startx_by_mpiID
+    use OCEAN_system
+    use FFT_wrapper, only : OCEAN_FORWARD, OCEAN_BACKWARD, FFT_wrapper_single
+  
+    implicit none
+
+    type(o_system), intent( in ) :: sys
+    type(OCEAN_vector), intent( in ) :: psi
+    type(OCEAN_vector), intent( inout ) :: psi_out
+    integer, intent( in ) :: psi_spn, cspn, vspn
+    integer, intent( inout ) :: ierr
+
+    real(sp), allocatable :: re_a_mat(:,:,:), im_a_mat(:,:,:)
+    real(sp), allocatable :: re_b_mat(:,:,:), im_b_mat(:,:,:)
+    real(sp), allocatable :: re_tphi_mat(:,:,:), im_tphi_mat(:,:,:)
+    real(sp), allocatable :: re_phi_mat(:,:), im_phi_mat(:,:)
+    real(dp), allocatable :: fr(:,:,:), fi(:,:,:), vv(:)
+    real(sp), allocatable :: pr(:,:), pi(:,:) !, re_con_sp(:,:,:), im_con_sp(:,:,:)
+    complex(dp), allocatable :: scratch(:)
+#ifdef __FFTW_SP
+    complex(sp), allocatable :: scratch_sp(:)
+#endif
+
+    real(sp), parameter :: zero = 0.0_sp
+    real(sp), parameter :: one  = 1.0_sp
+    real(sp), parameter :: minusone = -1.0_sp
+    real(sp) :: beta, inverse_kpts, spin_prefac, minus_spin_prefac
+
+
+    integer :: ik, ib, ix, iy, iix, iik
+    integer :: ibc, x_block, y_block, nbv_block, nbc_block
+    integer :: i, j, k, id, nthread, block_temp, y_offset
+    integer :: joint_request(4)
+    integer :: psi_con_pad, val_pad, nkpts
+
+    logical :: test_flag
+
+!$  integer, external :: omp_get_num_threads
+
+
+#ifdef __INTEL
+!dir$ attributes align:64 :: re_a_mat, im_a_mat, re_b_mat, im_b_mat, re_tphi_mat, im_tphi_mat, scratch
+#endif
+
+!   This needs to be pulled out to allow spin = 1 or spin = 2 options
+    spin_prefac = -1.0_sp
+    minus_spin_prefac = - spin_prefac
+
+    call OCEAN_psi_returnBandPad( psi_con_pad, ierr )
+    if( ierr .ne. 0 ) return
+
+    val_pad = nbv
+    nkpts = sys%nkpts
+    inverse_kpts = 1.0_sp / real( nkpts, sp )
+
+    allocate( re_a_mat( nxpts_pad, val_pad, nkpts ), im_a_mat( nxpts_pad, val_pad, nkpts ), &
+              re_b_mat( nxpts_pad, val_pad, nkpts ), im_b_mat( nxpts_pad, val_pad, nkpts ), &
+              re_tphi_mat( nxpts_pad, max_nxpts, nkpts ), im_tphi_mat( nxpts_pad, max_nxpts, nkpts ), &
+              STAT=ierr )
+!              re_con_sp(nxpts,nbc,nkpts), im_con_sp(nxpts,nbc,nkpts), STAT=ierr )
+      
+      
+    re_bstate_sp(1:nxpts_pad,:,:,1) = re_val_sp(1:nxpts_pad,:,:,vspn)
+    im_bstate_sp(1:nxpts_pad,:,:,1) = im_val_sp(1:nxpts_pad,:,:,vspn)
+
+!    re_con_sp(:,:,:) = real(re_con( 1:nxpts, 1:nbc, 1:nkpts, cspn ),sp)
+!    im_con_sp(:,:,:) = real(im_con( 1:nxpts, 1:nbc, 1:nkpts, cspn ),sp)
+
+!$OMP PARALLEL DEFAULT(NONE) &
+!$OMP PRIVATE( ik, ib, ix, iy, ibc, i, j, k, id, x_block, y_block, beta, y_offset ) &
+!$OMP PRIVATE( scratch, fr, fi, vv, re_phi_mat, im_phi_mat, nthread, block_temp, nbc_block, test_flag ) &
+!$OMP SHARED( nkpts, nbv_block, nxpts_pad, nproc, joint_request, c_recv_request, c_send_request ) &
+!$OMP SHARED( nkret, kret, ladcap, kk, nxpts_by_mpiID, re_tphi_mat, im_tphi_mat ) &
+!$OMP SHARED( re_a_mat, im_a_mat, re_b_mat, im_b_mat, psi_spn, vspn, cspn, ierr, nxpts, inverse_kpts, val_pad )  &
+!$OMP SHARED( nbc, nbv, re_con_sp, im_con_sp, psi, psi_out, psi_con_pad, myid, MPI_STATUSES_IGNORE, MPI_STATUS_IGNORE ) &
+!$OMP SHARED( re_bstate_sp, im_bstate_sp, max_nxpts, startx_by_mpiID, fo, ladder, spin_prefac, minus_spin_prefac )
+
+    allocate( fr( ladcap(1,1):ladcap(2,1), ladcap(1,2):ladcap(2,2), ladcap(1,3):ladcap(2,3) ), &
+              fi( ladcap(1,1):ladcap(2,1), ladcap(1,2):ladcap(2,2), ladcap(1,3):ladcap(2,3) ), &
+              scratch( nkpts ), vv( nkret ), re_phi_mat( nkpts, 16 ), im_phi_mat( nkpts, 16 ), &
+              pr(nbc,nbv), pi(nbc,nbv) )
+
+    nthread = 1
+!$  nthread = omp_get_num_threads()
+
+    beta = 0.0_sp
+
+
+! Working on k-point only!!
+    ix = 1
+    ib = 1
+    x_block = nxpts
+    nbv_block = nbv
+! \working on k-point only
+
+
+!$OMP DO COLLAPSE(1) SCHEDULE(STATIC)
+    do ik = 1, nkpts
+      pr(:,:) = real(psi%valr( 1:nbc, 1:nbv, ik, psi_spn ), sp )
+      pi(:,:) = real(psi%vali( 1:nbc, 1:nbv, ik, psi_spn ), sp )
+
+      call SGEMM( 'N', 'N', x_block, nbv_block, nbc, one, re_con_sp( ix, 1, ik, cspn ), nxpts_pad, &
+                  pr, nbc, zero, re_a_mat( ix, ib, ik ), nxpts_pad )
+      call SGEMM( 'N', 'N', x_block, nbv_block, nbc, minusone, im_con_sp( ix, 1, ik, cspn ), nxpts_pad, &
+                  pi, nbc, one, re_a_mat( ix, ib, ik ), nxpts_pad )
+
+      call SGEMM( 'N', 'N', x_block, nbv_block, nbc, one, re_con_sp( ix, 1, ik, cspn ), nxpts_pad, &
+                  pi, nbc, zero, im_a_mat( ix, ib, ik ), nxpts_pad )
+      call SGEMM( 'N', 'N', x_block, nbv_block, nbc, one, im_con_sp( ix, 1, ik, cspn ), nxpts_pad, &
+                  pr, nbc, one, im_a_mat( ix, ib, ik ), nxpts_pad )
+
+    enddo
+!$OMP END DO
+
+    id = myid + 1
+    do i = 0, nproc-1
+
+
+      j = mod( abs(i-1),2) + 1
+      k = mod( i, 2 ) + 1
+
+      id = id - 1
+      if( id .ge. nproc ) id = id - nproc
+      if( id .lt. 0 ) id = id + nproc
+
+!$OMP SINGLE
+      if( i .gt. 0 ) then
+
+        joint_request(1) = c_recv_request(k,1)
+        joint_request(2) = c_send_request(j,1)
+        joint_request(3) = c_recv_request(k,2)
+        joint_request(4) = c_send_request(j,2)
+
+        call MPI_WAITALL( 4, joint_request, MPI_STATUSES_IGNORE, ierr )
+      endif
+
+      ! Unless it is the last loop
+      if( i .lt. nproc - 1 ) then
+        call MPI_START( c_recv_request(j,1), ierr )
+        call MPI_START( c_recv_request(j,2), ierr )
+      endif
+!$OMP END SINGLE
+! Call a quick barrier in loop 0 no matter what
+!   this helps make sure that the MPI_START has also been called
+
+!$OMP BARRIER
+
+! kpoint only!!
+      ix = 1
+      iy = 1
+      x_block = nxpts
+      y_block = nxpts_by_mpiID( id )
+! \kpoint only
+!$OMP DO SCHEDULE( STATIC )
+      do ik = 1, nkpts
+        call SGEMM( 'N', 'T', x_block, y_block, nbv, one, re_a_mat( ix, 1, ik ), nxpts_pad, &
+                    re_bstate_sp( iy, 1, ik, k ), max_nxpts, zero, re_tphi_mat( ix, iy, ik ), nxpts_pad )
+        call SGEMM( 'N', 'T', x_block, y_block, nbv, one, im_a_mat( ix, 1, ik ), nxpts_pad, &
+                    im_bstate_sp( iy, 1, ik, k ), max_nxpts, one, re_tphi_mat( ix, iy, ik ), nxpts_pad )
+
+        call SGEMM( 'N', 'T', x_block, y_block, nbv, one, im_a_mat( ix, 1, ik ), nxpts_pad, &
+                    re_bstate_sp( iy, 1, ik, k ), max_nxpts, zero, im_tphi_mat( ix, iy, ik ), nxpts_pad )
+        call SGEMM( 'N', 'T', x_block, y_block, nbv, minusone, re_a_mat( ix, 1, ik ), nxpts_pad, &
+                    im_bstate_sp( iy, 1, ik, k ), max_nxpts, one, im_tphi_mat( ix, iy, ik ), nxpts_pad )
+      enddo
+!$OMP END DO NOWAIT
+
+
+!$OMP SINGLE
+      if( i .lt. nproc-1 ) then
+        call MPI_START( c_send_request(k,1), ierr )
+        call MPI_START( c_send_request(k,2), ierr )
+!        write(6,*) 'MPI_START - send', myid, c_send_tag(k,1), c_send_tag(k,2)
+      endif
+!$OMP END SINGLE
+
+! No wait in the previous loop means first done can start the sends
+!   By placing the tphi_mat construction between the recv and the send
+!   we are hopefully always going to have the recv in place before the
+!   send starts
+
+!$OMP BARRIER
+
+      y_offset = startx_by_mpiID( id ) - 1
+
+
+      ix = 1
+!$OMP DO COLLAPSE( 2 ) SCHEDULE( STATIC)
+      do iy = 1, nxpts_by_mpiID( id )
+        do iix = 1, nxpts
+          scratch( : ) = cmplx(re_tphi_mat( iix, iy, : ), im_tphi_mat( iix, iy, : ), DP )
+
+          call FFT_wrapper_single( scratch, OCEAN_FORWARD, fo )
+
+          do ik = 1, nkpts
+              fr( kk( ik, 1 ), kk( ik, 2 ), kk( ik, 3 ) ) = real( scratch( ik ), DP )
+              fi( kk( ik, 1 ), kk( ik, 2 ), kk( ik, 3 ) ) = aimag( scratch( ik ) )
+          enddo
+
+          call velmuls( fr, vv, ladder( :, iix -ix + 1, iy + y_offset ), nkpts, nkret, kret )
+          call velmuls( fi, vv, ladder( :, iix -ix + 1, iy + y_offset ), nkpts, nkret, kret )
+
+          do ik = 1, nkpts
+            scratch( ik ) = cmplx( fr( kk( ik, 1 ), kk( ik, 2 ), kk( ik, 3 ) ), &
+                                   fi( kk( ik, 1 ), kk( ik, 2 ), kk( ik, 3 ) ), DP )
+          end do
+
+          call FFT_wrapper_single( scratch, OCEAN_BACKWARD, fo )
+
+          re_tphi_mat( iix, iy, : ) = real(scratch( : ),SP)
+          im_tphi_mat( iix, iy, : ) = real(aimag(scratch( : )),SP)
+        enddo
+      enddo
+!$OMP END DO NOWAIT
+
+! First thread out of the loop tries to help with the non-blocking comms
+
+!$OMP SINGLE
+      call MPI_TEST( c_send_request(k,1), test_flag, MPI_STATUS_IGNORE, ierr )
+!$OMP END SINGLE
+
+      ib = 1
+      ix = 1
+      nbv_block = nbv
+      x_block = nxpts
+
+!$OMP DO
+      do ik = 1, nkpts
+        call SGEMM( 'N', 'N', x_block, nbv_block, nxpts_by_mpiID( id ), one, re_tphi_mat( ix, 1, ik ), nxpts_pad, &
+                    re_bstate_sp( 1, ib, ik, k ), max_nxpts, beta, re_b_mat( ix, ib, ik ), nxpts_pad )
+        call SGEMM( 'N', 'N', x_block, nbv_block, nxpts_by_mpiID( id ), minusone, im_tphi_mat( ix, 1, ik ), nxpts_pad, &
+                    im_bstate_sp( 1, ib, ik, k ), max_nxpts, one, re_b_mat( ix, ib, ik ), nxpts_pad )
+
+        call SGEMM( 'N', 'N', x_block, nbv_block, nxpts_by_mpiID( id ), one, im_tphi_mat( ix, 1, ik ), nxpts_pad, &
+                    re_bstate_sp( 1, ib, ik, k ), max_nxpts, beta, im_b_mat( ix, ib, ik ), nxpts_pad )
+        call SGEMM( 'N', 'N', x_block, nbv_block, nxpts_by_mpiID( id ), one, re_tphi_mat( ix, 1, ik ), nxpts_pad, &
+                    im_bstate_sp( 1, ib, ik, k ), max_nxpts, one, im_b_mat( ix, ib, ik ), nxpts_pad )
+      enddo
+!$OMP END DO NOWAIT
+!  Other than the last loop this will be followed by MPI_SINGLE + BARRIER
+
+
+      beta = 1.0_sp
+
+    enddo ! i over nproc
+
+    nbv_block = nbv
+    nbc_block = nbc
+    ib = 1
+    ibc = 1
+
+!$OMP DO
+    do ik = 1, nkpts
+
+      call SGEMM( 'T', 'N', nbc_block, nbv_block, nxpts, spin_prefac, re_con_sp( 1, ibc, ik, cspn ), nxpts_pad, &
+                  re_b_mat( 1, ib, ik ), nxpts_pad, zero, pr, nbc )
+      call SGEMM( 'T', 'N', nbc_block, nbv_block, nxpts, spin_prefac, im_con_sp( 1, ibc, ik, cspn ), nxpts_pad, &
+                  im_b_mat( 1, ib, ik ), nxpts_pad, one, pr, nbc )
+
+      call SGEMM( 'T', 'N', nbc_block, nbv_block, nxpts, spin_prefac, re_con_Sp( 1, ibc, ik, cspn ), nxpts_pad, &
+                  im_b_mat( 1, ib, ik ), nxpts_pad, zero, pi, nbc )
+      call SGEMM( 'T', 'N', nbc_block, nbv_block, nxpts, minus_spin_prefac, im_con_sp( 1, ibc, ik, cspn ), nxpts_pad, &
+                  re_b_mat( 1, ib, ik ), nxpts_pad, one, pi, nbc )
+
+      psi_out%valr( 1:nbc, 1:nbv, ik, psi_spn ) = psi_out%valr( 1:nbc, 1:nbv, ik, psi_spn ) + pr(:,:)
+      psi_out%vali( 1:nbc, 1:nbv, ik, psi_spn ) = psi_out%vali( 1:nbc, 1:nbv, ik, psi_spn ) + pi(:,:)
+    enddo
+!$OMP END DO
+
+    deallocate( fr, fi, vv, scratch, re_phi_mat, im_phi_mat, pr, pi )
+!$OMP END PARALLEL
+
+    deallocate( re_a_mat, im_a_mat, re_b_mat, im_b_mat, re_tphi_mat, im_tphi_mat )
+
+
+! Need to wait at end of previous loop
+!$OMP BARRIER
+
+
+  end subroutine OCEAN_ladder_act_single_sp
 
   subroutine OCEAN_ladder_new( sys, ierr )
     use OCEAN_system
-    use OCEAN_val_states, only : max_nxpts, nxpts_pad, nxpts, startx, val_pad
+    use OCEAN_val_states, only : max_nxpts, nxpts_pad, nxpts, startx, val_pad, use_sp
     use OCEAN_mpi
 !    use OCEAN_hyb_louie_levine, only : OS_hyb_louie_levine
     use OCEAN_WRR, only : OCEAN_WRR_generate
@@ -604,9 +911,17 @@ end subroutine OCEAN_ladder_act
 
 
 ! Set up comm channels for use in ladder act
-    allocate( re_bstate( max_nxpts, val_pad, sys%nkpts, 2 ), &
-              im_bstate( max_nxpts, val_pad, sys%nkpts, 2 ), STAT=ierr )
-    if( ierr .ne. 0 ) return
+    if( use_sp ) then
+      allocate( re_bstate_sp( max_nxpts, val_pad, sys%nkpts, 2 ), &
+                im_bstate_sp( max_nxpts, val_pad, sys%nkpts, 2 ), &
+                re_bstate(0,0,0,0), im_bstate(0,0,0,0), STAT=ierr )
+      if( ierr .ne. 0 ) return
+    else 
+      allocate( re_bstate( max_nxpts, val_pad, sys%nkpts, 2 ), &
+                im_bstate( max_nxpts, val_pad, sys%nkpts, 2 ), &
+                re_bstate_sp(0,0,0,0), im_bstate_sp(0,0,0,0), STAT=ierr )
+      if( ierr .ne. 0 ) return
+    endif
 
 #ifdef MPI
 ! JTV At some point we will instead want to create new comms for each NN pair
@@ -628,23 +943,43 @@ end subroutine OCEAN_ladder_act
     c_recv_tag(2,2) = myid + 4*nproc
     c_send_tag(2,2) = c_dest + 3*nproc
 
-    call MPI_SEND_INIT( re_bstate(1,1,1,1), c_size, MPI_DOUBLE_PRECISION, c_dest, c_send_tag(1,1), &
-                        comm, c_send_request(1,1), ierr )
-    call MPI_SEND_INIT( re_bstate(1,1,1,2), c_size, MPI_DOUBLE_PRECISION, c_dest, c_send_tag(2,1), &
-                        comm, c_send_request(2,1), ierr )
-    call MPI_RECV_INIT( re_bstate(1,1,1,1), c_size, MPI_DOUBLE_PRECISION, c_sour, c_recv_tag(1,1), &
-                        comm, c_recv_request(1,1), ierr )
-    call MPI_RECV_INIT( re_bstate(1,1,1,2), c_size, MPI_DOUBLE_PRECISION, c_sour, c_recv_tag(2,1), &
-                        comm, c_recv_request(2,1), ierr )
+    if( use_sp ) then
+      call MPI_SEND_INIT( re_bstate_sp(1,1,1,1), c_size, MPI_REAL, c_dest, c_send_tag(1,1), &
+                          comm, c_send_request(1,1), ierr )
+      call MPI_SEND_INIT( re_bstate_sp(1,1,1,2), c_size, MPI_REAL, c_dest, c_send_tag(2,1), &
+                          comm, c_send_request(2,1), ierr )
+      call MPI_RECV_INIT( re_bstate_sp(1,1,1,1), c_size, MPI_REAL, c_sour, c_recv_tag(1,1), &
+                          comm, c_recv_request(1,1), ierr )
+      call MPI_RECV_INIT( re_bstate_sp(1,1,1,2), c_size, MPI_REAL, c_sour, c_recv_tag(2,1), &
+                          comm, c_recv_request(2,1), ierr )
 
-    call MPI_SEND_INIT( im_bstate(1,1,1,1), c_size, MPI_DOUBLE_PRECISION, c_dest, c_send_tag(1,2), &
-                        comm, c_send_request(1,2), ierr )
-    call MPI_SEND_INIT( im_bstate(1,1,1,2), c_size, MPI_DOUBLE_PRECISION, c_dest, c_send_tag(2,2), &
-                        comm, c_send_request(2,2), ierr )
-    call MPI_RECV_INIT( im_bstate(1,1,1,1), c_size, MPI_DOUBLE_PRECISION, c_sour, c_recv_tag(1,2), &
-                        comm, c_recv_request(1,2), ierr )
-    call MPI_RECV_INIT( im_bstate(1,1,1,2), c_size, MPI_DOUBLE_PRECISION, c_sour, c_recv_tag(2,2), &
-                        comm, c_recv_request(2,2), ierr )
+      call MPI_SEND_INIT( im_bstate_sp(1,1,1,1), c_size, MPI_REAL, c_dest, c_send_tag(1,2), &
+                          comm, c_send_request(1,2), ierr )
+      call MPI_SEND_INIT( im_bstate_sp(1,1,1,2), c_size, MPI_REAL, c_dest, c_send_tag(2,2), &
+                          comm, c_send_request(2,2), ierr )
+      call MPI_RECV_INIT( im_bstate_sp(1,1,1,1), c_size, MPI_REAL, c_sour, c_recv_tag(1,2), &
+                          comm, c_recv_request(1,2), ierr )
+      call MPI_RECV_INIT( im_bstate_sp(1,1,1,2), c_size, MPI_REAL, c_sour, c_recv_tag(2,2), &
+                          comm, c_recv_request(2,2), ierr )
+    else
+      call MPI_SEND_INIT( re_bstate(1,1,1,1), c_size, MPI_DOUBLE_PRECISION, c_dest, c_send_tag(1,1), &
+                          comm, c_send_request(1,1), ierr )
+      call MPI_SEND_INIT( re_bstate(1,1,1,2), c_size, MPI_DOUBLE_PRECISION, c_dest, c_send_tag(2,1), &
+                          comm, c_send_request(2,1), ierr )
+      call MPI_RECV_INIT( re_bstate(1,1,1,1), c_size, MPI_DOUBLE_PRECISION, c_sour, c_recv_tag(1,1), &
+                          comm, c_recv_request(1,1), ierr )
+      call MPI_RECV_INIT( re_bstate(1,1,1,2), c_size, MPI_DOUBLE_PRECISION, c_sour, c_recv_tag(2,1), &
+                          comm, c_recv_request(2,1), ierr )
+
+      call MPI_SEND_INIT( im_bstate(1,1,1,1), c_size, MPI_DOUBLE_PRECISION, c_dest, c_send_tag(1,2), &
+                          comm, c_send_request(1,2), ierr )
+      call MPI_SEND_INIT( im_bstate(1,1,1,2), c_size, MPI_DOUBLE_PRECISION, c_dest, c_send_tag(2,2), &
+                          comm, c_send_request(2,2), ierr )
+      call MPI_RECV_INIT( im_bstate(1,1,1,1), c_size, MPI_DOUBLE_PRECISION, c_sour, c_recv_tag(1,2), &
+                          comm, c_recv_request(1,2), ierr )
+      call MPI_RECV_INIT( im_bstate(1,1,1,2), c_size, MPI_DOUBLE_PRECISION, c_sour, c_recv_tag(2,2), &
+                          comm, c_recv_request(2,2), ierr )
+    endif
 
 #endif
 
@@ -657,7 +992,7 @@ end subroutine OCEAN_ladder_act
     integer :: ierr
     
     if( .not. is_loaded ) return
-    deallocate( ladder, kret, kk, re_bstate, im_bstate )
+    deallocate( ladder, kret, kk, re_bstate, im_bstate, re_bstate_sp, im_bstate_sp )
     is_loaded = .false.
 
 #ifdef MPI
@@ -760,6 +1095,7 @@ end subroutine OCEAN_ladder_act
 
   end subroutine OCEAN_ladder_init
 
+! call velmuls( fr, vv, ladder( :, iix -ix + 1, iy + y_offset ), nkpts, nkret, kret )
   subroutine velmuls( vec, v2, mul, n, nn, ii )
     implicit none
     !
@@ -782,5 +1118,20 @@ end subroutine OCEAN_ladder_act
     return
   end subroutine velmuls
 
+!  ladder(:,,) new_ladder(:,,), nkpts, nkret, kret )
+  subroutine resort_ladder( lad, buf, n, nn, ii )
+    integer, intent( in ) :: n, nn, ii( nn )
+    real(DP), intent( inout ) :: lad( n )
+    real(DP), intent( out ) :: buf( n )
+    !
+    integer :: i
+  
+    buf(:) = 0.0_DP
+    do i = 1, nn
+      buf(ii(i)) = lad(i)
+    enddo
+    lad(:) = buf(:)
+  
+  end subroutine resort_ladder
 
 end module OCEAN_ladder
