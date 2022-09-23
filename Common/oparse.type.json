@@ -126,6 +126,7 @@
       },
       "fband" : "f",
       "functional" : "s",
+      "isolated" : "s",
       "ldau" : {
          "Hubbard_J" : "S",
          "Hubbard_J0" : "S",

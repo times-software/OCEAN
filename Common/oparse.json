@@ -158,6 +158,7 @@
       },
       "fband" : 0.125,
       "functional" : "default",
+      "isolated" : "none",
       "ldau" : {
          "Hubbard_J" : "",
          "Hubbard_J0" : "",

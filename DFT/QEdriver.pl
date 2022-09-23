@@ -932,6 +932,10 @@ sub QEprintInput
              . " nqx2 = $generalRef->{'general'}->{'exx'}->{'qmesh'}[1],"
              . " nqx3 = $generalRef->{'general'}->{'exx'}->{'qmesh'}[2]\n";
   }
+  if( exists $generalRef->{'general'}->{'isolated'} && 
+      $generalRef->{'general'}->{'isolated'} ne 'none' ) {
+    print $fh "  assume_isolated = \'$generalRef->{'general'}->{'isolated'}\'\n";
+  }
 
   print $fh "  nbnd = $nbnd\n";
 
