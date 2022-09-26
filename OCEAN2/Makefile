@@ -23,8 +23,11 @@ OCEANOBJS = AI_kinds.o OCEAN_mpi.o OCEAN_system.o OCEAN_bloch.o OCEAN_obf.o OCEA
 
 KINDS = AI_kinds.o
 
-FFT_WRAPPER_OBJS = ../zbridge/zobj/FFT_wrapper.o ../zbridge/zobj/jlmfft.o
-FFT_WRAPPER_INCL = -I../zbridge/ 
+#FFT_WRAPPER_OBJS = ../zbridge/zobj/FFT_wrapper.o ../zbridge/zobj/jlmfft.o
+#FFT_WRAPPER_INCL = -I../zbridge/ 
+FFT_WRAPPER_OBJS = ../Modules/FFT_wrapper.o ../Modules/jlmfft.o
+FFT_WRAPPER_INCL = -I../Modules/
+
 
 CAIN_OBJS = ../CNBSE/zcain/zobj/getprefs.o ../CNBSE/zcain/zobj/getylm.o ../CNBSE/zcain/zobj/fancyvector.o
 
