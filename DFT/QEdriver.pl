@@ -496,7 +496,7 @@ sub QErunDFPT
 
   my $nnode = 1;
   my $npool = 1;
-  if( open IN, "<", "scf.in" ) {
+  if( open IN, "<", "scf.out" ) {
     while(<IN>) {
       $nnode = $1 if( $_ =~ m/(\d+)\s+nodes/ );
       if( $_ =~ m/npool\s+=\s+(\d+)/ )
@@ -516,6 +516,7 @@ sub QErunDFPT
           .  "  start_irr = 1\n"
           .  "  last_irr = 0\n"
           .  "  trans = .false\n"
+          .  "  reduce_io = .true.\n"
           .  "/\n0 0 0\n";
   close PH;
 
