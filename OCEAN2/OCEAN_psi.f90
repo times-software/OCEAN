@@ -5498,7 +5498,7 @@ subroutine OCEAN_psi_dot_write( p, q, outvec, rrequest, rval, ierr, irequest, iv
 !
 !> @brief Routine for writing out the right-hand side, which is to say the 
 !! initial ocean_vector $\hat{d} \vert G.S. \rangle$.
-  subroutine OCEAN_psi_write( sys, p, ierr )
+  subroutine OCEAN_psi_write( sys, p, prefix, uniqueName, ierr )
     use OCEAN_mpi, only  : myid, root
     use OCEAN_system
     
@@ -5506,6 +5506,8 @@ subroutine OCEAN_psi_dot_write( p, q, outvec, rrequest, rval, ierr, irequest, iv
 
     type(O_system), intent( in ) :: sys
     type(OCEAN_vector), intent( in ) :: p
+    character(len=4), intent( in ) :: prefix
+    logical, intent( in ) :: uniquename
     integer, intent( inout ) :: ierr
 
     character( LEN = 17 ) :: rhs_filename
@@ -5515,16 +5517,18 @@ subroutine OCEAN_psi_dot_write( p, q, outvec, rrequest, rval, ierr, irequest, iv
     
     if( myid .ne. root ) return
 
-    if( .not. sys%write_rhs ) return
-
     if( .not. have_core ) return
 
     allocate( out_vec(sys%cur_run%num_bands, sys%nkpts, sys%nalpha ) )
     out_vec(:,:,:) = cmplx( p%r(1:sys%cur_run%num_bands,1:sys%nkpts,:), &
                             p%i(1:sys%cur_run%num_bands,1:sys%nkpts,:), DP )
 
-    write(rhs_filename,'(A4,A2,A1,I4.4,A1,A2,A1,I2.2)' ) 'rhs_', sys%cur_run%elname, &
-            '.', sys%cur_run%indx, '_', sys%cur_run%corelevel, '_', sys%cur_run%photon
+    if( uniqueName ) then
+      write(rhs_filename,'(A4,A2,A1,I4.4,A1,A2,A1,I2.2)' ) prefix, sys%cur_run%elname, &
+              '.', sys%cur_run%indx, '_', sys%cur_run%corelevel, '_', sys%cur_run%photon
+    else
+      write(rhs_filename, '(A,A)' ) prefix, '.dat'
+    endif
     open(unit=99,file=rhs_filename,form='unformatted',status='unknown')
     rewind( 99 )
     write( 99 ) out_vec

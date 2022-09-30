@@ -48,8 +48,10 @@ subroutine OCEAN_load_data( sys, hay_vec, ierr )
   if( ierr .ne. 0 ) return
 
   if( myid .eq. root ) write(6,*) 'Matrix elements loaded'
-  call ocean_psi_write( sys, hay_vec, ierr )
-  if( ierr .ne. 0 ) return
+  if( sys%write_rhs ) then
+    call ocean_psi_write( sys, hay_vec, 'rhs_', .true., ierr )
+    if( ierr .ne. 0 ) return
+  endif
 
 
   if( sys%cur_run%have_val) then

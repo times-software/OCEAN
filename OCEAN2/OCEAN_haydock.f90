@@ -789,7 +789,9 @@ module OCEAN_haydock
                                                     real_b(iter) * Hartree2eV, imag_b(iter) * Hartree2eV, &
                                                     real_c(iter) * Hartree2eV, imag_c(iter) * Hartree2eV, iter
 
-      if( mod( iter, 10 ) .eq. 0 ) call haydump( iter, sys, psi%kpref, ierr )
+      if( mod( iter, 10 ) .eq. 0 ) then 
+        call haydump( iter, sys, psi%kpref, ierr )
+      endif
 #ifdef __HAVE_F03
       if( ieee_is_nan( real_a(iter-1) ) ) then
 #else
@@ -803,7 +805,6 @@ module OCEAN_haydock
       if( sys%convEps .and. sys%cur_run%calc_type .eq. 'VAL' ) then
         call testConvergeEps( iter, sys, psi%kpref, sys%celvol, sys%valence_ham_spin, restartBSE, newEps )
       endif
-!      call haydump( iter, sys, ierr )
     endif
 
     if( sys%convEps ) then
@@ -896,7 +897,16 @@ module OCEAN_haydock
                                                     real_b(iter) * Hartree2eV, imag_b(iter) * Hartree2eV, &
                                                     real_c(iter) * Hartree2eV, imag_c(iter) * Hartree2eV, iter
 
-      if( mod( iter, 10 ) .eq. 0 ) call haydump( iter, sys, psi%kpref, ierr )
+      if( mod( iter, 10 ) .eq. 0 ) then 
+        call haydump( iter, sys, psi%kpref, ierr )
+        if( ierr .ne. 0 ) return
+        call write_lanczos( iter, sys, psi%kpref, ierr )
+        if( ierr .ne. 0 ) return
+
+        ! need to sync first and maybe need to write out old_psi above where it is (maybe?) 
+        ! already distributed?
+!        call OCEAN_psi_write( sys, psi, 'psi_', .false., ierr )
+      endif
 #ifdef __HAVE_F03
       if( ieee_is_nan( real_a(iter-1) ) ) then
 #else
@@ -2130,19 +2140,11 @@ module OCEAN_haydock
     type( o_system ), intent( in ) :: sys
     integer, intent( in ) ::  n
     real(DP), intent( in ) :: kpref
-!    real( DP ), intent( in ) :: a( 0 : n ), b( n )
-!    character( LEN=21 ), intent( in ) :: lanc_filename
+
     double precision, allocatable :: ar(:,:),ai(:,:)
     double precision, allocatable :: w(:),zr(:,:),zi(:,:)
     double precision, allocatable :: fv1(:),fv2(:),fm1(:)
     integer :: matz,nm,i,j,nn
-
-
-    character( LEN=40 ) :: lanc_filename
-
-    call OCEAN_filenames_lanc( sys, lanc_filename, ierr )
-    if( ierr .ne. 0 ) return
-
 
 
     nn=n+1
@@ -2167,8 +2169,29 @@ module OCEAN_haydock
     end do
     matz=0
     call elsch(nm,nn,ar,ai,w,matz,zr,zi,fv1,fv2,fm1,ierr)
-!    open(unit=99,file='lanceigs',form='formatted',status='unknown')
     if( n .lt. 0 ) return
+
+    call write_lanczos( n, sys, kpref, ierr, w )
+
+    deallocate(ar,ai,w,zr,zi,fv1,fv2,fm1)
+    return
+  end subroutine redtrid
+
+  subroutine write_lanczos( n, sys, kpref, ierr, w )
+    use OCEAN_system, only : o_system
+    use OCEAN_filenames, only : OCEAN_filenames_lanc
+    implicit none
+    integer, intent( inout ) :: ierr
+    type( o_system ), intent( in ) :: sys
+    integer, intent( in ) ::  n
+    real(DP), intent( in ) :: kpref
+    real(DP), intent( in ), optional :: w(:)
+
+    integer :: i
+    character( LEN=40 ) :: lanc_filename
+
+    call OCEAN_filenames_lanc( sys, lanc_filename, ierr )
+    if( ierr .ne. 0 ) return
 
     open(unit=99,file=lanc_filename,form='formatted',status='unknown')
     rewind 99
@@ -2176,7 +2199,7 @@ module OCEAN_haydock
     if( complex_haydock ) then
       write ( 99, '(2(2x,ES24.17))' ) real_a( 0 ), imag_a( 0 )
       do i = 1, n
-        write ( 99, '(2x,6ES24.17)' ) real_a( i ), imag_a( i ), real_b( i ), imag_b( i ), & 
+        write ( 99, '(2x,6ES24.17)' ) real_a( i ), imag_a( i ), real_b( i ), imag_b( i ), &
                                      real_c( i ), imag_c( i )
       enddo
     else
@@ -2188,11 +2211,14 @@ module OCEAN_haydock
         end if
       end do
     endif
-    write (99,'(2x,2i5,1f20.10)') (i,nn,w(i),i=1,nn)
+
+  
+    if( present( w ) ) then
+      write (99,'(2x,2i5,1f20.10)') (i,n+1,w(i),i=1,n+1)
+    endif
     close(unit=99)
-    deallocate(ar,ai,w,zr,zi,fv1,fv2,fm1)
-    return
-  end subroutine redtrid
+  end subroutine write_lanczos
+
 
 #if( 0 )
   ! When using GMRES we can project out only part of the exciton.
