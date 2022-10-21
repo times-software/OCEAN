@@ -371,7 +371,7 @@ sub QEparseOut
       {
         $errorCode = 0;
       }
-      elsif( $scf_line =~ m/<nelec>(\d\.\d+[eE]?\d?)/ )
+      elsif( $scf_line =~ m/<nelec>(\d\.\d+([eE]\+?\d+)?)/ )
       {
         $hashRef->{'nelec'} = $1*1;
       }
