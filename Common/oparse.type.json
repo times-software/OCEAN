@@ -84,6 +84,23 @@
       "xmesh" : "af"
    },
    "calc" : {
+      "cartesian_q" : {
+         "q" : {
+           "direction" : "af",
+           "energy" : "f",
+           "magnitude" : "f"
+         },
+         "qin" : {
+           "direction" : "af",
+           "energy" : "f",
+           "magnitude" : "f"
+         },
+         "qout" : {
+           "direction" : "af",
+           "energy" : "f",
+           "magnitude" : "f"
+         }
+      },
       "edges" : "ai",
       "mode" : "s",
       "photon_in" : "ai",

@@ -102,6 +102,35 @@
       ]
    },
    "calc" : {
+      "cartesian_q" : {
+         "q" : {
+           "direction" : [
+              0,
+              0,
+              0
+           ],
+           "energy" : 0,
+           "magnitude" : 0
+         },
+         "qin" : {
+           "direction" : [
+              0,
+              0,
+              0
+           ],
+           "energy" : 0,
+           "magnitude" : 0
+         },
+         "qout" : {
+           "direction" : [
+              0,
+              0,
+              0
+           ],
+           "energy" : 0,
+           "magnitude" : 0
+         }
+      },
       "edges" : [],
       "mode" : "xas",
       "photon_in" : [],
