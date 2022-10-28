@@ -117,7 +117,7 @@ module prep_system
     umklapp(:) = 0
     do i = 1, 3
 
-      do while( kvec(i) .lt. -1.0_DP )
+      do while( kvec(i) .lt. 0.0_DP )
         kvec(i) = kvec(i) + 1.0_DP
         umklapp(i) = umklapp(i) - 1
       enddo
