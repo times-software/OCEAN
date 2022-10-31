@@ -1866,15 +1866,29 @@ sub photonq
     }
   }
 
-  # If have non-zero photon_q don't do anything but warn if other options are ignored
+  my @cart_q;
+
+  # If have non-zero photon_q warn if other options are ignored and fill in cartesian_Q
   if( $standard_q ) {
     print( "WARNING: calc.cartesian_q.q overridden by calc.photon_q!\n" ) if( $cartesian_q );
     print( "WARNING: calc.cartesian_q.qin/qout overridden by calc.photon_q!\n" ) if( $cartesian_inout );
 
+    my $qlen = 0;
+    for( my $i = 0; $i < 3; $i++ ) {
+      $cart_q[$i] = $hashRef->{'calc'}->{'photon_q'}[0]*$hashRef->{'structure'}->{'bvecs'}[0][$i] 
+                  + $hashRef->{'calc'}->{'photon_q'}[1]*$hashRef->{'structure'}->{'bvecs'}[1][$i]
+                  + $hashRef->{'calc'}->{'photon_q'}[2]*$hashRef->{'structure'}->{'bvecs'}[2][$i];
+      $qlen += $cart_q[$i]**2;
+    }
+    $qlen = sqrt($qlen);
+    $hashRef->{'calc'}->{'cartesian_q'}->{'q'}->{'magnitude'} = $qlen;
+    for( my $i = 0; $i < 3; $i ++ ) {
+      $cart_q[$i] /= $qlen;
+    }
+    $hashRef->{'calc'}->{'cartesian_q'}->{'q'}->{'direction'} = [ $cart_q[0], $cart_q[1], $cart_q[2] ];
     return;
   }
 
-  my @cart_q;
   if( $cartesian_q ) {
     print( "WARNING: calc.cartesian_q.qin/qout overridden by calc.cartesian_q.q!\n" ) if( $cartesian_inout );
     if( $hashRef->{'calc'}->{'cartesian_q'}->{'q'}->{'magnitude'} > 0 ) {
