@@ -5,11 +5,22 @@ In all papers, talks, etc. that make use of results from the OCEAN code we ask
 that the following citations be included. 
 
 1) All requested citations from the underlying DFT code used. See the websites 
-    for each code for details as to the authors' wishes. 
+    for each code for details as to the authors' wishes. This includes the ONCVPSP
+    code if that is used
 
-2) K. Gilmore, J. Vinson, E.L. Shirley, D. Prendergast, C.D. Pemmaraju, 
-    J.J. Kas, F.D. Vila, and J.J. Rehr, Comp. Phys. Comm. 197, 109 (2015)
-    http://dx.doi.org/10.1016/j.cpc.2015.08.014
+2) J. Vinson, Phys. Chem. Chem. Phys., 24, 12787 (2022)
+    https://doi.org/10.1039/D2CP01030E
 
 3) J. Vinson, J.J. Rehr, J.J. Kas, and E.L. Shirley, Phys. Rev. B 83, 115106 (2011)
     http://dx.doi.org/10.1103/PhysRevB.83.115106
+
+Additional papers of note:
+
+1) K. Gilmore, J. Vinson, E.L. Shirley, D. Prendergast, C.D. Pemmaraju, 
+    J.J. Kas, F.D. Vila, and J.J. Rehr, Comp. Phys. Comm. 197, 109 (2015)
+    http://dx.doi.org/10.1016/j.cpc.2015.08.014
+
+2) J. Vinson and E. L. Shirley, Phys. Rev. B 103, 245143 (2021)
+    https://doi.org/10.1103/PhysRevB.103.245143
+
+

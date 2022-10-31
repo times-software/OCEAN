@@ -11,6 +11,12 @@ module OCEAN_val_states
   real(dp), public, protected, allocatable :: re_con( :, :, :, : )
   real(dp), public, protected, allocatable :: im_con( :, :, :, : )
 
+  real(sp), public, protected, allocatable :: re_val_sp( :, :, :, : )
+  real(sp), public, protected, allocatable :: im_val_sp( :, :, :, : )
+  real(sp), public, protected, allocatable :: re_con_sp( :, :, :, : )
+  real(sp), public, protected, allocatable :: im_con_sp( :, :, :, : )
+
+
   integer, public, protected :: nkpts
   integer, public, protected :: nxpts
   integer, public, protected :: nbc
@@ -29,6 +35,8 @@ module OCEAN_val_states
   integer, public, parameter :: cache_double = 1
   logical, private :: is_init = .false.
   logical, private :: is_loaded = .false.
+
+  logical, public, parameter :: use_sp = .false.
 
 
 #ifdef __INTEL
@@ -224,6 +232,21 @@ module OCEAN_val_states
     call val_states_add_phase( re_phase, im_phase )
 
     deallocate( re_phase, im_phase )
+
+    !TODO make either or with dp?
+    if( use_sp ) then
+      allocate( re_val_sp( max( 1, nxpts_pad), val_pad, nkpts, nspn ), &
+                im_val_sp( max( 1, nxpts_pad), val_pad, nkpts, nspn ), &
+                re_con_sp( max( 1, nxpts_pad), con_pad, nkpts, nspn ), &
+                im_con_sp( max( 1, nxpts_pad), con_pad, nkpts, nspn ), STAT=ierr )
+      re_val_sp(:,:,:,:) = re_val(:,:,:,:)
+      im_val_sp(:,:,:,:) = im_val(:,:,:,:)
+      re_con_sp(:,:,:,:) = re_con(:,:,:,:)
+      im_con_sp(:,:,:,:) = im_con(:,:,:,:)
+    else
+      allocate( re_val_sp(0,0,0,0), im_val_sp(0,0,0,0), re_con_sp(0,0,0,0), im_con_sp(0,0,0,0) )
+    endif
+    if( ierr .ne. 0 ) return
 
     is_loaded = .true.
 

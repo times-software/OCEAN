@@ -287,6 +287,9 @@ while( $i < scalar @inputFile )
 }
 
 my $haveLegacy = 0;
+my $haveLegacyCorePlot = 0;
+my $haveLegacyValPlot = 0;
+
 INPUT: foreach my $key ( keys %inputHash ) 
 {
   my @newKey = split /\./, $key;
@@ -344,6 +347,11 @@ if( $haveLegacy == 1 )
         {
           die "Unrecognized input flag: $key\n  Legacy conversion failed\n";
         }
+      }
+      if( $lckey eq 'cnbse.spect_range' ) {
+        $haveLegacyCorePlot = 1;
+      } elsif ( $lckey eq 'nbse.spect_range' ) {
+        $haveLegacyValPlot = 1;
       }
     } else {
       my @newKey = split /\./, $key;
@@ -419,18 +427,22 @@ foreach my $key ( keys %inputHash )
     }
 
     # If we did legacy translation, patch up the incompatibilities
-    if( $haveLegacy == 1 )
+    if( $key =~ m/bse.core.plot.range/ )
     {
-      if( $key =~ m/bse.(core|val).plot.range/ )
+      if( $haveLegacyCorePlot ) 
       {
         my $points = shift @rawArray;
         $config->{'bse'}->{'core'}->{'plot'}->{'points'} = $points if( $key =~ m/core/ );
+      }
+    } elsif( $key =~ m/bse.val.plot.range/ ) 
+    {
+      if( $haveLegacyValPlot ) {
+        my $points = shift @rawArray;
         $config->{'bse'}->{'val'}->{'plot'}->{'points'} = $points if( $key =~ m/val/ );
       }
-      if( $key =~m/pp_list/ )
-      {
-        $config->{'psp'}->{'source'} = 'manual' if( scalar @rawArray > 0 );
-      }
+    } elsif( $haveLegacy == 1 && $key =~m/pp_list/ )
+    {
+      $config->{'psp'}->{'source'} = 'manual' if( scalar @rawArray > 0 );
     }
     # End legacy fix
     $hashref->{$newKey[-1]} = [@rawArray];

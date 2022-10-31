@@ -496,7 +496,7 @@ sub QErunDFPT
 
   my $nnode = 1;
   my $npool = 1;
-  if( open IN, "<", "scf.in" ) {
+  if( open IN, "<", "scf.out" ) {
     while(<IN>) {
       $nnode = $1 if( $_ =~ m/(\d+)\s+nodes/ );
       if( $_ =~ m/npool\s+=\s+(\d+)/ )
@@ -516,6 +516,7 @@ sub QErunDFPT
           .  "  start_irr = 1\n"
           .  "  last_irr = 0\n"
           .  "  trans = .false\n"
+          .  "  reduce_io = .true.\n"
           .  "/\n0 0 0\n";
   close PH;
 
@@ -922,10 +923,7 @@ sub QEprintInput
         .  "  smearing = $QE_smear[$generalRef->{'general'}->{'occopt'}]\n"
         . (sprintf "  degauss = %g\n  nspin  = %i\n  tot_charge = %g\n", 
               $generalRef->{'general'}->{'degauss'}, $generalRef->{'general'}->{'nspin'},
-              $generalRef->{'general'}->{'tot_charge'})
-#        .  "  degauss = $generalRef->{'general'}->{'degauss'}\n"
-#        .  "  nspin  = $generalRef->{'general'}->{'nspin'}\n"
-#        .  "  tot_charge  = $generalRef->{'general'}->{'tot_charge'}\n"
+              $generalRef->{'structure'}->{'charge'})
         .  "  nosym = $nosyminv\n"
         .  "  noinv = $nosyminv\n";
   unless( $generalRef->{'general'}->{'functional'} =~ m/default/ )
@@ -934,6 +932,10 @@ sub QEprintInput
     print $fh "  nqx1 = $generalRef->{'general'}->{'exx'}->{'qmesh'}[0],"
              . " nqx2 = $generalRef->{'general'}->{'exx'}->{'qmesh'}[1],"
              . " nqx3 = $generalRef->{'general'}->{'exx'}->{'qmesh'}[2]\n";
+  }
+  if( exists $generalRef->{'general'}->{'isolated'} && 
+      $generalRef->{'general'}->{'isolated'} ne 'none' ) {
+    print $fh "  assume_isolated = \'$generalRef->{'general'}->{'isolated'}\'\n";
   }
 
   print $fh "  nbnd = $nbnd\n";

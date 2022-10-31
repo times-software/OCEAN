@@ -114,6 +114,9 @@ if( -e $dataFile )
 
 
   $oceanData->{'structure'}->{'valence_electrons'} = $totalElectrons; 
+  # Adjust by charge (electrons are negative)
+  $oceanData->{'structure'}->{'valence_electrons'} -= $oceanData->{'structure'}->{'charge'};
+
   $oceanData->{'psp'}->{'ppdir'} = cwd . '/psp/';
 
   $oceanData->{'psp'}->{'pphash'} = [@ppHash];
