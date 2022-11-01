@@ -1839,6 +1839,8 @@ module screen_wvfn_converter
     integer :: boundaries( 3, 2 )
     integer :: i, j, k ,test
 
+    logical :: fftgrid 
+
     select case( screen_system_convertStyle() )
 
       case('real')
@@ -1872,7 +1874,12 @@ module screen_wvfn_converter
 
         ! This changes the FFT grid to factor to reasonably small primes
         do i = 1, 3
-          do k = 0, 5
+          fftgrid = .false.
+#ifdef __FFTW3
+          do k = 0, 10
+#else
+          do k = 0, 64
+#endif
             test = uofxDims(i) + k
 #ifdef PRINTLOG
             write(1000+myid,*) 'TESTING: ', test
@@ -1902,28 +1909,51 @@ module screen_wvfn_converter
               write(1000+myid,*) '   ', 7
 #endif
             enddo
-            if( mod( test, 11 ) .eq. 0 ) then
-              test = test / 11
-#ifdef PRINTLOG
-              write(1000+myid,*) '   ', 11
-#endif
-            endif
-            if( mod( test, 13 ) .eq. 0 ) then
-              test = test / 13
-#ifdef PRINTLOG
-              write(1000+myid,*) '   ', 13
-#endif
-            endif
+!            if( mod( test, 11 ) .eq. 0 ) then
+!              test = test / 11
+!#ifdef PRINTLOG
+!              write(1000+myid,*) '   ', 11
+!#endif
+!            endif
+!            if( mod( test, 13 ) .eq. 0 ) then
+!              test = test / 13
+!#ifdef PRINTLOG
+!              write(1000+myid,*) '   ', 13
+!#endif
+!            endif
 #endif
             if( test .eq. 1 ) then
               uofxDims(i) = uofxDims(i) + k
 #ifdef PRINTLOG
               write(1000+myid,*) 'FINAL:    ', uofxDims(i)
 #endif
+              fftgrid = .true.
               exit
             endif
             
           enddo
+
+! Final check
+          if( .not. fftgrid ) then
+#ifdef __FFTW3
+            do k = 0, 3
+              test = uofxDims(i) + k
+              if( mod( test, 4 ) .eq. 0 ) then
+                uofxDims(i) = uofxDims(i) + k
+#ifdef PRINTLOG
+                write(1000+myid,*) 'FINAL:    ', uofxDims(i)
+#endif
+                exit
+              endif
+            enddo
+#else
+            ! legacy fft can't take arbitrary size
+            ierr = 20
+            return
+#endif
+          endif
+                   
+            
         enddo
 
           

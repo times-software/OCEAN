@@ -60,6 +60,7 @@ if( -e $dataFile )
 
   printXKpoints( $oceanData );
 
+  photonq( $oceanData );
   checkQ( $oceanData );
 
   checkEpsilon( $oceanData );
@@ -1133,7 +1134,12 @@ sub checkBands
 
   # Do nothing if we have a positive number of bands
   if( $nb =~ m/^\s*(-?\d+)\s*$/ ) {
-    return if( $nb > 0); 
+    if( $nb > 0) {
+      if( exists $bandRef->{'mimic_exciting_bands'} ) {
+        $bandRef->{'mimic_exciting_bands'} = JSON::PP::false;
+      }
+      return
+    }
   }
 
   # Not zero means add to total valence bands, continue but WARN if no electron count
@@ -1142,12 +1148,18 @@ sub checkBands
   {
     $flag = 1;
     $nb = abs( $nb );
+    if( exists $bandRef->{'mimic_exciting_bands'} ) {
+      if( $bandRef->{'mimic_exciting_bands'} ) {
+        $bandRef->{'mimic_exciting_bands'} = $nb;
+      }
+    }
   }
   else
   {
     $nb = 0.019 * $hashRef->{'structure'}->{'volume'} * ( ($energyRef/13.605)**(3/2) );
     $nb = 1 if ($nb < 1 );
     print "$nb  $hashRef->{'structure'}->{'volume'} $energyRef\n";
+    $bandRef->{'mimic_exciting_bands'} = JSON::PP::false;
   }
 
   if( $hashRef->{'structure'}->{'valence_electrons'} < 1 )
@@ -1460,6 +1472,30 @@ sub invertAvecs
 #  my $det = $x00->copy();
 }
 
+sub invertMatrix
+{
+  my ($hashRef, $storeRef ) = @_;
+  my @a = @{$hashRef};
+
+  my $det = $a[0][0] * ( $a[1][1] * $a[2][2] - $a[2][1] * $a[1][2] )
+          - $a[0][1] * ( $a[1][0] * $a[2][2] - $a[1][2] * $a[2][0] )
+          + $a[0][2] * ( $a[1][0] * $a[2][1] - $a[1][1] * $a[2][0] );
+
+
+  $storeRef->[0][0] = ( $a[1][1] * $a[2][2] - $a[2][1] * $a[1][2] ) / $det;
+  $storeRef->[0][1] = ( $a[0][2] * $a[2][1] - $a[0][1] * $a[2][2] ) / $det;
+  $storeRef->[0][2] = ( $a[0][1] * $a[1][2] - $a[0][2] * $a[1][1] ) / $det;
+
+  $storeRef->[1][0] = ( $a[1][2] * $a[2][0] - $a[1][0] * $a[2][2] ) / $det;
+  $storeRef->[1][1] = ( $a[0][0] * $a[2][2] - $a[0][2] * $a[2][0] ) / $det;
+  $storeRef->[1][2] = ( $a[1][0] * $a[0][2] - $a[0][0] * $a[1][2] ) / $det;
+
+  $storeRef->[2][0] = ( $a[1][0] * $a[2][1] - $a[2][0] * $a[1][1] ) / $det;
+  $storeRef->[2][1] = ( $a[2][0] * $a[0][1] - $a[0][0] * $a[2][1] ) / $det;
+  $storeRef->[2][2] = ( $a[0][0] * $a[1][1] - $a[1][0] * $a[0][1] ) / $det;
+
+}
+
 sub fixCoords
 {
   my $hashRef = $_[0];
@@ -1533,14 +1569,14 @@ sub fixCoords
 
     $realLength /= 3;
 
-    for( my $i = 0; $i < $tauLength; $i++ )
+    for( my $i = 0; $i < $realLength; $i++ )
     { 
       $newRealspace[$i][0] = $hashRef->{'structure'}->{'xbohr'}[3*$i];
       $newRealspace[$i][1] = $hashRef->{'structure'}->{'xbohr'}[3*$i+1];
       $newRealspace[$i][2] = $hashRef->{'structure'}->{'xbohr'}[3*$i+2];
     }
     
-    for( my $i = 0; $i < $tauLength; $i++ )
+    for( my $i = 0; $i < $realLength; $i++ )
     { 
       $newReduced[$i][0] = $hashRef->{'structure'}->{'invA'}[0][0] * $newRealspace[$i][0]
                          + $hashRef->{'structure'}->{'invA'}[0][1] * $newRealspace[$i][1]
@@ -1776,3 +1812,146 @@ sub printXKpoints
 
   }
 }
+
+
+sub photonq
+{
+  my $hashRef = $_[0];
+
+  my $standard_q = 0;
+  my $cartesian_q = 0;
+  my $cartesian_inout = 0;
+  my $min_q = 1.0e-14;
+  my $default_q_magnitude = 0.0001;  # ~0.5 eV
+  # convert eV photon to au^-1
+  my $e2p = 1.0/(27.211386245988*137.035999084);
+
+  if( exists $hashRef->{'calc'}->{'cartesian_q'} ) {
+    if( exists $hashRef->{'calc'}->{'cartesian_q'}->{'q'} &&
+        exists $hashRef->{'calc'}->{'cartesian_q'}->{'q'}->{'direction'} ) {
+      for( my $i = 0; $i < 3; $i++ ) {
+        if( abs( $hashRef->{'calc'}->{'cartesian_q'}->{'q'}->{'direction'}[$i] ) > $min_q ) {
+          $cartesian_q = 1;
+          last;
+        }
+      }
+    }
+    if( exists $hashRef->{'calc'}->{'cartesian_q'}->{'qin' } &&
+        exists $hashRef->{'calc'}->{'cartesian_q'}->{'qin'}->{'direction'} &&
+        exists $hashRef->{'calc'}->{'cartesian_q'}->{'qout' } &&
+        exists $hashRef->{'calc'}->{'cartesian_q'}->{'qout'}->{'direction'} ) {
+      my $in = 0;
+      for( my $i = 0; $i < 3; $i++ ) {
+        if( abs( $hashRef->{'calc'}->{'cartesian_q'}->{'qin'}->{'direction'}[$i] ) > $min_q ) {
+          $in = 1;
+          last;
+        }
+      }
+      if( $in ) {
+        for( my $i = 0; $i < 3; $i++ ) {
+          if( abs( $hashRef->{'calc'}->{'cartesian_q'}->{'qout'}->{'direction'}[$i] ) > $min_q  ) {
+            $cartesian_inout = 1;
+            last;
+          }
+        }
+      }
+    }
+  }
+
+  # See if we have non-zero photon_q
+  for( my $i = 0; $i < 3; $i++ ) {
+    if( abs( $hashRef->{'calc'}->{'photon_q'}[$i] ) > $min_q ) {
+      $standard_q = 1;
+      last;
+    }
+  }
+
+  my @cart_q;
+
+  # If have non-zero photon_q warn if other options are ignored and fill in cartesian_Q
+  if( $standard_q ) {
+    print( "WARNING: calc.cartesian_q.q overridden by calc.photon_q!\n" ) if( $cartesian_q );
+    print( "WARNING: calc.cartesian_q.qin/qout overridden by calc.photon_q!\n" ) if( $cartesian_inout );
+
+    my $qlen = 0;
+    for( my $i = 0; $i < 3; $i++ ) {
+      $cart_q[$i] = $hashRef->{'calc'}->{'photon_q'}[0]*$hashRef->{'structure'}->{'bvecs'}[0][$i] 
+                  + $hashRef->{'calc'}->{'photon_q'}[1]*$hashRef->{'structure'}->{'bvecs'}[1][$i]
+                  + $hashRef->{'calc'}->{'photon_q'}[2]*$hashRef->{'structure'}->{'bvecs'}[2][$i];
+      $qlen += $cart_q[$i]**2;
+    }
+    $qlen = sqrt($qlen);
+    $hashRef->{'calc'}->{'cartesian_q'}->{'q'}->{'magnitude'} = $qlen;
+    for( my $i = 0; $i < 3; $i ++ ) {
+      $cart_q[$i] /= $qlen;
+    }
+    $hashRef->{'calc'}->{'cartesian_q'}->{'q'}->{'direction'} = [ $cart_q[0], $cart_q[1], $cart_q[2] ];
+    return;
+  }
+
+  if( $cartesian_q ) {
+    print( "WARNING: calc.cartesian_q.qin/qout overridden by calc.cartesian_q.q!\n" ) if( $cartesian_inout );
+    if( $hashRef->{'calc'}->{'cartesian_q'}->{'q'}->{'magnitude'} > 0 ) {
+      if( $hashRef->{'calc'}->{'cartesian_q'}->{'q'}->{'energy'} > 0 ) {
+        print( "WARNING: calc.cartesian_q.q.energy overridden by calc.cartesian_q.q.magnitude" );
+      }
+    } elsif( $hashRef->{'calc'}->{'cartesian_q'}->{'q'}->{'energy'} > 0 ) {
+      $hashRef->{'calc'}->{'cartesian_q'}->{'q'}->{'magnitude'} = 
+        $hashRef->{'calc'}->{'cartesian_q'}->{'q'}->{'energy'} * $e2p;
+    } 
+    if( $hashRef->{'calc'}->{'cartesian_q'}->{'q'}->{'magnitude'} < $default_q_magnitude ) {
+      $hashRef->{'calc'}->{'cartesian_q'}->{'q'}->{'magnitude'} = $default_q_magnitude;
+    }
+    my $a = 0;
+    for( my $i = 0; $i < 3; $i++ ) {
+      $a += $hashRef->{'calc'}->{'cartesian_q'}->{'q'}->{'direction'}[$i]**2;
+    }
+    $a = 1.0/sqrt($a);
+    for( my $i = 0; $i < 3; $i++ ) {
+      $cart_q[$i] = $hashRef->{'calc'}->{'cartesian_q'}->{'q'}->{'direction'}[$i]*$a 
+                  * $hashRef->{'calc'}->{'cartesian_q'}->{'q'}->{'magnitude'};
+      $hashRef->{'calc'}->{'cartesian_q'}->{'q'}->{'direction'}[$i] *= $a;
+    }
+  } elsif( $cartesian_inout ) {
+    foreach my $s ( 'qin', 'qout' ) {
+      if( $hashRef->{'calc'}->{'cartesian_q'}->{$s}->{'magnitude'} > 0 ) {
+        if( $hashRef->{'calc'}->{'cartesian_q'}->{$s}->{'energy'} > 0 ) {
+          print( "WARNING: calc.cartesian_q.$s.energy overridden by calc.cartesian_q.$s.magnitude" );
+        }
+      } elsif( $hashRef->{'calc'}->{'cartesian_q'}->{$s}->{'energy'} > 0 ) {
+        $hashRef->{'calc'}->{'cartesian_q'}->{$s}->{'magnitude'} =
+          $hashRef->{'calc'}->{'cartesian_q'}->{$s}->{'energy'} * $e2p;
+      } 
+      if( $hashRef->{'calc'}->{'cartesian_q'}->{$s}->{'magnitude'} < $default_q_magnitude ) {
+        $hashRef->{'calc'}->{'cartesian_q'}->{$s}->{'magnitude'} = $default_q_magnitude;
+      }
+      my $a = 0;
+      for( my $i = 0; $i < 3; $i++ ) {
+        $a += $hashRef->{'calc'}->{'cartesian_q'}->{$s}->{'direction'}[$i]**2;
+      }
+      $a = 1.0/sqrt($a);
+      for( my $i = 0; $i < 3; $i++ ) {
+        $hashRef->{'calc'}->{'cartesian_q'}->{$s}->{'direction'}[$i] *= $a;
+      }
+    }
+    for( my $i = 0; $i < 3; $i++ ) {
+      $cart_q[$i] = ( $hashRef->{'calc'}->{'cartesian_q'}->{'qin'}->{'direction'}[$i]
+                    * $hashRef->{'calc'}->{'cartesian_q'}->{'qin'}->{'magnitude'} )
+                  - ( $hashRef->{'calc'}->{'cartesian_q'}->{'qout'}->{'direction'}[$i] 
+                    * $hashRef->{'calc'}->{'cartesian_q'}->{'qout'}->{'magnitude'} );
+    }
+  }
+
+  my @invBRef;
+  invertMatrix( $hashRef->{'structure'}->{'bvecs'}, \@invBRef );
+#  print $invBRef[0][0] . "\n";
+#  print $hashRef->{'structure'}->{'invB'}[0][0] . "\n";
+
+  for( my $i = 0; $i < 3; $i++ ) {
+    $hashRef->{'calc'}->{'photon_q'}[$i] = $invBRef[0][$i] * $cart_q[0] 
+                                         + $invBRef[1][$i] * $cart_q[1] 
+                                         + $invBRef[2][$i] * $cart_q[2];
+  }
+
+}
+

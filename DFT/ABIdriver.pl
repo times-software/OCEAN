@@ -373,7 +373,7 @@ sub ABIprintInput
       $generalRef->{'general'}->{'occopt'}, $generalRef->{'general'}->{'degauss'};
 
   print $input "npfft 1\n";
-  printf $input "charge % .16g\n", $generalRef->{'general'}->{'tot_charge'};
+  printf $input "charge % .16g\n", $generalRef->{'structure'}->{'charge'};
   
   printf $input "nsppol %i\n", $generalRef->{'general'}->{'nspin'};
   if( $generalRef->{'general'}->{'nspin'} != 1 ) {

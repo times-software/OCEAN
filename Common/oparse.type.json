@@ -39,6 +39,7 @@
       "dft_energy_range" : "f",
       "kmesh" : "af",
       "kshift" : "af",
+      "mimic_exciting_bands" : "b",
       "nbands" : "i",
       "occupation" : {
          "type" : "s",
@@ -83,6 +84,23 @@
       "xmesh" : "af"
    },
    "calc" : {
+      "cartesian_q" : {
+         "q" : {
+           "direction" : "af",
+           "energy" : "f",
+           "magnitude" : "f"
+         },
+         "qin" : {
+           "direction" : "af",
+           "energy" : "f",
+           "magnitude" : "f"
+         },
+         "qout" : {
+           "direction" : "af",
+           "energy" : "f",
+           "magnitude" : "f"
+         }
+      },
       "edges" : "ai",
       "mode" : "s",
       "photon_in" : "ai",
@@ -125,6 +143,7 @@
       },
       "fband" : "f",
       "functional" : "s",
+      "isolated" : "s",
       "ldau" : {
          "Hubbard_J" : "S",
          "Hubbard_J0" : "S",
@@ -153,7 +172,6 @@
       "tmp_dir" : "S",
       "toldfe" : "f",
       "tolwfr" : "f",
-      "tot_charge" : "f",
       "verbatim" : "S"
    },
    "opf" : {
@@ -211,6 +229,7 @@
       "shells" : "af"
    },
    "structure" : {
+      "charge" : "f",
       "epsilon" : "f",
       "metal" : "b",
       "rprim" : "af",

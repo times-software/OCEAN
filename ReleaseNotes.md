@@ -1,3 +1,17 @@
+## v. 3.0.1
+
+#### Major Features
+ 1. Completely new formatting for input files (the old format or a mix of old 
+    and new are supporteD). The new style maps to a json file. See the file 
+    Common/postDefaultsOceanDatafile for a complete picture of the input 
+    following parsing the user-supplied inputs and filling in with defaults.
+
+#### Bug fixes
+ 1. The Umklapp wasn't functioning correctly for large-q valence calculations
+    (thanks Ishiaka Mansaray for the bug report).
+ 2. Potential problem in parsing the 'nelec' element in the QE xml output 
+    (thanks Max Radin for the bug report).
+
 ## v. 2.9.7
 
 ### This is the pre-release/test run for 3.0

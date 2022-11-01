@@ -50,6 +50,7 @@
          0.25,
          0.375
       ],
+      "mimic_exciting_bands" : false,
       "nbands" : "range",
       "occupation" : {
          "type" : "none",
@@ -101,6 +102,35 @@
       ]
    },
    "calc" : {
+      "cartesian_q" : {
+         "q" : {
+           "direction" : [
+              0,
+              0,
+              0
+           ],
+           "energy" : 0,
+           "magnitude" : 0
+         },
+         "qin" : {
+           "direction" : [
+              0,
+              0,
+              0
+           ],
+           "energy" : 0,
+           "magnitude" : 0
+         },
+         "qout" : {
+           "direction" : [
+              0,
+              0,
+              0
+           ],
+           "energy" : 0,
+           "magnitude" : 0
+         }
+      },
       "edges" : [],
       "mode" : "xas",
       "photon_in" : [],
@@ -157,6 +187,7 @@
       },
       "fband" : 0.125,
       "functional" : "default",
+      "isolated" : "none",
       "ldau" : {
          "Hubbard_J" : "",
          "Hubbard_J0" : "",
@@ -185,7 +216,6 @@
       "tmp_dir" : "undefined",
       "toldfe" : 1e-10,
       "tolwfr" : 1e-12,
-      "tot_charge" : 0,
       "verbatim" : ""
    },
    "opf" : {
@@ -266,6 +296,7 @@
       ]
    },
    "structure" : {
+      "charge" : 0,
       "epsilon" : 0,
       "metal" : false,
       "rprim" : null,

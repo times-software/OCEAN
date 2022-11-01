@@ -101,7 +101,7 @@ $newDftData->{'scf'}->{'complete'} = JSON::PP::false unless( exists $dftData->{'
 
 $newDftData->{'structure'} = {};
 
-my @structureList = ( "typat", "xred", "znucl", "avecs", "zsymb", "valence_electrons", "bvecs", "metal" );
+my @structureList = ( "typat", "xred", "znucl", "avecs", "zsymb", "valence_electrons", "bvecs", "metal", "charge" );
 copyAndCompare( $newDftData->{'structure'}, $commonOceanData->{'structure'}, $dftData->{'structure'}, 
                 $newDftData->{'scf'}, \@structureList );
 
@@ -123,7 +123,7 @@ copyAndCompare( $newDftData->{'psp'}, $commonOceanData->{'psp'}, $dftData->{'psp
 
 # Only check the first list against previous runs
 my @generalList = ( "degauss", "ecut", "fband", "functional", "noncolin", "nspin", "occopt", 
-                    "program", "smag", "spinorb", "tot_charge", "verbatim" );
+                    "program", "smag", "spinorb", "verbatim", "isolated" );
 my @generalSecondaryList = ( "calc_force", "calc_stress", "diagonalization", "mixing", 
                              "nstep", "redirect", "startingwfc", "tmp_dir", "abpad" );
 $newDftData->{'general'} = {};
@@ -700,6 +700,16 @@ unless( $newDftData->{'bse'}->{'complete'} ) {
 }
 }
 
+if( -e "redo_energies" ) {
+  print "Re-calculating energies\n";
+  foreach (@{$newDftData->{'bse'}->{'directories'}}) {
+    QErunParseEnergies( $newDftData, $newDftData->{'znscf'}->{$_}, 0 );
+  }
+  QErunParseEnergies( $newDftData, $newDftData->{'znscf'}->{$newDftData->{'screen'}->{'directories'}[0]}, 0 );
+#  QErunParseEnergies( $newDftData, $newDftData->{'bse'}, 0 );
+#  QErunParseEnergies( $newDftData, $newDftData->{'screen'}, 0 );
+}
+
 # touch up Fermi if insulator
 if( $newDftData->{'general'}->{'occopt'} == 1 && $newDftData->{'general'}->{'program'} eq "qe" )
 {
@@ -736,6 +746,11 @@ if( $newDftData->{'screen'}->{'enable'} ) {
 $newDftData->{'bse'}->{'brange'}[0] = $newDftData->{'znscf'}->{$newDftData->{'bse'}->{'directories'}[-1]}->{'brange'}[0];
 $newDftData->{'bse'}->{'brange'}[1] = $newDftData->{'znscf'}->{$newDftData->{'bse'}->{'directories'}[-1]}->{'brange'}[1];
 $newDftData->{'bse'}->{'brange'}[2] = $newDftData->{'znscf'}->{$newDftData->{'bse'}->{'directories'}[0]}->{'brange'}[2];
+
+if( $commonOceanData->{'bse'}->{'mimic_exciting_bands'} ) {
+  $newDftData->{'bse'}->{'brange'}[3] = $newDftData->{'bse'}->{'brange'}[2] 
+                                      + $commonOceanData->{'bse'}->{'mimic_exciting_bands'} - 1;
+}
 
 # Grab times and hashes
 $newDftData->{'screen'}->{'time'} = $newDftData->{'znscf'}->{ $newDftData->{'screen'}->{'directories'}[0] }->{'time'};

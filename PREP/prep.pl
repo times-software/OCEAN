@@ -215,7 +215,8 @@ if( $cks )
   $newPrepData->{'bse'}->{'cks'}->{'enabled'} = JSON::PP::true;
 
   my $new = 0;
-  unless( exists $prepData->{'bse'}->{'cks'}->{'previous'} ) {
+  unless( exists $prepData->{'bse'}->{'cks'} && 
+          exists $prepData->{'bse'}->{'cks'}->{'previous'} ) {
     $prepData->{'bse'}->{'cks'}->{'previous'} = {};
     $new = 1;
   }
