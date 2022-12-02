@@ -220,6 +220,7 @@
    },
    "opf" : {
       "program" : "shirley",
+      "radius" : "-1",
       "shirley" : {
          "caution" : false,
          "fill" : "!",

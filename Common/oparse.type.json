@@ -176,6 +176,7 @@
    },
    "opf" : {
       "program" : "s",
+      "radius" : "f",
       "shirley" : {
          "caution" : "b",
          "fill" : "S",
