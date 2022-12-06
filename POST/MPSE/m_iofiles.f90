@@ -346,8 +346,8 @@ CONTAINS
             & // FileName // ' does not exist.')
     ELSE
        NSections = FileStack(IOFIndex)%NSections
-       IF( NSections .eq. 0 ) THEN
-          WritingNewSection = .TRUE.
+       IF( NSections .le. 0 ) THEN
+          WritingNewSection = .FALSE.
        ELSEIF(TRIM(DataTypeLine).eq. &
             & TRIM(FileStack(IOFIndex)%DataTypeLine(NSections)).or.&
             & LEN_TRIM(DataTypeLine).eq.0) THEN
