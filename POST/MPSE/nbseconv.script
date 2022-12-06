@@ -1,0 +1,111 @@
+#!/bin/bash
+bin=$1
+gam=0.0
+if [ "X$2" != "X" ]
+then
+	gam=$2
+fi
+NIter=`cat Common/se_niter`
+i=1
+echo 'Running self-energy convolution.'
+while [ $i -le $NIter ]
+do
+  echo "Iter number $i"
+	# make loss.dat
+	if [ $i -eq 1 ]
+	then
+		awk '{if(NR!=1) print $1, $2;}' NBSE/loss > loss.dat
+
+		# Get dielectric constant and ldagap/2
+		# had to change one line solution to 3 line involving files
+		# due to bug in awk/qsub.
+		grep -v '#' NBSE/eps1 > eps1.tmp
+		awk '{print $2}' eps1.tmp > eps0.tmp
+                eps0=`head -n 1 eps0.tmp`
+		rm -f eps0.tmp eps1.tmp
+		#eps0=`grep -v '#' NBSE/eps1 |awk '{print $2}' |head -n 1`
+		# Set egap and efermi
+#		EGap0=`awk '{print $1}' NBSE/gwipt`
+		cd NBSE
+		#$bin/sp3.x
+		cd ..
+		EGap0=`cat NBSE/ldagap`
+		EGap=$EGap0
+		EFermi=`echo "$EGap" | awk '{ print $1/2.0 }'`
+	else
+		awk '{if(NR!=1) print $1, $2;}' NBSE/loss_SE > loss.dat
+	
+		# Get dielectric constant and ldagap/2
+                eps0=`grep -v '#' NBSE/eps1_SE |awk '{if(NF==2) print $2;}' |head -n 1`
+                EGap=`head -n6 SE.dat |tail -n1 |awk "{print $EGap0 + \\$3}"`
+                EFermi=`echo "$EGap" | awk '{ print $1/2.0 }'`
+	fi	
+
+	# if metal set eps0 = -1
+	if [ `cat Common/se_metal` -eq 1 ]
+	then
+		eps0=-1
+	fi
+	
+	
+	NPoles=50
+	# make exc.inp
+	echo $NPoles > exc.inp
+	echo 1 1 >> exc.inp
+	echo $eps0 >> exc.inp
+	
+	# create exc.dat
+	$bin/eps2exc.x < exc.inp
+	
+	# copy eps2 to current dir
+	grep -v '#' NBSE/eps2 |awk '{if(NF==2) print $1, $2*$1;}' > osc_str.dat
+	
+	# If user didn't input rs, calculate it here
+	Rs=`cat Common/se_rs`
+	if [ "X$Rs" == "X-1" ]
+	then
+		# Get number of electrons.
+		cat DenDip/nelectron > tmp
+		#head -n 2 DenDip/rhoofg |tail -n 1 |awk '{print $4}' > tmp
+		$bin/CellVolume.x < NBSE/avecsinbohr.ipt >> tmp
+		Rs=`$bin/calcrs.x < tmp`
+	fi
+	
+	# cat headers into exc.dat
+	echo "$Rs 0.0" > exc.tmp
+	echo $NPoles >> exc.tmp
+	cat exc.dat >> exc.tmp
+	mv exc.tmp exc.dat
+	
+	# Make seconv.inp
+	echo '# File to convolve.' > seconv.inp
+	echo 'osc_str.dat' >> seconv.inp
+	echo '# Output file.' >> seconv.inp
+	echo 'conv.dat' >> seconv.inp
+	echo '# number of y columns' >> seconv.inp
+	echo 1 >> seconv.inp
+	echo '# x column' >> seconv.inp
+	echo 1 >> seconv.inp
+	echo '# y columns to convolve' >> seconv.inp
+	echo 2 >> seconv.inp
+	echo "$EFermi $EGap $gam" >> seconv.inp
+	
+	# run seconv
+	$bin/selfenergy.x
+	cp SE.dat NBSE
+	cd NBSE 
+	$bin/kkconv.x
+	# change back to eps2
+	#awk '{if($1>0.0) print $1, $2/$1;}' conv.dat > eps2_conv.dat
+	#cp SE.dat NBSE/
+	#cd NBSE/
+	#cat spect.in | $bin/spectSE.x
+        files="`ls *_SE *_SE.dat`"
+	for file in $files
+	do
+		cp $file $file.$i
+	done
+        cd ..
+	let i=i+1
+done 
+echo 'Done with self-energy convolution.'
