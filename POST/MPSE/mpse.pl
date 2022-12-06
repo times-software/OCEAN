@@ -36,7 +36,7 @@ else
 }
 
 my $gam = 0;
-my $NIter = 1;
+my $NIter = 3;
 my $eps0;
 
 open IN, "../opcons" or die;
@@ -88,6 +88,14 @@ close OUT;
 for( my $i = 0; $i < $NIter; $i ++ ) {
   if( $i > 0 ) {
     copy "loss_SE", "loss.dat";
+    open IN, "eps1_SE" or die;
+    <IN> =~ m/(-?\d+\.\d+)\s+(-?\d+\.\d+)/ or die;
+    $eps0 = $3;
+    close IN;
+    open IN, "SE.dat" or die;
+    <IN> =~ m/(-?\d\.\d+E[+-]\d+)\s+(-?\d\.\d+E[+-]\d+)\s+(-?\d\.\d+E[+-]\d+)\s+(-?\d\.\d+E[+-]\d+)/ or die;
+    $egap = $ldagap + $3;
+    $efermi = $egap / 2;
 #    $eps0=`grep -v '#' NBSE/eps1_SE |awk '{if(NF==2) print $2;}' |head -n 1`
 #    $egap=`head -n6 SE.dat |tail -n1 |awk "{print $EGap0 + \\$3}"`
 #    $efermi = $egap/2;
@@ -113,5 +121,9 @@ for( my $i = 0; $i < $NIter; $i ++ ) {
 
   system("$ENV{'OCEAN_BIN'}/selfenergy.x");
   system("$ENV{'OCEAN_BIN'}/kkconv.x");
+
+  foreach( "eps1_SE", "eps2_SE", "inds_SE", "loss_SE", "refl_SE", "opcons_SE.dat" ) {
+    copy $_, "$_.$i";
+  }
 
 }
