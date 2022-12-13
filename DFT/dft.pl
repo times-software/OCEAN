@@ -101,7 +101,7 @@ $newDftData->{'scf'}->{'complete'} = JSON::PP::false unless( exists $dftData->{'
 
 $newDftData->{'structure'} = {};
 
-my @structureList = ( "typat", "xred", "znucl", "avecs", "zsymb", "valence_electrons", "bvecs", "metal", "charge" );
+my @structureList = ( "typat", "xred", "znucl", "avecs", "zsymb", "valence_electrons", "bvecs", "metal", "charge", "magnetization" );
 copyAndCompare( $newDftData->{'structure'}, $commonOceanData->{'structure'}, $dftData->{'structure'}, 
                 $newDftData->{'scf'}, \@structureList );
 
@@ -148,7 +148,8 @@ copyAndCompare( $newDftData->{'general'}->{'ldau'}, $commonOceanData->{'dft'}->{
                 $newDftData->{'scf'}, [ 'enable' ] );
 if( $newDftData->{'general'}->{'ldau'}->{'enable'} )
 {
-  my @ldauList = ( "Hubbard_J", "Hubbard_J0", "Hubbard_U", "Hubbard_V", "U_projection_type", "lda_plus_u_kind" );
+  my @ldauList = ( "Hubbard_J", "Hubbard_J0", "Hubbard_U", "Hubbard_V", "U_projection_type", 
+                   "lda_plus_u_kind", "scf_only" );
   copyAndCompare( $newDftData->{'general'}->{'ldau'}, $commonOceanData->{'dft'}->{'ldau'},
                 $dftData->{'general'}->{'ldau'}, $newDftData->{'scf'}, \@ldauList );
 }

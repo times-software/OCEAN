@@ -195,7 +195,8 @@
          "Hubbard_V" : "",
          "U_projection_type" : "atomic",
          "enable" : false,
-         "lda_plus_u_kind" : 0
+         "lda_plus_u_kind" : 0,
+         "scf_only" : false
       },
       "mixing" : 0.7,
       "ndiag" : -1,
@@ -299,6 +300,7 @@
    "structure" : {
       "charge" : 0,
       "epsilon" : 0,
+      "magnetization" : "none",
       "metal" : false,
       "rprim" : null,
       "rscale" : [

@@ -937,6 +937,10 @@ sub QEprintInput
       $generalRef->{'general'}->{'isolated'} ne 'none' ) {
     print $fh "  assume_isolated = \'$generalRef->{'general'}->{'isolated'}\'\n";
   }
+  if( exists $generalRef->{'structure'}->{'magnetization'} &&
+      $generalRef->{'structure'}->{'magnetization'} ne 'none' ) {
+    printf $fh "  tot_magnetization = %g\n", $generalRef->{'structure'}->{'magnetization'};
+  }
 
   print $fh "  nbnd = $nbnd\n";
 
@@ -944,7 +948,8 @@ sub QEprintInput
   {
     print $fh "$generalRef->{'general'}->{'smag'}\n";
   }
-  if( $generalRef->{'general'}->{'ldau'}->{'enable'} )
+  if( $generalRef->{'general'}->{'ldau'}->{'enable'} && 
+      ( $calcFlag || not $generalRef->{'general'}->{'ldau'}->{'scf_only'} ) )
   {
     print $fh "lda_plus_u = true\n" 
             . "lda_plus_u_kind = $generalRef->{'general'}->{'ldau'}->{'lda_plus_u_kind'}\n"
