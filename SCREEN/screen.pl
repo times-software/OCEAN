@@ -1864,7 +1864,7 @@ sub buildMKRB
     $hashRef->{'grid2'}->{'deltar'}[$i] = $hashRef->{'grid2'}->{'deltar'}[$i-1]
         if( scalar @{$hashRef->{'grid2'}->{'deltar'}} <= $i || $hashRef->{'grid2'}->{'deltar'}[$i] <= 0 );
     $hashRef->{'grid2'}->{'rmode'}[$i] = 'uniform'
-        unless( $hashRef->{'grid2'}->{'rmode'} =~ m/uniform/ || $hashRef->{'grid2'}->{'rmode'} =~ m/legendre/);
+        unless( $hashRef->{'grid2'}->{'rmode'}[$i] =~ m/uniform/ || $hashRef->{'grid2'}->{'rmode'}[$i] =~ m/legendre/);
 
     if( scalar @{$hashRef->{'grid2'}->{'shells'}} <= $i || $hashRef->{'grid2'}->{'shells'}[$i] < 0
         || $hashRef->{'grid2'}->{'shells'}[$i] 

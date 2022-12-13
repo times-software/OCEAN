@@ -367,9 +367,11 @@ module screen_wvfn_converter
 !$    nthreads = omp_get_max_threads()
       nbandChunk = nbandChunk * nthreads
       nbandChunk = min( nbandChunk, nbands )
+      nbandChunk = max( nbandChunk, 1 )
     endif
 #ifdef PRINTLOG
     write(1000+myid,'(A,4(1X,I0),L2)') '*** Convert and Send ***', ikpt, ispin, nbands, nbandChunk, params%isGamma
+    flush(1000+myid)
 #endif
 !    flush(1000+myid)
 
