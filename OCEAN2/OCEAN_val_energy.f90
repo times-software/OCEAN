@@ -841,6 +841,9 @@ module OCEAN_val_energy
         write( 6, * ) '    gap = ', ( lumo - homo ) * Hartree2eV
       endif
       write( 6, * ) 'clips = ', efermi* Hartree2eV, cliph* Hartree2eV, (cliph - efermi)* Hartree2eV
+      open(unit=99,file='gap',form='formatted',status='unknown')
+      write(99,*) ( lumo - homo ) * Hartree2eV
+      close(99)
     endif
 
   111 continue

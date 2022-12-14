@@ -17,7 +17,7 @@ if (! $ENV{"OCEAN_BIN"} ) {
 ###########################
 
 
-my $dataFile = catfile( updir(), updir(), "Common", "postDefaultsOceanDatafile" );
+my $dataFile = catfile( updir(), "Common", "postDefaultsOceanDatafile" );
 
 my $json = JSON::PP->new;
 $json->canonical([1]);
@@ -39,7 +39,7 @@ my $gam = 0;
 my $NIter = 3;
 my $eps0;
 
-open IN, "../opcons" or die;
+open IN, "opcons" or die "Failed to open the opcons file\n$!";
 open OUT, ">", "loss.dat" or die;
 open OSC, ">", "osc_str.dat" or die;
 open EPS2, ">", "eps2" or die;
@@ -63,7 +63,7 @@ close OUT;
 close OSC;
 close EPS2;
 
-open IN, "../gap" or die;
+open IN, "gap" or die "Failed to open the gap file\n$!";
 my $ldagap = <IN>;
 chomp $ldagap;
 close IN;
