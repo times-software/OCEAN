@@ -288,7 +288,8 @@
          "SLL" : {
             "dq" : 0.01,
             "nav" : -1,
-            "qmax" : 10
+            "qmax" : 10,
+            "semicore_density" : false
          },
          "flavor" : "SLL"
       },

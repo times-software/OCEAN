@@ -223,7 +223,8 @@
          "SLL" : {
             "dq" : "f",
             "nav" : "f",
-            "qmax" : "f"
+            "qmax" : "f",
+            "semicore_density" : "b"
          },
          "flavor" : "s"
       },
