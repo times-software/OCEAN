@@ -454,7 +454,7 @@ unless( $newDftData->{'density'}->{'complete'} ) {
   if( $newDftData->{'general'}->{'program'} eq "qe" ) {
     my ($emin, $emax) = QEconvertEnergies( $newDftData->{'structure'}->{'semicore_electrons'});
     $errorCode = QEparseDensityPotential( $newDftData, "density", $emin, $emax );
-    if( $errorCode == 0 ) {
+    if( $errorCode == 0 && abs($emin-$emax) > 0.1 ) {
       $errorCode = QEparseDensityPotential( $newDftData, "sc-density", $emin, $emax );
     }
   } elsif ( $newDftData->{'general'}->{'program'} eq "abi" ) {
