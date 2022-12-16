@@ -1554,9 +1554,10 @@ sub fixCoords
       else
       {
         #COPY angst over with scaling factor
+        $realLength = $angLength;
         for( my $i = 0; $i < $angLength; $i++ )
         {
-          $hashRef->{'structure'}->{'xbohr'}[$i] = $hashRef->{'structure'}->{'xangst'}[$1] / $bohr;
+          $hashRef->{'structure'}->{'xbohr'}[$i] = $hashRef->{'structure'}->{'xangst'}[$i] / $bohr;
         }
       }
     }
