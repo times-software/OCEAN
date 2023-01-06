@@ -101,7 +101,8 @@ $newDftData->{'scf'}->{'complete'} = JSON::PP::false unless( exists $dftData->{'
 
 $newDftData->{'structure'} = {};
 
-my @structureList = ( "typat", "xred", "znucl", "avecs", "zsymb", "valence_electrons", "bvecs", "metal", "charge" );
+my @structureList = ( "typat", "xred", "znucl", "avecs", "zsymb", "valence_electrons", "bvecs", 
+                      "metal", "charge", "magnetization", "semicore_electrons" );
 copyAndCompare( $newDftData->{'structure'}, $commonOceanData->{'structure'}, $dftData->{'structure'}, 
                 $newDftData->{'scf'}, \@structureList );
 
@@ -148,7 +149,8 @@ copyAndCompare( $newDftData->{'general'}->{'ldau'}, $commonOceanData->{'dft'}->{
                 $newDftData->{'scf'}, [ 'enable' ] );
 if( $newDftData->{'general'}->{'ldau'}->{'enable'} )
 {
-  my @ldauList = ( "Hubbard_J", "Hubbard_J0", "Hubbard_U", "Hubbard_V", "U_projection_type", "lda_plus_u_kind" );
+  my @ldauList = ( "Hubbard_J", "Hubbard_J0", "Hubbard_U", "Hubbard_V", "U_projection_type", 
+                   "lda_plus_u_kind", "scf_only" );
   copyAndCompare( $newDftData->{'general'}->{'ldau'}, $commonOceanData->{'dft'}->{'ldau'},
                 $dftData->{'general'}->{'ldau'}, $newDftData->{'scf'}, \@ldauList );
 }
@@ -450,7 +452,11 @@ unless( $newDftData->{'density'}->{'complete'} ) {
   print "Exporting density from SCF\n";
   my $errorCode;
   if( $newDftData->{'general'}->{'program'} eq "qe" ) {
-     $errorCode = QEparseDensityPotential( $newDftData, "density" );
+    my ($emin, $emax) = QEconvertEnergies( $newDftData->{'structure'}->{'semicore_electrons'});
+    $errorCode = QEparseDensityPotential( $newDftData, "density", $emin, $emax );
+    if( $errorCode == 0 && abs($emin-$emax) > 0.1 ) {
+      $errorCode = QEparseDensityPotential( $newDftData, "sc-density", $emin, $emax );
+    }
   } elsif ( $newDftData->{'general'}->{'program'} eq "abi" ) {
      $errorCode = ABIparseDensityPotential( $newDftData, "density" );
   }
@@ -502,7 +508,7 @@ unless( $newDftData->{'potential'}->{'complete'} ) {
 #  my $errorCode = QEparseDensityPotential( $newDftData, "potential" );
   my $errorCode;
   if( $newDftData->{'general'}->{'program'} eq "qe" ) {
-     $errorCode = QEparseDensityPotential( $newDftData, "potential" );
+     $errorCode = QEparseDensityPotential( $newDftData, "potential", 0, 0 );
   } elsif ( $newDftData->{'general'}->{'program'} eq "abi" ) {
      $errorCode = ABIparseDensityPotential( $newDftData, "potential" );
   }

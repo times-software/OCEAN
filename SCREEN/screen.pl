@@ -1788,7 +1788,7 @@ sub runDensityAverage
     return 101;
   }
 
-  copy( catfile( updir(), "DFT", "rhoofg" ), "rhoofg" );
+#  copy( catfile( updir(), "DFT", "rhoofg" ), "rhoofg" );
 
   print "$hashRef->{'computer'}->{'para_prefix'} $ENV{'OCEAN_BIN'}/mpi_avg.x > mpi_avg.log 2>&1\n";
   system("$hashRef->{'computer'}->{'para_prefix'} $ENV{'OCEAN_BIN'}/mpi_avg.x > mpi_avg.log 2>&1" );
@@ -1864,7 +1864,7 @@ sub buildMKRB
     $hashRef->{'grid2'}->{'deltar'}[$i] = $hashRef->{'grid2'}->{'deltar'}[$i-1]
         if( scalar @{$hashRef->{'grid2'}->{'deltar'}} <= $i || $hashRef->{'grid2'}->{'deltar'}[$i] <= 0 );
     $hashRef->{'grid2'}->{'rmode'}[$i] = 'uniform'
-        unless( $hashRef->{'grid2'}->{'rmode'} =~ m/uniform/ || $hashRef->{'grid2'}->{'rmode'} =~ m/legendre/);
+        unless( $hashRef->{'grid2'}->{'rmode'}[$i] =~ m/uniform/ || $hashRef->{'grid2'}->{'rmode'}[$i] =~ m/legendre/);
 
     if( scalar @{$hashRef->{'grid2'}->{'shells'}} <= $i || $hashRef->{'grid2'}->{'shells'}[$i] < 0
         || $hashRef->{'grid2'}->{'shells'}[$i] 
@@ -2063,8 +2063,19 @@ sub writeExtraFiles
   close OUT;
 
   # 'screen.quadorder' 'screen.chi0integrand'  'screen.appx'
-  copy( catfile( updir(), "DFT", "rhoofr" ), "rhoofr" ) or die $!;
+  my $rhofile = catfile( updir(), "DFT", "val.rhoofr" );
+#  unless( ! $screenRef->{'model'}->{'SLL'}->{'semicore_density'} && -e $rhofile ) {
+  if( (not -e $rhofile) || $screenRef->{'model'}->{'SLL'}->{'semicore_density'} ) {
+    $rhofile = catfile( updir(), "DFT", "rhoofr" );
+  }
+  copy( $rhofile , "rhoofr" ) or die $!;
+#  copy( catfile( updir(), "DFT", "rhoofr" ), "rhoofr" ) or die $!;
   copy( catfile( updir(), "DFT", "nfft" ), "nfft" ) or die $!;
+  
+  system("$ENV{'OCEAN_BIN'}/rhoofg.x") == 0  or die "Failed to run rhoofg.x\n";
+  system("wc -l rhoG2 > rhoofg") == 0 or die "$!\n";
+  system("sort -n -k 6 rhoG2 >> rhoofg") == 0 or die "$!\n";
+  unlink( "rhoG2" );
   
 }
 

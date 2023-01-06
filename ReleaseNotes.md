@@ -1,8 +1,19 @@
+## v. 3.0.2
+
+#### Minor features
+ 1. MPSE support added back. The many-pole self-energy model from AI2NBSE has 
+    been re-enabled. The scripts and source are in POST/MPSE. This is a post-
+    processing step for after valence UV/optical calculations. 
+
+#### Bug fixes
+ 1. Screening had small bug. Mostly didn't seem to change spectra, but 
+    induced potential could change slightly from run to run. 
+
 ## v. 3.0.1
 
 #### Major Features
  1. Completely new formatting for input files (the old format or a mix of old 
-    and new are supporteD). The new style maps to a json file. See the file 
+    and new are supported). The new style maps to a json file. See the file 
     Common/postDefaultsOceanDatafile for a complete picture of the input 
     following parsing the user-supplied inputs and filling in with defaults.
 

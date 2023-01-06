@@ -367,9 +367,11 @@ module screen_wvfn_converter
 !$    nthreads = omp_get_max_threads()
       nbandChunk = nbandChunk * nthreads
       nbandChunk = min( nbandChunk, nbands )
+      nbandChunk = max( nbandChunk, 1 )
     endif
 #ifdef PRINTLOG
     write(1000+myid,'(A,4(1X,I0),L2)') '*** Convert and Send ***', ikpt, ispin, nbands, nbandChunk, params%isGamma
+    flush(1000+myid)
 #endif
 !    flush(1000+myid)
 
@@ -1729,10 +1731,10 @@ module screen_wvfn_converter
 
 #ifdef __FFTW3
 !$    deallocate( tempC )
-!$OMP PARALLEL DEFAULT( NONE ) 
+!$OMP PARALLEL DEFAULT( NONE ) &
 !$OMP SHARED( bplan, nbands, ngvecs, dims, uofg, uofx, gvecs ) &
 !$OMP PRIVATE( ib, ig, i, j, k, tempC )
-!$    allocate( tempC( ( dims(1), dims(2), dims(3) ) )
+!$    allocate( tempC( dims(1), dims(2), dims(3) ) )
 !$OMP DO
 #endif
     do ib = 1, nbands
@@ -1773,7 +1775,7 @@ module screen_wvfn_converter
 #ifdef __FFTW3
 !$OMP END DO
     deallocate( tempC )
-!$OMP END PARLLEL
+!$OMP END PARALLEL
 #else
     deallocate( tempC )
 #endif

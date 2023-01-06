@@ -195,7 +195,8 @@
          "Hubbard_V" : "",
          "U_projection_type" : "atomic",
          "enable" : false,
-         "lda_plus_u_kind" : 0
+         "lda_plus_u_kind" : 0,
+         "scf_only" : false
       },
       "mixing" : 0.7,
       "ndiag" : -1,
@@ -220,6 +221,7 @@
    },
    "opf" : {
       "program" : "shirley",
+      "radius" : "-1",
       "shirley" : {
          "caution" : false,
          "fill" : "!",
@@ -286,7 +288,8 @@
          "SLL" : {
             "dq" : 0.01,
             "nav" : -1,
-            "qmax" : 10
+            "qmax" : 10,
+            "semicore_density" : false
          },
          "flavor" : "SLL"
       },
@@ -298,6 +301,7 @@
    "structure" : {
       "charge" : 0,
       "epsilon" : 0,
+      "magnetization" : "none",
       "metal" : false,
       "rprim" : null,
       "rscale" : [
