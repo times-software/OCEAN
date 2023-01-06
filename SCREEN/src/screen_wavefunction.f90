@@ -88,10 +88,10 @@ module screen_wavefunction
     wvfn%npts = grid%npt
     wvfn%mypts = grid%npt
     if( present( nbands ) ) then
-      if( nbands .lt. 1 ) then
-        ierr = 2
-        return
-      endif
+!      if( nbands .lt. 1 ) then
+!        ierr = 21111
+!        return
+!      endif
       wvfn%mybands = nbands
     else
       wvfn%mybands = params%nbands

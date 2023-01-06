@@ -1059,6 +1059,9 @@ sub runONCV
   copy( $targ, $oncvpspInputFile);
 
   my $targRad = -1;
+  if( exists $hashRef->{'opf'}->{'radius'} ) {
+    $targRad = $hashRef->{'opf'}->{'radius'};
+  }
   my $scfac = 1.;
   open IN, ">>", $oncvpspInputFile or die "Failed to open $oncvpspInputFile\n$!";
   print IN ".true.\n$targRad   $scfac\n";

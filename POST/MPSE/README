@@ -1,0 +1,7 @@
+This is a postprocessing step for after a valence (optical/UV) calculations. 
+
+After a successful OCEAN calculation, go in to the CNBSE directory (where the 
+opcons file is located). The MPSE can then be run using the mpse.pl script. It 
+will automatically use 50 poles and iterate 3 times. More flexibility may be 
+added in future releases. The MPSE-modified optical data are broken out into 
+individual files eps1_SE, eps2_SE, inds_SE, refl_SE, loss_SE, and opcons_SE.

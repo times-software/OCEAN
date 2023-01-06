@@ -120,8 +120,10 @@ module schi_direct
     
     ! Force charge conservation
     if( .true. ) then
-      rescaleNInduced = ( 3.0_DP * intInduced(1) ) / ( grid%rmax**3 )
-      NInd(:,1) = Nind(:,1) - rescaleNInduced
+!      rescaleNInduced = ( 3.0_DP * intInduced(1) ) / ( grid%rmax**3 )
+!      NInd(:,1) = Nind(:,1) - rescaleNInduced
+      rescaleNInduced = intInduced(1) / ( grid%rad(nr)**2*grid%drad(nr) )
+      NInd(nr,1) = Nind(nr,1) - rescaleNInduced
 
       do i = 1, nr
         intInduced(2) = intInduced(2) + NInd( i, 1 ) * grid%rad(i)**2 * grid%drad(i)

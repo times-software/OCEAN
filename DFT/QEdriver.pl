@@ -551,17 +551,28 @@ sub QErunDFPT
 
 sub QEparseDensityPotential
 {
-  my ($hashRef, $type ) = @_;
+  my ($hashRef, $type, $emin, $emax ) = @_;
 
   my $flag;
   my $filplot;
   my $infile;
   my $convert;
+  my $bonusInputs ="";
   if( $type eq 'density' ) {
     $flag = 0;
     $filplot = 'system.rho';
     $infile = 'pp.in';
     $convert = "system.rho rhoofr";
+  } elsif( $type eq 'sc-density' ) {
+    # emin and emax are set to be equal to each other in case of errors
+    $flag = 0;
+    $filplot = 'system.val.rho';
+    $infile = 'pp3.in';
+    $convert = "system.val.rho val.rhoofr";
+    if( abs( $emin - $emax ) > 0.1 ) {
+      $flag = 23;
+      $bonusInputs = sprintf "  emin = %.15f\n  emax = %.15f\n", $emin, $emax;
+    }
   } elsif( $type eq 'potential' ) {
     $flag = 1;
     $filplot = 'system.pot';
@@ -591,6 +602,7 @@ sub QEparseDensityPotential
           . "  prefix = \'system\'\n"
           . "  outdir = \'Out\'\n"
           . "  filplot= \'$filplot\'\n"
+          . $bonusInputs
           . "  plot_num = $flag\n"
           . "/\n";
   close PP;
@@ -937,6 +949,10 @@ sub QEprintInput
       $generalRef->{'general'}->{'isolated'} ne 'none' ) {
     print $fh "  assume_isolated = \'$generalRef->{'general'}->{'isolated'}\'\n";
   }
+  if( exists $generalRef->{'structure'}->{'magnetization'} &&
+      $generalRef->{'structure'}->{'magnetization'} ne 'none' ) {
+    printf $fh "  tot_magnetization = %g\n", $generalRef->{'structure'}->{'magnetization'};
+  }
 
   print $fh "  nbnd = $nbnd\n";
 
@@ -944,7 +960,8 @@ sub QEprintInput
   {
     print $fh "$generalRef->{'general'}->{'smag'}\n";
   }
-  if( $generalRef->{'general'}->{'ldau'}->{'enable'} )
+  if( $generalRef->{'general'}->{'ldau'}->{'enable'} && 
+      ( $calcFlag || not $generalRef->{'general'}->{'ldau'}->{'scf_only'} ) )
   {
     print $fh "lda_plus_u = true\n" 
             . "lda_plus_u_kind = $generalRef->{'general'}->{'ldau'}->{'lda_plus_u_kind'}\n"
@@ -1314,6 +1331,96 @@ sub QEparseEnergies62
 
   return @energies;
   
+}
+
+sub QEconvertEnergies
+{
+  my ($Nsemicore) = @_;
+  my $emin = 0;
+  my $emax = 0;
+
+  print "########  QE convert\n";
+
+  my $xmlFile = catfile( "Out", "system.save", "data-file-schema.xml" );
+  if( -e $xmlFile ) {
+
+    open IN, $xmlFile or die "Failed to open $xmlFile\n$!";
+    while (my $line = <IN> ) {
+      last if ( $line =~m/band_structure/ );
+    }
+    my $nk = 0;
+    my $nspin = 0;
+    my $nbands = 0;
+    my @energies;
+    my @weights;
+    my @kpts;
+    my $fermi;
+    while( my $line = <IN> ) { 
+      if( $line =~ m/<lsda>(\w+)</ ) {
+        if( $1 =~ m/true/ ) {
+          $nspin = 2;
+        } else {
+          $nspin = 1;
+        }
+      } elsif( $line =~ m/<nbnd>(\d+)</ ) {
+        $nbands = $1;
+      } elsif( $line =~ m/<nks>(\d+)</ ) {
+        $nk = $1;
+      } elsif( $line =~ m/<fermi_energy>(-?\d+\.\d+[eE]-?\d+)</ ) {
+        $fermi = $1;
+      } elsif( $line =~ m/<ks_energies>/ ) {
+        <IN> =~ m/<k_point weight=\"(-?\d+\.\d+[eE]-?\d+)\">(-?\d+\.\d+[eE]-?\d+)\s+(-?\d+\.\d+[eE]-?\d+)\s+(-?\d+\.\d+[eE]-?\d+)</;
+        push @weights, $1;
+        push @kpts, [ $2, $3, $4];
+        <IN>;
+        <IN>;
+        $line = <IN>;
+        my $temp;
+        until ($line =~m/<\/eigenvalues>/ ) {
+          $temp .= $line;
+          $line = <IN>;
+        }
+        my @temp = split ' ', $temp;
+        push @energies, \@temp;
+        until( $line =~m/<\/ks_energies>/ ) {
+          $line = <IN>;
+        }
+      }
+
+    }
+    close IN;
+
+    my @allEnergies;
+    open OUT, ">QE.txt";
+    printf OUT "%i %i %i\n", $nbands, $nk, $nspin;
+#    for( my $spin = 0; $spin < $nspin; $spin++ ) {
+      for( my $k = 0; $k < $nk; $k++ ) {
+        printf OUT "%.15e %.15e %.15e %.15e\n", $kpts[$k][0], $kpts[$k][1],$kpts[$k][2], $weights[$k];
+        for( my $b = 0; $b < $nbands; $b++ ) {
+          printf OUT "%.15e\n", $energies[$k][$b];
+          push @allEnergies, $energies[$k][$b];
+        }
+      }
+#    } 
+    close OUT;
+
+    # keep emin and emax equal to each other to detect errors late
+    if( defined $fermi ) {
+      $emax = $fermi*27.211386245988;
+      $emin = $emax;
+
+      # here, if fermi isn't defined we won't bother detecting emin
+      if( $Nsemicore > 0 ) {
+        my @allSorted = sort { $a <=> $b } @allEnergies;
+        my $n = $Nsemicore * $nk * $nspin / 2;
+        printf "Semicore energy 'gap': %.4f  %.4f\n", $allSorted[$n-1]*27.211386245988, $allSorted[$n]*27.211386245988;
+        $emin = ( $allSorted[$n-1] + $allSorted[$n] )*27.211386245988/2;
+      }
+    }
+  } else {
+    print "WARNING! QEconvertEnergiers called but $xmlFile is missing\n";
+  }
+  return( $emin, $emax);
 }
 
 1;

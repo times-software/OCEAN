@@ -361,16 +361,21 @@ module screen_chi0
 #endif
     integer, intent( inout ) :: ierr
     integer :: i
+    real(DP), allocatable :: tchi(:,:)
 
     i = size( chi )
+    allocate( tchi( size(chi,2), size(chi,1) ) )
+    tchi = transpose( chi )
 
 #ifdef MPI
 !    if( pinfo%myid .ne. pinfo%root ) then
-      call MPI_SEND( chi(:,:), i, MPI_DOUBLE_PRECISION, pinfo%root, TagChi, pinfo%comm, ierr )
+      call MPI_SEND( tchi(:,:), i, MPI_DOUBLE_PRECISION, pinfo%root, TagChi, pinfo%comm, ierr )
+!      call MPI_SEND( chi(:,:), i, MPI_DOUBLE_PRECISION, pinfo%root, TagChi, pinfo%comm, ierr )
 !    else
       chiSends = MPI_REQUEST_NULL
 !    endif
 #endif
+    deallocate( tchi )
 
   end subroutine SendChi
 
@@ -385,7 +390,7 @@ module screen_chi0
     ! The MPI call might not be done yet, so the info in spareWavefunctions might change
     !   I don't think the fortran runtime will ever know, but inout is probably more correct
     type( screen_wvfn ), intent( inout ) :: spareWavefunctions(0:)  
-    real(DP), intent( out ) :: chi(:,:)
+    real(DP), intent( inout ) :: chi(:,:)
 !    complex(DP), intent( out ) :: chi0(:,:)
 #ifdef MPI_F08
     type( MPI_REQUEST ), intent( inout ) :: spareWvfnRecvs(0:)
@@ -473,7 +478,7 @@ module screen_chi0
                                           MyWvfn%imag_wvfn, spareWavefunctions(id)%imag_wvfn )
         endif      
       else
-        call calcSingleChiBuffer2( Mywvfn%wvfn, spareWavefunctions(id)%wvfn, chi(:,CurPts:), ierr )
+        call calcSingleChiBuffer2( Mywvfn%wvfn, spareWavefunctions(id)%wvfn, chi(:,CurPts:stopPts), ierr )
       endif
       if( ierr .ne. 0 ) return
       call screen_tk_stop( "calcSingleChiBuffer1" )
@@ -1015,6 +1020,7 @@ module screen_chi0
           do iks = 1 + (ispin-1)*params%nkpts, ispin*params%nkpts
             do ib = 1, nbands, bandBuf
               ibstop = min( ib+bandBuf-1,nbands )
+              temp(:,:,:) = 0.0_DP
   
 
 ! Possibly re-write the above without the explicit mem copy, but eh?
@@ -1606,8 +1612,13 @@ module screen_chi0
         call MPI_TYPE_COMMIT( newType, ierr )
         if( ierr .ne. 0 ) return
 
-        call MPI_IRECV( FullChi(curPts,1), 1, newType, id, TagChi, pinfo%comm, chiRecvs(id), ierr )
+!        call MPI_IRECV( FullChi(curPts,1), 1, newType, id, TagChi, pinfo%comm, chiRecvs(id), ierr )
+!        if( ierr .ne. 0 ) return
+        call MPI_IRECV( FullChi(:,curPts:), spareWavefunctions( id )%npts * spareWavefunctions( id )%mypts, &
+                        MPI_DOUBLE_PRECISION, id, TagChi, pinfo%comm, &
+                        chiRecvs(id), ierr )
         if( ierr .ne. 0 ) return
+
 
         call MPI_TYPE_FREE( newType, ierr )
         if( ierr .ne. 0 ) return
