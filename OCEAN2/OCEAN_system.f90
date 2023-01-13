@@ -22,6 +22,7 @@ module OCEAN_system
     real(DP)         :: occupationValue
     real(DP)         :: epsConvergeThreshold
     real(DP)         :: haydockConvergeThreshold
+    real(DP)         :: interactionScale
     integer( S_INT ) :: nkpts
     integer( S_INT ) :: nxpts
     integer( S_INT ) :: nalpha
@@ -145,7 +146,6 @@ module OCEAN_system
     type( o_system ), intent( inout ) :: sys
     integer, intent( inout ) :: ierr
 
-    real( DP ) :: inter
     real( DP ), parameter :: inter_min = 0.000001
     integer :: nruns 
     logical :: file_exist
@@ -250,9 +250,9 @@ module OCEAN_system
 
       open(unit=99,file='mode',form='formatted',status='old')
       rewind(99)
-      read(99,*) inter
+      read(99,*) sys%interactionScale
       close(99)
-      if( inter .lt. inter_min ) then
+      if( sys%interactionScale .lt. inter_min ) then
         ! Need to run mult to get spin-orbit
         sys%long_range = .false.
       endif
@@ -398,6 +398,8 @@ module OCEAN_system
 
     if( nproc .gt. 1 ) then
 
+    call MPI_BCAST( sys%interactionScale, 1, MPI_DOUBLE_PRECISION, root, comm, ierr )
+    if( ierr .ne. MPI_SUCCESS ) goto 111
     call MPI_BCAST( sys%celvol, 1, MPI_DOUBLE_PRECISION, root, comm, ierr )
     if( ierr .ne. MPI_SUCCESS ) goto 111
     call MPI_BCAST( sys%avec, 9, MPI_DOUBLE_PRECISION, root, comm, ierr )
