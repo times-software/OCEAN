@@ -4,7 +4,7 @@ module OCEAN_rixs_holder
 
   private
 
-  complex(DP), allocatable :: xes_vec(:,:,:,:)
+  complex(DP), allocatable :: xes_vec(:,:,:,:,:)
 
   integer :: local_ZNL(3)
   logical :: is_init
@@ -38,7 +38,7 @@ module OCEAN_rixs_holder
       is_init = .false.
     endif
 
-    allocate( xes_vec( sys%val_bands, sys%nkpts, 2 * sys%ZNL(2) + 1, sys%nedges ) )
+    allocate( xes_vec( sys%val_bands, sys%nkpts, 2 * sys%ZNL(2) + 1, sys%nspn, sys%nedges ) )
     is_init = .true.
 
   end subroutine OCEAN_rixs_holder_init
@@ -107,7 +107,7 @@ module OCEAN_rixs_holder
     integer, intent( inout ) :: ierr
     !
     complex(DP), allocatable :: rex( :, :, : )
-    integer :: edge_iter, ic, icms, icml, ivms, ispin, i, j, ik
+    integer :: edge_iter, ic, icms, icml, ivms, ispin, i, j, ik, ivs
     character(len=25) :: echamp_file
 
     allocate( rex( sys%num_bands, sys%nkpts, 4*(2*sys%ZNL(3)+1) ) ) 
@@ -129,7 +129,10 @@ module OCEAN_rixs_holder
 
 ! JTV block this so psi is in cache
       ic = 0
+      ivs = 0
       do icms = 1, 3, 2    ! Core-hole spin becomes valence-hole spin
+        ivs = ivs + 1 
+        ivs = min( ivs, sys%nspn)
         do icml = 1, sys%ZNL(3)*2 + 1
           do ivms = 0, 1  ! conduction-band spin stays
             ! the order of ispin will be 1, 2, 3, 4 (assuming that sys%nbeta == 4)
@@ -139,7 +142,7 @@ module OCEAN_rixs_holder
               do i = 1, sys%val_bands
                 do j = 1, sys%num_bands
                   p_vec( j, i, ik, ispin ) = p_vec( j, i, ik, ispin ) + &
-                      rex( j, ik, ic ) * xes_vec(i,ik,icml,edge_iter)
+                      rex( j, ik, ic ) * xes_vec(i,ik,icml,ivs,edge_iter)
                 enddo
               enddo
             enddo
@@ -356,12 +359,12 @@ module OCEAN_rixs_holder
           open(unit=99, file=cks_filename, form='unformatted', status='old', access='stream' )
           read(99) nptot, ntot, nspn
           if( nspn .ne. 1 ) then
-            ierr = -125
-            write(6,*) 'Spin RIXS not yet supported'
-            close(99)
-            return
+!            ierr = -125
+            write(6,*) 'Spin RIXS not yet tested!'
+!            close(99)
+!            return
           endif
-          if( edge_iter .eq. 1 ) allocate( pcr( nptot, ntot ), pci( nptot, ntot ) )
+          if( edge_iter .eq. 1 ) allocate( pcr( nptot, ntot*nspn ), pci( nptot, ntot*nspn ) )
           allocate( pcTemp( nptot, ntot, nspn ) )
           read( 99 ) pcTemp(:,:,:)
           close(99)
@@ -391,8 +394,8 @@ module OCEAN_rixs_holder
         endif
 
         ! check ntot
-        if( ntot .ne. sys%nkpts * sys%val_bands ) then
-          write(6,*) 'Mismatch bands*kpts vs ntot', ntot, sys%nkpts,  sys%val_bands
+        if( ntot .ne. sys%nkpts * sys%val_bands * sys%nspn ) then
+          write(6,*) 'Mismatch bands*kpts*nspn vs ntot', ntot, sys%nkpts,  sys%val_bands, sys%nspn
           ierr = -1
           return
         endif
@@ -421,16 +424,19 @@ module OCEAN_rixs_holder
         endif
     
 
+        !TODO, fix index order to make this a matrix multiply?
         do icml = -sys%ZNL(3), sys%ZNL(3)
           iter = 0
-          do ik = 1, sys%nkpts
-            do i = 1, sys%val_bands
-              iter = iter + 1
-              rr = dot_product( mer( :, icml ), pcr( :, iter ) )
-              ri = dot_product( mer( :, icml ), pci( :, iter ) )
-              ir = dot_product( mei( :, icml ), pcr( :, iter ) )
-              ii = dot_product( mei( :, icml ), pci( :, iter ) )
-              xes_vec(i,ik,1 + icml + sys%ZNL(3), edge_iter) = cmplx( rr - ii, ri + ir )
+          do is = 1, sys%nspn
+            do ik = 1, sys%nkpts
+              do i = 1, sys%val_bands
+                iter = iter + 1
+                rr = dot_product( mer( :, icml ), pcr( :, iter ) )
+                ri = dot_product( mer( :, icml ), pci( :, iter ) )
+                ir = dot_product( mei( :, icml ), pcr( :, iter ) )
+                ii = dot_product( mei( :, icml ), pci( :, iter ) )
+                xes_vec(i,ik,1 + icml + sys%ZNL(3), is, edge_iter) = cmplx( rr - ii, ri + ir )
+              enddo
             enddo
           enddo
         enddo
