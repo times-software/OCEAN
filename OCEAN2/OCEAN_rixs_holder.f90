@@ -339,7 +339,7 @@ module OCEAN_rixs_holder
     complex(DP), allocatable :: pcTemp(:,:,:)
     real(DP) :: rr, ri, ir, ii, tau(3)
     integer :: nptot, ntot, nptot_check, nspn
-    integer :: icml, iter, ik, i, edge_iter, ivms
+    integer :: icml, iter, ik, i, edge_iter, ivms, is
 
     character(len=127) :: cks_filename
     character(len=18) :: mel_filename
