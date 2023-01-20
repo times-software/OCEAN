@@ -97,6 +97,7 @@
          "solver" : "haydock"
       },
       "val_start" : 1,
+      "val_stop" : -1,
       "xmesh" : [
         -1
       ]

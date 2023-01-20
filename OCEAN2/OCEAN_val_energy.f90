@@ -594,6 +594,7 @@ module OCEAN_val_energy
 
 
     if( myid .eq. root ) write(6,*) 'clipl: ', clipl, val_energies( 1, 1, 1 )
+    if( myid .eq. root ) write(6,* ) '  BWFLG', sys%cur_run%bwflg, sys%cur_run%val_bands, sys%cur_run%num_bands
 
     !
     ! If we have spins from the DFT then we can't rely on band index, need to use Fermi level 
@@ -611,28 +612,29 @@ module OCEAN_val_energy
           do kiter = 1, sys%nkpts
             do biter2 = 1, sys%cur_run%val_bands
               if( kiter .eq. 1 .and. myid .eq. 0 ) write(6,*) 'clipl: ', clipl, val_energies( biter2, kiter, ispn )
-              if ( val_energies( biter2, kiter, ispn ) .le. efermi  .and. &
+              if ( val_energies( biter2, kiter, ispn ) .lt. efermi  .and. &
                     ( val_energies( biter2, kiter, ispn ) .gt. clipl )) then
 
                 do biter1 = 1, sys%cur_run%num_bands
-                  if ( ( con_energies( biter1, kiter, jspn ) .ge. efermi ) .and. &
+                  if ( ( con_energies( biter1, kiter, jspn ) .gt. efermi ) .and. &
                        ( con_energies( biter1, kiter, jspn ) .le. cliph ) ) then
                     allow%valr( biter1, biter2, kiter, ibeta ) = 1.0_dp
                     allow%vali( biter1, biter2, kiter, ibeta ) = 1.0_dp
                   endif
                 enddo 
+              elseif( sys%cur_run%bwflg .and. &
+                    ( val_energies( biter2, kiter, ispn ) .gt. efermi ) .and. &
+                    ( val_energies( biter2, kiter, ispn ) .le. cliph )) then
+
+                do biter1 = 1, sys%cur_run%num_bands
+                  if ( ( con_energies( biter1, kiter, jspn ) .lt. efermi ) .and. &
+                       ( con_energies( biter1, kiter, jspn ) .ge. clipl ) ) then
+                    allow%valr( biter1, biter2, kiter, ibeta ) = 1.0_dp
+                    allow%vali( biter1, biter2, kiter, ibeta ) = -1.0_dp
+                  endif
+                enddo
               elseif (  kiter .eq. 1 ) then
                 write(6,*) ibeta, kiter, biter2, val_energies( biter2, kiter, ispn )
-              elseif ( sys%backf ) then
-                ierr = -413
-                return
-    !           do biter2 = 1, sys%cur_run%val_bands
-    !              if ( ( val_energies( biter2, kiter ) .ge. efermi ) .and. &
-    !                   ( val_energies( biter2, kiter ) .le. cliph ) ) then
-    !                allow%valr( biter2, biter1, kiter, 1 ) = 1.0d0
-    !                allow%vali( biter2, biter1, kiter, 1 ) = -1.0d0
-    !              endif
-!            enddo ! biter2
               endif
             enddo ! biter1
           enddo ! kiter

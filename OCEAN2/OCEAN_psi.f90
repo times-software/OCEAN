@@ -139,7 +139,7 @@ module OCEAN_psi
             OCEAN_psi_new, OCEAN_psi_cmult, OCEAN_psi_mult, &
             OCEAN_psi_zero_full, OCEAN_psi_zero_min, OCEAN_psi_one_full, &
             OCEAN_psi_ready_buffer, OCEAN_psi_send_buffer, &
-            OCEAN_psi_copy_min, OCEAN_psi_buffer2min, &
+            OCEAN_psi_copy_min, OCEAN_psi_copy_full, OCEAN_psi_buffer2min, &
             OCEAN_psi_prep_min2full, OCEAN_psi_start_min2full, &
             OCEAN_psi_finish_min2full, OCEAN_psi_full2min, &
             OCEAN_psi_returnBandPad, OCEAN_psi_bcast_full, &
@@ -2915,19 +2915,22 @@ subroutine OCEAN_psi_dot_write( p, q, outvec, rrequest, rval, ierr, irequest, iv
 !> of circumstances. If a is zero (within machine precision) then calculates z = x*y.
 !> First each vector is placed in min storage. Then only the min is calculated. 
 !> This shares the workload across the processors. 
-  subroutine OCEAN_psi_2element_mult( z, x, ierr, is_real_only, is_conjugate, use_full )
+  subroutine OCEAN_psi_2element_mult( z, x, ierr, is_real_only, is_conjugate, use_full, &
+                                      is_imaginary_as_real )
     implicit none
     type(OCEAN_vector), intent(inout) :: z, x
     integer, intent( inout ) :: ierr
     logical, intent( in ), optional :: is_real_only
     logical, intent( in ), optional :: is_conjugate
     logical, intent( in ), optional :: use_full
+    logical, intent( in ), optional :: is_imaginary_as_real  ! take the imaginary part of x, but treat as real
     !
     real(DP), allocatable :: buffer( : )
     integer :: i, j
     logical :: do_real_only
     logical :: do_conjugate
     logical :: do_full
+    logical :: do_imag_as_real
     !
     if( present( is_real_only ) ) then
       do_real_only = is_real_only
@@ -2947,6 +2950,18 @@ subroutine OCEAN_psi_dot_write( p, q, outvec, rrequest, rval, ierr, irequest, iv
       do_full = .false.
     endif
 
+    if( present( is_imaginary_as_real ) ) then
+      do_imag_as_real = is_imaginary_as_real
+    else
+      do_imag_as_real = .false.
+    endif
+
+    if( do_real_only .and. do_imag_as_real ) then
+      ierr = 12584
+      return
+    endif
+
+
     if( do_full ) then
       if( IAND( x%valid_store, PSI_STORE_FULL ) .eq. 0 ) then
         if( IAND( x%valid_store, PSI_STORE_MIN ) .eq. 0 ) then
@@ -2961,7 +2976,7 @@ subroutine OCEAN_psi_dot_write( p, q, outvec, rrequest, rval, ierr, irequest, iv
 
       if( IAND( z%valid_store, PSI_STORE_FULL ) .eq. 0 ) then
         if( IAND( z%valid_store, PSI_STORE_MIN ) .eq. 0 ) then
-          ierr = 12583
+          ierr = 12584
           return
         else
           call OCEAN_psi_min2full( z, ierr )
@@ -2976,6 +2991,14 @@ subroutine OCEAN_psi_dot_write( p, q, outvec, rrequest, rval, ierr, irequest, iv
         else
           z%valr(:,:,:,:) = z%valr(:,:,:,:) * x%valr(:,:,:,:)
           z%vali(:,:,:,:) = z%vali(:,:,:,:) * x%valr(:,:,:,:)
+        endif
+      elseif( do_imag_as_real ) then
+        if( have_core ) then
+          z%r(:,:,:) = z%r(:,:,:) * x%i(:,:,:)
+          z%i(:,:,:) = z%i(:,:,:) * x%i(:,:,:)
+        else
+          z%valr(:,:,:,:) = z%valr(:,:,:,:) * x%vali(:,:,:,:)
+          z%vali(:,:,:,:) = z%vali(:,:,:,:) * x%vali(:,:,:,:)
         endif
       else
         ierr = 12584
@@ -3022,6 +3045,25 @@ subroutine OCEAN_psi_dot_write( p, q, outvec, rrequest, rval, ierr, irequest, iv
             do j = 1, psi_bands_pad
               z%val_min_r( j, i ) = x%val_min_r( j, i ) * z%val_min_r( j, i ) 
               z%val_min_i( j, i ) = x%val_min_r( j, i ) * z%val_min_i( j, i ) 
+            enddo
+          enddo
+        endif
+
+      elseif( do_imag_as_real ) then
+        if( have_core .and. z%core_store_size .gt. 0 ) then
+          do i = 1, z%core_store_size
+            do j = 1, psi_bands_pad
+              z%min_r( j, i ) = x%min_i( j, i ) * z%min_r( j, i )
+              z%min_i( j, i ) = x%min_i( j, i ) * z%min_i( j, i )
+            enddo
+          enddo
+        endif
+
+        if( have_val .and. z%val_store_size .gt. 0 ) then
+          do i = 1, z%val_store_size
+            do j = 1, psi_bands_pad
+              z%val_min_r( j, i ) = x%val_min_i( j, i ) * z%val_min_r( j, i )
+              z%val_min_i( j, i ) = x%val_min_i( j, i ) * z%val_min_i( j, i )
             enddo
           enddo
         endif
@@ -3257,27 +3299,194 @@ subroutine OCEAN_psi_dot_write( p, q, outvec, rrequest, rval, ierr, irequest, iv
     z%valid_store = PSI_STORE_MIN
   end subroutine OCEAN_psi_f2m_3element_mult
 
+
+!  subroutine OCEAN_psi_f2f_3element_mult( z, x, y, ierr, alpha, is_conjugate, use_full, &
+!                                      is_imaginary_as_real )
+!    implicit none
+!    type(OCEAN_vector), intent(inout) :: z, x, y
+!    integer, intent( inout ) :: ierr
+!    real( DP ), intent( in ), optional :: alpha
+!    logical, intent( in ), optional :: is_conjugate
+
+    
+
 !> @brief calculates element-wise z = x * y + a * z . Only min storage is valid at end
 !
 !> @details Calculates element-wise multiplication of the ocean_vector for a variety 
 !> of circumstances. If a is zero (within machine precision) then calculates z = x*y.
 !> First each vector is placed in min storage. Then only the min is calculated. 
 !> This shares the workload across the processors. 
-  subroutine OCEAN_psi_3element_mult( z, x, y, ierr, alpha, is_conjugate )
+  subroutine OCEAN_psi_3element_mult( z, x, y, ierr, alpha, is_real_only, is_conjugate, use_full, &
+                                      is_imaginary_as_real )
     implicit none
     type(OCEAN_vector), intent(inout) :: z, x, y
     integer, intent( inout ) :: ierr
     real( DP ), intent( in ), optional :: alpha
+    logical, intent( in ), optional :: is_real_only
     logical, intent( in ), optional :: is_conjugate
+    logical, intent( in ), optional :: use_full
+    logical, intent( in ), optional :: is_imaginary_as_real  ! take the imaginary part of x, but treat as real
     !
     integer :: i, j
+    logical :: do_real_only
     logical :: do_conjugate
+    logical :: do_full
+    logical :: do_imag_as_real
     !
+    if( present( is_real_only ) ) then
+      do_real_only = is_real_only
+    else  
+      do_real_only = .false.
+    endif
+
     if( present( is_conjugate ) ) then
-      do_conjugate = .true.
+      do_conjugate = is_conjugate
     else
       do_conjugate = .false.
     endif
+
+    if( present( use_full ) ) then
+      do_full = use_full
+    else
+      do_full = .false.
+    endif
+
+    if( present( is_imaginary_as_real ) ) then
+      do_imag_as_real = is_imaginary_as_real
+    else
+      do_imag_as_real = .false.
+    endif
+
+    if( do_real_only .and. do_imag_as_real ) then
+      ierr = 12585
+      return
+    endif
+
+    if( IAND( x%valid_store, PSI_STORE_MIN ) .eq. 0 .and. &
+        IAND( x%valid_store, PSI_STORE_FULL ) .eq. 0 ) then
+      ierr = -1
+      return
+    endif
+    if( IAND( y%valid_store, PSI_STORE_MIN ) .eq. 0  .and. &
+        IAND( y%valid_store, PSI_STORE_FULL ) .eq. 0 ) then
+      ierr = -1
+      return
+    endif
+
+    if( present( alpha ) .and. ( alpha .gt. epsilon( alpha ) ) ) then  ! z = x*y + a * z
+      ! check z is valid
+      if( IAND( z%valid_store, PSI_STORE_MIN ) .eq. 0 .and. &
+          IAND( z%valid_store, PSI_STORE_FULL ) .eq. 0 ) then
+        ierr = -1
+        return
+      endif
+    endif
+
+    if( do_full ) then
+      if( IAND( x%valid_store, PSI_STORE_FULL ) .eq. 0 ) then
+        call OCEAN_psi_min2full( x, ierr )
+        if( ierr .ne. 0 ) return
+      endif
+      if( IAND( y%valid_store, PSI_STORE_FULL ) .eq. 0 ) then
+        call OCEAN_psi_min2full( y, ierr )
+        if( ierr .ne. 0 ) return
+      endif 
+
+      if( IAND( z%alloc_store, PSI_STORE_FULL ) .eq. 0 ) then
+        call OCEAN_psi_alloc_full( z, ierr )
+        if( ierr .ne. 0 ) return
+      endif
+
+      if( present( alpha ) .and. ( alpha .gt. epsilon( alpha ) ) ) then
+        if( do_real_only ) then
+          if( have_core ) then
+            z%r(:,:,:) = y%r(:,:,:) * x%r(:,:,:) + alpha * z%r(:,:,:) 
+            z%i(:,:,:) = y%i(:,:,:) * x%r(:,:,:) + alpha * z%i(:,:,:) 
+          endif
+          if( have_val ) then
+            z%valr(:,:,:,:) = y%valr(:,:,:,:) * x%valr(:,:,:,:) + alpha * z%valr(:,:,:,:)
+            z%vali(:,:,:,:) = y%vali(:,:,:,:) * x%valr(:,:,:,:) + alpha * z%vali(:,:,:,:)
+          endif
+        elseif( do_imag_as_real ) then
+          if( have_core ) then
+            z%r(:,:,:) = y%r(:,:,:) * x%i(:,:,:) + alpha * z%r(:,:,:)
+            z%i(:,:,:) = y%i(:,:,:) * x%i(:,:,:) + alpha * z%i(:,:,:)
+          endif
+          if( have_val ) then
+            z%valr(:,:,:,:) = y%valr(:,:,:,:) * x%vali(:,:,:,:) + alpha * z%valr(:,:,:,:)
+            z%vali(:,:,:,:) = y%vali(:,:,:,:) * x%vali(:,:,:,:) + alpha * z%vali(:,:,:,:)
+          endif
+        elseif( do_conjugate ) then
+          if( have_core ) then
+            z%r(:,:,:) = y%r(:,:,:) * x%r(:,:,:) + y%i(:,:,:) * x%i(:,:,:) + alpha * z%r(:,:,:)
+            z%i(:,:,:) = y%i(:,:,:) * x%r(:,:,:) - y%r(:,:,:) * x%i(:,:,:) + alpha * z%i(:,:,:)
+          endif
+          if( have_val ) then
+            z%valr(:,:,:,:) = y%valr(:,:,:,:) * x%vali(:,:,:,:) + &
+                              y%vali(:,:,:,:) * x%vali(:,:,:,:) + alpha * z%valr(:,:,:,:)
+            z%vali(:,:,:,:) = y%vali(:,:,:,:) * x%valr(:,:,:,:) - &
+                              y%valr(:,:,:,:) * x%vali(:,:,:,:) + alpha * z%vali(:,:,:,:)
+          endif
+        else
+          if( have_core ) then
+            z%r(:,:,:) = y%r(:,:,:) * x%r(:,:,:) - y%i(:,:,:) * x%i(:,:,:) + alpha * z%r(:,:,:)
+            z%i(:,:,:) = y%i(:,:,:) * x%r(:,:,:) + y%r(:,:,:) * x%i(:,:,:) + alpha * z%i(:,:,:)
+          endif
+          if( have_val ) then
+            z%valr(:,:,:,:) = y%valr(:,:,:,:) * x%vali(:,:,:,:) - &
+                              y%vali(:,:,:,:) * x%vali(:,:,:,:) + alpha * z%valr(:,:,:,:)
+            z%vali(:,:,:,:) = y%vali(:,:,:,:) * x%valr(:,:,:,:) + &
+                              y%valr(:,:,:,:) * x%vali(:,:,:,:) + alpha * z%vali(:,:,:,:)
+          endif
+        endif
+      else  ! full, no alpha
+        if( do_real_only ) then
+          if( have_core ) then
+            z%r(:,:,:) = y%r(:,:,:) * x%r(:,:,:) 
+            z%i(:,:,:) = y%i(:,:,:) * x%r(:,:,:)
+          endif
+          if( have_val ) then
+            z%valr(:,:,:,:) = y%valr(:,:,:,:) * x%valr(:,:,:,:)
+            z%vali(:,:,:,:) = y%vali(:,:,:,:) * x%valr(:,:,:,:)
+          endif
+        elseif( do_imag_as_real ) then
+          if( have_core ) then
+            z%r(:,:,:) = y%r(:,:,:) * x%i(:,:,:)
+            z%i(:,:,:) = y%i(:,:,:) * x%i(:,:,:)
+          endif
+          if( have_val ) then
+            z%valr(:,:,:,:) = y%valr(:,:,:,:) * x%vali(:,:,:,:) 
+            z%vali(:,:,:,:) = y%vali(:,:,:,:) * x%vali(:,:,:,:)
+          endif
+        elseif( do_conjugate ) then
+          if( have_core ) then
+            z%r(:,:,:) = y%r(:,:,:) * x%r(:,:,:) + y%i(:,:,:) * x%i(:,:,:)
+            z%i(:,:,:) = y%i(:,:,:) * x%r(:,:,:) - y%r(:,:,:) * x%i(:,:,:)
+          endif
+          if( have_val ) then
+            z%valr(:,:,:,:) = y%valr(:,:,:,:) * x%vali(:,:,:,:) + &
+                              y%vali(:,:,:,:) * x%vali(:,:,:,:)
+            z%vali(:,:,:,:) = y%vali(:,:,:,:) * x%valr(:,:,:,:) - &
+                              y%valr(:,:,:,:) * x%vali(:,:,:,:)
+          endif
+        else
+          if( have_core ) then
+            z%r(:,:,:) = y%r(:,:,:) * x%r(:,:,:) - y%i(:,:,:) * x%i(:,:,:)
+            z%i(:,:,:) = y%i(:,:,:) * x%r(:,:,:) + y%r(:,:,:) * x%i(:,:,:)
+          endif
+          if( have_val ) then
+            z%valr(:,:,:,:) = y%valr(:,:,:,:) * x%vali(:,:,:,:) - &
+                              y%vali(:,:,:,:) * x%vali(:,:,:,:)
+            z%vali(:,:,:,:) = y%vali(:,:,:,:) * x%valr(:,:,:,:) + &
+                              y%valr(:,:,:,:) * x%vali(:,:,:,:)
+          endif
+        endif
+      endif  ! end alpha
+      z%valid_store = PSI_STORE_FULL
+      return
+    endif
+
+
     ! check that x and y are valid and min
     if( IAND( x%valid_store, PSI_STORE_MIN ) .eq. 0 ) then
       if( IAND( x%valid_store, PSI_STORE_FULL ) .eq. 0 ) then

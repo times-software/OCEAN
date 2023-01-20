@@ -81,6 +81,7 @@
          "solver" : "s"
       },
       "val_start" : "i",
+      "val_stop" : "i",
       "xmesh" : "af"
    },
    "calc" : {
