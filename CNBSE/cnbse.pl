@@ -792,8 +792,31 @@ sub writeBSEinVal {
       $hashRef->{'bse'}->{'val'}->{'plot'}->{'range'}[1],
       $hashRef->{'bse'}->{'val'}->{'broaden'}, 
       0.0;
+  } elsif( $hashRef->{'bse'}->{'val'}->{'solver'} eq 'gmres' ) {
+    printf BSE "inv\n%i %g %g %g %g\n", $hashRef->{'bse'}->{'val'}->{'gmres'}->{'nloop'},
+        $hashRef->{'bse'}->{'val'}->{'broaden'}, $hashRef->{'bse'}->{'val'}->{'gmres'}->{'gprc'},
+        $hashRef->{'bse'}->{'val'}->{'gmres'}->{'ffff'}, 0.0;
+    if( $hashRef->{'bse'}->{'val'}->{'gmres'}->{'estyle'} eq 'list' ) {
+      printf BSE "list\n%i\n", scalar @{$hashRef->{'bse'}->{'val'}->{'gmres'}->{'elist'}};
+      $hashRef->{'bse'}->{'val'}->{'gmres'}->{'count'} =
+            scalar @{$hashRef->{'bse'}->{'val'}->{'gmres'}->{'elist'}};
+      foreach (@{$hashRef->{'bse'}->{'val'}->{'gmres'}->{'elist'}}) {
+        printf BSE "%g\n", $_;
+      }
+    } elsif( $hashRef->{'bse'}->{'val'}->{'gmres'}->{'estyle'} eq 'range' ) {
+      printf BSE "loop\n%g %g %g\n",
+              $hashRef->{'bse'}->{'val'}->{'gmres'}->{'erange'}[0],
+              $hashRef->{'bse'}->{'val'}->{'gmres'}->{'erange'}[1],
+              $hashRef->{'bse'}->{'val'}->{'gmres'}->{'erange'}[2];
+      $hashRef->{'bse'}->{'val'}->{'gmres'}->{'count'} =
+          floor( ($hashRef->{'bse'}->{'val'}->{'gmres'}->{'erange'}[1] -
+                  $hashRef->{'bse'}->{'val'}->{'gmres'}->{'erange'}[0] +
+             0.9* $hashRef->{'bse'}->{'val'}->{'gmres'}->{'erange'}[2] ) /
+                 $hashRef->{'bse'}->{'val'}->{'gmres'}->{'erange'}[2] );
+    } else { die "Unsupported estyle in val->gmres\n"; }
+      printf "%i energy steps with GMRES\n", $hashRef->{'bse'}->{'val'}->{'gmres'}->{'count'};
   } else {
-    die "Non-haydock valence solvers not yet implemented\n";
+    die "Only Haydock and GMRES solvers implemented for valence\n";
   }
   close BSE;
 

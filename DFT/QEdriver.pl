@@ -1193,6 +1193,11 @@ sub QEparseEnergies
     $b[2] = $specificHashRef->{'con_start'} if( $specificHashRef->{'con_start'} >= 1 );
   }
 
+  if( exists( $specificHashRef->{'val_stop'} ) ) {
+    $b[1] = $specificHashRef->{'val_stop'} if( $specificHashRef->{'val_stop'} >= 1 );
+    $b[1] = $b[3] if( $b[1] > $b[3] );
+  }
+
   $specificHashRef->{'brange'} = \@b ;
   
   open OUT, ">", "QE_EIGS.txt" or die;
