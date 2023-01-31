@@ -125,8 +125,8 @@ copyAndCompare( $newDftData->{'psp'}, $commonOceanData->{'psp'}, $dftData->{'psp
 # Only check the first list against previous runs
 my @generalList = ( "degauss", "ecut", "fband", "functional", "noncolin", "nspin", "occopt", 
                     "program", "smag", "spinorb", "verbatim", "isolated" );
-my @generalSecondaryList = ( "calc_force", "calc_stress", "diagonalization", "mixing", 
-                             "nstep", "redirect", "startingwfc", "tmp_dir", "abpad" );
+my @generalSecondaryList = ( "calc_force", "calc_stress", "diagonalization", "mixing", "mixing_mode",
+                             "nstep", "redirect", "startingwfc", "startingpot", "tmp_dir", "abpad" );
 $newDftData->{'general'} = {};
 copyAndCompare( $newDftData->{'general'}, $commonOceanData->{'dft'}, $dftData->{'general'},
                 $newDftData->{'scf'}, \@generalList );
