@@ -999,7 +999,7 @@ sub QEprintInput
     $generalRef->{'general'}->{'mixing_mode'} = 'TF';
     print "TF\n";
   } else {
-    $generalRef->{'general'}->{'mixing_mode'} = 'local';
+    $generalRef->{'general'}->{'mixing_mode'} = 'plain';
     print "local\n";
   }
 
