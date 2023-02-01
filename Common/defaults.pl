@@ -78,6 +78,12 @@ if( -e $dataFile )
 
   fixCoreShift( $oceanData );
   fixCNBSE( $oceanData );
+
+  $oceanData->{'version'}->{'.'} = $ENV{"OCEAN_VERSION"};
+  if( length $ENV{"OCEAN_VERSION_HASH"} > 1 )
+  {
+    $oceanData->{'version'}->{'hash'} = $ENV{'OCEAN_VERSION_HASH'};
+  }
   
   my $enable = 1;
   $json->canonical([$enable]);
