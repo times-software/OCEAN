@@ -754,6 +754,19 @@ module OCEAN_val_energy
             enddo
          enddo
       enddo
+#if DEBUG
+      open(99,file='unsorted_simple_energies.txt',form='formatted',status='unknown')
+      node = 0
+      do i = 1, sys%valence_ham_spin
+        do kiter = 1, sys%nkpts
+          do iter = 1, overlap
+            node = node + 1
+            write(99,'(F24.16)') simple_energies( node )
+          enddo
+        enddo
+      enddo
+      close(99)
+#endif
      ! heap sort
       write(6,*) 'sorting'
       top = overlap*sys%nkpts*sys%nspn
@@ -762,7 +775,7 @@ module OCEAN_val_energy
         node = iter + iter
        node2 = iter
         do
-          if ( node .gt. top ) goto 10
+          if ( node .ge. top ) goto 10
           if ( (node .lt. top) .and. (simple_energies( node ) .lt. simple_energies( node + 1 ) ) ) node = node + 1
           if ( temp .lt. simple_energies( node ) ) then
             simple_energies( node2 ) = simple_energies( node )
@@ -775,7 +788,7 @@ module OCEAN_val_energy
         enddo
  10 continue
       enddo
-      do iter = overlap*sys%nkpts*sys%nspn, 1, -1
+      do iter = overlap*sys%nkpts*sys%nspn, 3, -1
         temp = simple_energies( iter )
         simple_energies( iter ) = simple_energies( 1 )
         node = 2
@@ -795,6 +808,24 @@ module OCEAN_val_energy
   20 continue
 
       enddo
+      if( simple_energies( 2 ) .lt. simple_energies( 1 ) ) then
+        temp = simple_energies( 1 )
+        simple_energies( 1 ) = simple_energies( 2 )
+        simple_energies( 2 ) = temp
+      endif
+#if DEBUG
+      open(99,file='sorted_simple_energies.txt',form='formatted',status='unknown')
+      node = 0
+      do i = 1, sys%valence_ham_spin
+        do kiter = 1, sys%nkpts
+          do iter = 1, overlap
+            node = node + 1
+            write(99,'(F24.16)') simple_energies( node )
+          enddo
+        enddo
+      enddo
+      close(99)
+#endif
       t_electron = ( ( nelectron * sys%nkpts * sys%nspn ) / 2 ) &
                  - ( ( sys%brange( 3 ) - 1 ) * sys%nkpts * sys%nspn ) + n_electron_dope
       if( doping .and. ( myid .eq. root ) ) then
