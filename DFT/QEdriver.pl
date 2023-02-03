@@ -54,7 +54,10 @@ sub QErunNSCF
   my $calcFlag = 0;
 
   my $kptString;
-  if( $specificHashRef->{'isGamma'} ) 
+#  if( $specificHashRef->{'isGamma'} ) 
+  if( $specificHashRef->{'kmesh'}[0] == 1 && $specificHashRef->{'kmesh'}[1] == 1 
+   && $specificHashRef->{'kmesh'}[2] == 1 && $specificHashRef->{'kshift'}[0] == 0
+   && $specificHashRef->{'kshift'}[1] == 0 && $specificHashRef->{'kshift'}[2] == 0 )  
   {
     $kptString = "K_POINTS gamma\n";
   }
@@ -862,6 +865,11 @@ sub QEprintInput
     $tprnfor = 'true' if( $generalRef->{'general'}->{'calc_force'} );
     $nosyminv = 'false';
     $startingPot = 'atomic';
+    if( $generalRef->{'general'}->{'startingpot'} eq 'file' &&
+        -e catfile( "Out", "system.save", "charge-density.xml" ) ) {
+      $startingPot = 'file';
+      print "  WARNING: restarting from existing charge density!\n";
+    }
     if( $generalRef->{'general'}->{'diagonalization'} == 'default' ) {
       $diagonalization = 'david';
     } else {
@@ -983,11 +991,24 @@ sub QEprintInput
 #  {
 #    print $fh "  celldim(1) = $inputs{'celldm1'}\n";
 #  }
+
+  if( $generalRef->{'general'}->{'mixing_mode'} =~ m/local-tf/i ) {
+    $generalRef->{'general'}->{'mixing_mode'} = 'local-TF';
+    print "local-TF\n";
+  } elsif( $generalRef->{'general'}->{'mixing_mode'} =~ m/tf/i ) {
+    $generalRef->{'general'}->{'mixing_mode'} = 'TF';
+    print "TF\n";
+  } else {
+    $generalRef->{'general'}->{'mixing_mode'} = 'plain';
+    print "local\n";
+  }
+
   print $fh "/\n"
         .  "&electrons\n"
 #        .  "  conv_thr = $specificRef->{'toldfe'}\n"
         .  (sprintf "  conv_thr = %g\n", $specificRef->{'toldfe'})
         .  (sprintf "  mixing_beta = %g\n", $generalRef->{'general'}->{'mixing'}) 
+        .  (sprintf "  mixing_mode = '%s'\n", $generalRef->{'general'}->{'mixing_mode'})
 #        .  "  mixing_beta = $generalRef->{'general'}->{'mixing'}\n"
         . (sprintf "  electron_maxstep = %i\n", $generalRef->{'general'}->{'nstep'})
 #        .  "  electron_maxstep = $generalRef->{'general'}->{'nstep'}\n"
@@ -1170,6 +1191,11 @@ sub QEparseEnergies
 
   if( exists( $specificHashRef->{'con_start'} ) ) {
     $b[2] = $specificHashRef->{'con_start'} if( $specificHashRef->{'con_start'} >= 1 );
+  }
+
+  if( exists( $specificHashRef->{'val_stop'} ) ) {
+    $b[1] = $specificHashRef->{'val_stop'} if( $specificHashRef->{'val_stop'} >= 1 );
+    $b[1] = $b[3] if( $b[1] > $b[3] );
   }
 
   $specificHashRef->{'brange'} = \@b ;

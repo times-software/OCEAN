@@ -97,6 +97,7 @@
          "solver" : "haydock"
       },
       "val_start" : 1,
+      "val_stop" : -1,
       "xmesh" : [
         -1
       ]
@@ -199,6 +200,7 @@
          "scf_only" : false
       },
       "mixing" : 0.7,
+      "mixing_mode" : "plain",
       "ndiag" : -1,
       "noncolin" : false,
       "nspin" : 1,
@@ -213,6 +215,7 @@
       },
       "smag" : "",
       "spinorb" : false,
+      "startingpot" : "atomic",
       "startingwfc" : "atomic+random",
       "tmp_dir" : "undefined",
       "toldfe" : 1e-10,

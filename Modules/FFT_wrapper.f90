@@ -10,6 +10,7 @@
 ! centralized location for adding others.
 !
 module FFT_wrapper
+  use ai_kinds
 
 #ifdef __FFTW3
   use iso_c_binding
@@ -27,15 +28,18 @@ module FFT_wrapper
     integer :: dims(4)
     integer :: jfft
 
-    real(kind=kind(1.0d0)) :: norm
+    real(DP) :: norm
+    real(SP) :: norm_sp
 #ifdef __FFTW3
     type(C_PTR) :: fplan, bplan
 #endif
+    logical :: is_sp
   end type fft_obj
 
   public :: fft_obj
   public :: OCEAN_FORWARD, OCEAN_BACKWARD
   public :: FFT_wrapper_init, FFT_wrapper_delete, FFT_wrapper_split, FFT_wrapper_single
+  public :: FFT_wrapper_init_sp, FFT_wrapper_single_sp
 
   contains
 
@@ -49,6 +53,7 @@ module FFT_wrapper
     type( fft_obj ), intent( out ) :: fo
     complex(kind=kind(1.0d0)), allocatable :: cwrk(:)
     !
+    fo%is_sp = .false.
     fo%dims(1:3) = zn(:)
     fo%dims(4) = product( fo%dims(1:3) )
 #ifdef __FFTW3
@@ -80,6 +85,56 @@ module FFT_wrapper
     endif
 #endif
   end subroutine FFT_wrapper_init
+
+  subroutine FFT_wrapper_init_sp( zn, fo, io, fh )!, nthread )
+    implicit none
+
+    integer, intent(in ) :: zn(3)
+    complex(SP), intent(inout), optional :: io(zn(1),zn(2),zn(3))
+    integer, optional :: fh
+!    integer, intent( in ), optional :: nthread
+    type( fft_obj ), intent( out ) :: fo
+    complex(SP), allocatable :: cwrk(:)
+#ifndef __FFTW3F
+    complex(DP), allocatable :: cwrk_dp(:)
+#endif
+    !
+    fo%dims(1:3) = zn(:)
+    fo%dims(4) = product( fo%dims(1:3) )
+#ifdef __FFTW3
+    fo%is_sp = .true.
+    fo%norm = 1.0d0 / dble( fo%dims(4) )
+    fo%norm_sp = fo%norm
+
+#ifdef __FFTW3F
+    if( present( io ) ) then
+      fo%fplan = fftwf_plan_dft_3d( fo%dims(3), fo%dims(2), fo%dims(1), io, io, FFTW_FORWARD, FFTW_PATIENT )
+      fo%bplan = fftwf_plan_dft_3d( fo%dims(3), fo%dims(2), fo%dims(1), io, io, FFTW_BACKWARD, FFTW_PATIENT )
+    else
+      allocate( cwrk(fo%dims(4)))
+      fo%fplan = fftwf_plan_dft_3d( fo%dims(3), fo%dims(2), fo%dims(1), cwrk, cwrk, FFTW_FORWARD, FFTW_PATIENT )
+      fo%bplan = fftwf_plan_dft_3d( fo%dims(3), fo%dims(2), fo%dims(1), cwrk, cwrk, FFTW_BACKWARD, FFTW_PATIENT )
+      deallocate( cwrk )
+    endif
+#else
+    fo%is_sp = .false.
+    allocate( cwrk_dp(fo%dims(4)))
+    fo%fplan = fftw_plan_dft_3d( fo%dims(3), fo%dims(2), fo%dims(1), cwrk_dp, cwrk_dp, FFTW_FORWARD, FFTW_PATIENT )
+    fo%bplan = fftw_plan_dft_3d( fo%dims(3), fo%dims(2), fo%dims(1), cwrk_dp, cwrk_dp, FFTW_BACKWARD, FFTW_PATIENT )
+    deallocate( cwrk_dp )
+#endif
+
+#else
+    fo%is_sp = .false.
+    fo%norm = 1.0_DP
+    fo%norm_sp = 1.0_SP
+    fo%jfft = 2 * max( zn( 1 ) * ( zn( 1 ) + 1 ), zn( 2 ) * ( zn( 2 ) + 1 ), zn( 3 ) * ( zn( 3 ) + 1 ) )
+    if( present( fh ) ) then
+      write(fh,*) 'Plan using Legacy:', fo%dims(:)
+    endif
+#endif
+  end subroutine FFT_wrapper_init_sp
+
 
   subroutine FFT_wrapper_delete( fo )
     implicit none
@@ -171,6 +226,74 @@ module FFT_wrapper
     deallocate( r, i, wrk )
 #endif
   end subroutine FFT_wrapper_single
+
+  subroutine FFT_wrapper_single_sp( io, dir, fo, norm )
+    implicit none
+    type( fft_obj ), intent( in ) :: fo
+#ifdef __FFTW3
+    complex(SP), intent( inout ) :: io( fo%dims(1), fo%dims(2), fo%dims(3) )
+#else
+    complex(SP), intent( inout ) :: io( fo%dims(4))
+#endif
+    integer, intent( in ) :: dir
+    logical, intent( in ), optional :: norm
+    !
+#ifndef __FFTW3
+    real(DP), allocatable :: wrk(:), r(:), i(:)
+#endif
+#ifndef __FFTW3F
+    complex(DP), allocatable :: cwrk(:,:,:)
+#endif
+    logical :: normalize
+
+    if( present( norm ) ) then
+      normalize = norm
+    else
+      normalize = .true.
+    endif
+
+#ifdef __FFTW3
+    if( dir .eq. OCEAN_FORWARD ) then
+#ifdef __FFTW3F
+      call fftwf_execute_dft( fo%fplan, io, io )
+#else
+      allocate( cwrk( fo%dims(1), fo%dims(2), fo%dims(3) ) )
+      cwrk(:,:,:) = io(:,:,:)
+      call fftw_execute_dft( fo%fplan, cwrk, cwrk )
+      io(:,:,:) = cwrk(:,:,:)
+      deallocate( cwrk )
+#endif
+    else
+#ifdef __FFTW3F
+      call fftwf_execute_dft( fo%bplan, io, io )
+      if( normalize ) then
+        io(:,:,:) = io(:,:,:) * fo%norm_sp
+      endif
+#else
+      allocate( cwrk( fo%dims(1), fo%dims(2), fo%dims(3) ) )
+      cwrk(:,:,:) = io(:,:,:)
+      call fftw_execute_dft( fo%bplan, cwrk, cwrk )
+      if( normalize ) then
+        io(:,:,:) = cwrk(:,:,:) * fo%norm
+      else
+        io(:,:,:) = cwrk(:,:,:)
+      endif
+      deallocate( cwrk )
+#endif
+    endif
+#else
+    allocate( r( fo%dims(4) ), i( fo%dims(4) ), wrk( fo%jfft ) )
+    r(:) = real(io(:), kind(1.0d0))
+    i(:) = aimag(io(:))
+    call cfft( r, i, fo%dims(1), fo%dims(1), fo%dims(2), fo%dims(3), dir, wrk, fo%jfft )
+    if( dir .eq. OCEAN_BACKWARD .and. normalize .eqv. .false. ) then
+      io(:) = cmplx(r(:),i(:), kind(1.0d0)) * dble( fo%dims(4) )
+    else
+      io(:) = cmplx(r(:),i(:), kind(1.0d0))
+    endif
+    deallocate( r, i, wrk )
+#endif
+  end subroutine FFT_wrapper_single_sp
 
 #if 0
   !!! LEGACY
