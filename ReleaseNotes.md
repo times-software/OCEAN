@@ -1,3 +1,12 @@
+## v. 3.0.3
+
+#### Bug fixes
+ 1. A small, odd number for the first k-point dimension combined with a 
+    different number of x-points in the first two dimensions could lead to 
+    problems. 
+ 2. Some x-mesh grids could lead to failures in processing the density for
+    valence calculations
+
 ## v. 3.0.2
 
 #### Minor features
