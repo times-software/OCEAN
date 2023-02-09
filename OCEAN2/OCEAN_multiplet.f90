@@ -338,6 +338,7 @@ module OCEAN_multiplet
 #ifdef __DEBUG
       open( unit=99, file='channelmap', form='formatted', status='unknown' )
       rewind 99
+#endif
       ic = 0
       do icms = -1, 1, 2
          do icml = -sys%cur_run%ZNL(3), sys%cur_run%ZNL(3)
@@ -346,10 +347,14 @@ module OCEAN_multiplet
                cms( ic ) = 0.5d0 * icms
                cml( ic ) = icml
                vms( ic ) = 0.5d0 * ivms
+#ifdef __DEBUG
                write ( 99, '(3f8.2,2i5,1a11)' ) cms( ic ), cml( ic ), vms( ic ), ic, sys%cur_run%nalpha, 'cms cml vms'
+#endif
             end do
          end do
       end do
+#ifdef __DEBUG
+      close(99)
 #endif
       !
       ii = 0
