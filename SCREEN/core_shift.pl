@@ -149,7 +149,7 @@ if( $dft eq 'qe' || $dft eq 'obf' )
 # skip down until we find 'site'
   while (<SCF>)
   {
-    last if ($_ =~ m/site/ );
+    last if ($_ =~ m/site\s+n\.\s+atom/ );
   }
 # read in the next natom lines
   for( my $i=0; $i < $natoms; $i++ )
