@@ -92,6 +92,16 @@ subroutine OCEAN_get_rho( xmesh, celvol, rho, ierr )
 
     ! need to find compatible grids
     do iter = 1, 3
+#ifdef __FFTW3
+      if( xmesh( iter ) .ge. nfft( iter ) ) then
+        c_nfft( iter ) =  xmesh( iter ) 
+      else
+        c_nfft( iter ) = nfft( iter )
+        do while( mod( c_nfft( iter ), xmesh( iter ) ) .ne. 0 ) 
+          c_nfft( iter ) = c_nfft( iter ) + 1
+        enddo
+      endif
+#else
       call facpowfind( xmesh( iter ), nfac, fac, powlist )
       c_nfft( iter ) = optim( nfft( iter ), nfac, fac, powlist, hicap )
       if( mod( c_nfft( iter ), xmesh( iter ) ) .ne. 0 ) then
@@ -99,6 +109,7 @@ subroutine OCEAN_get_rho( xmesh, celvol, rho, ierr )
         ierr = 14
         goto 111
       endif
+#endif
     enddo
 
 
