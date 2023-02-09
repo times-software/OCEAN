@@ -95,7 +95,7 @@ module OCEAN_bloch
     if( mod( sys%kmesh(1), 2 ) .eq. 0 ) then
       xshift( 1 ) = floor( real(sys%xmesh(1), DP ) * tau(1) )
     else
-      xshift( 1 ) = floor( real(sys%xmesh(2), DP ) * (tau(1)-0.5d0 ) )
+      xshift( 1 ) = floor( real(sys%xmesh(1), DP ) * (tau(1)-0.5d0 ) )
     endif
     if( mod( sys%kmesh(2), 2 ) .eq. 0 ) then
       xshift( 2 ) = floor( real(sys%xmesh(2), DP ) * tau(2) )
