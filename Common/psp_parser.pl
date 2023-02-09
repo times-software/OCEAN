@@ -56,7 +56,7 @@ if( -e $dataFile )
     mkdir "psp";
     foreach my $p (@psp)
     {
-      copy( $ppdir . '/' . $p . $suffix, "psp");
+      copy( $ppdir . '/' . $p . $suffix, "psp") if( -e $ppdir . '/' . $p . $suffix );
       copy( $ppdir . '/' . $p, "psp") if ( $suffix ne '' && -e $ppdir . '/' . $p, "psp" );
       my $q = $p;
       $q =~ s/\.psp8$//i;
@@ -71,7 +71,7 @@ if( -e $dataFile )
   my $ppdir = './psp/';
   foreach my $ppfile (@psp)
   {
-    $ppfile .= $suffix unless( $ppfile =~ m/$suffix$/ );
+    $ppfile .= $suffix unless( $ppfile =~ m/$suffix$/i );
     my $pp;
   #  open $pp, "../$ppfile" or die "Failed to open ../$ppfile\n$!";
     open $pp, $ppdir . $ppfile or die "Failed to open $ppdir" . "$ppfile\n$!";
