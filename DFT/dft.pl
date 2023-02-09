@@ -125,8 +125,8 @@ copyAndCompare( $newDftData->{'psp'}, $commonOceanData->{'psp'}, $dftData->{'psp
 # Only check the first list against previous runs
 my @generalList = ( "degauss", "ecut", "fband", "functional", "noncolin", "nspin", "occopt", 
                     "program", "smag", "spinorb", "verbatim", "isolated" );
-my @generalSecondaryList = ( "calc_force", "calc_stress", "diagonalization", "mixing", 
-                             "nstep", "redirect", "startingwfc", "tmp_dir", "abpad" );
+my @generalSecondaryList = ( "calc_force", "calc_stress", "diagonalization", "mixing", "mixing_mode",
+                             "nstep", "redirect", "startingwfc", "startingpot", "tmp_dir", "abpad" );
 $newDftData->{'general'} = {};
 copyAndCompare( $newDftData->{'general'}, $commonOceanData->{'dft'}, $dftData->{'general'},
                 $newDftData->{'scf'}, \@generalList );
@@ -229,6 +229,8 @@ copyAndCompare( $newDftData->{'bse'}, $commonOceanData->{'calc'}, $dftData->{'bs
                 $fake, [ 'photon_q', 'nonzero_q' ] );
 copyAndCompare( $newDftData->{'bse'}, $commonOceanData->{'dft'}->{'bse'}, $dftData->{'bse'},
                 $fake, [ 'split' ] );
+copyAndCompare( $newDftData->{'bse'}, $commonOceanData->{'bse'}, $dftData->{'bse'},
+                $fake, [ 'con_start', 'val_stop' ] );
 
 #$newDftData->{'bse'}->{'nonzero_q'} = JSON::PP::true;
 #$newDftData->{'bse'}->{'split'} = JSON::PP::true;
@@ -256,7 +258,7 @@ for( my $i = 0; $i < $niter; $i ++ ) {
   push @nscf_InitialList, {};
   my @bseList = ( "toldfe", "poolsize", "diagonalization" );
   copyNoCompare( $nscf_InitialList[$i], $commonOceanData->{'dft'}->{'bse'}, \@bseList );
-  @bseList = ( "kmesh", "kshift", "con_start" );
+  @bseList = ( "kmesh", "kshift", "con_start", "val_stop" );
   copyNoCompare( $nscf_InitialList[$i], $commonOceanData->{'bse'}, \@bseList );
 
   # First loop is conduction bands, second is valence only on -q grid
@@ -264,8 +266,13 @@ for( my $i = 0; $i < $niter; $i ++ ) {
     @bseList = ( "nbands" );
     copyNoCompare( $nscf_InitialList[$i], $commonOceanData->{'bse'}, \@bseList );
   } else {  
-    @bseList = ( "fband" );
-    copyNoCompare( $nscf_InitialList[$i], $commonOceanData->{'dft'}, \@bseList );
+    if( $nscf_InitialList[$i]->{'val_stop'} >= 1 ) {
+#      @bseList = ( "nbands" );
+      $nscf_InitialList[$i]->{'nbands'} = $nscf_InitialList[$i]->{'val_stop'};
+    } else {
+#      @bseList = ( "fband" );
+      copyNoCompare( $nscf_InitialList[$i], $commonOceanData->{'dft'}, ["fband"] );
+    }
     printf "%.6f  %.6f  %.6f", $nscf_InitialList[$i]->{'kshift'}[0], 
                               $nscf_InitialList[$i]->{'kshift'}[1], $nscf_InitialList[$i]->{'kshift'}[2];
     shiftKpointsByPhoton( $nscf_InitialList[$i], $newDftData->{'bse'}->{'photon_q'} );
@@ -327,10 +334,29 @@ foreach my $hashRef (@nscf_InitialList) {
   my $addThisCalculation = 1;
   if( defined $newDftData->{'znscf'}->{$dirname} ) {
     print "$dirname exists\n";
-    if( $newDftData->{'znscf'}->{ $dirname }->{'toldfe'} <= $hashRef->{'toldfe'} &&
-        $newDftData->{'znscf'}->{ $dirname }->{'nbands' } >= $hashRef->{'nbands'} ) {
-      $addThisCalculation = 0;
+    $addThisCalculation = 0;
+    if( $hashRef->{'toldfe'} < $newDftData->{'znscf'}->{ $dirname }->{'toldfe'} ) {
+      $addThisCalculation = 1;
     }
+    if( defined( $hashRef->{'nbands'} ) ) {
+      if( defined( $newDftData->{'znscf'}->{ $dirname }->{'nbands' } ) ) {
+        if( $hashRef->{'nbands'} > $newDftData->{'znscf'}->{ $dirname }->{'nbands' } ) {
+          $addThisCalculation = 1;
+        }
+      } else {  # new calc has nbands while old didn't
+        $addThisCalculation = 1;
+      }
+    } 
+    else {  # else, using fband
+      unless( defined( $newDftData->{'znscf'}->{ $dirname }->{'fband'} ) &&
+              $newDftData->{'znscf'}->{ $dirname }->{'fband'} > $hashRef->{'fband'} ) {
+      $addThisCalculation = 1;
+      }
+    }
+#    if( $newDftData->{'znscf'}->{ $dirname }->{'toldfe'} <= $hashRef->{'toldfe'} &&
+#        $newDftData->{'znscf'}->{ $dirname }->{'nbands' } >= $hashRef->{'nbands'} ) {
+#      $addThisCalculation = 0;
+#    }
   } else {
     print "$dirname is new\n";
   }
@@ -345,7 +371,29 @@ foreach my $hashRef (@nscf_InitialList) {
     }
     $nscf_TodoList->{ $dirname } = dclone( $hashRef );
   }
+  else {   # check energy parsing
+    if( ( $newDftData->{'bse'}->{'con_start'} != $newDftData->{'znscf'}->{ $dirname }->{'con_start'} 
+        && ( defined( $newDftData->{'bse'}->{'con_start'}) || 
+             defined( $newDftData->{'znscf'}->{ $dirname }->{'con_start'} ) ) ) 
+   || ($newDftData->{'bse'}->{'val_stop'} != $newDftData->{'znscf'}->{ $dirname }->{'val_stop'} 
+        && ( defined( $newDftData->{'bse'}->{'val_stop'}) || 
+             defined($newDftData->{'znscf'}->{ $dirname }->{'val_stop'} ) ) ) )  {
+      my $errorCode;
+      if( $newDftData->{'general'}->{'program'} eq "qe" ) {
+        my $temp = $newDftData->{'bse'}->{'split'};
+        $newDftData->{'bse'}->{'split'} = JSON::PP::false;
+        $newDftData->{'znscf'}->{ $dirname }->{'con_start'} = $hashRef->{'con_start'};
+        $newDftData->{'znscf'}->{ $dirname }->{'val_stop'} = $hashRef->{'val_stop'};
+        $errorCode = QErunParseEnergies( $newDftData, $newDftData->{'znscf'}->{ $dirname }, 0 );
+        $newDftData->{'bse'}->{'split'} = $temp;
+#        $newDftData->{'znscf'}->{ $dirname }->{'con_start'} = $newDftData->{'bse'}->{'con_start'};
+#        $newDftData->{'znscf'}->{ $dirname }->{'val_stop'} = $newDftData->{'bse'}->{'val_stop'};
+      }
+      exit $errorCode if( $errorCode );
+    }
+  }
 }
+
 my $enable = 1;
 $json->canonical([$enable]);
 $json->pretty([$enable]);
@@ -694,6 +742,10 @@ unless( $newDftData->{'bse'}->{'complete'} ) {
   $newDftData->{'bse'}->{'time'} = $dftData->{'bse'}->{'time'};
   if( $newDftData->{'bse'}->{'con_start'} != $dftData->{'bse'}->{'con_start'} 
         && ( defined( $newDftData->{'bse'}->{'con_start'}) || defined($dftData->{'bse'}->{'con_start'} ) ) ) {
+#  if( ( $newDftData->{'bse'}->{'con_start'} != $dftData->{'bse'}->{'con_start'} 
+#        && ( defined( $newDftData->{'bse'}->{'con_start'}) || defined($dftData->{'bse'}->{'con_start'} ) ) ) 
+#   || ($newDftData->{'bse'}->{'val_stop'} != $dftData->{'bse'}->{'val_stop'}
+#        && ( defined( $newDftData->{'bse'}->{'val_stop'}) || defined($dftData->{'bse'}->{'val_stop'} ) ) ) ) {
     my $errorCode;
     if( $newDftData->{'general'}->{'program'} eq "qe" ) {
       $errorCode = QErunParseEnergies( $newDftData, $newDftData->{'bse'}, 0 );
@@ -749,9 +801,12 @@ if( $newDftData->{'screen'}->{'enable'} ) {
     $newDftData->{'screen'}->{'brange'}[$i] = $newDftData->{'znscf'}->{ $d }->{'brange'}[$i];
   }
 }
-$newDftData->{'bse'}->{'brange'}[0] = $newDftData->{'znscf'}->{$newDftData->{'bse'}->{'directories'}[-1]}->{'brange'}[0];
-$newDftData->{'bse'}->{'brange'}[1] = $newDftData->{'znscf'}->{$newDftData->{'bse'}->{'directories'}[-1]}->{'brange'}[1];
-$newDftData->{'bse'}->{'brange'}[2] = $newDftData->{'znscf'}->{$newDftData->{'bse'}->{'directories'}[0]}->{'brange'}[2];
+$newDftData->{'bse'}->{'brange'}[0] = 
+      $newDftData->{'znscf'}->{$newDftData->{'bse'}->{'directories'}[-1]}->{'brange'}[0];
+$newDftData->{'bse'}->{'brange'}[1] = 
+      $newDftData->{'znscf'}->{$newDftData->{'bse'}->{'directories'}[-1]}->{'brange'}[1];
+$newDftData->{'bse'}->{'brange'}[2] = 
+      $newDftData->{'znscf'}->{$newDftData->{'bse'}->{'directories'}[0]}->{'brange'}[2];
 
 if( $commonOceanData->{'bse'}->{'mimic_exciting_bands'} ) {
   $newDftData->{'bse'}->{'brange'}[3] = $newDftData->{'bse'}->{'brange'}[2] 

@@ -57,7 +57,7 @@ module OCEAN_ladder
   type(fft_obj) :: fo
 
 !  logical :: use_sp = .true.
-  logical :: use_resort_ladder = .false.
+  logical :: use_resort_ladder = .true.
 
 !JTV legacy, to be removed
   integer :: ladcap(2,3)
@@ -153,7 +153,7 @@ end subroutine OCEAN_ladder_act
     real(dp), allocatable :: re_b_mat(:,:,:), im_b_mat(:,:,:)
     real(dp), allocatable :: re_tphi_mat(:,:,:), im_tphi_mat(:,:,:)
     real(dp), allocatable :: re_phi_mat(:,:), im_phi_mat(:,:)
-    real(dp), allocatable :: fr(:,:,:), fi(:,:,:), vv(:)
+    real(dp), allocatable :: fr(:,:,:), fi(:,:,:), vv(:), fr2(:), fi2(:)
     complex(dp), allocatable :: scratch(:)
 
     real(dp), parameter :: zero = 0.0_dp
@@ -162,16 +162,19 @@ end subroutine OCEAN_ladder_act
     real(dp) :: beta, inverse_kpts, spin_prefac, minus_spin_prefac
 
 
-    integer :: ik, ib, ix, iy, iix, iik
+    integer :: ik, ib, ix, iy, iix, iik, il
     integer :: ibc, x_block, y_block, nbv_block, nbc_block
     integer :: i, j, k, id, nthread, block_temp, y_offset
     integer :: joint_request(4)
-    integer :: psi_con_pad, val_pad, nkpts
+    integer :: psi_con_pad, val_pad, nkpts, ladrange(3)
 
     logical :: test_flag
 
 !$  integer, external :: omp_get_num_threads
 
+    ladrange(1) = ladcap(2,1)-ladcap(1,1)+1
+    ladrange(2) = ladcap(2,2)-ladcap(1,2)+1
+    ladrange(3) = ladcap(2,3)-ladcap(1,3)+1
 
 #ifdef __INTEL
 !dir$ attributes align:64 :: re_a_mat, im_a_mat, re_b_mat, im_b_mat, re_tphi_mat, im_tphi_mat, scratch
@@ -213,7 +216,7 @@ end subroutine OCEAN_ladder_act
 
     allocate( fr( ladcap(1,1):ladcap(2,1), ladcap(1,2):ladcap(2,2), ladcap(1,3):ladcap(2,3) ), &
               fi( ladcap(1,1):ladcap(2,1), ladcap(1,2):ladcap(2,2), ladcap(1,3):ladcap(2,3) ), &
-              scratch( nkpts ), vv( nkret ), re_phi_mat( nkpts, 16 ), im_phi_mat( nkpts, 16 ) )
+              scratch( nkpts ), vv( nkret ), re_phi_mat( nkpts, 16 ), im_phi_mat( nkpts, 16 ), fr2(nkpts), fi2(nkpts) )
 
     nthread = 1
 !$  nthread = omp_get_num_threads()
@@ -432,18 +435,42 @@ end subroutine OCEAN_ladder_act
 
             call FFT_wrapper_single( scratch, OCEAN_FORWARD, fo )
 
-            do ik = 1, nkpts
-                fr( kk( ik, 1 ), kk( ik, 2 ), kk( ik, 3 ) ) = real( scratch( ik ), DP )
-                fi( kk( ik, 1 ), kk( ik, 2 ), kk( ik, 3 ) ) = aimag( scratch( ik ) )
-            enddo
+            if( use_resort_ladder ) then
+              scratch(:) = scratch(:) * ladder(:, iix -ix + 1, iy + y_offset )
+            else
+#if 0
+              do ik = 1, nkpts
+                il = (ladrange(1)*ladrange(2)*(kk(ik,3)-ladcap(1,3))) &
+                  + (ladrange(1)*(kk(ik,2)-ladcap(1,2))) + (kk(ik,1)-ladcap(1,1)) + 1
+!                il = (size(fr,1)*size(fr,2)*(kk(ik,3)-ladcap(1,3))) &
+!                   + (size(fr,1)*(kk(ik,2)-ladcap(1,2))) + (kk(ik,1)-ladcap(1,1)) + 1
+                fr2(il) = real( scratch( ik ), DP )
+                fi2(il) = aimag( scratch( ik ) )
+              enddo
+              call velmuls( fr2, vv, ladder( :, iix -ix + 1, iy + y_offset ), nkpts, nkret, kret )
+              call velmuls( fi2, vv, ladder( :, iix -ix + 1, iy + y_offset ), nkpts, nkret, kret )
+              do ik = 1, nkpts
+                il = (ladrange(1)*ladrange(2)*(kk(ik,3)-ladcap(1,3))) &
+                  + (ladrange(1)*(kk(ik,2)-ladcap(1,2))) + (kk(ik,1)-ladcap(1,1)) + 1
+!                il = (size(fr,1)*size(fr,2)*(kk(ik,3)-ladcap(1,3))) &
+!                   + (size(fr,1)*(kk(ik,2)-ladcap(1,2))) + (kk(ik,1)-ladcap(1,1)) + 1
+                scratch( ik ) = cmplx( fr2(il), fi2(il), DP )
+              enddo
+#else
+              do ik = 1, nkpts
+                  fr( kk( ik, 1 ), kk( ik, 2 ), kk( ik, 3 ) ) = real( scratch( ik ), DP )
+                  fi( kk( ik, 1 ), kk( ik, 2 ), kk( ik, 3 ) ) = aimag( scratch( ik ) )
+              enddo
 
-            call velmuls( fr, vv, ladder( :, iix -ix + 1, iy + y_offset ), nkpts, nkret, kret )
-            call velmuls( fi, vv, ladder( :, iix -ix + 1, iy + y_offset ), nkpts, nkret, kret )
+              call velmuls( fr, vv, ladder( :, iix -ix + 1, iy + y_offset ), nkpts, nkret, kret )
+              call velmuls( fi, vv, ladder( :, iix -ix + 1, iy + y_offset ), nkpts, nkret, kret )
 
-            do ik = 1, nkpts
-              scratch( ik ) = cmplx( fr( kk( ik, 1 ), kk( ik, 2 ), kk( ik, 3 ) ), &
-                                     fi( kk( ik, 1 ), kk( ik, 2 ), kk( ik, 3 ) ), DP )
-            end do
+              do ik = 1, nkpts
+                scratch( ik ) = cmplx( fr( kk( ik, 1 ), kk( ik, 2 ), kk( ik, 3 ) ), &
+                                       fi( kk( ik, 1 ), kk( ik, 2 ), kk( ik, 3 ) ), DP )
+              end do
+#endif
+            endif
 
             call FFT_wrapper_single( scratch, OCEAN_BACKWARD, fo )
 
@@ -585,7 +612,7 @@ end subroutine OCEAN_ladder_act
     use OCEAN_val_states, only : nxpts, nxpts_pad, re_val_sp, im_val_sp, re_con_sp, im_con_sp, &
                                  nbv, nbc, max_nxpts, nxpts_by_mpiID, startx_by_mpiID
     use OCEAN_system
-    use FFT_wrapper, only : OCEAN_FORWARD, OCEAN_BACKWARD, FFT_wrapper_single
+    use FFT_wrapper, only : OCEAN_FORWARD, OCEAN_BACKWARD, FFT_wrapper_single, FFT_wrapper_single_sp
   
     implicit none
 
@@ -602,9 +629,9 @@ end subroutine OCEAN_ladder_act
     real(dp), allocatable :: fr(:,:,:), fi(:,:,:), vv(:)
     real(sp), allocatable :: pr(:,:), pi(:,:) !, re_con_sp(:,:,:), im_con_sp(:,:,:)
     complex(dp), allocatable :: scratch(:)
-#ifdef __FFTW_SP
+!#ifdef __FFTW3F
     complex(sp), allocatable :: scratch_sp(:)
-#endif
+!#endif
 
     real(sp), parameter :: zero = 0.0_sp
     real(sp), parameter :: one  = 1.0_sp
@@ -663,7 +690,7 @@ end subroutine OCEAN_ladder_act
     allocate( fr( ladcap(1,1):ladcap(2,1), ladcap(1,2):ladcap(2,2), ladcap(1,3):ladcap(2,3) ), &
               fi( ladcap(1,1):ladcap(2,1), ladcap(1,2):ladcap(2,2), ladcap(1,3):ladcap(2,3) ), &
               scratch( nkpts ), vv( nkret ), re_phi_mat( nkpts, 16 ), im_phi_mat( nkpts, 16 ), &
-              pr(nbc,nbv), pi(nbc,nbv) )
+              pr(nbc,nbv), pi(nbc,nbv), scratch_sp(nkpts) )
 
     nthread = 1
 !$  nthread = omp_get_num_threads()
@@ -681,8 +708,8 @@ end subroutine OCEAN_ladder_act
 
 !$OMP DO COLLAPSE(1) SCHEDULE(STATIC)
     do ik = 1, nkpts
-      pr(:,:) = real(psi%valr( 1:nbc, 1:nbv, ik, psi_spn ), sp )
-      pi(:,:) = real(psi%vali( 1:nbc, 1:nbv, ik, psi_spn ), sp )
+      pr(:,:) = psi%valr( 1:nbc, 1:nbv, ik, psi_spn )
+      pi(:,:) = psi%vali( 1:nbc, 1:nbv, ik, psi_spn )
 
       call SGEMM( 'N', 'N', x_block, nbv_block, nbc, one, re_con_sp( ix, 1, ik, cspn ), nxpts_pad, &
                   pr, nbc, zero, re_a_mat( ix, ib, ik ), nxpts_pad )
@@ -773,27 +800,46 @@ end subroutine OCEAN_ladder_act
 !$OMP DO COLLAPSE( 2 ) SCHEDULE( STATIC)
       do iy = 1, nxpts_by_mpiID( id )
         do iix = 1, nxpts
+
+#ifdef __FFTW3F
+          scratch_sp(:) = cmplx(re_tphi_mat( iix, iy, : ), im_tphi_mat( iix, iy, : ), SP )
+          call FFT_wrapper_single_sp( scratch_sp, OCEAN_FORWARD, fo )
+#else
           scratch( : ) = cmplx(re_tphi_mat( iix, iy, : ), im_tphi_mat( iix, iy, : ), DP )
-
           call FFT_wrapper_single( scratch, OCEAN_FORWARD, fo )
+#endif
 
-          do ik = 1, nkpts
-              fr( kk( ik, 1 ), kk( ik, 2 ), kk( ik, 3 ) ) = real( scratch( ik ), DP )
-              fi( kk( ik, 1 ), kk( ik, 2 ), kk( ik, 3 ) ) = aimag( scratch( ik ) )
-          enddo
+          if( use_resort_ladder ) then
+#ifdef __FFTW3F
+            scratch_sp(:) = scratch_sp(:) * ladder(:, iix -ix + 1, iy + y_offset )
+#else
+            scratch(:) = scratch(:) * ladder(:, iix -ix + 1, iy + y_offset )
+#endif
+          else
 
-          call velmuls( fr, vv, ladder( :, iix -ix + 1, iy + y_offset ), nkpts, nkret, kret )
-          call velmuls( fi, vv, ladder( :, iix -ix + 1, iy + y_offset ), nkpts, nkret, kret )
+            do ik = 1, nkpts
+                fr( kk( ik, 1 ), kk( ik, 2 ), kk( ik, 3 ) ) = real( scratch( ik ), DP )
+                fi( kk( ik, 1 ), kk( ik, 2 ), kk( ik, 3 ) ) = aimag( scratch( ik ) )
+            enddo
 
-          do ik = 1, nkpts
-            scratch( ik ) = cmplx( fr( kk( ik, 1 ), kk( ik, 2 ), kk( ik, 3 ) ), &
-                                   fi( kk( ik, 1 ), kk( ik, 2 ), kk( ik, 3 ) ), DP )
-          end do
+            call velmuls( fr, vv, ladder( :, iix -ix + 1, iy + y_offset ), nkpts, nkret, kret )
+            call velmuls( fi, vv, ladder( :, iix -ix + 1, iy + y_offset ), nkpts, nkret, kret )
 
+            do ik = 1, nkpts
+              scratch( ik ) = cmplx( fr( kk( ik, 1 ), kk( ik, 2 ), kk( ik, 3 ) ), &
+                                     fi( kk( ik, 1 ), kk( ik, 2 ), kk( ik, 3 ) ), DP )
+            end do
+          endif
+
+#ifdef __FFTW3F
+          call FFT_wrapper_single_sp( scratch_sp, OCEAN_BACKWARD, fo )
+          re_tphi_mat( iix, iy, : ) = real(scratch_sp( : ),SP)
+          im_tphi_mat( iix, iy, : ) = aimag(scratch_sp( : ))
+#else
           call FFT_wrapper_single( scratch, OCEAN_BACKWARD, fo )
-
           re_tphi_mat( iix, iy, : ) = real(scratch( : ),SP)
           im_tphi_mat( iix, iy, : ) = real(aimag(scratch( : )),SP)
+#endif
         enddo
       enddo
 !$OMP END DO NOWAIT
@@ -852,7 +898,7 @@ end subroutine OCEAN_ladder_act
     enddo
 !$OMP END DO
 
-    deallocate( fr, fi, vv, scratch, re_phi_mat, im_phi_mat, pr, pi )
+    deallocate( fr, fi, vv, scratch, re_phi_mat, im_phi_mat, pr, pi, scratch_sp )
 !$OMP END PARALLEL
 
     deallocate( re_a_mat, im_a_mat, re_b_mat, im_b_mat, re_tphi_mat, im_tphi_mat )
@@ -875,7 +921,8 @@ end subroutine OCEAN_ladder_act
     type(O_system), intent(in) :: sys
     integer, intent( inout ) :: ierr
 
-    integer :: c_dest, c_sour, c_size
+    real(DP), allocatable :: ladbuf(:)
+    integer :: c_dest, c_sour, c_size, ix, iy
 
     if( is_loaded ) return
 
@@ -896,6 +943,16 @@ end subroutine OCEAN_ladder_act
     call OCEAN_WRR_generate( sys, sys%screening_method, nkpts_pad, nxpts_pad, nypts, ladder, nxpts, & 
                              startx, nkret, kret, ierr, ladcap, kk )
     if( ierr .ne. 0 ) return
+
+    if( use_resort_ladder ) then
+      allocate( ladbuf( sys%nkpts ) )
+      do iy = 1, nypts
+        do ix = 1, nxpts
+          call resort_ladder( ladder(1:sys%nkpts,ix,iy), ladbuf, sys%nkpts, nkret, kret, kk, sys%kmesh, ladcap )
+        enddo
+      enddo
+      deallocate( ladbuf )
+    endif
 
 !    select case( screening_method )
 !    case( 1 )
@@ -1013,7 +1070,8 @@ end subroutine OCEAN_ladder_act
     use OCEAN_system
     use OCEAN_mpi, only : myid, nproc
 !    use iso_c_binding
-    use FFT_wrapper, only : FFT_wrapper_init
+    use FFT_wrapper, only : FFT_wrapper_init, FFT_wrapper_init_sp
+    use OCEAN_val_states, only : use_sp
     implicit none
 
 !    include 'fftw3.f03'
@@ -1022,7 +1080,9 @@ end subroutine OCEAN_ladder_act
     integer, intent( inout ) :: ierr
     ! 
     complex(dp), allocatable :: scratch(:)
+    complex(sp), allocatable :: scratch_sp(:)
     integer :: nx_remain, i, kmesh( 3 )
+    logical :: use_sp_fft
 
 #ifdef  __INTEL
 !dir$ attributes align:64 :: scratch
@@ -1037,7 +1097,7 @@ end subroutine OCEAN_ladder_act
 
     nypts = sys%nxpts
 
-    allocate( scratch( sys%nkpts ) )
+    allocate( scratch( sys%nkpts ), scratch_sp( sys%nkpts ) )
 !    call dfftw_plan_with_nthreads( 1 )
 !    call dfftw_plan_dft_3d( fplan, sys%kmesh(3), sys%kmesh(2), sys%kmesh(1), &
 !                            scratch, scratch, FFTW_FORWARD, FFTW_PATIENT )
@@ -1048,7 +1108,16 @@ end subroutine OCEAN_ladder_act
     kmesh( 1 ) = sys%kmesh( 3 )
     kmesh( 2 ) = sys%kmesh( 2 )
     kmesh( 3 ) = sys%kmesh( 1 )
-    call FFT_wrapper_init( kmesh, fo, scratch )
+
+    use_sp_fft = use_sp
+#ifndef __FFTW3F
+    use_sp_fft = .false.
+#endif
+    if( use_sp_fft ) then
+      call FFT_wrapper_init_sp( kmesh, fo, scratch_sp )
+    else
+      call FFT_wrapper_init( kmesh, fo, scratch )
+    endif
 
     
 !    nkpts = sys%nkpts
@@ -1091,7 +1160,7 @@ end subroutine OCEAN_ladder_act
 !    endif
     
     is_init = .true.
-    deallocate( scratch )
+    deallocate( scratch, scratch_sp )
 
   end subroutine OCEAN_ladder_init
 
@@ -1119,16 +1188,41 @@ end subroutine OCEAN_ladder_act
   end subroutine velmuls
 
 !  ladder(:,,) new_ladder(:,,), nkpts, nkret, kret )
-  subroutine resort_ladder( lad, buf, n, nn, ii )
-    integer, intent( in ) :: n, nn, ii( nn )
+  subroutine resort_ladder( lad, buf, n, nn, ii, kk, kmesh, ladcap )
+    integer, intent( in ) :: n, nn, ii( nn ), kk(n,3), kmesh(3), ladcap(2,3)
     real(DP), intent( inout ) :: lad( n )
     real(DP), intent( out ) :: buf( n )
     !
-    integer :: i
-  
+    integer :: i, ik
+
+    integer :: ladrange(3)
+
+    ladrange(1) = ladcap(2,1)-ladcap(1,1)+1
+    ladrange(2) = ladcap(2,2)-ladcap(1,2)+1
+    ladrange(3) = ladcap(2,3)-ladcap(1,3)+1
+
+#if 0
+    buf(:) = 0.0_DP
+    do ik = 1, n
+      i = (ladrange(1)*ladrange(2)*(kk(ik,3)-ladcap(1,3))) &
+        + (ladrange(1)*(kk(ik,2)-ladcap(1,2))) + (kk(ik,1)-ladcap(1,1)) + 1
+      if( i .gt. nn ) cycle
+!      buf(ii(i)) = lad(i)
+      buf(i) = lad(ii(i))
+    enddo
+    lad(:) = buf(:)
+#endif
+
     buf(:) = 0.0_DP
     do i = 1, nn
       buf(ii(i)) = lad(i)
+    enddo
+    lad(:) = buf(:)
+
+    do ik = 1, n
+      i = (ladrange(1)*ladrange(2)*(kk(ik,3)-ladcap(1,3))) &
+        + (ladrange(1)*(kk(ik,2)-ladcap(1,2))) + (kk(ik,1)-ladcap(1,1)) + 1
+      buf(ik) = lad(i)
     enddo
     lad(:) = buf(:)
   

@@ -27,11 +27,27 @@ module OCEAN_energies
 
   public :: OCEAN_energies_allow, OCEAN_energies_val_sfact, OCEAN_energies_val_act, &
             OCEAN_energies_val_load, OCEAN_energies_act, OCEAN_energies_init, OCEAN_energies_load
-  public :: OCEAN_energies_resetAllow, OCEAN_energies_allow_full
+  public :: OCEAN_energies_resetAllow, OCEAN_energies_allow_full, OCEAN_energies_sfact_copy
   
   contains
 
-  subroutine OCEAN_energies_allow_full( sys, psi, ierr )
+  subroutine OCEAN_energies_sfact_copy( sys, psi_in, psi_out, ierr )
+    use OCEAN_system, only : O_system
+    use OCEAN_psi, only : OCEAN_vector, OCEAN_psi_3element_mult
+    implicit none
+    !
+    integer, intent( inout ) :: ierr
+    type(O_system), intent( in ) :: sys
+    type(OCEAN_vector), intent( inout ) :: psi_in, psi_out
+
+
+    call OCEAN_psi_3element_mult( psi_out, allow, psi_in, ierr, &
+                                  use_full = .true., is_imaginary_as_real = .true. )
+
+  end subroutine OCEAN_energies_sfact_copy
+    
+
+  subroutine OCEAN_energies_allow_full( sys, psi, ierr, sfact )
     use OCEAN_system, only : O_system
     use OCEAN_psi, only : OCEAN_vector, OCEAN_psi_2element_mult
     use OCEAN_mpi, only : myid, root
@@ -40,11 +56,21 @@ module OCEAN_energies
     integer, intent( inout ) :: ierr
     type(O_system), intent( in ) :: sys
     type(OCEAN_vector), intent( inout ) :: psi
+    logical, intent( in ), optional :: sfact
     !
-    call OCEAN_psi_2element_mult( psi, allow_sqrt, ierr, is_real_only=.true., use_full=.true. )
+    logical :: sf
+    !
+    sf = .false.
+    if( present( sfact ) ) sf = sfact
+
+    if( sf ) then
+      call OCEAN_psi_2element_mult( psi, allow, ierr, is_imaginary_as_real=.true., use_full=.true. )
+    else
+      call OCEAN_psi_2element_mult( psi, allow_sqrt, ierr, is_real_only=.true., use_full=.true. )
+    endif
   end subroutine
 
-  subroutine OCEAN_energies_allow( sys, psi, ierr )
+  subroutine OCEAN_energies_allow( sys, psi, ierr, sfact )
     use OCEAN_system, only : O_system
     use OCEAN_psi, only : OCEAN_vector, OCEAN_psi_2element_mult
     use OCEAN_mpi, only : myid, root
@@ -53,9 +79,19 @@ module OCEAN_energies
     integer, intent( inout ) :: ierr
     type(O_system), intent( in ) :: sys
     type(OCEAN_vector), intent( inout ) :: psi
+    logical, intent( in ), optional :: sfact
     !
-    if( myid .eq. root ) write(6,*) 'old_allow'
-    call OCEAN_psi_2element_mult( psi, allow, ierr, is_real_only=.true. )
+    logical :: sf
+    !
+    sf = .false.
+    if( present( sfact ) ) sf = sfact
+
+!    if( myid .eq. root ) write(6,*) 'old_allow'
+    if( sf ) then
+      call OCEAN_psi_2element_mult( psi, allow, ierr, is_imaginary_as_real=.true. )
+    else
+      call OCEAN_psi_2element_mult( psi, allow, ierr, is_real_only=.true. )
+    endif
   end subroutine
 
   subroutine OCEAN_energies_resetAllow( ierr )
@@ -103,7 +139,7 @@ module OCEAN_energies
 
   subroutine OCEAN_energies_val_load( sys, ierr )
     use OCEAN_system
-    use OCEAN_psi, only : OCEAN_vector, OCEAN_psi_new, OCEAN_psi_zero_full
+    use OCEAN_psi, only : OCEAN_vector, OCEAN_psi_new, OCEAN_psi_zero_full, OCEAN_psi_copy_full
     use OCEAN_val_energy, only : OCEAN_read_energies
     implicit none
     !
@@ -119,6 +155,8 @@ module OCEAN_energies
       if( ierr .ne. 0 ) return
       call OCEAN_psi_new( allow, ierr )
       if( ierr .ne. 0 ) return
+      call OCEAN_psi_new( allow_sqrt, ierr )
+      if( ierr .ne. 0 ) return
 
       val_init = .true.
     endif
@@ -128,9 +166,17 @@ module OCEAN_energies
       if( ierr .ne. 0 ) return
       call OCEAN_psi_zero_full( allow, ierr )
       if( ierr .ne. 0 ) return
+      call OCEAN_psi_zero_full( allow_sqrt, ierr )
+      if( ierr .ne. 0 ) return
       
       call OCEAN_read_energies( sys, p_energy, allow, ierr )
       if( ierr .ne. 0 ) return
+
+      call OCEAN_psi_copy_full( allow_sqrt, allow, ierr )
+      if( ierr .ne. 0 ) return
+
+      ! this flips the sign of the energies
+      call OCEAN_energies_allow_full( sys, p_energy, ierr, .true. )
 
       val_loaded = .true.
     endif

@@ -362,6 +362,8 @@ end subroutine OCEAN_action_h1
       call OCEAN_psi_kill( psi_o, ierr )
       if( ierr .ne. 0 ) return
 
+
+      !TODO: Is this a problem?
       if( hflag(6) .eq. 1 ) then
         tempflag(:)=0
         tempflag(6) = 1
@@ -375,6 +377,9 @@ end subroutine OCEAN_action_h1
       if( loud_valence ) then
         !JTV
         ! Loud valence hasn't been tested in a while!!
+        write(6,*) 'LOUD VALENCE NEEDS TESTING AND FIXING!!!'
+        ierr = 121212
+        return
         if( sys%cur_run%have_core ) then
           ierr = 1
           if( myid .eq. root ) write(6,*) 'This code pathway is currently disabled'
@@ -393,7 +398,7 @@ end subroutine OCEAN_action_h1
           call OCEAN_tk_stop( tk_e0 )
 
           ! Then just to be sure, use the allow (should've been done before psi was passed in)
-          call OCEAN_energies_allow( sys, new_psi, ierr )
+          call OCEAN_energies_allow( sys, new_psi, ierr, sfact=.true.)
           if( ierr .ne. 0 ) return
 
           
@@ -482,11 +487,15 @@ end subroutine OCEAN_action_h1
         ! Option 2 doesn't give per-BSE hamiltonian values for E0, direct, and
         ! exchange. This should be faster because less communication needed.
         ! Only share the psi vectors at the end like in the core case.
+        call OCEAN_psi_new( psi_o, ierr, psi )
+        if( ierr .ne. 0 ) return
+        call OCEAN_energies_allow_full( sys, psi_o, ierr )
+        if( ierr .ne. 0 ) return
     
         if( sys%cur_run%bflag .and. (hflag(3).eq.1) ) then
           ! For now re-use mult timing for bubble
           call OCEAN_tk_start( tk_mult )
-          call AI_bubble_act( sys, psi, new_psi, ierr )
+          call AI_bubble_act( sys, psi_o, new_psi, ierr )
 !          call OCEAN_energies_allow( sys, new_psi, ierr )
           if( ierr .ne. 0 ) return
           call OCEAN_tk_stop( tk_mult )
@@ -495,15 +504,16 @@ end subroutine OCEAN_action_h1
         if( sys%cur_run%lflag .and. (hflag(2).eq.1)) then
           ! For now re-use lr timing for ladder
           call OCEAN_tk_start( tk_lr )
-          call OCEAN_ladder_act( sys, psi, new_psi, ierr )
+          call OCEAN_ladder_act( sys, psi_o, new_psi, ierr )
           if( ierr .ne. 0 ) return
 !          call OCEAN_energies_allow( sys, new_psi, ierr )
           call OCEAN_tk_stop( tk_lr )
         endif
 
-        ! This should be redundant
-!        call OCEAN_energies_allow( sys, new_psi, ierr )
-!        if( ierr .ne. 0 ) return
+        call OCEAN_energies_allow_full( sys, new_psi, ierr )
+        if( ierr .ne. 0 ) return
+        call OCEAN_psi_kill( psi_o, ierr )
+        if( ierr .ne. 0 ) return
       
       endif
     
@@ -534,6 +544,7 @@ end subroutine OCEAN_action_h1
     if( ( sys%e0 .and. sys%cur_run%have_core ) .or. ( sys%cur_run%bande .and. sys%cur_run%have_val ) ) then
       call OCEAN_tk_start( tk_e0 )
       call ocean_energies_act( sys, psi, new_psi, back, ierr )
+      if( ierr .ne. 0 ) return
       call OCEAN_tk_stop( tk_e0 )
     else
       call OCEAN_psi_zero_min( new_psi, ierr )

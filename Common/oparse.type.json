@@ -81,6 +81,7 @@
          "solver" : "s"
       },
       "val_start" : "i",
+      "val_stop" : "i",
       "xmesh" : "af"
    },
    "calc" : {
@@ -155,6 +156,7 @@
          "scf_only" : "b"
       },
       "mixing" : "f",
+      "mixing_mode" : "s",
       "ndiag" : "i",
       "noncolin" : "b",
       "nspin" : "i",
@@ -169,6 +171,7 @@
       },
       "smag" : "S",
       "spinorb" : "b",
+      "startingpot" : "s",
       "startingwfc" : "S",
       "tmp_dir" : "S",
       "toldfe" : "f",

@@ -29,12 +29,12 @@ subroutine OCEAN_get_rho( xmesh, celvol, rho, ierr )
   character(len=1) :: fstr
 
 #ifdef __FFTW3
-  integer, parameter :: fac(5) = (/ 2, 3, 5, 7, 11 /)
-  integer, parameter :: hicap(5) = (/ 20, 12, 8, 6, 1 /)
-  integer, parameter :: nfac = 5
+  integer, parameter :: fac(6) = (/ 2, 3, 5, 7, 11, 13 /)
+  integer, parameter :: hicap(6) = (/ 10, 6, 4, 3, 2, 2 /)
+  integer, parameter :: nfac = 6
 #else
   integer, parameter :: fac(3) = (/ 2, 3, 5 /)
-  integer, parameter :: hicap(3) = (/ 20, 8, 4 /)
+  integer, parameter :: hicap(3) = (/ 10, 6, 4 /)
   integer, parameter :: nfac = 3
 #endif
 
@@ -92,6 +92,16 @@ subroutine OCEAN_get_rho( xmesh, celvol, rho, ierr )
 
     ! need to find compatible grids
     do iter = 1, 3
+#ifdef __FFTW3
+      if( xmesh( iter ) .ge. nfft( iter ) ) then
+        c_nfft( iter ) =  xmesh( iter ) 
+      else
+        c_nfft( iter ) = nfft( iter )
+        do while( mod( c_nfft( iter ), xmesh( iter ) ) .ne. 0 ) 
+          c_nfft( iter ) = c_nfft( iter ) + 1
+        enddo
+      endif
+#else
       call facpowfind( xmesh( iter ), nfac, fac, powlist )
       c_nfft( iter ) = optim( nfft( iter ), nfac, fac, powlist, hicap )
       if( mod( c_nfft( iter ), xmesh( iter ) ) .ne. 0 ) then
@@ -99,6 +109,7 @@ subroutine OCEAN_get_rho( xmesh, celvol, rho, ierr )
         ierr = 14
         goto 111
       endif
+#endif
     enddo
 
 

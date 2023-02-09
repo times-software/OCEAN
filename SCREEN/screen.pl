@@ -286,7 +286,8 @@ if( -e $dataFile )
   print OUT $json->encode($newScreenData);
   close OUT;
 
-  writeExtraFiles( $newScreenData->{'structure'}, $newScreenData->{'screen'}, $newScreenData->{'general'} );
+  writeExtraFiles( $newScreenData->{'structure'}, $newScreenData->{'screen'}, $newScreenData->{'general'},
+                   $newScreenData->{'model'} );
 
   $newScreenData->{'combine'} = {} unless( exists $newScreenData->{'combine'} );
   $newScreenData->{'combine'}->{'complete'} = JSON::PP::true;
@@ -1957,7 +1958,7 @@ sub grabOPF
 
 sub writeExtraFiles
 {
-  my ($structureRef, $screenRef, $genRef) = @_;
+  my ($structureRef, $screenRef, $genRef, $modelRef) = @_;
 
   open OUT, ">", "avecsinbohr.ipt" or die "Failed to open avecsinbohr.ipt\n$!";
   for( my $i = 0; $i < 3; $i++ )
@@ -2065,9 +2066,10 @@ sub writeExtraFiles
   # 'screen.quadorder' 'screen.chi0integrand'  'screen.appx'
   my $rhofile = catfile( updir(), "DFT", "val.rhoofr" );
 #  unless( ! $screenRef->{'model'}->{'SLL'}->{'semicore_density'} && -e $rhofile ) {
-  if( (not -e $rhofile) || $screenRef->{'model'}->{'SLL'}->{'semicore_density'} ) {
+  if( (not -e $rhofile) || $modelRef->{'SLL'}->{'semicore_density'} ) {
     $rhofile = catfile( updir(), "DFT", "rhoofr" );
   }
+
   copy( $rhofile , "rhoofr" ) or die $!;
 #  copy( catfile( updir(), "DFT", "rhoofr" ), "rhoofr" ) or die $!;
   copy( catfile( updir(), "DFT", "nfft" ), "nfft" ) or die $!;

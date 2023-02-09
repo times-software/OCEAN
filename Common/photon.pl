@@ -436,6 +436,15 @@ my @dir = ( [ 1, 0, 0 ], [ 0, 1, 0 ], [0, 0, 1] );
 my $quad = 0;
 $quad = 1 if( $energy > 4000 ) ;
 
+my @files = glob( 'default_photon*' );
+foreach my $file ( @files ) {
+  next unless( $file =~ m/^default_photon\d+$/ );
+  if( -e $file ) {
+#    print "Removing $file\n";
+    unlink $file;
+  }
+}
+
 my $nphoton = 0;
 for( my $i = 0; $i < 3; $i++ ) {
   for( my $j = 0; $j<3; $j++ ) {

@@ -201,15 +201,15 @@ module ocean_qe62_files
     integer, intent( inout ) :: ierr
     !
     if( .not. is_init ) then
-      ierr = 2
+      ierr = 222
       return
     endif
     if( ispin .lt. 1 .or. ispin .gt. nspin ) then
-      ierr = 3 
+      ierr = 322 
       return
     endif
     if( ikpt .lt. 1 .or. ikpt .gt. product(kpts(:)) ) then
-      ierr = 4
+      ierr = 422
       return
     endif
 
@@ -274,7 +274,7 @@ module ocean_qe62_files
     endif
     if( size( valEnergies, 2 ) .lt. product(kpts(:)) ) then
       write(6,*) 'Error! K-point dimension of valence energies too small in qe62_read_energies_single'
-      ierr = 2
+      ierr = 233
       return
     endif
     if( size( valEnergies, 3 ) .lt. nspin ) then
@@ -334,7 +334,7 @@ module ocean_qe62_files
     endif
     if( size( energies, 2 ) .lt. product(kpts(:)) ) then
       write(6,*) 'Error! K-point dimension of energies too small in qe62_read_energies_single'
-      ierr = 2
+      ierr = 234
       return
     endif
     if( size( energies, 3 ) .lt. nspin ) then
@@ -787,7 +787,8 @@ module ocean_qe62_files
         open( unit=99, file='npool', form='formatted', status='old')
         read(99,*) npool
         close(99)
-        if( npool .gt. inter_nproc .or. mod( inter_nproc, npool ) .ne. 0 ) npool = 0
+!        if( npool .gt. inter_nproc .or. mod( inter_nproc, npool ) .ne. 0 ) npool = 0
+        if( npool .gt. inter_nproc ) npool = 0
       endif
     endif
     call MPI_BCAST( npool, 1, MPI_INTEGER, 0, inter_comm, ierr )
@@ -1036,7 +1037,7 @@ module ocean_qe62_files
     endif
     if( qe62_getConductionBandsForPoolID( pool_myid ) .ne. conBands ) then
       write(1000+myid, * ) 'Conduction band mismatch:', qe62_getConductionBandsForPoolID( pool_myid ), conBands
-      ierr = 2
+      ierr = 235
       return
     endif
     

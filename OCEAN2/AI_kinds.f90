@@ -14,12 +14,17 @@ module AI_kinds
   ! The standard numbers should be compatible with MPI and scaLAPACK
   ! Will need some sort of pre-build thingy at some point
   !
-  ! QP is unused
-  ! DP = MPI_DOUBLE_PRECISION & D for scalapack
   ! SP = MPI_REAL & S for scalapck
-!  integer, parameter :: QP = selected_real_kind(33,4900)
-  integer, parameter :: DP = selected_real_kind(15,307)
+  ! DP = MPI_DOUBLE_PRECISION & D for scalapack
+  ! QP is unused
+!  integer, parameter :: SP = kind(1.0)
   integer, parameter :: SP = selected_real_kind(6,37)
+  integer, parameter :: DP = selected_real_kind(15,307)
+#ifdef __HAVE_QP
+  integer, parameter :: QP = selected_real_kind(30)
+#else
+  integer, parameter :: QP = DP
+#endif
 ! Running under the assumption that complex numbers can be declared using 
 !  the corresponding real definitions.
 !  integer, parameter :: CDP = DP
@@ -35,14 +40,14 @@ module AI_kinds
   integer, parameter :: I1  = selected_int_kind(1)
   !
 !  integer, parameter :: AI_LOG = MPI_LOGICAL
-  public :: DP, SP, I4, I8, I2, S_INT !, AI_LOG
+  public :: QP, DP, SP, I4, I8, I2, S_INT !, AI_LOG
   !
   !
 contains
   subroutine print_kind_info
     implicit none
-!    write(6,*) 'QP', QP, sizeof(1.0_QP)
 #ifdef __HAVE_F03
+    write(6,*) 'QP', QP, sizeof(1.0_QP)
     write(6,*) 'DP', DP, c_sizeof(1.0_DP)
     write(6,*) 'SP', SP, c_sizeof(1.0_SP)
     write(6,*) 'I8', I8, c_sizeof(1_I8)
@@ -50,6 +55,7 @@ contains
     write(6,*) 'I2', I2, c_sizeof(1_I2)
     write(6,*) 'S ', S_INT, c_sizeof(1_S_INT)
 #else
+    write(6,*) 'QP', QP
     write(6,*) 'DP', DP, sizeof(1.0_DP)
     write(6,*) 'SP', SP, sizeof(1.0_SP)
     write(6,*) 'I8', I8, sizeof(1_I8)

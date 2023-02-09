@@ -45,6 +45,9 @@ ocean_phys.mod: ai_kinds.mod ocean_constants.mod
 screen_timekeeper.mod: ai_kinds.mod
 screen_timekeeper.o:   ai_kinds.mod
 
+fft_wrapper.mod: ai_kinds.mod
+FFT_wrapper.o: ai_kinds.mod
+
 jlmfft.o: jlmfft.f
 	$(MPIFORT) $(OPTIONS) -c -o jlmfft.o jlmfft.f
 

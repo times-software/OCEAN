@@ -47,6 +47,7 @@ module OCEAN_multiplet
 
   logical :: is_init = .false.
   logical :: do_staggered_sum 
+  logical :: have_spin_orbit = .true.
 
 
 
@@ -334,8 +335,10 @@ module OCEAN_multiplet
 !      allocate( pwr( itot ), pwi( itot ) )
 !      allocate( hpwr( itot ), hpwi( itot ) )
 
+#ifdef __DEBUG
       open( unit=99, file='channelmap', form='formatted', status='unknown' )
       rewind 99
+#endif
       ic = 0
       do icms = -1, 1, 2
          do icml = -sys%cur_run%ZNL(3), sys%cur_run%ZNL(3)
@@ -344,10 +347,15 @@ module OCEAN_multiplet
                cms( ic ) = 0.5d0 * icms
                cml( ic ) = icml
                vms( ic ) = 0.5d0 * ivms
+#ifdef __DEBUG
                write ( 99, '(3f8.2,2i5,1a11)' ) cms( ic ), cml( ic ), vms( ic ), ic, sys%cur_run%nalpha, 'cms cml vms'
+#endif
             end do
          end do
       end do
+#ifdef __DEBUG
+      close(99)
+#endif
       !
       ii = 0
       do lv = lvl, lvh
@@ -587,6 +595,7 @@ module OCEAN_multiplet
 
       write(6,*) 'SO PREP', xi
 
+#if 0
       open( unit=99, file='sphpts', form='formatted', status='old' )
       rewind 99
       read ( 99, * ) nsphpt
@@ -598,9 +607,12 @@ module OCEAN_multiplet
       sphsu = sum( wsph( : ) )
       wsph( : ) = wsph( : ) * ( 4.0d0 * 4.0d0 * atan( 1.0d0 ) / sphsu )
       write ( 6, * ) nsphpt, ' points with weights summing to four pi '
+#endif
 
+      if( xi .lt. 1.0d-12 ) have_spin_orbit = .false.
       inquire( file='core_broaden.ipt', exist= broaden_exist )
       if( broaden_exist ) then
+        have_spin_orbit = .true.
         write(6,*) 'spin-orbit dependent broadening'
         open( unit=99, file='core_broaden.ipt', form='formatted', status='old' )
         read( 99, * ) life_time( : )
@@ -643,9 +655,11 @@ module OCEAN_multiplet
                  ctmp = ctmp + jimel( dble( sys%cur_run%ZNL(3) ), cml( jc ), cml( ic ), i ) & 
                              * jimel( 0.5d0, cms( jc ), cms( ic ), i )
                end do
+#ifdef __DEBUG
                write(20,'(2(I2,1X),5(F6.3,1X))') ic, jc, cml( ic ), cms( ic ), cml( jc ), cms( jc ), real( ctmp, DP )
                write(21,*) jimel( dble( sys%cur_run%ZNL(3) ), cml( jc ), cml( ic ), 1 ), &
                   sys%cur_run%ZNL(3), nint( cml( jc ) ), nint( cml( ic ) )
+#endif
 !               flush(20)
 !               write(21,*) vrslt( : ), jimel( 0.5d0, cms( jc ), cms( ic ), 1 )
 !               ctmp = -xi * ctmp
@@ -667,6 +681,8 @@ module OCEAN_multiplet
       call MPI_BCAST( somelr, sys%cur_run%nalpha*sys%cur_run%nalpha, MPI_DOUBLE_PRECISION, root, comm, ierr )
       if( ierr .ne. 0 ) return
       call MPI_BCAST( complex_bse, 1, MPI_LOGICAL, root, comm, ierr )
+      if( ierr .ne. 0 ) return
+      call MPI_BCAST( have_spin_orbit, 1, MPI_LOGICAL, root, comm, ierr )
       if( ierr .ne. 0 ) return
     endif
 #endif
@@ -1536,6 +1552,7 @@ module OCEAN_multiplet
 
     integer :: ic, jc, ikpt, ibnd, i
     
+    if( .not. have_spin_orbit ) return
 !TODO: fix loop order
     
     if( backwards ) then  ! someli -> - someli
@@ -1613,9 +1630,10 @@ module OCEAN_multiplet
     real(DP), allocatable :: ampr(:,:,:), ampi(:,:,:), hampr(:,:,:), hampi(:,:,:), so_r(:,:), so_i(:,:)
     real( DP ), allocatable, dimension( :,: ) :: pwr, pwi, hpwr, hpwi
     real(DP) :: mul
-    integer :: LandM, el, em, ialpha, nu, ispn, ihd, ikpt, ibnd, ii, jj, j1, jhd, jel, jem
-    integer :: a_stop, k_start, k_stop, core_store_size_remain
+    integer :: LandM, el, em, ialpha, nu, ispn, ihd, ikpt, ibnd, ii, jj, j1, jhd, jel, jem, jbnd
+    integer :: a_stop, k_start, k_stop, core_store_size_remain, jstop
     integer :: zero_elem
+    integer, parameter :: bandBlock = 256
 #ifdef __DBROADEN
     real(DP) :: dbroaden(5,5), db
 #endif
@@ -1682,7 +1700,7 @@ module OCEAN_multiplet
 !$OMP& SHARED( in_vec, out_vec, lmin, lmax, nproj, sys, mpm, mul, jbeg, mham, mhr, mhi) &
 !$OMP& SHARED( ampr, ampi, hampr, hampi, so_r, so_i, pwr, pwi, hpwr, hpwi, mpcr, mpci, a_stop ) &
 !$OMP& SHARED( MPI_IN_PLACE, npmax, LandM, ierr ) &
-!$OMP& PRIVATE( ialpha, ispn, k_stop, el, em, nu, ihd, ikpt, ibnd, ii, jj, j1 ) &
+!$OMP& PRIVATE( ialpha, ispn, k_stop, el, em, nu, ihd, ikpt, ibnd, ii, jj, j1, jbnd, jstop ) &
 !$OMP& FIRSTPRIVATE( core_store_size_remain, k_start )
 
 #if 0
@@ -1707,6 +1725,7 @@ module OCEAN_multiplet
     enddo
 #endif
 
+    jstop = (sys%num_bands/bandBlock) * bandBlock
 
     do ialpha = in_vec%core_a_start, a_stop
       ispn = 2 - mod( ialpha, 2 )
@@ -1724,6 +1743,7 @@ module OCEAN_multiplet
 
         do nu = 1, nproj( el )
           do ikpt = k_start, k_stop
+#if 1
             do ibnd = 1, sys%num_bands
               ampr( nu, ihd, ialpha ) = ampr( nu, ihd, ialpha ) &
                   + in_vec%r( ibnd, ikpt, ialpha ) * mpcr( ibnd, ikpt, nu, em, el, ispn ) &
@@ -1732,6 +1752,26 @@ module OCEAN_multiplet
                   + in_vec%r( ibnd, ikpt, ialpha ) * mpci( ibnd, ikpt, nu, em, el, ispn ) &
                   + in_vec%i( ibnd, ikpt, ialpha ) * mpcr( ibnd, ikpt, nu, em, el, ispn )
             enddo
+#else
+! TODO Work out the band blocking here
+            do jbnd = 1, jstop, bandBlock !sys%num_bands-255q, 256
+              do ibnd = jbnd, jbnd+bandBlock-1
+                ampr( nu, ihd, ialpha ) = ampr( nu, ihd, ialpha ) &
+                    + in_vec%r( ibnd, ikpt, ialpha ) * mpcr( ibnd, ikpt, nu, em, el, ispn ) &
+                    - in_vec%i( ibnd, ikpt, ialpha ) * mpci( ibnd, ikpt, nu, em, el, ispn )
+                ampi( nu, ihd, ialpha ) = ampi( nu, ihd, ialpha ) &
+                    + in_vec%r( ibnd, ikpt, ialpha ) * mpci( ibnd, ikpt, nu, em, el, ispn ) &
+                    + in_vec%i( ibnd, ikpt, ialpha ) * mpcr( ibnd, ikpt, nu, em, el, ispn )
+              enddo
+            enddo
+            do ibnd = jstop+1, sys%num_bands
+                ampr( nu, ihd, ialpha ) = ampr( nu, ihd, ialpha ) &
+                    + in_vec%r( ibnd, ikpt, ialpha ) * mpcr( ibnd, ikpt, nu, em, el, ispn ) &
+                    - in_vec%i( ibnd, ikpt, ialpha ) * mpci( ibnd, ikpt, nu, em, el, ispn )
+                ampi( nu, ihd, ialpha ) = ampi( nu, ihd, ialpha ) &
+                    + in_vec%r( ibnd, ikpt, ialpha ) * mpci( ibnd, ikpt, nu, em, el, ispn ) &
+                    + in_vec%i( ibnd, ikpt, ialpha ) * mpcr( ibnd, ikpt, nu, em, el, ispn )
+#endif
           enddo
         enddo
 
@@ -1832,9 +1872,12 @@ module OCEAN_multiplet
 !      do em = -el, el
         do ialpha = 1, sys%cur_run%nalpha  ! NB! Exchange mixes alphas. Need all of them
 
-!          ihd = (el+1)*(el+1)+em-el
+!!          ihd = (el+1)*(el+1)+em-el
+
+          ii = ( em + el ) * nproj( el ) + ( ialpha - 1 ) * ( 2 * el + 1 ) * nproj( el )
           do nu = 1, nproj( el )
-            ii = nu + ( em + el ) * nproj( el ) + ( ialpha - 1 ) * ( 2 * el + 1 ) * nproj( el )
+!            ii = nu + ( em + el ) * nproj( el ) + ( ialpha - 1 ) * ( 2 * el + 1 ) * nproj( el )
+            ii = ii + 1
   
             pwr( ii, el ) = ampr( nu, ihd, ialpha )
             pwi( ii, el ) = ampi( nu, ihd, ialpha )
@@ -1913,6 +1956,8 @@ module OCEAN_multiplet
 
 !$OMP DO COLLAPSE( 2 )
             do ikpt = k_start, k_stop
+! TODO: block out below
+#if 1
               do ibnd = 1, sys%num_bands
                 out_vec%r( ibnd, ikpt, ialpha ) = out_vec%r( ibnd, ikpt, ialpha ) &
                                                 + mpcr( ibnd, ikpt, nu, em, el, ispn ) * hampr( nu, ihd, ialpha )  &
@@ -1921,6 +1966,26 @@ module OCEAN_multiplet
                                                 + mpcr( ibnd, ikpt, nu, em, el, ispn ) * hampi( nu, ihd, ialpha ) &
                                                 - mpci( ibnd, ikpt, nu, em, el, ispn ) * hampr( nu, ihd, ialpha )
               enddo
+#else
+              do jbnd = 1, jstop, bandBlock
+                do ibnd = jbnd, jbnd+bandBlock-1
+                  out_vec%r( ibnd, ikpt, ialpha ) = out_vec%r( ibnd, ikpt, ialpha ) &
+                                                  + mpcr( ibnd, ikpt, nu, em, el, ispn ) * hampr( nu, ihd, ialpha )  &
+                                                  + mpci( ibnd, ikpt, nu, em, el, ispn ) * hampi( nu, ihd, ialpha )
+                  out_vec%i( ibnd, ikpt, ialpha ) = out_vec%i( ibnd, ikpt, ialpha ) &
+                                                  + mpcr( ibnd, ikpt, nu, em, el, ispn ) * hampi( nu, ihd, ialpha ) &
+                                                  - mpci( ibnd, ikpt, nu, em, el, ispn ) * hampr( nu, ihd, ialpha )
+                enddo
+              enddo
+              do ibnd = jstop+1, sys%num_bands
+                out_vec%r( ibnd, ikpt, ialpha ) = out_vec%r( ibnd, ikpt, ialpha ) &
+                                                + mpcr( ibnd, ikpt, nu, em, el, ispn ) * hampr( nu, ihd, ialpha )  &
+                                                + mpci( ibnd, ikpt, nu, em, el, ispn ) * hampi( nu, ihd, ialpha )
+                out_vec%i( ibnd, ikpt, ialpha ) = out_vec%i( ibnd, ikpt, ialpha ) &
+                                                + mpcr( ibnd, ikpt, nu, em, el, ispn ) * hampi( nu, ihd, ialpha ) &
+                                                - mpci( ibnd, ikpt, nu, em, el, ispn ) * hampr( nu, ihd, ialpha )
+              enddo
+#endif
             enddo
 !$OMP END DO NOWAIT
 

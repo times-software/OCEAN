@@ -51,16 +51,21 @@ module OCEAN_bloch
     return
   end function OCEAN_bloch_is_loaded
 
-  subroutine OCEAN_bloch_lrLOAD( sys, tau, xshift, rbs_out, ibs_out, ierr )
+  subroutine OCEAN_bloch_lrLOAD( sys, tau, xshift, rbs_out, ibs_out, rbs_sp_out, ibs_sp_out, use_sp, ierr )
     use OCEAN_mpi
     use OCEAN_system
     implicit none
     type( o_system ), intent( in ) :: sys
     integer, intent( inout ) :: ierr
-    real(DP), intent(out) :: rbs_out(my_num_bands,my_kpts,my_xpts,sys%nspn) 
-    real(DP), intent(out) :: ibs_out(my_num_bands,my_kpts,my_xpts,sys%nspn) 
+!    real(DP), intent(out) :: rbs_out(my_num_bands,my_kpts,my_xpts,sys%nspn) 
+!    real(DP), intent(out) :: ibs_out(my_num_bands,my_kpts,my_xpts,sys%nspn) 
+    real(DP), intent(out) :: rbs_out(:,:,:,:)
+    real(DP), intent(out) :: ibs_out(:,:,:,:)
+    real(SP), intent(out) :: rbs_sp_out(:,:,:,:)
+    real(SP), intent(out) :: ibs_sp_out(:,:,:,:)
     real(DP), intent(inout) :: tau(3)
     integer, intent( out ) :: xshift( 3 )
+    logical, intent( in ) :: use_sp
 
     real(DP) :: cphs, sphs, pi, phsx, phsy, phsz
     integer :: iq, iq1, iq2, iq3
@@ -71,6 +76,8 @@ module OCEAN_bloch
     ! Change phase as if things were flipped around. Don't actually re-distribute
     rbs_out = 0.0_dp
     ibs_out = 0.0_dp
+    rbs_sp_out = 0.0_SP
+    ibs_sp_out = 0.0_SP
     pi = 4.0d0 * atan( 1.0d0 )
     !
     ! Reasoning for the below;
@@ -88,7 +95,7 @@ module OCEAN_bloch
     if( mod( sys%kmesh(1), 2 ) .eq. 0 ) then
       xshift( 1 ) = floor( real(sys%xmesh(1), DP ) * tau(1) )
     else
-      xshift( 1 ) = floor( real(sys%xmesh(2), DP ) * (tau(1)-0.5d0 ) )
+      xshift( 1 ) = floor( real(sys%xmesh(1), DP ) * (tau(1)-0.5d0 ) )
     endif
     if( mod( sys%kmesh(2), 2 ) .eq. 0 ) then
       xshift( 2 ) = floor( real(sys%xmesh(2), DP ) * tau(2) )
@@ -176,14 +183,25 @@ module OCEAN_bloch
                   ! rbs_out = re_bloch_state
                   ! ibs_out = im_bloch_state
                   ! call DROT( nbd, rbs_out, 1, ibs_out, 1, cphs, -sphs )
-                  do ibd = 1, my_num_bands
-                    rbs_out( ibd, iq, xiter - my_start_nx + 1, ispn )  & 
-                          = cphs * re_bloch_state( ibd, iq, xiter - my_start_nx + 1, ispn )  &
-                          - sphs * im_bloch_state( ibd, iq, xiter - my_start_nx + 1, ispn ) 
-                    ibs_out( ibd, iq, xiter - my_start_nx + 1, ispn )  &
-                          = cphs * im_bloch_state( ibd, iq, xiter - my_start_nx + 1, ispn )  &
-                          + sphs * re_bloch_state( ibd, iq, xiter - my_start_nx + 1, ispn )
-                  enddo
+                  if( use_sp ) then
+                    do ibd = 1, my_num_bands
+                      rbs_sp_out( ibd, iq, xiter - my_start_nx + 1, ispn )  &
+                            = cphs * re_bloch_state( ibd, iq, xiter - my_start_nx + 1, ispn )  &
+                            - sphs * im_bloch_state( ibd, iq, xiter - my_start_nx + 1, ispn )
+                      ibs_sp_out( ibd, iq, xiter - my_start_nx + 1, ispn )  &
+                            = cphs * im_bloch_state( ibd, iq, xiter - my_start_nx + 1, ispn )  &
+                            + sphs * re_bloch_state( ibd, iq, xiter - my_start_nx + 1, ispn )
+                    enddo
+                  else
+                    do ibd = 1, my_num_bands
+                      rbs_out( ibd, iq, xiter - my_start_nx + 1, ispn )  & 
+                            = cphs * re_bloch_state( ibd, iq, xiter - my_start_nx + 1, ispn )  &
+                            - sphs * im_bloch_state( ibd, iq, xiter - my_start_nx + 1, ispn ) 
+                      ibs_out( ibd, iq, xiter - my_start_nx + 1, ispn )  &
+                            = cphs * im_bloch_state( ibd, iq, xiter - my_start_nx + 1, ispn )  &
+                            + sphs * re_bloch_state( ibd, iq, xiter - my_start_nx + 1, ispn )
+                    enddo
+                  endif
                 enddo
               enddo
             enddo
