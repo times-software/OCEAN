@@ -83,6 +83,30 @@ module ocean_sphericalHarmonics
             ylm = pref * 0.5_DP * sqrt( 35.0_DP * 0.5_DP ) * ( x**2 - 3.0_DP * y**2 ) * x
         end select
 
+      case( 4 )
+        select case ( m )
+          case( -4 )
+            ylm = pref * 1.5_dp * sqrt( 35.0_dp ) * x * y * ( x**2 - y **2 )
+          case( -3 )
+            ylm = pref * 1.5_dp * sqrt( 35.0_dp * 0.5_dp ) * y * z * ( 3.0_dp * x**2 - y**2 )
+          case( -2 )
+            ylm = pref * 1.5_dp * sqrt( 5.0_dp ) * x * y * ( 7.0_dp*z**2 - 1.0_dp )
+          case( -1 )
+            ylm = pref * 1.5_dp * sqrt( 2.5_dp ) * y * ( 7.0_dp*z**3 - 3.0_dp * z )
+          case( 0 )
+            ylm = pref * (3.0_dp / 8.0_dp ) * ( 35.0_dp * z**4 - 30.0_dp*z**2 + 3.0_dp )
+          case( 1 )
+            ylm = pref * 1.5_dp * sqrt( 2.5_dp ) * x * ( 7.0_dp*z**3 - 3.0_dp*z )
+          case( 2 ) 
+            ylm = pref * 0.75_dp * sqrt( 5.0_dp ) * ( x**2 - y**2 ) * ( 7.0_dp*z**2 - 1.0_dp )
+          case( 3 )
+            ylm = pref * 1.5_dp * sqrt( 35.0_dp*0.5_dp ) * x * z * ( x**2 - 3.0_dp*y**2 )
+          case( 4 )
+            ylm = pref * (3.0_dp / 8.0_dp ) * sqrt( 35.0_dp ) * ( x**2* ( x**2 - 3.0_dp*y**2 ) &
+                                                              - y**2 * ( 3.0_dp*x**2 - y**2 ) ) 
+
+        end select
+
     end select
 
   end function ocean_sphH_getylm

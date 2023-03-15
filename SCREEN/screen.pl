@@ -2036,7 +2036,7 @@ sub writeExtraFiles
   close OUT;
 
   open OUT, ">", 'screen.lmax' or die $!;
-  printf OUT "%i\n", $screenRef->{'lmax'};
+  printf OUT "%i\n", $screenRef->{'grid'}->{'lmax'};
   close OUT;
 
   open OUT, ">", 'shells' or die $!;

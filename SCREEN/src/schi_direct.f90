@@ -37,7 +37,7 @@ module schi_direct
     real(DP), parameter :: d_one = 1.0_DP
     real(DP), parameter :: d_zero = 0.0_DP
     real(DP), allocatable :: vipt( : ), transpNind(:,:)
-    real(DP) :: rgt, coul, r2dr, rlt, rescaleNInduced
+    real(DP) :: rgt, coul, r2dr, rlt, rescaleNInduced, ratio
     integer :: nLM, nR, i, j, ilm, lpol
 
 #ifdef DEBUG
@@ -274,6 +274,46 @@ module schi_direct
     enddo
 
 
+    if( nlm .lt. 25 ) return
+
+    ! l = 4 r(i)**2 * dr(i) * rlt**4 / rgt**5
+    ! i=j=1 : dr(1) * r(1)
+    ! i>j :-> dr(i) * r(j)**4 / r(i)**3
+    ! j>i :-> dr(i) * r(i)**6 / r(j)**5
+
+    do iLM = 17, 25
+      FullW( 1, ilm )  = 4.0_DP * PI_DP * grid%rad(1) * grid%drad(1) * Nind( 1, ilm ) / 9.0_DP
+      FullW0( 1, ilm ) = 4.0_DP * PI_DP * grid%rad(1) * grid%drad(1) * Nind0( 1, ilm ) / 9.0_DP
+      do i = 2, nr
+!        coul = grid%drad(i) * 4.0_DP * PI_DP / grid%rad(i)**3 / 9.0_DP
+        coul = grid%drad(i) * 4.0_DP * PI_DP / 9.0_DP
+        do j = 1, i-1
+!          FullW( j, ilm ) = FullW( j, ilm ) + coul * Nind( i, ilm ) * grid%rad(j)**4
+!          FullW0( j, ilm ) = FullW0( j, ilm ) + coul * Nind0( i, ilm ) * grid%rad(j)**4
+          ratio = (grid%rad(j)/grid%rad(i))**3
+          FullW( j, ilm ) = FullW( j, ilm ) + coul * Nind( i, ilm ) * grid%rad(j) * ratio
+          FullW0( j, ilm ) = FullW0( j, ilm ) + coul * Nind0( i, ilm ) * grid%rad(j) * ratio
+        enddo
+        ! i == j
+        FullW( i, ilm ) = FullW( i, ilm ) &
+                        + Nind( i, ilm ) * grid%drad(i) * grid%rad(i) * 4.0_DP * PI_DP / 9.0_DP
+        FullW0( i, ilm ) = FullW0( i, ilm ) &
+                         + Nind0( i, ilm ) * grid%drad(i) * grid%rad(i) * 4.0_DP * PI_DP / 9.0_DP
+
+!        coul = grid%drad(i) * 4.0_DP * PI_DP * grid%rad(i)**6 / 9.0_DP
+        coul = grid%drad(i) * 4.0_DP * PI_DP * grid%rad(i) / 9.0_DP
+        do j = i+1, nr
+!          FullW( j, ilm ) = FullW( j, ilm ) + coul * Nind( i, ilm ) / grid%rad(j)**5
+!          FullW0( j, ilm ) = FullW0( j, ilm ) + coul * Nind0( i, ilm ) / grid%rad(j)**5
+          ratio = (grid%rad(i)/grid%rad(j))**5
+          FullW( j, ilm ) = FullW( j, ilm ) + coul * Nind( i, ilm ) * ratio
+          FullW0( j, ilm ) = FullW0( j, ilm ) + coul * Nind0( i, ilm ) * ratio
+        enddo
+      enddo
+    enddo
+
+
+
 #endif
     
 
@@ -293,7 +333,7 @@ module schi_direct
 
     real(DP), allocatable :: kxc(:,:), atrad(:), atden(:), temp(:)
     real(DP) :: r, r1, r2, r3, r4, d1, d2, d3, d4, nofr, frac1, frac2, fxc, nexc, vxc
-    real(DP) :: coulfac, FourPi
+    real(DP) :: coulfac, FourPi, ratio
     integer :: i, j, iLM, jLM
     integer :: nLM, nr, cur, numr, dumi
     character(len=2) :: dumc
@@ -598,6 +638,33 @@ module schi_direct
     enddo
 #endif
 
+    if( nLM .eq. 16 ) goto 10
+    if( nLM .lt. 25 ) then
+      ierr = 5
+      return
+    endif
+
+    do iLM = 17, 25
+      jLM = iLM
+
+      Cmat( 1, jlm, 1, ilm ) = FourPi * grid%drad( 1 ) ** 2 * grid%rad( 1 ) ** 3 / 9.0_DP
+      do i = 2, nr
+        coulfac = FourPi * grid%drad( i ) / 9.0_DP
+        do j = 1, i-1
+          ratio = (grid%rad( j )/grid%rad( i ))**3
+          Cmat( j, jlm, i, ilm ) = coulfac * grid%drad( j ) * ratio * grid%rad( j ) ** 3
+        enddo
+        Cmat( i, jlm, i, ilm ) = FourPi * grid%drad( i )**2 * grid%rad( i )**3 / 9.0_DP
+
+        coulfac = FourPi * grid%drad( i ) * grid%rad( i )**3 / 9.0_DP
+        do j = i+1, nr
+          ratio = (grid%rad( i )/grid%rad( j ))**3
+          Cmat( j, jlm, i, ilm ) = coulfac * grid%drad( j ) * ratio
+        enddo
+      enddo
+
+    enddo
+
 
 
 
@@ -744,7 +811,7 @@ module schi_direct
 
     ! 
     lmax = anint( sqrt( real( nLM, DP ) ) ) - 1
-!    write(6,*) lmax
+    write(6,*) '####### lmax', lmax
 
 
 
@@ -944,7 +1011,7 @@ module schi_direct
 
   end subroutine schi_direct_project
 
-
+#if 0
   ! ALL BELOW SHOULD BE MOVED TO A UNIQUE MODULE
   !  Further, formreytab should be moved from this inscrutable indexing to l,`m' 
   !       (not real m because we are getting real Ylm not complex
@@ -1146,6 +1213,6 @@ module schi_direct
     !
     return
   end subroutine ylmeval
-
+#endif
 
 end module schi_direct
