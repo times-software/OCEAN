@@ -23,8 +23,8 @@ module OCEAN_haydock
   REAL(DP), ALLOCATABLE :: real_c( : )
   REAL(DP), ALLOCATABLE :: imag_c( : )
  
-  REAL(DP) :: inter_scale_threshold = 0.00001
-  REAL(DP) :: inter_scale
+!  REAL(DP) :: inter_scale_threshold = 0.00001
+!  REAL(DP) :: inter_scale
 
   REAL(DP) :: el, eh, gam0, eps, nval,  ebase
   REAL(DP) :: gres, gprc, ffff, ener
@@ -104,7 +104,7 @@ module OCEAN_haydock
 
     if( myid .eq. root ) then
       write ( 6, '(2x,1a8,1e15.8)' ) ' mult = ', hay_vec%kpref
-      write(6,*) inter_scale, haydock_niter
+      write(6,*) sys%interactionScale, haydock_niter
     endif
     call MPI_BARRIER( comm, ierr )
     !\Initialization
@@ -123,11 +123,11 @@ module OCEAN_haydock
       if( ierr .ne. 0 ) return
 
 
-      call OCEAN_xact( sys, inter_scale, psi, new_psi, ierr )
+      call OCEAN_xact( sys, sys%interactionScale, psi, new_psi, ierr )
       if( ierr .ne. 0 ) return
       ! need the action of the Hermitian conjugate of the Hamiltonian
       !  obviously we are only bothering to do this when H isn't Hermitian
-      call OCEAN_xact( sys, inter_scale, back_psi, back_new_psi, ierr, .true. )
+      call OCEAN_xact( sys, sys%interactionScale, back_psi, back_new_psi, ierr, .true. )
       if( ierr .ne. 0 ) return
 
       ! This should be hoisted back up here
@@ -239,7 +239,7 @@ module OCEAN_haydock
 
     if( myid .eq. root ) then 
       write ( 6, '(2x,1a8,1e15.8)' ) ' mult = ', hay_vec%kpref
-      write(6,*) inter_scale, haydock_niter
+      write(6,*) sys%interactionScale, haydock_niter
     endif
     call MPI_BARRIER( comm, ierr )
 
@@ -255,7 +255,7 @@ module OCEAN_haydock
 !        if( ierr .ne. 0 ) return
 !      endif
 
-      call OCEAN_xact( sys, inter_scale, psi, new_psi, ierr )
+      call OCEAN_xact( sys, sys%interactionScale, psi, new_psi, ierr )
       if( ierr .ne. 0 ) return
 !      if( myid .eq. root ) write(6,*) 'Done with ACT'
 
@@ -386,7 +386,7 @@ module OCEAN_haydock
 
     if( myid .eq. root ) then
       write ( 6, '(2x,1a8,1e15.8)' ) ' mult = ', hay_vec%kpref
-      write(6,*) inter_scale, haydock_niter, inv_loop
+      write(6,*) sys%interactionScale, haydock_niter, inv_loop
 
 
       select case ( sys%cur_run%calc_type)
@@ -481,7 +481,7 @@ module OCEAN_haydock
       endif
 
 
-      call OCEAN_xact( sys, inter_scale, psi, hpsi, ierr )
+      call OCEAN_xact( sys, sys%interactionScale, psi, hpsi, ierr )
       call OCEAN_psi_prep_min2full( hpsi, ierr )
       call OCEAN_psi_start_min2full( hpsi, ierr )
       call OCEAN_psi_finish_min2full( hpsi, ierr )
@@ -541,7 +541,7 @@ module OCEAN_haydock
             if( ierr .ne. 0 ) return
           endif
 
-          call OCEAN_xact( sys, inter_scale, psi, hpsi, ierr )
+          call OCEAN_xact( sys, sys%interactionScale, psi, hpsi, ierr )
           call OCEAN_psi_prep_min2full( hpsi, ierr )
           call OCEAN_psi_start_min2full( hpsi, ierr )
           call OCEAN_psi_finish_min2full( hpsi, ierr )
@@ -1960,10 +1960,10 @@ module OCEAN_haydock
     is_first = .false.
 
     if( myid .eq. root ) then
-      open(unit=99,file='mode',form='formatted',status='old')
-      rewind(99)
-      read(99,*) inter_scale
-      close(99)
+!      open(unit=99,file='mode',form='formatted',status='old')
+!      rewind(99)
+!      read(99,*) inter_scale
+!      close(99)
 
 !      open(unit=99,file='calc_control',form='formatted',status='old')
       open(unit=99,file='bse.in',form='formatted',status='old')
@@ -2047,7 +2047,7 @@ module OCEAN_haydock
     call MPI_BCAST( ierr, 1, MPI_INTEGER, root, comm, ierr_ )
     if( ierr .ne. 0 ) return
 
-    call MPI_BCAST( inter_scale, 1, MPI_DOUBLE_PRECISION, root, comm, ierr )
+!    call MPI_BCAST( inter_scale, 1, MPI_DOUBLE_PRECISION, root, comm, ierr )
     call MPI_BCAST( haydock_niter, 1, MPI_INTEGER, root, comm, ierr )
 !    call MPI_BCAST( calc_type, 3, MPI_CHARACTER, root, comm, ierr )
 
