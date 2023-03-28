@@ -23,8 +23,6 @@ module OCEAN_haydock
   REAL(DP), ALLOCATABLE :: real_c( : )
   REAL(DP), ALLOCATABLE :: imag_c( : )
  
-!  REAL(DP) :: inter_scale_threshold = 0.00001
-!  REAL(DP) :: inter_scale
 
   REAL(DP) :: el, eh, gam0, eps, nval,  ebase
   REAL(DP) :: gres, gprc, ffff, ener
@@ -1960,12 +1958,7 @@ module OCEAN_haydock
     is_first = .false.
 
     if( myid .eq. root ) then
-!      open(unit=99,file='mode',form='formatted',status='old')
-!      rewind(99)
-!      read(99,*) inter_scale
-!      close(99)
 
-!      open(unit=99,file='calc_control',form='formatted',status='old')
       open(unit=99,file='bse.in',form='formatted',status='old')
       rewind(99)
       read(99,*) dumi
@@ -2047,9 +2040,7 @@ module OCEAN_haydock
     call MPI_BCAST( ierr, 1, MPI_INTEGER, root, comm, ierr_ )
     if( ierr .ne. 0 ) return
 
-!    call MPI_BCAST( inter_scale, 1, MPI_DOUBLE_PRECISION, root, comm, ierr )
     call MPI_BCAST( haydock_niter, 1, MPI_INTEGER, root, comm, ierr )
-!    call MPI_BCAST( calc_type, 3, MPI_CHARACTER, root, comm, ierr )
 
 !    call MPI_BCAST( nloop, 1, MPI_INTEGER, root, comm, ierr )
 !    call MPI_BCAST( gres, 1, MPI_DOUBLE_PRECISION, root, comm, ierr )

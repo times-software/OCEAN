@@ -26,7 +26,6 @@ module OCEAN_gmres
   integer :: gmres_nsteps
   real(DP), allocatable :: gmres_energy_list(:)
 
-!  real(DP) :: interaction_scale = 1.0_DP
   logical :: echamp
   logical :: do_precondition = .true.
   logical :: allow_reuse_x = .true.
