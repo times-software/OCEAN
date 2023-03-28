@@ -43,7 +43,7 @@ module ocean_long_range
   real( DP ) :: iso_cut = 0.0_DP
   logical :: isolated = .false.
 
-  logical :: use_sp = .true.
+  logical :: use_sp = .false.
   
   type(fft_obj) :: fo
 
