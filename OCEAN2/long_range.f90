@@ -1830,7 +1830,7 @@ module ocean_long_range
 !                    write( 11111, '(3I3,5F24.12)' ) nint(xk(:)), alf(:), r, potn*pbc_prefac(3)
 !                  endif
 !                  if( myid .eq. root ) write(997,'(2E24.12,3F16.8)') r, potn, dir(:)!, sys%epsilon3D(:)
-                  W( kiter, xiter - my_start_nx + 1 ) =  potn * pbc_prefac(3)
+                  W( kiter, xiter - my_start_nx + 1 ) =  potn * pbc_prefac(3) * sys%interactionScale
                 end do
               end do
             end do

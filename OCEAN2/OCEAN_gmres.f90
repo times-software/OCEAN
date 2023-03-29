@@ -26,7 +26,6 @@ module OCEAN_gmres
   integer :: gmres_nsteps
   real(DP), allocatable :: gmres_energy_list(:)
 
-  real(DP) :: interaction_scale = 1.0_DP
   logical :: echamp
   logical :: do_precondition = .true.
   logical :: allow_reuse_x = .true.
@@ -640,7 +639,7 @@ module OCEAN_gmres
       if( ierr .ne. 0 ) return
     endif
 
-    call OCEAN_xact( sys, interaction_scale, psi_x, hpsi1, ierr,.false. , nhflag)
+    call OCEAN_xact( sys, sys%interactionScale, psi_x, hpsi1, ierr,.false. , nhflag)
     if( ierr .ne. 0 ) return
     
 
@@ -790,9 +789,9 @@ module OCEAN_gmres
             !TODO
             call OCEAN_energies_sfact_copy( sys, psi_pg, psi_tmp, ierr )
             if( ierr .ne. 0 ) return
-            call OCEAN_xact( sys, interaction_scale, psi_tmp, psi_apg, ierr )
+            call OCEAN_xact( sys, sys%interactionScale, psi_tmp, psi_apg, ierr )
           else
-            call OCEAN_xact( sys, interaction_scale, psi_pg, psi_apg, ierr )
+            call OCEAN_xact( sys, sys%interactionScale, psi_pg, psi_apg, ierr )
           endif
           if( ierr .ne. 0 ) return
 
@@ -824,10 +823,10 @@ module OCEAN_gmres
             if( sys%cur_run%bwflg ) then
               call OCEAN_energies_sfact_copy( sys, psi_x, psi_tmp, ierr )
               if( ierr .ne. 0 ) return
-              call OCEAN_xact( sys, interaction_scale, psi_tmp, psi_ax, ierr )
+              call OCEAN_xact( sys, sys%interactionScale, psi_tmp, psi_ax, ierr )
               if( ierr .ne. 0 ) return
             else
-              call OCEAN_xact( sys, interaction_scale, psi_x, psi_ax, ierr )
+              call OCEAN_xact( sys, sys%interactionScale, psi_x, psi_ax, ierr )
               if( ierr .ne. 0 ) return
             endif
 
@@ -1067,7 +1066,7 @@ module OCEAN_gmres
       if( ierr .ne. 0 ) return
     endif
 
-    call OCEAN_xact( sys, interaction_scale, psi_x, hpsi1, ierr,.false. , nhflag)
+    call OCEAN_xact( sys, sys%interactionScale, psi_x, hpsi1, ierr,.false. , nhflag)
     if( ierr .ne. 0 ) return
 
 
@@ -1146,7 +1145,7 @@ module OCEAN_gmres
 !          if( ierr .ne. 0 ) return
 
           ! apg = H . pg
-          call OCEAN_xact( sys, interaction_scale, psi_pg, psi_apg, ierr )
+          call OCEAN_xact( sys, sys%interactionScale, psi_pg, psi_apg, ierr )
           if( ierr .ne. 0 ) return
         
           ! apg = (e+iG) * pg - apg
@@ -1165,7 +1164,7 @@ module OCEAN_gmres
             call OCEAN_psi_min2full( psi_x, ierr )
             if( ierr .ne. 0 ) return
             ! newi2loop section here
-            call OCEAN_xact( sys, interaction_scale, psi_x, psi_ax, ierr )
+            call OCEAN_xact( sys, sys%interactionScale, psi_x, psi_ax, ierr )
             if( ierr .ne. 0 ) return
             
             ! psi_ax = (ener + iG ) * psi_x - psi_ax
@@ -1311,10 +1310,10 @@ module OCEAN_gmres
         if( sys%cur_run%bwflg ) then
           call OCEAN_energies_sfact_copy( sys, psi_x, psi_tmp, ierr )
           if( ierr .ne. 0 ) return
-          call OCEAN_xact( sys, interaction_scale, psi_tmp, psi_ax, ierr )
+          call OCEAN_xact( sys, sys%interactionScale, psi_tmp, psi_ax, ierr )
           if( ierr .ne. 0 ) return
         else
-          call OCEAN_xact( sys, interaction_scale, psi_x, psi_ax, ierr )
+          call OCEAN_xact( sys, sys%interactionScale, psi_x, psi_ax, ierr )
           if( ierr .ne. 0 ) return
         endif
 
