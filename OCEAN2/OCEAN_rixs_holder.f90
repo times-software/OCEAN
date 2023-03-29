@@ -368,12 +368,14 @@ module OCEAN_rixs_holder
           allocate( pcTemp( nptot, ntot, nspn ) )
           read( 99 ) pcTemp(:,:,:)
           close(99)
+          iter = 0
           do ivms = 1, nspn
-            do iter = 1, ntot
+            do i = 1, ntot
+              iter = iter + 1
 !              pcr(:,iter,ivms) = real( pcTemp(:,iter,ivms), DP )
 !              pci(:,iter,ivms) = aimag( pcTemp(:,iter,ivms) )
-              pcr(:,iter) = real( pcTemp(:,iter,ivms), DP )
-              pci(:,iter) = aimag( pcTemp(:,iter,ivms) )
+              pcr(:,iter) = real( pcTemp(:,i,ivms), DP )
+              pci(:,iter) = aimag( pcTemp(:,i,ivms) )
             enddo
           enddo
           deallocate( pcTemp )
@@ -394,7 +396,7 @@ module OCEAN_rixs_holder
         endif
 
         ! check ntot
-        if( ntot .ne. sys%nkpts * sys%val_bands * sys%nspn ) then
+        if( ntot .ne. sys%nkpts * sys%val_bands  ) then
           write(6,*) 'Mismatch bands*kpts*nspn vs ntot', ntot, sys%nkpts,  sys%val_bands, sys%nspn
           ierr = -1
           return
