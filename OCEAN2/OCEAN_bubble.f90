@@ -501,8 +501,11 @@ module OCEAN_bubble
 
 
   do ispn = 1, sys%valence_ham_spin
-    re_l_bubble(:) = 0.0_DP
-    im_l_bubble(:) = 0.0_DP
+!$OMP SINGLE
+    re_l_bubble( : ) = 0.0_DP
+    im_l_bubble( : ) = 0.0_DP
+!$OMP END SINGLE
+
     psi_spin = ispn * ispn  ! Either 1 or 4 
     dft_spin = min( ispn, sys%nspn )   ! The DFT states need not be different for spin up/down
 
@@ -523,8 +526,10 @@ module OCEAN_bubble
       enddo
 !$OMP END DO
     else 
+!$OMP WORKSHARE
       re_amat( :,:,: ) = 0.0_dp
       im_amat( :,:,: ) = 0.0_dp
+!$OMP END WORKSHARE
     endif
 
 !  write(6,*) 'A:', maxval( re_amat ), maxval( im_amat )

@@ -1709,7 +1709,7 @@ module OCEAN_haydock
     real(DP) :: ere, reeps, imeps, lossf, fact, mu, reflct
     complex(DP) :: ctmp, arg, rp, rm, rrr, al, be, eps, refrac
 
-    fact = kpref * real( 2 * val_ham_spin, DP ) * ucvol
+    fact = kpref * real( 2 / val_ham_spin, DP ) * ucvol
 
     write(fh,"(a)") "#   omega (eV)      epsilon_1       epsilon_2       n"// &
       "               kappa           mu (cm^(-1))    R"//  &
@@ -1900,7 +1900,7 @@ module OCEAN_haydock
     real(DP) :: e, dr, di, fact
     complex(DP) :: ctmp, disc, delta, arg, rp, rm , rrr, al, be, eps
 
-    fact = kpref * real( 2 * nspin, DP ) * celvol
+    fact = kpref * real( 2 / nspin, DP ) * celvol
 
     do ie = 1, ne
       e = el + ( eh - el ) * real( 2*(ie-1)+1, DP ) / real( 2 * ne, DP )
@@ -2283,7 +2283,7 @@ module OCEAN_haydock
     real(DP) :: tcEps, fact, oldEps, epsErr
     integer :: i
 
-    fact = kpref * real( 2 * val_ham_spin, DP ) * ucvol
+    fact = kpref * real( 2 / val_ham_spin, DP ) * ucvol
     ctmp = cmplx( 0, gam0, DP )
 
     arg = real_a( iter - 1 )** 2 - 4.0_dp * real_b( iter ) ** 2
