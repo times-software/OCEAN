@@ -109,6 +109,7 @@ module OCEAN_rixs_holder
     complex(DP), allocatable :: rex( :, :, : )
     integer :: edge_iter, ic, icms, icml, ivms, ispin, i, j, ik, ivs
     character(len=25) :: echamp_file
+    real(DP) :: su
 
     allocate( rex( sys%num_bands, sys%nkpts, 4*(2*sys%ZNL(3)+1) ) ) 
 
@@ -142,7 +143,10 @@ module OCEAN_rixs_holder
               do i = 1, sys%val_bands
                 do j = 1, sys%num_bands
                   p_vec( j, i, ik, ispin ) = p_vec( j, i, ik, ispin ) + &
-                      rex( j, ik, ic ) * xes_vec(i,ik,icml,ivs,edge_iter)
+                      rex( j, ik, ic ) * xes_vec(i,ik,icml,ivs,edge_iter) * real( sys%nspn, DP )
+                        ! The above factor of spin should probably be (2 / nspn ) instead, 
+                        ! but we don't really have absolute units for RIXS anyway. This 
+                        ! keeps compatibility with previous runs
                 enddo
               enddo
             enddo
@@ -364,6 +368,11 @@ module OCEAN_rixs_holder
 !            close(99)
 !            return
           endif
+          if( nspn .ne. sys%nspn ) then
+            write(6,'(A,A,A,I2,I2)') 'Spin in ', cks_filename, " doesn't match system: ", nspn, sys%nspn
+            ierr = -125
+            return
+          endif
           if( edge_iter .eq. 1 ) allocate( pcr( nptot, ntot*nspn ), pci( nptot, ntot*nspn ) )
           allocate( pcTemp( nptot, ntot, nspn ) )
           read( 99 ) pcTemp(:,:,:)
@@ -381,6 +390,12 @@ module OCEAN_rixs_holder
           deallocate( pcTemp )
 
         else
+
+          if( sys%nspn .ne. 1 ) then
+            write(6,*) 'Legacy cksv not compatible with spin'
+            ierr = -126
+            return
+          endif
     
           write(6,'(A5,A2,I4.4)' ) 'cksv.', sys%cur_run%elname, edge_iter
           write(cks_filename,'(A5,A2,I4.4)' ) 'cksv.', sys%cur_run%elname, edge_iter
@@ -397,7 +412,7 @@ module OCEAN_rixs_holder
 
         ! check ntot
         if( ntot .ne. sys%nkpts * sys%val_bands  ) then
-          write(6,*) 'Mismatch bands*kpts*nspn vs ntot', ntot, sys%nkpts,  sys%val_bands, sys%nspn
+          write(6,*) 'Mismatch bands*kpts vs ntot', ntot, sys%nkpts,  sys%val_bands
           ierr = -1
           return
         endif
