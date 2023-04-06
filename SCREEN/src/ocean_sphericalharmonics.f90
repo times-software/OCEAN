@@ -17,6 +17,7 @@ module ocean_sphericalHarmonics
     integer, intent( in ) :: l, m
     real(DP) :: ylm
 
+    integer :: i
     real(DP) :: x, y, z, rmag
 
     rmag = 1.0_DP / sqrt( rvec(1)**2 + rvec(2)**2 + rvec(3)**2 )
@@ -92,11 +93,12 @@ module ocean_sphericalHarmonics
           case( -2 )
             ylm = pref * 1.5_dp * sqrt( 5.0_dp ) * x * y * ( 7.0_dp*z**2 - 1.0_dp )
           case( -1 )
-            ylm = pref * 1.5_dp * sqrt( 2.5_dp ) * y * ( 7.0_dp*z**3 - 3.0_dp * z )
+            ylm = pref * 1.5_dp * sqrt( 2.5_dp ) * y * z * ( 7.0_dp*z**2 - 3.0_dp )
           case( 0 )
-            ylm = pref * (3.0_dp / 8.0_dp ) * ( 35.0_dp * z**4 - 30.0_dp*z**2 + 3.0_dp )
+            ylm = pref * (3.0_dp / 8.0_dp ) * ( (35.0_dp * z**2 - 30.0_dp)*z**2 + 3.0_dp )
+!            ylm = pref * (3.0_dp / 8.0_dp ) * ( 35.0_dp * z**4 - 30.0_dp*z**2 + 3.0_dp )
           case( 1 )
-            ylm = pref * 1.5_dp * sqrt( 2.5_dp ) * x * ( 7.0_dp*z**3 - 3.0_dp*z )
+            ylm = pref * 1.5_dp * sqrt( 2.5_dp ) * x * z * ( 7.0_dp*z**2 - 3.0_dp )
           case( 2 ) 
             ylm = pref * 0.75_dp * sqrt( 5.0_dp ) * ( x**2 - y**2 ) * ( 7.0_dp*z**2 - 1.0_dp )
           case( 3 )
@@ -107,8 +109,67 @@ module ocean_sphericalHarmonics
 
         end select
 
+      case default
+
+        ylm = pref * sqrt(real(2*l+1,DP)) * AssocLegendrePlm( l, abs(m), z )
+        do i= l-abs(m)+1, l+abs(m)
+          ylm = ylm * sqrt( 1.0_DP/real(i,DP) )
+        enddo
+        if( mod(abs(m),2) .eq. 1 ) ylm = -ylm
+!        if( m .ne. 0 ) ylm = ylm * (-1.0_DP)**(m)
+        if( m .lt. 0 ) then
+          ylm = ylm * sqrt(2.0_DP) * sin( real(-m,DP) * atan(y,x))
+        elseif( m .gt. 0 ) then
+          ylm = ylm * sqrt(2.0_DP) * cos( real(m,DP) * atan(y,x))
+        endif
+
+
+        
+
     end select
 
   end function ocean_sphH_getylm
+
+!!!!
+  pure function AssocLegendrePlm( l, m, x ) result( plm )
+    integer, intent( in ) ::  l, m
+    real(DP), intent( in ) :: x
+    real(DP) :: plm
+    integer :: i, ll, absm
+    real(DP) :: factorial, pll, pmm, pmmp1, sqrtOneMinusX2, pmp1, pmm1
+  
+    plm = 0.0_DP
+    absm = abs( m )
+    if( absm .gt. l ) return
+    pmm = 1.0_DP
+    
+    ! P^{m=l}_{l} = ( -1 )^l (2l-1)!! (1-x^2)^{l/2}  !! note l/2 not 1/2
+    !             = ( -1 )^m (2m-1)!! (1-x^2)^{1/2}^m
+    ! sqrt( 1 - x**2 )
+    sqrtOneMinusX2=sqrt((1.0_DP-x)*(1.0_DP+x)) 
+    factorial = 1.0_DP
+    do i = 1, absm
+      pmm = -pmm * factorial * sqrtOneMinusX2
+      factorial = factorial + 2.0_DP 
+    enddo
+   
+    ! 
+    
+    ! (l-m+1)P^m_{l+1} = (2l+1)xP^m_l - (l+m)P^m_{l-1}
+    ! for first iteration m=l so P^m_{l-1}=0
+    ! in what follows, ll = l+1 (from the recursion above)
+    !   (l-m+1) -> ll-m
+    !   (2l+1)  -> ll-1
+    !   (l+m)   -> ll-1+m
+    pmm1 = 0.0_DP
+    do ll = absm+1, l
+      pmp1 = (real(2*ll-1,DP)*x*pmm - real(ll-1+absm,DP)*pmm1 ) / real(ll-absm,DP)
+      pmm1 = pmm
+      pmm = pmp1
+    enddo
+    plm = pmm
+
+  return
+  end function
 
 end module ocean_sphericalHarmonics
