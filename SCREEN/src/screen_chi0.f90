@@ -81,6 +81,7 @@ module screen_chi0
   subroutine fullBuildEnergies( N, tempE, tempW )
     use ocean_constants, only : pi_dp
     use screen_energy, only : geodiff
+    use screen_system, only : params
 
     integer, intent( in ) :: N
     real(DP), intent( in ) :: tempE(:), tempW(:)
@@ -96,6 +97,7 @@ module screen_chi0
       su = su + tempW( i )
     enddo
     pref = 2.0_DP/su * geodiff / pi_dp
+    pref = pref * 2.0_DP / real(params%nspin, DP )
     weightImagEnergies( 1 : N ) = pref * tempW( : ) 
 
     do i = 1, N
@@ -109,6 +111,7 @@ module screen_chi0
   subroutine halfBuildEnergies( N, tempE, tempW )
     use ocean_constants, only : pi_dp
     use screen_energy, only : geodiff
+    use screen_system, only : params
     integer, intent( in ) :: N
     real(DP), intent( in ) :: tempE(:), tempW(:)
 
@@ -123,6 +126,7 @@ module screen_chi0
       su = su + tempW( i )
     enddo
     pref = 2.0_DP/su * geodiff / pi_dp
+    pref = pref * 2.0_DP / real(params%nspin, DP )
     weightImagEnergies( : ) = pref * tempW( : ) / ( 1.0_DP - imagEnergies( : ) ) ** 2
 
     do i = 1, NImagEnergies
@@ -384,6 +388,7 @@ module screen_chi0
     use screen_wavefunction, only : screen_wvfn
     use ocean_mpi, only : MPI_STATUS_IGNORE, myid
     use screen_timekeeper, only : screen_tk_start, screen_tk_stop
+    use screen_system, only : params
  
     type( site_parallel_info ), intent( in ) :: pinfo
     type( screen_wvfn ), intent( in ) :: MyWvfn
@@ -411,6 +416,7 @@ module screen_chi0
 #ifdef PRINTLOG
     write(1000+myid,*) pinfo%myid, pinfo%myid, CurPts
     write(1000+myid,*) "SPLIT: ", MyWvfn%isSplit, MyWvfn%isGamma
+    flush(1000+myid)
 #endif
     call screen_tk_start( "calcSingleChiBuffer1" )
     if( MyWvfn%isSplit ) then
@@ -421,7 +427,11 @@ module screen_chi0
                                         MyWvfn%imag_wvfn, MyWvfn%imag_wvfn )
       endif
     else
-      call calcSingleChiBuffer2( MyWvfn%wvfn, MyWvfn%wvfn, chi(:,CurPts:), ierr, .true. )
+      if( params%nspin .eq. 1 ) then
+        call calcSingleChiBuffer2( MyWvfn%wvfn, MyWvfn%wvfn, chi(:,CurPts:), ierr, .true. )
+      else 
+        call calcSingleChiBuffer2_mag( MyWvfn%wvfn, MyWvfn%wvfn, chi(:,CurPts:), ierr, .true. )
+      endif
     endif
     if( ierr .ne. 0 ) return
     call screen_tk_stop( "calcSingleChiBuffer1" )
@@ -431,9 +441,11 @@ module screen_chi0
       stopPts = curPts + spareWavefunctions(id)%mypts - 1
 #ifdef PRINTLOG
       write(1000+myid,'(A,4(1X,I8))') '  ', pinfo%myid, id, CurPts, stopPts
+      flush(1000+myid)
 #endif
       call screen_tk_start( "calcChi Wait" )
       call MPI_WAIT( spareWvfnRecvs(id), MPI_STATUS_IGNORE, ierr )
+      call MPI_BARRIER( pinfo%comm, ierr )
       if( ierr .ne. 0 ) return
       call screen_tk_stop( "calcChi Wait" )
 
@@ -448,7 +460,11 @@ module screen_chi0
                                           MyWvfn%imag_wvfn, spareWavefunctions(id)%imag_wvfn )
         endif
       else
-        call calcSingleChiBuffer2( Mywvfn%wvfn, spareWavefunctions(id)%wvfn, chi(:,CurPts:stopPts), ierr )
+        if( params%nspin .eq. 1 ) then
+          call calcSingleChiBuffer2( Mywvfn%wvfn, spareWavefunctions(id)%wvfn, chi(:,CurPts:stopPts), ierr )
+        else
+          call calcSingleChiBuffer2_mag( Mywvfn%wvfn, spareWavefunctions(id)%wvfn, chi(:,CurPts:stopPts), ierr )
+        endif
       endif
       if( ierr .ne. 0 ) return
       call screen_tk_stop( "calcSingleChiBuffer1" )
@@ -461,9 +477,11 @@ module screen_chi0
       stopPts = curPts + spareWavefunctions(id)%mypts - 1
 #ifdef PRINTLOG
       write(1000+myid,'(A,4(1X,I8))') '  ', pinfo%myid, id, CurPts, stopPts
+      flush(1000+myid)
 #endif
       call screen_tk_start( "calcChi Wait" )
       call MPI_WAIT( spareWvfnRecvs(id), MPI_STATUS_IGNORE, ierr )
+      call MPI_BARRIER( pinfo%comm, ierr )
       if( ierr .ne. 0 ) return
       call screen_tk_stop( "calcChi Wait" )
 
@@ -478,7 +496,11 @@ module screen_chi0
                                           MyWvfn%imag_wvfn, spareWavefunctions(id)%imag_wvfn )
         endif      
       else
-        call calcSingleChiBuffer2( Mywvfn%wvfn, spareWavefunctions(id)%wvfn, chi(:,CurPts:stopPts), ierr )
+        if( params%nspin .eq. 1 ) then
+          call calcSingleChiBuffer2( Mywvfn%wvfn, spareWavefunctions(id)%wvfn, chi(:,CurPts:stopPts), ierr )
+        else
+          call calcSingleChiBuffer2_mag( Mywvfn%wvfn, spareWavefunctions(id)%wvfn, chi(:,CurPts:stopPts), ierr )
+        endif
       endif
       if( ierr .ne. 0 ) return
       call screen_tk_stop( "calcSingleChiBuffer1" )
@@ -654,7 +676,7 @@ module screen_chi0
       return
     endif
 
-    spinfac = 2.0_DP / real(params%nspin, DP )
+!    spinfac = 2.0_DP / real(params%nspin, DP )
     pref = 1.0_DP / ( real( params%nkpts, DP ) * psys%celvol )
 
 !    chi(:,1:RPts) = 0.0_DP
@@ -843,7 +865,7 @@ module screen_chi0
 !$OMP DO SCHEDULE( STATIC )
           do i = istart, istop
             do it = 1, NImagEnergies
-              pref2 = spinfac * weightImagEnergies( it )
+              pref2 = weightImagEnergies( it )
               do j = jstart, jstop
                 chi( j, i ) = chi( j, i ) &
                             + pref2 * ( ReGreen( j-jstart+1, i-istart+1, it )**2 &
@@ -898,8 +920,7 @@ module screen_chi0
     integer :: ichunk, jchunk, istart, istop, jstart, jstop, NRchunks, NLchunks, nthreads, iwidth
     integer, parameter :: icSize = 16
     integer, parameter :: jcSize = 16
-    integer, parameter :: bandBuf = 8
-    complex(DP), parameter :: cone = 1.0_DP
+    integer, parameter :: bandBuf = 64
 !$  integer, external :: omp_get_max_threads
 
 !dir$ attributes align:64 :: ReGreen, ImGreen, ReEnergyDenom, ImEnergyDenom, temp
@@ -920,7 +941,7 @@ module screen_chi0
       return
     endif
 
-    spinfac = 2.0_DP / real(params%nspin, DP )
+!    spinfac = 2.0_DP / real(params%nspin, DP )
     pref = 1.0_DP / ( real( params%nkpts, DP ) * psys%celvol )
 
 !    chi(:,1:RPts) = 0.0_DP
@@ -1063,7 +1084,7 @@ module screen_chi0
 !$OMP DO SCHEDULE( STATIC )
           do i = istart, istop
             do it = 1, NImagEnergies
-              pref2 = spinfac * weightImagEnergies( it )
+              pref2 = weightImagEnergies( it )
               do j = jstart, jstop
                 chi( j, i ) = chi( j, i ) &
                             + pref2 * ( ReGreen( j-jstart+1, i-istart+1, it )**2 &
@@ -1092,6 +1113,225 @@ module screen_chi0
 
 
   end subroutine calcSingleChiBuffer2
+
+  ! This is a straight copy of calcSingleChiBuffer2 but calculating G(r,r')*G(r',r) instead of G^2(r,r')
+  !
+  ! currently each proc has subset of real-space points and ALL of k-points and spins
+  subroutine calcSingleChiBuffer2_mag( LWvfn, RWvfn, chi, ierr, isDiagonal )
+    use screen_system, only : physical_system, system_parameters, psys, params
+    use screen_energy, only : mu_ryd, energies
+    use ocean_constants, only : pi_dp
+    use screen_timekeeper, only : screen_tk_start, screen_tk_stop
+    use ocean_mpi, only : myid
+    complex(DP), intent( in ), dimension(:,:,:) :: LWvfn, RWvfn
+    real(DP), intent( inout ) :: chi(:,:)
+    integer, intent( inout ) :: ierr
+    logical, intent( in ), optional :: isDiagonal
+
+    complex(DP), allocatable :: temp(:,:,:)
+    complex(DP), allocatable :: CmplGreen(:,:,:), CmplTransGreen(:,:,:), EnergyDenom(:,:,:), NegEnergyDenom(:,:,:)
+    real(DP) :: pref, denr, deni, spinfac, pref2
+    integer :: Lpts, Rpts, nbands, nKptsAndSpin, ispin, ikpt, iband, it, i, j, iks, ib, ibstop, ii, jj
+    integer :: ichunk, jchunk, istart, istop, jstart, jstop, NRchunks, NLchunks, nthreads, iwidth, ibwidth
+    integer :: innerthreads, outerthreads
+    integer, parameter :: icSize = 16
+    integer, parameter :: jcSize = 16
+    integer, parameter :: bandBuf = 48
+    complex(DP), parameter :: cone = 1.0_DP
+    complex(DP), parameter :: czero = 0.0_DP
+!$  integer, external :: omp_get_max_threads
+
+!dir$ attributes align:64 :: CmplGreen, CmplTransGreen, EnergyDenom, temp
+
+
+    call screen_tk_start( "calcSingleChiBuffer Init" )
+    Lpts = size( LWvfn, 1 )
+    Rpts = size( RWvfn, 1 )
+    NLChunks = ( Lpts - 1 ) / jcSize + 1
+    NRChunks = ( Rpts - 1 ) / icSize + 1
+    nbands = size( LWvfn, 2 )
+    ! for a spin = 2 system the 'number of k-points' will be doubled
+    nKptsAndspin = size( LWvfn, 3 )
+
+    if( nKptsAndspin .ne. params%nspin * params%nkpts ) then
+      ierr = -100
+      return
+    endif
+
+!    spinfac = 2.0_DP / real(params%nspin, DP )
+    pref = 1.0_DP / ( real( params%nkpts, DP ) * psys%celvol )
+
+!    chi(:,1:RPts) = 0.0_DP
+!   s is Geometric mean in Ryd
+!   mu is EFermi in Ryd
+    ibwidth = ( ( ( nbands - 1 ) / bandBuf ) + 1 ) * bandBuf
+
+    allocate( EnergyDenom( ibwidth, NImagEnergies, nKptsAndSpin ), &
+           NegEnergyDenom( ibwidth, NImagEnergies, nKptsAndSpin ), STAT=ierr )
+    if( ierr .ne. 0 ) return
+
+    ! Need to get energy( band, kpt, spin ) onto unified kpt+spin index
+!    iks = 0
+!$OMP  PARALLEL DEFAULT( NONE ) &
+!$OMP& SHARED( EnergyDenom, NegEnergyDenom, params, energies, mu_ryd, NImagEnergies, ImagEnergies, nbands, ibwidth ) &
+!$OMP& PRIVATE( ispin, ikpt, iks, iband, it, denr, deni ) &
+!$OMP& FIRSTPRIVATE( pref )
+
+!$OMP DO COLLAPSE( 2 ) SCHEDULE( STATIC )
+    do ispin = 1, params%nspin
+      do ikpt = 1, params%nkpts
+        iks = ikpt + ( ispin - 1 ) * params%nkpts
+        do iband = 1, nbands
+          denr = mu_ryd - energies( iband, ikpt, ispin )
+          do it = 1, NImagEnergies
+            deni = ImagEnergies( it )
+            EnergyDenom( iband, it, iks ) = pref / cmplx( denr, deni, DP )
+            NegEnergyDenom( iband, it, iks ) = pref / cmplx( denr, -deni, DP )
+          enddo
+        enddo
+        if( nbands .lt. ibwidth ) then
+          do it = 1, NImagEnergies
+            do iband = nbands + 1, ibwidth
+              EnergyDenom( iband, it, iks ) = czero
+              NegEnergyDenom( iband, it, iks ) = czero
+            enddo
+          enddo
+        endif
+
+      enddo
+    enddo
+!$OMP END DO
+!$OMP END PARALLEL
+    call screen_tk_stop( "calcSingleChiBuffer Init" )
+
+    nthreads = 1
+    innerthreads = 1
+    outerthreads = nthreads
+!$  nthreads = OMP_GET_MAX_THREADS()
+!$  if( present(isDiagonal) ) write(1000+myid,*) 'OMP: ', nthreads
+    if( nthreads .gt. NRchunks * NLchunks .and. nthreads .gt. 1 ) then
+!$    call omp_set_nested( .true. )
+      innerthreads = nthreads / ( NRchunks * NLchunks )
+      if( innerthreads .lt. 2 ) innerthreads = 2
+      if( mod( innerthreads, 2 ) .eq. 1 ) innerthreads = innerthreads + 1
+      if( innerthreads .gt. 8 ) innerthreads = 8
+      outerthreads = nthreads / innerthreads
+    else
+!$    call omp_set_nested( .false. )
+      outerthreads = nthreads
+      innerthreads = 1
+    endif
+!$  if( present(isDiagonal) ) write(1000+myid,*) 'OMP: ', innerthreads, outerthreads
+!$  if( present(isDiagonal) ) flush(1000+myid)
+    
+
+!$OMP  PARALLEL DEFAULT( NONE ) NUM_THREADS( outerthreads )  &
+!$OMP& SHARED ( params, NRchunks, NLchunks, Rpts, Lpts, nbands, NImagEnergies, innerthreads ) &
+!$OMP& SHARED ( chi, spinfac, weightImagEnergies, LWvfn, RWvfn, EnergyDenom, NegEnergyDenom, ibwidth ) &
+!$OMP& PRIVATE( ispin, ichunk, istart, istop, jchunk, jstart, jstop, iks, ib, ibstop, iband, i, j, it, pref2, ii, jj ) &
+!$OMP& PRIVATE( CmplGreen, CmplTransGreen, temp )
+
+
+    allocate( CmplGreen( jcSize, icSize, NImagEnergies ), CmplTransGreen( jcSize, icSize, NImagEnergies ),  &
+              temp( jcSize, icSize, bandBuf ) )
+
+! Want to divide by ichunk & jchunk to avoid any conflicts on the true chi
+    do ispin = 1, params%nspin
+
+!$OMP DO COLLAPSE( 2 ) SCHEDULE( STATIC )
+      do ichunk = 1, NRchunks
+        do jchunk = 1, NLchunks
+
+          istart = ( ichunk - 1 ) * icSize + 1
+          istop = min( ichunk * icSize, Rpts )
+
+          jstart = ( jchunk - 1 ) * jcSize + 1
+          jstop = min( jchunk * jcSize, Lpts )
+
+!$OMP  PARALLEL DEFAULT( NONE ) NUM_THREADS( innerthreads ) &
+!$OMP& SHARED ( params, NRchunks, NLchunks, Rpts, Lpts, nbands, NImagEnergies, ibwidth ) &
+!$OMP& SHARED ( chi, spinfac, weightImagEnergies, LWvfn, RWvfn, EnergyDenom, NegEnergyDenom ) &
+!$OMP& SHARED ( jstart, jstop ) &
+!$OMP& PRIVATE( iks, ib, ibstop, iband, i, j, it, pref2, ii, jj ) &
+!$OMP& SHARED( CmplGreen, CmplTransGreen, temp, ichunk, jchunk, istart, istop, ispin )
+
+
+!$OMP DO SCHEDULE( STATIC )
+          do it = 1, NImagEnergies
+            CmplGreen(:,:,it) = czero
+            CmplTransGreen(:,:,it) = czero
+          enddo
+!$OMP END DO NOWAIT
+
+
+!$OMP WORKSHARE
+          temp(:,:,:) = czero
+!$OMP END WORKSHARE
+
+          do iks = 1 + (ispin-1)*params%nkpts, ispin*params%nkpts
+            do ib = 1, nbands, bandBuf
+              ibstop = min( ib+bandBuf-1,nbands )
+
+
+! Possibly re-write the above without the explicit mem copy, but eh?
+!$OMP DO SCHEDULE( STATIC ) COLLAPSE( 2 )
+              do iband = ib, ibstop!min(ib+7,nbands)
+                do i = istart, istop
+                  do j = jstart, jstop
+                    temp( j-jstart+1, i-istart+1,iband-ib+1 ) = &
+                               conjg( LWvfn(j,iband,iks) ) * RWvfn(i,iband,iks) 
+                  enddo
+                enddo
+              enddo
+!$OMP END DO 
+
+
+!              ibstop = ( ( ( nbands - 1 ) / bandBuf ) + 1 ) * bandBuf
+              ibstop = min( bandBuf, nbands-ib+1 )
+!$OMP SINGLE
+              call ZGEMM( 'N', 'N', jcsize * icsize, NImagEnergies, ibstop, cone, temp, jcsize * icsize, &
+                          EnergyDenom( ib, 1, iks ), ibwidth, cone, CmplGreen, jcsize * icsize )
+!$OMP END SINGLE NOWAIT
+!$OMP SINGLE
+              call ZGEMM( 'N', 'N', jcsize * icsize, NImagEnergies, ibstop, cone, temp, jcsize * icsize, &
+                          NegEnergyDenom( ib, 1, iks ), ibwidth, cone, CmplTransGreen, jcsize * icsize )
+!$OMP END SINGLE
+
+
+
+            enddo
+
+          enddo  ! iks
+
+
+
+!$OMP DO SCHEDULE( STATIC ) COLLAPSE( 2 )
+          do i = istart, istop
+            do it = 1, NImagEnergies
+              pref2 =  weightImagEnergies( it )
+              do j = jstart, jstop
+                chi( j, i ) = chi( j, i ) &
+                            + pref2 * real( CmplGreen( j-jstart+1, i-istart+1, it ) &
+                                     * conjg(CmplTransGreen( j-jstart+1, i-istart+1, it )), DP )
+              enddo
+            enddo
+          enddo
+!$OMP END DO NOWAIT
+!$OMP END PARALLEL
+
+        enddo
+      enddo
+!$OMP END DO
+    enddo
+
+    deallocate( temp, CmplGreen, CmplTransGreen )
+!$OMP END PARALLEL
+
+    deallocate( EnergyDenom, NegEnergyDenom )
+
+
+  end subroutine calcSingleChiBuffer2_mag
+
 
 
   ! currently each proc has subset of real-space points and ALL of k-points and spins
@@ -1140,7 +1380,7 @@ module screen_chi0
       return
     endif
 
-    spinfac = 2.0_DP / real(params%nspin, DP )
+!    spinfac = 2.0_DP / real(params%nspin, DP )
     pref = 1.0_DP / ( real( params%nkpts, DP ) * psys%celvol )
 
 !    chi(:,1:RPts) = 0.0_DP
@@ -1316,7 +1556,7 @@ module screen_chi0
           do i = istart, istop
             do it = 1, NImagEnergies
   !            pref2 = spinfac * 2.0_DP * weightImagEnergies( it ) * geodiff / pi_dp
-              pref2 = spinfac * weightImagEnergies( it ) 
+              pref2 = weightImagEnergies( it ) 
               do j = jstart, jstop
                 chi( j, i ) = chi( j, i ) & 
                             + pref2 * ( ReGreen( j-jstart+1, i-istart+1, it )**2 &
@@ -1367,7 +1607,7 @@ module screen_chi0
     ! for a spin = 2 system the 'number of k-points' will be doubled
     nKptsAndspin = size( LWvfn, 3 )
 
-    spinfac = 2.0_DP / real(params%nspin, DP )
+!    spinfac = 2.0_DP / real(params%nspin, DP )
     pref = 1.0_DP / ( real( params%nkpts, DP ) * psys%celvol )
 
 !   mu is EFermi in Ryd
@@ -1421,7 +1661,7 @@ module screen_chi0
         do i = istart, istop
           do it = 1, NImagEnergies
 !            pref2 = spinfac * 2.0_DP * weightImagEnergies( it ) * geodiff / pi_dp
-            pref2 = spinfac * weightImagEnergies( it )
+            pref2 =  weightImagEnergies( it )
             do j = jstart, jstop
               chi( j, i ) = chi( j, i ) &
                           + pref2 * ( real(Gplus( j-jstart+1, i-istart+1, it ),DP) &
@@ -1464,7 +1704,7 @@ module screen_chi0
     ! for a spin = 2 system the 'number of k-points' will be doubled
     nKptsAndspin = size( LWvfn, 3 )
 
-    spinfac = 2.0_DP / real(params%nspin, DP )
+!    spinfac = 2.0_DP / real(params%nspin, DP )
     pref = 1.0_DP / ( real( params%nkpts, DP ) * psys%celvol )
 !    write(6,*) 'pref', pref
 
@@ -1514,7 +1754,7 @@ module screen_chi0
     enddo
 
     do it = 1, NImagEnergies
-      pref = spinfac * 2.0_DP * weightImagEnergies( it ) * geodiff / pi_dp
+      pref = 2.0_DP * weightImagEnergies( it ) * geodiff / pi_dp
       do j = 1, Rpts
         do i = 1, Lpts
           chi( i, j ) = chi( i, j ) + pref * ( real(chi0( i, j, it ),DP)**2 - aimag( chi0( i, j, it ) )**2 )

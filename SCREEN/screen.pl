@@ -2036,7 +2036,7 @@ sub writeExtraFiles
   close OUT;
 
   open OUT, ">", 'screen.lmax' or die $!;
-  printf OUT "%i\n", $screenRef->{'lmax'};
+  printf OUT "%i\n", $screenRef->{'grid'}->{'lmax'};
   close OUT;
 
   open OUT, ">", 'shells' or die $!;
@@ -2623,6 +2623,7 @@ sub runCoreOffset
 
   # Loop over radii and then hfin
   my $offset;
+  my @shiftArray;
   for( my $i = 0; $i < scalar @{$screenRef->{'shells'}}; $i++ )
   {
     my $rad_dir = sprintf("zR%03.2f", $screenRef->{'shells'}[$i] );
@@ -2660,6 +2661,7 @@ sub runCoreOffset
       $shift += $offset;
       $shift *= -1;
       printf OUT "   %7i   %16.9f  %15.9f  %15.9f  %16.7f\n", $el_rank, $newPot[$j]*$Ry2eV, $newWshift[$j][$i]*$Ry2eV, $offset, $shift;
+      $shiftArray[$j][$i] = $shift;
 
       my $string = sprintf("z%s%04d/n%02dl%02d",$el, $el_rank,$nn,$ll);
       open TMP, ">$string/$rad_dir/cls" or die "Failed to open $string/$rad_dir/cls\n$!";
@@ -2672,6 +2674,34 @@ sub runCoreOffset
   }
 
   close OUT;
+
+  # Create summaries
+  for( my $j = 0; $j < scalar @hfin; $j++ )
+  {
+    my $nn = $hfin[$j][0];
+    my $ll = $hfin[$j][1];
+    my $el = $hfin[$j][2];
+    my $el_rank = $hfin[$j][3];
+
+    my $dir1 = sprintf "z%2s%04i", $el, $el_rank;
+    my $dir2 = sprintf "n%02il%02i", $nn, $ll;
+    my $file = catfile( $dir1, $dir2, "cls_rad.txt" );
+
+    print $file . "\n";
+    open OUT, ">", $file or die "$!\nFailed to open $file\n";
+    print OUT "# rad (Bohr)  CLS (ev)  V_{ind} (Ha)\n";
+
+    for( my $i = 0; $i < scalar @{$screenRef->{'shells'}}; $i++ )
+    {
+      my $rad_dir = sprintf("zR%03.2f", $screenRef->{'shells'}[$i] );
+      open IN, catfile( $dir1, $dir2, $rad_dir, "vind" ) or die "$!\nFailed to open vind: " . catfile( $dir1, $dir2, $rad_dir, "vind" );
+      <IN> =~ m/^\s*(\S+)\s+(\S+)/ or die;
+      my $vind = $2;
+
+      printf OUT "%03.2f   %16.8f  %16.8f\n", $screenRef->{'shells'}[$i], $shiftArray[$j][$i], $vind;
+    }
+    close OUT;
+  }
 
 
 #  
