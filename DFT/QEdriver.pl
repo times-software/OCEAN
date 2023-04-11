@@ -327,7 +327,7 @@ sub QEparseOut
     open SCF, "<", $xmlFile or die "Failed to open $xmlFile\n";
 
     print "QE62!!\n";
-    $hashRef->{'version'} = '62';
+    $hashRef->{'version'} = '6.2';
 
     open OUT, ">", "wvfn.ipt" or die $!;
     print OUT "qe62\n";
@@ -354,7 +354,7 @@ sub QEparseOut
       {
         $fermi = ($1+$3)/2;
       }
-      elsif( $scf_line =~ m/NAME=\"PWSCF\" VERSION=\"([\d\.\w]+)\">/ )
+      elsif( $scf_line =~ m/NAME=\"PWSCF\" VERSION=\"([\d\.\w]+)\"/ )
       {
         $hashRef->{'version'} = $1;
       }
@@ -396,6 +396,12 @@ sub QEparseOut
     return $errorCode; 
   } elsif( -e catfile( "Out", "system.save", "data-file.xml" ) ) {
 
+    print "QE54!!\n";
+    $hashRef->{'version'} = '5.4';
+    
+    open OUT, ">", "wvfn.ipt" or die $!;
+    print OUT "qe54\n";
+    close OUT;
     my $units;
 
     open SCF, "<", catfile( "Out", "system.save", "data-file.xml" ) or die "Failed to open $xmlFile\n";
@@ -406,14 +412,23 @@ sub QEparseOut
       {
         $units = $1;
       }
-      if( $scf_line =~ m/\<FERMI_ENERGY/ )
+      elsif( $scf_line =~ m/\<FERMI_ENERGY/ )
       {
         $scf_line = <SCF>;
         $scf_line =~ m/([-+]?\d+\.\d+[Ee]?[-+]?(\d+)?)/ or die "$scf_line";
         $fermi = $1;
       }
+      elsif(  $scf_line =~ m/NAME=\"PWSCF\" VERSION=\"([\d\.\w]+)\"/ )
+      {
+        $hashRef->{'version'} = $1;
+#        print ">>>>>>> $hashRef->{'version'} <<<<<<<<< \n";
+      }
+
     }
     close SCF;
+    if( $hashRef->{'version'} < 1 ) {
+      die "Failed to match version : $hashRef->{'version'}\n";
+    }
     if( defined( $fermi ) ) {
       if( $units =~ m/hartree/i )
       {
@@ -427,8 +442,19 @@ sub QEparseOut
       $hashRef->{'fermi'} = $fermi;
       $errorCode = 0;
     }
-  } else {
 
+    open OUTFILE, "<", $outFile or die "Failed to open $outFile\n";
+    while( my $line=<OUTFILE> )
+    {
+      if( $line =~ m/number of electrons\s+=\s+(\d+\.\d+)/ )
+      {
+        $hashRef->{'nelec'} = $1*1;
+      }
+    }
+    close OUTFILE;
+
+  } else {
+  
     open OUTFILE, "<", $outFile or die "Failed to open $outFile\n";
     while( my $line=<OUTFILE> )
     {
@@ -458,7 +484,7 @@ sub QEparseOut
         print "Fermi level found at $fermi eV\n";
         $fermi = $fermi/13.60569253/2;
       }
-      elsif( $line =~ m/highest occupied, lowest unoccupied level (ev):\s+([+-]?\d+\.?\d+)\s+([+-]?\d+\.?\d+)/ )
+      elsif( $line =~ m/highest occupied, lowest unoccupied level \(ev\):\s+([+-]?\d+\.?\d+)\s+([+-]?\d+\.?\d+)/ )
       {
         $fermi = ($1+$2)/2;
         $hashRef->{'highest'} = $1/13.60569253/2;
@@ -470,6 +496,12 @@ sub QEparseOut
       {
         $hashRef->{'nelec'} = $1*1;
       }
+      elsif(  $line =~ m/PWSCF\s+v\.([\d\.\w]+)/ )
+      {
+        $hashRef->{'version'} = $1;
+#        print ">>>>>>> $hashRef->{'version'} <<<<<<<<< \n";
+      } 
+
     }
     $hashRef->{'fermi'} = $fermi if( defined( $fermi ) );
     close OUTFILE;
@@ -478,7 +510,7 @@ sub QEparseOut
   print "FERMI: $hashRef->{'fermi'}\n";
 
   if( exists( $hashRef->{'lowest'} ) ){
-    if( $hashRef->{'lowest'} >= $hashRef->{'highest'} ) {
+    if( $hashRef->{'lowest'} <= $hashRef->{'highest'} ) {
       print "ERROR!!\n  Insulator selected, but there is no gap.\n"
                     ."  This run will not continue\n";
       $errorCode = 10;
@@ -1127,6 +1159,7 @@ sub QEparseEnergies
   my @energies;
   
   my $qe62File = catfile( "Out", "system.save", "data-file-schema.xml" );
+  my $qe54File = catfile( "Out", "system.save", "data-file.xml" );
   
   if( -e $qe62File )
   {
@@ -1134,8 +1167,15 @@ sub QEparseEnergies
     $splitFile = catfile( "Out_shift", "system.save", "data-file-schema.xml" ) if( $split );
     @energies = QEparseEnergies62( $qe62File, $splitFile, $spin );
   }
-  else 
+  elsif( -e $qe54File )
   {
+    my $splitFile = $qe54File;
+    $splitFile = catfile( "Out_shift", "system.save", "data-file.xml" ) if( $split );
+    @energies = QEparseEnergies54( $qe54File, $splitFile, $spin );
+  }
+  else
+  {
+    die;
     return 1;
   }
 
@@ -1362,6 +1402,73 @@ sub QEparseEnergies62
   return @energies;
   
 }
+
+sub QEparseEnergies54
+{
+  my ($f1, $f2, $spin) = @_;
+
+  my $split = 0;
+  open my $fh1, "<", $f1 or die "Failed to open $f1\n$!";
+
+#  print ">>>>>>>>>> $f1 <<<<<<<<<<\n";
+  
+  my @energies1;
+  my @energies1_spin;
+
+  while( my $line = <$fh1> ) 
+  {
+#    print $line;
+#    if( $line =~ m/iotk_link=\"(\S+eigenval.xml)\"/ ) {
+    if(  $line =~ m/\"(\.\/K\d+\/eigenval.xml)/ ) {
+      my $k = $1;
+      my $eigFile = $f1;
+      $eigFile =~ s/data-file.xml/$k/;
+      my $eigs = '';
+      open IN, $eigFile or die "Failed to open $eigFile\n$!";
+      while( $line = <IN> ) {
+        if( $line =~ m/EIGENVALUES/ ) {
+          $line = <IN>;
+          until ( $line =~ m/\/EIGENVALUES/ ) {
+            chomp $line;
+            $eigs .= $line . ' ';
+            $line = <IN>;
+          }
+          my @eigs = split( ' ', $eigs );
+#          print "$eigFile  " . scalar @eigs . "\n";
+          if( $spin == 2 )
+          {
+            my $half = scalar @eigs / 2;
+            my @t1 = @eigs[ 0..$half-1 ];
+            push @energies1, \@t1;
+            my @t2 = @eigs[ $half..scalar @eigs-1 ];
+            push @energies1_spin, \@t2;
+          }
+          else
+          {
+            push @energies1, \@eigs;
+          }
+        }
+      }
+      close IN;
+    }
+  }
+  close $fh1;
+  unless( $f1 ne $f2 )
+  {
+    if( $spin == 2 ) {
+      print scalar @energies1 . "\n";
+      print scalar @energies1_spin . "\n";
+      for( my $i = 0; $i < scalar @energies1_spin; $i++ ) {
+        push @energies1, \@{ $energies1_spin[$i] };
+      }
+      print scalar @energies1 . "\n";
+    }
+    return @energies1;
+  }
+
+  die "QE54 w/ shift not implemented. Upgrade your QE version to something from the past 5 years\n";
+}
+
 
 sub QEconvertEnergies
 {
