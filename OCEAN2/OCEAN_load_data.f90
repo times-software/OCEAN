@@ -123,7 +123,7 @@ subroutine OCEAN_load_data( sys, hay_vec, ierr )
       if( myid .eq. root ) write(6,*) 'Energies loaded'
  
     if( myid .eq. root ) write(6,*) 'Trim & scale matrix elements'
-    call OCEAN_energies_allow( sys, hay_vec, ierr )
+    call OCEAN_energies_initial_allow( sys, hay_vec, ierr )
     if( ierr .ne. 0 ) return
     call OCEAN_psi_pnorm( sys, hay_vec, ierr )
     if( ierr .ne. 0 ) return

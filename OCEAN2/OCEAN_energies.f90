@@ -17,6 +17,7 @@ module OCEAN_energies
   type( OCEAN_vector ) :: p_energy
   type( OCEAN_vector ) :: allow
   type( OCEAN_vector ) :: allow_sqrt
+  type( OCEAN_vector ) :: initial_allow
 
 
   LOGICAL :: have_selfenergy
@@ -28,6 +29,7 @@ module OCEAN_energies
   public :: OCEAN_energies_allow, OCEAN_energies_val_sfact, OCEAN_energies_val_act, &
             OCEAN_energies_val_load, OCEAN_energies_act, OCEAN_energies_init, OCEAN_energies_load
   public :: OCEAN_energies_resetAllow, OCEAN_energies_allow_full, OCEAN_energies_sfact_copy
+  public :: OCEAN_energies_initial_allow
   
   contains
 
@@ -92,6 +94,20 @@ module OCEAN_energies
     else
       call OCEAN_psi_2element_mult( psi, allow, ierr, is_real_only=.true. )
     endif
+  end subroutine
+
+  subroutine OCEAN_energies_initial_allow( sys, psi, ierr )
+    use OCEAN_system, only : O_system
+    use OCEAN_psi, only : OCEAN_vector, OCEAN_psi_2element_mult
+    use OCEAN_mpi, only : myid, root
+    implicit none
+    !
+    integer, intent( inout ) :: ierr
+    type(O_system), intent( in ) :: sys
+    type(OCEAN_vector), intent( inout ) :: psi
+    !
+    !
+    call OCEAN_psi_2element_mult( psi, initial_allow, ierr, is_real_only=.true. )
   end subroutine
 
   subroutine OCEAN_energies_resetAllow( ierr )
@@ -204,6 +220,8 @@ module OCEAN_energies
       if( ierr .ne. 0 ) return
       call OCEAN_psi_new( allow_sqrt, ierr )
       if( ierr .ne. 0 ) return
+      call OCEAN_psi_new( initial_allow, ierr )
+      if( ierr .ne. 0 ) return
 
       is_init = .true.
     endif
@@ -220,6 +238,7 @@ module OCEAN_energies
     call OCEAN_psi_kill( p_energy, ierr )
     call OCEAN_psi_kill( allow, ierr )
     call OCEAN_psi_kill( allow_sqrt, ierr )
+    call OCEAN_psi_kill( initial_allow, ierr )
     is_init = .false.
 
   end subroutine OCEAN_energies_kill
@@ -254,6 +273,8 @@ module OCEAN_energies
     if( ierr .ne. 0 ) return
     call OCEAN_psi_zero_full( allow_sqrt, ierr )
     if( ierr .ne. 0 ) return
+    call OCEAN_psi_zero_full( initial_allow, ierr )
+    if( ierr .ne. 0 ) return
 
 
     ! Currently all of this is done only on the root proccess 
@@ -283,6 +304,7 @@ module OCEAN_energies
     call OCEAN_psi_bcast_full( root, p_energy, ierr )
     call OCEAN_psi_bcast_full( root, allow, ierr )
     call OCEAN_psi_bcast_full( root, allow_sqrt, ierr )
+    call OCEAN_psi_bcast_full( root, initial_allow, ierr )
 
     deallocate( energies, imag_se )
 
@@ -298,23 +320,30 @@ module OCEAN_energies
     real(DP), intent( inout ) :: efermi
     logical, intent( in ) :: metal
     !
-    real(DP), allocatable :: allowArray(:,:,:)
+    real(DP), allocatable :: allowArray(:,:,:), initialAllow(:,:,:)
     integer :: n(3)
 
     if( myid .ne. root ) return
 
     n = shape( ener )
-    allocate( allowArray( n(1), n(2), n(3) ) )
+    allocate( allowArray( n(1), n(2), n(3) ), initialAllow( n(1), n(2), n(3) ) )
 
     select case( sys%occupationType )
       case( 'fermi' )
         call core_allow_ff( sys, allowArray, ener, metal, efermi, sys%occupationValue )
+        initialAllow = allowArray
 
       case( 'fixed' )
         call core_allow_fixed( sys, allowArray, ener, metal, efermi, sys%occupationValue )
+        initialAllow = allowArray
+
+      case( 'full' )
+        call core_allow_fixed( sys, allowArray, ener, metal, efermi, 1.0_DP )
+        call core_allow_fixed( sys, initialAllow, ener, metal, efermi )
       
       case default
         call core_allow_fixed( sys, allowArray, ener, metal, efermi  )
+        initialAllow = allowArray
     end select
 
     ! The Full-BSE in the valence pathway require a second allow matrix that is -1
@@ -323,9 +352,10 @@ module OCEAN_energies
     call stubby( sys, allow, allowArray, allowArray )
 
     call stubby( sys, allow_sqrt, allowArray )
+    call stubby( sys, initial_allow, initialAllow )
 
 
-    deallocate( allowArray )
+    deallocate( allowArray, initialAllow )
 
   end subroutine core_make_allow
 
