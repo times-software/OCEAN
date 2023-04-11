@@ -220,7 +220,14 @@
       "tmp_dir" : "undefined",
       "toldfe" : 1e-10,
       "tolwfr" : 1e-12,
-      "verbatim" : ""
+      "verbatim" : {
+         "abinit" : "",
+         "qe" : {
+            "control" : "",
+            "electrons" : "",
+            "system" : ""
+         }
+      }
    },
    "opf" : {
       "program" : "shirley",

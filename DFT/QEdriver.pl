@@ -929,9 +929,12 @@ sub QEprintInput
         .  "  tstress = $tstress\n"
         .  "  tprnfor = $tprnfor\n"
         .  "  wf_collect = .true.\n"
-        .  "  disk_io = 'low'\n"
-        .  "/\n";
-  print $fh "&system\n"
+        .  "  disk_io = 'low'\n";
+  if( $generalRef->{'general'}->{'verbatim'}->{'qe'}->{'control'} ne '' ) {
+    print $fh $generalRef->{'general'}->{'verbatim'}->{'qe'}->{'control'} . "\n";
+  }
+  print $fh "/\n"
+        .  "&system\n"
         .  "  ibrav = 0\n"
         .  "  nat = " . scalar @{$generalRef->{'structure'}->{'xred'}} . "\n"
         .  "  ntyp = " . scalar @{$generalRef->{'structure'}->{'znucl'}} . "\n"
@@ -1003,24 +1006,25 @@ sub QEprintInput
     print "local\n";
   }
 
+  if( $generalRef->{'general'}->{'verbatim'}->{'qe'}->{'system'} ne '' ) {
+    print $fh $generalRef->{'general'}->{'verbatim'}->{'qe'}->{'system'} . "\n";
+  }
+
   print $fh "/\n"
         .  "&electrons\n"
-#        .  "  conv_thr = $specificRef->{'toldfe'}\n"
         .  (sprintf "  conv_thr = %g\n", $specificRef->{'toldfe'})
         .  (sprintf "  mixing_beta = %g\n", $generalRef->{'general'}->{'mixing'}) 
         .  (sprintf "  mixing_mode = '%s'\n", $generalRef->{'general'}->{'mixing_mode'})
-#        .  "  mixing_beta = $generalRef->{'general'}->{'mixing'}\n"
-        . (sprintf "  electron_maxstep = %i\n", $generalRef->{'general'}->{'nstep'})
-#        .  "  electron_maxstep = $generalRef->{'general'}->{'nstep'}\n"
+        .  (sprintf "  electron_maxstep = %i\n", $generalRef->{'general'}->{'nstep'})
         .  "  startingwfc = \'$generalRef->{'general'}->{'startingwfc'}\'\n"
         .  "  startingpot = \'$startingPot\'\n"
-        .  "  diagonalization = \'$diagonalization\'\n"
-#        .  "  diagonalization = \'$generalRef->{'general'}->{'diagonalization'}\'\n"
-        .  "/\n";
-#  if( $inputs{'print nbands'} > 100 && $inputs{'calctype'} =~ m/nscf/i )
-#  {
-#    print $fh "  diago_david_ndim = 2\n";
-#  }
+        .  "  diagonalization = \'$diagonalization\'\n";
+
+  if( $generalRef->{'general'}->{'verbatim'}->{'qe'}->{'electrons'} ne '' ) {
+    print $fh $generalRef->{'general'}->{'verbatim'}->{'qe'}->{'electrons'} . "\n";
+  }
+
+  print $fh "/\n";
 #  if( $inputs{'nscfEXX'} == 1 )
 #  {
 #    # Since (at the moment) we are loading the SCF density

@@ -176,7 +176,14 @@
       "tmp_dir" : "S",
       "toldfe" : "f",
       "tolwfr" : "f",
-      "verbatim" : "S"
+      "verbatim" : {
+         "abinit" : "s",
+         "qe" : {
+            "control" : "s",
+            "electrons" : "s",
+            "system" : "s"
+         }
+      }
    },
    "opf" : {
       "program" : "s",
