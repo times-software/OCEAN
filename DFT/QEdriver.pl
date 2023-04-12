@@ -356,6 +356,8 @@ sub QEparseOut
       }
       elsif( $scf_line =~ m/NAME=\"PWSCF\" VERSION=\"([\d\.\w]+)\"/ )
       {
+        $hashRef->{'versionString'} = $1;
+        $hashRef->{'versionString'} =~ m/(^\d+\.?\d*)/;
         $hashRef->{'version'} = $1;
       }
       elsif( $scf_line =~ m/wall>(\d+\.\d+[eE]?\d+)/ )
@@ -424,6 +426,9 @@ sub QEparseOut
       }
       elsif(  $scf_line =~ m/NAME=\"PWSCF\" VERSION=\"([\d\.\w]+)\"/ )
       {
+        $hashRef->{'versionString'} = $1;
+        $hashRef->{'versionString'} =~ m/(^\d+\.?\d*)/;
+#        $hashRef->{'versionString'} =~ m/([\d\.]+)/;
         $hashRef->{'version'} = $1;
 #        print ">>>>>>> $hashRef->{'version'} <<<<<<<<< \n";
       }
@@ -502,6 +507,9 @@ sub QEparseOut
       }
       elsif(  $line =~ m/PWSCF\s+v\.([\d\.\w]+)/ )
       {
+        $hashRef->{'versionString'} = $1;
+#        $hashRef->{'versionString'} =~ m/([\d\.]+)/;
+        $hashRef->{'versionString'} =~ m/(^\d+\.?\d*)/;
         $hashRef->{'version'} = $1;
 #        print ">>>>>>> $hashRef->{'version'} <<<<<<<<< \n";
       } 
@@ -592,6 +600,8 @@ sub QEparseDensityPotential
 {
   my ($hashRef, $type, $emin, $emax ) = @_;
 
+  printf "DENPOT VERSION %s\n", $hashRef->{'scf'}->{'version'};
+
   my $flag;
   my $filplot;
   my $infile;
@@ -608,7 +618,7 @@ sub QEparseDensityPotential
     $filplot = 'system.val.rho';
     $infile = 'pp3.in';
     $convert = "system.val.rho val.rhoofr";
-    if( abs( $emin - $emax ) > 0.1 ) {
+    if( abs( $emin - $emax ) > 0.1 && $hashRef->{'scf'}->{'version'} > 6.95) {
       $flag = 23;
       $bonusInputs = sprintf "  emin = %.15f\n  emax = %.15f\n", $emin, $emax;
     }
