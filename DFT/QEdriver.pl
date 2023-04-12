@@ -378,6 +378,10 @@ sub QEparseOut
       {
         $hashRef->{'nelec'} = $1*1;
       }
+      elsif( $scf_line =~ m/<n_scf_steps>(\d+)</ ) 
+      {
+        $errorCode = 0 if( $1 > 0 );
+      }
     }
     close SCF;
     if( defined $highest && defined $lowest ) {
@@ -916,7 +920,7 @@ sub QEprintInput
     $nosyminv = 'true';
     $startingPot = 'file';
     $diagonalization = $specificRef->{'diagonalization'};
-    if( $generalRef->{'scf'}->{'version'} > 0 && $generalRef->{'scf'}->{'version'} < 6.4 ) {
+    if( $generalRef->{'scf'}->{'version'} > 0 && $generalRef->{'scf'}->{'version'} < 6.5 ) {
       $diagonalization = 'david';
     } else {
       printf "QE version %g\n", $generalRef->{'scf'}->{'version'};
