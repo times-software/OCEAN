@@ -931,7 +931,9 @@ sub QEprintInput
     $startingPot = 'file';
     $diagonalization = $specificRef->{'diagonalization'};
     if( $generalRef->{'scf'}->{'version'} > 0 && $generalRef->{'scf'}->{'version'} < 6.5 ) {
-      $diagonalization = 'david';
+      unless( $diagonalization eq 'cg' || $diagonalization eq 'david' ) {
+        $diagonalization = 'david';
+      }
     } else {
       printf "QE version %g\n", $generalRef->{'scf'}->{'version'};
     }
