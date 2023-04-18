@@ -962,6 +962,21 @@ sub recursiveCompare
       return unless( $complete->{'complete'} );
     }
   }
+  elsif( ref( $newRef ) eq 'HASH' )
+  {
+    if( scalar keys %{$newRef} != scalar keys %{$oldRef} ) {
+      $complete->{'complete'} = JSON::PP::false;
+      return;
+    }
+    foreach my $key (keys %{$newRef} ) {
+      unless( exists $oldRef->{$key} ) {
+        $complete->{'complete'} = JSON::PP::false;
+        return;
+      }
+      recursiveCompare( $newRef->{$key}, $oldRef->{$key}, $complete );
+      return unless( $complete->{'complete'} );
+    }
+  }
   else
   {
 #    print "#!  $newRef  $oldRef\n";
