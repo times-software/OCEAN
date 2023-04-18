@@ -979,7 +979,10 @@ sub QEprintInput
         .  "  wf_collect = .true.\n"
         .  "  disk_io = 'low'\n";
   if( $generalRef->{'general'}->{'verbatim'}->{'qe'}->{'control'} ne '' ) {
-    print $fh $generalRef->{'general'}->{'verbatim'}->{'qe'}->{'control'} . "\n";
+    my $temp = $generalRef->{'general'}->{'verbatim'}->{'qe'}->{'control'};
+    $temp =~ s/,/,\n/g;
+    print $fh $temp . "\n";
+#    print $fh $generalRef->{'general'}->{'verbatim'}->{'qe'}->{'control'} . "\n";
   }
   print $fh "/\n"
         .  "&system\n"
@@ -1055,7 +1058,10 @@ sub QEprintInput
   }
 
   if( $generalRef->{'general'}->{'verbatim'}->{'qe'}->{'system'} ne '' ) {
-    print $fh $generalRef->{'general'}->{'verbatim'}->{'qe'}->{'system'} . "\n";
+    my $temp = $generalRef->{'general'}->{'verbatim'}->{'qe'}->{'system'};
+    $temp =~ s/,/,\n/g;
+    print $fh $temp . "\n";
+#    print $fh $generalRef->{'general'}->{'verbatim'}->{'qe'}->{'system'} . "\n";
   }
 
   print $fh "/\n"
@@ -1069,7 +1075,10 @@ sub QEprintInput
         .  "  diagonalization = \'$diagonalization\'\n";
 
   if( $generalRef->{'general'}->{'verbatim'}->{'qe'}->{'electrons'} ne '' ) {
-    print $fh $generalRef->{'general'}->{'verbatim'}->{'qe'}->{'electrons'} . "\n";
+    my $temp = $generalRef->{'general'}->{'verbatim'}->{'qe'}->{'electrons'};
+    $temp =~ s/,/,\n/g;
+    print $fh $temp . "\n";
+#    print $fh $generalRef->{'general'}->{'verbatim'}->{'qe'}->{'electrons'} . "\n";
   }
 
   print $fh "/\n";
