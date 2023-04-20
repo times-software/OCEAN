@@ -593,8 +593,11 @@ sub QErunDFPT
   }
   close IN;
   $hashRef->{'structure'}->{'epsilon'} = ( $epsilon[0] + $epsilon[1] + $epsilon[2] ) / 3;
+  $hashRef->{'epsilon'}->{'epsilon'} = $hashRef->{'structure'}->{'epsilon'};
 
   return 9 if( $epsilon[0] < 0 );
+
+  printf "DFPT done, epsilon = %f\n", $hashRef->{'structure'}->{'epsilon'};
   return 0;
 }
 

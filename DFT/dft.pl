@@ -219,6 +219,8 @@ copyAndCompare( $newDftData->{'epsilon'}, $commonOceanData->{'dft'}->{'epsilon'}
 if( $newDftData->{'epsilon'}->{'method'} eq "input" ) {
   $newDftData->{'epsilon'}->{'complete'} = JSON::PP::true; # if( $newDftData->{'epsilon'}->{'method'} eq "input" );
   $newDftData->{'structure'}->{'epsilon'} = $commonOceanData->{'structure'}->{'epsilon'};
+} elsif( $newDftData->{'epsilon'}->{'complete'} ) {
+  $newDftData->{'epsilon'}->{'epsilon'} = $dftData->{'epsilon'}->{'epsilon'};
 }
 
 my @nscf_InitialList = ();
@@ -592,6 +594,7 @@ unless( $newDftData->{'epsilon'}->{'complete'} ) {
   print "Epsilon calculation complete\n";
 } else {
   $newDftData->{'epsilon'}->{'time'} = $dftData->{'epsilon'}->{'time'};
+  $newDftData->{'structure'}->{'epsilon'} = $newDftData->{'epsilon'}->{'epsilon'};
 }
 
 
