@@ -64,6 +64,7 @@
          "broaden" : 0.1,
          "bwflg" : false,
          "decut" : 10,
+         "epsilon_threshold" : 0,
          "gmres" : {
             "echamp" : true,
             "elist" : [

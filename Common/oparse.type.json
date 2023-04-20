@@ -53,6 +53,7 @@
          "broaden" : "f",
          "bwflg" : "b",
          "decut" : "f",
+         "epsilon_threshold" : "f",
          "gmres" : {
             "echamp" : "b",
             "elist" : "af",
