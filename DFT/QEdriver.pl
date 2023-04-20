@@ -576,6 +576,7 @@ sub QErunDFPT
   open IN, "ph.out" or die;
 
   my @epsilon;
+  $epsilon[0] = -1;
   while (<IN>)
   {
     if( $_ =~ m/Dielectric constant in cartesian axis/ )
@@ -591,8 +592,10 @@ sub QErunDFPT
     }
   }
   close IN;
-  $hashRef=>{'structure'}->{'epsilon'} = ( $epsilon[0] + $epsilon[1] + $epsilon[2] ) / 3;
+  $hashRef->{'structure'}->{'epsilon'} = ( $epsilon[0] + $epsilon[1] + $epsilon[2] ) / 3;
 
+  return 9 if( $epsilon[0] < 0 );
+  return 0;
 }
 
 

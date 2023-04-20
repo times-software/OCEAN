@@ -582,6 +582,7 @@ unless( $newDftData->{'epsilon'}->{'complete'} ) {
   } else {
     die "DFPT not enabled for ABINIT yet\n";
   }
+  die "Failed to run DFPT\n" if( $errorCode != 0 );
 
   $newDftData->{'epsilon'}->{'complete'} = JSON::PP::true;
   $newDftData->{'epsilon'}->{'time'} = tv_interval( $t0 );
