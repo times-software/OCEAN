@@ -594,7 +594,9 @@ unless( $newDftData->{'epsilon'}->{'complete'} ) {
   print "Epsilon calculation complete\n";
 } else {
   $newDftData->{'epsilon'}->{'time'} = $dftData->{'epsilon'}->{'time'};
-  $newDftData->{'structure'}->{'epsilon'} = $newDftData->{'epsilon'}->{'epsilon'};
+  unless ( $newDftData->{'epsilon'}->{'method'} eq "input" ) {
+    $newDftData->{'structure'}->{'epsilon'} = $newDftData->{'epsilon'}->{'epsilon'};
+  }
 }
 
 
