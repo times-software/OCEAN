@@ -351,7 +351,7 @@ foreach my $hashRef (@nscf_InitialList) {
     } 
     else {  # else, using fband
       unless( defined( $newDftData->{'znscf'}->{ $dirname }->{'fband'} ) &&
-              $newDftData->{'znscf'}->{ $dirname }->{'fband'} > $hashRef->{'fband'} ) {
+              $newDftData->{'znscf'}->{ $dirname }->{'fband'} >= $hashRef->{'fband'} ) {
       $addThisCalculation = 1;
       }
     }
