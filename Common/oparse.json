@@ -64,6 +64,7 @@
          "broaden" : 0.1,
          "bwflg" : false,
          "decut" : 10,
+         "epsilon_threshold" : 0,
          "gmres" : {
             "echamp" : true,
             "elist" : [
@@ -220,7 +221,14 @@
       "tmp_dir" : "undefined",
       "toldfe" : 1e-10,
       "tolwfr" : 1e-12,
-      "verbatim" : ""
+      "verbatim" : {
+         "abinit" : "",
+         "qe" : {
+            "control" : "",
+            "electrons" : "",
+            "system" : ""
+         }
+      }
    },
    "opf" : {
       "program" : "shirley",

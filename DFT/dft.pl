@@ -219,6 +219,8 @@ copyAndCompare( $newDftData->{'epsilon'}, $commonOceanData->{'dft'}->{'epsilon'}
 if( $newDftData->{'epsilon'}->{'method'} eq "input" ) {
   $newDftData->{'epsilon'}->{'complete'} = JSON::PP::true; # if( $newDftData->{'epsilon'}->{'method'} eq "input" );
   $newDftData->{'structure'}->{'epsilon'} = $commonOceanData->{'structure'}->{'epsilon'};
+} elsif( $newDftData->{'epsilon'}->{'complete'} ) {
+  $newDftData->{'epsilon'}->{'epsilon'} = $dftData->{'epsilon'}->{'epsilon'};
 }
 
 my @nscf_InitialList = ();
@@ -349,7 +351,7 @@ foreach my $hashRef (@nscf_InitialList) {
     } 
     else {  # else, using fband
       unless( defined( $newDftData->{'znscf'}->{ $dirname }->{'fband'} ) &&
-              $newDftData->{'znscf'}->{ $dirname }->{'fband'} > $hashRef->{'fband'} ) {
+              $newDftData->{'znscf'}->{ $dirname }->{'fband'} >= $hashRef->{'fband'} ) {
       $addThisCalculation = 1;
       }
     }
@@ -582,6 +584,7 @@ unless( $newDftData->{'epsilon'}->{'complete'} ) {
   } else {
     die "DFPT not enabled for ABINIT yet\n";
   }
+  die "Failed to run DFPT\n" if( $errorCode != 0 );
 
   $newDftData->{'epsilon'}->{'complete'} = JSON::PP::true;
   $newDftData->{'epsilon'}->{'time'} = tv_interval( $t0 );
@@ -591,6 +594,7 @@ unless( $newDftData->{'epsilon'}->{'complete'} ) {
   print "Epsilon calculation complete\n";
 } else {
   $newDftData->{'epsilon'}->{'time'} = $dftData->{'epsilon'}->{'time'};
+  $newDftData->{'structure'}->{'epsilon'} = $newDftData->{'epsilon'}->{'epsilon'};
 }
 
 
@@ -959,6 +963,25 @@ sub recursiveCompare
     for( my $i = 0; $i < scalar @{ $newRef }; $i++ )
     {
       recursiveCompare( @{$newRef}[$i], @{$oldRef}[$i], $complete );
+      return unless( $complete->{'complete'} );
+    }
+  }
+  elsif( ref( $newRef ) eq 'HASH' )
+  {
+    unless( ref( $oldRef ) eq 'HASH' ) {
+      $complete->{'complete'} = JSON::PP::false;
+      return;
+    }
+    if( scalar keys %{$newRef} != scalar keys %{$oldRef} ) {
+      $complete->{'complete'} = JSON::PP::false;
+      return;
+    }
+    foreach my $key (keys %{$newRef} ) {
+      unless( exists $oldRef->{$key} ) {
+        $complete->{'complete'} = JSON::PP::false;
+        return;
+      }
+      recursiveCompare( $newRef->{$key}, $oldRef->{$key}, $complete );
       return unless( $complete->{'complete'} );
     }
   }

@@ -90,7 +90,8 @@ subroutine OCEAN_read_tmels( sys, p, file_selector, ierr )
       do ik = 1, sys%nkpts
         ! Read in the tmels
 #ifdef MPI
-        offset = nbv * ( nbc(2) - nbc(1) + 1 ) * ( ik - 1 )
+        offset = nbv * ( nbc(2) - nbc(1) + 1 ) * ( ik - 1 ) &
+               + ( int( (ispn-1)* sys%nkpts, MPI_OFFSET_KIND) * int(nbv * ( nbc(2) - nbc(1) + 1 ), MPI_OFFSET_KIND) )
         elements = nbv * ( nbc(2) - nbc(1) + 1 )
         call MPI_FILE_READ_AT_ALL( FH, offset, psi_in, elements, &
                                    MPI_DOUBLE_COMPLEX, MPI_STATUS_IGNORE, ierr )
@@ -125,6 +126,13 @@ subroutine OCEAN_read_tmels( sys, p, file_selector, ierr )
          write(6,*) 'pnorm=', su, sys%cur_run%val_bands, sys%cur_run%num_bands, ispn, ibeta
 
     enddo
+    ! If using force_val_ham_spin.ipt then copy the transition matrix elements
+    if( sys%valence_ham_spin .gt. sys%nspn ) then
+      write(6,*) '--!!!!!!! Using force_val_ham_spin'
+      p%valr( :, :, :, 4 ) = p%valr( :, :, :, 1 )
+      p%vali( :, :, :, 4 ) = p%vali( :, :, :, 1 )
+      write(6,*) '--!!!!!!!'
+    endif
 
 #ifdef MPI
     call MPI_FILE_CLOSE( fh, ierr )

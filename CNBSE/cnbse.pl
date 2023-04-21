@@ -1115,6 +1115,12 @@ sub writeValAuxFiles {
     }
   }
 
+  if( exists $hashRef->{'bse'}->{'val'}->{'epsilon_threshold'} ) {
+    open OUT, ">", "conveps.ipt" or die "Failed to open conveps.ipt\n$!";
+    printf OUT "%g\n", $hashRef->{'bse'}->{'val'}->{'epsilon_threshold'};
+    close OUT;
+  }
+
   #TODO GW control
   open OUT, ">", "decut" or die "Failed to open decut\n$!";
   print OUT $hashRef->{'bse'}->{'val'}->{'decut'} . "\n";

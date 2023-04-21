@@ -1,3 +1,17 @@
+## v. 3.0.4
+
+#### Minor features
+ 1. The valence BSE can now self-consistently determine the static dielectric 
+    constant by setting bse.val.epsilon_threshold to be > 0. 
+ 2. When using QuantumESPRESSO, the static dielctric constant of insulating 
+    systems can be determined using density-functional perturbation theory. 
+    This is attempted automatically if there is no dielectric constant set in 
+    the input file. Systems run as metals will use a default value. 
+
+#### Bug fixes
+ 1. Improved compatibility with older versions of QE. 
+ 2. Problems in the valence BSE with spin systems for both valence and RIXS.
+
 ## v. 3.0.3
 
 #### Bug fixes
