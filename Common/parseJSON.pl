@@ -463,7 +463,7 @@ foreach my $key ( keys %inputHash )
       $value =~ s/\s+$//;
     }
     # If we did legacy translation, patch up the incompatibilities
-    if( $key =~ m/^\s*epsilon\s*$/ )
+    if( $key =~ m/structure.epsilon/ )
     {
       if( $value =~ m/dfpt/ )
       {
