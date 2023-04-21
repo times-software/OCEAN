@@ -543,8 +543,10 @@ sub QErunDFPT
 
   my $nnode = 1;
   my $npool = 1;
+  my $ncpus = 1;
   if( open IN, "<", "scf.out" ) {
     while(<IN>) {
+      $ncpus = $1 if( $_ =~ m/Number of MPI processes:\s+(\d+)/ );
       $nnode = $1 if( $_ =~ m/(\d+)\s+nodes/ );
       if( $_ =~ m/npool\s+=\s+(\d+)/ )
       {
@@ -568,8 +570,14 @@ sub QErunDFPT
   close PH;
 
   my $n = $nnode;
-  my $prefix = $hashRef->{'computer'}->{'para_prefix'};
   $n = $npool if( $npool > $nnode );
+  $ncpus = $n if( $n > $ncpus );
+  while( $ncpus > 1 && ( $ncpus % $n != 0 ) ) {
+    $ncpus --;
+  }
+  my $prefix = $hashRef->{'computer'}->{'para_prefix'};
+  $prefix =~ s/$hashRef->{'computer'}->{'ncpus'}/$ncpus/ if( $hashRef->{'computer'}->{'ncpus'} != $ncpus );
+  
   print  "$prefix $ENV{'OCEAN_ESPRESSO_PH'} -npool $n  -inp ph.in > ph.out 2>&1\n";
   system("$prefix $ENV{'OCEAN_ESPRESSO_PH'} -npool $n  -inp ph.in > ph.out 2>&1\n") == 0
     or die "Failed to run ph.x\n";
