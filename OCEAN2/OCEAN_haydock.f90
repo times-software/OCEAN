@@ -2309,7 +2309,7 @@ module OCEAN_haydock
 
     eps = 1.0_dp - fact / al - fact / be
 
-    tcEps = dble( eps )
+    tcEps = abs( dble( eps ) )
 
     if( iter .lt. 3 ) then
       eps1Conv( iter ) = tcEps
@@ -2323,11 +2323,19 @@ module OCEAN_haydock
       if( max( sys%epsilon0, eps1Conv( 3 ) ) .lt. 100.0d0 ) then
         write(6,'(3(A,F9.4,X))') 'Est. eps1(0): ', eps1Conv( 3 ), ';  Avg: ', tcEps, ';  Current: ', sys%epsilon0
       else
-        write(6,'(3(A,E9.1,X))') 'Est. eps1(0): ', eps1Conv( 3 ), ';  Avg: ', tcEps, ';  Current: ', sys%epsilon0
+        write(6,'(3(A,E24.12,X))') 'Est. eps1(0): ', eps1Conv( 3 ), ';  Avg: ', tcEps, ';  Current: ', sys%epsilon0
       endif
 
       ! change to percentage
       if( ( maxval(eps1Conv(:)) - minval(eps1Conv(:)) )/tcEps .gt. 0.05_dp ) return
+      if( abs( sys%epsilon0 - tcEps ) / ( sys%epsilon0 + tcEps - 2.0_dp ) &
+                  .lt. 10.0_DP * sys%epsConvergeThreshold ) then
+        if( ( maxval(eps1Conv(:)) - minval(eps1Conv(:)) )/tcEps .gt. 0.5_dp * sys%epsConvergeThreshold ) then
+!            write(6,*) 'C', ( maxval(eps1Conv(:)) - minval(eps1Conv(:)) )/tcEps
+            return
+        endif
+      endif
+          
 
       if( abs( sys%epsilon0 - tcEps ) .gt. ( maxval(eps1Conv(:)) - minval(eps1Conv(:)) ) .and. &
           abs( sys%epsilon0 - tcEps ) / ( sys%epsilon0 + tcEps - 2.0_dp ) & 
