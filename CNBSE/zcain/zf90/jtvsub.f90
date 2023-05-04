@@ -19,24 +19,14 @@ subroutine jtvsub( lmin, lmax, nproj, npmax, lc, nbsemel, powmax, ifcn, stext, e
   real( kind = kind(1.0d0)) :: ifcn( npmax, 0 : powmax, lmin : lmax)
   complex( kind = kind( 1.0d0 ) ) :: nbsemel( npmax, -lmax : lmax, lmin : lmax, -lc : lc )
   !
-  integer :: i, j, l, m, mc, lpick, lt
+  integer :: i, j, l, m, mc, lpick, lt, lldos, mldos, msign
   real( kind = kind( 1.0d0 ) ) :: edot, qdot, jlmel( npmax, 0 : lmax + lc, lmin : lmax ), pl
+  real( kind = kind( 1.0d0 ) ) :: ldosmel( npmax  )
   complex( kind = kind( 1.0d0 )) :: csu( powmax ), ylm, ylcmc, iqmag, rp, rm1, angint, mip, cpr
+  logical :: mdos
   !
   lpick = -1
   spcttype = stext
-  if ( stext .eq. 'ldos0' ) then
-     spcttype = 'NRIXS'
-     lpick = 0
-  end if
-  if ( stext .eq. 'ldos1' ) then
-     spcttype = 'NRIXS'
-     lpick = 1
-  end if
-  if ( stext .eq. 'ldos2' ) then
-     spcttype = 'NRIXS'
-     lpick = 2
-  end if
   select case( spcttype(1:2) )
     case( 's-' )
       lpick = 0
@@ -56,9 +46,45 @@ subroutine jtvsub( lmin, lmax, nproj, npmax, lc, nbsemel, powmax, ifcn, stext, e
      end do
   end if
   !
-  write ( 6, * ) 'ck1'
   if ( spcttype(1:2) .eq. 'qR' ) call jlmatfetch( lc, lmin, lmax, npmax, nproj, qmag, jlmel, powmax )
-  write ( 6, * ) 'ck2'
+  if ( spcttype(1:4) .eq. 'ldos' ) then
+    spcttype = 'ldos'
+    call ldosfetch( stext, lmin, lmax, npmax, nproj, qmag, ldosmel )
+    select case (stext(5:5) )
+      case( '0' )
+        lldos = 0
+      case( '1' )
+        lldos = 1
+      case( '2' )
+        lldos = 2
+      case( '3' )
+        lldos = 3
+    end select
+    select case (stext(6:6) )
+      case ('-')
+        i = 7
+        msign = -1
+      case default 
+        i = 6
+        msign = 1
+    end select
+    select case (stext(i:i) )
+      case('0')
+        mldos = 0
+        mdos = .true.
+      case('1')
+        mldos = 1*msign
+        mdos = .true.
+      case('2')
+        mldos = 2*msign
+        mdos = .true.
+      case('3')
+        mldos = 3*msign
+        mdos = .true.
+      case default
+        mdos = .false.
+    end select
+  endif
   !
   ! We will need powers of ( -i q )
   rm1 = -1
@@ -166,6 +192,24 @@ subroutine jtvsub( lmin, lmax, nproj, npmax, lc, nbsemel, powmax, ifcn, stext, e
               enddo
               nbsemel( :, m, l, mc ) = nbsemel( :, m, l, mc ) * rm1 / qmag
               !
+           case ( 'ldos' )
+              if( l .eq. lldos ) then
+                if( mdos ) then
+                  if( m .eq. 0 .and. m .eq. mldos ) then
+                    nbsemel( 1 : nproj( l ), m, l, mc ) = ldosmel( 1 : nproj(l) )
+                  elseif( m .eq. -mldos ) then
+                    nbsemel( 1 : nproj( l ), m, l, mc ) = 1.0d0/sqrt(2.0d0) * ldosmel( 1 : nproj(l) )
+                  elseif( m .eq. mldos ) then
+                    if( msign .gt. 0 ) then
+                      nbsemel( 1 : nproj( l ), m, l, mc ) = (-1)**l * 1.0d0/sqrt(2.0d0) * ldosmel( 1 : nproj(l) )
+                    else
+                      nbsemel( 1 : nproj( l ), m, l, mc ) = (-1)**l * -1.0d0/sqrt(2.0d0) * ldosmel( 1 : nproj(l) )
+                    endif
+                  endif
+                else
+                  nbsemel( 1 : nproj( l ), m, l, mc ) = ldosmel( 1 : nproj(l) ) !/ sqrt( dble(2*l+1) )
+                endif
+              endif
            case default
               write(6,*) "Photon type was not recognized. Must be one of the following:"
               write(6,*) "      dipole, quad, quadalone, NRIXS, qRaman"

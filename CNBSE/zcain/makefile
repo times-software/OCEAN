@@ -1,7 +1,7 @@
 OBJGEN = zobj/limel.o zobj/jimel.o zobj/getylm.o zobj/getprefs.o \
          zobj/nbseprjprep.o zobj/nbseprjnproj.o zobj/fancyvector.o
 OBJELS = $(OBJGEN) zobj/elssub.o zobj/confmel.o zobj/sphidriver.o
-OBJJTV = $(OBJGEN) zobj/jtvsub.o zobj/cmjtv.o zobj/sdjtv.o zobj/jlmatfetch.o zobj/ckmels.o
+OBJJTV = $(OBJGEN) zobj/jtvsub.o zobj/cmjtv.o zobj/sdjtv.o zobj/jlmatfetch.o zobj/ckmels.o zobj/ldosfetch.o
 #
 all: zexe/melcalc.x zexe/dotter.x zexe/meljtv.x
 #
@@ -26,6 +26,8 @@ zobj/elssub.o: zf90/elssub.f90
 	$(COMP) -c $(OPTS) -o zobj/elssub.o zf90/elssub.f90
 zobj/jlmatfetch.o: zf90/jlmatfetch.f90
 	$(COMP) -c $(OPTS) -o zobj/jlmatfetch.o zf90/jlmatfetch.f90
+zobj/ldosfetch.o: zf90/ldosfetch.f90
+	$(COMP) -c $(OPTS) -o zobj/ldosfetch.o zf90/ldosfetch.f90
 zobj/ckmels.o: zf90/ckmels.f90
 	$(COMP) -c $(OPTS) -o zobj/ckmels.o zf90/ckmels.f90
 zobj/jtvsub.o: zf90/jtvsub.f90
