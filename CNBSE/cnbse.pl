@@ -907,6 +907,10 @@ sub writeBSEinCore {
     } else { die "Failed to write gmres in writeBSEinCore\n"; }
 
 
+    open OUT, ">", "gaussBroaden.ipt" or die "Failed to open gaussBroaden.ipt\n$!";
+    printf OUT "%g\n", $hashRef->{'bse'}->{'core'}->{'gauss_broaden'};
+    close OUT;
+
   } else { die "Unsupported calc mode in writeBSEinCore\n"; }
 
 
