@@ -23,6 +23,7 @@ module OCEAN_system
     real(DP)         :: epsConvergeThreshold
     real(DP)         :: haydockConvergeThreshold
     real(DP)         :: interactionScale
+    real(DP)         :: gaussBroaden
     integer( S_INT ) :: nkpts
     integer( S_INT ) :: nxpts
     integer( S_INT ) :: nalpha
@@ -258,6 +259,16 @@ module OCEAN_system
         ! Need to run mult to get spin-orbit
         sys%long_range = .false.
       endif
+
+      inquire( file='gaussBroaden.ipt', exist=exst )
+      if( exst ) then
+        open(unit=99, file='gaussBroaden.ipt', form='formatted',status='old')
+        rewind(99)
+        read(99,*) sys%gaussBroaden
+        close(99)
+      else
+        sys%gaussBroaden = 0.0_DP
+      endif
       
       inquire( file='rpa', exist=exst )
       if( exst ) then
@@ -400,6 +411,8 @@ module OCEAN_system
 
     if( nproc .gt. 1 ) then
 
+    call MPI_BCAST( sys%gaussBroaden, 1, MPI_DOUBLE_PRECISION, root, comm, ierr )
+    if( ierr .ne. MPI_SUCCESS ) goto 111
     call MPI_BCAST( sys%interactionScale, 1, MPI_DOUBLE_PRECISION, root, comm, ierr )
     if( ierr .ne. MPI_SUCCESS ) goto 111
     call MPI_BCAST( sys%celvol, 1, MPI_DOUBLE_PRECISION, root, comm, ierr )

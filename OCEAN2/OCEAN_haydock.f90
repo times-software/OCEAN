@@ -24,7 +24,7 @@ module OCEAN_haydock
   REAL(DP), ALLOCATABLE :: imag_c( : )
  
 
-  REAL(DP) :: el, eh, gam0, eps, nval,  ebase
+  REAL(DP) :: el, eh, gam0, eps, nval,  ebase, gamGauss
   REAL(DP) :: gres, gprc, ffff, ener
   REAL(DP) :: e_start, e_stop, e_step
   REAL(DP), ALLOCATABLE :: e_list( : )
@@ -1801,6 +1801,10 @@ module OCEAN_haydock
     real(DP) :: e, gam, dr, di, ener, spct( 0 : 1 ), spkk( 0 : 1 )
     complex(DP) :: ctmp, disc, delta, rm1
     !
+    if( gamGauss .gt. (gam0/10.0_DP ) ) then
+      call write_core_Voigt( fh, iter, kpref )
+      return
+    endif
     write( fh, '(A,1i5,A,1e15.8,A,1e15.8)' ) '#   iter=', iter, '   gam=', gam0, '   kpref=', kpref
     write( fh, '(5(A15,1x))' ) '#   Energy', 'Spect', 'Spect(0)', 'SPKK', 'SPKK(0)'
     rm1 = -1; rm1 = sqrt( rm1 )
@@ -1853,6 +1857,101 @@ module OCEAN_haydock
        write ( fh, '(5(1e15.8,1x))') ener, spct( 1 ), spct( 0 ), spkk( 1 ), spkk( 0 )
     end do
   end subroutine write_core
+
+  subroutine write_core_Voigt( fh, iter, kpref ) 
+    use OCEAN_constants, only : Hartree2eV
+    implicit none
+    integer, intent( in ) :: fh, iter
+    real(DP), intent( in ) :: kpref
+    !
+    integer :: ie, jdamp, jj, ii, nstep, nratio, istart
+    real(DP), external :: gamfcn
+    real(DP) :: e, gam, dr, di, ener, spct( 0 : 1 ), spkk( 0 : 1 )
+    complex(DP) :: ctmp, disc, delta, rm1
+    !
+    real(DP) :: estep, prefactor, inv2sigsquared, ee, pref, de
+    real(DP), allocatable :: spct_array( :, :), spkk_array( :, : )
+
+    de = ( eh - el ) / dble(ne)
+    estep = min( gam0, gamGauss ) / 2.0_DP
+    nratio = ( ( de - estep ) / estep ) + 1
+    estep = de / real(nratio,DP)
+
+    nstep = ( ( 2.99999_DP * gamGauss ) / estep ) + 1
+    prefactor = estep / ( gamGauss * 2.506628274631_dp )
+    inv2sigsquared = 1.0_DP / ( 2.0_DP * gamGauss * gamGauss )
+
+    write(6,*) gam0, gamGauss, nstep, nratio
+    allocate( spct_array( -nstep : nstep, 0:1 ), spkk_array( -nstep : nstep, 0:1 ) )
+
+    write( fh, '(A,1i5,A,1e15.8,A,1e15.8)' ) '#   iter=', iter, '   gam=', gam0, '   kpref=', kpref
+    write( fh, '(5(A15,1x))' ) '#   Energy', 'Spect', 'Spect(0)', 'SPKK', 'SPKK(0)'
+    rm1 = -1; rm1 = sqrt( rm1 ) 
+    do ie = 0, 2 * ne, 2
+      spct(:) = 0.0_DP
+      spkk(:) = 0.0_DP
+
+      ee = el + ( eh - el ) * dble( ie ) / dble( 2 * ne ) 
+
+
+      ! For each energy step of the output spectra (ie), we are going to integrate the over 
+      ! neighboring energy points to include the Gaussian broadening using a finer grid with
+      ! step size 'estep' instead of step size 'de'. Some (most) of this grid can be reused
+      ! as we move from ie to ie + 1, except of course the first time.
+      ! Here we set the bounds of the fine grid that need to be recalculated, and shift the 
+      ! part that can be reused.
+      if( ie .eq. 0 ) then
+        istart = -nstep
+      else
+        istart = nstep - nratio
+        do ii = -nstep, nstep - nratio
+          spct_array( ii, 0 ) = spct_array( ii+nratio, 0 )
+          spct_array( ii, 1 ) = spct_array( ii+nratio, 1 )
+          spkk_array( ii, 0 ) = spkk_array( ii+nratio, 0 )
+          spkk_array( ii, 1 ) = spkk_array( ii+nratio, 1 )
+        enddo
+      endif
+
+      do ii = istart, nstep
+        e = ee + real(ii,DP) * estep
+      
+        do jdamp = 0, 1
+          gam= gam0 + gamfcn( e, nval, eps ) * dble( jdamp )
+          ctmp = cmplx( e - real_a( iter - 1 ), gam + imag_a( iter - 1 ), DP )
+          disc = sqrt( ctmp ** 2 - 4 * cmplx( real_b( iter ), imag_b( iter ) ) & 
+                                     * cmplx( real_c( iter ), imag_c( iter ) ) )
+          if( aimag( disc ) .gt. 0.0d0 ) then
+            delta = (ctmp + disc ) / 2.0_dp
+          else
+            delta = (ctmp - disc ) / 2.0_dp
+          endif
+      
+    
+          do jj = iter - 1, 0, -1
+            ctmp = cmplx( real_b( jj+1 ), imag_b( jj+1 ) ) * cmplx( real_c( jj+1 ), imag_c( jj+1 ) )
+            delta = cmplx( e - real_a( jj ), gam + imag_a( jj ) ) - ctmp / delta
+          end do
+          dr = delta
+          di = abs(aimag( delta ) )
+          spct_array( ii, jdamp ) = prefactor * kpref * di / ( dr ** 2 + di ** 2 )
+          spkk_array( ii, jdamp ) = prefactor * kpref * dr / ( dr ** 2 + di ** 2 )
+        end do
+      end do
+
+      do ii = -nstep, nstep
+        pref = exp( -real(ii**2,DP)* estep**2 * inv2sigsquared )
+        spct( 0 ) = spct( 0 ) + pref * spct_array( ii, 0 )
+        spct( 1 ) = spct( 1 ) + pref * spct_array( ii, 1 )
+        spkk( 0 ) = spkk( 0 ) + pref * spkk_array( ii, 0 )
+        spkk( 1 ) = spkk( 1 ) + pref * spkk_array( ii, 1 )
+      enddo
+
+      ener = ebase + Hartree2eV * e
+      write ( fh, '(5(1e15.8,1x))') ener, spct( 1 ), spct( 0 ), spkk( 1 ), spkk( 0 )
+    end do 
+
+    deallocate( spct_array, spkk_array )
+  end subroutine write_core_Voigt
 
   subroutine calc_spect_core( sp, iter, kpref )
     use OCEAN_constants, only : Hartree2eV, eV2Hartree
@@ -1958,6 +2057,8 @@ module OCEAN_haydock
     character(len=4) :: inv_style
     real( DP ) :: dumf
     real( DP ), parameter :: default_gam0 = 0.1_DP
+
+    gamGauss = sys%gaussBroaden * eV2Hartree
 
     if( .not. is_first ) goto 10
     is_first = .false.
