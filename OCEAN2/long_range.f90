@@ -43,7 +43,7 @@ module ocean_long_range
   real( DP ) :: iso_cut = 0.0_DP
   logical :: isolated = .false.
 
-  logical :: use_sp = .true.
+  logical :: use_sp = .false.
   
   type(fft_obj) :: fo
 
@@ -1808,12 +1808,12 @@ module ocean_long_range
                   kiter = kiter + 1
                   alf( : ) = xk( : ) + fr( : ) - my_tau( : )
                   r = sqrt( dot_product( alf, matmul( amet, alf ) ) )
-                  dir( : ) = matmul( sys%avec(:,:), alf(:) ) / r
                   if( isolated .and. r .gt. iso_cut ) then
                     potn = 0.0_DP
                   elseif ( r .gt. rtab( nptab ) ) then
 
                     if( sys%have3dEpsilon ) then
+                      dir( : ) = matmul( sys%avec(:,:), alf(:) ) / r
                       potn = ( dir(1)**2/sys%epsilon3D(1) + dir(2)**2/sys%epsilon3D(2) &
                              + dir(3)**2/sys%epsilon3D(3) ) / r
                       if( r .lt. rtab( nptab ) + 5.0_DP ) then
@@ -1830,7 +1830,7 @@ module ocean_long_range
 !                    write( 11111, '(3I3,5F24.12)' ) nint(xk(:)), alf(:), r, potn*pbc_prefac(3)
 !                  endif
 !                  if( myid .eq. root ) write(997,'(2E24.12,3F16.8)') r, potn, dir(:)!, sys%epsilon3D(:)
-                  W( kiter, xiter - my_start_nx + 1 ) =  potn * pbc_prefac(3)
+                  W( kiter, xiter - my_start_nx + 1 ) =  potn * pbc_prefac(3) * sys%interactionScale
                 end do
               end do
             end do

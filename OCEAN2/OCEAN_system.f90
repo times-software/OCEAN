@@ -633,6 +633,8 @@ module OCEAN_system
 112       continue 
           write ( 6, '(1a15,3f10.5)' ) 'snatched alpha=', tau( : )
           close(98)
+
+          bwflg = .false.
         endif
 
         if( have_val ) then

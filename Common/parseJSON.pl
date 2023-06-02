@@ -463,16 +463,16 @@ foreach my $key ( keys %inputHash )
       $value =~ s/\s+$//;
     }
     # If we did legacy translation, patch up the incompatibilities
-    if( $key =~ m/epsilon/ )
+    if( $key =~ m/structure.epsilon/ )
     {
       if( $value =~ m/dfpt/ )
       {
          $value = 0;
-         $config->{'dft'}->{'epsilon'}->{'method'} = 'dfpt'
+         $config->{'dft'}->{'epsilon'}->{'method'} = 'dfpt';
       }
       else
       {
-         $config->{'dft'}->{'epsilon'}->{'method'} = 'input'
+         $config->{'dft'}->{'epsilon'}->{'method'} = 'input';
       }
     }
     elsif( $key =~ m/core_offset/ )

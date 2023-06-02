@@ -444,7 +444,11 @@ module screen_centralPotential
 
     write(fileName,'(A17,I3.3,A1,I2.2,A1,I2.2)') 'zpawinfo/vc_barez', z, 'n', n, 'l', l
     fh = 99
-    open( unit=fh, file=fileName, form='formatted', status='old' )
+    open( unit=fh, file=fileName, form='formatted', status='old', iostat=ierr )
+    if( ierr .ne. 0 ) then
+      write(6,*) 'Failed to open ', fileName, ' with error ', ierr
+      return
+    endif
     rewind( 99 )
 
     maxLength = 4000

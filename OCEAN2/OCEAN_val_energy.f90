@@ -613,7 +613,7 @@ module OCEAN_val_energy
             do biter2 = 1, sys%cur_run%val_bands
               if( kiter .eq. 1 .and. myid .eq. 0 ) write(6,*) 'clipl: ', clipl, val_energies( biter2, kiter, ispn )
               if ( val_energies( biter2, kiter, ispn ) .lt. efermi  .and. &
-                    ( val_energies( biter2, kiter, ispn ) .gt. clipl )) then
+                    ( val_energies( biter2, kiter, ispn ) .ge. clipl )) then
 
                 do biter1 = 1, sys%cur_run%num_bands
                   if ( ( con_energies( biter1, kiter, jspn ) .gt. efermi ) .and. &
@@ -647,9 +647,9 @@ module OCEAN_val_energy
           do biter2 = 1, ( nelectron / 2 ) - sys%brange( 1 ) + 1
 !            if( kiter .eq. 1 .and. myid .eq. 0 ) write(6,*) 'clipl: ', clipl, val_energies( biter2, kiter, 1 )
 !            if( (.not. have_clipl) .or.  val_energies( biter2, kiter, 1 ) .gt. clipl ) then
-            if( val_energies( biter2, kiter, 1 ) .gt. clipl ) then
+            if( val_energies( biter2, kiter, 1 ) .ge. clipl ) then
               do biter1 = 2 - sys%brange( 3 ) + ( nelectron / 2 ), sys%cur_run%num_bands
-                if(  con_energies( biter1, kiter, 1 ) .lt. cliph ) then
+                if(  con_energies( biter1, kiter, 1 ) .le. cliph ) then
                       allow%valr( biter1, biter2, kiter, ibeta ) = 1.0_dp
                       allow%vali( biter1, biter2, kiter, ibeta ) = 1.0_dp
                 endif

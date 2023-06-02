@@ -327,7 +327,7 @@ sub QEparseOut
     open SCF, "<", $xmlFile or die "Failed to open $xmlFile\n";
 
     print "QE62!!\n";
-    $hashRef->{'version'} = '62';
+    $hashRef->{'version'} = '6.2';
 
     open OUT, ">", "wvfn.ipt" or die $!;
     print OUT "qe62\n";
@@ -354,8 +354,10 @@ sub QEparseOut
       {
         $fermi = ($1+$3)/2;
       }
-      elsif( $scf_line =~ m/NAME=\"PWSCF\" VERSION=\"([\d\.\w]+)\">/ )
+      elsif( $scf_line =~ m/NAME=\"PWSCF\" VERSION=\"([\d\.\w]+)\"/ )
       {
+        $hashRef->{'versionString'} = $1;
+        $hashRef->{'versionString'} =~ m/(^\d+\.?\d*)/;
         $hashRef->{'version'} = $1;
       }
       elsif( $scf_line =~ m/wall>(\d+\.\d+[eE]?\d+)/ )
@@ -378,6 +380,10 @@ sub QEparseOut
       {
         $hashRef->{'nelec'} = $1*1;
       }
+      elsif( $scf_line =~ m/<n_scf_steps>(\d+)</ ) 
+      {
+        $errorCode = 0 if( $1 > 0 );
+      }
     }
     close SCF;
     if( defined $highest && defined $lowest ) {
@@ -396,6 +402,12 @@ sub QEparseOut
     return $errorCode; 
   } elsif( -e catfile( "Out", "system.save", "data-file.xml" ) ) {
 
+    print "QE54!!\n";
+    $hashRef->{'version'} = '5.4';
+    
+    open OUT, ">", "wvfn.ipt" or die $!;
+    print OUT "qe54\n";
+    close OUT;
     my $units;
 
     open SCF, "<", catfile( "Out", "system.save", "data-file.xml" ) or die "Failed to open $xmlFile\n";
@@ -406,14 +418,26 @@ sub QEparseOut
       {
         $units = $1;
       }
-      if( $scf_line =~ m/\<FERMI_ENERGY/ )
+      elsif( $scf_line =~ m/\<FERMI_ENERGY/ )
       {
         $scf_line = <SCF>;
         $scf_line =~ m/([-+]?\d+\.\d+[Ee]?[-+]?(\d+)?)/ or die "$scf_line";
         $fermi = $1;
       }
+      elsif(  $scf_line =~ m/NAME=\"PWSCF\" VERSION=\"([\d\.\w]+)\"/ )
+      {
+        $hashRef->{'versionString'} = $1;
+        $hashRef->{'versionString'} =~ m/(^\d+\.?\d*)/;
+#        $hashRef->{'versionString'} =~ m/([\d\.]+)/;
+        $hashRef->{'version'} = $1;
+#        print ">>>>>>> $hashRef->{'version'} <<<<<<<<< \n";
+      }
+
     }
     close SCF;
+    if( $hashRef->{'version'} < 1 ) {
+      die "Failed to match version : $hashRef->{'version'}\n";
+    }
     if( defined( $fermi ) ) {
       if( $units =~ m/hartree/i )
       {
@@ -427,8 +451,19 @@ sub QEparseOut
       $hashRef->{'fermi'} = $fermi;
       $errorCode = 0;
     }
-  } else {
 
+    open OUTFILE, "<", $outFile or die "Failed to open $outFile\n";
+    while( my $line=<OUTFILE> )
+    {
+      if( $line =~ m/number of electrons\s+=\s+(\d+\.\d+)/ )
+      {
+        $hashRef->{'nelec'} = $1*1;
+      }
+    }
+    close OUTFILE;
+
+  } else {
+  
     open OUTFILE, "<", $outFile or die "Failed to open $outFile\n";
     while( my $line=<OUTFILE> )
     {
@@ -458,7 +493,7 @@ sub QEparseOut
         print "Fermi level found at $fermi eV\n";
         $fermi = $fermi/13.60569253/2;
       }
-      elsif( $line =~ m/highest occupied, lowest unoccupied level (ev):\s+([+-]?\d+\.?\d+)\s+([+-]?\d+\.?\d+)/ )
+      elsif( $line =~ m/highest occupied, lowest unoccupied level \(ev\):\s+([+-]?\d+\.?\d+)\s+([+-]?\d+\.?\d+)/ )
       {
         $fermi = ($1+$2)/2;
         $hashRef->{'highest'} = $1/13.60569253/2;
@@ -470,6 +505,15 @@ sub QEparseOut
       {
         $hashRef->{'nelec'} = $1*1;
       }
+      elsif(  $line =~ m/PWSCF\s+v\.([\d\.\w]+)/ )
+      {
+        $hashRef->{'versionString'} = $1;
+#        $hashRef->{'versionString'} =~ m/([\d\.]+)/;
+        $hashRef->{'versionString'} =~ m/(^\d+\.?\d*)/;
+        $hashRef->{'version'} = $1;
+#        print ">>>>>>> $hashRef->{'version'} <<<<<<<<< \n";
+      } 
+
     }
     $hashRef->{'fermi'} = $fermi if( defined( $fermi ) );
     close OUTFILE;
@@ -478,7 +522,7 @@ sub QEparseOut
   print "FERMI: $hashRef->{'fermi'}\n";
 
   if( exists( $hashRef->{'lowest'} ) ){
-    if( $hashRef->{'lowest'} >= $hashRef->{'highest'} ) {
+    if( $hashRef->{'lowest'} <= $hashRef->{'highest'} ) {
       print "ERROR!!\n  Insulator selected, but there is no gap.\n"
                     ."  This run will not continue\n";
       $errorCode = 10;
@@ -499,8 +543,10 @@ sub QErunDFPT
 
   my $nnode = 1;
   my $npool = 1;
+  my $ncpus = 1;
   if( open IN, "<", "scf.out" ) {
     while(<IN>) {
+      $ncpus = $1 if( $_ =~ m/Number of MPI processes:\s+(\d+)/ );
       $nnode = $1 if( $_ =~ m/(\d+)\s+nodes/ );
       if( $_ =~ m/npool\s+=\s+(\d+)/ )
       {
@@ -524,14 +570,21 @@ sub QErunDFPT
   close PH;
 
   my $n = $nnode;
-  my $prefix = $hashRef->{'computer'}->{'para_prefix'};
   $n = $npool if( $npool > $nnode );
+  $ncpus = $n if( $n > $ncpus );
+  while( $ncpus > 1 && ( $ncpus % $n != 0 ) ) {
+    $ncpus --;
+  }
+  my $prefix = $hashRef->{'computer'}->{'para_prefix'};
+  $prefix =~ s/$hashRef->{'computer'}->{'ncpus'}/$ncpus/ if( $hashRef->{'computer'}->{'ncpus'} != $ncpus );
+  
   print  "$prefix $ENV{'OCEAN_ESPRESSO_PH'} -npool $n  -inp ph.in > ph.out 2>&1\n";
   system("$prefix $ENV{'OCEAN_ESPRESSO_PH'} -npool $n  -inp ph.in > ph.out 2>&1\n") == 0
     or die "Failed to run ph.x\n";
   open IN, "ph.out" or die;
 
   my @epsilon;
+  $epsilon[0] = -1;
   while (<IN>)
   {
     if( $_ =~ m/Dielectric constant in cartesian axis/ )
@@ -547,14 +600,21 @@ sub QErunDFPT
     }
   }
   close IN;
-  $hashRef=>{'structure'}->{'epsilon'} = ( $epsilon[0] + $epsilon[1] + $epsilon[2] ) / 3;
+  $hashRef->{'structure'}->{'epsilon'} = ( $epsilon[0] + $epsilon[1] + $epsilon[2] ) / 3;
+  $hashRef->{'epsilon'}->{'epsilon'} = $hashRef->{'structure'}->{'epsilon'};
 
+  return 9 if( $epsilon[0] < 0 );
+
+  printf "DFPT done, epsilon = %f\n", $hashRef->{'structure'}->{'epsilon'};
+  return 0;
 }
 
 
 sub QEparseDensityPotential
 {
   my ($hashRef, $type, $emin, $emax ) = @_;
+
+  printf "DENPOT VERSION %s\n", $hashRef->{'scf'}->{'version'};
 
   my $flag;
   my $filplot;
@@ -572,7 +632,7 @@ sub QEparseDensityPotential
     $filplot = 'system.val.rho';
     $infile = 'pp3.in';
     $convert = "system.val.rho val.rhoofr";
-    if( abs( $emin - $emax ) > 0.1 ) {
+    if( abs( $emin - $emax ) > 0.1 && $hashRef->{'scf'}->{'version'} > 6.95) {
       $flag = 23;
       $bonusInputs = sprintf "  emin = %.15f\n  emax = %.15f\n", $emin, $emax;
     }
@@ -884,8 +944,10 @@ sub QEprintInput
     $nosyminv = 'true';
     $startingPot = 'file';
     $diagonalization = $specificRef->{'diagonalization'};
-    if( $generalRef->{'scf'}->{'version'} > 0 && $generalRef->{'scf'}->{'version'} < 6.4 ) {
-      $diagonalization = 'david';
+    if( $generalRef->{'scf'}->{'version'} > 0 && $generalRef->{'scf'}->{'version'} < 6.5 ) {
+      unless( $diagonalization eq 'cg' || $diagonalization eq 'david' ) {
+        $diagonalization = 'david';
+      }
     } else {
       printf "QE version %g\n", $generalRef->{'scf'}->{'version'};
     }
@@ -929,9 +991,15 @@ sub QEprintInput
         .  "  tstress = $tstress\n"
         .  "  tprnfor = $tprnfor\n"
         .  "  wf_collect = .true.\n"
-        .  "  disk_io = 'low'\n"
-        .  "/\n";
-  print $fh "&system\n"
+        .  "  disk_io = 'low'\n";
+  if( $generalRef->{'general'}->{'verbatim'}->{'qe'}->{'control'} ne '' ) {
+    my $temp = $generalRef->{'general'}->{'verbatim'}->{'qe'}->{'control'};
+    $temp =~ s/,/,\n/g;
+    print $fh $temp . "\n";
+#    print $fh $generalRef->{'general'}->{'verbatim'}->{'qe'}->{'control'} . "\n";
+  }
+  print $fh "/\n"
+        .  "&system\n"
         .  "  ibrav = 0\n"
         .  "  nat = " . scalar @{$generalRef->{'structure'}->{'xred'}} . "\n"
         .  "  ntyp = " . scalar @{$generalRef->{'structure'}->{'znucl'}} . "\n"
@@ -1003,24 +1071,31 @@ sub QEprintInput
     print "local\n";
   }
 
+  if( $generalRef->{'general'}->{'verbatim'}->{'qe'}->{'system'} ne '' ) {
+    my $temp = $generalRef->{'general'}->{'verbatim'}->{'qe'}->{'system'};
+    $temp =~ s/,/,\n/g;
+    print $fh $temp . "\n";
+#    print $fh $generalRef->{'general'}->{'verbatim'}->{'qe'}->{'system'} . "\n";
+  }
+
   print $fh "/\n"
         .  "&electrons\n"
-#        .  "  conv_thr = $specificRef->{'toldfe'}\n"
         .  (sprintf "  conv_thr = %g\n", $specificRef->{'toldfe'})
         .  (sprintf "  mixing_beta = %g\n", $generalRef->{'general'}->{'mixing'}) 
         .  (sprintf "  mixing_mode = '%s'\n", $generalRef->{'general'}->{'mixing_mode'})
-#        .  "  mixing_beta = $generalRef->{'general'}->{'mixing'}\n"
-        . (sprintf "  electron_maxstep = %i\n", $generalRef->{'general'}->{'nstep'})
-#        .  "  electron_maxstep = $generalRef->{'general'}->{'nstep'}\n"
+        .  (sprintf "  electron_maxstep = %i\n", $generalRef->{'general'}->{'nstep'})
         .  "  startingwfc = \'$generalRef->{'general'}->{'startingwfc'}\'\n"
         .  "  startingpot = \'$startingPot\'\n"
-        .  "  diagonalization = \'$diagonalization\'\n"
-#        .  "  diagonalization = \'$generalRef->{'general'}->{'diagonalization'}\'\n"
-        .  "/\n";
-#  if( $inputs{'print nbands'} > 100 && $inputs{'calctype'} =~ m/nscf/i )
-#  {
-#    print $fh "  diago_david_ndim = 2\n";
-#  }
+        .  "  diagonalization = \'$diagonalization\'\n";
+
+  if( $generalRef->{'general'}->{'verbatim'}->{'qe'}->{'electrons'} ne '' ) {
+    my $temp = $generalRef->{'general'}->{'verbatim'}->{'qe'}->{'electrons'};
+    $temp =~ s/,/,\n/g;
+    print $fh $temp . "\n";
+#    print $fh $generalRef->{'general'}->{'verbatim'}->{'qe'}->{'electrons'} . "\n";
+  }
+
+  print $fh "/\n";
 #  if( $inputs{'nscfEXX'} == 1 )
 #  {
 #    # Since (at the moment) we are loading the SCF density
@@ -1123,6 +1198,7 @@ sub QEparseEnergies
   my @energies;
   
   my $qe62File = catfile( "Out", "system.save", "data-file-schema.xml" );
+  my $qe54File = catfile( "Out", "system.save", "data-file.xml" );
   
   if( -e $qe62File )
   {
@@ -1130,8 +1206,15 @@ sub QEparseEnergies
     $splitFile = catfile( "Out_shift", "system.save", "data-file-schema.xml" ) if( $split );
     @energies = QEparseEnergies62( $qe62File, $splitFile, $spin );
   }
-  else 
+  elsif( -e $qe54File )
   {
+    my $splitFile = $qe54File;
+    $splitFile = catfile( "Out_shift", "system.save", "data-file.xml" ) if( $split );
+    @energies = QEparseEnergies54( $qe54File, $splitFile, $spin );
+  }
+  else
+  {
+    die;
     return 1;
   }
 
@@ -1358,6 +1441,73 @@ sub QEparseEnergies62
   return @energies;
   
 }
+
+sub QEparseEnergies54
+{
+  my ($f1, $f2, $spin) = @_;
+
+  my $split = 0;
+  open my $fh1, "<", $f1 or die "Failed to open $f1\n$!";
+
+#  print ">>>>>>>>>> $f1 <<<<<<<<<<\n";
+  
+  my @energies1;
+  my @energies1_spin;
+
+  while( my $line = <$fh1> ) 
+  {
+#    print $line;
+#    if( $line =~ m/iotk_link=\"(\S+eigenval.xml)\"/ ) {
+    if(  $line =~ m/\"(\.\/K\d+\/eigenval.xml)/ ) {
+      my $k = $1;
+      my $eigFile = $f1;
+      $eigFile =~ s/data-file.xml/$k/;
+      my $eigs = '';
+      open IN, $eigFile or die "Failed to open $eigFile\n$!";
+      while( $line = <IN> ) {
+        if( $line =~ m/EIGENVALUES/ ) {
+          $line = <IN>;
+          until ( $line =~ m/\/EIGENVALUES/ ) {
+            chomp $line;
+            $eigs .= $line . ' ';
+            $line = <IN>;
+          }
+          my @eigs = split( ' ', $eigs );
+#          print "$eigFile  " . scalar @eigs . "\n";
+          if( $spin == 2 )
+          {
+            my $half = scalar @eigs / 2;
+            my @t1 = @eigs[ 0..$half-1 ];
+            push @energies1, \@t1;
+            my @t2 = @eigs[ $half..scalar @eigs-1 ];
+            push @energies1_spin, \@t2;
+          }
+          else
+          {
+            push @energies1, \@eigs;
+          }
+        }
+      }
+      close IN;
+    }
+  }
+  close $fh1;
+  unless( $f1 ne $f2 )
+  {
+    if( $spin == 2 ) {
+      print scalar @energies1 . "\n";
+      print scalar @energies1_spin . "\n";
+      for( my $i = 0; $i < scalar @energies1_spin; $i++ ) {
+        push @energies1, \@{ $energies1_spin[$i] };
+      }
+      print scalar @energies1 . "\n";
+    }
+    return @energies1;
+  }
+
+  die "QE54 w/ shift not implemented. Upgrade your QE version to something from the past 5 years\n";
+}
+
 
 sub QEconvertEnergies
 {

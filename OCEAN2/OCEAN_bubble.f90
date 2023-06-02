@@ -501,30 +501,35 @@ module OCEAN_bubble
 
 
   do ispn = 1, sys%valence_ham_spin
+!$OMP SINGLE
+    re_l_bubble( : ) = 0.0_DP
+    im_l_bubble( : ) = 0.0_DP
+!$OMP END SINGLE
+
     psi_spin = ispn * ispn  ! Either 1 or 4 
     dft_spin = min( ispn, sys%nspn )   ! The DFT states need not be different for spin up/down
 
     if( nxpts .gt. 0 ) then
-    xwidth = nxpts
-    ix = 1
+      xwidth = nxpts
+      ix = 1
 !$OMP DO COLLAPSE(1)
       do ik = 1, nkpts
-!      do ix = 1, nxpts, xwidth
-          call DGEMM( 'N', 'N', xwidth, nbv, nbc, one, re_con(ix, 1, ik, dft_spin), nxpts_pad, &
-                      psi%valr( 1, 1, ik, psi_spin ), psi_con_pad, zero, re_amat( ix, 1, ik ), nxpts_pad )
-          call DGEMM( 'N', 'N', xwidth, nbv, nbc, minusone, im_con(ix, 1, ik,dft_spin), nxpts_pad, &
-                      psi%vali( 1, 1, ik, psi_spin ), psi_con_pad, one, re_amat( ix, 1, ik ), nxpts_pad )
+        call DGEMM( 'N', 'N', xwidth, nbv, nbc, one, re_con(ix, 1, ik, dft_spin), nxpts_pad, &
+                    psi%valr( 1, 1, ik, psi_spin ), psi_con_pad, zero, re_amat( ix, 1, ik ), nxpts_pad )
+        call DGEMM( 'N', 'N', xwidth, nbv, nbc, minusone, im_con(ix, 1, ik,dft_spin), nxpts_pad, &
+                    psi%vali( 1, 1, ik, psi_spin ), psi_con_pad, one, re_amat( ix, 1, ik ), nxpts_pad )
 
-          call DGEMM( 'N', 'N', xwidth, nbv, nbc, one, im_con(ix, 1, ik,dft_spin), nxpts_pad, &
-                      psi%valr( 1, 1, ik, psi_spin ), psi_con_pad, zero, im_amat( ix, 1, ik ), nxpts_pad )
-          call DGEMM( 'N', 'N', xwidth, nbv, nbc, one, re_con(ix, 1, ik,dft_spin), nxpts_pad, &
-                      psi%vali( 1, 1, ik, psi_spin ), psi_con_pad, one, im_amat( ix, 1, ik ), nxpts_pad )
-!      enddo
+        call DGEMM( 'N', 'N', xwidth, nbv, nbc, one, im_con(ix, 1, ik,dft_spin), nxpts_pad, &
+                    psi%valr( 1, 1, ik, psi_spin ), psi_con_pad, zero, im_amat( ix, 1, ik ), nxpts_pad )
+        call DGEMM( 'N', 'N', xwidth, nbv, nbc, one, re_con(ix, 1, ik,dft_spin), nxpts_pad, &
+                    psi%vali( 1, 1, ik, psi_spin ), psi_con_pad, one, im_amat( ix, 1, ik ), nxpts_pad )
       enddo
 !$OMP END DO
     else 
+!$OMP WORKSHARE
       re_amat( :,:,: ) = 0.0_dp
       im_amat( :,:,: ) = 0.0_dp
+!$OMP END WORKSHARE
     endif
 
 !  write(6,*) 'A:', maxval( re_amat ), maxval( im_amat )
@@ -536,8 +541,8 @@ module OCEAN_bubble
     xwidth = xwidth * 8
 
 !$OMP DO 
-  do ix = 1, nxpts, xwidth
-    xstop = min( nxpts, ix + xwidth - 1 )
+    do ix = 1, nxpts, xwidth
+      xstop = min( nxpts, ix + xwidth - 1 )
 !      ix = 1
 !      xstop = nxpts
           do ik = 1, nkpts
@@ -552,7 +557,7 @@ module OCEAN_bubble
               enddo
             enddo
         enddo
-  enddo
+    enddo
 !$OMP END DO
 
 !    write(6,*) maxval( re_l_bubble ), maxval( im_l_bubble )
