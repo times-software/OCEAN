@@ -925,10 +925,13 @@ sub QEprintInput
     $tprnfor = 'true' if( $generalRef->{'general'}->{'calc_force'} );
     $nosyminv = 'false';
     $startingPot = 'atomic';
-    if( $generalRef->{'general'}->{'startingpot'} eq 'file' &&
+    if( $generalRef->{'general'}->{'startingpot'} =~ m/file/ )
+    {
+      if( -e catfile( "Out", "system.save", "charge-density.dat" ) || 
         -e catfile( "Out", "system.save", "charge-density.xml" ) ) {
-      $startingPot = 'file';
-      print "  WARNING: restarting from existing charge density!\n";
+        $startingPot = 'file';
+        print "  WARNING: restarting from existing charge density!\n";
+      }
     }
     if( $generalRef->{'general'}->{'diagonalization'} == 'default' ) {
       $diagonalization = 'david';

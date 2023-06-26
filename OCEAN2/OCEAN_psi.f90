@@ -4788,7 +4788,7 @@ subroutine OCEAN_psi_dot_write( p, q, outvec, rrequest, rval, ierr, irequest, iv
       enddo
 
       ! The last proc that stores some of min may have less than max
-      i = ( psi_val_bands * psi_kpts_actual * psi_val_beta ) - ( ( p%val_np - 1 ) * max_core_store_size )
+      i = ( psi_val_bands * psi_kpts_actual * psi_val_beta ) - ( ( p%val_np - 1 ) * max_val_store_size )
       call MPI_IRECV( p%valr( 1, iv, ik, ib ), psi_bands_pad * i, MPI_DOUBLE_PRECISION, &
                       p%val_np - 1, 1, p%val_comm, p%val_store_sr( p%val_np - 1 ), ierr )
       if( ierr .ne. 0 ) return
