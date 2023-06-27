@@ -536,8 +536,8 @@ sub QErunDFPT
 {
   my ($hashRef) = @_;
 
-  if( $hashRef=>{'structure'}->{'metal'} ) {
-    $hashRef=>{'structure'}->{'epsilon'} = $hashRef=>{'epsilon'}->{'metal_max'};
+  if( $hashRef->{'structure'}->{'metal'} ) {
+    $hashRef->{'structure'}->{'epsilon'} = $hashRef->{'epsilon'}->{'metal_max'};
     return 0;
   }
 
