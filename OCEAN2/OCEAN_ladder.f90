@@ -279,6 +279,7 @@ end subroutine OCEAN_ladder_act
     nbv_block = nbv
 ! \working on k-point only
 
+    if( nxpts .gt. 0 ) then
 !$OMP DO COLLAPSE(1) SCHEDULE(STATIC)
     do ik = 1, nkpts
 !      do ib = 1, nbv, nbv_block
@@ -298,6 +299,7 @@ end subroutine OCEAN_ladder_act
 !      enddo
     enddo
 !$OMP END DO
+    endif
 
 
 
@@ -369,6 +371,7 @@ end subroutine OCEAN_ladder_act
         x_block = nxpts
         y_block = nxpts_by_mpiID( id )
 ! \kpoint only
+        if( nxpts .gt. 0 ) then
 !$OMP DO SCHEDULE( STATIC )
         do ik = 1, nkpts
             call DGEMM( 'N', 'T', x_block, y_block, nbv, one, re_a_mat( ix, 1, ik ), nxpts_pad, &
@@ -383,6 +386,7 @@ end subroutine OCEAN_ladder_act
 
         enddo
 !$OMP END DO NOWAIT
+        endif
 
 
 
@@ -520,8 +524,9 @@ end subroutine OCEAN_ladder_act
       nbv_block = nbv
       x_block = nxpts
       
+      if( nxpts .gt. 0 ) then
 !$OMP DO
-      do ik = 1, nkpts
+        do ik = 1, nkpts
             call DGEMM( 'N', 'N', x_block, nbv_block, nxpts_by_mpiID( id ), one, re_tphi_mat( ix, 1, ik ), nxpts_pad, &
                         re_bstate( 1, ib, ik, k ), max_nxpts, beta, re_b_mat( ix, ib, ik ), nxpts_pad )
             call DGEMM( 'N', 'N', x_block, nbv_block, nxpts_by_mpiID( id ), minusone, im_tphi_mat( ix, 1, ik ), nxpts_pad, &
@@ -531,8 +536,9 @@ end subroutine OCEAN_ladder_act
                         re_bstate( 1, ib, ik, k ), max_nxpts, beta, im_b_mat( ix, ib, ik ), nxpts_pad )
             call DGEMM( 'N', 'N', x_block, nbv_block, nxpts_by_mpiID( id ), one, re_tphi_mat( ix, 1, ik ), nxpts_pad, &
                         im_bstate( 1, ib, ik, k ), max_nxpts, one, im_b_mat( ix, ib, ik ), nxpts_pad )
-      enddo
+        enddo
 !$OMP END DO NOWAIT
+      endif
 !  Other than the last loop this will be followed by MPI_SINGLE + BARRIER
 
 
@@ -562,6 +568,7 @@ end subroutine OCEAN_ladder_act
     ib = 1
     ibc = 1
 
+    if( nxpts .gt. 0 ) then
 !$OMP DO
     do ik = 1, nkpts
 
@@ -577,6 +584,7 @@ end subroutine OCEAN_ladder_act
 
     enddo
 !$OMP END DO
+    endif
 
 
     deallocate( fr, fi, vv, scratch, re_phi_mat, im_phi_mat )
