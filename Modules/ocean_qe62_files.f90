@@ -1619,7 +1619,7 @@ module ocean_qe62_files
       call MPI_TYPE_FREE( valType, ierr )
       if( ierr .ne. 0 ) return
 
-      call MPI_TYPE_VECTOR( conBands, test_gvec, conngvecs, MPI_DOUBLE_COMPLEX, conType, ierr )
+      call MPI_TYPE_VECTOR( conBands, test_gvec2, conngvecs, MPI_DOUBLE_COMPLEX, conType, ierr )
       if( ierr .ne. 0 ) return
       call MPI_TYPE_COMMIT( conType, ierr )
       if( ierr .ne. 0 ) return
@@ -1636,7 +1636,7 @@ module ocean_qe62_files
         ierr = 5
         return
       endif
-      call MPI_BCAST( conGvecs, 3*test_gvec2, MPI_INTEGER, pool_root, pool_comm, requests( 4 ), ierr )
+      call MPI_IBCAST( conGvecs, 3*test_gvec2, MPI_INTEGER, pool_root, pool_comm, requests( 4 ), ierr )
       call MPI_BCAST( ierr, 1, MPI_INTEGER, pool_root, pool_comm, ierr_ )
       if( ierr .ne. 0 .or. ierr_ .ne. 0 ) then
         call MPI_CANCEL( requests( 1 ) , ierr )
