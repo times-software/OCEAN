@@ -205,6 +205,7 @@ module screen_kxc
             enddo
 !          enddo
         end select
+        localFxcBySite( :, i ) = localFxcBySite( :, i ) / (2.0_DP )
       endif
     enddo
 
@@ -386,10 +387,10 @@ module screen_kxc
     
     do ip = 1, npts
 !      rvec(:) = i2pi * matmul( bvecs, posn(:,ip) )
-!      do j = 1, 3
-!        rvec( j ) = dot_product( invAvecs( :, j ), posn( :, ip ) )
-!      enddo
-      rvec(:) = matmul( invAvecs( :, : ), posn( :, ip ) )
+      do j = 1, 3
+        rvec( j ) = dot_product( invAvecs( :, j ), posn( :, ip ) )
+      enddo
+!      rvec(:) = matmul( transpose(invAvecs( :, : )), posn( :, ip ) )
 
       do i = 1, 3
         do while( rvec(i) .gt. 1.0_DP )
