@@ -37,7 +37,7 @@ module OCEAN_val_energy
 
 
 !    allocate( val_energies( sys%cur_run%val_bands, sys%nkpts, sys%nspn ),  &
-    allocate( val_energies( sys%brange(2), sys%nkpts, sys%nspn ),  &
+    allocate( val_energies( sys%brange(1) : sys%brange(2), sys%nkpts, sys%nspn ),  &
               con_energies( sys%cur_run%num_bands, sys%nkpts, sys%nspn ), STAT=ierr )
     if( ierr .ne. 0 ) return
 
@@ -59,7 +59,7 @@ module OCEAN_val_energy
              enddo  !ispn
           endif
 #ifdef MPI
-          call MPI_BCAST( val_energies, sys%brange(2)*sys%nkpts*sys%nspn, MPI_DOUBLE_PRECISION, root, comm, ierr )
+          call MPI_BCAST( val_energies, (sys%brange(2)-sys%brange(1)+1)*sys%nkpts*sys%nspn, MPI_DOUBLE_PRECISION, root, comm, ierr )
 !          call MPI_BCAST( val_energies, sys%cur_run%val_bands*sys%nkpts*sys%nspn, MPI_DOUBLE_PRECISION, root, comm, ierr )
           if( ierr .ne. MPI_SUCCESS ) return
           call MPI_BCAST( con_energies, sys%cur_run%num_bands*sys%nkpts*sys%nspn, MPI_DOUBLE_PRECISION, root, comm, ierr )
@@ -681,7 +681,7 @@ module OCEAN_val_energy
     type( O_system ), intent( in ) :: sys
     integer, intent( in ) :: nelectron 
     real(dp), intent( in ) :: con_energies( sys%cur_run%num_bands, sys%nkpts, sys%nspn ), &
-                              val_energies( sys%brange(2), sys%nkpts, sys%nspn )
+                              val_energies( sys%brange(1):sys%brange(2), sys%nkpts, sys%nspn )
 !                              val_energies( sys%cur_run%val_bands, sys%nkpts, sys%nspn )
     real(dp), intent( out ) :: efermi, homo, lumo, cliph
     logical, intent( out ) :: metal
@@ -836,7 +836,8 @@ module OCEAN_val_energy
       lumo = simple_energies( t_electron + 1 )
       efermi = ( lumo + homo ) / 2.0_dp
     else ! not metal
-      i_band = nelectron / 2 - sys%brange( 1 ) + 1
+!      i_band = nelectron / 2 - sys%brange( 1 ) + 1
+      i_band = nelectron / 2
       if( myid .eq. root ) write( 6, * ) "i_band = ", i_band
       homo =  val_energies( i_band, 1 , 1)
       do kiter = 2, sys%nkpts
