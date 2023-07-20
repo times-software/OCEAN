@@ -74,9 +74,30 @@ sub QErunNSCF
   
   close $fh;
 
-  my ($ncpus, $npool, $nbd) = QErunTest( $hashRef, "nscf.in" );
+  my $ncpus = 1;
+  my $npool = 1;
+  my $nbd = 1;
+  my $nk = $specificHashRef->{'kmesh'}[0] * $specificHashRef->{'kmesh'}[1] * $specificHashRef->{'kmesh'}[2];
+  $ncpus = $hashRef->{'computer'}->{'ncpus'};
+  $ncpus = $nk if( $nk < $ncpus );
+  $npool = $ncpus;
+
+  ($ncpus, $npool, $nbd) = QErunTest( $hashRef, "nscf.in", $ncpus, $npool, $nbd );
 
   QEsetupNSCF( $shift );
+
+  my $prevNpool = $npool;
+  ($ncpus, $npool, $nbd) = QErunTest( $hashRef, "nscf.in", $ncpus, $npool, $nbd);
+
+  QEsetupNSCF( $shift );
+
+  if( $prevNpool * 2 < $npool ) {
+    ($ncpus, $npool, $nbd) = QErunTest( $hashRef, "nscf.in", $ncpus, $npool, $nbd);
+
+    QEsetupNSCF( $shift );
+  }
+
+
 
   # full run
 
@@ -222,7 +243,7 @@ sub QErunDensity
 #    print "Had trouble parsing test.out\n. Will attempt to continue.\n";
 #  }
 
-  my ($ncpus, $npool, $nbd) = QErunTest( $hashRef, "scf.in" );
+  my ($ncpus, $npool, $nbd) = QErunTest( $hashRef, "scf.in", 1, 1, 1 );
 
   # full run
 
@@ -248,13 +269,25 @@ sub QErunDensity
 
 sub QErunTest
 {
-  my ( $hashRef, $fileName ) = @_;
+  my ( $hashRef, $fileName, $previousNcpus, $previousNpool, $previousNbd ) = @_;
     # test run for k-points
   print "Testing parallel QE execution\n";
   open TMP, '>', "system.EXIT" or die "Failed to open file system.EXIT\n$!";
   close TMP;
 
-  QErunPW( $hashRef->{'general'}->{'redirect'}, $hashRef->{'computer'}->{'ser_prefix'}, "" , $fileName, "test.out" );
+  if( $previousNcpus == 1 ) {
+    QErunPW( $hashRef->{'general'}->{'redirect'}, $hashRef->{'computer'}->{'ser_prefix'}, "" , $fileName, "test.out" );
+  } else {
+    my $prefix = $hashRef->{'computer'}->{'para_prefix'};
+    $prefix =~ s/$hashRef->{'computer'}->{'ncpus'}/$previousNcpus/ 
+        if( $hashRef->{'computer'}->{'ncpus'} != $previousNcpus );
+  
+    my $cmdLine = " -npool $previousNpool ";
+    if( $previousNbd > 1 ) {
+      $cmdLine .= " -pd true -ntg $previousNbd";
+    }
+    QErunPW( $hashRef->{'general'}->{'redirect'}, $prefix, $cmdLine, $fileName, "test.out" );
+  }
 
   # parse test results
   my $npool = 1;
@@ -677,7 +710,15 @@ sub QEparseDensityPotential
 
   my $outfile = $infile;
   $outfile =~ s/\.in/.out/;
+  
+  my $didSwap = 0;
+  if($type eq 'potential' ) {
+    $didSwap = QEmggaFix();
+  }
   QErunPP( $hashRef->{'general'}->{'redirect'}, $prefix, $cmdLine, "$infile", "$outfile" );
+  if( $didSwap ) {
+    QEmggaUnFix();
+  }
 
   # Check for NaN with metaGGA
   if( $type eq 'potential' ) {
@@ -760,7 +801,7 @@ sub QEPoolControl
   my ( $actualKpts, $numKS, $mem, $FFT, $OMP, $hashRef ) = @_;
 
   $OMP = 1 if( $OMP < 1 );
-  my $maxMem = 4000*$OMP;
+  my $maxMem = 2000*$OMP;
   my $minPool = 0.9;
   $minPool = $mem / $maxMem if( $mem > $maxMem );
 
@@ -1600,6 +1641,49 @@ sub QEconvertEnergies
     print "WARNING! QEconvertEnergiers called but $xmlFile is missing\n";
   }
   return( $emin, $emax);
+}
+
+sub QEmggaFix {
+  my $sub = 'PBE';
+  my $didSwap = 0;
+  my $funct = '';
+
+  my $xmlFile = catfile( 'Out', 'system.save', 'data-file-schema.xml' );
+  my $xmlFile2 = catfile( 'Out', 'system.save', 'data-file-schema.xml_orig' );
+  if( -e $xmlFile ) {
+    copy $xmlFile, $xmlFile2;
+    my $wholeFile;
+    open IN, $xmlFile or die "$!";
+    while( my $line = <IN> ) {
+      if( $line =~ m/<functional>(.*)<\/functional>/ ) {
+        $funct = $1;
+        if( $funct =~ m/XC-(\d+)\w-(\d+)\w-(\d+)\w-(\d+)\w-(\d+)\w-(\d+)\w/ ) {
+          if( $5 > 0 || $6 > 0 ) {
+            $didSwap = 1;
+            $line =~ s/$funct/$sub/;
+          }
+        } elsif( $funct =~ m/SCAN/i ) {
+          $didSwap = 1;
+          $line =~ s/$funct/$sub/;
+        }
+      }
+      $wholeFile .= $line;
+    }
+    close IN;
+    open OUT, ">", $xmlFile;
+    print OUT $wholeFile;
+    close OUT;
+
+    print "Detected m-GGA functional $funct. Swapping with $sub to avoid QE bugs\n";
+  }
+
+  return $didSwap;
+}
+
+sub QEmggaUnFix {
+  my $xmlFile = catfile( 'Out', 'system.save', 'data-file-schema.xml' );
+  my $xmlFile2 = catfile( 'Out', 'system.save', 'data-file-schema.xml_orig' );
+  move $xmlFile2, $xmlFile;
 }
 
 1;
