@@ -974,7 +974,7 @@ sub QEprintInput
         print "  WARNING: restarting from existing charge density!\n";
       }
     }
-    if( $generalRef->{'general'}->{'diagonalization'} == 'default' ) {
+    if( $generalRef->{'general'}->{'diagonalization'} eq 'default' ) {
       $diagonalization = 'david';
     } else {
       $diagonalization = $generalRef->{'general'}->{'diagonalization'};
