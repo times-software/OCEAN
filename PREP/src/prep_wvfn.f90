@@ -954,7 +954,7 @@ module prep_wvfn
     complex(DP), intent( in ) :: UofX2(:,:)
     integer, intent( inout ) :: ierr
 
-    complex(DP), allocatable :: writeBuffer(:)
+    complex(DP), allocatable :: writeBuffer(:,:)
 
 #ifdef MPI_F08
     type( MPI_DATATYPE ):: newType
@@ -962,7 +962,7 @@ module prep_wvfn
     integer :: newType, stat( MPI_STATUS_SIZE)
 #endif
     integer(MPI_OFFSET_KIND) :: offset
-    integer :: ix, i, myPoolID, nprocPerPool, nx, myx, nb, poolComm, id, ib, xstart, xstop
+    integer :: ix, i, myPoolID, nprocPerPool, nx, myx, nb, poolComm, id, ib, xstart, xstop, nbchunk, nbwrite, iib
 
 
 
@@ -974,32 +974,55 @@ module prep_wvfn
     myx = size( UofX2, 1)
     nx = product( params%xmesh(:) )
 
+    if( (nx .gt. 32768 ) .or. ( nb .gt. 32768 ) .or. ( nx*nb .gt. 134217728 ) ) then
+      nbchunk = max( 1, floor( 134217728.0_DP / real( nx, DP ) ) )
+    else 
+      nbchunk = max(nb,1) ! in case nb is zero
+    endif
+
     ! offset for k-point
     offset = max( ikpt - 1 + ( ispin - 1 ) * params%nkpts, 0 )
 !    offset = offset * int( size( UofX2, 1 ), MPI_OFFSET_KIND ) * int( size( UofX2, 2 ), MPI_OFFSET_KIND )
     offset = offset * int( nb, MPI_OFFSET_KIND ) * int( nx, MPI_OFFSET_KIND )
 
     if( myPoolID .eq. 0 ) then
-      allocate( writeBuffer( nx ) )
-      do ib = 1, nb
-
-        xstart = 1
-        xstop = prep_wvfn_divideXmesh( nx, nprocPerPool, 0 )
-        writeBuffer( xstart:xstop ) = UofX2( :, ib )
-        do id = 1, nprocPerPool-1
-          xstart = xstop+1
-          myx = prep_wvfn_divideXmesh( nx, nprocPerPool, id )
-          xstop = xstart + myx - 1
-          call MPI_RECV( writeBuffer( xstart:xstop), myx, MPI_DOUBLE_COMPLEX, id, 1, poolComm, MPI_STATUS_IGNORE, ierr )
+      if( nprocPerPool .eq. 0 ) then
+        do ib = 1, nb, nbchunk
+          nbwrite = min( nb-ib+1, nbchunk )
+          call MPI_FILE_WRITE_AT( fileHandle, offset, UofX2( :, ib : ), nx*nbwrite, &
+                                  MPI_DOUBLE_COMPLEX, MPI_STATUS_IGNORE, ierr )
           if( ierr .ne. 0 ) return
+          offset = offset + nx * nbwrite
         enddo
+      else
 
-        if( debug ) write(1000+myid,'(A2,X,3(I12))') 'OF', ikpt, ib, offset
-        call MPI_FILE_WRITE_AT( fileHandle, offset, writeBuffer, nx, MPI_DOUBLE_COMPLEX, MPI_STATUS_IGNORE, ierr )
-        if( ierr .ne. 0 ) return
-        offset = offset + nx
-      enddo      
-      deallocate( writeBuffer )
+        allocate( writeBuffer( nx, nbchunk ) )
+        do ib = 1, nb, nbchunk
+
+          do iib = ib, min( ib + nbchunk -1, nb )
+
+            xstart = 1
+            xstop = prep_wvfn_divideXmesh( nx, nprocPerPool, 0 )
+            writeBuffer( xstart:xstop, iib-ib+1 ) = UofX2( :, iib )
+            do id = 1, nprocPerPool-1
+              xstart = xstop+1
+              myx = prep_wvfn_divideXmesh( nx, nprocPerPool, id )
+              xstop = xstart + myx - 1
+              call MPI_RECV( writeBuffer( xstart:xstop, iib-ib+1), myx, MPI_DOUBLE_COMPLEX, id, 1, poolComm, MPI_STATUS_IGNORE, ierr )
+              if( ierr .ne. 0 ) return
+            enddo
+          enddo
+
+  !JTV !TODO
+  ! Here (and above) we should do this in multiple steps if the wave functions are really big
+          if( debug ) write(1000+myid,'(A2,X,3(I12))') 'OF', ikpt, ib, offset
+          nbwrite = min( nb-ib+1, nbchunk )
+          call MPI_FILE_WRITE_AT( fileHandle, offset, writeBuffer, nx*nbwrite, MPI_DOUBLE_COMPLEX, MPI_STATUS_IGNORE, ierr )
+          if( ierr .ne. 0 ) return
+          offset = offset + nx * nbwrite
+        enddo      
+        deallocate( writeBuffer )
+      endif
     else
       do ib = 1, nb
         call MPI_SEND( UofX2( :, ib ), myx, MPI_DOUBLE_COMPLEX, 0, 1, poolComm, MPI_STATUS_IGNORE, ierr )
