@@ -182,6 +182,7 @@
          "qe" : {
             "control" : "s",
             "electrons" : "s",
+            "hubbard" : "s",
             "system" : "s"
          }
       }

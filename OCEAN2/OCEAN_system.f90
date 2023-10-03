@@ -30,7 +30,7 @@ module OCEAN_system
     integer( S_INT ) :: num_bands
     integer( S_INT ) :: val_bands
     integer          :: brange(4)
-    integer          :: nelectron 
+    real(DP)         :: nelectron 
     integer( S_INT ) :: xmesh( 3 )
     integer( S_INT ) :: kmesh( 3 )
     integer( S_INT ) :: ZNL(3)
@@ -446,7 +446,7 @@ module OCEAN_system
     if( ierr .ne. MPI_SUCCESS ) goto 111
     call MPI_BCAST( sys%brange, 4, MPI_INTEGER, root, comm, ierr )
     if( ierr .ne. MPI_SUCCESS ) goto 111
-    call MPI_BCAST( sys%nelectron, 1, MPI_INTEGER, root, comm, ierr )
+    call MPI_BCAST( sys%nelectron, 1, MPI_DOUBLE_PRECISION, root, comm, ierr )
     if( ierr .ne. MPI_SUCCESS ) goto 111
     call MPI_BCAST( sys%nedges, 1, MPI_INTEGER, root, comm, ierr )
     if( ierr .ne. MPI_SUCCESS ) goto 111

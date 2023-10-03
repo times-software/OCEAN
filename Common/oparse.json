@@ -226,6 +226,7 @@
          "qe" : {
             "control" : "",
             "electrons" : "",
+            "hubbard" : "",
             "system" : ""
          }
       }

@@ -199,7 +199,11 @@ module OCEAN_val_energy
               im_con_energies( sys%cur_run%num_bands, sys%nkpts, sys%nspn ), STAT=ierr )
     if( ierr .ne. 0 ) return
 
-    call find_fermi( sys, val_energies, con_energies, sys%nelectron, efermi, &
+    if( myid .eq. 0 .and. abs( nint(sys%nelectron) - sys%nelectron ) .gt. 0.001_DP ) then
+      write(6,*) 'WARNING: Fractional electron count not well handled by valence code (yet)', &
+                  sys%nelectron, nint(sys%nelectron)
+    endif
+    call find_fermi( sys, val_energies, con_energies, nint(sys%nelectron), efermi, &
                      homo, lumo, cliph, metal, .true., ierr )
     if( ierr .ne. 0 ) return
 
@@ -210,7 +214,7 @@ module OCEAN_val_energy
     if( ierr .ne. 0 ) return
 
     if( did_gw_correction ) then 
-      call find_fermi( sys, val_energies, con_energies, sys%nelectron, efermi, &
+      call find_fermi( sys, val_energies, con_energies, nint(sys%nelectron), efermi, &
                        homo, lumo, cliph, metal, .false., ierr )
       if( ierr .ne. 0 ) return
     endif
@@ -234,7 +238,7 @@ module OCEAN_val_energy
       endif
       deallocate( tmp_e )
     endif
-    call energies_allow( sys, val_energies, con_energies, sys%nelectron, efermi, cliph, &
+    call energies_allow( sys, val_energies, con_energies, nint(sys%nelectron), efermi, cliph, &
                                 allow, metal, ierr )
     if( ierr .ne. 0 ) return
 

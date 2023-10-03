@@ -1280,7 +1280,7 @@ module OCEAN_energies
           sorted_energies( sys%num_bands * sys%nkpts * sys%nspn-3:sys%num_bands * sys%nkpts * sys%nspn )
 
 
-        tot_electron = sys%nelectron * sys%nkpts * sys%nspn / 2.0_dp
+        tot_electron = nint( sys%nelectron * sys%nkpts * sys%nspn / 2.0_dp )
 !        tot_electron = tot_electron / 2 + n_electron_dope
 
         fullyOccupiedElectrons = ( sys%brange(3) - 1 ) * sys%nkpts * sys%nspn
