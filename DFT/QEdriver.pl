@@ -243,7 +243,22 @@ sub QErunDensity
 #    print "Had trouble parsing test.out\n. Will attempt to continue.\n";
 #  }
 
-  my ($ncpus, $npool, $nbd) = QErunTest( $hashRef, "scf.in", 1, 1, 1 );
+  my $ncpus = 1;
+  my $npool = 1;
+  my $nbd = 1;
+  my $nk = $hashRef->{'kmesh'}[0] * $hashRef->{'kmesh'}[1] * $hashRef->{'kmesh'}[2];
+  $ncpus = $hashRef->{'computer'}->{'ncpus'};
+  $ncpus = $nk if( $nk < $ncpus );
+  $npool = $ncpus;
+
+  ($ncpus, $npool, $nbd) = QErunTest( $hashRef, "scf.in", 1, 1, 1 );
+
+  my $prevNpool = $npool;
+  ($ncpus, $npool, $nbd) = QErunTest( $hashRef, "scf.in", $ncpus, $npool, $nbd);
+  
+  if( $prevNpool * 2 < $npool ) {
+    ($ncpus, $npool, $nbd) = QErunTest( $hashRef, "scf.in", $ncpus, $npool, $nbd);
+  }
 
   # full run
 
@@ -387,17 +402,25 @@ sub QEparseOut
       {
         $fermi = ($1+$3)/2;
       }
+      elsif( $scf_line =~ m/\<two_fermi_energies\>\s*$/ ) {
+        $scf_line = <SCF>;
+        if( $scf_line =~ m/([-+]?\d+\.\d+[Ee]?[-+]?(\d+)?)\s+([-+]?\d+\.\d+[Ee]?[-+]?(\d+)?)/ )
+        {
+          $fermi = ($1+$3)/2;
+        }
+      }
+#      elsif( $scf_line =~ m/\<two_fermi_energies\>\s*
       elsif( $scf_line =~ m/NAME=\"PWSCF\" VERSION=\"([\d\.\w]+)\"/ )
       {
         $hashRef->{'versionString'} = $1;
         $hashRef->{'versionString'} =~ m/(^\d+\.?\d*)/;
         $hashRef->{'version'} = $1;
       }
-      elsif( $scf_line =~ m/wall>(\d+\.\d+[eE]?\d+)/ )
+      elsif( $scf_line =~ m/wall>(\d+\.\d+[eE]?\+?\d+)/ )
       {
         $hashRef->{'time'} = $1*1;
       }
-      elsif( $scf_line =~ m/etot>(-?\d+\.\d+[eE]?\d?)/ )
+      elsif( $scf_line =~ m/etot>(-?\d+\.\d+[eE]?\+?\d?)/ )
       {
         $hashRef->{'etot'} = $1*1;
       }
@@ -1173,6 +1196,19 @@ sub QEprintInput
           $generalRef->{'structure'}->{'xred'}[$a][2];
   }
 
+  if( exists $generalRef->{'general'}->{'verbatim'}->{'qe'}->{'hubbard'}  &&
+        $generalRef->{'general'}->{'verbatim'}->{'qe'}->{'hubbard'}  ne '' ) 
+  {
+      my $s = $generalRef->{'general'}->{'verbatim'}->{'qe'}->{'hubbard'};
+      $s =~ s/\s+V /\nV /ig;
+      $s =~ s/\s+U /\nU /ig;
+      $s =~ s/\s+J /\nJ /ig;
+      $s =~ s/\s+J0 /\nJ0 /ig;
+      $s =~ s/\s+B /\nB /ig;
+      print $fh $s . "\n";
+  }
+
+
   print $fh $kptString;
 
 }
@@ -1571,6 +1607,8 @@ sub QEconvertEnergies
     my $nk = 0;
     my $nspin = 0;
     my $nbands = 0;
+    my $nband_up = 0;
+    my $nband_dw = 0;
     my @energies;
     my @weights;
     my @kpts;
@@ -1584,6 +1622,10 @@ sub QEconvertEnergies
         }
       } elsif( $line =~ m/<nbnd>(\d+)</ ) {
         $nbands = $1;
+      } elsif( $line =~ m/<nbnd_up>(\d+)</ ) {
+        $nband_up = $1;
+      } elsif($line =~ m/<nbnd_dw>(\d+)</ ) {
+        $nband_dw = $1;
       } elsif( $line =~ m/<nks>(\d+)</ ) {
         $nk = $1;
       } elsif( $line =~ m/<fermi_energy>(-?\d+\.\d+[eE]-?\d+)</ ) {
@@ -1610,6 +1652,8 @@ sub QEconvertEnergies
     }
     close IN;
 
+    $nbands = $nband_up + $nband_dw if( $nbands == 0 );
+
     my @allEnergies;
     open OUT, ">QE.txt";
     printf OUT "%i %i %i\n", $nbands, $nk, $nspin;
@@ -1633,7 +1677,7 @@ sub QEconvertEnergies
       if( $Nsemicore > 0 ) {
         my @allSorted = sort { $a <=> $b } @allEnergies;
         my $n = $Nsemicore * $nk * $nspin / 2;
-        printf "Semicore energy 'gap': %.4f  %.4f\n", $allSorted[$n-1]*27.211386245988, $allSorted[$n]*27.211386245988;
+        printf "Semicore energy 'gap': %.4f  %.4f  %.4f  %.4f\n", $allSorted[$n-1]*27.211386245988, $allSorted[$n]*27.211386245988, $allSorted[$n-1], $allSorted[$n];
         $emin = ( $allSorted[$n-1] + $allSorted[$n] )*27.211386245988/2;
       }
     }
@@ -1670,11 +1714,14 @@ sub QEmggaFix {
       $wholeFile .= $line;
     }
     close IN;
-    open OUT, ">", $xmlFile;
-    print OUT $wholeFile;
-    close OUT;
 
-    print "Detected m-GGA functional $funct. Swapping with $sub to avoid QE bugs\n";
+    if( $didSwap ) {
+      open OUT, ">", $xmlFile;
+      print OUT $wholeFile;
+      close OUT;
+
+      print "Detected m-GGA functional $funct. Swapping with $sub to avoid QE bugs\n"; 
+    }
   }
 
   return $didSwap;
