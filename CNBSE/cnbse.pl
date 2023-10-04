@@ -1105,10 +1105,10 @@ sub prepDen {
 sub writeValAuxFiles {
   my ($hashRef) = @_;
 
-  my @files = ( 'aldaf', 'backf', 'bande', 'bflag', 'bwflg', 'lflag', 'qpflg' );
+  my @files = ( 'aldaf', 'backf', 'bande', 'bflag', 'bwflg', 'lflag', 'qpflg', 'semitda' );
   foreach my $file (@files) {
     open OUT, ">", $file or die "Failed to open $file\n$!";
-    if( $hashRef->{'bse'}->{'val'}->{ $file } ) {
+    if( $hashRef->{'bse'}->{'val'}->{ $file } == $JSON::PP::true ) {
       print OUT "1\n"; 
     } else {
       print OUT "0\n";
@@ -1122,6 +1122,27 @@ sub writeValAuxFiles {
   }
 
   #TODO GW control
+  if( $hashRef->{'bse'}->{'val'}->{'gw'}->{'control'} eq 'cstr' ) {
+    open OUT, ">", "gw_control" or die "Failed to open gw_control\n$!";
+    print OUT "cstr\n";
+    close OUT;
+
+    open OUT, ">", "gw_val_cstr" or die "Failed to open gw_val_cstr\n$!";
+    printf OUT "%g ", $hashRef->{'bse'}->{'val'}->{'gw'}->{'cstr'}->{'gap'};
+    if( $hashRef->{'bse'}->{'val'}->{'gw'}->{'cstr'}->{'abs_gap'} == $JSON::PP::true ) {
+      print OUT "true ";
+    } else {
+      print OUT "false ";
+    }
+    printf OUT "%g %g\n", $hashRef->{'bse'}->{'val'}->{'gw'}->{'cstr'}->{'vstr'}, 
+                          $hashRef->{'bse'}->{'val'}->{'gw'}->{'cstr'}->{'cstr'};
+    close OUT;
+  } else {
+    open OUT, ">", "gw_control" or die "Failed to open gw_control\n$!";
+    print OUT "none\n";
+    close OUT;
+  }
+    
   open OUT, ">", "decut" or die "Failed to open decut\n$!";
   print OUT $hashRef->{'bse'}->{'val'}->{'decut'} . "\n";
   close OUT;

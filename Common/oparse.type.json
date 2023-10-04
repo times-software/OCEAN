@@ -64,7 +64,13 @@
             "nloop" : "i"
          },
          "gw" : {
-            "control" : "s"
+            "control" : "s",
+            "cstr" : {
+              "abs_gap" : "b",
+              "cstr" : "f",
+              "gap" : "f",
+              "vstr" : "f"
+            }
          },
          "haydock" : {
             "converge" : {
@@ -79,6 +85,7 @@
             "range" : "af"
          },
          "qpflg" : "b",
+         "semitda" : "b",
          "solver" : "s"
       },
       "val_start" : "i",
