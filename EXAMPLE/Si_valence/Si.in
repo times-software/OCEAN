@@ -14,12 +14,17 @@ photon_q { 0.0001   0.0001    0.0001 }
 #screen.nkpt{ 2 2 2 }
 #screen.nbands { 200 }
 #screen.mode grid
-#screen.wvfn qe54
 #screen.lmax 0
 #screen.grid.nr 40
 #screen.grid.ang 7
 
-bse.gw.gap { 1.11 T }
+# uncomment for GW
+# Sets the GW gap to 1.11, stretches the valence by 6% and conduction by 3%
+#bse.val.gw.control cstr
+bse.val.gw.cstr.abs_gap T
+bse.val.gw.cstr.gap 1.11
+bse.val.gw.cstr.vstr 0.06
+bse.val.gw.cstr.cstr 0.03
 
 # Total bands
 nbands 12

@@ -108,7 +108,7 @@ module OCEAN_gmres
 
         case('loop')
           read(99,*) e_start, e_stop, e_step
-          gmres_nsteps = floor( ( e_stop - e_start + e_step*.9) / e_step )
+          gmres_nsteps = 1 + ceiling( ( e_stop - e_start - e_step*0.0001_DP ) / e_step )
           allocate( gmres_energy_list( gmres_nsteps ) )
           do i = 1, gmres_nsteps
             gmres_energy_list( i ) = e_start + ( i - 1 ) * e_step
