@@ -74,9 +74,30 @@ sub QErunNSCF
   
   close $fh;
 
-  my ($ncpus, $npool, $nbd) = QErunTest( $hashRef, "nscf.in" );
+  my $ncpus = 1;
+  my $npool = 1;
+  my $nbd = 1;
+  my $nk = $specificHashRef->{'kmesh'}[0] * $specificHashRef->{'kmesh'}[1] * $specificHashRef->{'kmesh'}[2];
+  $ncpus = $hashRef->{'computer'}->{'ncpus'};
+  $ncpus = $nk if( $nk < $ncpus );
+  $npool = $ncpus;
+
+  ($ncpus, $npool, $nbd) = QErunTest( $hashRef, "nscf.in", $ncpus, $npool, $nbd );
 
   QEsetupNSCF( $shift );
+
+  my $prevNpool = $npool;
+  ($ncpus, $npool, $nbd) = QErunTest( $hashRef, "nscf.in", $ncpus, $npool, $nbd);
+
+  QEsetupNSCF( $shift );
+
+  if( $prevNpool * 2 < $npool ) {
+    ($ncpus, $npool, $nbd) = QErunTest( $hashRef, "nscf.in", $ncpus, $npool, $nbd);
+
+    QEsetupNSCF( $shift );
+  }
+
+
 
   # full run
 
@@ -222,7 +243,22 @@ sub QErunDensity
 #    print "Had trouble parsing test.out\n. Will attempt to continue.\n";
 #  }
 
-  my ($ncpus, $npool, $nbd) = QErunTest( $hashRef, "scf.in" );
+  my $ncpus = 1;
+  my $npool = 1;
+  my $nbd = 1;
+  my $nk = $hashRef->{'kmesh'}[0] * $hashRef->{'kmesh'}[1] * $hashRef->{'kmesh'}[2];
+  $ncpus = $hashRef->{'computer'}->{'ncpus'};
+  $ncpus = $nk if( $nk < $ncpus );
+  $npool = $ncpus;
+
+  ($ncpus, $npool, $nbd) = QErunTest( $hashRef, "scf.in", 1, 1, 1 );
+
+  my $prevNpool = $npool;
+  ($ncpus, $npool, $nbd) = QErunTest( $hashRef, "scf.in", $ncpus, $npool, $nbd);
+  
+  if( $prevNpool * 2 < $npool ) {
+    ($ncpus, $npool, $nbd) = QErunTest( $hashRef, "scf.in", $ncpus, $npool, $nbd);
+  }
 
   # full run
 
@@ -248,13 +284,25 @@ sub QErunDensity
 
 sub QErunTest
 {
-  my ( $hashRef, $fileName ) = @_;
+  my ( $hashRef, $fileName, $previousNcpus, $previousNpool, $previousNbd ) = @_;
     # test run for k-points
   print "Testing parallel QE execution\n";
   open TMP, '>', "system.EXIT" or die "Failed to open file system.EXIT\n$!";
   close TMP;
 
-  QErunPW( $hashRef->{'general'}->{'redirect'}, $hashRef->{'computer'}->{'ser_prefix'}, "" , $fileName, "test.out" );
+  if( $previousNcpus == 1 ) {
+    QErunPW( $hashRef->{'general'}->{'redirect'}, $hashRef->{'computer'}->{'ser_prefix'}, "" , $fileName, "test.out" );
+  } else {
+    my $prefix = $hashRef->{'computer'}->{'para_prefix'};
+    $prefix =~ s/$hashRef->{'computer'}->{'ncpus'}/$previousNcpus/ 
+        if( $hashRef->{'computer'}->{'ncpus'} != $previousNcpus );
+  
+    my $cmdLine = " -npool $previousNpool ";
+    if( $previousNbd > 1 ) {
+      $cmdLine .= " -pd true -ntg $previousNbd";
+    }
+    QErunPW( $hashRef->{'general'}->{'redirect'}, $prefix, $cmdLine, $fileName, "test.out" );
+  }
 
   # parse test results
   my $npool = 1;
@@ -354,17 +402,25 @@ sub QEparseOut
       {
         $fermi = ($1+$3)/2;
       }
+      elsif( $scf_line =~ m/\<two_fermi_energies\>\s*$/ ) {
+        $scf_line = <SCF>;
+        if( $scf_line =~ m/([-+]?\d+\.\d+[Ee]?[-+]?(\d+)?)\s+([-+]?\d+\.\d+[Ee]?[-+]?(\d+)?)/ )
+        {
+          $fermi = ($1+$3)/2;
+        }
+      }
+#      elsif( $scf_line =~ m/\<two_fermi_energies\>\s*
       elsif( $scf_line =~ m/NAME=\"PWSCF\" VERSION=\"([\d\.\w]+)\"/ )
       {
         $hashRef->{'versionString'} = $1;
         $hashRef->{'versionString'} =~ m/(^\d+\.?\d*)/;
         $hashRef->{'version'} = $1;
       }
-      elsif( $scf_line =~ m/wall>(\d+\.\d+[eE]?\d+)/ )
+      elsif( $scf_line =~ m/wall>(\d+\.\d+[eE]?\+?\d+)/ )
       {
         $hashRef->{'time'} = $1*1;
       }
-      elsif( $scf_line =~ m/etot>(-?\d+\.\d+[eE]?\d?)/ )
+      elsif( $scf_line =~ m/etot>(-?\d+\.\d+[eE]?\+?\d?)/ )
       {
         $hashRef->{'etot'} = $1*1;
       }
@@ -536,8 +592,8 @@ sub QErunDFPT
 {
   my ($hashRef) = @_;
 
-  if( $hashRef=>{'structure'}->{'metal'} ) {
-    $hashRef=>{'structure'}->{'epsilon'} = $hashRef=>{'epsilon'}->{'metal_max'};
+  if( $hashRef->{'structure'}->{'metal'} ) {
+    $hashRef->{'structure'}->{'epsilon'} = $hashRef->{'epsilon'}->{'metal_max'};
     return 0;
   }
 
@@ -677,7 +733,15 @@ sub QEparseDensityPotential
 
   my $outfile = $infile;
   $outfile =~ s/\.in/.out/;
+  
+  my $didSwap = 0;
+  if($type eq 'potential' ) {
+    $didSwap = QEmggaFix();
+  }
   QErunPP( $hashRef->{'general'}->{'redirect'}, $prefix, $cmdLine, "$infile", "$outfile" );
+  if( $didSwap ) {
+    QEmggaUnFix();
+  }
 
   # Check for NaN with metaGGA
   if( $type eq 'potential' ) {
@@ -760,7 +824,7 @@ sub QEPoolControl
   my ( $actualKpts, $numKS, $mem, $FFT, $OMP, $hashRef ) = @_;
 
   $OMP = 1 if( $OMP < 1 );
-  my $maxMem = 4000*$OMP;
+  my $maxMem = 2000*$OMP;
   my $minPool = 0.9;
   $minPool = $mem / $maxMem if( $mem > $maxMem );
 
@@ -925,12 +989,15 @@ sub QEprintInput
     $tprnfor = 'true' if( $generalRef->{'general'}->{'calc_force'} );
     $nosyminv = 'false';
     $startingPot = 'atomic';
-    if( $generalRef->{'general'}->{'startingpot'} eq 'file' &&
+    if( $generalRef->{'general'}->{'startingpot'} =~ m/file/ )
+    {
+      if( -e catfile( "Out", "system.save", "charge-density.dat" ) || 
         -e catfile( "Out", "system.save", "charge-density.xml" ) ) {
-      $startingPot = 'file';
-      print "  WARNING: restarting from existing charge density!\n";
+        $startingPot = 'file';
+        print "  WARNING: restarting from existing charge density!\n";
+      }
     }
-    if( $generalRef->{'general'}->{'diagonalization'} == 'default' ) {
+    if( $generalRef->{'general'}->{'diagonalization'} eq 'default' ) {
       $diagonalization = 'david';
     } else {
       $diagonalization = $generalRef->{'general'}->{'diagonalization'};
@@ -1128,6 +1195,19 @@ sub QEprintInput
           $generalRef->{'structure'}->{'xred'}[$a][1],
           $generalRef->{'structure'}->{'xred'}[$a][2];
   }
+
+  if( exists $generalRef->{'general'}->{'verbatim'}->{'qe'}->{'hubbard'}  &&
+        $generalRef->{'general'}->{'verbatim'}->{'qe'}->{'hubbard'}  ne '' ) 
+  {
+      my $s = $generalRef->{'general'}->{'verbatim'}->{'qe'}->{'hubbard'};
+      $s =~ s/\s+V /\nV /ig;
+      $s =~ s/\s+U /\nU /ig;
+      $s =~ s/\s+J /\nJ /ig;
+      $s =~ s/\s+J0 /\nJ0 /ig;
+      $s =~ s/\s+B /\nB /ig;
+      print $fh $s . "\n";
+  }
+
 
   print $fh $kptString;
 
@@ -1527,6 +1607,8 @@ sub QEconvertEnergies
     my $nk = 0;
     my $nspin = 0;
     my $nbands = 0;
+    my $nband_up = 0;
+    my $nband_dw = 0;
     my @energies;
     my @weights;
     my @kpts;
@@ -1540,6 +1622,10 @@ sub QEconvertEnergies
         }
       } elsif( $line =~ m/<nbnd>(\d+)</ ) {
         $nbands = $1;
+      } elsif( $line =~ m/<nbnd_up>(\d+)</ ) {
+        $nband_up = $1;
+      } elsif($line =~ m/<nbnd_dw>(\d+)</ ) {
+        $nband_dw = $1;
       } elsif( $line =~ m/<nks>(\d+)</ ) {
         $nk = $1;
       } elsif( $line =~ m/<fermi_energy>(-?\d+\.\d+[eE]-?\d+)</ ) {
@@ -1566,6 +1652,8 @@ sub QEconvertEnergies
     }
     close IN;
 
+    $nbands = $nband_up + $nband_dw if( $nbands == 0 );
+
     my @allEnergies;
     open OUT, ">QE.txt";
     printf OUT "%i %i %i\n", $nbands, $nk, $nspin;
@@ -1589,7 +1677,7 @@ sub QEconvertEnergies
       if( $Nsemicore > 0 ) {
         my @allSorted = sort { $a <=> $b } @allEnergies;
         my $n = $Nsemicore * $nk * $nspin / 2;
-        printf "Semicore energy 'gap': %.4f  %.4f\n", $allSorted[$n-1]*27.211386245988, $allSorted[$n]*27.211386245988;
+        printf "Semicore energy 'gap': %.4f  %.4f  %.4f  %.4f\n", $allSorted[$n-1]*27.211386245988, $allSorted[$n]*27.211386245988, $allSorted[$n-1], $allSorted[$n];
         $emin = ( $allSorted[$n-1] + $allSorted[$n] )*27.211386245988/2;
       }
     }
@@ -1597,6 +1685,52 @@ sub QEconvertEnergies
     print "WARNING! QEconvertEnergiers called but $xmlFile is missing\n";
   }
   return( $emin, $emax);
+}
+
+sub QEmggaFix {
+  my $sub = 'PBE';
+  my $didSwap = 0;
+  my $funct = '';
+
+  my $xmlFile = catfile( 'Out', 'system.save', 'data-file-schema.xml' );
+  my $xmlFile2 = catfile( 'Out', 'system.save', 'data-file-schema.xml_orig' );
+  if( -e $xmlFile ) {
+    copy $xmlFile, $xmlFile2;
+    my $wholeFile;
+    open IN, $xmlFile or die "$!";
+    while( my $line = <IN> ) {
+      if( $line =~ m/<functional>(.*)<\/functional>/ ) {
+        $funct = $1;
+        if( $funct =~ m/XC-(\d+)\w-(\d+)\w-(\d+)\w-(\d+)\w-(\d+)\w-(\d+)\w/ ) {
+          if( $5 > 0 || $6 > 0 ) {
+            $didSwap = 1;
+            $line =~ s/$funct/$sub/;
+          }
+        } elsif( $funct =~ m/SCAN/i ) {
+          $didSwap = 1;
+          $line =~ s/$funct/$sub/;
+        }
+      }
+      $wholeFile .= $line;
+    }
+    close IN;
+
+    if( $didSwap ) {
+      open OUT, ">", $xmlFile;
+      print OUT $wholeFile;
+      close OUT;
+
+      print "Detected m-GGA functional $funct. Swapping with $sub to avoid QE bugs\n"; 
+    }
+  }
+
+  return $didSwap;
+}
+
+sub QEmggaUnFix {
+  my $xmlFile = catfile( 'Out', 'system.save', 'data-file-schema.xml' );
+  my $xmlFile2 = catfile( 'Out', 'system.save', 'data-file-schema.xml_orig' );
+  move $xmlFile2, $xmlFile;
 }
 
 1;

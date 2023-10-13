@@ -37,7 +37,7 @@ module OCEAN_val_energy
 
 
 !    allocate( val_energies( sys%cur_run%val_bands, sys%nkpts, sys%nspn ),  &
-    allocate( val_energies( sys%brange(2), sys%nkpts, sys%nspn ),  &
+    allocate( val_energies( sys%brange(1) : sys%brange(2), sys%nkpts, sys%nspn ),  &
               con_energies( sys%cur_run%num_bands, sys%nkpts, sys%nspn ), STAT=ierr )
     if( ierr .ne. 0 ) return
 
@@ -59,7 +59,7 @@ module OCEAN_val_energy
              enddo  !ispn
           endif
 #ifdef MPI
-          call MPI_BCAST( val_energies, sys%brange(2)*sys%nkpts*sys%nspn, MPI_DOUBLE_PRECISION, root, comm, ierr )
+          call MPI_BCAST( val_energies, (sys%brange(2)-sys%brange(1)+1)*sys%nkpts*sys%nspn, MPI_DOUBLE_PRECISION, root, comm, ierr )
 !          call MPI_BCAST( val_energies, sys%cur_run%val_bands*sys%nkpts*sys%nspn, MPI_DOUBLE_PRECISION, root, comm, ierr )
           if( ierr .ne. MPI_SUCCESS ) return
           call MPI_BCAST( con_energies, sys%cur_run%num_bands*sys%nkpts*sys%nspn, MPI_DOUBLE_PRECISION, root, comm, ierr )
@@ -199,7 +199,11 @@ module OCEAN_val_energy
               im_con_energies( sys%cur_run%num_bands, sys%nkpts, sys%nspn ), STAT=ierr )
     if( ierr .ne. 0 ) return
 
-    call find_fermi( sys, val_energies, con_energies, sys%nelectron, efermi, &
+    if( myid .eq. 0 .and. abs( nint(sys%nelectron) - sys%nelectron ) .gt. 0.001_DP ) then
+      write(6,*) 'WARNING: Fractional electron count not well handled by valence code (yet)', &
+                  sys%nelectron, nint(sys%nelectron)
+    endif
+    call find_fermi( sys, val_energies, con_energies, nint(sys%nelectron), efermi, &
                      homo, lumo, cliph, metal, .true., ierr )
     if( ierr .ne. 0 ) return
 
@@ -210,7 +214,7 @@ module OCEAN_val_energy
     if( ierr .ne. 0 ) return
 
     if( did_gw_correction ) then 
-      call find_fermi( sys, val_energies, con_energies, sys%nelectron, efermi, &
+      call find_fermi( sys, val_energies, con_energies, nint(sys%nelectron), efermi, &
                        homo, lumo, cliph, metal, .false., ierr )
       if( ierr .ne. 0 ) return
     endif
@@ -234,7 +238,7 @@ module OCEAN_val_energy
       endif
       deallocate( tmp_e )
     endif
-    call energies_allow( sys, val_energies, con_energies, sys%nelectron, efermi, cliph, &
+    call energies_allow( sys, val_energies, con_energies, nint(sys%nelectron), efermi, cliph, &
                                 allow, metal, ierr )
     if( ierr .ne. 0 ) return
 
@@ -464,9 +468,11 @@ module OCEAN_val_energy
     real( DP ), intent( inout ), dimension( sys%cur_run%num_bands, sys%nkpts, sys%nspn ) ::  con_energies
     integer, intent( inout ) :: ierr
     !
-    real(dp) :: gw_gap_correction, stretch
+    real(dp) :: gw_gap_correction, vstr, cstr !stretch
     logical :: abs_gap
 
+
+#if 0
     open(unit=99,file='gwgap',form='formatted', status='old' )
     read( 99, * ) gw_gap_correction, abs_gap
     close( 99 ) 
@@ -490,6 +496,23 @@ module OCEAN_val_energy
     stretch = stretch + 1.0_dp
 
     val_energies( :, :, : ) = homo + ( val_energies( :, :, : ) - homo ) * stretch
+#endif
+
+    open(unit=99,file='gw_val_cstr',form='formatted', status='old' )
+    read( 99, * ) gw_gap_correction, abs_gap, vstr, cstr
+    close( 99 )
+
+    if( abs_gap ) then
+      gw_gap_correction = gw_gap_correction * eV2Hartree + homo
+    else
+      gw_gap_correction = gw_gap_correction * eV2Hartree + lumo
+    endif
+
+    vstr = vstr + 1.0_DP
+    val_energies( :, :, : ) = homo + ( val_energies( :, :, : ) - homo ) * vstr
+
+    cstr = cstr + 1.0_DP
+    con_energies( :, :, : ) = gw_gap_correction + ( con_energies( :, :, : ) - lumo ) * cstr
 
   end subroutine val_gw_stretch
 
@@ -681,7 +704,7 @@ module OCEAN_val_energy
     type( O_system ), intent( in ) :: sys
     integer, intent( in ) :: nelectron 
     real(dp), intent( in ) :: con_energies( sys%cur_run%num_bands, sys%nkpts, sys%nspn ), &
-                              val_energies( sys%brange(2), sys%nkpts, sys%nspn )
+                              val_energies( sys%brange(1):sys%brange(2), sys%nkpts, sys%nspn )
 !                              val_energies( sys%cur_run%val_bands, sys%nkpts, sys%nspn )
     real(dp), intent( out ) :: efermi, homo, lumo, cliph
     logical, intent( out ) :: metal
@@ -836,7 +859,8 @@ module OCEAN_val_energy
       lumo = simple_energies( t_electron + 1 )
       efermi = ( lumo + homo ) / 2.0_dp
     else ! not metal
-      i_band = nelectron / 2 - sys%brange( 1 ) + 1
+!      i_band = nelectron / 2 - sys%brange( 1 ) + 1
+      i_band = nelectron / 2
       if( myid .eq. root ) write( 6, * ) "i_band = ", i_band
       homo =  val_energies( i_band, 1 , 1)
       do kiter = 2, sys%nkpts

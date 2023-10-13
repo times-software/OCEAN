@@ -30,7 +30,7 @@ module OCEAN_system
     integer( S_INT ) :: num_bands
     integer( S_INT ) :: val_bands
     integer          :: brange(4)
-    integer          :: nelectron 
+    real(DP)         :: nelectron 
     integer( S_INT ) :: xmesh( 3 )
     integer( S_INT ) :: kmesh( 3 )
     integer( S_INT ) :: ZNL(3)
@@ -109,6 +109,7 @@ module OCEAN_system
     logical          :: aldaf
     logical          :: backf
     logical          :: bwflg
+    logical          :: semiTDA
     logical          :: complex_bse
     
     type(o_run), pointer :: prev_run => null()
@@ -446,7 +447,7 @@ module OCEAN_system
     if( ierr .ne. MPI_SUCCESS ) goto 111
     call MPI_BCAST( sys%brange, 4, MPI_INTEGER, root, comm, ierr )
     if( ierr .ne. MPI_SUCCESS ) goto 111
-    call MPI_BCAST( sys%nelectron, 1, MPI_INTEGER, root, comm, ierr )
+    call MPI_BCAST( sys%nelectron, 1, MPI_DOUBLE_PRECISION, root, comm, ierr )
     if( ierr .ne. MPI_SUCCESS ) goto 111
     call MPI_BCAST( sys%nedges, 1, MPI_INTEGER, root, comm, ierr )
     if( ierr .ne. MPI_SUCCESS ) goto 111
@@ -538,7 +539,7 @@ module OCEAN_system
 
     integer :: ntot, nmatch, iter, i, start_band, num_bands, val_bands, val_flag,  &
                rixs_energy, rixs_pol
-    logical :: found, have_val, have_core, lflag, bflag, bwflg, aldaf, backf
+    logical :: found, have_val, have_core, lflag, bflag, bwflg, aldaf, backf, semiTDA
     real(DP) :: tmp(3)
 
     ! These are optional so should be given defaults
@@ -683,6 +684,21 @@ module OCEAN_system
               aldaf = .false.
             endif
           endif 
+
+          inquire(file="semitda", exist=found )
+          if( found ) then
+            open(unit=98,file="semitda",form='formatted',status='old')
+            rewind(98)
+            read(98,*) val_flag
+            close(98)
+            if( val_flag .gt. 0 ) then
+              semiTDA = .true.
+            else
+              semiTDA = .false.
+            endif
+          else
+            semiTDA = .true.
+          endif
               
           inquire(file="backf", exist=backf )
           if( backf ) then
@@ -748,6 +764,8 @@ module OCEAN_system
       if( ierr .ne. MPI_SUCCESS ) goto 111
       call MPI_BCAST( backf, 1, MPI_LOGICAL, root, comm, ierr )
       if( ierr .ne. MPI_SUCCESS ) goto 111
+      call MPI_BCAST( semiTDA, 1, MPI_LOGICAL, root, comm, ierr )
+      if( ierr .ne. MPI_SUCCESS ) goto 111
 #endif
 
       !!!!
@@ -784,6 +802,7 @@ module OCEAN_system
       temp_cur_run%bwflg = bwflg
       temp_cur_run%aldaf = aldaf
       temp_cur_run%backf = backf
+      temp_cur_run%semiTDA = semiTDA
 
 
       temp_cur_run%rixs_energy = rixs_energy
