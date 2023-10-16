@@ -1,3 +1,11 @@
+## v. 3.1.0
+
+#### Bug fixes
+ 1. The core-level shift was including the effect of V_{xc}. For self-energy 
+    corrections, V_{xc} should be removed. Initial testing has shown that the 
+    relative shifts between sites w/ or w/o V_{xc} are largely the same, but
+    in absolute terms there will be a large change (10s of eVs).
+
 ## v. 3.0.4
 
 #### Minor features
