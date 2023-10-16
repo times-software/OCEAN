@@ -693,7 +693,7 @@ sub QEparseDensityPotential
       $bonusInputs = sprintf "  emin = %.15f\n  emax = %.15f\n", $emin, $emax;
     }
   } elsif( $type eq 'potential' ) {
-    $flag = 1;
+    $flag = 11;
     $filplot = 'system.pot';
     $infile = 'pp2.in';
     $convert = "system.pot potofr";
@@ -734,14 +734,14 @@ sub QEparseDensityPotential
   my $outfile = $infile;
   $outfile =~ s/\.in/.out/;
   
-  my $didSwap = 0;
-  if($type eq 'potential' ) {
-    $didSwap = QEmggaFix();
-  }
+#  my $didSwap = 0;
+#  if($type eq 'potential' ) {
+#    $didSwap = QEmggaFix();
+#  }
   QErunPP( $hashRef->{'general'}->{'redirect'}, $prefix, $cmdLine, "$infile", "$outfile" );
-  if( $didSwap ) {
-    QEmggaUnFix();
-  }
+#  if( $didSwap ) {
+#    QEmggaUnFix();
+#  }
 
   # Check for NaN with metaGGA
   if( $type eq 'potential' ) {

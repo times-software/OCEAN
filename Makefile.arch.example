@@ -62,6 +62,7 @@ CUT3D_EXE  = $(ABINIT_DIR)/cut3d
 ESPRESSO_DIR = /path/to/espresso
 PW_EXE = $(ESPRESSO_DIR)/bin/pw.x
 PP_EXE = $(ESPRESSO_DIR)/bin/pp.x
+PH_EXE = $(ESPRESSO_DIR)/bin/ph.x
 #######################
 
 
