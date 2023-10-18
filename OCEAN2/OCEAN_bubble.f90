@@ -435,12 +435,12 @@ module OCEAN_bubble
     integer, intent( inout ) :: ierr
     !
     integer :: bciter, bviter, ik, ispn, dft_spin, psi_spin, jspn, dft_spin2, psi_spin2
-    integer :: ix, iix, xstop, xwidth, nthreads, iproc
+    integer :: ix, iix, xstop, xwidth, nthreads, iproc, nbackPair, ibw
     integer :: psi_con_pad!, nxpts_pad
 !    integer :: nbv, nbc, nkpts
     integer, external :: omp_get_max_threads
     real( DP ), allocatable :: re_l_bubble( : ), im_l_bubble( : )
-    real( DP ), allocatable :: re_amat( :, :, : ), im_amat( :, :, : )
+    real( DP ), allocatable :: re_amat( :, :, :, : ), im_amat( :, :, :, : )
     !
     real( DP ), parameter :: one = 1.0_dp
     real( DP ), parameter :: zero = 0.0_dp
@@ -468,6 +468,12 @@ module OCEAN_bubble
       spin_prefac = 1.0_dp
     endif
     minus_spin_prefac = -spin_prefac
+
+    if( sys%bwflg ) then
+      nbackPair = 2
+    else
+      nbackPair = 1
+    endif
       
     allocate( re_l_bubble( max(1,nxpts) ), im_l_bubble( max(1,nxpts) ) )
     re_l_bubble( : ) = 0.0_dp
@@ -488,14 +494,14 @@ module OCEAN_bubble
     
 !    write(6,*) nxpts_pad, xwidth, startx_by_mpiID( myid )
 
-    allocate( re_amat( max(1,nxpts_pad), nbv, nkpts ), im_amat( max(nxpts_pad,1), nbv, nkpts ) )
+    allocate( re_amat( max(1,nxpts_pad), nbv, nkpts, sys%nbw ), im_amat( max(nxpts_pad,1), nbv, nkpts, sys%nbw ) )
 
 !$OMP PARALLEL DEFAULT( NONE ) &
 !$OMP& SHARED( sys, psi, re_amat, im_amat, nxpts, nkpts, nbv, nbc, re_con, im_con ) &
 !$OMP& SHARED( nxpts_pad, re_val, im_val, psi_con_pad, im_l_bubble, re_l_bubble, nproc, myid ) &
 !$OMP& SHARED( re_scratch, im_scratch, nxpts_by_mpiID, comm, MPI_STATUS_IGNORE, ierr, nthreads ) &
 !$OMP& SHARED( scratch, fo, bubble, spin_prefac, psiout, minus_spin_prefac, startx_by_mpiID ) &
-!$OMP& PRIVATE( bciter, bviter, xstop, xwidth, ix, iix, ik, ispn, dft_spin, psi_spin, dft_spin2, psi_spin2 )
+!$OMP& PRIVATE( bciter, bviter, xstop, xwidth, ix, iix, ik, ispn, dft_spin, psi_spin, dft_spin2, psi_spin2, ibw  )
 
 
 
@@ -512,23 +518,26 @@ module OCEAN_bubble
     if( nxpts .gt. 0 ) then
       xwidth = nxpts
       ix = 1
+      do ibw = 1, sys%nbw
 !$OMP DO COLLAPSE(1)
-      do ik = 1, nkpts
-        call DGEMM( 'N', 'N', xwidth, nbv, nbc, one, re_con(ix, 1, ik, dft_spin), nxpts_pad, &
-                    psi%valr( 1, 1, ik, psi_spin ), psi_con_pad, zero, re_amat( ix, 1, ik ), nxpts_pad )
-        call DGEMM( 'N', 'N', xwidth, nbv, nbc, minusone, im_con(ix, 1, ik,dft_spin), nxpts_pad, &
-                    psi%vali( 1, 1, ik, psi_spin ), psi_con_pad, one, re_amat( ix, 1, ik ), nxpts_pad )
+        do ik = 1, nkpts
+          call DGEMM( 'N', 'N', xwidth, nbv, nbc, one, re_con(ix, 1, ik, dft_spin, ibw), nxpts_pad, &
+                      psi%valr( 1, 1, ik, psi_spin, ibw), psi_con_pad, zero, re_amat( ix, 1, ik, ibw ), nxpts_pad )
+          call DGEMM( 'N', 'N', xwidth, nbv, nbc, minusone, im_con(ix, 1, ik,dft_spin, ibw), nxpts_pad, &
+                      psi%vali( 1, 1, ik, psi_spin, ibw), psi_con_pad, one, re_amat( ix, 1, ik, ibw ), nxpts_pad )
 
-        call DGEMM( 'N', 'N', xwidth, nbv, nbc, one, im_con(ix, 1, ik,dft_spin), nxpts_pad, &
-                    psi%valr( 1, 1, ik, psi_spin ), psi_con_pad, zero, im_amat( ix, 1, ik ), nxpts_pad )
-        call DGEMM( 'N', 'N', xwidth, nbv, nbc, one, re_con(ix, 1, ik,dft_spin), nxpts_pad, &
-                    psi%vali( 1, 1, ik, psi_spin ), psi_con_pad, one, im_amat( ix, 1, ik ), nxpts_pad )
-      enddo
+          call DGEMM( 'N', 'N', xwidth, nbv, nbc, one, im_con(ix, 1, ik,dft_spin, ibw), nxpts_pad, &
+                      psi%valr( 1, 1, ik, psi_spin, ibw), psi_con_pad, zero, im_amat( ix, 1, ik, ibw ), nxpts_pad )
+          call DGEMM( 'N', 'N', xwidth, nbv, nbc, one, re_con(ix, 1, ik,dft_spin, ibw), nxpts_pad, &
+                      psi%vali( 1, 1, ik, psi_spin, ibw ), psi_con_pad, one, im_amat( ix, 1, ik, ibw ), nxpts_pad )
+        enddo
 !$OMP END DO
+      enddo
+        
     else 
 !$OMP WORKSHARE
-      re_amat( :,:,: ) = 0.0_dp
-      im_amat( :,:,: ) = 0.0_dp
+      re_amat( :,:,:,: ) = 0.0_dp
+      im_amat( :,:,:,: ) = 0.0_dp
 !$OMP END WORKSHARE
     endif
 
@@ -545,17 +554,19 @@ module OCEAN_bubble
       xstop = min( nxpts, ix + xwidth - 1 )
 !      ix = 1
 !      xstop = nxpts
+        do ibw = 1, sys%nbw
           do ik = 1, nkpts
             do bviter = 1, nbv
               do iix = ix, xstop
                 re_l_bubble( iix ) = re_l_bubble( iix ) &
-                                   + re_val( iix, bviter, ik, dft_spin ) * re_amat( iix, bviter, ik ) &
-                                   + im_val( iix, bviter, ik, dft_spin ) * im_amat( iix, bviter, ik ) 
+                                   + re_val( iix, bviter, ik, dft_spin, ibw ) * re_amat( iix, bviter, ik, ibw ) &
+                                   + im_val( iix, bviter, ik, dft_spin, ibw ) * im_amat( iix, bviter, ik, ibw ) 
                 im_l_bubble( iix ) = im_l_bubble( iix ) &
-                                   + re_val( iix, bviter, ik, dft_spin ) * im_amat( iix, bviter, ik ) &
-                                   - im_val( iix, bviter, ik, dft_spin ) * re_amat( iix, bviter, ik ) 
+                                   + re_val( iix, bviter, ik, dft_spin, ibw ) * im_amat( iix, bviter, ik, ibw ) &
+                                   - im_val( iix, bviter, ik, dft_spin, ibw ) * re_amat( iix, bviter, ik, ibw ) 
               enddo
             enddo
+          enddo
         enddo
     enddo
 !$OMP END DO
@@ -651,50 +662,52 @@ module OCEAN_bubble
     im_amat = 0.0_dp
 !$OMP END WORKSHARE
 
-!$OMP DO COLLAPSE(3)
+!$OMP DO COLLAPSE(4)
+    do ibw = 1, sys%nbw
       do ik = 1, nkpts
         do bviter = 1, nbv
 !        do ix = 1, nxpts, xwidth
 !          xstop = min( nxpts, ix + xwidth - 1 )
 !          do iix = 1, xstop
           do iix = 1, nxpts
-              re_amat( iix, bviter, ik ) = re_l_bubble( iix ) * re_val( iix, bviter, ik, dft_spin2 )
-              im_amat( iix, bviter, ik ) = im_l_bubble( iix ) * re_val( iix, bviter, ik, dft_spin2 )
+              re_amat( iix, bviter, ik, ibw ) = re_l_bubble( iix ) * re_val( iix, bviter, ik, dft_spin2, ibw )
+              im_amat( iix, bviter, ik, ibw ) = im_l_bubble( iix ) * re_val( iix, bviter, ik, dft_spin2, ibw )
 !          enddo
 !          do iix = 1, xstop
-              re_amat( iix, bviter, ik ) = re_amat( iix, bviter, ik ) & 
-                                         - im_l_bubble( iix ) * im_val( iix, bviter, ik, dft_spin2 )
-              im_amat( iix, bviter, ik ) = im_amat( iix, bviter, ik ) &
-                                         + re_l_bubble( iix ) * im_val( iix, bviter, ik, dft_spin2 )
+              re_amat( iix, bviter, ik, ibw ) = re_amat( iix, bviter, ik, ibw ) & 
+                                         - im_l_bubble( iix ) * im_val( iix, bviter, ik, dft_spin2, ibw )
+              im_amat( iix, bviter, ik, ibw ) = im_amat( iix, bviter, ik, ibw ) &
+                                         + re_l_bubble( iix ) * im_val( iix, bviter, ik, dft_spin2, ibw )
           enddo
 !          enddo
 !        enddo
         enddo
       enddo
+    enddo
 !$OMP END DO
 
 
     if( nxpts .gt. 0 ) then
 !JTV add additional tiling
+      do ibw = 1, sys%nbw
 !$OMP DO 
+        do ik = 1, nkpts
+          call DGEMM( 'T', 'N', nbc, nbv, nxpts, spin_prefac, re_con( 1, 1, ik, dft_spin2, ibw ), nxpts_pad, & 
+                      re_amat( 1, 1, ik, ibw ), nxpts_pad, &
+                      one, psiout%valr( 1, 1, ik, psi_spin2, ibw ), psi_con_pad )
+          call DGEMM( 'T', 'N', nbc, nbv, nxpts, spin_prefac, im_con( 1, 1, ik, dft_spin2, ibw ), nxpts_pad, & 
+                      im_amat( 1, 1, ik, ibw ), nxpts_pad, &
+                      one, psiout%valr( 1, 1, ik, psi_spin2, ibw ), psi_con_pad )
 
-      do ik = 1, nkpts
-        call DGEMM( 'T', 'N', nbc, nbv, nxpts, spin_prefac, re_con( 1, 1, ik, dft_spin2 ), nxpts_pad, & 
-                    re_amat( 1, 1, ik ), nxpts_pad, &
-                    one, psiout%valr( 1, 1, ik, psi_spin2 ), psi_con_pad )
-        call DGEMM( 'T', 'N', nbc, nbv, nxpts, spin_prefac, im_con( 1, 1, ik, dft_spin2 ), nxpts_pad, & 
-                    im_amat( 1, 1, ik ), nxpts_pad, &
-                    one, psiout%valr( 1, 1, ik, psi_spin2 ), psi_con_pad )
-
-        call DGEMM( 'T', 'N', nbc, nbv, nxpts, minus_spin_prefac, im_con( 1, 1, ik, dft_spin2 ), nxpts_pad, &
-                    re_amat( 1, 1, ik ), nxpts_pad, &
-                    one, psiout%vali( 1, 1, ik, psi_spin2 ), psi_con_pad )
-        call DGEMM( 'T', 'N', nbc, nbv, nxpts, spin_prefac, re_con( 1, 1, ik, dft_spin2 ), nxpts_pad, &
-                    im_amat( 1, 1, ik ), nxpts_pad, &
-                    one, psiout%vali( 1, 1, ik, psi_spin2 ), psi_con_pad )
-      enddo
+          call DGEMM( 'T', 'N', nbc, nbv, nxpts, minus_spin_prefac, im_con( 1, 1, ik, dft_spin2, ibw ), nxpts_pad, &
+                      re_amat( 1, 1, ik, ibw ), nxpts_pad, &
+                      one, psiout%vali( 1, 1, ik, psi_spin2, ibw ), psi_con_pad )
+          call DGEMM( 'T', 'N', nbc, nbv, nxpts, spin_prefac, re_con( 1, 1, ik, dft_spin2, ibw ), nxpts_pad, &
+                      im_amat( 1, 1, ik, ibw ), nxpts_pad, &
+                      one, psiout%vali( 1, 1, ik, psi_spin2, ibw ), psi_con_pad )
+        enddo
 !$OMP END DO
-
+      enddo
     endif
 
   enddo ! jspn
