@@ -3291,12 +3291,12 @@ subroutine OCEAN_psi_dot_write( p, q, outvec, rrequest, rval, ierr, irequest, iv
       endif
 
       if( have_val .and. ( z%val_store_size .gt. 0 ) ) then
-        ibeta = y%val_beta_start
-        ikpt = y%val_k_start
-        iband = y%val_start - 1
 
         if( do_conjugate ) then
           do ibw = 1, psi_val_bw
+            ibeta = y%val_beta_start
+            ikpt = y%val_k_start
+            iband = y%val_start - 1
             do i = 1, z%val_store_size
               iband = iband + 1
               if( iband .gt. psi_val_bands ) then
@@ -3318,6 +3318,9 @@ subroutine OCEAN_psi_dot_write( p, q, outvec, rrequest, rval, ierr, irequest, iv
           enddo
         else
           do ibw = 1, psi_val_bw
+            ibeta = y%val_beta_start
+            ikpt = y%val_k_start
+            iband = y%val_start - 1
             do i = 1, z%val_store_size
               iband = iband + 1
               if( iband .gt. psi_val_bands ) then

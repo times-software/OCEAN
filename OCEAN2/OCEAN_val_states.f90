@@ -545,7 +545,7 @@ module OCEAN_val_states
           endif
           call MPI_WAITALL( nproc, request, MPI_STATUSES_IGNORE, ierr )
         else
-          call MPI_RECV( share_buffer, max_nxpts*nbv, MPI_DOUBLE_COMPLEX, &
+          call MPI_RECV( share_buffer, max_nxpts*allbands, MPI_DOUBLE_COMPLEX, &
                          root, 1, comm, MPI_STATUS_IGNORE, ierr )
           do ibd = 1, nbv
             re_val( 1:nxpts, ibd, iq, ispn, 1 ) = real( share_buffer( 1:nxpts, ibd, 1 ), DP )
@@ -620,7 +620,7 @@ module OCEAN_val_states
         if( myid .eq. root ) then
           do iproc = 0, nproc-1
             if( iproc .ne. myid ) then
-              call MPI_ISEND( share_buffer(:,:,iproc), max_nxpts*nbc, MPI_DOUBLE_COMPLEX, &
+              call MPI_ISEND( share_buffer(:,:,iproc), max_nxpts*allbands, MPI_DOUBLE_COMPLEX, &
                               iproc, 1, comm, request( iproc ), ierr )
             endif
           enddo
@@ -636,7 +636,7 @@ module OCEAN_val_states
           enddo
           call MPI_WAITALL( nproc, request, MPI_STATUSES_IGNORE, ierr )
         else
-          call MPI_RECV( share_buffer, max_nxpts*nbc, MPI_DOUBLE_COMPLEX, &
+          call MPI_RECV( share_buffer, max_nxpts*allbands, MPI_DOUBLE_COMPLEX, &
                          root, 1, comm, MPI_STATUS_IGNORE, ierr )
           if( sys%bwflg ) then
             do ibd = 1, nbv
@@ -645,8 +645,8 @@ module OCEAN_val_states
             enddo
           endif
           do ibd = 1, nbc
-            re_con( 1:nxpts, ibd, iq, ispn, 1 ) = real( share_buffer( 1:nxpts, ibd, 1 ), DP )
-            im_con( 1:nxpts, ibd, iq, ispn, 1 ) = aimag( share_buffer( 1:nxpts, ibd, 1 ) )
+            re_con( 1:nxpts, ibd, iq, ispn, 1 ) = real( share_buffer( 1:nxpts, ibd+sys%brange(3)-min_band, 1 ), DP )
+            im_con( 1:nxpts, ibd, iq, ispn, 1 ) = aimag( share_buffer( 1:nxpts, ibd+sys%brange(3)-min_band, 1 ) )
           enddo
         endif
       enddo

@@ -220,7 +220,7 @@ module OCEAN_gmres
 
     delta = ener - prev_ener
 
-    if( sys%cur_run%bwflg ) then
+    if( sys%bwflg ) then
       do i = 1, current_iter
 #if 0
         call OCEAN_energies_sfact_copy( sys, u_matrix(i), psi_tmp, ierr )
@@ -664,7 +664,7 @@ module OCEAN_gmres
           if( myid .eq. root ) write(6,*) 'OCEAN_psi_min_set_prec failed'
           return
         endif
-        if( sys%cur_run%bwflg ) then
+        if( sys%bwflg ) then
           call OCEAN_energies_allow( sys, psi_pcdiv, ierr, sfact=.true. )
           if( ierr .ne. 0 ) return
         endif
@@ -753,7 +753,7 @@ module OCEAN_gmres
             if( myid .eq. root ) write(6,*) 'OCEAN_psi_min_set_prec failed'
             return
           endif
-          if( sys%cur_run%bwflg ) then
+          if( sys%bwflg ) then
             call OCEAN_energies_allow( sys, psi_pcdiv, ierr, sfact=.true. )
             if( ierr .ne. 0 ) return
           endif
@@ -785,7 +785,7 @@ module OCEAN_gmres
           ! apg = H . pg
           !TODO
           ! if bwflg then apg = H . S . pg
-          if( sys%cur_run%bwflg ) then
+          if( sys%bwflg ) then
             !TODO
             call OCEAN_energies_sfact_copy( sys, psi_pg, psi_tmp, ierr )
             if( ierr .ne. 0 ) return
@@ -801,7 +801,7 @@ module OCEAN_gmres
 
           !TODO:
           !if bwflg then apg = S. apg          
-          if( sys%cur_run%bwflg ) then
+          if( sys%bwflg ) then
             call OCEAN_energies_allow( sys, psi_apg, ierr, sfact=.true. )
             if( ierr .ne. 0 ) return
           endif
@@ -835,7 +835,7 @@ module OCEAN_gmres
             if( ierr .ne. 0 ) return
             !
             ! if bwflg then ax = S . ax          
-            if( sys%cur_run%bwflg ) then
+            if( sys%bwflg ) then
               call OCEAN_energies_allow( sys, psi_ax, ierr, sfact=.true. )
               if( ierr .ne. 0 ) return
             endif
@@ -846,7 +846,7 @@ module OCEAN_gmres
                 if( myid .eq. root ) write(6,*) 'OCEAN_psi_min_set_prec failed'
                 return
               endif
-              if( sys%cur_run%bwflg ) then
+              if( sys%bwflg ) then
                 call OCEAN_energies_allow( sys, psi_pcdiv, ierr, sfact=.true. )
                 if( ierr .ne. 0 ) return
               endif

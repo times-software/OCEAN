@@ -262,8 +262,8 @@ module OCEAN_val_energy
     if( ierr .ne. 0 ) return
 
 
-    ibeta=0
     do ibw = 1, sys%nbw
+      ibeta=0
       do i=1,sys%valence_ham_spin
         ispn = min( i, sys%nspn ) 
         do j=1,sys%valence_ham_spin
@@ -272,7 +272,11 @@ module OCEAN_val_energy
           do ik = 1, sys%nkpts
             do ibv = 1, sys%cur_run%val_bands
               do ibc = 1, sys%cur_run%num_bands
+                if( ibw .eq. 1 ) then
                 p_energy%valr( ibc, ibv, ik, ibeta, ibw ) = con_energies( ibc+sys%brange(3)-1, ik, jspn, ibw ) - val_energies( ibv+sys%brange(1)-1, ik, ispn, ibw )
+                else
+                p_energy%valr( ibc, ibv, ik, ibeta, ibw ) = -con_energies( ibc+sys%brange(3)-1, ik, jspn, ibw ) + val_energies( ibv+sys%brange(1)-1, ik, ispn, ibw )
+                endif
               enddo
             enddo
           enddo
@@ -281,8 +285,8 @@ module OCEAN_val_energy
     enddo  
     if( have_imaginary ) then
       if( myid .eq. 0 ) write(6,*) 'HAVE IMAG'
-      ibeta=0
       do ibw = 1, sys%nbw 
+        ibeta=0
         do i=1,sys%valence_ham_spin
           ispn = min( i, sys%nspn )
           do j=1,sys%valence_ham_spin
