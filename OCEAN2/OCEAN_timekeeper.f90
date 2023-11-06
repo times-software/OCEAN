@@ -8,17 +8,18 @@
 module OCEAN_timekeeper
   implicit none
   save
-  integer, private, parameter :: ndivs = 6
+  integer, private, parameter :: ndivs = 7
   integer(8), private :: max_count, count_rate
   integer, public, parameter :: tk_lr = 1, &
                                 tk_mult = 2, &
                                 tk_e0 = 3, &
                                 tk_psisum = 4, &
                                 tk_inv = 5, &
-                                tk_buffer2min = 6
+                                tk_buffer2min = 6, &
+                                tk_total = 7
 
   character(LEN=10), private, parameter :: tk_label( ndivs ) = (/ 'long range', 'multiplet ', &
-    'energies  ', 'sum vector', 'inversion ', 'buffer2min' /)
+    'energies  ', 'sum vector', 'inversion ', 'buffer2min', 'total     ' /)
 
   integer(8), private :: total( ndivs )
   integer(8), private :: prev( ndivs )
@@ -30,6 +31,7 @@ module OCEAN_timekeeper
     integer(8) :: cl
     call SYSTEM_CLOCK( cl, count_rate, max_count )
     total( : ) = 0
+    prev( : ) = 0
   end subroutine OCEAN_tk_init
 
   subroutine OCEAN_tk_start( id )

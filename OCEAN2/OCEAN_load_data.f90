@@ -15,6 +15,7 @@ subroutine OCEAN_load_data( sys, hay_vec, ierr )
   use OCEAN_val_states, only : OCEAN_val_states_load, OCEAN_val_states_init
   use OCEAN_bubble, only : AI_bubble_prep
   use OCEAN_ladder, only : OCEAN_ladder_init, OCEAN_ladder_new
+  use OCEAN_fxc, only : OCEAN_fxc_prep
 
   implicit none
   integer, intent( inout ) :: ierr
@@ -72,7 +73,7 @@ subroutine OCEAN_load_data( sys, hay_vec, ierr )
     if( myid .eq. root ) write(6,*) 'Trim & scale complete'
 
 
-    if( sys%cur_run%bflag .or. sys%cur_run%lflag ) then
+    if( sys%cur_run%bflag .or. sys%cur_run%lflag .or. sys%cur_run%aldaf ) then
       if( myid .eq. root ) write(6,*) 'Init val states'
       call OCEAN_val_states_init( sys, ierr )
       if( ierr .ne. 0 ) return
@@ -98,7 +99,13 @@ subroutine OCEAN_load_data( sys, hay_vec, ierr )
       call OCEAN_ladder_new( sys, ierr )
       if( ierr .ne. 0 ) return
       if( myid .eq. root ) write(6,*) 'Ladder loaded'
+    endif
 
+    if( sys%cur_run%aldaf ) then
+      if( myid .eq. root ) write(6,*) 'Init ALDA'
+      call OCEAN_fxc_prep( sys, ierr )
+      if( ierr .ne. 0 ) return
+      if( myid .eq. root ) write(6,*) 'ALDA initialized'
     endif
 
   endif 

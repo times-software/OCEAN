@@ -6,7 +6,7 @@
 !
 !
 
-#define OCEAN_LADDER_CACHE 0
+#define OCEAN_LADDER_CACHE 1
 
 module OCEAN_ladder
   use AI_kinds
@@ -84,6 +84,7 @@ subroutine OCEAN_ladder_act( sys, psi, psi_out, ierr )
   use OCEAN_psi
   use OCEAN_system
   use OCEAN_val_states, only : use_sp
+  use OCEAN_timekeeper, only : OCEAN_tk_start, OCEAN_tk_stop, tk_lr
   implicit none
   !
   type(o_system), intent( in ) :: sys
@@ -92,6 +93,8 @@ subroutine OCEAN_ladder_act( sys, psi, psi_out, ierr )
   integer, intent( inout ) :: ierr
   !
   integer :: i, j, ibeta, cspn, vspn
+
+  call OCEAN_tk_start( tk_lr )
 
   ibeta = 0
   do i = 1, sys%valence_ham_spin
@@ -109,6 +112,7 @@ subroutine OCEAN_ladder_act( sys, psi, psi_out, ierr )
 
     enddo
   enddo
+  call OCEAN_tk_stop( tk_lr )
 !#else
 !  call  OCEAN_ladder_act_single( sys, psi, psi_out, 1, 1, 1, ierr )
 !  if( ierr .ne. 0 ) return
@@ -210,18 +214,22 @@ end subroutine OCEAN_ladder_act
 !$OMP PARALLEL DEFAULT(NONE) &
 !$OMP PRIVATE( ik, ib, ix, iy, ibc, i, j, k, id, x_block, y_block, beta, y_offset ) &
 !$OMP PRIVATE( scratch, fr, fi, vv, re_phi_mat, im_phi_mat, nthread, block_temp, nbc_block, test_flag ) &
-!$OMP SHARED( nkpts, nbv_block, nxpts_pad, nproc, joint_request, c_recv_request, c_send_request ) &
+!$OMP PRIVATE( fr2, fi2, first_run ) &
+!$OMP SHARED( sys, nkpts, nbv_block, nxpts_pad, nproc, joint_request, c_recv_request, c_send_request ) &
 !$OMP SHARED( nkret, kret, ladcap, kk, nxpts_by_mpiID, re_tphi_mat, im_tphi_mat ) &
 !$OMP SHARED( re_a_mat, im_a_mat, re_b_mat, im_b_mat, psi_spn, vspn, cspn, ierr, nxpts, inverse_kpts, val_pad )  &
 !$OMP SHARED( nbc, nbv, re_con, im_con, psi, psi_out, psi_con_pad, myid, MPI_STATUSES_IGNORE, MPI_STATUS_IGNORE ) &
-!$OMP SHARED( re_bstate, im_bstate, max_nxpts, startx_by_mpiID, fo, ladder, spin_prefac, minus_spin_prefac )
-
-    allocate( fr( ladcap(1,1):ladcap(2,1), ladcap(1,2):ladcap(2,2), ladcap(1,3):ladcap(2,3) ), &
-              fi( ladcap(1,1):ladcap(2,1), ladcap(1,2):ladcap(2,2), ladcap(1,3):ladcap(2,3) ), &
-              scratch( nkpts ), vv( nkret ), re_phi_mat( nkpts, 16 ), im_phi_mat( nkpts, 16 ), fr2(nkpts), fi2(nkpts) )
+!$OMP SHARED( re_bstate, im_bstate, max_nxpts, startx_by_mpiID, fo, ladder, spin_prefac, minus_spin_prefac, use_resort_ladder )
 
     nthread = 1
 !$  nthread = omp_get_num_threads()
+
+
+    allocate( fr( ladcap(1,1):ladcap(2,1), ladcap(1,2):ladcap(2,2), ladcap(1,3):ladcap(2,3) ), &
+              fi( ladcap(1,1):ladcap(2,1), ladcap(1,2):ladcap(2,2), ladcap(1,3):ladcap(2,3) ), &
+              scratch( nkpts ), vv( nkret ), re_phi_mat( nkpts, 16 ), im_phi_mat( nkpts, 16 ), & 
+              fr2(nkpts), fi2(nkpts) )
+
 
 
 ! For now get working with k-point only
@@ -424,20 +432,22 @@ end subroutine OCEAN_ladder_act
 
 
 #if OCEAN_LADDER_CACHE
-        exit
-        do ix = 1, nxpts, 16
+        do ix = 1, nxpts+15, 16
 
-          do ik = 1, nkpts, 64
+          do ik = 1, nkpts+63, 64
             do iix = ix, min( nxpts, ix+15 )
               do iik = ik, min( nkpts, ik+63 )
                 re_phi_mat( iik, iix - ix + 1 ) = re_tphi_mat( iix, iy, iik )
                 im_phi_mat( iik, iix - ix + 1 ) = im_tphi_mat( iix, iy, iik )
               enddo
+!              re_phi_mat(:,iix-ix+1) = re_tphi_mat( iix, iy, : )
+!              im_phi_mat(:,iix-ix+1) = im_tphi_mat( iix, iy, : )
             enddo
           enddo
 !
           do iix = ix, min( nxpts, ix+15 )    
             scratch( : ) = cmplx( re_phi_mat( :, iix - ix + 1), im_phi_mat( :, iix - ix + 1), DP )
+!          scratch( : ) = cmplx(re_tphi_mat( iix, iy, : ), im_tphi_mat( iix, iy, : ), DP )
 #else
         do iix = 1, nxpts
           scratch( : ) = cmplx(re_tphi_mat( iix, iy, : ), im_tphi_mat( iix, iy, : ), DP )
@@ -447,7 +457,8 @@ end subroutine OCEAN_ladder_act
             call FFT_wrapper_single( scratch, OCEAN_FORWARD, fo )
 
             if( use_resort_ladder ) then
-              scratch(:) = scratch(:) * ladder(:, iix -ix + 1, iy + y_offset )
+              scratch(:) = scratch(:) * ladder(:, iix, iy + y_offset )
+!              scratch(:) = scratch(:) * ladder(:, iix -ix + 1, iy + y_offset )
             else
 #if 0
               do ik = 1, nkpts
@@ -473,8 +484,8 @@ end subroutine OCEAN_ladder_act
                   fi( kk( ik, 1 ), kk( ik, 2 ), kk( ik, 3 ) ) = aimag( scratch( ik ) )
               enddo
 
-              call velmuls( fr, vv, ladder( :, iix -ix + 1, iy + y_offset ), nkpts, nkret, kret )
-              call velmuls( fi, vv, ladder( :, iix -ix + 1, iy + y_offset ), nkpts, nkret, kret )
+              call velmuls( fr, vv, ladder( :, iix, iy + y_offset ), nkpts, nkret, kret )
+              call velmuls( fi, vv, ladder( :, iix, iy + y_offset ), nkpts, nkret, kret )
 
               do ik = 1, nkpts
                 scratch( ik ) = cmplx( fr( kk( ik, 1 ), kk( ik, 2 ), kk( ik, 3 ) ), &
@@ -493,11 +504,13 @@ end subroutine OCEAN_ladder_act
 
 
 
-          do ik = 1, nkpts, 64
+          do ik = 1, nkpts+63, 64
             do iik = ik, min( nkpts, ik+63 )
               do iix = ix, min( nxpts, ix+15 )
                 re_tphi_mat( iix, iy, iik ) = re_phi_mat( iik, iix - ix + 1 )
                 im_tphi_mat( iix, iy, iik ) = im_phi_mat( iik, iix - ix + 1 )
+!                re_tphi_mat( iix, iy, : ) = re_phi_mat( :, iix - ix + 1 )
+!                im_tphi_mat( iix, iy, : ) = im_phi_mat( :, iix - ix + 1 )
               enddo
             enddo
           enddo
