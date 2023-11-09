@@ -71,18 +71,18 @@ module OCEAN_val_states
 
     ! DROT is "backwards" from how we want the phases to go hence minus sign in definition of im_phase
     do ibw = 1, nbw
-    do ispn = 1, nspn
-      do ik = 1, nkpts
-        do ix = 1, nxpts
-          call DROT( nbv, re_val( ix, 1, ik, ispn, ibw ), nxpts_pad, & 
-                          im_val( ix, 1, ik, ispn, ibw ), nxpts_pad, &
-                     re_phase( ix, ik ), im_phase( ix, ik ) )
-          call DROT( nbc, re_con( ix, 1, ik, ispn, ibw ), nxpts_pad, &
-                          im_con( ix, 1, ik, ispn, ibw ), nxpts_pad, &
-                     re_phase( ix, ik ), im_phase( ix, ik ) )
+      do ispn = 1, nspn
+        do ik = 1, nkpts
+          do ix = 1, nxpts
+            call DROT( nbv, re_val( ix, 1, ik, ispn, ibw ), nxpts_pad, & 
+                            im_val( ix, 1, ik, ispn, ibw ), nxpts_pad, &
+                       re_phase( ix, ik ), im_phase( ix, ik ) )
+            call DROT( nbc, re_con( ix, 1, ik, ispn, ibw ), nxpts_pad, &
+                            im_con( ix, 1, ik, ispn, ibw ), nxpts_pad, &
+                       re_phase( ix, ik ), im_phase( ix, ik ) )
+          enddo
         enddo
       enddo
-    enddo
     enddo
 
     if( .false. ) then

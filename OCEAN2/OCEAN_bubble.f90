@@ -518,7 +518,8 @@ module OCEAN_bubble
     if( nxpts .gt. 0 ) then
       xwidth = nxpts
       ix = 1
-      do ibw = 1, sys%nbw
+!      do ibw = 1, sys%nbw
+      ibw = 1
 !$OMP DO COLLAPSE(1)
         do ik = 1, nkpts
           call DGEMM( 'N', 'N', xwidth, nbv, nbc, one, re_con(ix, 1, ik, dft_spin, ibw), nxpts_pad, &
@@ -532,7 +533,22 @@ module OCEAN_bubble
                       psi%vali( 1, 1, ik, psi_spin, ibw ), psi_con_pad, one, im_amat( ix, 1, ik, ibw ), nxpts_pad )
         enddo
 !$OMP END DO
-      enddo
+!      enddo
+      if( sys%nbw .eq. 2 ) then
+!$OMP DO COLLAPSE(1)
+        do ik = 1, nkpts
+          call DGEMM( 'N', 'N', xwidth, nbv, nbc, one, re_con(ix, 1, ik, dft_spin, 2), nxpts_pad, &
+                      psi%valr( 1, 1, ik, psi_spin, 2), psi_con_pad, zero, re_amat( ix, 1, ik, 2 ), nxpts_pad )
+          call DGEMM( 'N', 'N', xwidth, nbv, nbc, one, im_con(ix, 1, ik,dft_spin, 2), nxpts_pad, &
+                      psi%vali( 1, 1, ik, psi_spin, 2), psi_con_pad, one, re_amat( ix, 1, ik, 2 ), nxpts_pad )
+
+          call DGEMM( 'N', 'N', xwidth, nbv, nbc, minusone, im_con(ix, 1, ik,dft_spin, 2), nxpts_pad, &
+                      psi%valr( 1, 1, ik, psi_spin, 2), psi_con_pad, zero, im_amat( ix, 1, ik, 2 ), nxpts_pad )
+          call DGEMM( 'N', 'N', xwidth, nbv, nbc, one, re_con(ix, 1, ik,dft_spin, 2), nxpts_pad, &
+                      psi%vali( 1, 1, ik, psi_spin, 2 ), psi_con_pad, one, im_amat( ix, 1, ik, 2 ), nxpts_pad )
+        enddo
+!$OMP END DO
+      endif
         
     else 
 !$OMP WORKSHARE
@@ -554,7 +570,8 @@ module OCEAN_bubble
       xstop = min( nxpts, ix + xwidth - 1 )
 !      ix = 1
 !      xstop = nxpts
-        do ibw = 1, sys%nbw
+!        do ibw = 1, sys%nbw
+        ibw = 1
           do ik = 1, nkpts
             do bviter = 1, nbv
               do iix = ix, xstop
@@ -567,7 +584,22 @@ module OCEAN_bubble
               enddo
             enddo
           enddo
-        enddo
+!        enddo
+        if( sys%nbw .eq. 2 ) then
+          do ik = 1, nkpts
+            do bviter = 1, nbv
+              do iix = ix, xstop
+                re_l_bubble( iix ) = re_l_bubble( iix ) &
+                                   + re_val( iix, bviter, ik, dft_spin, 2 ) * re_amat( iix, bviter, ik, 2 ) &
+                                   - im_val( iix, bviter, ik, dft_spin, 2 ) * im_amat( iix, bviter, ik, 2 )
+                im_l_bubble( iix ) = im_l_bubble( iix ) &
+                                   + re_val( iix, bviter, ik, dft_spin, 2 ) * im_amat( iix, bviter, ik, 2 ) &
+                                   + im_val( iix, bviter, ik, dft_spin, 2 ) * re_amat( iix, bviter, ik, 2 )
+              enddo
+            enddo
+          enddo
+
+        endif
     enddo
 !$OMP END DO
 
@@ -662,8 +694,9 @@ module OCEAN_bubble
     im_amat = 0.0_dp
 !$OMP END WORKSHARE
 
-!$OMP DO COLLAPSE(4)
-    do ibw = 1, sys%nbw
+!    do ibw = 1, sys%nbw
+    ibw = 1
+!$OMP DO COLLAPSE(3)
       do ik = 1, nkpts
         do bviter = 1, nbv
 !        do ix = 1, nxpts, xwidth
@@ -683,13 +716,29 @@ module OCEAN_bubble
 !        enddo
         enddo
       enddo
-    enddo
 !$OMP END DO
+!    enddo
+    if( sys%nbw .eq. 2 ) then
+      do ik = 1, nkpts
+        do bviter = 1, nbv
+          do iix = 1, nxpts
+              re_amat( iix, bviter, ik, 2 ) = re_l_bubble( iix ) * re_val( iix, bviter, ik, dft_spin2, 2 )
+              im_amat( iix, bviter, ik, 2 ) = im_l_bubble( iix ) * re_val( iix, bviter, ik, dft_spin2, 2 )
+              re_amat( iix, bviter, ik, 2 ) = re_amat( iix, bviter, ik, 2 ) &
+                                         + im_l_bubble( iix ) * im_val( iix, bviter, ik, dft_spin2, 2 )
+              im_amat( iix, bviter, ik, 2 ) = im_amat( iix, bviter, ik, 2 ) &
+                                         - re_l_bubble( iix ) * im_val( iix, bviter, ik, dft_spin2, 2 )
+          enddo
+        enddo
+      enddo
+
+    endif
 
 
     if( nxpts .gt. 0 ) then
 !JTV add additional tiling
-      do ibw = 1, sys%nbw
+!      do ibw = 1, sys%nbw
+    ibw = 1
 !$OMP DO 
         do ik = 1, nkpts
           call DGEMM( 'T', 'N', nbc, nbv, nxpts, spin_prefac, re_con( 1, 1, ik, dft_spin2, ibw ), nxpts_pad, & 
@@ -707,7 +756,26 @@ module OCEAN_bubble
                       one, psiout%vali( 1, 1, ik, psi_spin2, ibw ), psi_con_pad )
         enddo
 !$OMP END DO
-      enddo
+!      enddo
+      if( sys%nbw .eq. 2 ) then
+!$OMP DO 
+        do ik = 1, nkpts
+          call DGEMM( 'T', 'N', nbc, nbv, nxpts, spin_prefac, re_con( 1, 1, ik, dft_spin2, 2 ), nxpts_pad, &
+                      re_amat( 1, 1, ik, 2 ), nxpts_pad, &
+                      one, psiout%valr( 1, 1, ik, psi_spin2, 2 ), psi_con_pad )
+          call DGEMM( 'T', 'N', nbc, nbv, nxpts, minus_spin_prefac, im_con( 1, 1, ik, dft_spin2, 2 ), nxpts_pad, &
+                      im_amat( 1, 1, ik, 2 ), nxpts_pad, &
+                      one, psiout%valr( 1, 1, ik, psi_spin2, 2 ), psi_con_pad )
+
+          call DGEMM( 'T', 'N', nbc, nbv, nxpts, spin_prefac, im_con( 1, 1, ik, dft_spin2, 2 ), nxpts_pad, &
+                      re_amat( 1, 1, ik, 2 ), nxpts_pad, &
+                      one, psiout%vali( 1, 1, ik, psi_spin2, 2 ), psi_con_pad )
+          call DGEMM( 'T', 'N', nbc, nbv, nxpts, spin_prefac, re_con( 1, 1, ik, dft_spin2, 2 ), nxpts_pad, &
+                      im_amat( 1, 1, ik, 2 ), nxpts_pad, &
+                      one, psiout%vali( 1, 1, ik, psi_spin2, 2 ), psi_con_pad )
+        enddo
+!$OMP END DO
+      endif
     endif
 
   enddo ! jspn

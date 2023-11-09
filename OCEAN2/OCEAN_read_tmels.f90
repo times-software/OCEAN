@@ -111,7 +111,7 @@ subroutine OCEAN_read_tmels( sys, p, file_selector, ierr )
         max_psi = max( max_psi, maxval( p%valr(1:sys%cur_run%num_bands,1:sys%cur_run%val_bands,ik,ibeta,1) ) )
 
         if( sys%bwflg ) then
-          p%valr(1:sys%cur_run%num_bands,1:sys%cur_run%val_bands,ik,ibeta,2) = -inv_qlength * &
+          p%valr(1:sys%cur_run%num_bands,1:sys%cur_run%val_bands,ik,ibeta,2) = inv_qlength * &
             real( psi_in( sys%brange(3):sys%brange(4), sys%brange(1):sys%brange(2) ), DP )
           p%vali(1:sys%cur_run%num_bands,1:sys%cur_run%val_bands,ik,ibeta,2) = -inv_qlength * &
             real( aimag( psi_in( sys%brange(3):sys%brange(4), sys%brange(1):sys%brange(2) ) ), DP )
