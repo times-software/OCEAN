@@ -138,7 +138,7 @@ module OCEAN_fxc
     type( OCEAN_vector ), intent( inout ) :: psiout
     integer, intent( inout ) :: ierr
     !
-    real(DP), allocatable :: re_phi(:), im_phi(:), re_amat(:,:,:,:), im_amat(:,:,:,:)
+    real(DP), allocatable :: re_phi(:), im_phi(:), re_amat(:,:,:), im_amat(:,:,:)
     real(DP) :: spin_prefac, minus_spin_prefac
     real(DP), parameter :: minusone = -1.0_DP
     real(DP), parameter :: one = 1.0_DP
@@ -167,7 +167,7 @@ module OCEAN_fxc
     minus_spin_prefac = -2.0_DP
     ! end TODO
 
-    allocate( re_amat( max(1,nxpts_pad), nbv, nkpts, sys%nbw ), im_amat( max(nxpts_pad,1), nbv, nkpts, sys%nbw ), &
+    allocate( re_amat( max(1,nxpts_pad), nbv, nkpts ), im_amat( max(nxpts_pad,1), nbv, nkpts ), &
               re_phi( nxpts_pad ), im_phi( nxpts_pad ) )
     
 
@@ -176,34 +176,61 @@ module OCEAN_fxc
       ix = 1
       re_phi(:) = 0.0_DP
       im_phi(:) = 0.0_DP
-      do ibw = 1, sys%nbw
+! $OMP DO COLLAPSE(1)
+      do ik = 1, nkpts
+        call DGEMM( 'N', 'N', xwidth, nbv, nbc, one, re_con(ix, 1, ik, dft_spin, 1 ), nxpts_pad, &
+                    psi%valr( 1, 1, ik, psi_spin, 1 ), psi_con_pad, zero, re_amat( ix, 1, ik ), nxpts_pad )
+        call DGEMM( 'N', 'N', xwidth, nbv, nbc, minusone, im_con(ix, 1, ik,dft_spin, 1 ), nxpts_pad, &
+                    psi%vali( 1, 1, ik, psi_spin, 1 ), psi_con_pad, one, re_amat( ix, 1, ik ), nxpts_pad )
+
+        call DGEMM( 'N', 'N', xwidth, nbv, nbc, one, im_con(ix, 1, ik,dft_spin, 1 ), nxpts_pad, &
+                    psi%valr( 1, 1, ik, psi_spin, 1), psi_con_pad, zero, im_amat( ix, 1, ik ), nxpts_pad )
+        call DGEMM( 'N', 'N', xwidth, nbv, nbc, one, re_con(ix, 1, ik,dft_spin, 1 ), nxpts_pad, &
+                    psi%vali( 1, 1, ik, psi_spin, 1 ), psi_con_pad, one, im_amat( ix, 1, ik ), nxpts_pad )
+      enddo
+! $OMP END DO
+
+!TODO chunk over xpoints for OMP
+      do ik = 1, nkpts
+        do ib = 1, nbv
+          re_phi(:) = re_phi(:) &
+                    + re_val(:,ib,ik,dft_spin,1) * re_amat(:,ib,ik) &
+                    + im_val(:,ib,ik,dft_spin,1) * im_amat(:,ib,ik)
+
+          im_phi(:) = im_phi(:) &
+                    + re_val(:,ib,ik,dft_spin,1) * im_amat(:,ib,ik) &
+                    - im_val(:,ib,ik,dft_spin,1) * re_amat(:,ib,ik)
+        enddo
+      enddo
+
+      if( sys%nbw .eq. 2 ) then
 ! $OMP DO COLLAPSE(1)
         do ik = 1, nkpts
-          call DGEMM( 'N', 'N', xwidth, nbv, nbc, one, re_con(ix, 1, ik, dft_spin, ibw), nxpts_pad, &
-                      psi%valr( 1, 1, ik, psi_spin, ibw), psi_con_pad, zero, re_amat( ix, 1, ik, ibw ), nxpts_pad )
-          call DGEMM( 'N', 'N', xwidth, nbv, nbc, minusone, im_con(ix, 1, ik,dft_spin, ibw), nxpts_pad, &
-                      psi%vali( 1, 1, ik, psi_spin, ibw), psi_con_pad, one, re_amat( ix, 1, ik, ibw ), nxpts_pad )
+          call DGEMM( 'N', 'N', xwidth, nbv, nbc, one, re_con(ix, 1, ik, dft_spin, 2 ), nxpts_pad, &
+                      psi%valr( 1, 1, ik, psi_spin, 2 ), psi_con_pad, zero, re_amat( ix, 1, ik ), nxpts_pad )
+          call DGEMM( 'N', 'N', xwidth, nbv, nbc, one, im_con(ix, 1, ik,dft_spin, 2 ), nxpts_pad, &
+                      psi%vali( 1, 1, ik, psi_spin, 2 ), psi_con_pad, one, re_amat( ix, 1, ik ), nxpts_pad )
 
-          call DGEMM( 'N', 'N', xwidth, nbv, nbc, one, im_con(ix, 1, ik,dft_spin, ibw), nxpts_pad, &
-                      psi%valr( 1, 1, ik, psi_spin, ibw), psi_con_pad, zero, im_amat( ix, 1, ik, ibw ), nxpts_pad )
-          call DGEMM( 'N', 'N', xwidth, nbv, nbc, one, re_con(ix, 1, ik,dft_spin, ibw), nxpts_pad, &
-                      psi%vali( 1, 1, ik, psi_spin, ibw ), psi_con_pad, one, im_amat( ix, 1, ik, ibw ), nxpts_pad )
+          call DGEMM( 'N', 'N', xwidth, nbv, nbc, minusone, im_con(ix, 1, ik,dft_spin, 2 ), nxpts_pad, &
+                      psi%valr( 1, 1, ik, psi_spin, 2), psi_con_pad, zero, im_amat( ix, 1, ik ), nxpts_pad )
+          call DGEMM( 'N', 'N', xwidth, nbv, nbc, one, re_con(ix, 1, ik,dft_spin, 2 ), nxpts_pad, &
+                      psi%vali( 1, 1, ik, psi_spin, 2 ), psi_con_pad, one, im_amat( ix, 1, ik ), nxpts_pad )
         enddo
 ! $OMP END DO
 
 !TODO chunk over xpoints for OMP
-        do ik = 1, nkpts
-          do ib = 1, nbv
-            re_phi(:) = re_phi(:) &
-                      + re_val(:,ib,ik,dft_spin,ibw) * re_amat(:,ib,ik,ibw) &
-                      + im_val(:,ib,ik,dft_spin,ibw) * im_amat(:,ib,ik,ibw)
+      do ik = 1, nkpts
+        do ib = 1, nbv
+          re_phi(:) = re_phi(:) & 
+                    + re_val(:,ib,ik,dft_spin,2) * re_amat(:,ib,ik) &
+                    - im_val(:,ib,ik,dft_spin,2) * im_amat(:,ib,ik)
 
-            im_phi(:) = im_phi(:) &
-                      + re_val(:,ib,ik,dft_spin,ibw) * im_amat(:,ib,ik,ibw) &
-                      - im_val(:,ib,ik,dft_spin,ibw) * re_amat(:,ib,ik,ibw)
-          enddo
+          im_phi(:) = im_phi(:) & 
+                    + re_val(:,ib,ik,dft_spin,2) * im_amat(:,ib,ik) &
+                    + im_val(:,ib,ik,dft_spin,2) * re_amat(:,ib,ik)
         enddo
       enddo
+      endif
 
       !TODO fix spin
       ! probably save to a new array so we can capture both up-up and up-down potentials from an up exciton
@@ -213,35 +240,58 @@ module OCEAN_fxc
 
 
 !TODO OMP
-      do ibw = 1, sys%nbw
+      do ik = 1, nkpts
+        do ib = 1, nbv
+          re_amat(:,ib,ik) = re_phi(:) * re_val(:,ib,ik,dft_spin2,1) &
+                           - im_phi(:) * im_val(:,ib,ik,dft_spin2,1)
+          im_amat(:,ib,ik) = im_phi(:) * re_val(:,ib,ik,dft_spin2,1) &
+                           + re_phi(:) * im_val(:,ib,ik,dft_spin2,1)
+        enddo
+      enddo
+
+      do ik = 1, nkpts
+        call DGEMM( 'T', 'N', nbc, nbv, nxpts, spin_prefac, re_con( 1, 1, ik, dft_spin2, 1 ), nxpts_pad, &
+                    re_amat( 1, 1, ik ), nxpts_pad, &
+                    one, psiout%valr( 1, 1, ik, psi_spin2, 1 ), psi_con_pad )
+        call DGEMM( 'T', 'N', nbc, nbv, nxpts, spin_prefac, im_con( 1, 1, ik, dft_spin2, 1 ), nxpts_pad, &
+                    im_amat( 1, 1, ik ), nxpts_pad, &
+                    one, psiout%valr( 1, 1, ik, psi_spin2, 1 ), psi_con_pad )
+
+        call DGEMM( 'T', 'N', nbc, nbv, nxpts, minus_spin_prefac, im_con( 1, 1, ik, dft_spin2, 1 ), nxpts_pad, &
+                    re_amat( 1, 1, ik ), nxpts_pad, &
+                    one, psiout%vali( 1, 1, ik, psi_spin2, 1 ), psi_con_pad )
+        call DGEMM( 'T', 'N', nbc, nbv, nxpts, spin_prefac, re_con( 1, 1, ik, dft_spin2, 1 ), nxpts_pad, &
+                    im_amat( 1, 1, ik ), nxpts_pad, &
+                    one, psiout%vali( 1, 1, ik, psi_spin2, 1 ), psi_con_pad )
+      enddo
+! $OMP END DO
+
+      if( sys%nbw .eq. 2 ) then
         do ik = 1, nkpts
           do ib = 1, nbv
-            re_amat(:,ib,ik,ibw) = re_phi(:) * re_val(:,ib,ik,dft_spin2,ibw) &
-                                 - im_phi(:) * im_val(:,ib,ik,dft_spin2,ibw)
-            im_amat(:,ib,ik,ibw) = im_phi(:) * re_val(:,ib,ik,dft_spin2,ibw) &
-                                 + re_phi(:) * im_val(:,ib,ik,dft_spin2,ibw)
+            re_amat(:,ib,ik) = re_phi(:) * re_val(:,ib,ik,dft_spin2,2) &
+                             + im_phi(:) * im_val(:,ib,ik,dft_spin2,2)
+            im_amat(:,ib,ik) = im_phi(:) * re_val(:,ib,ik,dft_spin2,2) &
+                             - re_phi(:) * im_val(:,ib,ik,dft_spin2,2)
           enddo
         enddo
-      enddo
 
-      do ibw = 1, sys%nbw
         do ik = 1, nkpts
-          call DGEMM( 'T', 'N', nbc, nbv, nxpts, spin_prefac, re_con( 1, 1, ik, dft_spin2, ibw ), nxpts_pad, &
-                      re_amat( 1, 1, ik, ibw ), nxpts_pad, &
-                      one, psiout%valr( 1, 1, ik, psi_spin2, ibw ), psi_con_pad )
-          call DGEMM( 'T', 'N', nbc, nbv, nxpts, spin_prefac, im_con( 1, 1, ik, dft_spin2, ibw ), nxpts_pad, &
-                      im_amat( 1, 1, ik, ibw ), nxpts_pad, &
-                      one, psiout%valr( 1, 1, ik, psi_spin2, ibw ), psi_con_pad )
+          call DGEMM( 'T', 'N', nbc, nbv, nxpts, spin_prefac, re_con( 1, 1, ik, dft_spin2, 2 ), nxpts_pad, & 
+                      re_amat( 1, 1, ik ), nxpts_pad, & 
+                      one, psiout%valr( 1, 1, ik, psi_spin2, 2 ), psi_con_pad ) 
+          call DGEMM( 'T', 'N', nbc, nbv, nxpts, minus_spin_prefac, im_con( 1, 1, ik, dft_spin2, 2 ), nxpts_pad, & 
+                      im_amat( 1, 1, ik ), nxpts_pad, & 
+                      one, psiout%valr( 1, 1, ik, psi_spin2, 2 ), psi_con_pad ) 
 
-          call DGEMM( 'T', 'N', nbc, nbv, nxpts, minus_spin_prefac, im_con( 1, 1, ik, dft_spin2, ibw ), nxpts_pad, &
-                      re_amat( 1, 1, ik, ibw ), nxpts_pad, &
-                      one, psiout%vali( 1, 1, ik, psi_spin2, ibw ), psi_con_pad )
-          call DGEMM( 'T', 'N', nbc, nbv, nxpts, spin_prefac, re_con( 1, 1, ik, dft_spin2, ibw ), nxpts_pad, &
-                      im_amat( 1, 1, ik, ibw ), nxpts_pad, &
-                      one, psiout%vali( 1, 1, ik, psi_spin2, ibw ), psi_con_pad )
+          call DGEMM( 'T', 'N', nbc, nbv, nxpts, spin_prefac, im_con( 1, 1, ik, dft_spin2, 2 ), nxpts_pad, & 
+                      re_amat( 1, 1, ik ), nxpts_pad, & 
+                      one, psiout%vali( 1, 1, ik, psi_spin2, 2 ), psi_con_pad ) 
+          call DGEMM( 'T', 'N', nbc, nbv, nxpts, spin_prefac, re_con( 1, 1, ik, dft_spin2, 2 ), nxpts_pad, & 
+                      im_amat( 1, 1, ik ), nxpts_pad, & 
+                      one, psiout%vali( 1, 1, ik, psi_spin2, 2 ), psi_con_pad ) 
         enddo
-! $OMP END DO
-      enddo
+      endif
     endif
       
     deallocate( re_phi, im_phi, re_amat, im_amat )
