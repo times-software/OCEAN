@@ -170,13 +170,22 @@ module OCEAN_fxc
     allocate( re_amat( max(1,nxpts_pad), nbv, nkpts ), im_amat( max(nxpts_pad,1), nbv, nkpts ), &
               re_phi( nxpts_pad ), im_phi( nxpts_pad ) )
     
-
     if( nxpts .gt. 0 ) then
+
+!$OMP PARALLEL DEFAULT(NONE) &
+!$OMP PRIVATE( xwidth, ix, ik, ib ) &
+!$OMP SHARED( re_amat, im_amat, re_phi, im_phi, nbv, nbc, re_con, im_con, re_val, im_val ) &
+!$OMP SHARED( nxpts_pad, dft_spin, psi_spin, spin_prefac, minus_spin_prefac, sys, nxpts, nkpts ) &
+!$OMP SHARED( psi, psi_con_pad, fxc, dft_spin2, psi_spin2, psiout, ispin ) 
+
       xwidth = nxpts
       ix = 1
+!$OMP WORKSHARE
       re_phi(:) = 0.0_DP
       im_phi(:) = 0.0_DP
-! $OMP DO COLLAPSE(1)
+!$OMP END WORKSHARE
+
+!$OMP DO 
       do ik = 1, nkpts
         call DGEMM( 'N', 'N', xwidth, nbv, nbc, one, re_con(ix, 1, ik, dft_spin, 1 ), nxpts_pad, &
                     psi%valr( 1, 1, ik, psi_spin, 1 ), psi_con_pad, zero, re_amat( ix, 1, ik ), nxpts_pad )
@@ -188,9 +197,10 @@ module OCEAN_fxc
         call DGEMM( 'N', 'N', xwidth, nbv, nbc, one, re_con(ix, 1, ik,dft_spin, 1 ), nxpts_pad, &
                     psi%vali( 1, 1, ik, psi_spin, 1 ), psi_con_pad, one, im_amat( ix, 1, ik ), nxpts_pad )
       enddo
-! $OMP END DO
+!$OMP END DO
 
 !TODO chunk over xpoints for OMP
+!$OMP SINGLE
       do ik = 1, nkpts
         do ib = 1, nbv
           re_phi(:) = re_phi(:) &
@@ -202,9 +212,10 @@ module OCEAN_fxc
                     - im_val(:,ib,ik,dft_spin,1) * re_amat(:,ib,ik)
         enddo
       enddo
+!$OMP END SINGLE
 
       if( sys%nbw .eq. 2 ) then
-! $OMP DO COLLAPSE(1)
+!$OMP DO
         do ik = 1, nkpts
           call DGEMM( 'N', 'N', xwidth, nbv, nbc, one, re_con(ix, 1, ik, dft_spin, 2 ), nxpts_pad, &
                       psi%valr( 1, 1, ik, psi_spin, 2 ), psi_con_pad, zero, re_amat( ix, 1, ik ), nxpts_pad )
@@ -216,30 +227,35 @@ module OCEAN_fxc
           call DGEMM( 'N', 'N', xwidth, nbv, nbc, one, re_con(ix, 1, ik,dft_spin, 2 ), nxpts_pad, &
                       psi%vali( 1, 1, ik, psi_spin, 2 ), psi_con_pad, one, im_amat( ix, 1, ik ), nxpts_pad )
         enddo
-! $OMP END DO
+!$OMP END DO
 
 !TODO chunk over xpoints for OMP
-      do ik = 1, nkpts
-        do ib = 1, nbv
-          re_phi(:) = re_phi(:) & 
-                    + re_val(:,ib,ik,dft_spin,2) * re_amat(:,ib,ik) &
-                    - im_val(:,ib,ik,dft_spin,2) * im_amat(:,ib,ik)
+!$OMP SINGLE
+        do ik = 1, nkpts
+          do ib = 1, nbv
+            re_phi(:) = re_phi(:) & 
+                      + re_val(:,ib,ik,dft_spin,2) * re_amat(:,ib,ik) &
+                      - im_val(:,ib,ik,dft_spin,2) * im_amat(:,ib,ik)
 
-          im_phi(:) = im_phi(:) & 
-                    + re_val(:,ib,ik,dft_spin,2) * im_amat(:,ib,ik) &
-                    + im_val(:,ib,ik,dft_spin,2) * re_amat(:,ib,ik)
+            im_phi(:) = im_phi(:) & 
+                      + re_val(:,ib,ik,dft_spin,2) * im_amat(:,ib,ik) &
+                      + im_val(:,ib,ik,dft_spin,2) * re_amat(:,ib,ik)
+          enddo
         enddo
-      enddo
+!$OMP END SINGLE
       endif
 
       !TODO fix spin
       ! probably save to a new array so we can capture both up-up and up-down potentials from an up exciton
       ! and both down-down and down-up from a down exciton
+!$OMP WORKSHARE
       re_phi(:) = re_phi(:) * fxc(:,ispin)
       im_phi(:) = im_phi(:) * fxc(:,ispin)
+!$OMP END WORKSHARE
 
 
 !TODO OMP
+!$OMP DO COLLAPSE(2)
       do ik = 1, nkpts
         do ib = 1, nbv
           re_amat(:,ib,ik) = re_phi(:) * re_val(:,ib,ik,dft_spin2,1) &
@@ -248,7 +264,9 @@ module OCEAN_fxc
                            + re_phi(:) * im_val(:,ib,ik,dft_spin2,1)
         enddo
       enddo
+!$OMP END DO
 
+!$OMP DO
       do ik = 1, nkpts
         call DGEMM( 'T', 'N', nbc, nbv, nxpts, spin_prefac, re_con( 1, 1, ik, dft_spin2, 1 ), nxpts_pad, &
                     re_amat( 1, 1, ik ), nxpts_pad, &
@@ -264,9 +282,10 @@ module OCEAN_fxc
                     im_amat( 1, 1, ik ), nxpts_pad, &
                     one, psiout%vali( 1, 1, ik, psi_spin2, 1 ), psi_con_pad )
       enddo
-! $OMP END DO
+!$OMP END DO
 
       if( sys%nbw .eq. 2 ) then
+!$OMP DO COLLAPSE(2)
         do ik = 1, nkpts
           do ib = 1, nbv
             re_amat(:,ib,ik) = re_phi(:) * re_val(:,ib,ik,dft_spin2,2) &
@@ -275,7 +294,9 @@ module OCEAN_fxc
                              - re_phi(:) * im_val(:,ib,ik,dft_spin2,2)
           enddo
         enddo
+!$OMP END DO
 
+!$OMP DO
         do ik = 1, nkpts
           call DGEMM( 'T', 'N', nbc, nbv, nxpts, spin_prefac, re_con( 1, 1, ik, dft_spin2, 2 ), nxpts_pad, & 
                       re_amat( 1, 1, ik ), nxpts_pad, & 
@@ -291,9 +312,11 @@ module OCEAN_fxc
                       im_amat( 1, 1, ik ), nxpts_pad, & 
                       one, psiout%vali( 1, 1, ik, psi_spin2, 2 ), psi_con_pad ) 
         enddo
+!$OMP END DO
       endif
-    endif
+!$OMP END PARALLEL
       
+    endif
     deallocate( re_phi, im_phi, re_amat, im_amat )
 
   end subroutine OCEAN_fxc_act
