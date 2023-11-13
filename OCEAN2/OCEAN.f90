@@ -14,7 +14,7 @@ program ocean
   use OCEAN_psi, only : ocean_vector
 !  use OCEAN_long_range
 !  use OCEAN_exact
-  use OCEAN_timekeeper, only : OCEAN_tk_init, OCEAN_tk_printtimes
+  use OCEAN_timekeeper, only : OCEAN_tk_init, OCEAN_tk_printtimes, tk_total, OCEAN_tk_start, OCEAN_tk_stop
   use OCEAN_driver, only : OCEAN_driver_setup, OCEAN_driver_run
 
   implicit none
@@ -40,6 +40,8 @@ program ocean
   call ocean_sys_init( sys, ierr )
 
   call OCEAN_tk_init()
+
+  call OCEAN_tk_start( tk_total )
 
 !  call ocean_init_data( sys, hay_vec, ierr )
 !  if( ierr .ne. 0 ) goto 111
@@ -80,6 +82,8 @@ program ocean
 
     call ocean_sys_update( sys, ierr )
   enddo
+
+  call OCEAN_tk_stop( tk_total )
 
   call OCEAN_tk_printtimes( myid, comm )
 

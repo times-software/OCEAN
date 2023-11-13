@@ -137,6 +137,8 @@ if( -e $dataFile )
       }
     }
 
+    goto CLEAN if( abs( $commonOceanData->{'opf'}->{'radius'} - $opfData->{'radius'} ) > 0.00000001 );
+
     $runClean = 0;
   }
   CLEAN:

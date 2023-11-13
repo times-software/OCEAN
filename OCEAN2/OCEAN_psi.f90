@@ -38,6 +38,7 @@ module OCEAN_psi
   
   INTEGER :: psi_val_bands
   INTEGER :: psi_val_beta
+  INTEGER :: psi_val_bw
   INTEGER :: total_nproc
   INTEGER :: psi_comm_flavor = psi_comm_reduce
 
@@ -72,11 +73,11 @@ module OCEAN_psi
     REAL(DP), ALLOCATABLE :: extra_r(:,:)
     REAL(DP), ALLOCATABLE :: extra_i(:,:)
 
-    REAL(DP), ALLOCATABLE :: valr(:,:,:,:)
-    REAL(DP), ALLOCATABLE :: vali(:,:,:,:)
+    REAL(DP), ALLOCATABLE :: valr(:,:,:,:,:)
+    REAL(DP), ALLOCATABLE :: vali(:,:,:,:,:)
 
-    REAL(DP), ALLOCATABLE :: val_min_r(:,:)
-    REAL(DP), ALLOCATABLE :: val_min_i(:,:)
+    REAL(DP), ALLOCATABLE :: val_min_r(:,:,:)
+    REAL(DP), ALLOCATABLE :: val_min_i(:,:,:)
 
 #ifdef __INTEL
 !dir$ attributes align:64 :: r, i, write_r, write_i, store_r, store_i
@@ -93,11 +94,11 @@ module OCEAN_psi
     INTEGER, ALLOCATABLE :: core_store_sr(:)
     INTEGER, ALLOCATABLE :: core_store_si(:)
 
-    INTEGER, ALLOCATABLE :: val_store_sr(:)
-    INTEGER, ALLOCATABLE :: val_store_si(:)
+    INTEGER, ALLOCATABLE :: val_store_sr(:,:)
+    INTEGER, ALLOCATABLE :: val_store_si(:,:)
 
-    INTEGER, ALLOCATABLE :: val_store_rr(:)
-    INTEGER, ALLOCATABLE :: val_store_ri(:)
+    INTEGER, ALLOCATABLE :: val_store_rr(:,:)
+    INTEGER, ALLOCATABLE :: val_store_ri(:,:)
 
     ! New MPI requests
 
@@ -201,8 +202,8 @@ module OCEAN_psi
     endif
 
     if( have_val ) then
-      p%val_min_r(:,:) = 0.0_DP
-      p%val_min_i(:,:) = 0.0_DP
+      p%val_min_r(:,:,:) = 0.0_DP
+      p%val_min_i(:,:,:) = 0.0_DP
     endif
 
     p%valid_store = PSI_STORE_MIN
@@ -564,11 +565,12 @@ module OCEAN_psi
     type(OCEAN_vector), intent( inout ) :: p
     integer, intent( inout ) :: ierr
     !
-    integer :: iv, ik, ib, i
+    integer :: iv, ik, ib, i, ibw
     integer :: ri_count, store_size
     !
     !
 
+    do ibw = 1, psi_val_bw
     do ri_count = 1, 2
 
       iv = 1
@@ -584,24 +586,24 @@ module OCEAN_psi
 
           if( p%val_myid .eq. i ) then
 #ifdef __OLD_MPI
-            call MPI_REDUCE( MPI_IN_PLACE, p%valr(1,iv,ik,ib), max_val_store_size * psi_bands_pad, &
+            call MPI_REDUCE( MPI_IN_PLACE, p%valr(1,iv,ik,ib,ibw), max_val_store_size * psi_bands_pad, &
                               MPI_DOUBLE_PRECISION, MPI_SUM, i, p%val_comm, ierr )
-            p%val_store_sr( i ) = MPI_REQUEST_NULL
+            p%val_store_sr( i, ibw ) = MPI_REQUEST_NULL
 #else
-            call MPI_IREDUCE( MPI_IN_PLACE, p%valr(1,iv,ik,ib), max_val_store_size * psi_bands_pad, &
-                              MPI_DOUBLE_PRECISION, MPI_SUM, i, p%val_comm, p%val_store_sr( i ), ierr )
+            call MPI_IREDUCE( MPI_IN_PLACE, p%valr(1,iv,ik,ib,ibw), max_val_store_size * psi_bands_pad, &
+                              MPI_DOUBLE_PRECISION, MPI_SUM, i, p%val_comm, p%val_store_sr( i, ibw ), ierr )
 #endif
             if( ierr .ne. MPI_SUCCESS ) then
               write(6,*) ierr, '!!!'
             endif
           else
 #ifdef __OLD_MPI
-            call MPI_REDUCE( p%valr(1,iv,ik,ib), p%valr(1,iv,ik,ib), max_val_store_size * psi_bands_pad, &
+            call MPI_REDUCE( p%valr(1,iv,ik,ib,ibw), p%valr(1,iv,ik,ib,ibw), max_val_store_size * psi_bands_pad, &
                               MPI_DOUBLE_PRECISION, MPI_SUM, i, p%val_comm, ierr )
-            p%val_store_sr( i ) = MPI_REQUEST_NULL
+            p%val_store_sr( i, ibw ) = MPI_REQUEST_NULL
 #else
-            call MPI_IREDUCE( p%valr(1,iv,ik,ib), p%valr(1,iv,ik,ib), max_val_store_size * psi_bands_pad, &
-                              MPI_DOUBLE_PRECISION, MPI_SUM, i, p%val_comm, p%val_store_sr( i ), ierr )
+            call MPI_IREDUCE( p%valr(1,iv,ik,ib,ibw), p%valr(1,iv,ik,ib,ibw), max_val_store_size * psi_bands_pad, &
+                              MPI_DOUBLE_PRECISION, MPI_SUM, i, p%val_comm, p%val_store_sr( i, ibw ), ierr )
 #endif
             if( ierr .ne. MPI_SUCCESS ) then
               write(6,*) ierr, '!!!'
@@ -612,24 +614,24 @@ module OCEAN_psi
 
           if( p%val_myid .eq. i ) then
 #ifdef __OLD_MPI
-            call MPI_REDUCE( MPI_IN_PLACE, p%vali(1,iv,ik,ib), max_val_store_size * psi_bands_pad, &
+            call MPI_REDUCE( MPI_IN_PLACE, p%vali(1,iv,ik,ib,ibw), max_val_store_size * psi_bands_pad, &
                               MPI_DOUBLE_PRECISION, MPI_SUM, i, p%val_comm, ierr )
-            p%val_store_si( i ) = MPI_REQUEST_NULL
+            p%val_store_si( i, ibw ) = MPI_REQUEST_NULL
 #else
-            call MPI_IREDUCE( MPI_IN_PLACE, p%vali(1,iv,ik,ib), max_val_store_size * psi_bands_pad, &
-                              MPI_DOUBLE_PRECISION, MPI_SUM, i, p%val_comm, p%val_store_si( i ), ierr )
+            call MPI_IREDUCE( MPI_IN_PLACE, p%vali(1,iv,ik,ib,ibw), max_val_store_size * psi_bands_pad, &
+                              MPI_DOUBLE_PRECISION, MPI_SUM, i, p%val_comm, p%val_store_si( i, ibw ), ierr )
 #endif
             if( ierr .ne. MPI_SUCCESS ) then
               write(6,*) ierr, '!!!'
             endif
           else
 #ifdef __OLD_MPI
-            call MPI_REDUCE( p%vali(1,iv,ik,ib), p%vali(1,iv,ik,ib), max_val_store_size * psi_bands_pad, &
+            call MPI_REDUCE( p%vali(1,iv,ik,ib,ibw), p%vali(1,iv,ik,ib,ibw), max_val_store_size * psi_bands_pad, &
                               MPI_DOUBLE_PRECISION, MPI_SUM, i, p%val_comm, ierr )
-            p%val_store_si( i ) = MPI_REQUEST_NULL
+            p%val_store_si( i, ibw ) = MPI_REQUEST_NULL
 #else
-            call MPI_IREDUCE( p%vali(1,iv,ik,ib), p%vali(1,iv,ik,ib), max_val_store_size * psi_bands_pad, &
-                              MPI_DOUBLE_PRECISION, MPI_SUM, i, p%val_comm, p%val_store_si( i ), ierr )
+            call MPI_IREDUCE( p%vali(1,iv,ik,ib,ibw), p%vali(1,iv,ik,ib,ibw), max_val_store_size * psi_bands_pad, &
+                              MPI_DOUBLE_PRECISION, MPI_SUM, i, p%val_comm, p%val_store_si( i, ibw ), ierr )
 #endif
             if( ierr .ne. MPI_SUCCESS ) then
               write(6,*) ierr, '!!!'
@@ -660,24 +662,24 @@ module OCEAN_psi
 
         if( p%val_myid .eq. i ) then
 #ifdef __OLD_MPI
-          call MPI_REDUCE( MPI_IN_PLACE, p%valr(1,iv,ik,ib), store_size * psi_bands_pad, &
+          call MPI_REDUCE( MPI_IN_PLACE, p%valr(1,iv,ik,ib,ibw), store_size * psi_bands_pad, &
                             MPI_DOUBLE_PRECISION, MPI_SUM, i, p%val_comm, ierr )
-          p%val_store_sr( i ) = MPI_REQUEST_NULL
+          p%val_store_sr( i, ibw ) = MPI_REQUEST_NULL
 #else
-          call MPI_IREDUCE( MPI_IN_PLACE, p%valr(1,iv,ik,ib), store_size * psi_bands_pad, &
-                            MPI_DOUBLE_PRECISION, MPI_SUM, i, p%val_comm, p%val_store_sr( i ), ierr )
+          call MPI_IREDUCE( MPI_IN_PLACE, p%valr(1,iv,ik,ib,ibw), store_size * psi_bands_pad, &
+                            MPI_DOUBLE_PRECISION, MPI_SUM, i, p%val_comm, p%val_store_sr( i, ibw ), ierr )
 #endif
             if( ierr .ne. MPI_SUCCESS ) then
               write(6,*) ierr, '!!!'
             endif
         else
 #ifdef  __OLD_MPI
-          call MPI_REDUCE( p%valr(1,iv,ik,ib), p%valr(1,iv,ik,ib), store_size * psi_bands_pad, &
+          call MPI_REDUCE( p%valr(1,iv,ik,ib,ibw), p%valr(1,iv,ik,ib,ibw), store_size * psi_bands_pad, &
                             MPI_DOUBLE_PRECISION, MPI_SUM, i, p%val_comm, ierr )
-          p%val_store_sr( i ) = MPI_REQUEST_NULL
+          p%val_store_sr( i, ibw ) = MPI_REQUEST_NULL
 #else
-          call MPI_IREDUCE( p%valr(1,iv,ik,ib), p%valr(1,iv,ik,ib), store_size * psi_bands_pad, &
-                            MPI_DOUBLE_PRECISION, MPI_SUM, i, p%val_comm, p%val_store_sr( i ), ierr )
+          call MPI_IREDUCE( p%valr(1,iv,ik,ib,ibw), p%valr(1,iv,ik,ib,ibw), store_size * psi_bands_pad, &
+                            MPI_DOUBLE_PRECISION, MPI_SUM, i, p%val_comm, p%val_store_sr( i, ibw ), ierr )
 #endif
             if( ierr .ne. MPI_SUCCESS ) then
               write(6,*) ierr, '!!!'
@@ -688,24 +690,24 @@ module OCEAN_psi
 
         if( p%val_myid .eq. i ) then
 #ifdef __OLD_MPI
-          call MPI_REDUCE( MPI_IN_PLACE, p%vali(1,iv,ik,ib), store_size * psi_bands_pad, &
+          call MPI_REDUCE( MPI_IN_PLACE, p%vali(1,iv,ik,ib,ibw), store_size * psi_bands_pad, &
                             MPI_DOUBLE_PRECISION, MPI_SUM, i, p%val_comm, ierr )
-          p%val_store_si( i ) = MPI_REQUEST_NULL
+          p%val_store_si( i, ibw ) = MPI_REQUEST_NULL
 #else
-          call MPI_IREDUCE( MPI_IN_PLACE, p%vali(1,iv,ik,ib), store_size * psi_bands_pad, &
-                            MPI_DOUBLE_PRECISION, MPI_SUM, i, p%val_comm, p%val_store_si( i ), ierr )
+          call MPI_IREDUCE( MPI_IN_PLACE, p%vali(1,iv,ik,ib,ibw), store_size * psi_bands_pad, &
+                            MPI_DOUBLE_PRECISION, MPI_SUM, i, p%val_comm, p%val_store_si( i, ibw ), ierr )
 #endif
             if( ierr .ne. MPI_SUCCESS ) then
               write(6,*) ierr, '!!!'
             endif
         else
 #ifdef __OLD_MPI
-          call MPI_REDUCE( p%vali(1,iv,ik,ib), p%vali(1,iv,ik,ib), store_size * psi_bands_pad, &
+          call MPI_REDUCE( p%vali(1,iv,ik,ib,ibw), p%vali(1,iv,ik,ib,ibw), store_size * psi_bands_pad, &
                             MPI_DOUBLE_PRECISION, MPI_SUM, i, p%val_comm, ierr )
-          p%val_store_si( i ) = MPI_REQUEST_NULL
+          p%val_store_si( i, ibw ) = MPI_REQUEST_NULL
 #else
-          call MPI_IREDUCE( p%vali(1,iv,ik,ib), p%vali(1,iv,ik,ib), store_size * psi_bands_pad, &
-                            MPI_DOUBLE_PRECISION, MPI_SUM, i, p%val_comm, p%val_store_si( i ), ierr )
+          call MPI_IREDUCE( p%vali(1,iv,ik,ib,ibw), p%vali(1,iv,ik,ib,ibw), store_size * psi_bands_pad, &
+                            MPI_DOUBLE_PRECISION, MPI_SUM, i, p%val_comm, p%val_store_si( i, ibw ), ierr )
 #endif
             if( ierr .ne. MPI_SUCCESS ) then
               write(6,*) ierr, '!!!'
@@ -715,6 +717,8 @@ module OCEAN_psi
       endif
 
     enddo ! loop over real/imag
+
+    enddo ! loop over bwflg
 
 
   end subroutine val_reduce_send
@@ -1036,11 +1040,17 @@ module OCEAN_psi
     type(OCEAN_vector), intent( inout ) :: p
     integer, intent( inout ) :: ierr
     !
-    integer :: i, iv, ik, ib
+    integer :: i, iv, ik, ib, ibw
     integer :: ir_count
     !
     !
     if( p%val_store_size .gt. 0 ) then
+
+
+!TODO: Loop over psi_val_bw here
+! probably best to make min a 3 dim array
+
+      do ibw = 1, psi_val_bw
 
       do ir_count = 1, 2
         iv = p%val_start
@@ -1050,18 +1060,18 @@ module OCEAN_psi
         ! Wait for my reduce to finish
 #ifdef MPI
         if( ir_count .eq. 1 ) then
-          call MPI_WAIT( p%val_store_sr( p%val_myid ), MPI_STATUS_IGNORE, ierr )
+          call MPI_WAIT( p%val_store_sr( p%val_myid, ibw ), MPI_STATUS_IGNORE, ierr )
         else
-          call MPI_WAIT( p%val_store_si( p%val_myid ), MPI_STATUS_IGNORE, ierr )
+          call MPI_WAIT( p%val_store_si( p%val_myid, ibw ), MPI_STATUS_IGNORE, ierr )
         endif
         if( ierr .ne. 0 ) return
 #endif
 
         do i = 1, p%val_store_size
           if( ir_count .eq. 1 ) then
-            p%val_min_r(:,i) = p%val_min_r(:,i) + p%valr(:,iv,ik,ib)
+            p%val_min_r(:,i,ibw) = p%val_min_r(:,i,ibw) + p%valr(:,iv,ik,ib,ibw)
           else
-            p%val_min_i(:,i) = p%val_min_i(:,i) + p%vali(:,iv,ik,ib)
+            p%val_min_i(:,i,ibw) = p%val_min_i(:,i,ibw) + p%vali(:,iv,ik,ib,ibw)
           endif
 
           iv = iv + 1
@@ -1078,15 +1088,19 @@ module OCEAN_psi
 
       enddo ! real/imag loop
 
+      enddo ! bwflg loop
+
     endif
 
 #ifdef MPI
     ! Wait for all the others to complete
-    call MPI_WAITALL( p%val_np, p%val_store_sr, MPI_STATUSES_IGNORE, ierr )
-    if( ierr .ne. 0 ) return
+    do ibw = 1, psi_val_bw
+      call MPI_WAITALL( p%val_np, p%val_store_sr(:,ibw), MPI_STATUSES_IGNORE, ierr )
+      if( ierr .ne. 0 ) return
 
-    call MPI_WAITALL( p%val_np, p%val_store_si, MPI_STATUSES_IGNORE, ierr )
-    if( ierr .ne. 0 ) return
+      call MPI_WAITALL( p%val_np, p%val_store_si(:,ibw), MPI_STATUSES_IGNORE, ierr )
+      if( ierr .ne. 0 ) return
+    enddo
 #endif
 
   end subroutine val_reduce_buffer2min
@@ -1377,6 +1391,7 @@ module OCEAN_psi
     integer, intent( inout ) :: ierr
     real(DP), intent( in ), optional :: ival
     !
+    integer :: ibw
     ! will need to take into account if the ordering is messesed up?
     if( have_core ) then
       if( (.not. x%standard_order) .or. ( .not. y%standard_order ) ) then
@@ -1427,12 +1442,14 @@ module OCEAN_psi
     endif
 
     if( have_val ) then !.and. x%val_store_size .gt. 0 ) then
-      call DAXPY( x%val_store_size * psi_bands_pad, rval, x%val_min_r, 1, y%val_min_r, 1 )
-      call DAXPY( x%val_store_size * psi_bands_pad, rval, x%val_min_i, 1, y%val_min_i, 1 )
-      if( present( ival ) ) then
-        call DAXPY( x%val_store_size * psi_bands_pad, -ival, x%val_min_i, 1, y%val_min_r, 1 )
-        call DAXPY( x%val_store_size * psi_bands_pad, ival, x%val_min_r, 1, y%val_min_i, 1 )
-      endif
+      do ibw = 1, psi_val_bw
+        call DAXPY( x%val_store_size * psi_bands_pad, rval, x%val_min_r(:,:,ibw), 1, y%val_min_r(:,:,ibw), 1 )
+        call DAXPY( x%val_store_size * psi_bands_pad, rval, x%val_min_i(:,:,ibw), 1, y%val_min_i(:,:,ibw), 1 )
+        if( present( ival ) ) then
+          call DAXPY( x%val_store_size * psi_bands_pad, -ival, x%val_min_i(:,:,ibw), 1, y%val_min_r(:,:,ibw), 1 )
+          call DAXPY( x%val_store_size * psi_bands_pad, ival, x%val_min_r(:,:,ibw), 1, y%val_min_i(:,:,ibw), 1 )
+        endif
+      enddo
     endif
 
     ! only store is valid now
@@ -1458,6 +1475,7 @@ module OCEAN_psi
     !
     real(DP), allocatable :: buffer(:,:)
     real(DP) :: rval_ = 1.0_DP
+    integer :: ibw
     !
     if( present( rval ) ) then
       rval_ = rval
@@ -1520,20 +1538,22 @@ module OCEAN_psi
     endif
 
     if( have_val .and. x%val_store_size .gt. 0 ) then
-      if( present( ival ) ) then
-        allocate( buffer( psi_bands_pad, x%val_store_size ) )
-        buffer( :, : ) = rval_ * x%val_min_r( :, : ) - y%val_min_r( :, : )
-        y%val_min_r( :, : ) = buffer( :, : ) - ival * x%val_min_i( :, : )
-        buffer( :, : ) = rval_ * x%val_min_i( :, : ) - y%val_min_i( :, : )
-        y%val_min_i( :, : ) = buffer( :, : ) + ival * x%val_min_r( :, : )
-        deallocate( buffer )
-      elseif( present( rval ) ) then
-        y%val_min_r( :, : ) = rval_ * x%val_min_r( :, : ) - y%val_min_r( :, : )
-        y%val_min_i( :, : ) = rval_ * x%val_min_i( :, : ) - y%val_min_i( :, : )
-      else
-        y%val_min_r( :, : ) = x%val_min_r( :, : ) - y%val_min_r( :, : )
-        y%val_min_i( :, : ) = x%val_min_i( :, : ) - y%val_min_i( :, : )
-      endif
+      do ibw = 1, psi_val_bw
+        if( present( ival ) ) then
+          allocate( buffer( psi_bands_pad, x%val_store_size ) )
+          buffer( :, : ) = rval_ * x%val_min_r( :, :, ibw ) - y%val_min_r( :, :, ibw )
+          y%val_min_r( :, :, ibw ) = buffer( :, : ) - ival * x%val_min_i( :, :, ibw )
+          buffer( :, : ) = rval_ * x%val_min_i( :, :, ibw ) - y%val_min_i( :, :, ibw )
+          y%val_min_i( :, :, ibw ) = buffer( :, : ) + ival * x%val_min_r( :, :, ibw )
+          deallocate( buffer )
+        elseif( present( rval ) ) then
+          y%val_min_r( :, :, ibw ) = rval_ * x%val_min_r( :, :, ibw ) - y%val_min_r( :, :, ibw )
+          y%val_min_i( :, :, ibw ) = rval_ * x%val_min_i( :, :, ibw ) - y%val_min_i( :, :, ibw )
+        else
+          y%val_min_r( :, :, ibw ) = x%val_min_r( :, :, ibw ) - y%val_min_r( :, :, ibw )
+          y%val_min_i( :, :, ibw ) = x%val_min_i( :, :, ibw ) - y%val_min_i( :, :, ibw )
+        endif
+      enddo
     endif
 
     ! only store is valid now
@@ -1558,6 +1578,7 @@ module OCEAN_psi
     real(DP), intent( in ), optional :: ival
     !
     real(DP) :: rval_ = 1.0_DP
+    integer :: ibw
     !
     if( present( rval ) ) rval_ = rval
     ! will need to take into account if the ordering is messesed up?
@@ -1620,16 +1641,18 @@ module OCEAN_psi
     endif
 
     if( have_val .and. x%val_store_size .gt. 0 ) then
-      if( present( ival ) ) then
-        y%val_min_r( :, : ) = rval_ * x%val_min_r( :, : ) - ival * x%val_min_i( :, : ) - z%val_min_r( :, : )
-        y%val_min_i( :, : ) = rval_ * x%val_min_i( :, : ) + ival * x%val_min_r( :, : ) - z%val_min_i( :, : )
-      elseif( present( rval ) ) then
-        y%val_min_r( :, : ) = rval_ * x%val_min_r( :, : ) - z%val_min_r( :, : )
-        y%val_min_i( :, : ) = rval_ * x%val_min_i( :, : ) - z%val_min_i( :, : )
-      else
-        y%val_min_r( :, : ) = x%val_min_r( :, : ) - z%val_min_r( :, : )
-        y%val_min_i( :, : ) = x%val_min_i( :, : ) - z%val_min_i( :, : )
-      endif
+      do ibw = 1, psi_val_bw
+        if( present( ival ) ) then
+          y%val_min_r( :, :, ibw ) = rval_ * x%val_min_r( :, :, ibw ) - ival * x%val_min_i( :, :, ibw ) - z%val_min_r( :, :, ibw )
+          y%val_min_i( :, :, ibw ) = rval_ * x%val_min_i( :, :, ibw ) + ival * x%val_min_r( :, :, ibw ) - z%val_min_i( :, :, ibw )
+        elseif( present( rval ) ) then
+          y%val_min_r( :, :, ibw ) = rval_ * x%val_min_r( :, :, ibw ) - z%val_min_r( :, :, ibw )
+          y%val_min_i( :, :, ibw ) = rval_ * x%val_min_i( :, :, ibw ) - z%val_min_i( :, :, ibw )
+        else
+          y%val_min_r( :, :, ibw ) = x%val_min_r( :, :, ibw ) - z%val_min_r( :, :, ibw )
+          y%val_min_i( :, :, ibw ) = x%val_min_i( :, :, ibw ) - z%val_min_i( :, :, ibw )
+        endif
+      enddo
     endif
 
     ! only store is valid now
@@ -1656,7 +1679,7 @@ module OCEAN_psi
     integer, intent( out ), optional :: rrequest
     integer, intent( in ), optional :: dest
     !
-    integer :: my_comm
+    integer :: my_comm, ibw
     real(dp), external :: DDOT
 
     ! If neither store nor full then need to call write2store
@@ -1683,9 +1706,11 @@ module OCEAN_psi
     endif
 
     if( have_val ) then !.and. x%val_store_size .gt. 0 ) then
-      rval = rval &
-           + DDOT( x%val_store_size * psi_bands_pad, x%val_min_r, 1, x%val_min_r, 1 ) &
-           + DDOT( x%val_store_size * psi_bands_pad, x%val_min_i, 1, x%val_min_i, 1 ) 
+      do ibw = 1, psi_val_bw
+        rval = rval &
+             + DDOT( x%val_store_size * psi_bands_pad, x%val_min_r(:,:,ibw), 1, x%val_min_r(:,:,ibw), 1 ) &
+             + DDOT( x%val_store_size * psi_bands_pad, x%val_min_i(:,:,ibw), 1, x%val_min_i(:,:,ibw), 1 ) 
+      enddo
     endif
 
     my_comm = x%core_comm
@@ -1740,6 +1765,7 @@ module OCEAN_psi
     !
     real(DP), allocatable :: buffer(:,:)
     real(DP) :: denom, nrm, inrm, rnrm
+    integer :: ibw
     !
 
     ! need to have something to scale!
@@ -1782,10 +1808,12 @@ module OCEAN_psi
       if( have_val .and. x%val_store_size .gt. 0 ) then
         allocate( buffer( psi_bands_pad, x%val_store_size ) )
 
-        buffer(:,:) = -inrm * x%val_min_r(:,:)
-        x%val_min_r(:,:) = rnrm * x%val_min_r(:,:)
-        x%val_min_r(:,:) = x%val_min_r(:,:) + inrm * x%val_min_i(:,:)
-        x%val_min_i(:,:) = buffer(:,:) + rnrm * x%val_min_i(:,:)
+        do ibw = 1, psi_val_bw
+          buffer(:,:) = -inrm * x%val_min_r(:,:,ibw)
+          x%val_min_r(:,:,ibw) = rnrm * x%val_min_r(:,:,ibw)
+          x%val_min_r(:,:,ibw) = x%val_min_r(:,:,ibw) + inrm * x%val_min_i(:,:,ibw)
+          x%val_min_i(:,:,ibw) = buffer(:,:) + rnrm * x%val_min_i(:,:,ibw)
+        enddo
 
         deallocate( buffer )
       endif
@@ -1800,8 +1828,10 @@ module OCEAN_psi
       endif
 
       if( have_val .and. x%val_store_size .gt. 0 ) then
-        call DSCAL( x%val_store_size * psi_bands_pad, rnrm, x%val_min_r, 1 )
-        call DSCAL( x%val_store_size * psi_bands_pad, rnrm, x%val_min_i, 1 )
+        do ibw = 1, psi_val_bw
+          call DSCAL( x%val_store_size * psi_bands_pad, rnrm, x%val_min_r(:,:,ibw), 1 )
+          call DSCAL( x%val_store_size * psi_bands_pad, rnrm, x%val_min_i(:,:,ibw), 1 )
+        enddo
       endif
     else  ! only ival
       inrm = 1.0_DP / ival
@@ -1819,9 +1849,11 @@ module OCEAN_psi
       if( have_val .and. x%val_store_size .gt. 0 ) then
         allocate( buffer( psi_bands_pad, x%val_store_size ) )
 
-        buffer(:,:) = x%val_min_i(:,:) * inrm
-        x%val_min_i(:,:) = -inrm * x%val_min_r(:,:)
-        x%val_min_r(:,:) = buffer(:,:)
+        do ibw = 1, psi_val_bw
+          buffer(:,:) = x%val_min_i(:,:,ibw) * inrm
+          x%val_min_i(:,:,ibw) = -inrm * x%val_min_r(:,:,ibw)
+          x%val_min_r(:,:,ibw) = buffer(:,:)
+        enddo
 
         deallocate( buffer )
       endif
@@ -1842,6 +1874,7 @@ module OCEAN_psi
     type(OCEAN_vector), intent( inout ) :: x
     integer, intent( inout ) :: ierr
     !
+    integer :: ibw
     ! If neither store nor full then need to call write2store
     !   This has the side effect of throwing an error if store_min is also invalid
     !
@@ -1867,8 +1900,10 @@ module OCEAN_psi
     endif
 
     if( have_val .and. x%val_store_size .gt. 0 ) then
-      call DSCAL( x%val_store_size * psi_bands_pad, rval, x%val_min_r, 1 )
-      call DSCAL( x%val_store_size * psi_bands_pad, rval, x%val_min_i, 1 )
+      do ibw = 1, psi_val_bw
+        call DSCAL( x%val_store_size * psi_bands_pad, rval, x%val_min_r(:,:,ibw), 1 )
+        call DSCAL( x%val_store_size * psi_bands_pad, rval, x%val_min_i(:,:,ibw), 1 )
+      enddo
     endif
 
     ! only store is valid now
@@ -1900,7 +1935,7 @@ module OCEAN_psi
     real(DP), intent( inout ), optional :: ival  ! must be inout for mpi_in_place
     integer, intent( in ), optional :: dest
     !
-    integer :: my_comm
+    integer :: my_comm, ibw
     real(dp), external :: DDOT
 
     ! This would be a programming error. No reason to allow recovery
@@ -1978,15 +2013,17 @@ module OCEAN_psi
     my_comm = p%core_comm
     if( have_val ) then
       my_comm = p%val_comm
-      ! rval is either 0 or core
-      rval = rval &
-           + DDOT( psi_bands_pad * p%val_store_size, p%val_min_r, 1, q%val_min_r, 1 ) &
-           + DDOT( psi_bands_pad * p%val_store_size, p%val_min_i, 1, q%val_min_i, 1 )
-      if( present( ival ) ) then
-        ival = ival &
-             + DDOT( psi_bands_pad * p%val_store_size, p%val_min_r, 1, q%val_min_i, 1 ) &
-             - DDOT( psi_bands_pad * p%val_store_size, p%val_min_i, 1, q%val_min_r, 1 )
-      endif
+      do ibw = 1, psi_val_bw
+        ! rval is either 0 or core
+        rval = rval &
+             + DDOT( psi_bands_pad * p%val_store_size, p%val_min_r(:,:,ibw), 1, q%val_min_r(:,:,ibw), 1 ) &
+             + DDOT( psi_bands_pad * p%val_store_size, p%val_min_i(:,:,ibw), 1, q%val_min_i(:,:,ibw), 1 )
+        if( present( ival ) ) then
+          ival = ival &
+               + DDOT( psi_bands_pad * p%val_store_size, p%val_min_r(:,:,ibw), 1, q%val_min_i(:,:,ibw), 1 ) &
+               - DDOT( psi_bands_pad * p%val_store_size, p%val_min_i(:,:,ibw), 1, q%val_min_r(:,:,ibw), 1 )
+        endif
+      enddo
     endif
     ! There is no "else rval=0" here because it is taken care of above for core
   
@@ -2337,15 +2374,15 @@ subroutine OCEAN_psi_dot_write( p, q, outvec, rrequest, rval, ierr, irequest, iv
     endif
 
     if( have_val ) then
-      allocate( p%val_store_sr( 0:p%val_np-1 ), p%val_store_si( 0 : p%val_np - 1 ), &
-                p%val_store_rr( 0:total_nproc-1), p%val_store_ri( 0:total_nproc-1), &
+      allocate( p%val_store_sr( 0:p%val_np-1, psi_val_bw ), p%val_store_si( 0 : p%val_np - 1, psi_val_bw ), &
+                p%val_store_rr( 0:total_nproc-1, psi_val_bw), p%val_store_ri( 0:total_nproc-1, psi_val_bw), &
                 STAT=ierr )
       if( ierr .ne. 0 ) return
 
-      p%val_store_sr( : ) = MPI_REQUEST_NULL
-      p%val_store_si( : ) = MPI_REQUEST_NULL
-      p%val_store_rr( : ) = MPI_REQUEST_NULL
-      p%val_store_ri( : ) = MPI_REQUEST_NULL
+      p%val_store_sr( :, : ) = MPI_REQUEST_NULL
+      p%val_store_si( :, : ) = MPI_REQUEST_NULL
+      p%val_store_rr( :, : ) = MPI_REQUEST_NULL
+      p%val_store_ri( :, : ) = MPI_REQUEST_NULL
     endif
 
     ! Write is allocated
@@ -2623,6 +2660,12 @@ subroutine OCEAN_psi_dot_write( p, q, outvec, rrequest, rval, ierr, irequest, iv
     endif
 
 
+    if( present( re_val ) .or. present( im_val ) ) then
+      write(6,*) 'OCEAN_psi_set_full not implemented for valence yet!'
+      ierr = 9990
+      return
+    endif
+
   end subroutine OCEAN_psi_set_full
 
 !> @author John Vinson, NIST
@@ -2677,8 +2720,8 @@ subroutine OCEAN_psi_dot_write( p, q, outvec, rrequest, rval, ierr, irequest, iv
     logical, intent( in ) :: have_gw
 
     if( have_val ) then
-      b%valr(:,:,:,:) = a%valr(:,:,:,:) * e%valr(:,:,:,:) + b%valr(:,:,:,:)
-      b%vali(:,:,:,:) = a%vali(:,:,:,:) * e%valr(:,:,:,:) + b%vali(:,:,:,:)
+      b%valr(:,:,:,:,:) = a%valr(:,:,:,:,:) * e%valr(:,:,:,:,:) + b%valr(:,:,:,:,:)
+      b%vali(:,:,:,:,:) = a%vali(:,:,:,:,:) * e%valr(:,:,:,:,:) + b%vali(:,:,:,:,:)
     endif
     
   end subroutine
@@ -2699,11 +2742,11 @@ subroutine OCEAN_psi_dot_write( p, q, outvec, rrequest, rval, ierr, irequest, iv
     if( .not. have_val ) return
 
     if( use_real ) then
-        a%valr(:,:,:,:) = a%valr(:,:,:,:) * b%valr(:,:,:,:)
-        a%vali(:,:,:,:) = a%vali(:,:,:,:) * b%valr(:,:,:,:)
+        a%valr(:,:,:,:,:) = a%valr(:,:,:,:,:) * b%valr(:,:,:,:,:)
+        a%vali(:,:,:,:,:) = a%vali(:,:,:,:,:) * b%valr(:,:,:,:,:)
     else
-        a%valr(:,:,:,:) = a%valr(:,:,:,:) * b%vali(:,:,:,:)
-        a%vali(:,:,:,:) = a%vali(:,:,:,:) * b%vali(:,:,:,:)
+        a%valr(:,:,:,:,:) = a%valr(:,:,:,:,:) * b%vali(:,:,:,:,:)
+        a%vali(:,:,:,:,:) = a%vali(:,:,:,:,:) * b%vali(:,:,:,:,:)
     endif
   end subroutine
 
@@ -2832,7 +2875,7 @@ subroutine OCEAN_psi_dot_write( p, q, outvec, rrequest, rval, ierr, irequest, iv
     !
     real( DP ) :: gprc_sqd, denom
     complex(DP) :: ctemp, ctemp2
-    integer :: i, j
+    integer :: i, j, ibw
     
     if( IAND( psi_in%valid_store, PSI_STORE_MIN ) .eq. 0 ) then
       if( IAND( psi_in%valid_store, PSI_STORE_FULL ) .eq. 0 ) then
@@ -2894,13 +2937,15 @@ subroutine OCEAN_psi_dot_write( p, q, outvec, rrequest, rval, ierr, irequest, iv
         ierr = 9215
         return
       endif
-      do i = 1, psi_in%val_store_size
-        do j = 1, psi_bands_pad
-          denom = ( energy - psi_in%val_min_r( j, i ) ) ** 2  &
-                + gprc_sqd + psi_in%val_min_i( j, i ) ** 2
-          denom = 1.0_dp / denom
-          psi_out%val_min_r( j, i ) = ( energy - psi_in%val_min_r( j, i ) ) * denom
-          psi_out%val_min_i( j, i ) = - ( gprc + psi_in%val_min_i( j, i ) ) * denom
+      do ibw = 1, psi_val_bw
+        do i = 1, psi_in%val_store_size
+          do j = 1, psi_bands_pad
+            denom = ( energy - psi_in%val_min_r( j, i, ibw ) ) ** 2  &
+                  + gprc_sqd + psi_in%val_min_i( j, i, ibw ) ** 2
+            denom = 1.0_dp / denom
+            psi_out%val_min_r( j, i, ibw ) = ( energy - psi_in%val_min_r( j, i, ibw ) ) * denom
+            psi_out%val_min_i( j, i, ibw ) = - ( gprc + psi_in%val_min_i( j, i, ibw ) ) * denom
+          enddo
         enddo
       enddo
     endif
@@ -2926,7 +2971,7 @@ subroutine OCEAN_psi_dot_write( p, q, outvec, rrequest, rval, ierr, irequest, iv
     logical, intent( in ), optional :: is_imaginary_as_real  ! take the imaginary part of x, but treat as real
     !
     real(DP), allocatable :: buffer( : )
-    integer :: i, j
+    integer :: i, j, ibw
     logical :: do_real_only
     logical :: do_conjugate
     logical :: do_full
@@ -2989,16 +3034,16 @@ subroutine OCEAN_psi_dot_write( p, q, outvec, rrequest, rval, ierr, irequest, iv
           z%r(:,:,:) = z%r(:,:,:) * x%r(:,:,:)
           z%i(:,:,:) = z%i(:,:,:) * x%r(:,:,:)
         else
-          z%valr(:,:,:,:) = z%valr(:,:,:,:) * x%valr(:,:,:,:)
-          z%vali(:,:,:,:) = z%vali(:,:,:,:) * x%valr(:,:,:,:)
+          z%valr(:,:,:,:,:) = z%valr(:,:,:,:,:) * x%valr(:,:,:,:,:)
+          z%vali(:,:,:,:,:) = z%vali(:,:,:,:,:) * x%valr(:,:,:,:,:)
         endif
       elseif( do_imag_as_real ) then
         if( have_core ) then
           z%r(:,:,:) = z%r(:,:,:) * x%i(:,:,:)
           z%i(:,:,:) = z%i(:,:,:) * x%i(:,:,:)
         else
-          z%valr(:,:,:,:) = z%valr(:,:,:,:) * x%vali(:,:,:,:)
-          z%vali(:,:,:,:) = z%vali(:,:,:,:) * x%vali(:,:,:,:)
+          z%valr(:,:,:,:,:) = z%valr(:,:,:,:,:) * x%vali(:,:,:,:,:)
+          z%vali(:,:,:,:,:) = z%vali(:,:,:,:,:) * x%vali(:,:,:,:,:)
         endif
       else
         ierr = 12584
@@ -3041,12 +3086,8 @@ subroutine OCEAN_psi_dot_write( p, q, outvec, rrequest, rval, ierr, irequest, iv
         endif
 
         if( have_val .and. z%val_store_size .gt. 0 ) then
-          do i = 1, z%val_store_size
-            do j = 1, psi_bands_pad
-              z%val_min_r( j, i ) = x%val_min_r( j, i ) * z%val_min_r( j, i ) 
-              z%val_min_i( j, i ) = x%val_min_r( j, i ) * z%val_min_i( j, i ) 
-            enddo
-          enddo
+          z%val_min_r( :, :, : ) = x%val_min_r( :, :, : ) * z%val_min_r( :, :, : )
+          z%val_min_i( :, :, : ) = x%val_min_r( :, :, : ) * z%val_min_i( :, :, : )
         endif
 
       elseif( do_imag_as_real ) then
@@ -3060,12 +3101,8 @@ subroutine OCEAN_psi_dot_write( p, q, outvec, rrequest, rval, ierr, irequest, iv
         endif
 
         if( have_val .and. z%val_store_size .gt. 0 ) then
-          do i = 1, z%val_store_size
-            do j = 1, psi_bands_pad
-              z%val_min_r( j, i ) = x%val_min_i( j, i ) * z%val_min_r( j, i )
-              z%val_min_i( j, i ) = x%val_min_i( j, i ) * z%val_min_i( j, i )
-            enddo
-          enddo
+          z%val_min_r( :, :, : ) = x%val_min_i( :, :, : ) * z%val_min_r( :, :, : )
+          z%val_min_i( :, :, : ) = x%val_min_i( :, :, : ) * z%val_min_i( :, :, : )
         endif
 
       else
@@ -3076,8 +3113,8 @@ subroutine OCEAN_psi_dot_write( p, q, outvec, rrequest, rval, ierr, irequest, iv
             do i = 1, z%core_store_size
               do j = 1, psi_bands_pad
                 buffer( j ) = x%min_i( j, i ) * z%min_r( j, i )
-                z%min_r( j, i ) = x%val_min_r( j, i ) * z%val_min_r( j, i ) &
-                                + x%val_min_i( j, i ) * z%val_min_i( j, i )
+                z%min_r( j, i ) = x%min_r( j, i ) * z%min_r( j, i ) &
+                                + x%min_i( j, i ) * z%min_i( j, i )
                 z%min_i( j, i ) = x%min_r( j, i ) * z%min_i( j, i ) - buffer( j )
               enddo
             enddo
@@ -3086,8 +3123,8 @@ subroutine OCEAN_psi_dot_write( p, q, outvec, rrequest, rval, ierr, irequest, iv
             do i = 1, z%core_store_size
               do j = 1, psi_bands_pad
                 buffer( j ) = x%min_i( j, i ) * z%min_r( j, i ) 
-                z%min_r( j, i ) = x%val_min_r( j, i ) * z%val_min_r( j, i ) &
-                                - x%val_min_i( j, i ) * z%val_min_i( j, i )
+                z%min_r( j, i ) = x%min_r( j, i ) * z%min_r( j, i ) &
+                                - x%min_i( j, i ) * z%min_i( j, i )
                 z%min_i( j, i ) = x%min_r( j, i ) * z%min_i( j, i ) + buffer( j )
               enddo
             enddo
@@ -3100,21 +3137,25 @@ subroutine OCEAN_psi_dot_write( p, q, outvec, rrequest, rval, ierr, irequest, iv
           allocate( buffer(psi_bands_pad) )
 
           if( do_conjugate ) then
-            do i = 1, z%val_store_size
-              do j = 1, psi_bands_pad
-                buffer( j ) = x%val_min_i( j, i ) * z%val_min_r( j, i )
-                z%val_min_r( j, i ) = x%val_min_r( j, i ) * z%val_min_r( j, i )  &
-                                    + x%val_min_i( j, i ) * z%val_min_i( j, i )
-                z%val_min_i( j, i ) = x%val_min_r( j, i ) * z%val_min_i( j, i ) - buffer( j )
+            do ibw = 1, psi_val_bw
+              do i = 1, z%val_store_size
+                do j = 1, psi_bands_pad
+                  buffer( j ) = x%val_min_i( j, i, ibw ) * z%val_min_r( j, i, ibw )
+                  z%val_min_r( j, i, ibw ) = x%val_min_r( j, i, ibw ) * z%val_min_r( j, i, ibw )  &
+                                           + x%val_min_i( j, i, ibw ) * z%val_min_i( j, i, ibw )
+                  z%val_min_i( j, i, ibw ) = x%val_min_r( j, i, ibw ) * z%val_min_i( j, i, ibw ) - buffer( j )
+                enddo
               enddo
             enddo
           else
-            do i = 1, z%val_store_size
-              do j = 1, psi_bands_pad
-                buffer( j ) = x%val_min_i( j, i ) * z%val_min_r( j, i )
-                z%val_min_r( j, i ) = x%val_min_r( j, i ) * z%val_min_r( j, i )  &
-                                    - x%val_min_i( j, i ) * z%val_min_i( j, i )
-                z%val_min_i( j, i ) = x%val_min_r( j, i ) * z%val_min_i( j, i ) + buffer( j )
+            do ibw = 1, psi_val_bw
+              do i = 1, z%val_store_size
+                do j = 1, psi_bands_pad
+                  buffer( j ) = x%val_min_i( j, i, ibw ) * z%val_min_r( j, i, ibw )
+                  z%val_min_r( j, i, ibw ) = x%val_min_r( j, i, ibw ) * z%val_min_r( j, i, ibw )  &
+                                      - x%val_min_i( j, i, ibw ) * z%val_min_i( j, i, ibw )
+                  z%val_min_i( j, i, ibw ) = x%val_min_r( j, i, ibw ) * z%val_min_i( j, i, ibw ) + buffer( j )
+                enddo
               enddo
             enddo
           endif
@@ -3137,7 +3178,7 @@ subroutine OCEAN_psi_dot_write( p, q, outvec, rrequest, rval, ierr, irequest, iv
     integer, intent( inout ) :: ierr
     logical, intent( in ), optional :: is_conjugate
     !
-    integer :: i, j, ialpha, ikpt, iband, ibeta
+    integer :: i, j, ialpha, ikpt, iband, ibeta, ibw
     logical :: do_conjugate
     !
     if( present( is_conjugate ) ) then
@@ -3187,21 +3228,25 @@ subroutine OCEAN_psi_dot_write( p, q, outvec, rrequest, rval, ierr, irequest, iv
 
       if( have_val .and. z%val_store_size .gt. 0 ) then
         if( do_conjugate ) then
-          do i = 1, z%val_store_size
-            do j = 1, psi_bands_pad
-              z%val_min_r( j, i ) = x%val_min_r( j, i ) * y%val_min_r( j, i ) &
-                                  + x%val_min_i( j, i ) * y%val_min_i( j, i )
-              z%val_min_i( j, i ) = x%val_min_r( j, i ) * y%val_min_i( j, i ) &
-                                  - x%val_min_i( j, i ) * y%val_min_r( j, i )
+          do ibw = 1, psi_val_bw
+            do i = 1, z%val_store_size
+              do j = 1, psi_bands_pad
+                z%val_min_r( j, i, ibw ) = x%val_min_r( j, i, ibw ) * y%val_min_r( j, i, ibw ) &
+                                         + x%val_min_i( j, i, ibw ) * y%val_min_i( j, i, ibw )
+                z%val_min_i( j, i, ibw ) = x%val_min_r( j, i, ibw ) * y%val_min_i( j, i, ibw ) &
+                                         - x%val_min_i( j, i, ibw ) * y%val_min_r( j, i, ibw )
+              enddo
             enddo
           enddo
         else
-          do i = 1, z%val_store_size
-            do j = 1, psi_bands_pad
-              z%val_min_r( j, i ) = x%val_min_r( j, i ) * y%val_min_r( j, i ) &
-                                  - x%val_min_i( j, i ) * y%val_min_i( j, i )
-              z%val_min_i( j, i ) = x%val_min_r( j, i ) * y%val_min_i( j, i ) &
-                                  + x%val_min_i( j, i ) * y%val_min_r( j, i )
+          do ibw = 1, psi_val_bw
+            do i = 1, z%val_store_size
+              do j = 1, psi_bands_pad
+                z%val_min_r( j, i, ibw ) = x%val_min_r( j, i, ibw ) * y%val_min_r( j, i, ibw ) &
+                                         - x%val_min_i( j, i, ibw ) * y%val_min_i( j, i, ibw )
+                z%val_min_i( j, i, ibw ) = x%val_min_r( j, i, ibw ) * y%val_min_i( j, i, ibw ) &
+                                         + x%val_min_i( j, i, ibw ) * y%val_min_r( j, i, ibw )
+              enddo
             enddo
           enddo
         endif
@@ -3246,46 +3291,52 @@ subroutine OCEAN_psi_dot_write( p, q, outvec, rrequest, rval, ierr, irequest, iv
       endif
 
       if( have_val .and. ( z%val_store_size .gt. 0 ) ) then
-        ibeta = y%val_beta_start
-        ikpt = y%val_k_start
-        iband = y%val_start - 1
 
         if( do_conjugate ) then
-          do i = 1, z%val_store_size
-            iband = iband + 1
-            if( iband .gt. psi_val_bands ) then
-              ikpt = ikpt + 1
-              iband = 1
-              if( ikpt .gt. psi_kpts_actual ) then
-                ibeta = ibeta + 1
-                ikpt = 1
+          do ibw = 1, psi_val_bw
+            ibeta = y%val_beta_start
+            ikpt = y%val_k_start
+            iband = y%val_start - 1
+            do i = 1, z%val_store_size
+              iband = iband + 1
+              if( iband .gt. psi_val_bands ) then
+                ikpt = ikpt + 1
+                iband = 1
+                if( ikpt .gt. psi_kpts_actual ) then
+                  ibeta = ibeta + 1
+                  ikpt = 1
+                endif
               endif
-            endif
-            do j = 1, psi_bands_pad
-              z%val_min_r( j, i ) = x%val_min_r( j, i ) * y%valr( j, iband, ikpt, ibeta ) &
-                                  + x%val_min_i( j, i ) * y%vali( j, iband, ikpt, ibeta )
-              z%val_min_i( j, i ) = x%val_min_r( j, i ) * y%vali( j, iband, ikpt, ibeta ) &
-                                  - x%val_min_i( j, i ) * y%valr( j, iband, ikpt, ibeta )
+              do j = 1, psi_bands_pad
+                z%val_min_r( j, i, ibw ) = x%val_min_r( j, i, ibw ) * y%valr( j, iband, ikpt, ibeta, ibw ) &
+                                         + x%val_min_i( j, i, ibw ) * y%vali( j, iband, ikpt, ibeta, ibw )
+                z%val_min_i( j, i, ibw ) = x%val_min_r( j, i, ibw ) * y%vali( j, iband, ikpt, ibeta, ibw ) &
+                                         - x%val_min_i( j, i, ibw ) * y%valr( j, iband, ikpt, ibeta, ibw )
 
+              enddo
             enddo
           enddo
         else
-          do i = 1, z%val_store_size
-            iband = iband + 1
-            if( iband .gt. psi_val_bands ) then
-              ikpt = ikpt + 1
-              iband = 1
-              if( ikpt .gt. psi_kpts_actual ) then
-                ibeta = ibeta + 1
-                ikpt = 1
+          do ibw = 1, psi_val_bw
+            ibeta = y%val_beta_start
+            ikpt = y%val_k_start
+            iband = y%val_start - 1
+            do i = 1, z%val_store_size
+              iband = iband + 1
+              if( iband .gt. psi_val_bands ) then
+                ikpt = ikpt + 1
+                iband = 1
+                if( ikpt .gt. psi_kpts_actual ) then
+                  ibeta = ibeta + 1
+                  ikpt = 1
+                endif
               endif
-            endif
-            do j = 1, psi_bands_pad
-              z%val_min_r( j, i ) = x%val_min_r( j, i ) * y%valr( j, iband, ikpt, ibeta ) &
-                                  - x%val_min_i( j, i ) * y%vali( j, iband, ikpt, ibeta )
-              z%val_min_i( j, i ) = x%val_min_r( j, i ) * y%vali( j, iband, ikpt, ibeta ) &
-                                  + x%val_min_i( j, i ) * y%valr( j, iband, ikpt, ibeta )
-
+              do j = 1, psi_bands_pad
+                z%val_min_r( j, i, ibw ) = x%val_min_r( j, i, ibw ) * y%valr( j, iband, ikpt, ibeta, ibw ) &
+                                         - x%val_min_i( j, i, ibw ) * y%vali( j, iband, ikpt, ibeta, ibw )
+                z%val_min_i( j, i, ibw ) = x%val_min_r( j, i, ibw ) * y%vali( j, iband, ikpt, ibeta, ibw ) &
+                                         + x%val_min_i( j, i, ibw ) * y%valr( j, iband, ikpt, ibeta, ibw )
+              enddo
             enddo
           enddo
         endif
@@ -3327,7 +3378,7 @@ subroutine OCEAN_psi_dot_write( p, q, outvec, rrequest, rval, ierr, irequest, iv
     logical, intent( in ), optional :: use_full
     logical, intent( in ), optional :: is_imaginary_as_real  ! take the imaginary part of x, but treat as real
     !
-    integer :: i, j
+    integer :: i, j, ibw
     logical :: do_real_only
     logical :: do_conjugate
     logical :: do_full
@@ -3407,8 +3458,8 @@ subroutine OCEAN_psi_dot_write( p, q, outvec, rrequest, rval, ierr, irequest, iv
               z%i(:,:,:) = y%i(:,:,:) * x%r(:,:,:) + alpha * z%i(:,:,:) 
             endif
             if( have_val ) then
-              z%valr(:,:,:,:) = y%valr(:,:,:,:) * x%valr(:,:,:,:) + alpha * z%valr(:,:,:,:)
-              z%vali(:,:,:,:) = y%vali(:,:,:,:) * x%valr(:,:,:,:) + alpha * z%vali(:,:,:,:)
+              z%valr(:,:,:,:,:) = y%valr(:,:,:,:,:) * x%valr(:,:,:,:,:) + alpha * z%valr(:,:,:,:,:)
+              z%vali(:,:,:,:,:) = y%vali(:,:,:,:,:) * x%valr(:,:,:,:,:) + alpha * z%vali(:,:,:,:,:)
             endif
           elseif( do_imag_as_real ) then
             if( have_core ) then
@@ -3416,8 +3467,8 @@ subroutine OCEAN_psi_dot_write( p, q, outvec, rrequest, rval, ierr, irequest, iv
               z%i(:,:,:) = y%i(:,:,:) * x%i(:,:,:) + alpha * z%i(:,:,:)
             endif
             if( have_val ) then
-              z%valr(:,:,:,:) = y%valr(:,:,:,:) * x%vali(:,:,:,:) + alpha * z%valr(:,:,:,:)
-              z%vali(:,:,:,:) = y%vali(:,:,:,:) * x%vali(:,:,:,:) + alpha * z%vali(:,:,:,:)
+              z%valr(:,:,:,:,:) = y%valr(:,:,:,:,:) * x%vali(:,:,:,:,:) + alpha * z%valr(:,:,:,:,:)
+              z%vali(:,:,:,:,:) = y%vali(:,:,:,:,:) * x%vali(:,:,:,:,:) + alpha * z%vali(:,:,:,:,:)
             endif
           elseif( do_conjugate ) then
             if( have_core ) then
@@ -3425,10 +3476,10 @@ subroutine OCEAN_psi_dot_write( p, q, outvec, rrequest, rval, ierr, irequest, iv
               z%i(:,:,:) = y%i(:,:,:) * x%r(:,:,:) - y%r(:,:,:) * x%i(:,:,:) + alpha * z%i(:,:,:)
             endif
             if( have_val ) then
-              z%valr(:,:,:,:) = y%valr(:,:,:,:) * x%vali(:,:,:,:) + &
-                                y%vali(:,:,:,:) * x%vali(:,:,:,:) + alpha * z%valr(:,:,:,:)
-              z%vali(:,:,:,:) = y%vali(:,:,:,:) * x%valr(:,:,:,:) - &
-                                y%valr(:,:,:,:) * x%vali(:,:,:,:) + alpha * z%vali(:,:,:,:)
+              z%valr(:,:,:,:,:) = y%valr(:,:,:,:,:) * x%vali(:,:,:,:,:) + &
+                                  y%vali(:,:,:,:,:) * x%vali(:,:,:,:,:) + alpha * z%valr(:,:,:,:,:)
+              z%vali(:,:,:,:,:) = y%vali(:,:,:,:,:) * x%valr(:,:,:,:,:) - &
+                                  y%valr(:,:,:,:,:) * x%vali(:,:,:,:,:) + alpha * z%vali(:,:,:,:,:)
             endif
           else
             if( have_core ) then
@@ -3436,10 +3487,10 @@ subroutine OCEAN_psi_dot_write( p, q, outvec, rrequest, rval, ierr, irequest, iv
               z%i(:,:,:) = y%i(:,:,:) * x%r(:,:,:) + y%r(:,:,:) * x%i(:,:,:) + alpha * z%i(:,:,:)
             endif
             if( have_val ) then
-              z%valr(:,:,:,:) = y%valr(:,:,:,:) * x%vali(:,:,:,:) - &
-                                y%vali(:,:,:,:) * x%vali(:,:,:,:) + alpha * z%valr(:,:,:,:)
-              z%vali(:,:,:,:) = y%vali(:,:,:,:) * x%valr(:,:,:,:) + &
-                                y%valr(:,:,:,:) * x%vali(:,:,:,:) + alpha * z%vali(:,:,:,:)
+              z%valr(:,:,:,:,:) = y%valr(:,:,:,:,:) * x%vali(:,:,:,:,:) - &
+                                  y%vali(:,:,:,:,:) * x%vali(:,:,:,:,:) + alpha * z%valr(:,:,:,:,:)
+              z%vali(:,:,:,:,:) = y%vali(:,:,:,:,:) * x%valr(:,:,:,:,:) + &
+                                  y%valr(:,:,:,:,:) * x%vali(:,:,:,:,:) + alpha * z%vali(:,:,:,:,:)
             endif
           endif
         endif
@@ -3450,8 +3501,8 @@ subroutine OCEAN_psi_dot_write( p, q, outvec, rrequest, rval, ierr, irequest, iv
             z%i(:,:,:) = y%i(:,:,:) * x%r(:,:,:)
           endif
           if( have_val ) then
-            z%valr(:,:,:,:) = y%valr(:,:,:,:) * x%valr(:,:,:,:)
-            z%vali(:,:,:,:) = y%vali(:,:,:,:) * x%valr(:,:,:,:)
+            z%valr(:,:,:,:,:) = y%valr(:,:,:,:,:) * x%valr(:,:,:,:,:)
+            z%vali(:,:,:,:,:) = y%vali(:,:,:,:,:) * x%valr(:,:,:,:,:)
           endif
         elseif( do_imag_as_real ) then
           if( have_core ) then
@@ -3459,8 +3510,8 @@ subroutine OCEAN_psi_dot_write( p, q, outvec, rrequest, rval, ierr, irequest, iv
             z%i(:,:,:) = y%i(:,:,:) * x%i(:,:,:)
           endif
           if( have_val ) then
-            z%valr(:,:,:,:) = y%valr(:,:,:,:) * x%vali(:,:,:,:) 
-            z%vali(:,:,:,:) = y%vali(:,:,:,:) * x%vali(:,:,:,:)
+            z%valr(:,:,:,:,:) = y%valr(:,:,:,:,:) * x%vali(:,:,:,:,:) 
+            z%vali(:,:,:,:,:) = y%vali(:,:,:,:,:) * x%vali(:,:,:,:,:)
           endif
         elseif( do_conjugate ) then
           if( have_core ) then
@@ -3468,21 +3519,21 @@ subroutine OCEAN_psi_dot_write( p, q, outvec, rrequest, rval, ierr, irequest, iv
             z%i(:,:,:) = y%i(:,:,:) * x%r(:,:,:) - y%r(:,:,:) * x%i(:,:,:)
           endif
           if( have_val ) then
-            z%valr(:,:,:,:) = y%valr(:,:,:,:) * x%vali(:,:,:,:) + &
-                              y%vali(:,:,:,:) * x%vali(:,:,:,:)
-            z%vali(:,:,:,:) = y%vali(:,:,:,:) * x%valr(:,:,:,:) - &
-                              y%valr(:,:,:,:) * x%vali(:,:,:,:)
-          endif
+            z%valr(:,:,:,:,:) = y%valr(:,:,:,:,:) * x%vali(:,:,:,:,:) + &
+                                y%vali(:,:,:,:,:) * x%vali(:,:,:,:,:)
+            z%vali(:,:,:,:,:) = y%vali(:,:,:,:,:) * x%valr(:,:,:,:,:) - &
+                                y%valr(:,:,:,:,:) * x%vali(:,:,:,:,:)
+          endif 
         else
           if( have_core ) then
             z%r(:,:,:) = y%r(:,:,:) * x%r(:,:,:) - y%i(:,:,:) * x%i(:,:,:)
             z%i(:,:,:) = y%i(:,:,:) * x%r(:,:,:) + y%r(:,:,:) * x%i(:,:,:)
           endif
           if( have_val ) then
-            z%valr(:,:,:,:) = y%valr(:,:,:,:) * x%vali(:,:,:,:) - &
-                              y%vali(:,:,:,:) * x%vali(:,:,:,:)
-            z%vali(:,:,:,:) = y%vali(:,:,:,:) * x%valr(:,:,:,:) + &
-                              y%valr(:,:,:,:) * x%vali(:,:,:,:)
+            z%valr(:,:,:,:,:) = y%valr(:,:,:,:,:) * x%vali(:,:,:,:,:) - &
+                                y%vali(:,:,:,:,:) * x%vali(:,:,:,:,:)
+            z%vali(:,:,:,:,:) = y%vali(:,:,:,:,:) * x%valr(:,:,:,:,:) + &
+                                y%valr(:,:,:,:,:) * x%vali(:,:,:,:,:)
           endif
         endif
       endif  ! end alpha
@@ -3553,28 +3604,29 @@ subroutine OCEAN_psi_dot_write( p, q, outvec, rrequest, rval, ierr, irequest, iv
 
         if( have_val .and. z%val_store_size .gt. 0 ) then
           if( do_conjugate ) then
-
-            do i = 1, z%val_store_size
-              do j = 1, psi_bands_pad
-                z%val_min_r( j, i ) = x%val_min_r( j, i ) * y%val_min_r( j, i ) &
-                                    + x%val_min_i( j, i ) * y%val_min_i( j, i ) &
-                                    + alpha * z%val_min_r( j, i )
-                z%val_min_i( j, i ) = x%val_min_r( j, i ) * y%val_min_i( j, i ) &
-                                    - x%val_min_i( j, i ) * y%val_min_r( j, i ) &
-                                    + alpha * z%val_min_i( j, i )
+            do ibw = 1, psi_val_bw
+              do i = 1, z%val_store_size
+                do j = 1, psi_bands_pad
+                  z%val_min_r( j, i, ibw ) = x%val_min_r( j, i, ibw ) * y%val_min_r( j, i, ibw ) &
+                                           + x%val_min_i( j, i, ibw ) * y%val_min_i( j, i, ibw ) &
+                                           + alpha * z%val_min_r( j, i, ibw )
+                  z%val_min_i( j, i, ibw ) = x%val_min_r( j, i, ibw ) * y%val_min_i( j, i, ibw ) &
+                                           - x%val_min_i( j, i, ibw ) * y%val_min_r( j, i, ibw ) &
+                                           + alpha * z%val_min_i( j, i, ibw )
+                enddo
               enddo
             enddo
-
           else
-
-            do i = 1, z%val_store_size
-              do j = 1, psi_bands_pad
-                z%val_min_r( j, i ) = x%val_min_r( j, i ) * y%val_min_r( j, i ) &
-                                    - x%val_min_i( j, i ) * y%val_min_i( j, i ) &
-                                    + alpha * z%val_min_r( j, i )
-                z%val_min_i( j, i ) = x%val_min_r( j, i ) * y%val_min_i( j, i ) &
-                                    + x%val_min_i( j, i ) * y%val_min_r( j, i ) &
-                                    + alpha * z%val_min_i( j, i )
+            do ibw = 1, psi_val_bw
+              do i = 1, z%val_store_size
+                do j = 1, psi_bands_pad
+                  z%val_min_r( j, i, ibw ) = x%val_min_r( j, i, ibw ) * y%val_min_r( j, i, ibw ) &
+                                           - x%val_min_i( j, i, ibw ) * y%val_min_i( j, i, ibw ) &
+                                           + alpha * z%val_min_r( j, i, ibw )
+                  z%val_min_i( j, i, ibw ) = x%val_min_r( j, i, ibw ) * y%val_min_i( j, i, ibw ) &
+                                           + x%val_min_i( j, i, ibw ) * y%val_min_r( j, i, ibw ) &
+                                           + alpha * z%val_min_i( j, i, ibw )
+                enddo
               enddo
             enddo
           endif
@@ -3612,21 +3664,25 @@ subroutine OCEAN_psi_dot_write( p, q, outvec, rrequest, rval, ierr, irequest, iv
 
       if( have_val .and. z%val_store_size .gt. 0 ) then
         if( do_conjugate ) then
-          do i = 1, z%val_store_size
-            do j = 1, psi_bands_pad
-              z%val_min_r( j, i ) = x%val_min_r( j, i ) * y%val_min_r( j, i ) &
-                                  + x%val_min_i( j, i ) * y%val_min_i( j, i )
-              z%val_min_i( j, i ) = x%val_min_r( j, i ) * y%val_min_i( j, i ) &
-                                  - x%val_min_i( j, i ) * y%val_min_r( j, i )
+          do ibw = 1, psi_val_bw
+            do i = 1, z%val_store_size
+              do j = 1, psi_bands_pad
+                z%val_min_r( j, i, ibw ) = x%val_min_r( j, i, ibw ) * y%val_min_r( j, i, ibw ) &
+                                         + x%val_min_i( j, i, ibw ) * y%val_min_i( j, i, ibw )
+                z%val_min_i( j, i, ibw ) = x%val_min_r( j, i, ibw ) * y%val_min_i( j, i, ibw ) &
+                                         - x%val_min_i( j, i, ibw ) * y%val_min_r( j, i, ibw )
+              enddo
             enddo
           enddo
         else
-          do i = 1, z%val_store_size
-            do j = 1, psi_bands_pad
-              z%val_min_r( j, i ) = x%val_min_r( j, i ) * y%val_min_r( j, i ) &
-                                  - x%val_min_i( j, i ) * y%val_min_i( j, i )
-              z%val_min_i( j, i ) = x%val_min_r( j, i ) * y%val_min_i( j, i ) &
-                                  + x%val_min_i( j, i ) * y%val_min_r( j, i )
+          do ibw = 1, psi_val_bw
+            do i = 1, z%val_store_size
+              do j = 1, psi_bands_pad
+                z%val_min_r( j, i, ibw ) = x%val_min_r( j, i, ibw ) * y%val_min_r( j, i, ibw ) &
+                                         - x%val_min_i( j, i, ibw ) * y%val_min_i( j, i, ibw )
+                z%val_min_i( j, i, ibw ) = x%val_min_r( j, i, ibw ) * y%val_min_i( j, i, ibw ) &
+                                         + x%val_min_i( j, i, ibw ) * y%val_min_r( j, i, ibw )
+              enddo
             enddo
           enddo
         endif
@@ -3808,6 +3864,9 @@ subroutine OCEAN_psi_dot_write( p, q, outvec, rrequest, rval, ierr, irequest, iv
  
     psi_val_beta = sys%nbeta
 
+    psi_val_bw = 1
+    if( sys%bwflg ) psi_val_bw = 2
+
     have_core = sys%cur_run%have_core
     have_val  = sys%cur_run%have_val
 
@@ -3832,6 +3891,7 @@ subroutine OCEAN_psi_dot_write( p, q, outvec, rrequest, rval, ierr, irequest, iv
       write(6,*) '*****  PSI_INIT  *****'
       write(6,*) 'have_core:', have_core
       write(6,*) 'have_val: ', have_val
+      if( have_val ) write(6,*) 'BWFLG: ', psi_val_bw
       write(6,*) '*****  PSI_INIT  *****'
     endif
 
@@ -4177,8 +4237,8 @@ subroutine OCEAN_psi_dot_write( p, q, outvec, rrequest, rval, ierr, irequest, iv
     endif
 
     if( have_val ) then
-      allocate( p%valr( psi_bands_pad, psi_val_bands, psi_kpts_actual, psi_val_beta ), &
-                p%vali( psi_bands_pad, psi_val_bands, psi_kpts_actual, psi_val_beta ), & 
+      allocate( p%valr( psi_bands_pad, psi_val_bands, psi_kpts_actual, psi_val_beta, psi_val_bw ), &
+                p%vali( psi_bands_pad, psi_val_bands, psi_kpts_actual, psi_val_beta, psi_val_bw ), & 
                 STAT=ierr )
       if( ierr .ne. 0 ) return
     endif
@@ -4237,7 +4297,7 @@ subroutine OCEAN_psi_dot_write( p, q, outvec, rrequest, rval, ierr, irequest, iv
     type(OCEAN_vector), intent( in ) :: p
     complex(DP), intent( out ) :: vec(:)
     !
-    integer :: ia, ik, ib, ibv, ii
+    integer :: ia, ik, ib, ibv, ibw, ii
     !
     ii = 0
     if( have_core ) then
@@ -4250,12 +4310,14 @@ subroutine OCEAN_psi_dot_write( p, q, outvec, rrequest, rval, ierr, irequest, iv
         enddo
       enddo
     elseif( have_val ) then
-      do ia = 1, psi_val_beta
-        do ik = 1, psi_kpts_actual
-          do ibv = 1, psi_val_bands 
-            do ib = 1, psi_bands_pad
-              ii = ii + 1
-              vec( ii ) = cmplx( p%valr( ib, ibv, ik, ia ), p%vali( ib, ibv, ik, ia ), DP )
+      do ibw = 1, psi_val_bw
+        do ia = 1, psi_val_beta
+          do ik = 1, psi_kpts_actual
+            do ibv = 1, psi_val_bands 
+              do ib = 1, psi_bands_pad
+                ii = ii + 1
+                vec( ii ) = cmplx( p%valr( ib, ibv, ik, ia, ibw ), p%vali( ib, ibv, ik, ia, ibw ), DP )
+              enddo
             enddo
           enddo
         enddo
@@ -4277,7 +4339,7 @@ subroutine OCEAN_psi_dot_write( p, q, outvec, rrequest, rval, ierr, irequest, iv
     type(OCEAN_vector), intent( inout ) :: p
     complex(DP), intent( in ) :: vec(:)
     !
-    integer :: ia, ik, ib, ibv, ii
+    integer :: ia, ik, ib, ibv, ibw, ii
     !
     ii = 0
     if( have_core ) then
@@ -4291,13 +4353,15 @@ subroutine OCEAN_psi_dot_write( p, q, outvec, rrequest, rval, ierr, irequest, iv
         enddo
       enddo
     elseif( have_val ) then
-      do ia = 1, psi_val_beta
-        do ik = 1, psi_kpts_actual
-          do ibv = 1, psi_val_bands
-            do ib = 1, psi_bands_pad
-              ii = ii + 1
-              p%valr( ib, ibv, ik, ia ) = real( vec( ii ), DP )
-              p%vali( ib, ibv, ik, ia ) = aimag( vec( ii ) )
+      do ibw = 1, psi_val_bw
+        do ia = 1, psi_val_beta
+          do ik = 1, psi_kpts_actual
+            do ibv = 1, psi_val_bands
+              do ib = 1, psi_bands_pad
+                ii = ii + 1
+                p%valr( ib, ibv, ik, ia, ibw ) = real( vec( ii ), DP )
+                p%vali( ib, ibv, ik, ia, ibw ) = aimag( vec( ii ) )
+              enddo
             enddo
           enddo
         enddo
@@ -4338,10 +4402,10 @@ subroutine OCEAN_psi_dot_write( p, q, outvec, rrequest, rval, ierr, irequest, iv
       if( allocated( p%val_min_i ) ) deallocate( p%val_min_i )
 
       if( p%val_store_size .gt. 0 ) then
-        allocate( p%val_min_r( psi_bands_pad, p%val_store_size ), & 
-                  p%val_min_i( psi_bands_pad, p%val_store_size ), STAT=ierr ) 
+        allocate( p%val_min_r( psi_bands_pad, p%val_store_size, psi_val_bw ), & 
+                  p%val_min_i( psi_bands_pad, p%val_store_size, psi_val_bw ), STAT=ierr ) 
       else
-        allocate( p%val_min_r(1,1), p%val_min_i(1,1), STAT=ierr ) 
+        allocate( p%val_min_r(1,1,1), p%val_min_i(1,1,1), STAT=ierr ) 
       endif
       if( ierr .ne. 0 ) return
 
@@ -4400,11 +4464,11 @@ subroutine OCEAN_psi_dot_write( p, q, outvec, rrequest, rval, ierr, irequest, iv
       endif
     endif
     if( have_val ) then
-      p%valr = q%valr
+      p%valr(:,:,:,:,:) = q%valr(:,:,:,:,:)
       if( conj_ ) then
-        p%vali = -q%vali
+        p%vali(:,:,:,:,:) = -q%vali(:,:,:,:,:)
       else
-        p%vali = q%vali
+        p%vali(:,:,:,:,:) = q%vali(:,:,:,:,:)
       endif
 
     endif
@@ -4465,11 +4529,11 @@ subroutine OCEAN_psi_dot_write( p, q, outvec, rrequest, rval, ierr, irequest, iv
 
     if( have_val ) then
       if( p%val_standard_order .and. q%val_standard_order ) then
-        p%val_min_r(:,:) = q%val_min_r(:,:)
+        p%val_min_r(:,:,:) = q%val_min_r(:,:,:)
         if( conj_ ) then
-          p%val_min_i(:,:) = -q%val_min_i(:,:)
+          p%val_min_i(:,:,:) = -q%val_min_i(:,:,:)
         else
-          p%val_min_i(:,:) = q%val_min_i(:,:)
+          p%val_min_i(:,:,:) = q%val_min_i(:,:,:)
         endif
       else
         ierr = -101
@@ -4519,7 +4583,7 @@ subroutine OCEAN_psi_dot_write( p, q, outvec, rrequest, rval, ierr, irequest, iv
     if( nproc .le. 1 ) return
 
     core_full_size = psi_bands_pad * psi_kpts_pad * psi_core_alpha
-    val_full_size  = psi_bands_pad * psi_val_bands * psi_kpts_actual * psi_val_beta 
+    val_full_size  = psi_bands_pad * psi_val_bands * psi_kpts_actual * psi_val_beta  * psi_val_bw
 
 #ifdef MPI
     if( have_core ) then
@@ -4563,7 +4627,7 @@ subroutine OCEAN_psi_dot_write( p, q, outvec, rrequest, rval, ierr, irequest, iv
     integer, intent(inout) :: ierr
     type(OCEAN_vector), intent( inout ) :: p
     
-    integer :: store_size, ik, ia, i, iv, ib
+    integer :: store_size, ik, ia, i, iv, ib, ibw
 
 !   full must be valid
     if( IAND( p%valid_store, PSI_STORE_FULL ) .eq. 0 ) then
@@ -4598,23 +4662,26 @@ subroutine OCEAN_psi_dot_write( p, q, outvec, rrequest, rval, ierr, irequest, iv
 
     if( have_val ) then
 
-      iv = p%val_start
-      ik = p%val_k_start
-      ib = p%val_beta_start
+      do ibw = 1, psi_val_bw
 
-      do i = 1, p%val_store_size
-        p%val_min_r(:,i) = p%valr(:,iv,ik,ib)
-        p%val_min_i(:,i) = p%vali(:,iv,ik,ib)
+        iv = p%val_start
+        ik = p%val_k_start
+        ib = p%val_beta_start
 
-        iv = iv + 1
-        if( iv .gt. psi_val_bands ) then
-          iv = 1
-          ik = ik + 1
-          if( ik .gt. psi_kpts_actual ) then
-            ik = 1
-            ib = ib + 1
+        do i = 1, p%val_store_size
+          p%val_min_r(:,i,ibw) = p%valr(:,iv,ik,ib,ibw)
+          p%val_min_i(:,i,ibw) = p%vali(:,iv,ik,ib,ibw)
+
+          iv = iv + 1
+          if( iv .gt. psi_val_bands ) then
+            iv = 1
+            ik = ik + 1
+            if( ik .gt. psi_kpts_actual ) then
+              ik = 1
+              ib = ib + 1
+            endif
           endif
-        endif
+        enddo
       enddo
 
     endif
@@ -4690,7 +4757,7 @@ subroutine OCEAN_psi_dot_write( p, q, outvec, rrequest, rval, ierr, irequest, iv
     integer, intent(inout) :: ierr
     type(OCEAN_vector), intent( inout ) :: p
 
-    integer :: i, iv, ik, ib
+    integer :: i, iv, ik, ib, ibw
 
 !   min store must be valid
     if( IAND( p%valid_store, PSI_STORE_MIN ) .eq. 0 ) then
@@ -4762,39 +4829,42 @@ subroutine OCEAN_psi_dot_write( p, q, outvec, rrequest, rval, ierr, irequest, iv
     !  And so everything can be dropped directly into the proper full
     if( have_val ) then
 #ifdef MPI
-      iv = 1
-      ik = 1
-      ib = 1
-      do i = 0, p%val_np - 2
-        
-        call MPI_IRECV( p%valr( 1, iv, ik, ib ), psi_bands_pad * max_val_store_size, MPI_DOUBLE_PRECISION, &
-                        i, 1, p%val_comm, p%val_store_sr( i ), ierr )
-        if( ierr .ne. 0 ) return
 
-        call MPI_IRECV( p%vali( 1, iv, ik, ib ), psi_bands_pad * max_val_store_size, MPI_DOUBLE_PRECISION, &
-                        i, 2, p%val_comm, p%val_store_si( i ), ierr )
-        if( ierr .ne. 0 ) return
+      do ibw = 1, psi_val_bw
+        iv = 1
+        ik = 1
+        ib = 1
+        do i = 0, p%val_np - 2
+          
+          call MPI_IRECV( p%valr( 1, iv, ik, ib, ibw ), psi_bands_pad * max_val_store_size, MPI_DOUBLE_PRECISION, &
+                          i, 1, p%val_comm, p%val_store_sr( i, ibw ), ierr )
+          if( ierr .ne. 0 ) return
 
-        ! Move iv, ik, and ib along
-        iv = iv + max_val_store_size
-        do while( iv .gt. psi_val_bands ) 
-          ik = ik + 1
-          iv = iv - psi_val_bands
+          call MPI_IRECV( p%vali( 1, iv, ik, ib, ibw ), psi_bands_pad * max_val_store_size, MPI_DOUBLE_PRECISION, &
+                          i, 2, p%val_comm, p%val_store_si( i, ibw ), ierr )
+          if( ierr .ne. 0 ) return
+
+          ! Move iv, ik, and ib along
+          iv = iv + max_val_store_size
+          do while( iv .gt. psi_val_bands ) 
+            ik = ik + 1
+            iv = iv - psi_val_bands
+          enddo
+          do while( ik .gt. psi_kpts_actual ) 
+            ib = ib + 1
+            ik = ik - psi_kpts_actual
+          enddo
         enddo
-        do while( ik .gt. psi_kpts_actual ) 
-          ib = ib + 1
-          ik = ik - psi_kpts_actual
-        enddo
+
+        ! The last proc that stores some of min may have less than max
+        i = ( psi_val_bands * psi_kpts_actual * psi_val_beta ) - ( ( p%val_np - 1 ) * max_val_store_size )
+        call MPI_IRECV( p%valr( 1, iv, ik, ib, ibw ), psi_bands_pad * i, MPI_DOUBLE_PRECISION, &
+                        p%val_np - 1, 1, p%val_comm, p%val_store_sr( p%val_np - 1, ibw ), ierr )
+        if( ierr .ne. 0 ) return
+        call MPI_IRECV( p%vali( 1, iv, ik, ib, ibw ), psi_bands_pad * i, MPI_DOUBLE_PRECISION, &
+                        p%val_np - 1, 2, p%val_comm, p%val_store_si( p%val_np - 1, ibw ), ierr )
+        if( ierr .ne. 0 ) return
       enddo
-
-      ! The last proc that stores some of min may have less than max
-      i = ( psi_val_bands * psi_kpts_actual * psi_val_beta ) - ( ( p%val_np - 1 ) * max_val_store_size )
-      call MPI_IRECV( p%valr( 1, iv, ik, ib ), psi_bands_pad * i, MPI_DOUBLE_PRECISION, &
-                      p%val_np - 1, 1, p%val_comm, p%val_store_sr( p%val_np - 1 ), ierr )
-      if( ierr .ne. 0 ) return
-      call MPI_IRECV( p%vali( 1, iv, ik, ib ), psi_bands_pad * i, MPI_DOUBLE_PRECISION, &
-                      p%val_np - 1, 2, p%val_comm, p%val_store_si( p%val_np - 1 ), ierr )
-      if( ierr .ne. 0 ) return
 
 #endif
     endif
@@ -4818,7 +4888,7 @@ subroutine OCEAN_psi_dot_write( p, q, outvec, rrequest, rval, ierr, irequest, iv
     integer, intent(inout) :: ierr
     type(OCEAN_vector), intent( inout ) :: p
 
-    integer :: i
+    integer :: i, ibw
 
     if( .not. p%inflight ) then
       ierr = -1
@@ -4854,22 +4924,24 @@ subroutine OCEAN_psi_dot_write( p, q, outvec, rrequest, rval, ierr, irequest, iv
     if( have_val .and. ( p%val_store_size .gt. 0 ) ) then
     
 #ifdef MPI
-      do i = p%val_myid, total_nproc - 1
-        call MPI_ISEND( p%val_min_r, psi_bands_pad * p%val_store_size, MPI_DOUBLE_PRECISION, &
-                        i, 1, p%val_comm, p%val_store_rr( i ), ierr )
-        if( ierr .ne. 0 ) return
-        call MPI_ISEND( p%val_min_i, psi_bands_pad * p%val_store_size, MPI_DOUBLE_PRECISION, &
-                        i, 2, p%val_comm, p%val_store_ri( i ), ierr )
-        if( ierr .ne. 0 ) return
-      enddo
+      do ibw = 1, psi_val_bw
+        do i = p%val_myid, total_nproc - 1
+          call MPI_ISEND( p%val_min_r(:,:,ibw), psi_bands_pad * p%val_store_size, MPI_DOUBLE_PRECISION, &
+                          i, 1, p%val_comm, p%val_store_rr( i, ibw ), ierr )
+          if( ierr .ne. 0 ) return
+          call MPI_ISEND( p%val_min_i(:,:,ibw), psi_bands_pad * p%val_store_size, MPI_DOUBLE_PRECISION, &
+                          i, 2, p%val_comm, p%val_store_ri( i, ibw ), ierr )
+          if( ierr .ne. 0 ) return
+        enddo
 
-      do i = 0, p%val_myid - 1
-        call MPI_ISEND( p%val_min_r, psi_bands_pad * p%val_store_size, MPI_DOUBLE_PRECISION, &
-                        i, 1, p%val_comm, p%val_store_rr( i ), ierr )
-        if( ierr .ne. 0 ) return
-        call MPI_ISEND( p%val_min_i, psi_bands_pad * p%val_store_size, MPI_DOUBLE_PRECISION, &
-                        i, 2, p%val_comm, p%val_store_ri( i ), ierr )
-        if( ierr .ne. 0 ) return
+        do i = 0, p%val_myid - 1
+          call MPI_ISEND( p%val_min_r(:,:,ibw), psi_bands_pad * p%val_store_size, MPI_DOUBLE_PRECISION, &
+                          i, 1, p%val_comm, p%val_store_rr( i, ibw ), ierr )
+          if( ierr .ne. 0 ) return
+          call MPI_ISEND( p%val_min_i(:,:,ibw), psi_bands_pad * p%val_store_size, MPI_DOUBLE_PRECISION, &
+                          i, 2, p%val_comm, p%val_store_ri( i, ibw ), ierr )
+          if( ierr .ne. 0 ) return
+        enddo
       enddo
 #endif
 
@@ -4922,7 +4994,7 @@ subroutine OCEAN_psi_dot_write( p, q, outvec, rrequest, rval, ierr, irequest, iv
     integer, intent(inout) :: ierr
     type(OCEAN_vector), intent( inout ) :: p
 
-    integer :: i, j, ik, ia
+    integer :: i, j, ik, ia, ibw
 
     if( have_core ) then
       call MPI_WAITALL( p%core_np, p%core_store_sr, MPI_STATUSES_IGNORE, ierr )
@@ -4964,11 +5036,13 @@ subroutine OCEAN_psi_dot_write( p, q, outvec, rrequest, rval, ierr, irequest, iv
     ! unlike core the valence psi goes directly into place w/o extra
     if( have_val ) then
 
-      call MPI_WAITALL( p%val_np, p%val_store_sr, MPI_STATUSES_IGNORE, ierr )
-      call MPI_WAITALL( p%val_np, p%val_store_si, MPI_STATUSES_IGNORE, ierr )
+      do ibw = 1, psi_val_bw
+        call MPI_WAITALL( p%val_np, p%val_store_sr(:,ibw), MPI_STATUSES_IGNORE, ierr )
+        call MPI_WAITALL( p%val_np, p%val_store_si(:,ibw), MPI_STATUSES_IGNORE, ierr )
 
-      call MPI_WAITALL( total_nproc, p%val_store_rr, MPI_STATUSES_IGNORE, ierr )
-      call MPI_WAITALL( total_nproc, p%val_store_ri, MPI_STATUSES_IGNORE, ierr )
+        call MPI_WAITALL( total_nproc, p%val_store_rr(:,ibw), MPI_STATUSES_IGNORE, ierr )
+        call MPI_WAITALL( total_nproc, p%val_store_ri(:,ibw), MPI_STATUSES_IGNORE, ierr )
+      enddo
 
     endif
 
@@ -5430,8 +5504,9 @@ subroutine OCEAN_psi_dot_write( p, q, outvec, rrequest, rval, ierr, irequest, iv
       allocate( p_vec( sys%num_bands, sys%val_bands, sys%nkpts, psi_val_beta ) )
       call OCEAN_rixs_holder_load( sys, p_vec, 1, ierr )
       if( ierr .ne. 0 ) return
-      p%valr( 1:sys%num_bands, 1:sys%val_bands, :, : ) = real( p_vec(:,:,:,:), DP )
-      p%vali( 1:sys%num_bands, 1:sys%val_bands, :, : ) = aimag( p_vec(:,:,:,:) )
+      ! RIXS can't have bwflg
+      p%valr( 1:sys%num_bands, 1:sys%val_bands, :, :, 1 ) = real( p_vec(:,:,:,:), DP )
+      p%vali( 1:sys%num_bands, 1:sys%val_bands, :, :, 1 ) = aimag( p_vec(:,:,:,:) )
       deallocate( p_vec) 
     case default
       if( myid .eq. root ) then 
@@ -5541,7 +5616,7 @@ subroutine OCEAN_psi_dot_write( p, q, outvec, rrequest, rval, ierr, irequest, iv
     integer, intent( inout ) :: ierr
 
 !    integer :: file_selector
-    integer :: ibeta, ikpt, ibnd, jbnd
+    integer :: ibeta, ikpt, ibnd, jbnd, ibw
     real(dp) :: val, nrm
 
     real(dp), external :: DDOT
@@ -5561,30 +5636,32 @@ subroutine OCEAN_psi_dot_write( p, q, outvec, rrequest, rval, ierr, irequest, iv
                                     sys%cur_run%num_bands, psi_bands_pad
 
     val = 0.0_DP
-    do ibeta = 1, psi_val_beta
-      nrm = 0.0_DP
-      do ikpt = 1, psi_kpts_actual
-        do ibnd = 1, psi_val_bands
-          do jbnd = 1, sys%cur_run%num_bands
-            nrm = nrm + p%valr(jbnd,ibnd,ikpt,ibeta)**2 + p%vali(jbnd,ibnd,ikpt,ibeta)**2
+    do ibw = 1, psi_val_bw
+      do ibeta = 1, psi_val_beta
+        nrm = 0.0_DP
+        do ikpt = 1, psi_kpts_actual
+          do ibnd = 1, psi_val_bands
+            do jbnd = 1, sys%cur_run%num_bands
+              nrm = nrm + p%valr(jbnd,ibnd,ikpt,ibeta,ibw)**2 + p%vali(jbnd,ibnd,ikpt,ibeta,ibw)**2
+            enddo
           enddo
         enddo
+        if( myid .eq. root ) write( 6, '(1a12,1i4,1x,1i4,1x,1e15.8)' ) 'channel dot', ibeta, ibw, nrm
+        nrm = DDOT( psi_bands_pad*psi_val_bands*psi_kpts_actual, p%valr(1,1,1,ibeta,ibw), 1, &
+                    p%valr(1,1,1,ibeta,ibw), 1 ) &
+            + DDOT( psi_bands_pad*psi_val_bands*psi_kpts_actual, p%vali(1,1,1,ibeta,ibw), 1, &
+                    p%vali(1,1,1,ibeta,ibw), 1 )
+  !        enddo
+  !      enddo
+        if( myid .eq. root ) write( 6, '(1a12,1i4,1x,1i4,1x,1e15.8)' ) 'channel dot', ibeta, ibw, nrm
+        val = val +  nrm
       enddo
-      if( myid .eq. root ) write( 6, '(1a12,1i4,1x,1e15.8)' ) 'channel dot', ibeta, nrm
-      nrm = DDOT( psi_bands_pad*psi_val_bands*psi_kpts_actual, p%valr(1,1,1,ibeta), 1, &
-                  p%valr(1,1,1,ibeta), 1 ) &
-          + DDOT( psi_bands_pad*psi_val_bands*psi_kpts_actual, p%vali(1,1,1,ibeta), 1, &
-                  p%vali(1,1,1,ibeta), 1 )
-!        enddo
-!      enddo
-      if( myid .eq. root ) write( 6, '(1a12,1i4,1x,1e15.8)' ) 'channel dot', ibeta, nrm
-      val = val +  nrm
     enddo
     val = sqrt(val)
     p%kpref = 4.0d0 * PI_DP * val ** 2 / (dble(sys%nkpts) * sys%celvol ** 2 )
     val = 1.0_DP / val
-    p%valr = p%valr * val
-    p%vali = p%vali * val
+    p%valr(:,:,:,:,:) = p%valr(:,:,:,:,:) * val
+    p%vali(:,:,:,:,:) = p%vali(:,:,:,:,:) * val
     if( myid .eq. root ) then
       write(6,*) PI_DP, dble(sys%nkpts), sys%celvol, sys%nalpha
       write ( 6, '(2x,1a8,1e15.8)' ) ' mult  = ', p%kpref

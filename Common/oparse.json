@@ -3,6 +3,7 @@
       "con_start" : -1,
       "core" : {
          "broaden" : -1,
+         "gauss_broaden" : 0,
          "gmres" : {
             "echamp" : true,
             "elist" : [

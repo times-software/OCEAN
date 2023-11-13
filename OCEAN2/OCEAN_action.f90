@@ -292,6 +292,7 @@ end subroutine OCEAN_action_h1
     use OCEAN_long_range
     use OCEAN_bubble, only : AI_bubble_act
     use OCEAN_ladder, only : OCEAN_ladder_act
+    use OCEAN_fxc, only : OCEAN_fxc_act
     use OCEAN_constants, only : Hartree2eV
 
     implicit none
@@ -475,6 +476,35 @@ end subroutine OCEAN_action_h1
 
         endif
 
+
+        if( sys%cur_run%aldaf ) then
+          call OCEAN_psi_zero_full( psi_i, ierr )
+          if( ierr .ne. 0 ) return
+          call OCEAN_psi_ready_buffer( psi_i, ierr )
+          if( ierr .ne. 0 ) return
+          call OCEAN_psi_zero_min( psi_i, ierr )
+          if( ierr .ne. 0 ) return
+
+          call OCEAN_fxc_act( sys, psi, psi_i, ierr )
+          if( ierr .ne. 0 ) return
+
+          call OCEAN_psi_send_buffer( psi_i, ierr )
+          if( ierr .ne. 0 ) return
+          call OCEAN_psi_buffer2min( psi_i, ierr )
+          if( ierr .ne. 0 ) return
+
+          call OCEAN_energies_allow( sys, psi_i, ierr )
+          if( ierr .ne. 0 ) return
+
+          call OCEAN_psi_dot( psi_o, psi_i, rrequest, rval, ierr, irequest, ival )
+          call MPI_WAIT( rrequest, MPI_STATUS_IGNORE, ierr )
+          call MPI_WAIT( irequest, MPI_STATUS_IGNORE, ierr )
+          if( myid .eq. root ) write(6,'(A6,4X,E22.15,1X,E22.15)') 'alda', rval*Hartree2eV, ival*Hartree2eV
+          rval = 1.0_dp
+          call OCEAN_psi_axpy( rval, psi_i, new_psi, ierr )
+
+        endif
+
         ! clean up aux psi vectors
         call OCEAN_psi_kill( psi_o, ierr )
         call OCEAN_psi_kill( psi_i, ierr )
@@ -507,6 +537,14 @@ end subroutine OCEAN_action_h1
           call OCEAN_ladder_act( sys, psi_o, new_psi, ierr )
           if( ierr .ne. 0 ) return
 !          call OCEAN_energies_allow( sys, new_psi, ierr )
+          call OCEAN_tk_stop( tk_lr )
+        endif
+
+        if( sys%cur_run%aldaf ) then
+          ! For now re-use lr timing for ladder
+          call OCEAN_tk_start( tk_lr )
+          call OCEAN_fxc_act( sys, psi_o, new_psi, ierr )
+          if( ierr .ne. 0 ) return
           call OCEAN_tk_stop( tk_lr )
         endif
 

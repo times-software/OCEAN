@@ -12,9 +12,7 @@ subroutine OCEAN_read_tmels( sys, p, file_selector, ierr )
 
 
   integer :: nbc(2), nbv, nk, ik, fh, elements, ic, i, j
-!DASb
-  integer :: ispn, ibeta
-!DASe
+  integer :: ispn, ibeta, ibw
 
   real(dp) :: inv_qlength, qinb(3), max_psi, su
   complex(dp), allocatable :: psi_in(:,:)
@@ -103,34 +101,43 @@ subroutine OCEAN_read_tmels( sys, p, file_selector, ierr )
   !      max_psi = max( max_psi, maxval( real(psi_in(:,:) ) ) )
 
         psi_transpose( :, : ) = inv_qlength * real( psi_in( sys%brange(1):sys%brange(2), sys%brange(3):sys%brange(4) ), DP )
-        p%valr(1:sys%cur_run%num_bands,1:sys%cur_run%val_bands,ik,ibeta) = transpose( psi_transpose )
+        p%valr(1:sys%cur_run%num_bands,1:sys%cur_run%val_bands,ik,ibeta,1) = transpose( psi_transpose )
 
         psi_transpose( :, : ) = inv_qlength &
                               * real( aimag( psi_in( sys%brange(1):sys%brange(2), sys%brange(3):sys%brange(4) ) ), DP )
-        p%vali(1:sys%cur_run%num_bands,1:sys%cur_run%val_bands,ik,ibeta) = -transpose( psi_transpose )
+        p%vali(1:sys%cur_run%num_bands,1:sys%cur_run%val_bands,ik,ibeta,1) = -transpose( psi_transpose )
 
 
-        max_psi = max( max_psi, maxval( p%valr(1:sys%cur_run%num_bands,1:sys%cur_run%val_bands,ik,ibeta) ) )
+        max_psi = max( max_psi, maxval( p%valr(1:sys%cur_run%num_bands,1:sys%cur_run%val_bands,ik,ibeta,1) ) )
+
+        if( sys%bwflg ) then
+          p%valr(1:sys%cur_run%num_bands,1:sys%cur_run%val_bands,ik,ibeta,2) = inv_qlength * &
+            real( psi_in( sys%brange(3):sys%brange(4), sys%brange(1):sys%brange(2) ), DP )
+          p%vali(1:sys%cur_run%num_bands,1:sys%cur_run%val_bands,ik,ibeta,2) = -inv_qlength * &
+            real( aimag( psi_in( sys%brange(3):sys%brange(4), sys%brange(1):sys%brange(2) ) ), DP )
+        endif
       enddo
       su = 0.0_DP
   
-       do ik = 1, sys%nkpts
-            do i = 1, sys%cur_run%val_bands
-               do j = 1, sys%cur_run%num_bands
-                  su = su + p%valr( j, i, ik, ibeta )**2 + p%vali( j, i, ik, ibeta )**2
-               end do
+      do ibw = 1, sys%nbw
+        do ik = 1, sys%nkpts
+          do i = 1, sys%cur_run%val_bands
+            do j = 1, sys%cur_run%num_bands
+              su = su + p%valr( j, i, ik, ibeta, ibw )**2 + p%vali( j, i, ik, ibeta, ibw )**2
             end do
-         end do
+          end do
+        end do
+      enddo
 
-         su = sqrt( su )
-         write(6,*) 'pnorm=', su, sys%cur_run%val_bands, sys%cur_run%num_bands, ispn, ibeta
+      su = sqrt( su )
+      write(6,*) 'pnorm=', su, sys%cur_run%val_bands, sys%cur_run%num_bands, ispn, ibeta
 
     enddo
     ! If using force_val_ham_spin.ipt then copy the transition matrix elements
     if( sys%valence_ham_spin .gt. sys%nspn ) then
       write(6,*) '--!!!!!!! Using force_val_ham_spin'
-      p%valr( :, :, :, 4 ) = p%valr( :, :, :, 1 )
-      p%vali( :, :, :, 4 ) = p%vali( :, :, :, 1 )
+      p%valr( :, :, :, 4, : ) = p%valr( :, :, :, 1, : )
+      p%vali( :, :, :, 4, : ) = p%vali( :, :, :, 1, : )
       write(6,*) '--!!!!!!!'
     endif
 
@@ -148,7 +155,7 @@ subroutine OCEAN_read_tmels( sys, p, file_selector, ierr )
       do ik = 1, sys%nkpts
         do j = 1, sys%brange(4)-sys%brange(3)+1
            do i = 1, sys%brange(2)-sys%brange(1) + 1
-             write(99,*) p%valr( j, i, ik, ibeta ), -p%vali( j, i, ik, ibeta ) 
+             write(99,*) p%valr( j, i, ik, ibeta, 1 ), -p%vali( j, i, ik, ibeta, 1 ) 
            enddo
         enddo
       enddo
@@ -201,8 +208,8 @@ subroutine OCEAN_read_tmels( sys, p, file_selector, ierr )
             !        end do
             do i = 1, sys%cur_run%val_bands
                do j = 1, sys%cur_run%num_bands
-                  p%valr( j, i, ik, ibeta ) = re_wgt( 0, i, j )
-                  p%vali( j, i, ik, ibeta ) = -im_wgt( 0, i, j )
+                  p%valr( j, i, ik, ibeta, 1 ) = re_wgt( 0, i, j )
+                  p%vali( j, i, ik, ibeta, 1 ) = -im_wgt( 0, i, j )
                   su = su + re_wgt( 0, i, j ) * re_wgt( 0, i, j ) + im_wgt( 0, i, j ) * im_wgt( 0, i, j )
                end do
             end do
@@ -211,7 +218,7 @@ subroutine OCEAN_read_tmels( sys, p, file_selector, ierr )
          su = sqrt( su )
          write(6,*) 'pnorm=', su, sys%cur_run%val_bands, sys%cur_run%num_bands, ispn, ibeta
 
-         max_psi = max( max_psi, maxval( abs(p%valr(1:sys%cur_run%num_bands,1:sys%cur_run%val_bands,ik,ibeta) ) ) )
+         max_psi = max( max_psi, maxval( abs(p%valr(1:sys%cur_run%num_bands,1:sys%cur_run%val_bands,ik,ibeta,1) ) ) )
 
       end do
 
@@ -226,8 +233,8 @@ subroutine OCEAN_read_tmels( sys, p, file_selector, ierr )
          do ik = 1, sys%nkpts
             do i = 1, sys%cur_run%val_bands
                do j = 1, sys%cur_run%num_bands
-                  su = su + p%valr( j, i, ik, ibeta ) * p%valr( j, i, ik, ibeta ) & 
-                          + p%vali( j, i, ik, ibeta ) * p%vali( j, i, ik, ibeta )
+                  su = su + p%valr( j, i, ik, ibeta,1 ) * p%valr( j, i, ik, ibeta,1 ) & 
+                          + p%vali( j, i, ik, ibeta,1 ) * p%vali( j, i, ik, ibeta,1 )
                enddo
             enddo
          enddo

@@ -220,7 +220,7 @@ module OCEAN_gmres
 
     delta = ener - prev_ener
 
-    if( sys%cur_run%bwflg ) then
+    if( sys%bwflg ) then
       do i = 1, current_iter
 #if 0
         call OCEAN_energies_sfact_copy( sys, u_matrix(i), psi_tmp, ierr )
@@ -569,7 +569,7 @@ module OCEAN_gmres
     real(dp), parameter :: one = 1.0_dp
     real(dp), parameter :: zero = 0.0_dp
     integer :: iter, step_iter, complete_iter, requests( 2 ), ierr_, prev_iter, global_iter, keep, i
-    logical :: loud = .false.
+    logical :: loud = .true.
     character( len=25 ) :: abs_filename
     integer, parameter :: abs_fh = 76
     type( ocean_vector ) :: hay_psi_x
@@ -655,6 +655,9 @@ module OCEAN_gmres
       if( myid .eq. root ) write(6,'(F20.8)') ener * Hartree2eV
 
 
+      if( .not. allow_recycle ) then
+        prev_iter = 0
+      endif
       ! are we new or recycling?
       !   need to tune when we throw out because the preconditioner is no longer valid
       if( do_precondition .and. prev_iter .eq. 0 ) then 
@@ -664,15 +667,12 @@ module OCEAN_gmres
           if( myid .eq. root ) write(6,*) 'OCEAN_psi_min_set_prec failed'
           return
         endif
-        if( sys%cur_run%bwflg ) then
+        if( sys%bwflg ) then
           call OCEAN_energies_allow( sys, psi_pcdiv, ierr, sfact=.true. )
           if( ierr .ne. 0 ) return
         endif
       endif
 
-      if( .not. allow_recycle ) then
-        prev_iter = 0
-      endif
 
       if( prev_iter .eq. 0 ) then
 !        if( myid .eq. root ) write( 6, * ) 'no recycle: '
@@ -753,7 +753,7 @@ module OCEAN_gmres
             if( myid .eq. root ) write(6,*) 'OCEAN_psi_min_set_prec failed'
             return
           endif
-          if( sys%cur_run%bwflg ) then
+          if( sys%bwflg ) then
             call OCEAN_energies_allow( sys, psi_pcdiv, ierr, sfact=.true. )
             if( ierr .ne. 0 ) return
           endif
@@ -785,7 +785,7 @@ module OCEAN_gmres
           ! apg = H . pg
           !TODO
           ! if bwflg then apg = H . S . pg
-          if( sys%cur_run%bwflg ) then
+          if( sys%bwflg ) then
             !TODO
             call OCEAN_energies_sfact_copy( sys, psi_pg, psi_tmp, ierr )
             if( ierr .ne. 0 ) return
@@ -801,7 +801,7 @@ module OCEAN_gmres
 
           !TODO:
           !if bwflg then apg = S. apg          
-          if( sys%cur_run%bwflg ) then
+          if( sys%bwflg ) then
             call OCEAN_energies_allow( sys, psi_apg, ierr, sfact=.true. )
             if( ierr .ne. 0 ) return
           endif
@@ -835,7 +835,7 @@ module OCEAN_gmres
             if( ierr .ne. 0 ) return
             !
             ! if bwflg then ax = S . ax          
-            if( sys%cur_run%bwflg ) then
+            if( sys%bwflg ) then
               call OCEAN_energies_allow( sys, psi_ax, ierr, sfact=.true. )
               if( ierr .ne. 0 ) return
             endif
@@ -846,7 +846,7 @@ module OCEAN_gmres
                 if( myid .eq. root ) write(6,*) 'OCEAN_psi_min_set_prec failed'
                 return
               endif
-              if( sys%cur_run%bwflg ) then
+              if( sys%bwflg ) then
                 call OCEAN_energies_allow( sys, psi_pcdiv, ierr, sfact=.true. )
                 if( ierr .ne. 0 ) return
               endif
@@ -920,7 +920,7 @@ module OCEAN_gmres
       if(myid.eq. root) then
         rel_error = -gval / ival
         write( abs_fh, '(1p,4(1e15.8,1x),1i6,x,i10)' ) ener * Hartree2eV, &
-                    (1.0_dp - rval )*fact, -ival*fact, rel_error, complete_iter, global_iter
+                    (1.0_dp - rval*fact), -ival*fact, rel_error, complete_iter, global_iter
         flush(abs_fh)
       endif
 
