@@ -317,8 +317,11 @@ module OCEAN_energies
         call core_allow_fixed( sys, allowArray, ener, metal, efermi  )
     end select
 
-    call stubby( sys, allow, allowArray )
-!    allowArray(:,:,:) = sqrt(allowArray(:,:,:))
+    ! The Full-BSE in the valence pathway require a second allow matrix that is -1
+    ! for the backward pairs. In the core we just use the +1 option for both (which is
+    ! why the same allowArray is stored into both the real and imaginary spots in allow).
+    call stubby( sys, allow, allowArray, allowArray )
+
     call stubby( sys, allow_sqrt, allowArray )
 
 
