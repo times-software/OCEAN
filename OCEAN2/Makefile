@@ -1,5 +1,5 @@
 include ../Makefile.arch
-OPTIONS += -DDEBUG
+OPTIONS +=
 
 %.o: %.mod
 
