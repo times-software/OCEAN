@@ -808,6 +808,7 @@ module OCEAN_val_energy
     !
     overlap = sys%brange( 2 ) - sys%brange( 3 ) + 1
     if( ( metal .or. sys%valence_ham_spin .gt. 1 ) .and. overlap .gt. 0 ) then
+      ii = 0
       allocate( simple_energies( overlap * sys%nkpts * sys%nspn * sys%nbw) )
       do ibw = 1, sys%nbw
         do i = 1, sys%valence_ham_spin
