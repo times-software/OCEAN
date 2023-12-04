@@ -42,6 +42,8 @@ module OCEAN_val_energy
 !    allocate( val_energies( sys%cur_run%val_bands, sys%nkpts, sys%nspn ),  &
     allocate( val_energies( sys%brange(1) : sys%brange(2), sys%nkpts, sys%nspn, nbw ),  &
               con_energies( sys%brange(3) : sys%brange(4), sys%nkpts, sys%nspn, nbw ), STAT=ierr )
+    val_energies(:,:,:,:) = 0.0_DP 
+    con_energies(:,:,:,:) = 0.0_DP 
     if( ierr .ne. 0 ) return
 
 
@@ -77,7 +79,7 @@ module OCEAN_val_energy
           call MPI_BCAST( val_energies, (sys%brange(2)-sys%brange(1)+1)*sys%nkpts*sys%nspn*nbw, MPI_DOUBLE_PRECISION, root, comm, ierr )
 !          call MPI_BCAST( val_energies, sys%cur_run%val_bands*sys%nkpts*sys%nspn, MPI_DOUBLE_PRECISION, root, comm, ierr )
           if( ierr .ne. MPI_SUCCESS ) return
-          call MPI_BCAST( con_energies, sys%cur_run%num_bands*sys%nkpts*sys%nspn*nbw, MPI_DOUBLE_PRECISION, root, comm, ierr )
+          call MPI_BCAST( con_energies, (sys%brange(4)-sys%brange(3)+1)*sys%nkpts*sys%nspn*nbw, MPI_DOUBLE_PRECISION, root, comm, ierr )
           if( ierr .ne. MPI_SUCCESS ) return
 #endif
           
@@ -314,7 +316,13 @@ module OCEAN_val_energy
 
     deallocate( val_energies, con_energies, im_val_energies, im_con_energies )
     
-     if( myid .eq. 0 ) write(6,*) 'Done with energies'
+    if( myid .eq. 0 ) write(6,*) 'Done with energies'
+
+    !TODO
+    ! Nominally, in the previous every process should have gotten the same set of information. 
+    ! This appears to not quite be correct
+    call OCEAN_psi_bcast_full( root, p_energy, ierr )
+    call OCEAN_psi_bcast_full( root, allow, ierr )
 
 
   end subroutine OCEAN_read_energies
@@ -330,9 +338,9 @@ module OCEAN_val_energy
     type( O_system ), intent( in ) :: sys
     real( DP ), intent( in ) :: homo, lumo
 !    real( DP ), intent( inout ), dimension( sys%cur_run%val_bands, sys%nkpts,sys%nspn ) :: &
-    real( DP ), intent( inout ), dimension( :, :, :, : ) :: &
+    real( DP ), intent( inout ), dimension( sys%brange(1) : sys%brange(2), sys%nkpts, sys%nspn, sys%nbw ) :: &
         val_energies, im_val_energies
-    real( DP ), intent( inout ), dimension( sys%cur_run%num_bands, sys%nkpts, sys%nspn ) :: &
+    real( DP ), intent( inout ), dimension( sys%brange(3) : sys%brange(4), sys%nkpts, sys%nspn, sys%nbw ) :: &
         con_energies, im_con_energies
 
     logical, intent( out ) :: have_imaginary, did_gw_correction
@@ -377,15 +385,15 @@ module OCEAN_val_energy
     if( ierr .ne. MPI_SUCCESS ) return
     if( have_gw ) then
 !      call MPI_BCAST( val_energies, sys%cur_run%val_bands * sys%nkpts, MPI_DOUBLE_PRECISION, & 
-      call MPI_BCAST( val_energies, sys%brange(2) * sys%nkpts, MPI_DOUBLE_PRECISION, & 
-                      root, comm, ierr )
-      call MPI_BCAST( con_energies, sys%cur_run%num_bands * sys%nkpts, MPI_DOUBLE_PRECISION, & 
-                      root, comm, ierr )
+      call MPI_BCAST( val_energies, (sys%brange(2)-sys%brange(1)) * sys%nkpts * sys%nspn * sys%nbw, &
+                      MPI_DOUBLE_PRECISION, root, comm, ierr )
+      call MPI_BCAST( con_energies, (sys%brange(4)-sys%brange(3)) * sys%nkpts * sys%nspn * sys%nbw, &
+                      MPI_DOUBLE_PRECISION, root, comm, ierr )
       call MPI_BCAST( have_imaginary, 1, MPI_LOGICAL, root, comm, ierr )
-      call MPI_BCAST( im_val_energies, sys%brange(2) * sys%nkpts, MPI_DOUBLE_PRECISION, &
-                      root, comm, ierr )
-      call MPI_BCAST( im_con_energies, sys%cur_run%num_bands * sys%nkpts, MPI_DOUBLE_PRECISION, &
-                      root, comm, ierr )
+      call MPI_BCAST( im_val_energies, (sys%brange(2)-sys%brange(1)) * sys%nkpts * sys%nspn * sys%nbw, &
+                      MPI_DOUBLE_PRECISION, root, comm, ierr )
+      call MPI_BCAST( im_con_energies, (sys%brange(4)-sys%brange(3)) * sys%nkpts * sys%nspn * sys%nbw, &
+                      MPI_DOUBLE_PRECISION, root, comm, ierr )
     endif
 #endif
     did_gw_correction = have_gw
@@ -492,8 +500,8 @@ module OCEAN_val_energy
     !
     type( O_system ), intent( in ) :: sys
     real( DP ), intent( in ) :: homo, lumo
-    real( DP ), intent( inout ), dimension( sys%cur_run%val_bands, sys%nkpts, sys%nspn, sys%nbw ) :: val_energies
-    real( DP ), intent( inout ), dimension( sys%cur_run%num_bands, sys%nkpts, sys%nspn, sys%nbw ) ::  con_energies
+    real( DP ), intent( inout ), dimension( sys%brange(1):sys%brange(2), sys%nkpts, sys%nspn, sys%nbw ) :: val_energies
+    real( DP ), intent( inout ), dimension( sys%brange(3):sys%brange(4), sys%nkpts, sys%nspn, sys%nbw ) ::  con_energies
     integer, intent( inout ) :: ierr
     !
     real(dp) :: gw_gap_correction, vstr, cstr !stretch
@@ -922,7 +930,7 @@ module OCEAN_val_energy
       lumo = con_energies( i_band, 1 , 1, 1)
       do ibw = 1, sys%nbw
         do ispn = 1, sys%nspn
-          do kiter = 2, sys%nkpts
+          do kiter = 1, sys%nkpts
             lumo = min( con_energies( i_band, kiter , ispn, ibw), lumo )
           enddo
         enddo
