@@ -1670,7 +1670,7 @@ module OCEAN_psi
 !! from full. Computes both the core-level and valence contributions. If 
 !! #rrequest is passed in then the code will use a non-blocking allreduce and
 !! return #rrequest to be dealt with later on.
-  subroutine OCEAN_psi_nrm( rval, x, ierr, rrequest, dest )
+  subroutine OCEAN_psi_nrm( rval, x, ierr, rrequest, dest, defer )
     use OCEAN_mpi, only : MPI_IN_PLACE, MPI_DOUBLE_PRECISION, MPI_SUM, MPI_REQUEST_NULL
     implicit none
     real(DP), intent( inout ) :: rval  ! Needs to be inout for MPI_IN_PLACE
@@ -1678,6 +1678,7 @@ module OCEAN_psi
     integer, intent( inout ) :: ierr
     integer, intent( out ), optional :: rrequest
     integer, intent( in ), optional :: dest
+    logical, intent( in ), optional :: defer
     !
     integer :: my_comm, ibw
     real(dp), external :: DDOT
@@ -1711,6 +1712,10 @@ module OCEAN_psi
              + DDOT( x%val_store_size * psi_bands_pad, x%val_min_r(:,:,ibw), 1, x%val_min_r(:,:,ibw), 1 ) &
              + DDOT( x%val_store_size * psi_bands_pad, x%val_min_i(:,:,ibw), 1, x%val_min_i(:,:,ibw), 1 ) 
       enddo
+    endif
+
+    if( present( defer ) ) then
+      if( defer ) return
     endif
 
     my_comm = x%core_comm
@@ -1922,7 +1927,7 @@ module OCEAN_psi
 !! and only calculated if irequest and ival are passed in. 
 !! If both core and val exist then the code will *ADD* the two.
 !! Optionally you can pass in dest which will trigger REDUCE instead of ALLREDUCE.
-  subroutine OCEAN_psi_dot( p, q, rrequest, rval, ierr, irequest, ival, dest )
+  subroutine OCEAN_psi_dot( p, q, rrequest, rval, ierr, irequest, ival, dest, defer )
 !    use mpi
     use OCEAN_mpi!, only : root, myid
     implicit none
@@ -1934,6 +1939,7 @@ module OCEAN_psi
     integer, intent( out ), optional :: irequest
     real(DP), intent( inout ), optional :: ival  ! must be inout for mpi_in_place
     integer, intent( in ), optional :: dest
+    logical, intent( in ), optional :: defer
     !
     integer :: my_comm, ibw
     real(dp), external :: DDOT
@@ -2026,6 +2032,13 @@ module OCEAN_psi
       enddo
     endif
     ! There is no "else rval=0" here because it is taken care of above for core
+
+
+    ! If we are deferring the synchronization, then we can return now. Each MPI processes has a 
+    ! portional of the un-summed rval (and optionally ival)
+    if( present( defer ) ) then
+      if( defer ) return
+    endif
   
     ! If we have dest we call MPI_REDUCE onto dest
     if( present( dest ) ) then

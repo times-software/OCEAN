@@ -285,29 +285,48 @@ module OCEAN_gmres
     ! For iter = current_iter we can call psi_nrm instead of psi_dot
     !  this will save a small amount of time, but need to correctly 
     !  set the imaginary value and request to 0/null 
-    im_coeff_request( current_iter ) = MPI_REQUEST_NULL
-    im_coeff_vec( current_iter ) = 0.0_DP
+!    im_coeff_request( current_iter ) = MPI_REQUEST_NULL
+!    im_coeff_vec( current_iter ) = 0.0_DP
+    im_coeff_request( : ) = MPI_REQUEST_NULL
+    re_coeff_request( : ) = MPI_REQUEST_NULL
+    re_rvec_request( : ) = MPI_REQUEST_NULL
+    im_rvec_request( : ) = MPI_REQUEST_NULL
+    re_rvec( : ) = 0.0_DP
+    im_rvec( : ) = 0.0_DP
+    re_coeff_vec( : ) = 0.0_DP
+    im_coeff_vec( : ) = 0.0_DP
     !
     do iter = 1, current_iter - 1
       call OCEAN_psi_dot( au_matrix( current_iter ), au_matrix( iter ), &
                           re_coeff_request( iter ), re_coeff_vec( iter ), ierr, & 
-                          im_coeff_request( iter ), im_coeff_vec( iter ) )
+                          im_coeff_request( iter ), im_coeff_vec( iter ), defer=.true. )
 
       call OCEAN_psi_dot( au_matrix( iter ), psi_g, &
                           re_rvec_request( iter ), re_rvec( iter ), ierr , &
-                          im_rvec_request( iter ), im_rvec( iter ) )
+                          im_rvec_request( iter ), im_rvec( iter ), defer=.true. )
     enddo
 
     call OCEAN_psi_nrm( re_coeff_vec( current_iter ), au_matrix( current_iter ), ierr, & 
-                        re_coeff_request( current_iter ) )
+                        re_coeff_request( current_iter ), defer=.true. )
     call OCEAN_psi_dot( au_matrix( current_iter ), psi_g, &
                         re_rvec_request( current_iter ), re_rvec( current_iter ), ierr , &
-                        im_rvec_request( current_iter ), im_rvec( current_iter ) )
+                        im_rvec_request( current_iter ), im_rvec( current_iter ), defer=.true. )
 
-    call MPI_WAITALL( current_iter, re_coeff_request, MPI_STATUSES_IGNORE, ierr )
-    if( ierr .ne. 0 ) return
-    call MPI_WAITALL( current_iter, im_coeff_request, MPI_STATUSES_IGNORE, ierr )
-    if( ierr .ne. 0 ) return
+!    call MPI_WAITALL( current_iter, re_coeff_request, MPI_STATUSES_IGNORE, ierr )
+!    if( ierr .ne. 0 ) return
+!    call MPI_WAITALL( current_iter, im_coeff_request, MPI_STATUSES_IGNORE, ierr )
+!    if( ierr .ne. 0 ) return
+    if( myid .eq. root ) then
+      call MPI_REDUCE( MPI_IN_PLACE, re_coeff_vec, current_iter, MPI_DOUBLE_PRECISION, MPI_SUM, root, comm, ierr )
+      call MPI_REDUCE( MPI_IN_PLACE, im_coeff_vec, current_iter, MPI_DOUBLE_PRECISION, MPI_SUM, root, comm, ierr )
+      call MPI_REDUCE( MPI_IN_PLACE, re_rvec, current_iter, MPI_DOUBLE_PRECISION, MPI_SUM, root, comm, ierr )
+      call MPI_REDUCE( MPI_IN_PLACE, im_rvec, current_iter, MPI_DOUBLE_PRECISION, MPI_SUM, root, comm, ierr )
+    else
+      call MPI_REDUCE( re_coeff_vec, re_coeff_vec, current_iter, MPI_DOUBLE_PRECISION, MPI_SUM, root, comm, ierr )
+      call MPI_REDUCE( im_coeff_vec, im_coeff_vec, current_iter, MPI_DOUBLE_PRECISION, MPI_SUM, root, comm, ierr )
+      call MPI_REDUCE( re_rvec, re_rvec, current_iter, MPI_DOUBLE_PRECISION, MPI_SUM, root, comm, ierr )
+      call MPI_REDUCE( im_rvec, im_rvec, current_iter, MPI_DOUBLE_PRECISION, MPI_SUM, root, comm, ierr )
+    endif
     !
     allocate( coeff( current_iter ) )
     if( myid .eq. root ) then
@@ -333,8 +352,8 @@ module OCEAN_gmres
 !        info = 0
 !      endif
 
-      call MPI_WAITALL( current_iter, re_rvec_request, MPI_STATUSES_IGNORE, ierr )
-      call MPI_WAITALL( current_iter, im_rvec_request, MPI_STATUSES_IGNORE, ierr )
+!      call MPI_WAITALL( current_iter, re_rvec_request, MPI_STATUSES_IGNORE, ierr )
+!      call MPI_WAITALL( current_iter, im_rvec_request, MPI_STATUSES_IGNORE, ierr )
 
       ! Want to test after waitall so that all procs are on the same page if we abort
       if( info .ne. 0 ) then
@@ -357,9 +376,9 @@ module OCEAN_gmres
       endif
       deallocate( c_temp, ipiv )
 
-    else
-      call MPI_WAITALL( current_iter, re_rvec_request, MPI_STATUSES_IGNORE, ierr )
-      call MPI_WAITALL( current_iter, im_rvec_request, MPI_STATUSES_IGNORE, ierr )
+!    else
+!      call MPI_WAITALL( current_iter, re_rvec_request, MPI_STATUSES_IGNORE, ierr )
+!      call MPI_WAITALL( current_iter, im_rvec_request, MPI_STATUSES_IGNORE, ierr )
     endif
 
     call MPI_BCAST( info, 1, MPI_INTEGER, root, comm, ierr )
