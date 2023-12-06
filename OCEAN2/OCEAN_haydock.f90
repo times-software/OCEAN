@@ -715,7 +715,7 @@ module OCEAN_haydock
 !    endif
 
     ! calc ctmp = < hpsi | psi > and begin Iallreduce
-    call OCEAN_psi_dot( hpsi, psi, arequest, atmp, ierr, airequest, aitmp )
+    call OCEAN_psi_dot( hpsi, psi, atmp, ierr, ival=aitmp, rrequest=arequest, irequest=airequest )
     if( ierr .ne. 0 ) return
 !    if( myid .eq. root ) write(6,*) 'psi_dot'
 
@@ -746,7 +746,7 @@ module OCEAN_haydock
     
     !JTV was checking to see if any different here. 
 !    call OCEAN_psi_nrm( btmp, hpsi, ierr, brequest )
-    call OCEAN_psi_dot( hpsi, hpsi, brequest, btmp, ierr )
+    call OCEAN_psi_dot( hpsi, hpsi, btmp, ierr, rrequest=brequest )
     if( ierr .ne. 0 ) return
 !    if( myid .eq. root ) write(6,*) 'psi_nrm'
 
@@ -849,7 +849,7 @@ module OCEAN_haydock
     if( ierr .ne. 0 ) return
 
     ! calc ctmp = < hpsi | psi > and begin Iallreduce
-    call OCEAN_psi_dot( hpsi, psi, arequest, atmp, ierr, airequest, aitmp )
+    call OCEAN_psi_dot( hpsi, psi, atmp, ierr, ival=aitmp, rrequest=arequest, irequest=airequest )
     if( ierr .ne. 0 ) return
 
     ! finish allreduce to get atmp
@@ -864,7 +864,7 @@ module OCEAN_haydock
     if( ierr .ne. 0 ) return
 
     !
-    call OCEAN_psi_dot( hpsi, hpsi, brequest, btmp, ierr )
+    call OCEAN_psi_dot( hpsi, hpsi, btmp, ierr, rrequest=brequest )
     if( ierr .ne. 0 ) return
 
     ! copies psi onto old_psi
@@ -982,7 +982,7 @@ module OCEAN_haydock
     if( ierr .ne. 0 ) return
 
     ! calc ctmp = < hpsi | back_psi > and begin Iallreduce
-    call OCEAN_psi_dot( back_psi, hpsi, rrequest, rtmp, ierr, irequest, itmp )
+    call OCEAN_psi_dot( back_psi, hpsi, rtmp, ierr, ival=itmp, rrequest=rrequest, irequest=irequest )
     if( ierr .ne. 0 ) return
 
 
@@ -1014,7 +1014,7 @@ module OCEAN_haydock
       if( ierr .ne. 0 ) return
 !    endif
 
-    call OCEAN_psi_dot( back_hpsi, hpsi, rrequest, rtmp, ierr, irequest, itmp )
+    call OCEAN_psi_dot( back_hpsi, hpsi, rtmp, ierr, ival=itmp, rrequest=rrequest, irequest=irequest )
     if( ierr .ne. 0 ) return
 
     ! copies psi onto old_psi
@@ -1144,12 +1144,12 @@ module OCEAN_haydock
     call OCEAN_psi_axpy( atmp, back_old_psi, back_hpsi, ierr, btmp )
 
     ! $ \alpha_j = u_j^* r
-    call OCEAN_psi_dot( back_hpsi, hpsi, rrequest, rtmp, ierr, irequest, itmp )
+    call OCEAN_psi_dot( back_hpsi, hpsi, rtmp, ierr, ival=itmp )
     ! Now need to make sure alpha is done
-    call MPI_WAIT( rrequest, MPI_STATUS_IGNORE, ierr )
-    if( ierr .ne. 0 ) return
-    call MPI_WAIT( irequest, MPI_STATUS_IGNORE, ierr )
-    if( ierr .ne. 0 ) return
+!    call MPI_WAIT( rrequest, MPI_STATUS_IGNORE, ierr )
+!    if( ierr .ne. 0 ) return
+!    call MPI_WAIT( irequest, MPI_STATUS_IGNORE, ierr )
+!    if( ierr .ne. 0 ) return
 
     ! r = r - alpha v_j
     atmp = -rtmp
@@ -1164,7 +1164,7 @@ module OCEAN_haydock
 
     real_a(iter-1) = rtmp
     imag_a(iter-1) = itmp
-    call OCEAN_psi_dot( hpsi, back_hpsi, rrequest, rtmp, ierr, irequest, itmp )
+    call OCEAN_psi_dot( hpsi, back_hpsi, rtmp, ierr, ival=itmp, rrequest=rrequest, irequest=irequest )
 
     ! get ready for next iteration
     ! copies psi onto old_psi
@@ -1281,7 +1281,7 @@ module OCEAN_haydock
 
     ! step 1: 
     ! $ \alpha_j = ( A v_j, w_j )
-    call OCEAN_psi_dot( back_psi, hpsi, rrequest, rtmp, ierr, irequest, itmp )
+    call OCEAN_psi_dot( back_psi, hpsi, rtmp, ierr, ival=itmp, rrequest=rrequest, irequest=irequest )
 
 
     ! step 2:  New vector  ! HERE THERE IS A DIFFERENCE, beta index
@@ -1332,7 +1332,7 @@ module OCEAN_haydock
 
 
     ! Step 4A: ( v_{j+1), w_{j+1} ) 
-    call OCEAN_psi_dot( back_hpsi, hpsi, rrequest, rtmp, ierr, irequest, itmp )
+    call OCEAN_psi_dot( back_hpsi, hpsi, rtmp, ierr, ival=itmp, rrequest=rrequest, irequest=irequest )
     
     ! get ready for next iteration
     ! copies psi onto old_psi
@@ -1463,7 +1463,7 @@ module OCEAN_haydock
 
     ! calc ctmp = < hpsi | back_psi > and begin Iallreduce
 !DERP
-    call OCEAN_psi_dot( back_psi, hpsi, rrequest, rtmp, ierr, irequest, itmp )
+    call OCEAN_psi_dot( back_psi, hpsi, rtmp, ierr, ival=itmp, rrequest=rrequest, irequest=irequest )
 !    call OCEAN_psi_dot( psi, hpsi, rrequest, rtmp, ierr, irequest, itmp )
     if( ierr .ne. 0 ) return
 !    if( myid .eq. root ) write(6,*) 'psi_dot'
@@ -1514,7 +1514,7 @@ module OCEAN_haydock
 
 !DERP
 !    call OCEAN_psi_dot( back_hpsi, hpsi, rrequest, rtmp, ierr, irequest, itmp )
-    call OCEAN_psi_dot( hpsi, back_hpsi, rrequest, rtmp, ierr, irequest, itmp )
+    call OCEAN_psi_dot( hpsi, back_hpsi, rtmp, ierr, ival=itmp, rrequest=rrequest, irequest=irequest )
     if( ierr .ne. 0 ) return
 
     ! copies psi onto old_psi

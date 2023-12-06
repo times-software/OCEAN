@@ -1927,27 +1927,48 @@ module OCEAN_psi
 !! and only calculated if irequest and ival are passed in. 
 !! If both core and val exist then the code will *ADD* the two.
 !! Optionally you can pass in dest which will trigger REDUCE instead of ALLREDUCE.
-  subroutine OCEAN_psi_dot( p, q, rrequest, rval, ierr, irequest, ival, dest, defer )
+  subroutine OCEAN_psi_dot( p, q, rval, ierr, ival, rrequest, irequest, dest, defer )
 !    use mpi
     use OCEAN_mpi!, only : root, myid
     implicit none
-    real(DP), intent( inout ) :: rval  ! must be inout for mpi_in_place
-    integer, intent( out ) :: rrequest
     type(OCEAN_vector), intent( inout ) :: p
     type(OCEAN_vector), intent( inout ) :: q
+    real(DP), intent( inout ) :: rval  ! must be inout for mpi_in_place
     integer, intent( inout ) :: ierr
-    integer, intent( out ), optional :: irequest
     real(DP), intent( inout ), optional :: ival  ! must be inout for mpi_in_place
+    integer, intent( out ), optional :: rrequest
+    integer, intent( out ), optional :: irequest
     integer, intent( in ), optional :: dest
     logical, intent( in ), optional :: defer
     !
-    integer :: my_comm, ibw
+    real(DP) :: buffer(2)
+    integer :: my_comm, ibw, my_id
+    logical :: immediate
     real(dp), external :: DDOT
 
-    ! This would be a programming error. No reason to allow recovery
-    if( present( ival ) .neqv. present( irequest ) ) then
-      ierr = -1
-      return
+!    ! This would be a programming error. No reason to allow recovery
+!    if( present( ival ) .neqv. present( irequest ) ) then
+!      ierr = -1
+!      return
+!    endif
+
+    ! Not dealing with a mix
+    if( present( ival ) .and. ( present( rrequest ) .or. present( irequest ) ) ) then
+      if( .not. present( irequest ) .or. .not. present( rrequest ) ) then
+        ierr = -1
+        return
+      endif
+    endif
+
+    if( present( rrequest ) ) then
+      immediate = .true.
+#ifdef __OLD_MPI
+      rrequest = MPI_REQUEST_NULL
+      if( present( irequest ) ) irequest = MPI_REQUEST_NULL
+      immediate = .false.
+#endif
+    else
+      immediate = .false.
     endif
 
     ! If neither store nor full then need to call write2store
@@ -2017,8 +2038,10 @@ module OCEAN_psi
     endif
 
     my_comm = p%core_comm
+    my_id = p%core_myid
     if( have_val ) then
       my_comm = p%val_comm
+      my_id = p%val_myid
       do ibw = 1, psi_val_bw
         ! rval is either 0 or core
         rval = rval &
@@ -2039,63 +2062,66 @@ module OCEAN_psi
     if( present( defer ) ) then
       if( defer ) return
     endif
-  
-    ! If we have dest we call MPI_REDUCE onto dest
-    if( present( dest ) ) then
-#ifdef MPI
-      ! Using P as the comm channel
-      ! JTV should make a subcomm that only has procs with core_store_size > 0 for
-      ! cases with large unit cells where NX is large and NK is very small
-#ifdef __OLD_MPI
-      call MPI_REDUCE( MPI_IN_PLACE, rval, 1, MPI_DOUBLE_PRECISION, MPI_SUM, dest, my_comm, &
-                          ierr )
-      rrequest = MPI_REQUEST_NULL
-#else
-      call MPI_IREDUCE( MPI_IN_PLACE, rval, 1, MPI_DOUBLE_PRECISION, MPI_SUM, dest, my_comm, &
-                           rrequest, ierr )
-#endif
-      if( ierr .ne. 0 ) return
 
-      if( present( ival ) ) then
-#ifdef __OLD_MPI
-        call MPI_REDUCE( MPI_IN_PLACE, ival, 1, MPI_DOUBLE_PRECISION, MPI_SUM, dest, my_comm, &
-                            ierr )
-        irequest = MPI_REQUEST_NULL
-#else
-        call MPI_IREDUCE( MPI_IN_PLACE, ival, 1, MPI_DOUBLE_PRECISION, MPI_SUM, dest, my_comm, &
-                             irequest, ierr )
-#endif
+#ifdef MPI
+    if( immediate ) then
+      ! If we have dest we call MPI_REDUCE onto dest
+      if( present( dest ) ) then
+        ! Using P as the comm channel
+        ! JTV should make a subcomm that only has procs with core_store_size > 0 for
+        ! cases with large unit cells where NX is large and NK is very small
+        if( my_id .eq. dest ) then
+          call MPI_IREDUCE( MPI_IN_PLACE, rval, 1, MPI_DOUBLE_PRECISION, MPI_SUM, dest, my_comm, &
+                            rrequest, ierr )
+        else
+          call MPI_IREDUCE( rval, rval, 1, MPI_DOUBLE_PRECISION, MPI_SUM, dest, my_comm, &
+                            rrequest, ierr )
+        endif
         if( ierr .ne. 0 ) return
+
+        if( present( ival ) ) then
+          if( my_id .eq. dest ) then
+            call MPI_IREDUCE( MPI_IN_PLACE, ival, 1, MPI_DOUBLE_PRECISION, MPI_SUM, dest, my_comm, &
+                              irequest, ierr )
+          else
+            call MPI_IREDUCE( ival, ival, 1, MPI_DOUBLE_PRECISION, MPI_SUM, dest, my_comm, &
+                              irequest, ierr )
+          endif
+          if( ierr .ne. 0 ) return
+        endif
+      else
+        call MPI_IALLREDUCE( MPI_IN_PLACE, rval, 1, MPI_DOUBLE_PRECISION, MPI_SUM, my_comm, &
+                             rrequest, ierr )
+        if( ierr .ne. 0 ) return
+        if( present( ival ) ) then
+          call MPI_IALLREDUCE( MPI_IN_PLACE, ival, 1, MPI_DOUBLE_PRECISION, MPI_SUM, my_comm, &
+                               irequest, ierr )
+          if( ierr .ne. 0 ) return
+        endif
       endif
-#endif
     else
-#ifdef MPI
-      ! Using P as the comm channel
-      ! JTV should make a subcomm that only has procs with core_store_size > 0 for
-      ! cases with large unit cells where NX is large and NK is very small
-#ifdef __OLD_MPI
-      call MPI_ALLREDUCE( MPI_IN_PLACE, rval, 1, MPI_DOUBLE_PRECISION, MPI_SUM, my_comm, &
-                          ierr )
-      rrequest = MPI_REQUEST_NULL
-#else
-      call MPI_IALLREDUCE( MPI_IN_PLACE, rval, 1, MPI_DOUBLE_PRECISION, MPI_SUM, my_comm, &
-                           rrequest, ierr )
-#endif
-      if( ierr .ne. 0 ) return
-
+      buffer( 1 ) = rval
       if( present( ival ) ) then
-#ifdef __OLD_MPI
-        call MPI_ALLREDUCE( MPI_IN_PLACE, ival, 1, MPI_DOUBLE_PRECISION, MPI_SUM, my_comm, &
-                            ierr )
-        irequest = MPI_REQUEST_NULL
-#else
-        call MPI_IALLREDUCE( MPI_IN_PLACE, ival, 1, MPI_DOUBLE_PRECISION, MPI_SUM, my_comm, &
-                             irequest, ierr )
-#endif
-        if( ierr .ne. 0 ) return
+        buffer( 2 ) = ival
+      else
+        buffer( 2) = 0.0_DP
       endif
-#endif
+
+      if( present( dest ) ) then
+        if( my_id .eq. dest ) then
+          call MPI_REDUCE( MPI_IN_PLACE, buffer, 2, MPI_DOUBLE_PRECISION, MPI_SUM, dest, my_comm, ierr )
+        else
+          call MPI_REDUCE( buffer, buffer, 2, MPI_DOUBLE_PRECISION, MPI_SUM, dest, my_comm, ierr )
+        endif
+        if( ierr .ne. 0 ) return
+      else
+        call MPI_ALLREDUCE( MPI_IN_PLACE, buffer, 2, MPI_DOUBLE_PRECISION, MPI_SUM, my_comm, ierr )
+      endif
+      
+      rval = buffer( 1 )
+      if( present( ival ) ) ival = buffer( 2 )
     endif
+#endif
     
   end subroutine OCEAN_psi_dot
 

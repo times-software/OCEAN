@@ -1003,7 +1003,7 @@ module ocean_long_range
     allocate( psi_temp( sys%num_bands ), psi_temp_i( sys%num_bands) )
 
 
-!$OMP DO
+! $OMP DO
     do ikpt = 1, my_kpts
 #ifdef BLAS
 #if 1
@@ -1040,12 +1040,12 @@ module ocean_long_range
                     + dot_product(psi_temp(:), re_bloch_state_sp(:,ikpt,xiter,val_spin))
 #endif
     enddo
-!$OMP END DO
+! $OMP END DO
 
 #ifndef __FFTW3
-!$OMP CRITICAL
+! $OMP CRITICAL
 #endif 
-!$OMP SINGLE
+! $OMP SINGLE
 
     scratch( : ) = cmplx( xwrkr( : ), xwrki( : ), DP )
 
@@ -1056,12 +1056,12 @@ module ocean_long_range
     xwrkr(:) = real(scratch(:) * fo%norm,SP)
     xwrki(:) = real(aimag(scratch(:))  * fo%norm,SP)
 
-!$OMP END SINGLE
+! $OMP END SINGLE
 #ifndef __FFTW3
-!$OMP END CRITICAL
+! $OMP END CRITICAL
 #endif
 
-!$OMP DO
+! $OMP DO
     do ikpt = 1, my_kpts
 #ifdef BLAS
       call SAXPY( sys%num_bands, -xwrkr(ikpt), re_bloch_state_sp(1,ikpt,xiter,val_spin), 1, &
@@ -1092,10 +1092,10 @@ module ocean_long_range
 #endif
 #endif
     enddo
-!$OMP END DO NOWAIT
+! $OMP END DO NOWAIT
 
     deallocate( psi_temp, psi_temp_i )
-!$OMP END PARALLEL
+! $OMP END PARALLEL
     deallocate( scratch )
 
   end subroutine lr_kernel_sp

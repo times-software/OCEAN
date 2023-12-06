@@ -108,7 +108,7 @@ subroutine OCEAN_ladder_act( sys, psi, psi_out, ierr )
   !
   integer :: i, j, ibeta, cspn, vspn
 
-  call OCEAN_tk_start( tk_lr )
+!  call OCEAN_tk_start( tk_lr )
 
   ibeta = 0
   do i = 1, sys%valence_ham_spin
@@ -126,7 +126,7 @@ subroutine OCEAN_ladder_act( sys, psi, psi_out, ierr )
 
     enddo
   enddo
-  call OCEAN_tk_stop( tk_lr )
+!  call OCEAN_tk_stop( tk_lr )
 !#else
 !  call  OCEAN_ladder_act_single( sys, psi, psi_out, 1, 1, 1, ierr )
 !  if( ierr .ne. 0 ) return
@@ -170,7 +170,7 @@ end subroutine OCEAN_ladder_act
     real(dp), allocatable :: re_a_mat(:,:,:), im_a_mat(:,:,:)
     real(dp), allocatable :: re_b_mat(:,:,:,:), im_b_mat(:,:,:,:)
     real(dp), allocatable :: re_tphi_mat(:,:,:), im_tphi_mat(:,:,:)
-    real(dp), allocatable :: re_phi_mat(:,:), im_phi_mat(:,:)
+    real(dp), allocatable :: re_phi_mat(:,:), im_phi_mat(:,:), temp_phi_mat(:,:)
     real(dp), allocatable :: fr(:,:,:), fi(:,:,:), vv(:), fr2(:), fi2(:)
     complex(dp), allocatable :: scratch(:)
 
@@ -187,6 +187,9 @@ end subroutine OCEAN_ladder_act
     integer :: psi_con_pad, val_pad, nkpts, ladrange(3)
 
     logical :: test_flag
+    integer, parameter :: xcache = 8
+    integer, parameter :: kcache = 64
+
 
 !$  integer, external :: omp_get_num_threads
 
@@ -226,8 +229,9 @@ end subroutine OCEAN_ladder_act
 !$OMP PARALLEL DEFAULT(NONE) &
 !$OMP PRIVATE( ik, ib, ix, iy, ibc, i, j, k, id, x_block, y_block, beta, y_offset ) &
 !$OMP PRIVATE( scratch, fr, fi, vv, re_phi_mat, im_phi_mat, nthread, block_temp, nbc_block, test_flag ) &
-!$OMP PRIVATE( fr2, fi2, first_run, fb_one, fb_minusone ) &
-!$OMP SHARED( sys, nkpts, nbv_block, nxpts_pad, nproc, joint_request, c_recv_request, c_send_request, cm_send_request, cm_recv_request ) &
+!$OMP PRIVATE( fr2, fi2, first_run, fb_one, fb_minusone, temp_phi_mat ) &
+!$OMP SHARED( sys, nkpts, nbv_block, nxpts_pad, nproc, joint_request, c_recv_request, c_send_request ) &
+!$OMP SHARED( cm_send_request, cm_recv_request ) &
 !$OMP SHARED( nkret, kret, ladcap, kk, nxpts_by_mpiID, re_tphi_mat, im_tphi_mat ) &
 !$OMP SHARED( re_a_mat, im_a_mat, re_b_mat, im_b_mat, psi_spn, vspn, cspn, ierr, nxpts, inverse_kpts, val_pad )  &
 !$OMP SHARED( nbc, nbv, re_con, im_con, psi, psi_out, psi_con_pad, myid, MPI_STATUSES_IGNORE, MPI_STATUS_IGNORE ) &
@@ -240,8 +244,8 @@ end subroutine OCEAN_ladder_act
 
     allocate( fr( ladcap(1,1):ladcap(2,1), ladcap(1,2):ladcap(2,2), ladcap(1,3):ladcap(2,3) ), &
               fi( ladcap(1,1):ladcap(2,1), ladcap(1,2):ladcap(2,2), ladcap(1,3):ladcap(2,3) ), &
-              scratch( nkpts ), vv( nkret ), re_phi_mat( nkpts, 16 ), im_phi_mat( nkpts, 16 ), & 
-              fr2(nkpts), fi2(nkpts) )
+              scratch( nkpts ), vv( nkret ), re_phi_mat( nkpts, xcache ), im_phi_mat( nkpts, xcache ), & 
+              temp_phi_mat( xcache, nkpts ), fr2(nkpts), fi2(nkpts) )
 
 
 
@@ -403,7 +407,7 @@ end subroutine OCEAN_ladder_act
 ! Call a quick barrier in loop 0 no matter what
 !   this helps make sure that the MPI_START has also been called
 
-!$OMP BARRIER
+! !$OMP BARRIER
 
     
 
@@ -429,8 +433,9 @@ end subroutine OCEAN_ladder_act
             call DGEMM( 'N', 'T', x_block, y_block, nbv, minusone, re_a_mat( ix, 1, ik ), nxpts_pad, &
                         im_bstate( iy, 1, ik, k ), max_nxpts, one, im_tphi_mat( ix, iy, ik ), nxpts_pad )
           enddo
-!$OMP END DO
+!$OMP END DO NOWAIT
           if( sys%nbw .eq. 2 ) then
+!$OMP BARRIER
 !$OMP DO SCHEDULE( STATIC )
             do ik = 1, nkpts
               call DGEMM( 'N', 'T', x_block, y_block, nbv, one, re_val( ix, 1, ik, cspn, 2 ), nxpts_pad, & 
@@ -454,6 +459,11 @@ end subroutine OCEAN_ladder_act
       if( i .lt. nproc-1 ) then
         call MPI_START( c_send_request(k,1), ierr )
         call MPI_START( c_send_request(k,2), ierr )
+        joint_request(1) =  c_send_request(k,1)
+        joint_request(2) =  c_send_request(k,2)
+        joint_request(3) =  c_recv_request(j,1)
+        joint_request(4) =  c_recv_request(j,2)
+        call MPI_TESTALL( 4, joint_request, test_flag, MPI_STATUSES_IGNORE, ierr )
         if( sys%nbw .eq. 2 ) then
           call MPI_START( bw_send_request(k,1), ierr )
           call MPI_START( bw_send_request(k,2), ierr )
@@ -467,7 +477,7 @@ end subroutine OCEAN_ladder_act
 !   we are hopefully always going to have the recv in place before the
 !   send starts
 
-!$OMP BARRIER
+!!$OMP BARRIER
 
 
 
@@ -480,11 +490,22 @@ end subroutine OCEAN_ladder_act
 
 
 #if OCEAN_LADDER_CACHE
-        do ix = 1, nxpts+15, 16
+        do ix = 1, nxpts+xcache-1, xcache
+          iix = min( nxpts, ix+xcache-1 )
+          do ik = 1, nkpts
+            temp_phi_mat( 1:iix-ix+1, ik ) = re_tphi_mat( ix:iix, iy, ik )
+          enddo
+          re_phi_mat = transpose( temp_phi_mat )
 
-          do ik = 1, nkpts+63, 64
-            do iix = ix, min( nxpts, ix+15 )
-              do iik = ik, min( nkpts, ik+63 )
+          do ik = 1, nkpts
+            temp_phi_mat( 1:iix-ix+1, ik ) = im_tphi_mat( ix:iix, iy, ik )
+          enddo
+          im_phi_mat = transpose( temp_phi_mat )
+
+#if 0
+          do ik = 1, nkpts+kcache-1, kcache
+            do iix = ix, min( nxpts, ix+xcache-1 )
+              do iik = ik, min( nkpts, ik+kcache-1 )
                 re_phi_mat( iik, iix - ix + 1 ) = re_tphi_mat( iix, iy, iik )
                 im_phi_mat( iik, iix - ix + 1 ) = im_tphi_mat( iix, iy, iik )
               enddo
@@ -492,8 +513,9 @@ end subroutine OCEAN_ladder_act
 !              im_phi_mat(:,iix-ix+1) = im_tphi_mat( iix, iy, : )
             enddo
           enddo
+#endif
 !
-          do iix = ix, min( nxpts, ix+15 )    
+          do iix = ix, min( nxpts, ix+xcache-1 )    
             scratch( : ) = cmplx( re_phi_mat( :, iix - ix + 1), im_phi_mat( :, iix - ix + 1), DP )
 !          scratch( : ) = cmplx(re_tphi_mat( iix, iy, : ), im_tphi_mat( iix, iy, : ), DP )
 #else
@@ -551,10 +573,19 @@ end subroutine OCEAN_ladder_act
           enddo
 
 
-
-          do ik = 1, nkpts+63, 64
-            do iik = ik, min( nkpts, ik+63 )
-              do iix = ix, min( nxpts, ix+15 )
+          iix = min( nxpts, ix+xcache-1 )
+          temp_phi_mat = transpose( re_phi_mat )
+          do ik = 1, nkpts
+            re_tphi_mat( ix:iix, iy, ik ) = temp_phi_mat( 1:iix-ix+1, ik )
+          enddo
+          temp_phi_mat = transpose( im_phi_mat )
+          do ik = 1, nkpts
+            im_tphi_mat( ix:iix, iy, ik ) = temp_phi_mat( 1:iix-ix+1, ik )
+          enddo
+#if 0
+          do ik = 1, nkpts+kcache-1, kcache
+            do iik = ik, min( nkpts, ik+kcache-1 )
+              do iix = ix, min( nxpts, ix+xcache-1 )
                 re_tphi_mat( iix, iy, iik ) = re_phi_mat( iik, iix - ix + 1 )
                 im_tphi_mat( iix, iy, iik ) = im_phi_mat( iik, iix - ix + 1 )
 !                re_tphi_mat( iix, iy, : ) = re_phi_mat( :, iix - ix + 1 )
@@ -562,6 +593,7 @@ end subroutine OCEAN_ladder_act
               enddo
             enddo
           enddo
+#endif
 #else
             re_tphi_mat( iix, iy, : ) = real(scratch( : ),DP)! * inverse_kpts !/ dble( nkpts )
             im_tphi_mat( iix, iy, : ) = aimag(scratch( : )) !* inverse_kpts !/dble( nkpts )
@@ -576,9 +608,14 @@ end subroutine OCEAN_ladder_act
 ! First thread out of the loop tries to help with the non-blocking comms
 
 !$OMP SINGLE
-      call MPI_TEST( c_send_request(k,1), test_flag, MPI_STATUS_IGNORE, ierr )
+!      call MPI_TEST( c_send_request(k,1), test_flag, MPI_STATUS_IGNORE, ierr )
+      joint_request(1) =  c_send_request(k,1)
+      joint_request(2) =  c_send_request(k,2)
+      joint_request(3) =  c_recv_request(j,1)
+      joint_request(4) =  c_recv_request(j,2)
+      call MPI_TESTALL( 4, joint_request, test_flag, MPI_STATUSES_IGNORE, ierr )
 !$OMP END SINGLE
-!$OMP BARRIER
+!!$OMP BARRIER
 ! !$OMP SINGLE
 !       call MPI_TEST( c_send_request(k,2), test_flag, MPI_STATUS_IGNORE, ierr )
 ! !$OMP END SINGLE
@@ -606,8 +643,9 @@ end subroutine OCEAN_ladder_act
           call DGEMM( 'N', 'N', x_block, nbv_block, nxpts_by_mpiID( id ), one, re_tphi_mat( ix, 1, ik ), nxpts_pad, &
                       im_bstate( 1, ib, ik, k ), max_nxpts, one, im_b_mat( ix, ib, ik, 1 ), nxpts_pad )
         enddo
-!$OMP END DO 
+!$OMP END DO NOWAIT
         if( sys%nbw .eq. 2 ) then
+!$OMP BARRIER
 !$OMP SINGLE
           if( i .gt. 0 ) then
             joint_request(1) = cm_recv_request(k,1)
@@ -691,8 +729,9 @@ end subroutine OCEAN_ladder_act
         call DGEMM( 'T', 'N', nbc_block, nbv_block, nxpts, minus_spin_prefac, im_con( 1, ibc, ik, cspn, 1 ), nxpts_pad, &
                     re_b_mat( 1, ib, ik, 1 ), nxpts_pad, one, psi_out%vali( ibc, ib, ik, psi_spn, 1 ), psi_con_pad )
       enddo
-!$OMP END DO
+!$OMP END DO NOWAIT
       if( sys%nbw .eq. 2 ) then
+!$OMP BARRIER
         j = 1
 !$OMP SINGLE
         if( nproc .gt. 1 ) then
@@ -725,7 +764,7 @@ end subroutine OCEAN_ladder_act
     endif
 
 
-    deallocate( fr, fi, vv, scratch, re_phi_mat, im_phi_mat )
+    deallocate( fr, fi, vv, scratch, re_phi_mat, im_phi_mat, temp_phi_mat )
 
 !$OMP END PARALLEL
 
@@ -825,10 +864,10 @@ end subroutine OCEAN_ladder_act
 !    im_con_sp(:,:,:) = real(im_con( 1:nxpts, 1:nbc, 1:nkpts, cspn ),sp)
 
 !$OMP PARALLEL DEFAULT(NONE) &
-!$OMP PRIVATE( ik, ib, ix, iy, ibc, i, j, k, id, x_block, y_block, beta, y_offset ) &
+!$OMP PRIVATE( ik, ib, ix, iy, ibc, i, j, k, id, x_block, y_block, beta, y_offset, pr, pi, scratch_sp ) &
 !$OMP PRIVATE( scratch, fr, fi, vv, re_phi_mat, im_phi_mat, nthread, block_temp, nbc_block, test_flag ) &
 !$OMP SHARED( nkpts, nbv_block, nxpts_pad, nproc, joint_request, c_recv_request, c_send_request ) &
-!$OMP SHARED( nkret, kret, ladcap, kk, nxpts_by_mpiID, re_tphi_mat, im_tphi_mat ) &
+!$OMP SHARED( nkret, kret, ladcap, kk, nxpts_by_mpiID, re_tphi_mat, im_tphi_mat, use_resort_ladder ) &
 !$OMP SHARED( re_a_mat, im_a_mat, re_b_mat, im_b_mat, psi_spn, vspn, cspn, ierr, nxpts, inverse_kpts, val_pad )  &
 !$OMP SHARED( nbc, nbv, re_con_sp, im_con_sp, psi, psi_out, psi_con_pad, myid, MPI_STATUSES_IGNORE, MPI_STATUS_IGNORE ) &
 !$OMP SHARED( re_bstate_sp, im_bstate_sp, max_nxpts, startx_by_mpiID, fo, ladder, spin_prefac, minus_spin_prefac )
@@ -1051,7 +1090,7 @@ end subroutine OCEAN_ladder_act
 
 
 ! Need to wait at end of previous loop
-!$OMP BARRIER
+! $OMP BARRIER
 
 
   end subroutine OCEAN_ladder_act_single_sp

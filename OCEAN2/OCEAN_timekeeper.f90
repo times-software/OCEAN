@@ -123,7 +123,7 @@ module OCEAN_timekeeper
         rewind(99)
 
         ! 32 + 1 + 20 + 1 + 5
-        write(99,'(A1,A69,A,A22,A17,A17,A17,A17)') '#', '', 'Root', 'Avg', 'StdDev', 'Min', 'Max'
+        write(99,'(A1,A45,A,A22,A17,A17,A17,A17)') '#', '', 'Root', 'Avg', 'StdDev', 'Min', 'Max'
         do iter = 1, ndivs
           iavg = allTotal(iter,0)
           imax = allTotal(iter,0)
