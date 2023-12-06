@@ -318,12 +318,12 @@ end subroutine OCEAN_ladder_act
                     psi%vali( 1, ib, ik, psi_spn, 1 ), psi_con_pad, zero, im_a_mat( ix, ib, ik ), nxpts_pad )
         call DGEMM( 'N', 'N', x_block, nbv_block, nbc, one, im_con( ix, 1, ik, cspn, 1 ), nxpts_pad, &
                     psi%valr( 1, ib, ik, psi_spn, 1 ), psi_con_pad, one, im_a_mat( ix, ib, ik ), nxpts_pad )
-      enddo
-!$OMP END DO 
-
-      if( sys%nbw .eq. 2 ) then
-!$OMP DO COLLAPSE(1) SCHEDULE(STATIC)
-        do ik = 1, nkpts
+!      enddo
+!!$OMP END DO 
+!
+        if( sys%nbw .eq. 2 ) then
+!!$OMP DO COLLAPSE(1) SCHEDULE(STATIC)
+!        do ik = 1, nkpts
           call DGEMM( 'N', 'N', x_block, nbv_block, nbc, one, re_con( ix, 1, ik, vspn, 2 ), nxpts_pad, &
                       psi%valr( 1, ib, ik, psi_spn, 2 ), psi_con_pad, zero, re_bwamat( ix, ib, ik, 1 ), max_nxpts )
           call DGEMM( 'N', 'N', x_block, nbv_block, nbc, one, im_con( ix, 1, ik, vspn, 2 ), nxpts_pad, &
@@ -333,9 +333,10 @@ end subroutine OCEAN_ladder_act
                       psi%vali( 1, ib, ik, psi_spn, 2 ), psi_con_pad, zero, im_bwamat( ix, ib, ik, 1 ), max_nxpts )
           call DGEMM( 'N', 'N', x_block, nbv_block, nbc, minusone, im_con( ix, 1, ik, vspn, 2 ), nxpts_pad, &
                       psi%valr( 1, ib, ik, psi_spn, 2 ), psi_con_pad, one, im_bwamat( ix, ib, ik, 1 ), max_nxpts )
-        enddo
-!$OMP END DO 
-      endif
+        endif
+      enddo
+!$OMP END DO NOWAIT
+!      endif
     endif
 
 
@@ -432,12 +433,12 @@ end subroutine OCEAN_ladder_act
                         re_bstate( iy, 1, ik, k ), max_nxpts, zero, im_tphi_mat( ix, iy, ik ), nxpts_pad )
             call DGEMM( 'N', 'T', x_block, y_block, nbv, minusone, re_a_mat( ix, 1, ik ), nxpts_pad, &
                         im_bstate( iy, 1, ik, k ), max_nxpts, one, im_tphi_mat( ix, iy, ik ), nxpts_pad )
-          enddo
-!$OMP END DO NOWAIT
-          if( sys%nbw .eq. 2 ) then
-!$OMP BARRIER
-!$OMP DO SCHEDULE( STATIC )
-            do ik = 1, nkpts
+!          enddo
+!!$OMP END DO NOWAIT
+            if( sys%nbw .eq. 2 ) then
+!!$OMP BARRIER
+!!$OMP DO SCHEDULE( STATIC )
+!            do ik = 1, nkpts
               call DGEMM( 'N', 'T', x_block, y_block, nbv, one, re_val( ix, 1, ik, cspn, 2 ), nxpts_pad, & 
                           re_bwamat( iy, 1, ik, k ), max_nxpts, one, re_tphi_mat( ix, iy, ik ), nxpts_pad ) 
               call DGEMM( 'N', 'T', x_block, y_block, nbv, minusone, im_val( ix, 1, ik, cspn, 2 ), nxpts_pad, & 
@@ -447,9 +448,11 @@ end subroutine OCEAN_ladder_act
                           im_bwamat( iy, 1, ik, k ), max_nxpts, one, im_tphi_mat( ix, iy, ik ), nxpts_pad ) 
               call DGEMM( 'N', 'T', x_block, y_block, nbv, one, im_val( ix, 1, ik, vspn, 2 ), nxpts_pad, & 
                           re_bwamat( iy, 1, ik, k ), max_nxpts, one, im_tphi_mat( ix, iy, ik ), nxpts_pad ) 
-            enddo
-!$OMP END DO
-          endif
+!            enddo
+            endif
+          enddo
+!$OMP END DO NOWAIT
+!          endif
         endif
 
 
@@ -463,10 +466,18 @@ end subroutine OCEAN_ladder_act
         joint_request(2) =  c_send_request(k,2)
         joint_request(3) =  c_recv_request(j,1)
         joint_request(4) =  c_recv_request(j,2)
-        call MPI_TESTALL( 4, joint_request, test_flag, MPI_STATUSES_IGNORE, ierr )
-        if( sys%nbw .eq. 2 ) then
+        if( sys%nbw .eq. 1 ) then
+          call MPI_TESTALL( 4, joint_request, test_flag, MPI_STATUSES_IGNORE, ierr )
+        else
+!        if( sys%nbw .eq. 2 ) then
+          
           call MPI_START( bw_send_request(k,1), ierr )
           call MPI_START( bw_send_request(k,2), ierr )
+          joint_request(5) = bw_recv_request(j,1)
+          joint_request(6) = bw_send_request(k,1)
+          joint_request(7) = bw_recv_request(j,2)
+          joint_request(8) = bw_send_request(k,2)
+          call MPI_TESTALL( 8, joint_request, test_flag, MPI_STATUSES_IGNORE, ierr )
         endif
 !        write(6,*) 'MPI_START - send', myid, c_send_tag(k,1), c_send_tag(k,2)
       endif
@@ -613,7 +624,15 @@ end subroutine OCEAN_ladder_act
       joint_request(2) =  c_send_request(k,2)
       joint_request(3) =  c_recv_request(j,1)
       joint_request(4) =  c_recv_request(j,2)
-      call MPI_TESTALL( 4, joint_request, test_flag, MPI_STATUSES_IGNORE, ierr )
+      if( sys%nbw .eq. 1 ) then
+        call MPI_TESTALL( 4, joint_request, test_flag, MPI_STATUSES_IGNORE, ierr )
+      else
+        joint_request(5) = cm_recv_request(k,1)
+        joint_request(6) = cm_send_request(j,1)
+        joint_request(7) = cm_recv_request(k,2)
+        joint_request(8) = cm_send_request(j,2)
+        call MPI_TESTALL( 8, joint_request, test_flag, MPI_STATUSES_IGNORE, ierr )
+      endif
 !$OMP END SINGLE
 !!$OMP BARRIER
 ! !$OMP SINGLE
@@ -645,7 +664,6 @@ end subroutine OCEAN_ladder_act
         enddo
 !$OMP END DO NOWAIT
         if( sys%nbw .eq. 2 ) then
-!$OMP BARRIER
 !$OMP SINGLE
           if( i .gt. 0 ) then
             joint_request(1) = cm_recv_request(k,1)
@@ -731,7 +749,6 @@ end subroutine OCEAN_ladder_act
       enddo
 !$OMP END DO NOWAIT
       if( sys%nbw .eq. 2 ) then
-!$OMP BARRIER
         j = 1
 !$OMP SINGLE
         if( nproc .gt. 1 ) then
