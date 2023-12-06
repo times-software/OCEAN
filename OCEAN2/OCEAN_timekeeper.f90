@@ -8,7 +8,7 @@
 module OCEAN_timekeeper
   implicit none
   save
-  integer, private, parameter :: ndivs = 7
+  integer, private, parameter :: ndivs = 8
   integer(8), private :: max_count, count_rate
   integer, public, parameter :: tk_lr = 1, &
                                 tk_mult = 2, &
@@ -16,10 +16,11 @@ module OCEAN_timekeeper
                                 tk_psisum = 4, &
                                 tk_inv = 5, &
                                 tk_buffer2min = 6, &
-                                tk_total = 7
+                                tk_mpi = 7, &
+                                tk_total = 8
 
   character(LEN=10), private, parameter :: tk_label( ndivs ) = (/ 'long range', 'multiplet ', &
-    'energies  ', 'sum vector', 'inversion ', 'buffer2min', 'total     ' /)
+    'energies  ', 'sum vector', 'inversion ', 'buffer2min', 'mpi       ', 'total     ' /)
 
   integer(8), private :: total( ndivs )
   integer(8), private :: prev( ndivs )

@@ -286,11 +286,18 @@ module OCEAN_hyb_louie_levine
 
 
 !    if( .not. override_ladder ) then
+!$OMP PARALLEL DO COLLAPSE( 2 ) DEFAULT( NONE ) SCHEDULE( STATIC ) &
+#ifdef DEBUG
+!$OMP SHARED( ladder2 )
+#endif
+!$OMP PRIVATE( ix, ixr, fx, gx, iy, iyr, fy, gy, iter1, de, fff, jd, ww, wx, wy, qde, fcn ) &
+!$OMP SHARED( nkret, x_array, r_array, kret, sys, clip, avec, decut, d_array, irad0, dspc ) & 
+!$OMP SHARED( rad_array, whomdat, smear_vol, ladder, nx_start, nx, irtab, ftab, w0dat, rad0 )
     do ix = nx_start, nx_start+nx-1
-      ixr = irtab( ix )
-      fx = ftab( ix )
-      gx = 1.0d0 - fx
       do iy = 1, sys%nxpts
+        ixr = irtab( ix )
+        fx = ftab( ix )
+        gx = 1.0d0 - fx
         iyr = irtab( iy )
         fy = ftab( iy )
         gy = 1.0d0 - fy
@@ -329,6 +336,7 @@ module OCEAN_hyb_louie_levine
             end if
             ladder( iter1, ix - nx_start + 1, iy ) = 14.400d0 * ww * fcn ** 2 * eV2Hartree ! e^2/Angstrom = 14.4 eV
           endif
+#if 0
           if( ieee_is_nan( ladder( iter1, ix - nx_start + 1, iy ) ) ) then
             ierr = 1001
             write(6,*) iter1, ix, iy, ladder( iter1, ix - nx_start + 1, iy )
@@ -340,6 +348,7 @@ module OCEAN_hyb_louie_levine
             write(6,*) jd, fff, fcn      
             return
           endif
+#endif
 #ifdef DEBUG
           if( override_ladder ) then
             if( de .le. decut) then
@@ -363,6 +372,7 @@ module OCEAN_hyb_louie_levine
         enddo ! iter1 = 1, nkret
       enddo ! iy = 1, num_xpoints
     enddo ! ix = 1, num_xpoints
+!$OMP END PARALLEL DO
 !  endif
 
 #ifdef DEBUG

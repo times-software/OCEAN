@@ -98,7 +98,7 @@ subroutine OCEAN_ladder_act( sys, psi, psi_out, ierr )
   use OCEAN_psi
   use OCEAN_system
   use OCEAN_val_states, only : use_sp
-  use OCEAN_timekeeper, only : OCEAN_tk_start, OCEAN_tk_stop, tk_lr
+  use OCEAN_timekeeper, only : OCEAN_tk_start, OCEAN_tk_stop, tk_lr, tk_mpi
   implicit none
   !
   type(o_system), intent( in ) :: sys
@@ -157,6 +157,7 @@ end subroutine OCEAN_ladder_act
 !    use OCEAN_val_states
 !    use iso_c_binding
     use FFT_wrapper, only : OCEAN_FORWARD, OCEAN_BACKWARD, FFT_wrapper_single
+    use OCEAN_timekeeper, only : OCEAN_tk_start, OCEAN_tk_stop, tk_lr, tk_mpi
     
     implicit none
 !    include 'fftw3.f03'
@@ -375,6 +376,7 @@ end subroutine OCEAN_ladder_act
 !      write(6,*) myid, i, id, beta
 
 !$OMP SINGLE
+      call OCEAN_tk_start( tk_mpi )
       if( i .gt. 0 ) then
 
         joint_request(1) = c_recv_request(k,1)
@@ -402,6 +404,7 @@ end subroutine OCEAN_ladder_act
           call MPI_START( bw_recv_request(j,2), ierr )
         endif
       endif
+      call OCEAN_tk_stop( tk_mpi )
 !$OMP END SINGLE
 
 
@@ -459,6 +462,7 @@ end subroutine OCEAN_ladder_act
 
 
 !$OMP SINGLE
+      call OCEAN_tk_start( tk_mpi )
       if( i .lt. nproc-1 ) then
         call MPI_START( c_send_request(k,1), ierr )
         call MPI_START( c_send_request(k,2), ierr )
@@ -481,6 +485,7 @@ end subroutine OCEAN_ladder_act
         endif
 !        write(6,*) 'MPI_START - send', myid, c_send_tag(k,1), c_send_tag(k,2)
       endif
+      call OCEAN_tk_stop( tk_mpi )
 !$OMP END SINGLE
 
 ! No wait in the previous loop means first done can start the sends
@@ -619,6 +624,7 @@ end subroutine OCEAN_ladder_act
 ! First thread out of the loop tries to help with the non-blocking comms
 
 !$OMP SINGLE
+      call OCEAN_tk_start( tk_mpi )
 !      call MPI_TEST( c_send_request(k,1), test_flag, MPI_STATUS_IGNORE, ierr )
       joint_request(1) =  c_send_request(k,1)
       joint_request(2) =  c_send_request(k,2)
@@ -633,6 +639,7 @@ end subroutine OCEAN_ladder_act
         joint_request(8) = cm_send_request(j,2)
         call MPI_TESTALL( 8, joint_request, test_flag, MPI_STATUSES_IGNORE, ierr )
       endif
+      call OCEAN_tk_stop( tk_mpi )
 !$OMP END SINGLE
 !!$OMP BARRIER
 ! !$OMP SINGLE
@@ -665,6 +672,7 @@ end subroutine OCEAN_ladder_act
 !$OMP END DO NOWAIT
         if( sys%nbw .eq. 2 ) then
 !$OMP SINGLE
+          call OCEAN_tk_start( tk_mpi )
           if( i .gt. 0 ) then
             joint_request(1) = cm_recv_request(k,1)
             joint_request(2) = cm_send_request(j,1)
@@ -676,6 +684,7 @@ end subroutine OCEAN_ladder_act
             call MPI_START( cm_recv_request(j,1), ierr )
             call MPI_START( cm_recv_request(j,2), ierr )
           endif
+          call OCEAN_tk_stop( tk_mpi )
 !$OMP END SINGLE
 
 !$OMP DO
@@ -693,10 +702,12 @@ end subroutine OCEAN_ladder_act
 !$OMP END DO 
 
 !$OMP SINGLE
+          call OCEAN_tk_start( tk_mpi )
           if( nproc .gt. 1 ) then
             call MPI_START( cm_send_request(k,1), ierr )
             call MPI_START( cm_send_request(k,2), ierr )
           endif
+          call OCEAN_tk_stop( tk_mpi )
 !$OMP END SINGLE
 !          if( nproc .gt. 1 ) then
 !            write(6,*) 'FIX share c_mat'
@@ -751,6 +762,7 @@ end subroutine OCEAN_ladder_act
       if( sys%nbw .eq. 2 ) then
         j = 1
 !$OMP SINGLE
+        call OCEAN_tk_start( tk_mpi )
         if( nproc .gt. 1 ) then
           j = mod( abs(nproc-2),2) + 1
           k = mod( nproc-1, 2 ) + 1
@@ -760,6 +772,7 @@ end subroutine OCEAN_ladder_act
           joint_request(4) = cm_send_request(k,2)
           call MPI_WAITALL( 4, joint_request, MPI_STATUSES_IGNORE, ierr )
         endif
+        call OCEAN_tk_stop( tk_mpi )
 !$OMP END SINGLE
 
 !$OMP DO
