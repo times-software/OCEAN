@@ -216,7 +216,7 @@ end subroutine OCEAN_ladder_act
 
     allocate( re_a_mat( nxpts_pad, val_pad, nkpts ), im_a_mat( nxpts_pad, val_pad, nkpts ), &
               re_b_mat( nxpts_pad, val_pad, nkpts, sys%nbw ), im_b_mat( nxpts_pad, val_pad, nkpts, sys%nbw ), &
-              re_tphi_mat( nxpts_pad, max_nxpts, nkpts ), im_tphi_mat( nxpts_pad, max_nxpts, nkpts ), STAT=ierr )
+              re_tphi_mat( nxpts_pad, nkpts, max_nxpts ), im_tphi_mat( nxpts_pad, nkpts, max_nxpts ), STAT=ierr )
 
 !    re_bstate(:,:,:,:) = 0.0_DP
 !    im_bstate(:,:,:,:) = 0.0_DP
@@ -428,14 +428,14 @@ end subroutine OCEAN_ladder_act
 !$OMP DO SCHEDULE( STATIC )
           do ik = 1, nkpts
             call DGEMM( 'N', 'T', x_block, y_block, nbv, one, re_a_mat( ix, 1, ik ), nxpts_pad, &
-                        re_bstate( iy, 1, ik, k ), max_nxpts, zero, re_tphi_mat( ix, iy, ik ), nxpts_pad )
+                        re_bstate( iy, 1, ik, k ), max_nxpts, zero, re_tphi_mat( ix, ik, iy ), nxpts_pad*nkpts )
             call DGEMM( 'N', 'T', x_block, y_block, nbv, one, im_a_mat( ix, 1, ik ), nxpts_pad, &
-                        im_bstate( iy, 1, ik, k ), max_nxpts, one, re_tphi_mat( ix, iy, ik ), nxpts_pad )
+                        im_bstate( iy, 1, ik, k ), max_nxpts, one, re_tphi_mat( ix, ik, iy ), nxpts_pad*nkpts )
 
             call DGEMM( 'N', 'T', x_block, y_block, nbv, one, im_a_mat( ix, 1, ik ), nxpts_pad, &
-                        re_bstate( iy, 1, ik, k ), max_nxpts, zero, im_tphi_mat( ix, iy, ik ), nxpts_pad )
+                        re_bstate( iy, 1, ik, k ), max_nxpts, zero, im_tphi_mat( ix, ik, iy ), nxpts_pad*nkpts )
             call DGEMM( 'N', 'T', x_block, y_block, nbv, minusone, re_a_mat( ix, 1, ik ), nxpts_pad, &
-                        im_bstate( iy, 1, ik, k ), max_nxpts, one, im_tphi_mat( ix, iy, ik ), nxpts_pad )
+                        im_bstate( iy, 1, ik, k ), max_nxpts, one, im_tphi_mat( ix, ik, iy ), nxpts_pad*nkpts )
 !          enddo
 !!$OMP END DO NOWAIT
             if( sys%nbw .eq. 2 ) then
@@ -443,14 +443,14 @@ end subroutine OCEAN_ladder_act
 !!$OMP DO SCHEDULE( STATIC )
 !            do ik = 1, nkpts
               call DGEMM( 'N', 'T', x_block, y_block, nbv, one, re_val( ix, 1, ik, cspn, 2 ), nxpts_pad, & 
-                          re_bwamat( iy, 1, ik, k ), max_nxpts, one, re_tphi_mat( ix, iy, ik ), nxpts_pad ) 
+                          re_bwamat( iy, 1, ik, k ), max_nxpts, one, re_tphi_mat( ix, ik, iy ), nxpts_pad*nkpts ) 
               call DGEMM( 'N', 'T', x_block, y_block, nbv, minusone, im_val( ix, 1, ik, cspn, 2 ), nxpts_pad, & 
-                          im_bwamat( iy, 1, ik, k ), max_nxpts, one, re_tphi_mat( ix, iy, ik ), nxpts_pad ) 
+                          im_bwamat( iy, 1, ik, k ), max_nxpts, one, re_tphi_mat( ix, ik, iy ), nxpts_pad*nkpts ) 
 
               call DGEMM( 'N', 'T', x_block, y_block, nbv, one, re_val( ix, 1, ik, cspn, 2 ), nxpts_pad, & 
-                          im_bwamat( iy, 1, ik, k ), max_nxpts, one, im_tphi_mat( ix, iy, ik ), nxpts_pad ) 
+                          im_bwamat( iy, 1, ik, k ), max_nxpts, one, im_tphi_mat( ix, ik, iy ), nxpts_pad*nkpts ) 
               call DGEMM( 'N', 'T', x_block, y_block, nbv, one, im_val( ix, 1, ik, vspn, 2 ), nxpts_pad, & 
-                          re_bwamat( iy, 1, ik, k ), max_nxpts, one, im_tphi_mat( ix, iy, ik ), nxpts_pad ) 
+                          re_bwamat( iy, 1, ik, k ), max_nxpts, one, im_tphi_mat( ix, ik, iy ), nxpts_pad*nkpts ) 
 !            enddo
             endif
           enddo
@@ -471,7 +471,7 @@ end subroutine OCEAN_ladder_act
         joint_request(3) =  c_recv_request(j,1)
         joint_request(4) =  c_recv_request(j,2)
         if( sys%nbw .eq. 1 ) then
-          call MPI_TESTALL( 4, joint_request, test_flag, MPI_STATUSES_IGNORE, ierr )
+          if( nthread .gt. 1 ) call MPI_TESTALL( 4, joint_request, test_flag, MPI_STATUSES_IGNORE, ierr )
         else
 !        if( sys%nbw .eq. 2 ) then
           
@@ -481,7 +481,7 @@ end subroutine OCEAN_ladder_act
           joint_request(6) = bw_send_request(k,1)
           joint_request(7) = bw_recv_request(j,2)
           joint_request(8) = bw_send_request(k,2)
-          call MPI_TESTALL( 8, joint_request, test_flag, MPI_STATUSES_IGNORE, ierr )
+          if( nthread .gt. 1 ) call MPI_TESTALL( 8, joint_request, test_flag, MPI_STATUSES_IGNORE, ierr )
         endif
 !        write(6,*) 'MPI_START - send', myid, c_send_tag(k,1), c_send_tag(k,2)
       endif
@@ -508,15 +508,15 @@ end subroutine OCEAN_ladder_act
 #if OCEAN_LADDER_CACHE
         do ix = 1, nxpts+xcache-1, xcache
           iix = min( nxpts, ix+xcache-1 )
-          do ik = 1, nkpts
-            temp_phi_mat( 1:iix-ix+1, ik ) = re_tphi_mat( ix:iix, iy, ik )
-          enddo
-          re_phi_mat = transpose( temp_phi_mat )
+!          do ik = 1, nkpts
+!            temp_phi_mat( 1:iix-ix+1, ik ) = re_tphi_mat( ix:iix, ik, iy )
+!          enddo
+          re_phi_mat(:,1:iix-ix+1) = transpose( re_tphi_mat(ix:iix,:,iy) )
 
-          do ik = 1, nkpts
-            temp_phi_mat( 1:iix-ix+1, ik ) = im_tphi_mat( ix:iix, iy, ik )
-          enddo
-          im_phi_mat = transpose( temp_phi_mat )
+!          do ik = 1, nkpts
+!            temp_phi_mat( 1:iix-ix+1, ik ) = im_tphi_mat( ix:iix, ik, iy )
+!          enddo
+          im_phi_mat(:,1:iix-ix+1) = transpose( im_tphi_mat(ix:iix,:,iy))
 
 #if 0
           do ik = 1, nkpts+kcache-1, kcache
@@ -536,7 +536,7 @@ end subroutine OCEAN_ladder_act
 !          scratch( : ) = cmplx(re_tphi_mat( iix, iy, : ), im_tphi_mat( iix, iy, : ), DP )
 #else
         do iix = 1, nxpts
-          scratch( : ) = cmplx(re_tphi_mat( iix, iy, : ), im_tphi_mat( iix, iy, : ), DP )
+          scratch( : ) = cmplx(re_tphi_mat( iix, :, iy ), im_tphi_mat( iix, :, iy ), DP )
 #endif
 
 
@@ -590,14 +590,16 @@ end subroutine OCEAN_ladder_act
 
 
           iix = min( nxpts, ix+xcache-1 )
-          temp_phi_mat = transpose( re_phi_mat )
-          do ik = 1, nkpts
-            re_tphi_mat( ix:iix, iy, ik ) = temp_phi_mat( 1:iix-ix+1, ik )
-          enddo
-          temp_phi_mat = transpose( im_phi_mat )
-          do ik = 1, nkpts
-            im_tphi_mat( ix:iix, iy, ik ) = temp_phi_mat( 1:iix-ix+1, ik )
-          enddo
+!          temp_phi_mat = transpose( re_phi_mat )
+!          do ik = 1, nkpts
+!            re_tphi_mat( ix:iix, ik, iy ) = temp_phi_mat( 1:iix-ix+1, ik )
+!          enddo
+!          temp_phi_mat = transpose( im_phi_mat )
+!          do ik = 1, nkpts
+!            im_tphi_mat( ix:iix, ik, iy ) = temp_phi_mat( 1:iix-ix+1, ik )
+!          enddo
+          re_tphi_mat( ix:iix, :, iy ) = transpose(  re_phi_mat(:,1:iix-ix+1) )
+          im_tphi_mat( ix:iix, :, iy ) = transpose(  im_phi_mat(:,1:iix-ix+1) )
 #if 0
           do ik = 1, nkpts+kcache-1, kcache
             do iik = ik, min( nkpts, ik+kcache-1 )
@@ -611,8 +613,8 @@ end subroutine OCEAN_ladder_act
           enddo
 #endif
 #else
-            re_tphi_mat( iix, iy, : ) = real(scratch( : ),DP)! * inverse_kpts !/ dble( nkpts )
-            im_tphi_mat( iix, iy, : ) = aimag(scratch( : )) !* inverse_kpts !/dble( nkpts )
+            re_tphi_mat( iix, :, iy ) = real(scratch( : ),DP)! * inverse_kpts !/ dble( nkpts )
+            im_tphi_mat( iix, :, iy ) = aimag(scratch( : )) !* inverse_kpts !/dble( nkpts )
 #endif
 
         enddo
@@ -623,6 +625,7 @@ end subroutine OCEAN_ladder_act
 
 ! First thread out of the loop tries to help with the non-blocking comms
 
+      if( nthread .gt. 1 ) then
 !$OMP SINGLE
       call OCEAN_tk_start( tk_mpi )
 !      call MPI_TEST( c_send_request(k,1), test_flag, MPI_STATUS_IGNORE, ierr )
@@ -641,6 +644,7 @@ end subroutine OCEAN_ladder_act
       endif
       call OCEAN_tk_stop( tk_mpi )
 !$OMP END SINGLE
+      endif
 !!$OMP BARRIER
 ! !$OMP SINGLE
 !       call MPI_TEST( c_send_request(k,2), test_flag, MPI_STATUS_IGNORE, ierr )
@@ -659,14 +663,14 @@ end subroutine OCEAN_ladder_act
       if( nxpts .gt. 0 ) then
 !$OMP DO
         do ik = 1, nkpts
-          call DGEMM( 'N', 'N', x_block, nbv_block, nxpts_by_mpiID( id ), one, re_tphi_mat( ix, 1, ik ), nxpts_pad, &
+          call DGEMM( 'N', 'N', x_block, nbv_block, nxpts_by_mpiID( id ), one, re_tphi_mat( ix, ik, 1 ), nxpts_pad*nkpts, &
                       re_bstate( 1, ib, ik, k ), max_nxpts, beta, re_b_mat( ix, ib, ik, 1 ), nxpts_pad )
-          call DGEMM( 'N', 'N', x_block, nbv_block, nxpts_by_mpiID( id ), minusone, im_tphi_mat( ix, 1, ik ), nxpts_pad, &
+          call DGEMM( 'N', 'N', x_block, nbv_block, nxpts_by_mpiID( id ), minusone, im_tphi_mat( ix,ik,1), nxpts_pad*nkpts, &
                       im_bstate( 1, ib, ik, k ), max_nxpts, one, re_b_mat( ix, ib, ik, 1 ), nxpts_pad )
 
-          call DGEMM( 'N', 'N', x_block, nbv_block, nxpts_by_mpiID( id ), one, im_tphi_mat( ix, 1, ik ), nxpts_pad, &
+          call DGEMM( 'N', 'N', x_block, nbv_block, nxpts_by_mpiID( id ), one, im_tphi_mat( ix, ik, 1 ), nxpts_pad*nkpts, &
                       re_bstate( 1, ib, ik, k ), max_nxpts, beta, im_b_mat( ix, ib, ik, 1 ), nxpts_pad )
-          call DGEMM( 'N', 'N', x_block, nbv_block, nxpts_by_mpiID( id ), one, re_tphi_mat( ix, 1, ik ), nxpts_pad, &
+          call DGEMM( 'N', 'N', x_block, nbv_block, nxpts_by_mpiID( id ), one, re_tphi_mat( ix, ik, 1 ), nxpts_pad*nkpts, &
                       im_bstate( 1, ib, ik, k ), max_nxpts, one, im_b_mat( ix, ib, ik, 1 ), nxpts_pad )
         enddo
 !$OMP END DO NOWAIT
@@ -689,14 +693,14 @@ end subroutine OCEAN_ladder_act
 
 !$OMP DO
           do ik = 1, nkpts
-            call DGEMM( 'T', 'N', nxpts_by_mpiID( id ), nbv_block, x_block, one, re_tphi_mat( ix, 1, ik ), nxpts_pad, & 
+            call DGEMM( 'T', 'N', nxpts_by_mpiID( id ), nbv_block, x_block, one, re_tphi_mat( ix, ik, 1 ), nxpts_pad*nkpts, & 
                         re_val( 1, ib, ik, cspn, 2 ), nxpts_pad, beta, re_c_mat( 1, ib, ik, k ), max_nxpts ) 
-            call DGEMM( 'T', 'N', nxpts_by_mpiID( id ), nbv_block, x_block, one, im_tphi_mat( ix, 1, ik ), nxpts_pad, & 
+            call DGEMM( 'T', 'N', nxpts_by_mpiID( id ), nbv_block, x_block, one, im_tphi_mat( ix, ik, 1 ), nxpts_pad*nkpts, & 
                         im_val( 1, ib, ik, cspn, 2 ), nxpts_pad, one, re_c_mat( 1, ib, ik, k ), max_nxpts ) 
 
-            call DGEMM( 'T', 'N', nxpts_by_mpiID( id ), nbv_block, x_block, one, im_tphi_mat( ix, 1, ik ), nxpts_pad, &
+            call DGEMM( 'T', 'N', nxpts_by_mpiID( id ), nbv_block, x_block, one, im_tphi_mat( ix, ik, 1 ), nxpts_pad*nkpts, &
                         re_val( 1, ib, ik, cspn, 2 ), nxpts_pad, beta, im_c_mat( 1, ib, ik, k ), max_nxpts )
-            call DGEMM( 'T', 'N', nxpts_by_mpiID( id ), nbv_block, x_block, minusone, re_tphi_mat( ix, 1, ik ), nxpts_pad, &       
+            call DGEMM( 'T', 'N', nxpts_by_mpiID( id ), nbv_block, x_block, minusone, re_tphi_mat( ix, ik, 1 ), nxpts_pad*nkpts, &       
                         im_val( 1, ib, ik, cspn, 2 ), nxpts_pad, one, im_c_mat( 1, ib, ik, k ), max_nxpts ) 
           enddo
 !$OMP END DO 
