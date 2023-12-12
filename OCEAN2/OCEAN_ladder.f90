@@ -1,4 +1,4 @@
-! Copyright (C) 2016 - 2017, 2019 OCEAN collaboration
+! Copyright (C) 2016 - 2017, 2019, 2020, 2022, 2023 OCEAN collaboration
 !
 ! This file is part of the OCEAN project and distributed under the terms 
 ! of the University of Illinois/NCSA Open Source License. See the file 
@@ -8,6 +8,7 @@
 
 #define OCEAN_LADDER_CACHE 1
 #define PHI_TRANSPOSE 1
+#define BUFFERS 1
 
 module OCEAN_ladder
   use AI_kinds
@@ -19,6 +20,8 @@ module OCEAN_ladder
   private
 
   real(DP), allocatable :: ladder( :, :, : )  !> The value of the ladder interactions in real-space (R,x,y)
+  real(DP), allocatable :: buffers( :, :, :, :, : )
+  real(DP), allocatable :: c_mat( :, :, :, :, : )
   real(DP), allocatable :: re_bstate( :, :, :, : ) 
   real(DP), allocatable :: im_bstate( :, :, :, : )
   real(DP), allocatable :: re_bwamat( :, :, :, : )
@@ -228,8 +231,13 @@ end subroutine OCEAN_ladder_act
 !    re_b_mat = 0.0_Dp
 !    im_b_mat = 0.0_Dp
 
+#if BUFFERS
+    buffers(1:nxpts_pad,:,:,1,1) = re_val(1:nxpts_pad,:,:,vspn,1)
+    buffers(1:nxpts_pad,:,:,2,1) = im_val(1:nxpts_pad,:,:,vspn,1)
+#else
     re_bstate(1:nxpts_pad,:,:,1) = re_val(1:nxpts_pad,:,:,vspn,1)
     im_bstate(1:nxpts_pad,:,:,1) = im_val(1:nxpts_pad,:,:,vspn,1)
+#endif
 
 
 !$OMP PARALLEL DEFAULT(NONE) &
@@ -241,8 +249,8 @@ end subroutine OCEAN_ladder_act
 !$OMP SHARED( nkret, kret, ladcap, kk, nxpts_by_mpiID, re_tphi_mat, im_tphi_mat ) &
 !$OMP SHARED( re_a_mat, im_a_mat, re_b_mat, im_b_mat, psi_spn, vspn, cspn, ierr, nxpts, inverse_kpts, val_pad )  &
 !$OMP SHARED( nbc, nbv, re_con, im_con, psi, psi_out, psi_con_pad, myid, MPI_STATUSES_IGNORE, MPI_STATUS_IGNORE ) &
-!$OMP SHARED( re_bstate, im_bstate, re_bwamat, im_bwamat, max_nxpts, startx_by_mpiID, re_val, im_val, re_c_mat, im_c_mat ) &
-!$OMP SHARED( fo, ladder, spin_prefac, minus_spin_prefac, use_resort_ladder, bw_send_request, bw_recv_request )
+!$OMP SHARED( re_bstate, im_bstate, re_bwamat, im_bwamat, max_nxpts, startx_by_mpiID, re_val, im_val, re_c_mat, im_c_mat, c_mat ) &
+!$OMP SHARED( fo, ladder, spin_prefac, minus_spin_prefac, use_resort_ladder, bw_send_request, bw_recv_request, buffers )
 
     nthread = 1
 !$  nthread = omp_get_num_threads()
@@ -330,6 +338,17 @@ end subroutine OCEAN_ladder_act
         if( sys%nbw .eq. 2 ) then
 !!$OMP DO COLLAPSE(1) SCHEDULE(STATIC)
 !        do ik = 1, nkpts
+#if BUFFERS
+          call DGEMM( 'N', 'N', x_block, nbv_block, nbc, one, re_con( ix, 1, ik, vspn, 2 ), nxpts_pad, &
+                      psi%valr( 1, ib, ik, psi_spn, 2 ), psi_con_pad, zero, buffers( ix, ib, ik, 3, 1 ), max_nxpts )
+          call DGEMM( 'N', 'N', x_block, nbv_block, nbc, one, im_con( ix, 1, ik, vspn, 2 ), nxpts_pad, &
+                      psi%vali( 1, ib, ik, psi_spn, 2 ), psi_con_pad, one, buffers( ix, ib, ik, 3, 1 ), max_nxpts )
+
+          call DGEMM( 'N', 'N', x_block, nbv_block, nbc, one, re_con( ix, 1, ik, vspn, 2 ), nxpts_pad, &
+                      psi%vali( 1, ib, ik, psi_spn, 2 ), psi_con_pad, zero, buffers( ix, ib, ik, 4, 1 ), max_nxpts )
+          call DGEMM( 'N', 'N', x_block, nbv_block, nbc, minusone, im_con( ix, 1, ik, vspn, 2 ), nxpts_pad, &
+                      psi%valr( 1, ib, ik, psi_spn, 2 ), psi_con_pad, one, buffers( ix, ib, ik, 4, 1 ), max_nxpts )
+#else
           call DGEMM( 'N', 'N', x_block, nbv_block, nbc, one, re_con( ix, 1, ik, vspn, 2 ), nxpts_pad, &
                       psi%valr( 1, ib, ik, psi_spn, 2 ), psi_con_pad, zero, re_bwamat( ix, ib, ik, 1 ), max_nxpts )
           call DGEMM( 'N', 'N', x_block, nbv_block, nbc, one, im_con( ix, 1, ik, vspn, 2 ), nxpts_pad, &
@@ -339,6 +358,7 @@ end subroutine OCEAN_ladder_act
                       psi%vali( 1, ib, ik, psi_spn, 2 ), psi_con_pad, zero, im_bwamat( ix, ib, ik, 1 ), max_nxpts )
           call DGEMM( 'N', 'N', x_block, nbv_block, nbc, minusone, im_con( ix, 1, ik, vspn, 2 ), nxpts_pad, &
                       psi%valr( 1, ib, ik, psi_spn, 2 ), psi_con_pad, one, im_bwamat( ix, ib, ik, 1 ), max_nxpts )
+#endif
         endif
       enddo
 !$OMP END DO NOWAIT
@@ -386,11 +406,13 @@ end subroutine OCEAN_ladder_act
 
         joint_request(1) = c_recv_request(k,1)
         joint_request(2) = c_send_request(j,1)
-        joint_request(3) = c_recv_request(k,2)
-        joint_request(4) = c_send_request(j,2)
-
+!        joint_request(3) = c_recv_request(k,2)
+!        joint_request(4) = c_send_request(j,2)
+#if BUFFERS
+        call MPI_WAITALL( 2, joint_request, MPI_STATUSES_IGNORE, ierr )
+#else
         if( sys%nbw .eq. 1 ) then
-          call MPI_WAITALL( 4, joint_request, MPI_STATUSES_IGNORE, ierr )
+          call MPI_WAITALL( 2, joint_request, MPI_STATUSES_IGNORE, ierr )
         else
           joint_request(5) = bw_recv_request(k,1)
           joint_request(6) = bw_send_request(j,1)
@@ -398,16 +420,26 @@ end subroutine OCEAN_ladder_act
           joint_request(8) = bw_send_request(j,2)
           call MPI_WAITALL( 8, joint_request, MPI_STATUSES_IGNORE, ierr )
         endif
+#endif
       endif
+!$OMP END SINGLE
 
+!$OMP SINGLE
       ! Unless it is the last loop
       if( i .lt. nproc - 1 ) then
+#if BUFFERS
+!      write(6,*) 429
+      call MPI_START( c_recv_request(j,1), ierr )
+      call MPI_START( c_send_request(k,1), ierr )
+#else
         call MPI_START( c_recv_request(j,1), ierr )
-        call MPI_START( c_recv_request(j,2), ierr )
+        call MPI_START( c_send_request(k,1), ierr )
+!        call MPI_START( c_recv_request(j,2), ierr )
         if( sys%nbw .eq. 2 ) then
           call MPI_START( bw_recv_request(j,1), ierr )
           call MPI_START( bw_recv_request(j,2), ierr )
         endif
+#endif
       endif
       call OCEAN_tk_stop( tk_mpi )
 !$OMP END SINGLE
@@ -433,6 +465,28 @@ end subroutine OCEAN_ladder_act
 !$OMP DO SCHEDULE( STATIC )
           do ik = 1, nkpts
 #if PHI_TRANSPOSE
+#if BUFFERS
+            call DGEMM( 'N', 'T', x_block, y_block, nbv, one, re_a_mat( ix, 1, ik ), nxpts_pad, &
+                        buffers( iy, 1, ik, 1, k ), max_nxpts, zero, re_tphi_mat( ix, iy, ik ), nxpts_pad)
+            call DGEMM( 'N', 'T', x_block, y_block, nbv, one, im_a_mat( ix, 1, ik ), nxpts_pad, &
+                        buffers( iy, 1, ik, 2, k ), max_nxpts, one, re_tphi_mat( ix, iy, ik ), nxpts_pad )
+
+            call DGEMM( 'N', 'T', x_block, y_block, nbv, one, im_a_mat( ix, 1, ik ), nxpts_pad, &
+                        buffers( iy, 1, ik, 1, k ), max_nxpts, zero, im_tphi_mat( ix, iy, ik ), nxpts_pad )
+            call DGEMM( 'N', 'T', x_block, y_block, nbv, minusone, re_a_mat( ix, 1, ik ), nxpts_pad, &
+                        buffers( iy, 1, ik, 2, k ), max_nxpts, one, im_tphi_mat( ix, iy, ik ), nxpts_pad )
+            if( sys%nbw .eq. 2 ) then
+              call DGEMM( 'N', 'T', x_block, y_block, nbv, one, re_val( ix, 1, ik, cspn, 2 ), nxpts_pad, &
+                          buffers( iy, 1, ik, 3, k ), max_nxpts, one, re_tphi_mat( ix, iy, ik ), nxpts_pad )
+              call DGEMM( 'N', 'T', x_block, y_block, nbv, minusone, im_val( ix, 1, ik, cspn, 2 ), nxpts_pad, &
+                          buffers( iy, 1, ik, 4, k ), max_nxpts, one, re_tphi_mat( ix, iy, ik ), nxpts_pad )
+
+              call DGEMM( 'N', 'T', x_block, y_block, nbv, one, re_val( ix, 1, ik, cspn, 2 ), nxpts_pad, &
+                          buffers( iy, 1, ik, 4, k ), max_nxpts, one, im_tphi_mat( ix, iy, ik ), nxpts_pad )
+              call DGEMM( 'N', 'T', x_block, y_block, nbv, one, im_val( ix, 1, ik, vspn, 2 ), nxpts_pad, &
+                          buffers( iy, 1, ik, 3, k ), max_nxpts, one, im_tphi_mat( ix, iy, ik ), nxpts_pad )
+            endif
+#else
             call DGEMM( 'N', 'T', x_block, y_block, nbv, one, re_a_mat( ix, 1, ik ), nxpts_pad, &
                         re_bstate( iy, 1, ik, k ), max_nxpts, zero, re_tphi_mat( ix, iy, ik ), nxpts_pad)
             call DGEMM( 'N', 'T', x_block, y_block, nbv, one, im_a_mat( ix, 1, ik ), nxpts_pad, &
@@ -453,6 +507,7 @@ end subroutine OCEAN_ladder_act
               call DGEMM( 'N', 'T', x_block, y_block, nbv, one, im_val( ix, 1, ik, vspn, 2 ), nxpts_pad, &
                           re_bwamat( iy, 1, ik, k ), max_nxpts, one, im_tphi_mat( ix, iy, ik ), nxpts_pad )
             endif
+#endif
 #else
             call DGEMM( 'N', 'T', x_block, y_block, nbv, one, re_a_mat( ix, 1, ik ), nxpts_pad, &
                         re_bstate( iy, 1, ik, k ), max_nxpts, zero, re_tphi_mat( ix, ik, iy ), nxpts_pad*nkpts )
@@ -485,18 +540,25 @@ end subroutine OCEAN_ladder_act
 
 !$OMP SINGLE
       call OCEAN_tk_start( tk_mpi )
-      if( i .lt. nproc-1 ) then
-        call MPI_START( c_send_request(k,1), ierr )
-        call MPI_START( c_send_request(k,2), ierr )
+#if BUFFERS
+      if( nthread .gt. 1 ) then 
         joint_request(1) =  c_send_request(k,1)
-        joint_request(2) =  c_send_request(k,2)
-        joint_request(3) =  c_recv_request(j,1)
-        joint_request(4) =  c_recv_request(j,2)
+        joint_request(2) =  c_recv_request(j,1)
+        call MPI_TESTALL( 2, joint_request, test_flag, MPI_STATUSES_IGNORE, ierr )
+      endif
+#else
+      if( i .lt. nproc-1 ) then
+!!!!        call MPI_START( c_send_request(k,1), ierr )
+!        call MPI_START( c_send_request(k,2), ierr )
+        joint_request(1) =  c_send_request(k,1)
+!        joint_request(2) =  c_send_request(k,2)
+        joint_request(2) =  c_recv_request(j,1)
+!        joint_request(4) =  c_recv_request(j,2)
         if( sys%nbw .eq. 1 ) then
-          if( nthread .gt. 1 ) call MPI_TESTALL( 4, joint_request, test_flag, MPI_STATUSES_IGNORE, ierr )
+          if( nthread .gt. 1 ) call MPI_TESTALL( 2, joint_request, test_flag, MPI_STATUSES_IGNORE, ierr )
         else
 !        if( sys%nbw .eq. 2 ) then
-          
+          write(6,*) 'nope: 560'
           call MPI_START( bw_send_request(k,1), ierr )
           call MPI_START( bw_send_request(k,2), ierr )
           joint_request(5) = bw_recv_request(j,1)
@@ -507,6 +569,7 @@ end subroutine OCEAN_ladder_act
         endif
 !        write(6,*) 'MPI_START - send', myid, c_send_tag(k,1), c_send_tag(k,2)
       endif
+#endif
       call OCEAN_tk_stop( tk_mpi )
 !$OMP END SINGLE
 
@@ -636,13 +699,18 @@ end subroutine OCEAN_ladder_act
       if( nthread .gt. 1 ) then
 !$OMP SINGLE
       call OCEAN_tk_start( tk_mpi )
+#if BUFFERS
+      joint_request(1) =  c_send_request(k,1)
+      joint_request(2) =  c_recv_request(j,1)
+      call MPI_TESTALL( 2, joint_request, test_flag, MPI_STATUSES_IGNORE, ierr )
+#else
 !      call MPI_TEST( c_send_request(k,1), test_flag, MPI_STATUS_IGNORE, ierr )
       joint_request(1) =  c_send_request(k,1)
-      joint_request(2) =  c_send_request(k,2)
-      joint_request(3) =  c_recv_request(j,1)
-      joint_request(4) =  c_recv_request(j,2)
+!      joint_request(2) =  c_send_request(k,2)
+      joint_request(2) =  c_recv_request(j,1)
+!      joint_request(4) =  c_recv_request(j,2)
       if( sys%nbw .eq. 1 ) then
-        call MPI_TESTALL( 4, joint_request, test_flag, MPI_STATUSES_IGNORE, ierr )
+        call MPI_TESTALL( 2, joint_request, test_flag, MPI_STATUSES_IGNORE, ierr )
       else
         joint_request(5) = cm_recv_request(k,1)
         joint_request(6) = cm_send_request(j,1)
@@ -650,6 +718,7 @@ end subroutine OCEAN_ladder_act
         joint_request(8) = cm_send_request(j,2)
         call MPI_TESTALL( 8, joint_request, test_flag, MPI_STATUSES_IGNORE, ierr )
       endif
+#endif
       call OCEAN_tk_stop( tk_mpi )
 !$OMP END SINGLE
       endif
@@ -669,6 +738,56 @@ end subroutine OCEAN_ladder_act
       x_block = nxpts
       
       if( nxpts .gt. 0 ) then
+#if BUFFERS
+!$OMP DO
+        do ik = 1, nkpts
+          call DGEMM( 'N', 'N', x_block, nbv_block, nxpts_by_mpiID( id ), one, re_tphi_mat( ix, 1, ik ), nxpts_pad, &
+                      buffers( 1, ib, ik, 1, k ), max_nxpts, beta, re_b_mat( ix, ib, ik, 1 ), nxpts_pad )
+          call DGEMM( 'N', 'N', x_block, nbv_block, nxpts_by_mpiID( id ), minusone, im_tphi_mat( ix,1,ik), nxpts_pad, &
+                      buffers( 1, ib, ik, 2, k ), max_nxpts, one, re_b_mat( ix, ib, ik, 1 ), nxpts_pad )
+
+          call DGEMM( 'N', 'N', x_block, nbv_block, nxpts_by_mpiID( id ), one, im_tphi_mat( ix, 1, ik ), nxpts_pad, &
+                      buffers( 1, ib, ik, 1, k ), max_nxpts, beta, im_b_mat( ix, ib, ik, 1 ), nxpts_pad )
+          call DGEMM( 'N', 'N', x_block, nbv_block, nxpts_by_mpiID( id ), one, re_tphi_mat( ix, 1, ik ), nxpts_pad, &
+                      buffers( 1, ib, ik, 2, k ), max_nxpts, one, im_b_mat( ix, ib, ik, 1 ), nxpts_pad )
+        enddo
+!$OMP END DO NOWAIT
+        if( sys%nbw .eq. 2 ) then
+!$OMP SINGLE
+          call OCEAN_tk_start( tk_mpi )
+          if( i .gt. 0 ) then
+            joint_request(1) = cm_recv_request(k,1)
+            joint_request(2) = cm_send_request(j,1)
+            call MPI_WAITALL( 2, joint_request, MPI_STATUSES_IGNORE, ierr )
+          endif
+          if( nproc .gt. 1 ) then
+            call MPI_START( cm_recv_request(j,1), ierr )
+          endif
+          call OCEAN_tk_stop( tk_mpi )
+!$OMP END SINGLE
+!$OMP DO
+          do ik = 1, nkpts
+            call DGEMM( 'T', 'N', nxpts_by_mpiID( id ), nbv_block, x_block, one, re_tphi_mat( ix, 1, ik ), nxpts_pad, &
+                        re_val( 1, ib, ik, cspn, 2 ), nxpts_pad, beta, c_mat( 1, ib, ik, 1, k ), max_nxpts )
+            call DGEMM( 'T', 'N', nxpts_by_mpiID( id ), nbv_block, x_block, one, im_tphi_mat( ix, 1, ik ), nxpts_pad, &
+                        im_val( 1, ib, ik, cspn, 2 ), nxpts_pad, one, c_mat( 1, ib, ik, 1, k ), max_nxpts )
+
+            call DGEMM( 'T', 'N', nxpts_by_mpiID( id ), nbv_block, x_block, one, im_tphi_mat( ix, 1, ik ), nxpts_pad, &
+                        re_val( 1, ib, ik, cspn, 2 ), nxpts_pad, beta, c_mat( 1, ib, ik, 2, k ), max_nxpts )
+            call DGEMM( 'T', 'N', nxpts_by_mpiID( id ), nbv_block, x_block, minusone, re_tphi_mat( ix, 1, ik ), nxpts_pad, &
+                        im_val( 1, ib, ik, cspn, 2 ), nxpts_pad, one, c_mat( 1, ib, ik, 2, k ), max_nxpts )
+        enddo
+!$OMP END DO
+!$OMP SINGLE
+          call OCEAN_tk_start( tk_mpi )
+          if( nproc .gt. 1 ) then
+            call MPI_START( cm_send_request(k,1), ierr )
+          endif
+          call OCEAN_tk_stop( tk_mpi )
+!$OMP END SINGLE
+
+      endif
+#else
 !$OMP DO
 #if PHI_TRANSPOSE
         do ik = 1, nkpts
@@ -707,6 +826,7 @@ end subroutine OCEAN_ladder_act
             call MPI_WAITALL( 4, joint_request, MPI_STATUSES_IGNORE, ierr )
           endif
           if( nproc .gt. 1 ) then
+            write(6,*) 'nope 798'
             call MPI_START( cm_recv_request(j,1), ierr )
             call MPI_START( cm_recv_request(j,2), ierr )
           endif
@@ -742,8 +862,9 @@ end subroutine OCEAN_ladder_act
 !$OMP SINGLE
           call OCEAN_tk_start( tk_mpi )
           if( nproc .gt. 1 ) then
+            write(6,*) 'nope 834'
             call MPI_START( cm_send_request(k,1), ierr )
-            call MPI_START( cm_send_request(k,2), ierr )
+!            call MPI_START( cm_send_request(k,2), ierr )
           endif
           call OCEAN_tk_stop( tk_mpi )
 !$OMP END SINGLE
@@ -752,6 +873,7 @@ end subroutine OCEAN_ladder_act
 !            ierr = 99911
 !          endif
         endif
+#endif
       endif
 !  Other than the last loop this will be followed by MPI_SINGLE + BARRIER
 
@@ -763,6 +885,17 @@ end subroutine OCEAN_ladder_act
 
 ! Need to wait at end of previous loop
 !$OMP BARRIER
+
+!#if BUFFERS
+!    ! If backward need to sync one more time
+!!$OMP SINGLE
+!    if( sys%nbw .eq. 2 .and. nproc .gt. 1 ) then
+!!      write(6,*) 862
+!      call MPI_START( c_recv_request(k,1), ierr )
+!      call MPI_START( c_send_request(j,1), ierr )
+!    endif
+!!$OMP END SINGLE
+!#endif
 
     if( mod((nkpts * val_pad)/cache_double, nthread ) == 0 ) then
       nbc_block = nbc
@@ -798,6 +931,31 @@ end subroutine OCEAN_ladder_act
       enddo
 !$OMP END DO NOWAIT
       if( sys%nbw .eq. 2 ) then
+#if BUFFERS
+!$OMP SINGLE
+        call OCEAN_tk_start( tk_mpi )
+        if( nproc .gt. 1 ) then
+          joint_request(1) = cm_recv_request(j,1)
+          joint_request(2) = cm_send_request(k,1)
+          call MPI_WAITALL( 2, joint_request, MPI_STATUSES_IGNORE, ierr )
+        endif
+        call OCEAN_tk_stop( tk_mpi )
+!$OMP END SINGLE
+!$OMP DO
+        do ik = 1, nkpts
+          call DGEMM( 'T', 'N', nbc_block, nbv_block, nxpts, spin_prefac, re_con( 1, ibc, ik, vspn, 2 ), nxpts_pad, &
+                      c_mat( 1, ib, ik, 1, j ), max_nxpts, one, psi_out%valr( ibc, ib, ik, psi_spn, 2 ), psi_con_pad )
+          call DGEMM( 'T', 'N', nbc_block, nbv_block, nxpts, minus_spin_prefac, im_con( 1, ibc, ik, vspn, 2 ), nxpts_pad, &
+                      c_mat( 1, ib, ik, 2, j ), max_nxpts, one, psi_out%valr( ibc, ib, ik, psi_spn, 2 ), psi_con_pad )
+
+          call DGEMM( 'T', 'N', nbc_block, nbv_block, nxpts, spin_prefac, re_con( 1, ibc, ik, vspn, 2 ), nxpts_pad, &
+                      c_mat( 1, ib, ik, 2, j ), max_nxpts, one, psi_out%vali( ibc, ib, ik, psi_spn, 2 ), psi_con_pad )
+          call DGEMM( 'T', 'N', nbc_block, nbv_block, nxpts, spin_prefac, im_con( 1, ibc, ik, vspn, 2 ), nxpts_pad, &
+                      c_mat( 1, ib, ik, 1, j ), max_nxpts, one, psi_out%vali( ibc, ib, ik, psi_spn, 2 ), psi_con_pad )
+        enddo
+!$OMP END DO
+
+#else
         j = 1
 !$OMP SINGLE
         call OCEAN_tk_start( tk_mpi )
@@ -828,6 +986,7 @@ end subroutine OCEAN_ladder_act
 
         enddo
 !$OMP END DO
+#endif
       endif
     endif
 
@@ -1226,6 +1385,7 @@ end subroutine OCEAN_ladder_act
                 im_bstate_sp( max_nxpts, val_pad, sys%nkpts, 2 ), &
                 re_bstate(0,0,0,0), im_bstate(0,0,0,0), STAT=ierr )
       if( ierr .ne. 0 ) return
+      allocate( buffers( 0, 0, 0, 0, 0 ) )
     else 
       allocate( re_bstate( max_nxpts, val_pad, sys%nkpts, 2 ), &
                 im_bstate( max_nxpts, val_pad, sys%nkpts, 2 ), &
@@ -1238,6 +1398,15 @@ end subroutine OCEAN_ladder_act
                   im_c_mat( max_nxpts, val_pad, sys%nkpts, 2 ), STAT=ierr )
         if( ierr .ne. 0 ) return
       endif
+
+      if( sys%nbw .eq. 1 ) then
+        allocate( buffers( max_nxpts, val_pad, sys%nkpts, 2, 2 ),  &
+                  c_mat( 0, 0, 0, 0, 0 ), STAT=ierr )
+      else
+        allocate( buffers( max_nxpts, val_pad, sys%nkpts, 4, 2 ), & 
+                  c_mat( max_nxpts, val_pad, sys%nkpts, 2, 2 ), STAT=ierr )
+      endif
+      if( ierr .ne. 0 ) return
     endif
 
 #ifdef MPI
@@ -1314,6 +1483,33 @@ end subroutine OCEAN_ladder_act
       call MPI_RECV_INIT( im_bstate_sp(1,1,1,2), c_size, MPI_REAL, c_sour, c_recv_tag(2,2), &
                           comm, c_recv_request(2,2), ierr )
     else
+#if BUFFERS
+      if( sys%nbw .eq. 2 ) then
+        c_size = c_size * 4
+      else
+        c_size = c_size * 2
+      endif
+      call MPI_SEND_INIT( buffers(1,1,1,1,1), c_size, MPI_DOUBLE_PRECISION, c_dest, c_send_tag(1,1), &
+                          comm, c_send_request(1,1), ierr )
+      call MPI_SEND_INIT( buffers(1,1,1,1,2), c_size, MPI_DOUBLE_PRECISION, c_dest, c_send_tag(2,1), &
+                          comm, c_send_request(2,1), ierr )
+      call MPI_RECV_INIT( buffers(1,1,1,1,1), c_size, MPI_DOUBLE_PRECISION, c_sour, c_recv_tag(1,1), &
+                          comm, c_recv_request(1,1), ierr )
+      call MPI_RECV_INIT( buffers(1,1,1,1,2), c_size, MPI_DOUBLE_PRECISION, c_sour, c_recv_tag(2,1), &
+                          comm, c_recv_request(2,1), ierr )
+      if( sys%nbw .eq. 2 ) then
+        c_size = max_nxpts * sys%val_bands * sys%nkpts * 2
+        call MPI_SEND_INIT( c_mat(1,1,1,1,1), c_size, MPI_DOUBLE_PRECISION, c_dest, cm_send_tag(1,1), &
+                            comm, cm_send_request(1,1), ierr )
+        call MPI_SEND_INIT( c_mat(1,1,1,1,2), c_size, MPI_DOUBLE_PRECISION, c_dest, cm_send_tag(2,1), &
+                            comm, cm_send_request(2,1), ierr )
+        call MPI_RECV_INIT( c_mat(1,1,1,1,1), c_size, MPI_DOUBLE_PRECISION, c_sour, cm_recv_tag(1,1), &
+                            comm, cm_recv_request(1,1), ierr )
+        call MPI_RECV_INIT( c_mat(1,1,1,1,2), c_size, MPI_DOUBLE_PRECISION, c_sour, cm_recv_tag(2,1), &
+                            comm, cm_recv_request(2,1), ierr )
+      endif
+
+#else
       call MPI_SEND_INIT( re_bstate(1,1,1,1), c_size, MPI_DOUBLE_PRECISION, c_dest, c_send_tag(1,1), &
                           comm, c_send_request(1,1), ierr )
       call MPI_SEND_INIT( re_bstate(1,1,1,2), c_size, MPI_DOUBLE_PRECISION, c_dest, c_send_tag(2,1), &
@@ -1369,6 +1565,7 @@ end subroutine OCEAN_ladder_act
         call MPI_RECV_INIT( im_c_mat(1,1,1,2), c_size, MPI_DOUBLE_PRECISION, c_sour, cm_recv_tag(2,2), &
                             comm, cm_recv_request(2,2), ierr )
       endif
+#endif
     endif
 
 #endif
@@ -1382,7 +1579,7 @@ end subroutine OCEAN_ladder_act
     integer :: ierr
     
     if( .not. is_loaded ) return
-    deallocate( ladder, kret, kk, re_bstate, im_bstate, re_bstate_sp, im_bstate_sp )
+    deallocate( ladder, kret, kk, re_bstate, im_bstate, re_bstate_sp, im_bstate_sp, buffers )
     is_loaded = .false.
 
 #ifdef MPI
