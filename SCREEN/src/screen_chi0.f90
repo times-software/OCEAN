@@ -1998,19 +1998,19 @@ subroutine postRecvChi( pinfo, spareWavefunctions, chiRecvs, FullChi, ierr, sing
     integer :: id, curPts, idPts, npts
 
     if( pinfo%myid .eq. pinfo%root ) then
-!      npts = grid%npt
+      npts = singleSite%grid%npt
       curPts = 1
       do id = 0, pinfo%nprocs - 1
         
         idPts = screen_wvfn_ptsForGroupID( pinfo, singleSite%grid, id )
-        call screen_wvfn_initForGroupID( pinfo, singleSite%grid, id, spareWavefunctions( id ), ierr )
+!        call screen_wvfn_initForGroupID( pinfo, singleSite%grid, id, spareWavefunctions( id ), ierr )
         ! Each processor has a stripe of chi0 which locally runs (1:mynpts,1:npts)
         ! We need to match that onto the global array (1:npts,1:npts)
         !   Currently this becomes npts stripes of length mynpts and stride npts
         !JTV need to check performance hit of this
-        !call MPI_TYPE_VECTOR( npts, idPts, npts, MPI_DOUBLE_PRECISION, newType, ierr )
-        call MPI_TYPE_VECTOR( spareWavefunctions( id )%npts, spareWavefunctions( id )%mypts, &
-                              spareWavefunctions( id )%npts, MPI_DOUBLE_PRECISION, newType, ierr )
+        call MPI_TYPE_VECTOR( npts, idPts, npts, MPI_DOUBLE_PRECISION, newType, ierr )
+!        call MPI_TYPE_VECTOR( spareWavefunctions( id )%npts, spareWavefunctions( id )%mypts, &
+!                              spareWavefunctions( id )%npts, MPI_DOUBLE_PRECISION, newType, ierr )
         if( ierr .ne. 0 ) return
         call MPI_TYPE_COMMIT( newType, ierr )
         if( ierr .ne. 0 ) return
@@ -2018,8 +2018,8 @@ subroutine postRecvChi( pinfo, spareWavefunctions, chiRecvs, FullChi, ierr, sing
 !!        call MPI_IRECV( FullChi(curPts,1), 1, newType, id, TagChi, pinfo%comm, chiRecvs(id), ierr )
 !!        if( ierr .ne. 0 ) return
 
-!        call MPI_IRECV( FullChi(:,curPts:), npts * idPts, &
-        call MPI_IRECV( FullChi(:,curPts:), spareWavefunctions( id )%npts * spareWavefunctions( id )%mypts, &
+        call MPI_IRECV( FullChi(:,curPts:), npts * idPts, &
+!        call MPI_IRECV( FullChi(:,curPts:), spareWavefunctions( id )%npts * spareWavefunctions( id )%mypts, &
                         MPI_DOUBLE_PRECISION, id, TagChi, pinfo%comm, &
                         chiRecvs(id), ierr )
         if( ierr .ne. 0 ) return
@@ -2028,11 +2028,11 @@ subroutine postRecvChi( pinfo, spareWavefunctions, chiRecvs, FullChi, ierr, sing
         call MPI_TYPE_FREE( newType, ierr )
         if( ierr .ne. 0 ) return
 
-        curPts = curPts + spareWavefunctions( id )%mypts
-        write(1000+myid,*) spareWavefunctions( id )%mypts, idPts, singleSite%grid%npt, &
-                          spareWavefunctions( id )%npts
-        call screen_wvfn_kill( spareWavefunctions( id ) )
-!        curPts = curPts + idPts
+!        curPts = curPts + spareWavefunctions( id )%mypts
+!        write(1000+myid,*) spareWavefunctions( id )%mypts, idPts, singleSite%grid%npt, &
+!                          spareWavefunctions( id )%npts
+!        call screen_wvfn_kill( spareWavefunctions( id ) )
+        curPts = curPts + idPts
       enddo
 
 !      curPts = 1
