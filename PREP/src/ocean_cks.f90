@@ -588,10 +588,10 @@ module ocean_cks
 !$OMP PARALLEL DEFAULT( NONE ) &
 !$OMP SHARED( dims, nsites, order, nL, nband, deltaR, wvfn, allSites, bandOffset, angularGrid ) &
 !$OMP SHARED( avecs, kqVec, weightedYlmStar, allCksHolders ) &
-!$OMP PRIVATE( zee, iband isite, nR, rmax, itarg, ir, il, lmin, lmax, maxNproj, l, nproj, m, ip ) &
+!$OMP PRIVATE( zee, iband, isite, nR, rmax, itarg, ir, il, lmin, lmax, maxNproj, l, nproj, m, ip ) &
 !$OMP PRIVATE( isInitGrid, Pgrid, localWvfn, uniSphericalGrid, SphericalGrid, radGrid, deltaRadGrid ) &
-!$OMP PRIVATE( waveByLM, Smat, Cmat, psproj, amat )
-!$OMP REDUCTION (+ierr)
+!$OMP PRIVATE( waveByLM, Smat, Cmat, psproj, amat ) &
+!$OMP REDUCTION (+:ierr)
 
     allocate( isInitGrid( dims(1), dims(2), dims(3) ), Pgrid( order, dims(1), dims(2), dims(3)) )
 
