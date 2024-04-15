@@ -982,11 +982,13 @@ module ocean_long_range
     real( SP ), parameter :: minusone = -1.0_DP
     real( SP ), parameter :: zero = 0.0_DP
 
-    integer :: ikpt,i 
+    integer :: ikpt,i
     integer :: max_threads = 1
-!$  integer, external :: omp_get_max_threads
+!$  integer :: nthread = 1
+!$  integer, external :: omp_get_max_threads, omp_get_num_threads
     
-!$  max_threads = omp_get_max_threads()
+!$  max_threads = max( 1, omp_get_max_threads()  / omp_get_num_threads() )
+!$  nthread = min( max_threads, my_kpts )
 
     xwrkr(:) = 0.0_SP
     xwrki(:) = 0.0_SP
@@ -994,7 +996,8 @@ module ocean_long_range
     allocate( scratch( fo%dims(4) ) )
 
 !$OMP PARALLEL DEFAULT( NONE ) NUM_THREADS( nthread ) &
-!$OMP& SHARED( sys, pr, pi, hpr, hpi, xwrkr, xwrki, ialpha, xiter, val_spin, scratch ) &
+!$OMP& SHARED( sys, pr, pi, hpr, hpi, xwrkr, xwrki, ialpha, xiter, val_spin, scratch, my_kpts ) &
+!$OMP& SHARED( re_bloch_state_sp, im_bloch_state_sp, fo, W ) &
 !$OMP& PRIVATE( psi_temp, psi_temp_i, ikpt, i )
 
     allocate( psi_temp( sys%num_bands ), psi_temp_i( sys%num_bands) )

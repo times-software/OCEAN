@@ -173,7 +173,7 @@ module OCEAN_hyb_louie_levine
 
     enddo
     if( myid .eq. 0 ) then
-      write ( 6, '(1a17,3f20.10)' ) 'maxxy decut rmag ', maxxy, decut, rmag
+      write ( 6, '(1a21,4f20.10)' ) 'maxxy decut rmag mds ', maxxy, decut, rmag, mds
       write ( 6, '(1a9,2i8)' ) 'nk nkret ', sys%nkpts, nkret
     endif
     !
@@ -277,7 +277,7 @@ module OCEAN_hyb_louie_levine
       endif      
       close( 99 )
 
-      deallocate( kret_) !, tempor )
+!      deallocate( kret_) !, tempor )
     endif
 #endif
 !   end debug
@@ -342,11 +342,22 @@ module OCEAN_hyb_louie_levine
           endif
 #ifdef DEBUG
           if( override_ladder ) then
-            if( abs(ladder( iter1, ix - nx_start + 1, iy ) - ladder2(iter1, ix - nx_start + 1, iy ) &
-                .gt. 0.01 ) ) then
-              write(6,*) kret( iter1 ), ix - nx_start + 1, iy, ladder( iter1, ix - nx_start + 1, iy ) , & 
-                         ladder2(iter1, ix - nx_start + 1, iy )
+            if( de .le. decut) then
+            if( abs(ladder( iter1, ix - nx_start + 1, iy ) - ladder2(iter1, ix - nx_start + 1, iy ) ) &
+                .gt. 0.0001 ) then
+              write(6,*) iter1, kret( iter1 ), ix - nx_start + 1, iy, ladder( iter1, ix - nx_start + 1, iy ) , & 
+                         ladder2(iter1, ix - nx_start + 1, iy ), de, decut
             endif
+            elseif( abs(ladder( iter1, ix - nx_start + 1, iy ) - ladder2(iter1, ix - nx_start + 1, iy ) ) &
+                .gt. 0.0000001 ) then
+              write(6,*) 'decut', iter1, kret( iter1 ), ix - nx_start + 1, iy, ladder( iter1, ix - nx_start + 1, iy ) , &
+                         ladder2(iter1, ix - nx_start + 1, iy ), de, decut
+            endif
+            if( kret( iter1 ) .ne. kret_(iter1 ) ) then
+              write(6,*) 'kret', iter1, kret( iter1 ), kret_(iter1 )
+            endif
+!            ladder( iter1, ix - nx_start + 1, iy ) = ladder2(iter1, ix - nx_start + 1, iy ) / (27.2114_dp*eV2Hartree)
+            ladder( iter1, iy, ix - nx_start + 1 ) = ladder2(iter1, iy, ix - nx_start + 1 ) / (27.2114_dp*eV2Hartree)
           endif
 #endif
         enddo ! iter1 = 1, nkret
@@ -356,6 +367,7 @@ module OCEAN_hyb_louie_levine
 
 #ifdef DEBUG
     if( allocated( ladder2 ) ) deallocate( ladder2 )
+    if( allocated( kret_ ) ) deallocate( kret_ )
 #endif
     if( myid .eq. root ) write( 6, * ) 'Hybertsen-Louie-Levine model W constructed'
 
@@ -674,9 +686,11 @@ module OCEAN_hyb_louie_levine
     xmesh( 1 ) = ngx
     xmesh(2) = ngy
     xmesh(3) = ngz
+    write(6,*) 'ladcap'
     do i = 1, 3
       ladcap( 2, i ) = xmesh( i ) / 2
       ladcap( 1, i ) = 1 + ladcap( 2, i ) - xmesh( i )
+      write(6,*) ladcap(:,i)
     enddo
     !
     i = 0
