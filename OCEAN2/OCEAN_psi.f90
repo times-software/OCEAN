@@ -1095,10 +1095,10 @@ module OCEAN_psi
 #ifdef MPI
     ! Wait for all the others to complete
     do ibw = 1, psi_val_bw
-      call MPI_WAITALL( p%val_np, p%val_store_sr(:,ibw), MPI_STATUSES_IGNORE, ierr )
+      call MPI_WAITALL( p%val_np, p%val_store_sr(0:,ibw), MPI_STATUSES_IGNORE, ierr )
       if( ierr .ne. 0 ) return
 
-      call MPI_WAITALL( p%val_np, p%val_store_si(:,ibw), MPI_STATUSES_IGNORE, ierr )
+      call MPI_WAITALL( p%val_np, p%val_store_si(0:,ibw), MPI_STATUSES_IGNORE, ierr )
       if( ierr .ne. 0 ) return
     enddo
 #endif
@@ -4837,11 +4837,11 @@ subroutine OCEAN_psi_dot_write( p, q, outvec, rrequest, rval, ierr, irequest, iv
         do i = 0, p%val_np - 2
           
           call MPI_IRECV( p%valr( 1, iv, ik, ib, ibw ), psi_bands_pad * max_val_store_size, MPI_DOUBLE_PRECISION, &
-                          i, 1, p%val_comm, p%val_store_sr( i, ibw ), ierr )
+                          i, 1+(ibw-1)*2, p%val_comm, p%val_store_sr( i, ibw ), ierr )
           if( ierr .ne. 0 ) return
 
           call MPI_IRECV( p%vali( 1, iv, ik, ib, ibw ), psi_bands_pad * max_val_store_size, MPI_DOUBLE_PRECISION, &
-                          i, 2, p%val_comm, p%val_store_si( i, ibw ), ierr )
+                          i, 2+(ibw-1)*2, p%val_comm, p%val_store_si( i, ibw ), ierr )
           if( ierr .ne. 0 ) return
 
           ! Move iv, ik, and ib along
@@ -4859,10 +4859,10 @@ subroutine OCEAN_psi_dot_write( p, q, outvec, rrequest, rval, ierr, irequest, iv
         ! The last proc that stores some of min may have less than max
         i = ( psi_val_bands * psi_kpts_actual * psi_val_beta ) - ( ( p%val_np - 1 ) * max_val_store_size )
         call MPI_IRECV( p%valr( 1, iv, ik, ib, ibw ), psi_bands_pad * i, MPI_DOUBLE_PRECISION, &
-                        p%val_np - 1, 1, p%val_comm, p%val_store_sr( p%val_np - 1, ibw ), ierr )
+                        p%val_np - 1, 1+(ibw-1)*2, p%val_comm, p%val_store_sr( p%val_np - 1, ibw ), ierr )
         if( ierr .ne. 0 ) return
         call MPI_IRECV( p%vali( 1, iv, ik, ib, ibw ), psi_bands_pad * i, MPI_DOUBLE_PRECISION, &
-                        p%val_np - 1, 2, p%val_comm, p%val_store_si( p%val_np - 1, ibw ), ierr )
+                        p%val_np - 1, 2+(ibw-1)*2, p%val_comm, p%val_store_si( p%val_np - 1, ibw ), ierr )
         if( ierr .ne. 0 ) return
       enddo
 
@@ -4888,7 +4888,7 @@ subroutine OCEAN_psi_dot_write( p, q, outvec, rrequest, rval, ierr, irequest, iv
     integer, intent(inout) :: ierr
     type(OCEAN_vector), intent( inout ) :: p
 
-    integer :: i, ibw
+    integer :: i, ibw, isize
 
     if( .not. p%inflight ) then
       ierr = -1
@@ -4922,24 +4922,27 @@ subroutine OCEAN_psi_dot_write( p, q, outvec, rrequest, rval, ierr, irequest, iv
     endif
 
     if( have_val .and. ( p%val_store_size .gt. 0 ) ) then
-    
+      isize = psi_bands_pad * p%val_store_size
+!      if( p%val_myid .eq. p%val_np - 1 ) then
+!        isize = ( psi_val_bands * psi_kpts_actual * psi_val_beta ) - ( ( p%val_np - 1 ) * max_val_store_size )
+!      endif
 #ifdef MPI
       do ibw = 1, psi_val_bw
         do i = p%val_myid, total_nproc - 1
-          call MPI_ISEND( p%val_min_r(:,:,ibw), psi_bands_pad * p%val_store_size, MPI_DOUBLE_PRECISION, &
-                          i, 1, p%val_comm, p%val_store_rr( i, ibw ), ierr )
+          call MPI_ISEND( p%val_min_r(:,:,ibw), isize, MPI_DOUBLE_PRECISION, &
+                          i, 1+(ibw-1)*2, p%val_comm, p%val_store_rr( i, ibw ), ierr )
           if( ierr .ne. 0 ) return
-          call MPI_ISEND( p%val_min_i(:,:,ibw), psi_bands_pad * p%val_store_size, MPI_DOUBLE_PRECISION, &
-                          i, 2, p%val_comm, p%val_store_ri( i, ibw ), ierr )
+          call MPI_ISEND( p%val_min_i(:,:,ibw), isize, MPI_DOUBLE_PRECISION, &
+                          i, 2+(ibw-1)*2, p%val_comm, p%val_store_ri( i, ibw ), ierr )
           if( ierr .ne. 0 ) return
         enddo
 
         do i = 0, p%val_myid - 1
-          call MPI_ISEND( p%val_min_r(:,:,ibw), psi_bands_pad * p%val_store_size, MPI_DOUBLE_PRECISION, &
-                          i, 1, p%val_comm, p%val_store_rr( i, ibw ), ierr )
+          call MPI_ISEND( p%val_min_r(:,:,ibw), isize, MPI_DOUBLE_PRECISION, &
+                          i, 1+(ibw-1)*2, p%val_comm, p%val_store_rr( i, ibw ), ierr )
           if( ierr .ne. 0 ) return
-          call MPI_ISEND( p%val_min_i(:,:,ibw), psi_bands_pad * p%val_store_size, MPI_DOUBLE_PRECISION, &
-                          i, 2, p%val_comm, p%val_store_ri( i, ibw ), ierr )
+          call MPI_ISEND( p%val_min_i(:,:,ibw), isize, MPI_DOUBLE_PRECISION, &
+                          i, 2+(ibw-1)*2, p%val_comm, p%val_store_ri( i, ibw ), ierr )
           if( ierr .ne. 0 ) return
         enddo
       enddo
@@ -5037,11 +5040,11 @@ subroutine OCEAN_psi_dot_write( p, q, outvec, rrequest, rval, ierr, irequest, iv
     if( have_val ) then
 
       do ibw = 1, psi_val_bw
-        call MPI_WAITALL( p%val_np, p%val_store_sr(:,ibw), MPI_STATUSES_IGNORE, ierr )
-        call MPI_WAITALL( p%val_np, p%val_store_si(:,ibw), MPI_STATUSES_IGNORE, ierr )
+        call MPI_WAITALL( p%val_np, p%val_store_sr(0:,ibw), MPI_STATUSES_IGNORE, ierr )
+        call MPI_WAITALL( p%val_np, p%val_store_si(0:,ibw), MPI_STATUSES_IGNORE, ierr )
 
-        call MPI_WAITALL( total_nproc, p%val_store_rr(:,ibw), MPI_STATUSES_IGNORE, ierr )
-        call MPI_WAITALL( total_nproc, p%val_store_ri(:,ibw), MPI_STATUSES_IGNORE, ierr )
+        call MPI_WAITALL( total_nproc, p%val_store_rr(0:,ibw), MPI_STATUSES_IGNORE, ierr )
+        call MPI_WAITALL( total_nproc, p%val_store_ri(0:,ibw), MPI_STATUSES_IGNORE, ierr )
       enddo
 
     endif
@@ -5623,6 +5626,7 @@ subroutine OCEAN_psi_dot_write( p, q, outvec, rrequest, rval, ierr, irequest, iv
 
     if( IAND( p%valid_store, PSI_STORE_FULL ) .ne. PSI_STORE_FULL ) then
       if( IAND( p%valid_store, PSI_STORE_MIN ) .eq. PSI_STORE_MIN ) then
+        if( myid .eq. root )  write(6,*) 'PNORM called on MIN'
         call OCEAN_psi_min2full( p, ierr )
         if( ierr .ne. 0 ) return
       else
