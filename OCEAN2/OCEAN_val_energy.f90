@@ -610,8 +610,8 @@ module OCEAN_val_energy
     type( O_system ), intent( in ) :: sys
     type( OCEAN_vector ), intent( inout ) :: allow
     integer, intent( in ) :: nelectron
-    real( DP ), intent( in ) :: con_energies( sys%cur_run%num_bands, sys%nkpts, sys%nspn, sys%nbw ), &
-                                val_energies( sys%cur_run%val_bands, sys%nkpts, sys%nspn, sys%nbw ),  &
+    real( DP ), intent( in ) :: con_energies( 1:sys%cur_run%num_bands, sys%nkpts, sys%nspn, sys%nbw ), &
+                                val_energies( 1:sys%cur_run%val_bands, sys%nkpts, sys%nspn, sys%nbw ),  &
                                 efermi, cliph_
     logical, intent( in ) :: metal
     integer, intent( inout ) :: ierr
@@ -653,7 +653,8 @@ module OCEAN_val_energy
 
 
     if( myid .eq. root ) write(6,*) 'clipl: ', clipl, val_energies( 1, 1, 1,1 )
-    if( myid .eq. root ) write(6,* ) '  BWFLG', sys%cur_run%bwflg, sys%cur_run%val_bands, sys%cur_run%num_bands
+    if( myid .eq. root ) write(6,*) '  BWFLG', sys%cur_run%bwflg, sys%cur_run%val_bands, sys%cur_run%num_bands
+    if( myid .eq. root .and. sys%disable_intraband ) write(6,*) '  NO INTRABAND'
 
 
     !
@@ -672,18 +673,25 @@ module OCEAN_val_energy
           ibeta = ibeta + 1
           do kiter = 1, sys%nkpts
             do biter2 = 1, sys%cur_run%val_bands
-              if( kiter .eq. 1 .and. myid .eq. 0 ) write(6,*) 'clipl: ', clipl, val_energies( biter2, kiter, ispn, ibw )
+!              if( kiter .eq. 1 .and. myid .eq. 0 ) write(6,*) 'clipl: ', clipl, val_energies( biter2, kiter, ispn, ibw )
               if ( val_energies( biter2, kiter, ispn, ibw ) .lt. efermi  .and. &
                     ( val_energies( biter2, kiter, ispn, ibw ) .ge. clipl )) then
 
                 do biter1 = 1, sys%cur_run%num_bands
                   if ( ( con_energies( biter1, kiter, jspn, ibw ) .gt. efermi ) .and. &
                        ( con_energies( biter1, kiter, jspn, ibw ) .le. cliph ) ) then
-                    allow%valr( biter1, biter2, kiter, ibeta, ibw ) = 1.0_dp
-                    if( ibw .eq. 1 ) then
-                      allow%vali( biter1, biter2, kiter, ibeta, ibw ) = 1.0_dp
+                    if( sys%disable_intraband .and. &
+                       ( biter2+sys%brange(1) .eq. biter1+sys%brange(3) ) ) then    
+                      ! above: if we are disabling intraband AND the bands are equal
+                      !  then we skip this section setting allow
+                      if( myid .eq. root ) write(6,*) 'SKIP', kiter, biter2, biter1
                     else
-                      allow%vali( biter1, biter2, kiter, ibeta, ibw ) = -1.0_dp
+                      allow%valr( biter1, biter2, kiter, ibeta, ibw ) = 1.0_dp
+                      if( ibw .eq. 1 ) then
+                        allow%vali( biter1, biter2, kiter, ibeta, ibw ) = 1.0_dp
+                      else
+                        allow%vali( biter1, biter2, kiter, ibeta, ibw ) = -1.0_dp
+                      endif
                     endif
                   endif
                 enddo 
