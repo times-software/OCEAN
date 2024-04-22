@@ -348,7 +348,7 @@ end subroutine OCEAN_action_h1
         call OCEAN_mult_act( sys, inter_scale, psi_o, new_psi, back, hflag )
         hflag(6) = iflg
         call OCEAN_tk_stop( tk_mult )
-        endif
+      endif
 
       if( sys%long_range .and. (hflag(1).eq.1) ) then
         
@@ -365,7 +365,7 @@ end subroutine OCEAN_action_h1
 
 
       !TODO: Is this a problem?
-      if( hflag(6) .eq. 1 ) then
+      if( hflag(6) .eq. 1 .and. sys%mult) then
         tempflag(:)=0
         tempflag(6) = 1
         call OCEAN_mult_act( sys, inter_scale, psi, new_psi, back, tempflag )

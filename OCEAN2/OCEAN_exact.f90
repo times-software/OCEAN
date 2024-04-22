@@ -107,6 +107,7 @@ module OCEAN_exact
     bse_dim = sys%num_bands * sys%nkpts * sys%nalpha
     if( myid .eq. root ) write(6,*) 'BSE dims: ', bse_dim
   
+    ! Try to make a square grid by counting from the sqrt down to 1
     do nprow = floor( sqrt( dble( nproc ) ) ), 1, -1
       if( mod( nproc, nprow ) .eq. 0 ) goto 10
     enddo
@@ -134,8 +135,10 @@ module OCEAN_exact
       if( myid .eq. root ) write(6,*) 'Failed to allocate BSE matrices'
       goto 111
     endif
+    write(6,*) bse_lr, bse_lc, bse_lr_one, bse_lc_one
 
 
+    ! Create discription for distributed matrix
     call DESCINIT( bse_desc, bse_dim, bse_dim, block_fac, block_fac, 0, 0, context, &
                    bse_lr, ierr )
     if( ierr .ne. 0 ) then
@@ -190,6 +193,7 @@ module OCEAN_exact
     integer :: comm_tag_index, my_tag_index, buf_size, source_proc, dest_proc
     integer,allocatable :: request_list( : ), status_list(:,:)
 
+
 #ifdef sp
     integer, parameter :: mpi_ct = MPI_COMPLEX
 #else
@@ -204,7 +208,7 @@ module OCEAN_exact
 !              bse_vec_im( bse_vec%bands_pad, bse_vec%kpts_pad, sys%nalpha ) )
 !    bse_vec%r => bse_vec_re
 !    bse_vec%i => bse_vec_im
-    call OCEAN_psi_new( bse_vec, core_vector, ierr, hay_vec )
+    call OCEAN_psi_new( bse_vec, ierr )
 
     
 
@@ -444,6 +448,7 @@ module OCEAN_exact
     use OCEAN_psi
     use OCEAN_multiplet
     use OCEAN_long_range
+    use OCEAN_action
 
     implicit none
     type( o_system ), intent( in ) :: sys
@@ -463,12 +468,17 @@ module OCEAN_exact
     integer :: slice_start, slice_size
 
 
+    type(ocean_vector) :: psi_in, psi_out
 
+    call OCEAN_psi_new( psi_in, ierr )
+    call OCEAN_psi_new( psi_out, ierr )
 
   ! one version which is distributed in 1x1 blocks to make sure the workload 
   !  is optimally shared
 
   ! one version that is in realistic blocks for performance 
+
+    write(6,*) 'LR', sys%long_range
 
 
 !   Right now assume Hermetian
@@ -492,14 +502,62 @@ module OCEAN_exact
         ialpha = ialpha + 1
       endif
 
-!      jalpha = 1
-!      jkpt = 1
-!      jband = 0
-      jalpha = ialpha
-      jkpt = ikpt
-      jband = iband - 1
 
-      do jbasis = ibasis, bse_dim
+
+      if( .true.) then
+!      if( sys%mult .or. sys%long_range ) then
+        if( ibasis .eq. 1 ) write(6,*) sys%mult, sys%long_range
+        call OCEAN_psi_zero_full( psi_in, ierr )
+        call OCEAN_psi_zero_full( psi_out, ierr )
+        call OCEAN_psi_ready_buffer( psi_out, ierr )
+
+        psi_in%r(iband,ikpt,ialpha) = 1.0_DP
+        call OCEAN_psi_full2min( psi_in, ierr )
+
+        if( sys%mult )  &
+          call OCEAN_mult_act( sys, inter, psi_in, psi_out, .false., sys%nhflag )
+        
+        if( sys%long_range ) &
+          call lr_act( sys, psi_in, psi_out, ierr )
+        
+!        write(6,*) 'send buffer'
+        call OCEAN_psi_send_buffer( psi_out, ierr )
+        if( ierr .ne. 0 ) return
+
+        call ocean_energies_act( sys, psi_in, psi_out, .false., ierr )
+!        write(6,*) 'buffer2minr'
+        call OCEAN_psi_buffer2min( psi_out, ierr )
+        if( ierr .ne. 0 ) return
+!        write(6,*) 'min2full'
+        call OCEAN_psi_min2full( psi_out, ierr )
+        if( ierr .ne. 0 ) return
+
+!      endif
+      else
+        call OCEAN_psi_zero_full( psi_in, ierr )
+!        call OCEAN_psi_zero_full( psi_out, ierr )
+!        call OCEAN_psi_ready_buffer( psi_out, ierr )
+
+        psi_in%r(iband,ikpt,ialpha) = 1.0_DP 
+        call OCEAN_psi_full2min( psi_in, ierr )
+
+        call OCEAN_xact( sys, sys%interactionScale, psi_in, psi_out, ierr )
+        if( ierr .ne. 0 ) return
+
+
+        
+      endif
+
+
+      jalpha = 1
+      jkpt = 1
+      jband = 0
+      do jbasis = 1, bse_dim
+!      jalpha = ialpha
+!      jkpt = ikpt
+!      jband = iband - 1
+
+!      do jbasis = ibasis, bse_dim
 
         jband = jband + 1
         if( jband .gt. sys%num_bands ) then
@@ -519,14 +577,20 @@ module OCEAN_exact
 
 !        if( myid .eq. root ) write(6,*) ibasis, jbasis
         
-        if( ( ibasis .eq. jbasis ) .and. ( sys%e0 ) )  then
-          bse_ij = ocean_energies_single( iband, ikpt, ialpha )
+        if( .false. ) then
+          if( ( ibasis .eq. jbasis ) .and. ( sys%e0 ) )  then
+            bse_ij = ocean_energies_single( iband, ikpt, ialpha )
+          else
+            bse_ij = 0.0_DP
+          endif
+      
+          if( sys%mult .or. sys%long_range) bse_ij = bse_ij + CMPLX( psi_out%r(jband, jkpt, jalpha ), psi_out%i(jband, jkpt, jalpha ), EDP )
         else
-          bse_ij = 0.0_DP
+        bse_ij = CMPLX(  psi_out%r(jband, jkpt, jalpha ), -psi_out%i(jband, jkpt, jalpha ), EDP )
         endif
 
-        if( sys%mult ) &
-          call OCEAN_mult_single( sys, bse_ij, inter, iband, ikpt, ialpha, jband, jkpt, jalpha )
+!        if( sys%mult ) &
+!          call OCEAN_mult_single( sys, bse_ij, inter, iband, ikpt, ialpha, jband, jkpt, jalpha )
 
 !        if( sys%long_range ) &
 !          call lr_single( sys, bse_ij, inter, iband, ikpt, ialpha, jband, jkpt, jalpha )
@@ -555,7 +619,7 @@ module OCEAN_exact
 !    deallocate( bse_matrix_one )
 
 
-    if( sys%long_range ) then
+    if( sys%long_range .and. .false. ) then
 
       if( myid .eq. root ) write(6,*) 'Adding in long range'
       allocate( re_slice( sys%nkpts * sys%num_bands ), &
@@ -741,7 +805,7 @@ module OCEAN_exact
   
     complex(EDP) :: weight
     real(EDP) :: energy
-    real(EDP), parameter :: broaden = .014*27.2114
+    real(EDP), parameter :: broaden = 0.5 !.014*27.2114
 
     real(EDP), allocatable :: plot(:)
     integer :: iter
@@ -795,7 +859,7 @@ module OCEAN_exact
       rewind(99)
       write(99,*) '# N    Energy(eV)   Weight'
 
-      allocate( plot( -100:500 ) )
+      allocate( plot( -300:700 ) )
       plot = 0.0_DP
     endif
 
@@ -818,11 +882,13 @@ module OCEAN_exact
         if( myid .eq. root ) then 
         write(99,*) ibasis, energy, dble( weight * conjg(weight)), dble(weight), aimag( weight )
 
-          do iter = -100, 500
+          if( ibasis .gt. 1280 ) then
+          do iter = -300, 700
             plot( iter ) = plot( iter ) + real( weight * conjg(weight),EDP) &
-                         * broaden * real(kpref * 27.2114_DP, EDP ) &
+                         * broaden * real(hay_vec%kpref * 27.2114_DP, EDP ) &
                          / ( ( energy - real(iter,EDP)*.1_EDP )**2 + broaden**2 )
           enddo
+          endif
             
         endif
       enddo
@@ -833,7 +899,7 @@ module OCEAN_exact
       close(99)
       open(unit=98,file='exact_plot',form='formatted')
       rewind(98)
-      do iter = -100, 500
+      do iter = -300, 700
         write(98,*) dble(iter) * 0.1, plot( iter )
       enddo
       close( 98 )

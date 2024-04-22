@@ -30,6 +30,7 @@ module OCEAN_energies
             OCEAN_energies_val_load, OCEAN_energies_act, OCEAN_energies_init, OCEAN_energies_load
   public :: OCEAN_energies_resetAllow, OCEAN_energies_allow_full, OCEAN_energies_sfact_copy
   public :: OCEAN_energies_initial_allow
+  public :: OCEAN_energies_single
   
   contains
 
@@ -924,15 +925,14 @@ module OCEAN_energies
 
 
 
-
+#endif
   complex(DP) function OCEAN_energies_single( ib, ik, ia )
     use OCEAN_system
     implicit none
     integer, intent( in ) :: ib, ik, ia
 
-    OCEAN_energies_single = CMPLX( energies( ib, ik, 1 ), imag_selfenergy( ib, ik, 1 ), DP )
+    OCEAN_energies_single = CMPLX( p_energy%r( ib, ik, ia ), p_energy%i( ib, ik, ia ), DP )
   end function
-#endif
 
   subroutine OCEAN_gw_stretch( sys, energies, ierr )
     use OCEAN_system
