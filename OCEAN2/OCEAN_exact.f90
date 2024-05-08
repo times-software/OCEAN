@@ -48,13 +48,64 @@ module OCEAN_exact
 
   INTEGER :: block_fac = 64
 
+  LOGICAL :: is_init = .false.
+  REAL(DP) :: el, eh, gam0, eps, nval,  ebase
+  integer :: ne, nocc
+  CHARACTER(LEN=3) :: calc_type
 
-  public :: OCEAN_exact_diagonalize
+  public :: OCEAN_exact_diagonalize, OCEAN_exact_init
 
   contains
 
+  subroutine OCEAN_exact_init( sys, ierr )
+    use OCEAN_mpi
+    use OCEAN_system
 
-  subroutine OCEAN_exact_diagonalize( sys, hay_vec, ierr )
+    implicit none 
+    type( o_system ), intent( in ) :: sys
+    integer, intent( inout ) :: ierr
+
+    integer :: dumi, haydock_niter
+    real(DP) :: dumf
+    real( DP ), parameter :: default_gam0 = 0.1_DP
+
+    if( is_init ) then
+      call OCEAN_free_bse()
+    endif
+
+    call OCEAN_initialize_bse( sys, ierr )
+    if( ierr .ne. 0 ) return
+
+    if( myid .eq. root ) then
+      open(unit=99,file='epsilon',form='formatted',status='old')
+      rewind 99
+      read(99,*) eps                 
+      close(99)
+            
+      open( unit=99, file='nval.h', form='formatted', status='unknown' )
+      rewind 99
+      read ( 99, * ) nval
+      close( unit=99 )
+
+      open(unit=99,file='bse.in',form='formatted',status='old')
+      rewind(99)
+      read(99,*) dumi
+      read(99,*) dumf
+      read(99,*) calc_type
+      read(99,*) haydock_niter, ne, el, eh, gam0, ebase
+      call checkBroadening( sys, gam0, default_gam0 )
+      close(99)
+    endif
+
+    nocc = floor( sys%nelectron * real( sys%nkpts, DP ) * sys%nalpha / 2.0_DP )
+
+    is_init = .true.
+
+
+  end subroutine OCEAN_exact_init
+
+
+  subroutine OCEAN_exact_diagonalize( sys, hay_vec, ierr, fresh )
     use OCEAN_system
     use OCEAN_psi
 
@@ -63,33 +114,71 @@ module OCEAN_exact
     type( o_system ), intent( in ) :: sys
     type( ocean_vector ), intent( in ) :: hay_vec
     integer, intent( inout ) :: ierr
+    logical, intent(in), optional :: fresh
 
-    call OCEAN_initialize_bse( sys, ierr )
-    if( ierr .ne. 0 ) goto 111
+    logical :: fresh_
 
-    call OCEAN_populate_bse( sys, ierr )
-!    call OCEAN_pb_slices( sys, hay_vec, ierr )
-    if( ierr .ne. 0 ) goto 111
+    if( present( fresh ) ) then
+      fresh_ = fresh
+    else
+      fresh_ = .true.
+    endif
 
-    call OCEAN_diagonalize( ierr )
-    if( ierr .ne. 0 ) goto 111
+    if( .not. is_init ) then
+      fresh_ = .true.
+      call OCEAN_exact_init( sys, ierr )
+    endif
 
-    call OCEAN_print_eigenvalues
+    if( fresh_ ) then
+      call OCEAN_populate_bse( sys, ierr )
+      if( ierr .ne. 0 ) goto 111
+
+      call OCEAN_diagonalize( ierr )
+      if( ierr .ne. 0 ) goto 111
+
+      call OCEAN_print_eigenvalues
+    endif
 
     call OCEAN_calculate_overlaps( sys, hay_vec, ierr )
     
-    call OCEAN_free
-
 111 continue
   end subroutine
 
-  subroutine OCEAN_free
+!!!!!! taken from Haydock, should be hoisted
+  subroutine checkBroadening( sys, broaden, default_broaden )
+    use OCEAN_corewidths, only : returnLifetime
+    use OCEAN_system
+    use OCEAN_mpi, only : myid, root
+    implicit none
+    type( o_system ), intent( in ) :: sys
+    real(DP), intent( inout ) :: broaden
+    real(DP), intent( in ) :: default_broaden
+    
+    if( broaden .gt. 0.0_dp ) return
+
+        
+    select case ( sys%cur_run%calc_type )
+      case( 'VAL' )
+        broaden = default_broaden 
+      case( 'XAS' , 'XES', 'RXS' )
+        call returnLifetime( sys%cur_run%ZNL(1), sys%cur_run%ZNL(2), sys%cur_run%ZNL(3), broaden )
+        if( broaden .le. 0 ) broaden = default_broaden
+        if( myid .eq. root ) write(6,*) 'Default broadening used: ', broaden
+      case default
+        broaden = default_broaden
+    end select
+    write(6,*) 'Default requested for broadening: ', broaden
+              
+    end subroutine checkBroadening
+!!!!!!!
+
+  subroutine OCEAN_free_bse
     implicit none
     if( allocated( bse_matrix ) ) deallocate( bse_matrix )
     if( allocated( bse_matrix_one ) ) deallocate( bse_matrix_one )
     if( allocated( bse_evectors ) ) deallocate( bse_evectors )
     if( allocated( bse_evalues ) ) deallocate( bse_evalues )
-  end subroutine OCEAN_free
+  end subroutine OCEAN_free_bse
 
   subroutine OCEAN_initialize_bse( sys, ierr )
     use AI_kinds
@@ -793,6 +882,7 @@ module OCEAN_exact
     use OCEAN_mpi
     use OCEAN_system
     use OCEAN_psi
+    use OCEAN_constants, only : Hartree2eV
 
     implicit none
     type( o_system ), intent( in ) :: sys
@@ -804,15 +894,18 @@ module OCEAN_exact
     complex(EDP), parameter :: zero = 0.0
   
     complex(EDP) :: weight
-    real(EDP) :: energy
-    real(EDP), parameter :: broaden = 0.5 !.014*27.2114
+    real(EDP) :: energy, e, su
+    real(EDP) :: broaden
 
-    real(EDP), allocatable :: plot(:)
+    real(EDP), allocatable :: plot(:,:)
     integer :: iter
 
     integer :: ikpt, iband, ibasis, ialpha
 !    integer :: lrindx, lcindx, rsrc, csrc
     integer :: local_desc( 9 )
+
+
+    broaden = gam0
 
 !    allocate( psi( bse_lr ) )
     allocate( psi( bse_dim ) )
@@ -859,7 +952,7 @@ module OCEAN_exact
       rewind(99)
       write(99,*) '# N    Energy(eV)   Weight'
 
-      allocate( plot( -300:700 ) )
+      allocate( plot( ne, 2 ) )
       plot = 0.0_DP
     endif
 
@@ -877,18 +970,27 @@ module OCEAN_exact
 #endif
 !        weight = hpsi( ibasis ) &
 !               * CMPLX( hay_vec%r(iband, ikpt, 1 ), -hay_vec%i( iband, ikpt, 1 ), EDP )
-        energy = bse_evalues( ibasis ) * 27.2114_EDP
+        energy = bse_evalues( ibasis ) * Hartree2eV
 
         if( myid .eq. root ) then 
-        write(99,*) ibasis, energy, dble( weight * conjg(weight)), dble(weight), aimag( weight )
+          write(99,*) ibasis, energy, dble( weight * conjg(weight)), dble(weight), aimag( weight )
 
-          if( ibasis .gt. 1280 ) then
-          do iter = -300, 700
-            plot( iter ) = plot( iter ) + real( weight * conjg(weight),EDP) &
-                         * broaden * real(hay_vec%kpref * 27.2114_DP, EDP ) &
-                         / ( ( energy - real(iter,EDP)*.1_EDP )**2 + broaden**2 )
+!          if( ibasis .gt. 1280 ) then
+          do iter = 1, ne
+            e = el + ( eh - el ) * dble( iter - 1 ) / dble( ne - 1 )
+            su = real( weight * conjg(weight),EDP) &
+               * broaden * real(hay_vec%kpref * Hartree2eV, EDP ) &
+               / ( ( energy - e )**2 + broaden**2 )
+
+            if( ibasis .gt. nocc ) then
+              plot(iter,1) = plot(iter,1) + su
+            endif
+            plot(iter,2) = plot(iter,2) + su
+!            plot( iter ) = plot( iter ) + real( weight * conjg(weight),EDP) &
+!                         * broaden * real(hay_vec%kpref * Hartree2eV, EDP ) &
+!                         / ( ( energy - e )**2 + broaden**2 )
           enddo
-          endif
+!          endif
             
         endif
       enddo
@@ -899,10 +1001,13 @@ module OCEAN_exact
       close(99)
       open(unit=98,file='exact_plot',form='formatted')
       rewind(98)
-      do iter = -300, 700
-        write(98,*) dble(iter) * 0.1, plot( iter )
+      do iter = 1, ne
+        e = el + ( eh - el ) * dble( iter - 1 ) / dble( ne - 1 )
+        write(98,*) e, plot( iter,1 ), plot(iter,2)
       enddo
       close( 98 )
+    
+      deallocate( plot )
     endif
     
 
