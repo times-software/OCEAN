@@ -1352,6 +1352,11 @@ sub QEparseEnergies
     }
   }
 
+  # Store max band of occupied and min band of unoccupied
+  #  before storing brange
+  $specificHashRef->{'max_occ_band'} = $b[1];
+  $specificHashRef->{'min_unocc_band'} = $b[2];
+
   if( exists( $specificHashRef->{'con_start'} ) ) {
     $b[2] = $specificHashRef->{'con_start'} if( $specificHashRef->{'con_start'} >= 1 );
   }

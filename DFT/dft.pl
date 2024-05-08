@@ -819,6 +819,19 @@ if( $commonOceanData->{'bse'}->{'mimic_exciting_bands'} ) {
                                       + $commonOceanData->{'bse'}->{'mimic_exciting_bands'} - 1;
 }
 
+if( exists $newDftData->{'znscf'}->{$newDftData->{'bse'}->{'directories'}[-1]}->{'max_occ_band'} ) {
+  $newDftData->{'bse'}->{'max_occ_band'} = $newDftData->{'znscf'}->{$newDftData->{'bse'}->{'directories'}[-1]}->{'max_occ_band'};
+} else {
+  $newDftData->{'bse'}->{'max_occ_band'} = $newDftData->{'bse'}->{'brange'}[1];
+}
+if( exists $newDftData->{'znscf'}->{$newDftData->{'bse'}->{'directories'}[0]}->{'min_unocc_band'} ) {
+  $newDftData->{'bse'}->{'min_unocc_band'} = $newDftData->{'znscf'}->{$newDftData->{'bse'}->{'directories'}[0]}->{'min_unocc_band'};
+} else {
+  $newDftData->{'bse'}->{'min_unocc_band'} = $newDftData->{'bse'}->{'brange'}[2];
+}
+
+
+
 # Grab times and hashes
 $newDftData->{'screen'}->{'time'} = $newDftData->{'znscf'}->{ $newDftData->{'screen'}->{'directories'}[0] }->{'time'};
 $newDftData->{'screen'}->{'hash'} = $newDftData->{'znscf'}->{ $newDftData->{'screen'}->{'directories'}[0] }->{'hash'};
