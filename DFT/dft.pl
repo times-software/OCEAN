@@ -317,6 +317,8 @@ unless( $commonOceanData->{'calc'}->{'mode'} eq 'val' && ! ( $commonOceanData->{
   $newDftData->{'screen'}->{'directories'} = [ $dirname ];
   $newDftData->{'screen'}->{'enable'} = JSON::PP::true;
   $newDftData->{'screen'}->{'brange'} = [ 0, 0, 0, $commonOceanData->{'screen'}->{'nbands'} ];
+  checkSetGamma( $nscf_InitialList[$i] );
+  $newDftData->{'screen'}->{'isGamma'} = $nscf_InitialList[$i]->{'isGamma'};
 } else {
   $newDftData->{'screen'}->{'enable'} = JSON::PP::false;
 }
