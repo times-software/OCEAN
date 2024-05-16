@@ -1776,6 +1776,10 @@ module ocean_long_range
 
           do k1 = 1, sys%kmesh( 1 )
             kk1 = k1 - 1
+            ! For an odd array we want equal number negative and positive
+            !  but for an even array we want more negative because we've shifted 
+            !  the core site to be near 0 so that there is already almost a full 
+            !  cell on the positive side
             if ( kk1 .ge. ( sys%kmesh( 1 ) + 1 )/ 2 ) kk1 = kk1 - sys%kmesh( 1 )
             if ( sys%kmesh( 1 ) .eq. 1 ) kk1 = 0
             xk( 1 ) = kk1
