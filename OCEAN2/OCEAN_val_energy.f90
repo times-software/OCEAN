@@ -825,7 +825,7 @@ module OCEAN_val_energy
     overlap = sys%brange( 2 ) - sys%brange( 3 ) + 1
     if( ( metal .or. sys%valence_ham_spin .gt. 1 ) .and. overlap .gt. 0 ) then
       ii = 0
-      allocate( simple_energies( overlap * sys%nkpts * sys%nspn * sys%nbw) )
+      allocate( simple_energies( overlap * sys%nkpts * sys%valence_ham_spin * sys%nbw) )
       do ibw = 1, sys%nbw
         do i = 1, sys%valence_ham_spin
           ispn = min( i, sys%nspn )
@@ -852,7 +852,8 @@ module OCEAN_val_energy
       close(99)
 #endif
      ! heap sort
-      write(6,*) 'sorting'
+      call MPI_BARRIER( comm, ierr )
+      if( myid .eq. root ) write(6,*) 'sorting'
       top = overlap*sys%nkpts*sys%nspn*sys%nbw
       do iter = overlap*sys%nkpts*sys%nspn*sys%nbw / 2 , 1, -1
         temp = simple_energies( iter )
