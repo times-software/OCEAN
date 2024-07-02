@@ -80,8 +80,19 @@ sub QErunNSCF
   my $nbd = 1;
   my $nk = $specificHashRef->{'kmesh'}[0] * $specificHashRef->{'kmesh'}[1] * $specificHashRef->{'kmesh'}[2];
   $ncpus = $hashRef->{'computer'}->{'ncpus'};
-  $ncpus = $nk if( $nk < $ncpus );
-  $npool = $ncpus;
+  # Newer QE handles the case of more pools than k-points just fine, but older don't
+  if( $ncpus > $nk ) {  
+    for( my $i = 2; $i <= $ncpus; $i++ ) {
+      if( $ncpus % $i == 0 && ($ncpus/$i) <= $nk ) {
+        $npool = $ncpus / $i;
+        last;
+      }
+    }
+  } else {
+    $npool = $ncpus;
+  }
+#  $ncpus = $nk if( $nk < $ncpus );
+#  $npool = $ncpus;
 
   ($ncpus, $npool, $nbd) = QErunTest( $hashRef, "nscf.in", $ncpus, $npool, $nbd );
 
@@ -313,9 +324,14 @@ sub QErunTest
   if( defined $hashRef->{'computer'}->{'nnode'} ) {
     $nnode = $hashRef->{'computer'}->{'nnode'};
   }
+  else {
+    print "\$nnode defined $nnode\n";
+  }
   my $ppn = -1;
   if( defined $hashRef->{'computer'}->{'ppn'} ) {
     $ppn = $hashRef->{'computer'}->{'ppn'};
+  } else {
+    print "\$ppn defined $ppn\n";
   }
   if( open TMP, "test.out" )
   { 
@@ -347,14 +363,19 @@ sub QErunTest
       elsif( $_ =~ m/Threads\/MPI process:\s+(\d+)/ ) {
         $OMP = $1;
       }
-      elsif( $nnode == -1 && $_ =~ m/MPI processes distributed on\s+(\d+)/ ) {
-        $nnode = $1;
-        $hashRef->{'computer'}->{'nnode'} = $nnode;
-        if( $hashRef->{'computer'}->{'ncpus'} % $hashRef->{'computer'}->{'nnode'} == 0 ) {
-          $hashRef->{'computer'}->{'ppn'} = $hashRef->{'computer'}->{'ncpus'} / $hashRef->{'computer'}->{'nnode'} ;
-          $ppn = $hashRef->{'computer'}->{'ppn'};
+      elsif( $_ =~ m/MPI processes distributed on\s+(\d+)/ ) {
+        print "MPI processes distributed on $1\n";
+        if( $nnode < 0 ) {
+          $nnode = $1;
+          $hashRef->{'computer'}->{'nnode'} = $nnode;
+          if( $hashRef->{'computer'}->{'ncpus'} % $hashRef->{'computer'}->{'nnode'} == 0 ) {
+            $hashRef->{'computer'}->{'ppn'} = $hashRef->{'computer'}->{'ncpus'} / $hashRef->{'computer'}->{'nnode'} ;
+            $ppn = $hashRef->{'computer'}->{'ppn'};
+          }
+          printf "Parsed nnode %i, CPU per node %i\n", $nnode, $ppn;
+        } else {
+          print "$1 $nnode\n";
         }
-        printf "Parsed nnode %i, CPU per node %i\n", $nnode, $ppn;
       }
       last if( $actualKpts > 0 && $numKS > 0 && $mem > 0 && $FFT > 0 && $OMP > 0 );
     }
