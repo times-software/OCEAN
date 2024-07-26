@@ -9,7 +9,7 @@ FLAGS = $(OPTIONS) -I../SCREEN/src
 CNBSE = ../CNBSE/zcmsnmult/zf90
 
 
-all: ocean.x o_spect.x rixs_plane.x
+all: ocean.x o_spect.x rixs_plane.x rixsPlane.x
 
 OCEANOBJS = AI_kinds.o OCEAN_mpi.o OCEAN_system.o OCEAN_bloch.o OCEAN_obf.o OCEAN_multiplet.o  \
             long_range.o OCEAN_load_data.o OCEAN_psi.o OCEAN_energies.o OCEAN_haydock.o OCEAN.o \
@@ -46,6 +46,9 @@ o_spect.x: o_spect.f90 AI_kinds.o gamfcn.o OCEAN_constants.o
 
 rixs_plane.x: rixs_plane.f90 AI_kinds.o OCEAN_constants.o
 	$(FC) $(FLAGS) -o rixs_plane.x rixs_plane.f90 AI_kinds.o OCEAN_constants.o
+
+rixsPlane.x: rixsPlane.f90 AI_kinds.o OCEAN_constants.o
+	$(FC) $(FLAGS) -o rixsPlane.x rixsPlane.f90 AI_kinds.o OCEAN_constants.o
 
 OCEAN_mpi.o: OCEAN_mpi.f90 AI_kinds.o
 	$(MPIFORT) $(FLAGS) -c -o OCEAN_mpi.o OCEAN_mpi.f90 
