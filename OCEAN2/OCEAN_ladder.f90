@@ -101,7 +101,7 @@ module OCEAN_ladder
 subroutine OCEAN_ladder_act( sys, psi, psi_out, ierr )
   use OCEAN_psi
   use OCEAN_system
-  use OCEAN_val_states, only : use_sp
+!  use OCEAN_val_states, only : use_sp
   use OCEAN_timekeeper, only : OCEAN_tk_start, OCEAN_tk_stop, tk_lr, tk_mpi
   implicit none
   !
@@ -121,7 +121,7 @@ subroutine OCEAN_ladder_act( sys, psi, psi_out, ierr )
       cspn = min( j, sys%nspn )
       ibeta = ibeta + 1
       
-      if( use_sp ) then 
+      if( sys%use_sp ) then 
         call OCEAN_ladder_act_single_sp( sys, psi, psi_out, ibeta, cspn, vspn, ierr )
       else
         call OCEAN_ladder_act_single( sys, psi, psi_out, ibeta, cspn, vspn, ierr )
@@ -1324,7 +1324,7 @@ end subroutine OCEAN_ladder_act
 
   subroutine OCEAN_ladder_new( sys, ierr )
     use OCEAN_system
-    use OCEAN_val_states, only : max_nxpts, nxpts_pad, nxpts, startx, val_pad, use_sp
+    use OCEAN_val_states, only : max_nxpts, nxpts_pad, nxpts, startx, val_pad !, use_sp
     use OCEAN_mpi
 !    use OCEAN_hyb_louie_levine, only : OS_hyb_louie_levine
     use OCEAN_WRR, only : OCEAN_WRR_generate
@@ -1380,7 +1380,7 @@ end subroutine OCEAN_ladder_act
 
 
 ! Set up comm channels for use in ladder act
-    if( use_sp ) then
+    if( sys%use_sp ) then
       allocate( re_bstate_sp( max_nxpts, val_pad, sys%nkpts, 2 ), &
                 im_bstate_sp( max_nxpts, val_pad, sys%nkpts, 2 ), &
                 re_bstate(0,0,0,0), im_bstate(0,0,0,0), STAT=ierr )
@@ -1464,7 +1464,7 @@ end subroutine OCEAN_ladder_act
 
     
 
-    if( use_sp ) then
+    if( sys%use_sp ) then
       call MPI_SEND_INIT( re_bstate_sp(1,1,1,1), c_size, MPI_REAL, c_dest, c_send_tag(1,1), &
                           comm, c_send_request(1,1), ierr )
       call MPI_SEND_INIT( re_bstate_sp(1,1,1,2), c_size, MPI_REAL, c_dest, c_send_tag(2,1), &
@@ -1601,7 +1601,7 @@ end subroutine OCEAN_ladder_act
     use OCEAN_mpi, only : myid, nproc
 !    use iso_c_binding
     use FFT_wrapper, only : FFT_wrapper_init, FFT_wrapper_init_sp
-    use OCEAN_val_states, only : use_sp
+!    use OCEAN_val_states, only : use_sp
     implicit none
 
 !    include 'fftw3.f03'
@@ -1639,7 +1639,7 @@ end subroutine OCEAN_ladder_act
     kmesh( 2 ) = sys%kmesh( 2 )
     kmesh( 3 ) = sys%kmesh( 1 )
 
-    use_sp_fft = use_sp
+    use_sp_fft = sys%use_sp
 #ifndef __FFTW3F
     use_sp_fft = .false.
 #endif

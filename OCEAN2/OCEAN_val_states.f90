@@ -37,7 +37,7 @@ module OCEAN_val_states
   logical, private :: is_init = .false.
   logical, private :: is_loaded = .false.
 
-  logical, public, parameter :: use_sp = .false.
+!  logical, public, parameter :: use_sp = .false.
 
 
 #ifdef __INTEL
@@ -237,8 +237,8 @@ module OCEAN_val_states
     deallocate( re_phase, im_phase )
 
     !TODO make either or with dp?
-    if( use_sp ) then
-      if( nbw .ne. 0 ) then
+    if( sys%use_sp ) then
+      if( nbw .ne. 1 ) then
         write(6,*) 'SP and BWFLAG not enabled'
         ierr = 101112
         return

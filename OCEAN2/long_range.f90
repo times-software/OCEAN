@@ -995,10 +995,10 @@ module ocean_long_range
 
     allocate( scratch( fo%dims(4) ) )
 
-!$OMP PARALLEL DEFAULT( NONE ) NUM_THREADS( nthread ) &
-!$OMP& SHARED( sys, pr, pi, hpr, hpi, xwrkr, xwrki, ialpha, xiter, val_spin, scratch, my_kpts ) &
-!$OMP& SHARED( re_bloch_state_sp, im_bloch_state_sp, fo, W ) &
-!$OMP& PRIVATE( psi_temp, psi_temp_i, ikpt, i )
+! $OMP PARALLEL DEFAULT( NONE ) NUM_THREADS( nthread ) &
+! $OMP& SHARED( sys, pr, pi, hpr, hpi, xwrkr, xwrki, ialpha, xiter, val_spin, scratch, my_kpts ) &
+! $OMP& SHARED( re_bloch_state_sp, im_bloch_state_sp, fo, W ) &
+! $OMP& PRIVATE( psi_temp, psi_temp_i, ikpt, i )
 
     allocate( psi_temp( sys%num_bands ), psi_temp_i( sys%num_bands) )
 
