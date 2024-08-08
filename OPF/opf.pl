@@ -1059,6 +1059,7 @@ sub runONCV
   
   my $oncvpspInputFile = $pspFile;
   $oncvpspInputFile =~ s/.upf$//i;
+  $oncvpspInputFile =~ s/.psp8$//i;
   $oncvpspInputFile .= ".in";
   my $targ = catdir( $hashRef->{'psp'}->{'ppdir'}, "$oncvpspInputFile" );
 
@@ -1315,12 +1316,13 @@ sub inputHashHamann
 
   my $oncvpspInputFile = $pspFile;
   $oncvpspInputFile =~ s/.upf$//i;
+  $oncvpspInputFile =~ s/.psp8$//i;
   $oncvpspInputFile .= ".in";
   my $filename = catdir( $hashRef->{'psp'}->{'ppdir'}, "$oncvpspInputFile" );
 
   my $optfill = '';
   {
-     open my $fh, '<', $filename or die;
+     open my $fh, '<', $filename or die "Failed to open $filename\n$!";
      local $/ = undef;
      $optfill .= <$fh>;
      close $fh;

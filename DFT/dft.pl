@@ -777,30 +777,25 @@ if( -e "redo_energies" ) {
 }
 
 # touch up Fermi if insulator
+# only necessary if SCF doesn't have states on both sides
 if( $newDftData->{'general'}->{'occopt'} == 1 && $newDftData->{'general'}->{'program'} eq "qe" )
 {
-  my $low = $newDftData->{'scf'}->{'lowest'};
-  my $high = $newDftData->{'scf'}->{'highest'};
-  foreach (@{$newDftData->{'bse'}->{'directories'}} ) {
-    $low = $newDftData->{'znscf'}->{$_}->{'lowest'} if ( $newDftData->{'znscf'}->{$_}->{'lowest'} < $low );
-    $high = $newDftData->{'znscf'}->{$_}->{'highest'} if ( $newDftData->{'znscf'}->{$_}->{'highest'} > $high );
+  unless( defined $newDftData->{'scf'}->{'lowest'} && defined  $newDftData->{'scf'}->{'highest'} )
+  {
+    my $low = $newDftData->{'scf'}->{'lowest'};
+    my $high = $newDftData->{'scf'}->{'highest'};
+    foreach (@{$newDftData->{'bse'}->{'directories'}} ) {
+      $low = $newDftData->{'znscf'}->{$_}->{'lowest'} if ( $newDftData->{'znscf'}->{$_}->{'lowest'} < $low );
+      $high = $newDftData->{'znscf'}->{$_}->{'highest'} if ( $newDftData->{'znscf'}->{$_}->{'highest'} > $high );
+    }
+
+    $newDftData->{'scf'}->{'fermi'} = ($low + $high)/2;
+    open OUT, ">", "dft.json" or die;
+    print OUT $json->encode($newDftData);
+    close OUT;
   }
-#  $low = $newDftData->{'bse'}->{'lowest'} if ( $newDftData->{'bse'}->{'lowest'} < $low );
-
-#  $high = $newDftData->{'bse'}->{'highest'} if ( $newDftData->{'bse'}->{'highest'} > $high );
-
-#  if( $newDftData->{'screen'}->{'enable'} )
-##  {
-#    $low = $newDftData->{'screen'}->{'lowest'} if ( $newDftData->{'screen'}->{'lowest'} < $low );
-#    $high = $newDftData->{'screen'}->{'highest'} if ( $newDftData->{'screen'}->{'highest'} > $high );
-#  }
-
-  $newDftData->{'scf'}->{'fermi'} = ($low + $high)/2;
-  open OUT, ">", "dft.json" or die;
-  print OUT $json->encode($newDftData);
-  close OUT;
-  print "DFT for BSE final states complete\n";
 }
+print "DFT for BSE final states complete\n";
 
 # Fix up brange
 if( $newDftData->{'screen'}->{'enable'} ) {

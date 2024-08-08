@@ -68,9 +68,16 @@ sub ABIsetupNSCF
 {
   my $prefix = 'SCFx_';
   my @fileList = ( 'DEN' );
+  my @optfileList = ( 'KDEN' );
 
   foreach my $f (@fileList) {
     copy catfile( updir(), $prefix . $f ), $prefix . $f or die "Failed to copy ${prefix}${f}\n$!";
+  }
+
+  foreach my $f (@optfileList) {
+    if( -e catfile( updir(), $prefix . $f ) ) {
+      copy catfile( updir(), $prefix . $f ), $prefix . $f or die "Failed to copy ${prefix}${f}\n$!";
+    }
   }
 }
 
@@ -413,6 +420,12 @@ sub ABIprintInput
                                                $specificRef->{'toldfe'};
     printf $input "iscf -2\ngetden -1\nistwfk *1\nnbdbuf %i\n", $generalRef->{'general'}->{'abpad'};
     printf $input "wfoptalg 114\n";
+  }
+  if( defined $generalRef->{'general'}->{'verbatim'}->{'abinit'} ) {
+    my $s = $generalRef->{'general'}->{'verbatim'}->{'abinit'};
+    $s =~ s/;/\n/g;
+#    print $input $generalRef->{'general'}->{'verbatim'}->{'abinit'} . "\n";
+    print $input $s . "\n";
   }
 
   print $input $kptString;
