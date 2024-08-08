@@ -453,8 +453,14 @@ module OCEAN_val_energy
           do iter = sys%brange(1), min( sys%brange(2), nbands )
             val_energies( iter, ikpt, ispn, ibw ) = val_energies( iter, ikpt, ispn, ibw ) + re_se( iter )
           enddo
+          do iter = nbands+1, sys%brange(2)
+            val_energies( iter, ikpt, ispn, ibw ) = val_energies( iter, ikpt, ispn, ibw ) + re_se( nbands )
+          enddo
           do iter = sys%brange(3), min( sys%brange(4), nbands )
             con_energies( iter, ikpt, ispn, ibw ) = con_energies( iter, ikpt, ispn, ibw ) + re_se( iter )
+          enddo
+          do iter = nbands+1, sys%brange(4)
+            con_energies( iter, ikpt, ispn, ibw ) = con_energies( iter, ikpt, ispn, ibw ) + re_se( nbands )
           enddo
         enddo
       enddo
@@ -469,6 +475,9 @@ module OCEAN_val_energy
               do iter = sys%brange(1), min( nbands, sys%brange(2) )
                 im_val_energies ( iter, ikpt, ispn, ibw ) = im_se( iter )
               enddo   
+              do iter = nbands+1, sys%brange(2)
+                im_val_energies ( iter, ikpt, ispn, ibw ) = im_se( nbands )
+              enddo
             enddo
           enddo
         enddo
@@ -480,6 +489,9 @@ module OCEAN_val_energy
             do ikpt = 1, sys%nkpts
               do iter = sys%brange(3), min( sys%brange(4), nbands )
                 im_con_energies( iter, ikpt, ispn, ibw ) = im_se( iter )
+              enddo
+              do iter = nbands + 1, sys%brange(4)
+                im_con_energies( iter, ikpt, ispn, ibw ) = im_se( nbands )
               enddo
             enddo
           enddo

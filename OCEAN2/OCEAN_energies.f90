@@ -1009,21 +1009,29 @@ module OCEAN_energies
       write( 6, * ) 'GW corrections requested (band style). File GW_band.in not found.'
       write( 6, * ) 'No corrections will be done'
       return
+    else
+      write( 6, * ) 'GW corrections requested (band style).'
     endif
 
     allocate( re_se( sys%num_bands ), im_se( sys%num_bands ) )
     open(unit=99,file='GW_band.in',form='formatted',status='old')
     rewind(99)
 
+    im_se( : ) = 0.0_DP
     if( keep_imag ) then
       do iter = 1, sys%num_bands
-        read(99,*) re_se( iter ), im_se( iter )
+        read(99,*,END=113) re_se( iter ), im_se( iter )
       enddo
     else
       do iter = 1, sys%num_bands
-        read(99,*) re_se( iter )
+        read(99,*,END=113) re_se( iter )
       enddo
-      im_se( : ) = 0.0_DP
+    endif
+113 continue
+    if( iter .le. sys%num_bands) then
+      re_se(iter:sys%num_bands) = re_se(iter-1)
+      im_se(iter:sys%num_bands) = im_se(iter-1)
+      write(6,*) iter, re_se(iter-1), im_se(iter-1)
     endif
     close( 99 )
     re_se( : ) = re_se( : ) * eV2Hartree !/ 27.21138506_DP
@@ -1061,6 +1069,7 @@ module OCEAN_energies
     real(DP), allocatable :: re_se(:), im_se(:)
     real(DP) :: re_min, im_min, re_max, im_max, kpt( 3 ), e0
     logical :: have_kpt_map, have_gw
+    integer :: ios
 
     if( myid .ne. root ) return
 
@@ -1090,8 +1099,20 @@ module OCEAN_energies
     im_max = 0.0_DP
     allocate( start_b( sys%nkpts ), stop_b(sys%nkpts ) )
 
-    open(unit=99,file='GWx_GW',form='formatted',status='old')
-    read(99,*) gw_nkpt, gw_nspn
+    open(unit=99,file='GWx_GW',form='formatted',status='old',iostat=ios)
+    read(99,*,iostat=ios) gw_nkpt, gw_nspn
+    if( ios .ne. 0 ) then
+      read(99,*)
+      read(99,*)
+      read(99,*)
+      read(99,*)
+      read(99,*)
+      read(99,*) gw_nkpt, gw_nspn
+    endif
+!    if( ios .ne. 0 ) then
+!      ierr = -10
+!      return
+!    endif
 
 !JTV Part of this is dumb because ABINIT won't warn us in the GW file if there is an extra element 
 !    at some of the k-points
