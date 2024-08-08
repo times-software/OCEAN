@@ -1,3 +1,23 @@
+
+## v. 3.1.3
+
+#### Bug fixes
+ 1. Crashing bug in RIXS of 2p when the underlying DFT calc had spin=1
+ 2. Fixed for ABINIT compatibility
+ 3. Small fixes for GW corrections
+
+## v. 3.1.2
+
+#### Minor features
+ 1. Reduction in the memory required for screening calculations. Could be a 
+    substantial improvement for large systems.
+
+#### Bug fixes
+ 1. Small, odd number k-point grids might have had slightly incorrect x-ray 
+    spectra due to an error in how the k-point sampling was unfolded into a 
+    supercell.
+ 2. Gamma-point selection for screening calculations was not being triggered.
+
 ## v. 3.1.0
 
 #### Bug fixes

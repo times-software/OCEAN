@@ -995,15 +995,15 @@ module ocean_long_range
 
     allocate( scratch( fo%dims(4) ) )
 
-!$OMP PARALLEL DEFAULT( NONE ) NUM_THREADS( nthread ) &
-!$OMP& SHARED( sys, pr, pi, hpr, hpi, xwrkr, xwrki, ialpha, xiter, val_spin, scratch, my_kpts ) &
-!$OMP& SHARED( re_bloch_state_sp, im_bloch_state_sp, fo, W ) &
-!$OMP& PRIVATE( psi_temp, psi_temp_i, ikpt, i )
+! $OMP PARALLEL DEFAULT( NONE ) NUM_THREADS( nthread ) &
+! $OMP& SHARED( sys, pr, pi, hpr, hpi, xwrkr, xwrki, ialpha, xiter, val_spin, scratch, my_kpts ) &
+! $OMP& SHARED( re_bloch_state_sp, im_bloch_state_sp, fo, W ) &
+! $OMP& PRIVATE( psi_temp, psi_temp_i, ikpt, i )
 
     allocate( psi_temp( sys%num_bands ), psi_temp_i( sys%num_bands) )
 
 
-!$OMP DO
+! $OMP DO
     do ikpt = 1, my_kpts
 #ifdef BLAS
 #if 1
@@ -1040,12 +1040,12 @@ module ocean_long_range
                     + dot_product(psi_temp(:), re_bloch_state_sp(:,ikpt,xiter,val_spin))
 #endif
     enddo
-!$OMP END DO
+! $OMP END DO
 
 #ifndef __FFTW3
-!$OMP CRITICAL
+! $OMP CRITICAL
 #endif 
-!$OMP SINGLE
+! $OMP SINGLE
 
     scratch( : ) = cmplx( xwrkr( : ), xwrki( : ), DP )
 
@@ -1056,12 +1056,12 @@ module ocean_long_range
     xwrkr(:) = real(scratch(:) * fo%norm,SP)
     xwrki(:) = real(aimag(scratch(:))  * fo%norm,SP)
 
-!$OMP END SINGLE
+! $OMP END SINGLE
 #ifndef __FFTW3
-!$OMP END CRITICAL
+! $OMP END CRITICAL
 #endif
 
-!$OMP DO
+! $OMP DO
     do ikpt = 1, my_kpts
 #ifdef BLAS
       call SAXPY( sys%num_bands, -xwrkr(ikpt), re_bloch_state_sp(1,ikpt,xiter,val_spin), 1, &
@@ -1092,10 +1092,10 @@ module ocean_long_range
 #endif
 #endif
     enddo
-!$OMP END DO NOWAIT
+! $OMP END DO NOWAIT
 
     deallocate( psi_temp, psi_temp_i )
-!$OMP END PARALLEL
+! $OMP END PARALLEL
     deallocate( scratch )
 
   end subroutine lr_kernel_sp
@@ -1776,7 +1776,11 @@ module ocean_long_range
 
           do k1 = 1, sys%kmesh( 1 )
             kk1 = k1 - 1
-            if ( kk1 .ge. sys%kmesh( 1 ) / 2 ) kk1 = kk1 - sys%kmesh( 1 )
+            ! For an odd array we want equal number negative and positive
+            !  but for an even array we want more negative because we've shifted 
+            !  the core site to be near 0 so that there is already almost a full 
+            !  cell on the positive side
+            if ( kk1 .ge. ( sys%kmesh( 1 ) + 1 )/ 2 ) kk1 = kk1 - sys%kmesh( 1 )
             if ( sys%kmesh( 1 ) .eq. 1 ) kk1 = 0
             xk( 1 ) = kk1
             if( kk1 .gt. pbc( 1 ) ) then 
@@ -1788,7 +1792,7 @@ module ocean_long_range
 
             do k2 = 1, sys%kmesh( 2 )
               kk2 = k2 - 1
-              if ( kk2 .ge. sys%kmesh( 2 ) / 2 ) kk2 = kk2 - sys%kmesh( 2 )
+              if ( kk2 .ge. ( sys%kmesh( 2 ) + 1 ) / 2 ) kk2 = kk2 - sys%kmesh( 2 )
               if( sys%kmesh( 2 ) .eq. 1 ) kk2 = 0
               xk( 2 ) = kk2
               if( kk2 .gt. pbc( 2 ) ) then
@@ -1799,7 +1803,7 @@ module ocean_long_range
 
               do k3 = 1, sys%kmesh( 3 )
                 kk3 = k3 - 1
-                if ( kk3 .ge. sys%kmesh( 3 ) / 2 ) kk3 = kk3 - sys%kmesh( 3 )
+                if ( kk3 .ge. ( sys%kmesh( 3 ) + 1 ) / 2 ) kk3 = kk3 - sys%kmesh( 3 )
                 if( sys%kmesh( 3 ) .eq. 1 ) kk3 = 0
                 xk( 3 ) = kk3
                 if( kk3 .gt. pbc( 3 ) ) then

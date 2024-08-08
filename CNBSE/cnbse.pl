@@ -130,7 +130,7 @@ $newBSEdata->{'bse'}->{'complete'} = JSON::PP::false
 #                $newBSEdata->{'bse'}, ["structure"] );
 
 my @list = ( "kmesh", "kshift", "xmesh", "nspin", "photon_q", "brange", "xred", "typat", 
-             "znucl", "elname", "nelec", "avecs", "bvecs", "fermi", "epsilon", "cbm" );
+             "znucl", "elname", "nelec", "avecs", "bvecs", "fermi", "epsilon", "cbm", "max_occ_band", "min_unocc_band" );
 copyAndCompare( $newBSEdata->{'bse'}, $prepData->{'bse'}, $bseData->{'bse'},
                 $newBSEdata->{'bse'}, \@list );
 
@@ -1066,6 +1066,8 @@ sub writeAuxFiles {
   if( exists $hashRef->{'bse'}->{'occupation'} ) {
     printf OUT "%s  %.10g\n", $hashRef->{'bse'}->{'occupation'}->{'type'}, $hashRef->{'bse'}->{'occupation'}->{'value'};
   } else {
+    $hashRef->{'bse'}->{'occupation'}->{'type'} = 'none';
+    $hashRef->{'bse'}->{'occupation'}->{'value'} = 0.0;
     print OUT "none 0.0\n";
   }
   close OUT;
@@ -1117,6 +1119,22 @@ sub writeValAuxFiles {
     } else {
       print OUT "0\n";
     }
+  }
+
+  if( $hashRef->{'bse'}->{'occupation'}->{'type'} eq 'none' ) {
+    move "brange.ipt", "file_brange.ipt";
+    open OUT, ">", "brange.ipt" or die;
+    my $b2 = $hashRef->{'bse'}->{'brange'}[2];
+    if ( exists $hashRef->{'bse'}->{'min_unocc_band'} ) {
+      $b2 = $hashRef->{'bse'}->{'min_unocc_band'};
+    }
+    my $b1 = $hashRef->{'bse'}->{'brange'}[1];
+    if ( exists $hashRef->{'bse'}->{'max_occ_band'} ) {
+      $b1 = $hashRef->{'bse'}->{'max_occ_band'};
+    }
+    printf OUT "%i %i\n%i %i\n", $hashRef->{'bse'}->{'brange'}[0], $b1,
+                                $b2, $hashRef->{'bse'}->{'brange'}[3];
+    close OUT;
   }
 
   if( exists $hashRef->{'bse'}->{'val'}->{'epsilon_threshold'} ) {

@@ -144,7 +144,7 @@ module OCEAN_hyb_louie_levine
 
     ! convert avecs to angstroms
     call AI_ladder_formx( sys%xmesh(1), sys%xmesh(2), sys%xmesh(3), x_array )
-    call AI_ladder_formr( sys%kmesh(1), sys%kmesh(2), sys%kmesh(3), r_array, ladcap )
+    call AI_ladder_formr( sys%kmesh(1), sys%kmesh(2), sys%kmesh(3), r_array, ladcap, myid .eq. root )
     call AI_kmapr( sys%kmesh, xk, kk, ladcap )
    !
     avec( :, : ) = sys%avec( :, : ) * 0.529177d0
@@ -169,10 +169,10 @@ module OCEAN_hyb_louie_levine
         kret( nkret ) = iter1
         mds = max( mds, rmag + maxxy )
       end if
-      if( myid .eq. 0 ) write ( 73, '(2i8,1f20.10)' ) iter1, nkret, rmag
+      if( myid .eq. root ) write ( 73, '(2i8,1f20.10)' ) iter1, nkret, rmag
 
     enddo
-    if( myid .eq. 0 ) then
+    if( myid .eq. root ) then
       write ( 6, '(1a21,4f20.10)' ) 'maxxy decut rmag mds ', maxxy, decut, rmag, mds
       write ( 6, '(1a9,2i8)' ) 'nk nkret ', sys%nkpts, nkret
     endif
@@ -247,7 +247,7 @@ module OCEAN_hyb_louie_levine
       ftab( iter1 ) = ( rsx - rs_array( rs_cur ) ) / ( rs_array( rs_cur + 1 ) - rs_array( rs_cur ) )
     enddo
     !
-    if( myid .eq. 0 ) write(6,*)  'Done with loop'
+    if( myid .eq. root ) write(6,*)  'Done with loop'
     dspc = d_array(2) - d_array(1)
     !
     !
@@ -286,11 +286,18 @@ module OCEAN_hyb_louie_levine
 
 
 !    if( .not. override_ladder ) then
+!$OMP PARALLEL DO COLLAPSE( 2 ) DEFAULT( NONE ) SCHEDULE( STATIC ) &
+#ifdef DEBUG
+!$OMP SHARED( ladder2 )
+#endif
+!$OMP PRIVATE( ix, ixr, fx, gx, iy, iyr, fy, gy, iter1, de, fff, jd, ww, wx, wy, qde, fcn ) &
+!$OMP SHARED( nkret, x_array, r_array, kret, sys, clip, avec, decut, d_array, irad0, dspc ) & 
+!$OMP SHARED( rad_array, whomdat, smear_vol, ladder, nx_start, nx, irtab, ftab, w0dat, rad0 )
     do ix = nx_start, nx_start+nx-1
-      ixr = irtab( ix )
-      fx = ftab( ix )
-      gx = 1.0d0 - fx
       do iy = 1, sys%nxpts
+        ixr = irtab( ix )
+        fx = ftab( ix )
+        gx = 1.0d0 - fx
         iyr = irtab( iy )
         fy = ftab( iy )
         gy = 1.0d0 - fy
@@ -329,6 +336,7 @@ module OCEAN_hyb_louie_levine
             end if
             ladder( iter1, ix - nx_start + 1, iy ) = 14.400d0 * ww * fcn ** 2 * eV2Hartree ! e^2/Angstrom = 14.4 eV
           endif
+#if 0
           if( ieee_is_nan( ladder( iter1, ix - nx_start + 1, iy ) ) ) then
             ierr = 1001
             write(6,*) iter1, ix, iy, ladder( iter1, ix - nx_start + 1, iy )
@@ -340,6 +348,7 @@ module OCEAN_hyb_louie_levine
             write(6,*) jd, fff, fcn      
             return
           endif
+#endif
 #ifdef DEBUG
           if( override_ladder ) then
             if( de .le. decut) then
@@ -363,6 +372,7 @@ module OCEAN_hyb_louie_levine
         enddo ! iter1 = 1, nkret
       enddo ! iy = 1, num_xpoints
     enddo ! ix = 1, num_xpoints
+!$OMP END PARALLEL DO
 !  endif
 
 #ifdef DEBUG
@@ -670,12 +680,13 @@ module OCEAN_hyb_louie_levine
     return
   end subroutine AI_ladder_formx
   !
-  subroutine AI_ladder_formr( ngx, ngy, ngz, x, ladcap )
+  subroutine AI_ladder_formr( ngx, ngy, ngz, x, ladcap, loud )
     implicit none
     !
     integer, intent(in) :: ngx, ngy, ngz
     integer, intent( out ) :: ladcap(2,3)
     real(dp), intent(out) :: x( 3, ngx * ngy * ngz )
+    logical, intent(in) :: loud
     !
     integer :: i, ix, iy, iz, xmesh(3)
     !
@@ -686,11 +697,11 @@ module OCEAN_hyb_louie_levine
     xmesh( 1 ) = ngx
     xmesh(2) = ngy
     xmesh(3) = ngz
-    write(6,*) 'ladcap'
+    if( loud ) write(6,*) 'ladcap'
     do i = 1, 3
       ladcap( 2, i ) = xmesh( i ) / 2
       ladcap( 1, i ) = 1 + ladcap( 2, i ) - xmesh( i )
-      write(6,*) ladcap(:,i)
+      if( loud ) write(6,*) ladcap(:,i)
     enddo
     !
     i = 0

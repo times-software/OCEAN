@@ -70,6 +70,8 @@ module OCEAN_system
     logical          :: earlyExit = .false.
     logical          :: have3dEpsilon
     logical          :: bwflg
+    logical          :: disable_intraband
+    logical          :: use_sp = .false.
 
     character(len=5) :: occupationType
 
@@ -264,6 +266,25 @@ module OCEAN_system
         sys%nbw = 1
       endif
 
+      inquire(file='disable_intraband', exist=exst )
+      if( exst ) then
+        open(unit=98,file="disable_intraband",form='formatted',status='old')
+        rewind(98)
+        read(98,*) sys%disable_intraband
+        close(98)
+      else
+        sys%disable_intraband = .false.
+      endif
+
+      inquire(file='use_sp', exist=exst )
+      if( exst ) then
+        open(unit=98,file='use_sp',form='formatted',status='old')
+        rewind(98)
+        read(98,*) sys%use_sp
+        close(98)
+      else
+        sys%use_sp = .false.
+      endif
 
       sys%mult = .true.
       inquire(file="mult.ipt",exist=file_exist)
@@ -544,6 +565,10 @@ module OCEAN_system
     call MPI_BCAST( sys%have3dEpsilon, 1, MPI_LOGICAL, root, comm, ierr )
     if( ierr .ne. MPI_SUCCESS ) goto 111
     call MPI_BCAST( sys%bwflg, 1, MPI_LOGICAL, root, comm, ierr )
+    if( ierr .ne. MPI_SUCCESS ) goto 111
+    call MPI_BCAST( sys%disable_intraband, 1, MPI_LOGICAL, root, comm, ierr )
+    if( ierr .ne. MPI_SUCCESS ) goto 111
+    call MPI_BCAST( sys%use_sp, 1, MPI_LOGICAL, root, comm, ierr )
     if( ierr .ne. MPI_SUCCESS ) goto 111
 
     call MPI_BCAST( sys%occupationType, 5, MPI_CHARACTER, root, comm, ierr )

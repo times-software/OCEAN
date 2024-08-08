@@ -453,8 +453,14 @@ module OCEAN_val_energy
           do iter = sys%brange(1), min( sys%brange(2), nbands )
             val_energies( iter, ikpt, ispn, ibw ) = val_energies( iter, ikpt, ispn, ibw ) + re_se( iter )
           enddo
+          do iter = nbands+1, sys%brange(2)
+            val_energies( iter, ikpt, ispn, ibw ) = val_energies( iter, ikpt, ispn, ibw ) + re_se( nbands )
+          enddo
           do iter = sys%brange(3), min( sys%brange(4), nbands )
             con_energies( iter, ikpt, ispn, ibw ) = con_energies( iter, ikpt, ispn, ibw ) + re_se( iter )
+          enddo
+          do iter = nbands+1, sys%brange(4)
+            con_energies( iter, ikpt, ispn, ibw ) = con_energies( iter, ikpt, ispn, ibw ) + re_se( nbands )
           enddo
         enddo
       enddo
@@ -469,6 +475,9 @@ module OCEAN_val_energy
               do iter = sys%brange(1), min( nbands, sys%brange(2) )
                 im_val_energies ( iter, ikpt, ispn, ibw ) = im_se( iter )
               enddo   
+              do iter = nbands+1, sys%brange(2)
+                im_val_energies ( iter, ikpt, ispn, ibw ) = im_se( nbands )
+              enddo
             enddo
           enddo
         enddo
@@ -480,6 +489,9 @@ module OCEAN_val_energy
             do ikpt = 1, sys%nkpts
               do iter = sys%brange(3), min( sys%brange(4), nbands )
                 im_con_energies( iter, ikpt, ispn, ibw ) = im_se( iter )
+              enddo
+              do iter = nbands + 1, sys%brange(4)
+                im_con_energies( iter, ikpt, ispn, ibw ) = im_se( nbands )
               enddo
             enddo
           enddo
@@ -610,8 +622,8 @@ module OCEAN_val_energy
     type( O_system ), intent( in ) :: sys
     type( OCEAN_vector ), intent( inout ) :: allow
     integer, intent( in ) :: nelectron
-    real( DP ), intent( in ) :: con_energies( sys%cur_run%num_bands, sys%nkpts, sys%nspn, sys%nbw ), &
-                                val_energies( sys%cur_run%val_bands, sys%nkpts, sys%nspn, sys%nbw ),  &
+    real( DP ), intent( in ) :: con_energies( 1:sys%cur_run%num_bands, sys%nkpts, sys%nspn, sys%nbw ), &
+                                val_energies( 1:sys%cur_run%val_bands, sys%nkpts, sys%nspn, sys%nbw ),  &
                                 efermi, cliph_
     logical, intent( in ) :: metal
     integer, intent( inout ) :: ierr
@@ -653,7 +665,8 @@ module OCEAN_val_energy
 
 
     if( myid .eq. root ) write(6,*) 'clipl: ', clipl, val_energies( 1, 1, 1,1 )
-    if( myid .eq. root ) write(6,* ) '  BWFLG', sys%cur_run%bwflg, sys%cur_run%val_bands, sys%cur_run%num_bands
+    if( myid .eq. root ) write(6,*) '  BWFLG', sys%cur_run%bwflg, sys%cur_run%val_bands, sys%cur_run%num_bands
+    if( myid .eq. root .and. sys%disable_intraband ) write(6,*) '  NO INTRABAND'
 
 
     !
@@ -672,18 +685,25 @@ module OCEAN_val_energy
           ibeta = ibeta + 1
           do kiter = 1, sys%nkpts
             do biter2 = 1, sys%cur_run%val_bands
-              if( kiter .eq. 1 .and. myid .eq. 0 ) write(6,*) 'clipl: ', clipl, val_energies( biter2, kiter, ispn, ibw )
+!              if( kiter .eq. 1 .and. myid .eq. 0 ) write(6,*) 'clipl: ', clipl, val_energies( biter2, kiter, ispn, ibw )
               if ( val_energies( biter2, kiter, ispn, ibw ) .lt. efermi  .and. &
                     ( val_energies( biter2, kiter, ispn, ibw ) .ge. clipl )) then
 
                 do biter1 = 1, sys%cur_run%num_bands
                   if ( ( con_energies( biter1, kiter, jspn, ibw ) .gt. efermi ) .and. &
                        ( con_energies( biter1, kiter, jspn, ibw ) .le. cliph ) ) then
-                    allow%valr( biter1, biter2, kiter, ibeta, ibw ) = 1.0_dp
-                    if( ibw .eq. 1 ) then
-                      allow%vali( biter1, biter2, kiter, ibeta, ibw ) = 1.0_dp
+                    if( sys%disable_intraband .and. &
+                       ( biter2+sys%brange(1) .eq. biter1+sys%brange(3) ) ) then    
+                      ! above: if we are disabling intraband AND the bands are equal
+                      !  then we skip this section setting allow
+                      if( myid .eq. root ) write(6,*) 'SKIP', kiter, biter2, biter1
                     else
-                      allow%vali( biter1, biter2, kiter, ibeta, ibw ) = -1.0_dp
+                      allow%valr( biter1, biter2, kiter, ibeta, ibw ) = 1.0_dp
+                      if( ibw .eq. 1 ) then
+                        allow%vali( biter1, biter2, kiter, ibeta, ibw ) = 1.0_dp
+                      else
+                        allow%vali( biter1, biter2, kiter, ibeta, ibw ) = -1.0_dp
+                      endif
                     endif
                   endif
                 enddo 
@@ -817,7 +837,7 @@ module OCEAN_val_energy
     overlap = sys%brange( 2 ) - sys%brange( 3 ) + 1
     if( ( metal .or. sys%valence_ham_spin .gt. 1 ) .and. overlap .gt. 0 ) then
       ii = 0
-      allocate( simple_energies( overlap * sys%nkpts * sys%nspn * sys%nbw) )
+      allocate( simple_energies( overlap * sys%nkpts * sys%valence_ham_spin * sys%nbw) )
       do ibw = 1, sys%nbw
         do i = 1, sys%valence_ham_spin
           ispn = min( i, sys%nspn )
@@ -844,7 +864,8 @@ module OCEAN_val_energy
       close(99)
 #endif
      ! heap sort
-      write(6,*) 'sorting'
+      call MPI_BARRIER( comm, ierr )
+      if( myid .eq. root ) write(6,*) 'sorting'
       top = overlap*sys%nkpts*sys%nspn*sys%nbw
       do iter = overlap*sys%nkpts*sys%nspn*sys%nbw / 2 , 1, -1
         temp = simple_energies( iter )

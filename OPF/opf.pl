@@ -757,25 +757,36 @@ else  # oncvpsp method
 
     print OUT "$spdf[0]   $spdf[1]   $spdf[2]   $spdf[3]\n";
     print OUT "$spdf[0]   $spdf[1]   $spdf[2]   $spdf[3]\n";
+    close OUT;
 
 
     my $log = $psplist{"$znucl"} . ".log";
-    system("$ENV{'OCEAN_BIN'}/oncvpsp.x < $oncvpspInputFile > $log") == 0 or die;
-    move( "ocean.mod", "ppot" ) or die;
+    system("$ENV{'OCEAN_BIN'}/oncvpsp.x < $oncvpspInputFile > $log") == 0 
+        or die "Failed to run oncvpsp.x. Check logfile OPF/$log\n\$!";
+    unless( move( "ocean.mod", "ppot" ) ) 
+    {
+      open IN, "<", $log or die "It appears oncvpsp.x has not run correctly\n";
+      my $correctONCVPSP = 0;
+      while( my $line = <IN> ) 
+      {
+        if( $line =~ m/OCEAN/ ) 
+        {
+          $correctONCVPSP = 1;
+          last;
+        }
+      }
+      close IN;
+      die "oncvpsp.x did not finish correctly. Check the logfile OPF/$log\n" if( $correctONCVPSP );
+      die "Incorrect version of oncvpsp.x installed. Make sure you have the OCEAN-modified version\n";
+    }
+#    move( "ocean.mod", "ppot" ) or die;
 
     open HFIN, ">hfin1" or die;
     print HFIN "initgrid\n";
     print HFIN "$znucl $grid\n";
-#    print HFIN "fakel\n0 $lmax\n";
     print HFIN "ppload\n";
     print HFIN "mkcorcon\nscreencore\nmkcorcon\ncalcso\nquit\n";
     close HFIN;
-
-#    open HFIN, ">hfin2" or die;
-#    print HFIN "initgrid\n";
-#    print HFIN "$znucl $grid\n";
-#    print HFIN "ppload\nmkcorcon\ncalcso\nquit\n";
-#    close HFIN;
 
     print "Running hfk.x\n";
 
@@ -1048,6 +1059,7 @@ sub runONCV
   
   my $oncvpspInputFile = $pspFile;
   $oncvpspInputFile =~ s/.upf$//i;
+  $oncvpspInputFile =~ s/.psp8$//i;
   $oncvpspInputFile .= ".in";
   my $targ = catdir( $hashRef->{'psp'}->{'ppdir'}, "$oncvpspInputFile" );
 
@@ -1140,11 +1152,27 @@ sub runONCV
 
   print OUT "$spdf[0]   $spdf[1]   $spdf[2]   $spdf[3]\n";
   print OUT "$spdf[0]   $spdf[1]   $spdf[2]   $spdf[3]\n";
-
+  close OUT;
 
   my $log = $pspFile . ".log";
   system("$ENV{'OCEAN_BIN'}/oncvpsp.x < $oncvpspInputFile > $log") == 0 or die;
-  move( "ocean.mod", "ppot" ) or die;
+  unless( move( "ocean.mod", "ppot" ) )
+  {
+    open IN, "<", $log or die "It appears oncvpsp.x has not run correctly\n";
+    my $correctONCVPSP = 0;
+    while( my $line = <IN> )
+    {
+      if( $line =~ m/OCEAN/ )
+      {
+        $correctONCVPSP = 1;
+        last;
+      }
+    }
+    close IN;
+    die "oncvpsp.x did not finish correctly. Check the logfile OPF/$log\n" if( $correctONCVPSP );
+    die "Incorrect version of oncvpsp.x installed. Make sure you have the OCEAN-modified version\n";
+  }
+#  move( "ocean.mod", "ppot" ) or die;
 
   open HFIN, ">hfin1" or die;
   print HFIN "initgrid\n";
@@ -1288,12 +1316,13 @@ sub inputHashHamann
 
   my $oncvpspInputFile = $pspFile;
   $oncvpspInputFile =~ s/.upf$//i;
+  $oncvpspInputFile =~ s/.psp8$//i;
   $oncvpspInputFile .= ".in";
   my $filename = catdir( $hashRef->{'psp'}->{'ppdir'}, "$oncvpspInputFile" );
 
   my $optfill = '';
   {
-     open my $fh, '<', $filename or die;
+     open my $fh, '<', $filename or die "Failed to open $filename\n$!";
      local $/ = undef;
      $optfill .= <$fh>;
      close $fh;
