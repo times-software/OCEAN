@@ -1,7 +1,10 @@
-## v. 3.1.1
+
+## v. 3.1.3
 
 #### Bug fixes
  1. Crashing bug in RIXS of 2p when the underlying DFT calc had spin=1
+ 2. Fixed for ABINIT compatibility
+ 3. Small fixes for GW corrections
 
 ## v. 3.1.2
 
