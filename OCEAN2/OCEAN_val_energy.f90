@@ -76,10 +76,12 @@ module OCEAN_val_energy
             enddo  !ispn
           endif
 #ifdef MPI
-          call MPI_BCAST( val_energies, (sys%brange(2)-sys%brange(1)+1)*sys%nkpts*sys%nspn*nbw, MPI_DOUBLE_PRECISION, root, comm, ierr )
+          call MPI_BCAST( val_energies, (sys%brange(2)-sys%brange(1)+1)*sys%nkpts*sys%nspn*nbw, &
+                          MPI_DOUBLE_PRECISION, root, comm, ierr )
 !          call MPI_BCAST( val_energies, sys%cur_run%val_bands*sys%nkpts*sys%nspn, MPI_DOUBLE_PRECISION, root, comm, ierr )
           if( ierr .ne. MPI_SUCCESS ) return
-          call MPI_BCAST( con_energies, (sys%brange(4)-sys%brange(3)+1)*sys%nkpts*sys%nspn*nbw, MPI_DOUBLE_PRECISION, root, comm, ierr )
+          call MPI_BCAST( con_energies, (sys%brange(4)-sys%brange(3)+1)*sys%nkpts*sys%nspn*nbw, &
+                          MPI_DOUBLE_PRECISION, root, comm, ierr )
           if( ierr .ne. MPI_SUCCESS ) return
 #endif
           
@@ -275,9 +277,13 @@ module OCEAN_val_energy
             do ibv = 1, sys%cur_run%val_bands
               do ibc = 1, sys%cur_run%num_bands
                 if( ibw .eq. 1 ) then
-                p_energy%valr( ibc, ibv, ik, ibeta, ibw ) = con_energies( ibc+sys%brange(3)-1, ik, jspn, ibw ) - val_energies( ibv+sys%brange(1)-1, ik, ispn, ibw )
+                  p_energy%valr( ibc, ibv, ik, ibeta, ibw ) = &
+                        con_energies( ibc+sys%brange(3)-1, ik, jspn, ibw ) &
+                      - val_energies( ibv+sys%brange(1)-1, ik, ispn, ibw )
                 else
-                p_energy%valr( ibc, ibv, ik, ibeta, ibw ) = -con_energies( ibc+sys%brange(3)-1, ik, jspn, ibw ) + val_energies( ibv+sys%brange(1)-1, ik, ispn, ibw )
+                  p_energy%valr( ibc, ibv, ik, ibeta, ibw ) = &
+                       -con_energies( ibc+sys%brange(3)-1, ik, jspn, ibw ) &
+                      + val_energies( ibv+sys%brange(1)-1, ik, ispn, ibw )
                 endif
               enddo
             enddo
@@ -297,11 +303,15 @@ module OCEAN_val_energy
             do ik = 1, sys%nkpts
               do ibv = 1, sys%cur_run%val_bands
                 do ibc = 1, sys%cur_run%num_bands
-                  p_energy%vali( ibc, ibv, ik, ibeta, ibw ) = -(im_con_energies( ibc, ik, jspn, ibw ) - im_val_energies( ibv, ik, ispn, ibw ) )
+                  p_energy%vali( ibc, ibv, ik, ibeta, ibw ) = &
+                      -(im_con_energies( ibc, ik, jspn, ibw ) &
+                      - im_val_energies( ibv, ik, ispn, ibw ) )
 !                      if( p_energy%vali( ibc, ibv, ik, ibeta ) .gt. -0.0001_dp ) then
                   if( myid .eq. 0 .and. ik .eq. 1 ) then
-                    write(80,'(3(I8,X),3(F24.6))') ik, ibv, ibc, Hartree2eV*p_energy%vali( ibc, ibv, ik, ibeta, ibw ), &
-                         Hartree2eV*im_val_energies( ibv, ik, ispn, ibw ), HArtree2eV*im_con_energies( ibc, ik, jspn, ibw)
+                    write(80,'(3(I8,X),3(F24.6))') ik, ibv, ibc, &
+                         Hartree2eV*p_energy%vali( ibc, ibv, ik, ibeta, ibw ), &
+                         Hartree2eV*im_val_energies( ibv, ik, ispn, ibw ), &
+                         Hartree2eV*im_con_energies( ibc, ik, jspn, ibw)
                   endif
                 enddo
               enddo
@@ -406,15 +416,16 @@ module OCEAN_val_energy
     implicit none
     !
     type( O_system ), intent( in ) :: sys
-!    real( DP ), intent( inout ), dimension( sys%cur_run%val_bands, sys%nkpts, sys%nspn ) :: val_energies
-!    real( DP ), intent( inout ), dimension( sys%cur_run%num_bands, sys%nkpts, sys%nspn ) :: con_energies
-!    real( DP ), intent( inout ), dimension( :, :, : ) :: val_energies, con_energies
-    real( DP ), intent( inout ), optional, dimension( sys%brange(1) : sys%brange(2), sys%nkpts, sys%nspn, sys%nbw ) :: val_energies
-    real( DP ), intent( inout ), optional, dimension( sys%brange(3) : sys%brange(4), sys%nkpts, sys%nspn, sys%nbw ) :: con_energies
+    real( DP ), intent( inout ), &
+      dimension( sys%brange(1) : sys%brange(2), sys%nkpts, sys%nspn, sys%nbw ) :: val_energies
+    real( DP ), intent( inout ), &
+      dimension( sys%brange(3) : sys%brange(4), sys%nkpts, sys%nspn, sys%nbw ) :: con_energies
     integer, intent( inout ) :: ierr
     logical, intent( in ) :: keep_imag
-    real( DP ), intent( inout ), optional, dimension( sys%brange(1) : sys%brange(2), sys%nkpts, sys%nspn, sys%nbw ) :: im_val_energies
-    real( DP ), intent( inout ), optional, dimension( sys%brange(3) : sys%brange(4), sys%nkpts, sys%nspn, sys%nbw ) :: im_con_energies
+    real( DP ), intent( inout ), optional, &
+      dimension( sys%brange(1) : sys%brange(2), sys%nkpts, sys%nspn, sys%nbw ) :: im_val_energies
+    real( DP ), intent( inout ), optional, &
+      dimension( sys%brange(3) : sys%brange(4), sys%nkpts, sys%nspn, sys%nbw ) :: im_con_energies
     !
     integer :: nbands, iter, ispn, ikpt, ibw
     real( DP ), allocatable, dimension(:) :: re_se, im_se
@@ -990,7 +1001,6 @@ module OCEAN_val_energy
       close(99)
     endif
 
-  111 continue
   !
   end subroutine find_fermi
 
