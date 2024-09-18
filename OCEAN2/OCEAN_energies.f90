@@ -273,10 +273,10 @@ module OCEAN_energies
       call stubby( sys, p_energy, energies, imag_se, core_offset )
       emin = minval( energies )
       emax = maxval( energies )
-      write(6,'(A,3(X,A16))') 'ENERGIES:', 'Min', 'Fermi', 'Max'
-      write(6,'(A,3(X,F16.8))') '         ', emin* Hartree2eV, efermi* Hartree2eV, emax* Hartree2eV
-      write(6,'(A,3(X,A16))') 'Shifted :', 'Min', 'Fermi', 'Max'
-      write(6,'(A,3(X,F16.8))') '         ', (emin+core_offset)* Hartree2eV, & 
+      write(6,'(A,3(1X,A16))') 'ENERGIES:', 'Min', 'Fermi', 'Max'
+      write(6,'(A,3(1X,F16.8))') '         ', emin* Hartree2eV, efermi* Hartree2eV, emax* Hartree2eV
+      write(6,'(A,3(1X,A16))') 'Shifted :', 'Min', 'Fermi', 'Max'
+      write(6,'(A,3(1X,F16.8))') '         ', (emin+core_offset)* Hartree2eV, & 
             (efermi+core_offset)*Hartree2eV, (emax+core_offset)* Hartree2eV
     endif
 
@@ -453,7 +453,7 @@ module OCEAN_energies
         if( myid .eq. root ) write(6,*) minN, targN, maxN
         if( minN .ge. targN .or. maxN .le. targN ) then
           if( myid .eq. root ) then
-            write(6,'(A,X,3(I0,X))') 'Unable to move Fermi!!!', minN, targN, maxN
+            write(6,'(A,1X,3(I0,1X))') 'Unable to move Fermi!!!', minN, targN, maxN
             write(6,*) efermi,  ener(1,1,1), temp
           endif
         else
@@ -462,7 +462,7 @@ module OCEAN_energies
           e = efermi
           do i = 1, 100
             curN = NfromFermi( ener, e, temp )
-            if( myid .eq. root ) write( 6, '(I0,X,I0,X,3(E12.5,X))') i, curN, elow, e, ehigh
+            if( myid .eq. root ) write( 6, '(I0,1X,I0,1X,3(E12.5,1X))') i, curN, elow, e, ehigh
             if( curN > targN ) then
               ehigh = e
               e = 0.5_DP * ( ehigh + elow )
@@ -501,7 +501,8 @@ module OCEAN_energies
 !              else
 !                 allowArray(i,j,k) = 0.10_DP
 !              endif
-              write(9000,'(5(E24.12,X))') sqrt(allowArray(i,j,k)), allowArray(i,j,k), ener(i,j,k), efermi, itemp
+              write(9000,'(5(E24.12,1X))') sqrt(allowArray(i,j,k)), allowArray(i,j,k), &
+                                           ener(i,j,k), efermi, itemp
 !              allowArray(i,j,k) = 1.0_DP - 1.0_dp / ( exp( ener(i,j,k) * itemp - scaledFermi ) + 1.0_dp )
             enddo
           enddo
@@ -1296,11 +1297,11 @@ module OCEAN_energies
       if( overrideFermi ) then
         allocate( sorted_energies( sys%num_bands * sys%nkpts * sys%nspn ) )
         sorted_energies = reshape( ener, (/ sys%num_bands * sys%nkpts * sys%nspn /) )
-        write(6, '(8(F12.6,X))' ) sorted_energies(1:4), &
+        write(6, '(8(F12.6,1X))' ) sorted_energies(1:4), &
           sorted_energies( sys%num_bands * sys%nkpts * sys%nspn-3:sys%num_bands * sys%nkpts * sys%nspn )
         call do_sort2( sorted_energies )
 
-        write(6, '(8(F12.6,X))' ) sorted_energies(1:4), &
+        write(6, '(8(F12.6,1X))' ) sorted_energies(1:4), &
           sorted_energies( sys%num_bands * sys%nkpts * sys%nspn-3:sys%num_bands * sys%nkpts * sys%nspn )
 
 

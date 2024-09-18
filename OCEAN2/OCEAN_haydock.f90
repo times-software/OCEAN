@@ -2431,9 +2431,11 @@ module OCEAN_haydock
 
       tcEps = sum(eps1Conv(:)) / 3.0_DP
       if( max( sys%epsilon0, eps1Conv( 3 ) ) .lt. 100.0d0 ) then
-        write(6,'(3(A,F9.4,X))') 'Est. eps1(0): ', eps1Conv( 3 ), ';  Avg: ', tcEps, ';  Current: ', sys%epsilon0
+        write(6,'(3(A,F9.4,1X))') 'Est. eps1(0): ', eps1Conv( 3 ), ';  Avg: ', tcEps, &
+                                  ';  Current: ', sys%epsilon0
       else
-        write(6,'(3(A,E24.12,X))') 'Est. eps1(0): ', eps1Conv( 3 ), ';  Avg: ', tcEps, ';  Current: ', sys%epsilon0
+        write(6,'(3(A,E24.12,1X))') 'Est. eps1(0): ', eps1Conv( 3 ), ';  Avg: ', tcEps, &
+                                    ';  Current: ', sys%epsilon0
       endif
 
       ! change to percentage

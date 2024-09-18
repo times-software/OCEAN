@@ -308,7 +308,7 @@ module OCEAN_val_energy
                       - im_val_energies( ibv, ik, ispn, ibw ) )
 !                      if( p_energy%vali( ibc, ibv, ik, ibeta ) .gt. -0.0001_dp ) then
                   if( myid .eq. 0 .and. ik .eq. 1 ) then
-                    write(80,'(3(I8,X),3(F24.6))') ik, ibv, ibc, &
+                    write(80,'(3(I8,1X),3(F24.6))') ik, ibv, ibc, &
                          Hartree2eV*p_energy%vali( ibc, ibv, ik, ibeta, ibw ), &
                          Hartree2eV*im_val_energies( ibv, ik, ispn, ibw ), &
                          Hartree2eV*im_con_energies( ibc, ik, jspn, ibw)

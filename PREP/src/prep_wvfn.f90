@@ -402,7 +402,7 @@ module prep_wvfn
               addShift = (i .eq. 2 )
               call prep_system_ikpt2kvec( ikpt, addShift, kqVec, kqVecCart ) 
               if( iband .eq. 1 ) then
-                write(1000+myid, '(A,I8,6(X,E24.16),X,L2,I2)' ) 'kqVec', ikpt, kqVecCart(:), & 
+                write(1000+myid, '(A,I8,6(1X,E24.16),1X,L2,I2)' ) 'kqVec', ikpt, kqVecCart(:), & 
                                                                 kqVec(:), addShift, i
               endif
               call ocean_cks_build( wvfn, kqVecCart, deltaR, psys%avecs, (i.eq.1), iuni, iband-1, ierr )
@@ -1016,7 +1016,7 @@ module prep_wvfn
 
   !JTV !TODO
   ! Here (and above) we should do this in multiple steps if the wave functions are really big
-          if( debug ) write(1000+myid,'(A2,X,3(I12))') 'OF', ikpt, ib, offset
+          if( debug ) write(1000+myid,'(A2,1X,3(I12))') 'OF', ikpt, ib, offset
           nbwrite = min( nb-ib+1, nbchunk )
           call MPI_FILE_WRITE_AT( fileHandle, offset, writeBuffer, nx*nbwrite, MPI_DOUBLE_COMPLEX, &
                                   MPI_STATUS_IGNORE, ierr )
@@ -1092,7 +1092,7 @@ module prep_wvfn
     endif
 
     if( debug ) then
-      write(1000+myid,'(A2,X,6(I12))') 'OF', ikpt, offset, size( UofX2, 2 ), size( UofX2, 1), & 
+      write(1000+myid,'(A2,1X,6(I12))') 'OF', ikpt, offset, size( UofX2, 2 ), size( UofX2, 1), & 
             offset*16, ( offset + size( UofX2, 2 ) * size( UofX2, 1) ) * 16
     endif
 !    call MPI_FILE_SET_VIEW( fileHandle, offset, MPI_DOUBLE_COMPLEX, newType, "native", MPI_INFO_NULL, ierr )
@@ -1147,10 +1147,10 @@ module prep_wvfn
       if( (-boundaries(i,1)) .gt. boundaries(i,2) ) boundaries(i,2) = -boundaries(i,1)
     enddo
     fftGrid(:) = boundaries(:,2) - boundaries(:,1) + 1
-    write(1000+myid,'(A,3(X,I8))') 'FFT grid', fftGrid(:)
+    write(1000+myid,'(A,3(1X,I8))') 'FFT grid', fftGrid(:)
 
     if( wantCKS ) fftGrid(:) = fftGrid(:) * 2
-    write(1000+myid,'(A,3(X,I8))') 'FFT grid', fftGrid(:)
+    write(1000+myid,'(A,3(1X,I8))') 'FFT grid', fftGrid(:)
 
 !    if( wantU2 ) then
 !      do i = 1, 3
@@ -1238,7 +1238,7 @@ module prep_wvfn
 
       enddo
 !    endif
-    write(1000+myid,'(A,3(X,I8))') 'FFT grid', fftGrid(:)
+    write(1000+myid,'(A,3(1X,I8))') 'FFT grid', fftGrid(:)
 
   end subroutine prep_wvfn_checkFFT
 

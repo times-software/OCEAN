@@ -141,7 +141,7 @@ module OCEAN_timekeeper
           enddo
           stddev = sqrt( stddev )
           ! 10 digits before the decimal should get us 10 years in seconds
-          write( 99, '(A,X,I20,X,A5,F16.6,X,A5,X,F16.6,X,F16.6,X,F16.6,X,F16.6)' ) &
+          write( 99, '(A,1X,I20,1X,A5,F16.6,1X,A5,1X,F16.6,1X,F16.6,1X,F16.6,1X,F16.6)' ) &
                   tk_label( iter ), allTotal(iter,0), ' tics', &
                   (dble( allTotal( iter,0 ) )/dble(count_rate)), 'secs', &
                   avg/dble(count_rate), stddev/dble(count_rate), &
@@ -158,7 +158,7 @@ module OCEAN_timekeeper
       rewind(100+myid)
 
       do iter = 1, ndivs
-        write(100+myid,'(A,X,I20,X,A,F24.6,X,A)') tk_label( iter ), total( iter ), ' tics', &
+        write(100+myid,'(A,1X,I20,1X,A,F24.6,1X,A)') tk_label( iter ), total( iter ), ' tics', &
                   (dble( total( iter ) )/dble(count_rate)), 'secs'
       enddo
 

@@ -227,7 +227,8 @@ module OCEAN_WRR
               ir = min( floor( de / dr ) + 1, nr - 1 )
             
               if( valencePots( 1, ir, ix ) .gt. de .or. valencePots( 1, ir+1, ix ) .lt. de ) & 
-                  write(1000+myid,'(A,3(X,F20.8))') '!!', valencePots( 1, ir, ix ), de, valencePots( 1, ir+1, ix )
+                  write(1000+myid,'(A,3(1X,F20.8))') '!!', valencePots( 1, ir, ix ), de, &
+                                                     valencePots( 1, ir+1, ix )
 !              dx = valencePots( 1, ir+1, ix ) - valencePots( 1, ir, ix )
               
               ! Do x -> y
@@ -296,8 +297,8 @@ module OCEAN_WRR
             else
               fcn = 1.0d0 - 0.1d0 * qde ** 2
             end if
-            write(5000+myid,'(3(X,I6),4(X,E24.16))') iter1, ix, iy, de, ladder( iter1, ix - nx_start + 1, iy ), &
-                ww * fcn**2, wold * fcn**2
+            write(5000+myid,'(3(1X,I6),4(1X,E24.16))') iter1, ix, iy, de, &
+                ladder( iter1, ix - nx_start + 1, iy ), ww * fcn**2, wold * fcn**2
 
             ! already in Ha.
             ladder( iter1, ix - nx_start + 1, iy ) = ww * fcn**2 
