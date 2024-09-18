@@ -718,7 +718,9 @@ module OCEAN_gmres
         endif
       else
         ! recycle au_matrix
-        if( myid .eq. root ) write( 6, * ) 'recycle: ', prev_iter, (gmres_energy_list( step_iter ) - gmres_energy_list( step_iter -1))* eV2Hartree, (ener - prev_energy)
+        if( myid .eq. root ) write( 6, * ) 'recycle: ', prev_iter, & 
+              (gmres_energy_list( step_iter ) - gmres_energy_list( step_iter -1))* eV2Hartree, & 
+              (ener - prev_energy)
         call make_recycle( prev_iter, gmres_energy_list( step_iter ) * ev2Hartree, & 
                            gmres_energy_list( step_iter -1)* eV2Hartree, psi_tmp, sys, ierr )
         if( ierr .ne. 0 ) return

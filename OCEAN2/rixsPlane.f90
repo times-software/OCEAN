@@ -118,7 +118,9 @@ program rixsPlane
     enddo
 
     do ie = 1, rixs_nstep
-      write(98,'(4E24.15)') rixs_start + (ie-1)*(rixs_stop-rixs_start)/dble(rixs_nstep), xas_energies(iXAS), emission_slice(ie), xas_energies(iXAS) - rixs_start - (ie-1)*(rixs_stop-rixs_start)/dble(rixs_nstep)
+      write(98,'(4E24.15)') rixs_start + (ie-1)*(rixs_stop-rixs_start)/dble(rixs_nstep), & 
+                            xas_energies(iXAS), emission_slice(ie), &
+           xas_energies(iXAS) - rixs_start - (ie-1)*(rixs_stop-rixs_start)/dble(rixs_nstep)
     enddo
     write(98,*)
   enddo

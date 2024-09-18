@@ -1008,7 +1008,8 @@ module prep_wvfn
               xstart = xstop+1
               myx = prep_wvfn_divideXmesh( nx, nprocPerPool, id )
               xstop = xstart + myx - 1
-              call MPI_RECV( writeBuffer( xstart:xstop, iib-ib+1), myx, MPI_DOUBLE_COMPLEX, id, 1, poolComm, MPI_STATUS_IGNORE, ierr )
+              call MPI_RECV( writeBuffer( xstart:xstop, iib-ib+1), myx, MPI_DOUBLE_COMPLEX, id, 1, &
+                                          poolComm, MPI_STATUS_IGNORE, ierr )
               if( ierr .ne. 0 ) return
             enddo
           enddo
@@ -1017,7 +1018,8 @@ module prep_wvfn
   ! Here (and above) we should do this in multiple steps if the wave functions are really big
           if( debug ) write(1000+myid,'(A2,X,3(I12))') 'OF', ikpt, ib, offset
           nbwrite = min( nb-ib+1, nbchunk )
-          call MPI_FILE_WRITE_AT( fileHandle, offset, writeBuffer, nx*nbwrite, MPI_DOUBLE_COMPLEX, MPI_STATUS_IGNORE, ierr )
+          call MPI_FILE_WRITE_AT( fileHandle, offset, writeBuffer, nx*nbwrite, MPI_DOUBLE_COMPLEX, &
+                                  MPI_STATUS_IGNORE, ierr )
           if( ierr .ne. 0 ) return
           offset = offset + nx * nbwrite
         enddo      
