@@ -1,5 +1,5 @@
 include ../Makefile.arch
-OPTIONS +=
+OPTIONS += -fopenmp -Wall
 
 %.o: %.mod
 
@@ -47,8 +47,8 @@ o_spect.x: o_spect.f90 AI_kinds.o gamfcn.o OCEAN_constants.o
 rixs_plane.x: rixs_plane.f90 AI_kinds.o OCEAN_constants.o
 	$(FC) $(FLAGS) -o rixs_plane.x rixs_plane.f90 AI_kinds.o OCEAN_constants.o
 
-rixsPlane.x: rixsPlane.f90 AI_kinds.o OCEAN_constants.o
-	$(FC) $(FLAGS) -o rixsPlane.x rixsPlane.f90 AI_kinds.o OCEAN_constants.o
+rixsPlane.x: rixsPlane.f90 AI_kinds.o OCEAN_constants.o intval.o
+	$(FC) $(FLAGS) -o rixsPlane.x rixsPlane.f90 AI_kinds.o OCEAN_constants.o intval.o
 
 OCEAN_mpi.o: OCEAN_mpi.f90 AI_kinds.o
 	$(MPIFORT) $(FLAGS) -c -o OCEAN_mpi.o OCEAN_mpi.f90 

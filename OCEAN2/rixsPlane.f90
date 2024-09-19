@@ -4,15 +4,15 @@ program rixsPlane
   implicit none
 
   real(DP) :: dumf, estart, estop, estep, rixs_start, rixs_stop, rixs_broaden, energy, &
-              kpref, intensity, eloss, fact
+              kpref, intensity, eloss, fact, eemission, vb
   complex(DP) :: ctmp, arg, rp, rm ,rrr, al, be, eps
-  integer :: dumi, rixs_nstep, npol, iXAS, ie, ipol, iter, i, nstep
+  integer :: dumi, rixs_nstep, npol, iXAS, ie, ipol, iter, i, nstep, nVarBroaden
   character(len=4) :: flg
   character(len=2) :: el, nl
   character( LEN=24 ) :: filnam
   integer, allocatable :: polList(:,:)
-  real(DP), allocatable :: xas_energies(:), a(:), b(:), emission_slice(:)
-  logical :: ex
+  real(DP), allocatable :: xas_energies(:), a(:), b(:), emission_slice(:), varBroaden(:,:)
+  logical :: ex, do_var_broaden
 
 
   inquire(file='bse.in.xas',exist=ex)
@@ -20,6 +20,18 @@ program rixsPlane
     write(6,*) 'Could not find bse.in.xas'
     goto 111
   endif
+
+  open(unit=99,file='rixs_spect.in',form='formatted',status='old')
+  read(99,*) rixs_nstep, rixs_start, rixs_stop, rixs_broaden
+  rixs_broaden = rixs_broaden * eV2Hartree
+  read(99,*) el, nl
+  read(99,*) npol
+  allocate( polList( 2, npol ) )
+  do i = 1, npol
+    read(99,*) polList(:,i)
+  enddo
+  close(99)
+
   open(file='bse.in.xas',unit=99, form='formatted', status='old')
   read(99,*) dumi
   read(99,*) dumf
@@ -42,9 +54,11 @@ program rixsPlane
         energy = energy + estep
       enddo
     case ("list")
-      write(6,*) 'List not supported'
-      close(99)
-      goto 111
+      read(99,*) nstep
+      allocate(xas_energies(nstep))
+      do i = 1, nstep
+        read(99,*) xas_energies(i)
+      enddo
     case default
       write(6,*) 'Unsupported calculation'
       close(99)
@@ -52,23 +66,35 @@ program rixsPlane
   end select
   close(99)
 
+  inquire(file='rixs_plane_broaden.ipt',exist=do_var_broaden)
+  if(do_var_broaden) then
+    open(unit=99,file='rixs_plane_broaden.ipt',form='formatted', status='old')
+    read(99,*) do_var_broaden 
+    close(99)
+  endif
+  
+  if( do_var_broaden ) then
+    open(unit=99,file='rixs_var_broaden',form='formatted', status='old')
+    read(99,*) nVarBroaden
+    allocate(varBroaden(nVarBroaden,2) )
+    do i = 1, nVarBroaden
+      read(99,*) varBroaden(i,1), varBroaden(i,2)
+    enddo
+    close(99)
+  endif
 
-  open(unit=99,file='rixs_spect.in',form='formatted',status='old')
-  read(99,*) rixs_nstep, rixs_start, rixs_stop, rixs_broaden
-  rixs_broaden = rixs_broaden * eV2Hartree
-  read(99,*) el, nl
-  read(99,*) npol
-  allocate( polList( 2, npol ) )
-  do i = 1, npol
-    read(99,*) polList(:,i)
-  enddo
-  close(99)
-
-  open(unit=98,file='rixs.txt',status='unknown')
+  if( flg .eq. "loop" ) then
+    open(unit=98,file='rixs.txt',status='unknown')
+  endif
 
   allocate( emission_slice(rixs_nstep))
 
   do iXAS = 1, nstep
+    if( flg .eq. "list" ) then
+      write(filnam, "(A,I0,A)" ) "rixs.", iXAS, ".txt"
+      open(unit=98,file=filnam,status='unknown' )
+      rewind(98)
+    endif
     emission_slice(:) = 0.0_DP
     do ipol = 1, npol
 
@@ -86,10 +112,17 @@ program rixsPlane
 
       do ie = 1, rixs_nstep
         intensity = 0.0_DP
-        eloss = xas_energies(iXAS) - rixs_start - (ie-1)*(rixs_stop-rixs_start)/dble(rixs_nstep)
+        eemission = rixs_start + (ie-1)*(rixs_stop-rixs_start)/dble(rixs_nstep)  
+        eloss = xas_energies(iXAS) - eemission
+!        eloss = xas_energies(iXAS) - rixs_start - (ie-1)*(rixs_stop-rixs_start)/dble(rixs_nstep)
         eloss = eloss * eV2Hartree
         if (eloss .gt. 0 ) then
-          ctmp = cmplx(eloss, rixs_broaden, DP )
+          vb = 0.0_DP
+          if( do_var_broaden ) then
+            call intval( nVarBroaden, varBroaden(:,1), varBroaden(:,2), eemission, vb, 'cap', 'cap' )
+            vb = vb * eV2Hartree
+          endif
+          ctmp = cmplx(eloss, max(rixs_broaden,vb), DP )
           arg = ( eloss - a( iter - 1 ) ) ** 2 - 4.0_dp * b( iter ) ** 2
           arg = sqrt( arg )
 
@@ -117,12 +150,22 @@ program rixsPlane
       deallocate( a, b )
     enddo
 
-    do ie = 1, rixs_nstep
-      write(98,'(4E24.15)') rixs_start + (ie-1)*(rixs_stop-rixs_start)/dble(rixs_nstep), & 
-                            xas_energies(iXAS), emission_slice(ie), &
-           xas_energies(iXAS) - rixs_start - (ie-1)*(rixs_stop-rixs_start)/dble(rixs_nstep)
-    enddo
-    write(98,*)
+    if( flg .eq. "list" ) then
+      do ie = 1, rixs_nstep
+        eemission = rixs_start + (ie-1)*(rixs_stop-rixs_start)/dble(rixs_nstep)
+        write(98,'(2E24.15)') eemission, emission_slice(ie)
+      enddo
+      close(98)
+    elseif( flg .eq. "loop" ) then
+      do ie = 1, rixs_nstep
+        eemission = rixs_start + (ie-1)*(rixs_stop-rixs_start)/dble(rixs_nstep)
+  !      write(98,'(4E24.15)') rixs_start + (ie-1)*(rixs_stop-rixs_start)/dble(rixs_nstep), &
+        write(98,'(4E24.15)') eemission,  xas_energies(iXAS), emission_slice(ie), &
+                              xas_energies(iXAS) - eemission
+  !                            xas_energies(iXAS) - rixs_start - (ie-1)*(rixs_stop-rixs_start)/dble(rixs_nstep)
+      enddo
+      write(98,*)
+    endif
   enddo
 
   close(98)
