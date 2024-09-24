@@ -36,7 +36,7 @@
             ]
          },
          "scfac" : -1,
-         "screen_radius" : -3.5,
+         "screen_radius" : -6,
          "solver" : "haydock",
          "spin_orbit" : -1,
          "strength" : -1,
@@ -276,14 +276,20 @@
       "grid" : {
          "ang" : [
             5,
-            7
+            9,
+            11,
+            11,
+            5
          ],
          "deltar" : [
             0.1,
-            0.2
+            0.2,
+            0.5,
+            1,
+            2
          ],
          "lmax" : 0,
-         "rmax" : 8,
+         "rmax" : 10,
          "rmode" : [
             "legendre",
             "uniform"
@@ -291,7 +297,10 @@
          "scheme" : "central",
          "shells" : [
             -1,
-            8
+            4,
+            6,
+            8,
+            10
          ]
       },
       "inversionstyle" : "direct",
