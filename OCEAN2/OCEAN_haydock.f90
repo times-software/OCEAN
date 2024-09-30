@@ -1689,12 +1689,12 @@ module OCEAN_haydock
 
     select case ( sys%cur_run%calc_type)
       case( 'XES', 'XAS' )
-        call write_core( 99, iter, kpref )
+        call write_core( 99, iter, kpref, sys%oldXASbroaden )
       case( 'VAL', 'RXS' )
         call write_val( 99, iter, kpref, sys%celvol, sys%valence_ham_spin, sys%cur_run%semiTDA )
 
       case default
-        call write_core( 99, iter, kpref )
+        call write_core( 99, iter, kpref, sys%oldXASbroaden )
     
     end select
 
@@ -1794,13 +1794,14 @@ module OCEAN_haydock
 
   end subroutine write_val
 
-  subroutine write_core( fh, iter, kpref )
+  subroutine write_core( fh, iter, kpref, oldXASbroaden )
     use OCEAN_constants, only : Hartree2eV
     implicit none
     integer, intent( in ) :: fh, iter
     real(DP), intent( in ) :: kpref
+    logical, intent( in ) :: oldXASbroaden
     !
-    integer :: ie, jdamp, jj
+    integer :: ie, jdamp, jj, jdampStop
     real(DP), external :: gamfcn
     real(DP) :: e, gam, dr, di, ener, spct( 0 : 1 ), spkk( 0 : 1 )
     complex(DP) :: ctmp, disc, delta, rm1
@@ -1809,12 +1810,16 @@ module OCEAN_haydock
       call write_core_Voigt( fh, iter, kpref )
       return
     endif
+    jdampStop = 0
+    if( oldXASbroaden ) then
+      jdampStop = 1
+    endif
     write( fh, '(A,1i5,A,1e15.8,A,1e15.8)' ) '#   iter=', iter, '   gam=', gam0, '   kpref=', kpref
     write( fh, '(5(A15,1x))' ) '#   Energy', 'Spect', 'Spect(0)', 'SPKK', 'SPKK(0)'
     rm1 = -1; rm1 = sqrt( rm1 )
     do ie = 0, 2 * ne, 2
        e = el + ( eh - el ) * dble( ie ) / dble( 2 * ne )
-       do jdamp = 0, 1
+       do jdamp = 0, jdampStop
           gam= gam0 + gamfcn( e, nval, eps ) * dble( jdamp )
 !          ctmp = e - a( iter - 1 ) + rm1 * gam
 
@@ -1855,8 +1860,14 @@ module OCEAN_haydock
           di = abs(aimag( delta ) )
           ener = ebase + Hartree2eV * e
           spct( jdamp ) = kpref * di / ( dr ** 2 + di ** 2 )
-         spkk( jdamp ) = kpref * dr / ( dr ** 2 + di ** 2 )
+          spkk( jdamp ) = kpref * dr / ( dr ** 2 + di ** 2 )
        end do
+       ! Making the broadening no longer defaults, but keeping the file format
+       ! unchanged to minimize changes to the user
+       if( .not. oldXASbroaden ) then
+          spct(1) = spct(0)
+          spkk(1) = spkk(0)
+       endif
 !       write ( fh, '(4(1e15.8,1x),1i5,1x,2(1e15.8,1x),1i5)' ) ener, spct( 1 ), spct( 0 ), spkk, iter, gam, kpref, ne
        write ( fh, '(5(1e15.8,1x))') ener, spct( 1 ), spct( 0 ), spkk( 1 ), spkk( 0 )
     end do
