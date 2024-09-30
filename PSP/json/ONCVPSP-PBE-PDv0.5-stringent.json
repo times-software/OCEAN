@@ -1,0 +1,1110 @@
+{
+   "dojo_info" : {
+      "attribution" : "Psuedopotentials from the PseudoDojo project. See http://www.pseudo-dojo.org and https://github.com/abinit/pseudo_dojo.",
+      "authors" : [
+         "M. J. van Setten",
+         "M. Giantomassi"
+      ],
+      "citation" : [
+         {
+            "author" : "M.J. {van Setten} and M. Giantomassi and E. Bousquet and M.J. Verstraete and D.R. Hamann and X. Gonze and G.-M. Rignanese",
+            "doi" : "https://doi.org/10.1016/j.cpc.2018.01.012",
+            "journal" : "Computer Physics Communications",
+            "pages" : "39 - 54",
+            "title" : "The PseudoDojo: Training and grading a 85 element optimized norm-conserving pseudopotential table",
+            "volume" : "226",
+            "year" : "2018"
+         }
+      ],
+      "description" : "Stringent table designed for GS applications",
+      "dojo_dir" : "ONCVPSP-PBE-PDv0.5",
+      "license" : "CC BY 4.0",
+      "pp_type" : "NC",
+      "references" : [
+         "Dojo paper"
+      ],
+      "xc_name" : "PBE"
+   },
+   "pseudos_metadata" : {
+      "Ag" : {
+         "basename" : "Ag-sp.in",
+         "hints" : {
+            "high" : {
+               "ecut" : 47
+            },
+            "low" : {
+               "ecut" : 37
+            },
+            "normal" : {
+               "ecut" : 41
+            }
+         },
+         "input" : "# ATOM AND REFERENCE CONFIGURATION\n# atsym  z   nc   nv     iexc    psfile\nAg 47.00    6    4       4      both\n#\n#   n    l    f        energy (Ha)\n1    0    2.00\n2    0    2.00\n2    1    6.00\n3    0    2.00\n3    1    6.00\n3    2   10.00\n4    0    2.00\n4    1    6.00\n4    2   10.00\n5    0    1.00\n#\n# PSEUDOPOTENTIAL AND OPTIMIZATION\n# lmax\n2\n#\n#   l,   rc,      ep,       ncon, nbas, qcut\n0   1.40000  -3.49309    4    8   9.20000\n1   1.45000  -2.15231    4    8   9.20000\n2   1.60000  -0.27354    4    8   9.20000\n#\n# LOCAL POTENTIAL\n# lloc, lpopt,  rc(5),   dvloc0\n4    5   1.40000      0.00000\n#\n# VANDERBILT-KLEINMAN-BYLANDER PROJECTORs\n# l, nproj, debl\n0    2   3.33121\n1    2   2.12524\n2    2   1.00000\n#\n# MODEL CORE CHARGE\n# icmod, fcfact, rcfact\n3   7.00000   1.24000\n#\n# LOG DERIVATIVE ANALYSIS\n# epsh1, epsh2, depsh\n-12.00   12.00    0.02\n#\n# OUTPUT GRID\n# rlmax, drl\n6.00    0.01\n#\n# TEST CONFIGURATIONS\n# ncnf\n0\n# nvcnf\n#   n    l    f\n"
+      },
+      "Al" : {
+         "basename" : "Al.in",
+         "hints" : {
+            "high" : {
+               "ecut" : 26
+            },
+            "low" : {
+               "ecut" : 16
+            },
+            "normal" : {
+               "ecut" : 20
+            }
+         },
+         "input" : "# ATOM AND REFERENCE CONFIGURATION\n# atsym  z   nc   nv     iexc    psfile\nAl 13.00    3    2       4      both\n#\n#   n    l    f        energy (Ha)\n1    0    2.00\n2    0    2.00\n2    1    6.00\n3    0    2.00\n3    1    1.00\n#\n# PSEUDOPOTENTIAL AND OPTIMIZATION\n# lmax\n2\n#\n#   l,   rc,      ep,       ncon, nbas, qcut\n0   1.75000  -0.28491    4    9   6.00000\n1   1.75000  -0.09967    4    9   6.40000\n2   1.70000   0.05000    4    9   6.50000\n#\n# LOCAL POTENTIAL\n# lloc, lpopt,  rc(5),   dvloc0\n4    5   1.40000      0.00000\n#\n# VANDERBILT-KLEINMAN-BYLANDER PROJECTORs\n# l, nproj, debl\n0    2   2.80000\n1    2   2.80000\n2    2   1.50000\n#\n# MODEL CORE CHARGE\n# icmod, fcfact, rcfact\n3   5.00000   1.30000\n#\n# LOG DERIVATIVE ANALYSIS\n# epsh1, epsh2, depsh\n-12.00   12.00    0.02\n#\n# OUTPUT GRID\n# rlmax, drl\n6.00    0.01\n#\n# TEST CONFIGURATIONS\n# ncnf\n0\n# nvcnf\n#   n    l    f\n"
+      },
+      "Ar" : {
+         "basename" : "Ar.in",
+         "hints" : {
+            "high" : {
+               "ecut" : 37
+            },
+            "low" : {
+               "ecut" : 29
+            },
+            "normal" : {
+               "ecut" : 33
+            }
+         },
+         "input" : "# ATOM AND REFERENCE CONFIGURATION\n# atsym  z   nc   nv     iexc    psfile\nAr 18.00    3    2       4      both\n#\n#   n    l    f        energy (Ha)\n1    0    2.00\n2    0    2.00\n2    1    6.00\n3    0    2.00\n3    1    6.00\n#\n# PSEUDOPOTENTIAL AND OPTIMIZATION\n# lmax\n2\n#\n#   l,   rc,      ep,       ncon, nbas, qcut\n0   1.55000  -0.89253    4    8   8.20000\n1   1.55000  -0.37741    4    8   8.20000\n2   1.55000   0.10000    4    8   8.20000\n#\n# LOCAL POTENTIAL\n# lloc, lpopt,  rc(5),   dvloc0\n4    5   1.50000      0.00000\n#\n# VANDERBILT-KLEINMAN-BYLANDER PROJECTORs\n# l, nproj, debl\n0    2   1.50000\n1    2   1.50000\n2    2   1.00000\n#\n# MODEL CORE CHARGE\n# icmod, fcfact, rcfact\n3   7.00000   1.25000\n#\n# LOG DERIVATIVE ANALYSIS\n# epsh1, epsh2, depsh\n-12.00   12.00    0.02\n#\n# OUTPUT GRID\n# rlmax, drl\n4.00    0.01\n#\n# TEST CONFIGURATIONS\n# ncnf\n0\n# nvcnf\n#   n    l    f\n"
+      },
+      "As" : {
+         "basename" : "As-spd-high.in",
+         "hints" : {
+            "high" : {
+               "ecut" : 58
+            },
+            "low" : {
+               "ecut" : 48
+            },
+            "normal" : {
+               "ecut" : 52
+            }
+         },
+         "input" : "# ATOM AND REFERENCE CONFIGURATION\n# atsym  z   nc   nv     iexc    psfile\nAs 33.00    3    5       4      both\n#\n#   n    l    f        energy (Ha)\n1    0    2.00\n2    0    2.00\n2    1    6.00\n3    0    2.00\n3    1    6.00\n3    2   10.00\n4    0    2.00\n4    1    3.00\n#\n# PSEUDOPOTENTIAL AND OPTIMIZATION\n# lmax\n2\n#\n#   l,   rc,      ep,       ncon, nbas, qcut\n0   1.20000  -6.99360    4    7   9.60000\n1   1.40000  -4.91256    4    7  10.00000\n2   1.60000  -1.49370    4    7  10.00000\n#\n# LOCAL POTENTIAL\n# lloc, lpopt,  rc(5),   dvloc0\n4    5   1.20000      0.00000\n#\n# VANDERBILT-KLEINMAN-BYLANDER PROJECTORs\n# l, nproj, debl\n0    2   6.46095\n1    2   4.72164\n2    2   3.50000\n#\n# MODEL CORE CHARGE\n# icmod, fcfact, rcfact\n3   2.70000   1.50000\n#\n# LOG DERIVATIVE ANALYSIS\n# epsh1, epsh2, depsh\n-12.00   12.00    0.02\n#\n# OUTPUT GRID\n# rlmax, drl\n6.00    0.01\n#\n# TEST CONFIGURATIONS\n# ncnf\n0\n# nvcnf\n#   n    l    f\n"
+      },
+      "Au" : {
+         "basename" : "Au-sp.in",
+         "hints" : {
+            "high" : {
+               "ecut" : 44
+            },
+            "low" : {
+               "ecut" : 32
+            },
+            "normal" : {
+               "ecut" : 38
+            }
+         },
+         "input" : "# ATOM AND REFERENCE CONFIGURATION\n# atsym  z   nc   nv     iexc    psfile\nAu 79.00   10    4       4      both\n#\n#   n    l    f        energy (Ha)\n1    0    2.00\n2    0    2.00\n2    1    6.00\n3    0    2.00\n3    1    6.00\n3    2   10.00\n4    0    2.00\n4    1    6.00\n4    2   10.00\n4    3   14.00\n5    0    2.00\n5    1    6.00\n5    2   10.00\n6    0    1.00\n#\n# PSEUDOPOTENTIAL AND OPTIMIZATION\n# lmax\n3\n#\n#   l,   rc,      ep,       ncon, nbas, qcut\n0   1.45000  -3.98249    4    8   8.60000\n1   1.55000  -2.19696    4    8   8.40000\n2   1.55000  -0.25273    4    8   8.40000\n3   1.60000   0.10000    4    8   6.80000\n#\n# LOCAL POTENTIAL\n# lloc, lpopt,  rc(5),   dvloc0\n4    3   1.40000      0.00000\n#\n# VANDERBILT-KLEINMAN-BYLANDER PROJECTORs\n# l, nproj, debl\n0    2   3.77073\n1    2   2.50000\n2    2   1.50000\n3    1   1.50000\n#\n# MODEL CORE CHARGE\n# icmod, fcfact, rcfact\n3   5.00000   1.37000\n#\n# LOG DERIVATIVE ANALYSIS\n# epsh1, epsh2, depsh\n-14.00   12.00    0.02\n#\n# OUTPUT GRID\n# rlmax, drl\n5.00    0.01\n#\n# TEST CONFIGURATIONS\n# ncnf\n0\n# nvcnf\n#   n    l    f\n"
+      },
+      "B_" : {
+         "basename" : "B.in",
+         "hints" : {
+            "high" : {
+               "ecut" : 44
+            },
+            "low" : {
+               "ecut" : 34
+            },
+            "normal" : {
+               "ecut" : 38
+            }
+         },
+         "input" : "# ATOM AND REFERENCE CONFIGURATION\n# atsym  z   nc   nv     iexc    psfile\nB  5.00    1    2       4      both\n#\n#   n    l    f        energy (Ha)\n1    0    2.00\n2    0    2.00\n2    1    1.00\n#\n# PSEUDOPOTENTIAL AND OPTIMIZATION\n# lmax\n1\n#\n#   l,   rc,      ep,       ncon, nbas, qcut\n0   1.20000  -0.34703    4    8   7.60000\n1   1.20000  -0.13255    4    8   8.80000\n#\n# LOCAL POTENTIAL\n# lloc, lpopt,  rc(5),   dvloc0\n4    5   1.20000      0.00000\n#\n# VANDERBILT-KLEINMAN-BYLANDER PROJECTORs\n# l, nproj, debl\n0    2   8.50000\n1    2   1.50000\n#\n# MODEL CORE CHARGE\n# icmod, fcfact, rcfact\n3   2.90000   1.45000\n#\n# LOG DERIVATIVE ANALYSIS\n# epsh1, epsh2, depsh\n-12.00   12.00    0.02\n#\n# OUTPUT GRID\n# rlmax, drl\n6.00    0.01\n#\n# TEST CONFIGURATIONS\n# ncnf\n0\n# nvcnf\n#   n    l    f\n"
+      },
+      "Ba" : {
+         "basename" : "Ba-sp.in",
+         "hints" : {
+            "high" : {
+               "ecut" : null
+            },
+            "low" : {
+               "ecut" : null
+            },
+            "normal" : {
+               "ecut" : null
+            }
+         },
+         "input" : "# ATOM AND REFERENCE CONFIGURATION\n# atsym  z   nc   nv     iexc    psfile\nBa 56.00    9    3       4      both\n#\n#   n    l    f        energy (Ha)\n1    0    2.00\n2    0    2.00\n2    1    6.00\n3    0    2.00\n3    1    6.00\n3    2   10.00\n4    0    2.00\n4    1    6.00\n4    2   10.00\n5    0    2.00\n5    1    6.00\n6    0    2.00\n#\n# PSEUDOPOTENTIAL AND OPTIMIZATION\n# lmax\n3\n#\n#   l,   rc,      ep,       ncon, nbas, qcut\n0   1.95000   0.00000    3    8   5.20000\n1   1.80000   0.00000    4    8   6.60000\n2   1.90000   0.00000    4    9   6.80000\n3   2.10000   0.05000    4    8   8.00000\n#\n# LOCAL POTENTIAL\n# lloc, lpopt,  rc(5),   dvloc0\n4    5   1.80000      0.00000\n#\n# VANDERBILT-KLEINMAN-BYLANDER PROJECTORs\n# l, nproj, debl\n0    2   1.00000\n1    2   2.50000\n2    2   3.00000\n3    2   3.00000\n#\n# MODEL CORE CHARGE\n# icmod, fcfact, rcfact\n3   5.00000   1.25000\n#\n# LOG DERIVATIVE ANALYSIS\n# epsh1, epsh2, depsh\n-12.00   12.00    0.02\n#\n# OUTPUT GRID\n# rlmax, drl\n6.00    0.01\n#\n# TEST CONFIGURATIONS\n# ncnf\n2\n# nvcnf\n#   n    l    f\n3\n5    0    2.00\n5    1    6.00\n6    0    1.00\n#\n3\n5    0    2.00\n5    1    6.00\n6    0    0.00\n#\n"
+      },
+      "Be" : {
+         "basename" : "Be-s-high.in",
+         "hints" : {
+            "high" : {
+               "ecut" : 59
+            },
+            "low" : {
+               "ecut" : 49
+            },
+            "normal" : {
+               "ecut" : 53
+            }
+         },
+         "input" : "# ATOM AND REFERENCE CONFIGURATION\n# atsym  z   nc   nv     iexc    psfile\nBe  4.00    0    2       4      both\n#\n#   n    l    f        energy (Ha)\n1    0    2.00\n2    0    2.00\n#\n# PSEUDOPOTENTIAL AND OPTIMIZATION\n# lmax\n1\n#\n#   l,   rc,      ep,       ncon, nbas, qcut\n0   1.20000  -3.90326    4    7  10.40000\n1   1.05000  -0.00000    4    7  10.00000\n#\n# LOCAL POTENTIAL\n# lloc, lpopt,  rc(5),   dvloc0\n4    5   0.95000      0.00000\n#\n# VANDERBILT-KLEINMAN-BYLANDER PROJECTORs\n# l, nproj, debl\n0    2   3.69710\n1    2   1.00000\n#\n# MODEL CORE CHARGE\n# icmod, fcfact, rcfact\n0   0.00000   0.00000\n#\n# LOG DERIVATIVE ANALYSIS\n# epsh1, epsh2, depsh\n-12.00   12.00    0.02\n#\n# OUTPUT GRID\n# rlmax, drl\n4.00    0.01\n#\n# TEST CONFIGURATIONS\n# ncnf\n0\n# nvcnf\n#   n    l    f\n"
+      },
+      "Bi" : {
+         "basename" : "Bi-spd-high.in",
+         "hints" : {
+            "high" : {
+               "ecut" : null
+            },
+            "low" : {
+               "ecut" : null
+            },
+            "normal" : {
+               "ecut" : null
+            }
+         },
+         "input" : "# ATOM AND REFERENCE CONFIGURATION\n# atsym  z   nc   nv     iexc    psfile\nBi 83.00   10    5       4      both\n#\n#   n    l    f        energy (Ha)\n1    0    2.00\n2    0    2.00\n2    1    6.00\n3    0    2.00\n3    1    6.00\n3    2   10.00\n4    0    2.00\n4    1    6.00\n4    2   10.00\n4    3   14.00\n5    0    2.00\n5    1    6.00\n5    2   10.00\n6    0    2.00\n6    1    3.00\n#\n# PSEUDOPOTENTIAL AND OPTIMIZATION\n# lmax\n3\n#\n#   l,   rc,      ep,       ncon, nbas, qcut\n0   1.40000   0.00000    4    8   9.00000\n1   1.50000   0.00000    4    8   8.40000\n2   1.40000   0.00000    4    8   9.00000\n3   1.40000   0.05000    4    7   3.00000\n#\n# LOCAL POTENTIAL\n# lloc, lpopt,  rc(5),   dvloc0\n4    5   1.30000      0.00000\n#\n# VANDERBILT-KLEINMAN-BYLANDER PROJECTORs\n# l, nproj, debl\n0    2   1.00000\n1    2   1.00000\n2    2   2.00000\n3    1   1.00000\n#\n# MODEL CORE CHARGE\n# icmod, fcfact, rcfact\n3   6.00000   1.34000\n#\n# LOG DERIVATIVE ANALYSIS\n# epsh1, epsh2, depsh\n-12.00   12.00    0.02\n#\n# OUTPUT GRID\n# rlmax, drl\n6.00    0.01\n#\n# TEST CONFIGURATIONS\n# ncnf\n0\n# nvcnf\n#   n    l    f\n"
+      },
+      "Br" : {
+         "basename" : "Br-d.in",
+         "hints" : {
+            "high" : {
+               "ecut" : 44
+            },
+            "low" : {
+               "ecut" : 34
+            },
+            "normal" : {
+               "ecut" : 38
+            }
+         },
+         "input" : "# ATOM AND REFERENCE CONFIGURATION\n# atsym  z   nc   nv     iexc    psfile\nBr 35.00    5    3       4      both\n#\n#   n    l    f        energy (Ha)\n1    0    2.00\n2    0    2.00\n2    1    6.00\n3    0    2.00\n3    1    6.00\n3    2   10.00\n4    0    2.00\n4    1    5.00\n#\n# PSEUDOPOTENTIAL AND OPTIMIZATION\n# lmax\n2\n#\n#   l,   rc,      ep,       ncon, nbas, qcut\n0   1.80000  -0.73993    4    8   5.80000\n1   1.50000  -0.28884    4    8   6.60000\n2   1.90000  -2.45184    4    8   8.60000\n#\n# LOCAL POTENTIAL\n# lloc, lpopt,  rc(5),   dvloc0\n4    5   1.50000      0.00000\n#\n# VANDERBILT-KLEINMAN-BYLANDER PROJECTORs\n# l, nproj, debl\n0    2   3.20000\n1    2   4.00000\n2    2   2.50000\n#\n# MODEL CORE CHARGE\n# icmod, fcfact, rcfact\n3   3.50000   1.50000\n#\n# LOG DERIVATIVE ANALYSIS\n# epsh1, epsh2, depsh\n-12.00   12.00    0.02\n#\n# OUTPUT GRID\n# rlmax, drl\n6.00    0.01\n#\n# TEST CONFIGURATIONS\n# ncnf\n0\n# nvcnf\n#   n    l    f\n"
+      },
+      "C_" : {
+         "basename" : "C.in",
+         "hints" : {
+            "high" : {
+               "ecut" : 45
+            },
+            "low" : {
+               "ecut" : 37
+            },
+            "normal" : {
+               "ecut" : 41
+            }
+         },
+         "input" : "# ATOM AND REFERENCE CONFIGURATION\n# atsym  z   nc   nv     iexc    psfile\nC  6.00    1    2       4      both\n#\n#   n    l    f        energy (Ha)\n1    0    2.00\n2    0    2.00\n2    1    2.00\n#\n# PSEUDOPOTENTIAL AND OPTIMIZATION\n# lmax\n1\n#\n#   l,   rc,      ep,       ncon, nbas, qcut\n0   1.20000  -0.50533    4    7   9.00000\n1   1.25000  -0.19424    4    8   9.40000\n#\n# LOCAL POTENTIAL\n# lloc, lpopt,  rc(5),   dvloc0\n4    5   1.20000      0.00000\n#\n# VANDERBILT-KLEINMAN-BYLANDER PROJECTORs\n# l, nproj, debl\n0    2   2.00000\n1    2   1.50000\n#\n# MODEL CORE CHARGE\n# icmod, fcfact, rcfact\n3   4.00000   1.55000\n#\n# LOG DERIVATIVE ANALYSIS\n# epsh1, epsh2, depsh\n-12.00   12.00    0.02\n#\n# OUTPUT GRID\n# rlmax, drl\n6.00    0.01\n#\n# TEST CONFIGURATIONS\n# ncnf\n0\n# nvcnf\n#   n    l    f\n"
+      },
+      "Ca" : {
+         "basename" : "Ca-sp.in",
+         "hints" : {
+            "high" : {
+               "ecut" : 38
+            },
+            "low" : {
+               "ecut" : 28
+            },
+            "normal" : {
+               "ecut" : 34
+            }
+         },
+         "input" : "# ATOM AND REFERENCE CONFIGURATION\n# atsym  z   nc   nv     iexc    psfile\nCa 20.00    3    3       4      both\n#\n#   n    l    f        energy (Ha)\n1    0    2.00\n2    0    2.00\n2    1    6.00\n3    0    2.00\n3    1    6.00\n4    0    2.00\n#\n# PSEUDOPOTENTIAL AND OPTIMIZATION\n# lmax\n2\n#\n#   l,   rc,      ep,       ncon, nbas, qcut\n0   1.45000  -1.73059    4    8   8.20000\n1   1.45000  -1.02928    4    8   8.40000\n2   1.85000   0.00000    4    8   8.00000\n#\n# LOCAL POTENTIAL\n# lloc, lpopt,  rc(5),   dvloc0\n4    5   1.30000      0.00000\n#\n# VANDERBILT-KLEINMAN-BYLANDER PROJECTORs\n# l, nproj, debl\n0    2   1.59218\n1    2   2.00000\n2    2   2.00000\n#\n# MODEL CORE CHARGE\n# icmod, fcfact, rcfact\n3   6.00000   1.28000\n#\n# LOG DERIVATIVE ANALYSIS\n# epsh1, epsh2, depsh\n-12.00   12.00    0.02\n#\n# OUTPUT GRID\n# rlmax, drl\n4.00    0.01\n#\n# TEST CONFIGURATIONS\n# ncnf\n0\n# nvcnf\n#   n    l    f\n"
+      },
+      "Cd" : {
+         "basename" : "Cd-sp-high.in",
+         "hints" : {
+            "high" : {
+               "ecut" : 66
+            },
+            "low" : {
+               "ecut" : 54
+            },
+            "normal" : {
+               "ecut" : 60
+            }
+         },
+         "input" : "# ATOM AND REFERENCE CONFIGURATION\n# atsym  z   nc   nv     iexc    psfile\nCd 48.00    6    4       4      both\n#\n#   n    l    f        energy (Ha)\n1    0    2.00\n2    0    2.00\n2    1    6.00\n3    0    2.00\n3    1    6.00\n3    2   10.00\n4    0    2.00\n4    1    6.00\n4    2   10.00\n5    0    2.00\n#\n# PSEUDOPOTENTIAL AND OPTIMIZATION\n# lmax\n2\n#\n#   l,   rc,      ep,       ncon, nbas, qcut\n0   1.20000  -3.89242    4    8  10.20000\n1   1.20000  -2.46101    4    8  11.20000\n2   1.25000  -0.43118    4    8  11.20000\n#\n# LOCAL POTENTIAL\n# lloc, lpopt,  rc(5),   dvloc0\n4    5   1.15000      0.00000\n#\n# VANDERBILT-KLEINMAN-BYLANDER PROJECTORs\n# l, nproj, debl\n0    2   3.68443\n1    2   2.41752\n2    2   2.00000\n#\n# MODEL CORE CHARGE\n# icmod, fcfact, rcfact\n3   6.00000   1.26000\n#\n# LOG DERIVATIVE ANALYSIS\n# epsh1, epsh2, depsh\n-12.00   12.00    0.02\n#\n# OUTPUT GRID\n# rlmax, drl\n6.00    0.01\n#\n# TEST CONFIGURATIONS\n# ncnf\n0\n# nvcnf\n#   n    l    f\n"
+      },
+      "Cl" : {
+         "basename" : "Cl.in",
+         "hints" : {
+            "high" : {
+               "ecut" : 33
+            },
+            "low" : {
+               "ecut" : 25
+            },
+            "normal" : {
+               "ecut" : 29
+            }
+         },
+         "input" : "# ATOM AND REFERENCE CONFIGURATION\n# atsym  z   nc   nv     iexc    psfile\nCl 17.00    3    2       4      both\n#\n#   n    l    f        energy (Ha)\n1    0    2.00\n2    0    2.00\n2    1    6.00\n3    0    2.00\n3    1    5.00\n#\n# PSEUDOPOTENTIAL AND OPTIMIZATION\n# lmax\n2\n#\n#   l,   rc,      ep,       ncon, nbas, qcut\n0   1.55000  -0.76042    4    9   6.80000\n1   1.35000  -0.31587    4    8   8.00000\n2   1.75000   0.10000    4    9   6.80000\n#\n# LOCAL POTENTIAL\n# lloc, lpopt,  rc(5),   dvloc0\n4    5   1.30000      0.00000\n#\n# VANDERBILT-KLEINMAN-BYLANDER PROJECTORs\n# l, nproj, debl\n0    2   2.00000\n1    2   2.00000\n2    2   1.50000\n#\n# MODEL CORE CHARGE\n# icmod, fcfact, rcfact\n3   8.00000   1.23000\n#\n# LOG DERIVATIVE ANALYSIS\n# epsh1, epsh2, depsh\n-15.00   12.00    0.02\n#\n# OUTPUT GRID\n# rlmax, drl\n6.00    0.01\n#\n# TEST CONFIGURATIONS\n# ncnf\n0\n# nvcnf\n#   n    l    f\n"
+      },
+      "Co" : {
+         "basename" : "Co-sp-high.in",
+         "hints" : {
+            "high" : {
+               "ecut" : 56
+            },
+            "low" : {
+               "ecut" : 48
+            },
+            "normal" : {
+               "ecut" : 52
+            }
+         },
+         "input" : "# ATOM AND REFERENCE CONFIGURATION\n# atsym  z   nc   nv     iexc    psfile\nCo 27.00    3    4       4      both\n#\n#   n    l    f        energy (Ha)\n1    0    2.00\n2    0    2.00\n2    1    6.00\n3    0    2.00\n3    1    6.00\n3    2    7.00\n4    0    2.00\n#\n# PSEUDOPOTENTIAL AND OPTIMIZATION\n# lmax\n2\n#\n#   l,   rc,      ep,       ncon, nbas, qcut\n0   1.20000  -3.76330    4    7  10.00000\n1   1.20000  -2.41210    4    7  10.00000\n2   1.55000  -0.30150    4    7  10.20000\n#\n# LOCAL POTENTIAL\n# lloc, lpopt,  rc(5),   dvloc0\n4    5   1.20000      0.00000\n#\n# VANDERBILT-KLEINMAN-BYLANDER PROJECTORs\n# l, nproj, debl\n0    2   3.56228\n1    2   2.36519\n2    2   0.80000\n#\n# MODEL CORE CHARGE\n# icmod, fcfact, rcfact\n3   6.00000   1.80000\n#\n# LOG DERIVATIVE ANALYSIS\n# epsh1, epsh2, depsh\n-12.00   12.00    0.02\n#\n# OUTPUT GRID\n# rlmax, drl\n6.00    0.01\n#\n# TEST CONFIGURATIONS\n# ncnf\n0\n# nvcnf\n#   n    l    f\n"
+      },
+      "Cr" : {
+         "basename" : "Cr-sp-high.in",
+         "hints" : {
+            "high" : {
+               "ecut" : 66
+            },
+            "low" : {
+               "ecut" : 56
+            },
+            "normal" : {
+               "ecut" : 60
+            }
+         },
+         "input" : "# ATOM AND REFERENCE CONFIGURATION\n# atsym  z   nc   nv     iexc    psfile\nCr 24.00    3    4       4      both\n#\n#   n    l    f        energy (Ha)\n1    0    2.00\n2    0    2.00\n2    1    6.00\n3    0    2.00\n3    1    6.00\n3    2    5.00\n4    0    1.00\n#\n# PSEUDOPOTENTIAL AND OPTIMIZATION\n# lmax\n2\n#\n#   l,   rc,      ep,       ncon, nbas, qcut\n0   1.10000  -2.71914    4    8  10.80000\n1   1.10000  -1.67001    4    7  11.00000\n2   1.40000  -0.10706    4    8  11.00000\n#\n# LOCAL POTENTIAL\n# lloc, lpopt,  rc(5),   dvloc0\n4    5   1.10000      0.00000\n#\n# VANDERBILT-KLEINMAN-BYLANDER PROJECTORs\n# l, nproj, debl\n0    2   2.57187\n1    2   1.63368\n2    2   1.00000\n#\n# MODEL CORE CHARGE\n# icmod, fcfact, rcfact\n3   4.50000   1.60000\n#\n# LOG DERIVATIVE ANALYSIS\n# epsh1, epsh2, depsh\n-18.00   12.00    0.02\n#\n# OUTPUT GRID\n# rlmax, drl\n6.00    0.01\n#\n# TEST CONFIGURATIONS\n# ncnf\n0\n# nvcnf\n#   n    l    f\n"
+      },
+      "Cs" : {
+         "basename" : "Cs-sp.in",
+         "hints" : {
+            "high" : {
+               "ecut" : 29
+            },
+            "low" : {
+               "ecut" : 19
+            },
+            "normal" : {
+               "ecut" : 25
+            }
+         },
+         "input" : "# ATOM AND REFERENCE CONFIGURATION\n# atsym  z   nc   nv     iexc    psfile\nCs 55.00    9    3       4      both\n#\n#   n    l    f        energy (Ha)\n1    0    2.00\n2    0    2.00\n2    1    6.00\n3    0    2.00\n3    1    6.00\n3    2   10.00\n4    0    2.00\n4    1    6.00\n4    2   10.00\n5    0    2.00\n5    1    6.00\n6    0    1.00\n#\n# PSEUDOPOTENTIAL AND OPTIMIZATION\n# lmax\n3\n#\n#   l,   rc,      ep,       ncon, nbas, qcut\n0   2.25000  -0.98239    4    7   4.80000\n1   1.85000  -0.49679    4    7   6.00000\n2   2.00000   0.00000    4    8   6.20000\n3   1.90000   0.05000    4    7   8.80000\n#\n# LOCAL POTENTIAL\n# lloc, lpopt,  rc(5),   dvloc0\n4    5   1.85000      0.00000\n#\n# VANDERBILT-KLEINMAN-BYLANDER PROJECTORs\n# l, nproj, debl\n0    2   0.90572\n1    2   5.00000\n2    2   5.00000\n3    2   2.00000\n#\n# MODEL CORE CHARGE\n# icmod, fcfact, rcfact\n3   5.00000   1.40000\n#\n# LOG DERIVATIVE ANALYSIS\n# epsh1, epsh2, depsh\n-12.00   12.00    0.02\n#\n# OUTPUT GRID\n# rlmax, drl\n6.00    0.01\n#\n# TEST CONFIGURATIONS\n# ncnf\n0\n# nvcnf\n#   n    l    f\n"
+      },
+      "Cu" : {
+         "basename" : "Cu-sp-high.in",
+         "hints" : {
+            "high" : {
+               "ecut" : 60
+            },
+            "low" : {
+               "ecut" : 48
+            },
+            "normal" : {
+               "ecut" : 52
+            }
+         },
+         "input" : "# ATOM AND REFERENCE CONFIGURATION\n# atsym  z   nc   nv     iexc    psfile\nCu 29.00    3    4       4      both\n#\n#   n    l    f        energy (Ha)\n1    0    2.00\n2    0    2.00\n2    1    6.00\n3    0    2.00\n3    1    6.00\n3    2   10.00\n4    0    1.00\n#\n# PSEUDOPOTENTIAL AND OPTIMIZATION\n# lmax\n2\n#\n#   l,   rc,      ep,       ncon, nbas, qcut\n0   1.20000  -4.21529    4    8   9.60000\n1   1.30000  -2.65124    4    8  10.00000\n2   1.60000  -0.18517    4    7  10.00000\n#\n# LOCAL POTENTIAL\n# lloc, lpopt,  rc(5),   dvloc0\n4    5   1.20000      0.00000\n#\n# VANDERBILT-KLEINMAN-BYLANDER PROJECTORs\n# l, nproj, debl\n0    2   4.04588\n1    2   2.62563\n2    2   2.00000\n#\n# MODEL CORE CHARGE\n# icmod, fcfact, rcfact\n3   5.00000   1.45000\n#\n# LOG DERIVATIVE ANALYSIS\n# epsh1, epsh2, depsh\n-12.00   12.00    0.02\n#\n# OUTPUT GRID\n# rlmax, drl\n6.00    0.01\n#\n# TEST CONFIGURATIONS\n# ncnf\n0\n# nvcnf\n#   n    l    f\n"
+      },
+      "F_" : {
+         "basename" : "F.in",
+         "hints" : {
+            "high" : {
+               "ecut" : 48
+            },
+            "low" : {
+               "ecut" : 36
+            },
+            "normal" : {
+               "ecut" : 42
+            }
+         },
+         "input" : "# ATOM AND REFERENCE CONFIGURATION\n# atsym  z   nc   nv     iexc    psfile\nF  9.00    1    2       4      both\n#\n#   n    l    f        energy (Ha)\n1    0    2.00\n2    0    2.00\n2    1    5.00\n#\n# PSEUDOPOTENTIAL AND OPTIMIZATION\n# lmax\n2\n#\n#   l,   rc,      ep,       ncon, nbas, qcut\n0   1.30000  -1.09879    4    8   8.60000\n1   1.45000  -0.40834    4    8   9.00000\n2   1.60000   0.15000    4    8   5.80000\n#\n# LOCAL POTENTIAL\n# lloc, lpopt,  rc(5),   dvloc0\n4    5   0.95000      0.00000\n#\n# VANDERBILT-KLEINMAN-BYLANDER PROJECTORs\n# l, nproj, debl\n0    2   1.50000\n1    2   1.50000\n2    1   2.00000\n#\n# MODEL CORE CHARGE\n# icmod, fcfact, rcfact\n3   2.50000   1.85000\n#\n# LOG DERIVATIVE ANALYSIS\n# epsh1, epsh2, depsh\n-12.00   12.00    0.02\n#\n# OUTPUT GRID\n# rlmax, drl\n6.00    0.01\n#\n# TEST CONFIGURATIONS\n# ncnf\n0\n# nvcnf\n#   n    l    f\n"
+      },
+      "Fe" : {
+         "basename" : "Fe-sp-high.in",
+         "hints" : {
+            "high" : {
+               "ecut" : 65
+            },
+            "low" : {
+               "ecut" : 55
+            },
+            "normal" : {
+               "ecut" : 59
+            }
+         },
+         "input" : "# ATOM AND REFERENCE CONFIGURATION\n# atsym  z   nc   nv     iexc    psfile\nFe 26.00    3    4       4      both\n#\n#   n    l    f        energy (Ha)\n1    0    2.00\n2    0    2.00\n2    1    6.00\n3    0    2.00\n3    1    6.00\n3    2    6.00\n4    0    2.00\n#\n# PSEUDOPOTENTIAL AND OPTIMIZATION\n# lmax\n2\n#\n#   l,   rc,      ep,       ncon, nbas, qcut\n0   1.10000  -3.45509    3    7  10.30000\n1   1.10000  -2.20653    3    7   9.20000\n2   1.35000  -0.27580    3    7  10.80000\n#\n# LOCAL POTENTIAL\n# lloc, lpopt,  rc(5),   dvloc0\n4    5   1.10000      0.00000\n#\n# VANDERBILT-KLEINMAN-BYLANDER PROJECTORs\n# l, nproj, debl\n0    2   3.26061\n1    2   2.15783\n2    2   0.80000\n#\n# MODEL CORE CHARGE\n# icmod, fcfact, rcfact\n3   3.00000   1.70000\n#\n# LOG DERIVATIVE ANALYSIS\n# epsh1, epsh2, depsh\n-24.00   12.00    0.02\n#\n# OUTPUT GRID\n# rlmax, drl\n6.00    0.01\n#\n# TEST CONFIGURATIONS\n# ncnf\n0\n# nvcnf\n#   n    l    f\n"
+      },
+      "Ga" : {
+         "basename" : "Ga-spd-high.in",
+         "hints" : {
+            "high" : {
+               "ecut" : 61
+            },
+            "low" : {
+               "ecut" : 53
+            },
+            "normal" : {
+               "ecut" : 57
+            }
+         },
+         "input" : "# ATOM AND REFERENCE CONFIGURATION\n# atsym  z   nc   nv     iexc    psfile\nGa 31.00    3    5       4      both\n#\n#   n    l    f        energy (Ha)\n1    0    2.00\n2    0    2.00\n2    1    6.00\n3    0    2.00\n3    1    6.00\n3    2   10.00\n4    0    2.00\n4    1    1.00\n#\n# PSEUDOPOTENTIAL AND OPTIMIZATION\n# lmax\n2\n#\n#   l,   rc,      ep,       ncon, nbas, qcut\n0   1.20000  -5.44353    4    7   9.40000\n1   1.30000  -3.63301    4    7  10.60000\n2   1.50000  -0.70391    4    7  10.60000\n#\n# LOCAL POTENTIAL\n# lloc, lpopt,  rc(5),   dvloc0\n4    5   1.20000      0.00000\n#\n# VANDERBILT-KLEINMAN-BYLANDER PROJECTORs\n# l, nproj, debl\n0    2   5.11467\n1    2   3.53823\n2    2   3.00000\n#\n# MODEL CORE CHARGE\n# icmod, fcfact, rcfact\n3   3.00000   1.50000\n#\n# LOG DERIVATIVE ANALYSIS\n# epsh1, epsh2, depsh\n-12.00   12.00    0.02\n#\n# OUTPUT GRID\n# rlmax, drl\n6.00    0.01\n#\n# TEST CONFIGURATIONS\n# ncnf\n0\n# nvcnf\n#   n    l    f\n"
+      },
+      "Ge" : {
+         "basename" : "Ge-spd-high.in",
+         "hints" : {
+            "high" : {
+               "ecut" : 68
+            },
+            "low" : {
+               "ecut" : 56
+            },
+            "normal" : {
+               "ecut" : 62
+            }
+         },
+         "input" : "# ATOM AND REFERENCE CONFIGURATION\n# atsym  z   nc   nv     iexc    psfile\nGe 32.00    3    5       4      both\n#\n#   n    l    f        energy (Ha)\n1    0    2.00\n2    0    2.00\n2    1    6.00\n3    0    2.00\n3    1    6.00\n3    2   10.00\n4    0    2.00\n4    1    2.00\n#\n# PSEUDOPOTENTIAL AND OPTIMIZATION\n# lmax\n2\n#\n#   l,   rc,      ep,       ncon, nbas, qcut\n0   1.20000  -6.19193    4    7   9.60000\n1   1.30000  -4.24897    4    7  10.50000\n2   1.50000  -1.07715    4    7  11.00000\n#\n# LOCAL POTENTIAL\n# lloc, lpopt,  rc(5),   dvloc0\n4    5   1.20000      0.00000\n#\n# VANDERBILT-KLEINMAN-BYLANDER PROJECTORs\n# l, nproj, debl\n0    2   5.76080\n1    2   4.10582\n2    2   3.00000\n#\n# MODEL CORE CHARGE\n# icmod, fcfact, rcfact\n3   3.00000   1.50000\n#\n# LOG DERIVATIVE ANALYSIS\n# epsh1, epsh2, depsh\n-12.00   12.00    0.02\n#\n# OUTPUT GRID\n# rlmax, drl\n6.00    0.01\n#\n# TEST CONFIGURATIONS\n# ncnf\n0\n# nvcnf\n#   n    l    f\n"
+      },
+      "H_" : {
+         "basename" : "H.in",
+         "hints" : {
+            "high" : {
+               "ecut" : 42
+            },
+            "low" : {
+               "ecut" : 32
+            },
+            "normal" : {
+               "ecut" : 36
+            }
+         },
+         "input" : "# ATOM AND REFERENCE CONFIGURATION\n# atsym  z   nc   nv     iexc    psfile\nH  1.00    0    1       4      both\n#\n#   n    l    f        energy (Ha)\n1    0    1.00\n#\n# PSEUDOPOTENTIAL AND OPTIMIZATION\n# lmax\n1\n#\n#   l,   rc,      ep,       ncon, nbas, qcut\n0   1.00000  -0.23860    4    7   8.50000\n1   0.70000   0.05000    4    7  11.00000\n#\n# LOCAL POTENTIAL\n# lloc, lpopt,  rc(5),   dvloc0\n4    5   0.70000      0.00000\n#\n# VANDERBILT-KLEINMAN-BYLANDER PROJECTORs\n# l, nproj, debl\n0    2   1.00000\n1    1   1.00000\n#\n# MODEL CORE CHARGE\n# icmod, fcfact, rcfact\n0   0.00000   0.00000\n#\n# LOG DERIVATIVE ANALYSIS\n# epsh1, epsh2, depsh\n-12.00   12.00    0.02\n#\n# OUTPUT GRID\n# rlmax, drl\n3.00    0.01\n#\n# TEST CONFIGURATIONS\n# ncnf\n0\n# nvcnf\n#   n    l    f\n"
+      },
+      "He" : {
+         "basename" : "He.in",
+         "hints" : {
+            "high" : {
+               "ecut" : 49
+            },
+            "low" : {
+               "ecut" : 39
+            },
+            "normal" : {
+               "ecut" : 45
+            }
+         },
+         "input" : "# ATOM AND REFERENCE CONFIGURATION\n# atsym  z   nc   nv     iexc    psfile\nHe  2.00    0    1       4      both\n#\n#   n    l    f        energy (Ha)\n1    0    2.00\n#\n# PSEUDOPOTENTIAL AND OPTIMIZATION\n# lmax\n1\n#\n#   l,   rc,      ep,       ncon, nbas, qcut\n0   1.25000  -0.57931    4    8   9.40000\n1   1.13000   0.05000    4    7   9.40000\n#\n# LOCAL POTENTIAL\n# lloc, lpopt,  rc(5),   dvloc0\n4    5   1.00000      0.00000\n#\n# VANDERBILT-KLEINMAN-BYLANDER PROJECTORs\n# l, nproj, debl\n0    2   1.00000\n1    1   1.00000\n#\n# MODEL CORE CHARGE\n# icmod, fcfact, rcfact\n0   0.00000   0.00000\n#\n# LOG DERIVATIVE ANALYSIS\n# epsh1, epsh2, depsh\n-12.00   12.00    0.02\n#\n# OUTPUT GRID\n# rlmax, drl\n6.00    0.01\n#\n# TEST CONFIGURATIONS\n# ncnf\n0\n# nvcnf\n#   n    l    f\n"
+      },
+      "Hf" : {
+         "basename" : "Hf-fsp.in",
+         "hints" : {
+            "high" : {
+               "ecut" : 72
+            },
+            "low" : {
+               "ecut" : 62
+            },
+            "normal" : {
+               "ecut" : 66
+            }
+         },
+         "input" : "# ATOM AND REFERENCE CONFIGURATION\n# atsym  z   nc   nv     iexc    psfile\nHf 72.00    9    5       4      both\n#\n#   n    l    f        energy (Ha)\n1    0    2.00\n2    0    2.00\n2    1    6.00\n3    0    2.00\n3    1    6.00\n3    2   10.00\n4    0    2.00\n4    1    6.00\n4    2   10.00\n5    0    2.00\n5    1    6.00\n4    3   14.00\n5    2    2.00\n6    0    2.00\n#\n# PSEUDOPOTENTIAL AND OPTIMIZATION\n# lmax\n3\n#\n#   l,   rc,      ep,       ncon, nbas, qcut\n0   1.55000  -2.46280    4    8   7.50000\n1   1.60000  -1.30732    4    8   8.00000\n2   1.40000  -0.09882    4    8   9.20000\n3   1.60000  -0.61866    4    8  11.40000\n#\n# LOCAL POTENTIAL\n# lloc, lpopt,  rc(5),   dvloc0\n4    5   1.30000      0.00000\n#\n# VANDERBILT-KLEINMAN-BYLANDER PROJECTORs\n# l, nproj, debl\n0    2   2.27507\n1    2   1.25601\n2    2   1.00000\n3    2   1.50000\n#\n# MODEL CORE CHARGE\n# icmod, fcfact, rcfact\n3   3.00000   1.45000\n#\n# LOG DERIVATIVE ANALYSIS\n# epsh1, epsh2, depsh\n-12.00   12.00    0.02\n#\n# OUTPUT GRID\n# rlmax, drl\n6.00    0.01\n#\n# TEST CONFIGURATIONS\n# ncnf\n0\n# nvcnf\n#   n    l    f\n"
+      },
+      "Hg" : {
+         "basename" : "Hg-sp-high.in",
+         "hints" : {
+            "high" : {
+               "ecut" : 50
+            },
+            "low" : {
+               "ecut" : 38
+            },
+            "normal" : {
+               "ecut" : 44
+            }
+         },
+         "input" : "# ATOM AND REFERENCE CONFIGURATION\n# atsym  z   nc   nv     iexc    psfile\nHg 80.00   10    4       4      both\n#\n#   n    l    f        energy (Ha)\n1    0    2.00\n2    0    2.00\n2    1    6.00\n3    0    2.00\n3    1    6.00\n3    2   10.00\n4    0    2.00\n4    1    6.00\n4    2   10.00\n4    3   14.00\n5    0    2.00\n5    1    6.00\n5    2   10.00\n6    0    2.00\n#\n# PSEUDOPOTENTIAL AND OPTIMIZATION\n# lmax\n3\n#\n#   l,   rc,      ep,       ncon, nbas, qcut\n0   1.40000  -4.34313    4    8   9.00000\n1   1.45000  -2.44441    4    8   9.00000\n2   1.40000  -0.36236    4    8   9.00000\n3   1.60000   0.10000    4    8   6.80000\n#\n# LOCAL POTENTIAL\n# lloc, lpopt,  rc(5),   dvloc0\n4    5   1.40000      0.00000\n#\n# VANDERBILT-KLEINMAN-BYLANDER PROJECTORs\n# l, nproj, debl\n0    2   4.09261\n1    2   2.80000\n2    2   1.80000\n3    1   1.50000\n#\n# MODEL CORE CHARGE\n# icmod, fcfact, rcfact\n3   5.00000   1.37000\n#\n# LOG DERIVATIVE ANALYSIS\n# epsh1, epsh2, depsh\n-12.00   12.00    0.02\n#\n# OUTPUT GRID\n# rlmax, drl\n6.00    0.01\n#\n# TEST CONFIGURATIONS\n# ncnf\n0\n# nvcnf\n#   n    l    f\n"
+      },
+      "I_" : {
+         "basename" : "I-spd-high.in",
+         "hints" : {
+            "high" : {
+               "ecut" : null
+            },
+            "low" : {
+               "ecut" : null
+            },
+            "normal" : {
+               "ecut" : null
+            }
+         },
+         "input" : "# ATOM AND REFERENCE CONFIGURATION\n# atsym  z   nc   nv     iexc    psfile\nI 53.00    6    5       4      both\n#\n#   n    l    f        energy (Ha)\n1    0    2.00\n2    0    2.00\n2    1    6.00\n3    0    2.00\n3    1    6.00\n3    2   10.00\n4    0    2.00\n4    1    6.00\n4    2   10.00\n5    0    2.00\n5    1    5.00\n#\n# PSEUDOPOTENTIAL AND OPTIMIZATION\n# lmax\n3\n#\n#   l,   rc,      ep,       ncon, nbas, qcut\n0   1.40000   0.00000    4    8   9.40000\n1   1.40000   0.00000    4    8   9.60000\n2   1.40000   0.00000    4    8  10.60000\n3   1.75000   0.05000    4    8   6.00000\n#\n# LOCAL POTENTIAL\n# lloc, lpopt,  rc(5),   dvloc0\n4    5   1.20000      0.00000\n#\n# VANDERBILT-KLEINMAN-BYLANDER PROJECTORs\n# l, nproj, debl\n0    2   1.00000\n1    2   1.00000\n2    2   2.50000\n3    2   2.00000\n#\n# MODEL CORE CHARGE\n# icmod, fcfact, rcfact\n3   5.00000   1.50000\n#\n# LOG DERIVATIVE ANALYSIS\n# epsh1, epsh2, depsh\n-12.00   12.00    0.02\n#\n# OUTPUT GRID\n# rlmax, drl\n6.00    0.01\n#\n# TEST CONFIGURATIONS\n# ncnf\n0\n# nvcnf\n#   n    l    f\n"
+      },
+      "In" : {
+         "basename" : "In-spd-high.in",
+         "hints" : {
+            "high" : {
+               "ecut" : 49
+            },
+            "low" : {
+               "ecut" : 37
+            },
+            "normal" : {
+               "ecut" : 41
+            }
+         },
+         "input" : "# ATOM AND REFERENCE CONFIGURATION\n# atsym  z   nc   nv     iexc    psfile\nIn 49.00    6    5       4      both\n#\n#   n    l    f        energy (Ha)\n1    0    2.00\n2    0    2.00\n2    1    6.00\n3    0    2.00\n3    1    6.00\n3    2   10.00\n4    0    2.00\n4    1    6.00\n4    2   10.00\n5    0    2.00\n5    1    1.00\n#\n# PSEUDOPOTENTIAL AND OPTIMIZATION\n# lmax\n2\n#\n#   l,   rc,      ep,       ncon, nbas, qcut\n0   1.60000  -4.39741    5    8   9.00000\n1   1.60000  -2.87123    5    8   8.80000\n2   1.70000  -0.68439    4    7   9.00000\n#\n# LOCAL POTENTIAL\n# lloc, lpopt,  rc(5),   dvloc0\n4    5   1.50000      0.00000\n#\n# VANDERBILT-KLEINMAN-BYLANDER PROJECTORs\n# l, nproj, debl\n0    2   4.09565\n1    2   2.77867\n2    2   1.50000\n#\n# MODEL CORE CHARGE\n# icmod, fcfact, rcfact\n3   5.00000   1.44000\n#\n# LOG DERIVATIVE ANALYSIS\n# epsh1, epsh2, depsh\n-12.00   12.00    0.02\n#\n# OUTPUT GRID\n# rlmax, drl\n6.00    0.01\n#\n# TEST CONFIGURATIONS\n# ncnf\n0\n# nvcnf\n#   n    l    f\n"
+      },
+      "Ir" : {
+         "basename" : "Ir-sp.in",
+         "hints" : {
+            "high" : {
+               "ecut" : 40
+            },
+            "low" : {
+               "ecut" : 30
+            },
+            "normal" : {
+               "ecut" : 34
+            }
+         },
+         "input" : "# ATOM AND REFERENCE CONFIGURATION\n# atsym  z   nc   nv     iexc    psfile\nIr 77.00   10    4       4      both\n#\n#   n    l    f        energy (Ha)\n1    0    2.00\n2    0    2.00\n2    1    6.00\n3    0    2.00\n3    1    6.00\n3    2   10.00\n4    0    2.00\n4    1    6.00\n4    2   10.00\n4    3   14.00\n5    0    2.00\n5    1    6.00\n5    2    7.00\n6    0    2.00\n#\n# PSEUDOPOTENTIAL AND OPTIMIZATION\n# lmax\n3\n#\n#   l,   rc,      ep,       ncon, nbas, qcut\n0   1.60000  -3.60092    4    8   8.10000\n1   1.60000  -2.01014    4    8   8.10000\n2   1.50000  -0.26267    4    8   8.40000\n3   2.25000   0.50000    4    8   6.80000\n#\n# LOCAL POTENTIAL\n# lloc, lpopt,  rc(5),   dvloc0\n4    5   1.50000      0.00000\n#\n# VANDERBILT-KLEINMAN-BYLANDER PROJECTORs\n# l, nproj, debl\n0    2   3.36825\n1    2   2.50000\n2    2   1.00000\n3    2   3.00000\n#\n# MODEL CORE CHARGE\n# icmod, fcfact, rcfact\n3   5.00000   1.37000\n#\n# LOG DERIVATIVE ANALYSIS\n# epsh1, epsh2, depsh\n-14.00   12.00    0.02\n#\n# OUTPUT GRID\n# rlmax, drl\n5.00    0.01\n#\n# TEST CONFIGURATIONS\n# ncnf\n0\n# nvcnf\n#   n    l    f\n"
+      },
+      "K_" : {
+         "basename" : "K-sp.in",
+         "hints" : {
+            "high" : {
+               "ecut" : 43
+            },
+            "low" : {
+               "ecut" : 33
+            },
+            "normal" : {
+               "ecut" : 37
+            }
+         },
+         "input" : "# ATOM AND REFERENCE CONFIGURATION\n# atsym  z   nc   nv     iexc    psfile\nK 19.00    3    3       4      both\n#\n#   n    l    f        energy (Ha)\n1    0    2.00\n2    0    2.00\n2    1    6.00\n3    0    2.00\n3    1    6.00\n4    0    1.00\n#\n# PSEUDOPOTENTIAL AND OPTIMIZATION\n# lmax\n2\n#\n#   l,   rc,      ep,       ncon, nbas, qcut\n0   1.35000  -1.29884    4    8   8.20000\n1   1.45000  -0.69139    4    8   8.60000\n2   1.60000   0.05000    4    8   8.20000\n#\n# LOCAL POTENTIAL\n# lloc, lpopt,  rc(5),   dvloc0\n4    5   1.10000      0.00000\n#\n# VANDERBILT-KLEINMAN-BYLANDER PROJECTORs\n# l, nproj, debl\n0    2   1.21361\n1    2   0.80000\n2    2   0.50000\n#\n# MODEL CORE CHARGE\n# icmod, fcfact, rcfact\n3   5.00000   1.40000\n#\n# LOG DERIVATIVE ANALYSIS\n# epsh1, epsh2, depsh\n-12.00   12.00    0.02\n#\n# OUTPUT GRID\n# rlmax, drl\n4.00    0.01\n#\n# TEST CONFIGURATIONS\n# ncnf\n0\n# nvcnf\n#   n    l    f\n"
+      },
+      "Kr" : {
+         "basename" : "Kr.in",
+         "hints" : {
+            "high" : {
+               "ecut" : 34
+            },
+            "low" : {
+               "ecut" : 22
+            },
+            "normal" : {
+               "ecut" : 26
+            }
+         },
+         "input" : "# ATOM AND REFERENCE CONFIGURATION\n# atsym  z   nc   nv     iexc    psfile\nKr 36.00    6    2       4      both\n#\n#   n    l    f        energy (Ha)\n1    0    2.00\n2    0    2.00\n2    1    6.00\n3    0    2.00\n3    1    6.00\n3    2   10.00\n4    0    2.00\n4    1    6.00\n#\n# PSEUDOPOTENTIAL AND OPTIMIZATION\n# lmax\n2\n#\n#   l,   rc,      ep,       ncon, nbas, qcut\n0   1.75000  -0.84704    4    8   6.10000\n1   1.50000  -0.33984    4    7   7.00000\n2   1.80000   0.10000    4    7   7.60000\n#\n# LOCAL POTENTIAL\n# lloc, lpopt,  rc(5),   dvloc0\n4    5   1.50000      0.00000\n#\n# VANDERBILT-KLEINMAN-BYLANDER PROJECTORs\n# l, nproj, debl\n0    2   3.00000\n1    2   3.00000\n2    2   4.00000\n#\n# MODEL CORE CHARGE\n# icmod, fcfact, rcfact\n3   7.00000   1.24000\n#\n# LOG DERIVATIVE ANALYSIS\n# epsh1, epsh2, depsh\n-12.00   12.00    0.02\n#\n# OUTPUT GRID\n# rlmax, drl\n6.00    0.01\n#\n# TEST CONFIGURATIONS\n# ncnf\n0\n# nvcnf\n#   n    l    f\n"
+      },
+      "La" : {
+         "basename" : "La-sp.in",
+         "hints" : {
+            "high" : {
+               "ecut" : 65
+            },
+            "low" : {
+               "ecut" : 50
+            },
+            "normal" : {
+               "ecut" : 55
+            }
+         },
+         "input" : "# ATOM AND REFERENCE CONFIGURATION\n# atsym  z   nc   nv     iexc    psfile\nLa 57.00    9    4       4      both\n#\n#   n    l    f        energy (Ha)\n1    0    2.00\n2    0    2.00\n2    1    6.00\n3    0    2.00\n3    1    6.00\n3    2   10.00\n4    0    2.00\n4    1    6.00\n4    2   10.00\n5    0    2.00\n5    1    6.00\n5    2    1.00\n6    0    2.00\n#\n# PSEUDOPOTENTIAL AND OPTIMIZATION\n# lmax\n3\n#\n#   l,   rc,      ep,       ncon, nbas, qcut\n0   2.10000  -1.43044    4    8   5.40000\n1   1.60000  -0.82320    4    8   6.60000\n2   1.85000  -0.11357    4    9   6.60000\n3   1.65000  -0.15967    4    9  10.60000\n#\n# LOCAL POTENTIAL\n# lloc, lpopt,  rc(5),   dvloc0\n4    5   1.60000      2.00000\n#\n# VANDERBILT-KLEINMAN-BYLANDER PROJECTORs\n# l, nproj, debl\n0    2   1.29521\n1    2   4.00000\n2    2   4.00000\n3    2   3.00000\n#\n# MODEL CORE CHARGE\n# icmod, fcfact, rcfact\n3   5.00000   1.35000\n#\n# LOG DERIVATIVE ANALYSIS\n# epsh1, epsh2, depsh\n-12.00   12.00    0.02\n#\n# OUTPUT GRID\n# rlmax, drl\n6.00    0.01\n#\n# TEST CONFIGURATIONS\n# ncnf\n0\n# nvcnf\n#   n    l    f\n"
+      },
+      "Li" : {
+         "basename" : "Li-s-high.in",
+         "hints" : {
+            "high" : {
+               "ecut" : 52
+            },
+            "low" : {
+               "ecut" : 44
+            },
+            "normal" : {
+               "ecut" : 48
+            }
+         },
+         "input" : "# ATOM AND REFERENCE CONFIGURATION\n# atsym  z   nc   nv     iexc    psfile\nLi  3.00    0    2       4      both\n#\n#   n    l    f        energy (Ha)\n1    0    2.00\n2    0    1.00\n#\n# PSEUDOPOTENTIAL AND OPTIMIZATION\n# lmax\n1\n#\n#   l,   rc,      ep,       ncon, nbas, qcut\n0   1.20000  -1.90562    4    8   9.80000\n1   1.00000  -0.00000    4    8   9.20000\n#\n# LOCAL POTENTIAL\n# lloc, lpopt,  rc(5),   dvloc0\n4    5   0.90000      0.00000\n#\n# VANDERBILT-KLEINMAN-BYLANDER PROJECTORs\n# l, nproj, debl\n0    2   1.80000\n1    2   1.00000\n#\n# MODEL CORE CHARGE\n# icmod, fcfact, rcfact\n0   0.00000   0.00000\n#\n# LOG DERIVATIVE ANALYSIS\n# epsh1, epsh2, depsh\n-12.00   12.00    0.02\n#\n# OUTPUT GRID\n# rlmax, drl\n4.00    0.01\n#\n# TEST CONFIGURATIONS\n# ncnf\n0\n# nvcnf\n#   n    l    f\n"
+      },
+      "Lu" : {
+         "basename" : "Lu-fsp.in",
+         "hints" : {
+            "high" : {
+               "ecut" : 58
+            },
+            "low" : {
+               "ecut" : 46
+            },
+            "normal" : {
+               "ecut" : 50
+            }
+         },
+         "input" : "# ATOM AND REFERENCE CONFIGURATION\n# atsym  z   nc   nv     iexc    psfile\nLu 71.00    9    5       4      both\n#\n#   n    l    f        energy (Ha)\n1    0    2.00\n2    0    2.00\n2    1    6.00\n3    0    2.00\n3    1    6.00\n3    2   10.00\n4    0    2.00\n4    1    6.00\n4    2   10.00\n5    0    2.00\n5    1    6.00\n4    3   14.00\n5    2    1.00\n6    0    2.00\n#\n# PSEUDOPOTENTIAL AND OPTIMIZATION\n# lmax\n3\n#\n#   l,   rc,      ep,       ncon, nbas, qcut\n0   1.55000  -2.24389    4    8   7.50000\n1   1.60000  -1.16354    4    8   8.00000\n2   1.45000  -0.06429    4    8   9.00000\n3   1.85000  -0.35367    4    8   9.80000\n#\n# LOCAL POTENTIAL\n# lloc, lpopt,  rc(5),   dvloc0\n4    5   1.30000      0.00000\n#\n# VANDERBILT-KLEINMAN-BYLANDER PROJECTORs\n# l, nproj, debl\n0    2   2.07266\n1    2   1.11413\n2    2   1.00000\n3    2   1.50000\n#\n# MODEL CORE CHARGE\n# icmod, fcfact, rcfact\n3   4.00000   1.40000\n#\n# LOG DERIVATIVE ANALYSIS\n# epsh1, epsh2, depsh\n-12.00   12.00    0.02\n#\n# OUTPUT GRID\n# rlmax, drl\n6.00    0.01\n#\n# TEST CONFIGURATIONS\n# ncnf\n0\n# nvcnf\n#   n    l    f\n"
+      },
+      "Mg" : {
+         "basename" : "Mg-sp.in",
+         "hints" : {
+            "high" : {
+               "ecut" : 48
+            },
+            "low" : {
+               "ecut" : 38
+            },
+            "normal" : {
+               "ecut" : 42
+            }
+         },
+         "input" : "# ATOM AND REFERENCE CONFIGURATION\n# atsym  z   nc   nv     iexc    psfile\nMg 12.00    1    3       4      both\n#\n#   n    l    f        energy (Ha)\n1    0    2.00\n2    0    2.00\n2    1    6.00\n3    0    2.00\n#\n# PSEUDOPOTENTIAL AND OPTIMIZATION\n# lmax\n1\n#\n#   l,   rc,      ep,       ncon, nbas, qcut\n0   1.15000  -2.93427    4    8   9.10000\n1   1.55000  -1.71303    4    8   9.00000\n#\n# LOCAL POTENTIAL\n# lloc, lpopt,  rc(5),   dvloc0\n4    5   1.10000      0.00000\n#\n# VANDERBILT-KLEINMAN-BYLANDER PROJECTORs\n# l, nproj, debl\n0    2   2.76134\n1    2   3.00000\n#\n# MODEL CORE CHARGE\n# icmod, fcfact, rcfact\n0   0.00000   0.00000\n#\n# LOG DERIVATIVE ANALYSIS\n# epsh1, epsh2, depsh\n-12.00   12.00    0.02\n#\n# OUTPUT GRID\n# rlmax, drl\n4.00    0.01\n#\n# TEST CONFIGURATIONS\n# ncnf\n0\n# nvcnf\n#   n    l    f\n"
+      },
+      "Mn" : {
+         "basename" : "Mn-sp-high.in",
+         "hints" : {
+            "high" : {
+               "ecut" : 69
+            },
+            "low" : {
+               "ecut" : 61
+            },
+            "normal" : {
+               "ecut" : 65
+            }
+         },
+         "input" : "# ATOM AND REFERENCE CONFIGURATION\n# atsym  z   nc   nv     iexc    psfile\nMn 25.00    3    4       4      both\n#\n#   n    l    f        energy (Ha)\n1    0    2.00\n2    0    2.00\n2    1    6.00\n3    0    2.00\n3    1    6.00\n3    2    5.00\n4    0    2.00\n#\n# PSEUDOPOTENTIAL AND OPTIMIZATION\n# lmax\n2\n#\n#   l,   rc,      ep,       ncon, nbas, qcut\n0   1.10000  -3.15601    4    7  11.00000\n1   1.10000  -2.00626    4    7  10.80000\n2   1.35000  -0.24883    4    7  11.40000\n#\n# LOCAL POTENTIAL\n# lloc, lpopt,  rc(5),   dvloc0\n4    5   1.10000      0.00000\n#\n# VANDERBILT-KLEINMAN-BYLANDER PROJECTORs\n# l, nproj, debl\n0    2   2.96832\n1    2   1.95591\n2    2   1.00000\n#\n# MODEL CORE CHARGE\n# icmod, fcfact, rcfact\n3   4.00000   1.75000\n#\n# LOG DERIVATIVE ANALYSIS\n# epsh1, epsh2, depsh\n-50.00   12.00    0.02\n#\n# OUTPUT GRID\n# rlmax, drl\n6.00    0.01\n#\n# TEST CONFIGURATIONS\n# ncnf\n0\n# nvcnf\n#   n    l    f\n"
+      },
+      "Mo" : {
+         "basename" : "Mo-sp.in",
+         "hints" : {
+            "high" : {
+               "ecut" : 46
+            },
+            "low" : {
+               "ecut" : 36
+            },
+            "normal" : {
+               "ecut" : 40
+            }
+         },
+         "input" : "# ATOM AND REFERENCE CONFIGURATION\n# atsym  z   nc   nv     iexc    psfile\nMo 42.00    6    4       4      both\n#\n#   n    l    f        energy (Ha)\n1    0    2.00\n2    0    2.00\n2    1    6.00\n3    0    2.00\n3    1    6.00\n3    2   10.00\n4    0    2.00\n4    1    6.00\n4    2    5.00\n5    0    1.00\n#\n# PSEUDOPOTENTIAL AND OPTIMIZATION\n# lmax\n2\n#\n#   l,   rc,      ep,       ncon, nbas, qcut\n0   1.45000  -2.36471    4    7   8.20000\n1   1.45000  -1.41432    4    7   8.80000\n2   1.35000  -0.13792    4    7   8.80000\n#\n# LOCAL POTENTIAL\n# lloc, lpopt,  rc(5),   dvloc0\n4    5   1.25000      0.00000\n#\n# VANDERBILT-KLEINMAN-BYLANDER PROJECTORs\n# l, nproj, debl\n0    2   2.21453\n1    2   2.00000\n2    2   2.00000\n#\n# MODEL CORE CHARGE\n# icmod, fcfact, rcfact\n3   3.00000   1.30000\n#\n# LOG DERIVATIVE ANALYSIS\n# epsh1, epsh2, depsh\n-12.00   12.00    0.02\n#\n# OUTPUT GRID\n# rlmax, drl\n6.00    0.01\n#\n# TEST CONFIGURATIONS\n# ncnf\n0\n# nvcnf\n#   n    l    f\n"
+      },
+      "N_" : {
+         "basename" : "N.in",
+         "hints" : {
+            "high" : {
+               "ecut" : 48
+            },
+            "low" : {
+               "ecut" : 36
+            },
+            "normal" : {
+               "ecut" : 42
+            }
+         },
+         "input" : "# ATOM AND REFERENCE CONFIGURATION\n# atsym  z   nc   nv     iexc    psfile\nN  7.00    1    2       4      both\n#\n#   n    l    f        energy (Ha)\n1    0    2.00\n2    0    2.00\n2    1    3.00\n#\n# PSEUDOPOTENTIAL AND OPTIMIZATION\n# lmax\n1\n#\n#   l,   rc,      ep,       ncon, nbas, qcut\n0   1.20000  -0.68291    4    8   8.80000\n1   1.35000  -0.26055    4    8   9.00000\n#\n# LOCAL POTENTIAL\n# lloc, lpopt,  rc(5),   dvloc0\n4    5   1.20000      0.00000\n#\n# VANDERBILT-KLEINMAN-BYLANDER PROJECTORs\n# l, nproj, debl\n0    2   1.00000\n1    2   1.00000\n#\n# MODEL CORE CHARGE\n# icmod, fcfact, rcfact\n3   4.00000   1.50000\n#\n# LOG DERIVATIVE ANALYSIS\n# epsh1, epsh2, depsh\n-12.00   12.00    0.02\n#\n# OUTPUT GRID\n# rlmax, drl\n6.00    0.01\n#\n# TEST CONFIGURATIONS\n# ncnf\n0\n# nvcnf\n#   n    l    f\n"
+      },
+      "Na" : {
+         "basename" : "Na-sp.in",
+         "hints" : {
+            "high" : {
+               "ecut" : 48
+            },
+            "low" : {
+               "ecut" : 38
+            },
+            "normal" : {
+               "ecut" : 44
+            }
+         },
+         "input" : "# ATOM AND REFERENCE CONFIGURATION\n# atsym  z   nc   nv     iexc    psfile\nNa 11.00    1    3       4      both\n#\n#   n    l    f        energy (Ha)\n1    0    2.00\n2    0    2.00\n2    1    6.00\n3    0    1.00\n#\n# PSEUDOPOTENTIAL AND OPTIMIZATION\n# lmax\n1\n#\n#   l,   rc,      ep,       ncon, nbas, qcut\n0   1.20000  -2.08564    4    7   9.00000\n1   1.55000  -1.05371    4    7   9.00000\n#\n# LOCAL POTENTIAL\n# lloc, lpopt,  rc(5),   dvloc0\n4    5   1.20000      0.00000\n#\n# VANDERBILT-KLEINMAN-BYLANDER PROJECTORs\n# l, nproj, debl\n0    2   1.98480\n1    2   3.00000\n#\n# MODEL CORE CHARGE\n# icmod, fcfact, rcfact\n0   0.00000   0.00000\n#\n# LOG DERIVATIVE ANALYSIS\n# epsh1, epsh2, depsh\n-12.00   12.00    0.02\n#\n# OUTPUT GRID\n# rlmax, drl\n4.00    0.01\n#\n# TEST CONFIGURATIONS\n# ncnf\n0\n# nvcnf\n#   n    l    f\n"
+      },
+      "Nb" : {
+         "basename" : "Nb-sp.in",
+         "hints" : {
+            "high" : {
+               "ecut" : 49
+            },
+            "low" : {
+               "ecut" : 37
+            },
+            "normal" : {
+               "ecut" : 41
+            }
+         },
+         "input" : "# ATOM AND REFERENCE CONFIGURATION\n# atsym  z   nc   nv     iexc    psfile\nNb 41.00    6    4       4      both\n#\n#   n    l    f        energy (Ha)\n1    0    2.00\n2    0    2.00\n2    1    6.00\n3    0    2.00\n3    1    6.00\n3    2   10.00\n4    0    2.00\n4    1    6.00\n4    2    4.00\n5    0    1.00\n#\n# PSEUDOPOTENTIAL AND OPTIMIZATION\n# lmax\n2\n#\n#   l,   rc,      ep,       ncon, nbas, qcut\n0   1.50000  -2.14594    4    7   7.80000\n1   1.40000  -1.26863    4    7   9.00000\n2   1.40000  -0.11173    4    7   9.20000\n#\n# LOCAL POTENTIAL\n# lloc, lpopt,  rc(5),   dvloc0\n4    5   1.25000      0.00000\n#\n# VANDERBILT-KLEINMAN-BYLANDER PROJECTORs\n# l, nproj, debl\n0    2   1.99960\n1    2   1.80000\n2    2   1.50000\n#\n# MODEL CORE CHARGE\n# icmod, fcfact, rcfact\n3   5.00000   1.50000\n#\n# LOG DERIVATIVE ANALYSIS\n# epsh1, epsh2, depsh\n-12.00   12.00    0.02\n#\n# OUTPUT GRID\n# rlmax, drl\n6.00    0.01\n#\n# TEST CONFIGURATIONS\n# ncnf\n0\n# nvcnf\n#   n    l    f\n"
+      },
+      "Ne" : {
+         "basename" : "Ne-high.in",
+         "hints" : {
+            "high" : {
+               "ecut" : 50
+            },
+            "low" : {
+               "ecut" : 38
+            },
+            "normal" : {
+               "ecut" : 44
+            }
+         },
+         "input" : "# ATOM AND REFERENCE CONFIGURATION\n# atsym  z   nc   nv     iexc    psfile\nNe 10.00    1    2       4      both\n#\n#   n    l    f        energy (Ha)\n1    0    2.00\n2    0    2.00\n2    1    6.00\n#\n# PSEUDOPOTENTIAL AND OPTIMIZATION\n# lmax\n1\n#\n#   l,   rc,      ep,       ncon, nbas, qcut\n0   1.30000  -1.33786    4    7   9.00000\n1   1.50000  -0.49002    4    7   8.80000\n#\n# LOCAL POTENTIAL\n# lloc, lpopt,  rc(5),   dvloc0\n4    5   1.30000      0.00000\n#\n# VANDERBILT-KLEINMAN-BYLANDER PROJECTORs\n# l, nproj, debl\n0    2   1.50000\n1    2   1.50000\n#\n# MODEL CORE CHARGE\n# icmod, fcfact, rcfact\n0   0.00000   0.00000\n#\n# LOG DERIVATIVE ANALYSIS\n# epsh1, epsh2, depsh\n-12.00   12.00    0.02\n#\n# OUTPUT GRID\n# rlmax, drl\n4.00    0.01\n#\n# TEST CONFIGURATIONS\n# ncnf\n0\n# nvcnf\n#   n    l    f\n"
+      },
+      "Ni" : {
+         "basename" : "Ni-sp-high.in",
+         "hints" : {
+            "high" : {
+               "ecut" : 58
+            },
+            "low" : {
+               "ecut" : 48
+            },
+            "normal" : {
+               "ecut" : 52
+            }
+         },
+         "input" : "# ATOM AND REFERENCE CONFIGURATION\n# atsym  z   nc   nv     iexc    psfile\nNi 28.00    3    4       4      both\n#\n#   n    l    f        energy (Ha)\n1    0    2.00\n2    0    2.00\n2    1    6.00\n3    0    2.00\n3    1    6.00\n3    2    8.00\n4    0    2.00\n#\n# PSEUDOPOTENTIAL AND OPTIMIZATION\n# lmax\n2\n#\n#   l,   rc,      ep,       ncon, nbas, qcut\n0   1.20000  -4.08136    4    8  10.20000\n1   1.25000  -2.62346    4    8  10.00000\n2   1.55000  -0.32612    4    8  10.00000\n#\n# LOCAL POTENTIAL\n# lloc, lpopt,  rc(5),   dvloc0\n4    5   1.20000      0.00000\n#\n# VANDERBILT-KLEINMAN-BYLANDER PROJECTORs\n# l, nproj, debl\n0    2   3.87398\n1    2   2.80000\n2    2   1.00000\n#\n# MODEL CORE CHARGE\n# icmod, fcfact, rcfact\n3   3.00000   1.70000\n#\n# LOG DERIVATIVE ANALYSIS\n# epsh1, epsh2, depsh\n-12.00   12.00    0.02\n#\n# OUTPUT GRID\n# rlmax, drl\n6.00    0.01\n#\n# TEST CONFIGURATIONS\n# ncnf\n0\n# nvcnf\n#   n    l    f\n"
+      },
+      "O_" : {
+         "basename" : "O-high.in",
+         "hints" : {
+            "high" : {
+               "ecut" : 52
+            },
+            "low" : {
+               "ecut" : 42
+            },
+            "normal" : {
+               "ecut" : 46
+            }
+         },
+         "input" : "# ATOM AND REFERENCE CONFIGURATION\n# atsym  z   nc   nv     iexc    psfile\nO  8.00    1    2       4      both\n#\n#   n    l    f        energy (Ha)\n1    0    2.00\n2    0    2.00\n2    1    4.00\n#\n# PSEUDOPOTENTIAL AND OPTIMIZATION\n# lmax\n2\n#\n#   l,   rc,      ep,       ncon, nbas, qcut\n0   1.25000  -0.88057    4    8   8.50000\n1   1.35000  -0.33187    4    8   9.40000\n2   1.25000   0.10000    4    8   6.00000\n#\n# LOCAL POTENTIAL\n# lloc, lpopt,  rc(5),   dvloc0\n4    5   1.20000      0.00000\n#\n# VANDERBILT-KLEINMAN-BYLANDER PROJECTORs\n# l, nproj, debl\n0    2   1.00000\n1    2   1.00000\n2    1   1.00000\n#\n# MODEL CORE CHARGE\n# icmod, fcfact, rcfact\n3   4.00000   1.50000\n#\n# LOG DERIVATIVE ANALYSIS\n# epsh1, epsh2, depsh\n-12.00   12.00    0.02\n#\n# OUTPUT GRID\n# rlmax, drl\n6.00    0.01\n#\n# TEST CONFIGURATIONS\n# ncnf\n0\n# nvcnf\n#   n    l    f\n"
+      },
+      "Os" : {
+         "basename" : "Os-sp.in",
+         "hints" : {
+            "high" : {
+               "ecut" : 43
+            },
+            "low" : {
+               "ecut" : 33
+            },
+            "normal" : {
+               "ecut" : 37
+            }
+         },
+         "input" : "# ATOM AND REFERENCE CONFIGURATION\n# atsym  z   nc   nv     iexc    psfile\nOs 76.00   10    4       4      both\n#\n#   n    l    f        energy (Ha)\n1    0    2.00\n2    0    2.00\n2    1    6.00\n3    0    2.00\n3    1    6.00\n3    2   10.00\n4    0    2.00\n4    1    6.00\n4    2   10.00\n4    3   14.00\n5    0    2.00\n5    1    6.00\n5    2    6.00\n6    0    2.00\n#\n# PSEUDOPOTENTIAL AND OPTIMIZATION\n# lmax\n3\n#\n#   l,   rc,      ep,       ncon, nbas, qcut\n0   1.50000  -3.36448    4    8   8.20000\n1   1.55000  -1.86833    4    8   8.40000\n2   1.55000  -0.22987    4    8   8.40000\n3   2.25000   0.50000    4    8   6.80000\n#\n# LOCAL POTENTIAL\n# lloc, lpopt,  rc(5),   dvloc0\n4    5   1.50000      0.00000\n#\n# VANDERBILT-KLEINMAN-BYLANDER PROJECTORs\n# l, nproj, debl\n0    2   3.13859\n1    2   2.00000\n2    2   1.50000\n3    2   3.00000\n#\n# MODEL CORE CHARGE\n# icmod, fcfact, rcfact\n3   5.00000   1.40000\n#\n# LOG DERIVATIVE ANALYSIS\n# epsh1, epsh2, depsh\n-12.00   12.00    0.02\n#\n# OUTPUT GRID\n# rlmax, drl\n6.00    0.01\n#\n# TEST CONFIGURATIONS\n# ncnf\n0\n# nvcnf\n#   n    l    f\n"
+      },
+      "P_" : {
+         "basename" : "P.in",
+         "hints" : {
+            "high" : {
+               "ecut" : 28
+            },
+            "low" : {
+               "ecut" : 18
+            },
+            "normal" : {
+               "ecut" : 22
+            }
+         },
+         "input" : "# ATOM AND REFERENCE CONFIGURATION\n# atsym  z   nc   nv     iexc    psfile\nP 15.00    3    2       4      both\n#\n#   n    l    f        energy (Ha)\n1    0    2.00\n2    0    2.00\n2    1    6.00\n3    0    2.00\n3    1    3.00\n#\n# PSEUDOPOTENTIAL AND OPTIMIZATION\n# lmax\n2\n#\n#   l,   rc,      ep,       ncon, nbas, qcut\n0   1.45000  -0.51336    4    9   6.20000\n1   1.55000  -0.20237    4    9   6.60000\n2   1.70000   0.05000    4    9   6.60000\n#\n# LOCAL POTENTIAL\n# lloc, lpopt,  rc(5),   dvloc0\n4    5   1.45000      0.00000\n#\n# VANDERBILT-KLEINMAN-BYLANDER PROJECTORs\n# l, nproj, debl\n0    2   3.00000\n1    2   2.50000\n2    2   2.00000\n#\n# MODEL CORE CHARGE\n# icmod, fcfact, rcfact\n3   5.00000   1.10000\n#\n# LOG DERIVATIVE ANALYSIS\n# epsh1, epsh2, depsh\n-12.00   12.00    0.02\n#\n# OUTPUT GRID\n# rlmax, drl\n6.00    0.01\n#\n# TEST CONFIGURATIONS\n# ncnf\n0\n# nvcnf\n#   n    l    f\n"
+      },
+      "Pb" : {
+         "basename" : "Pb-spd-high.in",
+         "hints" : {
+            "high" : {
+               "ecut" : null
+            },
+            "low" : {
+               "ecut" : null
+            },
+            "normal" : {
+               "ecut" : null
+            }
+         },
+         "input" : "# ATOM AND REFERENCE CONFIGURATION\n# atsym  z   nc   nv     iexc    psfile\nPb 82.00   10    5       4      both\n#\n#   n    l    f        energy (Ha)\n1    0    2.00\n2    0    2.00\n2    1    6.00\n3    0    2.00\n3    1    6.00\n3    2   10.00\n4    0    2.00\n4    1    6.00\n4    2   10.00\n4    3   14.00\n5    0    2.00\n5    1    6.00\n5    2   10.00\n6    0    2.00\n6    1    2.00\n#\n# PSEUDOPOTENTIAL AND OPTIMIZATION\n# lmax\n3\n#\n#   l,   rc,      ep,       ncon, nbas, qcut\n0   1.40000   0.00000    4    8   9.00000\n1   1.50000   0.00000    4    8   8.40000\n2   1.40000   0.00000    4    8   9.00000\n3   1.40000   0.05000    4    7   3.00000\n#\n# LOCAL POTENTIAL\n# lloc, lpopt,  rc(5),   dvloc0\n4    5   1.30000      0.00000\n#\n# VANDERBILT-KLEINMAN-BYLANDER PROJECTORs\n# l, nproj, debl\n0    2   1.80000\n1    2   2.50000\n2    2   1.00000\n3    1   1.00000\n#\n# MODEL CORE CHARGE\n# icmod, fcfact, rcfact\n3   6.00000   1.34000\n#\n# LOG DERIVATIVE ANALYSIS\n# epsh1, epsh2, depsh\n-15.00   12.00    0.02\n#\n# OUTPUT GRID\n# rlmax, drl\n6.00    0.01\n#\n# TEST CONFIGURATIONS\n# ncnf\n0\n# nvcnf\n#   n    l    f\n"
+      },
+      "Pd" : {
+         "basename" : "Pd-sp.in",
+         "hints" : {
+            "high" : {
+               "ecut" : 49
+            },
+            "low" : {
+               "ecut" : 37
+            },
+            "normal" : {
+               "ecut" : 41
+            }
+         },
+         "input" : "# ATOM AND REFERENCE CONFIGURATION\n# atsym  z   nc   nv     iexc    psfile\nPd 46.00    6    3       4      both\n#\n#   n    l    f        energy (Ha)\n1    0    2.00\n2    0    2.00\n2    1    6.00\n3    0    2.00\n3    1    6.00\n3    2   10.00\n4    0    2.00\n4    1    6.00\n4    2   10.00\n#\n# PSEUDOPOTENTIAL AND OPTIMIZATION\n# lmax\n2\n#\n#   l,   rc,      ep,       ncon, nbas, qcut\n0   1.40000  -3.13589    4    7   8.80000\n1   1.45000  -1.88153    4    7   8.80000\n2   1.55000  -0.14875    4    7   8.80000\n#\n# LOCAL POTENTIAL\n# lloc, lpopt,  rc(5),   dvloc0\n4    5   1.40000      0.00000\n#\n# VANDERBILT-KLEINMAN-BYLANDER PROJECTORs\n# l, nproj, debl\n0    2   3.01381\n1    2   1.87003\n2    2   1.50000\n#\n# MODEL CORE CHARGE\n# icmod, fcfact, rcfact\n3   7.00000   1.23000\n#\n# LOG DERIVATIVE ANALYSIS\n# epsh1, epsh2, depsh\n-14.00   12.00    0.02\n#\n# OUTPUT GRID\n# rlmax, drl\n6.00    0.01\n#\n# TEST CONFIGURATIONS\n# ncnf\n0\n# nvcnf\n#   n    l    f\n"
+      },
+      "Po" : {
+         "basename" : "Po-spd-high.in",
+         "hints" : {
+            "high" : {
+               "ecut" : null
+            },
+            "low" : {
+               "ecut" : null
+            },
+            "normal" : {
+               "ecut" : null
+            }
+         },
+         "input" : "# ATOM AND REFERENCE CONFIGURATION\n# atsym  z   nc   nv     iexc    psfile\nPo 84.00   10    5       4      both\n#\n#   n    l    f        energy (Ha)\n1    0    2.00\n2    0    2.00\n2    1    6.00\n3    0    2.00\n3    1    6.00\n3    2   10.00\n4    0    2.00\n4    1    6.00\n4    2   10.00\n4    3   14.00\n5    0    2.00\n5    1    6.00\n5    2   10.00\n6    0    2.00\n6    1    4.00\n#\n# PSEUDOPOTENTIAL AND OPTIMIZATION\n# lmax\n3\n#\n#   l,   rc,      ep,       ncon, nbas, qcut\n0   1.40000   0.00000    4    8   9.00000\n1   1.50000   0.00000    4    8   8.40000\n2   1.40000   0.00000    4    8   9.00000\n3   1.40000   0.05000    4    7   3.00000\n#\n# LOCAL POTENTIAL\n# lloc, lpopt,  rc(5),   dvloc0\n4    5   1.30000      0.00000\n#\n# VANDERBILT-KLEINMAN-BYLANDER PROJECTORs\n# l, nproj, debl\n0    2   1.00000\n1    2   1.00000\n2    2   2.50000\n3    1   1.00000\n#\n# MODEL CORE CHARGE\n# icmod, fcfact, rcfact\n3   6.00000   1.34000\n#\n# LOG DERIVATIVE ANALYSIS\n# epsh1, epsh2, depsh\n-12.00   12.00    0.02\n#\n# OUTPUT GRID\n# rlmax, drl\n6.00    0.01\n#\n# TEST CONFIGURATIONS\n# ncnf\n0\n# nvcnf\n#   n    l    f\n"
+      },
+      "Pt" : {
+         "basename" : "Pt-sp.in",
+         "hints" : {
+            "high" : {
+               "ecut" : 50
+            },
+            "low" : {
+               "ecut" : 38
+            },
+            "normal" : {
+               "ecut" : 42
+            }
+         },
+         "input" : "# ATOM AND REFERENCE CONFIGURATION\n# atsym  z   nc   nv     iexc    psfile\nPt 78.00   10    4       4      both\n#\n#   n    l    f        energy (Ha)\n1    0    2.00\n2    0    2.00\n2    1    6.00\n3    0    2.00\n3    1    6.00\n3    2   10.00\n4    0    2.00\n4    1    6.00\n4    2   10.00\n4    3   14.00\n5    0    2.00\n5    1    6.00\n5    2    9.00\n6    0    1.00\n#\n# PSEUDOPOTENTIAL AND OPTIMIZATION\n# lmax\n3\n#\n#   l,   rc,      ep,       ncon, nbas, qcut\n0   1.45000  -3.74179    4    7   8.80000\n1   1.45000  -2.05865    4    7   9.00000\n2   1.45000  -0.22569    4    7   8.80000\n3   1.90000   0.10000    4    8   6.80000\n#\n# LOCAL POTENTIAL\n# lloc, lpopt,  rc(5),   dvloc0\n4    3   1.30000      0.00000\n#\n# VANDERBILT-KLEINMAN-BYLANDER PROJECTORs\n# l, nproj, debl\n0    2   3.53382\n1    2   2.50000\n2    2   1.00000\n3    2   3.00000\n#\n# MODEL CORE CHARGE\n# icmod, fcfact, rcfact\n3   5.00000   1.37000\n#\n# LOG DERIVATIVE ANALYSIS\n# epsh1, epsh2, depsh\n-14.00   12.00    0.02\n#\n# OUTPUT GRID\n# rlmax, drl\n5.00    0.01\n#\n# TEST CONFIGURATIONS\n# ncnf\n0\n# nvcnf\n#   n    l    f\n"
+      },
+      "Rb" : {
+         "basename" : "Rb-sp.in",
+         "hints" : {
+            "high" : {
+               "ecut" : null
+            },
+            "low" : {
+               "ecut" : null
+            },
+            "normal" : {
+               "ecut" : null
+            }
+         },
+         "input" : "# ATOM AND REFERENCE CONFIGURATION\n# atsym  z   nc   nv     iexc    psfile\nRb 37.00    6    3       4      both\n#\n#   n    l    f        energy (Ha)\n1    0    2.00\n2    0    2.00\n2    1    6.00\n3    0    2.00\n3    1    6.00\n3    2   10.00\n4    0    2.00\n4    1    6.00\n5    0    1.00\n#\n# PSEUDOPOTENTIAL AND OPTIMIZATION\n# lmax\n3\n#\n#   l,   rc,      ep,       ncon, nbas, qcut\n0   1.70000   0.00000    4    9   6.40000\n1   1.70000   0.00000    4    9   6.80000\n2   1.70000   0.05000    4    9   7.40000\n3   1.70000   0.05000    4    9   6.00000\n#\n# LOCAL POTENTIAL\n# lloc, lpopt,  rc(5),   dvloc0\n4    5   1.70000      2.50000\n#\n# VANDERBILT-KLEINMAN-BYLANDER PROJECTORs\n# l, nproj, debl\n0    2   1.00000\n1    2   3.50000\n2    2   2.50000\n3    1   2.50000\n#\n# MODEL CORE CHARGE\n# icmod, fcfact, rcfact\n3   7.00000   1.25000\n#\n# LOG DERIVATIVE ANALYSIS\n# epsh1, epsh2, depsh\n-12.00   12.00    0.02\n#\n# OUTPUT GRID\n# rlmax, drl\n6.00    0.01\n#\n# TEST CONFIGURATIONS\n# ncnf\n0\n# nvcnf\n#   n    l    f\n"
+      },
+      "Re" : {
+         "basename" : "Re-sp.in",
+         "hints" : {
+            "high" : {
+               "ecut" : 42
+            },
+            "low" : {
+               "ecut" : 30
+            },
+            "normal" : {
+               "ecut" : 36
+            }
+         },
+         "input" : "# ATOM AND REFERENCE CONFIGURATION\n# atsym  z   nc   nv     iexc    psfile\nRe 75.00   10    4       4      both\n#\n#   n    l    f        energy (Ha)\n1    0    2.00\n2    0    2.00\n2    1    6.00\n3    0    2.00\n3    1    6.00\n3    2   10.00\n4    0    2.00\n4    1    6.00\n4    2   10.00\n4    3   14.00\n5    0    2.00\n5    1    6.00\n5    2    5.00\n6    0    2.00\n#\n# PSEUDOPOTENTIAL AND OPTIMIZATION\n# lmax\n3\n#\n#   l,   rc,      ep,       ncon, nbas, qcut\n0   1.60000  -3.13294    4    8   7.40000\n1   1.60000  -1.72761    4    8   7.80000\n2   1.60000  -0.19723    4    9   7.40000\n3   2.00000   0.15000    4    8   6.00000\n#\n# LOCAL POTENTIAL\n# lloc, lpopt,  rc(5),   dvloc0\n4    5   1.60000      0.00000\n#\n# VANDERBILT-KLEINMAN-BYLANDER PROJECTORs\n# l, nproj, debl\n0    2   2.91452\n1    2   2.00000\n2    2   1.80000\n3    2   2.90000\n#\n# MODEL CORE CHARGE\n# icmod, fcfact, rcfact\n3   4.00000   1.44000\n#\n# LOG DERIVATIVE ANALYSIS\n# epsh1, epsh2, depsh\n-12.00   12.00    0.02\n#\n# OUTPUT GRID\n# rlmax, drl\n6.00    0.01\n#\n# TEST CONFIGURATIONS\n# ncnf\n0\n# nvcnf\n#   n    l    f\n"
+      },
+      "Rh" : {
+         "basename" : "Rh-sp.in",
+         "hints" : {
+            "high" : {
+               "ecut" : 50
+            },
+            "low" : {
+               "ecut" : 40
+            },
+            "normal" : {
+               "ecut" : 44
+            }
+         },
+         "input" : "# ATOM AND REFERENCE CONFIGURATION\n# atsym  z   nc   nv     iexc    psfile\nRh 45.00    6    4       4      both\n#\n#   n    l    f        energy (Ha)\n1    0    2.00\n2    0    2.00\n2    1    6.00\n3    0    2.00\n3    1    6.00\n3    2   10.00\n4    0    2.00\n4    1    6.00\n4    2    8.00\n5    0    1.00\n#\n# PSEUDOPOTENTIAL AND OPTIMIZATION\n# lmax\n2\n#\n#   l,   rc,      ep,       ncon, nbas, qcut\n0   1.40000  -3.03163    4    7   9.40000\n1   1.40000  -1.85294    4    7   9.40000\n2   1.35000  -0.21830    4    7   9.40000\n#\n# LOCAL POTENTIAL\n# lloc, lpopt,  rc(5),   dvloc0\n4    5   1.30000      0.00000\n#\n# VANDERBILT-KLEINMAN-BYLANDER PROJECTORs\n# l, nproj, debl\n0    2   2.87360\n1    2   1.82168\n2    2   1.00000\n#\n# MODEL CORE CHARGE\n# icmod, fcfact, rcfact\n3   7.00000   1.23000\n#\n# LOG DERIVATIVE ANALYSIS\n# epsh1, epsh2, depsh\n-12.00   12.00    0.02\n#\n# OUTPUT GRID\n# rlmax, drl\n6.00    0.01\n#\n# TEST CONFIGURATIONS\n# ncnf\n0\n# nvcnf\n#   n    l    f\n"
+      },
+      "Rn" : {
+         "basename" : "Rn-spd-high.in",
+         "hints" : {
+            "high" : {
+               "ecut" : null
+            },
+            "low" : {
+               "ecut" : null
+            },
+            "normal" : {
+               "ecut" : null
+            }
+         },
+         "input" : "# ATOM AND REFERENCE CONFIGURATION\n# atsym  z   nc   nv     iexc    psfile\nRn 86.00   10    5       4      both\n#\n#   n    l    f        energy (Ha)\n1    0    2.00\n2    0    2.00\n2    1    6.00\n3    0    2.00\n3    1    6.00\n3    2   10.00\n4    0    2.00\n4    1    6.00\n4    2   10.00\n4    3   14.00\n5    0    2.00\n5    1    6.00\n5    2   10.00\n6    0    2.00\n6    1    6.00\n#\n# PSEUDOPOTENTIAL AND OPTIMIZATION\n# lmax\n3\n#\n#   l,   rc,      ep,       ncon, nbas, qcut\n0   1.40000   0.00000    4    8   9.00000\n1   1.50000   0.00000    4    8   8.40000\n2   1.40000   0.00000    4    8   9.00000\n3   1.50000   0.05000    4    8   7.00000\n#\n# LOCAL POTENTIAL\n# lloc, lpopt,  rc(5),   dvloc0\n4    5   1.30000      0.00000\n#\n# VANDERBILT-KLEINMAN-BYLANDER PROJECTORs\n# l, nproj, debl\n0    2   1.00000\n1    2   1.00000\n2    2   2.50000\n3    1   2.00000\n#\n# MODEL CORE CHARGE\n# icmod, fcfact, rcfact\n3   6.00000   1.34000\n#\n# LOG DERIVATIVE ANALYSIS\n# epsh1, epsh2, depsh\n-12.00   12.00    0.02\n#\n# OUTPUT GRID\n# rlmax, drl\n6.00    0.01\n#\n# TEST CONFIGURATIONS\n# ncnf\n0\n# nvcnf\n#   n    l    f\n"
+      },
+      "Ru" : {
+         "basename" : "Ru-sp.in",
+         "hints" : {
+            "high" : {
+               "ecut" : 50
+            },
+            "low" : {
+               "ecut" : 38
+            },
+            "normal" : {
+               "ecut" : 42
+            }
+         },
+         "input" : "# ATOM AND REFERENCE CONFIGURATION\n# atsym  z   nc   nv     iexc    psfile\nRu 44.00    6    4       4      both\n#\n#   n    l    f        energy (Ha)\n1    0    2.00\n2    0    2.00\n2    1    6.00\n3    0    2.00\n3    1    6.00\n3    2   10.00\n4    0    2.00\n4    1    6.00\n4    2    7.00\n5    0    1.00\n#\n# PSEUDOPOTENTIAL AND OPTIMIZATION\n# lmax\n2\n#\n#   l,   rc,      ep,       ncon, nbas, qcut\n0   1.35000  -2.80659    4    8   8.70000\n1   1.40000  -1.70576    4    8   9.00000\n2   1.30000  -0.19118    4    7   9.00000\n#\n# LOCAL POTENTIAL\n# lloc, lpopt,  rc(5),   dvloc0\n4    5   1.30000      0.00000\n#\n# VANDERBILT-KLEINMAN-BYLANDER PROJECTORs\n# l, nproj, debl\n0    2   2.65079\n1    2   2.50000\n2    2   1.50000\n#\n# MODEL CORE CHARGE\n# icmod, fcfact, rcfact\n3   7.00000   1.24000\n#\n# LOG DERIVATIVE ANALYSIS\n# epsh1, epsh2, depsh\n-12.00   12.00    0.02\n#\n# OUTPUT GRID\n# rlmax, drl\n6.00    0.01\n#\n# TEST CONFIGURATIONS\n# ncnf\n0\n# nvcnf\n#   n    l    f\n"
+      },
+      "S_" : {
+         "basename" : "S.in",
+         "hints" : {
+            "high" : {
+               "ecut" : null
+            },
+            "low" : {
+               "ecut" : null
+            },
+            "normal" : {
+               "ecut" : null
+            }
+         },
+         "input" : "# ATOM AND REFERENCE CONFIGURATION\n# atsym  z   nc   nv     iexc    psfile\nS 16.00    3    2       4      both\n#\n#   n    l    f        energy (Ha)\n1    0    2.00\n2    0    2.00\n2    1    6.00\n3    0    2.00\n3    1    4.00\n#\n# PSEUDOPOTENTIAL AND OPTIMIZATION\n# lmax\n2\n#\n#   l,   rc,      ep,       ncon, nbas, qcut\n0   1.45000   0.00000    4    9   6.30000\n1   1.45000   0.00000    4    9   7.60000\n2   1.45000   0.05000    4    9   7.20000\n#\n# LOCAL POTENTIAL\n# lloc, lpopt,  rc(5),   dvloc0\n4    5   1.40000      0.00000\n#\n# VANDERBILT-KLEINMAN-BYLANDER PROJECTORs\n# l, nproj, debl\n0    2   2.00000\n1    2   2.00000\n2    2   1.00000\n#\n# MODEL CORE CHARGE\n# icmod, fcfact, rcfact\n3   6.00000   1.25000\n#\n# LOG DERIVATIVE ANALYSIS\n# epsh1, epsh2, depsh\n-12.00   12.00    0.02\n#\n# OUTPUT GRID\n# rlmax, drl\n6.00    0.01\n#\n# TEST CONFIGURATIONS\n# ncnf\n0\n# nvcnf\n#   n    l    f\n"
+      },
+      "Sb" : {
+         "basename" : "Sb-spd-high.in",
+         "hints" : {
+            "high" : {
+               "ecut" : 58
+            },
+            "low" : {
+               "ecut" : 46
+            },
+            "normal" : {
+               "ecut" : 50
+            }
+         },
+         "input" : "# ATOM AND REFERENCE CONFIGURATION\n# atsym  z   nc   nv     iexc    psfile\nSb 51.00    6    5       4      both\n#\n#   n    l    f        energy (Ha)\n1    0    2.00\n2    0    2.00\n2    1    6.00\n3    0    2.00\n3    1    6.00\n3    2   10.00\n4    0    2.00\n4    1    6.00\n4    2   10.00\n5    0    2.00\n5    1    3.00\n#\n# PSEUDOPOTENTIAL AND OPTIMIZATION\n# lmax\n2\n#\n#   l,   rc,      ep,       ncon, nbas, qcut\n0   1.30000  -5.46956    4    8   9.40000\n1   1.30000  -3.74061    4    8   9.60000\n2   1.50000  -1.23138    4    8  10.00000\n#\n# LOCAL POTENTIAL\n# lloc, lpopt,  rc(5),   dvloc0\n4    5   1.30000      0.00000\n#\n# VANDERBILT-KLEINMAN-BYLANDER PROJECTORs\n# l, nproj, debl\n0    2   4.99803\n1    2   3.56318\n2    2   1.60000\n#\n# MODEL CORE CHARGE\n# icmod, fcfact, rcfact\n3   5.00000   1.50000\n#\n# LOG DERIVATIVE ANALYSIS\n# epsh1, epsh2, depsh\n-12.00   12.00    0.02\n#\n# OUTPUT GRID\n# rlmax, drl\n6.00    0.01\n#\n# TEST CONFIGURATIONS\n# ncnf\n0\n# nvcnf\n#   n    l    f\n"
+      },
+      "Sc" : {
+         "basename" : "Sc-sp.in",
+         "hints" : {
+            "high" : {
+               "ecut" : 45
+            },
+            "low" : {
+               "ecut" : 35
+            },
+            "normal" : {
+               "ecut" : 39
+            }
+         },
+         "input" : "# ATOM AND REFERENCE CONFIGURATION\n# atsym  z   nc   nv     iexc    psfile\nSc 21.00    3    4       4      both\n#\n#   n    l    f        energy (Ha)\n1    0    2.00\n2    0    2.00\n2    1    6.00\n3    0    2.00\n3    1    6.00\n3    2    1.00\n4    0    2.00\n#\n# PSEUDOPOTENTIAL AND OPTIMIZATION\n# lmax\n2\n#\n#   l,   rc,      ep,       ncon, nbas, qcut\n0   1.35000  -2.02265    4    9   8.60000\n1   1.35000  -1.23568    4    8   9.00000\n2   1.65000  -0.11882    4    8   8.80000\n#\n# LOCAL POTENTIAL\n# lloc, lpopt,  rc(5),   dvloc0\n4    5   1.30000      0.00000\n#\n# VANDERBILT-KLEINMAN-BYLANDER PROJECTORs\n# l, nproj, debl\n0    2   1.86892\n1    2   2.00000\n2    2   2.00000\n#\n# MODEL CORE CHARGE\n# icmod, fcfact, rcfact\n3   5.00000   1.25000\n#\n# LOG DERIVATIVE ANALYSIS\n# epsh1, epsh2, depsh\n-12.00   12.00    0.02\n#\n# OUTPUT GRID\n# rlmax, drl\n6.00    0.01\n#\n# TEST CONFIGURATIONS\n# ncnf\n0\n# nvcnf\n#   n    l    f\n"
+      },
+      "Se" : {
+         "basename" : "Se-spd-high.in",
+         "hints" : {
+            "high" : {
+               "ecut" : 56
+            },
+            "low" : {
+               "ecut" : 48
+            },
+            "normal" : {
+               "ecut" : 52
+            }
+         },
+         "input" : "# ATOM AND REFERENCE CONFIGURATION\n# atsym  z   nc   nv     iexc    psfile\nSe 34.00    3    5       4      both\n#\n#   n    l    f        energy (Ha)\n1    0    2.00\n2    0    2.00\n2    1    6.00\n3    0    2.00\n3    1    6.00\n3    2   10.00\n4    0    2.00\n4    1    4.00\n#\n# PSEUDOPOTENTIAL AND OPTIMIZATION\n# lmax\n2\n#\n#   l,   rc,      ep,       ncon, nbas, qcut\n0   1.20000  -7.84646    4    7   9.60000\n1   1.40000  -5.62191    4    7  10.00000\n2   1.60000  -1.95230    4    7  10.00000\n#\n# LOCAL POTENTIAL\n# lloc, lpopt,  rc(5),   dvloc0\n4    5   1.20000      0.00000\n#\n# VANDERBILT-KLEINMAN-BYLANDER PROJECTORs\n# l, nproj, debl\n0    2   7.21116\n1    2   5.38262\n2    2   3.50000\n#\n# MODEL CORE CHARGE\n# icmod, fcfact, rcfact\n3   2.60000   1.50000\n#\n# LOG DERIVATIVE ANALYSIS\n# epsh1, epsh2, depsh\n-12.00   12.00    0.02\n#\n# OUTPUT GRID\n# rlmax, drl\n6.00    0.01\n#\n# TEST CONFIGURATIONS\n# ncnf\n0\n# nvcnf\n#   n    l    f\n"
+      },
+      "Si" : {
+         "basename" : "Si.in",
+         "hints" : {
+            "high" : {
+               "ecut" : 24
+            },
+            "low" : {
+               "ecut" : 14
+            },
+            "normal" : {
+               "ecut" : 18
+            }
+         },
+         "input" : "# ATOM AND REFERENCE CONFIGURATION\n# atsym  z   nc   nv     iexc    psfile\nSi 14.00    3    2       4      both\n#\n#   n    l    f        energy (Ha)\n1    0    2.00\n2    0    2.00\n2    1    6.00\n3    0    2.00\n3    1    2.00\n#\n# PSEUDOPOTENTIAL AND OPTIMIZATION\n# lmax\n2\n#\n#   l,   rc,      ep,       ncon, nbas, qcut\n0   1.60000  -0.39736    4    9   6.40000\n1   1.71000  -0.14998    4    9   6.40000\n2   1.90000   0.05000    4    9   6.40000\n#\n# LOCAL POTENTIAL\n# lloc, lpopt,  rc(5),   dvloc0\n4    5   1.60000      0.00000\n#\n# VANDERBILT-KLEINMAN-BYLANDER PROJECTORs\n# l, nproj, debl\n0    2   2.50000\n1    2   2.50000\n2    2   1.50000\n#\n# MODEL CORE CHARGE\n# icmod, fcfact, rcfact\n3   4.00000   1.30000\n#\n# LOG DERIVATIVE ANALYSIS\n# epsh1, epsh2, depsh\n-12.00   12.00    0.02\n#\n# OUTPUT GRID\n# rlmax, drl\n6.00    0.01\n#\n# TEST CONFIGURATIONS\n# ncnf\n0\n# nvcnf\n#   n    l    f\n"
+      },
+      "Sn" : {
+         "basename" : "Sn-spd-high.in",
+         "hints" : {
+            "high" : {
+               "ecut" : 57
+            },
+            "low" : {
+               "ecut" : 45
+            },
+            "normal" : {
+               "ecut" : 51
+            }
+         },
+         "input" : "# ATOM AND REFERENCE CONFIGURATION\n# atsym  z   nc   nv     iexc    psfile\nSn 50.00    6    5       4      both\n#\n#   n    l    f        energy (Ha)\n1    0    2.00\n2    0    2.00\n2    1    6.00\n3    0    2.00\n3    1    6.00\n3    2   10.00\n4    0    2.00\n4    1    6.00\n4    2   10.00\n5    0    2.00\n5    1    2.00\n#\n# PSEUDOPOTENTIAL AND OPTIMIZATION\n# lmax\n2\n#\n#   l,   rc,      ep,       ncon, nbas, qcut\n0   1.30000  -4.92185    4    8   9.40000\n1   1.30000  -3.29642    4    8   9.60000\n2   1.50000  -0.94957    4    8  10.00000\n#\n# LOCAL POTENTIAL\n# lloc, lpopt,  rc(5),   dvloc0\n4    5   1.30000      0.00000\n#\n# VANDERBILT-KLEINMAN-BYLANDER PROJECTORs\n# l, nproj, debl\n0    2   4.53417\n1    2   3.16066\n2    2   2.00000\n#\n# MODEL CORE CHARGE\n# icmod, fcfact, rcfact\n3   3.50000   1.50000\n#\n# LOG DERIVATIVE ANALYSIS\n# epsh1, epsh2, depsh\n-12.00   12.00    0.02\n#\n# OUTPUT GRID\n# rlmax, drl\n6.00    0.01\n#\n# TEST CONFIGURATIONS\n# ncnf\n0\n# nvcnf\n#   n    l    f\n"
+      },
+      "Sr" : {
+         "basename" : "Sr-sp-high.in",
+         "hints" : {
+            "high" : {
+               "ecut" : 36
+            },
+            "low" : {
+               "ecut" : 28
+            },
+            "normal" : {
+               "ecut" : 32
+            }
+         },
+         "input" : "# ATOM AND REFERENCE CONFIGURATION\n# atsym  z   nc   nv     iexc    psfile\nSr 38.00    6    3       4      both\n#\n#   n    l    f        energy (Ha)\n1    0    2.00\n2    0    2.00\n2    1    6.00\n3    0    2.00\n3    1    6.00\n3    2   10.00\n4    0    2.00\n4    1    6.00\n5    0    2.00\n#\n# PSEUDOPOTENTIAL AND OPTIMIZATION\n# lmax\n2\n#\n#   l,   rc,      ep,       ncon, nbas, qcut\n0   1.50000  -1.50306    3    8   6.80000\n1   1.30000  -0.83870    4    8   8.20000\n2   1.50000  -0.00000    4    8   8.60000\n#\n# LOCAL POTENTIAL\n# lloc, lpopt,  rc(5),   dvloc0\n4    5   1.30000      0.00000\n#\n# VANDERBILT-KLEINMAN-BYLANDER PROJECTORs\n# l, nproj, debl\n0    2   1.37348\n1    2   3.00000\n2    2   3.50000\n#\n# MODEL CORE CHARGE\n# icmod, fcfact, rcfact\n3   6.00000   1.35000\n#\n# LOG DERIVATIVE ANALYSIS\n# epsh1, epsh2, depsh\n-12.00   12.00    0.02\n#\n# OUTPUT GRID\n# rlmax, drl\n6.00    0.01\n#\n# TEST CONFIGURATIONS\n# ncnf\n0\n# nvcnf\n#   n    l    f\n"
+      },
+      "Ta" : {
+         "basename" : "Ta-fsp.in",
+         "hints" : {
+            "high" : {
+               "ecut" : 72
+            },
+            "low" : {
+               "ecut" : 62
+            },
+            "normal" : {
+               "ecut" : 66
+            }
+         },
+         "input" : "# ATOM AND REFERENCE CONFIGURATION\n# atsym  z   nc   nv     iexc    psfile\nTa 73.00    9    5       4      both\n#\n#   n    l    f        energy (Ha)\n1    0    2.00\n2    0    2.00\n2    1    6.00\n3    0    2.00\n3    1    6.00\n3    2   10.00\n4    0    2.00\n4    1    6.00\n4    2   10.00\n4    3   14.00\n5    0    2.00\n5    1    6.00\n5    2    3.00\n6    0    2.00\n#\n# PSEUDOPOTENTIAL AND OPTIMIZATION\n# lmax\n3\n#\n#   l,   rc,      ep,       ncon, nbas, qcut\n0   2.30000  -2.68280    4    7   5.20000\n1   1.85000  -1.44789    4    7   6.60000\n2   2.05000  -0.13196    4    9   6.60000\n3   1.60000  -0.90787    4    8  11.40000\n#\n# LOCAL POTENTIAL\n# lloc, lpopt,  rc(5),   dvloc0\n4    5   1.60000      0.00000\n#\n# VANDERBILT-KLEINMAN-BYLANDER PROJECTORs\n# l, nproj, debl\n0    2   2.48279\n1    2   1.50000\n2    2   1.80000\n3    2   1.00000\n#\n# MODEL CORE CHARGE\n# icmod, fcfact, rcfact\n3   5.00000   1.36000\n#\n# LOG DERIVATIVE ANALYSIS\n# epsh1, epsh2, depsh\n-12.00   12.00    0.02\n#\n# OUTPUT GRID\n# rlmax, drl\n6.00    0.01\n#\n# TEST CONFIGURATIONS\n# ncnf\n0\n# nvcnf\n#   n    l    f\n"
+      },
+      "Tc" : {
+         "basename" : "Tc-sp.in",
+         "hints" : {
+            "high" : {
+               "ecut" : 48
+            },
+            "low" : {
+               "ecut" : 38
+            },
+            "normal" : {
+               "ecut" : 42
+            }
+         },
+         "input" : "# ATOM AND REFERENCE CONFIGURATION\n# atsym  z   nc   nv     iexc    psfile\nTc 43.00    6    4       4      both\n#\n#   n    l    f        energy (Ha)\n1    0    2.00\n2    0    2.00\n2    1    6.00\n3    0    2.00\n3    1    6.00\n3    2   10.00\n4    0    2.00\n4    1    6.00\n4    2    5.00\n5    0    2.00\n#\n# PSEUDOPOTENTIAL AND OPTIMIZATION\n# lmax\n2\n#\n#   l,   rc,      ep,       ncon, nbas, qcut\n0   1.40000  -2.69665    4    8   8.40000\n1   1.40000  -1.66632    4    8   9.00000\n2   1.35000  -0.24483    4    8   9.20000\n#\n# LOCAL POTENTIAL\n# lloc, lpopt,  rc(5),   dvloc0\n4    5   1.20000      0.00000\n#\n# VANDERBILT-KLEINMAN-BYLANDER PROJECTORs\n# l, nproj, debl\n0    2   2.51131\n1    2   2.00000\n2    2   1.50000\n#\n# MODEL CORE CHARGE\n# icmod, fcfact, rcfact\n3   5.00000   1.28000\n#\n# LOG DERIVATIVE ANALYSIS\n# epsh1, epsh2, depsh\n-12.00   12.00    0.02\n#\n# OUTPUT GRID\n# rlmax, drl\n6.00    0.01\n#\n# TEST CONFIGURATIONS\n# ncnf\n0\n# nvcnf\n#   n    l    f\n"
+      },
+      "Te" : {
+         "basename" : "Te-spd-high.in",
+         "hints" : {
+            "high" : {
+               "ecut" : null
+            },
+            "low" : {
+               "ecut" : null
+            },
+            "normal" : {
+               "ecut" : null
+            }
+         },
+         "input" : "# ATOM AND REFERENCE CONFIGURATION\n# atsym  z   nc   nv     iexc    psfile\nTe 52.00    6    5       4      both\n#\n#   n    l    f        energy (Ha)\n1    0    2.00\n2    0    2.00\n2    1    6.00\n3    0    2.00\n3    1    6.00\n3    2   10.00\n4    0    2.00\n4    1    6.00\n4    2   10.00\n5    0    2.00\n5    1    4.00\n#\n# PSEUDOPOTENTIAL AND OPTIMIZATION\n# lmax\n3\n#\n#   l,   rc,      ep,       ncon, nbas, qcut\n0   1.30000   0.00000    4    8   9.40000\n1   1.30000   0.00000    4    8   9.60000\n2   1.50000   0.00000    4    8  10.00000\n3   1.80000   0.05000    4    8   6.00000\n#\n# LOCAL POTENTIAL\n# lloc, lpopt,  rc(5),   dvloc0\n4    5   1.30000      0.00000\n#\n# VANDERBILT-KLEINMAN-BYLANDER PROJECTORs\n# l, nproj, debl\n0    2   3.00000\n1    2   3.50000\n2    2   1.60000\n3    2   4.00000\n#\n# MODEL CORE CHARGE\n# icmod, fcfact, rcfact\n3   5.00000   1.50000\n#\n# LOG DERIVATIVE ANALYSIS\n# epsh1, epsh2, depsh\n-12.00   12.00    0.02\n#\n# OUTPUT GRID\n# rlmax, drl\n6.00    0.01\n#\n# TEST CONFIGURATIONS\n# ncnf\n0\n# nvcnf\n#   n    l    f\n"
+      },
+      "Ti" : {
+         "basename" : "Ti-sp.in",
+         "hints" : {
+            "high" : {
+               "ecut" : 46
+            },
+            "low" : {
+               "ecut" : 38
+            },
+            "normal" : {
+               "ecut" : 42
+            }
+         },
+         "input" : "# ATOM AND REFERENCE CONFIGURATION\n# atsym  z   nc   nv     iexc    psfile\nTi 22.00    3    4       4      both\n#\n#   n    l    f        energy (Ha)\n1    0    2.00\n2    0    2.00\n2    1    6.00\n3    0    2.00\n3    1    6.00\n3    2    2.00\n4    0    2.00\n#\n# PSEUDOPOTENTIAL AND OPTIMIZATION\n# lmax\n2\n#\n#   l,   rc,      ep,       ncon, nbas, qcut\n0   1.35000  -2.30174    4    8   8.60000\n1   1.30000  -1.42811    4    8   9.00000\n2   1.65000  -0.15651    4    8   9.00000\n#\n# LOCAL POTENTIAL\n# lloc, lpopt,  rc(5),   dvloc0\n4    5   1.30000      0.00000\n#\n# VANDERBILT-KLEINMAN-BYLANDER PROJECTORs\n# l, nproj, debl\n0    2   2.13758\n1    2   2.00000\n2    2   1.50000\n#\n# MODEL CORE CHARGE\n# icmod, fcfact, rcfact\n3   2.50000   1.40000\n#\n# LOG DERIVATIVE ANALYSIS\n# epsh1, epsh2, depsh\n-12.00   12.00    0.02\n#\n# OUTPUT GRID\n# rlmax, drl\n6.00    0.01\n#\n# TEST CONFIGURATIONS\n# ncnf\n0\n# nvcnf\n#   n    l    f\n"
+      },
+      "Tl" : {
+         "basename" : "Tl-spd-high.in",
+         "hints" : {
+            "high" : {
+               "ecut" : null
+            },
+            "low" : {
+               "ecut" : null
+            },
+            "normal" : {
+               "ecut" : null
+            }
+         },
+         "input" : "# ATOM AND REFERENCE CONFIGURATION\n# atsym  z   nc   nv     iexc    psfile\nTl 81.00   10    5       4      both\n#\n#   n    l    f        energy (Ha)\n1    0    2.00\n2    0    2.00\n2    1    6.00\n3    0    2.00\n3    1    6.00\n3    2   10.00\n4    0    2.00\n4    1    6.00\n4    2   10.00\n4    3   14.00\n5    0    2.00\n5    1    6.00\n5    2   10.00\n6    0    2.00\n6    1    1.00\n#\n# PSEUDOPOTENTIAL AND OPTIMIZATION\n# lmax\n3\n#\n#   l,   rc,      ep,       ncon, nbas, qcut\n0   1.40000   0.00000    4    8   9.00000\n1   1.50000   0.00000    4    8   8.40000\n2   1.40000   0.00000    4    8   9.00000\n3   1.40000   0.05000    4    7   3.00000\n#\n# LOCAL POTENTIAL\n# lloc, lpopt,  rc(5),   dvloc0\n4    5   1.30000      0.00000\n#\n# VANDERBILT-KLEINMAN-BYLANDER PROJECTORs\n# l, nproj, debl\n0    2   1.00000\n1    2   1.00000\n2    2   2.50000\n3    1   1.00000\n#\n# MODEL CORE CHARGE\n# icmod, fcfact, rcfact\n3   9.00000   1.20000\n#\n# LOG DERIVATIVE ANALYSIS\n# epsh1, epsh2, depsh\n-12.00   12.00    0.02\n#\n# OUTPUT GRID\n# rlmax, drl\n6.00    0.01\n#\n# TEST CONFIGURATIONS\n# ncnf\n0\n# nvcnf\n#   n    l    f\n"
+      },
+      "V_" : {
+         "basename" : "V-sp.in",
+         "hints" : {
+            "high" : {
+               "ecut" : 48
+            },
+            "low" : {
+               "ecut" : 38
+            },
+            "normal" : {
+               "ecut" : 42
+            }
+         },
+         "input" : "# ATOM AND REFERENCE CONFIGURATION\n# atsym  z   nc   nv     iexc    psfile\nV 23.00    3    4       4      both\n#\n#   n    l    f        energy (Ha)\n1    0    2.00\n2    0    2.00\n2    1    6.00\n3    0    2.00\n3    1    6.00\n3    2    3.00\n4    0    2.00\n#\n# PSEUDOPOTENTIAL AND OPTIMIZATION\n# lmax\n2\n#\n#   l,   rc,      ep,       ncon, nbas, qcut\n0   1.30000  -2.58111    4    8   9.00000\n1   1.30000  -1.61849    4    7   9.00000\n2   1.65000  -0.18980    4    8   9.00000\n#\n# LOCAL POTENTIAL\n# lloc, lpopt,  rc(5),   dvloc0\n4    5   1.20000      0.00000\n#\n# VANDERBILT-KLEINMAN-BYLANDER PROJECTORs\n# l, nproj, debl\n0    2   2.40830\n1    2   1.56543\n2    2   1.50000\n#\n# MODEL CORE CHARGE\n# icmod, fcfact, rcfact\n3   5.00000   1.30000\n#\n# LOG DERIVATIVE ANALYSIS\n# epsh1, epsh2, depsh\n-12.00   12.00    0.02\n#\n# OUTPUT GRID\n# rlmax, drl\n6.00    0.01\n#\n# TEST CONFIGURATIONS\n# ncnf\n0\n# nvcnf\n#   n    l    f\n"
+      },
+      "W_" : {
+         "basename" : "W-sp.in",
+         "hints" : {
+            "high" : {
+               "ecut" : 41
+            },
+            "low" : {
+               "ecut" : 31
+            },
+            "normal" : {
+               "ecut" : 37
+            }
+         },
+         "input" : "# ATOM AND REFERENCE CONFIGURATION\n# atsym  z   nc   nv     iexc    psfile\nW 74.00   10    4       4      both\n#\n#   n    l    f        energy (Ha)\n1    0    2.00\n2    0    2.00\n2    1    6.00\n3    0    2.00\n3    1    6.00\n3    2   10.00\n4    0    2.00\n4    1    6.00\n4    2   10.00\n4    3   14.00\n5    0    2.00\n5    1    6.00\n5    2    4.00\n6    0    2.00\n#\n# PSEUDOPOTENTIAL AND OPTIMIZATION\n# lmax\n3\n#\n#   l,   rc,      ep,       ncon, nbas, qcut\n0   1.60000  -2.90589    4    8   7.40000\n1   1.60000  -1.58765    4    8   8.00000\n2   1.60000  -0.16465    4    9   7.40000\n3   2.00000   0.15000    4    8   5.50000\n#\n# LOCAL POTENTIAL\n# lloc, lpopt,  rc(5),   dvloc0\n4    5   1.25000      0.00000\n#\n# VANDERBILT-KLEINMAN-BYLANDER PROJECTORs\n# l, nproj, debl\n0    2   2.69594\n1    2   1.53763\n2    2   1.00000\n3    2   2.80000\n#\n# MODEL CORE CHARGE\n# icmod, fcfact, rcfact\n3   5.00000   1.36000\n#\n# LOG DERIVATIVE ANALYSIS\n# epsh1, epsh2, depsh\n-12.00   12.00    0.02\n#\n# OUTPUT GRID\n# rlmax, drl\n6.00    0.01\n#\n# TEST CONFIGURATIONS\n# ncnf\n0\n# nvcnf\n#   n    l    f\n"
+      },
+      "Xe" : {
+         "basename" : "Xe-spd.in",
+         "hints" : {
+            "high" : {
+               "ecut" : null
+            },
+            "low" : {
+               "ecut" : null
+            },
+            "normal" : {
+               "ecut" : null
+            }
+         },
+         "input" : "# ATOM AND REFERENCE CONFIGURATION\n# atsym  z   nc   nv     iexc    psfile\nXe 54.00    6    5       4      both\n#\n#   n    l    f        energy (Ha)\n1    0    2.00\n2    0    2.00\n2    1    6.00\n3    0    2.00\n3    1    6.00\n3    2   10.00\n4    0    2.00\n4    1    6.00\n4    2   10.00\n5    0    2.00\n5    1    6.00\n#\n# PSEUDOPOTENTIAL AND OPTIMIZATION\n# lmax\n3\n#\n#   l,   rc,      ep,       ncon, nbas, qcut\n0   1.40000   0.00000    4    8   9.40000\n1   1.40000   0.00000    4    8   9.60000\n2   1.40000   0.00000    4    8  11.00000\n3   1.40000   0.05000    4    8   8.00000\n#\n# LOCAL POTENTIAL\n# lloc, lpopt,  rc(5),   dvloc0\n4    5   1.20000      0.00000\n#\n# VANDERBILT-KLEINMAN-BYLANDER PROJECTORs\n# l, nproj, debl\n0    2   1.00000\n1    2   1.00000\n2    2   4.00000\n3    2   2.00000\n#\n# MODEL CORE CHARGE\n# icmod, fcfact, rcfact\n3   3.00000   1.60000\n#\n# LOG DERIVATIVE ANALYSIS\n# epsh1, epsh2, depsh\n-12.00   12.00    0.02\n#\n# OUTPUT GRID\n# rlmax, drl\n6.00    0.01\n#\n# TEST CONFIGURATIONS\n# ncnf\n0\n# nvcnf\n#   n    l    f\n"
+      },
+      "Y_" : {
+         "basename" : "Y-sp.in",
+         "hints" : {
+            "high" : {
+               "ecut" : 42
+            },
+            "low" : {
+               "ecut" : 30
+            },
+            "normal" : {
+               "ecut" : 36
+            }
+         },
+         "input" : "# ATOM AND REFERENCE CONFIGURATION\n# atsym  z   nc   nv     iexc    psfile\nY 39.00    6    4       4      both\n#\n#   n    l    f        energy (Ha)\n1    0    2.00\n2    0    2.00\n2    1    6.00\n3    0    2.00\n3    1    6.00\n3    2   10.00\n4    0    2.00\n4    1    6.00\n4    2    1.00\n5    0    2.00\n#\n# PSEUDOPOTENTIAL AND OPTIMIZATION\n# lmax\n2\n#\n#   l,   rc,      ep,       ncon, nbas, qcut\n0   1.60000  -1.76377    4    7   7.00000\n1   1.50000  -1.02592    4    9   8.60000\n2   1.55000  -0.09245    4    9   8.80000\n#\n# LOCAL POTENTIAL\n# lloc, lpopt,  rc(5),   dvloc0\n4    5   1.50000      0.00000\n#\n# VANDERBILT-KLEINMAN-BYLANDER PROJECTORs\n# l, nproj, debl\n0    2   1.61300\n1    2   2.00000\n2    2   3.20000\n#\n# MODEL CORE CHARGE\n# icmod, fcfact, rcfact\n3   4.00000   1.35000\n#\n# LOG DERIVATIVE ANALYSIS\n# epsh1, epsh2, depsh\n-12.00   12.00    0.02\n#\n# OUTPUT GRID\n# rlmax, drl\n6.00    0.01\n#\n# TEST CONFIGURATIONS\n# ncnf\n0\n# nvcnf\n#   n    l    f\n"
+      },
+      "Zn" : {
+         "basename" : "Zn-sp.in",
+         "hints" : {
+            "high" : {
+               "ecut" : 48
+            },
+            "low" : {
+               "ecut" : 38
+            },
+            "normal" : {
+               "ecut" : 42
+            }
+         },
+         "input" : "# ATOM AND REFERENCE CONFIGURATION\n# atsym  z   nc   nv     iexc    psfile\nZn 30.00    3    4       4      both\n#\n#   n    l    f        energy (Ha)\n1    0    2.00\n2    0    2.00\n2    1    6.00\n3    0    2.00\n3    1    6.00\n3    2   10.00\n4    0    2.00\n#\n# PSEUDOPOTENTIAL AND OPTIMIZATION\n# lmax\n2\n#\n#   l,   rc,      ep,       ncon, nbas, qcut\n0   1.35000  -4.74920    4    9   8.80000\n1   1.65000  -3.06498    4    9   9.00000\n2   1.85000  -0.37265    4    9   9.00000\n#\n# LOCAL POTENTIAL\n# lloc, lpopt,  rc(5),   dvloc0\n4    5   1.30000      0.00000\n#\n# VANDERBILT-KLEINMAN-BYLANDER PROJECTORs\n# l, nproj, debl\n0    2   4.52948\n1    2   3.02399\n2    2   1.00000\n#\n# MODEL CORE CHARGE\n# icmod, fcfact, rcfact\n3   2.50000   1.65000\n#\n# LOG DERIVATIVE ANALYSIS\n# epsh1, epsh2, depsh\n-12.00   12.00    0.02\n#\n# OUTPUT GRID\n# rlmax, drl\n6.00    0.01\n#\n# TEST CONFIGURATIONS\n# ncnf\n0\n# nvcnf\n#   n    l    f\n"
+      },
+      "Zr" : {
+         "basename" : "Zr-sp.in",
+         "hints" : {
+            "high" : {
+               "ecut" : 49
+            },
+            "low" : {
+               "ecut" : 29
+            },
+            "normal" : {
+               "ecut" : 33
+            }
+         },
+         "input" : "# ATOM AND REFERENCE CONFIGURATION\n# atsym  z   nc   nv     iexc    psfile\nZr 40.00    6    4       4      both\n#\n#   n    l    f        energy (Ha)\n1    0    2.00\n2    0    2.00\n2    1    6.00\n3    0    2.00\n3    1    6.00\n3    2   10.00\n4    0    2.00\n4    1    6.00\n4    2    2.00\n5    0    2.00\n#\n# PSEUDOPOTENTIAL AND OPTIMIZATION\n# lmax\n2\n#\n#   l,   rc,      ep,       ncon, nbas, qcut\n0   1.55000  -2.00302    4    8   7.40000\n1   1.55000  -1.19294    4    8   8.00000\n2   1.50000  -0.13226    4    8   7.80000\n#\n# LOCAL POTENTIAL\n# lloc, lpopt,  rc(5),   dvloc0\n4    5   1.45000      0.00000\n#\n# VANDERBILT-KLEINMAN-BYLANDER PROJECTORs\n# l, nproj, debl\n0    2   1.83987\n1    2   2.00000\n2    2   2.00000\n#\n# MODEL CORE CHARGE\n# icmod, fcfact, rcfact\n3   5.00000   1.35000\n#\n# LOG DERIVATIVE ANALYSIS\n# epsh1, epsh2, depsh\n-12.00   12.00    0.02\n#\n# OUTPUT GRID\n# rlmax, drl\n6.00    0.01\n#\n# TEST CONFIGURATIONS\n# ncnf\n0\n# nvcnf\n#   n    l    f\n"
+      }
+   }
+}
