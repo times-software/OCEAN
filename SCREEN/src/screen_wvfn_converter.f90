@@ -733,7 +733,7 @@ module screen_wvfn_converter
             enddo
           enddo
 
-#ifdef DEBUG          
+#ifdef DEBUGFULL          
           write ( fnam, '(1a4,2i5.5,1i2.2)' ) '.aug', iq, ib, 10 * l + ( m + l )
           open( unit=99, file=fnam, form='formatted', status='unknown' )
           rewind 99
@@ -840,7 +840,7 @@ module screen_wvfn_converter
         enddo
       enddo
 
-#ifdef DEBUG
+#ifdef DEBUGFULL
       if( myid .eq. root ) then
         write(filnam, '(A,I2.2,I1.1)' ) 'amat.', isite%info%z, l
         write(formatting, '("("I0"(F20.10))")' ) nproj
@@ -1138,7 +1138,7 @@ module screen_wvfn_converter
         enddo
 #endif
             
-#ifdef DEBUG
+#ifdef DEBUGFULL
         write(formatting, '("(I5,X,I3,"I0"(F20.10))")' ) 2*nproj
         do i = il, nl
         write(5000+iq, formatting ) ib, i, Cmat( :, i )
@@ -1153,7 +1153,7 @@ module screen_wvfn_converter
         il = nl + 1
       enddo ! l
 
-#ifdef DEBUG
+#ifdef DEBUGFULL
       i = 0
       allocate(tmpForWrite(nproj))
       do l = lmin, lmax

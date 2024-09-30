@@ -41,6 +41,8 @@ module screen_wavefunction
   public :: screen_wvfn_kill
   public :: screen_wvfn_singleKInit
   public :: screen_wvfn_returnWavefunctionDims, screen_wvfn_returnWavefunctionBK
+  public :: screen_wvfn_ptsStartForGroupID
+  public :: screen_wvfn_ptsForGroupID
 
   contains
 
@@ -174,6 +176,38 @@ module screen_wavefunction
 #endif
 
   end subroutine screen_wvfn_diagnostic
+
+  function screen_wvfn_ptsStartForGroupID( pinfo, grid, groupID )
+    use screen_system, only : system_parameters, params
+    
+    type( site_parallel_info ), intent( in ) :: pinfo
+    type( sgrid ), intent( in ) :: grid
+    integer, intent( in ) :: groupID
+    integer :: screen_wvfn_ptsStartForGroupID
+
+    integer ::  pts_start, mynpts, band_start, mybands, kpts_start, mykpts
+    call divide_grid( pinfo%nprocs, groupID, grid%npt, pts_start, mynpts, &
+                      params%nbands, mybands, band_start,  &
+                      params%nkpts, params%nspin, kpts_start, mykpts )
+
+    screen_wvfn_ptsStartForGroupID = pts_start
+  end function screen_wvfn_ptsStartForGroupID
+
+  function screen_wvfn_ptsForGroupID( pinfo, grid, groupID )
+    use screen_system, only : system_parameters, params
+
+    type( site_parallel_info ), intent( in ) :: pinfo
+    type( sgrid ), intent( in ) :: grid
+    integer, intent( in ) :: groupID
+    integer :: screen_wvfn_ptsForGroupID
+
+    integer ::  pts_start, mynpts, band_start, mybands, kpts_start, mykpts
+    call divide_grid( pinfo%nprocs, groupID, grid%npt, pts_start, mynpts, &
+                      params%nbands, mybands, band_start,  &
+                      params%nkpts, params%nspin, kpts_start, mykpts )
+
+    screen_wvfn_ptsForGroupID = mynpts
+  end function screen_wvfn_ptsForGroupID
 
   subroutine screen_wvfn_initForGroupID( pinfo, grid, groupID, wvfn, ierr )
     use screen_system, only : system_parameters, params

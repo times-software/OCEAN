@@ -56,7 +56,8 @@ subroutine cinvert( ndim, smat, sinv )
         sinv(ii,j)=swap
       end do
     end if
-    if (suse(i,i).eq.dcmplx(0.d0,0.d0)) then
+!    if (suse(i,i).eq.dcmplx(0.d0,0.d0)) then
+    if ( abs(suse(i,i)) .lt. 1.0d-15 ) then
       write (6,*) 'ZERO DETERMINANT...'
       write (98,*) 'ZERO DETERMINANT...'
       stop
@@ -65,7 +66,7 @@ subroutine cinvert( ndim, smat, sinv )
       if (j.ne.i) then
         ratio=-suse(j,i)/suse(i,i)
       else
-        ratio=dcmplx(1.d0,0.d0)/suse(i,i)-dcmplx(1.d0,0.d0)
+        ratio=cmplx(1.d0,0.d0,kind(1.d0))/suse(i,i)-cmplx(1.d0,0.d0,kind(1.d0))
       endif
       do k=i,ndim
         suse(j,k)=suse(j,k)+ratio*suse(i,k)

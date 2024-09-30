@@ -47,7 +47,7 @@ contains
   subroutine print_kind_info
     implicit none
 #ifdef __HAVE_F03
-    write(6,*) 'QP', QP, sizeof(1.0_QP)
+    write(6,*) 'QP', QP, c_sizeof(1.0_QP)
     write(6,*) 'DP', DP, c_sizeof(1.0_DP)
     write(6,*) 'SP', SP, c_sizeof(1.0_SP)
     write(6,*) 'I8', I8, c_sizeof(1_I8)
@@ -55,7 +55,7 @@ contains
     write(6,*) 'I2', I2, c_sizeof(1_I2)
     write(6,*) 'S ', S_INT, c_sizeof(1_S_INT)
 #else
-    write(6,*) 'QP', QP
+    write(6,*) 'QP', QP, sizeof(1.0_QP)
     write(6,*) 'DP', DP, sizeof(1.0_DP)
     write(6,*) 'SP', SP, sizeof(1.0_SP)
     write(6,*) 'I8', I8, sizeof(1_I8)

@@ -3,7 +3,7 @@ c  Perdew and Zunger, Phys. Rev. B 23, 5048.  we use their interpolation
 c  between the unpolarized and polarized gas for the correlation part.
 c
       subroutine cacorr(xn,ex,ec,ux1,ux2,uc1,uc2)
-      implicit real*8 (a-h,o-z)
+      implicit real(kind=kind(1.d0)) (a-h,o-z)
       trd=1.d0/3.d0
       ft=4.d0/3.d0
       rel = 0

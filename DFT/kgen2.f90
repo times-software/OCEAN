@@ -8,7 +8,12 @@
 program kgen
   implicit none
 !
-  integer, parameter :: qp = selected_real_kind(33, 4931)
+
+#ifdef __HAVE_QP
+  integer, parameter :: QP = selected_real_kind(30)
+#else
+  integer, parameter :: QP = selected_real_kind(15)
+#endif
   real(qp) :: k0(3), qvec(3), ikpt, jkpt, kkpt, qpoint(3)
 !  real(kind=kind(1.d0)) :: k0(3), qvec(3), ikpt, jkpt, kkpt, qpoint(3)
   integer :: kpttotal, nkpt(3), umklapp(3), iter

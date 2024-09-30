@@ -6,10 +6,10 @@ module OCEAN_val_states
   private
 
 
-  real(dp), public, protected, allocatable :: re_val( :, :, :, : )
-  real(dp), public, protected, allocatable :: im_val( :, :, :, : )
-  real(dp), public, protected, allocatable :: re_con( :, :, :, : )
-  real(dp), public, protected, allocatable :: im_con( :, :, :, : )
+  real(dp), public, protected, allocatable :: re_val( :, :, :, :, : )
+  real(dp), public, protected, allocatable :: im_val( :, :, :, :, : )
+  real(dp), public, protected, allocatable :: re_con( :, :, :, :, : )
+  real(dp), public, protected, allocatable :: im_con( :, :, :, :, : )
 
   real(sp), public, protected, allocatable :: re_val_sp( :, :, :, : )
   real(sp), public, protected, allocatable :: im_val_sp( :, :, :, : )
@@ -25,6 +25,7 @@ module OCEAN_val_states
   integer, public, protected :: nxpts_pad
   integer, public, protected :: val_pad
   integer, public, protected :: con_pad
+  integer, public, protected :: nbw
 
   integer, public, protected :: max_nxpts
   integer, public, protected :: startx
@@ -36,7 +37,7 @@ module OCEAN_val_states
   logical, private :: is_init = .false.
   logical, private :: is_loaded = .false.
 
-  logical, public, parameter :: use_sp = .false.
+!  logical, public, parameter :: use_sp = .false.
 
 
 #ifdef __INTEL
@@ -55,7 +56,7 @@ module OCEAN_val_states
     real(dp), intent( in ), dimension( nxpts_pad, nkpts ) :: re_phase, im_phase
 !    integer, intent( inout ) :: ierr
     !
-    integer :: ik, ix, ispn
+    integer :: ik, ix, ispn, ibw
 
     if( nxpts .lt. 1 ) return
 
@@ -63,29 +64,31 @@ module OCEAN_val_states
       write(6,*) 'PHASES!'
   !    write(6,*) myid, cmplx( re_val(1,1,1,1), im_val(1,1,1,1), DP )
       write(6,*) myid, startx+1
-      write(6,*) myid, cmplx( re_val(2,1,2,1), im_val(2,1,2,1), DP )
+      write(6,*) myid, cmplx( re_val(2,1,2,1,1), im_val(2,1,2,1,1), DP )
       write(6,*) myid, startx+min(110,nxpts)-1, startx, nxpts
-      write(6,*) myid, cmplx( re_val(min(110,nxpts),1,2,1), im_val(min(110,nxpts),1,2,1), DP )
+      write(6,*) myid, cmplx( re_val(min(110,nxpts),1,2,1,1), im_val(min(110,nxpts),1,2,1,1), DP )
     endif
 
     ! DROT is "backwards" from how we want the phases to go hence minus sign in definition of im_phase
-    do ispn = 1, nspn
-      do ik = 1, nkpts
-        do ix = 1, nxpts
-          call DROT( nbv, re_val( ix, 1, ik, ispn ), nxpts_pad, & 
-                          im_val( ix, 1, ik, ispn ), nxpts_pad, &
-                     re_phase( ix, ik ), im_phase( ix, ik ) )
-          call DROT( nbc, re_con( ix, 1, ik, ispn ), nxpts_pad, &
-                          im_con( ix, 1, ik, ispn ), nxpts_pad, &
-                     re_phase( ix, ik ), im_phase( ix, ik ) )
+    do ibw = 1, nbw
+      do ispn = 1, nspn
+        do ik = 1, nkpts
+          do ix = 1, nxpts
+            call DROT( nbv, re_val( ix, 1, ik, ispn, ibw ), nxpts_pad, & 
+                            im_val( ix, 1, ik, ispn, ibw ), nxpts_pad, &
+                       re_phase( ix, ik ), im_phase( ix, ik ) )
+            call DROT( nbc, re_con( ix, 1, ik, ispn, ibw ), nxpts_pad, &
+                            im_con( ix, 1, ik, ispn, ibw ), nxpts_pad, &
+                       re_phase( ix, ik ), im_phase( ix, ik ) )
+          enddo
         enddo
       enddo
     enddo
 
     if( .false. ) then
   !    write(6,*) myid, cmplx( re_val(1,1,1,1), im_val(1,1,1,1), DP )
-      write(6,*) myid, cmplx( re_val(2,1,2,1), im_val(2,1,2,1), DP )
-      write(6,*) myid, cmplx( re_val(min(110,nxpts),1,2,1), im_val(min(110,nxpts),1,2,1), DP )
+      write(6,*) myid, cmplx( re_val(2,1,2,1,1), im_val(2,1,2,1,1), DP )
+      write(6,*) myid, cmplx( re_val(min(110,nxpts),1,2,1,1), im_val(min(110,nxpts),1,2,1,1), DP )
     endif
 
   end subroutine val_states_add_phase
@@ -209,10 +212,10 @@ module OCEAN_val_states
     if( myid .eq. root ) write( 6, * )'Loading valence states'
 
 
-    allocate( re_val( max( 1, nxpts_pad), val_pad, nkpts, nspn ), &
-              im_val( max( 1, nxpts_pad), val_pad, nkpts, nspn ), &
-              re_con( max( 1, nxpts_pad), con_pad, nkpts, nspn ), &
-              im_con( max( 1, nxpts_pad), con_pad, nkpts, nspn ), STAT=ierr )
+    allocate( re_val( max( 1, nxpts_pad), val_pad, nkpts, nspn, nbw ), &
+              im_val( max( 1, nxpts_pad), val_pad, nkpts, nspn, nbw ), &
+              re_con( max( 1, nxpts_pad), con_pad, nkpts, nspn, nbw ), &
+              im_con( max( 1, nxpts_pad), con_pad, nkpts, nspn, nbw ), STAT=ierr )
     if( ierr .ne. 0 ) return
 !    re_val(:,:,:,:) = 0.0_DP
 !    im_val(:,:,:,:) = 0.0_DP
@@ -234,15 +237,20 @@ module OCEAN_val_states
     deallocate( re_phase, im_phase )
 
     !TODO make either or with dp?
-    if( use_sp ) then
+    if( sys%use_sp ) then
+      if( nbw .ne. 1 ) then
+        write(6,*) 'SP and BWFLAG not enabled'
+        ierr = 101112
+        return
+      endif
       allocate( re_val_sp( max( 1, nxpts_pad), val_pad, nkpts, nspn ), &
                 im_val_sp( max( 1, nxpts_pad), val_pad, nkpts, nspn ), &
                 re_con_sp( max( 1, nxpts_pad), con_pad, nkpts, nspn ), &
                 im_con_sp( max( 1, nxpts_pad), con_pad, nkpts, nspn ), STAT=ierr )
-      re_val_sp(:,:,:,:) = re_val(:,:,:,:)
-      im_val_sp(:,:,:,:) = im_val(:,:,:,:)
-      re_con_sp(:,:,:,:) = re_con(:,:,:,:)
-      im_con_sp(:,:,:,:) = im_con(:,:,:,:)
+      re_val_sp(:,:,:,:) = re_val(:,:,:,:,1)
+      im_val_sp(:,:,:,:) = im_val(:,:,:,:,1)
+      re_con_sp(:,:,:,:) = re_con(:,:,:,:,1)
+      im_con_sp(:,:,:,:) = im_con(:,:,:,:,1)
     else
       allocate( re_val_sp(0,0,0,0), im_val_sp(0,0,0,0), re_con_sp(0,0,0,0), im_con_sp(0,0,0,0) )
     endif
@@ -270,6 +278,12 @@ module OCEAN_val_states
     nspn  = sys%nspn
     nbc   = sys%cur_run%num_bands
     nbv   = sys%cur_run%val_bands
+
+    if( sys%bwflg ) then
+      nbw = 2
+    else
+      nbw = 1
+    endif
 
     nxpts = 0
     startx = 1
@@ -418,7 +432,8 @@ module OCEAN_val_states
     integer, intent( inout ) :: ierr
 
     complex(DP), allocatable :: readU2(:), transposeU2(:,:,:), share_buffer(:,:,:)
-    integer :: ispn, iq, ibd, ii, ix, iy, iz, iproc
+    integer :: ispn, iq, ibd, ii, ix, iy, iz, iproc, file_brange(4), max_band, min_band, allbands
+    logical :: ex
 #ifdef MPI__F08
     type( MPI_REQUEST ), allocatable :: request(:)
 #else
@@ -426,16 +441,41 @@ module OCEAN_val_states
 #endif
 
 
+
+!TODO: need to figure out nbv+nbc, allowing for overlapping bands and a minimum that isn't 1
+! Then allocate share_buffer to be of size allbands
+! read in all the bands, store to the correct con and val sections
+! con backwards stores the unocc from val.u2.dat
+!
+
     if( myid .eq. root ) then
+!      inquire(file='val.control.txt', exist=ex )
+!      if( ex ) then
+!        open(unit=99,file='val.control.txt', form='formatted', status='old')
+!        read(99,*) file_brange(1:2)
+!        read(99,*) file_brange(3:4)
+!        close(99)
+!      else
+        file_brange(1:4) = sys%file_brange(1:4)
+!      endif
       open(unit=99, file='val.u2.dat', form='unformatted', status='old', access='stream' )
+    endif
+
+    min_band = sys%brange(1)
+    if( sys%bwflg ) then
+      max_band = sys%brange(4)
+      allbands = sys%brange(4) - sys%brange(1) + 1
+    else
+      allbands = nbv
+      max_band = sys%brange(2)
     endif
 
     if( myid .eq. root ) then
       allocate( readU2( sys%nxpts ), transposeU2( sys%xmesh(3), sys%xmesh(2), sys%xmesh(1) ), &
-                share_buffer( max_nxpts, max(nbv,nbc), 0:nproc-1 ), request(0:nproc), STAT=ierr )
+                share_buffer( max_nxpts, max(allbands,nbc), 0:nproc-1 ), request(0:nproc), STAT=ierr )
       request(:) = MPI_REQUEST_NULL
     else
-      allocate( share_buffer( max_nxpts, max(nbv,nbc), 1 ) )
+      allocate( share_buffer( max_nxpts, max(allbands,nbc), 1 ) )
     endif
     if( ierr .ne. 0 ) return
 
@@ -446,8 +486,15 @@ module OCEAN_val_states
         if( myid .eq. root ) then
           ! currently the valence code expects the real-space to be stored (z,y,x)!
           ! con.u2.dat and val.u2.dat store it (x,y,z)
-          do ibd = 1, nbv
+!          do ibd = file_brange(1), sys%brange(1) - 1
+!            read( 99 ) readU2
+!          enddo
+
+!          do ibd = 1, nbv
+          do ibd = file_brange(1), file_brange(2)
             read( 99 ) readU2
+            if( ibd .gt. max_band .or. ibd .lt. min_band ) cycle
+
             ii = 0
             do iz = 1, sys%xmesh(3)
               do iy = 1, sys%xmesh(2)
@@ -468,41 +515,69 @@ module OCEAN_val_states
                     iproc = iproc + 1
                     ii = 1
                   endif 
-                  share_buffer( ii, ibd, iproc ) = transposeU2( iz, iy, ix )
+                  share_buffer( ii, ibd - min_band + 1, iproc ) = transposeU2( iz, iy, ix )
                 enddo
               enddo
             enddo
 
           enddo ! ibd
+
+          
         endif
 
         if( myid .eq. root ) then
           do iproc = 0, nproc-1
             if( iproc .ne. myid ) then
-              call MPI_ISEND( share_buffer(:,:,iproc), max_nxpts*nbv, MPI_DOUBLE_COMPLEX, &
+              call MPI_ISEND( share_buffer(:,:,iproc), max_nxpts*allbands, MPI_DOUBLE_COMPLEX, &
                               iproc, 1, comm, request( iproc ), ierr )
             endif
           enddo
           do ibd = 1, nbv
-            re_val( 1:nxpts, ibd, iq, ispn ) = real( share_buffer( 1:nxpts, ibd, myid ), DP )
-            im_val( 1:nxpts, ibd, iq, ispn ) = aimag( share_buffer( 1:nxpts, ibd, myid ) )
+            re_val( 1:nxpts, ibd, iq, ispn, 1 ) = real( share_buffer( 1:nxpts, ibd, myid ), DP )
+            im_val( 1:nxpts, ibd, iq, ispn, 1 ) = aimag( share_buffer( 1:nxpts, ibd, myid ) )
           enddo
+          if( sys%bwflg ) then
+            do ii = 1, nbc
+              ibd = ii + sys%brange(3) - sys%brange(1)
+              re_con( 1:nxpts, ii, iq, ispn, 2 ) = real( share_buffer( 1:nxpts, ibd, myid ), DP )
+              im_con( 1:nxpts, ii, iq, ispn, 2 ) = aimag( share_buffer( 1:nxpts, ibd, myid ) )
+            enddo
+          endif
           call MPI_WAITALL( nproc, request, MPI_STATUSES_IGNORE, ierr )
         else
-          call MPI_RECV( share_buffer, max_nxpts*nbv, MPI_DOUBLE_COMPLEX, &
+          call MPI_RECV( share_buffer, max_nxpts*allbands, MPI_DOUBLE_COMPLEX, &
                          root, 1, comm, MPI_STATUS_IGNORE, ierr )
           do ibd = 1, nbv
-            re_val( 1:nxpts, ibd, iq, ispn ) = real( share_buffer( 1:nxpts, ibd, 1 ), DP )
-            im_val( 1:nxpts, ibd, iq, ispn ) = aimag( share_buffer( 1:nxpts, ibd, 1 ) )
+            re_val( 1:nxpts, ibd, iq, ispn, 1 ) = real( share_buffer( 1:nxpts, ibd, 1 ), DP )
+            im_val( 1:nxpts, ibd, iq, ispn, 1 ) = aimag( share_buffer( 1:nxpts, ibd, 1 ) )
           enddo
+          if( sys%bwflg ) then
+            do ii = 1, nbc
+              ibd = ii + sys%brange(3) - sys%brange(1)
+              re_con( 1:nxpts, ii, iq, ispn, 2 ) = real( share_buffer( 1:nxpts, ibd, 1 ), DP )
+              im_con( 1:nxpts, ii, iq, ispn, 2 ) = aimag( share_buffer( 1:nxpts, ibd, 1 ) )
+            enddo
+          endif
         endif
+
       enddo
     enddo
 
     if( myid .eq. root ) then
       close(99)
+
       open(unit=99, file='con.u2.dat', form='unformatted', status='old', access='stream' )
     endif
+
+    if( sys%bwflg ) then
+      min_band = sys%brange(1)
+      max_band = sys%brange(4)
+      allbands = sys%brange(4) - sys%brange(1) + 1
+    else    
+      min_band = sys%brange(3)
+      allbands = nbc
+      max_band = sys%brange(4)
+    endif  
 
     do ispn = 1, sys%nspn
       do iq = 1, sys%nkpts
@@ -510,8 +585,10 @@ module OCEAN_val_states
         if( myid .eq. root ) then
           ! currently the valence code expects the real-space to be stored (z,y,x)!
           ! con.u2.dat and val.u2.dat store it (x,y,z)
-          do ibd = 1, nbc
+          do ibd = file_brange(3), file_brange(4)
             read( 99 ) readU2
+            if( ibd .gt. max_band .or. ibd .lt. min_band ) cycle
+
             ii = 0
             do iz = 1, sys%xmesh(3)
               do iy = 1, sys%xmesh(2)
@@ -532,7 +609,7 @@ module OCEAN_val_states
                     iproc = iproc + 1
                     ii = 1
                   endif
-                  share_buffer( ii, ibd, iproc ) = transposeU2( iz, iy, ix )
+                  share_buffer( ii, ibd-min_band+1, iproc ) = transposeU2( iz, iy, ix )
                 enddo
               enddo
             enddo
@@ -543,21 +620,33 @@ module OCEAN_val_states
         if( myid .eq. root ) then
           do iproc = 0, nproc-1
             if( iproc .ne. myid ) then
-              call MPI_ISEND( share_buffer(:,:,iproc), max_nxpts*nbc, MPI_DOUBLE_COMPLEX, &
+              call MPI_ISEND( share_buffer(:,:,iproc), max_nxpts*allbands, MPI_DOUBLE_COMPLEX, &
                               iproc, 1, comm, request( iproc ), ierr )
             endif
           enddo
+          if( sys%bwflg ) then
+            do ibd = 1, nbv
+              re_val( 1:nxpts, ibd, iq, ispn, 2 ) = real( share_buffer( 1:nxpts, ibd, myid ), DP )
+              im_val( 1:nxpts, ibd, iq, ispn, 2 ) = aimag( share_buffer( 1:nxpts, ibd, myid ) )
+            enddo
+          endif
           do ibd = 1, nbc
-            re_con( 1:nxpts, ibd, iq, ispn ) = real( share_buffer( 1:nxpts, ibd, myid ), DP )
-            im_con( 1:nxpts, ibd, iq, ispn ) = aimag( share_buffer( 1:nxpts, ibd, myid ) )
+            re_con( 1:nxpts, ibd, iq, ispn, 1 ) = real( share_buffer( 1:nxpts, ibd+sys%brange(3)-min_band, myid ), DP )
+            im_con( 1:nxpts, ibd, iq, ispn, 1 ) = aimag( share_buffer( 1:nxpts, ibd+sys%brange(3)-min_band, myid ) )
           enddo
           call MPI_WAITALL( nproc, request, MPI_STATUSES_IGNORE, ierr )
         else
-          call MPI_RECV( share_buffer, max_nxpts*nbc, MPI_DOUBLE_COMPLEX, &
+          call MPI_RECV( share_buffer, max_nxpts*allbands, MPI_DOUBLE_COMPLEX, &
                          root, 1, comm, MPI_STATUS_IGNORE, ierr )
+          if( sys%bwflg ) then
+            do ibd = 1, nbv
+              re_val( 1:nxpts, ibd, iq, ispn, 2 ) = real( share_buffer( 1:nxpts, ibd, 1 ), DP )
+              im_val( 1:nxpts, ibd, iq, ispn, 2 ) = aimag( share_buffer( 1:nxpts, ibd, 1 ) )
+            enddo
+          endif
           do ibd = 1, nbc
-            re_con( 1:nxpts, ibd, iq, ispn ) = real( share_buffer( 1:nxpts, ibd, 1 ), DP )
-            im_con( 1:nxpts, ibd, iq, ispn ) = aimag( share_buffer( 1:nxpts, ibd, 1 ) )
+            re_con( 1:nxpts, ibd, iq, ispn, 1 ) = real( share_buffer( 1:nxpts, ibd+sys%brange(3)-min_band, 1 ), DP )
+            im_con( 1:nxpts, ibd, iq, ispn, 1 ) = aimag( share_buffer( 1:nxpts, ibd+sys%brange(3)-min_band, 1 ) )
           enddo
         endif
       enddo
@@ -729,8 +818,8 @@ module OCEAN_val_states
       iproc = myid
       if( myid .ne. root ) iproc = 1
 
-      re_val( 1:nxpts, 1:nbv, iq, 1 ) = re_share_buffer( 1:nxpts, 1:nbv, iproc )
-      im_val( 1:nxpts, 1:nbv, iq, 1 ) = im_share_buffer( 1:nxpts, 1:nbv, iproc )
+      re_val( 1:nxpts, 1:nbv, iq, 1, 1 ) = re_share_buffer( 1:nxpts, 1:nbv, iproc )
+      im_val( 1:nxpts, 1:nbv, iq, 1, 1 ) = im_share_buffer( 1:nxpts, 1:nbv, iproc )
 
 
 
@@ -791,8 +880,8 @@ module OCEAN_val_states
       iproc = myid
       if( myid .ne. root ) iproc = 1
 
-      re_con( 1:nxpts, 1:nbc, iq, 1 ) = re_share_buffer( 1:nxpts, 1:nbc, iproc )
-      im_con( 1:nxpts, 1:nbc, iq, 1 ) = im_share_buffer( 1:nxpts, 1:nbc, iproc )
+      re_con( 1:nxpts, 1:nbc, iq, 1, 1 ) = re_share_buffer( 1:nxpts, 1:nbc, iproc )
+      im_con( 1:nxpts, 1:nbc, iq, 1, 1 ) = im_share_buffer( 1:nxpts, 1:nbc, iproc )
 
     enddo ! iq
 
@@ -915,8 +1004,8 @@ module OCEAN_val_states
         iproc = myid
         if( myid .ne. root ) iproc = 1
 
-        re_val( 1:nxpts, 1:nbv, iq, ispn ) = re_share_buffer( 1:nxpts, 1:nbv, iproc )
-        im_val( 1:nxpts, 1:nbv, iq, ispn ) = im_share_buffer( 1:nxpts, 1:nbv, iproc )
+        re_val( 1:nxpts, 1:nbv, iq, ispn, 1 ) = re_share_buffer( 1:nxpts, 1:nbv, iproc )
+        im_val( 1:nxpts, 1:nbv, iq, ispn, 1 ) = im_share_buffer( 1:nxpts, 1:nbv, iproc )
 
 
         ! Conduction bands are stacked on top of valence
@@ -971,8 +1060,8 @@ module OCEAN_val_states
         iproc = myid
         if( myid .ne. root ) iproc = 1
 
-        re_con( 1:nxpts, 1:nbc, iq, ispn ) = re_share_buffer( 1:nxpts, 1:nbc, iproc )
-        im_con( 1:nxpts, 1:nbc, iq, ispn ) = im_share_buffer( 1:nxpts, 1:nbc, iproc )
+        re_con( 1:nxpts, 1:nbc, iq, ispn, 1 ) = re_share_buffer( 1:nxpts, 1:nbc, iproc )
+        im_con( 1:nxpts, 1:nbc, iq, ispn, 1 ) = im_share_buffer( 1:nxpts, 1:nbc, iproc )
 
       enddo ! iq
     enddo  ! ispn

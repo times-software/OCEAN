@@ -60,6 +60,7 @@ sub QErunNSCF
    && $specificHashRef->{'kshift'}[1] == 0 && $specificHashRef->{'kshift'}[2] == 0 )  
   {
     $kptString = "K_POINTS gamma\n";
+    
   }
   else 
   {
@@ -79,8 +80,19 @@ sub QErunNSCF
   my $nbd = 1;
   my $nk = $specificHashRef->{'kmesh'}[0] * $specificHashRef->{'kmesh'}[1] * $specificHashRef->{'kmesh'}[2];
   $ncpus = $hashRef->{'computer'}->{'ncpus'};
-  $ncpus = $nk if( $nk < $ncpus );
-  $npool = $ncpus;
+  # Newer QE handles the case of more pools than k-points just fine, but older don't
+  if( $ncpus > $nk ) {  
+    for( my $i = 2; $i <= $ncpus; $i++ ) {
+      if( $ncpus % $i == 0 && ($ncpus/$i) <= $nk ) {
+        $npool = $ncpus / $i;
+        last;
+      }
+    }
+  } else {
+    $npool = $ncpus;
+  }
+#  $ncpus = $nk if( $nk < $ncpus );
+#  $npool = $ncpus;
 
   ($ncpus, $npool, $nbd) = QErunTest( $hashRef, "nscf.in", $ncpus, $npool, $nbd );
 
@@ -291,7 +303,7 @@ sub QErunTest
   close TMP;
 
   if( $previousNcpus == 1 ) {
-    QErunPW( $hashRef->{'general'}->{'redirect'}, $hashRef->{'computer'}->{'ser_prefix'}, "" , $fileName, "test.out" );
+    QErunPW( $hashRef->{'general'}->{'redirect'}, $hashRef->{'computer'}->{'para_prefix'}, "" , $fileName, "test.out" );
   } else {
     my $prefix = $hashRef->{'computer'}->{'para_prefix'};
     $prefix =~ s/$hashRef->{'computer'}->{'ncpus'}/$previousNcpus/ 
@@ -308,6 +320,19 @@ sub QErunTest
   my $npool = 1;
   my $ncpus = $hashRef->{'computer'}->{'ncpus'};
   my $nbd = 1;
+  my $nnode = -1;
+  if( defined $hashRef->{'computer'}->{'nnode'} ) {
+    $nnode = $hashRef->{'computer'}->{'nnode'};
+  }
+  else {
+    print "\$nnode defined $nnode\n";
+  }
+  my $ppn = -1;
+  if( defined $hashRef->{'computer'}->{'ppn'} ) {
+    $ppn = $hashRef->{'computer'}->{'ppn'};
+  } else {
+    print "\$ppn defined $ppn\n";
+  }
   if( open TMP, "test.out" )
   { 
     my $actualKpts = -1;
@@ -338,6 +363,20 @@ sub QErunTest
       elsif( $_ =~ m/Threads\/MPI process:\s+(\d+)/ ) {
         $OMP = $1;
       }
+      elsif( $_ =~ m/MPI processes distributed on\s+(\d+)/ ) {
+        print "MPI processes distributed on $1\n";
+        if( $nnode < 0 ) {
+          $nnode = $1;
+          $hashRef->{'computer'}->{'nnode'} = $nnode;
+          if( $hashRef->{'computer'}->{'ncpus'} % $hashRef->{'computer'}->{'nnode'} == 0 ) {
+            $hashRef->{'computer'}->{'ppn'} = $hashRef->{'computer'}->{'ncpus'} / $hashRef->{'computer'}->{'nnode'} ;
+            $ppn = $hashRef->{'computer'}->{'ppn'};
+          }
+          printf "Parsed nnode %i, CPU per node %i\n", $nnode, $ppn;
+        } else {
+          print "$1 $nnode\n";
+        }
+      }
       last if( $actualKpts > 0 && $numKS > 0 && $mem > 0 && $FFT > 0 && $OMP > 0 );
     }
     close TMP;
@@ -348,7 +387,7 @@ sub QErunTest
     }
     else
     { 
-      ($ncpus, $npool, $nbd) = QEPoolControl( $actualKpts, $numKS, $mem, $FFT, $OMP, $hashRef->{'computer'} );
+      ($ncpus, $npool, $nbd) = QEPoolControl( $actualKpts, $numKS, $mem, $FFT, $OMP, $hashRef->{'computer'}, $ppn );
     }
   }
   else
@@ -708,7 +747,7 @@ sub QEparseDensityPotential
   if( $ncpus % $npool == 0 ) {
     $ncpus = $ncpus / $npool;
     $npool = 1;
-    $ncpus = 1;
+#    $ncpus = 1;
   }
   if( $type eq 'potential' ) {
     $ncpus = 1;
@@ -821,7 +860,7 @@ sub QEfixPP
 # Figure out how many pools to run with
 sub QEPoolControl
 {
-  my ( $actualKpts, $numKS, $mem, $FFT, $OMP, $hashRef ) = @_;
+  my ( $actualKpts, $numKS, $mem, $FFT, $OMP, $hashRef, $ppn ) = @_;
 
   $OMP = 1 if( $OMP < 1 );
   my $maxMem = 2000*$OMP;
@@ -851,6 +890,13 @@ sub QEPoolControl
       next if ( $numKS > 0 && $j / $i > $numKS );
 
       my $cpuPerPool = $j / $i;
+      if( $ppn > 0 ) {
+        if( $cpuPerPool < $ppn ) {
+          next unless( $ppn % $cpuPerPool == 0 );
+        } else {
+          next unless( $cpuPerPool % $ppn == 0 );
+        }
+      }
       my $nbd = 1;
       if( $cpuPerPool > $FFT && $FFT > 0 ) {
         for( my $ii = 2; $ii <= $cpuPerPool/2; $ii++ ) {
@@ -1351,6 +1397,11 @@ sub QEparseEnergies
       }
     }
   }
+
+  # Store max band of occupied and min band of unoccupied
+  #  before storing brange
+  $specificHashRef->{'max_occ_band'} = $b[1];
+  $specificHashRef->{'min_unocc_band'} = $b[2];
 
   if( exists( $specificHashRef->{'con_start'} ) ) {
     $b[2] = $specificHashRef->{'con_start'} if( $specificHashRef->{'con_start'} >= 1 );
