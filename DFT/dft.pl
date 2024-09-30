@@ -317,6 +317,8 @@ unless( $commonOceanData->{'calc'}->{'mode'} eq 'val' && ! ( $commonOceanData->{
   $newDftData->{'screen'}->{'directories'} = [ $dirname ];
   $newDftData->{'screen'}->{'enable'} = JSON::PP::true;
   $newDftData->{'screen'}->{'brange'} = [ 0, 0, 0, $commonOceanData->{'screen'}->{'nbands'} ];
+  checkSetGamma( $nscf_InitialList[$i] );
+  $newDftData->{'screen'}->{'isGamma'} = $nscf_InitialList[$i]->{'isGamma'};
 } else {
   $newDftData->{'screen'}->{'enable'} = JSON::PP::false;
 }
@@ -775,30 +777,25 @@ if( -e "redo_energies" ) {
 }
 
 # touch up Fermi if insulator
+# only necessary if SCF doesn't have states on both sides
 if( $newDftData->{'general'}->{'occopt'} == 1 && $newDftData->{'general'}->{'program'} eq "qe" )
 {
-  my $low = $newDftData->{'scf'}->{'lowest'};
-  my $high = $newDftData->{'scf'}->{'highest'};
-  foreach (@{$newDftData->{'bse'}->{'directories'}} ) {
-    $low = $newDftData->{'znscf'}->{$_}->{'lowest'} if ( $newDftData->{'znscf'}->{$_}->{'lowest'} < $low );
-    $high = $newDftData->{'znscf'}->{$_}->{'highest'} if ( $newDftData->{'znscf'}->{$_}->{'highest'} > $high );
+  unless( defined $newDftData->{'scf'}->{'lowest'} && defined  $newDftData->{'scf'}->{'highest'} )
+  {
+    my $low = $newDftData->{'scf'}->{'lowest'};
+    my $high = $newDftData->{'scf'}->{'highest'};
+    foreach (@{$newDftData->{'bse'}->{'directories'}} ) {
+      $low = $newDftData->{'znscf'}->{$_}->{'lowest'} if ( $newDftData->{'znscf'}->{$_}->{'lowest'} < $low );
+      $high = $newDftData->{'znscf'}->{$_}->{'highest'} if ( $newDftData->{'znscf'}->{$_}->{'highest'} > $high );
+    }
+
+    $newDftData->{'scf'}->{'fermi'} = ($low + $high)/2;
+    open OUT, ">", "dft.json" or die;
+    print OUT $json->encode($newDftData);
+    close OUT;
   }
-#  $low = $newDftData->{'bse'}->{'lowest'} if ( $newDftData->{'bse'}->{'lowest'} < $low );
-
-#  $high = $newDftData->{'bse'}->{'highest'} if ( $newDftData->{'bse'}->{'highest'} > $high );
-
-#  if( $newDftData->{'screen'}->{'enable'} )
-##  {
-#    $low = $newDftData->{'screen'}->{'lowest'} if ( $newDftData->{'screen'}->{'lowest'} < $low );
-#    $high = $newDftData->{'screen'}->{'highest'} if ( $newDftData->{'screen'}->{'highest'} > $high );
-#  }
-
-  $newDftData->{'scf'}->{'fermi'} = ($low + $high)/2;
-  open OUT, ">", "dft.json" or die;
-  print OUT $json->encode($newDftData);
-  close OUT;
-  print "DFT for BSE final states complete\n";
 }
+print "DFT for BSE final states complete\n";
 
 # Fix up brange
 if( $newDftData->{'screen'}->{'enable'} ) {
@@ -818,6 +815,19 @@ if( $commonOceanData->{'bse'}->{'mimic_exciting_bands'} ) {
   $newDftData->{'bse'}->{'brange'}[3] = $newDftData->{'bse'}->{'brange'}[2] 
                                       + $commonOceanData->{'bse'}->{'mimic_exciting_bands'} - 1;
 }
+
+if( exists $newDftData->{'znscf'}->{$newDftData->{'bse'}->{'directories'}[-1]}->{'max_occ_band'} ) {
+  $newDftData->{'bse'}->{'max_occ_band'} = $newDftData->{'znscf'}->{$newDftData->{'bse'}->{'directories'}[-1]}->{'max_occ_band'};
+} else {
+  $newDftData->{'bse'}->{'max_occ_band'} = $newDftData->{'bse'}->{'brange'}[1];
+}
+if( exists $newDftData->{'znscf'}->{$newDftData->{'bse'}->{'directories'}[0]}->{'min_unocc_band'} ) {
+  $newDftData->{'bse'}->{'min_unocc_band'} = $newDftData->{'znscf'}->{$newDftData->{'bse'}->{'directories'}[0]}->{'min_unocc_band'};
+} else {
+  $newDftData->{'bse'}->{'min_unocc_band'} = $newDftData->{'bse'}->{'brange'}[2];
+}
+
+
 
 # Grab times and hashes
 $newDftData->{'screen'}->{'time'} = $newDftData->{'znscf'}->{ $newDftData->{'screen'}->{'directories'}[0] }->{'time'};

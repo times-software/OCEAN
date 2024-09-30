@@ -298,7 +298,7 @@ module OCEAN_rixs_holder
     wsph( : ) = wsph( : ) * ( 4.0d0 * 4.0d0 * atan( 1.0d0 ) / su )
     write ( 6, * ) nsphpt, ' points with weights summing to four pi '
 
-    call getprefs( prefs, lmax, nsphpt, wsph, xsph, ysph, zsph )
+    call newgetprefs( prefs, lmax, nsphpt, wsph, xsph, ysph, zsph )
 
     write( spctfile, '(A6,I0)' ) 'photon', photonNum
     write(6,*) 'ctc_hack: ', spctfile
@@ -317,8 +317,8 @@ module OCEAN_rixs_holder
         csu = 0.0_dp
         
         do i = 1, nsphpt
-           call getylm( lc, mc, xsph( i ), ysph( i ), zsph( i ), ylcmc, prefs )
-           call getylm( l_orig, m_orig, xsph( i ), ysph( i ), zsph( i ), ylm, prefs )
+           call newgetylm( lc, mc, xsph( i ), ysph( i ), zsph( i ), ylcmc, prefs )
+           call newgetylm( l_orig, m_orig, xsph( i ), ysph( i ), zsph( i ), ylm, prefs )
            edot = xsph( i ) * ehat( 1 ) + ysph( i ) * ehat( 2 ) + zsph( i ) * ehat( 3 )
            csu = csu + conjg(ylcmc) * edot * ylm * wsph(i)
         end do

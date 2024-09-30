@@ -136,7 +136,7 @@ subroutine nbsemkcmel( add04, add14 )
   rewind 99
   write(99, '(A,I8)' ) '#', nv
   do i = 1, nv !100
-     write ( 99, '(E24.16,X,E24.16)' ) vtrim( i ), rv( i )
+     write ( 99, '(E24.16,1X,E24.16)' ) vtrim( i ), rv( i )
   end do
   close( unit=99 )
   

@@ -275,7 +275,7 @@ program o_spect
   if( do_Avg ) then
     open(unit=99, file='TotAvg', form='formatted' )
     do ie = 1, ne
-      write(99, '(5(E24.16,X))' ) total_spectrum(:,ie)
+      write(99, '(5(E24.16,1X))' ) total_spectrum(:,ie)
     enddo
     close(99)
     deallocate( total_spectrum )

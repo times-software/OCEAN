@@ -118,9 +118,9 @@ module ocean_sphericalHarmonics
         if( mod(abs(m),2) .eq. 1 ) ylm = -ylm
 !        if( m .ne. 0 ) ylm = ylm * (-1.0_DP)**(m)
         if( m .lt. 0 ) then
-          ylm = ylm * sqrt(2.0_DP) * sin( real(-m,DP) * atan(y,x))
+          ylm = ylm * sqrt(2.0_DP) * sin( real(-m,DP) * atan2(y,x))
         elseif( m .gt. 0 ) then
-          ylm = ylm * sqrt(2.0_DP) * cos( real(m,DP) * atan(y,x))
+          ylm = ylm * sqrt(2.0_DP) * cos( real(m,DP) * atan2(y,x))
         endif
 
 

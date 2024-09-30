@@ -74,12 +74,9 @@ subroutine cmjtv( nsphpt, xsph, ysph, zsph, wsph, prefs )
   case( 'NRIXS' )
       write(6,*) 'NRIXS is deprecated in favor of qRaman. Consider changing your inputs'
      ! nothing needs to be done!!!
-  case( 'ldos0' )
-     ! nothing needs to be done!!!
-  case( 'ldos1' )
-     ! nothing needs to be done!!!
-  case( 'ldos2' )
-     ! nothing needs to be done!!!
+  case( 'ldos0', 'ldos1', 'ldos2', 'ldos3', 'ldos00', 'ldos1-1', 'ldos10', 'ldos11', &
+        'ldos2-2', 'ldos2-1', 'ldos20', 'ldos21', 'ldos22' )
+     q = ephotev
   case( 'qRaman', 'qRs', 'qRp', 'qRd', 'qRf' )
      ! nothing needs to be done!!!
 

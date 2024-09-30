@@ -160,7 +160,7 @@ copyAndCompare( $newPrepData->{'bse'}, $dftData->{'general'}, $prepData->{'bse'}
 copyAndCompare( $newPrepData->{'bse'}, $dftData->{'bse'}, $prepData->{'bse'},
                 $newPrepData->{'bse'}, ["split"] );
 copyAndCompare( $newPrepData->{'bse'}, $dftData->{'bse'}, $prepData->{'bse'},
-                $fake, [ "brange" ] );
+                $fake, [ "brange", "max_occ_band", "min_unocc_band" ] );
 
 if( $newPrepData->{'bse'}->{'val_start'} > 1 ) {
   printf "Start band %i\n", $newPrepData->{'bse'}->{'val_start'};

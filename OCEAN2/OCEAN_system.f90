@@ -23,13 +23,16 @@ module OCEAN_system
     real(DP)         :: epsConvergeThreshold
     real(DP)         :: haydockConvergeThreshold
     real(DP)         :: interactionScale
+    real(DP)         :: gaussBroaden
     integer( S_INT ) :: nkpts
     integer( S_INT ) :: nxpts
     integer( S_INT ) :: nalpha
     integer( S_INT ) :: nbeta
     integer( S_INT ) :: num_bands
     integer( S_INT ) :: val_bands
+    integer          :: nbw
     integer          :: brange(4)
+    integer          :: file_brange(4)
     real(DP)         :: nelectron 
     integer( S_INT ) :: xmesh( 3 )
     integer( S_INT ) :: kmesh( 3 )
@@ -66,6 +69,10 @@ module OCEAN_system
 !    character(len=5) :: calc_type
     logical          :: earlyExit = .false.
     logical          :: have3dEpsilon
+    logical          :: bwflg
+    logical          :: disable_intraband
+    logical          :: use_sp = .false.
+    logical          :: oldXASbroaden = .false.
 
     character(len=5) :: occupationType
 
@@ -149,7 +156,7 @@ module OCEAN_system
     integer, intent( inout ) :: ierr
 
     real( DP ), parameter :: inter_min = 0.000001
-    integer :: nruns 
+    integer :: nruns, val_flag
     logical :: file_exist
 
     logical :: exst
@@ -224,11 +231,71 @@ module OCEAN_system
       read(98,*) sys%brange(3:4)
       close(98)
 
+      inquire( file='file_brange.ipt', exist=exst )
+      if( exst ) then
+        open(unit=98,file='file_brange.ipt',form='formatted',status='old')
+        rewind(98)     
+        read(98,*) sys%file_brange(1:2)
+        read(98,*) sys%file_brange(3:4)
+        close(98) 
+      else
+        sys%file_brange(:) = sys%brange(:)
+      endif
+
       sys%val_bands = sys%brange(2) - sys%brange(1) + 1
 
       call getabb( sys%avec, sys%bvec, sys%bmet )
       call getomega( sys%avec, sys%celvol )     
 
+      inquire(file="bwflg", exist=exst )
+      if( exst ) then
+        open(unit=98,file="bwflg",form='formatted',status='old')
+        rewind(98)
+        read(98,*) val_flag
+        close(98)
+        if( val_flag .gt. 0 ) then
+          sys%bwflg = .true.
+        else
+          sys%bwflg = .false.
+        endif
+      else
+        sys%bwflg = .false.
+      endif
+      if( sys%bwflg ) then
+        sys%nbw = 2
+      else
+        sys%nbw = 1
+      endif
+
+      inquire(file='disable_intraband', exist=exst )
+      if( exst ) then
+        open(unit=98,file="disable_intraband",form='formatted',status='old')
+        rewind(98)
+        read(98,*) sys%disable_intraband
+        close(98)
+      else
+        sys%disable_intraband = .false.
+      endif
+
+      inquire(file='use_sp', exist=exst )
+      if( exst ) then
+        open(unit=98,file='use_sp',form='formatted',status='old')
+        rewind(98)
+        read(98,*) sys%use_sp
+        close(98)
+      else
+        sys%use_sp = .false.
+      endif
+
+      inquire(file='oldXASbroaden.inp', exist=exst )
+      if( exst ) then
+        open(unit=98,file='oldXASbroaden.inp',form='formatted',status='old')
+        rewind(98)
+        read(98,*) sys%oldXASbroaden
+        close(98)
+      else
+        sys%oldXASbroaden = .false.
+      endif
 
       sys%mult = .true.
       inquire(file="mult.ipt",exist=file_exist)
@@ -257,6 +324,16 @@ module OCEAN_system
       if( sys%interactionScale .lt. inter_min ) then
         ! Need to run mult to get spin-orbit
         sys%long_range = .false.
+      endif
+
+      inquire( file='gaussBroaden.ipt', exist=exst )
+      if( exst ) then
+        open(unit=99, file='gaussBroaden.ipt', form='formatted',status='old')
+        rewind(99)
+        read(99,*) sys%gaussBroaden
+        close(99)
+      else
+        sys%gaussBroaden = 0.0_DP
       endif
       
       inquire( file='rpa', exist=exst )
@@ -400,6 +477,8 @@ module OCEAN_system
 
     if( nproc .gt. 1 ) then
 
+    call MPI_BCAST( sys%gaussBroaden, 1, MPI_DOUBLE_PRECISION, root, comm, ierr )
+    if( ierr .ne. MPI_SUCCESS ) goto 111
     call MPI_BCAST( sys%interactionScale, 1, MPI_DOUBLE_PRECISION, root, comm, ierr )
     if( ierr .ne. MPI_SUCCESS ) goto 111
     call MPI_BCAST( sys%celvol, 1, MPI_DOUBLE_PRECISION, root, comm, ierr )
@@ -447,6 +526,8 @@ module OCEAN_system
     if( ierr .ne. MPI_SUCCESS ) goto 111
     call MPI_BCAST( sys%brange, 4, MPI_INTEGER, root, comm, ierr )
     if( ierr .ne. MPI_SUCCESS ) goto 111
+    call MPI_BCAST( sys%file_brange, 4, MPI_INTEGER, root, comm, ierr )
+    if( ierr .ne. MPI_SUCCESS ) goto 111
     call MPI_BCAST( sys%nelectron, 1, MPI_DOUBLE_PRECISION, root, comm, ierr )
     if( ierr .ne. MPI_SUCCESS ) goto 111
     call MPI_BCAST( sys%nedges, 1, MPI_INTEGER, root, comm, ierr )
@@ -465,6 +546,8 @@ module OCEAN_system
     call MPI_BCAST( sys%nhflag, 6, MPI_INTEGER, root, comm, ierr )
     if( ierr .ne. MPI_SUCCESS ) goto 111
     call MPI_BCAST( sys%haydockConvergeSpacing, 1, MPI_INTEGER, root, comm, ierr )
+    if( ierr .ne. MPI_SUCCESS ) goto 111
+    call MPI_BCAST( sys%nbw, 1, MPI_INTEGER, root, comm, ierr )
     if( ierr .ne. MPI_SUCCESS ) goto 111
 
 
@@ -491,6 +574,14 @@ module OCEAN_system
     call MPI_BCAST( sys%complex_bse, 1, MPI_LOGICAL, root, comm, ierr )
     if( ierr .ne. MPI_SUCCESS ) goto 111
     call MPI_BCAST( sys%have3dEpsilon, 1, MPI_LOGICAL, root, comm, ierr )
+    if( ierr .ne. MPI_SUCCESS ) goto 111
+    call MPI_BCAST( sys%bwflg, 1, MPI_LOGICAL, root, comm, ierr )
+    if( ierr .ne. MPI_SUCCESS ) goto 111
+    call MPI_BCAST( sys%disable_intraband, 1, MPI_LOGICAL, root, comm, ierr )
+    if( ierr .ne. MPI_SUCCESS ) goto 111
+    call MPI_BCAST( sys%use_sp, 1, MPI_LOGICAL, root, comm, ierr )
+    if( ierr .ne. MPI_SUCCESS ) goto 111
+    call MPI_BCAST( sys%oldXASbroaden, 1, MPI_LOGICAL, root, comm, ierr )
     if( ierr .ne. MPI_SUCCESS ) goto 111
 
     call MPI_BCAST( sys%occupationType, 5, MPI_CHARACTER, root, comm, ierr )
@@ -699,6 +790,7 @@ module OCEAN_system
           else
             semiTDA = .true.
           endif
+          if( sys%bwflg ) semiTDA = .false.
               
           inquire(file="backf", exist=backf )
           if( backf ) then

@@ -273,10 +273,10 @@ module OCEAN_energies
       call stubby( sys, p_energy, energies, imag_se, core_offset )
       emin = minval( energies )
       emax = maxval( energies )
-      write(6,'(A,3(X,A16))') 'ENERGIES:', 'Min', 'Fermi', 'Max'
-      write(6,'(A,3(X,F16.8))') '         ', emin* Hartree2eV, efermi* Hartree2eV, emax* Hartree2eV
-      write(6,'(A,3(X,A16))') 'Shifted :', 'Min', 'Fermi', 'Max'
-      write(6,'(A,3(X,F16.8))') '         ', (emin+core_offset)* Hartree2eV, & 
+      write(6,'(A,3(1X,A16))') 'ENERGIES:', 'Min', 'Fermi', 'Max'
+      write(6,'(A,3(1X,F16.8))') '         ', emin* Hartree2eV, efermi* Hartree2eV, emax* Hartree2eV
+      write(6,'(A,3(1X,A16))') 'Shifted :', 'Min', 'Fermi', 'Max'
+      write(6,'(A,3(1X,F16.8))') '         ', (emin+core_offset)* Hartree2eV, & 
             (efermi+core_offset)*Hartree2eV, (emax+core_offset)* Hartree2eV
     endif
 
@@ -317,8 +317,11 @@ module OCEAN_energies
         call core_allow_fixed( sys, allowArray, ener, metal, efermi  )
     end select
 
-    call stubby( sys, allow, allowArray )
-!    allowArray(:,:,:) = sqrt(allowArray(:,:,:))
+    ! The Full-BSE in the valence pathway require a second allow matrix that is -1
+    ! for the backward pairs. In the core we just use the +1 option for both (which is
+    ! why the same allowArray is stored into both the real and imaginary spots in allow).
+    call stubby( sys, allow, allowArray, allowArray )
+
     call stubby( sys, allow_sqrt, allowArray )
 
 
@@ -450,7 +453,7 @@ module OCEAN_energies
         if( myid .eq. root ) write(6,*) minN, targN, maxN
         if( minN .ge. targN .or. maxN .le. targN ) then
           if( myid .eq. root ) then
-            write(6,'(A,X,3(I0,X))') 'Unable to move Fermi!!!', minN, targN, maxN
+            write(6,'(A,1X,3(I0,1X))') 'Unable to move Fermi!!!', minN, targN, maxN
             write(6,*) efermi,  ener(1,1,1), temp
           endif
         else
@@ -459,7 +462,7 @@ module OCEAN_energies
           e = efermi
           do i = 1, 100
             curN = NfromFermi( ener, e, temp )
-            if( myid .eq. root ) write( 6, '(I0,X,I0,X,3(E12.5,X))') i, curN, elow, e, ehigh
+            if( myid .eq. root ) write( 6, '(I0,1X,I0,1X,3(E12.5,1X))') i, curN, elow, e, ehigh
             if( curN > targN ) then
               ehigh = e
               e = 0.5_DP * ( ehigh + elow )
@@ -498,7 +501,8 @@ module OCEAN_energies
 !              else
 !                 allowArray(i,j,k) = 0.10_DP
 !              endif
-              write(9000,'(5(E24.12,X))') sqrt(allowArray(i,j,k)), allowArray(i,j,k), ener(i,j,k), efermi, itemp
+              write(9000,'(5(E24.12,1X))') sqrt(allowArray(i,j,k)), allowArray(i,j,k), &
+                                           ener(i,j,k), efermi, itemp
 !              allowArray(i,j,k) = 1.0_DP - 1.0_dp / ( exp( ener(i,j,k) * itemp - scaledFermi ) + 1.0_dp )
             enddo
           enddo
@@ -1006,21 +1010,29 @@ module OCEAN_energies
       write( 6, * ) 'GW corrections requested (band style). File GW_band.in not found.'
       write( 6, * ) 'No corrections will be done'
       return
+    else
+      write( 6, * ) 'GW corrections requested (band style).'
     endif
 
     allocate( re_se( sys%num_bands ), im_se( sys%num_bands ) )
     open(unit=99,file='GW_band.in',form='formatted',status='old')
     rewind(99)
 
+    im_se( : ) = 0.0_DP
     if( keep_imag ) then
       do iter = 1, sys%num_bands
-        read(99,*) re_se( iter ), im_se( iter )
+        read(99,*,END=113) re_se( iter ), im_se( iter )
       enddo
     else
       do iter = 1, sys%num_bands
-        read(99,*) re_se( iter )
+        read(99,*,END=113) re_se( iter )
       enddo
-      im_se( : ) = 0.0_DP
+    endif
+113 continue
+    if( iter .le. sys%num_bands) then
+      re_se(iter:sys%num_bands) = re_se(iter-1)
+      im_se(iter:sys%num_bands) = im_se(iter-1)
+      write(6,*) iter, re_se(iter-1), im_se(iter-1)
     endif
     close( 99 )
     re_se( : ) = re_se( : ) * eV2Hartree !/ 27.21138506_DP
@@ -1058,6 +1070,7 @@ module OCEAN_energies
     real(DP), allocatable :: re_se(:), im_se(:)
     real(DP) :: re_min, im_min, re_max, im_max, kpt( 3 ), e0
     logical :: have_kpt_map, have_gw
+    integer :: ios
 
     if( myid .ne. root ) return
 
@@ -1087,8 +1100,20 @@ module OCEAN_energies
     im_max = 0.0_DP
     allocate( start_b( sys%nkpts ), stop_b(sys%nkpts ) )
 
-    open(unit=99,file='GWx_GW',form='formatted',status='old')
-    read(99,*) gw_nkpt, gw_nspn
+    open(unit=99,file='GWx_GW',form='formatted',status='old',iostat=ios)
+    read(99,*,iostat=ios) gw_nkpt, gw_nspn
+    if( ios .ne. 0 ) then
+      read(99,*)
+      read(99,*)
+      read(99,*)
+      read(99,*)
+      read(99,*)
+      read(99,*) gw_nkpt, gw_nspn
+    endif
+!    if( ios .ne. 0 ) then
+!      ierr = -10
+!      return
+!    endif
 
 !JTV Part of this is dumb because ABINIT won't warn us in the GW file if there is an extra element 
 !    at some of the k-points
@@ -1272,11 +1297,11 @@ module OCEAN_energies
       if( overrideFermi ) then
         allocate( sorted_energies( sys%num_bands * sys%nkpts * sys%nspn ) )
         sorted_energies = reshape( ener, (/ sys%num_bands * sys%nkpts * sys%nspn /) )
-        write(6, '(8(F12.6,X))' ) sorted_energies(1:4), &
+        write(6, '(8(F12.6,1X))' ) sorted_energies(1:4), &
           sorted_energies( sys%num_bands * sys%nkpts * sys%nspn-3:sys%num_bands * sys%nkpts * sys%nspn )
         call do_sort2( sorted_energies )
 
-        write(6, '(8(F12.6,X))' ) sorted_energies(1:4), &
+        write(6, '(8(F12.6,1X))' ) sorted_energies(1:4), &
           sorted_energies( sys%num_bands * sys%nkpts * sys%nspn-3:sys%num_bands * sys%nkpts * sys%nspn )
 
 

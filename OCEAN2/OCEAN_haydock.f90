@@ -24,7 +24,7 @@ module OCEAN_haydock
   REAL(DP), ALLOCATABLE :: imag_c( : )
  
 
-  REAL(DP) :: el, eh, gam0, eps, nval,  ebase
+  REAL(DP) :: el, eh, gam0, eps, nval,  ebase, gamGauss
   REAL(DP) :: gres, gprc, ffff, ener
   REAL(DP) :: e_start, e_stop, e_step
   REAL(DP), ALLOCATABLE :: e_list( : )
@@ -224,6 +224,8 @@ module OCEAN_haydock
     call OCEAN_psi_new( psi, ierr, hay_vec )
     if( ierr .ne. 0 ) return
 !    if( myid .eq. root ) write(6,*) 'psi'
+!    call OCEAN_energies_allow( sys, psi, ierr, .true. )
+!    if( ierr .ne. 0 ) return
 
     call OCEAN_psi_new( new_psi, ierr )
     if( ierr .ne. 0 ) return
@@ -258,6 +260,8 @@ module OCEAN_haydock
 !      if( myid .eq. root ) write(6,*) 'Done with ACT'
 
 
+      call OCEAN_energies_allow( sys, new_psi, ierr, .true. )
+      if( ierr .ne. 0 ) return
 
       ! This should be hoisted back up here
       call ocean_hay_ab_twoterm( sys, psi, new_psi, old_psi, iter, restartBSE, newEps, ierr )
@@ -711,7 +715,7 @@ module OCEAN_haydock
 !    endif
 
     ! calc ctmp = < hpsi | psi > and begin Iallreduce
-    call OCEAN_psi_dot( hpsi, psi, arequest, atmp, ierr, airequest, aitmp )
+    call OCEAN_psi_dot( hpsi, psi, atmp, ierr, ival=aitmp, rrequest=arequest, irequest=airequest )
     if( ierr .ne. 0 ) return
 !    if( myid .eq. root ) write(6,*) 'psi_dot'
 
@@ -742,7 +746,7 @@ module OCEAN_haydock
     
     !JTV was checking to see if any different here. 
 !    call OCEAN_psi_nrm( btmp, hpsi, ierr, brequest )
-    call OCEAN_psi_dot( hpsi, hpsi, brequest, btmp, ierr )
+    call OCEAN_psi_dot( hpsi, hpsi, btmp, ierr, rrequest=brequest )
     if( ierr .ne. 0 ) return
 !    if( myid .eq. root ) write(6,*) 'psi_nrm'
 
@@ -845,7 +849,7 @@ module OCEAN_haydock
     if( ierr .ne. 0 ) return
 
     ! calc ctmp = < hpsi | psi > and begin Iallreduce
-    call OCEAN_psi_dot( hpsi, psi, arequest, atmp, ierr, airequest, aitmp )
+    call OCEAN_psi_dot( hpsi, psi, atmp, ierr, ival=aitmp, rrequest=arequest, irequest=airequest )
     if( ierr .ne. 0 ) return
 
     ! finish allreduce to get atmp
@@ -860,7 +864,7 @@ module OCEAN_haydock
     if( ierr .ne. 0 ) return
 
     !
-    call OCEAN_psi_dot( hpsi, hpsi, brequest, btmp, ierr )
+    call OCEAN_psi_dot( hpsi, hpsi, btmp, ierr, rrequest=brequest )
     if( ierr .ne. 0 ) return
 
     ! copies psi onto old_psi
@@ -978,7 +982,7 @@ module OCEAN_haydock
     if( ierr .ne. 0 ) return
 
     ! calc ctmp = < hpsi | back_psi > and begin Iallreduce
-    call OCEAN_psi_dot( back_psi, hpsi, rrequest, rtmp, ierr, irequest, itmp )
+    call OCEAN_psi_dot( back_psi, hpsi, rtmp, ierr, ival=itmp, rrequest=rrequest, irequest=irequest )
     if( ierr .ne. 0 ) return
 
 
@@ -1010,7 +1014,7 @@ module OCEAN_haydock
       if( ierr .ne. 0 ) return
 !    endif
 
-    call OCEAN_psi_dot( back_hpsi, hpsi, rrequest, rtmp, ierr, irequest, itmp )
+    call OCEAN_psi_dot( back_hpsi, hpsi, rtmp, ierr, ival=itmp, rrequest=rrequest, irequest=irequest )
     if( ierr .ne. 0 ) return
 
     ! copies psi onto old_psi
@@ -1140,12 +1144,12 @@ module OCEAN_haydock
     call OCEAN_psi_axpy( atmp, back_old_psi, back_hpsi, ierr, btmp )
 
     ! $ \alpha_j = u_j^* r
-    call OCEAN_psi_dot( back_hpsi, hpsi, rrequest, rtmp, ierr, irequest, itmp )
+    call OCEAN_psi_dot( back_hpsi, hpsi, rtmp, ierr, ival=itmp )
     ! Now need to make sure alpha is done
-    call MPI_WAIT( rrequest, MPI_STATUS_IGNORE, ierr )
-    if( ierr .ne. 0 ) return
-    call MPI_WAIT( irequest, MPI_STATUS_IGNORE, ierr )
-    if( ierr .ne. 0 ) return
+!    call MPI_WAIT( rrequest, MPI_STATUS_IGNORE, ierr )
+!    if( ierr .ne. 0 ) return
+!    call MPI_WAIT( irequest, MPI_STATUS_IGNORE, ierr )
+!    if( ierr .ne. 0 ) return
 
     ! r = r - alpha v_j
     atmp = -rtmp
@@ -1160,7 +1164,7 @@ module OCEAN_haydock
 
     real_a(iter-1) = rtmp
     imag_a(iter-1) = itmp
-    call OCEAN_psi_dot( hpsi, back_hpsi, rrequest, rtmp, ierr, irequest, itmp )
+    call OCEAN_psi_dot( hpsi, back_hpsi, rtmp, ierr, ival=itmp, rrequest=rrequest, irequest=irequest )
 
     ! get ready for next iteration
     ! copies psi onto old_psi
@@ -1277,7 +1281,7 @@ module OCEAN_haydock
 
     ! step 1: 
     ! $ \alpha_j = ( A v_j, w_j )
-    call OCEAN_psi_dot( back_psi, hpsi, rrequest, rtmp, ierr, irequest, itmp )
+    call OCEAN_psi_dot( back_psi, hpsi, rtmp, ierr, ival=itmp, rrequest=rrequest, irequest=irequest )
 
 
     ! step 2:  New vector  ! HERE THERE IS A DIFFERENCE, beta index
@@ -1328,7 +1332,7 @@ module OCEAN_haydock
 
 
     ! Step 4A: ( v_{j+1), w_{j+1} ) 
-    call OCEAN_psi_dot( back_hpsi, hpsi, rrequest, rtmp, ierr, irequest, itmp )
+    call OCEAN_psi_dot( back_hpsi, hpsi, rtmp, ierr, ival=itmp, rrequest=rrequest, irequest=irequest )
     
     ! get ready for next iteration
     ! copies psi onto old_psi
@@ -1459,7 +1463,7 @@ module OCEAN_haydock
 
     ! calc ctmp = < hpsi | back_psi > and begin Iallreduce
 !DERP
-    call OCEAN_psi_dot( back_psi, hpsi, rrequest, rtmp, ierr, irequest, itmp )
+    call OCEAN_psi_dot( back_psi, hpsi, rtmp, ierr, ival=itmp, rrequest=rrequest, irequest=irequest )
 !    call OCEAN_psi_dot( psi, hpsi, rrequest, rtmp, ierr, irequest, itmp )
     if( ierr .ne. 0 ) return
 !    if( myid .eq. root ) write(6,*) 'psi_dot'
@@ -1510,7 +1514,7 @@ module OCEAN_haydock
 
 !DERP
 !    call OCEAN_psi_dot( back_hpsi, hpsi, rrequest, rtmp, ierr, irequest, itmp )
-    call OCEAN_psi_dot( hpsi, back_hpsi, rrequest, rtmp, ierr, irequest, itmp )
+    call OCEAN_psi_dot( hpsi, back_hpsi, rtmp, ierr, ival=itmp, rrequest=rrequest, irequest=irequest )
     if( ierr .ne. 0 ) return
 
     ! copies psi onto old_psi
@@ -1685,12 +1689,12 @@ module OCEAN_haydock
 
     select case ( sys%cur_run%calc_type)
       case( 'XES', 'XAS' )
-        call write_core( 99, iter, kpref )
+        call write_core( 99, iter, kpref, sys%oldXASbroaden )
       case( 'VAL', 'RXS' )
         call write_val( 99, iter, kpref, sys%celvol, sys%valence_ham_spin, sys%cur_run%semiTDA )
 
       case default
-        call write_core( 99, iter, kpref )
+        call write_core( 99, iter, kpref, sys%oldXASbroaden )
     
     end select
 
@@ -1790,23 +1794,32 @@ module OCEAN_haydock
 
   end subroutine write_val
 
-  subroutine write_core( fh, iter, kpref )
+  subroutine write_core( fh, iter, kpref, oldXASbroaden )
     use OCEAN_constants, only : Hartree2eV
     implicit none
     integer, intent( in ) :: fh, iter
     real(DP), intent( in ) :: kpref
+    logical, intent( in ) :: oldXASbroaden
     !
-    integer :: ie, jdamp, jj
+    integer :: ie, jdamp, jj, jdampStop
     real(DP), external :: gamfcn
     real(DP) :: e, gam, dr, di, ener, spct( 0 : 1 ), spkk( 0 : 1 )
     complex(DP) :: ctmp, disc, delta, rm1
     !
+    if( gamGauss .gt. (gam0/10.0_DP ) ) then
+      call write_core_Voigt( fh, iter, kpref )
+      return
+    endif
+    jdampStop = 0
+    if( oldXASbroaden ) then
+      jdampStop = 1
+    endif
     write( fh, '(A,1i5,A,1e15.8,A,1e15.8)' ) '#   iter=', iter, '   gam=', gam0, '   kpref=', kpref
     write( fh, '(5(A15,1x))' ) '#   Energy', 'Spect', 'Spect(0)', 'SPKK', 'SPKK(0)'
     rm1 = -1; rm1 = sqrt( rm1 )
     do ie = 0, 2 * ne, 2
        e = el + ( eh - el ) * dble( ie ) / dble( 2 * ne )
-       do jdamp = 0, 1
+       do jdamp = 0, jdampStop
           gam= gam0 + gamfcn( e, nval, eps ) * dble( jdamp )
 !          ctmp = e - a( iter - 1 ) + rm1 * gam
 
@@ -1847,12 +1860,113 @@ module OCEAN_haydock
           di = abs(aimag( delta ) )
           ener = ebase + Hartree2eV * e
           spct( jdamp ) = kpref * di / ( dr ** 2 + di ** 2 )
-         spkk( jdamp ) = kpref * dr / ( dr ** 2 + di ** 2 )
+          spkk( jdamp ) = kpref * dr / ( dr ** 2 + di ** 2 )
        end do
+       ! Making the broadening no longer defaults, but keeping the file format
+       ! unchanged to minimize changes to the user
+       if( .not. oldXASbroaden ) then
+          spct(1) = spct(0)
+          spkk(1) = spkk(0)
+       endif
 !       write ( fh, '(4(1e15.8,1x),1i5,1x,2(1e15.8,1x),1i5)' ) ener, spct( 1 ), spct( 0 ), spkk, iter, gam, kpref, ne
        write ( fh, '(5(1e15.8,1x))') ener, spct( 1 ), spct( 0 ), spkk( 1 ), spkk( 0 )
     end do
   end subroutine write_core
+
+  subroutine write_core_Voigt( fh, iter, kpref ) 
+    use OCEAN_constants, only : Hartree2eV
+    implicit none
+    integer, intent( in ) :: fh, iter
+    real(DP), intent( in ) :: kpref
+    !
+    integer :: ie, jdamp, jj, ii, nstep, nratio, istart
+    real(DP), external :: gamfcn
+    real(DP) :: e, gam, dr, di, ener, spct( 0 : 1 ), spkk( 0 : 1 )
+    complex(DP) :: ctmp, disc, delta, rm1
+    !
+    real(DP) :: estep, prefactor, inv2sigsquared, ee, pref, de
+    real(DP), allocatable :: spct_array( :, :), spkk_array( :, : )
+
+    de = ( eh - el ) / dble(ne)
+    estep = min( gam0, gamGauss ) / 2.0_DP
+    nratio = ( ( de - estep ) / estep ) + 1
+    estep = de / real(nratio,DP)
+
+    nstep = ( ( 2.99999_DP * gamGauss ) / estep ) + 1
+    prefactor = estep / ( gamGauss * 2.506628274631_dp )
+    inv2sigsquared = 1.0_DP / ( 2.0_DP * gamGauss * gamGauss )
+
+    write(6,*) gam0, gamGauss, nstep, nratio
+    allocate( spct_array( -nstep : nstep, 0:1 ), spkk_array( -nstep : nstep, 0:1 ) )
+
+    write( fh, '(A,1i5,A,1e15.8,A,1e15.8)' ) '#   iter=', iter, '   gam=', gam0, '   kpref=', kpref
+    write( fh, '(5(A15,1x))' ) '#   Energy', 'Spect', 'Spect(0)', 'SPKK', 'SPKK(0)'
+    rm1 = -1; rm1 = sqrt( rm1 ) 
+    do ie = 0, 2 * ne, 2
+      spct(:) = 0.0_DP
+      spkk(:) = 0.0_DP
+
+      ee = el + ( eh - el ) * dble( ie ) / dble( 2 * ne ) 
+
+
+      ! For each energy step of the output spectra (ie), we are going to integrate the over 
+      ! neighboring energy points to include the Gaussian broadening using a finer grid with
+      ! step size 'estep' instead of step size 'de'. Some (most) of this grid can be reused
+      ! as we move from ie to ie + 1, except of course the first time.
+      ! Here we set the bounds of the fine grid that need to be recalculated, and shift the 
+      ! part that can be reused.
+      if( ie .eq. 0 ) then
+        istart = -nstep
+      else
+        istart = nstep - nratio
+        do ii = -nstep, nstep - nratio
+          spct_array( ii, 0 ) = spct_array( ii+nratio, 0 )
+          spct_array( ii, 1 ) = spct_array( ii+nratio, 1 )
+          spkk_array( ii, 0 ) = spkk_array( ii+nratio, 0 )
+          spkk_array( ii, 1 ) = spkk_array( ii+nratio, 1 )
+        enddo
+      endif
+
+      do ii = istart, nstep
+        e = ee + real(ii,DP) * estep
+      
+        do jdamp = 0, 1
+          gam= gam0 + gamfcn( e, nval, eps ) * dble( jdamp )
+          ctmp = cmplx( e - real_a( iter - 1 ), gam + imag_a( iter - 1 ), DP )
+          disc = sqrt( ctmp ** 2 - 4 * cmplx( real_b( iter ), imag_b( iter ) ) & 
+                                     * cmplx( real_c( iter ), imag_c( iter ) ) )
+          if( aimag( disc ) .gt. 0.0d0 ) then
+            delta = (ctmp + disc ) / 2.0_dp
+          else
+            delta = (ctmp - disc ) / 2.0_dp
+          endif
+      
+    
+          do jj = iter - 1, 0, -1
+            ctmp = cmplx( real_b( jj+1 ), imag_b( jj+1 ) ) * cmplx( real_c( jj+1 ), imag_c( jj+1 ) )
+            delta = cmplx( e - real_a( jj ), gam + imag_a( jj ) ) - ctmp / delta
+          end do
+          dr = delta
+          di = abs(aimag( delta ) )
+          spct_array( ii, jdamp ) = prefactor * kpref * di / ( dr ** 2 + di ** 2 )
+          spkk_array( ii, jdamp ) = prefactor * kpref * dr / ( dr ** 2 + di ** 2 )
+        end do
+      end do
+
+      do ii = -nstep, nstep
+        pref = exp( -real(ii**2,DP)* estep**2 * inv2sigsquared )
+        spct( 0 ) = spct( 0 ) + pref * spct_array( ii, 0 )
+        spct( 1 ) = spct( 1 ) + pref * spct_array( ii, 1 )
+        spkk( 0 ) = spkk( 0 ) + pref * spkk_array( ii, 0 )
+        spkk( 1 ) = spkk( 1 ) + pref * spkk_array( ii, 1 )
+      enddo
+
+      ener = ebase + Hartree2eV * e
+      write ( fh, '(5(1e15.8,1x))') ener, spct( 1 ), spct( 0 ), spkk( 1 ), spkk( 0 )
+    end do 
+
+    deallocate( spct_array, spkk_array )
+  end subroutine write_core_Voigt
 
   subroutine calc_spect_core( sp, iter, kpref )
     use OCEAN_constants, only : Hartree2eV, eV2Hartree
@@ -1958,6 +2072,8 @@ module OCEAN_haydock
     character(len=4) :: inv_style
     real( DP ) :: dumf
     real( DP ), parameter :: default_gam0 = 0.1_DP
+
+    gamGauss = sys%gaussBroaden * eV2Hartree
 
     if( .not. is_first ) goto 10
     is_first = .false.
@@ -2326,9 +2442,11 @@ module OCEAN_haydock
 
       tcEps = sum(eps1Conv(:)) / 3.0_DP
       if( max( sys%epsilon0, eps1Conv( 3 ) ) .lt. 100.0d0 ) then
-        write(6,'(3(A,F9.4,X))') 'Est. eps1(0): ', eps1Conv( 3 ), ';  Avg: ', tcEps, ';  Current: ', sys%epsilon0
+        write(6,'(3(A,F9.4,1X))') 'Est. eps1(0): ', eps1Conv( 3 ), ';  Avg: ', tcEps, &
+                                  ';  Current: ', sys%epsilon0
       else
-        write(6,'(3(A,E24.12,X))') 'Est. eps1(0): ', eps1Conv( 3 ), ';  Avg: ', tcEps, ';  Current: ', sys%epsilon0
+        write(6,'(3(A,E24.12,1X))') 'Est. eps1(0): ', eps1Conv( 3 ), ';  Avg: ', tcEps, &
+                                    ';  Current: ', sys%epsilon0
       endif
 
       ! change to percentage

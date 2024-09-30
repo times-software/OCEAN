@@ -8,17 +8,19 @@
 module OCEAN_timekeeper
   implicit none
   save
-  integer, private, parameter :: ndivs = 6
+  integer, private, parameter :: ndivs = 8
   integer(8), private :: max_count, count_rate
   integer, public, parameter :: tk_lr = 1, &
                                 tk_mult = 2, &
                                 tk_e0 = 3, &
                                 tk_psisum = 4, &
                                 tk_inv = 5, &
-                                tk_buffer2min = 6
+                                tk_buffer2min = 6, &
+                                tk_mpi = 7, &
+                                tk_total = 8
 
   character(LEN=10), private, parameter :: tk_label( ndivs ) = (/ 'long range', 'multiplet ', &
-    'energies  ', 'sum vector', 'inversion ', 'buffer2min' /)
+    'energies  ', 'sum vector', 'inversion ', 'buffer2min', 'mpi       ', 'total     ' /)
 
   integer(8), private :: total( ndivs )
   integer(8), private :: prev( ndivs )
@@ -30,6 +32,7 @@ module OCEAN_timekeeper
     integer(8) :: cl
     call SYSTEM_CLOCK( cl, count_rate, max_count )
     total( : ) = 0
+    prev( : ) = 0
   end subroutine OCEAN_tk_init
 
   subroutine OCEAN_tk_start( id )
@@ -121,7 +124,7 @@ module OCEAN_timekeeper
         rewind(99)
 
         ! 32 + 1 + 20 + 1 + 5
-        write(99,'(A1,A69,A,A22,A17,A17,A17,A17)') '#', '', 'Root', 'Avg', 'StdDev', 'Min', 'Max'
+        write(99,'(A1,A45,A,A22,A17,A17,A17,A17)') '#', '', 'Root', 'Avg', 'StdDev', 'Min', 'Max'
         do iter = 1, ndivs
           iavg = allTotal(iter,0)
           imax = allTotal(iter,0)
@@ -138,7 +141,7 @@ module OCEAN_timekeeper
           enddo
           stddev = sqrt( stddev )
           ! 10 digits before the decimal should get us 10 years in seconds
-          write( 99, '(A,X,I20,X,A5,F16.6,X,A5,X,F16.6,X,F16.6,X,F16.6,X,F16.6)' ) &
+          write( 99, '(A,1X,I20,1X,A5,F16.6,1X,A5,1X,F16.6,1X,F16.6,1X,F16.6,1X,F16.6)' ) &
                   tk_label( iter ), allTotal(iter,0), ' tics', &
                   (dble( allTotal( iter,0 ) )/dble(count_rate)), 'secs', &
                   avg/dble(count_rate), stddev/dble(count_rate), &
@@ -155,7 +158,7 @@ module OCEAN_timekeeper
       rewind(100+myid)
 
       do iter = 1, ndivs
-        write(100+myid,'(A,X,I20,X,A,F24.6,X,A)') tk_label( iter ), total( iter ), ' tics', &
+        write(100+myid,'(A,1X,I20,1X,A,F24.6,1X,A)') tk_label( iter ), total( iter ), ' tics', &
                   (dble( total( iter ) )/dble(count_rate)), 'secs'
       enddo
 

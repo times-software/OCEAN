@@ -1,3 +1,34 @@
+## v. 3.2.0
+
+#### Minor features
+ 1. Updates to the screening defaults. Should still be fast, but closer 
+    to convergence
+ 2. Broadening approximation for XAS is no longer the default (column 2) in 
+    outputs. The unbroadened spectrum (column 3) was already recommmended. 
+ 3. Updates to the Pseudo-Dojo potentials to add in f channels to the 
+    following elements: Ba, Bi, I, Pb, Po, Rb, Rn, S, Te, Tl, and Xe. This is 
+    in line with the v0.5 updates. They've been applied to LDA and PBEsol as
+    well as PBE.
+  
+## v. 3.1.3
+
+#### Bug fixes
+ 1. Crashing bug in RIXS of 2p when the underlying DFT calc had spin=1
+ 2. Fixed for ABINIT compatibility
+ 3. Small fixes for GW corrections
+
+## v. 3.1.2
+
+#### Minor features
+ 1. Reduction in the memory required for screening calculations. Could be a 
+    substantial improvement for large systems.
+
+#### Bug fixes
+ 1. Small, odd number k-point grids might have had slightly incorrect x-ray 
+    spectra due to an error in how the k-point sampling was unfolded into a 
+    supercell.
+ 2. Gamma-point selection for screening calculations was not being triggered.
+
 ## v. 3.1.0
 
 #### Bug fixes

@@ -38,9 +38,15 @@ if( -e $dataFile )
     die "Failed to open config file $dataFile\n$!";
   }
   my @typat = @{ $oceanData->{'structure'}->{'typat'} };
+  my @countByTypat;
   foreach my $i (@typat)
   {
-    print $i . "\n";
+#    print $i . "\n";
+    $countByTypat[$i]++;
+  }
+  for( my $i = 1; $i < scalar @countByTypat; $i++ )
+  {
+    printf "%i  : %i\n", $i, $countByTypat[$i];
   }
   my @psp = @{ $oceanData->{'psp'}->{'pp_list'} };
   my $suffix = '';
@@ -258,12 +264,16 @@ sub upfParser
     if( $z > 0 ) {
       my $core = 0;
       $core += 2 if( $z >= 3 );
-      $core += 8 if( $z >= 11 );
-      $core += 8 if( $z >= 19 );
+      $core += 2 if ($z >= 11 );
+      $core += 6 if( $z >= 12 ); # Na 2p is too shallow, overlaps with say O 2s
+      $core += 2 if ($z >= 19 );
+      $core += 6 if( $z >= 21 ); # K, Ca 3p is too shallow
       $core += 10 if( $z >= 33 );  # the 3d is tricky, but As should be ~40eV
-      $core += 8 if( $z >= 37 );
+      $core += 2 if ($z >= 37 );
+      $core += 6 if( $z >= 39 );  # Rb/Sr 4p too shallow
       $core += 10 if( $z >= 52 );  # the 4d is tricky, but Te should be ~40eV
-      $core += 8 if( $z >= 55  );
+      $core += 2 if( $z >= 55 );
+      $core += 6 if( $z >= 72  ); # 5p too shallow for most 4f elements
       $core += 14 if ( $z >= 74 ); # 4f hopefully semi core by W
       # don't know about 6d
       $core += 18 if ( $z >= 87 );
