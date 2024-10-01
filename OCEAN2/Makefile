@@ -1,5 +1,5 @@
 include ../Makefile.arch
-OPTIONS += -fopenmp -Wall
+OPTIONS +=
 
 %.o: %.mod
 
