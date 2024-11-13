@@ -386,6 +386,11 @@ end subroutine OCEAN_action_h1
           if( myid .eq. root ) write(6,*) 'This code pathway is currently disabled'
           return
         endif
+        if( sys%cur_run%backf ) then
+          ierr = 9982
+          if( myid .eq. root ) write(6,*) 'Loud valence and backf are not currently compatible'
+          return
+        endif
   !      call OCEAN_energies_allow( sys, psi, ierr )
   !      if( ierr .ne. 0 ) return
         call OCEAN_psi_new( psi_o, ierr, psi )
@@ -521,6 +526,11 @@ end subroutine OCEAN_action_h1
         if( ierr .ne. 0 ) return
         call OCEAN_energies_allow_full( sys, psi_o, ierr )
         if( ierr .ne. 0 ) return
+        !TODO combine bfn with allow
+        if( sys%cur_run%backf ) then
+          call OCEAN_energies_bfnorm( sys, psi_o, ierr )
+          if( ierr .ne. 0 ) return
+        endif
     
         if( sys%cur_run%bflag .and. (hflag(3).eq.1) ) then
           ! For now re-use mult timing for bubble
@@ -550,6 +560,10 @@ end subroutine OCEAN_action_h1
 
         call OCEAN_energies_allow_full( sys, new_psi, ierr )
         if( ierr .ne. 0 ) return
+        if( sys%cur_run%backf ) then
+          call OCEAN_energies_bfnorm( sys, new_psi, ierr )
+          if( ierr .ne. 0 ) return
+        endif
         call OCEAN_psi_kill( psi_o, ierr )
         if( ierr .ne. 0 ) return
       
@@ -583,6 +597,7 @@ end subroutine OCEAN_action_h1
       call OCEAN_tk_start( tk_e0 )
       call ocean_energies_act( sys, psi, new_psi, back, ierr )
       if( ierr .ne. 0 ) return
+
       call OCEAN_tk_stop( tk_e0 )
     else
       call OCEAN_psi_zero_min( new_psi, ierr )

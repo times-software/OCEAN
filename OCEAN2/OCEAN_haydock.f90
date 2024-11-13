@@ -1624,8 +1624,8 @@ module OCEAN_haydock
         call calc_spect_core( sp1, iter1, kpref )
         call calc_spect_core( sp2, iter2, kpref )
       case( 'VAL', 'RXS' )
-        call calc_spect_val( sp1, iter1, kpref, sys%celvol, sys%valence_ham_spin )
-        call calc_spect_val( sp2, iter2, kpref, sys%celvol, sys%valence_ham_spin )
+        call calc_spect_val( sp1, iter1, kpref, sys%celvol, sys%valence_ham_spin, sys%cur_run%backf )
+        call calc_spect_val( sp2, iter2, kpref, sys%celvol, sys%valence_ham_spin, sys%cur_run%backf )
 
       case default
         call calc_spect_core( sp1, iter1, kpref )
@@ -1691,7 +1691,7 @@ module OCEAN_haydock
       case( 'XES', 'XAS' )
         call write_core( 99, iter, kpref, sys%oldXASbroaden )
       case( 'VAL', 'RXS' )
-        call write_val( 99, iter, kpref, sys%celvol, sys%valence_ham_spin, sys%cur_run%semiTDA )
+        call write_val( 99, iter, kpref, sys%celvol, sys%valence_ham_spin, sys%cur_run%semiTDA, sys%cur_run%backf )
 
       case default
         call write_core( 99, iter, kpref, sys%oldXASbroaden )
@@ -1703,12 +1703,12 @@ module OCEAN_haydock
     return
   end subroutine haydump
 
-  subroutine write_val( fh, iter, kpref , ucvol, val_ham_spin, semiTDA )
+  subroutine write_val( fh, iter, kpref , ucvol, val_ham_spin, semiTDA, backf )
     use OCEAN_constants, only : Hartree2eV, bohr, alphainv
     implicit none
     integer, intent( in ) :: fh, iter, val_ham_spin
     real(DP), intent( in ) :: kpref, ucvol
-    logical, intent( in ) :: semiTDA
+    logical, intent( in ) :: semiTDA, backf
     !
     integer :: ie, i
     real(DP) :: ere, reeps, imeps, lossf, fact, mu, reflct
@@ -1723,8 +1723,11 @@ module OCEAN_haydock
 !p%kpref = 4.0d0 * pi * val ** 2 / (dble(sys%nkpts) * sys%celvol ** 2 )
     do ie = 1, 2 * ne, 2
       ere = el + ( eh - el ) * dble( ie ) / dble( 2 * ne )
+!      if( backf ) ere = ere**2
 #if(1)
       ctmp = cmplx( ere, gam0, DP )
+      if( backf ) ctmp = ctmp**2
+      if( backf ) ere = ere**2
 
       arg = ( ere - real_a( iter - 1 ) ) ** 2 - 4.0_dp * real_b( iter ) ** 2
       arg = sqrt( arg )
@@ -1784,6 +1787,7 @@ module OCEAN_haydock
 !   &        ( ( indref + 1 ) ** 2 + indabs ** 2 )
       lossf = imeps / ( reeps ** 2 + imeps ** 2 )
 
+      if( backf )ere = sqrt(ere)
       refrac = sqrt(eps)
       reflct = abs((refrac-1.0d0)/(refrac+1.0d0))**2
       mu = 2.0d0 * ere * Hartree2eV * aimag(refrac) / ( bohr * alphainv * 1000 )
@@ -2006,7 +2010,7 @@ module OCEAN_haydock
 
   end subroutine calc_spect_core
 
-  subroutine calc_spect_val( sp, iter, kpref, celvol, nspin )
+  subroutine calc_spect_val( sp, iter, kpref, celvol, nspin, backf )
     use OCEAN_constants, only : Hartree2eV, eV2Hartree
     implicit none
     real(DP), intent( out ) :: sp(:,:)
@@ -2014,6 +2018,7 @@ module OCEAN_haydock
     real(DP), intent( in ) :: kpref
     real(DP), intent( in ) :: celvol
     integer, intent( in ) :: nspin
+    logical, intent( in ) :: backf
 
     integer :: ie, jj, i
     real(DP) :: e, dr, di, fact
@@ -2025,6 +2030,11 @@ module OCEAN_haydock
       e = el + ( eh - el ) * real( 2*(ie-1)+1, DP ) / real( 2 * ne, DP )
 
       ctmp = cmplx( e, gam0, DP )
+      if( backf ) then
+        e = e**2
+        ctmp = ctmp**2
+      endif
+
       arg =  ( e - real_a( iter - 1 ) )**2 - 4.0_dp * real_b( iter ) ** 2 
       arg = sqrt(arg)
 

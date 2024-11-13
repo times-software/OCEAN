@@ -745,7 +745,6 @@ module OCEAN_val_energy
       enddo ! i
       enddo ! ibw
     else ! not metal && sys%nspn==1
-      if( sys%backf ) ierr = 413
       do ibw = 1, sys%nbw
         do ibeta = 1, sys%nbeta
           do kiter = 1, sys%nkpts

@@ -535,6 +535,12 @@ module OCEAN_gmres
 
     requests( : ) = MPI_REQUEST_NULL
 
+    if( sys%cur_run%backf ) then
+      write(6,*) 'BACKF not implemented for GMRES (try Haydock)'
+      ierr = 9963
+      return
+    endif
+
     if( sys%cur_run%have_val ) then
       fact = hay_vec%kpref * 2.0_dp * sys%celvol
     else
@@ -939,7 +945,7 @@ module OCEAN_gmres
 
     requests( : ) = MPI_REQUEST_NULL
 
-    if( sys%cur_run%bwflg ) then
+    if( sys%cur_run%bwflg .or. sys%cur_run%backf ) then
       write(6,*) 'BWFLG not implemented for OCEAN_do_gmres (see recycle)'
       ierr = 9962
       return

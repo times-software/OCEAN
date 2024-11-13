@@ -68,6 +68,10 @@ subroutine OCEAN_load_data( sys, hay_vec, ierr )
     !       2) Uniform energy cutoff for upper bands
     call OCEAN_energies_allow( sys, hay_vec, ierr )
     if( ierr .ne. 0 ) return
+    if( sys%cur_run%backf ) then
+      call OCEAN_energies_bfnorm( sys,  hay_vec, ierr )
+      if( ierr .ne. 0 ) return
+    endif
     call OCEAN_psi_pnorm( sys, hay_vec, ierr )
     if( ierr .ne. 0 ) return
     if( myid .eq. root ) write(6,*) 'Trim & scale complete'

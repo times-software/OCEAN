@@ -16,8 +16,10 @@ module OCEAN_energies
 
   type( OCEAN_vector ) :: p_energy
   type( OCEAN_vector ) :: allow
-  type( OCEAN_vector ) :: allow_sqrt
   type( OCEAN_vector ) :: initial_allow
+!  !TODO: remove/clean allow_sqrt
+!  type( OCEAN_vector ) :: allow_sqrt
+  type( OCEAN_vector ) :: bfn ! bfnorm vector
 
 
   LOGICAL :: have_selfenergy
@@ -31,6 +33,7 @@ module OCEAN_energies
   public :: OCEAN_energies_resetAllow, OCEAN_energies_allow_full, OCEAN_energies_sfact_copy
   public :: OCEAN_energies_initial_allow
   public :: OCEAN_energies_single
+  public :: OCEAN_energies_bfnorm
   
   contains
 
@@ -49,11 +52,22 @@ module OCEAN_energies
 
   end subroutine OCEAN_energies_sfact_copy
     
+  subroutine OCEAN_energies_bfnorm( sys, psi, ierr )
+    use OCEAN_system, only : O_system 
+    use OCEAN_psi, only : OCEAN_vector, OCEAN_psi_2element_mult
+    implicit none
+    ! 
+    integer, intent( inout ) :: ierr
+    type(O_system), intent( in ) :: sys
+    type(OCEAN_vector), intent( inout ) :: psi
+
+    call OCEAN_psi_2element_mult( psi, bfn, ierr, is_real_only=.true., use_full=.true. )
+
+  end subroutine OCEAN_energies_bfnorm
 
   subroutine OCEAN_energies_allow_full( sys, psi, ierr, sfact )
     use OCEAN_system, only : O_system
     use OCEAN_psi, only : OCEAN_vector, OCEAN_psi_2element_mult
-    use OCEAN_mpi, only : myid, root
     implicit none
     !
     integer, intent( inout ) :: ierr
@@ -69,9 +83,9 @@ module OCEAN_energies
     if( sf ) then
       call OCEAN_psi_2element_mult( psi, allow, ierr, is_imaginary_as_real=.true., use_full=.true. )
     else
-      call OCEAN_psi_2element_mult( psi, allow_sqrt, ierr, is_real_only=.true., use_full=.true. )
+      call OCEAN_psi_2element_mult( psi, allow, ierr, is_real_only=.true., use_full=.true. )
     endif
-  end subroutine
+  end subroutine OCEAN_energies_allow_full
 
   subroutine OCEAN_energies_allow( sys, psi, ierr, sfact )
     use OCEAN_system, only : O_system
@@ -172,7 +186,9 @@ module OCEAN_energies
       if( ierr .ne. 0 ) return
       call OCEAN_psi_new( allow, ierr )
       if( ierr .ne. 0 ) return
-      call OCEAN_psi_new( allow_sqrt, ierr )
+!      call OCEAN_psi_new( allow_sqrt, ierr )
+!      if( ierr .ne. 0 ) return
+      call OCEAN_psi_new( bfn, ierr )
       if( ierr .ne. 0 ) return
 
       val_init = .true.
@@ -183,22 +199,59 @@ module OCEAN_energies
       if( ierr .ne. 0 ) return
       call OCEAN_psi_zero_full( allow, ierr )
       if( ierr .ne. 0 ) return
-      call OCEAN_psi_zero_full( allow_sqrt, ierr )
+!      call OCEAN_psi_zero_full( allow_sqrt, ierr )
+!      if( ierr .ne. 0 ) return
+      call OCEAN_psi_zero_full( bfn, ierr )
       if( ierr .ne. 0 ) return
       
       call OCEAN_read_energies( sys, p_energy, allow, ierr )
       if( ierr .ne. 0 ) return
 
-      call OCEAN_psi_copy_full( allow_sqrt, allow, ierr )
-      if( ierr .ne. 0 ) return
+!      call OCEAN_psi_copy_full( allow_sqrt, allow, ierr )
+!      if( ierr .ne. 0 ) return
 
 !      ! this flips the sign of the energies
 !      call OCEAN_energies_allow_full( sys, p_energy, ierr, .true. )
+
+      if( sys%cur_run%backf ) then
+        call make_val_bfnorm( sys )
+      endif
 
       val_loaded = .true.
     endif
 
   end subroutine OCEAN_energies_val_load
+
+  
+  subroutine make_val_bfnorm( sys )
+    use OCEAN_system
+    use OCEAN_psi
+    implicit none
+    type(O_system), intent( in ) :: sys
+
+    integer :: ibw, ibeta, ik, ibv, ibc
+    real(DP) :: t
+    real(DP), parameter :: eps10 = 1.0d-10
+
+    do ibw = 1, sys%nbw
+      do ibeta = 1, sys%nbeta
+        do ik = 1, sys%nkpts
+          do ibv = 1, sys%cur_run%val_bands
+            do ibc = 1, sys%cur_run%num_bands
+              if( p_energy%valr( ibc, ibv, ik, ibeta, ibw ) .gt. eps10 ) then
+              bfn%valr(ibc, ibv, ik, ibeta, ibw ) = &
+                  sqrt( abs( 2.0_DP * p_energy%valr( ibc, ibv, ik, ibeta, ibw ) ) )
+              t = p_energy%valr( ibc, ibv, ik, ibeta, ibw )*p_energy%valr( ibc, ibv, ik, ibeta, ibw )
+              p_energy%valr( ibc, ibv, ik, ibeta, ibw ) = t
+!              p_energy%valr( ibc, ibv, ik, ibeta, ibw ) = p_energy%valr( ibc, ibv, ik, ibeta, ibw )**2
+              endif
+            enddo
+          enddo
+        enddo
+      enddo
+    enddo
+
+  end subroutine make_val_bfnorm
     
 
   subroutine OCEAN_energies_init(  sys, ierr )
@@ -219,7 +272,9 @@ module OCEAN_energies
       if( ierr .ne. 0 ) return
       call OCEAN_psi_new( allow, ierr )
       if( ierr .ne. 0 ) return
-      call OCEAN_psi_new( allow_sqrt, ierr )
+!      call OCEAN_psi_new( allow_sqrt, ierr )
+!      if( ierr .ne. 0 ) return
+      call OCEAN_psi_new( bfn, ierr )
       if( ierr .ne. 0 ) return
       call OCEAN_psi_new( initial_allow, ierr )
       if( ierr .ne. 0 ) return
@@ -238,8 +293,9 @@ module OCEAN_energies
 
     call OCEAN_psi_kill( p_energy, ierr )
     call OCEAN_psi_kill( allow, ierr )
-    call OCEAN_psi_kill( allow_sqrt, ierr )
     call OCEAN_psi_kill( initial_allow, ierr )
+!    call OCEAN_psi_kill( allow_sqrt, ierr )
+    call OCEAN_psi_kill( bfn, ierr )
     is_init = .false.
 
   end subroutine OCEAN_energies_kill
@@ -272,10 +328,10 @@ module OCEAN_energies
     if( ierr .ne. 0 ) return
     call OCEAN_psi_zero_full( allow, ierr )
     if( ierr .ne. 0 ) return
-    call OCEAN_psi_zero_full( allow_sqrt, ierr )
-    if( ierr .ne. 0 ) return
     call OCEAN_psi_zero_full( initial_allow, ierr )
     if( ierr .ne. 0 ) return
+!    call OCEAN_psi_zero_full( allow_sqrt, ierr )
+!    if( ierr .ne. 0 ) return
 
 
     ! Currently all of this is done only on the root proccess 
@@ -304,8 +360,8 @@ module OCEAN_energies
 
     call OCEAN_psi_bcast_full( root, p_energy, ierr )
     call OCEAN_psi_bcast_full( root, allow, ierr )
-    call OCEAN_psi_bcast_full( root, allow_sqrt, ierr )
     call OCEAN_psi_bcast_full( root, initial_allow, ierr )
+!    call OCEAN_psi_bcast_full( root, allow_sqrt, ierr )
 
     deallocate( energies, imag_se )
 
@@ -352,8 +408,8 @@ module OCEAN_energies
     ! why the same allowArray is stored into both the real and imaginary spots in allow).
     call stubby( sys, allow, allowArray, allowArray )
 
-    call stubby( sys, allow_sqrt, allowArray )
     call stubby( sys, initial_allow, initialAllow )
+!    call stubby( sys, allow_sqrt, allowArray )
 
 
     deallocate( allowArray, initialAllow )
