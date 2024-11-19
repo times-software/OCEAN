@@ -1180,6 +1180,13 @@ sub writeValAuxFiles {
         $hashRef->{'bse'}->{'val'}->{'haydock'}->{'converge'}->{'spacing'};
   close OUT;
 
+  open OUT, ">", "disable_intraband" or die;
+  if( $hashRef->{'bse'}->{'val'}->{'disable_intraband'} == $JSON::PP::true ) {
+    print OUT "T\n";
+  } else {
+    print OUT "F\n";
+  }
+  close OUT;
 
 }
 
