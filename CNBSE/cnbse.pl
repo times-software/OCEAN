@@ -604,7 +604,7 @@ sub grabOPF {
   foreach my $key (keys %uniqueZNL) {
     my $zstring = sprintf("z%03in%02il%02i", $uniqueZNL{$key}[0], $uniqueZNL{$key}[1], $uniqueZNL{$key}[2]);
     my @fileList = glob( catdir( updir(), "OPF", "zpawinfo", "?k???$zstring" ) );
-    push @fileList, catfile( updir(), "OPF", "zpawinfo", "melfile$zstring" );
+#    push @fileList, catfile( updir(), "OPF", "zpawinfo", "melfile$zstring" );
     push @fileList, catfile( updir(), "OPF", "zpawinfo", "coreorb$zstring" );
 
     foreach (@fileList ) { copy( $_, basename($_ ) ); }
@@ -619,6 +619,11 @@ sub grabOPF {
     push @fileList, ( catfile( updir(), "OPF", "zpawinfo", "corezeta$z" ) );
     push @fileList, ( catfile( updir(), "OPF", "zpawinfo", "radfile$z" ) );
 #    push @fileList, glob( catdir( updir(), "OPF", "zpawinfo", "ft?$z" ) );
+
+    push @fileList, glob( catdir( updir(), "OPF", "zdiag$z", "c2c${z}n??l??" ) );
+    push @fileList, glob( catdir( updir(), "OPF", "zdiag$z", "s2c${z}n??l??" ) );
+    push @fileList, glob( catdir( updir(), "OPF", "zdiag$z", "melsemi${z}n??l??" ) );
+    push @fileList, glob( catdir( updir(), "OPF", "zpawinfo", "melfile${z}n??l??" ) );
     foreach (@fileList ) { copy( $_, basename($_ ) ) == 1 or die "Failed to copy $_\n$!"; }
   }
 

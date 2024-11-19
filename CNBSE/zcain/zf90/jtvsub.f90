@@ -5,25 +5,36 @@
 ! `License' in the root directory of the present distribution.
 !
 !
-subroutine jtvsub( lmin, lmax, nproj, npmax, lc, nbsemel, powmax, ifcn, stext, ehat, qhat, qmag, nsphpt, xsph, ysph, zsph, wsph, &
-     prefs )
+subroutine jtvsub( lmin, lmax, nproj, npmax, lc, nbsemel, powmax, ifcn, stext, ehat, qhat, qmag, &
+                   nsphpt, xsph, ysph, zsph, wsph, prefs, nsemi, semifcn, semiReducedEnergy, c2c )
   implicit none
   !
   integer :: nsphpt
   real( kind = kind( 1.0d0 ) ), dimension( nsphpt ) :: xsph, ysph, zsph, wsph
-  real( kind = kind( 1.0d0 ) ) :: prefs( 0 : 1000 ) 
-  integer :: lmin, lmax, npmax, lc, powmax
+  real( kind = kind( 1.0d0 ) ) :: prefs( 0 : 1000 )
+  integer :: lmin, lmax, npmax, lc, powmax, nsemi
   real( kind = kind( 1.0d0 ) ) :: ehat( 3 ), qhat( 3 ), qmag
   character(len=10) :: spcttype, stext
   integer :: nproj( lmin : lmax )
-  real( kind = kind(1.0d0)) :: ifcn( npmax, 0 : powmax, lmin : lmax)
+  real( kind = kind(1.0d0)) :: ifcn( npmax, 0 : powmax, lmin : lmax), &
+                               semifcn( npmax, 0 : powmax, lmin : lmax, nsemi ), &
+                               semiReducedEnergy( nsemi ), c2c( 0 : powmax, nsemi )
   complex( kind = kind( 1.0d0 ) ) :: nbsemel( npmax, -lmax : lmax, lmin : lmax, -lc : lc )
   !
-  integer :: i, j, l, m, mc, lpick, lt, lldos, mldos, msign
+  integer :: i, j, l, m, mc, lpick, lt, lldos, mldos, msign, isemi, li, mi
   real( kind = kind( 1.0d0 ) ) :: edot, qdot, jlmel( npmax, 0 : lmax + lc, lmin : lmax ), pl
   real( kind = kind( 1.0d0 ) ) :: ldosmel( npmax  )
   complex( kind = kind( 1.0d0 )) :: csu( powmax ), ylm, ylcmc, iqmag, rp, rm1, angint, mip, cpr
   logical :: mdos
+  !
+  logical, parameter :: PCCP2022 = .false. ! The behavior in Vinson, PCCP 2022 is incorrect
+  ! This flag reproduces it, but is left as a compile time setting because it is wrong
+  ! There are additional flags to test only the Quad contribution, or only the 1st core level
+  ! (e.g. 2p when looking at 1s two-photon), or only the 2nd core level (e.g. 3p)
+  logical, parameter :: QuadAlone = .false.
+  logical, parameter :: test1 = .false.
+  logical, parameter :: test2 = .false.
+  !
   !
   lpick = -1
   spcttype = stext
@@ -106,6 +117,16 @@ subroutine jtvsub( lmin, lmax, nproj, npmax, lc, nbsemel, powmax, ifcn, stext, e
                  call getylm( l, m, xsph( i ), ysph( i ), zsph( i ), ylm, prefs )
                  edot = xsph( i ) * ehat( 1 ) + ysph( i ) * ehat( 2 ) + zsph( i ) * ehat( 3 )
                  csu(1) = csu(1) + conjg(ylcmc) * edot * ylm * wsph(i)
+              end do
+              nbsemel( 1 : nproj( l ), m, l, mc ) = csu(1) * ifcn( 1 : nproj( l ), 1, l )
+              !
+           case( 'tp' )
+              csu(:) = 0
+              do i = 1, nsphpt
+                 call getylm( lc, mc, xsph( i ), ysph( i ), zsph( i ), ylcmc, prefs )
+                 call getylm( l, m, xsph( i ), ysph( i ), zsph( i ), ylm, prefs )
+                 edot = xsph( i ) * ehat( 1 ) + ysph( i ) * ehat( 2 ) + zsph( i ) * ehat( 3 )
+                 csu(1) = csu(1) + conjg(ylcmc) * edot * edot * ylm * wsph(i)
               end do
               nbsemel( 1 : nproj( l ), m, l, mc ) = csu(1) * ifcn( 1 : nproj( l ), 1, l )
               !
@@ -219,5 +240,70 @@ subroutine jtvsub( lmin, lmax, nproj, npmax, lc, nbsemel, powmax, ifcn, stext, e
      end do
   end do
   !
+  if( spcttype(1:2) .eq. 'tp' ) then
+    ! Current implementation is hardwired for a K edge
+    li = 1
+
+    if( test1 .or. test2 ) then
+      nbsemel( :, :, :, : ) = 0.0d0
+    endif
+    do isemi = 1, nsemi
+!      write( filename, '(A8,I3.3,A1,I2.2,A1,I2.2)' ) 'melfilez', z, 'n', i, 'l', li
+!      inquire(file=filename, exist=ex )
+!      if( .not. ex )
+!        write( filename, '(A8,I3.3,A1,I2.2,A1,I2.2)' ) 'melsemiz', z, 'n', i, 'l', li
+!        inquire(file=filename, exist=ex )
+!      endif
+!      if( .not. ex ) cycle
+      do mc = -lc, lc
+        do mi = -li, li
+          csu(1) = 0.0d0
+          do i = 1, nsphpt
+             call getylm( lc, mc, xsph( i ), ysph( i ), zsph( i ), ylcmc, prefs )
+             call getylm( li, mi, xsph( i ), ysph( i ), zsph( i ), ylm, prefs )
+             edot = xsph( i ) * ehat( 1 ) + ysph( i ) * ehat( 2 ) + zsph( i ) * ehat( 3 )
+             csu(1) = csu(1) + conjg(ylcmc) * edot * ylm * wsph(i)
+          end do
+          do l = lmin, lmax
+            do m = -l, l
+              csu(2) = 0.0d0
+              do i = 1, nsphpt
+                 call getylm( l, m, xsph( i ), ysph( i ), zsph( i ), ylcmc, prefs )
+                 call getylm( li, mi, xsph( i ), ysph( i ), zsph( i ), ylm, prefs )
+                 edot = xsph( i ) * ehat( 1 ) + ysph( i ) * ehat( 2 ) + zsph( i ) * ehat( 3 )
+                 csu(2) = csu(2) + ylcmc * edot * conjg(ylm) * wsph(i)
+              end do
+              ! As noted above, the following is incorrect
+              if( QuadAlone ) then
+              elseif( test1 ) then
+                if( isemi .eq. 1 ) then
+                  nbsemel( 1 : nproj( l ), m, l, mc ) = nbsemel( 1 : nproj( l ), m, l, mc ) &
+                    + csu(1) * csu(2) * c2c( 1, isemi ) * semifcn( 1 : nproj(l), 1, l, isemi )
+                endif
+              elseif( test2 ) then
+                if( isemi .eq. 2 ) then
+                  nbsemel( 1 : nproj( l ), m, l, mc ) = nbsemel( 1 : nproj( l ), m, l, mc ) &
+                    + csu(1) * csu(2) * c2c( 1, isemi ) * semifcn( 1 : nproj(l), 1, l, isemi )
+                endif
+              elseif( PCCP2022 ) then
+                nbsemel( 1 : nproj( l ), m, l, mc ) = nbsemel( 1 : nproj( l ), m, l, mc ) &
+                    - csu(1) * csu(2) * c2c( 1, isemi ) * semifcn( 1 : nproj(l), 1, l, isemi )
+              else ! The correct behavior
+                ! transitions can happen first from any occupied core or semi-core state and 
+                ! then from the final target level into the newly unoccupied core. E.g., in 
+                ! addition to 1s -> 3d/4s with a quadrupole operator, so can first have 
+                ! 2p->3d/4s followed by 1s->2p, both with dipole. 
+                ! The array semiReducedEnergy contains the fraction which is a scaling based
+                ! on energy of the photon and energy of the core level
+                nbsemel( 1 : nproj( l ), m, l, mc ) = nbsemel( 1 : nproj( l ), m, l, mc ) &
+                    + ( csu(1) * csu(2) * c2c( 1, isemi ) * semifcn( 1 : nproj(l), 1, l, isemi ) &
+                      * semiReducedEnergy( isemi ) )
+              endif
+            enddo
+          enddo
+        enddo
+      end do
+    end do
+  endif
   return
 end subroutine jtvsub

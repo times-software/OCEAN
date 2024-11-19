@@ -260,8 +260,8 @@ module OCEAN_haydock
 !      if( myid .eq. root ) write(6,*) 'Done with ACT'
 
 
-      call OCEAN_energies_allow( sys, new_psi, ierr, .true. )
-      if( ierr .ne. 0 ) return
+!      call OCEAN_energies_allow( sys, new_psi, ierr, .true. )
+!      if( ierr .ne. 0 ) return
 
       ! This should be hoisted back up here
       call ocean_hay_ab_twoterm( sys, psi, new_psi, old_psi, iter, restartBSE, newEps, ierr )
