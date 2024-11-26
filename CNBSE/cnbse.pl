@@ -202,6 +202,7 @@ unless( $newBSEdata->{'calc'}->{'mode'} eq 'val' ) {
 
   writeAuxFiles( $newBSEdata );
   writeScFac( $newBSEdata );
+  writeCoreAuxFiles( $newBSEdata );
 } else {
   writeRunlistVAL( );
   writeBSEinVal( $newBSEdata );
@@ -1111,6 +1112,32 @@ sub writeScFac {
 sub prepDen {
   copy ( "../DFT/rhoofr", "rhoofr" ) or die "Failed to get rhoofr\n";
   `tail -n 1 rhoofr > nfft`;
+}
+
+sub writeCoreAuxFiles {
+  my ($hashRef) = @_;
+
+  #TODO GW control
+  if( exists $hashRef->{'bse'}->{'core'}->{'gw'}->{'control'} ) {
+    open OUT, ">", "gw_control" or die "Failed to open gw_control\n$!";
+    print OUT $hashRef->{'bse'}->{'core'}->{'gw'}->{'control'} . "\n";
+    close OUT;
+
+    if( $hashRef->{'bse'}->{'core'}->{'gw'}->{'control'} eq 'cstr' ) {
+  
+      open OUT, ">", "gw_core_cstr" or die "Failed to open gw_core_cstr\n$!";
+      printf OUT "%g ", $hashRef->{'bse'}->{'core'}->{'gw'}->{'cstr'}->{'gap'};
+      if( $hashRef->{'bse'}->{'core'}->{'gw'}->{'cstr'}->{'abs_gap'} == $JSON::PP::true ) {
+        print OUT "true "; 
+      } else {
+        print OUT "false ";
+      } 
+      printf OUT "%g %g\n", $hashRef->{'bse'}->{'core'}->{'gw'}->{'cstr'}->{'vstr'},
+                            $hashRef->{'bse'}->{'core'}->{'gw'}->{'cstr'}->{'cstr'};
+      close OUT;
+    }
+  } 
+  
 }
 
 sub writeValAuxFiles {
