@@ -11,7 +11,7 @@ module OCEAN_exact
   private
   save
 
-#define exact_sp 1
+!# define exact_sp 1
 #ifdef exact_sp
   INTEGER, PARAMETER :: EDP = SP
 #else
@@ -28,6 +28,8 @@ module OCEAN_exact
   COMPLEX(EDP), ALLOCATABLE :: bse_matrix_one( :, : )
 
   COMPLEX(EDP), ALLOCATABLE :: bse_evectors( :, : )
+  COMPLEX(EDP), ALLOCATABLE :: bse_right_evectors( :, : )
+  complex(EDP), ALLOCATABLE :: bse_cmplx_evalues(:)
   REAL(EDP), ALLOCATABLE :: bse_evalues( : )
   
 
@@ -49,11 +51,12 @@ module OCEAN_exact
   INTEGER :: block_fac = 64
 
   LOGICAL :: is_init = .false.
+  logical :: nonHerm
   REAL(DP) :: el, eh, gam0, eps, nval,  ebase
   integer :: ne, nocc
   CHARACTER(LEN=3) :: calc_type
 
-  public :: OCEAN_exact_diagonalize, OCEAN_exact_init
+  public :: OCEAN_exact_diagonalize
 
   contains
 
@@ -72,6 +75,10 @@ module OCEAN_exact
     if( is_init ) then
       call OCEAN_free_bse()
     endif
+
+    nonHerm = .false.
+    if( sys%nbw .eq. 2 ) nonHerm = .true.
+    if( myid .eq. root ) write(6,*) 'Non Herm', nonHerm
 
     call OCEAN_initialize_bse( sys, ierr )
     if( ierr .ne. 0 ) return
@@ -116,6 +123,7 @@ module OCEAN_exact
     integer, intent( inout ) :: ierr
     logical, intent(in), optional :: fresh
 
+    type( ocean_vector ) :: halfVec
     logical :: fresh_
 
     if( present( fresh ) ) then
@@ -133,13 +141,22 @@ module OCEAN_exact
       call OCEAN_populate_bse( sys, ierr )
       if( ierr .ne. 0 ) goto 111
 
-      call OCEAN_diagonalize( ierr )
+      if( nonHerm ) then
+        call OCEAN_nonHerm_diagonalize(ierr )
+      else
+        call OCEAN_diagonalize( ierr )
+      endif
       if( ierr .ne. 0 ) goto 111
 
       call OCEAN_print_eigenvalues
     endif
 
-    call OCEAN_calculate_overlaps( sys, hay_vec, ierr )
+    call OCEAN_psi_new( halfVec, ierr, hay_vec )
+    if( .false. .and.  .not. sys%cur_run%have_core .and. sys%nbw .eq. 2 ) then
+      halfVec%valr(:,:,:,:,2) = 0.0_DP
+      halfVec%vali(:,:,:,:,2) = 0.0_DP
+    endif
+    call OCEAN_calculate_overlaps( sys, halfVec, ierr )
     
 111 continue
   end subroutine
@@ -192,8 +209,12 @@ module OCEAN_exact
     integer, external :: numroc
 
     
-
-    bse_dim = sys%num_bands * sys%nkpts * sys%nalpha
+    if( sys%cur_run%have_core ) then
+      bse_dim = sys%num_bands * sys%nkpts * sys%nalpha
+    else
+      bse_dim = sys%cur_run%num_bands * sys%cur_run%val_bands * sys%nkpts * sys%nbeta * sys%nbw
+      if( myid .eq. root ) write( 6,*) sys%cur_run%num_bands, sys%cur_run%val_bands, sys%nkpts, sys%nbeta, sys%nbw
+    endif
     if( myid .eq. root ) write(6,*) 'BSE dims: ', bse_dim
   
     ! Try to make a square grid by counting from the sqrt down to 1
@@ -215,8 +236,9 @@ module OCEAN_exact
     bse_lr_one = NUMROC( bse_dim, 1, myrow, 0, nprow )
     bse_lc_one = NUMROC( bse_dim, 1, mycol, 0, npcol )
 
-    bse_lr = NUMROC( bse_dim, block_fac, myrow, 0, nprow )
-    bse_lc = NUMROC( bse_dim, block_fac, mycol, 0, npcol )
+    if( nonHerm ) block_fac = bse_dim
+    bse_lr = max( 1, NUMROC( bse_dim, block_fac, myrow, 0, nprow ) )
+    bse_lc = max( 1, NUMROC( bse_dim, block_fac, mycol, 0, npcol ) )
 !    allocate( bse_matrix_one( bse_lr_one, bse_lc_one ), &
 !              bse_matrix( bse_lr, bse_lc ), stat=ierr )
     allocate( bse_matrix( bse_lr, bse_lc ), stat=ierr )
@@ -224,7 +246,7 @@ module OCEAN_exact
       if( myid .eq. root ) write(6,*) 'Failed to allocate BSE matrices'
       goto 111
     endif
-    write(6,*) bse_lr, bse_lc, bse_lr_one, bse_lc_one
+    write(6,*) myid, bse_lr, bse_lc, bse_lr_one, bse_lc_one
 
 
     ! Create discription for distributed matrix
@@ -525,11 +547,185 @@ module OCEAN_exact
   end subroutine OCEAN_pb_slices
 
 
-
-
-
-
   subroutine OCEAN_populate_bse( sys, ierr )
+    use OCEAN_system
+    type( o_system ), intent( in ) :: sys 
+    integer, intent( inout ) :: ierr
+
+    if( sys%cur_run%have_core ) then
+      write(6,*) 'POPULATE core'
+      call OCEAN_populate_bse_core( sys, ierr )
+    else
+      call OCEAN_populate_bse_valence( sys, ierr )
+    endif
+  
+  end subroutine OCEAN_populate_bse
+
+
+  subroutine OCEAN_populate_bse_valence( sys, ierr )
+    use AI_kinds
+    use OCEAN_mpi
+    use OCEAN_system
+    use OCEAN_energies
+    use OCEAN_psi
+    use OCEAN_multiplet
+    use OCEAN_long_range
+    use OCEAN_bubble, only : AI_bubble_act
+    use OCEAN_ladder, only : OCEAN_ladder_act
+    use OCEAN_fxc, only : OCEAN_fxc_act
+    use OCEAN_constants, only : Hartree2eV
+    use OCEAN_timekeeper
+    
+    type( o_system ), intent( in ) :: sys
+    integer, intent( inout ) :: ierr
+
+    complex(DP) :: bse_ij
+
+    real(DP) :: inter = 1.0_DP
+
+    complex(EDP), allocatable :: c_slice(:)
+    real(DP), allocatable :: re_slice(:), im_slice(:)
+
+    integer :: ibasis, jbasis
+    integer :: lrindx, lcindx, rsrc, csrc
+    integer :: ibeta, ikpt, ivband, icband, ibw, jbeta, jkpt, jvband, jcband, jbw
+    type(ocean_vector) :: psi_in, psi_out
+
+    call OCEAN_psi_new( psi_in, ierr )
+    call OCEAN_psi_new( psi_out, ierr )
+
+    ibw = 1
+    ibeta = 1
+    ikpt = 1
+    ivband = 1
+    icband = 0
+
+    do ibasis = 1, bse_dim
+      icband = icband + 1
+
+      if( icband .gt. sys%cur_run%num_bands ) then
+        icband = 1
+        ivband = ivband + 1
+        if( ivband .gt. sys%cur_run%val_bands ) then
+          ivband = 1
+          ikpt = ikpt + 1
+          if( ikpt .gt. sys%nkpts ) then
+            ikpt = 1
+            ibeta = ibeta + 1
+            if( ibeta .gt. sys%nbeta ) then
+              ibeta = 1
+              ibw = ibw + 1
+            endif
+          endif
+        endif
+      endif
+      if( myid .eq. root .and. ivband .eq. 1 .and. icband .eq. 1 ) write(6,*) ikpt, sys%nkpts, ibw
+
+      call OCEAN_psi_zero_full( psi_in, ierr )
+      call OCEAN_psi_zero_full( psi_out, ierr )
+      call OCEAN_psi_ready_buffer( psi_out, ierr )
+      
+      if( ibw .eq. 1 ) then
+        psi_in%valr( icband, ivband, ikpt, ibeta, ibw ) = 1.0_DP
+      else
+        psi_in%valr( icband, ivband, ikpt, ibeta, ibw ) = -1.0_DP
+      endif
+      call OCEAN_energies_allow_full( sys, psi_in, ierr )
+      if( ierr .ne. 0 ) return
+  
+      if( sys%cur_run%bflag ) then
+        ! For now re-use mult timing for bubble
+        call OCEAN_tk_start( tk_mult )
+        call AI_bubble_act( sys, psi_in, psi_out, ierr )
+!          call OCEAN_energies_allow( sys, new_psi, ierr )
+        if( ierr .ne. 0 ) return
+        call OCEAN_tk_stop( tk_mult )
+      endif
+
+      if( sys%cur_run%lflag ) then
+        ! For now re-use lr timing for ladder
+        call OCEAN_tk_start( tk_lr )
+        call OCEAN_ladder_act( sys, psi_in, psi_out, ierr )
+        if( ierr .ne. 0 ) return
+!          call OCEAN_energies_allow( sys, new_psi, ierr )
+        call OCEAN_tk_stop( tk_lr )
+      endif
+
+      if( sys%cur_run%aldaf ) then
+        ! For now re-use lr timing for ladder
+        call OCEAN_tk_start( tk_lr )
+        call OCEAN_fxc_act( sys, psi_in, psi_out, ierr )
+        if( ierr .ne. 0 ) return
+        call OCEAN_tk_stop( tk_lr )
+      endif
+
+      call OCEAN_energies_allow_full( sys, psi_in, ierr )
+      if( ierr .ne. 0 ) return
+
+      call OCEAN_psi_send_buffer( psi_out, ierr )
+      if( ierr .ne. 0 ) return
+
+      call ocean_energies_act( sys, psi_in, psi_out, .false., ierr )
+!      if( myid .eq. root ) then
+!        write(6,*) ibasis, psi_in%valr(icband, ivband, ikpt, ibeta, ibw ), &
+!                          psi_out%valr(icband, ivband, ikpt, ibeta, ibw )
+!      endif
+      call OCEAN_psi_buffer2min( psi_out, ierr )
+      if( ierr .ne. 0 ) return
+!        write(6,*) 'min2full'
+      call OCEAN_psi_min2full( psi_out, ierr )
+      if( ierr .ne. 0 ) return
+!      if( myid .eq. root ) then
+!        write(6,*) ibasis, psi_in%valr(icband, ivband, ikpt, ibeta, ibw ), &
+!                          psi_out%valr(icband, ivband, ikpt, ibeta, ibw ), icband, ivband, ikpt
+!      endif
+
+      jbw = 1
+      jbeta = 1
+      jkpt = 1
+      jvband = 1
+      jcband = 0
+      do jbasis = 1, bse_dim
+        jcband = jcband + 1
+        if( jcband .gt. sys%cur_run%num_bands ) then
+          jcband = 1
+          jvband = jvband + 1 
+          if( jvband .gt. sys%cur_run%val_bands ) then
+            jvband = 1
+            jkpt = jkpt + 1
+            if( jkpt .gt. sys%nkpts ) then
+              jkpt = 1
+              jbeta = jbeta + 1
+              if( jbeta .gt. sys%nbeta ) then
+                jbeta = 1
+                jbw = jbw + 1 
+              endif
+            endif
+          endif
+        endif 
+
+        call INFOG2L( ibasis, jbasis, bse_desc, nprow, npcol, myrow, mycol, &
+                      lrindx, lcindx, rsrc, csrc )
+
+!        if( myid .eq. root .and. ibasis .eq. jbasis ) then
+!          write(6,*) ibasis, jbasis, psi_out%valr(jcband, jvband, jkpt, jbeta, jbw ), &
+!                                    -psi_out%vali(jcband,jvband,jkpt,jbeta,jbw )
+!        endif
+        if( ( myrow .ne. rsrc ) .or. ( mycol .ne. csrc ) ) cycle
+        bse_ij = CMPLX(  psi_out%valr(jcband, jvband, jkpt, jbeta, jbw ), &
+                        -psi_out%vali(jcband,jvband,jkpt,jbeta,jbw ), EDP )
+        bse_matrix( lrindx, lcindx ) = bse_ij
+
+      enddo
+      
+    enddo
+    call blacs_barrier( context, 'A' )
+    if( myid .eq. root ) write(6,*) 'Finished populating valence'
+  
+  end subroutine OCEAN_populate_bse_valence
+
+
+  subroutine OCEAN_populate_bse_core( sys, ierr )
     use AI_kinds
     use OCEAN_mpi
     use OCEAN_system
@@ -756,7 +952,61 @@ module OCEAN_exact
 
     if( myid .eq. root ) write(6,*) 'Finished populating bse matrix'
 
-  end subroutine OCEAN_populate_bse
+  end subroutine OCEAN_populate_bse_core
+
+  subroutine OCEAN_nonHerm_diagonalize( ierr )
+    use AI_kinds
+    use OCEAN_mpi
+
+    implicit none
+    integer, intent( inout ) :: ierr
+
+    complex(EDP),allocatable :: work(:), tau(:), warray(:)
+    real(EDP),allocatable :: rwork(:)
+    integer,allocatable :: iwork(:)
+    integer :: lwork, lrwork, liwork
+
+    integer :: np, nq, min_dim
+    integer(8) :: cl_count, cl_count_rate, cl_count_max, cl_count2
+    integer, external :: numroc
+
+    if( myid .ne. 0 ) return
+
+    allocate( bse_evalues( bse_dim ), bse_cmplx_evalues( bse_dim ), &
+              bse_evectors( bse_lr, bse_lc ), &
+              bse_right_evectors( bse_lr, bse_lc ), STAT=ierr )
+    if( ierr .ne. 0 ) then
+      if( myid .eq. root ) write(6,*) 'Failed to allocate evectors and values'
+      return
+    endif
+    lwork = -1
+    allocate( work(1), rwork(2*bse_dim) )
+#ifdef exact_sp
+    call CGEEV( 'V', 'V', bse_dim, bse_matrix, bse_dim, bse_cmplx_evalues, bse_evectors, bse_lr, &
+                bse_right_evectors, bse_lr, work, lwork, rwork, ierr )
+#else
+    call ZGEEV( 'V', 'V', bse_dim, bse_matrix, bse_dim, bse_cmplx_evalues, bse_evectors, bse_lr, &
+                bse_right_evectors, bse_lr, work, lwork, rwork, ierr )
+#endif
+    
+    lwork = work(1)
+    write( 6, * ) lwork
+    deallocate( work)
+    allocate( work(lwork) )
+#ifdef exact_sp
+    call CGEEV( 'V', 'V', bse_dim, bse_matrix, bse_dim, bse_cmplx_evalues, bse_evectors, bse_lr, &
+                bse_right_evectors, bse_lr, work, lwork, rwork, ierr )
+#else
+    call ZGEEV( 'V', 'V', bse_dim, bse_matrix, bse_dim, bse_cmplx_evalues, bse_evectors, bse_lr, &
+                bse_right_evectors, bse_lr, work, lwork, rwork, ierr )
+#endif
+
+    deallocate( work, rwork )
+    bse_evalues(:) = real( bse_cmplx_evalues(:), EDP )
+    return
+
+
+  end subroutine
 
 
   subroutine OCEAN_diagonalize( ierr )
@@ -870,7 +1120,12 @@ module OCEAN_exact
       open(unit=99,file='BSE_evalues.txt',form='formatted',status='unknown')
       rewind(99)
       do iter = 1, bse_dim
-        write(99,*) iter, bse_evalues( iter )*27.2114_EDP
+        if( nonHerm ) then
+          write(99,*) iter, bse_evalues( iter )*27.2114_EDP, &
+               aimag( bse_cmplx_evalues( iter ) )*27.2114_EDP
+        else
+          write(99,*) iter, bse_evalues( iter )*27.2114_EDP
+        endif
       enddo
       close( 99 )
     endif
@@ -893,18 +1148,23 @@ module OCEAN_exact
     complex(EDP), parameter :: one = 1.0
     complex(EDP), parameter :: zero = 0.0
   
-    complex(EDP) :: weight
+    complex(EDP) :: weight, weight2
     real(EDP) :: energy, e, su
     real(EDP) :: broaden
 
     real(EDP), allocatable :: plot(:,:)
     integer :: iter
 
-    integer :: ikpt, iband, ibasis, ialpha
+    integer :: ikpt, iband, ibasis, ialpha, ibw, ibeta, ibv
 !    integer :: lrindx, lcindx, rsrc, csrc
     integer :: local_desc( 9 )
+#ifdef exact_sp
+    complex(EDP), external :: CDOTC
+#else
+    complex(EDP), external :: ZDOTC
+#endif  
 
-
+    if( nonHerm .and. myid .ne. root ) return
     broaden = gam0
 
 !    allocate( psi( bse_lr ) )
@@ -917,6 +1177,7 @@ module OCEAN_exact
 
     if( myid .eq. root ) then
       ibasis = 0
+      if( sys%cur_run%have_core ) then
       do ialpha = 1, sys%nalpha
         do ikpt = 1, sys%nkpts
           do iband = 1, sys%num_bands
@@ -931,6 +1192,21 @@ module OCEAN_exact
           enddo
         enddo
       enddo
+      else
+        do ibw = 1, sys%nbw
+          do ibeta = 1, sys%nbeta
+            do ikpt = 1, sys%nkpts
+              do ibv = 1, sys%cur_run%val_bands
+                do iband = 1, sys%cur_run%num_bands
+                  ibasis = ibasis + 1
+                  psi( ibasis ) = cmplx( hay_vec%valr( iband, ibv, ikpt, ibeta, ibw ), &
+                                         hay_vec%vali( iband, ibv, ikpt, ibeta, ibw ), EDP )
+                enddo 
+              enddo
+            enddo
+          enddo
+        enddo
+      endif
     endif
 
     call DESCINIT( local_desc, bse_dim, 1, bse_dim, 1, 0, 0, context, bse_dim, ierr )
@@ -957,6 +1233,7 @@ module OCEAN_exact
     endif
 
     ibasis = 0
+    if( sys%cur_run%have_core ) then
     do ialpha = 1, sys%nalpha
     do ikpt = 1, sys%nkpts
       do iband = 1, sys%num_bands
@@ -996,6 +1273,103 @@ module OCEAN_exact
       enddo
     enddo
     enddo
+    else
+        do ibw = 1, sys%nbw
+          do ibeta = 1, sys%nbeta
+            do ikpt = 1, sys%nkpts
+              do ibv = 1, sys%cur_run%val_bands
+                do iband = 1, sys%cur_run%num_bands
+                  ibasis = ibasis + 1
+        if( nonHerm ) then
+          if( myid .eq. root ) then
+#ifdef exact_sp
+          weight = CDOTC( bse_dim, psi, 1, bse_evectors(:,ibasis), 1 )
+          weight2 = CDOTC( bse_dim, psi, 1, bse_right_evectors(:,ibasis), 1 )
+#else
+          weight = ZDOTC( bse_dim, psi, 1, bse_evectors(:,ibasis), 1 )
+          weight2 = ZDOTC( bse_dim, psi, 1, bse_right_evectors(:,ibasis), 1 )
+#endif
+          endif
+        else 
+#ifdef exact_sp
+        call PCDOTC( bse_dim, weight, psi, 1, 1, local_desc, 1, &
+                     bse_evectors, 1, ibasis, bse_desc, 1 )
+#else
+        call PZDOTC( bse_dim, weight, psi, 1, 1, local_desc, 1, &
+                     bse_evectors, 1, ibasis, bse_desc, 1 )
+#endif
+        endif
+!        weight = hpsi( ibasis ) &
+!               * CMPLX( hay_vec%r(iband, ikpt, 1 ), -hay_vec%i( iband, ikpt, 1 ), EDP )
+
+        if( myid .eq. root ) then
+          if( nonHerm ) then
+            energy = bse_cmplx_evalues( ibasis ) * Hartree2eV
+          else
+            energy = bse_evalues( ibasis ) * Hartree2eV
+          endif
+          if( nonHerm ) then
+            write(99,*) ibasis, energy, weight2 * conjg(weight), dble(weight), aimag( weight ), &
+                                        dble( weight2), aimag(weight2)
+          else
+            write(99,*) ibasis, energy, dble( weight * conjg(weight)), dble(weight), aimag( weight )
+            weight2=weight
+          endif
+
+          do iter = 1, ne
+            e = el + ( eh - el ) * dble( iter - 1 ) / dble( ne - 1 )
+            su = real( weight2 * conjg(weight),EDP) &
+               * (energy-e) * real(hay_vec%kpref * Hartree2eV, EDP ) &
+               / ( ( energy - e )**2 + broaden**2 )
+            if( .false. ) then
+              plot(iter,1) = plot(iter,1) + su * real( 2 / sys%valence_ham_spin, EDP ) * sys%celvol
+              su = real( weight * conjg(weight),EDP) &
+               * (energy+e) * real(hay_vec%kpref * Hartree2eV, EDP ) &
+               / ( ( energy + e )**2 + broaden**2 )
+              plot(iter,1) = plot(iter,1) + su * real( 2 / sys%valence_ham_spin, EDP ) * sys%celvol
+            else
+            if( energy .ge. 0.0_DP ) then
+              plot(iter,1) = plot(iter,1) + su * real( 2 / sys%valence_ham_spin, EDP ) * sys%celvol
+            else
+              plot(iter,1) = plot(iter,1) - su * real( 2 / sys%valence_ham_spin, EDP ) * sys%celvol
+            endif
+            endif
+            su = real( weight2 * conjg(weight),EDP) &
+               * broaden * real(hay_vec%kpref * Hartree2eV, EDP ) &
+               / ( ( energy - e )**2 + broaden**2 )
+            if( energy .ge. 0.0_DP ) then
+              plot(iter,2) = plot(iter,2) + su * real( 2 / sys%valence_ham_spin, EDP ) * sys%celvol
+            else
+              plot(iter,2) = plot(iter,2) - su * real( 2 / sys%valence_ham_spin, EDP ) * sys%celvol
+            endif
+            if( sys%cur_run%semiTDA) then
+              if( ibasis .eq. 1 .and. iter .eq. 1 ) write(6,*) 'Semi TDA'
+              su = real( weight * conjg(weight),EDP) &
+               * (energy+e) * real(hay_vec%kpref * Hartree2eV, EDP ) &
+                 / ( ( energy + e )**2 + broaden**2 )
+              plot(iter,1) = plot(iter,1) + su * real( 2 / sys%valence_ham_spin, EDP ) * sys%celvol
+              su = real( weight * conjg(weight),EDP) &
+                 * broaden * real(hay_vec%kpref * Hartree2eV, EDP ) &
+                 / ( ( energy + e )**2 + broaden**2 )
+
+              plot(iter,2) = plot(iter,2) - su * real( 2 / sys%valence_ham_spin, EDP ) * sys%celvol
+
+            endif
+          enddo
+        endif
+        enddo
+      enddo
+      enddo
+      enddo
+      enddo
+
+      if( myid .eq. root ) then
+        do iter = 1, ne
+          plot(iter,1) = plot(iter,1) + 1.0_EDP
+        enddo
+      endif
+
+    endif
     
     if( myid .eq. root ) then
       close(99)
