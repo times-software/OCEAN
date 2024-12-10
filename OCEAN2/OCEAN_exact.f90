@@ -11,7 +11,7 @@ module OCEAN_exact
   private
   save
 
-!# define exact_sp 1
+#define exact_sp 1
 #ifdef exact_sp
   INTEGER, PARAMETER :: EDP = SP
 #else
@@ -104,7 +104,9 @@ module OCEAN_exact
       close(99)
     endif
 
-    nocc = floor( sys%nelectron * real( sys%nkpts, DP ) * sys%nalpha / 2.0_DP )
+    nocc = floor( sys%nelectron * real( sys%nkpts, DP ) * sys%nalpha / 2.0_DP ) &
+         - (sys%brange(3)-1)* sys%nkpts * sys%nalpha
+    if( nocc .lt. 0 ) nocc = 0
 
     is_init = .true.
 
@@ -123,7 +125,6 @@ module OCEAN_exact
     integer, intent( inout ) :: ierr
     logical, intent(in), optional :: fresh
 
-    type( ocean_vector ) :: halfVec
     logical :: fresh_
 
     if( present( fresh ) ) then
@@ -151,12 +152,7 @@ module OCEAN_exact
       call OCEAN_print_eigenvalues
     endif
 
-    call OCEAN_psi_new( halfVec, ierr, hay_vec )
-    if( .false. .and.  .not. sys%cur_run%have_core .and. sys%nbw .eq. 2 ) then
-      halfVec%valr(:,:,:,:,2) = 0.0_DP
-      halfVec%vali(:,:,:,:,2) = 0.0_DP
-    endif
-    call OCEAN_calculate_overlaps( sys, halfVec, ierr )
+    call OCEAN_calculate_overlaps( sys, hay_vec, ierr )
     
 111 continue
   end subroutine
@@ -763,7 +759,7 @@ module OCEAN_exact
 
   ! one version that is in realistic blocks for performance 
 
-    write(6,*) 'LR', sys%long_range
+    if( myid .eq. root ) write(6,*) 'LR', sys%long_range
 
 
 !   Right now assume Hermetian
@@ -773,6 +769,7 @@ module OCEAN_exact
 
     if( myid .eq. root ) write(6,*) sys%nkpts, sys%num_bands
 
+!TODO: need a function to map ibasis to ikpt, iband, etc within OCEAN_psi
     do ibasis = 1, bse_dim
 
 
@@ -789,7 +786,7 @@ module OCEAN_exact
 
 
 
-      if( .true.) then
+      if( .false.) then
 !      if( sys%mult .or. sys%long_range ) then
         if( ibasis .eq. 1 ) write(6,*) sys%mult, sys%long_range
         call OCEAN_psi_zero_full( psi_in, ierr )
@@ -819,18 +816,23 @@ module OCEAN_exact
 
 !      endif
       else
+        ! Make sure psi is 1) stored in 'full' and 2) all zeros
         call OCEAN_psi_zero_full( psi_in, ierr )
-!        call OCEAN_psi_zero_full( psi_out, ierr )
-!        call OCEAN_psi_ready_buffer( psi_out, ierr )
 
+        ! Change one element to 1 (on every processor, since 'full' storage means they
+        ! all have to have the same version
         psi_in%r(iband,ikpt,ialpha) = 1.0_DP 
-        call OCEAN_psi_full2min( psi_in, ierr )
 
+        ! Act on psi_in with H, giving psi_out
         call OCEAN_xact( sys, sys%interactionScale, psi_in, psi_out, ierr )
         if( ierr .ne. 0 ) return
 
+        ! Because we are going to manually extract the needed element and we want it 
+        ! to be local for whatever SCALAPACK-assigned processor gets it, we move from
+        ! 'min' storage back to 'full'
+        call OCEAN_psi_min2full( psi_out, ierr )
+        if( ierr .ne. 0 ) return
 
-        
       endif
 
 
@@ -860,27 +862,9 @@ module OCEAN_exact
         if( ( myrow .ne. rsrc ) .or. ( mycol .ne. csrc ) ) cycle
 
 
-!        if( myid .eq. root ) write(6,*) ibasis, jbasis
         
-        if( .false. ) then
-          if( ( ibasis .eq. jbasis ) .and. ( sys%e0 ) )  then
-            bse_ij = ocean_energies_single( iband, ikpt, ialpha )
-          else
-            bse_ij = 0.0_DP
-          endif
-      
-          if( sys%mult .or. sys%long_range) bse_ij = bse_ij + CMPLX( psi_out%r(jband, jkpt, jalpha ), psi_out%i(jband, jkpt, jalpha ), EDP )
-        else
         bse_ij = CMPLX(  psi_out%r(jband, jkpt, jalpha ), -psi_out%i(jband, jkpt, jalpha ), EDP )
-        endif
 
-!        if( sys%mult ) &
-!          call OCEAN_mult_single( sys, bse_ij, inter, iband, ikpt, ialpha, jband, jkpt, jalpha )
-
-!        if( sys%long_range ) &
-!          call lr_single( sys, bse_ij, inter, iband, ikpt, ialpha, jband, jkpt, jalpha )
-
-!        bse_matrix_one( lrindx, lcindx ) = CMPLX( bse_ij, EDP )
         bse_matrix( lrindx, lcindx ) = bse_ij
 
       enddo
@@ -888,67 +872,6 @@ module OCEAN_exact
 
     
     call blacs_barrier( context, 'A' )
-    if( myid .eq. root ) write(6,*) 'Finished populating'
-
-!#ifdef  exact_sp
-!    call PCGEMR2D( bse_dim, bse_dim, bse_matrix_one, 1, 1, bse_desc_one, &
-!                   bse_matrix, 1, 1, bse_desc, context )
-!#else
-!    call PZGEMR2D( bse_dim, bse_dim, bse_matrix_one, 1, 1, bse_desc_one, &
-!                   bse_matrix, 1, 1, bse_desc, context )
-!#endif
-!
-!    if( myid .eq. root ) write(6,*) 'Finished redistributing'
-!    call blacs_barrier( context, 'A' )
-
-!    deallocate( bse_matrix_one )
-
-
-    if( sys%long_range .and. .false. ) then
-
-      if( myid .eq. root ) write(6,*) 'Adding in long range'
-      allocate( re_slice( sys%nkpts * sys%num_bands ), &
-                im_slice( sys%nkpts * sys%num_bands ), &
-                 c_slice( sys%nkpts * sys%num_bands ) )
-      ibasis = 0
-      do ialpha = 1, sys%nalpha
-        do ikpt = 1, sys%nkpts
-          if( myid .eq. root ) write(6,*) ikpt, sys%nkpts, ialpha
-          slice_size = bse_dim - ( ikpt - 1 )*sys%num_bands
-          slice_start = 1 + ( ikpt - 1 )*sys%num_bands
-          do iband = 1, sys%num_bands
-            ibasis = ibasis + 1
-
-            call lr_slice( sys, re_slice, im_slice, iband, ikpt, 1 )
-!            call DGSUM2D( context, 'A', ' ', bse_dim, 1, re_slice, sys%nkpts * sys%num_bands, -1, -1 )
-!            call DGSUM2D( context, 'A', ' ', bse_dim, 1, im_slice, sys%nkpts * sys%num_bands, -1, -1 )
-            call MPI_ALLREDUCE( MPI_IN_PLACE, re_slice, sys%nkpts * sys%num_bands, &
-                                MPI_DOUBLE_PRECISION, MPI_SUM, comm, ierr )
-            call MPI_ALLREDUCE( MPI_IN_PLACE, im_slice, sys%nkpts * sys%num_bands, &
-                                MPI_DOUBLE_PRECISION, MPI_SUM, comm, ierr )
-            c_slice(:) = CMPLX( -re_slice(:), im_slice(:), EDP )
-  !          call CGSUM2D( context, 'A', ' ', slice_size, 1,  &
-  !                        c_slice( slice_start ), slice_size, -1, -1 )
-
-            ! only for alpha are the same
-            do jbasis = ibasis, sys%nkpts * sys%num_bands * ialpha 
-  !            if( ibasis .eq. jbasis .and. myid .eq. root ) &
-  !              write(6,*) re_slice(ibasis), im_slice( ibasis )
-              call INFOG2L( ibasis, jbasis, bse_desc, nprow, npcol, myrow, mycol, &
-                        lrindx, lcindx, rsrc, csrc )
-
-              if( ( myrow .ne. rsrc ) .or. ( mycol .ne. csrc ) ) cycle
-
-                bse_matrix( lrindx, lcindx ) = bse_matrix( lrindx, lcindx ) &
-                                             + c_slice( jbasis - (ialpha - 1)*sys%nkpts * sys%num_bands )
-            enddo
-        
-          enddo
-        enddo
-      enddo
-
-      deallocate( re_slice, im_slice, c_slice )
-    endif
 
     if( myid .eq. root ) write(6,*) 'Finished populating bse matrix'
 
