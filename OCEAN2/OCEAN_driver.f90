@@ -42,7 +42,7 @@ module OCEAN_driver
       case('inv')
 !        call OCEAN_gmres_do( sys, hay_vec, ierr )
         call OCEAN_gmres_do_recycle( sys, hay_vec, ierr )
-      case('exa')
+      case('exa' , 'dia' )
         call OCEAN_exact_diagonalize( sys, hay_vec, ierr )
       case default
         if( myid .eq. root ) write(6,*) 'Unrecognized calc style:', style
@@ -89,7 +89,7 @@ module OCEAN_driver
       case( 'inv' )
         call OCEAN_gmres_setup( sys, ierr )
 
-      case( 'exa' )
+      case( 'exa' , 'dia' )
 
       case default
         if( myid .eq. root ) write(6,*) 'Unsupported style in bse.in: ', style
