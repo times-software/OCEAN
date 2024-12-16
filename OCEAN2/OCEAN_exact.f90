@@ -311,6 +311,12 @@ module OCEAN_exact
       if( myid .eq. root ) write(6,*) 'Failed to allocate BSE matrices'
       goto 111
     endif
+    allocate( bse_evalues( bse_dim ), &
+              bse_evectors( bse_lr, bse_lc ), stat=ierr )
+    if( ierr .ne. 0 ) then
+      if( myid .eq. root ) write(6,*) 'Failed to allocate evectors and values'
+      goto 111
+    endif
     write(6,*) myid, bse_lr, bse_lc, bse_lr_one, bse_lc_one
 
 
@@ -1009,12 +1015,12 @@ module OCEAN_exact
     integer(8) :: cl_count, cl_count_rate, cl_count_max, cl_count2
     integer, external :: numroc
 
-    allocate( bse_evalues( bse_dim ), &
-              bse_evectors( bse_lr, bse_lc ), stat=ierr )
-    if( ierr .ne. 0 ) then
-      if( myid .eq. root ) write(6,*) 'Failed to allocate evectors and values'
-      goto 111
-    endif
+!    allocate( bse_evalues( bse_dim ), &
+!              bse_evectors( bse_lr, bse_lc ), stat=ierr )
+!    if( ierr .ne. 0 ) then
+!      if( myid .eq. root ) write(6,*) 'Failed to allocate evectors and values'
+!      goto 111
+!    endif
 
     lwork = -1
     lrwork = -1
@@ -1405,10 +1411,10 @@ module OCEAN_exact
     character( len=25 ) :: abs_filename
     integer, parameter :: abs_fh = 76
 
-    type( ocean_vector ) :: tpsi
+!    type( ocean_vector ) :: tpsi
 
-    call OCEAN_psi_new( tpsi, ierr, hay_vec )
-    call OCEAN_psi_min2full( tpsi, ierr )
+!    call OCEAN_psi_new( tpsi, ierr, hay_vec )
+!    call OCEAN_psi_min2full( tpsi, ierr )
 
     if( sys%cur_run%have_val ) then
       fact = hay_vec%kpref * 2.0_dp * sys%celvol
@@ -1426,15 +1432,13 @@ module OCEAN_exact
 
     endif
     
-    write(6,*) myid
-
-    ! create a distribution for |x> that matches block cyclic 
     bse_lr = max( 1, NUMROC( bse_dim, bse_dim, myrow, 0, nprow ) )
     call DESCINIT( xdesc, bse_dim, 1, bse_dim, 1, 0, 0, context, bse_lr, ierr )
     if( ierr .ne. 0 ) then
-      if( myid .eq. root ) write(6,*) 'Failed DESCINIT in subroutine create_echamp xdesc'
+      if( myid .eq. root ) write(6,*) 'Failed DESCINIT in subroutine create_echamp'
       return
-    endif
+    endif 
+    allocate( x( bse_lr ) )
     
     bse_lr = max( 1, NUMROC( bse_dim, block_fac, myrow, 0, nprow ) )
     bse_lc = max( 1, NUMROC( bse_dim, block_fac, mycol, 0, npcol ) )
@@ -1443,19 +1447,7 @@ module OCEAN_exact
       if( myid .eq. root ) write(6,*) 'Failed DESCINIT in subroutine create_echamp'
       return
     endif
-    allocate( bvec( bse_lr ), psi( bse_lr ), bmat( bse_lr, bse_lc ), cmat( bse_lr, bse_lc ), &
-              cvec( bse_lr ), evec( bse_lr ) )
-#if 0
-    if( myid .eq. root ) then
-      allocate( x( bse_dim ), psi2(bse_dim) )
-    else
-      allocate( x(1), psi2(1) )
-    endif
-#else
-    allocate( x( bse_lr ), psi2(bse_dim) )
-#endif
-    cvec(:) = 1000000_DP
-    evec(:) = 1000000_DP
+    allocate( psi( bse_lr ), cvec( bse_lr ), evec( bse_lr ) )
     ! copy hay_vec into that distribution
     ialpha = 1
     ikpt = 1
@@ -1466,23 +1458,20 @@ module OCEAN_exact
       if( iband .gt. sys%num_bands ) then
         iband = 1
         ikpt = ikpt + 1
-!        if( myid .eq. root ) write(6,*) 'ik = ', ikpt, 'ialpha =', ialpha, i
+
         if( ikpt .gt. sys%nkpts ) then
           ikpt = 1
           ialpha = ialpha + 1
         endif
       endif
-      if( myid .eq. root ) psi2(i) = cmplx( tpsi%r(iband,ikpt,ialpha), &
-                                            tpsi%i(iband,ikpt,ialpha), EDP )
 
       call INFOG2L( i, 1, psidesc, nprow, npcol, myrow, mycol, &
                       lrindx, lcindx, rsrc, csrc )
       if( myrow .ne. rsrc .or. mycol .ne. csrc ) cycle
       
-      psi( lrindx ) = cmplx( tpsi%r(iband,ikpt,ialpha), tpsi%i(iband,ikpt,ialpha), EDP )
+      psi( lrindx ) = cmplx( hay_vec%r(iband,ikpt,ialpha), hay_vec%i(iband,ikpt,ialpha), EDP )
     enddo
 
-    if( .true. ) then
 #ifdef exact_sp
     call PCGEMV( 'C', bse_dim, bse_dim, one, bse_evectors, 1, 1, bse_desc, psi, 1, 1, psidesc, 1, &
                    zero, cvec, 1, 1, psidesc, 1 )
@@ -1492,9 +1481,9 @@ module OCEAN_exact
 #endif
     do ie = 1, dia_nsteps
         energy = dia_energy_list( ie ) * eV2Hartree
-!        if( mycol .eq. 0 ) then
+
         if(myid.eq.root) write(6,*) dia_energy_list( ie )
-#if 1
+#if 0
         do i = 1, bse_dim
           call INFOG2L( i, 1, psidesc, nprow, npcol, myrow, mycol, &
                         lrindx, lcindx, rsrc, csrc )
@@ -1505,28 +1494,24 @@ module OCEAN_exact
 
 
 #else
+        if( mycol .eq. 0 ) then
           do i = 1, bse_lr
             ! do this in DP then down-convert if doing that
             gi = indxl2g( i, block_fac, myrow, 0, nprow )
             energyDenom = 1.0_DP / ( cmplx( energy - bse_evalues( gi ), gam0*eV2Hartree, DP ) )
             evec(i) = cvec(i)*energyDenom
-!            if( myid .eq. 0 .and. ie .eq. 1 ) then
-!              write(6,*) i, gi, energyDenom, evec(i), cvec(i)
-!            endif
-!            if( ie .eq. 1 ) write(6,*) i, gi, bse_evalues( gi )*Hartree2eV, myid
           enddo
+        endif
 #endif
-!        endif
+
 #ifdef exact_sp
     call PCGEMV( 'N', bse_dim, bse_dim, one, bse_evectors, 1, 1, bse_desc, evec, 1, 1, psidesc, 1, &
                    zero, x, 1, 1, xdesc, 1 )
-    call PCDOTC( bse_dim, val, psi, 1, 1, psidesc, 1, x, 1, 1, psidesc, 1 )
+    call PCDOTC( bse_dim, val, psi, 1, 1, psidesc, 1, x, 1, 1, xdesc, 1 )
 #else
-!    call PZGEMV( 'N', bse_dim, bse_dim, one, bse_evectors, 1, 1, bse_desc, evec, 1, 1, psidesc, 1, &
-!                   zero, x, 1, 1, xdesc, 1 )
     call PZGEMV( 'N', bse_dim, bse_dim, one, bse_evectors, 1, 1, bse_desc, evec, 1, 1, psidesc, 1, &
-                   zero, x, 1, 1, psidesc, 1 )
-    call PZDOTC( bse_dim, val, psi, 1, 1, psidesc, 1, x, 1, 1, psidesc, 1 )
+                   zero, x, 1, 1, xdesc, 1 )
+    call PZDOTC( bse_dim, val, psi, 1, 1, psidesc, 1, x, 1, 1, xdesc, 1 )
 #endif
         
     ! write echamp
@@ -1548,60 +1533,8 @@ module OCEAN_exact
       endif
     enddo
 
-    else
-    ! loop over all energies
-    do ie = 1, dia_nsteps
-      if(myid.eq.root) write(6,*) dia_energy_list( ie )
-
-      ! Make Bmat = Eigenvectors scaled by energy denominator
-      energy = dia_energy_list( ie ) * eV2Hartree
-      do i = 1, bse_lc
-        ! do this in DP then down-convert if doing that
-        gi = indxl2g( i, block_fac, mycol, 0, npcol )
-        energyDenom = 1.0_DP / ( cmplx( energy - bse_evalues( gi ), gam0*eV2Hartree, DP ) )
-        bmat( :, i ) = bse_evectors( :, i ) * energyDenom
-      enddo
-
-#ifdef exact_sp
-      call PCGEMM( 'N', 'C', bse_dim, bse_dim, bse_dim, one, bmat, 1, 1, bse_desc, &
-                   bse_evectors, 1, 1, bse_desc, zero, cmat, 1, 1, bse_desc )
-#else
-      call PZGEMM( 'N', 'C', bse_dim, bse_dim, bse_dim, one, bmat, 1, 1, bse_desc, &
-                   bse_evectors, 1, 1, bse_desc, zero, cmat, 1, 1, bse_desc )
-#endif
-
-     ! Matrix vector to store to x 
-#ifdef exact_sp
-      call PCGEMV( 'N', bse_dim, bse_dim, one, cmat, 1, 1, bse_desc, psi, 1, 1, psidesc, 1, &
-                   zero, x, 1, 1, xdesc, 1 )
-#else
-      call PZGEMV( 'N', bse_dim, bse_dim, one, cmat, 1, 1, bse_desc, psi, 1, 1, psidesc, 1, &
-                   zero, x, 1, 1, xdesc, 1 )
-#endif      
-
-    ! write echamp
-      if( myid .eq. root ) then
-        call OCEAN_filenames_ehamp( sys, filename, ie, ierr )
-        !TODO: need to have error synch
-        !if( ierr .ne. 0 ) return
-        open( unit=99, file=filename, form='unformatted', status='unknown' )
-        rewind( 99 )
-        !TODO need a temp array if we are running in SP
-        write(99) x
-        close( 99 )
-
-        val = dot_product( psi2, x )
-        write( abs_fh, '(1p,3(1e15.8,1x))' ) dia_energy_list( ie ), &
-                    (1.0_dp - real(val,DP)*fact), -aimag(val)*fact
-        flush(abs_fh)
-
-      endif
-          
-    ! end loop over e
-    enddo
-    endif
     ! deallocate
-    deallocate( x, bvec, psi, bmat, cmat, psi2, cvec, evec )
+    deallocate( x, psi, cvec, evec )
 
   end subroutine create_echamp
 
