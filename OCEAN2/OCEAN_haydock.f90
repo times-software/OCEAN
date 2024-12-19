@@ -1689,12 +1689,12 @@ module OCEAN_haydock
 
     select case ( sys%cur_run%calc_type)
       case( 'XES', 'XAS' )
-        call write_core( 99, iter, kpref, sys%oldXASbroaden )
+        call write_core( 99, iter, kpref, sys%oldXASbroaden, sys%celvol )
       case( 'VAL', 'RXS' )
         call write_val( 99, iter, kpref, sys%celvol, sys%valence_ham_spin, sys%cur_run%semiTDA )
 
       case default
-        call write_core( 99, iter, kpref, sys%oldXASbroaden )
+        call write_core( 99, iter, kpref, sys%oldXASbroaden, sys%celvol )
     
     end select
 
@@ -1794,28 +1794,41 @@ module OCEAN_haydock
 
   end subroutine write_val
 
-  subroutine write_core( fh, iter, kpref, oldXASbroaden )
-    use OCEAN_constants, only : Hartree2eV
+  subroutine write_core( fh, iter, kpref, oldXASbroaden, ucVol )
+    use OCEAN_constants, only : Hartree2eV, alpha, eV2Hartree, bohr, PI_DP, au2sec!, bohr2cm
     implicit none
     integer, intent( in ) :: fh, iter
     real(DP), intent( in ) :: kpref
+    real(DP), intent( in ) :: ucVol
     logical, intent( in ) :: oldXASbroaden
     !
     integer :: ie, jdamp, jj, jdampStop
     real(DP), external :: gamfcn
     real(DP) :: e, gam, dr, di, ener, spct( 0 : 1 ), spkk( 0 : 1 )
+    real(DP) :: alphaByVolumeHartree, sigma, tpa, tpacm4
     complex(DP) :: ctmp, disc, delta, rm1
+
+    real(DP), parameter :: bohrSq2CmSq = bohr * bohr * 1.d-16
     !
     if( gamGauss .gt. (gam0/10.0_DP ) ) then
       call write_core_Voigt( fh, iter, kpref )
       return
     endif
+
+    ! prefactor for comverting to cross-section. The energy will be in eV, so add that factor here
+    alphaByVolumeHartree = eV2Hartree * alpha * ucVol 
+
+    tpa = (alpha * alpha * 2.0_DP * PI_DP )* ucVol
+    tpacm4 = tpa * bohrSq2CmSq * bohrSq2CmSq * au2sec
+!    tpacm4 = tpa * ( bohr2cm**4 ) * au2sec
+
     jdampStop = 0
     if( oldXASbroaden ) then
       jdampStop = 1
     endif
-    write( fh, '(A,1i5,A,1e15.8,A,1e15.8)' ) '#   iter=', iter, '   gam=', gam0, '   kpref=', kpref
-    write( fh, '(5(A15,1x))' ) '#   Energy', 'Spect', 'Spect(0)', 'SPKK', 'SPKK(0)'
+    write( fh, '(A,1i5,A,1e15.8,A,1e15.8,A,1e15.8)' ) '#   iter=', iter, '   gam=', gam0, '   kpref=', kpref, 'vol=', ucVol
+    write( fh, '(9(A15,1x))' ) '#   Energy', 'Spect', 'Spect(0)', 'SPKK', 'SPKK(0)', 'sigma (a.u.^2)', 'sigma( cm^2 )', &
+               'sig.^2 (a.u.^5)', 'sig.^2 cm^4 sec'
     rm1 = -1; rm1 = sqrt( rm1 )
     do ie = 0, 2 * ne, 2
        e = el + ( eh - el ) * dble( ie ) / dble( 2 * ne )
@@ -1858,7 +1871,6 @@ module OCEAN_haydock
 !          di = -rm1 * delta
 !          di = abs( di )
           di = abs(aimag( delta ) )
-          ener = ebase + Hartree2eV * e
           spct( jdamp ) = kpref * di / ( dr ** 2 + di ** 2 )
           spkk( jdamp ) = kpref * dr / ( dr ** 2 + di ** 2 )
        end do
@@ -1869,7 +1881,11 @@ module OCEAN_haydock
           spkk(1) = spkk(0)
        endif
 !       write ( fh, '(4(1e15.8,1x),1i5,1x,2(1e15.8,1x),1i5)' ) ener, spct( 1 ), spct( 0 ), spkk, iter, gam, kpref, ne
-       write ( fh, '(5(1e15.8,1x))') ener, spct( 1 ), spct( 0 ), spkk( 1 ), spkk( 0 )
+       
+       ener = ebase + Hartree2eV * e
+       sigma = alphaByVolumeHartree * ener * spct( 0 ) 
+       write ( fh, '(9(1e15.8,1x))') ener, spct( 1 ), spct( 0 ), spkk( 1 ), spkk( 0 ), sigma, sigma*bohrSq2CmSq, &
+              spct(0) * tpa, spct(0) * tpacm4
     end do
   end subroutine write_core
 
