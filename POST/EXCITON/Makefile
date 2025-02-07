@@ -2,7 +2,10 @@ include ../../Makefile.arch
 
 FOPTS=$(OPTIONS) -I../../Modules
 
-all: exciton_plot.x val_exciton_plot.x
+all: exciton_plot.x val_exciton_plot.x exciton_band.x
+
+exciton_band.x: OCEAN_exciton_band.f90
+	$(FC) $(FOPTS) -o exciton_band.x OCEAN_exciton_band.f90 $(BLAS)
 
 val_exciton_plot.x: val_exciton_plot.o periodic.o
 	$(FC) $(FOPTS)  -o val_exciton_plot.x val_exciton_plot.o periodic.o $(BLAS)
