@@ -32,8 +32,9 @@ subroutine jtvsub( lmin, lmax, nproj, npmax, lc, nbsemel, powmax, ifcn, stext, e
   ! There are additional flags to test only the Quad contribution, or only the 1st core level
   ! (e.g. 2p when looking at 1s two-photon), or only the 2nd core level (e.g. 3p)
   logical, parameter :: QuadAlone = .false.  ! This is now superceded by use of 'tpq' photon
-  logical, parameter :: test1 = .false.
-  logical, parameter :: test2 = .false.
+!  logical, parameter :: test1 = .false.
+!  logical, parameter :: test2 = .false.
+  logical :: test1, test2
   !
   !
   lpick = -1
@@ -120,7 +121,7 @@ subroutine jtvsub( lmin, lmax, nproj, npmax, lc, nbsemel, powmax, ifcn, stext, e
               end do
               nbsemel( 1 : nproj( l ), m, l, mc ) = csu(1) * ifcn( 1 : nproj( l ), 1, l )
               !
-           case( 'tp', 'tpq' )
+           case( 'tp', 'tpq', 'tp1', 'tp2' )
               csu(:) = 0
               do i = 1, nsphpt
                  call getylm( lc, mc, xsph( i ), ysph( i ), zsph( i ), ylcmc, prefs )
@@ -240,9 +241,20 @@ subroutine jtvsub( lmin, lmax, nproj, npmax, lc, nbsemel, powmax, ifcn, stext, e
      end do
   end do
   !
-  if( spcttype .eq. 'tp' ) then
+  if( spcttype .eq. 'tp' .or. spcttype .eq. 'tp1' .or. spcttype .eq. 'tp2') then
     ! Current implementation is hardwired for a K edge
     li = 1
+
+    if( spcttype .eq. 'tp1' ) then
+      test1 = .true.
+    else
+      test1 = .false.
+    endif
+    if( spcttype .eq. 'tp2' ) then
+      test2 = .true.
+    else
+      test2 = .false.
+    endif
 
     if( test1 .or. test2 ) then
       nbsemel( :, :, :, : ) = 0.0d0
@@ -279,13 +291,15 @@ subroutine jtvsub( lmin, lmax, nproj, npmax, lc, nbsemel, powmax, ifcn, stext, e
               if( test1 ) then
                 if( isemi .eq. 1 ) then
                   nbsemel( 1 : nproj( l ), m, l, mc ) = nbsemel( 1 : nproj( l ), m, l, mc ) &
-                    + csu(1) * csu(2) * c2c( 1, isemi ) * semifcn( 1 : nproj(l), 1, l, isemi )
+                    + csu(1) * csu(2) * c2c( 1, isemi ) * semifcn( 1 : nproj(l), 1, l, isemi ) &
+                    * semiReducedEnergy( isemi )
                 endif
               endif
               if( test2 ) then
                 if( isemi .eq. 2 ) then
                   nbsemel( 1 : nproj( l ), m, l, mc ) = nbsemel( 1 : nproj( l ), m, l, mc ) &
-                    + csu(1) * csu(2) * c2c( 1, isemi ) * semifcn( 1 : nproj(l), 1, l, isemi )
+                    + csu(1) * csu(2) * c2c( 1, isemi ) * semifcn( 1 : nproj(l), 1, l, isemi ) &
+                    * semiReducedEnergy( isemi )
                 endif
               endif
               if( PCCP2022 ) then
