@@ -88,7 +88,7 @@ subroutine cmjtv( nsphpt, xsph, ysph, zsph, wsph, prefs )
   case( 'ldos0', 'ldos1', 'ldos2', 'ldos3', 'ldos00', 'ldos1-1', 'ldos10', 'ldos11', &
         'ldos2-2', 'ldos2-1', 'ldos20', 'ldos21', 'ldos22' )
      q = ephotev
-  case( 'qRaman', 'qRs', 'qRp', 'qRd', 'qRf', 'tp', 'tpq', 'tp1', 'tp2' )
+  case( 'qRaman', 'qRs', 'qRp', 'qRd', 'qRf', 'tp', 'tpq', 'tp1', 'tp2', 'tpp' )
      ! nothing needs to be done!!!
 
   case default

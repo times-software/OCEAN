@@ -121,7 +121,7 @@ subroutine jtvsub( lmin, lmax, nproj, npmax, lc, nbsemel, powmax, ifcn, stext, e
               end do
               nbsemel( 1 : nproj( l ), m, l, mc ) = csu(1) * ifcn( 1 : nproj( l ), 1, l )
               !
-           case( 'tp', 'tpq', 'tp1', 'tp2' )
+           case( 'tp', 'tpq', 'tp1', 'tp2', 'tpp' )
               csu(:) = 0
               do i = 1, nsphpt
                  call getylm( lc, mc, xsph( i ), ysph( i ), zsph( i ), ylcmc, prefs )
@@ -241,7 +241,7 @@ subroutine jtvsub( lmin, lmax, nproj, npmax, lc, nbsemel, powmax, ifcn, stext, e
      end do
   end do
   !
-  if( spcttype .eq. 'tp' .or. spcttype .eq. 'tp1' .or. spcttype .eq. 'tp2') then
+  if( spcttype .eq. 'tp' .or. spcttype .eq. 'tp1' .or. spcttype .eq. 'tp2' .or. spcttype .eq. 'tpp') then
     ! Current implementation is hardwired for a K edge
     li = 1
 
@@ -254,6 +254,10 @@ subroutine jtvsub( lmin, lmax, nproj, npmax, lc, nbsemel, powmax, ifcn, stext, e
       test2 = .true.
     else
       test2 = .false.
+    endif
+    if( spcttype .eq. 'tpp' ) then
+      test1 = .true.
+      test2 = .true.
     endif
 
     if( test1 .or. test2 ) then
