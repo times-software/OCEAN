@@ -1,3 +1,9 @@
+## v.
+
+#### Bug fixes
+ 1. Problem with legacy FFT routines fixed. Thanks to user Max Radin for the 
+    bug report
+
 ## v. 3.2.0
 
 #### Minor features
