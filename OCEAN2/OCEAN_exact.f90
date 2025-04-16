@@ -11,7 +11,7 @@ module OCEAN_exact
   private
   save
 
-!# define exact_sp 1
+#define exact_sp 1
 #ifdef exact_sp
   INTEGER, PARAMETER :: EDP = SP
 #else
@@ -962,8 +962,9 @@ module OCEAN_exact
 
     if( myid .ne. 0 ) return
 
-    allocate( bse_evalues( bse_dim ), bse_cmplx_evalues( bse_dim ), &
-              bse_evectors( bse_lr, bse_lc ), &
+!    allocate( bse_evalues( bse_dim ), bse_cmplx_evalues( bse_dim ), &
+!              bse_evectors( bse_lr, bse_lc ), &
+     allocate( bse_cmplx_evalues( bse_dim ), &
               bse_right_evectors( bse_lr, bse_lc ), STAT=ierr )
     if( ierr .ne. 0 ) then
       if( myid .eq. root ) write(6,*) 'Failed to allocate evectors and values'
@@ -1135,7 +1136,7 @@ module OCEAN_exact
     type( ocean_vector ), intent( in ) :: hay_vec
     integer, intent( inout ) :: ierr
 
-    complex(EDP), allocatable :: psi(:), hpsi(:)
+    complex(EDP), allocatable :: psi(:), hpsi(:), psi2(:)
     complex(EDP), parameter :: one = 1.0
     complex(EDP), parameter :: zero = 0.0
   
@@ -1165,6 +1166,11 @@ module OCEAN_exact
     else
       allocate( hpsi( 1 ) )
     endif
+    if( sys%nbw .eq. 2 ) then
+      allocate(psi2( bse_dim ) )
+    else
+      allocate( psi2( 1 ) )
+    endif
 
     if( myid .eq. root ) then
       ibasis = 0
@@ -1192,6 +1198,15 @@ module OCEAN_exact
                   ibasis = ibasis + 1
                   psi( ibasis ) = cmplx( hay_vec%valr( iband, ibv, ikpt, ibeta, ibw ), &
                                          hay_vec%vali( iband, ibv, ikpt, ibeta, ibw ), EDP )
+                  if( sys%nbw .eq. 2 ) then
+                    if( ibw .eq. 1 ) then
+                      psi2( ibasis ) = cmplx( hay_vec%valr( iband, ibv, ikpt, ibeta, ibw ), &
+                                             hay_vec%vali( iband, ibv, ikpt, ibeta, ibw ), EDP )
+                    else
+                      psi2( ibasis ) = -cmplx( hay_vec%valr( iband, ibv, ikpt, ibeta, ibw ), &
+                                             hay_vec%vali( iband, ibv, ikpt, ibeta, ibw ), EDP )
+                    endif
+                  endif
                 enddo 
               enddo
             enddo
@@ -1274,10 +1289,10 @@ module OCEAN_exact
         if( nonHerm ) then
           if( myid .eq. root ) then
 #ifdef exact_sp
-          weight = CDOTC( bse_dim, psi, 1, bse_evectors(:,ibasis), 1 )
+          weight = CDOTC( bse_dim, psi2, 1, bse_evectors(:,ibasis), 1 )
           weight2 = CDOTC( bse_dim, psi, 1, bse_right_evectors(:,ibasis), 1 )
 #else
-          weight = ZDOTC( bse_dim, psi, 1, bse_evectors(:,ibasis), 1 )
+          weight = ZDOTC( bse_dim, psi2, 1, bse_evectors(:,ibasis), 1 )
           weight2 = ZDOTC( bse_dim, psi, 1, bse_right_evectors(:,ibasis), 1 )
 #endif
           endif
@@ -1319,20 +1334,20 @@ module OCEAN_exact
                / ( ( energy + e )**2 + broaden**2 )
               plot(iter,1) = plot(iter,1) + su * real( 2 / sys%valence_ham_spin, EDP ) * sys%celvol
             else
-            if( energy .ge. 0.0_DP ) then
-              plot(iter,1) = plot(iter,1) + su * real( 2 / sys%valence_ham_spin, EDP ) * sys%celvol
-            else
-              plot(iter,1) = plot(iter,1) - su * real( 2 / sys%valence_ham_spin, EDP ) * sys%celvol
-            endif
+!              if( energy .ge. 0.0_DP ) then
+                plot(iter,1) = plot(iter,1) + su * real( 2 / sys%valence_ham_spin, EDP ) * sys%celvol
+!              else
+!                plot(iter,1) = plot(iter,1) - su * real( 2 / sys%valence_ham_spin, EDP ) * sys%celvol
+!              endif
             endif
             su = real( weight2 * conjg(weight),EDP) &
                * broaden * real(hay_vec%kpref * Hartree2eV, EDP ) &
                / ( ( energy - e )**2 + broaden**2 )
-            if( energy .ge. 0.0_DP ) then
+!            if( energy .ge. 0.0_DP ) then
               plot(iter,2) = plot(iter,2) + su * real( 2 / sys%valence_ham_spin, EDP ) * sys%celvol
-            else
-              plot(iter,2) = plot(iter,2) - su * real( 2 / sys%valence_ham_spin, EDP ) * sys%celvol
-            endif
+!            else
+!              plot(iter,2) = plot(iter,2) - su * real( 2 / sys%valence_ham_spin, EDP ) * sys%celvol
+!            endif
             if( sys%cur_run%semiTDA) then
               if( ibasis .eq. 1 .and. iter .eq. 1 ) write(6,*) 'Semi TDA'
               su = real( weight * conjg(weight),EDP) &

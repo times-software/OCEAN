@@ -192,8 +192,8 @@ module OCEAN_energies
       call OCEAN_psi_copy_full( allow_sqrt, allow, ierr )
       if( ierr .ne. 0 ) return
 
-      ! this flips the sign of the energies
-      call OCEAN_energies_allow_full( sys, p_energy, ierr, .true. )
+!      ! this flips the sign of the energies
+!      call OCEAN_energies_allow_full( sys, p_energy, ierr, .true. )
 
       val_loaded = .true.
     endif

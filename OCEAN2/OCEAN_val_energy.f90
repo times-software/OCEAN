@@ -281,9 +281,16 @@ module OCEAN_val_energy
                         con_energies( ibc+sys%brange(3)-1, ik, jspn, ibw ) &
                       - val_energies( ibv+sys%brange(1)-1, ik, ispn, ibw )
                 else
+                  ! Here H0 is actually S . H0, which is to say the sign is 
+                  ! flipped on the backwards pairs. This means that instead 
+                  ! of applying S to only H1 we can apply it to the whole H
+                  ! (both S and H0 are diagonal in the particle-hole basis
+                  !  and therefore commute and we end up with S^2 H0 = I H0)
+                  ! TODO: This is likely an unnecessary complication that 
+                  !       can be backed out later
                   p_energy%valr( ibc, ibv, ik, ibeta, ibw ) = &
-                       -con_energies( ibc+sys%brange(3)-1, ik, jspn, ibw ) &
-                      + val_energies( ibv+sys%brange(1)-1, ik, ispn, ibw )
+                        con_energies( ibc+sys%brange(3)-1, ik, jspn, ibw ) &
+                      - val_energies( ibv+sys%brange(1)-1, ik, ispn, ibw )
                 endif
               enddo
             enddo

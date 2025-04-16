@@ -222,21 +222,12 @@ module OCEAN_gmres
 
     if( sys%bwflg ) then
       do i = 1, current_iter
-#if 0
-        call OCEAN_energies_sfact_copy( sys, u_matrix(i), psi_tmp, ierr )
-        if( ierr .ne. 0 ) return
-        call OCEAN_psi_axpy( delta, psi_tmp, au_matrix( i ), ierr )
-        if( ierr .ne. 0 ) return
-        call OCEAN_energies_allow( sys, au_matrix(i), ierr, sfact=.true. )
-#else
         call OCEAN_energies_sfact_copy( sys, au_matrix(i), psi_tmp, ierr )
         if( ierr .ne. 0 ) return
         call OCEAN_psi_axpy( delta, u_matrix( i ), psi_tmp, ierr )
         if( ierr .ne. 0 ) return
         call OCEAN_energies_sfact_copy( sys, psi_tmp, au_matrix(i), ierr )
         if( ierr .ne. 0 ) return
-
-#endif
       enddo
     else
       do i = 1, current_iter
@@ -244,16 +235,6 @@ module OCEAN_gmres
         if( ierr .ne. 0 ) return
       enddo
     endif
-
-    !JTv think this is not correct
-!    call OCEAN_psi_min_set_prec( ener, gprc, hpsi1, psi_pcdiv, ierr, prev_ener )
-!    do i = 1, current_iter
-!      call OCEAN_psi_3element_mult( u_matrix(i), u_matrix(i), psi_pcdiv, ierr )
-!      if( ierr .ne. 0 ) return
-!      call OCEAN_psi_3element_mult( au_matrix(i), au_matrix(i), psi_pcdiv, ierr )
-!      if( ierr .ne. 0 ) return
-!    enddo
-    
 
   end subroutine make_recycle
 
@@ -268,7 +249,6 @@ module OCEAN_gmres
     !
     complex(DP), allocatable :: c_temp( : ), coeff( : )
     real(DP), allocatable, dimension(:) :: re_coeff_vec, im_coeff_vec, re_rvec, im_rvec 
-    integer, allocatable, dimension(:) :: re_coeff_request, im_coeff_request, re_rvec_request, im_rvec_request
     integer, allocatable :: ipiv( : )
     real(DP) :: tmp_r, tmp_i
     integer :: local_gmres_size, info, iter, c_size, iter_start
@@ -278,19 +258,11 @@ module OCEAN_gmres
     allocate( re_coeff_vec( current_iter ), im_coeff_vec( current_iter ), & 
               re_rvec( current_iter ), im_rvec( current_iter ) )    
 
-    allocate( re_coeff_request( current_iter ), im_coeff_request( current_iter ), &
-              re_rvec_request( current_iter ), im_rvec_request( current_iter ) )
     !
     !
     ! For iter = current_iter we can call psi_nrm instead of psi_dot
     !  this will save a small amount of time, but need to correctly 
     !  set the imaginary value and request to 0/null 
-!    im_coeff_request( current_iter ) = MPI_REQUEST_NULL
-!    im_coeff_vec( current_iter ) = 0.0_DP
-    im_coeff_request( : ) = MPI_REQUEST_NULL
-    re_coeff_request( : ) = MPI_REQUEST_NULL
-    re_rvec_request( : ) = MPI_REQUEST_NULL
-    im_rvec_request( : ) = MPI_REQUEST_NULL
     re_rvec( : ) = 0.0_DP
     im_rvec( : ) = 0.0_DP
     re_coeff_vec( : ) = 0.0_DP
@@ -306,16 +278,11 @@ module OCEAN_gmres
                           ival=im_rvec( iter ), defer=.true. )
     enddo
 
-    call OCEAN_psi_nrm( re_coeff_vec( current_iter ), au_matrix( current_iter ), ierr, & 
-                        re_coeff_request( current_iter ), defer=.true. )
+    call OCEAN_psi_nrm( re_coeff_vec( current_iter ), au_matrix( current_iter ), ierr, defer = .true. ) 
     call OCEAN_psi_dot( au_matrix( current_iter ), psi_g, &
                         re_rvec( current_iter ), ierr , &
                         ival=im_rvec( current_iter ), defer=.true. )
 
-!    call MPI_WAITALL( current_iter, re_coeff_request, MPI_STATUSES_IGNORE, ierr )
-!    if( ierr .ne. 0 ) return
-!    call MPI_WAITALL( current_iter, im_coeff_request, MPI_STATUSES_IGNORE, ierr )
-!    if( ierr .ne. 0 ) return
     if( myid .eq. root ) then
       call MPI_REDUCE( MPI_IN_PLACE, re_coeff_vec, current_iter, MPI_DOUBLE_PRECISION, MPI_SUM, root, comm, ierr )
       call MPI_REDUCE( MPI_IN_PLACE, im_coeff_vec, current_iter, MPI_DOUBLE_PRECISION, MPI_SUM, root, comm, ierr )
@@ -331,9 +298,6 @@ module OCEAN_gmres
     allocate( coeff( current_iter ) )
     if( myid .eq. root ) then
       iter_start = (current_iter * ( current_iter - 1 ) ) / 2
-!      if( current_iter .eq. 1 ) then
-!        write(6,*) iter_start, cmplx( re_coeff_vec( 1 ), im_coeff_vec( 1 ), DP )
-!      endif
       do iter = 1, current_iter
         c_matrix( iter + iter_start ) = cmplx( re_coeff_vec( iter ), -im_coeff_vec( iter ), DP )
       enddo
@@ -341,19 +305,8 @@ module OCEAN_gmres
       c_size = current_iter * (current_iter + 1 ) / 2 
       allocate( c_temp( c_size ), ipiv( current_iter ) )
       c_temp( : ) = c_matrix( 1 : c_size )
-!      if( current_iter .le. 3 ) then
-!        write(6,*) c_temp( : )
-!      endif
 
-
-!      if( current_iter .gt. 1 ) then
-        call zhptrf( 'U', current_iter, c_temp, ipiv, info )
-!      else 
-!        info = 0
-!      endif
-
-!      call MPI_WAITALL( current_iter, re_rvec_request, MPI_STATUSES_IGNORE, ierr )
-!      call MPI_WAITALL( current_iter, im_rvec_request, MPI_STATUSES_IGNORE, ierr )
+      call zhptrf( 'U', current_iter, c_temp, ipiv, info )
 
       ! Want to test after waitall so that all procs are on the same page if we abort
       if( info .ne. 0 ) then
@@ -362,23 +315,12 @@ module OCEAN_gmres
         do iter = 1, current_iter
           coeff( iter ) = -cmplx( re_rvec( iter ), im_rvec( iter ), DP )
         enddo
-!        if( current_iter .le. 3 ) then
-!          write(6,*) coeff(:)
-!        endif
 
 
-!       if( current_iter .gt. 1 ) then
-          call zhptrs( 'U', current_iter, 1, c_temp, ipiv, coeff, current_iter, info )
-!        else
-!          info = 0
-!          coeff(1) = coeff(1)/c_temp(1)
-!        endif
+        call zhptrs( 'U', current_iter, 1, c_temp, ipiv, coeff, current_iter, info )
       endif
       deallocate( c_temp, ipiv )
 
-!    else
-!      call MPI_WAITALL( current_iter, re_rvec_request, MPI_STATUSES_IGNORE, ierr )
-!      call MPI_WAITALL( current_iter, im_rvec_request, MPI_STATUSES_IGNORE, ierr )
     endif
 
     call MPI_BCAST( info, 1, MPI_INTEGER, root, comm, ierr )
@@ -389,11 +331,6 @@ module OCEAN_gmres
     call MPI_BCAST( coeff, current_iter, MPI_DOUBLE_COMPLEX, root, comm, ierr )
     if( ierr .ne. 0 ) return
 
-!    if( current_iter .le. 3 ) then
-!      write(6,*) coeff(:)
-!    endif
-
-
     ! update ax and x
     do iter = 1, current_iter
       tmp_r = real( coeff( iter ), DP )
@@ -402,9 +339,6 @@ module OCEAN_gmres
       call OCEAN_psi_axpy( tmp_r, au_matrix( iter ), psi_ax, ierr, tmp_i )
     enddo
 
-    deallocate( coeff, re_coeff_vec, im_coeff_vec, re_rvec, im_rvec, & 
-                re_coeff_request, im_coeff_request, re_rvec_request, im_rvec_request )
-    
     call OCEAN_tk_stop( tk_inv )
     !
   end subroutine update_gmres
@@ -594,7 +528,7 @@ module OCEAN_gmres
     logical :: loud = .true.
     character( len=25 ) :: abs_filename
     integer, parameter :: abs_fh = 76
-    type( ocean_vector ) :: hay_psi_x
+    type( ocean_vector ) :: hay_psi_x, psi_rhs
 
     integer :: nhflag(6)
     nhflag(:) = sys%nhflag
@@ -640,6 +574,10 @@ module OCEAN_gmres
     if( ierr .ne. 0 ) return
     !
     call OCEAN_psi_new( hay_psi_x, ierr )
+    if( ierr .ne. 0 ) return
+    call OCEAN_psi_new( psi_rhs, ierr )
+    if( ierr .ne. 0 ) return
+    call OCEAN_energies_sfact_copy( sys, hay_vec, psi_rhs, ierr )
     if( ierr .ne. 0 ) return
     !!!!
     
@@ -698,7 +636,7 @@ module OCEAN_gmres
 
       if( prev_iter .eq. 0 ) then
 !        if( myid .eq. root ) write( 6, * ) 'no recycle: '
-        call set_initial_vector( sys, step_iter, psi_x, psi_g, psi_ax, hay_vec, psi_tmp, ierr, nhflag)
+        call set_initial_vector( sys, step_iter, psi_x, psi_g, psi_ax, psi_rhs, psi_tmp, ierr, nhflag)
         if( ierr .ne. 0 ) then
           if( myid .eq. root ) write( 6,*) 'set_initial_vector failed'
           return
@@ -707,10 +645,9 @@ module OCEAN_gmres
           call OCEAN_psi_nrm( gval, psi_g, ierr )  ! non-blocking wouldn't do any good
           if( ierr .ne. 0 ) return
 
-          call OCEAN_psi_dot( hay_vec, psi_x, rval, ierr, ival=ival )
+          call OCEAN_psi_dot( psi_rhs, psi_x, rval, ierr, ival=ival )
           if( ierr .ne. 0 ) return
-!          call MPI_WAITALL( 2, requests, MPI_STATUSES_IGNORE, ierr )
-!          if( ierr .ne. 0 ) return
+
           if( myid .eq. 0 ) then
             write ( 6, '(1p,2x,3i5,5(1x,1e15.8))' ) complete_iter, prev_iter, gmres_depth, &
                   gval, gmres_convergence, ener, (1.0_dp - rval), -ival
@@ -724,25 +661,20 @@ module OCEAN_gmres
         call make_recycle( prev_iter, gmres_energy_list( step_iter ) * ev2Hartree, & 
                            gmres_energy_list( step_iter -1)* eV2Hartree, psi_tmp, sys, ierr )
         if( ierr .ne. 0 ) return
-!        call OCEAN_psi_min_set_prec( ener, gmres_preconditioner, hpsi1, psi_pcdiv, ierr )
-!        if( ierr .ne. 0 ) then
-!          if( myid .eq. root ) write(6,*) 'OCEAN_psi_min_set_prec failed'
-!          return
-!        endif
-!        prev_energy = ener
-        call set_initial_vector( sys, step_iter, psi_x, psi_g, psi_ax, hay_vec, psi_tmp, ierr, nhflag)
+
+        call set_initial_vector( sys, step_iter, psi_x, psi_g, psi_ax, psi_rhs, psi_tmp, ierr, nhflag)
         if( ierr .ne. 0 ) return
         do iter = 1, prev_iter
           call update_gmres( iter, psi_g, psi_x, psi_ax, ierr )
           if( ierr .ne. 0 ) return
-          call OCEAN_psi_axmz( psi_ax, psi_g, hay_vec, ierr )
+          call OCEAN_psi_axmz( psi_ax, psi_g, psi_rhs, ierr )
         enddo
           !
 
         call OCEAN_psi_nrm( gval, psi_g, ierr )  ! non-blocking wouldn't do any good
         if( ierr .ne. 0 ) return
         if( loud ) then
-          call OCEAN_psi_dot( hay_vec, psi_x, rval, ierr, ival=ival )
+          call OCEAN_psi_dot( psi_rhs, psi_x, rval, ierr, ival=ival )
           if( ierr .ne. 0 ) return
           call MPI_WAITALL( 2, requests, MPI_STATUSES_IGNORE, ierr )
           if( ierr .ne. 0 ) return
@@ -758,7 +690,7 @@ module OCEAN_gmres
         endif
 !          if( myid.eq.root) write(*,*) 'conv check'
         if( gval .lt. gmres_convergence ) then
-          call OCEAN_psi_dot( hay_vec, psi_x, rval, ierr, ival=ival )
+          call OCEAN_psi_dot( psi_rhs, psi_x, rval, ierr, ival=ival )
           if( ierr .ne. 0 ) return
           call MPI_WAITALL( 2, requests, MPI_STATUSES_IGNORE, ierr )
           if( ierr .ne. 0 ) return
@@ -877,31 +809,20 @@ module OCEAN_gmres
               prev_energy = ener
             endif
 
-            ! find approximate eigenvectors/values
-!            keep = 5
-!            call eigensystem_gmres( iter, keep, ierr )
-!            prev_iter = keep
-!            do i = 1, prev_iter
-!              call update_gmres( i, psi_g, psi_x, psi_ax, ierr )
-!              if( ierr .ne. 0 ) return
-!              call OCEAN_psi_axmz( psi_ax, psi_g, hay_vec, ierr )
-!            enddo
-!            if( myid .eq. 0 ) write( 6, * ) 'eigen'
             prev_iter = 0
           endif
 
           ! get new g
           ! g = ax - b   !!! y = x - z
-          call OCEAN_psi_axmz( psi_ax, psi_g, hay_vec, ierr )
+          call OCEAN_psi_axmz( psi_ax, psi_g, psi_rhs, ierr )
           !
 
           call OCEAN_psi_nrm( gval, psi_g, ierr )  ! non-blocking wouldn't do any good
           if( ierr .ne. 0 ) return
           if( loud ) then
-            call OCEAN_psi_dot( hay_vec, psi_x, rval, ierr, ival=ival )
+            call OCEAN_psi_dot( psi_rhs, psi_x, rval, ierr, ival=ival )
             if( ierr .ne. 0 ) return
-!            call MPI_WAITALL( 2, requests, MPI_STATUSES_IGNORE, ierr )
-!            if( ierr .ne. 0 ) return
+
             if( myid .eq. 0 ) then
               write ( 6, '(1p,2x,3i5,5(1x,1e15.8))' ) complete_iter, iter, gmres_depth, &
                     gval, gmres_convergence, ener, (1.0_dp - rval), -ival
@@ -912,13 +833,11 @@ module OCEAN_gmres
                     gval, gmres_convergence, ener, global_iter
             endif
           endif
-!          if( myid.eq.root) write(*,*) 'conv check'
+
           if( gval .lt. gmres_convergence ) then 
 
-            call OCEAN_psi_dot( hay_vec, psi_x, rval, ierr, ival=ival )
+            call OCEAN_psi_dot( psi_rhs, psi_x, rval, ierr, ival=ival )
             if( ierr .ne. 0 ) return
-!            call MPI_WAITALL( 2, requests, MPI_STATUSES_IGNORE, ierr )
-!            if( ierr .ne. 0 ) return
             rel_error = -gval / ival
 
             if( rel_error .lt. 0.001 .or. (gval .lt. gmres_convergence/10.0_dp ) ) then
@@ -927,7 +846,6 @@ module OCEAN_gmres
               goto 200 ! if convergered goto 200
             endif
           endif
-!          if(myid.eq.root) write(*,*) 'no conv: ', step_iter
         enddo
 
 
@@ -937,10 +855,6 @@ module OCEAN_gmres
 200   continue
 !      prev_iter = iter
 
-!      call OCEAN_psi_dot( hay_vec, psi_x, requests(1), rval, ierr, requests(2), ival )
-!      if( ierr .ne. 0 ) return
-!      call MPI_WAITALL( 2, requests, MPI_STATUSES_IGNORE, ierr )
-!      if( ierr .ne. 0 ) return
       if(myid.eq. root) then
         rel_error = -gval / ival
         write( abs_fh, '(1p,4(1e15.8,1x),1i6,1x,i10)' ) ener * Hartree2eV, &
@@ -952,11 +866,8 @@ module OCEAN_gmres
       if ( echamp ) then
 
         rval = 0.0_DP
-        call OCEAN_psi_3element_mult( hay_psi_x, hay_vec, psi_x, ierr, rval, .true. )
+        call OCEAN_psi_3element_mult( hay_psi_x, psi_rhs, psi_x, ierr, rval, .true. )
         if( ierr .ne. 0 ) return
-!JTV
-!        call write_out_energy(sys, step_iter, hay_psi_x, nhflag, ierr)
-!        if( ierr .ne. 0 ) return
       endif
 
       if( echamp ) then
@@ -965,8 +876,6 @@ module OCEAN_gmres
         if( ierr .ne. 0 ) return
       endif
     enddo
-!enddo 
-   ! Create all the psi vectors we need
 
     call OCEAN_psi_kill( hay_psi_x, ierr )
     if( ierr .ne. 0 ) return
@@ -981,6 +890,11 @@ module OCEAN_gmres
     call OCEAN_psi_kill( psi_pcdiv, ierr )
     if( ierr .ne. 0 ) return
 
+
+    if( sys%cur_run%bwflg ) then
+      call OCEAN_psi_kill( psi_tmp, ierr )
+      if( ierr .ne. 0 ) return
+    endif
 
     if( myid .eq. root ) close( abs_fh )
 
