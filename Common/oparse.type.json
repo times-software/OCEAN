@@ -54,6 +54,7 @@
          "broaden" : "f",
          "bwflg" : "b",
          "decut" : "f",
+         "disable_intraband" : "b",
          "epsilon_threshold" : "f",
          "gmres" : {
             "echamp" : "b",
