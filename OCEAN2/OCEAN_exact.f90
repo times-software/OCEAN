@@ -86,6 +86,12 @@ module OCEAN_exact
     nonHerm = .false.
     if( sys%nbw .eq. 2 ) nonHerm = .true.
     if( myid .eq. root ) write(6,*) 'Non Herm', nonHerm
+    if( myid .eq. root ) write(6,*) 'backf', sys%cur_run%backf
+    if( sys%cur_run%backf ) then
+      if( myid .eq. root ) write(6,*) 'BACKF not supported with exact'
+      ierr = 1
+      return
+    endif
 
     call OCEAN_initialize_bse( sys, ierr )
     if( ierr .ne. 0 ) return
@@ -197,6 +203,7 @@ module OCEAN_exact
     if( .not. is_init ) then
       fresh_ = .true.
       call OCEAN_exact_init( sys, ierr )
+      if( ierr .ne. 0 ) return
     endif
 
     if( fresh_ ) then
@@ -703,6 +710,12 @@ module OCEAN_exact
       endif
       call OCEAN_energies_allow_full( sys, psi_in, ierr )
       if( ierr .ne. 0 ) return
+
+      !TODO: bfnorm/backf don't work for exact
+      if( sys%cur_run%backf ) then
+        call OCEAN_energies_bfnorm( sys, psi_in, ierr )
+        if( ierr .ne. 0 ) return
+      endif
   
       if( sys%cur_run%bflag ) then
         ! For now re-use mult timing for bubble
@@ -730,11 +743,30 @@ module OCEAN_exact
         call OCEAN_tk_stop( tk_lr )
       endif
 
-      call OCEAN_energies_allow_full( sys, psi_in, ierr )
+      call OCEAN_energies_allow_full( sys, psi_out, ierr )
       if( ierr .ne. 0 ) return
+      if( sys%cur_run%backf ) then
+        call OCEAN_energies_bfnorm( sys, psi_out, ierr )
+        if( ierr .ne. 0 ) return
+      endif
 
       call OCEAN_psi_send_buffer( psi_out, ierr )
       if( ierr .ne. 0 ) return
+
+      !TODO: This is a bit of a time wasting hack, but also exact diag using backf
+      !      will probably be used primarily for testing. This resets psi_in
+      !      to undo the effect of bfnorm. 
+      if( sys%cur_run%backf ) then
+        call OCEAN_psi_zero_full( psi_in, ierr )
+        if( ibw .eq. 1 ) then
+          psi_in%valr( icband, ivband, ikpt, ibeta, ibw ) = 1.0_DP
+        else
+          psi_in%valr( icband, ivband, ikpt, ibeta, ibw ) = -1.0_DP
+        endif
+        call OCEAN_energies_allow_full( sys, psi_in, ierr )
+        if( ierr .ne. 0 ) return
+      endif
+      !!!!!!!
 
       call ocean_energies_act( sys, psi_in, psi_out, .false., ierr )
 !      if( myid .eq. root ) then
@@ -1312,7 +1344,11 @@ module OCEAN_exact
           if( nonHerm ) then
             energy = bse_cmplx_evalues( ibasis ) * Hartree2eV
           else
-            energy = bse_evalues( ibasis ) * Hartree2eV
+            if( sys%cur_run%backf ) then
+              energy = sqrt( bse_evalues( ibasis ) ) * Hartree2eV
+            else
+              energy = bse_evalues( ibasis ) * Hartree2eV
+            endif
           endif
           if( nonHerm ) then
             write(99,*) ibasis, energy, weight2 * conjg(weight), dble(weight), aimag( weight ), &
@@ -1320,10 +1356,15 @@ module OCEAN_exact
           else
             write(99,*) ibasis, energy, dble( weight * conjg(weight)), dble(weight), aimag( weight )
             weight2=weight
+              
           endif
 
           do iter = 1, ne
             e = el + ( eh - el ) * dble( iter - 1 ) / dble( ne - 1 )
+!            if( sys%cur_run%backf ) then
+!              broaden = 2.0_DP * e * gam0
+!              e = e*e - gam0*gam0
+!            endif
             su = real( weight2 * conjg(weight),EDP) &
                * (energy-e) * real(hay_vec%kpref * Hartree2eV, EDP ) &
                / ( ( energy - e )**2 + broaden**2 )
