@@ -31,9 +31,10 @@ subroutine jtvsub( lmin, lmax, nproj, npmax, lc, nbsemel, powmax, ifcn, stext, e
   ! This flag reproduces it, but is left as a compile time setting because it is wrong
   ! There are additional flags to test only the Quad contribution, or only the 1st core level
   ! (e.g. 2p when looking at 1s two-photon), or only the 2nd core level (e.g. 3p)
-  logical, parameter :: QuadAlone = .false.
-  logical, parameter :: test1 = .false.
-  logical, parameter :: test2 = .false.
+  logical, parameter :: QuadAlone = .false.  ! This is now superceded by use of 'tpq' photon
+!  logical, parameter :: test1 = .false.
+!  logical, parameter :: test2 = .false.
+  logical :: test1, test2
   !
   !
   lpick = -1
@@ -120,7 +121,7 @@ subroutine jtvsub( lmin, lmax, nproj, npmax, lc, nbsemel, powmax, ifcn, stext, e
               end do
               nbsemel( 1 : nproj( l ), m, l, mc ) = csu(1) * ifcn( 1 : nproj( l ), 1, l )
               !
-           case( 'tp' )
+           case( 'tp', 'tpq', 'tp1', 'tp2', 'tpp' )
               csu(:) = 0
               do i = 1, nsphpt
                  call getylm( lc, mc, xsph( i ), ysph( i ), zsph( i ), ylcmc, prefs )
@@ -128,7 +129,7 @@ subroutine jtvsub( lmin, lmax, nproj, npmax, lc, nbsemel, powmax, ifcn, stext, e
                  edot = xsph( i ) * ehat( 1 ) + ysph( i ) * ehat( 2 ) + zsph( i ) * ehat( 3 )
                  csu(1) = csu(1) + conjg(ylcmc) * edot * edot * ylm * wsph(i)
               end do
-              nbsemel( 1 : nproj( l ), m, l, mc ) = csu(1) * ifcn( 1 : nproj( l ), 1, l )
+              nbsemel( 1 : nproj( l ), m, l, mc ) = csu(1) * ifcn( 1 : nproj( l ), 2, l )
               !
            case( 'quad', 's-quad', 'p-quad', 'd-quad' )
               csu(:) = 0
@@ -224,7 +225,7 @@ subroutine jtvsub( lmin, lmax, nproj, npmax, lc, nbsemel, powmax, ifcn, stext, e
                     if( msign .gt. 0 ) then
                       nbsemel( 1 : nproj( l ), m, l, mc ) = (-1)**l * 1.0d0/sqrt(2.0d0) * ldosmel( 1 : nproj(l) )
                     else
-                      nbsemel( 1 : nproj( l ), m, l, mc ) = (-1)**l * -1.0d0/sqrt(2.0d0) * ldosmel( 1 : nproj(l) )
+                      nbsemel( 1 : nproj( l ), m, l, mc ) = (-1)**l * (-1.0d0/sqrt(2.0d0) * ldosmel( 1 : nproj(l) ))
                     endif
                   endif
                 else
@@ -240,9 +241,24 @@ subroutine jtvsub( lmin, lmax, nproj, npmax, lc, nbsemel, powmax, ifcn, stext, e
      end do
   end do
   !
-  if( spcttype(1:2) .eq. 'tp' ) then
+  if( spcttype .eq. 'tp' .or. spcttype .eq. 'tp1' .or. spcttype .eq. 'tp2' .or. spcttype .eq. 'tpp') then
     ! Current implementation is hardwired for a K edge
     li = 1
+
+    if( spcttype .eq. 'tp1' ) then
+      test1 = .true.
+    else
+      test1 = .false.
+    endif
+    if( spcttype .eq. 'tp2' ) then
+      test2 = .true.
+    else
+      test2 = .false.
+    endif
+    if( spcttype .eq. 'tpp' ) then
+      test1 = .true.
+      test2 = .true.
+    endif
 
     if( test1 .or. test2 ) then
       nbsemel( :, :, :, : ) = 0.0d0
@@ -275,20 +291,26 @@ subroutine jtvsub( lmin, lmax, nproj, npmax, lc, nbsemel, powmax, ifcn, stext, e
               end do
               ! As noted above, the following is incorrect
               if( QuadAlone ) then
-              elseif( test1 ) then
+              else
+              if( test1 ) then
                 if( isemi .eq. 1 ) then
                   nbsemel( 1 : nproj( l ), m, l, mc ) = nbsemel( 1 : nproj( l ), m, l, mc ) &
-                    + csu(1) * csu(2) * c2c( 1, isemi ) * semifcn( 1 : nproj(l), 1, l, isemi )
+                    + csu(1) * csu(2) * c2c( 1, isemi ) * semifcn( 1 : nproj(l), 1, l, isemi ) &
+                    * semiReducedEnergy( isemi )
                 endif
-              elseif( test2 ) then
+              endif
+              if( test2 ) then
                 if( isemi .eq. 2 ) then
                   nbsemel( 1 : nproj( l ), m, l, mc ) = nbsemel( 1 : nproj( l ), m, l, mc ) &
-                    + csu(1) * csu(2) * c2c( 1, isemi ) * semifcn( 1 : nproj(l), 1, l, isemi )
+                    + csu(1) * csu(2) * c2c( 1, isemi ) * semifcn( 1 : nproj(l), 1, l, isemi ) &
+                    * semiReducedEnergy( isemi )
                 endif
-              elseif( PCCP2022 ) then
+              endif
+              if( PCCP2022 ) then
                 nbsemel( 1 : nproj( l ), m, l, mc ) = nbsemel( 1 : nproj( l ), m, l, mc ) &
                     - csu(1) * csu(2) * c2c( 1, isemi ) * semifcn( 1 : nproj(l), 1, l, isemi )
-              else ! The correct behavior
+              endif
+              if( .not. test1 .and. .not. test2 .and. .not. PCCP2022 .and. .not. QuadAlone) then ! The correct behavior
                 ! transitions can happen first from any occupied core or semi-core state and 
                 ! then from the final target level into the newly unoccupied core. E.g., in 
                 ! addition to 1s -> 3d/4s with a quadrupole operator, so can first have 
@@ -298,6 +320,7 @@ subroutine jtvsub( lmin, lmax, nproj, npmax, lc, nbsemel, powmax, ifcn, stext, e
                 nbsemel( 1 : nproj( l ), m, l, mc ) = nbsemel( 1 : nproj( l ), m, l, mc ) &
                     + ( csu(1) * csu(2) * c2c( 1, isemi ) * semifcn( 1 : nproj(l), 1, l, isemi ) &
                       * semiReducedEnergy( isemi ) )
+              endif
               endif
             enddo
           enddo

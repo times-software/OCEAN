@@ -82,16 +82,13 @@ subroutine cmjtv( nsphpt, xsph, ysph, zsph, wsph, prefs )
   case( 'quadalone', 's-quadalone', 'p-quadalone', 'd-quadalone' )
      lam = 10000.0d0 / ( ephotev * 0.806554445d0 )
      q = 0.529177d0 * ( 2.0d0 * pi / lam )
-  case( 'tp' )
-     lam = 10000.0d0 / ( ephotev * 0.806554445d0 )
-     q = 0.529177d0 * ( 2.0d0 * pi / lam )
   case( 'NRIXS' )
       write(6,*) 'NRIXS is deprecated in favor of qRaman. Consider changing your inputs'
      ! nothing needs to be done!!!
   case( 'ldos0', 'ldos1', 'ldos2', 'ldos3', 'ldos00', 'ldos1-1', 'ldos10', 'ldos11', &
         'ldos2-2', 'ldos2-1', 'ldos20', 'ldos21', 'ldos22' )
      q = ephotev
-  case( 'qRaman', 'qRs', 'qRp', 'qRd', 'qRf' )
+  case( 'qRaman', 'qRs', 'qRp', 'qRd', 'qRf', 'tp', 'tpq', 'tp1', 'tp2', 'tpp' )
      ! nothing needs to be done!!!
 
   case default
@@ -102,7 +99,7 @@ subroutine cmjtv( nsphpt, xsph, ysph, zsph, wsph, prefs )
   end select
   write ( 6, '(1a4,1f10.5)' ) 'q = ', q
   !
-  if( spcttype .eq. 'tp' ) then
+  if( spcttype(1:2) .eq. 'tp' ) then
     write(f12, '(1A9I3.3)') 'corezetaz', atno
     open( unit=98, file=f12, form='formatted', status='old' )
     allocate( atomNL( 2, atomNLMax ), atomEnergy( atomNLMax ) )
