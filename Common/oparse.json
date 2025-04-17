@@ -16,7 +16,13 @@
             "nloop" : 80
          },
          "gw" : {
-            "control" : "none"
+            "control" : "none",
+            "cstr" : {
+               "abs_gap" : false,
+               "cstr" : 0,
+               "gap" : 0,
+               "vstr" : 0
+            }
          },
          "haydock" : {
             "converge" : {

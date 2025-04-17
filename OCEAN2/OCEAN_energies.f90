@@ -999,30 +999,37 @@ module OCEAN_energies
     type(O_system), intent( in ) :: sys
     real(DP), intent(inout) :: energies(:,:,:)
 
-    real(DP) :: cstr
+    real(DP) :: cstr, vstr, gap, bandEdge
+    logical :: abs_gap
     logical :: have_gw
+    real(DP), parameter :: small = 0.00000000001_DP
 
     if( myid .ne. root ) return
 
     write(6,*) 'Attempting GW stretch!'
 
-    inquire(file='gwcstr', exist=have_gw )
+    inquire(file='gw_core_cstr', exist=have_gw )
 
     if( .not. have_gw ) then
-      write( 6, * ) 'GW corrections requested (stretch style). File gwcstr not found.'
+      write( 6, * ) 'GW corrections requested (stretch style). File gw_core_cstr not found.'
       write( 6, * ) 'No corrections will be done'
       return
     endif
 
-    open( unit=99, file='gwcstr', form='formatted',status='old')
+    open( unit=99, file='gw_core_cstr', form='formatted',status='old')
     rewind(99)
-    read(99,*) cstr
+    read(99,*) gap, abs_gap, vstr, cstr
     close(99)
 
-    if( abs( cstr ) .lt. 0.00000001_DP ) return
+    if( abs_gap .or. ( gap .gt. small ) ) then
+      write(6,*) 'WARNING: gap correction requested, but not implemented!'
+    endif
 
+    if( abs( cstr ) .lt. small ) return
+
+    call findBandEdge( sys, energies, bandEdge )
     cstr = cstr + 1.0_DP
-    energies( :, :, : ) = energies( :, :, : ) * cstr
+    energies( :, :, : ) = ( ( energies( :, :, : ) - bandEdge ) * cstr ) + bandEdge
 
   end subroutine OCEAN_gw_stretch
 
@@ -1568,5 +1575,27 @@ module OCEAN_energies
     endif
 
   end function NfromFermi
+
+  ! Currently only finds conduction band minimum for XAS calculations,
+  ! TODO: extend to XES energy adjustments too
+  subroutine findBandEdge( sys, ener, bandEdge )
+    use OCEAN_system, only : O_system
+    type(O_system), intent( in ) :: sys
+    real(DP), intent( in ) :: ener( sys%num_bands, sys%nkpts, sys%nspn )
+    real(DP), intent( out ) :: bandEdge
+    
+    integer :: tot_electron, fullyOccupiedElectrons
+    real(DP), allocatable :: sorted_energies(:)
+
+    allocate( sorted_energies( sys%num_bands * sys%nkpts * sys%nspn ) )
+    sorted_energies = reshape( ener, (/ sys%num_bands * sys%nkpts * sys%nspn /) )
+    call do_sort2( sorted_energies )
+    tot_electron = nint( sys%nelectron * sys%nkpts * sys%nspn / 2.0_dp )
+    fullyOccupiedElectrons = ( sys%brange(3) - 1 ) * sys%nkpts * sys%nspn
+    tot_electron = tot_electron - fullyOccupiedElectrons
+
+    bandEdge = sorted_energies( tot_electron + 1)
+    deallocate( sorted_energies )
+  end subroutine findBandEdge
 
 end module OCEAN_energies
