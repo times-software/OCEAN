@@ -11,10 +11,15 @@ obj=$(srcf90:.f90=.o)
 objf77=$(srcf77:.f=.o)
 FLAGS = $(OPTIONS) -fcheck=all -O0
 
-all: $(modobj) $(obj) $(objf77)
-	echo $(modobj) $(obj)
+all: $(binaries)
+
+selfenergy.x: $(modobj) $(obj) $(objf77)
 	$(FC) $(FLAGS) $(modobj) $(obj) selfenergy.f90 -o selfenergy.x
+
+eps2exc.x: $(modobj) $(obj) $(objf77)
 	$(FC) $(FLAGS) eps2exc.f terp.o polint.o getomi.o IntGrl.o rdloss.o rdcmt.o getdom.o -o eps2exc.x
+
+kkconv.x: $(modobj) $(obj) $(objf77)
 	$(FC) $(FLAGS) $(modobj) $(obj) kkprog.f90  -o kkconv.x
 
 install:
