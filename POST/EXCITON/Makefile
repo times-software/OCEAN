@@ -25,7 +25,7 @@ periodic.o: periodic.f90
 	$(FC)  $(FOPTS) -c -o periodic.o periodic.f90
 
 install:
-	cp exciton_plot.x val_exciton_plot.x $(INSTDIR)/
+	cp exciton_plot.x val_exciton_plot.x exciton_band.x $(INSTDIR)/
 
 clean:
 	rm *.o *.x *.mod
