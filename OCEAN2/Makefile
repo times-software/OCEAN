@@ -20,7 +20,7 @@ OCEANOBJS = AI_kinds.o OCEAN_mpi.o OCEAN_system.o OCEAN_bloch.o OCEAN_obf.o OCEA
             OCEAN_get_rho.o optim.o OCEAN_hyb_louie_levine.o OCEAN_ladder.o \
 						OCEAN_pfy.o OCEAN_rixs_holder.o OCEAN_corewidths.o OCEAN_action.o \
 						OCEAN_driver.o OCEAN_gmres.o OCEAN_filenames.o $(FFT_WRAPPER_OBJS) $(CAIN_OBJS) \
-            OCEAN_WRR.o ../SCREEN/src/ocean_sphericalharmonics.o OCEAN_fxc.o
+            OCEAN_WRR.o ../SCREEN/src/ocean_sphericalharmonics.o OCEAN_fxc.o OCEAN_exact.o
 
 KINDS = AI_kinds.o
 
@@ -83,7 +83,9 @@ OCEAN_action.o: OCEAN_action.f90 OCEAN_timekeeper.o OCEAN_psi.o OCEAN_bubble.o O
 								OCEAN_system.o OCEAN_energies.o OCEAN_multiplet.o long_range.o OCEAN_fxc.o
 	$(MPIFORT) $(FLAGS) -c -o OCEAN_action.o OCEAN_action.f90
 
-OCEAN_exact.o: OCEAN_exact.f90
+OCEAN_exact.o: OCEAN_exact.f90 OCEAN_psi.o OCEAN_multiplet.o long_range.o OCEAN_system.o \
+               OCEAN_mpi.o AI_kinds.o OCEAN_energies.o OCEAN_bubble.o OCEAN_fxc.o OCEAN_constants.o \
+               OCEAN_timekeeper.o
 	$(MPIFORT) $(FLAGS) -c -o  OCEAN_exact.o OCEAN_exact.f90
 
 getabb.o: $(CNBSE)/getabb.f90
@@ -184,7 +186,7 @@ OCEAN_rixs_holder.o: OCEAN_rixs_holder.f90 AI_kinds.o OCEAN_system.o OCEAN_mpi.o
 OCEAN_corewidths.o: OCEAN_corewidths.f90 AI_kinds.o
 	$(MPIFORT) $(FLAGS) -c -o OCEAN_corewidths.o OCEAN_corewidths.f90
 
-OCEAN_driver.o: OCEAN_driver.f90 OCEAN_mpi.o OCEAN_system.o OCEAN_psi.o OCEAN_haydock.o OCEAN_gmres.o
+OCEAN_driver.o: OCEAN_driver.f90 OCEAN_mpi.o OCEAN_system.o OCEAN_psi.o OCEAN_haydock.o OCEAN_gmres.o OCEAN_exact.o
 	$(MPIFORT) $(FLAGS) -c -o OCEAN_driver.o OCEAN_driver.f90
 
 OCEAN_gmres.o: OCEAN_gmres.f90 AI_kinds.o OCEAN_psi.o OCEAN_system.o OCEAN_mpi.o \
@@ -197,7 +199,8 @@ OCEAN_filenames.o: OCEAN_filenames.f90 OCEAN_system.o
 OCEAN_WRR.o: OCEAN_WRR.f90 OCEAN_constants.o OCEAN_system.o OCEAN_mpi.o OCEAN_hyb_louie_levine.o
 	$(MPIFORT) $(FLAGS) -c -o OCEAN_WRR.o OCEAN_WRR.f90
 
-OCEAN_fxc.o: OCEAN_fxc.f90 OCEAN_constants.o OCEAN_system.o OCEAN_mpi.o OCEAN_val_states.o
+OCEAN_fxc.o: OCEAN_fxc.f90 OCEAN_constants.o OCEAN_system.o OCEAN_mpi.o OCEAN_val_states.o \
+             OCEAN_psi.o
 	$(MPIFORT) $(FLAGS) -c -o OCEAN_fxc.o OCEAN_fxc.f90 
 
 clean:
