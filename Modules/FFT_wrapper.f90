@@ -78,7 +78,7 @@ module FFT_wrapper
       write(fh,*) 'Plan using FFTW:', fo%dims(:)
     endif
 #else
-    fo%norm = 1.0d0
+    fo%norm = 1.0d0 / dble( fo%dims(4) )
     fo%jfft = 2 * max( zn( 1 ) * ( zn( 1 ) + 1 ), zn( 2 ) * ( zn( 2 ) + 1 ), zn( 3 ) * ( zn( 3 ) + 1 ) )
     if( present( fh ) ) then
       write(fh,*) 'Plan using Legacy:', fo%dims(:)
@@ -126,8 +126,8 @@ module FFT_wrapper
 
 #else
     fo%is_sp = .false.
-    fo%norm = 1.0_DP
-    fo%norm_sp = 1.0_SP
+    fo%norm = 1.0_DP / dble( fo%dims(4) )
+    fo%norm_sp = fo%norm
     fo%jfft = 2 * max( zn( 1 ) * ( zn( 1 ) + 1 ), zn( 2 ) * ( zn( 2 ) + 1 ), zn( 3 ) * ( zn( 3 ) + 1 ) )
     if( present( fh ) ) then
       write(fh,*) 'Plan using Legacy:', fo%dims(:)
@@ -218,7 +218,7 @@ module FFT_wrapper
     r(:) = real(io(:), kind(1.0d0))
     i(:) = aimag(io(:))
     call cfft( r, i, fo%dims(1), fo%dims(1), fo%dims(2), fo%dims(3), dir, wrk, fo%jfft )
-    if( dir .eq. OCEAN_BACKWARD .and. normalize .eqv. .false. ) then
+    if( ( dir .eq. OCEAN_BACKWARD ) .and. ( normalize .eqv. .false. ) ) then
       io(:) = cmplx(r(:),i(:), kind(1.0d0)) * dble( fo%dims(4) )
     else
       io(:) = cmplx(r(:),i(:), kind(1.0d0))
@@ -286,7 +286,7 @@ module FFT_wrapper
     r(:) = real(io(:), kind(1.0d0))
     i(:) = aimag(io(:))
     call cfft( r, i, fo%dims(1), fo%dims(1), fo%dims(2), fo%dims(3), dir, wrk, fo%jfft )
-    if( dir .eq. OCEAN_BACKWARD .and. normalize .eqv. .false. ) then
+    if( ( dir .eq. OCEAN_BACKWARD ) .and. ( normalize .eqv. .false. ) ) then
       io(:) = cmplx(r(:),i(:), kind(1.0d0)) * dble( fo%dims(4) )
     else
       io(:) = cmplx(r(:),i(:), kind(1.0d0))

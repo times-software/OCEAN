@@ -7,5 +7,5 @@ install:
 	cd MPSE; make install
 
 clean:
-	cd EXCITON: make clean
+	cd EXCITON; make clean
 	cd MPSE; make clean

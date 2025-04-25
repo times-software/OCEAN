@@ -3296,7 +3296,7 @@ subroutine OCEAN_psi_dot_write( p, q, outvec, rrequest, rval, ierr, irequest, iv
       if( have_core .and. z%core_store_size .gt. 0 ) then
         ialpha = y%core_a_start
         ikpt   = y%core_k_start - 1
-        write(6,*) ikpt, ialpha
+!        write(6,*) ikpt, ialpha, '??'
 
         if( do_conjugate ) then
           do i = 1, z%core_store_size
@@ -5809,7 +5809,7 @@ subroutine OCEAN_psi_dot_write( p, q, outvec, rrequest, rval, ierr, irequest, iv
 #ifdef MPI
     core_full_size = psi_bands_pad * psi_kpts_pad * psi_core_alpha
     if( myid .eq. root ) write(6,*) psi_bands_pad, psi_kpts_pad, sys%nalpha
-    write(6,*) myid, root
+!    write(6,*) myid, root
     call MPI_BARRIER( comm, ierr )
 !    call MPI_BCAST( p%kpref, 1, MPI_DOUBLE_PRECISION, root, comm, ierr )
 !    if( ierr .ne. MPI_SUCCESS ) goto 111

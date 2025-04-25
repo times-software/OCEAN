@@ -1,0 +1,59 @@
+#Currently this is only tested with QE, but should be adaptable for ABINIT
+
+#After running the LiF_band.in file to generate the exciton files (echamp...) then
+#you will need to run the bandstructure for QE
+
+# the file kpath.inp will need to be chosen for each structure. This one was 
+# generated using SeeK-path: https://www.materialscloud.org/work/tools/seekpath
+# Hinuma et al Computational Materials Science 128, 140 (2017)
+# https://doi.org/10.1016/j.commatsci.2016.10.015
+# which relies on SpgLib, Togo et al (2018)
+# https://doi.org/10.48550/arXiv.1808.01590
+
+mkdir BAND
+cd BAND
+
+cp ../DFT/scf.in .
+cp ../DFT/scf.out .
+cp -r ../DFT/Out .
+cp ../kpath.inp .
+cp ../CNBSE/ZNL .
+cp ../CNBSE/nspin .
+cp ../PREP/BSE/k0.ipt .
+cp ../CNBSE/kmesh.ipt .
+cp ../CNBSE/brange.ipt .
+cp ../CNBSE/nbuse.ipt .
+cp ../CNBSE/echamp_F_.0001_1s_01.000? .
+
+sed 's/scf/bands/' scf.in | sed 's/K_POINTS automatic//' | sed 's/3 3 3 1 1 1//' | sed 's/nbnd = 6/nbnd = 25/' > nscf.in
+echo 'K_POINTS crystal' >> nscf.in
+cat kpath.inp >> nscf.in
+
+$OCEAN_BIN/pw.x -inp nscf.in > nscf.out
+
+cat << EOF > bands.in
+&BANDS
+  prefix = 'system'
+  outdir = 'Out'
+  filband = 'band.out'
+/
+EOF
+
+$OCEAN_BIN/bands.x < bands.in > bands.log
+
+cat << EOF > exciton_band.ipt
+echamp_F_.0001_1s_01.0001
+band.out.gnu
+band_F_.0001_1s_01.0001
+EOF
+
+$OCEAN_BIN/exciton_band.x
+
+
+cat << EOF > exciton_band.ipt
+echamp_F_.0001_1s_01.0004
+band.out.gnu
+band_F_.0001_1s_01.0004
+EOF
+
+$OCEAN_BIN/exciton_band.x

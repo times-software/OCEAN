@@ -1,0 +1,16 @@
+This shows the OCEAN functionality for two-photon absorption (TPA). 
+
+This example should reproduce the OCEAN-specific part of :
+https://doi.org/10.48550/arXiv.2504.10785
+Any results using this new functionality should cite that paper 
+(or, if it exists, the resulting peer-reviewed journal article)
+
+
+The photon files are:
+1. Standard dipole
+2. Standard quadrupole
+3. Two-photon absorption, both photons have same polarization
+4. The "quad"-like part of two-photon absorptioon
+5. Only the part of the TPA with a 2p intermediate hole
+6. Only the part of the TPA with a 3p intermediate hole
+7. Only the part of the TPA with either a 2p or 3p intermediate hole

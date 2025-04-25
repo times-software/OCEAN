@@ -61,7 +61,6 @@ module OCEAN_system
     logical          :: kshift
     logical          :: have_core = .true.
     logical          :: have_val = .false.
-    logical          :: backf = .false.
     logical          :: write_rhs 
     logical          :: complex_bse
     logical          :: legacy_ibeg 
@@ -790,7 +789,7 @@ module OCEAN_system
           else
             semiTDA = .true.
           endif
-          if( sys%bwflg ) semiTDA = .false.
+          if( bwflg ) semiTDA = .false.
               
           inquire(file="backf", exist=backf )
           if( backf ) then
@@ -800,12 +799,24 @@ module OCEAN_system
             close(98)
             if( val_flag .gt. 0 ) then
               backf = .true.
+              if( lflag ) then
+                write(6,*) 'WARNING: Ladders (lflag) and backf are not compatible!'
+                write(6,*) 'Disabling backf!!!!'
+                backf = .false.
+              endif
             else
               backf = .false.
             endif
           endif 
+          if( backf ) semiTDA = .false.
 
-
+        else
+          lflag = .false.
+          bflag = .false.
+          bwflg = .false.
+          aldaf = .false.
+          semiTDA = .false.
+          backf = .false.
         endif
             
 
