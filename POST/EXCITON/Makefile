@@ -2,10 +2,7 @@ include ../../Makefile.arch
 
 FOPTS=$(OPTIONS) -I../../Modules
 
-all: exciton_plot.x val_exciton_plot.x exciton_band.x
-
-exciton_band.x: OCEAN_exciton_band.f90
-	$(FC) $(FOPTS) -o exciton_band.x OCEAN_exciton_band.f90 $(BLAS)
+all: exciton_plot.x val_exciton_plot.x
 
 val_exciton_plot.x: val_exciton_plot.o periodic.o
 	$(FC) $(FOPTS)  -o val_exciton_plot.x val_exciton_plot.o periodic.o $(BLAS)
@@ -25,7 +22,7 @@ periodic.o: periodic.f90
 	$(FC)  $(FOPTS) -c -o periodic.o periodic.f90
 
 install:
-	cp exciton_plot.x val_exciton_plot.x exciton_band.x $(INSTDIR)/
+	cp exciton_plot.x val_exciton_plot.x $(INSTDIR)/
 
 clean:
 	rm *.o *.x *.mod

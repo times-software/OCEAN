@@ -202,7 +202,6 @@ unless( $newBSEdata->{'calc'}->{'mode'} eq 'val' ) {
 
   writeAuxFiles( $newBSEdata );
   writeScFac( $newBSEdata );
-  writeCoreAuxFiles( $newBSEdata );
 } else {
   writeRunlistVAL( );
   writeBSEinVal( $newBSEdata );
@@ -605,7 +604,7 @@ sub grabOPF {
   foreach my $key (keys %uniqueZNL) {
     my $zstring = sprintf("z%03in%02il%02i", $uniqueZNL{$key}[0], $uniqueZNL{$key}[1], $uniqueZNL{$key}[2]);
     my @fileList = glob( catdir( updir(), "OPF", "zpawinfo", "?k???$zstring" ) );
-#    push @fileList, catfile( updir(), "OPF", "zpawinfo", "melfile$zstring" );
+    push @fileList, catfile( updir(), "OPF", "zpawinfo", "melfile$zstring" );
     push @fileList, catfile( updir(), "OPF", "zpawinfo", "coreorb$zstring" );
 
     foreach (@fileList ) { copy( $_, basename($_ ) ); }
@@ -620,11 +619,6 @@ sub grabOPF {
     push @fileList, ( catfile( updir(), "OPF", "zpawinfo", "corezeta$z" ) );
     push @fileList, ( catfile( updir(), "OPF", "zpawinfo", "radfile$z" ) );
 #    push @fileList, glob( catdir( updir(), "OPF", "zpawinfo", "ft?$z" ) );
-
-    push @fileList, glob( catdir( updir(), "OPF", "zdiag$z", "c2c${z}n??l??" ) );
-    push @fileList, glob( catdir( updir(), "OPF", "zdiag$z", "s2c${z}n??l??" ) );
-    push @fileList, glob( catdir( updir(), "OPF", "zdiag$z", "melsemi${z}n??l??" ) );
-    push @fileList, glob( catdir( updir(), "OPF", "zpawinfo", "melfile${z}n??l??" ) );
     foreach (@fileList ) { copy( $_, basename($_ ) ) == 1 or die "Failed to copy $_\n$!"; }
   }
 
@@ -1114,32 +1108,6 @@ sub prepDen {
   `tail -n 1 rhoofr > nfft`;
 }
 
-sub writeCoreAuxFiles {
-  my ($hashRef) = @_;
-
-  #TODO GW control
-  if( exists $hashRef->{'bse'}->{'core'}->{'gw'}->{'control'} ) {
-    open OUT, ">", "gw_control" or die "Failed to open gw_control\n$!";
-    print OUT $hashRef->{'bse'}->{'core'}->{'gw'}->{'control'} . "\n";
-    close OUT;
-
-    if( $hashRef->{'bse'}->{'core'}->{'gw'}->{'control'} eq 'cstr' ) {
-  
-      open OUT, ">", "gw_core_cstr" or die "Failed to open gw_core_cstr\n$!";
-      printf OUT "%g ", $hashRef->{'bse'}->{'core'}->{'gw'}->{'cstr'}->{'gap'};
-      if( $hashRef->{'bse'}->{'core'}->{'gw'}->{'cstr'}->{'abs_gap'} == $JSON::PP::true ) {
-        print OUT "true "; 
-      } else {
-        print OUT "false ";
-      } 
-      printf OUT "%g %g\n", $hashRef->{'bse'}->{'core'}->{'gw'}->{'cstr'}->{'vstr'},
-                            $hashRef->{'bse'}->{'core'}->{'gw'}->{'cstr'}->{'cstr'};
-      close OUT;
-    }
-  } 
-  
-}
-
 sub writeValAuxFiles {
   my ($hashRef) = @_;
 
@@ -1207,13 +1175,6 @@ sub writeValAuxFiles {
         $hashRef->{'bse'}->{'val'}->{'haydock'}->{'converge'}->{'spacing'};
   close OUT;
 
-  open OUT, ">", "disable_intraband" or die;
-  if( $hashRef->{'bse'}->{'val'}->{'disable_intraband'} == $JSON::PP::true ) {
-    print OUT "T\n";
-  } else {
-    print OUT "F\n";
-  }
-  close OUT;
 
 }
 

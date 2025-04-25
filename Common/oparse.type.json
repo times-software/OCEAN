@@ -14,13 +14,7 @@
             "nloop" : "i"
          },
          "gw" : {
-            "control" : "s",
-            "cstr" : {
-              "abs_gap" : "b",
-              "cstr" : "f",
-              "gap" : "f",
-              "vstr" : "f"
-            }
+            "control" : "s"
          },
          "haydock" : {
             "converge" : {
@@ -60,7 +54,6 @@
          "broaden" : "f",
          "bwflg" : "b",
          "decut" : "f",
-         "disable_intraband" : "b",
          "epsilon_threshold" : "f",
          "gmres" : {
             "echamp" : "b",

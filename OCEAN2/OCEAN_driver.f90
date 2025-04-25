@@ -28,7 +28,6 @@ module OCEAN_driver
     use OCEAN_psi, only : ocean_vector
     use OCEAN_haydock, only : OCEAN_haydock_do
     use OCEAN_gmres, only : OCEAN_gmres_do, OCEAN_gmres_do_recycle
-    use OCEAN_exact, only : OCEAN_exact_diagonalize
     !
     type( o_system ), intent( in ) :: sys
     type( ocean_vector ), intent( inout ) :: hay_vec
@@ -42,8 +41,6 @@ module OCEAN_driver
       case('inv')
 !        call OCEAN_gmres_do( sys, hay_vec, ierr )
         call OCEAN_gmres_do_recycle( sys, hay_vec, ierr )
-      case('exa' , 'dia' )
-        call OCEAN_exact_diagonalize( sys, hay_vec, ierr )
       case default
         if( myid .eq. root ) write(6,*) 'Unrecognized calc style:', style
     end select
@@ -88,8 +85,6 @@ module OCEAN_driver
 
       case( 'inv' )
         call OCEAN_gmres_setup( sys, ierr )
-
-      case( 'exa' , 'dia' )
 
       case default
         if( myid .eq. root ) write(6,*) 'Unsupported style in bse.in: ', style

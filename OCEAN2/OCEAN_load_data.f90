@@ -66,12 +66,8 @@ subroutine OCEAN_load_data( sys, hay_vec, ierr )
     ! Now trim the hay_vec by the allow array 
     !  This 1) cuts off over-lapped states valence above Fermi/conduction below
     !       2) Uniform energy cutoff for upper bands
-    call OCEAN_energies_allow( sys, hay_vec, ierr )
+    call OCEAN_energies_allow( sys, hay_vec, ierr, sfact=sys%bwflg )
     if( ierr .ne. 0 ) return
-    if( sys%cur_run%backf ) then
-      call OCEAN_energies_bfnorm( sys,  hay_vec, ierr )
-      if( ierr .ne. 0 ) return
-    endif
     call OCEAN_psi_pnorm( sys, hay_vec, ierr )
     if( ierr .ne. 0 ) return
     if( myid .eq. root ) write(6,*) 'Trim & scale complete'
@@ -127,7 +123,7 @@ subroutine OCEAN_load_data( sys, hay_vec, ierr )
       if( myid .eq. root ) write(6,*) 'Energies loaded'
  
     if( myid .eq. root ) write(6,*) 'Trim & scale matrix elements'
-    call OCEAN_energies_initial_allow( sys, hay_vec, ierr )
+    call OCEAN_energies_allow( sys, hay_vec, ierr )
     if( ierr .ne. 0 ) return
     call OCEAN_psi_pnorm( sys, hay_vec, ierr )
     if( ierr .ne. 0 ) return

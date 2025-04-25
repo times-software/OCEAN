@@ -760,8 +760,6 @@ else  # oncvpsp method
     close OUT;
 
 
-    my $corezfile = sprintf("corezetaz%03i",$znucl);
-    unlink "$corezfile" if( -e $corezfile );
     my $log = $psplist{"$znucl"} . ".log";
     system("$ENV{'OCEAN_BIN'}/oncvpsp.x < $oncvpspInputFile > $log") == 0 
         or die "Failed to run oncvpsp.x. Check logfile OPF/$log\n\$!";
@@ -783,11 +781,6 @@ else  # oncvpsp method
     }
 #    move( "ocean.mod", "ppot" ) or die;
 
-    my $haveCoreZ = 0;
-    if( -e $corezfile ) {
-      print "Newer ONCVPSP supplied corezeta\n";
-      $haveCoreZ = 1;
-    } 
     open HFIN, ">hfin1" or die;
     print HFIN "initgrid\n";
     print HFIN "$znucl $grid\n";
@@ -806,10 +799,8 @@ else  # oncvpsp method
       die "The program hfk.x has exited incorrectly for hfin1.\nExiting ...\n";
     }
 
-    unless ($haveCoreZ ) {
-      move("xifile","$corezfile");
-    }
-    
+    my $corezfile = sprintf("corezetaz%03i",$znucl);
+    move("xifile","$corezfile");
 
 
   # Diagnostics
@@ -1163,8 +1154,6 @@ sub runONCV
   print OUT "$spdf[0]   $spdf[1]   $spdf[2]   $spdf[3]\n";
   close OUT;
 
-  my $corezfile = sprintf("corezetaz%03i",$Z);
-  unlink "$corezfile" if( -e $corezfile );
   my $log = $pspFile . ".log";
   system("$ENV{'OCEAN_BIN'}/oncvpsp.x < $oncvpspInputFile > $log") == 0 or die;
   unless( move( "ocean.mod", "ppot" ) )
@@ -1185,11 +1174,6 @@ sub runONCV
   }
 #  move( "ocean.mod", "ppot" ) or die;
 
-  my $haveCoreZ = 0;
-  if( -e $corezfile ) {
-    print "Newer ONCVPSP supplied corezeta\n";
-    $haveCoreZ = 1;
-  }
   open HFIN, ">hfin1" or die;
   print HFIN "initgrid\n";
   print HFIN "$Z $hashRef->{'opf'}->{'shirley'}->{'hfkgrid'}[0] $hashRef->{'opf'}->{'shirley'}->{'hfkgrid'}[1]\n";
@@ -1219,11 +1203,9 @@ sub runONCV
     die "The program hfk.x has exited incorrectly for hfin1.\nExiting ...\n";
   }
 
-#  my $corezfile = sprintf("corezetaz%03i",$Z);
-  unless ($haveCoreZ ) {
-    move("xifile","$corezfile");
-  }
-  
+  my $corezfile = sprintf("corezetaz%03i",$Z);
+  move("xifile","$corezfile");
+
 
 # Diagnostics
   my $zdiag = sprintf "zdiagz%3.3i", $Z;

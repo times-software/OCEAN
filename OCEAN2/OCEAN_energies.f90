@@ -16,10 +16,7 @@ module OCEAN_energies
 
   type( OCEAN_vector ) :: p_energy
   type( OCEAN_vector ) :: allow
-  type( OCEAN_vector ) :: initial_allow
-!  !TODO: remove/clean allow_sqrt
-!  type( OCEAN_vector ) :: allow_sqrt
-  type( OCEAN_vector ) :: bfn ! bfnorm vector
+  type( OCEAN_vector ) :: allow_sqrt
 
 
   LOGICAL :: have_selfenergy
@@ -31,9 +28,6 @@ module OCEAN_energies
   public :: OCEAN_energies_allow, OCEAN_energies_val_sfact, OCEAN_energies_val_act, &
             OCEAN_energies_val_load, OCEAN_energies_act, OCEAN_energies_init, OCEAN_energies_load
   public :: OCEAN_energies_resetAllow, OCEAN_energies_allow_full, OCEAN_energies_sfact_copy
-  public :: OCEAN_energies_initial_allow
-  public :: OCEAN_energies_single
-  public :: OCEAN_energies_bfnorm
   
   contains
 
@@ -52,22 +46,11 @@ module OCEAN_energies
 
   end subroutine OCEAN_energies_sfact_copy
     
-  subroutine OCEAN_energies_bfnorm( sys, psi, ierr )
-    use OCEAN_system, only : O_system 
-    use OCEAN_psi, only : OCEAN_vector, OCEAN_psi_2element_mult
-    implicit none
-    ! 
-    integer, intent( inout ) :: ierr
-    type(O_system), intent( in ) :: sys
-    type(OCEAN_vector), intent( inout ) :: psi
-
-    call OCEAN_psi_2element_mult( psi, bfn, ierr, is_real_only=.true., use_full=.true. )
-
-  end subroutine OCEAN_energies_bfnorm
 
   subroutine OCEAN_energies_allow_full( sys, psi, ierr, sfact )
     use OCEAN_system, only : O_system
     use OCEAN_psi, only : OCEAN_vector, OCEAN_psi_2element_mult
+    use OCEAN_mpi, only : myid, root
     implicit none
     !
     integer, intent( inout ) :: ierr
@@ -83,9 +66,9 @@ module OCEAN_energies
     if( sf ) then
       call OCEAN_psi_2element_mult( psi, allow, ierr, is_imaginary_as_real=.true., use_full=.true. )
     else
-      call OCEAN_psi_2element_mult( psi, allow, ierr, is_real_only=.true., use_full=.true. )
+      call OCEAN_psi_2element_mult( psi, allow_sqrt, ierr, is_real_only=.true., use_full=.true. )
     endif
-  end subroutine OCEAN_energies_allow_full
+  end subroutine
 
   subroutine OCEAN_energies_allow( sys, psi, ierr, sfact )
     use OCEAN_system, only : O_system
@@ -109,20 +92,6 @@ module OCEAN_energies
     else
       call OCEAN_psi_2element_mult( psi, allow, ierr, is_real_only=.true. )
     endif
-  end subroutine
-
-  subroutine OCEAN_energies_initial_allow( sys, psi, ierr )
-    use OCEAN_system, only : O_system
-    use OCEAN_psi, only : OCEAN_vector, OCEAN_psi_2element_mult
-    use OCEAN_mpi, only : myid, root
-    implicit none
-    !
-    integer, intent( inout ) :: ierr
-    type(O_system), intent( in ) :: sys
-    type(OCEAN_vector), intent( inout ) :: psi
-    !
-    !
-    call OCEAN_psi_2element_mult( psi, initial_allow, ierr, is_real_only=.true. )
   end subroutine
 
   subroutine OCEAN_energies_resetAllow( ierr )
@@ -186,9 +155,7 @@ module OCEAN_energies
       if( ierr .ne. 0 ) return
       call OCEAN_psi_new( allow, ierr )
       if( ierr .ne. 0 ) return
-!      call OCEAN_psi_new( allow_sqrt, ierr )
-!      if( ierr .ne. 0 ) return
-      call OCEAN_psi_new( bfn, ierr )
+      call OCEAN_psi_new( allow_sqrt, ierr )
       if( ierr .ne. 0 ) return
 
       val_init = .true.
@@ -199,59 +166,22 @@ module OCEAN_energies
       if( ierr .ne. 0 ) return
       call OCEAN_psi_zero_full( allow, ierr )
       if( ierr .ne. 0 ) return
-!      call OCEAN_psi_zero_full( allow_sqrt, ierr )
-!      if( ierr .ne. 0 ) return
-      call OCEAN_psi_zero_full( bfn, ierr )
+      call OCEAN_psi_zero_full( allow_sqrt, ierr )
       if( ierr .ne. 0 ) return
       
       call OCEAN_read_energies( sys, p_energy, allow, ierr )
       if( ierr .ne. 0 ) return
 
-!      call OCEAN_psi_copy_full( allow_sqrt, allow, ierr )
-!      if( ierr .ne. 0 ) return
+      call OCEAN_psi_copy_full( allow_sqrt, allow, ierr )
+      if( ierr .ne. 0 ) return
 
-!      ! this flips the sign of the energies
-!      call OCEAN_energies_allow_full( sys, p_energy, ierr, .true. )
-
-      if( sys%cur_run%backf ) then
-        call make_val_bfnorm( sys )
-      endif
+      ! this flips the sign of the energies
+      call OCEAN_energies_allow_full( sys, p_energy, ierr, .true. )
 
       val_loaded = .true.
     endif
 
   end subroutine OCEAN_energies_val_load
-
-  
-  subroutine make_val_bfnorm( sys )
-    use OCEAN_system
-    use OCEAN_psi
-    implicit none
-    type(O_system), intent( in ) :: sys
-
-    integer :: ibw, ibeta, ik, ibv, ibc
-    real(DP) :: t
-    real(DP), parameter :: eps10 = 1.0d-10
-
-    do ibw = 1, sys%nbw
-      do ibeta = 1, sys%nbeta
-        do ik = 1, sys%nkpts
-          do ibv = 1, sys%cur_run%val_bands
-            do ibc = 1, sys%cur_run%num_bands
-              if( p_energy%valr( ibc, ibv, ik, ibeta, ibw ) .gt. eps10 ) then
-              bfn%valr(ibc, ibv, ik, ibeta, ibw ) = &
-                  sqrt( abs( 2.0_DP * p_energy%valr( ibc, ibv, ik, ibeta, ibw ) ) )
-              t = p_energy%valr( ibc, ibv, ik, ibeta, ibw )*p_energy%valr( ibc, ibv, ik, ibeta, ibw )
-              p_energy%valr( ibc, ibv, ik, ibeta, ibw ) = t
-!              p_energy%valr( ibc, ibv, ik, ibeta, ibw ) = p_energy%valr( ibc, ibv, ik, ibeta, ibw )**2
-              endif
-            enddo
-          enddo
-        enddo
-      enddo
-    enddo
-
-  end subroutine make_val_bfnorm
     
 
   subroutine OCEAN_energies_init(  sys, ierr )
@@ -272,11 +202,7 @@ module OCEAN_energies
       if( ierr .ne. 0 ) return
       call OCEAN_psi_new( allow, ierr )
       if( ierr .ne. 0 ) return
-!      call OCEAN_psi_new( allow_sqrt, ierr )
-!      if( ierr .ne. 0 ) return
-      call OCEAN_psi_new( bfn, ierr )
-      if( ierr .ne. 0 ) return
-      call OCEAN_psi_new( initial_allow, ierr )
+      call OCEAN_psi_new( allow_sqrt, ierr )
       if( ierr .ne. 0 ) return
 
       is_init = .true.
@@ -293,9 +219,7 @@ module OCEAN_energies
 
     call OCEAN_psi_kill( p_energy, ierr )
     call OCEAN_psi_kill( allow, ierr )
-    call OCEAN_psi_kill( initial_allow, ierr )
-!    call OCEAN_psi_kill( allow_sqrt, ierr )
-    call OCEAN_psi_kill( bfn, ierr )
+    call OCEAN_psi_kill( allow_sqrt, ierr )
     is_init = .false.
 
   end subroutine OCEAN_energies_kill
@@ -328,10 +252,8 @@ module OCEAN_energies
     if( ierr .ne. 0 ) return
     call OCEAN_psi_zero_full( allow, ierr )
     if( ierr .ne. 0 ) return
-    call OCEAN_psi_zero_full( initial_allow, ierr )
+    call OCEAN_psi_zero_full( allow_sqrt, ierr )
     if( ierr .ne. 0 ) return
-!    call OCEAN_psi_zero_full( allow_sqrt, ierr )
-!    if( ierr .ne. 0 ) return
 
 
     ! Currently all of this is done only on the root proccess 
@@ -360,8 +282,7 @@ module OCEAN_energies
 
     call OCEAN_psi_bcast_full( root, p_energy, ierr )
     call OCEAN_psi_bcast_full( root, allow, ierr )
-    call OCEAN_psi_bcast_full( root, initial_allow, ierr )
-!    call OCEAN_psi_bcast_full( root, allow_sqrt, ierr )
+    call OCEAN_psi_bcast_full( root, allow_sqrt, ierr )
 
     deallocate( energies, imag_se )
 
@@ -377,30 +298,23 @@ module OCEAN_energies
     real(DP), intent( inout ) :: efermi
     logical, intent( in ) :: metal
     !
-    real(DP), allocatable :: allowArray(:,:,:), initialAllow(:,:,:)
+    real(DP), allocatable :: allowArray(:,:,:)
     integer :: n(3)
 
     if( myid .ne. root ) return
 
     n = shape( ener )
-    allocate( allowArray( n(1), n(2), n(3) ), initialAllow( n(1), n(2), n(3) ) )
+    allocate( allowArray( n(1), n(2), n(3) ) )
 
     select case( sys%occupationType )
       case( 'fermi' )
         call core_allow_ff( sys, allowArray, ener, metal, efermi, sys%occupationValue )
-        initialAllow = allowArray
 
       case( 'fixed' )
         call core_allow_fixed( sys, allowArray, ener, metal, efermi, sys%occupationValue )
-        initialAllow = allowArray
-
-      case( 'full' )
-        call core_allow_fixed( sys, allowArray, ener, metal, efermi, 1.0_DP )
-        call core_allow_fixed( sys, initialAllow, ener, metal, efermi )
       
       case default
         call core_allow_fixed( sys, allowArray, ener, metal, efermi  )
-        initialAllow = allowArray
     end select
 
     ! The Full-BSE in the valence pathway require a second allow matrix that is -1
@@ -408,11 +322,10 @@ module OCEAN_energies
     ! why the same allowArray is stored into both the real and imaginary spots in allow).
     call stubby( sys, allow, allowArray, allowArray )
 
-    call stubby( sys, initial_allow, initialAllow )
-!    call stubby( sys, allow_sqrt, allowArray )
+    call stubby( sys, allow_sqrt, allowArray )
 
 
-    deallocate( allowArray, initialAllow )
+    deallocate( allowArray )
 
   end subroutine core_make_allow
 
@@ -981,14 +894,15 @@ module OCEAN_energies
 
 
 
-#endif
+
   complex(DP) function OCEAN_energies_single( ib, ik, ia )
     use OCEAN_system
     implicit none
     integer, intent( in ) :: ib, ik, ia
 
-    OCEAN_energies_single = CMPLX( p_energy%r( ib, ik, ia ), p_energy%i( ib, ik, ia ), DP )
+    OCEAN_energies_single = CMPLX( energies( ib, ik, 1 ), imag_selfenergy( ib, ik, 1 ), DP )
   end function
+#endif
 
   subroutine OCEAN_gw_stretch( sys, energies, ierr )
     use OCEAN_system
@@ -999,37 +913,30 @@ module OCEAN_energies
     type(O_system), intent( in ) :: sys
     real(DP), intent(inout) :: energies(:,:,:)
 
-    real(DP) :: cstr, vstr, gap, bandEdge
-    logical :: abs_gap
+    real(DP) :: cstr
     logical :: have_gw
-    real(DP), parameter :: small = 0.00000000001_DP
 
     if( myid .ne. root ) return
 
     write(6,*) 'Attempting GW stretch!'
 
-    inquire(file='gw_core_cstr', exist=have_gw )
+    inquire(file='gwcstr', exist=have_gw )
 
     if( .not. have_gw ) then
-      write( 6, * ) 'GW corrections requested (stretch style). File gw_core_cstr not found.'
+      write( 6, * ) 'GW corrections requested (stretch style). File gwcstr not found.'
       write( 6, * ) 'No corrections will be done'
       return
     endif
 
-    open( unit=99, file='gw_core_cstr', form='formatted',status='old')
+    open( unit=99, file='gwcstr', form='formatted',status='old')
     rewind(99)
-    read(99,*) gap, abs_gap, vstr, cstr
+    read(99,*) cstr
     close(99)
 
-    if( abs_gap .or. ( gap .gt. small ) ) then
-      write(6,*) 'WARNING: gap correction requested, but not implemented!'
-    endif
+    if( abs( cstr ) .lt. 0.00000001_DP ) return
 
-    if( abs( cstr ) .lt. small ) return
-
-    call findBandEdge( sys, energies, bandEdge )
     cstr = cstr + 1.0_DP
-    energies( :, :, : ) = ( ( energies( :, :, : ) - bandEdge ) * cstr ) + bandEdge
+    energies( :, :, : ) = energies( :, :, : ) * cstr
 
   end subroutine OCEAN_gw_stretch
 
@@ -1575,27 +1482,5 @@ module OCEAN_energies
     endif
 
   end function NfromFermi
-
-  ! Currently only finds conduction band minimum for XAS calculations,
-  ! TODO: extend to XES energy adjustments too
-  subroutine findBandEdge( sys, ener, bandEdge )
-    use OCEAN_system, only : O_system
-    type(O_system), intent( in ) :: sys
-    real(DP), intent( in ) :: ener( sys%num_bands, sys%nkpts, sys%nspn )
-    real(DP), intent( out ) :: bandEdge
-    
-    integer :: tot_electron, fullyOccupiedElectrons
-    real(DP), allocatable :: sorted_energies(:)
-
-    allocate( sorted_energies( sys%num_bands * sys%nkpts * sys%nspn ) )
-    sorted_energies = reshape( ener, (/ sys%num_bands * sys%nkpts * sys%nspn /) )
-    call do_sort2( sorted_energies )
-    tot_electron = nint( sys%nelectron * sys%nkpts * sys%nspn / 2.0_dp )
-    fullyOccupiedElectrons = ( sys%brange(3) - 1 ) * sys%nkpts * sys%nspn
-    tot_electron = tot_electron - fullyOccupiedElectrons
-
-    bandEdge = sorted_energies( tot_electron + 1)
-    deallocate( sorted_energies )
-  end subroutine findBandEdge
 
 end module OCEAN_energies
