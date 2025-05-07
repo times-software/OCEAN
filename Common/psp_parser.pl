@@ -252,7 +252,7 @@ sub upfParser
       }
       last;
     } 
-    elsif( $line =~ m/element\s*="\s*(\w+)/i ) {
+    if( $line =~ m/element\s*="\s*(\w+)/i ) {
       $element = $1;
     }
 #    last if( $n != -1 && $element ne "" );
