@@ -11,6 +11,7 @@ module ocean_long_range
 
   use AI_kinds
   use FFT_wrapper, only : fft_obj
+  use irreg_grid_check, only : irreg_grid, grid
 
   implicit none
   save
@@ -21,7 +22,7 @@ module ocean_long_range
   real( DP ), pointer :: W( :, : )
   real( SP ), pointer :: re_bloch_state_sp( :, :, :, : )
   real( SP ), pointer :: im_bloch_state_sp( :, :, :, : )
-  real( SP ), pointer :: W_sp( :, : )
+  
 
   real( DP ) :: my_tau( 3 )
   integer :: my_xshift( 3 )
@@ -35,7 +36,7 @@ module ocean_long_range
 
   logical :: use_obf = .true.
   logical :: use_fake_obf = .false.
-  real( DP ) :: timer = 0.0_DP
+ 
   real( DP ) :: timer1 = 0.0_DP
 
   logical :: first_time = .true.
@@ -1655,7 +1656,10 @@ module ocean_long_range
 
   end subroutine lr_populate_W
 
-
+  !> Populates W2 matrix by calculating the potential at each point
+  !! 
+  !! This subroutine determines whether a non-uniform grid is used with the have_curvi flag and calls
+  !! the corresponding subroutine (regular_grid_potential or irregular_grid_potential) to perform the calculation 
   subroutine lr_populate_W2( sys, ierr )
     use OCEAN_mpi!, only : myid, comm, root
     use OCEAN_system
@@ -1665,14 +1669,13 @@ module ocean_long_range
     type( O_system ), intent( in ) :: sys
     integer, intent( inout ) :: ierr
     
-    
+    real( DP ) :: fr( 3 ), xk( 3 ), r, frac, potn, pbc_prefac(3), dir(3)
     real( DP ) :: epsi, avec( 3, 3 ), amet( 3, 3 ), bvec(3,3), bmet(3,3)
-    real( DP ) :: fr( 3 ), xk( 3 ), alf( 3 ), r, frac, potn, pbc_prefac(3), dir(3)
     real( DP ), allocatable :: ptab( : ), rtab( : )
     integer :: ix, iy, iz, k1, k2, k3, kk1, kk2, kk3, xiter, kiter, i, ii, j, nptab
     integer :: xtarg, ytarg, ztarg, pbc( 3 )
     logical :: have_pbc
-    
+ 
     character(len=24) :: rpotName
     character(len=1) :: dumc
     
@@ -1683,7 +1686,7 @@ module ocean_long_range
         amet( i , j ) = dot_product( sys%avec( :, i ), sys%avec( :, j ) )
       enddo
     enddo
-
+    
     if( myid .eq. 0 ) then
 
       write( rpotName, '(A10,A2,I4.4,A2,I2.2,A1,I2.2)' ) 'rpottrim.z', sys%cur_run%elname, & 
@@ -1707,7 +1710,6 @@ module ocean_long_range
         write(6,*) 'Isolated system with cutoff (Bohr):', iso_cut
       endif
 
-
       inquire(file='pbc.inp',exist=have_pbc)
       if( have_pbc ) then
         open(unit=99,file='pbc.inp',form='formatted',status='old' )
@@ -1721,8 +1723,6 @@ module ocean_long_range
         pbc( : ) = sys%kmesh( : )
       endif
       write(6,*) 'PBC controls:', pbc(:)
-      
-
     endif
 
 #ifdef MPI    
@@ -1739,11 +1739,41 @@ module ocean_long_range
     if( ierr /= 0 ) goto 111
     call MPI_BCAST( pbc, 3, MPI_INTEGER, 0, comm, ierr )
     if( ierr /= 0 ) goto 111
+
 #endif
 
+    ! Irregular grid
+    if (grid%have_curvi) then 
+            call irregular_grid_potential( sys, amet, epsi, nptab, ptab, rtab, isolated, pbc, ierr )
+            if (ierr /= 0) goto 111
+    else
+            call regular_grid_potential( sys, amet, epsi, nptab, ptab, rtab, isolated, pbc, ierr)
+            if (ierr /= 0) goto 111
+    endif
+    deallocate( ptab, rtab )
 
-    
+111 continue
+
+  end subroutine lr_populate_W2
+
+  !> Calculates the potential on a uniform grid, taking periodic boundary conditions into account
+  subroutine regular_grid_potential( sys, amet, epsi, nptab, ptab, rtab, isolated, pbc, ierr )
     ! Slow way to start
+    !    use mpi
+    use OCEAN_mpi!, only : myid, root, my_tau, my_xshift, my_start_nx, my_xpts, W
+    use OCEAN_system 
+    implicit none
+
+    type( O_system ), intent( in ) :: sys
+
+    real( DP ), intent( in ) :: amet(3,3), epsi
+    integer, intent( in ) :: nptab, pbc(3)
+    real( DP ), intent( in ) :: ptab(:), rtab(:)
+    logical, intent( in ) :: isolated
+    integer, intent( inout ) :: ierr
+    real( DP ) :: fr( 3 ), xk( 3 ), alf( 3 ), r, potn, pbc_prefac(3), dir(3)
+    integer :: ix, iy, iz, k1, k2, k3, kk1, kk2, kk3, xiter, kiter, xtarg, ytarg, ztarg
+
     if( myid .eq. root ) write(6,*) 'Tau: ', my_tau(:), my_xshift(:)
     xiter = 0
     do iz = 1, sys%xmesh( 3 )
@@ -1771,7 +1801,8 @@ module ocean_long_range
           endif
           fr( 1 ) = dble( xtarg - 1 ) / dble( sys%xmesh( 1 ) )
           xiter = xiter + 1
-          if( ( xiter .ge. my_start_nx ) .and. ( xiter .lt. my_start_nx + my_xpts ) ) then
+
+      if( ( xiter .ge. my_start_nx ) .and. ( xiter .lt. my_start_nx + my_xpts ) ) then
           kiter = 0
 
           do k1 = 1, sys%kmesh( 1 )
@@ -1833,10 +1864,6 @@ module ocean_long_range
                   else
                     call intval( nptab, rtab, ptab, r, potn, 'cap', 'cap' )
                   end if
-!                  if( myid .eq. root ) then
-!                    write( 11111, '(3I3,5F24.12)' ) nint(xk(:)), alf(:), r, potn*pbc_prefac(3)
-!                  endif
-!                  if( myid .eq. root ) write(997,'(2E24.12,3F16.8)') r, potn, dir(:)!, sys%epsilon3D(:)
                   W( kiter, xiter - my_start_nx + 1 ) =  potn * pbc_prefac(3) * sys%interactionScale
                 end do
               end do
@@ -1845,18 +1872,96 @@ module ocean_long_range
         enddo
       enddo
     enddo
+  end subroutine regular_grid_potential
 
-    deallocate( ptab, rtab )
+  !> Calculates the potential on a non-uniform grid, taking periodic boundary conditions into account
+  subroutine irregular_grid_potential( sys, amet, epsi, nptab, ptab, rtab, isolated, pbc, ierr )
+    use OCEAN_mpi!, only : myid, root, my_tau, my_xshift, my_start_nx, my_xpts, W
+    use OCEAN_system 
+    implicit none
 
-111 continue
+    type( O_system ), intent( in ) :: sys
 
-  end subroutine lr_populate_W2
+    real( DP ), intent( in ) :: amet(3,3), epsi
+    integer, intent( in ) :: nptab, pbc(3)
+    real( DP ), intent( in ) :: ptab(:), rtab(:)
+    logical, intent( in ) :: isolated
+    integer, intent( inout ) :: ierr
+    real( DP ) :: fr( 3 ), xk( 3 ), alf( 3 ), r, potn, pbc_prefac(3), dir(3)
+    integer :: i, k1, k2, k3, kk1, kk2, kk3, xiter, kiter
 
-
-
-
-
-
+    if(grid%num_coord .ne. product(sys%xmesh(:))) then
+            print *, "xmesh dimensions do not match irregular grid dimensions"
+            ierr = 3
+            return
+    endif
+    if( myid .eq. root ) write(6,*) 'Tau: ', my_tau(:), my_xshift(:)
+    xiter = 0
+    do i = 1, grid%num_coord
+    fr( 1 ) = grid%shifted_curvi(1, i)
+    fr( 2 ) = grid%shifted_curvi(2, i)
+    fr( 3 ) = grid%shifted_curvi(3, i)
+    xiter = xiter + 1
+    if( ( xiter .ge. my_start_nx ) .and. ( xiter .lt. my_start_nx + my_xpts ) ) then
+            kiter = 0
+            ! kmesh loop
+            do k1 = 1, sys%kmesh( 1 )
+            kk1 = k1 - 1
+            if ( kk1 .ge. ( sys%kmesh( 1 ) + 1 )/ 2 ) kk1 = kk1 - sys%kmesh( 1 )
+            if ( sys%kmesh( 1 ) .eq. 1 ) kk1 = 0
+            xk( 1 ) = kk1
+            if( kk1 .gt. pbc( 1 ) ) then
+                    pbc_prefac(1) = 0.0_DP
+            else
+                    pbc_prefac(1) = 1.0_DP
+            endif
+            do k2 = 1, sys%kmesh( 2 )
+            kk2 = k2 - 1
+            if ( kk2 .ge. ( sys%kmesh( 2 ) + 1 ) / 2 ) kk2 = kk2 - sys%kmesh( 2 )
+            if( sys%kmesh( 2 ) .eq. 1 ) kk2 = 0
+            xk( 2 ) = kk2
+            if( kk2 .gt. pbc( 2 ) ) then
+                    pbc_prefac(2) = 0.0_DP
+            else
+                    pbc_prefac(2) = pbc_prefac(1)
+            endif
+            do k3 = 1, sys%kmesh( 3 )
+            kk3 = k3 - 1
+            if ( kk3 .ge. ( sys%kmesh( 3 ) + 1 ) / 2 ) kk3 = kk3 - sys%kmesh( 3 )
+            if( sys%kmesh( 3 ) .eq. 1 ) kk3 = 0
+            xk( 3 ) = kk3
+            if( kk3 .gt. pbc( 3 ) ) then
+                    pbc_prefac(3) = 0.0_DP
+            else
+                    pbc_prefac(3) = pbc_prefac(2)
+            endif
+            kiter = kiter + 1
+            alf( : ) = xk( : ) + fr( : ) - my_tau( : )
+            r = sqrt( dot_product( alf, matmul( amet, alf ) ) )
+            if( isolated .and. r .gt. iso_cut ) then
+                    potn = 0.0_DP
+            elseif ( r .gt. rtab( nptab ) ) then
+                    if( sys%have3dEpsilon ) then
+                            dir( : ) = matmul( sys%avec(:,:), alf(:) ) / r
+                            potn = ( dir(1)**2/sys%epsilon3D(1) + dir(2)**2/sys%epsilon3D(2) &
+                                    + dir(3)**2/sys%epsilon3D(3) ) / r
+                            if( r .lt. rtab( nptab ) + 5.0_DP ) then
+                                    potn = potn * ( r - rtab( nptab ) ) / 5.0_DP &
+                                            + ( rtab( nptab ) + 5.0_DP - r ) * epsi / ( 5.0_DP * r )
+                            endif
+                    else
+                            potn = epsi / r
+                    endif
+            else
+                    call intval( nptab, rtab, ptab, r, potn, 'cap', 'cap' )
+            endif
+            W( kiter, xiter - my_start_nx + 1 ) =  potn * pbc_prefac(3) * sys%interactionScale
+            enddo  
+            enddo
+            enddo  
+    endif
+    enddo
+ end subroutine irregular_grid_potential
 
 #if 0
   subroutine lr_populate_bloch( sys, ierr )
@@ -1883,7 +1988,6 @@ module ocean_long_range
 !    complex( DP ), allocatable, dimension( :, : ) :: tmp_bloch
     logical :: metal, normal
     integer :: nx_left, nx_start, nx_tmp, xiter, ii
-
      
     nx = sys%xmesh(1)
     ny = sys%xmesh(2)
@@ -1946,21 +2050,21 @@ module ocean_long_range
       !
       xshift(:) = 0
       if( mod( sys%kmesh(1), 2 ) .eq. 0 ) then
-        xshift( 1 ) = floor( real(nx, DP ) * tau(1) )
+              xshift( 1 ) = floor( real(nx, DP ) * tau(1) )
       else
-        xshift( 1 ) = floor( real(nx, DP ) * (tau(1)-0.5d0 ) )
+              xshift( 1 ) = floor( real(nx, DP ) * (tau(1)-0.5d0 ) )
       endif
       if( mod( sys%kmesh(2), 2 ) .eq. 0 ) then
-        xshift( 2 ) = floor( real(ny, DP ) * tau(2) )
+              xshift( 2 ) = floor( real(ny, DP ) * tau(2) )
       else
-        xshift( 2 ) = floor( real(ny, DP ) * (tau(2)-0.5d0 ) )
+              xshift( 2 ) = floor( real(ny, DP ) * (tau(2)-0.5d0 ) )
       endif
       if( mod( sys%kmesh(3), 2 ) .eq. 0 ) then
-        xshift( 3 ) = floor( real(nz, DP ) * tau(3) )
+              xshift( 3 ) = floor( real(nz, DP ) * tau(3) )
       else
-        xshift( 3 ) = floor( real(nz, DP ) * (tau(3)-0.5d0 ) )
-      endif
-      ! 
+              xshift( 3 ) = floor( real(nz, DP ) * (tau(3)-0.5d0 ) )
+      endif 
+      
       write(6,*) 'Shifting X-grid by ', xshift(:)
       write(6,*) 'Original tau ', tau(:)
       tau( 1 ) = tau(1) - real(xshift(1), DP )/real(nx, DP )
@@ -2190,7 +2294,7 @@ module ocean_long_range
     integer, intent( in ) :: iband, ikpt, ialpha
 
 
-    integer :: jband, jkpt, jalpha, val_spin( sys%nalpha ), icms, icml, ivms
+    integer :: jkpt, jalpha, val_spin( sys%nalpha ), icms, icml, ivms
     integer :: ixpt, jfft
     real(dp), allocatable :: xwrkr(:), xwrki(:), wrk(:), rtphi(:,:), itphi(:,:)
     

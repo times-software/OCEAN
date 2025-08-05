@@ -4,7 +4,7 @@ OPTIONS +=
 %.o: %.mod
 
 # Currently BLAS and MPI are *not* optional
-FLAGS = $(OPTIONS) -I../SCREEN/src
+FLAGS = $(OPTIONS) -I../SCREEN/src -I../Modules
 
 CNBSE = ../CNBSE/zcmsnmult/zf90
 
@@ -20,7 +20,7 @@ OCEANOBJS = AI_kinds.o OCEAN_mpi.o OCEAN_system.o OCEAN_bloch.o OCEAN_obf.o OCEA
             OCEAN_get_rho.o optim.o OCEAN_hyb_louie_levine.o OCEAN_ladder.o \
 						OCEAN_pfy.o OCEAN_rixs_holder.o OCEAN_corewidths.o OCEAN_action.o \
 						OCEAN_driver.o OCEAN_gmres.o OCEAN_filenames.o $(FFT_WRAPPER_OBJS) $(CAIN_OBJS) \
-            OCEAN_WRR.o ../SCREEN/src/ocean_sphericalharmonics.o OCEAN_fxc.o OCEAN_exact.o
+            OCEAN_WRR.o ../SCREEN/src/ocean_sphericalharmonics.o OCEAN_fxc.o OCEAN_exact.o ../Modules/irreg_grid_check.o
 
 KINDS = AI_kinds.o
 
@@ -146,7 +146,7 @@ cinv.o: $(CNBSE)/../zstd/cinv.f
 sizereport.o: $(CNBSE)/sizereport.f90
 	$(MPIFORT) $(FLAGS) -c -o sizereport.o $(CNBSE)/sizereport.f90
 
-OCEAN_bloch.o: OCEAN_bloch.f90 OCEAN_system.o AI_kinds.o OCEAN_mpi.o
+OCEAN_bloch.o: OCEAN_bloch.f90 OCEAN_system.o AI_kinds.o OCEAN_mpi.o ../Modules/irreg_grid_check.o
 	$(MPIFORT) $(FLAGS) -c -o OCEAN_bloch.o OCEAN_bloch.f90 
 
 OCEAN_obf.o: OCEAN_obf.f90 OCEAN_system.o AI_kinds.o OCEAN_mpi.o

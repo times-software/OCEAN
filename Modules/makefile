@@ -48,6 +48,9 @@ screen_timekeeper.o:   ai_kinds.mod
 fft_wrapper.mod: ai_kinds.mod
 FFT_wrapper.o: ai_kinds.mod
 
+irreg_grid_check.o: ai_kinds.mod ocean_mpi.mod
+irreg_grid_check.mod: ai_kinds.mod ocean_mpi.mod
+
 jlmfft.o: jlmfft.f
 	$(MPIFORT) $(OPTIONS) -c -o jlmfft.o jlmfft.f
 
