@@ -15,19 +15,20 @@ program OCEAN_exciton_plot
 
   real(DP), allocatable :: z_stripe( : ), xyz(:,:), atom_loc(:,:), cubeExciton(:,:,:)
   real(DP) :: qinb(3), avecs(3,3), su, k0(3), qvec(3), Rvec(3), xphs, yphs, zphs, twopi, tau(3), ur, ui, suTarg
-  real(DP) :: realSpaceBox(3), rsDelta, inverseA(3,3), temp1(3), distance(3), isoTarg, isoMin, isoMax, su2, isos(2,19)
+  real(DP) :: realSpaceBox(3), rsDelta, inverseA(3,3), temp1(3), distance(3), isoTarg, isoMin, isoMax, su2, isos(2,20)
 
   integer, allocatable :: ibeg(:,:)
   integer :: Rmesh(3), kmesh(3), nband, nalpha, nkpts, NR, Riter, kiter, xmesh(3), nspn, ispin, ivh2
   integer :: RmeshMin(3), RmeshMax(3)
   integer :: ikx, iky, ikz, iRx, iRy, iRz, NX, i, ix, x_count, xiter, iy, iz, izz, bloch_selector, icms, ivms, icml
   integer :: brange(4), u2size, u2start, Rshift(3), natom, kiter_break, Rstart(3), idum(3), ZNL(3)
-  integer :: xmeshOut(3), xtarg(3), natom2, atomTarg, ixx, iyy, ixxx, iyyy, iter, j, k
+  integer :: xmeshOut(3), xtarg(3), natom2, atomTarg, ixx, iyy, ixxx, iyyy, iter, j, k, ios
   character(len=25) :: filname
   character(len=128) :: outname
   character(len=2), allocatable :: elname(:)
+  character(len=3) :: calculation
 
-  logical :: metal, legacy_ibeg, oldStyle, foundMax
+  logical :: metal, legacy_ibeg, oldStyle, foundMax, do_valence
 
   real(DP), external :: DZNRM2
   complex(DP), parameter :: one = 1.0_dp
@@ -35,13 +36,13 @@ program OCEAN_exciton_plot
 
   twopi = 2.0_dp * 4.0_dp * atan( 1.0_dp )
 
-!  oldStyle = .false.
-!  atomTarg = 3
-!  realSpaceBox(1) = 16.0_DP
-!  realSpaceBox(2) = 16.0_DP
-!  realSpaceBox(3) = 16.0_DP
-!  rsDelta = 0.12_DP
+  ! Need to support selecting xas/xes/con/val
+  ! for x-ray unocc, x-ray occ, valence unocc, valence occ
+  ! for the latter two need to specify point in space
+  ! for the former can center on an atom
+  ! maybe make it so you can specify atom centered or point in space centered?
 
+  !!!!!!! This file style subject to change !!!!!
   open(unit=99,file='exciton_plot.ipt',form='formatted',status='old')
   read(99,*) filname
   read(99,*) outname
@@ -57,8 +58,21 @@ program OCEAN_exciton_plot
       xmeshOut(i) = 1+ realSpaceBox(i) / rsDelta
     enddo
   endif
-!  read(99,*) tau(:)
+  read(99,*,iostat=ios) calculation
+  if( ios/=0 ) then
+    calculation = 'xas'
+  endif
   close(99)
+
+  select case (calculation)
+    case ( 'xes', 'val' )
+      do_valence = .true.
+    case ( 'xas', 'con' )
+      do_valence = .false.
+    case default
+      write(6,*) 'Unrecognized calculation type, default to xas'
+      do_valence = .false.
+  end select
   tau(:) = 0.0_dp
 
   open(unit=99,file='nbuse.ipt',form='formatted',status='old')
@@ -77,15 +91,15 @@ program OCEAN_exciton_plot
   open(unit=99,file='nspin',form='formatted',status='old')
   read(99,*) nspn
   close(99)
-!  if( nspn .ne. 1 ) then
-!    write(6,*) 'WARNING! Spin not yet supported!'
-!    goto 111
-!  endif
-!  nspn = 1
 
   open(unit=99,file='qinunitsofbvectors.ipt',form='formatted',status='old')
   read(99,*) qinb(:)
   close(99)
+  if( do_valence ) then
+    qinb(:) = -qinb(:)
+  else
+    qinb(:) = 0.0_DP
+  endif
 
   open(unit=99,file='k0.ipt',form='formatted',status='old')
   read(99,*) k0(:)
@@ -235,8 +249,13 @@ program OCEAN_exciton_plot
   enddo
 
  
-  u2size = brange(4)-brange(3)+brange(2)-brange(1)+2
-  u2start = brange(2)-brange(1)+2
+  if( do_valence ) then
+    u2start = brange(1)
+    u2size = brange(2)-brange(1)+1
+  else
+    u2size = brange(4)-brange(3)+brange(2)-brange(1)+2
+    u2start = brange(2)-brange(1)+2
+  endif
   write(6,*) u2size, u2start, nband
   allocate( u2( NX, u2size ) )
   allocate( rk_exciton( NX, nkpts, nspn ) )
@@ -250,7 +269,11 @@ program OCEAN_exciton_plot
   case( 2, 3 )
     deallocate( u2 )
     allocate( u2( NX, nband) )
-    open( unit=99,file='con.u2.dat',access='stream',status='old',form='unformatted' )
+    if( do_valence ) then
+      open( unit=99,file='val.u2.dat',access='stream',status='old',form='unformatted' )
+    else
+      open( unit=99,file='con.u2.dat',access='stream',status='old',form='unformatted' )
+    endif
     do ispin = 1, nspn
       do kiter = 1, nkpts
         read(99) u2
@@ -332,14 +355,14 @@ program OCEAN_exciton_plot
 
         xiter = 0
         do ix = 0, xmesh(1)-1
-          Rvec(1) = twopi * (dble(ix)/dble(xmesh(1)) - tau(1))
+          Rvec(1) = twopi * (dble(ix)/dble(xmesh(1)) ) 
           xphs = Rvec(1) * qvec(1)
           do iy = 0, xmesh(2)-1
-            Rvec(2) = twopi * (dble(iy)/dble(xmesh(2)) - tau(2))
+            Rvec(2) = twopi * (dble(iy)/dble(xmesh(2))) 
             yphs = Rvec(2) * qvec(2) + xphs
             do iz = 0, xmesh(3)-1
               xiter = xiter + 1
-              Rvec(3) = twopi * (dble(iz)/dble(xmesh(3)) - tau(3))
+              Rvec(3) = twopi * (dble(iz)/dble(xmesh(3))) 
               zphs = Rvec(3) * qvec(3) + yphs
               cphs = cmplx( cos( zphs ), sin( zphs ) )
               ! Not sure how bad the cost of out-of-order memory will be
@@ -365,14 +388,14 @@ program OCEAN_exciton_plot
 
         xiter = 0
         do iz = 0, xmesh(3)-1
-          Rvec(3) = twopi * (dble(iz)/dble(xmesh(3)) - tau(3))
+          Rvec(3) = twopi * (dble(iz)/dble(xmesh(3)) )
           zphs = Rvec(3) * qvec(3)
           do iy = 0, xmesh(2)-1
-            Rvec(2) = twopi * (dble(iy)/dble(xmesh(2)) - tau(2))
+            Rvec(2) = twopi * (dble(iy)/dble(xmesh(2))) 
             yphs = Rvec(2) * qvec(2) + zphs
             do ix = 0, xmesh(1)-1
               xiter = xiter + 1
-              Rvec(1) = twopi * (dble(ix)/dble(xmesh(1)) - tau(1))
+              Rvec(1) = twopi * (dble(ix)/dble(xmesh(1)))
               xphs = Rvec(1) * qvec(1) + yphs
               cphs = cmplx( cos( xphs ), sin( xphs ) )
               ! Not sure how bad the cost of out-of-order memory will be
@@ -745,7 +768,6 @@ program OCEAN_exciton_plot
 
   case( 2, 3 )
     Riter = 0
-!    do iRx = 1, Rmesh(1)
       do ix = 1, xmesh(1)*Rmesh(1)
 
 !        do iRy = 1, Rmesh(2)

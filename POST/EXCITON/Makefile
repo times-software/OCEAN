@@ -4,8 +4,8 @@ FOPTS=$(OPTIONS) -I../../Modules
 
 all: exciton_plot.x val_exciton_plot.x exciton_band.x
 
-exciton_band.x: OCEAN_exciton_band.f90
-	$(FC) $(FOPTS) -o exciton_band.x OCEAN_exciton_band.f90 $(BLAS)
+exciton_band.x: OCEAN_exciton_band.f90 poly_interp_mod.o
+	$(FC) $(FOPTS) -o exciton_band.x OCEAN_exciton_band.f90 poly_interp_mod.o $(BLAS)
 
 val_exciton_plot.x: val_exciton_plot.o periodic.o
 	$(FC) $(FOPTS)  -o val_exciton_plot.x val_exciton_plot.o periodic.o $(BLAS)
@@ -23,6 +23,10 @@ periodic.mod: periodic.o
 
 periodic.o: periodic.f90
 	$(FC)  $(FOPTS) -c -o periodic.o periodic.f90
+
+poly_interp_mod.o: poly_interp_mod.f90
+	$(FC)  $(FOPTS) -c -o poly_interp_mod.o poly_interp_mod.f90
+poly_interp_mod.mod: poly_interp_mod.o
 
 install:
 	cp exciton_plot.x val_exciton_plot.x exciton_band.x $(INSTDIR)/

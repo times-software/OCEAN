@@ -31,8 +31,8 @@ rprim {
 }
 
 pp_list{
-03-li.lda.fhi
-09-f.lda.fhi
+03-li.lda.fhi.UPF
+09-f.lda.fhi.UPF
 }
 
 opf.fill{ 9 f.fill }

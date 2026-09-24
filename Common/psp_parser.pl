@@ -44,10 +44,10 @@ if( -e $dataFile )
 #    print $i . "\n";
     $countByTypat[$i]++;
   }
-  for( my $i = 1; $i < scalar @countByTypat; $i++ )
-  {
-    printf "%i  : %i\n", $i, $countByTypat[$i];
-  }
+#  for( my $i = 1; $i < scalar @countByTypat; $i++ )
+#  {
+#    printf "%i  : %i\n", $i, $countByTypat[$i];
+#  }
   my @psp = @{ $oceanData->{'psp'}->{'pp_list'} };
   my $suffix = '';
   my $dft = $oceanData->{'dft'}->{'program'};
@@ -58,7 +58,7 @@ if( -e $dataFile )
   if( $oceanData->{'psp'}->{'source'} eq 'manual' )
   {
     my $ppdir = $ENV{"OCEAN_WORKDIR"} . '/' . $oceanData->{'psp'}->{'ppdir'};
-    print "$ppdir \n";
+#    print "$ppdir \n";
     mkdir "psp";
     foreach my $p (@psp)
     {
@@ -252,9 +252,12 @@ sub upfParser
       }
       last;
     } 
-    elsif( $line =~ m/element\s*="\s*(\w+)/i ) {
+    if( $line =~ m/element\s*="\s*(\w+)/i ) {
+      $element = $1;
+    } elsif( $line =~ m/(\w+)\s+element/i ) {
       $element = $1;
     }
+    
 #    last if( $n != -1 && $element ne "" );
   }
 

@@ -7,6 +7,7 @@
 !
 module OCEAN_bloch
   use AI_kinds
+  use irreg_grid_check, only : irreg_grid, grid, do_shift
 
   save
   private
@@ -39,7 +40,6 @@ module OCEAN_bloch
   LOGICAL :: is_init = .false.
   LOGICAL :: is_val_init = .false.
   LOGICAL :: is_loaded = .false.
-  LOGICAL :: is_val_loaded = .false.
 
 
   public :: OCEAN_bloch_init, OCEAN_bloch_load, OCEAN_bloch_lrINIT, OCEAN_bloch_lrLOAD, OCEAN_bloch_is_loaded
@@ -51,14 +51,18 @@ module OCEAN_bloch
     return
   end function OCEAN_bloch_is_loaded
 
+  !> Centers the core hole and calculates the plane waves
+  !! 
+  !! This subroutine determines whether a curvilinear grid exist based on the have_curvi flag
+  !! and calls the corresponding subroutine (regular_plane_wave or irregular_plane_wave) to perform the calculation.
+  !!
   subroutine OCEAN_bloch_lrLOAD( sys, tau, xshift, rbs_out, ibs_out, rbs_sp_out, ibs_sp_out, use_sp, ierr )
+
     use OCEAN_mpi
     use OCEAN_system
     implicit none
     type( o_system ), intent( in ) :: sys
-    integer, intent( inout ) :: ierr
-!    real(DP), intent(out) :: rbs_out(my_num_bands,my_kpts,my_xpts,sys%nspn) 
-!    real(DP), intent(out) :: ibs_out(my_num_bands,my_kpts,my_xpts,sys%nspn) 
+    integer, intent( inout ) :: ierr 
     real(DP), intent(out) :: rbs_out(:,:,:,:)
     real(DP), intent(out) :: ibs_out(:,:,:,:)
     real(SP), intent(out) :: rbs_sp_out(:,:,:,:)
@@ -67,18 +71,7 @@ module OCEAN_bloch
     integer, intent( out ) :: xshift( 3 )
     logical, intent( in ) :: use_sp
 
-    real(DP) :: cphs, sphs, pi, phsx, phsy, phsz
-    integer :: iq, iq1, iq2, iq3
-    integer :: ix, iy, iz, xtarg, ytarg, ztarg, xph, yph, zph
-    integer :: xiter, ibd, ispn
-
-
     ! Change phase as if things were flipped around. Don't actually re-distribute
-    rbs_out = 0.0_dp
-    ibs_out = 0.0_dp
-    rbs_sp_out = 0.0_SP
-    ibs_sp_out = 0.0_SP
-    pi = 4.0d0 * atan( 1.0d0 )
     !
     ! Reasoning for the below;
     !  If the kmesh is odd, then the FT of the kmesh will give an equal number of
@@ -92,132 +85,216 @@ module OCEAN_bloch
     !  We test each dimension individually of course. 
     !
     xshift(:) = 0
-    if( mod( sys%kmesh(1), 2 ) .eq. 0 ) then
-      xshift( 1 ) = floor( real(sys%xmesh(1), DP ) * tau(1) )
-    else
-      xshift( 1 ) = floor( real(sys%xmesh(1), DP ) * (tau(1)-0.5d0 ) )
-    endif
-    if( mod( sys%kmesh(2), 2 ) .eq. 0 ) then
-      xshift( 2 ) = floor( real(sys%xmesh(2), DP ) * tau(2) )
-    else
-      xshift( 2 ) = floor( real(sys%xmesh(2), DP ) * (tau(2)-0.5d0 ) )
-    endif
-    if( mod( sys%kmesh(3), 2 ) .eq. 0 ) then
-      xshift( 3 ) = floor( real(sys%xmesh(3), DP ) * tau(3) )
-    else
-      xshift( 3 ) = floor( real(sys%xmesh(3), DP ) * (tau(3)-0.5d0 ) )
-    endif
-    ! 
-    xshift(:) = xshift(:) * xshift_override(:)
-    !
+    if (.not. grid%have_curvi) then 
+      ! calculate xshift
+      if( mod( sys%kmesh(1), 2 ) .eq. 0 ) then
+        xshift( 1 ) = floor( real(sys%xmesh(1), DP ) * tau(1) )
+      else
+        xshift( 1 ) = floor( real(sys%xmesh(1), DP ) * (tau(1)-0.5d0 ) )
+      endif
+      if( mod( sys%kmesh(2), 2 ) .eq. 0 ) then
+        xshift( 2 ) = floor( real(sys%xmesh(2), DP ) * tau(2) )
+      else
+        xshift( 2 ) = floor( real(sys%xmesh(2), DP ) * (tau(2)-0.5d0 ) )
+      endif
+      if( mod( sys%kmesh(3), 2 ) .eq. 0 ) then
+        xshift( 3 ) = floor( real(sys%xmesh(3), DP ) * tau(3) )
+      else
+        xshift( 3 ) = floor( real(sys%xmesh(3), DP ) * (tau(3)-0.5d0 ) )
+      endif
+      xshift(:) = xshift(:) * xshift_override(:)
+    endif 
+
     if( myid .eq. root ) write(6,*) 'Shifting X-grid by ', xshift(:)
     if( myid .eq. root ) write(6,*) 'Original tau ', tau(:)
-    tau( 1 ) = tau(1) - real(xshift(1), DP )/real(sys%xmesh(1), kind( 1.0d0 ))
-    tau( 2 ) = tau(2) - real(xshift(2), DP )/real(sys%xmesh(2), kind( 1.0d0 ))
-    tau( 3 ) = tau(3) - real(xshift(3), DP )/real(sys%xmesh(3), kind( 1.0d0 ))
+
+    if (.not. grid%have_curvi) then
+      tau( 1 ) = tau(1) - real(xshift(1), DP )/real(sys%xmesh(1), kind( 1.0d0 ))
+      tau( 2 ) = tau(2) - real(xshift(2), DP )/real(sys%xmesh(2), kind( 1.0d0 ))
+      tau( 3 ) = tau(3) - real(xshift(3), DP )/real(sys%xmesh(3), kind( 1.0d0 ))
+    endif
+
+    
     if( myid .eq. root ) write(6,*) 'New tau      ', tau(:)
 
+    if (grid%have_curvi) then
+      call irregular_plane_wave( sys, ierr, xshift, tau, rbs_out, ibs_out, rbs_sp_out, ibs_sp_out, use_sp )
+      if (ierr /= 0) goto 111
+    else
+      call regular_plane_wave( sys, ierr, xshift, tau, rbs_out, ibs_out, rbs_sp_out, ibs_sp_out, use_sp )
+      if ( ierr /= 0 ) goto 111
+    endif
+111 continue
+  end subroutine OCEAN_bloch_lrLOAD
 
-!    nx_left = sys%nxpts
-!    nx_start = 1
-!    do i = 0, nproc - 1
-!      nx_tmp = nx_left / ( nproc - i )
-!      nx_left = nx_left - nx_tmp
-!      if( myid .eq. i ) my_start = nx_start
-!      nx_start = nx_start + nx_tmp
-!    enddo
+  !> Calculates the plane waves on a uniform grid
+  subroutine regular_plane_wave( sys, ierr, xshift, tau, rbs_out, ibs_out, rbs_sp_out, ibs_sp_out, use_sp )
+  use OCEAN_mpi
+  use OCEAN_system
+  implicit none
+  type( o_system ), intent( in ) :: sys
+  integer, intent( inout ) :: ierr
+  real(DP), intent( in ) :: tau(3)
+  integer, intent( in ) :: xshift( 3 )
+  logical, intent( in ) :: use_sp
+  real(DP), intent(inout) :: rbs_out(:,:,:,:)
+  real(DP), intent(inout) :: ibs_out(:,:,:,:)
+  real(SP), intent(inout) :: rbs_sp_out(:,:,:,:)
+  real(SP), intent(inout) :: ibs_sp_out(:,:,:,:)
+  real(DP) :: cphs, sphs, pi, phsx, phsy, phsz
+  integer :: iq, iq1, iq2, iq3
+  integer :: ix, iy, iz, xtarg, ytarg, ztarg, xph, yph, zph
+  integer :: xiter, ibd, ispn
+  pi = 4.0d0 * atan( 1.0d0 ) 
 
-    do ispn = 1, sys%nspn
-
-      xiter = 0
-      do iz = 1, sys%xmesh(3)
-        ztarg = iz - xshift( 3 )
-        if( ztarg .gt. sys%xmesh(3) ) then
-          ztarg = ztarg - sys%xmesh(3)
-          zph = -sys%xmesh(3)
-        elseif( ztarg .lt. 1 ) then
-          ztarg = ztarg + sys%xmesh(3)
-          zph = sys%xmesh(3)
+  do ispn = 1, sys%nspn
+    xiter = 0
+    do iz = 1, sys%xmesh(3)
+      ztarg = iz - xshift( 3 )
+      if( ztarg .gt. sys%xmesh(3) ) then
+        ztarg = ztarg - sys%xmesh(3)
+        zph = -sys%xmesh(3)
+      elseif( ztarg .lt. 1 ) then
+        ztarg = ztarg + sys%xmesh(3)
+        zph = sys%xmesh(3)
+      else
+        zph = 0
+      endif
+      do iy = 1, sys%xmesh(2)
+        ytarg = iy - xshift( 2 )
+        if( ytarg .gt. sys%xmesh(2) ) then
+          ytarg = ytarg - sys%xmesh(2)
+          yph = -sys%xmesh(2)
+        elseif( ytarg .lt. 1 ) then
+          ytarg = ytarg + sys%xmesh(2)
+          yph = sys%xmesh(2)
         else
-          zph = 0
+          yph = 0
         endif
-        do iy = 1, sys%xmesh(2)
-          ytarg = iy - xshift( 2 )
-          if( ytarg .gt. sys%xmesh(2) ) then
-            ytarg = ytarg - sys%xmesh(2)
-            yph = -sys%xmesh(2)
-          elseif( ytarg .lt. 1 ) then
-            ytarg = ytarg + sys%xmesh(2)
-            yph = sys%xmesh(2)
+        do ix = 1, sys%xmesh(1)
+          xiter = xiter + 1
+          if( xiter .lt. my_start_nx ) cycle
+          if( xiter .gt. my_start_nx + my_xpts - 1 ) exit
+          xtarg = ix - xshift( 1 )
+          if( xtarg .gt. sys%xmesh(1) ) then
+            xtarg = xtarg - sys%xmesh(1)
+            xph = -sys%xmesh(1)
+          elseif( xtarg .lt. 1 ) then
+            xtarg = xtarg + sys%xmesh(1)
+            xph = sys%xmesh(1)
           else
-            yph = 0
-          endif 
-          do ix = 1, sys%xmesh(1)
-            xiter = xiter + 1
-            if( xiter .lt. my_start_nx ) cycle
-  !JTV ???
-            if( xiter .gt. my_start_nx + my_xpts - 1 ) goto 111
-            xtarg = ix - xshift( 1 )
-            if( xtarg .gt. sys%xmesh(1) ) then
-              xtarg = xtarg - sys%xmesh(1)
-              xph = -sys%xmesh(1)
-            elseif( xtarg .lt. 1 ) then
-              xtarg = xtarg + sys%xmesh(1) 
-              xph = sys%xmesh(1)
-            else
             xph = 0
-            endif 
-            
-            iq = 0
-            do iq1 = 1, sys%kmesh( 1 )
-              do iq2 = 1, sys%kmesh( 2 )
-                do iq3 = 1, sys%kmesh( 3 )
-                  iq = iq + 1
-
-                  phsx = 2.0d0 * pi * dble( ( xph + ix - 1 ) * ( iq1 - 1 ) ) / dble( sys%xmesh(1) * sys%kmesh( 1 ) )
-                  phsy = 2.0d0 * pi * dble( ( yph + iy - 1 ) * ( iq2 - 1 ) ) / dble( sys%xmesh(2) * sys%kmesh( 2 ) )
-                  phsz = 2.0d0 * pi * dble( ( zph + iz - 1 ) * ( iq3 - 1 ) ) / dble( sys%xmesh(3) * sys%kmesh( 3 ) )
-                  cphs = dcos( phsx + phsy + phsz ) 
-                  sphs = dsin( phsx + phsy + phsz )
-                  !JTV replace this stupid thing with a rotation thingy
-                  ! rbs_out = re_bloch_state
-                  ! ibs_out = im_bloch_state
-                  ! call DROT( nbd, rbs_out, 1, ibs_out, 1, cphs, -sphs )
-                  if( use_sp ) then
-                    do ibd = 1, my_num_bands
-                      rbs_sp_out( ibd, iq, xiter - my_start_nx + 1, ispn )  &
-                            = cphs * re_bloch_state( ibd, iq, xiter - my_start_nx + 1, ispn )  &
-                            - sphs * im_bloch_state( ibd, iq, xiter - my_start_nx + 1, ispn )
-                      ibs_sp_out( ibd, iq, xiter - my_start_nx + 1, ispn )  &
-                            = cphs * im_bloch_state( ibd, iq, xiter - my_start_nx + 1, ispn )  &
-                            + sphs * re_bloch_state( ibd, iq, xiter - my_start_nx + 1, ispn )
-                    enddo
-                  else
-                    do ibd = 1, my_num_bands
-                      rbs_out( ibd, iq, xiter - my_start_nx + 1, ispn )  & 
-                            = cphs * re_bloch_state( ibd, iq, xiter - my_start_nx + 1, ispn )  &
-                            - sphs * im_bloch_state( ibd, iq, xiter - my_start_nx + 1, ispn ) 
-                      ibs_out( ibd, iq, xiter - my_start_nx + 1, ispn )  &
-                            = cphs * im_bloch_state( ibd, iq, xiter - my_start_nx + 1, ispn )  &
-                            + sphs * re_bloch_state( ibd, iq, xiter - my_start_nx + 1, ispn )
-                    enddo
-                  endif
-                enddo
+          endif
+          iq = 0
+          do iq1 = 1, sys%kmesh( 1 )
+            do iq2 = 1, sys%kmesh( 2 )
+              do iq3 = 1, sys%kmesh( 3 )
+                iq = iq + 1
+                phsx = 2.0d0 * pi * real( ( xph + ix - 1 ) * ( iq1 - 1 ), DP ) / real( sys%xmesh(1) * sys%kmesh( 1 ), DP )
+                phsy = 2.0d0 * pi * real( ( yph + iy - 1 ) * ( iq2 - 1 ), DP ) / real( sys%xmesh(2) * sys%kmesh( 2 ), DP )
+                phsz = 2.0d0 * pi * real( ( zph + iz - 1 ) * ( iq3 - 1 ), DP ) / real( sys%xmesh(3) * sys%kmesh( 3 ), DP )
+                cphs = dcos( phsx + phsy + phsz )
+                sphs = dsin( phsx + phsy + phsz )
+                if( use_sp ) then
+                  do ibd = 1, my_num_bands
+                    rbs_sp_out( ibd, iq, xiter - my_start_nx + 1, ispn )  = &
+                      cphs * re_bloch_state( ibd, iq, xiter - my_start_nx + 1, ispn )  - &
+                      sphs * im_bloch_state( ibd, iq, xiter - my_start_nx + 1, ispn )
+                    ibs_sp_out( ibd, iq, xiter - my_start_nx + 1, ispn )  = &
+                      cphs * im_bloch_state( ibd, iq, xiter - my_start_nx + 1, ispn )  + &
+                      sphs * re_bloch_state( ibd, iq, xiter - my_start_nx + 1, ispn )
+                  enddo
+                else
+                  do ibd = 1, my_num_bands
+                    rbs_out( ibd, iq, xiter - my_start_nx + 1, ispn )  = &
+                      cphs * re_bloch_state( ibd, iq, xiter - my_start_nx + 1, ispn )  - &
+                      sphs * im_bloch_state( ibd, iq, xiter - my_start_nx + 1, ispn )
+                    ibs_out( ibd, iq, xiter - my_start_nx + 1, ispn )  = &
+                      cphs * im_bloch_state( ibd, iq, xiter - my_start_nx + 1, ispn )  + &
+                      sphs * re_bloch_state( ibd, iq, xiter - my_start_nx + 1, ispn )
+                  enddo
+                endif
               enddo
             enddo
-
           enddo
         enddo
       enddo
+    enddo
+  enddo
+end subroutine regular_plane_wave
 
-111 continue
-  enddo ! spin
+!> Calculates the plane waves on a non-uniform grid
+subroutine irregular_plane_wave( sys, ierr, xshift, tau, rbs_out, ibs_out, rbs_sp_out, ibs_sp_out, use_sp )          
+      use OCEAN_mpi
+      use OCEAN_system
+      implicit none
+      type(o_system), intent(in) :: sys
+      integer, intent(inout) :: ierr
+      real(DP), intent(in) :: tau(3)
+      integer, intent(in) :: xshift(3)
+      logical, intent(in) :: use_sp
+      real(DP), intent(inout) :: rbs_out(:,:,:,:)
+      real(DP), intent(inout) :: ibs_out(:,:,:,:)
+      real(SP), intent(inout) :: rbs_sp_out(:,:,:,:)
+      real(SP), intent(inout) :: ibs_sp_out(:,:,:,:)
 
-          
+      real(DP) :: qvec(3)
 
+      real(DP) :: cphs, sphs, pi, phs_tot
+      integer :: iq, iq1, iq2, iq3
+      integer :: i, j
+      integer :: xiter, ibd, ispn 
 
-  end subroutine OCEAN_bloch_lrLOAD
+      pi = 4.0d0 * atan( 1.0d0 )
+      do ispn = 1, sys%nspn
+        xiter = 0
+        do i = 1, grid%num_coord
+          ! option to shift coordinate
+          !call do_shift(i, curvi_xshift)
+          xiter = xiter + 1
+          if( xiter .lt. my_start_nx ) cycle
+          if( xiter .gt. my_start_nx + my_xpts - 1 ) exit
 
+          iq = 0
+          do iq1 = 1, sys%kmesh(1)
+            do iq2 = 1, sys%kmesh(2)
+              do iq3 = 1, sys%kmesh(3)
+                iq = iq + 1
+
+                qvec(1) = real(iq1 - 1, DP) / real(sys%kmesh(1), DP)
+                qvec(2) = real(iq2 - 1, DP) / real(sys%kmesh(2), DP)
+                qvec(3) = real(iq3 - 1, DP) / real(sys%kmesh(3), DP)
+
+                ! calculate phase shift
+                phs_tot = 2.0d0 * pi * dot_product(qvec, grid%curvi_coord(:, i)) 
+                cphs = dcos(phs_tot) * sqrt(grid%weights(i))
+                sphs = dsin(phs_tot) * sqrt(grid%weights(i))
+                if (use_sp) then
+                        do ibd = 1, my_num_bands
+                          rbs_sp_out( ibd, iq, i - my_start_nx + 1, ispn )  = &
+                                  cphs * re_bloch_state( ibd, iq, xiter - my_start_nx + 1, ispn )  - &
+                                  sphs * im_bloch_state( ibd, iq, xiter - my_start_nx + 1, ispn )
+                          ibs_sp_out( ibd, iq, i - my_start_nx + 1, ispn )  = &
+                                  cphs * im_bloch_state( ibd, iq, xiter - my_start_nx + 1, ispn )  + &
+                                  sphs * re_bloch_state( ibd, iq, xiter - my_start_nx + 1, ispn )
+                        enddo
+                else
+                        do ibd = 1, my_num_bands
+                          rbs_out( ibd, iq, xiter - my_start_nx + 1, ispn )  = &
+                                  cphs * re_bloch_state( ibd, iq, xiter - my_start_nx + 1, ispn )  - &
+                                  sphs * im_bloch_state( ibd, iq, i - my_start_nx + 1, ispn )
+                          ibs_out( ibd, iq, i - my_start_nx + 1, ispn )  = &
+                                  cphs * im_bloch_state( ibd, iq, xiter - my_start_nx + 1, ispn )  + &
+                                  sphs * re_bloch_state( ibd, iq, xiter - my_start_nx + 1, ispn )
+                        enddo
+                endif
+              enddo
+            enddo
+          enddo
+        enddo 
+      enddo
+  111 continue 
+  end subroutine irregular_plane_wave
 
   subroutine OCEAN_bloch_lrINIT( xpts, kpts, num_bands, start_nx, ierr )
     implicit none
@@ -232,8 +309,6 @@ module OCEAN_bloch
     kpts = my_kpts
     num_bands = my_num_bands
     start_nx = my_start_nx
-
-
   end subroutine OCEAN_bloch_lrINIT
 
   subroutine OCEAN_bloch_init( sys, ierr )
@@ -268,7 +343,7 @@ module OCEAN_bloch
 
 
     integer( S_INT ) :: nx_left, nx_start, nx_tmp, i
-    type(C_PTR) :: cptr
+    
 
     logical :: havefile
 
@@ -342,7 +417,7 @@ module OCEAN_bloch
     
 
     integer( S_INT ) :: nx_left, nx_start, nx_tmp, i
-    type(C_PTR) :: cptr 
+    
     
 
     if( is_val_init ) return
@@ -404,29 +479,28 @@ module OCEAN_bloch
 
     integer, parameter :: u2dat = 35
     !
-    integer :: nx, ny, nz, nbd, nq
+    integer :: nx, ny, nz, nbd
 !    real( kind = DP  ), dimension( nx, ny, nz, nbd ) :: ur, ui
     !
     integer :: iq, ibd, ig, idum( 3 ), ix, iy, iz, ivl, ivh, icl, ich, ispn, i
-    integer :: iq1, iq2, iq3, dumint, icl2, ich2, ivh2, xshift(3)
-    integer :: xtarg, ytarg, ztarg, xph, yph, zph
-    real( kind = DP  ) :: phsx, phsy, phsz, cphs, sphs, psir, psii, pi
+    integer :: iq1, iq2, iq3, dumint, ivh2
+  
+    
     real( kind = DP  ) :: su, sul, suh
     real( kind = DP  ), allocatable, dimension( :, :, :, : ) :: tmp_ur, tmp_ui, ur, ui
     real( DP ), allocatable :: re_transpose( :, : ), im_transpose( :, : )
-    complex( DP ), allocatable :: u2_buf( :, :, :, : )
+    
 !    complex( kind = DP  ), allocatable, dimension( :, : ) :: tmp_bloch
-    logical :: metal, normal, ex
-    integer :: nx_left, nx_start, nx_tmp, xiter, ii, width(3)
+    logical :: metal, ex
+    integer :: nx_left, nx_start, nx_tmp, xiter
     character(len=3) :: bloch_type
     logical :: invert_xmesh
 
     !
-    integer :: fmode, fhu2
-    integer(kind=MPI_OFFSET_KIND) :: offset, offset_extra, offset_nx, offset_start
-    integer(8) :: time1, time2, tics_per
+    
+    
 
-    integer :: ncount, u2_status(MPI_STATUS_SIZE), u2_type
+    
 
     if( is_loaded ) return
 
@@ -617,9 +691,6 @@ module OCEAN_bloch
             endif
            nx_start = nx_start + nx_tmp
          enddo
-
-
-
         enddo
        enddo
       enddo
@@ -713,7 +784,7 @@ module OCEAN_bloch
 
     integer :: width(3), iq_ten
     integer :: fmode, fhu2, u2_type, u2_status(MPI_STATUS_SIZE), ncount, io_comm, nelement
-    integer(kind=MPI_OFFSET_KIND) :: offset, offset_extra, offset_nx, offset_start
+    integer(kind=MPI_OFFSET_KIND) :: offset, offset_extra, offset_start
     integer(8) :: time1, time2, tics_per
     
     logical :: io_group = .false.
@@ -1007,17 +1078,14 @@ module OCEAN_bloch
 
     complex(DP), allocatable, dimension(:,:) ::  transposeU2, tempU2
     complex(DP), allocatable, dimension(:) :: readU2
-    complex(DP) :: dumz
-    integer :: fflags, fh, myX, nx_start, nx_left, i, ispin, ikpt, sizeofcomplex, ib, curX, bandsInFile
+    integer :: myX, nx_start, nx_left, i, ispin, ikpt, ib, curX, bandsInFile
     logical :: loadConductionBands
 
     character(len=10) :: filnam
-    integer(MPI_OFFSET_KIND) :: offset
 #ifdef MPI_F08
     type( MPI_DATATYPE ) :: fileType
     type( MPI_REQUEST ), allocatable :: requests(:)
 #else
-    integer :: fileType
     integer, allocatable :: requests(:)
 #endif
 
@@ -1086,7 +1154,6 @@ module OCEAN_bloch
 
         enddo
 
-        !TODO better skips
         do ib = sys%num_bands+1, bandsInFile
           if( myid .eq. root ) then
 !            write(6,*) 'skips:', ib, ikpt
@@ -1129,7 +1196,6 @@ module OCEAN_bloch
 
     complex(DP), allocatable, dimension(:,:) ::  transposeU2
     complex(DP), allocatable, dimension(:,:,:,:) :: tempU2
-    complex(DP) :: dumz
     integer :: fflags, fh, myX, nx_start, nx_left, i, ispin, ikpt, sizeofcomplex
     logical :: loadConductionBands
 

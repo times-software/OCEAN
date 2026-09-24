@@ -130,11 +130,13 @@ if( -e $dataFile )
       {
         goto CLEAN;
       }
-      if( $commonOceanData->{'opf'}->{'shirley'}->{'hfkgrid'}[0] != $opfData->{'shirley'}->{'hfkgrid'}[0] 
-       || $commonOceanData->{'opf'}->{'shirley'}->{'hfkgrid'}[1] != $opfData->{'shirley'}->{'hfkgrid'}[1] )
-      {
-        goto CLEAN;
-      }
+    }
+    if( ! exists $opfData->{'shirley'} ||
+        ! exists $opfData->{'shirley'}->{'hfkgrid'} ||
+        $commonOceanData->{'opf'}->{'shirley'}->{'hfkgrid'}[0] != $opfData->{'shirley'}->{'hfkgrid'}[0] 
+     || $commonOceanData->{'opf'}->{'shirley'}->{'hfkgrid'}[1] != $opfData->{'shirley'}->{'hfkgrid'}[1] )
+    {
+      goto CLEAN;
     }
 
     goto CLEAN if( abs( $commonOceanData->{'opf'}->{'radius'} - $opfData->{'radius'} ) > 0.00000001 );
@@ -184,13 +186,21 @@ if( -e $dataFile )
 #          $todoHash{$Z} eq $opfData->{'completed'}->{$Z}->{'input_hash'} )
 #      {
       if( $delete ) {
-        foreach my $nl ( @{$opfData->{'completed'}->{$Z}->{'NL'}} )
+        if( exists $opfData->{'completed'}->{$Z}->{'NL'} &&
+            ref( $opfData->{'completed'}->{$Z}->{'NL'} ) eq 'ARRAY' )
         {
+          foreach my $nl ( @{$opfData->{'completed'}->{$Z}->{'NL'}} )
+          {
 #          print "   $nl\n";
  #         foreach my $i ( keys %{$todoZNL{ $Z }} )
  #         {  print "   $i\n";
  #         }
-          delete $todoZNL{ $Z }{ $nl } if( exists $todoZNL{ $Z }{ $nl } );
+            delete $todoZNL{ $Z }{ $nl } if( exists $todoZNL{ $Z }{ $nl } );
+          }
+        }
+        else
+        {
+          print "No previous NL list\n";
         }
       }
       else
@@ -253,14 +263,28 @@ if( -e $dataFile )
     {   
       die "Unsupported opf aux program\n";
     }
+    verifyOPFOutputFiles( $Z, $todoZNL{ $Z } );
+
     # Can just write over since we already checked that they're the same
     $opfData->{'completed'}->{$Z}->{'psp_hash'} = $todoHash{ $Z };
     $opfData->{'completed'}->{$Z}->{'input_hash'} = $todoInput{ $Z };
-    $opfData->{'completed'}->{$Z}->{'NL'} = [] unless( exists $opfData->{'completed'}->{'NL'} );
-    foreach my $nl (keys %{$todoZNL{ $Z }} )
+    $opfData->{'completed'}->{$Z}->{'NL'} = []
+        unless( exists $opfData->{'completed'}->{$Z}->{'NL'} &&
+                ref( $opfData->{'completed'}->{$Z}->{'NL'} ) eq 'ARRAY' );
+
+    my %completedNL;
+    foreach my $nl ( @{$opfData->{'completed'}->{$Z}->{'NL'}} )
+    {
+      $completedNL{ $nl } = 1;
+    }
+    foreach my $nl (sort keys %{$todoZNL{ $Z }} )
     {
       print "  Run for NL: $nl\n";
-      push @{$opfData->{'completed'}->{$Z}->{'NL'}}, $nl;
+      unless( exists $completedNL{ $nl } )
+      {
+        push @{$opfData->{'completed'}->{$Z}->{'NL'}}, $nl;
+        $completedNL{ $nl } = 1;
+      }
     }
   }
 
@@ -1281,6 +1305,74 @@ sub runONCV
   }
 
 
+}
+
+
+# Check the files downstream stages actively read before recording new OPF work in opf.json.
+# Existing completed entries are trusted; this only validates outputs from a run we just did.
+sub verifyOPFOutputFiles
+{
+  my ( $Z, $todoZNL ) = @_;
+
+  my $zee = sprintf( "z%03i", $Z );
+  my @missing;
+
+  foreach my $file ( "corezeta$zee", "prjfile$zee", "radfile$zee" )
+  {
+    my $path = catfile( "zpawinfo", $file );
+    push @missing, $path unless( -e $path );
+  }
+
+  my $prjFile = catfile( "zpawinfo", "prjfile$zee" );
+  if( -e $prjFile )
+  {
+    open IN, "<", $prjFile or die "Failed to open $prjFile\n$!";
+    my $line = <IN>;
+    close IN;
+
+    if( defined $line && $line =~ m/^\s*(\d+)\s+(\d+)/ )
+    {
+      my $lmin = $1;
+      my $lmax = $2;
+      die "Malformed l range in $prjFile\n" if( $lmax < $lmin );
+      for( my $l = $lmin; $l <= $lmax; $l++ )
+      {
+        foreach my $prefix ( "ae", "ps" )
+        {
+          my $path = catfile( "zpawinfo", "$prefix$l$zee" );
+          push @missing, $path unless( -e $path );
+        }
+      }
+    }
+    else
+    {
+      die "Failed to read l range from $prjFile\n";
+    }
+  }
+
+  foreach my $nl ( sort keys %{$todoZNL} )
+  {
+    $nl =~ m/^(\d+)\s+(\d+)$/ or die "Malformed NL entry for OPF: $nl\n";
+    my $edge = sprintf( "%sn%02il%02i", $zee, $1, $2 );
+
+    foreach my $prefix ( "coreorb", "melfile", "vc_bare", "vpseud1", "vvallel" )
+    {
+      my $path = catfile( "zpawinfo", "$prefix$edge" );
+      push @missing, $path unless( -e $path );
+    }
+
+    my @fk = glob( catfile( "zpawinfo", "fk*$edge" ) );
+    push @missing, catfile( "zpawinfo", "fk*$edge" ) unless( scalar @fk );
+
+    my @gk = glob( catfile( "zpawinfo", "gk*$edge" ) );
+    push @missing, catfile( "zpawinfo", "gk*$edge" ) unless( scalar @gk );
+  }
+
+  if( scalar @missing )
+  {
+    die "OPF output verification failed for Z = $Z. Missing required file(s):\n  "
+      . join( "\n  ", @missing ) . "\n";
+  }
 }
 
 

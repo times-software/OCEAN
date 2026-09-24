@@ -158,6 +158,13 @@
          0
       ]
    },
+   "cls" : {
+      "average" : true,
+      "do_exx" : false, 
+      "edge" : null,
+      "enable" : false,
+      "energy" : null
+   },
    "computer" : {
       "para_prefix" : "#",
       "ser_prefix" : "!"
@@ -165,7 +172,7 @@
    "dft" : {
       "abpad" : 4,
       "bse" : {
-         "diagonalization" : "ppcg",
+         "diagonalization" : "davidson",
          "poolsize" : -1,
          "split" : true,
          "toldfe" : -1
@@ -225,7 +232,7 @@
       "program" : "abi",
       "redirect" : false,
       "screen" : {
-         "diagonalization" : "ppcg",
+         "diagonalization" : "davidson",
          "poolsize" : -1,
          "toldfe" : -1
       },
@@ -327,7 +334,7 @@
             "qmax" : 10,
             "semicore_density" : false
          },
-         "flavor" : "SLL"
+         "flavor" : "sll"
       },
       "nbands" : "range",
       "shells" : [

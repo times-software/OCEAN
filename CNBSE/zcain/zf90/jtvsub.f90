@@ -104,7 +104,7 @@ subroutine jtvsub( lmin, lmax, nproj, npmax, lc, nbsemel, powmax, ifcn, stext, e
   iqmag = -1
   iqmag = sqrt( iqmag )
   iqmag = - iqmag * qmag
-  write ( 6, * ) ' qmag = ', qmag, 'inverse bohrs'
+  !write ( 6, * ) ' qmag = ', qmag, 'inverse bohrs'
   !      
   do mc = -lc, lc
      do l = lmin, lmax

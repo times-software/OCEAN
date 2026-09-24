@@ -53,6 +53,7 @@ module screen_system
     character(len=3) :: appx
     logical :: doFXC = .false.
     logical :: allAug = .false.
+    character(len=7) :: vext
   end type calculation_parameters
 
   type( physical_system ), save :: psys
@@ -69,7 +70,7 @@ module screen_system
   public :: screen_system_doAugment, screen_system_lbounds, screen_system_mode
   public :: screen_system_setGamma, tau2xcoord
   public :: screen_system_volume, screen_system_xmesh, screen_system_appx, screen_system_doFxc, screen_system_allAug
-  public :: screen_system_natoms
+  public :: screen_system_natoms, screen_system_vext
 
   contains 
 
@@ -161,6 +162,11 @@ module screen_system
     logical :: aa
     aa = calcParams%allAug
   end function
+
+  pure function screen_system_vext() result ( vc )
+    character(len=7) :: vc
+    vc = calcParams%vext
+  end function 
 
   pure function screen_system_natoms() result( n )
     integer :: n
@@ -623,6 +629,18 @@ module screen_system
       calcParams%do_augment = .false.
     endif
 
+    inquire( file='screen.vext', exist=ex )
+    if( ex ) then
+      open( unit=99, file='screen.vext', form='formatted', status='old' )
+      read( 99, *, IOSTAT=ignoreErrors ) calcParams%vext
+      close( 99 )
+      write(6,'(A,A,A)') 'Using ', calcParams%vext, ' for core-screened potential'
+    endif
+    if( ex .eqv. .false. .or. ignoreErrors .ne. 0 ) then
+      write( 6, * ) 'Using default for screen.vext!'
+      write( 6, * ) '  screen.vext = vc_bare'
+      calcParams%vext = 'vc_bare'
+    endif
 
   end subroutine load_calcParams
 

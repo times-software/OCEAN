@@ -380,8 +380,10 @@ module OCEAN_val_energy
 !        case ('full')
 !          call val_abinit_fullgw( sys, ierr, .true. )
         case ('list')
-          write(6,*) 'GW! Will attempt list-style corrections'
-          call val_list_gw( sys, val_energies, con_energies, ierr )
+          write(6,*) 'Valence list-style GW corrections are not functional.'
+          write(6,*) 'No GW corrections will be done.'
+          have_gw = .false.
+!          call val_list_gw( sys, val_energies, con_energies, ierr )
         case( 'band' )
           call val_gw_by_band( sys, val_energies, con_energies, ierr, .false. )
         case( 'ibnd' )
@@ -402,14 +404,14 @@ module OCEAN_val_energy
     if( ierr .ne. MPI_SUCCESS ) return
     if( have_gw ) then
 !      call MPI_BCAST( val_energies, sys%cur_run%val_bands * sys%nkpts, MPI_DOUBLE_PRECISION, & 
-      call MPI_BCAST( val_energies, (sys%brange(2)-sys%brange(1)) * sys%nkpts * sys%nspn * sys%nbw, &
+      call MPI_BCAST( val_energies, (sys%brange(2)-sys%brange(1)+1) * sys%nkpts * sys%nspn * sys%nbw, &
                       MPI_DOUBLE_PRECISION, root, comm, ierr )
-      call MPI_BCAST( con_energies, (sys%brange(4)-sys%brange(3)) * sys%nkpts * sys%nspn * sys%nbw, &
+      call MPI_BCAST( con_energies, (sys%brange(4)-sys%brange(3)+1) * sys%nkpts * sys%nspn * sys%nbw, &
                       MPI_DOUBLE_PRECISION, root, comm, ierr )
       call MPI_BCAST( have_imaginary, 1, MPI_LOGICAL, root, comm, ierr )
-      call MPI_BCAST( im_val_energies, (sys%brange(2)-sys%brange(1)) * sys%nkpts * sys%nspn * sys%nbw, &
+      call MPI_BCAST( im_val_energies, (sys%brange(2)-sys%brange(1)+1) * sys%nkpts * sys%nspn * sys%nbw, &
                       MPI_DOUBLE_PRECISION, root, comm, ierr )
-      call MPI_BCAST( im_con_energies, (sys%brange(4)-sys%brange(3)) * sys%nkpts * sys%nspn * sys%nbw, &
+      call MPI_BCAST( im_con_energies, (sys%brange(4)-sys%brange(3)+1) * sys%nkpts * sys%nspn * sys%nbw, &
                       MPI_DOUBLE_PRECISION, root, comm, ierr )
     endif
 #endif
@@ -801,7 +803,7 @@ module OCEAN_val_energy
     real(dp) :: temp, per_electron_dope
     integer :: i_band, overlap, t_electron, n_electron_dope
     integer :: iter, node, node2, top, kiter, ierr_, ispn, i, ii, ibw
-    logical :: doping
+    logical :: doping, legacy
     !
     !
     !
@@ -827,6 +829,16 @@ module OCEAN_val_energy
         endif
       endif
       !
+      inquire( file='val_efermi_legacy', exist=legacy )
+      if( legacy ) then
+        open(unit=99,file='val_efermi_legacy', form='formatted', status='old')
+        read(99,*) legacy
+        close(99)
+      endif
+      open( unit=99, file='efermiinrydberg.ipt', form='formatted', status='old' )
+      read(99,*) efermi
+      close(99)
+      efermi = efermi / 2.0_DP
       !
       if( mod( nelectron, 2 ) .ne. 0 ) then
         if ( metal .eqv. .false. )  then
@@ -834,7 +846,7 @@ module OCEAN_val_energy
           write( 6, * ) 'Setting metal = true and continuing'
           metal = .true.
         endif
-        if( mod( sys%nkpts, 2 ) .ne. 0 ) then
+        if( mod( sys%nkpts * sys%nspn, 2 ) .ne. 0 .and. legacy ) then
           ierr = 80
           write( 6, * ) 'Number of kpts * number of electrons must be even for spinless calc.'
 !          goto 111
@@ -849,10 +861,14 @@ module OCEAN_val_energy
     if( ierr .ne. MPI_SUCCESS ) return
     call MPI_BCAST( n_electron_dope, 1, MPI_INTEGER, root, comm, ierr )
     if( ierr .ne. MPI_SUCCESS ) return
+    call MPI_BCAST( legacy, 1, MPI_LOGICAL, root, comm, ierr )
+    if( ierr .ne. MPI_SUCCESS ) return
+    call MPI_BCAST( efermi, 1, MPI_DOUBLE_PRECISION, root, comm, ierr )
+    if( ierr .ne. MPI_SUCCESS ) return
 #endif
     !
     overlap = sys%brange( 2 ) - sys%brange( 3 ) + 1
-    if( ( metal .or. sys%valence_ham_spin .gt. 1 ) .and. overlap .gt. 0 ) then
+    if( ( metal .or. sys%valence_ham_spin .gt. 1 ) .and. ( overlap .gt. 0 ) .and. legacy ) then
       ii = 0
       allocate( simple_energies( overlap * sys%nkpts * sys%valence_ham_spin * sys%nbw) )
       do ibw = 1, sys%nbw
@@ -949,7 +965,7 @@ module OCEAN_val_energy
       homo = simple_energies( t_electron )
       lumo = simple_energies( t_electron + 1 )
       efermi = ( lumo + homo ) / 2.0_dp
-    else ! not metal
+    elseif( .not. metal ) then ! not metal
 !      i_band = nelectron / 2 - sys%brange( 1 ) + 1
       i_band = nelectron / 2
       if( myid .eq. root ) write( 6, * ) "i_band = ", i_band
@@ -975,6 +991,25 @@ module OCEAN_val_energy
 !        if( sys%nspn .eq. 2 ) lumo = min( con_energies( i_band, kiter , 1), lumo )
       enddo
       efermi = ( lumo + homo ) / 2.d0
+    else
+      homo =  val_energies( 1, 1, 1, 1)
+      lumo = con_energies( sys%brange(4), 1, 1, 1 )
+      do ibw = 1, sys%nbw
+        do ispn = 1, sys%nspn
+          do kiter = 1, sys%nkpts
+            do i_band = sys%brange(3)-1, sys%brange(2)
+              if( val_energies( i_band, kiter , ispn, ibw) .lt. efermi ) then
+                homo = max( val_energies( i_band, kiter , ispn, ibw), homo )
+              endif
+            enddo
+            do i_band = sys%brange(2)+1, (sys%brange(2) + 1)*2 - sys%brange(3) 
+              if( con_energies( i_band, kiter , ispn, ibw) .gt. efermi ) then
+                lumo = min( con_energies( i_band, kiter , ispn, ibw), lumo )
+              endif
+            enddo
+          enddo
+        enddo
+      enddo
     endif
     !
 !    cliph = con_energies( sys%brange( 4 ) - sys%brange( 3 ) + 1, 1 , 1)

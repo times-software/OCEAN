@@ -1,0 +1,156 @@
+{
+   "bse" : {
+      "core" : {
+         "gmres" : {
+            "estyle" : [
+               "list",
+               "range"
+            ]
+         },
+         "gw" : {
+            "control" : [
+               "band",
+               "cstr",
+               "full",
+               "ibnd",
+               "list",
+               "none",
+               "real"
+            ]
+         },
+         "solver" : [
+            "gmres",
+            "haydock"
+         ]
+      },
+      "occupation" : {
+         "type" : [
+            "fermi",
+            "fixed",
+            "full",
+            "none"
+         ]
+      },
+      "val" : {
+         "gmres" : {
+            "estyle" : [
+               "list",
+               "range"
+            ]
+         },
+         "gw" : {
+            "control" : [
+               "band",
+               "cstr",
+               "ibnd",
+               "none"
+            ]
+         },
+         "solver" : [
+            "gmres",
+            "haydock"
+         ]
+      }
+   },
+   "calc" : {
+      "mode" : [
+         "rxs",
+         "val",
+         "xas",
+         "xes"
+      ]
+   },
+   "dft" : {
+      "bse" : {
+         "diagonalization" : [
+            "cg",
+            "david",
+            "davidson",
+            "ppcg"
+         ]
+      },
+      "diagonalization" : [
+         "cg",
+         "david",
+         "davidson",
+         "default",
+         "ppcg"
+      ],
+      "epsilon" : {
+         "method" : [
+            "dfpt",
+            "input"
+         ]
+      },
+      "mixing_mode" : [
+         "local-tf",
+         "plain",
+         "tf"
+      ],
+      "program" : [
+         "abi",
+         "qe"
+      ],
+      "screen" : {
+         "diagonalization" : [
+            "cg",
+            "david",
+            "davidson",
+            "ppcg"
+         ]
+      },
+      "startingpot" : [
+         "atomic",
+         "file"
+      ],
+      "startingwfc" : [
+         "atomic",
+         "atomic+random",
+         "file",
+         "random"
+      ]
+   },
+   "opf" : {
+      "program" : [
+         "hamann",
+         "shirley"
+      ]
+   },
+   "psp" : {
+      "ecut_quality" : [
+         "high",
+         "low",
+         "normal"
+      ],
+      "source" : [
+         "database",
+         "manual"
+      ]
+   },
+   "screen" : {
+      "convertstyle" : [
+         "fft2",
+         "intp",
+         "real"
+      ],
+      "grid" : {
+         "rmode" : [
+            "legendre",
+            "uniform"
+         ]
+      },
+      "inversionstyle" : [
+         "direct",
+         "sinqr"
+      ],
+      "mode" : [
+         "core",
+         "grid"
+      ],
+      "model" : {
+         "flavor" : [
+            "sll"
+         ]
+      }
+   }
+}

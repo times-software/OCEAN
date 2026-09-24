@@ -3,7 +3,7 @@ OBJGEN = zobj/limel.o zobj/jimel.o zobj/getylm.o zobj/getprefs.o \
 OBJELS = $(OBJGEN) zobj/elssub.o zobj/confmel.o zobj/sphidriver.o
 OBJJTV = $(OBJGEN) zobj/jtvsub.o zobj/cmjtv.o zobj/sdjtv.o zobj/jlmatfetch.o zobj/ckmels.o zobj/ldosfetch.o
 #
-all: zexe/melcalc.x zexe/dotter.x zexe/meljtv.x
+all: zexe/meljtv.x
 #
 zexe/melcalc.x: $(OBJELS)
 	$(COMP) $(OPTS) -o zexe/melcalc.x $(OBJELS)

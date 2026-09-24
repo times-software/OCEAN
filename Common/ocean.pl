@@ -14,7 +14,7 @@ use File::Copy;
 use strict;
 
 
-my @OceanFolders = ("Common", "DFT", "OPF", "SCREEN", "CNBSE", "PREP" );
+my @OceanFolders = ("Common", "DFT", "OPF", "SCREEN", "CNBSE", "PREP", "CLS" );
 
 print "Welcome to OCEAN\n";
 
@@ -149,7 +149,7 @@ copy("../$InputFile","$InputFile");
 
 if( -e "$ENV{'OCEAN_BIN'}/parseJSON.pl" )
 {
-  system("$ENV{'OCEAN_BIN'}/parseJSON.pl $InputFile $ENV{'OCEAN_BIN'}/oparse.json $ENV{'OCEAN_BIN'}/oparse.type.json") == 0
+  system("$ENV{'OCEAN_BIN'}/parseJSON.pl $InputFile $ENV{'OCEAN_BIN'}/oparse.json $ENV{'OCEAN_BIN'}/oparse.type.json $ENV{'OCEAN_BIN'}/oparse.enum.json > parse.log") == 0
     or die "Failed to parse the input file\n$!";
 }
 else {
@@ -203,10 +203,12 @@ my $calc = lc($1);
 close CALC;
 my $run_opf;
 my $run_screen;
+my $run_cls = 1;
 if( $calc =~ m/val/i )
 {
   $run_opf = 0;
   $run_screen = 1;
+  $run_cls = 0;
 }
 else
 {
@@ -302,6 +304,17 @@ if( $run_screen)
   {
     system("$OCEAN_BIN/screen.pl") == 0 or die "SCREEN stage failed\n$!";
   }
+}
+##########################################
+#
+# CLS stage
+##########################################
+print "$Separator\n";
+if( $run_cls)
+{
+  print "Entering CLS stage\n";
+  chdir "../CLS";
+  system("$OCEAN_BIN/cls.pl") == 0 or die "CLS stage failed\n$!";
 }
 ##########################################
 #

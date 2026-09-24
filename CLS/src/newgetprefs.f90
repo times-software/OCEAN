@@ -5,7 +5,7 @@
 ! `License' in the root directory of the present distribution.
 !
 !
-subroutine getprefs( prefs, lmax, nsphpt, wsph, xsph, ysph, zsph )
+subroutine newgetprefs( prefs, lmax, nsphpt, wsph, xsph, ysph, zsph )
   implicit none
   !
   integer :: lmax, nsphpt
@@ -52,8 +52,8 @@ subroutine getprefs( prefs, lmax, nsphpt, wsph, xsph, ysph, zsph )
               ! 
               su = 0.0d0
               do i = 1, nsphpt 
-                 call getylm( l, m, xsph( i ), ysph( i ), zsph( i ), ylm, prefs )
-                 call getylm( ll, mm, xsph( i ), ysph( i ), zsph( i ), yllmm, prefs )
+                 call newgetylm( l, m, xsph( i ), ysph( i ), zsph( i ), ylm, prefs )
+                 call newgetylm( ll, mm, xsph( i ), ysph( i ), zsph( i ), yllmm, prefs )
                  su = su + wsph( i ) * ylm * conjg( yllmm )
               end do
               !
@@ -78,4 +78,4 @@ subroutine getprefs( prefs, lmax, nsphpt, wsph, xsph, ysph, zsph )
 !  write ( 6, '(4(1x,1f22.15))' ) sudmin, sudmax, suodmin, suodmax
   !
   return
-end subroutine getprefs
+end subroutine newgetprefs

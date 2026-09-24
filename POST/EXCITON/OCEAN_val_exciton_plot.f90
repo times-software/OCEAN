@@ -5,10 +5,12 @@
 ! `License' in the root directory of the present distribution.
 !
 program OCEAN_val_exciton_plot
+  use periodic, only : get_atom_number
   implicit none
   integer, parameter :: DP = kind(1.0d0 )
   complex(DP), allocatable :: exciton(:,:,:,:), plot_exciton(:,:), Rspace_exciton(:,:), &
-                              u2(:,:), rk_exciton(:,:), cv_exciton(:,:,:),cvkex(:,:),pointwf(:)
+                              u2(:,:), rk_exciton(:,:), cv_exciton(:,:,:),cvkex(:,:),pointwf(:), &
+                              flipu2(:,:)
   complex(DP) :: cphs
   real(DP), allocatable :: z_stripe( : ), xyz(:,:), atom_loc(:,:)
   real(DP) :: qinb(3), avecs(3,3), su, k0(3), qvec(3), Rvec(3), xphs, yphs, zphs, twopi, tau(3), ur, ui, ehcoor(3)
@@ -16,7 +18,7 @@ program OCEAN_val_exciton_plot
   integer :: ikx, iky, ikz, iRx, iRy, iRz, NX, i, ix, x_count, xiter, iy, iz, izz, bloch_selector
   integer :: brange(4), u2size, u2start, Rshift(3), natom, kiter_break, Rstart(3), idum(3)
   integer :: nvb, ncb, ehflag, ixctr
-  character(len=25) :: filname
+  character(len=64) :: filname
   character(len=128) :: outname
   character(len=2), allocatable :: elname(:)
   real(DP), external :: DZNRM2
@@ -160,9 +162,57 @@ program OCEAN_val_exciton_plot
      write(6,*) "u2size, u2start, nvb:", u2size, u2start, nvb
      
      select case ( bloch_selector )
+      case(2,3)
+        ! For start just reverse the xmesh on read of hole (the electron just has single point)
+        allocate( flipu2( NX, nvb ) )
+        open(unit=98,file='val.u2.dat',access='stream',status='old',form='unformatted' )
+        open(unit=99,file='con.u2.dat',access='stream',status='old',form='unformatted' )
+        ixctr = iehcoor(1) + (iehcoor(2) - 1 ) * xmesh(1) &
+              + ( iehcoor(3) - 1 ) * xmesh(1) * xmesh(2)
+        write(6,*) 'Selected nearest real space point index:', ixctr
+        kiter = 0
+        do ikx = 0, kmesh(1)-1
+          qvec(1) = (k0(1) + dble(ikx))/dble(kmesh(1))
+          xphs = twopi * dble( iehcoor(1)-1)/dble( xmesh(1) )  * qvec( 1 )
+          do iky = 0, kmesh(2)-1
+            qvec(2) = (k0(2) + dble(iky))/dble(kmesh(2))
+            yphs = twopi * dble( iehcoor(2)-1)/dble( xmesh(2) )  * qvec( 2 ) + xphs
+            do ikz = 0, kmesh(3)-1
+              kiter = kiter + 1
+              qvec(3) = (k0(3) + dble(ikz))/dble(kmesh(3))
+              zphs = twopi * dble( iehcoor(3)-1)/dble( xmesh(3) ) * qvec( 3 ) + yphs
+              if( mod( kiter, kiter_break ) .eq. 0 ) write(6,*) kiter
+              read(99) u2(:,1:ncb)
+              cphs = cmplx( cos( zphs ), sin( zphs ), DP )
+              pointwf(1:ncb) = (u2(ixctr,1:ncb)*cphs)
+          !Contract electron part to specified point
+          call ZGEMV('T', ncb, nvb, one, cv_exciton(1,1,kiter), ncb, pointwf(1), 1, one, plot_exciton(1, kiter), 1)
+          ! Read and reverse hole
+          read(98) u2(:,1:nvb)
+          xiter = 0
+          do iz = 1, xmesh(3)
+            do iy = 1, xmesh(2)
+              do ix = 1, xmesh(1)
+                xiter = xiter + 1
+                izz = iz + (iy-1)*xmesh(3) + (ix-1)*xmesh(3)*xmesh(2)
+                flipu2( izz, 1:nvb ) = conjg(u2( xiter, 1:nvb ))
+              enddo
+            enddo
+          enddo
+          !Convert hole part to real space           
+          call ZGEMV( 'N', NX, nvb, one, flipu2(1,1), NX, plot_exciton( 1, kiter ), 1, &
+                      one, rk_exciton( 1, kiter ), 1 )
+        enddo
+        enddo 
+        enddo
+        deallocate(flipu2)
+        close(98)
+        close(99)
+        qinb(:) = -qinb(:)
+
      case(1)
-!        write(6, *) "u2par.dat Not implemented"
-!        STOP
+        write(6, *) "u2par.dat Not implemented"
+        STOP
         open(unit=99,file='u2par.dat',access='stream',status='old',form='unformatted' )
         do kiter = 1, nkpts
           if( mod( kiter, kiter_break ) .eq. 0 ) write(6,*) kiter
@@ -249,6 +299,54 @@ program OCEAN_val_exciton_plot
      case(1)
         write(6, *) "u2par.dat Not implemented"
         STOP
+     case( 2,3 )
+        allocate( flipu2( NX, ncb ) )
+        open(unit=98,file='val.u2.dat',access='stream',status='old',form='unformatted' )
+        open(unit=99,file='con.u2.dat',access='stream',status='old',form='unformatted' )
+        ixctr = iehcoor(1) + (iehcoor(2) - 1 ) * xmesh(1) &
+              + ( iehcoor(3) - 1 ) * xmesh(1) * xmesh(2)
+        write(6,*) 'Selected nearest real space point index:', ixctr
+        qinb(:) = -qinb(:)
+        kiter = 0
+        do ikx = 0, kmesh(1)-1
+          qvec(1) = qinb(1) + (k0(1) + dble(ikx))/dble(kmesh(1))
+          xphs = twopi * dble( iehcoor(1)-1)/dble( xmesh(1) )  * qvec( 1 )
+          do iky = 0, kmesh(2)-1
+            qvec(2) = qinb(2) + (k0(2) + dble(iky))/dble(kmesh(2))
+            yphs = twopi * dble( iehcoor(2)-1)/dble( xmesh(2) )  * qvec( 2 ) + xphs
+            do ikz = 0, kmesh(3)-1
+              kiter = kiter + 1
+              qvec(3) = qinb(3) + (k0(3) + dble(ikz))/dble(kmesh(3))
+              zphs = twopi * dble( iehcoor(3)-1)/dble( xmesh(3) ) * qvec( 3 ) + yphs
+              if( mod( kiter, kiter_break ) .eq. 0 ) write(6,*) kiter
+              read(98) u2(:,1:nvb)
+              cphs = cmplx( cos( zphs ), sin( zphs ), DP )
+              pointwf(1:nvb) = conjg(u2(ixctr,1:nvb)*cphs)
+              call ZGEMV('N', ncb, nvb, one, cv_exciton(1,1,kiter), ncb, pointwf(1), 1, one, plot_exciton(1, kiter), 1)
+          ! Read and reverse hole
+          read(99) u2(:,1:ncb)
+          xiter = 0
+          do iz = 1, xmesh(3)
+            do iy = 1, xmesh(2)
+              do ix = 1, xmesh(1)
+                xiter = xiter + 1
+                izz = iz + (iy-1)*xmesh(3) + (ix-1)*xmesh(3)*xmesh(2)
+                flipu2( izz, 1:ncb ) = (u2( xiter, 1:ncb ))
+              enddo
+            enddo
+          enddo
+          !Convert hole part to real space           
+          call ZGEMV( 'N', NX, ncb, one, flipu2(1,1), NX, plot_exciton( 1, kiter ), 1, &
+                      one, rk_exciton( 1, kiter ), 1 )
+        enddo
+        enddo
+        enddo
+        close(98)
+        close(99)
+        qinb(:) = 0.0_DP
+        deallocate(flipu2)
+
+
      case(0)
         open(unit=99,file='u2.dat',form='unformatted',status='old')
         !!! This is the new section !!!
@@ -333,7 +431,11 @@ program OCEAN_val_exciton_plot
               xiter = xiter + 1
               Rvec(3) = twopi * (dble(iz)/dble(xmesh(3)) - tau(3))
               zphs = Rvec(3) * qvec(3) + yphs
-              cphs = cmplx( cos( -zphs ), sin( -zphs ) )
+              if( ehflag .eq. 1  ) then
+                cphs = cmplx( cos( zphs ), -sin( zphs ), DP )
+              else
+                cphs = cmplx( cos( zphs ), sin( zphs ), DP )
+              endif
               rk_exciton( xiter, kiter ) = rk_exciton( xiter, kiter ) * cphs
               
             enddo
@@ -373,8 +475,8 @@ program OCEAN_val_exciton_plot
             do iRz = Rstart(3), Rstart(3) + Rmesh(3) - 1
               Riter = Riter + 1
               zphs = yphs + dble( iRz ) * qvec(3)
-              zphs = -zphs
-              cphs = cmplx( cos( twopi * zphs ), sin( twopi * zphs ) )
+!              zphs = -zphs
+              cphs = cmplx( cos( twopi * zphs ), sin( twopi * zphs ), DP )
 !JTV PHASE!!
               ! phase info is wrong here
               do xiter = 1, NX
@@ -432,7 +534,7 @@ program OCEAN_val_exciton_plot
     do iRy = Rstart(2), Rstart(2) + Rmesh(2) - 1
       do iRz = Rstart(3), Rstart(3) + Rmesh(3) - 1
         do i = 1, natom 
-          call get_atom_number( elname( i ), ix )
+          call get_atom_number( ix, elname( i ) )
           tau(:) = atom_loc(:,i)
           tau( : ) = tau( : ) + iRx * avecs(:, 1 )
           tau( : ) = tau( : ) + iRy * avecs(:, 2 )
@@ -468,16 +570,16 @@ program OCEAN_val_exciton_plot
   
   close( 99 )
   deallocate( Rspace_exciton, z_stripe )
-  contains
-  subroutine get_atom_number( elnam, elnum )
-    implicit none
-    character(len=2), intent( in ) :: elnam
-    integer, intent( out ) :: elnum
-    elnum = 1
-    if( elnam .eq. 'Li' ) elnum = 3
-    if( elnam .eq. 'N_' ) elnum = 7
-    if( elnam .eq. 'O_' ) elnum = 8
-    if( elnam .eq. 'S_' ) elnum = 16
-    if( elnam .eq. 'Cd' ) elnum = 38
-  end subroutine
+!  contains
+!  subroutine get_atom_number( elnam, elnum )
+!    implicit none
+!    character(len=2), intent( in ) :: elnam
+!    integer, intent( out ) :: elnum
+!    elnum = 1
+!    if( elnam .eq. 'Li' ) elnum = 3
+!    if( elnam .eq. 'N_' ) elnum = 7
+!    if( elnam .eq. 'O_' ) elnum = 8
+!    if( elnam .eq. 'S_' ) elnum = 16
+!    if( elnam .eq. 'Cd' ) elnum = 38
+!  end subroutine
 end program OCEAN_val_exciton_plot

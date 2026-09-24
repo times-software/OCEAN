@@ -10,6 +10,7 @@
 !
 module prep_wvfn
   use AI_kinds, only : DP
+  use irreg_grid_check, only : irreg_grid, grid, check_for_grid
 
   implicit none
   private
@@ -17,22 +18,24 @@ module prep_wvfn
   logical, parameter :: perKptU2 = .true.
 
   public :: prep_wvfn_driver
-
-
   logical, parameter :: debug = .false.
 
   contains
 
-
-  subroutine prep_wvfn_driver( ierr )
+  !> Main driver for preparing wavefunctions.
+  !!
+  !! This subroutine reads in wavefunctions, performs FFTs, and writes out the results
+  !! for further processing.
+   subroutine prep_wvfn_driver( ierr )
+    use OCEAN_mpi
     use prep_system, only : system_parameters, params, psys, prep_system_ikpt2kvec, calcParams, &
                             calculation_parameters, prep_system_umklapp
-    use ocean_mpi, only : myid, root, nproc, comm
+    use ocean_mpi, only : myid, root, comm
     use ocean_dft_files, only : odf_is_my_kpt, odf_return_my_bands, odf_nprocPerPool, odf_poolID, &
                                 ODF_VALENCE, ODF_CONDUCTION, odf_universal2KptandSpin, &
                                 odf_get_ngvecs_at_kpt, odf_read_at_kpt_split, odf_npool, &
                                 odf_getBandsForPoolID
-    use ocean_cks, only : ocean_cks_build, ocean_cks_nsites, ocean_cks_writeCksHolders, & 
+    use ocean_cks, only : ocean_cks_build, ocean_cks_nsites, ocean_cks_writeCksHolders, &
                           ocean_cks_makeCksHolders, ocean_cks_doLegacyCks
     use screen_opf, only : screen_opf_largestLMNproj
     use screen_timekeeper, only : screen_tk_start, screen_tk_stop
@@ -50,53 +53,40 @@ module prep_wvfn
     integer, allocatable, target :: valGvecs(:,:), conGvecs(:,:)
     integer, pointer :: gvecPointer(:,:)
 
-    integer :: ispin, ikpt, nprocPool, nuni, iuni, npool, nsites, nprojSpacer
-    integer :: valNgvecs, conNgves, valBands, conBands, ngvecs(2), odf_flag, totConBands
+    integer :: ispin, ikpt, nprocPool, nuni, iuni, npool, nsites
+    integer :: valBands, conBands, ngvecs(2), odf_flag, totConBands
     integer :: nG, nbands, fftGrid(3), allBands, nX, vType, cType, totValBands, myConBandStart, myValBandStart
     integer :: umklapp(3)
-    integer :: nband_chunk, nchunk, ichunk, nband_todo, ib, ib2
 
-    integer :: conFH, valFH, fileHandle, poolID, i, testFH, iband, bandChunk, omp_threads, kStride
+    integer :: conFH, valFH, fileHandle, poolID, i, iband, bandChunk, omp_threads, kStride
     logical :: is_kpt, wantCKS, wantU2, addShift, wantLegacy, wantTmels
-!$  integer, external :: omp_get_max_threads
 
+!$  integer, external :: omp_get_max_threads
     wantCKS = calcParams%makeCKS
     wantU2 = calcParams%makeU2
     wantLegacy = .false.
     wantTmels = calcParams%makeTmels
 
-
-!    if( wantU2 .and. nproc .eq. 1 ) then
-!      call prep_wvfn_openLegacy( testFH, ierr )
-!      if( ierr .ne. 0 ) return
-!    endif
-
     call odf_return_my_bands( valBands, ierr, ODF_VALENCE )
     if( ierr .ne. 0 ) return
-  
+
     call odf_return_my_bands( conBands, ierr, ODF_CONDUCTION )
     if( ierr .ne. 0 ) return
 
     write(6,*) valBands, conBands
 
     if( wantCKS ) then
-      nsites = ocean_cks_nsites()
+            nsites = ocean_cks_nsites()
     else
-      nsites = 0
+            nsites = 0
     endif
-
-!    isDualFile =  odf_isDualFile()
-!!!prefix, nxpts, myBands, totalBands, FH, arrayType, ierr )
-!!    nX = product( param%xmesh(:) )
-!!    allBands = params%brange(2) - params%brange(1) + 1
-
 
     npool = odf_npool()
     nprocPool = odf_nprocPerPool()
     poolID = odf_poolID()
 
-    ! The more correct thing to do would be to make a fancier derived type, such that each 
-    ! pool would also have an offset based on k-point and then the offset when writing would 
+    ! The more correct thing to do would be to make a fancier derived type, such that each
+    ! pool would also have an offset based on k-point and then the offset when writing would
     ! be only dependent on iuni not ikpt
     allBands = params%nkpts * params%nspin * ( params%brange(2) - params%brange(1) + 1 )
     nx = product( params%xmesh(:) )
@@ -106,18 +96,28 @@ module prep_wvfn
     call prep_wvfn_openU2( 'con', conFH, allBands, nx, poolID, nprocPool, ierr, ctype )
     if( ierr .ne. 0 ) return
 
+    ! TODO: update UofX2 allocation so that it's consistently nX
+
     ! need to set the number of x-points proc should epxect locally
     ! probably subroutines/functions in this module
     ! grabbing pool_size and pool_id from ODF
-    nX = prep_wvfn_divideXmesh( product( params%xmesh ), nprocPool, poolID )
+
+    call check_for_grid(ierr)
+    if (ierr .ne. 0) return
+
+    if (grid%have_curvi) then
+            nX = prep_wvfn_divideXmesh(grid%num_coord, nprocPool, poolID)
+    else
+            nX = prep_wvfn_divideXmesh( product( params%xmesh ), nprocPool, poolID )
+    endif
 
     nuni = ceiling( real( params%nspin * params%nkpts, DP ) / real( npool, DP ) )
 
     if( wantCKS ) then
-      call ocean_cks_makeCksHolders( valBands, conBands, nuni, ierr )
+            call ocean_cks_makeCksHolders( valBands, conBands, nuni, ierr )
     endif
 
-  
+
     kStride = odf_npool()
     call odf_universal2KptandSpin( 1, ikpt, ispin )
     if( ispin .gt. 1 ) ikpt = ikpt + params%nkpts
@@ -131,47 +131,25 @@ module prep_wvfn
 
     if( wantTmels ) then
       write(myid+1000,*) totValBands, totConBands, conBands, myConBandStart, nuni, ikpt, kStride
-!      flush(myid+1000)
       call ocean_tmels_open( totValBands, totConBands, conBands, myConBandStart, nuni, ikpt, kStride, ierr )
     endif
 
-
-
-!    if( wantCKS ) then
-!      nprojSpacer = screen_opf_largestLMNproj()
-!      allocate( cksValArray( nprojSpacer, valBands, nsites, nuni ), &
-!                cksConArray( nprojSpacer, conBands, nsites, nuni ) )
-!    else
-!      nprojSpacer = 0
-!      allocate( cksValArray(0,0,0,0), cksConArray(0,0,0,0) )
-!    endif
-
-!    ! loop over spin and kpt
-!    do ispin = 1, params%nspin
-!      do ikpt = 1, params%nkpts
     do iuni = 1, nuni
 
       call odf_universal2KptandSpin( iuni, ikpt, ispin )
       write(1000+myid,*) iuni, ikpt, ispin
 
-      ! universal2KptandSpin returns 0,0 if on the last trip and un-equal distribution of k-points
-      ! We still call all the write_all calls for things like tmels, u2.dat, and cks
-      !
-
       if( ikpt .gt. 0 ) then
-
         if( myid .eq. root ) write(6,*) ikpt, ispin
-
         ! This is just a precaution while implementing
         call odf_is_my_kpt( ikpt, ispin, is_kpt, ierr )
-        if( ierr .ne. 0 ) return
 
+        if( ierr .ne. 0 ) return
         if( is_kpt .eqv. .false. ) then
           ierr = 101
           return
         endif
         ! end precaution
-        
         ! first call gets us either valence or both
         call odf_get_ngvecs_at_kpt( ikpt, ispin, ngvecs, ierr )
         if( ierr .ne. 0 ) then
@@ -180,58 +158,45 @@ module prep_wvfn
         else
           write(1000+myid,*) 'Fetched ngvecs: ', ngvecs(:)
         endif
-        
+
         ! separate logic for shifted and for split
 
-!        ! For things like legacy *or* when doing plain XAS/XES there will only be a single list of G-vecs
-!        ! Don't copy/read them twice and instead track in the logic in what follows
-!        if( isDualFile ) then
-        ! alternatively, just have ODF copy over the g-vecs where needed
-          allocate( valGvecs( 3, ngvecs(1) ), conGvecs( 3, ngvecs(2) ), &
-                    valUofG( ngvecs(1), valBands ), conUofG( ngvecs(2), conBands ) )
-!        else    
-!          allocate( valGvecs( 3, ngvecs(1) ), conGvecs( 0,0 ), & 
-!                    valUofG( ngvecs(1), valBands ), conUofG( ngvecs(2), conBands ) )
-!        endif
-
-
-    ! read in file, which means distribute bands across procs
-      ! need to ensure bounds are appropriately enforced 
-      ! this means for shifted calcs keep only occ/unocc
-
+        allocate( valGvecs( 3, ngvecs(1) ), conGvecs( 3, ngvecs(2) ), &
+                  valUofG( ngvecs(1), valBands ), conUofG( ngvecs(2), conBands ) )
+        ! read in file, which means distribute bands across procs
+        ! need to ensure bounds are appropriately enforced
+        ! this means for shifted calcs keep only occ/unocc
         call odf_read_at_kpt_split( ikpt, ispin, ngvecs(1), ngvecs(2), valBands, conBands, &
-                                    valGvecs, conGvecs, valUofG, conUofG, ierr )
+                    valGvecs, conGvecs, valUofG, conUofG, ierr )
         if( ierr .ne. 0 ) then
           write(1000+myid,*) 'Failed to read k-point', ierr
           return
         endif
 
-
         ! Check for Umklapp -- if the actual k-point was outside [0,1] (or maybe [-1,1])
-        ! the calculated k-point was *not* made at the requested k-point, but was shifted 
+        ! the calculated k-point was *not* made at the requested k-point, but was shifted
         ! to be inside the BZ
         call prep_system_umklapp( ikpt, .false., umklapp )
         if( umklapp(1) .ne. 0 .or. umklapp(2) .ne. 0 .or. umklapp(3) .ne. 0 ) then
           do i = 1, ngvecs(1)
-          valGvecs(:,i) = valGvecs(:,i) - umklapp(:)
+            valGvecs(:,i) = valGvecs(:,i) - umklapp(:)
           enddo
         endif
         call prep_system_umklapp( ikpt, .true., umklapp )
         if( umklapp(1) .ne. 0 .or. umklapp(2) .ne. 0 .or. umklapp(3) .ne. 0 ) then
           do i = 1, ngvecs(2)
-          conGvecs(:,i) = conGvecs(:,i) - umklapp(:)
+            conGvecs(:,i) = conGvecs(:,i) - umklapp(:)
           enddo
         endif
 
-    ! If doing TMELS for valence, start by figuring that out
-      ! A) possibly at the same time as read in redistribute slices of G-points?
-      ! but then also need to ensure uniformity of G
-      ! B) Everybody gets the occupied states, possibly band by band, and then calculates
-      ! the tmels for only their subset of unoccupied states  <----
+        ! If doing TMELS for valence, start by figuring that out
+        ! A) possibly at the same time as read in redistribute slices of G-points?
+        ! but then also need to ensure uniformity of G
+        ! B) Everybody gets the occupied states, possibly band by band, and then calculates
+        ! the tmels for only their subset of unoccupied states  <----
 
         if( wantTmels ) then
           totValBands = params%brange(2) - params%brange(1) + 1
-!          totConBands = params%brange(4) - params%brange(3) + 1
           ! If we have more than one proc per k-point, share the valence bands
           if( odf_nprocPerPool() .gt. 1 ) then
             myValBandStart = 1
@@ -242,45 +207,38 @@ module prep_wvfn
                                    spareValUofG, conUofG, params%nkpts, totValBands, totConBands, &
                                    myValBandStart, myConBandStart, ierr )
             deallocate( spareValUofG )
-          else
+        else
             call ocean_tmels_calc( ikpt, ispin, totValBands, conBands, valGvecs, conGvecs, &
                                    ValUofG, conUofG, params%nkpts, totValBands, totConBands, &
                                    myValBandStart, myConBandStart, ierr )
-          endif
-        endif
-
-      else  ! ikpt == 0, the process isn't doing anything 
-        ! This makes sure we don't assign pointers to un-allocated arrays
-        allocate( valGvecs( 0, 0 ), conGvecs( 0, 0 ), valUofG( 0, 0 ), conUofG( 0, 0 ) )
-        if( wantTmels ) then
-          call ocean_tmels_calc( ikpt, ispin, totValBands, conBands, valGvecs, conGvecs, &
-                                 spareValUofG, conUofG, params%nkpts, totValBands, totConBands, &
-                                 myValBandStart, myConBandStart, ierr )
         endif
       endif
+    else  ! ikpt == 0, the process isn't doing anything
+      ! This makes sure we don't assign pointers to un-allocated arrays
+      allocate( valGvecs( 0, 0 ), conGvecs( 0, 0 ), valUofG( 0, 0 ), conUofG( 0, 0 ) )
+      if( wantTmels ) then
+        call ocean_tmels_calc( ikpt, ispin, totValBands, conBands, valGvecs, conGvecs, &
+                               spareValUofG, conUofG, params%nkpts, totValBands, totConBands, &
+                               myValBandStart, myConBandStart, ierr )
+      endif
+    endif
 
-      ! Loop over conversion
+    ! Loop over conversion
+    gvecPointer => valGvecs
+    UofGPointer => valUofG
+    nbands = valBands
+    nG = ngvecs(1)
+    fileHandle = valFH
+    odf_flag = ODF_VALENCE
 
-      gvecPointer => valGvecs
-      UofGPointer => valUofG
-!        UofXPointer => valUofX
-      nbands = valBands
-      nG = ngvecs(1)
-      fileHandle = valFH
-      odf_flag = ODF_VALENCE
-!      cksPointer => cksValArray(:,:,:,iuni)
+    ! need to set the complete band range for valence/conduction
+    allBands = params%brange(2) - params%brange(1) + 1
 
-      !JTV
-      ! need to set the complete band range for valence/conduction
-      allBands = params%brange(2) - params%brange(1) + 1
-
-!      fileHeader = 'cksv'
-        
-      do i = 1, 2
-
+    do i = 1, 2
+        write(6,*) '!!!!!!', i
 #if 0
         if( ikpt .ne. 0 ) then
-          call prep_wvfn_checkFFT( nG, gvecPointer, wantCKS, wantU2, fftGrid, ierr )
+          call regular_prep_wvfn_checkFFT( nG, gvecPointer, wantCKS, wantU2, fftGrid, ierr )
 
           allocate( wvfn( fftGrid(1), fftGrid(2), fftGrid(3), nbands ) )
 
@@ -293,87 +251,41 @@ module prep_wvfn
         endif
 #endif
 
-!        ! deallocate as-read wvfn
-!        if( i .eq. 1 ) then
-!          deallocate( valGvecs, valUofG )
-!        else
-!          deallocate( conGvecs, conUofG )
-!        endif
-
-
-        if( wantU2 ) then
-          
-          if( ikpt .ne. 0 ) then
-
-            call prep_wvfn_checkFFT( nG, gvecPointer, .false., wantU2, fftGrid, ierr )
-
-
-            nband_chunk = 1
-! !$          nband_chunk = omp_get_max_threads
-
-            allocate( wvfn( fftGrid(1), fftGrid(2), fftGrid(3), nband_chunk ) )
-            !JTV
-!            ! This reversal is currently in the code, but we need to remove at some point
-            ! This is reversed in the legacy u2.dat. That reversal is removed here, but
-            ! taken into account in the legacy writer
-            allocate( UofX( params%xmesh(1), params%xmesh(2), params%xmesh(3), nbands ) )
-
-            nchunk = ( nbands - 1 ) / nband_chunk + 1
-            do ichunk = 1, nchunk
-              nband_todo = min( nband_chunk, nbands - ( ichunk - 1 )*nband_chunk )
-              ib = (ichunk-1)*nband_chunk+1
-              call prep_wvfn_doFFT( gvecPointer, UofGPointer(:,ib:), wvfn(:,:,:,1:nband_todo) )
-
-
-!              ib = 1 + (ichunk-1)*nband_chunk
-              ib2 = ib + nband_todo - 1
-              call prep_wvfn_u1( wvfn(:,:,:,1:nband_todo), UofX(:,:,:,ib:ib2), ierr )
-              if( ierr .ne. 0 ) return
-            enddo
-
-            deallocate( wvfn )
-            allocate( UofX2( nX, allBands ) )
-
-            ! begin orthogonalization
-              ! because we should be nearly orthogonal already, can use non-modified Gram-Schmidt
-            call prep_wvfn_u2( UofX, UofX2, odf_flag, ierr )
-            if( ierr .ne. 0 ) return
-          
+        if (wantU2) then
+          if (ikpt .ne. 0) then
+            allocate(UofX(params%xmesh(1), params%xmesh(2), params%xmesh(3), nbands), UofX2(nX, allBands))
+            if (grid%have_curvi) then
+              call irregular_prep_wvfn_driver(ikpt, ispin, nG, gvecPointer, UofGPointer, nbands, &
+                                        allBands, nX, fileHandle, odf_flag, UofX2, ierr)
+              if (ierr /= 0) goto 111
+            else
+              call regular_prep_wvfn_driver(ikpt, ispin, nG, gvecPointer, UofGPointer, nbands, &
+                                        allBands, nX, fileHandle, odf_flag, UofX, UofX2, ierr)
+              if (ierr /= 0) goto 111
+            endif
           else
             allocate( UofX( 0, 0, 0, 0 ), UofX2( 0, 0 ) )
           endif
 
-          ! save subsampled xmesh
-          if( perKptU2 ) then
+          if (perKptU2) then
             call prep_wvfn_writeU2_perKpt( ikpt, ispin, UofX2, fileHandle, ierr )
           else
             call prep_wvfn_writeU2( ikpt, ispin, UofX2, fileHandle, ierr )
           endif
-          if( ierr .ne. 0 ) return
-
-!          if( wantU2 .and. nproc .eq. 1 ) then
-!            call prep_wvfn_writeLegacy( testFH, ikpt, UofX2, ierr )
-!            if( ierr .ne. 0 ) return
-!          endif
-
+          if (ierr .ne. 0) return
           deallocate( UofX, UofX2 )
-
         endif
 
         ! if doing CKS then compute matrix elements here
-        if( wantCKS ) then
-
+        if (wantCKS) then
           if( ikpt .ne. 0 ) then
-
-            call prep_wvfn_checkFFT( nG, gvecPointer, wantCKS, .false., fftGrid, ierr )
-
-            memEstimate = real( fftGrid(1), DP ) * real( fftGrid(2), DP ) * real( fftGrid(3), DP ) 
+            call regular_prep_wvfn_checkFFT( nG, gvecPointer, wantCKS, .false., fftGrid, ierr )
+            memEstimate = real( fftGrid(1), DP ) * real( fftGrid(2), DP ) * real( fftGrid(3), DP )
             bandChunk = max( floor( 67108864_DP / memEstimate ), 1 )
             omp_threads = 1
-!$          omp_threads = omp_get_max_threads()
-            
+
             bandChunk = max( bandChunk, omp_threads )
-            bandChunk = max( 1, bandChunk/omp_threads ) * omp_threads 
+            bandChunk = max( 1, bandChunk/omp_threads ) * omp_threads
 
             bandChunk = min( bandChunk, nbands )
             bandChunk = max( bandChunk, 1 )
@@ -381,49 +293,40 @@ module prep_wvfn
             write(1000+myid, '(3I8,E24.16)' ) omp_threads, bandChunk, nbands, memEstimate/67108864_DP
             write(1000+myid,*) nbands, bandchunk
 
-!            allocate( wvfn( fftGrid(1), fftGrid(2), fftGrid(3), nbands ) )
             allocate( wvfn( fftGrid(1), fftGrid(2), fftGrid(3), bandChunk ) )
-
             do iband = 1, nbands, bandChunk
-
               if( nbands - iband + 1 .lt. bandChunk ) then
                 deallocate( wvfn )
                 allocate( wvfn( fftGrid(1), fftGrid(2), fftGrid(3), nbands - iband + 1 ) )
               endif
-
               call prep_wvfn_doFFT( gvecPointer, UofGPointer(:,iband:), wvfn )
 
-          ! allocate CKS holder which requires queries for sites, maybe loop over all sites? need all the FHs
+              ! allocate CKS holder which requires queries for sites, maybe loop over all sites? need all the FHs
 
-          ! call CKS
-!            call prep_wvfn_cks( 
-          ! deltaR is the min real-space spacing for the overlap, should make it an input
+              ! call CKS
+              ! deltaR is the min real-space spacing for the overlap, should make it an input
               deltaR = 0.02_DP
               addShift = (i .eq. 2 )
-              call prep_system_ikpt2kvec( ikpt, addShift, kqVec, kqVecCart ) 
+              call prep_system_ikpt2kvec( ikpt, addShift, kqVec, kqVecCart )
               if( iband .eq. 1 ) then
-                write(1000+myid, '(A,I8,6(1X,E24.16),1X,L2,I2)' ) 'kqVec', ikpt, kqVecCart(:), & 
-                                                                kqVec(:), addShift, i
+                write(1000+myid, '(A,I8,6(1X,E24.16),1X,L2,I2)' ) 'kqVec', ikpt, kqVecCart(:), &
+                                          kqVec(:), addShift, i
               endif
               call ocean_cks_build( wvfn, kqVecCart, deltaR, psys%avecs, (i.eq.1), iuni, iband-1, ierr )
             enddo
-
             deallocate( wvfn )
-
-          ! call write CKS
-
+            ! call write CKS
           endif
         endif
 
         ! For realu2 option for cks conversion
-        if( i .eq. 1 ) then
+        if (i .eq. 1) then
           deallocate( valGvecs, valUofG )
         else
           deallocate( conGvecs, conUofG )
         endif
 
 !        ! deallocate FFT wvfn
-!        deallocate( wvfn )
 
         gvecPointer => conGvecs
         UofGPointer => conUofG
@@ -434,13 +337,10 @@ module prep_wvfn
         allBands = params%brange(4) - params%brange(3) + 1
         odf_flag = ODF_CONDUCTION
 !        cksPointer => cksConArray(:,:,:,iuni)
-      
+
       enddo ! i
 
-      
-
     enddo ! iuni ( combined spin and kpt )
-
 
     call prep_wvfn_closeU2( valFH, ierr, vtype )
     call prep_wvfn_closeU2( conFH, ierr, ctype )
@@ -449,28 +349,20 @@ module prep_wvfn
 
     call screen_tk_stop( "main" )
     call screen_tk_start( "legacy" )
-    
-    if( wantU2 ) then
-!!      if( nproc .eq. 1 ) then
-!!        call prep_wvfn_closeLegacy( testFH, ierr )
-!!        if( ierr .ne. 0 ) return
-!!        call prep_wvfn_doLegacyParallel( ierr )
-!!      else
-        if( wantLegacy ) then
-          write(1000+myid, * ) 'Calling Legacy Parallel'
-          flush(1000+myid)
-          call prep_wvfn_doLegacyParallel( ierr )
-          call MPI_BARRIER( comm, ierr )
-          write(1000+myid, * ) 'Finished Legacy Parallel'
-          flush(1000+myid)
-        endif
+
+    if (wantU2) then
+      if (wantLegacy) then
+        write(1000+myid, * ) 'Calling Legacy Parallel'
+        flush(1000+myid)
+        call prep_wvfn_doLegacyParallel( ierr )
+        call MPI_BARRIER( comm, ierr )
+        write(1000+myid, * ) 'Finished Legacy Parallel'
+        flush(1000+myid)
+      endif
 !!      endif
     endif
 
-    if( wantCKS ) then
-  !    if( nproc .eq. 1 ) then
-  !      call prep_wvfn_cksWriteLegacy( cksValArray, cksConArray )
-  !    endif
+    if (wantCKS) then
       call ocean_cks_writeCksHolders( ierr )
       if( ierr .ne. 0 ) return
       call MPI_BARRIER( comm, ierr )
@@ -485,23 +377,98 @@ module prep_wvfn
       endif
     endif
 
-    if( wantTmels ) then 
-      call ocean_tmels_close( ierr )
-      if( wantLegacy ) call ocean_tmels_legacy( totValBands, totConBands, params%nkpts, params%nspin, ierr )
+    if (wantTmels) then
+      call ocean_tmels_close(ierr)
+      if (wantLegacy) call ocean_tmels_legacy(totValBands, totConBands, params%nkpts, params%nspin, ierr)
     endif
 
     call screen_tk_stop( "legacy" )
     call screen_tk_start( "main" )
 
     write(1000+myid, * ) 'Calling Energies'
-!    flush(1000+myid)
     call prep_wvfn_writeEnergies( ierr )
     if( ierr .ne. 0 ) return
     call MPI_BARRIER( comm, ierr )
     write(1000+myid, * ) 'Finished Energies'
-!    flush(1000+myid)
 
+    111 continue
   end subroutine prep_wvfn_driver
+
+  !> Prepares wavefuctions on a non-uniform grid.
+  subroutine irregular_prep_wvfn_driver( ikpt, ispin, nG, gvecPointer, UofGPointer, nbands, allBands, nX, fileHandle, &
+                  odf_flag, UofX2, ierr )
+    use prep_system, only : system_parameters, params, prep_system_ikpt2kvec, calculation_parameters, prep_system_umklapp
+    integer, intent(in) :: ikpt, ispin, nG, nbands, allBands, nX, fileHandle, odf_flag
+    complex(DP), intent(out) :: UofX2(:,:)
+    integer, pointer :: gvecPointer(:,:)
+    complex(DP), pointer :: UofGPointer(:,:)
+    integer, intent(inout) :: ierr
+    complex(DP), allocatable :: wvfn(:,:,:,:)
+    integer :: fftGrid(3), nband_chunk, nchunk, ichunk, nband_todo, ib, ib2
+
+    complex(DP), allocatable :: UofX(:,:)
+
+    !uofX2 has size (nX, allBands)
+    ! For non-uniform grids, we want to check FFT without resizing
+    call irregular_prep_wvfn_checkFFT( nG, gvecPointer, fftGrid, ierr )
+    nband_chunk = 1
+    
+    allocate( wvfn( fftGrid(1), fftGrid(2), fftGrid(3), nband_chunk ) )
+    allocate(UofX(grid%num_coord, nbands))
+
+    nchunk = ( nbands - 1 ) / nband_chunk + 1
+    do ichunk = 1, nchunk
+      nband_todo = min( nband_chunk, nbands - ( ichunk - 1 )*nband_chunk )
+      ib = (ichunk-1)*nband_chunk+1
+      call prep_wvfn_doFFT( gvecPointer, UofGPointer(:,ib:), wvfn(:,:,:,1:nband_todo) )
+      ib2 = ib + nband_todo - 1
+      write(6,*) 'ipwu1', ikpt, ib
+      call irregular_prep_wvfn_u1( wvfn(:,:,:,1:nband_todo), ierr, UofX(:, ib:ib2), nX )
+      write(6,*) 'ipwu done'
+      if ( ierr .ne. 0 ) return
+    enddo
+
+    WRITE(6,*) 'GS time', ikpt
+    call irregular_prep_wvfn_u2( UofX, UofX2, odf_flag, ierr) 
+    if ( ierr .ne. 0 ) return
+    write(6,*) 'GS done'
+    deallocate(wvfn, UofX)
+  end subroutine irregular_prep_wvfn_driver
+  
+  !> Prepares wavefunctions on a uniform grid
+  subroutine regular_prep_wvfn_driver( ikpt, ispin, nG, gvecPointer, UofGPointer, nbands, allBands, nX, fileHandle, &
+                  odf_flag, UofX, UofX2, ierr )
+    use prep_system, only : system_parameters, params, prep_system_ikpt2kvec, calculation_parameters, prep_system_umklapp
+    integer, intent(in) :: ikpt, ispin, nG, nbands, allBands, nX, fileHandle, odf_flag
+    complex(DP), intent(out) :: UofX(:,:,:,:), UofX2(:,:)
+
+    integer, pointer :: gvecPointer(:,:)
+    complex(DP), pointer :: UofGPointer(:,:)
+    integer, intent(inout) :: ierr
+    complex(DP), allocatable :: wvfn(:,:,:,:)
+    integer :: fftGrid(3), nband_chunk, nchunk, ichunk, nband_todo, ib, ib2
+    logical :: wantU2 = .true.
+
+    
+    
+    call regular_prep_wvfn_checkFFT( nG, gvecPointer, .false., wantU2, fftGrid, ierr )
+    nband_chunk = 1
+    allocate( wvfn( fftGrid(1), fftGrid(2), fftGrid(3), nband_chunk ) )
+    nchunk = ( nbands - 1 ) / nband_chunk + 1
+                     
+    do ichunk = 1, nchunk
+      nband_todo = min( nband_chunk, nbands - ( ichunk - 1 )*nband_chunk )
+      ib = (ichunk-1)*nband_chunk+1
+      call prep_wvfn_doFFT( gvecPointer, UofGPointer(:,ib:), wvfn(:,:,:,1:nband_todo) )
+      ib2 = ib + nband_todo - 1
+      call regular_prep_wvfn_u1( wvfn(:,:,:,1:nband_todo), UofX(:,:,:,ib:ib2), ierr )       
+      if ( ierr .ne. 0 ) return
+    enddo
+    deallocate(wvfn)
+            
+    call regular_prep_wvfn_u2( UofX, UofX2, odf_flag, ierr )
+    if ( ierr .ne. 0 ) return
+  end subroutine regular_prep_wvfn_driver
 
   subroutine prep_wvfn_writeEnergies( ierr )
     use ocean_mpi, only : myid, root
@@ -546,7 +513,7 @@ module prep_wvfn
           do ib = 1, nbc
             if( conEnergies( ib, ik, ispin ) .ge. efermi ) then
               if( eshift .gt. conEnergies( ib, ik, ispin ) ) then
-                eshift = conEnergies( ib, ik, ispin )
+                eshift = conEnergies( ib, ik, ispin ) 
               endif  
               exit
             endif
@@ -653,9 +620,6 @@ module prep_wvfn
     close( fh )
   end subroutine prep_wvfn_closeLegacy
 
-
-
-!  subroutine prep_wvfn_openU2( prefix, nxpts, myBands, totalBands, FH, arrayType, ierr )
   subroutine prep_wvfn_openU2( prefix, FH, nb, nx, poolID, nprocPerPool, ierr, fileType )
     use ocean_mpi, only : myid, comm, &
                           MPI_MODE_WRONLY, MPI_MODE_CREATE, MPI_MODE_UNIQUE_OPEN, MPI_INFO_NULL, & 
@@ -732,9 +696,120 @@ module prep_wvfn
    close( fh )
 #endif
   end subroutine prep_wvfn_closeU2
-  
 
-  subroutine prep_wvfn_u1( wvfn, UofX, ierr )
+  !> Interpolates wavefunctions onto a non-uniform grid
+  !! using lagrange interpolation.
+  subroutine irregular_prep_wvfn_u1( wvfn, ierr, UofX, nX )
+    use ocean_constants, only : pi_dp
+    use ocean_mpi, only : myid
+    use ocean_interpolate
+
+    complex(DP), intent(inout) :: wvfn(:,:,:,:)
+    integer, intent(inout) :: ierr
+    complex(DP), intent(out) :: UofX(:,:)
+    integer, intent(in) :: nX
+    !
+    complex(DP), allocatable :: PGrid(:), P(:,:), QGrid(:,:), Q(:), RGrid(:)
+    real(DP), allocatable :: distanceMap(:,:)
+    integer, allocatable :: pointMap(:,:)
+    !
+    complex(DP) :: R
+    real(DP) :: dx, dy, dz, rvec(3)
+    integer :: dims(3), ib, ip, i, j, ix, iy, iz, iyy, izz, offset, iband
+
+    real(DP) :: A
+
+    integer :: order, nbands
+
+    order = 4
+    nbands = size(wvfn, 4)
+
+    allocate( pointMap( 3, grid%num_coord ), distanceMap( 3, grid%num_coord ), stat=ierr )
+    if( ierr .ne. 0 ) return
+      
+    dims(1) = size( wvfn, 1 )
+    dims(2) = size( wvfn, 2 )
+    dims(3) = size( wvfn, 3 )
+
+    do ib = 1, nbands
+      A = sum(conjg(wvfn(:,:,:,ib)) * wvfn(:,:,:,ib))
+    enddo
+   write(555,*) A 
+
+!    write(6,*) '!', shape( curvi_coord ), num_coord
+    do ip = 1, grid%num_coord
+       
+      do j = 1, 3
+        rvec(j) = grid%curvi_coord(j, ip)
+      enddo
+
+      do i = 1, 3
+        do while (rvec(i) .gt. 1.0_DP)
+          rvec(i) = rvec(i) - 1.0_DP
+        enddo
+        do while (rvec(i) .lt. 0.0_DP)
+          rvec(i) = rvec(i) + 1.0_DP
+        enddo
+      enddo
+
+      ! for 4th order want index=2 to be just below
+      pointMap(:, ip) = 1 + floor(rvec(:) * real(dims(:), DP))
+      do j = 1, 3
+        if (pointMap(j, ip) .lt. 1) pointMap(j, ip) = pointMap(j, ip) + dims(j)
+        if (pointMap(j, ip) .gt. dims(j)) pointMap(j, ip) = pointMap(j, ip) - dims(j)
+      enddo
+
+      distanceMap(:, ip) = ( rvec( : ) * real( dims(:), DP ) - floor( rvec( : ) * real( dims(:), DP ) ) ) / real(dims( : ), DP )
+
+    enddo
+
+    if (mod(order, 2) .eq. 1) then
+            offset = order / 2
+    else
+            offset = order / 2 - 1
+    endif
+
+    allocate( PGrid(order), P(order,order), QGrid(order,order), Q(order), RGrid(order) )
+    dx = 1.0_dp / dims( 1 )
+    dy = 1.0_dp / dims( 2 )
+    dz = 1.0_dp / dims( 3 ) 
+ 
+    do ib = 1, nbands
+      do ip = 1, grid%num_coord
+        do iz = 1, order
+          izz = pointMap( 3, ip ) + iz - 1 - offset
+          if( izz .gt. dims( 3 ) ) izz = izz - dims( 3 )
+          if( izz .lt. 1 ) izz = izz + dims( 3 )
+
+          do iy = 1, order
+            iyy = pointMap( 2, ip ) + iy - 1 - offset
+            if( iyy .gt. dims( 2 ) ) iyy = iyy - dims( 2 )
+            if( iyy .lt. 1 ) iyy = iyy + dims( 2 )
+            call MakeLagrange(order, pointMap(1, ip), iyy, izz, wvfn(:,:,:,ib), Pgrid)
+            P(iy,iz) = evalLagrange( order, distanceMap( 1, ip ), dx, Pgrid)
+          enddo
+        enddo
+
+        do iz = 1, order
+          call makeLagrange( order, P(:,iz), QGrid(:,iz) )
+          Q(iz) = evalLagrange( order, distanceMap( 2, ip ), dy, Qgrid(:,iz) )
+        enddo
+
+        call makeLagrange( order, Q, RGrid )
+        R = evalLagrange( order, distanceMap( 3, ip ), dz, Rgrid )
+        UofX(ip, ib) = R
+
+      enddo ! ip
+    enddo ! ib
+
+
+    deallocate( P, Q, QGrid, RGrid )
+    deallocate( pointMap, distanceMap )
+
+  end subroutine irregular_prep_wvfn_u1
+
+  !> Downsamples wavefunctions to a wider grid
+  subroutine regular_prep_wvfn_u1( wvfn, UofX, ierr )
     use ocean_mpi, only : myid
     complex(DP), intent( in ) :: wvfn(:,:,:,:)
     complex(DP), intent( out ) :: UofX(:,:,:,:)
@@ -812,9 +887,107 @@ module prep_wvfn
 !      write(1000+myid, * ) ' !', iband, dznrm2( nOut, UofX(:,:,:,iband), 1 )
     enddo
 
-  end subroutine prep_wvfn_u1
+  end subroutine regular_prep_wvfn_u1
 
-  subroutine prep_wvfn_u2( UofX, UofX2, odf_flag, ierr )
+  !> Computes the dot product of wavefunction coefficients on a non-uniform grid
+  !! scaled by the integration weight and performs modified Gram-Schmidt orthogonalization.
+  subroutine irregular_prep_wvfn_u2(UofX, UofX2, odf_flag, ierr)
+
+    use ocean_mpi, only : MPI_DOUBLE_COMPLEX, MPI_STATUSES_IGNORE, MPI_DOUBLE_PRECISION, MPI_LOGICAL, MPI_SUM, MPI_IN_PLACE, myid, comm, root
+    use ocean_dft_files, only : odf_poolComm, odf_nprocPerPool, odf_getBandsForPoolID, odf_poolID
+
+    complex(DP), intent( in ) :: UofX(:,:)
+    complex(DP), intent( out ) :: UofX2(:,:)
+    integer, intent( in ) :: odf_flag
+    integer, intent(inout ) :: ierr
+
+    complex(DP), allocatable :: coeff( : )
+    complex(DP) :: u, v, norm
+    real(DP) :: A
+    integer :: iprocPool, nprocPool, mypool, iband, jband, nband, nX, i, ipts
+#ifdef MPI_F08
+    type( MPI_COMM ) :: pool_comm
+    type( MPI_REQUEST ) :: req(:,:)
+    type( MPI_DATATYPE ):: newType
+#else
+    integer :: pool_comm, newType
+    integer, allocatable :: req(:,:)
+#endif
+
+    nprocPool = odf_nprocPerPool()
+    allocate( req( 0:nprocPool-1, 2) )
+    mypool = odf_poolID()
+
+    pool_comm = odf_poolComm()
+
+    nX = size( UofX2, 1 )
+
+    ! Loop through every pool and post receives
+    iband = 1
+    do iprocPool = 0, nprocPool - 1
+      nband = odf_getBandsForPoolID( iprocPool, odf_flag )
+      if( debug ) write(1000+myid,*) 'UofX2 recvs:', iprocPool, nx, nband, nX
+      call MPI_IRECV( UofX2(:,iband:), nX*nband, MPI_DOUBLE_COMPLEX, iprocPool, 1, pool_comm, &
+                      req( iprocPool, 1 ), ierr )
+      call MPI_ISEND(UofX(:, iband), nX*nband, MPI_DOUBLE_COMPLEX, iprocPool, 1, pool_comm, &
+              req(iprocPool, 2), ierr)
+      if( ierr .ne. 0 ) return
+      iband = iband + nband
+    enddo
+
+    write(6,*) "about to call waitall"
+    call MPI_WAITALL( nprocPool * 2, req, MPI_STATUSES_IGNORE, ierr )
+    if( ierr .ne. 0 ) return
+    write(6,*) "called waitall"
+
+    deallocate( req )
+    nband = size( UofX2, 2 )
+    allocate( coeff( nband ) )
+
+    ! calculate dot product scaled by weight of volume element
+    ! perform modified Gram Schmidt
+    A = (0.0_dp, 0.0_dp)
+    do iband = 1, nband
+        do ipts = 1, grid%num_coord
+          ! dot product
+          u = UofX2(ipts, iband)
+          A = A + conjg(u) * u * grid%weights(ipts)
+        enddo
+        call MPI_ALLREDUCE(MPI_IN_PLACE, A, 1, MPI_DOUBLE_COMPLEX, MPI_SUM, pool_comm, ierr)
+        if (ierr /= 0) return
+
+        write(333, *) A
+        ! normalize
+        A = 1/sqrt(A)
+        ! rescale UofX2
+        UofX2(:,iband) = UofX2(:,iband)*A
+
+        do jband = 1, iband-1
+              norm = (0.0_dp, 0.0_dp)
+              do ipts = 1, grid%num_coord
+                u = UofX2(ipts, iband)
+                v = UofX2(ipts, jband)
+                norm = norm + conjg(v) * u * grid%weights(ipts)
+              enddo
+              call MPI_ALLREDUCE(MPI_IN_PLACE, norm, 1, MPI_DOUBLE_COMPLEX, MPI_SUM, pool_comm, ierr)
+              if (ierr /= 0) return
+              UofX2(:,iband) = UofX2(:,iband) - UofX2(:,jband) * norm
+      enddo
+      A = 0
+      do ipts = 1, grid%num_coord
+        u = UofX2(ipts,iband)
+        A = A + conjg(u) * u * grid%weights(ipts)
+      enddo
+      call MPI_ALLREDUCE(MPI_IN_PLACE, A, 1, MPI_DOUBLE_COMPLEX, MPI_SUM, pool_comm, ierr)
+      if (ierr /= 0) return
+      A = 1/sqrt(A)
+      UofX2(:,iband) = UofX2(:,iband)*A
+    enddo
+  end subroutine irregular_prep_wvfn_u2
+
+  !> Computes the dot product of wavefunctions on a uniform grid
+  !! and performs Gram-Schmidt orthogonalization.
+  subroutine regular_prep_wvfn_u2( UofX, UofX2, odf_flag, ierr )
     use ocean_mpi, only : MPI_DOUBLE_COMPLEX, MPI_STATUSES_IGNORE, MPI_SUM, MPI_IN_PLACE, myid
     use ocean_dft_files, only : odf_poolComm, odf_nprocPerPool, odf_getBandsForPoolID, odf_poolID
 
@@ -833,6 +1006,7 @@ module prep_wvfn
     integer :: pool_comm, newType
     integer, allocatable :: req(:,:)
 #endif
+    
 
     nprocPool = odf_nprocPerPool()
     allocate( req( 0:nprocPool-1, 2) )
@@ -849,8 +1023,7 @@ module prep_wvfn
     
     ! Loop through every pool and post receives
     iband = 1
-    do iprocPool = 0, nprocPool - 1
-      
+    do iprocPool = 0, nprocPool - 1 
       nband = odf_getBandsForPoolID( iprocPool, odf_flag )
       if( debug ) write(1000+myid,*) 'UofX2 recvs:', iprocPool, nx, nband, totdim
       call MPI_IRECV( UofX2(:,iband:), nX*nband, MPI_DOUBLE_COMPLEX, iprocPool, 1, pool_comm, & 
@@ -939,7 +1112,7 @@ module prep_wvfn
 
     deallocate( coeff )
 
-  end subroutine prep_wvfn_u2
+  end subroutine regular_prep_wvfn_u2
 
   subroutine prep_wvfn_writeU2_perKpt( ikpt, ispin, UofX2, fileHandle, ierr )
     use prep_system, only : system_parameters, params
@@ -1129,7 +1302,33 @@ module prep_wvfn
     
   end function prep_wvfn_divideXmesh
 
-  subroutine prep_wvfn_checkFFT( nG, gvecs, wantCKS, wantU2, fftGrid, ierr )
+  !> Calculates non-uniform grid boundaries without downsampling
+  subroutine irregular_prep_wvfn_checkFFT( nG, gvecs, fftGrid, ierr)
+    use ocean_mpi, only : myid
+    use prep_system, only : system_parameters, params
+    integer, intent( in ) :: nG, gvecs(3,nG)
+    integer, intent( out ) :: fftGrid( 3 )
+    integer, intent( inout ) :: ierr
+    !
+    integer :: boundaries( 3, 2 )
+    integer :: i, test, tx
+
+    
+
+    boundaries(:,1) = minval( gvecs, 2 )
+    boundaries(:,2) = maxval( gvecs, 2 )
+    do i = 1, 3
+      if( (-boundaries(i,2)) .lt. boundaries(i,1) ) boundaries(i,1) = -boundaries(i,2)
+      if( (-boundaries(i,1)) .gt. boundaries(i,2) ) boundaries(i,2) = -boundaries(i,1)
+    enddo
+    fftGrid(:) = boundaries(:,2) - boundaries(:,1) + 1
+    write(1000+myid,'(A,3(1X,I8))') 'FFT grid', fftGrid(:)
+
+    write(1000+myid,'(A,3(1X,I8))') 'FFT grid', fftGrid(:)
+  end subroutine irregular_prep_wvfn_checkFFT
+
+  !> Calculates uniform grid boundaries and downsamples 
+  subroutine regular_prep_wvfn_checkFFT( nG, gvecs, wantCKS, wantU2, fftGrid, ierr )
     use ocean_mpi, only : myid
     use prep_system, only : system_parameters, params
     integer, intent( in ) :: nG, gvecs(3,nG)
@@ -1139,6 +1338,8 @@ module prep_wvfn
     !
     integer :: boundaries( 3, 2 )
     integer :: i, j, k, test, tx
+
+    
 
     boundaries(:,1) = minval( gvecs, 2 )
     boundaries(:,2) = maxval( gvecs, 2 )
@@ -1152,21 +1353,6 @@ module prep_wvfn
     if( wantCKS ) fftGrid(:) = fftGrid(:) * 2
     write(1000+myid,'(A,3(1X,I8))') 'FFT grid', fftGrid(:)
 
-!    if( wantU2 ) then
-!      do i = 1, 3
-!        do j = 0, params%xmesh( i )
-!          if( mod( fftGrid( i ), params%xmesh( i ) ) .eq. 0 ) then
-!            exit
-!          else
-!            fftGrid( i ) = fftGrid( i ) + 1
-!          endif
-!        enddo
-!        if( mod( fftGrid( i ), params%xmesh( i ) ) .ne. 0 ) then
-!          ierr = i
-!          return
-!        endif
-!      enddo
-!    else
       tx = 1
       do i = 1, 3
         if( wantU2 ) tx = params%xmesh( i )
@@ -1199,15 +1385,6 @@ module prep_wvfn
             test = test / 7
             if( debug ) write(1000+myid,*) '   ', 7
           enddo
-! by default FFTW3 is best on 7-smooth numbers 
-!          if( mod( test, 11 ) .eq. 0 ) then
-!            test = test / 11
-!            if( debug ) write(1000+myid,*) '   ', 11
-!          endif
-!          if( mod( test, 13 ) .eq. 0 ) then
-!            test = test / 13
-!            if( debug ) write(1000+myid,*) '   ', 13
-!          endif
 #endif
           if( test .eq. 1 ) then
             fftGrid(i) = fftGrid(i) + k
@@ -1240,7 +1417,7 @@ module prep_wvfn
 !    endif
     write(1000+myid,'(A,3(1X,I8))') 'FFT grid', fftGrid(:)
 
-  end subroutine prep_wvfn_checkFFT
+  end subroutine regular_prep_wvfn_checkFFT
 
 
   subroutine prep_wvfn_doFFT( gvecs, UofG, UofX )
@@ -1340,11 +1517,9 @@ module prep_wvfn
     use ocean_mpi, only : myid, root, comm
      
     integer, intent( inout ) :: ierr
-
     complex(DP), allocatable :: val_wvfn(:,:,:,:), con_wvfn(:,:,:,:)
-    complex(DP) :: old
-    integer :: ik, ix, ib, vb, cb, nb, nx, dumi(3), ny, nz, iy, iz, iix, is
-    logical :: ex
+    integer :: ik, ix, ib, vb, cb, nb, nx, ny, nz, iy, iz, iix, is
+    
 
     if( myid .eq. root ) then
 

@@ -45,13 +45,13 @@ subroutine fancyvector( vhat, vlen, iu )
   ! read in input and set things as we go until we are done
   do
      read ( iu, * ) word
-     write ( 6, * ) 'word = ', word
+!     write ( 6, * ) 'word = ', word
      if ( word .eq. 'end' ) exit
      select case( word )
      case( 'length' )
         backspace iu
         read ( iu, * ) word, vlen, un
-        write ( 6, * ) vlen, un
+!        write ( 6, * ) vlen, un
         select case( un )
         case( 'inversebohr' )
            vlen = vlen * 1.0d0
@@ -123,7 +123,7 @@ subroutine fancyvector( vhat, vlen, iu )
   ! make sure that vhat( : ) is normalized...
   vhat( : ) = vhat( : ) / sqrt( sum( vhat( : ) ** 2 ) )
   !
-  write ( 6, '(3f10.5,5x,1e15.8)' ) vhat( : ), vlen
+!  write ( 6, '(3f10.5,5x,1e15.8)' ) vhat( : ), vlen
   !
   return
 end subroutine fancyvector

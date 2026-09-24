@@ -13,7 +13,7 @@ my $module_list = { JSON => undef };
 my $goodJSON = can_load( modules=> $module_list );
 if( $goodJSON ) {
   require JSON;
-  print "JSON\n";
+#  print "JSON\n";
   JSON->import;
 } else {
   require JSON::PP;

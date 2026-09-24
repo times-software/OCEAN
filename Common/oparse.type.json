@@ -30,11 +30,11 @@
             "niter" : "i"
          },
          "plot" : {
-            "auto" : "b",
-            "delta" : "f",
-            "pad" : "f",
+            "auto" : "bu",
+            "delta" : "fu",
+            "pad" : "fu",
             "points" : "i",
-            "range" : "af"
+            "range" : "af:len=2"
          },
          "scfac" : "f",
          "screen_radius" : "f",
@@ -44,8 +44,8 @@
          "write_rhs" : "b"
       },
       "dft_energy_range" : "f",
-      "kmesh" : "af",
-      "kshift" : "af",
+      "kmesh" : "af:signlen=3",
+      "kshift" : "af:len=3",
       "mimic_exciting_bands" : "b",
       "nbands" : "i",
       "occupation" : {
@@ -63,7 +63,7 @@
          "disable_intraband" : "b",
          "epsilon_threshold" : "f",
          "gmres" : {
-            "echamp" : "b",
+            "echamp" : "bu",
             "elist" : "af",
             "erange" : "af",
             "estyle" : "s",
@@ -85,12 +85,12 @@
                "spacing" : "i", 
                "thresh" : "f"
             },
-            "niter" : "ii"
+            "niter" : "i"
          },
          "lflag" : "b",
          "plot" : {
             "points" : "i",
-            "range" : "af"
+            "range" : "af:len=2"
          },
          "qpflg" : "b",
          "semitda" : "b",
@@ -98,22 +98,22 @@
       },
       "val_start" : "i",
       "val_stop" : "i",
-      "xmesh" : "af"
+      "xmesh" : "af:signlen=3"
    },
    "calc" : {
       "cartesian_q" : {
          "q" : {
-           "direction" : "af",
+           "direction" : "af:len=3",
            "energy" : "f",
            "magnitude" : "f"
          },
          "qin" : {
-           "direction" : "af",
+           "direction" : "af:len=3",
            "energy" : "f",
            "magnitude" : "f"
          },
          "qout" : {
-           "direction" : "af",
+           "direction" : "af:len=3",
            "energy" : "f",
            "magnitude" : "f"
          }
@@ -122,7 +122,14 @@
       "mode" : "s",
       "photon_in" : "ai",
       "photon_out" : "ai",
-      "photon_q" : "af"
+      "photon_q" : "af:len=3"
+   },
+   "cls" : {
+      "average" : "b",
+      "do_exx" : "b",
+      "edge" : "h",
+      "enable" : "b",
+      "energy" :"af" 
    },
    "computer" : {
       "para_prefix" : "S",
@@ -132,7 +139,7 @@
       "abpad" : "i",
       "bse" : {
          "diagonalization" : "s",
-         "poolsize" : "i",
+         "poolsize" : "iu",
          "split" : "b",
          "toldfe" : "f"
       },
@@ -140,23 +147,23 @@
       "calc_stress" : "b",
       "degauss" : "f",
       "den" : {
-         "auto" : "b",
-         "kmesh" : "af",
-         "kshift" : "af",
-         "poolsize" : "i",
+         "auto" : "bu",
+         "kmesh" : "af:signlen=3",
+         "kshift" : "af:len=3",
+         "poolsize" : "iu",
          "toldfe" : "f"
       },
       "diagonalization" : "s",
       "ecut" : "f",
       "exx" : {
-         "qmesh" : "ai"
+         "qmesh" : "ai:len=3"
       },
       "epsilon" : {
          "metal_max" : "f",
-         "metal_min" : "f",
+         "metal_min" : "fu",
          "method" : "s",
-         "min_gap" : "f",
-         "thresh" : "f"
+         "min_gap" : "fu",
+         "thresh" : "fu"
       },
       "fband" : "f",
       "functional" : "s",
@@ -173,7 +180,7 @@
       },
       "mixing" : "f",
       "mixing_mode" : "s",
-      "ndiag" : "i",
+      "ndiag" : "iu",
       "noncolin" : "b",
       "nspin" : "i",
       "nstep" : "i",
@@ -182,23 +189,23 @@
       "redirect" : "b",
       "screen" : {
          "diagonalization" : "s",
-         "poolsize" : "i",
+         "poolsize" : "iu",
          "toldfe" : "f"
       },
       "smag" : "S",
       "spinorb" : "b",
       "startingpot" : "s",
-      "startingwfc" : "S",
+      "startingwfc" : "s",
       "tmp_dir" : "S",
       "toldfe" : "f",
       "tolwfr" : "f",
       "verbatim" : {
-         "abinit" : "s",
+         "abinit" : "S",
          "qe" : {
-            "control" : "s",
-            "electrons" : "s",
-            "hubbard" : "s",
-            "system" : "s"
+            "control" : "S",
+            "electrons" : "S",
+            "hubbard" : "S",
+            "system" : "S"
          }
       }
    },
@@ -208,14 +215,14 @@
       "shirley" : {
          "caution" : "b",
          "fill" : "S",
-         "hfkgrid" : "ai",
+         "hfkgrid" : "ai:len=2",
          "opts" : "S"
       }
    },
    "psp" : {
       "ecut_quality" : "s",
       "pp_database" : "S",
-      "pp_list" : "aS",
+      "pp_list" : "aS:lenmatch=structure.znucl",
       "ppdir" : "S",
       "source" : "s"
    },
@@ -239,12 +246,12 @@
          "lmax" : "i",
          "rmax" : "f",
          "rmode" : "as",
-         "scheme" : "s",
+         "scheme" : "su",
          "shells" : "af"
       },
       "inversionstyle" : "s",
-      "kmesh" : "af",
-      "kshift" : "af",
+      "kmesh" : "af:signlen=3",
+      "kshift" : "af:len=3",
       "mode" : "s",
       "model" : {
          "SLL" : {
@@ -263,13 +270,13 @@
       "epsilon" : "f",
       "magnetization" : "f",
       "metal" : "b",
-      "rprim" : "af",
-      "rscale" : "af",
+      "rprim" : "af:len=9",
+      "rscale" : "af:len=3",
       "typat" : "ai",
-      "xangst" : "af",
-      "xbohr" : "af",
-      "xred" : "af",
+      "xangst" : "af:oneof=structure.coords,lenmul=3*structure.typat",
+      "xbohr" : "af:oneof=structure.coords,lenmul=3*structure.typat",
+      "xred" : "af:oneof=structure.coords,lenmul=3*structure.typat",
       "znucl" : "ai",
-      "zsymb" : "as"
+      "zsymb" : "aS:lenmatch=structure.znucl"
    }
 }

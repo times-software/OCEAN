@@ -41,7 +41,7 @@ program sdjtv
         end do
      end do
   end do
-  write ( 6, '(1a16,1e15.8)' ) 'max conv diff = ', merr 
+!  write ( 6, '(1a16,1e15.8)' ) 'max conv diff = ', merr 
   !
   do sig = -1, 1, 2
      xm = 0.5d0 * dble( sig ) 
@@ -50,7 +50,7 @@ program sdjtv
         do i = 1, 3
            vrslt( i ) = jimel( 0.5d0, xm, xmp, i )
         end do
-        write ( 6, '(2i5,3(5x,2(1f8.4,3x)))' ) sig, sigp, vrslt( : )
+!        write ( 6, '(2i5,3(5x,2(1f8.4,3x)))' ) sig, sigp, vrslt( : )
      end do
   end do 
   !

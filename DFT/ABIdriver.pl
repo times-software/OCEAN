@@ -44,12 +44,18 @@ sub ABIrunNSCF
   close $input;
   close $files;
 
-  ABIrunABINIT( $hashRef->{'computer'}->{'para_prefix'}, "nscf.files", "nscf.log" );
+  my $errorCode = ABIrunABINIT( $hashRef->{'computer'}->{'para_prefix'}, "nscf.files", "nscf.log" );
+  if( $errorCode )
+  {
+    print "ABINIT NSCF run failed with exit code $errorCode\n";
+    chdir updir();
+    return $errorCode;
+  }
 
   $specificHashRef->{'nelec'} = $hashRef->{'scf'}->{'nelec'};
   $specificHashRef->{'fermi'} = $hashRef->{'scf'}->{'fermi'};
 
-  my $errorCode = ABIparseOut( "nscf.out", $specificHashRef );
+  $errorCode = ABIparseOut( "nscf.out", $specificHashRef );
   if( $errorCode != 0 ) {
     print "NSCF stage has error:  $errorCode\n";
     return $errorCode;
@@ -108,9 +114,14 @@ sub ABIrunDensity
   close $input;
   close $files;
 
-  ABIrunABINIT( $hashRef->{'computer'}->{'para_prefix'}, "scf.files", "scf.log" );
+  my $errorCode = ABIrunABINIT( $hashRef->{'computer'}->{'para_prefix'}, "scf.files", "scf.log" );
+  if( $errorCode )
+  {
+    print "ABINIT SCF run failed with exit code $errorCode\n";
+    return $errorCode;
+  }
 
-  my $errorCode = ABIparseOut( "scf.out", $hashRef->{'scf'} );
+  $errorCode = ABIparseOut( "scf.out", $hashRef->{'scf'} );
   return $errorCode;
 #  return 1;
 }
@@ -312,8 +323,31 @@ sub ABIrunABINIT
   my( $prefix, $in, $out ) = @_;
 
   print  "$prefix $ENV{'OCEAN_ABINIT'} < $in > $out 2>&1\n";
-  system("$prefix $ENV{'OCEAN_ABINIT'} < $in > $out 2>&1");
-  
+  my $status = system("$prefix $ENV{'OCEAN_ABINIT'} < $in > $out 2>&1");
+
+  return ABInormalizeSystemStatus( $status );
+}
+
+
+# Normalize Perl's system status into the external program exit code used by dft.pl.
+sub ABInormalizeSystemStatus
+{
+  my $status = $_[0];
+
+  if( $status == -1 )
+  {
+    print "Failed to execute ABINIT command: $!\n";
+    return 1;
+  }
+  elsif( $status & 127 )
+  {
+    printf "ABINIT command died with signal %d\n", ( $status & 127 );
+    return 1;
+  }
+  else
+  {
+    return $status >> 8;
+  }
 }
 
 #sub QErunPP {} 

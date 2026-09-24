@@ -333,6 +333,17 @@ my %L3edges = ('Ne',21.6, 'Na',30.5, 'Mg',49.2, 'Al',72.5, 'Si',99.2, 'P', 135, 
       'Sg', 'Bh', 'Hs', 'Mt' );
 
 
+my @quad5pol = ( [ -0.91388674931755841667, -0.38103254337885177951,  0.14009000788075350010 ], 
+                 [ -0.32979387629775339157,  0.48744973674909068801,  0.80847309992339529969 ],
+                 [ -0.40873684751330899373, -0.31387292804666514660,  0.85698189859780291340 ],
+                 [ -0.72576069778373385995, -0.62057361903794472075, -0.29691714821918854457 ],
+                 [ -0.17005667961684027352, -0.89456458128505909903,  0.41332183057271755217 ] );
+my @quad5q   = ( [  0.15906369646387180678, -0.01859238773662542490,  0.98709323956022525085 ],
+                 [  0.56335004038734553731, -0.58558098984498667739,  0.58286502410741868239 ],
+                 [  0.16635472797265664420, -0.94889333997811432653, -0.26819309056409739770 ],
+                 [ -0.68790804214612095467,  0.65003908258436385361,  0.32284937147773614040 ],
+                 [  0.90725452281117130824,  0.02159894847302956839,  0.42002704230029434378 ] );
+
 my $oceanData;
 my $json = JSON::PP->new;
 my $dataFile = "postDefaultsOceanDatafile";
@@ -445,22 +456,30 @@ foreach my $file ( @files ) {
   }
 }
 
-my $nphoton = 0;
-for( my $i = 0; $i < 3; $i++ ) {
-  for( my $j = 0; $j<3; $j++ ) {
-    next if( $j == $i );
+if( $quad == 0 ) {
+  my $nphoton = 0;
+  for( my $i = 0; $i < 3; $i++ ) {
     $nphoton ++;
     my $fileName = sprintf "default_photon%i", $nphoton;
     open OUT, ">", $fileName or die;
-    if( $quad == 1 ) {
-      print OUT "quad\n";
-    } else {
-      print OUT "dipole\n";
-    }
+    print OUT "dipole\n";
     printf OUT "cartesian %i %i %i\nend\n", $dir[$i][0], $dir[$i][1], $dir[$i][2];
-    printf OUT "cartesian %i %i %i\nend\n", $dir[$j][0], $dir[$j][1], $dir[$j][2];
+    printf OUT "cartesian %i %i %i\nend\n", $dir[$i-1][0], $dir[$i-1][1], $dir[$i-1][2];
     printf OUT "%.1f\n", $energy;
     close OUT;
-    last unless( $quad == 1 );
+  }
+} else {
+  my $nphoton = 0;
+  for( my $i = 0; $i < 5; $i++ ) {
+    $nphoton ++;
+    my $fileName = sprintf "default_photon%i", $nphoton;
+    open OUT, ">", $fileName or die;
+    print OUT "quad\n";
+    printf OUT "cartesian %20.16f %20.16f %20.16f\nend\n", $quad5pol[$i][0], $quad5pol[$i][1], $quad5pol[$i][2];
+    printf OUT "cartesian %20.16f %20.16f %20.16f\nend\n", $quad5q[$i][0], $quad5q[$i][1], $quad5q[$i][2];
+    printf OUT "%.1f\n", $energy;
+    close OUT;
   }
 }
+
+exit 0;

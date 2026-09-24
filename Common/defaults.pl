@@ -1,5 +1,5 @@
 #!/usr/bin/perl
-# Copyright (C) 2015-2021 OCEAN collaboration
+# Copyright (C) 2015-2026 OCEAN collaboration
 #
 # This file is part of the OCEAN project and distributed under the terms 
 # of the University of Illinois/NCSA Open Source License. See the file 
@@ -23,7 +23,7 @@ if (! $ENV{"OCEAN_WORKDIR"}){ $ENV{"OCEAN_WORKDIR"} = `pwd` . "../" ; }
 if (!$ENV{"OCEAN_VERSION"}) {$ENV{"OCEAN_VERSION"} = `cat $ENV{"OCEAN_BIN"}/Version`; }
 
 
-print `pwd`;
+#print `pwd`;
 
 
 my $dataFile = "oceanDatafile";
@@ -107,7 +107,7 @@ if( $para_prefix =~ m/\#/ )
 elsif ( $para_prefix =~ m/^\D*(\d+)/ )
 {
   $ncpus = $1;
-  print "GRABBED $ncpus as the number of cpus to run with!\n";
+#  print "GRABBED $ncpus as the number of cpus to run with!\n";
 }
 close PARA_PREFIX;
 
@@ -116,24 +116,24 @@ for( my $i =1; $i <= $ncpus; $i++ )
 {
   push( @cpu_factors, $i ) unless ( $ncpus % $i );
 }
-if( scalar @cpu_factors == 1 )
-{
-  print "$ncpus has ", $#cpu_factors + 1, " factor\n";
-}
-else
-{
-  print "$ncpus has ", $#cpu_factors + 1, " factors\n";
-}
-foreach (@cpu_factors)
-{ print "$_\n"; }
+#if( scalar @cpu_factors == 1 )
+#{
+#  print "$ncpus has ", $#cpu_factors + 1, " factor\n";
+#}
+#else
+#{
+#  print "$ncpus has ", $#cpu_factors + 1, " factors\n";
+#}
+#foreach (@cpu_factors)
+#{ print "$_\n"; }
 
 my @square_cpu_factors;
 foreach my $cpu_count (@cpu_factors)
 {
   push @square_cpu_factors, $cpu_count if( int(sqrt($cpu_count)) ** 2 == $cpu_count );
 }
-foreach (@square_cpu_factors)
-{ print "$_\n"; }
+#foreach (@square_cpu_factors)
+#{ print "$_\n"; }
 
 
 open QE_POOL, ">pool_control" or die "Failed to open pool_control for writing\n$!\n";
@@ -146,7 +146,7 @@ chomp($tline);
 $tline =~  m/((\d+)?\.?\d+([eEfF][+-]?\d+)?)\s+((\d+)?\.?\d+([eEfF][+-]?\d+)?)\s+((\d+)?\.?\d+([eEfF][+-]?\d+)?)\s*$/ 
     or die "Failed to parse rscale!\n$tline\n";
 my @rscale = ($1, $4, $7);
-print "$1\t$4\t$7\n";
+#print "$1\t$4\t$7\n";
 close RSCALE;
 
 my @alength;
@@ -165,7 +165,7 @@ for (my $i = 0; $i < 3; $i++ )
   $alength[$i] = sqrt( $avec[$i][0]**2 + $avec[$i][1]**2 + $avec[$i][2]**2 );
 #  print AVECS $1*$rscale[0] . "  " . $4*$rscale[1] .  "  " . $7*$rscale[2] . "\n";
   printf AVECS "%.15f  %.15f  %.15f\n", $avec[$i][0], $avec[$i][1], $avec[$i][2];
-  print "$1\t$4\t$7\n";
+#  print "$1\t$4\t$7\n";
 }
 close RPRIM;
 close AVECS;
@@ -175,7 +175,7 @@ close AVECS;
 my $volume = $avec[0][0] * ($avec[1][1] * $avec[2][2] - $avec[2][1] * $avec[1][2] )
            - $avec[1][0] * ($avec[0][1] * $avec[2][2] - $avec[2][1] * $avec[0][2] )
            + $avec[2][0] * ($avec[0][1] * $avec[1][2] - $avec[1][1] * $avec[0][2] );
-print "Volume:\t$volume\n";
+#print "Volume:\t$volume\n";
 
 my @bvec;
 my @blen;
@@ -203,11 +203,11 @@ while ( my $line = <DEFAULTS>)
   push(@{$defaults{$1}}, $4 );
 }
 close DEFAULTS;
-foreach my $input (keys %defaults)
-{
-  print "Key: $input\t";
-  print "$defaults{$input}[0]\t$defaults{$input}[1]\t$defaults{$input}[2]\n";
-}
+#foreach my $input (keys %defaults)
+#{
+#  print "Key: $input\t";
+#  print "$defaults{$input}[0]\t$defaults{$input}[1]\t$defaults{$input}[2]\n";
+#}
 
 
 open INPUT, "acc_level.ipt" or die "Failed to open acc_level.ipt\n$!";
@@ -237,7 +237,7 @@ my $kpt_tot;
 if( $input_content =~ m/old/i )
 {
   my @output;
-  print "Defaults requested for kmesh.ipt\n";
+#  print "Defaults requested for kmesh.ipt\n";
   for( my $i = 0; $i < 3; $i++ )
   {
     $target = $defaults{'kmesh'}[$acc_level];
@@ -248,7 +248,7 @@ if( $input_content =~ m/old/i )
   open INPUT, ">nkpt" or die "$!\n";
   print INPUT "$output[0]  $output[1]  $output[2]\n";
   close INPUT;
-  print "Defaults chosen for kmesh.ipt:\t$output[0]\t$output[1]\t$output[2]\n";
+#  print "Defaults chosen for kmesh.ipt:\t$output[0]\t$output[1]\t$output[2]\n";
   $kpt_tot = $output[0]*$output[1]*$output[2];
   $input_content = "$output[0]  $output[1]  $output[2]";
 } 
@@ -946,7 +946,7 @@ sub parse_para_prefix( )
   if ( $para_prefix =~ m/^\D*(\d+)/ )
   {
     $ncpus = $1; 
-    print "GRABBED $ncpus as the number of cpus to run with!\n";
+#    print "GRABBED $ncpus as the number of cpus to run with!\n";
   } 
   return $ncpus;
 }
@@ -960,16 +960,16 @@ sub add_cpuFactorsAndSquare( )
   {
     push( @cpu_factors, $i ) unless ( $ncpus % $i );
   }
-  if( scalar @cpu_factors == 1 )
-  {
-    print "$ncpus has ", $#cpu_factors + 1, " factor\n";
-  }
-  else
-  {
-    print "$ncpus has ", $#cpu_factors + 1, " factors\n";
-  }
-  foreach (@cpu_factors)
-  { print "$_\n"; }
+#  if( scalar @cpu_factors == 1 )
+#  {
+#    print "$ncpus has ", $#cpu_factors + 1, " factor\n";
+#  }
+#  else
+#  {
+#    print "$ncpus has ", $#cpu_factors + 1, " factors\n";
+#  }
+#  foreach (@cpu_factors)
+#  { print "$_\n"; }
   $hashRef->{'computer'}->{'cpu_factors'} = [@cpu_factors];
 
   my @square_cpu_factors;
@@ -977,8 +977,8 @@ sub add_cpuFactorsAndSquare( )
   {
     push @square_cpu_factors, $cpu_count if( int(sqrt($cpu_count)) ** 2 == $cpu_count );
   }
-  foreach (@square_cpu_factors)
-  { print "$_\n"; }
+#  foreach (@square_cpu_factors)
+#  { print "$_\n"; }
   $hashRef->{'computer'}->{'cpu_square_factors'} = [@square_cpu_factors];
 }
 
@@ -998,7 +998,7 @@ sub abVecsVolume
   my $volume = $avec[0][0] * ($avec[1][1] * $avec[2][2] - $avec[2][1] * $avec[1][2] )
              - $avec[1][0] * ($avec[0][1] * $avec[2][2] - $avec[2][1] * $avec[0][2] )
              + $avec[2][0] * ($avec[0][1] * $avec[1][2] - $avec[1][1] * $avec[0][2] );
-  print "Volume:\t$volume\n";
+#  print "Volume:\t$volume\n";
 
   
   my $pref = 2*4*atan2(1,1)/$volume;
@@ -1028,10 +1028,10 @@ sub checkKpoints
   unless( ref($kpointref) == 'ARRAY' ) {
     $kpointref = [ $kpointref ];
   }
-  for( my $i = 0; $i < scalar @{ $kpointref }; $i++ )
-  {
-    print ${$kpointref}[$i] . "\n";
-  }
+#  for( my $i = 0; $i < scalar @{ $kpointref }; $i++ )
+#  {
+#    print ${$kpointref}[$i] . "\n";
+#  }
 
   return -1 if( scalar @{ $kpointref } < 1 );
   for( my $i = scalar @{ $kpointref }; $i < 3; $i++ )
@@ -1066,10 +1066,10 @@ sub checkXpoints
   unless( ref($xpointref) == 'ARRAY') {
     $xpointref = [ $xpointref ];
   }
-  for( my $i = 0; $i < scalar @{ $xpointref }; $i++ )
-  {
-    print ${$xpointref}[$i] . "\n";
-  }
+#  for( my $i = 0; $i < scalar @{ $xpointref }; $i++ )
+#  {
+#    print ${$xpointref}[$i] . "\n";
+#  }
 
   return -1 if( scalar @{ $xpointref } < 1 );
   for( my $i = scalar @{ $xpointref }; $i < 3; $i++ )
@@ -1126,7 +1126,7 @@ sub checkXpoints
       }
     }
   } until( $totalXmesh > $minXtotal );
-  print "   " . ${$xpointref}[0] . " " . ${$xpointref}[1] . " " . ${$xpointref}[2] . "\n";
+#  print "   " . ${$xpointref}[0] . " " . ${$xpointref}[1] . " " . ${$xpointref}[2] . "\n";
 }
 
 
@@ -1136,7 +1136,7 @@ sub checkBands
   my $bandRef = $_[1];
   my $energyRef = $_[2];
   my $nb = $bandRef->{'nbands'};
-  print "Bands: $nb\n";
+#  print "Bands: $nb\n";
 
   # Do nothing if we have a positive number of bands
   if( $nb =~ m/^\s*(-?\d+)\s*$/ ) {
@@ -1164,7 +1164,7 @@ sub checkBands
   {
     $nb = 0.019 * $hashRef->{'structure'}->{'volume'} * ( ($energyRef/13.605)**(3/2) );
     $nb = 1 if ($nb < 1 );
-    print "$nb  $hashRef->{'structure'}->{'volume'} $energyRef\n";
+#    print "$nb  $hashRef->{'structure'}->{'volume'} $energyRef\n";
     $bandRef->{'mimic_exciting_bands'} = JSON::PP::false;
   }
 
@@ -1183,7 +1183,7 @@ sub checkBands
   }
   $nb = floor( ( 2 * $nb + 1 ) / 2 );
   $bandRef->{'nbands'} = $nb;
-  print "$nb\n";
+#  print "$nb\n";
 }
 
 
@@ -1334,20 +1334,20 @@ sub makeEdges
     push @{ $SitesByZ{ $z } }, $j+1;
   }
 
-  foreach my $key ( keys %SitesByZ )
-  {
-    print $key . ":\n";
-    foreach my $site ( @{ $SitesByZ{ $key } } )
-    {
-      print "  $site";
-    }
-    print "\n";
-  }
+#  foreach my $key ( keys %SitesByZ )
+#  {
+#    print $key . ":\n";
+#    foreach my $site ( @{ $SitesByZ{ $key } } )
+#    {
+#      print "  $site";
+#    }
+#    print "\n";
+#  }
 
-  foreach (@{$hashRef->{'calc'}->{'edges'}} )
-  {
-    print "$_\n";
-  }
+#  foreach (@{$hashRef->{'calc'}->{'edges'}} )
+#  {
+#    print "$_\n";
+#  }
 
 
   # Create a hash of Z
@@ -1723,7 +1723,7 @@ sub fixCNBSE
   }
 
   if( $hashRef->{'bse'}->{'core'}->{'screen_radius'} < 0 ) {
-    if( $hashRef->{'screen'}->{'shells'}[-1] > 0 ) {
+    if( $hashRef->{'screen'}->{'shells'}[-1] >= 0 ) {
       $hashRef->{'bse'}->{'core'}->{'screen_radius'} = $hashRef->{'screen'}->{'shells'}[-1];
     } else {
       $hashRef->{'bse'}->{'core'}->{'screen_radius'} = abs( $hashRef->{'bse'}->{'core'}->{'screen_radius'} );
@@ -1736,7 +1736,7 @@ sub fixCNBSE
     if( abs( $hashRef->{'bse'}->{'core'}->{'screen_radius'} - $r ) < 0.01 ) {
       $found = 1;
     }
-    push @tmp, $r if( $r > 0 );
+    push @tmp, $r if( $r >= 0 );
   }
 
   $hashRef->{'screen'}->{'shells'} = \@tmp;
@@ -1765,6 +1765,8 @@ sub printXKpoints
  
   open OUT, ">", "x.txt" or die "Failed to open x.txt\n$!";
   print OUT "#       xmesh            inv-x        x\n";
+  my $prev_length = 0;
+  my $length;
   for( my $k = 0; $k < 2; $k++ ) 
   {
     for( my $j = 0; $j < 1000; $j ++ ) {
@@ -1791,6 +1793,10 @@ sub printXKpoints
       for( my $i = 1; $i < 3; $i++ ) {
         $inv = $len[$i]/$x[$i] if( $len[$i]/$x[$i] > $inv );
       }
+      $length = sprintf "%12.5f", 1/$inv;
+      if( $length <= $prev_length ) {
+        $skip = 2;} #else { print "$length $prev_length\n";}
+      $prev_length = $length;
       if( $skip == 0 ) {
         printf OUT "%5d %5d %5d  %12.6f %12.6f\n", $x[0], $x[1], $x[2], $inv, 1/$inv;
       }
@@ -1946,6 +1952,15 @@ sub photonq
                     * $hashRef->{'calc'}->{'cartesian_q'}->{'qin'}->{'magnitude'} )
                   - ( $hashRef->{'calc'}->{'cartesian_q'}->{'qout'}->{'direction'}[$i] 
                     * $hashRef->{'calc'}->{'cartesian_q'}->{'qout'}->{'magnitude'} );
+    }
+    my $a = 0;
+    for( my $i = 0; $i < 3; $i++ ) {
+      $a += $cart_q[$i]**2;
+    }
+    $a = sqrt($a);
+    $hashRef->{'calc'}->{'cartesian_q'}->{'q'}->{'magnitude'} = $a;
+    for( my $i = 0; $i < 3; $i++ ) {
+      $hashRef->{'calc'}->{'cartesian_q'}->{'q'}->{'direction'}[$i] = $cart_q[$i]/$a;
     }
   }
 

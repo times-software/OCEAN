@@ -194,6 +194,12 @@ module OCEAN_exact
 
     logical :: fresh_
 
+#ifndef __HAVE_SCALAPACK
+    if( myid .eq. root ) write(6,*) 'OCEAN_exact requires Scalapack compilation (-D__HAVE_SCALAPACK)'
+    ierr = 1
+    return
+#else
+
     if( present( fresh ) ) then
       fresh_ = fresh
     else
@@ -231,8 +237,12 @@ module OCEAN_exact
     end select
     
 111 continue
+!! Scalapack check
+#endif  
+
   end subroutine
 
+#ifdef __HAVE_SCALAPACK
 !!!!!! taken from Haydock, should be hoisted
   subroutine checkBroadening( sys, broaden, default_broaden )
     use OCEAN_corewidths, only : returnLifetime
@@ -1593,5 +1603,6 @@ module OCEAN_exact
     deallocate( x, psi, cvec, evec )
 
   end subroutine create_echamp
+#endif
 
 end module OCEAN_exact

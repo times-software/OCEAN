@@ -1017,9 +1017,9 @@ sub checkSetGamma
 
   my $minQ = 0.0000001;
 
-  if( $hashRef->{'kmesh'}[0] == 1 && $hashRef->{'kmesh'}[1] == 1 && $hashRef->{'kmesh'}[1] == 1 
+  if( $hashRef->{'kmesh'}[0] == 1 && $hashRef->{'kmesh'}[1] == 1 && $hashRef->{'kmesh'}[2] == 1 
       && abs($hashRef->{'kshift'}[0]) < $minQ && abs($hashRef->{'kshift'}[1]) < $minQ 
-      && abs($hashRef->{'kshift'}[0]) < $minQ )
+      && abs($hashRef->{'kshift'}[2]) < $minQ )
   {
     $hashRef->{'isGamma'} = JSON::PP::true;
   } 

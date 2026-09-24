@@ -125,11 +125,27 @@ sub QErunNSCF
     $cmdLine .= " -pd true -ntg $nbd";
   }
 
-  QErunPW( $hashRef->{'general'}->{'redirect'}, $prefix, $cmdLine, "nscf.in", "nscf.out" );
+  my $errorCode = QErunPW( $hashRef->{'general'}->{'redirect'}, $prefix, $cmdLine, "nscf.in", "nscf.out" );
+  if( $errorCode )
+  {
+    print "QE NSCF run failed with exit code $errorCode\n";
+    chdir updir();
+    return $errorCode;
+  }
 
+  $errorCode = QEcheckOutputDataWritten( "nscf.out" );
+  if( $errorCode )
+  {
+    chdir updir();
+    return $errorCode;
+  }
 
-  my $errorCode = QEparseOut( "nscf.out", $specificHashRef );
-  return $errorCode if( $errorCode );
+  $errorCode = QEparseOut( "nscf.out", $specificHashRef );
+  if( $errorCode )
+  {
+    chdir updir();
+    return $errorCode;
+  }
 
   $errorCode = QEparseEnergies( $hashRef, $specificHashRef );
 
@@ -286,10 +302,17 @@ sub QErunDensity
     $cmdLine .= " -pd true -ntg $nbd";
   }
 
-  QErunPW( $hashRef->{'general'}->{'redirect'}, $prefix, $cmdLine, "scf.in", "scf.out" );
+  my $errorCode = QErunPW( $hashRef->{'general'}->{'redirect'}, $prefix, $cmdLine, "scf.in", "scf.out" );
+  if( $errorCode )
+  {
+    print "QE SCF run failed with exit code $errorCode\n";
+    return $errorCode;
+  }
 
+  $errorCode = QEcheckOutputDataWritten( "scf.out" );
+  return $errorCode if( $errorCode );
 
-  my $errorCode = QEparseOut( "scf.out", $hashRef->{'scf'} );
+  $errorCode = QEparseOut( "scf.out", $hashRef->{'scf'} );
 
   return $errorCode;
 }
@@ -777,14 +800,19 @@ sub QEparseDensityPotential
 #  if($type eq 'potential' ) {
 #    $didSwap = QEmggaFix();
 #  }
-  QErunPP( $hashRef->{'general'}->{'redirect'}, $prefix, $cmdLine, "$infile", "$outfile" );
+  my $error = QErunPP( $hashRef->{'general'}->{'redirect'}, $prefix, $cmdLine, "$infile", "$outfile" );
+  if( $error )
+  {
+    print "QE PP run failed with exit code $error\n";
+    return $error;
+  }
 #  if( $didSwap ) {
 #    QEmggaUnFix();
 #  }
 
   # Check for NaN with metaGGA
   if( $type eq 'potential' ) {
-    my $error = QEfixPP( $hashRef->{'general'}->{'redirect'}, $prefix, $cmdLine, "$infile", "$outfile", "system.pot" );
+    $error = QEfixPP( $hashRef->{'general'}->{'redirect'}, $prefix, $cmdLine, "$infile", "$outfile", "system.pot" );
     print "POT: $error\n";
     return $error if( $error != 0 );
   }
@@ -832,7 +860,12 @@ sub QEfixPP
     close OUT;
     print "QE fix $funct\n";
 
-    QErunPP( $redirect, $prefix, $cmdLine, $infile, $outfile );
+    my $error = QErunPP( $redirect, $prefix, $cmdLine, $infile, $outfile );
+    if( $error )
+    {
+      print "QE PP retry failed with exit code $error\n";
+      return $error;
+    }
 
     open IN, "<", $potfile or die "Failed to open $potfile\n$!";
     $NAN = 0;
@@ -967,16 +1000,68 @@ sub QErunPW
 {
   my( $redirect, $prefix, $cmdLine, $in, $out ) = @_;
 
+  my $status;
   if( $redirect )
   {
     print  "$prefix $ENV{'OCEAN_ESPRESSO_PW'} $cmdLine < $in > $out 2>&1\n";
-    system("$prefix $ENV{'OCEAN_ESPRESSO_PW'} $cmdLine < $in > $out 2>&1");
+    $status = system("$prefix $ENV{'OCEAN_ESPRESSO_PW'} $cmdLine < $in > $out 2>&1");
   }
   else
   {
     print  "$prefix $ENV{'OCEAN_ESPRESSO_PW'} $cmdLine -inp $in > $out 2>&1\n";
-    system("$prefix $ENV{'OCEAN_ESPRESSO_PW'} $cmdLine -inp $in > $out 2>&1");
+    $status = system("$prefix $ENV{'OCEAN_ESPRESSO_PW'} $cmdLine -inp $in > $out 2>&1");
   }
+
+  return QEnormalizeSystemStatus( $status );
+}
+
+
+# Normalize Perl's system status into the external program exit code used by dft.pl.
+sub QEnormalizeSystemStatus
+{
+  my $status = $_[0];
+
+  if( $status == -1 )
+  {
+    print "Failed to execute QE command: $!\n";
+    return 1;
+  }
+  elsif( $status & 127 )
+  {
+    printf "QE command died with signal %d\n", ( $status & 127 );
+    return 1;
+  }
+  else
+  {
+    return $status >> 8;
+  }
+}
+
+
+# Confirm QE finished writing the final SCF/NSCF data before marking the run complete.
+sub QEcheckOutputDataWritten
+{
+  my $outFile = $_[0];
+
+  unless( open OUTFILE, "<", $outFile )
+  {
+    print "Failed to open $outFile while checking QE output completion\n";
+    return 1;
+  }
+
+  while( my $line = <OUTFILE> )
+  {
+    if( $line =~ m/Writing all to output data/ ||
+        $line =~ m/Writing output data file/ )
+    {
+      close OUTFILE;
+      return 0;
+    }
+  }
+  close OUTFILE;
+
+  print "QE output completion marker not found in $outFile\n";
+  return 1;
 }
 
 
@@ -986,16 +1071,19 @@ sub QErunPP
 {
   my( $redirect, $prefix, $cmdLine, $in, $out ) = @_;
 
+  my $status;
   if( $redirect )
   {
     print  "$prefix $ENV{'OCEAN_ESPRESSO_PP'} $cmdLine < $in > $out 2>&1\n";
-    system("$prefix $ENV{'OCEAN_ESPRESSO_PP'} $cmdLine < $in > $out 2>&1");
+    $status = system("$prefix $ENV{'OCEAN_ESPRESSO_PP'} $cmdLine < $in > $out 2>&1");
   }
   else
   {
     print  "$prefix $ENV{'OCEAN_ESPRESSO_PP'} $cmdLine -inp $in > $out 2>&1\n";
-    system("$prefix $ENV{'OCEAN_ESPRESSO_PP'} $cmdLine -inp $in > $out 2>&1");
+    $status = system("$prefix $ENV{'OCEAN_ESPRESSO_PP'} $cmdLine -inp $in > $out 2>&1");
   }
+
+  return QEnormalizeSystemStatus( $status );
 }
 
 # subroutine to handle running each QE step
