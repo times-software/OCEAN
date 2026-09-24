@@ -17,7 +17,6 @@ all:
 	cd PREP;         make 
 	cd OPF;          make 
 	cd SCREEN;       make 
-	cd CLS;					 make
 	cd CNBSE;        make 
 	cd INTERPOLATE;  make
 	cd OCEAN2;			 make
@@ -30,7 +29,6 @@ clean:
 	cd PREP;         make clean
 	cd SCREEN;       make clean
 	cd OPF;          make clean
-	cd CLS;					 make clean
 	cd CNBSE;        make clean 
 	cd zbridge;      make clean
 	cd INTERPOLATE;  make clean
@@ -45,16 +43,13 @@ install:
 	cd PREP;         make install
 	cd SCREEN;       make install
 	cd OPF;          make install
-	cd CLS;					 make install
 	cd CNBSE;        make install
 	cd zbridge;      make install
 	cd INTERPOLATE;  make install
 	cd OCEAN2;       make install
 	cd POST;				 make install
 	cd PSP;					 make install
-	chmod 644 $(INSTDIR)/*
-	chmod 755 $(INSTDIR)/*.pl
-	chmod 755 $(INSTDIR)/*.x
+	chmod u+x $(INSTDIR)/*.pl
 
 instdev:
 	for F in $(SCRIPTS) $(AUX); do ln -fs $(PWD)/$$F $(INSTDEVDIR); done;

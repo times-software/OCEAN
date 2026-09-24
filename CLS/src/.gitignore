@@ -1,9 +1,0 @@
-*.mod
-*.o
-*.x
-.*.swp
-*.optrpt
-Doxyfile
-doxygen_sqlite3.db
-html
-latex

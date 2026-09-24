@@ -171,21 +171,16 @@ program vhommod
   else
     do k = 1, nshells
       r2 = shells( k )
-      if( r2 .lt. 0.01d0 ) then
-        tabjqr2( :, k ) = 0.0_DP
-      else
-        do i = 1, nq
-          q = dq * ( i - 0.5d0 )
-          tabjqr2( i, k ) = sphj0( q * r2 )
-        enddo
-      endif
+      do i = 1, nq
+        q = dq * ( i - 0.5d0 )
+        tabjqr2( i, k ) = sphj0( q * r2 )
+      enddo
     enddo
   endif
   !
   v( :, : ) = 0
   do k = 1, nshells
     r2 = shells( k )
-    if( r2 .lt. 0.01d0 ) cycle
     do i = 1, nq
        q = dq * ( i - 0.5d0 )
 !       jqr2 = sphj0( q * r2 )
@@ -250,7 +245,6 @@ program vhommod
       endif
 
       do k = 1, nshells
-        if( shells( k ) .lt. 0.01d0 ) cycle
         r2 = shells( k ) + delta
         th2 = 0
         if( s .gt. r2 ) then

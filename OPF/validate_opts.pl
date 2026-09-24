@@ -35,8 +35,7 @@ if( $ARGV[0] =~ m/upf$/i ) {
       $z = &symb2z( $element );
       print "$element $z\n";
       last if( defined( $z_eff ) );
-    }
-    if( $line =~ m/(\d+\.?\d*)\s+Z valence/i || $line =~ m/z_valence="(\d+\.?\d*([Ee][+-]\d+)?)"/i ) {
+    } elsif( $line =~ m/(\d+\.?\d*)\s+Z valence/i || $line =~ m/z_valence="(\d+\.?\d*([Ee][+-]\d+)?)"/i ) {
       $z_eff = $1*1;
       print "$z_eff\n";
       last if( defined( $z ) );

@@ -74,8 +74,8 @@ subroutine getprefs( prefs, lmax, nsphpt, wsph, xsph, ysph, zsph )
         !
      end do
   end do
-!  write ( 6, '(1a7,1i5,5x,1a7,2(1x,1e15.8))' ) 'lmax = ', lmax, 'caps = ', derr, oderr
-!  write ( 6, '(4(1x,1f22.15))' ) sudmin, sudmax, suodmin, suodmax
+  write ( 6, '(1a7,1i5,5x,1a7,2(1x,1e15.8))' ) 'lmax = ', lmax, 'caps = ', derr, oderr
+  write ( 6, '(4(1x,1f22.15))' ) sudmin, sudmax, suodmin, suodmax
   !
   return
 end subroutine getprefs

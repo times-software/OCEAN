@@ -15,4 +15,4 @@
   close( unit=99 )
   sphsu = sum( wsph( : ) )
   wsph( : ) = wsph( : ) * ( 4.0d0 * 4.0d0 * atan( 1.0d0 ) / sphsu )
-!  write ( 6, * ) nsphpt, ' points with weights summing to four pi '
+  write ( 6, * ) nsphpt, ' points with weights summing to four pi '

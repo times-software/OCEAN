@@ -97,10 +97,10 @@ subroutine cmjtv( nsphpt, xsph, ysph, zsph, wsph, prefs )
      stop
 
   end select
-  write ( 6, '(1a4,1f10.5,a)' ) 'q = ', q, ' inverse Bohrs'
+  write ( 6, '(1a4,1f10.5)' ) 'q = ', q
   !
   if( spcttype(1:2) .eq. 'tp' ) then
-    write(f12, '(1A9,I3.3)') 'corezetaz', atno
+    write(f12, '(1A9I3.3)') 'corezetaz', atno
     open( unit=98, file=f12, form='formatted', status='old' )
     allocate( atomNL( 2, atomNLMax ), atomEnergy( atomNLMax ) )
     atomNL(:,:) = -1
@@ -172,10 +172,6 @@ subroutine cmjtv( nsphpt, xsph, ysph, zsph, wsph, prefs )
         enddo
       endif
     enddo
-    deallocate( atomNL, atomEnergy )
-  else
-    nsemi = 0
-    allocate( semifcn( 0, 0, 0, 0 ), c2c( 0, 0 ), semiReducedEnergy( 0 ) )
   endif
   ! calculate full matrix elements
   call jtvsub( lmin, lmax, nproj, npmax, lc, nbsemel, powmax, ifcn, spcttype, ehat, qhat, q, &
@@ -197,7 +193,7 @@ subroutine cmjtv( nsphpt, xsph, ysph, zsph, wsph, prefs )
   close( unit=99 )
   !
 
-  deallocate( ifcn, semifcn, c2c,  semiReducedEnergy, nbsemel, nproj )
+!  deallocate( ifcn, semifcn, c2c, atomEnergy, semiReducedEnergy, nbsemel, nproj, atomNL )
   return
 
   contains

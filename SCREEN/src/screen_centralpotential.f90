@@ -362,45 +362,39 @@ module screen_centralPotential
     allocate( newPot%pot( size( pot%pot ) ), newPot%rad( size( pot%rad ) ) )
     newPot%rad(:) = pot%rad(:)
 
-    ! shell radii are rounded to 0.01. If smaller than it is zero
-    !  but zero is actually the special case of *no* shell (or inifinty)
-    !  in this case we just copy the input pot
-    if( rad .lt. 0.01_DP ) then
-      newPot%pot( : ) = pot%pot( : )
+
+    invRad = 1.0_DP / rad
+
+    if( ww .gt. 0.0_DP ) then
+      denom = 4.0_DP * rad * ww**2 
+      denom = denom * ( rad + ww )**3
+      denom = 1.0_DP / denom
+      f3 = ( rad**2 + 4.0_DP * rad*ww + 5.0_DP*ww**2 ) * denom
+
+      denom = denom / ( 4.0_DP * ww )
+      f4 = ( rad + 3.0_DP * ww ) * ( rad + 5.0_DP * ww ) * denom
+      f5 = ( rad + 3.0_DP * ww ) * denom
     else
-      invRad = 1.0_DP / rad
-
-      if( ww .gt. 0.0_DP ) then
-        denom = 4.0_DP * rad * ww**2 
-        denom = denom * ( rad + ww )**3
-        denom = 1.0_DP / denom
-        f3 = ( rad**2 + 4.0_DP * rad*ww + 5.0_DP*ww**2 ) * denom
-
-        denom = denom / ( 4.0_DP * ww )
-        f4 = ( rad + 3.0_DP * ww ) * ( rad + 5.0_DP * ww ) * denom
-        f5 = ( rad + 3.0_DP * ww ) * denom
-      else
-        f3 = 0.0_DP
-        f4 = 0.0_DP
-        f5 = 0.0_DP
-      endif
-      
-      do i = 1, size( pot%pot ) 
-        if( newPot%rad( i ) .lt. rad - ww) then
-          newPot%pot( i ) = pot%pot( i ) + invRad
-        elseif( newPot%rad( i ) .le. rad + ww ) then
-          x = newPot%rad( i ) - ( rad - ww )
-          newPot%pot( i ) = x*f5
-          newPot%pot( i ) = x*( f4 - newPot%pot( i ) )
-          newPot%pot( i ) = x**3 * ( f3 - newPot%pot( i ) )
-          newPot%pot( i ) = pot%pot( i ) + invRad - newPot%pot( i )
-          ! 
-        else
-          newPot%pot( i : size( newPot%pot ) ) = 0.0_DP
-          exit
-        endif
-      enddo
+      f3 = 0.0_DP
+      f4 = 0.0_DP
+      f5 = 0.0_DP
     endif
+    
+    do i = 1, size( pot%pot ) 
+      if( newPot%rad( i ) .lt. rad - ww) then
+        newPot%pot( i ) = pot%pot( i ) + invRad
+      elseif( newPot%rad( i ) .le. rad + ww ) then
+        x = newPot%rad( i ) - ( rad - ww )
+        newPot%pot( i ) = x*f5
+        newPot%pot( i ) = x*( f4 - newPot%pot( i ) )
+        newPot%pot( i ) = x**3 * ( f3 - newPot%pot( i ) )
+        newPot%pot( i ) = pot%pot( i ) + invRad - newPot%pot( i )
+        ! 
+      else
+        newPot%pot( i : size( newPot%pot ) ) = 0.0_DP
+        exit
+      endif
+    enddo
 
 #ifdef DEBUG
     write(6,*) 'newScreenShell', rad, newPot%rad( size( newPot%rad ) )
@@ -420,7 +414,6 @@ module screen_centralPotential
   end subroutine screen_centralPotential_newScreenShell
 
   subroutine screen_centralPotential_load( z, n, l, pot, ierr )
-    use screen_system, only : screen_system_vext
     integer, intent( in ) :: z, n, l
     type( potential ), intent( out ) :: pot
     integer, intent( inout ) :: ierr
@@ -429,7 +422,6 @@ module screen_centralPotential
     integer :: maxLength, curLength, fh
 
     character(len=26) :: fileName
-    character(len=7) :: vext
 
     pot%z = z
     pot%n = n
@@ -450,8 +442,7 @@ module screen_centralPotential
 #endif 
     endif
 
-    vext = screen_system_vext()
-    write(fileName,'(A9,A7,A1,I3.3,A1,I2.2,A1,I2.2)') 'zpawinfo/', vext, 'z', z, 'n', n, 'l', l
+    write(fileName,'(A17,I3.3,A1,I2.2,A1,I2.2)') 'zpawinfo/vc_barez', z, 'n', n, 'l', l
     fh = 99
     open( unit=fh, file=fileName, form='formatted', status='old', iostat=ierr )
     if( ierr .ne. 0 ) then

@@ -629,14 +629,13 @@ module OCEAN_energies
   subroutine read_energies( sys, energies, ierr )
     use OCEAN_system, only : O_system
     use OCEAN_mpi, only : myid, root, comm, MPI_SUCCESS, MPI_INTEGER
-    use OCEAN_constants, only : eV2Hartree
     
     type(O_system), intent( in ) :: sys
     real(DP), intent( out ) :: energies(:,:,:)
     integer, intent(inout) :: ierr
 
     real(DP), allocatable :: tmp_e0(:,:,:)
-    real(DP) :: core_offset, core_exchange
+    real(DP) :: core_offset
     integer :: nbd, nq, nspn, iter, i, j, ierr_
     character(len=9) :: infoname
     character(len=4) :: gw_control
@@ -686,16 +685,6 @@ module OCEAN_energies
 
 
       close( 99 )
-
-      ! Just for testing. Real version needs site-by-site adjustment
-      inquire(file='core_exchange.inp',exist=file_exists)
-      if( file_exists ) then
-        open(unit=99,file='core_exchange.inp',form='formatted', status='old')
-        read(99,*) core_exchange
-        close(99)
-        core_exchange = core_exchange * eV2Hartree
-        energies( 1 : sys%num_bands, 1 : sys%nkpts, 1 ) = energies( 1 : sys%num_bands, 1 : sys%nkpts, 1 ) + core_exchange
-      endif
     endif
 
 111 continue
