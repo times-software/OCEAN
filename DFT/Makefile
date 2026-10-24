@@ -14,7 +14,8 @@ clean:
 	rm -f periodic.mod periodic.o
 
 install:
-	cp $(SCRIPTS) $(FILES) $(AUX) $(INSTDIR)
+	cp $(SCRIPTS) $(FILES) $(INSTDIR)
+	for F in $(AUX); do ln -sf $$F $(INSTDIR)/; done
 
 instdev:
 	for F in $(SCRIPTS); do ln -fs $(PWD)/$$F $(INSTDEVDIR); done;

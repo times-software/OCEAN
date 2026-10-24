@@ -64,6 +64,7 @@ module OCEAN_exact
 
   contains
 
+#ifdef __HAVE_SCALAPACK
   subroutine OCEAN_exact_init( sys, ierr )
     use OCEAN_mpi
     use OCEAN_system
@@ -178,6 +179,7 @@ module OCEAN_exact
 
 
   end subroutine OCEAN_exact_init
+#endif
 
 
   subroutine OCEAN_exact_diagonalize( sys, hay_vec, ierr, fresh )

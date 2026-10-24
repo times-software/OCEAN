@@ -185,6 +185,7 @@ sub QEsetupNSCF
   print "$targDir   $outDir\n";
   print `pwd`;
   my @fileList = ( "charge-density.dat", "spin-polarization.dat", "occup.txt", 
+                   "charge-density.hdf5", "spin-polarization.hdf5",
                    "charge-density.kin.dat", "ekin-density.dat", 
                    "data-file.xml", "data-file-schema.xml" );
 
@@ -1126,6 +1127,7 @@ sub QEprintInput
     if( $generalRef->{'general'}->{'startingpot'} =~ m/file/ )
     {
       if( -e catfile( "Out", "system.save", "charge-density.dat" ) || 
+        -e catfile( "Out", "system.save", "charge-density.hdf5" ) ||
         -e catfile( "Out", "system.save", "charge-density.xml" ) ) {
         $startingPot = 'file';
         print "  WARNING: restarting from existing charge density!\n";

@@ -39,7 +39,7 @@ clean:
 install:
 	mkdir -p $(INSTDIR)
 	cp $(SCRIPTS) $(AUX) $(INSTDIR)
-	cp $(AUX_EXE) $(INSTDIR)
+	for F in $(AUX_EXE); do ln -sf $$F $(INSTDIR)/; done
 	cd Common;       make install
 	cd DFT;          make install
 	cd PREP;         make install
@@ -52,9 +52,9 @@ install:
 	cd OCEAN2;       make install
 	cd POST;				 make install
 	cd PSP;					 make install
-	chmod 644 $(INSTDIR)/*
+	find $(INSTDIR) -maxdepth 1 -type f -exec chmod 644 {} +
 	chmod 755 $(INSTDIR)/*.pl
-	chmod 755 $(INSTDIR)/*.x
+	find $(INSTDIR) -maxdepth 1 -type f -name '*.x' -exec chmod 755 {} +
 
 instdev:
 	for F in $(SCRIPTS) $(AUX); do ln -fs $(PWD)/$$F $(INSTDEVDIR); done;
