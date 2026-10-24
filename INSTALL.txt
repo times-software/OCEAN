@@ -16,6 +16,14 @@ There are several required and several recommended external software/libraries.
   (download the latest release). The original version of this code can be found at 
   http://www.mat-simresearch.com and all credit for the functionality of the code 
   belongs to D. R. Hamann Phys. Rev. B 88, 085117 (2013) 
+5. Perl modules -- the drivers use JSON::PP, Compress::Zlib and 
+  Module::Load::Conditional. They ship with most Perl installations, but 
+  minimal ones (e.g. on some cluster compute nodes) may lack them.
+6. ScaLAPACK -- optional; needed only for exact diagonalization of the BSE 
+  (add -D__HAVE_SCALAPACK to OPTIONS and the ScaLAPACK library to BLAS).
+
+Note on QuantumESPRESSO: OCEAN reads the QE wavefunctions as wfcN.dat, so QE 
+must be built without HDF5 (QE built with HDF5 writes wfcN.hdf5).
 
 ## Building
 You will need to set up Makefile.arch to match your system. Please see the 
