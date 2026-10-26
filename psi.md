@@ -21,7 +21,7 @@ The OCEAN_vector is the object that holds the core and valence coefficients.
 The data can be distributed in 3 ways. The object tracks which data holders 
 are allocated, which are valid, and this module handles moving data between 
 them. This allows the external interaction routines to always be able to 
-ask for and recieve the expected vector full of valid data. The object also 
+ask for and receive the expected vector full of valid data. The object also 
 keeps track of the MPI communications: communicator, requests, statuses, etc.
 
 
